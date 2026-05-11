@@ -296,7 +296,6 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     url: 'https://goteleport.com/docs/admin-guides/access-controls/device-trust/jamf-integration/',
     cloudHostable: true,
     selfHostable: false,
-    disabledIfNoMdmSupport: true,
     fullName: 'Jamf Integration for Device Trust',
     tags: ['devicetrust'],
     Description: () => (
@@ -422,7 +421,6 @@ export const plugins: (SelfHostedPlugin | CloudHostablePlugin)[] = [
     url: 'https://goteleport.com/docs/zero-trust-access/device-trust/intune-integration/',
     cloudHostable: true,
     selfHostable: true,
-    disabledIfNoMdmSupport: true,
     fullName: 'Microsoft Intune Integration for Device Trust',
     tags: ['devicetrust'],
     Description: () => (

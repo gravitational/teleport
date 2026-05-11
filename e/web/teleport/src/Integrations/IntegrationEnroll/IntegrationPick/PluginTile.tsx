@@ -34,12 +34,6 @@ export function PluginTile({
   const hostedButNoAccess = !hasAccess && plugin.cloudHostable;
 
   const pluginAccess: PluginAccess = (() => {
-    if (
-      plugin.disabledIfNoMdmSupport &&
-      !cfg.entitlements.MobileDeviceManagement.enabled
-    ) {
-      return 'requires-enterprise';
-    }
     if (plugin.requiresIgs && !cfg.entitlements.Identity.enabled) {
       return 'requires-identity';
     }
@@ -116,11 +110,7 @@ export function PluginTile({
   );
 }
 
-type PluginAccess =
-  | 'allowed'
-  | 'denied'
-  | 'requires-enterprise'
-  | 'requires-identity';
+type PluginAccess = 'allowed' | 'denied' | 'requires-identity';
 
 function NoAccessTooltip({
   pluginAccess,
@@ -151,26 +141,6 @@ function NoAccessTooltip({
                 permissions.
               </li>
             </ul>
-          </Box>
-        </ToolTipNoPermBadge>
-      );
-    case 'requires-enterprise':
-      return (
-        <ToolTipNoPermBadge
-          badgeTitle={BadgeTitle.LackingEnterpriseLicense}
-          sticky={true}
-        >
-          <Box textAlign="center" maxWidth="200px">
-            <Text>Unlock {pluginName} plugin with Teleport Enterprise</Text>
-            <ButtonLockedFeature
-              width="165px"
-              mt={2}
-              mb={1}
-              noIcon
-              event={getCTAForPlugin(pluginType)}
-            >
-              Contact Sales
-            </ButtonLockedFeature>
           </Box>
         </ToolTipNoPermBadge>
       );

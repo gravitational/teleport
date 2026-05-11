@@ -1,6 +1,5 @@
 import { FormEvent, useState, type JSX } from 'react';
 import { Link } from 'react-router';
-import styled from 'styled-components';
 
 import {
   Alert,
@@ -19,11 +18,9 @@ import { getErrMessage } from 'shared/utils/errorType';
 
 import cfg from 'e-teleport/config';
 import {
-  getCTAForPlugin,
   pluginsService,
   type CloudHostablePlugin,
 } from 'e-teleport/services/plugins';
-import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 import { getXCSRFToken } from 'teleport/services/api';
 import { Plugin } from 'teleport/services/integrations';
 
@@ -130,19 +127,6 @@ export function SubmittablePluginForm({
     }
   }
 
-  const pluginRequiresPermission =
-    plugin.disabledIfNoMdmSupport &&
-    !cfg.oss.entitlements.MobileDeviceManagement.enabled;
-  let wrapperStyle;
-  if (pluginRequiresPermission) {
-    // blurs the form
-    wrapperStyle = {
-      filter: 'blur(2px)',
-      pointerEvents: 'none',
-      userSelect: 'none',
-    };
-  }
-
   const isPartOfMultiStep = setFormData && !setStaticPluginResponse;
 
   // Integrations with their own layout & setup.
@@ -154,7 +138,7 @@ export function SubmittablePluginForm({
     <Box mt={CustomTitle ? 0 : 3} style={{ position: 'relative' }}>
       {CustomTitle ? <>{CustomTitle}</> : <H1 my={3}>{plugin.fullName}</H1>}
       {plugin.Description && <plugin.Description />}
-      <Box style={wrapperStyle}>
+      <Box>
         {plugin.permissions?.length && (
           <>
             <H2 my={3}>Required permissions</H2>
@@ -241,38 +225,6 @@ export function SubmittablePluginForm({
           </Validation>
         </Box>
       </Box>
-      {pluginRequiresPermission && (
-        <StyledMessageContainer>
-          Unlock {plugin.name} plugin with Teleport Enterprise{' '}
-          <ButtonLockedFeature
-            width="auto"
-            mt={2}
-            mb={1}
-            event={getCTAForPlugin(plugin.type)}
-          >
-            Contact Sales
-          </ButtonLockedFeature>
-        </StyledMessageContainer>
-      )}
     </Box>
   );
 }
-
-const StyledMessageContainer = styled(Flex)`
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  background-color: ${({ theme }) => theme.colors.levels.elevated};
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  padding: 24px;
-  gap: 24px;
-  width: 600px;
-  box-shadow:
-    0 5px 5px -3px rgba(0, 0, 0, 0.2),
-    0 8px 10px 1px rgba(0, 0, 0, 0.14),
-    0 3px 14px 2px rgba(0, 0, 0, 0.12);
-  border-radius: 8px;
-`;

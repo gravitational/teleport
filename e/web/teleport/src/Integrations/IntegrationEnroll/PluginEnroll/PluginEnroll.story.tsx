@@ -1,27 +1,11 @@
 import { useEffect, useState } from 'react';
 
-import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import cfg from 'teleport/config';
 
 import { renderPluginEnroll } from './StorybookHelper';
 
-const defaultMdmFlag = cfg.entitlements.MobileDeviceManagement;
-const defaultIsEnterprise = cfg.isEnterprise;
-
 export default {
   title: 'TeleportE/Integrations/Enroll',
-  decorators: [
-    Story => {
-      useEffect(() => {
-        // Clean up
-        return () => {
-          cfg.entitlements.MobileDeviceManagement = defaultMdmFlag;
-          cfg.isEnterprise = defaultIsEnterprise;
-        };
-      }, []);
-      return <Story />;
-    },
-  ],
 };
 
 export const EnrollSlack = () => renderPluginEnroll('');
@@ -30,29 +14,11 @@ export const EnrollMattermost = () =>
   renderPluginEnroll('', cfg.getIntegrationEnrollRoute('mattermost'));
 
 export const EnrollJamf = () => {
-  cfg.entitlements.MobileDeviceManagement = { enabled: true, limit: 0 };
-  const ctx = createTeleportContextE();
-  return renderPluginEnroll('', cfg.getIntegrationEnrollRoute('jamf'), ctx);
-};
-
-export const EnrollJamfDisabled = () => {
-  cfg.entitlements.MobileDeviceManagement = { enabled: false, limit: 0 };
-  cfg.isEnterprise = true;
-  const ctx = createTeleportContextE();
-  return renderPluginEnroll('', cfg.getIntegrationEnrollRoute('jamf'), ctx);
+  return renderPluginEnroll('', cfg.getIntegrationEnrollRoute('jamf'));
 };
 
 export const EnrollIntune = () => {
-  cfg.entitlements.MobileDeviceManagement = { enabled: true, limit: 0 };
-  const ctx = createTeleportContextE();
-  return renderPluginEnroll('', cfg.getIntegrationEnrollRoute('intune'), ctx);
-};
-
-export const EnrollIntuneDisabled = () => {
-  cfg.entitlements.MobileDeviceManagement = { enabled: false, limit: 0 };
-  cfg.isEnterprise = true;
-  const ctx = createTeleportContextE();
-  return renderPluginEnroll('', cfg.getIntegrationEnrollRoute('intune'), ctx);
+  return renderPluginEnroll('', cfg.getIntegrationEnrollRoute('intune'));
 };
 
 export const EnrollJira = () =>

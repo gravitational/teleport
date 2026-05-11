@@ -18,7 +18,6 @@ import { IntegrationEnroll } from '../IntegrationEnroll';
 
 describe('test PluginPick.tsx', () => {
   const originalCloudFlag = cfg.isCloud; // should be false
-  const originalMdmEntitlement = cfg.entitlements.MobileDeviceManagement;
   const originalExternalAuditStorageEntitlement =
     cfg.entitlements.ExternalAuditStorage;
   beforeEach(() => {
@@ -35,7 +34,6 @@ describe('test PluginPick.tsx', () => {
 
   afterEach(() => {
     cfg.isCloud = originalCloudFlag;
-    cfg.entitlements.MobileDeviceManagement = originalMdmEntitlement;
     cfg.entitlements.ExternalAuditStorage =
       originalExternalAuditStorageEntitlement;
     jest.clearAllMocks();
@@ -53,7 +51,6 @@ describe('test PluginPick.tsx', () => {
 
   test('full access and slack available to enroll', async () => {
     cfg.entitlements.ExternalAuditStorage = { enabled: true, limit: 0 };
-    cfg.entitlements.MobileDeviceManagement = { enabled: true, limit: 0 };
     const ctx = createTeleportContextE();
     renderIntegrationPicker(ctx);
 
@@ -98,7 +95,6 @@ describe('test PluginPick.tsx', () => {
 
   test('no plugin access disables plugin tiles', async () => {
     cfg.entitlements.ExternalAuditStorage = { enabled: true, limit: 0 };
-    cfg.entitlements.MobileDeviceManagement = { enabled: true, limit: 0 };
     const ctx = createTeleportContextE({
       customAcl: { ...allAccessAcl, plugins: noAccess },
     });
@@ -120,7 +116,6 @@ describe('test PluginPick.tsx', () => {
   });
 
   test('no integration access disables integration tiles', async () => {
-    cfg.entitlements.MobileDeviceManagement = { enabled: true, limit: 0 };
     const ctx = createTeleportContextE({
       customAcl: { ...allAccessAcl, integrations: { ...noAccess, use: false } },
     });
@@ -141,19 +136,8 @@ describe('test PluginPick.tsx', () => {
     await screen.findByRole('button', { name: /connect slack/i });
   });
 
-  test('disables jamf plugin tile in plans without MDM', async () => {
+  test('show jamf plugin tiles without MDM entitlement', async () => {
     cfg.entitlements.MobileDeviceManagement = { enabled: false, limit: 0 };
-    const ctx = createTeleportContextE();
-    renderIntegrationPicker(ctx);
-    await screen.findByText(/Integration Type/i);
-
-    // eslint-disable-next-line jest-dom/prefer-enabled-disabled
-    expect(screen.getByTestId('tile-jamf')).toHaveAttribute('disabled');
-    expect(screen.getByTestId('tile-jamf')).not.toHaveAttribute('href');
-  });
-
-  test('show jamf plugin tiles in cloud plan', async () => {
-    cfg.entitlements.MobileDeviceManagement = { enabled: true, limit: 0 };
     const ctx = createTeleportContextE();
     renderIntegrationPicker(ctx);
     await screen.findByText(/Integration Type/i);

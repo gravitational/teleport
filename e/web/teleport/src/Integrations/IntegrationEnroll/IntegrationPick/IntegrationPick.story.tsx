@@ -37,8 +37,6 @@ const onboardSupportPluginKinds: PluginKind[] = [
 ];
 
 const defaultIsCloudFlag = cfg.oss.isCloud;
-const defaultIsEnterprise = cfg.oss.isEnterprise;
-const defaultMdmEntitlement = cfg.oss.entitlements.MobileDeviceManagement;
 const defaultEasEntitlement = cfg.oss.entitlements.ExternalAuditStorage;
 const defaultIdentity = cfg.oss.entitlements.Identity;
 
@@ -47,13 +45,10 @@ export default {
   decorators: [
     Story => {
       cfg.oss.isCloud = true;
-      cfg.oss.isEnterprise = true;
       useEffect(() => {
         // Clean up
         return () => {
           cfg.oss.isCloud = defaultIsCloudFlag;
-          cfg.oss.isEnterprise = defaultIsEnterprise;
-          cfg.oss.entitlements.MobileDeviceManagement = defaultMdmEntitlement;
           cfg.oss.entitlements.ExternalAuditStorage = defaultEasEntitlement;
           cfg.oss.entitlements.Identity = defaultIdentity;
         };
@@ -151,7 +146,6 @@ export const RequiresEnterprise: StoryObj = {
     },
   },
   render() {
-    cfg.oss.entitlements.MobileDeviceManagement = { enabled: false, limit: 0 };
     cfg.oss.entitlements.ExternalAuditStorage = { enabled: false, limit: 0 };
     const ctx = createTeleportContextE();
 
@@ -173,10 +167,8 @@ export const FullFeatures: StoryObj = {
     },
   },
   render() {
-    cfg.oss.entitlements.MobileDeviceManagement = { enabled: true, limit: 0 };
     cfg.oss.entitlements.ExternalAuditStorage = { enabled: true, limit: 0 };
     cfg.oss.entitlements.Identity = { enabled: true, limit: 0 };
-    cfg.oss.isEnterprise = true;
     const ctx = createTeleportContextE();
 
     return render(ctx);
