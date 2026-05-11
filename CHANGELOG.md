@@ -54,10 +54,6 @@ Starting with this release, Teleport Connect only supports automatic upgrades. D
 * Increased verbosity of Teleport Discovery Service logs for VM discovery. [#66553](https://github.com/gravitational/teleport/pull/66553)
 * Improved Teleport Connect startup reliability on Windows. [#66509](https://github.com/gravitational/teleport/pull/66509)
 * Added Azure Discovery With Terraform integration guided flow in Web UI. [#66493](https://github.com/gravitational/teleport/pull/66493)
-* Added a terraform module to support automatic discovery of Azure resources. [#66476](https://github.com/gravitational/teleport/pull/66476)
-* Fixed unnecessary double MFA challenge when adding a MFA device using Web UI. [#66474](https://github.com/gravitational/teleport/pull/66474)
-* Hardened event handler so it recovers in case of malformed session ID or corrupted data directory. [#66473](https://github.com/gravitational/teleport/pull/66473)
-* Added support for multi-domain sign-on to Windows Desktop Service. [#66471](https://github.com/gravitational/teleport/pull/66471)
 * Fixed app access dropping URL fragments through the auth redirect flow. [#66460](https://github.com/gravitational/teleport/pull/66460)
 * Added user traits filtering in Web UI. [#66457](https://github.com/gravitational/teleport/pull/66457)
 * Fixed an issue that could cause LDAP discovery to fail when a single desktop service discovers large numbers of hosts. [#66397](https://github.com/gravitational/teleport/pull/66397)
@@ -71,23 +67,17 @@ Starting with this release, Teleport Connect only supports automatic upgrades. D
 * Fixed an issue where WebAssembly not being available would crash the web UI. [#66216](https://github.com/gravitational/teleport/pull/66216)
 * Added audit events for Azure VM auto-discovery installations, with install script output and exit status. [#66067](https://github.com/gravitational/teleport/pull/66067)
 * Fixed an issue where EC2 auto-discovery could install Teleport on an instance but silently drop the failure when the agent could not join the cluster. A new `ec2-join-failure` user task is now raised with the actual join error message surfaced from the agent's readyz socket. [#66023](https://github.com/gravitational/teleport/pull/66023)
-* Adds EKS support when using AWS discovery with Terraform. [#65675](https://github.com/gravitational/teleport/pull/65675)
-* Added support for `WorkloadIdentity` when using the `--apply-on-startup` and `--bootstrap` flags. [#65581](https://github.com/gravitational/teleport/pull/65581)
-* Fixed a bug where tbot's `/readyz` endpoint would report "unhealthy" even after identity renewal succeeds on-retry. [#65258](https://github.com/gravitational/teleport/pull/65258)
-* Added browser-based MFA option to tsh, enabling passkey/biometric authentication via the browser. [#65239](https://github.com/gravitational/teleport/pull/65239)
 * Added support for both per-machine and per-user installations in Teleport Connect on Windows (Note: VNet is unavailable in per-user mode). [#65173](https://github.com/gravitational/teleport/pull/65173)
 * Enabled silent automatic updates for Teleport Connect per-machine installations on Windows; elevated privileges are now only required during the initial setup. [#65173](https://github.com/gravitational/teleport/pull/65173)
 * Deprecated the `TELEPORT_CDN_BASE_URL` and `TELEPORT_TOOLS_VERSION` environment variables for configuring Teleport Connect Windows updates. These must now be managed via system policy registry keys under `HKEY_LOCAL_MACHINE` or `HKEY_CURRENT_USER\SOFTWARE\Policies\Teleport\TeleportConnect`. The environment variables are still read for compatibility, but per-machine updates may require UAC prompts until configuration is migrated to registry policy keys. [#65173](https://github.com/gravitational/teleport/pull/65173)
 * Automatic updates in Teleport Connect no longer allow app version downgrades (applies to all platforms). [#65173](https://github.com/gravitational/teleport/pull/65173)
-* Add VNet support for Teleport Connect on Linux. [#64737](https://github.com/gravitational/teleport/pull/64737)
-* Added Linux support for VNet. [#64736](https://github.com/gravitational/teleport/pull/64736)
 * Added support for reverse tunnel agent stale connection timeout detection and recovery. [#62531](https://github.com/gravitational/teleport/pull/62531)
 
 Enterprise:
-* Reject AWSIC System Credentials on Teleport Cloud.
+* Reject AWS Identity Center System Credentials on Teleport Cloud.
 * Validate AWS Identity Center install credentials with AWS API calls.
 * Added support for Terraform configuration generation in the Access List creation wizard in the web UI, allowing users to deploy their Access List via Terraform.
-* Fix a potential deadlock caused by incorrectly reacquiring the pool in the CRDB flow.
+* Fix a potential deadlock in the CockroachDB backend.
 * Handle mapping of groups for Entra ID SAML logins when user is member of 150+ groups.
 * Enterprise licenses with a devices limit for device trust can now enroll unlimited devices.
 
