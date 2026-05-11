@@ -22,6 +22,7 @@ use iso7816::command::Command;
 use iso7816::response::Status;
 use iso7816_tlv::ber::{Tag, Tlv, Value};
 use log::{debug, warn};
+use rand::{RngCore, TryRngCore};
 use rsa::pkcs1::DecodeRsaPrivateKey;
 use rsa::traits::{PrivateKeyParts, PublicKeyParts};
 use rsa::{BigUint, RsaPrivateKey};
@@ -454,10 +455,13 @@ impl<const S: usize> Card<S> {
             0xff, // Manufacturer ID - e.g., Yubikey uses 0xff.
             0x02, // Card Type - Java Card.
         ]);
-        // Card Identifier - random 14 bytes; comprises a GUID when concatenated with the previous slice.
-        card_identifier.extend_from_slice(&[
-            0x0c, 0x0a, 0x4a, 0x60, 0xef, 0xa6, 0x5a, 0x6a, 0x1a, 0xc3, 0x36, 0x94, 0x57, 0x94,
-        ]);
+        // CardID - random 14 bytes to fill out the rest of the Card Identifier (21 bytes).
+        // Generating a unique one per CCC is more future-proof than hardcoding.
+        card_identifier.extend_from_slice(&{
+            let mut bytes = [0u8; 14];
+            rand::rngs::OsRng.unwrap_err().fill_bytes(&mut bytes);
+            bytes
+        });
         card_identifier[TLV_L_IDX] = (card_identifier.len() - TLV_TL_SIZE) as u8;
 
         ccc.extend_from_slice(&card_identifier);
