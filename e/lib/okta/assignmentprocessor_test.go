@@ -20,6 +20,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	oktaapi "github.com/gravitational/teleport/e/lib/okta/api"
@@ -629,6 +630,79 @@ func Test_assignmentProcessor_targetProcessingTimeout(t *testing.T) {
 	})
 }
 
+// Test_assignmentProcessor_GetAccessListMember_error checks that when AccessList service fails to
+// get a member for reasons different that NotFound, it results in processing failure and and audit
+// event.
+//
+// If it isn't a critical error, then it may lead to race when an Okta-side managed assignment is
+// deleted resulting in re-creating the assignment.
+func Test_assignmentProcessor_GetAccessListMember_error(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+	ap := newTestAccessPoint(t, clock)
+	oktaClient, oktaData := oktaapitest.NewLocalDataClient(t)
+	oktaClient.OrgURLFunc = func(t *testing.T) string { return oktaapitest.TestOrgURL }
+	svc, emitter := newTestService(t, ap, oktaClient, withClock(clock))
+	processor := svc.assignmentReconciler.assignmentProcessor
+
+	const groupName = "group1"
+	const testUser = "test-user@test.user"
+	const testUserOktaID = "okta-user-id"
+
+	oktaData.UpsertUserForId(testUser, testUserOktaID)
+	oktaData.UpsertGroupForId(groupName)
+
+	// Synchronize to populate newGroups.
+	require.NoError(t, svc.synchronize(ctx))
+	// Drain events.
+	collectAllEvents(t, emitter, new([]apievents.AuditEvent))
+
+	assignment1, err := ap.CreateOktaAssignment(ctx, assignment(t, "assignment1", testUser, time.Time{}, constants.OktaAssignmentStatusPending, clock.Now(), false,
+		target(types.OktaAssignmentTargetV1_GROUP, groupName),
+	))
+	require.NoError(t, err)
+
+	// When any other error than NotFound is encountered while checking AccessList membership,
+	// it's a failure.
+	processor.accessPoint.accessListService = &failingAccessListService{
+		err: trace.Errorf("test access list service error"),
+	}
+	_ = processor.processAssignment(ctx, processor.logger, assignment1)
+
+	assignment1, err = ap.GetOktaAssignment(ctx, assignment1.GetName())
+	require.NoError(t, err)
+	require.Equal(t, constants.OktaAssignmentStatusFailed, assignment1.GetStatus())
+
+	event := requireAuditEvent[*apievents.OktaAssignmentResult](t, emitter)
+	require.Equal(t, events.OktaAssignmentProcessEvent, event.GetType())
+	require.Equal(t, events.OktaAssignmentProcessFailureCode, event.GetCode())
+	require.Equal(t, constants.OktaAssignmentStatusPending, event.StartingStatus)
+	require.Equal(t, constants.OktaAssignmentStatusFailed, event.EndingStatus)
+	require.Contains(t, event.Error, `failed to provision target "group:group1": failed to check user's AccessList membership: test access list service error`)
+
+	// But not found is OK.
+	processor.accessPoint.accessListService = &failingAccessListService{
+		err: trace.NotFound("NotFound should be handled as a happy path"),
+	}
+	// We need to advance clock so the failed assignment is processed, otherwise
+	// assignmentProcessor.shouldProcess() will return false.
+	clock.Advance(oktaplugin.DefaultTimeBetweenAssignmentProcessLoops)
+	_ = processor.processAssignment(ctx, processor.logger, assignment1)
+
+	assignment1, err = ap.GetOktaAssignment(ctx, assignment1.GetName())
+	require.NoError(t, err)
+	require.Equal(t, constants.OktaAssignmentStatusSuccessful, assignment1.GetStatus())
+
+	event = requireAuditEvent[*apievents.OktaAssignmentResult](t, emitter)
+	require.Equal(t, events.OktaAssignmentProcessEvent, event.GetType())
+	require.Equal(t, events.OktaAssignmentProcessSuccessCode, event.GetCode())
+	require.Equal(t, constants.OktaAssignmentStatusFailed, event.StartingStatus)
+	require.Equal(t, constants.OktaAssignmentStatusSuccessful, event.EndingStatus)
+	require.Empty(t, event.Error)
+}
+
 // This test checks if assignments are processed in order from the highest to lowest priority.
 func Test_assignmentProcessor_processAssignments_priority(t *testing.T) {
 	t.Parallel()
@@ -918,3 +992,11 @@ func requireEqualOktaAssignments(t *testing.T, expected, actual []types.OktaAssi
 type dummyEmitter struct{}
 
 func (dummyEmitter) EmitAuditEvent(context.Context, apievents.AuditEvent) error { return nil }
+
+type failingAccessListService struct {
+	err error
+}
+
+func (s failingAccessListService) GetAccessListMember(context.Context, string, string) (*accesslist.AccessListMember, error) {
+	return nil, s.err
+}

@@ -448,7 +448,8 @@ func (a *assignmentProcessor) provisionTarget(ctx context.Context, logger *slog.
 	case trace.IsNotFound(err):
 		// User member, nothing to check.
 	case err != nil:
-		logger.WarnContext(ctx, "Failed to check access list membership", "error", err)
+		logger.ErrorContext(ctx, "Failed to check user's AccessList membership", "error", err)
+		return trace.Wrap(newTargetAuditError(target, opProvision, trace.Errorf("failed to check user's AccessList membership: %s", err)))
 	}
 
 	var registerErr error
