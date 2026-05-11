@@ -51,7 +51,7 @@ func (f *AWSConfigProvider) GetConfig(ctx context.Context, region string, optFns
 		stsClt = &STSClient{}
 	}
 
-	// Build a minimal aws.Config without loading the developer's local shared config (~/.aws/config).
+	// Build a minimal aws.Config without loading the local machines shared config (~/.aws/config).
 	// Apply the assume-role chain manually using the mock STS client so tests can verify which roles were assumed.
 	cfg := aws.Config{Region: region}
 	stsClientProvider := NewAssumeRoleClientProviderFunc(stsClt)
