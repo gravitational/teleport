@@ -1,4 +1,4 @@
-# Access Graph Api Client
+# Access Graph API Client
 
 This package holds the implementation for the Access Graph client. This is used by `tctl` to make calls to access graph through the Proxy directly using a Cert with `usage:access_graph_api`.
 
