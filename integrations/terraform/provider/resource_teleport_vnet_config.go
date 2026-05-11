@@ -265,6 +265,11 @@ func (r resourceTeleportVnetConfig) Update(ctx context.Context, req tfsdk.Update
 	}
 
 	vnetConfig = vnetConfigI
+	diags = schemav1.CopyVnetConfigToTerraform(ctx, vnetConfig, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)

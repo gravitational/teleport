@@ -265,6 +265,11 @@ func (r resourceTeleportRetrievalModel) Update(ctx context.Context, req tfsdk.Up
 	}
 
 	retrievalModel = retrievalModelI
+	diags = schemav1.CopyRetrievalModelToTerraform(ctx, retrievalModel, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)

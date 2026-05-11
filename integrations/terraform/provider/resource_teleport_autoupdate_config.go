@@ -265,6 +265,11 @@ func (r resourceTeleportAutoUpdateConfig) Update(ctx context.Context, req tfsdk.
 	}
 
 	autoUpdateConfig = autoUpdateConfigI
+	diags = schemav1.CopyAutoUpdateConfigToTerraform(ctx, autoUpdateConfig, &plan)
+	resp.Diagnostics.Append(diags...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
