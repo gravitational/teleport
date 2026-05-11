@@ -201,6 +201,8 @@
     "Passcode",
     "Passwordless",
     "Pbbd",
+    "pg_trgm",
+    "pgvector",
     "Pluggable",
     "Println",
     "Pulumi",
