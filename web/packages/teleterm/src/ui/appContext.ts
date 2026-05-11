@@ -235,7 +235,7 @@ export default class AppContext implements IAppContext {
             }
             return this.workspacesService.addWorkspace({
               uri,
-              proxyHost: cluster.uri,
+              proxyHost: cluster.proxyHost,
             });
           case 'did-change-access':
             if (!this.clustersService.findCluster(uri).connected) {
