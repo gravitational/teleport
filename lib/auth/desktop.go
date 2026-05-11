@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/subca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/winpki"
@@ -89,6 +90,21 @@ func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Calculate CA override.
+	subCAResolver, err := subca.NewCAOverrideResolver(a.Cache, a.subCAEnabled)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	overrideResult, err := subCAResolver.CalculateOverride(ctx, types.CertAuthorityOverrideID{
+		ClusterName: ca.GetClusterName(),
+		CAType:      string(ca.GetType()),
+	}, subca.Certificate{PEM: caCert})
+	if err != nil {
+		return nil, trace.Wrap(err, "calculate CA override")
+	}
+	caCert = overrideResult.CACertificate.PEM
+
 	tlsCA, err := tlsca.FromCertAndSigner(caCert, signer)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -151,7 +167,8 @@ func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 		return nil, trace.Wrap(err)
 	}
 	return &proto.WindowsDesktopCertResponse{
-		Cert: cert,
+		Cert:       cert,
+		CaOverride: overrideResult.ToClientOverrideDetailsProto(),
 	}, nil
 }
 
