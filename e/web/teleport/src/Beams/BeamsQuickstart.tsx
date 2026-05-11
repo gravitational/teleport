@@ -223,7 +223,7 @@ tsh beams add --no-console
 ### Step 2: Run a command and view its output
 
 \`\`\`
-tsh beams exec <identitier> 'echo "Describe the environment and its capabilities" | codex e --yolo'
+tsh beams exec <beam-id> 'echo "Describe the environment and its capabilities" | codex e --yolo'
 \`\`\`
 
 💡 This command submits a simple prompt to codex and disables approvals and sandboxing.
@@ -233,7 +233,7 @@ tsh beams exec <identitier> 'echo "Describe the environment and its capabilities
 #### Use a \`tmux\` session
 
 \`\`\`
-tsh beams exec <identitier> 'tmux new -d -s web-server -- python3 -m http.server 8080'
+tsh beams exec <beam-id> 'tmux new -d -s web-server -- python3 -m http.server 8080'
 \`\`\`
 
 💡 This command creates a new, detached \`tmux\` session called "web-server" in which the command is executed.
@@ -241,7 +241,7 @@ tsh beams exec <identitier> 'tmux new -d -s web-server -- python3 -m http.server
 #### Later, attach to the session to view output or end the running task
 
 \`\`\`
-tsh beams console <identitier>
+tsh beams ssh <beam-id>
 \`\`\`
 
 From the beam's shell
@@ -255,7 +255,7 @@ tmux attach
 ### Step 3: When you're done, delete the Beam
 
 \`\`\`
-tsh beams rm <identitier>
+tsh beams rm <beam-id>
 \`\`\`
 
 ♻️ Beams are automatically garbage collected after 24hrs.
@@ -287,7 +287,7 @@ tsh beams add --no-console
 ### Step 2: Setup secure access to the Beam from your browser
 
 \`\`\`
-tsh beams publish <identitier>
+tsh beams publish <beam-id>
 \`\`\`
 
 ‼️ **Take note of the Beam's web URL, you'll use this to access the app later.**
@@ -298,15 +298,13 @@ tsh beams publish <identitier>
 ### Step 3: Co-create a basic web application
 
 \`\`\`
-tsh beams console $BEAM_ID
+tsh beams ssh <beam-id>
 \`\`\`
 
 4. Co-create a basic web application;
 
 \`\`\`
-beam@my-beam:~# mkdir calc-app && cd calc-app/
-beam@my-beam:~/calc-app# claude --print 'Create a simple calculator app. Use Vite, TypeScript and React. Add a package script to start the app in dev mode on port 8080 with network access.'
-beam@my-beam:~/calc-app# npm run dev
+claude
 \`\`\`
 
 ✨ There's no need to install, configure or authenticate Claude Code, it works out of the box.
@@ -326,15 +324,17 @@ npm run dev
   `
 ### Step 4: View the app in your browser
 
+To find the app's URL, use the beams list as a reference
+
 \`\`\`
-https://<identitier>.:cluster_public_url/
+tsh beams ls
 \`\`\`
 `,
   `
 ### Step 5: To end your vibe-coding session, delete the Beam
 
 \`\`\`
-tsh beams rm <identitier>
+tsh beams rm <beam-id>
 \`\`\`
 
 ♻️ Beams are automatically garbage collected after 24hrs.
@@ -344,7 +344,7 @@ tsh beams rm <identitier>
 Copy the app folder from the beam to your local filesystem;
 
 \`\`\`
-tsh beams scp --recursive <identitier>:/home/beams/calc-app ./calc-app
+tsh beams scp --recursive <beam-id>:/home/beams/calc-app ./calc-app
 \`\`\`
 </details>
 `,
@@ -391,7 +391,7 @@ node examples/anthropic_hello.js
 ### Step 4: When you're done, delete the Beam
 
 \`\`\`
-tsh beams rm <identitier>
+tsh beams rm <beam-id>
 \`\`\`
 
 ♻️ Beams are automatically garbage collected after 24hrs.
