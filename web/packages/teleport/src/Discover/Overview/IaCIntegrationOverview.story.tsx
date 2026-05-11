@@ -33,12 +33,12 @@ export default {
 };
 
 const integrationName = 'my-terraform-integration';
-const initialEntries = [
-  cfg.getIaCIntegrationRoute(IntegrationKind.AwsOidc, integrationName),
-];
 const path = cfg.routes.integrationOverview;
 
-function Component() {
+function Component({
+  kind = IntegrationKind.AwsOidc,
+}: { kind?: IntegrationKind } = {}) {
+  const initialEntries = [cfg.getIaCIntegrationRoute(kind, integrationName)];
   return (
     <TeleportProviderBasic initialEntries={initialEntries}>
       <ToastNotifications />
@@ -263,6 +263,56 @@ Error.parameters = {
           { status: 500 }
         );
       }),
+    ],
+  },
+};
+
+export function AzureWithWildcardSubscription() {
+  return <Component kind={IntegrationKind.AzureOidc} />;
+}
+AzureWithWildcardSubscription.parameters = {
+  msw: {
+    handlers: [
+      http.get(cfg.getIntegrationStatsUrl(integrationName), () =>
+        HttpResponse.json({
+          name: integrationName,
+          subKind: IntegrationKind.AzureOidc,
+          unresolvedUserTasks: 0,
+          userTasks: [],
+          azurevm: {
+            resourcesFound: 3,
+            discoverLastSync: Date.now() - 2 * 60 * 1000,
+          },
+          isManagedByTerraform: true,
+        })
+      ),
+      http.get(`*/integrations/${integrationName}`, () =>
+        HttpResponse.json({
+          name: integrationName,
+          subKind: IntegrationKind.AzureOidc,
+          azureoidc: {
+            tenantId: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+            clientId: 'ffffffff-0000-1111-2222-333333333333',
+            managedIdentity: {
+              resourceGroup: 'my-resource-group',
+              region: 'eastus',
+            },
+          },
+        })
+      ),
+      http.get(`*/integrations/${integrationName}/discoveryrules`, () =>
+        HttpResponse.json({
+          rules: [
+            {
+              resourceType: 'vm',
+              region: 'eastus',
+              subscriptions: ['*'],
+              resourceGroups: [],
+              labelMatcher: [],
+            },
+          ],
+        })
+      ),
     ],
   },
 };
