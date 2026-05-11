@@ -690,7 +690,7 @@ describe('setActiveWorkspace', () => {
 });
 
 describe('clearWorkspace', () => {
-  it('preserves remembered workspace state while clearing session state', () => {
+  it('preserves proxy host and color for later workspace reuse', () => {
     const clusterFoo = makeRootCluster({ uri: '/clusters/foo' });
     const clusterBar = makeRootCluster({ uri: '/clusters/bar' });
     const { workspacesService } = getTestSetup({
