@@ -263,7 +263,6 @@ func getResourceFromRequest(req *http.Request, kubeDetails *kubeDetails) (metaRe
 // It reads the full body - required because data can be proto encoded -
 // and decodes it into a Kubernetes object. It then extracts the resource name
 // from the object.
-// The body is then reset to the original request body using a new buffer.
 func extractResourceNameFromPostRequest(
 	req *http.Request,
 	codecs *serializer.CodecFactory,
@@ -289,9 +288,20 @@ func extractResourceNameFromPostRequest(
 	if err := req.Body.Close(); err != nil {
 		return "", trace.Wrap(err)
 	}
-	req.Body = io.NopCloser(newBody)
+
+	// The body is replaced with a replayable reader, and [http.Request.GetBody] is
+	// set so the upstream transport can retry the request after a GOAWAY without
+	// failing on the unrewindable network-side body.
+	// See https://github.com/gravitational/teleport/issues/65611
+	bodyBytes := newBody.Bytes()
+	req.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+	req.GetBody = func() (io.ReadCloser, error) {
+		return io.NopCloser(bytes.NewReader(bodyBytes)), nil
+	}
+	req.ContentLength = int64(len(bodyBytes))
+
 	// decode memory rw body.
-	obj, err := decodeAndSetGVK(decoder, newBody.Bytes(), defaults)
+	obj, err := decodeAndSetGVK(decoder, bodyBytes, defaults)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
