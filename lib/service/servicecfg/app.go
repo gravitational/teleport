@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/app/common"
+	"github.com/gravitational/teleport/lib/srv/app/policy"
 )
 
 // AppsConfig configures application proxy service.
@@ -124,6 +125,10 @@ type App struct {
 
 	// TLS contains the app TLS configuration.
 	TLS *types.AppTLS
+
+	// Policies are the compiled policy-based App Access rules attached
+	// to this app. Empty means no per-request filtering.
+	Policies []policy.Policy
 }
 
 // CORS represents the configuration for Cross-Origin Resource Sharing (CORS)

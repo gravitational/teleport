@@ -2406,6 +2406,74 @@ type Apps struct {
 
 	// ResourceMatchers match cluster application resources.
 	ResourceMatchers []ResourceMatcher `yaml:"resources,omitempty"`
+
+	// Policies are file-local named policies referenced by name from
+	// apps[].policies. See the RFD on policy-based App Access.
+	Policies []AppAccessPolicy `yaml:"policies,omitempty"`
+}
+
+// AppAccessPolicy is the YAML shape of a named policy attached to one
+// or more apps. A policy may hold any combination of allow and deny
+// rules; at least one of the two must be set.
+type AppAccessPolicy struct {
+	// Name is the policy identifier, unique within its scope.
+	Name string `yaml:"name"`
+	// Allow is the list of allow rules.
+	Allow []AppAccessPolicyRule `yaml:"allow,omitempty"`
+	// Deny is the list of deny rules.
+	Deny []AppAccessPolicyRule `yaml:"deny,omitempty"`
+}
+
+// AppAccessPolicyRule is one match clause inside a policy.
+type AppAccessPolicyRule struct {
+	// Paths is the list of path patterns to match.
+	Paths []string `yaml:"paths,omitempty"`
+	// Methods is the list of HTTP methods to match. Empty or "*" means any.
+	Methods []string `yaml:"methods,omitempty"`
+	// Where is an optional Teleport predicate expression.
+	Where string `yaml:"where,omitempty"`
+	// ReasonCode is the machine-readable identifier surfaced in audit and
+	// 403 responses. Defaults to the policy name on allow rules and to
+	// teleport_explicit_deny on deny rules.
+	ReasonCode string `yaml:"reason_code,omitempty"`
+	// Reason is the human-readable string returned to the user.
+	Reason string `yaml:"reason,omitempty"`
+}
+
+// AppAccessPolicyRef is one entry in an app's policies list. It is
+// either a string (referencing a name in app_service.policies) or an
+// inline AppAccessPolicy.
+type AppAccessPolicyRef struct {
+	// Name is set when the entry is a bare string referencing a
+	// file-local policy by name.
+	Name string `yaml:"-"`
+	// Inline is set when the entry is an inline policy spec.
+	Inline *AppAccessPolicy `yaml:"-"`
+}
+
+// UnmarshalYAML implements yaml.Unmarshaler. Accepts either a bare
+// string or a map.
+func (r *AppAccessPolicyRef) UnmarshalYAML(unmarshal func(any) error) error {
+	var s string
+	if err := unmarshal(&s); err == nil {
+		r.Name = s
+		return nil
+	}
+	var inline AppAccessPolicy
+	if err := unmarshal(&inline); err != nil {
+		return err
+	}
+	r.Inline = &inline
+	return nil
+}
+
+// MarshalYAML implements yaml.Marshaler. Emits a bare string when only
+// Name is set; otherwise emits the inline policy.
+func (r AppAccessPolicyRef) MarshalYAML() (any, error) {
+	if r.Inline == nil {
+		return r.Name, nil
+	}
+	return r.Inline, nil
 }
 
 // App is the specific application that will be proxied by the application
@@ -2471,6 +2539,10 @@ type App struct {
 
 	// TLS contains the app TLS configuration.
 	TLS *AppTLS `yaml:"tls,omitempty"`
+
+	// Policies attaches the named or inline app-access policies to this
+	// app. See RFD on policy-based App Access.
+	Policies []AppAccessPolicyRef `yaml:"policies,omitempty"`
 }
 
 // CORS represents the configuration for Cross-Origin Resource Sharing (CORS)

@@ -66,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/app/policy"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	awsregion "github.com/gravitational/teleport/lib/utils/aws/region"
@@ -2046,6 +2047,21 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	// Apps are enabled.
 	cfg.Apps.Enabled = true
 
+	// Compile the file-local named policies first so app entries can
+	// resolve string references against them.
+	var library []policy.Policy
+	if len(fc.Apps.Policies) > 0 {
+		specs := make([]policy.Spec, 0, len(fc.Apps.Policies))
+		for _, p := range fc.Apps.Policies {
+			specs = append(specs, convertPolicySpec(p))
+		}
+		var err error
+		library, err = policy.CompileAll(specs)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	// Log when proxy_service is enabled in the same config but has no
 	// public_addr. The proxy falls back to the cluster name for the
 	// auth redirect. Per-app public_addr controls the app's FQDN but
@@ -2189,10 +2205,76 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		if err := app.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
+
+		if len(application.Policies) > 0 {
+			// Policies enforce per-HTTP-request authorization. TCP, MCP,
+			// and LLM apps reach the agent through non-HTTP paths and
+			// would silently bypass the gate.
+			if len(application.TCPPorts) > 0 {
+				return trace.BadParameter("app %q: policies are not supported on TCP apps", application.Name)
+			}
+			if application.MCP != nil {
+				return trace.BadParameter("app %q: policies are not supported on MCP apps", application.Name)
+			}
+			if application.LLM != nil {
+				return trace.BadParameter("app %q: policies are not supported on LLM apps", application.Name)
+			}
+			// public_addr is the lookup key the connections handler uses
+			// to find this app's policies at request time. If it is left
+			// empty Teleport resolves it later from app.Name + proxy
+			// host, but that happens after the policy map is built,
+			// which would silently skip enforcement.
+			if application.PublicAddr == "" {
+				return trace.BadParameter("app %q: policies require an explicit public_addr", application.Name)
+			}
+			refs := convertPolicyRefs(application.Policies)
+			resolved, err := policy.Resolve(library, refs)
+			if err != nil {
+				return trace.Wrap(err, "resolving policies for app %q", application.Name)
+			}
+			app.Policies = resolved
+		}
+
 		cfg.Apps.Apps = append(cfg.Apps.Apps, app)
 	}
 
 	return nil
+}
+
+func convertPolicySpec(p AppAccessPolicy) policy.Spec {
+	out := policy.Spec{Name: p.Name}
+	for _, r := range p.Allow {
+		out.Allow = append(out.Allow, policy.RuleSpec{
+			Paths:      r.Paths,
+			Methods:    r.Methods,
+			Where:      r.Where,
+			ReasonCode: r.ReasonCode,
+			Reason:     r.Reason,
+		})
+	}
+	for _, r := range p.Deny {
+		out.Deny = append(out.Deny, policy.RuleSpec{
+			Paths:      r.Paths,
+			Methods:    r.Methods,
+			Where:      r.Where,
+			ReasonCode: r.ReasonCode,
+			Reason:     r.Reason,
+		})
+	}
+	return out
+}
+
+func convertPolicyRefs(refs []AppAccessPolicyRef) []policy.Ref {
+	out := make([]policy.Ref, 0, len(refs))
+	for _, r := range refs {
+		if r.Inline != nil {
+			spec := convertPolicySpec(*r.Inline)
+			out = append(out, policy.Ref{Inline: &spec})
+			continue
+		}
+		out = append(out, policy.Ref{Name: r.Name})
+	}
+	return out
 }
 
 // applyMetricsConfig applies file configuration for the "metrics_service" section.
