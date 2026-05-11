@@ -53,6 +53,7 @@ export interface ClusterLifecycleEvent {
    * * did-add-cluster - A cluster has been successfully added.
    * * did-change-access - The logged-in user has changed, or their roles,
    * or access requests have been updated.
+   * * did-change-proxy-host - The proxy address saved in the profile has changed.
    * * will-logout - The user is about to be logged out, but Connect should
    * keep the workspace as remembered cluster state.
    * * will-forget-cluster - The user is about to forget the cluster in
@@ -61,6 +62,7 @@ export interface ClusterLifecycleEvent {
   op:
     | 'did-add-cluster'
     | 'did-change-access'
+    | 'did-change-proxy-host'
     | 'will-logout'
     | 'will-forget-cluster';
 }
@@ -155,14 +157,7 @@ export class ClusterLifecycleManager {
 
   async syncCluster(uri: RootClusterUri): Promise<void> {
     const { previous, next } = await this.clusterStore.sync(uri);
-    if (!hasAccessChanged(previous.loggedInUser, next.loggedInUser)) {
-      return;
-    }
-
-    await this.rendererEventHandler.send({
-      op: 'did-change-access',
-      uri: next.uri,
-    });
+    await this.emitClusterChangedEvents(previous, next);
   }
 
   async syncRootClustersAndStartProfileWatcher(): Promise<void> {
@@ -274,14 +269,7 @@ export class ClusterLifecycleManager {
     // user logged in again via tsh and the auth server has disconnect_expired_cert enabled.
     await client.clearStaleClusterClients({ rootClusterUri: next.uri });
     await this.syncOrUpdateCluster(next);
-
-    if (!hasAccessChanged(previous.loggedInUser, next.loggedInUser)) {
-      return;
-    }
-    await this.rendererEventHandler.send({
-      op: 'did-change-access',
-      uri: next.uri,
-    });
+    await this.emitClusterChangedEvents(previous, next);
   }
 
   private async handleClusterRemoved(cluster: Cluster): Promise<void> {
@@ -307,6 +295,25 @@ export class ClusterLifecycleManager {
     const client = await this.getTshdClient();
     await client.logout({ clusterUri: cluster.uri, removeProfile: false });
     await this.syncOrUpdateCluster(cluster);
+  }
+
+  private async emitClusterChangedEvents(
+    previous: Cluster,
+    next: Cluster
+  ): Promise<void> {
+    if (previous.proxyHost !== next.proxyHost) {
+      await this.rendererEventHandler.send({
+        op: 'did-change-proxy-host',
+        uri: next.uri,
+      });
+    }
+
+    if (hasAccessChanged(previous.loggedInUser, next.loggedInUser)) {
+      await this.rendererEventHandler.send({
+        op: 'did-change-access',
+        uri: next.uri,
+      });
+    }
   }
 
   private handleWatcherError(watcherError: ProfileWatcherError): void {

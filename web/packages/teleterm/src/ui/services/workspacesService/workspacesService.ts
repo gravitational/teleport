@@ -467,14 +467,33 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     proxyHost: string;
   }): void {
     if (this.state.workspaces[uri]) {
+      this.updateWorkspaceProxyHost({ uri, proxyHost });
       return;
     }
+
     this.setState(draftState => {
       draftState.workspaces[uri] = getWorkspaceDefaultState(
         uri,
         draftState.workspaces,
         { proxyHost }
       );
+    });
+  }
+
+  updateWorkspaceProxyHost({
+    uri,
+    proxyHost,
+  }: {
+    uri: RootClusterUri;
+    proxyHost: string;
+  }): void {
+    const workspace = this.state.workspaces[uri];
+    if (!workspace || !proxyHost || workspace.proxyHost === proxyHost) {
+      return;
+    }
+
+    this.setState(draftState => {
+      draftState.workspaces[uri].proxyHost = proxyHost;
     });
   }
 

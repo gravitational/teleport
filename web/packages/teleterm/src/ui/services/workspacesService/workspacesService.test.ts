@@ -687,6 +687,29 @@ describe('clearWorkspace', () => {
   });
 });
 
+describe('updateWorkspaceProxyHost', () => {
+  it('updates the remembered proxy host for an existing workspace', () => {
+    const cluster = makeRootCluster({
+      uri: '/clusters/foo.example.com',
+      proxyHost: 'foo.example.com:443',
+    });
+    const { workspacesService } = getTestSetup({
+      cluster,
+      persistedWorkspaces: {},
+    });
+    workspacesService.addWorkspace(cluster);
+
+    workspacesService.updateWorkspaceProxyHost({
+      uri: cluster.uri,
+      proxyHost: 'proxy.foo.example.com:443',
+    });
+
+    expect(workspacesService.getWorkspace(cluster.uri).proxyHost).toBe(
+      'proxy.foo.example.com:443'
+    );
+  });
+});
+
 function getTestSetup(options: {
   cluster: tshd.Cluster | tshd.Cluster[] | undefined;
   persistedWorkspaces: WorkspacesPersistedState['workspaces'];

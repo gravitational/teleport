@@ -237,6 +237,15 @@ export default class AppContext implements IAppContext {
               uri,
               proxyHost: cluster.proxyHost,
             });
+          case 'did-change-proxy-host':
+            const updatedCluster = this.clustersService.findCluster(uri);
+            if (!updatedCluster) {
+              throw new Error(`Cluster ${uri} does not exist`);
+            }
+            return this.workspacesService.updateWorkspaceProxyHost({
+              uri,
+              proxyHost: updatedCluster.proxyHost,
+            });
           case 'did-change-access':
             if (!this.clustersService.findCluster(uri).connected) {
               // Only refresh resources when the cluster is connected.
