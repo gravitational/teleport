@@ -48,6 +48,9 @@ func (c *Cache) GetCertAuthorityOverride(
 				return nil, trace.Wrap(err)
 			}
 			resource, err := c.SubCAService.GetCertAuthorityOverride(ctx, *id)
+			if trace.IsNotImplemented(err) {
+				return nil, trace.NotFound("ca overrides not implemented")
+			}
 			return resource, trace.Wrap(err)
 		},
 	}
@@ -67,6 +70,9 @@ func (c *Cache) ListCertAuthorityOverrides(ctx context.Context, pageSize int, pa
 		index:      certAuthorityOverrideCacheNameIndex,
 		upstreamList: func(ctx context.Context, pageSize int, pageToken string) ([]*subcav1.CertAuthorityOverride, string, error) {
 			out, next, err := c.SubCAService.ListCertAuthorityOverrides(ctx, pageSize, pageToken)
+			if trace.IsNotImplemented(err) {
+				return nil, "", nil
+			}
 			return out, next, trace.Wrap(err)
 		},
 		nextToken: caOverrideCacheName,
@@ -102,7 +108,11 @@ func newCertAuthorityOverrideCollection(
 			out, err := stream.Collect(clientutils.Resources(
 				ctx,
 				func(ctx context.Context, pageSize int, pageToken string) ([]*subcav1.CertAuthorityOverride, string, error) {
-					return upstream.ListCertAuthorityOverrides(ctx, pageSize, pageToken)
+					out, nextPageToken, err := upstream.ListCertAuthorityOverrides(ctx, pageSize, pageToken)
+					if trace.IsNotImplemented(err) {
+						return nil, "", nil
+					}
+					return out, nextPageToken, trace.Wrap(err)
 				}))
 			return out, trace.Wrap(err)
 		},
