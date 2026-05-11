@@ -255,6 +255,11 @@ func (s *Service[T]) Resources(ctx context.Context, startKey, endKey string) ite
 	return stream.TakeWhile(
 		stream.FilterMap(s.backend.Items(ctx, params), mapFn),
 		func(r T) bool {
+			// We promise the consumers of this function that the returned
+			// results an exclusive of the endkey but the underlying Items
+			// method returns us a stream that's inclusive of the end key - so
+			// if the user has provided us an end-key, we manually filter them
+			// out to convert from inclusive to exclusive.
 			return endKey == "" || r.GetName() < endKey
 		},
 	)
