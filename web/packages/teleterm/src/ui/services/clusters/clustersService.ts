@@ -363,8 +363,7 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
   }
 
   async addCluster(proxy: string) {
-    // The main process sends the cluster-store update before this resolves.
-    await this.mainProcessClient.addCluster(proxy);
+    return await this.mainProcessClient.addCluster(proxy);
   }
 
   findCluster(clusterUri: uri.ClusterUri) {

@@ -174,6 +174,29 @@ describe('restoring workspace', () => {
     expect(workspacesService.getWorkspace(orphanClusterUri)).toBeDefined();
   });
 
+  it('skips workspaces without a matching cluster or saved proxy host', () => {
+    const orphanClusterUri = '/clusters/orphan';
+    const orphanWorkspace: PersistedWorkspace = {
+      // No stored proxy host.
+      proxyHost: undefined,
+      localClusterUri: orphanClusterUri,
+      documents: [],
+      location: undefined,
+    };
+
+    const { workspacesService } = getTestSetup({
+      // No matching cluster.
+      cluster: undefined,
+      persistedWorkspaces: {
+        [orphanClusterUri]: orphanWorkspace,
+      },
+    });
+
+    workspacesService.restorePersistedState();
+
+    expect(workspacesService.getWorkspace(orphanClusterUri)).toBeUndefined();
+  });
+
   it('keeps proxy host for restored workspaces without matching clusters', () => {
     const orphanClusterUri = '/clusters/orphan';
     const orphanWorkspace: PersistedWorkspace = {
@@ -756,14 +779,14 @@ function getTestSetup(options: {
     getRootClusters: () => normalizedClusters,
     syncRootClustersAndCatchErrors: async () => {},
     addCluster: jest.fn(async proxy => {
-      normalizedClusters.push(
-        makeRootCluster({
-          uri: `/clusters/${proxy.replace(/:\d+$/, '')}`,
-          proxyHost: proxy,
-          connected: false,
-          loggedInUser: undefined,
-        })
-      );
+      const cluster = makeRootCluster({
+        uri: `/clusters/${proxy.replace(/:\d+$/, '')}`,
+        proxyHost: proxy,
+        connected: false,
+        loggedInUser: undefined,
+      });
+      normalizedClusters.push(cluster);
+      return cluster;
     }),
   };
 

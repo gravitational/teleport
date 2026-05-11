@@ -117,7 +117,7 @@ export interface Workspace {
    * The proxy address used to add this root cluster. It lets Connect reconnect
    * a remembered workspace even if the tsh profile is no longer available.
    */
-  proxyHost?: string;
+  proxyHost: string;
 }
 
 export class WorkspacesService extends ImmutableStore<WorkspacesState> {
@@ -304,9 +304,9 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
 
   /**
    * setActiveWorkspace changes the active workspace to that of the given root cluster.
-   * If the root cluster doesn't have a workspace yet, setActiveWorkspace creates a default
-   * workspace state for the cluster and then asks the user about restoring documents from the
-   * previous session if there are any.
+   * The workspace must already exist. If its cluster is missing from the cluster store,
+   * setActiveWorkspace tries to add it back using the proxy host saved in the workspace state.
+   * It then asks the user about restoring documents from the previous session if there are any.
    * Only one call can be executed at a time. Any ongoing call is canceled when a new one is initiated.
    *
    * setActiveWorkspace never returns a rejected promise on its own.
@@ -324,8 +324,8 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
      * workspace of the given cluster.
      *
      * setActiveWorkspace never rejects on its own. However, it may fail to switch to the workspace
-     * if the user closes the cluster connect dialog or if the cluster with the given clusterUri
-     * wasn't found.
+     * if the workspace or cluster cannot be found, the cluster cannot be added back, or the user
+     * closes the cluster connect dialog.
      *
      * Callsites which don't check this return value were most likely written before this field was
      * added. They operate with the assumption that by the time the program gets to the
@@ -345,30 +345,32 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
       return { isAtDesiredWorkspace: true };
     }
 
-    let cluster = this.clustersService.findCluster(clusterUri);
-    if (!cluster) {
-      const proxyHost = this.state.workspaces[clusterUri]?.proxyHost;
-      if (proxyHost) {
-        try {
-          await this.clustersService.addCluster(proxyHost);
-        } catch (err) {
-          this.logger.error('Failed to add cluster', err);
-          this.notificationsService.notifyError({
-            title:
-              'Could not reconnect to the cluster. Check that the proxy is reachable and try again.',
-            description: getErrorMessage(err),
-          });
-          return { isAtDesiredWorkspace: false };
-        }
-      }
-      cluster = this.clustersService.findCluster(clusterUri);
+    const workspace = this.getWorkspace(clusterUri);
+    if (!workspace) {
+      this.logger.error(
+        `The workspace for cluster ${clusterUri} does not exist`
+      );
+      this.notificationsService.notifyError({
+        title: `Could not switch to cluster ${routing.parseClusterName(clusterUri)}`,
+      });
+      return { isAtDesiredWorkspace: false };
     }
 
+    let cluster = this.clustersService.findCluster(clusterUri);
     if (!cluster) {
-      this.logger.warn(
-        `Could not find cluster with uri ${clusterUri} when changing active cluster`
-      );
-      return { isAtDesiredWorkspace: false };
+      const proxyHost = workspace.proxyHost;
+      try {
+        cluster = await this.clustersService.addCluster(proxyHost);
+      } catch (err) {
+        this.logger.error('Failed to re-add cluster', err);
+
+        this.notificationsService.notifyError({
+          title: `Could not reconnect to ${routing.parseClusterName(clusterUri)}. Check that the proxy is reachable and try again.`,
+          description: getErrorMessage(err),
+        });
+
+        return { isAtDesiredWorkspace: false };
+      }
     }
 
     if (cluster.profileStatusError) {
@@ -412,21 +414,12 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
         return { isAtDesiredWorkspace: false };
       }
     }
-    // If we don't have a workspace for this cluster, add it.
-    // TODO(gzdunek): Creating a workspace here might not be necessary
-    // after we started calling workspacesService.addWorkspace in ClusterAdd.
+
     this.setState(draftState => {
-      if (!draftState.workspaces[clusterUri]) {
-        draftState.workspaces[clusterUri] = getWorkspaceDefaultState(
-          clusterUri,
-          draftState.workspaces,
-          { proxyHost: cluster.proxyHost }
-        );
-      }
       draftState.rootClusterUri = clusterUri;
     });
 
-    const { hasDocumentsToReopen } = this.getWorkspace(clusterUri);
+    const { hasDocumentsToReopen } = workspace;
     if (!hasDocumentsToReopen) {
       return { isAtDesiredWorkspace: true };
     }
@@ -466,16 +459,21 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
     return { isAtDesiredWorkspace: true };
   }
 
-  addWorkspace(clusterUri: RootClusterUri): void {
-    if (this.state.workspaces[clusterUri]) {
+  addWorkspace({
+    uri,
+    proxyHost,
+  }: {
+    uri: RootClusterUri;
+    proxyHost: string;
+  }): void {
+    if (this.state.workspaces[uri]) {
       return;
     }
-    const cluster = this.clustersService.findCluster(clusterUri);
     this.setState(draftState => {
-      draftState.workspaces[clusterUri] = getWorkspaceDefaultState(
-        clusterUri,
+      draftState.workspaces[uri] = getWorkspaceDefaultState(
+        uri,
         draftState.workspaces,
-        { proxyHost: cluster?.proxyHost }
+        { proxyHost }
       );
     });
   }
@@ -569,6 +567,12 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
         const restoredWorkspace = this.restoredState.workspaces[rootClusterUri];
         const cluster = this.clustersService.findCluster(rootClusterUri);
         const proxyHost = cluster?.proxyHost ?? restoredWorkspace?.proxyHost;
+        // Skip workspaces with no known proxy address. If the cluster is missing and the workspace has no
+        // saved proxy host, Connect cannot add the cluster again.
+        if (!proxyHost) {
+          return workspaces;
+        }
+
         const overrides = { ...restoredWorkspace, proxyHost };
 
         if (!cluster) {
