@@ -729,6 +729,9 @@ func (p *Plugin) accessGraphSupportsHTTP() bool {
 	tr := &http.Transport{
 		TLSClientConfig: tlsConfig,
 	}
+	// Without this there will be a goroutine and open file descriptor leak. The alternative is
+	// to set Transport.IdleConnTimeout to a positive value.
+	defer tr.CloseIdleConnections()
 	if err := http2.ConfigureTransport(tr); err != nil {
 		p.Logger.DebugContext(ctx, "Failed to configure transport", "error", err)
 		return false
