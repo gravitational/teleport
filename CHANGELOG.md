@@ -34,10 +34,31 @@ Teleport's bound keypair join method extends to support arbitrary Teleport agent
 
 Identity Security provides users with CLI tooling for searching session summaries allowing users to find sessions based on natural language queries.
 
+### Terraform support for access list workflows
+
+Short and long term access list creation flows in the web UI now include terraform support allowing users to define access with infrastructure-as-code.
+
+### Teleport Connect installation and updates
+
+Teleport Connect for Windows now supports both per-machine and per-user installations. (Note: VNet is not available in per-user mode.)
+
+Per-machine installations can now receive automatic updates without prompting for administrator privileges. Those privileges are only required during the initial installation.
+
+Starting with this release, Teleport Connect only supports automatic upgrades. Downgrades must now be performed manually. This change applies to all platforms.
+
 ### Other fixes and improvements
 
+* Fixed resource-based access requests failing when node/ssh agents have not yet been updated to a version supporting Resource Constraints. [#66585](https://github.com/gravitational/teleport/pull/66585)
+* Updated Go to 1.25.10. [#66569](https://github.com/gravitational/teleport/pull/66569)
+* Fixed an issue with Azure discovery where blocked installation attempts prevent discovery from making progress. Install attempts will now time out after 5 minutes, but this can be adjusted by setting an environment variable on the Teleport Discovery Service, e.g., `TELEPORT_UNSTABLE_AZURE_RUN_COMMAND_TIMEOUT=3m45s`. [#66558](https://github.com/gravitational/teleport/pull/66558)
+* Increased verbosity of Teleport Discovery Service logs for VM discovery. [#66553](https://github.com/gravitational/teleport/pull/66553)
 * Improved Teleport Connect startup reliability on Windows. [#66509](https://github.com/gravitational/teleport/pull/66509)
+* Added Azure Discovery With Terraform integration guided flow in Web UI. [#66493](https://github.com/gravitational/teleport/pull/66493)
+* Added a terraform module to support automatic discovery of Azure resources. [#66476](https://github.com/gravitational/teleport/pull/66476)
+* Fixed unnecessary double MFA challenge when adding a MFA device using Web UI. [#66474](https://github.com/gravitational/teleport/pull/66474)
+* Hardened event handler so it recovers in case of malformed session ID or corrupted data directory. [#66473](https://github.com/gravitational/teleport/pull/66473)
 * Added support for multi-domain sign-on to Windows Desktop Service. [#66471](https://github.com/gravitational/teleport/pull/66471)
+* Fixed app access dropping URL fragments through the auth redirect flow. [#66460](https://github.com/gravitational/teleport/pull/66460)
 * Added user traits filtering in Web UI. [#66457](https://github.com/gravitational/teleport/pull/66457)
 * Fixed an issue that could cause LDAP discovery to fail when a single desktop service discovers large numbers of hosts. [#66397](https://github.com/gravitational/teleport/pull/66397)
 * Added Azure VM support for `tctl discovery nodes` command for troubleshooting auto-discovery enrollment issues on Azure. [#66395](https://github.com/gravitational/teleport/pull/66395)
@@ -60,9 +81,10 @@ Identity Security provides users with CLI tooling for searching session summarie
 * Automatic updates in Teleport Connect no longer allow app version downgrades (applies to all platforms). [#65173](https://github.com/gravitational/teleport/pull/65173)
 * Add VNet support for Teleport Connect on Linux. [#64737](https://github.com/gravitational/teleport/pull/64737)
 * Added Linux support for VNet. [#64736](https://github.com/gravitational/teleport/pull/64736)
-* Adds support for reverse tunnel agent stale connection timeout detection and recovery. [#62531](https://github.com/gravitational/teleport/pull/62531)
+* Added support for reverse tunnel agent stale connection timeout detection and recovery. [#62531](https://github.com/gravitational/teleport/pull/62531)
 
 Enterprise:
+* Reject AWSIC System Credentials on Teleport Cloud.
 * Validate AWS Identity Center install credentials with AWS API calls.
 * Added support for Terraform configuration generation in the Access List creation wizard in the web UI, allowing users to deploy their Access List via Terraform.
 * Fix a potential deadlock caused by incorrectly reacquiring the pool in the CRDB flow.
