@@ -45,10 +45,10 @@ import (
 const accessGraphSetupDocURL = "https://goteleport.com/docs/identity-security/"
 
 // unlicensedAccessGraphMessage is returned when the cluster lacks the
-// Policy entitlement that gates Access Graph.
-const unlicensedAccessGraphMessage = "this Teleport cluster's license does not include the Policy " +
-	"entitlement, which is required to use Access Graph. Contact " +
-	"your Teleport account team to enable it."
+// Identity Security license that gates Access Graph.
+const unlicensedAccessGraphMessage = "this Teleport cluster is not licensed for Identity Security, " +
+	"which is required to use Access Graph. Contact your Teleport " +
+	"account team to enable it."
 
 // unconfiguredAccessGraphMessage is returned when the cluster is
 // licensed for Access Graph but the operator has not wired up the
@@ -76,6 +76,24 @@ type accessGraphCredentials struct {
 	proxyAddr   string
 	clientStore *client.Store
 	keyRing     *client.KeyRing
+}
+
+// loadAccessGraphCredentials resolves AG credentials from the active
+// profile, or from the local admin identity on the auth host. username
+// is required for the auth-host path and ignored otherwise.
+func (c *AccessGraphCommand) loadAccessGraphCredentials(ctx context.Context, username string) (*accessGraphCredentials, error) {
+	resolved, err := tctlcfg.ApplyConfig(c.ccf, c.config)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if resolved.ClientStore != nil {
+		if username != "" {
+			slog.DebugContext(ctx, "Ignoring --cert-user; profile username is authoritative",
+				"cert-user", username, "profile_user", resolved.Profile.Username)
+		}
+		return resolveAccessGraphCredentials(ctx, c.ccf, resolved)
+	}
+	return resolveAuthHostAccessGraphCredentials(ctx, c.config, username)
 }
 
 // resolveAuthHostAccessGraphCredentials builds creds from the local
@@ -212,24 +230,24 @@ func ensureAccessGraphCert(ctx context.Context, creds *accessGraphCredentials, c
 func checkAccessGraphSupported(ctx context.Context, ping proto.PingResponse) error {
 	features := ping.GetServerFeatures()
 
-	// Distinct from the AccessGraph/DemoMode check below: this gate
-	// routes the "not licensed" error message and accepts the legacy
-	// `Policy` submessage from older clusters that predate the
-	// entitlements map.
+	// This gate routes the "not licensed" error message and accepts the legacy
+	// `Policy` submessage from older clusters that predate the entitlements map.
+	//
+	// TODO(ghassan): when #66571's follow-ups split Identity Security out of Policy,
+	//  gate on the more specific entitlement here and keep Policy as the legacy fallback.
 	policy := features.GetEntitlements()[string(entitlements.Policy)]
 	licensed := policy.GetEnabled() || features.GetPolicy().GetEnabled()
 	if !licensed {
 		return trace.AccessDenied(unlicensedAccessGraphMessage)
 	}
 
-	if !features.GetAccessGraph() && !features.GetAccessGraphDemoMode() {
+	if !features.GetAccessGraph() {
 		return trace.AccessDenied(unconfiguredAccessGraphMessage, accessGraphSetupDocURL)
 	}
 
 	slog.DebugContext(ctx, "Access Graph is available on this cluster",
 		"licensed", licensed,
 		"access_graph_flag", features.GetAccessGraph(),
-		"access_graph_demo_mode_flag", features.GetAccessGraphDemoMode(),
 	)
 	return nil
 }

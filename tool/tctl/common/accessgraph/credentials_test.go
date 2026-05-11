@@ -715,7 +715,7 @@ func TestCheckAccessGraphSupported(t *testing.T) {
 			},
 			wantErr: trace.IsAccessDenied,
 			wantSubstr: []string{
-				"Policy",
+				"Identity Security",
 			},
 		},
 		{
@@ -725,7 +725,7 @@ func TestCheckAccessGraphSupported(t *testing.T) {
 			},
 			wantErr: trace.IsAccessDenied,
 			wantSubstr: []string{
-				"Policy",
+				"Identity Security",
 			},
 		},
 		{
@@ -742,7 +742,7 @@ func TestCheckAccessGraphSupported(t *testing.T) {
 			},
 			wantErr: trace.IsAccessDenied,
 			wantSubstr: []string{
-				"Policy",
+				"Identity Security",
 			},
 		},
 	}
