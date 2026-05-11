@@ -292,6 +292,10 @@ export class ClusterLifecycleManager {
       uri: cluster.uri,
     });
     this.onBeforeRemove(cluster.uri);
+    // Keep the cluster store in sync with the profile state on disk.
+    // Once the profile is gone, we must remove if from the store too; otherwise Connect
+    // could try to use it before recreating the profile and RPCs would fail with errors such
+    // as "~/.tsh/<proxy-name> no such file or directory".
     await this.clusterStore.logout(cluster.uri, { removeProfile: true });
   }
 

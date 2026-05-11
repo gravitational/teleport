@@ -96,7 +96,10 @@ export class ClusterStore {
         if (removeProfile || d.leaf) {
           draft.delete(d.uri);
         } else {
-          // TODO(gzdunek): This should be fetched by getCluster
+          // TODO(gzdunek): Get this logged-out state from getCluster instead of manually
+          // mirroring the fields it would return. getCluster cannot be used here yet
+          // because it always makes remote calls, which fail without a valid cert.
+          // It should support returning profile-backed data only.
           d.connected = false;
           d.loggedInUser = LoggedInUser.create();
         }
