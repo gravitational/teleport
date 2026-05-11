@@ -40,7 +40,7 @@ Users will be able to set up AWS EKS discovery at the AWS account level using th
 
 ### Terraform support for access list workflows
 
-Short and long term access list creation flows in the web UI now include terraform support allowing users to define access with infrastructure-as-code.
+Short and long term access list creation flows in the web UI now include Terraform support allowing users to define access with infrastructure-as-code.
 
 ### Teleport Connect installation and updates
 
@@ -54,20 +54,20 @@ Starting with this release, Teleport Connect only supports automatic upgrades. D
 
 * Added support for AWS RDS discovery in the `teleport/discovery/aws` Terraform module. [#66627](https://github.com/gravitational/teleport/pull/66627)
 * Fixed identifier-first login form overflowing on mobile viewports. [#66620](https://github.com/gravitational/teleport/pull/66620)
-* Fixed `metadata.revision` not being excluded from the `teleport_vnet_config` terraform schema. Users with existing state may need to run `terraform refresh` if `terraform show` fails with "unsupported attribute revision". [#66617](https://github.com/gravitational/teleport/pull/66617)
+* Fixed `metadata.revision` not being excluded from the `teleport_vnet_config` Terraform schema. Users with existing state may need to run `terraform refresh` if `terraform show` fails with "unsupported attribute revision". [#66617](https://github.com/gravitational/teleport/pull/66617)
 * Fixed resource-based access requests failing when node/ssh agents have not yet been updated to a version supporting Resource Constraints. [#66585](https://github.com/gravitational/teleport/pull/66585)
 * Updated Go to 1.25.10. [#66569](https://github.com/gravitational/teleport/pull/66569)
 * Fixed an issue with Azure discovery where blocked installation attempts prevent discovery from making progress. Install attempts will now time out after 5 minutes, but this can be adjusted by setting an environment variable on the Teleport Discovery Service, e.g., `TELEPORT_UNSTABLE_AZURE_RUN_COMMAND_TIMEOUT=3m45s`. [#66558](https://github.com/gravitational/teleport/pull/66558)
 * Increased verbosity of Teleport Discovery Service logs for VM discovery. [#66553](https://github.com/gravitational/teleport/pull/66553)
 * Improved Teleport Connect startup reliability on Windows. [#66509](https://github.com/gravitational/teleport/pull/66509)
 * Hardened event handler so it recovers in case of malformed session ID or corrupted data directory. [#66473](https://github.com/gravitational/teleport/pull/66473)
-* Added Azure Discovery With Terraform integration guided flow in Web UI. [#66493](https://github.com/gravitational/teleport/pull/66493)
+* Added Azure Discovery With Terraform integration guided flow in the web UI. [#66493](https://github.com/gravitational/teleport/pull/66493)
 * Fixed app access dropping URL fragments through the auth redirect flow. [#66460](https://github.com/gravitational/teleport/pull/66460)
-* Added user traits filtering in Web UI. [#66457](https://github.com/gravitational/teleport/pull/66457)
+* Added user traits filtering in the web UI. [#66457](https://github.com/gravitational/teleport/pull/66457)
 * Fixed an issue that could cause LDAP discovery to fail when a single desktop service discovers large numbers of hosts. [#66397](https://github.com/gravitational/teleport/pull/66397)
 * Added Azure VM support for `tctl discovery nodes` command for troubleshooting auto-discovery enrollment issues on Azure. [#66395](https://github.com/gravitational/teleport/pull/66395)
 * Fixed a rare input swallowing bug when resuming a moderated Node session. [#66370](https://github.com/gravitational/teleport/pull/66370)
-* Role with unknown fields is now rejected at create/edit time instead of being silently dropped. Applies to `tctl` and the Web UI yaml editor. [#66360](https://github.com/gravitational/teleport/pull/66360)
+* Role with unknown fields is now rejected at create/edit time instead of being silently dropped. Applies to `tctl` and the web UI YAML editor. [#66360](https://github.com/gravitational/teleport/pull/66360)
 * Fix issue where generic error messages were being shown instead of specific ones for failed SSO logins. [#66348](https://github.com/gravitational/teleport/pull/66348)
 * Fixed MCP clients' timeout and broken connections when the MCP server tries to resume the previous session. [#66343](https://github.com/gravitational/teleport/pull/66343)
 * Add `tsh beams` commands for the Beams public beta. [#66316](https://github.com/gravitational/teleport/pull/66316)
