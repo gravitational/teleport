@@ -42,7 +42,7 @@ variable "match_aws_resource_types" {
 }
 
 variable "aws_matchers" {
-  description = "AWS resource discovery matchers. Valid values for aws_matchers.types are: ec2, eks."
+  description = "AWS resource discovery matchers. Valid values for aws_matchers.types are: ec2, eks, rds."
   type = list(object({
     types                = list(string)
     regions              = optional(list(string), ["*"])
@@ -65,10 +65,14 @@ variable "aws_matchers" {
     condition = alltrue(flatten([
       for matcher in var.aws_matchers : [
         for rt in matcher.types :
-        contains(["ec2", "eks"], rt)
+        contains([
+          "ec2",
+          "eks",
+          "rds",
+        ], rt)
       ]
     ]))
-    error_message = "Allowed values for aws_matchers.types are: ec2, eks."
+    error_message = "Allowed values for aws_matchers.types are: ec2, eks, rds."
   }
 
   validation {
