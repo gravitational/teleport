@@ -808,6 +808,135 @@ func TestStopUnstarted(t *testing.T) {
 	require.Eventually(t, sessionClosed, time.Second*15, time.Millisecond*500)
 }
 
+func TestModeratedSessionPresence(t *testing.T) {
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
+
+	srv := newMockServer(t)
+	srv.component = teleport.ComponentNode
+
+	reg, err := NewSessionRegistry(SessionRegistryConfig{
+		Srv:                   srv,
+		SessionTrackerService: srv.auth,
+		clock:                 srv.clock,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { reg.Close() })
+
+	hostRole, err := types.NewRole("moderated", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			RequireSessionJoin: []*types.SessionRequirePolicy{{
+				Name:    "moderated",
+				Filter:  "contains(user.roles, \"moderator\")",
+				Kinds:   []string{string(types.SSHSessionKind)},
+				Count:   1,
+				Modes:   []string{string(types.SessionModeratorMode)},
+				OnLeave: string(types.OnSessionLeaveTerminate),
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	moderatorRole, err := types.NewRole("moderator", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			JoinSessions: []*types.SessionJoinPolicy{{
+				Name:  "moderated",
+				Roles: []string{hostRole.GetName()},
+				Kinds: []string{string(types.SSHSessionKind)},
+				Modes: []string{string(types.SessionModeratorMode)},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	hostCtx := newTestServerContext(t, reg.Srv, services.NewRoleSet(hostRole), &decisionpb.SSHAccessPermit{})
+	hostCtx.Identity.UnmappedIdentity.MFAVerified = "mfa-device"
+	moderatorCtx := newTestServerContext(t, reg.Srv, services.NewRoleSet(moderatorRole), &decisionpb.SSHAccessPermit{})
+	moderatorCtx.Identity.TeleportUser = "moderator"
+
+	newDrainedMockSSHChannel := func() ssh.Channel {
+		ch := newMockSSHChannel()
+		t.Cleanup(func() { ch.Close() })
+		go func() {
+			io.ReadAll(ch)
+		}()
+		return ch
+	}
+
+	findModeratorParticipant := func(t require.TestingT, tracker types.SessionTracker) types.Participant {
+		for _, participant := range tracker.GetParticipants() {
+			if participant.User == moderatorCtx.Identity.TeleportUser {
+				return participant
+			}
+		}
+		require.Fail(t, "moderator participant not found")
+		return types.Participant{}
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+
+	// Create a new pending moderated session.
+	hostChannel := newDrainedMockSSHChannel()
+	require.NoError(t, reg.OpenSession(ctx, hostChannel, hostCtx))
+	require.NotNil(t, hostCtx.session)
+	sess := hostCtx.session
+	t.Cleanup(sess.Stop)
+
+	tracker, err := srv.auth.GetSessionTracker(t.Context(), sess.id.String())
+	require.NoError(t, err)
+	require.Equal(t, types.SessionState_SessionStatePending, tracker.GetState())
+
+	// Have a moderator join the session to start it.
+	moderatorChannel := newDrainedMockSSHChannel()
+	require.NoError(t, reg.JoinSession(ctx, moderatorChannel, moderatorCtx, sess.id.String(), types.SessionModeratorMode))
+	tracker, err = srv.auth.GetSessionTracker(t.Context(), sess.id.String())
+	require.NoError(t, err)
+	require.Equal(t, types.SessionState_SessionStateRunning, tracker.GetState())
+	require.True(t, sess.started.Load())
+	require.Len(t, sess.getParties(), 2)
+
+	moderatorParticipant := findModeratorParticipant(t, tracker)
+	require.NotEmpty(t, moderatorParticipant.ID)
+
+	// Wait for the session tracker expiration timer and presence check ticker.
+	srv.clock.BlockUntil(2)
+
+	// Advance the clock and the moderators presence to the original stale threshold without exceeding it.
+	presenceCheckInterval := srv.GetPresenceMaxDuration() / 4
+	srv.clock.Advance(presenceCheckInterval)
+	srv.clock.BlockUntil(2)
+	presenceUpdateTime := srv.clock.Now().UTC()
+	require.NoError(t, srv.auth.UpdatePresence(t.Context(), sess.id.String(), moderatorParticipant.User, moderatorParticipant.Cluster))
+
+	// Advance the clock past the original stale threshold. The session should continue running.
+	srv.clock.Advance(srv.GetPresenceMaxDuration() - presenceCheckInterval + time.Second)
+	srv.clock.BlockUntil(2)
+
+	tracker, err = srv.auth.GetSessionTracker(t.Context(), sess.id.String())
+	require.NoError(t, err)
+	refreshedParticipant := findModeratorParticipant(t, tracker)
+	require.Equal(t, moderatorParticipant.ID, refreshedParticipant.ID)
+	require.Equal(t, presenceUpdateTime, refreshedParticipant.LastActive)
+
+	require.Never(t, func() bool {
+		updatedTracker, err := srv.auth.GetSessionTracker(ctx, sess.id.String())
+		require.NoError(t, err)
+		return updatedTracker.GetState() != types.SessionState_SessionStateRunning
+	}, 500*time.Millisecond, 100*time.Millisecond)
+
+	// Advance the server clock so that the moderator is stale. The session should terminate.
+	srv.clock.Advance(srv.GetPresenceMaxDuration())
+
+	require.Eventually(t, sess.isStopped, time.Second, 10*time.Millisecond)
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		updatedTracker, err := srv.auth.GetSessionTracker(ctx, sess.id.String())
+		require.NoError(t, err)
+		require.Equal(t, types.SessionState_SessionStateTerminated, updatedTracker.GetState())
+		for _, participant := range updatedTracker.GetParticipants() {
+			require.NotEqual(t, moderatorParticipant.ID, participant.ID)
+		}
+	}, 5*time.Second, 100*time.Millisecond)
+}
+
 // TestParties tests the party mechanisms within an interactive session,
 // including party leave, party disconnect, and empty session lingerAndDie.
 func TestParties(t *testing.T) {

@@ -11214,15 +11214,6 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 
 		require.NoError(t, moderatorTerm.ws.WriteMessage(websocket.BinaryMessage, envelopeBytes))
 	}
-
-	// Advance the clock far enough in the future to make the moderator stale
-	// which will terminate the session - because the clock is used by ALL server
-	// components, it's not practical to use BlockUntil here, so we use EventuallyWithT instead.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		s.clock.Advance(3 * time.Minute)
-		require.NoError(t, waitForOutputWithDuration(ctx, moderatorTerm, "wait: remote command exited without exit status or exit signal", 3*time.Second))
-		require.NoError(t, waitForOutputWithDuration(ctx, peerTerm, "Process exited with status 255", 3*time.Second))
-	}, 15*time.Second, 3*time.Second)
 }
 
 type proxyClientMock struct {

@@ -1831,6 +1831,8 @@ func (s *session) lingerAndDie(ctx context.Context, party *party) {
 }
 
 func (s *session) checkPresence(ctx context.Context) error {
+	now := s.registry.clock.Now().UTC()
+
 	// We cannot check presence on the local tracker as that will not
 	// be updated in response to parties performing their presence
 	// checks. To prevent the stale version of the session tracker from
@@ -1847,7 +1849,7 @@ func (s *session) checkPresence(ctx context.Context) error {
 			continue
 		}
 
-		if participant.Mode == string(types.SessionModeratorMode) && s.registry.clock.Now().UTC().After(participant.LastActive.Add(s.scx.srv.GetPresenceMaxDuration())) {
+		if participant.Mode == string(types.SessionModeratorMode) && now.After(participant.LastActive.Add(s.scx.srv.GetPresenceMaxDuration())) {
 			s.logger.WarnContext(
 				ctx, "Participant is not active, kicking.",
 				"participant", participant.ID,
