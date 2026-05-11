@@ -239,6 +239,7 @@ func (r resourceTeleportScopedRoleAssignment) Update(ctx context.Context, req tf
 	}
 	scopedRoleAssignmentResource := scopedRoleAssignment
 
+	scopedRoleAssignmentResource.Kind = apitypes.KindScopedRoleAssignment
 
 	
 	if scopedRoleAssignmentResource.SubKind == "" {
