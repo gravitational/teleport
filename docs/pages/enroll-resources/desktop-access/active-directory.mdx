@@ -907,8 +907,7 @@ in the external forest:
 - [Publish the Teleport CA to the NTAuth Store](#publish-the-teleport-ca-to-the-ntauth-store)
 
 Additionally, repeat the ["Export your LDAP CA Certificate"](#step-57-export-your-ldap-ca-certificate) step for the domain in
-the external forest. Multiple CA certificates can be written to the `ldap_ca_cert` configuration field for the Teleport LDAPS
-client to trust.
+the external forest. Multiple CA certificates can be written to the `ldap_ca_cert` configuration field for the Teleport LDAPS client to trust.
 
   ```yaml
   windows_desktop_service:
@@ -928,6 +927,24 @@ client to trust.
          ... LDAPS cert for partner.com ...
          -----END CERTIFICATE-----
 ```
+
+By default, Windows Desktop Service assumes that users belong to the domain specified by the
+`windows_desktop_service.ldap.domain` field in the service config. In order to login as a user from another
+domain, the user's full UPN must be specified (e.g., `jsmith@dev.example.com`) in the `windows_desktop_logins`
+section of the role that provides access to windows desktops.
+
+   ```yaml
+   kind: role
+   version: v5
+   metadata:
+     name: windows-desktop-admins
+   spec:
+     allow:
+       windows_desktop_labels:
+         "*": "*"
+       windows_desktop_logins: ["jsmith", "jsmith@dev.example.com", "jsmith@partner.com"]
+   ```
+
 
 
 ## Network Level Authentication (NLA)
