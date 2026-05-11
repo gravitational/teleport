@@ -112,7 +112,7 @@ func (b DiscordBot) CheckHealth(ctx context.Context) error {
 // SupportedApps are the apps supported by this bot.
 func (b DiscordBot) SupportedApps() []common.App {
 	return []common.App{
-		accessrequest.NewApp(b),
+		accessrequest.NewApp(),
 	}
 }
 
