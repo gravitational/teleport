@@ -246,8 +246,7 @@ func (s *Service[T]) Resources(ctx context.Context, startKey, endKey string) ite
 		if err != nil {
 			// unmarshal errors are logged and skipped
 			slog.WarnContext(ctx, "skipping resource due to unmarshal error", "error", err, "key", logutils.StringerAttr(item.Key))
-			var zero T
-			return zero, false
+			return *new(T), false
 		}
 		return resource, true
 	}
