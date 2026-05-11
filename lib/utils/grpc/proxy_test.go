@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log/slog"
 	"net"
 	"strings"
 	"testing"
@@ -34,13 +35,7 @@ import (
 
 	teletermv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	grpcutils "github.com/gravitational/teleport/lib/utils/grpc"
-	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
-
-func TestMain(m *testing.M) {
-	logtest.InitLogger(testing.Verbose)
-	m.Run()
-}
 
 // TestProxyBidiStream creates two gRPC services: one acting as a server and one
 // as a proxy. The proxy uses [grpcutils.ProxyBidiStream] to proxy messages from
@@ -418,7 +413,7 @@ func (p *proxyService) ConnectToDesktop(client teletermv1.TerminalService_Connec
 	getServer := func(ctx context.Context) (teletermv1.TerminalService_ConnectToDesktopClient, error) {
 		return p.serverSvcClient.ConnectToDesktop(ctx)
 	}
-	err := grpcutils.ProxyBidiStream(logtest.NewLogger(), client, getServer)
+	err := grpcutils.ProxyBidiStream(slog.Default(), client, getServer)
 	return trace.Wrap(err)
 }
 
