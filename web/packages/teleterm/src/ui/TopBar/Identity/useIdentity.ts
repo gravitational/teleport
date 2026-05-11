@@ -38,6 +38,10 @@ export function useIdentity() {
     'clustersService',
     useCallback(state => state.clusters, [])
   );
+  const activeClusterUri = useStoreSelector(
+    'workspacesService',
+    useCallback(state => state.rootClusterUri, [])
+  );
 
   async function changeRootCluster(clusterUri: RootClusterUri): Promise<void> {
     await ctx.workspacesService.setActiveWorkspace(clusterUri);
@@ -66,7 +70,6 @@ export function useIdentity() {
     }
   }
 
-  const activeClusterUri = ctx.workspacesService.getRootClusterUri();
   function getActiveRootCluster(): Cluster | undefined {
     return ctx.clustersService.findCluster(activeClusterUri);
   }
