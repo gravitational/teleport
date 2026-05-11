@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// accessgraph-rewrite-generated rewrites import paths and rewrites
+// the parts of the generated OpenAPI code that pull in additional depdendencies.
 package main
 
 import (
