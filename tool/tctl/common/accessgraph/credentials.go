@@ -89,7 +89,7 @@ func (c *AccessGraphCommand) loadAccessGraphCredentials(ctx context.Context, use
 	if resolved.ClientStore != nil {
 		if username != "" {
 			slog.DebugContext(ctx, "Ignoring --cert-user; profile username is authoritative",
-				"cert-user", username, "profile_user", resolved.Profile.Username)
+				"cert_user", username, "profile_user", resolved.Profile.Username)
 		}
 		return resolveAccessGraphCredentials(ctx, c.ccf, resolved)
 	}
