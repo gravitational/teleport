@@ -20,8 +20,10 @@ import (
 	"bytes"
 	"log/slog"
 	"regexp"
+	"strings"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/peterbourgon/diskv/v3"
 	"github.com/stretchr/testify/require"
 
@@ -29,6 +31,30 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 )
+
+// TestBreakerTripErrorDetection verifies the condition used in run() to
+// distinguish a tripped-circuit-breaker error from other errors, since the
+// two cases use different retry sleep durations.
+func TestBreakerTripErrorDetection(t *testing.T) {
+	isBreakerTripped := func(err error) bool {
+		return trace.IsConnectionProblem(err) && strings.Contains(err.Error(), "breaker is tripped")
+	}
+
+	// ErrStateTripped from api/breaker is a *trace.ConnectionProblemError{Message: "breaker is tripped"}.
+	tripErr := &trace.ConnectionProblemError{Message: "breaker is tripped"}
+	require.True(t, isBreakerTripped(tripErr), "bare ErrStateTripped should be detected")
+
+	// runPolling returns trace.Wrap(err), so the condition must survive wrapping.
+	require.True(t, isBreakerTripped(trace.Wrap(tripErr)), "wrapped ErrStateTripped should be detected")
+
+	// Other connection problems must not trigger the breaker path.
+	require.False(t, isBreakerTripped(trace.ConnectionProblem(nil, "connection refused")),
+		"unrelated connection error should not be detected as tripped breaker")
+
+	// Non-connection errors must not trigger the breaker path.
+	require.False(t, isBreakerTripped(trace.NotFound("not found")),
+		"non-connection error should not be detected as tripped breaker")
+}
 
 func TestEventHandlerFilters(t *testing.T) {
 	tests := []struct {
