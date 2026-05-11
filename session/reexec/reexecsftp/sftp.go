@@ -57,8 +57,15 @@ func (c compositeCh) Close() error {
 }
 
 type allowedOps struct {
+	// write is true if the request is an upload and writes should be
+	// allowed.
 	write bool
-	path  string
+	// path is the path of the file being downloaded or uploaded.
+	path string
+	// fullPath is the full path of the file being uploaded. For uploads
+	// with a non-empty approved Filename, it holds path.Join(path, Filename)
+	// so that the actual file write can be checked against and allowed.
+	fullPath string
 }
 
 // sftpHandler provides handlers for a SFTP server.
@@ -97,6 +104,25 @@ func newSFTPHandler(logger *slog.Logger, req *FileTransferRequest, events chan<-
 			}
 		}
 		allowed.path = path.Clean(allowedPath)
+
+		// For upload requests, Location is the destination which may
+		// or may not be a directory, and Filename is the name of the
+		// file being uploaded. We want to allow Location/Filename to
+		// be written to, but only if Location is a directory. Otherwise
+		// if Location is a file and the basename of Location is equal to
+		// Filename then Location/Filename/Filename will be allowed to be
+		// written to.
+		if !req.Download && req.Filename != "" {
+			// Ensure Filename is simply a base filename, and isn't a
+			// relative or absolute path, otherwise it could be used to
+			// allow writes outside of Location.
+			if path.Base(req.Filename) != req.Filename {
+				return nil, trace.BadParameter("filename %s must be a filename only, not a path", req.Filename)
+			}
+			if fi, err := os.Lstat(allowed.path); err == nil && fi.IsDir() {
+				allowed.fullPath = path.Join(allowed.path, req.Filename)
+			}
+		}
 	}
 
 	return &sftpHandler{
@@ -115,7 +141,7 @@ func (s *sftpHandler) ensureReqIsAllowed(req *sftp.Request) error {
 	}
 
 	cleaned := path.Clean(req.Filepath)
-	if s.allowed.path != cleaned {
+	if cleaned != s.allowed.path && cleaned != s.allowed.fullPath {
 		return trace.Errorf("operations are only allowed on %s, not %s", s.allowed.path, cleaned)
 	}
 

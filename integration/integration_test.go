@@ -7972,136 +7972,135 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			// Create and approve a file download request
 			tempDir := t.TempDir()
-			reqFile := filepath.Join(tempDir, "req-file")
+			filename := "req-file"
+			reqFile := filepath.Join(tempDir, filename)
 			err = os.WriteFile(reqFile, []byte("contents"), 0o666)
 			require.NoError(t, err)
-
-			err = tc.sess.RequestFileTransfer(ctx, tracessh.FileTransferReq{
-				Download: true,
-				Location: reqFile,
-			})
-			require.NoError(t, err)
-
-			sshReq = sshRquestIgnoringKeepalives(t, modSSHReqs)
-			var fileReq apievents.FileTransferRequestEvent
-			err = json.Unmarshal(sshReq.Payload, &fileReq)
-			require.NoError(t, err)
-
-			err = modSess.ApproveFileTransferRequest(ctx, fileReq.RequestID)
-			require.NoError(t, err)
-
-			// Ignore file transfer request approve event
-			sshRquestIgnoringKeepalives(t, modSSHReqs)
-
-			// Test that only operations needed to complete the download
-			// are allowed
-			transferSess, err := tc.sshClient.NewSession(ctx)
-			require.NoError(t, err)
-			t.Cleanup(func() {
-				isNilOrEOFErr(t, transferSess.Close())
-			})
-
-			err = transferSess.Setenv(ctx, telesftp.EnvModeratedSessionID, sessTracker.GetSessionID())
-			require.NoError(t, err)
-
-			err = transferSess.RequestSubsystem(ctx, teleport.SFTPSubsystem)
-			require.NoError(t, err)
-			w, err := transferSess.StdinPipe()
-			require.NoError(t, err)
-			r, err := transferSess.StdoutPipe()
-			require.NoError(t, err)
-			sftpClient, err := sftp.NewClientPipe(r, w)
-			require.NoError(t, err)
-
-			// A file not in the request shouldn't be allowed
 			badFile := filepath.Join(tempDir, "bad-file")
-			_, err = sftpClient.Open(badFile)
-			require.ErrorContains(t, err, fmt.Sprintf("operations are only allowed on %s, not %s", reqFile, badFile))
-			// Since this is a download no files should be allowed to be written to
-			_, err = sftpClient.OpenFile(reqFile, os.O_WRONLY)
-			require.ErrorContains(t, err, `writing is not allowed`)
-			// Only stats and reads should be allowed
-			err = sftpClient.Mkdir(reqFile)
-			require.ErrorContains(t, err, `method mkdir is not allowed on `+reqFile)
-			// Since this is a download no files should be allowed to have
-			// their permissions changed
-			err = sftpClient.Chmod(reqFile, 0o777)
-			require.ErrorContains(t, err, `writing is not allowed`)
 
-			// Only necessary operations should be allowed
-			_, err = sftpClient.Stat(reqFile)
-			require.NoError(t, err)
-			_, err = sftpClient.Lstat(reqFile)
-			require.NoError(t, err)
-			rf, err := sftpClient.Open(reqFile)
-			require.NoError(t, err)
-			require.NoError(t, rf.Close())
+			t.Run("download", func(t *testing.T) {
+				// Create and approve a file download request
+				err = tc.sess.RequestFileTransfer(ctx, tracessh.FileTransferReq{
+					Download: true,
+					Location: reqFile,
+				})
+				require.NoError(t, err)
 
-			require.NoError(t, sftpClient.Close())
+				sftpClient := handleModeratedFileTransfer(t, ctx, modSess, modSSHReqs, tc.sshClient, sessTracker)
 
-			// Create and approve a file upload request
-			err = tc.sess.RequestFileTransfer(ctx, tracessh.FileTransferReq{
-				Download: false,
-				Filename: "upload-file",
-				Location: reqFile,
-			})
-			require.NoError(t, err)
+				// A file not in the request shouldn't be allowed
+				_, err = sftpClient.Open(badFile)
+				require.ErrorContains(t, err, fmt.Sprintf("operations are only allowed on %s, not %s", reqFile, badFile))
+				// Since this is a download no files should be allowed to be written to
+				_, err = sftpClient.OpenFile(reqFile, os.O_WRONLY)
+				require.ErrorContains(t, err, "writing is not allowed")
+				// Only stats and reads should be allowed
+				err = sftpClient.Mkdir(reqFile)
+				require.ErrorContains(t, err, "method mkdir is not allowed on "+reqFile)
+				// Since this is a download no files should be allowed to have
+				// their permissions changed
+				err = sftpClient.Chmod(reqFile, 0o777)
+				require.ErrorContains(t, err, "writing is not allowed")
 
-			sshReq = sshRquestIgnoringKeepalives(t, modSSHReqs)
-			err = json.Unmarshal(sshReq.Payload, &fileReq)
-			require.NoError(t, err)
+				// Only necessary operations should be allowed
+				_, err = sftpClient.Stat(reqFile)
+				require.NoError(t, err)
+				_, err = sftpClient.Lstat(reqFile)
+				require.NoError(t, err)
+				rf, err := sftpClient.Open(reqFile)
+				require.NoError(t, err)
+				require.NoError(t, rf.Close())
 
-			err = modSess.ApproveFileTransferRequest(ctx, fileReq.RequestID)
-			require.NoError(t, err)
-
-			// Ignore file transfer request approve event
-			sshRquestIgnoringKeepalives(t, modSSHReqs)
-
-			isNilOrEOFErr(t, transferSess.Close())
-			transferSess, err = tc.sshClient.NewSession(ctx)
-			require.NoError(t, err)
-			t.Cleanup(func() {
-				require.NoError(t, transferSess.Close())
+				require.NoError(t, sftpClient.Close())
 			})
 
-			err = transferSess.Setenv(ctx, telesftp.EnvModeratedSessionID, sessTracker.GetSessionID())
-			require.NoError(t, err)
+			t.Run("upload", func(t *testing.T) {
+				// Create and approve a file upload request
+				err = tc.sess.RequestFileTransfer(ctx, tracessh.FileTransferReq{
+					Download: false,
+					Location: tempDir,
+					Filename: filename,
+				})
+				require.NoError(t, err)
 
-			// Test that only operations needed to complete the download
-			// are allowed
-			err = transferSess.RequestSubsystem(ctx, teleport.SFTPSubsystem)
-			require.NoError(t, err)
-			w, err = transferSess.StdinPipe()
-			require.NoError(t, err)
-			r, err = transferSess.StdoutPipe()
-			require.NoError(t, err)
-			sftpClient, err = sftp.NewClientPipe(r, w)
-			require.NoError(t, err)
+				sftpClient := handleModeratedFileTransfer(t, ctx, modSess, modSSHReqs, tc.sshClient, sessTracker)
 
-			// A file not in the request shouldn't be allowed
-			_, err = sftpClient.Open(badFile)
-			require.ErrorContains(t, err, fmt.Sprintf("operations are only allowed on %s, not %s", reqFile, badFile))
-			// Since this is an upload no files should be allowed to be read from
-			_, err = sftpClient.OpenFile(reqFile, os.O_RDONLY)
-			require.ErrorContains(t, err, `reading is not allowed`)
-			// Only stats, writes, and chmods should be allowed
-			err = sftpClient.Mkdir(reqFile)
-			require.ErrorContains(t, err, `method mkdir is not allowed on `+reqFile)
+				// A file not in the request shouldn't be allowed
+				_, err = sftpClient.Open(badFile)
+				require.ErrorContains(t, err, fmt.Sprintf("operations are only allowed on %s, not %s", tempDir, badFile))
+				// Since this is an upload no files should be allowed to be read from
+				_, err = sftpClient.OpenFile(reqFile, os.O_RDONLY)
+				require.ErrorContains(t, err, "reading is not allowed")
+				// Only stats, writes, and chmods should be allowed
+				err = sftpClient.Mkdir(reqFile)
+				require.ErrorContains(t, err, "method mkdir is not allowed on "+reqFile)
 
-			// Only necessary operations should be allowed
-			_, err = sftpClient.Stat(reqFile)
-			require.NoError(t, err)
-			_, err = sftpClient.Lstat(reqFile)
-			require.NoError(t, err)
-			err = sftpClient.Chmod(reqFile, 0o777)
-			require.NoError(t, err)
-			wf, err := sftpClient.OpenFile(reqFile, os.O_WRONLY)
-			require.NoError(t, err)
-			require.NoError(t, wf.Close())
+				// Only necessary operations should be allowed
+				_, err = sftpClient.Stat(reqFile)
+				require.NoError(t, err)
+				_, err = sftpClient.Lstat(reqFile)
+				require.NoError(t, err)
+				err = sftpClient.Chmod(reqFile, 0o777)
+				require.NoError(t, err)
+				wf, err := sftpClient.OpenFile(reqFile, os.O_WRONLY)
+				require.NoError(t, err)
+				require.NoError(t, wf.Close())
+			})
+
+			t.Run("attempt upload to non-allowed path", func(t *testing.T) {
+				// Create and approve a file upload request
+				err = tc.sess.RequestFileTransfer(ctx, tracessh.FileTransferReq{
+					Download: false,
+					Location: reqFile,
+					Filename: filename,
+				})
+				require.NoError(t, err)
+
+				sftpClient := handleModeratedFileTransfer(t, ctx, modSess, modSSHReqs, tc.sshClient, sessTracker)
+
+				// Location and Filepath joined are also allowed for uploads, but
+				newFile := filepath.Join(reqFile, filename)
+				_, err = sftpClient.OpenFile(newFile, os.O_WRONLY)
+				require.ErrorContains(t, err, fmt.Sprintf("operations are only allowed on %s, not %s", reqFile, newFile))
+			})
 		})
 	}
+}
+
+func handleModeratedFileTransfer(t *testing.T, ctx context.Context, modSess *tracessh.Session, modSSHReqs <-chan *ssh.Request, sshClient *tracessh.Client, sessTracker types.SessionTracker) *sftp.Client {
+	t.Helper()
+
+	sshReq := sshRquestIgnoringKeepalives(t, modSSHReqs)
+	var fileReq apievents.FileTransferRequestEvent
+	err := json.Unmarshal(sshReq.Payload, &fileReq)
+	require.NoError(t, err)
+
+	err = modSess.ApproveFileTransferRequest(ctx, fileReq.RequestID)
+	require.NoError(t, err)
+
+	// Ignore file transfer request approve event
+	sshRquestIgnoringKeepalives(t, modSSHReqs)
+
+	transferSess, err := sshClient.NewSession(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		isNilOrEOFErr(t, transferSess.Close())
+	})
+
+	err = transferSess.Setenv(ctx, telesftp.EnvModeratedSessionID, sessTracker.GetSessionID())
+	require.NoError(t, err)
+
+	err = transferSess.RequestSubsystem(ctx, teleport.SFTPSubsystem)
+	require.NoError(t, err)
+	w, err := transferSess.StdinPipe()
+	require.NoError(t, err)
+	r, err := transferSess.StdoutPipe()
+	require.NoError(t, err)
+	sftpClient, err := sftp.NewClientPipe(r, w)
+	require.NoError(t, err)
+
+	return sftpClient
 }
 
 func sshRquestIgnoringKeepalives(t *testing.T, ch <-chan *ssh.Request) *ssh.Request {
