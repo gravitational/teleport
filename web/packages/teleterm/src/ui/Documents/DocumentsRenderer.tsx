@@ -65,6 +65,10 @@ export function DocumentsRenderer(props: {
     'clustersService',
     useCallback(state => state.clusters, [])
   );
+  const workspaces = useStoreSelector(
+    'workspacesService',
+    useCallback(state => state.workspaces, [])
+  );
 
   function renderDocuments(documentsService: DocumentsService) {
     return documentsService.getDocuments().map(doc => {
@@ -73,9 +77,10 @@ export function DocumentsRenderer(props: {
     });
   }
 
-  const workspaces = useMemo(
+  const workspacesWithClusters = useMemo(
     () =>
-      Object.entries(workspacesService.getWorkspaces())
+      Object.entries(workspaces)
+        // Workspaces can outlive their clusters. Render only those that have an accompanying cluster available.
         .filter(([clusterUri]) => clusters.has(clusterUri))
         .map(([clusterUri, workspace]: [RootClusterUri, Workspace]) => ({
           rootClusterUri: clusterUri,
@@ -85,12 +90,12 @@ export function DocumentsRenderer(props: {
           accessRequestsService:
             workspacesService.getWorkspaceAccessRequestsService(clusterUri),
         })),
-    [workspacesService.getWorkspaces(), clusters]
+    [workspaces, clusters, workspacesService]
   );
 
   return (
     <>
-      {workspaces.map(workspace => (
+      {workspacesWithClusters.map(workspace => (
         <DocumentsContainer
           isVisible={
             workspace.rootClusterUri === workspacesService.getRootClusterUri()
