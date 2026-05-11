@@ -348,7 +348,7 @@ func newHandshaker(protocol string, ws *websocket.Conn) handshaker {
 	}
 	// Default to TDP
 	return &tdpHandshaker{
-		connection: tdp.NewConn(&WebsocketIO{Conn: ws}, legacy.Decode),
+		connection: tdp.NewConn(&WebsocketIO{Conn: ws}, legacy.Decode, legacy.WarningConstructor),
 	}
 }
 
@@ -756,9 +756,9 @@ func (d desktopPinger) pingTDPB(ctx context.Context) error {
 
 func newConn(rwc io.ReadWriteCloser, protocol string) *tdp.Conn {
 	if protocol == tdpb.ProtocolName {
-		return tdp.NewConn(rwc, tdp.DecoderAdapter(tdpb.DecodePermissive))
+		return tdp.NewConn(rwc, tdp.DecoderAdapter(tdpb.DecodePermissive), tdpb.WarningConstructor)
 	}
-	return tdp.NewConn(rwc, legacy.Decode)
+	return tdp.NewConn(rwc, legacy.Decode, legacy.WarningConstructor)
 }
 
 type desktopWebsocketProxy struct {

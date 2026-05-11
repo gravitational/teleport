@@ -513,12 +513,6 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 		msg, err := c.conn.ReadMessage()
 		if utils.IsOKNetworkError(err) {
 			return nil
-		} else if legacy.IsNonFatalErr(err) {
-			_ = c.conn.WriteMessage(&tdpb.Alert{
-				Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR,
-				Message:  err.Error(),
-			})
-			continue
 		} else if err != nil {
 			c.cfg.Logger.WarnContext(context.Background(), "Failed reading TDPB input message", "error", err)
 			return err
