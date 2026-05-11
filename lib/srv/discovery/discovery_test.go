@@ -3207,6 +3207,9 @@ func (m *mockAzureClient) GetByVMID(_ context.Context, _ string) (*azure.Virtual
 func (m *mockAzureClient) ListVirtualMachines(_ context.Context, _ string) ([]*armcompute.VirtualMachine, error) {
 	return m.vms, nil
 }
+func (m *mockAzureClient) ListVirtualMachinesFromUniformVMSS(ctx context.Context, resourceGroup string) ([]*armcompute.VirtualMachineScaleSetVM, error) {
+	return []*armcompute.VirtualMachineScaleSetVM{}, nil
+}
 
 func TestAzureVMDiscovery(t *testing.T) {
 	t.Parallel()

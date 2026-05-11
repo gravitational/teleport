@@ -19,6 +19,7 @@ package server
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"slices"
 	"strings"
 	"sync"
@@ -49,15 +50,15 @@ func (m *mockRunCommandClient) Run(ctx context.Context, req azure.RunCommandRequ
 }
 
 func TestAzureInstallRequestRun(t *testing.T) {
-	makeVM := func(name string) *armcompute.VirtualMachine {
-		return &armcompute.VirtualMachine{
-			ID:   &name,
-			Name: &name,
+	makeVM := func(name string) *AzureVirtualMachine {
+		return &AzureVirtualMachine{
+			ID:   name,
+			Name: name,
 		}
 	}
 
-	makeVMs := func(names ...string) []*armcompute.VirtualMachine {
-		var vms []*armcompute.VirtualMachine
+	makeVMs := func(names ...string) []*AzureVirtualMachine {
+		var vms []*AzureVirtualMachine
 		for _, name := range names {
 			vms = append(vms, makeVM(name))
 		}
@@ -70,7 +71,7 @@ func TestAzureInstallRequestRun(t *testing.T) {
 
 	tests := []struct {
 		name            string
-		instances       []*armcompute.VirtualMachine
+		instances       []*AzureVirtualMachine
 		proxyAddrGetter func(context.Context) (string, error)
 
 		wantErr string
@@ -127,14 +128,14 @@ func TestAzureInstallRequestRun(t *testing.T) {
 					mu.Lock()
 					defer mu.Unlock()
 					if result.Failure() {
-						failed = append(failed, *result.Instance.ID)
+						failed = append(failed, result.Instance.ID)
 					} else {
-						good = append(good, *result.Instance.ID)
+						good = append(good, result.Instance.ID)
 					}
 				},
 			}
 
-			err := req.Run(t.Context(), client)
+			err := req.Run(t.Context(), slog.Default(), client)
 
 			slices.Sort(failed)
 			slices.Sort(good)

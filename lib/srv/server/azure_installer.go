@@ -20,6 +20,7 @@ package server
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/gravitational/trace"
@@ -32,7 +33,8 @@ import (
 // AzureInstallRequest combines parameters for running commands on a set of Azure
 // virtual machines.
 type AzureInstallRequest struct {
-	Instances            []*armcompute.VirtualMachine
+	SubscriptionID       string
+	Instances            []*AzureVirtualMachine
 	InstallerParams      *types.InstallerParams
 	ProxyAddrGetter      func(context.Context) (string, error)
 	Region               string
@@ -42,12 +44,65 @@ type AzureInstallRequest struct {
 
 // AzureInstallResult stores installation results for particular VM instance.
 type AzureInstallResult struct {
-	// Instance is VM instance.
-	Instance *armcompute.VirtualMachine
+	// Instance is the Azure Virtual Machine the installation was attempted on.
+	Instance *AzureVirtualMachine
 	// APIError is potential API error encountered.
 	APIError error
 	// CommandResult is the result of run command: execution status, exit code, stdout, stderr.
 	CommandResult *azure.RunCommandResult
+}
+
+// AzureVirtualMachine contains information about an Azure Virtual Machine that is relevant for enrolling into Teleport.
+type AzureVirtualMachine struct {
+	// ID is the global resource ID of the virtual machine.
+	ID string
+	// VMID is the ID of the virtual machine.
+	VMID string
+	// Name is the name of the virtual machine.
+	Name string
+
+	// ScaleSetName is the name of the scale set the instance belongs to.
+	// Only applicable if the VM is part of a uniform scale set.
+	// Flexible scale sets are treated as regular VMs.
+	ScaleSetName string
+	// ScaleSetVMInstanceID is the instance ID of the virtual machine within the scale set.
+	// Only applicable if the VM is part of a uniform scale set.
+	// Flexible scale sets are treated as regular VMs.
+	ScaleSetVMInstanceID string
+}
+
+func azureVirtualMachineFromAzureVM(vm *armcompute.VirtualMachine) *AzureVirtualMachine {
+	if vm == nil {
+		return nil
+	}
+
+	var vmID string
+	if vm.Properties != nil {
+		vmID = azure.StringVal(vm.Properties.VMID)
+	}
+	return &AzureVirtualMachine{
+		ID:   azure.StringVal(vm.ID),
+		VMID: vmID,
+		Name: azure.StringVal(vm.Name),
+	}
+}
+
+func azureVirtualMachineFromScaleSetVM(vm *armcompute.VirtualMachineScaleSetVM, scaleSetName string) *AzureVirtualMachine {
+	if vm == nil {
+		return nil
+	}
+
+	var vmID string
+	if vm.Properties != nil {
+		vmID = azure.StringVal(vm.Properties.VMID)
+	}
+	return &AzureVirtualMachine{
+		ID:                   azure.StringVal(vm.ID),
+		VMID:                 vmID,
+		Name:                 azure.StringVal(vm.Name),
+		ScaleSetName:         scaleSetName,
+		ScaleSetVMInstanceID: azure.StringVal(vm.InstanceID),
+	}
 }
 
 // Failure returns true if the installation result is considered a failure.
@@ -57,7 +112,7 @@ func (r AzureInstallResult) Failure() bool {
 
 // Run initiates Teleport installation on a set of virtual machines and then blocks until the
 // commands have completed.
-func (req *AzureInstallRequest) Run(ctx context.Context, client azure.RunCommandClient) error {
+func (req *AzureInstallRequest) Run(ctx context.Context, logger *slog.Logger, client azure.RunCommandClient) error {
 	// Azure treats scripts with the same content as the same invocation and
 	// won't run them more than once. This is fine when the installer script
 	// succeeds, but it makes troubleshooting much harder when it fails. To
@@ -84,10 +139,12 @@ func (req *AzureInstallRequest) Run(ctx context.Context, client azure.RunCommand
 			}
 
 			runRequest := azure.RunCommandRequest{
-				Region:        req.Region,
-				ResourceGroup: req.ResourceGroup,
-				VMName:        azure.StringVal(inst.Name),
-				Script:        script,
+				Region:               req.Region,
+				ResourceGroup:        req.ResourceGroup,
+				VMName:               inst.Name,
+				Script:               script,
+				ScaleSetVMInstanceID: inst.ScaleSetVMInstanceID,
+				ScaleSetName:         inst.ScaleSetName,
 			}
 
 			commandResult, apiError := client.Run(ctx, runRequest)
