@@ -22,10 +22,12 @@ import (
 	"crypto/tls"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net"
 	"os"
 	"os/user"
 	"regexp"
+	"slices"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -696,7 +698,7 @@ func (sess *linuxSession) handleClientHello(m *tdpb.ClientHello) error {
 		return trace.Wrap(err)
 	}
 	sessions := make([]*tdpbv1.SessionIdentifier, 0, len(sess.xsessions))
-	for s := range sess.xsessions {
+	for _, s := range slices.Sorted(maps.Keys(sess.xsessions)) {
 		sessions = append(sessions, &tdpbv1.SessionIdentifier{
 			Name: s,
 		})
