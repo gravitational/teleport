@@ -5510,7 +5510,12 @@ func flattenIdentity(cf *CLIConf) error {
 	// Usually, initializing the client store with an identity file would result in
 	// an in-memory client store with a profile for cf.Proxy pre-loaded. Instead,
 	// initialize an FS client store and load the identity file into it.
-	hwks := piv.NewYubiKeyService(nil /*prompt*/)
+	var hwks hardwarekey.Service
+	if cf.disableHardwareKeyAgentClient {
+		hwks = piv.NewYubiKeyService(nil /*prompt*/)
+	} else {
+		hwks = libhwk.NewService(cf.Context, nil /*prompt*/)
+	}
 	clientStore := client.NewFSClientStore(cf.HomePath, client.WithHardwareKeyService(hwks))
 	if err := cf.setClientStore(clientStore); err != nil {
 		return trace.Wrap(err)
