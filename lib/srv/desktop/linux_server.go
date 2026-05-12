@@ -597,7 +597,11 @@ func (sess *linuxSession) messageLoop() error {
 				return trace.Wrap(err)
 			}
 		case *tdpb.MouseWheel:
-			if err := sess.backend.SendMouseWheel(int(m.Delta)); err != nil {
+			f := sess.backend.SendMouseWheel
+			if m.Axis == tdpbv1.MouseWheelAxis_MOUSE_WHEEL_AXIS_HORIZONTAL {
+				f = sess.backend.SendHorizontalMouseWheel
+			}
+			if err := f(int(m.Delta)); err != nil {
 				sess.log.ErrorContext(sess.ctx, "failed to send mouse wheel", "error", err)
 				sess.sendTDPError("Couldn't send mouse wheel event.")
 				return trace.Wrap(err)

@@ -570,20 +570,43 @@ func (x *Backend) SendMouseButton(button byte, pressed bool) error {
 	return trace.Wrap(err)
 }
 
+const (
+	wheelUp = iota + byte(4)
+	wheelDown
+	horizontalWheelLeft
+	horizontalWheelRight
+)
+
 // SendMouseWheel sends one wheel step event in the requested direction.
 func (x *Backend) SendMouseWheel(delta int) error {
 	if delta == 0 {
 		return nil
 	}
-	detail := byte(5)
+	button := wheelDown
 	if delta > 0 {
-		detail = 4
+		button = wheelUp
 	}
-	if err := xtest.FakeInputChecked(x.conn, 4, detail, xproto.TimeCurrentTime, x.root(), 0, 0, 0).Check(); err != nil {
-		return trace.Wrap(err)
+	// In X11 wheel is simulated by "clicking" virtual button
+	if err := x.SendMouseButton(button, true); err != nil {
+		return err
 	}
-	err := xtest.FakeInputChecked(x.conn, 5, detail, xproto.TimeCurrentTime, x.root(), 0, 0, 0).Check()
-	return trace.Wrap(err)
+	return x.SendMouseButton(button, false)
+}
+
+// SendHorizontalMouseWheel sends one horizontal wheel step event in the requested direction.
+func (x *Backend) SendHorizontalMouseWheel(delta int) error {
+	if delta == 0 {
+		return nil
+	}
+	button := horizontalWheelRight
+	if delta > 0 {
+		button = horizontalWheelLeft
+	}
+	// In X11 wheel is simulated by "clicking" virtual button
+	if err := x.SendMouseButton(button, true); err != nil {
+		return err
+	}
+	return x.SendMouseButton(button, false)
 }
 
 func (x *Backend) SendMouseMove(px, py int16) error {
