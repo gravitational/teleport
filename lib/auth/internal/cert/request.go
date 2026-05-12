@@ -179,6 +179,8 @@ type Request struct {
 	// HeadlessAuthenticationID is the ID of the headless authentication
 	// resource this certificate is being generated for.
 	HeadlessAuthenticationID string
+	// Login is the SSH login (OS username) the user is requesting to connect as.
+	Login string
 }
 
 // Check verifies the cert request is valid.
