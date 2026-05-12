@@ -25,7 +25,7 @@ import { directLogin } from './helpers/login';
 
 const authDir = join(dirname(fileURLToPath(import.meta.url)), '.auth');
 
-export default async function globalSetup() {
+async function globalSetup() {
   const browser = process.env.E2E_BROWSER;
   if (!browser) {
     throw new Error('E2E_BROWSER must be set by the runner');
@@ -41,3 +41,5 @@ export default async function globalSetup() {
     );
   }
 }
+
+export { globalSetup as default };
