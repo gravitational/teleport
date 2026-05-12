@@ -215,10 +215,11 @@ func TestAuthenticate(t *testing.T) {
 		scopedKubeLockMode              constants.LockingMode
 		scopedKubeDisconnectExpiredCert *bool
 
-		wantCtx                  *authContext
-		wantErr                  bool
-		wantAuthErr              bool
-		wantAuthorizeErrContains string
+		wantCtx                   *authContext
+		wantErr                   bool
+		wantAuthErr               bool
+		wantAuthorizeErrContains  string
+		wantDisconnectExpiredCert *time.Time
 	}{
 		{
 			desc:              "local user and cluster with active access request",
@@ -427,14 +428,15 @@ func TestAuthenticate(t *testing.T) {
 			),
 		},
 		{
-			desc:              "scoped user inherits disconnect on cert expiry from auth pref",
-			user:              authz.LocalUser{},
-			scoped:            true,
-			roleKubeGroups:    []string{"kube-group-a", "kube-group-b"},
-			routeToCluster:    "local",
-			kubernetesCluster: "local",
-			haveKubeCreds:     true,
-			tunnel:            tun,
+			desc:                      "scoped user inherits disconnect on cert expiry from auth pref",
+			user:                      authz.LocalUser{},
+			scoped:                    true,
+			roleKubeGroups:            []string{"kube-group-a", "kube-group-b"},
+			routeToCluster:            "local",
+			kubernetesCluster:         "local",
+			haveKubeCreds:             true,
+			tunnel:                    tun,
+			wantDisconnectExpiredCert: &certExpiration,
 			kubeServers: newKubeServersFromKubeClusters(
 				t,
 				&types.KubernetesClusterV3{
@@ -474,11 +476,61 @@ func TestAuthenticate(t *testing.T) {
 			},
 		},
 		{
-			desc:                            "scoped role kube.disconnect_expired_cert true sets disconnectExpiredCert",
+			desc:                            "scoped user disables on cert expiry",
+			user:                            authz.LocalUser{},
+			scoped:                          true,
+			roleKubeGroups:                  []string{"kube-group-a", "kube-group-b"},
+			routeToCluster:                  "local",
+			kubernetesCluster:               "local",
+			scopedKubeDisconnectExpiredCert: ptr(false),
+			wantDisconnectExpiredCert:       &time.Time{},
+			haveKubeCreds:                   true,
+			tunnel:                          tun,
+			kubeServers: newKubeServersFromKubeClusters(
+				t,
+				&types.KubernetesClusterV3{
+					Metadata: types.Metadata{
+						Name:   "local",
+						Labels: map[string]string{},
+					},
+					Scope: scopedTestScope,
+					Spec: types.KubernetesClusterSpecV3{
+						DynamicLabels: map[string]types.CommandLabelV2{},
+					},
+				},
+			),
+			wantCtx: &authContext{
+				kubeUsers:         set.New("user-a"),
+				kubeGroups:        set.New("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
+				kubeClusterName:   "local",
+				kubeClusterLabels: make(map[string]string),
+				certExpires:       certExpiration,
+				teleportCluster: teleportClusterClient{
+					name:       "local",
+					remoteAddr: *utils.MustParseAddr(remoteAddr),
+				},
+				kubeServers: newKubeServersFromKubeClusters(
+					t,
+					&types.KubernetesClusterV3{
+						Metadata: types.Metadata{
+							Name:   "local",
+							Labels: map[string]string{},
+						},
+						Scope: scopedTestScope,
+						Spec: types.KubernetesClusterSpecV3{
+							DynamicLabels: map[string]types.CommandLabelV2{},
+						},
+					},
+				),
+			},
+		},
+		{
+			desc:                            "scoped user sets disconnectExpiredCert to true",
 			user:                            authz.LocalUser{},
 			scoped:                          true,
 			roleKubeGroups:                  []string{"kube-group-a", "kube-group-b"},
 			scopedKubeDisconnectExpiredCert: ptr(true),
+			wantDisconnectExpiredCert:       &certExpiration,
 			routeToCluster:                  "local",
 			kubernetesCluster:               "local",
 			haveKubeCreds:                   true,
@@ -1010,6 +1062,10 @@ func TestAuthenticate(t *testing.T) {
 				cmp.AllowUnexported(authContext{}, teleportClusterClient{}, metaResource{}, apiResource{}),
 				cmpopts.IgnoreFields(authContext{}, "clientIdleTimeout", "sessionTTL", "ScopedContext", "recordingConfig", "disconnectExpiredCert", "kubeCluster", "checker", "accessState", "LockingMode"),
 			))
+
+			if tt.wantDisconnectExpiredCert != nil {
+				require.Equal(t, *tt.wantDisconnectExpiredCert, gotCtx.disconnectExpiredCert)
+			}
 
 			// validate authCtx.key() to make sure it includes certExpires timestamp.
 			// this is important to make sure user's credentials are correctly cached

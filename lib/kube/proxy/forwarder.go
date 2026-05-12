@@ -1287,6 +1287,8 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 
 	if actx.checker.Kube().AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert()) {
 		actx.disconnectExpiredCert = actx.ScopedContext.GetDisconnectCertExpiryTime()
+	} else {
+		actx.disconnectExpiredCert = time.Time{}
 	}
 
 	// For scoped roles, check for the locking mode here so that we can verify whether users can connect or not when not
