@@ -1,0 +1,6 @@
+kind: user
+version: v2
+metadata:
+  name: alice
+spec:
+  roles: [access]

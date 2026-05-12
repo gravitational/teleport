@@ -1,0 +1,28 @@
+version: v3
+teleport:
+  nodename: auth1
+  data_dir: /var/lib/teleport
+  log:
+    output: stdout
+    severity: DEBUG
+    format:
+      output: json
+  storage:
+    type: etcd
+    peers: ["http://etcd:2379"]
+    prefix: /teleport
+    insecure: true
+
+auth_service:
+  enabled: true
+  cluster_name: antithesis.test
+  listen_addr: 0.0.0.0:3025
+  authentication:
+    type: local
+    second_factor: "off"
+
+ssh_service:
+  enabled: false
+
+proxy_service:
+  enabled: false

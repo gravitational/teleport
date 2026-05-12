@@ -2111,3 +2111,25 @@ endif
 antithesis-instrument:
 	rm -rf  tool/antithesis/crud_generated_instrumentation/*
 	go tool antithesis-go-instrumentor tool/antithesis/crud tool/antithesis/crud_generated_instrumentation
+
+.PHONY: antithesis-docker-image
+antithesis-docker-image:
+	docker build -f tool/antithesis/config/Dockerfile \
+		--platform linux/amd64 \
+		-t okraport-config:latest \
+		--build-context config=tool/antithesis/config/ \
+		tool/antithesis/config/
+
+.PHONY: antithesis-docker-push
+antithesis-docker-push: ANTITHESIS_REGISTRY ?= us-central1-docker.pkg.dev/molten-verve-216720/teleport-repository
+antithesis-docker-push:
+	docker tag okraport-config:latest $(ANTITHESIS_REGISTRY)/okraport:latest
+	docker push $(ANTITHESIS_REGISTRY)/okraport:latest
+
+
+
+
+
+
+# Push to to the repo
+# docker push us-central1-docker.pkg.dev/molten-verve-216720/teleport-repository/okraport:hello

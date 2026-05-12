@@ -1,0 +1,54 @@
+services:
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.21
+    command:
+      - etcd
+      - --name=etcd
+      - --data-dir=/etcd-data
+      - --advertise-client-urls=http://etcd:2379
+      - --listen-client-urls=http://0.0.0.0:2379
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    ports:
+      - "127.0.0.1:2379:2379"
+    volumes:
+      - etcd-data:/etcd-data
+
+  auth1:
+    image: public.ecr.aws/gravitational/teleport-distroless:18.7.5
+    depends_on:
+      etcd:
+        condition: service_healthy
+    command: ["-c", "/etc/teleport/teleport.yaml", "--bootstrap=/etc/teleport/bootstrap.yaml"]
+    environment:
+      TELEPORT_ALLOW_NO_SECOND_FACTOR: "true"
+    ports:
+      - "127.0.0.1:3025:3025"
+    volumes:
+      - ./auth1.yaml:/etc/teleport/teleport.yaml:ro
+      - ./bootstrap.yaml:/etc/teleport/bootstrap.yaml:ro
+      - auth1-data:/var/lib/teleport
+
+  auth2:
+    image: public.ecr.aws/gravitational/teleport-distroless:18.7.5
+    depends_on:
+      etcd:
+        condition: service_healthy
+    command: ["-c", "/etc/teleport/teleport.yaml", "--bootstrap=/etc/teleport/bootstrap.yaml"]
+    environment:
+      TELEPORT_ALLOW_NO_SECOND_FACTOR: "true"
+    ports:
+      - "127.0.0.1:3026:3025"
+    volumes:
+      - ./auth2.yaml:/etc/teleport/teleport.yaml:ro
+      - ./bootstrap.yaml:/etc/teleport/bootstrap.yaml:ro
+      - auth2-data:/var/lib/teleport
+
+volumes:
+  etcd-data:
+  auth1-data:
+  auth2-data:
