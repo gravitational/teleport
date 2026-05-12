@@ -239,12 +239,12 @@ application instead of a web application, add the `--tcp` flag.
 Beams are single-user by design. Only the user who created a beam can access it.
 
 Access control is enforced using owner labels on the beam's node and application
-resources (`teleport.internal/beam/owner: <username>`) and a `beam-user` role
+resources (`teleport.internal/beams/owner: <username>`) and a `beam-user` role
 that restricts access to matching resources:
 
 ```yaml
 kind: role
-version: v7
+version: v8
 metadata:
   name: beam-user
 spec:
@@ -252,15 +252,15 @@ spec:
     logins:
       - beams
     node_labels:
-      teleport.internal/beam/owner: '{{internal.username}}'
+      teleport.internal/beams/owner: '{{user.metadata.name}}'
     app_labels_expression: |
       labels["teleport.internal/beams/app-type"] == "llm" ||
-      contains(user.spec.traits.username, labels["teleport.internal/beam/owner"])
+      contains(user.metadata.name, labels["teleport.internal/beams/owner"])
     rules:
       - resources: [beam]
         verbs: ["*"]
     beam_labels:
-      teleport.internal/beam/owner: '{{internal.username}}'
+      teleport.internal/beams/owner: '{{user.metadata.name}}'
 ```
 
 This role is automatically assigned to users on Beams-enabled clusters.
