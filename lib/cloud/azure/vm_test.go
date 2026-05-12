@@ -137,7 +137,9 @@ func TestGetVirtualMachine(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			vmClient := NewVirtualMachinesClientByAPI(tc.client, nil /* scaleSetAPI */)
+			vmClient := NewVirtualMachinesClientByAPI(VirtualMachinesClientConfig{
+				VirtualMachineAPI: tc.client,
+			})
 
 			vm, err := vmClient.Get(ctx, tc.resourceID)
 			tc.assertError(t, err)
@@ -153,14 +155,14 @@ func TestGetScaleSetVirtualMachine(t *testing.T) {
 	for _, tc := range []struct {
 		desc        string
 		resourceID  string
-		client      *ARMScaleSetMock
+		client      *ARMScaleSetVMsMock
 		assertError require.ErrorAssertionFunc
 		assertVM    require.ValueAssertionFunc
 	}{
 		{
 			desc:       "vm with valid user identities",
 			resourceID: validResourceID,
-			client: &ARMScaleSetMock{
+			client: &ARMScaleSetVMsMock{
 				GetResult: armcompute.VirtualMachineScaleSetVM{
 					ID:   to.Ptr(validResourceID),
 					Name: to.Ptr("name"),
@@ -191,7 +193,7 @@ func TestGetScaleSetVirtualMachine(t *testing.T) {
 		{
 			desc:       "vm without identity",
 			resourceID: validResourceID,
-			client: &ARMScaleSetMock{
+			client: &ARMScaleSetVMsMock{
 				GetResult: armcompute.VirtualMachineScaleSetVM{
 					ID:   to.Ptr(validResourceID),
 					Name: to.Ptr("name"),
@@ -210,7 +212,7 @@ func TestGetScaleSetVirtualMachine(t *testing.T) {
 		{
 			desc:       "vm with only user managed identities",
 			resourceID: validResourceID,
-			client: &ARMScaleSetMock{
+			client: &ARMScaleSetVMsMock{
 				GetResult: armcompute.VirtualMachineScaleSetVM{
 					ID:   to.Ptr(validResourceID),
 					Name: to.Ptr("name"),
@@ -238,7 +240,7 @@ func TestGetScaleSetVirtualMachine(t *testing.T) {
 		{
 			desc:       "client error",
 			resourceID: validResourceID,
-			client: &ARMScaleSetMock{
+			client: &ARMScaleSetVMsMock{
 				GetErr: fmt.Errorf("client error"),
 			},
 			assertError: require.Error,
@@ -246,7 +248,9 @@ func TestGetScaleSetVirtualMachine(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			vmClient := NewVirtualMachinesClientByAPI(nil /* api */, tc.client)
+			vmClient := NewVirtualMachinesClientByAPI(VirtualMachinesClientConfig{
+				ScaleSetVMsAPI: tc.client,
+			})
 
 			vm, err := vmClient.Get(ctx, tc.resourceID)
 			tc.assertError(t, err)
@@ -293,7 +297,9 @@ func TestListVirtualMachines(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			client := NewVirtualMachinesClientByAPI(mockAPI, nil /* scaleSetAPI */)
+			client := NewVirtualMachinesClientByAPI(VirtualMachinesClientConfig{
+				VirtualMachineAPI: mockAPI,
+			})
 
 			vms, err := client.ListVirtualMachines(context.Background(), tc.resourceGroup)
 			require.NoError(t, err)
