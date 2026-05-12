@@ -134,6 +134,7 @@ func (s *SyncKeys) Encode() ([]byte, error) {
 	})
 }
 
+// SessionSelection is sent by client to select one of available sessions for Linux desktop
 type SessionSelection tdpbv1.SessionSelection
 
 func (s *SessionSelection) Encode() ([]byte, error) {

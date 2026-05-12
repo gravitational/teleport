@@ -1233,6 +1233,7 @@ export class TdpCodec implements Codec {
   }
 
   encodeSessionSelection(_sessions: string): Message {
+    // SessionSelection is used only by Linux desktop and it uses TDPB only
     throw new Error('Method not implemented.');
   }
 

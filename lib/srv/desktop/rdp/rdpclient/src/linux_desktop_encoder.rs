@@ -197,7 +197,7 @@ impl Display for EncodeError {
 
 #[cfg(test)]
 mod tests {
-    use crate::encoder::inner_encode_qoiz;
+    use crate::linux_desktop_encoder::inner_encode_qoiz;
     use ironrdp_core::WriteBuf;
     use ironrdp_session::fast_path::ProcessorBuilder;
     use ironrdp_session::image::DecodedImage;
