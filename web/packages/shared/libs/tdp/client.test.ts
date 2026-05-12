@@ -45,7 +45,7 @@ jest.mock('shared/libs/ironrdp/pkg/ironrdp');
 test('tdp upgrade', async () => {
   let client = new TdpClient(
     () => Promise.resolve(mockTransport),
-    () => Promise.resolve(mockSharedDirectoryAccess),
+    () => Promise.resolve(mockSharedDirectoryAccess)
   );
 
   const transportOpen = new Promise<void>(client.onTransportOpen);
@@ -60,7 +60,7 @@ test('tdp upgrade', async () => {
   expect(mockTransport.send).toHaveBeenCalledTimes(2);
 
   let onMessage = mockTransport.onMessage.mock.calls[0][0] as (
-    data: ArrayBufferLike,
+    data: ArrayBufferLike
   ) => void;
   // Hand jam a tdpb upgrade message
   let msg = new Uint8Array(1);
@@ -81,7 +81,7 @@ test('tdp upgrade', async () => {
   // Should have received a ClientHello
   if (envelope.payload.oneofKind !== 'clientHello') {
     throw Error(
-      `Expected kind="clientHello", got ${envelope.payload.oneofKind}`,
+      `Expected kind="clientHello", got ${envelope.payload.oneofKind}`
     );
   }
 
@@ -95,7 +95,7 @@ test('shared directory management', async () => {
     () => Promise.resolve(mockTransport),
     () => Promise.resolve(mockSharedDirectoryAccess),
     // Remove operations are only supported on the TDPB codec.
-    { mode: 'tdpb' },
+    { mode: 'tdpb' }
   );
 
   // Must connect before shared directory functions can be called.
