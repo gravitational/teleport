@@ -122,13 +122,13 @@ func GenSchemaScopedRole(ctx context.Context) (github_com_hashicorp_terraform_pl
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"disconnect_expired_cert": {
-							Description: "DisconnectExpiredCert defines the default behavior of all protocols when certs expire for a session.",
+							Description: "DisconnectExpiredCert defines the default behavior of all protocols when certs expire for a session. If unset, cluster wide defaults are used.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 						},
 						"lock": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"mode": {
-								Description: "Allowed values: strict | best_effort",
+								Description: "Allowed values: strict or best_effort. Defaults to value cluster wide auth preference if not set.",
 								Optional:    true,
 								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 							}}),
@@ -137,7 +137,7 @@ func GenSchemaScopedRole(ctx context.Context) (github_com_hashicorp_terraform_pl
 						},
 						"session_recording": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"mode": {
-								Description: "Mode sets the session recording mode. Allowed values: strict | best_effort.",
+								Description: "Mode sets the session recording mode. Allowed values: strict or best_effort.",
 								Optional:    true,
 								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 							}}),
@@ -183,7 +183,7 @@ func GenSchemaScopedRole(ctx context.Context) (github_com_hashicorp_terraform_pl
 						},
 						"lock": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"mode": {
-								Description: "Allowed values: strict | best_effort",
+								Description: "Allowed values: strict or best_effort. Defaults to value cluster wide auth preference if not set.",
 								Optional:    true,
 								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 							}}),
@@ -223,7 +223,7 @@ func GenSchemaScopedRole(ctx context.Context) (github_com_hashicorp_terraform_pl
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"disconnect_expired_cert": {
-							Description: "DisconnectExpiredCert controls whether SSH sessions are disconnected when the user certificate expires.",
+							Description: "DisconnectExpiredCert controls whether SSH sessions are disconnected when the user certificate expires. Defaults to value cluster wide auth preference if not set.",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.BoolType,
 						},
@@ -302,7 +302,7 @@ func GenSchemaScopedRole(ctx context.Context) (github_com_hashicorp_terraform_pl
 						},
 						"lock": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"mode": {
-								Description: "Allowed values: strict | best_effort",
+								Description: "Allowed values: strict or best_effort. Defaults to value cluster wide auth preference if not set.",
 								Optional:    true,
 								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 							}}),
@@ -350,7 +350,7 @@ func GenSchemaScopedRole(ctx context.Context) (github_com_hashicorp_terraform_pl
 						},
 						"session_recording": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"mode": {
-								Description: "Mode sets the session recording mode. Allowed values: strict | best_effort.",
+								Description: "Mode sets the session recording mode. Allowed values: strict or best_effort.",
 								Optional:    true,
 								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
 							}}),

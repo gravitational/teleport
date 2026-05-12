@@ -28,7 +28,6 @@ import (
 )
 
 func TestKubeAccessCheckerAdjustDisconnectExpiredCert(t *testing.T) {
-	t.Parallel()
 
 	tts := []struct {
 		name       string
@@ -87,7 +86,6 @@ func TestKubeAccessCheckerAdjustDisconnectExpiredCert(t *testing.T) {
 
 	for _, tt := range tts {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 			checker := newScopedCheckerWithRole(tt.spec).Kube()
 			require.Equal(t, tt.expect, checker.AdjustDisconnectExpiredCert(tt.defaultVal))
 		})
@@ -95,7 +93,6 @@ func TestKubeAccessCheckerAdjustDisconnectExpiredCert(t *testing.T) {
 }
 
 func TestKubeAccessCheckerLockingMode(t *testing.T) {
-	t.Parallel()
 
 	tts := []struct {
 		name        string
@@ -167,7 +164,6 @@ func TestKubeAccessCheckerLockingMode(t *testing.T) {
 
 	for _, tt := range tts {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
 			checker := newScopedCheckerWithRole(tt.spec).Kube()
 			require.Equal(t, tt.expect, checker.LockingMode(tt.defaultMode))
 		})

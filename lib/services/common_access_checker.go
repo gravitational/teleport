@@ -60,16 +60,16 @@ func (c *ScopedAccessChecker) scopedLockingMode(lock *accessv1.Lock, defaultMode
 	if lock == nil {
 		lock = c.role.GetSpec().GetDefaults().GetLock()
 	}
-
-	if lock != nil {
-		mode := constants.LockingMode(lock.GetMode())
-		switch mode {
-		case constants.LockingModeStrict, constants.LockingModeBestEffort:
-			return mode
-		default:
-			return defaultMode
-		}
+	// both protocol specific lock and the default locks are nil, so return the defaultMode.
+	if lock == nil {
+		return defaultMode
 	}
 
-	return defaultMode
+	mode := constants.LockingMode(lock.GetMode())
+	switch mode {
+	case constants.LockingModeStrict, constants.LockingModeBestEffort:
+		return mode
+	default:
+		return defaultMode
+	}
 }

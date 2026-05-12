@@ -1284,13 +1284,16 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	disconnect := actx.checker.Kube().AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert())
-	actx.disconnectExpiredCert = actx.ScopedContext.GetDisconnectCertExpiryTime(disconnect)
+
+	if actx.checker.Kube().AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert()) {
+		actx.disconnectExpiredCert = actx.ScopedContext.GetDisconnectCertExpiryTime()
+	}
 
 	// For scoped roles, check for the locking mode here so that we can verify whether users can connect or not when not
 	// when the lock is stale.
 	if isScoped {
 		actx.LockingMode = actx.checker.Kube().LockingMode(authPref.GetLockingMode())
+		// TODO(williamo/scopes): Potentially delete this in favor of checking locks in lib/authz/scoped.go
 		if err := f.cfg.LockWatcher.CheckLockInForce(actx.LockingMode, actx.LockTargets()...); err != nil {
 			return trace.Wrap(err)
 		}

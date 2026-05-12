@@ -91,6 +91,7 @@ message ScopedRoleDefaults {
   SessionRecording session_recording = 2;
 
   // DisconnectExpiredCert defines the default behavior of all protocols when certs expire for a session.
+  // If unset, cluster wide defaults are used.
   optional bool disconnect_expired_cert = 3;
 
   // Lock specifies the default locking mode for access sessions across all protocols that
@@ -146,6 +147,7 @@ message ScopedRoleSSH {
 
   // DisconnectExpiredCert controls whether SSH sessions are disconnected when the
   // user certificate expires.
+  // Defaults to value cluster wide auth preference if not set.
   optional bool disconnect_expired_cert = 14;
 
   // Lock configures the role's locking behavior for SSH sessions.
@@ -233,13 +235,14 @@ message EnhancedRecording {
 
 // SessionRecording sets the session recording behavior.
 message SessionRecording {
-  // Mode sets the session recording mode. Allowed values: strict | best_effort.
+  // Mode sets the session recording mode. Allowed values: strict or best_effort.
   string mode = 1;
 }
 
 // Lock controls locking mode for sessions authorized via this
 // scoped role.
 message Lock {
-  // Allowed values: strict | best_effort
+  // Allowed values: strict or best_effort.
+  // Defaults to value cluster wide auth preference if not set.
   string mode = 1;
 }

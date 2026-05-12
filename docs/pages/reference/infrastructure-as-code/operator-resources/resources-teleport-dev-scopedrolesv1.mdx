@@ -41,7 +41,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |Field|Type|Description|
 |---|---|---|
 |client_idle_timeout|string|ClientIdleTimeout sets the default idle timeout for access sessions across all protocols that do not specify their own value. Must be a valid Go duration string (e.g. "30m", "1h").|
-|disconnect_expired_cert|boolean|DisconnectExpiredCert defines the default behavior of all protocols when certs expire for a session.|
+|disconnect_expired_cert|boolean|DisconnectExpiredCert defines the default behavior of all protocols when certs expire for a session. If unset, cluster wide defaults are used.|
 |lock|[object](#specdefaultslock)|Lock specifies the default locking mode for access sessions across all protocols that do not specify their own value. If unset, cluster wide defaults are used.|
 |session_recording|[object](#specdefaultssession_recording)|SessionRecording configures the session recording strategy for all protocols that don't explicitly set their session recording mode.|
 
@@ -49,13 +49,13 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 
 |Field|Type|Description|
 |---|---|---|
-|mode|string|Allowed values: strict | best_effort|
+|mode|string|Allowed values: strict or best_effort. Defaults to value cluster wide auth preference if not set.|
 
 ### spec.defaults.session_recording
 
 |Field|Type|Description|
 |---|---|---|
-|mode|string|Mode sets the session recording mode. Allowed values: strict | best_effort.|
+|mode|string|Mode sets the session recording mode. Allowed values: strict or best_effort.|
 
 ### spec.kube
 
@@ -79,7 +79,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 
 |Field|Type|Description|
 |---|---|---|
-|mode|string|Allowed values: strict | best_effort|
+|mode|string|Allowed values: strict or best_effort. Defaults to value cluster wide auth preference if not set.|
 
 ### spec.rules items
 
@@ -93,7 +93,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |Field|Type|Description|
 |---|---|---|
 |client_idle_timeout|string|ClientIdleTimeout overrides the defaults block idle timeout specifically for SSH sessions. Must be a valid Go duration string (e.g. "30m", "1h"). If empty, the defaults block value (or global default) applies.|
-|disconnect_expired_cert|boolean|DisconnectExpiredCert controls whether SSH sessions are disconnected when the user certificate expires.|
+|disconnect_expired_cert|boolean|DisconnectExpiredCert controls whether SSH sessions are disconnected when the user certificate expires. Defaults to value cluster wide auth preference if not set.|
 |enhanced_recording|[object](#specsshenhanced_recording)|EnhancedRecording is the set of BPF events to record for enhanced session recording.|
 |file_copy|boolean|FileCopy indicates whether remote file operations via SCP or SFTP are allowed over an SSH session. It defaults to allowing the user to download and upload files by default.|
 |forward_agent|boolean|ForwardAgent enables SSH agent forwarding.|
@@ -134,7 +134,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 
 |Field|Type|Description|
 |---|---|---|
-|mode|string|Allowed values: strict | best_effort|
+|mode|string|Allowed values: strict or best_effort. Defaults to value cluster wide auth preference if not set.|
 
 ### spec.ssh.port_forwarding
 
@@ -159,5 +159,5 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 
 |Field|Type|Description|
 |---|---|---|
-|mode|string|Mode sets the session recording mode. Allowed values: strict | best_effort.|
+|mode|string|Mode sets the session recording mode. Allowed values: strict or best_effort.|
 

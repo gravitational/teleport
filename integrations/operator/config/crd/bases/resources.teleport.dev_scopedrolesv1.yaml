@@ -58,7 +58,8 @@ spec:
                     type: string
                   disconnect_expired_cert:
                     description: DisconnectExpiredCert defines the default behavior
-                      of all protocols when certs expire for a session.
+                      of all protocols when certs expire for a session. If unset,
+                      cluster wide defaults are used.
                     type: boolean
                   lock:
                     description: Lock specifies the default locking mode for access
@@ -67,7 +68,8 @@ spec:
                     nullable: true
                     properties:
                       mode:
-                        description: 'Allowed values: strict | best_effort'
+                        description: 'Allowed values: strict or best_effort. Defaults
+                          to value cluster wide auth preference if not set.'
                         type: string
                     type: object
                   session_recording:
@@ -78,7 +80,7 @@ spec:
                     properties:
                       mode:
                         description: 'Mode sets the session recording mode. Allowed
-                          values: strict | best_effort.'
+                          values: strict or best_effort.'
                         type: string
                     type: object
                 type: object
@@ -124,7 +126,8 @@ spec:
                     nullable: true
                     properties:
                       mode:
-                        description: 'Allowed values: strict | best_effort'
+                        description: 'Allowed values: strict or best_effort. Defaults
+                          to value cluster wide auth preference if not set.'
                         type: string
                     type: object
                   users:
@@ -169,7 +172,8 @@ spec:
                     type: string
                   disconnect_expired_cert:
                     description: DisconnectExpiredCert controls whether SSH sessions
-                      are disconnected when the user certificate expires.
+                      are disconnected when the user certificate expires. Defaults
+                      to value cluster wide auth preference if not set.
                     type: boolean
                   enhanced_recording:
                     description: EnhancedRecording is the set of BPF events to record
@@ -243,7 +247,8 @@ spec:
                     nullable: true
                     properties:
                       mode:
-                        description: 'Allowed values: strict | best_effort'
+                        description: 'Allowed values: strict or best_effort. Defaults
+                          to value cluster wide auth preference if not set.'
                         type: string
                     type: object
                   logins:
@@ -290,7 +295,7 @@ spec:
                     properties:
                       mode:
                         description: 'Mode sets the session recording mode. Allowed
-                          values: strict | best_effort.'
+                          values: strict or best_effort.'
                         type: string
                     type: object
                 type: object

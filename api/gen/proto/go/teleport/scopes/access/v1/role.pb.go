@@ -235,6 +235,7 @@ type ScopedRoleDefaults struct {
 	// explicitly set their session recording mode.
 	SessionRecording *SessionRecording `protobuf:"bytes,2,opt,name=session_recording,json=sessionRecording,proto3" json:"session_recording,omitempty"`
 	// DisconnectExpiredCert defines the default behavior of all protocols when certs expire for a session.
+	// If unset, cluster wide defaults are used.
 	DisconnectExpiredCert *bool `protobuf:"varint,3,opt,name=disconnect_expired_cert,json=disconnectExpiredCert,proto3,oneof" json:"disconnect_expired_cert,omitempty"`
 	// Lock specifies the default locking mode for access sessions across all protocols that
 	// do not specify their own value. If unset, cluster wide defaults are used.
@@ -339,6 +340,7 @@ type ScopedRoleSSH struct {
 	SessionRecording *SessionRecording `protobuf:"bytes,13,opt,name=session_recording,json=sessionRecording,proto3" json:"session_recording,omitempty"`
 	// DisconnectExpiredCert controls whether SSH sessions are disconnected when the
 	// user certificate expires.
+	// Defaults to value cluster wide auth preference if not set.
 	DisconnectExpiredCert *bool `protobuf:"varint,14,opt,name=disconnect_expired_cert,json=disconnectExpiredCert,proto3,oneof" json:"disconnect_expired_cert,omitempty"`
 	// Lock configures the role's locking behavior for SSH sessions.
 	Lock          *Lock `protobuf:"bytes,15,opt,name=lock,proto3" json:"lock,omitempty"`
@@ -903,7 +905,7 @@ func (x *EnhancedRecording) GetDisk() bool {
 // SessionRecording sets the session recording behavior.
 type SessionRecording struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Mode sets the session recording mode. Allowed values: strict | best_effort.
+	// Mode sets the session recording mode. Allowed values: strict or best_effort.
 	Mode          string `protobuf:"bytes,1,opt,name=mode,proto3" json:"mode,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -950,7 +952,8 @@ func (x *SessionRecording) GetMode() string {
 // scoped role.
 type Lock struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Allowed values: strict | best_effort
+	// Allowed values: strict or best_effort.
+	// Defaults to value cluster wide auth preference if not set.
 	Mode          string `protobuf:"bytes,1,opt,name=mode,proto3" json:"mode,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
