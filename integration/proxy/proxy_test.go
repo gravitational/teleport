@@ -392,7 +392,11 @@ func TestALPNSNIProxyKube(t *testing.T) {
 	// Teleport Proxy with a L7 LB in front.
 	t.Run("ALPN connection upgrade", func(t *testing.T) {
 		teleportCluster := suite.root.Config.Auth.ClusterName.GetClusterName()
-		kubeCluster := "gke_project_europecentral2a_cluster1"
+		// Must match the KubeCluster claim on the cert issued at the top of
+		// the test (see kube.ProxyConfig above) — URL-based routing on the
+		// upstream Teleport proxy verifies the cluster identifier in the
+		// path matches the cert claim.
+		kubeCluster := "root.example.com"
 
 		k8sClient := createALPNLocalKubeClient(t,
 			suite.root.Config.Proxy.WebAddr,
@@ -641,7 +645,7 @@ func TestKubePROXYProtocol(t *testing.T) {
 					k8Client = createALPNLocalKubeClient(t,
 						targetAddr,
 						testCluster.Secrets.SiteName,
-						kubeCluster,
+						kubeClusterName,
 						kubeConfig)
 				}
 
@@ -666,7 +670,7 @@ func createALPNLocalKubeClient(t *testing.T, targetAddr utils.NetAddr, teleportC
 	// Generate a self-signed CA for kube local proxy.
 	localCAKey, localCACert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
 		CommonName: "localhost",
-	}, []string{alpncommon.KubeLocalProxyWildcardDomain(teleportCluster)}, defaults.CATTL)
+	}, []string{teleportCluster}, defaults.CATTL)
 	require.NoError(t, err)
 
 	// Make a mock ALB which points to the Teleport Proxy Service. Then
@@ -689,13 +693,13 @@ func createALPNLocalKubeClient(t *testing.T, targetAddr utils.NetAddr, teleportC
 	fp := mustStartKubeForwardProxy(t, lp.GetAddr())
 
 	k8Client, err := kubernetes.NewForConfig(&rest.Config{
-		Host:  "https://" + teleportCluster,
+		Host:  "https://" + teleportCluster + alpncommon.KubeLocalProxyPathPrefix(teleportCluster, kubeCluster),
 		Proxy: http.ProxyURL(mustParseURL(t, "http://"+fp.GetAddr())),
 		TLSClientConfig: rest.TLSClientConfig{
 			CAData:     localCACert,
 			CertData:   localCACert, // Client uses same cert as local proxy server.
 			KeyData:    localCAKey,
-			ServerName: alpncommon.KubeLocalProxySNI(teleportCluster, kubeCluster),
+			ServerName: teleportCluster,
 		},
 	})
 	require.NoError(t, err)
