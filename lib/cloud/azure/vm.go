@@ -53,6 +53,14 @@ type scaleSet interface {
 	Get(ctx context.Context, resourceGroupName string, vmScaleSetName string, instanceID string, options *armcompute.VirtualMachineScaleSetVMsClientGetOptions) (armcompute.VirtualMachineScaleSetVMsClientGetResponse, error)
 }
 
+// VMID extracts the VM ID from a VM.
+func VMID(vm *armcompute.VirtualMachine) string {
+	if vm == nil || vm.Properties == nil || vm.Properties.VMID == nil {
+		return ""
+	}
+	return *vm.Properties.VMID
+}
+
 // VirtualMachinesClient is a client for Azure virtual machines.
 type VirtualMachinesClient interface {
 	// Get returns the virtual machine (including scale set VMs) for the given
@@ -203,6 +211,9 @@ func (c *vmClient) Get(ctx context.Context, resourceID string) (*VirtualMachine,
 
 // GetByVMID returns the virtual machine for a given VM ID.
 func (c *vmClient) GetByVMID(ctx context.Context, vmID string) (*VirtualMachine, error) {
+	if vmID == "" {
+		return nil, trace.BadParameter("vmID is required")
+	}
 	pager := newListAllPager(c.api.NewListAllPager(&armcompute.VirtualMachinesClientListAllOptions{}))
 	for pager.more() {
 		res, err := pager.nextPage(ctx)
@@ -211,7 +222,7 @@ func (c *vmClient) GetByVMID(ctx context.Context, vmID string) (*VirtualMachine,
 		}
 
 		for _, vm := range res {
-			if vm.Properties != nil && *vm.Properties.VMID == vmID {
+			if VMID(vm) == vmID {
 				result, err := parseVirtualMachine(vm)
 				return result, trace.Wrap(err)
 			}

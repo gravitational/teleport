@@ -25,6 +25,7 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -280,7 +281,7 @@ func TestListVirtualMachines(t *testing.T) {
 			wantIDs:       []string{"vm1", "vm2"},
 		},
 		{
-			name:          "nonexistant resource group",
+			name:          "nonexistent resource group",
 			resourceGroup: "rgfake",
 			wantIDs:       []string{},
 		},
@@ -304,4 +305,66 @@ func TestListVirtualMachines(t *testing.T) {
 			require.ElementsMatch(t, tc.wantIDs, vmIDs)
 		})
 	}
+}
+
+// TestVMIDNilGuards pins the nil-traversal behavior of the VMID accessor.
+// VMID is called from GetByVMID's pager loop, where SDK pages can include
+// VMs missing Properties or VMID; without these guards, the loop would panic.
+func TestVMIDNilGuards(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name string
+		vm   *armcompute.VirtualMachine
+		want string
+	}{
+		{
+			name: "nil VM",
+			vm:   nil,
+			want: "",
+		},
+		{
+			name: "VM with nil Properties",
+			vm:   &armcompute.VirtualMachine{},
+			want: "",
+		},
+		{
+			name: "VM with non-nil Properties but nil VMID",
+			vm: &armcompute.VirtualMachine{
+				Properties: &armcompute.VirtualMachineProperties{},
+			},
+			want: "",
+		},
+		{
+			name: "VM with VMID populated",
+			vm: &armcompute.VirtualMachine{
+				Properties: &armcompute.VirtualMachineProperties{
+					VMID: to.Ptr("00000000-0000-0000-0000-000000000000"),
+				},
+			},
+			want: "00000000-0000-0000-0000-000000000000",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, VMID(tt.vm))
+		})
+	}
+}
+
+// TestGetByVMIDRejectsEmptyID pins the entry-point guard that prevents a full
+// subscription-wide pager walk when the caller passes "". Without this, the
+// loop would scan every VM in the subscription comparing against "" for VMs
+// where VMID returns "" (nil-Properties or nil-VMID), potentially matching
+// the wrong VM.
+func TestGetByVMIDRejectsEmptyID(t *testing.T) {
+	t.Parallel()
+	vmClient := NewVirtualMachinesClientByAPI(&ARMComputeMock{}, nil /* scaleSetAPI */)
+
+	got, err := vmClient.GetByVMID(t.Context(), "")
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err),
+		"empty vmID must surface as BadParameter, not as a NotFound after walking every VM; got %T: %v",
+		err, err)
+	require.Nil(t, got)
 }

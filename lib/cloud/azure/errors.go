@@ -46,6 +46,8 @@ func ConvertResponseError(err error) error {
 			return trace.AlreadyExists("%s", responseErr)
 		case http.StatusNotFound:
 			return trace.NotFound("%s", responseErr)
+		case http.StatusTooManyRequests:
+			return trace.LimitExceeded("%s", responseErr)
 		}
 	case errors.As(err, &authenticationFailedErr):
 		return trace.AccessDenied("%s", authenticationFailedErr)

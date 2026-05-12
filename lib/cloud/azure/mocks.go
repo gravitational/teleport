@@ -22,6 +22,10 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
+	"slices"
+	"strings"
+	"sync"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
@@ -448,6 +452,9 @@ func (m *ARMKubernetesMock) NewListByResourceGroupPager(group string, _ *armcont
 }
 
 func (m *ARMKubernetesMock) GetCommandResult(ctx context.Context, resourceGroupName string, resourceName string, commandID string, options *armcontainerservice.ManagedClustersClientGetCommandResultOptions) (armcontainerservice.ManagedClustersClientGetCommandResultResponse, error) {
+	if m.NoAuth {
+		return armcontainerservice.ManagedClustersClientGetCommandResultResponse{}, trace.AccessDenied("unauthorized")
+	}
 	return armcontainerservice.ManagedClustersClientGetCommandResultResponse{
 		RunCommandResult: armcontainerservice.RunCommandResult{
 			ID: to.Ptr(commandID),
@@ -500,8 +507,10 @@ func (m *ARMComputeMock) NewListPager(resourceGroup string, _ *armcompute.Virtua
 		vms = []*armcompute.VirtualMachine{}
 	}
 	return runtime.NewPager(runtime.PagingHandler[armcompute.VirtualMachinesClientListResponse]{
-		More: func(page armcompute.VirtualMachinesClientListResponse) bool {
-			return page.NextLink != nil && len(*page.NextLink) > 0
+		More: func(_ armcompute.VirtualMachinesClientListResponse) bool {
+			// Single-page mock: never advertise additional pages. The Fetcher
+			// returns its full payload on the first call and never sets NextLink.
+			return false
 		},
 		Fetcher: func(ctx context.Context, page *armcompute.VirtualMachinesClientListResponse) (armcompute.VirtualMachinesClientListResponse, error) {
 			return armcompute.VirtualMachinesClientListResponse{
@@ -519,8 +528,10 @@ func (m *ARMComputeMock) NewListAllPager(_ *armcompute.VirtualMachinesClientList
 		vms = append(vms, resourceGroupVMs...)
 	}
 	return runtime.NewPager(runtime.PagingHandler[armcompute.VirtualMachinesClientListAllResponse]{
-		More: func(page armcompute.VirtualMachinesClientListAllResponse) bool {
-			return page.NextLink != nil && len(*page.NextLink) > 0
+		More: func(_ armcompute.VirtualMachinesClientListAllResponse) bool {
+			// Single-page mock: never advertise additional pages. The Fetcher
+			// returns its full payload on the first call and never sets NextLink.
+			return false
 		},
 		Fetcher: func(ctx context.Context, page *armcompute.VirtualMachinesClientListAllResponse) (armcompute.VirtualMachinesClientListAllResponse, error) {
 			return armcompute.VirtualMachinesClientListAllResponse{
@@ -725,4 +736,164 @@ func NewUserAssignedIdentity(subscription, resourceGroupName, resourceName, clie
 			ClientID: &clientID,
 		},
 	}
+}
+
+// ARMResourceGraphMock implements ResourceGraphClient for tests.
+//
+// Set VMs, VMsBySubscription, and Err before calling QueryVMs. Query metadata
+// is exposed through Calls and LastParams.
+type ARMResourceGraphMock struct {
+	// VMs is the response returned when VMsBySubscription is nil.
+	VMs []DiscoveredVM
+	// VMsBySubscription routes responses by subscription ID. VM rows must still
+	// populate required ARG fields, including SubscriptionID. When set, VMs is ignored.
+	VMsBySubscription map[string][]DiscoveredVM
+	// Err is returned verbatim from QueryVMs when non-nil.
+	Err error
+
+	mu         sync.RWMutex
+	calls      int
+	lastParams QueryVMsParams
+}
+
+// QueryVMs implements ResourceGraphClient.
+func (m *ARMResourceGraphMock) QueryVMs(_ context.Context, params QueryVMsParams) ([]DiscoveredVM, error) {
+	// Validate before touching call state: production rejects these inputs
+	// before any SDK round trip, so the mock's calls counter must not move
+	// on validation failure.
+	if err := validateQueryVMsParams(params); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	m.mu.Lock()
+	m.calls++
+	m.lastParams = cloneQueryVMsParams(params)
+	err := m.Err
+	var vmsBySubscription map[string][]DiscoveredVM
+	var vms []DiscoveredVM
+	if err == nil {
+		vmsBySubscription = cloneDiscoveredVMsBySubscription(m.VMsBySubscription)
+		vms = cloneDiscoveredVMs(m.VMs)
+	}
+	m.mu.Unlock()
+
+	if err != nil {
+		return nil, err
+	}
+	var src []DiscoveredVM
+	if vmsBySubscription != nil {
+		for _, sub := range params.SubscriptionIDs {
+			src = append(src, vmsBySubscription[sub]...)
+		}
+	} else {
+		src = vms
+	}
+	return mockARGServerFilter(src, params)
+}
+
+// Calls returns the number of QueryVMs invocations.
+func (m *ARMResourceGraphMock) Calls() int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.calls
+}
+
+// LastParams returns a snapshot of the most recent QueryVMs params.
+func (m *ARMResourceGraphMock) LastParams() QueryVMsParams {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return cloneQueryVMsParams(m.lastParams)
+}
+
+// cloneQueryVMsParams copies params without sharing slice backing arrays.
+func cloneQueryVMsParams(params QueryVMsParams) QueryVMsParams {
+	params.SubscriptionIDs = slices.Clone(params.SubscriptionIDs)
+	params.Regions = slices.Clone(params.Regions)
+	params.ResourceGroups = slices.Clone(params.ResourceGroups)
+	params.OSTypes = slices.Clone(params.OSTypes)
+	return params
+}
+
+func cloneDiscoveredVMsBySubscription(vms map[string][]DiscoveredVM) map[string][]DiscoveredVM {
+	if vms == nil {
+		return nil
+	}
+	clone := make(map[string][]DiscoveredVM, len(vms))
+	for subscription, subscriptionVMs := range vms {
+		clone[subscription] = cloneDiscoveredVMs(subscriptionVMs)
+	}
+	return clone
+}
+
+func cloneDiscoveredVMs(vms []DiscoveredVM) []DiscoveredVM {
+	clone := slices.Clone(vms)
+	for i := range clone {
+		clone[i].Tags = maps.Clone(clone[i].Tags)
+		if clone[i].Tags == nil {
+			// Production guarantees Tags is a non-nil empty map even when ARG
+			// returns no tags; preserve that contract for fixtures with nil Tags.
+			clone[i].Tags = map[string]string{}
+		}
+	}
+	return clone
+}
+
+// mockARGServerFilter mirrors the caller-controlled ARG predicates against
+// DiscoveredVM fixtures: subscription, region, resource group, and OS type.
+// It does not model the fixed type and power-state filters.
+func mockARGServerFilter(vms []DiscoveredVM, params QueryVMsParams) ([]DiscoveredVM, error) {
+	allowAllRegions := isMatchAll(params.Regions)
+	allowAllRGs := isMatchAll(params.ResourceGroups)
+	allowAllOSTypes := isMatchAll(params.OSTypes)
+	allowedSubs := make(map[string]struct{}, len(params.SubscriptionIDs))
+	for _, s := range params.SubscriptionIDs {
+		allowedSubs[s] = struct{}{}
+	}
+
+	out := make([]DiscoveredVM, 0, len(vms))
+	for _, vm := range vms {
+		if err := validateMockARGVM(vm); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if _, ok := allowedSubs[vm.SubscriptionID]; !ok {
+			continue
+		}
+		if !allowAllRegions && !equalFoldAny(vm.Location, params.Regions) {
+			continue
+		}
+		if !allowAllRGs && !equalFoldAny(vm.ResourceGroup, params.ResourceGroups) {
+			continue
+		}
+		if !allowAllOSTypes && !equalFoldAny(vm.OSType, params.OSTypes) {
+			continue
+		}
+		out = append(out, vm)
+	}
+	return out, nil
+}
+
+func validateMockARGVM(vm DiscoveredVM) error {
+	for _, field := range []struct {
+		key   string
+		value string
+	}{
+		{key: "id", value: vm.ID},
+		{key: "subscriptionId", value: vm.SubscriptionID},
+		{key: "name", value: vm.Name},
+		{key: "vmId", value: vm.VMID},
+		{key: "location", value: vm.Location},
+		{key: "resourceGroup", value: vm.ResourceGroup},
+	} {
+		if field.value == "" {
+			return trace.BadParameter("ARMResourceGraphMock fixture missing or empty required field %q", field.key)
+		}
+	}
+	return nil
+}
+
+// equalFoldAny reports whether s case-insensitively matches any candidate.
+func equalFoldAny(s string, candidates []string) bool {
+	return slices.ContainsFunc(candidates, func(candidate string) bool {
+		return strings.EqualFold(s, candidate)
+	})
 }
