@@ -628,6 +628,10 @@ func (x *Backend) Resize(width, height uint16) error {
 		return trace.Wrap(err)
 	}
 
+	if len(resources.Outputs) == 0 {
+		return trace.BadParameter("no outputs available")
+	}
+
 	found := false
 	for _, m := range resources.Modes {
 		if m.Width == width && m.Height == height {
