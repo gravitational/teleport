@@ -683,11 +683,6 @@ func ReverseTunnelListenAddr() *utils.NetAddr {
 	return makeAddr(BindIP, SSHProxyTunnelListenPort)
 }
 
-// MetricsServiceListenAddr returns the default listening address for the metrics service
-func MetricsServiceListenAddr() *utils.NetAddr {
-	return makeAddr(BindIP, MetricsListenPort)
-}
-
 func ProxyPeeringListenAddr() *utils.NetAddr {
 	return makeAddr(BindIP, ProxyPeeringListenPort)
 }

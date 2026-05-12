@@ -68,15 +68,6 @@ func ResourceMatchersToTypes(in []ResourceMatcher) []*types.DatabaseResourceMatc
 	return out
 }
 
-// AssumeRoleFromAWSMetadata is a conversion helper function that extracts
-// AWS IAM role ARN and external ID from AWS metadata.
-func AssumeRoleFromAWSMetadata(meta *types.AWS) types.AssumeRole {
-	return types.AssumeRole{
-		RoleARN:    meta.AssumeRoleARN,
-		ExternalID: meta.ExternalID,
-	}
-}
-
 // SimplifyAzureMatchers returns simplified Azure matchers. Each selector list
 // is trimmed, deduplicated, and collapsed to the wildcard if any entry is the
 // wildcard or the list is empty. Lists where every entry is whitespace-only are

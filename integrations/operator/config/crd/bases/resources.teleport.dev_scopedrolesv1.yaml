@@ -56,6 +56,17 @@ spec:
                       access sessions across all protocols that do not specify their
                       own value. Must be a valid Go duration string (e.g. "30m", "1h").
                     type: string
+                  session_recording:
+                    description: SessionRecording configures the session recording
+                      strategy for all protocols that don't explicitly set their session
+                      recording mode.
+                    nullable: true
+                    properties:
+                      mode:
+                        description: 'Mode sets the session recording mode. Allowed
+                          values: strict | best_effort.'
+                        type: string
+                    type: object
                 type: object
               kube:
                 description: The kubernetes specific configuration for a scoped role.
@@ -129,6 +140,21 @@ spec:
                       string (e.g. "30m", "1h"). If empty, the defaults block value
                       (or global default) applies.
                     type: string
+                  enhanced_recording:
+                    description: EnhancedRecording is the set of BPF events to record
+                      for enhanced session recording.
+                    nullable: true
+                    properties:
+                      command:
+                        description: Command enables session.command in audit logs
+                        type: boolean
+                      disk:
+                        description: Disk enables session.disk in audit logs
+                        type: boolean
+                      network:
+                        description: Network enables session.network in audit logs
+                        type: boolean
+                    type: object
                   file_copy:
                     description: FileCopy indicates whether remote file operations
                       via SCP or SFTP are allowed over an SSH session. It defaults
@@ -216,6 +242,16 @@ spec:
                           enabled:
                             type: boolean
                         type: object
+                    type: object
+                  session_recording:
+                    description: SessionRecording configures the session recording
+                      strategy for SSH sessions.
+                    nullable: true
+                    properties:
+                      mode:
+                        description: 'Mode sets the session recording mode. Allowed
+                          values: strict | best_effort.'
+                        type: string
                     type: object
                 type: object
             type: object
