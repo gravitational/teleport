@@ -42,6 +42,7 @@ export function useIdentity() {
     'workspacesService',
     useCallback(state => state.rootClusterUri, [])
   );
+  const activeRootCluster = activeClusterUri && clusters.get(activeClusterUri);
 
   async function changeRootCluster(clusterUri: RootClusterUri): Promise<void> {
     await ctx.workspacesService.setActiveWorkspace(clusterUri);
@@ -70,10 +71,6 @@ export function useIdentity() {
     }
   }
 
-  function getActiveRootCluster(): Cluster | undefined {
-    return ctx.clustersService.findCluster(activeClusterUri);
-  }
-
   function changeColor(color: WorkspaceColor): undefined {
     const clusterUri = ctx.workspacesService.getRootClusterUri();
     if (!clusterUri) {
@@ -97,7 +94,7 @@ export function useIdentity() {
     logout,
     forget,
     changeColor,
-    activeRootCluster: getActiveRootCluster(),
+    activeRootCluster,
     identityItems,
   };
 }
