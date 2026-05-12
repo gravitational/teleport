@@ -239,6 +239,7 @@ impl<const S: usize> Card<S> {
         // TODO(zmb3): compare algorithm against the private key using consts from
         // https://nvlpubs.nist.gov/nistpubs/SpecialPublications/NIST.SP.800-78-4.pdf
         // TODO(zmb3): support non-RSA keys, if needed.
+        // TODO(apri-dh): if support for non-RSA keys is added, make sure to update the precaching in `ContextInternal`
         if cmd.p1 != 0x07 {
             return Err(pdu_other_err!("", source:TeleportRdpdrBackendError(format!(
                 "unsupported algorithm identifier P1:{:#X} in general authenticate command",
@@ -292,6 +293,7 @@ impl<const S: usize> Card<S> {
         })?;
 
         // TODO(zmb3): support non-RSA keys, if needed.
+        // TODO(apri-dh): if support for non-RSA keys is added, make sure to update the precaching in `ContextInternal`
         let signed_challenge = self.sign_auth_challenge(challenge);
 
         // Return signed challenge.
