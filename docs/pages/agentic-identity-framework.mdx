@@ -37,11 +37,13 @@ import elasticsearchSvg from "@site/src/components/Icon/svg/elastic-stack.svg";
 <LandingHero
   title="Teleport Agentic Identity Framework"
   image="https://website.goteleport.com/_uploads/agentic_header_image_ff2a05f709.png"
-  linksTitle="A strong, unified identity must come before AI scale"
+  linksTitle="Scaling AI requires unified identity for users, agents, and workloads"
   linksTitleSize="lg"
   linksDescription={
     <>
-      AI Agents are autonomous actors, but legacy infrastructure treats them like simple scripts. Hardcoding long-lived secrets (API keys) and static permissions into agents creates a brittle, unmanageable attack surface. The Agentic Identity Framework treats agents as first-class citizens, giving them cryptographically-secured identities with ephemeral privileges that allow them to access infrastructure securely when needed, without managing secrets.
+      AI agents are autonomous actors, but they're often deployed with the same credentials used for cron jobs and scripts: long-lived API keys and static permissions issued once and rotated rarely. Every agent handed one of these credentials becomes a standing target. As your agent footprint grows, so does the inventory of secrets you have to protect, rotate, and revoke. 
+      
+      In the Agentic Identity Framework, your system provides each AI agent its own cryptographically verifiable identity with short-lived, scoped credentials issued on demand. Agents authenticate to infrastructure when they need to act and their access expires when they're done, so there's nothing to leak or rotate, and every action traces back to the specific agent that took it.
     </>
   }
   links={[
@@ -107,8 +109,10 @@ import elasticsearchSvg from "@site/src/components/Icon/svg/elastic-stack.svg";
 
 ## Architecture overview
 
+The framework is organized into four layers that build on each other: identity, access, security, and scheduling. Each subsection below describes the current state of that layer and links to relevant design docs and implementation guides
+
 <EnrollmentMethods
-  title="A. Identity (the foundation)"
+  title="Identity (the foundation)"
   titleType="h3"
   titleSize="md"
   description="Just as you use TouchID/SSO to log in, your agents need a strong identity. We use Teleport Machine and Workload Identity to attest the agent's running environment and issue a short-lived X.509 certificate."
@@ -153,7 +157,7 @@ import elasticsearchSvg from "@site/src/components/Icon/svg/elastic-stack.svg";
 </EnrollmentMethods>
 
 <EnrollmentMethods
-  title="B. Access"
+  title="Access"
   titleType="h3"
   titleSize="md"
   description="Once an agent has an identity, it needs access to be useful. You can use Teleport to manage authorization to infrastructure, services, and data with discovery of MCP servers and LLM controls, including rate limiting, load balancing, budgets, prompt/response tracking, and guardrails."
@@ -201,7 +205,7 @@ import elasticsearchSvg from "@site/src/components/Icon/svg/elastic-stack.svg";
 </EnrollmentMethods>
 
 <EnrollmentMethods
-  title="C. Security"
+  title="Security"
   titleType="h3"
   titleSize="md"
   description="Teleport provides discovery, detection, and analytics for AI agents and MCP servers to reduce shadow deployments and context poisoning attacks."
@@ -234,7 +238,7 @@ import elasticsearchSvg from "@site/src/components/Icon/svg/elastic-stack.svg";
 </EnrollmentMethods>
 
 <EnrollmentMethods
-  title="D. Scheduling and orchestration"
+  title="Scheduling and orchestration"
   titleType="h3"
   titleSize="md"
   description="Integrations and SDKs for modern agentic orchestration tools enable secure identities for agentic workflows accessing resources like databases and git repositories, as well as file sharing and developer tooling."
