@@ -64,9 +64,10 @@ func TestAccessListHierarchyCircularRefsCheck(t *testing.T) {
 
 	// Circular references should not be allowed.
 	err := ValidateAccessListMember(ctx, acl3, acl3m1, accessListAndMembersGetter)
-	//err = hierarchy.ValidateAccessListMember(acl3.GetName(), acl3m1)
-	require.Error(t, err)
-	require.ErrorIs(t, err, trace.BadParameter("Access List '%s' can't be added as a Member of '%s' because '%s' is already included as a Member or Owner in '%s'", acl1.Spec.Title, acl3.Spec.Title, acl3.Spec.Title, acl1.Spec.Title))
+	expectedErrMsg := fmt.Sprintf("Access List '%s' can't be added as a Member of '%s' because '%s' is already included as a Member or Owner in '%s'", acl1.Spec.Title, acl3.Spec.Title, acl3.Spec.Title, acl1.Spec.Title)
+	require.ErrorContains(t, err, expectedErrMsg)
+	require.True(t, trace.IsBadParameter(err))
+	require.ErrorIs(t, err, ErrCyclicMembership)
 
 	// By removing acl3 as a member of acl2, the relationship should be valid.
 	accessListAndMembersGetter.members[acl2.GetName()] = []*accesslist.AccessListMember{}
@@ -102,8 +103,10 @@ func TestAccessListHierarchyCircularRefsCheck(t *testing.T) {
 	}
 
 	err = ValidateAccessListWithMembers(ctx, nil, acl5, []*accesslist.AccessListMember{acl4m1}, accessListAndMembersGetter)
-	require.Error(t, err)
-	require.ErrorIs(t, err, trace.BadParameter("Access List '%s' can't be added as an Owner of '%s' because '%s' is already included as a Member or Owner in '%s'", acl4.Spec.Title, acl5.Spec.Title, acl5.Spec.Title, acl4.Spec.Title))
+	expectedErrMsg = fmt.Sprintf("Access List '%s' can't be added as an Owner of '%s' because '%s' is already included as a Member or Owner in '%s'", acl4.Spec.Title, acl5.Spec.Title, acl5.Spec.Title, acl4.Spec.Title)
+	require.ErrorContains(t, err, expectedErrMsg)
+	require.True(t, trace.IsBadParameter(err))
+	require.ErrorIs(t, err, ErrCyclicMembership)
 }
 
 func TestAccessListHierarchyDepthCheck(t *testing.T) {

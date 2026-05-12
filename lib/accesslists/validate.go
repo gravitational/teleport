@@ -28,6 +28,13 @@ import (
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 )
 
+var (
+	// ErrCyclicMembership is returned when a cyclic Access List membership
+	// is detected. E.g. List A is a member of List B and List B is a member
+	// of List A.
+	ErrCyclicMembership = &trace.BadParameterError{Message: "cyclic membership not allowed"}
+)
+
 // ValidateAccessListWithMembers makes sure the given AccessList and it's members is valid before
 // storing it. If the existingAccessList is non-nil it also checks if this is a valid update
 // transition. It takes into account validation of the nested access lists membership.
@@ -267,8 +274,7 @@ func validateAddition(
 		return trace.Wrap(err)
 	}
 	if reachable {
-		return trace.BadParameter(
-			"Access List '%s' can't be added as %s of '%s' because '%s' is already included as a Member or Owner in '%s'",
+		return trace.Wrap(ErrCyclicMembership, "Access List '%s' can't be added as %s of '%s' because '%s' is already included as a Member or Owner in '%s'",
 			childList.Spec.Title, kindStr, parentList.Spec.Title, parentList.Spec.Title, childList.Spec.Title)
 	}
 
