@@ -176,7 +176,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, cliFlags *tctlcfg.Glo
 	a.authLS.Flag("format", "Output format: 'yaml', 'json' or 'text'").Default(teleport.YAML).StringVar(&a.format)
 
 	a.authCRL = auth.Command("crl", "Export empty certificate revocation list (CRL) for Teleport certificate authorities.")
-	a.authCRL.Flag("type", fmt.Sprintf("Certificate authority type, one of: %s", strings.Join(allowedCRLCertificateTypes, ", "))).Required().EnumVar(&a.caType, allowedCRLCertificateTypes...)
+	a.authCRL.Flag("type", "Certificate authority type.").Required().EnumVar(&a.caType, allowedCRLCertificateTypes...)
 	a.authCRL.Flag("out", "If set, writes exported revocation lists to files with the given path prefix").StringVar(&a.output)
 
 	if libsubca.Enabled() {
@@ -430,7 +430,7 @@ func (a *AuthCommand) generateWindowsCert(ctx context.Context, clusterAPI certif
 		return trace.Wrap(err)
 	}
 
-	certDER, _, err := winpki.GenerateWindowsDesktopCredentials(ctx, clusterAPI, &winpki.GenerateCredentialsRequest{
+	genResp, err := winpki.GenerateWindowsDesktopCredentials(ctx, clusterAPI, &winpki.GenerateCredentialsRequest{
 		Username:           a.windowsUser,
 		Domain:             a.windowsDomain,
 		PKIDomain:          a.windowsPKIDomain,
@@ -445,7 +445,7 @@ func (a *AuthCommand) generateWindowsCert(ctx context.Context, clusterAPI certif
 
 	_, err = identityfile.Write(ctx, identityfile.WriteConfig{
 		OutputPath:           a.output,
-		WindowsDesktopCerts:  map[string][]byte{a.windowsUser: certDER},
+		WindowsDesktopCerts:  map[string][]byte{a.windowsUser: genResp.CertDER},
 		Format:               a.outputFormat,
 		OverwriteDestination: a.signOverwrite,
 		Writer:               a.identityWriter,

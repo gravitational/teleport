@@ -446,6 +446,8 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			require.NoError(t, err)
 			require.Empty(t, sessions)
 
+			// create interactive session (this goroutine is this user's terminal time)
+			myTerm := NewTerminal(250)
 			cl, err := teleport.NewClient(helpers.ClientConfig{
 				Login:        suite.Me.Username,
 				Cluster:      helpers.Site,
@@ -453,23 +455,14 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 				Port:         helpers.Port(t, nodeConf.SSH.Addr.Addr),
 				ForwardAgent: tt.inForwardAgent,
 			})
-			// create interactive session (this goroutine is this user's terminal time)
-			endC := make(chan error)
-			myTerm := NewTerminal(250)
-			go func() {
-				if err != nil {
-					endC <- err
-					return
-				}
-				cl.Stdout = myTerm
-				cl.Stdin = myTerm
-
-				err = cl.SSH(ctx, nil)
-				endC <- err
-			}()
+			require.NoError(t, err)
+			cl.Stdout = myTerm
+			cl.Stdin = myTerm
 
 			// wait until the session tracker exists.
-			tracker := waitForSessionToBeEstablished(t, site, 1)
+			tracker, endC, err := startSessionAndWaitForTracker(t, site, cl, 1, nil)
+			require.NoError(t, err)
+
 			// make sure it's us who joined! :)
 			require.Equal(t, suite.Me.Username, tracker.GetParticipants()[0].User)
 			sessionID := tracker.GetSessionID()
@@ -1804,13 +1797,12 @@ func errorContains(text string) errorVerifier {
 }
 
 type disconnectTestCase struct {
-	name              string
-	recordingMode     string
-	options           types.RoleOptions
-	disconnectTimeout time.Duration
-	concurrentConns   int
-	sessCtlTimeout    time.Duration
-	postFunc          func(context.Context, *testing.T, *helpers.TeleInstance)
+	name            string
+	recordingMode   string
+	options         types.RoleOptions
+	concurrentConns int
+	sessCtlTimeout  time.Duration
+	postFunc        func(context.Context, *testing.T, *helpers.TeleInstance, string)
 
 	// verifyError checks if `err` reflects the error expected by the test scenario.
 	// It returns nil if yes, non-nil otherwise.
@@ -1818,6 +1810,58 @@ type disconnectTestCase struct {
 	// itself, as those assertions must run in the main test goroutine, but
 	// verifyError runs in a different goroutine.
 	verifyError errorVerifier
+
+	// These values should be set once the sharedCluster for the test case is prepared.
+	cluster      *sharedCluster
+	teleportUser string
+	login        string
+}
+
+// sharedCluster can be used for subtests with common setup to reduce test setup time.
+type sharedCluster struct {
+	teleport *helpers.TeleInstance
+	cfg      *servicecfg.Config
+}
+
+type sharedClusterKey struct {
+	recordingMode  string
+	sessCtlTimeout time.Duration
+}
+
+type sharedClusters map[sharedClusterKey]*sharedCluster
+
+// getOrCreate a gets or creates a shared cluster for the given suite and key.
+func (c sharedClusters) getOrCreate(t *testing.T, suite *integrationTestSuite, key sharedClusterKey) *sharedCluster {
+	t.Helper()
+
+	cluster, ok := c[key]
+	if ok {
+		return cluster
+	}
+
+	netConfig, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
+		SessionControlTimeout: types.Duration(key.sessCtlTimeout),
+	})
+	require.NoError(t, err)
+
+	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+		Mode: key.recordingMode,
+	})
+	require.NoError(t, err)
+
+	cfg := suite.defaultServiceConfig()
+	cfg.Auth.Enabled = true
+	cfg.Auth.NetworkingConfig = netConfig
+	cfg.Auth.SessionRecordingConfig = recConfig
+	cfg.Proxy.Enabled = true
+	cfg.SSH.Enabled = true
+
+	cluster = &sharedCluster{
+		teleport: suite.NewTeleportInstance(t),
+		cfg:      cfg,
+	}
+	c[key] = cluster
+	return cluster
 }
 
 // testClientIdleConnection validates that if a user is active beyond
@@ -1906,32 +1950,32 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
-	testCases := []disconnectTestCase{
+	testCases := []*disconnectTestCase{
 		{
 			name:          "client idle timeout node recoding",
 			recordingMode: types.RecordAtNode,
 			options: types.RoleOptions{
-				ClientIdleTimeout: types.NewDuration(500 * time.Millisecond),
+				ClientIdleTimeout: types.NewDuration(2 * time.Second),
 			},
-			disconnectTimeout: time.Second,
 		},
 		{
 			name:          "client idle timeout proxy recording",
 			recordingMode: types.RecordAtProxy,
 			options: types.RoleOptions{
 				ForwardAgent:      types.NewBool(true),
-				ClientIdleTimeout: types.NewDuration(500 * time.Millisecond),
+				ClientIdleTimeout: types.NewDuration(2 * time.Second),
 			},
-			disconnectTimeout: time.Second,
 		},
 		{
 			name:          "expired cert node recording",
 			recordingMode: types.RecordAtNode,
 			options: types.RoleOptions{
 				DisconnectExpiredCert: types.NewBool(true),
-				MaxSessionTTL:         types.NewDuration(2 * time.Second),
+				// With a MaxSessionTTL of just a few seconds, certificate expiry
+				// can natually race with the establishment of a session, so we
+				// use a longer ttl instead.
+				MaxSessionTTL: types.NewDuration(6 * time.Second),
 			},
-			disconnectTimeout: 4 * time.Second,
 		},
 		{
 			name:          "expired cert proxy recording",
@@ -1939,9 +1983,11 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 			options: types.RoleOptions{
 				ForwardAgent:          types.NewBool(true),
 				DisconnectExpiredCert: types.NewBool(true),
-				MaxSessionTTL:         types.NewDuration(2 * time.Second),
+				// With a MaxSessionTTL of just a few seconds, certificate expiry
+				// can natually race with the establishment of a session, so we
+				// use a longer ttl instead.
+				MaxSessionTTL: types.NewDuration(6 * time.Second),
 			},
-			disconnectTimeout: 4 * time.Second,
 		},
 		{
 			name:          "concurrent connection limits exceeded node recording",
@@ -1949,9 +1995,8 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 			options: types.RoleOptions{
 				MaxConnections: 1,
 			},
-			disconnectTimeout: 1 * time.Second,
-			concurrentConns:   2,
-			verifyError:       errorContains("administratively prohibited"),
+			concurrentConns: 2,
+			verifyError:     errorContains("administratively prohibited"),
 		},
 		{
 			name:          "concurrent connection limits exceeded proxy recording",
@@ -1960,9 +2005,8 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 				ForwardAgent:   types.NewBool(true),
 				MaxConnections: 1,
 			},
-			disconnectTimeout: 1 * time.Second,
-			concurrentConns:   2,
-			verifyError:       errorContains("administratively prohibited"),
+			concurrentConns: 2,
+			verifyError:     errorContains("administratively prohibited"),
 		},
 		{
 			name:          "verify that lost connections to auth server terminate controlled connections",
@@ -1970,11 +2014,10 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 			options: types.RoleOptions{
 				MaxConnections: 1,
 			},
-			disconnectTimeout: time.Second,
-			sessCtlTimeout:    500 * time.Millisecond,
+			sessCtlTimeout: 2 * time.Second,
 			// use postFunc to wait for the semaphore to be acquired and a session
 			// to be started, then shut down the auth server.
-			postFunc: func(ctx context.Context, t *testing.T, teleport *helpers.TeleInstance) {
+			postFunc: func(ctx context.Context, t *testing.T, teleport *helpers.TeleInstance, username string) {
 				site := teleport.GetSiteAPI(helpers.Site)
 				require.EventuallyWithT(t, func(t *assert.CollectT) {
 					filter := types.SemaphoreFilter{
@@ -1988,60 +2031,64 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 					require.Empty(t, next)
 					require.NoError(t, err)
 					require.Len(t, sems, 1)
-				}, 2*time.Second, 100*time.Millisecond)
+				}, 10*time.Second, 200*time.Millisecond)
 
 				tracker := waitForSessionToBeEstablished(t, site, 1)
 				// make sure it's us who joined! :)
-				require.Equal(t, suite.Me.Username, tracker.GetParticipants()[0].User)
+				require.Equal(t, username, tracker.GetParticipants()[0].User)
 				require.NoError(t, teleport.StopAuth(false))
 			},
 		},
 	}
 
+	// Prepare shared cluster instances synchronously so that sub tests can run in parallel
+	// without fighting over resources that go into starting the cluster instances.
+	clusters := make(sharedClusters)
+	for i, tc := range testCases {
+		cluster := clusters.getOrCreate(t, suite, sharedClusterKey{
+			recordingMode:  tc.recordingMode,
+			sessCtlTimeout: tc.sessCtlTimeout,
+		})
+
+		teleportUser := fmt.Sprintf("test-user-%d", i)
+		role, err := types.NewRole(fmt.Sprintf("test-role-%d", i), types.RoleSpecV6{
+			Options: tc.options,
+			Allow: types.RoleConditions{
+				Logins:     []string{suite.Me.Username},
+				NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			},
+		})
+		require.NoError(t, err)
+		cluster.teleport.AddUserWithRole(teleportUser, role)
+
+		tc.cluster = cluster
+		tc.teleportUser = teleportUser
+		tc.login = suite.Me.Username
+	}
+
+	for _, cluster := range clusters {
+		require.NoError(t, cluster.teleport.CreateEx(t, nil, cluster.cfg))
+		require.NoError(t, cluster.teleport.Start())
+		teleport := cluster.teleport
+		t.Cleanup(func() {
+			require.NoError(t, teleport.StopAll())
+		})
+	}
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			runDisconnectTest(t, suite, tc)
+			runDisconnectTest(t, tc)
 		})
 	}
 }
 
-func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectTestCase) {
+func runDisconnectTest(t *testing.T, tc *disconnectTestCase) {
+	t.Parallel()
+
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	teleport := suite.NewTeleportInstance(t)
-
-	username := suite.Me.Username
-	role, err := types.NewRole("devs", types.RoleSpecV6{
-		Options: tc.options,
-		Allow: types.RoleConditions{
-			Logins:     []string{username},
-			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-		},
-	})
-	require.NoError(t, err)
-	teleport.AddUserWithRole(username, role)
-
-	netConfig, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
-		SessionControlTimeout: types.Duration(tc.sessCtlTimeout),
-	})
-	require.NoError(t, err)
-
-	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
-		Mode: tc.recordingMode,
-	})
-	require.NoError(t, err)
-
-	cfg := suite.defaultServiceConfig()
-	cfg.Auth.Enabled = true
-	cfg.Auth.NetworkingConfig = netConfig
-	cfg.Auth.SessionRecordingConfig = recConfig
-	cfg.Proxy.Enabled = true
-	cfg.SSH.Enabled = true
-
-	require.NoError(t, teleport.CreateEx(t, nil, cfg))
-	require.NoError(t, teleport.Start())
-	defer teleport.StopAll()
+	cluster := tc.cluster
 
 	if tc.concurrentConns < 1 {
 		// test cases that don't specify concurrentConns are single-connection tests.
@@ -2056,13 +2103,14 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 		openSession := func() {
 			defer cancel()
 			cc := helpers.ClientConfig{
-				Login:                username,
+				TeleportUser:         tc.teleportUser,
+				Login:                tc.login,
 				Cluster:              helpers.Site,
 				Host:                 Host,
-				Port:                 helpers.Port(t, teleport.SSH),
+				Port:                 helpers.Port(t, cluster.teleport.SSH),
 				DisableSSHResumption: true,
 			}
-			cl, err := teleport.NewClient(cc)
+			cl, err := cluster.teleport.NewClient(cc)
 			if err != nil {
 				asyncErrors <- err
 				return
@@ -2102,12 +2150,17 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 
 	if tc.postFunc != nil {
 		// test case modifies the teleport instance after session start
-		tc.postFunc(ctx, t, teleport)
+		tc.postFunc(ctx, t, cluster.teleport, tc.teleportUser)
 	}
 
+	// Connection timeouts are determined by the last SSH packet sent/received, not the
+	// last input sent/received by the client. This means that under load, we can't
+	// predict exactly when the timeout will occur, so we just use a conservative
+	// timeout of 1 minute.
+	disconnectTimeout := time.Minute
+
 	select {
-	case <-time.After(tc.disconnectTimeout + time.Second):
-		dumpGoroutineProfile()
+	case <-time.After(disconnectTimeout):
 		require.FailNowf(t, "timeout", "%s timeout waiting for session to exit: %+v", timeNow(), tc)
 
 	case ae := <-asyncErrors:
@@ -4933,26 +4986,21 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 
 	beforeSession := time.Now()
 
-	// create interactive session (this goroutine is this user's terminal time)
-	endCh := make(chan error, 1)
-
 	myTerm := NewTerminal(250)
 	cl, err := teleport.NewClient(helpers.ClientConfig{
 		Login:   suite.Me.Username,
 		Cluster: helpers.Site,
 		Host:    Host,
 		Port:    helpers.Port(t, teleport.SSH),
+		Stdout:  myTerm,
+		Stdin:   myTerm,
 	})
 	require.NoError(t, err)
-	go func() {
-		cl.Stdout = myTerm
-		cl.Stdin = myTerm
-		err = cl.SSH(ctx, []string{})
-		endCh <- err
-	}()
 
-	// wait for the user to join this session
-	tracker := waitForSessionToBeEstablished(t, site, 1)
+	// create interactive session
+	tracker, endCh, err := startSessionAndWaitForTracker(t, site, cl, 1, nil)
+	require.NoError(t, err)
+
 	// make sure it's us who joined! :)
 	require.Equal(t, suite.Me.Username, tracker.GetParticipants()[0].User)
 
@@ -9442,33 +9490,23 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 		require.NoError(t, lis.Close())
 	})
 
-	go func() {
-		nConn, err := lis.Accept()
-		if utils.IsOKNetworkError(err) {
-			return
-		}
-		assert.NoError(t, err)
-		t.Cleanup(func() {
-			if nConn != nil {
-				// the error is ignored here to avoid failing on net.ErrClosed
-				_ = nConn.Close()
-			}
-		})
+	handleConn := func(nConn net.Conn) {
+		defer nConn.Close()
 
 		conn, channels, reqs, err := ssh.NewServerConn(nConn, &sshCfg)
-		assert.NoError(t, err)
-		t.Cleanup(func() {
-			if conn != nil {
-				// the error is ignored here to avoid failing on net.ErrClosed
-				_ = conn.Close()
+		if err != nil {
+			// If the connection does not perform an SSH handshake, then this is just
+			// a readiness probe (raw TCP Dial) from the test.
+			if utils.IsOKNetworkError(err) {
+				return
 			}
-		})
+			assert.NoError(t, err)
+			return
+		}
+		defer conn.Close()
+
 		go ssh.DiscardRequests(reqs)
 
-		var agentForwarded bool
-		var shellRequested bool
-		var execRequested bool
-		var sftpRequested bool
 		for {
 			var channelReq ssh.NewChannel
 			select {
@@ -9485,12 +9523,10 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 			}
 			channel, reqs, err := channelReq.Accept()
 			assert.NoError(t, err)
-			t.Cleanup(func() {
-				// the error is ignored here to avoid failing on net.ErrClosed
-				_ = channel.Close()
-			})
+			defer channel.Close()
 
 			go func() {
+				var agentForwarded, shellRequested, execRequested, sftpRequested bool
 			outer:
 				for {
 					var req *ssh.Request
@@ -9539,6 +9575,19 @@ func startSSHServer(t *testing.T, caPubKeys []ssh.PublicKey, hostKey ssh.Signer)
 				}
 				assert.True(t, (agentForwarded && shellRequested) || execRequested || sftpRequested)
 			}()
+		}
+	}
+
+	go func() {
+		for {
+			nConn, err := lis.Accept()
+			if utils.IsOKNetworkError(err) || errors.Is(err, net.ErrClosed) {
+				return
+			}
+			if !assert.NoError(t, err) {
+				return
+			}
+			go handleConn(nConn)
 		}
 	}()
 

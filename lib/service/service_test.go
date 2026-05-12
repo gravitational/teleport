@@ -49,10 +49,12 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/breaker"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	autoupdatepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	"github.com/gravitational/teleport/api/types"
 	autoupdate "github.com/gravitational/teleport/api/types/autoupdate"
@@ -2521,4 +2523,133 @@ func TestInitKubernetesUnlicensed(t *testing.T) {
 	okEvent, err := process.WaitForEventTimeout(5*time.Second, TeleportOKEvent)
 	require.NoError(t, err)
 	require.Equal(t, teleport.ComponentKube, okEvent.Payload)
+}
+
+// TestInitAppsFromConfig given a list of static apps, ensure that they are
+// correctly registered.
+func TestInitAppsFromConfig(t *testing.T) {
+	t.Parallel()
+
+	authDir := t.TempDir()
+	cfg := servicecfg.MakeDefaultConfig()
+	cfg.InsecureMode = true
+	cfg.Version = defaults.TeleportConfigVersionV3
+	cfg.DataDir = authDir
+	cfg.Auth.Enabled = true
+	cfg.Auth.ListenAddr.Addr = newListener(t, ListenerAuth, &cfg.FileDescriptors)
+	cfg.SetAuthServerAddress(cfg.Auth.ListenAddr)
+	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(authDir, defaults.BackendDir)}
+	var err error
+	cfg.Auth.ClusterName, err = services.NewClusterNameWithRandomID(types.ClusterNameSpecV2{
+		ClusterName: "auth-server",
+	})
+	require.NoError(t, err)
+	cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
+
+	cfg.Proxy.Enabled = true
+	cfg.Proxy.DisableWebInterface = true
+	cfg.Proxy.WebAddr.Addr = newListener(t, ListenerProxyWeb, &cfg.FileDescriptors)
+
+	cfg.SSH.Enabled = false
+	cfg.Apps.Enabled = true
+	cfg.Apps.Apps = []servicecfg.App{
+		{
+			Name: "example-http",
+			URI:  "http://localhost:8080",
+		},
+		{
+			Name: "example-mtls",
+			URI:  "https://localhost:8080",
+			TLS: &types.AppTLS{
+				Mode:           types.AppTLSModeVerifyFull,
+				ServerName:     "localhost",
+				ServerSpiffeId: "spiffe://mycluster/svc/local",
+				ClientCertMode: types.AppClientCertModeManaged,
+			},
+		},
+		{
+			Name: "example-llm",
+			URI:  "llm://",
+			LLM: &types.LLM{
+				Format:        types.LLMFormatAnthropic,
+				Provider:      types.LLMProviderAWSBedrock,
+				Models:        []*types.LLM_Model{{Name: "claude-opus-4-7", ProviderName: "global.claude-opus-4-7"}},
+				FallbackModel: "claude-opus-4-7",
+			},
+		},
+	}
+
+	process, err := NewTeleport(cfg)
+	require.NoError(t, err)
+
+	authC := process.GetAuthServer()
+	watchCtx, watchCancel := context.WithTimeout(t.Context(), 20*time.Second)
+	watcher, err := authC.NewWatcher(watchCtx, types.Watch{
+		Kinds: []types.WatchKind{{Kind: types.KindAppServer}},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		watchCancel()
+		_ = watcher.Close()
+	})
+
+	require.NoError(t, process.Start())
+	t.Cleanup(func() {
+		_ = process.Close()
+		_ = process.Wait()
+	})
+
+	_, err = process.WaitForEventTimeout(5*time.Second, TeleportReadyEvent)
+	require.NoError(t, err)
+
+	// Ensure watcher starts correctly.
+	select {
+	case ev := <-watcher.Events():
+		require.Equal(t, types.OpInit, ev.Type)
+	case <-watcher.Done():
+		t.Fatalf("watcher closed before init: %v", watcher.Error())
+	case <-watchCtx.Done():
+		t.Fatal("timed out waiting for watcher init")
+	}
+
+	// Subscribe to backend writes for KindAppServer so we can assert their
+	// contents. This is required because the available process events don't
+	// guarantee that the heartbeat event is fired after the resource is
+	// persisted.
+	expected := make(map[string]struct{}, len(cfg.Apps.Apps))
+	for _, a := range cfg.Apps.Apps {
+		expected[a.Name] = struct{}{}
+	}
+	for len(expected) > 0 {
+		select {
+		case ev := <-watcher.Events():
+			if ev.Type != types.OpPut {
+				continue
+			}
+			srv, ok := ev.Resource.(types.AppServer)
+			if !ok {
+				continue
+			}
+			delete(expected, srv.GetApp().GetName())
+		case <-watcher.Done():
+			t.Fatalf("watcher closed before all apps were registered: %v", watcher.Error())
+		case <-watchCtx.Done():
+			t.Fatalf("timed out waiting for app servers, still expecting: %v", expected)
+		}
+	}
+
+	servers, err := authC.GetApplicationServers(t.Context(), apidefaults.Namespace)
+	require.NoError(t, err)
+
+	byName := make(map[string]types.Application, len(servers))
+	for _, s := range servers {
+		byName[s.GetApp().GetName()] = s.GetApp()
+	}
+	for _, appCfg := range cfg.Apps.Apps {
+		app, ok := byName[appCfg.Name]
+		require.True(t, ok, "expected app %q to be registered", appCfg.Name)
+		require.Equal(t, appCfg.URI, app.GetURI())
+		require.Empty(t, cmp.Diff(appCfg.TLS, app.GetTLS(), protocmp.Transform()))
+		require.Empty(t, cmp.Diff(appCfg.LLM, app.GetLLM(), protocmp.Transform()))
+	}
 }

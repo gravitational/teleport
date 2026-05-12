@@ -2553,21 +2553,6 @@ func (process *TeleportProcess) initAuthService() error {
 		externalAuditStorage.SetGenerateOIDCTokenFn(authServer.GenerateExternalAuditStorageOIDCToken)
 	}
 
-	unifiedResourcesCache, err := services.NewUnifiedResourceCache(process.ExitContext(), services.UnifiedResourceCacheConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			QueueSize:    defaults.UnifiedResourcesQueueSize,
-			Component:    teleport.ComponentUnifiedResource,
-			Logger:       process.logger.With(teleport.ComponentKey, teleport.ComponentUnifiedResource),
-			Client:       authServer,
-			MaxStaleness: time.Minute,
-		},
-		ResourceGetter: authServer,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	authServer.SetUnifiedResourcesCache(unifiedResourcesCache)
-
 	accessRequestCache, err := services.NewAccessRequestCache(services.AccessRequestCacheConfig{
 		Events: authServer.Services,
 		Getter: authServer.Services,
@@ -3146,7 +3131,6 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.RecordingEncryption = services.RecordingEncryptionManager
 	cfg.Plugin = services.Plugins
 	cfg.AppAuthConfig = services.AppAuthConfig
-	cfg.WorkloadClusterService = services.WorkloadClusterService
 	cfg.Summarizer = services.Summarizer
 	cfg.SubCAService = services.SubCAService
 
@@ -6696,11 +6680,10 @@ var appDependEvents = []string{
 }
 
 func (process *TeleportProcess) initApps() {
-	// If no applications are specified, broadcast AppsReady so the
-	// process readiness gate is not blocked, then return. This is due
-	// to the strange behavior in reading file configuration. If the
-	// user does not specify an "app_service" section, that is
-	// considered enabling "app_service".
+	// If app_service is enabled but no apps, debug app, MCP demo
+	// server, or resource matchers are configured, there is nothing
+	// to proxy. Broadcast AppsReady so the process readiness gate is
+	// not blocked, then return.
 	if len(process.Config.Apps.Apps) == 0 &&
 		!process.Config.Apps.DebugApp &&
 		!process.Config.Apps.MCPDemoServer &&
@@ -6838,6 +6821,7 @@ func (process *TeleportProcess) initApps() {
 				TCPPorts:              makeApplicationTCPPorts(app.TCPPorts),
 				MCP:                   app.MCP,
 				LLM:                   app.LLM,
+				TLS:                   app.TLS,
 			})
 			if err != nil {
 				return trace.Wrap(err)
@@ -6935,20 +6919,28 @@ func (process *TeleportProcess) initApps() {
 			return trace.Wrap(err)
 		}
 
+		// When the app_service itself is running on Teleport Cloud, then we reject any app
+		// with dynamic labels, which allow for code execution.
+		// This is primarily for the beams use case, where the only apps we expect
+		// to see are those created by `tsh beams publish`.
+		const teleportBeamsEnvVar = "TELEPORT_BEAMS_RUNTIME"
+		runningOnBeams, _ := apiutils.ParseBool(os.Getenv(teleportBeamsEnvVar))
+
 		appServer, err := app.New(process.ExitContext(), &app.Config{
-			Clock:                process.Config.Clock,
-			AuthClient:           conn.Client,
-			AccessPoint:          accessPoint,
-			HostID:               conn.HostUUID(),
-			Hostname:             process.Config.Hostname,
-			GetRotation:          process.GetRotation,
-			Apps:                 applications,
-			CloudLabels:          process.cloudLabels,
-			ResourceMatchers:     process.Config.Apps.ResourceMatchers,
-			OnHeartbeat:          process.OnHeartbeat(teleport.ComponentApp),
-			ConnectedProxyGetter: proxyGetter,
-			ConnectionsHandler:   connectionsHandler,
-			InventoryHandle:      process.inventoryHandle,
+			Clock:                       process.Config.Clock,
+			AuthClient:                  conn.Client,
+			AccessPoint:                 accessPoint,
+			HostID:                      conn.HostUUID(),
+			Hostname:                    process.Config.Hostname,
+			GetRotation:                 process.GetRotation,
+			Apps:                        applications,
+			CloudLabels:                 process.cloudLabels,
+			ResourceMatchers:            process.Config.Apps.ResourceMatchers,
+			OnHeartbeat:                 process.OnHeartbeat(teleport.ComponentApp),
+			ConnectedProxyGetter:        proxyGetter,
+			ConnectionsHandler:          connectionsHandler,
+			InventoryHandle:             process.inventoryHandle,
+			IgnoreAppsWithCommandLabels: runningOnBeams,
 		})
 		if err != nil {
 			return trace.Wrap(err)

@@ -285,8 +285,6 @@ func (e *EventsService) NewWatcher(ctx context.Context, watch types.Watch) (type
 			parser = newScopedTokenParser()
 		case types.KindAppAuthConfig:
 			parser = newAppAuthConfigParser()
-		case types.KindWorkloadCluster:
-			parser = newWorkloadClusterParser()
 		case types.KindInferenceModel:
 			parser = newInferenceModelParser()
 		case types.KindInferencePolicy:

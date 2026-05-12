@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+// TODO(hugoShaka): Delete this file when the teleport.e counterpart is merged
+
 package oauth
 
 import (

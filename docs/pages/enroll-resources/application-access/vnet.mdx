@@ -74,7 +74,7 @@ and the suffix can be set to `bar.qux.test`.
 ## Step 2/3. Set `public_addr` of the app
 
 Set `public_addr` field of the application in the Application Service configuration file
-`/etc/teleport.yaml` and restart the `teleport` daemon.
+`/etc/teleport.yaml`:
 
 ```diff
 version: v3
@@ -85,6 +85,12 @@ app_service:
   - name: "tcp-app"
     uri: tcp://localhost:5432
 +   public_addr: "<Var name="public_addr" />"
+```
+
+Restart the `teleport` daemon:
+
+```code
+$ sudo systemctl reload teleport
 ```
 
 ## Step 3/3. Connect

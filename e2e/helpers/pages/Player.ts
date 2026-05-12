@@ -16,14 +16,18 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { expect, type Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 
 import { CLUSTER_NAME } from '../test';
 
 export type RecordingType = 'ssh' | 'k8s' | 'desktop' | 'database';
 
 export class PlayerPage {
-  constructor(private page: Page) {}
+  readonly terminal: Locator;
+
+  constructor(private page: Page) {
+    this.terminal = page.locator('.xterm');
+  }
 
   async goto(sessionId: string, recordingType: RecordingType) {
     await this.page.goto(
@@ -33,5 +37,9 @@ export class PlayerPage {
 
   async expectError(text: string | RegExp) {
     await expect(this.page.getByText(text)).toBeVisible();
+  }
+
+  getByText(text: string) {
+    return this.page.getByText(text);
   }
 }

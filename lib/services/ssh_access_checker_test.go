@@ -506,6 +506,109 @@ func TestSSHAccessCheckerHostSudoers(t *testing.T) {
 	}
 }
 
+func TestSSHAccessCheckerSessionRecordingMode(t *testing.T) {
+	t.Parallel()
+
+	tts := []struct {
+		name   string
+		spec   *scopedaccessv1.ScopedRoleSpec
+		expect constants.SessionRecordingMode
+	}{
+		{
+			name:   "unset defaults to best_effort",
+			spec:   &scopedaccessv1.ScopedRoleSpec{Ssh: &scopedaccessv1.ScopedRoleSSH{}},
+			expect: constants.SessionRecordingModeBestEffort,
+		},
+		{
+			name: "ssh strict",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					SessionRecording: &scopedaccessv1.SessionRecording{
+						Mode: string(constants.SessionRecordingModeStrict),
+					},
+				},
+			},
+			expect: constants.SessionRecordingModeStrict,
+		},
+		{
+			name: "defaults used when ssh unset",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Defaults: &scopedaccessv1.ScopedRoleDefaults{
+					SessionRecording: &scopedaccessv1.SessionRecording{
+						Mode: string(constants.SessionRecordingModeStrict),
+					},
+				},
+			},
+			expect: constants.SessionRecordingModeStrict,
+		},
+		{
+			name: "ssh overrides defaults",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Defaults: &scopedaccessv1.ScopedRoleDefaults{
+					SessionRecording: &scopedaccessv1.SessionRecording{
+						Mode: string(constants.SessionRecordingModeBestEffort),
+					},
+				},
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					SessionRecording: &scopedaccessv1.SessionRecording{
+						Mode: string(constants.SessionRecordingModeBestEffort),
+					},
+				},
+			},
+			expect: constants.SessionRecordingModeBestEffort,
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			checker := newScopedCheckerWithRole(tt.spec).SSH()
+			require.Equal(t, tt.expect, checker.SessionRecordingMode())
+		})
+	}
+}
+
+func TestSSHAccessCheckerEnhancedRecording(t *testing.T) {
+	t.Parallel()
+
+	tts := []struct {
+		name   string
+		spec   *scopedaccessv1.ScopedRoleSpec
+		expect map[string]bool
+	}{
+		{
+			name: "no events",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					EnhancedRecording: nil,
+				},
+			},
+			expect: map[string]bool{},
+		},
+		{
+			name: "has events",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					EnhancedRecording: &scopedaccessv1.EnhancedRecording{
+						Network: ptr(true),
+						Command: ptr(true),
+						Disk:    ptr(true),
+					},
+				},
+			},
+			expect: map[string]bool{"command": true, "network": true, "disk": true},
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			checker := newScopedCheckerWithRole(tt.spec).SSH()
+			require.Equal(t, tt.expect, checker.EnhancedRecordingSet())
+		})
+	}
+}
+
 func TestSSHAccessCheckerHostUsers(t *testing.T) {
 	t.Parallel()
 
