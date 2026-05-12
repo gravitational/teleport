@@ -67,7 +67,7 @@ function encodePngFrameTDPB(): ArrayBuffer {
           data: new Uint8Array(),
         },
       },
-    }),
+    })
   );
   const arraybuf = new Uint8Array(msg.length + 4);
   const view = new DataView(arraybuf.buffer);
@@ -92,7 +92,7 @@ function encodeServerHello(canRemoveDirectory: boolean): ArrayBuffer {
           directoryRemoveSupported: canRemoveDirectory,
         },
       },
-    }),
+    })
   );
   const arraybuf = new Uint8Array(msg.length + 4);
   const view = new DataView(arraybuf.buffer);
@@ -122,15 +122,15 @@ const getMockTransport = () => {
       };
       return {
         send: () => {},
-        onMessage: (callback) => {
+        onMessage: callback => {
           emitter.on('message', callback);
           return () => emitter.off('message', callback);
         },
-        onComplete: (callback) => {
+        onComplete: callback => {
           emitter.on('complete', callback);
           return () => emitter.off('complete', callback);
         },
-        onError: (callback) => {
+        onError: callback => {
           emitter.on('error', callback);
           return () => emitter.off('error', callback);
         },
@@ -158,7 +158,7 @@ test('reconnect button reinitializes the connection', async () => {
   const transport = getMockTransport();
   const tpdClient = new TdpClient(
     transport.getTransport,
-    selectDirectoryInBrowser,
+    selectDirectoryInBrowser
   );
   jest.spyOn(tpdClient, 'connect');
   jest.spyOn(tpdClient, 'shutdown');
@@ -170,7 +170,7 @@ test('reconnect button reinitializes the connection', async () => {
       aclAttempt={aclAttempt}
       hasAnotherSession={hasNoOtherSession}
       browserSupportsSharing
-    />,
+    />
   );
 
   // The session is initializing.
@@ -180,7 +180,7 @@ test('reconnect button reinitializes the connection', async () => {
   transport.emitTransportError();
 
   expect(
-    await screen.findByText('The desktop session is offline.'),
+    await screen.findByText('The desktop session is offline.')
   ).toBeInTheDocument();
   expect(await screen.findByText('Could not send bytes')).toBeInTheDocument();
   const reconnect = await screen.findByRole('button', { name: 'Reconnect' });
@@ -189,7 +189,7 @@ test('reconnect button reinitializes the connection', async () => {
 
   // The session is initializing again.
   expect(
-    screen.queryByText('The desktop session is offline.'),
+    screen.queryByText('The desktop session is offline.')
   ).not.toBeInTheDocument();
   expect(await screen.findByTestId('indicator')).toBeInTheDocument();
 
@@ -206,7 +206,7 @@ test('directory sharing menu', async () => {
   const tpdClient = new TdpClient(
     transport.getTransport,
     async () => mockDirectoryAccess(dirName),
-    { mode: 'tdpb' },
+    { mode: 'tdpb' }
   );
   render(
     <DesktopSession
@@ -216,10 +216,10 @@ test('directory sharing menu', async () => {
       aclAttempt={aclAttempt}
       hasAnotherSession={hasNoOtherSession}
       browserSupportsSharing
-    />,
+    />
   );
 
-  console.error = (msg) => {
+  console.error = msg => {
     throw new Error(`Caught console.error: ${msg}`);
   };
 
@@ -232,7 +232,7 @@ test('directory sharing menu', async () => {
 
   // The menu icon should also be visible
   const shareButton = await screen.findByRole('button', {
-    name: 'share-directory-menu',
+    name: 'Share local directories with the desktop',
   });
   expect(shareButton).toBeVisible();
 
@@ -242,10 +242,10 @@ test('directory sharing menu', async () => {
   // Share a couple directories via this menu
   let shareMenu = await screen.findByTestId('shared-directory-menu');
   await userEvent.click(
-    within(shareMenu).getByRole('button', { name: 'Share a directory' }),
+    within(shareMenu).getByRole('button', { name: 'Share a directory' })
   );
   await userEvent.click(
-    within(shareMenu).getByRole('button', { name: 'Share a directory' }),
+    within(shareMenu).getByRole('button', { name: 'Share a directory' })
   );
 
   // retrieve the directories
@@ -270,14 +270,15 @@ test('directory sharing menu', async () => {
 });
 
 async function getSharedDirectoryEntries(menu: HTMLElement) {
-  const entries = await within(menu).findAllByTestId(
-    new RegExp('direntry-[0-9]+'),
-  );
-  return entries.map((elem) => {
+  const list = within(menu).getByRole('list', { name: 'Shared directories' });
+  const entries = await within(list).findAllByRole('listitem');
+
+  return entries.map(elem => {
     return {
-      name: within(elem).getByTestId('dirname').textContent,
-      id: Number(elem.getAttribute('data-testid').split('-').at(-1)),
-      ejectButton: within(elem).getByRole('button'),
+      name: elem.textContent,
+      ejectButton: within(elem).getByRole('button', {
+        name: /disconnect shared directory/i,
+      }),
     };
   });
 }
@@ -286,7 +287,7 @@ test('ensure sharing remains enabled if the initial desktop connection attempt f
   const transport = getMockTransport();
   const tpdClient = new TdpClient(
     transport.getTransport,
-    selectDirectoryInBrowser,
+    selectDirectoryInBrowser
   );
   render(
     <DesktopSessionWithSharing
@@ -296,7 +297,7 @@ test('ensure sharing remains enabled if the initial desktop connection attempt f
       aclAttempt={aclAttempt}
       hasAnotherSession={hasNoOtherSession}
       browserSupportsSharing
-    />,
+    />
   );
 
   // The session is initializing.
@@ -306,7 +307,7 @@ test('ensure sharing remains enabled if the initial desktop connection attempt f
   transport.emitTransportError();
 
   expect(
-    await screen.findByText('The desktop session is offline.'),
+    await screen.findByText('The desktop session is offline.')
   ).toBeInTheDocument();
   const reconnect = await screen.findByRole('button', { name: 'Reconnect' });
 
@@ -332,7 +333,7 @@ test('re-sharing directory is possible after a reconnect', async () => {
       aclAttempt={aclAttempt}
       hasAnotherSession={hasNoOtherSession}
       browserSupportsSharing
-    />,
+    />
   );
 
   // The session is initializing.
@@ -347,7 +348,7 @@ test('re-sharing directory is possible after a reconnect', async () => {
   // An error occurred, the connection has been closed.
   transport.emitTransportError();
   expect(
-    await screen.findByText('The desktop session is offline.'),
+    await screen.findByText('The desktop session is offline.')
   ).toBeInTheDocument();
 
   // Reconnect.
