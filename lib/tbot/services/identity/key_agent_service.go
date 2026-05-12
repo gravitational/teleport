@@ -41,19 +41,15 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/readyz"
 )
 
-// pivSerialNumber is the serial number used in the fake hardware key reference
-// we encode in the identity file, for the key agent service.
-const pivSerialNumber uint32 = 0xFFFFFFFF
+const (
+	// pivSerialNumber is the serial number used in the fake hardware key
+	// reference we encode in the identity file, for the key agent service.
+	pivSerialNumber uint32 = 0xFFFFFFFF
 
-// pivSlotKey is the PIV slot used in the fake hardware key reference we encode
-// in the identity file, for the key agent service.
-var pivSlotKey = func() hardwarekey.PIVSlotKey {
-	key, err := hardwarekey.PIVSlotKeyFromProto(hardwarekeyagentv1.PIVSlotKey_PIV_SLOT_KEY_9A)
-	if err != nil {
-		panic(err) // This should never fail.
-	}
-	return key
-}()
+	// pivSlotKey is the PIV slot used in the fake hardware key reference we encode
+	// in the identity file, for the key agent service.
+	pivSlotKey = hardwarekeyagentv1.PIVSlotKey_PIV_SLOT_KEY_9A
+)
 
 // KeyAgentServiceBuilder returns a service builder for the key agent service.
 func KeyAgentServiceBuilder(cfg *KeyAgentConfig, opts ...KeyAgentOpt) bot.ServiceBuilder {
@@ -208,10 +204,14 @@ func (s *KeyAgentService) renewIdentity(ctx context.Context, privKey crypto.Sign
 }
 
 func (s *KeyAgentService) writeIdentityFile(ctx context.Context, identity *identity.Identity) error {
+	slotKey, err := hardwarekey.PIVSlotKeyFromProto(pivSlotKey)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	privateKey, err := keys.NewPrivateKey(&hardwarekey.Signer{
 		Ref: &hardwarekey.PrivateKeyRef{
 			SerialNumber:         pivSerialNumber,
-			SlotKey:              pivSlotKey,
+			SlotKey:              slotKey,
 			PublicKey:            identity.X509Cert.PublicKey, // X509Cert.PublicKey and SSHCert.PublicKey are the same.
 			Policy:               hardwarekey.PromptPolicyNone,
 			AttestationStatement: &hardwarekey.AttestationStatement{},
