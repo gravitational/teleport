@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/constants"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/scopes"
@@ -252,6 +253,25 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 	// verify that max_sessions is non-negative
 	if ms := role.GetSpec().GetSsh().GetMaxSessions(); ms < 0 {
 		return trace.BadParameter("scoped role %q has invalid ssh.max_sessions %d: must be non-negative", role.GetMetadata().GetName(), ms)
+	}
+
+	// verify that session_recording_mode fields are recognized values
+	if mode := role.GetSpec().GetSsh().GetSessionRecording().GetMode(); mode != "" {
+		switch constants.SessionRecordingMode(mode) {
+		case constants.SessionRecordingModeStrict, constants.SessionRecordingModeBestEffort:
+		default:
+			return trace.BadParameter("scoped role %q has invalid ssh.session_recording_mode. %q: must be %q or %q",
+				role.GetMetadata().GetName(), mode, constants.SessionRecordingModeStrict, constants.SessionRecordingModeBestEffort)
+		}
+	}
+
+	if mode := role.GetSpec().GetDefaults().GetSessionRecording().GetMode(); mode != "" {
+		switch constants.SessionRecordingMode(mode) {
+		case constants.SessionRecordingModeStrict, constants.SessionRecordingModeBestEffort:
+		default:
+			return trace.BadParameter("scoped role %q has invalid defaults.session_recording_mode %q: must be %q or %q",
+				role.GetMetadata().GetName(), mode, constants.SessionRecordingModeStrict, constants.SessionRecordingModeBestEffort)
+		}
 	}
 
 	// verify that kube labels are well-formed

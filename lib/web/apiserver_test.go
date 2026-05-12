@@ -2678,7 +2678,7 @@ func mustStartWindowsDesktopMock(t *testing.T, authClient *auth.Server) *windows
 }
 
 func (w *windowsDesktopServiceMock) handleConn(t *testing.T, conn *tls.Conn) {
-	tdpConn := tdp.NewConn(conn, legacy.Decode)
+	tdpConn := tdp.NewConn(conn, legacy.Decode, legacy.WarningConstructor)
 
 	// Ensure that incoming connection is MFAVerified.
 	require.NotEmpty(t, conn.ConnectionState().PeerCertificates)
@@ -2784,7 +2784,7 @@ func TestDesktopAccessMFA(t *testing.T) {
 
 			tc.mfaHandler(t, ws, dev)
 
-			tdpClient := tdp.NewConn(&WebsocketIO{Conn: ws}, legacy.Decode)
+			tdpClient := tdp.NewConn(&WebsocketIO{Conn: ws}, legacy.Decode, legacy.WarningConstructor)
 
 			msg, err := tdpClient.ReadMessage()
 			require.NoError(t, err)
@@ -2801,7 +2801,7 @@ func TestDesktopAccessMFA(t *testing.T) {
 
 func handleDesktopMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *authtest.Device) {
 	wsrwc := &WebsocketIO{Conn: ws}
-	tdpConn := tdp.NewConn(wsrwc, legacy.Decode)
+	tdpConn := tdp.NewConn(wsrwc, legacy.Decode, legacy.WarningConstructor)
 
 	br := bufio.NewReader(wsrwc)
 	mt, err := br.ReadByte()
