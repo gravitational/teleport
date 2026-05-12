@@ -89,6 +89,59 @@ func threatCategoryToProto(category string) summarizerv1pb.ThreatCategory {
 	}
 }
 
+func commandAnalysisToSessionEvent(cmd *CommandAnalysis) *summarizerv1pb.SessionEvent {
+	if cmd == nil {
+		return nil
+	}
+
+	return &summarizerv1pb.SessionEvent{
+		Category:              commandCategoryToProto(cmd.Category),
+		RiskLevel:             riskLevelToProto(cmd.RiskLevel),
+		RiskScore:             int32(cmd.RiskScore),
+		ThreatCategory:        threatCategoryToProto(cmd.ThreatCategory),
+		TimelineTitle:         cmd.TimelineTitle,
+		TimelineSubtitle:      cmd.TimelineSubtitle,
+		ShortDescription:      cmd.ShortDescription,
+		DetailedDescription:   cmd.Description,
+		SuspiciousFlags:       cmd.SuspiciousFlags,
+		SensitiveItems:        cmd.SensitiveItems,
+		SuspiciousPatterns:    cmd.SuspiciousPatterns,
+		Iocs:                  cmd.IOCs,
+		MitreAttackIds:        cmd.MitreAttackIDs,
+		HasSensitiveData:      cmd.HasSensitiveData,
+		PrivilegeEscalation:   cmd.PrivilegeEscalation,
+		DataExfiltration:      cmd.DataExfiltration,
+		Persistence:           cmd.Persistence,
+		StartOffset:           durationpb.New(cmd.StartOffset),
+		EndOffset:             durationpb.New(cmd.EndOffset),
+		InferenceErrorMessage: cmd.InferenceErrorMessage,
+		Details: &summarizerv1pb.SessionEvent_CommandEventDetails{
+			CommandEventDetails: &summarizerv1pb.CommandEventDetails{
+				Command:       cmd.Command,
+				Success:       cmd.Success,
+				ErrorMessages: cmd.ErrorMessages,
+			},
+		},
+	}
+}
+
+func commandAnalysesListToSessionEvents(commands []*CommandAnalysis) []*summarizerv1pb.SessionEvent {
+	if commands == nil {
+		return nil
+	}
+
+	result := make([]*summarizerv1pb.SessionEvent, len(commands))
+	for i := range commands {
+		result[i] = commandAnalysisToSessionEvent(commands[i])
+	}
+	return result
+}
+
+// commandAnalysisToProto converts a CommandAnalysis to its deprecated proto form.
+// Persisted alongside SessionEvents so a v18 auth serving a summary written by a
+// v19 auth (rolling upgrade or rollback) still has data to return.
+//
+// TODO(ryanclark): DELETE IN v21.0.0.
 func commandAnalysisToProto(cmd *CommandAnalysis) *summarizerv1pb.CommandAnalysis {
 	if cmd == nil {
 		return nil
@@ -125,7 +178,6 @@ func commandAnalysesListToProto(commands []*CommandAnalysis) []*summarizerv1pb.C
 	if commands == nil {
 		return nil
 	}
-
 	result := make([]*summarizerv1pb.CommandAnalysis, len(commands))
 	for i := range commands {
 		result[i] = commandAnalysisToProto(commands[i])
@@ -153,20 +205,30 @@ func SessionAnalysisToProto(analysis *SessionAnalysis, commands []*CommandAnalys
 		SuspiciousActivities:  analysis.SuspiciousActivities,
 		CompromiseIndicators:  analysis.CompromiseIndicators,
 		NotableCommandIndexes: notableCommandIndexesToProto(analysis.NotableCommandIndexes),
-		Commands:              commandAnalysesListToProto(commands),
+		SessionEvents:         commandAnalysesListToSessionEvents(commands),
+		// Persisted alongside SessionEvents so a pre-v19 auth serving a recording
+		// written by a v19+ auth (rolling upgrade or rollback) still has data to
+		// return. TODO(ryanclark): DELETE IN v21.0.0.
+		Commands: commandAnalysesListToProto(commands),
 	}
 
 	if analysis.TooLarge {
-		tooLarge := summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_TOO_LARGE
-		//nolint:staticcheck // deprecated field kept for backwards compatibility
-		es.NeedsFurtherReview = &tooLarge
+		es.NeedsFurtherReviewReasons = append(es.NeedsFurtherReviewReasons,
+			summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_TOO_LARGE)
 	}
 
-	//nolint:staticcheck // deprecated field kept for backwards compatibility
-	if analysis.CommandAnalysisFailed && es.NeedsFurtherReview == nil {
-		failed := summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_COMMAND_ANALYSIS_FAILED
-		//nolint:staticcheck // deprecated field kept for backwards compatibility
-		es.NeedsFurtherReview = &failed
+	if analysis.CommandAnalysisFailed {
+		es.NeedsFurtherReviewReasons = append(es.NeedsFurtherReviewReasons,
+			summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_COMMAND_ANALYSIS_FAILED)
+	}
+
+	// Mirror the first reason into the deprecated NeedsFurtherReview field so a
+	// pre-v19 auth serving a recording written by a v19+ auth still has data to
+	// return. TODO(ryanclark): DELETE IN v21.0.0.
+	if len(es.NeedsFurtherReviewReasons) > 0 {
+		first := es.NeedsFurtherReviewReasons[0]
+		//nolint:staticcheck // deprecated field populated for cross-version compatibility
+		es.NeedsFurtherReview = &first
 	}
 
 	return es

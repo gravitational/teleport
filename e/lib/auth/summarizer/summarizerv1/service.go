@@ -890,7 +890,10 @@ func (s *Service) GetSummary(
 		},
 	)
 
-	// All checks passed, return the summary.
+	if err := adjustEnhancedSummaryForClient(ctx, summary); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &pb.GetSummaryResponse{Summary: summary}, nil
 }
 
