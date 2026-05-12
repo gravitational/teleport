@@ -140,12 +140,14 @@ func (a *Server) generateDatabaseClientCert(ctx context.Context, req *proto.Data
 		Cert:       resp.CertPEM,
 		CACerts:    caCerts,
 		TrustChain: resp.TrustChainPEM,
+		CAOverride: resp.CAOverrideDetails,
 	}, nil
 }
 
 type generateDatabaseCertResponse struct {
-	CertPEM       []byte
-	TrustChainPEM [][]byte
+	CertPEM           []byte
+	TrustChainPEM     [][]byte
+	CAOverrideDetails *proto.CAOverrideCertificateDetails
 }
 
 func (a *Server) generateDatabaseCert(
@@ -163,6 +165,7 @@ func (a *Server) generateDatabaseCert(
 	}
 
 	var trustChain [][]byte
+	var caOverrideDetails *proto.CAOverrideCertificateDetails
 	if ca.GetType() == types.DatabaseClientCA {
 		subCAResolver, err := subca.NewCAOverrideResolver(a.Cache, a.subCAEnabled)
 		if err != nil {
@@ -177,6 +180,7 @@ func (a *Server) generateDatabaseCert(
 		}
 
 		caCert = overrideResult.CACertificate.PEM
+		caOverrideDetails = overrideResult.ToClientOverrideDetailsProto()
 
 		if len(overrideResult.CAChain) > 0 {
 			trustChain = make([][]byte, len(overrideResult.CAChain))
@@ -245,8 +249,9 @@ func (a *Server) generateDatabaseCert(
 	}
 
 	return &generateDatabaseCertResponse{
-		CertPEM:       cert,
-		TrustChainPEM: trustChain,
+		CertPEM:           cert,
+		TrustChainPEM:     trustChain,
+		CAOverrideDetails: caOverrideDetails,
 	}, nil
 }
 

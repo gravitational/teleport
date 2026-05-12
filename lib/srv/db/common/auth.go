@@ -114,6 +114,11 @@ type Auth interface {
 	// WithLogger returns a new instance of Auth with updated logger.
 	// The callback function receives the current logger and returns a new one.
 	WithLogger(getUpdatedLogger func(*slog.Logger) *slog.Logger) Auth
+	// WithSession returns a new instance of Auth with the given session.
+	//
+	// The session is automatically updated with authn data, like CA override
+	// details, by the Auth instance.
+	WithSession(session *Session) Auth
 }
 
 // AuthClient is an interface that defines a subset of libauth.Client's
@@ -239,6 +244,9 @@ type dbAuth struct {
 	// Avoiding the need to query the metadata server on every database
 	// connection.
 	azureVirtualMachineCache *utils.FnCache
+	// session is the current session being authenticated.
+	// nil in the base dbAuth instance, but set in its copies via WithSession.
+	session *Session
 }
 
 // NewAuth returns a new instance of database access authenticator.
@@ -261,23 +269,31 @@ func NewAuth(config AuthConfig) (Auth, error) {
 	}, nil
 }
 
-// NewAuthForSession returns a copy of Auth with session-specific logging.
+// NewAuthForSession returns a session-aware copy of Auth, which includes
+// session-specific logging and automatically recording CA override data.
 func NewAuthForSession(auth Auth, sessionCtx *Session) Auth {
-	return auth.WithLogger(func(logger *slog.Logger) *slog.Logger {
-		return logger.With(
-			"session_id", sessionCtx.ID,
-			"database", sessionCtx.Database.GetName(),
-		)
-	})
+	return auth.
+		WithLogger(func(logger *slog.Logger) *slog.Logger {
+			return logger.With(
+				"session_id", sessionCtx.ID,
+				"database", sessionCtx.Database.GetName(),
+			)
+		}).
+		WithSession(sessionCtx)
 }
 
 // WithLogger returns a new instance of Auth with updated logger.
 // The callback function receives the current logger and returns a new one.
 func (a *dbAuth) WithLogger(getUpdatedLogger func(*slog.Logger) *slog.Logger) Auth {
-	return &dbAuth{
-		cfg:                      a.cfg.withLogger(getUpdatedLogger),
-		azureVirtualMachineCache: a.azureVirtualMachineCache,
-	}
+	cp := *a
+	cp.cfg = a.cfg.withLogger(getUpdatedLogger)
+	return &cp
+}
+
+func (a *dbAuth) WithSession(session *Session) Auth {
+	cp := *a
+	cp.session = session
+	return &cp
 }
 
 // GetRDSAuthToken returns authorization token that will be used as a password
@@ -1102,6 +1118,10 @@ func (a *dbAuth) getClientCert(ctx context.Context, expiry time.Time, databaseUs
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
+	}
+	// Save override details to the session so it appears in audit.
+	if a.session != nil {
+		a.session.caOverrideDetails = resp.CAOverride
 	}
 
 	clientCert, err := privateKey.TLSCertificate(resp.Cert)

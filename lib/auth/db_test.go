@@ -33,6 +33,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	clientpb "github.com/gravitational/teleport/api/client/proto"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -213,10 +214,13 @@ func TestDBCertSigning(t *testing.T) {
 		string(activeDBClientCACert): dbClientCAOverride.Spec.CertificateOverrides[0],
 		string(newDBClientCACert):    dbClientCAOverride.Spec.CertificateOverrides[1],
 	}
-	getOverrideAwareCertificates := func(selfSignedCert []byte, includeChain bool) (cert []byte, chain [][]byte) {
+	getOverrideAwareCertificates := func(
+		selfSignedCert []byte,
+		includeChain bool,
+	) (cert []byte, pubKeyHash string, chain [][]byte) {
 		co, ok := caOverrideCertificateMap[string(selfSignedCert)]
 		if !ok {
-			return selfSignedCert, nil // No overrides.
+			return selfSignedCert, "", nil // No overrides.
 		}
 
 		if includeChain {
@@ -227,7 +231,7 @@ func TestDBCertSigning(t *testing.T) {
 			}
 		}
 
-		return []byte(co.Certificate), chain
+		return []byte(co.Certificate), co.PublicKey, chain
 	}
 
 	mustDeleteCAOverrides := func(t *testing.T) {
@@ -249,7 +253,9 @@ func TestDBCertSigning(t *testing.T) {
 		wantKeyUsage   []x509.ExtKeyUsage
 		wantCDP        []string
 
-		wantOverrideTrustChain [][]byte // Automatically set by CA override tests.
+		// Automatically set by CA override tests.
+		wantOverrideTrustChain [][]byte
+		wantOverrideDetails    *clientpb.CAOverrideCertificateDetails
 	}
 
 	tests := []testCase{
@@ -318,6 +324,11 @@ func TestDBCertSigning(t *testing.T) {
 				t.Errorf("resp.TrustChain mismatch (-want +got)\n%s", diff)
 			}
 
+			// Verify override details.
+			if diff := cmp.Diff(tt.wantOverrideDetails, certResp.CAOverride, protocmp.Transform()); diff != "" {
+				t.Errorf("resp.CaOverride mismatch (-want +got)\n%s", diff)
+			}
+
 			// verify that the response cert is a DB CA cert.
 			mustVerifyCert(t, tt.wantCertSigner, certResp.Cert, tt.wantCDP, tt.wantKeyUsage...)
 		}
@@ -346,16 +357,21 @@ func TestDBCertSigning(t *testing.T) {
 				t.Cleanup(func() { mustDeleteCAOverrides(t) })
 
 				// Adjust wanted cert/CAs to account for overrides.
-				wantCertSigner, wantChain := getOverrideAwareCertificates(tt.wantCertSigner, true)
+				wantCertSigner, pubKeyHash, wantChain := getOverrideAwareCertificates(tt.wantCertSigner, true)
 				wantCACerts := make([][]byte, len(tt.wantCACerts))
 				for i, cert := range tt.wantCACerts {
-					wantCACerts[i], _ = getOverrideAwareCertificates(cert, false)
+					wantCACerts[i], _, _ = getOverrideAwareCertificates(cert, false)
 				}
 
 				tt := tt // Take a copy.
 				tt.wantCertSigner = wantCertSigner
 				tt.wantCACerts = wantCACerts
 				tt.wantOverrideTrustChain = wantChain
+				if pubKeyHash != "" {
+					tt.wantOverrideDetails = &clientpb.CAOverrideCertificateDetails{
+						PublicKeyHash: pubKeyHash,
+					}
+				}
 				runTest(t, &tt)
 			})
 		})

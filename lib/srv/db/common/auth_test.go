@@ -36,10 +36,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
 	rss "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	googlecmp "github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -292,41 +294,44 @@ func TestAuthGetTLSConfig_caOverrides(t *testing.T) {
 
 	// Simulate an external CA chain, such as one that would be used by a CA
 	// override.
-	const chainLen = 3 // arbitrary
+	const chainLen = 2
 	externalChain, err := subcaenv.MakeCAChain(chainLen, &subcaenv.CAParams{})
 	require.NoError(t, err)
 	ca0 := externalChain[0]
 	ca1 := externalChain[1]
-	ca2 := externalChain[2]
 
 	wantRootCAs := x509.NewCertPool()
 	require.True(t,
-		wantRootCAs.AppendCertsFromPEM(ca2.CertPEM),
+		wantRootCAs.AppendCertsFromPEM(ca1.CertPEM),
 		"CertPool.AppendCertsFromPEM() errored")
 
 	// Leaf-to-root.
 	wantTrustChainDER := [][]byte{
-		ca2.Cert.Raw,
 		ca1.Cert.Raw,
 		ca0.Cert.Raw,
 	}
 
-	ca2KeyDER, err := x509.MarshalPKCS8PrivateKey(ca2.Key)
+	wantOverrideDetails := &proto.CAOverrideCertificateDetails{
+		// "Fake" hash.
+		PublicKeyHash: "9ce8baa9093e80846d30c4277a303b1c5d79f2432412382d1aaee3b1d05bcb21",
+	}
+
+	ca1KeyDER, err := x509.MarshalPKCS8PrivateKey(ca1.Key)
 	require.NoError(t, err)
-	ca2KeyPEM := pem.EncodeToMemory(&pem.Block{
+	ca1KeyPEM := pem.EncodeToMemory(&pem.Block{
 		Type:  "PRIVATE KEY",
-		Bytes: ca2KeyDER,
+		Bytes: ca1KeyDER,
 	})
 
 	fakeAuth := &authClientMock{
-		caCertPEM: ca2.CertPEM,
-		caKeyPEM:  ca2KeyPEM,
+		caCertPEM: ca1.CertPEM,
+		caKeyPEM:  ca1KeyPEM,
 		trustChain: [][]byte{
 			// Leaf-to-root.
-			ca2.CertPEM,
 			ca1.CertPEM,
 			ca0.CertPEM,
 		},
+		caOverride: wantOverrideDetails,
 	}
 
 	auth, err := NewAuth(AuthConfig{
@@ -343,6 +348,11 @@ func TestAuthGetTLSConfig_caOverrides(t *testing.T) {
 
 	t.Run("ok", func(t *testing.T) {
 		expiry := time.Now().Add(1 * time.Hour)
+
+		session := &Session{
+			Database: db,
+		}
+		auth := NewAuthForSession(auth, session)
 
 		tlsConfig, err := auth.GetTLSConfig(t.Context(), expiry, db, user)
 		require.NoError(t, err)
@@ -362,6 +372,12 @@ func TestAuthGetTLSConfig_caOverrides(t *testing.T) {
 			wantChainDER[i+1] = der
 		}
 		assert.Equal(t, wantChainDER, gotChainDER, "tlsConfig.Certifices[0] mismatch")
+
+		// Verify override details recorded in session.
+		wantOverrideDetails.PublicKeyHash = "banana"
+		if diff := googlecmp.Diff(wantOverrideDetails, session.caOverrideDetails, protocmp.Transform()); diff != "" {
+			t.Errorf("session.caOverrideDetails mismatch (-want +got)\n%s", diff)
+		}
 	})
 }
 
@@ -1171,6 +1187,7 @@ func identityResourceID(t *testing.T, identityName string) string {
 type authClientMock struct {
 	caCertPEM, caKeyPEM []byte // defaults to fixtures.TLSCACertPEM / TLSCAKeyPEM.
 	trustChain          [][]byte
+	caOverride          *proto.CAOverrideCertificateDetails
 }
 
 // GenerateDatabaseCert generates a cert using fixtures TLS CA.
@@ -1216,6 +1233,7 @@ func (m *authClientMock) GenerateDatabaseCert(ctx context.Context, req *proto.Da
 			caCert,
 		},
 		TrustChain: m.trustChain,
+		CAOverride: m.caOverride,
 	}, nil
 }
 
