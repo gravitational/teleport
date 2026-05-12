@@ -8,7 +8,18 @@ tags:
  - infrastructure-identity
 ---
 
-Common issues and diagnostic steps for server auto-discovery, grouped by cloud provider.
+Common issues and diagnostic steps for server auto-discovery, grouped by cloud
+provider.
+
+The `tctl discovery nodes` command lists Teleport's recent attempts to enroll
+cloud instances and reports whether each succeeded. It reads enrollment audit
+events emitted by the Discovery Service (`ssm.run` for AWS, `azure.run` for
+Azure).
+
+Use `--last` to widen the audit-event lookback window past the default one
+hour. The flag accepts Go-style durations (for example `--last=30m`,
+`--last=24h`); widen it when investigating failures older than the default
+window.
 
 ## AWS EC2
 

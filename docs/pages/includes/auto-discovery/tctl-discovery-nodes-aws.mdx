@@ -1,7 +1,8 @@
 ### Inspect instance enrollment status
 
 The `tctl discovery nodes` command lists Teleport's recent attempts to enroll
-AWS EC2 instances and reports whether each succeeded.
+AWS EC2 instances and reports whether each succeeded. It reads `ssm.run` audit
+events emitted by the Discovery Service.
 
 ```code
 $ tctl discovery nodes --cloud=aws
@@ -30,6 +31,9 @@ Each row's Status column tells you what stage the instance reached:
 - `Failed (exit code=N)`: the install script ran and exited non-zero. The
   Details column shows the script output. See [Installation script exit
   codes](#installation-script-exit-codes) above for known values.
+
+Use `--last` to widen the audit-event lookback window past the default one
+hour (e.g. `--last=24h`) when investigating older failures or retries.
 
 Use `--format=json` for machine-readable output that includes the full script
 output, the originating user task ID, and AWS-specific instance metadata.
