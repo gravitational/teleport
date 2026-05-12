@@ -188,7 +188,12 @@ func (s *Server) Serve(ctx context.Context) error {
 // Stop the hardware key agent server.
 func (s *Server) Stop() {
 	s.grpcServer.GracefulStop()
-	if err := os.RemoveAll(s.dir); err != nil {
-		slog.DebugContext(context.TODO(), "failed to clear hardware key agent directory")
+
+	if err := os.Remove(filepath.Join(s.dir, SocketFileName)); err != nil {
+		slog.DebugContext(context.TODO(), "failed to remove hardware key agent socket")
+	}
+
+	if err := os.Remove(filepath.Join(s.dir, CertFileName)); err != nil {
+		slog.DebugContext(context.TODO(), "failed to remove hardware key agent certificate")
 	}
 }
