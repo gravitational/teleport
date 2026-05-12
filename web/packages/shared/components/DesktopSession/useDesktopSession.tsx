@@ -218,6 +218,13 @@ export default function useDesktopSession(
       if (isAbortError(e)) {
         return;
       }
+      addAlert({
+        severity: 'warn',
+        content: {
+          title: 'Failed to unmount the shared directory',
+          description: e.message,
+        },
+      });
     }
   };
 
