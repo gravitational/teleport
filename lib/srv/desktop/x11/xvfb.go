@@ -539,6 +539,9 @@ func (x *Backend) GetImage(rect xproto.Rectangle) ([]byte, error) {
 		return nil, trace.Wrap(err)
 	}
 	data := reply.Data
+	if len(data)%4 != 0 {
+		return nil, trace.BadParameter("image data is not a multiple of 4")
+	}
 	// Data returned from xproto.GetImage is BGRA and alpha is always 0, we change it to RGBA and alpha set to 0xFF
 	for i := 0; i < len(data); i += 4 {
 		data[i+0], data[i+2] = data[i+2], data[i+0]
