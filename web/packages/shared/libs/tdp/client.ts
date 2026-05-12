@@ -1035,7 +1035,7 @@ export class TdpError extends Error {
 }
 
 class SharedDirectoryManager {
-  private device_id: Identifiers;
+  private deviceId: Identifiers;
   private sharedDirectories: Map<number, SharedDirectoryAccess>;
 
   constructor(
@@ -1046,7 +1046,7 @@ class SharedDirectoryManager {
     // The teleport RDP client uses deviceId '1' for its emulated smart card device.
     // Reserve enough device identifiers for double the number of allowed directories.
     // The identifier assignment algorithm assigns least recently used identifiers first.
-    this.device_id = new Identifiers(
+    this.deviceId = new Identifiers(
       2,
       // Ideally, our range of available identifiers exceeds the maximum number of allowed
       // directories. The identifier implementation recycles least recently used identifiers
@@ -1084,21 +1084,21 @@ class SharedDirectoryManager {
     }
 
     let directory = await this.selectSharedDirectory();
-    const id = this.device_id.acquire();
+    const id = this.deviceId.acquire();
     if (id === undefined) {
       throw Error('Error acquiring identifier for shared directory');
     }
 
     this.sharedDirectories.set(id, directory);
     this.logger.info(
-      `Sharing directory '${directory.getDirectoryName()}' with device_id '${id}'`
+      `Sharing directory '${directory.getDirectoryName()}' with device id '${id}'`
     );
     return { name: directory.getDirectoryName(), id };
   }
 
   unshareDirectory(directoryId: number): void {
     const del = this.sharedDirectories.delete(directoryId);
-    const rel = this.device_id.release(directoryId);
+    const rel = this.deviceId.release(directoryId);
     if (!(del && rel)) {
       this.logger.warn(
         `Attempted to unshare invalid directory id: ${directoryId}`
