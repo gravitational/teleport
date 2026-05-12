@@ -495,7 +495,10 @@ const cfg = {
   },
 
   getAccessMonitoringReportRoute(name: string, days: number) {
-    return generatePath(cfg.routes.accessMonitoring.report, { name, days });
+    return generatePath(cfg.routes.accessMonitoring.report, {
+      name,
+      days: String(days),
+    });
   },
 
   getAccessMonitoringReportsUrl(clusterId: string) {
@@ -514,7 +517,7 @@ const cfg = {
     return generatePath(cfg.api.accessMonitoring.reportResult, {
       clusterId,
       name: reportName,
-      timeframe,
+      timeframe: String(timeframe),
     });
   },
 
@@ -543,7 +546,7 @@ const cfg = {
     return generatePath(cfg.api.accessMonitoring.reportState, {
       clusterId,
       name: reportName,
-      timeframe,
+      timeframe: String(timeframe),
     });
   },
 
