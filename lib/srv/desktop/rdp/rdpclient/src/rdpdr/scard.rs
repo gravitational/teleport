@@ -667,6 +667,9 @@ const CACHE_FILE_HEADER: [u8; 12] = [
     0,
 ];
 
+const RSA_BITLEN: u32 = 2048;
+const RSA_MIN_BITLEN: u32 = RSA_BITLEN / 2; // Just for compatibility purposes with the cache.
+
 impl ContextInternal {
     fn new() -> Self {
         // Normally, it's the Base CSP/KSP's job to write everything into the cache.
@@ -733,7 +736,7 @@ impl ContextInternal {
         });
         cache.insert("Cached_CardProperty_Capabilities_0".into(), {
             // Explained in '4.4 Card Capabilities (Minidriver Version 5 and Earlier) - Windows Smart Card Minidriver Specification Version 7.07'.
-            // This is just for backwards compability purposes.
+            // This is just for backwards compatibility purposes.
             let ver = 1_u32.to_le_bytes();
             // This cert compression flag is tricky - by default,
             // Base CSP/KSP will try to cache in runtime that it's TRUE for the emulator.
@@ -758,10 +761,12 @@ impl ContextInternal {
         // under the `CP_CARD_KEYSIZES` property in the table.
         let card_property_key_sizes = {
             let ver = 1_u32.to_le_bytes();
-            let min_bitlen = 1024_u32.to_le_bytes();
-            let default_bitlen = 1024_u32.to_le_bytes();
-            let max_bitlen = 2048_u32.to_le_bytes();
-            let incremental_bitlen = 1024_u32.to_le_bytes();
+            // The actual RSA bitlen is stored in `dwMaximumBitlen`.
+            // The other values are just for compatibility purposes.
+            let min_bitlen = RSA_MIN_BITLEN.to_le_bytes();
+            let default_bitlen = RSA_MIN_BITLEN.to_le_bytes();
+            let max_bitlen = RSA_BITLEN.to_le_bytes();
+            let incremental_bitlen = RSA_MIN_BITLEN.to_le_bytes();
             let size = ((ver.len()
                 + min_bitlen.len()
                 + default_bitlen.len()
@@ -825,7 +830,6 @@ impl ContextInternal {
     ) -> PduResult<ScardHandle> {
         let public_key_blob = {
             // PUBLICKEYSTRUC or BLOBHEADER struct defined here: https://learn.microsoft.com/en-us/windows/win32/api/wincrypt/ns-wincrypt-publickeystruc
-            // Example: https://github.com/selfrender/Windows-Server-2003/blob/5c6fe3db626b63a384230a1aa6b92ac416b0765f/ds/security/csps/wfsccsp/cardmod/cardmod.c#L1581
             let blob_type = 0x06_u8; // PUBLICKEYBLOB
             let ver = 2_u8; // CUR_BLOB_VERSION
             let reserved = 0_u16.to_le_bytes();
@@ -834,7 +838,7 @@ impl ContextInternal {
             // The rest of the blob is RSAPUBKEY: https://learn.microsoft.com/en-us/windows/win32/api/wincrypt/ns-wincrypt-rsapubkey
             // + the 256-byte modulus until the end.
             let magic = b"RSA1";
-            let bitlen = 2048_u32.to_le_bytes();
+            let bitlen = RSA_BITLEN.to_le_bytes();
 
             let private_key = RsaPrivateKey::from_pkcs1_der(key_der).map_err(|_e| {
                 pdu_other_err!("Failed to parse private key from DER for precaching")
@@ -895,9 +899,9 @@ impl ContextInternal {
             // - TRUE  -> reading "kxc00" will be expected to return a raw, uncompressed cert.
             // - FALSE -> reading "kxc00" will be expected to return a zlib-compressed cert
             //            with an additional, undocumented "compressed item" header.
-            // References (note: WS2003 source just for illustrative purposes, might be a bit outdated):
-            // - reading: https://github.com/selfrender/Windows-Server-2003/blob/5c6fe3db626b63a384230a1aa6b92ac416b0765f/ds/security/csps/wfsccsp/basecsp/capi.c#L2798
-            // - writing: https://github.com/selfrender/Windows-Server-2003/blob/5c6fe3db626b63a384230a1aa6b92ac416b0765f/ds/security/csps/wfsccsp/basecsp/capi.c#L2626
+            // References (symbols taken from basecsp.dll ver. 10.0.26100.8115):
+            // - reading: basecsp!LocalGetKeyParam -> basecsp!CspReadUserCertificate -> basecsp!UncompressData
+            // - writing: basecsp!LocalSetKeyParam -> basecsp!CompressData -> basecsp!compress2 with Z_BEST_COMPRESSION (9)
             // - compressed item header: https://tbt.qkation.com/posts/win-scard-cache/#:~:text=one%20key%20container.-,Cached_GeneralFile/mscp/kxc00
             // In our case, `fCertificateCompression` is precached as TRUE (Base CSP/KSP would cache TRUE anyway),
             // so we don't have to use the undocumented internals.
