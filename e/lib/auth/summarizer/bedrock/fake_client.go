@@ -16,6 +16,31 @@ import (
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/schema"
 )
 
+// structuredResponse builds a ConverseOutput that mimics Bedrock's
+// schema-constrained JSON response (via ConverseInput.OutputConfig). The
+// response is returned as a normal text content block whose payload is
+// guaranteed by Bedrock to conform to the schema.
+func structuredResponse(value any) (*bedrockruntime.ConverseOutput, error) {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return nil, err
+	}
+	return &bedrockruntime.ConverseOutput{
+		Output: &bedrocktypes.ConverseOutputMemberMessage{
+			Value: bedrocktypes.Message{
+				Content: []bedrocktypes.ContentBlock{
+					&bedrocktypes.ContentBlockMemberText{Value: string(data)},
+				},
+			},
+		},
+		StopReason: bedrocktypes.StopReasonEndTurn,
+		Usage: &bedrocktypes.TokenUsage{
+			InputTokens:  aws.Int32(100),
+			OutputTokens: aws.Int32(50),
+		},
+	}, nil
+}
+
 type FakeClientFactory struct {
 	Clock *clockwork.FakeClock
 }
@@ -128,81 +153,18 @@ func (m *fakeClient) Converse(
 			},
 		}, nil
 	case "json response for command analysis":
-		ca := &schema.CommandAnalysis{
-			Command:          "ls -al",
-			RiskLevel:        "low",
-			Category:         "file_operation",
-			TimelineTitle:    "Listed directory contents",
-			TimelineSubtitle: "",
-			ShortDescription: "Listed all files in the directory",
-			Description:      "The command 'ls -al' was executed to list all files, including hidden ones, in the current directory.",
-			ThreatCategory:   "none",
-		}
-
-		jsonStr, err := json.Marshal(ca)
-		if err != nil {
-			return nil, err
-		}
-
-		return &bedrockruntime.ConverseOutput{
-			Output: &bedrocktypes.ConverseOutputMemberMessage{
-				Value: bedrocktypes.Message{
-					Content: []bedrocktypes.ContentBlock{
-						&bedrocktypes.ContentBlockMemberText{
-							Value: string(jsonStr),
-						},
-					},
-				},
-			},
-			StopReason: bedrocktypes.StopReasonEndTurn,
-			Usage: &bedrocktypes.TokenUsage{
-				InputTokens:  aws.Int32(100),
-				OutputTokens: aws.Int32(50),
-			},
-		}, nil
-	case "respond with json over multiple content blocks":
-		ca := &schema.CommandAnalysis{
-			Command:          "ls -al",
-			RiskLevel:        "low",
-			Category:         "file_operation",
-			TimelineTitle:    "Listed directory contents",
-			TimelineSubtitle: "",
-			ShortDescription: "Listed all files in the directory",
-			Description:      "The command 'ls -al' was executed to list all files, including hidden ones, in the current directory.",
-			ThreatCategory:   "none",
-		}
-
-		jsonStr, err := json.Marshal(ca)
-		if err != nil {
-			return nil, err
-		}
-
-		blockCount := 3
-		var contentBlocks []bedrocktypes.ContentBlock
-		chunkSize := len(jsonStr) / blockCount
-		for i := 0; i < blockCount; i++ {
-			start := i * chunkSize
-			end := start + chunkSize
-			if i == blockCount-1 {
-				end = len(jsonStr)
-			}
-			contentBlocks = append(contentBlocks, &bedrocktypes.ContentBlockMemberText{
-				Value: string(jsonStr[start:end]),
-			})
-		}
-
-		return &bedrockruntime.ConverseOutput{
-			Output: &bedrocktypes.ConverseOutputMemberMessage{
-				Value: bedrocktypes.Message{
-					Content: contentBlocks,
-				},
-			},
-			StopReason: bedrocktypes.StopReasonEndTurn,
-			Usage: &bedrocktypes.TokenUsage{
-				InputTokens:  aws.Int32(100),
-				OutputTokens: aws.Int32(50),
-			},
-		}, nil
+		return structuredResponse(map[string]any{
+			"command":           "ls -al",
+			"risk_level":        "low",
+			"risk_score":        10,
+			"category":          "file_operation",
+			"timeline_title":    "Listed directory contents",
+			"timeline_subtitle": "",
+			"short_description": "Listed all files in the directory",
+			"description":       "The command 'ls -al' was executed to list all files, including hidden ones, in the current directory.",
+			"threat_category":   "none",
+			"success":           true,
+		})
 
 	case "respond with region and Bedrock model ID":
 		return &bedrockruntime.ConverseOutput{
@@ -285,40 +247,18 @@ func handleBedrockCommandAnalysis(content string) (*bedrockruntime.ConverseOutpu
 		}
 	}
 
-	ca := &schema.CommandAnalysis{
-		Command:          "test-command",
-		RiskLevel:        "low",
-		RiskScore:        10,
-		Category:         "other",
-		TimelineTitle:    "Executed test command",
-		TimelineSubtitle: "",
-		ShortDescription: "Test command executed",
-		Description:      "A test command was executed during the session.",
-		ThreatCategory:   "none",
-		Success:          true,
-	}
-
-	jsonStr, err := json.Marshal(ca)
-	if err != nil {
-		return nil, err
-	}
-
-	return &bedrockruntime.ConverseOutput{
-		Output: &bedrocktypes.ConverseOutputMemberMessage{
-			Value: bedrocktypes.Message{
-				Content: []bedrocktypes.ContentBlock{
-					&bedrocktypes.ContentBlockMemberText{
-						Value: string(jsonStr),
-					},
-				},
-			},
-		},
-		StopReason: bedrocktypes.StopReasonEndTurn,
-		Usage: &bedrocktypes.TokenUsage{
-			InputTokens:  aws.Int32(100),
-			OutputTokens: aws.Int32(50),
-		},
-	}, nil
+	return structuredResponse(map[string]any{
+		"command":           "test-command",
+		"risk_level":        "low",
+		"risk_score":        10,
+		"category":          "other",
+		"timeline_title":    "Executed test command",
+		"timeline_subtitle": "",
+		"short_description": "Test command executed",
+		"description":       "A test command was executed during the session.",
+		"threat_category":   "none",
+		"success":           true,
+	})
 }
 
 func handleBedrockProseEmbedding(content string) (*bedrockruntime.ConverseOutput, error) {
@@ -349,30 +289,9 @@ func handleBedrockProseEmbedding(content string) (*bedrockruntime.ConverseOutput
 		}, nil
 	}
 
-	pe := &schema.ProseEmbedding{
-		CondensedText: "A condensed description of the session for embedding generation.",
-	}
-	jsonStr, err := json.Marshal(pe)
-	if err != nil {
-		return nil, err
-	}
-
-	return &bedrockruntime.ConverseOutput{
-		Output: &bedrocktypes.ConverseOutputMemberMessage{
-			Value: bedrocktypes.Message{
-				Content: []bedrocktypes.ContentBlock{
-					&bedrocktypes.ContentBlockMemberText{
-						Value: string(jsonStr),
-					},
-				},
-			},
-		},
-		StopReason: bedrocktypes.StopReasonEndTurn,
-		Usage: &bedrocktypes.TokenUsage{
-			InputTokens:  aws.Int32(100),
-			OutputTokens: aws.Int32(50),
-		},
-	}, nil
+	return structuredResponse(map[string]any{
+		"condensed_text": "A condensed description of the session for embedding generation.",
+	})
 }
 
 func handleBedrockSessionAnalysis(content string) (*bedrockruntime.ConverseOutput, error) {
@@ -385,38 +304,16 @@ func handleBedrockSessionAnalysis(content string) (*bedrockruntime.ConverseOutpu
 		}
 	}
 
-	sa := &schema.SessionAnalysis{
-		ShortDescription:     "Test session with commands",
-		SessionDescription:   "The user executed test commands during this session.",
-		SuspiciousActivities: []string{},
-		SecurityIncidents:    []string{},
-		CompromiseIndicators: false,
-		RiskLevel:            "low",
-		RiskScore:            15,
-		TooLarge:             false,
-	}
-
-	jsonStr, err := json.Marshal(sa)
-	if err != nil {
-		return nil, err
-	}
-
-	return &bedrockruntime.ConverseOutput{
-		Output: &bedrocktypes.ConverseOutputMemberMessage{
-			Value: bedrocktypes.Message{
-				Content: []bedrocktypes.ContentBlock{
-					&bedrocktypes.ContentBlockMemberText{
-						Value: string(jsonStr),
-					},
-				},
-			},
-		},
-		StopReason: bedrocktypes.StopReasonEndTurn,
-		Usage: &bedrocktypes.TokenUsage{
-			InputTokens:  aws.Int32(100),
-			OutputTokens: aws.Int32(50),
-		},
-	}, nil
+	return structuredResponse(map[string]any{
+		"short_description":     "Test session with commands",
+		"session_description":   "The user executed test commands during this session.",
+		"suspicious_activities": []string{},
+		"security_incidents":    []string{},
+		"compromise_indicators": false,
+		"risk_level":            "low",
+		"risk_score":            15,
+		"too_large":             false,
+	})
 }
 
 func (m *fakeClient) InvokeModel(

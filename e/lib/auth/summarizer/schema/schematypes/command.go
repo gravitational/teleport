@@ -43,8 +43,8 @@ type CommandAnalysis struct {
 	DataExfiltration    bool `json:"data_exfiltration" jsonschema:"required" jsonschema_description:"True if data was transferred externally (scp, curl POST, base64 encoding for transfer)"`
 	Persistence         bool `json:"persistence" jsonschema:"required" jsonschema_description:"True if persistence mechanisms were created (cron jobs, systemd services, shell profiles, SSH keys)"`
 
-	StartOffset time.Duration
-	EndOffset   time.Duration
-
-	InferenceErrorMessage string
+	// Server-populated; not produced by the LLM.
+	StartOffset           time.Duration `jsonschema:"-"`
+	EndOffset             time.Duration `jsonschema:"-"`
+	InferenceErrorMessage string        `jsonschema:"-"`
 }

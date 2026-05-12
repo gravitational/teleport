@@ -136,15 +136,7 @@ func TestSummarizeCommand(t *testing.T) {
 				require.NoError(t, err)
 				assert.Equal(t, "ls -al", resp.Command)
 				assert.Equal(t, "file_operation", resp.Category)
-			},
-		},
-		{
-			name:    "multiple blocks",
-			content: "respond with json over multiple content blocks",
-			assert: func(t *testing.T, resp *schema.CommandAnalysis, err error) {
-				require.NoError(t, err)
-				assert.Equal(t, "ls -al", resp.Command)
-				assert.Equal(t, "file_operation", resp.Category)
+				assert.Equal(t, 10, resp.RiskScore)
 			},
 		},
 		{
