@@ -115,6 +115,12 @@ type Terminal interface {
 // NewTerminal returns a new terminal. Terminal can be local or remote
 // depending on cluster configuration.
 func NewTerminal(ctx *ServerContext) (Terminal, error) {
+	// In tests, use a remote terminal (ptybuffer) rather than allocating a real PTY
+	// for higher throughput, especially under high CPU load.
+	if ctx.IsTestStub {
+		return newRemoteTerminal(ctx)
+	}
+
 	// It doesn't matter what mode the cluster is in, if this is a Teleport node
 	// return a local terminal.
 	if ctx.srv.Component() == teleport.ComponentNode {
