@@ -6618,11 +6618,10 @@ var appDependEvents = []string{
 }
 
 func (process *TeleportProcess) initApps() {
-	// If no applications are specified, broadcast AppsReady so the
-	// process readiness gate is not blocked, then return. This is due
-	// to the strange behavior in reading file configuration. If the
-	// user does not specify an "app_service" section, that is
-	// considered enabling "app_service".
+	// If app_service is enabled but no apps, debug app, MCP demo
+	// server, or resource matchers are configured, there is nothing
+	// to proxy. Broadcast AppsReady so the process readiness gate is
+	// not blocked, then return.
 	if len(process.Config.Apps.Apps) == 0 &&
 		!process.Config.Apps.DebugApp &&
 		!process.Config.Apps.MCPDemoServer &&
