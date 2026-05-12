@@ -88,6 +88,7 @@ const meta: Meta<StoryProps> = {
     const hasClusterWithLoggedInUser =
       props.activeCluster && (hasOrange || hasViolet);
     if (hasClusterWithLoggedInUser) {
+      clusters[0].connected = true;
       clusters[0].loggedInUser = makeLoggedInUser({
         ...clusters[0].loggedInUser,
         validUntil: Timestamp.fromDate(
@@ -165,6 +166,7 @@ const clusterViolet = makeRootCluster({
 const clusterGreen = makeRootCluster({
   name: 'green',
   loggedInUser: undefined,
+  connected: false,
   uri: '/clusters/green',
 });
 
