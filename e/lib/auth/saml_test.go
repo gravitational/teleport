@@ -13,11 +13,13 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -85,6 +87,7 @@ type samlTestFixture struct {
 	testContext context.Context
 	authServer  *auth.Server
 	samlService *SAMLAuthService
+	backend     backend.Backend
 	clock       clocki.FakeClock
 }
 
@@ -139,6 +142,7 @@ func newSAMLTestFixture(t *testing.T) *samlTestFixture {
 		authServer:  a,
 		samlService: sas,
 		clock:       clock,
+		backend:     b,
 	}
 }
 
@@ -198,6 +202,16 @@ func TestCreateSAMLUser(t *testing.T) {
 	require.Error(t, err)
 }
 
+func requireTraitsMatch(t *testing.T, expected, actual map[string][]string, msgAndArgs ...any) {
+	require.True(t,
+		maps.EqualFunc(expected, actual, func(expected, actual []string) bool {
+			slices.Sort(expected)
+			slices.Sort(actual)
+			return slices.Equal(expected, actual)
+		}),
+		msgAndArgs...)
+}
+
 func TestSAMLPermanentUserPostProcessing(t *testing.T) {
 	const username = "paul@apple-records.example.com"
 
@@ -239,14 +253,26 @@ func TestSAMLPermanentUserPostProcessing(t *testing.T) {
 		})
 	require.NoError(t, err, "failed creating SAML connector")
 
-	// ALSO GIVEN a user configured with various traits and roles
+	// ALSO GIVEN a login rule that adds a trait to the user on login that asserts
+	// that the login rule has been executed
+	installLoginRule(t.Context(), t, f.authServer, f.backend, map[string][]string{
+		"username":             {"external.username"},
+		"groups":               {"external.groups"},
+		"instruments":          {"external.instruments"},
+		"login_rules_executed": {`"true"`},
+	})
+
+	// ALSO GIVEN a user configured with various roles and traits, some of which are spurious
 	user, err := types.NewUser(username)
 	require.NoError(t, err)
 	user.SetOrigin(types.OriginOkta)
 	user.SetRoles([]string{"bass-player", "amateur", "vegetarian"})
 	originalTraits := map[string][]string{
-		"groups":   {"quarrymen", "beatles", "wings"},
-		"fullName": {"James Paul McCartney"},
+		"groups":           {"quarrymen"},
+		"okta/fullName":    {"James Paul McCartney"},
+		"scim/alsoKnownAs": {"Paul Ramon", "Apollo C. Vermouth"},
+		"http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress": {"paul@applecorps.co.uk"},
+		"spurious-is-dead-trait": {"yes"},
 	}
 	user.SetTraits(originalTraits)
 	createdUser, err := f.authServer.Services.CreateUser(f.testContext, user)
@@ -270,8 +296,12 @@ func TestSAMLPermanentUserPostProcessing(t *testing.T) {
 	// the target user
 	authRequest := &types.SAMLAuthRequest{}
 	assertionInfo := &saml2.AssertionInfo{
-		NameID: "paul@apple-records.example.com",
+		NameID: username,
 		Values: saml2.Values{
+			"username": samltypes.Attribute{
+				Name:   "username",
+				Values: []samltypes.AttributeValue{{Value: username}},
+			},
 			"groups": samltypes.Attribute{
 				Name: "groups",
 				Values: []samltypes.AttributeValue{
@@ -301,19 +331,23 @@ func TestSAMLPermanentUserPostProcessing(t *testing.T) {
 	require.NotNil(t, postProcessedUserState)
 
 	// ALSO EXPECT that the returned UserState
-	//  a) preserves trait values where no SAML value overrides it, and
-	//  b) reflects trait values derived from the supplied SAML assertions where
+	//  a) preserves any trait values from Okta & SCIM integrations (unless
+	//     overridden by SAML assertions)
+	//  b) includes trait values derived from the supplied SAML assertions where
 	//     specified
+	//  c) includes any traits added by the installed login rule(s)
 	expectedTraits := map[string][]string{
-		"groups":      {"beatles", "wings"},
-		"instruments": {"bass", "piano", "guitar"},
-		"fullName":    {"James Paul McCartney"},
+		"username":         {username},
+		"groups":           {"beatles", "wings"},
+		"instruments":      {"bass", "piano", "guitar"},
+		"okta/fullName":    {"James Paul McCartney"},
+		"scim/alsoKnownAs": {"Paul Ramon", "Apollo C. Vermouth"},
+		"http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress": {"paul@applecorps.co.uk"},
+		"login_rules_executed": {"true"},
 	}
-	for trait, values := range expectedTraits {
-		require.Contains(t, postProcessedUserState.GetTraits(), trait)
-		require.ElementsMatch(t, values, postProcessedUserState.GetTraits()[trait])
-	}
-	require.Len(t, postProcessedUserState.GetTraits(), len(expectedTraits))
+	postProcessedTraits := postProcessedUserState.GetTraits()
+	requireTraitsMatch(t, expectedTraits, postProcessedTraits,
+		"Invalid traits in post-processed user.\nExpected: %v,\nActual:   %v", expectedTraits, postProcessedTraits)
 
 	// ALSO EXPECT that the returned UserState has a role-set derived
 	// applying the AttributesToRoles to the updated, SAML-derived traits
@@ -333,24 +367,20 @@ func TestSAMLPermanentUserPostProcessing(t *testing.T) {
 	// roles granted via Access Lists)
 	require.ElementsMatch(t, expectedSAMLRoles, updatedUser.GetRoles())
 
-	// ALSO EXPECT that the underlying user record traits have been preserved,
-	// regardless of the supplied SAML assertions.
-	//
-	// NOTE: I'm not sure this is actually the behavior we want, but its what
-	// the code is doing at the time this test was written, so I'm preserving
-	// it for backwards compatibility
-	for trait, values := range originalTraits {
-		require.Contains(t, updatedUser.GetTraits(), trait)
-		require.ElementsMatch(t, values, updatedUser.GetTraits()[trait])
-	}
-	require.Len(t, updatedUser.GetTraits(), len(originalTraits))
+	// ALSO EXPECT that the underlying user record traits have been updated in
+	// accordance with the SAML mapping
+	actualTraits := updatedUser.GetTraits()
+	requireTraitsMatch(t, expectedTraits, actualTraits,
+		"Invalid traits in backend user record.\nExpected: %v,\nActual:   %v", expectedTraits, postProcessedTraits)
 
 	// ALSO EXPECT that the user state has been saved, and that the UserState
 	// returned by `postProcessUser()` reflects the same data as the saved state
 	// record.
 	us, err := f.authServer.GetUserLoginState(f.testContext, username)
 	require.NoError(t, err)
-	require.Equal(t, postProcessedUserState, us)
+	loginStateTraits := us.GetTraits()
+	requireTraitsMatch(t, expectedTraits, loginStateTraits,
+		"Invalid traits in saved user login state.\nExpected: %v,\nActual:   %v", expectedTraits, postProcessedTraits)
 }
 
 // TestSAMLPostProcessingPreservesIntegrationRoles asserts that the default
