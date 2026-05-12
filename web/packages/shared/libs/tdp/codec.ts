@@ -316,7 +316,7 @@ export type SharedDirectoryTruncateRequest = {
   completionId: number;
   directoryId: number;
   path: string;
-  endOfFile: number;
+  endOfFile: bigint;
 };
 
 // | message type (34) | completion_id uint32 | err_code uint32 |
@@ -588,7 +588,8 @@ export class TdpbCodec implements Codec {
           data: {
             directoryId,
             completionId,
-            ...op.truncate,
+            endOfFile: op.truncate.size,
+            path: op.truncate.path,
           },
         };
       case 'write':
@@ -2053,7 +2054,7 @@ export class TdpCodec implements Codec {
       completionId,
       directoryId,
       path,
-      endOfFile,
+      endOfFile: BigInt(endOfFile),
     };
   }
 

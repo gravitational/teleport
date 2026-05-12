@@ -6,6 +6,7 @@ Requires=dbus.service
 [Service]
 Type=dbus
 BusName=org.teleport.vnet1
+Environment=TELEPORT_TOOLS_VERSION=off
 ExecStart=/usr/local/bin/tsh vnet-daemon
 User=root
 Group=root

@@ -19,19 +19,23 @@
 import React from 'react';
 import styled from 'styled-components';
 
+import { Flex, Indicator } from 'design';
 import { ButtonWarningBorder } from 'design/Button/Button';
 import { Cell, DateCell } from 'design/DataTable';
 import Table from 'design/DataTable/Table';
 import * as Icon from 'design/Icon';
 import { MultiRowBox, Row } from 'design/MultiRowBox';
+import { IconTooltip } from 'design/Tooltip';
+import { Attempt } from 'shared/hooks/useAttemptNext';
 
 import { MfaDevice } from 'teleport/services/mfa';
 
 export interface AuthDeviceListProps {
   header: React.ReactNode;
-  deviceTypeColumnName: string;
   devices: MfaDevice[];
   onRemove?: (device: MfaDevice) => void;
+  attempt: Attempt;
+  passkeysEnabled: boolean;
 }
 
 /**
@@ -40,21 +44,53 @@ export interface AuthDeviceListProps {
  */
 export function AuthDeviceList({
   devices,
+  attempt,
   header,
-  deviceTypeColumnName,
   onRemove,
+  passkeysEnabled,
 }: AuthDeviceListProps) {
   return (
     <MultiRowBox>
       <Row>{header}</Row>
+      {attempt.status == 'processing' && (
+        <Row data-testid="device-list-loading">
+          <Flex justifyContent="center">
+            <Indicator size={40} delay="none" />
+          </Flex>
+        </Row>
+      )}
       {devices.length > 0 && (
         <Row>
           <StyledTable
             columns={[
               {
                 key: 'description',
-                headerText: deviceTypeColumnName,
+                headerText: 'Device Type',
                 isSortable: true,
+                render: device => {
+                  switch (device.usage) {
+                    case 'mfa':
+                      return <Cell>{device.description}</Cell>;
+                    case 'passwordless':
+                      return (
+                        <Cell>
+                          {passkeysEnabled ? (
+                            device.description
+                          ) : (
+                            <Flex alignItems="center" gap={1}>
+                              {device.description}
+                              <IconTooltip>
+                                This device can be a passkey, but passwordless
+                                authentication is disabled
+                              </IconTooltip>
+                            </Flex>
+                          )}
+                        </Cell>
+                      );
+                    default:
+                      return device.usage;
+                  }
+                },
               },
               { key: 'name', headerText: 'Nickname', isSortable: true },
               {

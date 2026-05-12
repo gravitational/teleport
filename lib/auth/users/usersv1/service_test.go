@@ -485,6 +485,7 @@ func TestListUsers(t *testing.T) {
 	require.NoError(t, err, "creating new user llama")
 	require.NoError(t, generateUserSecrets(llama), "generating user secrets")
 	llama.SetRoles([]string{"test-role"})
+	llama.SetTraits(map[string][]string{"logins": {"test-login"}})
 
 	// Validate that the user does not exist.
 	resp, err := env.ListUsers(ctx, &userspb.ListUsersRequest{PageSize: 10})
@@ -520,6 +521,24 @@ func TestListUsers(t *testing.T) {
 	require.NoError(t, err, "listing users with role filter")
 	require.Len(t, resp.Users, 1, "expected one user with test-role")
 	assert.Equal(t, "llama", resp.Users[0].GetName(), "expected llama to match role search")
+
+	// Validate that searching by trait returns matching users (SearchKeywords).
+	resp, err = env.ListUsers(ctx, &userspb.ListUsersRequest{
+		PageSize: 10,
+		Filter:   &types.UserFilter{SearchKeywords: []string{"test-login"}},
+	})
+	require.NoError(t, err, "listing users with trait filter (SearchKeywords)")
+	require.Len(t, resp.Users, 1, "expected one user with trait logins: test-login")
+	assert.Equal(t, "llama", resp.Users[0].GetName(), "expected llama to match trait search")
+
+	// Validate that searching by trait returns matching users (Traits).
+	resp, err = env.ListUsers(ctx, &userspb.ListUsersRequest{
+		PageSize: 10,
+		Filter:   &types.UserFilter{Traits: map[string][]string{"logins": {"test-login"}}},
+	})
+	require.NoError(t, err, "listing users with trait filter (Traits)")
+	require.Len(t, resp.Users, 1, "expected one user with trait logins: test-login")
+	assert.Equal(t, "llama", resp.Users[0].GetName(), "expected llama to match trait search")
 
 	// Create addition users to test pagination
 	createdUsers := []*types.UserV2{llama.(*types.UserV2)}

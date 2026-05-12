@@ -152,6 +152,7 @@ import (
 	dbvnet "github.com/gravitational/teleport/lib/srv/db/vnet"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
+	"github.com/gravitational/teleport/lib/subca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/tpm"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
@@ -789,6 +790,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		insecureMode:                 cfg.InsecureMode,
 		remoteClusterRefreshLimit:    cmp.Or(cfg.RemoteClusterRefreshLimit, defaultRemoteClusterRefreshLimit),
 		remoteClusterRefreshBuckets:  cmp.Or(cfg.RemoteClusterRefreshBuckets, defaultRemoteClusterRefreshBuckets),
+		subCAEnabled:                 subca.Enabled(),
 	}
 	as.inventory = inventory.NewController(as, services,
 		inventory.WithAuthServerID(cfg.HostUUID),
@@ -1559,6 +1561,10 @@ type Server struct {
 	// RemoteClusterRefreshBuckets is the maximum number of refresh cycles that should guarantee the status update
 	// of all remote clusters if their number exceeds RemoteClusterRefreshLimit × RemoteClusterRefreshBuckets.
 	remoteClusterRefreshBuckets int
+
+	// subCAEnabled records the value of subca.Enabled()
+	// Used by tests to enable the feature.
+	subCAEnabled bool
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -1817,19 +1823,9 @@ func (a *Server) bcryptCost() int {
 	return bcrypt.DefaultCost
 }
 
-// syncUpgradeWindowStartHour attempts to load the cloud UpgradeWindowStartHour value and set
-// the ClusterMaintenanceConfig resource's AgentUpgrade.UTCStartHour field to match it.
-func (a *Server) syncUpgradeWindowStartHour(ctx context.Context) error {
-	getter := a.getUpgradeWindowStartHourGetter()
-	if getter == nil {
-		return trace.Errorf("getter has not been registered")
-	}
-
-	startHour, err := getter(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
+// SetAgentUpgradeWindowStartHour updates the ClusterMaintenanceConfig resource's
+// AgentUpgrade.UTCStartHour to the provided value.
+func (a *Server) SetAgentUpgradeWindowStartHour(ctx context.Context, startHour int64) error {
 	cmc, err := a.GetClusterMaintenanceConfig(ctx)
 	if err != nil {
 		if !trace.IsNotFound(err) {
@@ -1847,11 +1843,23 @@ func (a *Server) syncUpgradeWindowStartHour(ctx context.Context) error {
 
 	cmc.SetAgentUpgradeWindow(agentWindow)
 
-	if err := a.UpdateClusterMaintenanceConfig(ctx, cmc); err != nil {
+	return trace.Wrap(a.UpdateClusterMaintenanceConfig(ctx, cmc))
+}
+
+// syncUpgradeWindowStartHour attempts to load the cloud UpgradeWindowStartHour value and set
+// the ClusterMaintenanceConfig resource's AgentUpgrade.UTCStartHour field to match it.
+func (a *Server) syncUpgradeWindowStartHour(ctx context.Context) error {
+	getter := a.getUpgradeWindowStartHourGetter()
+	if getter == nil {
+		return trace.BadParameter("getter is not set")
+	}
+
+	startHour, err := getter(ctx)
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return nil
+	return trace.Wrap(a.SetAgentUpgradeWindowStartHour(ctx, startHour))
 }
 
 // periodicIntervalKey is used to uniquely identify the subintervals registered with
@@ -3802,6 +3810,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 	var (
 		scopePin                 *scopesv1.Pin
 		roleNames                []string
+		allowedResourceIDs       []types.ResourceID
 		allowedResourceAccessIDs []types.ResourceAccessID
 	)
 
@@ -3812,6 +3821,15 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 	if unscoped := certParams.UnscopedCertParams(); unscoped != nil {
 		roleNames = unscoped.RoleNames()
 		allowedResourceAccessIDs = unscoped.GetAllowedResourceAccessIDs()
+		// Separate out any plain ResourceIDs (those without constraints) so they
+		// can be written to the legacy AllowedResourceIDs cert extension. This
+		// ensures older agents/proxies that don't understand AllowedResourceAccessIDs
+		// still see the actual resource IDs instead of only the backwards-compat sentinel.
+		// ResourceAccessIDs are swallowed; we already have them
+		// and only want the plain (unconstrained) ResourceIDs.
+		//
+		// TODO(kiosion): DELETE in 20.0.0
+		allowedResourceIDs, _ = types.UnwrapResourceAccessIDs(allowedResourceAccessIDs)
 	}
 
 	var signedSSHCert []byte
@@ -3856,6 +3874,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 				DelegationSessionID:      req.DelegationSessionID,
 				JoinToken:                req.JoinToken,
 				CertificateExtensions:    certificateExtensions,
+				AllowedResourceIDs:       allowedResourceIDs,
 				AllowedResourceAccessIDs: allowedResourceAccessIDs,
 				ConnectionDiagnosticID:   req.ConnectionDiagnosticID,
 				PrivateKeyPolicy:         attestedKeyPolicy,
@@ -3864,6 +3883,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 				DeviceCredentialID:       req.DeviceExtensions.CredentialID,
 				GitHubUserID:             githubUserID,
 				GitHubUsername:           githubUsername,
+				HeadlessAuthenticationID: req.HeadlessAuthenticationID,
 			},
 		}
 		signedSSHCert, err = a.GenerateUserCert(params)
@@ -4000,6 +4020,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 		BotInternal:              req.BotInternal,
 		DelegationSessionID:      req.DelegationSessionID,
 		JoinToken:                req.JoinToken,
+		AllowedResourceIDs:       allowedResourceIDs,
 		AllowedResourceAccessIDs: allowedResourceAccessIDs,
 		PrivateKeyPolicy:         attestedKeyPolicy,
 		ConnectionDiagnosticID:   req.ConnectionDiagnosticID,
@@ -4506,15 +4527,21 @@ func (a *Server) CreateAuthenticateChallenge(ctx context.Context, req *proto.Cre
 	}
 
 	// When completing a Browser MFA flow, only a WebAuthn challenge is needed, so
-	// clear the redirect URL so SSO and Browser MFA challenges are not generated.
-	clientRedirectURL := ""
+	// clear the redirect URLs so SSO and Browser MFA challenges are not generated.
+	ssoClientRedirectURL := ""
+	browserMFATSHRedirectURL := ""
 	if req.BrowserMFARequestID == "" {
-		// Both SSO and Browser MFA redirect URLs point to the same callback server on tsh.
-		// So we can take either one and generate an auth challenge with it.
-		clientRedirectURL = cmp.Or(req.SSOClientRedirectURL, req.BrowserMFATSHRedirectURL)
+		ssoClientRedirectURL = req.SSOClientRedirectURL
+		browserMFATSHRedirectURL = req.BrowserMFATSHRedirectURL
 	}
 
-	challenges, err := a.mfaAuthChallenge(ctx, username, clientRedirectURL, req.ProxyAddress, challengeExtensions)
+	challenges, err := a.mfaAuthChallenge(ctx, mfaAuthChallengeParams{
+		user:                     username,
+		ssoClientRedirectURL:     ssoClientRedirectURL,
+		browserMFATSHRedirectURL: browserMFATSHRedirectURL,
+		proxyAddress:             req.ProxyAddress,
+		challengeExtensions:      challengeExtensions,
+	})
 	if err != nil {
 		// Do not obfuscate config-related errors.
 		if errors.Is(err, types.ErrPasswordlessRequiresWebauthn) || errors.Is(err, types.ErrPasswordlessDisabledBySettings) {
@@ -7743,7 +7770,7 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 		ServerVersion:           teleport.Version,
 		ServerFeatures:          features,
 		ProxyPublicAddr:         a.getProxyPublicAddr(ctx),
-		IsBoring:                a.modules.IsBoringBinary(),
+		IsBoring:                a.modules.IsFIPSBuild(),
 		LoadAllCAs:              a.loadAllCAs,
 		SignatureAlgorithmSuite: authPref.GetSignatureAlgorithmSuite(),
 		LicenseExpiry:           &licenseExpiry,
@@ -8102,10 +8129,18 @@ func (a *Server) isMFARequired(ctx context.Context, scopedCtx *authz.ScopedConte
 	}, nil
 }
 
+type mfaAuthChallengeParams struct {
+	user                     string
+	ssoClientRedirectURL     string
+	browserMFATSHRedirectURL string
+	proxyAddress             string
+	challengeExtensions      *mfav1.ChallengeExtensions
+}
+
 // mfaAuthChallenge constructs an MFAAuthenticateChallenge for all MFA devices
 // registered by the user.
-func (a *Server) mfaAuthChallenge(ctx context.Context, user, clientRedirectURL, proxyAddress string, challengeExtensions *mfav1.ChallengeExtensions) (*proto.MFAAuthenticateChallenge, error) {
-	isPasswordless := challengeExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN
+func (a *Server) mfaAuthChallenge(ctx context.Context, p mfaAuthChallengeParams) (*proto.MFAAuthenticateChallenge, error) {
+	isPasswordless := p.challengeExtensions.Scope == mfav1.ChallengeScope_CHALLENGE_SCOPE_PASSWORDLESS_LOGIN
 
 	// Check what kind of MFA is enabled.
 	apref, err := a.GetAuthPreference(ctx)
@@ -8165,9 +8200,9 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user, clientRedirectURL, 
 				Code:        events.CreateMFAAuthChallengeCode,
 				ClusterName: clusterName.GetClusterName(),
 			},
-			UserMetadata:        authz.ClientUserMetadataWithUser(ctx, user),
-			ChallengeScope:      challengeExtensions.Scope.String(),
-			ChallengeAllowReuse: challengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+			UserMetadata:        authz.ClientUserMetadataWithUser(ctx, p.user),
+			ChallengeScope:      p.challengeExtensions.Scope.String(),
+			ChallengeAllowReuse: p.challengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
 			FlowType:            apievents.MFAFlowType_MFA_FLOW_TYPE_PER_SESSION_CERTIFICATE,
 		}); err != nil {
 			a.logger.WarnContext(ctx, "Failed to emit CreateMFAAuthChallenge event", "error", err)
@@ -8179,11 +8214,11 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user, clientRedirectURL, 
 	}
 
 	// User required for non-passwordless.
-	if user == "" {
+	if p.user == "" {
 		return nil, trace.BadParameter("user required")
 	}
 
-	devs, err := a.Services.GetMFADevices(ctx, user, true /* withSecrets */)
+	devs, err := a.Services.GetMFADevices(ctx, p.user, true /* withSecrets */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -8202,7 +8237,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user, clientRedirectURL, 
 			Webauthn: webConfig,
 			Identity: wanlib.WithDevices(a.Services, groupedDevs.Webauthn),
 		}
-		assertion, err := webLogin.Begin(ctx, wanlib.BeginParams{User: user, ChallengeExtensions: challengeExtensions})
+		assertion, err := webLogin.Begin(ctx, wanlib.BeginParams{User: p.user, ChallengeExtensions: p.challengeExtensions})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -8211,15 +8246,15 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user, clientRedirectURL, 
 
 	// If the user has an SSO device and the client provided a redirect URL to handle
 	// the MFA SSO flow, create an SSO challenge.
-	if enableSSO && groupedDevs.SSO != nil && clientRedirectURL != "" {
+	if enableSSO && groupedDevs.SSO != nil && p.ssoClientRedirectURL != "" {
 		if challenge.SSOChallenge, err = a.BeginSSOMFAChallenge(
 			ctx,
 			mfatypes.BeginSSOMFAChallengeParams{
-				User:                 user,
+				User:                 p.user,
 				SSO:                  groupedDevs.SSO.GetSso(),
-				SSOClientRedirectURL: clientRedirectURL,
-				ProxyAddress:         proxyAddress,
-				Ext:                  challengeExtensions,
+				SSOClientRedirectURL: p.ssoClientRedirectURL,
+				ProxyAddress:         p.proxyAddress,
+				Ext:                  p.challengeExtensions,
 			},
 		); err != nil {
 			return nil, trace.Wrap(err)
@@ -8229,13 +8264,13 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user, clientRedirectURL, 
 	// If the user has a WebAuthn device, return a Browser MFA challenge. This
 	// challenge is useful in cases where a user only has a browser-associated
 	// WebAuthn device, but is trying to MFA via a CLI tool (tsh, tctl etc.)
-	if enableBrowserMFA && groupedDevs.Browser != nil && clientRedirectURL != "" {
+	if enableBrowserMFA && groupedDevs.Browser != nil && p.browserMFATSHRedirectURL != "" {
 		if challenge.BrowserMFAChallenge, err = a.BeginBrowserMFAChallenge(
 			ctx,
 			mfatypes.BeginBrowserMFAChallengeParams{
-				User:                     user,
-				BrowserMFATSHRedirectURL: clientRedirectURL,
-				Ext:                      challengeExtensions,
+				User:                     p.user,
+				BrowserMFATSHRedirectURL: p.browserMFATSHRedirectURL,
+				Ext:                      p.challengeExtensions,
 			},
 		); err != nil {
 			return nil, trace.Wrap(err)
@@ -8253,9 +8288,9 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, user, clientRedirectURL, 
 			Code:        events.CreateMFAAuthChallengeCode,
 			ClusterName: clusterName.GetClusterName(),
 		},
-		UserMetadata:        authz.ClientUserMetadataWithUser(ctx, user),
-		ChallengeScope:      challengeExtensions.Scope.String(),
-		ChallengeAllowReuse: challengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
+		UserMetadata:        authz.ClientUserMetadataWithUser(ctx, p.user),
+		ChallengeScope:      p.challengeExtensions.Scope.String(),
+		ChallengeAllowReuse: p.challengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
 		FlowType:            apievents.MFAFlowType_MFA_FLOW_TYPE_PER_SESSION_CERTIFICATE,
 	}); err != nil {
 		a.logger.WarnContext(ctx, "Failed to emit CreateMFAAuthChallenge event", "error", err)
@@ -8578,7 +8613,8 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 		types.OktaCA,
 		types.AWSRACA,
 		types.BoundKeypairCA,
-		types.WindowsCA:
+		types.WindowsCA,
+		types.AppClientCA:
 		// OK, known CA type.
 	default:
 		return types.CAKeySet{}, trace.BadParameter(
@@ -8606,7 +8642,8 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 		types.SAMLIDPCA,
 		types.SPIFFECA,
 		types.AWSRACA,
-		types.WindowsCA:
+		types.WindowsCA,
+		types.AppClientCA:
 		tlsKeyPair, err := keyStore.NewTLSKeyPair(ctx, caID.DomainName, tlsCAKeyPurpose(caID.Type))
 		if err != nil {
 			return keySet, trace.Wrap(err)
@@ -8662,6 +8699,8 @@ func tlsCAKeyPurpose(caType types.CertAuthType) cryptosuites.KeyPurpose {
 		return cryptosuites.AWSRACATLS
 	case types.WindowsCA:
 		return cryptosuites.WindowsCARDP
+	case types.AppClientCA:
+		return cryptosuites.AppClientCATLS
 	}
 	return cryptosuites.KeyPurposeUnspecified
 }

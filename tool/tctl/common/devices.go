@@ -94,10 +94,10 @@ func (c *DevicesCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalC
 		BoolVar(&c.add.enroll)
 	addCmd.Flag("enroll-ttl", "Time duration for the enrollment token").
 		DurationVar(&c.add.enrollTTL)
-	addCmd.Flag("format", "Output format, 'text', 'json', or 'yaml'").Default(teleport.Text).EnumVar(&c.add.format, formats...)
+	addCmd.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.add.format, formats...)
 
 	lsCmd := devicesCmd.Command("ls", "Lists managed devices.")
-	lsCmd.Flag("format", "Output format, 'text', 'json', or 'yaml'").Default(teleport.Text).EnumVar(&c.ls.format, formats...)
+	lsCmd.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.ls.format, formats...)
 
 	rmCmd := devicesCmd.Command("rm", "Removes a managed device.")
 	rmCmd.Flag("device-id", "Device identifier").StringVar(&c.rm.deviceID)

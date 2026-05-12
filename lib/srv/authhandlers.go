@@ -795,6 +795,12 @@ func requiresInBandMFA(id *sshca.Identity, conn ssh.ConnMetadata) (bool, error) 
 		return false, nil
 	}
 
+	// If the certificate was issued as a result of headless login, then in-band MFA checks are not required since the
+	// user would have been required to complete MFA to obtain the headless certificate in the first place.
+	if id.HeadlessAuthenticationID != "" {
+		return false, nil
+	}
+
 	inBandMFASupported, err := apissh.IsFeatureSupported(string(conn.ClientVersion()), apissh.InBandMFAFeature)
 	if err != nil && !errors.Is(err, apissh.NonTeleportSSHVersionError{}) {
 		return false, trace.Wrap(err)

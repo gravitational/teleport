@@ -326,6 +326,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.SFTP{}
 	case UpgradeWindowStartUpdateEvent:
 		e = &events.UpgradeWindowStartUpdate{}
+	case EnvironmentProfileUpdateEvent:
+		e = &events.EnvironmentProfileUpdate{}
 	case SessionRecordingAccessEvent:
 		e = &events.SessionRecordingAccess{}
 	case SSMRunEvent:

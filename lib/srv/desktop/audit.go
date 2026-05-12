@@ -58,6 +58,8 @@ type desktopSessionAuditor struct {
 
 	compactor  auditCompactor
 	auditCache sharedDirectoryAuditCache
+
+	caOverrideDetails *events.CAOverrideCertificateDetails
 }
 
 func (d *desktopSessionAuditor) getSessionMetadata() events.SessionMetadata {
@@ -164,6 +166,7 @@ func (d *desktopSessionAuditor) makeWindowsSessionStart(err error) *events.Windo
 		WindowsUser:           d.targetUser,
 		DesktopLabels:         d.windowsDesktop.GetAllLabels(),
 		NLA:                   d.enableNLA && !d.windowsDesktop.NonAD(),
+		CAOverride:            d.caOverrideDetails,
 	}
 
 	if err != nil {

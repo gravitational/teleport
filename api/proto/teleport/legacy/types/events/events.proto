@@ -1665,6 +1665,12 @@ message AccessRequestCreate {
   // Differs from RequestedResourceIDs, which only identifies resources and cannot be used
   // to express additional information per-resource such as ResourceConstraints.
   repeated ResourceAccessID RequestedResourceAccessIDs = 18 [(gogoproto.nullable) = false];
+
+  // The Teleport plugin identity that submitted this review request
+  // to the Auth Service on behalf of the review author.
+  // Reviewer remains the actual Teleport user that performed the review.
+  // (only used in the access_request.review event variant).
+  string submitted_by = 19;
 }
 
 // AccessRequestExpire is emitted when access request has expired.
@@ -1723,11 +1729,13 @@ message ResourceAccessID {
   ResourceID id = 1 [(gogoproto.nullable) = false];
 
   oneof constraints {
-    // unknown_constraints represents that constraints were present on the internal ResourceAccessID,
-    // but are of an unknown type.
+    // unknown_constraints represents that constraints were present on the internal
+    // ResourceAccessID, but are of an unknown or unsupported type.
     UnknownConstraints unknown_constraints = 10;
     // aws_console captures audit-log–friendly data for AWS Console scoping constraints.
     AWSConsoleConstraints aws_console = 11;
+    // ssh captures audit-log-friendly data for SSH node scoping constraints.
+    SSHConstraints ssh = 12;
   }
 }
 
@@ -1745,6 +1753,14 @@ message AWSConsoleConstraints {
 
   // role_arns_preview contains up to N role ARNs for inspection; it may be truncated.
   repeated string role_arns_preview = 2;
+}
+
+// SSHConstraints is an audit-log-friendly view of SSH node constraints.
+message SSHConstraints {
+  // logins_count is the total number of logins requested.
+  uint32 logins_count = 1;
+  // logins_preview contains up to N logins for inspection; it may be truncated.
+  repeated string logins_preview = 2;
 }
 
 // AccessRequestDelete is emitted when an access request has been deleted.
@@ -5176,6 +5192,7 @@ message OneOf {
     events.AzureRun AzureRun = 253;
     events.LinuxDesktopSessionStart LinuxDesktopSessionStart = 254;
     events.LinuxDesktopSessionEnd LinuxDesktopSessionEnd = 255;
+    events.EnvironmentProfileUpdate EnvironmentProfileUpdate = 256;
   }
 }
 
@@ -6179,6 +6196,40 @@ message UpgradeWindowStartUpdate {
   ];
   // UpgradeWindowStartMetadata contains upgrade window related metadata.
   UpgradeWindowStartMetadata UpgradeWindowStart = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// EnvironmentProfileMetadata contains common environment profile information.
+message EnvironmentProfileMetadata {
+  // EnvironmentProfile is the environment profile.
+  string EnvironmentProfile = 1 [(gogoproto.jsontag) = "environment_profile,omitempty"];
+}
+
+// EnvironmentProfileUpdate is emitted when a user updates the cloud environment profile.
+message EnvironmentProfileUpdate {
+  // Metadata is a common event metadata.
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User is a common user event metadata.
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // SessionMetadata is a common event session metadata.
+  SessionMetadata Session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // EnvironmentProfileMetadata contains environment profile related metadata.
+  EnvironmentProfileMetadata EnvironmentProfile = 4 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""

@@ -31,6 +31,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -783,24 +784,62 @@ func (c *ConnectionsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// Convert trace error type to HTTP and write response, make sure we close the
 		// connection afterwards so that the monitor is recreated if needed.
 		code := trace.ErrorToCode(err)
+		w.Header().Set("Connection", "close")
 
-		var text string
 		switch {
 		case errors.Is(err, services.ErrTrustedDeviceRequired):
-			text = `A trusted device is required to access this resource but this device has not been registered as a trusted device; use 'tsh device enroll' to register as a trusted device.
-
-See https://goteleport.com/docs/admin-guides/access-controls/device-trust/device-management/#troubleshooting for help.
-`
+			writeTrustedDeviceRequired(w, r, code)
 		case errors.Is(err, services.ErrSessionMFARequired):
-			text = authclient.ErrNoMFADevices.Error()
-
+			http.Error(w, authclient.ErrNoMFADevices.Error(), code)
 		default:
-			text = http.StatusText(code)
+			http.Error(w, http.StatusText(code), code)
 		}
-
-		w.Header().Set("Connection", "close")
-		http.Error(w, text, code)
 	}
+}
+
+const (
+	trustedDeviceRequiredDocsURL          = "https://goteleport.com/docs/zero-trust-access/device-trust/device-management/#troubleshooting"
+	trustedDeviceRequiredWebUIDocsURL     = "https://goteleport.com/docs/zero-trust-access/device-trust/device-management/#web-ui-fails-to-authenticate-trusted-device"
+	trustedDeviceRequiredAppAccessDocsURL = "https://goteleport.com/docs/zero-trust-access/device-trust/device-management/#app-access-and-access-to-this-app-requires-a-trusted-device"
+)
+
+// writeTrustedDeviceRequired writes the response body for a request that failed
+// with [services.ErrTrustedDeviceRequired]. Browsers receive a small HTML page
+// with clickable links to the docs; every other client gets plain text.
+func writeTrustedDeviceRequired(w http.ResponseWriter, r *http.Request, code int) {
+	if isBrowserUserAgent(r.UserAgent()) {
+		const body = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Trusted device required</title></head>
+<body>
+<p>A trusted device is required to access this resource, but this session has not been authorized with Device Trust. Follow <a href="` + trustedDeviceRequiredWebUIDocsURL + `" target="_blank">the Web UI troubleshooting guide</a> to authorize the session with Device Trust.</p>
+<p>If accessing the resource through VNet or a local proxy, make sure the device running Teleport Connect or tsh is registered and enrolled. See <a href="` + trustedDeviceRequiredAppAccessDocsURL + `" target="_blank">the app access troubleshooting guide</a> for help.</p>
+</body>
+</html>
+`
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.WriteHeader(code)
+		_, _ = w.Write([]byte(body))
+		return
+	}
+
+	http.Error(w, `A trusted device is required to access this resource but this device has not been registered as a trusted device; use 'tsh device enroll' to register as a trusted device.
+
+See `+trustedDeviceRequiredDocsURL+` for help.
+`, code)
+}
+
+// isBrowserUserAgent reports whether ua plausibly comes from a web browser, as
+// opposed to a CLI (tsh, curl) or some SDK client. It relies on the historical
+// quirk that essentially every browser UA begins with "Mozilla/" and contains
+// a known engine token. Modern browsers (Chrome, Safari, Edge, Opera, mobile
+// browsers) are all WebKit- or Blink-based and carry "AppleWebKit"; the Firefox
+// family carries "Gecko/".
+func isBrowserUserAgent(ua string) bool {
+	lower := strings.ToLower(ua)
+	return strings.HasPrefix(lower, "mozilla/") &&
+		(strings.Contains(lower, "applewebkit") || strings.Contains(lower, "gecko/"))
 }
 
 // getConnectionInfo extracts identity information from the provided
@@ -865,6 +904,13 @@ func CopyAndConfigureTLS(log *slog.Logger, client authclient.AccessCache, config
 	tlsConfig.GetConfigForClient = newGetConfigForClientFn(log, client, tlsConfig)
 
 	return tlsConfig
+}
+
+// CopyAndConfigureTLSForCluster is like [CopyAndConfigureTLS] but accepts the local cluster name.
+// Prefer this variant in new code.
+func CopyAndConfigureTLSForCluster(log *slog.Logger, client authclient.AccessCache, clusterName string, config *tls.Config) *tls.Config {
+	_ = clusterName
+	return CopyAndConfigureTLS(log, client, config)
 }
 
 func newGetConfigForClientFn(log *slog.Logger, client authclient.AccessCache, tlsConfig *tls.Config) func(*tls.ClientHelloInfo) (*tls.Config, error) {

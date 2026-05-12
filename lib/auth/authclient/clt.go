@@ -1642,7 +1642,6 @@ type ClientI interface {
 	services.AppAuthConfigSessions
 	types.Events
 	services.ScopedAccessClientGetter
-	services.WorkloadClusterService
 	services.SubCAServiceGetter
 
 	// ListUnifiedInstances returns a paginated list of unified instances (teleport instances and bot instances).
@@ -1979,6 +1978,7 @@ type ClientI interface {
 	// DelegationSessionServiceClient returns a client for the delegation
 	// session service.
 	DelegationSessionServiceClient() delegationv1.DelegationSessionServiceClient
+
 	// SessionSearchServiceClient returns a client for the session search
 	// service.
 	SessionSearchServiceClient() sessionsearchv1pb.SessionSearchServiceClient

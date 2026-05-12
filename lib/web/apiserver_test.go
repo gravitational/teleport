@@ -48,6 +48,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -2486,7 +2487,7 @@ func TestTerminalRouting(t *testing.T) {
 			// for is not present in the command itself
 			_, err = io.WriteString(term, "echo txlxport | sed 's/x/e/g'\r\n")
 			require.NoError(t, err)
-			require.NoError(t, waitForOutput(term, tt.output))
+			waitForOutput(t, term, tt.output)
 		})
 	}
 }
@@ -2577,7 +2578,7 @@ func TestTerminalRequireSessionMFA(t *testing.T) {
 			// Test we can write.
 			_, err = io.WriteString(term, "echo txlxport | sed 's/x/e/g'\r\n")
 			require.NoError(t, err)
-			require.NoError(t, waitForOutput(term, "teleport"))
+			waitForOutput(t, term, "teleport")
 		})
 	}
 }
@@ -2621,7 +2622,7 @@ func TestTerminalRequireSessionMFANoRegisteredDevice(t *testing.T) {
 		}
 	})
 
-	require.NoError(t, waitForOutput(term, "no supported MFA devices enrolled"))
+	waitForOutput(t, term, "no supported MFA devices enrolled")
 }
 
 type windowsDesktopServiceMock struct {
@@ -2677,7 +2678,7 @@ func mustStartWindowsDesktopMock(t *testing.T, authClient *auth.Server) *windows
 }
 
 func (w *windowsDesktopServiceMock) handleConn(t *testing.T, conn *tls.Conn) {
-	tdpConn := tdp.NewConn(conn, legacy.Decode)
+	tdpConn := tdp.NewConn(conn, legacy.Decode, legacy.WarningConstructor)
 
 	// Ensure that incoming connection is MFAVerified.
 	require.NotEmpty(t, conn.ConnectionState().PeerCertificates)
@@ -2783,7 +2784,7 @@ func TestDesktopAccessMFA(t *testing.T) {
 
 			tc.mfaHandler(t, ws, dev)
 
-			tdpClient := tdp.NewConn(&WebsocketIO{Conn: ws}, legacy.Decode)
+			tdpClient := tdp.NewConn(&WebsocketIO{Conn: ws}, legacy.Decode, legacy.WarningConstructor)
 
 			msg, err := tdpClient.ReadMessage()
 			require.NoError(t, err)
@@ -2800,7 +2801,7 @@ func TestDesktopAccessMFA(t *testing.T) {
 
 func handleDesktopMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *authtest.Device) {
 	wsrwc := &WebsocketIO{Conn: ws}
-	tdpConn := tdp.NewConn(wsrwc, legacy.Decode)
+	tdpConn := tdp.NewConn(wsrwc, legacy.Decode, legacy.WarningConstructor)
 
 	br := bufio.NewReader(wsrwc)
 	mt, err := br.ReadByte()
@@ -2842,8 +2843,7 @@ func TestWebAgentForward(t *testing.T) {
 	_, err = io.WriteString(term, "echo $SSH_AUTH_SOCK\r\n")
 	require.NoError(t, err)
 
-	err = waitForOutput(term, "/")
-	require.NoError(t, err)
+	waitForOutput(t, term, "/")
 }
 
 func TestActiveSessions(t *testing.T) {
@@ -8576,55 +8576,50 @@ func (mock authProviderMock) GetRole(_ context.Context, _ string) (types.Role, e
 	return nil, nil
 }
 
-func waitForOutputWithDuration(r ReaderWithDeadline, substr string, timeout time.Duration) error {
+func waitForOutput(t *testing.T, r io.Reader, substr string, msgAndArgs ...interface{}) {
+	t.Helper()
+	require.NoError(t, waitForOutputWithDuration(t.Context(), r, substr, 30*time.Second), msgAndArgs...)
+}
+
+func waitForOutputWithDuration(ctx context.Context, r io.Reader, substr string, timeout time.Duration) error {
 	timeoutCh := time.After(timeout)
+	errC := make(chan error, 1)
+	go func() {
+		var prev string
+		out := make([]byte, int64(len(substr)*3))
+		for {
+			n, err := r.Read(out)
+			outStr := removeSpace(string(out[:n]))
 
-	var prev string
-	out := make([]byte, int64(len(substr)*3))
-	for {
-		select {
-		case <-timeoutCh:
-			return trace.BadParameter("timeout waiting on terminal for output: %v", substr)
-		default:
-		}
+			slog.DebugContext(ctx, "waitForOutput read", "output", outStr, "expected", substr)
 
-		if err := r.SetReadDeadline(time.Now().Add(timeout)); err != nil {
-			return trace.Wrap(err)
+			// Check for [substr] before checking the error,
+			// as it's valid for n > 0 even when there is an error.
+			// The [substr] is checked against the current and previous
+			// output to account for scenarios where the [substr] is split
+			// across two reads. While we try to prevent this by reading
+			// twice the length of [substr] there are no guarantees the
+			// whole thing will arrive in a single read.
+			if n > 0 && strings.Contains(prev+outStr, substr) {
+				errC <- nil
+				return
+			}
+			if err != nil {
+				errC <- err
+				return
+			}
+			prev = outStr
 		}
-		n, err := r.Read(out)
-		outStr := removeSpace(string(out[:n]))
+	}()
 
-		// Check for [substr] before checking the error,
-		// as it's valid for n > 0 even when there is an error.
-		// The [substr] is checked against the current and previous
-		// output to account for scenarios where the [substr] is split
-		// across two reads. While we try to prevent this by reading
-		// twice the length of [substr] there are no guarantees the
-		// whole thing will arrive in a single read.
-		if n > 0 && strings.Contains(prev+outStr, substr) {
-			return nil
-		}
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		prev = outStr
+	select {
+	case <-timeoutCh:
+		// The read goroutine is still blocked in the case of a timeout, but it will be
+		// unblocked once the test harness is torn down and the reader closed.
+		return fmt.Errorf("timeout waiting on terminal for output: %v", substr)
+	case err := <-errC:
+		return trace.Wrap(err)
 	}
-}
-
-type ReaderWithDeadline interface {
-	io.Reader
-	SetReadDeadline(time.Time) error
-}
-
-type ReadWriterWithDeadline interface {
-	io.Reader
-	io.Writer
-	SetReadDeadline(time.Time) error
-	SetWriteDeadline(time.Time) error
-}
-
-func waitForOutput(r ReaderWithDeadline, substr string) error {
-	return waitForOutputWithDuration(r, substr, 10*time.Second)
 }
 
 func (s *WebSuite) client(t *testing.T, opts ...roundtrip.ClientParam) *TestWebClient {
@@ -9488,14 +9483,14 @@ func (r *testProxy) makeDesktopSession(t *testing.T, pack *authPack) *websocket.
 	return ws
 }
 
-func validateTerminal(t *testing.T, term ReadWriterWithDeadline) {
+func validateTerminal(t *testing.T, term io.ReadWriter) {
 	t.Helper()
 
 	// here we intentionally run a command where the output we're looking
 	// for is not present in the command itself
 	_, err := io.WriteString(term, "echo txlxport | sed 's/x/e/g'\r\n")
 	require.NoError(t, err)
-	require.NoError(t, waitForOutput(term, "teleport"))
+	waitForOutput(t, term, "teleport")
 }
 
 // TestUserContextWithAccessRequest checks that the userContext includes the ID of the
@@ -9952,10 +9947,11 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 		},
 	})
 	require.NoError(t, err)
-	proxyAuthorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-		ClusterName: cfg.authServer.ClusterName(),
-		AccessPoint: proxyAuthClient,
-		LockWatcher: proxyLockWatcher,
+	proxyAuthorizer, err := authz.NewScopedAuthorizer(authz.AuthorizerOpts{
+		ClusterName:      cfg.authServer.ClusterName(),
+		AccessPoint:      proxyAuthClient,
+		ScopedRoleReader: proxyAuthClient.ScopedRoleReader(),
+		LockWatcher:      proxyLockWatcher,
 	})
 	require.NoError(t, err)
 
@@ -10026,7 +10022,7 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 			Namespace:         apidefaults.Namespace,
 			Keygen:            keyGen,
 			ClusterName:       cfg.authServer.ClusterName(),
-			Authz:             proxyAuthorizer,
+			ScopedAuthz:       proxyAuthorizer,
 			AuthClient:        client,
 			Emitter:           client,
 			DataDir:           t.TempDir(),
@@ -10889,9 +10885,14 @@ func TestModeratedSession(t *testing.T) {
 		proxy: s.webServer.Listener.Addr().String(),
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, peerTerm.Close()) })
+	t.Cleanup(func() {
+		// This close can race with the moderated forced termination, which completes after the output is collected.
+		if err := peerTerm.Close(); !errors.Is(err, syscall.EPIPE) && !errors.Is(err, syscall.ECONNRESET) {
+			require.NoError(t, err)
+		}
+	})
 
-	require.NoError(t, waitForOutput(peerTerm, "Teleport > Waiting for required participants..."), "waiting for peer to enter session")
+	waitForOutput(t, peerTerm, "Teleport > Waiting for required participants...", "waiting for peer to enter session")
 
 	moderatorTerm, err := connectToHost(ctx, connectConfig{
 		pack:            s.authPack(t, "bar", moderatorRole.GetName()),
@@ -10900,24 +10901,32 @@ func TestModeratedSession(t *testing.T) {
 		sessionID:       peerTerm.GetSession().ID,
 		participantMode: types.SessionModeratorMode,
 	})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, moderatorTerm.Close()) })
 
-	require.NoError(t, waitForOutput(peerTerm, "Teleport > Connecting to node over SSH"), "waiting for peer connection to node after moderator joins")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		// This close can race with the moderated forced termination, which completes after the output is collected.
+		if err := moderatorTerm.Close(); !errors.Is(err, syscall.EPIPE) && !errors.Is(err, syscall.ECONNRESET) {
+			require.NoError(t, err)
+		}
+	})
+
+	waitForOutput(t, peerTerm, "Teleport > Connecting to node over SSH", "waiting for peer connection to node after moderator joins")
 
 	// here we intentionally run a command where the output we're looking
 	// for is not present in the command itself
 	_, err = io.WriteString(peerTerm, "echo llxmx | sed 's/x/a/g'\r\n")
 	require.NoError(t, err)
-	require.NoError(t, waitForOutput(peerTerm, "llama"), "waiting for output on peer terminal")
-	require.NoError(t, waitForOutput(moderatorTerm, "llama"), "waiting for output on moderator terminal")
+	waitForOutput(t, peerTerm, "llama", "waiting for output on peer terminal")
+	waitForOutput(t, moderatorTerm, "llama", "waiting for output on moderator terminal")
 
 	// the moderator terminates the session
 	_, err = io.WriteString(moderatorTerm, "t")
 	require.NoError(t, err)
 
-	require.NoError(t, waitForOutput(moderatorTerm, "Stopping session..."), "waiting for moderator to terminate session")
-	require.NoError(t, waitForOutput(peerTerm, "Process exited with status 255"), "waiting for peer session to be terminated")
+	// During forced termination, terminal output is not deterministic for the moderator client, which force
+	// closes its own connection without waiting for the session to end, so we only check peer output.
+	waitForOutput(t, peerTerm, "Forcefully terminating session...", "waiting for peer session to see termination broadcast")
+	waitForOutput(t, peerTerm, "Process exited with status 255", "waiting for peer session to be terminated")
 }
 
 // TestModeratedSessionWithMFA validates the same behavior as TestModeratedSession while
@@ -11006,9 +11015,15 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, peerTerm.Close()) })
 
-	require.NoError(t, waitForOutput(peerTerm, "Teleport > Waiting for required participants..."), "waiting for peer to start session")
+	t.Cleanup(func() {
+		// This close can race with the moderated forced termination, which completes after the output is collected.
+		if err := peerTerm.Close(); !errors.Is(err, syscall.EPIPE) && !errors.Is(err, syscall.ECONNRESET) {
+			require.NoError(t, err)
+		}
+	})
+
+	waitForOutput(t, peerTerm, "Teleport > Waiting for required participants...", "waiting for peer to start session")
 
 	moderatorTerm, err := connectToHost(ctx, connectConfig{
 		pack:            moderator,
@@ -11037,22 +11052,27 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, moderatorTerm.Close()) })
+	t.Cleanup(func() {
+		// This close can race with the moderated forced termination, which completes after the output is collected.
+		if err := moderatorTerm.Close(); !errors.Is(err, syscall.EPIPE) && !errors.Is(err, syscall.ECONNRESET) {
+			require.NoError(t, err)
+		}
+	})
 
-	require.NoError(t, waitForOutput(peerTerm, "Teleport > Connecting to node over SSH"), "waiting for peer to connect after moderator joins")
+	waitForOutput(t, peerTerm, "Teleport > Connecting to node over SSH", "waiting for peer to connect after moderator joins")
 
 	// here we intentionally run a command where the output we're looking
 	// for is not present in the command itself
 	_, err = io.WriteString(peerTerm, "echo llxmx | sed 's/x/a/g'\r\n")
 	require.NoError(t, err)
-	require.NoError(t, waitForOutput(peerTerm, "llama"), "waiting for output in peer terminal")
-	require.NoError(t, waitForOutput(moderatorTerm, "llama"), "waiting for output in moderator terminal")
+	waitForOutput(t, peerTerm, "llama", "waiting for output in peer terminal")
+	waitForOutput(t, moderatorTerm, "llama", "waiting for output in moderator terminal")
 
 	// run the presence check a few times
 	for range 3 {
 		presenceClock.BlockUntil(1)
 		presenceClock.Advance(30 * time.Second)
-		require.NoError(t, waitForOutput(moderatorTerm, "Teleport > Please tap your MFA key"), "waiting for moderator mfa prompt")
+		waitForOutput(t, moderatorTerm, "Teleport > Please tap your MFA key", "waiting for moderator mfa prompt")
 
 		challenge, err := moderatorTerm.stream.ReadChallenge(protobufMFACodec{})
 		require.NoError(t, err)
@@ -11079,9 +11099,9 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 	// components, it's not practical to use BlockUntil here, so we use EventuallyWithT instead.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		s.clock.Advance(3 * time.Minute)
-		require.NoError(t, waitForOutputWithDuration(moderatorTerm, "wait: remote command exited without exit status or exit signal", 3*time.Second))
-		require.NoError(t, waitForOutputWithDuration(peerTerm, "Process exited with status 255", 3*time.Second))
-	}, 15*time.Second, 500*time.Millisecond)
+		require.NoError(t, waitForOutputWithDuration(ctx, moderatorTerm, "wait: remote command exited without exit status or exit signal", 3*time.Second))
+		require.NoError(t, waitForOutputWithDuration(ctx, peerTerm, "Process exited with status 255", 3*time.Second))
+	}, 15*time.Second, 3*time.Second)
 }
 
 type proxyClientMock struct {

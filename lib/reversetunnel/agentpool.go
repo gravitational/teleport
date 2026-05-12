@@ -820,6 +820,9 @@ func (c *agentPoolRuntimeConfig) update(ctx context.Context, netConfig types.Clu
 
 	oldProxyListenerMode := c.proxyListenerMode
 	c.keepAliveInterval = netConfig.GetKeepAliveInterval()
+	if v := int(netConfig.GetKeepAliveCountMax()); v > 0 {
+		c.keepAliveCount = v
+	}
 	c.proxyListenerMode = netConfig.GetProxyListenerMode()
 
 	// Fallback to agent mesh strategy if there is an error.

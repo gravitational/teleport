@@ -1104,13 +1104,18 @@ func TestVerifiedPublicKeyCallback(t *testing.T) {
 	privateKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
 
+	const (
+		clusterName = "localhost"
+		username    = "testuser"
+	)
+
 	rawCert, err := testauthority.GenerateUserCert(
 		sshca.UserCertificateRequest{
 			CASigner:      caSigner,
 			PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
 			Identity: sshca.Identity{
-				Username:    "testuser",
-				ClusterName: "localhost",
+				Username:    username,
+				ClusterName: clusterName,
 			},
 		},
 	)
@@ -1124,9 +1129,10 @@ func TestVerifiedPublicKeyCallback(t *testing.T) {
 			CASigner:      caSigner,
 			PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
 			Identity: sshca.Identity{
-				Username:    "testuser",
-				ClusterName: "localhost",
-				MFAVerified: "verified",
+				Username:                username,
+				ClusterName:             clusterName,
+				MFAVerified:             "verified",
+				PreviousIdentityExpires: time.Now().Add(time.Minute),
 			},
 		},
 	)
@@ -1135,13 +1141,29 @@ func TestVerifiedPublicKeyCallback(t *testing.T) {
 	mfaCert, err := sshutils.ParseCertificate(rawMFACert)
 	require.NoError(t, err)
 
+	rawHeadlessCert, err := testauthority.GenerateUserCert(
+		sshca.UserCertificateRequest{
+			CASigner:      caSigner,
+			PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
+			Identity: sshca.Identity{
+				Username:                 username,
+				ClusterName:              clusterName,
+				HeadlessAuthenticationID: "some-headless-auth-id",
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	headlessCert, err := sshutils.ParseCertificate(rawHeadlessCert)
+	require.NoError(t, err)
+
 	rawHardwareKeyMFACert, err := testauthority.GenerateUserCert(
 		sshca.UserCertificateRequest{
 			CASigner:      caSigner,
 			PublicUserKey: ssh.MarshalAuthorizedKey(privateKey.SSHPublicKey()),
 			Identity: sshca.Identity{
-				Username:         "testuser",
-				ClusterName:      "localhost",
+				Username:         username,
+				ClusterName:      clusterName,
 				PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouch,
 			},
 		},
@@ -1358,6 +1380,34 @@ func TestVerifiedPublicKeyCallback(t *testing.T) {
 		require.ErrorAs(t, err, &partialSuccessErr)
 		require.NotNil(t, partialSuccessErr.Next.KeyboardInteractiveCallback)
 		require.Nil(t, outPerms)
+	})
+
+	t.Run("permit with MFA required preconditions and modern client with headless cert is allowed", func(t *testing.T) {
+		ah := &AuthHandlers{}
+
+		inPerms := &ssh.Permissions{
+			Extensions: map[string]string{
+				utils.ExtIntSSHAccessPermit: string(precondsPermitRaw),
+			},
+		}
+
+		outPerms, err := ah.VerifiedPublicKeyCallback(modernClientConn, headlessCert, inPerms, "")
+		require.NoError(t, err)
+		require.Same(t, inPerms, outPerms)
+	})
+
+	t.Run("permit with MFA required preconditions and legacy client with headless cert is allowed", func(t *testing.T) {
+		ah := &AuthHandlers{}
+
+		inPerms := &ssh.Permissions{
+			Extensions: map[string]string{
+				utils.ExtIntSSHAccessPermit: string(precondsPermitRaw),
+			},
+		}
+
+		outPerms, err := ah.VerifiedPublicKeyCallback(legacyClientConn, headlessCert, inPerms, "")
+		require.NoError(t, err)
+		require.Same(t, inPerms, outPerms)
 	})
 
 	t.Run("permit with MFA required preconditions and legacy client with hardware-key MFA cert is allowed", func(t *testing.T) {

@@ -22,6 +22,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
@@ -234,6 +236,8 @@ func baseScopedRole() *scopedaccessv1.ScopedRole {
 	}
 }
 
+func ptr[T any](v T) *T { return &v }
+
 // TestClientIdleTimeoutNotInClassicRole verifies that ScopedRoleToRole does not populate ClientIdleTimeout
 // in the classic role options. Per the scoped role design, client_idle_timeout is read directly from the
 // appropriate protocol block on the scoped role, which does not have a direct classic role equivalent.
@@ -254,9 +258,8 @@ func TestClientIdleTimeoutNotInClassicRole(t *testing.T) {
 func TestX11ForwardingNotInClassicRole(t *testing.T) {
 	t.Parallel()
 
-	boolPtr := func(v bool) *bool { return &v }
 	sr := baseScopedRole()
-	sr.Spec.Ssh.PermitX11Forwarding = boolPtr(true)
+	sr.Spec.Ssh.PermitX11Forwarding = ptr(true)
 
 	role, err := ScopedRoleToRole(sr, "/foo/bar")
 	require.NoError(t, err)
@@ -266,9 +269,8 @@ func TestX11ForwardingNotInClassicRole(t *testing.T) {
 func TestForwardAgentNotInClassicRole(t *testing.T) {
 	t.Parallel()
 
-	boolPtr := func(v bool) *bool { return &v }
 	sr := baseScopedRole()
-	sr.Spec.Ssh.ForwardAgent = boolPtr(true)
+	sr.Spec.Ssh.ForwardAgent = ptr(true)
 
 	role, err := ScopedRoleToRole(sr, "/foo/bar")
 	require.NoError(t, err)
@@ -278,9 +280,8 @@ func TestForwardAgentNotInClassicRole(t *testing.T) {
 func TestMaxSessionsNotInClassicRole(t *testing.T) {
 	t.Parallel()
 
-	int64Ptr := func(v int64) *int64 { return &v }
 	sr := baseScopedRole()
-	sr.Spec.Ssh.MaxSessions = int64Ptr(10)
+	sr.Spec.Ssh.MaxSessions = ptr(int64(10))
 
 	role, err := ScopedRoleToRole(sr, "/foo/bar")
 	require.NoError(t, err)
@@ -290,11 +291,10 @@ func TestMaxSessionsNotInClassicRole(t *testing.T) {
 func TestSSHPortForwardingNotInClassicRole(t *testing.T) {
 	t.Parallel()
 
-	boolPtr := func(v bool) *bool { return &v }
 	sr := baseScopedRole()
 	sr.Spec.Ssh.PortForwarding = &scopedaccessv1.SSHPortForwarding{
-		Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: boolPtr(false)},
-		Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: boolPtr(false)},
+		Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: ptr(false)},
+		Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: ptr(false)},
 	}
 
 	role, err := ScopedRoleToRole(sr, "/foo/bar")
@@ -318,13 +318,45 @@ func TestHostUserCreationNotInClassicRole(t *testing.T) {
 func TestSSHFileCopyNotInClassicRole(t *testing.T) {
 	t.Parallel()
 
-	boolPtr := func(v bool) *bool { return &v }
 	sr := baseScopedRole()
-	sr.Spec.Ssh.FileCopy = boolPtr(false)
+	sr.Spec.Ssh.FileCopy = ptr(false)
 
 	role, err := ScopedRoleToRole(sr, "/foo/bar")
 	require.NoError(t, err)
 	require.Equal(t, types.NewBoolOption(true), role.GetOptions().SSHFileCopy)
+}
+
+func TestEnhancedRecordingNotInClassicRole(t *testing.T) {
+	t.Parallel()
+
+	sr := baseScopedRole()
+	sr.Spec.Ssh.EnhancedRecording = &scopedaccessv1.EnhancedRecording{
+		Command: ptr(true),
+		Network: ptr(true),
+		Disk:    ptr(true),
+	}
+
+	role, err := ScopedRoleToRole(sr, "/foo/bar")
+	require.NoError(t, err)
+	// BPF is the classic role equivalent of enhanced_recording.
+	require.Equal(t, apidefaults.EnhancedEvents(), role.GetOptions().BPF)
+}
+
+func TestSessionRecordingNotInClassicRole(t *testing.T) {
+	t.Parallel()
+
+	sr := baseScopedRole()
+	sr.Spec.Ssh.SessionRecording = &scopedaccessv1.SessionRecording{
+		Mode: string(constants.SessionRecordingModeBestEffort),
+	}
+
+	role, err := ScopedRoleToRole(sr, "/foo/bar")
+	require.NoError(t, err)
+	// RecordSession is the classic role equivalent of session_recording_mode.
+	require.Equal(t, &types.RecordSession{
+		Desktop: types.NewBoolOption(true),
+		Default: constants.SessionRecordingModeBestEffort,
+	}, role.GetOptions().RecordSession)
 }
 
 // TestKubeConversion verifies the various kube-related scoped role conversion scenarios.

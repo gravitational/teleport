@@ -760,7 +760,7 @@ pub struct CGOSharedDirectoryTruncateRequest {
     pub completion_id: u32,
     pub directory_id: u32,
     pub path: *const c_char,
-    pub end_of_file: u32,
+    pub end_of_file: u64,
 }
 
 pub type CGOSharedDirectoryTruncateResponse = SharedDirectoryTruncateResponse;
