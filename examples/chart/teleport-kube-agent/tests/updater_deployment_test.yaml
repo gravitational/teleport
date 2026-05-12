@@ -316,11 +316,11 @@ tests:
       - ../.lint/updater.yaml
     set:
       updater:
-        pullCredentials: "amazon"
+        pullCredentials: "aws"
     asserts:
       - contains:
           path: spec.template.spec.containers[0].args
-          content: "--pull-credentials=amazon"
+          content: "--pull-credentials=aws"
 
   - it: sets extraVolumes when specified
     values:
