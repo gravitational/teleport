@@ -698,7 +698,7 @@ updater:
   # This is not required when pulling images from official public Teleport
   # registries (chart's default).
   #
-  # Supported values are `amazon`, `google`, `docker` and `none`.
+  # Supported values are `aws`, `google`, `docker` and `none`.
   pullCredentials: ""
 
   # updater.extraArgs(list) -- contains additional arguments to pass to the updater
