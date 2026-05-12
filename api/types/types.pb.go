@@ -9063,7 +9063,7 @@ type AccessReview struct {
 	AssumeStartTime *time.Time `protobuf:"bytes,10,opt,name=AssumeStartTime,proto3,stdtime" json:"assume_start_time,omitempty"`
 	// SubmittedBy is the Teleport plugin identity that submitted this review request
 	// to the Auth Service on behalf of the Author.
-	// Author remains the actual Teleport human/bot user that performed the review.
+	// Author remains the actual Teleport user that performed the review.
 	SubmittedBy          string   `protobuf:"bytes,11,opt,name=SubmittedBy,proto3" json:"submitted_by,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
