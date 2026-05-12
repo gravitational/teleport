@@ -57,6 +57,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
@@ -121,6 +122,27 @@ func TestAuthenticate(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	newTestLockWatcher := func(t *testing.T) *services.LockWatcher {
+		lockWatcher, err := services.NewLockWatcher(t.Context(), services.LockWatcherConfig{
+			ResourceWatcherConfig: services.ResourceWatcherConfig{
+				Component: teleport.ComponentProxy,
+				Client:    &mockEventClient{},
+			},
+		})
+		require.NoError(t, err)
+		t.Cleanup(lockWatcher.Close)
+		return lockWatcher
+	}
+	lockWatcher := newTestLockWatcher(t)
+
+	// marks the lock watcher as stale
+	configureStaleLockWatcher := func(t *testing.T, f *Forwarder) {
+		staleLockWatcher := newTestLockWatcher(t)
+		close(staleLockWatcher.StaleC)
+		require.Eventually(t, staleLockWatcher.IsStale, time.Second, 10*time.Millisecond)
+		f.cfg.LockWatcher = staleLockWatcher
+	}
+
 	ap := &mockAccessPoint{
 		netConfig:       nc,
 		recordingConfig: types.DefaultSessionRecordingConfig(),
@@ -141,49 +163,55 @@ func TestAuthenticate(t *testing.T) {
 			"local":  mockCluster{name: "local"},
 		},
 	}
-	f := &Forwarder{
-		log: logtest.NewLogger(),
-		cfg: ForwarderConfig{
-			ClusterName:       "local",
-			CachingAuthClient: ap,
-			TracerProvider:    otel.GetTracerProvider(),
-			tracer:            otel.Tracer(teleport.ComponentKube),
-			ClusterFeatures:   fakeClusterFeatures,
-			KubeServiceType:   ProxyService,
-		},
-		getKubernetesServersForKubeCluster: func(ctx context.Context, name string) ([]types.KubeServer, error) {
-			servers, err := ap.GetKubernetesServers(ctx)
-			if err != nil {
-				return nil, err
-			}
-			var filtered []types.KubeServer
-			for _, server := range servers {
-				if server.GetCluster().GetName() == name {
-					filtered = append(filtered, server)
+	newForwarder := func() *Forwarder {
+		return &Forwarder{
+			log: logtest.NewLogger(),
+			cfg: ForwarderConfig{
+				ClusterName:       "local",
+				CachingAuthClient: ap,
+				TracerProvider:    otel.GetTracerProvider(),
+				tracer:            otel.Tracer(teleport.ComponentKube),
+				ClusterFeatures:   fakeClusterFeatures,
+				KubeServiceType:   ProxyService,
+				LockWatcher:       lockWatcher,
+			},
+			getKubernetesServersForKubeCluster: func(ctx context.Context, name string) ([]types.KubeServer, error) {
+				servers, err := ap.GetKubernetesServers(ctx)
+				if err != nil {
+					return nil, err
 				}
-			}
-			return filtered, nil
-		},
+				var filtered []types.KubeServer
+				for _, server := range servers {
+					if server.GetCluster().GetName() == name {
+						filtered = append(filtered, server)
+					}
+				}
+				return filtered, nil
+			},
+		}
 	}
 
 	const remoteAddr = "user.example.com"
 	activeAccessRequests := []string{uuid.NewString(), uuid.NewString()}
 	tests := []struct {
-		desc              string
-		user              authz.IdentityGetter
-		authzErr          bool
-		roleKubeUsers     []string
-		roleKubeGroups    []string
-		routeToCluster    string
-		kubernetesCluster string
-		haveKubeCreds     bool
-		tunnel            reversetunnelclient.Server
-		kubeServers       []types.KubeServer
-		activeRequests    []string
+		desc               string
+		user               authz.IdentityGetter
+		authzErr           bool
+		roleKubeUsers      []string
+		roleKubeGroups     []string
+		roleLockingMode    constants.LockingMode
+		routeToCluster     string
+		kubernetesCluster  string
+		haveKubeCreds      bool
+		tunnel             reversetunnelclient.Server
+		kubeServers        []types.KubeServer
+		activeRequests     []string
+		configureForwarder func(t *testing.T, f *Forwarder)
 
-		wantCtx     *authContext
-		wantErr     bool
-		wantAuthErr bool
+		wantCtx                  *authContext
+		wantErr                  bool
+		wantAuthErr              bool
+		wantAuthorizeErrContains string
 	}{
 		{
 			desc:              "local user and cluster with active access request",
@@ -315,6 +343,76 @@ func TestAuthenticate(t *testing.T) {
 					},
 				),
 			},
+		},
+		{
+			desc:               "stale locks and best effort locking produces no error",
+			user:               authz.LocalUser{},
+			roleKubeGroups:     []string{"kube-group-a", "kube-group-b"},
+			roleLockingMode:    constants.LockingModeBestEffort,
+			routeToCluster:     "local",
+			kubernetesCluster:  "local",
+			haveKubeCreds:      true,
+			tunnel:             tun,
+			configureForwarder: configureStaleLockWatcher,
+			kubeServers: newKubeServersFromKubeClusters(
+				t,
+				&types.KubernetesClusterV3{
+					Metadata: types.Metadata{
+						Name:   "local",
+						Labels: map[string]string{},
+					},
+					Spec: types.KubernetesClusterSpecV3{
+						DynamicLabels: map[string]types.CommandLabelV2{},
+					},
+				},
+			),
+			wantCtx: &authContext{
+				kubeUsers:         set.New("user-a"),
+				kubeGroups:        set.New("kube-group-a", "kube-group-b", teleport.KubeSystemAuthenticated),
+				kubeClusterName:   "local",
+				kubeClusterLabels: make(map[string]string),
+				certExpires:       certExpiration,
+				teleportCluster: teleportClusterClient{
+					name:       "local",
+					remoteAddr: *utils.MustParseAddr(remoteAddr),
+				},
+				kubeServers: newKubeServersFromKubeClusters(
+					t,
+					&types.KubernetesClusterV3{
+						Metadata: types.Metadata{
+							Name:   "local",
+							Labels: map[string]string{},
+						},
+						Spec: types.KubernetesClusterSpecV3{
+							DynamicLabels: map[string]types.CommandLabelV2{},
+						},
+					},
+				),
+			},
+		},
+		{
+			desc:                     "stale locks and strict locking produces error",
+			user:                     authz.LocalUser{},
+			roleKubeGroups:           []string{"kube-group-a", "kube-group-b"},
+			roleLockingMode:          constants.LockingModeStrict,
+			routeToCluster:           "local",
+			kubernetesCluster:        "local",
+			haveKubeCreds:            true,
+			tunnel:                   tun,
+			configureForwarder:       configureStaleLockWatcher,
+			wantAuthorizeErrContains: services.StrictLockingModeAccessDenied.Error(),
+			kubeServers: newKubeServersFromKubeClusters(
+				t,
+				&types.KubernetesClusterV3{
+					Metadata: types.Metadata{
+						Name:   "local",
+						Labels: map[string]string{},
+					},
+					Spec: types.KubernetesClusterSpecV3{
+						DynamicLabels: map[string]types.CommandLabelV2{},
+					},
+				},
+			),
 		},
 		{
 			desc:              "local user and cluster, no kubeconfig",
@@ -707,9 +805,16 @@ func TestAuthenticate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
+			f := newForwarder()
+			if tt.configureForwarder != nil {
+				tt.configureForwarder(t, f)
+			}
 			f.cfg.ReverseTunnelSrv = tt.tunnel
 			ap.kubeServers = tt.kubeServers
 			roles, err := services.RoleSetFromSpec("ops", types.RoleSpecV6{
+				Options: types.RoleOptions{
+					Lock: tt.roleLockingMode,
+				},
 				Allow: types.RoleConditions{
 					KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					KubeUsers:        tt.roleKubeUsers,
@@ -723,6 +828,16 @@ func TestAuthenticate(t *testing.T) {
 					Roles: roles.RoleNames(),
 				}, "local", roles),
 				Identity: authz.WrapIdentity(tlsca.Identity{
+					Username:          username,
+					Groups:            roles.RoleNames(),
+					RouteToCluster:    tt.routeToCluster,
+					KubernetesCluster: tt.kubernetesCluster,
+					ActiveRequests:    tt.activeRequests,
+					Expires:           certExpiration,
+				}),
+				UnmappedIdentity: authz.WrapIdentity(tlsca.Identity{
+					Username:          username,
+					Groups:            roles.RoleNames(),
 					RouteToCluster:    tt.routeToCluster,
 					KubernetesCluster: tt.kubernetesCluster,
 					ActiveRequests:    tt.activeRequests,
@@ -767,11 +882,16 @@ func TestAuthenticate(t *testing.T) {
 			}
 			require.NoError(t, err)
 			err = f.authorize(context.Background(), gotCtx)
+			if tt.wantAuthorizeErrContains != "" {
+				require.ErrorContains(t, err, tt.wantAuthorizeErrContains)
+				return
+			}
+
 			require.NoError(t, err)
 
 			require.Empty(t, cmp.Diff(gotCtx, tt.wantCtx,
 				cmp.AllowUnexported(authContext{}, teleportClusterClient{}, metaResource{}, apiResource{}),
-				cmpopts.IgnoreFields(authContext{}, "clientIdleTimeout", "sessionTTL", "ScopedContext", "recordingConfig", "disconnectExpiredCert", "kubeCluster", "checker", "accessState"),
+				cmpopts.IgnoreFields(authContext{}, "clientIdleTimeout", "sessionTTL", "ScopedContext", "recordingConfig", "disconnectExpiredCert", "kubeCluster", "checker", "accessState", "LockingMode"),
 			))
 
 			// validate authCtx.key() to make sure it includes certExpires timestamp.

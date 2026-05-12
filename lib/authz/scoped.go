@@ -184,19 +184,21 @@ func (s *ScopedContext) GetDisconnectCertExpiry(authPref readonly.AuthPreference
 	if s.unscopedContext != nil {
 		return s.unscopedContext.GetDisconnectCertExpiry(authPref)
 	}
+	return s.GetDisconnectCertExpiryTime(authPref.GetDisconnectExpiredCert())
+}
 
-	if !authPref.GetDisconnectExpiredCert() {
+// GetDisconnectCertExpiryTime returns the timestamp for when the identity expires.
+// It takes in a bool parameter to specify whether to return the expiry time or not.
+func (s *ScopedContext) GetDisconnectCertExpiryTime(disconnect bool) time.Time {
+	if !disconnect {
 		return time.Time{}
 	}
-
 	identity := s.Identity.GetIdentity()
 	if !identity.PreviousIdentityExpires.IsZero() {
 		// If this is a short-lived mfa verified cert, return the certificate extension
 		// that holds its issuing certificates expiry value.
 		return identity.PreviousIdentityExpires
 	}
-
-	// Otherwise, return the current certificates expiration
 	return identity.Expires
 }
 

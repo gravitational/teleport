@@ -274,6 +274,27 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 		}
 	}
 
+	// verify that the lock.Mode is a recognized value for Defaults
+	if lock := role.GetSpec().GetDefaults().GetLock(); lock != nil {
+		if err := validateLock(lock); err != nil {
+			return trace.BadParameter("scoped role %q has invalid defaults.locking_mode %q", role.GetMetadata().GetName(), lock.GetMode())
+		}
+	}
+
+	// verify that lock.Mode is a recognized value for SSH
+	if lock := role.GetSpec().GetSsh().GetLock(); lock != nil {
+		if err := validateLock(lock); err != nil {
+			return trace.BadParameter("scoped role %q has invalid ssh.locking_mode %q", role.GetMetadata().GetName(), lock.GetMode())
+		}
+	}
+
+	// verify that lock.Mode is a recognized value for Kube
+	if lock := role.GetSpec().GetKube().GetLock(); lock != nil {
+		if err := validateLock(lock); err != nil {
+			return trace.BadParameter("scoped role %q has invalid kube.locking_mode %q", role.GetMetadata().GetName(), lock.GetMode())
+		}
+	}
+
 	// verify that kube labels are well-formed
 	for _, label := range role.GetSpec().GetKube().GetLabels() {
 		// we currently don't support any form of wildcard/regex/substitution in scoped role
@@ -322,6 +343,16 @@ func validateDoesNotContain(values []string, invalidSet string) string {
 	}
 
 	return ""
+}
+
+func validateLock(lock *scopedaccessv1.Lock) error {
+	mode := lock.GetMode()
+	switch constants.LockingMode(mode) {
+	case constants.LockingModeBestEffort, constants.LockingModeStrict:
+	default:
+		return trace.Errorf("invalid lock mode")
+	}
+	return nil
 }
 
 func validateRoleName(name string) error {
