@@ -195,9 +195,7 @@ export default function useDesktopSession(
   const addSharedDirectory = useCallback(async () => {
     try {
       await tdpClient.shareDirectory();
-      setSharedDirectoriesState(
-        tdpClient.listSharedDirectories()
-      );
+      setSharedDirectoriesState(tdpClient.listSharedDirectories());
     } catch (e) {
       if (isAbortError(e)) {
         return;
@@ -215,9 +213,7 @@ export default function useDesktopSession(
   const removeSharedDirectory = async (directoryId: number) => {
     try {
       tdpClient.unshareDirectory(directoryId);
-      setSharedDirectoriesState(
-        tdpClient.listSharedDirectories()
-      );
+      setSharedDirectoriesState(tdpClient.listSharedDirectories());
     } catch (e) {
       if (isAbortError(e)) {
         return;
