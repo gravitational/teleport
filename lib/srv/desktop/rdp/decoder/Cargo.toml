@@ -9,6 +9,7 @@ publish.workspace = true
 crate-type = ["staticlib", "lib"]
 
 [dependencies]
+fast_image_resize = "6.0.0"
 ironrdp-core.workspace = true
 ironrdp-graphics.workspace = true
 ironrdp-pdu.workspace = true
