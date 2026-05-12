@@ -39,10 +39,16 @@ import (
 )
 
 const (
-	dirName      = ".Teleport-PIV"
-	sockName     = "agent.sock"
-	certFileName = "cert.pem"
-	agentDirEnv  = "TELEPORT_KEY_AGENT_DIR"
+	// SocketFileName is the name of the socket on which the Hardware Key Agent
+	// service will listen.
+	SocketFileName = "agent.sock"
+
+	// CertFileName is the name of the file containing the Hardware Key Agent
+	// server certificate.
+	CertFileName = "cert.pem"
+
+	dirName     = ".Teleport-PIV"
+	agentDirEnv = "TELEPORT_KEY_AGENT_DIR"
 )
 
 // AgentDirFromEnv returns the directory for the hardware key agent's socket and
@@ -65,8 +71,8 @@ func DefaultAgentDir() string {
 //
 // [DefaultAgentDir] should be used for [keyAgentDir] outside of tests.
 func NewAgentClient(ctx context.Context, keyAgentDir string) (hardwarekeyagentv1.HardwareKeyAgentServiceClient, error) {
-	socketPath := filepath.Join(keyAgentDir, sockName)
-	certPath := filepath.Join(keyAgentDir, certFileName)
+	socketPath := filepath.Join(keyAgentDir, SocketFileName)
+	certPath := filepath.Join(keyAgentDir, CertFileName)
 
 	creds, err := credentials.NewClientTLSFromFile(certPath, "localhost")
 	if err != nil {
@@ -121,7 +127,7 @@ func NewAgentServer(ctx context.Context, s hardwarekey.Service, keyAgentDir stri
 }
 
 func newAgentListener(ctx context.Context, keyAgentDir string) (net.Listener, error) {
-	socketPath := filepath.Join(keyAgentDir, sockName)
+	socketPath := filepath.Join(keyAgentDir, SocketFileName)
 	l, err := net.Listen("unix", socketPath)
 	if err == nil {
 		return l, nil
@@ -157,7 +163,7 @@ func generateServerCert(keyAgentDir string) (tls.Certificate, error) {
 		return tls.Certificate{}, trace.Wrap(err, "failed to generate the certificate")
 	}
 
-	certPath := filepath.Join(keyAgentDir, certFileName)
+	certPath := filepath.Join(keyAgentDir, CertFileName)
 	f, err := os.OpenFile(certPath, os.O_RDWR|os.O_CREATE, 0o600)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)

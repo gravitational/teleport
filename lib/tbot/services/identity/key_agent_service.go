@@ -24,6 +24,8 @@ import (
 	"crypto"
 	"io"
 	"log/slog"
+	"os"
+	"path/filepath"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
@@ -36,6 +38,7 @@ import (
 	libhwk "github.com/gravitational/teleport/lib/hardwarekey"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
+	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/readyz"
@@ -132,8 +135,30 @@ func (s *KeyAgentService) Run(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	// NewAgentServer creates the directory so we hold off on writing the
-	// identity file until it's in-place.
+	// As the hardware key agent server creates the socket and certificate file
+	// directly, rather than going through our destination abstraction, we need
+	// to manually fix file permissions.
+	//
+	// 	1. KeyAgentConfig.Init create the directory and sets its ACLs.
+	// 	2. NewAgentServer will also try to create the directory with os.MkdirAll
+	// 	   but it's a no-op because the directory already exists.
+	// 	3. NewAgentServer will create the cert.pem with mode 0600, and the socket
+	// 	   with net.Listen (with mode 0777 &^ umask).
+	// 	4. At this point the agent is only usable by tbot user! Which is no good
+	// 	   in environments like Beams where tbot runs as a different user to the
+	// 	   user shell.
+	// 	5. If ACLs are enabled, we configure them on cert.pem.
+	// 	6. We also `chmod 777` the socket file, and rely on the directory ACLs
+	// 	   and permissions to restrict access to it - this is the same as the
+	// 	   internal.CreateListener method's behavior.
+	if dir.ACLsEnabled() {
+		if err := botfs.ConfigureACL(filepath.Join(dir.Path, libhwk.CertFileName), dir.Readers); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if err := os.Chmod(filepath.Join(dir.Path, libhwk.SocketFileName), os.ModePerm); err != nil {
+		return trace.Wrap(err)
+	}
 	if err := s.writeIdentityFile(ctx, identity); err != nil {
 		return trace.Wrap(err)
 	}
