@@ -38,18 +38,25 @@ import {
 } from 'teleterm/ui/TopBar/Identity';
 
 export function ClusterConnectPanel() {
-  const { identityItems, logout, forget, addCluster, changeRootCluster } =
-    useIdentity();
+  const {
+    // ClusterConnectPanel is rendered only when there is no active workspace, so
+    // the hook's "other workspaces" are all available workspaces.
+    otherWorkspaces: availableWorkspaces,
+    logout,
+    forget,
+    addCluster,
+    changeWorkspace,
+  } = useIdentity();
 
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Focus the first item.
-  const hasWorkspace = !!identityItems.length;
+  const hasAnyWorkspaces = !!availableWorkspaces.length;
   useEffect(() => {
-    if (hasWorkspace) {
+    if (hasAnyWorkspaces) {
       containerRef.current.querySelector('li').focus();
     }
-  }, [hasWorkspace]);
+  }, [hasAnyWorkspaces]);
 
   return (
     <ScrollingContainer>
@@ -61,7 +68,7 @@ export function ClusterConnectPanel() {
           alignItems="center"
         >
           <ResourceIcon width="120px" name="server" mb={3} />
-          {hasWorkspace ? (
+          {hasAnyWorkspaces ? (
             <Flex flexDirection="column">
               <H2>Clusters</H2>
               <P2 color="text.slightlyMuted" mb={2}>
@@ -91,9 +98,9 @@ export function ClusterConnectPanel() {
                   `}
                 >
                   <IdentityList
-                    items={identityItems}
+                    items={availableWorkspaces}
                     onAdd={addCluster}
-                    onSelect={changeRootCluster}
+                    onSelect={changeWorkspace}
                     onLogout={logout}
                     onForget={forget}
                   />

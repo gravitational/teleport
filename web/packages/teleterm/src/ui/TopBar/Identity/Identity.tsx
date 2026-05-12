@@ -39,9 +39,9 @@ import { useIdentity } from './useIdentity';
 
 export function IdentityContainer() {
   const {
-    activeRootCluster,
-    identityItems,
-    changeRootCluster,
+    activeWorkspaceCluster,
+    otherWorkspaces,
+    changeWorkspace,
     logout,
     addCluster,
     forget,
@@ -51,14 +51,14 @@ export function IdentityContainer() {
   const selectorRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   const { getLabelWithAccelerator } = useKeyboardShortcutFormatters();
-  const hasClusters = activeRootCluster || identityItems.length;
+  const hasAnyWorkspaces = activeWorkspaceCluster || otherWorkspaces.length;
   const togglePopoverOrAddCluster = useCallback(() => {
-    if (hasClusters) {
+    if (hasAnyWorkspaces) {
       setOpen(o => !o);
     } else {
       addCluster();
     }
-  }, [addCluster, hasClusters]);
+  }, [addCluster, hasAnyWorkspaces]);
 
   useKeyboardShortcuts(
     useMemo(
@@ -85,7 +85,7 @@ export function IdentityContainer() {
   }
 
   const deviceTrustStatus = calculateDeviceTrustStatus(
-    activeRootCluster?.loggedInUser
+    activeWorkspaceCluster?.loggedInUser
   );
   const activeColor = useStoreSelector(
     'workspacesService',
@@ -98,7 +98,7 @@ export function IdentityContainer() {
         ref={selectorRef}
         onClick={togglePopoverOrAddCluster}
         open={open}
-        activeCluster={activeRootCluster}
+        activeCluster={activeWorkspaceCluster}
         activeColor={activeColor}
         makeTitle={makeTitle}
         deviceTrustStatus={deviceTrustStatus}
@@ -113,13 +113,15 @@ export function IdentityContainer() {
         updatePositionOnChildResize
       >
         <Container>
-          {activeRootCluster && (
+          {activeWorkspaceCluster && (
             <ActiveCluster
-              activeCluster={activeRootCluster}
+              activeCluster={activeWorkspaceCluster}
               activeColor={activeColor}
               onChangeColor={changeColor}
-              onLogout={withClose(() => logout(activeRootCluster.uri))}
-              onRefresh={withClose(() => refreshCluster(activeRootCluster.uri))}
+              onLogout={withClose(() => logout(activeWorkspaceCluster.uri))}
+              onRefresh={withClose(() =>
+                refreshCluster(activeWorkspaceCluster.uri)
+              )}
               deviceTrustStatus={deviceTrustStatus}
             />
           )}
@@ -127,8 +129,8 @@ export function IdentityContainer() {
           <KeyboardArrowsNavigation>
             {focusGrabber}
             <IdentityList
-              items={identityItems}
-              onSelect={withClose(changeRootCluster)}
+              items={otherWorkspaces}
+              onSelect={withClose(changeWorkspace)}
               onLogout={withClose(logout)}
               onAdd={withClose(addCluster)}
               onForget={withClose(forget)}

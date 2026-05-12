@@ -42,9 +42,10 @@ export function useIdentity() {
     'workspacesService',
     useCallback(state => state.rootClusterUri, [])
   );
-  const activeRootCluster = activeClusterUri && clusters.get(activeClusterUri);
+  const activeWorkspaceCluster =
+    activeClusterUri && clusters.get(activeClusterUri);
 
-  async function changeRootCluster(clusterUri: RootClusterUri): Promise<void> {
+  async function changeWorkspace(clusterUri: RootClusterUri): Promise<void> {
     await ctx.workspacesService.setActiveWorkspace(clusterUri);
   }
 
@@ -79,7 +80,7 @@ export function useIdentity() {
     ctx.workspacesService.changeWorkspaceColor(clusterUri, color);
   }
 
-  const identityItems: IdentityItem[] = Object.entries(workspaces)
+  const otherWorkspaces: IdentityItem[] = Object.entries(workspaces)
     .filter(([uri]) => uri !== activeClusterUri)
     .map(([uri, workspace]) => ({
       uri,
@@ -88,14 +89,14 @@ export function useIdentity() {
     }));
 
   return {
-    changeRootCluster,
+    changeWorkspace,
     addCluster,
     refreshCluster,
     logout,
     forget,
     changeColor,
-    activeRootCluster,
-    identityItems,
+    activeWorkspaceCluster,
+    otherWorkspaces,
   };
 }
 
