@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"os"
 
+	_ "github.com/gravitational/teleport/lib/fipscheck"
 	"github.com/gravitational/teleport/session/reexec"
 	"github.com/gravitational/teleport/session/reexec/reexecconstants"
 )

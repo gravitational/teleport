@@ -1,3 +1,5 @@
+//go:build !fips
+
 // Teleport
 // Copyright (C) 2026 Gravitational, Inc.
 //
@@ -14,11 +16,22 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package modules
+package fipscheck
 
-// IsBoringBinary checks if the binary was compiled in FIPS140 mode. It is
-// a compatibility shim that will be removed once the callers from other repos
-// have been removed.
-func IsBoringBinary() bool {
-	return IsFIPSBuild()
+import (
+	"crypto/fips140"
+	"fmt"
+	"os"
+)
+
+func init() {
+	// This guards against a user running teleport with `GODEBUG=fips140=on` set
+	// in their environment. They may be expecting this would enable FIPS140 mode
+	// with Teleport, but for that they need the fips build, as there is also a
+	// rust component that needs to have FIPS140 enabled.
+	if fips140.Enabled() {
+		fmt.Fprintln(os.Stderr, "FIPS140 mode is active in a non-FIPS build (GODEBUG=fips140=on).")
+		fmt.Fprintln(os.Stderr, "Install the Teleport Enterprise FIPS edition to use FIPS140 mode.")
+		os.Exit(1)
+	}
 }
