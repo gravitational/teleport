@@ -184,7 +184,7 @@ func TestSessionStartEvent(t *testing.T) {
 			PublicKeyHash: aPublicKeyHash,
 		}
 
-		got := audit.makeSessionStart(nil)
+		got := audit.makeWindowsSessionStart(nil)
 		if diff := cmp.Diff(audit.caOverrideDetails, got.CAOverride, protocmp.Transform()); diff != "" {
 			t.Errorf("CAOverrideDetails mismatch (-want +got)\n%s", diff)
 		}
