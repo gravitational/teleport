@@ -242,6 +242,7 @@ loop:
 	sshSessionEnd.Participants = apiutils.Deduplicate(sshSessionEnd.Participants)
 	sshSessionEnd.EndTime = lastEvent.GetTime()
 	desktopSessionEnd.EndTime = lastEvent.GetTime()
+	linuxDesktopSessionEnd.EndTime = lastEvent.GetTime()
 	dbSessionEnd.EndTime = lastEvent.GetTime()
 
 	var sessionEndEvent apievents.AuditEvent
