@@ -365,7 +365,7 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
         this.logger.error('Failed to re-add cluster', err);
 
         this.notificationsService.notifyError({
-          title: `Could not reconnect to ${routing.parseClusterName(clusterUri)}. Check that the proxy is reachable and try again.`,
+          title: `Could not reconnect to ${proxyHost}. Check that the proxy is reachable and try again.`,
           description: getErrorMessage(err),
         });
 
