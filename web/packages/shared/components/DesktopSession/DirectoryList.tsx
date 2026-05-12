@@ -48,14 +48,18 @@ export function SharedDirectoryList({
   canRemoveSharedDirectory,
   canSharedDirectories,
 }: SharedDirectoriesProps) {
+  const label = !canSharedDirectories
+    ? 'Directory sharing is not enabled for this session'
+    : 'Share local directories with the desktop';
+
   return (
     <MenuIcon
-      Icon={(props) => <FolderPlus {...props} size="large" />}
+      Icon={props => <FolderPlus {...props} size="large" />}
       buttonIconProps={{
         disabled: !canSharedDirectories,
         // square highlight instead of default circle
         css: 'border-radius: 0',
-        'aria-label': 'share-directory-menu',
+        'aria-label': label,
       }}
       // Right align the menu with the icon
       menuProps={{
@@ -68,40 +72,37 @@ export function SharedDirectoryList({
           horizontal: 'right',
         },
       }}
-      tooltip={
-        !canSharedDirectories
-          ? 'Directory sharing is not enabled for this session'
-          : 'Share local directories with the Desktop'
-      }
+      tooltip={label}
     >
       <Container data-testid="shared-directory-menu">
-        <Stack gap={3} fullWidth onClick={(e) => e.stopPropagation()}>
+        <Stack gap={3} fullWidth onClick={e => e.stopPropagation()}>
           {/* Header/Share Button */}
-          <div>
-            <Flex justifyContent="space-between" alignItems="center">
-              {dropdownHeader(sharedDirectories.length)}
-              <ButtonPrimary
-                title="Share a directory"
-                size="small"
-                onClick={onAddSharedDirectory}
-                compact={true}
-                $inputAlignment={false}
-              >
-                <Plus size="small" />
-              </ButtonPrimary>
-            </Flex>
-          </div>
+          <Flex justifyContent="space-between" alignItems="center">
+            {dropdownHeader(sharedDirectories.length)}
+            <ButtonPrimary
+              title="Share a directory"
+              size="small"
+              onClick={onAddSharedDirectory}
+              compact={true}
+              $inputAlignment={false}
+            >
+              <Plus size="small" />
+            </ButtonPrimary>
+          </Flex>
 
-          {/* Directory list */}
-          {sharedDirectories.map((dir) => (
-            <DirectoryEntry
-              name={dir.name}
-              id={dir.id}
-              isRemoveSupported={canRemoveSharedDirectory}
-              onRemove={onRemoveSharedDirectory}
-              key={dir.id}
-            />
-          ))}
+          {!!sharedDirectories.length && (
+            <DirectoryEntries aria-label="Shared directories">
+              {sharedDirectories.map(dir => (
+                <DirectoryEntry
+                  name={dir.name}
+                  id={dir.id}
+                  isRemoveSupported={canRemoveSharedDirectory}
+                  onRemove={onRemoveSharedDirectory}
+                  key={dir.id}
+                />
+              ))}
+            </DirectoryEntries>
+          )}
 
           {/* If not supported, explain to the user that removal is not supported for the
               connected WDS version, but may be supported on new versions. */}
@@ -149,17 +150,12 @@ function DirectoryEntry(props: {
   }
 
   return (
-    <Flex
-      justifyContent="space-between"
-      alignItems="center"
-      data-testid={`direntry-${props.id}`}
-    >
-      <Text data-testid="dirname" fontSize={2}>
-        {props.name}
-      </Text>
+    <DirectoryEntriesItem>
+      <Text fontSize={2}>{props.name}</Text>
       <HoverTooltip placement="bottom" tipContent={hoverText}>
         <Flex flexShrink={0}>
           <ButtonSecondary
+            aria-label={`Disconnect shared directory ${props.name}`}
             size="small"
             compact={true}
             onClick={() => props.onRemove(props.id)}
@@ -169,7 +165,7 @@ function DirectoryEntry(props: {
           </ButtonSecondary>
         </Flex>
       </HoverTooltip>
-    </Flex>
+    </DirectoryEntriesItem>
   );
 }
 
@@ -207,7 +203,22 @@ function dropdownHeader(directoryCount: number) {
 }
 
 const Container = styled.div`
-  background: ${(props) => props.theme.colors.levels.elevated};
-  padding: ${(props) => props.theme.space[3]}px;
+  background: ${props => props.theme.colors.levels.elevated};
+  padding: ${props => props.theme.space[3]}px;
   width: 370px;
+`;
+
+const DirectoryEntries = styled.ul`
+  display: flex;
+  flex-direction: column;
+  gap: ${props => props.theme.space[3]}px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+`;
+
+const DirectoryEntriesItem = styled.li`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 `;
