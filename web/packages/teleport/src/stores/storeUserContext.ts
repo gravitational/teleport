@@ -314,4 +314,8 @@ export default class StoreUserContext extends Store<UserContext> {
   getInferenceSecretAccess() {
     return this.state.acl.inferenceSecret;
   }
+
+  getBeamAccess() {
+    return this.state.acl.beam;
+  }
 }

@@ -1,0 +1,10 @@
+### Teleport reports no error but VM does not join
+
+Check your Discovery Service config and make sure that the VM you want to
+discover matches. In debug mode, Teleport will log the Subscription IDs and
+names of VMs it discovers.
+
+The Azure run command API does not report the output of commands,
+so Teleport has no way of knowing if a command succeeded or failed. Run command
+logs can be found on the targeted VM at
+`/var/log/azure/run-command-handler/handler.log`.

@@ -98,8 +98,8 @@ func onAfterResponseSlack(sink common.StatusSink) func(_ *resty.Client, resp *re
 // SupportedApps are the apps supported by this bot.
 func (b Bot) SupportedApps() []common.App {
 	return []common.App{
-		accessrequest.NewApp(b),
-		appAccesslist.NewApp(b),
+		accessrequest.NewApp(),
+		appAccesslist.NewApp(),
 	}
 }
 

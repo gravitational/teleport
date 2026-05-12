@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"slices"
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -35,6 +36,52 @@ import (
 	"github.com/gravitational/teleport/lib/subca"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
+
+// cliCATypes maps subca.SupportedCATypes() into their CLI-friendly counterparts
+// (typically by replacing "_" with "-").
+//
+// Matches "tctl auth export --types" whenever appropriate.
+var cliCATypes = makeCATypeNames()
+
+type caTypeNames struct {
+	// Names holds all CA type names for --help.
+	Names []string
+	// NameToCAType maps a "display" CA type to an actual CA type
+	// (eg, "db-client" -> "db_client").
+	// The map is sparse, ie, CA types that need no mapping aren't present in it.
+	NameToCAType map[string]string
+}
+
+func makeCATypeNames() caTypeNames {
+	nameToCAType := make(map[string]string)
+	var names []string
+
+	for _, caType := range subca.SupportedCATypes() {
+		name := strings.ReplaceAll(caType, "_", "-")
+		if name != caType {
+			nameToCAType[name] = caType
+		}
+		names = append(names, name)
+	}
+
+	slices.Sort(names)
+
+	return caTypeNames{
+		Names:        names,
+		NameToCAType: nameToCAType,
+	}
+}
+
+// Convert converts a CLI CA type into a subca supported CA type.
+// The conversion is pass-through by design: it converts known types and lets
+// others pass. The backend is the source of truth for which types are valid or
+// not.
+func (n caTypeNames) Convert(caType string) string {
+	if val, ok := n.NameToCAType[caType]; ok {
+		return val
+	}
+	return caType
+}
 
 // SubCAClientSource is the subset of *authclient.Client used by Command.
 type SubCAClientSource interface {
@@ -89,12 +136,12 @@ func (c *Command) Initialize(
 	// Don't over-validate CA types on the client. That's the server's responsibility.
 	createCSRHelp := fmt.Sprintf(
 		"CA type (%s)",
-		strings.Join(subca.SupportedCATypes(), ", "),
+		strings.Join(cliCATypes.Names, ", "),
 	)
 	c.createOverrideCSR.
 		Flag("type", createCSRHelp). // --type mimics other "tctl auth" commands
 		Required().
-		StringVar(&c.createOverrideCSR.caType)
+		StringVar(&c.createOverrideCSR.cliCAType)
 	c.createOverrideCSR.
 		Flag("out", "If set writes CSRs to files using --out as the path prefix").
 		StringVar(&c.createOverrideCSR.out)
@@ -153,7 +200,7 @@ type subCommand interface {
 type createOverrideCSRCommand struct {
 	*kingpin.CmdClause
 
-	caType    string
+	cliCAType string
 	out       string // Output path prefix.
 	publicKey string
 	subject   string
@@ -165,9 +212,10 @@ func (c *createOverrideCSRCommand) Run(
 	s *commandState,
 ) error {
 	// Defensive, shouldn't happen.
-	if c.caType == "" {
+	if c.cliCAType == "" {
 		return trace.BadParameter("type required")
 	}
+	caType := cliCATypes.Convert(c.cliCAType)
 
 	var pubKey *subcav1.PublicKeyHash
 	if c.publicKey != "" {
@@ -198,7 +246,7 @@ func (c *createOverrideCSRCommand) Run(
 
 	// Request CSRs.
 	resp, err := subCA.CreateCSR(ctx, &subcav1.CreateCSRRequest{
-		CaType:        c.caType,
+		CaType:        caType,
 		PublicKeyHash: pubKey,
 		CustomSubject: customSubject,
 	})
@@ -237,7 +285,7 @@ func (c *createOverrideCSRCommand) Run(
 
 	// Write output files.
 	for i, csr := range resp.Csrs {
-		name := c.out + c.caType + "-" + minHashes[i] + "-csr.pem"
+		name := c.out + caType + "-" + minHashes[i] + "-csr.pem"
 		if err := os.WriteFile(name, []byte(csr.Pem), 0644); err != nil {
 			return trace.Wrap(err)
 		}

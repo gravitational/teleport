@@ -14,7 +14,7 @@ This Terraform module creates the Azure and Teleport cluster resources necessary
 <!-- lint ignore absolute-docs-links -->
 - [Install Teleport Terraform Provider](https://goteleport.com/docs/zero-trust-access/infrastructure-as-code/terraform-provider/)
 <!-- lint ignore absolute-docs-links -->
-- Every Azure VM to be discovered must have a managed identity assigned to it with at least the Microsoft.Compute/virtualMachines/read permission. [Read more](https://goteleport.com/docs/enroll-resources/auto-discovery/servers/azure-discovery/#step-35-set-up-managed-identities-for-discovered-nodes)
+- Every Azure VM to be discovered must have a managed identity assigned to it with at least the Microsoft.Compute/virtualMachines/read permission. [Read more](https://goteleport.com/docs/enroll-resources/auto-discovery/servers/azure-vm-discovery/azure-vm-discovery-terraform/#setting-up-managed-identities-for-discovered-vms)
 
 ## Examples
 

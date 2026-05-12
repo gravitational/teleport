@@ -16,7 +16,21 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { randomUUID } from 'node:crypto';
+
+import { deleteResourceIfExists } from '@gravitational/e2e/helpers/tctl';
 import { expect, test } from '@gravitational/e2e/helpers/test';
+
+// A unique role name per test ensures retries (and parallel workers) never
+// collide with leftover state from a previous attempt that failed before its
+// own cleanup ran.
+const roleName = `test-role-${randomUUID()}`;
+
+// Best-effort cleanup via tctl in case the test fails before the UI delete
+// step runs, so the role doesn't outlive the test run.
+test.afterEach(() => {
+  deleteResourceIfExists(`role/${roleName}`);
+});
 
 test('verify creating, editing, and deleting a role works', async ({
   page,
@@ -25,21 +39,21 @@ test('verify creating, editing, and deleting a role works', async ({
   await rolesPage.goto();
 
   await test.step('Create a new role', async () => {
-    await rolesPage.createRole('test-role');
+    await rolesPage.createRole(roleName);
 
-    await expect(page.getByRole('cell', { name: 'test-role' })).toBeVisible();
+    await expect(page.getByRole('cell', { name: roleName })).toBeVisible();
   });
 
   await test.step('Edit the role via YAML to add a description', async () => {
-    await rolesPage.editRole('test-role');
+    await rolesPage.editRole(roleName);
 
-    await expect(page.getByText('Edit Role test-role')).toBeVisible();
+    await expect(page.getByText(`Edit Role ${roleName}`)).toBeVisible();
 
     await rolesPage.switchToYamlEditor();
 
     await rolesPage.replaceYaml(
-      'name: test-role',
-      'name: test-role\n  description: test description'
+      `name: ${roleName}`,
+      `name: ${roleName}\n  description: test description`
     );
 
     await rolesPage.saveChangesButton.click();
@@ -50,11 +64,9 @@ test('verify creating, editing, and deleting a role works', async ({
   });
 
   await test.step('Delete the role', async () => {
-    await rolesPage.deleteRole('test-role');
+    await rolesPage.deleteRole(roleName);
 
-    await expect(
-      page.getByRole('cell', { name: 'test-role' })
-    ).not.toBeVisible();
+    await expect(page.getByRole('cell', { name: roleName })).not.toBeVisible();
   });
 });
 

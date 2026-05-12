@@ -1588,6 +1588,10 @@ func (m *UpgradeWindowStartUpdate) TrimToMaxSize(maxSize int) AuditEvent {
 	return m
 }
 
+func (m *EnvironmentProfileUpdate) TrimToMaxSize(maxSize int) AuditEvent {
+	return m
+}
+
 func (m *SessionRecordingAccess) TrimToMaxSize(maxSize int) AuditEvent {
 	return m
 }

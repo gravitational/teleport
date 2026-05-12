@@ -111,6 +111,12 @@ proxy_service:
     # optional: set a different public address for kubernetes access
     kube_public_addr: kube.example.com:3026
 
+    # MySQL Server version configures the MySQL version that is sent from
+    # the Teleport Proxy (default 8.0.0-Teleport). Note that if the MySQL client
+    # connection is using TLS Routing the version provided by the actual MySQL
+    # server takes precedence over mysql_server_version.
+    mysql_server_version: "8.0.4"
+
     # MySQL proxy listen address.
     #
     # If not set, behavior depends on the config file version:
@@ -120,13 +126,12 @@ proxy_service:
     mysql_listen_addr: "0.0.0.0:3036"
 
     # Postgres Proxy listener address. If provided, proxy will use a separate
-    # listener
-    # instead of multiplexing Postgres protocol on web_listener_addr.
-    # postgres_listen_addr: "0.0.0.0:5432"
+    # listener instead of multiplexing Postgres protocol on web_listener_addr.
+    postgres_listen_addr: "0.0.0.0:5432"
 
     # Mongo Proxy listener address. If provided, proxy will use a separate
     # listener instead of multiplexing Mongo protocol on web_listener_addr.
-    # mongo_listen_addr: "0.0.0.0:27017"
+    mongo_listen_addr: "0.0.0.0:27017"
 
     # Address advertised to MySQL clients. If not set, public_addr is used.
     mysql_public_addr: "mysql.teleport.example.com:3306"
