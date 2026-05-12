@@ -87,8 +87,11 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 	auditScx.Identity.TeleportUser = "mod"
 	auditSess, _ := testOpenSession(t, reg, auditorRoleSet, &decisionpb.SSHAccessPermit{})
 	approvers := make(map[string]*party)
-	auditChan := newMockSSHChannel()
-	approvers["mod"] = newParty(auditSess, types.SessionModeratorMode, auditChan, auditScx)
+	clientChan, serverChan := newMockSSHChannel(t)
+	clientChan.Drain()
+	serverChan.Drain()
+
+	approvers["mod"] = newParty(auditSess, types.SessionModeratorMode, serverChan, auditScx)
 
 	// create the accessRole to be used for the requester
 	accessRole, _ := types.NewRole("access", types.RoleSpecV6{
@@ -564,12 +567,10 @@ func TestInteractiveSession(t *testing.T) {
 	scx.term = terminal
 
 	// Open a new session
-	sshChanOpen := newMockSSHChannel()
-	go func() {
-		// Consume stdout sent to the channel
-		io.ReadAll(sshChanOpen)
-	}()
-	require.NoError(t, reg.OpenSession(ctx, sshChanOpen, scx))
+	clientChan, serverChan := newMockSSHChannel(t)
+	clientChan.Drain()
+
+	require.NoError(t, reg.OpenSession(ctx, serverChan, scx))
 	require.NotNil(t, scx.session)
 
 	// Simulate changing window size to capture an additional event.
@@ -651,12 +652,10 @@ func TestNonInteractiveSession(t *testing.T) {
 		scx.execRequest = &localExec{Ctx: scx, Command: "true"}
 
 		// Open a new session
-		sshChanOpen := newMockSSHChannel()
-		go func() {
-			// Consume stdout sent to the channel
-			io.ReadAll(sshChanOpen)
-		}()
-		require.NoError(t, reg.OpenExecSession(ctx, sshChanOpen, scx))
+		clientChan, serverChan := newMockSSHChannel(t)
+		clientChan.Drain()
+
+		require.NoError(t, reg.OpenExecSession(ctx, serverChan, scx))
 		require.NotNil(t, scx.session)
 
 		// Wait for the command execution to complete and the session to be terminated.
@@ -716,12 +715,10 @@ func TestNonInteractiveSession(t *testing.T) {
 		scx.execRequest = &localExec{Ctx: scx, Command: "true"}
 
 		// Open a new session
-		sshChanOpen := newMockSSHChannel()
-		go func() {
-			// Consume stdout sent to the channel
-			io.ReadAll(sshChanOpen)
-		}()
-		require.NoError(t, reg.OpenExecSession(ctx, sshChanOpen, scx))
+		clientChan, serverChan := newMockSSHChannel(t)
+		clientChan.Drain()
+
+		require.NoError(t, reg.OpenExecSession(ctx, serverChan, scx))
 		require.NotNil(t, scx.session)
 
 		// Wait for the command execution to complete and the session to be terminated.
@@ -853,15 +850,6 @@ func TestModeratedSessionPresence(t *testing.T) {
 	moderatorCtx := newTestServerContext(t, reg.Srv, services.NewRoleSet(moderatorRole), &decisionpb.SSHAccessPermit{})
 	moderatorCtx.Identity.TeleportUser = "moderator"
 
-	newDrainedMockSSHChannel := func() ssh.Channel {
-		ch := newMockSSHChannel()
-		t.Cleanup(func() { ch.Close() })
-		go func() {
-			io.ReadAll(ch)
-		}()
-		return ch
-	}
-
 	findModeratorParticipant := func(t require.TestingT, tracker types.SessionTracker) types.Participant {
 		for _, participant := range tracker.GetParticipants() {
 			if participant.User == moderatorCtx.Identity.TeleportUser {
@@ -875,8 +863,10 @@ func TestModeratedSessionPresence(t *testing.T) {
 	t.Cleanup(cancel)
 
 	// Create a new pending moderated session.
-	hostChannel := newDrainedMockSSHChannel()
-	require.NoError(t, reg.OpenSession(ctx, hostChannel, hostCtx))
+	hostClientChan, hostServerChan := newMockSSHChannel(t)
+	hostClientChan.Drain()
+
+	require.NoError(t, reg.OpenSession(ctx, hostServerChan, hostCtx))
 	require.NotNil(t, hostCtx.session)
 	sess := hostCtx.session
 	t.Cleanup(sess.Stop)
@@ -886,8 +876,9 @@ func TestModeratedSessionPresence(t *testing.T) {
 	require.Equal(t, types.SessionState_SessionStatePending, tracker.GetState())
 
 	// Have a moderator join the session to start it.
-	moderatorChannel := newDrainedMockSSHChannel()
-	require.NoError(t, reg.JoinSession(ctx, moderatorChannel, moderatorCtx, sess.id.String(), types.SessionModeratorMode))
+	modClientChan, modServerChan := newMockSSHChannel(t)
+	modClientChan.Drain()
+	require.NoError(t, reg.JoinSession(ctx, modServerChan, moderatorCtx, sess.id.String(), types.SessionModeratorMode))
 	tracker, err = srv.auth.GetSessionTracker(t.Context(), sess.id.String())
 	require.NoError(t, err)
 	require.Equal(t, types.SessionState_SessionStateRunning, tracker.GetState())
@@ -1024,15 +1015,10 @@ func TestParties(t *testing.T) {
 
 func testJoinSession(t *testing.T, reg *SessionRegistry, sid string) {
 	scx := newTestServerContext(t, reg.Srv, nil, &decisionpb.SSHAccessPermit{})
-	sshChanOpen := newMockSSHChannel()
+	clientChan, serverChan := newMockSSHChannel(t)
+	clientChan.Drain()
 
-	// Open a new session
-	go func() {
-		// Consume stdout sent to the channel
-		io.ReadAll(sshChanOpen)
-	}()
-
-	err := reg.JoinSession(t.Context(), sshChanOpen, scx, sid, types.SessionPeerMode)
+	err := reg.JoinSession(t.Context(), serverChan, scx, sid, types.SessionPeerMode)
 	require.NoError(t, err)
 }
 
@@ -1183,17 +1169,14 @@ func testOpenSession(t *testing.T, reg *SessionRegistry, sessionJoiningRoleSet s
 	scx := newTestServerContext(t, reg.Srv, sessionJoiningRoleSet, accessPermit)
 
 	// Open a new session
-	sshChanOpen := newMockSSHChannel()
-	go func() {
-		// Consume stdout sent to the channel
-		io.ReadAll(sshChanOpen)
-	}()
+	clientChan, serverChan := newMockSSHChannel(t)
+	clientChan.Drain()
 
-	err := reg.OpenSession(t.Context(), sshChanOpen, scx)
+	err := reg.OpenSession(t.Context(), serverChan, scx)
 	require.NoError(t, err)
 
 	require.NotNil(t, scx.session)
-	return scx.session, sshChanOpen
+	return scx.session, serverChan
 }
 
 type mockRecorder struct {
@@ -1518,16 +1501,9 @@ func TestCloseProxySession(t *testing.T) {
 	scx := newTestServerContext(t, reg.Srv, nil, &decisionpb.SSHAccessPermit{})
 
 	// Open a new session
-	sshChanOpen := newMockSSHChannel()
-	// Always close the session from the client side to avoid it being stuck
-	// on closing (server side).
-	t.Cleanup(func() { sshChanOpen.Close() })
-	go func() {
-		// Consume stdout sent to the channel
-		io.ReadAll(sshChanOpen)
-	}()
-
-	err = reg.OpenSession(ctx, sshChanOpen, scx)
+	clientChan, serverChan := newMockSSHChannel(t)
+	clientChan.Drain()
+	err = reg.OpenSession(ctx, serverChan, scx)
 	require.NoError(t, err)
 	require.NotNil(t, scx.session)
 
@@ -1567,16 +1543,10 @@ func TestCloseRemoteSession(t *testing.T) {
 	scx.RemoteSession = mockSSHSession(t)
 
 	// Open a new session
-	sshChanOpen := newMockSSHChannel()
-	// Always close the session from the client side to avoid it being stuck
-	// on closing (server side).
-	t.Cleanup(func() { sshChanOpen.Close() })
-	go func() {
-		// Consume stdout sent to the channel
-		io.ReadAll(sshChanOpen)
-	}()
+	clientChan, serverChan := newMockSSHChannel(t)
+	clientChan.Drain()
 
-	err := reg.OpenSession(ctx, sshChanOpen, scx)
+	err := reg.OpenSession(ctx, serverChan, scx)
 	require.NoError(t, err)
 	require.NotNil(t, scx.session)
 
