@@ -1,15 +1,6 @@
 {/* this comment is here to make the include below render */}
 (!docs/pages/includes/auto-discovery/tctl-discovery-nodes-azure.mdx!)
 
-### No credential providers error
-
-If you see the error `DefaultAzureCredential: failed to acquire a token.` in Discovery Service logs then Teleport
-is not detecting the required credentials to connect to the Azure SDK. Check whether
-the credentials have been applied in the machine running the Teleport Discovery Service and restart
-the Teleport Discovery Service.
-Refer to [Azure SDK Authorization](https://docs.microsoft.com/en-us/azure/developer/go/azure-sdk-authorization)
-for more information.
-
 ### Teleport reports no error but VM does not join
 
 Check your Discovery Service config and make sure that the VM you want to

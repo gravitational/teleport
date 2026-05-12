@@ -351,6 +351,15 @@ Static configuration while simpler at first, has less flexibility because enroll
 
 ## Troubleshooting
 
+### No credential providers error
+
+If you see the error `DefaultAzureCredential: failed to acquire a token.` in Discovery Service logs then Teleport
+is not detecting the required credentials to connect to the Azure SDK. Check whether
+the credentials have been applied in the machine running the Teleport Discovery Service and restart
+the Teleport Discovery Service.
+Refer to [Azure SDK Authorization](https://docs.microsoft.com/en-us/azure/developer/go/azure-sdk-authorization)
+for more information.
+
 (!docs/pages/includes/auto-discovery/azure-vm-troubleshooting.mdx!)
 
 ## Next steps
