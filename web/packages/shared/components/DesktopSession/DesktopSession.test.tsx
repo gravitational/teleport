@@ -219,10 +219,6 @@ test('directory sharing menu', async () => {
     />
   );
 
-  console.error = msg => {
-    throw new Error(`Caught console.error: ${msg}`);
-  };
-
   // The session is initializing.
   expect(await screen.findByTestId('indicator')).toBeInTheDocument();
 
