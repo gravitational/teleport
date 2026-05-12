@@ -26,8 +26,9 @@ Each row's Status column tells you what stage the instance reached:
 
 - `Online`: the instance joined the cluster.
 - `Installed (offline)`: the install script succeeded but the agent isn't
-  currently connected (often a transient agent restart, sometimes a crashed
-  agent).
+  currently connected. Either the agent installed but never joined the cluster
+  (bad join token, misconfiguration, or network), or it joined and later went
+  offline.
 - `Failed (exit code=N)`: the install script ran and exited non-zero. The
   Details column shows the script output. See [Installation script exit
   codes](#installation-script-exit-codes) above for known values.
