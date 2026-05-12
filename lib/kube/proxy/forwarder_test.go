@@ -2016,11 +2016,8 @@ func TestGOAWAYHandling_Concurrent(t *testing.T) {
 	reqCtx, reqCancel := context.WithTimeout(ctx, 10*time.Second)
 	t.Cleanup(reqCancel)
 
-	var (
-		wg          sync.WaitGroup
-		retried     atomic.Uint32 // 429 responses (the success case the fix produces).
-		rewindLeaks atomic.Uint32 // rewind-body error reached the client (the bug).
-	)
+	var rewindLeaks atomic.Uint32
+	var wg sync.WaitGroup
 	wg.Add(concurrency)
 	for range concurrency {
 		go func() {
@@ -2033,11 +2030,10 @@ func TestGOAWAYHandling_Concurrent(t *testing.T) {
 				return // some requests legitimately fail at the network layer under GOAWAY storms; not what this test asserts.
 			}
 			defer resp.Body.Close()
-			bodyBytes, _ := io.ReadAll(resp.Body)
 			if resp.StatusCode == http.StatusTooManyRequests {
-				retried.Add(1)
 				return
 			}
+			bodyBytes, _ := io.ReadAll(resp.Body)
 			if bytes.Contains(bodyBytes, []byte("cannot rewind body after connection loss")) {
 				rewindLeaks.Add(1)
 			}
@@ -2046,11 +2042,6 @@ func TestGOAWAYHandling_Concurrent(t *testing.T) {
 	wg.Wait()
 
 	require.Zero(t, rewindLeaks.Load(), "rewind-body error must never reach the client")
-	// retried > 0 means the GOAWAY race actually fired and the translation caught it.
-	// Some scheduler timings produce only network-level failures
-	// (broken pipe, conn reset) with no rewind path traversed.
-	// That's fine for what this test asserts, so log instead of requiring.
-	t.Logf("requests caught by GOAWAY 429 translation: %d/%d", retried.Load(), concurrency)
 }
 
 // goawayServer is a fake [http2.Server] that terminates all received client
