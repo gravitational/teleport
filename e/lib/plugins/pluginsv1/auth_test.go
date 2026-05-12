@@ -13,9 +13,7 @@ import (
 
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/e/lib/plugins"
 	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/integrations/access/common/auth/storage"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/modules"
@@ -322,15 +320,6 @@ func TestGetAvailablePluginTypes(t *testing.T) {
 	suite.setRules([]types.Rule{
 		{Resources: []string{types.KindPlugin}, Verbs: services.RW()},
 	})
-
-	// create a noop authorizer that should show up when getting plugin types.
-	slackAuthorizer := &mockAuthorizer{
-		exchange: func(authCode string, redirectURI string) (*storage.Credentials, error) {
-			return nil, trace.NotImplemented("not implemented")
-		},
-	}
-
-	suite.pluginAuthorizers.Add(types.PluginTypeSlack, &plugins.Authorizer{Authorizer: slackAuthorizer, ClientID: "123456"})
 
 	resp, err := suite.svc.GetAvailablePluginTypes(ctx, &pluginspb.GetAvailablePluginTypesRequest{})
 	require.NoError(t, err)

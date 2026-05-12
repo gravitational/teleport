@@ -11,13 +11,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/e/lib/plugins"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -27,7 +27,6 @@ type suite struct {
 	authorizer                     *fakeAuthorizer
 	pluginService                  services.Plugins
 	pluginStaticCredentialsService services.PluginStaticCredentials
-	pluginAuthorizers              *plugins.AuthorizerSet
 	svc                            *Service
 }
 
@@ -92,16 +91,19 @@ func createSuiteWithModules(t *testing.T, mod modules.Modules) *suite {
 	pluginService := local.NewPluginsService(authServer.Backend)
 	pluginStaticCredentialsService, err := local.NewPluginStaticCredentialsService(authServer.Backend)
 	require.NoError(t, err)
-	pluginAuthorizers := plugins.NewAuthorizerSet()
 
 	serviceUnderTest, err := NewService(ServiceConfig{
 		Authorizer:                     authorizer,
 		AuthServer:                     authServer.AuthServer,
 		PluginService:                  pluginService,
 		PluginStaticCredentialsService: pluginStaticCredentialsService,
-		PluginAuthorizers:              pluginAuthorizers,
-		KeyStoreManager:                authServer.AuthServer.GetKeyStore(),
-		Modules:                        mod,
+		HostedPluginConfig: servicecfg.HostedPluginsConfig{
+			OAuthProviders: servicecfg.PluginOAuthProviders{
+				SlackCredentials: &servicecfg.OAuthClientCredentials{
+					ClientID: "123456", ClientSecret: "bar",
+				}}},
+		KeyStoreManager: authServer.AuthServer.GetKeyStore(),
+		Modules:         mod,
 	})
 	require.NoError(t, err)
 
@@ -109,7 +111,6 @@ func createSuiteWithModules(t *testing.T, mod modules.Modules) *suite {
 		authorizer:                     authorizer,
 		pluginService:                  pluginService,
 		pluginStaticCredentialsService: pluginStaticCredentialsService,
-		pluginAuthorizers:              pluginAuthorizers,
 		svc:                            serviceUnderTest,
 	}
 }

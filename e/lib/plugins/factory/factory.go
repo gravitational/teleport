@@ -7,8 +7,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
-	"github.com/gravitational/teleport/integrations/access/common/auth/oauth"
-	"github.com/gravitational/teleport/integrations/access/common/auth/storage"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/service"
@@ -17,12 +15,10 @@ import (
 
 // Dependencies is a container for dependencies of a plugin instance.
 type Dependencies struct {
-	Authorizer oauth.Authorizer
 	// Client is a cached Teleport client (for resources that support it).
 	// If used in conjunction with an event watcher, the watcher must also
 	// feed from cache (as opposed to the auth.Services backend changefeed).
 	Client            teleport.Client
-	Store             storage.Store
 	StatusSink        common.StatusSink
 	ParentProcess     *service.TeleportProcess
 	StaticCredentials []types.PluginStaticCredentials

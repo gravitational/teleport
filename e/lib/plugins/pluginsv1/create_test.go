@@ -2,6 +2,7 @@ package pluginsv1
 
 import (
 	"context"
+	"log/slog"
 	"maps"
 	"slices"
 	"strings"
@@ -9,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,7 +22,6 @@ import (
 	intunetestenv "github.com/gravitational/teleport/e/lib/intune/testenv"
 	jamffake "github.com/gravitational/teleport/e/lib/jamf/fake"
 	jamftestenv "github.com/gravitational/teleport/e/lib/jamf/testenv"
-	"github.com/gravitational/teleport/e/lib/plugins"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/integrations/access/common/auth/storage"
 	"github.com/gravitational/teleport/lib/services"
@@ -60,6 +61,22 @@ func TestPluginCreateDelete(t *testing.T) {
 	suite.setRules([]types.Rule{
 		{Resources: []string{types.KindPlugin}, Verbs: services.RW()},
 	})
+
+	exchangedCreds := &storage.Credentials{
+		AccessToken:  "my-access-token",
+		RefreshToken: "my-refresh-token",
+		ExpiresAt:    time.Now().UTC().Add(6 * time.Hour),
+	}
+	suite.svc.slackAuthFactoryOverride = func(id, secret string, log *slog.Logger) slackAuthorizer {
+		return &mockAuthorizer{
+			exchange: func(authorizationCode, redirectURI string) (*storage.Credentials, error) {
+				if authorizationCode != validAuthCode {
+					return nil, trace.AccessDenied("invalid authorization code")
+				}
+				return exchangedCreds, nil
+			},
+		}
+	}
 
 	validBootstrapCredentials := &types.PluginBootstrapCredentialsV1{
 		Credentials: &types.PluginBootstrapCredentialsV1_Oauth2AuthorizationCode{
@@ -112,16 +129,6 @@ func TestPluginCreateDelete(t *testing.T) {
 		},
 	}
 
-	slackPlugin := types.NewPluginV1(
-		types.Metadata{Name: "slack-default"},
-		types.PluginSpecV1{
-			Settings: &types.PluginSpecV1_SlackAccessPlugin{
-				SlackAccessPlugin: &types.PluginSlackAccessSettings{
-					FallbackChannel: "#general",
-				},
-			},
-		},
-		nil)
 	oktaPlugin := types.NewPluginV1(
 		types.Metadata{Name: "okta-default"},
 		types.PluginSpecV1{
@@ -139,23 +146,6 @@ func TestPluginCreateDelete(t *testing.T) {
 		},
 	}
 
-	exchangedCreds := &storage.Credentials{
-		AccessToken:  "my-access-token",
-		RefreshToken: "my-refresh-token",
-		ExpiresAt:    time.Now().UTC().Add(6 * time.Hour),
-	}
-
-	slackAuthorizer := &mockAuthorizer{
-		exchange: func(authCode string, redirectURI string) (*storage.Credentials, error) {
-			if authCode == validAuthCode && redirectURI == validRedirectURI {
-				return exchangedCreds, nil
-			}
-			return nil, trace.AccessDenied("invalid parameters")
-		},
-	}
-
-	suite.pluginAuthorizers.Add(types.PluginTypeSlack, &plugins.Authorizer{Authorizer: slackAuthorizer, ClientID: "123456"})
-
 	ctx := context.Background()
 
 	t.Run("empty plugin in request", func(t *testing.T) {
@@ -167,11 +157,21 @@ func TestPluginCreateDelete(t *testing.T) {
 	})
 
 	t.Run("empty bootstrap credentials in request", func(t *testing.T) {
+		slackPlugin := types.NewPluginV1(
+			types.Metadata{Name: uuid.NewString()},
+			types.PluginSpecV1{
+				Settings: &types.PluginSpecV1_SlackAccessPlugin{
+					SlackAccessPlugin: &types.PluginSlackAccessSettings{
+						FallbackChannel: "#general",
+					},
+				},
+			},
+			nil)
 		_, err := suite.svc.CreatePlugin(ctx, &pluginspb.CreatePluginRequest{
 			Plugin: slackPlugin,
 		})
-		require.Error(t, err)
-		require.True(t, trace.IsBadParameter(err))
+		// Since the plugin refactoring change, Slack plugins can be created without bootstrap credentials.
+		require.NoError(t, err)
 	})
 
 	t.Run("unsupported plugin type", func(t *testing.T) {
@@ -184,6 +184,16 @@ func TestPluginCreateDelete(t *testing.T) {
 	})
 
 	t.Run("invalid bootstrap credentials", func(t *testing.T) {
+		slackPlugin := types.NewPluginV1(
+			types.Metadata{Name: uuid.NewString()},
+			types.PluginSpecV1{
+				Settings: &types.PluginSpecV1_SlackAccessPlugin{
+					SlackAccessPlugin: &types.PluginSlackAccessSettings{
+						FallbackChannel: "#general",
+					},
+				},
+			},
+			nil)
 		_, err := suite.svc.CreatePlugin(ctx, &pluginspb.CreatePluginRequest{
 			Plugin:               slackPlugin,
 			BootstrapCredentials: invalidBootstrapCredentials,
@@ -193,6 +203,16 @@ func TestPluginCreateDelete(t *testing.T) {
 	})
 
 	t.Run("valid request", func(t *testing.T) {
+		slackPlugin := types.NewPluginV1(
+			types.Metadata{Name: uuid.NewString()},
+			types.PluginSpecV1{
+				Settings: &types.PluginSpecV1_SlackAccessPlugin{
+					SlackAccessPlugin: &types.PluginSlackAccessSettings{
+						FallbackChannel: "#general",
+					},
+				},
+			},
+			nil)
 		_, err := suite.svc.CreatePlugin(ctx, &pluginspb.CreatePluginRequest{
 			Plugin:               slackPlugin,
 			BootstrapCredentials: validBootstrapCredentials,

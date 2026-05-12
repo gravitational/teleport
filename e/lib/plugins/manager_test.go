@@ -21,7 +21,6 @@ import (
 	jamftestenv "github.com/gravitational/teleport/e/lib/jamf/testenv"
 	"github.com/gravitational/teleport/e/lib/plugins/factory"
 	"github.com/gravitational/teleport/e/lib/services"
-	storage "github.com/gravitational/teleport/integrations/access/common/auth/storage"
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -35,17 +34,8 @@ import (
 )
 
 type (
-	fakeAuthorizer  struct{}
 	staticRefLookup map[string]map[string]string
 )
-
-func (*fakeAuthorizer) Exchange(ctx context.Context, authorizationCode string, redirectURI string) (*storage.Credentials, error) {
-	panic("unimplemented")
-}
-
-func (*fakeAuthorizer) Refresh(ctx context.Context, refreshToken string) (*storage.Credentials, error) {
-	panic("unimplemented")
-}
 
 type fakeEvents struct {
 	mu       sync.RWMutex
@@ -151,11 +141,6 @@ func testPluginStartStop(t *testing.T, plugin *types.PluginV1, modifySpec func(t
 
 	testLog := slog.With("test", t.Name())
 
-	authorizers := NewAuthorizerSet()
-	authorizers.Add(types.PluginTypeSlack, &Authorizer{
-		Authorizer: &fakeAuthorizer{},
-		ClientID:   "123456",
-	})
 	pluginService := local.NewPluginsService(mem)
 	pluginStaticCredentialsService, err := local.NewPluginStaticCredentialsService(mem)
 	require.NoError(t, err)
@@ -205,7 +190,6 @@ func testPluginStartStop(t *testing.T, plugin *types.PluginV1, modifySpec func(t
 
 	staticCredentialsSuppliedToPlugin := staticRefLookup{}
 	cfg := ManagerConfig{
-		Authorizers:             authorizers,
 		Plugins:                 pluginService,
 		PluginStaticCredentials: pluginStaticCredentialsService,
 		Events:                  events,

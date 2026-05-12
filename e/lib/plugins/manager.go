@@ -21,6 +21,7 @@ import (
 	teleclient "github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -29,7 +30,7 @@ type HeartbeatCreator func(string) func(error)
 
 // ManagerConfig contains parameters and dependencies for Manager
 type ManagerConfig struct {
-	Authorizers *AuthorizerSet
+	OAuthProviders servicecfg.PluginOAuthProviders
 	// Plugins is the uncached plugin service.
 	Plugins                 services.Plugins
 	PluginStaticCredentials services.PluginStaticCredentials
@@ -52,9 +53,6 @@ type ManagerConfig struct {
 
 // checkAndSetDefaults validates the configuration and sets default values
 func (cfg *ManagerConfig) checkAndSetDefaults() error {
-	if cfg.Authorizers == nil {
-		return trace.BadParameter("authorizers must be set")
-	}
 	if cfg.Plugins == nil {
 		return trace.BadParameter("plugins must be set")
 	}
@@ -125,7 +123,7 @@ func (cfg *ManagerConfig) checkAndSetDefaults() error {
 // Manager's event loop runs as a single goroutine,
 // as such no synchronization to its fields is implemented.
 type Manager struct {
-	authorizers             *AuthorizerSet
+	oauthProviders          servicecfg.PluginOAuthProviders
 	plugins                 services.Plugins
 	pluginStaticCredentials services.PluginStaticCredentials
 	events                  types.Events
@@ -149,7 +147,7 @@ func NewManager(cfg ManagerConfig) (*Manager, error) {
 	}
 
 	m := &Manager{
-		authorizers:             cfg.Authorizers,
+		oauthProviders:          cfg.OAuthProviders,
 		plugins:                 cfg.Plugins,
 		pluginStaticCredentials: cfg.PluginStaticCredentials,
 		events:                  cfg.Events,
@@ -422,24 +420,16 @@ func (m *Manager) startInstance(ctx context.Context, plugin *types.PluginV1) err
 		return trace.BadParameter("unsupported plugin type %q", plugin.GetType())
 	}
 
-	var authorizer *Authorizer
-	if NeedsOAuth(plugin) {
-		var err error
-		authorizer, err = m.authorizers.Get(plugin.GetType())
-		if err != nil {
-			if trace.IsNotFound(err) {
-				return trace.Wrap(err, "unsupported plugin type %q", plugin.GetType())
-			}
-			return trace.Wrap(err)
-		}
-	}
-
-	store := newPluginStore(m.plugins, plugin.GetName(), log)
 	statusSink := newStatusSink(m.plugins, plugin.GetName(), string(plugin.GetType()))
 
 	staticCreds, err := m.getStaticCredentials(ctx, plugin)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
+	}
+
+	// Oauth creds is appended, the first credential is used. The static credential takes precedence when set.
+	if oauthCreds := m.oauthProviders.GetStaticCredentialsForPlugin(plugin.GetType()); oauthCreds != nil {
+		staticCreds = append(staticCreds, oauthCreds)
 	}
 
 	credPointers, err := cloneCredentials(staticCreds)
@@ -466,9 +456,7 @@ func (m *Manager) startInstance(ctx context.Context, plugin *types.PluginV1) err
 	// TODO(justinas): reconsider
 	pluginCtx, cancel := context.WithCancel(context.Background())
 	deps := factory.Dependencies{
-		Authorizer:        authorizer,
 		Client:            m.teleportClient,
-		Store:             store,
 		StatusSink:        statusSink,
 		ParentProcess:     m.parentProcess,
 		StaticCredentials: staticCreds,
@@ -572,15 +560,6 @@ func (m *Manager) getStaticCredentials(ctx context.Context, plugin types.Plugin)
 	}
 
 	return staticCreds, nil
-}
-
-// NeedsOAuth returns true if the plugin needs OAuth.
-func NeedsOAuth(plugin types.Plugin) bool {
-	switch plugin.GetType() {
-	case types.PluginTypeSlack:
-		return true
-	}
-	return false
 }
 
 func (m *Manager) restartInstance(ctx context.Context, name string) error {

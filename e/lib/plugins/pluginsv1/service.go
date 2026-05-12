@@ -26,14 +26,16 @@ import (
 	"github.com/gravitational/teleport/e/api/cloud"
 	"github.com/gravitational/teleport/e/lib/intune"
 	"github.com/gravitational/teleport/e/lib/jamf"
-	"github.com/gravitational/teleport/e/lib/plugins"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
+	"github.com/gravitational/teleport/integrations/access/common/auth/storage"
+	"github.com/gravitational/teleport/integrations/access/slack"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/msgraph"
 	"github.com/gravitational/teleport/lib/plugins/filter"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -63,6 +65,9 @@ func getStaticPlugins() []types.PluginType {
 		types.PluginTypeMSTeams,
 		types.PluginTypeEmail,
 		types.PluginTypeSCIM,
+		// Not advertising the slack plugin until the discovery flow is edited to support non-oauth setups.
+		// This plugin is advertised only when the Slack oauth creds are set in `teleport.yaml`.
+		// types.PluginTypeSlack,
 	}
 }
 
@@ -71,13 +76,13 @@ type ServiceConfig struct {
 	Authorizer                     authz.Authorizer
 	AuthServer                     *auth.Server
 	DisabledPlugins                []types.PluginType
-	PluginAuthorizers              *plugins.AuthorizerSet
 	PluginService                  services.Plugins
 	PluginStaticCredentialsService services.PluginStaticCredentials
 	Logger                         *slog.Logger
 	Handlers                       map[types.PluginType]pluginHandler
 	KeyStoreManager                KeyStoreManager
 	Modules                        modules.Modules
+	HostedPluginConfig             servicecfg.HostedPluginsConfig
 }
 
 // CheckAndSetDefaults checks config for validity.
@@ -87,9 +92,6 @@ func (cfg *ServiceConfig) CheckAndSetDefaults() error {
 	}
 	if cfg.AuthServer == nil {
 		return trace.BadParameter("authServer must be set")
-	}
-	if cfg.PluginAuthorizers == nil {
-		return trace.BadParameter("pluginAuthorizers must be set")
 	}
 	if cfg.PluginService == nil {
 		return trace.BadParameter("pluginService must be set")
@@ -132,13 +134,16 @@ type Service struct {
 	authServer                     *auth.Server
 	disabledPlugins                []types.PluginType
 	emitter                        apievents.Emitter
-	pluginAuthorizers              *plugins.AuthorizerSet
 	pluginService                  services.Plugins
 	pluginStaticCredentialsService services.PluginStaticCredentials
 	logger                         *slog.Logger
 	httpClient                     *http.Client
 	handlers                       map[types.PluginType]pluginHandler
 	keyStoreManager                KeyStoreManager
+	hostedPluginConfig             servicecfg.HostedPluginsConfig
+	// slackAuthFactoryOverride overrides the slack auth logic for testing purposes.
+	// When nil, the service creates a real slack.Authorizer.
+	slackAuthFactoryOverride func(id, secret string, log *slog.Logger) slackAuthorizer
 }
 
 // NewService creates a new plugins service from the given config.
@@ -151,7 +156,6 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		authServer:                     cfg.AuthServer,
 		disabledPlugins:                cfg.DisabledPlugins,
 		emitter:                        cfg.AuthServer,
-		pluginAuthorizers:              cfg.PluginAuthorizers,
 		pluginService:                  cfg.PluginService,
 		pluginStaticCredentialsService: cfg.PluginStaticCredentialsService,
 		logger:                         cfg.Logger,
@@ -159,7 +163,8 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		httpClient: &http.Client{
 			Timeout: 1 * time.Minute,
 		},
-		keyStoreManager: cfg.KeyStoreManager,
+		keyStoreManager:    cfg.KeyStoreManager,
+		hostedPluginConfig: cfg.HostedPluginConfig,
 	}, nil
 }
 
@@ -499,32 +504,66 @@ func (s *Service) UpdatePlugin(ctx context.Context, req *pluginspb.UpdatePluginR
 	return out, nil
 }
 
+// interface whose only purpose is to mock slack auth in tests
+type slackAuthorizer interface {
+	Exchange(context.Context, string, string) (*storage.Credentials, error)
+}
+
+var (
+	_ slackAuthorizer = &slack.Authorizer{}
+)
+
 // updatePluginWithLiveCredentials will update the plugin with live credentials if needed.
+// Today, this is only used to exchange slack oauth credentials on initial setup.
 func (s *Service) updatePluginWithLiveCredentials(ctx context.Context, plugin types.Plugin, bootstrapCreds *types.PluginBootstrapCredentialsV1) error {
-	if !plugins.NeedsOAuth(plugin) {
+	// We allow plugins without bootstrap creds.
+	// They might point to static credentials, in this case they will work.
+	// If the plugin has neither static creds nor bootstrap creds, it might fail top start.
+	// However, we don't have a good way of enforcing this check in a consistent way
+	// (the static creds might be removed later) so we let the plugin fail to start.
+	// This might be addressed by RFD 300.
+	if bootstrapCreds == nil {
 		return nil
 	}
+
+	// If the plugin bootstrap creds doesn't have oauth2 set, nothing to do.
+	if bootstrapCreds.GetOauth2AuthorizationCode() == nil {
+		return nil
+	}
+
 	log := s.logger.With("plugin", plugin.GetName())
 	log.DebugContext(ctx, "Updating plugin with live credentials")
 
-	if bootstrapCreds == nil {
-		return trace.BadParameter("BootstrapCredentials must be set")
-	}
+	var (
+		creds *storage.Credentials
+		err   error
+	)
 
-	authCodeCreds := bootstrapCreds.GetOauth2AuthorizationCode()
-	if authCodeCreds == nil {
-		return trace.BadParameter("unknown type of bootstrap credentials received")
-	}
+	switch plugin.GetType() {
+	case types.PluginTypeSlack:
+		oauthCreds := s.hostedPluginConfig.OAuthProviders.GetStaticCredentialsForPlugin(plugin.GetType())
+		if oauthCreds == nil {
+			return trace.BadParameter("received request to create Slack plugin with bootstrap oauth creds, but the global slack oauth credentials are not configured")
+		}
+		id, secret := oauthCreds.GetOAuthClientSecret()
+		if id == "" || secret == "" {
+			return trace.BadParameter("invalid static credentials, oauth client id or secret empty")
+		}
 
-	authorizer, err := s.pluginAuthorizers.Get(plugin.GetType())
-	if err != nil {
-		return trace.Wrap(err)
-	}
+		var authorizer slackAuthorizer
+		if s.slackAuthFactoryOverride != nil {
+			authorizer = s.slackAuthFactoryOverride(id, secret, s.logger)
+		} else {
+			authorizer = slack.NewAuthorizer(id, secret, s.logger)
+		}
 
-	creds, err := authorizer.Exchange(ctx, authCodeCreds.AuthorizationCode, authCodeCreds.RedirectUri)
-	if err != nil {
-		log.WarnContext(ctx, "failed to exchange bootstrap credentials", "error", err)
-		return trace.Wrap(err)
+		creds, err = authorizer.Exchange(ctx, bootstrapCreds.GetOauth2AuthorizationCode().AuthorizationCode, bootstrapCreds.GetOauth2AuthorizationCode().RedirectUri)
+		if err != nil {
+			log.WarnContext(ctx, "failed to exchange bootstrap credentials", "error", err)
+			return trace.Wrap(err)
+		}
+	default:
+		return trace.BadParameter("cannot exchange credentials for plugin type %v", plugin.GetType())
 	}
 
 	return trace.Wrap(plugin.SetCredentials(&types.PluginCredentialsV1{
@@ -990,7 +1029,7 @@ func (s *Service) GetAvailablePluginTypes(ctx context.Context, req *pluginspb.Ge
 
 	resp := &pluginspb.GetAvailablePluginTypesResponse{
 		PluginTypes: make([]*pluginspb.PluginType, 0,
-			len(s.pluginAuthorizers.Authorizers)+len(staticPlugins)),
+			len(staticPlugins)+1),
 	}
 
 	for _, typ := range staticPlugins {
@@ -1000,11 +1039,16 @@ func (s *Service) GetAvailablePluginTypes(ctx context.Context, req *pluginspb.Ge
 		resp.PluginTypes = append(resp.PluginTypes, &pluginspb.PluginType{Type: string(typ)})
 	}
 
-	for typ, a := range s.pluginAuthorizers.Authorizers {
-		resp.PluginTypes = append(resp.PluginTypes, &pluginspb.PluginType{
-			Type:          string(typ),
-			OauthClientId: a.ClientID,
-		})
+	// Slack is a special case and is given Oauth credentials from the teleportyaml auth config.
+	// If this is not specified, we don't support the Discover flow for Slack.
+	// This might be subject to change in the future.
+	if !slices.Contains(s.disabledPlugins, types.PluginTypeSlack) {
+		if oauthCreds := s.hostedPluginConfig.OAuthProviders.GetStaticCredentialsForPlugin(types.PluginTypeSlack); oauthCreds != nil {
+			resp.PluginTypes = append(resp.PluginTypes, &pluginspb.PluginType{
+				Type:          types.PluginTypeSlack,
+				OauthClientId: oauthCreds.GetOAuthClientID(),
+			})
+		}
 	}
 
 	return resp, nil

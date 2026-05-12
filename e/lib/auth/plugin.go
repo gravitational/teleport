@@ -54,7 +54,6 @@ import (
 	"github.com/gravitational/teleport/e/lib/okta"
 	"github.com/gravitational/teleport/e/lib/okta/common/connected"
 	oktaservice "github.com/gravitational/teleport/e/lib/okta/service"
-	"github.com/gravitational/teleport/e/lib/plugins"
 	"github.com/gravitational/teleport/e/lib/plugins/pluginsv1"
 	"github.com/gravitational/teleport/e/lib/resourceusage/resourceusagev1"
 	scimservice "github.com/gravitational/teleport/e/lib/scim/service"
@@ -965,17 +964,16 @@ func (p *Plugin) registerPluginsService() (*pluginsv1.Service, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	authorizers := plugins.NewAuthorizerSetFromConfig(p.HostedPlugins.OAuthProviders, p.Logger)
 	service, err := pluginsv1.NewService(pluginsv1.ServiceConfig{
 		Authorizer:                     p.authServer.Authorizer,
 		AuthServer:                     p.authServer.AuthServer,
 		DisabledPlugins:                getDisabledPlugins(),
 		PluginService:                  p.plugins,
 		PluginStaticCredentialsService: p.pluginCreds,
-		PluginAuthorizers:              authorizers,
 		Logger:                         p.logger,
 		KeyStoreManager:                p.authServer.AuthServer.GetKeyStore(),
 		Modules:                        p.Config.Modules,
+		HostedPluginConfig:             cfg,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
