@@ -115,9 +115,9 @@ func CreateLocalProxyConfig(originalKubeConfig *clientcmdapi.Config, localProxyV
 
 		config.Clusters[contextName] = &clientcmdapi.Cluster{
 			ProxyURL:                 localProxyValues.LocalProxyURL,
-			Server:                   localProxyValues.TeleportKubeClusterAddr,
+			Server:                   localProxyValues.TeleportKubeClusterAddr + common.KubeLocalProxyPathPrefix(cluster.TeleportCluster, cluster.KubeCluster),
 			CertificateAuthorityData: localProxyValues.LocalProxyCAs[cluster.TeleportCluster],
-			TLSServerName:            common.KubeLocalProxySNI(cluster.TeleportCluster, cluster.KubeCluster),
+			TLSServerName:            cluster.TeleportCluster,
 		}
 		config.Contexts[contextName] = &clientcmdapi.Context{
 			Namespace: cluster.Namespace,

@@ -57,12 +57,17 @@ const certReissueClientWait = time.Second * 3
 // we give them longer time to perform the headless login flow.
 const certReissueClientWaitHeadless = defaults.HeadlessLoginTimeout
 
+type kubeClusterKey struct {
+	teleportCluster string
+	kubeCluster     string
+}
+
 // KubeClientCerts is a map of Kubernetes client certs.
-type KubeClientCerts map[string]tls.Certificate
+type KubeClientCerts map[kubeClusterKey]tls.Certificate
 
 // Add adds a tls.Certificate for a kube cluster.
 func (c KubeClientCerts) Add(teleportCluster, kubeCluster string, cert tls.Certificate) {
-	c[common.KubeLocalProxySNI(teleportCluster, kubeCluster)] = cert
+	c[kubeClusterKey{teleportCluster: teleportCluster, kubeCluster: kubeCluster}] = cert
 }
 
 // KubeCertReissuer reissues a client certificate for a Kubernetes cluster.
@@ -165,11 +170,24 @@ func (m *KubeMiddleware) ClearCerts() {
 	clear(m.certs)
 }
 
+// resolveClusterKey extracts the (teleport, kube) cluster pair for req
+// from the /v1/teleport/<b64>/<b64> prefix of the URL path.
+func (m *KubeMiddleware) resolveClusterKey(req *http.Request) (teleportCluster, kubeCluster string, err error) {
+	return common.ClustersFromKubeLocalProxyPath(req.URL.Path)
+}
+
 // HandleRequest checks if middleware has valid certificate for this request and
 // reissues it if needed. In case of reissuing error we write directly to the response and return true,
 // so caller won't continue processing the request.
 func (m *KubeMiddleware) HandleRequest(rw http.ResponseWriter, req *http.Request) bool {
-	cert, err := m.getCertForRequest(req)
+	teleportCluster, kubeCluster, err := m.resolveClusterKey(req)
+	if err != nil {
+		m.logger.WithError(err).Warnf("Invalid kube local proxy request: %v", req.URL.Path)
+		trace.WriteError(rw, trace.Wrap(err))
+		return true
+	}
+
+	cert, err := m.getCert(teleportCluster, kubeCluster)
 	// If the cert is cleared using m.ClearCerts(), it won't be found.
 	// This forces the middleware to issue a new cert on a new request.
 	// This is used in access requests in Connect where we want to refresh certs without closing the proxy.
@@ -177,7 +195,7 @@ func (m *KubeMiddleware) HandleRequest(rw http.ResponseWriter, req *http.Request
 		return false
 	}
 
-	err = m.reissueCertIfExpired(req.Context(), cert, req.TLS.ServerName)
+	err = m.reissueCertIfExpired(req.Context(), cert, teleportCluster, kubeCluster)
 	if err != nil {
 		// If user input is required we return an error that will try to get user attention to the local proxy
 		if errors.Is(err, ErrUserInputRequired) {
@@ -195,7 +213,7 @@ func (m *KubeMiddleware) HandleRequest(rw http.ResponseWriter, req *http.Request
 			}, m.logger)
 			return true
 		}
-		m.logger.WithError(err).Warnf("Failed to reissue certificate for server %v", req.TLS.ServerName)
+		m.logger.WithError(err).Warnf("Failed to reissue certificate for teleport cluster %v kube cluster %v", teleportCluster, kubeCluster)
 		trace.WriteError(rw, trace.Wrap(err))
 		return true
 	}
@@ -203,19 +221,27 @@ func (m *KubeMiddleware) HandleRequest(rw http.ResponseWriter, req *http.Request
 	return false
 }
 
-func (m *KubeMiddleware) getCertForRequest(req *http.Request) (tls.Certificate, error) {
-	if req.TLS == nil {
-		return tls.Certificate{}, trace.BadParameter("expect a TLS request")
-	}
+// getCert looks up the per-cluster client cert to use for an outbound kube
+// API request. Clusters are identified by the (teleport, kube) pair parsed
+// from the request URL path.
+func (m *KubeMiddleware) getCert(teleportCluster, kubeCluster string) (tls.Certificate, error) {
+	key := kubeClusterKey{teleportCluster: teleportCluster, kubeCluster: kubeCluster}
 
 	m.certsMu.RLock()
-	cert, ok := m.certs[req.TLS.ServerName]
+	cert, ok := m.certs[key]
 	m.certsMu.RUnlock()
 	if !ok {
-		return tls.Certificate{}, trace.NotFound("no client cert found for %v", req.TLS.ServerName)
+		return tls.Certificate{}, trace.NotFound("no client cert found for teleport cluster %q kube cluster %q", teleportCluster, kubeCluster)
 	}
-
 	return cert, nil
+}
+
+func (m *KubeMiddleware) getCertForRequest(req *http.Request) (tls.Certificate, error) {
+	tc, kc, err := m.resolveClusterKey(req)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	return m.getCert(tc, kc)
 }
 
 // OverwriteClientCerts overwrites the client certs used for upstream connection.
@@ -230,9 +256,9 @@ func (m *KubeMiddleware) OverwriteClientCerts(req *http.Request) ([]tls.Certific
 // ErrUserInputRequired returned when user's input required to relogin and/or reissue new certificate.
 var ErrUserInputRequired = errors.New("user input required")
 
-// reissueCertIfExpired checks if provided certificate has expired and reissues it if needed and replaces in the middleware certs.
-// serverName has a form of <hex-encoded-kube-cluster>.<teleport-cluster>.
-func (m *KubeMiddleware) reissueCertIfExpired(ctx context.Context, cert tls.Certificate, serverName string) error {
+// reissueCertIfExpired checks if provided certificate has expired and
+// reissues it if needed, replacing the entry in the middleware cert map.
+func (m *KubeMiddleware) reissueCertIfExpired(ctx context.Context, cert tls.Certificate, teleportCluster, kubeCluster string) error {
 	needsReissue := false
 	if len(cert.Certificate) == 0 {
 		m.logger.Info("missing TLS certificate, attempting to reissue a new one")
@@ -253,17 +279,6 @@ func (m *KubeMiddleware) reissueCertIfExpired(ctx context.Context, cert tls.Cert
 	if m.certReissuer == nil {
 		return trace.BadParameter("can't reissue proxy certificate - reissuer is not available")
 	}
-	teleportCluster := common.TeleportClusterFromKubeLocalProxySNI(serverName)
-	if teleportCluster == "" {
-		return trace.BadParameter("can't reissue proxy certificate - teleport cluster is empty")
-	}
-	kubeCluster, err := common.KubeClusterFromKubeLocalProxySNI(serverName)
-	if err != nil {
-		return trace.Wrap(err, "can't reissue proxy certificate - kube cluster name is invalid")
-	}
-	if kubeCluster == "" {
-		return trace.BadParameter("can't reissue proxy certificate - kube cluster is empty")
-	}
 
 	errCh := make(chan error, 1)
 	// We start cert reissuing (with relogin if required) only if it's not running already.
@@ -276,7 +291,7 @@ func (m *KubeMiddleware) reissueCertIfExpired(ctx context.Context, cert tls.Cert
 			newCert, err := m.certReissuer(m.closeContext, teleportCluster, kubeCluster)
 			if err == nil {
 				m.certsMu.Lock()
-				m.certs[serverName] = newCert
+				m.certs.Add(teleportCluster, kubeCluster, newCert)
 				m.certsMu.Unlock()
 			}
 			errCh <- err
@@ -322,11 +337,11 @@ func NewKubeListener(casByTeleportCluster map[string]tls.Certificate) (net.Liste
 	}
 	listener, err := tls.Listen("tcp", "localhost:0", &tls.Config{
 		GetConfigForClient: func(hello *tls.ClientHelloInfo) (*tls.Config, error) {
-			config, ok := configs[common.TeleportClusterFromKubeLocalProxySNI(hello.ServerName)]
-			if !ok {
-				return nil, trace.BadParameter("unknown Teleport cluster or invalid TLS server name %v", hello.ServerName)
+			sni := hello.ServerName
+			if config, ok := configs[sni]; ok {
+				return config, nil
 			}
-			return config, nil
+			return nil, trace.BadParameter("unknown Teleport cluster or invalid TLS server name %v", sni)
 		},
 	})
 	return listener, trace.Wrap(err)
@@ -392,7 +407,7 @@ func NewKubeForwardProxy(config KubeForwardProxyConfig) (*ForwardProxy, error) {
 func CreateKubeLocalCAs(key *keys.PrivateKey, teleportClusters []string) (map[string]tls.Certificate, error) {
 	cas := make(map[string]tls.Certificate)
 	for _, teleportCluster := range teleportClusters {
-		ca, err := createLocalCA(key, time.Now().Add(defaults.CATTL), common.KubeLocalProxyWildcardDomain(teleportCluster))
+		ca, err := createLocalCA(key, time.Now().Add(defaults.CATTL), teleportCluster)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
