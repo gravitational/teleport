@@ -99,7 +99,7 @@ export enum TdpClientEvent {
   RESET = 'reset',
   POINTER = 'pointer',
   LATENCY_STATS = 'latency stats',
-  AVAILABLE_SESSIONS = 'available sessions',
+  SERVER_CAPABILITIES = 'server capabilities',
 }
 
 type EventMap = {
@@ -116,7 +116,7 @@ type EventMap = {
   [TdpClientEvent.RESET]: [void];
   [TdpClientEvent.POINTER]: [PointerData];
   [TdpClientEvent.LATENCY_STATS]: [LatencyStats];
-  [TdpClientEvent.AVAILABLE_SESSIONS]: [string[]];
+  [TdpClientEvent.SERVER_CAPABILITIES]: [ServerCapabilities];
   'terminal.webauthn': [string];
 };
 
@@ -154,6 +154,10 @@ let wasmReady: Promise<void> | undefined;
 
 // Defines which protocol the client will start with.
 type ConnectPolicy = { mode: 'tdpb' } | { mode: 'tdp' };
+
+type ServerCapabilities = {
+  availableSessions: string[];
+};
 
 // Client is the TDP client. It is responsible for connecting to a websocket serving the tdp server,
 // sending client commands, and receiving and processing server messages. Its creator is responsible for
@@ -337,14 +341,14 @@ export class TdpClient extends EventEmitter<EventMap> {
     return () => this.off(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, listener);
   };
 
-  onAvailableSessions = (listener: (spec: string[]) => void) => {
-    this.on(TdpClientEvent.AVAILABLE_SESSIONS, listener);
-    return () => this.off(TdpClientEvent.AVAILABLE_SESSIONS, listener);
-  };
-
   onLatencyStats = (listener: (stats: LatencyStats) => void) => {
     this.on(TdpClientEvent.LATENCY_STATS, listener);
     return () => this.off(TdpClientEvent.LATENCY_STATS, listener);
+  };
+
+  onServerCapabilities = (listener: (caps: ServerCapabilities) => void) => {
+    this.on(TdpClientEvent.SERVER_CAPABILITIES, listener);
+    return () => this.off(TdpClientEvent.SERVER_CAPABILITIES, listener);
   };
 
   private async initWasm() {
@@ -516,9 +520,9 @@ export class TdpClient extends EventEmitter<EventMap> {
   }
 
   handleServerHello(hello: ServerHello) {
-    if (hello.sessions.length > 0) {
-      this.emit(TdpClientEvent.AVAILABLE_SESSIONS, hello.sessions);
-    }
+    this.emit(TdpClientEvent.SERVER_CAPABILITIES, {
+      availableSessions: hello.sessions
+    });
     this.handleRdpConnectionActivated(hello.activationEvent);
   }
 
