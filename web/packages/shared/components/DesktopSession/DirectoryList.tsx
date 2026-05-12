@@ -78,7 +78,7 @@ export function SharedDirectoryList({
         <Stack gap={3} fullWidth onClick={e => e.stopPropagation()}>
           {/* Header/Share Button */}
           <Flex justifyContent="space-between" alignItems="center">
-            {dropdownHeader(sharedDirectories.length)}
+            <DropdownHeader directoryCount={sharedDirectories.length} />
             <ButtonPrimary
               title="Share a directory"
               size="small"
@@ -189,15 +189,17 @@ function RemovalSupportInformation(props: {
   );
 }
 
-function dropdownHeader(directoryCount: number) {
-  if (directoryCount == 0) {
+function DropdownHeader(props: { directoryCount: number }) {
+  if (props.directoryCount == 0) {
     return <Text typography="h3">Share a directory</Text>;
   }
   const headerText =
-    directoryCount == 1 ? 'shared directory' : 'shared directories';
+    props.directoryCount == 1 ? 'shared directory' : 'shared directories';
   return (
     <Text typography="h3">
-      {directoryCount > 0 ? `${directoryCount} ` + headerText : headerText}
+      {props.directoryCount > 0
+        ? `${props.directoryCount} ` + headerText
+        : headerText}
     </Text>
   );
 }
