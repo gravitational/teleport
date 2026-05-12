@@ -2560,6 +2560,63 @@ uQM=
 	}
 }
 
+func TestLinuxDesktopService(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		desc        string
+		mutate      func(fc *FileConfig)
+		expectError require.ErrorAssertionFunc
+		assertions  []func(*testing.T, *servicecfg.Config)
+	}{
+		{
+			desc:        "OK",
+			expectError: require.NoError,
+			mutate: func(fc *FileConfig) {
+				fc.LinuxDesktop.XSessions.Included = "^inc.*$"
+				fc.LinuxDesktop.XSessions.Excluded = "^exc.*$"
+				fc.LinuxDesktop.Labels = map[string]string{
+					"foo": "bar",
+				}
+			},
+			assertions: []func(t *testing.T, cfg *servicecfg.Config){
+				func(t *testing.T, cfg *servicecfg.Config) {
+					assert.NotNil(t, cfg.LinuxDesktop.IncludedSessions)
+					assert.NotNil(t, cfg.LinuxDesktop.ExcludedSessions)
+					assert.True(t, cfg.LinuxDesktop.Enabled)
+					assert.Len(t, cfg.LinuxDesktop.Labels, 1)
+					assert.Equal(t, "bar", cfg.LinuxDesktop.Labels["foo"])
+				},
+			},
+		},
+		{
+			desc:        "NOK - invalid include",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.LinuxDesktop.XSessions.Included = "\\"
+			},
+		},
+		{
+			desc:        "NOK - invalid exclude",
+			expectError: require.Error,
+			mutate: func(fc *FileConfig) {
+				fc.LinuxDesktop.XSessions.Excluded = "\\"
+			},
+		},
+	} {
+		t.Run(test.desc, func(t *testing.T) {
+			fc := &FileConfig{}
+			test.mutate(fc)
+			cfg := &servicecfg.Config{}
+			err := applyLinuxDesktopConfig(fc, cfg)
+			test.expectError(t, err)
+			for _, assertion := range test.assertions {
+				assertion(t, cfg)
+			}
+		})
+	}
+}
+
 func TestApps(t *testing.T) {
 	tests := []struct {
 		inConfigString string
