@@ -1,0 +1,6 @@
+FROM public.ecr.aws/gravitational/teleport-distroless:18.7.5
+
+COPY entrypoint.sh /usr/local/bin/entrypoint.sh
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["/usr/local/bin/teleport", "-c", "/etc/teleport/teleport.yaml", "--bootstrap=/etc/teleport/bootstrap.yaml"]

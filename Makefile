@@ -2126,6 +2126,44 @@ antithesis-docker-push:
 	docker tag okraport-config:latest $(ANTITHESIS_REGISTRY)/okraport:latest
 	docker push $(ANTITHESIS_REGISTRY)/okraport:latest
 
+.PHONY: antithesis-auth1-docker-image
+antithesis-auth1-docker-image:
+	docker build -f tool/antithesis/config/Dockerfile.auth1 \
+		--platform linux/amd64 \
+		-t okraport-auth1:latest \
+		tool/antithesis/config/
+
+.PHONY: antithesis-auth1-docker-push
+antithesis-auth1-docker-push: ANTITHESIS_REGISTRY ?= us-central1-docker.pkg.dev/molten-verve-216720/teleport-repository
+antithesis-auth1-docker-push:
+	docker tag okraport-auth1:latest $(ANTITHESIS_REGISTRY)/okraport-auth1:latest
+	docker push $(ANTITHESIS_REGISTRY)/okraport-auth1:latest
+
+.PHONY: antithesis-auth2-docker-image
+antithesis-auth2-docker-image:
+	docker build -f tool/antithesis/config/Dockerfile.auth2 \
+		--platform linux/amd64 \
+		-t okraport-auth2:latest \
+		tool/antithesis/config/
+
+.PHONY: antithesis-auth2-docker-push
+antithesis-auth2-docker-push: ANTITHESIS_REGISTRY ?= us-central1-docker.pkg.dev/molten-verve-216720/teleport-repository
+antithesis-auth2-docker-push:
+	docker tag okraport-auth2:latest $(ANTITHESIS_REGISTRY)/okraport-auth2:latest
+	docker push $(ANTITHESIS_REGISTRY)/okraport-auth2:latest
+
+.PHONY: antithesis-docker-build-all
+antithesis-docker-build-all: antithesis-docker-image antithesis-auth1-docker-image antithesis-auth2-docker-image
+	@echo "✓ All Antithesis Docker images built successfully"
+
+.PHONY: antithesis-docker-push-all
+antithesis-docker-push-all: antithesis-docker-push antithesis-auth1-docker-push antithesis-auth2-docker-push
+	@echo "✓ All Antithesis Docker images pushed successfully"
+
+.PHONY: antithesis-docker-all
+antithesis-docker-all: antithesis-docker-build-all antithesis-docker-push-all
+	@echo "✓ All Antithesis Docker images built and pushed successfully"
+
 
 
 
