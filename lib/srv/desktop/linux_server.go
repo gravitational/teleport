@@ -349,7 +349,7 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 	ctx, cancel := context.WithCancel(s.closeCtx)
 	defer cancel()
 
-	tdpConn := tdp.NewConn(proxyConn, tdp.DecoderAdapter(tdpb.DecodePermissive))
+	tdpConn := tdp.NewConn(proxyConn, tdp.DecoderAdapter(tdpb.DecodePermissive), tdpb.WarningConstructor)
 	defer tdpConn.Close()
 
 	// Inline function to enforce that we are centralizing TDP Error sending in this function.

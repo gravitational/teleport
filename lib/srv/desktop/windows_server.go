@@ -36,6 +36,7 @@ import (
 	"time"
 
 	"github.com/go-ldap/ldap/v3"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
