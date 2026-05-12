@@ -1856,7 +1856,7 @@ func quoteKQLDoubleQuotedReference(s string) string {
 			if !shouldEscapeKQLRune(r) {
 				out.WriteRune(r)
 			} else {
-				out.WriteString(fmt.Sprintf(`\u%04x`, r))
+				fmt.Fprintf(&out, `\u%04x`, r)
 			}
 		}
 	}
