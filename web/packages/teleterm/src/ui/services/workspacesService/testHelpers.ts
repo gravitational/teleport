@@ -16,7 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { rootClusterUri } from 'teleterm/services/tshd/testHelpers';
+import {
+  rootClusterProxyHost,
+  rootClusterUri,
+} from 'teleterm/services/tshd/testHelpers';
 
 import { PersistedWorkspace } from '../statePersistence';
 import { getEmptyPendingAccessRequest } from './accessRequestsService';
@@ -41,7 +44,7 @@ export function makeWorkspace(props?: Partial<Workspace>): Workspace {
     hasDocumentsToReopen: false,
     localClusterUri: clusterUri,
     location: defaultDocument.uri,
-    proxyHost: 'teleport-local.com:3080',
+    proxyHost: rootClusterProxyHost,
     unifiedResourcePreferences: getDefaultUnifiedResourcePreferences(),
     ...props,
   };
@@ -56,7 +59,7 @@ export function makePersistedWorkspace(
     documents: [],
     localClusterUri: clusterUri,
     location: undefined,
-    proxyHost: 'teleport-local.com:3080',
+    proxyHost: rootClusterProxyHost,
     ...props,
   };
 }
