@@ -571,7 +571,7 @@ func (x *Backend) SendMouseButton(button byte, pressed bool) error {
 }
 
 const (
-	wheelUp = iota + byte(4)
+	wheelUp byte = iota + 4
 	wheelDown
 	horizontalWheelLeft
 	horizontalWheelRight
