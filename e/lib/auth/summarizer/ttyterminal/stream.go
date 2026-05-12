@@ -195,13 +195,18 @@ func replayTokens(ctx context.Context, peeked []token, remaining <-chan token) <
 	return replayed
 }
 
-// detectBracketedPaste checks if the first non-resize token is a bracketed paste mode sequence.
+// detectBracketedPaste reports whether the peeked tokens look like a session where
+// the shell uses bracketed paste mode to delimit commands. A bracketed paste token
+// must appear before any alternate screen enter — that filters out TUI apps
+// (vim, less, htop) which emit \x1b[?2004h for their own paste handling.
 func detectBracketedPaste(peeked []token) bool {
 	for _, token := range peeked {
-		if token.tokenType == tokenResize {
-			continue
+		switch token.tokenType {
+		case tokenAlternateScreenEnter:
+			return false
+		case tokenBracketPasteStart, tokenBracketPasteEnd:
+			return true
 		}
-		return token.tokenType == tokenBracketPasteStart || token.tokenType == tokenBracketPasteEnd
 	}
 	return false
 }

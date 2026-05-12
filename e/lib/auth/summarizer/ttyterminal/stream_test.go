@@ -133,6 +133,61 @@ func TestStreamTtyRecording_WithResize(t *testing.T) {
 	require.NoError(t, stream.Wait())
 }
 
+func TestStreamTtyRecording_OSCShellIntegrationPrefix(t *testing.T) {
+	const oscShellIntegration = "\x1b]3008;start=30c87cd3-675e-436c-a777-635d57167ef1;" +
+		"machineid=cfe9f4a404c33d2a84d12b6df1cf8826;user=root;hostname=tty;" +
+		"bootid=fcad13ab-0ccc-4ee5-a496-f7c95e62c608;pid=00000000000000002764;" +
+		"type=shell;cwd=/root\x1b\\"
+
+	evtChan, errChan := makeEventChan(
+		sessionStart(),
+		sessionPrint(oscShellIntegration+"\x1b[?2004h\x1b]0;root@tty: ~\x07root@tty:~# ", 100),
+		sessionPrint("ping google.com\r\n\x1b[?2004l\r\n", 200),
+		sessionPrint("PING google.com (216.58.215.110) 56(84) bytes of data.\r\n", 300),
+		&apievents.SessionEnd{},
+	)
+
+	stream, err := StreamTTYRecording(t.Context(), evtChan, errChan)
+	require.NoError(t, err)
+	require.True(t, stream.HasCommands())
+	require.Len(t, collectCommandFromStream(stream), 1)
+	require.NoError(t, stream.Wait())
+}
+
+func TestStreamTtyRecording_TUIBeforeBracketedPaste(t *testing.T) {
+	evtChan, errChan := makeEventChan(
+		sessionStart(),
+		sessionPrint("\x1b[?1049h\x1b[?2004h", 100),
+		sessionPrint("editor contents\r\n", 200),
+		sessionPrint("\x1b[?2004l\x1b[?1049l", 300),
+		&apievents.SessionEnd{},
+	)
+
+	stream, err := StreamTTYRecording(t.Context(), evtChan, errChan)
+	require.NoError(t, err)
+	require.False(t, stream.HasCommands())
+	require.NoError(t, stream.Wait())
+}
+
+func TestStreamTtyRecording_BracketedPasteThenTUI(t *testing.T) {
+	evtChan, errChan := makeEventChan(
+		sessionStart(),
+		bracketedPasteOn(100),
+		sessionPrint("vim file.txt", 150),
+		bracketedPasteOff(200),
+		sessionPrint("\x1b[?1049h\x1b[?2004heditor contents\x1b[?2004l\x1b[?1049l", 300),
+		bracketedPasteOn(400),
+		sessionPrint("ls", 450),
+		bracketedPasteOff(500),
+		&apievents.SessionEnd{},
+	)
+
+	stream, err := StreamTTYRecording(t.Context(), evtChan, errChan)
+	require.NoError(t, err)
+	require.True(t, stream.HasCommands())
+	require.NoError(t, stream.Wait())
+}
+
 func TestPeekTokens(t *testing.T) {
 	t.Parallel()
 

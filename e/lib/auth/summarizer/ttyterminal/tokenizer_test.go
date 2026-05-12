@@ -427,6 +427,30 @@ func TestTokenize(t *testing.T) {
 			description: "Title sequences should be stripped while preserving bracketed paste",
 		},
 		{
+			name: "strips_osc_shell_integration_3008",
+			events: []apievents.AuditEvent{
+				&apievents.SessionStart{
+					Metadata:     apievents.Metadata{Time: time.Now()},
+					TerminalSize: "80:24",
+				},
+				&apievents.SessionPrint{
+					Data: []byte("\x1b]3008;start=30c87cd3-675e-436c-a777-635d57167ef1;" +
+						"machineid=cfe9f4a404c33d2a84d12b6df1cf8826;user=root;hostname=tty;" +
+						"type=shell;cwd=/root\x1b\\\x1b[?2004h\x1b]0;root@tty: ~\x07" +
+						"root@tty:~# ping google.com\x1b[?2004l"),
+					DelayMilliseconds: 100,
+				},
+				&apievents.SessionEnd{},
+			},
+			expectedTokens: []token{
+				{tokenType: tokenResize, data: []byte("80:24")},
+				{tokenType: tokenBracketPasteStart, data: []byte("\x1b[?2004h")},
+				{tokenType: tokenText, data: []byte("root@tty:~# ping google.com")},
+				{tokenType: tokenBracketPasteEnd, data: []byte("\x1b[?2004l")},
+			},
+			description: "OSC shell-integration markers (e.g. OSC 3008) must be stripped like title sequences",
+		},
+		{
 			name: "title_sequence_spans_multiple_events",
 			events: []apievents.AuditEvent{
 				&apievents.SessionStart{

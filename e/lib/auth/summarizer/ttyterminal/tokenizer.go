@@ -265,10 +265,11 @@ func (t *tokenizer) close() {
 	})
 }
 
-// findTitleSequenceEnd checks if data starts with an OSC title sequence (\x1b]0; \x1b]1; or \x1b]2;)
+// findTitleSequenceEnd checks if data starts with an OSC sequence (\x1b]<digits>...)
 // and returns the length of the sequence to skip and whether the sequence is complete.
+// All OSC sequences are stripped, not just title sequences — shell integration
+// markers such as OSC 133, OSC 633 and OSC 3008 also appear at session start.
 func findTitleSequenceEnd(data []byte) (int, bool) {
-	// Title sequences start with \x1b]N where N is 0, 1, or 2
 	if len(data) < 3 {
 		return 0, false
 	}
@@ -277,7 +278,8 @@ func findTitleSequenceEnd(data []byte) (int, bool) {
 		return 0, false
 	}
 
-	if data[2] != '0' && data[2] != '1' && data[2] != '2' {
+	// OSC parameter is one or more digits.
+	if data[2] < '0' || data[2] > '9' {
 		return 0, false
 	}
 
