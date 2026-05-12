@@ -31,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
-	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/subca/testenv"
@@ -63,14 +62,7 @@ func TestDesktopAccessDisabled(t *testing.T) {
 func TestDesktopAccessCAOverrides(t *testing.T) {
 	t.Parallel()
 
-	tlsServer := newTestTLSServer(t, withModules(&modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Desktop: {Enabled: true, Limit: 0},
-			},
-		},
-	}))
+	tlsServer := newTestTLSServer(t, withModules(modulestest.EnterpriseModules()))
 	authServer := tlsServer.Auth()
 	authServer.SetSubCAEnabled(true)
 
