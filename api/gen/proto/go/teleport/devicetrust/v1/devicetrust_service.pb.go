@@ -2438,8 +2438,17 @@ type SyncInventoryStart struct {
 	// upserts.
 	// See [SyncInventoryRequest] and [SyncInventoryMissingDevices] for details.
 	TrackMissingDevices bool `protobuf:"varint,4,opt,name=track_missing_devices,json=trackMissingDevices,proto3" json:"track_missing_devices,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	// os_types declares the OS types this sync covers.
+	//
+	// track_missing_devices only reports devices whose os_type is in this list.
+	// Upserts and removals whose os_type is not in this list are rejected with a
+	// per-device error.
+	//
+	// Empty is treated as [OS_TYPE_MACOS, OS_TYPE_WINDOWS, OS_TYPE_LINUX] for
+	// backwards compatibility.
+	OsTypes       []OSType `protobuf:"varint,5,rep,packed,name=os_types,json=osTypes,proto3,enum=teleport.devicetrust.v1.OSType" json:"os_types,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SyncInventoryStart) Reset() {
@@ -2484,6 +2493,13 @@ func (x *SyncInventoryStart) GetTrackMissingDevices() bool {
 		return x.TrackMissingDevices
 	}
 	return false
+}
+
+func (x *SyncInventoryStart) GetOsTypes() []OSType {
+	if x != nil {
+		return x.OsTypes
+	}
+	return nil
 }
 
 // SyncInventoryEnd ends the inventory sync, signaling that no more
@@ -2716,7 +2732,7 @@ var File_teleport_devicetrust_v1_devicetrust_service_proto protoreflect.FileDesc
 
 const file_teleport_devicetrust_v1_devicetrust_service_proto_rawDesc = "" +
 	"\n" +
-	"1teleport/devicetrust/v1/devicetrust_service.proto\x12\x17teleport.devicetrust.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a google/protobuf/field_mask.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x17google/rpc/status.proto\x1a4teleport/devicetrust/v1/authenticate_challenge.proto\x1a$teleport/devicetrust/v1/device.proto\x1a3teleport/devicetrust/v1/device_collected_data.proto\x1a7teleport/devicetrust/v1/device_confirmation_token.proto\x1a1teleport/devicetrust/v1/device_enroll_token.proto\x1a+teleport/devicetrust/v1/device_source.proto\x1a.teleport/devicetrust/v1/device_web_token.proto\x1a!teleport/devicetrust/v1/tpm.proto\x1a/teleport/devicetrust/v1/user_certificates.proto\"\x81\x02\n" +
+	"1teleport/devicetrust/v1/devicetrust_service.proto\x12\x17teleport.devicetrust.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a google/protobuf/field_mask.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x17google/rpc/status.proto\x1a4teleport/devicetrust/v1/authenticate_challenge.proto\x1a$teleport/devicetrust/v1/device.proto\x1a3teleport/devicetrust/v1/device_collected_data.proto\x1a7teleport/devicetrust/v1/device_confirmation_token.proto\x1a1teleport/devicetrust/v1/device_enroll_token.proto\x1a+teleport/devicetrust/v1/device_source.proto\x1a.teleport/devicetrust/v1/device_web_token.proto\x1a%teleport/devicetrust/v1/os_type.proto\x1a!teleport/devicetrust/v1/tpm.proto\x1a/teleport/devicetrust/v1/user_certificates.proto\"\x81\x02\n" +
 	"\x13CreateDeviceRequest\x127\n" +
 	"\x06device\x18\x01 \x01(\v2\x1f.teleport.devicetrust.v1.DeviceR\x06device\x12.\n" +
 	"\x13create_enroll_token\x18\x02 \x01(\bR\x11createEnrollToken\x12,\n" +
@@ -2843,10 +2859,11 @@ const file_teleport_devicetrust_v1_devicetrust_service_proto_rawDesc = "" +
 	"\x03ack\x18\x01 \x01(\v2).teleport.devicetrust.v1.SyncInventoryAckH\x00R\x03ack\x12F\n" +
 	"\x06result\x18\x02 \x01(\v2,.teleport.devicetrust.v1.SyncInventoryResultH\x00R\x06result\x12_\n" +
 	"\x0fmissing_devices\x18\x03 \x01(\v24.teleport.devicetrust.v1.SyncInventoryMissingDevicesH\x00R\x0emissingDevicesB\t\n" +
-	"\apayload\"\xac\x01\n" +
+	"\apayload\"\xe8\x01\n" +
 	"\x12SyncInventoryStart\x12=\n" +
 	"\x06source\x18\x01 \x01(\v2%.teleport.devicetrust.v1.DeviceSourceR\x06source\x122\n" +
-	"\x15track_missing_devices\x18\x04 \x01(\bR\x13trackMissingDevicesJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04R\x04modeR\x11on_missing_action\"2\n" +
+	"\x15track_missing_devices\x18\x04 \x01(\bR\x13trackMissingDevices\x12:\n" +
+	"\bos_types\x18\x05 \x03(\x0e2\x1f.teleport.devicetrust.v1.OSTypeR\aosTypesJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04R\x04modeR\x11on_missing_action\"2\n" +
 	"\x10SyncInventoryEndJ\x04\b\x01\x10\x02R\x18external_sync_successful\"Q\n" +
 	"\x14SyncInventoryDevices\x129\n" +
 	"\adevices\x18\x01 \x03(\v2\x1f.teleport.devicetrust.v1.DeviceR\adevices\"\x12\n" +
@@ -2946,8 +2963,9 @@ var file_teleport_devicetrust_v1_devicetrust_service_proto_goTypes = []any{
 	(*DeviceConfirmationToken)(nil),                // 52: teleport.devicetrust.v1.DeviceConfirmationToken
 	(*DeviceWebToken)(nil),                         // 53: teleport.devicetrust.v1.DeviceWebToken
 	(*DeviceSource)(nil),                           // 54: teleport.devicetrust.v1.DeviceSource
-	(*emptypb.Empty)(nil),                          // 55: google.protobuf.Empty
-	(*DeviceEnrollToken)(nil),                      // 56: teleport.devicetrust.v1.DeviceEnrollToken
+	(OSType)(0),                                    // 55: teleport.devicetrust.v1.OSType
+	(*emptypb.Empty)(nil),                          // 56: google.protobuf.Empty
+	(*DeviceEnrollToken)(nil),                      // 57: teleport.devicetrust.v1.DeviceEnrollToken
 }
 var file_teleport_devicetrust_v1_devicetrust_service_proto_depIdxs = []int32{
 	41, // 0: teleport.devicetrust.v1.CreateDeviceRequest.device:type_name -> teleport.devicetrust.v1.Device
@@ -2996,42 +3014,43 @@ var file_teleport_devicetrust_v1_devicetrust_service_proto_depIdxs = []int32{
 	39, // 43: teleport.devicetrust.v1.SyncInventoryResponse.result:type_name -> teleport.devicetrust.v1.SyncInventoryResult
 	40, // 44: teleport.devicetrust.v1.SyncInventoryResponse.missing_devices:type_name -> teleport.devicetrust.v1.SyncInventoryMissingDevices
 	54, // 45: teleport.devicetrust.v1.SyncInventoryStart.source:type_name -> teleport.devicetrust.v1.DeviceSource
-	41, // 46: teleport.devicetrust.v1.SyncInventoryDevices.devices:type_name -> teleport.devicetrust.v1.Device
-	14, // 47: teleport.devicetrust.v1.SyncInventoryResult.devices:type_name -> teleport.devicetrust.v1.DeviceOrStatus
-	41, // 48: teleport.devicetrust.v1.SyncInventoryMissingDevices.devices:type_name -> teleport.devicetrust.v1.Device
-	1,  // 49: teleport.devicetrust.v1.DeviceTrustService.CreateDevice:input_type -> teleport.devicetrust.v1.CreateDeviceRequest
-	2,  // 50: teleport.devicetrust.v1.DeviceTrustService.UpdateDevice:input_type -> teleport.devicetrust.v1.UpdateDeviceRequest
-	3,  // 51: teleport.devicetrust.v1.DeviceTrustService.UpsertDevice:input_type -> teleport.devicetrust.v1.UpsertDeviceRequest
-	4,  // 52: teleport.devicetrust.v1.DeviceTrustService.DeleteDevice:input_type -> teleport.devicetrust.v1.DeleteDeviceRequest
-	5,  // 53: teleport.devicetrust.v1.DeviceTrustService.FindDevices:input_type -> teleport.devicetrust.v1.FindDevicesRequest
-	7,  // 54: teleport.devicetrust.v1.DeviceTrustService.GetDevice:input_type -> teleport.devicetrust.v1.GetDeviceRequest
-	8,  // 55: teleport.devicetrust.v1.DeviceTrustService.ListDevices:input_type -> teleport.devicetrust.v1.ListDevicesRequest
-	10, // 56: teleport.devicetrust.v1.DeviceTrustService.ListDevicesByUser:input_type -> teleport.devicetrust.v1.ListDevicesByUserRequest
-	12, // 57: teleport.devicetrust.v1.DeviceTrustService.BulkCreateDevices:input_type -> teleport.devicetrust.v1.BulkCreateDevicesRequest
-	15, // 58: teleport.devicetrust.v1.DeviceTrustService.CreateDeviceEnrollToken:input_type -> teleport.devicetrust.v1.CreateDeviceEnrollTokenRequest
-	16, // 59: teleport.devicetrust.v1.DeviceTrustService.EnrollDevice:input_type -> teleport.devicetrust.v1.EnrollDeviceRequest
-	28, // 60: teleport.devicetrust.v1.DeviceTrustService.AuthenticateDevice:input_type -> teleport.devicetrust.v1.AuthenticateDeviceRequest
-	31, // 61: teleport.devicetrust.v1.DeviceTrustService.ConfirmDeviceWebAuthentication:input_type -> teleport.devicetrust.v1.ConfirmDeviceWebAuthenticationRequest
-	33, // 62: teleport.devicetrust.v1.DeviceTrustService.SyncInventory:input_type -> teleport.devicetrust.v1.SyncInventoryRequest
-	41, // 63: teleport.devicetrust.v1.DeviceTrustService.CreateDevice:output_type -> teleport.devicetrust.v1.Device
-	41, // 64: teleport.devicetrust.v1.DeviceTrustService.UpdateDevice:output_type -> teleport.devicetrust.v1.Device
-	41, // 65: teleport.devicetrust.v1.DeviceTrustService.UpsertDevice:output_type -> teleport.devicetrust.v1.Device
-	55, // 66: teleport.devicetrust.v1.DeviceTrustService.DeleteDevice:output_type -> google.protobuf.Empty
-	6,  // 67: teleport.devicetrust.v1.DeviceTrustService.FindDevices:output_type -> teleport.devicetrust.v1.FindDevicesResponse
-	41, // 68: teleport.devicetrust.v1.DeviceTrustService.GetDevice:output_type -> teleport.devicetrust.v1.Device
-	9,  // 69: teleport.devicetrust.v1.DeviceTrustService.ListDevices:output_type -> teleport.devicetrust.v1.ListDevicesResponse
-	11, // 70: teleport.devicetrust.v1.DeviceTrustService.ListDevicesByUser:output_type -> teleport.devicetrust.v1.ListDevicesByUserResponse
-	13, // 71: teleport.devicetrust.v1.DeviceTrustService.BulkCreateDevices:output_type -> teleport.devicetrust.v1.BulkCreateDevicesResponse
-	56, // 72: teleport.devicetrust.v1.DeviceTrustService.CreateDeviceEnrollToken:output_type -> teleport.devicetrust.v1.DeviceEnrollToken
-	17, // 73: teleport.devicetrust.v1.DeviceTrustService.EnrollDevice:output_type -> teleport.devicetrust.v1.EnrollDeviceResponse
-	29, // 74: teleport.devicetrust.v1.DeviceTrustService.AuthenticateDevice:output_type -> teleport.devicetrust.v1.AuthenticateDeviceResponse
-	32, // 75: teleport.devicetrust.v1.DeviceTrustService.ConfirmDeviceWebAuthentication:output_type -> teleport.devicetrust.v1.ConfirmDeviceWebAuthenticationResponse
-	34, // 76: teleport.devicetrust.v1.DeviceTrustService.SyncInventory:output_type -> teleport.devicetrust.v1.SyncInventoryResponse
-	63, // [63:77] is the sub-list for method output_type
-	49, // [49:63] is the sub-list for method input_type
-	49, // [49:49] is the sub-list for extension type_name
-	49, // [49:49] is the sub-list for extension extendee
-	0,  // [0:49] is the sub-list for field type_name
+	55, // 46: teleport.devicetrust.v1.SyncInventoryStart.os_types:type_name -> teleport.devicetrust.v1.OSType
+	41, // 47: teleport.devicetrust.v1.SyncInventoryDevices.devices:type_name -> teleport.devicetrust.v1.Device
+	14, // 48: teleport.devicetrust.v1.SyncInventoryResult.devices:type_name -> teleport.devicetrust.v1.DeviceOrStatus
+	41, // 49: teleport.devicetrust.v1.SyncInventoryMissingDevices.devices:type_name -> teleport.devicetrust.v1.Device
+	1,  // 50: teleport.devicetrust.v1.DeviceTrustService.CreateDevice:input_type -> teleport.devicetrust.v1.CreateDeviceRequest
+	2,  // 51: teleport.devicetrust.v1.DeviceTrustService.UpdateDevice:input_type -> teleport.devicetrust.v1.UpdateDeviceRequest
+	3,  // 52: teleport.devicetrust.v1.DeviceTrustService.UpsertDevice:input_type -> teleport.devicetrust.v1.UpsertDeviceRequest
+	4,  // 53: teleport.devicetrust.v1.DeviceTrustService.DeleteDevice:input_type -> teleport.devicetrust.v1.DeleteDeviceRequest
+	5,  // 54: teleport.devicetrust.v1.DeviceTrustService.FindDevices:input_type -> teleport.devicetrust.v1.FindDevicesRequest
+	7,  // 55: teleport.devicetrust.v1.DeviceTrustService.GetDevice:input_type -> teleport.devicetrust.v1.GetDeviceRequest
+	8,  // 56: teleport.devicetrust.v1.DeviceTrustService.ListDevices:input_type -> teleport.devicetrust.v1.ListDevicesRequest
+	10, // 57: teleport.devicetrust.v1.DeviceTrustService.ListDevicesByUser:input_type -> teleport.devicetrust.v1.ListDevicesByUserRequest
+	12, // 58: teleport.devicetrust.v1.DeviceTrustService.BulkCreateDevices:input_type -> teleport.devicetrust.v1.BulkCreateDevicesRequest
+	15, // 59: teleport.devicetrust.v1.DeviceTrustService.CreateDeviceEnrollToken:input_type -> teleport.devicetrust.v1.CreateDeviceEnrollTokenRequest
+	16, // 60: teleport.devicetrust.v1.DeviceTrustService.EnrollDevice:input_type -> teleport.devicetrust.v1.EnrollDeviceRequest
+	28, // 61: teleport.devicetrust.v1.DeviceTrustService.AuthenticateDevice:input_type -> teleport.devicetrust.v1.AuthenticateDeviceRequest
+	31, // 62: teleport.devicetrust.v1.DeviceTrustService.ConfirmDeviceWebAuthentication:input_type -> teleport.devicetrust.v1.ConfirmDeviceWebAuthenticationRequest
+	33, // 63: teleport.devicetrust.v1.DeviceTrustService.SyncInventory:input_type -> teleport.devicetrust.v1.SyncInventoryRequest
+	41, // 64: teleport.devicetrust.v1.DeviceTrustService.CreateDevice:output_type -> teleport.devicetrust.v1.Device
+	41, // 65: teleport.devicetrust.v1.DeviceTrustService.UpdateDevice:output_type -> teleport.devicetrust.v1.Device
+	41, // 66: teleport.devicetrust.v1.DeviceTrustService.UpsertDevice:output_type -> teleport.devicetrust.v1.Device
+	56, // 67: teleport.devicetrust.v1.DeviceTrustService.DeleteDevice:output_type -> google.protobuf.Empty
+	6,  // 68: teleport.devicetrust.v1.DeviceTrustService.FindDevices:output_type -> teleport.devicetrust.v1.FindDevicesResponse
+	41, // 69: teleport.devicetrust.v1.DeviceTrustService.GetDevice:output_type -> teleport.devicetrust.v1.Device
+	9,  // 70: teleport.devicetrust.v1.DeviceTrustService.ListDevices:output_type -> teleport.devicetrust.v1.ListDevicesResponse
+	11, // 71: teleport.devicetrust.v1.DeviceTrustService.ListDevicesByUser:output_type -> teleport.devicetrust.v1.ListDevicesByUserResponse
+	13, // 72: teleport.devicetrust.v1.DeviceTrustService.BulkCreateDevices:output_type -> teleport.devicetrust.v1.BulkCreateDevicesResponse
+	57, // 73: teleport.devicetrust.v1.DeviceTrustService.CreateDeviceEnrollToken:output_type -> teleport.devicetrust.v1.DeviceEnrollToken
+	17, // 74: teleport.devicetrust.v1.DeviceTrustService.EnrollDevice:output_type -> teleport.devicetrust.v1.EnrollDeviceResponse
+	29, // 75: teleport.devicetrust.v1.DeviceTrustService.AuthenticateDevice:output_type -> teleport.devicetrust.v1.AuthenticateDeviceResponse
+	32, // 76: teleport.devicetrust.v1.DeviceTrustService.ConfirmDeviceWebAuthentication:output_type -> teleport.devicetrust.v1.ConfirmDeviceWebAuthenticationResponse
+	34, // 77: teleport.devicetrust.v1.DeviceTrustService.SyncInventory:output_type -> teleport.devicetrust.v1.SyncInventoryResponse
+	64, // [64:78] is the sub-list for method output_type
+	50, // [50:64] is the sub-list for method input_type
+	50, // [50:50] is the sub-list for extension type_name
+	50, // [50:50] is the sub-list for extension extendee
+	0,  // [0:50] is the sub-list for field type_name
 }
 
 func init() { file_teleport_devicetrust_v1_devicetrust_service_proto_init() }
@@ -3046,6 +3065,7 @@ func file_teleport_devicetrust_v1_devicetrust_service_proto_init() {
 	file_teleport_devicetrust_v1_device_enroll_token_proto_init()
 	file_teleport_devicetrust_v1_device_source_proto_init()
 	file_teleport_devicetrust_v1_device_web_token_proto_init()
+	file_teleport_devicetrust_v1_os_type_proto_init()
 	file_teleport_devicetrust_v1_tpm_proto_init()
 	file_teleport_devicetrust_v1_user_certificates_proto_init()
 	file_teleport_devicetrust_v1_devicetrust_service_proto_msgTypes[15].OneofWrappers = []any{
