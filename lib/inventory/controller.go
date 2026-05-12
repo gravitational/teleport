@@ -772,7 +772,7 @@ func (c *Controller) doResourceCleanup(handle *upstreamHandle) {
 	}
 
 	if handle.linuxDesktop != nil {
-		if err := c.auth.DeleteLinuxDesktop(c.closeContext, handle.linuxDesktop.resource.GetMetadata().GetName()); err != nil {
+		if err := c.auth.DeleteLinuxDesktop(cleanupCtx, handle.linuxDesktop.resource.GetMetadata().GetName()); err != nil {
 			if !trace.IsNotFound(err) {
 				slog.WarnContext(c.closeContext, "Failed to delete linux desktop on termination",
 					"linux_desktop", handle.linuxDesktop.resource.GetMetadata().GetName(),
