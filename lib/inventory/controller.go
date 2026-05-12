@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -1307,10 +1306,6 @@ func (c *Controller) handleLinuxDesktopHB(handle *upstreamHandle, linuxDesktop *
 	}
 
 	meta := linuxDesktop.GetMetadata()
-	if meta == nil {
-		meta = &headerv1.Metadata{}
-		linuxDesktop.Metadata = meta
-	}
 	if meta.GetName() != handle.Hello().ServerID {
 		return trace.AccessDenied("incorrect linux desktop ID (expected %q, got %q)", handle.Hello().ServerID, meta.GetName())
 	}
