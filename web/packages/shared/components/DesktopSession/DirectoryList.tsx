@@ -17,7 +17,7 @@
  */
 import styled from 'styled-components';
 
-import { Flex, Stack, Text } from 'design';
+import { Flex, Stack, Text, P1, P2 } from 'design';
 import {
   ButtonFill,
   ButtonIntent,
@@ -151,7 +151,7 @@ function DirectoryEntry(props: {
 
   return (
     <DirectoryEntriesItem>
-      <Text fontSize={2}>{props.name}</Text>
+      <P2>{props.name}</P2>
       <HoverTooltip placement="bottom" tipContent={hoverText}>
         <Flex flexShrink={0}>
           <ButtonSecondary
@@ -182,11 +182,7 @@ function RemovalSupportInformation(props: {
       ? 'Disconnect these shared directories by restarting your session.'
       : 'Disconnect this shared directory by restarting your session.';
 
-  return (
-    <Text fontSize={1} color="text.muted">
-      {copyText}
-    </Text>
-  );
+  return <P1 color="text.muted">{copyText}</P1>;
 }
 
 function DropdownHeader(props: { directoryCount: number }) {
