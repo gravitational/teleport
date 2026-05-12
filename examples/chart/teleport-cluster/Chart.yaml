@@ -1,4 +1,4 @@
-.version: &version "18.8.0"
+.version: &version "18.8.1-dev.marco.2"
 
 name: teleport-cluster
 apiVersion: v2
