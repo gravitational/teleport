@@ -373,22 +373,32 @@ func (d dynamicMap[TEnv, TValues, TMap]) buildIndexExpression(keyExpr Expression
 	}}
 }
 
-type funcGetter[TValues any] func(key string) (TValues, error)
-
-func (f funcGetter[TValues]) Get(key string) (TValues, error) {
-	return f(key)
-}
-
 // DynamicMapFunction returns a definition for a variable that can be indexed
 // with map[key] or map.key syntax to get a TValues. Each time the
 // variable is indexed in an expression, [getFunc] will be called to retrieve
 // the value.
 func DynamicMapFunction[TEnv, TValues any](getFunc func(env TEnv, key string) (TValues, error)) Variable {
-	return DynamicMap[TEnv, TValues](func(env TEnv) (funcGetter[TValues], error) {
-		return funcGetter[TValues](func(key string) (TValues, error) {
-			return getFunc(env, key)
-		}), nil
-	})
+	return dynamicMapFunction[TEnv, TValues]{getFunc: getFunc}
+}
+
+type dynamicMapFunction[TEnv, TValues any] struct {
+	getFunc func(env TEnv, key string) (TValues, error)
+}
+
+//nolint:unused // https://github.com/dominikh/go-tools/issues/1294
+func (d dynamicMapFunction[TEnv, TValues]) buildIndexExpression(keyExpr Expression[TEnv, string]) any {
+	return dynamicVariable[TEnv, TValues]{func(env TEnv) (TValues, error) {
+		var nul TValues
+		key, err := keyExpr.Evaluate(env)
+		if err != nil {
+			return nul, trace.Wrap(err, "evaluating key of index expression")
+		}
+		result, err := d.getFunc(env, key)
+		if err != nil {
+			return nul, trace.Wrap(err, "getting value from dynamic map")
+		}
+		return result, nil
+	}}
 }
 
 type dynamicVariable[TEnv, TVar any] struct {
