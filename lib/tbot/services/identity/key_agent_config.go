@@ -19,9 +19,12 @@
 package identity
 
 import (
+	"context"
+
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
 
+	libhwk "github.com/gravitational/teleport/lib/hardwarekey"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/internal"
@@ -137,6 +140,25 @@ func (c *KeyAgentConfig) UnmarshalConfig(ctx bot.UnmarshalConfigContext, node *y
 	}
 	c.Destination = dest
 	return nil
+}
+
+// Init satisfies the config.Initable interface.
+func (c *KeyAgentConfig) Init(ctx context.Context) error {
+	return trace.Wrap(c.Destination.Init(ctx, nil))
+}
+
+// GetDestination satisfies the config.Initable interface.
+func (c *KeyAgentConfig) GetDestination() destination.Destination {
+	return c.Destination
+}
+
+// Describe satisfies the config.Initable interface.
+func (c *KeyAgentConfig) Describe() []bot.FileDescription {
+	return []bot.FileDescription{
+		{Name: internal.IdentityFilePath},
+		{Name: libhwk.CertFileName},
+		{Name: libhwk.SocketFileName},
+	}
 }
 
 // KeyAgentOpt provides additional dependencies to the key agent service.
