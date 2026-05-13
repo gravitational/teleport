@@ -147,8 +147,8 @@ func (o *UnstableConfig) SetOrUpdateFacade(id *identity.Identity) {
 
 // CheckAndSetDefaults checks and sets default values for the configuration.
 func (o *UnstableConfig) CheckAndSetDefaults(scoped bool) error {
-	if scoped {
-		return trace.BadParameter("service type %q is not supported in scoped mode", ServiceType)
+	if scoped && o.DelegationSessionID != "" {
+		return trace.BadParameter("Delegation session ID is not supported in scoped mode")
 	}
 	return nil
 }
