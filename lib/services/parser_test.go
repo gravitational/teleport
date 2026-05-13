@@ -409,6 +409,10 @@ func TestResourceParserLabelExpansion(t *testing.T) {
 }
 
 func BenchmarkSplitContains(b *testing.B) {
+	if testing.Short() {
+		b.Skip("skipping heavy benchmark")
+	}
+
 	parser, err := newResourceExpressionParser(func(ps *typical.ParserSpec[types.ResourceWithLabels]) {
 		// this avoids the AST optimizations on the exact function name of
 		// contains but otherwise has the same behavior
@@ -417,22 +421,6 @@ func BenchmarkSplitContains(b *testing.B) {
 		ps.Functions["contains_naive"] = typical.BinaryFunction[types.ResourceWithLabels](func(list []string, value string) (bool, error) {
 			return slices.Contains(list, value), nil
 		})
-	})
-	require.NoError(b, err)
-
-	server, err := types.NewServerWithLabels("server-name", types.KindNode, types.ServerSpecV2{
-		Hostname: "server-hostname",
-	}, map[string]string{
-		"ip":        "1.2.3.11|1.2.3.101|1.2.3.1" + strings.Repeat("|2.3.4.5", 200) + "|1.2.3.6" + strings.Repeat("|2.3.4.5", 200),
-		"target_ip": "1.2.3.6",
-	})
-	require.NoError(b, err)
-
-	server2, err := types.NewServerWithLabels("server-name", types.KindNode, types.ServerSpecV2{
-		Hostname: "server-hostname",
-	}, map[string]string{
-		"ip":        "1.2.3.11|1.2.3.101|1.2.3.1" + strings.Repeat("|2.3.4.5", 200) + "|1.2.3.5" + strings.Repeat("|2.3.4.5", 200),
-		"target_ip": "1.2.3.6",
 	})
 	require.NoError(b, err)
 
@@ -451,17 +439,39 @@ func BenchmarkSplitContains(b *testing.B) {
 		// in the slice one by one, mimicking the legacy behavior
 		"legacy_naive": `contains_naive(split(labels["ip"], "|"), "1.2.3.6")`,
 	} {
-		b.Run(name, func(b *testing.B) {
-			expression, err := newResourceExpression(expr, parser)
-			require.NoError(b, err)
+		b.Run("impl="+name, func(b *testing.B) {
+			for _, repetitions := range []int{0, 1, 3, 5, 200} {
+				ipLabel := "1.2.3.11|1.2.3.101|1.2.3.1" + strings.Repeat("|2.3.4.5", repetitions) + "|1.2.3.6" + strings.Repeat("|2.3.4.5", repetitions)
+				ipLabel2 := "1.2.3.11|1.2.3.101|1.2.3.1" + strings.Repeat("|2.3.4.5", repetitions) + "|1.2.3.5" + strings.Repeat("|2.3.4.5", repetitions)
+				b.Run(fmt.Sprintf("label_length=%d", len(ipLabel)), func(b *testing.B) {
+					server, err := types.NewServerWithLabels("server-name", types.KindNode, types.ServerSpecV2{
+						Hostname: "server-hostname",
+					}, map[string]string{
+						"ip":        ipLabel,
+						"target_ip": "1.2.3.6",
+					})
+					require.NoError(b, err)
 
-			for b.Loop() {
-				match, err := expression.Evaluate(server)
-				require.NoError(b, err)
-				require.True(b, match)
-				match, err = expression.Evaluate(server2)
-				require.NoError(b, err)
-				require.False(b, match)
+					server2, err := types.NewServerWithLabels("server-name", types.KindNode, types.ServerSpecV2{
+						Hostname: "server-hostname",
+					}, map[string]string{
+						"ip":        ipLabel2,
+						"target_ip": "1.2.3.6",
+					})
+					require.NoError(b, err)
+
+					expression, err := newResourceExpression(expr, parser)
+					require.NoError(b, err)
+
+					for b.Loop() {
+						match, err := expression.Evaluate(server)
+						require.NoError(b, err)
+						require.True(b, match)
+						match, err = expression.Evaluate(server2)
+						require.NoError(b, err)
+						require.False(b, match)
+					}
+				})
 			}
 		})
 	}
@@ -471,21 +481,21 @@ func TestSplitContainsZeroAlloc(t *testing.T) {
 	server, err := types.NewServerWithLabels("server-name", types.KindNode, types.ServerSpecV2{
 		Hostname: "server-hostname",
 	}, map[string]string{
-		"ip":        "1.2.3.11|1.2.3.101|1.2.3.1" + strings.Repeat("|2.3.4.5", 200) + "|1.2.3.6" + strings.Repeat("|2.3.4.5", 200),
-		"target_ip": "1.2.3.6",
+		"ip":        "1.2.3.11|1.2.3.101|1.2.3.1",
+		"target_ip": "1.2.3.101",
 	})
 	require.NoError(t, err)
 
 	server2, err := types.NewServerWithLabels("server-name", types.KindNode, types.ServerSpecV2{
 		Hostname: "server-hostname",
 	}, map[string]string{
-		"ip":        "1.2.3.11|1.2.3.101|1.2.3.1" + strings.Repeat("|2.3.4.5", 200) + "|1.2.3.5" + strings.Repeat("|2.3.4.5", 200),
-		"target_ip": "1.2.3.6",
+		"ip":        "1.2.3.11|1.2.3.101|1.2.3.1",
+		"target_ip": "1.2.3.102",
 	})
 	require.NoError(t, err)
 
 	for name, expr := range map[string]string{
-		"optimized":       `contains(split(labels["ip"], "|"), "1.2.3.6")`,
+		"optimized":       `contains(split(labels["ip"], "|"), "1.2.3.101")`,
 		"auto_combined":   `contains(split(labels["ip"], "|"), labels.target_ip)`,
 		"manual_combined": `__split_contains(labels["ip"], "|", labels.target_ip)`,
 	} {

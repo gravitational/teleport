@@ -1010,7 +1010,11 @@ func splitContains(value, delimiter, target string) bool {
 	} else if strings.Contains(target, delimiter) || !strings.Contains(value, target) {
 		// delimiter is nonempty, so SplitSeq works bytewise, and there's no way
 		// we'll ever get a match if the target contains the delimiter or if the
-		// target is not contained in the value
+		// target is not contained in the value; note that this check is
+		// wasteful in case of a successful match, but erring on the side of
+		// excluding matches will hopefully result in overall faster behavior,
+		// especially when resource expressions are used as a predicate to
+		// select one or few resources
 		return false
 	}
 
