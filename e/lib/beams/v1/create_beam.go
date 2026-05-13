@@ -313,6 +313,13 @@ func beamBotUserAndRole(beam *beamsv1.Beam) (*machineidv1pb.Bot, types.User, typ
 		},
 		Spec: &machineidv1pb.BotSpec{
 			Roles: []string{beamBotRoleName},
+			Traits: []*machineidv1pb.Trait{
+				// Add the beam's ID as a trait so we can use it in bot role template.
+				{
+					Name:   types.BeamIDLabel,
+					Values: []string{beam.GetMetadata().GetName()},
+				},
+			},
 		},
 	}
 	user, role, err := machineidv1.BotToUserAndRole(

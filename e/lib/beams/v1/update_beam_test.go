@@ -113,6 +113,7 @@ func requirePublishedBeamApp(t *testing.T, app types.Application, beam *beamsv1p
 	}, app.GetTLS())
 	require.Equal(t, types.AppTLSModeVerifySpiffeID, app.GetTLSMode())
 	require.Equal(t, types.AppClientCertModeManaged, app.GetClientCertMode())
+	require.Equal(t, "ingress", app.GetAllLabels()["teleport.internal/beams/app-type"])
 }
 
 func TestUpdateBeamUnpublish(t *testing.T) {

@@ -131,6 +131,9 @@ func TestCreateBeam(t *testing.T) {
 	user, err := pack.identity.GetUser(t.Context(), botResourceName, false)
 	require.NoError(t, err)
 	require.Equal(t, botResourceName, user.GetName())
+	require.Equal(t, []string{
+		beam.GetMetadata().GetName(),
+	}, user.GetTraits()["teleport.internal/beams/id"])
 
 	role, err := pack.role.GetRole(t.Context(), botResourceName)
 	require.NoError(t, err)

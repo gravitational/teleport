@@ -163,6 +163,13 @@ func (s *BeamsService) publishBeamApp(beam *beamsv1.Beam) (types.Application, er
 		return nil, trace.BadParameter("unsupported protocol: %s", protocol)
 	}
 
+	labels := beamResourceLabels(beam)
+
+	// This label matches the selector in the beams app service config.
+	//
+	// TODO(boxofrad): Extract this into a constant in the api/types package.
+	labels[types.TeleportInternalLabelPrefix+"beams/app-type"] = "ingress"
+
 	expires := beam.GetSpec().GetExpires().AsTime()
 	return types.NewAppV3(
 		types.Metadata{
@@ -171,7 +178,7 @@ func (s *BeamsService) publishBeamApp(beam *beamsv1.Beam) (types.Application, er
 				beam.GetStatus().GetAlias(),
 				beam.GetMetadata().GetName()[0:4],
 			),
-			Labels:  beamResourceLabels(beam),
+			Labels:  labels,
 			Expires: &expires,
 		},
 		spec,
