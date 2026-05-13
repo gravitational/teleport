@@ -22,20 +22,15 @@ import (
 	"bytes"
 	"context"
 	"log/slog"
-	"path/filepath"
 	"time"
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/storage"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
@@ -70,60 +65,38 @@ const accessGraphMinPersistTTL = 5 * time.Minute
 const accessGraphCertExpiryBuffer = 2 * time.Minute
 
 // accessGraphCredentials bundles AG client state. The resolver only
-// sets `proxyAddr` for the `tsh login` flow; other modes get it from
-// `Ping` in `ensureAccessGraphCert`.
+// sets `proxyAddr` for the `tsh login` flow; identity-file mode leaves
+// it empty and `ensureAccessGraphCert` fills it from `Ping`.
 type accessGraphCredentials struct {
 	proxyAddr   string
 	clientStore *client.Store
 	keyRing     *client.KeyRing
 }
 
+// authHostNotSupportedMessage explains why `tctl <accessgraph>` refuses
+// to run directly on the auth host (no user to bind the issued cert to)
+// and points the operator at the supported flows.
+const authHostNotSupportedMessage = `Access Graph credentials cannot be issued directly on the auth host: this command is being run without a tsh profile or identity file, so there is no user to bind the issued certificate to.
+
+The recommended flow is to run ` + "`tsh login`" + ` from a workstation, then re-run this command from that workstation — it will pick up the resulting profile and populate the Access Graph cert in that user's keyring.
+
+If you must run` + "`tsh login`" + ` on this auth host directly, be aware that it will create a ` + "`~/.tsh`" + ` profile directory for the invoking OS user (if one does not already exist) and write credentials into it. That directory should be cleaned up afterwards. To avoid writing to ` + "`~/.tsh`" + ` at all, either:
+  - set ` + "`TELEPORT_HOME`" + ` to an isolated path before running ` + "`tsh login`" + ` and this command (the directory under that path will still need to be cleaned up afterwards), or
+  - pass a pre-issued identity file via ` + "`tctl -i <identity-file> --auth-server <proxy-or-auth-addr>`" + ` and skip ` + "`tsh login`" + ` entirely.`
+
 // loadAccessGraphCredentials resolves AG credentials from the active
-// profile, or from the local admin identity on the auth host. username
-// is required for the auth-host path and ignored otherwise.
-func (c *AccessGraphCommand) loadAccessGraphCredentials(ctx context.Context, username string) (*accessGraphCredentials, error) {
+// profile (or an identity file via `tctl -i`). Running directly on the
+// auth host without a client store is not supported;
+// see `authHostNotSupportedMessage` for the rationale.
+func (c *AccessGraphCommand) loadAccessGraphCredentials(ctx context.Context) (*accessGraphCredentials, error) {
 	resolved, err := tctlcfg.ApplyConfig(c.ccf, c.config)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if resolved.ClientStore != nil {
-		if username != "" {
-			slog.DebugContext(ctx, "Ignoring --cert-user; profile username is authoritative",
-				"cert_user", username, "profile_user", resolved.Profile.Username)
-		}
-		return resolveAccessGraphCredentials(ctx, c.ccf, resolved)
+	if resolved.ClientStore == nil {
+		return nil, trace.BadParameter("%s", authHostNotSupportedMessage)
 	}
-	return resolveAuthHostAccessGraphCredentials(ctx, c.config, username)
-}
-
-// resolveAuthHostAccessGraphCredentials builds creds from the local
-// admin identity. `proxyAddr` is left empty; `ensureAccessGraphCert`
-// resolves it from the auth `Ping`.
-func resolveAuthHostAccessGraphCredentials(ctx context.Context, cfg *servicecfg.Config, username string) (*accessGraphCredentials, error) {
-	if cfg == nil {
-		return nil, trace.BadParameter("missing service config")
-	}
-	if username == "" {
-		return nil, trace.BadParameter("--cert-user is required when running on the auth host")
-	}
-	ident, err := storage.ReadLocalIdentityForRole(ctx, filepath.Join(cfg.DataDir, teleport.ComponentProcess), types.RoleAdmin)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	tlsPriv, err := keys.ParsePrivateKey(ident.KeyBytes)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	keyRing := &client.KeyRing{
-		KeyRingIndex:  client.KeyRingIndex{Username: username},
-		TLSPrivateKey: tlsPriv,
-		TLSCert:       ident.TLSCertBytes,
-	}
-	return &accessGraphCredentials{
-		proxyAddr:   "",
-		clientStore: nil,
-		keyRing:     keyRing,
-	}, nil
+	return resolveAccessGraphCredentials(ctx, c.ccf, resolved)
 }
 
 // resolveAccessGraphCredentials builds an `accessGraphCredentials` from

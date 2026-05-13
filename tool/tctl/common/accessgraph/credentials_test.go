@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cryptosuites"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
@@ -400,16 +399,6 @@ func TestResolveAccessGraphCredentials(t *testing.T) {
 		_, err = resolveAccessGraphCredentials(context.Background(), &tctlcfg.GlobalCLIFlags{}, &tctlcfg.ResolvedConfig{})
 		require.True(t, trace.IsBadParameter(err))
 	})
-}
-
-func TestResolveAuthHostAccessGraphCredentials_BadParameters(t *testing.T) {
-	t.Parallel()
-
-	_, err := resolveAuthHostAccessGraphCredentials(context.Background(), nil, "alice")
-	require.True(t, trace.IsBadParameter(err))
-
-	_, err = resolveAuthHostAccessGraphCredentials(context.Background(), &servicecfg.Config{}, "")
-	require.True(t, trace.IsBadParameter(err))
 }
 
 func TestEnsureAccessGraphCert_BadParameters(t *testing.T) {

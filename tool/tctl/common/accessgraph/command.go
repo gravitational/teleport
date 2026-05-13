@@ -46,10 +46,6 @@ type AccessGraphCommand struct {
 	config *servicecfg.Config
 	stdout io.Writer
 
-	// accessGraphUser is the username to issue the credential as on the
-	// auth-host path; ignored when a profile is loaded.
-	accessGraphUser string
-
 	// accessgraph is the parent command grouping AG subcommands.
 	// TODO(ghassan): remove when the real AG subcommands are implemented
 	accessgraph *kingpin.CmdClause
@@ -69,7 +65,6 @@ func (c *AccessGraphCommand) Initialize(app *kingpin.Application, cliFlags *tctl
 
 	c.accessgraph = app.Command("accessgraph", "Manage Access Graph (experimental).").Hidden()
 	c.credentials = c.accessgraph.Command("credentials", "Validate and re-issue the Access Graph credential.").Hidden()
-	c.credentials.Flag("cert-user", "User to issue the credential as. Only consulted on the auth host.").StringVar(&c.accessGraphUser)
 }
 
 // TryRun takes the CLI command as an argument and executes it.
@@ -96,7 +91,7 @@ func (c *AccessGraphCommand) TryRun(ctx context.Context, cmd string, clientFunc 
 //
 // TODO(ghassan): remove when the real AG subcommands are implemented
 func (c *AccessGraphCommand) runCredentialsCheck(ctx context.Context, clientFunc commonclient.InitFunc) error {
-	creds, err := c.loadAccessGraphCredentials(ctx, c.accessGraphUser)
+	creds, err := c.loadAccessGraphCredentials(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
