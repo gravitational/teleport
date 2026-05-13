@@ -504,13 +504,13 @@ func (c *ClusterClient) performSessionMFACeremony(ctx context.Context, rootClien
 	var promptOpts []mfa.PromptOpt
 	switch {
 	case params.NodeName != "":
-		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Node", params.NodeName, leafClusterName))
+		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("node", params.NodeName, leafClusterName))
 	case params.KubernetesCluster != "":
 		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Kubernetes cluster", params.KubernetesCluster, leafClusterName))
 	case params.RouteToDatabase.ServiceName != "":
-		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Database", params.RouteToDatabase.ServiceName, leafClusterName))
+		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("database", params.RouteToDatabase.ServiceName, leafClusterName))
 	case params.RouteToApp.Name != "":
-		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Application", params.RouteToApp.Name, leafClusterName))
+		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("application", params.RouteToApp.Name, leafClusterName))
 	case params.RouteToWindowsDesktop.WindowsDesktop != "":
 		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Windows desktop", params.RouteToWindowsDesktop.WindowsDesktop, leafClusterName))
 	}
