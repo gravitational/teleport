@@ -363,7 +363,7 @@ func TestResourceParserLabelExpansion(t *testing.T) {
 	// Server resource should use hostname when using name identifier.
 	server, err := types.NewServerWithLabels("server-name", types.KindNode, types.ServerSpecV2{
 		Hostname: "server-hostname",
-	}, map[string]string{"ip": "1.2.3.11,1.2.3.101,1.2.3.1", "foo": "bar"})
+	}, map[string]string{"ip": "1.2.3.11,1.2.3.101,1.2.3.1", "present_ip": "1.2.3.1", "absent_ip": "1.2.3.5", "foo": "bar"})
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -384,6 +384,26 @@ func TestResourceParserLabelExpansion(t *testing.T) {
 		},
 		{
 			expression: `contains(split(labels.llama, ","),  "1.2.3.2")`,
+			assertion:  require.False,
+		},
+		{
+			expression: `contains(split(labels.llama, ","), "")`,
+			assertion:  require.True,
+		},
+		{
+			expression: `contains(split(labels.llama, ","), labels.llama)`,
+			assertion:  require.True,
+		},
+		{
+			expression: `contains(split(labels.ip, ","), "1.2.3.2")`,
+			assertion:  require.False,
+		},
+		{
+			expression: `contains(split(labels.ip, ","), labels.present_ip)`,
+			assertion:  require.True,
+		},
+		{
+			expression: `contains(split(labels.ip, ","), labels.absent_ip)`,
 			assertion:  require.False,
 		},
 		{

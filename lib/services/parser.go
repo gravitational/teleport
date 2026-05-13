@@ -975,12 +975,6 @@ func (s *lazyStringSplit) Contains(target string) bool {
 }
 
 func splitContains(value, delimiter, target string) bool {
-	if value == "" {
-		// empty slice no matter what the delimiter is, so the target can't ever
-		// be in there
-		return false
-	}
-
 	if delimiter == "" {
 		// an empty delimiter was unfortunately not preemptively disallowed, so
 		// we have to match the behavior of [strings.Split] with an empty
@@ -990,6 +984,10 @@ func splitContains(value, delimiter, target string) bool {
 			// exploding a string into utf8 sequences never yields an empty
 			// string, so we can't ever match an empty target if the delimiter
 			// is empty
+			return false
+		}
+		if value == "" {
+			// exploding the empty string into utf8 sequences yields nothing
 			return false
 		}
 		r, s := utf8.DecodeRuneInString(target)
@@ -1009,6 +1007,10 @@ func splitContains(value, delimiter, target string) bool {
 		// go escaping for strings, so we can't rely on the well-formedness of
 		// strings either; if we hit this case we just fall back to the slower
 		// case using SplitSeq
+	} else if value == "" {
+		// the empty value splits into a single empty string since the delimiter
+		// is nonempty
+		return target == ""
 	} else if strings.Contains(target, delimiter) || !strings.Contains(value, target) {
 		// delimiter is nonempty, so SplitSeq works bytewise, and there's no way
 		// we'll ever get a match if the target contains the delimiter or if the
