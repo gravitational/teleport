@@ -6761,6 +6761,13 @@ func (a *Server) UpsertLinuxDesktop(ctx context.Context, desktop *linuxdesktopv1
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
+		Name:   desktop.GetMetadata().GetName(),
+		Kind:   usagereporter.ResourceKindLinuxDesktop,
+		Static: false,
+	})
+
 	return updated, nil
 }
 

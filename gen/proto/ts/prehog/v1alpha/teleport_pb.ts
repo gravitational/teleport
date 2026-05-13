@@ -4432,7 +4432,13 @@ export enum ResourceKind {
      *
      * @generated from protobuf enum value: RESOURCE_KIND_NODE_OPENSSH_EICE = 7;
      */
-    NODE_OPENSSH_EICE = 7
+    NODE_OPENSSH_EICE = 7,
+    /**
+     * PostHog property value: "linux_desktop"
+     *
+     * @generated from protobuf enum value: RESOURCE_KIND_LINUX_DESKTOP = 8;
+     */
+    LINUX_DESKTOP = 8
 }
 /**
  * The kind of user a given username refers to. Usernames should always refer to

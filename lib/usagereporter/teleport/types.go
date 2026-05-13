@@ -779,6 +779,7 @@ const (
 	ResourceKindKubeServer      = prehogv1a.ResourceKind_RESOURCE_KIND_KUBE_SERVER
 	ResourceKindDBServer        = prehogv1a.ResourceKind_RESOURCE_KIND_DB_SERVER
 	ResourceKindWindowsDesktop  = prehogv1a.ResourceKind_RESOURCE_KIND_WINDOWS_DESKTOP
+	ResourceKindLinuxDesktop    = prehogv1a.ResourceKind_RESOURCE_KIND_LINUX_DESKTOP
 	ResourceKindNodeOpenSSH     = prehogv1a.ResourceKind_RESOURCE_KIND_NODE_OPENSSH
 	ResourceKindNodeOpenSSHEICE = prehogv1a.ResourceKind_RESOURCE_KIND_NODE_OPENSSH_EICE
 )
