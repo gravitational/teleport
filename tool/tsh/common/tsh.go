@@ -5042,7 +5042,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	// If the client store was initialized for the identity file, but the wrong (or missing)
 	// proxy address, re-load the identity file for the provided proxy address.
 	if cf.IdentityFileIn != "" && cf.Proxy != proxy {
-		if err = identityfile.LoadIdentityFileIntoClientStore(c.ClientStore, cf.IdentityFileIn, proxy, c.SiteName); err == nil {
+		if err = identityfile.LoadIdentityFileIntoClientStore(c.ClientStore, cf.IdentityFileIn, proxy, c.SiteName, identityfile.WithHardwareKeyService(c.ClientStore.HardwareKeyService)); err == nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -5304,7 +5304,7 @@ func (c *CLIConf) initClientStore() {
 	// fail if the user did not provide the --proxy flag, but in some cases the proxy, the proxy
 	// address will be provided later on and the client will attempt to load the identity file then.
 	if c.IdentityFileIn != "" {
-		if err := identityfile.LoadIdentityFileIntoClientStore(c.clientStore, c.IdentityFileIn, c.Proxy, c.SiteName); err == nil {
+		if err := identityfile.LoadIdentityFileIntoClientStore(c.clientStore, c.IdentityFileIn, c.Proxy, c.SiteName, identityfile.WithHardwareKeyService(hwks)); err == nil {
 			logger.DebugContext(c.Context, "failed to load identity file into client store", "err", err)
 		}
 	}
@@ -5499,14 +5499,19 @@ func flattenIdentity(cf *CLIConf) error {
 	// Usually, initializing the client store with an identity file would result in
 	// an in-memory client store with a profile for cf.Proxy pre-loaded. Instead,
 	// initialize an FS client store and load the identity file into it.
-	hwks := piv.NewYubiKeyService(nil /*prompt*/)
+	var hwks hardwarekey.Service
+	if cf.disableHardwareKeyAgentClient {
+		hwks = piv.NewYubiKeyService(nil /*prompt*/)
+	} else {
+		hwks = libhwk.NewService(cf.Context, nil /*prompt*/)
+	}
 	clientStore := client.NewFSClientStore(cf.HomePath, client.WithHardwareKeyService(hwks))
 	if err := cf.setClientStore(clientStore); err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Load the identity file key and partial profile into the client store.
-	if err := identityfile.LoadIdentityFileIntoClientStore(clientStore, cf.IdentityFileIn, cf.Proxy, cf.SiteName); err != nil {
+	if err := identityfile.LoadIdentityFileIntoClientStore(clientStore, cf.IdentityFileIn, cf.Proxy, cf.SiteName, identityfile.WithHardwareKeyService(hwks)); err != nil {
 		return trace.Wrap(err)
 	}
 
