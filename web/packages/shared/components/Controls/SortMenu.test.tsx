@@ -31,7 +31,7 @@ describe('SortMenu', () => {
     expect(screen.getByText('Name')).toBeInTheDocument();
   });
 
-  describe('shows the selected item sort-specific in the button', () => {
+  describe('shows the selected item sort-specific label in the button', () => {
     it('ascending', async () => {
       renderComponent({
         props: {
@@ -155,6 +155,33 @@ describe('SortMenu', () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
+  it('hidden options are invisible unless already selected', async () => {
+    const { user } = renderComponent({
+      props: {
+        items: [
+          {
+            key: 'test1',
+            label: 'Test1',
+            hidden: true,
+          },
+          {
+            key: 'test2',
+            label: 'Test2',
+            hidden: true,
+          },
+        ],
+        selectedKey: 'test1',
+        selectedOrder: 'DESC',
+      },
+    });
+    await openMenu(user, 'Test1');
+    const menu = screen.getByRole('menu');
+    const t1 = within(menu).queryByRole('menuitem', { name: 'Test1' });
+    const t2 = within(menu).queryByRole('menuitem', { name: 'Test2' });
+    expect(t1).toBeInTheDocument();
+    expect(t2).not.toBeInTheDocument();
+  });
+
   it('allows an item to be selected', async () => {
     const { user, onChange } = renderComponent();
     await openMenu(user);
@@ -203,6 +230,28 @@ describe('SortMenu', () => {
     expect(onChange).toHaveBeenCalledTimes(1);
     expect(onChange).toHaveBeenLastCalledWith('test-2', 'DESC');
   });
+});
+
+it('shows the item key if the label is empty', async () => {
+  const { user, onChange } = renderComponent({
+    props: {
+      items: [
+        {
+          key: 'test1',
+          label: '',
+        },
+      ],
+      selectedKey: 'test1',
+      selectedOrder: 'ASC',
+    },
+  });
+  await openMenu(user, 'test1');
+  const menu = screen.getByRole('menu');
+  const t1 = within(menu).getByRole('menuitem', { name: 'test1' });
+  expect(t1).toBeInTheDocument();
+  await user.click(t1);
+  expect(onChange).toHaveBeenCalledTimes(1);
+  expect(onChange).toHaveBeenLastCalledWith('test1', 'ASC');
 });
 
 async function openMenu(user: UserEvent, label = 'Name') {
