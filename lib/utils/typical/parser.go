@@ -1046,27 +1046,44 @@ func (l LiteralExpr[TEnv, T]) Evaluate(TEnv) (T, error) {
 	return l.Value, nil
 }
 
+// StringSlice is an interface to represent operations that one might want to do
+// on a string slice, but without necessarily having to evaluate the slice
+// eagerly.
 type StringSlice interface {
+	// Slice converts the StringSlice into a regular []string. The return value
+	// might be shared between callers, so it shouldn't be modified, but
+	// implementations might have to create a new slice at every call.
 	Slice() []string
+	// Contains returns true if the target string is in the slice. Calling
+	// Contains should be equivalent (but can be faster) to calling
+	// [slices.Contains] on the result of Slice().
 	Contains(target string) bool
 }
 
+// actualStringSlice is an adapter type to treat an actual []string as a
+// [StringSlice].
 type actualStringSlice []string
 
+// Slice implements [StringSlice].
 func (s actualStringSlice) Slice() []string {
 	return s
 }
 
+// Contains implements [StringSlice].
 func (s actualStringSlice) Contains(target string) bool {
 	return slices.Contains(s, target)
 }
 
+// stringAsStringSlice is an adapter to regard a single string as a singleton
+// [StringSlice].
 type stringAsStringSlice string
 
+// Slice implements [StringSlice].
 func (s stringAsStringSlice) Slice() []string {
 	return []string{string(s)}
 }
 
+// Contains implements [StringSlice].
 func (s stringAsStringSlice) Contains(target string) bool {
 	return string(s) == target
 }

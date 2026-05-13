@@ -964,10 +964,12 @@ type lazyStringSplit struct {
 	value, delimiter string
 }
 
+// Slice implements [typical.StringSlice].
 func (s *lazyStringSplit) Slice() []string {
 	return strings.Split(s.value, s.delimiter)
 }
 
+// Contains implements [typical.StringSlice].
 func (s *lazyStringSplit) Contains(target string) bool {
 	return splitContains(s.value, s.delimiter, target)
 }
