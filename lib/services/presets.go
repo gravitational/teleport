@@ -886,7 +886,11 @@ func NewPresetMCPUserRole() types.Role {
 
 // NewPresetBeamUserRole returns a new pre-defined role for accessing your own
 // beam resources.
-func NewPresetBeamUserRole() types.Role {
+func NewPresetBeamUserRole(buildType string) types.Role {
+	if buildType != modules.BuildEnterprise {
+		return nil
+	}
+
 	allowLLMApps := fmt.Sprintf(`labels[%q] == %q`, types.BeamAppTypeLabel, types.SubKindLLM)
 	allowBeamApps := fmt.Sprintf(`labels[%q] == user.metadata.name`, types.BeamOwnerLabel)
 
@@ -924,8 +928,12 @@ func NewPresetBeamUserRole() types.Role {
 }
 
 // NewPresetBeamAdminRole returns a new pre-defined role for administering beams
-// belonging to other users
-func NewPresetBeamAdminRole() types.Role {
+// belonging to other users.
+func NewPresetBeamAdminRole(buildType string) types.Role {
+	if buildType != modules.BuildEnterprise {
+		return nil
+	}
+
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
 		Version: types.V8,
@@ -956,7 +964,11 @@ func NewPresetBeamAdminRole() types.Role {
 
 // NewSystemBeamRole returns a new pre-defined role for the beam to issue itself
 // credentials.
-func NewSystemBeamRole() types.Role {
+func NewSystemBeamRole(buildType string) types.Role {
+	if buildType != modules.BuildEnterprise {
+		return nil
+	}
+
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
 		Version: types.V8,
