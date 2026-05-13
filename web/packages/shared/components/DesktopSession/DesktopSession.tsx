@@ -456,7 +456,6 @@ export function DesktopSession({
 
   const controlsProps: DesktopSessionControlsRenderProps = {
     canShareDirectory: directorySharingPossible(directorySharingState),
-    //isSharingDirectory: isSharingDirectory(directorySharingState),
     isSharingClipboard: isSharingClipboard(clipboardSharingState),
     clipboardSharingMessage: clipboardSharingMessage(clipboardSharingState),
     onCtrlAltDel: handleCtrlAltDel,
@@ -472,7 +471,7 @@ export function DesktopSession({
     sharedDirectories: sharedDirectoriesState,
     onAddSharedDirectory: addSharedDirectory,
     onRemoveSharedDirectory: removeSharedDirectory,
-    canRemoveSharedDirectory: serverCapabilities.canRemoveSharedDirectories
+    canRemoveSharedDirectory: serverCapabilities.canRemoveSharedDirectories,
   };
   return (
     <Flex
