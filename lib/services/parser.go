@@ -1167,7 +1167,7 @@ func combineSplitContains(cursor *astutil.Cursor) (cont bool) {
 		return
 	}
 
-	// contains(split(value, delim), target) -> __split_contains(slice, delim, target)
+	// contains(split(value, delim), target) -> __split_contains(value, delim, target)
 	cursor.Replace(&ast.CallExpr{
 		Fun: &ast.Ident{Name: "__split_contains"},
 		Args: []ast.Expr{
@@ -1208,11 +1208,11 @@ func optimizeSplitContains(cursor *astutil.Cursor) (cont bool) {
 		// TODO(espadolini): figure out if adding a "false" or "__false"
 		// variable has the potential to break things
 
-		// __split_contains(sliceExpr, ",", "contains,delimiter") -> __split_contains_singlebyte_affix("", "")
+		// __split_contains(value, ",", "contains,delimiter") -> __split_contains_singlebyte_affix(value, "")
 		cursor.Replace(&ast.CallExpr{
 			Fun: &ast.Ident{Name: "__split_contains_singlebyte_affix"},
 			Args: []ast.Expr{
-				&ast.BasicLit{Kind: token.STRING, Value: `""`},
+				ast.Unparen(splitContainsCall.Args[0]),
 				&ast.BasicLit{Kind: token.STRING, Value: `""`},
 			},
 		})
