@@ -141,17 +141,24 @@ export class ClusterLifecycleManager {
    */
   async logoutCluster(uri: RootClusterUri): Promise<void> {
     await this.rendererEventHandler.send({ op: 'will-logout', uri });
-    this.onBeforeRemove(uri);
     await this.clusterStore.logout(uri, { removeProfile: false });
   }
 
   /**
-   * Forgets the cluster in Connect and removes the tsh profile.
-   * This removes it from both the remembered Connect state and tsh.
+   * Forgets the cluster in Connect and removes its tsh profile.
+   * If this cluster was selected to manage app updates, clears that selection.
    */
   async forgetCluster(uri: RootClusterUri): Promise<void> {
     await this.rendererEventHandler.send({ op: 'will-forget-cluster', uri });
-    this.onBeforeRemove(uri);
+    // Clear the managing cluster only when the cluster is forgotten in Connect.
+    // If the stored managing cluster is missing, auto-update resolution ignores it.
+    // Once that cluster is added back, the stored selection applies again.
+    //
+    // Do not wait for this promise to finish as we don't want to block logout
+    // on checking app updates.
+    this.appUpdater.maybeRemoveManagingCluster(uri).catch(error => {
+      this.logger.error('Failed to remove managing cluster', error);
+    });
     await this.clusterStore.logout(uri, { removeProfile: true });
   }
 
@@ -166,14 +173,6 @@ export class ClusterLifecycleManager {
       this.watcherStarted = true;
       void this.watchProfileChanges();
     }
-  }
-
-  private onBeforeRemove(uri: RootClusterUri): void {
-    // Do not wait for this promise to finish as we don't want to block logout
-    // on checking app updates.
-    this.appUpdater.maybeRemoveManagingCluster(uri).catch(error => {
-      this.logger.error('Failed to remove managing cluster', error);
-    });
   }
 
   /**
@@ -279,7 +278,6 @@ export class ClusterLifecycleManager {
       op: 'will-logout',
       uri: cluster.uri,
     });
-    this.onBeforeRemove(cluster.uri);
     // Keep the cluster store in sync with the profile state on disk.
     // Once the profile is gone, we must remove if from the store too; otherwise Connect
     // could try to use it before recreating the profile and RPCs would fail with errors such
