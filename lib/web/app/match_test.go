@@ -87,3 +87,22 @@ type mockDialConn struct {
 func (c *mockDialConn) Close() error {
 	return nil
 }
+
+// TestMatchPublicAddrCaseInsensitive guards the case-insensitive
+// hostname comparison in MatchPublicAddr. Browsers lowercase the
+// Host header, so a mixed-case stored public_addr that compared by
+// == would silently miss every preflight and routing lookup.
+func TestMatchPublicAddrCaseInsensitive(t *testing.T) {
+	app, err := types.NewAppV3(
+		types.Metadata{Name: "test-app", Namespace: defaults.Namespace},
+		types.AppSpecV3{URI: "https://app.localhost", PublicAddr: "MyApp.Example.Com"},
+	)
+	require.NoError(t, err)
+	appServer, err := types.NewAppServerV3FromApp(app, "localhost", "123")
+	require.NoError(t, err)
+
+	require.True(t, MatchPublicAddr("myapp.example.com")(appServer))
+	require.True(t, MatchPublicAddr("MYAPP.EXAMPLE.COM")(appServer))
+	require.True(t, MatchPublicAddr("MyApp.Example.Com")(appServer))
+	require.False(t, MatchPublicAddr("other.example.com")(appServer))
+}

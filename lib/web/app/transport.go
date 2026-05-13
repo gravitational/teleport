@@ -213,7 +213,8 @@ func (t *transport) rewriteRedirect(resp *http.Response) error {
 
 	// If this is a redirect to a public addr of a leaf cluster, rewrite it.
 	// We want the rewrite to happen using our own public address.
-	if host == t.c.identity.RouteToApp.PublicAddr {
+	// DNS hostnames are case-insensitive, so compare with EqualFold.
+	if strings.EqualFold(host, t.c.identity.RouteToApp.PublicAddr) {
 		// drop scheme and host, leaving only the relative path.
 		u.Host = ""
 		u.Scheme = ""

@@ -565,7 +565,7 @@ func (h *Handler) checkForDualCredentialMismatch(outerIdentity *tlsca.Identity, 
 	if outerIdentity.RouteToApp.ClusterName != innerIdentity.RouteToApp.ClusterName {
 		return trace.AccessDenied("cluster name %q does not match session cluster name %q", outerIdentity.RouteToApp.ClusterName, innerIdentity.RouteToApp.ClusterName)
 	}
-	if innerIdentity.RouteToApp.PublicAddr != "" && outerIdentity.RouteToApp.PublicAddr != innerIdentity.RouteToApp.PublicAddr {
+	if innerIdentity.RouteToApp.PublicAddr != "" && !strings.EqualFold(outerIdentity.RouteToApp.PublicAddr, innerIdentity.RouteToApp.PublicAddr) {
 		return trace.AccessDenied("app public address %q does not match session public app address %q", outerIdentity.RouteToApp.PublicAddr, innerIdentity.RouteToApp.PublicAddr)
 	}
 	// RouteToApp.Name may not be set in web cookie flows.

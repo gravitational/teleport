@@ -195,6 +195,10 @@ func TestNewResourceExpression(t *testing.T) {
 			`!equals(labels.undefined, "prod")`,
 			`equals(resource.spec.hostname, "test-hostname")`,
 			`equals(health.status, "")`,
+			// Test equalsFold.
+			`equalsFold(resource.spec.hostname, "TEST-HOSTNAME")`,
+			`equalsFold(resource.metadata.name, "Test-Name")`,
+			`!equalsFold(resource.spec.hostname, "different")`,
 			// Test search.
 			`search("mac")`,
 			`search("os", "mac", "prod")`,
@@ -253,6 +257,7 @@ func TestNewResourceExpression(t *testing.T) {
 			`equals(resource.spec.hostname, "wrong-value")`,
 			`search("mac", "not-found")`,
 			`hasPrefix(name, "x")`,
+			`equalsFold(resource.spec.hostname, "different")`,
 		}
 		for _, expr := range exprs {
 			t.Run(expr, func(t *testing.T) {

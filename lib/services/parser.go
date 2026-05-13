@@ -1001,6 +1001,9 @@ func NewResourceExpression(expression string) (typical.Expression[types.Resource
 			"equals": typical.BinaryFunction[types.ResourceWithLabels](func(a, b string) (bool, error) {
 				return strings.Compare(a, b) == 0, nil
 			}),
+			"equalsFold": typical.BinaryFunction[types.ResourceWithLabels](func(a, b string) (bool, error) {
+				return strings.EqualFold(a, b), nil
+			}),
 			"search": typical.UnaryVariadicFunctionWithEnv(func(r types.ResourceWithLabels, v ...string) (bool, error) {
 				return r.MatchSearch(v), nil
 			}),

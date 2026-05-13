@@ -254,7 +254,9 @@ func (r *fqdnResolver) resolveAppInfoForCluster(
 	log := log.With("profile", candidate.profileName, "leaf_cluster", candidate.leafClusterName, "fqdn", fqdn)
 
 	// An app public_addr could technically be fully-qualified or not, match either way.
-	expr := fmt.Sprintf(`resource.spec.public_addr == "%s" || resource.spec.public_addr == "%s"`,
+	// equalsFold is needed because public_addr may be stored with mixed case but DNS
+	// hostnames are case-insensitive, so a browser-issued fqdn arrives lowercased.
+	expr := fmt.Sprintf(`equalsFold(resource.spec.public_addr, "%s") || equalsFold(resource.spec.public_addr, "%s")`,
 		strings.TrimSuffix(fqdn, "."), fqdn)
 
 	// If candidate is a leaf cluster and fqdn possibly points to a leaf
@@ -295,7 +297,9 @@ func (r *fqdnResolver) resolveAppInfoForCluster(
 			if !ok {
 				return nil, trace.BadParameter("expected *types.AppV3, got %T", resource.GetApp())
 			}
-			matchedByPublicAddr := dns.FullyQualify(app.GetPublicAddr()) == fqdn
+			// DNS hostnames are case-insensitive; the backend predicate
+			// above uses equalsFold, so this local check must too.
+			matchedByPublicAddr := strings.EqualFold(dns.FullyQualify(app.GetPublicAddr()), fqdn)
 			matchedByName := app.GetName() == potentialAppName
 			if !matchedByName && !matchedByPublicAddr {
 				// This shouldn't happen if the backend query worked correctly.

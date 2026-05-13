@@ -356,8 +356,11 @@ func (v *vnetApplicationService) ResolveFQDN(ctx context.Context, fqdn string) (
 		return nil, trace.Wrap(err)
 	}
 
+	// equalsFold because public_addr may be stored with mixed case
+	// but DNS hostnames are case-insensitive, so a browser-issued
+	// fqdn arrives lowercased.
 	expr := fmt.Sprintf(
-		`resource.spec.public_addr == %+q || resource.spec.public_addr == %+q`,
+		`equalsFold(resource.spec.public_addr, %+q) || equalsFold(resource.spec.public_addr, %+q)`,
 		fqdn,
 		strings.TrimSuffix(fqdn, "."),
 	)

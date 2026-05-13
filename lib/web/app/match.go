@@ -49,9 +49,12 @@ func MatchUnshuffled(ctx context.Context, cluster reversetunnelclient.Cluster, f
 type Matcher func(readonly.AppServer) bool
 
 // MatchPublicAddr matches on the public address of an application.
+// Comparison is case-insensitive because DNS names are
+// case-insensitive and browsers lowercase the Host header before
+// sending it.
 func MatchPublicAddr(publicAddr string) Matcher {
 	return func(appServer readonly.AppServer) bool {
-		return appServer.GetApp().GetPublicAddr() == publicAddr
+		return strings.EqualFold(appServer.GetApp().GetPublicAddr(), publicAddr)
 	}
 }
 
