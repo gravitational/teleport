@@ -1312,8 +1312,6 @@ func (c *Controller) handleLinuxDesktopHB(handle *upstreamHandle, linuxDesktop *
 		return trace.AccessDenied("incorrect linux desktop ID (expected %q, got %q)", handle.Hello().ServerID, meta.GetName())
 	}
 
-	meta.Expires = timestamppb.New(time.Now().Add(c.serverTTL).UTC())
-
 	if handle.linuxDesktop == nil {
 		c.onConnectFunc(constants.KeepAliveLinuxDesktop)
 		handle.linuxDesktop = &heartBeatInfo[*linuxdesktopv1.LinuxDesktop]{
@@ -1324,6 +1322,8 @@ func (c *Controller) handleLinuxDesktopHB(handle *upstreamHandle, linuxDesktop *
 	} else {
 		handle.linuxDesktop.resource = linuxDesktop
 	}
+
+	meta.Expires = timestamppb.New(time.Now().Add(c.serverTTL).UTC())
 
 	if _, err := c.auth.UpsertLinuxDesktop(c.closeContext, handle.linuxDesktop.resource); err == nil {
 		handle.linuxDesktop.keepAliveErrs = 0
