@@ -152,7 +152,7 @@ func withCustomSpecFields(customSpecFields []string) resourceSchemaOption {
 	}
 }
 
-// withScope says that the resource is scoped. A scope filed will be inserted at the CRD root.
+// withScope says that the resource is scoped. A scope field will be inserted at the CRD root.
 func withScope() resourceSchemaOption {
 	return func(cfg *resourceSchemaConfig) {
 		cfg.additionalRootFields = append(cfg.additionalRootFields, scopeFieldName)
