@@ -243,6 +243,7 @@ function setupTests(): {
 
   const topBarConnectMyComputerRef = createRef<HTMLDivElement>();
   const topBarAccessRequestRef = createRef<HTMLDivElement>();
+  const desktopSessionControlsRef = createRef<HTMLDivElement>();
   const Component = () => (
     <MockAppContextProvider appContext={ctx}>
       <ResourcesContextProvider>
@@ -250,6 +251,7 @@ function setupTests(): {
           ctx={ctx}
           topBarConnectMyComputerRef={topBarConnectMyComputerRef}
           topBarAccessRequestRef={topBarAccessRequestRef}
+          desktopSessionControlsRef={desktopSessionControlsRef}
         />
       </ResourcesContextProvider>
     </MockAppContextProvider>
