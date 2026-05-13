@@ -79,10 +79,21 @@ func init() {
 			"teleport: cannot determine executable path for GODEBUG re-exec: %v\n", err)
 		return
 	}
-	// Build a fresh env slice for the replacement process. Mutating the
-	// current process's GODEBUG via os.Setenv would leak the change to
-	// any child the original process spawns if the exec fails.
-	env := append(os.Environ(), "GODEBUG="+updated)
+	// Build a fresh env slice for the replacement process: filter out
+	// any existing GODEBUG= entry and append the updated value. Linux
+	// keeps the first occurrence on duplicates, so a plain append would
+	// be ignored when the operator already has GODEBUG set for other
+	// tuning. Mutating the current process via os.Setenv would also
+	// leak the change to any child spawned by the original if the exec
+	// fails.
+	env := make([]string, 0, len(os.Environ())+1)
+	for _, e := range os.Environ() {
+		if strings.HasPrefix(e, "GODEBUG=") {
+			continue
+		}
+		env = append(env, e)
+	}
+	env = append(env, "GODEBUG="+updated)
 	// Keep argv[0] consistent with the resolved executable path so the
 	// replacement process's os.Args[0] and os.Executable() agree.
 	argv := append([]string{exe}, os.Args[1:]...)
