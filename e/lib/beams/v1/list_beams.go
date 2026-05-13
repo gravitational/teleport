@@ -8,6 +8,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/set"
 )
 
@@ -35,7 +36,11 @@ func (s *BeamsService) ListBeams(ctx context.Context, req *beamsv1.ListBeamsRequ
 		results   []*beamsv1.Beam
 		nextToken string
 	)
-	for beam, err := range s.beamReader.IterateBeams(ctx, req.GetPageToken()) {
+	for beam, err := range s.beamReader.IterateBeamsV2(ctx, req.GetPageToken(), &services.ListBeamsRequestOptions{
+		SortField:   req.GetSortField(),
+		SortOrder:   req.GetSortOrder(),
+		FilterUsers: usersFilter,
+	}) {
 		if err != nil {
 			s.logger.ErrorContext(ctx, "Failed to iterate beams", "error", err)
 			return nil, trace.Wrap(err)
@@ -48,10 +53,6 @@ func (s *BeamsService) ListBeams(ctx context.Context, req *beamsv1.ListBeamsRequ
 		case err != nil:
 			s.logger.ErrorContext(ctx, "Failed to check access to beam", "error", err)
 			return nil, trace.Wrap(err)
-		}
-
-		if usersFilter.Len() != 0 && !usersFilter.Contains(beam.GetStatus().GetUser()) {
-			continue
 		}
 
 		// Read one more than pageSize results, so we can point nextToken at the

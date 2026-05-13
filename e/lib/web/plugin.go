@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
+	"github.com/gravitational/teleport/lib/modules"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
@@ -81,6 +82,9 @@ type Config struct {
 
 	//  HTTPClient is the HTTP client used by the plugin.
 	HTTPClient http.RoundTripper
+
+	// Modules defines build time constraints and licensed features.
+	Modules modules.Modules
 }
 
 // CheckAndSetDefaults checks and sets the defaults
@@ -430,6 +434,7 @@ func (p *Plugin) RegisterProxyWebHandlers(handler any) error {
 	p.registerSCIMHandlers()
 	p.registerSummarizerHandlers()
 	p.registerInferenceHandlers()
+	p.registerBeamHandlers()
 
 	return nil
 }

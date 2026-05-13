@@ -131,6 +131,7 @@ type webSuiteOptions struct {
 	accessGraphHTTPValidation   func(*testing.T, *http.Request)
 	uploadHandler               events.MultipartHandler
 	modules                     *modulestest.Modules
+	enableAuthCache             bool
 }
 
 func withAccessGraphFeatures(features string) webSuiteOption {
@@ -175,6 +176,12 @@ func withModules(m *modulestest.Modules) webSuiteOption {
 	}
 }
 
+func withWebPackAuthCacheEnabled(enable bool) webSuiteOption {
+	return func(o *webSuiteOptions) {
+		o.enableAuthCache = enable
+	}
+}
+
 func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 	var options webSuiteOptions
 	for _, v := range opts {
@@ -212,8 +219,9 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 			Addr:     accessGraphServer.Listener.Addr().String(),
 			Insecure: true,
 		},
-		Clock:  s.clock,
-		Logger: log,
+		Clock:   s.clock,
+		Logger:  log,
+		Modules: options.modules,
 	})
 	s.webPlugin = webPlugin
 	require.NoError(t, err)
@@ -262,6 +270,7 @@ func newWebSuite(t *testing.T, opts ...webSuiteOption) *webSuite {
 			RunWhileLockedRetryInterval: options.runWhileLockedRetryInterval,
 			UploadHandler:               options.uploadHandler,
 			Modules:                     options.modules,
+			CacheEnabled:                options.enableAuthCache,
 		},
 		TLS: &authtest.TLSServerConfig{
 			APIConfig: &auth.APIConfig{PluginRegistry: pluginRegistry},
@@ -560,6 +569,7 @@ func (s *webSuite) createUser(t *testing.T, user string, login string, pass stri
 		types.NewRule(types.KindInferenceModel, services.RW()),
 		types.NewRule(types.KindInferenceSecret, services.RW()),
 		types.NewRule(types.KindInferencePolicy, services.RW()),
+		types.NewRule(types.KindBeam, services.RW()),
 	}
 	rules = append(rules, extraRules...)
 	role, err := authtest.CreateRole(s.ctx, s.testAuthServer.Auth(), "editor", types.RoleSpecV6{

@@ -193,6 +193,7 @@ func addPlugins(cfg *servicecfg.Config, license *licensefile.LicenseFile, plugin
 			PluginShimURL: pluginShimURL,
 			AccessGraph:   accessGraphCfg,
 			Logger:        cfg.Logger,
+			Modules:       cfg.Modules,
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
