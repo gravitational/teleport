@@ -80,7 +80,7 @@ const authHostNotSupportedMessage = `Access Graph credentials cannot be issued d
 
 The recommended flow is to run ` + "`tsh login`" + ` from a workstation, then re-run this command from that workstation — it will pick up the resulting profile and populate the Access Graph cert in that user's keyring.
 
-If you must run` + "`tsh login`" + ` on this auth host directly, be aware that it will create a ` + "`~/.tsh`" + ` profile directory for the invoking OS user (if one does not already exist) and write credentials into it. That directory should be cleaned up afterwards. To avoid writing to ` + "`~/.tsh`" + ` at all, either:
+If you must run ` + "`tsh login`" + ` on this auth host directly, be aware that it will create a ` + "`~/.tsh`" + ` profile directory for the invoking OS user (if one does not already exist) and write credentials into it. That directory should be cleaned up afterwards. To avoid writing to ` + "`~/.tsh`" + ` at all, either:
   - set ` + "`TELEPORT_HOME`" + ` to an isolated path before running ` + "`tsh login`" + ` and this command (the directory under that path will still need to be cleaned up afterwards), or
   - pass a pre-issued identity file via ` + "`tctl -i <identity-file> --auth-server <proxy-or-auth-addr>`" + ` and skip ` + "`tsh login`" + ` entirely.`
 
