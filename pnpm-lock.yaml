@@ -4,7 +4,7 @@ settings:
   autoInstallPeers: false
   excludeLinksFromLockfile: false
 
-pnpmfileChecksum: sha256-TR6zTaL3sXZMyu+QoRdd27aSUTH6sH0gp+M2XjxgTUI=
+pnpmfileChecksum: sha256-3AOHslbtRtYuc3cGLlOMjb9MmUOvoRaPZQZz0peX2bA=
 
 patchedDependencies:
   jest-canvas-mock@2.5.2:
@@ -226,6 +226,9 @@ importers:
       '@gravitational/e2e':
         specifier: workspace:*
         version: link:../../e2e
+      '@playwright/test':
+        specifier: ^1.59.1
+        version: 1.59.1
 
   e/web/teleport: {}
 
