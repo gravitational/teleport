@@ -489,8 +489,8 @@ func TestSplitContainsZeroAlloc(t *testing.T) {
 	server2, err := types.NewServerWithLabels("server-name", types.KindNode, types.ServerSpecV2{
 		Hostname: "server-hostname",
 	}, map[string]string{
-		"ip":        "1.2.3.11|1.2.3.101|1.2.3.1",
-		"target_ip": "1.2.3.102",
+		"ip":        "1.2.3.11|1.2.3.102|1.2.3.1",
+		"target_ip": "1.2.3.101",
 	})
 	require.NoError(t, err)
 
