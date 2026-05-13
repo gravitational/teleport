@@ -1543,6 +1543,7 @@ func (s *WindowsService) watchCAEvents(
 					// Filters not supported for KindCertAuthorityOverride.
 				},
 			},
+			AllowPartialSuccess: true, // CAOverride watch allowed to fail.
 		})
 		if err != nil {
 			logger.WarnContext(ctx,
@@ -1604,6 +1605,19 @@ func runCAWatcherLoop(
 			// * https://github.com/gravitational/teleport/blob/1f0ca9e4ae66a47f39d10c40f35e55d5ac5e15ac/lib/services/watcher.go#L336-L338
 			switch {
 			case e.Type == types.OpInit && isFirstEvent:
+				confirmedCAOverrides, err := verifyOpInitKindsForCAEvents(e)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				if !confirmedCAOverrides {
+					eLog.DebugContext(ctx, ""+
+						"WatchStatus did not confirm CA overrides. Overrides are not watched. "+
+						"This is expected for Teleport OSS.",
+					)
+					// Important: "Teleport OSS" here means, specifically, the Auth Server.
+					// An OSS Desktop Service can be paired with an Ent Auth, so checking
+					// the current binary build won't work.
+				}
 				isFirstEvent = false
 				continue // OK, expected.
 
@@ -1647,6 +1661,37 @@ func runCAWatcherLoop(
 			}
 		}
 	}
+}
+
+// verifyOpInitKindsForCAEvents verifies the OpInit WatchStatus payload.
+// - KindCertAuthority is mandatory.
+// - KindCertAuthorityOverride is optional.
+func verifyOpInitKindsForCAEvents(e types.Event) (confirmedCAOverrides bool, _ error) {
+	if e.Resource == nil {
+		// Consider all kinds confirmed. See types.Watch.AllowPartialSuccess.
+		// https://github.com/gravitational/teleport/blob/77e56f05a4172b04b386d8b56f4842dd4b3b870d/api/types/events.go#L105-L106
+		return false, nil
+	}
+
+	status, ok := e.Resource.(types.WatchStatus)
+	if !ok {
+		return false, trace.BadParameter("event OpInit has unexpected Resource: %T (expected WatchStatus)", e.Resource)
+	}
+
+	var hasKindCA, hasKindCAOverride bool
+	for _, kind := range status.GetKinds() {
+		switch kind.Kind {
+		case types.KindCertAuthority:
+			hasKindCA = true
+		case types.KindCertAuthorityOverride:
+			hasKindCAOverride = true
+		}
+	}
+	if !hasKindCA {
+		return false, trace.BadParameter("watch status failed to confirm kind %s, aborting watcher", types.KindCertAuthority)
+	}
+
+	return hasKindCAOverride, nil
 }
 
 // getKDCAddress gets the KDC address that should be used for NLA in
