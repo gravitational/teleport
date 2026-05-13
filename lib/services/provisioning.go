@@ -136,15 +136,19 @@ func strongValidateProvisionTokenWithDefaults(token *types.ProvisionTokenV2) err
 	}
 
 	for i, rule := range kube.Allow {
+		serviceAccountSet := rule.ServiceAccount != ""
+
 		// validation for empty namespace and account was added much later than the rest of the validations
 		// in CheckAndSetDefaults(), so we only enforce them when marshaling a token rather than when unmarshaling
-		namespace, account, _ := strings.Cut(rule.ServiceAccount, ":")
-		if namespace == "" || account == "" {
-			return trace.BadParameter(
-				`allow[%d].service_account: name of service account should be in format "namespace:service_account", got %q instead`,
-				i,
-				rule.ServiceAccount,
-			)
+		if serviceAccountSet {
+			namespace, account, _ := strings.Cut(rule.ServiceAccount, ":")
+			if namespace == "" || account == "" {
+				return trace.BadParameter(
+					`allow[%d].service_account: name of service account should be in format "namespace:service_account", got %q instead`,
+					i,
+					rule.ServiceAccount,
+				)
+			}
 		}
 	}
 

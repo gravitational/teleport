@@ -315,6 +315,8 @@ Optional:
 Optional:
 
 - `service_account` (String) ServiceAccount is the namespaced name of the Kubernetes service account. Its format is "namespace:service-account".
+- `service_account_name` (String) ServiceAccountName is the name of the Kubernetes service account.  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
+- `service_account_namespace` (String) ServiceAccountNamespace is the namespace of the Kubernetes service account.  This field supports "glob-style" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.
 
 
 ### Nested Schema for `spec.kubernetes.oidc`
