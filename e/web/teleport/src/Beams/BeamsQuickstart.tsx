@@ -20,6 +20,7 @@ import styled from 'styled-components';
 import Flex from 'design/Flex/Flex';
 import { SlideTabs } from 'design/SlideTabs';
 import { Markdown } from 'shared/components/Markdown/Markdown';
+import { parse } from 'shared/utils/semVer';
 
 import { FeatureBox } from 'teleport/components/Layout/Layout';
 import { useNoMinWidth } from 'teleport/Main';
@@ -58,7 +59,7 @@ export function BeamsQuickstart() {
       >
         {infoContent.map(c => (
           <Wrapper key={c}>
-            <Markdown text={c} />
+            <Markdown text={c} enableLinks />
           </Wrapper>
         ))}
 
@@ -122,9 +123,13 @@ function interpolateContent(
   clusterVersion: string,
   username: string
 ) {
+  const semver = parse(clusterVersion);
+  // Strip the build and prerelease parts
+  const version = `${semver?.major}.${semver?.minor}.${semver?.patch}`;
+
   const subs: Record<string, string> = {
     ':cluster_public_url': clusterPublicUrl,
-    ':cluster_version': clusterVersion,
+    ':cluster_version': version,
     ':username': username,
   };
 
@@ -174,13 +179,40 @@ tsh version
 <details>
 <summary>Need to install the Teleport client tools?</summary>
 
-Install using the cluster's install script
+Run the install command for your OS:
+
+**macOS**
+
+Download the signed macOS .pkg installer for Teleport, which includes \`tsh\`. In Finder double-click the pkg file to begin installation:
 
 \`\`\`
-curl "https://:cluster_public_url/scripts/install.sh" | sudo bash
+curl -O https://cdn.teleport.dev/teleport-:cluster_version.pkg
 \`\`\`
 
-💡 This command will install the correct version for the Teleport cluster.
+**Windows**
+
+Unzip the archive and move tsh.exe to your %PATH%
+
+\`\`\`
+curl.exe -O https://cdn.teleport.dev/teleport-v:cluster_version-windows-amd64-bin.zip
+\`\`\`
+
+**Linux**
+
+\`\`\`
+curl -O https://cdn.teleport.dev/teleport-v:cluster_version-linux-amd64-bin.tar.gz
+\`\`\`
+
+\`\`\`
+tar -xzf teleport-v:cluster_version-linux-amd64-bin.tar.gz && cd teleport
+\`\`\`
+
+\`\`\`
+sudo ./install
+\`\`\`
+
+💡 For more information read the docs page: [Using the \`tsh\` Command Line Tool](https://goteleport.com/docs/connect-your-client/teleport-clients/tsh/).
+
 </details>
 `,
   `
@@ -191,15 +223,20 @@ Choose a command below depending on how you login to your cluster.
 **Password + MFA**
 
 \`\`\`
-tsh login --proxy=:cluster_public_url --user=:username
+tsh login \\
+    --proxy=:cluster_public_url \\
+    --user=:username
 \`\`\`
 
 **Passwordless**
 
-Add the \`--auth=passwordless\` flag;
+Add the \`--auth=passwordless\` flag
 
 \`\`\`
-tsh login --proxy=:cluster_public_url --user=:username --auth=passwordless
+tsh login \\
+    --proxy=:cluster_public_url \\
+    --user=:username \\
+    --auth=passwordless
 \`\`\`
 `,
 ];
