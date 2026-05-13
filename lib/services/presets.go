@@ -973,13 +973,8 @@ func NewSystemBeamRole() types.Role {
 				Rules: []types.Rule{
 					{
 						Resources: []string{types.KindHostCert},
-						Verbs: []string{
-							types.VerbRead,
-							types.VerbList,
-							types.VerbCreate,
-							types.VerbUpdate,
-							types.VerbDelete,
-						},
+						Verbs:     []string{types.VerbCreate},
+						Where:     fmt.Sprintf(`contains_all(user.spec.traits[%q], host_cert.principals)'`, types.BeamIDLabel),
 					},
 					{
 						Resources: []string{types.KindWorkloadIdentity},
