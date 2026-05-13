@@ -21,10 +21,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -90,44 +86,6 @@ func TestCertAuthorityOverrides(t *testing.T) {
 	})
 }
 
-func TestCertAuthorityOverrides_notImplemented(t *testing.T) {
-	t.Parallel()
-
-	service := notImplementedSubCAService{}
-	p := newTestPack(t, func(c Config) Config {
-		c = ForAuth(c)
-		c.SubCAService = service
-		c.neverOK = true // Force upstream reads.
-		return c
-	})
-	t.Cleanup(p.Close)
-
-	cache := p.cache
-	clusterName := p.clusterConfigS.GetName()
-
-	t.Run("Get", func(t *testing.T) {
-		t.Parallel()
-
-		_, err := cache.GetCertAuthorityOverride(t.Context(), types.CertAuthorityOverrideID{
-			ClusterName: clusterName,
-			CAType:      string(types.WindowsCA),
-		})
-		assert.ErrorAs(t, err, new(*trace.NotFoundError))
-		assert.ErrorContains(t, err, "ca overrides not implemented")
-	})
-
-	t.Run("List", func(t *testing.T) {
-		t.Parallel()
-
-		const pageSize = 0
-		const pageToken = ""
-		got, nextPageToken, err := cache.ListCertAuthorityOverrides(t.Context(), pageSize, pageToken)
-		require.NoError(t, err)
-		assert.Empty(t, got, "got unexpected results")
-		assert.Empty(t, nextPageToken, "got unexpected nextPageToken")
-	})
-}
-
 func newCertAuthorityOverride(caType types.CertAuthType, clusterName string) *subcav1.CertAuthorityOverride {
 	return &subcav1.CertAuthorityOverride{
 		Kind:    types.KindCertAuthorityOverride,
@@ -138,19 +96,4 @@ func newCertAuthorityOverride(caType types.CertAuthType, clusterName string) *su
 		},
 		Spec: &subcav1.CertAuthorityOverrideSpec{},
 	}
-}
-
-type notImplementedSubCAService struct{}
-
-func (notImplementedSubCAService) GetCertAuthorityOverride(
-	ctx context.Context, id types.CertAuthorityOverrideID) (*subcav1.CertAuthorityOverride, error) {
-	return nil, trace.NotImplemented("not implemented")
-}
-
-func (notImplementedSubCAService) ListCertAuthorityOverrides(
-	ctx context.Context,
-	pageSize int,
-	pageToken string,
-) (_ []*subcav1.CertAuthorityOverride, nextPageToken string, _ error) {
-	return nil, "", trace.NotImplemented("not implemented")
 }
