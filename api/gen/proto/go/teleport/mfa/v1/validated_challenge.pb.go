@@ -24,6 +24,8 @@ var _ = math.Inf
 const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
 // ValidatedMFAChallenge represents a validated MFA challenge tied to a user session.
+//
+// Deprecated: Use teleport.mfa.v2.ValidatedMFAChallenge for new session-bound MFA APIs.
 type ValidatedMFAChallenge struct {
 	// Resource kind, always 'validated_mfa_challenge'.
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
@@ -109,6 +111,8 @@ func (m *ValidatedMFAChallenge) GetSpec() *ValidatedMFAChallengeSpec {
 }
 
 // ValidatedMFAChallengeSpec contains the validated challenge data that is set once during creation and never modified.
+//
+// Deprecated: Use teleport.mfa.v2.ValidatedMFAChallengeSpec for new session-bound MFA APIs.
 type ValidatedMFAChallengeSpec struct {
 	// Value that uniquely identifies the user's session. Supplied in CreateSessionChallengeRequest.
 	Payload *SessionIdentifyingPayload `protobuf:"bytes,1,opt,name=payload,proto3" json:"payload,omitempty"`
@@ -187,6 +191,8 @@ func (m *ValidatedMFAChallengeSpec) GetUsername() string {
 
 // SessionIdentifyingPayload contains a value that uniquely identifies a user's session. It must be computed by the
 // client from session state and is used to bind MFA challenges to specific sessions.
+//
+// Deprecated: Use teleport.mfa.v2.SessionIdentifyingPayload for new session-bound MFA APIs.
 type SessionIdentifyingPayload struct {
 	// Types that are valid to be assigned to Payload:
 	//	*SessionIdentifyingPayload_SshSessionId

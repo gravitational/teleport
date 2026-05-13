@@ -117,9 +117,9 @@ func (p *mfaPrompt) promptApp(ctx context.Context, chal *proto.MFAAuthenticateCh
 		}
 	}
 
-	var browserMfaChallenge *mfav1.BrowserMFAChallenge
+	var browserMfaChallenge *mfav1.BrowserMFAChallenge //nolint:staticcheck // TODO(danielashare): Delete when Browser MFA has migrated to mfav2.
 	if promptBrowserMfa {
-		browserMfaChallenge = &mfav1.BrowserMFAChallenge{
+		browserMfaChallenge = &mfav1.BrowserMFAChallenge{ //nolint:staticcheck // TODO(danielashare): Delete when Browser MFA has migrated to mfav2.
 			RequestId: chal.BrowserMFAChallenge.RequestId,
 		}
 	}

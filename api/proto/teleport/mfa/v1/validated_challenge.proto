@@ -21,6 +21,8 @@ import "teleport/legacy/types/metadata.proto";
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1;mfav1";
 
 // ValidatedMFAChallenge represents a validated MFA challenge tied to a user session.
+//
+// Deprecated: Use teleport.mfa.v2.ValidatedMFAChallenge for new session-bound MFA APIs.
 message ValidatedMFAChallenge {
   // Resource kind, always 'validated_mfa_challenge'.
   string kind = 1;
@@ -35,6 +37,8 @@ message ValidatedMFAChallenge {
 }
 
 // ValidatedMFAChallengeSpec contains the validated challenge data that is set once during creation and never modified.
+//
+// Deprecated: Use teleport.mfa.v2.ValidatedMFAChallengeSpec for new session-bound MFA APIs.
 message ValidatedMFAChallengeSpec {
   // Value that uniquely identifies the user's session. Supplied in CreateSessionChallengeRequest.
   SessionIdentifyingPayload payload = 1;
@@ -49,6 +53,8 @@ message ValidatedMFAChallengeSpec {
 
 // SessionIdentifyingPayload contains a value that uniquely identifies a user's session. It must be computed by the
 // client from session state and is used to bind MFA challenges to specific sessions.
+//
+// Deprecated: Use teleport.mfa.v2.SessionIdentifyingPayload for new session-bound MFA APIs.
 message SessionIdentifyingPayload {
   oneof payload {
     // SSH session hash computed from session state. For example, in Go this is the value from

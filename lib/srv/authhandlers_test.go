@@ -37,7 +37,7 @@ import (
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	apissh "github.com/gravitational/teleport/api/ssh"
@@ -1522,7 +1522,7 @@ func TestVerifiedPublicKeyCallback(t *testing.T) {
 }
 
 type mockMFAServiceClient struct {
-	mfav1.MFAServiceClient
+	mfav2.MFAServiceClient
 }
 
 // runPublicKeyCallbacks runs the auth handler's public key callbacks in sequence and returns the resulting permissions

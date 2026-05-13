@@ -48,6 +48,8 @@ const (
 // MFAService defines the Multi-Factor Authentication (MFA) service. While this service is currently focused on user
 // sessions, new MFA related RPCs should be added here instead of the AuthService, to maintain a clear separation of
 // concerns instead of further bloating the AuthService.
+//
+// Deprecated: Use teleport.mfa.v2.MFAService for new session-bound MFA APIs.
 type MFAServiceClient interface {
 	// CreateSessionChallenge creates an MFA challenge that is tied to a user session.
 	CreateSessionChallenge(ctx context.Context, in *CreateSessionChallengeRequest, opts ...grpc.CallOption) (*CreateSessionChallengeResponse, error)
@@ -152,6 +154,8 @@ func (c *mFAServiceClient) CompleteBrowserMFAChallenge(ctx context.Context, in *
 // MFAService defines the Multi-Factor Authentication (MFA) service. While this service is currently focused on user
 // sessions, new MFA related RPCs should be added here instead of the AuthService, to maintain a clear separation of
 // concerns instead of further bloating the AuthService.
+//
+// Deprecated: Use teleport.mfa.v2.MFAService for new session-bound MFA APIs.
 type MFAServiceServer interface {
 	// CreateSessionChallenge creates an MFA challenge that is tied to a user session.
 	CreateSessionChallenge(context.Context, *CreateSessionChallengeRequest) (*CreateSessionChallengeResponse, error)

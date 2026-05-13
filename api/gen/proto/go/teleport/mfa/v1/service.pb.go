@@ -23,6 +23,8 @@ var _ = math.Inf
 const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
 // CreateSessionChallengeRequest is the request message for CreateSessionChallenge.
+//
+// Deprecated: Use teleport.mfa.v2.CreateSessionChallengeRequest for new session-bound MFA APIs.
 type CreateSessionChallengeRequest struct {
 	// Value that uniquely identifies the user's session. When VerifyValidatedMFAChallenge is called, the server will
 	// verify it matches the payload supplied to CreateSessionChallengeRequest.
@@ -116,6 +118,8 @@ func (m *CreateSessionChallengeRequest) GetBrowserMfaTshRedirectUrl() string {
 }
 
 // CreateSessionChallengeResponse is the response message for CreateSessionChallenge.
+//
+// Deprecated: Use teleport.mfa.v2.CreateSessionChallengeResponse for new session-bound MFA APIs.
 type CreateSessionChallengeResponse struct {
 	// MFA challenge that the user must respond to.
 	MfaChallenge         *AuthenticateChallenge `protobuf:"bytes,1,opt,name=mfa_challenge,json=mfaChallenge,proto3" json:"mfa_challenge,omitempty"`
@@ -165,6 +169,8 @@ func (m *CreateSessionChallengeResponse) GetMfaChallenge() *AuthenticateChalleng
 }
 
 // ValidateSessionChallengeRequest is the request message for ValidateSessionChallenge.
+//
+// Deprecated: Use teleport.mfa.v2.ValidateSessionChallengeRequest for new session-bound MFA APIs.
 type ValidateSessionChallengeRequest struct {
 	// MFA challenge response provided by the user.
 	MfaResponse          *AuthenticateResponse `protobuf:"bytes,1,opt,name=mfa_response,json=mfaResponse,proto3" json:"mfa_response,omitempty"`
@@ -214,6 +220,8 @@ func (m *ValidateSessionChallengeRequest) GetMfaResponse() *AuthenticateResponse
 }
 
 // ValidateSessionChallengeResponse is the response message for ValidateSessionChallenge.
+//
+// Deprecated: Use teleport.mfa.v2.ValidateSessionChallengeResponse for new session-bound MFA APIs.
 type ValidateSessionChallengeResponse struct {
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -254,6 +262,8 @@ func (m *ValidateSessionChallengeResponse) XXX_DiscardUnknown() {
 var xxx_messageInfo_ValidateSessionChallengeResponse proto.InternalMessageInfo
 
 // ListValidatedMFAChallengesFilter is used to filter validated MFA challenges in ListValidatedMFAChallengesRequest.
+//
+// Deprecated: Use teleport.mfa.v2.ListValidatedMFAChallengesFilter for new session-bound MFA APIs.
 type ListValidatedMFAChallengesFilter struct {
 	// Types that are valid to be assigned to XTargetCluster:
 	//	*ListValidatedMFAChallengesFilter_TargetCluster
@@ -331,6 +341,8 @@ func (*ListValidatedMFAChallengesFilter) XXX_OneofWrappers() []interface{} {
 }
 
 // ListValidatedMFAChallengesRequest is the request message for ListValidatedMFAChallenges.
+//
+// Deprecated: Use teleport.mfa.v2.ListValidatedMFAChallengesRequest for new session-bound MFA APIs.
 type ListValidatedMFAChallengesRequest struct {
 	// The maximum number of items to return. The server may impose a different page size at its discretion.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
@@ -400,6 +412,8 @@ func (m *ListValidatedMFAChallengesRequest) GetFilter() *ListValidatedMFAChallen
 }
 
 // ListValidatedMFAChallengesResponse is the response message for ListValidatedMFAChallenges.
+//
+// Deprecated: Use teleport.mfa.v2.ListValidatedMFAChallengesResponse for new session-bound MFA APIs.
 type ListValidatedMFAChallengesResponse struct {
 	// List of validated MFA challenges that have been created for user sessions.
 	ValidatedChallenges []*ValidatedMFAChallenge `protobuf:"bytes,1,rep,name=validated_challenges,json=validatedChallenges,proto3" json:"validated_challenges,omitempty"`
@@ -458,6 +472,8 @@ func (m *ListValidatedMFAChallengesResponse) GetNextPageToken() string {
 }
 
 // ReplicateValidatedMFAChallengeRequest is the request message for ReplicateValidatedMFAChallenge.
+//
+// Deprecated: Use teleport.mfa.v2.ReplicateValidatedMFAChallengeRequest for new session-bound MFA APIs.
 type ReplicateValidatedMFAChallengeRequest struct {
 	// Resource name for the issued challenge. Must match the AuthenticateChallenge.name in order to find the correct
 	// challenge.
@@ -547,6 +563,8 @@ func (m *ReplicateValidatedMFAChallengeRequest) GetUsername() string {
 }
 
 // ReplicateValidatedMFAChallengeResponse is the response message for ReplicateValidatedMFAChallenge.
+//
+// Deprecated: Use teleport.mfa.v2.ReplicateValidatedMFAChallengeResponse for new session-bound MFA APIs.
 type ReplicateValidatedMFAChallengeResponse struct {
 	// Validated MFA challenge that was replicated.
 	ReplicatedChallenge  *ValidatedMFAChallenge `protobuf:"bytes,1,opt,name=replicated_challenge,json=replicatedChallenge,proto3" json:"replicated_challenge,omitempty"`
@@ -598,6 +616,8 @@ func (m *ReplicateValidatedMFAChallengeResponse) GetReplicatedChallenge() *Valid
 }
 
 // VerifyValidatedMFAChallengeRequest is the request message for VerifyValidatedMFAChallenge.
+//
+// Deprecated: Use teleport.mfa.v2.VerifyValidatedMFAChallengeRequest for new session-bound MFA APIs.
 type VerifyValidatedMFAChallengeRequest struct {
 	// Resource name for the issued challenge. Must match the AuthenticateChallenge.name in order to find the correct
 	// challenge.
@@ -680,6 +700,8 @@ func (m *VerifyValidatedMFAChallengeRequest) GetUsername() string {
 }
 
 // VerifyValidatedMFAChallengeResponse is the response message for VerifyValidatedMFAChallenge.
+//
+// Deprecated: Use teleport.mfa.v2.VerifyValidatedMFAChallengeResponse for new session-bound MFA APIs.
 type VerifyValidatedMFAChallengeResponse struct {
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
@@ -721,6 +743,8 @@ var xxx_messageInfo_VerifyValidatedMFAChallengeResponse proto.InternalMessageInf
 
 // CompleteBrowserMFAChallengeRequest is used to complete an MFA response
 // during a browser-based MFA authentication flow.
+//
+// Deprecated: Use teleport.mfa.v2.CompleteBrowserMFAChallengeRequest for new session-bound MFA APIs.
 type CompleteBrowserMFAChallengeRequest struct {
 	BrowserMfaResponse   *BrowserMFAResponse `protobuf:"bytes,1,opt,name=browser_mfa_response,json=browserMfaResponse,proto3" json:"browser_mfa_response,omitempty"`
 	XXX_NoUnkeyedLiteral struct{}            `json:"-"`
@@ -770,6 +794,8 @@ func (m *CompleteBrowserMFAChallengeRequest) GetBrowserMfaResponse() *BrowserMFA
 
 // CompleteBrowserMFAChallengeResponse contains the redirect URL to send
 // the user back to after successfully completing browser-based MFA authentication.
+//
+// Deprecated: Use teleport.mfa.v2.CompleteBrowserMFAChallengeResponse for new session-bound MFA APIs.
 type CompleteBrowserMFAChallengeResponse struct {
 	// tsh_redirect_url is the callback URL to tsh's local HTTP server with the encrypted WebAuthn response.
 	// Format: http://127.0.0.1:[random_port]/callback?response={encrypted_webauthn_response}

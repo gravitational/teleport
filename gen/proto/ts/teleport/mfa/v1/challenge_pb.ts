@@ -33,6 +33,8 @@ import { CredentialAssertion } from "../../legacy/types/webauthn/webauthn_pb";
 /**
  * AuthenticateChallenge is a challenge for all MFA devices registered for a user.
  *
+ * Deprecated: Use teleport.mfa.v2.AuthenticateChallenge for new session-bound MFA APIs.
+ *
  * @generated from protobuf message teleport.mfa.v1.AuthenticateChallenge
  */
 export interface AuthenticateChallenge {
@@ -67,6 +69,8 @@ export interface AuthenticateChallenge {
 }
 /**
  * AuthenticateResponse is a response to AuthenticateChallenge using one of the MFA devices registered for a user.
+ *
+ * Deprecated: Use teleport.mfa.v2.AuthenticateResponse for new session-bound MFA APIs.
  *
  * @generated from protobuf message teleport.mfa.v1.AuthenticateResponse
  */
@@ -112,6 +116,8 @@ export interface AuthenticateResponse {
 /**
  * SSOChallenge contains SSO auth request details to perform an SSO MFA check.
  *
+ * Deprecated: Use teleport.mfa.v2.SSOChallenge for new session-bound MFA APIs.
+ *
  * @generated from protobuf message teleport.mfa.v1.SSOChallenge
  */
 export interface SSOChallenge {
@@ -137,6 +143,8 @@ export interface SSOChallenge {
 /**
  * SSOChallengeResponse is a response to SSOChallenge.
  *
+ * Deprecated: Use teleport.mfa.v2.SSOChallengeResponse for new session-bound MFA APIs.
+ *
  * @generated from protobuf message teleport.mfa.v1.SSOChallengeResponse
  */
 export interface SSOChallengeResponse {
@@ -156,6 +164,8 @@ export interface SSOChallengeResponse {
 /**
  * BrowserMFAChallenge contains browser MFA request details to perform a browser MFA check.
  *
+ * Deprecated: Use teleport.mfa.v2.BrowserMFAChallenge for new session-bound MFA APIs.
+ *
  * @generated from protobuf message teleport.mfa.v1.BrowserMFAChallenge
  */
 export interface BrowserMFAChallenge {
@@ -168,6 +178,8 @@ export interface BrowserMFAChallenge {
 }
 /**
  * BrowserMFAResponse is a response to BrowserMFAChallenge.
+ *
+ * Deprecated: Use teleport.mfa.v2.BrowserMFAResponse for new session-bound MFA APIs.
  *
  * @generated from protobuf message teleport.mfa.v1.BrowserMFAResponse
  */

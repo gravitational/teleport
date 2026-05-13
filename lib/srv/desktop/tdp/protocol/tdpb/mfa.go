@@ -39,7 +39,7 @@ func NewTDPBMFAPrompt(rw tdp.MessageReadWriter, withheld *[]tdp.Message, log *sl
 
 			mfaMsg := &MFA{
 				ChannelId: channelID,
-				Challenge: &mfav1.AuthenticateChallenge{},
+				Challenge: &mfav1.AuthenticateChallenge{}, //nolint:staticcheck // TODO: Delete when Desktop has migrated to mfav2.
 			}
 
 			if challenge.WebauthnChallenge != nil {
@@ -47,7 +47,7 @@ func NewTDPBMFAPrompt(rw tdp.MessageReadWriter, withheld *[]tdp.Message, log *sl
 			}
 
 			if challenge.SSOChallenge != nil {
-				mfaMsg.Challenge.SsoChallenge = &mfav1.SSOChallenge{
+				mfaMsg.Challenge.SsoChallenge = &mfav1.SSOChallenge{ //nolint:staticcheck // TODO: Delete when Desktop has migrated to mfav2.
 					RequestId:   challenge.SSOChallenge.RequestId,
 					RedirectUrl: challenge.SSOChallenge.RedirectUrl,
 					Device:      challenge.SSOChallenge.Device,

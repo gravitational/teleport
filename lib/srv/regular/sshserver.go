@@ -942,7 +942,7 @@ func New(
 		FIPS:                          s.fips,
 		Emitter:                       s.StreamEmitter,
 		Clock:                         s.clock,
-		ValidatedMFAChallengeVerifier: auth.MFAServiceClient(),
+		ValidatedMFAChallengeVerifier: auth.MFAServiceClientV2(),
 	}
 
 	s.authHandlers, err = srv.NewAuthHandlers(&authHandlerConfig)

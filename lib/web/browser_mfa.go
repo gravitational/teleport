@@ -55,8 +55,8 @@ func (h *Handler) putBrowserMFA(_ http.ResponseWriter, r *http.Request, params h
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := clt.MFAServiceClient().CompleteBrowserMFAChallenge(r.Context(), &mfav1.CompleteBrowserMFAChallengeRequest{
-		BrowserMfaResponse: &mfav1.BrowserMFAResponse{
+	resp, err := clt.MFAServiceClient().CompleteBrowserMFAChallenge(r.Context(), &mfav1.CompleteBrowserMFAChallengeRequest{ //nolint:staticcheck // TODO(danielashare): Delete when Browser MFA has migrated to mfav2.
+		BrowserMfaResponse: &mfav1.BrowserMFAResponse{ //nolint:staticcheck // TODO(danielashare): Delete when Browser MFA has migrated to mfav2.
 			RequestId:        requestID,
 			WebauthnResponse: mfaResp.GetWebauthn(),
 		},
