@@ -1435,6 +1435,10 @@ func testResourcesInternal[T any](t *testing.T, p *testPack, funcs testFuncs[T],
 		testResourcePagination(t, p, funcs)
 	}
 
+	// Ensure the cache is healthy before proceeding to
+	// prevent running the tests falling back to upstream reads.
+	require.True(t, p.cache.ok)
+
 	// Create a resource.
 	r, err := funcs.newResource("test-resource-1")
 	require.NoError(t, err)
@@ -2837,6 +2841,7 @@ func testResourcePagination[T any](t *testing.T, p *testPack, funcs testFuncs[T]
 	require.NoError(t, funcs.deleteAll(ctx))
 
 	// Wait for the cache to be empty.
+	p.cache.ok = true
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		items, err := funcs.cacheListAll(ctx)
 		assert.NoError(t, err)
