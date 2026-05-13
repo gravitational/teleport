@@ -37,13 +37,16 @@ import (
 // it in the environment of the parent process or to re-exec.
 //
 // The shim only fires for "teleport start" because that is the only
-// subcommand that runs the proxy web listener. Short-lived CLI
-// subcommands (version, configure, status, scp, the hidden reexec
-// children) skip the re-exec to avoid paying an extra execve(2) on
-// every invocation.
+// subcommand that runs the proxy web listener. Every other invocation
+// skips the re-exec so short-lived CLI subcommands do not pay an
+// extra execve(2).
 //
-// This init prepends http2xconnect=1 to GODEBUG when missing, then
-// re-execs the current binary via syscall.Exec. The replacement process
+// An operator-supplied http2xconnect= value (including http2xconnect=0
+// for incident rollback) is left intact. The shim only appends the
+// default when no http2xconnect= entry is already present in GODEBUG.
+//
+// On a re-exec, syscall.Exec replaces the process with the same
+// executable and arguments plus the updated GODEBUG. The replacement
 // has the env var in place before net/http's init runs. On success
 // syscall.Exec does not return; on failure the original process
 // continues without the feature.
@@ -51,25 +54,23 @@ import (
 // Track https://github.com/golang/go/issues/71128 for the public API
 // that will replace this shim.
 func init() {
-	const want = "http2xconnect=1"
+	const settingKey = "http2xconnect"
+	const defaultValue = settingKey + "=1"
 
 	if !needsHTTP2XConnect(os.Args) {
 		return
 	}
 
 	existing := os.Getenv("GODEBUG")
-	if godebugContains(existing, want) {
+	if godebugHasKey(existing, settingKey) {
+		// Operator already set http2xconnect explicitly (=0 to disable,
+		// =1 to confirm, or any other value). Honor it; no re-exec.
 		return
 	}
 
-	updated := want
+	updated := defaultValue
 	if existing != "" {
-		updated = existing + "," + want
-	}
-	if err := os.Setenv("GODEBUG", updated); err != nil {
-		fmt.Fprintf(os.Stderr,
-			"teleport: failed to set GODEBUG=%s: %v\n", want, err)
-		return
+		updated = existing + "," + defaultValue
 	}
 
 	exe, err := os.Executable()
@@ -78,7 +79,14 @@ func init() {
 			"teleport: cannot determine executable path for GODEBUG re-exec: %v\n", err)
 		return
 	}
-	if err := syscall.Exec(exe, os.Args, os.Environ()); err != nil {
+	// Build a fresh env slice for the replacement process. Mutating the
+	// current process's GODEBUG via os.Setenv would leak the change to
+	// any child the original process spawns if the exec fails.
+	env := append(os.Environ(), "GODEBUG="+updated)
+	// Keep argv[0] consistent with the resolved executable path so the
+	// replacement process's os.Args[0] and os.Executable() agree.
+	argv := append([]string{exe}, os.Args[1:]...)
+	if err := syscall.Exec(exe, argv, env); err != nil {
 		fmt.Fprintf(os.Stderr,
 			"teleport: GODEBUG re-exec failed: %v\n", err)
 	}
@@ -86,21 +94,30 @@ func init() {
 
 // needsHTTP2XConnect reports whether the invocation will run the proxy
 // web listener and therefore needs http2xconnect=1 in GODEBUG. Only
-// "teleport start" runs the proxy; all other subcommands (including
-// "teleport app start" and "teleport db start", which start agents,
-// not the proxy) skip the re-exec.
+// "teleport start" runs the proxy. "teleport app start" and
+// "teleport db start" start agents, not the proxy, so they fail the
+// check on the first non-flag token.
+//
+// Leading top-level flags are skipped because kingpin accepts flags
+// before the subcommand (e.g. "teleport --debug start ...").
 func needsHTTP2XConnect(args []string) bool {
-	if len(args) < 2 {
-		return false
+	for _, a := range args[1:] {
+		if strings.HasPrefix(a, "-") {
+			continue
+		}
+		return a == "start"
 	}
-	return args[1] == "start"
+	return false
 }
 
-// godebugContains reports whether the comma-separated GODEBUG value
-// already includes the given setting (exact match on a token).
-func godebugContains(godebug, setting string) bool {
+// godebugHasKey reports whether the comma-separated GODEBUG value
+// already contains an entry with the given key, regardless of value.
+// Honoring any explicit operator setting lets http2xconnect=0 disable
+// the feature during incident rollback.
+func godebugHasKey(godebug, key string) bool {
 	for _, tok := range strings.Split(godebug, ",") {
-		if strings.TrimSpace(tok) == setting {
+		name, _, _ := strings.Cut(strings.TrimSpace(tok), "=")
+		if name == key {
 			return true
 		}
 	}

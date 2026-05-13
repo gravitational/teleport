@@ -20,6 +20,7 @@ package h2websocket
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -32,12 +33,21 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestWrap_PassthroughNonWebSocket verifies that non-WebSocket requests
-// flow through the wrapper unmodified.
 func TestWrap_PassthroughNonWebSocket(t *testing.T) {
-	var seen *http.Request
+	type observed struct {
+		method   string
+		upgrade  string
+		wsKey    string
+		gotInner bool
+	}
+	ch := make(chan observed, 1)
 	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		seen = r
+		ch <- observed{
+			method:   r.Method,
+			upgrade:  r.Header.Get("Upgrade"),
+			wsKey:    r.Header.Get("Sec-WebSocket-Key"),
+			gotInner: true,
+		}
 		w.WriteHeader(http.StatusTeapot)
 	})
 	srv := httptest.NewServer(Wrap(inner, Options{}))
@@ -48,14 +58,13 @@ func TestWrap_PassthroughNonWebSocket(t *testing.T) {
 	defer resp.Body.Close()
 
 	require.Equal(t, http.StatusTeapot, resp.StatusCode)
-	require.NotNil(t, seen)
-	require.Equal(t, http.MethodGet, seen.Method)
-	require.Empty(t, seen.Header.Get("Upgrade"))
-	require.Empty(t, seen.Header.Get("Sec-WebSocket-Key"))
+	got := <-ch
+	require.True(t, got.gotInner)
+	require.Equal(t, http.MethodGet, got.method)
+	require.Empty(t, got.upgrade)
+	require.Empty(t, got.wsKey)
 }
 
-// TestWrap_PassthroughH1WebSocket verifies that an HTTP/1.1 WebSocket
-// Upgrade is not rewritten and the inner gorilla.Upgrader handles it.
 func TestWrap_PassthroughH1WebSocket(t *testing.T) {
 	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		up := websocket.Upgrader{}
@@ -110,10 +119,6 @@ func TestIsH2WebSocketConnect(t *testing.T) {
 	}
 }
 
-// TestRewriteAsH1Upgrade verifies the request rewrite: CONNECT becomes
-// GET, the :protocol pseudo-header is dropped, Upgrade/Connection
-// headers are set, Sec-WebSocket-* defaults are synthesized when
-// missing, and reserved headers are stripped.
 func TestRewriteAsH1Upgrade(t *testing.T) {
 	req := httptest.NewRequest(http.MethodConnect, "/ws", nil)
 	req.ProtoMajor = 2
@@ -137,9 +142,6 @@ func TestRewriteAsH1Upgrade(t *testing.T) {
 		"non-reserved client header must survive")
 }
 
-// TestRewriteAsH1Upgrade_PreservesClientWebsocketHeaders verifies that
-// a client-supplied Sec-WebSocket-Key and Sec-WebSocket-Version survive
-// the rewrite verbatim instead of being overwritten by the defaults.
 func TestRewriteAsH1Upgrade_PreservesClientWebsocketHeaders(t *testing.T) {
 	req := httptest.NewRequest(http.MethodConnect, "/ws", nil)
 	req.ProtoMajor = 2
@@ -153,9 +155,6 @@ func TestRewriteAsH1Upgrade_PreservesClientWebsocketHeaders(t *testing.T) {
 	require.Equal(t, "8", got.Header.Get("Sec-WebSocket-Version"))
 }
 
-// TestStripUpgradeWriter_DropsLeadingHeader verifies the incremental
-// stripper discards the synthetic "HTTP/1.1 101 ..." header and
-// forwards everything after the "\r\n\r\n" terminator.
 func TestStripUpgradeWriter_DropsLeadingHeader(t *testing.T) {
 	var sink bytes.Buffer
 	w := &stripUpgradeWriter{inner: &sink}
@@ -173,9 +172,6 @@ func TestStripUpgradeWriter_DropsLeadingHeader(t *testing.T) {
 	require.Equal(t, payload, sink.Bytes())
 }
 
-// TestStripUpgradeWriter_CoalescedWrite verifies the stripper handles a
-// Write that contains both the trailing "\r\n\r\n" and the first frame
-// bytes in one call.
 func TestStripUpgradeWriter_CoalescedWrite(t *testing.T) {
 	var sink bytes.Buffer
 	w := &stripUpgradeWriter{inner: &sink}
@@ -186,8 +182,6 @@ func TestStripUpgradeWriter_CoalescedWrite(t *testing.T) {
 	require.Equal(t, "WS-FRAME", sink.String())
 }
 
-// TestStripUpgradeWriter_ByteByByte verifies the incremental parser
-// when the terminator is split across Write calls one byte at a time.
 func TestStripUpgradeWriter_ByteByByte(t *testing.T) {
 	var sink bytes.Buffer
 	w := &stripUpgradeWriter{inner: &sink}
@@ -234,9 +228,33 @@ func TestStripUpgradeWriter_SelfOverlap(t *testing.T) {
 	require.Equal(t, "FRAMES", sink.String())
 }
 
-// TestCanonicalSet verifies the reserved-header lookup is
-// case-insensitive in the way http.Header.Del expects, including
-// pathological mixed-case inputs.
+// TestNextScanState exhausts the three transitions of the matcher
+// (match-byte, restart-on-prefix, full-reset) so a regression on any
+// branch surfaces independently of the integration cases above.
+func TestNextScanState(t *testing.T) {
+	tests := []struct {
+		name    string
+		scanned int
+		b       byte
+		want    int
+	}{
+		{name: "match first \\r", scanned: 0, b: '\r', want: 1},
+		{name: "match \\n after \\r", scanned: 1, b: '\n', want: 2},
+		{name: "match second \\r", scanned: 2, b: '\r', want: 3},
+		{name: "match final \\n", scanned: 3, b: '\n', want: 4},
+		{name: "mismatch at start", scanned: 0, b: 'a', want: 0},
+		{name: "mismatch after \\r, byte is \\r (self-overlap)", scanned: 1, b: '\r', want: 1},
+		{name: "mismatch after \\r\\n\\r, byte is \\r (self-overlap)", scanned: 3, b: '\r', want: 1},
+		{name: "mismatch after \\r\\n, byte is unrelated", scanned: 2, b: 'a', want: 0},
+		{name: "mismatch after \\r\\n\\r, byte is unrelated", scanned: 3, b: 'a', want: 0},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.want, nextScanState(tc.scanned, tc.b))
+		})
+	}
+}
+
 func TestCanonicalSet(t *testing.T) {
 	got := canonicalSet([]string{"X-TELEPORT-foo", "x-teleport-BAR"})
 	require.True(t, got["X-Teleport-Foo"])
@@ -244,15 +262,50 @@ func TestCanonicalSet(t *testing.T) {
 	require.Nil(t, canonicalSet(nil))
 }
 
-// TestH2StreamConn_CloseIdempotent verifies double-close is a no-op
-// and that Read after Close returns net.ErrClosed.
 func TestH2StreamConn_CloseIdempotent(t *testing.T) {
 	c := &h2StreamConn{r: io.NopCloser(strings.NewReader(""))}
 	require.NoError(t, c.Close())
 	require.NoError(t, c.Close())
+}
+
+func TestH2StreamConn_ReadAfterClose(t *testing.T) {
+	c := &h2StreamConn{r: io.NopCloser(strings.NewReader(""))}
+	require.NoError(t, c.Close())
 
 	_, err := c.Read(make([]byte, 4))
 	require.ErrorIs(t, err, net.ErrClosed)
+}
+
+// TestFlushWriter exercises the three Flush outcomes: a successful
+// flush returns (n, nil); ErrNotSupported is suppressed; any other
+// Flush error is propagated with n=0 so callers cannot mistake
+// buffered bytes for durably committed ones.
+func TestFlushWriter(t *testing.T) {
+	t.Run("happy path", func(t *testing.T) {
+		w := &flushingRW{}
+		f := &flushWriter{w: w, rc: http.NewResponseController(w)}
+		n, err := f.Write([]byte("hi"))
+		require.NoError(t, err)
+		require.Equal(t, 2, n)
+		require.Equal(t, 1, w.flushes)
+	})
+	t.Run("ErrNotSupported is suppressed", func(t *testing.T) {
+		// flushingRW with flushErr=ErrNotSupported still reports the
+		// underlying Write count without surfacing the error.
+		w := &flushingRW{flushErr: http.ErrNotSupported}
+		f := &flushWriter{w: w, rc: http.NewResponseController(w)}
+		n, err := f.Write([]byte("hi"))
+		require.NoError(t, err)
+		require.Equal(t, 2, n)
+	})
+	t.Run("real flush error surfaces with n=0", func(t *testing.T) {
+		sentinel := errors.New("h2 stream reset")
+		w := &flushingRW{flushErr: sentinel}
+		f := &flushWriter{w: w, rc: http.NewResponseController(w)}
+		n, err := f.Write([]byte("hi"))
+		require.ErrorIs(t, err, sentinel)
+		require.Equal(t, 0, n, "Write must report 0 when Flush failed")
+	})
 }
 
 // TestServe_FailsClosedWhenHandlerDoesNotHijack verifies that an inner
@@ -260,7 +313,7 @@ func TestH2StreamConn_CloseIdempotent(t *testing.T) {
 // its body closed. This protects the h2 stream from being addressable
 // as an opaque WebSocket payload echo by non-WebSocket routes.
 func TestServe_FailsClosedWhenHandlerDoesNotHijack(t *testing.T) {
-	body := &closableBuffer{Reader: strings.NewReader("client frames")}
+	body := &closableBuffer{r: strings.NewReader("client frames")}
 	req := httptest.NewRequest(http.MethodConnect, "/", body)
 	req.ProtoMajor = 2
 	req.Header.Set(":protocol", "websocket")
@@ -274,20 +327,21 @@ func TestServe_FailsClosedWhenHandlerDoesNotHijack(t *testing.T) {
 	serve(rec, req, inner, nil)
 
 	require.True(t, body.closed.Load(), "request body must be closed")
-	require.Equal(t, http.StatusOK, rec.status, "status is committed at the tunnel open")
+	require.Equal(t, []int{http.StatusOK}, rec.statuses,
+		"only the bridge's 200 reaches the writer; the inner handler's WriteHeader is gated")
 	require.Empty(t, rec.body.Bytes(),
 		"handler bytes must not leak onto the h2 stream as opaque payload")
 }
 
-// TestServe_FullDuplexUnavailable verifies that serve fails with 500
-// and does not dispatch the inner handler when EnableFullDuplex
-// reports the writer cannot stream both directions.
 func TestServe_FullDuplexUnavailable(t *testing.T) {
 	req := httptest.NewRequest(http.MethodConnect, "/", nil)
 	req.ProtoMajor = 2
 	req.Header.Set(":protocol", "websocket")
 
-	rec := httptest.NewRecorder()
+	// Test-controlled signal: duplexWriter explicitly errors on
+	// EnableFullDuplex. Avoids relying on httptest.NewRecorder
+	// happening to lack the interface.
+	rec := &duplexWriter{header: http.Header{}, enableFullDuplexErr: http.ErrNotSupported}
 	called := false
 	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = true
@@ -295,43 +349,53 @@ func TestServe_FullDuplexUnavailable(t *testing.T) {
 
 	serve(rec, req, inner, nil)
 
-	require.Equal(t, http.StatusInternalServerError, rec.Code)
+	require.Equal(t, []int{http.StatusInternalServerError}, rec.statuses)
 	require.False(t, called, "inner handler must not run when full duplex is unavailable")
 }
 
 // closableBuffer is a request body that tracks Close calls.
 type closableBuffer struct {
-	io.Reader
+	r      io.Reader
 	closed atomic.Bool
 }
 
-func (b *closableBuffer) Close() error {
-	b.closed.Store(true)
-	return nil
-}
+func (b *closableBuffer) Read(p []byte) (int, error) { return b.r.Read(p) }
+func (b *closableBuffer) Close() error               { b.closed.Store(true); return nil }
 
 // duplexWriter is a minimal http.ResponseWriter that satisfies the
-// full-duplex and flush hooks the bridge expects. It lets tests run
-// serve end-to-end without standing up a real HTTP/2 server.
+// full-duplex and flush hooks the bridge expects. Tests configure
+// enableFullDuplexErr to drive the error branch explicitly; statuses
+// records every WriteHeader call so tests can assert exact sequencing
+// rather than relying on real net/http's "first WriteHeader wins"
+// semantics.
 type duplexWriter struct {
-	header http.Header
-	body   bytes.Buffer
-	status int
+	header              http.Header
+	body                bytes.Buffer
+	statuses            []int
+	enableFullDuplexErr error
 }
 
-func (d *duplexWriter) Header() http.Header { return d.header }
-func (d *duplexWriter) WriteHeader(code int) {
-	if d.status == 0 {
-		d.status = code
-	}
-}
-
+func (d *duplexWriter) Header() http.Header  { return d.header }
+func (d *duplexWriter) WriteHeader(code int) { d.statuses = append(d.statuses, code) }
 func (d *duplexWriter) Write(p []byte) (int, error) {
-	if d.status == 0 {
-		d.status = http.StatusOK
+	if len(d.statuses) == 0 {
+		d.statuses = append(d.statuses, http.StatusOK)
 	}
 	return d.body.Write(p)
 }
 
-func (d *duplexWriter) EnableFullDuplex() error { return nil }
+func (d *duplexWriter) EnableFullDuplex() error { return d.enableFullDuplexErr }
 func (d *duplexWriter) Flush()                  {}
+
+// flushingRW is a minimal http.ResponseWriter that records every
+// Write/Flush call and reports a configurable Flush error.
+type flushingRW struct {
+	body     bytes.Buffer
+	flushes  int
+	flushErr error
+}
+
+func (w *flushingRW) Header() http.Header         { return http.Header{} }
+func (w *flushingRW) WriteHeader(int)             {}
+func (w *flushingRW) Write(p []byte) (int, error) { return w.body.Write(p) }
+func (w *flushingRW) FlushError() error           { w.flushes++; return w.flushErr }

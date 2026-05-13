@@ -21,6 +21,7 @@ package common
 import (
 	"errors"
 	"net/http"
+	"slices"
 
 	"github.com/gravitational/trace"
 
@@ -75,9 +76,7 @@ var ReservedTeleportIdentityHeaders = []string{
 // ReservedHeaders is a list of headers injected by Teleport (identity
 // headers plus the generic X-Forwarded-* set handled by the
 // reverse-proxy XFF stack).
-var ReservedHeaders = append(append([]string{}, ReservedTeleportIdentityHeaders...),
-	reverseproxy.XHeaders...,
-)
+var ReservedHeaders = slices.Concat(ReservedTeleportIdentityHeaders, reverseproxy.XHeaders)
 
 // IsReservedHeader returns true if the provided header is one of headers
 // injected by Teleport.

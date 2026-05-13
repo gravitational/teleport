@@ -5592,12 +5592,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		)
 		webServer, err = web.NewServer(web.ServerConfig{
 			Server: &http.Server{
-				// ReservedHeaders intentionally excludes the generic
-				// X-Forwarded-* set because the XFF middleware further
-				// down the chain needs to read them to resolve the real
-				// client address. Stripping them here would point
-				// clientSrcAddr at the load balancer for h2 traffic
-				// while h1 traffic on the same listener still resolves.
+				// ReservedTeleportIdentityHeaders excludes generic
+				// X-Forwarded-* so the XFF middleware further down the
+				// chain still sees them.
 				Handler: h2websocket.Wrap(webChain, h2websocket.Options{
 					ReservedHeaders: appcommon.ReservedTeleportIdentityHeaders,
 				}),

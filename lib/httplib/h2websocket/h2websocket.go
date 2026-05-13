@@ -49,11 +49,14 @@
 // hijack so a non-WebSocket route reached via extended CONNECT cannot
 // leak its response body onto the stream as opaque WebSocket payload.
 //
-// Sec-WebSocket-Protocol negotiation is currently dropped: gorilla writes
-// the negotiated value into the synthetic 101 preamble that the stripper
-// discards. RFC 8441 §5.1 places subprotocol negotiation in the H2
-// response HEADERS frame, so callers of gorilla.Upgrader.Subprotocols
-// must address this before ALPN advertises h2 first.
+// Sec-WebSocket-Protocol negotiation is not propagated. The wrapped
+// HTTP/1.1 upgrader writes the negotiated value into the synthetic 101
+// preamble that the stripper discards, and RFC 8441 §5.1 places
+// subprotocol negotiation in the H2 response HEADERS frame instead.
+// Until the bridge lifts the negotiated subprotocol onto the outer
+// response headers before committing the 200, routes that depend on
+// gorilla.Upgrader.Subprotocols (kube exec, desktop, conn upgrade)
+// must not be reached over HTTP/2.
 package h2websocket
 
 import (
@@ -64,6 +67,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/netip"
 	"sync/atomic"
 	"time"
 
@@ -129,7 +133,7 @@ func serve(w http.ResponseWriter, r *http.Request, next http.Handler, reservedSe
 	// spikes will miss h2-ws auth failures; log from the inner handler
 	// if the metric matters.
 	w.WriteHeader(http.StatusOK)
-	if err := rc.Flush(); err != nil {
+	if err := rc.Flush(); err != nil && !errors.Is(err, http.ErrNotSupported) {
 		return
 	}
 
@@ -151,9 +155,7 @@ func serve(w http.ResponseWriter, r *http.Request, next http.Handler, reservedSe
 	// hijackResponseWriter gate above also discards any Write the
 	// handler made before returning, so opaque bytes do not leak.
 	if !hw.hijacked.Load() {
-		if c, ok := r.Body.(io.Closer); ok {
-			_ = c.Close()
-		}
+		_ = r.Body.Close()
 	}
 }
 
@@ -208,11 +210,15 @@ func canonicalSet(names []string) map[string]bool {
 }
 
 // hijackResponseWriter implements http.Hijacker on top of an HTTP/2
-// ResponseWriter so gorilla.Upgrader.Upgrade can take ownership of the
+// ResponseWriter so an HTTP/1.1 upgrader can take ownership of the
 // underlying stream as a net.Conn. Write and WriteHeader are silenced
 // before hijack so a handler that returns without hijacking (e.g. a
 // non-WebSocket route reached via extended CONNECT) cannot leak its
 // response body onto the h2 stream as opaque WebSocket payload.
+//
+// Header() returns the embedded writer's header map. Mutations before
+// hijack are no-ops on the wire because the 200 status is already
+// committed; rely on the hijacked conn or context for error signaling.
 type hijackResponseWriter struct {
 	http.ResponseWriter
 	body       io.ReadCloser
@@ -240,13 +246,16 @@ func (h *hijackResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	if !h.hijacked.CompareAndSwap(false, true) {
 		return nil, nil, http.ErrHijacked
 	}
-	conn := newH2StreamConn(h.body, h.remoteAddr, h.ResponseWriter, h.rc)
+	conn := newH2StreamConn(h.body, h.ResponseWriter, h.remoteAddr, h.rc)
 	brw := bufio.NewReadWriter(bufio.NewReader(conn), bufio.NewWriter(conn))
 	return conn, brw, nil
 }
 
 // h2StreamConn presents an HTTP/2 request body + flushed response writer
 // pair as a net.Conn. Deadlines forward to the http.ResponseController.
+// LocalAddr returns a placeholder because net/http's HTTP/2 server
+// does not expose stream-level local addresses on the hijacked conn;
+// RemoteAddr forwards the request's RemoteAddr when set.
 type h2StreamConn struct {
 	r          io.ReadCloser
 	w          io.Writer
@@ -256,7 +265,7 @@ type h2StreamConn struct {
 	closed atomic.Bool
 }
 
-func newH2StreamConn(body io.ReadCloser, remoteAddr string, w http.ResponseWriter, rc *http.ResponseController) *h2StreamConn {
+func newH2StreamConn(body io.ReadCloser, w http.ResponseWriter, remoteAddr string, rc *http.ResponseController) *h2StreamConn {
 	c := &h2StreamConn{
 		r:          body,
 		remoteAddr: remoteAddr,
@@ -293,9 +302,12 @@ func (c *h2StreamConn) Close() error {
 func (c *h2StreamConn) LocalAddr() net.Addr { return placeholderAddr("h2-local") }
 
 func (c *h2StreamConn) RemoteAddr() net.Addr {
+	// netip.ParseAddrPort accepts only literal IP:port forms, so this
+	// cannot trigger a synchronous DNS lookup if r.RemoteAddr is ever
+	// rewritten to a hostname-style value (matches lib/web/addr.go).
 	if c.remoteAddr != "" {
-		if addr, err := net.ResolveTCPAddr("tcp", c.remoteAddr); err == nil {
-			return addr
+		if ap, err := netip.ParseAddrPort(c.remoteAddr); err == nil {
+			return net.TCPAddrFromAddrPort(ap)
 		}
 	}
 	return placeholderAddr("h2-remote")
@@ -326,11 +338,12 @@ type placeholderAddr string
 func (placeholderAddr) Network() string  { return "h2-websocket" }
 func (a placeholderAddr) String() string { return string(a) }
 
-// flushWriter flushes after every Write so a single WebSocket frame ends
-// up on the wire as a single h2 DATA frame instead of being buffered.
-// Flush errors are propagated once a first flush has succeeded, so a
-// stream reset (Write succeeds into the buffer, Flush fails) surfaces
-// to the WebSocket handler instead of being silently dropped.
+// flushWriter flushes after every Write so a single WebSocket frame
+// ends up on the wire as a single h2 DATA frame instead of being
+// buffered. Flush errors are propagated so a stream reset (Write
+// succeeds into the buffer, Flush fails) surfaces to the WebSocket
+// handler instead of being silently dropped. ErrNotSupported is
+// suppressed because not every ResponseWriter implements Flusher.
 type flushWriter struct {
 	w  http.ResponseWriter
 	rc *http.ResponseController
@@ -342,32 +355,36 @@ func (f *flushWriter) Write(p []byte) (int, error) {
 		return n, err
 	}
 	if err := f.rc.Flush(); err != nil && !errors.Is(err, http.ErrNotSupported) {
-		return n, err
+		// Per io.Writer, n must reflect bytes durably committed; on
+		// Flush failure the bytes sit in the h2 send buffer and never
+		// reach the wire, so report zero.
+		return 0, err
 	}
 	return n, nil
 }
 
 // stripUpgradeWriter discards bytes up to and including the first
-// "\r\n\r\n" sequence (gorilla's synthetic 101 response that does not
-// belong on the h2 stream), then forwards everything afterward. The
-// parser is incremental: it never accumulates more than the four bytes
-// needed to recognize the terminator, so there is no fixed buffer cap
-// that could silently truncate a long Sec-WebSocket-Protocol header.
+// "\r\n\r\n" sequence (the synthetic HTTP/1.1 response preamble the
+// wrapped upgrader emits before owning the conn), then forwards
+// everything afterward. The parser is incremental: it never
+// accumulates more than the four bytes needed to recognize the
+// terminator, so there is no fixed buffer cap that could silently
+// truncate a long Sec-WebSocket-Protocol header.
 type stripUpgradeWriter struct {
 	inner   io.Writer
-	scanned int // number of consecutive bytes of "\r\n\r\n" matched so far
+	scanned int // number of consecutive bytes of upgradeHeaderTerminator matched so far
 	done    bool
 }
 
-var crlfcrlf = []byte("\r\n\r\n")
+const upgradeHeaderTerminator = "\r\n\r\n"
 
 func (s *stripUpgradeWriter) Write(p []byte) (int, error) {
 	if s.done {
 		return s.inner.Write(p)
 	}
-	for i := 0; i < len(p); i++ {
+	for i := range p {
 		s.scanned = nextScanState(s.scanned, p[i])
-		if s.scanned == len(crlfcrlf) {
+		if s.scanned == len(upgradeHeaderTerminator) {
 			s.done = true
 			rest := p[i+1:]
 			if len(rest) > 0 {
@@ -381,16 +398,16 @@ func (s *stripUpgradeWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-// nextScanState advances the "\r\n\r\n" matcher by one byte. The
-// pattern has self-overlap on '\r' (positions 0 and 2), so on a
-// mismatch the failing byte may itself start a new match: e.g. the
-// second '\r' in "\r\r\n\r\n" must not be discarded. This is the KMP
-// failure function for "\r\n\r\n" collapsed to a single comparison.
+// nextScanState advances the upgradeHeaderTerminator matcher by one
+// byte. The pattern has self-overlap on '\r' (positions 0 and 2), so
+// on a mismatch the failing byte may itself start a new match: e.g.
+// the second '\r' in "\r\r\n\r\n" must not be discarded. This is the
+// KMP failure function for "\r\n\r\n" collapsed to a single comparison.
 func nextScanState(scanned int, b byte) int {
-	if b == crlfcrlf[scanned] {
+	if b == upgradeHeaderTerminator[scanned] {
 		return scanned + 1
 	}
-	if b == crlfcrlf[0] {
+	if b == upgradeHeaderTerminator[0] {
 		return 1
 	}
 	return 0
