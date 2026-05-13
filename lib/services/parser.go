@@ -29,6 +29,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gravitational/trace"
 	"github.com/vulcand/predicate"
@@ -972,7 +973,44 @@ func (s *lazyStringSplit) Contains(target string) bool {
 }
 
 func splitContains(value, delimiter, target string) bool {
-	if strings.Contains(target, delimiter) || !strings.Contains(value, target) {
+	if value == "" {
+		// empty slice no matter what the delimiter is, so the target can't ever
+		// be in there
+		return false
+	}
+
+	if delimiter == "" {
+		// an empty delimiter was unfortunately not preemptively disallowed, so
+		// we have to match the behavior of [strings.Split] with an empty
+		// delimiter, i.e. splitting up the string in individual utf8 sequences
+		// or single bytes of non-well-formed utf8
+		if target == "" {
+			// exploding a string into utf8 sequences never yields an empty
+			// string, so we can't ever match an empty target if the delimiter
+			// is empty
+			return false
+		}
+		r, s := utf8.DecodeRuneInString(target)
+		if len(target) != s {
+			// target is more than one rune or invalid non-utf8 byte, so it will
+			// never match anything yielded by SplitSeq(value, "")
+			return false
+		}
+		if s != 1 || r != utf8.RuneError {
+			// target is a well formed utf8 sequence, so we can check if it's in
+			// value by means of Contains
+			return strings.Contains(value, target)
+		}
+		// target is a single byte that's not a valid utf8 sequence but it might
+		// appear in value as part of a valid utf8 sequence, so we can't use a
+		// bytewise contains, unfortunately, and the predicate language supports
+		// go escaping for strings, so we can't rely on the well-formedness of
+		// strings either; if we hit this case we just fall back to the slower
+		// case using SplitSeq
+	} else if strings.Contains(target, delimiter) || !strings.Contains(value, target) {
+		// delimiter is nonempty, so SplitSeq works bytewise, and there's no way
+		// we'll ever get a match if the target contains the delimiter or if the
+		// target is not contained in the value
 		return false
 	}
 
@@ -1201,7 +1239,7 @@ func optimizeSplitContains(cursor *astutil.Cursor) (cont bool) {
 		return
 	}
 
-	if strings.Contains(*target, *delimiter) {
+	if *delimiter != "" && strings.Contains(*target, *delimiter) {
 		// impossible match, turn it into a function call that unconditionally
 		// returns false very quickly
 
