@@ -495,25 +495,31 @@ func (c *ClusterClient) performSessionMFACeremony(ctx context.Context, rootClien
 		return nil, trace.Wrap(err)
 	}
 
+	mfaAgainstRoot := c.cluster == rootClient.cluster
+	var leafClusterName string
+	if !mfaAgainstRoot {
+		leafClusterName = c.cluster
+	}
+
 	var promptOpts []mfa.PromptOpt
 	switch {
 	case params.NodeName != "":
-		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Node", params.NodeName))
+		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Node", params.NodeName, leafClusterName))
 	case params.KubernetesCluster != "":
-		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Kubernetes cluster", params.KubernetesCluster))
+		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Kubernetes cluster", params.KubernetesCluster, leafClusterName))
 	case params.RouteToDatabase.ServiceName != "":
-		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Database", params.RouteToDatabase.ServiceName))
+		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Database", params.RouteToDatabase.ServiceName, leafClusterName))
 	case params.RouteToApp.Name != "":
-		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Application", params.RouteToApp.Name))
+		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Application", params.RouteToApp.Name, leafClusterName))
 	case params.RouteToWindowsDesktop.WindowsDesktop != "":
-		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Windows desktop", params.RouteToWindowsDesktop.WindowsDesktop))
+		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Windows desktop", params.RouteToWindowsDesktop.WindowsDesktop, leafClusterName))
 	}
 
 	result, err := PerformSessionMFACeremony(ctx, PerformSessionMFACeremonyParams{
 		CurrentAuthClient: c.AuthClient,
 		RootAuthClient:    rootClient.AuthClient,
 		MFACeremony:       c.tc.NewMFACeremony(),
-		MFAAgainstRoot:    c.cluster == rootClient.cluster,
+		MFAAgainstRoot:    mfaAgainstRoot,
 		MFARequiredReq:    mfaRequiredReq,
 		CertsReq:          certsReq,
 		KeyRing:           keyRing,
