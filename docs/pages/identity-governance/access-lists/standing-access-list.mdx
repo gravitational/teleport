@@ -1,0 +1,256 @@
+---
+title: Creating an Access List for Standing Access
+sidebar_label: Standing Access Lists
+sidebar_position: 3
+description: Use the Standing Access Guide to create an Access List whose members are automatically granted access to a defined set of resources on sign-in.
+tags:
+ - how-to
+ - identity-governance
+ - privileged-access
+enterprise: Identity Governance
+---
+
+The **Standing Access Guide** creates an Access List whose members are automatically
+granted access to a defined set of resources when they sign in. No Access Request
+is required.
+
+This guide will help you:
+
+- Decide when a Standing Access List is the right fit
+- Create one using the guided flow in the Teleport Web UI
+- Verify that members get access on sign-in
+
+## When to use this flow
+
+Use a Standing Access List when:
+
+- Members need the access as part of their day-to-day work.
+- The set of resources is well-scoped (e.g. internal dashboards for the analytics team) and changes infrequently.
+- You want a single list to govern who has the access, with periodic reviews so
+  the membership is reaffirmed rather than left to drift.
+
+If members instead should only get access on-demand with justification and
+approval, use the [Just-in-Time Access Guide](./jit-access-list.mdx) instead.
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise (v18.8.0 or higher)"!)
+
+(!docs/pages/identity-governance/access-lists/includes/preset-prerequisites.mdx!)
+
+## Step 1/3. Start the guide
+
+In the Teleport Web UI, hover over **Add New** from the sidebar menu then click **Access List**.
+
+Enter a name and optional description for the list.
+
+Click **Standing Access Guide** and click **Start Guide**.
+
+## Step 2/3. Walk through the guide
+
+The guide steps you through:
+
+1. **Define Access to Resources** — for each resource type, specify the matching
+   criteria. Most resource types are matched by
+   [labels](../../zero-trust-access/rbac-get-started/labels.mdx); others may ask
+   you to select the resource itself. Members get access to anything that matches
+   when they sign in.
+
+   (!docs/pages/identity-governance/access-lists/includes/preview-resources-warning.mdx!)
+1. **Define Resource Identities or Principals** — for resource types that need
+   them (e.g. SSH logins, database users, Kubernetes users/groups, etc.), specify which
+   principals members can use to connect.
+1. **Basic Information** — confirm the name and description of the Access List,
+   and select the next review date. Periodic reviews are how list owners reaffirm
+   that the right members are still on the list.
+
+   Note: Access Lists deployed through Terraform are "static" lists and do not
+   support periodic auditing — the review date is ignored.
+1. **Define Membership** — add the users who should receive the access.
+1. **Define Ownership** — add the users responsible for managing the list and
+   reviewing membership.
+
+### Deploy the Access List
+
+At the final **Deployment** step, choose how to apply the list:
+
+<Tabs queryString="deployment">
+<TabItem value="teleport" label="Manage in Teleport">
+
+Click **Create Access List Now**. The list is created directly via the Teleport
+API and is immediately active.
+
+</TabItem>
+<TabItem value="terraform" label="Manage via Terraform">
+
+(!docs/pages/identity-governance/access-lists/includes/terraform-instructions.mdx!)
+
+### Example Terraform configuration
+
+Below is an example of the Terraform module the UI generates for a Standing
+Access List. The example grants list members standing access to SSH servers
+matching the `env: test` label, with `ubuntu` as the allowed login (see the
+standard role below).
+
+Customize the placeholders below to fit your setup — each one is reused
+throughout the config wherever it appears:
+
+- `<Var name="teleport.example.com:443" />` — your Teleport proxy address.
+- `<Var name="acl-id" initial="unique-access-list-id" />` — a unique identifier
+  for the Access List (alphanumerics only). It ties the roles, list, and member
+  resources together.
+- `<Var name="acl-title" initial="Example Standing Access List" />` — the
+  display title for the Access List.
+- `<Var name="example-owner" initial="example-owner" />` — the Teleport user to
+  add as an owner.
+- `<Var name="example-member" initial="example-member" />` — the Teleport user to
+  add as a member.
+
+```hcl
+# Terraform config for creating an Access List that grants members direct
+# access to Teleport resources defined in the associated roles.
+
+terraform {
+  required_providers {
+    teleport = {
+      source  = "terraform.releases.teleport.dev/gravitational/teleport"
+      version = "~> (=teleport.major_version=).0"
+    }
+  }
+}
+
+provider "teleport" {
+  addr = "<Var name="teleport.example.com:443" />"
+}
+
+# A role that defines access to standard resources.
+resource "teleport_role" "access-standard-acl-preset-<Var name="acl-id" />" {
+  version = "v8"
+
+  metadata = {
+    name = "access-standard-acl-preset-<Var name="acl-id" />"
+    labels = {
+      "teleport.dev/iac-tool"                = "terraform"
+      "teleport.internal/access-list-preset" = "<Var name="acl-id" />"
+    }
+  }
+
+  spec = {
+    allow = {
+      logins = ["ubuntu"]
+      node_labels = {
+        env = ["test"]
+      }
+    }
+  }
+}
+
+# A role that requires requesting access to resources. Can optionally assign to any users outside of this access list.
+resource "teleport_role" "requester-acl-preset-<Var name="acl-id" />" {
+  version = "v8"
+
+  metadata = {
+    name = "requester-acl-preset-<Var name="acl-id" />"
+    labels = {
+      "teleport.dev/iac-tool"                = "terraform"
+      "teleport.internal/access-list-preset" = "<Var name="acl-id" />"
+    }
+  }
+
+  spec = {
+    allow = {
+      request = {
+        search_as_roles = ["access-standard-acl-preset-<Var name="acl-id" />"]
+      }
+    }
+  }
+}
+
+# A role that allows reviewing access requests (assigned to owners).
+resource "teleport_role" "reviewer-acl-preset-<Var name="acl-id" />" {
+  version = "v8"
+
+  metadata = {
+    name = "reviewer-acl-preset-<Var name="acl-id" />"
+    labels = {
+      "teleport.dev/iac-tool"                = "terraform"
+      "teleport.internal/access-list-preset" = "<Var name="acl-id" />"
+    }
+  }
+
+  spec = {
+    allow = {
+      review_requests = {
+        roles            = ["access-standard-acl-preset-<Var name="acl-id" />"]
+        preview_as_roles = ["access-standard-acl-preset-<Var name="acl-id" />"]
+      }
+    }
+  }
+}
+
+resource "teleport_access_list" "acl-<Var name="acl-id" />" {
+  header = {
+    kind    = "access_list"
+    version = "v1"
+    metadata = {
+      name = "<Var name="acl-id" />"
+      labels = {
+        "teleport.dev/iac-tool"                      = "terraform"
+        "teleport.internal/access-list-preset"       = "long-term"
+        "teleport.internal/access-list-preset-roles" = "reviewer-acl-preset-<Var name="acl-id" />,requester-acl-preset-<Var name="acl-id" />,access-standard-acl-preset-<Var name="acl-id" />"
+      }
+    }
+  }
+
+  spec = {
+    type = "static"
+    title = "<Var name="acl-title" />"
+    grants = {
+      roles = ["access-standard-acl-preset-<Var name="acl-id" />"]
+    }
+    owner_grants = {
+      roles = ["reviewer-acl-preset-<Var name="acl-id" />"]
+    }
+    owners = [{
+      membership_kind = "1"
+      name            = "<Var name="example-owner" />"
+    }]
+  }
+}
+
+resource "teleport_access_list_member" "acl-member-<Var name="example-member" />" {
+  depends_on = [teleport_access_list.acl-<Var name="acl-id" />]
+
+  header = {
+    kind    = "access_list_member"
+    version = "v1"
+    metadata = {
+      name = "<Var name="example-member" />"
+    }
+  }
+
+  spec = {
+    access_list     = "<Var name="acl-id" />"
+    name            = "<Var name="example-member" />"
+    membership_kind = "1"
+  }
+}
+```
+
+</TabItem>
+</Tabs>
+
+(!docs/pages/identity-governance/access-lists/includes/editing-roles-warning.mdx!)
+
+## Step 3/3. Verify the access
+
+Sign in as one of the members you added. The resources you defined in
+**Define Access to Resources** should appear in the resource list and you should be able
+to connect to them immediately.
+
+## Next steps
+
+- Group members by inheriting access from other lists with
+  [nested Access Lists](./nested-access-lists.mdx).
+- Learn more about managing Access Lists as code with the
+  [Terraform provider and Kubernetes operator](../../zero-trust-access/infrastructure-as-code/managing-resources/access-list.mdx).
