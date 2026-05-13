@@ -1,4 +1,4 @@
-.version: &version "18.8.0"
+.version: &version "18.8.0-dev.angelgnu.1"
 
 name: teleport-kube-updater
 apiVersion: v2
