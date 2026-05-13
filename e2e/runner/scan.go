@@ -124,10 +124,7 @@ func resolveTargetsWithHelpers(e2eDir string, testFiles []string) ([]scanTarget,
 		}
 	}
 
-	helpersBase := e2eDir
-	if v := os.Getenv("E2E_SHARED_DIR"); v != "" {
-		helpersBase = v
-	}
+	helpersBase := cmp.Or(os.Getenv("E2E_SHARED_DIR"), e2eDir)
 	for helper := range importedHelpers {
 		targets = append(targets, scanTarget{
 			path: filepath.Join(helpersBase, "helpers", helper+".ts"),
