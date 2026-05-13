@@ -665,9 +665,7 @@ func (s *Server) GetAppByPublicAddress(ctx context.Context, publicAddr string) (
 	defer s.mu.RUnlock()
 	// don't call s.getApps() as this will call RLock and potentially deadlock.
 	for _, a := range s.apps {
-		// DNS hostnames are case-insensitive; the Host-header path
-		// in lib/web/app/match.go uses the same comparison.
-		if strings.EqualFold(publicAddr, a.GetPublicAddr()) {
+		if strings.EqualFold(a.GetPublicAddr(), publicAddr) {
 			return s.appWithUpdatedLabelsLocked(a), nil
 		}
 	}

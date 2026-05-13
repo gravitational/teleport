@@ -297,8 +297,7 @@ func (r *fqdnResolver) resolveAppInfoForCluster(
 			if !ok {
 				return nil, trace.BadParameter("expected *types.AppV3, got %T", resource.GetApp())
 			}
-			// DNS hostnames are case-insensitive; the backend predicate
-			// above uses equalsFold, so this local check must too.
+			// Match the backend equalsFold predicate above.
 			matchedByPublicAddr := strings.EqualFold(dns.FullyQualify(app.GetPublicAddr()), fqdn)
 			matchedByName := app.GetName() == potentialAppName
 			if !matchedByName && !matchedByPublicAddr {

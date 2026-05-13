@@ -90,8 +90,8 @@ func (c *mockDialConn) Close() error {
 
 // TestMatchPublicAddrCaseInsensitive guards the case-insensitive
 // hostname comparison in MatchPublicAddr. Browsers lowercase the
-// Host header, so a mixed-case stored public_addr that compared by
-// == would silently miss every preflight and routing lookup.
+// Host header, so a mixed-case stored public_addr must still match
+// when the request hostname is folded to a different case.
 func TestMatchPublicAddrCaseInsensitive(t *testing.T) {
 	app, err := types.NewAppV3(
 		types.Metadata{Name: "test-app", Namespace: defaults.Namespace},

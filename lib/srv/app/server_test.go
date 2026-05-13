@@ -1457,6 +1457,44 @@ func TestCleanupOrphanedAppServers(t *testing.T) {
 	}
 }
 
+// TestGetAppByPublicAddressCaseInsensitive guards the case-insensitive
+// hostname comparison in GetAppByPublicAddress. The Web app router
+// upstream passes the request Host header, which browsers lowercase
+// before sending, so a mixed-case stored public_addr that compared
+// by `==` would silently miss every routing lookup.
+func TestGetAppByPublicAddressCaseInsensitive(t *testing.T) {
+	app, err := types.NewAppV3(
+		types.Metadata{Name: "myapp"},
+		types.AppSpecV3{URI: "http://localhost", PublicAddr: "MyApp.Example.Com"},
+	)
+	require.NoError(t, err)
+	s := &Server{
+		c:    &Config{},
+		apps: map[string]types.Application{app.GetName(): app},
+	}
+
+	tests := []struct {
+		query   string
+		wantHit bool
+	}{
+		{query: "myapp.example.com", wantHit: true},
+		{query: "MYAPP.EXAMPLE.COM", wantHit: true},
+		{query: "MyApp.Example.Com", wantHit: true},
+		{query: "other.example.com", wantHit: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.query, func(t *testing.T) {
+			got, err := s.GetAppByPublicAddress(context.Background(), tt.query)
+			if tt.wantHit {
+				require.NoError(t, err)
+				require.Equal(t, "myapp", got.GetName())
+			} else {
+				require.Error(t, err)
+			}
+		})
+	}
+}
+
 var (
 	staticLabels = map[string]string{
 		"bar": "baz",

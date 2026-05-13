@@ -645,7 +645,7 @@ func HasName(r *http.Request, proxyPublicAddrs []utils.NetAddr) (string, bool) {
 		if net.ParseIP(raddr.Host()) != nil {
 			return "", false
 		}
-		if raddr.Host() == paddr.Host() {
+		if strings.EqualFold(raddr.Host(), paddr.Host()) {
 			return "", false
 		}
 	}

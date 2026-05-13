@@ -69,6 +69,7 @@ The language also supports the following functions:
 | Functions (with examples)                    | Description                                                |
 |----------------------------------------------|------------------------------------------------------------|
 | `equals(labels["env"], "prod")`              | resources with label key `env` equal to label value `prod` |
+| `equalsFold(resource.spec.public_addr, "myapp.example.com")` | case-insensitive equality; for hostnames or other case-insensitive identifiers |
 | `exists(labels["env"])`                      | resources with a label key `env`; label value unchecked    |
 | `!exists(labels["env"])`                     | resources without a label key `env`; label value unchecked |
 | `search("foo", "bar", "some phrase")`        | fuzzy match against common resource fields                 |

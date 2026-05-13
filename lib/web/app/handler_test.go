@@ -1447,6 +1447,17 @@ func Test_checkForDualCredentialMismatch(t *testing.T) {
 			outerIdentity: *appSessionIdentity,
 		},
 		{
+			// DNS hostnames are case-insensitive, so an outer cookie with
+			// a mixed-case PublicAddr must still match the inner session.
+			name:         "public addr case-insensitive match",
+			innerSession: appSession,
+			outerIdentity: func() tlsca.Identity {
+				id := *appSessionIdentity
+				id.RouteToApp.PublicAddr = "APP.EXAMPLE.COM"
+				return id
+			}(),
+		},
+		{
 			// Session has no RouteToApp.Name; public addr mismatch should still fail.
 			name:         "no app name in session, public addr mismatch",
 			innerSession: appSessionNoName,
