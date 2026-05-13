@@ -1,0 +1,27 @@
+Click **Continue via Terraform**. Follow the in-UI instructions or below to deploy with Terraform:
+
+1. **Add the Terraform module to your configuration.**
+
+   Click the **Copy Terraform Module** button, then paste it into a Terraform configuration file.
+1. **Log in to your cluster:**
+   ```code
+   $ tsh login --proxy=<Var name="teleport.example.com:443" /> --user=<Var name="email@example.com" />
+   ```
+1. **Generate a temporary bot:**
+   ```code
+   $ eval "$(tctl terraform env)"
+   ```
+1. **Initialize Terraform:**
+   ```code
+   $ terraform init
+   ```
+1. **Preview the changes:**
+   ```code
+   $ terraform plan
+   ```
+1. **Apply the changes:**
+   ```code
+   $ terraform apply
+   ```
+
+The Access List is created once `terraform apply` completes.
