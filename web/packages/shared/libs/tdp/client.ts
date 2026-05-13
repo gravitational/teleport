@@ -521,7 +521,7 @@ export class TdpClient extends EventEmitter<EventMap> {
 
   handleServerHello(hello: ServerHello) {
     this.emit(TdpClientEvent.SERVER_CAPABILITIES, {
-      availableSessions: hello.sessions
+      availableSessions: hello.sessions,
     });
     this.handleRdpConnectionActivated(hello.activationEvent);
   }
