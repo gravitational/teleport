@@ -50,10 +50,13 @@ import (
 
 const (
 	// defaultBatchItems defines default value for batch items count.
-	// 20000 items, per average 500KB event size = 10MB
-	defaultBatchItems = 20000
+	// 2000 items, per average 500KB event size = 1GB
+	defaultBatchItems = 2000
 	// defaultBatchInterval defines default batch interval.
 	defaultBatchInterval = 1 * time.Minute
+	// defaultBatchMaxBytes defines the default maximum total size in bytes of events
+	// in a single batch. Defaults to 800MB.
+	defaultBatchMaxBytes = 800 * 1024 * 1024
 
 	// topicARNBypass is a magic value for TopicARN that signifies that the
 	// Athena audit log should send messages directly to SQS instead of going
@@ -123,6 +126,9 @@ type Config struct {
 	// batch (optional).
 	// It's soft limit.
 	BatchMaxItems int
+	// BatchMaxBytes defines the maximum total size in bytes of events in a
+	// single batch (optional). Default is 800MB.
+	BatchMaxBytes int
 	// BatchMaxInterval defined interval at which parquet files will be created (optional).
 	BatchMaxInterval time.Duration
 	// ConsumerLockName defines a name of a SQS consumer lock (optional).
@@ -241,6 +247,10 @@ func (cfg *Config) CheckAndSetDefaults(ctx context.Context) error {
 
 	if cfg.BatchMaxItems == 0 {
 		cfg.BatchMaxItems = defaultBatchItems
+	}
+
+	if cfg.BatchMaxBytes == 0 {
+		cfg.BatchMaxBytes = defaultBatchMaxBytes
 	}
 
 	if cfg.BatchMaxInterval == 0 {
@@ -411,6 +421,14 @@ func (cfg *Config) SetFromURL(url *url.URL) error {
 			return trace.BadParameter("invalid batchMaxItems value (it must be int): %v", err)
 		}
 		cfg.BatchMaxItems = intMaxItems
+	}
+	batchMaxBytes := url.Query().Get("batchMaxBytes")
+	if batchMaxBytes != "" {
+		intMaxBytes, err := strconv.Atoi(batchMaxBytes)
+		if err != nil {
+			return trace.BadParameter("invalid batchMaxBytes value (it must be int): %v", err)
+		}
+		cfg.BatchMaxBytes = intMaxBytes
 	}
 	batchMaxInterval := url.Query().Get("batchMaxInterval")
 	if batchMaxInterval != "" {

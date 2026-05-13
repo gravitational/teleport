@@ -165,18 +165,54 @@ func Test_consumer_sqsMessagesCollector(t *testing.T) {
 
 			go c.fromSQS(t.Context())
 
-			// When over 100 unique days are sent
-			eventsToSend := make([]apievents.AuditEvent, 0, 101)
-			for i := range 101 {
+			// When over 20 unique days are sent
+			eventsToSend := make([]apievents.AuditEvent, 0, 21)
+			for i := range 21 {
 				day := time.Now().Add(time.Duration(i) * 24 * time.Hour)
 				eventsToSend = append(eventsToSend, &apievents.AppCreate{Metadata: apievents.Metadata{Type: events.AppCreateEvent, Time: day}, AppMetadata: apievents.AppMetadata{AppName: "app1"}})
 			}
 			fq.addEvents(eventsToSend...)
-			receiveEvents(t, eventsChan, 101)
+			receiveEvents(t, eventsChan, 21)
 
 			// Then
 			// Make sure that channel is closed.
 			requireChannelClosed(t, eventsChan)
+		})
+	})
+
+	t.Run("verify if collector finishes execution (via closing channel) upon reaching maxBatchBytes", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			// Given SqsMessagesCollector reading from fake sqs with a delayed ReceiveMessage call
+			// When maxBatchBytes is reached.
+			// Then reading chan is closed.
+
+			// Given
+			fq := &fakeSQS{maxWaitTime: maxWaitTimeOnReceiveMessagesInFake}
+			cfg := validCollectCfgForTests(t)
+			cfg.sqsReceiver = fq
+			cfg.noOfWorkers = 1
+			cfg.batchMaxItems = 1000
+			cfg.maxBatchBytes = 1 // 1 byte — any event proto payload exceeds this
+			require.NoError(t, cfg.CheckAndSetDefaults())
+			c := newSqsMessagesCollector(cfg)
+
+			eventsChan := c.getEventsChan()
+
+			go c.fromSQS(t.Context())
+
+			// When
+			wantEvents := []apievents.AuditEvent{
+				&apievents.AppCreate{Metadata: apievents.Metadata{Type: events.AppCreateEvent}, AppMetadata: apievents.AppMetadata{AppName: "app1"}},
+				&apievents.AppCreate{Metadata: apievents.Metadata{Type: events.AppCreateEvent}, AppMetadata: apievents.AppMetadata{AppName: "app2"}},
+				&apievents.AppCreate{Metadata: apievents.Metadata{Type: events.AppCreateEvent}, AppMetadata: apievents.AppMetadata{AppName: "app3"}},
+			}
+			fq.addEvents(wantEvents...)
+			got := receiveEvents(t, eventsChan, 3)
+
+			// Then
+			// Make sure that channel is closed.
+			requireChannelClosed(t, eventsChan)
+			requireEventsEqualInAnyOrder(t, wantEvents, eventAndAckIDToAuditEvents(got))
 		})
 	})
 }
