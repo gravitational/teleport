@@ -90,7 +90,10 @@ func IsUntrustedCertErr(err error) bool {
 // CanExplainNetworkError returns a simple to understand error message that can
 // be used to debug common network and/or protocol errors.
 func CanExplainNetworkError(err error) (string, bool) {
-	var derr *net.DNSError
+	var (
+		derr *net.DNSError
+		nerr net.Error
+	)
 
 	switch {
 	// Connection refused errors can be reproduced by attempting to connect to a
@@ -127,11 +130,17 @@ Use "ping HOST" and "ip route get HOST" to help debug this issue.`, true
 Teleport could not complete the request because the server abruptly closed the connection before the response was received. To resolve this issue, ensure the server (or load balancer) does not have a timeout terminating the connection early and verify that the server is not crash looping.
 
 Use protocol-specific tools (e.g., curl, psql) to help debug this issue.`, true
-	// Slow responses can be reprodued by creating a HTTP server that does a
-	// time.Sleep before responding. The raw error typically looks like the following:
+	// Slow responses can be reproduced by creating a HTTP server that
+	// does a time.Sleep before responding. The raw error typically
+	// looks like the following:
 	//
 	// context deadline exceeded
-	case errors.Is(err, context.DeadlineExceeded):
+	//
+	// HTTP/1 wraps context.DeadlineExceeded via timeoutError.Is.
+	// HTTP/2's http2httpError does not wrap it; it implements
+	// net.Error with Timeout() returning true. Match both shapes
+	// here, plus syscall.ETIMEDOUT and other net.Error timeouts.
+	case errors.Is(err, context.DeadlineExceeded) || (errors.As(err, &nerr) && nerr.Timeout()):
 		return `Context Deadline Exceeded
 
 Teleport did not receive a response within the timeout period, likely due to the system being overloaded, network congestion, or a firewall blocking traffic. To resolve this issue, connect to the host directly and ensure it is responding promptly.
