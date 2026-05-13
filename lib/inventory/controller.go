@@ -1308,6 +1308,9 @@ func (c *Controller) handleLinuxDesktopHB(handle *upstreamHandle, linuxDesktop *
 	}
 
 	meta := linuxDesktop.GetMetadata()
+	if meta == nil {
+		return trace.BadParameter("missing Linux desktop metadata")
+	}
 	if meta.GetName() != handle.Hello().ServerID {
 		return trace.AccessDenied("incorrect linux desktop ID (expected %q, got %q)", handle.Hello().ServerID, meta.GetName())
 	}
