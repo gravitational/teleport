@@ -907,7 +907,7 @@ func NewPresetBeamUserRole(buildType string) types.Role {
 		},
 		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
-				Logins:              []string{"beams"},
+				Logins:              []string{types.BeamsLogin},
 				AppLabelsExpression: strings.Join([]string{allowLLMApps, allowBeamApps}, " || "),
 				NodeLabels: types.Labels{
 					types.BeamOwnerLabel: {"{{user.metadata.name}}"},
