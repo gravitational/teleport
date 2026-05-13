@@ -17,11 +17,12 @@
  */
 import styled from 'styled-components';
 
-import { Flex, Stack, Text, P1, P2 } from 'design';
+import { Flex, Stack, P1, P2, H3 } from 'design';
 import {
   ButtonFill,
   ButtonIntent,
   ButtonPrimary,
+  ButtonProps,
   ButtonSecondary,
 } from 'design/Button/Button';
 import { Eject, FolderPlus, Plus } from 'design/Icon';
@@ -54,13 +55,6 @@ export function SharedDirectoryList({
     ? 'Directory sharing is not enabled for this session'
     : 'Share local directories with the desktop';
 
-  const maxDirectoriesReached =
-    sharedDirectories.length >= maxSharedDirectories;
-
-  const shareButtonTitle = maxDirectoriesReached
-    ? `Cannot share more than ${maxSharedDirectories} directories at once`
-    : 'Share a directory';
-
   return (
     <MenuIcon
       Icon={props => <FolderPlus {...props} size="large" />}
@@ -88,16 +82,11 @@ export function SharedDirectoryList({
           {/* Header/Share Button */}
           <Flex justifyContent="space-between" alignItems="center">
             <DropdownHeader directoryCount={sharedDirectories.length} />
-            <ButtonPrimary
-              title={shareButtonTitle}
-              size="small"
+            <ShareButton
+              directoryCount={sharedDirectories.length}
+              maxSharedDirectories={maxSharedDirectories}
               onClick={onAddSharedDirectory}
-              compact={true}
-              $inputAlignment={false}
-              disabled={maxDirectoriesReached}
-            >
-              <Plus size="small" />
-            </ButtonPrimary>
+            />
           </Flex>
 
           {!!sharedDirectories.length && (
@@ -195,19 +184,45 @@ function RemovalSupportInformation(props: {
   return <P1 color="text.muted">{copyText}</P1>;
 }
 
-function DropdownHeader(props: { directoryCount: number }) {
-  if (props.directoryCount == 0) {
-    return <Text typography="h3">Share a directory</Text>;
-  }
-  const headerText =
-    props.directoryCount == 1 ? 'shared directory' : 'shared directories';
+function ShareButton(
+  props: {
+    directoryCount: number;
+    maxSharedDirectories: number;
+  } & ButtonProps<typeof ButtonPrimary>
+) {
+  const maxDirectoriesReached =
+    props.directoryCount >= props.maxSharedDirectories;
+
+  const shareButtonTitle = maxDirectoriesReached
+    ? `Cannot share more than ${props.maxSharedDirectories} directories at once`
+    : 'Share a directory';
+
   return (
-    <Text typography="h3">
-      {props.directoryCount > 0
-        ? `${props.directoryCount} ` + headerText
-        : headerText}
-    </Text>
+    <ButtonPrimary
+      title={shareButtonTitle}
+      size="small"
+      compact={true}
+      $inputAlignment={false}
+      disabled={maxDirectoriesReached}
+      {...props}
+    >
+      <Plus size="small" />
+    </ButtonPrimary>
   );
+}
+
+function DropdownHeader(props: { directoryCount: number }) {
+  const headerText = (() => {
+    switch (props.directoryCount) {
+      case 0:
+        return 'Share a directory';
+      case 1:
+        return '1 shared directory';
+      default:
+        return `${props.directoryCount} shared directories`;
+    }
+  })();
+  return <H3> {headerText} </H3>;
 }
 
 const Container = styled.div`
