@@ -986,7 +986,7 @@ func NewSystemBeamRole(buildType string) types.Role {
 					{
 						Resources: []string{types.KindHostCert},
 						Verbs:     []string{types.VerbCreate},
-						Where:     fmt.Sprintf(`contains_all(user.spec.traits[%q], host_cert.principals)'`, types.BeamIDLabel),
+						Where:     fmt.Sprintf(`contains_all(user.spec.traits[%q], host_cert.principals)`, types.BeamIDLabel),
 					},
 					{
 						Resources: []string{types.KindWorkloadIdentity},
