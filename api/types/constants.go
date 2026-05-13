@@ -1365,6 +1365,10 @@ const (
 	// BeamAliasLabel is the label used to track the alias of the Beam a
 	// resource belongs to.
 	BeamAliasLabel = TeleportInternalLabelPrefix + "beams/alias"
+
+	// BeamAppTypeLabel is the label used to denote the type of app created for
+	// Beams. Valid values: "ingress" and "llm".
+	BeamAppTypeLabel = TeleportInternalLabelPrefix + "beams/app-type"
 )
 
 const (
