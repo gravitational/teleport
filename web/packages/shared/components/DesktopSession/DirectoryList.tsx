@@ -17,7 +17,7 @@
  */
 import styled from 'styled-components';
 
-import { Flex, Stack, P1, P2, H3 } from 'design';
+import { Flex, Stack, P3, P2, H3 } from 'design';
 import {
   ButtonFill,
   ButtonIntent,
@@ -172,7 +172,7 @@ function RemovalSupportInformation(props: {
   isRemoveSupported: boolean;
   directoryCount: number;
 }) {
-  if (props.isRemoveSupported) {
+  if (props.isRemoveSupported || props.directoryCount == 0) {
     return;
   }
 
@@ -181,7 +181,7 @@ function RemovalSupportInformation(props: {
       ? 'Disconnect these shared directories by restarting your session.'
       : 'Disconnect this shared directory by restarting your session.';
 
-  return <P1 color="text.muted">{copyText}</P1>;
+  return <P3 color="text.muted">{copyText}</P3>;
 }
 
 function ShareButton(
