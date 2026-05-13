@@ -451,6 +451,8 @@ const (
 
 	// UpgradeWindowStartUpdatedCode is the edit code of UpgradeWindowStartUpdateEvent.
 	UpgradeWindowStartUpdatedCode = "TUW01I"
+	// EnvironmentProfileUpdatedCode is the edit code of EnvironmentProfileUpdateEvent.
+	EnvironmentProfileUpdatedCode = "TEP01I"
 
 	// SSMRunSuccessCode is the discovery script success code.
 	SSMRunSuccessCode = "TDS00I"

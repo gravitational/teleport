@@ -21,6 +21,7 @@ import { render, screen, waitFor } from 'design/utils/testing';
 import api from 'teleport/services/api';
 import { ApiError } from 'teleport/services/api/parseError';
 import history from 'teleport/services/history';
+import { storageService } from 'teleport/services/storageService';
 import userService from 'teleport/services/user';
 import session from 'teleport/services/websession';
 
@@ -131,5 +132,128 @@ describe('session', () => {
     expect(screen.queryByText(/hello world/i)).not.toBeInTheDocument();
     expect(session.ensureSession).not.toHaveBeenCalled();
     expect(history.goToLogin).not.toHaveBeenCalled();
+  });
+});
+
+describe('app launcher fragment stash', () => {
+  function setLocation({ pathname, search = '', hash = '' }) {
+    window.history.replaceState({}, '', `${pathname}${search}${hash}`);
+  }
+
+  beforeEach(() => {
+    jest.spyOn(session, 'validateCookieAndSession').mockResolvedValue({});
+    jest.spyOn(session, 'ensureSession').mockImplementation();
+    jest.spyOn(session, 'getInactivityTimeout').mockImplementation(() => 0);
+    jest.spyOn(session, 'clearBrowserSession').mockImplementation();
+    jest.spyOn(api, 'get').mockResolvedValue({});
+    jest.spyOn(userService, 'fetchUserContext').mockResolvedValue(null);
+    jest.spyOn(history, 'goToLogin').mockImplementation();
+    jest.spyOn(storageService, 'setAppLauncherFragment');
+  });
+
+  afterEach(() => {
+    window.history.replaceState({}, '', '/');
+    jest.clearAllMocks();
+  });
+
+  test('stashes the fragment when invalid session on launcher route', async () => {
+    jest.spyOn(session, 'isValid').mockImplementation(() => false);
+    setLocation({
+      pathname: '/web/launch/grafana.localhost',
+      search: '?path=%2Ffoo',
+      hash: '#my-section',
+    });
+
+    render(
+      <Authenticated>
+        <div>hello world</div>
+      </Authenticated>
+    );
+
+    await waitFor(() =>
+      expect(storageService.setAppLauncherFragment).toHaveBeenCalledWith(
+        '/web/launch/grafana.localhost',
+        '#my-section'
+      )
+    );
+  });
+
+  test('stashes the fragment when 403 on launcher route', async () => {
+    jest.spyOn(session, 'isValid').mockImplementation(() => true);
+    jest.spyOn(session, 'validateCookieAndSession').mockRejectedValue(
+      new ApiError({
+        message: 'forbidden',
+        response: { status: 403 } as Response,
+      })
+    );
+    setLocation({
+      pathname: '/web/launch/grafana.localhost',
+      hash: '#my-section',
+    });
+
+    render(
+      <Authenticated>
+        <div>hello world</div>
+      </Authenticated>
+    );
+
+    await waitFor(() =>
+      expect(storageService.setAppLauncherFragment).toHaveBeenCalledWith(
+        '/web/launch/grafana.localhost',
+        '#my-section'
+      )
+    );
+  });
+
+  test('does not stash on a non-launcher route', async () => {
+    jest.spyOn(session, 'isValid').mockImplementation(() => false);
+    setLocation({
+      pathname: '/web/cluster/test/resources',
+      hash: '#some-anchor',
+    });
+
+    render(
+      <Authenticated>
+        <div>hello world</div>
+      </Authenticated>
+    );
+
+    await waitFor(() => expect(session.clearBrowserSession).toHaveBeenCalled());
+    expect(storageService.setAppLauncherFragment).not.toHaveBeenCalled();
+  });
+
+  test('does not stash when no hash is present', async () => {
+    jest.spyOn(session, 'isValid').mockImplementation(() => false);
+    setLocation({
+      pathname: '/web/launch/grafana.localhost',
+      search: '?path=%2Ffoo',
+    });
+
+    render(
+      <Authenticated>
+        <div>hello world</div>
+      </Authenticated>
+    );
+
+    await waitFor(() => expect(session.clearBrowserSession).toHaveBeenCalled());
+    expect(storageService.setAppLauncherFragment).not.toHaveBeenCalled();
+  });
+
+  test('does not stash on a required-apps chain', async () => {
+    jest.spyOn(session, 'isValid').mockImplementation(() => false);
+    setLocation({
+      pathname: '/web/launch/grafana.localhost',
+      search: '?required-apps=app1,app2',
+      hash: '#secret',
+    });
+
+    render(
+      <Authenticated>
+        <div>hello world</div>
+      </Authenticated>
+    );
+
+    await waitFor(() => expect(session.clearBrowserSession).toHaveBeenCalled());
+    expect(storageService.setAppLauncherFragment).not.toHaveBeenCalled();
   });
 });

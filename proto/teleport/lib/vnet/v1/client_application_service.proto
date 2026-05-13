@@ -65,6 +65,8 @@ service ClientApplicationService {
   // ExchangeSSHKeys sends VNet's SSH host CA key to the client application and
   // returns the user public key.
   rpc ExchangeSSHKeys(ExchangeSSHKeysRequest) returns (ExchangeSSHKeysResponse);
+  // PerformSessionMFACeremony performs a session-bound MFA ceremony for a session being established through VNet.
+  rpc PerformSessionMFACeremony(PerformSessionMFACeremonyRequest) returns (PerformSessionMFACeremonyResponse);
   // ReissueDBCert issues a new database cert.
   rpc ReissueDBCert(ReissueDBCertRequest) returns (ReissueDBCertResponse);
   // SignForDB issues a signature with the private key associated with an x509
@@ -348,6 +350,20 @@ message SignForUserTLSResponse {
   bytes signature = 1;
 }
 
+// SessionSSHConfigCredentialMode selects how the client application should build SSH config for a VNet SSH session.
+//
+// The VNet admin side decides whether it is making the first direct attempt or retrying after that attempt failed. The
+// client application uses this mode to choose the corresponding credential path.
+enum SessionSSHConfigCredentialMode {
+  SESSION_SSH_CONFIG_CREDENTIAL_MODE_UNSPECIFIED = 0;
+  // SESSION_SSH_CONFIG_CREDENTIAL_MODE_MFA_CERT retries after the direct attempt failed and falls back to issuing a
+  // legacy per-session MFA cert.
+  SESSION_SSH_CONFIG_CREDENTIAL_MODE_MFA_CERT = 1;
+  // SESSION_SSH_CONFIG_CREDENTIAL_MODE_DIRECT uses the user's existing SSH cert so in-band MFA can happen during the
+  // SSH handshake if needed.
+  SESSION_SSH_CONFIG_CREDENTIAL_MODE_DIRECT = 2;
+}
+
 // SessionSSHConfigRequest is a request for SessionSSHConfig.
 message SessionSSHConfigRequest {
   // Profile is the profile in which the SSH server is found.
@@ -361,6 +377,8 @@ message SessionSSHConfigRequest {
   string address = 4;
   // User is the SSH user the session is for.
   string user = 5;
+  // Selects the credential path for this request.
+  SessionSSHConfigCredentialMode credential_mode = 6;
 }
 
 // SessionSSHConfigResponse is a response for SessionSSHConfig.
@@ -403,6 +421,22 @@ message ExchangeSSHKeysResponse {
   // UserPublicKey is the user key that should be trusted by VNet for incoming
   // connections from SSH clients. It is encoded in OpenSSH wire format.
   bytes user_public_key = 1;
+}
+
+// PerformSessionMFACeremonyRequest is a request for PerformSessionMFACeremony.
+message PerformSessionMFACeremonyRequest {
+  // Profile in which the target is found.
+  string profile = 1;
+  // Leaf cluster in which the target is found. If empty, the target is in the root cluster.
+  string leaf_cluster = 2;
+  // Identifies the SSH session that the MFA ceremony should be bound to.
+  bytes ssh_session_id = 3;
+}
+
+// PerformSessionMFACeremonyResponse is a response for PerformSessionMFACeremony.
+message PerformSessionMFACeremonyResponse {
+  // The name of the completed MFA challenge.
+  string challenge_name = 1;
 }
 
 // MatchedDatabase holds info about a database that matched a query.

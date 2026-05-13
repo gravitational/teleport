@@ -255,27 +255,190 @@ func TestEKSFetcher(t *testing.T) {
 	}
 }
 
+// TestEKSFetcherRetriesCallerIdentity verifies that a transient
+// sts:GetCallerIdentity failure does not permanently disable access setup.
+func TestEKSFetcherRetriesCallerIdentity(t *testing.T) {
+	const resolvedARN = "arn:aws:iam::123456789012:role/discovery"
+	sts := &mockSTSClient{arn: resolvedARN, failCalls: 1}
+	fetcher := newTestEKSFetcher(t,
+		types.AWSMatcher{
+			Regions: []string{"eu-west-1"},
+			Tags:    types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+		map[string]EKSClient{"eu-west-1": &mockEKSAPI{
+			clusters: []*ekstypes.Cluster{testEKSCluster(ekstypes.AuthenticationModeConfigMap)},
+		}},
+		sts,
+	)
+
+	resources, err := fetcher.Get(context.Background())
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+	require.Nil(t, awsDiscoveryStatus(resources[0].(*DiscoveredEKSCluster)))
+
+	resources, err = fetcher.Get(context.Background())
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+	awsStatus := awsDiscoveryStatus(resources[0].(*DiscoveredEKSCluster))
+	require.NotNil(t, awsStatus)
+	require.Equal(t, resolvedARN, awsStatus.SetupAccessForArn)
+	require.Equal(t, 2, sts.calls)
+}
+
+// TestEKSFetcherFallsBackToSetupAccessForARN verifies that
+// status is recorded when STS fails but Matcher.SetupAccessForARN supplies
+// the principal ARN, so cleanup can later find the access entry to remove.
+func TestEKSFetcherFallsBackToSetupAccessForARN(t *testing.T) {
+	const principalARN = "arn:aws:iam::123456789012:role/operator"
+	fetcher := newTestEKSFetcher(t,
+		types.AWSMatcher{
+			Regions:           []string{"eu-west-1"},
+			Tags:              types.Labels{types.Wildcard: []string{types.Wildcard}},
+			SetupAccessForARN: principalARN,
+		},
+		map[string]EKSClient{"eu-west-1": &mockEKSAPI{
+			clusters: []*ekstypes.Cluster{testEKSCluster(ekstypes.AuthenticationModeConfigMap)},
+		}},
+		&mockSTSClient{arn: "unused", failCalls: 100},
+	)
+
+	resources, err := fetcher.Get(context.Background())
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+	awsStatus := awsDiscoveryStatus(resources[0].(*DiscoveredEKSCluster))
+	require.NotNil(t, awsStatus)
+	require.Equal(t, principalARN, awsStatus.SetupAccessForArn)
+}
+
+// TestEKSFetcherSkipsAccessSetupWithoutBootstrap verifies that
+// the fetcher inspects the access entry but does not attempt to provision
+// admin access when the bootstrap ARN is unresolved.
+func TestEKSFetcherSkipsAccessSetupWithoutBootstrap(t *testing.T) {
+	const principalARN = "arn:aws:iam::123456789012:role/operator"
+	eksClient := &mockEKSAPI{
+		clusters:            []*ekstypes.Cluster{testEKSCluster(ekstypes.AuthenticationModeApi)},
+		accessEntryNotFound: true,
+	}
+	fetcher := newTestEKSFetcher(t,
+		types.AWSMatcher{
+			Regions:           []string{"eu-west-1"},
+			Tags:              types.Labels{types.Wildcard: []string{types.Wildcard}},
+			SetupAccessForARN: principalARN,
+		},
+		map[string]EKSClient{"eu-west-1": eksClient},
+		&mockSTSClient{arn: "unused", failCalls: 100},
+	)
+
+	resources, err := fetcher.Get(context.Background())
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+	awsStatus := awsDiscoveryStatus(resources[0].(*DiscoveredEKSCluster))
+	require.NotNil(t, awsStatus)
+	require.Equal(t, principalARN, awsStatus.SetupAccessForArn)
+
+	require.Equal(t, 1, eksClient.describeAccessEntryCalls)
+	require.Zero(t, eksClient.createAccessEntryCalls)
+	require.Zero(t, eksClient.associateAccessPolicyCalls)
+}
+
+func testEKSCluster(authMode ekstypes.AuthenticationMode) *ekstypes.Cluster {
+	return &ekstypes.Cluster{
+		Name:         aws.String("test-cluster"),
+		Arn:          aws.String("arn:aws:eks:eu-west-1:123456789012:cluster/test-cluster"),
+		Status:       ekstypes.ClusterStatusActive,
+		Tags:         map[string]string{"env": "prod"},
+		AccessConfig: &ekstypes.AccessConfigResponse{AuthenticationMode: authMode},
+	}
+}
+
+func newTestEKSFetcher(t *testing.T, matcher types.AWSMatcher, clients map[string]EKSClient, sts *mockSTSClient) common.Fetcher {
+	t.Helper()
+	fetcher, err := NewEKSFetcher(EKSFetcherConfig{
+		ClientGetter: &mockRegionalEKSClientGetterWithSTS{
+			mockRegionalEKSClientGetter: mockRegionalEKSClientGetter{
+				AWSConfigProvider: mocks.AWSConfigProvider{},
+				clientsByRegion:   clients,
+			},
+			stsClient: sts,
+		},
+		Matcher: matcher,
+		Logger:  logtest.NewLogger(),
+	})
+	require.NoError(t, err)
+	return fetcher
+}
+
+// mockSTSClient records how many times GetCallerIdentity is called and
+// can be configured to fail the first failCalls attempts.
+type mockSTSClient struct {
+	arn       string
+	failCalls int
+	calls     int
+}
+
+func (m *mockSTSClient) GetCallerIdentity(context.Context, *sts.GetCallerIdentityInput, ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
+	m.calls++
+	if m.calls <= m.failCalls {
+		return nil, errors.New("transient sts error")
+	}
+	return &sts.GetCallerIdentityOutput{Arn: aws.String(m.arn)}, nil
+}
+
+func (*mockSTSClient) AssumeRole(context.Context, *sts.AssumeRoleInput, ...func(*sts.Options)) (*sts.AssumeRoleOutput, error) {
+	panic("not implemented")
+}
+
+func awsDiscoveryStatus(c *DiscoveredEKSCluster) *types.KubernetesClusterAWSStatus {
+	status := c.GetStatus()
+	if status == nil || status.Discovery == nil {
+		return nil
+	}
+	return status.Discovery.Aws
+}
+
+type mockRegionalEKSClientGetterWithSTS struct {
+	mockRegionalEKSClientGetter
+	stsClient STSClient
+}
+
+func (g *mockRegionalEKSClientGetterWithSTS) GetAWSSTSClient(aws.Config) STSClient {
+	return g.stsClient
+}
+
 type mockSTSPresignAPI struct{}
 
 func (a *mockSTSPresignAPI) PresignGetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.PresignOptions)) (*v4.PresignedHTTPRequest, error) {
 	panic("not implemented")
 }
 
-type mockSTSAPI struct{}
-
-func (*mockSTSAPI) GetCallerIdentity(context.Context, *sts.GetCallerIdentityInput, ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
-	return &sts.GetCallerIdentityOutput{Arn: aws.String("")}, nil
-}
-
-func (*mockSTSAPI) AssumeRole(context.Context, *sts.AssumeRoleInput, ...func(*sts.Options)) (*sts.AssumeRoleOutput, error) {
-	panic("not implemented")
-}
-
 type mockEKSAPI struct {
 	EKSClient
 
-	clusters []*ekstypes.Cluster
-	listErr  error
+	clusters            []*ekstypes.Cluster
+	listErr             error
+	accessEntryNotFound bool
+
+	describeAccessEntryCalls   int
+	createAccessEntryCalls     int
+	associateAccessPolicyCalls int
+}
+
+func (m *mockEKSAPI) DescribeAccessEntry(_ context.Context, _ *eks.DescribeAccessEntryInput, _ ...func(*eks.Options)) (*eks.DescribeAccessEntryOutput, error) {
+	m.describeAccessEntryCalls++
+	if m.accessEntryNotFound {
+		return nil, awsResponseError(http.StatusNotFound, "ResourceNotFoundException")
+	}
+	return &eks.DescribeAccessEntryOutput{AccessEntry: &ekstypes.AccessEntry{}}, nil
+}
+
+func (m *mockEKSAPI) CreateAccessEntry(_ context.Context, _ *eks.CreateAccessEntryInput, _ ...func(*eks.Options)) (*eks.CreateAccessEntryOutput, error) {
+	m.createAccessEntryCalls++
+	return &eks.CreateAccessEntryOutput{}, nil
+}
+
+func (m *mockEKSAPI) AssociateAccessPolicy(_ context.Context, _ *eks.AssociateAccessPolicyInput, _ ...func(*eks.Options)) (*eks.AssociateAccessPolicyOutput, error) {
+	m.associateAccessPolicyCalls++
+	return &eks.AssociateAccessPolicyOutput{}, nil
 }
 
 func (m *mockEKSAPI) ListClusters(ctx context.Context, req *eks.ListClustersInput, _ ...func(*eks.Options)) (*eks.ListClustersOutput, error) {
@@ -370,7 +533,7 @@ func (g *mockRegionalEKSClientGetter) GetAWSEKSClient(cfg aws.Config) EKSClient 
 }
 
 func (g *mockRegionalEKSClientGetter) GetAWSSTSClient(aws.Config) STSClient {
-	return &mockSTSAPI{}
+	return &mockSTSClient{}
 }
 
 func (g *mockRegionalEKSClientGetter) GetAWSSTSPresignClient(aws.Config) kubeutils.STSPresignClient {

@@ -285,7 +285,7 @@ For the same app registration created in Step 1:
 <TabItem label="Azure CLI">
 1. Get the client ID, replacing <Var name="app-name" /> with the name of the Entra ID application.
    ```code
-$ az ad app list --display-name <Var name="app-name" /> --query "[0].appId" -o tsv
+   $ az ad app list --display-name <Var name="app-name" /> --query "[0].appId" -o tsv
    ```
 2. Create a client secret, replacing <Var name="client-id" /> with the client ID from step 1 and <Var name="display-name" /> with a name for the client secret.
    ```code

@@ -80,7 +80,7 @@ For bugs related to this code, please [open an issue](https://github.com/gravita
 | terraform | >= 1.5.7 |
 | aws | >= 5.0 |
 | http | >= 3.0 |
-| teleport | >= 18.7.4 |
+| teleport | >= 18.8.0 |
 | tls | >= 4.0 |
 
 ## Providers
@@ -89,7 +89,7 @@ For bugs related to this code, please [open an issue](https://github.com/gravita
 | ---- | ------- |
 | aws | >= 5.0 |
 | http | >= 3.0 |
-| teleport | >= 18.7.4 |
+| teleport | >= 18.8.0 |
 | tls | >= 4.0 |
 
 ## Modules
@@ -125,7 +125,7 @@ No modules.
 | aws\_iam\_policy\_use\_name\_prefix | Determines whether the name of the AWS IAM policy (`aws_iam_policy_name`) is used as a prefix. | `bool` | `true` | no |
 | aws\_iam\_role\_name | Name for the AWS IAM role for discovery. | `string` | `"teleport-discovery"` | no |
 | aws\_iam\_role\_use\_name\_prefix | Determines whether the name of the AWS IAM role (`aws_iam_role_name`) is used as a prefix. | `bool` | `true` | no |
-| aws\_matchers | AWS resource discovery matchers. Valid values for aws\_matchers.types are: ec2, eks. | ```list(object({ types = list(string) regions = optional(list(string), ["*"]) tags = optional(map(list(string)), { "*" : ["*"] }) setup_access_for_arn = optional(string, "") kube_app_discovery = optional(bool) }))``` | `[]` | no |
+| aws\_matchers | AWS resource discovery matchers. Valid values for aws\_matchers.types are: ec2, eks, rds. | ```list(object({ types = list(string) regions = optional(list(string), ["*"]) tags = optional(map(list(string)), { "*" : ["*"] }) setup_access_for_arn = optional(string, "") kube_app_discovery = optional(bool) }))``` | `[]` | no |
 | create | Toggle creation of all resources. | `bool` | `true` | no |
 | create\_aws\_iam\_openid\_connect\_provider | Toggle AWS IAM OIDC provider creation. If false and using OIDC, then the AWS IAM OIDC provider must already exist. | `bool` | `true` | no |
 | discovery\_service\_iam\_credential\_source | Configure the AWS credential source for Teleport Discovery Service instances. The default uses AWS OIDC integration. | ```object({ use_oidc_integration = optional(bool, true) trust_role = optional(object({ role_arn = string external_id = optional(string, "") })) })``` | ```{ "trust_role": null, "use_oidc_integration": true }``` | no |

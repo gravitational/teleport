@@ -33,6 +33,7 @@ type testInstance struct {
 	sshPort            int
 	e2eDir             string
 	dataDir            string
+	tctlBin            string
 	teleportConfigPath string
 	teleport           *teleportInstance
 	node               *dockerNode
@@ -56,8 +57,11 @@ func (inst *testInstance) start(ctx context.Context) error {
 		if err = inst.teleport.waitReady(ctx, 30*time.Second); err != nil {
 			return fmt.Errorf("teleport for %s failed to become ready: %w", inst.browser, err)
 		}
-		if err = seedRecordings(ctx, inst.e2eDir, inst.dataDir); err != nil {
+		if err = inst.teleport.seedRecordings(ctx, inst.e2eDir, inst.dataDir); err != nil {
 			return fmt.Errorf("failed to seed session recordings for %s: %w", inst.browser, err)
+		}
+		if err = applyResources(ctx, inst.e2eDir, inst.tctlBin, inst.teleportConfigPath); err != nil {
+			return fmt.Errorf("failed to apply resources for %s: %w", inst.browser, err)
 		}
 	}
 

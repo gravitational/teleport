@@ -343,8 +343,6 @@ const (
 	ALPNSNIProtocolReverseTunnel = "teleport-reversetunnel"
 	// ALPNSNIProtocolSSH is the TLS ALPN protocol value used to indicate Proxy SSH protocol.
 	ALPNSNIProtocolSSH = "teleport-proxy-ssh"
-	// ALPNSNIProtocolPingSuffix is TLS ALPN suffix used to wrap connections with Ping.
-	ALPNSNIProtocolPingSuffix = "-ping"
 )
 
 const (

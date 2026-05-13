@@ -19,7 +19,6 @@
 package auth
 
 import (
-	"cmp"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -2684,23 +2683,27 @@ func doMFAPresenceChallenge(ctx context.Context, actx *grpcContext, stream authp
 	chalExt := &mfav1pb.ChallengeExtensions{Scope: mfav1pb.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION}
 
 	// When completing a Browser MFA flow, only a WebAuthn challenge is needed, so
-	// clear the redirect URL so SSO and Browser MFA challenges are not generated.
-	clientRedirectURL := ""
+	// clear the redirect URLs so SSO and Browser MFA challenges are not generated.
+	ssoClientRedirectURL := ""
+	browserMFATSHRedirectURL := ""
 	if challengeReq.BrowserMfaRequestId == "" {
-		// Both SSO and Browser MFA redirect URLs point to the same callback server on tsh.
-		// So we can take either one and generate an auth challenge with it.
-		ssoURL := challengeReq.SSOClientRedirectURL
-		browserURL := challengeReq.BrowserMFATSHRedirectURL
-		clientRedirectURL = cmp.Or(ssoURL, browserURL)
-		if ssoURL != "" && browserURL != "" && ssoURL != browserURL {
+		ssoClientRedirectURL = challengeReq.SSOClientRedirectURL
+		browserMFATSHRedirectURL = challengeReq.BrowserMFATSHRedirectURL
+		if ssoClientRedirectURL != "" && browserMFATSHRedirectURL != "" && ssoClientRedirectURL != browserMFATSHRedirectURL {
 			slog.WarnContext(ctx, "SSO and Browser MFA redirect URLs do not match, this is a bug.",
 				// Strip out the sensitive query params before printing
-				"sso_url", strings.Split(ssoURL, "?")[0],
-				"browser_url", strings.Split(browserURL, "?")[0],
+				"sso_url", strings.Split(ssoClientRedirectURL, "?")[0],
+				"browser_url", strings.Split(browserMFATSHRedirectURL, "?")[0],
 			)
 		}
 	}
-	authChallenge, err := actx.authServer.mfaAuthChallenge(ctx, user, clientRedirectURL, challengeReq.ProxyAddress, chalExt)
+	authChallenge, err := actx.authServer.mfaAuthChallenge(ctx, mfaAuthChallengeParams{
+		user:                     user,
+		ssoClientRedirectURL:     ssoClientRedirectURL,
+		browserMFATSHRedirectURL: browserMFATSHRedirectURL,
+		proxyAddress:             challengeReq.ProxyAddress,
+		challengeExtensions:      chalExt,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -6610,9 +6613,9 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	notificationsv1pb.RegisterNotificationServiceServer(server, notificationsServer)
 
 	vnetConfigServiceServer, err := vnetconfigv1.NewService(vnetconfigv1.ServiceConfig{
-		Authorizer: cfg.Authorizer,
-		Storage:    cfg.AuthServer.VnetConfigService,
-		Emitter:    cfg.Emitter,
+		ScopedAuthorizer: cfg.ScopedAuthorizer,
+		Storage:          cfg.AuthServer.VnetConfigService,
+		Emitter:          cfg.Emitter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

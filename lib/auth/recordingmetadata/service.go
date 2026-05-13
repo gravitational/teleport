@@ -29,11 +29,12 @@ type SessionType int
 const (
 	SessionTypeUnspecified SessionType = iota
 	SessionTypeTTY
+	SessionTypeDesktop
 )
 
 // Service defines an interface for processing session recordings.
 type Service interface {
 	// ProcessSessionRecording processes the session recording associated with the
 	// provided session ID.
-	ProcessSessionRecording(ctx context.Context, sessionID session.ID, sessionType SessionType, duration time.Duration) error
+	ProcessSessionRecording(ctx context.Context, sessionID session.ID, sessionType SessionType, startTime time.Time, duration time.Duration) error
 }
