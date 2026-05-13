@@ -844,6 +844,78 @@ func TestSessionRecordingModes(t *testing.T) {
 	}
 }
 
+func TestStopSessionWithoutClientDisconnect(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name      string
+		component string
+		setTerm   func(*testing.T, *ServerContext)
+	}{
+		{
+			name:      "local terminal",
+			component: teleport.ComponentNode,
+			setTerm: func(t *testing.T, scx *ServerContext) {
+				term, err := newLocalTerminal(scx)
+				require.NoError(t, err)
+				scx.term = term
+			},
+		},
+		{
+			name:      "remote terminal",
+			component: teleport.ComponentForwardingNode,
+			setTerm: func(t *testing.T, scx *ServerContext) {
+				term, err := newRemoteTerminal(scx)
+				require.NoError(t, err)
+				scx.term = term
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			srv := newMockServer(t)
+			srv.component = tt.component
+
+			reg, err := NewSessionRegistry(SessionRegistryConfig{
+				Srv:                   srv,
+				SessionTrackerService: srv.auth,
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() { reg.Close() })
+
+			scx := newTestServerContext(t, reg.Srv, nil, &decisionpb.SSHAccessPermit{})
+			if tt.setTerm != nil {
+				tt.setTerm(t, scx)
+			}
+
+			// Unlike real SSH clients, the mock SSH channel does not automatically close
+			// when the session ends, which is the misbehavior this test is meant to ensure
+			// is handled.
+			sshChanOpen := newMockSSHChannel()
+			t.Cleanup(func() { require.NoError(t, sshChanOpen.Close()) })
+			go func() {
+				_, _ = io.ReadAll(sshChanOpen)
+			}()
+
+			require.NoError(t, reg.OpenSession(t.Context(), sshChanOpen, scx))
+			require.NotNil(t, scx.session)
+
+			stopDone := make(chan struct{})
+			go func() {
+				scx.session.Stop()
+				close(stopDone)
+			}()
+
+			select {
+			case <-stopDone:
+			case <-time.After(5 * time.Second):
+				require.Fail(t, "session Stop blocked while client channel remained open")
+			}
+		})
+	}
+}
+
 func testOpenSession(t *testing.T, reg *SessionRegistry, sessionJoiningRoleSet services.RoleSet, accessPermit *decisionpb.SSHAccessPermit) (*session, ssh.Channel) {
 	scx := newTestServerContext(t, reg.Srv, sessionJoiningRoleSet, accessPermit)
 
