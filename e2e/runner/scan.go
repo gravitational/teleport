@@ -19,6 +19,7 @@
 package main
 
 import (
+	"cmp"
 	"fmt"
 	"io/fs"
 	"log/slog"
@@ -1108,4 +1109,3 @@ func sortRoles(roles []scannedRole) {
 		return strings.Compare(a.file, b.file)
 	})
 }
-
