@@ -19,14 +19,14 @@
 import styled from 'styled-components';
 
 import { ButtonText, Flex, P3, Text } from 'design';
-import { Logout, Trash, type IconComponentType } from 'design/Icon';
+import { type IconComponentType, Logout, Trash } from 'design/Icon';
 import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
 
 import { useKeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation';
 import { ListItem } from 'teleterm/ui/components/ListItem';
 import { ProfileStatusError } from 'teleterm/ui/components/ProfileStatusError';
 import { WorkspaceColor } from 'teleterm/ui/services/workspacesService';
-import { routing, RootClusterUri } from 'teleterm/ui/uri';
+import { RootClusterUri, routing } from 'teleterm/ui/uri';
 
 import { UserIcon } from '../IdentitySelector/UserIcon';
 
@@ -189,9 +189,19 @@ export function getProfileNameLetter(uri: RootClusterUri): string {
   return routing.parseClusterName(uri).at(0);
 }
 
+/**
+ * Maps cluster/profile state to the subtitle shown in the identity list.
+ *
+ * | How this state happened                                                                            | Internal state                                           | Subtitle                   |
+ * | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | -------------------------- |
+ * | `tsh logout` removed the tsh profile, but Connect still remembers the workspace.                    | `cluster` is undefined.                                  | Saved in Connect           |
+ * | `tsh logout --proxy=... --user=...` or Connect logout removed the credentials but kept the profile. | `cluster` exists, but `loggedInUser.name` is empty.      | Not logged in              |
+ * | The user's credentials expired.                                                                     | `cluster` has `loggedInUser.name`, but is not connected. | `<user> · Expired session` |
+ * | The user is currently logged in.                                                                    | `cluster` has `loggedInUser.name` and is connected.      | `<user>`                   |
+ */
 function getSubtitle(cluster: Cluster | undefined): string {
   if (!cluster) {
-    return 'Previously used';
+    return 'Saved in Connect';
   }
 
   if (!cluster.loggedInUser?.name) {

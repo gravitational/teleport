@@ -186,7 +186,7 @@ test('shows each identity row with the correct profile status and action', async
   ).toBeVisible();
   expect(
     within(await screen.findByTitle('Switch to orphan')).getByText(
-      'Previously used'
+      'Saved in Connect'
     )
   ).toBeVisible();
 
