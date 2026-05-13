@@ -40,6 +40,7 @@ export type DesktopSessionWithSharingProps = {
   customConnectionState?(args: { retry(): void }): React.ReactElement;
   hasAnotherSession(): Promise<boolean>;
   keyboardLayout?: number;
+  maxSharedDirectories: number,
 };
 
 /**
@@ -73,6 +74,7 @@ export function DesktopSessionWithSharing(
           onRemoveSharedDirectory={controls.onRemoveSharedDirectory}
           canRemoveSharedDirectory={controls.canRemoveSharedDirectory}
           onAddSharedDirectory={controls.onAddSharedDirectory}
+          maxSharedDirectories={controls.maxSharedDirectories}
         />
       )}
     />

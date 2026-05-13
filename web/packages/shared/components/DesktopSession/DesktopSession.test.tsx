@@ -30,6 +30,7 @@ import {
   selectDirectoryInBrowser,
   SharedDirectoryAccess,
   TdpClient,
+  MAX_SHARED_DIRECTORIES,
 } from 'shared/libs/tdp';
 import { TdpTransport } from 'shared/libs/tdp/client';
 
@@ -170,6 +171,7 @@ test('reconnect button reinitializes the connection', async () => {
       aclAttempt={aclAttempt}
       hasAnotherSession={hasNoOtherSession}
       browserSupportsSharing
+      maxSharedDirectories={10}
     />
   );
 
@@ -216,6 +218,7 @@ test('directory sharing menu', async () => {
       aclAttempt={aclAttempt}
       hasAnotherSession={hasNoOtherSession}
       browserSupportsSharing
+      maxSharedDirectories={MAX_SHARED_DIRECTORIES}
     />
   );
 
@@ -293,6 +296,7 @@ test('ensure sharing remains enabled if the initial desktop connection attempt f
       aclAttempt={aclAttempt}
       hasAnotherSession={hasNoOtherSession}
       browserSupportsSharing
+      maxSharedDirectories={10}
     />
   );
 
@@ -329,6 +333,7 @@ test('re-sharing directory is possible after a reconnect', async () => {
       aclAttempt={aclAttempt}
       hasAnotherSession={hasNoOtherSession}
       browserSupportsSharing
+      maxSharedDirectories={10}
     />
   );
 

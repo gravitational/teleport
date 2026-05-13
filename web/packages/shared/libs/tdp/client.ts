@@ -78,6 +78,8 @@ import {
   type FileOrDirInfo,
 } from './sharedDirectoryAccess';
 
+export const MAX_SHARED_DIRECTORIES = 10;
+
 export enum TdpClientEvent {
   TDP_CLIENT_SCREEN_SPEC = 'tdp client screen spec',
   TDP_PNG_FRAME = 'tdp png frame',
@@ -190,7 +192,7 @@ export class TdpClient extends EventEmitter<EventMap> {
     this.directoryManager = new SharedDirectoryManager(
       selectSharedDirectory,
       this.logger,
-      10
+      MAX_SHARED_DIRECTORIES
     );
   }
 

@@ -53,6 +53,7 @@ export default function TopBar(props: Props) {
     screenIsHiDpi,
     hiDpiSupported,
     canRemoveSharedDirectory,
+    maxSharedDirectories,
   } = props;
   const theme = useTheme();
 
@@ -81,6 +82,7 @@ export default function TopBar(props: Props) {
             onAddSharedDirectory={onAddSharedDirectory}
             canRemoveSharedDirectory={canRemoveSharedDirectory}
             canSharedDirectories={canShareDirectory}
+            maxSharedDirectories={maxSharedDirectories}
           />
           <HoverTooltip tipContent={clipboardSharingMessage} placement="bottom">
             <Clipboard style={primaryOnTrue(isSharingClipboard)} />
@@ -129,6 +131,7 @@ type Props = {
     server: number;
   };
   canRemoveSharedDirectory: boolean;
+  maxSharedDirectories: number;
 };
 
 const Divider = styled.div`

@@ -34,6 +34,7 @@ interface SharedDirectoriesProps {
   onAddSharedDirectory: () => void;
   canRemoveSharedDirectory: boolean;
   canSharedDirectories: boolean;
+  maxSharedDirectories: number;
 }
 
 export interface DirectoryItem {
@@ -47,10 +48,18 @@ export function SharedDirectoryList({
   onAddSharedDirectory,
   canRemoveSharedDirectory,
   canSharedDirectories,
+  maxSharedDirectories,
 }: SharedDirectoriesProps) {
   const label = !canSharedDirectories
     ? 'Directory sharing is not enabled for this session'
     : 'Share local directories with the desktop';
+
+  const maxDirectoriesReached =
+    sharedDirectories.length >= maxSharedDirectories;
+
+  const shareButtonTitle = maxDirectoriesReached
+    ? `Cannot share more than ${maxSharedDirectories} directories at once`
+    : 'Share a directory';
 
   return (
     <MenuIcon
@@ -80,11 +89,12 @@ export function SharedDirectoryList({
           <Flex justifyContent="space-between" alignItems="center">
             <DropdownHeader directoryCount={sharedDirectories.length} />
             <ButtonPrimary
-              title="Share a directory"
+              title={shareButtonTitle}
               size="small"
               onClick={onAddSharedDirectory}
               compact={true}
               $inputAlignment={false}
+              disabled={maxDirectoriesReached}
             >
               <Plus size="small" />
             </ButtonPrimary>
