@@ -33,12 +33,36 @@ func (ac *cloudWithRoles) GetEnvironmentProfile(ctx context.Context, req *v1.Get
 }
 
 func (ac *cloudWithRoles) UpdateEnvironmentProfile(ctx context.Context, req *v1.UpdateEnvironmentProfileRequest) (*v1.GetEnvironmentProfileResponse, error) {
-	_, err := ac.plugin.authServer.Authorizer.Authorize(ctx)
+	authCtx, err := ac.plugin.authServer.Authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.AccessDenied("access denied")
 	}
 
-	return ac.plugin.cloudClient.UpdateEnvironmentProfile(ctx, req)
+	resp, err := ac.plugin.cloudClient.UpdateEnvironmentProfile(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	emitErr := ac.plugin.authServer.Emitter.EmitAuditEvent(ctx, &apievents.EnvironmentProfileUpdate{
+		Metadata: apievents.Metadata{
+			Type: libevents.EnvironmentProfileUpdateEvent,
+			Code: libevents.EnvironmentProfileUpdatedCode,
+		},
+		UserMetadata: authCtx.GetUserMetadata(),
+		EnvironmentProfileMetadata: apievents.EnvironmentProfileMetadata{
+			EnvironmentProfile: req.EnvironmentProfile,
+		},
+	})
+
+	if emitErr != nil {
+		slog.WarnContext(ctx, "Failed to emit environment profile update event",
+			"error", emitErr,
+			"user", authCtx.GetUserMetadata().User,
+			"environment_profile", req.EnvironmentProfile,
+		)
+	}
+
+	return resp, nil
 }
 
 // GetBillingInformation returns billing information

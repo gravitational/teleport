@@ -308,7 +308,7 @@ func (p *Plugin) getEnvironmentProfileHandle(w http.ResponseWriter, r *http.Requ
 	return res, nil
 }
 
-func (p *Plugin) updateEnvironmentProfileHandle(w http.ResponseWriter, r *http.Request, ctx *web.SessionContext, cloudClient cloud.Client) (any, error) {
+func (p *Plugin) updateEnvironmentProfileHandle(w http.ResponseWriter, r *http.Request, _ *web.SessionContext, cloudClient cloud.Client) (any, error) {
 	var req cloudapi.UpdateEnvironmentProfileRequest
 	if err := p.readProtoJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)

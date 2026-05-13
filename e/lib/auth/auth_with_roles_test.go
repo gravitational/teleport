@@ -449,6 +449,64 @@ func TestEmitClientIPRestrictionstAuditEvent(t *testing.T) {
 	}
 }
 
+func TestUpdateEnvironmentProfile(t *testing.T) {
+	ctx := t.Context()
+	suite := newCloudSuite(t)
+	updateResp := &cloudv1.GetEnvironmentProfileResponse{EnvironmentProfile: "staging"}
+	suite.cloudClient.MockUpdateEnvironmentProfile = func(in *cloudv1.UpdateEnvironmentProfileRequest) (*cloudv1.GetEnvironmentProfileResponse, error) {
+		return updateResp, nil
+	}
+	originalSuiteAuthorize := suite.authorizer.authorize
+
+	tt := []struct {
+		name      string
+		authorize bool
+		req       *cloudv1.UpdateEnvironmentProfileRequest
+		assert    func(t *testing.T, resp *cloudv1.GetEnvironmentProfileResponse, err error, event events.AuditEvent)
+	}{
+		{
+			name:      "unauthorized request should emit no events",
+			authorize: false,
+			req:       &cloudv1.UpdateEnvironmentProfileRequest{EnvironmentProfile: "staging"},
+			assert: func(t *testing.T, resp *cloudv1.GetEnvironmentProfileResponse, err error, event events.AuditEvent) {
+				require.True(t, trace.IsAccessDenied(err))
+				require.Nil(t, event)
+			},
+		},
+		{
+			name:      "successful request should emit events",
+			authorize: true,
+			req:       &cloudv1.UpdateEnvironmentProfileRequest{EnvironmentProfile: "staging"},
+			assert: func(t *testing.T, resp *cloudv1.GetEnvironmentProfileResponse, err error, event events.AuditEvent) {
+				require.NoError(t, err)
+				require.Equal(t, updateResp, resp)
+				// check event
+				require.NotNil(t, event)
+				ev, ok := event.(*events.EnvironmentProfileUpdate)
+				require.True(t, ok, "wrong event type (%T)", event)
+				require.Equal(t, libevents.EnvironmentProfileUpdateEvent, ev.Type)
+				require.Equal(t, libevents.EnvironmentProfileUpdatedCode, ev.Code)
+				require.Equal(t, "staging", ev.EnvironmentProfileMetadata.EnvironmentProfile)
+				require.Equal(t, suite.authIdentity.GetIdentity().Username, ev.UserMetadata.User)
+			},
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			// overwrite test suite authorizer if test case tests non-authorized requests
+			if tc.authorize {
+				suite.authorizer.authorize = originalSuiteAuthorize
+			} else {
+				suite.authorizer.authorize = unauthorized
+			}
+			suite.emitter.in = nil
+			resp, err := suite.cloudWithRoles.UpdateEnvironmentProfile(ctx, tc.req)
+			tc.assert(t, resp, err, suite.emitter.in)
+		})
+	}
+}
+
 func newUser(t *testing.T, name string, userType types.UserType, roles ...string) types.User {
 	t.Helper()
 
