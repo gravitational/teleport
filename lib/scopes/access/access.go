@@ -277,21 +277,21 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 	// verify that the lock.Mode is a recognized value for Defaults
 	if lock := role.GetSpec().GetDefaults().GetLock(); lock != nil {
 		if err := validateLock(lock); err != nil {
-			return trace.BadParameter("scoped role %q has invalid defaults.locking_mode %q", role.GetMetadata().GetName(), lock.GetMode())
+			return trace.BadParameter("scoped role %q has invalid defaults.lock.mode %q", role.GetMetadata().GetName(), lock.GetMode())
 		}
 	}
 
 	// verify that lock.Mode is a recognized value for SSH
 	if lock := role.GetSpec().GetSsh().GetLock(); lock != nil {
 		if err := validateLock(lock); err != nil {
-			return trace.BadParameter("scoped role %q has invalid ssh.locking_mode %q", role.GetMetadata().GetName(), lock.GetMode())
+			return trace.BadParameter("scoped role %q has invalid ssh.lock.mode %q", role.GetMetadata().GetName(), lock.GetMode())
 		}
 	}
 
 	// verify that lock.Mode is a recognized value for Kube
 	if lock := role.GetSpec().GetKube().GetLock(); lock != nil {
 		if err := validateLock(lock); err != nil {
-			return trace.BadParameter("scoped role %q has invalid kube.locking_mode %q", role.GetMetadata().GetName(), lock.GetMode())
+			return trace.BadParameter("scoped role %q has invalid kube.lock.mode %q", role.GetMetadata().GetName(), lock.GetMode())
 		}
 	}
 
@@ -348,6 +348,9 @@ func validateDoesNotContain(values []string, invalidSet string) string {
 func validateLock(lock *scopedaccessv1.Lock) error {
 	mode := lock.GetMode()
 	switch constants.LockingMode(mode) {
+	// Allow for empty string - we will fall back to the cluster defaults - or best_effort if not set.
+	// This matches current behavior for unscoped lock mode checks.
+	case "":
 	case constants.LockingModeBestEffort, constants.LockingModeStrict:
 	default:
 		return trace.Errorf("invalid lock mode")

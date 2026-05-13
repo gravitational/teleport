@@ -544,7 +544,7 @@ func TestValidateRole(t *testing.T) {
 				},
 				Version: types.V1,
 			},
-			strongOk: false,
+			strongOk: true,
 			weakOk:   true,
 		},
 		{
@@ -590,7 +590,7 @@ func TestValidateRole(t *testing.T) {
 			weakOk:   true,
 		},
 		{
-			name: "empty ssh.lock.mode",
+			name: "empty Kube.lock.mode",
 			role: &scopedaccessv1.ScopedRole{
 				Kind: KindScopedRole,
 				Metadata: &headerv1.Metadata{
@@ -607,7 +607,70 @@ func TestValidateRole(t *testing.T) {
 				},
 				Version: types.V1,
 			},
+			strongOk: true,
+			weakOk:   true,
+		},
+		{
+			name: "invalid defaults.lock.mode",
+			role: &scopedaccessv1.ScopedRole{
+				Kind: KindScopedRole,
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					AssignableScopes: []string{"/foo"},
+					Defaults: &scopedaccessv1.ScopedRoleDefaults{
+						Lock: &scopedaccessv1.Lock{
+							Mode: "invalid",
+						},
+					},
+				},
+				Version: types.V1,
+			},
 			strongOk: false,
+			weakOk:   true,
+		},
+		{
+			name: "valid defaults.lock.mode",
+			role: &scopedaccessv1.ScopedRole{
+				Kind: KindScopedRole,
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					AssignableScopes: []string{"/foo"},
+					Defaults: &scopedaccessv1.ScopedRoleDefaults{
+						Lock: &scopedaccessv1.Lock{
+							Mode: string(constants.LockingModeStrict),
+						},
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: true,
+			weakOk:   true,
+		},
+		{
+			name: "empty defaults.lock.mode",
+			role: &scopedaccessv1.ScopedRole{
+				Kind: KindScopedRole,
+				Metadata: &headerv1.Metadata{
+					Name: "test",
+				},
+				Scope: "/",
+				Spec: &scopedaccessv1.ScopedRoleSpec{
+					AssignableScopes: []string{"/foo"},
+					Defaults: &scopedaccessv1.ScopedRoleDefaults{
+						Lock: &scopedaccessv1.Lock{
+							Mode: "",
+						},
+					},
+				},
+				Version: types.V1,
+			},
+			strongOk: true,
 			weakOk:   true,
 		},
 	}
