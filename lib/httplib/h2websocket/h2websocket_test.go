@@ -155,9 +155,21 @@ func TestRewriteAsH1Upgrade_PreservesClientWebsocketHeaders(t *testing.T) {
 	require.Equal(t, "8", got.Header.Get("Sec-WebSocket-Version"))
 }
 
+// newTestStripper wires a stripUpgradeWriter against an in-memory
+// outer ResponseWriter so each test can drive Write directly.
+func newTestStripper() (*stripUpgradeWriter, *duplexWriter, *bytes.Buffer) {
+	outer := &duplexWriter{header: http.Header{}}
+	sink := &bytes.Buffer{}
+	w := &stripUpgradeWriter{
+		outer: outer,
+		rc:    http.NewResponseController(outer),
+		inner: sink,
+	}
+	return w, outer, sink
+}
+
 func TestStripUpgradeWriter_DropsLeadingHeader(t *testing.T) {
-	var sink bytes.Buffer
-	w := &stripUpgradeWriter{inner: &sink}
+	w, outer, sink := newTestStripper()
 
 	header := "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\n" +
 		"Connection: Upgrade\r\nSec-WebSocket-Accept: x\r\n\r\n"
@@ -166,6 +178,7 @@ func TestStripUpgradeWriter_DropsLeadingHeader(t *testing.T) {
 	_, err := w.Write([]byte(header))
 	require.NoError(t, err)
 	require.Empty(t, sink.Bytes(), "header bytes must not reach the wire")
+	require.Equal(t, []int{http.StatusOK}, outer.statuses, "outer 200 commits when the preamble terminator arrives")
 
 	_, err = w.Write(payload)
 	require.NoError(t, err)
@@ -173,8 +186,7 @@ func TestStripUpgradeWriter_DropsLeadingHeader(t *testing.T) {
 }
 
 func TestStripUpgradeWriter_CoalescedWrite(t *testing.T) {
-	var sink bytes.Buffer
-	w := &stripUpgradeWriter{inner: &sink}
+	w, _, sink := newTestStripper()
 
 	combined := []byte("HTTP/1.1 101 OK\r\nA: b\r\n\r\n" + "WS-FRAME")
 	_, err := w.Write(combined)
@@ -183,8 +195,7 @@ func TestStripUpgradeWriter_CoalescedWrite(t *testing.T) {
 }
 
 func TestStripUpgradeWriter_ByteByByte(t *testing.T) {
-	var sink bytes.Buffer
-	w := &stripUpgradeWriter{inner: &sink}
+	w, outer, sink := newTestStripper()
 
 	header := []byte("HTTP/1.1 101 OK\r\n\r\n")
 	for _, b := range header {
@@ -192,67 +203,56 @@ func TestStripUpgradeWriter_ByteByByte(t *testing.T) {
 		require.NoError(t, err)
 	}
 	require.Empty(t, sink.Bytes())
+	require.Equal(t, []int{http.StatusOK}, outer.statuses)
 
 	_, err := w.Write([]byte("X"))
 	require.NoError(t, err)
 	require.Equal(t, "X", sink.String())
 }
 
-// TestStripUpgradeWriter_LongHeader verifies the stripper has no fixed
-// buffer cap: a Sec-WebSocket-Protocol response with many subprotocols
-// can exceed any kilobyte-sized buffer.
-func TestStripUpgradeWriter_LongHeader(t *testing.T) {
-	var sink bytes.Buffer
-	w := &stripUpgradeWriter{inner: &sink}
+// TestStripUpgradeWriter_LiftsSubprotocol verifies that the stripper
+// pulls Sec-WebSocket-Protocol out of the synthetic 101 preamble and
+// sets it on the outer h2 response before committing the 200. RFC 8441
+// §5.1 carries subprotocol negotiation in the response HEADERS frame,
+// so any client that selects subprotocols (kube exec, conn upgrade)
+// depends on this translation.
+func TestStripUpgradeWriter_LiftsSubprotocol(t *testing.T) {
+	w, outer, sink := newTestStripper()
 
-	longProtos := strings.Repeat("subproto-x,", 1000)
-	header := "HTTP/1.1 101 OK\r\nSec-WebSocket-Protocol: " +
-		longProtos + "last\r\n\r\nFRAMES"
-	_, err := w.Write([]byte(header))
+	preamble := "HTTP/1.1 101 OK\r\nUpgrade: websocket\r\n" +
+		"Connection: Upgrade\r\nSec-WebSocket-Accept: x\r\n" +
+		"Sec-WebSocket-Protocol: chat.v1\r\n\r\nFRAMES"
+
+	_, err := w.Write([]byte(preamble))
 	require.NoError(t, err)
+	require.Equal(t, "chat.v1", outer.header.Get("Sec-WebSocket-Protocol"),
+		"negotiated subprotocol must reach the outer h2 response")
+	require.Equal(t, []int{http.StatusOK}, outer.statuses)
 	require.Equal(t, "FRAMES", sink.String())
 }
 
-// TestStripUpgradeWriter_SelfOverlap covers the KMP-style restart in
-// the matcher: on input that contains "\r\r\n\r\n" the second '\r'
-// must not be discarded as a plain mismatch byte, because it starts
-// the real terminator. A naive reset-to-zero matcher would skip past
-// it and miss the terminator.
-func TestStripUpgradeWriter_SelfOverlap(t *testing.T) {
-	var sink bytes.Buffer
-	w := &stripUpgradeWriter{inner: &sink}
+// TestStripUpgradeWriter_NoSubprotocol verifies the bridge does not
+// invent a subprotocol when the upgrader did not select one. The
+// outer response gets an empty Sec-WebSocket-Protocol header.
+func TestStripUpgradeWriter_NoSubprotocol(t *testing.T) {
+	w, outer, _ := newTestStripper()
 
-	header := "HTTP/1.1 101 OK\r\nX-Stray-CR: \r\r\n\r\nFRAMES"
-	_, err := w.Write([]byte(header))
+	preamble := "HTTP/1.1 101 OK\r\nA: b\r\n\r\nFRAMES"
+	_, err := w.Write([]byte(preamble))
 	require.NoError(t, err)
-	require.Equal(t, "FRAMES", sink.String())
+	require.Empty(t, outer.header.Get("Sec-WebSocket-Protocol"))
+	require.Equal(t, []int{http.StatusOK}, outer.statuses)
 }
 
-// TestNextScanState exhausts the three transitions of the matcher
-// (match-byte, restart-on-prefix, full-reset) so a regression on any
-// branch surfaces independently of the integration cases above.
-func TestNextScanState(t *testing.T) {
-	tests := []struct {
-		name    string
-		scanned int
-		b       byte
-		want    int
-	}{
-		{name: "match first \\r", scanned: 0, b: '\r', want: 1},
-		{name: "match \\n after \\r", scanned: 1, b: '\n', want: 2},
-		{name: "match second \\r", scanned: 2, b: '\r', want: 3},
-		{name: "match final \\n", scanned: 3, b: '\n', want: 4},
-		{name: "mismatch at start", scanned: 0, b: 'a', want: 0},
-		{name: "mismatch after \\r, byte is \\r (self-overlap)", scanned: 1, b: '\r', want: 1},
-		{name: "mismatch after \\r\\n\\r, byte is \\r (self-overlap)", scanned: 3, b: '\r', want: 1},
-		{name: "mismatch after \\r\\n, byte is unrelated", scanned: 2, b: 'a', want: 0},
-		{name: "mismatch after \\r\\n\\r, byte is unrelated", scanned: 3, b: 'a', want: 0},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			require.Equal(t, tc.want, nextScanState(tc.scanned, tc.b))
-		})
-	}
+// TestStripUpgradeWriter_PreambleSizeCap rejects upgrader output that
+// exceeds maxUpgradePreambleBytes. A buggy or malicious upstream
+// cannot pin per-stream memory by withholding the "\r\n\r\n"
+// terminator forever.
+func TestStripUpgradeWriter_PreambleSizeCap(t *testing.T) {
+	w, _, _ := newTestStripper()
+	huge := bytes.Repeat([]byte("X"), maxUpgradePreambleBytes+1)
+	_, err := w.Write(huge)
+	require.Error(t, err)
 }
 
 func TestCanonicalSet(t *testing.T) {
@@ -310,8 +310,9 @@ func TestFlushWriter(t *testing.T) {
 
 // TestServe_FailsClosedWhenHandlerDoesNotHijack verifies that an inner
 // handler that returns without hijacking has its writes silenced and
-// its body closed. This protects the h2 stream from being addressable
-// as an opaque WebSocket payload echo by non-WebSocket routes.
+// its body closed. No 200 is committed (the bridge defers commit to
+// stripUpgradeWriter), so the outer response reaches the client as 404
+// rather than a truncated tunnel.
 func TestServe_FailsClosedWhenHandlerDoesNotHijack(t *testing.T) {
 	body := &closableBuffer{r: strings.NewReader("client frames")}
 	req := httptest.NewRequest(http.MethodConnect, "/", body)
@@ -327,8 +328,8 @@ func TestServe_FailsClosedWhenHandlerDoesNotHijack(t *testing.T) {
 	serve(rec, req, inner, nil)
 
 	require.True(t, body.closed.Load(), "request body must be closed")
-	require.Equal(t, []int{http.StatusOK}, rec.statuses,
-		"only the bridge's 200 reaches the writer; the inner handler's WriteHeader is gated")
+	require.Equal(t, []int{http.StatusNotFound}, rec.statuses,
+		"no-hijack path commits 404; the inner handler's WriteHeader is gated")
 	require.Empty(t, rec.body.Bytes(),
 		"handler bytes must not leak onto the h2 stream as opaque payload")
 }

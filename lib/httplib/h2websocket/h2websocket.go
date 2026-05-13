@@ -25,45 +25,37 @@
 //
 //  1. Enables full duplex on the response so reads on r.Body can overlap
 //     writes to w.
-//  2. Sends 200 OK to open the tunnel (per RFC 8441 §5, the response on
-//     an HTTP/2 stream is 200, not 101).
-//  3. Strips client-supplied reserved Teleport headers if a list was
-//     configured.
-//  4. Rewrites the request as an HTTP/1.1 GET + Upgrade and dispatches
+//  2. Rewrites the request as an HTTP/1.1 GET + Upgrade and dispatches
 //     to the wrapped handler with a ResponseWriter that implements
 //     http.Hijacker. The handler's gorilla.Upgrader.Upgrade succeeds
 //     because the method is GET and the Upgrade / Connection /
 //     Sec-WebSocket-* headers are present.
+//  3. Defers the outer 200 OK commit until the upgrader writes its
+//     synthetic "HTTP/1.1 101 Switching Protocols" preamble onto the
+//     hijacked conn. The bridge parses Sec-WebSocket-Protocol out of
+//     that preamble and forwards it onto the outer HTTP/2 response
+//     headers (per RFC 8441 §5.1) before committing the 200.
 //
 // When Hijack runs, the returned net.Conn reads from r.Body and writes
-// through w with a flush after every Write so WebSocket frames do not sit
-// in the HTTP/2 buffer. Deadlines forward to the http.ResponseController
-// for the request. The synthetic "HTTP/1.1 101 Switching Protocols"
-// response gorilla writes onto the hijacked conn is stripped off
-// incrementally before bytes reach the wire.
+// through w with a flush after every Write so WebSocket frames do not
+// sit in the HTTP/2 buffer. Deadlines forward to the
+// http.ResponseController for the request. The synthetic 101 preamble
+// is discarded after Sec-WebSocket-Protocol is lifted off.
 //
 // If the handler returns without hijacking, the middleware fails closed
-// by tearing down the HTTP/2 stream. The 200 status is already committed
-// to open the tunnel, so closing the stream is the only signal left.
-// The wrapped ResponseWriter also silences Write and WriteHeader before
-// hijack so a non-WebSocket route reached via extended CONNECT cannot
-// leak its response body onto the stream as opaque WebSocket payload.
-//
-// Sec-WebSocket-Protocol negotiation is not propagated. The wrapped
-// HTTP/1.1 upgrader writes the negotiated value into the synthetic 101
-// preamble that the stripper discards, and RFC 8441 §5.1 places
-// subprotocol negotiation in the H2 response HEADERS frame instead.
-// Until the bridge lifts the negotiated subprotocol onto the outer
-// response headers before committing the 200, routes that depend on
-// gorilla.Upgrader.Subprotocols (kube exec, desktop, conn upgrade)
-// must not be reached over HTTP/2.
+// with 404 Not Found. The wrapped ResponseWriter also silences Write
+// and WriteHeader before hijack so a non-WebSocket route reached via
+// extended CONNECT cannot leak its response body onto the stream as
+// opaque WebSocket payload.
 package h2websocket
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/rand"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -127,18 +119,9 @@ func serve(w http.ResponseWriter, r *http.Request, next http.Handler, reservedSe
 		return
 	}
 
-	// The 200 commits before the inner handler runs, so any handler
-	// rejection (auth failure, route not found) shows up in proxy
-	// access logs as 200 rather than 4xx. Alerting that pages on 4xx
-	// spikes will miss h2-ws auth failures; log from the inner handler
-	// if the metric matters.
-	w.WriteHeader(http.StatusOK)
-	if err := rc.Flush(); err != nil && !errors.Is(err, http.ErrNotSupported) {
-		return
-	}
-
 	r2, err := rewriteAsH1Upgrade(r, reservedSet)
 	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
@@ -150,11 +133,13 @@ func serve(w http.ResponseWriter, r *http.Request, next http.Handler, reservedSe
 	}
 	next.ServeHTTP(hw, r2)
 
-	// Handler returned without hijacking: close the stream to signal
-	// "wrong route" (the 200 status is already committed). The
-	// hijackResponseWriter gate above also discards any Write the
-	// handler made before returning, so opaque bytes do not leak.
+	// Handler returned without hijacking. No 200 was committed: the
+	// stripUpgradeWriter only triggers the outer commit after the
+	// upgrader writes its synthetic 101 preamble. Send 404 so the
+	// client and proxy access logs see a real status instead of a
+	// truncated stream.
 	if !hw.hijacked.Load() {
+		w.WriteHeader(http.StatusNotFound)
 		_ = r.Body.Close()
 	}
 }
@@ -272,6 +257,8 @@ func newH2StreamConn(body io.ReadCloser, w http.ResponseWriter, remoteAddr strin
 		rc:         rc,
 	}
 	c.w = &stripUpgradeWriter{
+		outer: w,
+		rc:    rc,
 		inner: &flushWriter{w: w, rc: rc},
 	}
 	return c
@@ -363,52 +350,86 @@ func (f *flushWriter) Write(p []byte) (int, error) {
 	return n, nil
 }
 
-// stripUpgradeWriter discards bytes up to and including the first
-// "\r\n\r\n" sequence (the synthetic HTTP/1.1 response preamble the
-// wrapped upgrader emits before owning the conn), then forwards
-// everything afterward. The parser is incremental: it never
-// accumulates more than the four bytes needed to recognize the
-// terminator, so there is no fixed buffer cap that could silently
-// truncate a long Sec-WebSocket-Protocol header.
+// stripUpgradeWriter buffers the synthetic HTTP/1.1 response preamble
+// that the wrapped upgrader emits before owning the conn, parses
+// Sec-WebSocket-Protocol out of it, lifts that value onto the outer
+// HTTP/2 response headers, commits the outer 200 OK, and then forwards
+// every subsequent byte through to the inner flushed writer. The
+// preamble itself never reaches the wire.
+//
+// RFC 8441 §5.1 puts subprotocol negotiation on the response HEADERS
+// frame, not in any tunnel payload, so the bridge has to translate the
+// upgrader's HTTP/1.1 response line into an h2 header before
+// committing the status. The 200 is deferred until parsing completes
+// so the negotiated subprotocol travels with the response that opens
+// the tunnel.
 type stripUpgradeWriter struct {
-	inner   io.Writer
-	scanned int // number of consecutive bytes of upgradeHeaderTerminator matched so far
-	done    bool
+	outer http.ResponseWriter
+	rc    *http.ResponseController
+	inner io.Writer
+
+	preamble []byte
+	done     bool
 }
 
 const upgradeHeaderTerminator = "\r\n\r\n"
+
+// maxUpgradePreambleBytes caps how much of the upgrader's synthetic
+// 101 preamble we buffer before declaring something wrong. Real
+// gorilla preambles are well under 1 KiB even with hundreds of
+// negotiated subprotocols; 8 KiB leaves headroom without letting a
+// buggy upstream pin arbitrary memory.
+const maxUpgradePreambleBytes = 8 << 10
 
 func (s *stripUpgradeWriter) Write(p []byte) (int, error) {
 	if s.done {
 		return s.inner.Write(p)
 	}
-	for i := range p {
-		s.scanned = nextScanState(s.scanned, p[i])
-		if s.scanned == len(upgradeHeaderTerminator) {
-			s.done = true
-			rest := p[i+1:]
-			if len(rest) > 0 {
-				if _, err := s.inner.Write(rest); err != nil {
-					return 0, err
-				}
-			}
-			return len(p), nil
+	if len(s.preamble)+len(p) > maxUpgradePreambleBytes {
+		return 0, fmt.Errorf("h2websocket: upgrade preamble exceeded %d bytes", maxUpgradePreambleBytes)
+	}
+	s.preamble = append(s.preamble, p...)
+
+	idx := bytes.Index(s.preamble, []byte(upgradeHeaderTerminator))
+	if idx < 0 {
+		// Need more bytes before the terminator is in view.
+		return len(p), nil
+	}
+
+	if proto, ok := readSubprotocol(s.preamble[:idx]); ok {
+		s.outer.Header().Set("Sec-WebSocket-Protocol", proto)
+	}
+
+	s.outer.WriteHeader(http.StatusOK)
+	if err := s.rc.Flush(); err != nil && !errors.Is(err, http.ErrNotSupported) {
+		return 0, err
+	}
+
+	s.done = true
+	rest := s.preamble[idx+len(upgradeHeaderTerminator):]
+	s.preamble = nil
+	if len(rest) > 0 {
+		if _, err := s.inner.Write(rest); err != nil {
+			return 0, err
 		}
 	}
 	return len(p), nil
 }
 
-// nextScanState advances the upgradeHeaderTerminator matcher by one
-// byte. The pattern has self-overlap on '\r' (positions 0 and 2), so
-// on a mismatch the failing byte may itself start a new match: e.g.
-// the second '\r' in "\r\r\n\r\n" must not be discarded. This is the
-// KMP failure function for "\r\n\r\n" collapsed to a single comparison.
-func nextScanState(scanned int, b byte) int {
-	if b == upgradeHeaderTerminator[scanned] {
-		return scanned + 1
+// readSubprotocol pulls the Sec-WebSocket-Protocol header value out of
+// the upgrader's synthetic HTTP/1.1 preamble. It returns ("", false)
+// when the header is absent (the upgrader did not negotiate one) or
+// the preamble is malformed.
+func readSubprotocol(preamble []byte) (string, bool) {
+	for _, line := range bytes.Split(preamble, []byte("\r\n")) {
+		key, val, ok := bytes.Cut(line, []byte(":"))
+		if !ok {
+			continue
+		}
+		if !bytes.EqualFold(bytes.TrimSpace(key), []byte("Sec-WebSocket-Protocol")) {
+			continue
+		}
+		return string(bytes.TrimSpace(val)), true
 	}
-	if b == upgradeHeaderTerminator[0] {
-		return 1
-	}
-	return 0
+	return "", false
 }
