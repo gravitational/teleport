@@ -1130,8 +1130,16 @@ func newResourceExpression(expression string, parser *typical.Parser[types.Resou
 		return nil, trace.Wrap(err)
 	}
 
-	astExpr = astutil.Apply(astExpr, nil, combineSplitContains).(ast.Expr)
-	astExpr = astutil.Apply(astExpr, nil, optimizeSplitContains).(ast.Expr)
+	for _, postFunc := range []astutil.ApplyFunc{
+		combineSplitContains,
+		optimizeSplitContains,
+	} {
+		newNode := astutil.Apply(astExpr, nil, postFunc)
+		astExpr, _ = newNode.(ast.Expr)
+		if astExpr == nil {
+			return nil, trace.Errorf("expected ast.Expr from AST optimization step, got %T (this is a bug)", newNode)
+		}
+	}
 
 	expr, err := parser.ParseAST(astExpr)
 	return expr, trace.Wrap(err)
