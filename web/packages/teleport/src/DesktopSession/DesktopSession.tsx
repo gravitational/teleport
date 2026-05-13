@@ -119,7 +119,9 @@ export function DesktopSession() {
   }, [username, clusterId, fetchAcl]);
 
   const [sessions, setSessions] = useState([]);
-  useListener(client.onServerCapabilities, caps => setSessions(caps.availableSessions));
+  useListener(client.onServerCapabilities, caps =>
+    setSessions(caps.availableSessions)
+  );
 
   const onConnect = useCallback(
     (session: string) => {
