@@ -14,5 +14,9 @@
 /scripts/configure-git.sh @russjones @r0mant @mjsmithnh @doggydogworld @aadc-dev
 /scripts/shared-pre-commit.sh @russjones @r0mant @mjsmithnh @doggydogworld @aadc-dev
 
+# Session Summaries
+/tooling/obfuscate-prompts/ @ryanclark @tigrato
+/tooling/schemagen/ @ryanclark @tigrato
+
 # Owners for Rust dependency updates.
 /windowsauth/Cargo.toml @russjones @r0mant @zmb3 @rosstimothy @fspmarshall @espadolini @probakowski
