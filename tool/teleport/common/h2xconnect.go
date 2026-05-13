@@ -23,6 +23,7 @@ package common
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"syscall"
 )
@@ -104,21 +105,18 @@ func init() {
 }
 
 // needsHTTP2XConnect reports whether the invocation will run the proxy
-// web listener and therefore needs http2xconnect=1 in GODEBUG. Only
-// "teleport start" runs the proxy. "teleport app start" and
-// "teleport db start" start agents, not the proxy, so they fail the
-// check on the first non-flag token.
+// web listener and therefore needs http2xconnect=1 in GODEBUG. The
+// proxy runs under "teleport start"; "teleport app start" and
+// "teleport db start" start agents that don't need the GODEBUG.
 //
-// Leading top-level flags are skipped because kingpin accepts flags
-// before the subcommand (e.g. "teleport --debug start ...").
+// The check is intentionally permissive: any invocation that includes
+// "start" anywhere in argv re-execs. Kingpin v2 allows flags to be
+// placed before or after the subcommand and some take values, so a
+// first-non-flag-token scan can mis-classify "teleport --config x
+// start" as not-start. False positives only cost a single execve(2);
+// false negatives leave http2xconnect disabled on the proxy.
 func needsHTTP2XConnect(args []string) bool {
-	for _, a := range args[1:] {
-		if strings.HasPrefix(a, "-") {
-			continue
-		}
-		return a == "start"
-	}
-	return false
+	return slices.Contains(args[1:], "start")
 }
 
 // godebugHasKey reports whether the comma-separated GODEBUG value
