@@ -57,15 +57,25 @@ const (
 	TeleportAWSAssumedRoleAuthorization = "X-Teleport-Aws-Assumed-Role-Authorization"
 )
 
-// ReservedHeaders is a list of headers injected by Teleport.
-var ReservedHeaders = append([]string{
+// ReservedTeleportIdentityHeaders is the subset of ReservedHeaders that
+// names Teleport-prefixed identity headers and X-Forwarded-Ssl. The
+// generic X-Forwarded-* headers are not included so layers running
+// outside the XFF middleware (e.g. h2websocket.Wrap) can strip
+// Teleport identity headers without blinding the middleware to the
+// real client address.
+var ReservedTeleportIdentityHeaders = []string{
 	teleport.AppJWTHeader,
 	XForwardedSSL,
 	TeleportAPIErrorHeader,
 	TeleportAPIInfoHeader,
 	TeleportAWSAssumedRole,
 	TeleportAWSAssumedRoleAuthorization,
-},
+}
+
+// ReservedHeaders is a list of headers injected by Teleport (identity
+// headers plus the generic X-Forwarded-* set handled by the
+// reverse-proxy XFF stack).
+var ReservedHeaders = append(append([]string{}, ReservedTeleportIdentityHeaders...),
 	reverseproxy.XHeaders...,
 )
 

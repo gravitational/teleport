@@ -43,19 +43,27 @@
 // incrementally before bytes reach the wire.
 //
 // If the handler returns without hijacking, the middleware fails closed
-// and sends 405 Method Not Allowed rather than passing handler output
-// through the 101 stripper. This protects every other GET route from
-// being addressable via extended CONNECT.
+// by tearing down the HTTP/2 stream. The 200 status is already committed
+// to open the tunnel, so closing the stream is the only signal left.
+// The wrapped ResponseWriter also silences Write and WriteHeader before
+// hijack so a non-WebSocket route reached via extended CONNECT cannot
+// leak its response body onto the stream as opaque WebSocket payload.
+//
+// Sec-WebSocket-Protocol negotiation is currently dropped: gorilla writes
+// the negotiated value into the synthetic 101 preamble that the stripper
+// discards. RFC 8441 §5.1 places subprotocol negotiation in the H2
+// response HEADERS frame, so callers of gorilla.Upgrader.Subprotocols
+// must address this before ALPN advertises h2 first.
 package h2websocket
 
 import (
 	"bufio"
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
 	"io"
 	"net"
 	"net/http"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -71,11 +79,17 @@ const pseudoHeaderProtocol = ":protocol"
 type Options struct {
 	// ReservedHeaders names HTTP headers that the middleware strips from
 	// the synthetic request before dispatch. The list is intended for
-	// Teleport-injected headers (lib/srv/app/common.ReservedHeaders) so
-	// that a malicious client cannot plant them on an extended CONNECT
-	// request and have them reach a backend that treats them as control
-	// input. The check is case-insensitive (http.Header.Del is
-	// canonicalized).
+	// Teleport-injected identity headers (e.g. X-Teleport-Jwt-Assertion,
+	// X-Teleport-Aws-Assumed-Role) so that a malicious client cannot
+	// plant them on an extended CONNECT request and have them reach a
+	// backend that treats them as control input. The check is
+	// case-insensitive (http.Header.Del is canonicalized).
+	//
+	// Do not include generic X-Forwarded-* headers here: the XFF
+	// middleware that runs inside the wrapped chain needs to see them
+	// to resolve the real client address. Stripping them at this layer
+	// would point clientSrcAddr at the load balancer for h2 traffic
+	// while h1 traffic on the same listener resolves the real IP.
 	ReservedHeaders []string
 }
 
@@ -102,15 +116,18 @@ func isH2WebSocketConnect(r *http.Request) bool {
 		r.Header.Get(pseudoHeaderProtocol) == "websocket"
 }
 
-func serve(w http.ResponseWriter, r *http.Request, next http.Handler, reservedSet map[string]struct{}) {
+func serve(w http.ResponseWriter, r *http.Request, next http.Handler, reservedSet map[string]bool) {
 	rc := http.NewResponseController(w)
 	if err := rc.EnableFullDuplex(); err != nil {
-		http.Error(w, "full-duplex unavailable", http.StatusInternalServerError)
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	// Open the h2 tunnel before dispatching so the client starts
-	// streaming WebSocket frames into r.Body.
+	// The 200 commits before the inner handler runs, so any handler
+	// rejection (auth failure, route not found) shows up in proxy
+	// access logs as 200 rather than 4xx. Alerting that pages on 4xx
+	// spikes will miss h2-ws auth failures; log from the inner handler
+	// if the metric matters.
 	w.WriteHeader(http.StatusOK)
 	if err := rc.Flush(); err != nil {
 		return
@@ -123,19 +140,17 @@ func serve(w http.ResponseWriter, r *http.Request, next http.Handler, reservedSe
 
 	hw := &hijackResponseWriter{
 		ResponseWriter: w,
-		req:            r,
+		body:           r.Body,
+		remoteAddr:     r.RemoteAddr,
 		rc:             rc,
 	}
 	next.ServeHTTP(hw, r2)
 
-	// Fail closed: if the handler returned without hijacking, the route
-	// is not a WebSocket route. Surface that as a stream-level error
-	// rather than passing the handler's output (likely JSON, HTML, etc.)
-	// through the 101 stripper, which would corrupt the stream.
+	// Handler returned without hijacking: close the stream to signal
+	// "wrong route" (the 200 status is already committed). The
+	// hijackResponseWriter gate above also discards any Write the
+	// handler made before returning, so opaque bytes do not leak.
 	if !hw.hijacked.Load() {
-		// We already sent 200 to open the tunnel, so the HTTP status
-		// is committed. Closing the stream is the only way to signal
-		// "wrong route" to the client at this point.
 		if c, ok := r.Body.(io.Closer); ok {
 			_ = c.Close()
 		}
@@ -147,7 +162,7 @@ func serve(w http.ResponseWriter, r *http.Request, next http.Handler, reservedSe
 // Sec-WebSocket-* headers populated, and reserved headers stripped.
 // The body is left alone (it carries WebSocket frames once the
 // handshake completes).
-func rewriteAsH1Upgrade(r *http.Request, reservedSet map[string]struct{}) (*http.Request, error) {
+func rewriteAsH1Upgrade(r *http.Request, reservedSet map[string]bool) (*http.Request, error) {
 	r2 := r.Clone(r.Context())
 	r2.Method = http.MethodGet
 	r2.Proto = "HTTP/1.1"
@@ -166,6 +181,11 @@ func rewriteAsH1Upgrade(r *http.Request, reservedSet map[string]struct{}) (*http
 		hdr.Set("Sec-WebSocket-Version", "13")
 	}
 	if hdr.Get("Sec-WebSocket-Key") == "" {
+		// RFC 8441 §5.1 lets the client omit Sec-WebSocket-Key under
+		// extended CONNECT because the h2 stream already protects
+		// request integrity. The synthesized key is never observed by
+		// the h2 client; it exists only so the gorilla upgrader's
+		// HTTP/1.1 path accepts the synthetic request.
 		key := make([]byte, 16)
 		if _, err := rand.Read(key); err != nil {
 			return nil, trace.Wrap(err, "generating Sec-WebSocket-Key")
@@ -176,33 +196,51 @@ func rewriteAsH1Upgrade(r *http.Request, reservedSet map[string]struct{}) (*http
 	return r2, nil
 }
 
-func canonicalSet(names []string) map[string]struct{} {
+func canonicalSet(names []string) map[string]bool {
 	if len(names) == 0 {
 		return nil
 	}
-	out := make(map[string]struct{}, len(names))
+	out := make(map[string]bool, len(names))
 	for _, n := range names {
-		out[http.CanonicalHeaderKey(n)] = struct{}{}
+		out[http.CanonicalHeaderKey(n)] = true
 	}
 	return out
 }
 
 // hijackResponseWriter implements http.Hijacker on top of an HTTP/2
 // ResponseWriter so gorilla.Upgrader.Upgrade can take ownership of the
-// underlying stream as a net.Conn.
+// underlying stream as a net.Conn. Write and WriteHeader are silenced
+// before hijack so a handler that returns without hijacking (e.g. a
+// non-WebSocket route reached via extended CONNECT) cannot leak its
+// response body onto the h2 stream as opaque WebSocket payload.
 type hijackResponseWriter struct {
 	http.ResponseWriter
-	req *http.Request
-	rc  *http.ResponseController
+	body       io.ReadCloser
+	remoteAddr string
+	rc         *http.ResponseController
 
 	hijacked atomic.Bool
+}
+
+func (h *hijackResponseWriter) Write(p []byte) (int, error) {
+	if !h.hijacked.Load() {
+		return len(p), nil
+	}
+	return h.ResponseWriter.Write(p)
+}
+
+func (h *hijackResponseWriter) WriteHeader(code int) {
+	if !h.hijacked.Load() {
+		return
+	}
+	h.ResponseWriter.WriteHeader(code)
 }
 
 func (h *hijackResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	if !h.hijacked.CompareAndSwap(false, true) {
 		return nil, nil, http.ErrHijacked
 	}
-	conn := newH2StreamConn(h.req, h.ResponseWriter, h.rc)
+	conn := newH2StreamConn(h.body, h.remoteAddr, h.ResponseWriter, h.rc)
 	brw := bufio.NewReadWriter(bufio.NewReader(conn), bufio.NewWriter(conn))
 	return conn, brw, nil
 }
@@ -210,18 +248,19 @@ func (h *hijackResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 // h2StreamConn presents an HTTP/2 request body + flushed response writer
 // pair as a net.Conn. Deadlines forward to the http.ResponseController.
 type h2StreamConn struct {
-	r io.ReadCloser
-	w io.Writer
+	r          io.ReadCloser
+	w          io.Writer
+	remoteAddr string
 
-	rc      *http.ResponseController
-	closeMu sync.Mutex
-	closed  atomic.Bool
+	rc     *http.ResponseController
+	closed atomic.Bool
 }
 
-func newH2StreamConn(req *http.Request, w http.ResponseWriter, rc *http.ResponseController) *h2StreamConn {
+func newH2StreamConn(body io.ReadCloser, remoteAddr string, w http.ResponseWriter, rc *http.ResponseController) *h2StreamConn {
 	c := &h2StreamConn{
-		r:  req.Body,
-		rc: rc,
+		r:          body,
+		remoteAddr: remoteAddr,
+		rc:         rc,
 	}
 	c.w = &stripUpgradeWriter{
 		inner: &flushWriter{w: w, rc: rc},
@@ -241,8 +280,8 @@ func (c *h2StreamConn) Write(p []byte) (int, error) {
 }
 
 func (c *h2StreamConn) Close() error {
-	c.closeMu.Lock()
-	defer c.closeMu.Unlock()
+	// Swap serializes Close to a single caller; subsequent calls
+	// short-circuit before touching the request body.
 	if c.closed.Swap(true) {
 		return nil
 	}
@@ -251,8 +290,16 @@ func (c *h2StreamConn) Close() error {
 	return c.r.Close()
 }
 
-func (c *h2StreamConn) LocalAddr() net.Addr  { return placeholderAddr("h2-local") }
-func (c *h2StreamConn) RemoteAddr() net.Addr { return placeholderAddr("h2-remote") }
+func (c *h2StreamConn) LocalAddr() net.Addr { return placeholderAddr("h2-local") }
+
+func (c *h2StreamConn) RemoteAddr() net.Addr {
+	if c.remoteAddr != "" {
+		if addr, err := net.ResolveTCPAddr("tcp", c.remoteAddr); err == nil {
+			return addr
+		}
+	}
+	return placeholderAddr("h2-remote")
+}
 
 func (c *h2StreamConn) SetDeadline(t time.Time) error {
 	if err := c.SetReadDeadline(t); err != nil {
@@ -269,6 +316,11 @@ func (c *h2StreamConn) SetWriteDeadline(t time.Time) error {
 	return c.rc.SetWriteDeadline(t)
 }
 
+// placeholderAddr stands in when the request's RemoteAddr is missing
+// or unparseable. The HTTP/2 server does not expose stream-level
+// addresses on the hijacked conn; the request's RemoteAddr is the only
+// peer information available, and a placeholder keeps callers that log
+// conn.RemoteAddr() from panicking on a nil addr.
 type placeholderAddr string
 
 func (placeholderAddr) Network() string  { return "h2-websocket" }
@@ -276,24 +328,30 @@ func (a placeholderAddr) String() string { return string(a) }
 
 // flushWriter flushes after every Write so a single WebSocket frame ends
 // up on the wire as a single h2 DATA frame instead of being buffered.
+// Flush errors are propagated once a first flush has succeeded, so a
+// stream reset (Write succeeds into the buffer, Flush fails) surfaces
+// to the WebSocket handler instead of being silently dropped.
 type flushWriter struct {
-	w  io.Writer
+	w  http.ResponseWriter
 	rc *http.ResponseController
 }
 
 func (f *flushWriter) Write(p []byte) (int, error) {
 	n, err := f.w.Write(p)
-	if err == nil {
-		_ = f.rc.Flush()
+	if err != nil {
+		return n, err
 	}
-	return n, err
+	if err := f.rc.Flush(); err != nil && !errors.Is(err, http.ErrNotSupported) {
+		return n, err
+	}
+	return n, nil
 }
 
 // stripUpgradeWriter discards bytes up to and including the first
 // "\r\n\r\n" sequence (gorilla's synthetic 101 response that does not
 // belong on the h2 stream), then forwards everything afterward. The
 // parser is incremental: it never accumulates more than the four bytes
-// needed to recognise the terminator, so there is no fixed buffer cap
+// needed to recognize the terminator, so there is no fixed buffer cap
 // that could silently truncate a long Sec-WebSocket-Protocol header.
 type stripUpgradeWriter struct {
 	inner   io.Writer
@@ -307,28 +365,33 @@ func (s *stripUpgradeWriter) Write(p []byte) (int, error) {
 	if s.done {
 		return s.inner.Write(p)
 	}
-	consumed := 0
-	for consumed < len(p) {
-		if p[consumed] == crlfcrlf[s.scanned] {
-			s.scanned++
-			consumed++
-			if s.scanned == len(crlfcrlf) {
-				s.done = true
-				rest := p[consumed:]
-				if len(rest) > 0 {
-					if _, err := s.inner.Write(rest); err != nil {
-						return 0, err
-					}
+	for i := 0; i < len(p); i++ {
+		s.scanned = nextScanState(s.scanned, p[i])
+		if s.scanned == len(crlfcrlf) {
+			s.done = true
+			rest := p[i+1:]
+			if len(rest) > 0 {
+				if _, err := s.inner.Write(rest); err != nil {
+					return 0, err
 				}
-				return len(p), nil
 			}
-		} else {
-			// Reset the match. If we matched some prefix, those bytes
-			// are part of the header (still discarded). The current
-			// byte is also discarded.
-			s.scanned = 0
-			consumed++
+			return len(p), nil
 		}
 	}
 	return len(p), nil
+}
+
+// nextScanState advances the "\r\n\r\n" matcher by one byte. The
+// pattern has self-overlap on '\r' (positions 0 and 2), so on a
+// mismatch the failing byte may itself start a new match: e.g. the
+// second '\r' in "\r\r\n\r\n" must not be discarded. This is the KMP
+// failure function for "\r\n\r\n" collapsed to a single comparison.
+func nextScanState(scanned int, b byte) int {
+	if b == crlfcrlf[scanned] {
+		return scanned + 1
+	}
+	if b == crlfcrlf[0] {
+		return 1
+	}
+	return 0
 }

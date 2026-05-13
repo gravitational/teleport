@@ -36,6 +36,12 @@ import (
 // regular init() is too late. The only ways to influence it are to set
 // it in the environment of the parent process or to re-exec.
 //
+// The shim only fires for "teleport start" because that is the only
+// subcommand that runs the proxy web listener. Short-lived CLI
+// subcommands (version, configure, status, scp, the hidden reexec
+// children) skip the re-exec to avoid paying an extra execve(2) on
+// every invocation.
+//
 // This init prepends http2xconnect=1 to GODEBUG when missing, then
 // re-execs the current binary via syscall.Exec. The replacement process
 // has the env var in place before net/http's init runs. On success
@@ -46,6 +52,10 @@ import (
 // that will replace this shim.
 func init() {
 	const want = "http2xconnect=1"
+
+	if !needsHTTP2XConnect(os.Args) {
+		return
+	}
 
 	existing := os.Getenv("GODEBUG")
 	if godebugContains(existing, want) {
@@ -72,6 +82,18 @@ func init() {
 		fmt.Fprintf(os.Stderr,
 			"teleport: GODEBUG re-exec failed: %v\n", err)
 	}
+}
+
+// needsHTTP2XConnect reports whether the invocation will run the proxy
+// web listener and therefore needs http2xconnect=1 in GODEBUG. Only
+// "teleport start" runs the proxy; all other subcommands (including
+// "teleport app start" and "teleport db start", which start agents,
+// not the proxy) skip the re-exec.
+func needsHTTP2XConnect(args []string) bool {
+	if len(args) < 2 {
+		return false
+	}
+	return args[1] == "start"
 }
 
 // godebugContains reports whether the comma-separated GODEBUG value

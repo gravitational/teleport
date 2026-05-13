@@ -5579,12 +5579,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return trace.Wrap(err)
 		}
 
-		// h2websocket.Wrap sits outside the middleware chain so that XFF,
-		// tracing, and the limiter observe the synthetic HTTP/1.1 request
-		// the bridge produces from an RFC 8441 extended CONNECT. Without
-		// the wrap, the inner middlewares gate on http.Hijacker, which an
-		// HTTP/2 ResponseWriter does not implement, and degrade silently
-		// on HTTP/2 WebSocket traffic.
+		// h2websocket.Wrap sits outside the middleware chain because the
+		// inner middlewares gate on http.Hijacker, which an HTTP/2
+		// ResponseWriter does not implement. Wrapping outside also lets
+		// XFF, tracing, and the limiter observe the synthetic HTTP/1.1
+		// request the bridge produces from an RFC 8441 extended CONNECT.
 		webChain := utils.ChainHTTPMiddlewares(
 			webHandler,
 			limiter.MakeMiddleware(proxyLimiter),
@@ -5593,8 +5592,14 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		)
 		webServer, err = web.NewServer(web.ServerConfig{
 			Server: &http.Server{
+				// ReservedHeaders intentionally excludes the generic
+				// X-Forwarded-* set because the XFF middleware further
+				// down the chain needs to read them to resolve the real
+				// client address. Stripping them here would point
+				// clientSrcAddr at the load balancer for h2 traffic
+				// while h1 traffic on the same listener still resolves.
 				Handler: h2websocket.Wrap(webChain, h2websocket.Options{
-					ReservedHeaders: appcommon.ReservedHeaders,
+					ReservedHeaders: appcommon.ReservedTeleportIdentityHeaders,
 				}),
 				// Note: read/write timeouts *should not* be set here because it
 				// will break some application access use-cases.
@@ -6331,6 +6336,11 @@ func (process *TeleportProcess) initMinimalReverseTunnel(listeners *proxyListene
 
 	log := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id))
 
+	// The minimal reverse-tunnel listener intentionally skips
+	// h2websocket.Wrap: it only serves /webapi/find and
+	// /webapi/host/credentials, neither of which negotiates WebSocket.
+	// Any future WebSocket route added here must add the wrap and the
+	// matching ReservedTeleportIdentityHeaders list.
 	minimalWebServer, err := web.NewServer(web.ServerConfig{
 		Server: &http.Server{
 			Handler:           httplib.MakeTracingHandler(minimalProxyLimiter, teleport.ComponentProxy),
