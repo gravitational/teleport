@@ -54,6 +54,7 @@ Starting with this release, Teleport Connect only supports automatic upgrades. D
 
 * Added support for AWS RDS discovery in the `teleport/discovery/aws` Terraform module. [#66627](https://github.com/gravitational/teleport/pull/66627)
 * Fixed identifier-first login form overflowing on mobile viewports. [#66620](https://github.com/gravitational/teleport/pull/66620)
+* Improved the performance of VNet on macOS by eliminating unnecessary reconnects. [#66562](https://github.com/gravitational/teleport/pull/66562)
 * Fixed `metadata.revision` not being excluded from the `teleport_vnet_config` Terraform schema. Users with existing state may need to run `terraform refresh` if `terraform show` fails with "unsupported attribute revision". [#66617](https://github.com/gravitational/teleport/pull/66617)
 * Fixed resource-based access requests failing when node/ssh agents have not yet been updated to a version supporting Resource Constraints. [#66585](https://github.com/gravitational/teleport/pull/66585)
 * Updated Go to 1.25.10. [#66569](https://github.com/gravitational/teleport/pull/66569)
