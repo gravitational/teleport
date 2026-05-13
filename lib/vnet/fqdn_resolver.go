@@ -256,7 +256,7 @@ func (r *fqdnResolver) resolveAppInfoForCluster(
 	// An app public_addr could technically be fully-qualified or not, match either way.
 	// equalsFold is needed because public_addr may be stored with mixed case but DNS
 	// hostnames are case-insensitive, so a browser-issued fqdn arrives lowercased.
-	expr := fmt.Sprintf(`equalsFold(resource.spec.public_addr, "%s") || equalsFold(resource.spec.public_addr, "%s")`,
+	expr := fmt.Sprintf(`equalsFold(resource.spec.public_addr, %+q) || equalsFold(resource.spec.public_addr, %+q)`,
 		strings.TrimSuffix(fqdn, "."), fqdn)
 
 	// If candidate is a leaf cluster and fqdn possibly points to a leaf
@@ -270,7 +270,7 @@ func (r *fqdnResolver) resolveAppInfoForCluster(
 	var potentialAppName string
 	if candidate.leafClusterName != "" && isDirectSubdomain(fqdn, candidate.profileName) {
 		potentialAppName = strings.TrimSuffix(fqdn, "."+dns.FullyQualify(candidate.profileName))
-		expr += fmt.Sprintf(` || name == "%s"`, potentialAppName)
+		expr += fmt.Sprintf(` || name == %+q`, potentialAppName)
 	}
 
 	resp, err := apiclient.GetResourcePage[types.AppServer](ctx, candidate.client.CurrentCluster(), &proto.ListResourcesRequest{

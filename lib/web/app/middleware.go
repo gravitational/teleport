@@ -23,6 +23,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -110,9 +111,11 @@ func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request, p l
 }
 
 // validateAppAddr checks that appAddr does not match proxyHost
-// and returns an error on conflict.
+// and returns an error on conflict. DNS hostnames are
+// case-insensitive, so a mixed-case app public_addr must not be
+// treated as distinct from a lowercase proxy host.
 func (h *Handler) validateAppAddr(ctx context.Context, appAddr, proxyHost string) error {
-	if appAddr != proxyHost {
+	if !strings.EqualFold(appAddr, proxyHost) {
 		return nil
 	}
 	const errMsg = "Application public address conflicts with the " +
