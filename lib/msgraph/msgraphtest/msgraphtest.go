@@ -98,21 +98,19 @@ func (s *Server) handleListUsers(w http.ResponseWriter, r *http.Request) {
 
 // handleListUsersDelta handles user delta queries.
 // It expects a delta key provided by the client in the
-// for of a delta token. It does not support pagination.
+// form of a delta token. It does not support pagination.
 // It consumes existing delta token on each request,
 // increments delta token counter by one and responds with the
 // new delta token.
 func (s *Server) handleListUsersDelta(w http.ResponseWriter, r *http.Request) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	currentKey := 0
+	isLatest := false
 	users := make([]models.ListUsersDeltaResponse, 0)
 	token := r.URL.Query().Get("$deltatoken")
 	switch token {
 	case "latest":
 		// latest request is the starting point.
-		users = make([]models.ListUsersDeltaResponse, 0)
+		isLatest = true
 	default:
 		i, err := parseToken(token)
 		if err != nil {
@@ -120,14 +118,18 @@ func (s *Server) handleListUsersDelta(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		currentKey = i
-		users = append(users, s.Storage.UsersDelta[i]...)
 	}
 
+	s.mu.Lock()
+	if !isLatest {
+		users = append(users, s.Storage.UsersDelta[currentKey]...)
+	}
 	currentKey++
 	if _, ok := s.Storage.UsersDelta[currentKey]; !ok {
 		// increment delta token counter if its not already set.
 		s.Storage.UsersDelta[currentKey] = []models.ListUsersDeltaResponse{}
 	}
+	s.mu.Unlock()
 
 	jsonResponse(w, map[string]interface{}{
 		"@odata.deltaLink": deltaLink(r, strconv.Itoa(currentKey)),
@@ -136,12 +138,12 @@ func (s *Server) handleListUsersDelta(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleListGroups(w http.ResponseWriter, r *http.Request) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.mu.RLock()
 	groups := make([]*models.Group, 0, len(s.Storage.Groups))
 	for _, group := range s.Storage.Groups {
 		groups = append(groups, group)
 	}
+	s.mu.RUnlock()
 
 	jsonResponse(w, map[string]interface{}{
 		"value": groups,
@@ -150,20 +152,19 @@ func (s *Server) handleListGroups(w http.ResponseWriter, r *http.Request) {
 
 // handleListGroupsDelta handles group delta queries.
 // It expects a delta key provided by the client in the
-// for of a delta token. It does not support pagination.
+// form of a delta token. It does not support pagination.
 // It consumes existing delta token on each request,
 // increments delta token counter by one and responds with the
 // new delta token.
 func (s *Server) handleListGroupsDelta(w http.ResponseWriter, r *http.Request) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	currentKey := 0
+	isLatest := false
 	groups := make([]models.ListGroupsDeltaResponse, 0)
 	token := r.URL.Query().Get("$deltatoken")
 	switch token {
 	case "latest":
-		groups = make([]models.ListGroupsDeltaResponse, 0)
+		// latest request is the starting point.
+		isLatest = true
 	default:
 		i, err := parseToken(token)
 		if err != nil {
@@ -171,14 +172,18 @@ func (s *Server) handleListGroupsDelta(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		currentKey = i
-		groups = append(groups, s.Storage.GroupsDelta[i]...)
 	}
 
+	s.mu.Lock()
+	if !isLatest {
+		groups = append(groups, s.Storage.GroupsDelta[currentKey]...)
+	}
 	currentKey++
 	if _, ok := s.Storage.GroupsDelta[currentKey]; !ok {
 		// increment delta token counter if its not already set.
 		s.Storage.GroupsDelta[currentKey] = []models.ListGroupsDeltaResponse{}
 	}
+	s.mu.Unlock()
 
 	jsonResponse(w, map[string]interface{}{
 		"@odata.deltaLink": deltaLink(r, strconv.Itoa(currentKey)),
@@ -187,12 +192,9 @@ func (s *Server) handleListGroupsDelta(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleListGroupMembers(w http.ResponseWriter, r *http.Request) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
 	groupID := r.PathValue("id")
-	groupMembers := s.Storage.GroupMembers[groupID]
-
+	s.mu.RLock()
+	groupMembers := slices.Clone(s.Storage.GroupMembers[groupID])
 	members := make([]map[string]interface{}, 0, len(groupMembers))
 	for _, member := range groupMembers {
 		memberData := map[string]interface{}{
@@ -211,6 +213,7 @@ func (s *Server) handleListGroupMembers(w http.ResponseWriter, r *http.Request) 
 
 		members = append(members, memberData)
 	}
+	s.mu.RUnlock()
 
 	jsonResponse(w, map[string]interface{}{
 		"value": members,
@@ -218,11 +221,10 @@ func (s *Server) handleListGroupMembers(w http.ResponseWriter, r *http.Request) 
 }
 
 func (s *Server) handleListGroupOwners(w http.ResponseWriter, r *http.Request) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
 	groupID := r.PathValue("id")
-	owners := s.Storage.GroupOwners[groupID]
+	s.mu.RLock()
+	owners := slices.Clone(s.Storage.GroupOwners[groupID])
+	s.mu.RUnlock()
 
 	jsonResponse(w, map[string]interface{}{
 		"value": owners,
@@ -288,7 +290,7 @@ func (s *Server) SetUsers(users []*models.User) {
 	}
 
 	// update user delta
-	var userDelta []models.ListUsersDeltaResponse
+	userDelta := make([]models.ListUsersDeltaResponse, 0, len(users))
 	for _, d := range users {
 		userDelta = append(userDelta, models.ListUsersDeltaResponse{
 			User: d,
@@ -309,7 +311,7 @@ func (s *Server) DeleteUsers(users []string) {
 	}
 
 	// update user delta
-	var userDelta []models.ListUsersDeltaResponse
+	userDelta := make([]models.ListUsersDeltaResponse, 0, len(users))
 	for _, userID := range users {
 		userDelta = append(userDelta, models.ListUsersDeltaResponse{
 			User: &models.User{
@@ -341,7 +343,7 @@ func (s *Server) SetGroups(groups []*models.Group) {
 	}
 
 	// update group deltas.
-	var groupDeltas []models.ListGroupsDeltaResponse
+	groupDeltas := make([]models.ListGroupsDeltaResponse, 0, len(groups))
 	for _, g := range groups {
 		groupDeltas = append(groupDeltas, models.ListGroupsDeltaResponse{
 			Group: g,
@@ -364,7 +366,7 @@ func (s *Server) DeleteGroups(groups []string) {
 	}
 
 	// update group delta.
-	var groupDeltas []models.ListGroupsDeltaResponse
+	groupDeltas := make([]models.ListGroupsDeltaResponse, 0, len(groups))
 	for _, groupID := range groups {
 		groupDeltas = append(groupDeltas, models.ListGroupsDeltaResponse{
 			Group: &models.Group{
@@ -652,8 +654,8 @@ func setGroupOwners(s *Storage, groupID string, owners []*models.User) map[strin
 		}
 		existingOwners[*m.GetID()] = struct{}{}
 	}
-	allowners := slices.Concat(s.GroupOwners[groupID], owners)
-	s.GroupOwners[groupID] = utils.DeduplicateAny(allowners,
+	allOwners := slices.Concat(s.GroupOwners[groupID], owners)
+	s.GroupOwners[groupID] = utils.DeduplicateAny(allOwners,
 		func(m1, m2 *models.User) bool {
 			if m1.GetID() == nil || m2.GetID() == nil {
 				return false
