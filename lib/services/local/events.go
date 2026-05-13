@@ -3305,16 +3305,16 @@ func (p *accessGraphSecretAuthorizedKeyParser) parse(event backend.Event) (types
 		}
 		hostID := key.Components()[0]
 
-		authorizedKey := &accessgraphsecretsv1pb.AuthorizedKey{
+		authorizedKey := accessgraphsecretsv1pb.AuthorizedKey_builder{
 			Kind:    types.KindAccessGraphSecretAuthorizedKey,
 			Version: types.V1,
 			Metadata: &headerv1.Metadata{
 				Name: strings.TrimPrefix(key.TrimPrefix(backend.NewKey(hostID)).String(), backend.SeparatorString),
 			},
-			Spec: &accessgraphsecretsv1pb.AuthorizedKeySpec{
+			Spec: accessgraphsecretsv1pb.AuthorizedKeySpec_builder{
 				HostId: hostID,
-			},
-		}
+			}.Build(),
+		}.Build()
 
 		return types.Resource153ToLegacy(authorizedKey), nil
 	case types.OpPut:

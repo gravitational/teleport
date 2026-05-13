@@ -101,7 +101,7 @@ func (k *AccessGraphSecretsService) ListAuthorizedKeysForServer(ctx context.Cont
 
 // UpsertAuthorizedKey upserts a new authorized key.
 func (k *AccessGraphSecretsService) UpsertAuthorizedKey(ctx context.Context, in *accessgraphsecretspb.AuthorizedKey) (*accessgraphsecretspb.AuthorizedKey, error) {
-	svc := k.authorizedKeysSvc.WithPrefix(in.Spec.HostId)
+	svc := k.authorizedKeysSvc.WithPrefix(in.GetSpec().GetHostId())
 	out, err := svc.UpsertResource(ctx, in)
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -100,7 +100,7 @@ func TestAuthorizedKeys(t *testing.T) {
 		protocmp.Transform(),
 		protocmp.SortRepeated(
 			func(a, b *accessgraphsecretsv1pb.AuthorizedKey) bool {
-				return a.Metadata.Name < b.Metadata.Name
+				return a.GetMetadata().Name < b.GetMetadata().Name
 			},
 		),
 		protocmp.IgnoreFields(&headerv1.Metadata{}, "expires"),
@@ -237,13 +237,13 @@ func createKeysForUsers(t *testing.T, hostID string) []*accessgraphsecretsv1pb.A
 		},
 	} {
 		for _, user := range []string{"root", "user"} {
-			at, err := accessgraph.NewAuthorizedKey(&accessgraphsecretsv1pb.AuthorizedKeySpec{
+			at, err := accessgraph.NewAuthorizedKey(accessgraphsecretsv1pb.AuthorizedKeySpec_builder{
 				HostId:         hostID,
 				HostUser:       user,
 				KeyFingerprint: k.fingerprint,
 				KeyComment:     "friel@test",
 				KeyType:        k.keyType,
-			})
+			}.Build())
 			require.NoError(t, err)
 			keys = append(keys, at)
 		}

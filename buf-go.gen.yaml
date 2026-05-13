@@ -33,7 +33,7 @@ plugins:
       - default_api_level=API_OPAQUE
       # All existing protos should remain on the OPEN API allowing them
       # to be migrated one by one to the OPAQUE API.
-      - apilevelMteleport/access_graph/v1/authorized_key.proto=API_OPEN
+      - apilevelMteleport/access_graph/v1/authorized_key.proto=API_HYBRID
       - apilevelMteleport/access_graph/v1/private_key.proto=API_OPEN
       - apilevelMteleport/access_graph/v1/secrets_service.proto=API_OPEN
       - apilevelMteleport/accesslist/v1/accesslist.proto=API_OPEN

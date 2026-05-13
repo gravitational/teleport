@@ -396,13 +396,13 @@ func (w *Watcher) parseAuthorizedKeysFile(ctx context.Context, u user.User, auth
 		}
 
 		authorizedKey, err := accessgraph.NewAuthorizedKey(
-			&accessgraphsecretsv1pb.AuthorizedKeySpec{
+			accessgraphsecretsv1pb.AuthorizedKeySpec_builder{
 				HostId:         w.hostID,
 				HostUser:       u.Username,
 				KeyFingerprint: ssh.FingerprintSHA256(parsedKey),
 				KeyComment:     comment,
 				KeyType:        parsedKey.Type(),
-			},
+			}.Build(),
 		)
 		if err != nil {
 			w.logger.WarnContext(ctx, "Failed to create authorized key", "error", err)
