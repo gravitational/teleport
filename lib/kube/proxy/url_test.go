@@ -32,6 +32,46 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
+// TestExtractResourceNameFromPostRequest_Replayable verifies that
+// extractResourceNameFromPostRequest sets a working [http.Request.GetBody]
+// and ContentLength so the upstream transport can retry the request after a
+// GOAWAY without hitting the unrewindable network-side body. See #65611.
+func TestExtractResourceNameFromPostRequest_Replayable(t *testing.T) {
+	bodyJSON := []byte(`{"kind":"Pod","apiVersion":"v1","metadata":{"name":"test-pod","namespace":"default"}}`)
+
+	req, err := http.NewRequest(http.MethodPost, "/api/v1/namespaces/default/pods", strings.NewReader(string(bodyJSON)))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+
+	// Simulate a request received over the network: stdlib only auto-sets
+	// GetBody/ContentLength for in-process body types like *strings.Reader.
+	// Server-side requests carry an opaque io.ReadCloser with neither set.
+	req.GetBody = nil
+	req.ContentLength = 0
+
+	name, err := extractResourceNameFromPostRequest(req, &globalKubeCodecs, &schema.GroupVersionKind{Version: "v1", Kind: "Pod"})
+	require.NoError(t, err)
+	require.Equal(t, "test-pod", name)
+
+	require.Equal(t, int64(len(bodyJSON)), req.ContentLength, "ContentLength must match the buffered body")
+	require.NotNil(t, req.GetBody, "GetBody must be set so the transport can replay the request on GOAWAY")
+
+	// Drain the body to simulate the transport sending the request once.
+	drained, err := io.ReadAll(req.Body)
+	require.NoError(t, err)
+	require.Equal(t, bodyJSON, drained)
+
+	// GetBody must return a fresh reader yielding the same bytes, twice in a row.
+	for i := range 2 {
+		replay, err := req.GetBody()
+		require.NoError(t, err, "GetBody call %d", i)
+		got, err := io.ReadAll(replay)
+		require.NoError(t, err)
+		require.Equal(t, bodyJSON, got, "GetBody call %d must yield the original body", i)
+		require.NoError(t, replay.Close())
+	}
+}
+
 func TestParseResourcePath(t *testing.T) {
 	tests := []struct {
 		path string

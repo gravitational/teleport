@@ -36,6 +36,7 @@ import (
 	"os"
 	"slices"
 	"sort"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -1753,6 +1754,98 @@ func TestForwarderTLSConfigCAs(t *testing.T) {
 	require.True(t, getConnTLSRootsCalled)
 }
 
+// errRoundTripper is a stub [http.RoundTripper] that drains the request body
+// and returns a configured error. It mimics the behavior of a real upstream
+// transport that has read the body before failing, leaving it unrewindable.
+type errRoundTripper struct {
+	err error
+}
+
+func (e *errRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	if req.Body != nil {
+		_, _ = io.Copy(io.Discard, req.Body)
+		_ = req.Body.Close()
+	}
+	return nil, e.err
+}
+
+// TestKubeForwarder_GOAWAYErrors verifies that errors emitted by the upstream transport
+// when an HTTP/2 GOAWAY interrupts an in-flight request with an
+// unrewindable body are translated into a 429 response with Retry-After: 1, so kube clients retry the request.
+// This covers both the http2 transport's "cannot retry" error and the net/http transport's "cannot rewind body" error.
+// (see formatStatusResponseError)
+func TestKubeForwarder_GOAWAYErrors(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+	}{
+		{
+			// Returned by golang.org/x/net/http2 when its internal retry path
+			// cannot replay the request body after a GOAWAY.
+			name: "http2 cannot retry",
+			err:  errors.New("http2: Transport: cannot retry err [http2: Transport received Server's graceful shutdown GOAWAY] after Request.Body was written; define Request.GetBody to avoid this error"),
+		},
+		{
+			// Returned by net/http when, after the http2 conn pool is drained
+			// by GOAWAY, the http1 retry path tries to rewind the body and
+			// fails because Request.GetBody is unset. See errCannotRewind in
+			// net/http/transport.go.
+			name: "net/http cannot rewind body",
+			err:  errors.New("net/http: cannot rewind body after connection loss"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(t.Context())
+			t.Cleanup(cancel)
+			f := newMockForwarder(ctx, t)
+
+			// Plug a stub round tripper that returns the GOAWAY-related error
+			// into a fake Kubernetes cluster, so the kube proxy's full
+			// error-handling pipeline runs against it.
+			f.clusterDetails = map[string]*kubeDetails{
+				"kube-cluster": {
+					kubeCreds: &staticKubeCreds{
+						targetAddr: "kube.invalid:443",
+						tlsConfig:  &tls.Config{InsecureSkipVerify: true},
+						transport:  &errRoundTripper{err: tt.err},
+					},
+				},
+			}
+
+			authCtx := mockAuthCtx(t, "kube-cluster", false)
+			sess, err := f.newClusterSession(ctx, authCtx)
+			require.NoError(t, err)
+			t.Cleanup(sess.close)
+
+			fwd, err := f.makeSessionForwarder(sess)
+			require.NoError(t, err)
+
+			forwarderServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				r.URL, err = url.Parse("https://kube.invalid")
+				require.NoError(t, err)
+				fwd.ServeHTTP(w, r)
+			}))
+			t.Cleanup(forwarderServer.Close)
+
+			body := bytes.NewBuffer([]byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9})
+			req, err := http.NewRequest("POST", forwarderServer.URL, body)
+			require.NoError(t, err)
+			resp, err := forwarderServer.Client().Do(req)
+			require.NoError(t, err)
+			t.Cleanup(func() { assert.NoError(t, resp.Body.Close()) })
+
+			require.Equal(t, http.StatusTooManyRequests, resp.StatusCode)
+			require.Equal(t, "1", resp.Header.Get("Retry-After"))
+
+			var status metav1.Status
+			require.NoError(t, json.NewDecoder(resp.Body).Decode(&status))
+			require.Equal(t, metav1.StatusReasonTooManyRequests, status.Reason)
+		})
+	}
+}
+
 func TestGOAWAYHandling(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
@@ -1825,6 +1918,100 @@ func TestGOAWAYHandling(t *testing.T) {
 	err = json.NewDecoder(resp.Body).Decode(&status)
 	require.NoError(t, err)
 	require.Equal(t, metav1.StatusReasonTooManyRequests, status.Reason)
+}
+
+// TestGOAWAYHandling_Concurrent exercises the production upstream transport configuration
+// ([newH2Transport]: net/http.Transport upgraded with http2.ConfigureTransport)
+// against the fake [goawayServer], with many concurrent requests.
+// Without the rewind-body error translation in [Forwarder.formatStatusResponseError],
+// a portion of the requests bubble up the net/http rewind-body error to clients.
+// (see https://github.com/gravitational/teleport/issues/65611)
+//
+// Concurrency surfaces other GOAWAY-related transport errors that this PR does not translate such as:
+// broken pipe, force-closed conns, reverseproxy invalid-read.
+// The assertion is therefore narrow: the rewind-body error string must never reach a client.
+// Other 500 responses are tolerated.
+func TestGOAWAYHandling_Concurrent(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+	f := newMockForwarder(ctx, t)
+
+	cert, err := tls.X509KeyPair(fixtures.LocalhostCert, fixtures.LocalhostKey)
+	require.NoError(t, err)
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	gs := goawayServer{
+		listener: ln,
+		tlsConfig: &tls.Config{
+			Certificates: []tls.Certificate{cert},
+			NextProtos:   []string{http2.NextProtoTLS},
+		},
+	}
+	t.Cleanup(func() { require.NoError(t, gs.Close()) })
+	go func() { _ = gs.Serve() }()
+
+	tlsCfg := &tls.Config{InsecureSkipVerify: true}
+	prodTransport, err := newH2Transport(tlsCfg, nil)
+	require.NoError(t, err)
+
+	f.clusterDetails = map[string]*kubeDetails{
+		"kube-cluster": {
+			kubeCreds: &staticKubeCreds{
+				targetAddr: gs.URL(),
+				tlsConfig:  tlsCfg,
+				transport:  prodTransport,
+			},
+		},
+	}
+
+	authCtx := mockAuthCtx(t, "kube-cluster", false)
+	sess, err := f.newClusterSession(ctx, authCtx)
+	require.NoError(t, err)
+	t.Cleanup(sess.close)
+
+	fwd, err := f.makeSessionForwarder(sess)
+	require.NoError(t, err)
+
+	forwarderServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		u, err := url.Parse(gs.URL())
+		require.NoError(t, err)
+		r.URL = u
+		fwd.ServeHTTP(w, r)
+	}))
+	t.Cleanup(forwarderServer.Close)
+
+	const concurrency = 50
+	reqCtx, reqCancel := context.WithTimeout(ctx, 10*time.Second)
+	t.Cleanup(reqCancel)
+
+	var rewindLeaks atomic.Uint32
+	var wg sync.WaitGroup
+	wg.Add(concurrency)
+	for range concurrency {
+		go func() {
+			defer wg.Done()
+			body := bytes.NewBuffer(make([]byte, 64*1024))
+			req, err := http.NewRequestWithContext(reqCtx, "POST", forwarderServer.URL, body)
+			assert.NoError(t, err)
+			resp, err := forwarderServer.Client().Do(req)
+			if err != nil {
+				return // some requests legitimately fail at the network layer under GOAWAY storms; not what this test asserts.
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode == http.StatusTooManyRequests {
+				return
+			}
+			bodyBytes, _ := io.ReadAll(resp.Body)
+			if bytes.Contains(bodyBytes, []byte("cannot rewind body after connection loss")) {
+				rewindLeaks.Add(1)
+			}
+		}()
+	}
+	wg.Wait()
+
+	require.Zero(t, rewindLeaks.Load(), "rewind-body error must never reach the client")
 }
 
 // goawayServer is a fake [http2.Server] that terminates all received client
