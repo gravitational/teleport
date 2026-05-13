@@ -19,6 +19,7 @@ import (
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/trait"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/e/lib/mdmsync"
 	eteleport "github.com/gravitational/teleport/e/lib/teleport"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -251,7 +252,7 @@ func TestDirectoryReconciler(t *testing.T) {
 	r, err := New(env.cfg)
 	require.NoError(t, err)
 
-	err = r.Reconcile(ctx)
+	err = r.Reconcile(ctx, mdmsync.SyncModeFull)
 	require.ErrorContains(t, err, "eve@example.com")
 
 	t.Run("alice created and assigned to team A", func(t *testing.T) {
@@ -621,7 +622,7 @@ func TestUserSync(t *testing.T) {
 
 		r, err := New(env.cfg)
 		require.NoError(t, err)
-		require.NoError(t, r.Reconcile(ctx))
+		require.NoError(t, r.Reconcile(ctx, mdmsync.SyncModeFull))
 
 		users, err := listTeleportUsers(ctx, env.cfg.AccessPoint, env.cfg.SSOConnectorID)
 		require.NoError(t, err)
@@ -658,7 +659,7 @@ func TestUserSync(t *testing.T) {
 
 		r, err := New(env.cfg)
 		require.NoError(t, err)
-		err = r.Reconcile(ctx)
+		err = r.Reconcile(ctx, mdmsync.SyncModeFull)
 		require.ErrorContains(t, err, "al'ice@example.com")
 
 		users, err := listTeleportUsers(ctx, env.cfg.AccessPoint, env.cfg.SSOConnectorID)
@@ -709,7 +710,7 @@ func TestUserSync(t *testing.T) {
 
 		r, err := New(env.cfg)
 		require.NoError(t, err)
-		err = r.Reconcile(ctx)
+		err = r.Reconcile(ctx, mdmsync.SyncModeFull)
 		require.ErrorContains(t, err, "bob@example.com")
 
 		users, err := listTeleportUsers(ctx, env.cfg.AccessPoint, env.cfg.SSOConnectorID)
@@ -767,7 +768,7 @@ func TestUserSync(t *testing.T) {
 
 		r, err := New(env.cfg)
 		require.NoError(t, err)
-		err = r.Reconcile(ctx)
+		err = r.Reconcile(ctx, mdmsync.SyncModeFull)
 		require.ErrorContains(t, err, "bob@example.com")
 		require.ErrorContains(t, err, "Member IDs: u2")
 
@@ -821,7 +822,7 @@ func TestUserSync(t *testing.T) {
 
 		r, err := New(env.cfg)
 		require.NoError(t, err)
-		require.NoError(t, r.Reconcile(ctx))
+		require.NoError(t, r.Reconcile(ctx, mdmsync.SyncModeFull))
 
 		users, err := listTeleportUsers(ctx, env.cfg.AccessPoint, env.cfg.SSOConnectorID)
 		require.NoError(t, err)
@@ -989,7 +990,7 @@ func TestGroupFilters(t *testing.T) {
 			r, err := New(env.cfg)
 			require.NoError(t, err)
 
-			require.NoError(t, r.Reconcile(ctx))
+			require.NoError(t, r.Reconcile(ctx, mdmsync.SyncModeFull))
 
 			requireAccessListCount(t, env.aclSvc, len(tc.expected))
 			for _, g := range tc.expected {
@@ -1067,7 +1068,7 @@ func TestInvalidGroupIsSkipped(t *testing.T) {
 			r, err := New(env.cfg)
 			require.NoError(t, err)
 
-			err = r.Reconcile(ctx)
+			err = r.Reconcile(ctx, mdmsync.SyncModeFull)
 			require.ErrorContains(t, err, "have a non-empty")
 
 			requireAccessListCount(t, env.aclSvc, len(tc.expectedGroups))
@@ -1110,7 +1111,7 @@ func TestUnknownFilter(t *testing.T) {
 	// reconcile
 	r, err := New(env.cfg)
 	require.NoError(t, err)
-	require.NoError(t, r.Reconcile(ctx))
+	require.NoError(t, r.Reconcile(ctx, mdmsync.SyncModeFull))
 
 	requireAccessListCount(t, env.aclSvc, 4)
 	al1 := requireAccessListForEntraGroupExists(t, env.aclSvc, g1)
@@ -1149,7 +1150,7 @@ func TestUnknownFilter(t *testing.T) {
 	// reconcile
 	r, err = New(env.cfg)
 	require.NoError(t, err)
-	err = r.Reconcile(ctx)
+	err = r.Reconcile(ctx, mdmsync.SyncModeFull)
 	require.NoError(t, err)
 
 	// If the group was deleted in entra, it must be deleted in Teleport.
@@ -1193,7 +1194,7 @@ func TestNestedMembership(t *testing.T) {
 
 	r, err := New(env.cfg)
 	require.NoError(t, err)
-	require.NoError(t, r.Reconcile(ctx))
+	require.NoError(t, r.Reconcile(ctx, mdmsync.SyncModeFull))
 
 	requireAccessListCount(t, env.aclSvc, 4)
 	al1 := requireAccessListForEntraGroupExists(t, env.aclSvc, g1)
@@ -1215,7 +1216,7 @@ func TestNestedMembership(t *testing.T) {
 		"g4": {g1},
 	}
 
-	err = r.Reconcile(ctx)
+	err = r.Reconcile(ctx, mdmsync.SyncModeFull)
 	require.ErrorContains(t, err, "is already included as a Member or Owner in")
 }
 

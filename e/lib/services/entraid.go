@@ -3,8 +3,10 @@ package services
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
@@ -138,6 +140,8 @@ func startEntraIDService(ctx context.Context, reg *metrics.Registry, process *se
 		}
 	}
 
+	syncIntervals := entraSyncIntervals(ctx, spec.SyncSettings.SyncIntervals, logger)
+
 	// Construct the main Entra ID service
 
 	svc, err := entraid.New(entraid.Config{
@@ -147,6 +151,8 @@ func startEntraIDService(ctx context.Context, reg *metrics.Registry, process *se
 		AccessGraphSynchronizer: tagSynchronizer,
 		SemaphoreSvc:            authServer,
 		HostID:                  conn.HostUUID(),
+		Clock:                   process.Clock,
+		SyncIntervals:           &syncIntervals,
 	})
 	if err != nil {
 		if statusSink != nil {
@@ -295,4 +301,57 @@ func makeCredentialProvider(
 	}
 
 	return credential, nil
+}
+
+func entraSyncIntervals(ctx context.Context, in *types.PluginEntraIDSyncIntervals, logger *slog.Logger) entraid.SyncIntervals {
+	if in == nil {
+		return entraid.SyncIntervals{Full: entraid.DefaultFullSyncInterval}
+	}
+	// Empty full and delta interval is expected in existing plugin installation.
+	if in.Delta == "" && in.Full == "" {
+		return entraid.SyncIntervals{Full: entraid.DefaultFullSyncInterval}
+	}
+
+	syncIntervals := entraid.SyncIntervals{
+		Delta: parseIntervals(ctx, in.Delta, "delta", logger),
+		Full:  parseIntervals(ctx, in.Full, "full", logger),
+	}
+
+	if syncIntervals.Full == 0 && syncIntervals.Delta == 0 {
+		// Note: full=0 and delta=0 config is allowed to be able
+		// to support "pause" behavior, which is not implemented yet.
+		// 5 minutes remains the default backward compatibility.
+		logger.WarnContext(ctx, `Entra ID service requires at least one full or delta sync interval. `+
+			`Service will fallback to full sync running at 5 minutes interval.`)
+		syncIntervals.Full = entraid.DefaultFullSyncInterval
+	}
+
+	if syncIntervals.Delta > 0 &&
+		syncIntervals.Full > 0 &&
+		syncIntervals.Delta >= syncIntervals.Full {
+
+		logger.WarnContext(ctx, `Delta sync interval is equal or greater than full sync, `+
+			`delta sync will be skipped.`)
+		syncIntervals.Delta = 0
+	}
+
+	return syncIntervals
+}
+
+func parseIntervals(ctx context.Context, interval string, syncMode string, logger *slog.Logger) time.Duration {
+	if interval == "" {
+		return 0
+	}
+
+	d, err := time.ParseDuration(interval)
+	if err != nil {
+		logger.ErrorContext(ctx,
+			`Failed to parse sync interval`,
+			"sync_mode", syncMode,
+			"error", err,
+			"interval", interval)
+		return 0
+	}
+
+	return d
 }

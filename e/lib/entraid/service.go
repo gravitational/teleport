@@ -13,13 +13,14 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/e/lib/entraid/accessgraph"
 	"github.com/gravitational/teleport/e/lib/entraid/directory"
+	"github.com/gravitational/teleport/e/lib/mdmsync"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/lib/services"
 )
 
 const (
-	// syncInterval is the interval at which periodic synchronizations of Entra ID data happen.
-	syncInterval = 5 * time.Minute
+	// DefaultFullSyncInterval is the interval at which periodic synchronizations of Entra ID data happen.
+	DefaultFullSyncInterval = 5 * time.Minute
 
 	// semaphoreName is the name of the semaphore used by the Entra ID sync service.
 	semaphoreName = "entra_id_sync"
@@ -28,8 +29,16 @@ const (
 	semaphoreExpiration = time.Minute
 )
 
+// SyncIntervals configures Entra ID service sync intervals.
+type SyncIntervals struct {
+	// Delta is the delta sync interval.
+	Delta time.Duration
+	// Full is the full sync interval.
+	Full time.Duration
+}
+
 type directoryReconciler interface {
-	Reconcile(ctx context.Context) error
+	Reconcile(ctx context.Context, syncMode mdmsync.SyncMode) error
 	ImportedUsers() int
 	ImportedGroups() int
 }
@@ -45,6 +54,7 @@ type Config struct {
 	SemaphoreSvc     types.Semaphores
 	HostID           string
 	Logger           *slog.Logger
+	SyncIntervals    *SyncIntervals
 
 	// Sub-components
 
@@ -79,6 +89,14 @@ func (cfg *Config) SetDefaults() {
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
 	}
+
+	if cfg.SyncIntervals == nil {
+		cfg.SyncIntervals = &SyncIntervals{
+			// backfill existing default.
+			Full:  DefaultFullSyncInterval,
+			Delta: 0,
+		}
+	}
 }
 
 // Service is the implementation of Entra ID service.
@@ -91,6 +109,9 @@ type Service struct {
 
 	directoryReconciler     directoryReconciler
 	accessGraphSynchronizer accessGraphSynchronizer
+
+	// syncIntervals configures Entra ID sync intervals.
+	syncIntervals *mdmsync.Scheduler[*SyncIntervals]
 }
 
 // New returns a new Entra ID service.
@@ -100,6 +121,11 @@ func New(cfg Config) (*Service, error) {
 	}
 	cfg.SetDefaults()
 
+	scheduler, err := newScheduler(*cfg.SyncIntervals)
+	if err != nil {
+		return nil, trace.Wrap(err, "init entra id sync schedule")
+	}
+
 	svc := &Service{
 		clock:               cfg.Clock,
 		log:                 cfg.Logger,
@@ -107,6 +133,7 @@ func New(cfg Config) (*Service, error) {
 		semaphoreSvc:        cfg.SemaphoreSvc,
 		hostID:              cfg.HostID,
 		directoryReconciler: cfg.DirectoryReconciler,
+		syncIntervals:       scheduler,
 	}
 
 	// Be explicit and assign `accessGraphSynchronizer` only if the config field is non-nil
@@ -176,8 +203,7 @@ func (s *Service) runWithLock(ctx context.Context) error {
 
 	g, ctx := errgroup.WithContext(lease)
 	g.Go(func() error {
-		s.runDirectoryReconciler(ctx)
-		return nil
+		return trace.Wrap(s.runScheduled(ctx))
 	})
 	g.Go(func() error {
 		return trace.Wrap(s.runAccessGraphSync(ctx))
@@ -185,26 +211,39 @@ func (s *Service) runWithLock(ctx context.Context) error {
 	return trace.Wrap(g.Wait())
 }
 
-// runDirectoryReconciler periodically runs the directory reconciler until the context is canceled.
-func (s *Service) runDirectoryReconciler(ctx context.Context) {
-	ticker := s.clock.NewTicker(syncInterval)
-	defer ticker.Stop()
-	for {
-		start := s.clock.Now()
-		s.log.InfoContext(ctx, "Starting Entra ID directory sync")
-		err := s.directoryReconciler.Reconcile(ctx)
-		partialSuccess := s.directoryReconciler.ImportedUsers() > 0 || s.directoryReconciler.ImportedGroups() > 0
-		if err != nil {
-			s.logFailedSync(ctx, err, partialSuccess)
-		}
-		took := s.clock.Since(start)
-		s.log.InfoContext(ctx, "Entra ID directory sync finished", "took", took.String(), "imported_users", s.directoryReconciler.ImportedUsers(), "imported_groups", s.directoryReconciler.ImportedGroups())
+func newScheduler(syncIntervals SyncIntervals) (*mdmsync.Scheduler[*SyncIntervals], error) {
+	// TODO(sshah): add a default delay and let the test customize the duration.
+	delayFn := func() time.Duration { return 0 /* start immediately */ }
+	return mdmsync.New(
+		[]*SyncIntervals{&syncIntervals}, delayFn, func(e *SyncIntervals) mdmsync.EntryInfo {
+			return mdmsync.EntryInfo{
+				SyncPeriodPartial: syncIntervals.Delta,
+				SyncPeriodFull:    syncIntervals.Full,
+			}
+		})
+}
 
-		s.emitStatus(ctx, err, partialSuccess)
+func (s *Service) runScheduled(ctx context.Context) error {
+	for {
+		offset := s.syncIntervals.NextOffset()
 		select {
+		case <-s.clock.After(offset):
+			start := s.clock.Now()
+			e := s.syncIntervals.Next()
+
+			s.log.InfoContext(ctx, "Starting Entra ID directory sync", "sync_mode", e.Mode)
+			err := s.directoryReconciler.Reconcile(ctx, e.Mode)
+			// TODO(sshah): process errors based on delta or full sync.
+			partialSuccess := s.directoryReconciler.ImportedUsers() > 0 || s.directoryReconciler.ImportedGroups() > 0
+			if err != nil {
+				s.logFailedSync(ctx, err, partialSuccess)
+			}
+			took := s.clock.Since(start)
+			s.log.InfoContext(ctx, "Entra ID directory sync finished", "sync_mode", e.Mode, "took", took.String(), "imported_users", s.directoryReconciler.ImportedUsers(), "imported_groups", s.directoryReconciler.ImportedGroups())
+
+			s.emitStatus(ctx, err, partialSuccess)
 		case <-ctx.Done():
-			return
-		case <-ticker.Chan():
+			return ctx.Err()
 		}
 	}
 }

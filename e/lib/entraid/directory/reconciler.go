@@ -15,6 +15,7 @@ import (
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/e/lib/mdmsync"
 	"github.com/gravitational/teleport/lib/msgraph/models"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/plugins/filter"
@@ -178,7 +179,7 @@ func New(cfg Config) (*Reconciler, error) {
 
 // Reconcile does a one-time reconciliation of users and access lists
 // from Entra ID to Teleport.
-func (r *Reconciler) Reconcile(ctx context.Context) (err error) {
+func (r *Reconciler) Reconcile(ctx context.Context, _ mdmsync.SyncMode) (err error) {
 	defer func() {
 		r.metrics.reconciliationCount.With(prometheus.Labels{
 			metricLabelResult: metricLabelResultFromError(err),

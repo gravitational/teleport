@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/lib/mdmsync"
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -34,7 +35,7 @@ func (r *fakeDirectoryReconciler) ImportedGroups() int {
 	return r.importedGroups
 }
 
-func (r *fakeDirectoryReconciler) Reconcile(ctx context.Context) error {
+func (r *fakeDirectoryReconciler) Reconcile(ctx context.Context, _ mdmsync.SyncMode) error {
 	atomic.AddInt64(&r.timesCalled, 1)
 	return trace.Wrap(r.err)
 }
@@ -57,6 +58,11 @@ func TestServiceRetryAndCancelation(t *testing.T) {
 		err: errors.New("something bad happened"),
 	}
 
+	shedules, err := newScheduler(SyncIntervals{
+		Full:  DefaultFullSyncInterval,
+		Delta: 0,
+	})
+	require.NoError(t, err)
 	svc := &Service{
 		clock:                   clock,
 		log:                     logtest.NewLogger(),
@@ -65,6 +71,7 @@ func TestServiceRetryAndCancelation(t *testing.T) {
 		hostID:                  "foo",
 		directoryReconciler:     directoryReconciler,
 		accessGraphSynchronizer: &fakeTAGSynchronizer{},
+		syncIntervals:           shedules,
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -81,7 +88,7 @@ func TestServiceRetryAndCancelation(t *testing.T) {
 	}, time.Second, time.Second/100)
 
 	// Advance to the next sync interval
-	clock.Advance(syncInterval)
+	clock.Advance(DefaultFullSyncInterval)
 
 	// Expect directory reconciler to get called a second time.
 	require.Eventually(t, func() bool {
@@ -111,6 +118,12 @@ func TestDirectoryReconcilerStatus(t *testing.T) {
 
 	statusSink := &integration.FakeStatusSink{}
 
+	shedules, err := newScheduler(SyncIntervals{
+		Full:  DefaultFullSyncInterval,
+		Delta: 0,
+	})
+	require.NoError(t, err)
+
 	svc := &Service{
 		clock:                   clock,
 		log:                     logtest.NewLogger(),
@@ -119,9 +132,11 @@ func TestDirectoryReconcilerStatus(t *testing.T) {
 		hostID:                  "foo",
 		directoryReconciler:     directoryReconciler,
 		accessGraphSynchronizer: &fakeTAGSynchronizer{},
+		syncIntervals:           shedules,
 	}
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	go func() {
 		svc.Run(ctx)
@@ -145,7 +160,7 @@ func TestDirectoryReconcilerStatus(t *testing.T) {
 
 	// Mock an error and advance to the next sync interval
 	directoryReconciler.err = errors.New("something bad happened")
-	clock.Advance(syncInterval)
+	clock.Advance(DefaultFullSyncInterval)
 
 	// Expect directory reconciler to get called a second time.
 	require.Eventually(t, func() bool {
