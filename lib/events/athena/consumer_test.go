@@ -217,8 +217,8 @@ func Test_consumer_sqsMessagesCollector(t *testing.T) {
 		go r.Do(eventsChan)
 
 		// When over 100 unique days are sent
-		eventsToSend := make([]apievents.AuditEvent, 0, 101)
-		for i := range 101 {
+		eventsToSend := make([]apievents.AuditEvent, 0, 21)
+		for i := range 21 {
 			day := fclock.Now().Add(time.Duration(i) * 24 * time.Hour)
 			eventsToSend = append(eventsToSend, &apievents.AppCreate{Metadata: apievents.Metadata{Type: events.AppCreateEvent, Time: day}, AppMetadata: apievents.AppMetadata{AppName: "app1"}})
 		}
@@ -226,12 +226,50 @@ func Test_consumer_sqsMessagesCollector(t *testing.T) {
 		fclock.BlockUntil(cfg.noOfWorkers)
 		fclock.Advance(maxWaitTimeOnReceiveMessagesInFake)
 		require.Eventually(t, func() bool {
-			return len(r.GetMsgs()) == 101
+			return len(r.GetMsgs()) == 21
 		}, maxWaitOnResults, 1*time.Millisecond)
 
 		// Then
 		// Make sure that channel is closed.
 		require.Eventually(t, channelClosedCondition(t, eventsChan), maxWaitOnResults, 1*time.Millisecond)
+	})
+
+	t.Run("verify if collector finishes execution (via closing channel) upon reaching maxBatchBytes", func(t *testing.T) {
+
+		fclock := clockwork.NewFakeClock()
+		fq := &fakeSQS{
+			clock:       fclock,
+			maxWaitTime: maxWaitTimeOnReceiveMessagesInFake,
+		}
+		cfg := validCollectCfgForTests(t)
+		cfg.sqsReceiver = fq
+		cfg.batchMaxItems = 1000
+		cfg.maxBatchBytes = 1 // 1 byte — any event proto payload exceeds this
+		require.NoError(t, cfg.CheckAndSetDefaults())
+		c := newSqsMessagesCollector(cfg)
+		eventsChan := c.getEventsChan()
+
+		readSQSCtx, readCancel := context.WithCancel(context.Background())
+		defer readCancel()
+		go c.fromSQS(readSQSCtx)
+
+		r := &receiver{}
+		go r.Do(eventsChan)
+
+		wantEvents := []apievents.AuditEvent{
+			&apievents.AppCreate{Metadata: apievents.Metadata{Type: events.AppCreateEvent}, AppMetadata: apievents.AppMetadata{AppName: "app1"}},
+			&apievents.AppCreate{Metadata: apievents.Metadata{Type: events.AppCreateEvent}, AppMetadata: apievents.AppMetadata{AppName: "app2"}},
+			&apievents.AppCreate{Metadata: apievents.Metadata{Type: events.AppCreateEvent}, AppMetadata: apievents.AppMetadata{AppName: "app3"}},
+		}
+		fq.addEvents(wantEvents...)
+		fclock.BlockUntilContext(t.Context(), cfg.noOfWorkers)
+		fclock.Advance(maxWaitTimeOnReceiveMessagesInFake)
+		require.Eventually(t, func() bool {
+			return len(r.GetMsgs()) == 3
+		}, maxWaitOnResults, 1*time.Millisecond)
+
+		require.Eventually(t, channelClosedCondition(t, eventsChan), maxWaitOnResults, 1*time.Millisecond)
+		requireEventsEqualInAnyOrder(t, wantEvents, eventAndAckIDToAuditEvents(r.GetMsgs()))
 	})
 }
 
