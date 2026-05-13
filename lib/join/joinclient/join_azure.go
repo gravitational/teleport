@@ -17,7 +17,9 @@
 package joinclient
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
 	"crypto/x509"
 	"net/http"
 
@@ -66,7 +68,7 @@ func azureJoin(ctx context.Context, stream messages.ClientStream, joinParams Joi
 	if err != nil {
 		return nil, trace.Wrap(err, "getting attested data document")
 	}
-	intermediate, err := getIntermediate(ctx, joinParams.AzureParams.IssuerHTTPClient, ad)
+	intermediate, err := getIntermediateChain(ctx, joinParams.AzureParams.IssuerHTTPClient, ad)
 	if err != nil {
 		return nil, trace.Wrap(err, "getting intermediate CA for attested data")
 	}
@@ -87,7 +89,7 @@ func azureJoin(ctx context.Context, stream messages.ClientStream, joinParams Joi
 	return result, trace.Wrap(err, "receiving join result")
 }
 
-func getIntermediate(ctx context.Context, httpClient utils.HTTPDoClient, ad []byte) ([]byte, error) {
+func getIntermediateChain(ctx context.Context, httpClient utils.HTTPDoClient, ad []byte) ([]byte, error) {
 	_, p7, err := azurejoin.ParseAttestedData(ad)
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing attested data document")
@@ -100,36 +102,76 @@ func getIntermediate(ctx context.Context, httpClient utils.HTTPDoClient, ad []by
 		return nil, trace.Errorf("attested data leaf certificate has no issuing certificate URL")
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, leafCert.IssuingCertificateURL[0], nil /*body*/)
+	// mostly arbitrary, meant as a sanity check against infinite loops
+	const maxDepth = 10
+	// track which certificates we've seen to detect cycles
+	seen := make(map[[32]byte]struct{})
+	cert := leafCert
+	var chainDER []byte
+	for range maxDepth {
+		if len(cert.IssuingCertificateURL) == 0 {
+			break
+		}
+
+		if httpClient == nil {
+			httpClient, err = defaults.HTTPClient()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+
+		issuer, err := fetchIssuerCert(ctx, httpClient, cert.IssuingCertificateURL[0])
+		if err != nil {
+			return nil, trace.Wrap(err, "fetching intermediate")
+		}
+
+		// we don't want to include the root in the chain, so we stop if we
+		// find it
+		if bytes.Equal(issuer.RawSubject, issuer.RawIssuer) {
+			break
+		}
+		fp := sha256.Sum256(cert.Raw)
+		if _, ok := seen[fp]; ok {
+			return nil, trace.Errorf("found cycle in intermediate chain")
+		}
+		seen[fp] = struct{}{}
+		chainDER = append(chainDER, issuer.Raw...)
+		cert = issuer
+	}
+
+	if len(chainDER) == 0 {
+		return nil, trace.Errorf("attested data certificate has no intermediate chain")
+	}
+	return chainDER, nil
+}
+
+func fetchIssuerCert(ctx context.Context, httpClient utils.HTTPDoClient, issuerURL string) (*x509.Certificate, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, issuerURL, nil /*body*/)
 	if err != nil {
 		return nil, trace.Wrap(err, "building HTTP request")
 	}
 
-	if httpClient == nil {
-		httpClient, err = defaults.HTTPClient()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	resp, err := httpClient.Do(req)
+	res, err := httpClient.Do(req)
 	if err != nil {
 		return nil, trace.Wrap(err, "fetching intermediate certificate")
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, trace.Errorf("failed to fetch intermediate cert, got HTTP status code %d", resp.StatusCode)
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, trace.Errorf("failed to fetch intermediate cert, got HTTP status code %d", res.StatusCode)
 	}
 
-	body, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPResponseSize)
+	body, err := utils.ReadAtMost(res.Body, teleport.MaxHTTPResponseSize)
 	if err != nil {
 		return nil, trace.Wrap(err, "reading HTTP response body")
 	}
 
-	if _, err := x509.ParseCertificates(body); err != nil {
+	intermediates, err := x509.ParseCertificates(body)
+	if err != nil {
 		return nil, trace.Wrap(err, "parsing intermediate certificate")
 	}
 
-	return body, nil
+	if len(intermediates) != 1 {
+		return nil, trace.Errorf("expected 1 intermediate, found %d", len(intermediates))
+	}
+	return intermediates[0], nil
 }
