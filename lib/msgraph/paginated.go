@@ -414,14 +414,13 @@ func (c *Client) SetupLatestDelta(ctx context.Context, endpoint string, ds Delta
 		return trace.BadParameter("missing delta store")
 	}
 
-	// Wipe out existing cache but preserve older link on error.
+	// Preserve older link on error.
 	oldLink := ds.Get(endpoint)
 	defer func() {
 		if err != nil && oldLink != "" {
 			ds.Set(endpoint, oldLink)
 		}
 	}()
-	ds.Clear(endpoint)
 
 	// Configure URL. At minimum, this needs $deltatoken=latest
 	// and $select query passed by the caller.
