@@ -346,9 +346,24 @@ message Kubernetes {
   }
   // A rule that a joining node must match in order to use the associated token
   // with the "kubernetes" join method.
+  //
+  // Either `service_account` or both `service_account_name` and
+  // `service_account_namespace` must be specified.
   message Rule {
     // The namespaced name of the Kubernetes service account. Its format is "namespace:service-account".
     string service_account = 1;
+    // The name of the Kubernetes service account.
+    //
+    // This field supports "glob-style" matching:
+    // - Use '*' to match zero or more characters.
+    // - Use '?' to match any single character.
+    string service_account_name = 2;
+    // The namespace of the Kubernetes service account.
+    //
+    // This field supports "glob-style" matching:
+    // - Use '*' to match zero or more characters.
+    // - Use '?' to match any single character.
+    string service_account_namespace = 3;
   }
   // A list of Rules for allowing use of this token. A node must match at least one
   // allow rule in order to use this token.
