@@ -1,4 +1,4 @@
-.version: &version "18.8.0-dev.angelgnu.2"
+.version: &version "18.8.0-dev.angelgnu.3"
 
 name: tbot
 apiVersion: v2
