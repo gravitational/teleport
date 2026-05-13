@@ -202,6 +202,7 @@ func TestCreateBeam(t *testing.T) {
 	require.Equal(t, beam.GetStatus().GetNodeId(), node.GetName())
 	require.Equal(t, beam.GetStatus().GetSshAddr(), node.GetAddr())
 	require.Equal(t, expectedLabels, node.GetStaticLabels())
+	require.Equal(t, storedBeam.GetMetadata().GetName(), node.GetMetadata().Name)
 }
 
 func TestCreateBeamRetriesAliasCollision(t *testing.T) {

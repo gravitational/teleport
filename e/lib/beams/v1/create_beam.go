@@ -76,7 +76,6 @@ retry:
 	logger := s.logger.With("beam_id", beam.GetMetadata().GetName())
 
 	// Call the compute service to provision the beam microVM.
-	nodeName := uuid.NewString()
 	provisionRsp, err := s.computeService.ProvisionBeam(ctx, &compute.ProvisionBeamRequest{
 		BeamId:    beam.GetMetadata().GetName(),
 		BeamAlias: beam.GetStatus().GetAlias(),
@@ -85,7 +84,7 @@ retry:
 			RegistrationSecret:   regSecret,
 			DelegationSessionId:  beam.GetStatus().GetDelegationSessionId(),
 			WorkloadIdentityName: beam.GetStatus().GetWorkloadIdentityName(),
-			NodeId:               nodeName,
+			NodeId:               beam.GetMetadata().GetName(),
 		},
 	})
 	if err != nil {
@@ -131,7 +130,7 @@ retry:
 
 	// Create a node so we can SSH into the beam, and update the beam's status.
 	node, err := types.NewNode(
-		nodeName,
+		beam.GetMetadata().GetName(),
 		types.SubKindOpenSSHNode,
 		types.ServerSpecV2{
 			Addr:     provisionRsp.GetSshAddr(),
