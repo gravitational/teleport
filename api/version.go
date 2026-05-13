@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "19.0.1-angel.gnu.1"
+const Version = "19.0.1-angel.gnu.2"
 
 const VersionMajor = 19
 const VersionMinor = 0
 const VersionPatch = 1
-const VersionPreRelease = "angel.gnu.1"
+const VersionPreRelease = "angel.gnu.2"
 const VersionMetadata = ""
