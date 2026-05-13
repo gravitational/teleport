@@ -1046,28 +1046,28 @@ func (l LiteralExpr[TEnv, T]) Evaluate(TEnv) (T, error) {
 	return l.Value, nil
 }
 
-type LazyStringSlice interface {
+type StringSlice interface {
 	Slice() []string
 	Contains(target string) bool
 }
 
-type stringSliceAsLazyStringSlice []string
+type actualStringSlice []string
 
-func (s stringSliceAsLazyStringSlice) Slice() []string {
+func (s actualStringSlice) Slice() []string {
 	return s
 }
 
-func (s stringSliceAsLazyStringSlice) Contains(target string) bool {
+func (s actualStringSlice) Contains(target string) bool {
 	return slices.Contains(s, target)
 }
 
-type stringAsLazyStringSlice string
+type stringAsStringSlice string
 
-func (s stringAsLazyStringSlice) Slice() []string {
+func (s stringAsStringSlice) Slice() []string {
 	return []string{string(s)}
 }
 
-func (s stringAsLazyStringSlice) Contains(target string) bool {
+func (s stringAsStringSlice) Contains(target string) bool {
 	return string(s) == target
 }
 
@@ -1084,21 +1084,24 @@ func coerce[TEnv, TArg any](arg any) (Expression[TEnv, TArg], error) {
 
 	{
 		var expr Expression[TEnv, TArg]
+		// this is a runtime check to know if TArg is []string; if it is, we can
+		// write an Expression[TEnv, []string] through typedExpr and then expr
+		// will be the Expression[TEnv, TArg] to return, without having to do a
+		// second type assertion
 		typedExpr, ok := any(&expr).(*Expression[TEnv, []string])
 		if ok {
-			// If we are expecting a []string and given a string, wrap it in a slice.
-			// This happens at parse time without reflection during evaluation.
-			// It's probably possible to do this for any slice type with heavy use
-			// of reflect, but for now []string is sufficient.
+			switch arg := arg.(type) {
+			// If we are expecting a []string and given a string or an
+			// expression returning a string, we wrap it in a slice. This
+			// happens at parse time without reflection during evaluation. It's
+			// probably possible to do this for any slice type with heavy use of
+			// reflect, but for now []string is sufficient.
 			//
 			// This enables functions like strings.upper(str) to accept lists or
-			// single strings, which is common in existing predicate expressions.
-			switch arg := arg.(type) {
+			// single strings, which is common in existing predicate
+			// expressions.
 			case string:
 				*typedExpr = LiteralExpr[TEnv, []string]{[]string{arg}}
-			case []string:
-				// This case will be necessary if we caught a slice literal.
-				*typedExpr = LiteralExpr[TEnv, []string]{arg}
 			case Expression[TEnv, string]:
 				*typedExpr = dynamicVariable[TEnv, []string]{
 					func(env TEnv) ([]string, error) {
@@ -1109,7 +1112,13 @@ func coerce[TEnv, TArg any](arg any) (Expression[TEnv, TArg], error) {
 						return []string{str}, nil
 					},
 				}
-			case Expression[TEnv, LazyStringSlice]:
+			// This case will be necessary if we caught a slice literal.
+			case []string:
+				*typedExpr = LiteralExpr[TEnv, []string]{arg}
+			// This case is if we have an expression returning a [StringSlice]
+			// but we're expecting a []string. There's no way to get a
+			// StringSlice literal, so we don't have to deal with that.
+			case Expression[TEnv, StringSlice]:
 				*typedExpr = dynamicVariable[TEnv, []string]{
 					accessor: func(env TEnv) ([]string, error) {
 						lss, err := arg.Evaluate(env)
@@ -1129,31 +1138,37 @@ func coerce[TEnv, TArg any](arg any) (Expression[TEnv, TArg], error) {
 
 	{
 		var expr Expression[TEnv, TArg]
-		typedExpr, ok := any(&expr).(*Expression[TEnv, LazyStringSlice])
+		// same type check as above, if this passes we know that TArg is StringSlice
+		typedExpr, ok := any(&expr).(*Expression[TEnv, StringSlice])
 		if ok {
 			switch arg := arg.(type) {
+			// Like what we do above when expecting a []string, we wrap string
+			// literals and string expressions into singleton [StringSlice]
+			// objects with the appropriate adapter.
 			case string:
-				*typedExpr = LiteralExpr[TEnv, LazyStringSlice]{stringAsLazyStringSlice(arg)}
-			case []string:
-				*typedExpr = LiteralExpr[TEnv, LazyStringSlice]{stringSliceAsLazyStringSlice(arg)}
+				*typedExpr = LiteralExpr[TEnv, StringSlice]{stringAsStringSlice(arg)}
 			case Expression[TEnv, string]:
-				*typedExpr = dynamicVariable[TEnv, LazyStringSlice]{
-					accessor: func(env TEnv) (LazyStringSlice, error) {
+				*typedExpr = dynamicVariable[TEnv, StringSlice]{
+					accessor: func(env TEnv) (StringSlice, error) {
 						str, err := arg.Evaluate(env)
 						if err != nil {
 							return nil, trace.Wrap(err)
 						}
-						return stringAsLazyStringSlice(str), nil
+						return stringAsStringSlice(str), nil
 					},
 				}
+			// These cases convert from []string literals or expressions into
+			// StringSlice.
+			case []string:
+				*typedExpr = LiteralExpr[TEnv, StringSlice]{actualStringSlice(arg)}
 			case Expression[TEnv, []string]:
-				*typedExpr = dynamicVariable[TEnv, LazyStringSlice]{
-					accessor: func(env TEnv) (LazyStringSlice, error) {
+				*typedExpr = dynamicVariable[TEnv, StringSlice]{
+					accessor: func(env TEnv) (StringSlice, error) {
 						ss, err := arg.Evaluate(env)
 						if err != nil {
 							return nil, trace.Wrap(err)
 						}
-						return stringSliceAsLazyStringSlice(ss), nil
+						return actualStringSlice(ss), nil
 					},
 				}
 			default:

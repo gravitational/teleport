@@ -1094,10 +1094,10 @@ func newResourceExpressionParser(opts ...func(*typical.ParserSpec[types.Resource
 			"exists": typical.UnaryFunction[types.ResourceWithLabels](func(value string) (bool, error) {
 				return value != "", nil
 			}),
-			"split": typical.BinaryFunction[types.ResourceWithLabels](func(value string, delimiter string) (typical.LazyStringSlice, error) {
+			"split": typical.BinaryFunction[types.ResourceWithLabels](func(value string, delimiter string) (typical.StringSlice, error) {
 				return &lazyStringSplit{value: value, delimiter: delimiter}, nil
 			}),
-			"contains": typical.BinaryFunction[types.ResourceWithLabels](func(list typical.LazyStringSlice, value string) (bool, error) {
+			"contains": typical.BinaryFunction[types.ResourceWithLabels](func(list typical.StringSlice, value string) (bool, error) {
 				return list.Contains(value), nil
 			}),
 			"__split_contains": typical.TernaryFunction[types.ResourceWithLabels](func(value string, delimiter string, target string) (bool, error) {
