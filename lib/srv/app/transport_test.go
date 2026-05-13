@@ -30,6 +30,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws/endpoints"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -255,11 +256,11 @@ func (noopAudit) OnSessionChunk(context.Context, string, string, *tlsca.Identity
 	return nil
 }
 
-func (noopAudit) OnRequest(context.Context, *common.SessionContext, *http.Request, uint32, *common.AWSResolvedEndpoint) error {
+func (noopAudit) OnRequest(context.Context, *common.SessionContext, *http.Request, uint32, *endpoints.ResolvedEndpoint) error {
 	return nil
 }
 
-func (noopAudit) OnDynamoDBRequest(context.Context, *common.SessionContext, *http.Request, uint32, *common.AWSResolvedEndpoint) error {
+func (noopAudit) OnDynamoDBRequest(context.Context, *common.SessionContext, *http.Request, uint32, *endpoints.ResolvedEndpoint) error {
 	return nil
 }
 
