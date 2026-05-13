@@ -32,6 +32,7 @@ import {
   IntegrationEnrollEventRequest,
   PageViewEventRequest,
   PreUserEvent,
+  UiInteractionEventRequest,
   UserEvent,
 } from './types';
 
@@ -48,7 +49,8 @@ function captureEvent({
     | FeatureRecommendationEventRequest
     | CreateNewRoleSaveClickEvent
     | AccessListEventRequest
-    | PageViewEventRequest;
+    | PageViewEventRequest
+    | UiInteractionEventRequest;
   path?: string;
 }) {
   // using api.fetch instead of api.fetchJSON
@@ -112,4 +114,7 @@ export const userEventService = {
       },
     });
   },
+  captureUiInteractionEvent(event: UiInteractionEventRequest) {
+    captureEvent({event})
+  }
 };
