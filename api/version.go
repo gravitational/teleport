@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "18.8.0-dev.angelgnu.4"
+const Version = "18.8.0-dev.angelgnu.5"
 
 const VersionMajor = 18
 const VersionMinor = 8
 const VersionPatch = 0
-const VersionPreRelease = "dev.angelgnu.4"
+const VersionPreRelease = "dev.angelgnu.5"
 const VersionMetadata = ""
