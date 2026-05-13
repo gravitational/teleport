@@ -182,20 +182,9 @@ func extractAndSortKubeClusters(kss []types.KubeServer) []types.KubeCluster {
 	return []types.KubeCluster(sorted)
 }
 
-type Pinger interface {
-	Ping(context.Context) (proto.PingResponse, error)
-}
-
 // GetKubeAgentVersion returns a version of the Kube agent appropriate for this Teleport cluster. Used for example when deciding version
 // for enrolling EKS clusters.
-func GetKubeAgentVersion(ctx context.Context, pinger Pinger) (*semver.Version, error) {
-	pingResponse, err := pinger.Ping(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	clusterVersion, err := version.EnsureSemver(pingResponse.ServerVersion)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to parse cluster version")
-	}
-	return clusterVersion, nil
+func GetKubeAgentVersion(ctx context.Context, versionGetter version.Getter) (*semver.Version, error) {
+	v, err := versionGetter.GetVersion(ctx)
+	return v, trace.Wrap(err)
 }

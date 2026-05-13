@@ -20,6 +20,7 @@ package web
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -29,6 +30,7 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
+	"github.com/coreos/go-semver/semver"
 	"github.com/google/safetext/shsprintf"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -45,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	autoupdateversion "github.com/gravitational/teleport/lib/automaticupgrades/version"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
@@ -760,6 +763,26 @@ func (h *Handler) awsOIDCConfigureEKSIAM(w http.ResponseWriter, r *http.Request,
 	return nil, trace.Wrap(err)
 }
 
+// handlerVersionGetter implements version.Getter by wrapping the Handler's autoupdate resolver
+// and falling back to teleport.Version (the proxy's own version) when no autoupdate target is configured.
+type handlerVersionGetter struct {
+	*Handler
+}
+
+// GetVersion implements version.Getter.
+func (h *handlerVersionGetter) GetVersion(ctx context.Context) (*semver.Version, error) {
+	const group, updaterUUID = "", ""
+	v, err := h.autoUpdateResolver.GetVersion(ctx, group, updaterUUID)
+	if err == nil {
+		return v, nil
+	}
+	var noNewVersionErr *autoupdateversion.NoNewVersionError
+	if !errors.As(trace.Unwrap(err), &noNewVersionErr) {
+		return nil, trace.Wrap(err)
+	}
+	return autoupdateversion.EnsureSemver(teleport.Version)
+}
+
 // awsOIDCEnrollEKSClusters enroll EKS clusters by installing teleport-kube-agent Helm chart on them.
 // v2 endpoint introduces "extraLabels" field.
 func (h *Handler) awsOIDCEnrollEKSClusters(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, cluster reversetunnelclient.Cluster) (any, error) {
@@ -780,7 +803,8 @@ func (h *Handler) awsOIDCEnrollEKSClusters(w http.ResponseWriter, r *http.Reques
 		return nil, trace.BadParameter("integration name is required")
 	}
 
-	agentVersion, err := kubeutils.GetKubeAgentVersion(ctx, h.cfg.ProxyClient)
+	versionGetter := &handlerVersionGetter{h}
+	agentVersion, err := kubeutils.GetKubeAgentVersion(ctx, versionGetter)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
