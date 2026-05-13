@@ -201,12 +201,12 @@ func (s *Server) handleListGroupMembers(w http.ResponseWriter, r *http.Request) 
 
 		switch member.(type) {
 		case *models.User:
-			memberData["@odata.type"] = "#microsoft.graph.user"
+			memberData["@odata.type"] = models.ODataUser
 		case *models.Group:
-			memberData["@odata.type"] = "#microsoft.graph.group"
+			memberData["@odata.type"] = models.ODataGroup
 		default:
 			// Default to user if unknown
-			memberData["@odata.type"] = "#microsoft.graph.user"
+			memberData["@odata.type"] = models.ODataUser
 		}
 
 		members = append(members, memberData)
@@ -812,10 +812,10 @@ func (s *FakeDeltaStore) Clear(endpoint string) {
 }
 
 func memberType(gm models.GroupMember) string {
-	memberType := "#microsoft.graph.user"
+	memberType := models.ODataUser
 	switch gm.(type) {
 	case *models.Group:
-		memberType = "#microsoft.graph.group"
+		memberType = models.ODataGroup
 	default:
 		// handle unknown member type
 	}
