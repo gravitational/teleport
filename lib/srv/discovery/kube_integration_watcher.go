@@ -408,6 +408,11 @@ func versionGetterForProxy(ctx context.Context, proxyPublicAddr string) (version
 		RawPath: path.Join("/webapi/automaticupgrades/channel", automaticupgrades.DefaultChannelName),
 	}
 
+	selfVersion, err := version.EnsureSemver(teleport.Version)
+	if err != nil {
+		return nil, trace.BadParameter("Cannot parse Teleport's self version %q, this is a bug", teleport.Version)
+	}
+
 	return proxyAgentVersionGetter{
 		primary: version.FailoverGetter{
 			// First try the new webapi (RFD-184).
@@ -416,14 +421,19 @@ func versionGetterForProxy(ctx context.Context, proxyPublicAddr string) (version
 			version.NewBasicHTTPVersionGetter(baseURL),
 		},
 		proxyClient: proxyClt,
+		selfVersion: selfVersion,
 	}, nil
 }
 
-// proxyAgentVersionGetter falls back to the proxy's own ServerVersion when the
-// primary chain reports no autoupdate version is configured.
+// proxyAgentVersionGetter walks three tiers of fallback.
+// On primary success it returns the proxy's advertised autoupdate target.
+// On NoNewVersionError it returns the proxy's own ServerVersion from /find.
+// If the proxy can't be reached at all, it returns the Discovery service's own Teleport version
+// so enrollment can still proceed instead of stalling.
 type proxyAgentVersionGetter struct {
 	primary     version.Getter
 	proxyClient *webclient.ReusableClient
+	selfVersion *semver.Version
 }
 
 func (g proxyAgentVersionGetter) GetVersion(ctx context.Context) (*semver.Version, error) {
@@ -431,13 +441,15 @@ func (g proxyAgentVersionGetter) GetVersion(ctx context.Context) (*semver.Versio
 	if err == nil {
 		return v, nil
 	}
+
 	var noNewVersionErr *version.NoNewVersionError
-	if !errors.As(trace.Unwrap(err), &noNewVersionErr) {
-		return nil, trace.Wrap(err)
+	if errors.As(trace.Unwrap(err), &noNewVersionErr) {
+		if resp, findErr := g.proxyClient.Find(); findErr == nil {
+			if pv, perr := version.EnsureSemver(resp.ServerVersion); perr == nil {
+				return pv, nil
+			}
+		}
 	}
-	resp, findErr := g.proxyClient.Find()
-	if findErr != nil {
-		return nil, trace.Wrap(findErr, "failed to fetch proxy ServerVersion as fallback")
-	}
-	return version.EnsureSemver(resp.ServerVersion)
+
+	return g.selfVersion, nil
 }
