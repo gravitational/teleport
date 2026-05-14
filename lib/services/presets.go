@@ -975,7 +975,6 @@ func NewSystemBeamRole(buildType string) types.Role {
 		fmt.Sprintf(`contains_all(user.spec.traits[%q], host_cert.principals)`, types.BeamIDLabel),
 		`host_cert.host_id == ""`,
 		`host_cert.node_name == ""`,
-		`host_cert.role == "Node"`,
 	}, " && ")
 
 	role := &types.RoleV6{
