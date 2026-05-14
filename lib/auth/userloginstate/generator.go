@@ -371,6 +371,8 @@ func (g *Generator) postProcess(ctx context.Context, state *userloginstate.UserL
 	for _, role := range state.Spec.Roles {
 		if _, err := g.access.GetRole(ctx, role); err != nil {
 			if trace.IsNotFound(err) {
+				g.log.WarnContext(ctx, "!! postProcess: role not found, rejecting ULS write",
+					"user", state.GetName(), "missing_role", role)
 				return trace.Wrap(types.ErrNonExistingRoleAssigned)
 			}
 			return trace.Wrap(err)
@@ -488,6 +490,10 @@ func (g *Generator) Refresh(ctx context.Context, user types.User, ulsService ser
 	user.SetRoles(uls.GetRoles())
 	user.SetTraits(uls.GetTraits())
 
+	g.log.InfoContext(ctx, "!! writing ULS",
+		"user", uls.GetName(),
+		"roles", uls.GetRoles(),
+		"trigger", "refresh")
 	uls, err = ulsService.UpsertUserLoginState(ctx, uls)
 	return uls, trace.Wrap(err)
 }
