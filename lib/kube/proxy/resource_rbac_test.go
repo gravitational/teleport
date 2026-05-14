@@ -3990,8 +3990,10 @@ func TestSpecificCustomResourcesRBAC(t *testing.T) {
 	}
 }
 
-// TestProxySubresourceRBAC verifies that the pods/{name}/proxy/{path},
-// services/{name}/proxy/{path}, and nodes/{name}/proxy/{path}
+// TestProxySubresourceRBAC verifies that:
+// - pods/{name}/proxy/{path}
+// - services/{name}/proxy/{path}
+// - nodes/{name}/proxy/{path}
 // subresources require the KubeVerbProxy verb in kubernetes_resources.
 func TestProxySubresourceRBAC(t *testing.T) {
 	t.Parallel()
