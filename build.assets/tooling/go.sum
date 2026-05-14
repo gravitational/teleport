@@ -459,8 +459,8 @@ github.com/gravitational/kingpin/v2 v2.1.11-0.20230515143221-4ec6b70ecd33 h1:VFE
 github.com/gravitational/kingpin/v2 v2.1.11-0.20230515143221-4ec6b70ecd33/go.mod h1:0gyi0zQnjuFk8xrkNKamJoyUo382HRL7ATRpFZCw6tE=
 github.com/gravitational/license v0.0.0-20250329001817-070456fa8ec1 h1:Kt7aT9N7vbZmcMejGXnSAGap8TUwH3fMoHE8cQm14wc=
 github.com/gravitational/license v0.0.0-20250329001817-070456fa8ec1/go.mod h1:n4RXV6T3SJ/vrJqmc4vBeHpaBspxWENDD67ssQlXXkg=
-github.com/gravitational/predicate v1.3.4 h1:9N3JhBXNPcUh0w8DdlpnVmfnH9Z3xxbw43sD3E19VBE=
-github.com/gravitational/predicate v1.3.4/go.mod h1:cTQkp40X3YejTcWsZGvzAtfa28VXfBxT10H/Grt0Fzs=
+github.com/gravitational/predicate v1.4.0 h1:vyaPQ04DQq083k6CAcM0fyGYoSUt8ZsIdn1gSkDRE+g=
+github.com/gravitational/predicate v1.4.0/go.mod h1:cTQkp40X3YejTcWsZGvzAtfa28VXfBxT10H/Grt0Fzs=
 github.com/gravitational/roundtrip v1.0.3 h1:n5JLvJVs8XrnJxXGYOzb8I9zGMEr5WVhSA1qGuxzwnU=
 github.com/gravitational/roundtrip v1.0.3/go.mod h1:AR9OSmv3WN0qJObMyMYJUrPRXtzhdjAQSKIACv7F9b4=
 github.com/gravitational/trace v1.5.1 h1:CdSymAjkE1VOef+lsC5x29jX9WbgI0fBtnRqeT4Fh+c=

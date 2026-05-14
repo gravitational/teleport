@@ -312,4 +312,4 @@ replace github.com/gravitational/teleport => ../..
 
 replace github.com/gravitational/teleport/api => ../../api
 
-replace github.com/vulcand/predicate => github.com/gravitational/predicate v1.3.4
+replace github.com/vulcand/predicate => github.com/gravitational/predicate v1.4.0
