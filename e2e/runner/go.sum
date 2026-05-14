@@ -478,12 +478,12 @@ github.com/gravitational/go-libfido2 v1.5.3-teleport.1 h1:nPfxiTH2Sr3J6zan280fbH
 github.com/gravitational/go-libfido2 v1.5.3-teleport.1/go.mod h1:92J9LtSBl0UyUWljElJpTbMMNhC6VeY8dshsu40qjjo=
 github.com/gravitational/httprouter v1.3.1-0.20220408074523-c876c5e705a5 h1:qg8FcGwRACSHortU1UxCSo9nF0t34rPWjk9Nef3j2Ic=
 github.com/gravitational/httprouter v1.3.1-0.20220408074523-c876c5e705a5/go.mod h1:JR6WtHb+2LUe8TCKY3cZOxFyyO8IZAc4RVcycCCAKdM=
-github.com/gravitational/kingpin/v2 v2.1.11-0.20260417152838-9efcbe7e5d61 h1:cgG/o1SAL2WK9AtryT/esiuXqCN47f15EwppKgeom60=
-github.com/gravitational/kingpin/v2 v2.1.11-0.20260417152838-9efcbe7e5d61/go.mod h1:usbNrkVhUGh5+Pqd4u5tYKszWmq6YSCApkePRMmJFP8=
+github.com/gravitational/kingpin/v2 v2.1.11-0.20260507144047-1f18894764f5 h1:E7lyOeBLDh+3N3cAKT+dC343tAP5uJxyUJDGFxi+q5Y=
+github.com/gravitational/kingpin/v2 v2.1.11-0.20260507144047-1f18894764f5/go.mod h1:usbNrkVhUGh5+Pqd4u5tYKszWmq6YSCApkePRMmJFP8=
 github.com/gravitational/license v0.0.0-20250329001817-070456fa8ec1 h1:Kt7aT9N7vbZmcMejGXnSAGap8TUwH3fMoHE8cQm14wc=
 github.com/gravitational/license v0.0.0-20250329001817-070456fa8ec1/go.mod h1:n4RXV6T3SJ/vrJqmc4vBeHpaBspxWENDD67ssQlXXkg=
-github.com/gravitational/predicate v1.3.5-0.20260511125330-ddfb710e0084 h1:BRWNqpuSl2EETF4k059dNa0UnDcEfKJFs4DPVHPRU/E=
-github.com/gravitational/predicate v1.3.5-0.20260511125330-ddfb710e0084/go.mod h1:cTQkp40X3YejTcWsZGvzAtfa28VXfBxT10H/Grt0Fzs=
+github.com/gravitational/predicate v1.4.0 h1:vyaPQ04DQq083k6CAcM0fyGYoSUt8ZsIdn1gSkDRE+g=
+github.com/gravitational/predicate v1.4.0/go.mod h1:cTQkp40X3YejTcWsZGvzAtfa28VXfBxT10H/Grt0Fzs=
 github.com/gravitational/protobuf v1.3.2-teleport.2 h1:MO5eFXfGfDiAbBA7X8tDW2EMLfRWQVJMmK+MA6gV8AI=
 github.com/gravitational/protobuf v1.3.2-teleport.2/go.mod h1:P1XiOD3dCwIKUDQYPy72D8LYyHL2YPYrpS2s69NZV8Q=
 github.com/gravitational/roundtrip v1.0.3 h1:n5JLvJVs8XrnJxXGYOzb8I9zGMEr5WVhSA1qGuxzwnU=
