@@ -1,10 +1,13 @@
-# Those 4 vars are not exposed to the user.
+# Those vars are not exposed to the user.
 releaseName: ""
 releaseNamespace: ""
 versionServerOverride: false
 version: ""
 baseImage: ""
+# when not set, the updater defaults to "teleport"
+containerName: ""
 
+# Those vars are user-facing
 versionServer: "https://{{ .Values.proxyAddr }}/v1/webapi/automaticupgrades/channel"
 releaseChannel: "stable/cloud"
 group: ""
