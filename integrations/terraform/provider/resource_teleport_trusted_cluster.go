@@ -354,3 +354,38 @@ func (r resourceTeleportTrustedCluster) ImportState(ctx context.Context, req tfs
 		return
 	}
 }
+
+// ModifyPlan modifies the planned value, normalizing null values.
+func (r resourceTeleportTrustedCluster) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+	// If the entire plan is null, the resource is planned for destruction.
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	var plan types.Object
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Preserve the provider-managed ID, but rewrite all other fields from
+	// config so omitted or null values become explicit zero values in the plan.
+	id, hasID := plan.Attrs["id"]
+
+	trustedCluster := &apitypes.TrustedClusterV2{}
+	resp.Diagnostics.Append(tfschema.CopyTrustedClusterV2FromTerraform(ctx, plan, trustedCluster)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(tfschema.CopyTrustedClusterV2ToTerraform(ctx, trustedCluster, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if hasID {
+		plan.Attrs["id"] = id
+	}
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
+}

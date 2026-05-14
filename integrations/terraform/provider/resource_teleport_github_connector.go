@@ -354,3 +354,38 @@ func (r resourceTeleportGithubConnector) ImportState(ctx context.Context, req tf
 		return
 	}
 }
+
+// ModifyPlan modifies the planned value, normalizing null values.
+func (r resourceTeleportGithubConnector) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+	// If the entire plan is null, the resource is planned for destruction.
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	var plan types.Object
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Preserve the provider-managed ID, but rewrite all other fields from
+	// config so omitted or null values become explicit zero values in the plan.
+	id, hasID := plan.Attrs["id"]
+
+	githubConnector := &apitypes.GithubConnectorV3{}
+	resp.Diagnostics.Append(tfschema.CopyGithubConnectorV3FromTerraform(ctx, plan, githubConnector)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(tfschema.CopyGithubConnectorV3ToTerraform(ctx, githubConnector, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if hasID {
+		plan.Attrs["id"] = id
+	}
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
+}

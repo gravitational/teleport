@@ -347,3 +347,38 @@ func (r resourceTeleportUIConfig) ImportState(ctx context.Context, req tfsdk.Imp
 		return
 	}
 }
+
+// ModifyPlan modifies the planned value, normalizing null values.
+func (r resourceTeleportUIConfig) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+	// If the entire plan is null, the resource is planned for destruction.
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	var plan types.Object
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	// Preserve the provider-managed ID, but rewrite all other fields from
+	// config so omitted or null values become explicit zero values in the plan.
+	id, hasID := plan.Attrs["id"]
+
+	uiConfig := &apitypes.UIConfigV1{}
+	resp.Diagnostics.Append(tfschema.CopyUIConfigV1FromTerraform(ctx, plan, uiConfig)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	resp.Diagnostics.Append(tfschema.CopyUIConfigV1ToTerraform(ctx, uiConfig, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	if hasID {
+		plan.Attrs["id"] = id
+	}
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
+}
