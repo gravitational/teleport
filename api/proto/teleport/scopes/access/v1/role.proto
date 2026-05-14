@@ -89,6 +89,14 @@ message ScopedRoleDefaults {
   // SessionRecording configures the session recording strategy for all protocols that don't
   // explicitly set their session recording mode.
   SessionRecording session_recording = 2;
+
+  // DisconnectExpiredCert defines the default behavior of all protocols when certs expire for a session.
+  // If unset, cluster wide defaults are used.
+  optional bool disconnect_expired_cert = 3;
+
+  // Lock specifies the default locking mode for access sessions across all protocols that
+  // do not specify their own value. If unset, cluster wide defaults are used.
+  Lock lock = 4;
 }
 
 // ScopedRoleSSH groups all scoped role fields relevant to SSH access. Fields within the SSH block
@@ -136,6 +144,14 @@ message ScopedRoleSSH {
 
   // SessionRecording configures the session recording strategy for SSH sessions.
   SessionRecording session_recording = 13;
+
+  // DisconnectExpiredCert controls whether SSH sessions are disconnected when the
+  // user certificate expires.
+  // Defaults to value cluster wide auth preference if not set.
+  optional bool disconnect_expired_cert = 14;
+
+  // Lock configures the role's locking behavior for SSH sessions.
+  Lock lock = 15;
 }
 
 // The group of all scoped role fields relevant to kube access. Fields within the kube block
@@ -160,6 +176,12 @@ message ScopedRoleKube {
   // Must be a valid Go duration string (e.g. "30m", "1h"). If empty, the defaults block value
   // (or global default) applies.
   string client_idle_timeout = 5;
+
+  // DisconnectExpiredCert controls whether Kube sessions are disconnected when the user certificate expires.
+  optional bool disconnect_expired_cert = 6;
+
+  // Lock configures the role's locking behavior for kubernetes sessions.
+  Lock lock = 7;
 }
 
 // ScopedRule maps resources to verbs. This is the underlying type used to describe
@@ -213,6 +235,14 @@ message EnhancedRecording {
 
 // SessionRecording sets the session recording behavior.
 message SessionRecording {
-  // Mode sets the session recording mode. Allowed values: strict | best_effort.
+  // Mode sets the session recording mode. Allowed values: strict or best_effort.
+  string mode = 1;
+}
+
+// Lock controls locking mode for sessions authorized via this
+// scoped role.
+message Lock {
+  // Allowed values: strict or best_effort.
+  // Defaults to value cluster wide auth preference if not set.
   string mode = 1;
 }
