@@ -1507,7 +1507,7 @@ type fakeAzureCAChain struct {
 	rootCert      *x509.Certificate
 }
 
-const rootIssuerURL = "http://www.microsoft.com/pkiops/certs/root.ca"
+const rootIssuerURL = "http://www.microsoft.com/pkiops/certs/root.crt"
 
 func newFakeAzureCAChain(t *testing.T, issuerURLs ...string) *fakeAzureCAChain {
 	rootKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)

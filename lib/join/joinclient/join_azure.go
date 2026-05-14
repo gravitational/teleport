@@ -22,6 +22,8 @@ import (
 	"crypto/x509"
 	"log/slog"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -89,6 +91,54 @@ func azureJoin(ctx context.Context, stream messages.ClientStream, joinParams Joi
 	return result, trace.Wrap(err, "receiving join result")
 }
 
+func validateAzureCertIssuerURL(issuerURLString string) (string, error) {
+	// All active issuing certs are listed here
+	// https://www.microsoft.com/pkiops/docs/repository.htm
+	//
+	// The cert path always looks like the following, although this does not
+	// appear to be guaranteed by Microsoft.
+	// url: http://www.microsoft.com/pkiops/certs/<cert-name>.crt
+	//
+	// This code path is only used by the legacy join service which will be
+	// removed in v20, v18+ agents use the new join service where the joining
+	// client sends the intermediate CAs along with the request.
+	const (
+		allowedHost       = "www.microsoft.com"
+		allowedPathPrefix = "/pkiops/certs/"
+		allowedPathSuffix = ".crt"
+	)
+
+	issuerURL, err := url.Parse(issuerURLString)
+	if err != nil {
+		return "", trace.AccessDenied("url failed to parse")
+	}
+
+	switch issuerURL.Scheme {
+	case "http", "https":
+	default:
+		return "", trace.AccessDenied("invalid url scheme %q", issuerURL.Scheme)
+	}
+
+	if issuerURL.Host != allowedHost {
+		return "", trace.AccessDenied("invalid host %q", issuerURL.Host)
+	}
+
+	if !strings.HasPrefix(issuerURL.Path, allowedPathPrefix) ||
+		!strings.HasSuffix(issuerURL.Path, allowedPathSuffix) {
+		return "", trace.AccessDenied("invalid path, must match %s<name>%s",
+			allowedPathPrefix, allowedPathSuffix)
+	}
+
+	// Construct a new URL with only the scheme, host, and path to strip any
+	// possible extra fields like query params or fragments.
+	sanitizedURL := url.URL{
+		Scheme: issuerURL.Scheme,
+		Host:   allowedHost,
+		Path:   issuerURL.Path,
+	}
+	return sanitizedURL.String(), nil
+}
+
 func getIntermediateChain(ctx context.Context, httpClient utils.HTTPDoClient, ad []byte) ([]byte, error) {
 	_, p7, err := azurejoin.ParseAttestedData(ad)
 	if err != nil {
@@ -120,7 +170,10 @@ func getIntermediateChain(ctx context.Context, httpClient utils.HTTPDoClient, ad
 			break
 		}
 
-		url := cert.IssuingCertificateURL[0]
+		url, err := validateAzureCertIssuerURL(cert.IssuingCertificateURL[0])
+		if err != nil {
+			return nil, trace.BadParameter("invalid cert issuer URL: %s", cert.IssuingCertificateURL[0])
+		}
 		if _, ok := seen[url]; ok {
 			return nil, trace.Errorf("found cycle in intermediate chain")
 		}
