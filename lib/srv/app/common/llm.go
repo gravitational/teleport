@@ -24,6 +24,8 @@ import (
 
 // LLMRequest describes an inbound LLM API request being proxied to a provider.
 type LLMRequest struct {
+	// Format identifies the LLM format used on the request.
+	Format types.LLMFormat
 	// Provider identifies the LLM provider handling the request.
 	Provider types.LLMProvider
 	// Model is the resolved model name sent to the provider.
@@ -36,6 +38,8 @@ type LLMRequest struct {
 	MaxTokens int64
 	// Timeout is the maximum duration allowed for the request.
 	Timeout time.Duration
+	// TODO
+	EndpointType LLMEndpointType
 }
 
 // LLMResponse describes the outcome of a proxied LLM API request.
@@ -47,3 +51,13 @@ type LLMResponse struct {
 	// OutputTokenCount is the number of tokens produced in the response.
 	OutputTokenCount int
 }
+
+// LLMEndpointType reprensents a format endpoint type.
+type LLMEndpointType int
+
+const (
+	// LLMEndpointTypeUnsupportedi is an unsupported endpoint type.
+	LLMEndpointTypeUnsupported LLMEndpointType = iota
+	LLMEndpointTypeOpenAIResponses
+	LLMEndpointTypeOpenAIChatCompletions
+)

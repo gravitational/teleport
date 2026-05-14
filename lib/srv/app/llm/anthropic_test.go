@@ -28,6 +28,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/anthropics/anthropic-sdk-go/packages/ssestream"
@@ -328,7 +329,7 @@ func TestAnthropicStreamEvents(t *testing.T) {
 				Body:   io.NopCloser(strings.NewReader(tc.input)),
 			}
 			w := httptest.NewRecorder()
-			written, err := streamAnthropicSSEEvents(w, resp)
+			written, err := streamAnthropicSSEEvents(t.Context(), slog.Default(), w, resp, &mockReporter{})
 			tc.expectedErr(t, err)
 			tc.expectedOutput(t, w.Body.String())
 			require.Equal(t, int64(w.Body.Len()), written)
@@ -412,12 +413,144 @@ func TestAnthropicStreamBedrockEvents(t *testing.T) {
 				Body:   io.NopCloser(tc.input),
 			}
 			w := httptest.NewRecorder()
-			written, err := streamAnthropicSSEEvents(w, resp)
+			written, err := streamAnthropicSSEEvents(t.Context(), slog.Default(), w, resp, &mockReporter{})
 			tc.expectedErr(t, err)
 			tc.expectedOutput(t, w.Body.String())
 			require.Equal(t, int64(w.Body.Len()), written)
 		})
 	}
+}
+
+type mockReporter struct{}
+
+func (m *mockReporter) Report(context.Context, types.LLMFormat, usageReport) error { return nil }
+
+// recordingReporter captures every Report call so tests can assert on call
+// count, format, and usage payload.
+type recordingReporter struct {
+	mu      sync.Mutex
+	calls   []recordedReport
+	err     error
+	errOnce bool
+}
+
+type recordedReport struct {
+	format types.LLMFormat
+	usage  usageReport
+}
+
+func (r *recordingReporter) Report(_ context.Context, format types.LLMFormat, usage usageReport) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.calls = append(r.calls, recordedReport{format: format, usage: usage})
+	if r.errOnce {
+		r.errOnce = false
+		return r.err
+	}
+	return nil
+}
+
+func (r *recordingReporter) snapshot() []recordedReport {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]recordedReport, len(r.calls))
+	copy(out, r.calls)
+	return out
+}
+
+func TestAnthropicStreamUsageReport(t *testing.T) {
+	const (
+		startWithUsage = "event: message_start\n" +
+			`data: {"type":"message_start","message":{"id":"msg_1","usage":{"input_tokens":42,"output_tokens":0}}}` + "\n\n"
+		deltaOutput10 = "event: message_delta\n" +
+			`data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":10}}` + "\n\n"
+		deltaOutput25 = "event: message_delta\n" +
+			`data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":25}}` + "\n\n"
+		messageStop    = "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"
+		errorEvent     = "event: error\n" +
+			`data: {"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}` + "\n\n"
+		startNoUsage = "event: message_start\n" +
+			`data: {"type":"message_start","message":{"id":"msg_1"}}` + "\n\n"
+		startMalformed = "event: message_start\n" +
+			`data: {"type":"message_start","message":"not-an-object"}` + "\n\n"
+	)
+
+	for name, tc := range map[string]struct {
+		input         string
+		expectErr     require.ErrorAssertionFunc
+		expectedUsage usageReport
+	}{
+		"message_start then message_delta then message_stop": {
+			input:         startWithUsage + deltaOutput25 + messageStop,
+			expectErr:     require.NoError,
+			expectedUsage: usageReport{InputTokens: 42, OutputTokens: 25},
+		},
+		"two message_delta events: last value wins (not summed)": {
+			input:         startWithUsage + deltaOutput10 + deltaOutput25 + messageStop,
+			expectErr:     require.NoError,
+			expectedUsage: usageReport{InputTokens: 42, OutputTokens: 25},
+		},
+		"message_start only leaves output at zero": {
+			input:         startWithUsage + messageStop,
+			expectErr:     require.NoError,
+			expectedUsage: usageReport{InputTokens: 42, OutputTokens: 0},
+		},
+		"message_delta only leaves input at zero": {
+			input:         deltaOutput10 + messageStop,
+			expectErr:     require.NoError,
+			expectedUsage: usageReport{InputTokens: 0, OutputTokens: 10},
+		},
+		"error event mid-stream still reports usage seen so far": {
+			input:         startWithUsage + errorEvent,
+			expectErr:     require.Error,
+			expectedUsage: usageReport{InputTokens: 42, OutputTokens: 0},
+		},
+		"empty stream still reports zero usage once": {
+			input:         "",
+			expectErr:     require.NoError,
+			expectedUsage: usageReport{},
+		},
+		"message_start without usage key is treated as zero": {
+			input:         startNoUsage + deltaOutput10 + messageStop,
+			expectErr:     require.NoError,
+			expectedUsage: usageReport{InputTokens: 0, OutputTokens: 10},
+		},
+		"malformed message payload does not panic and reports zero input": {
+			input:         startMalformed + deltaOutput10 + messageStop,
+			expectErr:     require.NoError,
+			expectedUsage: usageReport{InputTokens: 0, OutputTokens: 10},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			resp := &http.Response{
+				Header: http.Header{"Content-Type": []string{"text/event-stream"}},
+				Body:   io.NopCloser(strings.NewReader(tc.input)),
+			}
+			reporter := &recordingReporter{}
+			w := httptest.NewRecorder()
+
+			_, err := streamAnthropicSSEEvents(t.Context(), slog.Default(), w, resp, reporter)
+			tc.expectErr(t, err)
+
+			calls := reporter.snapshot()
+			require.Len(t, calls, 1, "reporter must be called exactly once via defer, regardless of stream outcome")
+			require.Equal(t, types.LLMFormatAnthropic, calls[0].format)
+			require.Equal(t, tc.expectedUsage, calls[0].usage)
+		})
+	}
+
+	t.Run("reporter error is swallowed and does not fail the stream", func(t *testing.T) {
+		resp := &http.Response{
+			Header: http.Header{"Content-Type": []string{"text/event-stream"}},
+			Body:   io.NopCloser(strings.NewReader(startWithUsage + messageStop)),
+		}
+		reporter := &recordingReporter{err: errors.New("boom"), errOnce: true}
+		w := httptest.NewRecorder()
+
+		_, err := streamAnthropicSSEEvents(t.Context(), slog.Default(), w, resp, reporter)
+		require.NoError(t, err, "reporter errors must be logged, not surfaced to the client")
+		require.Len(t, reporter.snapshot(), 1)
+	})
 }
 
 func TestHandleAnthropicUnsupportedEndpoints(t *testing.T) {

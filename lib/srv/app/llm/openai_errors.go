@@ -120,7 +120,7 @@ func openAIErrorType(e *apiError) string {
 		return "invalid_request_error"
 	case errKindUnauthorized:
 		return "invalid_api_key"
-	case errKindRejected:
+	case errKindRejected, errKindRateLimitExeceeded:
 		return "rate_limit_exceeded"
 	case errKindUnsupportedEndpoint:
 		return "server_error"

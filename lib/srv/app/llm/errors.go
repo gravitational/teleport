@@ -46,6 +46,8 @@ const (
 	// errKindUnsupportedEndpoint means Teleport doesn't support the requested
 	// endpoint.
 	errKindUnsupportedEndpoint
+	// TODO(gabrielcorado): revisit this
+	errKindRateLimitExeceeded
 )
 
 // apiError is a sanitized error suitable for forwarding to clients in any of
@@ -131,7 +133,7 @@ func newUnsupportedEndpoint(cause error) *apiError {
 		cause:   cause,
 		kind:    errKindUnsupportedEndpoint,
 		status:  http.StatusNotFound,
-		message: "Teleport doesn't support the requested endpoint, please check the list of supported endpoints on our documentation.",
+		message: "Teleport doesn't support the requested endpoint, please check the list of supported endpoints in the documentation.",
 	}
 }
 
@@ -147,6 +149,15 @@ func newUnknown(cause error, status int) *apiError {
 	}
 }
 
+func newRateLimitExceeded(cause error, status int) *apiError {
+	return &apiError{
+		cause:   cause,
+		kind:    errKindRateLimitExeceeded,
+		status:  status,
+		message: cause.Error(),
+	}
+}
+
 // convertError handles errors that aren't tied to any specific provider
 // (context cancellation, trace errors thrown by validators).
 func convertError(err error) *apiError {
@@ -159,6 +170,10 @@ func convertError(err error) *apiError {
 		return newBadRequest(err, http.StatusBadRequest, err.Error())
 	case trace.IsNotFound(err):
 		return newUnsupportedEndpoint(err)
+	case trace.IsLimitExceeded(err):
+		// TODO(gabrielcorado): revisit this.
+		// Claude Code requires a 400 code to avoid retries.
+		return newRateLimitExceeded(err, http.StatusBadRequest)
 	}
 	return nil
 }

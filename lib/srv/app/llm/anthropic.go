@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -46,6 +47,7 @@ import (
 func (h *Handler) handleAnthropic(sessionCtx *common.SessionContext, w http.ResponseWriter, r *http.Request) {
 	llm := sessionCtx.App.GetLLM()
 	log := h.cfg.Log.With(
+		"app_name", sessionCtx.App.GetName(),
 		"format", llm.Format,
 		"provider", llm.Provider,
 		"method", r.Method,
@@ -73,7 +75,17 @@ func (h *Handler) handleAnthropic(sessionCtx *common.SessionContext, w http.Resp
 		return
 	}
 
-	err = h.executeAnthropicRequest(r.Context(), llm, req, w, r, body)
+	if err := h.canServeRequest(r.Context(), req); err != nil {
+		apiErr := respondAnthropicError(w, err)
+		auditErr := sessionCtx.Audit.OnLLMRequest(h.closeContext, sessionCtx, r, req, common.LLMResponse{Error: apiErr})
+		if auditErr != nil {
+			log.ErrorContext(r.Context(), "failed to emit audit event", "error", auditErr)
+		}
+		log.ErrorContext(r.Context(), "request rejected due to limits", "error", err)
+		return
+	}
+
+	err = h.executeAnthropicRequest(r.Context(), log, llm, req, w, r, body)
 	if err != nil {
 		// Here we unwrap the error to get the root cause, not the user-friendly
 		// message.
@@ -95,6 +107,7 @@ func (h *Handler) handleAnthropic(sessionCtx *common.SessionContext, w http.Resp
 func (h *Handler) prepareAnthropicRequest(llm *types.LLM, r *http.Request) (common.LLMRequest, *bytes.Buffer, error) {
 	auditReq := common.LLMRequest{
 		Provider: llm.Provider,
+		Format:   llm.Format,
 	}
 
 	_, supportedEndpoint := supportedAnthropicEndpoints[strings.TrimPrefix(r.URL.Path, "/v1")]
@@ -130,7 +143,7 @@ func (h *Handler) prepareAnthropicRequest(llm *types.LLM, r *http.Request) (comm
 	if !auditReq.Streaming {
 		var calcErr error
 		timeout, calcErr = anthropic.CalculateNonStreamingTimeout(int(auditReq.MaxTokens), resolvedModel, nil)
-		if calcErr != nil {
+		if calcErr != nil || auditReq.MaxTokens > maxNonStreamingTokens {
 			return auditReq, nil, trace.BadParameter("request needs to use streaming")
 		}
 	}
@@ -139,7 +152,7 @@ func (h *Handler) prepareAnthropicRequest(llm *types.LLM, r *http.Request) (comm
 	return auditReq, buf, nil
 }
 
-func (h *Handler) executeAnthropicRequest(ctx context.Context, llm *types.LLM, req common.LLMRequest, w http.ResponseWriter, r *http.Request, buf *bytes.Buffer) error {
+func (h *Handler) executeAnthropicRequest(ctx context.Context, log *slog.Logger, llm *types.LLM, req common.LLMRequest, w http.ResponseWriter, r *http.Request, buf *bytes.Buffer) error {
 	start := time.Now()
 	defer func() {
 		providerRequestDurationHist.WithLabelValues(
@@ -202,7 +215,7 @@ func (h *Handler) executeAnthropicRequest(ctx context.Context, llm *types.LLM, r
 		w.Header().Set("Cache-Control", "no-cache")
 		w.WriteHeader(raw.StatusCode)
 
-		written, err = streamAnthropicSSEEvents(w, raw)
+		written, err = streamAnthropicSSEEvents(ctx, log, w, raw, h)
 	default:
 		ct := raw.Header.Get("Content-Type")
 		if ct == "" {
@@ -211,9 +224,20 @@ func (h *Handler) executeAnthropicRequest(ctx context.Context, llm *types.LLM, r
 		w.Header().Set("Content-Type", ct)
 		w.WriteHeader(raw.StatusCode)
 
+		var respRecorder bytes.Buffer
+		writers := io.MultiWriter(w, &respRecorder)
+
 		// We cannot assure what was already written into the request, for this
 		// reason, don't forward errors.
-		written, err = io.Copy(w, raw.Body)
+		written, err = io.Copy(writers, raw.Body)
+
+		usage := usageReport{
+			InputTokens:  gjson.GetBytes(respRecorder.Bytes(), "usage.input_tokens").Int(),
+			OutputTokens: gjson.GetBytes(respRecorder.Bytes(), "usage.output_tokens").Int(),
+		}
+		if err := h.Report(ctx, types.LLMFormatAnthropic, usage); err != nil {
+			log.WarnContext(ctx, "failed to report usage", "error", err)
+		}
 	}
 
 	providerResponseSizeHist.WithLabelValues(
@@ -235,7 +259,7 @@ func (h *Handler) executeAnthropicRequest(ctx context.Context, llm *types.LLM, r
 //
 // Any error returned on the events stream causes the connection to be
 // interrupted.
-func streamAnthropicSSEEvents(w http.ResponseWriter, resp *http.Response) (int64, error) {
+func streamAnthropicSSEEvents(ctx context.Context, log *slog.Logger, w http.ResponseWriter, resp *http.Response, reporter usageReporter) (int64, error) {
 	rc := http.NewResponseController(w)
 	dec := ssestream.NewDecoder(resp)
 	defer dec.Close()
@@ -248,10 +272,20 @@ func streamAnthropicSSEEvents(w http.ResponseWriter, resp *http.Response) (int64
 		return n, trace.Wrap(rc.Flush())
 	}
 
-	var written int64
+	var (
+		written int64
+		usage   usageReport
+	)
+	defer func() {
+		if err := reporter.Report(ctx, types.LLMFormatAnthropic, usage); err != nil {
+			log.WarnContext(ctx, "failed to report usage", "error", err)
+		}
+	}()
+
 	for dec.Next() {
 		evt := dec.Event()
-		if evt.Type == "error" {
+		switch evt.Type {
+		case "error":
 			// Forward errors so clients can handle them mid-response.
 			apiErr := convertAnthropicErrorEvent(evt.Data)
 			n, _ := writeAndFlush(ssestream.Event{
@@ -260,6 +294,17 @@ func streamAnthropicSSEEvents(w http.ResponseWriter, resp *http.Response) (int64
 			})
 			written += n
 			return written, apiErr
+		case "message_start":
+			// This event will include the input tokens information.
+			//
+			// https://platform.claude.com/docs/en/api/messages/create#raw_message_start_event
+			usage.InputTokens = gjson.GetBytes(evt.Data, "message.usage.input_tokens").Int()
+		case "message_delta":
+			// Message delta progressively sends the accumulative output tokens
+			// information.
+			//
+			// https://platform.claude.com/docs/en/api/messages/create#raw_message_delta_event
+			usage.OutputTokens = gjson.GetBytes(evt.Data, "usage.output_tokens").Int()
 		}
 
 		eventWritten, err := writeAnthropicSSEEvent(w, evt)

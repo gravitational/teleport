@@ -77,6 +77,24 @@ var (
 		},
 		[]string{teleport.ComponentLabel, "format", "provider", "streaming"},
 	)
+	inputTokensCount = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Subsystem: llmSubsystem,
+			Name:      "input_tokens_count",
+			Help:      "Number of input tokens sent by clients.",
+		},
+		[]string{teleport.ComponentLabel, "format"},
+	)
+	outputTokensCount = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Subsystem: llmSubsystem,
+			Name:      "output_tokens_count",
+			Help:      "Number of output tokens sent by providers.",
+		},
+		[]string{teleport.ComponentLabel, "format"},
+	)
 )
 
 func init() {
@@ -85,5 +103,7 @@ func init() {
 		providerRequestDurationHist,
 		requestSizeHist,
 		providerResponseSizeHist,
+		inputTokensCount,
+		outputTokensCount,
 	)
 }

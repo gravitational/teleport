@@ -18,11 +18,15 @@ package llm
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
+	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -38,7 +42,12 @@ import (
 type Handler struct {
 	cfg          HandlerConfig
 	closeContext context.Context
-	openAIMux    *http.ServeMux
+
+	// TODO(gabrielcorado): use a persistent format for limiting LLM token consumption.
+	anthropicInputTokensCount  atomic.Int64
+	anthropicOutputTokensCount atomic.Int64
+	openAIInputTokensCount     atomic.Int64
+	openAIOutputTokensCount    atomic.Int64
 }
 
 // HandlerConfig configures dependencies for the LLM proxy handler.
@@ -50,6 +59,16 @@ type HandlerConfig struct {
 	// HTTPClient is the HTTP client used to issue requests to the upstream
 	// LLM provider. Defaults to a Teleport-configured client.
 	HTTPClient *http.Client
+	// InputTokensQuotaPerFormat defines the service-level input tokens quota
+	// per API format.
+	//
+	// TODO(gabrielcorado): revisit this.
+	InputTokensQuotaPerFormat int64
+	// OutputTokensQuotaPerFormat defines the service-level output tokens quota
+	// per API format.
+	//
+	// TODO(gabrielcorado): revisit this.
+	OutputTokensQuotaPerFormat int64
 }
 
 // CheckAndSetDefaults validates required dependencies and sets defaults.
@@ -71,6 +90,27 @@ func (c *HandlerConfig) CheckAndSetDefaults() error {
 		}
 		c.HTTPClient = client
 	}
+
+	// Defaults to 10M tokens.
+	c.InputTokensQuotaPerFormat = cmp.Or(c.InputTokensQuotaPerFormat, 10_000_000)
+	c.OutputTokensQuotaPerFormat = cmp.Or(c.OutputTokensQuotaPerFormat, 10_000_000)
+
+	if raw := os.Getenv(inputTokensQuotaEnvVar); raw != "" {
+		val, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil {
+			return trace.Wrap(err, "failed to parse %q environment setting", inputTokensQuotaEnvVar)
+		}
+		c.InputTokensQuotaPerFormat = val
+	}
+
+	if raw := os.Getenv(outputTokensQuotaEnvVar); raw != "" {
+		val, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil {
+			return trace.Wrap(err, "failed to parse %q environment setting", outputTokensQuotaEnvVar)
+		}
+		c.OutputTokensQuotaPerFormat = val
+	}
+
 	return nil
 }
 
@@ -83,7 +123,6 @@ func NewHandler(ctx context.Context, cfg HandlerConfig) (*Handler, error) {
 	return &Handler{
 		closeContext: ctx,
 		cfg:          cfg,
-		openAIMux:    newOpenAIMux(),
 	}, nil
 }
 
@@ -155,4 +194,16 @@ const (
 	// streaming request. Note that those type of requests can take long time
 	// to complete.
 	defaultStreamingRequestTimeout = 1 * time.Hour
+	// maxNonStreamingTokens represents the max tokens a non-streaming request
+	// can request/return.
+	maxNonStreamingTokens = 8192
+)
+
+const (
+	// inputTokensQuotaEnvVar is the name of the environment variable used to
+	// set the input tokens quota.
+	inputTokensQuotaEnvVar = "TELEPORT_BEAMS_BETA_INPUT_TOKENS_QUOTA"
+	// outputTokensQuotaEnvVar is the name of the environment variable used to
+	// set the output tokens quota.
+	outputTokensQuotaEnvVar = "TELEPORT_BEAMS_BETA_OUTPUT_TOKENS_QUOTA"
 )

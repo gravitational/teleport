@@ -22,8 +22,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -69,7 +71,18 @@ func (h *Handler) handleOpenAI(sessionCtx *common.SessionContext, w http.Respons
 		return
 	}
 
-	err = h.executeOpenAIRequest(r.Context(), llm, req, w, r, body)
+	if err := h.canServeRequest(r.Context(), req); err != nil {
+		apiErr := respondOpenAIError(w, err)
+		auditErr := sessionCtx.Audit.OnLLMRequest(h.closeContext, sessionCtx, r, req, common.LLMResponse{Error: apiErr})
+		if auditErr != nil {
+			log.ErrorContext(r.Context(), "failed to emit audit event", "error", auditErr)
+		}
+		log.WarnContext(r.Context(), "openai request failed", "error", err)
+		log.ErrorContext(r.Context(), "request rejected due to limits", "error", err)
+		return
+	}
+
+	err = h.executeOpenAIRequest(r.Context(), log, llm, req, w, r, body)
 	if err != nil {
 		// Here we unwrap the error to get the root cause, not the user-friendly
 		// message.
@@ -91,12 +104,14 @@ func (h *Handler) handleOpenAI(sessionCtx *common.SessionContext, w http.Respons
 func (h *Handler) prepareOpenAIRequest(llm *types.LLM, r *http.Request) (common.LLMRequest, *bytes.Buffer, error) {
 	auditReq := common.LLMRequest{
 		Provider: llm.Provider,
+		Format:   llm.Format,
 	}
 
-	_, pattern := h.openAIMux.Handler(r)
-	if len(pattern) == 0 {
+	endpointType := classifyOpenAIEndpoint(r)
+	if endpointType == common.LLMEndpointTypeUnsupported {
 		return auditReq, nil, trace.NotFound("endpoint not supported")
 	}
+	auditReq.EndpointType = endpointType
 
 	buf, err := h.readLimitedRequestBody(r, llmMaxRequestSize)
 	if err != nil {
@@ -120,15 +135,15 @@ func (h *Handler) prepareOpenAIRequest(llm *types.LLM, r *http.Request) (common.
 	auditReq.Model = resolvedModel
 
 	timeout := defaultStreamingRequestTimeout
-	if !auditReq.Streaming {
-		// TODO
+	if !auditReq.Streaming && auditReq.MaxTokens > maxNonStreamingTokens {
+		return auditReq, nil, trace.BadParameter("request needs to use streaming")
 	}
 	auditReq.Timeout = timeout
 
 	return auditReq, buf, nil
 }
 
-func (h *Handler) executeOpenAIRequest(ctx context.Context, llm *types.LLM, req common.LLMRequest, w http.ResponseWriter, r *http.Request, buf *bytes.Buffer) error {
+func (h *Handler) executeOpenAIRequest(ctx context.Context, log *slog.Logger, llm *types.LLM, req common.LLMRequest, w http.ResponseWriter, r *http.Request, buf *bytes.Buffer) error {
 	start := time.Now()
 	defer func() {
 		providerRequestDurationHist.WithLabelValues(
@@ -150,6 +165,11 @@ func (h *Handler) executeOpenAIRequest(ctx context.Context, llm *types.LLM, req 
 		// required v1 prefix for Bedrock endpoints.
 		option.WithMiddleware(ensureV1PathPrefix),
 	}...)
+
+	// Always require usage to be reported on chat completions streaming
+	if req.Streaming && req.EndpointType == common.LLMEndpointTypeOpenAIChatCompletions {
+		opts = append(opts, option.WithJSONSet("stream_options.include_usage", true))
+	}
 
 	var raw *http.Response
 	// Avoid calling NewClient since it does automatically read credentials from
@@ -180,7 +200,16 @@ func (h *Handler) executeOpenAIRequest(ctx context.Context, llm *types.LLM, req 
 		w.Header().Set("Cache-Control", "no-cache")
 		w.WriteHeader(raw.StatusCode)
 
-		written, err = streamOpenAISSEEvents(w, raw)
+		switch req.EndpointType {
+		case common.LLMEndpointTypeOpenAIResponses:
+			written, err = streamOpenAIResponsesSSEEvents(r.Context(), log, w, raw, h)
+		case common.LLMEndpointTypeOpenAIChatCompletions:
+			written, err = streamOpenAIChatCompletionsSSEEvents(r.Context(), log, w, raw, h)
+		default:
+			// This should be unreachable, if this error happens there is a
+			// mismatch of supported OpenAI endpoint types.
+			return trace.NotImplemented("endpoint not implemented")
+		}
 	default:
 		ct := raw.Header.Get("Content-Type")
 		if ct == "" {
@@ -189,9 +218,36 @@ func (h *Handler) executeOpenAIRequest(ctx context.Context, llm *types.LLM, req 
 		w.Header().Set("Content-Type", ct)
 		w.WriteHeader(raw.StatusCode)
 
+		var respRecorder bytes.Buffer
+		writers := io.MultiWriter(w, &respRecorder)
+
 		// We cannot assure what was already written into the request, for this
 		// reason, don't forward errors.
-		written, err = io.Copy(w, raw.Body)
+		written, err = io.Copy(writers, raw.Body)
+
+		var usage usageReport
+		switch req.EndpointType {
+		case common.LLMEndpointTypeOpenAIResponses:
+			// https://developers.openai.com/api/reference/resources/responses/methods/create#(resource)%20responses%20%3E%20(model)%20response%20%3E%20(schema)%20%3E%20(property)%20usage
+			usage = usageReport{
+				InputTokens:  gjson.GetBytes(respRecorder.Bytes(), "usage.input_tokens").Int(),
+				OutputTokens: gjson.GetBytes(respRecorder.Bytes(), "usage.output_tokens").Int(),
+			}
+		case common.LLMEndpointTypeOpenAIChatCompletions:
+			// https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create#(resource)%20chat.completions%20%3E%20(model)%20chat_completion%20%3E%20(schema)%20%3E%20(property)%20usage
+			usage = usageReport{
+				InputTokens:  gjson.GetBytes(respRecorder.Bytes(), "usage.prompt_tokens").Int(),
+				OutputTokens: gjson.GetBytes(respRecorder.Bytes(), "usage.completion_tokens").Int(),
+			}
+		default:
+			// At this stage we already served the request, so nothing much
+			// to do.
+			log.ErrorContext(ctx, "unsupported endpoint type. This should be unreachable, if this error happens there is a mismatch of supported OpenAI endpoint types.", "error", err)
+		}
+
+		if err := h.Report(ctx, types.LLMFormatOpenAI, usage); err != nil {
+			log.WarnContext(ctx, "failed to report usage", "error", err)
+		}
 	}
 
 	providerResponseSizeHist.WithLabelValues(
@@ -279,12 +335,12 @@ func readOpenAIRequest(buf []byte) (*openAIRequest, error) {
 	return res, nil
 }
 
-// streamOpenAISSEEvents copies streaming events from upstream to `w` as
-// standard SSE frames.
+// streamOpenAIResponsesSSEEvents copies streaming events from upstream to `w`
+// as standard SSE frames with OpenAI responses format.
 //
 // Any error returned on the events stream causes the connection to be
 // interrupted.
-func streamOpenAISSEEvents(w http.ResponseWriter, resp *http.Response) (int64, error) {
+func streamOpenAIResponsesSSEEvents(ctx context.Context, log *slog.Logger, w http.ResponseWriter, resp *http.Response, reporter usageReporter) (int64, error) {
 	rc := http.NewResponseController(w)
 	dec := ssestream.NewDecoder(resp)
 	defer dec.Close()
@@ -300,7 +356,8 @@ func streamOpenAISSEEvents(w http.ResponseWriter, resp *http.Response) (int64, e
 	var written int64
 	for dec.Next() {
 		evt := dec.Event()
-		if evt.Type == "response.failed" {
+		switch evt.Type {
+		case "response.failed":
 			// Forward errors so clients can handle them mid-response.
 			apiErr := convertOpenAIErrorEvent(evt.Data)
 			n, _ := writeAndFlush(ssestream.Event{
@@ -309,6 +366,64 @@ func streamOpenAISSEEvents(w http.ResponseWriter, resp *http.Response) (int64, e
 			})
 			written += n
 			return written, apiErr
+		case "response.completed":
+			// https://developers.openai.com/api/reference/resources/responses/streaming-events#response.completed
+			usage := usageReport{
+				InputTokens:  gjson.GetBytes(evt.Data, "response.usage.input_tokens").Int(),
+				OutputTokens: gjson.GetBytes(evt.Data, "response.usage.output_tokens").Int(),
+			}
+			if err := reporter.Report(ctx, types.LLMFormatOpenAI, usage); err != nil {
+				log.WarnContext(ctx, "failed to report usage", "error", err)
+			}
+		}
+
+		eventWritten, err := writeOpenAISSEEvent(w, evt)
+		written += eventWritten
+		if err != nil {
+			return written, trace.Wrap(err)
+		}
+		if err := rc.Flush(); err != nil {
+			return written, trace.Wrap(err)
+		}
+	}
+
+	if err := dec.Err(); err != nil && !errors.Is(err, io.EOF) {
+		return written, trace.Wrap(convertOpenAIError(err))
+	}
+
+	return written, nil
+}
+
+// streamOpenAIChatCompletionsSSEEvents copies streaming events from upstream to
+// `w` as standard SSE frames with OpenAI chat completions format.
+//
+// Any error returned on the events stream causes the connection to be
+// interrupted.
+func streamOpenAIChatCompletionsSSEEvents(ctx context.Context, log *slog.Logger, w http.ResponseWriter, resp *http.Response, reporter usageReporter) (int64, error) {
+	rc := http.NewResponseController(w)
+	dec := ssestream.NewDecoder(resp)
+	defer dec.Close()
+
+	var written int64
+	for dec.Next() {
+		evt := dec.Event()
+		// When present, it contains a null value **except for the last
+		// chunk** which contains the token usage statistics for the entire
+		// request.
+		//
+		// NOTE: If the stream is interrupted or cancelled, you may not
+		// receive the final usage chunk which contains the total token
+		// usage for the request.
+		//
+		// https://developers.openai.com/api/reference/resources/chat/subresources/completions/streaming-events
+		if gjson.GetBytes(evt.Data, "usage").Exists() {
+			usage := usageReport{
+				InputTokens:  gjson.GetBytes(evt.Data, "usage.prompt_tokens").Int(),
+				OutputTokens: gjson.GetBytes(evt.Data, "usage.completion_tokens").Int(),
+			}
+			if err := reporter.Report(ctx, types.LLMFormatOpenAI, usage); err != nil {
+				log.WarnContext(ctx, "failed to report usage", "error", err)
+			}
 		}
 
 		eventWritten, err := writeOpenAISSEEvent(w, evt)
@@ -361,55 +476,15 @@ func writeOpenAISSEEvent(w io.Writer, evt ssestream.Event) (int64, error) {
 	return written, nil
 }
 
-// newOpenAIMux initializes a http serve mux that has the list of supported
-// OpenAI endpoints. This mux purpose is only to match requested endpoints and
-// not serve any request, so it uses empty handlers.
-//
-// Each endpoint is registered under both "/" and "/v1/" prefixes so that
-// Handler(r) returns a non-empty pattern only for supported routes.
-func newOpenAIMux() *http.ServeMux {
-	mux := http.NewServeMux()
+func classifyOpenAIEndpoint(r *http.Request) common.LLMEndpointType {
+	path := strings.TrimPrefix(r.URL.Path, "/v1")
 
-	// registerEndpoint registers a handler for the given method and path under
-	// both "/" and "/v1/" prefixes.
-	registerEndpoint := func(method, path string) {
-		mux.HandleFunc(method+" "+path, func(w http.ResponseWriter, r *http.Request) {})
-		mux.HandleFunc(method+" /v1"+path, func(w http.ResponseWriter, r *http.Request) {})
+	switch {
+	case r.Method == http.MethodPost && path == "/responses":
+		return common.LLMEndpointTypeOpenAIResponses
+	case r.Method == http.MethodPost && path == "/chat/completions":
+		return common.LLMEndpointTypeOpenAIChatCompletions
+	default:
+		return common.LLMEndpointTypeUnsupported
 	}
-
-	// Responses API: https://developers.openai.com/api/reference/responses/overview
-	//
-	// https://developers.openai.com/api/reference/resources/responses/methods/create
-	registerEndpoint("POST", "/responses")
-	// https://developers.openai.com/api/reference/resources/responses/methods/retrieve
-	registerEndpoint("GET", "/responses/{response_id}")
-	// https://developers.openai.com/api/reference/resources/responses/methods/delete
-	registerEndpoint("DELETE", "/responses/{response_id}")
-	// https://developers.openai.com/api/reference/resources/responses/subresources/input_items/methods/list
-	registerEndpoint("GET", "/responses/{response_id}/input_items")
-	// https://developers.openai.com/api/reference/resources/responses/methods/cancel
-	registerEndpoint("POST", "/responses/{response_id}/cancel")
-	// https://developers.openai.com/api/reference/resources/responses/methods/compact
-	registerEndpoint("POST", "/responses/compact")
-	// https://developers.openai.com/api/reference/resources/responses/subresources/input_tokens/methods/count
-	registerEndpoint("POST", "/responses/input_tokens")
-
-	// Legacy chat completions: https://developers.openai.com/api/reference/chat-completions/overview
-	//
-	// https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/list
-	// TODO(gabrielcorado): check if this will be enabled.
-	// registerEndpoint("GET", "/chat/completions")
-	// https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create
-	registerEndpoint("POST", "/chat/completions")
-	// https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/retrieve
-	registerEndpoint("GET", "/chat/completions/{completion_id}")
-	// https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/update
-	registerEndpoint("POST", "/chat/completions/{completion_id}")
-	// https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/delete
-	registerEndpoint("DELETE", "/chat/completions/{completion_id}")
-	// https://developers.openai.com/api/reference/resources/chat/subresources/completions/subresources/messages/methods/list
-	// TODO(gabrielcorado): if this will be enabled, we must support query params.
-	registerEndpoint("GET", "/chat/completions/{completion_id}/messages")
-
-	return mux
 }

@@ -159,7 +159,7 @@ func anthropicErrorType(e *apiError) shared.ErrorType {
 		return shared.ErrorTypeInvalidRequestError
 	case errKindUnauthorized:
 		return shared.ErrorTypeAuthenticationError
-	case errKindRejected:
+	case errKindRejected, errKindRateLimitExeceeded:
 		return shared.ErrorTypeRateLimitError
 	case errKindUnsupportedEndpoint:
 		return shared.ErrorTypeNotFoundError
