@@ -1,0 +1,11 @@
+kind: role
+version: v7
+metadata:
+  name: usermonitor-repro-victim
+spec:
+  allow:
+    rules:
+      - resources: [cluster_name]
+        verbs: [read]
+  options:
+    max_session_ttl: 1h

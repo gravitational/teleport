@@ -1,0 +1,19 @@
+kind: role
+version: v7
+metadata:
+  name: usermonitor-repro-runner
+spec:
+  allow:
+    rules:
+      - resources: [bot]
+        verbs: [create, read, list, update, delete]
+      - resources: [token]
+        verbs: [create, read, list, update, delete]
+      - resources: [role]
+        verbs: [read, list]
+      - resources: [user]
+        verbs: [read, list]
+      - resources: [user_login_state]
+        verbs: [read, list, delete]
+  options:
+    max_session_ttl: 8h
