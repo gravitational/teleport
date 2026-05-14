@@ -1634,7 +1634,7 @@ func (s *Server) startAzureServerDiscovery() {
 					discoveryConfigName: fetcher.GetDiscoveryConfigName(),
 					integration:         fetcher.IntegrationName(),
 				}
-				sm.add(fgKey, make(map[statusType]int))
+				sm.add(fgKey, discoveryResults{})
 			}
 			s.updateDiscoveryConfigStatus(sm.discoveryConfigs()...)
 		}),
@@ -1672,16 +1672,12 @@ func (s *Server) startAzureServerDiscovery() {
 	go azureWatcher.Run()
 }
 
-func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *azureVMTasks) (results map[statusType]int) {
-	results = make(map[statusType]int)
-
+func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *azureVMTasks) (results discoveryResults) {
 	log := s.Log.With("group", instances)
 	log.DebugContext(s.ctx, "Processing instance group")
 
-	allFound := len(instances.Instances)
-	results[statusFound] = allFound
-
-	if allFound == 0 {
+	results.found = uint64(len(instances.Instances))
+	if results.found == 0 {
 		log.DebugContext(s.ctx, "No Azure instances found, skipping installation")
 		return
 	}
@@ -1694,10 +1690,10 @@ func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *
 	instances.FilterExistingNodes(nodes)
 
 	// count machines that have already been enrolled in previous cycles.
-	needInstall := len(instances.Instances)
-	results[statusEnrolled] = allFound - needInstall
+	needInstall := uint64(len(instances.Instances))
+	results.enrolled = results.found - uint64(needInstall)
 
-	if len(instances.Instances) == 0 {
+	if needInstall == 0 {
 		log.DebugContext(s.ctx, "No Azure instances remain to enroll, skipping installation")
 		return
 	}
@@ -1735,8 +1731,8 @@ func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *
 	failures, err := s.enrollAzureVirtualMachines(log, instances)
 	if err != nil {
 		// treat non-nil err as deployment failure affecting all machines.
-		log.WarnContext(s.ctx, "Failed to enroll discovered Azure VMs", "error", err, "count", len(instances.Instances))
-		results[statusFailed] = len(instances.Instances)
+		results.failed = needInstall
+		log.WarnContext(s.ctx, "Failed to enroll discovered Azure VMs", "error", err, "failures", results.failed)
 
 		issueType := classifyAzureVMEnrollmentError(err)
 		for _, vm := range instances.Instances {
@@ -1745,12 +1741,11 @@ func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *
 		return
 	}
 
-	if len(failures) > 0 {
-		log.WarnContext(s.ctx, "Failed to enroll some discovered Azure VMs", "count", len(failures))
-	}
-
 	// count individual failed enrollments.
-	results[statusFailed] = len(failures)
+	results.failed = uint64(len(failures))
+	if len(failures) > 0 {
+		log.WarnContext(s.ctx, "Failed to enroll some discovered Azure VMs", "failures", results.failed)
+	}
 
 	// Record failures as user tasks.
 	for _, result := range failures {
@@ -1762,7 +1757,7 @@ func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *
 		}
 	}
 
-	pendingCount := len(instances.Instances) - len(failures)
+	pendingCount := needInstall - results.failed
 	if pendingCount > 0 {
 		// Note: we have no "installation in progress" or "installation succeeded" counter, so we ignore those.
 		// If the installation went fine the "enrolled" counter will increase during next iteration.
