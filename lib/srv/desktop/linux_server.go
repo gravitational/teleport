@@ -833,8 +833,10 @@ func (sess *linuxSession) processScreenChanges() {
 		start := time.Now()
 		size := 0
 		changes, err := sess.backend.GetChanges()
-		if err != nil && !utils.IsOKNetworkError(err) {
-			sess.log.ErrorContext(sess.ctx, "failed to get changes from backend", "error", err)
+		if err != nil {
+			if !utils.IsOKNetworkError(err) {
+				sess.log.ErrorContext(sess.ctx, "failed to get changes from backend", "error", err)
+			}
 			return
 		}
 		currentScreenSize := sess.screenSize.Load()

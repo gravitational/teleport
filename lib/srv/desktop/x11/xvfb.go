@@ -248,7 +248,11 @@ func NewBackend(ctx context.Context, config Config) (*Backend, error) {
 
 	scanner := bufio.NewScanner(stdout)
 	if !scanner.Scan() {
-		return nil, trace.Wrap(scanner.Err(), "reading display string")
+		if scanner.Err() != nil {
+			return nil, trace.Wrap(scanner.Err(), "reading display string")
+		}
+
+		return nil, trace.BadParameter("no display string found")
 	}
 	display := scanner.Text()
 
