@@ -92,6 +92,8 @@ func (a *assignmentReconciler) runWatcher(ctx context.Context) {
 		select {
 		case <-a.clock.After(cooldownPeriod):
 			continue
+		case <-a.stopCh:
+			return
 		case <-ctx.Done():
 			return
 		}
