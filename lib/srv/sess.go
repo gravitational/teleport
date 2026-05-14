@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"sync"
@@ -1910,6 +1911,9 @@ func (s *session) addFileTransferRequest(params *rsession.FileTransferRequestPar
 	}
 	if !params.Download && params.Filename == "" {
 		return trace.BadParameter("no source file is set for the upload")
+	}
+	if !filepath.IsAbs(params.Location) {
+		return trace.BadParameter("request path must be absolute")
 	}
 
 	s.fileTransferReq = &fileTransferRequestWithApprovers{
