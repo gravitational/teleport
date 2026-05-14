@@ -142,6 +142,9 @@ type payload struct {
 	// not specify one in the resource config. The user-provided sub_kind (on
 	// the resource or in state) takes precedence; this is only a fallback.
 	DefaultSubKind string
+	// WithoutModifyPlan skips generation of the ModifyPlan function, which may
+	// not be supported, or may have been manually implemented.
+	WithoutModifyPlan bool
 }
 
 // statePoll configures polling for state changes when creating or updating resources.
@@ -450,6 +453,7 @@ var (
 		HasStaticID:            false,
 		TerraformResourceType:  "teleport_saml_idp_service_provider",
 		HasCheckAndSetDefaults: true,
+		WithoutModifyPlan:      true,
 	}
 
 	provisionToken = payload{
