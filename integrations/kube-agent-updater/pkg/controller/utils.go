@@ -30,8 +30,8 @@ import (
 	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 )
 
-func getWorkloadVersion(podSpec v1.PodSpec) (*semver.Version, error) {
-	image, err := getContainerImageFromPodSpec(podSpec, teleportContainerName)
+func getWorkloadVersion(podSpec v1.PodSpec, container string) (*semver.Version, error) {
+	image, err := getContainerImageFromPodSpec(podSpec, container)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
