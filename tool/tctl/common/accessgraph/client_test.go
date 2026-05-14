@@ -94,7 +94,7 @@ func TestCheckResponse_AGBadRequest(t *testing.T) {
 			t.Parallel()
 			err := checkResponse(tt.statusCode, []byte(tt.body))
 			var agErr *apiResponseError
-			require.True(t, errors.As(err, &agErr), "want *apiResponseError, got %T", err)
+			require.ErrorAs(t, err, &agErr, "want *apiResponseError, got %T", err)
 			require.Equal(t, tt.wantStatus, agErr.StatusCode)
 			require.Equal(t, tt.wantMessage, agErr.Message)
 		})
@@ -162,7 +162,7 @@ func TestCheckResponse_DelegatesToTraceReadError(t *testing.T) {
 			// And specifically NOT *apiResponseError, which is
 			// reserved for the AG-native envelope.
 			var agErr *apiResponseError
-			require.False(t, errors.As(err, &agErr), "must not be *apiResponseError, got %v", err)
+			require.NotErrorAs(t, err, &agErr, "must not be *apiResponseError, got %v", err)
 		})
 	}
 }
@@ -195,7 +195,7 @@ func TestDoRequest(t *testing.T) {
 			nil,
 		)
 		var agErr *apiResponseError
-		require.True(t, errors.As(err, &agErr))
+		require.ErrorAs(t, err, &agErr, "want *apiResponseError, got %T", err)
 		require.Equal(t, 500, agErr.StatusCode)
 		require.Equal(t, "boom", agErr.Message)
 		require.Equal(t, fakeResponse{}, got, "response must be zero-valued on HTTP error")
@@ -230,7 +230,7 @@ func TestAccessGraphClient_AgainstMockServer(t *testing.T) {
 	wantAGError := func(status int, msg string) assertion {
 		return func(t *testing.T, err error) {
 			var agErr *apiResponseError
-			require.True(t, errors.As(err, &agErr), "want *apiResponseError, got %T", err)
+			require.ErrorAs(t, err, &agErr, "want *apiResponseError, got %T", err)
 			require.Equal(t, status, agErr.StatusCode)
 			require.Equal(t, msg, agErr.Message)
 		}
@@ -239,8 +239,7 @@ func TestAccessGraphClient_AgainstMockServer(t *testing.T) {
 		return func(t *testing.T, err error) {
 			require.True(t, check(err), "trace check failed for err=%v", err)
 			var agErr *apiResponseError
-			require.False(t, errors.As(err, &agErr),
-				"teleport-envelope errors must not surface as *apiResponseError")
+			require.NotErrorAs(t, err, &agErr, "teleport-envelope errors must not surface as *apiResponseError")
 		}
 	}
 
