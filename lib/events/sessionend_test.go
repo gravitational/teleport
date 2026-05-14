@@ -146,22 +146,22 @@ func TestFindOrRecoverSessionEnd(t *testing.T) {
 	dbMeta := apievents.DatabaseMetadata{DatabaseName: "mydb", DatabaseUser: "admin", DatabaseProtocol: "postgres"}
 	appMeta := apievents.AppMetadata{AppName: "myapp", AppURI: "http://app.local"}
 
-	startTime := clock.Now().UTC()
+	startTime := clock.Now().UTC().Add(-2 * time.Minute)
 	lastTime := startTime.Add(time.Minute)
 
-	makeConfig := func(streamer events.SessionStreamer, emitter apievents.Emitter) events.FindOrRecoverSessionEndConfig {
+	makeConfig := func(streamer events.SessionStreamer, auditLog events.AuditLogger) events.FindOrRecoverSessionEndConfig {
 		return events.FindOrRecoverSessionEndConfig{
 			ClusterName: clusterName,
 			Streamer:    streamer,
 			SessionID:   sessionID,
-			AuditLog:    emitter,
+			AuditLog:    auditLog,
 			Log:         slog.Default(),
 			Clock:       clock,
 		}
 	}
 
 	t.Run("validation", func(t *testing.T) {
-		base := makeConfig(eventstest.NewFakeStreamer(nil, 0), &eventstest.MockRecorderEmitter{})
+		base := makeConfig(eventstest.NewFakeStreamer(nil, 0), &eventstest.MockAuditLog{})
 		tests := []struct {
 			name   string
 			mutate func(*events.FindOrRecoverSessionEndConfig)
@@ -494,7 +494,11 @@ func TestFindOrRecoverSessionEnd(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			emitter := &eventstest.MockRecorderEmitter{}
-			cfg := makeConfig(eventstest.NewFakeStreamer(tt.evts, 0), emitter)
+			auditLog := &eventstest.MockAuditLog{
+				Emitter:       emitter,
+				SessionEvents: tt.evts,
+			}
+			cfg := makeConfig(auditLog, auditLog)
 			gotEnd, err := events.FindOrRecoverSessionEnd(t.Context(), cfg)
 			if tt.wantErr {
 				require.Error(t, err)
@@ -504,4 +508,72 @@ func TestFindOrRecoverSessionEnd(t *testing.T) {
 			tt.check(t, gotEnd, emitter.Events())
 		})
 	}
+
+	t.Run("end event in recording but not in audit log", func(t *testing.T) {
+		emitter := &eventstest.MockRecorderEmitter{}
+		sessionEvents := []apievents.AuditEvent{
+			&apievents.SessionStart{
+				Metadata:           apievents.Metadata{Type: events.SessionStartEvent, Time: startTime, ClusterName: clusterName},
+				UserMetadata:       userMeta,
+				SessionMetadata:    sessionMeta,
+				ServerMetadata:     serverMeta,
+				ConnectionMetadata: connMeta,
+				TerminalSize:       "80:25",
+			},
+			&apievents.SessionEnd{
+				Metadata:           apievents.Metadata{Type: events.SessionStartEvent, Time: lastTime, ClusterName: clusterName},
+				UserMetadata:       userMeta,
+				SessionMetadata:    sessionMeta,
+				ServerMetadata:     serverMeta,
+				ConnectionMetadata: connMeta,
+			},
+		}
+		auditLog := &eventstest.MockAuditLog{
+			Emitter:       emitter,
+			SessionEvents: sessionEvents[:1],
+		}
+		cfg := makeConfig(eventstest.NewFakeStreamer(sessionEvents, 0), auditLog)
+		gotEnd, err := events.FindOrRecoverSessionEnd(t.Context(), cfg)
+		assert.NoError(t, err)
+		recovered, ok := gotEnd.(*apievents.SessionEnd)
+		require.True(t, ok)
+		assert.Equal(t, events.SessionEndEvent, recovered.Type)
+		assert.Equal(t, events.SessionEndCode, recovered.Code)
+		assert.Equal(t, userMeta, recovered.UserMetadata)
+		assert.Equal(t, sessionMeta, recovered.SessionMetadata)
+		assert.Equal(t, serverMeta, recovered.ServerMetadata)
+		assert.Equal(t, connMeta, recovered.ConnectionMetadata)
+		assert.True(t, recovered.Interactive)
+		assert.Equal(t, lastTime, recovered.EndTime)
+		assert.Len(t, emitter.Events(), 1)
+	})
+
+	t.Run("end event in audit log but not in recording", func(t *testing.T) {
+		emitter := &eventstest.MockRecorderEmitter{}
+		sessionEvents := []apievents.AuditEvent{
+			&apievents.SessionStart{
+				Metadata:           apievents.Metadata{Type: events.SessionStartEvent, Time: startTime, ClusterName: clusterName},
+				UserMetadata:       userMeta,
+				SessionMetadata:    sessionMeta,
+				ServerMetadata:     serverMeta,
+				ConnectionMetadata: connMeta,
+				TerminalSize:       "80:25",
+			},
+			&apievents.SessionEnd{
+				Metadata:           apievents.Metadata{Type: events.SessionStartEvent, Time: lastTime, ClusterName: clusterName},
+				UserMetadata:       userMeta,
+				SessionMetadata:    sessionMeta,
+				ServerMetadata:     serverMeta,
+				ConnectionMetadata: connMeta,
+			},
+		}
+		auditLog := &eventstest.MockAuditLog{
+			Emitter:       emitter,
+			SessionEvents: sessionEvents,
+		}
+		cfg := makeConfig(eventstest.NewFakeStreamer(sessionEvents[:1], 0), auditLog)
+		gotEvent, err := events.FindOrRecoverSessionEnd(t.Context(), cfg)
+		assert.NoError(t, err)
+		alreadyExists(sessionEvents[1])(t, gotEvent, emitter.Events())
+	})
 }

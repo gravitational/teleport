@@ -88,7 +88,7 @@ type FindOrRecoverSessionEndConfig struct {
 	// SessionID is the ID of the session to recover.
 	SessionID session.ID
 	// AuditLog is the emitter used to emit the recovered session end event.
-	AuditLog apievents.Emitter
+	AuditLog AuditLogger
 	// Log is the logger.
 	Log *slog.Logger
 	// Clock is used to timestamp the recovered event.
@@ -131,6 +131,7 @@ func FindOrRecoverSessionEnd(ctx context.Context, cfg FindOrRecoverSessionEndCon
 	defer cancel()
 	evts, errors := cfg.Streamer.StreamSessionEvents(ctx, cfg.SessionID, 0)
 
+	foundRecordingEndEvent := false
 loop:
 	for {
 		select {
@@ -142,10 +143,10 @@ loop:
 			lastEvent = evt
 
 			switch e := evt.(type) {
-			// Return if session end event already exists
 			case *apievents.SessionEnd, *apievents.WindowsDesktopSessionEnd,
 				*apievents.DatabaseSessionEnd, *apievents.AppSessionEnd, *apievents.MCPSessionEnd:
-				return e, nil
+				foundRecordingEndEvent = true
+				break loop
 
 			case *apievents.WindowsDesktopSessionStart:
 				desktopSessionEnd.Type = WindowsDesktopSessionEndEvent
@@ -224,6 +225,34 @@ loop:
 		return nil, trace.Errorf("could not find any events for session %v", cfg.SessionID)
 	}
 
+	// Check audit log for session end event.
+	searchEndTime := lastEvent.GetTime()
+	if !foundRecordingEndEvent {
+		searchEndTime = cfg.Clock.Now()
+	}
+	var startKey string
+	for {
+		var evts []apievents.AuditEvent
+		var err error
+		evts, startKey, err = cfg.AuditLog.SearchSessionEvents(ctx, SearchSessionEventsRequest{
+			From:      lastEvent.GetTime(),
+			To:        searchEndTime,
+			Limit:     1,
+			StartKey:  startKey,
+			SessionID: cfg.SessionID.String(),
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if len(evts) > 0 {
+			return evts[0], nil
+		}
+		if startKey == "" {
+			break
+		}
+	}
+
+	// We didn't find the end event, we have to recover it.
 	sshSessionEnd.Participants = apiutils.Deduplicate(sshSessionEnd.Participants)
 	sshSessionEnd.EndTime = lastEvent.GetTime()
 	desktopSessionEnd.EndTime = lastEvent.GetTime()

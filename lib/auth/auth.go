@@ -2566,12 +2566,6 @@ func (a *Server) GetClock() clockwork.Clock {
 // reconstructs and emits one from the session start event if none is found.
 // It is the canonical OnUploadComplete callback used by the ProtoStreamer,
 // AuditLog, and recording encryption service.
-//
-// TODO(tigrato): this check is not 100% correct. Instead of streaming the file,
-// one should query the audit log to ensure the event exists. The file can contain
-// the session end event but for some reason the the audit log event was lost.
-// There are many reasons for that to happen such as audit queue in the agent being
-// full, audit backend being down, agent restarting after writing the session complete.
 func (a *Server) OnUploadComplete(ctx context.Context, sessionID libsession.ID) (apievents.AuditEvent, error) {
 	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
