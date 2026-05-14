@@ -12,6 +12,7 @@ import { Perms } from './Shared';
 type AccessProps = {
   accessList: AccessListDescriptor;
   isReadOnlyOktaList?: boolean;
+  isOktaEnableAccessListSync?: boolean;
   action: Action;
   perms: Perms;
   missingRolePerms?: string[];
@@ -101,6 +102,7 @@ enum EditAccess {
 function getEditAccess({
   accessList,
   isReadOnlyOktaList,
+  isOktaEnableAccessListSync,
   action,
   perms,
   missingRolePerms = [],
@@ -130,9 +132,15 @@ function getEditAccess({
     if (!perms.adminWhoCanEdit) return EditAccess.ForbiddenRbac;
   }
 
-  // For Okta lists title and grants can be defined only in Okta.
+  // For Okta lists, title and grants can be defined only in Okta,
+  // user can only delete when not being synced by Okta plugin.
   if (isOktaList) {
     switch (action) {
+      case Action.Delete:
+        if (isOktaEnableAccessListSync) {
+          return EditAccess.ForbiddenOkta;
+        }
+        break;
       case Action.EditTitleOrDescription:
       case Action.EditMembersGrants:
       case Action.EditOwnersGrants:

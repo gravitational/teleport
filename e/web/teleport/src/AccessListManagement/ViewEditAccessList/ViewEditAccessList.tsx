@@ -69,7 +69,7 @@ enum Tab {
 
 export function ViewEditAccessList() {
   const ctx = useTeleport();
-  const { updateAccessListCache, isOktaPluginReadOnly } =
+  const { updateAccessListCache, isOktaPluginReadOnly, oktaPluginAttempt } =
     useAccessListManagementContext();
   const location = useLocation();
   const navigate = useNavigate();
@@ -236,6 +236,8 @@ export function ViewEditAccessList() {
             tipContent={getActionForbiddenInfo({
               accessList: accessList,
               isReadOnlyOktaList: isReadOnlyOktaList,
+              isOktaEnableAccessListSync:
+                !!oktaPluginAttempt.data?.spec?.enableAccessListSync,
               action: Action.Delete,
               perms: perms,
               missingRolePerms: missingRoleAccess,
@@ -249,6 +251,8 @@ export function ViewEditAccessList() {
                 isActionForbidden({
                   accessList,
                   isReadOnlyOktaList,
+                  isOktaEnableAccessListSync:
+                    !!oktaPluginAttempt.data?.spec?.enableAccessListSync,
                   action: Action.Delete,
                   perms,
                   missingRolePerms: missingRoleAccess,
