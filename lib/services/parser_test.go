@@ -506,6 +506,86 @@ func BenchmarkSplitContains(b *testing.B) {
 	}
 }
 
+func TestSplitContainsFunctionality(t *testing.T) {
+	type testCase struct{ value, delimiter, target string }
+	testCases := []testCase{
+		{"", "", ""},
+		{"abc", "", ""},
+		{"abc", "", "a"},
+		{
+			"\u00e8", // LATIN SMALL LETTER E WITH GRAVE
+			"",
+			"\u00e8",
+		},
+		{
+			"\u00e8", // LATIN SMALL LETTER E WITH GRAVE
+			"",
+			"\xc3", // half of the encoding of U+00E8
+		},
+		{
+			"\u00e8", // LATIN SMALL LETTER E WITH GRAVE
+			"\xc3",   // half of the encoding of U+00E8
+			"\xa8",   // the other half
+		},
+		{"", ",", "a"},
+		{"a,b,c", ",", "a"},
+		{"a,b,c", ",", "d"},
+		{"a,b,c", ",", ""},
+		{"a,,b,,c", ",", ""},
+		{"a,,b,,c", ",", ",b"},
+		{"a,,,b,,,c", ",,", ",b"},
+		{"a,,,b,,,c", ",,", "b,"},
+		{"aaaa", "a", "a"},
+		{"aaaa", "aa", "a"},
+		{"aaaa", "aa", ""},
+		{"aaaa", "aa", "aa"},
+		{"aaa", "aa", "a"},
+	}
+	t.Run("lazyStringSplit", func(t *testing.T) {
+		for _, tc := range testCases {
+			lss := &lazyStringSplit{
+				value:     tc.value,
+				delimiter: tc.delimiter,
+			}
+			require.Equal(t,
+				strings.Split(tc.value, tc.delimiter),
+				lss.Slice(),
+			)
+			require.Equal(t,
+				slices.Contains(strings.Split(tc.value, tc.delimiter), tc.target),
+				lss.Contains(tc.target),
+			)
+		}
+	})
+	t.Run("splitContains", func(t *testing.T) {
+		for _, tc := range testCases {
+			require.Equal(t,
+				slices.Contains(strings.Split(tc.value, tc.delimiter), tc.target),
+				splitContains(tc.value, tc.delimiter, tc.target),
+			)
+		}
+	})
+	t.Run("splitContainsSinglebyteAffix", func(t *testing.T) {
+		for _, tc := range testCases {
+			if isImpossibleSplitContainsMatch(tc.target, tc.delimiter) {
+				require.Equal(t,
+					slices.Contains(strings.Split(tc.value, tc.delimiter), tc.target),
+					splitContainsSinglebyteAffix(tc.value, ""),
+				)
+				continue
+			}
+			if len(tc.delimiter) != 1 {
+				continue
+			}
+			require.Equal(t,
+				slices.Contains(strings.Split(tc.value, tc.delimiter), tc.target),
+				splitContainsSinglebyteAffix(tc.value, tc.delimiter+tc.target+tc.delimiter),
+			)
+		}
+	})
+
+}
+
 func TestSplitContainsZeroAlloc(t *testing.T) {
 	server, err := types.NewServerWithLabels("server-name", types.KindNode, types.ServerSpecV2{
 		Hostname: "server-hostname",

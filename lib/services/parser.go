@@ -1226,6 +1226,10 @@ func combineSplitContains(cursor *astutil.Cursor) (cont bool) {
 	return
 }
 
+func isImpossibleSplitContainsMatch(target, delimiter string) bool {
+	return delimiter != "" && strings.Contains(target, delimiter)
+}
+
 // optimizeSplitContains is an [astutil.ApplyFunc] that replaces calls to
 // __split_contains where the delimiter is a nonempty literal string and the
 // target is a literal string into calls to __split_contains_singlebyte_affix,
@@ -1249,7 +1253,7 @@ func optimizeSplitContains(cursor *astutil.Cursor) (cont bool) {
 		return
 	}
 
-	if *delimiter != "" && strings.Contains(*target, *delimiter) {
+	if isImpossibleSplitContainsMatch(*target, *delimiter) {
 		// impossible match, turn it into a function call that unconditionally
 		// returns false very quickly
 
