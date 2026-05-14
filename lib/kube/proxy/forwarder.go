@@ -209,6 +209,9 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 	if f.Authz == nil {
 		return trace.BadParameter("missing parameter Authz")
 	}
+	if f.LockWatcher == nil {
+		return trace.BadParameter("missing parameter LockWatcher")
+	}
 	if f.Emitter == nil {
 		return trace.BadParameter("missing parameter Emitter")
 	}
@@ -464,6 +467,9 @@ type authContext struct {
 	// It is false if the target cluster is served by another teleport service or a different
 	// Teleport cluster.
 	isLocalKubernetesCluster bool
+
+	// LockingMode determines the kubernetes' behavior when locks are stale
+	LockingMode constants.LockingMode
 }
 
 func (c authContext) String() string {
@@ -1173,11 +1179,34 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 			return trace.AccessDenied("%s", notFoundMessage)
 		}
 
+		authPref, err := f.cfg.CachingAuthClient.GetAuthPreference(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if actx.checker.Kube().AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert()) {
+			actx.disconnectExpiredCert = actx.ScopedContext.GetDisconnectCertExpiryTime()
+		} else {
+			actx.disconnectExpiredCert = time.Time{}
+		}
+
+		// For scoped roles, check for the locking mode here so that we can verify whether users can connect or not when not
+		// when the lock is stale.
+		if isScoped {
+			actx.LockingMode = actx.checker.Kube().LockingMode(authPref.GetLockingMode())
+			// TODO(williamo/scopes): Potentially delete this in favor of checking locks in lib/authz/scoped.go
+			if err := f.cfg.LockWatcher.CheckLockInForce(actx.LockingMode, actx.LockTargets()...); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
 		// If the user has active Access requests we need to validate that they allow
 		// the kubeResource.
 		// This is required because CheckAccess does not validate the subresource type.
-		if !actx.metaResource.isList {
-			if rbacResource := actx.metaResource.rbacResource(); rbacResource != nil && len(actx.Checker.GetAllowedResourceAccessIDs()) > 0 {
+		// TODO(eriktate/scopes): scoped identities don't support resources or access requests, so we skip
+		// these checks for now.
+		if !isScoped && !actx.metaResource.isList {
+			if rbacResource := actx.metaResource.rbacResource(); rbacResource != nil && len(unscopedCtx.Checker.GetAllowedResourceAccessIDs()) > 0 {
 				// GetKubeResources returns the allowed and denied Kubernetes resources
 				// for the user. Since we have active access requests, the allowed
 				// resources will be the list of pods that the user requested access to if he
@@ -1185,15 +1214,15 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 				// allow if the user requested access a kubernetes cluster. If the user
 				// did not request access to any Kubernetes resource type, the allowed
 				// list will be empty.
-				allowed, denied := actx.Checker.GetKubeResources(ks)
+				allowed, denied := unscopedCtx.Checker.GetKubeResources(actx.kubeCluster)
 				if result, err := matchKubernetesResource(*rbacResource, actx.metaResource.isClusterWideResource(), allowed, denied); err != nil || !result {
 					return trace.AccessDenied("%s", notFoundMessage)
 				}
 			}
+			// store a copy of the Kubernetes Cluster.
+			actx.kubeCluster = ks
+			return nil
 		}
-		// store a copy of the Kubernetes Cluster.
-		actx.kubeCluster = ks
-		return nil
 	}
 	if actx.kubeClusterName == f.cfg.ClusterName {
 		f.log.DebugContext(ctx, "Skipping authorization for proxy-based kubernetes cluster",
@@ -2499,6 +2528,7 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error, hostID string) (n
 		Emitter:               s.parent.cfg.AuthClient,
 		EmitterContext:        s.parent.ctx,
 		MessageWriter:         formatForwardResponseError(s.sendErrStatus),
+		LockingMode:           s.LockingMode,
 	})
 	if err != nil {
 		tc.CloseWithCause(err)

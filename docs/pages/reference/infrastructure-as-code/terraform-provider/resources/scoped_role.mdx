@@ -88,13 +88,22 @@ Optional:
 Optional:
 
 - `client_idle_timeout` (String) ClientIdleTimeout sets the default idle timeout for access sessions across all protocols that do not specify their own value. Must be a valid Go duration string (e.g. "30m", "1h").
+- `disconnect_expired_cert` (Boolean) DisconnectExpiredCert defines the default behavior of all protocols when certs expire for a session. If unset, cluster wide defaults are used.
+- `lock` (Attributes) Lock specifies the default locking mode for access sessions across all protocols that do not specify their own value. If unset, cluster wide defaults are used. (see [below for nested schema](#nested-schema-for-specdefaultslock))
 - `session_recording` (Attributes) SessionRecording configures the session recording strategy for all protocols that don't explicitly set their session recording mode. (see [below for nested schema](#nested-schema-for-specdefaultssession_recording))
+
+### Nested Schema for `spec.defaults.lock`
+
+Optional:
+
+- `mode` (String) Allowed values: strict or best_effort. Defaults to value cluster wide auth preference if not set.
+
 
 ### Nested Schema for `spec.defaults.session_recording`
 
 Optional:
 
-- `mode` (String) Mode sets the session recording mode. Allowed values: strict | best_effort.
+- `mode` (String) Mode sets the session recording mode. Allowed values: strict or best_effort.
 
 
 
@@ -103,8 +112,10 @@ Optional:
 Optional:
 
 - `client_idle_timeout` (String) Overrides the defaults block idle timeout specifically for kube sessions. Must be a valid Go duration string (e.g. "30m", "1h"). If empty, the defaults block value (or global default) applies.
+- `disconnect_expired_cert` (Boolean) DisconnectExpiredCert controls whether Kube sessions are disconnected when the user certificate expires.
 - `groups` (List of String) The list of kubernetes groups this role allows.
 - `labels` (Attributes List) The map of kubernetes cluster labels used for RBAC. (see [below for nested schema](#nested-schema-for-speckubelabels))
+- `lock` (Attributes) Lock configures the role's locking behavior for kubernetes sessions. (see [below for nested schema](#nested-schema-for-speckubelock))
 - `users` (List of String) An optional list of impersonatable kubernetes users this role allows.
 
 ### Nested Schema for `spec.kube.labels`
@@ -113,6 +124,13 @@ Optional:
 
 - `name` (String) The name of the label.
 - `values` (List of String) The values associated with the label.
+
+
+### Nested Schema for `spec.kube.lock`
+
+Optional:
+
+- `mode` (String) Allowed values: strict or best_effort. Defaults to value cluster wide auth preference if not set.
 
 
 
@@ -129,12 +147,14 @@ Optional:
 Optional:
 
 - `client_idle_timeout` (String) ClientIdleTimeout overrides the defaults block idle timeout specifically for SSH sessions. Must be a valid Go duration string (e.g. "30m", "1h"). If empty, the defaults block value (or global default) applies.
+- `disconnect_expired_cert` (Boolean) DisconnectExpiredCert controls whether SSH sessions are disconnected when the user certificate expires. Defaults to value cluster wide auth preference if not set.
 - `enhanced_recording` (Attributes) EnhancedRecording is the set of BPF events to record for enhanced session recording. (see [below for nested schema](#nested-schema-for-specsshenhanced_recording))
 - `file_copy` (Boolean) FileCopy indicates whether remote file operations via SCP or SFTP are allowed over an SSH session. It defaults to allowing the user to download and upload files by default.
 - `forward_agent` (Boolean) ForwardAgent enables SSH agent forwarding.
 - `host_sudoers` (List of String) Sudoers is a list of entries to include in a users sudoer file
 - `host_user_creation` (Attributes) HostUserCreation configures the creation of host users. (see [below for nested schema](#nested-schema-for-specsshhost_user_creation))
 - `labels` (Attributes List) Labels is the set of node labels used to dynamically select which nodes this role applies to. (see [below for nested schema](#nested-schema-for-specsshlabels))
+- `lock` (Attributes) Lock configures the role's locking behavior for SSH sessions. (see [below for nested schema](#nested-schema-for-specsshlock))
 - `logins` (List of String) Logins is the list of OS logins this role permits on matching nodes.
 - `max_sessions` (Number) MaxSessions defines the maximum number of concurrent sessions per connection.
 - `permit_x11_forwarding` (Boolean) PermitX11Forwarding, when true, authorizes use of X11 forwarding over SSH sessions. If not set, X11 forwarding is not permitted.
@@ -167,6 +187,13 @@ Optional:
 - `values` (List of String) The values associated with the label.
 
 
+### Nested Schema for `spec.ssh.lock`
+
+Optional:
+
+- `mode` (String) Allowed values: strict or best_effort. Defaults to value cluster wide auth preference if not set.
+
+
 ### Nested Schema for `spec.ssh.port_forwarding`
 
 Optional:
@@ -193,4 +220,4 @@ Optional:
 
 Optional:
 
-- `mode` (String) Mode sets the session recording mode. Allowed values: strict | best_effort.
+- `mode` (String) Mode sets the session recording mode. Allowed values: strict or best_effort.
