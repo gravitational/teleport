@@ -176,7 +176,7 @@ test('shows each identity row with the correct profile status and action', async
   ).toBeVisible();
   expect(
     within(await screen.findByTitle('Switch to expired')).getByText(
-      'expired-user · Expired session'
+      'expired-user · Session expired'
     )
   ).toBeVisible();
   expect(
@@ -185,9 +185,7 @@ test('shows each identity row with the correct profile status and action', async
     )
   ).toBeVisible();
   expect(
-    within(await screen.findByTitle('Switch to orphan')).getByText(
-      'Saved in Connect'
-    )
+    within(await screen.findByTitle('Switch to orphan')).getByText('In history')
   ).toBeVisible();
 
   await userEvent.click(screen.getByTitle('Log out from connected'));
