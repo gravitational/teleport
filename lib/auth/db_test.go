@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	subcaenv "github.com/gravitational/teleport/lib/subca/testenv"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/tlscatest"
 )
 
 func Test_getSnowflakeJWTParams(t *testing.T) {
@@ -190,6 +191,17 @@ func TestDBCertSigning(t *testing.T) {
 		parsedNewDBClientCert, err := tlsutils.ParseCertificatePEM(newDBClientCACert)
 		require.NoError(t, err)
 
+		// Simulate na old, already rotated CA certificate.
+		// It should not influence responses.
+		_, oldCertPEM, err := tlscatest.GenerateSelfSignedCA(tlscatest.GenerateCAConfig{
+			ClusterName: clusterName,
+			NotBefore:   clock.Now().Add(-1 * time.Minute),
+			NotAfter:    clock.Now().Add(1 * time.Hour),
+		})
+		require.NoError(t, err)
+		oldCert, err := tlsutils.ParseCertificatePEM(oldCertPEM)
+		require.NoError(t, err)
+
 		dbClientCAOverride = &subcav1.CertAuthorityOverride{
 			Kind:    types.KindCertAuthorityOverride,
 			SubKind: string(types.DatabaseClientCA),
@@ -201,11 +213,14 @@ func TestDBCertSigning(t *testing.T) {
 				CertificateOverrides: []*subcav1.CertificateOverride{
 					subCAEnv.NewDisabledCertificateOverride(t, parsedActiveDBClientCert, nil),
 					subCAEnv.NewDisabledCertificateOverride(t, parsedNewDBClientCert, nil),
+					subCAEnv.NewDisabledCertificateOverride(t, oldCert, nil),
 				},
 			},
 		}
 		// Include external root in the first override's chain.
 		dbClientCAOverride.Spec.CertificateOverrides[0].Chain = []string{string(externalRoot.CertPEM)}
+		// Active the old override.
+		dbClientCAOverride.Spec.CertificateOverrides[2].Disabled = false
 	}
 
 	// Map self-signed certificates to their overrides.

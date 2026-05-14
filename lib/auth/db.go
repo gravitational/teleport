@@ -320,6 +320,10 @@ func (a *Server) getDatabaseCACerts(ctx context.Context, id types.CertAuthID) (c
 		if co.CertificateOverride.GetDisabled() || co.Certificate == nil {
 			continue
 		}
+		if _, ok := publicKeyToPEM[co.PublicKey]; !ok {
+			// Ignore override, it targets an unknown/deleted CA certificate.
+			continue
+		}
 		publicKeyToPEM[co.PublicKey] = []byte(co.CertificateOverride.Certificate)
 	}
 
