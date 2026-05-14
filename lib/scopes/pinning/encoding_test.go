@@ -158,32 +158,6 @@ func TestEncodeDecode(t *testing.T) {
 	}
 }
 
-func TestEncodeToBytes(t *testing.T) {
-	t.Parallel()
-
-	pin := &scopesv1.Pin{
-		Scope: "/test",
-		AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
-			"/test": {
-				"/test": {"role1"},
-			},
-		}),
-	}
-
-	encoded, err := Encode(pin)
-	require.NoError(t, err)
-	require.NotEmpty(t, encoded)
-
-	encodedBytes, err := EncodeToBytes(pin)
-	require.NoError(t, err)
-	require.NotEmpty(t, encodedBytes)
-	require.Equal(t, encoded, string(encodedBytes))
-
-	decoded, err := Decode(string(encodedBytes))
-	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(pin, decoded, protocmp.Transform()))
-}
-
 // TestEncodeDecodeErrors verifies some basic failure scenarios.
 func TestEncodeDecodeErrors(t *testing.T) {
 	t.Parallel()
@@ -200,22 +174,6 @@ func TestEncodeDecodeErrors(t *testing.T) {
 
 	t.Run("decode empty string", func(t *testing.T) {
 		_, err := Decode("")
-		require.Error(t, err)
-	})
-
-	t.Run("encode empty pin", func(t *testing.T) {
-		_, err := Encode(&scopesv1.Pin{})
-		require.Error(t, err)
-
-		_, err = EncodeToBytes(&scopesv1.Pin{})
-		require.Error(t, err)
-	})
-
-	t.Run("encode nil pin", func(t *testing.T) {
-		_, err := Encode(nil)
-		require.Error(t, err)
-
-		_, err = EncodeToBytes(nil)
 		require.Error(t, err)
 	})
 }

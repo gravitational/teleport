@@ -31,6 +31,7 @@ import "teleport/legacy/types/types.proto";
 import "teleport/legacy/types/webauthn/webauthn.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
 import "teleport/mfa/v1/mfa.proto";
+import "teleport/scopes/v1/scopes.proto";
 import "teleport/usageevents/v1/usageevents.proto";
 
 option go_package = "github.com/gravitational/teleport/api/client/proto";
@@ -100,6 +101,9 @@ message HostCertsRequest {
 // OpenSSHCertRequest specifies certificate-generation parameters
 // for a certificates used to connect to Agentless nodes.
 message OpenSSHCertRequest {
+  option (gogoproto.marshaler) = false;
+  option (gogoproto.sizer) = false;
+  option (gogoproto.unmarshaler) = false;
   reserved 1; // Username, jsontag "username"
   reserved "Username";
   // PublicKey is the public key to sign.
@@ -116,12 +120,8 @@ message OpenSSHCertRequest {
   // Roles are the roles of the Teleport user the certificate will be
   // generated for.
   repeated types.RoleV6 Roles = 6 [(gogoproto.jsontag) = "roles"];
-
-  // We cannot import the scope pin from teleport.scopes.v1.Pin because of incompatibilities with gogoproto
-  // and proto3.
-
-  // The marshaled scope pin from the user's certificate.
-  bytes scope_pin = 7;
+  // The scope pin from the user's certificate.
+  teleport.scopes.v1.Pin scope_pin = 7;
   // The OS login the user wants to use for the session. The authserver relies on the proxy
   // to have already preformed authorization checks to ensure that this login is usable for the openssh node.
   string login = 8;

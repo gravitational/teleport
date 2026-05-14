@@ -33,38 +33,18 @@ import (
 // and other space-constrained contexts. This encoding achieves compatness by a combination of protobuf binary encoding and unpadded urlsafe base64.
 // Contexts that are not space constrained may prefer to use protojson encoding instead for easier debugging.
 func Encode(pin *scopesv1.Pin) (string, error) {
-	penc, err := encodeHelper(pin)
-	if err != nil {
-		return "", err
-	}
-
-	return base64.RawURLEncoding.EncodeToString(penc), nil
-}
-
-func EncodeToBytes(pin *scopesv1.Pin) ([]byte, error) {
-	penc, err := encodeHelper(pin)
-	if err != nil {
-		return []byte{}, err
-	}
-	dst := make([]byte, base64.RawURLEncoding.EncodedLen(len(penc)))
-	base64.RawURLEncoding.Encode(dst, penc)
-
-	return dst, nil
-}
-
-func encodeHelper(pin *scopesv1.Pin) ([]byte, error) {
 	penc, err := proto.Marshal(pin)
 	if err != nil {
-		return []byte{}, trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
 
 	if len(penc) == 0 {
 		// protobuf considers an empty message to be valid and will encode it as an empty byte slice, however for our purposes
 		// scope pins should never be empty and having encode return an empty string may lead to confusion.
-		return []byte{}, trace.BadParameter("cannot encode empty scope pin")
+		return "", trace.BadParameter("cannot encode empty scope pin")
 	}
 
-	return penc, nil
+	return base64.RawURLEncoding.EncodeToString(penc), nil
 }
 
 // Decode decodes the given compactly encoded Scope Pin. The input must have been encoded using the [Encode] function. As

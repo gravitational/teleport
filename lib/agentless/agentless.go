@@ -28,12 +28,12 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cryptosuites"
-	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/sshca"
 )
 
@@ -80,14 +80,6 @@ func SignerFromSSHIdentity(ident *sshca.Identity, authClient AuthProvider, certG
 		user.SetRoles(ident.Roles)
 		user.SetTraits(ident.Traits)
 
-		var scopePinBytes []byte
-		if ident.ScopePin != nil {
-			scopePinBytes, err = pinning.EncodeToBytes(ident.ScopePin)
-			if err != nil {
-				return nil, trace.Wrap(err, "marshaling scope pin")
-			}
-		}
-
 		// fetch local roles so if the certificate is generated on a leaf
 		// cluster it won't have to lookup unknown roles
 		roles, err := getRoles(ctx, authClient, ident.Roles)
@@ -103,7 +95,7 @@ func SignerFromSSHIdentity(ident *sshca.Identity, authClient AuthProvider, certG
 			roles:        roles,
 			ttl:          ttl,
 			login:        login,
-			scopePin:     scopePinBytes,
+			scopePin:     ident.ScopePin,
 		}
 		signer, err := createAuthSigner(ctx, params, localAccessPoint, certGen)
 		if err != nil {
@@ -154,15 +146,7 @@ func signerFromIdentity(user types.User, identityGetter authz.IdentityGetter, au
 			return nil, trace.Wrap(err)
 		}
 
-		// Marshal the scope pin from the user's certificate if present, so it can
-		// be propagated to the auth server for building the scoped access checker.
-		var scopePinBytes []byte
 		if identity.ScopePin != nil {
-			scopePinBytes, err = pinning.EncodeToBytes(identity.ScopePin)
-			if err != nil {
-				return nil, trace.Wrap(err, "marshaling scope pin")
-			}
-
 			if login == "" {
 				return nil, trace.AccessDenied("login required for generating certs for agentless nodes")
 			}
@@ -173,7 +157,7 @@ func signerFromIdentity(user types.User, identityGetter authz.IdentityGetter, au
 			teleportUser: userCopy,
 			roles:        roles,
 			ttl:          time.Until(identity.Expires),
-			scopePin:     scopePinBytes,
+			scopePin:     identity.ScopePin,
 			login:        login,
 		}
 		signer, err := createAuthSigner(ctx, params, localAccessPoint, certGen)
@@ -207,7 +191,7 @@ type certParams struct {
 	teleportUser *types.UserV2
 	roles        []*types.RoleV6
 	ttl          time.Duration
-	scopePin     []byte
+	scopePin     *scopesv1.Pin
 	login        string
 }
 

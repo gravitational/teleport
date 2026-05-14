@@ -143,7 +143,6 @@ import (
 	"github.com/gravitational/teleport/lib/resourceusage"
 	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccesscache "github.com/gravitational/teleport/lib/scopes/cache/access"
-	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -2874,13 +2873,8 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 	}
 
 	var checkerContext *services.ScopedAccessCheckerContext
-	if len(req.ScopePin) > 0 {
-		scopePin, err := pinning.Decode(string(req.ScopePin))
-		if err != nil {
-			return nil, trace.Wrap(err, "unmarshaling scope pin")
-		}
-
-		accessInfo := services.ScopePinnedAccessInfoFromUserState(req.User, scopePin)
+	if req.ScopePin != nil {
+		accessInfo := services.ScopePinnedAccessInfoFromUserState(req.User, req.ScopePin)
 		checkerContext, err = services.NewScopedAccessCheckerContext(ctx, accessInfo, clusterName.GetClusterName(), a.ScopedAccessCache)
 		if err != nil {
 			return nil, trace.Wrap(err)
