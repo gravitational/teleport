@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -132,9 +133,15 @@ func GetUserOrLoginState(ctx context.Context, getter UserOrLoginStateGetter, use
 			// standard logic.
 		}
 
+		slog.WarnContext(ctx, "!! GetUserOrLoginState: returning ULS",
+			"user", username, "roles", uls.GetRoles())
 		return uls, nil
 	}
 
 	user, err := getter.GetUser(ctx, username, false)
+	if err == nil {
+		slog.WarnContext(ctx, "!! GetUserOrLoginState: returning User (no ULS)",
+			"user", username, "roles", user.GetRoles())
+	}
 	return user, trace.Wrap(err)
 }
