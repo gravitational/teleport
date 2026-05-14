@@ -227,6 +227,12 @@ func TestNewResourceExpression(t *testing.T) {
 			// Test operator precedence
 			`exists(labels.env) || (exists(labels.os) && labels.os != "mac")`,
 			`exists(labels.env) || exists(labels.os) && labels.os != "mac"`,
+			// split/contain combinations
+			`contains(split("a,b", ","), "a")`,
+			`contains(split("a,b", ","), "b")`,
+			`contains(split("", ","), "")`,
+			`contains(split(",,,", ",,"), ",")`,
+			`contains(split(",,,", ",,"), "")`,
 		}
 		for _, expr := range exprs {
 			t.Run(expr, func(t *testing.T) {
@@ -256,6 +262,9 @@ func TestNewResourceExpression(t *testing.T) {
 			`equals(resource.spec.hostname, "wrong-value")`,
 			`search("mac", "not-found")`,
 			`hasPrefix(name, "x")`,
+			`contains(split(",,,", ","), ",")`,
+			`contains(split(",,,", ","), ",,")`,
+			`contains(split(",,,,", ",,"), ",")`,
 		}
 		for _, expr := range exprs {
 			t.Run(expr, func(t *testing.T) {
