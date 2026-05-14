@@ -2880,7 +2880,8 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 			return nil, trace.Wrap(err, "unmarshaling scope pin")
 		}
 
-		checkerContext, err = a.AccessCheckerForScope(ctx, scopePin.Scope, req.User, nil)
+		accessInfo := services.ScopePinnedAccessInfoFromUserState(req.User, scopePin)
+		checkerContext, err = services.NewScopedAccessCheckerContext(ctx, accessInfo, clusterName.GetClusterName(), a.ScopedAccessCache)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

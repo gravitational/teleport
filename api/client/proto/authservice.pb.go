@@ -734,7 +734,8 @@ type OpenSSHCertRequest struct {
 	Roles []*types.RoleV6 `protobuf:"bytes,6,rep,name=Roles,proto3" json:"roles"`
 	// The marshaled scope pin from the user's certificate.
 	ScopePin []byte `protobuf:"bytes,7,opt,name=scope_pin,json=scopePin,proto3" json:"scope_pin,omitempty"`
-	// The OS login the user wants to use for the session.
+	// The OS login the user wants to use for the session. The authserver relies on the proxy
+	// to have already preformed authorization checks to ensure that this login is usable for the openssh node.
 	Login                string   `protobuf:"bytes,8,opt,name=login,proto3" json:"login,omitempty"`
 	XXX_NoUnkeyedLiteral struct{} `json:"-"`
 	XXX_unrecognized     []byte   `json:"-"`
