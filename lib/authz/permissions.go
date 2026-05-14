@@ -1131,6 +1131,7 @@ func unscopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.Ses
 					Namespaces: []string{types.Wildcard},
 					NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
+						types.NewRule(types.KindNode, services.RW()),
 						types.NewRule(types.KindSSHSession, services.RW()),
 						types.NewRule(types.KindEvent, services.WO()),
 						types.NewRule(types.KindProxy, services.RO()),
