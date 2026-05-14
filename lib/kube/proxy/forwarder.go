@@ -639,7 +639,7 @@ func (f *Forwarder) acquireConnectionLockWithIdentity(ctx context.Context, ident
 	)
 	defer span.End()
 	user := identity.Identity.GetIdentity().Username
-	roles, err := getRolesByName(f, identity.Identity.GetIdentity().Groups)
+	roles, err := getRolesByName(ctx, f, identity.Identity.GetIdentity().Groups)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -747,11 +747,19 @@ func (f *Forwarder) writeResponseErrorToBody(rw http.ResponseWriter, respErr err
 func (f *Forwarder) formatStatusResponseError(rw http.ResponseWriter, respErr error) {
 	// This detects failed requests that were terminated by the server due to GOAWAY. There
 	// is no direct way to detect these errors. No exported constants or error types exist from the
-	// standard library, see https://github.com/golang/net/blob/5ac9daca088ab4f378d7df849f6c7d28bea86071/http2/transport.go#L694.
+	// standard library, so we have to match on the error message. The two error strings come from:
+	//   - golang.org/x/net/http2 when its internal retry path cannot replay the body:
+	//     https://github.com/golang/net/blob/5ac9daca088ab4f378d7df849f6c7d28bea86071/http2/transport.go#L694
+	//   - net/http (errCannotRewind) when, after the http2 conn pool is drained, the http1 retry
+	//     path tries to rewind the body and fails because Request.GetBody is unset:
+	//     https://github.com/golang/go/blob/go1.26.2/src/net/http/transport.go#L759
 	// When a failed request is found, we return a response that indicates  to clients that they
 	// should retry the request themselves.
-	if errString := respErr.Error(); strings.HasSuffix(errString, `after Request.Body was written; define Request.GetBody to avoid this error`) &&
-		strings.Contains(errString, `http2: Transport: cannot retry err`) {
+	errString := respErr.Error()
+	isHTTP2RetryErr := strings.Contains(errString, `http2: Transport: cannot retry err`) &&
+		strings.HasSuffix(errString, `after Request.Body was written; define Request.GetBody to avoid this error`)
+	isHTTP1RewindErr := strings.Contains(errString, `net/http: cannot rewind body after connection loss`)
+	if isHTTP2RetryErr || isHTTP1RewindErr {
 
 		data, err := runtime.Encode(globalKubeCodecs.LegacyCodec(), &kubeerrors.NewTooManyRequests("Connection closed by upstream Kubernetes server", 1).ErrStatus)
 		if err != nil {
@@ -1387,14 +1395,16 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		client := &websocketClientStreams{uuid.New(), stream}
 		party := newParty(*ctx, stream.Mode, client)
 
-		err = session.join(party, true /* emitSessionJoinEvent */)
+		err = session.join(req.Context(), party, true /* emitSessionJoinEvent */)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		defer func() {
-			if _, err := session.leave(party.ID); err != nil {
-				f.log.DebugContext(req.Context(), "Participant was unable to leave session",
+			// Detach cancellation so leave's moderation rebalance still runs after the websocket closes.
+			leaveCtx := context.WithoutCancel(req.Context())
+			if _, err := session.leave(leaveCtx, party.ID); err != nil {
+				f.log.DebugContext(leaveCtx, "Participant was unable to leave session",
 					"participant_id", party.ID,
 					"session_id", session.id,
 					"error", err,
@@ -1868,14 +1878,16 @@ func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.
 			}
 
 			f.setSession(session.id, session)
-			if err = session.join(party, true /* emitSessionJoinEvent */); err != nil {
+			if err = session.join(ctx, party, true /* emitSessionJoinEvent */); err != nil {
 				return trace.Wrap(err)
 			}
 
 			err = <-party.closeC
 
-			if _, errLeave := session.leave(party.ID); errLeave != nil {
-				f.log.DebugContext(ctx, "Participant was unable to leave session",
+			// Detach cancellation so leave's moderation rebalance still runs after the client disconnects.
+			leaveCtx := context.WithoutCancel(ctx)
+			if _, errLeave := session.leave(leaveCtx, party.ID); errLeave != nil {
+				f.log.DebugContext(leaveCtx, "Participant was unable to leave session",
 					"participant_id", party.ID,
 					"session_id", session.id,
 					"error", errLeave,

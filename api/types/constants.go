@@ -1365,6 +1365,10 @@ const (
 	// BeamAliasLabel is the label used to track the alias of the Beam a
 	// resource belongs to.
 	BeamAliasLabel = TeleportInternalLabelPrefix + "beams/alias"
+
+	// BeamAppTypeLabel is the label used to denote the type of app created for
+	// Beams. Valid values: "ingress" and "llm".
+	BeamAppTypeLabel = TeleportInternalLabelPrefix + "beams/app-type"
 )
 
 const (
@@ -1950,3 +1954,6 @@ const (
 // BuiltInAutomaticReview is used within access monitoring rules and indicates
 // that the automatic_review rule should be monitored by Teleport.
 const BuiltInAutomaticReview = "builtin"
+
+// BeamsLogin is the login that should be used when SSHing into beams.
+const BeamsLogin = "beams"

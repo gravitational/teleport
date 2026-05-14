@@ -19,6 +19,7 @@
 package main
 
 import (
+	"cmp"
 	"fmt"
 	"io/fs"
 	"log/slog"
@@ -124,9 +125,10 @@ func resolveTargetsWithHelpers(e2eDir string, testFiles []string) ([]scanTarget,
 		}
 	}
 
+	helpersBase := cmp.Or(os.Getenv("E2E_SHARED_DIR"), e2eDir)
 	for helper := range importedHelpers {
 		targets = append(targets, scanTarget{
-			path: filepath.Join(e2eDir, "helpers", helper+".ts"),
+			path: filepath.Join(helpersBase, "helpers", helper+".ts"),
 		})
 	}
 
@@ -1107,4 +1109,3 @@ func sortRoles(roles []scannedRole) {
 		return strings.Compare(a.file, b.file)
 	})
 }
-

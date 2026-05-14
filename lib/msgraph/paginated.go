@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"iter"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -71,6 +72,16 @@ func (ic *iterateConfig) query() url.Values {
 func (c *Client) newIterateConfig() *iterateConfig {
 	return &iterateConfig{
 		top:    c.pageSize,
+		header: make(http.Header),
+	}
+}
+
+// newIterateConfigDelta creates a new iterateConfig.
+// It does not set up $top query as newIterateConfig does because
+// some delta endpoints like user and groups does not support it.
+// Clients can explicitly pass WithTop() to include it.
+func (c *Client) newIterateConfigDelta() *iterateConfig {
+	return &iterateConfig{
 		header: make(http.Header),
 	}
 }
@@ -214,6 +225,236 @@ func (c *Client) IterateUsers(ctx context.Context, f func(*models.User) bool, op
 	return iterateSimple(c, ctx, "users", f, opts...)
 }
 
+// iterateDelta implements pagination for Graph delta API endpoints.
+// It expects a valid delta link for the [endpoint] available in the [ds].
+func (c *Client) iterateDelta(ctx context.Context, endpoint string, ds DeltaStore) iter.Seq2[json.RawMessage, error] {
+	if ds == nil {
+		return func(yield func(json.RawMessage, error) bool) {
+			yield(nil, trace.BadParameter("missing delta store"))
+		}
+	}
+	deltaURI := ds.Get(endpoint)
+	if deltaURI == "" {
+		return func(yield func(json.RawMessage, error) bool) {
+			yield(nil, trace.Wrap(ErrMissingDeltaLink))
+		}
+	}
+
+	// Below, the delta link host is checked against the baseURL host
+	// which has already gone through validation when constructing the
+	// graph client. This isn't strictly necessary because as per the delta
+	// API docs, the client must save the whole delta link and use it as it
+	// is in the next delta request.
+	// https://learn.microsoft.com/en-us/graph/delta-query-overview#state-tokens
+	// https://learn.microsoft.com/en-us/graph/api/group-delta?view=graph-rest-1.0&tabs=http
+	if err := validateDeltaLink(c.baseURL, deltaURI); err != nil {
+		return func(yield func(json.RawMessage, error) bool) {
+			yield(nil, trace.Wrap(err))
+		}
+	}
+
+	// For the first request, uriString will be the same as deltaURI.
+	// If response is paginated, uriString will be assigned
+	// with a new NextLink.
+	uriString := deltaURI
+	// No extra headers expected for delta query.
+	header := make(http.Header)
+
+	return func(yield func(json.RawMessage, error) bool) {
+		var deltaLink string
+
+		for uriString != "" {
+			resp, err := c.request(ctx, http.MethodGet, uriString, header, nil /* payload */)
+			if err != nil {
+				yield(nil, trace.Wrap(err))
+				return
+			}
+
+			var page models.ODataPage
+			if err := jsoniter.ConfigFastest.NewDecoder(resp.Body).Decode(&page); err != nil {
+				resp.Body.Close()
+				yield(nil, trace.Wrap(err))
+				return
+			}
+
+			resp.Body.Close()
+			uriString = page.NextLink
+
+			if page.DeltaLink != "" {
+				deltaLink = page.DeltaLink
+			}
+
+			if !yield(page.Value, nil) {
+				return
+			}
+		}
+
+		if deltaLink != "" {
+			ds.Set(endpoint, deltaLink)
+		}
+	}
+}
+
+// IterateUserDeltas iterates over users delta response.
+// A delta token for the user endpont
+// must be set up before calling this method.
+func (c *Client) IterateUserDeltas(
+	ctx context.Context,
+	endpoint string,
+	ds DeltaStore,
+) iter.Seq2[*models.ListUsersDeltaResponse, error] {
+	return func(yield func(*models.ListUsersDeltaResponse, error) bool) {
+		for msg, iterErr := range c.iterateDelta(ctx, endpoint, ds) {
+			if iterErr != nil {
+				yield(nil, trace.Wrap(iterErr))
+				return
+			}
+			var page []*models.ListUsersDeltaResponse
+			if err := utils.FastUnmarshal(msg, &page); err != nil {
+				yield(nil, trace.Wrap(err))
+				return
+			}
+			for _, item := range page {
+				if !yield(item, nil) {
+					return
+				}
+			}
+		}
+	}
+}
+
+// IterateGroupDeltas iterates over groups delta response.
+// A delta token for the group endpont
+// must be set up before calling this method.
+func (c *Client) IterateGroupDeltas(
+	ctx context.Context,
+	endpoint string,
+	ds DeltaStore,
+) iter.Seq2[*models.ListGroupsDeltaResponse, error] {
+	return func(yield func(*models.ListGroupsDeltaResponse, error) bool) {
+		for msg, iterErr := range c.iterateDelta(ctx, endpoint, ds) {
+			if iterErr != nil {
+				yield(nil, trace.Wrap(iterErr))
+				return
+			}
+			var page []*models.ListGroupsDeltaResponse
+			if err := utils.FastUnmarshal(msg, &page); err != nil {
+				yield(nil, trace.Wrap(err))
+				return
+			}
+			for _, item := range page {
+				item.Owners = filterUnsupportedGroupOwners(item.Owners)
+				item.Members = filterUnsupportedGroupMembers(item.Members)
+				if !yield(item, nil) {
+					return
+				}
+			}
+		}
+	}
+}
+
+func filterUnsupportedGroupOwners(in []models.OwnersDelta) []models.OwnersDelta {
+	if in == nil {
+		return nil
+	}
+	out := make([]models.OwnersDelta, 0, len(in))
+	for _, owner := range in {
+		if owner.User == nil {
+			continue
+		}
+		switch owner.Type {
+		case models.ODataUser:
+			out = append(out, models.OwnersDelta{
+				User: &models.User{
+					DirectoryObject: models.DirectoryObject{
+						ID:          owner.ID,
+						DisplayName: owner.DisplayName,
+					},
+				},
+				Type:    owner.Type,
+				Removed: owner.Removed,
+			})
+		default:
+			// owners such as #microsoft.graph.servicePrincipal are discarded.
+		}
+	}
+	return out
+}
+
+func filterUnsupportedGroupMembers(in []models.MembersDelta) []models.MembersDelta {
+	if in == nil {
+		return nil
+	}
+	out := make([]models.MembersDelta, 0, len(in))
+	for _, member := range in {
+		if member.DirectoryObject == nil {
+			continue
+		}
+		switch member.Type {
+		case models.ODataUser, models.ODataGroup:
+			out = append(out, models.MembersDelta{
+				DirectoryObject: &models.DirectoryObject{
+					ID:          member.ID,
+					DisplayName: member.DisplayName,
+				},
+				Type:    member.Type,
+				Removed: member.Removed,
+			})
+		default:
+			// members such as #microsoft.graph.device are discarded.
+		}
+	}
+	return out
+}
+
+// SetupLatestDelta configures latest delta token for the given endpoint.
+// Should always be called before iterating over user and group delta API.
+func (c *Client) SetupLatestDelta(ctx context.Context, endpoint string, ds DeltaStore, opts ...IterateOpt) (err error) {
+	if ds == nil {
+		return trace.BadParameter("missing delta store")
+	}
+
+	// Preserve older link on error.
+	oldLink := ds.Get(endpoint)
+	defer func() {
+		if err != nil && oldLink != "" {
+			ds.Set(endpoint, oldLink)
+		}
+	}()
+
+	// Configure URL. At minimum, this needs $deltatoken=latest
+	// and $select query passed by the caller.
+	ic := c.newIterateConfigDelta()
+	for _, opt := range opts {
+		opt(ic)
+	}
+	q := ic.query()
+	q.Set("$deltatoken", "latest")
+	uri := *c.baseURL
+	uri.Path = path.Join(uri.Path, endpoint)
+	uri.RawQuery = q.Encode()
+	uriString := uri.String()
+
+	var resp *http.Response
+	resp, err = c.request(ctx, http.MethodGet, uriString, ic.header, nil /* payload */)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer resp.Body.Close()
+
+	var page models.ODataPage
+	if err = jsoniter.ConfigFastest.NewDecoder(resp.Body).Decode(&page); err != nil {
+		return trace.Wrap(err)
+	}
+	if page.DeltaLink == "" {
+		return trace.Errorf("missing delta link in latest delta query response")
+	}
+
+	ds.Set(endpoint, page.DeltaLink)
+
+	return nil
+}
+
 // IterateServicePrincipals lists all service principals in the Entra ID directory using pagination.
 // `f` will be called for each object in the result set.
 // if `f` returns `false`, the iteration is stopped (equivalent to `break` in a normal loop).
@@ -329,4 +570,19 @@ func (c *Client) IterateUsersTransitiveMemberOf(ctx context.Context, userID, gro
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(itErr)
+}
+
+// validateDeltaLink checks host of the baseURL and deltaLink matches.
+func validateDeltaLink(baseURL *url.URL, deltaLink string) error {
+	deltaURL, err := url.Parse(deltaLink)
+	if err != nil {
+		return trace.BadParameter("invalid delta link URL %s", deltaLink)
+	}
+	if deltaURL.Scheme != "https" {
+		return trace.BadParameter("delta link must be of HTTPs scheme, received %q", deltaURL.Scheme)
+	}
+	if baseURL.Host != deltaURL.Host {
+		return trace.BadParameter("base URL and delta link URL host mismatch, base=%q delta=%q", baseURL.Host, deltaURL.Host)
+	}
+	return nil
 }
