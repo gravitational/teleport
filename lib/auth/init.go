@@ -1394,6 +1394,7 @@ func GetPresetRoles(buildType string) []types.Role {
 		services.NewSystemIdentityCenterAccessRole(buildType),
 		services.NewPresetWildcardWorkloadIdentityIssuerRole(),
 		services.NewPresetAccessPluginRole(),
+		services.NewPresetAccessPluginWithReviewRole(),
 		services.NewPresetListAccessRequestResourcesRole(),
 		services.NewPresetMCPUserRole(),
 		services.NewSystemBeamRole(buildType),
