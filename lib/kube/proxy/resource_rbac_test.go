@@ -4058,22 +4058,19 @@ func TestProxySubresourceRBAC(t *testing.T) {
 		return resp.StatusCode, string(body)
 	}
 
-	// NOTE: Teleport currently returns HTTP 500 on verb denials while the
-	// response body carries the correct "User X cannot <verb> resource ..."
-	// message. Tests that exercise verb denial assert on body text to stay
-	// decoupled from the status-code mapping.
 	tests := []struct {
 		name         string
 		user         types.User
 		urlPath      string
-		bodyContains string
 		wantCode     int
+		bodyContains string
 	}{
 		{
 			// Sanity check that portforward verb denial still works.
 			name:         "portforward_denied_baseline",
 			user:         podGetUser,
 			urlPath:      "/api/v1/namespaces/default/pods/teleport/portforward",
+			wantCode:     http.StatusForbidden,
 			bodyContains: "cannot portforward resource",
 		},
 		{
@@ -4081,39 +4078,40 @@ func TestProxySubresourceRBAC(t *testing.T) {
 			name:         "pods_proxy_denied",
 			user:         podGetUser,
 			urlPath:      "/api/v1/namespaces/default/pods/teleport/proxy/8080",
+			wantCode:     http.StatusForbidden,
 			bodyContains: "cannot proxy resource",
 		},
 		{
 			name:         "services_proxy_denied",
 			user:         serviceGetUser,
 			urlPath:      "/api/v1/namespaces/default/services/svc/proxy/path",
+			wantCode:     http.StatusForbidden,
 			bodyContains: "cannot proxy resource",
 		},
 		{
 			name:         "nodes_proxy_denied",
 			user:         nodeGetUser,
 			urlPath:      "/api/v1/nodes/node-1/proxy/pods",
+			wantCode:     http.StatusForbidden,
 			bodyContains: "cannot proxy resource",
 		},
 		{
 			// noMatchUser has no allow rule for pods at all - confirms the
-			// resource matcher is in the request path, not just the verb
-			// check above.
-			name:     "negative_control_denied",
-			user:     noMatchUser,
-			urlPath:  "/api/v1/namespaces/default/pods/teleport/proxy/8080",
-			wantCode: http.StatusForbidden,
+			// resource matcher is in the request path. The body includes
+			// the user name to make this distinct from the podGetUser case
+			// above.
+			name:         "negative_control_denied",
+			user:         noMatchUser,
+			urlPath:      "/api/v1/namespaces/default/pods/teleport/proxy/8080",
+			wantCode:     http.StatusForbidden,
+			bodyContains: `User \"no-match\" cannot proxy resource`,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			code, body := sendGet(t, tt.user, tt.urlPath)
-			if tt.bodyContains != "" {
-				require.Contains(t, body, tt.bodyContains)
-			}
-			if tt.wantCode != 0 {
-				require.Equal(t, tt.wantCode, code)
-			}
+			require.Equal(t, tt.wantCode, code, "body: %s", body)
+			require.Contains(t, body, tt.bodyContains)
 		})
 	}
 }
