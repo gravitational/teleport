@@ -29,6 +29,12 @@ import (
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
+// BotUserPrefix is the prefix appended to bot users. Users with this prefix are
+// plausibly bots, but this prefix is not sufficient to establish that a given
+// user actually is a bot user. The existence of [types.BotLabel] in the user
+// labels is the definitive indicator that a user is a bot.
+const BotUserPrefix = "bot-"
+
 // BotInstance is an interface for the BotInstance service.
 type BotInstance interface {
 	// CreateBotInstance
@@ -207,5 +213,5 @@ func (o *ListBotInstancesRequestOptions) GetFilterFn() func(*machineidv1.BotInst
 // BotResourceName returns the default name for resources associated with the
 // given named bot.
 func BotResourceName(botName string) string {
-	return "bot-" + strings.ReplaceAll(botName, " ", "-")
+	return BotUserPrefix + strings.ReplaceAll(botName, " ", "-")
 }
