@@ -38,7 +38,8 @@ declare global {
   }
 }
 
-const supportsClipboardChangeEvent = 'onclipboardchange' in navigator.clipboard;
+const supportsClipboardChangeEvent =
+  navigator.clipboard && 'onclipboardchange' in navigator.clipboard;
 
 const logger = new Logger('DesktopSession');
 
