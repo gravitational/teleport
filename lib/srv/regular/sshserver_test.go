@@ -1353,6 +1353,10 @@ func TestAgentForwardPermission(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { se.Close() })
 
+	stderr, err := se.StderrPipe()
+	require.NoError(t, err)
+	stderrCh := startReadAll(stderr)
+
 	// to interoperate with OpenSSH, requests for agent forwarding always succeed.
 	// however that does not mean the users agent will actually be forwarded.
 	require.NoError(t, sshagent.RequestAgentForwarding(ctx, se))
@@ -1361,6 +1365,10 @@ func TestAgentForwardPermission(t *testing.T) {
 	output, err := se.Output(ctx, "env")
 	require.NoError(t, err)
 	require.NotContains(t, string(output), "SSH_AUTH_SOCK")
+
+	stderrOutput, err := waitForBytes(ctx, stderrCh)
+	require.NoError(t, err)
+	require.Contains(t, string(stderrOutput), "Agent forwarding is not permitted for this user.\n")
 }
 
 // TestMaxSessions makes sure that MaxSessions RBAC rules prevent
