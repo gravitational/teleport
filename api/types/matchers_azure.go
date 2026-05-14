@@ -41,6 +41,8 @@ const (
 	AzureMatcherRedis = "redis"
 	// AzureMatcherSQLServer is the Azure matcher type for SQL Server databases.
 	AzureMatcherSQLServer = "sqlserver"
+	// AzureMatcherWindowsVM is the Azure matcher type for Azure VMs with Windows OS.
+	AzureMatcherWindowsVM = "windows-vm"
 )
 
 // SupportedAzureMatchers is list of Azure services currently supported by the
@@ -54,6 +56,7 @@ var SupportedAzureMatchers = []string{
 	AzureMatcherPostgres,
 	AzureMatcherRedis,
 	AzureMatcherSQLServer,
+	AzureMatcherWindowsVM,
 }
 
 // GetTypes gets the types that the matcher can match.
@@ -80,6 +83,10 @@ func (m *AzureMatcher) CheckAndSetDefaults() error {
 			return trace.BadParameter("Azure discovery service type does not support %q resource type; supported resource types are: %v",
 				matcherType, SupportedAzureMatchers)
 		}
+	}
+
+	if slices.Contains(m.Types, AzureMatcherVM) && slices.Contains(m.Types, AzureMatcherWindowsVM) {
+		return trace.BadParameter("vm and vm-windows cannot be combined in the same matcher. Use separate matchers to configure different install scripts per OS")
 	}
 
 	if slices.Contains(m.Types, AzureMatcherVM) {
@@ -115,6 +122,35 @@ func (m *AzureMatcher) CheckAndSetDefaults() error {
 
 		if m.Params.ScriptName == "" {
 			m.Params.ScriptName = DefaultInstallerScriptName
+		}
+
+		if err := m.Params.HTTPProxySettings.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	if slices.Contains(m.Types, AzureMatcherWindowsVM) {
+		if m.Params == nil {
+			m.Params = &InstallerParams{}
+		}
+		if m.Params.Azure == nil {
+			m.Params.Azure = &AzureInstallerParams{}
+		}
+
+		if m.Params.Suffix != "" {
+			if !isAlphanumericIncluding(m.Params.Suffix, '-') {
+				return trace.BadParameter("install.suffix can only contain alphanumeric characters and hyphens")
+			}
+		}
+
+		if m.Params.UpdateGroup != "" {
+			if !isAlphanumericIncluding(m.Params.UpdateGroup, '-') {
+				return trace.BadParameter("install.update_group can only contain alphanumeric characters and hyphens")
+			}
+		}
+
+		if m.Params.ScriptName == "" {
+			m.Params.ScriptName = DefaultInstallerScriptNameWindows
 		}
 
 		if err := m.Params.HTTPProxySettings.CheckAndSetDefaults(); err != nil {

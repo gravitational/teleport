@@ -33,6 +33,10 @@ const InstallerScriptName = types.DefaultInstallerScriptName
 // installer script when agentless mode is enabled for a matcher
 const InstallerScriptNameAgentless = types.DefaultInstallerScriptNameAgentless
 
+// InstallerScriptNameWindows is the name of the by default populated, Windows
+// installer script
+const InstallerScriptNameWindows = types.DefaultInstallerScriptNameWindows
+
 // DefaultAgentlessInstaller represents a the default agentless installer script provided
 // by teleport
 var DefaultAgentlessInstaller = types.MustNewInstallerV1(InstallerScriptNameAgentless, defaultAgentlessInstallScript)

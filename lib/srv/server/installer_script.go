@@ -70,6 +70,27 @@ func envVarsFromInstallerParams(params *types.InstallerParams) []string {
 	return envVars
 }
 
+func envVarsFromInstallerParamsWindows(params *types.InstallerParams) []string {
+	var out []string
+	add := func(name, value string) {
+		if value != "" {
+			out = append(out, fmt.Sprintf("$env:%s=%s", name, psSingleQuote(value)))
+		}
+	}
+	add("TELEPORT_INSTALL_SUFFIX", params.Suffix)
+	add("TELEPORT_UPDATE_GROUP", params.UpdateGroup)
+	if params.HTTPProxySettings != nil {
+		add("HTTP_PROXY", params.HTTPProxySettings.HTTPProxy)
+		add("HTTPS_PROXY", params.HTTPProxySettings.HTTPSProxy)
+		add("NO_PROXY", params.HTTPProxySettings.NoProxy)
+	}
+	return out
+}
+
+func psSingleQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", "''") + "'"
+}
+
 type scriptOption func(*scriptOptions) *scriptOptions
 type scriptOptions struct {
 	addNonceComment bool
@@ -209,4 +230,80 @@ func preFlightInstallerChecks(proxyAddr string) map[installstatus.ExitCode]strin
 			orExitWithMessageScriptSnippet(installstatus.ProxyPingError, "proxy is unreachable"),
 		),
 	}
+}
+
+func installerScriptWindows(ctx context.Context, params *types.InstallerParams, opts ...scriptOption) (string, error) {
+	scriptOptions := &scriptOptions{}
+	for _, opt := range opts {
+		scriptOptions = opt(scriptOptions)
+	}
+
+	if params == nil {
+		return "", trace.BadParameter("installation parameters must not be nil")
+	}
+
+	proxyAddr, err := proxyAddress(ctx, params.PublicProxyAddr, scriptOptions.proxyAddr)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	scriptURLQuery := url.Values{}
+	if params.Azure != nil && params.Azure.ClientID != "" {
+		scriptURLQuery.Set("azure-client-id", shsprintf.EscapeDefaultContext(params.Azure.ClientID))
+	}
+
+	scriptURL := url.URL{
+		Scheme:   "https",
+		Host:     proxyAddr,
+		Path:     path.Join("v1", "webapi", "scripts", "installer", shsprintf.EscapeDefaultContext(params.ScriptName)),
+		RawQuery: scriptURLQuery.Encode(),
+	}
+
+	var installationScript string
+
+	// Export env vars before pre flight checks so that proxy network check can use http proxy settings if they are provided in the installer params.
+	envVars := envVarsFromInstallerParamsWindows(params)
+	if len(envVars) > 0 {
+		installationScript += strings.Join(envVars, "; ") + "; "
+	}
+
+	installationScript += preFlightChecksScriptWindows(proxyAddr)
+
+	installationScript += fmt.Sprintf(
+		`$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue'; & ([scriptblock]::Create((Invoke-WebRequest -Uri %s -UseBasicParsing).Content))`,
+		psSingleQuote(scriptURL.String()),
+	)
+
+	if scriptOptions.addNonceComment {
+		bytes := make([]byte, 8)
+		rand.Read(bytes)
+
+		installationScript += " # " + hex.EncodeToString(bytes)
+	}
+
+	return installationScript, nil
+}
+
+func preFlightChecksScriptWindows(proxyAddr string) string {
+	proxyFindURL := url.URL{
+		Scheme: "https",
+		Host:   proxyAddr,
+		Path:   path.Join("webapi", "find"),
+	}
+
+	checks := []string{
+		// disk space: convert MB threshold to bytes; Get-PSDrive .Free is bytes.
+		fmt.Sprintf(
+			`if ((Get-PSDrive ($env:SystemDrive.TrimEnd(':'))).Free -lt %dMB) { Write-Host 'insufficient disk space'; exit %d }`,
+			installstatus.InstallerMinFreeDiskMB,
+			installstatus.InsufficientDiskSpace,
+		),
+		// proxy reachability
+		fmt.Sprintf(
+			`try { Invoke-WebRequest -Uri %s -TimeoutSec 10 -UseBasicParsing | Out-Null } catch { Write-Host 'proxy is unreachable'; exit %d }`,
+			psSingleQuote(proxyFindURL.String()),
+			installstatus.ProxyPingError,
+		),
+	}
+	return strings.Join(checks, "; ") + "; "
 }

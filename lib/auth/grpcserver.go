@@ -5368,6 +5368,8 @@ func (g *GRPCServer) GetInstaller(ctx context.Context, req *types.ResourceReques
 				return g.defaultInstaller(ctx)
 			case installers.InstallerScriptNameAgentless:
 				return installers.DefaultAgentlessInstaller, nil
+			case installers.InstallerScriptNameWindows:
+				return installer.DefaultWindowsInstaller, nil
 			}
 		}
 		return nil, trace.Wrap(err)

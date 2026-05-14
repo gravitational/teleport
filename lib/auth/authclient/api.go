@@ -1012,6 +1012,12 @@ type DiscoveryAccessPoint interface {
 
 	// UpsertUserTask creates or updates an User Task
 	UpsertUserTask(ctx context.Context, req *usertasksv1.UserTask) (*usertasksv1.UserTask, error)
+
+	// UpsertDynamicWindowsDesktop creates or updates a Dynamic Windows Desktop
+	UpsertDynamicWindowsDesktop(ctx context.Context, desktop types.DynamicWindowsDesktop) (types.DynamicWindowsDesktop, error)
+
+	// ListDynamicWindowsDesktops returns a paginated list of Dynamic Windows Desktops.
+	ListDynamicWindowsDesktops(ctx context.Context, pageSize int, pageToken string) ([]types.DynamicWindowsDesktop, string, error)
 }
 
 // ReadOktaAccessPoint is a read only API interface to be
@@ -1883,9 +1889,18 @@ func (w *DiscoveryWrapper) GetDiscoveryConfig(ctx context.Context, name string) 
 	return w.NoCache.GetDiscoveryConfig(ctx, name)
 }
 
-// UpserUserTask creates or updates an User Task.
+// UpsertUserTask creates or updates an User Task.
 func (w *DiscoveryWrapper) UpsertUserTask(ctx context.Context, req *usertasksv1.UserTask) (*usertasksv1.UserTask, error) {
 	return w.NoCache.UpsertUserTask(ctx, req)
+}
+
+// UpsertDynamicWindowsDesktop creates or updates a Dynamic Windows Desktop.
+func (w *DiscoveryWrapper) UpsertDynamicWindowsDesktop(ctx context.Context, desktop types.DynamicWindowsDesktop) (types.DynamicWindowsDesktop, error) {
+	return w.NoCache.UpsertDynamicWindowsDesktop(ctx, desktop)
+}
+
+func (w *DiscoveryWrapper) ListDynamicWindowsDesktops(ctx context.Context, pageSize int, pageToken string) ([]types.DynamicWindowsDesktop, string, error) {
+	return w.NoCache.ListDynamicWindowsDesktops(ctx, pageSize, pageToken)
 }
 
 // Close closes all associated resources

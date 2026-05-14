@@ -1863,6 +1863,10 @@ const (
 	// DefaultInstallerScriptNameAgentless is the name of the by default populated, EC2
 	// installer script when agentless mode is enabled for a matcher
 	DefaultInstallerScriptNameAgentless = "default-agentless-installer"
+
+	// DefaultInstallerScriptNameWindows is the name of the by default populated
+	// installer script for Windows nodes
+	DefaultInstallerScriptNameWindows = "default-windows-installer"
 )
 
 const (

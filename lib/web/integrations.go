@@ -398,6 +398,11 @@ func collectIntegrationStats(ctx context.Context, req collectIntegrationStatsReq
 			ret.AzureVM.RulesCount += matchers
 			mergeResourceTypeSummary(&ret.AzureVM, cfg.Status.LastSyncTime, discoveredResources.AzureVms)
 		}
+
+		if matchers := rulesWithIntegration(cfg, types.AzureMatcherWindowsVM, req.integration.GetName()); matchers != 0 {
+			ret.AzureWindowsVM.RulesCount += matchers
+			mergeResourceTypeSummary(&ret.AzureWindowsVM, cfg.Status.LastSyncTime, discoveredResources.AzureWindowsVms)
+		}
 	}
 
 	switch req.integration.GetSubKind() {
@@ -476,6 +481,7 @@ func buildBriefSummaries(ctx context.Context, igs []types.Integration, uclt user
 			addResourceCounts(summaries[name].ResourcesCount, rscs.AwsEks)
 			addResourceCounts(summaries[name].ResourcesCount, rscs.AwsRds)
 			addResourceCounts(summaries[name].ResourcesCount, rscs.AzureVms)
+			addResourceCounts(summaries[name].ResourcesCount, rscs.AzureWindowsVms)
 		}
 	}
 

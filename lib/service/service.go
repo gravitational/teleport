@@ -3248,15 +3248,24 @@ type combinedDiscoveryClient struct {
 	discoveryConfigClient
 	eksClustersEnroller
 	services.UserTasks
+	services.DynamicWindowsDesktops
+}
+
+// ListDynamicWindowsDesktops disambiguates between the ClientI and
+// DynamicWindowsDesktops embedded interfaces, both of which provide this method.
+// The dedicated DynamicWindowsDesktops client is preferred.
+func (c combinedDiscoveryClient) ListDynamicWindowsDesktops(ctx context.Context, pageSize int, pageToken string) ([]types.DynamicWindowsDesktop, string, error) {
+	return c.DynamicWindowsDesktops.ListDynamicWindowsDesktops(ctx, pageSize, pageToken)
 }
 
 // newLocalCacheForDiscovery returns a new instance of access point for a discovery service.
 func (process *TeleportProcess) newLocalCacheForDiscovery(clt authclient.ClientI, cacheName []string) (authclient.DiscoveryAccessPoint, error) {
 	client := combinedDiscoveryClient{
-		ClientI:               clt,
-		discoveryConfigClient: clt.DiscoveryConfigClient(),
-		eksClustersEnroller:   clt.IntegrationAWSOIDCClient(),
-		UserTasks:             clt.UserTasksServiceClient(),
+		ClientI:                clt,
+		discoveryConfigClient:  clt.DiscoveryConfigClient(),
+		eksClustersEnroller:    clt.IntegrationAWSOIDCClient(),
+		UserTasks:              clt.UserTasksServiceClient(),
+		DynamicWindowsDesktops: clt.DynamicDesktopClient(),
 	}
 
 	// if caching is disabled, return access point

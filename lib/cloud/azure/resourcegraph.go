@@ -62,6 +62,12 @@ type QueryVMsParams struct {
 	// OSTypes filters VMs by osDisk.osType, e.g. []string{OSTypeLinux, OSTypeWindows}.
 	// An empty slice or any occurrence of types.Wildcard matches every OS type.
 	OSTypes []string
+	// IncludePrimaryPrivateIP requests that QueryVMs populate DiscoveredVM.PrimaryPrivateIP by
+	// issuing a follow-up query against Microsoft.Network/networkInterfaces and applying the
+	// primary-of-primary rule on the Go side. Adds one ARG round trip per NIC-ID chunk (chunks
+	// are sized to fit ARG's 32 KB query-length limit). Leave false for callers that don't need
+	// the IP — e.g. Linux VM discovery using run-command install.
+	IncludePrimaryPrivateIP bool
 }
 
 // OS-type values accepted by QueryVMsParams.OSTypes. ARG records osDisk.osType in
@@ -110,18 +116,31 @@ const argPageSize int32 = 1000
 // Source: https://learn.microsoft.com/en-us/azure/governance/resource-graph/concepts/guidance-for-throttled-requests#pagination
 const argMaxPagesPerChunk = 1000
 
-// Resource Graph query vocabulary used by buildVMDiscoveryKQL. Named so the query's external
-// dependencies are explicit and a future Microsoft schema rename has one greppable place to update.
+// argMaxQueryBytes is Resource Graph's documented query-string length limit. chunkNICIDsForQuery
+// uses it to size each NIC-query request so its in~ (...) clause never overflows.
 //
-// Semantic-intent values (type, running power state) define what "discoverable VM" means for this query.
-// Path values are schema dependencies on the shape of the Microsoft.Compute/virtualMachines projection returned by ARG.
+// Source: https://learn.microsoft.com/en-us/azure/governance/resource-graph/concepts/query-language#limits
+const argMaxQueryBytes = 32 * 1024
+
+// Resource Graph query vocabulary used by buildVMDiscoveryKQL and buildNICQuery. Named so the
+// queries' external dependencies are explicit and a future Microsoft schema rename has one
+// greppable place to update.
+//
+// Semantic-intent values (type, running power state) define what "discoverable VM" means for these
+// queries. Path values are schema dependencies on the shape of the Microsoft.Compute/virtualMachines
+// and Microsoft.Network/networkInterfaces projections returned by ARG.
 const (
 	argVMType            = "Microsoft.Compute/virtualMachines"
+	argNICType           = "Microsoft.Network/networkInterfaces"
 	argRunningPowerState = "PowerState/running"
 
-	argPowerStatePath = "properties.extended.instanceView.powerState.code"
-	argOSTypePath     = "properties.storageProfile.osDisk.osType"
-	argVMIDPath       = "properties.vmId"
+	argPowerStatePath       = "properties.extended.instanceView.powerState.code"
+	argOSTypePath           = "properties.storageProfile.osDisk.osType"
+	argVMIDPath             = "properties.vmId"
+	argNICRefsPath          = "properties.networkProfile.networkInterfaces"
+	argNICIPConfigsPath     = "properties.ipConfigurations"
+	argPrivateIPAddressPath = "properties.privateIPAddress"
+	argPrimaryFlagPath      = "properties.primary"
 )
 
 // QueryVMs runs the discovery query against Resource Graph and translates the rows to []DiscoveredVM.
@@ -129,19 +148,24 @@ const (
 // Callers are expected to pass simplified inputs satisfying the QueryVMsParams documented contract:
 // trimmed, deduped, with wildcards collapsed to []string{types.Wildcard}. QueryVMs defensively rejects
 // empty or untrimmed subscription IDs and filter values; deduplication remains the caller's job.
+//
+// When params.IncludePrimaryPrivateIP is set, QueryVMs issues a second query against
+// Microsoft.Network/networkInterfaces scoped exactly to the NIC IDs referenced by the discovered
+// VMs, then resolves DiscoveredVM.PrimaryPrivateIP on the Go side. Without the flag, only the
+// VM-side query runs.
 func (c *resourceGraphClient) QueryVMs(ctx context.Context, params QueryVMsParams) ([]DiscoveredVM, error) {
 	if err := validateQueryVMsParams(params); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	query := buildVMDiscoveryKQL(params.Regions, params.ResourceGroups, params.OSTypes)
+	query := buildVMDiscoveryKQL(params.Regions, params.ResourceGroups, params.OSTypes, params.IncludePrimaryPrivateIP)
 
 	var (
 		all          []DiscoveredVM
 		rawRowsTotal int
 	)
 	for chunk := range slices.Chunk(params.SubscriptionIDs, argMaxSubscriptionsPerQuery) {
-		result, err := c.queryChunk(ctx, query, chunk)
+		result, err := c.queryVMChunk(ctx, query, chunk)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -157,18 +181,47 @@ func (c *resourceGraphClient) QueryVMs(ctx context.Context, params QueryVMsParam
 				"likely contract drift (renamed field or shifted type)", rawRowsTotal)
 	}
 
+	if !params.IncludePrimaryPrivateIP {
+		return all, nil
+	}
+
+	nicMap, err := c.fetchNICIPConfigs(ctx, collectNICIDs(all), params.SubscriptionIDs)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	resolvePrimaryPrivateIPs(all, nicMap)
 	return all, nil
 }
 
+// nicRef is one entry from a VM's networkProfile.networkInterfaces[]: the NIC's ARM ID
+// (lowercased so the NIC-map lookup is case-insensitive) and the VM-side primary flag.
+// primary is false when Azure omitted the flag — selectPrimaryPrivateIP treats that as
+// "not explicitly primary" and falls back to the implicit-primary rule when appropriate.
+type nicRef struct {
+	id      string
+	primary bool
+}
+
+// ipConfigRow is one IP configuration projected from a NIC's properties.ipConfigurations[]
+// by the NIC query. primary is the IP-config-level primary flag (false when omitted).
+type ipConfigRow struct {
+	primary   bool
+	privateIP string
+}
+
+// queryVMsResult bundles a chunk's worth of parsed VMs plus the raw row count, so QueryVMs
+// can distinguish "no rows ever returned" (empty tenant) from "rows returned but none parsed"
+// (systemic schema drift) at query level — not per-page, not per-chunk.
 type queryVMsResult struct {
 	vms          []DiscoveredVM
 	rawRowsTotal int
 }
 
-// queryChunk runs a single ARG query against one chunk of subscription IDs and follows SkipToken pagination internally.
-// The pagination loop is bounded by argMaxPagesPerChunk, a defense against runaway loops a buggy server or mock could
-// otherwise drive. AccessDenied errors are wrapped with ARG-specific remediation guidance.
-func (c *resourceGraphClient) queryChunk(ctx context.Context, query string, subscriptionIDs []string) (queryVMsResult, error) {
+// queryVMChunk runs the VM query against one chunk of subscription IDs and follows SkipToken
+// pagination internally. The pagination loop is bounded by argMaxPagesPerChunk, a defense against
+// runaway loops a buggy server or mock could otherwise drive. AccessDenied errors are wrapped with
+// ARG-specific remediation guidance.
+func (c *resourceGraphClient) queryVMChunk(ctx context.Context, query string, subscriptionIDs []string) (queryVMsResult, error) {
 	subs := libslices.Map(subscriptionIDs, to.Ptr[string])
 
 	var (
@@ -206,11 +259,11 @@ func (c *resourceGraphClient) queryChunk(ctx context.Context, query string, subs
 		}
 		lastResp = resp
 
-		rows, err := parseDiscoveredVMs(ctx, resp.Data)
+		rows, err := parseVMRows(ctx, resp.Data)
 		if err != nil {
 			return queryVMsResult{}, trace.Wrap(err)
 		}
-		// parseDiscoveredVMs returned no error → Data was nil or []any. Track raw row count
+		// parseVMRows returned no error → Data was nil or []any. Track raw row count
 		// across pages so QueryVMs can distinguish "no rows ever returned" (empty tenant)
 		// from "rows returned but none parsed" (systemic schema drift) across the whole query.
 		if data, ok := resp.Data.([]any); ok {
@@ -235,6 +288,89 @@ func (c *resourceGraphClient) queryChunk(ctx context.Context, query string, subs
 		argMaxPagesPerChunk, resourceGraphResponseSummary(lastResp))
 }
 
+// fetchNICIPConfigs runs the NIC query as many times as needed to cover all the NIC IDs, paginates
+// each invocation, and merges results into a map keyed by lowercased NIC ARM ID. NIC IDs are
+// batched by query-byte budget (chunkNICIDsForQuery); subscription IDs are batched by
+// argMaxSubscriptionsPerQuery. For the common case of ≤ 200 subscriptions there is exactly one
+// subscription chunk, so total work scales with NIC-ID chunks only.
+func (c *resourceGraphClient) fetchNICIPConfigs(ctx context.Context, nicIDs []string, subscriptionIDs []string) (map[string][]ipConfigRow, error) {
+	out := make(map[string][]ipConfigRow, len(nicIDs))
+	if len(nicIDs) == 0 {
+		return out, nil
+	}
+	prefix, suffix := nicQueryEnvelope()
+	for _, nicChunk := range chunkNICIDsForQuery(nicIDs, prefix, suffix) {
+		query := buildNICQuery(nicChunk)
+		for subChunk := range slices.Chunk(subscriptionIDs, argMaxSubscriptionsPerQuery) {
+			chunkResult, err := c.queryNICChunk(ctx, query, subChunk)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			for id, configs := range chunkResult {
+				out[id] = configs
+			}
+		}
+	}
+	return out, nil
+}
+
+// queryNICChunk runs the NIC query against one chunk of subscription IDs and follows SkipToken
+// pagination internally. Returns a map keyed by lowercased NIC ARM ID matching the query's tolower
+// projection.
+func (c *resourceGraphClient) queryNICChunk(ctx context.Context, query string, subscriptionIDs []string) (map[string][]ipConfigRow, error) {
+	subs := libslices.Map(subscriptionIDs, to.Ptr[string])
+
+	out := map[string][]ipConfigRow{}
+	var (
+		lastResp  armresourcegraph.ClientResourcesResponse
+		skipToken *string
+	)
+
+	for range argMaxPagesPerChunk {
+		req := armresourcegraph.QueryRequest{
+			Query:         to.Ptr(query),
+			Subscriptions: subs,
+			Options: &armresourcegraph.QueryRequestOptions{
+				ResultFormat: to.Ptr(armresourcegraph.ResultFormatObjectArray),
+				Top:          to.Ptr(argPageSize),
+				SkipToken:    skipToken,
+			},
+		}
+
+		resp, err := c.api.Resources(ctx, req, nil)
+		if err != nil {
+			converted := ConvertResponseError(err)
+			if trace.IsAccessDenied(converted) {
+				return nil, trace.Wrap(converted,
+					"resource graph NIC query was denied; ensure the credential has "+
+						"Microsoft.Network/networkInterfaces/read (e.g. via the Reader role) "+
+						"on the queried subscription(s) or a containing management group scope")
+			}
+			return nil, trace.Wrap(converted)
+		}
+		lastResp = resp
+
+		if err := parseNICs(ctx, resp.Data, out); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if resp.SkipToken == nil || *resp.SkipToken == "" {
+			if resp.ResultTruncated != nil && *resp.ResultTruncated == armresourcegraph.ResultTruncatedTrue {
+				return nil, trace.Errorf(
+					"resource graph NIC response was truncated but did not include a skip token; "+
+						"results are incomplete (%s)",
+					resourceGraphResponseSummary(resp))
+			}
+			return out, nil
+		}
+		skipToken = resp.SkipToken
+	}
+
+	return nil, trace.Errorf(
+		"resource graph pagination exceeded the %d-page safety cap; aborting (suspected runaway loop; %s)",
+		argMaxPagesPerChunk, resourceGraphResponseSummary(lastResp))
+}
+
 func resourceGraphResponseSummary(resp armresourcegraph.ClientResourcesResponse) string {
 	var parts []string
 	if resp.SkipToken != nil && *resp.SkipToken != "" {
@@ -255,11 +391,18 @@ func resourceGraphResponseSummary(resp armresourcegraph.ClientResourcesResponse)
 	return strings.Join(parts, ", ")
 }
 
-// buildVMDiscoveryKQL composes the KQL query used by QueryVMs. The shape is intentionally fixed: type and
-// power-state predicates are baked in; OS, region, and resource-group predicates are caller-controllable.
+// buildVMDiscoveryKQL composes the VM-side KQL query used by QueryVMs. The shape is intentionally
+// fixed: type and power-state predicates are baked in; OS, region, and resource-group predicates
+// are caller-controllable.
+//
+// When includePrimaryPrivateIP is true, the projection adds a nicRefs column carrying the VM's
+// networkProfile.networkInterfaces array verbatim. QueryVMs uses these references to issue a
+// follow-up NIC query against Microsoft.Network/networkInterfaces and resolves PrimaryPrivateIP
+// on the Go side via selectPrimaryPrivateIP. The two-query split keeps each query simple and lets
+// ARG's indexes serve each lookup independently.
 //
 // Single quotes in inputs are doubled according to KQL's escape rule.
-func buildVMDiscoveryKQL(regions []string, resourceGroups []string, osTypes []string) string {
+func buildVMDiscoveryKQL(regions []string, resourceGroups []string, osTypes []string, includePrimaryPrivateIP bool) string {
 	var sb strings.Builder
 	sb.WriteString("Resources")
 	sb.WriteString("\n| where type =~ " + quoteKQL(argVMType))
@@ -279,7 +422,69 @@ func buildVMDiscoveryKQL(regions []string, resourceGroups []string, osTypes []st
 	sb.WriteString("\n| project id, name, subscriptionId, resourceGroup, location, tags," +
 		"\n          vmId = tostring(" + argVMIDPath + ")," +
 		"\n          osType = tostring(" + argOSTypePath + ")")
+	if includePrimaryPrivateIP {
+		sb.WriteString("," +
+			"\n          nicRefs = " + argNICRefsPath)
+	}
 	return sb.String()
+}
+
+// nicQueryEnvelope returns the fixed prefix and suffix wrapping the in~ (...) clause in the NIC
+// query. chunkNICIDsForQuery uses their lengths to size each chunk's ID list to fit under
+// argMaxQueryBytes without estimating overhead heuristically.
+func nicQueryEnvelope() (prefix, suffix string) {
+	prefix = "Resources" +
+		"\n| where type =~ " + quoteKQL(argNICType) +
+		"\n| where id in~ ("
+	suffix = ")" +
+		"\n| project id = tolower(tostring(id))," +
+		"\n          ipConfigs = " + argNICIPConfigsPath
+	return prefix, suffix
+}
+
+// buildNICQuery composes the NIC query for a single chunk of NIC ARM IDs. The chunk is expected
+// to have passed through chunkNICIDsForQuery, which sized it so the resulting query stays under
+// argMaxQueryBytes. NIC IDs come from ARG itself (the projected id column on the VM query's
+// nicRefs) rather than caller-supplied input, so they don't need the regex allowlist that filter
+// values do — only KQL single-quote escaping via quoteKQL.
+func buildNICQuery(ids []string) string {
+	prefix, suffix := nicQueryEnvelope()
+	var sb strings.Builder
+	sb.Grow(len(prefix) + len(suffix) + len(ids)*(len(ids[0])+3))
+	sb.WriteString(prefix)
+	for i, id := range ids {
+		if i > 0 {
+			sb.WriteString(", ")
+		}
+		sb.WriteString(quoteKQL(id))
+	}
+	sb.WriteString(suffix)
+	return sb.String()
+}
+
+// chunkNICIDsForQuery splits NIC IDs into chunks each of which, when wrapped by nicQueryEnvelope,
+// stays under argMaxQueryBytes. Each ID contributes len(id)+3 bytes to the in~ (...) clause (single
+// quotes + comma; the final entry's trailing comma overcounts by one — harmless slack). Chunks
+// preserve input order, so callers that need reproducible chunking should sort and dedupe first.
+func chunkNICIDsForQuery(ids []string, prefix, suffix string) [][]string {
+	budget := argMaxQueryBytes - len(prefix) - len(suffix)
+	var chunks [][]string
+	var current []string
+	size := 0
+	for _, id := range ids {
+		cost := len(id) + 3 // open quote, close quote, comma separator
+		if len(current) > 0 && size+cost > budget {
+			chunks = append(chunks, current)
+			current = nil
+			size = 0
+		}
+		current = append(current, id)
+		size += cost
+	}
+	if len(current) > 0 {
+		chunks = append(chunks, current)
+	}
+	return chunks
 }
 
 // regionPredicate returns a KQL `| where location in~ (...)` clause, or empty string when the
@@ -411,9 +616,11 @@ func validateKQLValues(values []string, pattern *regexp.Regexp, kind string) err
 	return nil
 }
 
-// parseDiscoveredVMs parses Resource Graph QueryResponse.Data into VMs.
+// parseVMRows parses VM-query response data into DiscoveredVMs. Each VM carries an internal
+// nicRefs field (when present in the projection) that QueryVMs uses to resolve PrimaryPrivateIP
+// via the NIC query; nicRefs is not visible outside this package.
 // Malformed rows are skipped; outer-shape drift returns an error.
-func parseDiscoveredVMs(ctx context.Context, data any) ([]DiscoveredVM, error) {
+func parseVMRows(ctx context.Context, data any) ([]DiscoveredVM, error) {
 	if data == nil {
 		return nil, nil
 	}
@@ -435,7 +642,7 @@ func parseDiscoveredVMs(ctx context.Context, data any) ([]DiscoveredVM, error) {
 			skipped++
 			continue
 		}
-		vm, err := parseDiscoveredVMRow(ctx, m)
+		vm, err := parseVMRow(ctx, m)
 		if err != nil {
 			slog.DebugContext(ctx, "Skipping malformed Resource Graph row",
 				"row", i, "error", err)
@@ -458,10 +665,12 @@ func parseDiscoveredVMs(ctx context.Context, data any) ([]DiscoveredVM, error) {
 	return out, nil
 }
 
-// parseDiscoveredVMRow extracts a DiscoveredVM from a single ARG response row.
-// Identity-field drift errors; tag drift is best-effort: malformed outer tags
-// yield an empty map, and malformed inner entries are dropped.
-func parseDiscoveredVMRow(ctx context.Context, m map[string]any) (DiscoveredVM, error) {
+// parseVMRow extracts a DiscoveredVM from a single VM-query response row. Identity-field drift
+// errors; tag drift and NIC-ref drift are best-effort: malformed shapes yield empty/nil collections.
+// The unexported nicRefs field is populated when the row includes the column and left nil otherwise
+// (IncludePrimaryPrivateIP=false). PrimaryPrivateIP is left empty for QueryVMs to populate after
+// the NIC query resolves it.
+func parseVMRow(ctx context.Context, m map[string]any) (DiscoveredVM, error) {
 	id, err := getRequiredARGString(m, "id")
 	if err != nil {
 		return DiscoveredVM{}, err
@@ -487,12 +696,11 @@ func parseDiscoveredVMRow(ctx context.Context, m map[string]any) (DiscoveredVM, 
 		return DiscoveredVM{}, err
 	}
 	// OS type is not identity: empty when ARG omits the field is fine. Non-string
-	// drift propagates to parseDiscoveredVMs's per-row skip path.
+	// drift propagates to parseVMRows's per-row skip path.
 	osType, err := getStringIfPresent(m, "osType")
 	if err != nil {
 		return DiscoveredVM{}, err
 	}
-	tags := getStringMap(ctx, m, "tags")
 
 	return DiscoveredVM{
 		ID:             id,
@@ -502,8 +710,236 @@ func parseDiscoveredVMRow(ctx context.Context, m map[string]any) (DiscoveredVM, 
 		Location:       location,
 		ResourceGroup:  rg,
 		OSType:         osType,
-		Tags:           tags,
+		Tags:           getStringMap(ctx, m, "tags"),
+		nicRefs:        parseNICRefs(ctx, m, "nicRefs"),
 	}, nil
+}
+
+// parseNICRefs extracts the nicRefs array projected by buildVMDiscoveryKQL when
+// IncludePrimaryPrivateIP is set. Each entry is the raw ARM reference object —
+// {id, properties: {primary}} — from the VM's networkProfile.networkInterfaces[].
+// Returns nil when the column is absent (IncludePrimaryPrivateIP=false) or the array is empty.
+// Best-effort on malformed entries: log at debug and drop the entry; the ID is lowercased so
+// downstream map lookups against the NIC query's tolower projection are case-insensitive.
+func parseNICRefs(ctx context.Context, m map[string]any, key string) []nicRef {
+	raw, ok := m[key]
+	if !ok || raw == nil {
+		return nil
+	}
+	asList, ok := raw.([]any)
+	if !ok {
+		slog.DebugContext(ctx, "Resource Graph row has malformed nicRefs; treating as empty",
+			"key", key, "got_type", fmt.Sprintf("%T", raw))
+		return nil
+	}
+	out := make([]nicRef, 0, len(asList))
+	for i, entry := range asList {
+		em, ok := entry.(map[string]any)
+		if !ok {
+			slog.DebugContext(ctx, "Dropping non-object nicRefs entry",
+				"key", key, "index", i, "got_type", fmt.Sprintf("%T", entry))
+			continue
+		}
+		id, err := getStringIfPresent(em, "id")
+		if err != nil || id == "" {
+			slog.DebugContext(ctx, "Dropping nicRefs entry with missing or malformed id",
+				"index", i, "error", err)
+			continue
+		}
+		out = append(out, nicRef{
+			id:      strings.ToLower(id),
+			primary: getNestedBool(em, "properties", "primary"),
+		})
+	}
+	return out
+}
+
+// parseNICs parses NIC-query response data, populating the supplied map keyed by NIC ARM ID.
+// Malformed rows are skipped at debug; outer-shape drift returns an error.
+func parseNICs(ctx context.Context, data any, out map[string][]ipConfigRow) error {
+	if data == nil {
+		return nil
+	}
+	rows, ok := data.([]any)
+	if !ok {
+		return trace.BadParameter("resource graph NIC response Data has unexpected type %T (expected []any)", data)
+	}
+	skipped := 0
+	for i, row := range rows {
+		m, ok := row.(map[string]any)
+		if !ok {
+			slog.DebugContext(ctx, "Skipping Resource Graph NIC row with unexpected type",
+				"row", i, "got_type", fmt.Sprintf("%T", row))
+			skipped++
+			continue
+		}
+		id, configs, err := parseNICRow(ctx, m)
+		if err != nil {
+			slog.DebugContext(ctx, "Skipping malformed Resource Graph NIC row",
+				"row", i, "error", err)
+			skipped++
+			continue
+		}
+		out[id] = configs
+	}
+	if skipped > 0 {
+		slog.WarnContext(ctx, "Resource Graph returned malformed NIC rows",
+			"skipped", skipped)
+	}
+	return nil
+}
+
+// parseNICRow extracts a NIC ID and its IP configurations from a single NIC-query response row.
+// The id field is required (it's the map key). ipConfigs may be empty for NICs in transient states.
+func parseNICRow(ctx context.Context, m map[string]any) (string, []ipConfigRow, error) {
+	id, err := getRequiredARGString(m, "id")
+	if err != nil {
+		return "", nil, err
+	}
+	return id, parseIPConfigList(ctx, m, "ipConfigs"), nil
+}
+
+// parseIPConfigList extracts a NIC row's ipConfigs array (NIC-query projection) into ipConfigRow
+// values. Each entry is a raw ipConfiguration object whose primary flag and privateIPAddress live
+// under a "properties" sub-object. Best-effort on malformed entries: log at debug and drop.
+func parseIPConfigList(ctx context.Context, m map[string]any, key string) []ipConfigRow {
+	raw, ok := m[key]
+	if !ok || raw == nil {
+		return nil
+	}
+	asList, ok := raw.([]any)
+	if !ok {
+		slog.DebugContext(ctx, "Resource Graph NIC row has malformed ipConfigs; treating as empty",
+			"key", key, "got_type", fmt.Sprintf("%T", raw))
+		return nil
+	}
+	out := make([]ipConfigRow, 0, len(asList))
+	for i, entry := range asList {
+		em, ok := entry.(map[string]any)
+		if !ok {
+			slog.DebugContext(ctx, "Dropping non-object ipConfigs entry",
+				"key", key, "index", i, "got_type", fmt.Sprintf("%T", entry))
+			continue
+		}
+		props, ok := em["properties"].(map[string]any)
+		if !ok {
+			slog.DebugContext(ctx, "Dropping ipConfigs entry with missing or malformed properties",
+				"index", i)
+			continue
+		}
+		privateIP, err := getStringIfPresent(props, "privateIPAddress")
+		if err != nil {
+			slog.DebugContext(ctx, "Dropping ipConfigs entry with malformed privateIPAddress",
+				"index", i, "error", err)
+			continue
+		}
+		out = append(out, ipConfigRow{
+			primary:   getBoolIfPresent(props, "primary"),
+			privateIP: privateIP,
+		})
+	}
+	return out
+}
+
+// selectPrimaryPrivateIP applies the primary-of-primary rule: the privateIPAddress of the primary
+// IP configuration on the primary NIC. Inputs are nicRefs from the VM query and a NIC-ID →
+// IP-configs map from the NIC query. Returns "" when no unambiguous primary can be chosen.
+//
+// Resolution:
+//
+//  1. Pick the primary NIC from nicRefs.
+//     - Exactly one ref flagged primary → that NIC.
+//     - No ref flagged primary AND only one ref → implicit primary on a single-NIC VM.
+//     - Otherwise → "" (no NICs, or ambiguous flagging).
+//
+//  2. Look up that NIC's IP configs in nicMap.
+//     - Missing entry (unindexed by ARG or not in the fetched batch) → "".
+//     - Keep only configs whose privateIPAddress is non-empty.
+//
+//  3. Pick the primary IP config among the survivors.
+//     - Exactly one flagged primary → its privateIP.
+//     - No flag set AND only one survivor → implicit primary on a single-config NIC.
+//     - Otherwise → "".
+//
+// Ambiguity is not treated as an error: the caller (e.g. Windows desktop registration) is expected
+// to check for "" and decide whether to skip the VM or surface a user task.
+func selectPrimaryPrivateIP(nicRefs []nicRef, nicMap map[string][]ipConfigRow) string {
+	if len(nicRefs) == 0 {
+		return ""
+	}
+
+	// Step 1: identify the primary NIC.
+	var primaryNICID string
+	var flagged []nicRef
+	for _, r := range nicRefs {
+		if r.primary {
+			flagged = append(flagged, r)
+		}
+	}
+	switch {
+	case len(flagged) == 1:
+		primaryNICID = flagged[0].id
+	case len(flagged) == 0 && len(nicRefs) == 1:
+		primaryNICID = nicRefs[0].id
+	default:
+		return ""
+	}
+
+	// Step 2: resolve the primary IP config on that NIC.
+	configs, ok := nicMap[primaryNICID]
+	if !ok {
+		return ""
+	}
+	withIP := make([]ipConfigRow, 0, len(configs))
+	for _, c := range configs {
+		if c.privateIP != "" {
+			withIP = append(withIP, c)
+		}
+	}
+	if len(withIP) == 0 {
+		return ""
+	}
+	var primaryConfigs []ipConfigRow
+	for _, c := range withIP {
+		if c.primary {
+			primaryConfigs = append(primaryConfigs, c)
+		}
+	}
+	switch {
+	case len(primaryConfigs) == 1:
+		return primaryConfigs[0].privateIP
+	case len(primaryConfigs) == 0 && len(withIP) == 1:
+		return withIP[0].privateIP
+	default:
+		return ""
+	}
+}
+
+// collectNICIDs returns the lowercased, deduplicated NIC ARM IDs referenced by all VMs. The result
+// feeds chunkNICIDsForQuery; the lowercase form matches the NIC query's tolower(tostring(id))
+// projection.
+func collectNICIDs(vms []DiscoveredVM) []string {
+	seen := make(map[string]struct{})
+	out := make([]string, 0)
+	for _, vm := range vms {
+		for _, ref := range vm.nicRefs {
+			if _, ok := seen[ref.id]; ok {
+				continue
+			}
+			seen[ref.id] = struct{}{}
+			out = append(out, ref.id)
+		}
+	}
+	return out
+}
+
+// resolvePrimaryPrivateIPs walks each VM and sets PrimaryPrivateIP using selectPrimaryPrivateIP
+// against the supplied NIC map. Mutates vms in place — the slice is already the caller's working
+// copy, and resolution is the final transform before QueryVMs returns it.
+func resolvePrimaryPrivateIPs(vms []DiscoveredVM, nicMap map[string][]ipConfigRow) {
+	for i := range vms {
+		vms[i].PrimaryPrivateIP = selectPrimaryPrivateIP(vms[i].nicRefs, nicMap)
+	}
 }
 
 // getRequiredARGString returns a required string field from an ARG row.
@@ -571,4 +1007,27 @@ func getStringMap(ctx context.Context, m map[string]any, key string) map[string]
 	}
 
 	return out
+}
+
+// getBoolIfPresent returns the bool at key. Missing, nil, or non-bool values return false —
+// appropriate for Azure "primary" flags, which are absent rather than explicitly false when
+// the resource has no sibling to disambiguate against (single-NIC VM, single-config NIC).
+func getBoolIfPresent(m map[string]any, key string) bool {
+	v, ok := m[key]
+	if !ok || v == nil {
+		return false
+	}
+	b, _ := v.(bool)
+	return b
+}
+
+// getNestedBool returns the bool at m[outer][inner]. Missing outer, wrong-type outer, missing
+// inner, or non-bool inner all return false — matching getBoolIfPresent's semantics for the
+// implicit-primary case.
+func getNestedBool(m map[string]any, outer, inner string) bool {
+	sub, ok := m[outer].(map[string]any)
+	if !ok {
+		return false
+	}
+	return getBoolIfPresent(sub, inner)
 }

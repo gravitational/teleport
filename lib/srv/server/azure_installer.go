@@ -33,6 +33,7 @@ import (
 // virtual machines.
 type AzureInstallRequest struct {
 	Instances            []*armcompute.VirtualMachine
+	DiscoveredVMs        []azure.DiscoveredVM
 	InstallerParams      *types.InstallerParams
 	ProxyAddrGetter      func(context.Context) (string, error)
 	Region               string
@@ -42,8 +43,10 @@ type AzureInstallRequest struct {
 
 // AzureInstallResult stores installation results for particular VM instance.
 type AzureInstallResult struct {
-	// Instance is VM instance.
+	// Instance is the SDK-typed VM.
 	Instance *armcompute.VirtualMachine
+	// DiscoveredVM is the Resource-Graph-typed VM.
+	DiscoveredVM *azure.DiscoveredVM
 	// APIError is potential API error encountered.
 	APIError error
 	// CommandResult is the result of run command: execution status, exit code, stdout, stderr.
@@ -93,6 +96,61 @@ func (req *AzureInstallRequest) Run(ctx context.Context, client azure.RunCommand
 			if req.OnRunCommandFinished != nil {
 				req.OnRunCommandFinished(AzureInstallResult{
 					Instance:      inst,
+					APIError:      apiError,
+					CommandResult: commandResult,
+				})
+			}
+
+			// local failure should not affect other runs.
+			return nil
+		})
+	}
+
+	return trace.Wrap(g.Wait())
+}
+
+// RunWindows initiates Teleport installation on a set of virtual machines and then blocks until the
+// commands have completed.
+func (req *AzureInstallRequest) RunWindows(ctx context.Context, client azure.RunCommandClient) error {
+	// Azure treats scripts with the same content as the same invocation and
+	// won't run them more than once. This is fine when the installer script
+	// succeeds, but it makes troubleshooting much harder when it fails. To
+	// work around this, we generate a random string and append it as a comment
+	// to the script, forcing Azure to see each invocation as unique.
+	script, err := installerScriptWindows(ctx, req.InstallerParams, withNonceComment(), withProxyAddrGetter(req.ProxyAddrGetter))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	g, ctx := errgroup.WithContext(ctx)
+
+	// Somewhat arbitrary limit to make sure Teleport doesn't have to install
+	// hundreds of nodes at once.
+	// TODO (Tener): increase limit/make it configurable.
+	const azureParallelInstallLimit = 10
+	g.SetLimit(azureParallelInstallLimit)
+
+	for _, inst := range req.DiscoveredVMs {
+		// Copy so the result keeps a stable pointer even after the goroutine outlives the
+		// iteration (Go 1.22+ scopes the loop var per iteration, but the copy is cheap and
+		// removes any doubt for readers).
+		vm := inst
+		g.Go(func() error {
+			// If the caller cancels, stop trying to run more commands.
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+
+			runRequest := azure.RunCommandRequest{
+				Region:        req.Region,
+				ResourceGroup: req.ResourceGroup,
+				VMName:        vm.Name,
+				Script:        script,
+			}
+
+			commandResult, apiError := client.Run(ctx, runRequest)
+			if req.OnRunCommandFinished != nil {
+				req.OnRunCommandFinished(AzureInstallResult{
+					DiscoveredVM:  &vm,
 					APIError:      apiError,
 					CommandResult: commandResult,
 				})

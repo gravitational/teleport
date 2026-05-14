@@ -24,6 +24,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
+	"runtime/debug"
 	"slices"
 	"strings"
 	"sync"
@@ -395,6 +397,9 @@ type Server struct {
 	cancelfn context.CancelFunc
 	// nodeWatcher is a node watcher.
 	nodeWatcher *services.GenericWatcher[types.Server, readonly.Server]
+	// dynamicWindowsDesktopWatcher is a watcher for dynamic Windows desktops, used
+	// to filter out VMs that have already been registered after a successful Windows AP install.
+	dynamicWindowsDesktopWatcher *services.GenericWatcher[types.DynamicWindowsDesktop, readonly.DynamicWindowsDesktop]
 
 	// ec2Watcher periodically retrieves EC2 instances.
 	ec2Watcher *server.Watcher[*server.EC2Instances]
@@ -446,6 +451,7 @@ type Server struct {
 	awsEKSTasks           awsEKSTasks
 	awsRDSTasks           awsRDSTasks
 	azureVMStatus         atomic.Pointer[resourceStatusMap]
+	azureVMWindowsStatus  atomic.Pointer[resourceStatusMap]
 
 	// caRotationCh receives nodes that need to have their CAs rotated.
 	caRotationCh chan []types.Server
@@ -526,6 +532,10 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 	}
 
 	s.startDynamicMatchersWatcher(s.ctx)
+
+	if err := s.initTeleportDynamicWindowsDesktopWatcher(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	return s, nil
 }
@@ -788,6 +798,15 @@ func (s *Server) azureServerFetchersFromMatchers(matchers []types.AzureMatcher, 
 	return server.MatchersToAzureInstanceFetchers(s.ctx, s.Log, serverMatchers, s.getAzureClients, discoveryConfigName, s.getAzureSubscriptionList)
 }
 
+// azureWindowsServerFetchersFromMatchers converts Matchers into a set of Azure Windows Servers Fetchers.
+func (s *Server) azureWindowsServerFetchersFromMatchers(matchers []types.AzureMatcher, discoveryConfigName string) []server.Fetcher[*server.AzureInstances] {
+	windowMatchers, _ := splitMatchers(matchers, func(matcherType string) bool {
+		return matcherType == types.AzureMatcherWindowsVM
+	})
+
+	return server.MatchersToAzureInstanceFetchers(s.ctx, s.Log, windowMatchers, s.getAzureClients, discoveryConfigName, s.getAzureSubscriptionList)
+}
+
 func (s *Server) getAzureSubscriptionListNoCache(ctx context.Context, integration string) ([]string, error) {
 	azureClients, err := s.getAzureClients(ctx, integration)
 	if err != nil {
@@ -956,7 +975,7 @@ func (s *Server) getAzureClients(ctx context.Context, integration string) (azure
 func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMatcher) error {
 	// Filter out VM matchers
 	_, otherMatchers := splitMatchers(matchers, func(matcherType string) bool {
-		return matcherType == types.AzureMatcherVM
+		return matcherType == types.AzureMatcherVM || matcherType == types.AzureMatcherWindowsVM
 	})
 
 	// Database fetchers were added in databaseFetchersFromMatchers.
@@ -1124,6 +1143,12 @@ func genEC2InstancesLogStr(instances []server.EC2Instance) string {
 func genAzureInstancesLogStr(instances []*armcompute.VirtualMachine) string {
 	return genInstancesLogStr(instances, func(i *armcompute.VirtualMachine) string {
 		return aws.ToString(i.Name)
+	})
+}
+
+func genAzureDiscoveredVMsLogStr(instances []azure.DiscoveredVM) string {
+	return genInstancesLogStr(instances, func(i azure.DiscoveredVM) string {
+		return i.Name
 	})
 }
 
@@ -1456,7 +1481,7 @@ func (s *Server) emitAzureInstallEvents(log *slog.Logger, instances *server.Azur
 	}
 
 	// on success, emit usage event.
-	vmKey, usageEvent := instances.MakeUsageEvent(result.Instance)
+	vmKey, usageEvent := instances.MakeUsageEvent(result)
 	err = s.emitUsageEvent(vmKey, usageEvent)
 	if err != nil {
 		log.WarnContext(s.ctx, "Failed to emit usage event", "error", err)
@@ -1570,6 +1595,58 @@ func (s *Server) enrollAzureVirtualMachines(log *slog.Logger, instances *server.
 
 	log.InfoContext(s.ctx, "Finished installation batch",
 		"total_instances", len(instances.Instances),
+		"failures", len(failedInstances))
+	reporter.summary(s.ctx)
+
+	return failedInstances, nil
+}
+
+func (s *Server) enrollAzureWindowsVirtualMachines(log *slog.Logger, instances *server.AzureInstances) ([]server.AzureInstallResult, error) {
+	azureClients, err := s.getAzureClients(s.ctx, instances.Integration)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	runClient, err := azureClients.GetRunCommandClient(s.ctx, instances.SubscriptionID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	const maxReportedErrors = 10
+	reporter := &limitedErrorReporter{
+		logger:      log,
+		reportLimit: maxReportedErrors,
+	}
+
+	var mu sync.Mutex
+	var failedInstances []server.AzureInstallResult
+
+	req := server.AzureInstallRequest{
+		DiscoveredVMs:   instances.DiscoveredVMs,
+		Region:          instances.Region,
+		ResourceGroup:   instances.ResourceGroup,
+		InstallerParams: instances.InstallerParams,
+		ProxyAddrGetter: s.publicProxyAddress,
+		OnRunCommandFinished: func(result server.AzureInstallResult) {
+			s.emitAzureInstallEvents(log, instances, result)
+			if result.Failure() {
+				reporter.report(s.ctx, result)
+
+				// collect the failed instance
+				mu.Lock()
+				failedInstances = append(failedInstances, result)
+				mu.Unlock()
+			}
+		},
+	}
+
+	err = req.RunWindows(s.ctx, runClient)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	log.InfoContext(s.ctx, "Finished installation batch",
+		"total_instances", len(instances.DiscoveredVMs),
 		"failures", len(failedInstances))
 	reporter.summary(s.ctx)
 
@@ -1776,6 +1853,295 @@ func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *
 	return
 }
 
+// startAzureWindowsServerDiscovery starts the Azure Windows VM discovery.
+// It needs to be run asynchronously as it waits on watcher initialization before proceeding.
+func (s *Server) startAzureWindowsServerDiscovery() {
+	if err := s.dynamicWindowsDesktopWatcher.WaitInitialization(); err != nil {
+		s.Log.ErrorContext(s.ctx, "Failed to initialize dynamicWindowsDesktopWatcher", "error", err)
+		return
+	}
+
+	var azureWatcher *server.Watcher[*server.AzureInstances]
+
+	// a full refresh is somewhat wasteful, however not overly so due to inexpensive operations involved.
+	// a more selective approach would necessitate deeper refactoring.
+	fullRefresh := func() {
+		s.Log.DebugContext(s.ctx, "Refreshing Azure Windows server fetchers")
+		replaceMap := make(map[string][]server.Fetcher[*server.AzureInstances])
+		replaceMap[noDiscoveryConfig] = s.azureWindowsServerFetchersFromMatchers(s.Matchers.Azure, noDiscoveryConfig)
+
+		s.dynamicDiscoveryConfigMu.RLock()
+		// avoid holding the read lock while converting matchers to fetchers,
+		// in case of API calls, e.g., to expand subscription wildcard.
+		dynamicConfigs := make(map[string][]types.AzureMatcher, len(s.dynamicDiscoveryConfig))
+		for _, config := range s.dynamicDiscoveryConfig {
+			dynamicConfigs[config.GetName()] = config.Spec.Azure
+		}
+		s.dynamicDiscoveryConfigMu.RUnlock()
+
+		for configName, matchers := range dynamicConfigs {
+			replaceMap[configName] = s.azureWindowsServerFetchersFromMatchers(matchers, configName)
+		}
+		azureWatcher.ReplaceFetchers(replaceMap)
+	}
+
+	var sm *resourceStatusMap
+	var vmTasks *azureVMTasks
+	var runStart time.Time
+
+	azureWatcher = server.NewWatcher(
+		s.ctx,
+		s.Log.With("cloud", "Azure"),
+		server.WithPreFetchHookFn(func(fetchers []server.Fetcher[*server.AzureInstances]) {
+			s.Log.InfoContext(s.ctx, "Azure Windows VM discovery iteration starting")
+			runStart = s.clock.Now()
+
+			if len(fetchers) > 0 {
+				s.submitFetchEvent(types.CloudAzure, types.AzureMatcherWindowsVM)
+			}
+			sm = newStatusMap(types.AzureMatcherWindowsVM, runStart)
+			vmTasks = &azureVMTasks{}
+
+			// Initialize the status map with an entry per fetcher (discoveryConfig + integration).
+			// The per-instance hook only receives the slice of instance groups; when a fetcher
+			// returns zero groups, the hook has nothing to iterate and cannot introduce the key
+			// into sm.results. Creating the key here ensures we still write an explicit
+			// "0 found/enrolled/failed" update instead of leaving stale non-zero status from a
+			// previous iteration.
+			for _, fetcher := range fetchers {
+				fgKey := fetcherGroupKey{
+					discoveryConfigName: fetcher.GetDiscoveryConfigName(),
+					integration:         fetcher.IntegrationName(),
+				}
+				sm.add(fgKey, make(map[statusType]int))
+			}
+			s.updateDiscoveryConfigStatus(sm.discoveryConfigs()...)
+		}),
+		server.WithPerInstanceHookFn(func(instanceGroups []*server.AzureInstances) {
+			defer func() {
+				if r := recover(); r != nil {
+					s.Log.ErrorContext(s.ctx, "DEBUG: PANIC in Windows PerInstanceHook", "recovered", r, "stack", string(debug.Stack()))
+				}
+			}()
+			s.Log.DebugContext(s.ctx, "Processing Windows instances", "groups", len(instanceGroups))
+			for _, group := range instanceGroups {
+				fgKey := fetcherGroupKey{
+					discoveryConfigName: group.DiscoveryConfigName,
+					integration:         group.Integration,
+				}
+				s.Log.DebugContext(s.ctx, "Processing Windows instance group", "group", fgKey, "instances", len(group.Instances))
+				results := s.installAzureWindowsServers(group, vmTasks)
+				sm.add(fgKey, results)
+			}
+			s.Log.InfoContext(s.ctx, "DEBUG: Windows PerInstanceHook completed normally")
+		}),
+		server.WithPostFetchHookFn[*server.AzureInstances](func() {
+			// refresh the fetchers after every iteration to avoid stale config
+			defer fullRefresh()
+
+			sm.syncEnded(s.clock.Now())
+			// update statuses of relevant discovery configs.
+			s.azureVMWindowsStatus.Store(sm)
+			s.updateDiscoveryConfigStatus(sm.discoveryConfigs()...)
+			// upsert user tasks for failed enrollments.
+			vmTasks.upsertAll(s.taskUpdater())
+
+			s.Log.InfoContext(s.ctx, "Azure Windows VM discovery iteration completed", "elapsed", s.clock.Since(runStart))
+		}),
+		server.WithPollInterval[*server.AzureInstances](s.PollInterval),
+		server.WithTriggerFetchC[*server.AzureInstances](s.newDiscoveryConfigChangedSub()),
+		server.WithTriggerFetchHookFn[*server.AzureInstances](fullRefresh),
+		server.WithClock[*server.AzureInstances](s.clock),
+	)
+
+	// refresh dynamic fetchers once at the beginning.
+	fullRefresh()
+
+	s.Log.DebugContext(s.ctx, "Azure Windows VM watcher starting.")
+	go azureWatcher.Run()
+}
+
+// installAzureWindowsServers attempts to enroll the given Azure Windows VM instances into the cluster
+func (s *Server) installAzureWindowsServers(instances *server.AzureInstances, vmTasks *azureVMTasks) (results map[statusType]int) {
+	results = make(map[statusType]int)
+
+	log := s.Log.With(
+		"discovery_config", instances.DiscoveryConfigName,
+		"integration", instances.Integration,
+		"subscription_id", instances.SubscriptionID,
+		"region", instances.Region,
+		"resource_group", instances.ResourceGroup,
+		"os", "windows",
+	)
+
+	allFound := len(instances.DiscoveredVMs)
+	results[statusFound] = allFound
+
+	if allFound == 0 {
+		log.DebugContext(s.ctx, "No Azure Windows instances found, skipping installation")
+		return
+	}
+
+	desktops, err := s.dynamicWindowsDesktopWatcher.CurrentResources(s.ctx)
+	if err != nil {
+		log.WarnContext(s.ctx, "Failed to get current dynamic Windows desktops", "error", err)
+		return
+	}
+
+	existing := make(map[string]struct{})
+	for _, d := range desktops {
+		labels := d.GetAllLabels()
+		if labels[types.SubscriptionIDLabel] != instances.SubscriptionID {
+			continue
+		}
+		if vmID := labels[types.VMIDLabel]; vmID != "" {
+			existing[vmID] = struct{}{}
+		}
+	}
+
+	instances.DiscoveredVMs = slices.DeleteFunc(instances.DiscoveredVMs, func(vm azure.DiscoveredVM) bool {
+		_, found := existing[vm.VMID]
+		return found
+	})
+
+	// count machines that have already been enrolled in previous cycles.
+	needInstall := len(instances.DiscoveredVMs)
+	results[statusEnrolled] = allFound - needInstall
+
+	if len(instances.DiscoveredVMs) == 0 {
+		log.DebugContext(s.ctx, "No Azure Windows instances remain to enroll, skipping installation")
+		return
+	}
+
+	addFailedEnrollment := func(vm azure.DiscoveredVM, issueType string) {
+		// Static matchers don't have a discovery config resource, so skip creating user tasks
+		// because validation requires a discovery config name.
+		if instances.DiscoveryConfigName == noDiscoveryConfig {
+			return
+		}
+
+		tg := usertasks.TaskGroup{
+			Integration: instances.Integration,
+			IssueType:   issueType,
+		}
+		vmTasks.addFailedEnrollment(
+			tg,
+			azureVMTaskKey{
+				subscriptionID: instances.SubscriptionID,
+				resourceGroup:  instances.ResourceGroup,
+				region:         instances.Region,
+			},
+			&usertasksv1.DiscoverAzureVMInstance{
+				VmId:            vm.VMID,
+				ResourceId:      vm.ID,
+				Name:            vm.Name,
+				DiscoveryConfig: instances.DiscoveryConfigName,
+				DiscoveryGroup:  s.DiscoveryGroup,
+				SyncTime:        timestamppb.New(s.clock.Now()),
+			},
+		)
+	}
+
+	log.DebugContext(s.ctx, "Running Teleport installation on Windows virtual machines", "vms", genAzureDiscoveredVMsLogStr(instances.DiscoveredVMs))
+	enrollFailures, err := s.enrollAzureWindowsVirtualMachines(log, instances)
+	if err != nil {
+		// treat non-nil err as deployment failure affecting all machines.
+		log.WarnContext(s.ctx, "Failed to enroll discovered Azure Windows VMs", "error", err, "count", len(instances.DiscoveredVMs))
+		results[statusFailed] = len(instances.DiscoveredVMs)
+
+		issueType := classifyAzureVMEnrollmentError(err)
+		for _, vm := range instances.DiscoveredVMs {
+			addFailedEnrollment(vm, issueType)
+		}
+		return
+	}
+
+	failedVMIDs := make(map[string]struct{}, len(enrollFailures))
+	for _, result := range enrollFailures {
+		if result.DiscoveredVM != nil {
+			failedVMIDs[result.DiscoveredVM.VMID] = struct{}{}
+		}
+	}
+
+	var registerFailures []error
+	for _, vm := range instances.DiscoveredVMs {
+		if _, failed := failedVMIDs[vm.VMID]; failed {
+			continue
+		}
+
+		if err := s.registerWindowsVM(vm, instances); err != nil {
+			log.WarnContext(s.ctx, "Failed to register Azure Windows VM after successful installation", "vm_id", vm.VMID, "error", err)
+			registerFailures = append(registerFailures, err)
+			addFailedEnrollment(vm, classifyAzureVMEnrollmentError(err))
+		}
+	}
+
+	if len(enrollFailures) > 0 {
+		log.WarnContext(s.ctx, "Failed to enroll some discovered Azure Windows VMs", "count", len(enrollFailures))
+	}
+
+	// count individual failed enrollments.
+	results[statusFailed] = len(enrollFailures) + len(registerFailures)
+
+	// Record failures as user tasks.
+	for _, result := range enrollFailures {
+		if result.DiscoveredVM == nil {
+			continue
+		}
+		if result.CommandResult != nil {
+			addFailedEnrollment(*result.DiscoveredVM, usertasks.AutoDiscoverAzureVMIssueEnrollmentError)
+		} else {
+			addFailedEnrollment(*result.DiscoveredVM, classifyAzureVMEnrollmentError(result.APIError))
+		}
+	}
+
+	pendingCount := len(instances.DiscoveredVMs) - len(enrollFailures) - len(registerFailures)
+	if pendingCount > 0 {
+		// Note: we have no "installation in progress" or "installation succeeded" counter, so we ignore those.
+		// If the installation went fine the "enrolled" counter will increase during next iteration.
+		// Otherwise, we will try to enroll those once again, possibly failing.
+		// There is a gap here: we will ignore join failures as those happen out of our sight.
+		// There is no easy way to close that gap in the current architecture.
+		log.DebugContext(s.ctx, "Installation attempt finished. If the machines have joined the cluster successfully, they will be counted as enrolled during the next iteration.", "pending", pendingCount)
+	}
+
+	return
+}
+
+// registerWindowsVM creates (or refreshes) a DynamicWindowsDesktop resource for a single VM that
+// just had the Windows Authentication Package installed. PrimaryPrivateIP comes from the
+// Resource Graph NIC follow-up that QueryVMs runs when IncludePrimaryPrivateIP is set; if it's
+// empty the VM didn't have an unambiguous primary private IP and registration is skipped — the
+// installAzureWindowsServers caller surfaces this as an enrollment failure for the operator.
+func (s *Server) registerWindowsVM(vm azure.DiscoveredVM, instances *server.AzureInstances) error {
+	if vm.PrimaryPrivateIP == "" {
+		return trace.BadParameter("VM %q has no primary private IP", vm.VMID)
+	}
+
+	name := fmt.Sprintf("azure-windows-%s", vm.VMID)
+	labels := map[string]string{
+		types.CloudLabel:          types.CloudAzure,
+		types.SubscriptionIDLabel: instances.SubscriptionID,
+		types.ResourceGroupLabel:  instances.ResourceGroup,
+		types.VMIDLabel:           vm.VMID,
+		types.RegionLabel:         instances.Region,
+	}
+
+	desktop, err := types.NewDynamicWindowsDesktopV1(name, labels, types.DynamicWindowsDesktopSpecV1{
+		Addr:  net.JoinHostPort(vm.PrimaryPrivateIP, "3389"),
+		NonAD: true,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err := s.AccessPoint.UpsertDynamicWindowsDesktop(s.ctx, desktop); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
 func (s *Server) filterExistingGCPNodes(instances *server.GCPInstances) error {
 	nodes, err := s.nodeWatcher.CurrentResourcesWithFilter(s.ctx, func(n readonly.Server) bool {
 		labels := n.GetAllLabels()
@@ -1959,6 +2325,7 @@ func (s *Server) Start() error {
 	if err := s.startDatabaseWatchers(); err != nil {
 		return trace.Wrap(err)
 	}
+	go s.startAzureWindowsServerDiscovery()
 	return nil
 }
 
@@ -2289,6 +2656,21 @@ func (s *Server) initTeleportNodeWatcher() (err error) {
 			Clock:        s.clock,
 		},
 		NodesGetter: s.AccessPoint,
+	})
+
+	return trace.Wrap(err)
+}
+
+func (s *Server) initTeleportDynamicWindowsDesktopWatcher() (err error) {
+	s.dynamicWindowsDesktopWatcher, err = services.NewDynamicWindowsDesktopWatcher(s.ctx, services.DynamicWindowsDesktopWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component:    teleport.ComponentDiscovery,
+			Logger:       s.Log,
+			Client:       s.AccessPoint,
+			MaxStaleness: time.Minute,
+			Clock:        s.clock,
+		},
+		DynamicWindowsDesktopGetter: s.AccessPoint,
 	})
 
 	return trace.Wrap(err)

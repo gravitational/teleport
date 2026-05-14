@@ -139,6 +139,9 @@ message IntegrationDiscoveredSummary {
 
   // The summary for the Azure VM discovered instances.
   ResourcesDiscoveredSummary azure_vms = 4;
+
+  // The summary for the Azure Windows VM discovered instances.
+  ResourcesDiscoveredSummary azure_windows_vms = 5;
 }
 
 // ResourcesDiscoveredSummary represents the AWS resources that were discovered.

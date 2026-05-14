@@ -37,4 +37,15 @@ type DiscoveredVM struct {
 	OSType string
 	// Tags are the VM tags, e.g. {"env": "prod"}. Empty map (not nil) when the VM has no tags.
 	Tags map[string]string
+	// PrimaryPrivateIP is the privateIPAddress of the primary IP configuration on the primary NIC,
+	// e.g. "10.0.0.5". Empty when ARG returned no NIC data for the VM, or when the primary cannot
+	// be resolved unambiguously (multiple NICs or IP configs without a primary flag, or multiple
+	// entries flagged primary). Populated by QueryVMs after Query B resolves it.
+	PrimaryPrivateIP string
+
+	// nicRefs is internal plumbing: the NIC references parsed from Query A's nicRefs projection.
+	// It carries the VM's network-interface IDs (and per-NIC primary flag) from parseVMRow through
+	// to finalizeVMs, which uses them to look up IP configs in Query B's result map and resolve
+	// PrimaryPrivateIP. Nil when QueryVMsParams.IncludePrimaryPrivateIP was false.
+	nicRefs []nicRef
 }

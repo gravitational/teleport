@@ -56,16 +56,24 @@ type AzureInstances struct {
 
 	// InstallerParams are the installer parameters used for installation.
 	InstallerParams *types.InstallerParams
-	// Instances is a list of discovered Azure virtual machines.
+	// Instances is a list of discovered Azure virtual machines, populated by GetInstances
+	// (the SDK-backed listing path). Nil when discovery ran via Resource Graph; see DiscoveredVMs.
 	Instances []*armcompute.VirtualMachine
+	// DiscoveredVMs is a list of VMs returned by GetInstancesARG (the Resource Graph path),
+	// each carrying a resolved PrimaryPrivateIP when the matcher's flow requested it (Windows VM
+	// discovery for dynamic desktop registration). Nil when discovery ran via the SDK path; see
+	// Instances. Exactly one of Instances or DiscoveredVMs is populated per AzureInstances value.
+	DiscoveredVMs []azure.DiscoveredVM
 }
 
 func (instances *AzureInstances) LogValue() slog.Value {
 	if instances == nil {
 		return slog.StringValue("<nil>")
 	}
+	// Exactly one of Instances or DiscoveredVMs is populated; sum so the count is correct
+	// regardless of which discovery path produced this group.
 	return slog.GroupValue(
-		slog.Int("total_instances", len(instances.Instances)),
+		slog.Int("total_instances", len(instances.Instances)+len(instances.DiscoveredVMs)),
 		slog.String("discovery_config", instances.DiscoveryConfigName),
 		slog.String("integration", instances.Integration),
 		slog.String("region", instances.Region),
@@ -81,14 +89,27 @@ func (instances *AzureInstances) resourceType() string {
 	return types.DiscoveredResourceNode
 }
 
-// MakeUsageEvent builds usage event for a single installation result.
-func (instances *AzureInstances) MakeUsageEvent(instance *armcompute.VirtualMachine) (string, *usageeventsv1.ResourceCreateEvent) {
-	return azureEventPrefix + azure.StringVal(instance.ID), &usageeventsv1.ResourceCreateEvent{
+// MakeUsageEvent builds a usage event for a single installation result.
+func (instances *AzureInstances) MakeUsageEvent(result AzureInstallResult) (string, *usageeventsv1.ResourceCreateEvent) {
+	resourceID := installResultResourceID(result)
+	return azureEventPrefix + resourceID, &usageeventsv1.ResourceCreateEvent{
 		ResourceType:        instances.resourceType(),
 		ResourceOrigin:      types.OriginCloud,
 		CloudProvider:       types.CloudAzure,
 		DiscoveryConfigName: instances.DiscoveryConfigName,
 	}
+}
+
+// installResultResourceID returns the ARM resource ID for a result, sourcing from whichever of
+// Instance / DiscoveredVM the result carries.
+func installResultResourceID(result AzureInstallResult) string {
+	if result.DiscoveredVM != nil {
+		return result.DiscoveredVM.ID
+	}
+	if result.Instance != nil {
+		return azure.StringVal(result.Instance.ID)
+	}
+	return ""
 }
 
 // MakeRunEvent builds run event for a single command run.
@@ -100,7 +121,12 @@ func (instances *AzureInstances) MakeRunEvent(result AzureInstallResult) *apieve
 	}
 
 	var vmID, vmName, resourceID string
-	if result.Instance != nil {
+	switch {
+	case result.DiscoveredVM != nil:
+		vmName = result.DiscoveredVM.Name
+		resourceID = result.DiscoveredVM.ID
+		vmID = result.DiscoveredVM.VMID
+	case result.Instance != nil:
 		vmName = azure.StringVal(result.Instance.Name)
 		resourceID = azure.StringVal(result.Instance.ID)
 		if result.Instance.Properties != nil {
@@ -170,6 +196,10 @@ func (instances *AzureInstances) FilterExistingNodes(existingNodes []types.Serve
 		_, found := vmIDs[vmID]
 		return found
 	})
+	instances.DiscoveredVMs = slices.DeleteFunc(instances.DiscoveredVMs, func(vm azure.DiscoveredVM) bool {
+		_, found := vmIDs[vm.VMID]
+		return found
+	})
 }
 
 type azureClientGetter func(ctx context.Context, integration string) (azure.Clients, error)
@@ -192,6 +222,7 @@ func MatchersToAzureInstanceFetchers(
 			for _, resourceGroup := range matcher.ResourceGroups {
 				fetcher := newAzureInstanceFetcher(azureFetcherConfig{
 					Matcher:             matcher,
+					MatcherType:         matcher.Types[0],
 					Subscription:        subscription,
 					ResourceGroup:       resourceGroup,
 					AzureClientGetter:   getClient,
@@ -236,6 +267,7 @@ func expandAzureMatcherSubscriptions(
 
 type azureFetcherConfig struct {
 	Matcher             types.AzureMatcher
+	MatcherType         string
 	Subscription        string
 	ResourceGroup       string
 	AzureClientGetter   azureClientGetter
@@ -253,6 +285,7 @@ type azureInstanceFetcher struct {
 	DiscoveryConfigName string
 	Integration         string
 	Logger              *slog.Logger
+	MatcherType         string
 }
 
 func newAzureInstanceFetcher(cfg azureFetcherConfig) *azureInstanceFetcher {
@@ -266,6 +299,7 @@ func newAzureInstanceFetcher(cfg azureFetcherConfig) *azureInstanceFetcher {
 		DiscoveryConfigName: cfg.DiscoveryConfigName,
 		Integration:         cfg.Matcher.Integration,
 		Logger:              cfg.Logger,
+		MatcherType:         cfg.MatcherType,
 	}
 }
 
@@ -288,8 +322,15 @@ type resourceGroupLocation struct {
 	location      string
 }
 
-// GetInstances fetches all Azure virtual machines matching configured filters.
-func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*AzureInstances, error) {
+// GetInstances fetches all Azure virtual machines matching configured filters. The Windows VM
+// matcher path is served by Resource Graph (GetInstancesARG) because the Windows desktop
+// registration flow needs each VM's primary private IP, which ARG can fetch alongside the VM
+// listing. All other matchers continue to use the SDK ListVirtualMachines path below.
+func (f *azureInstanceFetcher) GetInstances(ctx context.Context, rotation bool) ([]*AzureInstances, error) {
+	if f.MatcherType == types.AzureMatcherWindowsVM {
+		return f.GetInstancesARG(ctx, rotation)
+	}
+
 	azureClients, err := f.AzureClientGetter(ctx, f.IntegrationName())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -365,6 +406,86 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*Azu
 	}
 
 	return instances, nil
+}
+
+// GetInstancesARG fetches Azure virtual machines via Resource Graph. Compared to GetInstances
+// (which paginates the SDK ListVirtualMachines API and filters in Go), this path pushes the
+// region, resource-group, and OS filters server-side, and — for the Windows matcher — fetches
+// each VM's primary private IP via the follow-up NIC query inside the ARG client. Label matching
+// against the matcher's ResourceTags still runs in Go: ARG could express tag predicates in KQL,
+// but the existing services.MatchLabels supports operator semantics (regex, "in", etc.) that the
+// callers configure, so we keep that matching local.
+func (f *azureInstanceFetcher) GetInstancesARG(ctx context.Context, _ bool) ([]*AzureInstances, error) {
+	azureClients, err := f.AzureClientGetter(ctx, f.IntegrationName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	client, err := azureClients.GetResourceGraphClient(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	osTypes, err := osTypesForMatcher(f.MatcherType)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	vms, err := client.QueryVMs(ctx, azure.QueryVMsParams{
+		SubscriptionIDs:         []string{f.Subscription},
+		Regions:                 f.Regions,
+		ResourceGroups:          []string{f.ResourceGroup},
+		OSTypes:                 osTypes,
+		IncludePrimaryPrivateIP: f.MatcherType == types.AzureMatcherWindowsVM,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Group by (region, resourceGroup) so the downstream installer batches calls correctly.
+	// Region and resource group already came from server-side filtering, but for wildcard
+	// matchers the actual VM's location/RG (from ARG's projection) is what defines the batch.
+	instancesByRegionAndResourceGroup := make(map[resourceGroupLocation][]azure.DiscoveredVM)
+	for _, vm := range vms {
+		if match, _, _ := services.MatchLabels(f.Labels, vm.Tags); !match {
+			continue
+		}
+		batchGroup := resourceGroupLocation{
+			resourceGroup: vm.ResourceGroup,
+			location:      vm.Location,
+		}
+		instancesByRegionAndResourceGroup[batchGroup] = append(instancesByRegionAndResourceGroup[batchGroup], vm)
+	}
+
+	var instances []*AzureInstances
+	for batchGroup, vms := range instancesByRegionAndResourceGroup {
+		instances = append(instances, &AzureInstances{
+			SubscriptionID:      f.Subscription,
+			Region:              batchGroup.location,
+			ResourceGroup:       batchGroup.resourceGroup,
+			DiscoveredVMs:       vms,
+			Integration:         f.Integration,
+			InstallerParams:     f.InstallerParams,
+			DiscoveryConfigName: f.DiscoveryConfigName,
+		})
+	}
+
+	return instances, nil
+}
+
+// osTypesForMatcher maps an Azure matcher type to the OS filter passed to QueryVMs. The Windows
+// matcher restricts ARG to Windows VMs; the generic VM matcher restricts to Linux (preserving the
+// SDK path's implicit Linux-only behavior — Teleport's run-command installer is bash). Unknown
+// matcher types are rejected rather than silently widening the query.
+func osTypesForMatcher(matcherType string) ([]string, error) {
+	switch matcherType {
+	case types.AzureMatcherVM:
+		return []string{azure.OSTypeLinux}, nil
+	case types.AzureMatcherWindowsVM:
+		return []string{azure.OSTypeWindows}, nil
+	default:
+		return nil, trace.BadParameter("matcher type %q is not supported for Resource Graph VM discovery", matcherType)
+	}
 }
 
 // LogValue implements [slog.LogValuer].

@@ -19,6 +19,8 @@
 package installer
 
 import (
+	"fmt"
+	"os"
 	"strings"
 
 	"github.com/gravitational/teleport/api/types"
@@ -41,6 +43,40 @@ chmod +x "$TEMP_INSTALLER_SCRIPT"
 
 sudo -E "$TEMP_INSTALLER_SCRIPT" || (echo "The install script ($TEMP_INSTALLER_SCRIPT) returned a non-zero exit code" && exit 1)
 rm "$TEMP_INSTALLER_SCRIPT"`
+)
+
+const (
+	windowsScriptSetup = `$ErrorActionPreference = 'Stop'
+$ProgressPreference    = 'SilentlyContinue'
+$ProxyAddr = '{{.PublicProxyAddr}}'`
+
+	windowsGetVersion = `Write-Host "Querying $ProxyAddr for cluster version..."
+$find = Invoke-RestMethod -Uri "https://$ProxyAddr/webapi/find" -UseBasicParsing
+$Version = "v$($find.server_version)"`
+
+	// TODO(danielashare): Remove --ssl-no-revoke
+	windowsInstallScript = `Write-Host "Using Windows Authentication Package version: $Version"
+
+$InstallerName = "teleport-windows-auth-setup-$Version-amd64.exe"
+$WorkDir       = Join-Path $env:TEMP 'teleport-wap-install'
+New-Item -ItemType Directory -Force -Path $WorkDir | Out-Null
+
+$InstallerPath = Join-Path $WorkDir $InstallerName
+$CertPath      = Join-Path $WorkDir 'teleport.cer'
+
+Write-Host "Downloading WAP installer ($InstallerName)..."
+& curl.exe -fSLo $InstallerPath "https://cdn.teleport.dev/$InstallerName"
+if ($LASTEXITCODE -ne 0) { throw "WAP download failed (curl exit $LASTEXITCODE)" }
+
+Write-Host "Fetching cluster CA from $ProxyAddr..."
+& curl.exe --ssl-no-revoke -fSLo $CertPath "https://$ProxyAddr/webapi/auth/export?type=windows"
+if ($LASTEXITCODE -ne 0) { throw "CA download failed (curl exit $LASTEXITCODE)" }
+
+Write-Host "Running WAP installer..."
+& $InstallerPath install --cert=$CertPath -r
+if ($LASTEXITCODE -ne 0) { throw "WAP installer failed (exit $LASTEXITCODE)" }
+
+Write-Host "Teleport WAP installed successfully."`
 )
 
 // LegacyDefaultInstaller represents the default installer script provided by teleport.
@@ -77,6 +113,11 @@ sudo -E "$TELEPORT_BINARY" ` + strings.Join(argsList, " ") + " $@"
 		"--auto-upgrade={{.AutomaticUpgrades}}",
 		"--azure-client-id={{.AzureClientID}}",
 	}
+
+	DefaultWindowsInstaller = types.MustNewInstallerV1(
+		installers.InstallerScriptNameWindows,
+		buildWindowsInstallScript(),
+	)
 )
 
 func oneoffScriptToDefaultInstaller() *types.InstallerV1 {
@@ -90,4 +131,13 @@ func oneoffScriptToDefaultInstaller() *types.InstallerV1 {
 	}
 
 	return types.MustNewInstallerV1(installers.InstallerScriptName, script)
+}
+
+func buildWindowsInstallScript() string {
+	getVersion := windowsGetVersion
+	if v := os.Getenv("TELEPORT_DEBUG_AP_VERSION"); v != "" {
+		getVersion = fmt.Sprintf(`$Version = '%s'`, v)
+	}
+
+	return strings.Join([]string{windowsScriptSetup, getVersion, windowsInstallScript}, "\n\n")
 }
