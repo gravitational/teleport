@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "18.8.1-dev.beams.2"
+const Version = "18.8.1-dev.beams.3"
 
 const VersionMajor = 18
 const VersionMinor = 8
 const VersionPatch = 1
-const VersionPreRelease = "dev.beams.2"
+const VersionPreRelease = "dev.beams.3"
 const VersionMetadata = ""

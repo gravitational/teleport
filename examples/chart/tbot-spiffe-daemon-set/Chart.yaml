@@ -1,4 +1,4 @@
-.version: &version "18.8.1-dev.beams.2"
+.version: &version "18.8.1-dev.beams.3"
 
 name: tbot-spiffe-daemon-set
 apiVersion: v2
