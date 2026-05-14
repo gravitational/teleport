@@ -21,7 +21,7 @@ import { matchPath, useParams } from 'react-router';
 
 import {
   DisconnectedState,
-  DesktopSession as SharedDesktopSession,
+  DesktopSessionWithSharing as SharedDesktopSession,
 } from 'shared/components/DesktopSession';
 import { SessionSelection } from 'shared/components/DesktopSession/DesktopSession';
 import { useAsync } from 'shared/hooks/useAsync';

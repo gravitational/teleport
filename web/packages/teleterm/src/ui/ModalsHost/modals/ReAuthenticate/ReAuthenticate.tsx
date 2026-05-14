@@ -79,8 +79,6 @@ export const ReAuthenticate: FC<{
     // In practice though we should not end up in a situation where this modal is shown but the
     // cluster does not exist in the app.
     rootCluster?.proxyHost || rootClusterName;
-  const clusterName = routing.parseClusterName(clusterUri);
-  const isLeafCluster = routing.isLeafCluster(clusterUri);
 
   // maybeOpenBrowser opens the browser if the given mfaType is SSO of Browser MFA
   function maybeOpenBrowser(mfaType: AvailableMfaType) {
@@ -190,10 +188,7 @@ export const ReAuthenticate: FC<{
 
             <DialogContent mb={4}>
               <Flex flexDirection="column" gap={4} alignItems="flex-start">
-                <Text>
-                  {req.reason}
-                  {isLeafCluster && ` from trusted cluster "${clusterName}"`}
-                </Text>
+                {req.reason && <Text>{req.reason}</Text>}
 
                 <Flex width="100%" gap={3} flexWrap="wrap">
                   {availableMfaTypes.length > 1 && (
@@ -223,7 +218,7 @@ export const ReAuthenticate: FC<{
                       textAlign="center"
                       style={{ position: 'relative' }}
                     >
-                      <Text bold>Insert your security key and tap it</Text>
+                      <Text bold>Insert your security key and tap it.</Text>
                       <LinearProgress />
                     </Box>
                   </>
@@ -234,7 +229,11 @@ export const ReAuthenticate: FC<{
                 )}
 
                 {selectedMfaType.value === 'browsermfa' && (
-                  <Box width="100%" style={{ position: 'relative' }}>
+                  <Box
+                    width="100%"
+                    textAlign="center"
+                    style={{ position: 'relative' }}
+                  >
                     <Text bold>
                       Please follow the steps in the browser to authenticate.
                     </Text>

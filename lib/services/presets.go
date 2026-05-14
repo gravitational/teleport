@@ -20,8 +20,10 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"slices"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -875,6 +877,135 @@ func NewPresetMCPUserRole() types.Role {
 				},
 				MCP: &types.MCPPermissions{
 					Tools: []string{types.Wildcard},
+				},
+			},
+		},
+	}
+	return role
+}
+
+// NewPresetBeamUserRole returns a new pre-defined role for accessing your own
+// beam resources.
+func NewPresetBeamUserRole(buildType string) types.Role {
+	if buildType != modules.BuildEnterprise {
+		return nil
+	}
+
+	allowLLMApps := fmt.Sprintf(`labels[%q] == %q`, types.BeamAppTypeLabel, types.SubKindLLM)
+	allowBeamApps := fmt.Sprintf(`labels[%q] == user.metadata.name`, types.BeamOwnerLabel)
+
+	role := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V8,
+		Metadata: types.Metadata{
+			Name:        teleport.PresetBeamUserRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Use the Beams feature",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.PresetResource,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Logins:              []string{types.BeamsLogin},
+				AppLabelsExpression: strings.Join([]string{allowLLMApps, allowBeamApps}, " || "),
+				NodeLabels: types.Labels{
+					types.BeamOwnerLabel: {"{{user.metadata.name}}"},
+				},
+				BeamLabels: types.Labels{
+					types.BeamOwnerLabel: {"{{user.metadata.name}}"},
+				},
+				Rules: []types.Rule{
+					{
+						Resources: []string{types.KindBeam},
+						Verbs:     []string{types.Wildcard},
+					},
+				},
+			},
+		},
+	}
+	return role
+}
+
+// NewPresetBeamAdminRole returns a new pre-defined role for administering beams
+// belonging to other users.
+func NewPresetBeamAdminRole(buildType string) types.Role {
+	if buildType != modules.BuildEnterprise {
+		return nil
+	}
+
+	role := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V8,
+		Metadata: types.Metadata{
+			Name:        teleport.PresetBeamAdminRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Administer beams belonging to other users",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.PresetResource,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				BeamLabels: types.Labels{
+					types.BeamOwnerLabel: {types.Wildcard},
+				},
+				Rules: []types.Rule{
+					{
+						Resources: []string{types.KindBeam},
+						Verbs:     []string{types.Wildcard},
+					},
+				},
+			},
+		},
+	}
+	return role
+}
+
+// NewSystemBeamRole returns a new pre-defined role for the beam to issue itself
+// credentials.
+func NewSystemBeamRole(buildType string) types.Role {
+	if buildType != modules.BuildEnterprise {
+		return nil
+	}
+
+	// Only allow the bot to generate host certificates for the Beam's OpenSSH
+	// server. tbot explicitly sends a blank HostID, HostName and the Node role.
+	hostCertConstraints := strings.Join([]string{
+		fmt.Sprintf(`contains_all(user.spec.traits[%q], host_cert.principals)`, types.BeamIDLabel),
+		`host_cert.host_id == ""`,
+		`host_cert.node_name == ""`,
+	}, " && ")
+
+	role := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V8,
+		Metadata: types.Metadata{
+			Name:        teleport.SystemBeamRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Used by a beam to issue itself credentials",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.SystemResource,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Rules: []types.Rule{
+					{
+						Resources: []string{types.KindHostCert},
+						Verbs:     []string{types.VerbCreate},
+						Where:     hostCertConstraints,
+					},
+					{
+						Resources: []string{types.KindWorkloadIdentity},
+						Verbs: []string{
+							types.VerbList,
+							types.VerbRead,
+						},
+					},
+				},
+				WorkloadIdentityLabels: types.Labels{
+					types.BeamIDLabel: []string{fmt.Sprintf(`{{external[%q]}}`, types.BeamIDLabel)},
 				},
 			},
 		},
