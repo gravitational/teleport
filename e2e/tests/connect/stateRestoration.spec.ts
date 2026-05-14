@@ -143,12 +143,10 @@ test.describe('state restoration from disk', () => {
         page.getByText('Log in to a cluster to use Teleport Connect')
       ).toBeVisible();
       const proxyHostname = new URL(startUrl).hostname;
-      const previouslyUsedCluster = page
+      const inHistoryCluster = page
         .getByRole('listitem')
         .filter({ hasText: proxyHostname });
-      await expect(
-        previouslyUsedCluster.getByText('Previously used')
-      ).toBeVisible();
+      await expect(inHistoryCluster.getByText('In history')).toBeVisible();
     }
   });
 
