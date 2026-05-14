@@ -1030,26 +1030,24 @@ func splitContains(value, delimiter, target string) bool {
 	return false
 }
 
-func splitContainsAffix(value, delimTargetDelim string, delimLength int) bool {
-	if delimLength <= 0 {
-		// special case, used by the optimizer
+func splitContainsSinglebyteAffix(value, delimTargetDelim string) bool {
+	// the delimiter is one byte and it's at the head and tail of
+	// delimTargetDelim, so if we don't have two bytes we can't do some of the
+	// slicing; this is an internal-use function so we're not really concerned
+	// with sanity checks - if called incorrectly, this function will return a
+	// useless value but it will not crash
+	if len(delimTargetDelim) < 2 {
 		return false
 	}
-	if len(delimTargetDelim) < 2*delimLength {
-		// this function is only for internal use, so if given nonsensical data
-		// we can return whatever we want
-		return false
-	}
-
-	if target := delimTargetDelim[delimLength : len(delimTargetDelim)-delimLength]; value == target {
+	if target := delimTargetDelim[1 : len(delimTargetDelim)-1]; value == target {
 		// ("foo", ",foo,")
 		return true
 	}
-	if targetDelim := delimTargetDelim[delimLength:]; strings.HasPrefix(value, targetDelim) {
+	if targetDelim := delimTargetDelim[1:]; strings.HasPrefix(value, targetDelim) {
 		// ("foo,bar", ",foo,")
 		return true
 	}
-	if delimTarget := delimTargetDelim[:len(delimTargetDelim)-delimLength]; strings.HasSuffix(value, delimTarget) {
+	if delimTarget := delimTargetDelim[:len(delimTargetDelim)-1]; strings.HasSuffix(value, delimTarget) {
 		// ("bar,foo", ",foo,")
 		return true
 	}
@@ -1109,8 +1107,8 @@ func newResourceExpressionParser(opts ...func(*typical.ParserSpec[types.Resource
 			"__split_contains": typical.TernaryFunction[types.ResourceWithLabels](func(value string, delimiter string, target string) (bool, error) {
 				return splitContains(value, delimiter, target), nil
 			}),
-			"__split_contains_affix": typical.TernaryFunction[types.ResourceWithLabels](func(value string, delimTargetDelim string, delimLength int) (bool, error) {
-				return splitContainsAffix(value, delimTargetDelim, delimLength), nil
+			"__split_contains_singlebyte_affix": typical.BinaryFunction[types.ResourceWithLabels](func(value string, delimTargetDelim string) (bool, error) {
+				return splitContainsSinglebyteAffix(value, delimTargetDelim), nil
 			}),
 		},
 		GetUnknownIdentifier: func(env types.ResourceWithLabels, fields []string) (any, error) {
@@ -1245,48 +1243,49 @@ func optimizeSplitContains(cursor *astutil.Cursor) (cont bool) {
 
 	delimiter := getLiteralString(ast.Unparen(splitContainsCall.Args[1]))
 	target := getLiteralString(ast.Unparen(splitContainsCall.Args[2]))
-	if delimiter == nil || target == nil || *delimiter == "" {
+	if delimiter == nil || target == nil {
 		return
 	}
 
-	if strings.Contains(*target, *delimiter) {
+	if *delimiter != "" && strings.Contains(*target, *delimiter) {
 		// impossible match, turn it into a function call that unconditionally
 		// returns false very quickly
 
 		// TODO(espadolini): figure out if adding a "false" or "__false"
 		// variable has the potential to break things
 
-		// __split_contains(value, ",", "contains,delimiter") -> __split_contains_affix(value, "", 0)
+		// __split_contains(value, ",", "contains,delimiter") -> __split_contains_singlebyte_affix(value, "")
 		cursor.Replace(&ast.CallExpr{
-			Fun: &ast.Ident{Name: "__split_contains_affix"},
+			Fun: &ast.Ident{Name: "__split_contains_singlebyte_affix"},
 			Args: []ast.Expr{
 				ast.Unparen(splitContainsCall.Args[0]),
 				&ast.BasicLit{Kind: token.STRING, Value: `""`},
-				&ast.BasicLit{Kind: token.INT, Value: "0"},
 			},
 		})
 		return
 	}
 
-	// we affix the delimiter to the head and tail of the target string so we
-	// can just call [strings.Contains] which is almost surely much more
-	// efficient than anything else we could do; we have to pass the length of
-	// the delimiter since checking whether the target is at the beginning or
-	// end of the value (or if the value is exactly equal to the target)
-	// requires knowing how much to skip
+	if len(*delimiter) != 1 {
+		return
+	}
 
-	// __split_contains(sliceExpr, ",", "literal") -> __split_contains_affix(sliceExpr, ",literal,", len(","))
+	// the delimiter is a one byte literal string and the target is a literal
+	// string, so we affix the delimiter to the head and tail of the target
+	// string so we can just call [strings.Contains] which is almost surely much
+	// more efficient than anything else we could do; the delimiter has to be
+	// single byte because __split_contains_singlebyte_affix must be able to
+	// skip it when checking for the target being at the very beginning or the
+	// very end of the string, and we don't want to copy every string in the
+	// slice just to add the delimiter at the beginning and end for that
+
+	// __split_contains(sliceExpr, ",", "literal") -> __split_contains_singlebyte_affix(sliceExpr, ",literal,")
 	cursor.Replace(&ast.CallExpr{
-		Fun: &ast.Ident{Name: "__split_contains_affix"},
+		Fun: &ast.Ident{Name: "__split_contains_singlebyte_affix"},
 		Args: []ast.Expr{
 			ast.Unparen(splitContainsCall.Args[0]),
 			&ast.BasicLit{
 				Kind:  token.STRING,
 				Value: strconv.Quote(*delimiter + *target + *delimiter),
-			},
-			&ast.BasicLit{
-				Kind:  token.INT,
-				Value: strconv.FormatInt(int64(len(*delimiter)), 10),
 			},
 		},
 	})
