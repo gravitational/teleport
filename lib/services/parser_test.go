@@ -527,6 +527,16 @@ func TestSplitContainsFunctionality(t *testing.T) {
 			"\xc3",   // half of the encoding of U+00E8
 			"\xa8",   // the other half
 		},
+		{
+			"\u00e8\xc3", // some broken utf-8
+			"",
+			"\xc3",
+		},
+		{
+			"\u00e8\xc3", // some broken utf-8
+			"a",
+			"\xc3",
+		},
 		{"", ",", "a"},
 		{"a,b,c", ",", "a"},
 		{"a,b,c", ",", "d"},
