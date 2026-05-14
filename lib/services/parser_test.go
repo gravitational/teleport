@@ -460,38 +460,53 @@ func BenchmarkSplitContains(b *testing.B) {
 		"legacy_naive": `contains_naive(split(labels["ip"], "|"), "1.2.3.6")`,
 	} {
 		b.Run("impl="+name, func(b *testing.B) {
-			for _, repetitions := range []int{0, 1, 3, 5, 200} {
-				ipLabel := "1.2.3.11|1.2.3.101|1.2.3.1" + strings.Repeat("|2.3.4.5", repetitions) + "|1.2.3.6" + strings.Repeat("|2.3.4.5", repetitions)
-				ipLabel2 := "1.2.3.11|1.2.3.101|1.2.3.1" + strings.Repeat("|2.3.4.5", repetitions) + "|1.2.3.5" + strings.Repeat("|2.3.4.5", repetitions)
-				b.Run(fmt.Sprintf("label_length=%d", len(ipLabel)), func(b *testing.B) {
-					server, err := types.NewServerWithLabels("server-name", types.KindNode, types.ServerSpecV2{
-						Hostname: "server-hostname",
-					}, map[string]string{
-						"ip":        ipLabel,
-						"target_ip": "1.2.3.6",
-					})
-					require.NoError(b, err)
-
-					server2, err := types.NewServerWithLabels("server-name", types.KindNode, types.ServerSpecV2{
-						Hostname: "server-hostname",
-					}, map[string]string{
-						"ip":        ipLabel2,
-						"target_ip": "1.2.3.6",
-					})
-					require.NoError(b, err)
-
-					expression, err := newResourceExpression(expr, parser)
-					require.NoError(b, err)
-
-					for b.Loop() {
-						match, err := expression.Evaluate(server)
+			for _, repetitions := range []int{0, 1, 3, 5, 20, 100} {
+				addresses := slices.Concat(
+					[]string{"1.2.3.11", "1.2.3.101", "1.2.3.1"},
+					slices.Repeat([]string{"1.3.4.5"}, repetitions),
+					[]string{"1.2.3.6"},
+					slices.Repeat([]string{"1.3.4.7"}, repetitions),
+				)
+				addresses2 := slices.Concat(
+					[]string{"1.2.3.11", "1.2.3.101", "1.2.3.1"},
+					slices.Repeat([]string{"1.3.4.5"}, repetitions),
+					[]string{"1.2.3.5"},
+					slices.Repeat([]string{"1.3.4.7"}, repetitions),
+				)
+				for _, delimLength := range []int{1, 2} {
+					delim := strings.Repeat("|", delimLength)
+					ipLabel := strings.Join(addresses, delim)
+					ipLabel2 := strings.Join(addresses2, delim)
+					b.Run(fmt.Sprintf("label=%d/delim=%d", len(ipLabel), delimLength), func(b *testing.B) {
+						server, err := types.NewServerWithLabels("server-name", types.KindNode, types.ServerSpecV2{
+							Hostname: "server-hostname",
+						}, map[string]string{
+							"ip":        ipLabel,
+							"target_ip": "1.2.3.6",
+						})
 						require.NoError(b, err)
-						require.True(b, match)
-						match, err = expression.Evaluate(server2)
+
+						server2, err := types.NewServerWithLabels("server-name", types.KindNode, types.ServerSpecV2{
+							Hostname: "server-hostname",
+						}, map[string]string{
+							"ip":        ipLabel2,
+							"target_ip": "1.2.3.6",
+						})
 						require.NoError(b, err)
-						require.False(b, match)
-					}
-				})
+
+						expression, err := newResourceExpression(expr, parser)
+						require.NoError(b, err)
+
+						for b.Loop() {
+							match, err := expression.Evaluate(server)
+							require.NoError(b, err)
+							require.True(b, match)
+							match, err = expression.Evaluate(server2)
+							require.NoError(b, err)
+							require.False(b, match)
+						}
+					})
+				}
 			}
 		})
 	}
@@ -515,9 +530,10 @@ func TestSplitContainsZeroAlloc(t *testing.T) {
 	require.NoError(t, err)
 
 	for name, expr := range map[string]string{
-		"optimized":       `contains(split(labels["ip"], "|"), "1.2.3.101")`,
-		"auto_combined":   `contains(split(labels["ip"], "|"), labels.target_ip)`,
-		"manual_combined": `__split_contains(labels["ip"], "|", labels.target_ip)`,
+		"optimized":           `contains(split(labels["ip"], "|"), "1.2.3.101")`,
+		"optimized_multibyte": `contains(split(labels["ip"], "1|"), "1.2.3.10")`,
+		"auto_combined":       `contains(split(labels["ip"], "|"), labels.target_ip)`,
+		"manual_combined":     `__split_contains(labels["ip"], "|", labels.target_ip)`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			expression, err := NewResourceExpression(expr)
@@ -537,15 +553,15 @@ func TestSplitContainsZeroAlloc(t *testing.T) {
 }
 
 func TestSplitContainsOptimizations(t *testing.T) {
-	var splitContainsCalled, splitContainsSinglebyteAffixCalled bool
+	var splitContainsCalled, splitContainsAffixCalled bool
 	parser, err := newResourceExpressionParser(func(ps *typical.ParserSpec[types.ResourceWithLabels]) {
 		ps.Functions["__split_contains"] = typical.TernaryFunction[types.ResourceWithLabels](func(value string, delimiter string, target string) (bool, error) {
 			splitContainsCalled = true
 			return splitContains(value, delimiter, target), nil
 		})
-		ps.Functions["__split_contains_singlebyte_affix"] = typical.BinaryFunction[types.ResourceWithLabels](func(value string, delimTargetDelim string) (bool, error) {
-			splitContainsSinglebyteAffixCalled = true
-			return splitContainsSinglebyteAffix(value, delimTargetDelim), nil
+		ps.Functions["__split_contains_affix"] = typical.TernaryFunction[types.ResourceWithLabels](func(value string, delimTargetDelim string, delimLength int) (bool, error) {
+			splitContainsAffixCalled = true
+			return splitContainsAffix(value, delimTargetDelim, delimLength), nil
 		})
 	})
 	require.NoError(t, err)
@@ -564,8 +580,26 @@ func TestSplitContainsOptimizations(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, match)
 	require.False(t, splitContainsCalled)
-	require.True(t, splitContainsSinglebyteAffixCalled)
-	splitContainsSinglebyteAffixCalled = false
+	require.True(t, splitContainsAffixCalled)
+	splitContainsAffixCalled = false
+
+	expr, err = newResourceExpression(`contains(split(labels["ip"], "1|1"), ".2.3.10")`, parser)
+	require.NoError(t, err)
+	match, err = expr.Evaluate(server)
+	require.NoError(t, err)
+	require.True(t, match)
+	require.False(t, splitContainsCalled)
+	require.True(t, splitContainsAffixCalled)
+	splitContainsAffixCalled = false
+
+	expr, err = newResourceExpression(`contains(split(labels["ip"], "xx"), "1.2.3.6")`, parser)
+	require.NoError(t, err)
+	match, err = expr.Evaluate(server)
+	require.NoError(t, err)
+	require.False(t, match)
+	require.False(t, splitContainsCalled)
+	require.True(t, splitContainsAffixCalled)
+	splitContainsAffixCalled = false
 
 	expr, err = newResourceExpression(`contains(split(labels["ip"], "|"), labels.target_ip)`, parser)
 	require.NoError(t, err)
@@ -573,7 +607,7 @@ func TestSplitContainsOptimizations(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, match)
 	require.True(t, splitContainsCalled)
-	require.False(t, splitContainsSinglebyteAffixCalled)
+	require.False(t, splitContainsAffixCalled)
 }
 
 // TestParserHostCertContext tests set functions with a custom host cert
