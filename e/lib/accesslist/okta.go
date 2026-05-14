@@ -64,3 +64,31 @@ func oktaModificationAllowed(authCtx authz.Context, oldAccessList, newAccessList
 func hasOktaOrigin(accessList *accesslist.AccessList) bool {
 	return accessList != nil && accessList.Origin() == types.OriginOkta
 }
+
+// oktaDeletionAllowed returns true if the Access List is Okta-originated and deletion is allowed.
+// Deletion is allowed when one of the following conditions is met:
+//   - The Access List is not Okta.
+//   - The requester has the Okta service role.
+//   - There is no Okta plugin configured.
+//   - The configured Okta plugin is not syncing Access Lists.
+//
+// Okta-originated Access Lists are not user-deletable while they're being synced by the Okta integration to prevent
+// Access List deletion in Teleport resulting in Okta group unassignment.
+func oktaDeletionAllowed(ctx context.Context, authCtx authz.Context, plugins services.Plugins, accessList *accesslist.AccessList) (bool, error) {
+	if !hasOktaOrigin(accessList) {
+		return true, nil
+	}
+
+	if authz.HasBuiltinRole(authCtx, string(types.RoleOkta)) {
+		return true, nil
+	}
+
+	plugin, err := oktaplugin.Get(ctx, plugins, false)
+	if trace.IsNotFound(err) {
+		return true, nil
+	} else if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	return !plugin.Spec.GetOkta().GetSyncSettings().GetEnableAccessListSync(), nil
+}

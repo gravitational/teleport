@@ -846,8 +846,7 @@ func (s *Service) DeleteAccessList(ctx context.Context, req *accesslistv1.Delete
 		return nil, trace.Wrap(err)
 	}
 
-	accessList, err := s.cache.GetAccessList(ctx, req.GetName())
-
+	accessList, err := s.accessLists.GetAccessList(ctx, req.GetName())
 	if err != nil && !trace.IsNotFound(err) {
 		s.logger.WarnContext(ctx, "Failed to get access list", "error", err)
 	}
@@ -872,8 +871,16 @@ func (s *Service) deleteAccessList(ctx context.Context, authCtx *authz.Context, 
 		return nil, trace.Wrap(authErr)
 	}
 
+	if accessList == nil {
+		return nil, trace.NotFound("Access List not found")
+	}
+
 	// Allow reused MFA responses to allow deleting an access list after deleting all members.
 	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.checkAccessListDeletionAllowed(ctx, *authCtx, accessList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2637,6 +2644,19 @@ func (s *Service) checkMembersModificationAllowedByName(ctx context.Context, aut
 
 	err = s.checkMembersModificationAllowed(ctx, authCtx, accessList)
 	return trace.Wrap(err)
+}
+
+func (s *Service) checkAccessListDeletionAllowed(ctx context.Context, authCtx authz.Context, accessList *accesslist.AccessList) error {
+	allowed, err := oktaDeletionAllowed(ctx, authCtx, s.plugins, accessList)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if !allowed {
+		return trace.AccessDenied("Unable to delete Okta-originated Access List")
+	}
+
+	return nil
 }
 
 func isEntraIDOrigin(accessList *accesslist.AccessList) bool {

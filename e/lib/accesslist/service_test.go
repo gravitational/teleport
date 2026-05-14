@@ -705,10 +705,13 @@ func TestService_DeleteAccessList(t *testing.T) {
 
 	a1 := newAccessList(t, "1", c.clock)
 	a2 := newAccessList(t, "2", c.clock)
+	a3 := newAccessList(t, "3", c.clock)
 
 	a2.SetStaticLabels(map[string]string{
 		"test-label": "test",
 	})
+
+	a3.SetOrigin(types.OriginOkta)
 
 	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, c.usageEvents, []*accesslist.AccessList{a1, a2}, nil)
 
@@ -756,6 +759,62 @@ func TestService_DeleteAccessList(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 	expectEvent(t, events.AccessListDeleteFailureCode, c.emitter, func(event *apievents.AccessListDelete) {
 		require.False(t, event.Success)
+	})
+
+	// Delete Okta-originated Access List with no plugin backing it.
+	createAccessLists(t, c.oktaSvcCtx, c.svc, c.emitter, c.usageEvents, []*accesslist.AccessList{a3})
+
+	_, err = c.svc.DeleteAccessList(c.userCtx, &accesslistv1.DeleteAccessListRequest{Name: a3.GetName()})
+	require.NoError(t, err)
+	expectEvent(t, events.AccessListDeleteSuccessCode, c.emitter, func(event *apievents.AccessListDelete) {
+		require.True(t, event.Success)
+	})
+	expectUsageEvent(t, c.usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListDelete) {
+		require.Equal(t, a3.GetName(), event.AccessListDelete.Metadata.Id)
+	})
+
+	// Delete Okta-originated Access List as regular user with plugin sync enabled.
+	createAccessLists(t, c.oktaSvcCtx, c.svc, c.emitter, c.usageEvents, []*accesslist.AccessList{a3})
+	err = c.svc.plugins.CreatePlugin(t.Context(), newTestOktaPlugin(t, true))
+	require.NoError(t, err)
+
+	_, err = c.svc.DeleteAccessList(c.userCtx, &accesslistv1.DeleteAccessListRequest{Name: a3.GetName()})
+	require.True(t, trace.IsAccessDenied(err))
+	expectEvent(t, events.AccessListDeleteFailureCode, c.emitter, func(event *apievents.AccessListDelete) {
+		require.False(t, event.Success)
+	})
+
+	// Delete Okta-originated Access List as Okta service role with plugin sync enabled.
+	_, err = c.svc.DeleteAccessList(c.oktaSvcCtx, &accesslistv1.DeleteAccessListRequest{Name: a3.GetName()})
+	require.NoError(t, err)
+	expectEvent(t, events.AccessListDeleteSuccessCode, c.emitter, func(event *apievents.AccessListDelete) {
+		require.True(t, event.Success)
+	})
+	expectUsageEvent(t, c.usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListDelete) {
+		require.Equal(t, a3.GetName(), event.AccessListDelete.Metadata.Id)
+	})
+
+	// Delete Okta-originated Access List as regular user with plugin sync disabled.
+	createAccessLists(t, c.oktaSvcCtx, c.svc, c.emitter, c.usageEvents, []*accesslist.AccessList{a3})
+
+	oktaPlugin, err := c.svc.plugins.GetPlugin(t.Context(), "okta", true)
+	require.NoError(t, err)
+
+	oktaPluginV1, ok := oktaPlugin.(*types.PluginV1)
+	require.True(t, ok)
+
+	oktaPluginV1.Spec.GetOkta().SyncSettings.SyncAccessLists = false
+
+	_, err = c.svc.plugins.UpdatePlugin(t.Context(), oktaPluginV1)
+	require.NoError(t, err)
+
+	_, err = c.svc.DeleteAccessList(c.userCtx, &accesslistv1.DeleteAccessListRequest{Name: a3.GetName()})
+	require.NoError(t, err)
+	expectEvent(t, events.AccessListDeleteSuccessCode, c.emitter, func(event *apievents.AccessListDelete) {
+		require.True(t, event.Success)
+	})
+	expectUsageEvent(t, c.usageEvents, func(event *usageeventsv1.UsageEventOneOf_AccessListDelete) {
+		require.Equal(t, a3.GetName(), event.AccessListDelete.Metadata.Id)
 	})
 }
 
@@ -1148,7 +1207,6 @@ func initSvc(t *testing.T, opts ...svcOpts) testSvcComponents {
 func setDate(clock *clockwork.FakeClock, date time.Time) {
 	now := clock.Now()
 	clock.Advance(date.Sub(now))
-
 }
 
 func TestService_CountAccessListMembers(t *testing.T) {
@@ -3193,7 +3251,6 @@ func TestPopulateMembersFields(t *testing.T) {
 		}
 		require.Equal(t, want, got)
 	})
-
 }
 
 func Test_nonStaticAccessListError(t *testing.T) {
@@ -3274,7 +3331,8 @@ func Test_userTryingToAddThemselves(t *testing.T) {
 			Title:  rootListName,
 			Grants: accesslist.Grants{Roles: []string{adminRoleName}},
 			Owners: []accesslist.Owner{{Name: ownerUser}},
-		}}
+		},
+	}
 	_, err = c.svc.accessLists.UpsertAccessList(t.Context(), rootAccessList)
 	require.NoError(t, err)
 
@@ -3284,7 +3342,8 @@ func Test_userTryingToAddThemselves(t *testing.T) {
 			Title:  middleListName,
 			Grants: accesslist.Grants{Roles: []string{adminRoleName}},
 			Owners: []accesslist.Owner{{Name: ownerUser}},
-		}}
+		},
+	}
 	_, err = c.svc.accessLists.UpsertAccessList(t.Context(), middleAccessList)
 	require.NoError(t, err)
 
@@ -3294,7 +3353,8 @@ func Test_userTryingToAddThemselves(t *testing.T) {
 			Title:  leafListName,
 			Grants: accesslist.Grants{Roles: []string{adminRoleName}},
 			Owners: []accesslist.Owner{{Name: ownerUser}},
-		}}
+		},
+	}
 	_, err = c.svc.accessLists.UpsertAccessList(t.Context(), leafAccessList)
 	require.NoError(t, err)
 
@@ -3336,7 +3396,8 @@ func Test_userTryingToAddThemselves(t *testing.T) {
 					AccessList:     rootListName,
 					Name:           unrelatedUserName,
 					MembershipKind: accesslist.MembershipKindUser,
-				}}},
+				},
+			}},
 			expectErr: require.NoError,
 		},
 		{
@@ -3348,7 +3409,8 @@ func Test_userTryingToAddThemselves(t *testing.T) {
 					AccessList:     rootListName,
 					Name:           unprivilegedUserName,
 					MembershipKind: accesslist.MembershipKindUser,
-				}}},
+				},
+			}},
 			expectErr: require.Error,
 		},
 		{
@@ -3360,7 +3422,8 @@ func Test_userTryingToAddThemselves(t *testing.T) {
 					AccessList:     rootListName,
 					Name:           adminUserName,
 					MembershipKind: accesslist.MembershipKindUser,
-				}}},
+				},
+			}},
 			expectErr: require.NoError,
 		},
 		{
@@ -3401,7 +3464,8 @@ func Test_userTryingToAddThemselves(t *testing.T) {
 						AccessList:     middleListName,
 						Name:           unprivilegedUserName,
 						MembershipKind: accesslist.MembershipKindUser,
-						Expires:        c.clock.Now().Add(-time.Hour)},
+						Expires:        c.clock.Now().Add(-time.Hour),
+					},
 				},
 			},
 			newMemberships: []*accesslist.AccessListMember{middleInRootMembership},
@@ -3613,7 +3677,6 @@ func getAllAccessListMembers(ctx context.Context, service *Service) ([]*accessli
 					PageSize:  int32(pageSize),
 					PageToken: token,
 				})
-
 				if err != nil {
 					return nil, "", trace.Wrap(err)
 				}
@@ -3642,7 +3705,6 @@ func getAccessListMembers(ctx context.Context, t *testing.T, service *Service, a
 					PageToken:  token,
 					AccessList: accessListName,
 				})
-
 				if err != nil {
 					return nil, "", trace.Wrap(err)
 				}
@@ -3879,6 +3941,34 @@ func withOriginLabel(origin string) newMemberOption {
 func withExpire(t time.Time) newMemberOption {
 	return func(am *accesslist.AccessListMember) {
 		am.Spec.Expires = t
+	}
+}
+
+func newTestOktaPlugin(t *testing.T, syncAccessLists bool) *types.PluginV1 {
+	t.Helper()
+
+	return &types.PluginV1{
+		Metadata: types.Metadata{Name: "okta"},
+		Spec: types.PluginSpecV1{
+			Settings: &types.PluginSpecV1_Okta{
+				Okta: &types.PluginOktaSettings{
+					OrgUrl: "http://localhost",
+					SyncSettings: &types.PluginOktaSyncSettings{
+						SyncUsers:       true,
+						SyncAccessLists: syncAccessLists,
+						SsoConnectorId:  "test-connector",
+						DefaultOwners:   []string{"admin"},
+					},
+				},
+			},
+		},
+		Credentials: &types.PluginCredentialsV1{
+			Credentials: &types.PluginCredentialsV1_StaticCredentialsRef{
+				StaticCredentialsRef: &types.PluginStaticCredentialsRef{
+					Labels: map[string]string{"plugin": "okta"},
+				},
+			},
+		},
 	}
 }
 

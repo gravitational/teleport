@@ -348,12 +348,6 @@ func (p *Plugin) deleteAccessList(_ http.ResponseWriter, r *http.Request, params
 		return nil, trace.Wrap(newReadOnlyAccessListError(existingAccessList.Spec.Title, existingAccessList.Spec.Type))
 	}
 
-	// First, delete all members.
-	if err := accessListClient.DeleteAllAccessListMembersForAccessList(r.Context(), accessListID); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Then, delete the access list.
 	if err := accessListClient.DeleteAccessList(r.Context(), accessListID); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -490,7 +484,6 @@ func getAccessListNoMFACtx(ctx context.Context, clt services.AccessLists, name s
 
 // listUserAccessLists is the handler for GET /enterprise/users/:username/accesslists.
 func (p *Plugin) listUserAccessLists(_ http.ResponseWriter, r *http.Request, params httprouter.Params, sctx *web.SessionContext) (any, error) {
-
 	username := params.ByName("username")
 	if username == "" {
 		return nil, trace.BadParameter("missing username")
