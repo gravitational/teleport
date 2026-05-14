@@ -1,0 +1,15 @@
+version: v2
+# Renew the runner identity periodically and write it to ./runner-identity.
+# Start with: tbot start -c tbot-runner.yaml
+#
+# Then point the repro script at the identity:
+#   RUNNER_IDENTITY=$(pwd)/runner-identity ./repro.sh
+join_uri: <join uri from tbot bots add>
+storage:
+  type: directory
+  path: ./runner-storage
+outputs:
+  - type: identity
+    destination:
+      type: directory
+      path: ./runner-identity
