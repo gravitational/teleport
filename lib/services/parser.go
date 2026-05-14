@@ -1040,15 +1040,16 @@ func splitContainsAffix(value, delimTargetDelim string, delimLength int) bool {
 		// we can return whatever we want
 		return false
 	}
-	if value == delimTargetDelim[delimLength:len(delimTargetDelim)-delimLength] {
+
+	if target := delimTargetDelim[delimLength : len(delimTargetDelim)-delimLength]; value == target {
 		// ("foo", ",foo,")
 		return true
 	}
-	if strings.HasPrefix(value, delimTargetDelim[delimLength:]) {
+	if targetDelim := delimTargetDelim[delimLength:]; strings.HasPrefix(value, targetDelim) {
 		// ("foo,bar", ",foo,")
 		return true
 	}
-	if strings.HasSuffix(value, delimTargetDelim[:len(delimTargetDelim)-delimLength]) {
+	if delimTarget := delimTargetDelim[:len(delimTargetDelim)-delimLength]; strings.HasSuffix(value, delimTarget) {
 		// ("bar,foo", ",foo,")
 		return true
 	}
