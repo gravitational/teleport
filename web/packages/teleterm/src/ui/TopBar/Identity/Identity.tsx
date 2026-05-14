@@ -51,7 +51,9 @@ export function IdentityContainer() {
   const selectorRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
   const { getLabelWithAccelerator } = useKeyboardShortcutFormatters();
-  const hasAnyWorkspaces = activeWorkspaceCluster || otherWorkspaces.length;
+  const hasAnyWorkspaces = Boolean(
+    activeWorkspaceCluster || otherWorkspaces.length
+  );
   const togglePopoverOrAddCluster = useCallback(() => {
     if (hasAnyWorkspaces) {
       setOpen(o => !o);
