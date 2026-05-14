@@ -16,13 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import '@xterm/xterm/css/xterm.css';
-
 import { FitAddon } from '@xterm/addon-fit';
 import { ImageAddon } from '@xterm/addon-image';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { ITheme, Terminal } from '@xterm/xterm';
+import '@xterm/xterm/css/xterm.css';
 
 import {
   SearchAddon,
@@ -55,7 +54,7 @@ export default class TtyTerminal implements TerminalSearcher {
   _convertEol: boolean;
   _debouncedResize: DebouncedFunc<() => void>;
   _fitAddon = new FitAddon();
-  _imageAddon = new ImageAddon();
+  _imageAddon: ImageAddon | undefined;
   _searchAddon = new SearchAddon();
   _webLinksAddon = new WebLinksAddon();
   _webglAddon: WebglAddon | undefined;
@@ -98,14 +97,25 @@ export default class TtyTerminal implements TerminalSearcher {
       convertEol: this._convertEol,
       cursorBlink: false,
       minimumContrastRatio: 4.5, // minimum for WCAG AA compliance
+      screenReaderMode: true,
       theme: this.options.theme,
       allowProposedApi: true, // required for customizing SearchAddon properties
     });
 
     this.term.loadAddon(this._fitAddon);
     this.term.loadAddon(this._webLinksAddon);
-    this.term.loadAddon(this._imageAddon);
     this.term.loadAddon(this._searchAddon);
+
+    // @xterm/addon-image relies on WebAssembly internally. The vite plugin guard-wasm
+    // rewrites bare WebAssembly references so the module can be statically imported
+    // without crashing; construction will still throw when WebAssembly is genuinely
+    // unavailable, so we catch that here.
+    try {
+      this._imageAddon = new ImageAddon();
+      this.term.loadAddon(this._imageAddon);
+    } catch (e) {
+      logger.error('Failed to load image addon:', e.message);
+    }
 
     try {
       // The constructor may throw if WebGL is not supported.
@@ -209,7 +219,7 @@ export default class TtyTerminal implements TerminalSearcher {
     this._disconnect();
     this._debouncedResize.cancel();
     this._fitAddon.dispose();
-    this._imageAddon.dispose();
+    this._imageAddon?.dispose();
     this._searchAddon?.dispose();
     this._webglAddon?.dispose();
     this._el.innerHTML = null;

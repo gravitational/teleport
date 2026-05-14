@@ -35,6 +35,8 @@ import {
   ClusterLifecycleManager,
 } from './clusterLifecycleManager';
 
+/* oxlint-disable jest/no-standalone-expect */
+
 beforeAll(() => {
   Logger.init(new NullService());
 });
@@ -84,7 +86,10 @@ const tests: {
       expect(globalErrorHandler).toHaveBeenCalledWith(
         RendererIpc.ProfileWatcherError,
         {
-          error: new Error('Error in renderer'),
+          error: expect.objectContaining({
+            name: 'Error',
+            message: 'Error in renderer',
+          }),
           reason: 'processing-error',
         }
       );
@@ -131,7 +136,10 @@ const tests: {
       expect(globalErrorHandler).toHaveBeenCalledWith(
         RendererIpc.ProfileWatcherError,
         {
-          error: new Error('Error in renderer'),
+          error: expect.objectContaining({
+            name: 'Error',
+            message: 'Error in renderer',
+          }),
           reason: 'processing-error',
         }
       );
@@ -194,7 +202,10 @@ const tests: {
       expect(globalErrorHandler).toHaveBeenCalledWith(
         RendererIpc.ProfileWatcherError,
         {
-          error: new Error('Error in renderer'),
+          error: expect.objectContaining({
+            name: 'Error',
+            message: 'Error in renderer',
+          }),
           reason: 'processing-error',
         }
       );
@@ -280,7 +291,10 @@ const tests: {
       expect(globalErrorHandler).toHaveBeenCalledWith(
         RendererIpc.ProfileWatcherError,
         {
-          error: new Error('Error in renderer'),
+          error: expect.objectContaining({
+            name: 'Error',
+            message: 'Error in renderer',
+          }),
           reason: 'processing-error',
         }
       );
@@ -288,7 +302,6 @@ const tests: {
   },
 ];
 
-// eslint-disable-next-line jest/expect-expect
 test.each(tests)('$name', async ({ setup, expect: testExpect }) => {
   const mockTshdClient = new MockTshClient();
   const mockAppUpdater = {
@@ -328,6 +341,7 @@ test.each(tests)('$name', async ({ setup, expect: testExpect }) => {
     consumer
   );
   const mockRendererHandler = {
+    id: 'test-renderer-handler',
     send: throwInRendererHandler
       ? jest.fn().mockRejectedValue(new Error('Error in renderer'))
       : jest.fn().mockResolvedValue(undefined),

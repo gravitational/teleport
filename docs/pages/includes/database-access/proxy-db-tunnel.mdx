@@ -1,0 +1,14 @@
+{{ db="mydb" dbArgs="" }}
+
+<Admonition type="tip">
+To connect to the database using a tool of your choice (for example, a
+graphical database client), create a local tunnel and configure your client to
+use it.
+
+```code
+$ tsh proxy db {{ db }} --tunnel {{ dbArgs }}
+```
+
+See [Database GUI Clients](../../connect-your-client/third-party/gui-clients.mdx)
+guide for more information on specific tools.
+</Admonition>

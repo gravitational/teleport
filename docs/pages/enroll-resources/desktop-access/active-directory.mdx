@@ -238,7 +238,7 @@ To export the Teleport CA certificate:
 
    (!docs/pages/includes/desktop-access/windows-ca-note.mdx!)
 
-1. Take note of the path to file you just downloaded for use in a later step.
+1. Take note of the path to the file you just downloaded for use in a later step.
 
 #### Create the GPO for the Teleport certificate
 
@@ -252,7 +252,7 @@ To configure the group policy object:
    New-GPO -Name $GPOName | New-GPLink -Target $((Get-ADDomain).DistinguishedName)
    ```
 
-   This command applies the GPO to the entire Active Director domain.
+   This command applies the GPO to the entire Active Directory domain.
    If you only want to protect a subset of computers in the domain, you can apply the GPO to
    a specific organizational unit (OU) that only includes those computers.
 
@@ -676,7 +676,7 @@ To create a role for accessing Windows desktops:
      allow:
        windows_desktop_labels:
          "*": "*"
-       windows_desktop_logins: ["jsmith"]
+       windows_desktop_logins: ["Administrator"]
    ```
 
 1. Create the role:

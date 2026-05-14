@@ -141,7 +141,7 @@ example-bot Bot         01 Jan 00 00:00 UTC (2562047h47m16.854775807s)
 
 ## Step 3/3. Configure a GitHub Actions Workflow
 
-Now that the bot has been successfully created, you now need to configure your
+Now that the bot has been successfully created, you need to configure your
 GitHub Action's workflow to authenticate as this bot and then use the
 credentials produced by `tbot`. To help with this, Teleport publishes
 several easy-to-use GitHub Actions that can be used within your workflow.
@@ -185,20 +185,26 @@ to SSH. This example grants access to root on all nodes. In a production setup,
 it would be a good idea to restrict this to only the nodes that the bot would
 need.
 
-Use `tctl edit role/example-bot` to add the following to the role:
+1. Run the following command to open the `example-bot` role in your text editor:
 
-```yaml
-spec:
-  allow:
-    # Allow login to the Linux user 'root'.
-    logins: ['root']
-    # Allow connection to any node. Adjust these labels to match only nodes
-    # that ansible needs to access.
-    node_labels:
-      '*': '*'
-```
+  ```code
+  $ tctl edit role/example-bot
+  ```
 
-With that privileges granted, you can now create the GitHub Actions workflow.
+1. Ensure the role includes the following:
+
+   ```yaml
+   spec:
+     allow:
+       # Allow login to the Linux user 'root'.
+       logins: ['root']
+       # Allow connection to any node. Adjust these labels to match only nodes
+       # that needed to access.
+       node_labels:
+         '*': '*'
+   ```
+
+With those privileges granted, you can now create the GitHub Actions workflow.
 Create `.github/workflows/example.yaml`:
 
 ```yaml
@@ -309,20 +315,26 @@ to the Kubernetes cluster. This example will grant the bot access to all
 clusters with the group `editor`. For more detailed instructions on setting
 up Kubernetes RBAC, see the Kubernetes access guide.
 
-Use `tctl edit role/example-bot` to add the following rule to the Teleport role:
+1. Run the following command to open the `example-bot` role in your text editor:
 
-```yaml
-spec:
-  allow:
-    kubernetes_labels:
-      '*': '*'
-    kubernetes_resources:
-    - kind: pod
-      namespace: "*"
-      name: "*"
-    kubernetes_groups:
-    - editor
-```
+  ```code
+  $ tctl edit role/example-bot
+  ```
+
+1. Ensure the role includes the following:
+
+   ```yaml
+   spec:
+     allow:
+       kubernetes_labels:
+         '*': '*'
+       kubernetes_resources:
+       - kind: pod
+         namespace: "*"
+         name: "*"
+       kubernetes_groups:
+       - editor
+   ```
 
 <Admonition type="note">
 This example assumes the role is version `v6`. If you are using a `v7`+ role
@@ -331,7 +343,7 @@ in `kubernetes_resources`. Otherwise the example `kubectl get pods -A` execution
 will be denied.
 </Admonition>
 
-With that privileges granted, you can now create the GitHub Actions workflow.
+With those privileges granted, you can now create the GitHub Actions workflow.
 Create `.github/workflows/example.yaml`:
 
 ```yaml
@@ -385,7 +397,7 @@ Replace:
 
 The `auth-k8s` action sets the `KUBECONFIG` for future steps to the credentials
 it has fetched from Teleport. This means that most existing tooling for
-Kubernetes (e.g `kubectl` and `helm`) can use your cluster with no additional
+Kubernetes (e.g. `kubectl` and `helm`) can use your cluster with no additional
 configuration.
 
 Add, commit, and push this new workflow file to the default branch of your
@@ -413,19 +425,25 @@ Postgres database, but you may use any supported database type with any
 compatible client. Refer to our [generic database guide](../access-guides/databases.mdx)
 for more information on accessing databases protected by Teleport in your apps.
 
-Use `tctl edit role/example-bot` to add the following to the role:
+1. Run the following command to open the `example-bot` role in your text editor:
 
-```yaml
-spec:
-  allow:
-    db_labels:
-      '*': '*'
-    db_names: [demo-db]
-    db_users: [demo-user]
-    rules:
-      - resources: [db_server, db]
-        verbs: [read, list]
-```
+  ```code
+  $ tctl edit role/example-bot
+  ```
+
+1. Ensure the role includes the following:
+
+   ```yaml
+   spec:
+     allow:
+       db_labels:
+         '*': '*'
+       db_names: [demo-db]
+       db_users: [demo-user]
+       rules:
+         - resources: [db_server, db]
+           verbs: [read, list]
+   ```
 
 Make sure to adjust the labels, names, and users as necessary to match your
 desired databases.
@@ -522,15 +540,21 @@ The `teleport-actions/application-tunnel` action runs a background `tbot` client
 that provides a tunnel to an HTTP or TCP app protected by Teleport using Machine
 & Workload ID's [`application-tunnel` service](../../reference/machine-workload-identity/configuration.mdx#application-tunnel).
 
-Use `tctl edit role/example-bot` to add the following to the role:
+1. Run the following command to open the `example-bot` role in your text editor:
 
-```yaml
-spec:
-  allow:
-    # Grants access to apps with the `env=dev` label.
-    app_labels:
-      env: dev
-```
+  ```code
+  $ tctl edit role/example-bot
+  ```
+
+1. Ensure the role includes the following:
+
+   ```yaml
+   spec:
+     allow:
+       # Grants access to apps with the `env=dev` label.
+       app_labels:
+         env: dev
+   ```
 
 Make sure to adjust the label selector in the role to restrict which
 applications the bot will be allowed to access. For more information, refer to
@@ -557,8 +581,6 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v3
-    - name: Fetch kubectl
-      uses: azure/setup-kubectl@v3
     - name: Fetch Teleport binaries
       uses: teleport-actions/setup@v1
       with:
@@ -619,15 +641,21 @@ so long as your bot has been granted appropriate RBAC permissions, so long as
 your client app can use HTTP proxies (e.g. the `$HTTP_PROXY` environment
 variable).
 
-Use `tctl edit role/example-bot` to add the following to the role:
+1. Run the following command to open the `example-bot` role in your text editor:
 
-```yaml
-spec:
-  allow:
-    # Grants access to apps with the `env=dev` label.
-    app_labels:
-      env: dev
-```
+  ```code
+  $ tctl edit role/example-bot
+  ```
+
+1. Ensure the role includes the following:
+
+   ```yaml
+   spec:
+     allow:
+       # Grants access to apps with the `env=dev` label.
+       app_labels:
+         env: dev
+   ```
 
 Make sure to adjust the label selector in the role to restrict which
 applications the bot will be allowed to access. For more information, refer to
@@ -735,7 +763,7 @@ services: []
 Replace:
 
 - `example.teleport.sh:443` with the address of your Teleport Proxy Service.
-- `example-bot` with the name of the token you created in the first step.
+- `example-bot` with the name of the token you created in the second step.
 
 Now you can define a GitHub Actions workflow that will start `tbot` with this
 configuration.

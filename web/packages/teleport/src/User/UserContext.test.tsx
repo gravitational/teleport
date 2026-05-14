@@ -16,11 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import '@testing-library/jest-dom';
 import { http, HttpResponse } from 'msw';
 import { MemoryRouter } from 'react-router';
-
-import '@testing-library/jest-dom';
-
 import { ThemeProvider } from 'styled-components';
 
 import lightTheme from 'design/theme/themes/lightTheme';
@@ -29,10 +27,15 @@ import { Theme } from 'gen-proto-ts/teleport/userpreferences/v1/theme_pb';
 
 import cfg from 'teleport/config';
 import { KeysEnum } from 'teleport/services/storageService';
+import { clearCachedPreferences } from 'teleport/services/userPreferences';
 import { UserContextProvider } from 'teleport/User';
 import { useUser } from 'teleport/User/UserContext';
 
 enableMswServer();
+
+beforeEach(() => {
+  clearCachedPreferences();
+});
 
 function ThemeName() {
   const { preferences } = useUser();

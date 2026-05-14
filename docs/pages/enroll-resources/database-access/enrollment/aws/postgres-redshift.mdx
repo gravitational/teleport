@@ -85,7 +85,7 @@ $ sudo teleport db configure create \
 </Tabs>
 
 The command will generate a Database Service configuration to proxy your AWS
-Redshift cluster place it at the `/etc/teleport.yaml` location.
+Redshift cluster and place it at the `/etc/teleport.yaml` location.
 
 ## Step 3/5. Configure IAM permissions for the Database Service
 
@@ -156,6 +156,8 @@ $ tsh db connect --db-user=alice --db-name=dev my-redshift
   tokens for Redshift databases. Users must exist in the database.
 </Admonition>
 
+(!docs/pages/includes/database-access/proxy-db-tunnel.mdx db="my-redshift" dbArgs="--db-user=alice --db-name=dev"!)
+
 (!docs/pages/includes/database-access/db-access-webui-ad.mdx dbType="PostgreSQL"!)
 
 To log out of the database and remove credentials:
@@ -183,9 +185,6 @@ and automatically creates that user if it doesn't already exist. If you use this
 method, you must first create an AWS IAM role that grants access to the Redshift
 database.
 
-If you use this method, you must first create an AWS IAM role that grants access
-to the Redshift database.
-
 (!docs/pages/includes/database-access/reference/aws-iam/redshift/role-as-user-policy.mdx dbUserRole="redshift-user-role"!)
 
 ## Troubleshooting
@@ -202,7 +201,5 @@ to the Redshift database.
 
 - Learn more about [using IAM authentication to generate database user
   credentials](https://docs.aws.amazon.com/redshift/latest/mgmt/generating-user-credentials.html) for Amazon Redshift.
-- Learn how to [restrict access](../../rbac.mdx) to certain users and databases.
-- View the [High Availability (HA)](../../../agents/high-availability.mdx) guide.
-- Take a look at the YAML configuration [reference](../../reference/configuration.mdx).
 
+(!docs/pages/includes/database-access/guides-next-steps.mdx!)

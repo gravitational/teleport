@@ -136,7 +136,7 @@ func InitLogger(purpose LoggingPurpose, level slog.Level, opts ...LoggerOption) 
 // FatalError is for CLI front-ends: it detects gravitational/trace debugging
 // information, sends it to the logger, strips it off and prints a clean message to stderr
 func FatalError(err error) {
-	fmt.Fprintln(os.Stderr, UserMessageFromError(err))
+	fmt.Fprint(os.Stderr, UserMessageFromError(err))
 	os.Exit(1)
 }
 
@@ -157,13 +157,17 @@ func GetIterations() int {
 
 // UserMessageFromError returns user-friendly error message from error.
 // The error message will be formatted for output depending on the debug
-// flag
+// flag and will always end with a new line.
 func UserMessageFromError(err error) string {
 	if err == nil {
 		return ""
 	}
 	if slog.Default().Enabled(context.Background(), slog.LevelDebug) {
-		return trace.DebugReport(err)
+		msg := trace.DebugReport(err)
+		if !strings.HasSuffix(msg, "\n") {
+			msg += "\n"
+		}
+		return msg
 	}
 	var buf bytes.Buffer
 	if runtime.GOOS == constants.WindowsOS {
@@ -180,37 +184,37 @@ func UserMessageFromError(err error) string {
 }
 
 // FormatErrorWithNewline returns user friendly error message from error.
-// The error message is escaped if necessary. A newline is added if the error text
-// does not end with a newline.
+// The message will always end with a new line.
 func FormatErrorWithNewline(err error) string {
 	var buf bytes.Buffer
 	formatErrorWriter(err, &buf)
-	message := buf.String()
-	if !strings.HasSuffix(message, "\n") {
-		message = message + "\n"
-	}
-	return message
+	return buf.String()
 }
 
 // formatErrorWriter formats the specified error into the provided writer.
-// The error message is escaped if necessary
+// The error message is escaped if necessary. A newline is added if the
+// error text does not end with a newline.
 func formatErrorWriter(err error, w io.Writer) {
 	if err == nil {
 		return
 	}
-	if certErr := formatCertError(err); certErr != "" {
-		fmt.Fprintln(w, certErr)
-		return
-	}
 
 	msg := trace.UserMessage(err)
+	if certErr := formatCertError(err); certErr != "" {
+		msg = certErr
+	}
+
 	// Error can be of type trace.proxyError where error message didn't get captured.
 	if msg == "" {
 		fmt.Fprintln(w, "please check Teleport's log for more details")
 		return
 	}
 
-	fmt.Fprintln(w, AllowWhitespace(msg))
+	msg = AllowWhitespace(msg)
+	fmt.Fprint(w, msg)
+	if !strings.HasSuffix(msg, "\n") {
+		w.Write([]byte("\n"))
+	}
 }
 
 func formatCertError(err error) string {
@@ -336,8 +340,10 @@ func InitCLIParser(appName, appHelp string) (app *kingpin.Application) {
 	app.HelpFlag.Hidden()
 	app.HelpFlag.NoEnvar()
 
-	// set our own help template
-	return app.UsageTemplate(createUsageTemplate())
+	// write --help output to stdout instead of stderr
+	app.UsageWriter(os.Stdout)
+
+	return app.UsageRenderer(renderCompactUsage)
 }
 
 // InitHiddenCLIParser initializes a `kingpin.Application` that does not terminate the application
@@ -350,18 +356,6 @@ func InitHiddenCLIParser() (app *kingpin.Application) {
 	app.Terminate(func(i int) {})
 
 	return app
-}
-
-// createUsageTemplate creates an usage template for kingpin applications.
-func createUsageTemplate(opts ...func(*usageTemplateOptions)) string {
-	opt := &usageTemplateOptions{
-		commandPrintfWidth: defaultCommandPrintfWidth,
-	}
-
-	for _, optFunc := range opts {
-		optFunc(opt)
-	}
-	return fmt.Sprintf(defaultUsageTemplate, opt.commandPrintfWidth)
 }
 
 // SplitIdentifiers splits list of identifiers by commas/spaces/newlines.  Helpful when
@@ -436,74 +430,79 @@ func needsQuoting(text string) bool {
 	return false
 }
 
-// usageTemplateOptions defines options to format the usage template.
-type usageTemplateOptions struct {
-	// commandPrintfWidth is the width of the command name with padding, for
-	//   {{.FullCommand | printf "%%-%ds"}}
-	commandPrintfWidth int
-}
-
 // defaultCommandPrintfWidth is the default command printf width.
 const defaultCommandPrintfWidth = 12
 
-// defaultUsageTemplate is a fmt format that defines the usage template with
-// compactly formatted commands. Should be only used in createUsageTemplate.
-const defaultUsageTemplate = `{{define "FormatCommand" -}}
-{{if .FlagSummary}} {{.FlagSummary}}{{end -}}
-{{range .Args}} {{if not .Required}}[{{end}}<{{.Name}}>{{if .Value|IsCumulative}}...{{end}}{{if not .Required}}]{{end}}{{end -}}
-{{end -}}
+// renderCompactUsage is a kingpin UsageRenderer used by all binaries to
+// output usage text. It uses a kingpin UsageRenderer instead of
+// UsageTemplate/UsageFuncs in order to avoid text/template (and reflect.MethodByName)
+// so that the linker can enable dead-code elimination.
+func renderCompactUsage(w io.Writer, ctx *kingpin.UsageContext) error {
+	width := ctx.Width
 
-{{define "FormatCommands" -}}
-{{range .FlattenedCommands -}}
-{{if not .Hidden -}}
-{{"  "}}{{.FullCommand | printf "%%-%ds"}}{{if .Default}} (Default){{end}} {{ .Help }}
-{{end -}}
-{{end -}}
-{{end -}}
+	if ctx.Context.SelectedCommand != nil {
+		cmd := ctx.Context.SelectedCommand
+		fmt.Fprintf(w, "usage: %s %s", ctx.App.Name, cmd.String())
+		kingpin.WriteFormatUsage(w, cmd.FlagGroupModel, cmd.ArgGroupModel, cmd.CmdGroupModel, cmd.Help, width)
+	} else {
+		fmt.Fprintf(w, "Usage: %s", ctx.App.Name)
+		kingpin.WriteFormatUsage(w, ctx.App.FlagGroupModel, ctx.App.ArgGroupModel, ctx.App.CmdGroupModel, ctx.App.Help, width)
+	}
+	fmt.Fprintln(w)
 
-{{define "FormatUsage" -}}
-{{template "FormatCommand" .}}{{if .Commands}} <command> [<args> ...]{{end}}
-{{if .Help}}
-{{.Help|Wrap 0 -}}
-{{end -}}
+	if len(ctx.Context.Flags) > 0 {
+		fmt.Fprintln(w, "Flags:")
+		kingpin.FormatTwoColumns(w, ctx.Indent, 2, width, kingpin.FlagsToTwoColumns(ctx.Context.Flags))
+		fmt.Fprintln(w)
+	}
+	if len(ctx.Context.Args) > 0 {
+		fmt.Fprintln(w, "Args:")
+		kingpin.FormatTwoColumns(w, ctx.Indent, 2, width, kingpin.ArgsToTwoColumns(ctx.Context.Args))
+		fmt.Fprintln(w)
+	}
 
-{{end -}}
+	writeCommands := func(cmds []*kingpin.CmdModel) {
+		cmdWidth := defaultCommandPrintfWidth
+		for _, cmd := range cmds {
+			if cmd.Hidden {
+				continue
+			}
+			cmdWidth = max(cmdWidth, len(cmd.Name))
+		}
+		for _, cmd := range cmds {
+			if cmd.Hidden {
+				continue
+			}
+			fmt.Fprintf(w, "  %-*s", cmdWidth, cmd.Name)
+			if cmd.Default {
+				fmt.Fprint(w, " (Default)")
+			}
+			fmt.Fprintf(w, " %s\n", cmd.Help)
+		}
+	}
 
-{{if .Context.SelectedCommand -}}
-usage: {{.App.Name}} {{.Context.SelectedCommand}}{{template "FormatUsage" .Context.SelectedCommand}}
-{{else -}}
-Usage: {{.App.Name}}{{template "FormatUsage" .App}}
-{{end -}}
-{{if .Context.Flags -}}
-Flags:
-{{.Context.Flags|FlagsToTwoColumns|FormatTwoColumns}}
-{{end -}}
-{{if .Context.Args -}}
-Args:
-{{.Context.Args|ArgsToTwoColumns|FormatTwoColumns}}
-{{end -}}
-{{if .Context.SelectedCommand -}}
+	if ctx.Context.SelectedCommand != nil {
+		if ctx.Context.SelectedCommand.CmdGroupModel != nil && len(ctx.Context.SelectedCommand.Commands) > 0 {
+			fmt.Fprintln(w, "Commands:")
+			writeCommands(ctx.Context.SelectedCommand.Commands)
+			fmt.Fprintln(w)
+		}
+		if len(ctx.Context.SelectedCommand.Aliases) > 0 {
+			fmt.Fprintln(w, "Aliases:")
+			for _, alias := range ctx.Context.SelectedCommand.Aliases {
+				fmt.Fprintln(w, alias)
+			}
+			fmt.Fprintln(w)
+		}
+	} else if ctx.App.CmdGroupModel != nil && len(ctx.App.Commands) > 0 {
+		fmt.Fprintln(w, "Commands:")
+		writeCommands(ctx.App.Commands)
+		fmt.Fprintln(w)
+		fmt.Fprintf(w, "Try '%s help [command]' to get help for a given command.\n\n", ctx.App.Name)
+	}
 
-{{ if .Context.SelectedCommand.Commands -}}
-Commands:
-{{if .Context.SelectedCommand.Commands -}}
-{{template "FormatCommands" .Context.SelectedCommand}}
-{{end -}}
-{{end -}}
-
-{{else if .App.Commands -}}
-Commands:
-{{template "FormatCommands" .App}}
-Try '{{.App.Name}} help [command]' to get help for a given command.
-{{end -}}
-
-{{ if .Context.SelectedCommand  -}}
-Aliases:
-{{ range .Context.SelectedCommand.Aliases -}}
-{{ . }}
-{{end -}}
-{{end}}
-`
+	return nil
+}
 
 // IsPredicateError determines if the error is from failing to parse predicate expression
 // by checking if the error as a string contains predicate keywords.

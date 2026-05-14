@@ -26,6 +26,7 @@ import { TestConnection } from './TestConnection';
 
 export const ConnectMyComputerResource: ResourceViewConfig<ResourceSpec> = {
   kind: ResourceKind.ConnectMyComputer,
+  shouldPrompt: () => false,
   views: [
     {
       title: 'Set Up Teleport Connect',

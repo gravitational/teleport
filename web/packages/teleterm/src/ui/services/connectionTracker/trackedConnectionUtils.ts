@@ -184,6 +184,7 @@ export function createGatewayConnection(
     targetName: document.targetName,
     targetSubresourceName: document.targetSubresourceName,
     targetProtocol: document.targetProtocol,
+    autoUserProvisioning: document.autoUserProvisioning,
   };
 }
 

@@ -54,7 +54,7 @@ type ServiceConfig struct {
 	Clock clockwork.Clock
 
 	// UsageReporter is the reporter for sending usage without it be related to an API call.
-	UsageReporter func() usagereporter.UsageReporter
+	UsageReporter usagereporter.UsageReporter
 
 	// Emitter is the event emitter.
 	Emitter apievents.Emitter
@@ -100,7 +100,7 @@ type Service struct {
 	backend       services.UserTasks
 	cache         Reader
 	clock         clockwork.Clock
-	usageReporter func() usagereporter.UsageReporter
+	usageReporter usagereporter.UsageReporter
 	emitter       apievents.Emitter
 }
 
@@ -139,7 +139,7 @@ func (s *Service) CreateUserTask(ctx context.Context, req *usertasksv1.CreateUse
 		return nil, trace.Wrap(err)
 	}
 
-	s.usageReporter().AnonymizeAndSubmit(userTaskToUserTaskStateEvent(req.GetUserTask()))
+	s.usageReporter.AnonymizeAndSubmit(userTaskToUserTaskStateEvent(req.GetUserTask()))
 
 	return rsp, nil
 }
@@ -181,6 +181,8 @@ func userTaskToUserTaskStateEvent(ut *usertasksv1.UserTask) *usagereporter.UserT
 		ret.InstancesCount = int32(len(ut.GetSpec().GetDiscoverEks().GetClusters()))
 	case usertasks.TaskTypeDiscoverRDS:
 		ret.InstancesCount = int32(len(ut.GetSpec().GetDiscoverRds().GetDatabases()))
+	case usertasks.TaskTypeDiscoverAzureVM:
+		ret.InstancesCount = int32(len(ut.GetSpec().GetDiscoverAzureVm().GetInstances()))
 	}
 	return ret
 }
@@ -249,7 +251,6 @@ func (s *Service) GetUserTask(ctx context.Context, req *usertasksv1.GetUserTaskR
 	}
 
 	return rsp, nil
-
 }
 
 // UpdateUserTask updates user task resource.
@@ -278,7 +279,7 @@ func (s *Service) UpdateUserTask(ctx context.Context, req *usertasksv1.UpdateUse
 	}
 
 	if stateChanged {
-		s.usageReporter().AnonymizeAndSubmit(userTaskToUserTaskStateEvent(req.GetUserTask()))
+		s.usageReporter.AnonymizeAndSubmit(userTaskToUserTaskStateEvent(req.GetUserTask()))
 	}
 
 	return rsp, nil
@@ -344,7 +345,7 @@ func (s *Service) UpsertUserTask(ctx context.Context, req *usertasksv1.UpsertUse
 	}
 
 	if stateChanged {
-		s.usageReporter().AnonymizeAndSubmit(userTaskToUserTaskStateEvent(req.GetUserTask()))
+		s.usageReporter.AnonymizeAndSubmit(userTaskToUserTaskStateEvent(req.GetUserTask()))
 	}
 
 	return rsp, nil

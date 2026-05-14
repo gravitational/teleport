@@ -118,12 +118,17 @@ func ParsePrivateKeyPEM(bytes []byte) (crypto.Signer, error) {
 	return keys.ParsePrivateKey(bytes)
 }
 
-// VerifyCertificateExpiry checks the certificate's expiration status.
-func VerifyCertificateExpiry(c *x509.Certificate, clock clockwork.Clock) error {
+// VerifyCertificateExpiryWithLeeway checks the certificate's expiration status
+// with leeway. The provided leeway value is added to the current time and can
+// be used to account for potential client-side clock drift. Clients validating
+// a certificate is valid to attempt to connect to a server should use positive
+// leeway; servers that might want to give clients leeway should use a negative
+// value.
+func VerifyCertificateExpiryWithLeeway(c *x509.Certificate, clock clockwork.Clock, leeway time.Duration) error {
 	if clock == nil {
 		clock = clockwork.NewRealClock()
 	}
-	now := clock.Now()
+	now := clock.Now().Add(leeway)
 
 	if now.Before(c.NotBefore) {
 		return x509.CertificateInvalidError{
@@ -140,6 +145,12 @@ func VerifyCertificateExpiry(c *x509.Certificate, clock clockwork.Clock) error {
 		}
 	}
 	return nil
+}
+
+// VerifyCertificateExpiryWithLeeway checks the certificate's expiration status
+// with zero leeway.
+func VerifyCertificateExpiry(c *x509.Certificate, clock clockwork.Clock) error {
+	return trace.Wrap(VerifyCertificateExpiryWithLeeway(c, clock, 0))
 }
 
 // VerifyTLSCertLeafExpiry checks a TLS certificate's expiration status.

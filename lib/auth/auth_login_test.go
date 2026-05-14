@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	scopedutils "github.com/gravitational/teleport/lib/scopes/utils"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -900,12 +901,14 @@ func TestServer_AuthenticateUser_passwordOnly(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	testServer := newTestTLSServer(t)
-	authServer := testServer.Auth()
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
+	authServer := as.AuthServer
 
 	const username = "bowman"
 	const password = "it's full of stars!"
-	_, _, err := authtest.CreateUserAndRole(authServer, username, nil, nil)
+	_, _, err = authtest.CreateUserAndRole(authServer, username, nil, nil)
 	require.NoError(t, err)
 	require.NoError(t, authServer.UpsertPassword(username, []byte(password)))
 
@@ -980,6 +983,9 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 			Scope: "/aa",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/aa"},
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					Logins: []string{"login-a"},
+				},
 			},
 			Version: types.V1,
 		},
@@ -991,6 +997,9 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 			Scope: "/aa/bb",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/aa/bb"},
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					Logins: []string{"login-b"},
+				},
 			},
 			Version: types.V1,
 		},
@@ -1002,6 +1011,9 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 			Scope: "/aa/bb/cc",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/aa/bb/cc"},
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					Logins: []string{"login-c"},
+				},
 			},
 			Version: types.V1,
 		},
@@ -1013,6 +1025,9 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 			Scope: "/xx",
 			Spec: &scopedaccessv1.ScopedRoleSpec{
 				AssignableScopes: []string{"/xx"},
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					Logins: []string{"login-x"},
+				},
 			},
 			Version: types.V1,
 		},
@@ -1032,7 +1047,8 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 		assignmentIDs = append(assignmentIDs, assignmentID)
 		_, err = adminClient.ScopedAccessServiceClient().CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
 			Assignment: &scopedaccessv1.ScopedRoleAssignment{
-				Kind: scopedaccess.KindScopedRoleAssignment,
+				Kind:    scopedaccess.KindScopedRoleAssignment,
+				SubKind: scopedaccess.SubKindDynamic,
 				Metadata: &headerv1.Metadata{
 					Name: assignmentID,
 				},
@@ -1081,17 +1097,11 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 	// verify that the expected scope pin is applied to ssh and tls certificates
 	expectedPin := &scopesv1.Pin{
 		Scope: "/aa/bb",
-		Assignments: map[string]*scopesv1.PinnedAssignments{
-			"/aa": {
-				Roles: []string{"role-a"},
-			},
-			"/aa/bb": {
-				Roles: []string{"role-b"},
-			},
-			"/aa/bb/cc": {
-				Roles: []string{"role-c"},
-			},
-		},
+		AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+			"/aa":       {"/aa": {"role-a"}},
+			"/aa/bb":    {"/aa/bb": {"role-b"}},
+			"/aa/bb/cc": {"/aa/bb/cc": {"role-c"}},
+		}),
 	}
 
 	// parse and examine the ssh cert
@@ -1104,6 +1114,7 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 	require.NotNil(t, sshIdent.ScopePin)
 	require.Empty(t, cmp.Diff(expectedPin, sshIdent.ScopePin, protocmp.Transform()))
 	require.Empty(t, sshIdent.Roles)
+	require.Equal(t, []string{"login-a", "login-b", "login-c", "-teleport-internal-join"}, sshIdent.Principals)
 
 	// parse and examine the tls cert
 	tlsCert, err := tlsca.ParseCertificatePEM(authrsp.TLSCert)
@@ -1121,8 +1132,10 @@ func TestServer_AuthenticateUser_passwordOnly_failure(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	testServer := newTestTLSServer(t)
-	authServer := testServer.Auth()
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
+	authServer := as.AuthServer
 
 	const username = "capybara"
 
@@ -1198,12 +1211,14 @@ func TestServer_AuthenticateUser_setsPasswordState(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	testServer := newTestTLSServer(t)
-	authServer := testServer.Auth()
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
+	authServer := as.AuthServer
 
 	const username = "bowman"
 	const password = "it's full of stars!"
-	_, _, err := authtest.CreateUserAndRole(authServer, username, nil, nil)
+	_, _, err = authtest.CreateUserAndRole(authServer, username, nil, nil)
 	require.NoError(t, err)
 	require.NoError(t, authServer.UpsertPassword(username, []byte(password)))
 
@@ -1212,7 +1227,7 @@ func TestServer_AuthenticateUser_setsPasswordState(t *testing.T) {
 	makeRun := func(authenticate func(*auth.Server, authclient.AuthenticateUserRequest) error) func(t *testing.T) {
 		return func(t *testing.T) {
 			// Enforce unspecified password state.
-			u, err := authServer.Identity.UpdateAndSwapUser(ctx, username, false, /* withSecrets */
+			u, err := authServer.UpdateAndSwapUser(ctx, username, false, /* withSecrets */
 				func(u types.User) (bool, error) {
 					u.SetPasswordState(types.PasswordState_PASSWORD_STATE_UNSPECIFIED)
 					return true, nil
@@ -1713,7 +1728,7 @@ func TestSSOPasswordBypass(t *testing.T) {
 		// proxyClient.AuthenticateSSHUser to something else (eg,
 		// proxyClient.AuthenticateWebUser).
 		// Optional.
-		authenticateOverride func(context.Context, authclient.AuthenticateSSHRequest) (*authclient.SSHLoginResponse, error)
+		authenticateOverride func(context.Context, authclient.AuthenticateSSHRequest) (*authclient.CLILoginResponse, error)
 	}{
 		{
 			name: "OTP",
@@ -1735,7 +1750,7 @@ func TestSSOPasswordBypass(t *testing.T) {
 		{
 			name:            "AuthenticateWeb",
 			setSecondFactor: solveWebauthn,
-			authenticateOverride: func(ctx context.Context, req authclient.AuthenticateSSHRequest) (*authclient.SSHLoginResponse, error) {
+			authenticateOverride: func(ctx context.Context, req authclient.AuthenticateSSHRequest) (*authclient.CLILoginResponse, error) {
 				// We only care about the error here, it's OK to swallow the session.
 				_, err := proxyClient.AuthenticateWebUser(ctx, req.AuthenticateUserRequest)
 				return nil, err
@@ -1834,19 +1849,15 @@ func TestSSOPasswordBypass(t *testing.T) {
 // TestSSOAccountRecoveryProhibited tests that SSO users cannot perform account
 // recovery.
 func TestSSOAccountRecoveryProhibited(t *testing.T) {
-	// Can't t.Parallel because of modules.SetTestModules.
-
-	testServer := newTestTLSServer(t)
-	authServer := testServer.Auth()
-	clock := testServer.Clock()
-	ctx := context.Background()
-
-	// Enable RecoveryCodes feature.
-	modulestest.SetTestModules(t, modulestest.Modules{
+	t.Parallel()
+	testServer := newTestTLSServer(t, withModules(&modulestest.Modules{
 		TestFeatures: modules.Features{
 			RecoveryCodes: true,
 		},
-	})
+	}))
+	authServer := testServer.Auth()
+	clock := testServer.Clock()
+	ctx := t.Context()
 
 	// Make second factor mandatory.
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -2009,7 +2020,7 @@ func TestServer_Authenticate_nonPasswordlessRequiresUsername(t *testing.T) {
 func TestServer_Authenticate_headless(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	headlessID := services.NewHeadlessAuthenticationID([]byte(sshPubKey))
 
 	for _, tc := range []struct {
@@ -2017,6 +2028,7 @@ func TestServer_Authenticate_headless(t *testing.T) {
 		timeout     time.Duration
 		update      func(*types.HeadlessAuthentication, *types.MFADevice)
 		assertError require.ErrorAssertionFunc
+		assertResp  func(*testing.T, *authclient.CLILoginResponse, *authtest.Device)
 	}{
 		{
 			name:    "OK approved",
@@ -2026,6 +2038,20 @@ func TestServer_Authenticate_headless(t *testing.T) {
 				ha.MfaDevice = mfa
 			},
 			assertError: require.NoError,
+			assertResp: func(t *testing.T, resp *authclient.CLILoginResponse, webDev *authtest.Device) {
+				require.NotNil(t, resp)
+				require.NotNil(t, webDev)
+				require.NotNil(t, webDev.MFA)
+
+				sshCert, err := sshutils.ParseCertificate(resp.Cert)
+				require.NoError(t, err)
+
+				identity, err := sshca.DecodeIdentity(sshCert)
+				require.NoError(t, err)
+
+				assert.Equal(t, webDev.MFA.GetName(), identity.MFAVerified)
+				assert.Equal(t, headlessID, identity.HeadlessAuthenticationID)
+			},
 		}, {
 			name:    "NOK approved without MFA",
 			timeout: 10 * time.Second,
@@ -2033,7 +2059,10 @@ func TestServer_Authenticate_headless(t *testing.T) {
 				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED
 			},
 			assertError: func(t require.TestingT, err error, i ...any) {
-				require.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
+				assert.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
+			},
+			assertResp: func(t *testing.T, resp *authclient.CLILoginResponse, _ *authtest.Device) {
+				assert.Nil(t, resp)
 			},
 		}, {
 			name:    "NOK denied",
@@ -2042,18 +2071,23 @@ func TestServer_Authenticate_headless(t *testing.T) {
 				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED
 			},
 			assertError: func(t require.TestingT, err error, i ...any) {
-				require.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
+				assert.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
+			},
+			assertResp: func(t *testing.T, resp *authclient.CLILoginResponse, _ *authtest.Device) {
+				assert.Nil(t, resp)
 			},
 		}, {
 			name:    "NOK timeout",
 			timeout: 100 * time.Millisecond,
 			assertError: func(t require.TestingT, err error, i ...any) {
-				require.ErrorIs(t, err, context.DeadlineExceeded)
+				assert.ErrorIs(t, err, context.DeadlineExceeded)
+			},
+			assertResp: func(t *testing.T, resp *authclient.CLILoginResponse, _ *authtest.Device) {
+				assert.Nil(t, resp)
 			},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			tc := tc
 			t.Parallel()
 
 			srv := newTestTLSServer(t)
@@ -2099,7 +2133,7 @@ func TestServer_Authenticate_headless(t *testing.T) {
 				}
 			}()
 
-			_, err = proxyClient.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
+			resp, err := proxyClient.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 				AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 					// HeadlessAuthenticationID should take precedence over WebAuthn and OTP fields.
 					HeadlessAuthenticationID: headlessID,
@@ -2119,6 +2153,7 @@ func TestServer_Authenticate_headless(t *testing.T) {
 			assert.NoError(t, <-errC, "Failed to get and update headless authentication in background")
 
 			tc.assertError(t, err, trace.DebugReport(err))
+			tc.assertResp(t, resp, mfa.WebDev)
 		})
 	}
 }

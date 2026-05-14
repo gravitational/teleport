@@ -7,6 +7,10 @@
 # Owners for JS dependency updates.
 /pnpm-lock.yaml @avatus @gzdunek @ravicious @zmb3 @r0mant
 /web/packages/teleterm/package.json @gzdunek @ravicious
+/e2e/pnpm-lock.yaml @ryanclark @avatus @ravicious
+
+# E2E Tests
+/.github/workflows/e2e-* @klizhentas @russjones @r0mant @zmb3 @mjsmithnh @doggydogworld @rosstimothy @ryanclark @avatus @ravicious
 
 # Owners for Go dependency updates.
 /go.mod @russjones @r0mant @zmb3 @rosstimothy
@@ -17,6 +21,7 @@
 /integrations/terraform/go.mod @russjones @r0mant @zmb3 @rosstimothy @hugoShaka @tigrato
 /integrations/terraform-mwi/go.mod @russjones @r0mant @zmb3 @rosstimothy @hugoShaka @tigrato @strideynet
 /integrations/event-handler/go.mod @russjones @r0mant @zmb3 @rosstimothy @hugoShaka @tigrato
+/examples/**/go.mod @russjones @r0mant @zmb3 @rosstimothy
 
 # Owners for Rust dependency updates.
 /Cargo.toml @russjones @r0mant @zmb3 @rosstimothy @fspmarshall @espadolini

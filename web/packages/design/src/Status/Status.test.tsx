@@ -20,57 +20,25 @@ import { screen } from '@testing-library/react';
 
 import { render } from 'design/utils/testing';
 
-import { Status, StatusKind, StatusVariant } from './Status';
+import { Status } from './Status';
 
 describe('design/Status', () => {
-  const kinds: StatusKind[] = [
-    'success',
-    'warning',
-    'info',
-    'danger',
-    'neutral',
-    'primary',
-  ];
-
-  const variants: StatusVariant[] = ['filled', 'filled-tonal', 'border'];
-
-  it.each(kinds)('renders kind="%s"', kind => {
-    render(<Status kind={kind}>Label</Status>);
-    expect(screen.getByText('Label')).toBeInTheDocument();
-  });
-
-  it.each(variants)('renders variant="%s"', variant => {
-    render(
-      <Status kind="success" variant={variant}>
-        Label
-      </Status>
-    );
-    expect(screen.getByText('Label')).toBeInTheDocument();
-  });
-
-  it('renders a custom icon component', () => {
+  it('renders a component reference icon with color and size', () => {
     const CustomIcon = (props: any) => (
-      <span data-testid="custom-icon" {...props} />
+      <span
+        data-testid="comp-icon"
+        data-color={props.color}
+        data-size={props.size}
+      />
     );
     render(
-      <Status kind="info" icon={CustomIcon}>
-        Info
+      <Status kind="success" icon={CustomIcon}>
+        Custom
       </Status>
     );
-    expect(screen.getByTestId('custom-icon')).toBeInTheDocument();
-  });
-
-  it('hides icon when noIcon is set', () => {
-    const CustomIcon = (props: any) => (
-      <span data-testid="custom-icon" {...props} />
-    );
-
-    render(
-      <Status kind="success" noIcon icon={CustomIcon}>
-        No Icon
-      </Status>
-    );
-
-    expect(screen.queryByTestId('custom-icon')).not.toBeInTheDocument();
+    const icon = screen.getByTestId('comp-icon');
+    expect(icon).toBeInTheDocument();
+    expect(icon.dataset.color).toBeTruthy();
+    expect(icon.dataset.size).toBeTruthy();
   });
 });

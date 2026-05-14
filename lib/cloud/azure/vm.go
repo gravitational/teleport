@@ -20,6 +20,7 @@ package azure
 
 import (
 	"context"
+	"os"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
@@ -292,9 +293,27 @@ type RunCommandRequest struct {
 	Script string
 }
 
+// RunCommandResult contains the result of executing a command on an Azure VM.
+type RunCommandResult struct {
+	// ExecutionState is the execution state of the command (e.g. "Succeeded", "Failed").
+	ExecutionState string
+	// ExitCode is the exit code of the command.
+	ExitCode int32
+	// StdOut is the stdout of the command.
+	StdOut string
+	// StdErr is the stderr of the command.
+	StdErr string
+}
+
+// Failure returns true if the result is considered a failure.
+func (r *RunCommandResult) Failure() bool {
+	return r.ExitCode != 0 || r.ExecutionState != string(armcompute.ExecutionStateSucceeded)
+}
+
 // RunCommandClient is a client for Azure Run Commands.
 type RunCommandClient interface {
-	Run(ctx context.Context, req RunCommandRequest) error
+	// Run runs Teleport installation command on a virtual machine.
+	Run(ctx context.Context, req RunCommandRequest) (*RunCommandResult, error)
 }
 
 type runCommandClient struct {
@@ -313,8 +332,12 @@ func NewRunCommandClient(subscription string, cred azcore.TokenCredential, optio
 	}, nil
 }
 
-// Run runs a command on a virtual machine.
-func (c *runCommandClient) Run(ctx context.Context, req RunCommandRequest) error {
+// Run runs Teleport installation command on a virtual machine.
+func (c *runCommandClient) Run(ctx context.Context, req RunCommandRequest) (*RunCommandResult, error) {
+	runCommandTimeout := getRunCommandTimeout()
+	// pad the timeout so we can still attempt to collect output if it times out
+	ctx, cancel := context.WithTimeout(ctx, runCommandTimeout+time.Minute)
+	defer cancel()
 	// TODO(Tener): make the run command name actual parameter.
 	const runCommandName = "teleport-install"
 
@@ -325,34 +348,38 @@ func (c *runCommandClient) Run(ctx context.Context, req RunCommandRequest) error
 			Source: &armcompute.VirtualMachineRunCommandScriptSource{
 				Script: to.Ptr(req.Script),
 			},
+			TimeoutInSeconds: to.Ptr(int32(runCommandTimeout.Seconds())),
 		},
 	}, nil)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	_, err = poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{Frequency: 10 * time.Second})
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// note: we are not guaranteed to receive the output of the command above if the req.Name is not unique.
+	// in particular, two discovery services may race, causing the output to be empty: our attempt can be shadowed by a newer one.
 	resp, err := c.api.GetByVirtualMachine(ctx, req.ResourceGroup, req.VMName, runCommandName, &armcompute.VirtualMachineRunCommandsClientGetByVirtualMachineOptions{
 		Expand: to.Ptr("instanceView"),
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	if resp.Properties == nil || resp.Properties.InstanceView == nil {
-		return trace.BadParameter("unable to query command execution state, failure assumed")
+		return nil, trace.BadParameter("unable to query command execution state, failure assumed")
 	}
 	iv := resp.Properties.InstanceView
-	execState := fromPtr(iv.ExecutionState)
-	if execState != armcompute.ExecutionStateSucceeded {
-		return trace.BadParameter("execution failed; exec state: %v, output: %v, stderr: %v, exit code: %v", execState, fromPtr(iv.Output), fromPtr(iv.Error), fromPtr(iv.ExitCode))
+	result := &RunCommandResult{
+		ExecutionState: string(fromPtr(iv.ExecutionState)),
+		ExitCode:       fromPtr(iv.ExitCode),
+		StdOut:         fromPtr(iv.Output),
+		StdErr:         fromPtr(iv.Error),
 	}
-	return nil
+	return result, nil
 }
 
 func fromPtr[T any](ptr *T) T {
@@ -361,4 +388,17 @@ func fromPtr[T any](ptr *T) T {
 		out = *ptr
 	}
 	return out
+}
+
+func getRunCommandTimeout() time.Duration {
+	const timeoutEnv = "TELEPORT_UNSTABLE_AZURE_RUN_COMMAND_TIMEOUT"
+	if dur, err := time.ParseDuration(os.Getenv(timeoutEnv)); err == nil {
+		// clamp the timeout to a reasonable duration.
+		const (
+			minTimeout = time.Second * 10
+			maxTimeout = time.Minute * 90
+		)
+		return min(maxTimeout, max(minTimeout, dur))
+	}
+	return 5 * time.Minute // default to 5m
 }

@@ -341,6 +341,12 @@ export class TdpClient extends EventEmitter<EventMap> {
   };
 
   private async initWasm() {
+    if (typeof WebAssembly === 'undefined') {
+      throw new Error(
+        'WebAssembly is not supported in this browser. Desktop sessions and desktop session recordings require WebAssembly.'
+      );
+    }
+
     // select the wasm log level
     let wasmLogLevel = LogType.OFF;
     if (import.meta.env.MODE === 'development') {
@@ -754,9 +760,21 @@ export class TdpClient extends EventEmitter<EventMap> {
   async handleSharedDirectoryTruncateRequest(
     req: SharedDirectoryTruncateRequest
   ) {
+    if (req.endOfFile > BigInt(Number.MAX_SAFE_INTEGER)) {
+      this.handleWarning(
+        'File truncate operation exceeds maximum allowed size.',
+        TdpClientEvent.TDP_WARNING
+      );
+      this.sendSharedDirectoryTruncateResponse({
+        completionId: req.completionId,
+        errCode: SharedDirectoryErrCode.Failed,
+      });
+      return;
+    }
+
     const sharedDirectory = this.getSharedDirectoryOrThrow();
 
-    await sharedDirectory.truncate(req.path, req.endOfFile);
+    await sharedDirectory.truncate(req.path, Number(req.endOfFile));
     this.sendSharedDirectoryTruncateResponse({
       completionId: req.completionId,
       errCode: SharedDirectoryErrCode.Nil,

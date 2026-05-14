@@ -46,13 +46,10 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keypaths"
-	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	kubeserver "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -61,9 +58,6 @@ import (
 )
 
 func TestKube(t *testing.T) {
-	lib.SetInsecureDevMode(true)
-	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
-
 	pack := setupKubeTestPack(t, true)
 	t.Run("list kube", pack.testListKube)
 	t.Run("proxy kube", pack.testProxyKube)
@@ -71,9 +65,6 @@ func TestKube(t *testing.T) {
 }
 
 func TestKubeLogin(t *testing.T) {
-	lib.SetInsecureDevMode(true)
-	t.Cleanup(func() { lib.SetInsecureDevMode(false) })
-
 	testKubeLogin := func(t *testing.T, kubeCluster string, expectedAddr string) {
 		// Set default kubeconfig to a non-exist file to avoid loading other things.
 		t.Setenv("KUBECONFIG", filepath.Join(os.Getenv(types.HomeEnvVar), uuid.NewString()))
@@ -147,6 +138,7 @@ func setupKubeTestPack(t *testing.T, withMultiplexMode bool) *kubeTestPack {
 			if withMultiplexMode {
 				cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			}
+			cfg.InsecureMode = true
 			cfg.Kube.Enabled = true
 			cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
 			cfg.Kube.KubeconfigPath = newKubeConfigFile(t, rootKubeCluster1, rootKubeCluster2)
@@ -161,6 +153,7 @@ func setupKubeTestPack(t *testing.T, withMultiplexMode bool) *kubeTestPack {
 				if withMultiplexMode {
 					cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 				}
+				cfg.InsecureMode = true
 				cfg.Kube.Enabled = true
 				cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
 				cfg.Kube.KubeconfigPath = newKubeConfigFile(t, leafKubeCluster)
@@ -216,10 +209,10 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 				// p.rootKubeCluster2 ("first-cluster") should appear before
 				// p.rootKubeCluster1 ("root-cluster") after sorting.
 				table := asciitable.MakeTableWithTruncatedColumn(
-					[]string{"Kube Cluster Name", "Labels", "Selected"},
+					[]string{"Kube Cluster Name", "Labels", "Scope", "Selected"},
 					[][]string{
-						{p.rootKubeCluster2, formattedRootLabels, ""},
-						{p.rootKubeCluster1, formattedRootLabels, ""},
+						{p.rootKubeCluster2, formattedRootLabels, "", ""},
+						{p.rootKubeCluster1, formattedRootLabels, "", ""},
 					},
 					"Labels")
 				return table.AsBuffer().String()
@@ -230,9 +223,9 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 			args: []string{"--verbose"},
 			wantTable: func() string {
 				table := asciitable.MakeTable(
-					[]string{"Kube Cluster Name", "Labels", "Selected"},
-					[]string{p.rootKubeCluster2, formattedRootLabelsVerbose, ""},
-					[]string{p.rootKubeCluster1, formattedRootLabelsVerbose, ""})
+					[]string{"Kube Cluster Name", "Labels", "Scope", "Selected"},
+					[]string{p.rootKubeCluster2, formattedRootLabelsVerbose, "", ""},
+					[]string{p.rootKubeCluster1, formattedRootLabelsVerbose, "", ""})
 				return table.AsBuffer().String()
 			},
 		},
@@ -240,7 +233,7 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 			name: "show headless table",
 			args: []string{"--quiet"},
 			wantTable: func() string {
-				table := asciitable.MakeHeadlessTable(2)
+				table := asciitable.MakeHeadlessTable(3)
 				table.AddRow([]string{p.rootKubeCluster2, formattedRootLabels, ""})
 				table.AddRow([]string{p.rootKubeCluster1, formattedRootLabels, ""})
 
@@ -252,15 +245,15 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 			args: []string{"--all"},
 			wantTable: func() string {
 				table := asciitable.MakeTableWithTruncatedColumn(
-					[]string{"Proxy", "Cluster", "Kube Cluster Name", "Labels"},
+					[]string{"Proxy", "Cluster", "Kube Cluster Name", "Labels", "Scope"},
 					[][]string{
 						// "leaf-cluster" should be displayed instead of the
 						// full leaf cluster name, since it is mocked as a
 						// discovered resource and the discovered resource name
 						// is displayed in non-verbose mode.
-						{p.root.Config.Proxy.WebAddr.String(), "leaf1", "leaf-cluster", formattedLeafLabels},
-						{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster2, formattedRootLabels},
-						{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster1, formattedRootLabels},
+						{p.root.Config.Proxy.WebAddr.String(), "leaf1", "leaf-cluster", formattedLeafLabels, ""},
+						{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster2, formattedRootLabels, ""},
+						{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster1, formattedRootLabels, ""},
 					},
 					"Labels",
 				)
@@ -272,10 +265,10 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 			args: []string{"--all", "--verbose"},
 			wantTable: func() string {
 				table := asciitable.MakeTable(
-					[]string{"Proxy", "Cluster", "Kube Cluster Name", "Labels"},
-					[]string{p.root.Config.Proxy.WebAddr.String(), "leaf1", p.leafKubeCluster, formattedLeafLabelsVerbose},
-					[]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster2, formattedRootLabelsVerbose},
-					[]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster1, formattedRootLabelsVerbose},
+					[]string{"Proxy", "Cluster", "Kube Cluster Name", "Labels", "Scope"},
+					[]string{p.root.Config.Proxy.WebAddr.String(), "leaf1", p.leafKubeCluster, formattedLeafLabelsVerbose, ""},
+					[]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster2, formattedRootLabelsVerbose, ""},
+					[]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster1, formattedRootLabelsVerbose, ""},
 				)
 				return table.AsBuffer().String()
 			},
@@ -284,10 +277,10 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 			name: "list all clusters including leaf clusters in headless table",
 			args: []string{"--all", "--quiet"},
 			wantTable: func() string {
-				table := asciitable.MakeHeadlessTable(4)
-				table.AddRow([]string{p.root.Config.Proxy.WebAddr.String(), "leaf1", "leaf-cluster", formattedLeafLabels})
-				table.AddRow([]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster2, formattedRootLabels})
-				table.AddRow([]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster1, formattedRootLabels})
+				table := asciitable.MakeHeadlessTable(5)
+				table.AddRow([]string{p.root.Config.Proxy.WebAddr.String(), "leaf1", "leaf-cluster", formattedLeafLabels, ""})
+				table.AddRow([]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster2, formattedRootLabels, ""})
+				table.AddRow([]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster1, formattedRootLabels, ""})
 				return table.AsBuffer().String()
 			},
 		},
@@ -325,26 +318,6 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 
 // Tests `tsh kube login`, `tsh proxy kube`.
 func TestKubeSelection(t *testing.T) {
-	modulestest.SetTestModules(t,
-		modulestest.Modules{
-			TestBuildType: modules.BuildEnterprise,
-			TestFeatures: modules.Features{
-				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-					entitlements.K8s: {Enabled: true},
-				},
-			},
-		},
-	)
-	originalValue := lib.IsInsecureDevMode()
-	lib.SetInsecureDevMode(true)
-	// To detect tests that run in parallel incorrectly, call t.Setenv with a
-	// dummy env var - that function detects tests with parallel ancestors
-	// and panics, preventing improper use of this helper.
-	t.Setenv("WithInsecureDevMode", "1")
-	t.Cleanup(func() {
-		lib.SetInsecureDevMode(originalValue)
-	})
-
 	oldResyncInterval := defaults.ResyncInterval
 	defaults.ResyncInterval = 100 * time.Millisecond
 	// To detect tests that run in parallel incorrectly, call t.Setenv with a
@@ -380,6 +353,8 @@ func TestKubeSelection(t *testing.T) {
 	t.Cleanup(cancel)
 	s := newTestSuite(t,
 		withRootConfigFunc(func(cfg *servicecfg.Config) {
+			cfg.Modules = modulestest.EnterpriseModules()
+			cfg.InsecureMode = true
 			// reconfig the user to use the new role instead of the default ones
 			// User is the second bootstrap resource.
 			user, ok := cfg.Auth.BootstrapResources[1].(types.User)

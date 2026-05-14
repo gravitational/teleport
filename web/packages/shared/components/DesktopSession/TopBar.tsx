@@ -75,7 +75,9 @@ export default function TopBar(props: Props) {
           <HoverTooltip tipContent={clipboardSharingMessage} placement="bottom">
             <Clipboard style={primaryOnTrue(isSharingClipboard)} />
           </HoverTooltip>
-          <AlertDropdown alerts={alerts} onRemoveAlert={onRemoveAlert} />
+          {!!alerts?.length && (
+            <AlertDropdown alerts={alerts} onRemoveAlert={onRemoveAlert} />
+          )}
           <ActionMenu
             onDisconnect={onDisconnect}
             showShareDirectory={canShareDirectory && !isSharingDirectory}

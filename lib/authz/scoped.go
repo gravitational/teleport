@@ -72,7 +72,7 @@ func ScopedContextFromUnscopedContext(authCtx *Context) *ScopedContext {
 	return &ScopedContext{
 		User:            authCtx.User,
 		Identity:        authCtx.Identity,
-		CheckerContext:  services.NewUnscopedSplitAccessCheckerContext(authCtx.Checker),
+		CheckerContext:  services.NewScopedAccessCheckerContextFromUnscoped(authCtx.Checker),
 		unscopedContext: authCtx,
 	}
 }
@@ -140,7 +140,7 @@ func scopedContextForLocalUser(ctx context.Context, u LocalUser, accessPoint Aut
 	return &ScopedContext{
 		User:           user,
 		Identity:       u,
-		CheckerContext: services.NewScopedSplitAccessCheckerContext(checkerContext),
+		CheckerContext: checkerContext,
 	}, nil
 }
 
@@ -156,7 +156,7 @@ type ScopedContext struct {
 	// CheckerContext is the top-level access checker for the authenticated identity. This types serves a similar
 	// purpose to [services.AccessChecker] but requires different usage patterns to accommodate the more complex
 	// scoped decision model.
-	CheckerContext *services.SplitAccessCheckerContext
+	CheckerContext *services.ScopedAccessCheckerContext
 	// unscopedContext is the context derived from unscoped authorization, if available. This will be nil
 	// if the calling identity was scoped.
 	unscopedContext *Context
@@ -198,4 +198,34 @@ func (s *ScopedContext) GetDisconnectCertExpiry(authPref readonly.AuthPreference
 
 	// Otherwise, return the current certificates expiration
 	return identity.Expires
+}
+
+// LockTargets returns a list of [types.LockTarget] for scoped and unscoped identities.
+// For unscoped identities, the result is unchanged from [AuthContext.LockTargets()] and relies on
+// assigned roles in addition to identity attributes.
+// For scoped identities, the result is nearly identical to [services.LockTargetsFromTLSIdentity].
+// The only difference is that the Groups and AccessRequests are not considered
+// when generating the lock targets.
+func (s *ScopedContext) LockTargets() []types.LockTarget {
+	if unscopedCtx, isUnscoped := s.UnscopedContext(); isUnscoped {
+		return unscopedCtx.LockTargets()
+	}
+	id := s.Identity.GetIdentity()
+	lockTargets := []types.LockTarget{
+		{User: id.Username},
+	}
+
+	if id.MFAVerified != "" {
+		lockTargets = append(lockTargets, types.LockTarget{MFADevice: id.MFAVerified})
+	}
+	if id.DeviceExtensions.DeviceID != "" {
+		lockTargets = append(lockTargets, types.LockTarget{Device: id.DeviceExtensions.DeviceID})
+	}
+	if id.JoinToken != "" {
+		lockTargets = append(lockTargets, types.LockTarget{JoinToken: id.JoinToken})
+	}
+	if id.BotInstanceID != "" {
+		lockTargets = append(lockTargets, types.LockTarget{BotInstanceID: id.BotInstanceID})
+	}
+	return lockTargets
 }

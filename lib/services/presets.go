@@ -20,8 +20,10 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"slices"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -34,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/modules"
-	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	"github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/utils/set"
 )
 
@@ -223,12 +225,14 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindInferenceModel, RW()),
 					types.NewRule(types.KindInferenceSecret, RW()),
 					types.NewRule(types.KindInferencePolicy, RW()),
+					types.NewRule(types.KindRetrievalModel, RW()),
 					types.NewRule(types.KindClientIPRestriction, RW()),
-					types.NewRule(scopedaccess.KindScopedRole, RW()),
-					types.NewRule(scopedaccess.KindScopedRoleAssignment, RW()),
+					types.NewRule(access.KindScopedRole, RW()),
+					types.NewRule(access.KindScopedRoleAssignment, RW()),
 					types.NewRule(types.KindScopedToken, RW()),
 					types.NewRule(types.KindAppAuthConfig, RW()),
 					types.NewRule(types.KindWorkloadCluster, RW()),
+					types.NewRule(types.KindRecordingEncryption, RW()),
 				},
 			},
 		},
@@ -794,6 +798,7 @@ func NewPresetTerraformProviderRole() types.Role {
 				// Login/user set.
 				AppLabels:            map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
 				DatabaseLabels:       map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
+				KubernetesLabels:     map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
 				NodeLabels:           map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
 				WindowsDesktopLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
 				// Every resource currently supported by the Terraform provider.
@@ -809,6 +814,8 @@ func NewPresetTerraformProviderRole() types.Role {
 					types.NewRule(types.KindDevice, RW()),
 					types.NewRule(types.KindDiscoveryConfig, RW()),
 					types.NewRule(types.KindGithub, RW()),
+					types.NewRule(types.KindKubernetesCluster, RW()),
+					types.NewRule(types.KindLock, RW()),
 					types.NewRule(types.KindLoginRule, RW()),
 					types.NewRule(types.KindNode, RW()),
 					types.NewRule(types.KindOIDC, RW()),
@@ -818,6 +825,7 @@ func NewPresetTerraformProviderRole() types.Role {
 					types.NewRule(types.KindSessionRecordingConfig, RW()),
 					types.NewRule(types.KindToken, RW()),
 					types.NewRule(types.KindTrustedCluster, RW()),
+					types.NewRule(types.KindUIConfig, RW()),
 					types.NewRule(types.KindUser, RW()),
 					types.NewRule(types.KindBot, RW()),
 					types.NewRule(types.KindInstaller, RW()),
@@ -829,11 +837,18 @@ func NewPresetTerraformProviderRole() types.Role {
 					types.NewRule(types.KindAutoUpdateConfig, RW()),
 					types.NewRule(types.KindAutoUpdateVersion, RW()),
 					types.NewRule(types.KindHealthCheckConfig, RW()),
+					types.NewRule(types.KindVnetConfig, RW()),
 					types.NewRule(types.KindIntegration, RW()),
 					types.NewRule(types.KindAppAuthConfig, RW()),
 					types.NewRule(types.KindInferenceModel, RW()),
 					types.NewRule(types.KindInferenceSecret, RW()),
 					types.NewRule(types.KindInferencePolicy, RW()),
+					types.NewRule(types.KindRetrievalModel, RW()),
+					types.NewRule(types.KindSAMLIdPServiceProvider, RW()),
+					types.NewRule(types.KindScopedToken, RW()),
+					types.NewRule(access.KindScopedRole, RW()),
+					types.NewRule(access.KindScopedRoleAssignment, RW()),
+					types.NewRule(types.KindDatabaseObjectImportRule, RW()),
 				},
 			},
 		},
@@ -862,6 +877,135 @@ func NewPresetMCPUserRole() types.Role {
 				},
 				MCP: &types.MCPPermissions{
 					Tools: []string{types.Wildcard},
+				},
+			},
+		},
+	}
+	return role
+}
+
+// NewPresetBeamUserRole returns a new pre-defined role for accessing your own
+// beam resources.
+func NewPresetBeamUserRole(buildType string) types.Role {
+	if buildType != modules.BuildEnterprise {
+		return nil
+	}
+
+	allowLLMApps := fmt.Sprintf(`labels[%q] == %q`, types.BeamAppTypeLabel, types.SubKindLLM)
+	allowBeamApps := fmt.Sprintf(`labels[%q] == user.metadata.name`, types.BeamOwnerLabel)
+
+	role := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V8,
+		Metadata: types.Metadata{
+			Name:        teleport.PresetBeamUserRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Use the Beams feature",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.PresetResource,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Logins:              []string{types.BeamsLogin},
+				AppLabelsExpression: strings.Join([]string{allowLLMApps, allowBeamApps}, " || "),
+				NodeLabels: types.Labels{
+					types.BeamOwnerLabel: {"{{user.metadata.name}}"},
+				},
+				BeamLabels: types.Labels{
+					types.BeamOwnerLabel: {"{{user.metadata.name}}"},
+				},
+				Rules: []types.Rule{
+					{
+						Resources: []string{types.KindBeam},
+						Verbs:     []string{types.Wildcard},
+					},
+				},
+			},
+		},
+	}
+	return role
+}
+
+// NewPresetBeamAdminRole returns a new pre-defined role for administering beams
+// belonging to other users.
+func NewPresetBeamAdminRole(buildType string) types.Role {
+	if buildType != modules.BuildEnterprise {
+		return nil
+	}
+
+	role := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V8,
+		Metadata: types.Metadata{
+			Name:        teleport.PresetBeamAdminRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Administer beams belonging to other users",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.PresetResource,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				BeamLabels: types.Labels{
+					types.BeamOwnerLabel: {types.Wildcard},
+				},
+				Rules: []types.Rule{
+					{
+						Resources: []string{types.KindBeam},
+						Verbs:     []string{types.Wildcard},
+					},
+				},
+			},
+		},
+	}
+	return role
+}
+
+// NewSystemBeamRole returns a new pre-defined role for the beam to issue itself
+// credentials.
+func NewSystemBeamRole(buildType string) types.Role {
+	if buildType != modules.BuildEnterprise {
+		return nil
+	}
+
+	// Only allow the bot to generate host certificates for the Beam's OpenSSH
+	// server. tbot explicitly sends a blank HostID, HostName and the Node role.
+	hostCertConstraints := strings.Join([]string{
+		fmt.Sprintf(`contains_all(user.spec.traits[%q], host_cert.principals)`, types.BeamIDLabel),
+		`host_cert.host_id == ""`,
+		`host_cert.node_name == ""`,
+	}, " && ")
+
+	role := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V8,
+		Metadata: types.Metadata{
+			Name:        teleport.SystemBeamRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Used by a beam to issue itself credentials",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.SystemResource,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Rules: []types.Rule{
+					{
+						Resources: []string{types.KindHostCert},
+						Verbs:     []string{types.VerbCreate},
+						Where:     hostCertConstraints,
+					},
+					{
+						Resources: []string{types.KindWorkloadIdentity},
+						Verbs: []string{
+							types.VerbList,
+							types.VerbRead,
+						},
+					},
+				},
+				WorkloadIdentityLabels: types.Labels{
+					types.BeamIDLabel: []string{fmt.Sprintf(`{{external[%q]}}`, types.BeamIDLabel)},
 				},
 			},
 		},
@@ -984,6 +1128,7 @@ func defaultAllowLabels(enterprise bool) map[string]types.RoleConditions {
 			AppLabels:            wildcardLabels,
 			DatabaseLabels:       wildcardLabels,
 			NodeLabels:           wildcardLabels,
+			KubernetesLabels:     wildcardLabels,
 			WindowsDesktopLabels: wildcardLabels,
 		},
 		teleport.PresetListAccessRequestResourcesRoleName: {
@@ -1326,12 +1471,12 @@ func updateAllowLabels(role types.Role, kind string, defaultLabels types.Labels)
 
 func defaultGitHubOrgs() map[string][]string {
 	return map[string][]string{
-		teleport.PresetAccessRoleName: []string{teleport.TraitInternalGitHubOrgs},
+		teleport.PresetAccessRoleName: {teleport.TraitInternalGitHubOrgs},
 	}
 }
 
 func defaultMCPTools() map[string][]string {
 	return map[string][]string{
-		teleport.PresetAccessRoleName: []string{teleport.TraitInternalMCPTools},
+		teleport.PresetAccessRoleName: {teleport.TraitInternalMCPTools},
 	}
 }

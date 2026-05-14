@@ -76,9 +76,11 @@ type SchemaVersion struct {
 	// Teleport resource, this is equal to the Teleport resource Version for
 	// compatibility purposes. For multi-version resource, the value is always
 	// "v1" as the version is already in the CR kind.
-	Version           string
-	Schema            *Schema
-	additionalColumns []apiextv1.CustomResourceColumnDefinition
+	Version              string
+	Schema               *Schema
+	additionalColumns    []apiextv1.CustomResourceColumnDefinition
+	additionalRootFields map[string]apiextv1.JSONSchemaProps
+	validationRules      apiextv1.ValidationRules
 }
 
 // Schema is a set of object properties.
@@ -110,11 +112,13 @@ func NewSchema() *Schema {
 }
 
 type resourceSchemaConfig struct {
-	nameOverride        string
-	versionOverride     string
-	customSpecFields    []string
-	kindContainsVersion bool
-	additionalColumns   []apiextv1.CustomResourceColumnDefinition
+	nameOverride         string
+	versionOverride      string
+	customSpecFields     []string
+	additionalRootFields []string
+	kindWithoutVersion   bool
+	additionalColumns    []apiextv1.CustomResourceColumnDefinition
+	validationRules      apiextv1.ValidationRules
 }
 
 type resourceSchemaOption func(*resourceSchemaConfig)
@@ -131,16 +135,27 @@ func withNameOverride(name string) resourceSchemaOption {
 	}
 }
 
-// set this onlt on new multi-version resources
-func withVersionInKindOverride() resourceSchemaOption {
+// Here for backward compatibility-only.
+// DO NOT SET on new resources. See RFD 169 for more details.
+func legacyWithoutVersionInKindOverride() resourceSchemaOption {
 	return func(cfg *resourceSchemaConfig) {
-		cfg.kindContainsVersion = true
+		cfg.kindWithoutVersion = true
 	}
 }
 
+// withCustomSpecFields builds the CRD spec from the specified root-level proto
+// fields instead of the proto "spec" sub-message.
 func withCustomSpecFields(customSpecFields []string) resourceSchemaOption {
 	return func(cfg *resourceSchemaConfig) {
 		cfg.customSpecFields = customSpecFields
+	}
+}
+
+// withAdditionalRootFields adds fields from the root proto message as top-level
+// properties on the CRD.
+func withAdditionalRootFields(rootFields []string) resourceSchemaOption {
+	return func(cfg *resourceSchemaConfig) {
+		cfg.additionalRootFields = rootFields
 	}
 }
 
@@ -162,6 +177,19 @@ func withAdditionalColumns(additionalColumns []apiextv1.CustomResourceColumnDefi
 		cfg.additionalColumns = columns
 	}
 }
+
+// withSingletonName adds a CEL x-kubernetes-validations rule enforcing that the
+// resource's metadata.name must equal name. This is used for singleton CRDs
+// where only one instance is allowed in the cluster.
+func withSingletonName(name string) resourceSchemaOption {
+	return func(cfg *resourceSchemaConfig) {
+		cfg.validationRules = append(cfg.validationRules, apiextv1.ValidationRule{
+			Rule:    fmt.Sprintf("self.metadata.name == %q", name),
+			Message: fmt.Sprintf("resource must be named %q", name),
+		})
+	}
+}
+
 func (generator *SchemaGenerator) addResource(file *File, name string, opts ...resourceSchemaOption) error {
 	var cfg resourceSchemaConfig
 	for _, opt := range opts {
@@ -221,7 +249,7 @@ func (generator *SchemaGenerator) addResource(file *File, name string, opts ...r
 		resourceKind = cfg.nameOverride
 	}
 	kubernetesKind := resourceKind
-	if cfg.kindContainsVersion {
+	if !cfg.kindWithoutVersion {
 		kubernetesKind = resourceKind + strings.ToUpper(resourceVersion)
 	}
 	schema.Description = fmt.Sprintf("%s resource definition %s from Teleport", resourceKind, resourceVersion)
@@ -229,7 +257,7 @@ func (generator *SchemaGenerator) addResource(file *File, name string, opts ...r
 	root, ok := generator.roots[kubernetesKind]
 	if !ok {
 		pluralName := strings.ToLower(english.PluralWord(2, resourceKind, ""))
-		if cfg.kindContainsVersion {
+		if !cfg.kindWithoutVersion {
 			pluralName = pluralName + resourceVersion
 		}
 		root = &RootSchema{
@@ -245,15 +273,34 @@ func (generator *SchemaGenerator) addResource(file *File, name string, opts ...r
 	// For legacy CRs with a single version, we use the Teleport version as the
 	// Kubernetes API version
 	kubernetesVersion := resourceVersion
-	if cfg.kindContainsVersion {
+	if !cfg.kindWithoutVersion {
 		// For new multi-version resources we always set the version to "v1" as
 		// the Teleport version is also in the CR kind.
 		kubernetesVersion = "v1"
 	}
+
+	var rootFields map[string]apiextv1.JSONSchemaProps
+	if len(cfg.additionalRootFields) > 0 {
+		rootFields = make(map[string]apiextv1.JSONSchemaProps, len(cfg.additionalRootFields))
+		for _, fieldName := range cfg.additionalRootFields {
+			field, ok := rootMsg.GetField(fieldName)
+			if !ok {
+				return trace.NotFound("root field %q not found", fieldName)
+			}
+			prop, err := generator.prop(field)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			rootFields[fieldName] = prop
+		}
+	}
+
 	root.versions = append(root.versions, SchemaVersion{
-		Version:           kubernetesVersion,
-		Schema:            schema,
-		additionalColumns: cfg.additionalColumns,
+		Version:              kubernetesVersion,
+		Schema:               schema,
+		additionalColumns:    cfg.additionalColumns,
+		additionalRootFields: rootFields,
+		validationRules:      cfg.validationRules,
 	})
 
 	return nil
@@ -371,8 +418,36 @@ func (generator *SchemaGenerator) prop(field *Field) (apiextv1.JSONSchemaProps, 
 		return prop, nil
 	}
 
+	// maps should be represented in OpenAPI objects with additionalProperties describing the value. The key is always
+	// a string in JSON/YAML, so we only need to generate the schema for the map's value type.
+	if field.IsMap() {
+		prop.Type = "object"
+		mapMsg := field.TypeMessage()
+		if mapMsg == nil {
+			return prop, trace.Errorf("failed to get map entry type for %s.%s", field.Message().Name(), field.Name())
+		}
+		valueField, ok := mapMsg.GetField("value")
+		if !ok {
+			return prop, trace.Errorf("failed to get map value field for %s.%s", field.Message().Name(), field.Name())
+		}
+		valueSchema := &apiextv1.JSONSchemaProps{}
+		if err := generator.singularProp(valueField, valueSchema); err != nil {
+			return prop, trace.Wrap(err)
+		}
+		if valueField.IsNullable() && (valueSchema.Type == "array" || valueSchema.Type == "object") {
+			valueSchema.Nullable = true
+		}
+		prop.AdditionalProperties = &apiextv1.JSONSchemaPropsOrBool{
+			Schema: valueSchema,
+		}
+		if field.IsNullable() {
+			prop.Nullable = true
+		}
+		return prop, nil
+	}
+
 	// Regular treatment
-	if field.IsRepeated() && !field.IsMap() {
+	if field.IsRepeated() {
 		prop.Type = "array"
 		prop.Items = &apiextv1.JSONSchemaPropsOrArray{
 			Schema: &apiextv1.JSONSchemaProps{},
@@ -438,14 +513,6 @@ func (generator *SchemaGenerator) singularProp(field *Field, prop *apiextv1.JSON
 		prop.Type = "object"
 		prop.AdditionalProperties = &apiextv1.JSONSchemaPropsOrBool{
 			Allows: true,
-		}
-	case strings.HasSuffix(field.TypeName(), ".v1.LoginRule.TraitsMapEntry"):
-		prop.Type = "object"
-		prop.AdditionalProperties = &apiextv1.JSONSchemaPropsOrBool{
-			Schema: &apiextv1.JSONSchemaProps{
-				Type:  "array",
-				Items: &apiextv1.JSONSchemaPropsOrArray{Schema: &apiextv1.JSONSchemaProps{Type: "string"}},
-			},
 		}
 	case field.IsMessage():
 		inner := field.TypeMessage()
@@ -523,8 +590,7 @@ func (root RootSchema) CustomResourceDefinition() (apiextv1.CustomResourceDefini
 	for i, schemaVersion := range root.versions {
 
 		schema := schemaVersion.Schema
-
-		crd.Spec.Versions = append(crd.Spec.Versions, apiextv1.CustomResourceDefinitionVersion{
+		version := apiextv1.CustomResourceDefinitionVersion{
 			Name:   schemaVersion.Version,
 			Served: true,
 			// Storage the first version available.
@@ -552,7 +618,20 @@ func (root RootSchema) CustomResourceDefinition() (apiextv1.CustomResourceDefini
 				},
 			},
 			AdditionalPrinterColumns: schemaVersion.additionalColumns,
-		})
+		}
+
+		// Add any additional root-level fields as siblings to spec/metadata/status.
+		for fieldName, fieldSchema := range schemaVersion.additionalRootFields {
+			version.Schema.OpenAPIV3Schema.Properties[fieldName] = fieldSchema
+		}
+
+		// Add CEL validation rules to the root schema.
+		if len(schemaVersion.validationRules) > 0 {
+			version.Schema.OpenAPIV3Schema.XValidations = schemaVersion.validationRules
+		}
+
+		crd.Spec.Versions = append(crd.Spec.Versions, version)
+
 	}
 	return crd, nil
 }

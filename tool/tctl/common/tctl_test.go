@@ -232,18 +232,32 @@ func TestConnect(t *testing.T) {
 			// set tsh home to a fake path so that the existence of a real
 			// ~/.tsh does not interfere with the test result.
 			cfg.TeleportHome = t.TempDir()
+			// set data dir to a fake path so that the existence of a real
+			// /var/lib/teleport does not interfere with the test result.
+			cfg.DataDir = t.TempDir()
 			if tc.modifyConfig != nil {
 				tc.modifyConfig(cfg)
 			}
 
-			clientConfig, err := tctlcfg.ApplyConfig(&tc.cliFlags, cfg)
+			resolved, err := tctlcfg.ApplyConfig(&tc.cliFlags, cfg)
 			if tc.wantErrContains != "" {
 				require.ErrorContains(t, err, tc.wantErrContains)
 				return
 			}
 			require.NoError(t, err)
 
-			_, err = authclient.Connect(ctx, clientConfig)
+			// Identity-file and tsh-profile paths populate ClientStore+Profile
+			// for downstream callers (e.g. Access Graph credential lookup);
+			// auth-host fallback leaves both nil.
+			if tc.cliFlags.IdentityFilePath != "" {
+				require.NotNil(t, resolved.ClientStore, "identity-file path must populate ClientStore")
+				require.NotNil(t, resolved.Profile, "identity-file path must populate Profile")
+			} else {
+				require.Nil(t, resolved.ClientStore, "auth-host path must leave ClientStore nil")
+				require.Nil(t, resolved.Profile, "auth-host path must leave Profile nil")
+			}
+
+			_, err = authclient.Connect(ctx, resolved.Auth)
 			require.NoError(t, err)
 		})
 	}

@@ -236,6 +236,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_AppSessionDynamoDBRequest{
 			AppSessionDynamoDBRequest: e,
 		}
+	case *AppSessionLLMRequest:
+		out.Event = &OneOf_AppSessionLLMRequest{
+			AppSessionLLMRequest: e,
+		}
 	case *AppCreate:
 		out.Event = &OneOf_AppCreate{
 			AppCreate: e,
@@ -352,6 +356,14 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_WindowsDesktopSessionEnd{
 			WindowsDesktopSessionEnd: e,
 		}
+	case *LinuxDesktopSessionStart:
+		out.Event = &OneOf_LinuxDesktopSessionStart{
+			LinuxDesktopSessionStart: e,
+		}
+	case *LinuxDesktopSessionEnd:
+		out.Event = &OneOf_LinuxDesktopSessionEnd{
+			LinuxDesktopSessionEnd: e,
+		}
 	case *SessionConnect:
 		out.Event = &OneOf_SessionConnect{
 			SessionConnect: e,
@@ -464,6 +476,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_UpgradeWindowStartUpdate{
 			UpgradeWindowStartUpdate: e,
 		}
+	case *EnvironmentProfileUpdate:
+		out.Event = &OneOf_EnvironmentProfileUpdate{
+			EnvironmentProfileUpdate: e,
+		}
 	case *SessionRecordingAccess:
 		out.Event = &OneOf_SessionRecordingAccess{
 			SessionRecordingAccess: e,
@@ -471,6 +487,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 	case *SSMRun:
 		out.Event = &OneOf_SSMRun{
 			SSMRun: e,
+		}
+	case *AzureRun:
+		out.Event = &OneOf_AzureRun{
+			AzureRun: e,
 		}
 	case *Unknown:
 		out.Event = &OneOf_Unknown{
@@ -1004,10 +1024,27 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_InferencePolicyDelete{
 			InferencePolicyDelete: e,
 		}
+	case *RetrievalModelCreate:
+		out.Event = &OneOf_RetrievalModelCreate{
+			RetrievalModelCreate: e,
+		}
+	case *RetrievalModelUpdate:
+		out.Event = &OneOf_RetrievalModelUpdate{
+			RetrievalModelUpdate: e,
+		}
+	case *RetrievalModelDelete:
+		out.Event = &OneOf_RetrievalModelDelete{
+			RetrievalModelDelete: e,
+		}
 	case *SessionSummarized:
 		out.Event = &OneOf_SessionSummarized{
 			SessionSummarized: e,
 		}
+	case *CertAuthorityOverrideEvent:
+		out.Event = &OneOf_CertAuthorityOverrideEvent{
+			CertAuthorityOverrideEvent: e,
+		}
+
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", in.GetType())
 		unknown := &Unknown{}

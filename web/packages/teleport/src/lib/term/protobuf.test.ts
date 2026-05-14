@@ -50,7 +50,9 @@ describe('lib/term/protobuf', () => {
 
       expect(msg.version).toBe('1');
       expect(msg.type).toBe('r');
-      expect(msg.payload).toBe(`[33;1mcontainer(f1ff295e4127)[0;33m ~[00m: `);
+      expect(msg.payload).toBe(
+        `[33;1mcontainer(f1ff295e4127)[0;33m ~[00m: `
+      );
     });
   });
 

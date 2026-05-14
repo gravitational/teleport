@@ -17,6 +17,7 @@
  */
 
 import React, { PropsWithChildren, useEffect } from 'react';
+import { matchPath } from 'react-router';
 
 import { Box, Indicator } from 'design';
 import { TrustedDeviceRequirement } from 'gen-proto-ts/teleport/legacy/types/trusted_device_requirement_pb';
@@ -25,9 +26,12 @@ import Logger from 'shared/libs/logger';
 import { getErrMessage } from 'shared/utils/errorType';
 import { throttle } from 'shared/utils/highbar';
 
+import cfg from 'teleport/config';
 import { StyledIndicator } from 'teleport/Main';
 import { ApiError } from 'teleport/services/api/parseError';
 import { storageService } from 'teleport/services/storageService';
+import userService from 'teleport/services/user';
+import { getUserPreferences } from 'teleport/services/userPreferences';
 import session from 'teleport/services/websession';
 
 import { ErrorDialog } from './ErrorDialogue';
@@ -55,9 +59,19 @@ const Authenticated: React.FC<PropsWithChildren> = ({ children }) => {
     const checkIfUserIsAuthenticated = async () => {
       if (!session.isValid()) {
         logger.warn('invalid session');
+        stashAppLauncherFragmentIfPresent();
         session.clearBrowserSession(true /* rememberLocation */);
         return;
       }
+
+      // Prefetch user context and preferences. We do this here to speed up the initial load by fetching them concurrently.
+      userService.fetchUserContext().catch(err => {
+        // We merely log any error here, however if this fails, the actual UserContext component will attempt again and handle errors and show the error banner.
+        logger.error('Failed to prefetch user context', err);
+      });
+      getUserPreferences().catch(err => {
+        logger.error('Failed to prefetch user preferences', err);
+      });
 
       try {
         const result = await session.validateCookieAndSession();
@@ -72,6 +86,7 @@ const Authenticated: React.FC<PropsWithChildren> = ({ children }) => {
       } catch (e) {
         if (e instanceof ApiError && e.response?.status == 403) {
           logger.warn('invalid session');
+          stashAppLauncherFragmentIfPresent();
           session.clearBrowserSession(true /* rememberLocation */);
           // No need to update attempt, as `logout` will
           // redirect user to login page.
@@ -163,4 +178,39 @@ function startActivityChecker(ttl = 0) {
 function isInactive(ttl = 0) {
   const lastActive = storageService.getLastActive();
   return lastActive > 0 && Date.now() - lastActive > ttl;
+}
+
+// stashAppLauncherFragmentIfPresent persists the URL fragment to
+// sessionStorage when the user is about to be redirected to the
+// login page from the app launcher route. The launcher reads it
+// back after login and threads it through to the target app.
+//
+// goToLogin builds `redirect_uri` from `pathname + search` only,
+// dropping the hash, and the subsequent JS-driven navigation does
+// not inherit the fragment from the current location either, so
+// without this stash the fragment is lost before the login page
+// loads.
+//
+// Skip when the launcher request is part of a required-apps chain:
+// forwarding a fragment across origins would expose values meant
+// for the originally requested app to every intermediate app's
+// domain. The launcher itself enforces the same rule on the
+// logged-in path.
+function stashAppLauncherFragmentIfPresent() {
+  const { pathname, hash, search } = window.location;
+  if (!hash) {
+    return;
+  }
+  const matched = matchPath(
+    { path: cfg.routes.appLauncher, end: false },
+    pathname
+  );
+  if (!matched) {
+    return;
+  }
+  const requiredApps = new URLSearchParams(search).get('required-apps');
+  if (requiredApps && requiredApps.split(',').length > 1) {
+    return;
+  }
+  storageService.setAppLauncherFragment(pathname, hash);
 }

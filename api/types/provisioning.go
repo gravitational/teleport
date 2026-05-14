@@ -165,12 +165,22 @@ type ProvisionToken interface {
 	GetAzureDevops() *ProvisionTokenSpecV2AzureDevops
 	// GetOracle will return the Oracle specific configuration for this token.
 	GetOracle() *ProvisionTokenSpecV2Oracle
+	// GetKubernetes will return the Kubernetes specific configuration for this
+	// token.
+	GetKubernetes() *ProvisionTokenSpecV2Kubernetes
+	// GetBoundKeypair returns bound keypair specific configuration for this token.
+	GetBoundKeypair() *ProvisionTokenSpecV2BoundKeypair
+	// GetBoundKeypairStatus returns bound keypair status for this token.
+	GetBoundKeypairStatus() *ProvisionTokenStatusV2BoundKeypair
 	// GetAWSIIDTTL returns the TTL of EC2 IIDs
 	GetAWSIIDTTL() Duration
 	// GetJoinMethod returns joining method that must be used with this token.
 	GetJoinMethod() JoinMethod
 	// GetBotName returns the BotName field which must be set for joining bots.
 	GetBotName() string
+	// GetBotScope returns the BotScope field which must be set for bots joining
+	// with a scoped token. It is empty for unscoped bots.
+	GetBotScope() string
 	// IsStatic returns true if the token is statically configured
 	IsStatic() bool
 	// GetSuggestedLabels returns the set of labels that the resource should add when adding itself to the cluster
@@ -571,6 +581,24 @@ func (p *ProvisionTokenV2) GetOracle() *ProvisionTokenSpecV2Oracle {
 	return p.Spec.Oracle
 }
 
+// GetKubernetes will return the Kubernetes specific configuration for this token.
+func (p *ProvisionTokenV2) GetKubernetes() *ProvisionTokenSpecV2Kubernetes {
+	return p.Spec.Kubernetes
+}
+
+// GetBoundKeypair returns bound keypair specific configuration for this token.
+func (p *ProvisionTokenV2) GetBoundKeypair() *ProvisionTokenSpecV2BoundKeypair {
+	return p.Spec.BoundKeypair
+}
+
+// GetBoundKeypairStatus returns bound keypair status for this token.
+func (p *ProvisionTokenV2) GetBoundKeypairStatus() *ProvisionTokenStatusV2BoundKeypair {
+	if p.Status == nil {
+		return nil
+	}
+	return p.Status.BoundKeypair
+}
+
 // GetJoinMethod returns joining method that must be used with this token.
 func (p *ProvisionTokenV2) GetJoinMethod() JoinMethod {
 	return p.Spec.JoinMethod
@@ -584,6 +612,13 @@ func (p *ProvisionTokenV2) IsStatic() bool {
 // GetBotName returns the BotName field which must be set for joining bots.
 func (p *ProvisionTokenV2) GetBotName() string {
 	return p.Spec.BotName
+}
+
+// GetBotScope returns the BotScope field which must be set for bots joining
+// with a scoped token. It is empty for unscoped bots.
+func (p *ProvisionTokenV2) GetBotScope() string {
+	// Always empty for ProvisionTokenV2
+	return ""
 }
 
 // GetKind returns resource kind
@@ -803,9 +838,11 @@ func (a *ProvisionTokenSpecV2GitHub) checkAndSetDefaults() error {
 		repoSet := rule.Repository != ""
 		ownerSet := rule.RepositoryOwner != ""
 		subSet := rule.Sub != ""
-		if !subSet && !ownerSet && !repoSet {
+		enterpriseSet := rule.Enterprise != ""
+		enterpriseIDSet := rule.EnterpriseID != ""
+		if !subSet && !ownerSet && !repoSet && !enterpriseSet && !enterpriseIDSet {
 			return trace.BadParameter(
-				`allow rule for %q must include at least one of "repository", "repository_owner" or "sub"`,
+				`allow rule for %q must include at least one of "repository", "repository_owner", "sub", "enterprise" or "enterprise_id"`,
 				JoinMethodGitHub,
 			)
 		}
@@ -839,23 +876,32 @@ func (a *ProvisionTokenSpecV2CircleCI) checkAndSetDefaults() error {
 	return nil
 }
 
+// validates the given Kubernetes configuration and sets defaults if necessary. Additional validations applied
+// during marshal/write can be found in lib/services/provisioning.go:strongValidateProvisionTokenWithDefaults().
+// Scoped variants of these validations are found in lib/scopes/joining/token.go:validateKubernetes()
 func (a *ProvisionTokenSpecV2Kubernetes) checkAndSetDefaults() error {
 	if len(a.Allow) == 0 {
 		return trace.BadParameter("allow: at least one rule must be set")
 	}
 	for i, allowRule := range a.Allow {
-		if allowRule.ServiceAccount == "" {
+		serviceAccountSet := allowRule.ServiceAccount != ""
+		serviceAccountNameSet := allowRule.ServiceAccountName != ""
+		serviceAccountNamespaceSet := allowRule.ServiceAccountNamespace != ""
+
+		if !serviceAccountSet && (!serviceAccountNameSet || !serviceAccountNamespaceSet) {
 			return trace.BadParameter(
-				"allow[%d].service_account: name of service account must be set",
+				"allow[%d]: must specify service_account or (service_account_name and service_account_namespace)",
 				i,
 			)
 		}
-		if len(strings.Split(allowRule.ServiceAccount, ":")) != 2 {
-			return trace.BadParameter(
-				`allow[%d].service_account: name of service account should be in format "namespace:service_account", got %q instead`,
-				i,
-				allowRule.ServiceAccount,
-			)
+		if serviceAccountSet {
+			if len(strings.Split(allowRule.ServiceAccount, ":")) != 2 {
+				return trace.BadParameter(
+					`allow[%d].service_account: name of service account should be in format "namespace:service_account", got %q instead`,
+					i,
+					allowRule.ServiceAccount,
+				)
+			}
 		}
 	}
 
@@ -919,9 +965,9 @@ func (a *ProvisionTokenSpecV2Azure) checkAndSetDefaults() error {
 		)
 	}
 	for _, allowRule := range a.Allow {
-		if allowRule.Subscription == "" {
+		if allowRule.Subscription == "" && allowRule.Tenant == "" {
 			return trace.BadParameter(
-				"the %q join method requires azure allow rules with non-empty subscription",
+				"the %q join method requires azure allow rules with non-empty subscription or tenant",
 				JoinMethodAzure,
 			)
 		}

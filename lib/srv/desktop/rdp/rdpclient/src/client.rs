@@ -53,7 +53,7 @@ use ironrdp_pdu::rdp::RdpError;
 use ironrdp_pdu::PduError;
 use ironrdp_pdu::PduResult;
 use ironrdp_pdu::{encode_err, pdu_other_err};
-use ironrdp_rdpdr::pdu::efs::ClientDeviceListAnnounce;
+use ironrdp_rdpdr::pdu::efs::{ClientDeviceListAnnounce, ClientDeviceListRemove};
 use ironrdp_rdpdr::pdu::RdpdrPdu;
 use ironrdp_rdpdr::Rdpdr;
 use ironrdp_rdpsnd::client::{NoopRdpsndBackend, Rdpsnd};
@@ -62,7 +62,7 @@ use ironrdp_session::SessionErrorKind::Reason;
 use ironrdp_session::{reason_err, SessionError, SessionResult};
 use ironrdp_svc::{SvcMessage, SvcProcessor, SvcProcessorMessages};
 use ironrdp_tokio::{single_sequence_step_read, Framed, FramedWrite, TokioStream};
-use log::{debug, error};
+use log::{debug, error, warn};
 use rand::{Rng, TryRngCore};
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
@@ -454,6 +454,10 @@ impl Client {
                     Client::handle_tdp_sd_announce(&mut write_stream, x224_processor.clone(), sda)
                         .await?;
                 }
+                ClientFunction::HandleTdpSdRemove(sdr) => {
+                    Client::handle_tdp_sd_remove(&mut write_stream, x224_processor.clone(), sdr)
+                        .await?;
+                }
                 ClientFunction::HandleTdpSdInfoResponse(res) => {
                     Client::handle_tdp_sd_info_response(x224_processor.clone(), res).await?;
                 }
@@ -811,6 +815,32 @@ impl Client {
         Ok(())
     }
 
+    async fn handle_tdp_sd_remove(
+        write_stream: &mut RdpWriteStream,
+        x224_processor: Arc<Mutex<x224::Processor>>,
+        sdr: tdp::SharedDirectoryRemove,
+    ) -> ClientResult<()> {
+        debug!("received tdp: {:?}", sdr);
+        let pdu = Self::remove_drive(x224_processor.clone(), sdr.directory_id).await;
+
+        match pdu {
+            Ok(remove) => {
+                Self::write_rdpdr(
+                    write_stream,
+                    x224_processor,
+                    RdpdrPdu::ClientDeviceListRemove(remove),
+                )
+                .await?;
+                Ok(())
+            }
+            Err(ClientError::UnknownDevice(id)) => {
+                warn!("attempted to remove unknown device id: {:?}", id);
+                Ok(())
+            }
+            Err(other) => Err(other),
+        }
+    }
+
     async fn handle_tdp_sd_info_response(
         x224_processor: Arc<Mutex<x224::Processor>>,
         res: tdp::SharedDirectoryInfoResponse,
@@ -936,6 +966,21 @@ impl Client {
         .await?
     }
 
+    async fn remove_drive(
+        x224_processor: Arc<Mutex<x224::Processor>>,
+        device_id: u32,
+    ) -> ClientResult<ClientDeviceListRemove> {
+        task::spawn_blocking(move || {
+            let mut x224_processor = Self::x224_lock(&x224_processor)?;
+            let rdpdr = Self::get_svc_processor_mut::<Rdpdr>(&mut x224_processor)?;
+            if let Some(pdu) = rdpdr.remove_device(device_id) {
+                return Ok(pdu);
+            }
+            Err(ClientError::UnknownDevice(device_id))
+        })
+        .await?
+    }
+
     /// Processes an x224 frame on a blocking thread.
     ///
     /// We use a blocking task here so we don't block the tokio runtime
@@ -970,7 +1015,7 @@ impl Client {
 
     fn x224_lock(
         x224_processor: &Arc<Mutex<x224::Processor>>,
-    ) -> Result<MutexGuard<x224::Processor>, SessionError> {
+    ) -> Result<MutexGuard<'_, x224::Processor>, SessionError> {
         x224_processor
             .lock()
             .map_err(|err| reason_err!(function!(), "PoisonError: {:?}", err))
@@ -978,7 +1023,7 @@ impl Client {
 
     fn resize_manager_lock(
         pending_resize: &Arc<Mutex<PendingResize>>,
-    ) -> Result<MutexGuard<PendingResize>, SessionError> {
+    ) -> Result<MutexGuard<'_, PendingResize>, SessionError> {
         pending_resize
             .lock()
             .map_err(|err| reason_err!(function!(), "PoisonError: {:?}", err))
@@ -1095,6 +1140,8 @@ enum ClientFunction {
     WriteScreenResize(u32, u32),
     /// Corresponds to [`Client::handle_tdp_sd_announce`]
     HandleTdpSdAnnounce(tdp::SharedDirectoryAnnounce),
+    /// Corresponds to [`Client::handle_tdp_sd_remove`]
+    HandleTdpSdRemove(tdp::SharedDirectoryRemove),
     /// Corresponds to [`Client::handle_tdp_sd_info_response`]
     HandleTdpSdInfoResponse(tdp::SharedDirectoryInfoResponse),
     /// Corresponds to [`Client::handle_tdp_sd_create_response`]
@@ -1184,6 +1231,10 @@ impl ClientHandle {
 
     pub fn handle_tdp_sd_announce(&self, sda: tdp::SharedDirectoryAnnounce) -> ClientResult<()> {
         self.blocking_send(ClientFunction::HandleTdpSdAnnounce(sda))
+    }
+
+    pub fn handle_tdp_sd_remove(&self, sda: tdp::SharedDirectoryRemove) -> ClientResult<()> {
+        self.blocking_send(ClientFunction::HandleTdpSdRemove(sda))
     }
 
     pub async fn handle_tdp_sd_announce_async(
@@ -1482,6 +1533,7 @@ pub enum ClientError {
     InternalError(String),
     UnknownAddress,
     InputEventError(InputEventError),
+    UnknownDevice(u32),
     UrlError(url::ParseError),
     #[cfg(feature = "fips")]
     ErrorStack(ErrorStack),
@@ -1525,6 +1577,7 @@ impl Display for ClientError {
             ClientError::EncodeError(e) => Display::fmt(e, f),
             ClientError::PduError(e) => Display::fmt(e, f),
             ClientError::UrlError(e) => Display::fmt(e, f),
+            ClientError::UnknownDevice(e) => Display::fmt(e, f),
             #[cfg(feature = "fips")]
             ClientError::ErrorStack(e) => Display::fmt(e, f),
             #[cfg(feature = "fips")]

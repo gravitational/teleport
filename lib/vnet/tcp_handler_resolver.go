@@ -21,6 +21,7 @@ import (
 	"net"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -39,9 +40,11 @@ type tcpHandlerResolver struct {
 type tcpHandlerResolverConfig struct {
 	clt                      *clientApplicationServiceClient
 	appProvider              *appProvider
+	dbProvider               *dbProvider
 	sshProvider              *sshProvider
 	clock                    clockwork.Clock
 	alwaysTrustRootClusterCA bool
+	parentCtx                context.Context
 }
 
 func newTCPHandlerResolver(cfg *tcpHandlerResolverConfig) *tcpHandlerResolver {
@@ -73,6 +76,22 @@ func (r *tcpHandlerResolver) resolveTCPHandler(ctx context.Context, fqdn string)
 				appProvider:              r.cfg.appProvider,
 				clock:                    r.cfg.clock,
 				alwaysTrustRootClusterCA: r.cfg.alwaysTrustRootClusterCA,
+			}),
+		}, nil
+	}
+	// Database matches are checked after TCP app matches (which have the most
+	// specific public_addr matching) but before web app and cluster fallbacks.
+	// This implements the resolution order: App → DB → SSH
+	if matchedDB := resp.GetMatchedDatabase(); matchedDB != nil {
+		dbInfo := matchedDB.GetDatabaseInfo()
+		return &tcpHandlerSpec{
+			ipv4CIDRRange: dbInfo.GetIpv4CidrRange(),
+			tcpHandler: newDBHandler(&dbHandlerConfig{
+				dbInfo:                   dbInfo,
+				dbProvider:               r.cfg.dbProvider,
+				clock:                    r.cfg.clock,
+				alwaysTrustRootClusterCA: r.cfg.alwaysTrustRootClusterCA,
+				parentCtx:                r.cfg.parentCtx,
 			}),
 		}, nil
 	}
@@ -116,7 +135,20 @@ type undecidedHandler struct {
 	// decidedHandler will be set when it's decided which target this handler
 	// should actually forward connections to.
 	decidedHandler tcpHandler
+	// softWebHandler is a temporary fallback for proxy-port traffic when the
+	// FQDN currently only matches a cluster.
+	//
+	// We keep this as a short-lived decision to avoid re-querying ResolveFQDN on
+	// every browser connection while still allowing the handler to refresh and
+	// pick up later app/role state changes.
+	softWebHandler       tcpHandler
+	softWebHandlerExpiry time.Time
 }
+
+// softWebHandlerTTL bounds how long we keep the temporary proxy-port fallback.
+// It should be short enough to pick up newly available app matches quickly,
+// while long enough to avoid excessive resolver RPCs for normal web traffic.
+const softWebHandlerTTL = 15 * time.Second
 
 type undecidedHandlerConfig struct {
 	*tcpHandlerResolverConfig
@@ -151,9 +183,35 @@ func (h *undecidedHandler) setDecidedHandler(handler tcpHandler) {
 	h.decidedHandler = handler
 }
 
+func (h *undecidedHandler) getSoftWebHandler(localPort uint16) tcpHandler {
+	if localPort != h.webProxyPort {
+		return nil
+	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.softWebHandler == nil {
+		return nil
+	}
+	if h.cfg.clock.Now().After(h.softWebHandlerExpiry) {
+		h.softWebHandler = nil
+		return nil
+	}
+	return h.softWebHandler
+}
+
+func (h *undecidedHandler) setSoftWebHandler(handler tcpHandler) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.softWebHandler = handler
+	h.softWebHandlerExpiry = h.cfg.clock.Now().Add(softWebHandlerTTL)
+}
+
 func (h *undecidedHandler) handleTCPConnector(ctx context.Context, localPort uint16, connector func() (net.Conn, error)) error {
 	if decidedHandler := h.getDecidedHandler(); decidedHandler != nil {
 		return decidedHandler.handleTCPConnector(ctx, localPort, connector)
+	}
+	if softWebHandler := h.getSoftWebHandler(localPort); softWebHandler != nil {
+		return softWebHandler.handleTCPConnector(ctx, localPort, connector)
 	}
 
 	// Handling an incoming TCP connection but we're not sure what this
@@ -176,12 +234,36 @@ func (h *undecidedHandler) handleTCPConnector(ctx context.Context, localPort uin
 		h.setDecidedHandler(tcpAppHandler)
 		return tcpAppHandler.handleTCPConnector(ctx, localPort, connector)
 	}
+	if matchedDB := resp.GetMatchedDatabase(); matchedDB != nil {
+		// If matched a database, build a dbHandler that will be used for this
+		// and all subsequent connections to this address.
+		log.DebugContext(ctx, "Resolved FQDN to a matched database")
+		dbHandler := newDBHandler(&dbHandlerConfig{
+			dbInfo:                   matchedDB.GetDatabaseInfo(),
+			dbProvider:               h.cfg.dbProvider,
+			clock:                    h.cfg.clock,
+			alwaysTrustRootClusterCA: h.cfg.alwaysTrustRootClusterCA,
+			parentCtx:                h.cfg.parentCtx,
+		})
+		h.setDecidedHandler(dbHandler)
+		return dbHandler.handleTCPConnector(ctx, localPort, connector)
+	}
 	if matchedWebApp := resp.GetMatchedWebApp(); matchedWebApp != nil && localPort == h.webProxyPort {
 		// If matched a web app, build a webAppHandler that will be used for this
 		// and all subsequent connections to this address.
 		log.DebugContext(ctx, "Resolved FQDN to a matched web app")
 		webAppHandler := newWebAppHandler(h.cfg.webProxyAddr, h.webProxyPort)
 		h.setDecidedHandler(webAppHandler)
+		return webAppHandler.handleTCPConnector(ctx, localPort, connector)
+	}
+	if matchedCluster := resp.GetMatchedCluster(); matchedCluster != nil && localPort == h.webProxyPort {
+		// If matched a cluster on the proxy port, temporarily treat this as a
+		// web app target and proxy to the web proxy. This preserves browser
+		// access when role assumptions visible to web and Connect are temporarily
+		// out of sync (e.g. when an access request was assumed in web UI only).
+		log.DebugContext(ctx, "Resolved FQDN to a matched cluster on web proxy port")
+		webAppHandler := newWebAppHandler(h.cfg.webProxyAddr, h.webProxyPort)
+		h.setSoftWebHandler(webAppHandler)
 		return webAppHandler.handleTCPConnector(ctx, localPort, connector)
 	}
 	if matchedCluster := resp.GetMatchedCluster(); matchedCluster != nil && localPort == 22 {

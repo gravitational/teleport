@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/scopes/joining"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils/testutils"
 )
@@ -46,11 +47,9 @@ func TestSSHIdentityConversion(t *testing.T) {
 		Username:    "user",
 		ScopePin: &scopesv1.Pin{
 			Scope: "/foo",
-			Assignments: map[string]*scopesv1.PinnedAssignments{
-				"/": {
-					Roles: []string{"role1", "role2"},
-				},
-			},
+			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+				"/": {"/": {"role1", "role2"}},
+			}),
 		},
 		Impersonator:            "impersonator",
 		Principals:              []string{"login1", "login2"},
@@ -100,20 +99,22 @@ func TestSSHIdentityConversion(t *testing.T) {
 				},
 			},
 		}},
-		ConnectionDiagnosticID: "diag",
-		PrivateKeyPolicy:       keys.PrivateKeyPolicy("policy"),
-		DeviceID:               "device",
-		DeviceAssetTag:         "asset",
-		DeviceCredentialID:     "cred",
-		GitHubUserID:           "github",
-		GitHubUsername:         "ghuser",
-		AgentScope:             "/foo",
+		ConnectionDiagnosticID:   "diag",
+		PrivateKeyPolicy:         keys.PrivateKeyPolicy("policy"),
+		DeviceID:                 "device",
+		DeviceAssetTag:           "asset",
+		DeviceCredentialID:       "cred",
+		GitHubUserID:             "github",
+		GitHubUsername:           "ghuser",
+		HeadlessAuthenticationID: "headless-auth-id",
+		AgentScope:               "/foo",
 		ImmutableLabelHash: joining.HashImmutableLabels(&joiningv1.ImmutableLabels{
 			Ssh: map[string]string{
 				"one": "1",
 				"two": "2",
 			},
 		}),
+		DelegationSessionID: "delegation-session",
 	}
 
 	ignores := []string{
@@ -135,6 +136,21 @@ func TestSSHIdentityConversion(t *testing.T) {
 		"AWSConsoleResourceConstraints.XXX_NoUnkeyedLiteral",
 		"AWSConsoleResourceConstraints.XXX_unrecognized",
 		"AWSConsoleResourceConstraints.XXX_sizecache",
+		"Pin.XXX_NoUnkeyedLiteral",
+		"Pin.XXX_unrecognized",
+		"Pin.XXX_sizecache",
+		"Pin.Assignments", // TODO(fspamrshall/scopes): deprecate & remove assignments field
+		"PinnedAssignments.XXX_NoUnkeyedLiteral",
+		"PinnedAssignments.XXX_unrecognized",
+		"PinnedAssignments.XXX_sizecache",
+		"AssignmentNode.XXX_NoUnkeyedLiteral",
+		"AssignmentNode.XXX_unrecognized",
+		"AssignmentNode.XXX_sizecache",
+		"AssignmentNode.Children", // has to be empty in leaf nodes because of how trees work
+		"RoleNode.XXX_NoUnkeyedLiteral",
+		"RoleNode.XXX_unrecognized",
+		"RoleNode.XXX_sizecache",
+		"RoleNode.Children", // has to be empty in leaf nodes because of how trees work
 	}
 
 	require.True(t, testutils.ExhaustiveNonEmpty(ident, ignores...), "empty=%+v", testutils.FindAllEmpty(ident, ignores...))

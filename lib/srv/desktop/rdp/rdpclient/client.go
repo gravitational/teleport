@@ -71,7 +71,6 @@ import "C"
 
 import (
 	"context"
-	"encoding/binary"
 	"fmt"
 	"log/slog"
 	"net"
@@ -83,7 +82,6 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
@@ -172,9 +170,9 @@ type Client struct {
 	mouseX, mouseY uint32
 }
 
-// reads in handshake messages and optionally wraps the connection in a translation layer
+// PrepareConnecton reads in handshake messages and optionally wraps the connection in a translation layer
 // based on the client protocol.
-func prepareConnecton(clientProtocol string, conn *tdp.Conn, logger *slog.Logger) (tdp.MessageReadWriteCloser, *tdpb.ClientHello, error) {
+func PrepareConnecton(clientProtocol string, conn *tdp.Conn, logger *slog.Logger) (tdp.MessageReadWriteCloser, *tdpb.ClientHello, error) {
 	// Read Hello either from tdpb or tdp.
 	if clientProtocol == tdpb.ProtocolName {
 		hello, err := readClientHello(conn, logger)
@@ -186,7 +184,7 @@ func prepareConnecton(clientProtocol string, conn *tdp.Conn, logger *slog.Logger
 }
 
 // New creates and connects a new Client based on cfg.
-func New(conn *tdp.Conn, cfg Config) (*Client, error) {
+func New(conn tdp.MessageReadWriteCloser, hello *tdpb.ClientHello, cfg Config) (*Client, error) {
 	if err := cfg.checkAndSetDefaults(); err != nil {
 		return nil, err
 	}
@@ -195,13 +193,7 @@ func New(conn *tdp.Conn, cfg Config) (*Client, error) {
 		readyForInput: 0,
 	}
 
-	// read the client hello and wrap the connection with a translation layer (if needed)
-	wrappedConn, hello, err := prepareConnecton(cfg.ClientProtocol, conn, cfg.Logger)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	c.conn = wrappedConn
+	c.conn = conn
 	c.username = hello.Username
 	c.keyboardLayout = hello.KeyboardLayout
 
@@ -209,7 +201,7 @@ func New(conn *tdp.Conn, cfg Config) (*Client, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return c, trace.Wrap(c.setClientSize(hello.ScreenSpec.GetHeight(), hello.ScreenSpec.GetHeight()))
+	return c, trace.Wrap(c.setClientSize(hello.ScreenSpec.GetWidth(), hello.ScreenSpec.GetHeight()))
 }
 
 // Run starts the RDP client, using the provided user certificate and private key.
@@ -436,19 +428,6 @@ func (c *Client) startRustRDP(ctx context.Context, certDER, keyDER []byte) error
 		return trace.BadParameter("user key was nil")
 	}
 
-	hostID, err := uuid.Parse(c.cfg.HostID)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	nextHostID := hostID[:]
-	cHostID := [4]C.uint32_t{}
-	for i := 0; i < len(cHostID); i++ {
-		const uint32Len = 4
-		cHostID[i] = (C.uint32_t)(binary.LittleEndian.Uint32(nextHostID[:uint32Len]))
-		nextHostID = nextHostID[uint32Len:]
-	}
-
 	res := C.client_run(
 		C.uintptr_t(c.handle),
 		C.CGOConnectParams{
@@ -469,7 +448,7 @@ func (c *Client) startRustRDP(ctx context.Context, certDER, keyDER []byte) error
 			allow_clipboard:         C.bool(c.cfg.AllowClipboard),
 			allow_directory_sharing: C.bool(c.cfg.AllowDirectorySharing),
 			show_desktop_wallpaper:  C.bool(c.cfg.ShowDesktopWallpaper),
-			client_id:               cHostID,
+			client_id:               rdpClientIDToUint32Array[C.uint32_t](newRDPClientID(c.cfg.HostID)),
 			keyboard_layout:         C.uint32_t(c.keyboardLayout),
 		},
 	)
@@ -534,12 +513,6 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 		msg, err := c.conn.ReadMessage()
 		if utils.IsOKNetworkError(err) {
 			return nil
-		} else if legacy.IsNonFatalErr(err) {
-			_ = c.conn.WriteMessage(&tdpb.Alert{
-				Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR,
-				Message:  err.Error(),
-			})
-			continue
 		} else if err != nil {
 			c.cfg.Logger.WarnContext(context.Background(), "Failed reading TDPB input message", "error", err)
 			return err
@@ -585,7 +558,7 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 		// file transfer.
 		switch msg.(type) {
 		case *tdpb.KeyboardButton, *tdpb.MouseMove, *tdpb.MouseButton, *tdpb.MouseWheel,
-			*tdpb.SharedDirectoryAnnounce, *tdpb.SharedDirectoryResponse:
+			*tdpb.SharedDirectoryAnnounce, *tdpb.SharedDirectoryRemove, *tdpb.SharedDirectoryResponse:
 
 			c.UpdateClientActivity()
 		}
@@ -733,6 +706,14 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 				name:         driveName,
 			}); errCode != C.ErrCodeSuccess {
 				return trace.Errorf("SharedDirectoryAnnounce: failed with %v", errCode)
+			}
+		}
+	case *tdpb.SharedDirectoryRemove:
+		if c.cfg.AllowDirectorySharing {
+			if errCode := C.client_handle_tdp_sd_remove(C.uintptr_t(c.handle), C.CGOSharedDirectoryRemove{
+				directory_id: C.uint32_t(m.DirectoryId),
+			}); errCode != C.ErrCodeSuccess {
+				return trace.Errorf("SharedDirectoryRemove: failed with %v", errCode)
 			}
 		}
 	case *tdpb.SharedDirectoryResponse:
@@ -1059,7 +1040,8 @@ func (c *Client) handleRDPConnectionActivated(ioChannelID, userChannelID, screen
 			ScreenWidth:   uint32(screenWidth),
 			ScreenHeight:  uint32(screenHeight),
 		},
-		ClipboardEnabled: true,
+		ClipboardEnabled:         true,
+		DirectoryRemoveSupported: true,
 	}); err != nil {
 		c.cfg.Logger.ErrorContext(context.Background(), "failed handling connection initialization", "error", err)
 		return C.ErrCodeFailure
@@ -1165,7 +1147,8 @@ func cgo_tdp_sd_create_request(handle C.uintptr_t, req *C.CGOSharedDirectoryCrea
 		DirectoryId:  uint32(req.directory_id),
 		Operation: &tdpbv1.SharedDirectoryRequest_Create_{
 			Create: &tdpbv1.SharedDirectoryRequest_Create{
-				Path: C.GoString(req.path),
+				Path:     C.GoString(req.path),
+				FileType: req.file_type,
 			},
 		},
 	})
@@ -1278,8 +1261,8 @@ func cgo_tdp_sd_truncate_request(handle C.uintptr_t, req *C.CGOSharedDirectoryTr
 		DirectoryId:  uint32(req.directory_id),
 		Operation: &tdpbv1.SharedDirectoryRequest_Truncate_{
 			Truncate: &tdpbv1.SharedDirectoryRequest_Truncate{
-				Path:      C.GoString(req.path),
-				EndOfFile: uint32(req.end_of_file),
+				Path: C.GoString(req.path),
+				Size: uint64(req.end_of_file),
 			},
 		},
 	})
@@ -1307,4 +1290,9 @@ func isEmpty(b bool) C.uint8_t {
 		return 1
 	}
 	return 0
+}
+
+// DisableNLA disables NLA in the client configuration.
+func (c *Client) DisableNLA() {
+	c.cfg.NLA = false
 }

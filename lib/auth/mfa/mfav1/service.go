@@ -21,6 +21,7 @@ import (
 	"cmp"
 	"context"
 	"log/slog"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -30,6 +31,8 @@ import (
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	webauthnpb "github.com/gravitational/teleport/api/types/webauthn"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/mfatypes"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
@@ -53,6 +56,12 @@ type AuthServer interface {
 		token string,
 		ext *mfav1.ChallengeExtensions,
 	) (*authz.MFAAuthData, error)
+
+	CompleteBrowserMFAChallenge(
+		ctx context.Context,
+		requestID string,
+		webauthnResponse *webauthnpb.CredentialAssertionResponse,
+	) (string, error)
 }
 
 // Cache defines the subset of cache methods used by the MFA service.
@@ -124,6 +133,14 @@ type Service struct {
 	identity   Identity
 	storage    MFAService
 }
+
+const (
+	// verifyValidatedMFAChallengeTimeout is the max wait time for a validated challenge to appear.
+	verifyValidatedMFAChallengeTimeout = 5 * time.Minute
+
+	// verifyValidatedMFAChallengePollInterval is how often we check for the validated challenge to appear.
+	verifyValidatedMFAChallengePollInterval = 100 * time.Millisecond
+)
 
 // NewService creates a new [Service] instance.
 func NewService(cfg ServiceConfig) (*Service, error) {
@@ -440,8 +457,11 @@ func (s *Service) ReplicateValidatedMFAChallenge(
 		return nil, trace.Wrap(err)
 	}
 
-	if !isRemoteProxy(*authCtx) {
-		return nil, trace.AccessDenied("only remote proxy identities can replicate validated MFA challenges")
+	if err := checkRemoteProxySourceCluster(*authCtx, req.GetSourceCluster()); err != nil {
+		return nil, trace.WrapWithMessage(
+			err,
+			"only remote proxy identities from the same source cluster can replicate validated MFA challenges",
+		)
 	}
 
 	if err := checkReplicateValidatedMFAChallengeRequest(req); err != nil {
@@ -495,7 +515,7 @@ func (s *Service) VerifyValidatedMFAChallenge(
 		return nil, trace.Wrap(err)
 	}
 
-	if b, ok := authCtx.Identity.(authz.BuiltinRole); !ok || (ok && !b.IsServer()) {
+	if b, ok := authCtx.Identity.(authz.BuiltinRole); !ok || !b.IsServer() {
 		return nil, trace.AccessDenied("only server identities can verify validated MFA challenges")
 	}
 
@@ -508,7 +528,12 @@ func (s *Service) VerifyValidatedMFAChallenge(
 		return nil, trace.Wrap(err)
 	}
 
-	chal, err := s.storage.GetValidatedMFAChallenge(ctx, currentCluster.GetClusterName(), req.GetName())
+	// The challenge may not exist at the time of the request since there is some delay between when the challenge
+	// response is validated and when the validated challenge resource is created in the local storage. For example, in
+	// the case of trusted clusters, the validated challenge is created in the root cluster and then eventually
+	// replicated to the leaf cluster. Until the replication occurs, the validated challenge won't exist in the leaf
+	// cluster storage and therefore won't be found by this method.
+	chal, err := s.waitForValidatedMFAChallenge(ctx, currentCluster.GetClusterName(), req.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -770,9 +795,6 @@ func checkReplicateValidatedMFAChallengeRequest(req *mfav1.ReplicateValidatedMFA
 	case req.GetName() == "":
 		return trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest name")
 
-	case req.GetSourceCluster() == "":
-		return trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest source_cluster")
-
 	case req.GetTargetCluster() == "":
 		return trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest target_cluster")
 
@@ -812,6 +834,36 @@ func checkVerifyValidatedMFAChallengeRequest(req *mfav1.VerifyValidatedMFAChalle
 	return nil
 }
 
+func (s *Service) waitForValidatedMFAChallenge(ctx context.Context, username, challengeName string) (*mfav1.ValidatedMFAChallenge, error) {
+	ctx, cancel := context.WithTimeout(ctx, verifyValidatedMFAChallengeTimeout)
+	defer cancel()
+
+	retry, err := retryutils.NewConstant(verifyValidatedMFAChallengePollInterval)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var chal *mfav1.ValidatedMFAChallenge
+
+	if err := retry.For(
+		ctx,
+		func() error {
+			var err error
+
+			chal, err = s.storage.GetValidatedMFAChallenge(ctx, username, challengeName)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			return nil
+		},
+	); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return chal, nil
+}
+
 func checkPayload(sip *mfav1.SessionIdentifyingPayload) error {
 	switch payload := sip.GetPayload().(type) {
 	case *mfav1.SessionIdentifyingPayload_SshSessionId:
@@ -841,14 +893,66 @@ func isLocalProxy(authContext authz.Context) bool {
 	return true
 }
 
-func isRemoteProxy(authContext authz.Context) bool {
-	if _, ok := authContext.UnmappedIdentity.(authz.RemoteBuiltinRole); !ok {
-		return false
+func checkRemoteProxySourceCluster(authContext authz.Context, sourceCluster string) error {
+	if sourceCluster == "" {
+		return trace.BadParameter("missing ReplicateValidatedMFAChallengeRequest source_cluster")
+	}
+
+	remoteRole, ok := authContext.UnmappedIdentity.(authz.RemoteBuiltinRole)
+	if !ok {
+		return trace.AccessDenied("identity is not a remote builtin role, cannot be a remote proxy")
 	}
 
 	if !authContext.Checker.HasRole(string(types.RoleRemoteProxy)) {
-		return false
+		return trace.AccessDenied("role %q does not have permission to replicate validated MFA challenges", remoteRole.Role)
 	}
 
-	return true
+	if remoteRole.ClusterName != sourceCluster {
+		return trace.AccessDenied(
+			"remote proxy cluster %q does not match request source cluster %q",
+			remoteRole.ClusterName,
+			sourceCluster,
+		)
+	}
+
+	return nil
+}
+
+// CompleteBrowserMFAChallenge takes a MFA response from the browser and returns
+// it via an encrypted response parameter in a callback URL for the browser to
+// return to tsh.
+func (s *Service) CompleteBrowserMFAChallenge(ctx context.Context, req *mfav1.CompleteBrowserMFAChallengeRequest) (*mfav1.CompleteBrowserMFAChallengeResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if !authz.IsLocalOrRemoteUser(*authCtx) {
+		return nil, trace.AccessDenied("only local or remote users can complete a browser MFA challenge")
+	}
+
+	if req.BrowserMfaResponse == nil {
+		return nil, trace.BadParameter("missing browser_mfa_response in request")
+	}
+
+	if req.BrowserMfaResponse.RequestId == "" {
+		return nil, trace.BadParameter("missing request_id in browser_mfa_response")
+	}
+
+	if req.BrowserMfaResponse.WebauthnResponse == nil {
+		return nil, trace.BadParameter("missing webauthn_response in browser_mfa_response")
+	}
+
+	tshRedirectURL, err := s.authServer.CompleteBrowserMFAChallenge(
+		ctx,
+		req.BrowserMfaResponse.RequestId,
+		req.BrowserMfaResponse.WebauthnResponse,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &mfav1.CompleteBrowserMFAChallengeResponse{
+		TshRedirectUrl: tshRedirectURL,
+	}, nil
 }

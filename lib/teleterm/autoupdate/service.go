@@ -31,7 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/auto_update/v1"
 	"github.com/gravitational/teleport/lib/autoupdate"
-	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/teleterm/autoupdate/common"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 )
 
@@ -42,7 +42,6 @@ const (
 	// launching tsh with TELEPORT_TOOLS_VERSION=off, and forwards the real value via
 	// FORWARDED_TELEPORT_TOOLS_VERSION.
 	forwardedTeleportToolsEnvVar = "FORWARDED_TELEPORT_TOOLS_VERSION"
-	teleportToolsVersionOff      = "off"
 )
 
 // Service implements gRPC service for autoupdate.
@@ -154,7 +153,7 @@ func (s *Service) GetConfig(_ context.Context, _ *api.GetConfigRequest) (*api.Ge
 	switch toolsVersionValue {
 	case "":
 		toolsVersionSource = api.ConfigSource_CONFIG_SOURCE_UNSPECIFIED
-	case teleportToolsVersionOff:
+	case common.TeleportToolsVersionOff:
 		break
 	default:
 		if _, err = semver.NewVersion(toolsVersionValue); err != nil {
@@ -172,10 +171,9 @@ func (s *Service) GetConfig(_ context.Context, _ *api.GetConfigRequest) (*api.Ge
 		}
 	}
 
-	m := modules.GetModules()
-	// Uses the same logic as the teleport/lib/autoupdate/tools package.
-	if cdnBaseUrlValue == "" && m.BuildType() != modules.BuildOSS {
-		cdnBaseUrlValue = autoupdate.DefaultBaseURL
+	defaultBaseUrlValue := common.GetDefaultBaseURL()
+	if cdnBaseUrlValue == "" && defaultBaseUrlValue != "" {
+		cdnBaseUrlValue = defaultBaseUrlValue
 		cdnBaseUrlSource = api.ConfigSource_CONFIG_SOURCE_DEFAULT
 	}
 

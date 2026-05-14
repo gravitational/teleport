@@ -22,7 +22,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -95,6 +97,8 @@ var eventsMap = map[string]apievents.AuditEvent{
 	AppSessionChunkEvent:                           &apievents.AppSessionChunk{},
 	AppSessionRequestEvent:                         &apievents.AppSessionRequest{},
 	AppSessionDynamoDBRequestEvent:                 &apievents.AppSessionDynamoDBRequest{},
+	AppSessionLLMRequestSuccessEvent:               &apievents.AppSessionLLMRequest{},
+	AppSessionLLMRequestFailureEvent:               &apievents.AppSessionLLMRequest{},
 	AppCreateEvent:                                 &apievents.AppCreate{},
 	AppUpdateEvent:                                 &apievents.AppUpdate{},
 	AppDeleteEvent:                                 &apievents.AppDelete{},
@@ -162,8 +166,10 @@ var eventsMap = map[string]apievents.AuditEvent{
 	RenewableCertificateGenerationMismatchEvent:    &apievents.RenewableCertificateGenerationMismatch{},
 	SFTPEvent:                                     &apievents.SFTP{},
 	UpgradeWindowStartUpdateEvent:                 &apievents.UpgradeWindowStartUpdate{},
+	EnvironmentProfileUpdateEvent:                 &apievents.EnvironmentProfileUpdate{},
 	SessionRecordingAccessEvent:                   &apievents.SessionRecordingAccess{},
 	SSMRunEvent:                                   &apievents.SSMRun{},
+	AzureRunEvent:                                 &apievents.AzureRun{},
 	KubernetesClusterCreateEvent:                  &apievents.KubernetesClusterCreate{},
 	KubernetesClusterUpdateEvent:                  &apievents.KubernetesClusterUpdate{},
 	KubernetesClusterDeleteEvent:                  &apievents.KubernetesClusterDelete{},
@@ -282,6 +288,9 @@ var eventsMap = map[string]apievents.AuditEvent{
 	InferencePolicyCreateEvent:                    &apievents.InferencePolicyCreate{},
 	InferencePolicyUpdateEvent:                    &apievents.InferencePolicyUpdate{},
 	InferencePolicyDeleteEvent:                    &apievents.InferencePolicyDelete{},
+	RetrievalModelCreateEvent:                     &apievents.RetrievalModelCreate{},
+	RetrievalModelUpdateEvent:                     &apievents.RetrievalModelUpdate{},
+	RetrievalModelDeleteEvent:                     &apievents.RetrievalModelDelete{},
 	SessionSummarizedEvent:                        &apievents.SessionSummarized{},
 	SCIMListingEvent:                              &apievents.SCIMListingEvent{},
 	SCIMGetEvent:                                  &apievents.SCIMResourceEvent{},
@@ -289,6 +298,10 @@ var eventsMap = map[string]apievents.AuditEvent{
 	SCIMUpdateEvent:                               &apievents.SCIMResourceEvent{},
 	SCIMDeleteEvent:                               &apievents.SCIMResourceEvent{},
 	SCIMPatchEvent:                                &apievents.SCIMResourceEvent{},
+	CertAuthOverrideCreateEvent:                   &apievents.CertAuthorityOverrideEvent{},
+	CertAuthOverrideUpdateEvent:                   &apievents.CertAuthorityOverrideEvent{},
+	CertAuthOverrideUpsertEvent:                   &apievents.CertAuthorityOverrideEvent{},
+	CertAuthOverrideDeleteEvent:                   &apievents.CertAuthorityOverrideEvent{},
 }
 
 // TestJSON tests JSON marshal events
@@ -1215,6 +1228,72 @@ func TestEvents(t *testing.T) {
 	}
 }
 
+// TestEventCodesInWebTypes verifies that every event code defined in codes.go
+// has a corresponding entry in the web UI types file. Without this, events
+// appear as "Unknown" in the audit log UI.
+//
+// If this test fails for a code you just added, add it to
+// web/packages/teleport/src/services/audit/types.ts following the instructions
+// at the top of that file.
+//
+// If this test fails for a pre-existing code you did not add, add it to the
+// knownMissing set below as a temporary measure and open a follow-up issue to
+// add the proper web entry.
+func TestEventCodesInWebTypes(t *testing.T) {
+	t.Parallel()
+
+	// knownMissing contains codes that predate this test and have not yet had
+	// web UI entries added. Do not add new codes here; fix them instead.
+	knownMissing := map[string]bool{
+		"T2009I":      true, // AppSessionRequestCode
+		"T2014I":      true, // AppSessionLLMRequestSuccessCode
+		"T2014E":      true, // AppSessionLLMRequestFailureCode
+		"TDB10I":      true, // DatabaseSessionCommandResultCode
+		"TCB00W":      true, // RenewableCertificateGenerationMismatchCode
+		"TSPIFFE001I": true, // SPIFFEFederationCreateCode
+		"TSPIFFE002I": true, // SPIFFEFederationDeleteCode
+		"WID004I":     true, // WorkloadIdentityX509RevocationCreateCode
+		"WID005I":     true, // WorkloadIdentityX509RevocationUpdateCode
+		"WID006I":     true, // WorkloadIdentityX509RevocationDeleteCode
+		"TCO05I":      true, // CertAuthOverrideCertificatesAddCode
+		"TCO06I":      true, // CertAuthOverrideCertificatesUpdateCode
+		"TCO07I":      true, // CertAuthOverrideCertificatesRemoveCode
+	}
+
+	codesFile, err := os.ReadFile("codes.go")
+	require.NoError(t, err)
+
+	typesFile, err := os.ReadFile("../../web/packages/teleport/src/services/audit/types.ts")
+	require.NoError(t, err)
+	typesContent := string(typesFile)
+
+	// Extract all string literal values assigned to constants in codes.go,
+	// e.g. UserLocalLoginCode = "T1000I"
+	codePattern := regexp.MustCompile(`Code\s*=\s*"([^"]+)"`)
+	matches := codePattern.FindAllSubmatch(codesFile, -1)
+
+	var missing []string
+	for _, m := range matches {
+		code := string(m[1])
+		// UnknownCode is a sentinel value, not a real event code.
+		if code == apievents.UnknownCode {
+			continue
+		}
+		if knownMissing[code] {
+			continue
+		}
+		if !strings.Contains(typesContent, code) {
+			missing = append(missing, code)
+		}
+	}
+
+	require.Empty(t, missing,
+		"event codes defined in codes.go are missing from web/packages/teleport/src/services/audit/types.ts: %v\n"+
+			"See the comment at the top of codes.go for instructions.",
+		missing,
+	)
+}
+
 func TestTrimToMaxSize(t *testing.T) {
 	t.Parallel()
 
@@ -1548,6 +1627,66 @@ func TestInferenceEvents(t *testing.T) {
 			},
 			eventType:  InferencePolicyDeleteEvent,
 			eventCode:  InferencePolicyDeleteCode,
+			hasPayload: false,
+		},
+		{
+			name: "RetrievalModelCreate",
+			event: &apievents.RetrievalModelCreate{
+				Metadata: apievents.Metadata{
+					Type:        RetrievalModelCreateEvent,
+					Code:        RetrievalModelCreateCode,
+					Time:        testTime,
+					ClusterName: "test-cluster",
+				},
+				ResourceMetadata: apievents.ResourceMetadata{
+					Name: "retrieval-model",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "test-user",
+				},
+			},
+			eventType:  RetrievalModelCreateEvent,
+			eventCode:  RetrievalModelCreateCode,
+			hasPayload: true,
+		},
+		{
+			name: "RetrievalModelUpdate",
+			event: &apievents.RetrievalModelUpdate{
+				Metadata: apievents.Metadata{
+					Type:        RetrievalModelUpdateEvent,
+					Code:        RetrievalModelUpdateCode,
+					Time:        testTime,
+					ClusterName: "test-cluster",
+				},
+				ResourceMetadata: apievents.ResourceMetadata{
+					Name: "retrieval-model",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "test-user",
+				},
+			},
+			eventType:  RetrievalModelUpdateEvent,
+			eventCode:  RetrievalModelUpdateCode,
+			hasPayload: true,
+		},
+		{
+			name: "RetrievalModelDelete",
+			event: &apievents.RetrievalModelDelete{
+				Metadata: apievents.Metadata{
+					Type:        RetrievalModelDeleteEvent,
+					Code:        RetrievalModelDeleteCode,
+					Time:        testTime,
+					ClusterName: "test-cluster",
+				},
+				ResourceMetadata: apievents.ResourceMetadata{
+					Name: "retrieval-model",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "test-user",
+				},
+			},
+			eventType:  RetrievalModelDeleteEvent,
+			eventCode:  RetrievalModelDeleteCode,
 			hasPayload: false,
 		},
 	}

@@ -53,7 +53,7 @@ func (s *Service) platformDiagChecks(ctx context.Context) ([]diag.DiagCheck, err
 
 // CheckInstallTimeRequirements verifies the existence of the VNet system service, which is installed only in per-machine setups.
 func (s *Service) CheckInstallTimeRequirements(_ context.Context, _ *api.CheckInstallTimeRequirementsRequest) (*api.CheckInstallTimeRequirementsResponse, error) {
-	err := vnet.VerifyServiceInstalled()
+	err := vnet.VerifyServiceInstalledAndMatchesClient()
 	if err == nil {
 		return &api.CheckInstallTimeRequirementsResponse{
 			Status: &api.CheckInstallTimeRequirementsResponse_WindowsServiceStatus{
@@ -66,6 +66,14 @@ func (s *Service) CheckInstallTimeRequirements(_ context.Context, _ *api.CheckIn
 		return &api.CheckInstallTimeRequirementsResponse{
 			Status: &api.CheckInstallTimeRequirementsResponse_WindowsServiceStatus{
 				WindowsServiceStatus: api.WindowsServiceStatus_WINDOWS_SERVICE_STATUS_DOES_NOT_EXIST,
+			},
+		}, nil
+
+	}
+	if trace.IsCompareFailed(err) {
+		return &api.CheckInstallTimeRequirementsResponse{
+			Status: &api.CheckInstallTimeRequirementsResponse_WindowsServiceStatus{
+				WindowsServiceStatus: api.WindowsServiceStatus_WINDOWS_SERVICE_STATUS_VERSION_MISMATCH,
 			},
 		}, nil
 

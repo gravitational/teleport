@@ -43,6 +43,14 @@ service MFAService {
   // The payload is used to verify the challenge is tied to the correct user session. If the verification fails, an
   // error is returned.
   rpc VerifyValidatedMFAChallenge(VerifyValidatedMFAChallengeRequest) returns (VerifyValidatedMFAChallengeResponse);
+  // CompleteBrowserMFAChallenge completes a browser MFA challenge request by encrypting
+  // it and returning it to the browser.
+  // This is called when a user has been sent to the browser to solve an MFA challenge
+  // that was triggered by tsh or tctl. When the user solves the MFA challenge, the
+  // response is sent to this RPC. CompleteBrowserMFAChallenge receives the MFA
+  // response, encrypts it, appends it to tsh/tctl's callback URL and returns it to the browser.
+  // More info: https://github.com/gravitational/teleport/blob/master/rfd/0233-tsh-browser-mfa.md
+  rpc CompleteBrowserMFAChallenge(CompleteBrowserMFAChallengeRequest) returns (CompleteBrowserMFAChallengeResponse);
 }
 
 // CreateSessionChallengeRequest is the request message for CreateSessionChallenge.
@@ -61,6 +69,10 @@ message CreateSessionChallengeRequest {
   // Proxy address the user is using to connect to the Proxy. Required for SSO MFA to determine which URL to redirect
   // the user to when there are multiple options.
   string proxy_address_for_sso = 4;
+  // Used to construct the redirect URL for browser-based MFA flows. If the client supports browser MFA, this field
+  // should be set to the URL where the browser should redirect to tsh after completing the MFA challenge.
+  // Format: http://127.0.0.1:[random_port]/callback?response={encrypted_webauthn_response}
+  string browser_mfa_tsh_redirect_url = 5;
 }
 
 // CreateSessionChallengeResponse is the response message for CreateSessionChallenge.
@@ -148,3 +160,17 @@ message VerifyValidatedMFAChallengeRequest {
 
 // VerifyValidatedMFAChallengeResponse is the response message for VerifyValidatedMFAChallenge.
 message VerifyValidatedMFAChallengeResponse {}
+
+// CompleteBrowserMFAChallengeRequest is used to complete an MFA response
+// during a browser-based MFA authentication flow.
+message CompleteBrowserMFAChallengeRequest {
+  BrowserMFAResponse browser_mfa_response = 1;
+}
+
+// CompleteBrowserMFAChallengeResponse contains the redirect URL to send
+// the user back to after successfully completing browser-based MFA authentication.
+message CompleteBrowserMFAChallengeResponse {
+  // tsh_redirect_url is the callback URL to tsh's local HTTP server with the encrypted WebAuthn response.
+  // Format: http://127.0.0.1:[random_port]/callback?response={encrypted_webauthn_response}
+  string tsh_redirect_url = 1;
+}

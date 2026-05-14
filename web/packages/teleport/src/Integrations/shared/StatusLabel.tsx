@@ -30,10 +30,12 @@ import { HoverTooltip } from 'design/Tooltip';
 import { pluralize } from 'shared/utils/text';
 
 import {
+  INTEGRATION_DISCOVERY_SCAN_INTERVAL_MS,
   IntegrationStatusCode,
   IntegrationWithSummary,
 } from 'teleport/services/integrations';
 
+import { getAwsIcErrorMessage } from '../helpers';
 import { IntegrationLike } from '../IntegrationList';
 import { Status } from '../types';
 
@@ -163,10 +165,15 @@ export function getStatus(item: IntegrationLike): {
       return ISSUES(
         'The Slack integration must be invited to the default channel in order to receive access request notifications.'
       );
-    case IntegrationStatusCode.Unauthorized:
+    case IntegrationStatusCode.Unauthorized: {
+      const awsIcErrorMessage = getAwsIcErrorMessage(item);
+      if (awsIcErrorMessage) {
+        return FAILED(awsIcErrorMessage);
+      }
       return FAILED(
         'Integration was denied access. This could be a result of revoked authorization on the 3rd party provider. Try removing and re-connecting the integration.'
       );
+    }
     case IntegrationStatusCode.OktaConfigError:
       return FAILED(
         `There was an error with the integration's configuration.${item.status?.errorMessage ? ` ${item.status.errorMessage}` : ''}`
@@ -223,18 +230,32 @@ const statusLabel = (status: Status, label: string) => {
   );
 };
 
-function isSummarySyncing(summary: IntegrationWithSummary): boolean {
-  const lastSync = Math.max(
-    getTimestamp(summary.awsec2?.discoverLastSync),
-    getTimestamp(summary.awsrds?.discoverLastSync),
-    getTimestamp(summary.awseks?.discoverLastSync),
-    getTimestamp(summary.rolesAnywhereProfileSync?.syncEndTime)
-  );
+export function latestSyncDate(
+  summary: IntegrationWithSummary
+): Date | undefined {
+  const lastSyncTimestamps = [
+    summary.awsec2?.discoverLastSync,
+    summary.awsrds?.discoverLastSync,
+    summary.awseks?.discoverLastSync,
+    summary.azurevm?.discoverLastSync,
+    summary.rolesAnywhereProfileSync?.syncEndTime,
+  ].map(toTimestamp);
 
-  return lastSync === 0;
+  const lastSync = Math.max(...lastSyncTimestamps);
+
+  return lastSync ? new Date(lastSync) : undefined;
 }
 
-function getTimestamp(value: unknown): number {
+function isSummarySyncing(summary: IntegrationWithSummary): boolean {
+  const lastScanDate = latestSyncDate(summary);
+  return (
+    !lastScanDate ||
+    Date.now() >=
+      lastScanDate.getTime() + INTEGRATION_DISCOVERY_SCAN_INTERVAL_MS
+  );
+}
+
+export function toTimestamp(value: unknown): number {
   if (!value) {
     return 0;
   }

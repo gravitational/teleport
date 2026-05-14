@@ -17,6 +17,7 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { ReactNode } from 'react';
 
 import {
   Alert,
@@ -35,6 +36,7 @@ import {
   CanvasRendererRef,
 } from 'shared/components/CanvasRenderer';
 import { Latency } from 'shared/components/LatencyDiagnostic';
+import type { ToastNotificationItem } from 'shared/components/ToastNotification';
 import {
   Attempt,
   makeEmptyAttempt,
@@ -50,7 +52,6 @@ import {
 import { TdpError } from 'shared/libs/tdp/client';
 
 import { InputHandler } from './InputHandler';
-import TopBar from './TopBar';
 import useDesktopSession, {
   clipboardSharingMessage,
   directorySharingPossible,
@@ -60,8 +61,6 @@ import useDesktopSession, {
 
 export interface DesktopSessionProps {
   client: TdpClient;
-  /** Username for display purposes. */
-  username: string;
   /** Desktop name for display purposes. */
   desktop: string;
   aclAttempt: Attempt<{
@@ -82,16 +81,31 @@ export interface DesktopSessionProps {
    * Spec can be found here: https://learn.microsoft.com/en-us/globalization/windows-keyboard-layouts
    */
   keyboardLayout?: number;
+  renderControls(props: DesktopSessionControlsRenderProps): ReactNode;
+}
+
+export interface DesktopSessionControlsRenderProps {
+  canShareDirectory: boolean;
+  isSharingDirectory: boolean;
+  isSharingClipboard: boolean;
+  clipboardSharingMessage: string;
+  onShareDirectory: VoidFunction;
+  onCtrlAltDel: VoidFunction;
+  onDisconnect: VoidFunction;
+  alerts: ToastNotificationItem[];
+  onRemoveAlert(id: string): void;
+  isConnected: boolean;
+  latencyStats: Latency;
 }
 
 export function DesktopSession({
   client,
-  aclAttempt,
-  username,
   desktop,
+  aclAttempt,
   hasAnotherSession,
   customConnectionState,
   keyboardLayout = 0,
+  renderControls,
   browserSupportsSharing,
 }: DesktopSessionProps) {
   const {
@@ -105,7 +119,6 @@ export function DesktopSession({
     onRemoveAlert,
     addAlert,
   } = useDesktopSession(client, aclAttempt, browserSupportsSharing);
-
   const [tdpConnectionStatus, setTdpConnectionStatus] =
     useState<TdpConnectionStatus>({ status: '' });
 
@@ -233,10 +246,12 @@ export function DesktopSession({
     if (!shouldConnect) {
       return;
     }
-    void client.connect({
-      keyboardLayout,
-      screenSpec: canvasRendererRef.current.getSize(),
-    });
+    client
+      .connect({
+        keyboardLayout,
+        screenSpec: canvasRendererRef.current.getSize(),
+      })
+      .catch(handleConnectionClose);
     return () => {
       client.shutdown();
     };
@@ -273,14 +288,45 @@ export function DesktopSession({
     inputHandler.current.onFocusOut();
   }
 
-  function handleMouseMove(e: React.MouseEvent) {
+  function scaleEvent(e: React.MouseEvent<HTMLCanvasElement>) {
     const rect = e.currentTarget.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    client.sendMouseMove(x, y);
+    const canvas = e.currentTarget;
+
+    const scale = Math.min(
+      1,
+      rect.width / canvas.width,
+      rect.height / canvas.height
+    );
+
+    const renderedWidth = canvas.width * scale;
+    const renderedHeight = canvas.height * scale;
+
+    // calculate offset from center
+    const offsetX = (rect.width - renderedWidth) / 2;
+    const offsetY = (rect.height - renderedHeight) / 2;
+
+    const x = Math.round((e.clientX - rect.left - offsetX) / scale);
+    const y = Math.round((e.clientY - rect.top - offsetY) / scale);
+
+    const inBounds = x >= 0 && y >= 0 && x < canvas.width && y < canvas.height;
+
+    return { x, y, inBounds };
   }
 
-  function handleMouseDown(e: React.MouseEvent) {
+  function handleMouseMove(e: React.MouseEvent<HTMLCanvasElement>) {
+    const scaled = scaleEvent(e);
+
+    if (scaled.inBounds) {
+      client.sendMouseMove(scaled.x, scaled.y);
+    }
+  }
+
+  function handleMouseDown(e: React.MouseEvent<HTMLCanvasElement>) {
+    const scaled = scaleEvent(e);
+    if (!scaled.inBounds) {
+      return;
+    }
+
     inputHandler.current.handleInputEvent({
       cli: client,
       e: e.nativeEvent,
@@ -293,7 +339,7 @@ export function DesktopSession({
     sendLocalClipboardToRemote();
   }
 
-  function handleMouseUp(e: React.MouseEvent) {
+  function handleMouseUp(e: React.MouseEvent<HTMLCanvasElement>) {
     inputHandler.current.handleInputEvent({
       cli: client,
       e: e.nativeEvent,
@@ -342,6 +388,19 @@ export function DesktopSession({
     customConnectionState?.({ retry: onRetry })
   );
 
+  const controlsProps: DesktopSessionControlsRenderProps = {
+    canShareDirectory: directorySharingPossible(directorySharingState),
+    isSharingDirectory: isSharingDirectory(directorySharingState),
+    isSharingClipboard: isSharingClipboard(clipboardSharingState),
+    clipboardSharingMessage: clipboardSharingMessage(clipboardSharingState),
+    onShareDirectory,
+    onCtrlAltDel: handleCtrlAltDel,
+    onDisconnect: () => client.shutdown(),
+    alerts,
+    onRemoveAlert,
+    isConnected: screenState.state === 'canvas-visible',
+    latencyStats,
+  };
   return (
     <Flex
       flexDirection="column"
@@ -352,22 +411,7 @@ export function DesktopSession({
         height: 100%;
       `}
     >
-      <TopBar
-        isConnected={screenState.state === 'canvas-visible'}
-        onDisconnect={() => {
-          client.shutdown();
-        }}
-        userHost={`${username} on ${desktop}`}
-        canShareDirectory={directorySharingPossible(directorySharingState)}
-        isSharingDirectory={isSharingDirectory(directorySharingState)}
-        isSharingClipboard={isSharingClipboard(clipboardSharingState)}
-        clipboardSharingMessage={clipboardSharingMessage(clipboardSharingState)}
-        onShareDirectory={onShareDirectory}
-        onCtrlAltDel={handleCtrlAltDel}
-        alerts={alerts}
-        onRemoveAlert={onRemoveAlert}
-        latency={latencyStats}
-      />
+      {renderControls(controlsProps)}
 
       {/* The UI states below (except the loading indicator) take up space.*/}
       {/* They're hidden while the canvas is visible, so when `connect()` reads the screen size, */}

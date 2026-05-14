@@ -106,6 +106,8 @@ const (
 	AuthService_DeleteAppSession_FullMethodName                    = "/proto.AuthService/DeleteAppSession"
 	AuthService_DeleteAllAppSessions_FullMethodName                = "/proto.AuthService/DeleteAllAppSessions"
 	AuthService_DeleteUserAppSessions_FullMethodName               = "/proto.AuthService/DeleteUserAppSessions"
+	AuthService_SetAppSessionDBSCPublicKey_FullMethodName          = "/proto.AuthService/SetAppSessionDBSCPublicKey"
+	AuthService_SignDBSCChallenge_FullMethodName                   = "/proto.AuthService/SignDBSCChallenge"
 	AuthService_CreateSnowflakeSession_FullMethodName              = "/proto.AuthService/CreateSnowflakeSession"
 	AuthService_GetSnowflakeSession_FullMethodName                 = "/proto.AuthService/GetSnowflakeSession"
 	AuthService_GetSnowflakeSessions_FullMethodName                = "/proto.AuthService/GetSnowflakeSessions"
@@ -209,9 +211,6 @@ const (
 	AuthService_GetSessionRecordingConfig_FullMethodName           = "/proto.AuthService/GetSessionRecordingConfig"
 	AuthService_SetSessionRecordingConfig_FullMethodName           = "/proto.AuthService/SetSessionRecordingConfig"
 	AuthService_ResetSessionRecordingConfig_FullMethodName         = "/proto.AuthService/ResetSessionRecordingConfig"
-	AuthService_GetAuthPreference_FullMethodName                   = "/proto.AuthService/GetAuthPreference"
-	AuthService_SetAuthPreference_FullMethodName                   = "/proto.AuthService/SetAuthPreference"
-	AuthService_ResetAuthPreference_FullMethodName                 = "/proto.AuthService/ResetAuthPreference"
 	AuthService_GetUIConfig_FullMethodName                         = "/proto.AuthService/GetUIConfig"
 	AuthService_SetUIConfig_FullMethodName                         = "/proto.AuthService/SetUIConfig"
 	AuthService_DeleteUIConfig_FullMethodName                      = "/proto.AuthService/DeleteUIConfig"
@@ -492,6 +491,10 @@ type AuthServiceClient interface {
 	DeleteAllAppSessions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteUserAppSessions deletes all user’s application sessions.
 	DeleteUserAppSessions(ctx context.Context, in *DeleteUserAppSessionsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// SetAppSessionDBSCPublicKey sets the DBSC public key on an application web session.
+	SetAppSessionDBSCPublicKey(ctx context.Context, in *SetAppSessionDBSCPublicKeyRequest, opts ...grpc.CallOption) (*SetAppSessionDBSCPublicKeyResponse, error)
+	// SignDBSCChallenge signs a DBSC challenge for registration or refresh.
+	SignDBSCChallenge(ctx context.Context, in *SignDBSCChallengeRequest, opts ...grpc.CallOption) (*SignDBSCChallengeResponse, error)
 	// CreateSnowflakeSession creates web session with sub kind Snowflake used by Database access
 	// Snowflake integration.
 	CreateSnowflakeSession(ctx context.Context, in *CreateSnowflakeSessionRequest, opts ...grpc.CallOption) (*CreateSnowflakeSessionResponse, error)
@@ -794,18 +797,6 @@ type AuthServiceClient interface {
 	// ResetSessionRecordingConfig resets session recording configuration to defaults.
 	// Deprecated: Use clusterconfigv1.Service.ResetSessionRecordingConfig instead.
 	ResetSessionRecordingConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// Deprecated: Do not use.
-	// GetAuthPreference gets cluster auth preference.
-	// Deprecated: Use clusterconfigv1.Service.GetAuthPreference instead.
-	GetAuthPreference(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.AuthPreferenceV2, error)
-	// Deprecated: Do not use.
-	// SetAuthPreference sets cluster auth preference.
-	// Deprecated: Use clusterconfigv1.Service.Create/Update/UpsertAuthPreference instead.
-	SetAuthPreference(ctx context.Context, in *types.AuthPreferenceV2, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// Deprecated: Do not use.
-	// ResetAuthPreference resets cluster auth preference to defaults.
-	// Deprecated: Use clusterconfigv1.Service.ResetAuthPreference instead.
-	ResetAuthPreference(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetUIConfig gets the configuration for the UI served by the proxy service
 	GetUIConfig(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.UIConfigV1, error)
 	// SetUIConfig sets the configuration for the UI served by the proxy service
@@ -1863,6 +1854,26 @@ func (c *authServiceClient) DeleteUserAppSessions(ctx context.Context, in *Delet
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, AuthService_DeleteUserAppSessions_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) SetAppSessionDBSCPublicKey(ctx context.Context, in *SetAppSessionDBSCPublicKeyRequest, opts ...grpc.CallOption) (*SetAppSessionDBSCPublicKeyResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SetAppSessionDBSCPublicKeyResponse)
+	err := c.cc.Invoke(ctx, AuthService_SetAppSessionDBSCPublicKey_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) SignDBSCChallenge(ctx context.Context, in *SignDBSCChallengeRequest, opts ...grpc.CallOption) (*SignDBSCChallengeResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(SignDBSCChallengeResponse)
+	err := c.cc.Invoke(ctx, AuthService_SignDBSCChallenge_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -2943,39 +2954,6 @@ func (c *authServiceClient) ResetSessionRecordingConfig(ctx context.Context, in 
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(emptypb.Empty)
 	err := c.cc.Invoke(ctx, AuthService_ResetSessionRecordingConfig_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-// Deprecated: Do not use.
-func (c *authServiceClient) GetAuthPreference(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*types.AuthPreferenceV2, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(types.AuthPreferenceV2)
-	err := c.cc.Invoke(ctx, AuthService_GetAuthPreference_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-// Deprecated: Do not use.
-func (c *authServiceClient) SetAuthPreference(ctx context.Context, in *types.AuthPreferenceV2, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, AuthService_SetAuthPreference_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-// Deprecated: Do not use.
-func (c *authServiceClient) ResetAuthPreference(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, AuthService_ResetAuthPreference_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -4174,6 +4152,10 @@ type AuthServiceServer interface {
 	DeleteAllAppSessions(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	// DeleteUserAppSessions deletes all user’s application sessions.
 	DeleteUserAppSessions(context.Context, *DeleteUserAppSessionsRequest) (*emptypb.Empty, error)
+	// SetAppSessionDBSCPublicKey sets the DBSC public key on an application web session.
+	SetAppSessionDBSCPublicKey(context.Context, *SetAppSessionDBSCPublicKeyRequest) (*SetAppSessionDBSCPublicKeyResponse, error)
+	// SignDBSCChallenge signs a DBSC challenge for registration or refresh.
+	SignDBSCChallenge(context.Context, *SignDBSCChallengeRequest) (*SignDBSCChallengeResponse, error)
 	// CreateSnowflakeSession creates web session with sub kind Snowflake used by Database access
 	// Snowflake integration.
 	CreateSnowflakeSession(context.Context, *CreateSnowflakeSessionRequest) (*CreateSnowflakeSessionResponse, error)
@@ -4476,18 +4458,6 @@ type AuthServiceServer interface {
 	// ResetSessionRecordingConfig resets session recording configuration to defaults.
 	// Deprecated: Use clusterconfigv1.Service.ResetSessionRecordingConfig instead.
 	ResetSessionRecordingConfig(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
-	// Deprecated: Do not use.
-	// GetAuthPreference gets cluster auth preference.
-	// Deprecated: Use clusterconfigv1.Service.GetAuthPreference instead.
-	GetAuthPreference(context.Context, *emptypb.Empty) (*types.AuthPreferenceV2, error)
-	// Deprecated: Do not use.
-	// SetAuthPreference sets cluster auth preference.
-	// Deprecated: Use clusterconfigv1.Service.Create/Update/UpsertAuthPreference instead.
-	SetAuthPreference(context.Context, *types.AuthPreferenceV2) (*emptypb.Empty, error)
-	// Deprecated: Do not use.
-	// ResetAuthPreference resets cluster auth preference to defaults.
-	// Deprecated: Use clusterconfigv1.Service.ResetAuthPreference instead.
-	ResetAuthPreference(context.Context, *emptypb.Empty) (*emptypb.Empty, error)
 	// GetUIConfig gets the configuration for the UI served by the proxy service
 	GetUIConfig(context.Context, *emptypb.Empty) (*types.UIConfigV1, error)
 	// SetUIConfig sets the configuration for the UI served by the proxy service
@@ -4974,6 +4944,12 @@ func (UnimplementedAuthServiceServer) DeleteAllAppSessions(context.Context, *emp
 func (UnimplementedAuthServiceServer) DeleteUserAppSessions(context.Context, *DeleteUserAppSessionsRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteUserAppSessions not implemented")
 }
+func (UnimplementedAuthServiceServer) SetAppSessionDBSCPublicKey(context.Context, *SetAppSessionDBSCPublicKeyRequest) (*SetAppSessionDBSCPublicKeyResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SetAppSessionDBSCPublicKey not implemented")
+}
+func (UnimplementedAuthServiceServer) SignDBSCChallenge(context.Context, *SignDBSCChallengeRequest) (*SignDBSCChallengeResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SignDBSCChallenge not implemented")
+}
 func (UnimplementedAuthServiceServer) CreateSnowflakeSession(context.Context, *CreateSnowflakeSessionRequest) (*CreateSnowflakeSessionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateSnowflakeSession not implemented")
 }
@@ -5282,15 +5258,6 @@ func (UnimplementedAuthServiceServer) SetSessionRecordingConfig(context.Context,
 }
 func (UnimplementedAuthServiceServer) ResetSessionRecordingConfig(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ResetSessionRecordingConfig not implemented")
-}
-func (UnimplementedAuthServiceServer) GetAuthPreference(context.Context, *emptypb.Empty) (*types.AuthPreferenceV2, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetAuthPreference not implemented")
-}
-func (UnimplementedAuthServiceServer) SetAuthPreference(context.Context, *types.AuthPreferenceV2) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method SetAuthPreference not implemented")
-}
-func (UnimplementedAuthServiceServer) ResetAuthPreference(context.Context, *emptypb.Empty) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ResetAuthPreference not implemented")
 }
 func (UnimplementedAuthServiceServer) GetUIConfig(context.Context, *emptypb.Empty) (*types.UIConfigV1, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetUIConfig not implemented")
@@ -6761,6 +6728,42 @@ func _AuthService_DeleteUserAppSessions_Handler(srv interface{}, ctx context.Con
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).DeleteUserAppSessions(ctx, req.(*DeleteUserAppSessionsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_SetAppSessionDBSCPublicKey_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SetAppSessionDBSCPublicKeyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).SetAppSessionDBSCPublicKey(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_SetAppSessionDBSCPublicKey_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).SetAppSessionDBSCPublicKey(ctx, req.(*SetAppSessionDBSCPublicKeyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_SignDBSCChallenge_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(SignDBSCChallengeRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).SignDBSCChallenge(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_SignDBSCChallenge_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).SignDBSCChallenge(ctx, req.(*SignDBSCChallengeRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -8579,60 +8582,6 @@ func _AuthService_ResetSessionRecordingConfig_Handler(srv interface{}, ctx conte
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).ResetSessionRecordingConfig(ctx, req.(*emptypb.Empty))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _AuthService_GetAuthPreference_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AuthServiceServer).GetAuthPreference(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AuthService_GetAuthPreference_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).GetAuthPreference(ctx, req.(*emptypb.Empty))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _AuthService_SetAuthPreference_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(types.AuthPreferenceV2)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AuthServiceServer).SetAuthPreference(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AuthService_SetAuthPreference_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).SetAuthPreference(ctx, req.(*types.AuthPreferenceV2))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _AuthService_ResetAuthPreference_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(emptypb.Empty)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(AuthServiceServer).ResetAuthPreference(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: AuthService_ResetAuthPreference_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(AuthServiceServer).ResetAuthPreference(ctx, req.(*emptypb.Empty))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -10645,6 +10594,14 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _AuthService_DeleteUserAppSessions_Handler,
 		},
 		{
+			MethodName: "SetAppSessionDBSCPublicKey",
+			Handler:    _AuthService_SetAppSessionDBSCPublicKey_Handler,
+		},
+		{
+			MethodName: "SignDBSCChallenge",
+			Handler:    _AuthService_SignDBSCChallenge_Handler,
+		},
+		{
 			MethodName: "CreateSnowflakeSession",
 			Handler:    _AuthService_CreateSnowflakeSession_Handler,
 		},
@@ -11039,18 +10996,6 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ResetSessionRecordingConfig",
 			Handler:    _AuthService_ResetSessionRecordingConfig_Handler,
-		},
-		{
-			MethodName: "GetAuthPreference",
-			Handler:    _AuthService_GetAuthPreference_Handler,
-		},
-		{
-			MethodName: "SetAuthPreference",
-			Handler:    _AuthService_SetAuthPreference_Handler,
-		},
-		{
-			MethodName: "ResetAuthPreference",
-			Handler:    _AuthService_ResetAuthPreference_Handler,
 		},
 		{
 			MethodName: "GetUIConfig",

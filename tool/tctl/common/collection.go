@@ -33,9 +33,7 @@ import (
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
-	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/api/types/label"
 	"github.com/gravitational/teleport/api/types/secreports"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -43,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
-	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 	"github.com/gravitational/teleport/tool/tctl/common/oktaassignment"
 	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
@@ -305,39 +302,6 @@ func (c *integrationCollection) WriteText(w io.Writer, verbose bool) error {
 	return trace.Wrap(err)
 }
 
-type externalAuditStorageCollection struct {
-	externalAuditStorages []*externalauditstorage.ExternalAuditStorage
-}
-
-func (c *externalAuditStorageCollection) Resources() (r []types.Resource) {
-	for _, a := range c.externalAuditStorages {
-		r = append(r, a)
-	}
-	return r
-}
-
-func (c *externalAuditStorageCollection) WriteText(w io.Writer, verbose bool) error {
-	var rows [][]string
-	for _, a := range c.externalAuditStorages {
-		rows = append(rows, []string{
-			a.GetName(),
-			a.Spec.IntegrationName,
-			a.Spec.PolicyName,
-			a.Spec.Region,
-			a.Spec.SessionRecordingsURI,
-			a.Spec.AuditEventsLongTermURI,
-			a.Spec.AthenaResultsURI,
-			a.Spec.AthenaWorkgroup,
-			a.Spec.GlueDatabase,
-			a.Spec.GlueTable,
-		})
-	}
-	headers := []string{"Name", "IntegrationName", "PolicyName", "Region", "SessionRecordingsURI", "AuditEventsLongTermURI", "AthenaResultsURI", "AthenaWorkgroup", "GlueDatabase", "GlueTable"}
-	t := asciitable.MakeTable(headers, rows...)
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
 type databaseServiceCollection struct {
 	databaseServices []types.DatabaseService
 }
@@ -389,27 +353,6 @@ func (c *databaseServiceCollection) WriteText(w io.Writer, verbose bool) error {
 
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
-}
-
-type loginRuleCollection struct {
-	rules []*loginrulepb.LoginRule
-}
-
-func (l *loginRuleCollection) WriteText(w io.Writer, verbose bool) error {
-	t := asciitable.MakeTable([]string{"Name", "Priority"})
-	for _, rule := range l.rules {
-		t.AddRow([]string{rule.Metadata.Name, strconv.FormatInt(int64(rule.Priority), 10)})
-	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
-}
-
-func (l *loginRuleCollection) Resources() []types.Resource {
-	resources := make([]types.Resource, len(l.rules))
-	for i, rule := range l.rules {
-		resources[i] = loginrule.ProtoToResource(rule)
-	}
-	return resources
 }
 
 type deviceCollection struct {

@@ -64,6 +64,8 @@ enum SessionRecordingType {
   SESSION_RECORDING_TYPE_SSH = 1;
   // SessionRecordingTypeKubernetes is an interactive Kubernetes session recording.
   SESSION_RECORDING_TYPE_KUBERNETES = 2;
+  // SessionRecordingTypeWindowsDesktop is an interactive Windows desktop session recording.
+  SESSION_RECORDING_TYPE_WINDOWS_DESKTOP = 3;
 }
 
 // SessionRecordingMetadata contains metadata for a session recording.
@@ -108,4 +110,10 @@ message SessionRecordingThumbnail {
   google.protobuf.Duration end_offset = 7;
   // CursorVisible indicates whether the cursor is visible.
   bool cursor_visible = 8;
+  // PNG is the PNG image of the thumbnail.
+  bytes png = 9;
+  // ScreenWidth is the width of the screen in pixels.
+  int32 screen_width = 10;
+  // ScreenHeight is the height of the screen in pixels.
+  int32 screen_height = 11;
 }

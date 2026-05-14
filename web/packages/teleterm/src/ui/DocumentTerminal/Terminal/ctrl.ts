@@ -16,10 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import '@xterm/xterm/css/xterm.css';
-
 import { FitAddon } from '@xterm/addon-fit';
 import { IDisposable, ITheme, Terminal } from '@xterm/xterm';
+import '@xterm/xterm/css/xterm.css';
 
 import {
   SearchAddon,
@@ -96,6 +95,7 @@ export default class TtyTerminal implements TerminalSearcher {
       fontSize: this.options.fontSize,
       scrollback: 5000,
       minimumContrastRatio: 4.5, // minimum for WCAG AA compliance
+      screenReaderMode: true,
       rightClickSelectsWord: this.config['terminal.rightClick'] === 'menu',
       theme: this.options.theme,
       windowsPty: this.options.windowsPty && {

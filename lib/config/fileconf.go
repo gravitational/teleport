@@ -57,8 +57,9 @@ import (
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/networking/x11"
+	"github.com/gravitational/teleport/session/pam/pamcfg"
 )
 
 // FileConfig structure represents the teleport configuration stored in a config file
@@ -507,15 +508,35 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 
 // JoinParams configures the parameters for Simplified Node Joining.
 type JoinParams struct {
-	TokenName   string           `yaml:"token_name"`
-	TokenSecret string           `yaml:"token_secret,omitempty"`
-	Method      types.JoinMethod `yaml:"method"`
-	Azure       AzureJoinParams  `yaml:"azure,omitempty"`
+	TokenName    string             `yaml:"token_name"`
+	TokenSecret  string             `yaml:"token_secret,omitempty"`
+	Method       types.JoinMethod   `yaml:"method"`
+	Azure        AzureJoinParams    `yaml:"azure,omitempty"`
+	BoundKeypair BoundKeypairParams `yaml:"bound_keypair,omitempty"`
 }
 
 // AzureJoinParams configures the parameters specific to the Azure join method.
 type AzureJoinParams struct {
 	ClientID string `yaml:"client_id"`
+}
+
+// BoundKeypairParams contains parameters specific to bound keypair joining.
+type BoundKeypairParams struct {
+	// RegistrationSecretValue is an explicit registration secret value, used to
+	// authenticate the initial join with a bound keypair token. It becomes
+	// inert once used.
+	RegistrationSecretValue string `yaml:"registration_secret_value"`
+
+	// RegistrationSecretPath is a path to a file on the local disk containing a
+	// registration secret. It is incompatible with RegistrationSecretValue.
+	RegistrationSecretPath string `yaml:"registration_secret_path"`
+
+	// StaticPrivateKeyPath is a path to a file on the local disk containing a
+	// static keypair to be used for bound keypair joining. Static keys are
+	// immutable and are not managed automatically. They must be preregistered,
+	// do not support automatic keypair rotation, and must be used with a token
+	// set to use `insecure` recovery mode.
+	StaticPrivateKeyPath string `yaml:"static_key_path"`
 }
 
 // ConnectionRate configures rate limiter
@@ -1220,6 +1241,13 @@ type AuthenticationConfig struct {
 	// otherwise.
 	Headless *types.BoolOption `yaml:"headless"`
 
+	// AllowCLIAuthViaBrowser enables/disables browser-based authentication for
+	// authenticating CLI sessions.
+	// When set to false, authentication flows that require a browser will be disabled.
+	// Defaults to true if the Webauthn is configured, defaults to false
+	// otherwise.
+	AllowCLIAuthViaBrowser *types.BoolOption `yaml:"allow_cli_auth_via_browser"`
+
 	// DeviceTrust holds settings related to trusted device verification.
 	// Requires Teleport Enterprise.
 	DeviceTrust *DeviceTrust `yaml:"device_trust,omitempty"`
@@ -1313,6 +1341,7 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		AllowLocalAuth:          a.LocalAuth,
 		AllowPasswordless:       a.Passwordless,
 		AllowHeadless:           a.Headless,
+		AllowCLIAuthViaBrowser:  a.AllowCLIAuthViaBrowser,
 		DeviceTrust:             dt,
 		DefaultSessionTTL:       a.DefaultSessionTTL,
 		HardwareKey:             h,
@@ -1838,13 +1867,13 @@ type PAM struct {
 }
 
 // Parse returns a parsed PAM config.
-func (p *PAM) Parse() *servicecfg.PAMConfig {
+func (p *PAM) Parse() *pamcfg.PAMConfig {
 	serviceName := p.ServiceName
 	if serviceName == "" {
 		serviceName = defaults.PAMServiceName
 	}
 	enabled, _ := apiutils.ParseBool(p.Enabled)
-	return &servicecfg.PAMConfig{
+	return &pamcfg.PAMConfig{
 		Enabled:     enabled,
 		ServiceName: serviceName,
 		UsePAMAuth:  p.UsePAMAuth,
@@ -2436,6 +2465,12 @@ type App struct {
 
 	// MCP contains MCP server-related configurations.
 	MCP *MCP `yaml:"mcp,omitempty"`
+
+	// LLM contains LLM inference endpoint related configurations.
+	LLM *LLM `yaml:"inference,omitempty"`
+
+	// TLS contains the app TLS configuration.
+	TLS *AppTLS `yaml:"tls,omitempty"`
 }
 
 // CORS represents the configuration for Cross-Origin Resource Sharing (CORS)
@@ -2503,6 +2538,51 @@ type MCP struct {
 	// RunAsHostUser is the host user account under which the command will be
 	// executed. Required for stdio-based MCP servers.
 	RunAsHostUser string `yaml:"run_as_host_user,omitempty"`
+}
+
+// LLM contains LLM inference endpoint related configurations.
+type LLM struct {
+	// Format is the LLM inference API format.
+	Format string `yaml:"format"`
+	// Provider is the inference provider that will be used to serve the
+	// requests.
+	Provider string `yaml:"provider"`
+	// Models is the list of supported models, and optionally their name on the
+	// inference provider.
+	Models []LLMModel `yaml:"models,omitempty"`
+	// FallbackModel is a model that will be used if the model requested is not
+	// on the list.
+	FallbackModel string `yaml:"fallback_model,omitempty"`
+}
+
+// LLMModel is a provider model definition.
+type LLMModel struct {
+	// Name defines the model name.
+	Name string `yaml:"name"`
+	// ProviderName is the model name in the configured provider.
+	ProviderName string `yaml:"provider_name,omitempty"`
+}
+
+// AppTLS contains the app TLS configuration.
+type AppTLS struct {
+	// Mode defines the TLS verification.
+	Mode string `yaml:"mode,omitempty"`
+	// ServerName specifies a custom hostname used for TLS verification against
+	// the upstream certificate.
+	ServerName string `yaml:"server_name,omitempty"`
+	// ServerSpiffeId specifies a SPIFFE ID that must be present on the server
+	// certificate.
+	ServerSpiffeId string `yaml:"server_spiffe_id,omitempty"`
+	// AllowedCas is the list of user provided CAs used for verifying upstream
+	// certificates. Accepted values are PEM-encoded CA certificates and
+	// Teleport CA aliases.
+	AllowedCas []string `yaml:"allowed_cas,omitempty"`
+	// AllowedCasFiles list of CA certificates file paths that will be used for
+	// verifying upstream certificates.
+	AllowedCasFiles []string `yaml:"allowed_cas_files,omitempty"`
+	// ClientCertMode specifies which client certificate mode to use for the
+	// upstream connection.
+	ClientCertMode string `yaml:"client_cert_mode,omitempty"`
 }
 
 // Proxy is a `proxy_service` section of the config file:
@@ -2919,8 +2999,8 @@ type LDAPConfig struct {
 	ServerName string `yaml:"server_name,omitempty"`
 	// DEREncodedCAFile is the filepath to an optional DER encoded CA cert to be used for verification (if InsecureSkipVerify is set to false).
 	DEREncodedCAFile string `yaml:"der_ca_file,omitempty"`
-	// PEMEncodedCACert is an optional PEM encoded CA cert to be used for verification (if InsecureSkipVerify is set to false).
-	PEMEncodedCACert string `yaml:"ldap_ca_cert,omitempty"`
+	// PEMEncodedCACerts are optional PEM encoded CA certs to be used for verification (if InsecureSkipVerify is set to false).
+	PEMEncodedCACerts string `yaml:"ldap_ca_cert,omitempty"`
 	// LocateServer is the config that enables LDAP server location using DNS SRV records.
 	LocateServer `yaml:"locate_server"`
 }
@@ -3114,8 +3194,8 @@ func (j *JamfService) toJamfSpecV1() (*types.JamfSpecV1, error) {
 	for i, e := range j.Inventory {
 		inventory[i] = &types.JamfInventoryEntry{
 			FilterRsql:        e.FilterRSQL,
-			SyncPeriodPartial: types.Duration(e.SyncPeriodPartial),
-			SyncPeriodFull:    types.Duration(e.SyncPeriodFull),
+			SyncPeriodPartial: types.DurationStringForJamfSpecV1(e.SyncPeriodPartial),
+			SyncPeriodFull:    types.DurationStringForJamfSpecV1(e.SyncPeriodFull),
 			OnMissing:         e.OnMissing,
 			PageSize:          e.PageSize,
 		}
@@ -3123,7 +3203,7 @@ func (j *JamfService) toJamfSpecV1() (*types.JamfSpecV1, error) {
 	spec := &types.JamfSpecV1{
 		Enabled:     j.Enabled(),
 		Name:        j.Name,
-		SyncDelay:   types.Duration(j.SyncDelay),
+		SyncDelay:   types.DurationStringForJamfSpecV1(j.SyncDelay),
 		ApiEndpoint: j.APIEndpoint,
 		Inventory:   inventory,
 	}

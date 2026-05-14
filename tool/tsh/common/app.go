@@ -28,8 +28,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"text/template"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/ghodss/yaml"
 	"github.com/google/safetext/shsprintf"
 	"github.com/gravitational/trace"

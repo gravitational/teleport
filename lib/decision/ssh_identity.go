@@ -71,6 +71,8 @@ func SSHIdentityToSSHCA(id *decisionpb.SSHIdentity) *sshca.Identity {
 		GitHubUsername:           id.GithubUsername,
 		AgentScope:               id.AgentScope,
 		ImmutableLabelHash:       id.ImmutableLabelHash,
+		DelegationSessionID:      id.DelegationSessionId,
+		HeadlessAuthenticationID: id.HeadlessAuthenticationId,
 	}
 }
 
@@ -119,6 +121,8 @@ func SSHIdentityFromSSHCA(id *sshca.Identity) *decisionpb.SSHIdentity {
 		JoinToken:                id.JoinToken,
 		AgentScope:               id.AgentScope,
 		ImmutableLabelHash:       id.ImmutableLabelHash,
+		DelegationSessionId:      id.DelegationSessionID,
+		HeadlessAuthenticationId: id.HeadlessAuthenticationID,
 	}
 }
 

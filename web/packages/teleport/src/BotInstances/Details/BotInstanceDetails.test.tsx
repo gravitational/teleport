@@ -31,7 +31,6 @@ import {
   waitForElementToBeRemoved,
   within,
 } from 'design/utils/testing';
-
 import 'shared/components/TextEditor/TextEditor.mock';
 
 import { createTeleportContext } from 'teleport/mocks/contexts';

@@ -31,11 +31,11 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"text/template"
 	"time"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/alecthomas/kingpin/v2"
-	"github.com/fatih/color"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -117,7 +117,7 @@ type BotsCommand struct {
 // `bot instances add`
 func (c *BotsCommand) initSharedBotTokenFlags(cmd *kingpin.CmdClause) {
 	cmd.Flag("token", "The token to use, if any. If unset, a new single-use token will be created.").StringVar(&c.tokenID)
-	cmd.Flag("format", "Output format, one of: text, json").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
+	cmd.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
 
 	// TODO(timothyb89): Remove in v20 (optional)
 	cmd.Flag("legacy", "If set, generate a legacy joining token instead of a bound keypair token. No effect if --token is set.").BoolVar(&c.legacy)
@@ -157,7 +157,7 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	bots := app.Command("bots", "Manage Machine & Workload Identity bots on the cluster.").Alias("bot")
 
 	c.botsList = bots.Command("ls", "List all certificate renewal bots registered with the cluster.")
-	c.botsList.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
+	c.botsList.Flag("format", "Output format.").Hidden().Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
 
 	c.botsAdd = bots.Command("add", "Add a new bot to the cluster.")
 	c.botsAdd.Arg("name", "A name to uniquely identify this bot in the cluster.").Required().StringVar(&c.botName)
@@ -190,7 +190,7 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 
 	c.botsInstancesList = c.botsInstances.Command("list", "List bot instances.").Alias("ls")
 	c.botsInstancesList.Arg("name", "The name of the bot from which to list instances. If unset, lists instances from all bots.").StringVar(&c.botName)
-	c.botsInstancesList.Flag("format", "Output format, 'text' or 'json'").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
+	c.botsInstancesList.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
 	c.botsInstancesList.Flag("search", "Fuzzy search query used to filter bot instances").StringVar(&c.search)
 	c.botsInstancesList.Flag("query", "An expression in the Teleport predicate language used to filter bot instances").StringVar(&c.query)
 	c.botsInstancesList.Flag("sort-index", "Request sort index, 'bot_name', 'active_at_latest', 'version_latest' or 'host_name_latest'").Default("bot_name").StringVar(&c.sortIndex)
@@ -1255,25 +1255,32 @@ func formatServices(services []*machineidv1pb.BotInstanceServiceHealth) string {
 // formatStatus returns an human-readable representation of a service status.
 // Optionally, it can include a colored dot.
 func formatStatus(status machineidv1pb.BotInstanceHealthStatus, useColor bool) string {
+	var (
+		greenDot  = lipgloss.NewStyle().Foreground(lipgloss.Color("10"))
+		redDot    = lipgloss.NewStyle().Foreground(lipgloss.Color("9"))
+		whiteDot  = lipgloss.NewStyle().Foreground(lipgloss.Color("15"))
+		yellowDot = lipgloss.NewStyle().Foreground(lipgloss.Color("11"))
+	)
+
 	switch status {
 	case machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_HEALTHY:
 		if useColor {
-			return color.GreenString("\u25CF") + " Healthy"
+			return greenDot.Render("\u25CF") + " Healthy"
 		}
 		return "Healthy"
 	case machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY:
 		if useColor {
-			return color.RedString("\u25CF") + " Unhealthy"
+			return redDot.Render("\u25CF") + " Unhealthy"
 		}
 		return "Unhealthy"
 	case machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_INITIALIZING:
 		if useColor {
-			return color.WhiteString("\u25CF") + " Initializing"
+			return whiteDot.Render("\u25CF") + " Initializing"
 		}
 		return "Initializing"
 	default:
 		if useColor {
-			return color.YellowString("\u25CF") + " Unknown"
+			return yellowDot.Render("\u25CF") + " Unknown"
 		}
 		return "Unknown"
 	}

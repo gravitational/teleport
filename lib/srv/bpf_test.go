@@ -40,6 +40,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
 
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -47,32 +48,36 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events/eventstest"
-	"github.com/gravitational/teleport/lib/pam"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils/testutils"
+	"github.com/gravitational/teleport/session/pam"
+	"github.com/gravitational/teleport/session/pam/pamcfg"
 )
 
 const (
-	// the maximum number of arguments that will be emitted in a event,
-	// including argv[0]
-	maxArgs = 20
-
-	// the maximum length of a path, anything longer will be truncated
-	maxPathLength = 255
+	// the maximum number of arguments, only takes affect when exit_execve
+	// is what is emitting the event
+	maxArgCount = 20
+	// the maximum length of a single argument, anything longer will be truncated
+	maxArgLength = 1024
+	// the maximum combined length of all arguments, anything longer will be truncated
+	maxArgsTotalLength = bpf.CommandArgsBufferSize - 4
 
 	longArgBase = "averylongargument"
 
+	// increased buffer sizes to accommodate the onslaught of events
+	// during the stress test
+	stressCommandBufSize = 256
+	stressDiskBufSize    = 512
+	stressNetworkBufSize = 256
 	// number of commands that will be run in parallel during the
 	// stress test test case
-	stressTestRunCount = 10
+	stressTestRunCount = 30
 )
 
 var (
-	// the maximum length of a single argument, anything longer will be truncated
-	maxArgLength = bpf.ArgsCacheSize
-
-	longArg    = strings.Repeat(longArgBase, (maxArgLength/4)/len(longArgBase))
-	overMaxArg = strings.Repeat(longArgBase, (maxArgLength)/len(longArgBase)+1)
+	longArg    = strings.Repeat(longArgBase, (maxArgsTotalLength/4)/len(longArgBase))
+	overMaxArg = strings.Repeat(longArgBase, (maxArgsTotalLength)/len(longArgBase)+1)
 
 	recordAllEvents = map[string]struct{}{
 		constants.EnhancedRecordingCommand: {},
@@ -80,6 +85,17 @@ var (
 		constants.EnhancedRecordingNetwork: {},
 	}
 )
+
+type bpfTestCase struct {
+	// name of the test case
+	name string
+	// the initial command that will generate events
+	command string
+	// details of expected audit events; note that it is expected that
+	// if a program generates multiple command events, they will all
+	// be identical
+	eventInfos []expectedEvents
+}
 
 type expectedEvents struct {
 	// info about the command that will be executed
@@ -94,10 +110,16 @@ type expectedEvents struct {
 }
 
 type commandInfo struct {
-	// program name of the command, typically the basename of hte full path
+	// program name of the command, typically the basename of the full path
 	program string
+	// path to the command if it's not in PATH
+	path string
 	// arguments to the command, excluding argv[0]
 	args []string
+	// the first argument if it isn't the program
+	alternateFirstArg string
+	// should be set to true if argv[0] is not the program
+	programNotFirstArg bool
 	// interpreter for the command, if the command is a script
 	interpreter string
 	// path to the script that will be executed
@@ -117,7 +139,7 @@ type addrInfo struct {
 func TestBPFRecording(t *testing.T) {
 	skipIfNoBPF(t)
 
-	srv, bpfSrv := newServices(t)
+	srv, bpfSrv := newServices(t, nil)
 
 	testBPFRecording(t, srv, bpfSrv)
 }
@@ -129,8 +151,8 @@ func TestBPFRecordingWithPAM(t *testing.T) {
 	skipIfNoBPF(t)
 	skipIfNoPAM(t)
 
-	srv, bpfSrv := newServices(t)
-	srv.pamCfg = &servicecfg.PAMConfig{
+	srv, bpfSrv := newServices(t, nil)
+	srv.pamCfg = &pamcfg.PAMConfig{
 		Enabled:     true,
 		ServiceName: "sshd",
 	}
@@ -149,8 +171,11 @@ func TestBPFRecordingWithPAM(t *testing.T) {
 // Filesystem Hierarchy Standard (FHS) or are specified in their
 // respective man pages.
 func testBPFRecording(t *testing.T, srv Server, bpfSrv bpf.BPF) {
+	var lostEvents bpf.EventCount
+
 	// Create a temp dir and files for commands to use.
 	cmdDir := t.TempDir()
+	nonExistentFile := filepath.Join(cmdDir, "nonexistent.txt")
 	tempFilePath := filepath.Join(cmdDir, "file")
 	tempFile, err := os.Create(tempFilePath)
 	require.NoError(t, err)
@@ -158,13 +183,22 @@ func testBPFRecording(t *testing.T, srv Server, bpfSrv bpf.BPF) {
 	newFilePath := filepath.Join(cmdDir, "newfile")
 
 	// Lookup paths of programs that are also shell builtins.
-	echoPath, err := exec.LookPath("echo")
-	require.NoError(t, err, "echo command is required for these tests but was not found")
+	echoPath := lookResolvedPath(t, "echo")
+
+	// Create symlinks to test symlink handling.
+	symlinkDir := t.TempDir()
+	echoSymlinkPath := filepath.Join(symlinkDir, "echo-symlink")
+	err = os.Symlink(echoPath, echoSymlinkPath)
+	require.NoError(t, err)
+	etcSymlinkDir := "etc-symlink"
+	etcSymlinkPath := filepath.Join(symlinkDir, etcSymlinkDir)
+	err = os.Symlink("/etc", etcSymlinkPath)
+	require.NoError(t, err)
 
 	// Create a TCP listener for each IP family. Register the listeners
 	// to be closed in case the test fails before the connection
 	// handling goroutines are started, the listeners will be closed
-	// before waitinf for the goroutines to finish otherwise.
+	// before waiting for the goroutines to finish otherwise.
 	lis4, err := net.Listen("tcp4", "127.0.0.1:0")
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -207,29 +241,25 @@ eval $(echo %s | base64 --decode)`,
 	err = os.WriteFile(obfScriptPath, []byte(obfScript), 0o700)
 	require.NoError(t, err)
 
-	// Create a slice of arguments over the maximum length.
-	overMaxArgs := make([]string, maxArgs+3)
-	for i := range overMaxArgs {
-		overMaxArgs[i] = strconv.Itoa(i) + overMaxArg
-	}
-	atMaxArgs := slices.Clone(overMaxArgs)
-	for i := range atMaxArgs {
-		atMaxArgs[i] = atMaxArgs[i][:maxArgLength]
-	}
-	maxArgPaths := slices.Clone(atMaxArgs)
-	for i := range maxArgPaths {
-		maxArgPaths[i] = maxArgPaths[i][:maxPathLength]
-	}
-
 	// Define the test cases.
-	tests := []struct {
-		name       string
-		command    string
-		eventInfos []expectedEvents
-	}{
+	tests := []bpfTestCase{
 		{
 			name:    "no commands",
 			command: "true",
+		},
+		{
+			name:    "nonexistent file",
+			command: "cat " + nonExistentFile,
+			eventInfos: []expectedEvents{
+				{
+					cmdInfo: commandInfo{
+						program:      "cat",
+						args:         []string{nonExistentFile},
+						expectedFail: true,
+					},
+					paths: []string{nonExistentFile},
+				},
+			},
 		},
 		{
 			name:    "basic command",
@@ -242,8 +272,30 @@ eval $(echo %s | base64 --decode)`,
 					},
 					paths: []string{
 						"/proc/filesystems",
-						".",
 						cmdDir,
+					},
+				},
+			},
+		},
+		{
+			name:    "symlink command",
+			command: "bash -c '" + echoSymlinkPath + " salutations'",
+			eventInfos: []expectedEvents{
+				{
+					cmdInfo: commandInfo{
+						program: "bash",
+						args:    []string{"-c", echoSymlinkPath + " salutations"},
+					},
+					paths: []string{
+						echoPath,
+					},
+				},
+				{
+					cmdInfo: commandInfo{
+						program:           filepath.Base(echoSymlinkPath),
+						path:              echoSymlinkPath,
+						alternateFirstArg: echoSymlinkPath,
+						args:              []string{"salutations"},
 					},
 				},
 			},
@@ -280,8 +332,9 @@ eval $(echo %s | base64 --decode)`,
 			eventInfos: []expectedEvents{
 				{
 					cmdInfo: commandInfo{
-						program: "echo",
-						args:    []string{"Not even a distant land we're on a whole different planet"},
+						program:           "echo",
+						alternateFirstArg: echoPath,
+						args:              []string{"Not even a distant land we're on a whole different planet"},
 					},
 				},
 				{
@@ -307,8 +360,37 @@ eval $(echo %s | base64 --decode)`,
 						"/etc/nsswitch.conf",
 						"/etc/passwd",
 						"/etc/group",
-						"/etc/localtime",
 						cmdDir,
+					},
+				},
+			},
+		},
+		{
+			name:    "symlinked dir",
+			command: "dir " + etcSymlinkPath,
+			eventInfos: []expectedEvents{
+				{
+					cmdInfo: commandInfo{
+						program: "dir",
+						args:    []string{etcSymlinkPath},
+					},
+					paths: []string{
+						"/etc",
+					},
+				},
+			},
+		},
+		{
+			name:    "relative symlinked dir",
+			command: "cd " + symlinkDir + "; dir " + etcSymlinkDir,
+			eventInfos: []expectedEvents{
+				{
+					cmdInfo: commandInfo{
+						program: "dir",
+						args:    []string{etcSymlinkDir},
+					},
+					paths: []string{
+						"/etc",
 					},
 				},
 			},
@@ -324,7 +406,6 @@ eval $(echo %s | base64 --decode)`,
 					},
 					paths: []string{
 						"/etc/bash.bashrc",
-						cmdDir + string(filepath.Separator),
 					},
 				},
 				{
@@ -350,9 +431,11 @@ eval $(echo %s | base64 --decode)`,
 			eventInfos: []expectedEvents{
 				{
 					cmdInfo: commandInfo{
-						program:     obfScriptName,
-						interpreter: "bash",
-						scriptPath:  obfScriptPath,
+						program:           obfScriptName,
+						interpreter:       "bash",
+						alternateFirstArg: "/bin/bash", // the shebang is used as argv[0]
+						scriptPath:        obfScriptPath,
+						args:              []string{obfScriptPath},
 					},
 				},
 				{
@@ -368,7 +451,6 @@ eval $(echo %s | base64 --decode)`,
 					},
 					paths: []string{
 						"/proc/filesystems",
-						".",
 					},
 				},
 			},
@@ -418,6 +500,19 @@ eval $(echo %s | base64 --decode)`,
 			},
 		},
 		{
+			name:    "empty args",
+			command: echoPath + " empty '' args",
+			eventInfos: []expectedEvents{
+				{
+					cmdInfo: commandInfo{
+						program:           "echo",
+						alternateFirstArg: echoPath,
+						args:              []string{"empty", "", "args"},
+					},
+				},
+			},
+		},
+		{
 			name:    "long arg",
 			command: "cat " + longArg,
 			eventInfos: []expectedEvents{
@@ -428,7 +523,6 @@ eval $(echo %s | base64 --decode)`,
 						// the argument isn't an existing file on disk
 						expectedFail: true,
 					},
-					paths: []string{longArg},
 				},
 			},
 		},
@@ -439,106 +533,9 @@ eval $(echo %s | base64 --decode)`,
 				{
 					cmdInfo: commandInfo{
 						program: "cat",
-						args:    []string{overMaxArg[:maxArgLength]},
+						args:    []string{overMaxArg[:maxArgsTotalLength], bpf.TruncatedArg},
 						// the argument isn't an existing file on disk
 						expectedFail: true,
-					},
-					paths: []string{overMaxArg[:maxPathLength]},
-				},
-			},
-		},
-		{
-			name:    "max amount of args",
-			command: "cat " + strings.Repeat(tempFilePath+" ", maxArgs),
-			eventInfos: []expectedEvents{
-				{
-					cmdInfo: commandInfo{
-						program: "cat",
-						// argv[0] is counted, so we expect MAXARGS-1 args
-						args: slices.Repeat([]string{tempFilePath}, maxArgs-1),
-					},
-					paths: []string{tempFilePath},
-				},
-			},
-		},
-		// TODO(capnspacehook): bpf C code seems to want to add '...' if arguments are truncated but doesn't
-		{
-			name:    "over max amount of args",
-			command: "cat " + strings.Repeat(tempFilePath+" ", maxArgs+3),
-			eventInfos: []expectedEvents{
-				{
-					cmdInfo: commandInfo{
-						program: "cat",
-						// argv[0] is counted, so we expect MAXARGS-1 args
-						args: slices.Repeat([]string{tempFilePath}, maxArgs-1),
-					},
-					paths: []string{tempFilePath},
-				},
-			},
-		},
-		{
-			name:    "max amount of args over max length",
-			command: "cat " + strings.Join(overMaxArgs[:maxArgs], " "),
-			eventInfos: []expectedEvents{
-				{
-					cmdInfo: commandInfo{
-						program: "cat",
-						// argv[0] is counted, so we expect MAXARGS-1 args
-						args: atMaxArgs[:maxArgs-1],
-						// the arguments aren't existing files on disk
-						expectedFail: true,
-					},
-					paths: maxArgPaths[:maxArgs],
-				},
-			},
-		},
-		{
-			name:    "over max amount of args over max length",
-			command: "cat " + strings.Join(overMaxArgs, " "),
-			eventInfos: []expectedEvents{
-				{
-					cmdInfo: commandInfo{
-						program: "cat",
-						// argv[0] is counted, so we expect MAXARGS-1 args
-						args: atMaxArgs[:maxArgs-1],
-						// the arguments aren't existing files on disk
-						expectedFail: true,
-					},
-					paths: maxArgPaths,
-				},
-			},
-		},
-		{
-			name:    "stress test",
-			command: fmt.Sprintf("for i in $(seq 1 %d); do { curl %s; ls -lahiZ; } & done; wait", stressTestRunCount, netAddr4),
-			eventInfos: []expectedEvents{
-				{
-					cmdInfo: commandInfo{
-						program: "ls",
-						args:    []string{"-lahiZ"},
-					},
-					paths: []string{
-						"/proc/filesystems",
-						".",
-						"/etc/nsswitch.conf",
-						"/etc/passwd",
-						"/etc/group",
-						"/etc/localtime",
-					},
-					count: stressTestRunCount,
-				},
-				{
-					cmdInfo: commandInfo{
-						program: "curl",
-						args:    []string{netAddr4},
-					},
-					dstAddr: &addrInfo{addr: addr4, port: port4},
-					count:   stressTestRunCount,
-				},
-				{
-					cmdInfo: commandInfo{
-						program: "seq",
-						args:    []string{"1", strconv.Itoa(stressTestRunCount)},
 					},
 				},
 			},
@@ -547,123 +544,538 @@ eval $(echo %s | base64 --decode)`,
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			expectedCmdFail := slices.ContainsFunc(tt.eventInfos, func(info expectedEvents) bool {
-				return info.cmdInfo.expectedFail
-			})
+			runBPFTestCase(t, srv, bpfSrv, tt, false)
 
-			// Run the command and capture the events.
-			recordedEvents := runCommand(t, srv, bpfSrv, tt.command, expectedCmdFail, recordAllEvents)
-
-			commandArgs := make(map[string]int)
-			programPaths := make(map[string]string)
-			programLibs := make(map[string][]countedValue[string])
-			commandOpens := make(map[string][]countedValue[string])
-			commandDstAddrs := make(map[string][]countedValue[addrInfo])
-
-			for _, info := range tt.eventInfos {
-				cmdInfo := info.cmdInfo
-				count := max(info.count, 1)
-
-				// Build a map of expected command arguments.
-				cmdArgKey := commandKey(cmdInfo.program, cmdInfo.args)
-				commandArgs[cmdArgKey] = count
-
-				// Build a map of program paths on disk. Also build a
-				// map of dynamic libraries that should be opened.
-				// We conservatively only expect to see libraries loaded
-				// in the DT_NEEDED section of the program binary.
-				// This gives us more disk events to check against for
-				// free, which can be useful to catch rare bugs in the
-				// BPF disk tracing program.
-				if info.cmdInfo.scriptPath == "" {
-					programPath, err := exec.LookPath(cmdInfo.program)
-					require.NoError(t, err, "%s command is required for these tests but was not found", cmdInfo.program)
-					programPaths[cmdInfo.program] = programPath
-
-					_, ok := programLibs[cmdInfo.program]
-					if !ok {
-						programLibs[cmdInfo.program] = getProgramLibs(t, programPath, count)
-					}
-				} else {
-					// If a script is being run, the command event will
-					// show the script as the program, but it will act
-					// like the interpreter.
-					programPaths[cmdInfo.program] = info.cmdInfo.scriptPath
-					interpPath, err := exec.LookPath(cmdInfo.interpreter)
-					require.NoError(t, err)
-
-					_, ok := programLibs[cmdInfo.program]
-					if !ok {
-						programLibs[cmdInfo.program] = getProgramLibs(t, interpPath, count)
-					}
-				}
-
-				expectedPaths := commandOpens[cmdInfo.program]
-				commandOpens[cmdInfo.program] = append(expectedPaths, makeCounted(info.paths, count)...)
-
-				// Build a map of program destination addresses.
-				if info.dstAddr != nil {
-					addrs := commandDstAddrs[cmdInfo.program]
-					commandDstAddrs[cmdInfo.program] = append(addrs, countedValue[addrInfo]{value: *info.dstAddr, count: count})
-				}
+			le := bpfSrv.LostEvents()
+			newlyLost := le.Delta(lostEvents)
+			if newlyLost.CommandEvents() > 0 {
+				t.Errorf("error: %d command events were lost", newlyLost.CommandEvents())
+			}
+			if newlyLost.DiskEvents() > 0 {
+				t.Errorf("error: %d disk events were lost", newlyLost.DiskEvents())
+			}
+			if newlyLost.NetworkEvents() > 0 {
+				t.Errorf("error: %d network events were lost", newlyLost.NetworkEvents())
 			}
 
-			// Check that the emitted events have expected contents.
-			for _, event := range recordedEvents {
-				switch e := event.(type) {
-				case *apievents.SessionCommand:
-					t.Logf("  command event: Command=%s Path=%s Args=[%s] NArgs=%d", e.BPFMetadata.Program, e.Path, quoteStrings(e.Argv), len(e.Argv))
-
-					checkCommandEvent(t, e, programPaths, commandArgs)
-				case *apievents.SessionDisk:
-					t.Logf("  disk event: Command=%s Path=%s", e.BPFMetadata.Program, e.Path)
-
-					if checkDiskEvent(t, e, programLibs, true) {
-						continue
-					}
-					checkDiskEvent(t, e, commandOpens, false)
-				case *apievents.SessionNetwork:
-					t.Logf("  network event: Command=%s SrcAddr=%s DstAddr=%s DstPort=%d", e.BPFMetadata.Program, e.SrcAddr, e.DstAddr, e.DstPort)
-
-					checkNetworkEvent(t, e, commandDstAddrs)
-				}
-			}
-
-			// Check that expected events were found the expected number of times.
-			for cmd, count := range commandArgs {
-				if count > 0 {
-					t.Errorf("error: command event for %s was expected %d more times", cmd, count)
-				}
-			}
-			for cmd, paths := range commandOpens {
-				for _, path := range paths {
-					if path.count > 0 {
-						t.Errorf("error: disk event for program %q opening %q was expected %d more times", cmd, path.value, path.count)
-					}
-				}
-			}
-			for cmd, addrs := range commandDstAddrs {
-				for _, addr := range addrs {
-					if addr.count > 0 {
-						t.Errorf("error: network event for program %q with destination address %q was expected %d more times", cmd, addr.value, addr.count)
-					}
-				}
-			}
-			for cmd, libs := range programLibs {
-				for _, lib := range libs {
-					if lib.count > 0 {
-						t.Errorf("error: disk event for program %q opening library %q was expected %d more times", cmd, lib.value, lib.count)
-					}
-				}
-			}
+			lostEvents = le
 		})
 	}
+}
+
+func runBPFTestCase(t *testing.T, srv Server, bpfSrv bpf.BPF, tt bpfTestCase, closeBPFSrv bool) {
+	expectedCmdFail := slices.ContainsFunc(tt.eventInfos, func(info expectedEvents) bool {
+		return info.cmdInfo.expectedFail
+	})
+
+	// Run the command and capture the events.
+	recordedEvents := runCommand(t, srv, bpfSrv, tt.command, expectedCmdFail, recordAllEvents, closeBPFSrv)
+
+	commandArgs := make(map[string]int)
+	programPaths := make(map[string]string)
+	programLibs := make(map[string][]countedValue[string])
+	commandOpens := make(map[string][]countedValue[string])
+	commandDstAddrs := make(map[string][]countedValue[addrInfo])
+
+	for _, info := range tt.eventInfos {
+		cmdInfo := info.cmdInfo
+		count := max(info.count, 1)
+
+		// Build a map of program paths on disk. Also build a
+		// map of dynamic libraries that should be opened.
+		// We conservatively only expect to see libraries loaded
+		// in the DT_NEEDED section of the program binary.
+		// This gives us more disk events to check against for
+		// free, which can be useful to catch rare bugs in the
+		// BPF disk tracing program.
+		var programPath string
+		if info.cmdInfo.scriptPath == "" {
+			if cmdInfo.path != "" {
+				programPath = cmdInfo.path
+			} else {
+				programPath = lookResolvedPath(t, cmdInfo.program)
+			}
+
+			_, ok := programLibs[cmdInfo.program]
+			if !ok {
+				programLibs[cmdInfo.program] = getProgramLibs(t, programPath, count)
+			}
+		} else {
+			// If a script is being run, the command event will
+			// show the script as the program, but it will act
+			// like the interpreter.
+			programPath = info.cmdInfo.scriptPath
+			interpPath := lookResolvedPath(t, cmdInfo.interpreter)
+
+			_, ok := programLibs[cmdInfo.program]
+			if !ok {
+				programLibs[cmdInfo.program] = getProgramLibs(t, interpPath, count)
+			}
+		}
+		programPaths[cmdInfo.program] = programPath
+
+		// Build a map of expected command arguments.
+		args := cmdInfo.args
+		if cmdInfo.alternateFirstArg != "" {
+			args = append([]string{cmdInfo.alternateFirstArg}, args...)
+		} else if !cmdInfo.programNotFirstArg {
+			// Add the program path to argv[0] unless told otherwise,
+			// almost everything sets argv[0] in this way.
+			args = append([]string{cmdInfo.program}, args...)
+		}
+
+		cmdArgKey := commandKey(cmdInfo.program, args)
+		t.Logf("adding expected command: %s", cmdArgKey)
+		commandArgs[cmdArgKey] = count
+
+		// Build a map of expected opened files.
+		expectedPaths := commandOpens[cmdInfo.program]
+		commandOpens[cmdInfo.program] = append(expectedPaths, makeCounted(info.paths, count)...)
+
+		// Build a map of program destination addresses.
+		if info.dstAddr != nil {
+			addrs := commandDstAddrs[cmdInfo.program]
+			commandDstAddrs[cmdInfo.program] = append(addrs, countedValue[addrInfo]{value: *info.dstAddr, count: count})
+		}
+	}
+
+	// Check that the emitted events have expected contents.
+	for _, event := range recordedEvents {
+		switch e := event.(type) {
+		case *apievents.SessionCommand:
+			t.Logf("  command event: Command=%s Path=%s Args=[%s] NArgs=%d", e.BPFMetadata.Program, e.Path, quoteStrings(e.Argv), len(e.Argv))
+
+			checkCommandEvent(t, e, programPaths, commandArgs)
+		case *apievents.SessionDisk:
+			t.Logf("  disk event: Command=%s Path=%s", e.BPFMetadata.Program, e.Path)
+
+			if checkDiskEvent(t, e, programLibs, true) {
+				continue
+			}
+			checkDiskEvent(t, e, commandOpens, false)
+		case *apievents.SessionNetwork:
+			t.Logf("  network event: Command=%s SrcAddr=%s DstAddr=%s DstPort=%d", e.BPFMetadata.Program, e.SrcAddr, e.DstAddr, e.DstPort)
+
+			checkNetworkEvent(t, e, commandDstAddrs)
+		}
+	}
+
+	// Check that expected events were found the expected number of times.
+	for cmd, count := range commandArgs {
+		if count > 0 {
+			t.Errorf("error: command event for %s was expected %d more times", cmd, count)
+		}
+	}
+	for cmd, paths := range commandOpens {
+		for _, path := range paths {
+			if path.count > 0 {
+				t.Errorf("error: disk event for program %q opening %q was expected %d more times", cmd, path.value, path.count)
+			}
+		}
+	}
+	for cmd, addrs := range commandDstAddrs {
+		for _, addr := range addrs {
+			if addr.count > 0 {
+				t.Errorf("error: network event for program %q with destination address %q was expected %d more times", cmd, addr.value, addr.count)
+			}
+		}
+	}
+	for cmd, libs := range programLibs {
+		for _, lib := range libs {
+			if lib.count > 0 {
+				t.Errorf("error: disk event for program %q opening library %q was expected %d more times", cmd, lib.value, lib.count)
+			}
+		}
+	}
+}
+
+func TestBPFFailedCommandMaxArgs(t *testing.T) {
+	skipIfNoBPF(t)
+
+	srv, bpfSrv := newServices(t, nil)
+
+	testBPFFailedCommandMaxArgs(t, srv, bpfSrv)
+}
+
+// TODO(capnspacehook): test with PAM auth enabled, and with a different
+// login user once https://github.com/gravitational/teleport/issues/61692
+// is fixed.
+func TestBPFFailedCommandMaxArgsWithPAM(t *testing.T) {
+	skipIfNoBPF(t)
+	skipIfNoPAM(t)
+
+	srv, bpfSrv := newServices(t, nil)
+	srv.pamCfg = &pamcfg.PAMConfig{
+		Enabled:     true,
+		ServiceName: "sshd",
+	}
+
+	testBPFFailedCommandMaxArgs(t, srv, bpfSrv)
+}
+
+// testBPFFailedCommandMaxArgs tests that argument handling works as
+// expected when exit_execve is emitting the event.
+func testBPFFailedCommandMaxArgs(t *testing.T, srv Server, bpfSrv bpf.BPF) {
+	const path = "/dir/thesolution"
+
+	t.Run("oversized arg", func(t *testing.T) {
+		command := path + " " + overMaxArg
+		recordedEvents := runCommand(t, srv, bpfSrv, command, true, recordAllEvents, false)
+
+		found := false
+		for _, e := range recordedEvents {
+			switch e := e.(type) {
+			case *apievents.SessionCommand:
+				if e.Path == path {
+					require.Equal(t, []string{path, overMaxArg[:maxArgLength-1]}, e.Argv)
+					found = true
+				}
+			}
+		}
+
+		require.True(t, found)
+	})
+
+	t.Run("too many oversized args", func(t *testing.T) {
+		command := path + " " + strings.Repeat(overMaxArg[:maxArgLength+1]+" ", maxArgCount+1)
+		recordedEvents := runCommand(t, srv, bpfSrv, command, true, recordAllEvents, false)
+
+		found := false
+		for _, e := range recordedEvents {
+			switch e := e.(type) {
+			case *apievents.SessionCommand:
+				if e.Path == path {
+					expectedArgs := append(
+						[]string{path},
+						slices.Repeat([]string{overMaxArg[:maxArgLength-1]}, maxArgCount-1)...,
+					)
+					expectedArgs = append(expectedArgs, bpf.TruncatedArg)
+
+					require.Equal(t, expectedArgs, e.Argv)
+					found = true
+				}
+			}
+		}
+
+		require.True(t, found)
+	})
+
+	t.Run("max args", func(t *testing.T) {
+		arg := "arg"
+		command := path + " " + strings.Repeat(arg+" ", maxArgCount-1)
+		recordedEvents := runCommand(t, srv, bpfSrv, command, true, recordAllEvents, false)
+
+		found := false
+		for _, e := range recordedEvents {
+			switch e := e.(type) {
+			case *apievents.SessionCommand:
+				if e.Path == path {
+					expectedArgs := append(
+						[]string{path},
+						slices.Repeat([]string{arg}, maxArgCount-1)...,
+					)
+
+					require.Equal(t, expectedArgs, e.Argv)
+					found = true
+				}
+			}
+		}
+
+		require.True(t, found)
+	})
+}
+
+func TestBPFReturnCodes(t *testing.T) {
+	skipIfNoBPF(t)
+
+	srv, bpfSrv := newServices(t, nil)
+
+	testBPFReturnCodes(t, srv, bpfSrv)
+}
+
+// TODO(capnspacehook): test with PAM auth enabled, and with a different
+// login user once https://github.com/gravitational/teleport/issues/61692
+// is fixed.
+func TestBPFReturnCodesWithPAM(t *testing.T) {
+	skipIfNoBPF(t)
+	skipIfNoPAM(t)
+
+	srv, bpfSrv := newServices(t, nil)
+	srv.pamCfg = &pamcfg.PAMConfig{
+		Enabled:     true,
+		ServiceName: "sshd",
+	}
+
+	testBPFReturnCodes(t, srv, bpfSrv)
+}
+
+func testBPFReturnCodes(t *testing.T, srv Server, bpfSrv bpf.BPF) {
+	// exercises the path where bprm_execve is not called
+	t.Run("non existent command", func(t *testing.T) {
+		const path = "/dir/thesolution"
+		const arg = "doesnotexist"
+		command := "bash -c '" + path + " " + arg + "'"
+		recordedEvents := runCommand(t, srv, bpfSrv, command, true, recordAllEvents, false)
+
+		found := false
+		for _, e := range recordedEvents {
+			switch e := e.(type) {
+			case *apievents.SessionCommand:
+				if e.Program == "bash" && len(e.Argv) > 1 && e.Argv[1] == arg {
+					require.Equal(t, path, e.Path)
+					require.Equal(t, -int32(unix.ENOENT), e.ReturnCode)
+					found = true
+				}
+			}
+		}
+
+		require.True(t, found)
+	})
+
+	// exercises the path where bprm_execve is called but the event is
+	// emitted in exit_execve
+	t.Run("malformed script", func(t *testing.T) {
+		dir := t.TempDir()
+		contents := `#!/go/teleport
+echo this will never run...`
+		path := filepath.Join(dir, "scripty")
+		err := os.WriteFile(path, []byte(contents), 0o777)
+		require.NoError(t, err)
+
+		command := path
+		recordedEvents := runCommand(t, srv, bpfSrv, command, true, recordAllEvents, false)
+
+		found := false
+		for _, e := range recordedEvents {
+			switch e := e.(type) {
+			case *apievents.SessionCommand:
+				t.Log(e.Program, e.Path, e.Argv, e.ReturnCode)
+				if e.Program == "sh" && e.Path == path {
+					require.Equal(t, -int32(unix.ENOENT), e.ReturnCode)
+					found = true
+				}
+			}
+		}
+
+		require.True(t, found)
+	})
+
+	t.Run("non existent file", func(t *testing.T) {
+		const path = "/earth-gimel"
+		const command = "cat " + path
+		recordedEvents := runCommand(t, srv, bpfSrv, command, true, recordAllEvents, false)
+
+		found := false
+		for _, e := range recordedEvents {
+			switch e := e.(type) {
+			case *apievents.SessionDisk:
+				t.Log(e.Program, e.Path, e.ReturnCode)
+				if e.Program == "cat" && e.Path == path {
+					require.Equal(t, -int32(unix.ENOENT), e.ReturnCode)
+					found = true
+				}
+			}
+		}
+
+		require.True(t, found)
+	})
+}
+
+func TestBPFRODataArgs(t *testing.T) {
+	skipIfNoBPF(t)
+
+	srv, bpfSrv := newServices(t, nil)
+
+	testBPFRODataArgs(t, srv, bpfSrv)
+}
+
+// testBPFRODataArgs checks that arguments to the execve and open families
+// of syscalls that are static strings (or stored in the .rodata ELF section)
+// are emitted as expected in audit events.
+func testBPFRODataArgs(t *testing.T, srv Server, bpfSrv bpf.BPF) {
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+
+	const program = "bpf_rodata_args"
+	path := filepath.Join(cwd, "_test", program)
+
+	_, err = os.Stat(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			t.Skip("bpf_rodata_args not built, skipping test")
+		}
+		t.Fatalf("failed to stat bpf_rodata_args: %v", err)
+	}
+
+	t.Run("success path", func(t *testing.T) {
+		testCase := bpfTestCase{
+			name:    "success path",
+			command: path + " success",
+			eventInfos: []expectedEvents{
+				{
+					cmdInfo: commandInfo{
+						program:           program,
+						path:              path,
+						alternateFirstArg: path,
+						args:              []string{"success"},
+					},
+					paths: []string{"/etc/hostname"},
+				},
+				{
+					cmdInfo: commandInfo{
+						program:            "echo",
+						args:               []string{"can you see", "me?"},
+						programNotFirstArg: true,
+					},
+				},
+			},
+		}
+		runBPFTestCase(t, srv, bpfSrv, testCase, false)
+	})
+
+	// runBPFTestCase is not used here because for some reason the
+	// command event where bpf_rodata_args execs whereami has
+	// bpf_rodata_args as the Program which confuses the event checking
+	// logic. The fix would be non-trivial for this single case so I
+	// think this is the simplest solution.
+	t.Run("failure path", func(t *testing.T) {
+		command := path + " failure"
+		recordedEvents := runCommand(t, srv, bpfSrv, command, true, recordAllEvents, false)
+
+		foundCmdEvent := false
+		foundDiskEvent := false
+		for _, e := range recordedEvents {
+			switch e := e.(type) {
+			case *apievents.SessionCommand:
+				t.Log(e.Program, e.Path, e.Argv, e.ReturnCode)
+				if e.Program == program && e.Path == "whereami" {
+					require.Equal(t, []string{"this should", "fail."}, e.Argv)
+					require.Equal(t, -int32(unix.ENOENT), e.ReturnCode)
+					foundCmdEvent = true
+				}
+			case *apievents.SessionDisk:
+				t.Log(e.Program, e.Path, e.ReturnCode)
+				if e.Program == program && e.Path == "/who/now" {
+					require.Equal(t, -int32(unix.ENOENT), e.ReturnCode)
+					foundDiskEvent = true
+				}
+			}
+		}
+
+		require.True(t, foundCmdEvent)
+		require.True(t, foundDiskEvent)
+	})
+}
+
+func TestBPFStress(t *testing.T) {
+	skipIfNoBPF(t)
+
+	cmdBufSize := stressCommandBufSize
+	diskBufSize := stressDiskBufSize
+	networkBufSize := stressNetworkBufSize
+	cfg := &servicecfg.BPFConfig{
+		Enabled:           true,
+		CommandBufferSize: &cmdBufSize,
+		DiskBufferSize:    &diskBufSize,
+		NetworkBufferSize: &networkBufSize,
+	}
+
+	srv, bpfSrv := newServices(t, cfg)
+
+	testBPFStress(t, srv, bpfSrv)
+}
+
+// TODO(capnspacehook): test with PAM auth enabled, and with a different
+// login user once https://github.com/gravitational/teleport/issues/61692
+// is fixed.
+func TestBPFStressWithPAM(t *testing.T) {
+	skipIfNoBPF(t)
+	skipIfNoPAM(t)
+
+	cmdBufSize := stressCommandBufSize
+	diskBufSize := stressDiskBufSize
+	networkBufSize := stressNetworkBufSize
+	cfg := &servicecfg.BPFConfig{
+		Enabled:           true,
+		CommandBufferSize: &cmdBufSize,
+		DiskBufferSize:    &diskBufSize,
+		NetworkBufferSize: &networkBufSize,
+	}
+
+	srv, bpfSrv := newServices(t, cfg)
+	srv.pamCfg = &pamcfg.PAMConfig{
+		Enabled:     true,
+		ServiceName: "sshd",
+	}
+
+	testBPFStress(t, srv, bpfSrv)
+}
+
+func testBPFStress(t *testing.T, srv Server, bpfSrv bpf.BPF) {
+	// Create a TCP listener. Register the listeners to be closed in
+	// case the test fails before the connection handling goroutines
+	// are started, the listeners will be closed before waiting for
+	// the goroutines to finish otherwise.
+	lis, err := net.Listen("tcp4", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		lis.Close()
+	})
+
+	netAddr := lis.Addr().String()
+	addr, portStr, err := net.SplitHostPort(netAddr)
+	require.NoError(t, err)
+	port, err := strconv.Atoi(portStr)
+	require.NoError(t, err)
+
+	var wg sync.WaitGroup
+	wg.Go(func() { handleConnections(lis) })
+	t.Cleanup(func() {
+		lis.Close()
+		wg.Wait()
+	})
+
+	tt := bpfTestCase{
+		name:    "stress test",
+		command: fmt.Sprintf("for i in $(seq 1 %d); do { curl %s; ls -lahiZ; } & done; wait", stressTestRunCount, netAddr),
+		eventInfos: []expectedEvents{
+			{
+				cmdInfo: commandInfo{
+					program: "ls",
+					args:    []string{"-lahiZ"},
+				},
+				paths: []string{
+					"/proc/filesystems",
+					"/etc/nsswitch.conf",
+					"/etc/passwd",
+					"/etc/group",
+				},
+				count: stressTestRunCount,
+			},
+			{
+				cmdInfo: commandInfo{
+					program: "curl",
+					args:    []string{netAddr},
+				},
+				dstAddr: &addrInfo{addr: addr, port: port},
+				count:   stressTestRunCount,
+			},
+			{
+				cmdInfo: commandInfo{
+					program: "seq",
+					args:    []string{"1", strconv.Itoa(stressTestRunCount)},
+				},
+			},
+		},
+	}
+
+	runBPFTestCase(t, srv, bpfSrv, tt, true)
 }
 
 func TestBPFMonitoring(t *testing.T) {
 	skipIfNoBPF(t)
 
-	srv, bpfSrv := newServices(t)
+	srv, bpfSrv := newServices(t, nil)
 
 	testBPFMonitoring(t, srv, bpfSrv)
 }
@@ -675,8 +1087,8 @@ func TestBPFMonitoringWithPAM(t *testing.T) {
 	skipIfNoBPF(t)
 	skipIfNoPAM(t)
 
-	srv, bpfSrv := newServices(t)
-	srv.pamCfg = &servicecfg.PAMConfig{
+	srv, bpfSrv := newServices(t, nil)
+	srv.pamCfg = &pamcfg.PAMConfig{
 		Enabled:     true,
 		ServiceName: "sshd",
 	}
@@ -701,7 +1113,7 @@ func testBPFMonitoring(t *testing.T, srv Server, bpfSrv bpf.BPF) {
 	// commands will.
 	eventsCh := make(chan []apievents.AuditEvent)
 	wg.Go(func() {
-		eventsCh <- runCommand(t, srv, bpfSrv, "sleep 3", false, recordAllEvents)
+		eventsCh <- runCommand(t, srv, bpfSrv, "sleep 3", false, recordAllEvents, false)
 	})
 
 	// Run curl commands that the bpf programs should ignore.
@@ -756,7 +1168,7 @@ func testBPFMonitoring(t *testing.T, srv Server, bpfSrv bpf.BPF) {
 func TestBPFRoleOptions(t *testing.T) {
 	skipIfNoBPF(t)
 
-	srv, bpfSrv := newServices(t)
+	srv, bpfSrv := newServices(t, nil)
 
 	lis, err := net.Listen("tcp4", "127.0.0.1:0")
 	require.NoError(t, err)
@@ -821,7 +1233,7 @@ func TestBPFRoleOptions(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Run the command and capture the events.
-			recordedEvents := runCommand(t, srv, bpfSrv, command, true, tt.events)
+			recordedEvents := runCommand(t, srv, bpfSrv, command, true, tt.events, false)
 
 			// Check that only configured events were recorded.
 			if len(tt.events) == 0 {
@@ -881,10 +1293,14 @@ func commandKey(program string, args []string) string {
 	return fmt.Sprintf("%s [%s]", program, quoteStrings(args))
 }
 
-func newServices(t *testing.T) (*mockServer, bpf.BPF) {
+func newServices(t *testing.T, cfg *servicecfg.BPFConfig) (*mockServer, bpf.BPF) {
 	t.Helper()
 
-	bpfSrv, err := bpf.New(&servicecfg.BPFConfig{Enabled: true})
+	if cfg == nil {
+		cfg = &servicecfg.BPFConfig{}
+	}
+	cfg.Enabled = true
+	bpfSrv, err := bpf.New(cfg)
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
@@ -912,7 +1328,7 @@ func handleConnections(l net.Listener) {
 
 // runCommand runs the given command with Enhanced Session Recording
 // enabled and returns the recorded events.
-func runCommand(t *testing.T, srv Server, bpfSrv bpf.BPF, command string, expectedCmdFail bool, recordEvents map[string]struct{}) []apievents.AuditEvent {
+func runCommand(t *testing.T, srv Server, bpfSrv bpf.BPF, command string, expectedCmdFail bool, recordEvents map[string]struct{}, closeBPFSrv bool) []apievents.AuditEvent {
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	t.Cleanup(cancel)
 
@@ -930,7 +1346,7 @@ func runCommand(t *testing.T, srv Server, bpfSrv bpf.BPF, command string, expect
 
 	t.Logf("running %q", command)
 
-	_, err := scx.execRequest.Start(ctx, channel)
+	err := scx.execRequest.Start(ctx, channel)
 	require.NoError(t, err)
 
 	t.Log("reading audit session ID")
@@ -966,9 +1382,10 @@ func runCommand(t *testing.T, srv Server, bpfSrv bpf.BPF, command string, expect
 	var wg sync.WaitGroup
 	cmdDone := make(chan error, 1)
 
+	require.IsType(t, (*localExec)(nil), scx.execRequest)
+	execReq := scx.execRequest.(*localExec)
+
 	wg.Go(func() {
-		execReq, ok := scx.execRequest.(*localExec)
-		require.True(t, ok)
 		cmdDone <- execReq.Cmd.Wait()
 	})
 
@@ -1003,7 +1420,7 @@ func runCommand(t *testing.T, srv Server, bpfSrv bpf.BPF, command string, expect
 	case <-ctx.Done():
 		// We're not interested in the error, we just want to clean up the
 		// process.
-		_ = scx.killShellw.Close()
+		_ = execReq.Cmd.Kill()
 		if !errors.Is(ctx.Err(), context.Canceled) {
 			t.Fatal("Timed out waiting for process to finish.")
 		}
@@ -1017,10 +1434,18 @@ func runCommand(t *testing.T, srv Server, bpfSrv bpf.BPF, command string, expect
 		}
 	}
 
+	// Close the BPF service if requested, this will flush the ebpf ring
+	// buffers that hold events and ensure all pending events are processed.
+	if closeBPFSrv {
+		require.NoError(t, bpfSrv.Close(true))
+	}
+
 	return emitter.Events()
 }
 
 func getProgramLibs(t *testing.T, path string, count int) []countedValue[string] {
+	t.Helper()
+
 	elfFile, err := elf.Open(path)
 	require.NoError(t, err)
 	importedLibs, err := elfFile.ImportedLibraries()
@@ -1057,12 +1482,31 @@ func checkCommandEvent(t *testing.T, e *apievents.SessionCommand, cmdPaths map[s
 // checkDiskEvent returns true if the given disk event matches an
 // expected disk event. If the event is an expected event, the matched
 // path will be removed from the expected paths map.
-func checkDiskEvent(t *testing.T, e *apievents.SessionDisk, expectedPaths map[string][]countedValue[string], matchBase bool) bool {
+func checkDiskEvent(t *testing.T, e *apievents.SessionDisk, expectedPaths map[string][]countedValue[string], isLib bool) bool {
 	t.Helper()
 
 	path := e.Path
-	if matchBase {
-		path = filepath.Base(e.Path)
+	// We have the basenames of libraries to check against, and on top
+	// of that some libraries are symlinks to other libraries; so we
+	// check if the basename of the path contains the expected library
+	// as a prefix. For example if we expect to see librtmp.so.1 and
+	// it's a symlink to librtmp.so.1.2.3 then using this logic the path
+	// /usr/lib/librtmp.so.1.2.3 will be considered a match.
+	if isLib {
+		expectedLibs, ok := expectedPaths[e.BPFMetadata.Program]
+		if !ok {
+			return false
+		}
+
+		lib := filepath.Base(e.Path)
+		for i := range expectedLibs {
+			if strings.HasPrefix(lib, expectedLibs[i].value) {
+				expectedLibs[i].count--
+				expectedPaths[e.BPFMetadata.Program] = expectedLibs
+				t.Log("disk event is expected!")
+				return true
+			}
+		}
 	}
 
 	if checkEvent(e.BPFMetadata.Program, path, expectedPaths) {
@@ -1107,6 +1551,24 @@ func checkEvent[T comparable](program string, eventField T, expectedFields map[s
 	}
 
 	return false
+}
+
+// lookResolvedPath looks up the given file in PATH and resolves any
+// symlinks in the resulting path. The resolved path is returned.
+// This is necessary when testing on Fedora based distros where
+// /bin is symlinked to /usr/bin. This causes exec.LookPath to return
+// paths in /bin, but the binaries actually reside in /usr/bin and will
+// be correctly reported as being opened from /usr/bin in events.
+func lookResolvedPath(t *testing.T, file string) string {
+	t.Helper()
+
+	path, err := exec.LookPath(file)
+	require.NoError(t, err, "%s command is required for these tests but was not found", file)
+
+	resolved, err := filepath.EvalSymlinks(path)
+	require.NoError(t, err, path)
+
+	return resolved
 }
 
 func quoteStrings(s []string) string {

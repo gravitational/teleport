@@ -67,6 +67,9 @@ const (
 	// Github means authentication will happen remotely using a Github connector.
 	Github = "github"
 
+	// BrowserMFA is for CLI flows that delegate MFA to the browser.
+	BrowserMFA = "browser_mfa"
+
 	// HumanDateFormatSeconds is a human readable date formatting with seconds
 	HumanDateFormatSeconds = "Jan 2 2006 15:04:05 UTC"
 
@@ -295,6 +298,9 @@ const (
 	LockingModeBestEffort = LockingMode("best_effort")
 )
 
+// MaxProtoMessageSizeBytes is maximum protobuf marshaled message size.
+const MaxProtoMessageSizeBytes = 64 * 1024
+
 // DeviceTrustMode is the mode of verification for trusted devices.
 // DeviceTrustMode is always "off" for OSS.
 // Defaults to "optional" for Enterprise.
@@ -337,8 +343,6 @@ const (
 	ALPNSNIProtocolReverseTunnel = "teleport-reversetunnel"
 	// ALPNSNIProtocolSSH is the TLS ALPN protocol value used to indicate Proxy SSH protocol.
 	ALPNSNIProtocolSSH = "teleport-proxy-ssh"
-	// ALPNSNIProtocolPingSuffix is TLS ALPN suffix used to wrap connections with Ping.
-	ALPNSNIProtocolPingSuffix = "-ping"
 )
 
 const (
@@ -459,6 +463,12 @@ const (
 	// start time can be
 	MaxAssumeStartDuration = time.Hour * 24 * 7
 )
+
+// MaxAuthConnectorNameLength is the maximum allowed length of an authentication connector name.
+// The connector name is used as its backend key. This value is selected to be large enough for
+// all real-world use cases, but small enough to not exceed the key length on Teleport's supported
+// backends.
+const MaxAuthConnectorNameLength = 768
 
 const (
 	// MaxHealthCheckInterval is the minimum interval between resource health
@@ -597,4 +607,18 @@ const (
 	UnstableEnableEICEEnvVar = "TELEPORT_UNSTABLE_ENABLE_EICE"
 	// EICEDisabledMessage is the message that gets returned to the user when they try to use this functionality.
 	EICEDisabledMessage = "support for accessing EC2 instances using EC2 Instance Connect Endpoint was removed"
+)
+
+const (
+	// TeleportDropGroup is a default group that users of the teleport automated user
+	// provisioning system get added to when provisioned in INSECURE_DROP mode. This
+	// prevents already existing users from being tampered with or deleted.
+	TeleportDropGroup = "teleport-system"
+	// TeleportKeepGroup is a default group that users of the teleport automated user
+	// provisioning system get added to when provisioned in KEEP mode. This prevents
+	// already existing users from being tampered with or deleted.
+	TeleportKeepGroup = "teleport-keep"
+	// TeleportStaticGroup is a default group that static host users get added to. This
+	// prevents already existing users from being tampered with or deleted.
+	TeleportStaticGroup = "teleport-static"
 )

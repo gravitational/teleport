@@ -50,18 +50,16 @@ export function ParameterPicker(props: ParameterPickerProps) {
   const [suggestionsAttempt, getSuggestions] = useAsync(
     props.action.parameter.getSuggestions
   );
+  const { allowOnlySuggestions } = props.action.parameter;
   const inputSuggestionAttempt = makeSuccessAttempt(
     inputValue &&
-      !props.action.parameter.allowOnlySuggestions && [
-        { value: inputValue, displayText: inputValue },
-      ]
+      !allowOnlySuggestions && [{ value: inputValue, displayText: inputValue }]
   );
 
   useEffect(() => {
     getSuggestions();
     // We want to get suggestions only once on mount.
     // useAsync already handles cleanup and calling the hook twice.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const matchingSuggestionsAttempt = mapAttempt(
@@ -72,7 +70,7 @@ export function ParameterPicker(props: ParameterPickerProps) {
           v.displayText
             .toLocaleLowerCase()
             .includes(inputValue.toLocaleLowerCase()) &&
-          v.displayText !== inputValue
+          (allowOnlySuggestions || v.displayText !== inputValue)
       )
   );
 

@@ -50,7 +50,9 @@ export function PromotedMessage({
         <br />
         {self ? (
           <>
-            You are now a member of Access List <b>{promotedAccessListTitle}</b>{' '}
+            You are now a member of Access List <b>
+              {promotedAccessListTitle}
+            </b>{' '}
             which grants you the resources requested.
           </>
         ) : (
@@ -182,6 +184,8 @@ function getIcon(item: RequestableResourceKind): ComponentType<IconProps> {
       return Icon.GitHub;
     case 'windows_desktop':
       return Icon.Desktop;
+    case 'linux_desktop':
+      return Icon.Linux;
     case 'resource': // This probably never shows in the UI.
       return Icon.Server;
     default:

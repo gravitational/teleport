@@ -151,7 +151,7 @@ type tdpHandshaker struct {
 func (t *tdpHandshaker) sendError(ctx context.Context, log *slog.Logger, err error) error {
 	if err == nil {
 		log.WarnContext(ctx, "SendError called with empty message")
-		err = errors.New("an an unknown error has occurred")
+		err = errors.New("an unknown error has occurred")
 	}
 
 	return trace.Wrap(t.connection.WriteMessage((&legacy.Alert{
@@ -348,7 +348,7 @@ func newHandshaker(protocol string, ws *websocket.Conn) handshaker {
 	}
 	// Default to TDP
 	return &tdpHandshaker{
-		connection: tdp.NewConn(&WebsocketIO{Conn: ws}, legacy.Decode),
+		connection: tdp.NewConn(&WebsocketIO{Conn: ws}, legacy.Decode, legacy.WarningConstructor),
 	}
 }
 
@@ -624,7 +624,7 @@ func (h *Handler) performSessionMFACeremony(
 
 	mfaCeremony := &mfa.Ceremony{
 		CreateAuthenticateChallenge: sctx.cfg.RootClient.CreateAuthenticateChallenge,
-		SSOMFACeremonyConstructor: func(_ context.Context) (mfa.SSOMFACeremony, error) {
+		MFACeremonyConstructor: func(_ context.Context) (mfa.CallbackCeremony, error) {
 			u, err := url.Parse(sso.WebMFARedirect)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -756,9 +756,9 @@ func (d desktopPinger) pingTDPB(ctx context.Context) error {
 
 func newConn(rwc io.ReadWriteCloser, protocol string) *tdp.Conn {
 	if protocol == tdpb.ProtocolName {
-		return tdp.NewConn(rwc, tdp.DecoderAdapter(tdpb.DecodePermissive))
+		return tdp.NewConn(rwc, tdp.DecoderAdapter(tdpb.DecodePermissive), tdpb.WarningConstructor)
 	}
-	return tdp.NewConn(rwc, legacy.Decode)
+	return tdp.NewConn(rwc, legacy.Decode, legacy.WarningConstructor)
 }
 
 type desktopWebsocketProxy struct {

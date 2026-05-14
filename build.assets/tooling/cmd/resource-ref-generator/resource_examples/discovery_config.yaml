@@ -29,7 +29,7 @@ spec:
     # 'elasticache' - Amazon ElastiCache Redis and Valkey databases.
     # 'elasticache-serverless' - Amazon ElastiCache Serverless Redis or Valkey databases.
     # 'memorydb' - Amazon MemoryDB databases.
-    # 'opensearch' - Amazon OpenSearch Redis databases.
+    # 'opensearch' - Amazon OpenSearch databases.
     # 'docdb' - Amazon DocumentDB databases.
   - types: ["ec2"]
     # AWS regions to search for resources from

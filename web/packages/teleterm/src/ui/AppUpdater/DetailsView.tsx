@@ -207,18 +207,19 @@ function UpdaterState({
         </Stack>
       );
     case 'update-downloaded':
-      const label =
-        platform === 'darwin'
-          ? 'Ready to install'
-          : 'Ready to install. Admin permissions may be required.';
+    case 'installing':
       return (
         <Stack gap={3} width="100%">
           <Stack width="100%">
             <AvailableUpdate update={event.update} platform={platform} />
-            <Progress progressPercent={100} label={label} />
+            <Progress progressPercent={100} label="Ready to install" />
           </Stack>
-          <ButtonPrimary block onClick={onInstall}>
-            Restart
+          <ButtonPrimary
+            block
+            onClick={onInstall}
+            disabled={event.kind === 'installing'}
+          >
+            {event.kind === 'installing' ? 'Restarting…' : 'Restart'}
           </ButtonPrimary>
         </Stack>
       );
@@ -275,10 +276,14 @@ function AvailableUpdate(props: { update: UpdateInfo; platform: Platform }) {
               Teleport Connect updates are currently configured using deprecated
               environment variables (<code>TELEPORT_TOOLS_VERSION</code> or{' '}
               <code>TELEPORT_CDN_BASE_URL</code>). To continue receiving updates
-              without requiring UAC prompts, migrate these settings to the
-              system policy registry keys:{' '}
-              <code>HKLM\SOFTWARE\Policies\Teleport\TeleportConnect</code>.
-              {/*TODO(gzdunek): Link to docs.*/}
+              without requiring UAC prompts, migrate these settings to the{' '}
+              <Link
+                target="_blank"
+                href="https://goteleport.com/docs/connect-your-client/teleport-clients/teleport-connect#managed-updates-configuration"
+              >
+                system policy registry keys
+              </Link>{' '}
+              (<code>HKLM\SOFTWARE\Policies\Teleport\TeleportConnect</code>).
             </Text>
           </Flex>
         )}

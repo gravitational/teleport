@@ -28,12 +28,31 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// ParseCertificatePEM parses PEM-encoded x509 certificate.
+// ParseCertificatePEMStrict parses a PEM-encoded x509 certificate.
+//
+// It is a strict variant of [ParseCertificatePEM], disallowing trailing data in
+// the PEM block and requiring the block type to be CERTIFICATE.
+func ParseCertificatePEMStrict(bytes []byte) (*x509.Certificate, error) {
+	return parseCertificatePEM(bytes, true /* strict */)
+}
+
+// ParseCertificatePEM parses a PEM-encoded x509 certificate.
 func ParseCertificatePEM(bytes []byte) (*x509.Certificate, error) {
-	block, _ := pem.Decode(bytes)
-	if block == nil {
+	return parseCertificatePEM(bytes, false /* strict */)
+}
+
+func parseCertificatePEM(bytes []byte, strict bool) (*x509.Certificate, error) {
+	block, rest := pem.Decode(bytes)
+	const wantBlockType = "CERTIFICATE"
+	switch {
+	case block == nil:
 		return nil, trace.BadParameter("expected PEM-encoded block")
+	case strict && block.Type != wantBlockType:
+		return nil, trace.BadParameter("certificate PEM has unexpected block type %q (want %q)", block.Type, wantBlockType)
+	case strict && len(rest) > 0:
+		return nil, trace.BadParameter("certificate PEM has unexpected trailing data")
 	}
+
 	cert, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {
 		return nil, trace.BadParameter("%s", err)

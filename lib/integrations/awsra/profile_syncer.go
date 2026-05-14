@@ -27,7 +27,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
-	"github.com/aws/aws-sdk-go-v2/config"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/rolesanywhere"
 	"github.com/google/uuid"
@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
+	config "github.com/gravitational/teleport/lib/cloud/aws/config"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -386,8 +387,8 @@ func buildAWSRolesAnywhereClientForIntegration(ctx context.Context, params AWSRo
 
 	awsConfig, err := config.LoadDefaultConfig(
 		ctx,
-		config.WithRegion(region),
-		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(resp.AccessKeyID, resp.SecretAccessKey, resp.SessionToken)),
+		awsconfig.WithRegion(region),
+		awsconfig.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(resp.AccessKeyID, resp.SecretAccessKey, resp.SessionToken)),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -518,6 +519,22 @@ func processProfile(ctx context.Context, req processProfileRequest) error {
 	return nil
 }
 
+// awsConsoleURLForARN returns the AWS management console URL appropriate for
+// the partition and region encoded in the given ARN. For GovCloud, it returns
+// a region-scoped URL (e.g. https://us-gov-west-1.console.amazonaws-us-gov.com)
+// so that downstream code can derive the correct region-scoped federation
+// endpoint required by GovCloud.
+func awsConsoleURLForARN(parsedARN arn.ARN) string {
+	switch parsedARN.Partition {
+	case "aws-us-gov":
+		return constants.AWSUSGovConsoleURL
+	case "aws-cn":
+		return constants.AWSCNConsoleURL
+	default:
+		return constants.AWSConsoleURL
+	}
+}
+
 func convertProfile(params AWSRolesAnywhereProfileSyncerParams, profile *integrationv1.RolesAnywhereProfile, integrationName string, proxyPublicAddr string) (types.AppServer, error) {
 	parsedProfileARN, err := arn.Parse(profile.Arn)
 	if err != nil {
@@ -560,7 +577,7 @@ func convertProfile(params AWSRolesAnywhereProfileSyncerParams, profile *integra
 				Labels: labels,
 			},
 			Spec: types.AppSpecV3{
-				URI:         constants.AWSConsoleURL,
+				URI:         awsConsoleURLForARN(parsedProfileARN),
 				Integration: integrationName,
 				PublicAddr:  appURL,
 				AWS: &types.AppAWS{

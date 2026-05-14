@@ -25,9 +25,9 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -68,8 +68,8 @@ type RemoteClusterTunnelManagerConfig struct {
 	// AccessPoint is a lightweight access point that can optionally cache some
 	// values.
 	AccessPoint authclient.ProxyAccessPoint
-	// AuthMethods contains SSH credentials that this pool connects as.
-	AuthMethods []ssh.AuthMethod
+	// PublicKeyAuth contains SSH credentials that this pool connects as.
+	PublicKeyAuth ssh.PublicKeyAuthConfig
 	// HostUUID is a unique ID of this host
 	HostUUID string
 	// LocalCluster is a cluster name this client is a member of.
@@ -81,6 +81,8 @@ type RemoteClusterTunnelManagerConfig struct {
 	KubeDialAddr utils.NetAddr
 	// FIPS indicates if Teleport was started in FIPS mode.
 	FIPS bool
+	// InsecureMode defines whether insecure connections are allowed.
+	InsecureMode bool
 	// Logger is the logger
 	Logger *slog.Logger
 	// LocalAuthAddresses is a list of auth servers to use when dialing back to
@@ -97,8 +99,8 @@ func (c *RemoteClusterTunnelManagerConfig) CheckAndSetDefaults() error {
 	if c.AccessPoint == nil {
 		return trace.BadParameter("missing AccessPoint in RemoteClusterTunnelManagerConfig")
 	}
-	if len(c.AuthMethods) == 0 {
-		return trace.BadParameter("missing AuthMethods in RemoteClusterTunnelManagerConfig")
+	if c.PublicKeyAuth.IsEmpty() {
+		return trace.BadParameter("missing PublicKeyAuthConfig in RemoteClusterTunnelManagerConfig")
 	}
 	if c.HostUUID == "" {
 		return trace.BadParameter("missing HostUUID in RemoteClusterTunnelManagerConfig")
@@ -360,10 +362,11 @@ func (w *RemoteClusterTunnelManager) Sync(ctx context.Context) error {
 
 func realNewAgentPool(ctx context.Context, cfg RemoteClusterTunnelManagerConfig, cluster, addr string) (*AgentPool, error) {
 	pool, err := NewAgentPool(ctx, AgentPoolConfig{
+		InsecureMode: cfg.InsecureMode,
 		// Configs for our cluster.
 		Client:              cfg.AuthClient,
 		AccessPoint:         cfg.AccessPoint,
-		AuthMethods:         cfg.AuthMethods,
+		PublicKeyAuth:       cfg.PublicKeyAuth,
 		HostUUID:            cfg.HostUUID,
 		LocalCluster:        cfg.LocalCluster,
 		KubeDialAddr:        cfg.KubeDialAddr,

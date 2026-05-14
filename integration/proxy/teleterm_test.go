@@ -45,7 +45,6 @@ import (
 	dbhelpers "github.com/gravitational/teleport/integration/db"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/integration/kube"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
@@ -393,10 +392,7 @@ func (c *mockTSHDEventsService) PromptMFA(context.Context, *api.PromptMFARequest
 // is enabled in those tests. User certs with pinned IPs are injected during
 // those tests, which is not feasible for Teleterm daemon flow.
 func TestTeletermKubeGateway(t *testing.T) {
-	lib.SetInsecureDevMode(true)
-	defer lib.SetInsecureDevMode(false)
 	ctx := context.Background()
-
 	const (
 		localK8SNI = constants.KubeTeleportProxyALPNPrefix + "teleport.cluster.local"
 		k8User     = "alice@example.com"

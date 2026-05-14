@@ -156,7 +156,7 @@ const useDesktopPlayer = ({ clusterId, sid }) => {
     if (!playerClient) {
       return;
     }
-    void playerClient.connect();
+    playerClient.connect().catch(clientOnError);
     return () => {
       playerClient.shutdown();
     };

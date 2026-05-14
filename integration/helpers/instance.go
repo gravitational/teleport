@@ -455,6 +455,7 @@ func NewInstance(t *testing.T, cfg InstanceConfig) *TeleInstance {
 		Log:               cfg.Logger,
 		InstanceListeners: *cfg.Listeners,
 		Fds:               cfg.Fds,
+		Modules:           cfg.Modules,
 	}
 
 	secrets := InstanceSecrets{
@@ -902,6 +903,7 @@ func (i *TeleInstance) StartApps(configs []*servicecfg.Config) ([]*service.Telep
 			cfg.Auth.Enabled = false
 			cfg.Proxy.Enabled = false
 			cfg.DebugService.Enabled = false
+			cfg.InsecureMode = true
 
 			// Create a new Teleport process and add it to the list of nodes that
 			// compose this "cluster".
@@ -1095,6 +1097,7 @@ func (i *TeleInstance) StartNodeAndProxy(t *testing.T, name string) (sshPort, we
 	}
 
 	tconf.Auth.Enabled = false
+	tconf.InsecureMode = true
 
 	tconf.Proxy.Enabled = true
 	tconf.Proxy.SSHAddr.Addr = NewListenerOn(t, i.Hostname, service.ListenerProxySSH, &tconf.FileDescriptors)
@@ -1975,8 +1978,8 @@ func (i *TeleInstance) StopAll() error {
 }
 
 // WaitForNodeCount waits for a certain number of nodes in the provided cluster
-// to be visible to the Proxy. This should be called prior to any client dialing
-// of nodes to be sure that the node is registered and routable.
+// to be connected to the cluster. This should be called prior to any client
+// dialing of nodes to be sure that the node is registered and routable.
 func (i *TeleInstance) WaitForNodeCount(ctx context.Context, clusterName string, count int) error {
 	const (
 		deadline     = time.Second * 30
@@ -2005,6 +2008,23 @@ func (i *TeleInstance) WaitForNodeCount(ctx context.Context, clusterName string,
 		}
 		if len(nodes) != count {
 			return trace.BadParameter("cache contained %v nodes, but wanted to find %v nodes", len(nodes), count)
+		}
+
+		// Validate that the nodes are connected to the cluster.
+		for _, n := range nodes {
+			conn, err := cluster.DialTCP(reversetunnelclient.DialParams{
+				ConnType:     types.NodeTunnel,
+				ServerID:     n.GetName() + "." + clusterName,
+				TargetServer: n,
+				To: &utils.NetAddr{
+					AddrNetwork: "tcp",
+					Addr:        n.GetAddr(),
+				},
+			})
+			if err != nil {
+				return trace.Wrap(err, "node tunnel preflight dial failed")
+			}
+			conn.Close()
 		}
 
 		// Validate that the site watcher contains the expected count.

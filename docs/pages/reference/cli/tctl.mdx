@@ -6,6 +6,8 @@ tags:
   - reference
   - platform-wide
 ---
+{/*GENERATED FILE. DO NOT EDIT.*/}
+{/*To generate, run: make cli-docs-tctl*/}
 {/*vale messaging = NO*/}
 
 This guide provides a comprehensive list of commands, arguments, and flags for
@@ -28,18 +30,20 @@ Global flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--auth-server`|none|Attempts to connect to specific auth/proxy address(es) instead of local auth \[127.0.0.1:3025\]|
-|`-c`, `--config`|none|Path to a configuration file \[/etc/teleport.yaml\] for an Auth Service instance. Can also be set via the TELEPORT_CONFIG_FILE environment variable. Ignored if the auth_service is disabled.|
+|`--auth-server`|*no default*|Attempts to connect to specific auth/proxy address(es) instead of local auth \[127.0.0.1:3025\]|
+|`-c`, `--config`|*no default*|Path to a configuration file \[/etc/teleport.yaml\] for an Auth Service instance. Can also be set via the TELEPORT_CONFIG_FILE environment variable. Ignored if the auth_service is disabled.|
 |`-d`, `--[no-]debug`|`false`|Enable verbose logging to stderr|
-|`-i`, `--identity`|none|Path to an identity file. Must be provided to make remote connections to auth. An identity file can be exported with 'tctl auth sign'|
+|`-i`, `--identity`|*no default*|Path to an identity file. Must be provided to make remote connections to auth. An identity file can be exported with 'tctl auth sign'|
+|`--mfa-mode`|`auto` (one of: `auto`, `cross-platform`, `platform`, `sso`, `browser`)|Preferred mode for MFA assertions.|
 |`--[no-]insecure`|`false`|When specifying a proxy address in --auth-server, do not verify its TLS certificate. Danger: any data you send can be intercepted or modified by an attacker.|
 
 Global environment variables:
 
 |Variable|Default|Description|
 |---|---|---|
-|`TELEPORT_AUTH_SERVER`|none|Attempts to connect to specific auth/proxy address(es) instead of local auth [127.0.0.1:3025]|
-|`TELEPORT_IDENTITY_FILE`|none|Path to an identity file. Must be provided to make remote connections to auth. An identity file can be exported with 'tctl auth sign'|
+|`TELEPORT_AUTH_SERVER`|*no default*|Attempts to connect to specific auth/proxy address(es) instead of local auth [127.0.0.1:3025]|
+|`TELEPORT_IDENTITY_FILE`|*no default*|Path to an identity file. Must be provided to make remote connections to auth. An identity file can be exported with 'tctl auth sign'|
+|`TELEPORT_MFA_MODE`|`auto` (one of: `auto`, `cross-platform`, `platform`, `sso`, `browser`)|Preferred mode for MFA assertions.|
 
 ## tctl acl get
 
@@ -55,13 +59,13 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--format`|`yaml`|Output format, 'yaml', 'json', or 'text'|
+|`--format`|`yaml` (one of: `yaml`, `json`, `text`)|Output format.|
 
 Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|access-list-name|none (required)|The Access List name.|
+|access-list-name|*no default* (required)|The Access List name.|
 
 ## tctl acl ls
 
@@ -77,7 +81,77 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--format`|`yaml`|Output format, 'yaml', 'json', or 'text'|
+|`--format`|`yaml` (one of: `yaml`, `json`, `text`)|Output format.|
+|`--[no-]review-only`|`false`|List only access lists that are due for review within the next 2 weeks or past due|
+
+## tctl acl reviews create
+
+Submit a new review for a given access list.
+
+Usage:
+
+```code
+$ tctl acl reviews create [<flags>] <access-list-name>
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--notes`|*no default*|Optional review notes.|
+|`--remove-members`|*no default*|Comma-separated list of members to remove as part of this review.|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|access-list-name|*no default* (required)|The access list name to submit review for.|
+
+## tctl acl reviews ls
+
+List past audit history for a given access list.
+
+Usage:
+
+```code
+$ tctl acl reviews ls [<flags>] <access-list-name>
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `yaml`, `json`, `text`)|Output format.|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|access-list-name|*no default* (required)|The access list name to fetch review history for.|
+
+## tctl acl summary
+
+Show summary information for access lists, including their members and last
+review.
+
+Usage:
+
+```code
+$ tctl acl summary [<flags>] [<access-list-name>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`yaml` (one of: `yaml`, `json`)|Output format.|
+|`--[no-]review-only`|`true`|Show only access lists that are due for review within the next 2 weeks or past due. Defaults to true.|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|access-list-name|*no default* (optional)|The access list name to show summary for. If not provided, shows summary for all access lists.|
 
 ## tctl acl users add
 
@@ -93,16 +167,16 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--kind`|`user`|Access list member kind, 'user' or 'list'|
+|`--kind`|`user` (one of: `user`, `list`)|Access list member kind.|
 
 Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|access-list-name|none (required)|The Access List name.|
-|expires|none (optional)|When the user's access expires (must be in RFC3339). Defaults to the expiration time of the Access List.|
-|reason|none (optional)|The reason the user has been added to the Access List. Defaults to empty.|
-|user|none (required)|The user to add to the Access List.|
+|access-list-name|*no default* (required)|The Access List name.|
+|expires|*no default* (optional)|When the user's access expires (must be in RFC3339). Defaults to the expiration time of the Access List.|
+|reason|*no default* (optional)|The reason the user has been added to the Access List. Defaults to empty.|
+|user|*no default* (required)|The user to add to the Access List.|
 
 ## tctl acl users ls
 
@@ -118,13 +192,13 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--format`|`text`|Output format 'json', or 'text'|
+|`--format`|`text` (one of: `json`, `text`)|Output format.|
 
 Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|access-list-name|none (required)|The Access List name.|
+|access-list-name|*no default* (required)|The Access List name.|
 
 ## tctl acl users rm
 
@@ -140,8 +214,8 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|access-list-name|none (required)|The Access List name.|
-|user|none (required)|The user to remove from the Access List.|
+|access-list-name|*no default* (required)|The Access List name.|
+|user|*no default* (required)|The user to remove from the Access List.|
 
 ## tctl alerts ack
 
@@ -157,16 +231,16 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--format`|`text`|Output format, 'text', 'json', or 'yaml'|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 |`--[no-]clear`|`false`|Clear the acknowledgment for the cluster alert.|
-|`--reason`|none|The reason for acknowledging the cluster alert.|
-|`--ttl`|none|Time duration to acknowledge the cluster alert for.|
+|`--reason`|*no default*|The reason for acknowledging the cluster alert.|
+|`--ttl`|*no default*|Time duration to acknowledge the cluster alert for.|
 
 Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|id|none (required)|The cluster alert ID.|
+|id|*no default* (required)|The cluster alert ID.|
 
 ## tctl alerts ack ls
 
@@ -192,15 +266,31 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--labels`|none|List of labels to attach to the alert. For example: key1=value1,key2=value2.|
-|`--severity`|`low`|Severity of the alert (low, medium, or high).|
-|`--ttl`|none|Time duration after which the alert expires (default 24h).|
+|`--labels`|*no default*|List of labels to attach to the alert. For example: key1=value1,key2=value2.|
+|`--severity`|`low` (one of: `low`, `medium`, `high`)|Severity of the alert.|
+|`--ttl`|*no default*|Time duration after which the alert expires (default 24h).|
 
 Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|message|none (required)|Alert body message.|
+|message|*no default* (required)|Alert body message.|
+
+## tctl alerts delete
+
+Deletes a cluster alert.
+
+Usage:
+
+```code
+$ tctl alerts delete <id>
+```
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|id|*no default* (required)|The cluster alert ID.|
 
 ## tctl alerts list
 
@@ -216,8 +306,8 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--format`|`text`|Output format, 'text', 'json', or 'yaml'|
-|`--labels`|none|List of comma separated labels to filter by labels (e.g. key1=value1,key2=value2)|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
+|`--labels`|*no default*|List of comma separated labels to filter by labels (e.g. key1=value1,key2=value2)|
 |`-v`, `--[no-]verbose`|`false`|Show detailed alert info, including acknowledged alerts.|
 
 ## tctl apps ls
@@ -235,15 +325,15 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`--format`|`text`|Output format, 'text', 'json', or 'yaml'|
-|`--query`|none|Query by predicate language enclosed in single quotes. Supports ==, !=, &&, and \|\| (e.g. --query='labels\["key1"\] == "value1" && labels\["key2"\] != "value2"')|
-|`--search`|none|List of comma separated search keywords or phrases enclosed in quotations (e.g. --search=foo,bar,"some phrase")|
+|`--query`|*no default*|Query by predicate language enclosed in single quotes. Supports ==, !=, &&, and \|\| (e.g. --query='labels\["key1"\] == "value1" && labels\["key2"\] != "value2"')|
+|`--search`|*no default*|List of comma separated search keywords or phrases enclosed in quotations (e.g. --search=foo,bar,"some phrase")|
 |`-v`, `--[no-]verbose`|`false`|Verbose table output, shows full label output|
 
 Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|labels|none (optional)|List of comma separated labels to filter by labels (e.g. key1=value1,key2=value2)|
+|labels|*no default* (optional)|List of comma separated labels to filter by labels (e.g. key1=value1,key2=value2)|
 
 ## tctl audit query create
 
@@ -259,13 +349,13 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--name`|none|Audit query name|
+|`--name`|*no default*|Audit query name|
 
 Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|query|none (optional)|SQL Query|
+|query|*no default* (optional)|SQL Query|
 
 ## tctl audit query exec
 
@@ -281,7 +371,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|query|none (optional)|SQL Query|
+|query|*no default* (optional)|SQL Query|
 
 ## tctl audit query get
 
@@ -297,7 +387,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|name|none (required)|name of the audit query|
+|name|*no default* (required)|name of the audit query|
 
 ## tctl audit query ls
 
@@ -323,7 +413,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|name|none (required)|name of the audit query|
+|name|*no default* (required)|name of the audit query|
 
 ## tctl audit report get
 
@@ -339,7 +429,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|name|none (required)|security name|
+|name|*no default* (required)|security name|
 
 ## tctl audit report ls
 
@@ -365,7 +455,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|name|none (required)|security report name|
+|name|*no default* (required)|security report name|
 
 ## tctl audit report state
 
@@ -381,7 +471,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|name|none (required)|security report name|
+|name|*no default* (required)|security report name|
 
 ## tctl audit schema
 
@@ -408,8 +498,8 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--out`|none|If set, writes exported revocation lists to files with the given path prefix|
-|`--type`|none|Certificate authority type, one of: host, db, db_client, user|
+|`--out`|*no default*|If set, writes exported revocation lists to files with the given path prefix|
+|`--type`|*no default* (one of: `host`, `db`, `db_client`, `user`)|Certificate authority type.|
 
 ## tctl auth export
 
@@ -425,12 +515,12 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--compat`|none|export certificates compatible with specific version of Teleport|
-|`--fingerprint`|none|filter authority by fingerprint|
-|`--integration`|none|Name of the integration. Only applies to "github" CAs.|
+|`--compat`|*no default*|export certificates compatible with specific version of Teleport|
+|`--fingerprint`|*no default*|filter authority by fingerprint|
+|`--integration`|*no default*|Name of the integration. Only applies to "github" CAs.|
 |`--[no-]keys`|`false`|if set, will print private keys|
-|`--out`|none|If set writes exported authorities to files with the given path prefix|
-|`--type`|none|export certificate type (user, host, tls-host, tls-user, tls-user-der, tls-spiffe, windows, db, db-der, db-client, db-client-der, openssh, saml-idp, github, awsra)|
+|`--out`|*no default*|If set writes exported authorities to files with the given path prefix|
+|`--type`|*no default* (one of: `user`, `host`, `tls-host`, `tls-user`, `tls-user-der`, `tls-spiffe`, `windows`, `db`, `db-der`, `db-client`, `db-client-der`, `openssh`, `saml-idp`, `github`, `awsra`, `app-client`)|export certificate type (user, host, tls-host, tls-user, tls-user-der, tls-spiffe, windows, db, db-der, db-client, db-client-der, openssh, saml-idp, github, awsra, app-client)|
 
 ## tctl auth ls
 
@@ -466,8 +556,8 @@ Flags:
 |`--grace-period`|`30h0m0s`|Grace period keeps previous certificate authorities signatures valid, if set to 0 will force users to re-login and nodes to re-register.|
 |`--[no-]interactive`|`false`|Enable interactive mode|
 |`--[no-]manual`|`false`|Activate manual rotation, set rotation phases manually|
-|`--phase`|none|Target rotation phase to set, used in manual rotation, one of: init, standby, update_clients, update_servers, rollback|
-|`--type`|none|Certificate authority to rotate, one of: host, user, db, db_client, openssh, jwt, saml_idp, oidc_idp, spiffe, okta, awsra, bound_keypair|
+|`--phase`|*no default*|Target rotation phase to set, used in manual rotation, one of: init, standby, update_clients, update_servers, rollback|
+|`--type`|*no default* (one of: `host`, `windows`, `user`, `db`, `db_client`, `openssh`, `jwt`, `saml_idp`, `oidc_idp`, `spiffe`, `okta`, `awsra`, `bound_keypair`, `app_client`)|Certificate authority to rotate.|
 
 ## tctl auth sign
 
@@ -483,26 +573,26 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--app-name`|none|Application to generate identity file for. Mutually exclusive with "--db-service".|
-|`--compat`|none|OpenSSH compatibility flag|
-|`--db-name`|none|Database name placed on the identity file. Only used when "--db-service" is set.|
-|`--db-service`|none|Database to generate identity file for. Mutually exclusive with "--app-name".|
-|`--db-user`|none|Database user placed on the identity file. Only used when "--db-service" is set.|
+|`--app-name`|*no default*|Application to generate identity file for. Mutually exclusive with "--db-service".|
+|`--compat`|*no default*|OpenSSH compatibility flag|
+|`--db-name`|*no default*|Database name placed on the identity file. Only used when "--db-service" is set.|
+|`--db-service`|*no default*|Database to generate identity file for. Mutually exclusive with "--app-name".|
+|`--db-user`|*no default*|Database user placed on the identity file. Only used when "--db-service" is set.|
 |`--format`|`file`|Identity format: file, openssh, tls, kubernetes, db, windows, mongodb, cockroachdb, redis, snowflake, elasticsearch, cassandra, scylla, oracle. file is the default.|
-|`--host`|none|Teleport host name|
-|`--kube-cluster-name`|none|Kubernetes cluster to generate identity file for when --format is set to "kubernetes"|
-|`--leaf-cluster`|none|Leaf cluster to generate identity file for when --format is set to "kubernetes"|
+|`--host`|*no default*|Teleport host name|
+|`--kube-cluster-name`|*no default*|Kubernetes cluster to generate identity file for when --format is set to "kubernetes"|
+|`--leaf-cluster`|*no default*|Leaf cluster to generate identity file for when --format is set to "kubernetes"|
 |`--[no-]omit-cdp`|`false`|Omit CRL Distribution Points from the cert. Only used when --format is set to "windows"|
 |`--[no-]overwrite`|`false`|Whether to overwrite existing destination files. When not set, user will be prompted before overwriting any existing file.|
 |`--[no-]tar`|`false`|Create a tarball of the resulting certificates and stream to stdout.|
-|`-o`, `--out`|none|Identity output|
-|`--proxy`|none|Address of the Teleport proxy. When --format is set to "kubernetes", this address will be set as cluster address in the generated kubeconfig file|
+|`-o`, `--out`|*no default*|Identity output|
+|`--proxy`|*no default*|Address of the Teleport proxy. When --format is set to "kubernetes", this address will be set as cluster address in the generated kubeconfig file|
 |`--ttl`|`12h0m0s`|TTL (time to live) for the generated certificate.|
-|`--user`|none|Teleport user name|
-|`--windows-domain`|none|Active Directory domain for which this cert is valid. Only used when --format is set to "windows"|
-|`--windows-pki-domain`|none|Active Directory domain where CRLs will be located. Only used when --format is set to "windows"|
-|`--windows-sid`|none|Optional Security Identifier to embed in the certificate. Only used when --format is set to "windows"|
-|`--windows-user`|none|Window user placed on the identity file. Only used when --format is set to "windows"|
+|`--user`|*no default*|Teleport user name|
+|`--windows-domain`|*no default*|Active Directory domain for which this cert is valid. Only used when --format is set to "windows"|
+|`--windows-pki-domain`|*no default*|Active Directory domain where CRLs will be located. Only used when --format is set to "windows"|
+|`--windows-sid`|*no default*|Optional Security Identifier to embed in the certificate. Only used when --format is set to "windows"|
+|`--windows-user`|*no default*|Window user placed on the identity file. Only used when --format is set to "windows"|
 
 ## tctl autoupdate agents mark-done
 
@@ -518,7 +608,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|groups|none (optional)|Groups to mark as done updating.|
+|groups|*no default* (optional)|Groups to mark as done updating.|
 
 ## tctl autoupdate agents report
 
@@ -545,7 +635,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|groups|none (optional)|Groups to rollback. When empty, every group already started is rolled back.|
+|groups|*no default* (optional)|Groups to rollback. When empty, every group already started is rolled back.|
 
 ## tctl autoupdate agents start-update
 
@@ -567,7 +657,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|groups|none (optional)|Groups to start updating.|
+|groups|*no default* (optional)|Groups to start updating.|
 
 ## tctl autoupdate agents status
 
@@ -617,7 +707,7 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`--format`|`yaml`|Output format: 'yaml' or 'json'|
-|`--proxy`|none|Address of the Teleport proxy. When defined this address will be used to retrieve client tools auto update configuration.|
+|`--proxy`|*no default*|Address of the Teleport proxy. When defined this address will be used to retrieve client tools auto update configuration.|
 
 ## tctl autoupdate client-tools target
 
@@ -640,11 +730,11 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|version|none (optional)|Client tools target version. Clients will be told to update to this version.|
+|version|*no default* (optional)|Client tools target version. Clients will be told to update to this version.|
 
 ## tctl bots add
 
-Add a new certificate renewal bot to the cluster.
+Add a new bot to the cluster.
 
 Usage:
 
@@ -656,17 +746,23 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--logins`|none|List of allowed SSH logins for the bot user|
-|`--max-session-ttl`|none|Set a max session TTL for the bot's internal identity. 12h default, 168h maximum.|
-|`--roles`|none|Roles the bot is able to assume.|
-|`--token`|none|Name of an existing token to use.|
-|`--ttl`|none|TTL for the bot join token.|
+|`--format`|`text` (one of: `text`, `json`)|Output format.|
+|`--initial-public-key`|*no default*|If set, use the given initial public key in SSH authorized_keys format, instead of generating a registration secret. The value must be quoted. Not compatible with --token or --legacy.|
+|`--logins`|*no default*|List of allowed SSH logins for the bot user|
+|`--max-session-ttl`|*no default*|Set a max session TTL for the bot's internal identity. 12h default, 168h maximum.|
+|`--[no-]legacy`|`false`|If set, generate a legacy joining token instead of a bound keypair token. No effect if --token is set.|
+|`--recovery-limit`|*no default*|Overrides the recovery limit (default: 1) for the bound keypair token. No effect if --token or --legacy is set, or if --recovery-mode is not standard. Must be greater than 1.|
+|`--recovery-mode`|`standard` (one of: `standard`, `relaxed`, `insecure`)|If set, overrides the recovery mode for the bound keypair token. No effect if --token or --legacy is set.|
+|`--registration-secret`|*no default*|Sets a registration secret for the bound keypair token. If not set, one will be randomly generated. No effect if --initial-public-key, --token, or --legacy is set. |
+|`--roles`|*no default*|Roles the bot is able to assume.|
+|`--token`|*no default*|The token to use, if any. If unset, a new single-use token will be created.|
+|`--ttl`|`1h0m0s`|TTL for the bot join token. For standard bound keypair tokens, this sets must_register_before; for legacy tokens, this sets the resource TTL.|
 
 Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|name|none (required)|A name to uniquely identify this bot in the cluster.|
+|name|*no default* (required)|A name to uniquely identify this bot in the cluster.|
 
 ## tctl bots instances add
 
@@ -682,14 +778,20 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--format`|`text`|Output format, one of: text, json|
-|`--token`|none|The token to use, if any. If unset, a new one-time-use token will be created.|
+|`--format`|`text` (one of: `text`, `json`)|Output format.|
+|`--initial-public-key`|*no default*|If set, use the given initial public key in SSH authorized_keys format, instead of generating a registration secret. The value must be quoted. Not compatible with --token or --legacy.|
+|`--[no-]legacy`|`false`|If set, generate a legacy joining token instead of a bound keypair token. No effect if --token is set.|
+|`--recovery-limit`|*no default*|Overrides the recovery limit (default: 1) for the bound keypair token. No effect if --token or --legacy is set, or if --recovery-mode is not standard. Must be greater than 1.|
+|`--recovery-mode`|`standard` (one of: `standard`, `relaxed`, `insecure`)|If set, overrides the recovery mode for the bound keypair token. No effect if --token or --legacy is set.|
+|`--registration-secret`|*no default*|Sets a registration secret for the bound keypair token. If not set, one will be randomly generated. No effect if --initial-public-key, --token, or --legacy is set. |
+|`--token`|*no default*|The token to use, if any. If unset, a new single-use token will be created.|
+|`--ttl`|`1h0m0s`|TTL for the bot join token. For standard bound keypair tokens, this sets must_register_before; for legacy tokens, this sets the resource TTL.|
 
 Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|name|none (required)|The name of the existing bot for which to add a new instance.|
+|name|*no default* (required)|The name of the existing bot for which to add a new instance.|
 
 ## tctl bots instances list
 
@@ -705,9 +807,9 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--format`|`text`|Output format, 'text' or 'json'|
-|`--query`|none|An expression in the Teleport predicate language used to filter bot instances|
-|`--search`|none|Fuzzy search query used to filter bot instances|
+|`--format`|`text` (one of: `text`, `json`)|Output format.|
+|`--query`|*no default*|An expression in the Teleport predicate language used to filter bot instances|
+|`--search`|*no default*|Fuzzy search query used to filter bot instances|
 |`--sort-index`|`bot_name`|Request sort index, 'bot_name', 'active_at_latest', 'version_latest' or 'host_name_latest'|
 |`--sort-order`|`ascending`|Request sort order, 'ascending' or 'descending'|
 
@@ -715,7 +817,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|name|none (optional)|The name of the bot from which to list instances. If unset, lists instances from all bots.|
+|name|*no default* (optional)|The name of the bot from which to list instances. If unset, lists instances from all bots.|
 
 ## tctl bots instances show
 
@@ -731,7 +833,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|id|none (required)|The full ID of the bot instance, in the form of \[bot name\]/\[uuid\]|
+|id|*no default* (required)|The full ID of the bot instance, in the form of \[bot name\]/\[uuid\]|
 
 ## tctl bots ls
 
@@ -757,7 +859,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|name|none (required)|Name of an existing bot to remove.|
+|name|*no default* (required)|Name of an existing bot to remove.|
 
 ## tctl bots update
 
@@ -773,17 +875,17 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--add-logins`|none|Adds a comma-separated list of logins to an existing bot.|
-|`--add-roles`|none|Adds a comma-separated list of roles to an existing bot.|
-|`--set-logins`|none|Sets the bot's logins to the given comma-separated list, replacing any existing logins.|
-|`--set-max-session-ttl`|none|Sets the max session TTL. 168h maximum.|
-|`--set-roles`|none|Sets the bot's roles to the given comma-separated list, replacing any existing roles.|
+|`--add-logins`|*no default*|Adds a comma-separated list of logins to an existing bot.|
+|`--add-roles`|*no default*|Adds a comma-separated list of roles to an existing bot.|
+|`--set-logins`|*no default*|Sets the bot's logins to the given comma-separated list, replacing any existing logins.|
+|`--set-max-session-ttl`|*no default*|Sets the max session TTL. 168h maximum.|
+|`--set-roles`|*no default*|Sets the bot's roles to the given comma-separated list, replacing any existing roles.|
 
 Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|name|none (required)|Name of an existing bot to update.|
+|name|*no default* (required)|Name of an existing bot to update.|
 
 ## tctl bound-keypair request-rotation
 
@@ -799,7 +901,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|name|none (required)|The name of the token|
+|name|*no default* (required)|The name of the token|
 
 ## tctl create
 
@@ -821,7 +923,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|filename|none (optional)|resource definition file, empty for stdin|
+|filename|*no default* (optional)|resource definition file, empty for stdin|
 
 ## tctl db ls
 
@@ -838,15 +940,15 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`--format`|`text`|Output format, 'text', 'json', or 'yaml'|
-|`--query`|none|Query by predicate language enclosed in single quotes. Supports ==, !=, &&, and \|\| (e.g. --query='labels\["key1"\] == "value1" && labels\["key2"\] != "value2"')|
-|`--search`|none|List of comma separated search keywords or phrases enclosed in quotations (e.g. --search=foo,bar,"some phrase")|
+|`--query`|*no default*|Query by predicate language enclosed in single quotes. Supports ==, !=, &&, and \|\| (e.g. --query='labels\["key1"\] == "value1" && labels\["key2"\] != "value2"')|
+|`--search`|*no default*|List of comma separated search keywords or phrases enclosed in quotations (e.g. --search=foo,bar,"some phrase")|
 |`-v`, `--[no-]verbose`|`false`|Verbose table output, shows full label output|
 
 Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|labels|none (optional)|List of comma separated labels to filter by labels (e.g. key1=value1,key2=value2)|
+|labels|*no default* (optional)|List of comma separated labels to filter by labels (e.g. key1=value1,key2=value2)|
 
 ## tctl desktop bootstrap
 
@@ -889,12 +991,12 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--asset-tag`|none|Inventory identifier for the device (e.g., Mac serial number)|
-|`--enroll-ttl`|none|Time duration for the enrollment token|
-|`--format`|`text`|Output format, 'text', 'json', or 'yaml'|
+|`--asset-tag`|*no default*|Inventory identifier for the device (e.g., Mac serial number)|
+|`--enroll-ttl`|*no default*|Time duration for the enrollment token|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 |`--[no-]current-device`|`false`|Registers the current device. Overrides --os and --asset-tag.|
 |`--[no-]enroll`|`false`|If set, creates a device enrollment token|
-|`--os`|none|Operating system|
+|`--os`|*no default* (one of: `linux`, `macos`, `windows`)|Operating system|
 
 ## tctl devices enroll
 
@@ -910,10 +1012,10 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--asset-tag`|none|Inventory identifier for the device|
-|`--device-id`|none|Device identifier|
+|`--asset-tag`|*no default*|Inventory identifier for the device|
+|`--device-id`|*no default*|Device identifier|
 |`--[no-]current-device`|`false`|Enrolls the current device. Overrides --device-id and --asset-tag.|
-|`--ttl`|none|Time duration for the enrollment token|
+|`--ttl`|*no default*|Time duration for the enrollment token|
 
 ## tctl devices lock
 
@@ -929,12 +1031,12 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--asset-tag`|none|Inventory identifier for the device|
-|`--device-id`|none|Device identifier|
-|`--expires`|none|Time point (RFC3339) when the lock expires|
-|`--message`|none|Message to display to locked-out users|
+|`--asset-tag`|*no default*|Inventory identifier for the device|
+|`--device-id`|*no default*|Device identifier|
+|`--expires`|*no default*|Time point (RFC3339) when the lock expires|
+|`--message`|*no default*|Message to display to locked-out users|
 |`--[no-]current-device`|`false`|Locks the current device. Overrides --device-id and --asset-tag.|
-|`--ttl`|none|Time duration after which the lock expires|
+|`--ttl`|*no default*|Time duration after which the lock expires|
 
 ## tctl devices ls
 
@@ -950,7 +1052,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--format`|`text`|Output format, 'text', 'json', or 'yaml'|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 
 ## tctl devices rm
 
@@ -966,9 +1068,29 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--asset-tag`|none|Inventory identifier for the device|
-|`--device-id`|none|Device identifier|
+|`--asset-tag`|*no default*|Inventory identifier for the device|
+|`--device-id`|*no default*|Device identifier|
 |`--[no-]current-device`|`false`|Removes the current device. Overrides --device-id and --asset-tag.|
+
+## tctl discovery nodes
+
+Report discovered server instances and their enrollment status using Teleport
+audit log and cluster state.
+
+Usage:
+
+```code
+$ tctl discovery nodes [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--cloud`|``|Comma-separated list of cloud providers to include (allowed: aws, azure). Empty (default) returns all.|
+|`--format`|`text` (one of: `text`, `json`)|Output format.|
+|`--last`|`1h`|Time window to look back for failures in Teleport audit log (e.g. 1h, 24h, 30m).|
+|`--[no-]failures-only`|`false`|Only show instances with enrollment failures.|
 
 ## tctl edit
 
@@ -984,7 +1106,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|resource type/resource name|none (optional)|Resource to update, e.g., "user/myuser"|
+|resource type/resource name|*no default* (optional)|Resource to update, e.g., "user/myuser"|
 
 ## tctl get
 
@@ -1008,7 +1130,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|resources|none (required)|Resource spec: 'type/\[name\]\[,...\]' or 'all'|
+|resources|*no default* (required)|Resource spec: 'type/\[name\]\[,...\]' or 'all'|
 
 ## tctl help
 
@@ -1024,7 +1146,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|command|none (optional)|Show help on command.|
+|command|*no default* (optional)|Show help on command.|
 
 ## tctl idp saml test-attribute-mapping
 
@@ -1040,9 +1162,9 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--format`|none|output format, 'yaml' or 'json'|
-|`--sp`|none|name of a file containing service provider spec|
-|`-u`, `--users`|none|username or name of a file containing user spec|
+|`--format`|*no default*|output format, 'yaml' or 'json'|
+|`--sp`|*no default*|name of a file containing service provider spec|
+|`-u`, `--users`|*no default*|username or name of a file containing user spec|
 
 ## tctl inventory list
 
@@ -1058,13 +1180,13 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--exact-version`|none|Filter output by teleport version|
+|`--exact-version`|*no default*|Filter output by teleport version|
 |`--format`|`text`|Output format, 'text' or 'json'|
-|`--newer-than`|none|Filter for newer teleport versions|
-|`--older-than`|none|Filter for older teleport versions|
-|`--services`|none|Filter output by service (node,kube,proxy,etc)|
-|`--update-group`|none|Filter output by update group|
-|`--upgrader`|none|Filter output by upgrader (kube,unit,none)|
+|`--newer-than`|*no default*|Filter for newer teleport versions|
+|`--older-than`|*no default*|Filter for older teleport versions|
+|`--services`|*no default*|Filter output by service (node,kube,proxy,etc)|
+|`--update-group`|*no default*|Filter output by update group|
+|`--upgrader`|*no default*|Filter output by upgrader (kube,unit,none)|
 
 ## tctl inventory ping
 
@@ -1080,7 +1202,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|server-id|none (required)|ID of target server|
+|server-id|*no default* (required)|ID of target server|
 
 ## tctl inventory status
 
@@ -1114,15 +1236,15 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`--format`|`text`|Output format, 'text', 'json', or 'yaml'|
-|`--query`|none|Query by predicate language enclosed in single quotes. Supports ==, !=, &&, and \|\| (e.g. --query='labels\["key1"\] == "value1" && labels\["key2"\] != "value2"')|
-|`--search`|none|List of comma separated search keywords or phrases enclosed in quotations (e.g. --search=foo,bar,"some phrase")|
+|`--query`|*no default*|Query by predicate language enclosed in single quotes. Supports ==, !=, &&, and \|\| (e.g. --query='labels\["key1"\] == "value1" && labels\["key2"\] != "value2"')|
+|`--search`|*no default*|List of comma separated search keywords or phrases enclosed in quotations (e.g. --search=foo,bar,"some phrase")|
 |`-v`, `--[no-]verbose`|`false`|Verbose table output, shows full label output|
 
 Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|labels|none (optional)|List of comma separated labels to filter by labels (e.g. key1=value1,key2=value2)|
+|labels|*no default* (optional)|List of comma separated labels to filter by labels (e.g. key1=value1,key2=value2)|
 
 ## tctl list-kinds
 
@@ -1154,19 +1276,20 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--access-request`|none|UUID of an Access Request to disable.|
-|`--bot-instance-id`|none|UUID of a bot instance to disable|
-|`--device`|none|UUID of a trusted device to disable.|
-|`--expires`|none|Time point (RFC3339) when the lock expires.|
-|`--join-token`|none|Bot join token name to disable|
-|`--login`|none|Name of a local UNIX user to disable.|
-|`--message`|none|Message to display to locked-out users.|
-|`--mfa-device`|none|UUID of a user MFA device to disable.|
-|`--role`|none|Name of a Teleport role to disable.|
-|`--server-id`|none|UUID of a Teleport server to disable.|
-|`--ttl`|none|Time duration after which the lock expires.|
-|`--user`|none|Name of a Teleport user to disable.|
-|`--windows-desktop`|none|Name of a Windows desktop to disable.|
+|`--access-request`|*no default*|UUID of an Access Request to disable.|
+|`--bot-instance-id`|*no default*|UUID of a bot instance to disable|
+|`--device`|*no default*|UUID of a trusted device to disable.|
+|`--expires`|*no default*|Time point (RFC3339) when the lock expires.|
+|`--join-token`|*no default*|Bot join token name to disable|
+|`--linux-desktop`|*no default*|Name of a Linux desktop to disable.|
+|`--login`|*no default*|Name of a local UNIX user to disable.|
+|`--message`|*no default*|Message to display to locked-out users.|
+|`--mfa-device`|*no default*|UUID of a user MFA device to disable.|
+|`--role`|*no default*|Name of a Teleport role to disable.|
+|`--server-id`|*no default*|UUID of a Teleport server to disable.|
+|`--ttl`|*no default*|Time duration after which the lock expires.|
+|`--user`|*no default*|Name of a Teleport user to disable.|
+|`--windows-desktop`|*no default*|Name of a Windows desktop to disable.|
 
 ## tctl login_rule test
 
@@ -1184,13 +1307,13 @@ Flags:
 |---|---|---|
 |`--format`|`yaml`|Output format: 'yaml' or 'json'|
 |`--[no-]load-from-cluster`|`false`|load existing login rules from the connected Teleport cluster|
-|`--resource-file`|none|login rule resource file name (YAML or JSON)|
+|`--resource-file`|*no default*|login rule resource file name (YAML or JSON)|
 
 Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|traits-file|none (optional)|input user traits file name (YAML or JSON), empty for stdin|
+|traits-file|*no default* (optional)|input user traits file name (YAML or JSON), empty for stdin|
 
 ## tctl nodes add
 
@@ -1207,7 +1330,7 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`--roles`|`node`|Comma-separated list of roles for the new node to assume \[node\]|
-|`--token`|none|Override the default random generated token with a specified value|
+|`--token`|*no default*|Override the default random generated token with a specified value|
 |`--ttl`|`30m0s`|Time to live for a generated token|
 
 ## tctl nodes ls
@@ -1225,15 +1348,15 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`--format`|`text`|Output format, 'text', or 'yaml'|
-|`--query`|none|Query by predicate language enclosed in single quotes. Supports ==, !=, &&, and \|\| (e.g. --query='labels\["key1"\] == "value1" && labels\["key2"\] != "value2"')|
-|`--search`|none|List of comma separated search keywords or phrases enclosed in quotations (e.g. --search=foo,bar,"some phrase")|
+|`--query`|*no default*|Query by predicate language enclosed in single quotes. Supports ==, !=, &&, and \|\| (e.g. --query='labels\["key1"\] == "value1" && labels\["key2"\] != "value2"')|
+|`--search`|*no default*|List of comma separated search keywords or phrases enclosed in quotations (e.g. --search=foo,bar,"some phrase")|
 |`-v`, `--[no-]verbose`|`false`|Verbose table output, shows full label output|
 
 Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|labels|none (optional)|List of comma separated labels to filter by labels (e.g. key1=value1,key2=value2)|
+|labels|*no default* (optional)|List of comma separated labels to filter by labels (e.g. key1=value1,key2=value2)|
 
 ## tctl notifications create
 
@@ -1249,14 +1372,14 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--content`|none|Set the notification's content.|
-|`--labels`|none|List of labels to attach to the notification. For example: key1=value1,key2=value2.|
+|`--content`|*no default*|Set the notification's content.|
+|`--labels`|*no default*|List of labels to attach to the notification. For example: key1=value1,key2=value2.|
 |`--[no-]require-all-roles`|`false`|Set whether this notification should target users who have all of the provided roles.|
 |`--[no-]warning`|`false`|Set whether this notification is a warning notification.|
-|`--roles`|none|Target a specific set of roles. By default, this will target all users with any of the provided roles, use --require-all-roles to exclusively target users with all of them.|
-|`-t`, `--title`|none|Set the notification's title.|
+|`--roles`|*no default*|Target a specific set of roles. By default, this will target all users with any of the provided roles, use --require-all-roles to exclusively target users with all of them.|
+|`-t`, `--title`|*no default*|Set the notification's title.|
 |`--ttl`|`30d`|Time duration after which the notification expires (default 30 days).|
-|`--user`|none|Target a specific user.|
+|`--user`|*no default*|Target a specific user.|
 
 ## tctl notifications ls
 
@@ -1276,10 +1399,10 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--format`|`text`|Output format, 'yaml', 'json', or 'text'|
-|`--labels`|none|List of comma separated labels to filter by labels (e.g. key1=value1,key2=value2)|
+|`--format`|`text` (one of: `yaml`, `json`, `text`)|Output format.|
+|`--labels`|*no default*|List of comma separated labels to filter by labels (e.g. key1=value1,key2=value2)|
 |`--[no-]all`|`false`|Set whether all notifications should be included, including those generated by Teleport, as opposed to solely those created using `tctl notifications create`.|
-|`--user`|none|Set which user to list user-specific notifications for, or leave empty to list your own.|
+|`--user`|*no default*|Set which user to list user-specific notifications for, or leave empty to list your own.|
 
 ## tctl notifications rm
 
@@ -1295,13 +1418,13 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--user`|none|The user the notification to remove belongs to, if any.|
+|`--user`|*no default*|The user the notification to remove belongs to, if any.|
 
 Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|id|none (required)|The ID of the notification to remove.|
+|id|*no default* (required)|The ID of the notification to remove.|
 
 ## tctl plugins cleanup
 
@@ -1323,7 +1446,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|type|none (required)|The type of plugin to clean up. Only supports Okta at present.|
+|type|*no default* (required)|The type of plugin to clean up. Only supports Okta at present.|
 
 ## tctl plugins delete
 
@@ -1339,7 +1462,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|name|none (optional)|The name of the SCIM plugin resource to delete|
+|name|*no default* (optional)|The name of the SCIM plugin resource to delete|
 
 ## tctl plugins edit awsic
 
@@ -1356,7 +1479,7 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`--plugin-name`|`aws-identity-center`|Name of the AWS Identity Center integration instance to update. Defaults to aws-identity-center.|
-|`--roles-sync-mode`|none|Control account-assignment role creation. ALL creates roles for all possible account assignments. NONE creates no roles, and also implies a totally-exclusive group import filter.|
+|`--roles-sync-mode`|*no default* (one of: `ALL`, `NONE`)|Control account-assignment role creation. ALL creates roles for all possible account assignments. NONE creates no roles, and also implies a totally-exclusive group import filter.|
 
 ## tctl plugins install awsic
 
@@ -1372,24 +1495,24 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--access-list-default-owner`|none|Teleport user to set as default owner for the imported Access Lists. Multiple flags allowed.|
-|`--account-id`|none|Add AWS Account to account import list by ID. All AWS accounts will be imported if no items are added to account import list.|
-|`--account-name`|none|Add AWS Account to account import list by name. Can be a glob, or enclosed in ^$ to specify a regular expression. All AWS accounts will be imported if no items are added to account import list.|
-|`--assume-role-arn`|none|ARN of a role that the system credential should assume.|
-|`--exclude-account-id`|none|Exclude AWS account from import list by ID.|
-|`--exclude-account-name`|none|Exclude AWS account from import list by name. Can be a glob or a regular expression (enclosed in ^$).|
-|`--exclude-group-name`|none|Exclude AWS group from import list by name. Can be a glob or a regular expression (enclosed in ^$).|
-|`--group-name`|none|Add AWS group to group import list by name. Can be a glob, or enclosed in ^$ to specify a regular expression. If no filters are supplied then all AWS groups will be imported.|
-|`--instance-arn`|none|AWS Identity center instance ARN|
-|`--instance-region`|none|AWS Identity Center instance region|
+|`--access-list-default-owner`|*no default*|Teleport user to set as default owner for the imported Access Lists. Multiple flags allowed.|
+|`--account-id`|*no default*|Add AWS Account to account import list by ID. All AWS accounts will be imported if no items are added to account import list.|
+|`--account-name`|*no default*|Add AWS Account to account import list by name. Can be a glob, or enclosed in ^$ to specify a regular expression. All AWS accounts will be imported if no items are added to account import list.|
+|`--assume-role-arn`|*no default*|ARN of a role that the system credential should assume.|
+|`--exclude-account-id`|*no default*|Exclude AWS account from import list by ID.|
+|`--exclude-account-name`|*no default*|Exclude AWS account from import list by name. Can be a glob or a regular expression (enclosed in ^$).|
+|`--exclude-group-name`|*no default*|Exclude AWS group from import list by name. Can be a glob or a regular expression (enclosed in ^$).|
+|`--group-name`|*no default*|Add AWS group to group import list by name. Can be a glob, or enclosed in ^$ to specify a regular expression. If no filters are supplied then all AWS groups will be imported.|
+|`--instance-arn`|*no default*|AWS Identity center instance ARN|
+|`--instance-region`|*no default*|AWS Identity Center instance region|
 |`--[no-]force-scim-url`|`false`|Use the provided SCIM provisioning endpoint even if it fails scim endpoint validation|
 |`--[no-]use-system-credentials`|`true`|Uses system credentials instead of OIDC.|
-|`--oidc-integration`|none|Name of the Teleport OIDC integration to use when authenticating with AWS. Must be supplied when --no-use-system-credentials is set.|
-|`--roles-sync-mode`|`ALL`|Control account-assignment role creation. ALL creates Teleport Roles for all possible account assignments. NONE creates no Teleport Roles, and also implies a totally-exclusive group import filter.|
-|`--scim-token`|none|AWS Identify Center SCIM provisioning token.|
-|`--scim-url`|none|AWS Identity Center SCIM provisioning endpoint|
-|`--user-label`|none|Add user label filter, in the form of a comma-separated list of "name=value" pairs. If no label filters are supplied, all Teleport users will be provisioned to Identity Center|
-|`--user-origin`|none|Shorthand for "--user-label teleport.dev/origin=ORIGIN"|
+|`--oidc-integration`|*no default*|Name of the Teleport OIDC integration to use when authenticating with AWS. Must be supplied when --no-use-system-credentials is set.|
+|`--roles-sync-mode`|`ALL` (one of: `ALL`, `NONE`)|Control account-assignment role creation. ALL creates Teleport Roles for all possible account assignments. NONE creates no Teleport Roles, and also implies a totally-exclusive group import filter.|
+|`--scim-token`|*no default*|AWS Identify Center SCIM provisioning token.|
+|`--scim-url`|*no default*|AWS Identity Center SCIM provisioning endpoint|
+|`--user-label`|*no default*|Add user label filter, in the form of a comma-separated list of "name=value" pairs. If no label filters are supplied, all Teleport users will be provisioned to Identity Center|
+|`--user-origin`|*no default* (any of (repeatable): `defaults`, `config-file`, `dynamic`, `cloud`, `kubernetes`, `okta`, `scim`, `discovery-kubernetes`, `entra-id`, `aws-identity-center`, `integration_awsrolesanywhere`)|Shorthand for "--user-label teleport.dev/origin=ORIGIN"|
 
 ## tctl plugins install entraid
 
@@ -1407,12 +1530,12 @@ Flags:
 |---|---|---|
 |`--access-list-owners-source`|`plugin`|Source of the Access List owners.|
 |`--auth-connector-name`|`entra-id-default`|Name of the SAML connector resource to create|
-|`--default-owner`|none|List of Teleport users that are default owners for the imported Access Lists. Multiple flags allowed.|
-|`--exclude-group-id`|none|Exclude group matching the specified group ID.|
-|`--exclude-group-name`|none|Exclude groups matching the specified group name regex.|
+|`--default-owner`|*no default*|List of Teleport users that are default owners for the imported Access Lists. Multiple flags allowed.|
+|`--exclude-group-id`|*no default*|Exclude group matching the specified group ID.|
+|`--exclude-group-name`|*no default*|Exclude groups matching the specified group name regex.|
 |`-f`, `--[no-]force`|`false`|Proceed with installation even if plugin already exists.|
-|`--group-id`|none|Include group matching the specified group ID.|
-|`--group-name`|none|Include groups matching the specified group name regex.|
+|`--group-id`|*no default*|Include group matching the specified group ID.|
+|`--group-name`|*no default*|Include groups matching the specified group name regex.|
 |`-m`, `--[no-]manual-setup`|`false`|Manually set up the EntraID integration.|
 |`--name`|`entra-id`|Name of the plugin resource to create|
 |`--[no-]access-graph`|`true`|Enables Access Graph cache build.|
@@ -1464,10 +1587,10 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`-a`, `--app-filter`|none|Add an app filter. Supports globbing by default. Enclose in `^pattern$` for full regex support.|
-|`--api-token`|none|Okta API token for the plugin to use|
-|`--app-id`|none|Okta ID of the APP used for SSO via SAML|
-|`-g`, `--group-filter`|none|Add a group filter. Supports globbing by default. Enclose in `^pattern$` for full regex support.|
+|`-a`, `--app-filter`|*no default*|Add an app filter. Supports globbing by default. Enclose in `^pattern$` for full regex support.|
+|`--api-token`|*no default*|Okta API token for the plugin to use|
+|`--app-id`|*no default*|Okta ID of the APP used for SSO via SAML|
+|`-g`, `--group-filter`|*no default*|Add a group filter. Supports globbing by default. Enclose in `^pattern$` for full regex support.|
 |`--name`|`okta`|Name of the plugin resource to create|
 |`--[no-]accesslist-sync`|`true`|Enable group to Access List synchronization|
 |`--[no-]appgroup-sync`|`true`|Enable Okta Applications and Groups sync|
@@ -1475,9 +1598,9 @@ Flags:
 |`--[no-]scim`|`false`|Enable SCIM Okta integration|
 |`--[no-]system-logs-export`|`false`|Enables the Teleport Identity Security SIEM integration for Okta.|
 |`--[no-]users-sync`|`true`|Enable user synchronization|
-|`-o`, `--owner`|none|Add default owners for synced Access Lists|
-|`--org`|none|URL of Okta organization|
-|`--saml-connector`|none|SAML connector used for Okta SSO login.|
+|`-o`, `--owner`|*no default*|Add default owners for synced Access Lists|
+|`--org`|*no default*|URL of Okta organization|
+|`--saml-connector`|*no default*|SAML connector used for Okta SSO login.|
 
 ## tctl plugins install scim
 
@@ -1493,9 +1616,9 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--auth`|`oauth`|Plugin Authentication type.|
-|`--connector`|none|Name of the Teleport connector to use.|
-|`--connector-type`|none|Type of the Teleport connector to use.|
+|`--auth`|`oauth` (one of: `bearer`, `oauth`)|Plugin Authentication type.|
+|`--connector`|*no default*|Name of the Teleport connector to use.|
+|`--connector-type`|*no default* (one of: `oidc`, `saml`)|Type of the Teleport connector to use.|
 
 ## tctl plugins rotate awsic
 
@@ -1518,7 +1641,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|token|none (required)|The new SCIM bearer token.|
+|token|*no default* (required)|The new SCIM bearer token.|
 
 ## tctl proxy ls
 
@@ -1556,7 +1679,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|session-id|none (required)|ID of the session to download recordings for.|
+|session-id|*no default* (required)|ID of the session to download recordings for.|
 
 ## tctl recordings encryption complete-rotation
 
@@ -1619,10 +1742,49 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`--format`|`text`|Format output (text, json, yaml).. Defaults to 'text'.|
-|`--from-utc`|none|Start of time range in which recordings are listed. Format 2006-01-02. Defaults to 24 hours ago.|
-|`--last`|none|Duration into the past from which session recordings should be listed. Format 5h30m40s|
+|`--from-utc`|*no default*|Start of time range in which recordings are listed. Format 2006-01-02. Defaults to 24 hours ago.|
+|`--last`|*no default*|Duration into the past from which session recordings should be listed. Format 5h30m40s|
 |`--limit`|`50`|Maximum number of recordings to show. Default 50.|
-|`--to-utc`|none|End of time range in which recordings are listed. Format 2006-01-02. Defaults to current time.|
+|`--to-utc`|*no default*|End of time range in which recordings are listed. Format 2006-01-02. Defaults to current time.|
+
+## tctl recordings search
+
+Search session recordings using semantic and keyword queries.
+
+Usage:
+
+```code
+$ tctl recordings search [<flags>] [<query>...]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--access-request`|*no default*|Filter by access request ID. Can be specified multiple times.|
+|`--database-name`|*no default*|Filter database sessions by database name.|
+|`--format`|`text`|Format output (text, json, yaml).. Defaults to 'text'.|
+|`--from`|*no default*|Start of time range. Format 2006-01-02. Defaults to 24 hours ago.|
+|`--kind`|*no default*|Filter by session kind (ssh, db, k8s, desktop). Can be specified multiple times.|
+|`--label`|*no default*|Filter by resource labels (key=value pairs), e.g. env/prod=true,db/type=postgres.|
+|`--limit`|`50`|Maximum number of results to return.|
+|`--pod-name`|*no default*|Filter Kubernetes sessions by pod name.|
+|`--pod-namespace`|*no default*|Filter Kubernetes sessions by pod namespace.|
+|`--resource-kind`|*no default*|Filter by Teleport resource type (node, kube_cluster, db).|
+|`--resource-name`|*no default*|Filter by resource name.|
+|`--role`|*no default*|Filter by role held during the session. Can be specified multiple times.|
+|`--search-mode`|`hybrid` (one of: `hybrid`, `keyword`, `embeddings`)|Search strategy to use when search queries are provided.|
+|`--server-addr`|*no default*|Filter SSH sessions by server address.|
+|`--server-hostname`|*no default*|Filter SSH sessions by server hostname.|
+|`--severity`|*no default*|Minimum severity level to include (low, medium, high, critical).|
+|`--to`|*no default*|End of time range. Format 2006-01-02. Defaults to current time.|
+|`--username`|*no default*|Filter by the Teleport username that initiated the session.|
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|query|*no default* (optional)|Natural language description of the sessions to find (e.g. "SSH sessions exfiltrating data to external endpoints").|
 
 ## tctl requests approve
 
@@ -1638,17 +1800,17 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--annotations`|none|Resolution attributes \<key\>=\<val\>\[,...\]|
-|`--assume-start-time`|none|Sets time roles can be assumed by requestor (RFC3339 e.g 2023-12-12T23:20:50.52Z)|
-|`--delegator`|none|Optional delegating identity|
-|`--reason`|none|Optional reason message|
-|`--roles`|none|Override requested roles \<role\>\[,...\]|
+|`--annotations`|*no default*|Resolution attributes \<key\>=\<val\>\[,...\]|
+|`--assume-start-time`|*no default*|Sets time roles can be assumed by requestor (RFC3339 e.g 2023-12-12T23:20:50.52Z)|
+|`--delegator`|*no default*|Optional delegating identity|
+|`--reason`|*no default*|Optional reason message|
+|`--roles`|*no default*|Override requested roles \<role\>\[,...\]|
 
 Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|request-id|none (required)|ID of target request(s)|
+|request-id|*no default* (required)|ID of target request(s)|
 
 ## tctl requests create
 
@@ -1665,15 +1827,15 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`--[no-]dry-run`|`false`|Don't actually generate the Access Request|
-|`--reason`|none|Optional reason message|
-|`--resource`|none|Resource ID to be requested|
-|`--roles`|none|Roles to be requested|
+|`--reason`|*no default*|Optional reason message|
+|`--resource`|*no default*|Resource ID to be requested|
+|`--roles`|*no default*|Roles to be requested|
 
 Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|username|none (required)|Name of target user|
+|username|*no default* (required)|Name of target user|
 
 ## tctl requests deny
 
@@ -1689,15 +1851,15 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--annotations`|none|Resolution annotations \<key\>=\<val\>\[,...\]|
-|`--delegator`|none|Optional delegating identity|
-|`--reason`|none|Optional reason message|
+|`--annotations`|*no default*|Resolution annotations \<key\>=\<val\>\[,...\]|
+|`--delegator`|*no default*|Optional delegating identity|
+|`--reason`|*no default*|Optional reason message|
 
 Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|request-id|none (required)|ID of target request(s)|
+|request-id|*no default* (required)|ID of target request(s)|
 
 ## tctl requests get
 
@@ -1713,7 +1875,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|request-id|none (required)|ID of target request(s)|
+|request-id|*no default* (required)|ID of target request(s)|
 
 ## tctl requests ls
 
@@ -1746,7 +1908,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--author`|none|Username of reviewer|
+|`--author`|*no default*|Username of reviewer|
 |`--[no-]approve`|`false`|Review proposes approval|
 |`--[no-]deny`|`false`|Review proposes denial|
 
@@ -1754,7 +1916,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|request-id|none (required)|ID of target request|
+|request-id|*no default* (required)|ID of target request|
 
 ## tctl requests rm
 
@@ -1776,7 +1938,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|request-id|none (required)|ID of target request(s)|
+|request-id|*no default* (required)|ID of target request(s)|
 
 ## tctl rm
 
@@ -1792,7 +1954,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|resource type/resource name|none (optional)|Resource to delete
+|resource type/resource name|*no default* (optional)|Resource to delete
 	\<resource type\>  Type of a resource \[for example: connector,user,cluster,token\]
 	\<resource name\>  Resource name to delete
 
@@ -1814,11 +1976,29 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|connector_name|none (required)|name of the SAML connector to export the key from|
+|connector_name|*no default* (required)|name of the SAML connector to export the key from|
+
+## tctl scoped assignments list
+
+List scoped role assignments
+
+Usage:
+
+```code
+$ tctl scoped assignments list [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`-f`, `--format`|`text` (one of: `text`, `json`, `yaml`)|Format output (text, json, yaml).|
+|`--role`|*no default*|Filter by assigned role.|
+|`--user`|*no default*|Filter by user.|
 
 ## tctl scoped status
 
-Show the status of scoped resources
+Show the status of scoped resources.
 
 Usage:
 
@@ -1840,13 +2020,15 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--assign-scope`|none|Scope that should be applied to resources provisioned by this token|
-|`--format`|none|Output format, 'text', 'json', or 'yaml'|
-|`--mode`|none|Usage mode of a token (default: unlimited, single_use)|
-|`--name`|none|Override the default, randomly generated token name with a specified name|
-|`--scope`|none|Scope assigned to the token itself|
+|`--assign-scope`|*no default*|Scope that should be applied to resources provisioned by this token|
+|`--format`|*no default* (one of: `text`, `json`, `yaml`)|Format output (text, json, yaml).|
+|`--labels`|*no default*|Set token labels, e.g. env=prod,region=us-west|
+|`--mode`|*no default*|Usage mode of a token (default: unlimited, single_use)|
+|`--name`|*no default*|Override the default, randomly generated token name with a specified name|
+|`--scope`|*no default*|Scope assigned to the token itself|
+|`--ssh-labels`|*no default*|Set immutable ssh labels the token should assign to provisioned resources, e.g. env=prod,region=us-west|
 |`--ttl`|`30m0s`|Set expiration time for token, default is 30 minutes|
-|`--type`|none|Type(s) of token to add, e.g. --type=node|
+|`--type`|*no default*|Type(s) of token to add, e.g. --type=node|
 
 ## tctl scoped tokens ls
 
@@ -1862,7 +2044,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--format`|none|Output format, 'text', 'json' or 'yaml'|
+|`-f`, `--format`|*no default* (one of: `text`, `json`, `yaml`)|Format output (text, json, yaml).|
 |`--[no-]with-secrets`|`false`|Do not redact join tokens|
 
 ## tctl scoped tokens rm
@@ -1879,7 +2061,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|token|none (optional)|Token to delete|
+|token|*no default* (optional)|Token to delete|
 
 ## tctl sso configure github
 
@@ -1896,14 +2078,14 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`--api-endpoint-url`|`https://api.github.com`|API endpoint URL for GitHub instance.|
-|`--display`|none|Sets the connector display name.|
+|`--display`|*no default*|Sets the connector display name.|
 |`--endpoint-url`|`https://github.com`|Endpoint URL for GitHub instance.|
-|`--id`|none|GitHub app client ID.|
+|`--id`|*no default*|GitHub app client ID.|
 |`-n`, `--name`|`github`|Connector name.|
 |`--[no-]ignore-missing-roles`|`false`|Ignore missing roles referenced in --teams-to-roles.|
-|`--redirect-url`|none|Authorization callback URL.|
-|`-r`, `--teams-to-roles`|none|Sets teams-to-roles mapping using format 'organization,name,role1,role2,...'. Repeatable.|
-|`--secret`|none|GitHub app client secret.|
+|`--redirect-url`|*no default*|Authorization callback URL.|
+|`-r`, `--teams-to-roles`|*no default*|Sets teams-to-roles mapping using format 'organization,name,role1,role2,...'. Repeatable.|
+|`--secret`|*no default*|GitHub app client secret.|
 
 ## tctl sso configure oidc
 
@@ -1920,24 +2102,24 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--acr`|none|Authentication Context Class Reference values.|
-|`--display`|none|Sets the connector display name.|
-|`--google-acc`|none|Google only. String containing Google service account credentials.|
-|`--google-acc-uri`|none|Google only. URI pointing at service account credentials. Example: file:///var/lib/teleport/gworkspace-creds.json.|
-|`--google-admin`|none|Google only. Email of a Google admin to impersonate.|
-|`--google-id`|none|Shorthand for setting the --id flag to \<GOOGLE_WORKSPACE_CLIENT_ID\>.apps.googleusercontent.com|
-|`--id`|none|OIDC app client ID.|
-|`--issuer-url`|none|Issuer URL.|
-|`-n`, `--name`|none|Connector name. Required, unless implied from preset.|
+|`--acr`|*no default*|Authentication Context Class Reference values.|
+|`--display`|*no default*|Sets the connector display name.|
+|`--google-acc`|*no default*|Google only. String containing Google service account credentials.|
+|`--google-acc-uri`|*no default*|Google only. URI pointing at service account credentials. Example: file:///var/lib/teleport/gworkspace-creds.json.|
+|`--google-admin`|*no default*|Google only. Email of a Google admin to impersonate.|
+|`--google-id`|*no default*|Shorthand for setting the --id flag to \<GOOGLE_WORKSPACE_CLIENT_ID\>.apps.googleusercontent.com|
+|`--id`|*no default*|OIDC app client ID.|
+|`--issuer-url`|*no default*|Issuer URL.|
+|`-n`, `--name`|*no default*|Connector name. Required, unless implied from preset.|
 |`--[no-]google-legacy`|`false`|Google only. Flag to select groups with direct membership filtered by domain (legacy behavior). Disabled by default. More info: https://goteleport.com/docs/enterprise/sso/google-workspace/#how-teleport-uses-google-workspace-apis|
 |`--[no-]ignore-missing-roles`|`false`|Ignore missing roles referenced in --claims-to-roles.|
-|`-p`, `--preset`|none|Preset. One of: \[google gitlab okta\]|
-|`--prompt`|none|Optional OIDC prompt. Example values: none, select_account, login, consent.|
-|`--provider`|none|Sets the external identity provider type to enable IdP specific workarounds. Examples: ping, adfs, netiq, okta.|
-|`-r`, `--claims-to-roles`|none|Sets claim-to-roles mapping using format 'claim_name,claim_value,role1,role2,...'. Repeatable.|
-|`--redirect-url`|none|Authorization callback URL(s). Each repetition of the flag declares one redirectURL.|
-|`--scope`|none|Scope specifies additional scopes set by provider. Each repetition of the flag declares one scope. Examples: email, groups, openid.|
-|`--secret`|none|OIDC app client secret.|
+|`-p`, `--preset`|*no default* (one of: `google`, `gitlab`, `okta`)|Preset.|
+|`--prompt`|*no default*|Optional OIDC prompt. Example values: none, select_account, login, consent.|
+|`--provider`|*no default*|Sets the external identity provider type to enable IdP specific workarounds. Examples: ping, adfs, netiq, okta.|
+|`-r`, `--claims-to-roles`|*no default*|Sets claim-to-roles mapping using format 'claim_name,claim_value,role1,role2,...'. Repeatable.|
+|`--redirect-url`|*no default*|Authorization callback URL(s). Each repetition of the flag declares one redirectURL.|
+|`--scope`|*no default*|Scope specifies additional scopes set by provider. Each repetition of the flag declares one scope. Examples: email, groups, openid.|
+|`--secret`|*no default*|OIDC app client secret.|
 
 ## tctl sso configure saml
 
@@ -1954,24 +2136,24 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--acs`|none|AssertionConsumerService is a URL for assertion consumer service on the service provider (Teleport's side).|
-|`--assertion-cert-file`|none|A file with cert used for securing SAML assertions. Must be used together with --assertion-key-file.|
-|`--assertion-key-file`|none|A file with key used for securing SAML assertions. Must be used together with --assertion-cert-file.|
-|`--audience`|none|Audience uniquely identifies our service provider.|
-|`--cert`|none|Cert file with with the IdP certificate PEM. IdP signs \<Response\> responses using this certificate.|
-|`--display`|none|Sets the connector display name.|
-|`-e`, `--entity-descriptor`|none|Set the Entity Descriptor. Valid values: file, URL, XML content. Supplies configuration parameters as single XML instead of individual elements.|
-|`--issuer`|none|Issuer is the identity provider issuer.|
-|`-n`, `--name`|none|Connector name. Required, unless implied from preset.|
+|`--acs`|*no default*|AssertionConsumerService is a URL for assertion consumer service on the service provider (Teleport's side).|
+|`--assertion-cert-file`|*no default*|A file with cert used for securing SAML assertions. Must be used together with --assertion-key-file.|
+|`--assertion-key-file`|*no default*|A file with key used for securing SAML assertions. Must be used together with --assertion-cert-file.|
+|`--audience`|*no default*|Audience uniquely identifies our service provider.|
+|`--cert`|*no default*|Cert file with the IdP certificate PEM. IdP signs \<Response\> responses using this certificate.|
+|`--display`|*no default*|Sets the connector display name.|
+|`-e`, `--entity-descriptor`|*no default*|Set the Entity Descriptor. Valid values: file, URL, XML content. Supplies configuration parameters as single XML instead of individual elements.|
+|`--issuer`|*no default*|Issuer is the identity provider issuer.|
+|`-n`, `--name`|*no default*|Connector name. Required, unless implied from preset.|
 |`--[no-]allow-idp-initiated`|`false`|Allow the IdP to initiate the SSO flow.|
 |`--[no-]ignore-missing-roles`|`false`|Ignore missing roles referenced in --attributes-to-roles.|
-|`-p`, `--preset`|none|Preset. One of: \[okta onelogin ad adfs\]|
-|`--provider`|none|Sets the external identity provider type. Examples: ping, adfs.|
-|`-r`, `--attributes-to-roles`|none|Sets attribute-to-role mapping using format 'attr_name,attr_value,role1,role2,...'. Repeatable.|
-|`--service-provider-issuer`|none|ServiceProviderIssuer is the issuer of the service provider (Teleport).|
-|`--signing-cert-file`|none|A file with request certificate. Must be used together with --signing-key-file.|
-|`--signing-key-file`|none|A file with request signing key. Must be used together with --signing-cert-file.|
-|`--sso`|none|SSO is the URL of the identity provider's SSO service.|
+|`-p`, `--preset`|*no default* (one of: `okta`, `onelogin`, `ad`, `adfs`)|Preset.|
+|`--provider`|*no default*|Sets the external identity provider type. Examples: ping, adfs.|
+|`-r`, `--attributes-to-roles`|*no default*|Sets attribute-to-role mapping using format 'attr_name,attr_value,role1,role2,...'. Repeatable.|
+|`--service-provider-issuer`|*no default*|ServiceProviderIssuer is the issuer of the service provider (Teleport).|
+|`--signing-cert-file`|*no default*|A file with request certificate. Must be used together with --signing-key-file.|
+|`--signing-key-file`|*no default*|A file with request signing key. Must be used together with --signing-cert-file.|
+|`--sso`|*no default*|SSO is the URL of the identity provider's SSO service.|
 
 ## tctl sso test
 
@@ -1987,13 +2169,13 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--browser`|none|Set to 'none' to suppress browser opening on login.|
+|`--browser`|*no default*|Set to 'none' to suppress browser opening on login.|
 
 Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|filename|none (optional)|Connector resource definition filename. Empty for stdin.|
+|filename|*no default* (optional)|Connector resource definition filename. Empty for stdin.|
 
 ## tctl stable-unix-users ls
 
@@ -2009,7 +2191,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--format`|`text`|Output format, 'text', or 'json'|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 
 ## tctl status
 
@@ -2023,7 +2205,7 @@ $ tctl status
 
 ## tctl terraform env
 
-Obtain certificates and load them into environments variables. This creates a
+Obtain certificates and load them into environment variables. This creates a
 temporary MachineID bot.
 
 Usage:
@@ -2038,7 +2220,7 @@ Flags:
 |---|---|---|
 |`--bot-ttl`|`1h`|Time-to-live of the Bot resource. The bot will be removed after this period. Defaults to \[1h\]|
 |`--resource-prefix`|`tctl-terraform-env-`|Resource prefix to use when creating the Terraform role and bots. Defaults to \[tctl-terraform-env-\]|
-|`--role`|none|Role used by Terraform. The role must already exist in Teleport. When not specified, uses the default role "terraform-provider"|
+|`--role`|*no default*|Role used by Terraform. The role must already exist in Teleport. When not specified, uses the default role "terraform-provider"|
 
 ## tctl tokens add
 
@@ -2056,14 +2238,14 @@ Flags:
 |---|---|---|
 |`--app-name`|`example-app`|Name of the application to add|
 |`--app-uri`|`http://localhost:8080`|URI of the application to add|
-|`--db-name`|none|Name of the database to add|
-|`--db-protocol`|none|Database protocol to use. Supported are: \[postgres mysql mongodb oracle cockroachdb redis snowflake sqlserver cassandra elasticsearch opensearch dynamodb clickhouse clickhouse-http spanner\]|
-|`--db-uri`|none|Address the database is reachable at|
-|`--format`|none|Output format, 'text', 'json', or 'yaml'|
-|`--labels`|none|Set token labels, e.g. env=prod,region=us-west|
+|`--db-name`|*no default*|Name of the database to add|
+|`--db-protocol`|*no default*|Database protocol to use. Supported are: \[postgres mysql mongodb oracle cockroachdb redis snowflake sqlserver cassandra elasticsearch opensearch dynamodb clickhouse clickhouse-http spanner\]|
+|`--db-uri`|*no default*|Address the database is reachable at|
+|`--format`|*no default* (one of: `text`, `json`, `yaml`)|Output format.|
+|`--labels`|*no default*|Set token labels, e.g. env=prod,region=us-west|
 |`--ttl`|`30m0s`|Set expiration time for token, default is 30 minutes|
-|`--type`|none|Type(s) of token to add, e.g. --type=node,app,db,proxy,etc|
-|`--value`|none|Override the default random generated token with a specified value|
+|`--type`|*no default*|Type(s) of token to add, e.g. --type=node,app,db,proxy,etc|
+|`--value`|*no default*|Override the default random generated token with a specified value|
 
 ## tctl tokens configure-kube
 
@@ -2080,17 +2262,17 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--bot`|none|Name of the the bot that this token will grant access to. When set, creates a bot token. Overrides --type|
-|`--cluster-name`|none|Name of the Kubernetes cluster. When not set, defaults to the context name.|
-|`--context`|none|Kubernetes context to use. When not set, defaults to the active context.|
+|`--bot`|*no default*|Name of the bot that this token will grant access to. When set, creates a bot token. Overrides --type|
+|`--cluster-name`|*no default*|Name of the Kubernetes cluster. When not set, defaults to the context name.|
+|`--context`|*no default*|Kubernetes context to use. When not set, defaults to the active context.|
 |`-f`, `--[no-]force`|`false`|Force the token creation, even if the token already exists|
 |`-j`, `--join-with`|`auto`|Kubernetes joining type, possible values are 'oidc', 'jwks', and 'auto'. See https://goteleport.com/docs/reference/join-methods/#kubernetes-kubernetes for more details.|
-|`-n`, `--namespace`|`teleport`|Namespace of the Kubernetes Service Account using the token. For 'teleport-kube-agent' and 'tbot' Helm charts, this is release namespace.|
+|`-n`, `--namespace`|`teleport`|Namespace of the Kubernetes Service Account using the token. For 'teleport-kube-agent' and 'tbot' Helm charts, this is the release namespace.|
 |`-o`, `--out`|`./values.yaml`|Path of the output file.|
-|`-s`, `--service-account`|none|Name of the Kubernetes Service Account using the token. For 'teleport-kube-agent' and 'tbot' Helm charts, this is the release name.|
-|`--token-name`|none|Optional name of the created join token. When not set, default to '\<CLUSTER_NAME\>(-\<BOT_NAME\>)'|
+|`-s`, `--service-account`|*no default*|Name of the Kubernetes Service Account using the token. For 'teleport-kube-agent' and 'tbot' Helm charts, this is the release name.|
+|`--token-name`|*no default*|Optional name of the created join token. When not set, default to '\<CLUSTER_NAME\>(-\<BOT_NAME\>)'|
 |`--type`|`kube,app,discovery`|Type(s) of token to add, e.g. --type=kube,app,db,discovery,proxy,etc|
-|`--update-group`|none|Optional update group used for version detection and agent updater configuration|
+|`--update-group`|*no default*|Optional update group used for version detection and agent updater configuration|
 
 ## tctl tokens ls
 
@@ -2106,8 +2288,8 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--format`|none|Output format, 'text', 'json' or 'yaml'|
-|`--labels`|none|List of comma separated labels to filter by labels (e.g. key1=value1,key2=value2)|
+|`--format`|*no default* (one of: `text`, `json`, `yaml`)|Output format.|
+|`--labels`|*no default*|List of comma separated labels to filter by labels (e.g. key1=value1,key2=value2)|
 |`--[no-]with-secrets`|`false`|Do not redact join tokens|
 
 ## tctl tokens rm
@@ -2124,7 +2306,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|token|none (optional)|Token to delete|
+|token|*no default* (optional)|Token to delete|
 
 ## tctl top
 
@@ -2140,7 +2322,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|diag-addr|none (optional)|Diagnostic HTTP URL|
+|diag-addr|*no default* (optional)|Diagnostic HTTP URL|
 |refresh|`5s` (optional)|Refresh period|
 
 ## tctl update
@@ -2157,14 +2339,14 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--set-labels`|none|Set labels|
-|`--set-ttl`|none|Set TTL|
+|`--set-labels`|*no default*|Set labels|
+|`--set-ttl`|*no default*|Set TTL|
 
 Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|resource type/resource name|none (optional)|Resource to update
+|resource type/resource name|*no default* (optional)|Resource to update
 	\<resource type\>  Type of a resource \[for example: rc\]
 	\<resource name\>  Resource name to update
 
@@ -2185,28 +2367,28 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--aws-role-arns`|none|List of allowed AWS role ARNs for the new user|
-|`--azure-identities`|none|List of allowed Azure identities for the new user|
-|`--db-names`|none|List of allowed database names for the new user|
-|`--db-roles`|none|List of database roles for automatic database user provisioning|
-|`--db-users`|none|List of allowed database users for the new user|
-|`--default-relay-addr`|none|Relay address that clients should use by default|
-|`--gcp-service-accounts`|none|List of allowed GCP service accounts for the new user|
-|`--host-user-gid`|none|GID for auto provisioned host users to use|
-|`--host-user-uid`|none|UID for auto provisioned host users to use|
-|`--kubernetes-groups`|none|List of allowed Kubernetes groups for the new user|
-|`--kubernetes-users`|none|List of allowed Kubernetes users for the new user|
-|`--logins`|none|List of allowed SSH logins for the new user|
-|`--mcp-tools`|none|List of allowed MCP tools for the new user|
-|`--roles`|none|List of roles for the new user to assume|
+|`--aws-role-arns`|*no default*|List of allowed AWS role ARNs for the new user|
+|`--azure-identities`|*no default*|List of allowed Azure identities for the new user|
+|`--db-names`|*no default*|List of allowed database names for the new user|
+|`--db-roles`|*no default*|List of database roles for automatic database user provisioning|
+|`--db-users`|*no default*|List of allowed database users for the new user|
+|`--default-relay-addr`|*no default*|Relay address that clients should use by default|
+|`--gcp-service-accounts`|*no default*|List of allowed GCP service accounts for the new user|
+|`--host-user-gid`|*no default*|GID for auto provisioned host users to use|
+|`--host-user-uid`|*no default*|UID for auto provisioned host users to use|
+|`--kubernetes-groups`|*no default*|List of allowed Kubernetes groups for the new user|
+|`--kubernetes-users`|*no default*|List of allowed Kubernetes users for the new user|
+|`--logins`|*no default*|List of allowed SSH logins for the new user|
+|`--mcp-tools`|*no default*|List of allowed MCP tools for the new user|
+|`--roles`|*no default*|List of roles for the new user to assume|
 |`--ttl`|`1h0m0s`|Set expiration time for token, default is 1h0m0s, maximum is 48h0m0s|
-|`--windows-logins`|none|List of allowed Windows logins for the new user|
+|`--windows-logins`|*no default*|List of allowed Windows logins for the new user|
 
 Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|account|none (required)|Teleport user account name|
+|account|*no default* (required)|Teleport user account name|
 
 ## tctl users ls
 
@@ -2238,7 +2420,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|account|none (required)|Teleport user account name|
+|account|*no default* (required)|Teleport user account name|
 
 ## tctl users rm
 
@@ -2254,7 +2436,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|logins|none (required)|Comma-separated list of user logins to delete|
+|logins|*no default* (required)|Comma-separated list of user logins to delete|
 
 ## tctl users update
 
@@ -2270,27 +2452,27 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--set-aws-role-arns`|none|List of allowed AWS role ARNs for the user, replaces current AWS role ARNs|
-|`--set-azure-identities`|none|List of allowed Azure identities for the user, replaces current Azure identities|
-|`--set-db-names`|none|List of allowed database names for the user, replaces current database names|
-|`--set-db-roles`|none|List of allowed database roles for automatic database user provisioning, replaces current database roles|
-|`--set-db-users`|none|List of allowed database users for the user, replaces current database users|
-|`--set-default-relay-addr`|none|Relay address that clients should use by default. Value can be reset by providing an empty string|
-|`--set-gcp-service-accounts`|none|List of allowed GCP service accounts for the user, replaces current service accounts|
-|`--set-host-user-gid`|none|GID for auto provisioned host users to use. Value can be reset by providing an empty string|
-|`--set-host-user-uid`|none|UID for auto provisioned host users to use. Value can be reset by providing an empty string|
-|`--set-kubernetes-groups`|none|List of allowed Kubernetes groups for the user, replaces current Kubernetes groups|
-|`--set-kubernetes-users`|none|List of allowed Kubernetes users for the user, replaces current Kubernetes users|
-|`--set-logins`|none|List of allowed SSH logins for the user, replaces current logins|
-|`--set-mcp-tools`|none|List of allowed MCP tools for the user, replaces current allowed MCP tools.|
-|`--set-roles`|none|List of roles for the user to assume, replaces current roles|
-|`--set-windows-logins`|none|List of allowed Windows logins for the user, replaces current Windows logins|
+|`--set-aws-role-arns`|*no default*|List of allowed AWS role ARNs for the user, replaces current AWS role ARNs|
+|`--set-azure-identities`|*no default*|List of allowed Azure identities for the user, replaces current Azure identities|
+|`--set-db-names`|*no default*|List of allowed database names for the user, replaces current database names|
+|`--set-db-roles`|*no default*|List of allowed database roles for automatic database user provisioning, replaces current database roles|
+|`--set-db-users`|*no default*|List of allowed database users for the user, replaces current database users|
+|`--set-default-relay-addr`|*no default*|Relay address that clients should use by default. Value can be reset by providing an empty string|
+|`--set-gcp-service-accounts`|*no default*|List of allowed GCP service accounts for the user, replaces current service accounts|
+|`--set-host-user-gid`|*no default*|GID for auto provisioned host users to use. Value can be reset by providing an empty string|
+|`--set-host-user-uid`|*no default*|UID for auto provisioned host users to use. Value can be reset by providing an empty string|
+|`--set-kubernetes-groups`|*no default*|List of allowed Kubernetes groups for the user, replaces current Kubernetes groups|
+|`--set-kubernetes-users`|*no default*|List of allowed Kubernetes users for the user, replaces current Kubernetes users|
+|`--set-logins`|*no default*|List of allowed SSH logins for the user, replaces current logins|
+|`--set-mcp-tools`|*no default*|List of allowed MCP tools for the user, replaces current allowed MCP tools.|
+|`--set-roles`|*no default*|List of roles for the user to assume, replaces current roles|
+|`--set-windows-logins`|*no default*|List of allowed Windows logins for the user, replaces current Windows logins|
 
 Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|account|none (required)|Teleport user account name|
+|account|*no default* (required)|Teleport user account name|
 
 ## tctl version
 
@@ -2326,10 +2508,10 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--expires-at`|none|Time that the revocation should expire, usually this should match the expiry time of the credential. This should be specified using RFC3339 e.g '2024-02-05T15:04:00Z'. If unspecified, the time 1 week from now is used.|
-|`--reason`|none|Reason for revocation.|
-|`--serial`|none|Serial number of the certificate to revoke.|
-|`--type`|none|Type of credential to revoke (x509)|
+|`--expires-at`|*no default*|Time that the revocation should expire, usually this should match the expiry time of the credential. This should be specified using RFC3339 e.g '2024-02-05T15:04:00Z'. If unspecified, the time 1 week from now is used.|
+|`--reason`|*no default*|Reason for revocation.|
+|`--serial`|*no default*|Serial number of the certificate to revoke.|
+|`--type`|*no default* (one of: `x509`)|Type of credential to revoke (x509)|
 
 ## tctl workload-identity revocations crl
 
@@ -2346,7 +2528,7 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`--[no-]follow`|`false`|Follow the stream of CRL updates.|
-|`--out`|none|Path to write the CRL as a file to. If unspecified, STDOUT will be used.|
+|`--out`|*no default*|Path to write the CRL as a file to. If unspecified, STDOUT will be used.|
 
 ## tctl workload-identity revocations ls
 
@@ -2372,8 +2554,8 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--serial`|none|Serial number of the certificate to remove the revocation for.|
-|`--type`|none|Type of credential to remove the revocation for (x509).|
+|`--serial`|*no default*|Serial number of the certificate to remove the revocation for.|
+|`--type`|*no default* (one of: `x509`)|Type of credential to remove the revocation for (x509).|
 
 ## tctl workload-identity rm
 
@@ -2389,7 +2571,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|name|none (required)|Name of the workload identity configuration to delete.|
+|name|*no default* (required)|Name of the workload identity configuration to delete.|
 
 ## tctl workload-identity x509-issuer-overrides create
 
@@ -2413,7 +2595,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
-|fullchain.pem|none (required)|PEM files containing an issuer and its optional chain each.|
+|fullchain.pem|*no default* (required)|PEM files containing an issuer and its optional chain each.|
 
 ## tctl workload-identity x509-issuer-overrides sign-csrs
 

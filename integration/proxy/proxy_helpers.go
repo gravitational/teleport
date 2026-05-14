@@ -36,7 +36,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/jackc/pgconn"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -51,7 +51,6 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integration/helpers"
-	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -206,6 +205,7 @@ func (p *Suite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname string) {
 		tconf.Auth.Enabled = false
 		tconf.Proxy.Enabled = false
 		tconf.SSH.Enabled = true
+		tconf.InsecureMode = true
 		tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 		return tconf
 	}
@@ -329,6 +329,7 @@ func rootClusterStandardConfig(t *testing.T) func(suite *Suite) *servicecfg.Conf
 	return func(suite *Suite) *servicecfg.Config {
 		rc := suite.root
 		config := servicecfg.MakeDefaultConfig()
+		config.InsecureMode = true
 		config.DataDir = t.TempDir()
 		config.Auth.Enabled = true
 		config.Auth.Preference.SetSecondFactor("off")
@@ -349,6 +350,7 @@ func leafClusterStandardConfig(t *testing.T) func(suite *Suite) *servicecfg.Conf
 	return func(suite *Suite) *servicecfg.Config {
 		lc := suite.leaf
 		config := servicecfg.MakeDefaultConfig()
+		config.InsecureMode = true
 		config.DataDir = t.TempDir()
 		config.Auth.Enabled = true
 		config.Auth.Preference.SetSecondFactor("off")
@@ -661,7 +663,7 @@ func mustRegisterUsingIAMMethod(t *testing.T, proxyAddr utils.NetAddr, token str
 		},
 		ProxyServer: proxyAddr,
 		JoinMethod:  types.JoinMethodIAM,
-		Insecure:    lib.IsInsecureDevMode(),
+		Insecure:    true,
 	})
 	require.NoError(t, err, trace.DebugReport(err))
 }
@@ -778,10 +780,10 @@ func kubeClientForLocalProxy(t *testing.T, kubeconfigPath, teleportCluster, kube
 		CAData:     config.Clusters[contextName].CertificateAuthorityData,
 		CertData:   config.AuthInfos[contextName].ClientCertificateData,
 		KeyData:    config.AuthInfos[contextName].ClientKeyData,
-		ServerName: alpncommon.KubeLocalProxySNI(teleportCluster, kubeCluster),
+		ServerName: teleportCluster,
 	}
 	client, err := kubernetes.NewForConfig(&rest.Config{
-		Host:            "https://" + teleportCluster,
+		Host:            "https://" + teleportCluster + alpncommon.KubeLocalProxyPathPrefix(teleportCluster, kubeCluster),
 		TLSClientConfig: tlsClientConfig,
 		Proxy:           http.ProxyURL(proxyURL),
 	})
