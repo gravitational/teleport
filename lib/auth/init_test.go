@@ -965,6 +965,7 @@ func TestPresets(t *testing.T) {
 		teleport.PresetTerraformProviderRoleName,
 		teleport.PresetWildcardWorkloadIdentityIssuerRoleName,
 		teleport.PresetAccessPluginRoleName,
+		teleport.PresetAccessPluginWithReviewRoleName,
 		teleport.PresetListAccessRequestResourcesRoleName,
 		teleport.PresetMCPUserRoleName,
 	}
