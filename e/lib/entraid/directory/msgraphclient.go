@@ -3,6 +3,7 @@ package directory
 import (
 	"context"
 	"errors"
+	"iter"
 	"log/slog"
 	"strings"
 	"sync"
@@ -11,7 +12,6 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/msgraph"
 	"github.com/gravitational/teleport/lib/msgraph/models"
@@ -26,23 +26,63 @@ type GraphClient interface {
 	IterateGroupOwners(ctx context.Context, groupID string, f func(*models.User) bool, opts ...msgraph.IterateOpt) error
 	IterateApplications(ctx context.Context, f func(*models.Application) bool, opts ...msgraph.IterateOpt) error
 	GetApplication(ctx context.Context, appID string) (*models.Application, error)
+
+	IterateUserDeltas(ctx context.Context, endpoint string, ds msgraph.DeltaStore) iter.Seq2[*models.ListUsersDeltaResponse, error]
+	IterateGroupDeltas(ctx context.Context, endpoint string, ds msgraph.DeltaStore) iter.Seq2[*models.ListGroupsDeltaResponse, error]
+	SetupLatestDelta(ctx context.Context, endpoint string, ds msgraph.DeltaStore, opts ...msgraph.IterateOpt) error
+}
+
+// deltaStore implements msgraph.DeltaStore
+type deltaStore struct {
+	mu    sync.Mutex
+	cache map[string]string
+}
+
+func newDeltaStore() *deltaStore {
+	return &deltaStore{
+		cache: make(map[string]string),
+	}
+}
+
+// Get gets delta link for the given endpoint.
+func (s *deltaStore) Get(endpoint string) string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.cache[endpoint]
+}
+
+// Set sets delta link for the given endpoint.
+func (s *deltaStore) Set(endpoint, link string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cache[endpoint] = link
+}
+
+// Clear clears delta link for the given endpoint.
+func (s *deltaStore) Clear(endpoint string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.cache, endpoint)
 }
 
 // graphClient is the graph client used by the directory reconciler.
 type graphClient struct {
 	GraphClient
-	log *slog.Logger
+	deltaStore msgraph.DeltaStore
+	log        *slog.Logger
 }
 
-func newGraphClient(client GraphClient, log *slog.Logger) *graphClient {
+func newGraphClient(client GraphClient, log *slog.Logger, deltaStore msgraph.DeltaStore) *graphClient {
 	return &graphClient{
 		GraphClient: client,
+		deltaStore:  deltaStore,
 		log:         log,
 	}
 }
 
 type listEntraGroupsResponse struct {
-	groups map[string]*models.Group
+	groupsMap       map[string]*models.Group
+	groupMembersMap map[string][]models.GroupMember
 	// errSkippedGroups is an error collection of failed group validation.
 	// These errors should not stop the sync and instead should be reported
 	// via the plugin status.
@@ -73,7 +113,7 @@ func (c *graphClient) listEntraGroups(
 	})
 
 	resp := listEntraGroupsResponse{
-		groups:           result,
+		groupsMap:        result,
 		errSkippedGroups: errSkippedGroups,
 	}
 	return resp, trace.Wrap(err)
@@ -203,10 +243,7 @@ func (c *graphClient) listEntraUsers(
 	})
 
 	if len(unsupportedUsers) > 0 {
-		names := utils.Deduplicate(unsupportedUsers)
-		errSkippedUsers = append(errSkippedUsers,
-			trace.BadParameter(`username contains unsupported character(s), it should only include alphanumerics, `+
-				`hyphens, dots, and plus sign. Unsupported usernames: %s`, strings.Join(names, ", ")))
+		errSkippedUsers = append(errSkippedUsers, errUnsupportedUsers(unsupportedUsers))
 	}
 
 	resp := listEntraUsersResponse{

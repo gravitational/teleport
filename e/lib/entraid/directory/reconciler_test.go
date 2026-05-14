@@ -2,6 +2,7 @@ package directory
 
 import (
 	"context"
+	"iter"
 	"sort"
 	"testing"
 
@@ -95,6 +96,22 @@ func (c *fakeGraphClient) GetApplication(ctx context.Context, appID string) (*mo
 	}
 
 	return nil, trace.NotFound("application %q not found", appID)
+}
+
+func (c *fakeGraphClient) IterateUserDeltas(ctx context.Context, endpoint string, ds msgraph.DeltaStore) iter.Seq2[*models.ListUsersDeltaResponse, error] {
+	return func(yield func(*models.ListUsersDeltaResponse, error) bool) {
+		yield(nil, trace.NotImplemented("not implemented"))
+	}
+}
+
+func (c *fakeGraphClient) IterateGroupDeltas(ctx context.Context, endpoint string, ds msgraph.DeltaStore) iter.Seq2[*models.ListGroupsDeltaResponse, error] {
+	return func(yield func(*models.ListGroupsDeltaResponse, error) bool) {
+		yield(nil, trace.NotImplemented("not implemented"))
+	}
+}
+
+func (c *fakeGraphClient) SetupLatestDelta(context.Context, string, msgraph.DeltaStore, ...msgraph.IterateOpt) error {
+	return trace.NotImplemented("not implemented")
 }
 
 func TestDirectoryReconciler(t *testing.T) {

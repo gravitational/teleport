@@ -165,7 +165,7 @@ func New(cfg Config) (*Reconciler, error) {
 		clock:                  cfg.Clock,
 		logger:                 cfg.Logger,
 		metricsRegistry:        cfg.MetricsRegistry,
-		graphClient:            newGraphClient(cfg.GraphClient, cfg.Logger),
+		graphClient:            newGraphClient(cfg.GraphClient, cfg.Logger, newDeltaStore()),
 		accessPoint:            cfg.AccessPoint,
 		defaultOwners:          cfg.DefaultOwners,
 		tenantID:               cfg.TenantID,
@@ -229,10 +229,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, _ mdmsync.SyncMode) (err err
 	r.metrics.reconciliationDuration.With(prometheus.Labels{
 		metricLabelSection: "read_entra_groups",
 	}).Observe(took.Seconds())
-	r.metrics.discoveredEntraGroups.Set(float64(len(entraGroupsResp.groups)))
+	r.metrics.discoveredEntraGroups.Set(float64(len(entraGroupsResp.groupsMap)))
 
 	start = r.clock.Now()
-	groupMembersMap, err := r.graphClient.listEntraGroupsMembers(ctx, entraGroupsResp.groups)
+	groupMembersMap, err := r.graphClient.listEntraGroupsMembers(ctx, entraGroupsResp.groupsMap)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -244,7 +244,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, _ mdmsync.SyncMode) (err err
 	r.metrics.discoveredEntraMemberships.Set(float64(len(groupMembersMap)))
 
 	start = r.clock.Now()
-	usersByEntraID, err := r.reconcileUsers(ctx, entraGroupsResp.groups, groupMembersMap)
+	usersByEntraID, err := r.reconcileUsers(ctx, entraGroupsResp.groupsMap, groupMembersMap)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -257,7 +257,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, _ mdmsync.SyncMode) (err err
 	start = r.clock.Now()
 	if err := r.reconcileAccessLists(ctx,
 		usersByEntraID,
-		entraGroupsResp.groups, groupMembersMap,
+		entraGroupsResp.groupsMap, groupMembersMap,
 		teleportAccessListsWithMembersMap,
 	); err != nil {
 		return trace.Wrap(err)

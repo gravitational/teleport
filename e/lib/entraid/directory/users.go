@@ -2,8 +2,10 @@ package directory
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -16,6 +18,25 @@ import (
 )
 
 var errUnsupportedUsername = &trace.BadParameterError{Message: "username not supported"}
+
+func errUnsupportedUsers(users []string) error {
+	names := utils.Deduplicate(users)
+	return trace.BadParameter(`username contains unsupported character(s), it should only include alphanumerics, `+
+		`hyphens, dots, and plus sign. Unsupported usernames: %s`, strings.Join(names, ", "))
+}
+
+const (
+	entraIDSAMLClaimGroups  = "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups"
+	entraIDSAMLClaimRoles   = "http://schemas.microsoft.com/ws/2008/06/identity/claims/roles"
+	entraIDSAMLClaimName    = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name"
+	entraIDSAMLClaimEmail   = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"
+	entraIDSAMLGivenName    = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname"
+	entraIDSAMLSurname      = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname"
+	defaultSchemasNamespace = "http://schemas.microsoft.com/identity/claims/"
+	tenantIDClaim           = defaultSchemasNamespace + "tenantid"
+	objectIdentifierClaim   = defaultSchemasNamespace + "objectidentifier"
+	displayNameClaim        = defaultSchemasNamespace + "displayname"
+)
 
 func convertUser(in *models.User, tenantID string, ssoConnectorID string, usersMemberships groupMembershipMap, emitAsRoles bool) (types.User, error) {
 	username, isExternal, err := processUsername(in)
@@ -52,18 +73,6 @@ func convertUser(in *models.User, tenantID string, ssoConnectorID string, usersM
 		},
 	})
 
-	const (
-		entraIDSAMLClaimName    = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name"
-		entraIDSAMLClaimEmail   = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"
-		entraIDSAMLClaimGroups  = "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups"
-		entraIDSAMLClaimRoles   = "http://schemas.microsoft.com/ws/2008/06/identity/claims/roles"
-		entraIDSAMLGivenName    = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname"
-		entraIDSAMLSurname      = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/surname"
-		defaultSchemasNamespace = "http://schemas.microsoft.com/identity/claims/"
-		tenantIDClaim           = defaultSchemasNamespace + "tenantid"
-		objectIdentifierClaim   = defaultSchemasNamespace + "objectidentifier"
-		displayNameClaim        = defaultSchemasNamespace + "displayname"
-	)
 	traits := map[string][]string{
 		entraIDSAMLClaimName:  {username},
 		tenantIDClaim:         {tenantID},
@@ -85,14 +94,12 @@ func convertUser(in *models.User, tenantID string, ssoConnectorID string, usersM
 	if in.Mail != nil {
 		traits[entraIDSAMLClaimEmail] = []string{*in.Mail}
 	}
-	if groups := usersMemberships[*in.ID].groupNames; len(groups) > 0 {
-		sort.Strings(groups)
+	if groups := userGroupNames(*in.GetID(), usersMemberships); len(groups) > 0 {
 		if emitAsRoles {
 			traits[entraIDSAMLClaimRoles] = groups
 		} else {
 			traits[entraIDSAMLClaimGroups] = groups
 		}
-
 	}
 	out.SetTraits(traits)
 
@@ -172,4 +179,17 @@ func unameForLog(in *models.User) string {
 		return fmt.Sprintf("(id=%s)", *in.GetID())
 	}
 	return ""
+}
+
+type userConfig struct {
+	tenantID       string
+	ssoConnectorID string
+	emitAsRoles    bool
+	tms            types.TraitMappingSet
+}
+
+func userGroupNames(id string, membershipMap groupMembershipMap) []string {
+	groups := slices.Clone(membershipMap[id].groupNames)
+	sort.Strings(groups)
+	return groups
 }

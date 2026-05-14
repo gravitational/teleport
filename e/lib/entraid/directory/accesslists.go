@@ -25,6 +25,20 @@ import (
 	"github.com/gravitational/teleport/lib/msgraph/models"
 )
 
+const (
+	// https://learn.microsoft.com/en-us/graph/api/resources/group?view=graph-rest-1.0#properties
+
+	// onPremisesSamAccountNameLabel is the Entra ID onPremisesSamAccountName
+	// property which represents on-premise SAM account name.
+	onPremisesSamAccountNameLabel = types.TeleportInternalLabelPrefix + "on-premises-sam-account-name"
+	// onPremisesDomainNameLabel is the Entra ID onPremisesDomainName
+	// property which represents the on-premise dnsDomainName value.
+	onPremisesDomainNameLabel = types.TeleportInternalLabelPrefix + "on-premises-domain-name"
+	// onPremisesNetBiosNameLabel is the Entra ID onPremisesNetBiosName
+	// property which represents the on-premise netBios name.
+	onPremisesNetBiosNameLabel = types.TeleportInternalLabelPrefix + "on-premises-net-bios-name"
+)
+
 type entraGroups struct {
 	groupsMap       map[string]*models.Group
 	groupMembersMap map[string][]models.GroupMember
@@ -119,11 +133,29 @@ func convertGroup(
 	if err != nil {
 		return "", nil, trace.Wrap(err)
 	}
-	out.SetStaticLabels(map[string]string{
+	staticLabels := map[string]string{
 		types.EntraTenantIDLabel:    tenantID,
 		types.EntraUniqueIDLabel:    id,
 		types.EntraDisplayNameLabel: displayName,
-	})
+	}
+
+	// The logic to construct user trait from their group membership
+	// is based on enterprise application settings and depends on the
+	// group OnPremisesDomainName, OnPremisesNetBiosName, OnPremisesSamAccountName
+	// properties. These values are preserved in Access List labels so
+	// that the delta sync can apply the trait changes to user resource
+	// if it detects changes in the enterprise application settings.
+	// See [getGroupNameBuilderFunc] and [buildUserMemberships] functions.
+	if in.OnPremisesDomainName != nil {
+		staticLabels[onPremisesDomainNameLabel] = *in.OnPremisesDomainName
+	}
+	if in.OnPremisesNetBiosName != nil {
+		staticLabels[onPremisesNetBiosNameLabel] = *in.OnPremisesNetBiosName
+	}
+	if in.OnPremisesSamAccountName != nil {
+		staticLabels[onPremisesSamAccountNameLabel] = *in.OnPremisesSamAccountName
+	}
+	out.SetStaticLabels(staticLabels)
 	out.SetOrigin(types.OriginEntraID)
 	return entraUniqueID(id), out, nil
 }

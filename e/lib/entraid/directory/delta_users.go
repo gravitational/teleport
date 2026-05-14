@@ -1,0 +1,111 @@
+package directory
+
+import (
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/msgraph/models"
+	"github.com/gravitational/teleport/lib/services"
+)
+
+type userDeltaProcessor struct {
+	// Teleport users map.
+	entraUsersMap map[entraUniqueID]types.User
+	// Entra ID group membership map.
+	entraUserGroupMemberships groupMembershipMap
+	userConfig                userConfig
+}
+
+func newUserDeltaProcessor(
+	userMemberships groupMembershipMap,
+	teleportUsersMap map[string]types.User,
+	userConfig userConfig,
+) *userDeltaProcessor {
+
+	processor := &userDeltaProcessor{
+		entraUserGroupMemberships: userMemberships,
+		entraUsersMap:             make(map[entraUniqueID]types.User, len(teleportUsersMap)),
+		userConfig:                userConfig,
+	}
+
+	for _, user := range teleportUsersMap {
+		id, ok := user.GetLabel(types.EntraUniqueIDLabel)
+		if !ok || id == "" {
+			continue
+		}
+		processor.entraUsersMap[entraUniqueID(id)] = processor.user(
+			entraUniqueID(id),
+			user,
+		)
+	}
+
+	return processor
+}
+
+// user returns a copy of teleport user so it
+// becomes the base of users collection for delta sync.
+// It may update user's traits and roles based on newly
+// discovered [entraUserGroupMemberships].
+func (u *userDeltaProcessor) user(id entraUniqueID, user types.User) types.User {
+	out := user.Clone()
+	newTraits := out.GetTraits()
+	if newTraits == nil {
+		// Entra imported users are supposed to have
+		// entra specific traits added.
+		newTraits = make(map[string][]string)
+	}
+	delete(newTraits, entraIDSAMLClaimRoles)
+	delete(newTraits, entraIDSAMLClaimGroups)
+	groups := userGroupNames(string(id), u.entraUserGroupMemberships)
+	if u.userConfig.emitAsRoles {
+		newTraits[entraIDSAMLClaimRoles] = groups
+	} else {
+		newTraits[entraIDSAMLClaimGroups] = groups
+	}
+
+	out.SetTraits(newTraits)
+	_ /* warnings */, roles := services.TraitsToRoles(u.userConfig.tms, newTraits)
+	out.SetRoles(roles)
+	return out
+}
+
+// apply processes new, updated or deleted user deltas
+// and applies the changes to the user base created
+// from Entra ID users.
+func (u *userDeltaProcessor) apply(in *models.ListUsersDeltaResponse) error {
+	if in == nil || in.GetID() == nil {
+		return nil
+	}
+
+	if isRemoved(in.Removed) {
+		delete(u.entraUsersMap, entraUniqueID(*in.GetID()))
+		return nil
+	}
+	// New or updated user.
+	user, err := convertUser(
+		in.User,
+		u.userConfig.tenantID,
+		u.userConfig.ssoConnectorID,
+		u.entraUserGroupMemberships,
+		u.userConfig.emitAsRoles,
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	u.entraUsersMap[entraUniqueID(*in.GetID())] = user
+	return nil
+}
+
+// result returns the final state of the Entra ID users
+// after applying delta changes.
+func (u *userDeltaProcessor) result() listEntraUsersResponse {
+	newEntraUsers := make(map[string]types.User, len(u.entraUsersMap))
+	for _, user := range u.entraUsersMap {
+		newEntraUsers[user.GetName()] = user
+	}
+
+	return listEntraUsersResponse{
+		users: newEntraUsers,
+	}
+}
