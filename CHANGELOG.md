@@ -6,6 +6,15 @@
 
 ### Breaking changes
 
+#### Kubernetes proxy subresource access
+
+Access to the Kubernetes API server proxy subresources
+(`pods/{name}/proxy/{path}`, `services/{name}/proxy/{path}`, and
+`nodes/{name}/proxy/{path}`) now requires the new `proxy` verb in
+`kubernetes_resources`. Previously these endpoints were authorized as
+the `get` verb. Roles that use the Kubernetes API server proxy must
+add `"proxy"` to the relevant `verbs` list.
+
 #### macOS 12
 
 The minimum version of macOS required to run Teleport or associated client tools

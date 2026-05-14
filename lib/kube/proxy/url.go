@@ -322,6 +322,22 @@ func getResourceFromAPIResource(resourceKind string) string {
 	return resourceKind
 }
 
+// splitResourceSubresource splits a resourceKind into its base resource and
+// the first subresource segment. The trailing path (if any) is discarded.
+// Examples:
+//
+//	"pods"                -> "pods", ""
+//	"pods/exec"           -> "pods", "exec"
+//	"pods/proxy/8080"     -> "pods", "proxy"
+//	"nodes/proxy/foo/bar" -> "nodes", "proxy"
+func splitResourceSubresource(resourceKind string) (base, sub string) {
+	parts := strings.SplitN(resourceKind, "/", 3)
+	if len(parts) < 2 {
+		return resourceKind, ""
+	}
+	return parts[0], parts[1]
+}
+
 // isKubeWatchRequest returns true if the request is a watch request.
 func isKubeWatchRequest(req *http.Request, r apiResource) bool {
 	if values := req.URL.Query()["watch"]; len(values) > 0 {
@@ -343,6 +359,12 @@ func (r apiResource) getVerb(req *http.Request) string {
 	case "pods/portforward":
 		verb = types.KubeVerbPortForward
 	default:
+		if base, sub := splitResourceSubresource(r.resourceKind); sub == "proxy" {
+			switch base {
+			case "pods", "services", "nodes":
+				return types.KubeVerbProxy
+			}
+		}
 		switch req.Method {
 		case http.MethodPost:
 			verb = types.KubeVerbCreate

@@ -108,6 +108,10 @@ func TestParseResourcePath(t *testing.T) {
 		{path: "/api/v1/namespaces/kube-system/pods/foo/exec", want: apiResource{apiGroup: "", apiGroupVersion: "v1", namespace: "kube-system", resourceKind: "pods/exec", resourceName: "foo"}},
 		{path: "/apis/apiregistration.k8s.io/v1/apiservices/foo/status", want: apiResource{apiGroup: "apiregistration.k8s.io", apiGroupVersion: "v1", resourceKind: "apiservices/status", resourceName: "foo"}},
 		{path: "/api/v1/nodes/foo/proxy/bar", want: apiResource{apiGroup: "", apiGroupVersion: "v1", resourceKind: "nodes/proxy/bar", resourceName: "foo"}},
+		// Parser retains every trailing segment for proxy subresources.
+		{path: "/api/v1/namespaces/default/pods/foo/proxy/8080", want: apiResource{apiGroup: "", apiGroupVersion: "v1", namespace: "default", resourceKind: "pods/proxy/8080", resourceName: "foo"}},
+		{path: "/api/v1/namespaces/default/services/svc/proxy/path", want: apiResource{apiGroup: "", apiGroupVersion: "v1", namespace: "default", resourceKind: "services/proxy/path", resourceName: "svc"}},
+		{path: "/api/v1/nodes/node-1/proxy/pods", want: apiResource{apiGroup: "", apiGroupVersion: "v1", resourceKind: "nodes/proxy/pods", resourceName: "node-1"}},
 	}
 
 	for _, tt := range tests {
@@ -192,6 +196,7 @@ func Test_getResourceFromRequest(t *testing.T) {
 		{path: "/api/v1/namespaces/kube-system/pods/foo/exec", want: &types.KubernetesResource{Kind: "pods", Namespace: "kube-system", Name: "foo", Verbs: []string{"exec"}, APIGroup: ""}},
 		{path: "/api/v1/namespaces/kube-system/pods/foo/attach", want: &types.KubernetesResource{Kind: "pods", Namespace: "kube-system", Name: "foo", Verbs: []string{"exec"}, APIGroup: ""}},
 		{path: "/api/v1/namespaces/kube-system/pods/foo/portforward", want: &types.KubernetesResource{Kind: "pods", Namespace: "kube-system", Name: "foo", Verbs: []string{"portforward"}, APIGroup: ""}},
+		{path: "/api/v1/namespaces/default/pods/foo/proxy/8080", want: &types.KubernetesResource{Kind: "pods", Namespace: "default", Name: "foo", Verbs: []string{"proxy"}, APIGroup: ""}},
 		{path: "/api/v1/namespaces/default/pods", body: bodyFunc("Pod", "v1"), want: &types.KubernetesResource{Kind: "pods", Namespace: "default", Name: "foo-create", Verbs: []string{"create"}, APIGroup: ""}},
 		{path: "/api/v1/namespaces/default/pods", body: bodyFuncWithoutGVK(), want: &types.KubernetesResource{Kind: "pods", Namespace: "default", Name: "foo-create", Verbs: []string{"create"}, APIGroup: ""}},
 
@@ -220,11 +225,13 @@ func Test_getResourceFromRequest(t *testing.T) {
 
 		// Nodes
 		{path: "/api/v1/nodes", want: &types.KubernetesResource{Kind: "nodes", Verbs: []string{"list"}, APIGroup: ""}},
-		{path: "/api/v1/nodes/foo/proxy/bar", want: &types.KubernetesResource{Kind: "nodes", Name: "foo", Verbs: []string{"get"}, APIGroup: ""}},
+		{path: "/api/v1/nodes/foo/proxy/bar", want: &types.KubernetesResource{Kind: "nodes", Name: "foo", Verbs: []string{"proxy"}, APIGroup: ""}},
+		{path: "/api/v1/nodes/node-1/proxy/pods", want: &types.KubernetesResource{Kind: "nodes", Name: "node-1", Verbs: []string{"proxy"}, APIGroup: ""}},
 		// Services
 		{path: "/api/v1/services", want: &types.KubernetesResource{Kind: "services", Verbs: []string{"list"}, APIGroup: ""}},
 		{path: "/api/v1/namespaces/default/services", want: &types.KubernetesResource{Kind: "services", Namespace: "default", Verbs: []string{"list"}, APIGroup: ""}},
 		{path: "/api/v1/namespaces/default/services/foo", want: &types.KubernetesResource{Kind: "services", Namespace: "default", Name: "foo", Verbs: []string{"get"}, APIGroup: ""}},
+		{path: "/api/v1/namespaces/default/services/svc/proxy/path", want: &types.KubernetesResource{Kind: "services", Namespace: "default", Name: "svc", Verbs: []string{"proxy"}, APIGroup: ""}},
 		{path: "/api/v1/watch/namespaces/default/services/foo", want: &types.KubernetesResource{Kind: "services", Namespace: "default", Name: "foo", Verbs: []string{"watch"}, APIGroup: ""}},
 		{path: "/api/v1/namespaces/default/services", body: bodyFunc("Service", "v1"), want: &types.KubernetesResource{Kind: "services", Namespace: "default", Name: "foo-create", Verbs: []string{"create"}, APIGroup: ""}},
 
