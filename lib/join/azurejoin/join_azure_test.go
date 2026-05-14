@@ -169,15 +169,18 @@ func TestJoinAzure(t *testing.T) {
 
 	nopClient, err := server.NewClient(authtest.TestNop())
 	require.NoError(t, err)
-
+	const intermediateIssuerURL = "http://www.microsoft.com/pkiops/certs/testcert.crt"
 	caChain := newFakeAzureCAChain(t)
-	httpClient := newFakeAzureIssuerHTTPClient(caChain.intermediates[0].cert.Raw)
+	httpClient := newFakeAzureIssuerHTTPClientForURLs(map[string][]byte{
+		rootIssuerURL:         caChain.rootCert.Raw,
+		intermediateIssuerURL: caChain.intermediates[0].cert.Raw,
+	})
 	instanceKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 	instanceCert := caChain.issueLeafCert(t,
 		instanceKey.Public(),
 		"instance.metadata.azure.com",
-		"http://www.microsoft.com/pkiops/certs/testcert.crt")
+		intermediateIssuerURL)
 
 	isAccessDenied := func(t require.TestingT, err error, _ ...any) {
 		require.True(t, trace.IsAccessDenied(err), "expected Access Denied error, actual error: %v", err)
@@ -668,13 +671,17 @@ func TestJoinAzureClaims(t *testing.T) {
 	require.NoError(t, err)
 
 	caChain := newFakeAzureCAChain(t)
-	httpClient := newFakeAzureIssuerHTTPClient(caChain.intermediates[0].cert.Raw)
+	const intermediateIssuerURL = "http://www.microsoft.com/pkiops/certs/testcert.crt"
+	httpClient := newFakeAzureIssuerHTTPClientForURLs(map[string][]byte{
+		rootIssuerURL:         caChain.rootCert.Raw,
+		intermediateIssuerURL: caChain.intermediates[0].cert.Raw,
+	})
 	instanceKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 	instanceCert := caChain.issueLeafCert(t,
 		instanceKey.Public(),
 		"instance.metadata.azure.com",
-		"http://www.microsoft.com/pkiops/certs/testcert.crt")
+		intermediateIssuerURL)
 
 	isAccessDenied := func(t require.TestingT, err error, _ ...any) {
 		require.True(t, trace.IsAccessDenied(err), "expected Access Denied error, actual error: %v", err)
@@ -1376,30 +1383,63 @@ func TestAzureJoinFetchesCompleteIntermediateChain(t *testing.T) {
 		vmID:         instanceID,
 	}
 
-	httpClient := newFakeAzureIssuerHTTPClientForURLs(map[string][]byte{
-		leafIssuerURL:         caChain.intermediates[0].cert.Raw,
-		intermediateIssuerURL: caChain.intermediates[1].cert.Raw,
-	})
-	a.SetAzureJoinConfig(&azurejoin.AzureJoinConfig{
-		CertificateAuthorities: []*x509.Certificate{caChain.rootCert},
-		Verify:                 mockVerifyToken(nil),
-		IssuerHTTPClient:       httpClient,
+	t.Run("full chain", func(t *testing.T) {
+		httpClient := newFakeAzureIssuerHTTPClientForURLs(map[string][]byte{
+			leafIssuerURL:         caChain.intermediates[0].cert.Raw,
+			intermediateIssuerURL: caChain.intermediates[1].cert.Raw,
+			rootIssuerURL:         caChain.rootCert.Raw,
+		})
+		a.SetAzureJoinConfig(&azurejoin.AzureJoinConfig{
+			CertificateAuthorities: []*x509.Certificate{caChain.rootCert},
+			Verify:                 mockVerifyToken(nil),
+			IssuerHTTPClient:       httpClient,
+		})
+
+		_, err = joinclient.Join(t.Context(), joinclient.JoinParams{
+			Token: "testtoken",
+			ID: state.IdentityID{
+				Role: types.RoleInstance,
+			},
+			AuthClient: nopClient,
+			AzureParams: joinclient.AzureParams{
+				ClientID:         instanceID,
+				IMDSClient:       imdsClient,
+				IssuerHTTPClient: httpClient,
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, []string{leafIssuerURL, intermediateIssuerURL, rootIssuerURL}, httpClient.requestedURLs)
 	})
 
-	_, err = joinclient.Join(t.Context(), joinclient.JoinParams{
-		Token: "testtoken",
-		ID: state.IdentityID{
-			Role: types.RoleInstance,
-		},
-		AuthClient: nopClient,
-		AzureParams: joinclient.AzureParams{
-			ClientID:         instanceID,
-			IMDSClient:       imdsClient,
-			IssuerHTTPClient: httpClient,
-		},
+	t.Run("failure to fetch root does not automatically fail join attempt", func(t *testing.T) {
+		// we omit the root cert URL from the fake httpClient so that it returns an error,
+		// but since the root cert would be dropped anyway (because it's already trusted by
+		// the azure join config) we expect the join attempt to succeed
+		httpClient := newFakeAzureIssuerHTTPClientForURLs(map[string][]byte{
+			leafIssuerURL:         caChain.intermediates[0].cert.Raw,
+			intermediateIssuerURL: caChain.intermediates[1].cert.Raw,
+		})
+		a.SetAzureJoinConfig(&azurejoin.AzureJoinConfig{
+			CertificateAuthorities: []*x509.Certificate{caChain.rootCert},
+			Verify:                 mockVerifyToken(nil),
+			IssuerHTTPClient:       httpClient,
+		})
+
+		_, err = joinclient.Join(t.Context(), joinclient.JoinParams{
+			Token: "testtoken",
+			ID: state.IdentityID{
+				Role: types.RoleInstance,
+			},
+			AuthClient: nopClient,
+			AzureParams: joinclient.AzureParams{
+				ClientID:         instanceID,
+				IMDSClient:       imdsClient,
+				IssuerHTTPClient: httpClient,
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, []string{leafIssuerURL, intermediateIssuerURL, rootIssuerURL}, httpClient.requestedURLs)
 	})
-	require.NoError(t, err)
-	require.Equal(t, []string{leafIssuerURL, intermediateIssuerURL}, httpClient.requestedURLs)
 }
 
 type fakeIMDSClient struct {
@@ -1467,6 +1507,8 @@ type fakeAzureCAChain struct {
 	rootCert      *x509.Certificate
 }
 
+const rootIssuerURL = "http://www.microsoft.com/pkiops/certs/root.ca"
+
 func newFakeAzureCAChain(t *testing.T, issuerURLs ...string) *fakeAzureCAChain {
 	rootKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
@@ -1489,6 +1531,8 @@ func newFakeAzureCAChain(t *testing.T, issuerURLs ...string) *fakeAzureCAChain {
 	intermediates := make([]keypair, numIntermediates)
 	parentCert := rootCert
 	parentKey := crypto.Signer(rootKey)
+	// append the root issuer URL so that the chain is always fully constructed
+	issuerURLs = append(issuerURLs, rootIssuerURL)
 	for i := numIntermediates - 1; i >= 0; i-- {
 		intermediateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 		require.NoError(t, err)
@@ -1502,9 +1546,7 @@ func newFakeAzureCAChain(t *testing.T, issuerURLs ...string) *fakeAzureCAChain {
 			IsCA:                  true,
 			BasicConstraintsValid: true,
 		}
-		if i < len(issuerURLs) {
-			intermediateCertTemplate.IssuingCertificateURL = []string{issuerURLs[i]}
-		}
+		intermediateCertTemplate.IssuingCertificateURL = []string{issuerURLs[i]}
 		intermediateCertDER, err := x509.CreateCertificate(rand.Reader, intermediateCertTemplate, parentCert, intermediateKey.Public(), parentKey)
 		require.NoError(t, err)
 		intermediateCert, err := x509.ParseCertificate(intermediateCertDER)

@@ -19,8 +19,8 @@ package joinclient
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"crypto/x509"
+	"log/slog"
 	"net/http"
 
 	"github.com/gravitational/trace"
@@ -102,10 +102,17 @@ func getIntermediateChain(ctx context.Context, httpClient utils.HTTPDoClient, ad
 		return nil, trace.Errorf("attested data leaf certificate has no issuing certificate URL")
 	}
 
+	if httpClient == nil {
+		httpClient, err = defaults.HTTPClient()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	// mostly arbitrary, meant as a sanity check against infinite loops
 	const maxDepth = 10
 	// track which certificates we've seen to detect cycles
-	seen := make(map[[32]byte]struct{})
+	seen := make(map[string]struct{})
 	cert := leafCert
 	var chainDER []byte
 	for range maxDepth {
@@ -113,16 +120,17 @@ func getIntermediateChain(ctx context.Context, httpClient utils.HTTPDoClient, ad
 			break
 		}
 
-		if httpClient == nil {
-			httpClient, err = defaults.HTTPClient()
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
+		url := cert.IssuingCertificateURL[0]
+		if _, ok := seen[url]; ok {
+			return nil, trace.Errorf("found cycle in intermediate chain")
 		}
-
-		issuer, err := fetchIssuerCert(ctx, httpClient, cert.IssuingCertificateURL[0])
+		seen[url] = struct{}{}
+		issuer, err := fetchIssuerCert(ctx, httpClient, url)
 		if err != nil {
-			return nil, trace.Wrap(err, "fetching intermediate")
+			// failing to fetch may not guarantee an invalid state, so we log, break out
+			// of the loop, and return the intermediates we've collected so far
+			slog.WarnContext(ctx, "failed to fetch an issuing certificate while joining with azure", "error", err, "url", url)
+			break
 		}
 
 		// we don't want to include the root in the chain, so we stop if we
@@ -130,11 +138,7 @@ func getIntermediateChain(ctx context.Context, httpClient utils.HTTPDoClient, ad
 		if bytes.Equal(issuer.RawSubject, issuer.RawIssuer) {
 			break
 		}
-		fp := sha256.Sum256(cert.Raw)
-		if _, ok := seen[fp]; ok {
-			return nil, trace.Errorf("found cycle in intermediate chain")
-		}
-		seen[fp] = struct{}{}
+
 		chainDER = append(chainDER, issuer.Raw...)
 		cert = issuer
 	}
