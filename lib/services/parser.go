@@ -1227,10 +1227,10 @@ func combineSplitContains(cursor *astutil.Cursor) (cont bool) {
 }
 
 // optimizeSplitContains is an [astutil.ApplyFunc] that replaces calls to
-// __split_contains where the delimiter is a one byte literal and the target is
-// a literal into calls to __split_contains_singlebyte_affix, by combining the
-// delimiter and literal strings into a new literal string that can be more
-// efficiently matched.
+// __split_contains where the delimiter is a nonempty literal string and the
+// target is a literal string into calls to __split_contains_singlebyte_affix,
+// by combining the delimiter and literal strings into a new literal string that
+// can be more efficiently matched.
 func optimizeSplitContains(cursor *astutil.Cursor) (cont bool) {
 	cont = true
 
