@@ -30,6 +30,7 @@ func computeVersion(file string, _ os.FileInfo, hash io.Writer) error {
 	if err != nil {
 		return trace.ConvertSystemError(err)
 	}
+	defer f.Close()
 	_, err = f.WriteTo(hash)
 	return trace.ConvertSystemError(err)
 }
