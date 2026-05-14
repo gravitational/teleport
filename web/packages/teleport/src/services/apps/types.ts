@@ -56,6 +56,11 @@ export interface App {
    */
   cloudInstance?: CloudInstance;
   isCloud?: boolean;
+  /**
+   * isLLM is true when the app is an LLM inference endpoint
+   * (URI scheme `llm://`).
+   */
+  isLLM?: boolean;
   // addrWithProtocol can either be a public address or
   // if public address wasn't defined, fallback to uri
   addrWithProtocol?: string;

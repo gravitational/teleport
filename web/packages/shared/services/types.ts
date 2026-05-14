@@ -61,9 +61,10 @@ export type NodeSubKind = 'teleport' | 'openssh' | 'openssh-ec2-ice';
 export enum AppSubKind {
   AwsIcAccount = 'aws_ic_account',
   MCP = 'mcp',
+  LLM = 'llm',
 }
 
 /**
  * AppProtocol defines the protocol of an App resource.
  */
-export type AppProtocol = 'TCP' | 'HTTP' | 'MCP';
+export type AppProtocol = 'TCP' | 'HTTP' | 'MCP' | 'LLM';

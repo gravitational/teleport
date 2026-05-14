@@ -83,18 +83,16 @@ export default function makeApp(json: any): App {
   const permissionSets: PermissionSet[] = json.permissionSets || [];
 
   const scheme = getAppUriScheme(uri);
-  const isTcp = scheme === 'tcp';
+  const isTcp = scheme === 'tcp' || scheme === 'tls';
   const isCloud = scheme === 'cloud';
   const isMcp = scheme.startsWith('mcp+');
+  const isLLM = scheme === 'llm';
 
   let addrWithProtocol = uri;
   if (publicAddr) {
     if (isCloud) {
       addrWithProtocol = `${cloudProtocol}${publicAddr}`;
-    } else if (isTcp) {
-      addrWithProtocol = `tcp://${publicAddr}`;
-    } else if (isMcp) {
-      // Not used anywhere yet.
+    } else if (isTcp || isMcp || isLLM) {
       addrWithProtocol = `${scheme}://${publicAddr}`;
     } else if (subKind === AppSubKind.AwsIcAccount) {
       /** publicAddr for Identity Center account app is a URL with scheme. */
@@ -144,6 +142,7 @@ export default function makeApp(json: any): App {
     awsConsole,
     isTcp,
     isCloud,
+    isLLM,
     addrWithProtocol,
     useAnyProxyPublicAddr,
     friendlyName,

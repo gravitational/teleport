@@ -29,11 +29,14 @@ export type AwsRole = {
  * types.Application.GetProtocol.
  */
 export function getAppProtocol(appURI: string): AppProtocol {
-  if (appURI.startsWith('tcp://')) {
+  if (appURI.startsWith('tcp://') || appURI.startsWith('tls://')) {
     return 'TCP';
   }
   if (appURI.startsWith('mcp+')) {
     return 'MCP';
+  }
+  if (appURI.startsWith('llm://')) {
+    return 'LLM';
   }
   return 'HTTP';
 }

@@ -110,6 +110,22 @@ export function isMcp(app: App): boolean {
   return app.endpointUri.startsWith('mcp+');
 }
 
+export function isLLM(app: App): boolean {
+  return app.endpointUri.startsWith('llm://');
+}
+
+/**
+ * isTcp returns true for both `tcp://` and `tls://` apps. From the client's
+ * perspective both are accessed through `tsh proxy app`; the `tls://` variant
+ * only differs in how the app service connects to the upstream target.
+ */
+export function isTcp(app: App): boolean {
+  return (
+    app.endpointUri.startsWith('tcp://') ||
+    app.endpointUri.startsWith('tls://')
+  );
+}
+
 /**
  * doesMcpAppSupportGateway returns true for MCP servers that supports local
  * proxy gateway. Currently only MCP servers with streamable HTTP transport
@@ -132,16 +148,17 @@ export function getAppAddrWithProtocol(source: App): string {
   const { publicAddr, endpointUri } = source;
 
   const scheme = getAppUriScheme(endpointUri);
-  const isTcp = endpointUri && endpointUri.startsWith('tcp://');
+  const isTcp =
+    endpointUri &&
+    (endpointUri.startsWith('tcp://') || endpointUri.startsWith('tls://'));
   const isCloud = endpointUri && endpointUri.startsWith('cloud://');
   const isMcp = scheme.startsWith('mcp+');
+  const isLlm = scheme === 'llm';
   let addrWithProtocol = endpointUri;
   if (publicAddr) {
     if (isCloud) {
       addrWithProtocol = `cloud://${publicAddr}`;
-    } else if (isTcp) {
-      addrWithProtocol = `tcp://${publicAddr}`;
-    } else if (isMcp) {
+    } else if (isTcp || isMcp || isLlm) {
       addrWithProtocol = `${scheme}://${publicAddr}`;
     } else {
       // publicAddr for Identity Center account app is a URL with scheme.
