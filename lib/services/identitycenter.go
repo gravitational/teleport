@@ -246,7 +246,7 @@ func IdentityCenterAccountToAppServer(acct *identitycenterv1.Account) *types.App
 	}
 
 	// StartUrl is usually a full URL; reduce to a bare hostname.
-	publicAddr := acct.Spec.StartUrl
+	publicAddr := acct.GetSpec().GetStartUrl()
 	if u, err := url.Parse(publicAddr); err == nil && u.Hostname() != "" {
 		publicAddr = u.Hostname()
 	}
@@ -258,7 +258,7 @@ func IdentityCenterAccountToAppServer(acct *identitycenterv1.Account) *types.App
 	// metadata so storage key and routing identity stay aligned.
 	metadata := types.Metadata153ToLegacy(acct.Metadata)
 	metadata.Name = strings.ToLower(metadata.Name)
-	metadata.Description = acct.Spec.Name
+	metadata.Description = acct.GetSpec().GetName()
 
 	return &types.AppServerV3{
 		Kind:     types.KindAppServer,

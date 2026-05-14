@@ -231,10 +231,10 @@ func TestRunAWSRolesAnywherProfileSyncer(t *testing.T) {
 
 		params := baseParams(serverClient)
 		params.rolesAnywhereClient = &mockRolesAnywhereClient{
-			profiles: []ratypes.ProfileDetail{
+			pages: [][]ratypes.ProfileDetail{{
 				syncProfile,
 				disabledProfile,
-			},
+			}},
 			tags: exampleProfileTags,
 		}
 
@@ -256,11 +256,11 @@ func TestRunAWSRolesAnywherProfileSyncer(t *testing.T) {
 
 		params := baseParams(serverClient)
 		params.rolesAnywhereClient = &mockRolesAnywhereClient{
-			profiles: []ratypes.ProfileDetail{
+			pages: [][]ratypes.ProfileDetail{{
 				syncProfile,
 				disabledProfile,
 				exampleProfile,
-			},
+			}},
 			tags: exampleProfileTags,
 		}
 
@@ -308,9 +308,9 @@ func TestRunAWSRolesAnywherProfileSyncer(t *testing.T) {
 			},
 		}
 		params.rolesAnywhereClient = &mockRolesAnywhereClient{
-			profiles: []ratypes.ProfileDetail{
+			pages: [][]ratypes.ProfileDetail{{
 				exampleProfile,
-			},
+			}},
 			tags: tags,
 		}
 
@@ -349,9 +349,9 @@ func TestRunAWSRolesAnywherProfileSyncer(t *testing.T) {
 			},
 		}
 		params.rolesAnywhereClient = &mockRolesAnywhereClient{
-			profiles: []ratypes.ProfileDetail{
+			pages: [][]ratypes.ProfileDetail{{
 				exampleProfile,
-			},
+			}},
 			tags: tags,
 		}
 
@@ -395,8 +395,8 @@ func TestRunAWSRolesAnywherProfileSyncer(t *testing.T) {
 
 		params := baseParams(serverClient)
 		params.rolesAnywhereClient = &mockRolesAnywhereClient{
-			profiles: []ratypes.ProfileDetail{profileA, profileB},
-			tags:     map[string][]ratypes.Tag{},
+			pages: [][]ratypes.ProfileDetail{{profileA, profileB}},
+			tags:  map[string][]ratypes.Tag{},
 		}
 
 		synctest.Test(t, func(t *testing.T) {
@@ -538,10 +538,10 @@ func TestRunAWSRolesAnywherProfileSyncer(t *testing.T) {
 
 				params := baseParams(serverClient)
 				params.rolesAnywhereClient = &mockRolesAnywhereClient{
-					profiles: []ratypes.ProfileDetail{
+					pages: [][]ratypes.ProfileDetail{{
 						syncProfile,
 						appProfile,
-					},
+					}},
 					tags: map[string][]ratypes.Tag{},
 				}
 
@@ -584,10 +584,10 @@ func TestRunAWSRolesAnywherProfileSyncer(t *testing.T) {
 
 		params := baseParams(serverClient)
 		params.rolesAnywhereClient = &mockRolesAnywhereClient{
-			profiles: []ratypes.ProfileDetail{
+			pages: [][]ratypes.ProfileDetail{{
 				syncProfile,
 				invalidProfile,
-			},
+			}},
 			tags: map[string][]ratypes.Tag{},
 		}
 
@@ -647,9 +647,9 @@ func TestSanitizeProfileName(t *testing.T) {
 			want:  "foo",
 		},
 		{
-			name:  "consecutive invalid chars collapsed",
+			name:  "consecutive invalid chars become consecutive hyphens",
 			input: "foo__bar",
-			want:  "foo-bar",
+			want:  "foo--bar",
 		},
 		{
 			name:  "dotted name preserved",
@@ -785,22 +785,14 @@ func TestAWSConsoleURLForARN(t *testing.T) {
 }
 
 type mockRolesAnywhereClient struct {
-	profiles []ratypes.ProfileDetail
-	// pages, when non-nil, takes precedence over profiles and returns
-	// one element per ListProfiles call along with a NextToken pointing
-	// at the following index, exercising the page loop in
-	// syncProfileForIntegration.
+	// pages returns one element per ListProfiles call with a NextToken
+	// pointing at the following index. Single-page tests set one entry.
 	pages [][]ratypes.ProfileDetail
 	tags  map[string][]ratypes.Tag
 }
 
 // Lists all profiles in the authenticated account and Amazon Web Services Region.
 func (m *mockRolesAnywhereClient) ListProfiles(ctx context.Context, params *rolesanywhere.ListProfilesInput, optFns ...func(*rolesanywhere.Options)) (*rolesanywhere.ListProfilesOutput, error) {
-	if len(m.pages) == 0 {
-		return &rolesanywhere.ListProfilesOutput{
-			Profiles: m.profiles,
-		}, nil
-	}
 	idx := 0
 	if params.NextToken != nil {
 		n, err := strconv.Atoi(aws.ToString(params.NextToken))

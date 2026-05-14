@@ -552,21 +552,17 @@ func awsConsoleURLForARN(parsedARN arn.ARN) string {
 	}
 }
 
-var (
-	// invalidAppNameChar matches any char not valid in a DNS-1123
-	// subdomain after lowercasing. Dots are kept as label separators.
-	invalidAppNameChar = regexp.MustCompile(`[^a-z0-9.\-]`)
-	// multiHyphen matches two or more consecutive hyphens.
-	multiHyphen = regexp.MustCompile(`-{2,}`)
-)
+// invalidAppNameChar matches any char not valid in a DNS-1123
+// subdomain after lowercasing. Dots are kept as label separators.
+var invalidAppNameChar = regexp.MustCompile(`[^a-z0-9.\-]`)
 
 // sanitizeProfileName rewrites a raw AWS profile name to satisfy
 // DNS-1123 subdomain: lowercase, hyphen-substitute invalid chars,
-// collapse runs of hyphens, and trim hyphens from each label.
+// and trim hyphens from each label. Runs of hyphens are kept;
+// DNS-1123 allows them and preserving them avoids extra collisions.
 func sanitizeProfileName(name string) string {
 	name = strings.ToLower(name)
 	name = invalidAppNameChar.ReplaceAllString(name, "-")
-	name = multiHyphen.ReplaceAllString(name, "-")
 	parts := strings.Split(name, ".")
 	out := make([]string, 0, len(parts))
 	for _, p := range parts {

@@ -939,13 +939,11 @@ func testAppServerHeartbeatNormalization(t *testing.T) {
 		withServerKeepAlive(time.Millisecond*200),
 		withTestEventsChannel(events),
 	)
-	defer controller.Close()
-
 	upstream, downstream := client.InventoryControlStreamPipe()
 	t.Cleanup(func() {
-		controller.Close()
 		upstream.Close()
 		downstream.Close()
+		controller.Close()
 	})
 
 	go func() {
@@ -1029,13 +1027,11 @@ func testAppKeepAliveRetryRoutesThroughUpsert(t *testing.T) {
 		withServerKeepAlive(time.Millisecond*200),
 		withTestEventsChannel(events),
 	)
-	defer controller.Close()
-
 	upstream, downstream := client.InventoryControlStreamPipe()
 	t.Cleanup(func() {
-		controller.Close()
 		upstream.Close()
 		downstream.Close()
+		controller.Close()
 	})
 
 	go func() {

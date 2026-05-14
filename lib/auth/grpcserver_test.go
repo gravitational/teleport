@@ -5768,11 +5768,12 @@ func TestUpsertApplicationServerOrigin(t *testing.T) {
 func TestApplicationServerHeartbeatLowercase(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	server := newTestTLSServer(t)
 	agent := authtest.TestBuiltin(types.RoleApp)
 	client, err := server.NewClient(agent)
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, client.Close()) })
 
 	app, err := types.NewAppV3(types.Metadata{Name: "MixedCaseApp"}, types.AppSpecV3{
 		URI: "http://localhost:8080",
@@ -5798,7 +5799,7 @@ func TestApplicationServerHeartbeatLowercase(t *testing.T) {
 func TestServerUpsertApplicationServerValidates(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	srv := newTestTLSServer(t)
 
 	bad, err := types.NewAppV3(types.Metadata{Name: "MixedCase"}, types.AppSpecV3{
@@ -5819,11 +5820,12 @@ func TestServerUpsertApplicationServerValidates(t *testing.T) {
 func TestApplicationAdminPathsRejectMixedCase(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	server := newTestTLSServer(t)
 	admin := authtest.TestAdmin()
 	client, err := server.NewClient(admin)
 	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, client.Close()) })
 
 	t.Run("CreateApp", func(t *testing.T) {
 		app, err := types.NewAppV3(types.Metadata{Name: "MyApp"}, types.AppSpecV3{

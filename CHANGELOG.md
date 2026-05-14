@@ -21,20 +21,35 @@ other services. The limit is aggregated across all apps on the
 `connection_limits` configured, those values apply to app access
 connections after upgrading to v19.
 
-#### Stricter `public_addr` validation
+#### Stricter application validation
 
-App `name`, `public_addr`, and `required_apps` are now validated as
-lowercase DNS-1123 hostnames on every write path, including agent
-heartbeats. The change is backwards compatible for most existing
-records: heartbeats from older agents are first normalized (URL
-schemes and ports stripped, value lowercased) so URL-shaped or
-mixed-case legacy values keep working after upgrade.
+The application service now applies stricter naming rules at every
+write path (`teleport.yaml`, dynamic `tctl create`, and agent
+heartbeats). The rules differ slightly by field.
 
-The exception is `public_addr` values that are not a valid DNS-1123
-hostname even after normalization -- for example, IP addresses, IDN
-Unicode (non-ASCII), trailing dots, or underscores. Such records
-are rejected on the next heartbeat and drop from the app registry
-until the `public_addr` is fixed.
+App `name` in `teleport.yaml` is a lowercase DNS label:
+
+- only letters `a-z`, digits `0-9`, and dashes (`-`),
+- starts and ends with a letter or digit,
+- up to 63 characters.
+
+App `name` written through the dynamic API, `public_addr`, and
+`required_apps` entries are lowercase DNS hostnames. The same
+rules apply, with dots (`.`) allowed as label separators for
+AWS OIDC integration compatibility, up to 253 characters in
+total, and no trailing dot or IDN Unicode (use punycode for
+non-ASCII).
+
+The change is backwards compatible for most existing records.
+Heartbeats from older agents are first normalized (URL schemes and
+ports stripped, value lowercased) so URL-shaped or mixed-case
+legacy values keep working after upgrade.
+
+The exception is `public_addr` values that are still invalid after
+normalization, for example IP addresses, IDN Unicode, trailing
+dots, or underscores. Such records are rejected on the next
+heartbeat and drop from the app registry until the `public_addr`
+is corrected.
 
 #### CLI --help Output Improvements
 
