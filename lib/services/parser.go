@@ -1195,6 +1195,7 @@ func newResourceExpression(expression string, parser *typical.Parser[types.Resou
 // of calls of "contains(split(value, delimiter), target)" into a single call to
 // "__split_contains(value, delimiter, target)".
 func combineSplitContains(cursor *astutil.Cursor) (cont bool) {
+	// we don't terminate the AST visit early so we always return true
 	cont = true
 
 	containsCall := getIdentCall(cursor.Node(), "contains")
@@ -1231,6 +1232,7 @@ func combineSplitContains(cursor *astutil.Cursor) (cont bool) {
 // by combining the delimiter and literal strings into a new literal string that
 // can be more efficiently matched.
 func optimizeSplitContains(cursor *astutil.Cursor) (cont bool) {
+	// we don't terminate the AST visit early so we always return true
 	cont = true
 
 	splitContainsCall := getIdentCall(cursor.Node(), "__split_contains")
