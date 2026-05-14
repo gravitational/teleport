@@ -115,6 +115,7 @@ export const enterpriseRoutes = {
 
   // beams
   beamsQuickstart: '/web/beams/get-started',
+  beamsFeedback: '/web/beams/feedback',
 
   rootScopedRoles:
     '/enterprise/rootscopedroles?limit=:limit?&startKey=:startKey?&filter=:filter?',
@@ -124,6 +125,9 @@ const cfg = {
   oss: ossCfg,
 
   routes: { ...enterpriseRoutes },
+
+  // External links
+  communitySlackUrl: 'https://goteleport.com/community-slack/',
 
   api: {
     // TODO(kimlisa): move accessListXXX to the "accessList" object.
@@ -717,6 +721,10 @@ const cfg = {
 
   getBeamsQuickstartRoute() {
     return generatePath(cfg.routes.beamsQuickstart);
+  },
+
+  getBeamsFeedbackRoute() {
+    return generatePath(cfg.routes.beamsFeedback);
   },
 
   init(json: object) {

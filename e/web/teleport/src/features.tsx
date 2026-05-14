@@ -1,6 +1,7 @@
 import {
   Add,
   Chart,
+  ChatCircle,
   Code,
   Crown,
   Detective,
@@ -54,6 +55,7 @@ import {
 
 import { AccessAutomations } from './AccessAutomations/AccessAutomations';
 import { AccessGraph } from './AccessGraph';
+import { BeamsFeedback } from './Beams/BeamsFeedback';
 import { BeamsQuickstart } from './Beams/BeamsQuickstart';
 import { ManagedUpdates as ManagedUpdatesE } from './ManagedUpdates';
 import { RolesE } from './Roles/RolesE';
@@ -778,6 +780,42 @@ class FeatureBeamsQuickstart implements TeleportFeature {
   }
 }
 
+class FeatureBeamsFeedback implements TeleportFeature {
+  category = NavigationCategory.Beams;
+
+  route = {
+    title: 'Feedback',
+    path: cfg.getBeamsFeedbackRoute(),
+    exact: true,
+    component: BeamsFeedback,
+  };
+
+  hasAccess() {
+    return cfg.oss.entitlements.Beams.enabled;
+  }
+
+  navigationItem = {
+    title: NavTitle.BeamsFeedback,
+    icon: ChatCircle,
+    exact: true,
+    getLink() {
+      return cfg.getBeamsFeedbackRoute();
+    },
+    searchableTags: [
+      'beams',
+      'feedback',
+      'slack',
+      'community',
+      'help',
+      'support',
+    ],
+  };
+
+  getRoute() {
+    return this.route;
+  }
+}
+
 export function getEnterpriseFeatures(): TeleportFeature[] {
   if (cfg.oss.beamsUi) {
     return getBeamsUiFeatures();
@@ -846,6 +884,7 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
 
     // - Beams
     new FeatureBeamsQuickstart(),
+    new FeatureBeamsFeedback(),
 
     // Other
     new FeatureAccount(),
@@ -861,6 +900,7 @@ function getBeamsUiFeatures(): TeleportFeature[] {
   return [
     // Beams
     new FeatureBeamsQuickstart(),
+    new FeatureBeamsFeedback(),
 
     // Resources
     new FeatureUnifiedResources(),

@@ -15,7 +15,6 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import { useState } from 'react';
-import styled from 'styled-components';
 
 import Flex from 'design/Flex/Flex';
 import { SlideTabs } from 'design/SlideTabs';
@@ -25,6 +24,8 @@ import { parse } from 'shared/utils/semVer';
 import { FeatureBox } from 'teleport/components/Layout/Layout';
 import { useNoMinWidth } from 'teleport/Main';
 import useTeleport from 'teleport/useTeleport';
+
+import { BeamsCard } from './components';
 
 export function BeamsQuickstart() {
   const [activeScenario, setActiveScenario] = useState<Scenario>(Scenario.run);
@@ -58,12 +59,12 @@ export function BeamsQuickstart() {
         gap={3}
       >
         {infoContent.map(c => (
-          <Wrapper key={c}>
-            <Markdown text={c} enableLinks />
-          </Wrapper>
+          <BeamsCard key={c}>
+            <Markdown text={c} />
+          </BeamsCard>
         ))}
 
-        <Wrapper>
+        <BeamsCard>
           <Markdown
             text={
               '### Step 3: Check out these scenarios to help you explore Beams:'
@@ -74,12 +75,12 @@ export function BeamsQuickstart() {
             activeIndex={scenarios.findIndex(c => c.key === activeScenario)}
             onChange={index => setActiveScenario(scenarios[index]!.key)}
           />
-        </Wrapper>
+        </BeamsCard>
 
         {scenario.map(c => (
-          <Wrapper key={c}>
+          <BeamsCard key={c}>
             <Markdown text={c} enableLinks />
-          </Wrapper>
+          </BeamsCard>
         ))}
       </Flex>
     </FeatureBox>
@@ -442,10 +443,3 @@ tsh beams rm <beam-id>
 Read the [docs and reference](https://goteleport.com/docs/ver/19.x/beams/) for more details.
 `,
 ];
-
-const Wrapper = styled.div`
-  padding: ${({ theme }) => theme.space[6]}px;
-  border: 1px solid ${({ theme }) => theme.colors.interactive.tonal.neutral[2]};
-  border-radius: ${({ theme }) => theme.radii[3]}px;
-  background-color: ${({ theme }) => theme.colors.levels.surface};
-`;
