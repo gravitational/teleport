@@ -1,5 +1,20 @@
 # Changelog
 
+## 18.8.1 (05/14/26)
+
+* The MFA prompt now includes the name of a leaf cluster if the resource belongs to one. [#66741](https://github.com/gravitational/teleport/pull/66741)
+* When attempting to access a web app protected by Device Trust from an untrusted device, browsers now see a simple HTML page instead of a plain text response. [#66717](https://github.com/gravitational/teleport/pull/66717)
+* Improved the error message on login in tsh and Teleport Connect when `/webapi/ping` returns a non-200 response. [#66712](https://github.com/gravitational/teleport/pull/66712)
+* The kubernetes join method now supports allow rules targetting specific service account names and namespaces and supports wildcarding when the new fields are used. [#66700](https://github.com/gravitational/teleport/pull/66700)
+* Raise the app access upstream response-header cap from 5 minutes to 1 hour so long-running HTTP requests complete. [#66687](https://github.com/gravitational/teleport/pull/66687)
+* Fixed an issue preventing host sudoers entries from being written on newer Linux distributions (i.e. Ubuntu 25.10) using sudo-rs. [#66433](https://github.com/gravitational/teleport/pull/66433)
+
+Enterprise:
+* Internal performance optimizations to the SCIM PATCH flow when multiple parallel PATCH requests target the same SCIM groups.
+* Fixed an issue with sessions failing to be summarised when using non-alternate buffer TUI applications.
+* Commands in the session summary timeline now show detected MITRE attack IDs and suspicious flags.
+* Fixed Web UI to no longer show audit review prompts or 0001-01-01 dates for static Access Lists.
+
 ## 18.8.0 (05/07/26)
 
 ### Performance improvements in the SSH service
