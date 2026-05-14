@@ -30,7 +30,8 @@ import (
 )
 
 const (
-	nonSemverTag = "my-custom-tag"
+	nonSemverTag          = "my-custom-tag"
+	teleportContainerName = "teleport"
 )
 
 func Test_getContainerImageFromPod(t *testing.T) {
@@ -347,7 +348,7 @@ func Test_getWorkloadVersion(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := getWorkloadVersion(tt.podSpec)
+			got, err := getWorkloadVersion(tt.podSpec, teleportContainerName)
 			tt.assertErr(t, err)
 			require.Equal(t, tt.expected, got)
 		})
