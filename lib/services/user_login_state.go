@@ -21,6 +21,7 @@ package services
 import (
 	"context"
 	"log/slog"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -111,8 +112,27 @@ func GetUserOrLoginState(ctx context.Context, getter UserOrLoginStateGetter, use
 	}
 
 	if err == nil {
-		slog.WarnContext(ctx, "!! GetUserOrLoginState: returning ULS",
-			"user", username, "roles", uls.GetRoles())
+		if strings.HasPrefix(username, BotUserPrefix) {
+			// Bots should never have ULS, but bugs elsewhere can mistakenly
+			// introduce it. If ULS happens to exist for a user with the bot
+			// label, we need to ignore it and return the user instead.
+			// Unfortunately, that means we can't trust the labels of the ULS we
+			// just fetched - they might be invalid/empty and missing the bot
+			// label.
+			// However, if the user has the `bot-` prefix, we know the user is
+			// plausibly a bot, so we can fetch the user early and check
+			// directly.
+			botUser, botErr := getter.GetUser(ctx, username, false)
+			if botErr == nil && botUser.IsBot() {
+				// User was fetchable and has the bot label, return it
+				// immediately.
+				return botUser, nil
+			}
+
+			// If the user was not fetchable or wasn't a bot, fall back to the
+			// standard logic.
+		}
+
 		return uls, nil
 	}
 
