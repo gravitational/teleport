@@ -967,11 +967,15 @@ func NewSystemBeamRole(buildType string) types.Role {
 
 	// Only allow the bot to generate host certificates for the Beam's OpenSSH
 	// server. tbot explicitly sends a blank HostID, HostName and the Node role.
-	hostCertConstraints := strings.Join([]string{
-		fmt.Sprintf(`contains_all(user.spec.traits[%q], host_cert.principals)`, types.BeamIDLabel),
-		`host_cert.host_id == ""`,
-		`host_cert.node_name == ""`,
-	}, " && ")
+	//
+	// TODO(boxofrad): Reintroduce these constraints once the release that aligns
+	// the Beam and Node IDs has been running for >24h.
+	//
+	// hostCertConstraints := strings.Join([]string{
+	// 	fmt.Sprintf(`contains_all(user.spec.traits[%q], host_cert.principals)`, types.BeamIDLabel),
+	// 	`host_cert.host_id == ""`,
+	// 	`host_cert.node_name == ""`,
+	// }, " && ")
 
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
@@ -990,7 +994,7 @@ func NewSystemBeamRole(buildType string) types.Role {
 					{
 						Resources: []string{types.KindHostCert},
 						Verbs:     []string{types.VerbCreate},
-						Where:     hostCertConstraints,
+						// Where:     hostCertConstraints,
 					},
 					{
 						Resources: []string{types.KindWorkloadIdentity},
