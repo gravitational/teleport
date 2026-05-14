@@ -109,6 +109,8 @@ type Backend interface {
 	GetRole(ctx context.Context, name string) (types.Role, error)
 	// GetToken returns a token by name.
 	GetToken(ctx context.Context, name string) (types.ProvisionToken, error)
+	// DeleteUserLoginState deletes a user login state.
+	DeleteUserLoginState(ctx context.Context, name string) error
 }
 
 // BotServiceConfig holds configuration options for
@@ -763,6 +765,23 @@ func (bs *BotService) deleteBotUser(
 			"user missing bot label matching bot name; consider manually deleting user",
 		)
 	}
+
+	// Try to delete any ULS for this bot user. The Okta usermonitor could
+	// occasionally create invalid ULS entries for bots which are otherwise
+	// impossible to remove. This at least ensures they can be manually deleted,
+	// as ULS cannot be managed otherwise (not available via tctl, etc).
+	// `NotFound` is normal/expected with this bug fixed in the usermonitor,
+	// but at worst treat any other errors as a warning.
+	if err := bs.backend.DeleteUserLoginState(ctx, user.GetName()); err != nil {
+		if !trace.IsNotFound(err) {
+			bs.logger.WarnContext(
+				ctx, "failed to delete user login state for bot",
+				"user", user.GetName(),
+				"error", err,
+			)
+		}
+	}
+
 	return bs.backend.DeleteUser(ctx, user.GetName())
 }
 
