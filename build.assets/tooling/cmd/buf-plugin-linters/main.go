@@ -38,6 +38,146 @@ var paginationSpec = &check.Spec{
 			Type:    check.RuleTypeLint,
 			Handler: checkutil.NewMethodRuleHandler(checkPaginationMethod),
 		},
+		{
+			ID:      "DEFINITIONS_IN_SYNC",
+			Purpose: "Ensure that message definitions in some packages are equal to definitions in other packages.",
+			Type:    check.RuleTypeLint,
+			Handler: checkutil.NewMessageRuleHandler(func(ctx context.Context, w check.ResponseWriter, r check.Request, md protoreflect.MessageDescriptor) error {
+				sourcePackage, ok := map[protoreflect.FullName]protoreflect.FullName{
+					"teleport.webauthn.v2": "webauthn",
+				}[md.FullName().Parent()]
+				if !ok {
+					return nil
+				}
+
+				var foundSourcePackage bool
+				var sourceMd protoreflect.MessageDescriptor
+				for _, fd := range r.FileDescriptors() {
+					rfd := fd.ProtoreflectFileDescriptor()
+					if rfd.IsPlaceholder() {
+						continue
+					}
+					if rfd.Package() != sourcePackage {
+						continue
+					}
+					foundSourcePackage = true
+					sourceMd = rfd.Messages().ByName(md.Name())
+					if sourceMd != nil {
+						break
+					}
+				}
+				if sourceMd == nil {
+					if foundSourcePackage {
+						w.AddAnnotation(
+							check.WithDescriptor(md),
+							check.WithMessagef("failed to find message %+q in package %+q", md.FullName(), sourcePackage),
+						)
+					}
+					// this is only guaranteed when running "buf lint" on the
+					// whole set of proto files, so to avoid permanent
+					// squigglies in IDEs we relax the check if none of the
+					// source files for the source package are available to us
+					return nil
+				}
+
+				fields := md.Fields()
+				sourceFields := sourceMd.Fields()
+
+				for i := range sourceFields.Len() {
+					sourceField := sourceFields.Get(i)
+					field := fields.ByName(sourceField.Name())
+					if field == nil {
+						w.AddAnnotation(
+							check.WithDescriptor(md),
+							check.WithMessagef("failed to find field %+q in message %+q", sourceField.FullName(), md.FullName()),
+						)
+						continue
+					}
+				}
+
+				for i := range fields.Len() {
+					field := fields.Get(i)
+					sourceField := sourceFields.ByName(field.Name())
+					if sourceField == nil {
+						w.AddAnnotation(
+							check.WithDescriptor(field),
+							check.WithMessagef("failed to find field %+q in message %+q", field.FullName(), sourceMd.FullName()),
+						)
+						continue
+					}
+
+					if field.Number() != sourceField.Number() {
+						w.AddAnnotation(
+							check.WithDescriptor(field),
+							check.WithMessagef("expected field %+q to have number %d", field.FullName(), sourceField.Number()),
+						)
+					}
+
+					if field.IsMap() && !sourceField.IsMap() {
+						w.AddAnnotation(
+							check.WithDescriptor(field),
+							check.WithMessagef("expected field %+q to not be a map", field.FullName()),
+						)
+					} else if !field.IsMap() && sourceField.IsMap() {
+						w.AddAnnotation(
+							check.WithDescriptor(field),
+							check.WithMessagef("expected field %+q to be a map", field.FullName()),
+						)
+					} else if field.IsMap() && sourceField.IsMap() {
+						if field.MapKey().Kind() != sourceField.MapKey().Kind() {
+							w.AddAnnotation(
+								check.WithDescriptor(field),
+								check.WithMessagef("expected field %+q to be a map with key kind %+q", field.FullName(), sourceField.MapKey().Kind()),
+							)
+						}
+						if field.MapValue().Kind() != sourceField.MapValue().Kind() {
+							w.AddAnnotation(
+								check.WithDescriptor(field),
+								check.WithMessagef("expected field %+q to be a map with value kind %+q", field.FullName(), sourceField.MapValue().Kind()),
+							)
+						} else if field.MapValue().Message() != nil {
+							name := field.MapValue().Message().FullName()
+							sourceName := sourceField.MapValue().Message().FullName()
+							if sourceName.Parent() == sourceMd.FullName().Parent() {
+								sourceName = protoreflect.FullName(md.FullName().Parent()).Append(sourceName.Name())
+							}
+							if name != sourceName {
+								w.AddAnnotation(
+									check.WithDescriptor(field),
+									check.WithMessagef("expected field %+q to be a map with value type %+q", field.FullName(), sourceName),
+								)
+							}
+						}
+					} else if field.Kind() != sourceField.Kind() {
+						w.AddAnnotation(
+							check.WithDescriptor(field),
+							check.WithMessagef("expected field %+q to have kind %+q", field.FullName(), sourceField.Kind()),
+						)
+					} else if field.Message() != nil {
+						name := field.Message().FullName()
+						sourceName := sourceField.Message().FullName()
+						if sourceName.Parent() == sourceMd.FullName().Parent() {
+							sourceName = protoreflect.FullName(md.FullName().Parent()).Append(sourceName.Name())
+						}
+						if name != sourceName {
+							w.AddAnnotation(
+								check.WithDescriptor(field),
+								check.WithMessagef("expected field %+q to have type %+q", field.FullName(), sourceName),
+							)
+						}
+					}
+
+					if !field.IsMap() && field.Cardinality() != sourceField.Cardinality() {
+						w.AddAnnotation(
+							check.WithDescriptor(field),
+							check.WithMessagef("expected field %+q to have cardinality %+q", field.FullName(), sourceField.Cardinality()),
+						)
+					}
+				}
+
+				return nil
+			}),
+		},
 	},
 }
 
