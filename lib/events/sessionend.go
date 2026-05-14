@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -229,6 +230,12 @@ loop:
 	searchEndTime := lastEvent.GetTime()
 	if !foundRecordingEndEvent {
 		searchEndTime = cfg.Clock.Now()
+		// In the unlikely event that the last event's time is in the future due to
+		// clock skew, add some extra buffer time so SearchSessionEvents doesn't
+		// fail outright.
+		if searchEndTime.Before(lastEvent.GetTime()) {
+			searchEndTime = searchEndTime.Add(time.Hour)
+		}
 	}
 	var startKey string
 	for {
