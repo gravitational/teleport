@@ -1628,8 +1628,12 @@ func runCAWatcherLoop(
 				)
 				return nil
 
-			case e.Type != types.OpPut:
+			case e.Type == types.OpDelete:
 				continue // OK, we only care about mutating events.
+
+			case e.Type != types.OpPut:
+				eLog.DebugContext(ctx, "Received unexpected event type. Attempting to re-create the watcher.")
+				return nil
 			}
 
 			if e.Resource.GetKind() == types.KindCertAuthorityOverride {
