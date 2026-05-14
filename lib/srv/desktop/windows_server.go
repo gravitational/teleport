@@ -1674,7 +1674,7 @@ func verifyOpInitKindsForCAEvents(e types.Event) (confirmedCAOverrides bool, _ e
 	if e.Resource == nil {
 		// Consider all kinds confirmed. See types.Watch.AllowPartialSuccess.
 		// https://github.com/gravitational/teleport/blob/77e56f05a4172b04b386d8b56f4842dd4b3b870d/api/types/events.go#L105-L106
-		return false, nil
+		return true, nil
 	}
 
 	status, ok := e.Resource.(types.WatchStatus)
