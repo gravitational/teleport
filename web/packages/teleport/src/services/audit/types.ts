@@ -232,6 +232,7 @@ export const eventCodes = {
   X11_FORWARD_FAILURE: 'T3008W',
   CERTIFICATE_CREATED: 'TC000I',
   UPGRADE_WINDOW_UPDATED: 'TUW01I',
+  ENVIRONMENT_PROFILE_UPDATED: 'TEP01I',
   BOT_JOIN: 'TJ001I',
   BOT_JOIN_FAILURE: 'TJ001E',
   INSTANCE_JOIN: 'TJ002I',
@@ -1363,6 +1364,12 @@ export type RawEvents = {
     typeof eventCodes.UPGRADE_WINDOW_UPDATED,
     {
       upgrade_window_start: string;
+    }
+  >;
+  [eventCodes.ENVIRONMENT_PROFILE_UPDATED]: RawEvent<
+    typeof eventCodes.ENVIRONMENT_PROFILE_UPDATED,
+    {
+      environment_profile: string;
     }
   >;
   [eventCodes.SESSION_RECORDING_ACCESS]: RawEvent<
