@@ -19,11 +19,13 @@ package workloadidentityv1_test
 import (
 	"context"
 	"crypto"
+	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"math/big"
@@ -1712,13 +1714,17 @@ func TestIssueTeleportWorkloadIdentity(t *testing.T) {
 		}),
 	)
 
+	// To create an expired session, we issue the cert, and the advance the clock.
+	aliceExpiredClt, err := tp.srv.NewClient(authtest.TestUser(alice.GetName()))
+	require.NoError(t, err)
+	aliceExpiredSessionCertBytes, aliceSessionExpiresAt := createAppSessionCertBytes(t, aliceExpiredClt, appName, alice.GetName())
+	// Add a bit more time to "escape" the clock skew condition.
+	tp.clock.Advance(tp.clock.Until(aliceSessionExpiresAt) + 10*time.Minute)
+
 	aliceClt, err := tp.srv.NewClient(authtest.TestUser(alice.GetName()))
 	require.NoError(t, err)
-	// To create an expired session, we issue the cert, and the advance the clock.
-	aliceExpiredSessionCertBytes, aliceSessionExpiresAt := createAppSessionCertBytes(t, aliceClt, appName, alice.GetName())
-	tp.clock.Advance(tp.clock.Until(aliceSessionExpiresAt))
-
-	aliceSessionCertBytes, _ := createAppSessionCertBytes(t, aliceClt, appName, alice.GetName())
+	aliceSessionCertBytes, aliceSessionExpirity := createAppSessionCertBytes(t, aliceClt, appName, alice.GetName())
+	require.True(t, aliceSessionExpirity.After(tp.clock.Now()))
 
 	appServiceClt, err := tp.srv.NewClient(authtest.TestServerID(types.RoleApp, appServiceID))
 	require.NoError(t, err)
@@ -1870,6 +1876,142 @@ func TestIssueTeleportWorkloadIdentity(t *testing.T) {
 			tc.expectResp(t, res)
 		})
 	}
+}
+
+// TestIssueTeleportWorkloadIdentityRejectsExpiredUserCA given an app access
+// workload identity request with an expired UserCA certificate, the server must
+// reject the request.
+func TestIssueTeleportWorkloadIdentityRejectsExpiredUserCA(t *testing.T) {
+	const appServiceID = "test-server"
+	const appName = "panel"
+
+	ctx := context.Background()
+	tp := newIssuanceTestPack(t, ctx)
+	clusterName := tp.srv.ClusterName()
+
+	app, err := types.NewAppV3(types.Metadata{
+		Name: appName,
+	}, types.AppSpecV3{
+		URI:        "localhost",
+		PublicAddr: appName + "." + clusterName,
+	})
+	require.NoError(t, err)
+	server, err := types.NewAppServerV3FromApp(app, "app", appServiceID)
+	require.NoError(t, err)
+	_, err = tp.srv.Auth().UpsertApplicationServer(t.Context(), server)
+	require.NoError(t, err)
+
+	// This alice is the one accessing the Teleport resource.
+	alice, _, err := authtest.CreateUserAndRole(
+		tp.srv.Auth(),
+		"alice",
+		[]string{},
+		[]types.Rule{
+			types.NewRule(
+				types.KindApp,
+				[]string{types.VerbRead, types.VerbList},
+			),
+		},
+		authtest.WithRoleMutator(func(role types.Role) {
+			role.SetAppLabels(types.Allow, types.Labels{
+				"*": []string{"*"},
+			})
+		}),
+	)
+	require.NoError(t, err)
+
+	aliceClt, err := tp.srv.NewClient(authtest.TestUser(alice.GetName()))
+	require.NoError(t, err)
+
+	// Important: create the app session cert while the User CA is still valid.
+	aliceSessionCertBytes, _ := createAppSessionCertBytes(t, aliceClt, appName, alice.GetName())
+
+	sessionCert, err := x509.ParseCertificate(aliceSessionCertBytes)
+	require.NoError(t, err)
+	require.True(t, tp.clock.Now().After(sessionCert.NotBefore))
+	require.True(t, tp.clock.Now().Before(sessionCert.NotAfter))
+
+	appServiceClt, err := tp.srv.NewClient(authtest.TestServerID(types.RoleApp, appServiceID))
+	require.NoError(t, err)
+
+	workloadKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	workloadKeyPubBytes, err := x509.MarshalPKIXPublicKey(workloadKey.Public())
+	require.NoError(t, err)
+
+	c := workloadidentityv1pb.NewWorkloadIdentityIssuanceServiceClient(appServiceClt.GetConnection())
+
+	// Here we ensure the certificate is OK and returns without errors.
+	res, err := c.IssueTeleportWorkloadIdentity(ctx, &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest{
+		Credential: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_X509SvidParams{
+			X509SvidParams: &workloadidentityv1pb.X509SVIDParams{
+				PublicKey: workloadKeyPubBytes,
+			},
+		},
+		Usage: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_AppAccess{
+			AppAccess: &workloadidentityv1pb.AppAccessUsage{
+				UserCertificate: aliceSessionCertBytes,
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, res)
+
+	// Now replace the trusted User CA cert with an expired cert using the same key.
+	userCA, err := tp.srv.Auth().GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.UserCA,
+		DomainName: clusterName,
+	}, true)
+	require.NoError(t, err)
+
+	activeKeys := userCA.GetActiveKeys()
+	userCATLSKey := activeKeys.TLS[0]
+
+	oldUserCACert, err := tlsca.ParseCertificatePEM(userCATLSKey.Cert)
+	require.NoError(t, err)
+
+	userCASigner, err := keys.ParsePrivateKey(userCATLSKey.Key)
+	require.NoError(t, err)
+
+	expiredUserCACert := *oldUserCACert
+	expiredUserCACert.NotBefore = tp.clock.Now().Add(-2 * time.Hour)
+	expiredUserCACert.NotAfter = tp.clock.Now().Add(-time.Minute)
+
+	expiredUserCADER, err := x509.CreateCertificate(
+		rand.Reader,
+		&expiredUserCACert,
+		&expiredUserCACert,
+		userCASigner.Public(),
+		userCASigner,
+	)
+	require.NoError(t, err)
+
+	userCATLSKey.Cert = pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: expiredUserCADER,
+	})
+	activeKeys.TLS[0] = userCATLSKey
+	require.NoError(t, userCA.SetActiveKeys(activeKeys))
+	require.NoError(t, tp.srv.Auth().UpsertCertAuthority(ctx, userCA))
+
+	// This time, the UserCA is expected to be expired, meaning it should fail
+	// the certificate verification.
+	res, err = c.IssueTeleportWorkloadIdentity(ctx, &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest{
+		Credential: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_X509SvidParams{
+			X509SvidParams: &workloadidentityv1pb.X509SVIDParams{
+				PublicKey: workloadKeyPubBytes,
+			},
+		},
+		Usage: &workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_AppAccess{
+			AppAccess: &workloadidentityv1pb.AppAccessUsage{
+				UserCertificate: aliceSessionCertBytes,
+			},
+		},
+	})
+
+	require.ErrorContains(t, err, "requestor provided an invalid certificate")
+	require.ErrorContains(t, err, "certificate has expired")
+	require.Nil(t, res)
 }
 
 func TestResourceService_CreateWorkloadIdentity(t *testing.T) {

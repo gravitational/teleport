@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -196,9 +197,6 @@ const (
 	// defaultTTL defines the TTL when a client has not requested a specific
 	// TTL.
 	defaultTTL = 1 * time.Hour
-	// certVerifyClockSkewAllowance is the amount of leeway added to the
-	// certificate's expiration status check to allow for clock drift.
-	certVerifyClockSkewAllowance = 1 * time.Minute
 )
 
 func (s *IssuanceService) IssueWorkloadIdentity(
@@ -593,9 +591,29 @@ func (s *IssuanceService) routeToAppFromCert(ctx context.Context, rawCert []byte
 		}
 	}
 
-	if _, err := cert.Verify(x509.VerifyOptions{
+	// cert.Verify applies CurrentTime to every certificate in the chain and
+	// does not support separate NotBefore/NotAfter leeway for the leaf
+	// certificate.
+	//
+	// For this reason we perform the certificate verify in two steps:
+	//   1. Verify certificate validity using custom clock-skew policy.
+	//   2. Perform the remaining verification on the cert using a shallow copy
+	//      of the certificate that will pass the expiry verification.
+	//
+	// The shallow copy usage still checks the original TBSCertificate bytes,
+	// the only effective difference is the Verify's leaf time check.
+	now := s.clock.Now()
+	if err := verifyCertValidityWithSkew(cert, now); err != nil {
+		return tlsca.RouteToApp{}, nil, trace.Wrap(err)
+	}
+
+	verifyCert := *cert
+	verifyCert.NotAfter = now.Add(time.Second)
+	verifyCert.NotBefore = now.Add(-time.Second)
+
+	if _, err := verifyCert.Verify(x509.VerifyOptions{
 		Roots:       roots,
-		CurrentTime: s.clock.Now().Add(certVerifyClockSkewAllowance),
+		CurrentTime: now,
 		KeyUsages: []x509.ExtKeyUsage{
 			// Extensions added by tlsca.
 			// See https://github.com/gravitational/teleport/blob/master/lib/tlsca/ca.go
@@ -630,23 +648,33 @@ func (s *IssuanceService) routeToAppFromCert(ctx context.Context, rawCert []byte
 
 // getApp retrieves the app from a RouteToApp.
 func (s *IssuanceService) getApp(ctx context.Context, hostID string, route tlsca.RouteToApp) (types.Application, error) {
-	resp, err := s.cache.ListResources(ctx, apiproto.ListResourcesRequest{
-		Namespace:           apidefaults.Namespace,
-		ResourceType:        types.KindAppServer,
-		PredicateExpression: fmt.Sprintf(`resource.spec.public_addr == %q`, route.PublicAddr),
+	appServersIter := clientutils.Resources(ctx, func(ctx context.Context, limit int, startKey string) ([]types.ResourceWithLabels, string, error) {
+		resp, err := s.cache.ListResources(ctx, apiproto.ListResourcesRequest{
+			Namespace:           apidefaults.Namespace,
+			ResourceType:        types.KindAppServer,
+			Limit:               int32(limit),
+			StartKey:            startKey,
+			PredicateExpression: fmt.Sprintf(`resource.spec.public_addr == %q`, route.PublicAddr),
+		})
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		return resp.Resources, resp.NextKey, nil
 	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	appServers, err := types.ResourcesWithLabels(resp.Resources).AsAppServers()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	for _, srv := range appServers {
+	for resource, err := range appServersIter {
+		if err != nil {
+			return nil, trace.Wrap(err, "unabled to complete app servers list")
+		}
+
+		appServer, ok := resource.(types.AppServer)
+		if !ok {
+			return nil, trace.BadParameter("expected types.AppServer, got: %T", resource)
+		}
+
 		// Ensure the requesting app service can serve the app.
-		if srv.GetHostID() == hostID {
-			return srv.GetApp(), nil
+		if appServer.GetHostID() == hostID {
+			return appServer.GetApp(), nil
 		}
 	}
 
@@ -1194,4 +1222,28 @@ func serialString(serial *big.Int) string {
 		out.WriteString(hex[i : i+2])
 	}
 	return out.String()
+}
+
+// certVerifyClockSkewAllowance is the amount of leeway added to the
+// certificate's expiration status check to allow for clock drift.
+const certVerifyClockSkewAllowance = 1 * time.Minute
+
+func verifyCertValidityWithSkew(cert *x509.Certificate, now time.Time) error {
+	if now.Add(certVerifyClockSkewAllowance).Before(cert.NotBefore) {
+		return x509.CertificateInvalidError{
+			Cert:   cert,
+			Reason: x509.Expired,
+			Detail: "certificate is not yet valid",
+		}
+	}
+
+	if now.Add(-certVerifyClockSkewAllowance).After(cert.NotAfter) {
+		return x509.CertificateInvalidError{
+			Cert:   cert,
+			Reason: x509.Expired,
+			Detail: "certificate has expired",
+		}
+	}
+
+	return nil
 }
