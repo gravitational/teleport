@@ -40,6 +40,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -1520,25 +1521,17 @@ func (e *limitedErrorReporter) summary(ctx context.Context) {
 	}
 }
 
-func (s *Server) enrollAzureVirtualMachines(log *slog.Logger, instances *server.AzureInstances) ([]server.AzureInstallResult, error) {
+// nopush: TODO(gavin): godoc this
+func (s *Server) enrollAzureVirtualMachines(log *slog.Logger, instances *server.AzureInstances) ([]*server.AzureInstallResultCollector, error) {
 	azureClients, err := s.getAzureClients(s.ctx, instances.Integration)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "failed to get Azure clients")
 	}
 
 	runClient, err := azureClients.GetRunCommandClient(s.ctx, instances.SubscriptionID)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "failed to get Azure Run Command client")
 	}
-
-	const maxReportedErrors = 10
-	reporter := &limitedErrorReporter{
-		logger:      log,
-		reportLimit: maxReportedErrors,
-	}
-
-	var mu sync.Mutex
-	var failedInstances []server.AzureInstallResult
 
 	req := server.AzureInstallRequest{
 		Instances:       instances.Instances,
@@ -1546,30 +1539,15 @@ func (s *Server) enrollAzureVirtualMachines(log *slog.Logger, instances *server.
 		ResourceGroup:   instances.ResourceGroup,
 		InstallerParams: instances.InstallerParams,
 		ProxyAddrGetter: s.publicProxyAddress,
-		OnRunCommandFinished: func(result server.AzureInstallResult) {
-			s.emitAzureInstallEvents(log, instances, result)
-			if result.Failure() {
-				reporter.report(s.ctx, result)
-
-				// collect the failed instance
-				mu.Lock()
-				failedInstances = append(failedInstances, result)
-				mu.Unlock()
-			}
-		},
 	}
 
-	err = req.Run(s.ctx, runClient)
+	resultCollectors, err := req.RunAsync(s.ctx, runClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	log.InfoContext(s.ctx, "Finished installation batch",
-		"total_instances", len(instances.Instances),
-		"failures", len(failedInstances))
-	reporter.summary(s.ctx)
-
-	return failedInstances, nil
+	log.InfoContext(s.ctx, "Finished sending commands for installation group")
+	return resultCollectors, nil
 }
 
 // startAzureServerDiscovery starts the Azure VM discovery.
@@ -1631,7 +1609,7 @@ func (s *Server) startAzureServerDiscovery() {
 					discoveryConfigName: fetcher.GetDiscoveryConfigName(),
 					integration:         fetcher.IntegrationName(),
 				}
-				sm.add(fgKey, make(map[statusType]int))
+				sm.addPendingResult(fgKey, nil)
 			}
 			s.updateDiscoveryConfigStatus(sm.discoveryConfigs()...)
 		}),
@@ -1641,14 +1619,15 @@ func (s *Server) startAzureServerDiscovery() {
 					discoveryConfigName: group.DiscoveryConfigName,
 					integration:         group.Integration,
 				}
-				results := s.installAzureServers(group, vmTasks)
-				sm.add(fgKey, results)
+				pendingResult := s.beginInstallAzureServers(group)
+				sm.addPendingResult(fgKey, &pendingResult)
 			}
 		}),
 		server.WithPostFetchHookFn[*server.AzureInstances](func() {
 			// refresh the fetchers after every iteration to avoid stale config
 			defer fullRefresh()
 
+			s.collectPendingResults(s.ctx, sm, vmTasks)
 			sm.syncEnded(s.clock.Now())
 			// update statuses of relevant discovery configs.
 			s.azureVMStatus.Store(sm)
@@ -1669,107 +1648,42 @@ func (s *Server) startAzureServerDiscovery() {
 	go azureWatcher.Run()
 }
 
-func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *azureVMTasks) (results map[statusType]int) {
-	results = make(map[statusType]int)
-
+// nopush: TODO(gavin): godoc
+func (s *Server) beginInstallAzureServers(instances *server.AzureInstances) vmDiscoveryResult {
 	log := s.Log.With("group", instances)
 	log.DebugContext(s.ctx, "Processing instance group")
 
-	allFound := len(instances.Instances)
-	results[statusFound] = allFound
-
-	if allFound == 0 {
+	var res vmDiscoveryResult
+	res.instances = instances
+	res.found = uint64(len(res.instances.Instances))
+	if res.found == 0 {
 		log.DebugContext(s.ctx, "No Azure instances found, skipping installation")
-		return
+		return res
 	}
 
 	nodes, err := s.nodeWatcher.CurrentResources(s.ctx)
 	if err != nil {
 		log.WarnContext(s.ctx, "Failed to get current node resources", "error", err)
-		return
+		return res
 	}
-	instances.FilterExistingNodes(nodes)
+	res.instances.FilterExistingNodes(nodes)
+	needInstall := uint64(len(res.instances.Instances))
+	res.enrolled = res.found - uint64(needInstall)
 
-	// count machines that have already been enrolled in previous cycles.
-	needInstall := len(instances.Instances)
-	results[statusEnrolled] = allFound - needInstall
-
-	if len(instances.Instances) == 0 {
+	if needInstall == 0 {
 		log.DebugContext(s.ctx, "No Azure instances remain to enroll, skipping installation")
-		return
+		return res
 	}
 
-	addFailedEnrollment := func(vm *azure.VirtualMachine, issueType string) {
-		// Static matchers don't have a discovery config resource, so skip creating user tasks
-		// because validation requires a discovery config name.
-		if instances.DiscoveryConfigName == noDiscoveryConfig {
-			return
-		}
-
-		tg := usertasks.TaskGroup{
-			Integration: instances.Integration,
-			IssueType:   issueType,
-		}
-		vmTasks.addFailedEnrollment(
-			tg,
-			azureVMTaskKey{
-				subscriptionID: instances.SubscriptionID,
-				resourceGroup:  instances.ResourceGroup,
-				region:         instances.Region,
-			},
-			&usertasksv1.DiscoverAzureVMInstance{
-				VmId:            vm.VMID,
-				ResourceId:      vm.ID,
-				Name:            vm.Name,
-				DiscoveryConfig: instances.DiscoveryConfigName,
-				DiscoveryGroup:  s.DiscoveryGroup,
-				SyncTime:        timestamppb.New(s.clock.Now()),
-			},
-		)
-	}
-
-	log.DebugContext(s.ctx, "Running Teleport installation on virtual machines", "group", instances, "vms", genAzureInstancesLogStr(instances.Instances))
-	failures, err := s.enrollAzureVirtualMachines(log, instances)
+	log.DebugContext(s.ctx, "Running Teleport installation on virtual machines", "vms", genAzureInstancesLogStr(instances.Instances))
+	resultCollectors, err := s.enrollAzureVirtualMachines(log, instances)
 	if err != nil {
-		// treat non-nil err as deployment failure affecting all machines.
-		log.WarnContext(s.ctx, "Failed to enroll discovered Azure VMs", "error", err, "count", len(instances.Instances))
-		results[statusFailed] = len(instances.Instances)
-
-		issueType := classifyAzureVMEnrollmentError(err)
-		for _, vm := range instances.Instances {
-			addFailedEnrollment(vm, issueType)
-		}
-		return
+		res.deployError = err
+		log.WarnContext(s.ctx, "Failed to enroll instance group", "error", err)
+		return res
 	}
-
-	if len(failures) > 0 {
-		log.WarnContext(s.ctx, "Failed to enroll some discovered Azure VMs", "count", len(failures))
-	}
-
-	// count individual failed enrollments.
-	results[statusFailed] = len(failures)
-
-	// Record failures as user tasks.
-	for _, result := range failures {
-		if result.CommandResult != nil {
-			// TODO (Tener): check exit codes and create more detailed user tasks.
-			addFailedEnrollment(result.Instance, usertasks.AutoDiscoverAzureVMIssueEnrollmentError)
-		} else {
-			addFailedEnrollment(result.Instance, classifyAzureVMEnrollmentError(result.APIError))
-		}
-	}
-
-	pendingCount := len(instances.Instances) - len(failures)
-	if pendingCount > 0 {
-		// Note: we have no "installation in progress" or "installation succeeded" counter, so we ignore those.
-		// If the installation went fine the "enrolled" counter will increase during next iteration.
-		// Otherwise, we will try to enroll those once again, possibly failing.
-		// There is a gap here: we will ignore join failures as those happen out of our sight.
-		// There is no easy way to close that gap in the current architecture.
-		log.DebugContext(s.ctx, "Installation attempt finished. If the machines have joined the cluster successfully, they will be counted as enrolled during the next iteration.", "pending", pendingCount)
-	}
-
-	return
+	res.collectors = resultCollectors
+	return res
 }
 
 func (s *Server) filterExistingGCPNodes(instances *server.GCPInstances) error {
@@ -2370,4 +2284,220 @@ func (s *Server) resolveCreateErr(createErr error, discoveryOrigin string, gette
 	}
 
 	return nil
+}
+
+// nopush: TODO(gavin): godoc
+type InstallationResultCollector[T any] interface {
+	// nopush: TODO(gavin): godoc
+	Collect(ctx context.Context) (T, error)
+}
+
+func (s *Server) collectPendingResultsOLD(ctx context.Context, sm *resourceStatusMap, vmTasks *azureVMTasks) {
+	for key, status := range sm.statuses {
+		for _, result := range status.results {
+			if result.deployError != nil {
+				// treat non-nil deployment err as failure affecting all VMs.
+				status.failed += uint64(len(result.instances.Instances))
+				issueType := classifyAzureVMEnrollmentError(result.deployError)
+				for _, vm := range result.instances.Instances {
+					s.addFailedAzureEnrollment(result.instances, vmTasks, vm, issueType)
+				}
+				continue
+			}
+
+			log := s.Log.With("group", result.instances)
+			const maxReportedErrors = 10
+			reporter := &limitedErrorReporter{
+				logger:      log,
+				reportLimit: maxReportedErrors,
+			}
+
+			for _, collector := range result.collectors {
+				installResult, _ := collector.Collect(ctx)
+				s.emitAzureInstallEvents(log, result.instances, installResult)
+				if installResult.Failure() {
+					status.failed++
+					reporter.report(ctx, installResult)
+					s.addFailedAzureEnrollment(result.instances, vmTasks, installResult.Instance, getAzureIssueType(installResult))
+				}
+			}
+			reporter.summary(ctx)
+		}
+
+		sm.statuses[key] = status
+		// Note: we have no "installation in progress" or "installation succeeded" counter, so we ignore those.
+		// If the installation went fine the "enrolled" counter will increase during next iteration.
+		// Otherwise, we will try to enroll those once again, possibly failing.
+		// There is a gap here: we will ignore join failures as those happen out of our sight.
+		// There is no easy way to close that gap in the current architecture.
+		s.Log.DebugContext(ctx, "Installation attempt finished. If the machines have joined the cluster successfully, they will be counted as enrolled during the next iteration.",
+			"discovery_config", key.discoveryConfigName,
+			"enrolled", status.enrolled,
+			"failed", status.failed,
+			"found", status.found,
+			"installed", status.found-status.enrolled-status.failed,
+			"integration", key.integration,
+		)
+	}
+}
+
+type resultQueueItem struct {
+	statusKey      fetcherGroupKey
+	resultIndex    int
+	collectorIndex int
+}
+
+const (
+	resultCollectionTimeout          = 10 * time.Minute
+	resultCollectionPollingFrequency = 30 * time.Second
+)
+
+func (s *Server) collectPendingResults(ctx context.Context, sm *resourceStatusMap, vmTasks *azureVMTasks) {
+	ctx, cancel := context.WithTimeout(ctx, resultCollectionTimeout)
+	defer cancel()
+	var processing []resultQueueItem
+	var next []resultQueueItem
+	var nextMu sync.Mutex
+	var statusMu sync.Mutex
+
+	var processedResultCount int
+	for key, status := range sm.statuses {
+		for i, result := range status.results {
+			if result.deployError != nil {
+				// treat non-nil deployment err as failure affecting all VMs.
+				processedResultCount += len(result.instances.Instances)
+				status.failed += uint64(len(result.instances.Instances))
+				issueType := classifyAzureVMEnrollmentError(result.deployError)
+				for _, vm := range result.instances.Instances {
+					s.addFailedAzureEnrollment(result.instances, vmTasks, vm, issueType)
+				}
+				continue
+			}
+
+			for j := range result.collectors {
+				next = append(next, resultQueueItem{
+					statusKey:      key,
+					resultIndex:    i,
+					collectorIndex: j,
+				})
+			}
+		}
+		sm.statuses[key] = status
+	}
+
+	ticker := s.clock.NewTicker(resultCollectionPollingFrequency)
+	for len(next) > 0 {
+		processing = next
+		next = nil
+		const maxReportedErrors = 10
+		reporter := &limitedErrorReporter{
+			logger:      s.Log,
+			reportLimit: maxReportedErrors,
+		}
+
+		s.Log.DebugContext(ctx, "Processing pending installation results",
+			"pending_results", len(processing),
+			"processed_results", processedResultCount,
+		)
+		g, gCtx := errgroup.WithContext(ctx)
+		const azureParallelResultCollectors = 100
+		g.SetLimit(azureParallelResultCollectors)
+		for _, item := range processing {
+			g.Go(func() error {
+				result := sm.statuses[item.statusKey].results[item.resultIndex]
+				collector := result.collectors[item.collectorIndex]
+
+				// try to collect result
+				installResult, done := collector.Collect(gCtx)
+				if !done {
+					nextMu.Lock()
+					next = append(next, item)
+					nextMu.Unlock()
+					return nil
+				}
+				s.emitAzureInstallEvents(s.Log, result.instances, installResult)
+				if installResult.Failure() {
+
+					reporter.report(gCtx, installResult)
+					statusMu.Lock()
+					sm.statuses[item.statusKey].failed++
+					s.addFailedAzureEnrollment(result.instances, vmTasks, installResult.Instance, getAzureIssueType(installResult))
+					statusMu.Unlock()
+				}
+
+				return nil
+			})
+		}
+		_ = g.Wait()
+		reporter.summary(ctx)
+		processedResultCount += len(processing) - len(next)
+
+		select {
+		case <-ctx.Done():
+			s.Log.DebugContext(ctx, "Aborting installation result collection",
+				"error", ctx.Err(),
+				"pending_results", len(next),
+				"processed_results", processedResultCount,
+			)
+			for _, item := range next {
+				result := sm.statuses[item.statusKey].results[item.resultIndex]
+				collector := result.collectors[item.collectorIndex]
+				vm := collector.Instance()
+				s.emitAzureInstallEvents(s.Log, result.instances, server.AzureInstallResult{
+					APIError: ctx.Err(),
+					Instance: vm,
+				})
+				sm.statuses[item.statusKey].failed++
+				s.addFailedAzureEnrollment(result.instances, vmTasks, vm, usertasks.AutoDiscoverAzureVMIssueEnrollmentError)
+			}
+			return
+		case <-ticker.Chan():
+		}
+	}
+	for key, status := range sm.statuses {
+		s.Log.DebugContext(ctx, "Installation attempt finished. If the machines have joined the cluster successfully, they will be counted as enrolled during the next iteration.",
+			"discovery_config", key.discoveryConfigName,
+			"enrolled", status.enrolled,
+			"failed", status.failed,
+			"found", status.found,
+			"installed", status.found-status.enrolled-status.failed,
+			"integration", key.integration,
+		)
+	}
+}
+
+func (s *Server) addFailedAzureEnrollment(instances *server.AzureInstances, vmTasks *azureVMTasks, vm *azure.VirtualMachine, issueType string) {
+	// Static matchers don't have a discovery config resource, so skip creating user tasks
+	// because validation requires a discovery config name.
+	if instances.DiscoveryConfigName == noDiscoveryConfig {
+		return
+	}
+
+	tg := usertasks.TaskGroup{
+		Integration: instances.Integration,
+		IssueType:   issueType,
+	}
+	vmTasks.addFailedEnrollment(
+		tg,
+		azureVMTaskKey{
+			subscriptionID: instances.SubscriptionID,
+			resourceGroup:  instances.ResourceGroup,
+			region:         instances.Region,
+		},
+		&usertasksv1.DiscoverAzureVMInstance{
+			VmId:            vm.VMID,
+			ResourceId:      vm.ID,
+			Name:            vm.Name,
+			DiscoveryConfig: instances.DiscoveryConfigName,
+			DiscoveryGroup:  s.DiscoveryGroup,
+			SyncTime:        timestamppb.New(s.clock.Now()),
+		},
+	)
+}
+
+func getAzureIssueType(installResult server.AzureInstallResult) string {
+	if installResult.CommandResult != nil {
+		return usertasks.AutoDiscoverAzureVMIssueEnrollmentError
+	}
+	return classifyAzureVMEnrollmentError(installResult.APIError)
 }

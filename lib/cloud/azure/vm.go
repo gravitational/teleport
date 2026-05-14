@@ -443,8 +443,9 @@ func (r *RunCommandResult) Failure() bool {
 
 // RunCommandClient is a client for Azure Run Commands.
 type RunCommandClient interface {
+	// nopush: TODO(gavin): fix godoc
 	// Run runs Teleport installation command on a virtual machine.
-	Run(ctx context.Context, req RunCommandRequest) (*RunCommandResult, error)
+	RunAsync(ctx context.Context, req RunCommandRequest) (*PendingRunCommandResult, error)
 }
 
 type runCommandClient struct {
@@ -474,91 +475,35 @@ func NewRunCommandClient(subscription string, cred azcore.TokenCredential, optio
 // TODO(Tener): make the run command name actual parameter.
 const runCommandName = "teleport-install"
 
-// Run runs Teleport installation command on a virtual machine.
-func (c *runCommandClient) Run(ctx context.Context, req RunCommandRequest) (*RunCommandResult, error) {
-	runCommandTimeout := getRunCommandTimeout()
-	// pad the timeout so we can still attempt to collect output if it times out
-	ctx, cancel := context.WithTimeout(ctx, runCommandTimeout+time.Minute)
-	defer cancel()
-
-	runCommand := armcompute.VirtualMachineRunCommand{
-		Location: to.Ptr(req.Region),
-		Properties: &armcompute.VirtualMachineRunCommandProperties{
-			AsyncExecution: to.Ptr(false),
-			Source: &armcompute.VirtualMachineRunCommandScriptSource{
-				Script: to.Ptr(req.Script),
-			},
-			TimeoutInSeconds: to.Ptr(int32(runCommandTimeout.Seconds())),
-		},
-	}
-
-	var runCommandProperties *armcompute.VirtualMachineRunCommandProperties
-	var err error
-
-	if req.isUniformVMSS() {
-		runCommandProperties, err = c.uniformScaleSetVirtualMachineRunCommand(ctx, req, runCommand)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	} else {
-		runCommandProperties, err = c.regularVirtualMachineRunCommand(ctx, req, runCommand)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	commandResult, err := commandResultFromInstanceView(runCommandProperties)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return commandResult, nil
-}
-
-func (c *runCommandClient) regularVirtualMachineRunCommand(ctx context.Context, req RunCommandRequest, runCommand armcompute.VirtualMachineRunCommand) (*armcompute.VirtualMachineRunCommandProperties, error) {
+func (c *runCommandClient) regularVirtualMachineRunCommand(ctx context.Context, req RunCommandRequest, runCommand armcompute.VirtualMachineRunCommand) (*PendingRunCommandResult, error) {
 	poller, err := c.virtualMachineRunCommandsAPI.BeginCreateOrUpdate(ctx, req.ResourceGroup, req.VMName, runCommandName, runCommand, nil)
 	if err != nil {
 		return nil, trace.Wrap(ConvertResponseError(err))
 	}
 
-	_, err = poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{Frequency: 10 * time.Second})
-	if err != nil {
-		return nil, trace.Wrap(ConvertResponseError(err))
-	}
-
-	// note: we are not guaranteed to receive the output of the command above if the req.Name is not unique.
-	// in particular, two discovery services may race, causing the output to be empty: our attempt can be shadowed by a newer one.
-	resp, err := c.virtualMachineRunCommandsAPI.GetByVirtualMachine(ctx, req.ResourceGroup, req.VMName, runCommandName, &armcompute.VirtualMachineRunCommandsClientGetByVirtualMachineOptions{
-		Expand: to.Ptr("instanceView"),
-	})
-	if err != nil {
-		return nil, trace.Wrap(ConvertResponseError(err))
-	}
-
-	return resp.Properties, nil
+	return newPendingRunCommandResult(
+		c.virtualMachineRunCommandsAPI,
+		poller,
+		req.ResourceGroup,
+		req.VMName,
+		runCommandName,
+	), nil
 }
 
-func (c *runCommandClient) uniformScaleSetVirtualMachineRunCommand(ctx context.Context, req RunCommandRequest, runCommand armcompute.VirtualMachineRunCommand) (*armcompute.VirtualMachineRunCommandProperties, error) {
+func (c *runCommandClient) uniformScaleSetVirtualMachineRunCommand(ctx context.Context, req RunCommandRequest, runCommand armcompute.VirtualMachineRunCommand) (*PendingRunCommandResult, error) {
 	poller, err := c.scaleSetVMRunCommandsAPI.BeginCreateOrUpdate(ctx, req.ResourceGroup, req.UniformScaleSetName, req.UniformScaleSetVMInstanceID, runCommandName, runCommand, nil)
 	if err != nil {
 		return nil, trace.Wrap(ConvertResponseError(err))
 	}
-
-	_, err = poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{Frequency: 10 * time.Second})
-	if err != nil {
-		return nil, trace.Wrap(ConvertResponseError(err))
-	}
-
-	// note: we are not guaranteed to receive the output of the command above if the req.Name is not unique.
-	// in particular, two discovery services may race, causing the output to be empty: our attempt can be shadowed by a newer one.
-	resp, err := c.scaleSetVMRunCommandsAPI.Get(ctx, req.ResourceGroup, req.UniformScaleSetName, req.UniformScaleSetVMInstanceID, runCommandName, &armcompute.VirtualMachineScaleSetVMRunCommandsClientGetOptions{
-		Expand: to.Ptr("instanceView"),
-	})
-	if err != nil {
-		return nil, trace.Wrap(ConvertResponseError(err))
-	}
-
-	return resp.Properties, nil
+	return newPendingScaleSetRunCommandResult(
+		c.scaleSetVMRunCommandsAPI,
+		poller,
+		req.ResourceGroup,
+		req.VMName,
+		req.UniformScaleSetName,
+		req.UniformScaleSetVMInstanceID,
+		runCommandName,
+	), nil
 }
 
 func commandResultFromInstanceView(properties *armcompute.VirtualMachineRunCommandProperties) (*RunCommandResult, error) {
@@ -571,6 +516,40 @@ func commandResultFromInstanceView(properties *armcompute.VirtualMachineRunComma
 		StdOut:         fromPtr(properties.InstanceView.Output),
 		StdErr:         fromPtr(properties.InstanceView.Error),
 	}, nil
+}
+
+// nopush: TODO(gavin): godoc
+func (c *runCommandClient) RunAsync(ctx context.Context, req RunCommandRequest) (*PendingRunCommandResult, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// TODO(Tener): make the run command name actual parameter.
+	const runCommandName = "teleport-install"
+
+	runCommand := armcompute.VirtualMachineRunCommand{
+		Location: to.Ptr(req.Region),
+		Properties: &armcompute.VirtualMachineRunCommandProperties{
+			// NOTE: The AsyncExecution option can be very misleading.
+			// It has no effect on whether BeginCreateOrUpdate blocks.
+			// Instead, it affects poller.PollUntilDone.
+			// If set to true, then calling poller.PollUntilDone will actually
+			// return as soon as the script is "provisioned" even if
+			// the script execution state is still "running".
+			// We always want this option set to false.
+			AsyncExecution: to.Ptr(false),
+			Source: &armcompute.VirtualMachineRunCommandScriptSource{
+				Script: to.Ptr(req.Script),
+			},
+			TimeoutInSeconds: to.Ptr(int32(getRunCommandTimeout().Seconds())),
+		},
+	}
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+	if req.isUniformVMSS() {
+		return c.uniformScaleSetVirtualMachineRunCommand(ctx, req, runCommand)
+	} else {
+		return c.regularVirtualMachineRunCommand(ctx, req, runCommand)
+	}
 }
 
 func fromPtr[T any](ptr *T) T {
@@ -661,4 +640,120 @@ func parseVMIdentities(identity *armcompute.VirtualMachineIdentity) []Identity {
 	}
 
 	return identities
+}
+
+// nopush: TODO(gavin): godoc
+type PendingRunCommandResult struct {
+	resourceGroup  string
+	vmName         string
+	runCommandName string
+
+	vmRunCommandsAPI *armcompute.VirtualMachineRunCommandsClient
+	poller           *runtime.Poller[armcompute.VirtualMachineRunCommandsClientCreateOrUpdateResponse]
+
+	scaleSetVMRunCommandsAPI *armcompute.VirtualMachineScaleSetVMRunCommandsClient
+	scaleSetPoller           *runtime.Poller[armcompute.VirtualMachineScaleSetVMRunCommandsClientCreateOrUpdateResponse]
+	scaleSetName             string
+	scaleSetInstanceID       string
+}
+
+func newPendingRunCommandResult(
+	api *armcompute.VirtualMachineRunCommandsClient,
+	poller *runtime.Poller[armcompute.VirtualMachineRunCommandsClientCreateOrUpdateResponse],
+	resourceGroup string,
+	vmName string,
+	runCommandName string,
+) *PendingRunCommandResult {
+	return &PendingRunCommandResult{
+		vmRunCommandsAPI: api,
+		poller:           poller,
+		resourceGroup:    resourceGroup,
+		vmName:           vmName,
+		runCommandName:   runCommandName,
+	}
+}
+
+func newPendingScaleSetRunCommandResult(
+	api *armcompute.VirtualMachineScaleSetVMRunCommandsClient,
+	poller *runtime.Poller[armcompute.VirtualMachineScaleSetVMRunCommandsClientCreateOrUpdateResponse],
+	resourceGroup string,
+	vmName string,
+	scaleSetName string,
+	scaleSetInstanceID string,
+	runCommandName string,
+) *PendingRunCommandResult {
+	return &PendingRunCommandResult{
+		scaleSetVMRunCommandsAPI: api,
+		scaleSetPoller:           poller,
+		resourceGroup:            resourceGroup,
+		vmName:                   vmName,
+		runCommandName:           runCommandName,
+		scaleSetName:             scaleSetName,
+		scaleSetInstanceID:       scaleSetInstanceID,
+	}
+}
+
+// nopush: TODO(gavin): godoc
+func (r *PendingRunCommandResult) Poll(ctx context.Context) error {
+	if r.poller != nil {
+		if _, err := r.poller.Poll(ctx); err != nil {
+			return trace.Wrap(err, "polling command result")
+		}
+	} else {
+		if _, err := r.scaleSetPoller.Poll(ctx); err != nil {
+			return trace.Wrap(err, "polling command result")
+		}
+	}
+	return nil
+}
+
+func (r *PendingRunCommandResult) Done() bool {
+	if r.poller != nil {
+		return r.poller.Done()
+	}
+	return r.scaleSetPoller.Done()
+}
+
+func (r *PendingRunCommandResult) Result(ctx context.Context) (*RunCommandResult, error) {
+	// note: we are not guaranteed to receive the output of the command above if the req.Name is not unique.
+	// in particular, two discovery services may race, causing the output to be empty: our attempt can be shadowed by a newer one.
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+
+	properties, err := r.getVMProps(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if properties == nil || properties.InstanceView == nil {
+		return nil, trace.BadParameter("unable to query command execution state, failure assumed")
+	}
+	iv := properties.InstanceView
+	result := &RunCommandResult{
+		ExecutionState: string(fromPtr(iv.ExecutionState)),
+		ExitCode:       fromPtr(iv.ExitCode),
+		StdOut:         fromPtr(iv.Output),
+		StdErr:         fromPtr(iv.Error),
+	}
+	return result, nil
+}
+
+func (r *PendingRunCommandResult) getVMProps(ctx context.Context) (*armcompute.VirtualMachineRunCommandProperties, error) {
+	if r.vmRunCommandsAPI != nil {
+		getVMOpts := &armcompute.VirtualMachineRunCommandsClientGetByVirtualMachineOptions{
+			Expand: to.Ptr("instanceView"),
+		}
+		resp, err := r.vmRunCommandsAPI.GetByVirtualMachine(ctx, r.resourceGroup, r.vmName, r.runCommandName, getVMOpts)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return resp.Properties, nil
+	}
+
+	resp, err := r.scaleSetVMRunCommandsAPI.Get(ctx, r.resourceGroup, r.scaleSetName, r.scaleSetInstanceID, runCommandName, &armcompute.VirtualMachineScaleSetVMRunCommandsClientGetOptions{
+		Expand: to.Ptr("instanceView"),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp.Properties, nil
 }

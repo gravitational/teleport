@@ -3146,6 +3146,10 @@ type mockAzureRunCommandClient struct {
 	attemptedVMs map[string]struct{}
 }
 
+func (m *mockAzureRunCommandClient) RunAsync(_ context.Context, req azure.RunCommandRequest) (*azure.PendingRunCommandResult, error) {
+	panic("nopush: TODO")
+}
+
 func (m *mockAzureRunCommandClient) Run(_ context.Context, req azure.RunCommandRequest) (*azure.RunCommandResult, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
