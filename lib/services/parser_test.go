@@ -444,20 +444,20 @@ func BenchmarkSplitContains(b *testing.B) {
 	})
 	require.NoError(b, err)
 
-	for name, exprFmt := range map[string]string{
+	for name, expr := range map[string]string{
 		// the happiest path
-		"optimized": `contains(split(labels["ip"], %q), "1.2.3.6")`,
+		"optimized": `contains(split(labels["ip"], "|"), "1.2.3.6")`,
 		// these two should be equivalent after AST transformations, not as fast
 		// as the happy path when matching against a literal but still zero
 		// allocations
-		"auto_combined":   `contains(split(labels["ip"], %q), labels.target_ip)`,
-		"manual_combined": `__split_contains(labels["ip"], %q, labels.target_ip)`,
+		"auto_combined":   `contains(split(labels["ip"], "|"), labels.target_ip)`,
+		"manual_combined": `__split_contains(labels["ip"], "|", labels.target_ip)`,
 		// this uses lazy evaluation of slices so it should be about as fast as
 		// the combined version but with some object passing involved
-		"unoptimized": `contains_unoptimized(split(labels["ip"], %q), "1.2.3.6")`,
+		"unoptimized": `contains_unoptimized(split(labels["ip"], "|"), "1.2.3.6")`,
 		// this will eagerly split the string into a slice and then checks items
 		// in the slice one by one, mimicking the legacy behavior
-		"legacy_naive": `contains_naive(split(labels["ip"], %q), "1.2.3.6")`,
+		"legacy_naive": `contains_naive(split(labels["ip"], "|"), "1.2.3.6")`,
 	} {
 		b.Run("impl="+name, func(b *testing.B) {
 			for _, repetitions := range []int{0, 1, 3, 5, 20, 100} {
@@ -494,7 +494,7 @@ func BenchmarkSplitContains(b *testing.B) {
 						})
 						require.NoError(b, err)
 
-						expression, err := newResourceExpression(fmt.Sprintf(exprFmt, delim), parser)
+						expression, err := newResourceExpression(expr, parser)
 						require.NoError(b, err)
 
 						for b.Loop() {
