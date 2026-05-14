@@ -1050,11 +1050,6 @@ func (a *ServerWithRoles) UpsertNode(ctx context.Context, s types.Server) (*type
 		return nil, trace.Wrap(err)
 	}
 
-	agentScope := a.context.Identity.GetIdentity().AgentScope
-	if nodeScope := s.GetScope(); agentScope != "" && nodeScope != agentScope {
-		return nil, trace.AccessDenied("node scope %q does not match agent identity scope %q", nodeScope, agentScope)
-	}
-
 	return a.authServer.UpsertNode(ctx, s)
 }
 
