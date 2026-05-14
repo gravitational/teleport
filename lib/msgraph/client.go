@@ -66,6 +66,16 @@ type AzureTokenProvider interface {
 	GetToken(ctx context.Context, opts policy.TokenRequestOptions) (azcore.AccessToken, error)
 }
 
+// DeltaStore defines an interface for persisting delta links.
+type DeltaStore interface {
+	// Get returns a delta link for the given endpoint.
+	Get(endpoint string) string
+	// Set sets a delta link for the given endpoint.
+	Set(endpoint, deltaLink string)
+	// Clear deletes delta link for the given endpoint.
+	Clear(endpoint string)
+}
+
 func defaultHTTPClient() (*http.Client, error) {
 	transport, err := defaults.Transport()
 	if err != nil {
@@ -138,7 +148,7 @@ func (cfg *Config) Validate() error {
 	if cfg.HTTPClient == nil {
 		return trace.BadParameter("HTTPClient must be set")
 	}
-	if err := types.ValidateMSGraphEndpoints("", cfg.GraphEndpoint); err != nil {
+	if err := types.ValidateMSGraphEndpoint(cfg.GraphEndpoint); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

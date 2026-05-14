@@ -18,9 +18,12 @@
 
 import { ipcRenderer } from 'electron';
 
+import { ensureError } from 'shared/utils/error';
+
 import Logger from 'teleterm/logger';
 import type { Message, MessageAck } from 'teleterm/mainProcess/awaitableSender';
 import { CreateAgentConfigFileArgs } from 'teleterm/mainProcess/createAgentConfigFile';
+import { serializeError } from 'teleterm/mainProcess/ipcSerializer';
 import { AppUpdateEvent } from 'teleterm/services/appUpdater';
 import { createFileStorageClient } from 'teleterm/services/fileStorage';
 import { RootClusterUri } from 'teleterm/ui/uri';
@@ -306,18 +309,37 @@ function startAwaitableSenderListener<T>(
 
   localPort.onmessage = async (event: MessageEvent<Message>) => {
     const msg = event.data;
-    if (msg.type !== 'data') {
+    if (msg?.type !== 'data') {
+      logger.warn('Received non-data message on awaitable sender listener', {
+        message: msg,
+      });
       return;
     }
+    logger.info('Received message on awaitable sender listener', {
+      messageId: msg.id,
+      messageType: msg.type,
+    });
     const ack: MessageAck = { type: 'ack', id: msg.id };
 
     try {
       await listener(msg.payload as T);
     } catch (e) {
-      ack.error = e;
+      ack.error = serializeError(ensureError(e));
     }
 
-    localPort.postMessage(ack);
+    try {
+      localPort.postMessage(ack);
+      logger.info('Sent awaitable sender ack', {
+        messageId: msg.id,
+        ackError: ack.error,
+      });
+    } catch (e) {
+      logger.error('Failed to send awaitable sender ack', {
+        messageId: msg.id,
+        ackError: ack.error,
+        sendError: e,
+      });
+    }
   };
 
   localPort.start();

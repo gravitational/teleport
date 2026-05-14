@@ -282,6 +282,9 @@ type CLIConf struct {
 
 	// AppName specifies proxied application name.
 	AppName string
+	// AppHTTPSTunnel enables a special mode to tunnel https for HTTP apps.
+	// Mainly used for debugging purpose so the flag should be hidden.
+	AppHTTPSTunnel bool
 	// Interactive sessions will allocate a PTY and create interactive "shell"
 	// sessions.
 	Interactive bool
@@ -429,6 +432,23 @@ type CLIConf struct {
 
 	// MaxDuration specifies how long the access will be granted for.
 	MaxDuration time.Duration
+
+	// DelegationAllowNodes is the list of SSH nodes to include in a delegation session.
+	DelegationAllowNodes []string
+	// DelegationAllowDatabases is the list of databases to include in a delegation session.
+	DelegationAllowDatabases []string
+	// DelegationAllowApps is the list of applications to include in a delegation session.
+	DelegationAllowApps []string
+	// DelegationAllowKubeClusters is the list of Kubernetes clusters to include in a delegation session.
+	DelegationAllowKubeClusters []string
+	// DelegationAllowWindowsDesktops is the list of Windows desktops to include in a delegation session.
+	DelegationAllowWindowsDesktops []string
+	// DelegationAllowGitServers is the list of Git servers to include in a delegation session.
+	DelegationAllowGitServers []string
+	// DelegationAllowAll requests wildcard resource access in a delegation session.
+	DelegationAllowAll bool
+	// DelegationBots is the list of bots allowed to use a delegation session.
+	DelegationBots []string
 
 	// executablePath is the absolute path to the current executable.
 	executablePath string
@@ -920,7 +940,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	app.Flag("fork-signal-fd", "File descriptor to signal parent on when forked. Overrides --fork-after-authentication. For internal use only.").Hidden().Uint64Var(&cf.forkSignalFd)
 	app.Flag("fork-kill-fd", "File descriptor to check parent health on when forked. For internal use only.").Hidden().Uint64Var(&cf.forkKillFd)
 
-	if !moduleCfg.IsBoringBinary() {
+	if !moduleCfg.IsFIPSBuild() {
 		// The user is *never* allowed to do this in FIPS mode.
 		app.Flag("insecure", "Do not verify server's certificate and host name. Use only in test environments.").
 			Default("false").
@@ -937,7 +957,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		fmt.Sprintf("Verbose logging to the unified logging system. This flag implies --debug. Also available through the %s env var. More details see https://goteleport.com/docs/connect-your-client/tsh/#debug-logs.",
 			osLogEnvVar)).
 		IsSetByUser(&cf.OSLogSetByUser)
-	if runtime.GOOS != constants.DarwinOS {
+	if runtime.GOOS != constants.DarwinOS && !utils.DocsMode {
 		osLogFlag.Hidden()
 	}
 	osLogFlag.BoolVar(&cf.OSLog)
@@ -954,7 +974,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	app.Flag("callback", "Override the base URL (host:port) of the link shown when opening a browser for cluster logins. Must be used with --bind-addr.").StringVar(&cf.CallbackAddr)
 	app.Flag("browser-login", browserHelp).Hidden().Envar(browserEnvVar).StringVar(&cf.Browser)
 	modes := []string{mfaModeAuto, mfaModeCrossPlatform, mfaModePlatform, mfaModeOTP, mfaModeSSO, mfaModeBrowser}
-	app.Flag("mfa-mode", fmt.Sprintf("Preferred mode for MFA and Passwordless assertions (%v).", strings.Join(modes, ", "))).
+	app.Flag("mfa-mode", "Preferred mode for MFA and Passwordless assertions.").
 		Default(mfaModeAuto).
 		Envar(mfaModeEnvVar).
 		EnumVar(&cf.MFAMode, modes...)
@@ -994,7 +1014,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ssh.Flag("reason", "The purpose of the session.").StringVar(&cf.Reason)
 	ssh.Flag("participant-req", "Displays a verbose list of required participants in a moderated session.").BoolVar(&cf.displayParticipantRequirements)
 	ssh.Flag("request-reason", "Reason for requesting access.").StringVar(&cf.RequestReason)
-	ssh.Flag("request-mode", fmt.Sprintf("Type of automatic Access Request to make (%s).", strings.Join(accessRequestModes, ", "))).Envar(requestModeEnvVar).Default(accessRequestModeResource).EnumVar(&cf.RequestMode, accessRequestModes...)
+	ssh.Flag("request-mode", "Type of automatic Access Request to make.").Envar(requestModeEnvVar).Default(accessRequestModeResource).EnumVar(&cf.RequestMode, accessRequestModes...)
 	ssh.Flag("disable-access-request", "Disable automatic resource Access Requests (DEPRECATED: use --request-mode=off).").BoolVar(&cf.disableAccessRequest)
 	ssh.Flag("log-dir", "Directory to log separated command output, when executing on multiple nodes. If set, output from each node will also be labeled in the terminal.").StringVar(&cf.SSHLogDir)
 	ssh.Flag("no-resume", "Disable SSH connection resumption.").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
@@ -1123,6 +1143,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	proxyApp.Arg("app", "The name of the application to start local proxy for.").Required().StringVar(&cf.AppName)
 	proxyApp.Flag("port", "Specifies the listening port used by the proxy app listener. Accepts an optional target port of a multi-port TCP app after a colon, e.g. \"1234:5678\".").Short('p').StringVar(&cf.LocalProxyPortMapping)
 	proxyApp.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
+	proxyApp.Flag("https-tunnel", "Use the teleport-app-https ALPN protocol (HTTPS tunneled over mTLS) for HTTP apps.").Hidden().BoolVar(&cf.AppHTTPSTunnel)
 
 	proxyMCP := proxy.Command("mcp", "Start local proxy for MCP access.")
 	proxyMCP.Arg("app", "The name of the MCP application to start local proxy for.").Required().StringVar(&cf.AppName)
@@ -1187,8 +1208,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	dbConfig.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	// --db flag is deprecated in favor of positional argument for consistency with other commands.
 	dbConfig.Flag("db", "Print information for the specified database.").Hidden().StringVar(&cf.DatabaseService)
-	dbConfig.Flag("format", fmt.Sprintf("Print format: %q to print in table format (default), %q to print connect command, %q or %q to print in JSON or YAML.",
-		dbFormatText, dbFormatCommand, dbFormatJSON, dbFormatYAML)).Short('f').EnumVar(&cf.Format, dbFormatText, dbFormatCommand, dbFormatJSON, dbFormatYAML)
+	dbConfig.Flag("format", "Print format: \"text\" to print in table format (default), \"cmd\" to print connect command, \"json\" or \"yaml\" to print in JSON or YAML.").Short('f').EnumVar(&cf.Format, dbFormatText, dbFormatCommand, dbFormatJSON, dbFormatYAML)
 	dbConnect := db.Command("connect", "Connect to a database.")
 	dbConnect.Arg("db", "Database service name to connect to.").StringVar(&cf.DatabaseService)
 	dbConnect.Flag("db-user", "Database user to log in as.").Short('u').StringVar(&cf.DatabaseUser)
@@ -1215,7 +1235,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// join
 	join := app.Command("join", "Join the active SSH or Kubernetes session.")
 	join.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
-	join.Flag("mode", "Mode of joining the session, valid modes are observer, moderator and peer.").Short('m').Default("observer").EnumVar(&cf.JoinMode, "observer", "moderator", "peer")
+	join.Flag("mode", "Mode of joining the session.").Short('m').Default("observer").EnumVar(&cf.JoinMode, "observer", "moderator", "peer")
 	join.Arg("session-id", "ID of the session to join.").Required().StringVar(&cf.SessionID)
 	// play
 	play := app.Command("play", "Replay the recorded session (SSH, Kubernetes, App, DB).")
@@ -1366,6 +1386,18 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	environment := app.Command("env", "Print commands to set Teleport session environment variables.")
 	environment.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	environment.Flag("unset", "Print commands to clear Teleport session environment variables.").BoolVar(&cf.unsetEnvironment)
+
+	delegation := app.Command("delegation", "Manage delegation sessions.")
+	delegationCreateSession := delegation.Command("create-session", "Create a delegation session, allowing a bot or workload to temporarily act on your behalf.")
+	delegationCreateSession.Flag("allow-node", "Allow access to an SSH node.").StringsVar(&cf.DelegationAllowNodes)
+	delegationCreateSession.Flag("allow-db", "Allow access to a database.").StringsVar(&cf.DelegationAllowDatabases)
+	delegationCreateSession.Flag("allow-app", "Allow access to an application.").StringsVar(&cf.DelegationAllowApps)
+	delegationCreateSession.Flag("allow-kube-cluster", "Allow access to a Kubernetes cluster.").StringsVar(&cf.DelegationAllowKubeClusters)
+	delegationCreateSession.Flag("allow-windows-desktop", "Allow access to a Windows desktop.").StringsVar(&cf.DelegationAllowWindowsDesktops)
+	delegationCreateSession.Flag("allow-git-server", "Allow access to a Git server.").StringsVar(&cf.DelegationAllowGitServers)
+	delegationCreateSession.Flag("allow-all", "Allow access to all resources, including destructive administrative actions. Mutually exclusive with the other --allow-* flags.").BoolVar(&cf.DelegationAllowAll)
+	delegationCreateSession.Flag("bot", "Name of a bot allowed to use the delegation session. Repeat to allow multiple bots.").StringsVar(&cf.DelegationBots)
+	delegationCreateSession.Flag("session-ttl", "How long the delegation session should remain valid.").DurationVar(&cf.SessionTTL)
 
 	req := app.Command("request", "Manage Access Requests.").Alias("requests")
 
@@ -1892,6 +1924,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onDatabaseExec(&cf)
 	case environment.FullCommand():
 		err = onEnvironment(&cf)
+	case delegationCreateSession.FullCommand():
+		err = onDelegationCreateSession(&cf)
 	case mfa.ls.FullCommand():
 		err = mfa.ls.run(&cf)
 	case mfa.add.FullCommand():
@@ -2036,7 +2070,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	// A FIPS build of tsh is attempting to use a non-FIPS key returned by the cluster.
 	var fipsErr *sshutils.FIPSError
-	if moduleCfg.IsBoringBinary() && errors.As(err, &fipsErr) {
+	if moduleCfg.IsFIPSBuild() && errors.As(err, &fipsErr) {
 		return trace.Wrap(err,
 			"tsh is running in FIPS mode, but the cluster is not FIPS-compliant. Use a non-FIPS tsh binary to connect to the cluster.",
 		)
@@ -5018,7 +5052,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	// If the client store was initialized for the identity file, but the wrong (or missing)
 	// proxy address, re-load the identity file for the provided proxy address.
 	if cf.IdentityFileIn != "" && cf.Proxy != proxy {
-		if err = identityfile.LoadIdentityFileIntoClientStore(c.ClientStore, cf.IdentityFileIn, proxy, c.SiteName); err == nil {
+		if err = identityfile.LoadIdentityFileIntoClientStore(c.ClientStore, cf.IdentityFileIn, proxy, c.SiteName, identityfile.WithHardwareKeyService(c.ClientStore.HardwareKeyService)); err == nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -5280,7 +5314,7 @@ func (c *CLIConf) initClientStore() {
 	// fail if the user did not provide the --proxy flag, but in some cases the proxy, the proxy
 	// address will be provided later on and the client will attempt to load the identity file then.
 	if c.IdentityFileIn != "" {
-		if err := identityfile.LoadIdentityFileIntoClientStore(c.clientStore, c.IdentityFileIn, c.Proxy, c.SiteName); err == nil {
+		if err := identityfile.LoadIdentityFileIntoClientStore(c.clientStore, c.IdentityFileIn, c.Proxy, c.SiteName, identityfile.WithHardwareKeyService(hwks)); err == nil {
 			logger.DebugContext(c.Context, "failed to load identity file into client store", "err", err)
 		}
 	}
@@ -5475,14 +5509,19 @@ func flattenIdentity(cf *CLIConf) error {
 	// Usually, initializing the client store with an identity file would result in
 	// an in-memory client store with a profile for cf.Proxy pre-loaded. Instead,
 	// initialize an FS client store and load the identity file into it.
-	hwks := piv.NewYubiKeyService(nil /*prompt*/)
+	var hwks hardwarekey.Service
+	if cf.disableHardwareKeyAgentClient {
+		hwks = piv.NewYubiKeyService(nil /*prompt*/)
+	} else {
+		hwks = libhwk.NewService(cf.Context, nil /*prompt*/)
+	}
 	clientStore := client.NewFSClientStore(cf.HomePath, client.WithHardwareKeyService(hwks))
 	if err := cf.setClientStore(clientStore); err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Load the identity file key and partial profile into the client store.
-	if err := identityfile.LoadIdentityFileIntoClientStore(clientStore, cf.IdentityFileIn, cf.Proxy, cf.SiteName); err != nil {
+	if err := identityfile.LoadIdentityFileIntoClientStore(clientStore, cf.IdentityFileIn, cf.Proxy, cf.SiteName, identityfile.WithHardwareKeyService(hwks)); err != nil {
 		return trace.Wrap(err)
 	}
 

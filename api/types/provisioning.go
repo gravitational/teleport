@@ -884,18 +884,24 @@ func (a *ProvisionTokenSpecV2Kubernetes) checkAndSetDefaults() error {
 		return trace.BadParameter("allow: at least one rule must be set")
 	}
 	for i, allowRule := range a.Allow {
-		if allowRule.ServiceAccount == "" {
+		serviceAccountSet := allowRule.ServiceAccount != ""
+		serviceAccountNameSet := allowRule.ServiceAccountName != ""
+		serviceAccountNamespaceSet := allowRule.ServiceAccountNamespace != ""
+
+		if !serviceAccountSet && (!serviceAccountNameSet || !serviceAccountNamespaceSet) {
 			return trace.BadParameter(
-				"allow[%d].service_account: name of service account must be set",
+				"allow[%d]: must specify service_account or (service_account_name and service_account_namespace)",
 				i,
 			)
 		}
-		if len(strings.Split(allowRule.ServiceAccount, ":")) != 2 {
-			return trace.BadParameter(
-				`allow[%d].service_account: name of service account should be in format "namespace:service_account", got %q instead`,
-				i,
-				allowRule.ServiceAccount,
-			)
+		if serviceAccountSet {
+			if len(strings.Split(allowRule.ServiceAccount, ":")) != 2 {
+				return trace.BadParameter(
+					`allow[%d].service_account: name of service account should be in format "namespace:service_account", got %q instead`,
+					i,
+					allowRule.ServiceAccount,
+				)
+			}
 		}
 	}
 

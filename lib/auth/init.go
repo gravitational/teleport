@@ -66,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join/iamjoin"
 	"github.com/gravitational/teleport/lib/modules"
@@ -497,6 +498,22 @@ func Init(ctx context.Context, cfg InitConfig, opts ...ServerOption) (*Server, e
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Initialize the unified resource cache before running period checks that rely on it.
+	unifiedResourcesCache, err := services.NewUnifiedResourceCache(asrv.CloseContext(), services.UnifiedResourceCacheConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			QueueSize:    defaults.UnifiedResourcesQueueSize,
+			Component:    teleport.ComponentUnifiedResource,
+			Logger:       cfg.Logger.With(teleport.ComponentKey, teleport.ComponentUnifiedResource),
+			Client:       asrv.Cache,
+			MaxStaleness: time.Minute,
+		},
+		ResourceGetter: asrv,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	asrv.SetUnifiedResourcesCache(unifiedResourcesCache)
 
 	domainName := cfg.ClusterName.GetClusterName()
 	if err := backend.RunWhileLocked(ctx,
@@ -1594,7 +1611,8 @@ func checkResourceConsistency(ctx context.Context, mod modules.Modules, keyStore
 				types.SAMLIDPCA,
 				types.SPIFFECA,
 				types.AWSRACA,
-				types.WindowsCA:
+				types.WindowsCA,
+				types.AppClientCA:
 				_, _, signerErr = keyStore.GetTLSCertAndSigner(ctx, r)
 			case types.JWTSigner,
 				types.OIDCIdPCA,
@@ -1770,8 +1788,12 @@ func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 // to avoid consistency issues. A lower priority means the resource is applied
 // before.
 var ResourceApplyPriority = map[string]int{
-	types.KindRole:                    1,
-	types.KindUser:                    2, // Users must be applied after Roles
+	types.KindRole:            1,
+	types.KindInferenceSecret: 1,
+
+	types.KindUser:           2, // Users must be applied after Roles
+	types.KindInferenceModel: 2,
+
 	types.KindToken:                   3,
 	types.KindClusterNetworkingConfig: 3,
 	types.KindClusterAuthPreference:   3,
@@ -1779,7 +1801,9 @@ var ResourceApplyPriority = map[string]int{
 	// Bots should be applied after users and roles as at the moment they are actually converted to users and roles.
 	// This will ensure that Bot Users/Roles are properly created regardless of the Teleport version from which the
 	// resources have been exported.
-	types.KindBot: 3,
+	types.KindBot:             3,
+	types.KindInferencePolicy: 3,
+	types.KindRetrievalModel:  3,
 }
 
 // Unlike when resources are loaded via --bootstrap, we're inserting elements via their service.
@@ -1825,6 +1849,12 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 			_, err = autoupdatev1.UpsertAutoUpdateVersion(ctx, service, r.UnwrapT())
 		case types.Resource153UnwrapperT[*summarizerv1.InferenceModel]:
 			_, err = service.Summarizer.UpsertInferenceModel(ctx, r.UnwrapT())
+		case types.Resource153UnwrapperT[*summarizerv1.InferencePolicy]:
+			_, err = service.Summarizer.UpsertInferencePolicy(ctx, r.UnwrapT())
+		case types.Resource153UnwrapperT[*summarizerv1.InferenceSecret]:
+			_, err = service.Summarizer.UpsertInferenceSecret(ctx, r.UnwrapT())
+		case types.Resource153UnwrapperT[*summarizerv1.RetrievalModel]:
+			_, err = service.Summarizer.UpsertRetrievalModel(ctx, r.UnwrapT())
 		case types.Resource153UnwrapperT[*workloadidentityv1.WorkloadIdentity]:
 			_, err = service.WorkloadIdentities.UpsertWorkloadIdentity(ctx, r.UnwrapT())
 		default:

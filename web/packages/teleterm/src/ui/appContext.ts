@@ -247,7 +247,7 @@ export default class AppContext implements IAppContext {
               proxyHost: updatedCluster.proxyHost,
             });
           case 'did-change-access':
-            if (!this.clustersService.findCluster(uri).connected) {
+            if (!this.clustersService.findCluster(uri)?.connected) {
               // Only refresh resources when the cluster is connected.
               return;
             }

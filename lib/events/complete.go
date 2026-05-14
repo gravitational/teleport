@@ -366,13 +366,13 @@ func (u *UploadCompleter) ensureSessionEndEvent(ctx context.Context, uploadData 
 		return trace.Wrap(err)
 	}
 
-	// For PTY sessions, process recording metadata and summarization.
+	// For PTY and Desktop sessions, process recording metadata.
 	recordingMetadata := u.cfg.RecordingMetadataProvider.Service()
-	if duration, sessionType := isPTYSession(sessionEndEvent); duration > 0 {
-		if err := recordingMetadata.ProcessSessionRecording(ctx, uploadData.SessionID, sessionType, duration); err != nil {
+	if startTime, duration, sessionType := metadataParamsForSessionEnd(sessionEndEvent); duration > 0 {
+		if err := recordingMetadata.ProcessSessionRecording(ctx, uploadData.SessionID, sessionType, startTime, duration); err != nil {
 			slog.WarnContext(ctx, "Failed to process session recording metadata", "error", err)
 		}
-	} else if sessionType == recordingmetadata.SessionTypeTTY {
+	} else if sessionType == recordingmetadata.SessionTypeTTY || sessionType == recordingmetadata.SessionTypeDesktop {
 		slog.WarnContext(ctx, "Session start or end time is not set, skipping recording metadata processing")
 	}
 
@@ -400,27 +400,30 @@ func transformedUsername(u apievents.UserMetadata, localCluster string) string {
 	)
 }
 
-// isPTYSession returns the session duration and true if the event is an
-// interactive (PTY) SSH session end. Returns (0, false) for non-SSH sessions.
-// Returns (-1, true) if the event is a PTY session but the start or end time
-// is missing.
-func isPTYSession(sessionEnd apievents.AuditEvent) (time.Duration, recordingmetadata.SessionType) {
+// metadataParamsForSessionEnd returns the duration and session type used to
+// gate and parameterize recording metadata generation for a session end event.
+// Returns (>0, sessionType) for sessions whose recordings should be processed
+// (SSH/PTY and Windows Desktop). Returns (-1, sessionType) when the session is
+// eligible but its start or end time is missing, signaling the caller to warn.
+// Returns (0, SessionTypeUnspecified) for session types that don't produce
+// recording metadata.
+func metadataParamsForSessionEnd(sessionEnd apievents.AuditEvent) (time.Time, time.Duration, recordingmetadata.SessionType) {
 	switch evt := sessionEnd.(type) {
 	case *apievents.SessionEnd:
 		if evt.EndTime.IsZero() || evt.StartTime.IsZero() {
-			return -1, recordingmetadata.SessionTypeTTY
+			return time.Time{}, -1, recordingmetadata.SessionTypeTTY
 		}
-		return evt.EndTime.Sub(evt.StartTime), recordingmetadata.SessionTypeTTY
+		return evt.StartTime, evt.EndTime.Sub(evt.StartTime), recordingmetadata.SessionTypeTTY
 	case *apievents.DatabaseSessionEnd:
 		if evt.EndTime.IsZero() || evt.StartTime.IsZero() {
-			return -1, recordingmetadata.SessionTypeUnspecified
+			return time.Time{}, -1, recordingmetadata.SessionTypeUnspecified
 		}
-		return evt.EndTime.Sub(evt.StartTime), recordingmetadata.SessionTypeUnspecified
+		return evt.StartTime, evt.EndTime.Sub(evt.StartTime), recordingmetadata.SessionTypeUnspecified
 	case *apievents.WindowsDesktopSessionEnd:
 		if evt.EndTime.IsZero() || evt.StartTime.IsZero() {
-			return -1, recordingmetadata.SessionTypeUnspecified
+			return time.Time{}, -1, recordingmetadata.SessionTypeDesktop
 		}
-		return evt.EndTime.Sub(evt.StartTime), recordingmetadata.SessionTypeUnspecified
+		return evt.StartTime, evt.EndTime.Sub(evt.StartTime), recordingmetadata.SessionTypeDesktop
 	}
-	return 0, recordingmetadata.SessionTypeUnspecified
+	return time.Time{}, 0, recordingmetadata.SessionTypeUnspecified
 }

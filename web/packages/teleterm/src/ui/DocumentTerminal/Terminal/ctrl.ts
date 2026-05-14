@@ -19,6 +19,7 @@
 import { FitAddon } from '@xterm/addon-fit';
 import { IDisposable, ITheme, Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
+
 import {
   SearchAddon,
   TerminalSearcher,

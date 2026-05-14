@@ -234,6 +234,7 @@ export const eventCodes = {
   X11_FORWARD_FAILURE: 'T3008W',
   CERTIFICATE_CREATED: 'TC000I',
   UPGRADE_WINDOW_UPDATED: 'TUW01I',
+  ENVIRONMENT_PROFILE_UPDATED: 'TEP01I',
   BOT_JOIN: 'TJ001I',
   BOT_JOIN_FAILURE: 'TJ001E',
   INSTANCE_JOIN: 'TJ002I',
@@ -298,6 +299,7 @@ export const eventCodes = {
   CLUSTER_NETWORKING_CONFIG_UPDATE: 'TCNET002I',
   SESSION_RECORDING_CONFIG_UPDATE: 'TCREC003I',
   ACCESS_GRAPH_PATH_CHANGED: 'TAG001I',
+  ACCESS_GRAPH_SETTINGS_UPDATE: 'TCAGC003I',
   SPANNER_RPC: 'TSPN001I',
   SPANNER_RPC_DENIED: 'TSPN001W',
   DISCOVERY_CONFIG_CREATE: 'DC001I',
@@ -1376,6 +1378,12 @@ export type RawEvents = {
       upgrade_window_start: string;
     }
   >;
+  [eventCodes.ENVIRONMENT_PROFILE_UPDATED]: RawEvent<
+    typeof eventCodes.ENVIRONMENT_PROFILE_UPDATED,
+    {
+      environment_profile: string;
+    }
+  >;
   [eventCodes.SESSION_RECORDING_ACCESS]: RawEvent<
     typeof eventCodes.SESSION_RECORDING_ACCESS,
     {
@@ -1837,6 +1845,12 @@ export type RawEvents = {
       affected_resource_name: string;
       affected_resource_source: string;
       affected_resource_kind: string;
+    }
+  >;
+  [eventCodes.ACCESS_GRAPH_SETTINGS_UPDATE]: RawEvent<
+    typeof eventCodes.ACCESS_GRAPH_SETTINGS_UPDATE,
+    {
+      user: string;
     }
   >;
   [eventCodes.SPANNER_RPC]: RawSpannerRPCEvent<typeof eventCodes.SPANNER_RPC>;
@@ -2454,6 +2468,35 @@ type RawDiskEvent<T extends EventCode> = RawEvent<
   }
 >;
 
+// EventResourceId mirrors the JSON encoding of events.ResourceID.
+type EventResourceId = {
+  cluster: string;
+  kind: string;
+  name: string;
+  sub_resource?: string;
+};
+
+// EventResourceConstraints mirrors the JSON encoding of the oneof constraints
+// field in events.ResourceAccessID. Exactly one variant will be present.
+type EventResourceConstraints = {
+  unknown_constraints?: Record<string, never>;
+  aws_console?: {
+    role_arns_count: number;
+    role_arns_preview?: string[];
+  };
+  ssh?: {
+    logins_count: string[];
+    logins_preview?: string[];
+  };
+};
+
+// EventResourceAccessId mirrors the JSON encoding of events.ResourceAccessId.
+type EventResourceAccessId = {
+  id: EventResourceId;
+  // constraints is the JSON key produced by the Go oneof field encoding.
+  constraints?: EventResourceConstraints;
+};
+
 type RawEventAccess<T extends EventCode> = RawEvent<
   T,
   {
@@ -2462,6 +2505,7 @@ type RawEventAccess<T extends EventCode> = RawEvent<
     roles: string[];
     state: string;
     reviewer: string;
+    RequestedResourceAccessIDs?: EventResourceAccessId[];
   }
 >;
 

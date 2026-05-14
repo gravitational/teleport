@@ -39,6 +39,7 @@ import { useTabShortcuts } from './useTabShortcuts';
 export function TabHostContainer(props: {
   topBarConnectMyComputerRef: MutableRefObject<HTMLDivElement>;
   topBarAccessRequestRef: MutableRefObject<HTMLDivElement>;
+  desktopSessionControlsRef: MutableRefObject<HTMLDivElement>;
 }) {
   const ctx = useAppContext();
   const isRootClusterSelected = useStoreSelector(
@@ -52,6 +53,7 @@ export function TabHostContainer(props: {
         ctx={ctx}
         topBarConnectMyComputerRef={props.topBarConnectMyComputerRef}
         topBarAccessRequestRef={props.topBarAccessRequestRef}
+        desktopSessionControlsRef={props.desktopSessionControlsRef}
       />
     );
   }
@@ -62,10 +64,12 @@ export function TabHost({
   ctx,
   topBarConnectMyComputerRef,
   topBarAccessRequestRef,
+  desktopSessionControlsRef,
 }: {
   ctx: IAppContext;
   topBarConnectMyComputerRef: MutableRefObject<HTMLDivElement>;
   topBarAccessRequestRef: MutableRefObject<HTMLDivElement>;
+  desktopSessionControlsRef: MutableRefObject<HTMLDivElement>;
 }) {
   useWorkspaceServiceState();
   const documentsService =
@@ -146,6 +150,7 @@ export function TabHost({
       <DocumentsRenderer
         topBarConnectMyComputerRef={topBarConnectMyComputerRef}
         topBarAccessRequestRef={topBarAccessRequestRef}
+        desktopSessionControlsRef={desktopSessionControlsRef}
       />
     </StyledTabHost>
   );
