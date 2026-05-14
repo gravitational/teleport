@@ -27,6 +27,8 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"slices"
+	"strings"
 	"sync"
 
 	"github.com/gravitational/trace"
@@ -178,10 +180,10 @@ func (s *Service) CreateCSR(
 	ctx context.Context,
 	req *subcav1.CreateCSRRequest,
 ) (*subcav1.CreateCSRResponse, error) {
-	switch {
-	case req.CaType == "":
-		return nil, trace.BadParameter("ca_type required")
-	case req.PublicKeyHash != nil && req.PublicKeyHash.Value == "":
+	if err := validateCATypeForCSR(req.CaType); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if req.PublicKeyHash != nil && req.PublicKeyHash.Value == "" {
 		return nil, trace.BadParameter("public_key_hash invalid: %q", req.PublicKeyHash)
 	}
 	if err := s.authorizeCAOverride(
@@ -266,6 +268,17 @@ func (s *Service) CreateCSR(
 	}
 
 	return resp, nil
+}
+
+func validateCATypeForCSR(caType string) error {
+	if caType == "" {
+		return trace.BadParameter("ca_type required")
+	}
+	if allowedTypes := subca.SupportedCATypes(); !slices.Contains(allowedTypes, caType) {
+		allowedTypesJoined := strings.Join(allowedTypes, ", ")
+		return trace.BadParameter("ca_type not allowed: %q (must be one of %s)", caType, allowedTypesJoined)
+	}
+	return nil
 }
 
 type candidateCSRSigner struct {

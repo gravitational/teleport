@@ -652,11 +652,18 @@ func TestService_CreateCSR_errors(t *testing.T) {
 			wantErr: "ca_type required",
 		},
 		{
+			name: "ca_type not allowed",
+			req: &subcapb.CreateCSRRequest{
+				CaType: string(types.UserCA),
+			},
+			wantErr: "ca_type not allowed",
+		},
+		{
 			name: "ca_type invalid",
 			req: &subcapb.CreateCSRRequest{
-				CaType: "bad-ca-type",
+				CaType: "banana",
 			},
-			wantErr: "authority type is not supported",
+			wantErr: "ca_type not allowed",
 		},
 		{
 			name: "public_key_hash empty",
@@ -1656,6 +1663,22 @@ func TestService_Write_errors(t *testing.T) {
 				return caOverride
 			},
 			wantErr: "sub_kind required",
+		},
+		{
+			name: "ca_override.sub_kind not allowed",
+			makeCAOverride: func(caOverride *subcapb.CertAuthorityOverride) *subcapb.CertAuthorityOverride {
+				caOverride.SubKind = string(types.UserCA)
+				return caOverride
+			},
+			wantErr: "unsupported sub_kind/caType",
+		},
+		{
+			name: "ca_override.sub_kind unknown",
+			makeCAOverride: func(caOverride *subcapb.CertAuthorityOverride) *subcapb.CertAuthorityOverride {
+				caOverride.SubKind = "banana"
+				return caOverride
+			},
+			wantErr: "unsupported sub_kind/caType",
 		},
 		{
 			name: "new override targets unknown certificate",
