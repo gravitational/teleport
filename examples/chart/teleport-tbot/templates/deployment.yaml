@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: {{ .Release.Name }}
+  {{- if .Values.extraLabels.deployment }}
+    {{- toYaml .Values.extraLabels.deployment | nindent 4 }}
+  {{- end }}
+  {{- if .Values.annotations.deployment }}
+  annotations:
+    {{- toYaml .Values.annotations.deployment | nindent 4 }}
+  {{- end }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}-tbot
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}-tbot
+    spec:
+      securityContext:
+        runAsUser: {{ .Values.pod.user.id }}
+        runAsGroup: {{ .Values.pod.group.id }}
+        {{- with .Values.podSecurityContext }}
+          {{- . | toYaml | nindent 8 }}
+        {{- end }}
+      containers:
+      - name: tbot
+        image: "{{ .Values.registry.domain }}/{{ .Values.image.name }}:{{ .Values.teleport.teleportVersion }}"
+        command:
+          - tbot
+        args:
+          - start
+          - -c
+          - /config/tbot.yaml
+        env:
+          # POD_NAMESPACE is required for the kubernetes_secret` destination
+          # type to work correctly.
+          - name: POD_NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          # KUBERNETES_TOKEN_PATH specifies the path to the service account
+          # JWT to use for joining.
+          # This path is based on the configuration of the volume and
+          # volumeMount.
+          - name: KUBERNETES_TOKEN_PATH
+            value: /var/run/secrets/tokens/join-sa-token
+        volumeMounts:
+          - mountPath: /config
+            name: config
+          - mountPath: /var/run/secrets/tokens
+            name: join-sa-token
+        securityContext:
+          {{- with .Values.containerSecurityContext }}
+            {{- . | toYaml | nindent 10 }}
+          {{- end }}
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
+      serviceAccountName: {{ .Release.Name }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ .Release.Name }}-config
+        - name: join-sa-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: join-sa-token
+                  # 600 seconds is the minimum that Kubernetes supports. We
+                  # recommend this value is used.
+                  expirationSeconds: 600
+                  # `example.teleport.sh` must be replaced with the name of
+                  # your Teleport cluster.
+                  audience: {{ .Values.teleport.teleportClusterName }}
