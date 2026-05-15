@@ -60,7 +60,7 @@ export function BeamsQuickstart() {
       >
         {infoContent.map(c => (
           <BeamsCard key={c}>
-            <Markdown text={c} />
+            <Markdown text={c} enableLinks />
           </BeamsCard>
         ))}
 
