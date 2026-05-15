@@ -94,6 +94,9 @@ func (a *Server) generateDatabaseServerCert(ctx context.Context, req *proto.Data
 	return &proto.DatabaseCertResponse{
 		Cert:    resp.CertPEM,
 		CACerts: caCerts,
+		// TrustChain and CAOverride not set on purpose.
+		// DatabaseCA certificates are not subject to CA overrides, only
+		// DatabaseClientCA is.
 	}, nil
 }
 
