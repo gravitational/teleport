@@ -1005,12 +1005,14 @@ func TestResetUser(t *testing.T) {
 	ctx := t.Context()
 
 	testCases := []struct {
-		name               string
-		userCreatedBy      types.CreatedBy
-		setupUser          func(t *testing.T, env *env, user types.User)
-		expectedMFADevices int
-		userType           types.UserType
-		expectToken        bool
+		name              string
+		userCreatedBy     types.CreatedBy
+		setupUser         func(t *testing.T, env *env, user types.User)
+		numMFAsAfterSetup int
+		numMFAsAfterReset int
+		userType          types.UserType
+		expectToken       bool
+		assert            func(t *testing.T, env *env, user types.User, res *userspb.ResetUserResponse)
 	}{
 		{
 			name: "local user",
@@ -1023,9 +1025,19 @@ func TestResetUser(t *testing.T) {
 				_, err = env.backend.GetPasswordHash(user.GetName())
 				require.NoError(t, err)
 			},
-			expectedMFADevices: 2,
-			userType:           types.UserTypeLocal,
-			expectToken:        true,
+			numMFAsAfterSetup: 2,
+			userType:          types.UserTypeLocal,
+			expectToken:       true,
+			assert: func(t *testing.T, env *env, user types.User, res *userspb.ResetUserResponse) {
+				assert.NotNil(t, res.PasswordResetToken)
+				assert.Equal(t, authclient.UserTokenTypeResetPassword, res.PasswordResetToken.SubKind)
+				assert.Equal(t, user.GetName(), res.PasswordResetToken.GetUser(), user.GetName())
+
+				event := getLastEvent(env.emitter.C())
+				assert.Equal(t, events.ResetPasswordTokenCreateEvent, event.GetType())
+				assert.Equal(t, user.GetName(), event.(*apievents.UserTokenCreate).Name)
+				assert.Equal(t, teleport.UserSystem, event.(*apievents.UserTokenCreate).User)
+			},
 		},
 		{
 			name: "SSO user, active",
@@ -1035,9 +1047,12 @@ func TestResetUser(t *testing.T) {
 					Type: "dummy",
 				},
 			},
-			setupUser:          func(t *testing.T, env *env, user types.User) {},
-			expectedMFADevices: 2,
-			userType:           types.UserTypeSSO,
+			setupUser:         func(t *testing.T, env *env, user types.User) {},
+			numMFAsAfterSetup: 2,
+			userType:          types.UserTypeSSO,
+			assert: func(t *testing.T, env *env, user types.User, res *userspb.ResetUserResponse) {
+				assert.Nil(t, res.PasswordResetToken)
+			},
 		},
 		{
 			name: "SSO user, active, with SSO MFA",
@@ -1082,8 +1097,12 @@ func TestResetUser(t *testing.T) {
 				require.NoError(t, err)
 				require.Len(t, devs, 1)
 			},
-			expectedMFADevices: 3,
-			userType:           types.UserTypeSSO,
+			numMFAsAfterSetup: 3,
+			numMFAsAfterReset: 1,
+			userType:          types.UserTypeSSO,
+			assert: func(t *testing.T, env *env, user types.User, res *userspb.ResetUserResponse) {
+				assert.Nil(t, res.PasswordResetToken)
+			},
 		},
 		{
 			name: "SSO user, expired",
@@ -1104,8 +1123,11 @@ func TestResetUser(t *testing.T) {
 				_, err = env.GetUser(ctx, &userspb.GetUserRequest{Name: user.GetName()})
 				require.True(t, trace.IsNotFound(err), "expected NotFound, got %T", err)
 			},
-			expectedMFADevices: 2,
-			userType:           types.UserTypeSSO,
+			numMFAsAfterSetup: 2,
+			userType:          types.UserTypeSSO,
+			assert: func(t *testing.T, env *env, user types.User, res *userspb.ResetUserResponse) {
+				assert.Nil(t, res.PasswordResetToken)
+			},
 		},
 	}
 
@@ -1167,7 +1189,7 @@ func TestResetUser(t *testing.T) {
 			// if the MFAs are later removed.
 			gotDevs, err := env.backend.GetMFADevices(ctx, user.GetName(), false)
 			require.NoError(t, err)
-			require.Len(t, gotDevs, tc.expectedMFADevices)
+			require.Len(t, gotDevs, tc.numMFAsAfterSetup)
 
 			ruResp, err := env.ResetUser(ctx, &userspb.ResetUserRequest{
 				Name: user.GetName(),
@@ -1175,23 +1197,12 @@ func TestResetUser(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			if tc.expectToken {
-				assert.NotNil(t, ruResp.PasswordResetToken)
-				assert.Equal(t, authclient.UserTokenTypeResetPassword, ruResp.PasswordResetToken.SubKind)
-				assert.Equal(t, user.GetName(), ruResp.PasswordResetToken.GetUser(), user.GetName())
-
-				event := getLastEvent(env.emitter.C())
-				assert.Equal(t, events.ResetPasswordTokenCreateEvent, event.GetType())
-				assert.Equal(t, user.GetName(), event.(*apievents.UserTokenCreate).Name)
-				assert.Equal(t, teleport.UserSystem, event.(*apievents.UserTokenCreate).User)
-			} else {
-				assert.Nil(t, ruResp.PasswordResetToken)
-			}
+			tc.assert(t, env, user, ruResp)
 
 			// verify that user has no MFA devices
 			gotDevs, err = env.backend.GetMFADevices(ctx, user.GetName(), false)
 			require.NoError(t, err)
-			assert.Empty(t, gotDevs)
+			assert.Len(t, gotDevs, tc.numMFAsAfterReset)
 
 			// verify that password was reset
 			_, err = env.backend.GetPasswordHash(user.GetName())

@@ -1237,6 +1237,7 @@ func (c *Client) GetResetPasswordToken(ctx context.Context, tokenID string) (typ
 
 // CreateResetPasswordToken creates reset password token.
 func (c *Client) CreateResetPasswordToken(ctx context.Context, req *proto.CreateResetPasswordTokenRequest) (types.UserToken, error) {
+	//nolint:staticcheck // CreateResetPasswordToken is still used, but we're getting rid of it in favor of UsersService.ResetUser()
 	token, err := c.grpc.CreateResetPasswordToken(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
