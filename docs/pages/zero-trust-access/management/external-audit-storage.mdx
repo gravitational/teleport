@@ -128,7 +128,7 @@ support your AWS environment:
                 "athena:GetQueryResults",
                 "athena:GetQueryExecution"
             ],
-            "Resource": "arn:aws:athena:us-west-2:(=aws.account_id=):workgroup/teleport_events_<unique_id>",
+            "Resource": "arn:aws:athena:us-west-2:123456789012:workgroup/teleport_events_<unique_id>",
             "Sid": "AllowAthenaQuery"
         },
         {
@@ -140,9 +140,9 @@ support your AWS environment:
                 "glue:UpdateTable"
             ],
             "Resource": [
-                "arn:aws:glue:us-west-2:(=aws.account_id=):catalog",
-                "arn:aws:glue:us-west-2:(=aws.account_id=):database/teleport_events_<unique_id>",
-                "arn:aws:glue:us-west-2:(=aws.account_id=):table/teleport_events_<unique_id>/teleport_events"
+                "arn:aws:glue:us-west-2:123456789012:catalog",
+                "arn:aws:glue:us-west-2:123456789012:database/teleport_events_<unique_id>",
+                "arn:aws:glue:us-west-2:123456789012:table/teleport_events_<unique_id>/teleport_events"
             ],
             "Sid": "FullAccessOnGlueTable"
         }
