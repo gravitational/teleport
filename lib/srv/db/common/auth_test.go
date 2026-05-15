@@ -331,7 +331,10 @@ func TestAuthGetTLSConfig_caOverrides(t *testing.T) {
 			ca1.CertPEM,
 			ca0.CertPEM,
 		},
-		caOverride: wantOverrideDetails,
+		// Take a defensive copy.
+		caOverride: &proto.CAOverrideCertificateDetails{
+			PublicKeyHash: wantOverrideDetails.PublicKeyHash,
+		},
 	}
 
 	auth, err := NewAuth(AuthConfig{
@@ -374,7 +377,6 @@ func TestAuthGetTLSConfig_caOverrides(t *testing.T) {
 		assert.Equal(t, wantChainDER, gotChainDER, "tlsConfig.Certifices[0] mismatch")
 
 		// Verify override details recorded in session.
-		wantOverrideDetails.PublicKeyHash = "banana"
 		if diff := googlecmp.Diff(wantOverrideDetails, session.caOverrideDetails, protocmp.Transform()); diff != "" {
 			t.Errorf("session.caOverrideDetails mismatch (-want +got)\n%s", diff)
 		}
