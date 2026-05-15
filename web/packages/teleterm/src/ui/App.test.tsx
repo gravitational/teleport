@@ -27,6 +27,7 @@ import Logger, { NullService } from 'teleterm/logger';
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 import { App } from 'teleterm/ui/App';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+import { makeWorkspace } from 'teleterm/ui/services/workspacesService/testHelpers';
 import { IAppContext } from 'teleterm/ui/types';
 
 mockIntersectionObserver();
@@ -73,16 +74,16 @@ test('activating a workspace via deep link overrides the previously active works
     .mockReturnValue({
       rootClusterUri: previouslyActiveCluster.uri,
       workspaces: {
-        [previouslyActiveCluster.uri]: {
+        [previouslyActiveCluster.uri]: makeWorkspace({
           localClusterUri: previouslyActiveCluster.uri,
           documents: [],
           location: undefined,
-        },
-        [deepLinkCluster.uri]: {
+        }),
+        [deepLinkCluster.uri]: makeWorkspace({
           localClusterUri: deepLinkCluster.uri,
           documents: [],
           location: undefined,
-        },
+        }),
       },
     });
   appContext.mainProcessClient.configService.set(
@@ -174,7 +175,7 @@ test.each<{
     .mockReturnValue({
       rootClusterUri: rootCluster.uri,
       workspaces: {
-        [rootCluster.uri]: {
+        [rootCluster.uri]: makeWorkspace({
           localClusterUri: rootCluster.uri,
           documents: [
             {
@@ -187,7 +188,7 @@ test.each<{
             },
           ],
           location: undefined,
-        },
+        }),
       },
     });
   appContext.mainProcessClient.configService.set(
