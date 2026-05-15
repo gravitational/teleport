@@ -67,12 +67,11 @@ func TestWorkloadIdentity(t *testing.T) {
 		deleteAll: func(ctx context.Context) error {
 			return p.workloadIdentity.DeleteAllWorkloadIdentities(ctx)
 		},
-
 		cacheList: func(ctx context.Context, pageSize int, pageToken string) ([]*workloadidentityv1pb.WorkloadIdentity, string, error) {
-			return p.cache.ListWorkloadIdentities(ctx, 0, "", nil)
+			return p.cache.ListWorkloadIdentities(ctx, pageSize, pageToken, nil)
 		},
 		cacheGet: p.cache.GetWorkloadIdentity,
-	}, withSkipPaginationTest())
+	})
 }
 
 // TestWorkloadIdentityCacheSorting tests that cache items are sorted.
