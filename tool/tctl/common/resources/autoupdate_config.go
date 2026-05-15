@@ -20,8 +20,10 @@ package resources
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -78,7 +80,7 @@ func getAutoUpdateConfig(ctx context.Context, client *authclient.Client, ref ser
 }
 
 func createAutoUpdateConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts CreateOpts) error {
-	config, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateConfig](raw.Raw, services.DisallowUnknown())
+	config, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateConfig](normalizeAutoUpdateConfigDurations(raw.Raw), services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -104,7 +106,7 @@ func createAutoUpdateConfig(ctx context.Context, client *authclient.Client, raw 
 }
 
 func updateAutoUpdateConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts CreateOpts) error {
-	config, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateConfig](raw.Raw, services.DisallowUnknown())
+	config, err := services.UnmarshalProtoResource[*autoupdatev1pb.AutoUpdateConfig](normalizeAutoUpdateConfigDurations(raw.Raw), services.DisallowUnknown())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -129,4 +131,42 @@ func deleteAutoUpdateConfig(ctx context.Context, client *authclient.Client, ref 
 	}
 	fmt.Printf("AutoUpdateConfig has been deleted\n")
 	return nil
+}
+
+// normalizeAutoUpdateConfigDurations converts Go duration strings in
+// spec.agents.maintenance_window_duration (e.g. "1h", "30m") to the
+// "<seconds>s" format required by protojson for google.protobuf.Duration fields.
+//
+// tctl transcodes user-supplied YAML to JSON before calling protojson. The
+// protobuf JSON wire format for Duration is "<total-seconds>s", but the docs
+// and server-side validation messages show human-readable values like "1h".
+// Values that are not parseable as Go durations are left untouched so that
+// protojson can return a descriptive error to the caller.
+func normalizeAutoUpdateConfigDurations(rawJSON []byte) []byte {
+	var doc map[string]any
+	if err := json.Unmarshal(rawJSON, &doc); err != nil {
+		// Malformed JSON — pass through and let protojson report the error.
+		return rawJSON
+	}
+
+	spec, _ := doc["spec"].(map[string]any)
+	agents, _ := spec["agents"].(map[string]any)
+	str, _ := agents["maintenance_window_duration"].(string)
+	if str == "" {
+		return rawJSON
+	}
+
+	d, err := time.ParseDuration(str)
+	if err != nil {
+		// Not a valid Go duration; pass through so protojson reports the error.
+		return rawJSON
+	}
+
+	agents["maintenance_window_duration"] = fmt.Sprintf("%ds", int64(d.Seconds()))
+
+	out, err := json.Marshal(doc)
+	if err != nil {
+		return rawJSON
+	}
+	return out
 }
