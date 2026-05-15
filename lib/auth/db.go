@@ -88,7 +88,7 @@ func (a *Server) generateDatabaseServerCert(ctx context.Context, req *proto.Data
 	}
 	caCerts, err := a.getDatabaseCACerts(ctx, returnedCAID)
 	if err != nil {
-		return nil, trace.Wrap(err, "response CACerts")
+		return nil, trace.Wrap(err, "get database CA certs")
 	}
 
 	return &proto.DatabaseCertResponse{
@@ -133,7 +133,7 @@ func (a *Server) generateDatabaseClientCert(ctx context.Context, req *proto.Data
 	}
 	caCerts, err := a.getDatabaseCACerts(ctx, returnedCAID)
 	if err != nil {
-		return nil, trace.Wrap(err, "response CACerts")
+		return nil, trace.Wrap(err, "get database CA certs")
 	}
 
 	return &proto.DatabaseCertResponse{
@@ -443,7 +443,7 @@ func (a *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 	}
 	caCerts, err := a.getDatabaseCACerts(ctx, returnedCAID)
 	if err != nil {
-		return nil, trace.Wrap(err, "response CACerts")
+		return nil, trace.Wrap(err, "get database CA certs")
 	}
 
 	return &proto.DatabaseCSRResponse{
