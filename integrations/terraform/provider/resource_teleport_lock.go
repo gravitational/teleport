@@ -368,24 +368,20 @@ func (r resourceTeleportLock) ModifyPlan(ctx context.Context, req tfsdk.ModifyRe
 		return
 	}
 
-	// Preserve the provider-managed ID, but rewrite all other fields from
-	// config so omitted or null values become explicit zero values in the plan.
-	id, hasID := plan.Attrs["id"]
-
 	lock := &apitypes.LockV2{}
 	resp.Diagnostics.Append(tfschema.CopyLockV2FromTerraform(ctx, plan, lock)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	resp.Diagnostics.Append(tfschema.CopyLockV2ToTerraform(ctx, lock, &plan)...)
+	normalized := plan
+	normalized.Attrs = nil
+	
+	resp.Diagnostics.Append(tfschema.CopyLockV2ToTerraform(ctx, lock, &normalized)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if hasID {
-		plan.Attrs["id"] = id
-	}
-
+	plan.Attrs["spec"] = normalized.Attrs["spec"]
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

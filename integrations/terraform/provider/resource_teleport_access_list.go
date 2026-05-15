@@ -365,24 +365,20 @@ func (r resourceTeleportAccessList) ModifyPlan(ctx context.Context, req tfsdk.Mo
 		return
 	}
 
-	// Preserve the provider-managed ID, but rewrite all other fields from
-	// config so omitted or null values become explicit zero values in the plan.
-	id, hasID := plan.Attrs["id"]
-
 	accessList := &accesslist.AccessList{}
 	resp.Diagnostics.Append(schemav1.CopyAccessListFromTerraform(ctx, plan, accessList)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	resp.Diagnostics.Append(schemav1.CopyAccessListToTerraform(ctx, accessList, &plan)...)
+	normalized := plan
+	normalized.Attrs = nil
+	
+	resp.Diagnostics.Append(schemav1.CopyAccessListToTerraform(ctx, accessList, &normalized)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if hasID {
-		plan.Attrs["id"] = id
-	}
-
+	plan.Attrs["spec"] = normalized.Attrs["spec"]
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

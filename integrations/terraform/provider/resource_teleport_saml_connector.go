@@ -368,24 +368,20 @@ func (r resourceTeleportSAMLConnector) ModifyPlan(ctx context.Context, req tfsdk
 		return
 	}
 
-	// Preserve the provider-managed ID, but rewrite all other fields from
-	// config so omitted or null values become explicit zero values in the plan.
-	id, hasID := plan.Attrs["id"]
-
 	samlConnector := &apitypes.SAMLConnectorV2{}
 	resp.Diagnostics.Append(tfschema.CopySAMLConnectorV2FromTerraform(ctx, plan, samlConnector)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	resp.Diagnostics.Append(tfschema.CopySAMLConnectorV2ToTerraform(ctx, samlConnector, &plan)...)
+	normalized := plan
+	normalized.Attrs = nil
+	
+	resp.Diagnostics.Append(tfschema.CopySAMLConnectorV2ToTerraform(ctx, samlConnector, &normalized)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if hasID {
-		plan.Attrs["id"] = id
-	}
-
+	plan.Attrs["spec"] = normalized.Attrs["spec"]
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

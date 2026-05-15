@@ -368,24 +368,20 @@ func (r resourceTeleportDatabase) ModifyPlan(ctx context.Context, req tfsdk.Modi
 		return
 	}
 
-	// Preserve the provider-managed ID, but rewrite all other fields from
-	// config so omitted or null values become explicit zero values in the plan.
-	id, hasID := plan.Attrs["id"]
-
 	database := &apitypes.DatabaseV3{}
 	resp.Diagnostics.Append(tfschema.CopyDatabaseV3FromTerraform(ctx, plan, database)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	resp.Diagnostics.Append(tfschema.CopyDatabaseV3ToTerraform(ctx, database, &plan)...)
+	normalized := plan
+	normalized.Attrs = nil
+	
+	resp.Diagnostics.Append(tfschema.CopyDatabaseV3ToTerraform(ctx, database, &normalized)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if hasID {
-		plan.Attrs["id"] = id
-	}
-
+	plan.Attrs["spec"] = normalized.Attrs["spec"]
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

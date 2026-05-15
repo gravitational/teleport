@@ -368,24 +368,20 @@ func (r resourceTeleportRole) ModifyPlan(ctx context.Context, req tfsdk.ModifyRe
 		return
 	}
 
-	// Preserve the provider-managed ID, but rewrite all other fields from
-	// config so omitted or null values become explicit zero values in the plan.
-	id, hasID := plan.Attrs["id"]
-
 	role := &apitypes.RoleV6{}
 	resp.Diagnostics.Append(tfschema.CopyRoleV6FromTerraform(ctx, plan, role)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	resp.Diagnostics.Append(tfschema.CopyRoleV6ToTerraform(ctx, role, &plan)...)
+	normalized := plan
+	normalized.Attrs = nil
+	
+	resp.Diagnostics.Append(tfschema.CopyRoleV6ToTerraform(ctx, role, &normalized)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if hasID {
-		plan.Attrs["id"] = id
-	}
-
+	plan.Attrs["spec"] = normalized.Attrs["spec"]
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

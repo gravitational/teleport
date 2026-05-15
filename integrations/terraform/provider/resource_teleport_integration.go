@@ -368,24 +368,20 @@ func (r resourceTeleportIntegration) ModifyPlan(ctx context.Context, req tfsdk.M
 		return
 	}
 
-	// Preserve the provider-managed ID, but rewrite all other fields from
-	// config so omitted or null values become explicit zero values in the plan.
-	id, hasID := plan.Attrs["id"]
-
 	integration := &apitypes.IntegrationV1{}
 	resp.Diagnostics.Append(tfschema.CopyIntegrationV1FromTerraform(ctx, plan, integration)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	resp.Diagnostics.Append(tfschema.CopyIntegrationV1ToTerraform(ctx, integration, &plan)...)
+	normalized := plan
+	normalized.Attrs = nil
+	
+	resp.Diagnostics.Append(tfschema.CopyIntegrationV1ToTerraform(ctx, integration, &normalized)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if hasID {
-		plan.Attrs["id"] = id
-	}
-
+	plan.Attrs["spec"] = normalized.Attrs["spec"]
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

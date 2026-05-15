@@ -353,24 +353,20 @@ func (r resourceTeleportDeviceV1) ModifyPlan(ctx context.Context, req tfsdk.Modi
 		return
 	}
 
-	// Preserve the provider-managed ID, but rewrite all other fields from
-	// config so omitted or null values become explicit zero values in the plan.
-	id, hasID := plan.Attrs["id"]
-
 	trustedDevice := &apitypes.DeviceV1{}
 	resp.Diagnostics.Append(schemav1.CopyDeviceV1FromTerraform(ctx, plan, trustedDevice)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	resp.Diagnostics.Append(schemav1.CopyDeviceV1ToTerraform(ctx, trustedDevice, &plan)...)
+	normalized := plan
+	normalized.Attrs = nil
+	
+	resp.Diagnostics.Append(schemav1.CopyDeviceV1ToTerraform(ctx, trustedDevice, &normalized)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if hasID {
-		plan.Attrs["id"] = id
-	}
-
+	plan.Attrs["spec"] = normalized.Attrs["spec"]
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

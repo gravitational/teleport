@@ -423,24 +423,20 @@ func (r resourceTeleportScopedRoleAssignment) ModifyPlan(ctx context.Context, re
 		return
 	}
 
-	// Preserve the provider-managed ID, but rewrite all other fields from
-	// config so omitted or null values become explicit zero values in the plan.
-	id, hasID := plan.Attrs["id"]
-
 	scopedRoleAssignment := &accessv1.ScopedRoleAssignment{}
 	resp.Diagnostics.Append(assignmentschemav1.CopyScopedRoleAssignmentFromTerraform(ctx, plan, scopedRoleAssignment)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	resp.Diagnostics.Append(assignmentschemav1.CopyScopedRoleAssignmentToTerraform(ctx, scopedRoleAssignment, &plan)...)
+	normalized := plan
+	normalized.Attrs = nil
+	
+	resp.Diagnostics.Append(assignmentschemav1.CopyScopedRoleAssignmentToTerraform(ctx, scopedRoleAssignment, &normalized)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if hasID {
-		plan.Attrs["id"] = id
-	}
-
+	plan.Attrs["spec"] = normalized.Attrs["spec"]
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

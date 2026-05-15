@@ -385,24 +385,20 @@ func (r resourceTeleportScopedRole) ModifyPlan(ctx context.Context, req tfsdk.Mo
 		return
 	}
 
-	// Preserve the provider-managed ID, but rewrite all other fields from
-	// config so omitted or null values become explicit zero values in the plan.
-	id, hasID := plan.Attrs["id"]
-
 	scopedRole := &accessv1.ScopedRole{}
 	resp.Diagnostics.Append(schemav1.CopyScopedRoleFromTerraform(ctx, plan, scopedRole)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	resp.Diagnostics.Append(schemav1.CopyScopedRoleToTerraform(ctx, scopedRole, &plan)...)
+	normalized := plan
+	normalized.Attrs = nil
+	
+	resp.Diagnostics.Append(schemav1.CopyScopedRoleToTerraform(ctx, scopedRole, &normalized)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if hasID {
-		plan.Attrs["id"] = id
-	}
-
+	plan.Attrs["spec"] = normalized.Attrs["spec"]
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

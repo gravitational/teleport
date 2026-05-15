@@ -368,24 +368,20 @@ func (r resourceTeleportDynamicWindowsDesktop) ModifyPlan(ctx context.Context, r
 		return
 	}
 
-	// Preserve the provider-managed ID, but rewrite all other fields from
-	// config so omitted or null values become explicit zero values in the plan.
-	id, hasID := plan.Attrs["id"]
-
 	desktop := &apitypes.DynamicWindowsDesktopV1{}
 	resp.Diagnostics.Append(tfschema.CopyDynamicWindowsDesktopV1FromTerraform(ctx, plan, desktop)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	resp.Diagnostics.Append(tfschema.CopyDynamicWindowsDesktopV1ToTerraform(ctx, desktop, &plan)...)
+	normalized := plan
+	normalized.Attrs = nil
+	
+	resp.Diagnostics.Append(tfschema.CopyDynamicWindowsDesktopV1ToTerraform(ctx, desktop, &normalized)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if hasID {
-		plan.Attrs["id"] = id
-	}
-
+	plan.Attrs["spec"] = normalized.Attrs["spec"]
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

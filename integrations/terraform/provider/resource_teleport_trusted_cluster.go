@@ -368,24 +368,20 @@ func (r resourceTeleportTrustedCluster) ModifyPlan(ctx context.Context, req tfsd
 		return
 	}
 
-	// Preserve the provider-managed ID, but rewrite all other fields from
-	// config so omitted or null values become explicit zero values in the plan.
-	id, hasID := plan.Attrs["id"]
-
 	trustedCluster := &apitypes.TrustedClusterV2{}
 	resp.Diagnostics.Append(tfschema.CopyTrustedClusterV2FromTerraform(ctx, plan, trustedCluster)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	resp.Diagnostics.Append(tfschema.CopyTrustedClusterV2ToTerraform(ctx, trustedCluster, &plan)...)
+	normalized := plan
+	normalized.Attrs = nil
+	
+	resp.Diagnostics.Append(tfschema.CopyTrustedClusterV2ToTerraform(ctx, trustedCluster, &normalized)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if hasID {
-		plan.Attrs["id"] = id
-	}
-
+	plan.Attrs["spec"] = normalized.Attrs["spec"]
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

@@ -357,24 +357,26 @@ func (r resourceTeleportClusterNetworkingConfig) ModifyPlan(ctx context.Context,
 		return
 	}
 
-	// Preserve the provider-managed ID, but rewrite all other fields from
-	// config so omitted or null values become explicit zero values in the plan.
-	id, hasID := plan.Attrs["id"]
-
 	clusterNetworkingConfig := &apitypes.ClusterNetworkingConfigV2{}
 	resp.Diagnostics.Append(tfschema.CopyClusterNetworkingConfigV2FromTerraform(ctx, plan, clusterNetworkingConfig)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	resp.Diagnostics.Append(tfschema.CopyClusterNetworkingConfigV2ToTerraform(ctx, clusterNetworkingConfig, &plan)...)
+	normalized := plan
+	normalized.Attrs = nil
+
+	resp.Diagnostics.Append(tfschema.CopyClusterNetworkingConfigV2ToTerraform(ctx, clusterNetworkingConfig, &normalized)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if hasID {
-		plan.Attrs["id"] = id
+	metadata, ok := plan.Attrs["metadata"].(types.Object)
+	if !ok || metadata.Attrs == nil {
+		resp.Diagnostics.AddError("Error modifying Role plan", "Expected metadata to be present in the Terraform plan.")
+		return
 	}
 
+	plan.Attrs["spec"] = normalized.Attrs["spec"]
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

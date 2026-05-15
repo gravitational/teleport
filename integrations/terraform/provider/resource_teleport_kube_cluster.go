@@ -368,24 +368,20 @@ func (r resourceTeleportKubeCluster) ModifyPlan(ctx context.Context, req tfsdk.M
 		return
 	}
 
-	// Preserve the provider-managed ID, but rewrite all other fields from
-	// config so omitted or null values become explicit zero values in the plan.
-	id, hasID := plan.Attrs["id"]
-
 	kubeCluster := &apitypes.KubernetesClusterV3{}
 	resp.Diagnostics.Append(tfschema.CopyKubernetesClusterV3FromTerraform(ctx, plan, kubeCluster)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	resp.Diagnostics.Append(tfschema.CopyKubernetesClusterV3ToTerraform(ctx, kubeCluster, &plan)...)
+	normalized := plan
+	normalized.Attrs = nil
+	
+	resp.Diagnostics.Append(tfschema.CopyKubernetesClusterV3ToTerraform(ctx, kubeCluster, &normalized)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if hasID {
-		plan.Attrs["id"] = id
-	}
-
+	plan.Attrs["spec"] = normalized.Attrs["spec"]
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

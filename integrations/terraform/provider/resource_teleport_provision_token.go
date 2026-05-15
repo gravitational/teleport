@@ -379,24 +379,20 @@ func (r resourceTeleportProvisionToken) ModifyPlan(ctx context.Context, req tfsd
 		return
 	}
 
-	// Preserve the provider-managed ID, but rewrite all other fields from
-	// config so omitted or null values become explicit zero values in the plan.
-	id, hasID := plan.Attrs["id"]
-
 	provisionToken := &apitypes.ProvisionTokenV2{}
 	resp.Diagnostics.Append(token.CopyProvisionTokenV2FromTerraform(ctx, plan, provisionToken)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	resp.Diagnostics.Append(token.CopyProvisionTokenV2ToTerraform(ctx, provisionToken, &plan)...)
+	normalized := plan
+	normalized.Attrs = nil
+	
+	resp.Diagnostics.Append(token.CopyProvisionTokenV2ToTerraform(ctx, provisionToken, &normalized)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if hasID {
-		plan.Attrs["id"] = id
-	}
-
+	plan.Attrs["spec"] = normalized.Attrs["spec"]
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

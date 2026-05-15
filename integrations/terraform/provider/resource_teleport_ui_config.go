@@ -361,24 +361,26 @@ func (r resourceTeleportUIConfig) ModifyPlan(ctx context.Context, req tfsdk.Modi
 		return
 	}
 
-	// Preserve the provider-managed ID, but rewrite all other fields from
-	// config so omitted or null values become explicit zero values in the plan.
-	id, hasID := plan.Attrs["id"]
-
 	uiConfig := &apitypes.UIConfigV1{}
 	resp.Diagnostics.Append(tfschema.CopyUIConfigV1FromTerraform(ctx, plan, uiConfig)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	resp.Diagnostics.Append(tfschema.CopyUIConfigV1ToTerraform(ctx, uiConfig, &plan)...)
+	normalized := plan
+	normalized.Attrs = nil
+
+	resp.Diagnostics.Append(tfschema.CopyUIConfigV1ToTerraform(ctx, uiConfig, &normalized)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if hasID {
-		plan.Attrs["id"] = id
+	metadata, ok := plan.Attrs["metadata"].(types.Object)
+	if !ok || metadata.Attrs == nil {
+		resp.Diagnostics.AddError("Error modifying Role plan", "Expected metadata to be present in the Terraform plan.")
+		return
 	}
 
+	plan.Attrs["spec"] = normalized.Attrs["spec"]
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }

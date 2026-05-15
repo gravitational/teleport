@@ -385,24 +385,20 @@ func (r resourceTeleportDatabaseObjectImportRule) ModifyPlan(ctx context.Context
 		return
 	}
 
-	// Preserve the provider-managed ID, but rewrite all other fields from
-	// config so omitted or null values become explicit zero values in the plan.
-	id, hasID := plan.Attrs["id"]
-
 	importRule := &dbobjectimportrulev1.DatabaseObjectImportRule{}
 	resp.Diagnostics.Append(schemav1.CopyDatabaseObjectImportRuleFromTerraform(ctx, plan, importRule)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	resp.Diagnostics.Append(schemav1.CopyDatabaseObjectImportRuleToTerraform(ctx, importRule, &plan)...)
+	normalized := plan
+	normalized.Attrs = nil
+	
+	resp.Diagnostics.Append(schemav1.CopyDatabaseObjectImportRuleToTerraform(ctx, importRule, &normalized)...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	if hasID {
-		plan.Attrs["id"] = id
-	}
-
+	plan.Attrs["spec"] = normalized.Attrs["spec"]
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
 }
