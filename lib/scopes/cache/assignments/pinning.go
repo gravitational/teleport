@@ -23,6 +23,7 @@ import (
 	"log/slog"
 
 	"github.com/gravitational/trace"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
@@ -132,6 +133,90 @@ func (c *AssignmentCache) PopulatePinnedAssignmentsForUser(ctx context.Context, 
 
 	// perform a final weak validation of the pin to ensure that it is well-formed. this should be redundant since auth performs strong
 	// validation of all pins prior to encoding them on certs, but its worth being defensive due to how critical scope pins are.
+	if err := pinning.WeakValidate(pin); err != nil {
+		return trace.Errorf("pin for scope %q was invalid post-population (this is a bug): %w", pin.GetScope(), trace.Wrap(err))
+	}
+
+	return nil
+}
+
+// PopulatePinnedAssignmentsForSPIFFEID populates the provided scope pin with
+// all relevant assignments whose target SPIFFE ID exactly matches the supplied
+// SPIFFE ID. The provided pin must already have its Scope field set.
+//
+// This is the SPIFFE/SVID analog of PopulatePinnedAssignmentsForUser. SVIDs
+// have no Teleport-side cert-generation hook (they are minted by SPIFFECA via
+// the Workload Identity flow), so the pin is constructed per-request in the
+// authorizer rather than embedded on a cert.
+func (c *AssignmentCache) PopulatePinnedAssignmentsForSPIFFEID(ctx context.Context, id spiffeid.ID, pin *scopesv1.Pin) error {
+	if id.IsZero() {
+		return trace.BadParameter("missing SPIFFE ID in scoped assignment population request")
+	}
+	if pin == nil {
+		return trace.BadParameter("missing scope pin in assignment population request for SPIFFE ID %q", id.String())
+	}
+
+	if err := scopes.WeakValidate(pin.GetScope()); err != nil {
+		return trace.Errorf("invalid scope %q in assignment population request for SPIFFE ID %q: %w", pin.GetScope(), id.String(), err)
+	}
+
+	if pin.GetAssignmentTree() != nil {
+		return trace.BadParameter("assignment population attempted with pin that already contains an assignment tree (this is a bug)")
+	}
+
+	idString := id.String()
+	assignmentCount := 0
+	var lastErr error
+
+	assignments := c.cache.AllNonOrthogonalResources(pin.Scope, c.cache.WithFilter(func(assignment *scopedaccessv1.ScopedRoleAssignment) bool {
+		return assignment.GetSpec().GetSpiffeId() == idString
+	}))
+
+	for scope := range assignments {
+		for assignment := range scope.Items() {
+			scopeOfOrigin := assignment.GetScope()
+
+			for subAssignment := range scopedaccess.WeakValidatedSubAssignments(assignment) {
+				scopeOfEffect := subAssignment.GetScope()
+
+				if scopes.Compare(scopeOfEffect, pin.GetScope()) == scopes.Orthogonal {
+					continue
+				}
+
+				if subAssignment.GetRole() == "" {
+					continue
+				}
+
+				if err := pinning.WriteRoleAssignment(pin, pinning.RoleAssignment{
+					ScopeOfOrigin: scopeOfOrigin,
+					ScopeOfEffect: scopeOfEffect,
+					RoleName:      subAssignment.GetRole(),
+				}); err != nil {
+					slog.WarnContext(ctx, "failed to write role assignment to scope pin", "role_name", subAssignment.GetRole(), "scope_of_origin", scopeOfOrigin, "scope_of_effect", scopeOfEffect, "spiffe_id", idString, "error", err)
+					lastErr = trace.Wrap(err)
+					continue
+				}
+
+				assignmentCount++
+			}
+		}
+	}
+
+	if assignmentCount == 0 {
+		if lastErr != nil {
+			return trace.Errorf("failed to populate any scoped role assignments for SPIFFE ID %q applicable to pinned scope %q: last error: %w", idString, pin.GetScope(), lastErr)
+		}
+		return trace.NotFound("no scoped role assignments found for SPIFFE ID %q applicable to pinned scope %q", idString, pin.GetScope())
+	}
+
+	if prunedCount := pinning.PruneAssignmentTree(ctx, pin, c.cfg.MaxAssignmentTreeBytes); prunedCount > 0 {
+		slog.WarnContext(ctx, "pruned assignment tree to limit pin size, SVID may experience degraded privileges until assignments are reduced",
+			"spiffe_id", idString,
+			"pin_scope", pin.GetScope(),
+			"total_pruned", prunedCount,
+			"max_bytes", c.cfg.MaxAssignmentTreeBytes)
+	}
+
 	if err := pinning.WeakValidate(pin); err != nil {
 		return trace.Errorf("pin for scope %q was invalid post-population (this is a bug): %w", pin.GetScope(), trace.Wrap(err))
 	}

@@ -143,17 +143,22 @@ func (x *ScopedRoleAssignment) GetStatus() *ScopedRoleAssignmentStatus {
 type ScopedRoleAssignmentSpec struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// User is the user to whom all contained assignments apply.
-	// Mutually exclusive with `bot_name`.
+	// Mutually exclusive with `bot_name` and `spiffe_id`.
 	User string `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
 	// Assignments is a list of individual role @ scope assignments.
 	Assignments []*Assignment `protobuf:"bytes,2,rep,name=assignments,proto3" json:"assignments,omitempty"`
 	// Name of the Bot to whom all contained assignments apply.
-	// Mutually exclusive with `user`.
+	// Mutually exclusive with `user` and `spiffe_id`.
 	BotName string `protobuf:"bytes,3,opt,name=bot_name,json=botName,proto3" json:"bot_name,omitempty"`
 	// Scope of the Bot to whom all contained assignments apply.
 	// Required if `bot_name` is set.
 	// If specified, assignment scopes must be equal or descendent of this scope.
-	BotScope      string `protobuf:"bytes,4,opt,name=bot_scope,json=botScope,proto3" json:"bot_scope,omitempty"`
+	BotScope string `protobuf:"bytes,4,opt,name=bot_scope,json=botScope,proto3" json:"bot_scope,omitempty"`
+	// SPIFFEID is the SPIFFE ID of the workload to whom all contained
+	// assignments apply. Mutually exclusive with `user` and `bot_name`.
+	// The trust domain must equal the local cluster name. Exact-match only
+	// (no glob/regex) for now.
+	SpiffeId      string `protobuf:"bytes,5,opt,name=spiffe_id,json=spiffeId,proto3" json:"spiffe_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -212,6 +217,13 @@ func (x *ScopedRoleAssignmentSpec) GetBotName() string {
 func (x *ScopedRoleAssignmentSpec) GetBotScope() string {
 	if x != nil {
 		return x.BotScope
+	}
+	return ""
+}
+
+func (x *ScopedRoleAssignmentSpec) GetSpiffeId() string {
+	if x != nil {
+		return x.SpiffeId
 	}
 	return ""
 }
@@ -385,12 +397,13 @@ const file_teleport_scopes_access_v1_assignment_proto_rawDesc = "" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12\x14\n" +
 	"\x05scope\x18\x05 \x01(\tR\x05scope\x12G\n" +
 	"\x04spec\x18\x06 \x01(\v23.teleport.scopes.access.v1.ScopedRoleAssignmentSpecR\x04spec\x12M\n" +
-	"\x06status\x18\a \x01(\v25.teleport.scopes.access.v1.ScopedRoleAssignmentStatusR\x06status\"\xaf\x01\n" +
+	"\x06status\x18\a \x01(\v25.teleport.scopes.access.v1.ScopedRoleAssignmentStatusR\x06status\"\xcc\x01\n" +
 	"\x18ScopedRoleAssignmentSpec\x12\x12\n" +
 	"\x04user\x18\x01 \x01(\tR\x04user\x12G\n" +
 	"\vassignments\x18\x02 \x03(\v2%.teleport.scopes.access.v1.AssignmentR\vassignments\x12\x19\n" +
 	"\bbot_name\x18\x03 \x01(\tR\abotName\x12\x1b\n" +
-	"\tbot_scope\x18\x04 \x01(\tR\bbotScope\"6\n" +
+	"\tbot_scope\x18\x04 \x01(\tR\bbotScope\x12\x1b\n" +
+	"\tspiffe_id\x18\x05 \x01(\tR\bspiffeId\"6\n" +
 	"\n" +
 	"Assignment\x12\x12\n" +
 	"\x04role\x18\x01 \x01(\tR\x04role\x12\x14\n" +

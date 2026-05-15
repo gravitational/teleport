@@ -102,6 +102,21 @@ func (p *HostAndUserCAPoolInfo) verifyPeerCert() func([][]byte, [][]*x509.Certif
 		}
 
 		peerCert := verifiedChains[0][0]
+
+		ca, ok := p.CATypes[string(peerCert.RawIssuer)]
+		if !ok {
+			slog.WarnContext(context.TODO(), "Could not find issuer CA of client certificate")
+			return trace.AccessDenied(invalidCertErrMsg)
+		}
+
+		// SVIDs issued by SPIFFECA do not carry Teleport identity OIDs, so the
+		// Teleport-identity decode + cluster-name match + CA-type-vs-role checks
+		// below do not apply. Trust-domain validation and SPIFFE-ID extraction
+		// happen later in the gRPC middleware.
+		if ca.IsSPIFFECA {
+			return nil
+		}
+
 		identity, err := tlsca.FromSubject(peerCert.Subject, peerCert.NotAfter)
 		if err != nil {
 			slog.WarnContext(context.TODO(), "Failed to parse identity from client certificate subject", "error", err)
@@ -115,12 +130,6 @@ func (p *HostAndUserCAPoolInfo) verifyPeerCert() func([][]byte, [][]*x509.Certif
 		}
 		if certClusterName != issuerClusterName {
 			slog.WarnContext(context.TODO(), "Client peer certificate was issued by a CA from a different cluster than what the certificate claims to be from", "peer_cert_cluster_name", certClusterName, "issuer_cluster_name", issuerClusterName)
-			return trace.AccessDenied(invalidCertErrMsg)
-		}
-
-		ca, ok := p.CATypes[string(peerCert.RawIssuer)]
-		if !ok {
-			slog.WarnContext(context.TODO(), "Could not find issuer CA of client certificate")
 			return trace.AccessDenied(invalidCertErrMsg)
 		}
 

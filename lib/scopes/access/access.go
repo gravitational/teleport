@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 
 	"github.com/gravitational/teleport/api/constants"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
@@ -480,12 +481,20 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 		return trace.BadParameter("scoped role assignment %q contains too many sub-assignments (max %d)", assignment.GetMetadata().GetName(), MaxRolesPerAssignment)
 	}
 
-	// Assigning to Bot is mutually exclusive with assigning to User. When
-	// assigning to Bot, we also want to ensure Bot's scope is specified.
+	// Exactly one of spec.user, spec.bot_name, spec.spiffe_id may be set
+	// (commonValidateAssignment already enforces that at least one is set).
+	userSet := assignment.GetSpec().GetUser() != ""
 	botSet := assignment.GetSpec().GetBotName() != ""
+	spiffeIDSet := assignment.GetSpec().GetSpiffeId() != ""
 	botScope := assignment.GetSpec().GetBotScope()
-	if botSet && assignment.GetSpec().GetUser() != "" {
-		return trace.BadParameter("scoped role assignment %q cannot have both spec.bot_name and spec.user set", assignment.GetMetadata().GetName())
+	targetsSet := 0
+	for _, set := range []bool{userSet, botSet, spiffeIDSet} {
+		if set {
+			targetsSet++
+		}
+	}
+	if targetsSet > 1 {
+		return trace.BadParameter("scoped role assignment %q must set exactly one of spec.user, spec.bot_name, spec.spiffe_id", assignment.GetMetadata().GetName())
 	}
 	if botSet && botScope == "" {
 		return trace.BadParameter("scoped role assignment %q with spec.bot_name set must also have spec.bot_scope set", assignment.GetMetadata().GetName())
@@ -496,6 +505,16 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 	if botSet {
 		if err := scopes.StrongValidate(botScope); err != nil {
 			return trace.BadParameter("scoped role assignment %q has invalid spec.bot_scope: %v", assignment.GetMetadata().GetName(), err)
+		}
+	}
+	if spiffeIDSet {
+		// Validate the SPIFFE ID is well-formed; trust-domain check against the
+		// local cluster name happens at the gRPC service layer where the cluster
+		// name is available (this validator has no cluster-name source today).
+		// A binding whose trust domain doesn't match the cluster simply never
+		// matches an incoming SVID at runtime, so this is a UX concern only.
+		if _, err := spiffeid.FromString(assignment.GetSpec().GetSpiffeId()); err != nil {
+			return trace.BadParameter("scoped role assignment %q has invalid spec.spiffe_id: %v", assignment.GetMetadata().GetName(), err)
 		}
 	}
 
@@ -565,8 +584,8 @@ func commonValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 		return trace.BadParameter("scoped role assignment %q is missing scope", assignment.GetMetadata().GetName())
 	}
 
-	if assignment.GetSpec().GetUser() == "" && assignment.GetSpec().GetBotName() == "" {
-		return trace.BadParameter("scoped role assignment %q is missing spec.user or spec.bot_name", assignment.GetMetadata().GetName())
+	if assignment.GetSpec().GetUser() == "" && assignment.GetSpec().GetBotName() == "" && assignment.GetSpec().GetSpiffeId() == "" {
+		return trace.BadParameter("scoped role assignment %q is missing spec.user, spec.bot_name, or spec.spiffe_id", assignment.GetMetadata().GetName())
 	}
 
 	return nil

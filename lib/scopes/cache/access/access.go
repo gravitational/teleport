@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/gravitational/teleport"
@@ -243,6 +244,18 @@ func (c *Cache) PopulatePinnedAssignmentsForUser(ctx context.Context, user strin
 	}
 
 	return state.assignments.PopulatePinnedAssignmentsForUser(ctx, user, pin)
+}
+
+// PopulatePinnedAssignmentsForSPIFFEID populates the provided scope pin with
+// all relevant assignments whose target SPIFFE ID exactly matches the supplied
+// SPIFFE ID. The provided pin must already have its Scope field set.
+func (c *Cache) PopulatePinnedAssignmentsForSPIFFEID(ctx context.Context, id spiffeid.ID, pin *scopesv1.Pin) error {
+	state, err := c.read(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return state.assignments.PopulatePinnedAssignmentsForSPIFFEID(ctx, id, pin)
 }
 
 // PopulatePinnedAssignmentsForBot populates the provided scope pin with all

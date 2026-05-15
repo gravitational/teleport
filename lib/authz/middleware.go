@@ -23,9 +23,11 @@ import (
 	"encoding/json"
 	"net"
 	"net/http"
+	"net/url"
 	"slices"
 
 	"github.com/gravitational/trace"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
@@ -132,6 +134,58 @@ func certFromConnState(state *tls.ConnectionState) *x509.Certificate {
 	return state.PeerCertificates[0]
 }
 
+// tryParseSVID inspects a client cert and, if it looks like an X.509 SPIFFE
+// SVID issued for the local cluster's trust domain, returns the corresponding
+// SPIFFEIdentity. The chain has already been verified by the TLS handshake
+// against the local trust pool (which includes SPIFFECA), so this function
+// only needs to identify SVIDs and extract their SPIFFE ID.
+//
+// Discrimination criteria (all must hold):
+//  1. The cert has exactly one URI SAN with the "spiffe" scheme.
+//  2. The URI parses to a valid spiffeid.ID.
+//  3. The SPIFFE ID's trust domain equals the local cluster name.
+//  4. The cert carries no Teleport identity data — this guards against
+//     accidentally treating a Teleport-issued cert that happens to have a
+//     SPIFFE URI SAN as a SVID.
+func tryParseSVID(cert *x509.Certificate, clusterName string) (SPIFFEIdentity, bool) {
+	var spiffeURI *url.URL
+	for _, u := range cert.URIs {
+		if u != nil && u.Scheme == "spiffe" {
+			if spiffeURI != nil {
+				// SPIFFE X.509-SVID profile requires exactly one URI SAN.
+				return SPIFFEIdentity{}, false
+			}
+			spiffeURI = u
+		}
+	}
+	if spiffeURI == nil {
+		return SPIFFEIdentity{}, false
+	}
+
+	id, err := spiffeid.FromURI(spiffeURI)
+	if err != nil {
+		return SPIFFEIdentity{}, false
+	}
+
+	if id.TrustDomain().String() != clusterName {
+		return SPIFFEIdentity{}, false
+	}
+
+	if tepIdentity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter); err == nil {
+		if tepIdentity.Username != "" || len(tepIdentity.Groups) > 0 || tepIdentity.TeleportCluster != "" {
+			return SPIFFEIdentity{}, false
+		}
+	}
+
+	return SPIFFEIdentity{
+		ID: id,
+		Identity: tlsca.Identity{
+			Username:        id.String(),
+			TeleportCluster: clusterName,
+		},
+	}, true
+}
+
 // GetUser returns authenticated user based on request TLS metadata
 func (a *Middleware) GetUser(ctx context.Context, connState tls.ConnectionState) (IdentityGetter, error) {
 	peers := connState.PeerCertificates
@@ -154,6 +208,16 @@ func (a *Middleware) GetUser(ctx context.Context, connState tls.ConnectionState)
 		}, nil
 	}
 	clientCert := peers[0]
+
+	// SPIFFE SVIDs (issued by the local SPIFFECA) carry their identity in a
+	// URI SAN rather than the Teleport-specific subject OIDs. The TLS handshake
+	// has already verified the chain against the trust pool, which includes
+	// SPIFFECA roots. Route SVIDs to the SPIFFE identity builder before the
+	// standard Teleport-identity decode, which would otherwise yield an empty
+	// identity and silently misclassify the cert as a (broken) local user.
+	if svid, ok := tryParseSVID(clientCert, a.ClusterName); ok {
+		return svid, nil
+	}
 
 	identity, err := tlsca.FromSubject(clientCert.Subject, clientCert.NotAfter)
 	if err != nil {

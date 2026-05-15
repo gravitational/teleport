@@ -50,20 +50,26 @@ message ScopedRoleAssignment {
 // ScopedRoleAssignmentSpec is the specification of a scoped role assignment.
 message ScopedRoleAssignmentSpec {
   // User is the user to whom all contained assignments apply.
-  // Mutually exclusive with `bot_name`.
+  // Mutually exclusive with `bot_name` and `spiffe_id`.
   string user = 1;
 
   // Assignments is a list of individual role @ scope assignments.
   repeated Assignment assignments = 2;
 
   // Name of the Bot to whom all contained assignments apply.
-  // Mutually exclusive with `user`.
+  // Mutually exclusive with `user` and `spiffe_id`.
   string bot_name = 3;
 
   // Scope of the Bot to whom all contained assignments apply.
   // Required if `bot_name` is set.
   // If specified, assignment scopes must be equal or descendent of this scope.
   string bot_scope = 4;
+
+  // SPIFFEID is the SPIFFE ID of the workload to whom all contained
+  // assignments apply. Mutually exclusive with `user` and `bot_name`.
+  // The trust domain must equal the local cluster name. Exact-match only
+  // (no glob/regex) for now.
+  string spiffe_id = 5;
 }
 
 // Assignment is a role/scope pair that defines an individual assignment.

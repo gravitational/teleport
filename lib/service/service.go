@@ -2634,13 +2634,14 @@ func (process *TeleportProcess) initAuthService() error {
 	// client based on their certificate (user, server, admin, etc)
 
 	authorizerOpts := authz.AuthorizerOpts{
-		ClusterName:         clusterName,
-		AccessPoint:         authServer,
-		ReadOnlyAccessPoint: authServer,
-		ScopedRoleReader:    authServer.ScopedAccessCache,
-		MFAAuthenticator:    authServer,
-		LockWatcher:         lockWatcher,
-		Logger:              process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentAuth, process.id)),
+		ClusterName:               clusterName,
+		AccessPoint:               authServer,
+		ReadOnlyAccessPoint:       authServer,
+		ScopedRoleReader:          authServer.ScopedAccessCache,
+		SPIFFEAssignmentPopulator: authServer.ScopedAccessCache,
+		MFAAuthenticator:          authServer,
+		LockWatcher:               lockWatcher,
+		Logger:                    process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentAuth, process.id)),
 		// Auth Server does explicit device authorization.
 		// Various Auth APIs must allow access to unauthorized devices, otherwise it
 		// is not possible to acquire device-aware certificates in the first place.

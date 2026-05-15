@@ -31,6 +31,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/spiffe/go-spiffe/v2/spiffeid"
 	"github.com/vulcand/predicate/builder"
 
 	"github.com/gravitational/teleport"
@@ -38,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -81,15 +83,25 @@ type DeviceAuthorizationOpts struct {
 	DisableRoleMode bool
 }
 
+// SPIFFEAssignmentPopulator populates a scope pin with the scoped role
+// assignments whose target SPIFFE ID exactly matches the supplied ID. It is
+// satisfied by the cluster's scoped access cache. If nil on AuthorizerOpts,
+// SPIFFE/SVID identities cannot be authorized (they will be rejected as an
+// unsupported context type).
+type SPIFFEAssignmentPopulator interface {
+	PopulatePinnedAssignmentsForSPIFFEID(ctx context.Context, id spiffeid.ID, pin *scopesv1.Pin) error
+}
+
 // AuthorizerOpts holds creation options for [NewAuthorizer].
 type AuthorizerOpts struct {
-	ClusterName         string
-	AccessPoint         AuthorizerAccessPoint
-	ReadOnlyAccessPoint ReadOnlyAuthorizerAccessPoint
-	ScopedRoleReader    services.ScopedRoleReader
-	MFAAuthenticator    MFAAuthenticator
-	LockWatcher         *services.LockWatcher
-	Logger              *slog.Logger
+	ClusterName               string
+	AccessPoint               AuthorizerAccessPoint
+	ReadOnlyAccessPoint       ReadOnlyAuthorizerAccessPoint
+	ScopedRoleReader          services.ScopedRoleReader
+	SPIFFEAssignmentPopulator SPIFFEAssignmentPopulator
+	MFAAuthenticator          MFAAuthenticator
+	LockWatcher               *services.LockWatcher
+	Logger                    *slog.Logger
 
 	// DeviceAuthorization holds Device Trust authorization options.
 	//
@@ -135,15 +147,16 @@ func newAuthorizer(opts AuthorizerOpts) (*authorizer, error) {
 	}
 
 	return &authorizer{
-		clusterName:             opts.ClusterName,
-		accessPoint:             opts.AccessPoint,
-		readOnlyAccessPoint:     opts.ReadOnlyAccessPoint,
-		scopedRoleReader:        opts.ScopedRoleReader,
-		mfaAuthenticator:        opts.MFAAuthenticator,
-		lockWatcher:             opts.LockWatcher,
-		logger:                  logger,
-		disableGlobalDeviceMode: opts.DeviceAuthorization.DisableGlobalMode,
-		disableRoleDeviceMode:   opts.DeviceAuthorization.DisableRoleMode,
+		clusterName:               opts.ClusterName,
+		accessPoint:               opts.AccessPoint,
+		readOnlyAccessPoint:       opts.ReadOnlyAccessPoint,
+		scopedRoleReader:          opts.ScopedRoleReader,
+		spiffeAssignmentPopulator: opts.SPIFFEAssignmentPopulator,
+		mfaAuthenticator:          opts.MFAAuthenticator,
+		lockWatcher:               opts.LockWatcher,
+		logger:                    logger,
+		disableGlobalDeviceMode:   opts.DeviceAuthorization.DisableGlobalMode,
+		disableRoleDeviceMode:     opts.DeviceAuthorization.DisableRoleMode,
 	}, nil
 }
 
@@ -235,13 +248,14 @@ type MFAAuthData struct {
 
 // authorizer creates new local authorizer
 type authorizer struct {
-	clusterName         string
-	accessPoint         AuthorizerAccessPoint
-	readOnlyAccessPoint ReadOnlyAuthorizerAccessPoint
-	scopedRoleReader    services.ScopedRoleReader
-	mfaAuthenticator    MFAAuthenticator
-	lockWatcher         *services.LockWatcher
-	logger              *slog.Logger
+	clusterName               string
+	accessPoint               AuthorizerAccessPoint
+	readOnlyAccessPoint       ReadOnlyAuthorizerAccessPoint
+	scopedRoleReader          services.ScopedRoleReader
+	spiffeAssignmentPopulator SPIFFEAssignmentPopulator
+	mfaAuthenticator          MFAAuthenticator
+	lockWatcher               *services.LockWatcher
+	logger                    *slog.Logger
 
 	disableGlobalDeviceMode bool
 	disableRoleDeviceMode   bool
@@ -440,6 +454,13 @@ func (a *authorizer) Authorize(ctx context.Context) (authCtx *Context, err error
 	}
 
 	if user, ok := userI.(LocalUser); ok && user.Identity.ScopePin != nil {
+		return nil, trace.Errorf("cannot perform standard authz: %w", services.ErrScopedIdentity)
+	}
+
+	// SPIFFE/SVID identities always take the scoped path: they have no
+	// embedded ScopePin (the SVID is not Teleport-issued), so the Pin is
+	// constructed on the fly by authorizeScoped.
+	if _, ok := userI.(SPIFFEIdentity); ok {
 		return nil, trace.Errorf("cannot perform standard authz: %w", services.ErrScopedIdentity)
 	}
 
@@ -1934,6 +1955,28 @@ type RemoteUser struct {
 // GetIdentity returns client identity
 func (r RemoteUser) GetIdentity() tlsca.Identity {
 	return r.Identity
+}
+
+// SPIFFEIdentity is an identity authenticated via an X.509 SPIFFE SVID
+// issued by the local cluster's SPIFFECA. It is a distinct principal kind
+// from LocalUser/Bot/RemoteUser/BuiltinRole and carries the parsed SPIFFE
+// ID as its primary identifier.
+type SPIFFEIdentity struct {
+	// ID is the parsed SPIFFE ID from the SVID's URI SAN. The trust domain
+	// is guaranteed to equal the local cluster name at construction time.
+	ID spiffeid.ID
+
+	// Identity is a synthetic tlsca.Identity with Username set to the SPIFFE
+	// ID string and TeleportCluster set to the local cluster name. Other
+	// Teleport-specific fields are intentionally empty: SVIDs carry no
+	// Teleport identity OIDs. This shape lets downstream code that reads
+	// GetIdentity().Username for logging/audit work unchanged.
+	Identity tlsca.Identity
+}
+
+// GetIdentity returns client identity
+func (s SPIFFEIdentity) GetIdentity() tlsca.Identity {
+	return s.Identity
 }
 
 // ContextWithUserCertificate returns the context with the user certificate embedded.

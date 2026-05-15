@@ -535,11 +535,12 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 	srv.AuthServer.SetHeadlessAuthenticationWatcher(headlessAuthenticationWatcher)
 
 	authorizerOpts := authz.AuthorizerOpts{
-		ClusterName:         srv.ClusterName,
-		AccessPoint:         srv.AuthServer,
-		ReadOnlyAccessPoint: srv.AuthServer.ReadOnlyCache,
-		ScopedRoleReader:    srv.AuthServer.ScopedAccessCache,
-		LockWatcher:         srv.LockWatcher,
+		ClusterName:               srv.ClusterName,
+		AccessPoint:               srv.AuthServer,
+		ReadOnlyAccessPoint:       srv.AuthServer.ReadOnlyCache,
+		ScopedRoleReader:          srv.AuthServer.ScopedAccessCache,
+		SPIFFEAssignmentPopulator: srv.AuthServer.ScopedAccessCache,
+		LockWatcher:               srv.LockWatcher,
 		// AuthServer does explicit device authorization checks.
 		DeviceAuthorization: authz.DeviceAuthorizationOpts{
 			DisableGlobalMode: true,
