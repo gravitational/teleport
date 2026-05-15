@@ -600,6 +600,9 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	case VnetConfigDeleteEvent:
 		e = &events.VnetConfigDelete{}
 
+	case BeamsConfigUpdateEvent:
+		e = &events.BeamsConfigUpdate{}
+
 	case WorkloadClusterCreateEvent:
 		e = &events.WorkloadClusterCreate{}
 	case WorkloadClusterUpdateEvent:

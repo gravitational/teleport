@@ -379,6 +379,7 @@ export const EventIconMap: Record<EventCode, any> = {
   [eventCodes.CERT_AUTH_OVERRIDE_UPDATE]: Icons.Info,
   [eventCodes.CERT_AUTH_OVERRIDE_UPSERT]: Icons.Info,
   [eventCodes.CERT_AUTH_OVERRIDE_DELETE]: Icons.Info,
+  [eventCodes.BEAMS_CONFIG_UPDATE]: Icons.Info,
 };
 
 export default function renderTypeCell(event: Event) {

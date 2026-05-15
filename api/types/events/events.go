@@ -2904,6 +2904,10 @@ func (m *VnetConfigDelete) TrimToMaxSize(int) AuditEvent {
 	return m
 }
 
+func (m *BeamsConfigUpdate) TrimToMaxSize(int) AuditEvent {
+	return m
+}
+
 func (m *WorkloadClusterCreate) TrimToMaxSize(maxSize int) AuditEvent {
 	size := m.Size()
 	if size <= maxSize {

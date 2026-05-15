@@ -2518,6 +2518,19 @@ export const formatters: Formatters = {
       return `User [${user}] deleted the VNet config`;
     },
   },
+  [eventCodes.BEAMS_CONFIG_UPDATE]: {
+    type: 'beams.config.update',
+    desc: 'Beams Config Updated',
+    format: ({ user, beams_config }) => {
+      const updates = [
+        beams_config?.anthropic_config_updated && 'Anthropic inference config',
+        beams_config?.openai_config_updated && 'OpenAI inference config',
+      ].filter(Boolean);
+      const detail =
+        updates.length > 0 ? `: ${updates.join(', ')}` : '';
+      return `User [${user}] updated the Beams config${detail}`;
+    },
+  },
   [eventCodes.WORKLOAD_CLUSTER_CREATE]: {
     type: 'workload_cluster.create',
     desc: 'Workload Cluster Created',

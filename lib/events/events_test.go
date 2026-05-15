@@ -276,6 +276,7 @@ var eventsMap = map[string]apievents.AuditEvent{
 	VnetConfigCreateEvent:                         &apievents.VnetConfigCreate{},
 	VnetConfigUpdateEvent:                         &apievents.VnetConfigUpdate{},
 	VnetConfigDeleteEvent:                         &apievents.VnetConfigDelete{},
+	BeamsConfigUpdateEvent:                        &apievents.BeamsConfigUpdate{},
 	WorkloadClusterCreateEvent:                    &apievents.WorkloadClusterCreate{},
 	WorkloadClusterUpdateEvent:                    &apievents.WorkloadClusterUpdate{},
 	WorkloadClusterDeleteEvent:                    &apievents.WorkloadClusterDelete{},
@@ -1687,6 +1688,23 @@ func TestInferenceEvents(t *testing.T) {
 			},
 			eventType:  RetrievalModelDeleteEvent,
 			eventCode:  RetrievalModelDeleteCode,
+			hasPayload: false,
+		},
+		{
+			name: "BeamsConfigUpdate",
+			event: &apievents.BeamsConfigUpdate{
+				Metadata: apievents.Metadata{
+					Type:        BeamsConfigUpdateEvent,
+					Code:        BeamsConfigUpdateCode,
+					Time:        testTime,
+					ClusterName: "test-cluster",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "test-user",
+				},
+			},
+			eventType:  BeamsConfigUpdateEvent,
+			eventCode:  BeamsConfigUpdateCode,
 			hasPayload: false,
 		},
 	}

@@ -976,6 +976,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_VnetConfigDelete{
 			VnetConfigDelete: e,
 		}
+	case *BeamsConfigUpdate:
+		out.Event = &OneOf_BeamsConfigUpdate{
+			BeamsConfigUpdate: e,
+		}
 	case *WorkloadClusterCreate:
 		out.Event = &OneOf_WorkloadClusterCreate{
 			WorkloadClusterCreate: e,

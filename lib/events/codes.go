@@ -852,6 +852,9 @@ const (
 	// VnetConfigDeleteCode is the Vnet config delete event code.
 	VnetConfigDeleteCode = "TVNET003I"
 
+	// BeamsConfigUpdateCode is the Beams config update event code.
+	BeamsConfigUpdateCode = "TBEAM001I"
+
 	// WorkloadClusterCreateCode is the workload cluster create event code.
 	WorkloadClusterCreateCode = "WC001I"
 	// WorkloadClusterCreateFailureCode is the workload cluster create failure event code.

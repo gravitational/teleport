@@ -1003,6 +1003,9 @@ const (
 	// VnetConfigDeleteEvent is emitted when a Vnet config resource is deleted.
 	VnetConfigDeleteEvent = "vnet.config.delete"
 
+	// BeamsConfigUpdateEvent is emitted when a Beams config resource is updated.
+	BeamsConfigUpdateEvent = "beams.config.update"
+
 	// WorkloadClusterCreateEvent is emitted when a WorkloadCluster resource is created.
 	WorkloadClusterCreateEvent = "workload_cluster.create"
 	// WorkloadClusterUpdateEvent is emitted when a WorkloadCluster resource is updated.
