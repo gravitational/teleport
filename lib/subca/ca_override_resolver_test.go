@@ -23,7 +23,9 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -32,6 +34,51 @@ import (
 	subcaenv "github.com/gravitational/teleport/lib/subca/testenv"
 	"github.com/gravitational/teleport/lib/tlscatest"
 )
+
+func TestCalculateOverrideResult_ToClientOverrideDetailsProto(t *testing.T) {
+	t.Parallel()
+
+	const aPublicKeyHash = "6fbd7ba3f34c526f5d6d8ea2659f9fb5ca031712ee588ce35941d568742d44ed"
+
+	tests := []struct {
+		name string
+		res  *subca.CalculateOverrideResult
+		want *proto.CAOverrideCertificateDetails
+	}{
+		{
+			name: "nil returns nil",
+		},
+		{
+			name: "not active returns nil",
+			res: &subca.CalculateOverrideResult{
+				OverrideActive: false,
+				PublicKeyHash:  aPublicKeyHash,
+				CACertificate:  subca.Certificate{PEM: []byte("llama456")},
+			},
+		},
+		{
+			name: "active returns proto",
+			res: &subca.CalculateOverrideResult{
+				OverrideActive: true,
+				PublicKeyHash:  aPublicKeyHash,
+				CACertificate:  subca.Certificate{PEM: []byte("llama456")},
+			},
+			want: &proto.CAOverrideCertificateDetails{
+				PublicKeyHash: aPublicKeyHash,
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := test.res.ToClientOverrideDetailsProto()
+			if diff := cmp.Diff(test.want, got, protocmp.Transform()); diff != "" {
+				t.Errorf("ToOverrideDetailsProto mismatch (-want +got)\n%s", diff)
+			}
+		})
+	}
+}
 
 func TestCAOverrideResolver_CalculateOverride(t *testing.T) {
 	t.Parallel()

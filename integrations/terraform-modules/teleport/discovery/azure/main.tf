@@ -15,13 +15,14 @@ locals {
     "teleport.dev/azure-managed-identity-resource-group" = var.azure_resource_group_name
   })
 
-  teleport_cluster_name         = local.teleport_ping.cluster_name
-  teleport_ping                 = jsondecode(data.http.teleport_ping.response_body)
+  teleport_cluster_name         = try(local.teleport_ping.cluster_name, "")
+  teleport_ping                 = local.create ? jsondecode(one(data.http.teleport_ping[*].response_body)) : null
   teleport_proxy_public_url     = "https://${var.teleport_proxy_public_addr}"
-  teleport_resource_name_suffix = random_id.suffix.hex
+  teleport_resource_name_suffix = one(random_id.suffix[*].hex)
 }
 
 resource "random_id" "suffix" {
+  count       = local.create ? 1 : 0
   byte_length = 4
 }
 
@@ -30,6 +31,7 @@ data "azurerm_client_config" "this" {
 }
 
 data "http" "teleport_ping" {
+  count           = local.create ? 1 : 0
   request_headers = { Accept = "application/json" }
   url             = "${local.teleport_proxy_public_url}/webapi/find"
 }

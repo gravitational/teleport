@@ -166,7 +166,7 @@ func TryRun(ctx context.Context, commands []CLICommand, args []string) error {
 	app.Flag("insecure", "When specifying a proxy address in --auth-server, do not verify its TLS certificate. Danger: any data you send can be intercepted or modified by an attacker.").
 		BoolVar(&ccf.Insecure)
 	modes := []string{mfa.MFAModeAuto, mfa.MFAModeCrossPlatform, mfa.MFAModePlatform, mfa.MFAModeSSO, mfa.MFAModeBrowser}
-	app.Flag("mfa-mode", fmt.Sprintf("Preferred mode for MFA assertions (%v).", strings.Join(modes, ", "))).
+	app.Flag("mfa-mode", "Preferred mode for MFA assertions.").
 		Default(mfa.MFAModeAuto).
 		Envar(mfaModeEnvVar).
 		EnumVar(&ccf.MFAMode, modes...)

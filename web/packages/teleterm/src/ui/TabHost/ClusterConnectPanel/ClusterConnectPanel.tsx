@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import styled from 'styled-components';
 
 import {
@@ -30,37 +30,33 @@ import {
   Text,
 } from 'design';
 
-import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { NullKeyboardArrowsNavigation } from 'teleterm/ui/components/KeyboardArrowsNavigation/KeyboardArrowsNavigation';
-import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
-import { TshHomeMigrationBanner } from 'teleterm/ui/TopBar/Identity';
-import { ClusterList } from 'teleterm/ui/TopBar/Identity/IdentityList/IdentityList';
-import { RootClusterUri } from 'teleterm/ui/uri';
+import {
+  TshHomeMigrationBanner,
+  useIdentity,
+  IdentityList,
+} from 'teleterm/ui/TopBar/Identity';
 
 export function ClusterConnectPanel() {
-  const ctx = useAppContext();
-  const clusters = useStoreSelector(
-    'clustersService',
-    useCallback(state => state.clusters, [])
-  );
-  const rootClusters = [...clusters.values()].filter(c => !c.leaf);
-  function add(): void {
-    ctx.commandLauncher.executeCommand('cluster-connect', {});
-  }
-
-  function connect(clusterUri: RootClusterUri): void {
-    ctx.workspacesService.setActiveWorkspace(clusterUri);
-  }
+  const {
+    // ClusterConnectPanel is rendered only when there is no active workspace, so
+    // the hook's "other workspaces" are all available workspaces.
+    otherWorkspaces: availableWorkspaces,
+    logout,
+    forget,
+    addCluster,
+    changeWorkspace,
+  } = useIdentity();
 
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Focus the first item.
-  const hasCluster = !!rootClusters.length;
+  const hasAnyWorkspaces = !!availableWorkspaces.length;
   useEffect(() => {
-    if (hasCluster) {
+    if (hasAnyWorkspaces) {
       containerRef.current.querySelector('li').focus();
     }
-  }, [hasCluster]);
+  }, [hasAnyWorkspaces]);
 
   return (
     <ScrollingContainer>
@@ -72,7 +68,7 @@ export function ClusterConnectPanel() {
           alignItems="center"
         >
           <ResourceIcon width="120px" name="server" mb={3} />
-          {hasCluster ? (
+          {hasAnyWorkspaces ? (
             <Flex flexDirection="column">
               <H2>Clusters</H2>
               <P2 color="text.slightlyMuted" mb={2}>
@@ -101,10 +97,12 @@ export function ClusterConnectPanel() {
                     }
                   `}
                 >
-                  <ClusterList
-                    clusters={rootClusters}
-                    onAdd={add}
-                    onSelect={connect}
+                  <IdentityList
+                    items={availableWorkspaces}
+                    onAdd={addCluster}
+                    onSelect={changeWorkspace}
+                    onLogout={logout}
+                    onForget={forget}
                   />
                 </Flex>
               </NullKeyboardArrowsNavigation>
@@ -116,7 +114,7 @@ export function ClusterConnectPanel() {
                 Connect an existing Teleport cluster <br /> to start using
                 Teleport Connect.
               </Text>
-              <ButtonPrimary size="large" onClick={add}>
+              <ButtonPrimary size="large" onClick={addCluster}>
                 Connect
               </ButtonPrimary>
             </>

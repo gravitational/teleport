@@ -1,3 +1,5 @@
+//go:build darwin
+
 /*
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
@@ -16,28 +18,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-// TODO(hugoShaka): Delete this file when the teleport.e counterpart is merged
+package reexecsftp
 
-package oauth
+import "golang.org/x/sys/unix"
 
-import (
-	"context"
-
-	storage "github.com/gravitational/teleport/integrations/access/common/auth/storage"
-)
-
-// Authorizer is the composite interface of Exchanger and Refresher.
-type Authorizer interface {
-	Exchanger
-	Refresher
-}
-
-// Exchanger implements the OAuth2 authorization code exchange operation.
-type Exchanger interface {
-	Exchange(ctx context.Context, authorizationCode string, redirectURI string) (*storage.Credentials, error)
-}
-
-// Refresher implements the OAuth2 bearer token refresh operation.
-type Refresher interface {
-	Refresh(ctx context.Context, refreshToken string) (*storage.Credentials, error)
-}
+// readOnlyPath holds platform-specific flags for opening a directory for openat().
+const readOnlyPath = unix.O_RDONLY

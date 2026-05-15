@@ -1797,13 +1797,12 @@ func errorContains(text string) errorVerifier {
 }
 
 type disconnectTestCase struct {
-	name              string
-	recordingMode     string
-	options           types.RoleOptions
-	disconnectTimeout time.Duration
-	concurrentConns   int
-	sessCtlTimeout    time.Duration
-	postFunc          func(context.Context, *testing.T, *helpers.TeleInstance)
+	name            string
+	recordingMode   string
+	options         types.RoleOptions
+	concurrentConns int
+	sessCtlTimeout  time.Duration
+	postFunc        func(context.Context, *testing.T, *helpers.TeleInstance, string)
 
 	// verifyError checks if `err` reflects the error expected by the test scenario.
 	// It returns nil if yes, non-nil otherwise.
@@ -1811,6 +1810,58 @@ type disconnectTestCase struct {
 	// itself, as those assertions must run in the main test goroutine, but
 	// verifyError runs in a different goroutine.
 	verifyError errorVerifier
+
+	// These values should be set once the sharedCluster for the test case is prepared.
+	cluster      *sharedCluster
+	teleportUser string
+	login        string
+}
+
+// sharedCluster can be used for subtests with common setup to reduce test setup time.
+type sharedCluster struct {
+	teleport *helpers.TeleInstance
+	cfg      *servicecfg.Config
+}
+
+type sharedClusterKey struct {
+	recordingMode  string
+	sessCtlTimeout time.Duration
+}
+
+type sharedClusters map[sharedClusterKey]*sharedCluster
+
+// getOrCreate a gets or creates a shared cluster for the given suite and key.
+func (c sharedClusters) getOrCreate(t *testing.T, suite *integrationTestSuite, key sharedClusterKey) *sharedCluster {
+	t.Helper()
+
+	cluster, ok := c[key]
+	if ok {
+		return cluster
+	}
+
+	netConfig, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
+		SessionControlTimeout: types.Duration(key.sessCtlTimeout),
+	})
+	require.NoError(t, err)
+
+	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+		Mode: key.recordingMode,
+	})
+	require.NoError(t, err)
+
+	cfg := suite.defaultServiceConfig()
+	cfg.Auth.Enabled = true
+	cfg.Auth.NetworkingConfig = netConfig
+	cfg.Auth.SessionRecordingConfig = recConfig
+	cfg.Proxy.Enabled = true
+	cfg.SSH.Enabled = true
+
+	cluster = &sharedCluster{
+		teleport: suite.NewTeleportInstance(t),
+		cfg:      cfg,
+	}
+	c[key] = cluster
+	return cluster
 }
 
 // testClientIdleConnection validates that if a user is active beyond
@@ -1899,32 +1950,32 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
-	testCases := []disconnectTestCase{
+	testCases := []*disconnectTestCase{
 		{
 			name:          "client idle timeout node recoding",
 			recordingMode: types.RecordAtNode,
 			options: types.RoleOptions{
-				ClientIdleTimeout: types.NewDuration(500 * time.Millisecond),
+				ClientIdleTimeout: types.NewDuration(2 * time.Second),
 			},
-			disconnectTimeout: time.Second,
 		},
 		{
 			name:          "client idle timeout proxy recording",
 			recordingMode: types.RecordAtProxy,
 			options: types.RoleOptions{
 				ForwardAgent:      types.NewBool(true),
-				ClientIdleTimeout: types.NewDuration(500 * time.Millisecond),
+				ClientIdleTimeout: types.NewDuration(2 * time.Second),
 			},
-			disconnectTimeout: time.Second,
 		},
 		{
 			name:          "expired cert node recording",
 			recordingMode: types.RecordAtNode,
 			options: types.RoleOptions{
 				DisconnectExpiredCert: types.NewBool(true),
-				MaxSessionTTL:         types.NewDuration(2 * time.Second),
+				// With a MaxSessionTTL of just a few seconds, certificate expiry
+				// can natually race with the establishment of a session, so we
+				// use a longer ttl instead.
+				MaxSessionTTL: types.NewDuration(6 * time.Second),
 			},
-			disconnectTimeout: 4 * time.Second,
 		},
 		{
 			name:          "expired cert proxy recording",
@@ -1932,9 +1983,11 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 			options: types.RoleOptions{
 				ForwardAgent:          types.NewBool(true),
 				DisconnectExpiredCert: types.NewBool(true),
-				MaxSessionTTL:         types.NewDuration(2 * time.Second),
+				// With a MaxSessionTTL of just a few seconds, certificate expiry
+				// can natually race with the establishment of a session, so we
+				// use a longer ttl instead.
+				MaxSessionTTL: types.NewDuration(6 * time.Second),
 			},
-			disconnectTimeout: 4 * time.Second,
 		},
 		{
 			name:          "concurrent connection limits exceeded node recording",
@@ -1942,9 +1995,8 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 			options: types.RoleOptions{
 				MaxConnections: 1,
 			},
-			disconnectTimeout: 1 * time.Second,
-			concurrentConns:   2,
-			verifyError:       errorContains("administratively prohibited"),
+			concurrentConns: 2,
+			verifyError:     errorContains("administratively prohibited"),
 		},
 		{
 			name:          "concurrent connection limits exceeded proxy recording",
@@ -1953,9 +2005,8 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 				ForwardAgent:   types.NewBool(true),
 				MaxConnections: 1,
 			},
-			disconnectTimeout: 1 * time.Second,
-			concurrentConns:   2,
-			verifyError:       errorContains("administratively prohibited"),
+			concurrentConns: 2,
+			verifyError:     errorContains("administratively prohibited"),
 		},
 		{
 			name:          "verify that lost connections to auth server terminate controlled connections",
@@ -1963,11 +2014,10 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 			options: types.RoleOptions{
 				MaxConnections: 1,
 			},
-			disconnectTimeout: time.Second,
-			sessCtlTimeout:    500 * time.Millisecond,
+			sessCtlTimeout: 2 * time.Second,
 			// use postFunc to wait for the semaphore to be acquired and a session
 			// to be started, then shut down the auth server.
-			postFunc: func(ctx context.Context, t *testing.T, teleport *helpers.TeleInstance) {
+			postFunc: func(ctx context.Context, t *testing.T, teleport *helpers.TeleInstance, username string) {
 				site := teleport.GetSiteAPI(helpers.Site)
 				require.EventuallyWithT(t, func(t *assert.CollectT) {
 					filter := types.SemaphoreFilter{
@@ -1981,60 +2031,64 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 					require.Empty(t, next)
 					require.NoError(t, err)
 					require.Len(t, sems, 1)
-				}, 2*time.Second, 100*time.Millisecond)
+				}, 10*time.Second, 200*time.Millisecond)
 
 				tracker := waitForSessionToBeEstablished(t, site, 1)
 				// make sure it's us who joined! :)
-				require.Equal(t, suite.Me.Username, tracker.GetParticipants()[0].User)
+				require.Equal(t, username, tracker.GetParticipants()[0].User)
 				require.NoError(t, teleport.StopAuth(false))
 			},
 		},
 	}
 
+	// Prepare shared cluster instances synchronously so that sub tests can run in parallel
+	// without fighting over resources that go into starting the cluster instances.
+	clusters := make(sharedClusters)
+	for i, tc := range testCases {
+		cluster := clusters.getOrCreate(t, suite, sharedClusterKey{
+			recordingMode:  tc.recordingMode,
+			sessCtlTimeout: tc.sessCtlTimeout,
+		})
+
+		teleportUser := fmt.Sprintf("test-user-%d", i)
+		role, err := types.NewRole(fmt.Sprintf("test-role-%d", i), types.RoleSpecV6{
+			Options: tc.options,
+			Allow: types.RoleConditions{
+				Logins:     []string{suite.Me.Username},
+				NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			},
+		})
+		require.NoError(t, err)
+		cluster.teleport.AddUserWithRole(teleportUser, role)
+
+		tc.cluster = cluster
+		tc.teleportUser = teleportUser
+		tc.login = suite.Me.Username
+	}
+
+	for _, cluster := range clusters {
+		require.NoError(t, cluster.teleport.CreateEx(t, nil, cluster.cfg))
+		require.NoError(t, cluster.teleport.Start())
+		teleport := cluster.teleport
+		t.Cleanup(func() {
+			require.NoError(t, teleport.StopAll())
+		})
+	}
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			runDisconnectTest(t, suite, tc)
+			runDisconnectTest(t, tc)
 		})
 	}
 }
 
-func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectTestCase) {
+func runDisconnectTest(t *testing.T, tc *disconnectTestCase) {
+	t.Parallel()
+
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
 
-	teleport := suite.NewTeleportInstance(t)
-
-	username := suite.Me.Username
-	role, err := types.NewRole("devs", types.RoleSpecV6{
-		Options: tc.options,
-		Allow: types.RoleConditions{
-			Logins:     []string{username},
-			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
-		},
-	})
-	require.NoError(t, err)
-	teleport.AddUserWithRole(username, role)
-
-	netConfig, err := types.NewClusterNetworkingConfigFromConfigFile(types.ClusterNetworkingConfigSpecV2{
-		SessionControlTimeout: types.Duration(tc.sessCtlTimeout),
-	})
-	require.NoError(t, err)
-
-	recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
-		Mode: tc.recordingMode,
-	})
-	require.NoError(t, err)
-
-	cfg := suite.defaultServiceConfig()
-	cfg.Auth.Enabled = true
-	cfg.Auth.NetworkingConfig = netConfig
-	cfg.Auth.SessionRecordingConfig = recConfig
-	cfg.Proxy.Enabled = true
-	cfg.SSH.Enabled = true
-
-	require.NoError(t, teleport.CreateEx(t, nil, cfg))
-	require.NoError(t, teleport.Start())
-	defer teleport.StopAll()
+	cluster := tc.cluster
 
 	if tc.concurrentConns < 1 {
 		// test cases that don't specify concurrentConns are single-connection tests.
@@ -2049,13 +2103,14 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 		openSession := func() {
 			defer cancel()
 			cc := helpers.ClientConfig{
-				Login:                username,
+				TeleportUser:         tc.teleportUser,
+				Login:                tc.login,
 				Cluster:              helpers.Site,
 				Host:                 Host,
-				Port:                 helpers.Port(t, teleport.SSH),
+				Port:                 helpers.Port(t, cluster.teleport.SSH),
 				DisableSSHResumption: true,
 			}
-			cl, err := teleport.NewClient(cc)
+			cl, err := cluster.teleport.NewClient(cc)
 			if err != nil {
 				asyncErrors <- err
 				return
@@ -2095,12 +2150,17 @@ func runDisconnectTest(t *testing.T, suite *integrationTestSuite, tc disconnectT
 
 	if tc.postFunc != nil {
 		// test case modifies the teleport instance after session start
-		tc.postFunc(ctx, t, teleport)
+		tc.postFunc(ctx, t, cluster.teleport, tc.teleportUser)
 	}
 
+	// Connection timeouts are determined by the last SSH packet sent/received, not the
+	// last input sent/received by the client. This means that under load, we can't
+	// predict exactly when the timeout will occur, so we just use a conservative
+	// timeout of 1 minute.
+	disconnectTimeout := time.Minute
+
 	select {
-	case <-time.After(tc.disconnectTimeout + time.Second):
-		dumpGoroutineProfile()
+	case <-time.After(disconnectTimeout):
 		require.FailNowf(t, "timeout", "%s timeout waiting for session to exit: %+v", timeNow(), tc)
 
 	case ae := <-asyncErrors:
@@ -7911,32 +7971,17 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 		},
 	}
 	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			// Create and approve a file download request
-			tempDir := t.TempDir()
-			reqFile := filepath.Join(tempDir, "req-file")
-			err = os.WriteFile(reqFile, []byte("contents"), 0o666)
-			require.NoError(t, err)
-
-			err = tc.sess.RequestFileTransfer(ctx, tracessh.FileTransferReq{
-				Download: true,
-				Location: reqFile,
-			})
-			require.NoError(t, err)
-
-			sshReq = sshRquestIgnoringKeepalives(t, modSSHReqs)
+		createAndApproveTransferRequest := func(t *testing.T, req tracessh.FileTransferReq) {
+			require.NoError(t, tc.sess.RequestFileTransfer(ctx, req))
+			sshReq := sshRquestIgnoringKeepalives(t, modSSHReqs)
 			var fileReq apievents.FileTransferRequestEvent
-			err = json.Unmarshal(sshReq.Payload, &fileReq)
-			require.NoError(t, err)
-
-			err = modSess.ApproveFileTransferRequest(ctx, fileReq.RequestID)
-			require.NoError(t, err)
-
+			require.NoError(t, json.Unmarshal(sshReq.Payload, &fileReq))
+			require.NoError(t, modSess.ApproveFileTransferRequest(ctx, fileReq.RequestID))
 			// Ignore file transfer request approve event
 			sshRquestIgnoringKeepalives(t, modSSHReqs)
+		}
 
-			// Test that only operations needed to complete the download
-			// are allowed
+		openSFTPClient := func(t *testing.T) *sftp.Client {
 			transferSess, err := tc.sshClient.NewSession(ctx)
 			require.NoError(t, err)
 			t.Cleanup(func() {
@@ -7954,92 +7999,105 @@ func testModeratedSFTP(t *testing.T, suite *integrationTestSuite) {
 			require.NoError(t, err)
 			sftpClient, err := sftp.NewClientPipe(r, w)
 			require.NoError(t, err)
-
-			// A file not in the request shouldn't be allowed
-			badFile := filepath.Join(tempDir, "bad-file")
-			_, err = sftpClient.Open(badFile)
-			require.ErrorContains(t, err, fmt.Sprintf("operations are only allowed on %s, not %s", reqFile, badFile))
-			// Since this is a download no files should be allowed to be written to
-			_, err = sftpClient.OpenFile(reqFile, os.O_WRONLY)
-			require.ErrorContains(t, err, `writing is not allowed`)
-			// Only stats and reads should be allowed
-			err = sftpClient.Mkdir(reqFile)
-			require.ErrorContains(t, err, `method mkdir is not allowed on `+reqFile)
-			// Since this is a download no files should be allowed to have
-			// their permissions changed
-			err = sftpClient.Chmod(reqFile, 0o777)
-			require.ErrorContains(t, err, `writing is not allowed`)
-
-			// Only necessary operations should be allowed
-			_, err = sftpClient.Stat(reqFile)
-			require.NoError(t, err)
-			_, err = sftpClient.Lstat(reqFile)
-			require.NoError(t, err)
-			rf, err := sftpClient.Open(reqFile)
-			require.NoError(t, err)
-			require.NoError(t, rf.Close())
-
-			require.NoError(t, sftpClient.Close())
-
-			// Create and approve a file upload request
-			err = tc.sess.RequestFileTransfer(ctx, tracessh.FileTransferReq{
-				Download: false,
-				Filename: "upload-file",
-				Location: reqFile,
-			})
-			require.NoError(t, err)
-
-			sshReq = sshRquestIgnoringKeepalives(t, modSSHReqs)
-			err = json.Unmarshal(sshReq.Payload, &fileReq)
-			require.NoError(t, err)
-
-			err = modSess.ApproveFileTransferRequest(ctx, fileReq.RequestID)
-			require.NoError(t, err)
-
-			// Ignore file transfer request approve event
-			sshRquestIgnoringKeepalives(t, modSSHReqs)
-
-			isNilOrEOFErr(t, transferSess.Close())
-			transferSess, err = tc.sshClient.NewSession(ctx)
-			require.NoError(t, err)
 			t.Cleanup(func() {
-				require.NoError(t, transferSess.Close())
+				isNilOrEOFErr(t, sftpClient.Close())
 			})
 
-			err = transferSess.Setenv(ctx, telesftp.EnvModeratedSessionID, sessTracker.GetSessionID())
-			require.NoError(t, err)
+			return sftpClient
+		}
 
-			// Test that only operations needed to complete the download
-			// are allowed
-			err = transferSess.RequestSubsystem(ctx, teleport.SFTPSubsystem)
+		t.Run(tc.name, func(t *testing.T) {
+			tempDir := t.TempDir()
+			// Create needed files.
+			reqFile := filepath.Join(tempDir, "req-file")
+			err = os.WriteFile(reqFile, []byte("contents"), 0o666)
 			require.NoError(t, err)
-			w, err = transferSess.StdinPipe()
+			// On MacOS temp dirs are symlinked, we need the real path so the symlink
+			// check works.
+			reqFile, err := filepath.EvalSymlinks(reqFile)
 			require.NoError(t, err)
-			r, err = transferSess.StdoutPipe()
-			require.NoError(t, err)
-			sftpClient, err = sftp.NewClientPipe(r, w)
-			require.NoError(t, err)
+			symlinkFile := filepath.Join(tempDir, "symlink")
+			require.NoError(t, os.Symlink(reqFile, symlinkFile))
+			badFile := filepath.Join(tempDir, "bad-file")
 
-			// A file not in the request shouldn't be allowed
-			_, err = sftpClient.Open(badFile)
-			require.ErrorContains(t, err, fmt.Sprintf("operations are only allowed on %s, not %s", reqFile, badFile))
-			// Since this is an upload no files should be allowed to be read from
-			_, err = sftpClient.OpenFile(reqFile, os.O_RDONLY)
-			require.ErrorContains(t, err, `reading is not allowed`)
-			// Only stats, writes, and chmods should be allowed
-			err = sftpClient.Mkdir(reqFile)
-			require.ErrorContains(t, err, `method mkdir is not allowed on `+reqFile)
+			t.Run("download", func(t *testing.T) {
+				// Create and approve a file download request
+				createAndApproveTransferRequest(t, tracessh.FileTransferReq{
+					Download: true,
+					Location: reqFile,
+				})
 
-			// Only necessary operations should be allowed
-			_, err = sftpClient.Stat(reqFile)
-			require.NoError(t, err)
-			_, err = sftpClient.Lstat(reqFile)
-			require.NoError(t, err)
-			err = sftpClient.Chmod(reqFile, 0o777)
-			require.NoError(t, err)
-			wf, err := sftpClient.OpenFile(reqFile, os.O_WRONLY)
-			require.NoError(t, err)
-			require.NoError(t, wf.Close())
+				// Test that only operations needed to complete the download
+				// are allowed
+				sftpClient := openSFTPClient(t)
+
+				// A file not in the request shouldn't be allowed
+				_, err = sftpClient.Open(badFile)
+				require.ErrorContains(t, err, fmt.Sprintf("operations are only allowed on %s, not %s", reqFile, badFile))
+				// Since this is a download no files should be allowed to be written to
+				_, err = sftpClient.OpenFile(reqFile, os.O_WRONLY)
+				require.ErrorContains(t, err, `writing is not allowed`)
+				// Only stats and reads should be allowed
+				err = sftpClient.Mkdir(reqFile)
+				require.ErrorContains(t, err, `method mkdir is not allowed on `+reqFile)
+				// Since this is a download no files should be allowed to have
+				// their permissions changed
+				err = sftpClient.Chmod(reqFile, 0o777)
+				require.ErrorContains(t, err, `writing is not allowed`)
+
+				// Only necessary operations should be allowed
+				_, err = sftpClient.Stat(reqFile)
+				require.NoError(t, err)
+				_, err = sftpClient.Lstat(reqFile)
+				require.NoError(t, err)
+				rf, err := sftpClient.Open(reqFile)
+				require.NoError(t, err)
+				require.NoError(t, rf.Close())
+			})
+
+			t.Run("upload", func(t *testing.T) {
+				// Create and approve a file upload request
+				createAndApproveTransferRequest(t, tracessh.FileTransferReq{
+					Download: false,
+					Filename: "upload-file",
+					Location: reqFile,
+				})
+
+				sftpClient := openSFTPClient(t)
+
+				// A file not in the request shouldn't be allowed
+				_, err = sftpClient.Open(badFile)
+				require.ErrorContains(t, err, fmt.Sprintf("operations are only allowed on %s, not %s", reqFile, badFile))
+				// Since this is an upload no files should be allowed to be read from
+				_, err = sftpClient.OpenFile(reqFile, os.O_RDONLY)
+				require.ErrorContains(t, err, `reading is not allowed`)
+				// Only stats, writes, and chmods should be allowed
+				err = sftpClient.Mkdir(reqFile)
+				require.ErrorContains(t, err, `method mkdir is not allowed on `+reqFile)
+
+				// Only necessary operations should be allowed
+				_, err = sftpClient.Stat(reqFile)
+				require.NoError(t, err)
+				_, err = sftpClient.Lstat(reqFile)
+				require.NoError(t, err)
+				err = sftpClient.Chmod(reqFile, 0o777)
+				require.NoError(t, err)
+				wf, err := sftpClient.OpenFile(reqFile, os.O_WRONLY)
+				require.NoError(t, err)
+				require.NoError(t, wf.Close())
+
+				require.NoError(t, sftpClient.Close())
+			})
+
+			t.Run("don't evaluate symlinks", func(t *testing.T) {
+				createAndApproveTransferRequest(t, tracessh.FileTransferReq{
+					Download: true,
+					Location: symlinkFile,
+				})
+				sftpClient := openSFTPClient(t)
+				_, err = sftpClient.Open(symlinkFile)
+				require.ErrorContains(t, err, "following symlinks is not allowed")
+			})
 		})
 	}
 }
