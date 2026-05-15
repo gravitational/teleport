@@ -190,7 +190,7 @@ func TestDBCertSigning(t *testing.T) {
 		parsedNewDBClientCert, err := tlsutils.ParseCertificatePEM(newDBClientCACert)
 		require.NoError(t, err)
 
-		// Simulate na old, already rotated CA certificate.
+		// Simulate an old, already rotated CA certificate.
 		// It should not influence responses.
 		_, oldCertPEM, err := tlscatest.GenerateSelfSignedCA(tlscatest.GenerateCAConfig{
 			ClusterName: clusterName,
