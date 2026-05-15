@@ -1,0 +1,9 @@
+name = "teleport-lean"
+defaultTargets = ["Teleport", "teleport-lean-diff"]
+
+[[lean_lib]]
+name = "Teleport"
+
+[[lean_exe]]
+name = "teleport-lean-diff"
+root = "Main"
