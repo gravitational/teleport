@@ -84,6 +84,97 @@ fullNameOverride: ""
 # image rather than a Teleport-published image.
 image: public.ecr.aws/gravitational/teleport-operator
 
+# updater -- controls whether the Teleport Kube Updater should be deployed alongside
+# the operator. The updater fetches the target version, validates the
+# image signature, and updates the teleport operator.
+#
+# The updater fetches the update information using two protocols by querying the Teleport Proxy Service.
+#
+# All Kubernetes-specific fields such as `tolerations`, `affinity`, `nodeSelector`,
+# ... default to the updater values. However, they can be overridden from the
+# `updater` object. For example:
+#
+# ```yaml
+# # the operator pod requests 1cpu and 2 GiB of memory. It also has a memory limit.
+# resources:
+#   requests:
+#     cpu: "1"
+#     memory: "2Gi"
+#   limits:
+#     memory: "2Gi"
+#
+# # the updater pod requests 0.5 cpu and 512MiB of memory. The memory limit has also been unset.
+# updater:
+#   resources:
+#     requests:
+#       cpu: "0.5"
+#       memory: "512Mi"
+#     limits: ~
+# ```
+#
+# Other updater-specific values that can be defined in `updater` are described
+# below.
+updater:
+  # updater.enabled(bool) -- Enables the Kube Agent Updater and deploys it alongside the Teleport Agent.
+  enabled: false
+
+  # updater.group(string) -- is the update group used when fetching the version using the webapi protocol.
+  # When unset, the group defaults to `default`.
+  group: ""
+
+  # updater.image(string) -- sets the container image used for Teleport updater
+  # pods run when `updater.enabled` is true.
+  #
+  # You can override this to use your own Teleport Kube Agent Updater image rather
+  # than a Teleport-published image.
+  image: public.ecr.aws/gravitational/teleport-kube-agent-updater
+
+  # updater.serviceAccount --
+  serviceAccount:
+    # updater.serviceAccount.name(string) -- is the updater Kubernetes Service
+    # Account name. When unset, it defaults to `<kube agent sa name>-updater`
+    name: ""
+
+  # updater.pullCredentials(string) -- configures how the updater attempts to
+  # get the image pull credentials used to validate the image signature.
+  #
+  # This is not required when pulling images from official public Teleport
+  # registries (chart's default).
+  #
+  # Supported values are `aws`, `google`, `docker` and `none`.
+  pullCredentials: ""
+
+  # updater.extraArgs(list) -- contains additional arguments to pass to the updater
+  # binary.
+  extraArgs: []
+
+  # updater.extraVolumes(list) -- contains extra volumes to mount into the Updater pods.
+  # See [the Kubernetes volume documentation](https://kubernetes.io/docs/concepts/storage/volumes/)
+  # for more details.
+  #
+  # For example:
+  # ```yaml
+  # updater:
+  #   extraVolumes:
+  #   - name: myvolume
+  #     secret:
+  #       secretName: testSecret
+  # ```
+  extraVolumes: []
+
+  # updater.extraVolumeMounts(list) -- contains extra volumes mounts for the updater.
+  # See [the Kubernetes volume documentation](https://kubernetes.io/docs/concepts/storage/volumes/)
+  # for more details.
+  #
+  # For example:
+  # ```yaml
+  # updater:
+  #   extraVolumesMounts:
+  #   - name: myvolume
+  #     mountPath: /path/on/host
+  # ```
+  extraVolumeMounts: []
+
 # annotations --
 annotations:
   # annotations.deployment(object) -- contains the Kubernetes annotations

@@ -1,0 +1,26 @@
+{{- if .Values.updater.enabled -}}
+{{- $updater := mustMergeOverwrite (mustDeepCopy .Values) .Values.updater }}
+{{/* Pass additional value from outside of updater. */}}
+{{- $_ := set $updater "releaseName" .Release.Name }}
+{{- $_ = set $updater "releaseNamespace" .Release.Namespace }}
+
+{{/* Unset updater-specific values so we don't accidentally pick up teleport-specific things. */}}
+{{- if not .Values.updater.extraArgs }}
+  {{- $_ = unset $updater "extraArgs" }}
+{{- end }}
+{{- if not .Values.updater.extraVolumes }}
+  {{- $_ = unset $updater "extraVolumes" }}
+{{- end }}
+{{- if not .Values.updater.extraVolumeMounts }}
+  {{- $_ = unset $updater "extraVolumeMounts" }}
+{{- end }}
+{{/* Compute dynamic values (depending on other teleport-kube agent values). */}}
+{{- $_ = set $updater.serviceAccount "name" (coalesce .Values.updater.serviceAccount.name (include "teleport-cluster.operator.serviceAccountName" . | printf "%s-updater")) }}
+{{- $_ = set $updater "extraLabels" .Values.labels }}
+{{- $_ = set $updater "versionServer" "" }}
+{{- $_ = set $updater "version" (include "teleport-cluster.version" .)}}
+{{- $_ = set $updater "proxyAddr" .Values.teleportAddress }}
+{{- $_ = set $updater "baseImage" .Values.image }}
+{{- $_ = set $updater "containerName" "operator" }}
+{{ include "teleport-kube-updater.all" $updater }}
+{{- end -}}
