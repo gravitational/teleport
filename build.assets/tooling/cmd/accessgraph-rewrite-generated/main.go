@@ -31,6 +31,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"golang.org/x/mod/modfile"
 )
 
 const (
@@ -142,18 +144,12 @@ func findRepoRoot() (string, error) {
 		}
 	}
 }
-
 func isTeleportRootModule(data []byte) bool {
-	for _, line := range strings.Split(string(data), "\n") {
-		if strings.TrimSpace(line) == "module github.com/gravitational/teleport" {
-			return true
-		}
-	}
-	return false
+	return modfile.ModulePath(data) == "github.com/gravitational/teleport"
 }
 
 func rewriteImports(file *ast.File, mode rewriteMode) {
-	seen := make(map[string]struct{})
+	seen := make(map[importKey]struct{})
 	decls := file.Decls[:0]
 
 	for _, decl := range file.Decls {
@@ -193,7 +189,7 @@ func rewriteImports(file *ast.File, mode rewriteMode) {
 				continue
 			}
 
-			key := importKey(importSpec)
+			key := makeImportKey(importSpec)
 			if _, ok := seen[key]; ok {
 				continue
 			}
@@ -250,12 +246,17 @@ func setImportPath(spec *ast.ImportSpec, path string) {
 	spec.Path.Value = strconv.Quote(path)
 }
 
-func importKey(spec *ast.ImportSpec) string {
-	name := ""
+type importKey struct {
+	name string
+	path string
+}
+
+func makeImportKey(spec *ast.ImportSpec) importKey {
+	k := importKey{path: importPath(spec)}
 	if spec.Name != nil {
-		name = spec.Name.Name
+		k.name = spec.Name.Name
 	}
-	return name + "\x00" + importPath(spec)
+	return k
 }
 
 func rewriteUUIDSelectors(file *ast.File) {
