@@ -286,15 +286,27 @@ type GenerateCredentialsRequest struct {
 	DisableWindowsCASupportForTesting bool
 }
 
+// GenerateCredentialsResponse is the outcome of a successful
+// [GenerateWindowsDesktopCredentials] invocation.
+type GenerateCredentialsResponse struct {
+	CertDER           []byte
+	KeyDER            []byte
+	CAOverrideDetails *proto.CAOverrideCertificateDetails
+}
+
 // GenerateWindowsDesktopCredentials generates a private key / certificate pair for the given
 // Windows username. The certificate has certain special fields different from
 // the regular Teleport user certificate, to meet the requirements of Active
 // Directory. See:
 // https://docs.microsoft.com/en-us/windows/security/identity-protection/smart-cards/smart-card-certificate-requirements-and-enumeration
-func GenerateWindowsDesktopCredentials(ctx context.Context, auth AuthInterface, req *GenerateCredentialsRequest) (certDER, keyDER []byte, err error) {
+func GenerateWindowsDesktopCredentials(
+	ctx context.Context,
+	auth AuthInterface,
+	req *GenerateCredentialsRequest,
+) (*GenerateCredentialsResponse, error) {
 	certReq, err := getCertRequest(req)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	genResp, err := auth.GenerateWindowsDesktopCert(ctx, &proto.WindowsDesktopCertRequest{
 		CSR:               certReq.csrPEM,
@@ -303,15 +315,17 @@ func GenerateWindowsDesktopCredentials(ctx context.Context, auth AuthInterface, 
 		SupportsWindowsCA: !req.DisableWindowsCASupportForTesting,
 	})
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	certBlock, _ := pem.Decode(genResp.Cert)
 	if certBlock == nil {
-		return nil, nil, trace.BadParameter("failed to decode certificate")
+		return nil, trace.BadParameter("failed to decode certificate")
 	}
-	certDER = certBlock.Bytes
-	keyDER = certReq.keyDER
-	return certDER, keyDER, nil
+	return &GenerateCredentialsResponse{
+		CertDER:           certBlock.Bytes,
+		KeyDER:            certReq.keyDER,
+		CAOverrideDetails: genResp.CaOverride,
+	}, nil
 }
 
 // generateDatabaseCredentials generates a private key / certificate pair for the given

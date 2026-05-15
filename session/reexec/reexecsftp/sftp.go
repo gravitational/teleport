@@ -28,8 +28,10 @@ import (
 	"os"
 	"os/user"
 	"path"
+	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -79,22 +81,12 @@ func newSFTPHandler(logger *slog.Logger, req *FileTransferRequest, events chan<-
 		allowed = &allowedOps{
 			write: !req.Download,
 		}
-		// TODO(capnspacehook): reject relative paths and symlinks
-		// make filepaths consistent by ensuring all separators use backslashes
-		allowedPath, err := sftputils.ExpandHomeDir(req.Location)
+		allowedPath, err := sftputils.ExpandHomeDir(filepath.ToSlash(req.Location))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		if !path.IsAbs(allowedPath) {
-			currentUser, err := user.Current()
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			if currentUser.HomeDir != "" {
-				allowedPath = path.Join(currentUser.HomeDir, allowedPath)
-			} else {
-				allowedPath = path.Join(string(os.PathSeparator), allowedPath)
-			}
+			return nil, trace.BadParameter("allowed path must be absolute")
 		}
 		allowed.path = path.Clean(allowedPath)
 	}
@@ -114,7 +106,7 @@ func (s *sftpHandler) ensureReqIsAllowed(req *sftp.Request) error {
 		return nil
 	}
 
-	cleaned := path.Clean(req.Filepath)
+	cleaned := path.Clean(filepath.ToSlash(req.Filepath))
 	if s.allowed.path != cleaned {
 		return trace.Errorf("operations are only allowed on %s, not %s", s.allowed.path, cleaned)
 	}
@@ -185,11 +177,23 @@ func (s *sftpHandler) openFile(req *sftp.Request) (sftp.WriterAtReaderAt, error)
 	if err := s.ensureReqIsAllowed(req); err != nil {
 		return nil, err
 	}
-
-	f, err := os.OpenFile(req.Filepath, sftputils.ParseFlags(req), 0o644)
+	flags := sftputils.ParseFlags(req)
+	var f *os.File
+	var err error
+	if s.allowed != nil {
+		// Files in moderated sessions may not include symlinks.
+		f, err = openFileNoFollow(req.Filepath, flags, 0o644)
+	} else {
+		f, err = os.OpenFile(req.Filepath, flags, 0o644)
+	}
 	if err != nil {
+		// Symlink traversal is not allowed for moderated file transfers.
+		if s.allowed != nil && errors.Is(err, syscall.ELOOP) {
+			return nil, trace.Errorf("following symlinks is not allowed for moderated file transfers, request the resolved path instead")
+		}
 		return nil, err
 	}
+
 	trackFile := &sftputils.TrackedFile{File: f}
 	s.mtx.Lock()
 	s.files = append(s.files, trackFile)
@@ -212,6 +216,12 @@ func (s *sftpHandler) Filecmd(req *sftp.Request) (retErr error) {
 	}
 	if err := s.ensureReqIsAllowed(req); err != nil {
 		return err
+	}
+
+	if s.allowed != nil && req.Method == sftputils.MethodSetStat {
+		// Setstat can be called during moderated file transfers, don't follow
+		// symlinks if that's the case.
+		return setstatNoFollow(req.Filepath, req.AttrFlags(), req.Attributes())
 	}
 
 	return sftputils.HandleFilecmd(req, nil /* local filesystem */)
@@ -380,4 +390,132 @@ func openFD(fd uintptr, name string) (*os.File, error) {
 	}
 
 	return file, nil
+}
+
+// openAtAndClose opens a file under the parent directory without following
+// symlinks, then closes the parent file. The parent file will be
+// closed even if this function returns an error.
+func openAtAndClose(parent *os.File, name string, flags int, mode os.FileMode) (*os.File, error) {
+	defer parent.Close()
+	syscallConn, err := parent.SyscallConn()
+	if err != nil {
+		return nil, err
+	}
+	var childFd int
+	var openAtErr error
+	ctrlErr := syscallConn.Control(func(fd uintptr) {
+		for {
+			childFd, openAtErr = unix.Openat(int(fd), name, flags|unix.O_NOFOLLOW|unix.O_CLOEXEC, uint32(mode))
+			if !errors.Is(openAtErr, syscall.EINTR) {
+				return
+			}
+		}
+	})
+	if ctrlErr != nil {
+		return nil, ctrlErr
+	} else if openAtErr != nil {
+		return nil, openAtErr
+	}
+	return os.NewFile(uintptr(childFd), filepath.Join(parent.Name(), name)), nil
+}
+
+// openFileNoFollow opens a file without following symlinks in any part of the path.
+func openFileNoFollow(file string, flags int, mode os.FileMode) (*os.File, error) {
+	if !filepath.IsAbs(file) {
+		return nil, trace.BadParameter("file path must be absolute")
+	}
+	dir, filename := filepath.Split(file)
+	relDir, err := filepath.Rel(string(os.PathSeparator), dir)
+	if err != nil {
+		return nil, err
+	}
+	parent, err := os.OpenFile(string(os.PathSeparator), readOnlyPath, 0)
+	if err != nil {
+		return nil, err
+	}
+	// Open each directory one at a time to ensure no symlinks are followed.
+	for relDir != "" {
+		var part string
+		part, relDir, _ = strings.Cut(relDir, string(os.PathSeparator))
+		parent, err = openAtAndClose(parent, part, unix.O_DIRECTORY|readOnlyPath, 0)
+		if err != nil {
+			return nil, err
+		}
+	}
+	// Set nonblock so we don't hang in case file is a pipe.
+	f, err := openAtAndClose(parent, filename, flags|unix.O_NONBLOCK, mode)
+	if err != nil {
+		return nil, err
+	}
+	info, err := f.Stat()
+	if err != nil {
+		_ = f.Close()
+		return nil, err
+	}
+	if !info.Mode().IsRegular() {
+		_ = f.Close()
+		return nil, trace.BadParameter("path does not point to a regular file")
+	}
+	return f, nil
+}
+
+func chtimes(file *os.File, atime, mtime time.Time) error {
+	syscallConn, err := file.SyscallConn()
+	if err != nil {
+		return err
+	}
+	var modifyErr error
+	ctrlErr := syscallConn.Control(func(fd uintptr) {
+		for {
+			modifyErr = unix.Futimes(int(fd), []unix.Timeval{
+				unix.NsecToTimeval(atime.UnixNano()),
+				unix.NsecToTimeval(mtime.UnixNano()),
+			})
+			if !errors.Is(modifyErr, syscall.EINTR) {
+				return
+			}
+		}
+	})
+	if ctrlErr != nil {
+		return ctrlErr
+	}
+	return modifyErr
+}
+
+// setstatNoFollow sets file attributes on a file without following any symlinks.
+func setstatNoFollow(file string, attrFlags sftp.FileAttrFlags, attrs *sftp.FileStat) error {
+	if !attrFlags.Acmodtime && !attrFlags.Permissions && !attrFlags.Size && !attrFlags.UidGid {
+		return nil
+	}
+	mode := os.O_RDONLY
+	if attrFlags.Size {
+		// Only open in write mode if needed to truncate.
+		mode = os.O_WRONLY
+	}
+	f, err := openFileNoFollow(file, mode, 0)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	if attrFlags.Size {
+		if err := f.Truncate(int64(attrs.Size)); err != nil {
+			return err
+		}
+	}
+	if attrFlags.Acmodtime {
+		if err := chtimes(f, time.Unix(int64(attrs.Atime), 0), time.Unix(int64(attrs.Mtime), 0)); err != nil {
+			return err
+		}
+	}
+	if attrFlags.Permissions {
+		if err := f.Chmod(attrs.FileMode()); err != nil {
+			return err
+		}
+	}
+	if attrFlags.UidGid {
+		if err := f.Chown(int(attrs.UID), int(attrs.GID)); err != nil {
+			return err
+		}
+	}
+	return nil
 }

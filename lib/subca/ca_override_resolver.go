@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
@@ -75,6 +76,19 @@ type CalculateOverrideResult struct {
 	CACertificate Certificate
 	// CAChain is the certificate override trust chain, sorted leaf-to-root.
 	CAChain []Certificate
+}
+
+// ToClientOverrideDetailsProto returns a [proto.CAOverrideCertificateDetails]
+// instance matching the CalculateOverrideResult.
+//
+// Returns nil if OverrideActive is false.
+func (res *CalculateOverrideResult) ToClientOverrideDetailsProto() *proto.CAOverrideCertificateDetails {
+	if res == nil || !res.OverrideActive {
+		return nil
+	}
+	return &proto.CAOverrideCertificateDetails{
+		PublicKeyHash: res.PublicKeyHash,
+	}
 }
 
 // CalculateOverride calculates CA overrides for a self-signed CA certificate.

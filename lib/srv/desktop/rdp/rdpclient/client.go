@@ -513,12 +513,6 @@ func (c *Client) startInputStreaming(stopCh chan struct{}) error {
 		msg, err := c.conn.ReadMessage()
 		if utils.IsOKNetworkError(err) {
 			return nil
-		} else if legacy.IsNonFatalErr(err) {
-			_ = c.conn.WriteMessage(&tdpb.Alert{
-				Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR,
-				Message:  err.Error(),
-			})
-			continue
 		} else if err != nil {
 			c.cfg.Logger.WarnContext(context.Background(), "Failed reading TDPB input message", "error", err)
 			return err
@@ -1267,8 +1261,8 @@ func cgo_tdp_sd_truncate_request(handle C.uintptr_t, req *C.CGOSharedDirectoryTr
 		DirectoryId:  uint32(req.directory_id),
 		Operation: &tdpbv1.SharedDirectoryRequest_Truncate_{
 			Truncate: &tdpbv1.SharedDirectoryRequest_Truncate{
-				Path:      C.GoString(req.path),
-				EndOfFile: uint32(req.end_of_file),
+				Path: C.GoString(req.path),
+				Size: uint64(req.end_of_file),
 			},
 		},
 	})

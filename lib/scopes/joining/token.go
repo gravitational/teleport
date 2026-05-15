@@ -61,13 +61,26 @@ func validateKubernetes(kube *joiningv1.Kubernetes) error {
 	}
 
 	for i, rule := range kube.GetAllow() {
-		if rule.ServiceAccount == "" {
-			return trace.BadParameter("allow[%d].service_account must be set", i)
+		serviceAccountSet := rule.ServiceAccount != ""
+		serviceAccountNameSet := rule.ServiceAccountName != ""
+		serviceAccountNamespaceSet := rule.ServiceAccountNamespace != ""
+
+		if !serviceAccountSet && (!serviceAccountNameSet || !serviceAccountNamespaceSet) {
+			return trace.BadParameter(
+				"allow[%d]: must specify service_account or (service_account_name and service_account_namespace)",
+				i,
+			)
 		}
 
-		parts := strings.Split(rule.ServiceAccount, ":")
-		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
-			return trace.BadParameter("allow[%d].service_account should be in format \"namespace:service_account\", got %q instead", i, rule.ServiceAccount)
+		if serviceAccountSet {
+			parts := strings.Split(rule.ServiceAccount, ":")
+			if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+				return trace.BadParameter(
+					"allow[%d].service_account should be in format \"namespace:service_account\", got %q instead",
+					i,
+					rule.ServiceAccount,
+				)
+			}
 		}
 	}
 
@@ -619,7 +632,9 @@ func (t *Token) GetKubernetes() *types.ProvisionTokenSpecV2Kubernetes {
 	allow := make([]*types.ProvisionTokenSpecV2Kubernetes_Rule, len(t.scoped.GetSpec().GetKubernetes().GetAllow()))
 	for i, rule := range t.scoped.GetSpec().GetKubernetes().GetAllow() {
 		allow[i] = &types.ProvisionTokenSpecV2Kubernetes_Rule{
-			ServiceAccount: rule.GetServiceAccount(),
+			ServiceAccount:          rule.GetServiceAccount(),
+			ServiceAccountName:      rule.GetServiceAccountName(),
+			ServiceAccountNamespace: rule.GetServiceAccountNamespace(),
 		}
 	}
 

@@ -41,7 +41,6 @@ import (
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
-	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/trail"
@@ -59,7 +58,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
-	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
 
@@ -115,7 +113,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 	rc.CreateHandlers = map[string]ResourceCreateHandler{
 		types.KindTrustedCluster:      rc.createTrustedCluster,
 		types.KindNetworkRestrictions: rc.createNetworkRestrictions,
-		types.KindLoginRule:           rc.createLoginRule,
 		types.KindDevice:              rc.createDevice,
 		types.KindOktaImportRule:      rc.createOktaImportRule,
 		types.KindIntegration:         rc.createIntegration,
@@ -492,33 +489,6 @@ func (rc *ResourceCommand) updateCrownJewel(ctx context.Context, client *authcli
 	return nil
 }
 
-func (rc *ResourceCommand) createLoginRule(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	rule, err := loginrule.UnmarshalLoginRule(raw.Raw)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	loginRuleClient := client.LoginRuleClient()
-	if rc.IsForced() {
-		_, err := loginRuleClient.UpsertLoginRule(ctx, &loginrulepb.UpsertLoginRuleRequest{
-			LoginRule: rule,
-		})
-		if err != nil {
-			return trail.FromGRPC(err)
-		}
-	} else {
-		_, err = loginRuleClient.CreateLoginRule(ctx, &loginrulepb.CreateLoginRuleRequest{
-			LoginRule: rule,
-		})
-		if err != nil {
-			return trail.FromGRPC(err)
-		}
-	}
-	verb := UpsertVerb(false /* we don't know if it existed before */, rc.IsForced() /* force update */)
-	fmt.Printf("login_rule %q has been %s\n", rule.GetMetadata().GetName(), verb)
-	return nil
-}
-
 func (rc *ResourceCommand) createDevice(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	res, err := services.UnmarshalDevice(raw.Raw)
 	if err != nil {
@@ -731,15 +701,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("crown_jewel %q has been deleted\n", rc.ref.Name)
-	case types.KindLoginRule:
-		loginRuleClient := client.LoginRuleClient()
-		_, err := loginRuleClient.DeleteLoginRule(ctx, &loginrulepb.DeleteLoginRuleRequest{
-			Name: rc.ref.Name,
-		})
-		if err != nil {
-			return trail.FromGRPC(err)
-		}
-		fmt.Printf("login rule %q has been deleted\n", rc.ref.Name)
 	case types.KindDevice:
 		remote := client.DevicesClient()
 		device, err := findDeviceByIDOrTag(ctx, remote, rc.ref.Name)
@@ -984,26 +945,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 
 		return &databaseServiceCollection{databaseServices: databaseServices}, nil
-	case types.KindLoginRule:
-		loginRuleClient := client.LoginRuleClient()
-		if rc.ref.Name == "" {
-			rules, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, limit int, token string) ([]*loginrulepb.LoginRule, string, error) {
-				resp, err := loginRuleClient.ListLoginRules(ctx, &loginrulepb.ListLoginRulesRequest{
-					PageSize:  int32(limit),
-					PageToken: token,
-				})
-				return resp.GetLoginRules(), resp.GetNextPageToken(), trace.Wrap(err)
-			}))
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			return &loginRuleCollection{rules}, trace.Wrap(err)
-		}
-		rule, err := loginRuleClient.GetLoginRule(ctx, &loginrulepb.GetLoginRuleRequest{
-			Name: rc.ref.Name,
-		})
-		return &loginRuleCollection{[]*loginrulepb.LoginRule{rule}}, trail.FromGRPC(err)
 	case types.KindDevice:
 		remote := client.DevicesClient()
 		if rc.ref.Name != "" {
