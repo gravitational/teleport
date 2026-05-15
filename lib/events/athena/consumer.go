@@ -875,7 +875,15 @@ eventLoop:
 }
 
 func newParquetWriter(ctx context.Context, fw io.WriteCloser) (*parquetWriter, error) {
-	pw := parquet.NewGenericWriter[eventParquet](fw, parquet.Compression(&parquet.Snappy))
+	pw := parquet.NewGenericWriter[eventParquet](
+		fw,
+		parquet.Compression(&parquet.Snappy),
+		// MaxRowsPerRowGroup is set to lower value to reduce memory
+		// usage of parquet writer.
+		// Without this, parquet writer will buffer the entire file into
+		// memory before flushing into the io.Writer.
+		parquet.MaxRowsPerRowGroup(300),
+	)
 	return &parquetWriter{
 		closer: fw,
 		writer: pw,

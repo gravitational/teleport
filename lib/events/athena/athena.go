@@ -241,19 +241,19 @@ func (cfg *Config) CheckAndSetDefaults(ctx context.Context) error {
 		return trace.BadParameter("QueueURL must be valid url and start with https")
 	}
 
-	if cfg.GetQueryResultsInterval == 0 {
+	if cfg.GetQueryResultsInterval <= 0 {
 		cfg.GetQueryResultsInterval = 100 * time.Millisecond
 	}
 
-	if cfg.BatchMaxItems == 0 {
+	if cfg.BatchMaxItems <= 0 {
 		cfg.BatchMaxItems = defaultBatchItems
 	}
 
-	if cfg.BatchMaxBytes == 0 {
+	if cfg.BatchMaxBytes <= 0 {
 		cfg.BatchMaxBytes = defaultBatchMaxBytes
 	}
 
-	if cfg.BatchMaxInterval == 0 {
+	if cfg.BatchMaxInterval <= 0 {
 		cfg.BatchMaxInterval = defaultBatchInterval
 	}
 
