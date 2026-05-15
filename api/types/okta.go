@@ -420,6 +420,14 @@ type OktaAssignmentTarget interface {
 	GetTargetType() string
 	// GetID returns the ID of the target.
 	GetID() string
+	// GetStatus returns the processing status of the target.
+	GetStatus() string
+	// SetStatus sets the processing status of the target.
+	SetStatus(status string) error
+	// GetReason returns the reason for processing failure of the target.
+	GetReason() string
+	// SetFailed sets the failure reason and the processing status of the target to failed.
+	SetFailed(reason string) error
 }
 
 // GetTargetType returns the target type.
@@ -437,6 +445,136 @@ func (o *OktaAssignmentTargetV1) GetTargetType() string {
 // GetID returns the ID of the action target.
 func (o *OktaAssignmentTargetV1) GetID() string {
 	return o.Id
+}
+
+// GetStatus returns the processing status of the target.
+func (o *OktaAssignmentTargetV1) GetStatus() string {
+	return OktaAssignmentTargetStatusProtoToString(o.Status)
+}
+
+// SetStatus sets the processing status of the target. If status is not FAILED, then any existing reason is also cleared.
+// An error is returned if an invalid transition is requested. Valid transitions are:
+// * PENDING -> (PROCESSING)
+// * PROCESSING -> (SUCCESSFUL, FAILED, PROCESSING)
+// * SUCCESSFUL -> (PROCESSING)
+// * FAILED -> (PROCESSING)
+func (o *OktaAssignmentTargetV1) SetStatus(status string) error {
+	invalidTransition := false
+
+	switch o.Status {
+	case OktaAssignmentTargetV1_STATUS_PENDING:
+		switch status {
+		case constants.OktaAssignmentTargetStatusProcessing:
+		default:
+			invalidTransition = true
+		}
+	case OktaAssignmentTargetV1_STATUS_PROCESSING:
+		switch status {
+		case constants.OktaAssignmentTargetStatusProcessing:
+		case constants.OktaAssignmentTargetStatusSuccessful:
+		case constants.OktaAssignmentTargetStatusFailed:
+		default:
+			invalidTransition = true
+		}
+	case OktaAssignmentTargetV1_STATUS_SUCCESSFUL:
+		switch status {
+		case constants.OktaAssignmentTargetStatusProcessing:
+		default:
+			invalidTransition = true
+		}
+	case OktaAssignmentTargetV1_STATUS_FAILED:
+		switch status {
+		case constants.OktaAssignmentTargetStatusProcessing:
+		default:
+			invalidTransition = true
+		}
+	case OktaAssignmentTargetV1_STATUS_UNKNOWN:
+	default:
+		invalidTransition = true
+	}
+
+	if invalidTransition {
+		return trace.BadParameter("invalid transition: %s -> %s", o.GetStatus(), status)
+	}
+
+	o.Status = OktaAssignmentTargetStatusToProto(status)
+	if o.Status != OktaAssignmentTargetV1_STATUS_FAILED {
+		o.Reason = OktaAssignmentTargetV1_REASON_UNKNOWN
+	}
+
+	return nil
+}
+
+// GetReason returns the failure reason for the target with a failed status.
+func (o *OktaAssignmentTargetV1) GetReason() string {
+	return OktaAssignmentTargetStatusReasonProtoToString(o.Reason)
+}
+
+// SetFailed sets the processing status of the target to failed and sets the failed reason.
+func (o *OktaAssignmentTargetV1) SetFailed(reason string) error {
+	if err := o.SetStatus(constants.OktaAssignmentTargetStatusFailed); err != nil {
+		return trace.Wrap(err)
+	}
+
+	o.Reason = OktaAssignmentTargetStatusReasonToProto(reason)
+
+	return nil
+}
+
+// OktaAssignmentTargetStatusProtoToString returns a string representation of an OktaAssignmentTargetStatus.
+func OktaAssignmentTargetStatusProtoToString(status OktaAssignmentTargetV1_OktaAssignmentTargetStatus) string {
+	switch status {
+	case OktaAssignmentTargetV1_STATUS_PENDING:
+		return constants.OktaAssignmentTargetStatusPending
+	case OktaAssignmentTargetV1_STATUS_PROCESSING:
+		return constants.OktaAssignmentTargetStatusProcessing
+	case OktaAssignmentTargetV1_STATUS_SUCCESSFUL:
+		return constants.OktaAssignmentTargetStatusSuccessful
+	case OktaAssignmentTargetV1_STATUS_FAILED:
+		return constants.OktaAssignmentTargetStatusFailed
+	default:
+		return constants.OktaAssignmentTargetStatusUnknown
+	}
+}
+
+// OktaAssignmentTargetStatusToProto returns the OktaAssignmentTargetStatus proto of a status string.
+func OktaAssignmentTargetStatusToProto(status string) OktaAssignmentTargetV1_OktaAssignmentTargetStatus {
+	switch status {
+	case constants.OktaAssignmentTargetStatusPending:
+		return OktaAssignmentTargetV1_STATUS_PENDING
+	case constants.OktaAssignmentTargetStatusProcessing:
+		return OktaAssignmentTargetV1_STATUS_PROCESSING
+	case constants.OktaAssignmentTargetStatusSuccessful:
+		return OktaAssignmentTargetV1_STATUS_SUCCESSFUL
+	case constants.OktaAssignmentTargetStatusFailed:
+		return OktaAssignmentTargetV1_STATUS_FAILED
+	default:
+		return OktaAssignmentTargetV1_STATUS_UNKNOWN
+	}
+}
+
+// OktaAssignmentTargetStatusReasonProtoToString returns a string representation of an OktaAssignmentTargetStatusReason.
+func OktaAssignmentTargetStatusReasonProtoToString(reason OktaAssignmentTargetV1_OktaAssignmentTargetStatusReason) string {
+	switch reason {
+	case OktaAssignmentTargetV1_REASON_ERROR:
+		return constants.OktaAssignmentTargetReasonError
+	case OktaAssignmentTargetV1_REASON_TIMEOUT:
+		return constants.OktaAssignmentTargetReasonTimeout
+	default:
+		return constants.OktaAssignmentTargetReasonUnknown
+	}
+}
+
+// OktaAssignmentTargetStatusReasonToProto returns the OktaAssignmentTargetStatusReason proto of a reason string.
+func OktaAssignmentTargetStatusReasonToProto(reason string) OktaAssignmentTargetV1_OktaAssignmentTargetStatusReason {
+	switch reason {
+	case constants.OktaAssignmentTargetReasonError:
+		return OktaAssignmentTargetV1_REASON_ERROR
+	case constants.OktaAssignmentTargetReasonTimeout:
+		return OktaAssignmentTargetV1_REASON_TIMEOUT
+	default:
+		return OktaAssignmentTargetV1_REASON_UNKNOWN
+	}
 }
 
 // OktaAssignments is a list of OktaAssignment resources.

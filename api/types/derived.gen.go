@@ -1540,7 +1540,9 @@ func deriveTeleportEqual_91(this, that *OktaAssignmentTargetV1) bool {
 	return (this == nil && that == nil) ||
 		this != nil && that != nil &&
 			this.Type == that.Type &&
-			this.Id == that.Id
+			this.Id == that.Id &&
+			this.Status == that.Status &&
+			this.Reason == that.Reason
 }
 
 // deriveTeleportEqual_92 returns whether this and that are equal.
