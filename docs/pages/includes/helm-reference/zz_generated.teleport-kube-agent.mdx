@@ -130,10 +130,14 @@ join the Teleport cluster.
 When `joinParams.method` is [a delegated join method](../../reference/deployment/join-methods.mdx#delegated-join-methods),
 the value is not sensitive.
 
-When `joinParams.method` is `token` (by default), `joinParams.tokenName`
-contains the secret token itself. In this case, the value is sensitive and
-is automatically stored in a Kubernetes Secret instead of being directly
+When `joinParams.method` is `token` (by default), and `joinParams.tokenName` refers to an
+unscoped token, the token name itself is considered secret. In this case, the value is
+sensitive and is automatically stored in a Kubernetes Secret instead of being directly
 included in the agent's configuration.
+
+When `joinParams.method` is `token` (by default), and `joinParams.tokenName` refers to a
+scoped token, the token name itself is not considered a secret. In this case, the
+`joinParams.tokenSecret` value must also be provided.
 
 If method is `token`, `joinParams.tokenName` can be empty if the token
 is provided through an existing Kubernetes Secret, see
@@ -147,15 +151,17 @@ If method is `kubernetes`, you must set [`teleportClusterName`](#teleportCluster
 |------|---------|
 | `string` | `""` |
 
-`joinParams.tokenSecret` is the secret value tied to the token identified
-by `joinparams.tokenName`. It is only valid when `joinParams.method` is `token` and
+`joinParams.tokenSecret` is the secret value tied to the scoped token identified
+by `joinparams.tokenName`. It should only be provided when `joinParams.method` is `token` and
 `joinParams.tokenName` refers to a scoped token.
 
-When `joinParams.method` is `token` and `joinParams.tokenName`  refers to a
-scoped token, this value is required.
-
 When `joinParams.method` is not `token` or when `joinParams.tokenName` refers to an
-unscoped token, this value is ignored.
+unscoped token, this value is ignored and should not be provided.
+
+When `joinParams.method` is `token` and `joinParams.tokenName` refers to a
+scoped token, this value is required. Unlike `joinParams.tokenName`, this value is always
+considered secret and will be automatically stored in a Kubernetes Secret instead of being
+directly included in the agent's configuration.
 
 ## `teleportClusterName`
 
