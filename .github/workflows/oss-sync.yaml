@@ -1,0 +1,47 @@
+name: OSS Sync
+on:
+  workflow_dispatch:
+    inputs:
+      target-branch:
+        type: string
+        required: true
+        description: |
+          The target branch to sync to. This will usually be a release branch
+          (e.g. branch/v17). By default the source will be the same branch
+          from OSS but can be configured below.
+      source-ref:
+        type: string
+        description: |
+          An optional reference to use as the source for the sync. For example 
+          in the case of wanting to sync a specific tag to the target-branch.
+      force-push:
+        type: boolean
+        default: false
+        description: |
+          Force push the reference, ignoring any divergence in history.
+jobs:
+  oss-sync:
+    permissions:
+      contents: write # Necessary to push to updates
+    runs-on: ubuntu-latest
+    steps:
+      # Sync commands
+      - name: Fetch from OSS and sync
+        id: sync-git
+        env:
+          SOURCE_REF: ${{ inputs.source-ref }}
+          TARGET_BRANCH: ${{ inputs.target-branch }}
+          FORCE_FLAG: ${{ inputs.force-push }} # Will get converted to string 'true'/'false'
+        run: |
+          # Default SOURCE_REF to TARGET_BRANCH if not set
+          [[ -z "$SOURCE_REF" ]] && SOURCE_REF="$TARGET_BRANCH"
+
+          # Setup remote and fetch source reference
+          git remote add oss https://github.com/gravitational/teleport.git
+          git fetch oss "${SOURCE_REF}"
+
+          if [[ "$FORCE_FLAG" == 'true' ]]; then
+            git push --force -u origin "FETCH_HEAD:/refs/heads/${TARGET_BRANCH}"
+          else
+            git push -u origin "FETCH_HEAD:/refs/heads/${TARGET_BRANCH}"
+          fi
