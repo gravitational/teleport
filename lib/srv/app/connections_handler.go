@@ -208,6 +208,7 @@ type ConnectionsHandler struct {
 	// authMiddleware allows wrapping connections with identity information.
 	authMiddleware *authz.Middleware
 
+	proxyHost string
 	proxyPort string
 
 	// getAppByPublicAddress returns a types.Application using the public address as matcher.
@@ -311,8 +312,8 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 	// functionality this server needs, like requiring client certificates.
 	c.tlsConfig = CopyAndConfigureTLS(c.log, c.cfg.AccessPoint, c.cfg.TLSConfig)
 
-	// Figure out the port the proxy is running on.
-	c.proxyPort = c.getProxyPort(c.closeContext)
+	// Figure out the host and port the proxy is running on.
+	c.proxyHost, c.proxyPort = c.getProxyPublicAddr(c.closeContext)
 
 	go c.expireSessions()
 
@@ -486,23 +487,23 @@ func (c *ConnectionsHandler) serveHTTP(w http.ResponseWriter, r *http.Request) e
 	}
 }
 
-// getProxyPort tries to figure out the address the proxy is running at.
-func (c *ConnectionsHandler) getProxyPort(ctx context.Context) string {
+// getProxyPublicAddr tries to figure out the host and port of the proxy's
+// public address. On any failure the host is returned as empty and the port
+// falls back to [defaults.HTTPListenPort].
+func (c *ConnectionsHandler) getProxyPublicAddr(ctx context.Context) (host, port string) {
+	port = strconv.Itoa(defaults.HTTPListenPort)
 	servers, err := clientutils.CollectWithFallback(ctx, c.cfg.AccessPoint.ListProxyServers, func(context.Context) ([]types.Server, error) {
 		//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 		return c.cfg.AccessPoint.GetProxies()
 	})
+	if err != nil || len(servers) == 0 {
+		return "", port
+	}
+	h, p, err := net.SplitHostPort(servers[0].GetPublicAddr())
 	if err != nil {
-		return strconv.Itoa(defaults.HTTPListenPort)
+		return "", port
 	}
-	if len(servers) == 0 {
-		return strconv.Itoa(defaults.HTTPListenPort)
-	}
-	_, port, err := net.SplitHostPort(servers[0].GetPublicAddr())
-	if err != nil {
-		return strconv.Itoa(defaults.HTTPListenPort)
-	}
-	return port
+	return h, p
 }
 
 // serveAWSWebConsole generates a sign-in URL for AWS management console and
@@ -788,7 +789,7 @@ func (c *ConnectionsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		switch {
 		case errors.Is(err, services.ErrTrustedDeviceRequired):
-			writeTrustedDeviceRequired(w, r, code)
+			writeTrustedDeviceRequired(w, r, code, c.proxyHost, c.proxyPort)
 		case errors.Is(err, services.ErrSessionMFARequired):
 			http.Error(w, authclient.ErrNoMFADevices.Error(), code)
 		default:
@@ -805,15 +806,30 @@ const (
 
 // writeTrustedDeviceRequired writes the response body for a request that failed
 // with [services.ErrTrustedDeviceRequired]. Browsers receive a small HTML page
-// with clickable links to the docs; every other client gets plain text.
-func writeTrustedDeviceRequired(w http.ResponseWriter, r *http.Request, code int) {
-	if isBrowserUserAgent(r.UserAgent()) {
-		const body = `<!DOCTYPE html>
+// with clickable links to the docs; every other client gets plain text. When
+// the UA looks like it could come from an iPhone or iPad and proxyHost is
+// known, the HTML also includes a link to the Account Settings page in the
+// Web UI where mobile devices can be enrolled.
+func writeTrustedDeviceRequired(w http.ResponseWriter, r *http.Request, code int, proxyHost, proxyPort string) {
+	isBrowser, isPossiblyAppleMobile := classifyUserAgent(r.UserAgent())
+	if isBrowser {
+		var mobileEnrollParagraph string
+		if proxyHost != "" && isPossiblyAppleMobile {
+			addr := proxyHost
+			if proxyPort != "443" {
+				addr = net.JoinHostPort(proxyHost, proxyPort)
+			}
+			url := "https://" + addr + "/web/account/security"
+			mobileEnrollParagraph = `<p>If your iPhone or iPad is not enrolled yet, enroll it from the Trusted Devices section in <a href="` + url + `" target="_blank">the Account Settings</a>.</p>
+`
+		}
+
+		body := `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8"><title>Trusted device required</title></head>
 <body>
 <p>A trusted device is required to access this resource, but this session has not been authorized with Device Trust. Follow <a href="` + trustedDeviceRequiredWebUIDocsURL + `" target="_blank">the Web UI troubleshooting guide</a> to authorize the session with Device Trust.</p>
-<p>If accessing the resource through VNet or a local proxy, make sure the device running Teleport Connect or tsh is registered and enrolled. See <a href="` + trustedDeviceRequiredAppAccessDocsURL + `" target="_blank">the app access troubleshooting guide</a> for help.</p>
+` + mobileEnrollParagraph + `<p>If accessing the resource through VNet or a local proxy, make sure the device running Teleport Connect or tsh is registered and enrolled. See <a href="` + trustedDeviceRequiredAppAccessDocsURL + `" target="_blank">the app access troubleshooting guide</a> for help.</p>
 </body>
 </html>
 `
@@ -830,16 +846,30 @@ See `+trustedDeviceRequiredDocsURL+` for help.
 `, code)
 }
 
-// isBrowserUserAgent reports whether ua plausibly comes from a web browser, as
+// classifyUserAgent returns heuristic classifications of ua.
+//
+// isBrowser reports whether ua plausibly comes from a web browser, as
 // opposed to a CLI (tsh, curl) or some SDK client. It relies on the historical
 // quirk that essentially every browser UA begins with "Mozilla/" and contains
 // a known engine token. Modern browsers (Chrome, Safari, Edge, Opera, mobile
 // browsers) are all WebKit- or Blink-based and carry "AppleWebKit"; the Firefox
 // family carries "Gecko/".
-func isBrowserUserAgent(ua string) bool {
+//
+// isPossiblyAppleMobile matches "iPhone" and "Mac OS X": since iPadOS 13
+// iPads send the same UA as macOS, and without a navigator.maxTouchPoints
+// hint there is no way to tell them apart, so Macs match too. It is only set
+// for browser UAs — a non-browser UA is never classified as Apple mobile.
+func classifyUserAgent(ua string) (isBrowser, isPossiblyAppleMobile bool) {
 	lower := strings.ToLower(ua)
-	return strings.HasPrefix(lower, "mozilla/") &&
+	isBrowser = strings.HasPrefix(lower, "mozilla/") &&
 		(strings.Contains(lower, "applewebkit") || strings.Contains(lower, "gecko/"))
+
+	if !isBrowser {
+		return false, false
+	}
+
+	isPossiblyAppleMobile = strings.Contains(lower, "iphone") || strings.Contains(lower, "mac os x")
+	return true, isPossiblyAppleMobile
 }
 
 // getConnectionInfo extracts identity information from the provided

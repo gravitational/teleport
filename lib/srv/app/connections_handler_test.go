@@ -189,84 +189,101 @@ func TestHandleConnection_PipeSkipsLimiter(t *testing.T) {
 	require.False(t, trace.IsLimitExceeded(err), "unexpected LimitExceeded error: %v", err)
 }
 
-func TestIsBrowserUserAgent(t *testing.T) {
+func TestClassifyUserAgent(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name string
-		ua   string
-		want bool
+		name                      string
+		ua                        string
+		wantIsBrowser             bool
+		wantIsPossiblyAppleMobile bool
 	}{
 		{
-			name: "empty",
-			ua:   "",
-			want: false,
+			name:          "empty",
+			ua:            "",
+			wantIsBrowser: false,
 		},
 		{
-			name: "tsh",
-			ua:   "tsh/17.0.0",
-			want: false,
+			name:          "tsh",
+			ua:            "tsh/17.0.0",
+			wantIsBrowser: false,
 		},
 		{
-			name: "curl",
-			ua:   "curl/8.4.0",
-			want: false,
+			name:          "curl",
+			ua:            "curl/8.4.0",
+			wantIsBrowser: false,
 		},
 		{
-			name: "Go http client",
-			ua:   "Go-http-client/1.1",
-			want: false,
+			name:          "Go http client",
+			ua:            "Go-http-client/1.1",
+			wantIsBrowser: false,
 		},
 		{
-			name: "Mozilla prefix without engine token",
-			ua:   "Mozilla/5.0 compatible",
-			want: false,
+			name:          "Mozilla prefix without engine token",
+			ua:            "Mozilla/5.0 compatible",
+			wantIsBrowser: false,
 		},
 		{
-			name: "Chrome on macOS",
-			ua:   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-			want: true,
+			name:                      "Chrome on macOS",
+			ua:                        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+			wantIsBrowser:             true,
+			wantIsPossiblyAppleMobile: true,
 		},
 		{
-			name: "Safari on macOS",
-			ua:   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.1",
-			want: true,
+			name:                      "Safari on macOS",
+			ua:                        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.1",
+			wantIsBrowser:             true,
+			wantIsPossiblyAppleMobile: true,
 		},
 		{
-			name: "Safari on iPhone",
-			ua:   "Mozilla/5.0 (iPhone; CPU iPhone OS 8_4 like Mac OS X) AppleWebKit/600.1.4 (KHTML, like Gecko) Version/8.0 Mobile/12H143 Safari/600.1.4",
-			want: true,
+			name:                      "Safari on iPhone",
+			ua:                        "Mozilla/5.0 (iPhone; CPU iPhone OS 8_4 like Mac OS X) AppleWebKit/600.1.4 (KHTML, like Gecko) Version/8.0 Mobile/12H143 Safari/600.1.4",
+			wantIsBrowser:             true,
+			wantIsPossiblyAppleMobile: true,
 		},
 		{
-			name: "Firefox on Linux",
-			ua:   "Mozilla/5.0 (Linux; U; Linux 2.6; en-US; rv:1.9.9.2) Gecko/20100722 Firefox/3.6.8",
-			want: true,
+			name:                      "Firefox on Linux",
+			ua:                        "Mozilla/5.0 (Linux; U; Linux 2.6; en-US; rv:1.9.9.2) Gecko/20100722 Firefox/3.6.8",
+			wantIsBrowser:             true,
+			wantIsPossiblyAppleMobile: false,
 		},
 		{
-			name: "Firefox on iOS",
-			ua:   "Mozilla/5.0 (iPhone; CPU iPhone OS 12_0_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) FxiOS/7.0.4 Mobile/16A404 Safari/605.1.15",
-			want: true,
+			name:                      "Firefox on iOS",
+			ua:                        "Mozilla/5.0 (iPhone; CPU iPhone OS 12_0_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) FxiOS/7.0.4 Mobile/16A404 Safari/605.1.15",
+			wantIsBrowser:             true,
+			wantIsPossiblyAppleMobile: true,
 		},
 		{
-			name: "Chrome on iOS",
-			ua:   "Mozilla/5.0 (iPhone; CPU iPhone OS 8_2 like Mac OS X) AppleWebKit/600.1.4 (KHTML, like Gecko) CriOS/44.0.2403.67 Mobile/12D508 Safari/600.1.4",
-			want: true,
+			name:                      "Chrome on iOS",
+			ua:                        "Mozilla/5.0 (iPhone; CPU iPhone OS 8_2 like Mac OS X) AppleWebKit/600.1.4 (KHTML, like Gecko) CriOS/44.0.2403.67 Mobile/12D508 Safari/600.1.4",
+			wantIsBrowser:             true,
+			wantIsPossiblyAppleMobile: true,
 		},
 		{
-			name: "Edge on Windows",
-			ua:   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.3912.72",
-			want: true,
+			name:                      "Edge on Windows",
+			ua:                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.3912.72",
+			wantIsBrowser:             true,
+			wantIsPossiblyAppleMobile: false,
 		},
 		{
-			name: "Opera on macOS",
-			ua:   "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_3_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 OPR/108.0.0.0",
-			want: true,
+			name:                      "Opera on macOS",
+			ua:                        "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_3_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 OPR/108.0.0.0",
+			wantIsBrowser:             true,
+			wantIsPossiblyAppleMobile: true,
+		},
+		{
+			name:                      "Chrome on Android",
+			ua:                        "Mozilla/5.0 (Linux; Android 16) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.7727.50 Mobile Safari/537.36",
+			wantIsBrowser:             true,
+			wantIsPossiblyAppleMobile: false,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			require.Equal(t, tc.want, isBrowserUserAgent(tc.ua))
+			isBrowser, isPossiblyAppleMobile := classifyUserAgent(tc.ua)
+			require.Equal(t, tc.wantIsBrowser, isBrowser, "isBrowser")
+			require.Equal(t, tc.wantIsPossiblyAppleMobile, isPossiblyAppleMobile, "isPossiblyAppleMobile")
 		})
 	}
 }
@@ -274,27 +291,71 @@ func TestIsBrowserUserAgent(t *testing.T) {
 func TestWriteTrustedDeviceRequired(t *testing.T) {
 	t.Parallel()
 
-	const browserUA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+	const (
+		linuxBrowserUA       = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36"
+		appleMobileBrowserUA = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1"
+	)
 
 	tests := []struct {
 		name            string
 		userAgent       string
+		proxyHost       string
+		proxyPort       string
 		wantContentType string
 		wantBodyParts   []string
 		wantNoBodyPart  string
 	}{
 		{
-			name:            "browser gets HTML with clickable links to Web UI and app access guides",
-			userAgent:       browserUA,
+			name:            "desktop Linux browser gets HTML with Web UI and app access guides only",
+			userAgent:       linuxBrowserUA,
+			proxyHost:       "teleport.example.com",
+			proxyPort:       "443",
 			wantContentType: "text/html; charset=utf-8",
 			wantBodyParts: []string{
 				`<a href="` + trustedDeviceRequiredWebUIDocsURL + `"`,
 				`<a href="` + trustedDeviceRequiredAppAccessDocsURL + `"`,
 			},
+			wantNoBodyPart: "/web/account/security",
+		},
+		{
+			name:            "Apple mobile browser gets HTML with Account Settings link (port 443 stripped)",
+			userAgent:       appleMobileBrowserUA,
+			proxyHost:       "teleport.example.com",
+			proxyPort:       "443",
+			wantContentType: "text/html; charset=utf-8",
+			wantBodyParts: []string{
+				`<a href="` + trustedDeviceRequiredWebUIDocsURL + `"`,
+				`<a href="https://teleport.example.com/web/account/security"`,
+				`<a href="` + trustedDeviceRequiredAppAccessDocsURL + `"`,
+			},
+		},
+		{
+			name:            "Apple mobile browser gets HTML with Account Settings link (non-443 port kept)",
+			userAgent:       appleMobileBrowserUA,
+			proxyHost:       "teleport.example.com",
+			proxyPort:       "3080",
+			wantContentType: "text/html; charset=utf-8",
+			wantBodyParts: []string{
+				`<a href="https://teleport.example.com:3080/web/account/security"`,
+			},
+		},
+		{
+			name:            "Apple mobile browser without proxy host gets HTML without Account Settings link",
+			userAgent:       appleMobileBrowserUA,
+			proxyHost:       "",
+			proxyPort:       "443",
+			wantContentType: "text/html; charset=utf-8",
+			wantBodyParts: []string{
+				`<a href="` + trustedDeviceRequiredWebUIDocsURL + `"`,
+				`<a href="` + trustedDeviceRequiredAppAccessDocsURL + `"`,
+			},
+			wantNoBodyPart: "/web/account/security",
 		},
 		{
 			name:            "non-browser gets plain text with URL but no HTML link",
 			userAgent:       "tsh/17.0.0",
+			proxyHost:       "teleport.example.com",
+			proxyPort:       "443",
 			wantContentType: "text/plain; charset=utf-8",
 			wantBodyParts:   []string{trustedDeviceRequiredDocsURL},
 			wantNoBodyPart:  "<a ",
@@ -302,6 +363,8 @@ func TestWriteTrustedDeviceRequired(t *testing.T) {
 		{
 			name:            "empty UA gets plain text with URL but no HTML link",
 			userAgent:       "",
+			proxyHost:       "teleport.example.com",
+			proxyPort:       "443",
 			wantContentType: "text/plain; charset=utf-8",
 			wantBodyParts:   []string{trustedDeviceRequiredDocsURL},
 			wantNoBodyPart:  "<a ",
@@ -316,7 +379,7 @@ func TestWriteTrustedDeviceRequired(t *testing.T) {
 			}
 			rec := httptest.NewRecorder()
 
-			writeTrustedDeviceRequired(rec, req, http.StatusForbidden)
+			writeTrustedDeviceRequired(rec, req, http.StatusForbidden, tc.proxyHost, tc.proxyPort)
 
 			require.Equal(t, http.StatusForbidden, rec.Code)
 			require.Equal(t, tc.wantContentType, rec.Header().Get("Content-Type"))
