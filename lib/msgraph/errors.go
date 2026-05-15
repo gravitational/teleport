@@ -33,6 +33,9 @@ type graphErrorResponse struct {
 	Error *GraphError `json:"error,omitempty"`
 }
 
+// ErrMissingDeltaLink is returned if a delta link is missing from the delta store.
+var ErrMissingDeltaLink = &trace.BadParameterError{Message: "missing delta token"}
+
 // GraphError defines the structure of errors returned from MS Graph API.
 // https://learn.microsoft.com/en-us/graph/errors#json-representation
 type GraphError struct {

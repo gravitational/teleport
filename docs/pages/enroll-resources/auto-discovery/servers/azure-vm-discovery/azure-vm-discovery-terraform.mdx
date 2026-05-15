@@ -1,0 +1,364 @@
+---
+title: Terraform Azure VM Auto-Discovery Configuration
+sidebar_label: Terraform
+description: How to configure Teleport Azure VM auto-discovery with Terraform
+tags:
+ - how-to
+ - zero-trust
+ - infrastructure-identity
+ - azure
+---
+
+This guide shows you how to use Terraform to configure Teleport and Azure to
+automatically enroll Azure virtual machines in your Teleport cluster.
+
+## How it works
+
+The [teleport-discovery-azure](../../../../reference/infrastructure-as-code/terraform-modules/teleport-discovery-azure/teleport-discovery-azure.mdx)
+Terraform module creates the Azure and Teleport cluster resources necessary to
+configure the Discovery Service to enable Teleport Azure virtual machine auto-discovery.
+
+The Teleport Discovery Service queries the Azure API to list virtual machines, matching your configured subscriptions, resource groups, and tags. For each virtual machine that it discovers, the Discovery Service uses the Azure Run Command feature to install Teleport on the instance and join it to the cluster as a Teleport-protected server.
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- Azure virtual machines running a [supported Linux distribution](../../../../installation/single-machine/linux.mdx).
+
+- An Azure subscription with permissions to create managed identities, role definitions, and role assignments. See the next step for the full permissions Terraform needs.
+
+- [Terraform v(=terraform_modules.teleport_discovery_azure.minimum_terraform_version=)+](https://learn.hashicorp.com/tutorials/terraform/install-cli).
+
+  ```code
+  $ terraform version
+  # Terraform v(=terraform_modules.teleport_discovery_azure.minimum_terraform_version=)
+  ```
+
+- (!docs/pages/includes/tctl.mdx!)
+
+## Step 1/5. Install Teleport to run the Discovery Service
+
+<Admonition type="tip">
+
+If you already have a running Discovery Service instance, then assign its
+`discovery_group` to <Var name="discovery-group-name" /> and proceed to
+[Step 3/5: Use the `teleport-discovery-azure` Terraform module](#step-35-use-the-teleport-discovery-azure-terraform-module).
+
+All Teleport Cloud clusters run the Discovery Service for you, so Teleport Cloud subscribers can also skip all of these installation steps.
+
+</Admonition>
+
+### Install Teleport
+
+If you plan on running the Discovery Service on the same host already running
+another Teleport service (Auth or Proxy, for example), then you can skip this step.
+
+Install Teleport on a host instance that will run the Discovery Service:
+
+(!docs/pages/includes/install-linux.mdx!)
+
+### Configure the Discovery Service
+
+If you are running the Discovery Service on its own host, the service requires a
+valid invite token to connect to the cluster. Generate one by running the
+following command against your Teleport Auth Service:
+
+```code
+$ tctl tokens add --type=discovery
+```
+
+Save the generated token in `/tmp/token` on the host that will run the
+Discovery Service.
+
+(!docs/pages/includes/discovery/discovery-group.mdx!)
+
+Assign <Var name="teleport.example.com:443" /> to the host and port of the
+Teleport Proxy Service in your cluster, and <Var name="discovery-group-name" />
+to a name that identifies a group of resources that you will enroll:
+
+```yaml
+# teleport.yaml
+version: v3
+teleport:
+  join_params:
+    # token_name can be a literal token string or a path to a file.
+    # File path is preferable to avoid including a secret in the config file.
+    token_name: "/tmp/token"
+    method: token
+  proxy_server: "<Var name="teleport.example.com:443" />"
+auth_service:
+  enabled: false
+proxy_service:
+  enabled: false
+ssh_service:
+  enabled: false
+discovery_service:
+  enabled: true
+  discovery_group: "<Var name="discovery-group-name" />"
+```
+
+### Start Teleport
+
+(!docs/pages/includes/start-teleport.mdx service="the Discovery Service"!)
+
+## Step 2/5. Set up an identity for discovered VMs
+
+Every Azure VM to be discovered must have an identity assigned to it: either system assigned or user assigned managed identity.
+
+(!docs/pages/includes/provision-token/azure-join-enable-identity.mdx!)
+
+## Step 3/5. Use the `teleport-discovery-azure` Terraform module
+
+### Configure AzureRM Terraform provider
+
+Configure the [AzureRM Terraform provider](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs)
+and Azure permissions for Terraform to manage Azure resources.
+
+<details>
+<summary>Azure permissions required for AzureRM Terraform provider</summary>
+
+The AzureRM Terraform provider will need the following Azure permissions
+at the scope where the `teleport-discovery-azure` module will create resources:
+
+- `Microsoft.ManagedIdentity/userAssignedIdentities/read`
+- `Microsoft.ManagedIdentity/userAssignedIdentities/write`
+- `Microsoft.ManagedIdentity/userAssignedIdentities/delete`
+- `Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials/read`
+- `Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials/write`
+- `Microsoft.ManagedIdentity/userAssignedIdentities/federatedIdentityCredentials/delete`
+- `Microsoft.Authorization/roleDefinitions/read`
+- `Microsoft.Authorization/roleDefinitions/write`
+- `Microsoft.Authorization/roleDefinitions/delete`
+- `Microsoft.Authorization/roleAssignments/read`
+- `Microsoft.Authorization/roleAssignments/write`
+- `Microsoft.Authorization/roleAssignments/delete`
+
+</details>
+
+### Configure Teleport Terraform provider
+
+There are several ways to configure the Teleport Terraform provider depending on how you intend to run Terraform, for example in CI, Spacelift, or some other remote environment, but for a quick start, see the [Local Demo](../../../../zero-trust-access/infrastructure-as-code/terraform-provider/local.mdx) guide.
+
+The local demo guide walks through configuring the Teleport Terraform provider with local Teleport credentials, which typically requires logging in with `tsh` and running a `tctl` command from the same shell that you use to run `terraform` commands:
+
+```code
+$ tsh login
+$ eval "$(tctl terraform env)"
+```
+
+If you are running Terraform in a remote environment, such as a cloud VM, an on-prem server, or CI/CD pipelines, refer to [Using the Teleport Terraform Provider](../../../../zero-trust-access/infrastructure-as-code/terraform-provider/terraform-provider.mdx) to find the appropriate guide for your use case.
+
+### Configure the Terraform module inputs
+
+Add the `teleport-discovery-azure` module to your Terraform configuration.
+
+<Tabs>
+
+<TabItem label="Teleport Cloud">
+```hcl
+module "azure_discovery" {
+  source  = "terraform.releases.teleport.dev/teleport/discovery/azure"
+  version = "~> (=cloud.major_version=).0"
+
+  # Required inputs:
+  # Assign <Var name="example.teleport.sh:443" /> to your Teleport cluster's proxy public address in host:port form.
+  teleport_proxy_public_addr    = "<Var name="example.teleport.sh:443" />"
+  # teleport_discovery_group_name must match the discovery group name in your Discovery Service config.
+  # Teleport Cloud clusters run the Discovery Service in the group name "cloud-discovery-group".
+  # Do not modify this input unless you intend to run your own Discovery Service.
+  teleport_discovery_group_name = "cloud-discovery-group"
+
+  # Name of an existing Azure Resource Group where Azure resources will be created.
+  azure_resource_group_name       = "<Var name="my-resource-group" />"
+  # Azure region where the managed identity used by the Discovery Service will be created.
+  azure_managed_identity_location = "<Var name="eastus" />"
+
+  # Matchers configure which Azure resources the Discovery Service will discover and enroll into Teleport.
+  azure_matchers = [
+    {
+      types = ["vm"]
+      # subscriptions filters which Azure subscriptions are scanned for VMs.
+      subscriptions = ["<Var name="subscription-id" />"]
+      # resource_groups filters which resource groups are scanned. The wildcard matches all resource groups.
+      resource_groups = ["*"]
+      # regions filters which Azure regions are scanned. The wildcard matches all regions.
+      regions = ["*"]
+      # tags filter which VMs are enrolled. The wildcard matches all tags.
+      tags = { "*" : ["*"] }
+    }
+  ]
+
+  # Optional inputs:
+  # Apply the additional Azure tag "origin=example" to all Azure resources created by this module
+  apply_azure_tags               = { origin = "example" }
+  # Apply the additional Teleport label "origin=example" to all Teleport resources created by this module
+  apply_teleport_resource_labels = { origin = "example" }
+}
+```
+</TabItem>
+
+<TabItem label="Self-Hosted">
+```hcl
+module "azure_discovery" {
+  source  = "terraform.releases.teleport.dev/teleport/discovery/azure"
+  version = "~> (=teleport.major_version=).0"
+
+  # Required inputs:
+  # Edit this input to the host and port of the Teleport Proxy Service in your cluster
+  teleport_proxy_public_addr    = "<Var name="teleport.example.com:443" />"
+  # Assign <Var name="discovery-group-name" /> to the discovery group name in your Discovery Service config file.
+  teleport_discovery_group_name = "<Var name="discovery-group-name" />"
+
+  # Name of an existing Azure Resource Group where Azure resources will be created.
+  azure_resource_group_name       = "<Var name="my-resource-group" />"
+  # Azure region where the managed identity used by the Discovery Service will be created.
+  azure_managed_identity_location = "<Var name="eastus" />"
+
+  # Matchers to configure the Discovery Service; used to discover and enroll Azure resources into Teleport.
+  azure_matchers = [
+    {
+      types = ["vm"]
+      # subscriptions filters which Azure subscriptions are scanned for VMs.
+      subscriptions = ["<Var name="subscription-id" />"]
+      # resource_groups filters which resource groups are scanned. The wildcard matches all resource groups.
+      resource_groups = ["*"]
+      # regions filters which Azure regions are scanned. The wildcard matches all regions.
+      regions = ["*"]
+      # tags filter which VMs are enrolled. The wildcard matches all tags.
+      tags = { "*" : ["*"] }
+    }
+  ]
+
+  # Optional inputs:
+  # Apply the additional Azure tag "origin=example" to all Azure resources created by this module
+  apply_azure_tags               = { origin = "example" }
+  # Apply the additional Teleport label "origin=example" to all Teleport resources created by this module
+  apply_teleport_resource_labels = { origin = "example" }
+}
+```
+</TabItem>
+
+{/*
+TODO(alexhemard): add instructions for the scenario where a self-hosted Teleport cluster cannot be reached on the public internet. The module supports disabling the integration with `use_oidc_integration = false` for this use case.
+*/}
+
+</Tabs>
+
+Add a Terraform output for the module so that Terraform will display its
+outputs:
+
+```hcl
+output "azure_discovery" {
+  value = module.azure_discovery
+}
+```
+
+See the [teleport-discovery-azure
+reference](../../../../reference/infrastructure-as-code/terraform-modules/teleport-discovery-azure/teleport-discovery-azure.mdx)
+for a complete description of the module inputs and outputs.
+
+## Step 4/5. Apply the Terraform module
+
+```code
+$ terraform init
+$ terraform apply
+```
+
+Terraform should plan to create the following resources:
+
+- Azure user-assigned managed identity for the Teleport Discovery Service
+- Azure federated identity credential for OIDC workload identity federation
+- Azure custom role definition with the required VM discovery permissions
+- Azure role assignment scoped to the configured subscription(s)
+- Teleport `discovery_config` cluster resource that configures Teleport for Azure resource discovery
+- Teleport `integration` cluster resource for Azure OIDC
+- Teleport `token` cluster resource that allows Teleport nodes to join the cluster using Azure credentials
+
+Review the Terraform plan and confirm the plan actions.
+
+After Terraform finishes applying the plan, it should display the module
+outputs:
+
+```
+azure_discovery = {
+  "teleport_discovery_config_name"            = "discovery-abcd0123"
+  "teleport_integration_name"                 = "discovery-abcd0123"
+  "teleport_provision_token_name"             = "discovery-abcd0123"
+  "azure_discovery_role_definition"           = { ... }
+  "azure_teleport_discovery_managed_identity" = { ... }
+}
+```
+
+The Azure resources should have the following tags:
+
+- `origin=example`
+- `TeleportCluster=<cluster-name>`
+- `TeleportIntegration=discovery-abcd0123`
+- `TeleportIACTool=terraform`
+
+The Teleport resources should have the following labels:
+
+- `origin=example`
+- `teleport.dev/iac-tool=terraform`
+
+## Step 5/5. Check discovery status
+
+After applying the Terraform module, the Teleport Discovery Service should start to discover Azure VM instances and enroll them in your cluster as protected resources.
+
+<Admonition type="note">
+
+It may take a few minutes for virtual machines to be discovered and enrolled.
+
+</Admonition>
+
+Navigate to the Teleport Web UI and select `Zero Trust Access > Integrations`.
+By default, the integration created by the `teleport-discovery-azure` Terraform module is named `discovery-<random>`.
+
+Click on the integration to review the discovery status.
+
+The integration page provides an overview of how many virtual machines have
+been discovered and any issues encountered during the discovery process.
+
+{/*
+TODO(alexhemard): add examples of Unhealthy Discovery integration / Run Command issues
+*/}
+
+## Updating module configuration
+
+The module inputs can be changed and re-applied to adjust the Azure discovery integration.
+
+For example, if you had previously used specific Azure regions (rather than the wildcard default for all regions), then you can adjust `regions` in the Azure matcher to include additional regions for Azure discovery and re-apply the module to start enrolling instances in those regions as well.
+
+```diff
+ azure_matchers = [
+   {
+     types           = ["vm"]
+     subscriptions   = ["<Var name="subscription-id" />"]
+     resource_groups = ["*"]
+-    regions         = ["eastus"]
++    regions         = ["eastus", "westus"]
+     tags            = { "*" : ["*"] }
+   }
+ ]
+```
+
+Apply Terraform again:
+
+```code
+$ terraform apply
+```
+
+Review the Terraform plan before confirming the changes.
+
+After Terraform finishes applying its plan, the Discovery Service will pick up
+the change to the dynamic `discovery_config` and begin to enroll VMs in the
+newly-configured regions.
+
+## Troubleshooting
+
+(!docs/pages/includes/auto-discovery/azure-vm-troubleshooting.mdx!)
+
+## Next steps
+
+(!docs/pages/includes/auto-discovery/azure-vm-next-steps.mdx!)

@@ -56,7 +56,7 @@ func (f *fakeConn) AddMessage(message tdp.Message) error {
 
 func TestClientNew_EOF(t *testing.T) {
 	f := fakeConn{}
-	conn := tdp.NewConn(&f, tdp.DecoderAdapter(tdpb.DecodePermissive))
+	conn := tdp.NewConn(&f, tdp.DecoderAdapter(tdpb.DecodePermissive), tdpb.WarningConstructor)
 
 	_, _, err := PrepareConnecton(tdpb.ProtocolName, conn, slog.New(slog.DiscardHandler))
 	require.ErrorIs(t, err, io.EOF)
@@ -67,7 +67,7 @@ func TestClientNew_NoKeyboardLayout(t *testing.T) {
 	err := f.AddMessage(&tdpb.ClientHello{Username: "user"})
 	require.NoError(t, err)
 
-	conn := tdp.NewConn(&f, tdp.DecoderAdapter(tdpb.DecodePermissive))
+	conn := tdp.NewConn(&f, tdp.DecoderAdapter(tdpb.DecodePermissive), tdpb.WarningConstructor)
 
 	wrappedConn, hello, err := PrepareConnecton(tdpb.ProtocolName, conn, slog.New(slog.DiscardHandler))
 	require.NoError(t, err)
@@ -81,7 +81,7 @@ func TestClientNew_KeyboardLayout(t *testing.T) {
 	err := f.AddMessage(&tdpb.ClientHello{Username: "user", KeyboardLayout: 1})
 	require.NoError(t, err)
 
-	conn := tdp.NewConn(&f, tdp.DecoderAdapter(tdpb.DecodePermissive))
+	conn := tdp.NewConn(&f, tdp.DecoderAdapter(tdpb.DecodePermissive), tdpb.WarningConstructor)
 	wrappedConn, hello, err := PrepareConnecton(tdpb.ProtocolName, conn, slog.New(slog.DiscardHandler))
 	require.NoError(t, err)
 

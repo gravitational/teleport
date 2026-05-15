@@ -201,8 +201,10 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				},
 			},
 			wantResult: &ValidationResult{
-				Type:     types.KubernetesJoinTypeInCluster,
-				Username: "system:serviceaccount:namespace:my-service-account",
+				Type:                    types.KubernetesJoinTypeInCluster,
+				Username:                "system:serviceaccount:namespace:my-service-account",
+				ServiceAccountNamespace: "namespace",
+				ServiceAccountName:      "my-service-account",
 				// Raw will be filled in during test run to value of review
 			},
 			wantAttrs: &workloadidentityv1pb.JoinAttrsKubernetes{
@@ -241,8 +243,10 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				},
 			},
 			wantResult: &ValidationResult{
-				Type:     types.KubernetesJoinTypeInCluster,
-				Username: "system:serviceaccount:namespace:my-service-account",
+				Type:                    types.KubernetesJoinTypeInCluster,
+				Username:                "system:serviceaccount:namespace:my-service-account",
+				ServiceAccountNamespace: "namespace",
+				ServiceAccountName:      "my-service-account",
 				// Raw will be filled in during test run to value of review
 			},
 			wantAttrs: &workloadidentityv1pb.JoinAttrsKubernetes{
@@ -278,8 +282,10 @@ func TestIDTokenValidator_Validate(t *testing.T) {
 				},
 			},
 			wantResult: &ValidationResult{
-				Type:     types.KubernetesJoinTypeInCluster,
-				Username: "system:serviceaccount:namespace:my-service-account",
+				Type:                    types.KubernetesJoinTypeInCluster,
+				Username:                "system:serviceaccount:namespace:my-service-account",
+				ServiceAccountNamespace: "namespace",
+				ServiceAccountName:      "my-service-account",
 				// Raw will be filled in during test run to value of review
 			},
 			wantAttrs: &workloadidentityv1pb.JoinAttrsKubernetes{
@@ -504,8 +510,10 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 				Kubernetes: validKubeSubclaim,
 			},
 			wantResult: &ValidationResult{
-				Type:     types.KubernetesJoinTypeStaticJWKS,
-				Username: "system:serviceaccount:default:my-service-account",
+				Type:                    types.KubernetesJoinTypeStaticJWKS,
+				Username:                "system:serviceaccount:default:my-service-account",
+				ServiceAccountNamespace: "default",
+				ServiceAccountName:      "my-service-account",
 			},
 			wantAttrs: &workloadidentityv1pb.JoinAttrsKubernetes{
 				Subject: "system:serviceaccount:default:my-service-account",
@@ -743,6 +751,8 @@ func TestValidateTokenWithOIDC(t *testing.T) {
 					},
 					Kubernetes: k8sClaim,
 				},
+				ServiceAccountName:      "example",
+				ServiceAccountNamespace: "default",
 			},
 		},
 		{
