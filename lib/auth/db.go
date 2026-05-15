@@ -299,19 +299,7 @@ func (a *Server) getDatabaseCACerts(ctx context.Context, id types.CertAuthID) (c
 
 	// At least one active override exists, so we'll need to parse the certs and
 	// prioritize the overrides over the self-signed.
-	publicKeyToPEM := make(map[string][]byte)
-	for i, kp := range ca.GetTrustedTLSKeyPairs() {
-		if len(kp.Cert) == 0 {
-			continue
-		}
-		cert, err := tlsca.ParseCertificatePEM(kp.Cert)
-		if err != nil {
-			return nil, trace.Wrap(err, "parse CA certificate (index %d)", i)
-		}
-		pkh := subca.HashCertificatePublicKey(cert)
-		publicKeyToPEM[pkh] = kp.Cert
-	}
-
+	overridePublicKeyToPEM := make(map[string][]byte)
 	parsedCAOverride, err := subca.ParseCAOverride(caOverride)
 	if err != nil {
 		return nil, trace.Wrap(err, "parse CA override")
@@ -320,17 +308,29 @@ func (a *Server) getDatabaseCACerts(ctx context.Context, id types.CertAuthID) (c
 		if co.CertificateOverride.GetDisabled() || co.Certificate == nil {
 			continue
 		}
-		if _, ok := publicKeyToPEM[co.PublicKey]; !ok {
-			// Ignore override, it targets an unknown/deleted CA certificate.
-			continue
-		}
-		publicKeyToPEM[co.PublicKey] = []byte(co.CertificateOverride.Certificate)
+		overridePublicKeyToPEM[co.PublicKey] = []byte(co.CertificateOverride.Certificate)
 	}
 
-	certPEMs = make([][]byte, 0, len(publicKeyToPEM))
-	for _, certPEM := range publicKeyToPEM {
-		certPEMs = append(certPEMs, certPEM)
+	trustedKPs := ca.GetTrustedTLSKeyPairs()
+	certPEMs = make([][]byte, 0, len(overridePublicKeyToPEM))
+	for i, kp := range trustedKPs {
+		if len(kp.Cert) == 0 {
+			continue
+		}
+		cert, err := tlsca.ParseCertificatePEM(kp.Cert)
+		if err != nil {
+			return nil, trace.Wrap(err, "parse CA certificate (index %d)", i)
+		}
+		pkh := subca.HashCertificatePublicKey(cert)
+
+		// Use override certificate if applicable, otherwise use the CA.
+		if pem, ok := overridePublicKeyToPEM[pkh]; ok {
+			certPEMs = append(certPEMs, pem)
+			continue
+		}
+		certPEMs = append(certPEMs, kp.Cert)
 	}
+
 	return certPEMs, nil
 }
 

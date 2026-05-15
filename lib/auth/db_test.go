@@ -24,7 +24,6 @@ import (
 	"crypto/x509/pkix"
 	"encoding/asn1"
 	"log/slog"
-	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -326,11 +325,7 @@ func TestDBCertSigning(t *testing.T) {
 			require.NoError(t, err)
 
 			// Verify CA certs.
-			gotCAs := certResp.CACerts
-			wantCAs := slices.Clone(tt.wantCACerts)
-			slices.SortFunc(gotCAs, comparePEMs)
-			slices.SortFunc(wantCAs, comparePEMs)
-			if diff := cmp.Diff(wantCAs, gotCAs); diff != "" {
+			if diff := cmp.Diff(tt.wantCACerts, certResp.CACerts); diff != "" {
 				t.Errorf("resp.CACerts mismatch (-want +got)\n%s", diff)
 			}
 
