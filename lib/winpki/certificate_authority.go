@@ -157,7 +157,7 @@ func (c *CertificateStoreClient) updateCAOverrideCRLs(ctx context.Context, tc *t
 	})
 	if trace.IsNotFound(err) || trace.IsNotImplemented(err) {
 		// - NotFound: Overrides are optional.
-		// - NotImplemented: Running against OSS Teleport.
+		// - NotImplemented: Running against OSS Teleport or an older control plane.
 		return nil
 	}
 	if err != nil {

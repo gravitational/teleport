@@ -1610,10 +1610,7 @@ func runCAWatcherLoop(
 					return trace.Wrap(err)
 				}
 				if !confirmedCAOverrides {
-					eLog.DebugContext(ctx, ""+
-						"WatchStatus did not confirm CA overrides. Overrides are not watched. "+
-						"This is expected if the agent is connected to a non-Enterprise control plane.",
-					)
+					eLog.DebugContext(ctx, "WatchStatus did not confirm CA overrides. Overrides are not watched. This is expected if the agent is connected to a non-Enterprise control plane or a control plane that does not support CA overrides.")
 					// Important: "Teleport OSS" here means, specifically, the Auth Server.
 					// An OSS Desktop Service can be paired with an Ent Auth, so checking
 					// the current binary build won't work.
