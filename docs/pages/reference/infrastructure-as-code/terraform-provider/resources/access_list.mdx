@@ -63,6 +63,7 @@ resource "teleport_access_list" "crane-operation" {
 ### Optional
 
 - `header` (Attributes) header is the header for the resource. (see [below for nested schema](#nested-schema-for-header))
+- `scope` (String) scope is the scope of the Access List.
 - `spec` (Attributes) spec is the specification for the Access List. (see [below for nested schema](#nested-schema-for-spec))
 
 ### Nested Schema for `header`
@@ -115,8 +116,8 @@ Optional:
 Optional:
 
 - `description` (String) description is the plaintext description of the owner and why they are an owner.
-- `membership_kind` (Number) membership_kind describes the type of membership, either `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.
-- `name` (String) name is the username of the owner.
+- `membership_kind` (Number) membership_kind describes the type of membership, either `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST` or `MEMBERSHIP_KIND_SCOPED_LIST`.
+- `name` (String) name is the name of the owner, depending on MembershipKind: MEMBERSHIP_KIND_USER: the username of the owner. MEMBERSHIP_KIND_LIST: the name of the owner Access List. MEMBERSHIP_KIND_SCOPED_LIST: the scope-qualified name of the owner Access List.
 
 
 ### Nested Schema for `spec.audit`
@@ -155,8 +156,8 @@ Optional:
 
 Optional:
 
-- `role` (String) role is the name of the scoped role to be granted.
-- `scope` (String) scope is the scope the role will be assigned at. It must be an assignable scope of the role.
+- `role` (String) role is scope-qualified name of the scoped role to be granted.
+- `scope` (String) scope is the scope the role will be granted at. It must be an assignable scope of the role.
 
 
 ### Nested Schema for `spec.grants.traits`
@@ -196,8 +197,8 @@ Optional:
 
 Optional:
 
-- `role` (String) role is the name of the scoped role to be granted.
-- `scope` (String) scope is the scope the role will be assigned at. It must be an assignable scope of the role.
+- `role` (String) role is scope-qualified name of the scoped role to be granted.
+- `scope` (String) scope is the scope the role will be granted at. It must be an assignable scope of the role.
 
 
 ### Nested Schema for `spec.owner_grants.traits`
