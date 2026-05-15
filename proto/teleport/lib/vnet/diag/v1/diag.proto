@@ -109,6 +109,9 @@ message CheckReport {
     RouteConflictReport route_conflict_report = 2;
     // ssh_configuration_report reports the status of the system's SSH configuration.
     SSHConfigurationReport ssh_configuration_report = 3;
+    // dns_report reports whether the system resolver routes queries for each VNet-managed DNS zone
+    // to VNet's nameserver.
+    DNSReport dns_report = 4;
   }
 }
 
@@ -159,6 +162,63 @@ message RouteConflict {
   // the output of `ifconfig -v <interface name>`. Not all VPN applications use this framework, so
   // it's likely to be empty.
   string interface_app = 4;
+}
+
+// DNSReport describes whether the system resolver routes DNS queries for VNet-managed zones to
+// VNet's nameserver. It is the output of DNSDiag.
+//
+// The check uses a probe hostname of the form vnet-diag-<random>.<zone>. VNet's nameserver
+// short-circuits any query with this prefix and answers with an address derived from its IPv6
+// prefix, an address no other resolver can produce. The random label prevents DNS caches.
+//
+// The check first queries the probe directly against VNet's nameserver IP to confirm VNet's DNS
+// server is reachable and to capture the expected response. If that fails, vnet_dns_reachable is
+// false, vnet_dns_unreachable_error stores the error, and zone_results is empty. Otherwise, the
+// check runs the same probe query per zone through the system resolver and compares each answer to
+// the expected response. A mismatch means the per-zone OS resolver entry does not route to VNet.
+message DNSReport {
+  // vnet_dns_reachable is true if a direct DNS query to VNet's nameserver IP succeeded.
+  bool vnet_dns_reachable = 1;
+  // vnet_dns_unreachable_error is set when vnet_dns_reachable is false.
+  string vnet_dns_unreachable_error = 2;
+  // zone_results contains one entry per zone in NetworkStack.dns_zones. Empty if
+  // vnet_dns_reachable is false.
+  repeated DNSZoneResult zone_results = 3;
+}
+
+// DNSZoneResult describes the outcome of querying a probe hostname under a single VNet-managed
+// DNS zone through the system resolver.
+message DNSZoneResult {
+  // zone is the DNS zone that was tested, e.g. "company.test".
+  string zone = 1;
+  // status describes the outcome of the query.
+  DNSZoneStatus status = 2;
+  // observed_ip is the IP returned by the system resolver for the probe hostname. Empty on
+  // timeout or no answer.
+  string observed_ip = 3;
+  // expected_ip is the IP that VNet's nameserver returned for the same probe hostname when
+  // queried directly.
+  string expected_ip = 4;
+  // error is set on DNS_ZONE_STATUS_TIMEOUT and DNS_ZONE_STATUS_RESOLVER_ERROR.
+  string error = 5;
+}
+
+// DNSZoneStatus is the outcome of querying a probe hostname for a single DNS zone.
+enum DNSZoneStatus {
+  DNS_ZONE_STATUS_UNSPECIFIED = 0;
+  // DNS_ZONE_STATUS_OK indicates the system resolver returned the IP we expected from VNet's
+  // nameserver, so per-zone routing works.
+  DNS_ZONE_STATUS_OK = 1;
+  // DNS_ZONE_STATUS_HIJACKED indicates the system resolver returned an IP, but not the one VNet
+  // returned. Some other resolver answered for this zone.
+  DNS_ZONE_STATUS_HIJACKED = 2;
+  // DNS_ZONE_STATUS_NOT_REGISTERED indicates the system resolver returned NXDOMAIN or SERVFAIL.
+  DNS_ZONE_STATUS_NOT_REGISTERED = 3;
+  // DNS_ZONE_STATUS_TIMEOUT indicates the system resolver query timed out, likely because it
+  // was routed to a nameserver that is unreachable.
+  DNS_ZONE_STATUS_TIMEOUT = 4;
+  // DNS_ZONE_STATUS_RESOLVER_ERROR indicates an unexpected error from the system resolver.
+  DNS_ZONE_STATUS_RESOLVER_ERROR = 5;
 }
 
 // SSHConfigurationReport describes the state of the system's SSH configuration.
