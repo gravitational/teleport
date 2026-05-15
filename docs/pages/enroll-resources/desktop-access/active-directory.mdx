@@ -714,6 +714,30 @@ To connect to a Windows desktop:
 
    To view the recording, select **Audit** in the Teleport Web UI, then click **Session Recordings** in the menu.
 
+## Configure Users and Groups to login through remote desktop services
+In order for users to login through remote desktop services, they must be granted the
+appropriate user rights, and they must be added to the 'Remote Desktop Users' AD group.
+
+### Grant access through remote desktop
+
+1. Open the `Teleport Access Policy` group policy object in the
+   group policy editor.
+1. Expand **`Computer Configuration > Policies > Windows Settings > Security Settings > Local Policies > User Rights Assignment`**
+1. Double-click  **Allow logon through remote desktop services**
+1. Under **Security Policy Setting** click **Add User Or Group** then click **Browse**.
+1. (Optional) Click **Locations** and select the domain for which you wish to grant logon access to users/groups.
+1. Type in the names of the users and/or groups for which you wish to grant access to desktops in this domain and click **Check Names** to validate.
+1. Click **OK** and then **Apply**
+
+### Add users/groups to the 'Remote Desktop Users' AD group
+
+1. Open **Active Directory Users and Computers** 
+1. Navigate to **`$YOUR_DOMAIN -> Builtin`** and double-click **Remote Desktop Users**
+1. Select the **Members** tab and click **Add**
+1. (Optional) Click **Locations** and select the domain for which you wish to grant logon access to users/groups.
+1. Type in the names of the users and/or groups for which you wish to grant access to desktops in this domain and click **Check Names** to validate.
+1. Click **OK** and then **Apply**
+
 ## LDAP Discovery
 
 In Active Directory environments, Teleport can be configured to discover hosts
@@ -851,6 +875,78 @@ domain, you would do the following:
 With this configuration, Teleport will generate certificates for users in
 `dev.example.com`, but it will publish its CA and CRLs to `example.com`.
 
+
+## Cross-Domain Login
+
+As of Teleport v18.8, Windows Desktop Service supports logins for users outside of a given `windows_desktop_service`
+instance's configured domain so long as there is an outgoing trust relationship from the primary (Teleport configured)
+domain to user's domain. For example, if Windows Desktop Service is configured against the root domain
+`example.com` and there exists child domain, `dev.example.com`, Teleport can authenticate the user
+`user@dev.example.com` for logon to a desktop in the root domain. Similarly, if `example.com` has an outgoing
+trust relationship to an external domain `partner.com`, then `user@partner.com` can access desktops in `example.com`.
+
+### Configure permissions for users from foreign domains
+
+In order for users from foreign domains to login to desktops in the target domain, they must be granted
+the appropriate user rights and must be added to the "Remote Desktop Users" group in Active Directory.
+Follow the steps covered in the previous section ["Configure Users and Groups to login through remote desktop services"](#configure-users-and-groups-to-login-through-remote-desktop-services)
+to grant appropriate permissions to foreign users and groups.
+
+
+### Teleport Configuration for Cross-Domain Login
+
+If the user belongs to another domain within the same forest of the Teleport configured domain,
+LDAPS authentication works without further configuration because user's domain is enrolled in
+the same forest-wide PKI hierarchy as the root domain. This is not the case for users belonging
+to a domain in another forest.
+
+In order to authenticate users from another forest, you must run the following steps for the domain controller(s)
+in the external forest:
+- [Export the Teleport Certificate](#export-the-teleport-certificate)
+- [Publish the Teleport CA to the Active Directory domain](#publish-the-teleport-ca-to-the-active-directory-domain)
+- [Publish the Teleport CA to the NTAuth Store](#publish-the-teleport-ca-to-the-ntauth-store)
+
+Additionally, repeat the ["Export your LDAP CA Certificate"](#step-57-export-your-ldap-ca-certificate) step for the domain in
+the external forest. Multiple CA certificates can be written to the `ldap_ca_cert` configuration field for the Teleport LDAPS client to trust.
+
+  ```yaml
+  windows_desktop_service:
+    enabled: true
+    
+    ldap:
+      addr: example.com:636
+      username: 'DEV\svc-teleport'
+
+      insecure_skip_verify: false
+      # configure Teleport to trust multiple LDAP servers
+      ldap_ca_cert: |
+         -----BEGIN CERTIFICATE-----
+         ... LDAPS cert for example.com ...
+         -----END CERTIFICATE-----
+         -----BEGIN CERTIFICATE-----
+         ... LDAPS cert for partner.com ...
+         -----END CERTIFICATE-----
+```
+
+By default, Windows Desktop Service assumes that users belong to the domain specified by the
+`windows_desktop_service.ldap.domain` field in the service config. In order to login as a user from another
+domain, the user's full UPN must be specified (e.g., `jsmith@dev.example.com`) in the `windows_desktop_logins`
+section of the role that provides access to windows desktops.
+
+   ```yaml
+   kind: role
+   version: v5
+   metadata:
+     name: windows-desktop-admins
+   spec:
+     allow:
+       windows_desktop_labels:
+         "*": "*"
+       windows_desktop_logins: ["jsmith", "jsmith@dev.example.com", "jsmith@partner.com"]
+   ```
+
+
+
 ## Network Level Authentication (NLA)
 
 With Teleport 16.2.0 and later, you can configure `windows_desktop_service` to
@@ -934,6 +1030,8 @@ Environment="TELEPORT_ENABLE_RDP_NLA=yes"
 Note that NLA is only supported when connecting to hosts that are part of an
 Active Directory domain. Teleport will not perform NLA when connecting to hosts
 as a local Windows user.
+
+NLA is not supported for cross-domain logins.
 
 NLA is not supported when Teleport runs in FIPS mode.
 
