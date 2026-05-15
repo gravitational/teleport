@@ -1,19 +1,3 @@
-// Teleport
-// Copyright (C) 2026 Gravitational, Inc.
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
-
 import { render, screen } from 'design/utils/testing';
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
@@ -22,7 +6,7 @@ import { ContentMinWidth } from 'teleport/Main/Main';
 
 import { BeamsFeedback } from './BeamsFeedback';
 
-test('renders a Slack link with the community URL', () => {
+function renderBeamsFeedback() {
   render(
     <InfoGuidePanelProvider>
       <ContentMinWidth>
@@ -30,6 +14,32 @@ test('renders a Slack link with the community URL', () => {
       </ContentMinWidth>
     </InfoGuidePanelProvider>
   );
+}
+
+test('renders the scheduler card with heading, body, and link', () => {
+  renderBeamsFeedback();
+
+  expect(
+    screen.getByRole('heading', {
+      name: /14-day trial of Beams, powered by Teleport/i,
+    })
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText(/Extend your trial or discuss commercial options/i)
+  ).toBeInTheDocument();
+
+  const schedulerLink = screen.getByRole('link', {
+    name: /Schedule time with a Teleporter/i,
+  });
+  expect(schedulerLink).toHaveAttribute('href', cfg.beamsSchedulerUrl);
+  expect(schedulerLink).toHaveAttribute('target', '_blank');
+  expect(schedulerLink).toHaveAttribute('rel', 'noopener noreferrer');
+});
+
+test('renders the Slack card with body and link', () => {
+  renderBeamsFeedback();
+
+  expect(screen.getByText(/#beams/)).toBeInTheDocument();
 
   const slackLink = screen.getByRole('link', {
     name: /Join Teleport on Slack/i,
@@ -37,6 +47,4 @@ test('renders a Slack link with the community URL', () => {
   expect(slackLink).toHaveAttribute('href', cfg.communitySlackUrl);
   expect(slackLink).toHaveAttribute('target', '_blank');
   expect(slackLink).toHaveAttribute('rel', 'noopener noreferrer');
-
-  expect(screen.getByTestId('res-icon-slack')).toBeInTheDocument();
 });

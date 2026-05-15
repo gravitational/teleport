@@ -128,6 +128,8 @@ const cfg = {
 
   // External links
   communitySlackUrl: 'https://goteleport.com/community-slack/',
+  beamsSchedulerUrl:
+    'https://scheduler.zoom.us/d/oo1y6hyo/meet-with-the-beams-team',
 
   api: {
     // TODO(kimlisa): move accessListXXX to the "accessList" object.

@@ -1,63 +1,108 @@
-// Teleport
-// Copyright (C) 2026 Gravitational, Inc.
-//
-// This program is free software: you can redistribute it and/or modify
-// it under the terms of the GNU Affero General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-//
-// This program is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU Affero General Public License for more details.
-//
-// You should have received a copy of the GNU Affero General Public License
-// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+import { ReactNode } from 'react';
 
-import { ButtonSecondary, ResourceIcon, Stack, Text } from 'design';
-import { NewTab } from 'design/Icon';
+import {
+  ButtonPrimary,
+  ButtonSecondary,
+  Flex,
+  H1,
+  H2,
+  ResourceIcon,
+  Stack,
+  Text,
+} from 'design';
+import { Bell, NewTab } from 'design/Icon';
 
 import cfg from 'e-teleport/config';
-import {
-  FeatureBox,
-  FeatureHeader,
-  FeatureHeaderTitle,
-} from 'teleport/components/Layout/Layout';
+import { FeatureBox } from 'teleport/components/Layout/Layout';
 import { useNoMinWidth } from 'teleport/Main';
 
 import { BeamsCard } from './components';
 
 const PAGE_MAX_WIDTH = 800;
-const SLACK_ICON_WIDTH = '56px';
+const CALLOUT_ICON_SIZE = 32;
+
+type Callout = {
+  icon: ReactNode;
+  heading?: ReactNode;
+  body: ReactNode;
+  cta: {
+    label: string;
+    href: string;
+    variant: 'primary' | 'secondary';
+  };
+};
+
+const callouts: Callout[] = [
+  {
+    icon: <Bell size={CALLOUT_ICON_SIZE} />,
+    heading: (
+      <H2>You&apos;re on the 14-day trial of Beams, powered by Teleport.</H2>
+    ),
+    body: 'Extend your trial or discuss commercial options by setting up time with our team.',
+    cta: {
+      label: 'Schedule time with a Teleporter',
+      href: cfg.beamsSchedulerUrl,
+      variant: 'primary',
+    },
+  },
+  {
+    icon: <ResourceIcon name="slack" width={`${CALLOUT_ICON_SIZE}px`} />,
+    body: (
+      <>
+        Share feedback at <strong>#beams</strong> in the Teleport Community
+        Slack.
+      </>
+    ),
+    cta: {
+      label: 'Join Teleport on Slack',
+      href: cfg.communitySlackUrl,
+      variant: 'secondary',
+    },
+  },
+];
 
 export function BeamsFeedback() {
   useNoMinWidth();
 
   return (
     <FeatureBox>
-      <FeatureHeader>
-        <FeatureHeaderTitle>Feedback</FeatureHeaderTitle>
-      </FeatureHeader>
-      <BeamsCard maxWidth={PAGE_MAX_WIDTH} mx="auto" width="100%">
-        <Stack alignItems="center" gap={4}>
-          <ResourceIcon name="slack" width={SLACK_ICON_WIDTH} />
-          <Text typography="body1" textAlign="center">
-            Share feedback at <strong>#beams</strong> in the Teleport Community
-            Slack.
-          </Text>
-          <ButtonSecondary
-            as="a"
-            href={cfg.communitySlackUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label="Join Teleport on Slack (opens in a new tab)"
-            gap={2}
-          >
-            Join Teleport on Slack
-            <NewTab size="small" />
-          </ButtonSecondary>
-        </Stack>
-      </BeamsCard>
+      <Flex
+        flexDirection="column"
+        maxWidth={PAGE_MAX_WIDTH}
+        mx="auto"
+        width="100%"
+        gap={3}
+      >
+        <H1 mt={5} mb={2}>
+          Feedback
+        </H1>
+        {callouts.map(({ icon, heading, body, cta }) => {
+          const Button =
+            cta.variant === 'primary' ? ButtonPrimary : ButtonSecondary;
+          return (
+            <BeamsCard key={cta.href}>
+              <Stack alignItems="center" gap={4}>
+                {icon}
+                {heading}
+                <Text typography="body1" textAlign="center">
+                  {body}
+                </Text>
+                <Button
+                  as="a"
+                  href={cta.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`${cta.label} (opens in a new tab)`}
+                  gap={2}
+                >
+                  {cta.label}
+                  <NewTab size="small" />
+                </Button>
+              </Stack>
+            </BeamsCard>
+          );
+        })}
+      </Flex>
     </FeatureBox>
   );
 }
