@@ -207,3 +207,12 @@ func (c *Client) UpsertOktaAssignment(ctx context.Context, assignment types.Okta
 	}
 	return resp.GetAssignment(), trace.Wrap(err)
 }
+
+func (c *Client) TriggerSync(ctx context.Context, pluginName string) (string, error) {
+	if pluginName == "" {
+		return "", trace.BadParameter("plugin name must not be empty")
+	}
+
+	resp, err := c.grpcClient.TriggerSync(ctx, &oktapb.TriggerSyncRequest{PluginName: pluginName})
+	return resp.GetRequestId(), trace.Wrap(err)
+}

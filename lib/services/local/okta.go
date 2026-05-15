@@ -22,6 +22,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
@@ -37,11 +38,13 @@ const (
 	oktaImportRuleMaxPageSize = 200
 	oktaAssignmentPrefix      = "okta_assignment"
 	oktaAssignmentMaxPageSize = 200
+	oktaSyncTriggerPrefix     = "okta_sync_trigger"
 )
 
 // OktaService manages Okta resources in the Backend.
 type OktaService struct {
 	clock         clockwork.Clock
+	backend       backend.Backend
 	importRuleSvc *generic.Service[types.OktaImportRule]
 	assignmentSvc *generic.Service[types.OktaAssignment]
 }
@@ -74,6 +77,7 @@ func NewOktaService(b backend.Backend, clock clockwork.Clock) (*OktaService, err
 
 	return &OktaService{
 		clock:         clock,
+		backend:       b,
 		importRuleSvc: importRuleSvc,
 		assignmentSvc: assignmentSvc,
 	}, nil
@@ -209,4 +213,31 @@ func (o *OktaService) DeleteOktaAssignment(ctx context.Context, name string) err
 // DeleteAllOktaAssignments removes all Okta assignments.
 func (o *OktaService) DeleteAllOktaAssignments(ctx context.Context) error {
 	return o.assignmentSvc.DeleteAllResources(ctx)
+}
+
+func (o *OktaService) TriggerSync(ctx context.Context, pluginName string) (string, error) {
+	if pluginName == "" {
+		return "", trace.BadParameter("plugin name is required")
+	}
+
+	requestID := uuid.NewString()
+
+	value, err := utils.FastMarshal(services.OktaSyncTriggerRecord{
+		PluginName:  pluginName,
+		RequestID:   requestID,
+		RequestedAt: o.clock.Now(),
+	})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	_, err = o.backend.Put(ctx, backend.Item{
+		Key:   backend.NewKey(oktaSyncTriggerPrefix, pluginName),
+		Value: value,
+	})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return requestID, nil
 }

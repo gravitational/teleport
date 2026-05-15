@@ -55,6 +55,7 @@ const (
 	OktaService_UpdateIntegration_FullMethodName               = "/teleport.okta.v1.OktaService/UpdateIntegration"
 	OktaService_GetApps_FullMethodName                         = "/teleport.okta.v1.OktaService/GetApps"
 	OktaService_GetGroups_FullMethodName                       = "/teleport.okta.v1.OktaService/GetGroups"
+	OktaService_TriggerSync_FullMethodName                     = "/teleport.okta.v1.OktaService/TriggerSync"
 )
 
 // OktaServiceClient is the client API for OktaService service.
@@ -103,6 +104,8 @@ type OktaServiceClient interface {
 	GetApps(ctx context.Context, in *GetAppsRequest, opts ...grpc.CallOption) (*GetAppsResponse, error)
 	// GetGroups retrieves a list of apps from Okta based on specified filter criteria.
 	GetGroups(ctx context.Context, in *GetGroupsRequest, opts ...grpc.CallOption) (*GetGroupsResponse, error)
+	// TriggerSync requests the Okta service to trigger a sync.
+	TriggerSync(ctx context.Context, in *TriggerSyncRequest, opts ...grpc.CallOption) (*TriggerSyncResponse, error)
 }
 
 type oktaServiceClient struct {
@@ -313,6 +316,16 @@ func (c *oktaServiceClient) GetGroups(ctx context.Context, in *GetGroupsRequest,
 	return out, nil
 }
 
+func (c *oktaServiceClient) TriggerSync(ctx context.Context, in *TriggerSyncRequest, opts ...grpc.CallOption) (*TriggerSyncResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TriggerSyncResponse)
+	err := c.cc.Invoke(ctx, OktaService_TriggerSync_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // OktaServiceServer is the server API for OktaService service.
 // All implementations must embed UnimplementedOktaServiceServer
 // for forward compatibility.
@@ -359,6 +372,8 @@ type OktaServiceServer interface {
 	GetApps(context.Context, *GetAppsRequest) (*GetAppsResponse, error)
 	// GetGroups retrieves a list of apps from Okta based on specified filter criteria.
 	GetGroups(context.Context, *GetGroupsRequest) (*GetGroupsResponse, error)
+	// TriggerSync requests the Okta service to trigger a sync.
+	TriggerSync(context.Context, *TriggerSyncRequest) (*TriggerSyncResponse, error)
 	mustEmbedUnimplementedOktaServiceServer()
 }
 
@@ -428,6 +443,9 @@ func (UnimplementedOktaServiceServer) GetApps(context.Context, *GetAppsRequest) 
 }
 func (UnimplementedOktaServiceServer) GetGroups(context.Context, *GetGroupsRequest) (*GetGroupsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetGroups not implemented")
+}
+func (UnimplementedOktaServiceServer) TriggerSync(context.Context, *TriggerSyncRequest) (*TriggerSyncResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method TriggerSync not implemented")
 }
 func (UnimplementedOktaServiceServer) mustEmbedUnimplementedOktaServiceServer() {}
 func (UnimplementedOktaServiceServer) testEmbeddedByValue()                     {}
@@ -810,6 +828,24 @@ func _OktaService_GetGroups_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _OktaService_TriggerSync_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TriggerSyncRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(OktaServiceServer).TriggerSync(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: OktaService_TriggerSync_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(OktaServiceServer).TriggerSync(ctx, req.(*TriggerSyncRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // OktaService_ServiceDesc is the grpc.ServiceDesc for OktaService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -896,6 +932,10 @@ var OktaService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetGroups",
 			Handler:    _OktaService_GetGroups_Handler,
+		},
+		{
+			MethodName: "TriggerSync",
+			Handler:    _OktaService_TriggerSync_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

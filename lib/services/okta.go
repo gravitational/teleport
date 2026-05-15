@@ -30,13 +30,17 @@ import (
 )
 
 // Compile time checks for the Okta client.
-var _ OktaImportRules = (*okta.Client)(nil)
-var _ OktaAssignments = (*okta.Client)(nil)
+var (
+	_ OktaImportRules = (*okta.Client)(nil)
+	_ OktaAssignments = (*okta.Client)(nil)
+	_ OktaSyncTrigger = (*okta.Client)(nil)
+)
 
 // Okta is an Okta interface for both the rules and assignments.
 type Okta interface {
 	OktaImportRules
 	OktaAssignments
+	OktaSyncTrigger
 }
 
 // OktaImportRules defines an interface for managing OktaImportRules.
@@ -82,6 +86,16 @@ type OktaAssignments interface {
 	DeleteOktaAssignment(ctx context.Context, name string) error
 	// DeleteAllOktaAssignments removes all Okta assignments.
 	DeleteAllOktaAssignments(context.Context) error
+}
+
+type OktaSyncTrigger interface {
+	TriggerSync(ctx context.Context, pluginName string) (string, error)
+}
+
+type OktaSyncTriggerRecord struct {
+	PluginName  string    `json:"plugin_name"`
+	RequestID   string    `json:"request_id"`
+	RequestedAt time.Time `json:"requested_at"`
 }
 
 // MarshalOktaImportRule marshals the Okta import rule resource to JSON.

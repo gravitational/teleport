@@ -78,6 +78,16 @@ type pluginRotateCredsArgs struct {
 	awsic awsICRotateCredsArgs
 }
 
+type pluginSyncArgs struct {
+	cmd  *kingpin.CmdClause
+	okta oktaSyncArgs
+}
+
+type oktaSyncArgs struct {
+	cmd  *kingpin.CmdClause
+	name string
+}
+
 // PluginsCommand allows for management of plugins.
 type PluginsCommand struct {
 	config      *servicecfg.Config
@@ -88,6 +98,7 @@ type PluginsCommand struct {
 	delete      pluginDeleteArgs
 	edit        pluginEditArgs
 	rotateCreds pluginRotateCredsArgs
+	sync        pluginSyncArgs
 
 	// optional input and output buffer
 	// for tests.
@@ -116,6 +127,7 @@ func (p *PluginsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalC
 	p.initDelete(pluginsCommand)
 	p.initEdit(pluginsCommand)
 	p.initRotateCreds(pluginsCommand)
+	p.initSync(pluginsCommand)
 }
 
 func (p *PluginsCommand) initInstall(parent *kingpin.CmdClause, config *servicecfg.Config) {
@@ -230,10 +242,15 @@ type pluginsClient interface {
 	UpdatePluginStaticCredentials(ctx context.Context, in *pluginsv1.UpdatePluginStaticCredentialsRequest, opts ...grpc.CallOption) (*pluginsv1.UpdatePluginStaticCredentialsResponse, error)
 }
 
+type oktaSyncClient interface {
+	TriggerSync(ctx context.Context, name string) (string, error)
+}
+
 type pluginServices struct {
 	authClient   authClient
 	plugins      pluginsClient
 	httpProvider http.RoundTripper
+	okta         oktaSyncClient
 }
 
 // TryRun runs the plugins command
@@ -260,6 +277,8 @@ func (p *PluginsCommand) TryRun(ctx context.Context, cmd string, clientFunc comm
 		commandFunc = p.EditAWSIC
 	case p.rotateCreds.awsic.cmd.FullCommand():
 		commandFunc = p.RotateAWSICCreds
+	case p.sync.okta.cmd.FullCommand():
+		commandFunc = p.SyncOkta
 	default:
 		return false, nil
 	}
@@ -271,9 +290,36 @@ func (p *PluginsCommand) TryRun(ctx context.Context, cmd string, clientFunc comm
 		authClient:   client,
 		plugins:      client.PluginsClient(),
 		httpProvider: http.DefaultTransport,
+		okta:         client.OktaClient(),
 	}
 	err = commandFunc(ctx, args)
 	closeFn(ctx)
 
 	return true, trace.Wrap(err)
+}
+
+func (p *PluginsCommand) initSync(parent *kingpin.CmdClause) {
+	p.sync.cmd = parent.Command("sync", "Manually sync Okta")
+	p.sync.okta.cmd = p.sync.cmd.Command("okta", "Manually sync Okta")
+	p.sync.okta.cmd.Flag("name", "Name of Okta plugin").Default("okta").StringVar(&p.sync.okta.name)
+}
+
+func (p *PluginsCommand) SyncOkta(ctx context.Context, args pluginServices) error {
+	pluginName := p.sync.okta.name
+	if pluginName == "" {
+		return trace.BadParameter("plugin name is required")
+	}
+
+	if args.okta == nil {
+		return trace.BadParameter("missing Okta client")
+	}
+
+	requestID, err := args.okta.TriggerSync(ctx, pluginName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Fprintf(p.stdout, "Sent with request ID %q", requestID)
+
+	return nil
 }

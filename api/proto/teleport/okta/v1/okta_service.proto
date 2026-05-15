@@ -65,6 +65,8 @@ service OktaService {
   rpc GetApps(GetAppsRequest) returns (GetAppsResponse);
   // GetGroups retrieves a list of apps from Okta based on specified filter criteria.
   rpc GetGroups(GetGroupsRequest) returns (GetGroupsResponse);
+  // TriggerSync requests the Okta service to trigger a sync.
+  rpc TriggerSync(TriggerSyncRequest) returns (TriggerSyncResponse);
 }
 
 // ConditionalUpdateOktaAssignmentRequest is a request for updating an Okta assignment resource, protected by optimistic locking.
@@ -361,3 +363,13 @@ message DeleteOktaAssignmentRequest {
 
 // DeleteAllOktaAssignmentsRequest is the request for deleting all Okta assignments.
 message DeleteAllOktaAssignmentsRequest {}
+
+// TriggerSyncRequest is the request for triggering a sync.
+message TriggerSyncRequest {
+  string plugin_name = 1;
+}
+
+// TriggerSyncResponse is the response for triggering a sync.
+message TriggerSyncResponse {
+  string request_id = 1;
+}
