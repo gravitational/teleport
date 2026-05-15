@@ -1,4 +1,7 @@
-import { convertResultToData } from 'e-teleport/AccessMonitoring/Report/BarGraph/utils';
+import {
+  convertResultToData,
+  MAX_RESULTS,
+} from 'e-teleport/AccessMonitoring/Report/BarGraph/utils';
 import {
   BarGraphConfig,
   GraphType,
@@ -90,5 +93,31 @@ describe('convertResultToData', () => {
     const data = convertResultToData(result, config, null, from, today);
 
     expect(data.count).toEqual(expected);
+  });
+
+  describe(`when MAX_RESULTS (${MAX_RESULTS}) is exceeded`, () => {
+    it('should keep the latest data (non-chronological)', () => {
+      const data = Array.from({ length: MAX_RESULTS + 1 }, (_, i) => [
+        `key-${i + 1}`,
+        '2020-01-01T00:00:00.000Z',
+        '1',
+      ]);
+
+      const r = {
+        ...result,
+        data,
+      };
+      const from = new Date('2020-01-01');
+      const today = new Date('2020-01-01');
+
+      const output = convertResultToData(r, config, null, from, today);
+
+      expect(output.count).toBe(MAX_RESULTS + 1);
+      expect(output.keys).toHaveLength(MAX_RESULTS);
+      const keys = Object.keys(output.data[0]);
+      expect(keys).toHaveLength(MAX_RESULTS + 1); // Add one for "indexByColumn" value
+      expect(keys).toContain('key-2');
+      expect(keys).toContain(`key-${MAX_RESULTS + 1}`);
+    });
   });
 });

@@ -102,7 +102,7 @@ export function BarGraph(props: BarGraphProps) {
       {count > MAX_RESULTS && (
         <InfoContainer>
           <Info />
-          This graph has too many results ({count}). Only the first{' '}
+          This graph has too many results to display ({count}). Only the last{' '}
           {MAX_RESULTS} results are shown.
         </InfoContainer>
       )}

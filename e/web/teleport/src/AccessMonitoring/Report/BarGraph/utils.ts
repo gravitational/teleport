@@ -3,7 +3,7 @@ import { scaleTime } from 'd3-scale';
 import { BarGraphConfig } from 'e-teleport/AccessMonitoring/Report/config';
 import { ReportResult } from 'e-teleport/AccessMonitoring/types';
 
-export const MAX_RESULTS = 200;
+export const MAX_RESULTS = 500;
 const MAX_TICKS = 20;
 
 // compare two dates without comparing hours/minutes/seconds/milliseconds
@@ -30,7 +30,7 @@ export function convertResultToData(
 
   let rows = result.data;
   if (count > MAX_RESULTS) {
-    rows = rows.slice(0, MAX_RESULTS);
+    rows = rows.slice(count - MAX_RESULTS, count);
   }
 
   const keys = Array.from(new Set(rows.map(row => row[keysColumnIndex])));

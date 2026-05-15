@@ -150,7 +150,7 @@ export function Report() {
     return (
       <Container>
         <Header
-          title={config.name}
+          title={config?.name}
           disabled={controlsDisabled}
           lastUpdated={null}
           onRefresh={handleRefresh}

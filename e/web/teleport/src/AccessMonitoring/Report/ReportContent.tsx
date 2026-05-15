@@ -116,6 +116,8 @@ export function ReportContent(props: ReportContentProps) {
       result => result.name === graph.name
     );
 
+    if (!graphData) return null;
+
     return (
       <GraphContainer key={index}>
         <GraphHeader>
