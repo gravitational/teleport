@@ -2882,16 +2882,17 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 	} else {
 		// add implicit roles to the set and build a checker
 		accessInfo := services.AccessInfoFromUserState(req.User)
-		roles := make([]types.Role, len(req.Roles))
-		for i := range req.Roles {
+		roles := make([]types.Role, 0, len(req.Roles))
+		for _, requestedRole := range req.Roles {
 			var err error
-			roles[i], err = services.ApplyTraitsWithContext(req.Roles[i], services.RoleTemplateContext{
+			role, err := services.ApplyTraitsWithContext(requestedRole, services.RoleTemplateContext{
 				Username: req.User.GetName(),
 				Traits:   req.User.GetTraits(),
 			})
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
+			roles = append(roles, role)
 		}
 		roleSet := services.NewRoleSet(roles...)
 		checker := services.NewAccessCheckerWithRoleSet(accessInfo, clusterName.GetClusterName(), roleSet)

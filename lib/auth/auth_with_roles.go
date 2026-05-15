@@ -1051,8 +1051,24 @@ func (a *ServerWithRoles) UpsertNode(ctx context.Context, s types.Server) (*type
 	}
 
 	agentScope := a.context.Identity.GetIdentity().AgentScope
-	if nodeScope := s.GetScope(); agentScope != "" && nodeScope != agentScope {
-		return nil, trace.AccessDenied("node scope %q does not match agent identity scope %q", nodeScope, agentScope)
+	if nodeScope := s.GetScope(); agentScope != "" {
+		if nodeScope != agentScope {
+			return nil, trace.AccessDenied("node scope %q does not match agent identity scope %q", nodeScope, agentScope)
+		}
+
+		if a.hasBuiltinRole(types.RoleNode) {
+			clusterName, err := a.GetDomainName(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			callerID, err := ExtractHostID(a.context.User.GetName(), clusterName)
+			if err != nil {
+				return nil, trace.AccessDenied("access denied")
+			}
+			if s.GetName() != callerID {
+				return nil, trace.AccessDenied("node ID %q does not match agent identity ID %q", s.GetName(), callerID)
+			}
+		}
 	}
 
 	return a.authServer.UpsertNode(ctx, s)
