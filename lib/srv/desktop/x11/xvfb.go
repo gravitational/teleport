@@ -331,7 +331,7 @@ func NewBackend(ctx context.Context, config Config) (*Backend, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	randr.SelectInput(conn, root, randr.NotifyMaskScreenChange)
+	randr.SelectInput(conn, root, randr.NotifyMaskCrtcChange)
 
 	x := &Backend{
 		ctx:             ctx,
@@ -372,21 +372,24 @@ func (x *Backend) processEvents() {
 		}
 		switch event := event.(type) {
 		case damage.NotifyEvent:
-			// do nothing, we handle changes through GetChanges
-		case randr.ScreenChangeNotifyEvent:
+		// do nothing, we handle changes through GetChanges
+		case randr.NotifyEvent:
+			if event.SubCode != randr.NotifyCrtcChange {
+				continue
+			}
+			cc := event.U.Cc
 			x.mu.Lock()
 			width := x.width
 			height := x.height
 			timestamp := x.resizeTimestamp
-			x.mu.Unlock()
-
-			if event.Timestamp > timestamp && (event.Width != width || event.Height != height) {
-				x.config.Logger.DebugContext(x.ctx, "X11 screen change event received", "width", event.Width, "height", event.Height)
+			if cc.Timestamp >= timestamp && (cc.Width != width || cc.Height != height) {
+				x.config.Logger.DebugContext(x.ctx, "Received external resolution change event", "width", cc.Width, "height", cc.Height)
 				x.config.Logger.DebugContext(x.ctx, "Restoring desired resolution", "width", width, "height", height)
-				if err := x.Resize(width, height); err != nil {
+				if err := x.setScreenSizeLocked(width, height); err != nil {
 					x.config.Logger.ErrorContext(x.ctx, "Couldn't restore resolution", "error", err)
 				}
 			}
+			x.mu.Unlock()
 		case xproto.SelectionRequestEvent:
 			if event.Property == xproto.AtomNone {
 				event.Property = x.selectionAtom
@@ -614,7 +617,12 @@ func (x *Backend) SendHorizontalMouseWheel(delta int) error {
 }
 
 func (x *Backend) SendMouseMove(px, py int16) error {
-	err := xtest.FakeInputChecked(x.conn, byte(xproto.MotionNotify), 0, xproto.TimeCurrentTime, x.root(), px, py, 0).Check()
+	err := xtest.FakeInputChecked(x.conn, xproto.MotionNotify, 0, xproto.TimeCurrentTime, x.root(), px, py, 0).Check()
+	return trace.Wrap(err)
+}
+
+func (x *Backend) SendNoOpEvent() error {
+	err := xtest.FakeInputChecked(x.conn, xproto.MotionNotify, 0, xproto.TimeCurrentTime, xproto.WindowNone, 0, 0, 0).Check()
 	return trace.Wrap(err)
 }
 
@@ -666,30 +674,75 @@ func (x *Backend) Resize(width, height uint16) error {
 		}
 	}
 
-	if err := x.setScreenSize(width, height); err != nil {
+	x.mu.Lock()
+	defer x.mu.Unlock()
+
+	if err := x.setScreenSizeLocked(width, height); err != nil {
 		return trace.Wrap(err)
 	}
 
 	return nil
 }
 
-func (x *Backend) setScreenSize(width, height uint16) error {
-	screen, err := randr.GetScreenInfo(x.conn, x.root()).Reply()
+// setScreenSizeLocked changes CRTC configuration to select correct mode for requested screen size.
+// This method should be called under x.mu lock
+func (x *Backend) setScreenSizeLocked(width, height uint16) error {
+	conn := x.conn
+	root := x.root()
+
+	resources, err := randr.GetScreenResourcesCurrent(conn, root).Reply()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	index := slices.IndexFunc(screen.Sizes, func(screen randr.ScreenSize) bool {
-		return screen.Width == width && screen.Height == height
+	modeIndex := slices.IndexFunc(resources.Modes, func(m randr.ModeInfo) bool {
+		return m.Width == width && m.Height == height
 	})
-	if index < 0 {
-		return trace.NotFound("could not find a screen with width %d and height %d", width, height)
+	if modeIndex == -1 {
+		return trace.NotFound("could not find mode %dx%d", width, height)
 	}
 
-	x.mu.Lock()
-	defer x.mu.Unlock()
+	modeID := resources.Modes[modeIndex].Id
 
-	reply, err := randr.SetScreenConfig(x.conn, x.root(), 0, screen.ConfigTimestamp, uint16(index), screen.Rotation, screen.Rate).Reply()
+	if len(resources.Crtcs) == 0 {
+		return trace.NotFound("no CRTCs available")
+	}
+	if len(resources.Outputs) == 0 {
+		return trace.NotFound("no outputs available")
+	}
+
+	output := resources.Outputs[0]
+
+	crtc := resources.Crtcs[0]
+	crtctIndex := slices.IndexFunc(resources.Crtcs, func(c randr.Crtc) bool {
+		info, err := randr.GetCrtcInfo(conn, c, resources.ConfigTimestamp).Reply()
+		return err == nil && slices.Contains(info.Outputs, output)
+	})
+	if crtctIndex != -1 {
+		crtc = resources.Crtcs[crtctIndex]
+	}
+
+	// Use SetScreenSize with max dimensions so SetCrtcConfig doesn't reject
+	// the new mode as exceeding the framebuffer
+	maxMm := pixelsToMm(types.MaxRDPScreenWidth)
+	if err := randr.SetScreenSizeChecked(conn, root,
+		types.MaxRDPScreenWidth, types.MaxRDPScreenHeight, maxMm, maxMm).Check(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	x.config.Logger.Log(x.ctx, logutils.TraceLevel, "setting crtc config",
+		"crtc", crtc,
+		"configTimestamp", resources.ConfigTimestamp,
+		"mode", modeID,
+		"output", output,
+		"width", width,
+		"height", height,
+	)
+
+	reply, err := randr.SetCrtcConfig(conn, crtc,
+		resources.ConfigTimestamp, resources.ConfigTimestamp,
+		0, 0, randr.Mode(modeID), randr.RotationRotate0,
+		[]randr.Output{output}).Reply()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -697,13 +750,13 @@ func (x *Backend) setScreenSize(width, height uint16) error {
 	// Recalculate physical dimensions to preserve DPI
 	widthMm := pixelsToMm(width)
 	heightMm := pixelsToMm(height)
-	if err := randr.SetScreenSizeChecked(x.conn, x.root(), width, height, widthMm, heightMm).Check(); err != nil {
+	if err := randr.SetScreenSizeChecked(conn, root, width, height, widthMm, heightMm).Check(); err != nil {
 		return trace.Wrap(err)
 	}
 
 	x.width = width
 	x.height = height
-	x.resizeTimestamp = reply.NewTimestamp
+	x.resizeTimestamp = reply.Timestamp
 
 	return nil
 }

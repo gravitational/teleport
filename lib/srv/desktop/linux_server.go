@@ -30,7 +30,6 @@ import (
 	"slices"
 	"strconv"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -285,13 +284,16 @@ type linuxSession struct {
 	authPref    types.AuthPreference
 
 	backend       *x11.Backend
-	screenSize    atomic.Pointer[xproto.Rectangle]
 	xsessions     map[string]string
 	recorder      libevents.SessionPreparerRecorder
 	recordSession bool
 	audit         *desktopSessionAuditor
 	track         tracker
 	cmd           *reexec.CommandExecutor
+
+	resizeMu       sync.Mutex
+	screenSize     xproto.Rectangle
+	sendFullScreen bool
 
 	sessionStarted bool
 	username       string
@@ -688,10 +690,8 @@ func (sess *linuxSession) handleClientHello(m *tdpb.ClientHello) error {
 
 	width := uint16(m.ScreenSpec.Width)
 	height := uint16(m.ScreenSpec.Height)
-	sess.screenSize.Store(&xproto.Rectangle{
-		Width:  width,
-		Height: height,
-	})
+	sess.screenSize.Width = width
+	sess.screenSize.Height = height
 	if err := sess.backend.Resize(width, height); err != nil {
 		sess.log.ErrorContext(sess.ctx, "failed to resize screen", "error", err)
 		sess.sendTDPError("Couldn't resize backend.")
@@ -717,6 +717,17 @@ func (sess *linuxSession) handleClientHello(m *tdpb.ClientHello) error {
 		return trace.Wrap(err)
 	}
 	go sess.processScreenChanges()
+	go func() {
+		// Simulate activity to prevent lock screen from activating
+		for {
+			select {
+			case <-sess.ctx.Done():
+				return
+			case <-time.After(30 * time.Second):
+			}
+			sess.backend.SendNoOpEvent()
+		}
+	}()
 	return nil
 }
 
@@ -804,11 +815,14 @@ func (sess *linuxSession) handleClientScreenSpec(m *tdpb.ClientScreenSpec) error
 		sess.sendTDPError(fmt.Sprintf("Screen is too large. Maximum is %dx%d", types.MaxRDPScreenWidth, types.MaxRDPScreenHeight))
 		return trace.BadParameter("invalid screen size")
 	}
-	sess.screenSize.Store(&xproto.Rectangle{
-		Width:  uint16(m.Width),
-		Height: uint16(m.Height),
-	})
-	if err := sess.backend.Resize(uint16(m.Width), uint16(m.Height)); err != nil {
+	sess.resizeMu.Lock()
+	defer sess.resizeMu.Unlock()
+	width := uint16(m.Width)
+	height := uint16(m.Height)
+	sess.screenSize.Width = width
+	sess.screenSize.Height = height
+	sess.sendFullScreen = true
+	if err := sess.backend.Resize(width, height); err != nil {
 		sess.log.ErrorContext(sess.ctx, "failed to resize screen", "error", err)
 		sess.sendTDPError("Couldn't resize backend.")
 		return trace.Wrap(err)
@@ -827,57 +841,14 @@ func (sess *linuxSession) handleClientScreenSpec(m *tdpb.ClientScreenSpec) error
 }
 
 func (sess *linuxSession) processScreenChanges() {
-	var lastScreenSize *xproto.Rectangle
-
 	for {
 		start := time.Now()
-		size := 0
-		changes, err := sess.backend.GetChanges()
+		size, err := sess.innerProcessScreenChanges()
 		if err != nil {
 			if !utils.IsOKNetworkError(err) {
-				sess.log.ErrorContext(sess.ctx, "failed to get changes from backend", "error", err)
+				sess.sendTDPError(fmt.Sprintf("Error processing screen changes: %s", err))
 			}
 			return
-		}
-		currentScreenSize := sess.screenSize.Load()
-		if lastScreenSize != currentScreenSize && currentScreenSize != nil {
-			lastScreenSize = currentScreenSize
-			changes = []xproto.Rectangle{*currentScreenSize}
-		}
-		for _, change := range changes {
-			x := uint16(change.X)
-			y := uint16(change.Y)
-			if x >= currentScreenSize.Width || y >= currentScreenSize.Height {
-				continue
-			}
-			if x+change.Width > currentScreenSize.Width {
-				change.Width = currentScreenSize.Width - x
-			}
-			if y+change.Height > currentScreenSize.Height {
-				change.Height = currentScreenSize.Height - y
-			}
-			changeSize := int(change.Width) * int(change.Height)
-			if changeSize == 0 {
-				continue
-			}
-			size += int(change.Width) * int(change.Height)
-			img, err := sess.backend.GetImage(change)
-			if err != nil {
-				sess.log.ErrorContext(sess.ctx, "failed to get image from backend", "error", err)
-				return
-			}
-
-			frames, err := rdpclient.EncodeQOIZ(img, uint16(change.X), uint16(change.Y), change.Width, change.Height)
-			if err != nil {
-				sess.log.ErrorContext(sess.ctx, "failed to encode FastPathPDUs", "error", err)
-				return
-			}
-			for _, frame := range frames {
-				if err := sess.auditedConn.WriteMessage(frame); err != nil {
-					sess.log.ErrorContext(sess.ctx, "failed to send frame", "error", err)
-					return
-				}
-			}
 		}
 		delta := time.Since(start)
 		if size > 0 {
@@ -890,6 +861,53 @@ func (sess *linuxSession) processScreenChanges() {
 		case <-sess.service.cfg.Clock.After(40*time.Millisecond - delta):
 		}
 	}
+}
+
+func (sess *linuxSession) innerProcessScreenChanges() (int, error) {
+	sess.resizeMu.Lock()
+	defer sess.resizeMu.Unlock()
+	size := 0
+	changes, err := sess.backend.GetChanges()
+	if err != nil {
+		return 0, err
+	}
+	if sess.sendFullScreen || slices.ContainsFunc(changes, func(change xproto.Rectangle) bool {
+		return uint16(change.X)+change.Width > sess.screenSize.Width ||
+			uint16(change.Y)+change.Height > sess.screenSize.Height
+	}) {
+		changes = []xproto.Rectangle{
+			{
+				Width:  sess.screenSize.Width,
+				Height: sess.screenSize.Height,
+			},
+		}
+	}
+	for _, change := range changes {
+		changeSize := int(change.Width) * int(change.Height)
+		if changeSize == 0 {
+			continue
+		}
+		size += int(change.Width) * int(change.Height)
+		img, err := sess.backend.GetImage(change)
+		if err != nil {
+			sess.log.ErrorContext(sess.ctx, "failed to get image from backend", "error", err)
+			return 0, err
+		}
+
+		frames, err := rdpclient.EncodeQOIZ(img, uint16(change.X), uint16(change.Y), change.Width, change.Height)
+		if err != nil {
+			sess.log.ErrorContext(sess.ctx, "failed to encode FastPathPDUs", "error", err)
+			return 0, err
+		}
+		for _, frame := range frames {
+			if err := sess.auditedConn.WriteMessage(frame); err != nil {
+				sess.log.ErrorContext(sess.ctx, "failed to send frame", "error", err)
+				return 0, err
+			}
+		}
+	}
+	sess.sendFullScreen = false
+	return size, nil
 }
 
 func (s *LinuxService) newSessionRecorder(recConfig types.SessionRecordingConfig, sessionID string) (libevents.SessionPreparerRecorder, error) {
