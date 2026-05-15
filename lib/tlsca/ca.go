@@ -247,6 +247,20 @@ type Identity struct {
 
 	// WebSessionID is the session ID of the web session associated with this identity, if any.
 	WebSessionID string
+
+	// RouteToWindowsDesktop contains routing information for Windows or Linux desktop sessions.
+	RouteToDesktop RouteToDesktop
+}
+
+// RouteToDesktop holds routing information for Windows or Linux desktop sessions.
+type RouteToDesktop struct {
+	// DesktopName is the name of the target desktop.
+	DesktopName string
+	// Login is the username to authenticate as.
+	Login string
+	// SessionID is an ID used to identify desktop sessions created by
+	// this certificate.
+	SessionID string
 }
 
 // RouteToApp holds routing information for applications.
@@ -661,6 +675,20 @@ var (
 	// DelegationSessionIDASN1ExtensionOID is an extension OID that contains the
 	// identifier of the Delegation Session this certificate was created for.
 	DelegationSessionIDASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 30}
+
+	// DesktopLoginASN1ExtensionOID is an extension OID that contains the
+	// login username for Windows or Linux desktop session this certificate
+	// was created for.
+	DesktopLoginASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 31}
+
+	// DesktopNameASN1ExtensionOID is an extension OID that contains the name
+	// of the target desktop for the Windows or Linux desktop session this
+	// certificate was created for.
+	DesktopNameASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 32}
+
+	// DesktopSessionIDASN1ExtensionOID is an extension ID used to encode the
+	// desktop session ID into a certificate.
+	DesktopSessionIDASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 33}
 
 	// CAClusterNameExtensionOID records the cluster name in a Teleport CA
 	// certificate.
@@ -1150,6 +1178,30 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			})
 	}
 
+	if id.RouteToDesktop.DesktopName != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  DesktopNameASN1ExtensionOID,
+				Value: id.RouteToDesktop.DesktopName,
+			})
+	}
+
+	if id.RouteToDesktop.Login != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  DesktopLoginASN1ExtensionOID,
+				Value: id.RouteToDesktop.Login,
+			})
+	}
+
+	if id.RouteToDesktop.SessionID != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  DesktopSessionIDASN1ExtensionOID,
+				Value: id.RouteToDesktop.SessionID,
+			})
+	}
+
 	return subject, nil
 }
 
@@ -1471,6 +1523,18 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 		case attr.Type.Equal(WebSessionIDASN1ExtensionOID):
 			if val, ok := attr.Value.(string); ok {
 				id.WebSessionID = val
+			}
+		case attr.Type.Equal(DesktopLoginASN1ExtensionOID):
+			if val, ok := attr.Value.(string); ok {
+				id.RouteToDesktop.Login = val
+			}
+		case attr.Type.Equal(DesktopNameASN1ExtensionOID):
+			if val, ok := attr.Value.(string); ok {
+				id.RouteToDesktop.DesktopName = val
+			}
+		case attr.Type.Equal(DesktopSessionIDASN1ExtensionOID):
+			if val, ok := attr.Value.(string); ok {
+				id.RouteToDesktop.SessionID = val
 			}
 		}
 	}
