@@ -1785,3 +1785,139 @@ func TestIdentityService_SSOMFASessionDataCRUD(t *testing.T) {
 	_, err = identity.GetMFASessionData(ctx, sd.RequestID)
 	require.True(t, trace.IsNotFound(err))
 }
+
+// TestNormalizeOIDCAuthRequestDurations tests normalizeOIDCAuthRequestDurations
+// directly against raw JSON, covering both duration field locations and the
+// pass-through behaviour for records that need no conversion.
+func TestNormalizeOIDCAuthRequestDurations(t *testing.T) {
+	t.Parallel()
+
+	const (
+		hour8ns  = `28800000000000` // 8h in nanoseconds
+		min30ns  = `1800000000000`  // 30m in nanoseconds
+		hour90ns = `5400000000000`  // 1h30m in nanoseconds
+	)
+
+	tests := []struct {
+		name     string
+		input    string
+		passthru bool   // true: output must equal input byte-for-byte
+		wantSub  string // substring that must appear in output when !passthru
+	}{
+		{
+			name:    "MaxAge.Value string is converted",
+			input:   `{"StateToken":"t","ConnectorSpec":{"MaxAge":{"Value":"8h0m0s"}}}`,
+			wantSub: `"Value":` + hour8ns,
+		},
+		{
+			name:    "MFASettings.maxAge string is converted",
+			input:   `{"StateToken":"t","ConnectorSpec":{"MFASettings":{"enabled":true,"maxAge":"30m0s"}}}`,
+			wantSub: `"maxAge":` + min30ns,
+		},
+		{
+			name:    "compound duration in MaxAge is converted",
+			input:   `{"StateToken":"t","ConnectorSpec":{"MaxAge":{"Value":"1h30m0s"}}}`,
+			wantSub: `"Value":` + hour90ns,
+		},
+		{
+			name:     "no ConnectorSpec is a no-op",
+			input:    `{"StateToken":"t","Type":"oidc"}`,
+			passthru: true,
+		},
+		{
+			name:     "no MaxAge field is a no-op",
+			input:    `{"StateToken":"t","ConnectorSpec":{"IssuerURL":"https://example.com"}}`,
+			passthru: true,
+		},
+		{
+			name:     "malformed JSON is passed through unchanged",
+			input:    `not valid json`,
+			passthru: true,
+		},
+		{
+			name:     "empty input is passed through unchanged",
+			input:    `{}`,
+			passthru: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			out := local.NormalizeOIDCAuthRequestDurations([]byte(tt.input))
+			if tt.passthru {
+				require.Equal(t, tt.input, string(out))
+				return
+			}
+			require.Contains(t, string(out), tt.wantSub)
+		})
+	}
+}
+
+// TestOIDCAuthRequestMaxAgeRoundTrip verifies that an OIDCAuthRequest with a
+// non-zero MaxAge round-trips through CreateOIDCAuthRequest/GetOIDCAuthRequest
+// without error. This exercises the jsonpb serialization path where
+// types.Duration fields are marshaled as Go duration strings (e.g. "8h0m0s")
+// rather than raw nanosecond integers; the unmarshaler must handle both forms.
+func TestOIDCAuthRequestMaxAgeRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	identity := newIdentityService(t, clockwork.NewFakeClock())
+
+	tests := []struct {
+		name       string
+		stateToken string
+		spec       types.OIDCConnectorSpecV3
+		checkFn    func(t *testing.T, got *types.OIDCAuthRequest)
+	}{
+		{
+			name:       "MaxAge.Value survives round-trip",
+			stateToken: "state-maxage",
+			spec: types.OIDCConnectorSpecV3{
+				MaxAge: &types.MaxAge{
+					Value: types.Duration(8 * time.Hour),
+				},
+			},
+			checkFn: func(t *testing.T, got *types.OIDCAuthRequest) {
+				t.Helper()
+				require.NotNil(t, got.ConnectorSpec)
+				require.NotNil(t, got.ConnectorSpec.MaxAge)
+				require.Equal(t, types.Duration(8*time.Hour), got.ConnectorSpec.MaxAge.Value)
+			},
+		},
+		{
+			name:       "MFASettings.MaxAge survives round-trip",
+			stateToken: "state-mfa-maxage",
+			spec: types.OIDCConnectorSpecV3{
+				MFASettings: &types.OIDCConnectorMFASettings{
+					Enabled: true,
+					MaxAge:  types.Duration(30 * time.Minute),
+				},
+			},
+			checkFn: func(t *testing.T, got *types.OIDCAuthRequest) {
+				t.Helper()
+				require.NotNil(t, got.ConnectorSpec)
+				require.NotNil(t, got.ConnectorSpec.MFASettings)
+				require.Equal(t, types.Duration(30*time.Minute), got.ConnectorSpec.MFASettings.MaxAge)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := types.OIDCAuthRequest{
+				ConnectorID:   "test-connector",
+				Type:          "oidc",
+				StateToken:    tt.stateToken,
+				SSOTestFlow:   true,
+				ConnectorSpec: &tt.spec,
+			}
+			err := identity.CreateOIDCAuthRequest(ctx, req, time.Minute)
+			require.NoError(t, err)
+
+			got, err := identity.GetOIDCAuthRequest(ctx, req.StateToken)
+			require.NoError(t, err)
+			tt.checkFn(t, got)
+		})
+	}
+}

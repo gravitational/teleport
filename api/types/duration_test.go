@@ -47,6 +47,21 @@ func TestDurationUnmarshal(t *testing.T) {
 			stringValue:   `"24d30μs"`,
 			expectedValue: Duration(time.Hour*24*24 + time.Microsecond*30),
 		},
+		// Storage layers that normalize casttype=Duration fields produced by
+		// github.com/gogo/protobuf/jsonpb convert Go duration strings to their
+		// nanosecond integer representation before unmarshaling. Verify that
+		// Duration.UnmarshalJSON accepts raw integer nanoseconds so that
+		// OIDCAuthRequest records with MaxAge survive the storage round-trip.
+		{
+			name:          "integer nanoseconds (8 hours)",
+			stringValue:   `28800000000000`,
+			expectedValue: Duration(time.Hour * 8),
+		},
+		{
+			name:          "integer nanoseconds (1h30m)",
+			stringValue:   `5400000000000`,
+			expectedValue: Duration(time.Hour + 30*time.Minute),
+		},
 	}
 
 	for _, testCase := range testCases {
