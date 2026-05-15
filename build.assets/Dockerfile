@@ -261,7 +261,7 @@ ENV GOPATH="/go" \
 # Install PAM module and policies for testing.
 COPY pam/ /opt/pam_teleport/
 RUN make -C /opt/pam_teleport install
-ENV SOFTHSM2_PATH "/usr/lib/softhsm/libsofthsm2.so"
+ENV SOFTHSM2_PATH="/usr/lib/softhsm/libsofthsm2.so"
 
 # Install bats.
 RUN git clone --depth=1 https://github.com/bats-core/bats-core.git -b v1.2.1 && \
