@@ -112,6 +112,11 @@ Enterprise:
 
 ## 18.7.6 (04/29/26)
 
+**Warning:** This release includes a regression that affects the use of JIT Access Requests when agents are still running versions older than v18.7.6
+The following workarounds are available:
+- Upgrade proxy and auth servers to 18.8.0 — this release includes a regression fix that allows JIT Access Requests to work correctly even when some agents are still running older versions.
+- Upgrade all agents to 18.7.6
+
 ### Security fixes
 
 This release includes various security-related improvements and bug fixes.
