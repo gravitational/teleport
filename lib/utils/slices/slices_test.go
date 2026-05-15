@@ -20,6 +20,7 @@ package slices
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -181,4 +182,42 @@ func TestDeduplicateKey(t *testing.T) {
 			require.Equal(t, tt.expected, res)
 		})
 	}
+}
+
+func shuffleSubtest[S ~[]T, T any](t *testing.T, testName string, src S) {
+	t.Run(testName, func(t *testing.T) {
+		// There is no guarantee that Shuffle(src) ≠ src, so we need to ensure that
+		// the test input is long enough to make that statistically unlikely. The
+		// probability of a correctly-functioning [Shuffle] leaving the sequence
+		// unchanged is 1:n!, where n = len(src). I'm reasonably comfortable with
+		// a false-failure rate of <= 1:39,916,800:
+		require.GreaterOrEqual(t, len(src), 11,
+			"Slice length must be long enough to make returning the same sequence unlikely")
+
+		dst := slices.Clone(src)
+		Shuffle(dst)
+		require.ElementsMatch(t, src, dst)
+		require.NotEqual(t, src, dst)
+	})
+}
+
+func TestShuffle(t *testing.T) {
+	shuffleSubtest(t, "[]string", []string{"a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k"})
+	shuffleSubtest(t, "[]int", []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11})
+
+	type listOfNames []string
+	shuffleSubtest(t, "typed", listOfNames{
+		"Alice", "Bob", "Carol", "Dave", "Eve", "Frank", "Grace", "Heidi",
+		"Ivan", "Judy", "Kate", "Lana", "Mallory", "Nathan", "Olivia", "Peggy",
+	})
+
+	// Some special cases that we want to check don't crash
+	t.Run("empty", func(t *testing.T) {
+		emptySlice := []string{}
+		Shuffle(emptySlice)
+		require.Empty(t, emptySlice)
+	})
+	t.Run("nil", func(t *testing.T) {
+		Shuffle(([]int)(nil))
+	})
 }

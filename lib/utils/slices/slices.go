@@ -19,6 +19,7 @@
 package slices
 
 import (
+	"math/rand/v2"
 	"slices"
 
 	"github.com/gravitational/trace"
@@ -96,4 +97,9 @@ func DeduplicateKey[T any](s []T, key func(T) string) []T {
 		out = append(out, v)
 	}
 	return out
+}
+
+// Shuffle pseudo-randomly reorders the elements of a slice in-place using [rand.Shuffle].
+func Shuffle[S ~[]T, T any](s S) {
+	rand.Shuffle(len(s), func(i, j int) { s[i], s[j] = s[j], s[i] })
 }
