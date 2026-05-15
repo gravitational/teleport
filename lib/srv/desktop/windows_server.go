@@ -1540,9 +1540,7 @@ func (s *WindowsService) watchCAEvents(
 				},
 				{
 					Kind: types.KindCertAuthorityOverride,
-					// Not all control plane versions filter by SubKind correctly, but we
-					// benefit from the ones who do.
-					SubKind: string(types.WindowsCA),
+					// Filters not supported for KindCertAuthorityOverride.
 				},
 			},
 			AllowPartialSuccess: true, // CAOverride watch allowed to fail.
