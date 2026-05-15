@@ -27,6 +27,7 @@ import (
 	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/defaults"
+	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -71,7 +72,21 @@ func (r *tcpHandlerResolver) resolveTCPHandler(ctx context.Context, fqdn string)
 		appInfo := matchedTCPApp.GetAppInfo()
 		return &tcpHandlerSpec{
 			ipv4CIDRRange: appInfo.GetIpv4CidrRange(),
-			tcpHandler: newTCPAppHandler(&tcpAppHandlerConfig{
+			tcpHandler: newAppHandler(&appHandlerConfig{
+				protocol:                 alpncommon.ProtocolTCP,
+				appInfo:                  appInfo,
+				appProvider:              r.cfg.appProvider,
+				clock:                    r.cfg.clock,
+				alwaysTrustRootClusterCA: r.cfg.alwaysTrustRootClusterCA,
+			}),
+		}, nil
+	}
+	if matchedHTTPSTunnelApp := resp.GetMatchedHttpsTunnelApp(); matchedHTTPSTunnelApp != nil {
+		appInfo := matchedHTTPSTunnelApp.GetAppInfo()
+		return &tcpHandlerSpec{
+			ipv4CIDRRange: appInfo.GetIpv4CidrRange(),
+			tcpHandler: newAppHandler(&appHandlerConfig{
+				protocol:                 alpncommon.ProtocolAppHTTPS,
 				appInfo:                  appInfo,
 				appProvider:              r.cfg.appProvider,
 				clock:                    r.cfg.clock,
@@ -222,10 +237,11 @@ func (h *undecidedHandler) handleTCPConnector(ctx context.Context, localPort uin
 	}
 	log := log.With("fqdn", h.cfg.fqdn, "local_port", localPort)
 	if matchedTCPApp := resp.GetMatchedTcpApp(); matchedTCPApp != nil {
-		// If matched a TCP app, build a tcpAppHandler that will be used for this
+		// If matched a TCP app, build an appHandler that will be used for this
 		// and all subsequent connections to this address.
 		log.DebugContext(ctx, "Resolved FQDN to a matched TCP app")
-		tcpAppHandler := newTCPAppHandler(&tcpAppHandlerConfig{
+		tcpAppHandler := newAppHandler(&appHandlerConfig{
+			protocol:                 alpncommon.ProtocolTCP,
 			appInfo:                  matchedTCPApp.GetAppInfo(),
 			appProvider:              h.cfg.appProvider,
 			clock:                    h.cfg.clock,
@@ -233,6 +249,18 @@ func (h *undecidedHandler) handleTCPConnector(ctx context.Context, localPort uin
 		})
 		h.setDecidedHandler(tcpAppHandler)
 		return tcpAppHandler.handleTCPConnector(ctx, localPort, connector)
+	}
+	if matchedHTTPSTunnelApp := resp.GetMatchedHttpsTunnelApp(); matchedHTTPSTunnelApp != nil {
+		log.DebugContext(ctx, "Resolved FQDN to a matched HTTPS tunnel app")
+		handler := newAppHandler(&appHandlerConfig{
+			protocol:                 alpncommon.ProtocolAppHTTPS,
+			appInfo:                  matchedHTTPSTunnelApp.GetAppInfo(),
+			appProvider:              h.cfg.appProvider,
+			clock:                    h.cfg.clock,
+			alwaysTrustRootClusterCA: h.cfg.alwaysTrustRootClusterCA,
+		})
+		h.setDecidedHandler(handler)
+		return handler.handleTCPConnector(ctx, localPort, connector)
 	}
 	if matchedDB := resp.GetMatchedDatabase(); matchedDB != nil {
 		// If matched a database, build a dbHandler that will be used for this
