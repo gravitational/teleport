@@ -290,6 +290,10 @@ func (a *dbAuth) WithLogger(getUpdatedLogger func(*slog.Logger) *slog.Logger) Au
 	return &cp
 }
 
+// WithSession returns a new instance of Auth with the given session.
+//
+// The session is automatically updated with authn data, like CA override
+// details, by the Auth instance.
 func (a *dbAuth) WithSession(session *Session) Auth {
 	cp := *a
 	cp.session = session
