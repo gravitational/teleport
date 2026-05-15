@@ -78,6 +78,7 @@ ssh.config
 
 # Build cache and tooling
 /build.assets/.cache
+/build.assets/.config
 /build.assets/tooling/bin/**
 
 # Teleport binaries
