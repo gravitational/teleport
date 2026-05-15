@@ -288,6 +288,26 @@ func (s *Service) RunDiagnostics(ctx context.Context, req *api.RunDiagnosticsReq
 		return nil, trace.Wrap(err)
 	}
 
+	// The DNS check is platform-agnostic, so it's added here rather than in
+	// platformDiagChecks. Skip it if NetworkStack is unavailable we need the
+	// IPv6 prefix to derive VNet's DNS server address.
+	if ns := nsa.NetworkStack; ns != nil && ns.Ipv6Prefix != "" {
+		// TODO(tangyatsu): make NetworkStackInfo return DNS server addresses directly.
+		vnetDNSServer, err := diag.DNSServerForIPv6Prefix(ns.Ipv6Prefix)
+		if err != nil {
+			return nil, trace.Wrap(err, "computing VNet DNS server address for DNS diag check")
+		}
+
+		dnsDiag, err := diag.NewDNSDiag(&diag.DNSConfig{
+			DNSZones:      ns.DnsZones,
+			VNetDNSServer: vnetDNSServer,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err, "constructing DNS diag check")
+		}
+		diagChecks = append(diagChecks, dnsDiag)
+	}
+
 	report, err := diag.GenerateReport(ctx, diag.ReportPrerequisites{
 		Clock:               s.cfg.Clock,
 		NetworkStackAttempt: nsa,
