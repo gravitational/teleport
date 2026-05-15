@@ -19359,16 +19359,17 @@ type PluginOktaSyncSettings struct {
 	// TimeBetweenImports controls the time between Okta syncs. I.e. importing Okta users, apps and
 	// groups to teleport. This doesn't affect how quickly Teleport changes are propagated to Okta if
 	// bidirectional sync is enabled. The default value is 30m.
+	//
+	// It is not advised to change this setting without prior recommendation.
 	TimeBetweenImports string `protobuf:"bytes,14,opt,name=time_between_imports,json=timeBetweenImports,proto3" json:"time_between_imports,omitempty"`
 	// TimeBetweenAssignmentProcessLoops controls the time between periodic synchronizations of the
 	// Okta assignments to Teleport and reconciliation of all existing assignments that are failed or
-	// out of sync.
-	//
-	// An empty string results in the default value of 10min.
+	// out of sync. The default value is 5m.
 	//
 	// NOTE: This has an impact on other parts of the Okta sync. In particual it changes the how
-	// often the cached Okta client for assignments is being invalidated. It is not advised to change
-	// this setting without prior recommendation.
+	// often the cached Okta client for assignments is being invalidated.
+	//
+	//It is not advised to change this setting without prior recommendation.
 	TimeBetweenAssignmentProcessLoops string   `protobuf:"bytes,15,opt,name=time_between_assignment_process_loops,json=timeBetweenAssignmentProcessLoops,proto3" json:"time_between_assignment_process_loops,omitempty"`
 	XXX_NoUnkeyedLiteral              struct{} `json:"-"`
 	XXX_unrecognized                  []byte   `json:"-"`
