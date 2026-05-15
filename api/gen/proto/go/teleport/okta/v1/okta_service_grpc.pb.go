@@ -45,7 +45,6 @@ const (
 	OktaService_GetOktaAssignment_FullMethodName               = "/teleport.okta.v1.OktaService/GetOktaAssignment"
 	OktaService_CreateOktaAssignment_FullMethodName            = "/teleport.okta.v1.OktaService/CreateOktaAssignment"
 	OktaService_UpdateOktaAssignment_FullMethodName            = "/teleport.okta.v1.OktaService/UpdateOktaAssignment"
-	OktaService_UpdateOktaAssignmentStatus_FullMethodName      = "/teleport.okta.v1.OktaService/UpdateOktaAssignmentStatus"
 	OktaService_DeleteOktaAssignment_FullMethodName            = "/teleport.okta.v1.OktaService/DeleteOktaAssignment"
 	OktaService_DeleteAllOktaAssignments_FullMethodName        = "/teleport.okta.v1.OktaService/DeleteAllOktaAssignments"
 	OktaService_ConditionalUpdateOktaAssignment_FullMethodName = "/teleport.okta.v1.OktaService/ConditionalUpdateOktaAssignment"
@@ -83,8 +82,6 @@ type OktaServiceClient interface {
 	CreateOktaAssignment(ctx context.Context, in *CreateOktaAssignmentRequest, opts ...grpc.CallOption) (*types.OktaAssignmentV1, error)
 	// UpdateOktaAssignment updates an existing Okta assignment resource.
 	UpdateOktaAssignment(ctx context.Context, in *UpdateOktaAssignmentRequest, opts ...grpc.CallOption) (*types.OktaAssignmentV1, error)
-	// UpdateOktaAssignmentStatus will update the status for an Okta assignment.
-	UpdateOktaAssignmentStatus(ctx context.Context, in *UpdateOktaAssignmentStatusRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteOktaAssignment removes the specified Okta assignment resource.
 	DeleteOktaAssignment(ctx context.Context, in *DeleteOktaAssignmentRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// DeleteAllOktaAssignments removes all Okta assignments.
@@ -213,16 +210,6 @@ func (c *oktaServiceClient) UpdateOktaAssignment(ctx context.Context, in *Update
 	return out, nil
 }
 
-func (c *oktaServiceClient) UpdateOktaAssignmentStatus(ctx context.Context, in *UpdateOktaAssignmentStatusRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, OktaService_UpdateOktaAssignmentStatus_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 func (c *oktaServiceClient) DeleteOktaAssignment(ctx context.Context, in *DeleteOktaAssignmentRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(emptypb.Empty)
@@ -339,8 +326,6 @@ type OktaServiceServer interface {
 	CreateOktaAssignment(context.Context, *CreateOktaAssignmentRequest) (*types.OktaAssignmentV1, error)
 	// UpdateOktaAssignment updates an existing Okta assignment resource.
 	UpdateOktaAssignment(context.Context, *UpdateOktaAssignmentRequest) (*types.OktaAssignmentV1, error)
-	// UpdateOktaAssignmentStatus will update the status for an Okta assignment.
-	UpdateOktaAssignmentStatus(context.Context, *UpdateOktaAssignmentStatusRequest) (*emptypb.Empty, error)
 	// DeleteOktaAssignment removes the specified Okta assignment resource.
 	DeleteOktaAssignment(context.Context, *DeleteOktaAssignmentRequest) (*emptypb.Empty, error)
 	// DeleteAllOktaAssignments removes all Okta assignments.
@@ -398,9 +383,6 @@ func (UnimplementedOktaServiceServer) CreateOktaAssignment(context.Context, *Cre
 }
 func (UnimplementedOktaServiceServer) UpdateOktaAssignment(context.Context, *UpdateOktaAssignmentRequest) (*types.OktaAssignmentV1, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateOktaAssignment not implemented")
-}
-func (UnimplementedOktaServiceServer) UpdateOktaAssignmentStatus(context.Context, *UpdateOktaAssignmentStatusRequest) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method UpdateOktaAssignmentStatus not implemented")
 }
 func (UnimplementedOktaServiceServer) DeleteOktaAssignment(context.Context, *DeleteOktaAssignmentRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteOktaAssignment not implemented")
@@ -630,24 +612,6 @@ func _OktaService_UpdateOktaAssignment_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
-func _OktaService_UpdateOktaAssignmentStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(UpdateOktaAssignmentStatusRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(OktaServiceServer).UpdateOktaAssignmentStatus(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: OktaService_UpdateOktaAssignmentStatus_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(OktaServiceServer).UpdateOktaAssignmentStatus(ctx, req.(*UpdateOktaAssignmentStatusRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 func _OktaService_DeleteOktaAssignment_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(DeleteOktaAssignmentRequest)
 	if err := dec(in); err != nil {
@@ -856,10 +820,6 @@ var OktaService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateOktaAssignment",
 			Handler:    _OktaService_UpdateOktaAssignment_Handler,
-		},
-		{
-			MethodName: "UpdateOktaAssignmentStatus",
-			Handler:    _OktaService_UpdateOktaAssignmentStatus_Handler,
 		},
 		{
 			MethodName: "DeleteOktaAssignment",

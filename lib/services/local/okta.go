@@ -20,7 +20,6 @@ package local
 
 import (
 	"context"
-	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -175,30 +174,6 @@ func (o *OktaService) UpsertOktaAssignment(ctx context.Context, assignment types
 func (o *OktaService) ConditionalUpdateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error) {
 	updated, err := o.assignmentSvc.ConditionalUpdateResource(ctx, assignment)
 	return updated, trace.Wrap(err)
-}
-
-// UpdateOktaAssignmentStatus will update the status for an Okta assignment if the given time has passed
-// since the last transition.
-func (o *OktaService) UpdateOktaAssignmentStatus(ctx context.Context, name, status string, timeHasPassed time.Duration) error {
-	_, err := o.assignmentSvc.UpdateAndSwapResource(ctx, name, func(currentAssignment types.OktaAssignment) error {
-		// Only update the status if the given duration has passed.
-		sinceLastTransition := o.clock.Since(currentAssignment.GetLastTransition())
-		if sinceLastTransition < timeHasPassed {
-			return trace.BadParameter("only %s has passed since last transition (want at least %s)", sinceLastTransition, timeHasPassed)
-		}
-
-		if err := currentAssignment.SetStatus(status); err != nil {
-			return trace.Wrap(err)
-		}
-		currentAssignment.SetLastTransition(o.clock.Now())
-
-		return nil
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
 }
 
 // DeleteOktaAssignment removes the specified Okta assignment resource.

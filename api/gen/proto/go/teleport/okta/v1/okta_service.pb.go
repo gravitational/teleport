@@ -1733,71 +1733,6 @@ func (x *UpdateOktaAssignmentRequest) GetAssignment() *types.OktaAssignmentV1 {
 	return nil
 }
 
-// UpdateOktaAssignmentStatusRequest is a request for updating an Okta assignment status.
-type UpdateOktaAssignmentStatusRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// name is the name of the Okta assignment.
-	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	// status is the status to update the assignment to.
-	Status types.OktaAssignmentSpecV1_OktaAssignmentStatus `protobuf:"varint,2,opt,name=status,proto3,enum=types.OktaAssignmentSpecV1_OktaAssignmentStatus" json:"status,omitempty"`
-	// timeHasPassed is the amount of time that must have passed since the last transition
-	// in order to set the new transition.
-	TimeHasPassed *durationpb.Duration `protobuf:"bytes,3,opt,name=time_has_passed,json=timeHasPassed,proto3" json:"time_has_passed,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *UpdateOktaAssignmentStatusRequest) Reset() {
-	*x = UpdateOktaAssignmentStatusRequest{}
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[29]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *UpdateOktaAssignmentStatusRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*UpdateOktaAssignmentStatusRequest) ProtoMessage() {}
-
-func (x *UpdateOktaAssignmentStatusRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[29]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use UpdateOktaAssignmentStatusRequest.ProtoReflect.Descriptor instead.
-func (*UpdateOktaAssignmentStatusRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{29}
-}
-
-func (x *UpdateOktaAssignmentStatusRequest) GetName() string {
-	if x != nil {
-		return x.Name
-	}
-	return ""
-}
-
-func (x *UpdateOktaAssignmentStatusRequest) GetStatus() types.OktaAssignmentSpecV1_OktaAssignmentStatus {
-	if x != nil {
-		return x.Status
-	}
-	return types.OktaAssignmentSpecV1_OktaAssignmentStatus(0)
-}
-
-func (x *UpdateOktaAssignmentStatusRequest) GetTimeHasPassed() *durationpb.Duration {
-	if x != nil {
-		return x.TimeHasPassed
-	}
-	return nil
-}
-
 // DeleteOktaAssignmentRequest is the request for deleting an Okta assignment.
 type DeleteOktaAssignmentRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -1809,7 +1744,7 @@ type DeleteOktaAssignmentRequest struct {
 
 func (x *DeleteOktaAssignmentRequest) Reset() {
 	*x = DeleteOktaAssignmentRequest{}
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[30]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1821,7 +1756,7 @@ func (x *DeleteOktaAssignmentRequest) String() string {
 func (*DeleteOktaAssignmentRequest) ProtoMessage() {}
 
 func (x *DeleteOktaAssignmentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[30]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1834,7 +1769,7 @@ func (x *DeleteOktaAssignmentRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteOktaAssignmentRequest.ProtoReflect.Descriptor instead.
 func (*DeleteOktaAssignmentRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{30}
+	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *DeleteOktaAssignmentRequest) GetName() string {
@@ -1853,7 +1788,7 @@ type DeleteAllOktaAssignmentsRequest struct {
 
 func (x *DeleteAllOktaAssignmentsRequest) Reset() {
 	*x = DeleteAllOktaAssignmentsRequest{}
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[31]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1865,7 +1800,7 @@ func (x *DeleteAllOktaAssignmentsRequest) String() string {
 func (*DeleteAllOktaAssignmentsRequest) ProtoMessage() {}
 
 func (x *DeleteAllOktaAssignmentsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[31]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1878,7 +1813,7 @@ func (x *DeleteAllOktaAssignmentsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteAllOktaAssignmentsRequest.ProtoReflect.Descriptor instead.
 func (*DeleteAllOktaAssignmentsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{31}
+	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{30}
 }
 
 // App contains details of an individual Okta app.
@@ -1894,7 +1829,7 @@ type GetAppsResponse_App struct {
 
 func (x *GetAppsResponse_App) Reset() {
 	*x = GetAppsResponse_App{}
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[32]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1906,7 +1841,7 @@ func (x *GetAppsResponse_App) String() string {
 func (*GetAppsResponse_App) ProtoMessage() {}
 
 func (x *GetAppsResponse_App) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[32]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1949,7 +1884,7 @@ type GetGroupsResponse_Group struct {
 
 func (x *GetGroupsResponse_Group) Reset() {
 	*x = GetGroupsResponse_Group{}
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[33]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1961,7 +1896,7 @@ func (x *GetGroupsResponse_Group) String() string {
 func (*GetGroupsResponse_Group) ProtoMessage() {}
 
 func (x *GetGroupsResponse_Group) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[33]
+	mi := &file_teleport_okta_v1_okta_service_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2118,14 +2053,10 @@ const file_teleport_okta_v1_okta_service_proto_rawDesc = "" +
 	"\x1bUpdateOktaAssignmentRequest\x127\n" +
 	"\n" +
 	"assignment\x18\x01 \x01(\v2\x17.types.OktaAssignmentV1R\n" +
-	"assignment\"\xc4\x01\n" +
-	"!UpdateOktaAssignmentStatusRequest\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\x12H\n" +
-	"\x06status\x18\x02 \x01(\x0e20.types.OktaAssignmentSpecV1.OktaAssignmentStatusR\x06status\x12A\n" +
-	"\x0ftime_has_passed\x18\x03 \x01(\v2\x19.google.protobuf.DurationR\rtimeHasPassed\"1\n" +
+	"assignment\"1\n" +
 	"\x1bDeleteOktaAssignmentRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"!\n" +
-	"\x1fDeleteAllOktaAssignmentsRequest2\xb9\x10\n" +
+	"\x1fDeleteAllOktaAssignmentsRequest2\xce\x0f\n" +
 	"\vOktaService\x12r\n" +
 	"\x13ListOktaImportRules\x12,.teleport.okta.v1.ListOktaImportRulesRequest\x1a-.teleport.okta.v1.ListOktaImportRulesResponse\x12X\n" +
 	"\x11GetOktaImportRule\x12*.teleport.okta.v1.GetOktaImportRuleRequest\x1a\x17.types.OktaImportRuleV1\x12^\n" +
@@ -2136,8 +2067,7 @@ const file_teleport_okta_v1_okta_service_proto_rawDesc = "" +
 	"\x13ListOktaAssignments\x12,.teleport.okta.v1.ListOktaAssignmentsRequest\x1a-.teleport.okta.v1.ListOktaAssignmentsResponse\x12X\n" +
 	"\x11GetOktaAssignment\x12*.teleport.okta.v1.GetOktaAssignmentRequest\x1a\x17.types.OktaAssignmentV1\x12^\n" +
 	"\x14CreateOktaAssignment\x12-.teleport.okta.v1.CreateOktaAssignmentRequest\x1a\x17.types.OktaAssignmentV1\x12^\n" +
-	"\x14UpdateOktaAssignment\x12-.teleport.okta.v1.UpdateOktaAssignmentRequest\x1a\x17.types.OktaAssignmentV1\x12i\n" +
-	"\x1aUpdateOktaAssignmentStatus\x123.teleport.okta.v1.UpdateOktaAssignmentStatusRequest\x1a\x16.google.protobuf.Empty\x12]\n" +
+	"\x14UpdateOktaAssignment\x12-.teleport.okta.v1.UpdateOktaAssignmentRequest\x1a\x17.types.OktaAssignmentV1\x12]\n" +
 	"\x14DeleteOktaAssignment\x12-.teleport.okta.v1.DeleteOktaAssignmentRequest\x1a\x16.google.protobuf.Empty\x12e\n" +
 	"\x18DeleteAllOktaAssignments\x121.teleport.okta.v1.DeleteAllOktaAssignmentsRequest\x1a\x16.google.protobuf.Empty\x12\x96\x01\n" +
 	"\x1fConditionalUpdateOktaAssignment\x128.teleport.okta.v1.ConditionalUpdateOktaAssignmentRequest\x1a9.teleport.okta.v1.ConditionalUpdateOktaAssignmentResponse\x12u\n" +
@@ -2160,122 +2090,116 @@ func file_teleport_okta_v1_okta_service_proto_rawDescGZIP() []byte {
 	return file_teleport_okta_v1_okta_service_proto_rawDescData
 }
 
-var file_teleport_okta_v1_okta_service_proto_msgTypes = make([]protoimpl.MessageInfo, 34)
+var file_teleport_okta_v1_okta_service_proto_msgTypes = make([]protoimpl.MessageInfo, 33)
 var file_teleport_okta_v1_okta_service_proto_goTypes = []any{
-	(*ConditionalUpdateOktaAssignmentRequest)(nil),       // 0: teleport.okta.v1.ConditionalUpdateOktaAssignmentRequest
-	(*ConditionalUpdateOktaAssignmentResponse)(nil),      // 1: teleport.okta.v1.ConditionalUpdateOktaAssignmentResponse
-	(*UpsertOktaAssignmentResponse)(nil),                 // 2: teleport.okta.v1.UpsertOktaAssignmentResponse
-	(*UpsertOktaAssignmentRequest)(nil),                  // 3: teleport.okta.v1.UpsertOktaAssignmentRequest
-	(*GetAppsRequest)(nil),                               // 4: teleport.okta.v1.GetAppsRequest
-	(*GetAppsResponse)(nil),                              // 5: teleport.okta.v1.GetAppsResponse
-	(*GetGroupsRequest)(nil),                             // 6: teleport.okta.v1.GetGroupsRequest
-	(*GetGroupsResponse)(nil),                            // 7: teleport.okta.v1.GetGroupsResponse
-	(*CreateIntegrationRequest)(nil),                     // 8: teleport.okta.v1.CreateIntegrationRequest
-	(*UpdateIntegrationRequest)(nil),                     // 9: teleport.okta.v1.UpdateIntegrationRequest
-	(*AccessListSettings)(nil),                           // 10: teleport.okta.v1.AccessListSettings
-	(*OktaAPICredentials)(nil),                           // 11: teleport.okta.v1.OktaAPICredentials
-	(*CreateIntegrationResponse)(nil),                    // 12: teleport.okta.v1.CreateIntegrationResponse
-	(*UpdateIntegrationResponse)(nil),                    // 13: teleport.okta.v1.UpdateIntegrationResponse
-	(*ConnectorInfo)(nil),                                // 14: teleport.okta.v1.ConnectorInfo
-	(*ValidateClientCredentialsRequest)(nil),             // 15: teleport.okta.v1.ValidateClientCredentialsRequest
-	(*ValidateClientCredentialsResponse)(nil),            // 16: teleport.okta.v1.ValidateClientCredentialsResponse
-	(*ListOktaImportRulesRequest)(nil),                   // 17: teleport.okta.v1.ListOktaImportRulesRequest
-	(*ListOktaImportRulesResponse)(nil),                  // 18: teleport.okta.v1.ListOktaImportRulesResponse
-	(*GetOktaImportRuleRequest)(nil),                     // 19: teleport.okta.v1.GetOktaImportRuleRequest
-	(*CreateOktaImportRuleRequest)(nil),                  // 20: teleport.okta.v1.CreateOktaImportRuleRequest
-	(*UpdateOktaImportRuleRequest)(nil),                  // 21: teleport.okta.v1.UpdateOktaImportRuleRequest
-	(*DeleteOktaImportRuleRequest)(nil),                  // 22: teleport.okta.v1.DeleteOktaImportRuleRequest
-	(*DeleteAllOktaImportRulesRequest)(nil),              // 23: teleport.okta.v1.DeleteAllOktaImportRulesRequest
-	(*ListOktaAssignmentsRequest)(nil),                   // 24: teleport.okta.v1.ListOktaAssignmentsRequest
-	(*ListOktaAssignmentsResponse)(nil),                  // 25: teleport.okta.v1.ListOktaAssignmentsResponse
-	(*GetOktaAssignmentRequest)(nil),                     // 26: teleport.okta.v1.GetOktaAssignmentRequest
-	(*CreateOktaAssignmentRequest)(nil),                  // 27: teleport.okta.v1.CreateOktaAssignmentRequest
-	(*UpdateOktaAssignmentRequest)(nil),                  // 28: teleport.okta.v1.UpdateOktaAssignmentRequest
-	(*UpdateOktaAssignmentStatusRequest)(nil),            // 29: teleport.okta.v1.UpdateOktaAssignmentStatusRequest
-	(*DeleteOktaAssignmentRequest)(nil),                  // 30: teleport.okta.v1.DeleteOktaAssignmentRequest
-	(*DeleteAllOktaAssignmentsRequest)(nil),              // 31: teleport.okta.v1.DeleteAllOktaAssignmentsRequest
-	(*GetAppsResponse_App)(nil),                          // 32: teleport.okta.v1.GetAppsResponse.App
-	(*GetGroupsResponse_Group)(nil),                      // 33: teleport.okta.v1.GetGroupsResponse.Group
-	(*types.OktaAssignmentV1)(nil),                       // 34: types.OktaAssignmentV1
-	(*durationpb.Duration)(nil),                          // 35: google.protobuf.Duration
-	(*types.PluginV1)(nil),                               // 36: types.PluginV1
-	(*types.OktaImportRuleV1)(nil),                       // 37: types.OktaImportRuleV1
-	(types.OktaAssignmentSpecV1_OktaAssignmentStatus)(0), // 38: types.OktaAssignmentSpecV1.OktaAssignmentStatus
-	(*emptypb.Empty)(nil),                                // 39: google.protobuf.Empty
+	(*ConditionalUpdateOktaAssignmentRequest)(nil),  // 0: teleport.okta.v1.ConditionalUpdateOktaAssignmentRequest
+	(*ConditionalUpdateOktaAssignmentResponse)(nil), // 1: teleport.okta.v1.ConditionalUpdateOktaAssignmentResponse
+	(*UpsertOktaAssignmentResponse)(nil),            // 2: teleport.okta.v1.UpsertOktaAssignmentResponse
+	(*UpsertOktaAssignmentRequest)(nil),             // 3: teleport.okta.v1.UpsertOktaAssignmentRequest
+	(*GetAppsRequest)(nil),                          // 4: teleport.okta.v1.GetAppsRequest
+	(*GetAppsResponse)(nil),                         // 5: teleport.okta.v1.GetAppsResponse
+	(*GetGroupsRequest)(nil),                        // 6: teleport.okta.v1.GetGroupsRequest
+	(*GetGroupsResponse)(nil),                       // 7: teleport.okta.v1.GetGroupsResponse
+	(*CreateIntegrationRequest)(nil),                // 8: teleport.okta.v1.CreateIntegrationRequest
+	(*UpdateIntegrationRequest)(nil),                // 9: teleport.okta.v1.UpdateIntegrationRequest
+	(*AccessListSettings)(nil),                      // 10: teleport.okta.v1.AccessListSettings
+	(*OktaAPICredentials)(nil),                      // 11: teleport.okta.v1.OktaAPICredentials
+	(*CreateIntegrationResponse)(nil),               // 12: teleport.okta.v1.CreateIntegrationResponse
+	(*UpdateIntegrationResponse)(nil),               // 13: teleport.okta.v1.UpdateIntegrationResponse
+	(*ConnectorInfo)(nil),                           // 14: teleport.okta.v1.ConnectorInfo
+	(*ValidateClientCredentialsRequest)(nil),        // 15: teleport.okta.v1.ValidateClientCredentialsRequest
+	(*ValidateClientCredentialsResponse)(nil),       // 16: teleport.okta.v1.ValidateClientCredentialsResponse
+	(*ListOktaImportRulesRequest)(nil),              // 17: teleport.okta.v1.ListOktaImportRulesRequest
+	(*ListOktaImportRulesResponse)(nil),             // 18: teleport.okta.v1.ListOktaImportRulesResponse
+	(*GetOktaImportRuleRequest)(nil),                // 19: teleport.okta.v1.GetOktaImportRuleRequest
+	(*CreateOktaImportRuleRequest)(nil),             // 20: teleport.okta.v1.CreateOktaImportRuleRequest
+	(*UpdateOktaImportRuleRequest)(nil),             // 21: teleport.okta.v1.UpdateOktaImportRuleRequest
+	(*DeleteOktaImportRuleRequest)(nil),             // 22: teleport.okta.v1.DeleteOktaImportRuleRequest
+	(*DeleteAllOktaImportRulesRequest)(nil),         // 23: teleport.okta.v1.DeleteAllOktaImportRulesRequest
+	(*ListOktaAssignmentsRequest)(nil),              // 24: teleport.okta.v1.ListOktaAssignmentsRequest
+	(*ListOktaAssignmentsResponse)(nil),             // 25: teleport.okta.v1.ListOktaAssignmentsResponse
+	(*GetOktaAssignmentRequest)(nil),                // 26: teleport.okta.v1.GetOktaAssignmentRequest
+	(*CreateOktaAssignmentRequest)(nil),             // 27: teleport.okta.v1.CreateOktaAssignmentRequest
+	(*UpdateOktaAssignmentRequest)(nil),             // 28: teleport.okta.v1.UpdateOktaAssignmentRequest
+	(*DeleteOktaAssignmentRequest)(nil),             // 29: teleport.okta.v1.DeleteOktaAssignmentRequest
+	(*DeleteAllOktaAssignmentsRequest)(nil),         // 30: teleport.okta.v1.DeleteAllOktaAssignmentsRequest
+	(*GetAppsResponse_App)(nil),                     // 31: teleport.okta.v1.GetAppsResponse.App
+	(*GetGroupsResponse_Group)(nil),                 // 32: teleport.okta.v1.GetGroupsResponse.Group
+	(*types.OktaAssignmentV1)(nil),                  // 33: types.OktaAssignmentV1
+	(*durationpb.Duration)(nil),                     // 34: google.protobuf.Duration
+	(*types.PluginV1)(nil),                          // 35: types.PluginV1
+	(*types.OktaImportRuleV1)(nil),                  // 36: types.OktaImportRuleV1
+	(*emptypb.Empty)(nil),                           // 37: google.protobuf.Empty
 }
 var file_teleport_okta_v1_okta_service_proto_depIdxs = []int32{
-	34, // 0: teleport.okta.v1.ConditionalUpdateOktaAssignmentRequest.assignment:type_name -> types.OktaAssignmentV1
-	34, // 1: teleport.okta.v1.ConditionalUpdateOktaAssignmentResponse.assignment:type_name -> types.OktaAssignmentV1
-	34, // 2: teleport.okta.v1.UpsertOktaAssignmentResponse.assignment:type_name -> types.OktaAssignmentV1
-	34, // 3: teleport.okta.v1.UpsertOktaAssignmentRequest.assignment:type_name -> types.OktaAssignmentV1
+	33, // 0: teleport.okta.v1.ConditionalUpdateOktaAssignmentRequest.assignment:type_name -> types.OktaAssignmentV1
+	33, // 1: teleport.okta.v1.ConditionalUpdateOktaAssignmentResponse.assignment:type_name -> types.OktaAssignmentV1
+	33, // 2: teleport.okta.v1.UpsertOktaAssignmentResponse.assignment:type_name -> types.OktaAssignmentV1
+	33, // 3: teleport.okta.v1.UpsertOktaAssignmentRequest.assignment:type_name -> types.OktaAssignmentV1
 	11, // 4: teleport.okta.v1.GetAppsRequest.api_credentials:type_name -> teleport.okta.v1.OktaAPICredentials
-	32, // 5: teleport.okta.v1.GetAppsResponse.apps:type_name -> teleport.okta.v1.GetAppsResponse.App
+	31, // 5: teleport.okta.v1.GetAppsResponse.apps:type_name -> teleport.okta.v1.GetAppsResponse.App
 	11, // 6: teleport.okta.v1.GetGroupsRequest.api_credentials:type_name -> teleport.okta.v1.OktaAPICredentials
-	33, // 7: teleport.okta.v1.GetGroupsResponse.groups:type_name -> teleport.okta.v1.GetGroupsResponse.Group
+	32, // 7: teleport.okta.v1.GetGroupsResponse.groups:type_name -> teleport.okta.v1.GetGroupsResponse.Group
 	11, // 8: teleport.okta.v1.CreateIntegrationRequest.api_credentials:type_name -> teleport.okta.v1.OktaAPICredentials
 	10, // 9: teleport.okta.v1.CreateIntegrationRequest.access_list_settings:type_name -> teleport.okta.v1.AccessListSettings
-	35, // 10: teleport.okta.v1.CreateIntegrationRequest.time_between_imports:type_name -> google.protobuf.Duration
+	34, // 10: teleport.okta.v1.CreateIntegrationRequest.time_between_imports:type_name -> google.protobuf.Duration
 	11, // 11: teleport.okta.v1.UpdateIntegrationRequest.api_credentials:type_name -> teleport.okta.v1.OktaAPICredentials
 	10, // 12: teleport.okta.v1.UpdateIntegrationRequest.access_list_settings:type_name -> teleport.okta.v1.AccessListSettings
-	35, // 13: teleport.okta.v1.UpdateIntegrationRequest.time_between_imports:type_name -> google.protobuf.Duration
-	36, // 14: teleport.okta.v1.CreateIntegrationResponse.plugin:type_name -> types.PluginV1
+	34, // 13: teleport.okta.v1.UpdateIntegrationRequest.time_between_imports:type_name -> google.protobuf.Duration
+	35, // 14: teleport.okta.v1.CreateIntegrationResponse.plugin:type_name -> types.PluginV1
 	14, // 15: teleport.okta.v1.CreateIntegrationResponse.connector_info:type_name -> teleport.okta.v1.ConnectorInfo
-	36, // 16: teleport.okta.v1.UpdateIntegrationResponse.plugin:type_name -> types.PluginV1
+	35, // 16: teleport.okta.v1.UpdateIntegrationResponse.plugin:type_name -> types.PluginV1
 	14, // 17: teleport.okta.v1.UpdateIntegrationResponse.connector_info:type_name -> teleport.okta.v1.ConnectorInfo
 	11, // 18: teleport.okta.v1.ValidateClientCredentialsRequest.api_credentials:type_name -> teleport.okta.v1.OktaAPICredentials
-	37, // 19: teleport.okta.v1.ListOktaImportRulesResponse.import_rules:type_name -> types.OktaImportRuleV1
-	37, // 20: teleport.okta.v1.CreateOktaImportRuleRequest.import_rule:type_name -> types.OktaImportRuleV1
-	37, // 21: teleport.okta.v1.UpdateOktaImportRuleRequest.import_rule:type_name -> types.OktaImportRuleV1
-	34, // 22: teleport.okta.v1.ListOktaAssignmentsResponse.assignments:type_name -> types.OktaAssignmentV1
-	34, // 23: teleport.okta.v1.CreateOktaAssignmentRequest.assignment:type_name -> types.OktaAssignmentV1
-	34, // 24: teleport.okta.v1.UpdateOktaAssignmentRequest.assignment:type_name -> types.OktaAssignmentV1
-	38, // 25: teleport.okta.v1.UpdateOktaAssignmentStatusRequest.status:type_name -> types.OktaAssignmentSpecV1.OktaAssignmentStatus
-	35, // 26: teleport.okta.v1.UpdateOktaAssignmentStatusRequest.time_has_passed:type_name -> google.protobuf.Duration
-	17, // 27: teleport.okta.v1.OktaService.ListOktaImportRules:input_type -> teleport.okta.v1.ListOktaImportRulesRequest
-	19, // 28: teleport.okta.v1.OktaService.GetOktaImportRule:input_type -> teleport.okta.v1.GetOktaImportRuleRequest
-	20, // 29: teleport.okta.v1.OktaService.CreateOktaImportRule:input_type -> teleport.okta.v1.CreateOktaImportRuleRequest
-	21, // 30: teleport.okta.v1.OktaService.UpdateOktaImportRule:input_type -> teleport.okta.v1.UpdateOktaImportRuleRequest
-	22, // 31: teleport.okta.v1.OktaService.DeleteOktaImportRule:input_type -> teleport.okta.v1.DeleteOktaImportRuleRequest
-	23, // 32: teleport.okta.v1.OktaService.DeleteAllOktaImportRules:input_type -> teleport.okta.v1.DeleteAllOktaImportRulesRequest
-	24, // 33: teleport.okta.v1.OktaService.ListOktaAssignments:input_type -> teleport.okta.v1.ListOktaAssignmentsRequest
-	26, // 34: teleport.okta.v1.OktaService.GetOktaAssignment:input_type -> teleport.okta.v1.GetOktaAssignmentRequest
-	27, // 35: teleport.okta.v1.OktaService.CreateOktaAssignment:input_type -> teleport.okta.v1.CreateOktaAssignmentRequest
-	28, // 36: teleport.okta.v1.OktaService.UpdateOktaAssignment:input_type -> teleport.okta.v1.UpdateOktaAssignmentRequest
-	29, // 37: teleport.okta.v1.OktaService.UpdateOktaAssignmentStatus:input_type -> teleport.okta.v1.UpdateOktaAssignmentStatusRequest
-	30, // 38: teleport.okta.v1.OktaService.DeleteOktaAssignment:input_type -> teleport.okta.v1.DeleteOktaAssignmentRequest
-	31, // 39: teleport.okta.v1.OktaService.DeleteAllOktaAssignments:input_type -> teleport.okta.v1.DeleteAllOktaAssignmentsRequest
-	0,  // 40: teleport.okta.v1.OktaService.ConditionalUpdateOktaAssignment:input_type -> teleport.okta.v1.ConditionalUpdateOktaAssignmentRequest
-	3,  // 41: teleport.okta.v1.OktaService.UpsertOktaAssignment:input_type -> teleport.okta.v1.UpsertOktaAssignmentRequest
-	15, // 42: teleport.okta.v1.OktaService.ValidateClientCredentials:input_type -> teleport.okta.v1.ValidateClientCredentialsRequest
-	8,  // 43: teleport.okta.v1.OktaService.CreateIntegration:input_type -> teleport.okta.v1.CreateIntegrationRequest
-	9,  // 44: teleport.okta.v1.OktaService.UpdateIntegration:input_type -> teleport.okta.v1.UpdateIntegrationRequest
-	4,  // 45: teleport.okta.v1.OktaService.GetApps:input_type -> teleport.okta.v1.GetAppsRequest
-	6,  // 46: teleport.okta.v1.OktaService.GetGroups:input_type -> teleport.okta.v1.GetGroupsRequest
-	18, // 47: teleport.okta.v1.OktaService.ListOktaImportRules:output_type -> teleport.okta.v1.ListOktaImportRulesResponse
-	37, // 48: teleport.okta.v1.OktaService.GetOktaImportRule:output_type -> types.OktaImportRuleV1
-	37, // 49: teleport.okta.v1.OktaService.CreateOktaImportRule:output_type -> types.OktaImportRuleV1
-	37, // 50: teleport.okta.v1.OktaService.UpdateOktaImportRule:output_type -> types.OktaImportRuleV1
-	39, // 51: teleport.okta.v1.OktaService.DeleteOktaImportRule:output_type -> google.protobuf.Empty
-	39, // 52: teleport.okta.v1.OktaService.DeleteAllOktaImportRules:output_type -> google.protobuf.Empty
-	25, // 53: teleport.okta.v1.OktaService.ListOktaAssignments:output_type -> teleport.okta.v1.ListOktaAssignmentsResponse
-	34, // 54: teleport.okta.v1.OktaService.GetOktaAssignment:output_type -> types.OktaAssignmentV1
-	34, // 55: teleport.okta.v1.OktaService.CreateOktaAssignment:output_type -> types.OktaAssignmentV1
-	34, // 56: teleport.okta.v1.OktaService.UpdateOktaAssignment:output_type -> types.OktaAssignmentV1
-	39, // 57: teleport.okta.v1.OktaService.UpdateOktaAssignmentStatus:output_type -> google.protobuf.Empty
-	39, // 58: teleport.okta.v1.OktaService.DeleteOktaAssignment:output_type -> google.protobuf.Empty
-	39, // 59: teleport.okta.v1.OktaService.DeleteAllOktaAssignments:output_type -> google.protobuf.Empty
-	1,  // 60: teleport.okta.v1.OktaService.ConditionalUpdateOktaAssignment:output_type -> teleport.okta.v1.ConditionalUpdateOktaAssignmentResponse
-	2,  // 61: teleport.okta.v1.OktaService.UpsertOktaAssignment:output_type -> teleport.okta.v1.UpsertOktaAssignmentResponse
-	16, // 62: teleport.okta.v1.OktaService.ValidateClientCredentials:output_type -> teleport.okta.v1.ValidateClientCredentialsResponse
-	12, // 63: teleport.okta.v1.OktaService.CreateIntegration:output_type -> teleport.okta.v1.CreateIntegrationResponse
-	13, // 64: teleport.okta.v1.OktaService.UpdateIntegration:output_type -> teleport.okta.v1.UpdateIntegrationResponse
-	5,  // 65: teleport.okta.v1.OktaService.GetApps:output_type -> teleport.okta.v1.GetAppsResponse
-	7,  // 66: teleport.okta.v1.OktaService.GetGroups:output_type -> teleport.okta.v1.GetGroupsResponse
-	47, // [47:67] is the sub-list for method output_type
-	27, // [27:47] is the sub-list for method input_type
-	27, // [27:27] is the sub-list for extension type_name
-	27, // [27:27] is the sub-list for extension extendee
-	0,  // [0:27] is the sub-list for field type_name
+	36, // 19: teleport.okta.v1.ListOktaImportRulesResponse.import_rules:type_name -> types.OktaImportRuleV1
+	36, // 20: teleport.okta.v1.CreateOktaImportRuleRequest.import_rule:type_name -> types.OktaImportRuleV1
+	36, // 21: teleport.okta.v1.UpdateOktaImportRuleRequest.import_rule:type_name -> types.OktaImportRuleV1
+	33, // 22: teleport.okta.v1.ListOktaAssignmentsResponse.assignments:type_name -> types.OktaAssignmentV1
+	33, // 23: teleport.okta.v1.CreateOktaAssignmentRequest.assignment:type_name -> types.OktaAssignmentV1
+	33, // 24: teleport.okta.v1.UpdateOktaAssignmentRequest.assignment:type_name -> types.OktaAssignmentV1
+	17, // 25: teleport.okta.v1.OktaService.ListOktaImportRules:input_type -> teleport.okta.v1.ListOktaImportRulesRequest
+	19, // 26: teleport.okta.v1.OktaService.GetOktaImportRule:input_type -> teleport.okta.v1.GetOktaImportRuleRequest
+	20, // 27: teleport.okta.v1.OktaService.CreateOktaImportRule:input_type -> teleport.okta.v1.CreateOktaImportRuleRequest
+	21, // 28: teleport.okta.v1.OktaService.UpdateOktaImportRule:input_type -> teleport.okta.v1.UpdateOktaImportRuleRequest
+	22, // 29: teleport.okta.v1.OktaService.DeleteOktaImportRule:input_type -> teleport.okta.v1.DeleteOktaImportRuleRequest
+	23, // 30: teleport.okta.v1.OktaService.DeleteAllOktaImportRules:input_type -> teleport.okta.v1.DeleteAllOktaImportRulesRequest
+	24, // 31: teleport.okta.v1.OktaService.ListOktaAssignments:input_type -> teleport.okta.v1.ListOktaAssignmentsRequest
+	26, // 32: teleport.okta.v1.OktaService.GetOktaAssignment:input_type -> teleport.okta.v1.GetOktaAssignmentRequest
+	27, // 33: teleport.okta.v1.OktaService.CreateOktaAssignment:input_type -> teleport.okta.v1.CreateOktaAssignmentRequest
+	28, // 34: teleport.okta.v1.OktaService.UpdateOktaAssignment:input_type -> teleport.okta.v1.UpdateOktaAssignmentRequest
+	29, // 35: teleport.okta.v1.OktaService.DeleteOktaAssignment:input_type -> teleport.okta.v1.DeleteOktaAssignmentRequest
+	30, // 36: teleport.okta.v1.OktaService.DeleteAllOktaAssignments:input_type -> teleport.okta.v1.DeleteAllOktaAssignmentsRequest
+	0,  // 37: teleport.okta.v1.OktaService.ConditionalUpdateOktaAssignment:input_type -> teleport.okta.v1.ConditionalUpdateOktaAssignmentRequest
+	3,  // 38: teleport.okta.v1.OktaService.UpsertOktaAssignment:input_type -> teleport.okta.v1.UpsertOktaAssignmentRequest
+	15, // 39: teleport.okta.v1.OktaService.ValidateClientCredentials:input_type -> teleport.okta.v1.ValidateClientCredentialsRequest
+	8,  // 40: teleport.okta.v1.OktaService.CreateIntegration:input_type -> teleport.okta.v1.CreateIntegrationRequest
+	9,  // 41: teleport.okta.v1.OktaService.UpdateIntegration:input_type -> teleport.okta.v1.UpdateIntegrationRequest
+	4,  // 42: teleport.okta.v1.OktaService.GetApps:input_type -> teleport.okta.v1.GetAppsRequest
+	6,  // 43: teleport.okta.v1.OktaService.GetGroups:input_type -> teleport.okta.v1.GetGroupsRequest
+	18, // 44: teleport.okta.v1.OktaService.ListOktaImportRules:output_type -> teleport.okta.v1.ListOktaImportRulesResponse
+	36, // 45: teleport.okta.v1.OktaService.GetOktaImportRule:output_type -> types.OktaImportRuleV1
+	36, // 46: teleport.okta.v1.OktaService.CreateOktaImportRule:output_type -> types.OktaImportRuleV1
+	36, // 47: teleport.okta.v1.OktaService.UpdateOktaImportRule:output_type -> types.OktaImportRuleV1
+	37, // 48: teleport.okta.v1.OktaService.DeleteOktaImportRule:output_type -> google.protobuf.Empty
+	37, // 49: teleport.okta.v1.OktaService.DeleteAllOktaImportRules:output_type -> google.protobuf.Empty
+	25, // 50: teleport.okta.v1.OktaService.ListOktaAssignments:output_type -> teleport.okta.v1.ListOktaAssignmentsResponse
+	33, // 51: teleport.okta.v1.OktaService.GetOktaAssignment:output_type -> types.OktaAssignmentV1
+	33, // 52: teleport.okta.v1.OktaService.CreateOktaAssignment:output_type -> types.OktaAssignmentV1
+	33, // 53: teleport.okta.v1.OktaService.UpdateOktaAssignment:output_type -> types.OktaAssignmentV1
+	37, // 54: teleport.okta.v1.OktaService.DeleteOktaAssignment:output_type -> google.protobuf.Empty
+	37, // 55: teleport.okta.v1.OktaService.DeleteAllOktaAssignments:output_type -> google.protobuf.Empty
+	1,  // 56: teleport.okta.v1.OktaService.ConditionalUpdateOktaAssignment:output_type -> teleport.okta.v1.ConditionalUpdateOktaAssignmentResponse
+	2,  // 57: teleport.okta.v1.OktaService.UpsertOktaAssignment:output_type -> teleport.okta.v1.UpsertOktaAssignmentResponse
+	16, // 58: teleport.okta.v1.OktaService.ValidateClientCredentials:output_type -> teleport.okta.v1.ValidateClientCredentialsResponse
+	12, // 59: teleport.okta.v1.OktaService.CreateIntegration:output_type -> teleport.okta.v1.CreateIntegrationResponse
+	13, // 60: teleport.okta.v1.OktaService.UpdateIntegration:output_type -> teleport.okta.v1.UpdateIntegrationResponse
+	5,  // 61: teleport.okta.v1.OktaService.GetApps:output_type -> teleport.okta.v1.GetAppsResponse
+	7,  // 62: teleport.okta.v1.OktaService.GetGroups:output_type -> teleport.okta.v1.GetGroupsResponse
+	44, // [44:63] is the sub-list for method output_type
+	25, // [25:44] is the sub-list for method input_type
+	25, // [25:25] is the sub-list for extension type_name
+	25, // [25:25] is the sub-list for extension extendee
+	0,  // [0:25] is the sub-list for field type_name
 }
 
 func init() { file_teleport_okta_v1_okta_service_proto_init() }
@@ -2293,7 +2217,7 @@ func file_teleport_okta_v1_okta_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_okta_v1_okta_service_proto_rawDesc), len(file_teleport_okta_v1_okta_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   34,
+			NumMessages:   33,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

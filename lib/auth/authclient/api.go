@@ -22,7 +22,6 @@ import (
 	"context"
 	"io"
 	"iter"
-	"time"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
@@ -1124,10 +1123,6 @@ type OktaAccessPoint interface {
 	// UpdateOktaAssignment updates an existing Okta assignment resource.
 	UpdateOktaAssignment(context.Context, types.OktaAssignment) (types.OktaAssignment, error)
 
-	// UpdateOktaAssignmentStatus will update the status for an Okta assignment if the given time has passed
-	// since the last transition.
-	UpdateOktaAssignmentStatus(ctx context.Context, name, status string, timeHasPassed time.Duration) error
-
 	// DeleteOktaAssignment removes the specified Okta assignment resource.
 	DeleteOktaAssignment(ctx context.Context, name string) error
 
@@ -1962,12 +1957,6 @@ func (w *OktaWrapper) CreateOktaAssignment(ctx context.Context, assignment types
 // UpdateOktaAssignment updates an existing Okta assignment resource.
 func (w *OktaWrapper) UpdateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error) {
 	return w.NoCache.UpdateOktaAssignment(ctx, assignment)
-}
-
-// UpdateOktaAssignmentStatus will update the status for an Okta assignment if the given time has passed
-// since the last transition.
-func (w *OktaWrapper) UpdateOktaAssignmentStatus(ctx context.Context, name, status string, timeHasPassed time.Duration) error {
-	return w.NoCache.UpdateOktaAssignmentStatus(ctx, name, status, timeHasPassed)
 }
 
 // DeleteOktaAssignment removes the specified Okta assignment resource.
