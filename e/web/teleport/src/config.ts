@@ -115,6 +115,7 @@ export const enterpriseRoutes = {
 
   // beams
   beamsQuickstart: '/web/beams/get-started',
+  beamsList: '/web/beams/list',
   beamsFeedback: '/web/beams/feedback',
 
   rootScopedRoles:
@@ -723,6 +724,10 @@ const cfg = {
 
   getBeamsQuickstartRoute() {
     return generatePath(cfg.routes.beamsQuickstart);
+  },
+
+  getBeamsListRoute() {
+    return generatePath(cfg.routes.beamsList);
   },
 
   getBeamsFeedbackRoute() {

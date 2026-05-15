@@ -12,6 +12,7 @@ import {
   Layout,
   LineSegments,
   ListAddCheck,
+  ListThin,
   Plugs,
   RocketLaunch,
   Table,
@@ -56,6 +57,7 @@ import {
 import { AccessAutomations } from './AccessAutomations/AccessAutomations';
 import { AccessGraph } from './AccessGraph';
 import { BeamsFeedback } from './Beams/BeamsFeedback';
+import { BeamsList } from './Beams/BeamsList';
 import { BeamsQuickstart } from './Beams/BeamsQuickstart';
 import { ManagedUpdates as ManagedUpdatesE } from './ManagedUpdates';
 import { RolesE } from './Roles/RolesE';
@@ -780,6 +782,35 @@ class FeatureBeamsQuickstart implements TeleportFeature {
   }
 }
 
+class FeatureBeamsList implements TeleportFeature {
+  category = NavigationCategory.Beams;
+
+  route = {
+    title: 'My Beams',
+    path: cfg.getBeamsListRoute(),
+    exact: true,
+    component: BeamsList,
+  };
+
+  hasAccess() {
+    return cfg.oss.entitlements.Beams.enabled;
+  }
+
+  navigationItem = {
+    title: NavTitle.BeamsList,
+    icon: ListThin,
+    exact: true,
+    getLink() {
+      return cfg.getBeamsListRoute();
+    },
+    searchableTags: ['beams', 'list', 'my beams'],
+  };
+
+  getRoute() {
+    return this.route;
+  }
+}
+
 class FeatureBeamsFeedback implements TeleportFeature {
   category = NavigationCategory.Beams;
 
@@ -884,6 +915,7 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
 
     // - Beams
     new FeatureBeamsQuickstart(),
+    new FeatureBeamsList(),
     new FeatureBeamsFeedback(),
 
     // Other
@@ -900,6 +932,7 @@ function getBeamsUiFeatures(): TeleportFeature[] {
   return [
     // Beams
     new FeatureBeamsQuickstart(),
+    new FeatureBeamsList(),
     new FeatureBeamsFeedback(),
 
     // Resources
