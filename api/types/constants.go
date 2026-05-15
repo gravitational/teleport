@@ -702,6 +702,9 @@ const (
 	// MetaNameVnetConfig is the exact name of the singleton resource holding VNet config.
 	MetaNameVnetConfig = "vnet-config"
 
+	// MetaNameBeamsConfig is the exact name of the singleton resource holding Beams config.
+	MetaNameBeamsConfig = "beams-config"
+
 	// MetaNameRetrievalModel is the name of the singleton resource holding
 	// the default retrieval model configuration.
 	MetaNameRetrievalModel = "retrieval-model"
@@ -732,6 +735,9 @@ const (
 
 	// KindBeam is an ephemeral AI-optimized compute environment.
 	KindBeam = "beam"
+
+	// KindBeamsConfig is the cluster-wide configuration for Beams.
+	KindBeamsConfig = "beams_config"
 
 	// V8 is the eighth version of resources.
 	V8 = "v8"
@@ -1957,3 +1963,19 @@ const BuiltInAutomaticReview = "builtin"
 
 // BeamsLogin is the login that should be used when SSHing into beams.
 const BeamsLogin = "beams"
+
+// BeamsProvisionMode defines how a Beams LLM endpoint is provisioned.
+const (
+	// BeamsProvisionModeCloudManaged indicates LLM apps are managed by Teleport
+	// Cloud which provides limited token usage.
+	BeamsProvisionModeCloudManaged = "cloud-managed"
+
+	// BeamsProvisionModeAWSOIDC indicates Teleport maintains LLM apps with an
+	// AWS OIDC integration where users onboard their own AWS account for
+	// accessing Bedrock.
+	BeamsProvisionModeAWSOIDC = "aws-oidc"
+
+	// BeamsProvisionModeSelfHosted indicates users manage their LLM inference
+	// apps using their self-hosted app services.
+	BeamsProvisionModeSelfHosted = "self-hosted"
+)

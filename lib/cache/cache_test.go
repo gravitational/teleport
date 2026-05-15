@@ -172,6 +172,7 @@ type testPack struct {
 	gitServers              *local.GitServerService
 	workloadIdentity        *local.WorkloadIdentityService
 	beams                   *local.BeamService
+	beamsConfig             *local.BeamsConfigService
 	healthCheckConfig       *local.HealthCheckConfigService
 	botInstanceService      *local.BotInstanceService
 	recordingEncryption     *local.RecordingEncryptionService
@@ -478,6 +479,12 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	}
 	p.beams = beamSvc
 
+	beamsConfigSvc, err := local.NewBeamsConfigService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.beamsConfig = beamsConfigSvc
+
 	databaseObjectsSvc, err := local.NewDatabaseObjectService(p.backend)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -590,6 +597,7 @@ func newPack(t testing.TB, setupConfig func(c Config) Config, opts ...packOption
 		WebSession:              p.webSessionS,
 		WebToken:                p.webTokenS,
 		Beams:                   p.beams,
+		BeamsConfig:             p.beamsConfig,
 		SnowflakeSession:        p.snowflakeSessionS,
 		Restrictions:            p.restrictions,
 		Apps:                    p.apps,
@@ -866,6 +874,7 @@ func TestCompletenessInit(t *testing.T) {
 			SnowflakeSession:        p.snowflakeSessionS,
 			WebToken:                p.webTokenS,
 			Beams:                   p.beams,
+			BeamsConfig:             p.beamsConfig,
 			Restrictions:            p.restrictions,
 			Apps:                    p.apps,
 			Kubernetes:              p.kubernetes,
@@ -960,6 +969,7 @@ func TestCompletenessReset(t *testing.T) {
 		SnowflakeSession:        p.snowflakeSessionS,
 		WebToken:                p.webTokenS,
 		Beams:                   p.beams,
+		BeamsConfig:             p.beamsConfig,
 		Restrictions:            p.restrictions,
 		Apps:                    p.apps,
 		Kubernetes:              p.kubernetes,
@@ -1129,6 +1139,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		WebToken:                p.webTokenS,
 		SnowflakeSession:        p.snowflakeSessionS,
 		Beams:                   p.beams,
+		BeamsConfig:             p.beamsConfig,
 		Restrictions:            p.restrictions,
 		Apps:                    p.apps,
 		Kubernetes:              p.kubernetes,
@@ -1235,6 +1246,7 @@ func initStrategy(t *testing.T) {
 		WebSession:              p.webSessionS,
 		WebToken:                p.webTokenS,
 		Beams:                   p.beams,
+		BeamsConfig:             p.beamsConfig,
 		Restrictions:            p.restrictions,
 		Apps:                    p.apps,
 		Kubernetes:              p.kubernetes,
