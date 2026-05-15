@@ -17,6 +17,7 @@
  */
 
 import { MutableRefObject, useMemo } from 'react';
+import { useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import styled from 'styled-components';
 
@@ -42,6 +43,7 @@ import { DocumentGatewayApp } from 'teleterm/ui/DocumentGatewayApp';
 import { DocumentGatewayCliClient } from 'teleterm/ui/DocumentGatewayCliClient';
 import { DocumentGatewayKube } from 'teleterm/ui/DocumentGatewayKube';
 import { DocumentTerminal } from 'teleterm/ui/DocumentTerminal';
+import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
 import * as types from 'teleterm/ui/services/workspacesService';
 import {
   DocumentsService,
@@ -60,6 +62,14 @@ export function DocumentsRenderer(props: {
   desktopSessionControlsRef: MutableRefObject<HTMLDivElement>;
 }) {
   const { workspacesService } = useAppContext();
+  const clusters = useStoreSelector(
+    'clustersService',
+    useCallback(state => state.clusters, [])
+  );
+  const workspaces = useStoreSelector(
+    'workspacesService',
+    useCallback(state => state.workspaces, [])
+  );
 
   function renderDocuments(documentsService: DocumentsService) {
     return documentsService.getDocuments().map(doc => {
@@ -75,24 +85,25 @@ export function DocumentsRenderer(props: {
     });
   }
 
-  const workspaces = useMemo(
+  const workspacesWithClusters = useMemo(
     () =>
-      Object.entries(workspacesService.getWorkspaces()).map(
-        ([clusterUri, workspace]: [RootClusterUri, Workspace]) => ({
+      Object.entries(workspaces)
+        // Workspaces can outlive their clusters. Render only those that have an accompanying cluster available.
+        .filter(([clusterUri]) => clusters.has(clusterUri))
+        .map(([clusterUri, workspace]: [RootClusterUri, Workspace]) => ({
           rootClusterUri: clusterUri,
           localClusterUri: workspace.localClusterUri,
           documentsService:
             workspacesService.getWorkspaceDocumentService(clusterUri),
           accessRequestsService:
             workspacesService.getWorkspaceAccessRequestsService(clusterUri),
-        })
-      ),
-    [workspacesService.getWorkspaces()]
+        })),
+    [workspaces, clusters, workspacesService]
   );
 
   return (
     <>
-      {workspaces.map(workspace => (
+      {workspacesWithClusters.map(workspace => (
         <DocumentsContainer
           isVisible={
             workspace.rootClusterUri === workspacesService.getRootClusterUri()
