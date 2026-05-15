@@ -216,7 +216,6 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindRelayServer},
 		{Kind: types.KindBotInstance},
 		{Kind: types.KindRecordingEncryption},
-		{Kind: types.KindWorkloadCluster},
 		{Kind: types.KindInferenceModel},
 		{Kind: types.KindInferencePolicy},
 		{Kind: types.KindInferenceSecret},
@@ -793,8 +792,6 @@ type Config struct {
 	Plugin             services.Plugins
 	// RecordingEncryption manages state surrounding session recording encryption
 	RecordingEncryption services.RecordingEncryption
-	// WorkloadClusterService is a workload cluster service
-	WorkloadClusterService services.WorkloadClusterService
 	// Summarizer is a summarizer service.
 	Summarizer services.Summarizer
 }

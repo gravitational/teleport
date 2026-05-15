@@ -1483,8 +1483,6 @@ type Cache interface {
 	// DiscoveryConfigsGetter defines methods for fetching discovery configs.
 	services.DiscoveryConfigsGetter
 
-	// WorkloadClusterServiceGetter defines methods for fetching workload clusters.
-	services.WorkloadClusterServiceGetter
 	// SummarizerServiceGetter defines methods for fetching summarizer resources.
 	services.SummarizerServiceGetter
 }
