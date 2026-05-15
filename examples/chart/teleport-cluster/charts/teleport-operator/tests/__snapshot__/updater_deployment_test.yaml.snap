@@ -1,0 +1,176 @@
+sets the affinity:
+  1: |
+    affinity:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+          - matchExpressions:
+            - key: gravitational.io/dedicated
+              operator: In
+              values:
+              - teleport
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+        - podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - teleport
+            topologyKey: kubernetes.io/hostname
+          weight: 1
+    containers:
+    - args:
+      - --agent-name=RELEASE-NAME
+      - --agent-namespace=NAMESPACE
+      - --base-image=public.ecr.aws/gravitational/teleport-operator
+      - --container-name=operator
+      - --proxy-address=example.teleport.sh:443
+      - --update-group=default
+      env:
+      - name: SSL_CERT_FILE
+        value: /etc/teleport-tls-ca/helm-lint-existing-tls-secret-key-name
+      image: public.ecr.aws/gravitational/teleport-kube-agent-updater:19.0.0-prealpha.2
+      imagePullPolicy: Always
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: healthz
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 5
+      name: kube-agent-updater
+      ports:
+      - containerPort: 8080
+        name: metrics
+        protocol: TCP
+      - containerPort: 8081
+        name: healthz
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /readyz
+          port: healthz
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 5
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - ALL
+        readOnlyRootFilesystem: true
+      volumeMounts:
+      - mountPath: /etc/teleport-tls-ca
+        name: teleport-tls-ca
+        readOnly: true
+    imagePullSecrets:
+    - name: myRegistryKeySecretName
+    nodeSelector:
+      gravitational.io/k8s-role: node
+    priorityClassName: teleport-operator
+    serviceAccountName: teleport-operator-updater
+    tolerations:
+    - effect: NoExecute
+      key: dedicated
+      operator: Equal
+      value: teleport
+    - effect: NoSchedule
+      key: dedicated
+      operator: Equal
+      value: teleport
+    volumes:
+    - name: teleport-tls-ca
+      secret:
+        secretName: helm-lint-existing-tls-secret-ca
+sets the tolerations:
+  1: |
+    affinity:
+      nodeAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          nodeSelectorTerms:
+          - matchExpressions:
+            - key: gravitational.io/dedicated
+              operator: In
+              values:
+              - teleport
+      podAntiAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+        - podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - teleport
+            topologyKey: kubernetes.io/hostname
+          weight: 1
+    containers:
+    - args:
+      - --agent-name=RELEASE-NAME
+      - --agent-namespace=NAMESPACE
+      - --base-image=public.ecr.aws/gravitational/teleport-operator
+      - --container-name=operator
+      - --proxy-address=example.teleport.sh:443
+      - --update-group=default
+      env:
+      - name: SSL_CERT_FILE
+        value: /etc/teleport-tls-ca/helm-lint-existing-tls-secret-key-name
+      image: public.ecr.aws/gravitational/teleport-kube-agent-updater:19.0.0-prealpha.2
+      imagePullPolicy: Always
+      livenessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /healthz
+          port: healthz
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 5
+      name: kube-agent-updater
+      ports:
+      - containerPort: 8080
+        name: metrics
+        protocol: TCP
+      - containerPort: 8081
+        name: healthz
+        protocol: TCP
+      readinessProbe:
+        failureThreshold: 6
+        httpGet:
+          path: /readyz
+          port: healthz
+        initialDelaySeconds: 5
+        periodSeconds: 5
+        timeoutSeconds: 5
+      securityContext:
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop:
+          - ALL
+        readOnlyRootFilesystem: true
+      volumeMounts:
+      - mountPath: /etc/teleport-tls-ca
+        name: teleport-tls-ca
+        readOnly: true
+    imagePullSecrets:
+    - name: myRegistryKeySecretName
+    nodeSelector:
+      gravitational.io/k8s-role: node
+    priorityClassName: teleport-operator
+    serviceAccountName: teleport-operator-updater
+    tolerations:
+    - effect: NoExecute
+      key: dedicated
+      operator: Equal
+      value: teleport
+    - effect: NoSchedule
+      key: dedicated
+      operator: Equal
+      value: teleport
+    volumes:
+    - name: teleport-tls-ca
+      secret:
+        secretName: helm-lint-existing-tls-secret-ca
