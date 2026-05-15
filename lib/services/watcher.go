@@ -691,9 +691,10 @@ func NewDynamicWindowsDesktopWatcher(ctx context.Context, cfg DynamicWindowsDesk
 		ResourceGetter: pagerFn[types.DynamicWindowsDesktop](
 			getter.ListDynamicWindowsDesktops,
 		).getAll,
-		ResourceKey: types.DynamicWindowsDesktop.GetName,
-		ResourcesC:  cfg.DynamicWindowsDesktopsC,
-		CloneFunc:   types.DynamicWindowsDesktop.Copy,
+		ResourceKey:            types.DynamicWindowsDesktop.GetName,
+		ResourcesC:             cfg.DynamicWindowsDesktopsC,
+		DisableUpdateBroadcast: true,
+		CloneFunc:              types.DynamicWindowsDesktop.Copy,
 		ReadOnlyFunc: func(resource types.DynamicWindowsDesktop) readonly.DynamicWindowsDesktop {
 			return resource
 		},
