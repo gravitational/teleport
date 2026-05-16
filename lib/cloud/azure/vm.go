@@ -313,7 +313,10 @@ func (r *RunCommandResult) Failure() bool {
 // RunCommandClient is a client for Azure Run Commands.
 type RunCommandClient interface {
 	// Run runs Teleport installation command on a virtual machine.
+	// TODO(gavin): delete this func
 	Run(ctx context.Context, req RunCommandRequest) (*RunCommandResult, error)
+	// TODO(gavin): godoc
+	RunAsync(ctx context.Context, req RunCommandRequest) (*PendingRunCommandResult, error)
 }
 
 type runCommandClient struct {
@@ -333,6 +336,7 @@ func NewRunCommandClient(subscription string, cred azcore.TokenCredential, optio
 }
 
 // Run runs Teleport installation command on a virtual machine.
+// TODO(gavin): delete this func
 func (c *runCommandClient) Run(ctx context.Context, req RunCommandRequest) (*RunCommandResult, error) {
 	runCommandTimeout := getRunCommandTimeout()
 	// pad the timeout so we can still attempt to collect output if it times out
@@ -382,6 +386,40 @@ func (c *runCommandClient) Run(ctx context.Context, req RunCommandRequest) (*Run
 	return result, nil
 }
 
+// TODO(gavin): godoc
+func (c *runCommandClient) RunAsync(ctx context.Context, req RunCommandRequest) (*PendingRunCommandResult, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// TODO(Tener): make the run command name actual parameter.
+	const runCommandName = "teleport-install"
+
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+	poller, err := c.api.BeginCreateOrUpdate(ctx, req.ResourceGroup, req.VMName, runCommandName, armcompute.VirtualMachineRunCommand{
+		Location: to.Ptr(req.Region),
+		Properties: &armcompute.VirtualMachineRunCommandProperties{
+			// NOTE: The AsyncExecution option can be very misleading.
+			// It has no effect on whether BeginCreateOrUpdate blocks.
+			// Instead, it affects poller.PollUntilDone.
+			// If set to true, then calling poller.PollUntilDone will actually
+			// return as soon as the script is "provisioned" even if
+			// the script execution state is still "running".
+			// We always want this option set to false.
+			AsyncExecution: to.Ptr(false),
+			Source: &armcompute.VirtualMachineRunCommandScriptSource{
+				Script: to.Ptr(req.Script),
+			},
+			TimeoutInSeconds: to.Ptr(int32(getRunCommandTimeout().Seconds())),
+		},
+	}, nil)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return newPendingRunCommandResult(c.api, poller, req.ResourceGroup, req.VMName, runCommandName), nil
+}
+
 func fromPtr[T any](ptr *T) T {
 	var out T
 	if ptr != nil {
@@ -401,4 +439,69 @@ func getRunCommandTimeout() time.Duration {
 		return min(maxTimeout, max(minTimeout, dur))
 	}
 	return 5 * time.Minute // default to 5m
+}
+
+// TODO(gavin): godoc
+type PendingRunCommandResult struct {
+	api            *armcompute.VirtualMachineRunCommandsClient
+	poller         *runtime.Poller[armcompute.VirtualMachineRunCommandsClientCreateOrUpdateResponse]
+	resourceGroup  string
+	vmName         string
+	runCommandName string
+}
+
+func newPendingRunCommandResult(
+	api *armcompute.VirtualMachineRunCommandsClient,
+	poller *runtime.Poller[armcompute.VirtualMachineRunCommandsClientCreateOrUpdateResponse],
+	resourceGroup string,
+	vmName string,
+	runCommandName string,
+) *PendingRunCommandResult {
+	return &PendingRunCommandResult{
+		api:            api,
+		poller:         poller,
+		resourceGroup:  resourceGroup,
+		vmName:         vmName,
+		runCommandName: runCommandName,
+	}
+}
+
+// TODO(gavin): godoc
+func (r *PendingRunCommandResult) Resolve(ctx context.Context) (*RunCommandResult, error) {
+	{
+		// pad the polling timeout so we can still attempt to collect output if the install script itself times out
+		ctx, cancel := context.WithTimeout(ctx, getRunCommandTimeout()+time.Minute)
+		defer cancel()
+
+		pollOpts := &runtime.PollUntilDoneOptions{Frequency: 10 * time.Second}
+		if _, err := r.poller.PollUntilDone(ctx, pollOpts); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	// note: we are not guaranteed to receive the output of the command above if the req.Name is not unique.
+	// in particular, two discovery services may race, causing the output to be empty: our attempt can be shadowed by a newer one.
+	getVMOpts := &armcompute.VirtualMachineRunCommandsClientGetByVirtualMachineOptions{
+		Expand: to.Ptr("instanceView"),
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, time.Minute)
+	defer cancel()
+
+	resp, err := r.api.GetByVirtualMachine(ctx, r.resourceGroup, r.vmName, r.runCommandName, getVMOpts)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if resp.Properties == nil || resp.Properties.InstanceView == nil {
+		return nil, trace.BadParameter("unable to query command execution state, failure assumed")
+	}
+	iv := resp.Properties.InstanceView
+	result := &RunCommandResult{
+		ExecutionState: string(fromPtr(iv.ExecutionState)),
+		ExitCode:       fromPtr(iv.ExitCode),
+		StdOut:         fromPtr(iv.Output),
+		StdErr:         fromPtr(iv.Error),
+	}
+	return result, nil
 }

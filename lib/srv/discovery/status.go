@@ -1071,22 +1071,52 @@ func (s *taskUpdater) mergeAzure(oldSpec *usertasksv1.UserTaskSpec, newSpec *use
 	mergeExistingInstances(s, oldSpec.DiscoverAzureVm.Instances, newSpec.DiscoverAzureVm.Instances)
 }
 
+// TODO(gavin): delete this type
 type discoveryResults struct {
 	found    uint64
 	enrolled uint64
 	failed   uint64
+
+	instances      *server.AzureInstances
+	pendingResults []*server.AzureInstallResultCollector
 }
 
+// vmDiscoveryResult is the result for a group of discovered Azure VMs.
+type vmDiscoveryResult struct {
+	found       uint64
+	enrolled    uint64
+	needInstall uint64
+	// instances contains the instances returned by the fetcher that
+	// are not yet enrolled in the cluster. An installation attempt will be made
+	// for each instance in this set.
+	instances *server.AzureInstances
+	// collectors are the pending results of commands sent to machines.
+	// Results are collected after sending all commands to efficiently pipeline
+	// installs rather than performing the installs and collections serially.
+	collectors []*server.AzureInstallResultCollector
+	// deployError indicates a failure to send any commands, for example when
+	// the discovery service fails to create an Azure API client.
+	deployError error
+}
+
+// TODO(gavin): This type's name is misleading. It shoud be renamed like "fetcherGroupKey".
 type fetcherGroupKey struct {
 	discoveryConfigName string
 	integration         string
+}
+
+type vmDiscoveryStatus struct {
+	found    uint64
+	enrolled uint64
+	failed   uint64
+	results  []vmDiscoveryResult
 }
 
 // resourceStatusMap tracks discovery status (found/enrolled/failed counts)
 // per fetcher group key (discovery config + integration combination).
 type resourceStatusMap struct {
 	resourceType string
-	results      map[fetcherGroupKey]discoveryResults
+	statuses     map[fetcherGroupKey]vmDiscoveryStatus
 	syncStart    *time.Time
 	syncEnd      *time.Time
 }
@@ -1094,7 +1124,7 @@ type resourceStatusMap struct {
 func newStatusMap(resourceType string, syncStart time.Time) *resourceStatusMap {
 	return &resourceStatusMap{
 		resourceType: resourceType,
-		results:      make(map[fetcherGroupKey]discoveryResults),
+		statuses:     make(map[fetcherGroupKey]vmDiscoveryStatus),
 		syncStart:    &syncStart,
 	}
 }
@@ -1103,12 +1133,16 @@ func (s *resourceStatusMap) syncEnded(syncEnd time.Time) {
 	s.syncEnd = &syncEnd
 }
 
-func (s *resourceStatusMap) add(key fetcherGroupKey, new discoveryResults) {
-	curr := s.results[key]
-	curr.found += new.found
-	curr.enrolled += new.enrolled
-	curr.failed += new.failed
-	s.results[key] = curr
+func (s *resourceStatusMap) addPendingResult(key fetcherGroupKey, result *vmDiscoveryResult) {
+	status := s.statuses[key]
+	if result != nil {
+		status.found += result.found
+		status.enrolled += result.enrolled
+		status.results = append(status.results, *result)
+	}
+	// NOTE: failures are not updated here, because installation results are
+	// still pending collection.
+	s.statuses[key] = status
 }
 
 func (s *resourceStatusMap) mergeIntoGlobalStatus(discoveryConfigName string, existingStatus discoveryconfig.Status) discoveryconfig.Status {
@@ -1117,7 +1151,7 @@ func (s *resourceStatusMap) mergeIntoGlobalStatus(discoveryConfigName string, ex
 		return existingStatus
 	}
 
-	for key, results := range s.results {
+	for key, results := range s.statuses {
 		if key.discoveryConfigName != discoveryConfigName {
 			continue
 		}
@@ -1167,7 +1201,7 @@ func (s *resourceStatusMap) discoveryConfigs() []string {
 	}
 
 	names := map[string]struct{}{}
-	for key := range s.results {
+	for key := range s.statuses {
 		names[key.discoveryConfigName] = struct{}{}
 	}
 	return slices.Collect(maps.Keys(names))

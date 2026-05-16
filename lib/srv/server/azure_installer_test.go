@@ -35,6 +35,10 @@ import (
 type mockRunCommandClient struct {
 }
 
+func (m *mockRunCommandClient) RunAsync(ctx context.Context, req azure.RunCommandRequest) (*azure.PendingRunCommandResult, error) {
+	panic("TODO")
+}
+
 func (m *mockRunCommandClient) Run(ctx context.Context, req azure.RunCommandRequest) (*azure.RunCommandResult, error) {
 	if strings.HasPrefix(req.VMName, "bad") {
 		return nil, trace.BadParameter("VM is bad: %v", req.VMName)

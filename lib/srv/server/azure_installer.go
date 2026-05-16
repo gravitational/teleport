@@ -20,6 +20,7 @@ package server
 
 import (
 	"context"
+	"sync"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/gravitational/trace"
@@ -57,6 +58,7 @@ func (r AzureInstallResult) Failure() bool {
 
 // Run initiates Teleport installation on a set of virtual machines and then blocks until the
 // commands have completed.
+// TODO(gavin): delete this func
 func (req *AzureInstallRequest) Run(ctx context.Context, client azure.RunCommandClient) error {
 	// Azure treats scripts with the same content as the same invocation and
 	// won't run them more than once. This is fine when the installer script
@@ -105,4 +107,87 @@ func (req *AzureInstallRequest) Run(ctx context.Context, client azure.RunCommand
 	}
 
 	return trace.Wrap(g.Wait())
+}
+
+// TODO(gavin): godoc
+func (req *AzureInstallRequest) RunAsync(ctx context.Context, client azure.RunCommandClient) ([]*AzureInstallResultCollector, error) {
+	// Azure treats scripts with the same content as the same invocation and
+	// won't run them more than once. This is fine when the installer script
+	// succeeds, but it makes troubleshooting much harder when it fails. To
+	// work around this, we generate a random string and append it as a comment
+	// to the script, forcing Azure to see each invocation as unique.
+	script, err := installerScript(ctx, req.InstallerParams, withNonceComment(), withProxyAddrGetter(req.ProxyAddrGetter))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	g, ctx := errgroup.WithContext(ctx)
+
+	// Somewhat arbitrary limit to make sure Teleport doesn't have to install
+	// hundreds of nodes at once.
+	// TODO (Tener): increase limit/make it configurable.
+	const azureParallelInstallLimit = 10
+	g.SetLimit(azureParallelInstallLimit)
+
+	var resultCollectors []*AzureInstallResultCollector
+	var resultCollectorsMu sync.Mutex
+	for _, inst := range req.Instances {
+		g.Go(func() error {
+			// If the caller cancels, stop trying to run more commands.
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+
+			runRequest := azure.RunCommandRequest{
+				Region:        req.Region,
+				ResourceGroup: req.ResourceGroup,
+				VMName:        azure.StringVal(inst.Name),
+				Script:        script,
+			}
+
+			pendingCommandResult, err := client.RunAsync(ctx, runRequest)
+			resultCollectorsMu.Lock()
+			resultCollectors = append(resultCollectors, &AzureInstallResultCollector{
+				instance:             inst,
+				pendingCommandResult: pendingCommandResult,
+				apiError:             err,
+			})
+			resultCollectorsMu.Unlock()
+
+			// local failure should not affect other runs.
+			return nil
+		})
+	}
+
+	err = g.Wait()
+	return resultCollectors, err
+}
+
+// TODO(gavin): godoc
+type AzureInstallResultCollector struct {
+	instance             *armcompute.VirtualMachine
+	pendingCommandResult *azure.PendingRunCommandResult
+	apiError             error
+}
+
+// TODO(gavin): godoc
+func (c *AzureInstallResultCollector) Collect(ctx context.Context) AzureInstallResult {
+	if c.apiError != nil {
+		return AzureInstallResult{
+			Instance: c.instance,
+			APIError: c.apiError,
+		}
+	}
+
+	result, err := c.pendingCommandResult.Resolve(ctx)
+	if err != nil {
+		return AzureInstallResult{
+			Instance: c.instance,
+			APIError: err,
+		}
+	}
+
+	return AzureInstallResult{
+		Instance:      c.instance,
+		CommandResult: result,
+	}
 }
