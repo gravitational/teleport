@@ -353,6 +353,9 @@ func InitCLIParser(appName, appHelp string) (app *kingpin.Application) {
 func InitHiddenCLIParser() (app *kingpin.Application) {
 	app = kingpin.New("", "")
 	app.UsageWriter(io.Discard)
+	// HiddenHelpWriter suppresses flags like --completion-script-bash that override UsageWriter before writing.
+	// This prevents an unnecessary autocomplete from outputting.
+	app.HiddenHelpWriter(io.Discard)
 	app.Terminate(func(i int) {})
 
 	return app
