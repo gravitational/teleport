@@ -96,8 +96,6 @@ export { default as cartaDark } from './assets/carta-dark.svg?no-inline';
 export { default as cartaLight } from './assets/carta-light.svg?no-inline';
 export { default as checkly } from './assets/checkly.svg?no-inline';
 export { default as checkr } from './assets/checkr.svg?no-inline';
-export { default as claudeDark } from './assets/claude-dark.svg?no-inline';
-export { default as claudeLight } from './assets/claude-light.svg?no-inline';
 export { default as clay } from './assets/clay.svg?no-inline';
 export { default as ciliumDark } from './assets/cilium-dark.svg?no-inline';
 export { default as ciliumLight } from './assets/cilium-light.svg?no-inline';
