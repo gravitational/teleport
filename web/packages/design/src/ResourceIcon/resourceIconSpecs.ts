@@ -114,6 +114,7 @@ export const resourceIconSpecs = {
   cloudzero: forAllThemes(i.cloudzero),
   cockroach: { dark: i.cockroachDark, light: i.cockroachLight },
   coder: { dark: i.coderDark, light: i.coderLight },
+  codex: { dark: i.openaiDark, light: i.openaiLight },
   coefficient: { dark: i.coefficientDark, light: i.coefficientLight },
   commonroom: { dark: i.commonroomDark, light: i.commonroomLight },
   conveyor: forAllThemes(i.conveyor),
