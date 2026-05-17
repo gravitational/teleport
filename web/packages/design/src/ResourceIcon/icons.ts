@@ -204,6 +204,7 @@ export { default as highspot } from './assets/highspot.svg?no-inline';
 export { default as hootsuite } from './assets/hootsuite.svg?no-inline';
 export { default as ibmDark } from './assets/ibm-dark.svg?no-inline';
 export { default as ibmLight } from './assets/ibm-light.svg?no-inline';
+export { default as incidentio } from './assets/incidentio.svg?no-inline';
 export { default as inkeep } from './assets/inkeep.svg?no-inline';
 export { default as instruqtDark } from './assets/instruqt-dark.svg?no-inline';
 export { default as instruqtLight } from './assets/instruqt-light.svg?no-inline';
@@ -287,8 +288,8 @@ export { default as oneloginLight } from './assets/onelogin-light.svg?no-inline'
 export { default as onepasswordDark } from './assets/onepassword-dark.svg?no-inline';
 export { default as onepasswordLight } from './assets/onepassword-light.svg?no-inline';
 export { default as opencomp } from './assets/opencomp.svg?no-inline';
-export { default as openAIDark } from './assets/openai-dark.svg?no-inline';
-export { default as openAILight } from './assets/openai-light.svg?no-inline';
+export { default as openaiDark } from './assets/openai-dark.svg?no-inline';
+export { default as openaiLight } from './assets/openai-light.svg?no-inline';
 export { default as openid } from './assets/openid.svg?no-inline';
 export { default as opsgenie } from './assets/opsgenie.svg?no-inline';
 export { default as oracle } from './assets/oracle.svg?no-inline';

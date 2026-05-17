@@ -101,6 +101,7 @@ export const resourceIconSpecs = {
   captivateiq: { dark: i.captivateiqDark, light: i.captivateiqLight },
   careerminds: { dark: i.careermindsDark, light: i.careermindsLight },
   carta: { dark: i.cartaDark, light: i.cartaLight },
+  chatgpt: { dark: i.openaiDark, light: i.openaiLight },
   checkly: forAllThemes(i.checkly),
   checkr: forAllThemes(i.checkr),
   circleci: { dark: i.circleciDark, light: i.circleciLight },
@@ -186,6 +187,7 @@ export const resourceIconSpecs = {
   cilium: { dark: i.ciliumDark, light: i.ciliumLight },
 
   ibm: { dark: i.ibmDark, light: i.ibmLight },
+  'incident.io': forAllThemes(i.incidentio),
   inkeep: forAllThemes(i.inkeep),
   instruqt: { dark: i.instruqtDark, light: i.instruqtLight },
   intellimize: forAllThemes(i.intellimize),
@@ -252,6 +254,7 @@ export const resourceIconSpecs = {
   '101domain': forAllThemes(i.onehundredonedomain),
   onelogin: { dark: i.oneloginDark, light: i.oneloginLight },
   '1password': { dark: i.onepasswordDark, light: i.onepasswordLight },
+  openai: { dark: i.openaiDark, light: i.openaiLight },
   opencomp: forAllThemes(i.opencomp),
   openid: forAllThemes(i.openid),
   opsgenie: forAllThemes(i.opsgenie),
