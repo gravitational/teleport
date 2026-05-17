@@ -323,6 +323,7 @@ export const resourceIconSpecs = {
   temporal: { dark: i.temporalDark, light: i.temporalLight },
   terraform: forAllThemes(i.terraform),
   tlaplus: { dark: i.tlaplusDark, light: i.tlaplusLight },
+  'tla+': { dark: i.tlaplusDark, light: i.tlaplusLight },
   torq: { dark: i.torqDark, light: i.torqLight },
   'troops.ai': { dark: i.troopsAiDark, light: i.troopsAiLight },
   twilio: forAllThemes(i.twilio),
