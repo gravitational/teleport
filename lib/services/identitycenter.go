@@ -274,13 +274,13 @@ func IdentityCenterAccountToAppServer(acct *identitycenterv1.Account) *types.App
 				Spec: types.AppSpecV3{
 					// URI keeps the original StartUrl as the SSO
 					// redirect target; only PublicAddr is normalized.
-					URI:        acct.Spec.StartUrl,
+					URI:        acct.GetSpec().GetStartUrl(),
 					PublicAddr: publicAddr,
 					AWS: &types.AppAWS{
-						ExternalID: acct.Spec.Id,
+						ExternalID: acct.GetSpec().GetId(),
 					},
 					IdentityCenter: &types.AppIdentityCenter{
-						AccountID:      acct.Spec.Id,
+						AccountID:      acct.GetSpec().GetId(),
 						PermissionSets: pss,
 					},
 				},
