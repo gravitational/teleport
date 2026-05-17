@@ -378,7 +378,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		StringVar(&configureDatabaseAWSCreateFlags.assumesRoles)
 
 	// "teleport discovery" bootstrap command and subcommands.
-	discoveryCmd := app.Command("discovery", "Teleport discovery service commands")
+	discoveryCmd := app.Command("discovery", "Teleport discovery service commands.")
 	discoveryBootstrapCmd := discoveryCmd.Command("bootstrap", "Bootstrap the necessary configuration for the discovery agent. It reads the provided agent configuration to determine what will be bootstrapped.")
 	discoveryBootstrapCmd.Flag("config", fmt.Sprintf("Path to a configuration file [%v].", defaults.ConfigFilePath)).Short('c').Default(defaults.ConfigFilePath).ExistingFileVar(&configureDiscoveryBootstrapFlags.config.ConfigPath)
 	discoveryBootstrapCmd.Flag("confirm", "Apply changes without confirmation prompt.").BoolVar(&configureDiscoveryBootstrapFlags.confirm)
@@ -460,7 +460,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 
 	ver.Flag("raw", "Print the raw teleport version string.").BoolVar(&rawVersion)
 
-	dumpNode := app.Command("node", "SSH Node configuration commands")
+	dumpNode := app.Command("node", "SSH Node configuration commands.")
 	dumpNodeConfigure := dumpNode.Command("configure", "Generate a configuration file for an SSH node.")
 	dumpNodeConfigure.Flag("cluster-name",
 		"Unique cluster name, e.g. example.com.").StringVar(&dumpFlags.ClusterName)
@@ -510,7 +510,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		BoolVar(&ccf.SkipVersionCheck)
 	joinOpenSSH.Flag("debug", "Enable verbose logging to stderr.").Short('d').BoolVar(&ccf.Debug)
 
-	integrationCmd := app.Command("integration", "Integration commands")
+	integrationCmd := app.Command("integration", "Integration commands.")
 	integrationConfigureCmd := integrationCmd.Command("configure", "Configure an integration")
 	integrationConfDeployServiceCmd := integrationConfigureCmd.Command("deployservice-iam", "Create the required IAM Roles for the AWS OIDC Deploy Service.")
 	integrationConfDeployServiceCmd.Flag("cluster", "Teleport Cluster's name.").Required().StringVar(&ccf.IntegrationConfDeployServiceIAMArguments.Cluster)
@@ -627,7 +627,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	tpmCmd := app.Command("tpm", "Commands related to managing TPM joining functionality.")
 	tpmIdentifyCmd := tpmCmd.Command("identify", "Output identifying information related to the TPM detected on the system.")
 
-	debugCmd := app.Command("debug", "Debug commands")
+	debugCmd := app.Command("debug", "Debug commands.")
 	debugCmd.Flag("config", fmt.Sprintf("Path to a configuration file [%v].", defaults.ConfigFilePath)).Short('c').ExistingFileVar(&ccf.ConfigFile)
 	setLogLevelCmd := debugCmd.Command("set-log-level", "Changes the log level.")
 	setLogLevelCmd.Arg("LEVEL", fmt.Sprintf("Log level (case-insensitive). Any of: %s", strings.Join(logutils.SupportedLevelsText, ","))).Required().StringVar(&ccf.LogLevel)
