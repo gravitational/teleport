@@ -1,0 +1,155 @@
+// Copyright 2025 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.delegation.v1;
+
+import "google/protobuf/duration.proto";
+import "teleport/header/v1/metadata.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1;delegationv1";
+
+// DelegationProfile is a set of pre-selected parameters from which a delegation
+// session can be created. It describes the resources a given workload requires
+// access to, their bot/workload identities, desired session length, and details
+// for the user consent screen.
+message DelegationProfile {
+  // The kind of resource represented. This is always `delegation_profile`.
+  string kind = 1;
+
+  // Differentiates variations of the same kind. All resources should contain
+  // one, even if it is never populated.
+  string sub_kind = 2;
+
+  // The version of the resource being represented.
+  string version = 3;
+
+  // Common metadata that all resources share.
+  teleport.header.v1.Metadata metadata = 4;
+
+  // Delegation profile configuration.
+  DelegationProfileSpec spec = 5;
+}
+
+// Delegation profile configuration.
+message DelegationProfileSpec {
+  // Teleport Protected Resources that will be accessible in sessions created
+  // using this profile.
+  repeated DelegationResourceSpec required_resources = 1;
+
+  // Users (i.e. bots or workloads) authorized to use sessions created using
+  // this profile.
+  repeated DelegationUserSpec authorized_users = 2;
+
+  // Default TTL of delegation sessions created using this profile.
+  optional google.protobuf.Duration default_session_length = 3;
+
+  // Configuration for the delegation consent screen.
+  optional DelegationConsentSpec consent = 4;
+}
+
+// DelegationUserSpec describes a bot or workload who is allowed to use a
+// delegation session.
+message DelegationUserSpec {
+  // Type of user (currently only "bot" is supported).
+  string type = 1;
+
+  oneof matcher {
+    // Name of the bot who may use the delegation session.
+    string bot_name = 2;
+  }
+}
+
+// DelegationConsentSpec contains configuration for the delegation consent screen.
+message DelegationConsentSpec {
+  // Succinct description of the bot/workload to whom the user is delegating
+  // their access (e.g. "Payroll Agent").
+  string title = 1;
+
+  // Longer-form explanation of what the bot/workload does, and why it needs
+  // the user's access.
+  string description = 2;
+
+  // Allowlist of URLs where the user may be redirected after giving their
+  // consent. Used to prevent open-redirect vulnerabilities.
+  repeated string allowed_redirect_urls = 3;
+}
+
+// DelegationResourceSpec describes a Teleport Protected Resource that the bot
+// or workload will be allowed to access on behalf of the user.
+message DelegationResourceSpec {
+  // Kind of resource.
+  string kind = 1;
+
+  // Name of the resource.
+  string name = 2;
+
+  oneof constraints {
+    // Constraints for MCP server resources.
+    DelegationMCPResourceConstraints mcp = 3;
+
+    // Constraints for database server resources.
+    DelegationDatabaseResourceConstraints db = 4;
+
+    // Constraints for node resources.
+    DelegationSSHResourceConstraints ssh = 5;
+
+    // Constraints for Kubernetes cluster resources.
+    DelegationKubernetesResourceConstraints kubernetes = 6;
+  }
+}
+
+// DelegationMCPResourceConstraints constrains access to MCP server resources.
+message DelegationMCPResourceConstraints {
+  // Tools that may be used.
+  repeated string tools = 1;
+}
+
+// DelegationDatabaseResourceConstraints constrains access to database resources.
+message DelegationDatabaseResourceConstraints {
+  // Names of databases that may be accessed.
+  repeated string databases = 1;
+
+  // Names of database users that may be used.
+  repeated string users = 2;
+}
+
+// DelegationSSHResourceConstraints constrains access to node resources.
+message DelegationSSHResourceConstraints {
+  // SSH users that may be used.
+  repeated string users = 1;
+}
+
+// DelegationSSHResourceConstraints constrains access to Kubernetes cluster resources.
+message DelegationKubernetesResourceConstraints {
+  // Kubernetes resources that may be accessed.
+  repeated DelegationKubernetesResource resources = 1;
+}
+
+// DelegationKubernetesResource describes a Kubernetes resource that may be
+// accessed.
+message DelegationKubernetesResource {
+  // Resource kind.
+  string kind = 1;
+
+  // Resource API group.
+  string api_group = 2;
+
+  // Kubernetes namespace (may be wildcard "*", or empty for cluster-wide resources).
+  string namespace = 3;
+
+  // Name of the resource (may be wildcard "*").
+  string name = 4;
+}
