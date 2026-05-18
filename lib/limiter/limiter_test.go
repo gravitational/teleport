@@ -83,7 +83,7 @@ func TestRateLimiter(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		require.NoError(t, limiter.RegisterRequest("token1"))
 	}
-	require.Error(t, limiter.RegisterRequest("token1"))
+	require.True(t, trace.IsLimitExceeded(limiter.RegisterRequest("token1")))
 
 	clock.Advance(10 * time.Millisecond)
 	// the second rate is full
