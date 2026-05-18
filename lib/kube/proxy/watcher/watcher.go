@@ -473,11 +473,15 @@ func (w *ProxyKubeServerWatcher) IsInitialized() bool {
 // WaitInitialization blocks until watcher is initialized.
 func (w *ProxyKubeServerWatcher) WaitInitialization() error {
 	const initTickerPeriod = 5 * time.Second
+
+	ticker := time.NewTicker(initTickerPeriod)
+	defer ticker.Stop()
+
 	for {
 		select {
 		case <-w.initC:
 			return nil
-		case <-time.After(initTickerPeriod):
+		case <-ticker.C:
 			w.Logger.DebugContext(w.ctx, "ProxyKubeServerWatcher is not yet initialized.")
 		case <-w.ctx.Done():
 			return trace.ConnectionProblem(nil, "Failed to initialize, context closing")
