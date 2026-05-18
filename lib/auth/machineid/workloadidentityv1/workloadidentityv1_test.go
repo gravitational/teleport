@@ -1713,6 +1713,7 @@ func TestIssueTeleportWorkloadIdentity(t *testing.T) {
 			})
 		}),
 	)
+	require.NoError(t, err)
 
 	// To create an expired session, we issue the cert, and the advance the clock.
 	aliceExpiredClt, err := tp.srv.NewClient(authtest.TestUser(alice.GetName()))

@@ -499,7 +499,10 @@ func (s *IssuanceService) issueAppAccessX509Identity(
 		req.RequestedTtl.AsDuration(),
 		// Don't allow generate app certificate to execeed the TTL of the
 		// session.
-		s.clock.Until(userIdentity.Expires),
+		// Here we must account the possible clock drift. This also guarantees
+		// a certificate with negative (meaning it will already be invalid)
+		// certificate.
+		s.clock.Until(userIdentity.Expires)+certVerifyClockSkewAllowance,
 	)
 
 	// This intentionally uses cluster name as part of the the SPIFFE trust
