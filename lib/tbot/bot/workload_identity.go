@@ -57,13 +57,13 @@ func (s *WorkloadIdentitySelector) CheckAndSetDefaults() error {
 type TrustDomain string
 
 const (
-	// TrustDomainAppClient is the trust domain used to validate Teleport
-	// application clients.
+	// TrustDomainAppClient is the trust domain used to validate certificates
+	// issued by the Teleport application service.
 	TrustDomainAppClient TrustDomain = "app_client"
 )
 
 // TrustDomainsSelector selects additional Teleport-managed trust domains
-// whose bundles should be included alongside the local trust domain.
+// whose bundles should be included alongside the workload identity trust domain.
 type TrustDomainsSelector []TrustDomain
 
 // CheckAndSetDefaults checks the TrustDomainsSelector values and sets any
