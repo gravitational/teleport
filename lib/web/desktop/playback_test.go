@@ -19,6 +19,7 @@
 package desktop_test
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -47,7 +48,7 @@ func TestStreamsDesktopEvents(t *testing.T) {
 		&apievents.DesktopRecording{Message: []byte("ghi")},
 		&apievents.DesktopRecording{Message: []byte("jkl")},
 	}
-	s := newServer(t, 20*time.Millisecond, events)
+	s := newServer(t, 20*time.Millisecond, events, nil)
 
 	// connect to the server and verify that we receive
 	// all 4 JSON-encoded events
@@ -78,10 +79,38 @@ func TestStreamsDesktopEvents(t *testing.T) {
 	require.JSONEq(t, `{"message":"end"}`, string(b))
 }
 
-func newServer(t *testing.T, streamInterval time.Duration, events []apievents.AuditEvent) *httptest.Server {
+func TestStreamingError(t *testing.T) {
+	// set up a server that streams 4 events over websocket
+	events := []apievents.AuditEvent{
+		&apievents.DesktopRecording{Message: []byte("abc")},
+	}
+	errorCh := make(chan error, 1)
+	errorCh <- errors.New("some error")
+	s := newServer(t, 20*time.Millisecond, events, errorCh)
+
+	// connect to the server and verify that we receive
+	// all 4 JSON-encoded events
+	url := strings.Replace(s.URL, "http", "ws", 1)
+
+	// As per https://pkg.go.dev/github.com/gorilla/websocket#Dialer.DialContext:
+	// "The response body may not contain the entire response and does not need to be closed by the application."
+	//nolint:bodyclose // false positive
+	ws, _, err := websocket.DefaultDialer.Dial(url, nil)
+	require.NoError(t, err)
+
+	t.Cleanup(func() { ws.Close() })
+
+	typ, b, err := ws.ReadMessage()
+	require.NoError(t, err)
+	require.Equal(t, websocket.BinaryMessage, typ)
+	// error text should be generic and not leak backend details.
+	require.JSONEq(t, `{"message":"error", "errorText": "internal server error"}`, string(b))
+}
+
+func newServer(t *testing.T, streamInterval time.Duration, events []apievents.AuditEvent, errors chan error) *httptest.Server {
 	t.Helper()
 
-	fs := eventstest.NewFakeStreamer(events, streamInterval)
+	fs := eventstest.NewFakeStreamer(events, streamInterval).WithErrors(errors)
 	log := logtest.NewLogger()
 
 	s := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -20,8 +20,6 @@ package desktop
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"log/slog"
 	"time"
 
@@ -120,15 +118,9 @@ func PlayRecording(
 		case evt, ok := <-player.C():
 			if !ok {
 				if playerErr := player.Err(); playerErr != nil {
-					// Attempt to JSONify the error (escaping any quotes)
-					msg, err := json.Marshal(playerErr.Error())
-					if err != nil {
-						log.WarnContext(ctx, "failed to marshal player error message", "error", err)
-						msg = []byte(`"internal server error"`)
-					}
-					//lint:ignore QF1012 this write needs to happen in a single operation
-					bytes := fmt.Appendf(nil, `{"message":"error", "errorText":%s}`, string(msg))
-					if err := ws.WriteMessage(websocket.BinaryMessage, bytes); err != nil {
+					slog.ErrorContext(ctx, "stopping playback due to an error", "error", playerErr)
+
+					if err := ws.WriteMessage(websocket.BinaryMessage, []byte(`{"message":"error", "errorText": "internal server error"}`)); err != nil {
 						log.ErrorContext(ctx, "failed to write error message", "error", err)
 					}
 					return
