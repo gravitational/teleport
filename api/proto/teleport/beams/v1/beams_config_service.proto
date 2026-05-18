@@ -16,7 +16,6 @@ syntax = "proto3";
 
 package teleport.beams.v1;
 
-import "google/protobuf/empty.proto";
 import "teleport/beams/v1/beams_config.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1;beamsv1";
@@ -24,29 +23,11 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport
 // BeamsConfigService provides methods to manage the cluster-wide Beams
 // configuration singleton.
 service BeamsConfigService {
-  // CreateBeamsConfig creates a new BeamsConfig.
-  rpc CreateBeamsConfig(CreateBeamsConfigRequest) returns (CreateBeamsConfigResponse);
-
   // GetBeamsConfig returns the current BeamsConfig.
   rpc GetBeamsConfig(GetBeamsConfigRequest) returns (GetBeamsConfigResponse);
 
   // UpdateBeamsConfig updates the existing BeamsConfig.
   rpc UpdateBeamsConfig(UpdateBeamsConfigRequest) returns (UpdateBeamsConfigResponse);
-
-  // DeleteBeamsConfig deletes the BeamsConfig.
-  rpc DeleteBeamsConfig(DeleteBeamsConfigRequest) returns (google.protobuf.Empty);
-}
-
-// Request for CreateBeamsConfig.
-message CreateBeamsConfigRequest {
-  // The BeamsConfig to create.
-  BeamsConfig beams_config = 1;
-}
-
-// Response for CreateBeamsConfig.
-message CreateBeamsConfigResponse {
-  // The BeamsConfig that was created, including its new revision.
-  BeamsConfig beams_config = 1;
 }
 
 // Request for GetBeamsConfig.
@@ -69,6 +50,3 @@ message UpdateBeamsConfigResponse {
   // The BeamsConfig that was written, including its new revision.
   BeamsConfig beams_config = 1;
 }
-
-// Request for DeleteBeamsConfig.
-message DeleteBeamsConfigRequest {}

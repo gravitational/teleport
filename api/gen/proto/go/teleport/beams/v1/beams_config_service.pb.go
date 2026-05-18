@@ -23,7 +23,6 @@ package beamsv1
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
 	unsafe "unsafe"
 )
@@ -35,146 +34,6 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Request for CreateBeamsConfig.
-type CreateBeamsConfigRequest struct {
-	state                  protoimpl.MessageState `protogen:"opaque.v1"`
-	xxx_hidden_BeamsConfig *BeamsConfig           `protobuf:"bytes,1,opt,name=beams_config,json=beamsConfig,proto3"`
-	unknownFields          protoimpl.UnknownFields
-	sizeCache              protoimpl.SizeCache
-}
-
-func (x *CreateBeamsConfigRequest) Reset() {
-	*x = CreateBeamsConfigRequest{}
-	mi := &file_teleport_beams_v1_beams_config_service_proto_msgTypes[0]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *CreateBeamsConfigRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*CreateBeamsConfigRequest) ProtoMessage() {}
-
-func (x *CreateBeamsConfigRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_beams_v1_beams_config_service_proto_msgTypes[0]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-func (x *CreateBeamsConfigRequest) GetBeamsConfig() *BeamsConfig {
-	if x != nil {
-		return x.xxx_hidden_BeamsConfig
-	}
-	return nil
-}
-
-func (x *CreateBeamsConfigRequest) SetBeamsConfig(v *BeamsConfig) {
-	x.xxx_hidden_BeamsConfig = v
-}
-
-func (x *CreateBeamsConfigRequest) HasBeamsConfig() bool {
-	if x == nil {
-		return false
-	}
-	return x.xxx_hidden_BeamsConfig != nil
-}
-
-func (x *CreateBeamsConfigRequest) ClearBeamsConfig() {
-	x.xxx_hidden_BeamsConfig = nil
-}
-
-type CreateBeamsConfigRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// The BeamsConfig to create.
-	BeamsConfig *BeamsConfig
-}
-
-func (b0 CreateBeamsConfigRequest_builder) Build() *CreateBeamsConfigRequest {
-	m0 := &CreateBeamsConfigRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.xxx_hidden_BeamsConfig = b.BeamsConfig
-	return m0
-}
-
-// Response for CreateBeamsConfig.
-type CreateBeamsConfigResponse struct {
-	state                  protoimpl.MessageState `protogen:"opaque.v1"`
-	xxx_hidden_BeamsConfig *BeamsConfig           `protobuf:"bytes,1,opt,name=beams_config,json=beamsConfig,proto3"`
-	unknownFields          protoimpl.UnknownFields
-	sizeCache              protoimpl.SizeCache
-}
-
-func (x *CreateBeamsConfigResponse) Reset() {
-	*x = CreateBeamsConfigResponse{}
-	mi := &file_teleport_beams_v1_beams_config_service_proto_msgTypes[1]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *CreateBeamsConfigResponse) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*CreateBeamsConfigResponse) ProtoMessage() {}
-
-func (x *CreateBeamsConfigResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_beams_v1_beams_config_service_proto_msgTypes[1]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-func (x *CreateBeamsConfigResponse) GetBeamsConfig() *BeamsConfig {
-	if x != nil {
-		return x.xxx_hidden_BeamsConfig
-	}
-	return nil
-}
-
-func (x *CreateBeamsConfigResponse) SetBeamsConfig(v *BeamsConfig) {
-	x.xxx_hidden_BeamsConfig = v
-}
-
-func (x *CreateBeamsConfigResponse) HasBeamsConfig() bool {
-	if x == nil {
-		return false
-	}
-	return x.xxx_hidden_BeamsConfig != nil
-}
-
-func (x *CreateBeamsConfigResponse) ClearBeamsConfig() {
-	x.xxx_hidden_BeamsConfig = nil
-}
-
-type CreateBeamsConfigResponse_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-	// The BeamsConfig that was created, including its new revision.
-	BeamsConfig *BeamsConfig
-}
-
-func (b0 CreateBeamsConfigResponse_builder) Build() *CreateBeamsConfigResponse {
-	m0 := &CreateBeamsConfigResponse{}
-	b, x := &b0, m0
-	_, _ = b, x
-	x.xxx_hidden_BeamsConfig = b.BeamsConfig
-	return m0
-}
-
 // Request for GetBeamsConfig.
 type GetBeamsConfigRequest struct {
 	state         protoimpl.MessageState `protogen:"opaque.v1"`
@@ -184,7 +43,7 @@ type GetBeamsConfigRequest struct {
 
 func (x *GetBeamsConfigRequest) Reset() {
 	*x = GetBeamsConfigRequest{}
-	mi := &file_teleport_beams_v1_beams_config_service_proto_msgTypes[2]
+	mi := &file_teleport_beams_v1_beams_config_service_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -196,7 +55,7 @@ func (x *GetBeamsConfigRequest) String() string {
 func (*GetBeamsConfigRequest) ProtoMessage() {}
 
 func (x *GetBeamsConfigRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_beams_v1_beams_config_service_proto_msgTypes[2]
+	mi := &file_teleport_beams_v1_beams_config_service_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -229,7 +88,7 @@ type GetBeamsConfigResponse struct {
 
 func (x *GetBeamsConfigResponse) Reset() {
 	*x = GetBeamsConfigResponse{}
-	mi := &file_teleport_beams_v1_beams_config_service_proto_msgTypes[3]
+	mi := &file_teleport_beams_v1_beams_config_service_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -241,7 +100,7 @@ func (x *GetBeamsConfigResponse) String() string {
 func (*GetBeamsConfigResponse) ProtoMessage() {}
 
 func (x *GetBeamsConfigResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_beams_v1_beams_config_service_proto_msgTypes[3]
+	mi := &file_teleport_beams_v1_beams_config_service_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -299,7 +158,7 @@ type UpdateBeamsConfigRequest struct {
 
 func (x *UpdateBeamsConfigRequest) Reset() {
 	*x = UpdateBeamsConfigRequest{}
-	mi := &file_teleport_beams_v1_beams_config_service_proto_msgTypes[4]
+	mi := &file_teleport_beams_v1_beams_config_service_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -311,7 +170,7 @@ func (x *UpdateBeamsConfigRequest) String() string {
 func (*UpdateBeamsConfigRequest) ProtoMessage() {}
 
 func (x *UpdateBeamsConfigRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_beams_v1_beams_config_service_proto_msgTypes[4]
+	mi := &file_teleport_beams_v1_beams_config_service_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -369,7 +228,7 @@ type UpdateBeamsConfigResponse struct {
 
 func (x *UpdateBeamsConfigResponse) Reset() {
 	*x = UpdateBeamsConfigResponse{}
-	mi := &file_teleport_beams_v1_beams_config_service_proto_msgTypes[5]
+	mi := &file_teleport_beams_v1_beams_config_service_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -381,7 +240,7 @@ func (x *UpdateBeamsConfigResponse) String() string {
 func (*UpdateBeamsConfigResponse) ProtoMessage() {}
 
 func (x *UpdateBeamsConfigResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_beams_v1_beams_config_service_proto_msgTypes[5]
+	mi := &file_teleport_beams_v1_beams_config_service_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -429,104 +288,43 @@ func (b0 UpdateBeamsConfigResponse_builder) Build() *UpdateBeamsConfigResponse {
 	return m0
 }
 
-// Request for DeleteBeamsConfig.
-type DeleteBeamsConfigRequest struct {
-	state         protoimpl.MessageState `protogen:"opaque.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *DeleteBeamsConfigRequest) Reset() {
-	*x = DeleteBeamsConfigRequest{}
-	mi := &file_teleport_beams_v1_beams_config_service_proto_msgTypes[6]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *DeleteBeamsConfigRequest) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*DeleteBeamsConfigRequest) ProtoMessage() {}
-
-func (x *DeleteBeamsConfigRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_beams_v1_beams_config_service_proto_msgTypes[6]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-type DeleteBeamsConfigRequest_builder struct {
-	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
-
-}
-
-func (b0 DeleteBeamsConfigRequest_builder) Build() *DeleteBeamsConfigRequest {
-	m0 := &DeleteBeamsConfigRequest{}
-	b, x := &b0, m0
-	_, _ = b, x
-	return m0
-}
-
 var File_teleport_beams_v1_beams_config_service_proto protoreflect.FileDescriptor
 
 const file_teleport_beams_v1_beams_config_service_proto_rawDesc = "" +
 	"\n" +
-	",teleport/beams/v1/beams_config_service.proto\x12\x11teleport.beams.v1\x1a\x1bgoogle/protobuf/empty.proto\x1a$teleport/beams/v1/beams_config.proto\"]\n" +
-	"\x18CreateBeamsConfigRequest\x12A\n" +
-	"\fbeams_config\x18\x01 \x01(\v2\x1e.teleport.beams.v1.BeamsConfigR\vbeamsConfig\"^\n" +
-	"\x19CreateBeamsConfigResponse\x12A\n" +
-	"\fbeams_config\x18\x01 \x01(\v2\x1e.teleport.beams.v1.BeamsConfigR\vbeamsConfig\"\x17\n" +
+	",teleport/beams/v1/beams_config_service.proto\x12\x11teleport.beams.v1\x1a$teleport/beams/v1/beams_config.proto\"\x17\n" +
 	"\x15GetBeamsConfigRequest\"[\n" +
 	"\x16GetBeamsConfigResponse\x12A\n" +
 	"\fbeams_config\x18\x01 \x01(\v2\x1e.teleport.beams.v1.BeamsConfigR\vbeamsConfig\"]\n" +
 	"\x18UpdateBeamsConfigRequest\x12A\n" +
 	"\fbeams_config\x18\x01 \x01(\v2\x1e.teleport.beams.v1.BeamsConfigR\vbeamsConfig\"^\n" +
 	"\x19UpdateBeamsConfigResponse\x12A\n" +
-	"\fbeams_config\x18\x01 \x01(\v2\x1e.teleport.beams.v1.BeamsConfigR\vbeamsConfig\"\x1a\n" +
-	"\x18DeleteBeamsConfigRequest2\xb5\x03\n" +
-	"\x12BeamsConfigService\x12n\n" +
-	"\x11CreateBeamsConfig\x12+.teleport.beams.v1.CreateBeamsConfigRequest\x1a,.teleport.beams.v1.CreateBeamsConfigResponse\x12e\n" +
+	"\fbeams_config\x18\x01 \x01(\v2\x1e.teleport.beams.v1.BeamsConfigR\vbeamsConfig2\xeb\x01\n" +
+	"\x12BeamsConfigService\x12e\n" +
 	"\x0eGetBeamsConfig\x12(.teleport.beams.v1.GetBeamsConfigRequest\x1a).teleport.beams.v1.GetBeamsConfigResponse\x12n\n" +
-	"\x11UpdateBeamsConfig\x12+.teleport.beams.v1.UpdateBeamsConfigRequest\x1a,.teleport.beams.v1.UpdateBeamsConfigResponse\x12X\n" +
-	"\x11DeleteBeamsConfig\x12+.teleport.beams.v1.DeleteBeamsConfigRequest\x1a\x16.google.protobuf.EmptyBNZLgithub.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1;beamsv1b\x06proto3"
+	"\x11UpdateBeamsConfig\x12+.teleport.beams.v1.UpdateBeamsConfigRequest\x1a,.teleport.beams.v1.UpdateBeamsConfigResponseBNZLgithub.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1;beamsv1b\x06proto3"
 
-var file_teleport_beams_v1_beams_config_service_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_teleport_beams_v1_beams_config_service_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_teleport_beams_v1_beams_config_service_proto_goTypes = []any{
-	(*CreateBeamsConfigRequest)(nil),  // 0: teleport.beams.v1.CreateBeamsConfigRequest
-	(*CreateBeamsConfigResponse)(nil), // 1: teleport.beams.v1.CreateBeamsConfigResponse
-	(*GetBeamsConfigRequest)(nil),     // 2: teleport.beams.v1.GetBeamsConfigRequest
-	(*GetBeamsConfigResponse)(nil),    // 3: teleport.beams.v1.GetBeamsConfigResponse
-	(*UpdateBeamsConfigRequest)(nil),  // 4: teleport.beams.v1.UpdateBeamsConfigRequest
-	(*UpdateBeamsConfigResponse)(nil), // 5: teleport.beams.v1.UpdateBeamsConfigResponse
-	(*DeleteBeamsConfigRequest)(nil),  // 6: teleport.beams.v1.DeleteBeamsConfigRequest
-	(*BeamsConfig)(nil),               // 7: teleport.beams.v1.BeamsConfig
-	(*emptypb.Empty)(nil),             // 8: google.protobuf.Empty
+	(*GetBeamsConfigRequest)(nil),     // 0: teleport.beams.v1.GetBeamsConfigRequest
+	(*GetBeamsConfigResponse)(nil),    // 1: teleport.beams.v1.GetBeamsConfigResponse
+	(*UpdateBeamsConfigRequest)(nil),  // 2: teleport.beams.v1.UpdateBeamsConfigRequest
+	(*UpdateBeamsConfigResponse)(nil), // 3: teleport.beams.v1.UpdateBeamsConfigResponse
+	(*BeamsConfig)(nil),               // 4: teleport.beams.v1.BeamsConfig
 }
 var file_teleport_beams_v1_beams_config_service_proto_depIdxs = []int32{
-	7, // 0: teleport.beams.v1.CreateBeamsConfigRequest.beams_config:type_name -> teleport.beams.v1.BeamsConfig
-	7, // 1: teleport.beams.v1.CreateBeamsConfigResponse.beams_config:type_name -> teleport.beams.v1.BeamsConfig
-	7, // 2: teleport.beams.v1.GetBeamsConfigResponse.beams_config:type_name -> teleport.beams.v1.BeamsConfig
-	7, // 3: teleport.beams.v1.UpdateBeamsConfigRequest.beams_config:type_name -> teleport.beams.v1.BeamsConfig
-	7, // 4: teleport.beams.v1.UpdateBeamsConfigResponse.beams_config:type_name -> teleport.beams.v1.BeamsConfig
-	0, // 5: teleport.beams.v1.BeamsConfigService.CreateBeamsConfig:input_type -> teleport.beams.v1.CreateBeamsConfigRequest
-	2, // 6: teleport.beams.v1.BeamsConfigService.GetBeamsConfig:input_type -> teleport.beams.v1.GetBeamsConfigRequest
-	4, // 7: teleport.beams.v1.BeamsConfigService.UpdateBeamsConfig:input_type -> teleport.beams.v1.UpdateBeamsConfigRequest
-	6, // 8: teleport.beams.v1.BeamsConfigService.DeleteBeamsConfig:input_type -> teleport.beams.v1.DeleteBeamsConfigRequest
-	1, // 9: teleport.beams.v1.BeamsConfigService.CreateBeamsConfig:output_type -> teleport.beams.v1.CreateBeamsConfigResponse
-	3, // 10: teleport.beams.v1.BeamsConfigService.GetBeamsConfig:output_type -> teleport.beams.v1.GetBeamsConfigResponse
-	5, // 11: teleport.beams.v1.BeamsConfigService.UpdateBeamsConfig:output_type -> teleport.beams.v1.UpdateBeamsConfigResponse
-	8, // 12: teleport.beams.v1.BeamsConfigService.DeleteBeamsConfig:output_type -> google.protobuf.Empty
-	9, // [9:13] is the sub-list for method output_type
-	5, // [5:9] is the sub-list for method input_type
-	5, // [5:5] is the sub-list for extension type_name
-	5, // [5:5] is the sub-list for extension extendee
-	0, // [0:5] is the sub-list for field type_name
+	4, // 0: teleport.beams.v1.GetBeamsConfigResponse.beams_config:type_name -> teleport.beams.v1.BeamsConfig
+	4, // 1: teleport.beams.v1.UpdateBeamsConfigRequest.beams_config:type_name -> teleport.beams.v1.BeamsConfig
+	4, // 2: teleport.beams.v1.UpdateBeamsConfigResponse.beams_config:type_name -> teleport.beams.v1.BeamsConfig
+	0, // 3: teleport.beams.v1.BeamsConfigService.GetBeamsConfig:input_type -> teleport.beams.v1.GetBeamsConfigRequest
+	2, // 4: teleport.beams.v1.BeamsConfigService.UpdateBeamsConfig:input_type -> teleport.beams.v1.UpdateBeamsConfigRequest
+	1, // 5: teleport.beams.v1.BeamsConfigService.GetBeamsConfig:output_type -> teleport.beams.v1.GetBeamsConfigResponse
+	3, // 6: teleport.beams.v1.BeamsConfigService.UpdateBeamsConfig:output_type -> teleport.beams.v1.UpdateBeamsConfigResponse
+	5, // [5:7] is the sub-list for method output_type
+	3, // [3:5] is the sub-list for method input_type
+	3, // [3:3] is the sub-list for extension type_name
+	3, // [3:3] is the sub-list for extension extendee
+	0, // [0:3] is the sub-list for field type_name
 }
 
 func init() { file_teleport_beams_v1_beams_config_service_proto_init() }
@@ -541,7 +339,7 @@ func file_teleport_beams_v1_beams_config_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_beams_v1_beams_config_service_proto_rawDesc), len(file_teleport_beams_v1_beams_config_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

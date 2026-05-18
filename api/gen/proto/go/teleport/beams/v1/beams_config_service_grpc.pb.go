@@ -25,7 +25,6 @@ import (
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
-	emptypb "google.golang.org/protobuf/types/known/emptypb"
 )
 
 // This is a compile-time assertion to ensure that this generated file
@@ -34,10 +33,8 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	BeamsConfigService_CreateBeamsConfig_FullMethodName = "/teleport.beams.v1.BeamsConfigService/CreateBeamsConfig"
 	BeamsConfigService_GetBeamsConfig_FullMethodName    = "/teleport.beams.v1.BeamsConfigService/GetBeamsConfig"
 	BeamsConfigService_UpdateBeamsConfig_FullMethodName = "/teleport.beams.v1.BeamsConfigService/UpdateBeamsConfig"
-	BeamsConfigService_DeleteBeamsConfig_FullMethodName = "/teleport.beams.v1.BeamsConfigService/DeleteBeamsConfig"
 )
 
 // BeamsConfigServiceClient is the client API for BeamsConfigService service.
@@ -47,14 +44,10 @@ const (
 // BeamsConfigService provides methods to manage the cluster-wide Beams
 // configuration singleton.
 type BeamsConfigServiceClient interface {
-	// CreateBeamsConfig creates a new BeamsConfig.
-	CreateBeamsConfig(ctx context.Context, in *CreateBeamsConfigRequest, opts ...grpc.CallOption) (*CreateBeamsConfigResponse, error)
 	// GetBeamsConfig returns the current BeamsConfig.
 	GetBeamsConfig(ctx context.Context, in *GetBeamsConfigRequest, opts ...grpc.CallOption) (*GetBeamsConfigResponse, error)
 	// UpdateBeamsConfig updates the existing BeamsConfig.
 	UpdateBeamsConfig(ctx context.Context, in *UpdateBeamsConfigRequest, opts ...grpc.CallOption) (*UpdateBeamsConfigResponse, error)
-	// DeleteBeamsConfig deletes the BeamsConfig.
-	DeleteBeamsConfig(ctx context.Context, in *DeleteBeamsConfigRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type beamsConfigServiceClient struct {
@@ -63,16 +56,6 @@ type beamsConfigServiceClient struct {
 
 func NewBeamsConfigServiceClient(cc grpc.ClientConnInterface) BeamsConfigServiceClient {
 	return &beamsConfigServiceClient{cc}
-}
-
-func (c *beamsConfigServiceClient) CreateBeamsConfig(ctx context.Context, in *CreateBeamsConfigRequest, opts ...grpc.CallOption) (*CreateBeamsConfigResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(CreateBeamsConfigResponse)
-	err := c.cc.Invoke(ctx, BeamsConfigService_CreateBeamsConfig_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
 }
 
 func (c *beamsConfigServiceClient) GetBeamsConfig(ctx context.Context, in *GetBeamsConfigRequest, opts ...grpc.CallOption) (*GetBeamsConfigResponse, error) {
@@ -95,16 +78,6 @@ func (c *beamsConfigServiceClient) UpdateBeamsConfig(ctx context.Context, in *Up
 	return out, nil
 }
 
-func (c *beamsConfigServiceClient) DeleteBeamsConfig(ctx context.Context, in *DeleteBeamsConfigRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(emptypb.Empty)
-	err := c.cc.Invoke(ctx, BeamsConfigService_DeleteBeamsConfig_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
 // BeamsConfigServiceServer is the server API for BeamsConfigService service.
 // All implementations must embed UnimplementedBeamsConfigServiceServer
 // for forward compatibility.
@@ -112,14 +85,10 @@ func (c *beamsConfigServiceClient) DeleteBeamsConfig(ctx context.Context, in *De
 // BeamsConfigService provides methods to manage the cluster-wide Beams
 // configuration singleton.
 type BeamsConfigServiceServer interface {
-	// CreateBeamsConfig creates a new BeamsConfig.
-	CreateBeamsConfig(context.Context, *CreateBeamsConfigRequest) (*CreateBeamsConfigResponse, error)
 	// GetBeamsConfig returns the current BeamsConfig.
 	GetBeamsConfig(context.Context, *GetBeamsConfigRequest) (*GetBeamsConfigResponse, error)
 	// UpdateBeamsConfig updates the existing BeamsConfig.
 	UpdateBeamsConfig(context.Context, *UpdateBeamsConfigRequest) (*UpdateBeamsConfigResponse, error)
-	// DeleteBeamsConfig deletes the BeamsConfig.
-	DeleteBeamsConfig(context.Context, *DeleteBeamsConfigRequest) (*emptypb.Empty, error)
 	mustEmbedUnimplementedBeamsConfigServiceServer()
 }
 
@@ -130,17 +99,11 @@ type BeamsConfigServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedBeamsConfigServiceServer struct{}
 
-func (UnimplementedBeamsConfigServiceServer) CreateBeamsConfig(context.Context, *CreateBeamsConfigRequest) (*CreateBeamsConfigResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method CreateBeamsConfig not implemented")
-}
 func (UnimplementedBeamsConfigServiceServer) GetBeamsConfig(context.Context, *GetBeamsConfigRequest) (*GetBeamsConfigResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetBeamsConfig not implemented")
 }
 func (UnimplementedBeamsConfigServiceServer) UpdateBeamsConfig(context.Context, *UpdateBeamsConfigRequest) (*UpdateBeamsConfigResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateBeamsConfig not implemented")
-}
-func (UnimplementedBeamsConfigServiceServer) DeleteBeamsConfig(context.Context, *DeleteBeamsConfigRequest) (*emptypb.Empty, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method DeleteBeamsConfig not implemented")
 }
 func (UnimplementedBeamsConfigServiceServer) mustEmbedUnimplementedBeamsConfigServiceServer() {}
 func (UnimplementedBeamsConfigServiceServer) testEmbeddedByValue()                            {}
@@ -161,24 +124,6 @@ func RegisterBeamsConfigServiceServer(s grpc.ServiceRegistrar, srv BeamsConfigSe
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&BeamsConfigService_ServiceDesc, srv)
-}
-
-func _BeamsConfigService_CreateBeamsConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CreateBeamsConfigRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(BeamsConfigServiceServer).CreateBeamsConfig(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: BeamsConfigService_CreateBeamsConfig_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(BeamsConfigServiceServer).CreateBeamsConfig(ctx, req.(*CreateBeamsConfigRequest))
-	}
-	return interceptor(ctx, in, info, handler)
 }
 
 func _BeamsConfigService_GetBeamsConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -217,24 +162,6 @@ func _BeamsConfigService_UpdateBeamsConfig_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
-func _BeamsConfigService_DeleteBeamsConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(DeleteBeamsConfigRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(BeamsConfigServiceServer).DeleteBeamsConfig(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: BeamsConfigService_DeleteBeamsConfig_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(BeamsConfigServiceServer).DeleteBeamsConfig(ctx, req.(*DeleteBeamsConfigRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
 // BeamsConfigService_ServiceDesc is the grpc.ServiceDesc for BeamsConfigService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -243,20 +170,12 @@ var BeamsConfigService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*BeamsConfigServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "CreateBeamsConfig",
-			Handler:    _BeamsConfigService_CreateBeamsConfig_Handler,
-		},
-		{
 			MethodName: "GetBeamsConfig",
 			Handler:    _BeamsConfigService_GetBeamsConfig_Handler,
 		},
 		{
 			MethodName: "UpdateBeamsConfig",
 			Handler:    _BeamsConfigService_UpdateBeamsConfig_Handler,
-		},
-		{
-			MethodName: "DeleteBeamsConfig",
-			Handler:    _BeamsConfigService_DeleteBeamsConfig_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
