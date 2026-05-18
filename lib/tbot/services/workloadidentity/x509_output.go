@@ -351,7 +351,7 @@ func (s *X509OutputService) render(
 	}
 
 	if s.cfg.IncludeFederatedTrustBundles {
-		for _, bundle := range bundleSet.FederatedAndTrustDomains(s.cfg.TrustDomainSelector) {
+		for _, bundle := range bundleSet.FederatedAndInternalTrustDomains(s.cfg.TrustDomainSelector) {
 			federatedBundleBytes, err := bundle.X509Bundle().Marshal()
 			if err != nil {
 				return trace.Wrap(err, "marshaling trust bundle (%s)", bundle.TrustDomain().Name())
@@ -359,7 +359,7 @@ func (s *X509OutputService) render(
 			trustBundleBytes = append(trustBundleBytes, federatedBundleBytes...)
 		}
 	} else {
-		for bundle, err := range bundleSet.TrustDomainsBundles(s.cfg.TrustDomainSelector) {
+		for bundle, err := range bundleSet.InternalTrustDomainsBundles(s.cfg.TrustDomainSelector) {
 			if err != nil {
 				// Skip if the bundle is not supported by server.
 				if trace.IsNotImplemented(err) {

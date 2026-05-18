@@ -477,7 +477,7 @@ func (h *Handler) generateResponse(
 	case names[EnvoyAllBundlesName]:
 		// Return all the trust bundles as part of a single validation context.
 		// We'll also override the name to match what they requested.
-		bundles := bundleSet.FederatedAndTrustDomains(h.trustDomainSelector)
+		bundles := bundleSet.FederatedAndInternalTrustDomains(h.trustDomainSelector)
 		bundles = append(bundles, bundleSet.Local)
 		validator, err := newTLSV3ValidationContext(
 			bundles, EnvoyAllBundlesName,
@@ -490,7 +490,7 @@ func (h *Handler) generateResponse(
 	}
 
 	if returnAll {
-		for _, bundle := range bundleSet.FederatedAndTrustDomains(h.trustDomainSelector) {
+		for _, bundle := range bundleSet.FederatedAndInternalTrustDomains(h.trustDomainSelector) {
 			validator, err := newTLSV3ValidationContext(
 				[]*spiffebundle.Bundle{
 					bundle,
@@ -505,7 +505,7 @@ func (h *Handler) generateResponse(
 		// For any remaining names, see if they match any non-local trust bundles.
 		for name := range names {
 			var found *spiffebundle.Bundle
-			for _, bundle := range bundleSet.FederatedAndTrustDomains(h.trustDomainSelector) {
+			for _, bundle := range bundleSet.FederatedAndInternalTrustDomains(h.trustDomainSelector) {
 				if name == bundle.TrustDomain().IDString() {
 					found = bundle
 					break

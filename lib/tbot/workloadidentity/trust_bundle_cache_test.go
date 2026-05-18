@@ -265,7 +265,7 @@ func TestBundleSet_TrustDomainsBundles(t *testing.T) {
 				err    error
 			}
 			var got []yielded
-			for bundle, err := range tc.bundleSet.TrustDomainsBundles(tc.tds) {
+			for bundle, err := range tc.bundleSet.InternalTrustDomainsBundles(tc.tds) {
 				got = append(got, yielded{bundle: bundle, err: err})
 			}
 
@@ -373,7 +373,7 @@ func TestBundleSet_FederatedAndTrustedDomains(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			tc.expect(t, tc.bundleSet.FederatedAndTrustDomains(tc.tds))
+			tc.expect(t, tc.bundleSet.FederatedAndInternalTrustDomains(tc.tds))
 		})
 	}
 
@@ -393,7 +393,7 @@ func TestBundleSet_FederatedAndTrustedDomains(t *testing.T) {
 			},
 		}
 
-		got := bs.FederatedAndTrustDomains(bot.TrustDomainsSelector{bot.TrustDomainAppClient})
+		got := bs.FederatedAndInternalTrustDomains(bot.TrustDomainsSelector{bot.TrustDomainAppClient})
 		require.NotEmpty(t, got)
 		require.Same(t, appClientBundle, got[0])
 	})
@@ -900,10 +900,10 @@ func TestFetchInitialBundleSet_AppClientNotFound(t *testing.T) {
 
 	require.Nil(t, bs.AppClient, "AppClient must be left nil when the auth server has no AppClient CA")
 
-	for _, err := range bs.TrustDomainsBundles(bot.TrustDomainsSelector{bot.TrustDomainAppClient}) {
+	for _, err := range bs.InternalTrustDomainsBundles(bot.TrustDomainsSelector{bot.TrustDomainAppClient}) {
 		require.ErrorContains(t, err, "app client trust domain is not available")
 	}
-	require.Empty(t, bs.FederatedAndTrustDomains(bot.TrustDomainsSelector{bot.TrustDomainAppClient}))
+	require.Empty(t, bs.FederatedAndInternalTrustDomains(bot.TrustDomainsSelector{bot.TrustDomainAppClient}))
 }
 
 // Given a bundle cache running with a server that doesn't support a newly

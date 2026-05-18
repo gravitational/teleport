@@ -102,8 +102,9 @@ func (b *BundleSet) Equal(other *BundleSet) bool {
 	return b.Local.Equal(other.Local) && b.AppClient.Equal(other.AppClient)
 }
 
-// TrustDomainsBundles yields the bundle for each requested trust domain.
-func (b *BundleSet) TrustDomainsBundles(tds bot.TrustDomainsSelector) iter.Seq2[*spiffebundle.Bundle, error] {
+// InternalTrustDomainsBundles yields the bundle for each requested trust
+// domain.
+func (b *BundleSet) InternalTrustDomainsBundles(tds bot.TrustDomainsSelector) iter.Seq2[*spiffebundle.Bundle, error] {
 	return func(yield func(*spiffebundle.Bundle, error) bool) {
 		for _, td := range tds {
 			switch td {
@@ -129,17 +130,18 @@ func (b *BundleSet) TrustDomainsBundles(tds bot.TrustDomainsSelector) iter.Seq2[
 	}
 }
 
-// FederatedAndTrustDomains returns all federated bundles and bundles for the
-// requested trust domains. Trust-domain bundles that are unavailable (e.g. the
-// AppClient bundle on a server that does not support it) are silently skipped.
+// FederatedAndInternalTrustDomains returns all federated bundles and bundles
+// for the requested trust domains. Trust-domain bundles that are unavailable
+// (e.g. the AppClient bundle on a server that does not support it) are silently
+// skipped.
 //
 // Internal trust domain bundles takes precedence over federated bundles.
 // Effectively meaning that if a federated bundle has the same name of a
 // internal bundle, it will be overwritten by Teleport internal bundles.
-func (b *BundleSet) FederatedAndTrustDomains(tds bot.TrustDomainsSelector) []*spiffebundle.Bundle {
+func (b *BundleSet) FederatedAndInternalTrustDomains(tds bot.TrustDomainsSelector) []*spiffebundle.Bundle {
 	var bundles []*spiffebundle.Bundle
 	internalBundles := make(map[string]struct{})
-	for bundle, err := range b.TrustDomainsBundles(tds) {
+	for bundle, err := range b.InternalTrustDomainsBundles(tds) {
 		if err != nil || bundle == nil {
 			continue
 		}
@@ -179,7 +181,7 @@ func (b *BundleSet) EncodedX509Bundles(includeLocal bool, tds bot.TrustDomainsSe
 	if includeLocal {
 		bundles[b.Local.TrustDomain().IDString()] = MarshalX509Bundle(b.Local.X509Bundle())
 	}
-	for _, v := range b.FederatedAndTrustDomains(tds) {
+	for _, v := range b.FederatedAndInternalTrustDomains(tds) {
 		bundles[v.TrustDomain().IDString()] = MarshalX509Bundle(v.X509Bundle())
 	}
 	return bundles
