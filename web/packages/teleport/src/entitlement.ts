@@ -22,6 +22,7 @@ type entitlement =
   | 'AccessMonitoring'
   | 'AccessRequests'
   | 'AccessGraphDemoMode'
+  | 'ActivityCenter'
   | 'App'
   | 'Beams'
   | 'CloudAuditLogRetention'
@@ -41,6 +42,7 @@ type entitlement =
   | 'Policy'
   | 'SAML'
   | 'SessionLocks'
+  | 'SessionSummaries'
   | 'UnrestrictedManagedUpdates'
   | 'UpsellAlert'
   | 'UsageReporting'
@@ -54,6 +56,7 @@ export const defaultEntitlements: Record<
   AccessMonitoring: { enabled: false, limit: 0 },
   AccessGraphDemoMode: { enabled: false, limit: 0 },
   AccessRequests: { enabled: false, limit: 0 },
+  ActivityCenter: { enabled: false, limit: 0 },
   App: { enabled: false, limit: 0 },
   Beams: { enabled: false, limit: 0 },
   CloudAuditLogRetention: { enabled: false, limit: 0 },
@@ -73,6 +76,7 @@ export const defaultEntitlements: Record<
   Policy: { enabled: false, limit: 0 },
   SAML: { enabled: false, limit: 0 },
   SessionLocks: { enabled: false, limit: 0 },
+  SessionSummaries: { enabled: false, limit: 0 },
   UnrestrictedManagedUpdates: { enabled: false, limit: 0 },
   UpsellAlert: { enabled: false, limit: 0 },
   UsageReporting: { enabled: false, limit: 0 },

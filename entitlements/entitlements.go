@@ -30,6 +30,7 @@ const (
 	AccessLists                EntitlementKind = "AccessLists"
 	AccessMonitoring           EntitlementKind = "AccessMonitoring"
 	AccessRequests             EntitlementKind = "AccessRequests"
+	ActivityCenter             EntitlementKind = "ActivityCenter"
 	App                        EntitlementKind = "App"
 	Beams                      EntitlementKind = "Beams"
 	CloudAuditLogRetention     EntitlementKind = "CloudAuditLogRetention"
@@ -49,6 +50,7 @@ const (
 	Policy                     EntitlementKind = "Policy"
 	SAML                       EntitlementKind = "SAML"
 	SessionLocks               EntitlementKind = "SessionLocks"
+	SessionSummaries           EntitlementKind = "SessionSummaries"
 	UnrestrictedManagedUpdates EntitlementKind = "UnrestrictedManagedUpdates"
 	UpsellAlert                EntitlementKind = "UpsellAlert"
 	UsageReporting             EntitlementKind = "UsageReporting"
@@ -60,10 +62,11 @@ const (
 
 // AllEntitlements returns all Entitlements; should be 1:1 with the const declared above.
 var AllEntitlements = []EntitlementKind{
-	AccessLists, AccessMonitoring, AccessRequests, App, Beams, CloudAuditLogRetention, DB, Desktop, DeviceTrust,
-	ExternalAuditStorage, FeatureHiding, HSM, Identity, JoinActiveSessions, K8s, MobileDeviceManagement, OIDC, OktaSCIM,
-	OktaUserSync, Policy, SAML, SessionLocks, UnrestrictedManagedUpdates, UpsellAlert, UsageReporting, LicenseAutoUpdate, AccessGraphDemoMode,
-	ClientIPRestrictions, WorkloadClusters,
+	AccessGraphDemoMode, AccessLists, AccessMonitoring, AccessRequests, ActivityCenter, App, Beams,
+	ClientIPRestrictions, CloudAuditLogRetention, DB, Desktop, DeviceTrust,
+	ExternalAuditStorage, FeatureHiding, HSM, Identity, JoinActiveSessions, K8s, LicenseAutoUpdate,
+	MobileDeviceManagement, OIDC, OktaSCIM, OktaUserSync, Policy, SAML, SessionLocks, SessionSummaries,
+	UnrestrictedManagedUpdates, UpsellAlert, UsageReporting, WorkloadClusters,
 }
 
 // BackfillFeatures ensures entitlements are backwards compatible.
