@@ -88,6 +88,7 @@ const meta: Meta<StoryProps> = {
     const hasClusterWithLoggedInUser =
       props.activeCluster && (hasOrange || hasViolet);
     if (hasClusterWithLoggedInUser) {
+      clusters[0].connected = true;
       clusters[0].loggedInUser = makeLoggedInUser({
         ...clusters[0].loggedInUser,
         validUntil: Timestamp.fromDate(
@@ -165,6 +166,7 @@ const clusterViolet = makeRootCluster({
 const clusterGreen = makeRootCluster({
   name: 'green',
   loggedInUser: undefined,
+  connected: false,
   uri: '/clusters/green',
 });
 
@@ -183,9 +185,9 @@ const OpenIdentityPopover = (props: {
   props.clusters.forEach(c => {
     ctx.addRootCluster(c);
   });
-  ctx.workspacesService.addWorkspace(clusterGreen.uri);
-  ctx.workspacesService.addWorkspace(clusterViolet.uri);
-  ctx.workspacesService.addWorkspace(clusterOrange.uri);
+  ctx.workspacesService.addWorkspace(clusterGreen);
+  ctx.workspacesService.addWorkspace(clusterViolet);
+  ctx.workspacesService.addWorkspace(clusterOrange);
   ctx.workspacesService.setState(draftState => {
     draftState.rootClusterUri = props.activeClusterUri;
     draftState.workspaces[clusterGreen.uri].color = 'green';

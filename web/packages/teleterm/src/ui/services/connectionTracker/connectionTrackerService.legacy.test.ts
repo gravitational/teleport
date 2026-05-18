@@ -17,6 +17,7 @@
  */
 
 import Logger, { NullService } from 'teleterm/logger';
+import { makeWorkspace } from 'teleterm/ui/services/workspacesService/testHelpers';
 
 import { ClustersService } from '../clusters';
 import { StatePersistenceService } from '../statePersistence';
@@ -251,7 +252,7 @@ function getTestSetupWithMockedDocuments(documents: Document[]) {
 
   // Insert the documents.
   workspacesService.setState(draftState => {
-    draftState.workspaces['/clusters/localhost'] = {
+    draftState.workspaces['/clusters/localhost'] = makeWorkspace({
       color: 'purple',
       accessRequests: {
         pending: getEmptyPendingAccessRequest(),
@@ -260,7 +261,7 @@ function getTestSetupWithMockedDocuments(documents: Document[]) {
       localClusterUri: '/clusters/localhost',
       location: documents[0]?.uri,
       documents: documents,
-    };
+    });
   });
 
   return { workspacesService, connectionTrackerService };
