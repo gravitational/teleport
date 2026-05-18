@@ -35,7 +35,8 @@ import (
 
 // Command implements the "tctl discovery" CLI command group.
 type Command struct {
-	nodesCmd *kingpin.CmdClause
+	nodesCmd           *kingpin.CmdClause
+	windowsDesktopsCmd *kingpin.CmdClause
 
 	nodesLast         time.Duration
 	nodesFormat       string
@@ -59,6 +60,19 @@ Examples:
   Look back 30 minutes:
   $ tctl discovery nodes --last=30m
 `)
+	c.windowsDesktopsCmd = discovery.Command("windows_desktops", "Report discovered Windows desktops and their enrollment status using Teleport audit log and cluster state.")
+	c.windowsDesktopsCmd.Alias(`
+Examples:
+
+  List discovered Windows desktops in the last hour (default):
+  $ tctl discovery windows_desktops
+
+  Look back 24 hours and output as JSON:
+  $ tctl discovery windows_desktops --last=24h --format=json
+
+  Look back 30 minutes:
+  $ tctl discovery windows_desktops --last=30m
+`)
 
 	c.nodesCmd.Flag("last", "Time window to look back for failures in Teleport audit log (e.g. 1h, 24h, 30m).").
 		Default("1h").
@@ -75,7 +89,7 @@ Examples:
 
 // TryRun attempts to run the matched subcommand.
 func (c *Command) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
-	if cmd != c.nodesCmd.FullCommand() {
+	if cmd != c.nodesCmd.FullCommand() && cmd != c.windowsDesktopsCmd.FullCommand() {
 		return false, nil
 	}
 
@@ -88,7 +102,12 @@ func (c *Command) TryRun(ctx context.Context, cmd string, clientFunc commonclien
 	}
 	defer closeFn(ctx)
 
-	return true, trace.Wrap(c.runNodes(ctx, client, os.Stdout, dateFrom, dateTo))
+	if cmd == c.nodesCmd.FullCommand() {
+		return true, trace.Wrap(c.runNodes(ctx, client, os.Stdout, dateFrom, dateTo))
+	} else if cmd == c.windowsDesktopsCmd.FullCommand() {
+		return true, trace.Wrap(c.runWindowsDesktops(ctx, client, os.Stdout, dateFrom, dateTo))
+	}
+	return false, nil
 }
 
 // runNodes fetches all discovered instances and renders the output.
@@ -120,6 +139,25 @@ func (c *Command) runNodes(ctx context.Context, clt discoveryClient, w io.Writer
 		"total_instances", len(instances),
 		"format", c.nodesFormat,
 	)
+
+	switch c.nodesFormat {
+	case teleport.JSON:
+		return trace.Wrap(utils.WriteJSONArray(w, instances))
+	default:
+		return trace.Wrap(renderText(w, instances))
+	}
+}
+
+func (c *Command) runWindowsDesktops(ctx context.Context, clt discoveryClient, w io.Writer, dateFrom, dateTo time.Time) error {
+	cfg, err := parseCloudProviders(c.nodesCloudFilter)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	instances, err := buildWindowsDesktops(ctx, clt, dateFrom, dateTo, cfg)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	switch c.nodesFormat {
 	case teleport.JSON:
