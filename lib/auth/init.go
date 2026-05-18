@@ -1430,8 +1430,12 @@ func GetPresetRoles(buildType string) []types.Role {
 		services.NewSystemIdentityCenterAccessRole(buildType),
 		services.NewPresetWildcardWorkloadIdentityIssuerRole(),
 		services.NewPresetAccessPluginRole(),
+		services.NewPresetAccessPluginWithReviewRole(),
 		services.NewPresetListAccessRequestResourcesRole(),
 		services.NewPresetMCPUserRole(),
+		services.NewSystemBeamRole(buildType),
+		services.NewPresetBeamUserRole(buildType),
+		services.NewPresetBeamAdminRole(buildType),
 	}
 
 	// Certain `New$FooRole()` functions will return a nil role if the

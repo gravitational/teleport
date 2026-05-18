@@ -254,6 +254,7 @@ const testSetup = (
     draftState.clusters.set(rootClusterUri, cluster);
     draftState.clusters.set(leafCluster.uri, leafCluster);
   });
+  appContext.workspacesService.addWorkspace(cluster);
   appContext.workspacesService.setActiveWorkspace(rootClusterUri);
   const documentsService =
     appContext.workspacesService.getWorkspaceDocumentService(rootClusterUri);

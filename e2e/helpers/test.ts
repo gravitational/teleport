@@ -58,7 +58,8 @@ export interface UserDefinition {
   loginAs?: boolean;
 }
 
-const e2eDir = join(dirname(fileURLToPath(import.meta.url)), '..');
+const e2eDir =
+  process.env.E2E_DIR ?? join(dirname(fileURLToPath(import.meta.url)), '..');
 const authDir = join(e2eDir, '.auth');
 
 const tryLoadUserMapping =
