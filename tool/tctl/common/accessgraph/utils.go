@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/teleport"
 	accessgraph "github.com/gravitational/teleport/lib/accessgraph/apiclient"
 	logmodels "github.com/gravitational/teleport/lib/accessgraph/apiclient/models/logs"
+	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -192,4 +193,43 @@ func writeOutput(w io.Writer, payload any, format string, renderText func(io.Wri
 	default:
 		return trace.BadParameter("unknown format %q", format)
 	}
+}
+
+// displayEventsText renders access-graph log events as a compact table.
+func displayEventsText(out io.Writer, events []logmodels.AccessgraphStorageV1alphaEvent) error {
+	if len(events) == 0 {
+		_, err := fmt.Fprintln(out, "No events found.")
+		return trace.Wrap(err)
+	}
+
+	table := asciitable.MakeTable([]string{
+		"Time",
+		"Identity",
+		"Event Type",
+		"Action",
+		"Status",
+		"Resource",
+		"Source",
+	})
+	for _, ev := range events {
+		identity := ev.Identity.Name
+		if identity == "" {
+			identity = ev.Identity.Id
+		}
+		resource := ev.Target.Resource
+		if resource == "" && ev.Target.Id != "" {
+			resource = ev.Target.Id
+		}
+		table.AddRow([]string{
+			ev.Time.Format(time.RFC3339),
+			identity,
+			ev.EventType,
+			ev.Action,
+			ev.Status,
+			resource,
+			strings.TrimSpace(string(ev.EventSource)),
+		})
+	}
+	_, err := fmt.Fprintln(out, table.AsBuffer().String())
+	return trace.Wrap(err)
 }
