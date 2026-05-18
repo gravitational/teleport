@@ -14,12 +14,20 @@ var (
 
 	//go:embed generated/session_analysis.json
 	sessionAnalysisSchemaJSON []byte
+
+	//go:embed generated/desktop_screenshot_analysis.json
+	desktopScreenshotAnalysisSchemaJSON []byte
+
+	//go:embed generated/desktop_session_analysis.json
+	desktopSessionAnalysisSchemaJSON []byte
 )
 
 var (
-	CommandAnalysisSchema = mustSchema(commandAnalysisSchemaJSON)
-	ProseEmbeddingSchema  = mustSchema(proseEmbeddingSchemaJSON)
-	SessionAnalysisSchema = mustSchema(sessionAnalysisSchemaJSON)
+	CommandAnalysisSchema           = mustSchema(commandAnalysisSchemaJSON)
+	ProseEmbeddingSchema            = mustSchema(proseEmbeddingSchemaJSON)
+	SessionAnalysisSchema           = mustSchema(sessionAnalysisSchemaJSON)
+	DesktopScreenshotAnalysisSchema = mustSchema(desktopScreenshotAnalysisSchemaJSON)
+	DesktopSessionAnalysisSchema    = mustSchema(desktopSessionAnalysisSchemaJSON)
 )
 
 func mustSchema(data []byte) json.RawMessage {

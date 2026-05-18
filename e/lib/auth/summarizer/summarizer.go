@@ -118,6 +118,10 @@ type InferenceProvider interface {
 	// SummarizeMultipleCommands summarizes multiple commands and returns the
 	// overall session analysis.
 	SummarizeMultipleCommands(ctx context.Context, sessionID session.ID, username, loginName, prompt string) (*schema.SessionAnalysis, error)
+	// SummarizeMultipleImages sends batched screenshots to AI for analysis.
+	SummarizeMultipleImages(ctx context.Context, sessionID session.ID, systemPrompt string, images []schema.ImageData) (*schema.DesktopScreenshotAnalysis, error)
+	// SummarizeDesktopSession synthesizes a list of desktop session events into an overall session analysis.
+	SummarizeDesktopSession(ctx context.Context, sessionID session.ID, systemPrompt, prompt string) (*schema.DesktopSessionAnalysis, error)
 
 	// GetTotalTokens returns the total number of input and output tokens used by this provider.
 	GetTotalTokens() (input uint64, output uint64)

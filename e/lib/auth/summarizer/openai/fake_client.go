@@ -2,6 +2,7 @@ package openai
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"strings"
@@ -40,6 +41,10 @@ func (m *fakeClient) NewChatCompletion(
 	messageCount := len(body.Messages)
 	if messageCount == 0 {
 		return nil, errors.New("no content in the message")
+	}
+
+	if last := body.Messages[messageCount-1].OfUser; last != nil && len(last.Content.OfArrayOfContentParts) > 0 {
+		return handleOpenAIDesktopScreenshotAnalysis(body)
 	}
 
 	content := *body.Messages[messageCount-1].GetContent().AsAny().(*string)
@@ -108,8 +113,114 @@ func (m *fakeClient) NewChatCompletion(
 	if systemContent == schema.GetProseEmbedding() {
 		return handleOpenAIProseEmbedding(content)
 	}
+	if strings.Contains(systemContent, "expert security analyst reviewing a Windows Desktop session") {
+		return handleOpenAIDesktopSessionAnalysis(content)
+	}
 
 	return nil, nil
+}
+
+func handleOpenAIDesktopScreenshotAnalysis(body openai.ChatCompletionNewParams) (*openai.ChatCompletion, error) {
+	userMsg := body.Messages[len(body.Messages)-1].OfUser
+	if userMsg == nil {
+		return nil, errors.New("expected user message with image content")
+	}
+
+	for _, part := range userMsg.Content.OfArrayOfContentParts {
+		if part.OfImageURL == nil {
+			return nil, errors.New("expected image content part")
+		}
+		if !strings.HasPrefix(part.OfImageURL.ImageURL.URL, "data:image/png;base64,") {
+			return nil, errors.New("expected image to be a base64 PNG data URL")
+		}
+		b64 := strings.TrimPrefix(part.OfImageURL.ImageURL.URL, "data:image/png;base64,")
+		if _, err := base64.StdEncoding.DecodeString(b64); err != nil {
+			return nil, errors.New("image data URL is not valid base64")
+		}
+	}
+
+	systemContent := body.Messages[0].OfSystem
+	if systemContent == nil {
+		return nil, errors.New("expected system message")
+	}
+	systemText := systemContent.Content.OfString.Value
+	if !strings.Contains(systemText, "EXACT timestamps from the screenshots") {
+		return nil, errors.New("system prompt missing timestamp instructions")
+	}
+
+	analysis := schema.DesktopScreenshotAnalysis{
+		NotableSessionEvents: []schema.DesktopSessionEvent{
+			{
+				Category:            "data_access",
+				StartTime:           "0:00",
+				EndTime:             "0:05",
+				RiskLevel:           "low",
+				RiskScore:           15,
+				ThreatCategory:      "none",
+				TimelineTitle:       "Reviewed budget worksheet",
+				TimelineSubtitle:    "",
+				ShortDescription:    "Reviewed budget figures in a spreadsheet",
+				DetailedDescription: "User scrolled through a budget worksheet in Excel.",
+				SuspiciousFlags:     []string{},
+				SensitiveItems:      []string{},
+				SuspiciousPatterns:  []string{},
+				IOCs:                []string{},
+				MitreAttackIDs:      []string{},
+				Applications:        []string{"Microsoft Excel"},
+				VisibleURLs:         []string{},
+				VisibleFilePaths:    []string{"/Users/test/budget.xlsx"},
+				ActiveWindowTitle:   "budget.xlsx - Excel",
+			},
+		},
+	}
+	jsonStr, err := json.Marshal(analysis)
+	if err != nil {
+		return nil, err
+	}
+
+	return &openai.ChatCompletion{
+		Choices: []openai.ChatCompletionChoice{
+			{
+				FinishReason: string(openai.CompletionChoiceFinishReasonStop),
+				Message: openai.ChatCompletionMessage{
+					Role:    "assistant",
+					Content: string(jsonStr),
+				},
+			},
+		},
+	}, nil
+}
+
+func handleOpenAIDesktopSessionAnalysis(content string) (*openai.ChatCompletion, error) {
+	if !strings.Contains(content, "Desktop Session Events") {
+		return nil, errors.New("desktop synthesis prompt missing events block")
+	}
+
+	analysis := schema.DesktopSessionAnalysis{
+		ShortDescription:     "Routine spreadsheet work",
+		SessionDescription:   "Reviewed a budget worksheet in Excel without any sensitive operations.",
+		SuspiciousActivities: []string{},
+		SecurityIncidents:    []string{},
+		CompromiseIndicators: false,
+		RiskLevel:            "low",
+		RiskScore:            15,
+	}
+	jsonStr, err := json.Marshal(analysis)
+	if err != nil {
+		return nil, err
+	}
+
+	return &openai.ChatCompletion{
+		Choices: []openai.ChatCompletionChoice{
+			{
+				FinishReason: string(openai.CompletionChoiceFinishReasonStop),
+				Message: openai.ChatCompletionMessage{
+					Role:    "assistant",
+					Content: string(jsonStr),
+				},
+			},
+		},
+	}, nil
 }
 
 func handleOpenAIProseEmbedding(content string) (*openai.ChatCompletion, error) {

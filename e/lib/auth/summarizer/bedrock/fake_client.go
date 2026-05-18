@@ -68,6 +68,10 @@ func (m *fakeClient) Converse(
 		return nil, errors.New("no content in the message")
 	}
 
+	if _, isImage := params.Messages[messageCount-1].Content[0].(*bedrocktypes.ContentBlockMemberImage); isImage {
+		return handleBedrockDesktopScreenshotAnalysis(params)
+	}
+
 	content := params.Messages[messageCount-1].Content[0].(*bedrocktypes.ContentBlockMemberText).Value
 
 	switch content {
@@ -197,6 +201,11 @@ func (m *fakeClient) Converse(
 			return handleBedrockSessionAnalysis(content)
 		}
 
+		// Handle structured responses for desktop session synthesis.
+		if strings.Contains(systemPrompt, "expert security analyst reviewing a Windows Desktop session") {
+			return handleBedrockDesktopSessionAnalysis(content)
+		}
+
 		// Handle structured responses for prose embedding condensation.
 		if strings.HasPrefix(systemPrompt, schema.GetProseEmbedding()) {
 			return handleBedrockProseEmbedding(content)
@@ -291,6 +300,83 @@ func handleBedrockProseEmbedding(content string) (*bedrockruntime.ConverseOutput
 
 	return structuredResponse(map[string]any{
 		"condensed_text": "A condensed description of the session for embedding generation.",
+	})
+}
+
+func handleBedrockDesktopScreenshotAnalysis(params *bedrockruntime.ConverseInput) (*bedrockruntime.ConverseOutput, error) {
+	for _, msg := range params.Messages {
+		for _, block := range msg.Content {
+			img, ok := block.(*bedrocktypes.ContentBlockMemberImage)
+			if !ok {
+				continue
+			}
+			if img.Value.Format != bedrocktypes.ImageFormatPng {
+				return nil, errors.New("expected PNG image format")
+			}
+			src, ok := img.Value.Source.(*bedrocktypes.ImageSourceMemberBytes)
+			if !ok {
+				return nil, errors.New("expected raw bytes image source")
+			}
+			if len(src.Value) == 0 {
+				return nil, errors.New("image source bytes are empty")
+			}
+		}
+	}
+
+	systemPrompt := params.System[0].(*bedrocktypes.SystemContentBlockMemberText).Value
+	if !strings.Contains(systemPrompt, "EXACT timestamps from the screenshots") {
+		return nil, errors.New("system prompt missing timestamp instructions")
+	}
+
+	return structuredResponse(map[string]any{
+		"short_description":    "Spreadsheet open with financial data visible",
+		"screenshot_context":   "Excel window showing a budget worksheet.",
+		"sensitive_info_found": false,
+		"risk_level":           "low",
+		"notable_session_events": []map[string]any{
+			{
+				"start_time":           "0:00",
+				"end_time":             "0:05",
+				"category":             "data_access",
+				"risk_level":           "low",
+				"risk_score":           15,
+				"threat_category":      "none",
+				"timeline_title":       "Reviewed budget worksheet",
+				"timeline_subtitle":    "",
+				"short_description":    "Reviewed budget figures in a spreadsheet",
+				"detailed_description": "User scrolled through a budget worksheet in Excel.",
+				"suspicious_flags":     []string{},
+				"sensitive_items":      []string{},
+				"suspicious_patterns":  []string{},
+				"iocs":                 []string{},
+				//nolint:misspell // ignore MITRE
+				"mitre_attack_ids":     []string{},
+				"has_sensitive_data":   false,
+				"privilege_escalation": false,
+				"data_exfiltration":    false,
+				"persistence":          false,
+				"applications":         []string{"Microsoft Excel"},
+				"visible_urls":         []string{},
+				"visible_file_paths":   []string{"/Users/test/budget.xlsx"},
+				"active_window_title":  "budget.xlsx - Excel",
+			},
+		},
+	})
+}
+
+func handleBedrockDesktopSessionAnalysis(content string) (*bedrockruntime.ConverseOutput, error) {
+	if !strings.Contains(content, "Desktop Session Events") {
+		return nil, errors.New("desktop synthesis prompt missing events block")
+	}
+
+	return structuredResponse(map[string]any{
+		"short_description":     "Routine spreadsheet work",
+		"session_description":   "Reviewed a budget worksheet in Excel without any sensitive operations.",
+		"suspicious_activities": []string{},
+		"security_incidents":    []string{},
+		"compromise_indicators": false,
+		"risk_level":            "low",
+		"risk_score":            15,
 	})
 }
 

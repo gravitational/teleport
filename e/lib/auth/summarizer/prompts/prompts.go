@@ -22,6 +22,10 @@ var (
 	summaryPromptObfuscated []byte
 	//go:embed prompt-proser.bin
 	proserPromptObfuscated []byte
+	//go:embed prompt-screenshots.bin
+	screenshotsPromptObfuscated []byte
+	//go:embed prompt-screenshots-synthesis.bin
+	screenshotsSynthesisPromptObfuscated []byte
 
 	// Prompt for summarizing SSH sessions.
 	SSHPrompt string
@@ -35,6 +39,10 @@ var (
 	SummaryPrompt string
 	// Prompt for generating a dense embedding of a session.
 	ProserPrompt string
+	// Prompt fragment for summarizing batches of desktop screenshots.
+	ScreenshotsPrompt string
+	// Prompt for synthesizing per-screenshot events into a desktop session-level analysis.
+	ScreenshotsSynthesisPrompt string
 )
 
 func init() {
@@ -44,6 +52,8 @@ func init() {
 	RootPrompt = deobfuscate(rootPromptObfuscated)
 	SummaryPrompt = deobfuscate(summaryPromptObfuscated)
 	ProserPrompt = deobfuscate(proserPromptObfuscated)
+	ScreenshotsPrompt = deobfuscate(screenshotsPromptObfuscated)
+	ScreenshotsSynthesisPrompt = deobfuscate(screenshotsSynthesisPromptObfuscated)
 }
 
 // Obfuscates a byte slice by XOR'ing it with a random sequence of a given

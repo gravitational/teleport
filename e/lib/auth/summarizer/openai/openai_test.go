@@ -12,6 +12,7 @@ import (
 	"github.com/gravitational/teleport"
 	summarizerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	summarizererrorstypes "github.com/gravitational/teleport/e/lib/auth/summarizer/errors/types"
+	"github.com/gravitational/teleport/e/lib/auth/summarizer/prompts"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/schema"
 )
 
@@ -135,4 +136,42 @@ func TestSummarizeCommand(t *testing.T) {
 			tc.assert(t, resp, err)
 		})
 	}
+}
+
+func TestSummarizeMultipleImages(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	provider := newTestProvider()
+
+	images := []schema.ImageData{
+		{Data: []byte{0x89, 'P', 'N', 'G', 1, 2, 3}},
+		{Data: []byte{0x89, 'P', 'N', 'G', 4, 5, 6}},
+	}
+	systemPrompt := prompts.ScreenshotsPrompt
+
+	resp, err := provider.SummarizeMultipleImages(ctx, "2bce7245-6508-43e0-ab31-b1a2dcec714e", systemPrompt, images)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+
+	require.Len(t, resp.NotableSessionEvents, 1)
+
+	require.Equal(t, "data_access", resp.NotableSessionEvents[0].Category)
+	require.Equal(t, []string{"Microsoft Excel"}, resp.NotableSessionEvents[0].Applications)
+}
+
+func TestSummarizeDesktopSession(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	provider := newTestProvider()
+
+	systemPrompt := prompts.ScreenshotsSynthesisPrompt
+	prompt := "## Desktop Session Events\n\n### Event 1\n- **Time**: 0:00 - 0:05\n"
+
+	resp, err := provider.SummarizeDesktopSession(ctx, "2bce7245-6508-43e0-ab31-b1a2dcec714e", systemPrompt, prompt)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+
+	require.Equal(t, "low", resp.RiskLevel)
+	require.Equal(t, 15, resp.RiskScore)
+	require.False(t, resp.CompromiseIndicators)
 }

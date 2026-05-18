@@ -19,6 +19,8 @@ func main() {
 	must(generateSchemaFile[schematypes.CommandAnalysis](filepath.Join(outDir, "command_analysis.json")))
 	must(generateSchemaFile[schematypes.ProseEmbedding](filepath.Join(outDir, "prose_embedding.json")))
 	must(generateSchemaFile[schematypes.SessionAnalysis](filepath.Join(outDir, "session_analysis.json")))
+	must(generateSchemaFile[schematypes.DesktopScreenshotAnalysis](filepath.Join(outDir, "desktop_screenshot_analysis.json")))
+	must(generateSchemaFile[schematypes.DesktopSessionAnalysis](filepath.Join(outDir, "desktop_session_analysis.json")))
 }
 
 func generateSchemaFile[T any](out string) error {

@@ -2,6 +2,7 @@ package openai
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -232,7 +233,8 @@ func (p *InferenceProvider) SummarizeCommand(ctx context.Context, sessionID sess
 
 	systemPrompt := schema.SummarizeCommandSystemPrompt(username, loginName)
 
-	res, err := p.makeStructuredRequest(ctx, sessionID, "CommandAnalysis", schema.CommandAnalysisSchema, systemPrompt, command)
+	var analysis schema.CommandAnalysis
+	res, err := p.makeStructuredTextRequest(ctx, sessionID, "CommandAnalysis", schema.CommandAnalysisSchema, systemPrompt, command, &analysis)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -245,13 +247,6 @@ func (p *InferenceProvider) SummarizeCommand(ctx context.Context, sessionID sess
 		"finish_reason", res.finishReason,
 	)
 
-	var analysis schema.CommandAnalysis
-	if err := json.Unmarshal([]byte(res.result), &analysis); err != nil {
-		return nil, trace.Wrap(summarizererrorstypes.BadResponseError{
-			Message: fmt.Sprintf("failed to unmarshal model response: %v", err),
-		})
-	}
-
 	return &analysis, nil
 }
 
@@ -261,7 +256,8 @@ func (p *InferenceProvider) SummarizeMultipleCommands(ctx context.Context, sessi
 
 	systemPrompt := schema.SummarizeMultipleCommandsSystemPrompt(username, loginName)
 
-	res, err := p.makeStructuredRequest(ctx, sessionID, "SessionAnalysis", schema.SessionAnalysisSchema, systemPrompt, prompt)
+	var analysis schema.SessionAnalysis
+	res, err := p.makeStructuredTextRequest(ctx, sessionID, "SessionAnalysis", schema.SessionAnalysisSchema, systemPrompt, prompt, &analysis)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -274,37 +270,100 @@ func (p *InferenceProvider) SummarizeMultipleCommands(ctx context.Context, sessi
 		"finish_reason", res.finishReason,
 	)
 
-	var analysis schema.SessionAnalysis
-	if err := json.Unmarshal([]byte(res.result), &analysis); err != nil {
-		return nil, trace.Wrap(summarizererrorstypes.BadResponseError{
-			Message: fmt.Sprintf("failed to unmarshal model response: %v", err),
-		})
+	return &analysis, nil
+}
+
+// SummarizeMultipleImages summarizes a batch of desktop screenshots using OpenAI's vision API.
+func (p *InferenceProvider) SummarizeMultipleImages(ctx context.Context, sessionID session.ID, systemPrompt string, images []schema.ImageData) (*schema.DesktopScreenshotAnalysis, error) {
+	p.logger.DebugContext(ctx, "Summarizing images from session", "session_id", sessionID)
+
+	parts := make([]openai.ChatCompletionContentPartUnionParam, 0, len(images))
+	for _, img := range images {
+		dataURL := "data:image/png;base64," + base64.StdEncoding.EncodeToString(img.Data)
+		parts = append(parts, openai.ImageContentPart(openai.ChatCompletionContentPartImageImageURLParam{
+			URL: dataURL,
+		}))
 	}
+
+	messages := []openai.ChatCompletionMessageParamUnion{
+		openai.SystemMessage(systemPrompt),
+		openai.UserMessage(parts),
+	}
+
+	var analysis schema.DesktopScreenshotAnalysis
+	res, err := p.makeStructuredRequest(ctx, sessionID, "DesktopScreenshotAnalysis", schema.DesktopScreenshotAnalysisSchema, messages, &analysis)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	p.logger.DebugContext(ctx, "Summary of multiple images generated",
+		"session_id", sessionID,
+		"number_of_images", len(images),
+		"prompt_tokens", res.promptTokens,
+		"completion_tokens", res.completionTokens,
+		"finish_reason", res.finishReason,
+	)
 
 	return &analysis, nil
 }
 
-func (p *InferenceProvider) makeStructuredRequest(ctx context.Context, sessionID session.ID, schemaName string, schema any, systemPrompt, message string) (*response, error) {
-	schemaParam := openai.ResponseFormatJSONSchemaJSONSchemaParam{
-		Name:   schemaName,
-		Schema: schema,
-		Strict: openai.Bool(true),
+// SummarizeDesktopSession synthesizes a list of desktop session events into an overall session analysis.
+func (p *InferenceProvider) SummarizeDesktopSession(ctx context.Context, sessionID session.ID, systemPrompt, prompt string) (*schema.DesktopSessionAnalysis, error) {
+	p.logger.DebugContext(ctx, "Summarizing desktop session", "session_id", sessionID)
+
+	var analysis schema.DesktopSessionAnalysis
+	res, err := p.makeStructuredTextRequest(ctx, sessionID, "DesktopSessionAnalysis", schema.DesktopSessionAnalysisSchema, systemPrompt, prompt, &analysis)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
+	p.logger.DebugContext(ctx, "Desktop session summary generated",
+		"session_id", sessionID,
+		"prompt_length", len(prompt),
+		"prompt_tokens", res.promptTokens,
+		"completion_tokens", res.completionTokens,
+		"finish_reason", res.finishReason,
+	)
+
+	return &analysis, nil
+}
+
+// makeStructuredRequest sends messages with a JSON-schema response format and unmarshals the response into out.
+func (p *InferenceProvider) makeStructuredRequest(ctx context.Context, sessionID session.ID, schemaName string, schema any, messages []openai.ChatCompletionMessageParamUnion, out any) (*response, error) {
 	completionParams := openai.ChatCompletionNewParams{
-		Messages: []openai.ChatCompletionMessageParamUnion{
-			openai.SystemMessage(systemPrompt),
-			openai.UserMessage(message),
-		},
+		Messages: messages,
 		ResponseFormat: openai.ChatCompletionNewParamsResponseFormatUnion{
 			OfJSONSchema: &openai.ResponseFormatJSONSchemaParam{
-				JSONSchema: schemaParam,
+				JSONSchema: openai.ResponseFormatJSONSchemaJSONSchemaParam{
+					Name:   schemaName,
+					Schema: schema,
+					Strict: openai.Bool(true),
+				},
 			},
 		},
 		Model: p.openAIModelName,
 	}
 
-	return p.makeRequest(ctx, sessionID, completionParams)
+	res, err := p.makeRequest(ctx, sessionID, completionParams)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := json.Unmarshal([]byte(res.result), out); err != nil {
+		return nil, trace.Wrap(summarizererrorstypes.BadResponseError{
+			Message: fmt.Sprintf("failed to unmarshal model response: %v", err),
+		})
+	}
+
+	return res, nil
+}
+
+func (p *InferenceProvider) makeStructuredTextRequest(ctx context.Context, sessionID session.ID, schemaName string, schema any, systemPrompt, message string, out any) (*response, error) {
+	messages := []openai.ChatCompletionMessageParamUnion{
+		openai.SystemMessage(systemPrompt),
+		openai.UserMessage(message),
+	}
+	return p.makeStructuredRequest(ctx, sessionID, schemaName, schema, messages, out)
 }
 
 type response struct {
@@ -429,7 +488,8 @@ func (p *InferenceProvider) CondenseForEmbedding(ctx context.Context, input *sum
 		return "", trace.Wrap(err, "failed to marshal input to JSON")
 	}
 
-	res, err := p.makeStructuredRequest(ctx, "", "GenerateProseEmbeddings", schema.ProseEmbeddingSchema, systemPrompt, string(query))
+	var proseEmbedding schema.ProseEmbedding
+	res, err := p.makeStructuredTextRequest(ctx, "", "GenerateProseEmbeddings", schema.ProseEmbeddingSchema, systemPrompt, string(query), &proseEmbedding)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -439,13 +499,6 @@ func (p *InferenceProvider) CondenseForEmbedding(ctx context.Context, input *sum
 		"completion_tokens", res.completionTokens,
 		"finish_reason", res.finishReason,
 	)
-
-	var proseEmbedding schema.ProseEmbedding
-	if err := json.Unmarshal([]byte(res.result), &proseEmbedding); err != nil {
-		return "", trace.Wrap(summarizererrorstypes.BadResponseError{
-			Message: fmt.Sprintf("failed to unmarshal model response: %v", err),
-		})
-	}
 
 	return proseEmbedding.CondensedText, nil
 }
