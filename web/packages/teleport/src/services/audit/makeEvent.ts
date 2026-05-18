@@ -216,6 +216,13 @@ export const formatters: Formatters = {
     format: ({ user }) => `User [${user}] has changed a password`,
   },
 
+  [eventCodes.USER_RESET]: {
+    type: 'user.reset',
+    desc: 'User Credentials Reset',
+    format: ({ user, name }) =>
+      `User [${user}] reset credentials for user [${name}]`,
+  },
+
   [eventCodes.USER_UPDATED]: {
     type: 'user.update',
     desc: 'User Updated',

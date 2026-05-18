@@ -472,6 +472,14 @@ export const events = [
     user: 'Ivan_Jordan',
   },
   {
+    code: 'T1017I',
+    event: 'user.reset',
+    time: '2020-06-05T19:26:53Z',
+    uid: '9dcd7f10-5a0d-466c-81ed-cebcb45d00eb',
+    user: 'alice@example.com',
+    name: 'bob@example.com',
+  },
+  {
     'addr.local': '172.10.1.1:3022',
     'addr.remote': '172.10.1.254:46992',
     code: 'T2006I',

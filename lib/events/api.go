@@ -189,6 +189,12 @@ const (
 	// UserPasswordChangeEvent is when the user changes their own password.
 	UserPasswordChangeEvent = "user.password_change"
 
+	// UserResetEvent is emitted when user's credentials (password and/or MFA)
+	// are reset. This event is emitted in all successful cases, as opposed to
+	// [UserTokenCreate], which only gets emitted for cases where a token is
+	// created.
+	UserResetEvent = "user.reset"
+
 	// UserExpires is when the user will expire.
 	UserExpires = "expires"
 

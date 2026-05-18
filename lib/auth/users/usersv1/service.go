@@ -643,6 +643,28 @@ func (s *Service) ResetUser(ctx context.Context, req *userspb.ResetUserRequest) 
 		return nil, trace.Wrap(err)
 	}
 
+	res, err := s.resetUserInternal(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.UserReset{
+		Metadata: apievents.Metadata{
+			Type: events.UserResetEvent,
+			Code: events.UserResetCode,
+		},
+		UserMetadata: authz.ClientUserMetadata(ctx),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name: req.Name,
+		},
+	}); err != nil {
+		s.logger.WarnContext(ctx, "Failed to emit user reset event", "error", err)
+	}
+
+	return res, nil
+}
+
+func (s *Service) resetUserInternal(ctx context.Context, req *userspb.ResetUserRequest) (*userspb.ResetUserResponse, error) {
 	switch user, err := s.cache.GetUser(ctx, req.Name, false /* withSecrets */); {
 	case trace.IsNotFound(err):
 		return s.resetUnknownUser(ctx, req)

@@ -1033,10 +1033,23 @@ func TestResetUser(t *testing.T) {
 				assert.Equal(t, authclient.UserTokenTypeResetPassword, res.PasswordResetToken.SubKind)
 				assert.Equal(t, user.GetName(), res.PasswordResetToken.GetUser(), user.GetName())
 
-				event := getLastEvent(env.emitter.C())
-				assert.Equal(t, events.ResetPasswordTokenCreateEvent, event.GetType())
-				assert.Equal(t, user.GetName(), event.(*apievents.UserTokenCreate).Name)
-				assert.Equal(t, teleport.UserSystem, event.(*apievents.UserTokenCreate).User)
+				evts := getAllEvents(env.emitter.C())
+				require.GreaterOrEqual(t, len(evts), 2)
+				evts = evts[len(evts)-2:]
+
+				e, ok := evts[0].(*apievents.UserTokenCreate)
+				require.True(t, ok)
+				assert.Equal(t, events.ResetPasswordTokenCreateEvent, e.GetType())
+				assert.Equal(t, user.GetName(), e.Name)
+				assert.Equal(t, events.ResetPasswordTokenCreateCode, e.Code)
+				assert.Equal(t, teleport.UserSystem, e.User)
+
+				e2, ok := evts[1].(*apievents.UserReset)
+				require.True(t, ok)
+				assert.Equal(t, events.UserResetEvent, e2.GetType())
+				assert.Equal(t, user.GetName(), e2.Name)
+				assert.Equal(t, events.UserResetCode, e2.Code)
+				assert.Equal(t, teleport.UserSystem, e2.User)
 			},
 		},
 		{
@@ -1260,6 +1273,18 @@ func getLastEvent(c <-chan apievents.AuditEvent) apievents.AuditEvent {
 		case event = <-c:
 		default:
 			return event
+		}
+	}
+}
+
+func getAllEvents(c <-chan apievents.AuditEvent) []apievents.AuditEvent {
+	var events []apievents.AuditEvent
+	for {
+		select {
+		case e := <-c:
+			events = append(events, e)
+		default:
+			return events
 		}
 	}
 }

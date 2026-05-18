@@ -90,6 +90,8 @@ const (
 	// VValidateMFAAuthResponseFailureCode is an event code for when an MFA auth challenge
 	// response fails validation.
 	ValidateMFAAuthResponseFailureCode = "T1016W"
+	// UserResetCode is an event code for when user's credentials are reset.
+	UserResetCode = "T1017I"
 
 	// BillingCardCreateCode is an event code for when a user creates a new credit card.
 	BillingCardCreateCode = "TBL00I"

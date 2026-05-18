@@ -218,6 +218,7 @@ export const eventCodes = {
   USER_LOCAL_LOGIN: 'T1000I',
   USER_LOCAL_LOGINFAILURE: 'T1000W',
   USER_PASSWORD_CHANGED: 'T1005I',
+  USER_RESET: 'T1017I',
   USER_SSO_LOGIN: 'T1001I',
   USER_SSO_LOGINFAILURE: 'T1001W',
   USER_SSO_TEST_FLOW_LOGIN: 'T1010I',
@@ -716,6 +717,7 @@ export type RawEvents = {
     typeof eventCodes.USER_PASSWORD_CHANGED,
     HasName
   >;
+  [eventCodes.USER_RESET]: RawEventUser<typeof eventCodes.USER_RESET>;
   [eventCodes.RESET_PASSWORD_TOKEN_CREATED]: RawEventUserToken<
     typeof eventCodes.RESET_PASSWORD_TOKEN_CREATED
   >;
