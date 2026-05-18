@@ -84,12 +84,20 @@ Otherwise, Teleport won't send any events to auditd due to lack of permissions.
 
 1. (!docs/pages/includes/start-teleport.mdx!)
 
-<Admonition type="warning">
+   <Admonition type="warning">
 
-  Make sure that the Teleport process has its login UID unset. Otherwise, a session ID won't be set correctly in the emitted events.
-  You can verify that by calling `cat /proc/$(pidof teleport)/loginuid`. The value should be set to 4294967295.
+     Make sure that the Teleport process has its login UID unset. Otherwise, a
+     session ID won't be set correctly in the emitted events. You can verify
+     this by running the following command:
 
-</Admonition>
+     ```code
+     $ cat /proc/$(pidof teleport)/loginuid
+     ```
+
+     The value should be set to `4294967295`. If you start the Teleport process
+     as a systemd service, its login UID will be unset.
+
+   </Admonition>
 
 ## Step 3/3. Trace SSH sessions with auditd
 
