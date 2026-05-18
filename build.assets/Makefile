@@ -204,11 +204,6 @@ buildbox:
 		--tag $(BUILDBOX) .
 	$(call LOG_GROUP_END)
 
-# Builds a Docker buildbox for FIPS
-#
-.PHONY: buildbox-fips
-buildbox-fips: buildbox-centos7-fips
-
 #
 # Builds a Docker buildbox for CentOS 7 builds. It is built for amd64 and arm64
 # but cannot be cross-compiled, so the host architecture must match the target
@@ -239,34 +234,6 @@ buildbox-centos7:
 		--cache-from $(BUILDBOX_CENTOS7) \
 		$(if $(PUSH),--push,--load) \
 		--tag $(BUILDBOX_CENTOS7) -f Dockerfile-centos7 .
-	$(call LOG_GROUP_END)
-
-#
-# Builds a Docker buildbox for CentOS 7 FIPS builds. This uses the same
-# Dockerfile as `buildbox-centos7` but with the `buildbox-fips` target which
-# sets the appropriate environment variables and config files to build
-# FIPS-compliant binaries. It also does a test build to ensure the built
-# binaries are FIPS-compliant.
-#
-.PHONY: buildbox-centos7-fips
-buildbox-centos7-fips:
-	$(call LOG_GROUP_START)
-	docker buildx build \
-		--target buildbox-fips \
-		--build-arg UID=$(UID) \
-		--build-arg GID=$(GID) \
-		--build-arg BUILDBOX_CENTOS7_ASSETS=$(BUILDBOX_CENTOS7_ASSETS) \
-		--build-arg BUILDARCH=$(HOST_ARCH) \
-		--build-arg TARGETARCH=$(RUNTIME_ARCH) \
-		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
-		--build-arg RUST_VERSION=$(RUST_VERSION) \
-		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
-		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
-		--build-arg LIBPCSCLITE_VERSION=$(LIBPCSCLITE_VERSION) \
-		--cache-to type=inline \
-		--cache-from $(BUILDBOX_CENTOS7_FIPS) \
-		$(if $(PUSH),--push,--load) \
-		--tag $(BUILDBOX_CENTOS7_FIPS) -f Dockerfile-centos7 .
 	$(call LOG_GROUP_END)
 
 #
@@ -533,22 +500,6 @@ enter/centos7: buildbox-centos7
 enter-root/centos7: buildbox-centos7
 	docker run $(DOCKERFLAGS) -ti \
 		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX_CENTOS7) /bin/bash
-
-#
-# Starts shell inside the centos7-fips container
-#
-.PHONY:enter/centos7-fips
-enter/centos7-fips: buildbox-centos7-fips
-	docker run $(DOCKERFLAGS) -ti $(NOROOT) \
-		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX_CENTOS7_FIPS) /bin/bash
-
-#
-# Starts a root shell inside the centos7-fips container
-#
-.PHONY: enter-root/centos7-fips
-enter-root/centos7-fips: buildbox-centos7-fips
-	docker run $(DOCKERFLAGS) -ti \
-		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX_CENTOS7_FIPS) /bin/bash
 
 #
 # Starts a shell inside the grpcbox.

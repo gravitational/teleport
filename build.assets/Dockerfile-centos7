@@ -313,30 +313,3 @@ ENV BORING_BSSL_FIPS_CPLUS_INCLUDE_PATH=/opt/llvm/include/c++/v1/
 
 VOLUME ["/go/src/github.com/gravitational/teleport"]
 EXPOSE 6600 2379 2380
-
-
-## BUILDBOX-FIPS ##############################################################
-# Build the `buildbox-fips` target to create a buildbox that creates a FIPS
-# Teleport binary. It enables FIPS in the Go toolchain and
-# builds a test binary to ensure binaries are FIPS-compliant.
-
-FROM buildbox as buildbox-fips
-
-# Set environment variables used for enabling FIPS mode
-# `GOEXPERIMENT=boringcrypto` -- enable FIPS mode (BoringCrypto) for Go
-# https://github.com/golang/go/blob/master/src/crypto/internal/boring/README.md
-ENV GOEXPERIMENT=boringcrypto
-
-USER ci
-
-# Validate that environment variables were set
-RUN echo "Ensure environment variables are set" && [ -n "$GOEXPERIMENT" ]
-
-# Validate that Go binaries have BoringCrypto enabled
-COPY --chown=ci fips-files/boringtest.nogo /tmp/boringtest.go
-
-RUN echo "Ensure Go is using BoringCrypto" && \
-    go run /tmp/boringtest.go
-
-VOLUME ["/go/src/github.com/gravitational/teleport"]
-EXPOSE 6600 2379 2380
