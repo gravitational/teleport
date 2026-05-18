@@ -14,7 +14,7 @@ The **Event Handler** plugin exports Teleport audit events to a Fluentd
 service. The plugin retrieves events in configurable batches, forwards each
 event to Fluentd over mTLS, and persists the ID of each successfully sent event
 to local storage. If the plugin crashes or restarts, it resumes from the last
-confirmed event. By default, the plugin polls for new events every 5 seconds.
+confirmed event. By default, the plugin polls for new events every 10 seconds.
 
 ## Configuration methods
 

@@ -830,6 +830,34 @@ func TestAddRoleDefaults(t *testing.T) {
 			},
 		},
 		{
+			name: "access-plugin-with-review (default roles match preset rules)",
+			role: &types.RoleV6{
+				Kind:    types.KindRole,
+				Version: types.V8,
+				Metadata: types.Metadata{
+					Name:        teleport.PresetAccessPluginWithReviewRoleName,
+					Namespace:   apidefaults.Namespace,
+					Description: "Default access plugin with review role",
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						ReviewRequests: &types.AccessReviewConditions{
+							PreviewAsRoles: []string{
+								teleport.PresetListAccessRequestResourcesRoleName,
+							},
+							SubmitForUsers: []string{"*"},
+						},
+					},
+				},
+			},
+			expectedErr:    require.NoError,
+			reviewNotEmpty: true,
+			expected:       NewPresetAccessPluginWithReviewRole(),
+		},
+		{
 			name: "list-access-request-resources (default roles match preset rules)",
 			role: &types.RoleV6{
 				Kind:    types.KindRole,
