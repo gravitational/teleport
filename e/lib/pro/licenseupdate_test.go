@@ -449,6 +449,9 @@ func TestLoadFeatures(t *testing.T) {
 					}
 
 					out[entitlements.Policy] = modules.EntitlementInfo{Enabled: true}
+					out[entitlements.SessionSummaries] = modules.EntitlementInfo{Enabled: true}
+					out[entitlements.ActivityCenter] = modules.EntitlementInfo{Enabled: true}
+					out[entitlements.AccessGraph] = modules.EntitlementInfo{Enabled: true}
 					out[entitlements.K8s] = modules.EntitlementInfo{Enabled: true}
 
 					return out

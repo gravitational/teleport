@@ -25,6 +25,11 @@ func GetCloudEntitlements(cloudEntitlements map[string]*cloudapi.EntitlementInfo
 		}
 	}
 
+	applyLegacyPolicyEntitlementsFallback(
+		result,
+		cloudEntitlements,
+	)
+
 	return result
 }
 
@@ -46,5 +51,43 @@ func GetLicenseEntitlements(licenseEntitlements map[string]types.EntitlementInfo
 		}
 	}
 
+	applyLegacyPolicyEntitlementsFallback(
+		result,
+		licenseEntitlements,
+	)
+
 	return result
+}
+
+// applyLegacyPolicyEntitlementsFallback infers AccessGraph, SessionSummaries,
+// and ActivityCenter from Policy for payloads predating their split: if Policy
+// is enabled and none appear explicitly, all three are enabled. If any is
+// present, the fallback is skipped and explicit values take precedence.
+func applyLegacyPolicyEntitlementsFallback[T any](
+	entitlementInfo map[entitlements.EntitlementKind]modules.EntitlementInfo,
+	incomingEntitlements map[string]T,
+) {
+	newAccessGraphEntitlements := []entitlements.EntitlementKind{
+		entitlements.AccessGraph,
+		entitlements.ActivityCenter,
+		entitlements.SessionSummaries,
+	}
+	for _, e := range newAccessGraphEntitlements {
+		if hasEntitlement(incomingEntitlements, e) {
+			return
+		}
+	}
+
+	if !entitlementInfo[entitlements.Policy].Enabled {
+		return
+	}
+
+	entitlementInfo[entitlements.AccessGraph] = modules.EntitlementInfo{Enabled: true}
+	entitlementInfo[entitlements.SessionSummaries] = modules.EntitlementInfo{Enabled: true}
+	entitlementInfo[entitlements.ActivityCenter] = modules.EntitlementInfo{Enabled: true}
+}
+
+func hasEntitlement[T any](entitlements map[string]T, entitlement entitlements.EntitlementKind) bool {
+	_, ok := entitlements[string(entitlement)]
+	return ok
 }

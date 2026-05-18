@@ -29,6 +29,35 @@ func TestGetCloudEntitlements(t *testing.T) {
 	require.Equal(t, expected, actual)
 }
 
+func TestGetCloudEntitlementsLegacyPolicyFallback(t *testing.T) {
+	t.Run("adds session summaries and activity center when policy is enabled and split entitlements are missing", func(t *testing.T) {
+		expected := getPopulatedEntitlements(map[entitlements.EntitlementKind]modules.EntitlementInfo{
+			entitlements.Policy:           {Enabled: true},
+			entitlements.AccessGraph:      {Enabled: true},
+			entitlements.SessionSummaries: {Enabled: true},
+			entitlements.ActivityCenter:   {Enabled: true},
+		})
+
+		actual := GetCloudEntitlements(map[string]*cloudapi.EntitlementInfo{
+			string(entitlements.Policy): {Enabled: true},
+		})
+		require.Equal(t, expected, actual)
+	})
+
+	t.Run("does not add fallback when either split entitlement is present", func(t *testing.T) {
+		expected := getPopulatedEntitlements(map[entitlements.EntitlementKind]modules.EntitlementInfo{
+			entitlements.Policy:           {Enabled: true},
+			entitlements.SessionSummaries: {Enabled: true},
+		})
+
+		actual := GetCloudEntitlements(map[string]*cloudapi.EntitlementInfo{
+			string(entitlements.Policy):           {Enabled: true},
+			string(entitlements.SessionSummaries): {Enabled: true},
+		})
+		require.Equal(t, expected, actual)
+	})
+}
+
 func TestGetLicenseEntitlements(t *testing.T) {
 	expected := getPopulatedEntitlements(map[entitlements.EntitlementKind]modules.EntitlementInfo{
 		entitlements.AccessLists:      {Enabled: true},
@@ -45,6 +74,35 @@ func TestGetLicenseEntitlements(t *testing.T) {
 
 	actual := GetLicenseEntitlements(e)
 	require.Equal(t, expected, actual)
+}
+
+func TestGetLicenseEntitlementsLegacyPolicyFallback(t *testing.T) {
+	t.Run("adds session summaries and activity center when policy is enabled and split entitlements are missing", func(t *testing.T) {
+		expected := getPopulatedEntitlements(map[entitlements.EntitlementKind]modules.EntitlementInfo{
+			entitlements.Policy:           {Enabled: true},
+			entitlements.AccessGraph:      {Enabled: true},
+			entitlements.SessionSummaries: {Enabled: true},
+			entitlements.ActivityCenter:   {Enabled: true},
+		})
+
+		actual := GetLicenseEntitlements(map[string]types.EntitlementInfo{
+			string(entitlements.Policy): {Enabled: true},
+		})
+		require.Equal(t, expected, actual)
+	})
+
+	t.Run("does not add fallback when either split entitlement is present", func(t *testing.T) {
+		expected := getPopulatedEntitlements(map[entitlements.EntitlementKind]modules.EntitlementInfo{
+			entitlements.Policy:           {Enabled: true},
+			entitlements.SessionSummaries: {Enabled: true},
+		})
+
+		actual := GetLicenseEntitlements(map[string]types.EntitlementInfo{
+			string(entitlements.Policy):           {Enabled: true},
+			string(entitlements.SessionSummaries): {Enabled: true},
+		})
+		require.Equal(t, expected, actual)
+	})
 }
 
 // getPopulatedEntitlements returns a map with all [entitlements.EntitlementKind]s specified
