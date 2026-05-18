@@ -12,7 +12,7 @@
 | `string` | `""` |
 
 `postgres.connectionString` is the connection string to the PostgreSQL database.
-It should be used only if you are not using a Kubernetes secret and AWS or Azure auth is enabled.
+Use this only when not using a Kubernetes secret and not using AWS or Azure IAM authentication.
 
 ### `postgres.secretName`
 
@@ -32,9 +32,9 @@ containing the connection string to the PostgreSQL database.
 `postgres.secretKey` is the name of the secret key for the provided Kubernetes secret
 containing the connection string to the PostgreSQL database.
 
-## `aws`
+### `postgres.aws`
 
-`aws` contains optional AWS connection settings for using AWS IAM authentication.
+`postgres.aws` contains optional AWS connection settings for using AWS IAM authentication.
 This is only required if you are using an AWS RDS or Aurora PostgreSQL database with IAM authentication.
 
 #### `postgres.aws.enabled`
@@ -47,9 +47,12 @@ This is only required if you are using an AWS RDS or Aurora PostgreSQL database 
 
 #### `postgres.aws.region`
 
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
 `postgres.aws.region` is the optional AWS region where the PostgreSQL database is located.
-If not set, the region will be inferred from the AWS_REGION environment variable.
-region: ""
+If not set, the region will be inferred from the `AWS_REGION` environment variable.
 
 ### `postgres.azure`
 
@@ -70,9 +73,12 @@ This is only required if you are using an Azure Database for PostgreSQL.
 
 #### `postgres.azure.tenantId`
 
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
 `postgres.azure.tenantId` is the Azure AD tenant ID to use for authentication.
 If not set, the default tenant ID will be used.
-tenantId: ""
 
 ### `postgres.connection_parameters`
 
@@ -85,7 +91,11 @@ for connecting to the database.
 
 ### `postgres.replica`
 
-`postgres.replica` Database replica connection settings.
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`postgres.replica` contains the database replica connection settings.
 
 #### `postgres.replica.connectionString`
 
@@ -116,15 +126,12 @@ containing the connection string to the replica PostgreSQL database.
 
 #### `postgres.replica.connection_parameters`
 
+| Type | Default |
+|------|---------|
+| `object` | `null` |
+
 `postgres.replica.connection_parameters` contains optional connection parameters configuration values
-for connection to the replica database.
-connection_parameters:
-  max_conns: 4
-  min_conns: 0
-  max_conn_lifetime: 1h
-  max_conn_idle_time: 30m
-  health_check_period: 1m
-  max_conn_lifetime_jitter: 0s
+for connecting to the replica database.
 
 ## `tls`
 
@@ -152,12 +159,12 @@ Setting this is required, as Teleport Access Graph always operates via TLS-prote
 `clusterHostCAs` is a list of strings containing PEM-encoded Host CA certificates of Teleport clusters that are allowed to use this instance of TAG.
 Setting this to a non-empty array is required.
 
-## `identityActivityCenter`
+## `identity_activity_center`
 
-`identityActivityCenter` contains options for the Identity Activity Center feature.
-This feature allows Access Graph to store security events in a central location,
-and to query them using Athena providing a way to analyze and correlate security events accross
-multiple
+`identity_activity_center` contains options for the Identity Activity Center feature.
+This feature allows Access Graph to store security events in a central location
+and to query them using Athena, providing a way to analyze and correlate security events across
+multiple Teleport clusters.
 
 ### `identity_activity_center.enabled`
 
@@ -247,10 +254,13 @@ Use this together with the volumeMounts and volumes options to mount the databas
 
 Example:
 
-$ kubectl create secret generic maxmind-geoip-city-db --from-file=GeoLite2-City.mmdb
+```bash
+kubectl create secret generic maxmind-geoip-city-db --from-file=GeoLite2-City.mmdb
+```
 
 Then, add the following to your TAG deployment:
 
+```yaml
 volumes:
 - name: maxmind-geoip-city-db
   secret:
@@ -264,6 +274,7 @@ volumeMounts:
 identity_activity_center:
   ... # other options
   maxmind_geoip_city_db_path: "/etc/maxmindGeoIP/GeoLite2-City.mmdb"
+```
 
 If you do not want to use the MaxMind GeoIP City database, set this to an empty string.
 
@@ -301,7 +312,7 @@ This is the port that Teleport Auth Service and Proxy Service will need to conne
 | `int` | `3000` |
 
 `service.metricsPort` the port that the metrics service is exposed on.
-requires metrics.enabled to be true
+Requires `metrics.enabled` to be `true`.
 
 ## `replicaCount`
 
@@ -317,7 +328,7 @@ requires metrics.enabled to be true
 |------|---------|
 | `object` | `{"enabled":false,"pprof":false}` |
 
-`metrics` contanis options for TAG metrics service
+`metrics` contains options for the TAG metrics service.
 
 ### `metrics.enabled`
 
@@ -325,7 +336,7 @@ requires metrics.enabled to be true
 |------|---------|
 | `bool` | `false` |
 
-`metrics.enabled` Enable the metrics service
+`metrics.enabled` enables the metrics service.
 
 ### `metrics.pprof`
 
@@ -334,6 +345,10 @@ requires metrics.enabled to be true
 | `bool` | `false` |
 
 `metrics.pprof` Enables pprof metrics endpoints
+
+## `log`
+
+`log` contains logging settings for TAG.
 
 ### `log.level`
 
@@ -344,6 +359,10 @@ requires metrics.enabled to be true
 `log.level` the minimum severity of log messages to output. Supported values are `DEBUG`, `INFO`, `WARN` and `ERROR`.
 
 ## `image`
+
+| Type | Default |
+|------|---------|
+| `object` | `{"pullPolicy":"IfNotPresent","repository":"public.ecr.aws/gravitational/access-graph","tag":""}` |
 
 ### `image.tag`
 
@@ -402,7 +421,7 @@ The default value supports running under the `restricted`
 |------|---------|
 | `list` | `[]` |
 
-`extraEnv` allows specifying additional environmental variables
+`extraEnv` allows specifying additional environment variables.
 
 ## `volumes`
 
@@ -410,7 +429,7 @@ The default value supports running under the `restricted`
 |------|---------|
 | `array` | `[]` |
 
-`volumes` allows to define additional volumes on the output Deployment definition.
+`volumes` allows you to define additional volumes on the output Deployment definition.
 
 ## `nodeSelector`
 
@@ -444,4 +463,8 @@ for more details.
 
 ## `labels`
 
-`labels` contains additional labels to add to the Pod Disruption Budget
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`labels` contains additional labels to add to the Pod Disruption Budget.
