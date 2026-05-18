@@ -498,13 +498,9 @@ func (w *ProxyKubeServerWatcher) CurrentResourcesWithFilter(ctx context.Context,
 	w.rw.RLock()
 	defer w.rw.RUnlock()
 
-	toReadyOnly := func(resource types.KubeServer) readonly.KubeServer {
-		return resource
-	}
-
 	var out []types.KubeServer
 	for _, resource := range w.current {
-		if filter(toReadyOnly(resource)) {
+		if filter(readonly.KubeServer(resource)) {
 			out = append(out, types.KubeServer.Copy(resource))
 		}
 	}
