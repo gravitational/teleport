@@ -747,6 +747,10 @@ const (
 	// Access Requests.
 	SystemIdentityCenterAccessRoleName = "aws-ic-access"
 
+	// SystemBeamRoleName specifies the name of a system role that grants the
+	// beam bot permission to issue itself credentials.
+	SystemBeamRoleName = "beam"
+
 	// PresetWildcardWorkloadIdentityIssuerRoleName is a name of a preset role
 	// that includes the permissions necessary to issue workload identity
 	// credentials using any workload_identity resource. This exists to simplify
@@ -757,6 +761,10 @@ const (
 	// permissions required by self-hosted access request plugin.
 	PresetAccessPluginRoleName = "access-plugin"
 
+	// PresetAccessPluginWithReviewRoleName names the preset role that includes
+	// permissions required by self-hosted access request plugins that permit native reviews.
+	PresetAccessPluginWithReviewRoleName = "access-plugin-with-review"
+
 	// PresetListAccessRequestResourcesRoleName is a name of a preset role that
 	// includes permissions to read access request resources.
 	PresetListAccessRequestResourcesRoleName = "list-access-request-resources"
@@ -764,6 +772,14 @@ const (
 	// PresetMCPUserRoleName is a name of a preset role that allows
 	// accessing MCP servers.
 	PresetMCPUserRoleName = "mcp-user"
+
+	// PresetBeamUserRoleName is a name of a preset role that allows users to use
+	// the Beams feature.
+	PresetBeamUserRoleName = "beam-user"
+
+	// PresetBeamAdminRoleName is a name of a preset role that allows users to
+	// administer beams belonging to other users.
+	PresetBeamAdminRoleName = "beam-admin"
 )
 
 var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}
