@@ -2791,6 +2791,306 @@ app_service:
 				require.ErrorContains(t, err, "duplicate application name")
 			},
 		},
+		{
+			inConfigString: `
+proxy_service:
+  enabled: true
+  public_addr: teleport.test
+app_service:
+  enabled: true
+  apps:
+    - name: app1
+      uri: "http://127.0.0.1:3001"
+      public_addr: "app.teleport.test"
+    - name: app2
+      uri: "http://127.0.0.1:3002"
+      public_addr: "app.teleport.test"
+`,
+			name: "duplicate explicit public_addr rejected",
+			outErr: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t, err, "route to the same FQDN")
+				require.ErrorContains(t, err, "app1")
+				require.ErrorContains(t, err, "app2")
+				require.ErrorContains(t, err, "app.teleport.test")
+			},
+		},
+		{
+			inConfigString: `
+proxy_service:
+  enabled: true
+  public_addr: teleport.test
+app_service:
+  enabled: true
+  apps:
+    - name: app
+      uri: "http://127.0.0.1:3000"
+    - name: app1
+      uri: "http://127.0.0.1:3001"
+      public_addr: "app.teleport.test"
+`,
+			name: "name plus proxy collision rejected",
+			outErr: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t, err, "route to the same FQDN")
+				require.ErrorContains(t, err, "app.teleport.test")
+			},
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    - name: app
+      uri: "http://127.0.0.1:3000"
+    - name: app1
+      uri: "http://127.0.0.1:3001"
+      public_addr: "app.teleport.test"
+`,
+			name:   "name plus proxy collision undetectable without proxy_service",
+			outErr: require.NoError,
+		},
+		{
+			inConfigString: `
+proxy_service:
+  enabled: true
+  public_addr:
+    - teleport.test
+    - alt.teleport.test
+app_service:
+  enabled: true
+  apps:
+    - name: app
+      uri: "http://127.0.0.1:3000"
+    - name: other
+      uri: "http://127.0.0.1:3001"
+      public_addr: "app.alt.teleport.test"
+`,
+			name: "collision on one of multiple proxy public_addrs rejected",
+			outErr: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t, err, "route to the same FQDN")
+				require.ErrorContains(t, err, "app.alt.teleport.test")
+			},
+		},
+		{
+			inConfigString: `
+proxy_service:
+  enabled: true
+  public_addr:
+    - teleport.test
+    - alt.teleport.test
+app_service:
+  enabled: true
+  apps:
+    - name: app
+      uri: "http://127.0.0.1:3000"
+    - name: other
+      uri: "http://127.0.0.1:3001"
+`,
+			name:   "multiple proxy public_addrs without collision accepted",
+			outErr: require.NoError,
+		},
+		{
+			inConfigString: `
+proxy_service:
+  enabled: true
+  public_addr: teleport.test
+app_service:
+  enabled: true
+  apps:
+    - name: app
+      uri: "http://127.0.0.1:3000"
+    - name: other
+      uri: "http://127.0.0.1:3001"
+      public_addr: "app.teleport.test"
+      use_any_proxy_public_addr: true
+`,
+			name: "use_any_proxy_public_addr explicit public_addr collision rejected",
+			outErr: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t, err, "route to the same FQDN")
+				require.ErrorContains(t, err, "app.teleport.test")
+			},
+		},
+		{
+			inConfigString: `
+proxy_service:
+  enabled: true
+  public_addr: teleport.test
+app_service:
+  enabled: true
+  apps:
+    - name: other
+      uri: "http://127.0.0.1:3000"
+    - name: app
+      uri: "http://127.0.0.1:3001"
+      public_addr: "somewhere.example.com"
+      use_any_proxy_public_addr: true
+`,
+			name:   "use_any_proxy_public_addr with non-colliding explicit public_addr accepted",
+			outErr: require.NoError,
+		},
+		{
+			inConfigString: `
+proxy_service:
+  enabled: true
+  public_addr: teleport.test
+app_service:
+  enabled: true
+  apps:
+    - name: app
+      uri: "http://127.0.0.1:3000"
+    - name: app1
+      uri: "http://127.0.0.1:3001"
+      public_addr: "app1.example.com"
+    - name: app2
+      uri: "http://127.0.0.1:3002"
+      public_addr: "app2.example.com"
+`,
+			name:   "distinct effective FQDNs accepted",
+			outErr: require.NoError,
+		},
+		{
+			inConfigString: `
+auth_service:
+  enabled: true
+  cluster_name: cluster.example.com
+proxy_service:
+  enabled: true
+app_service:
+  enabled: true
+  apps:
+    - name: app
+      uri: "http://127.0.0.1:3000"
+    - name: app1
+      uri: "http://127.0.0.1:3001"
+      public_addr: "app.cluster.example.com"
+`,
+			name: "cluster_name fallback collision rejected",
+			outErr: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t, err, "route to the same FQDN")
+				require.ErrorContains(t, err, "app.cluster.example.com")
+			},
+		},
+		{
+			inConfigString: `
+proxy_service:
+  enabled: true
+  public_addr: Teleport.Test
+app_service:
+  enabled: true
+  apps:
+    - name: app
+      uri: "http://127.0.0.1:3000"
+    - name: app1
+      uri: "http://127.0.0.1:3001"
+      public_addr: "app.teleport.test"
+`,
+			name: "case insensitive proxy public_addr collision rejected",
+			outErr: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t, err, "route to the same FQDN")
+				require.ErrorContains(t, err, "app.teleport.test")
+			},
+		},
+		{
+			inConfigString: `
+proxy_service:
+  enabled: true
+  public_addr: teleport.test.
+app_service:
+  enabled: true
+  apps:
+    - name: app
+      uri: "http://127.0.0.1:3000"
+    - name: app1
+      uri: "http://127.0.0.1:3001"
+      public_addr: "app.teleport.test"
+`,
+			name: "trailing dot proxy public_addr collision rejected",
+			outErr: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t, err, "route to the same FQDN")
+				require.ErrorContains(t, err, "app.teleport.test")
+			},
+		},
+		{
+			inConfigString: `
+proxy_service:
+  enabled: true
+  public_addr:
+    - teleport.test:443
+    - teleport.test:3080
+app_service:
+  enabled: true
+  apps:
+    - name: app
+      uri: "http://127.0.0.1:3000"
+    - name: other
+      uri: "http://127.0.0.1:3001"
+`,
+			name:   "duplicate proxy public_addr hostnames do not self collide",
+			outErr: require.NoError,
+		},
+		{
+			inConfigString: `
+proxy_service:
+  enabled: true
+  public_addr: teleport.test
+app_service:
+  enabled: true
+  apps:
+    - name: app
+      uri: "http://127.0.0.1:3000"
+      public_addr: "app.teleport.test"
+      use_any_proxy_public_addr: true
+`,
+			name:   "app whose public_addr equals its name plus proxy form does not self collide",
+			outErr: require.NoError,
+		},
+		{
+			inConfigString: `
+auth_service:
+  enabled: true
+  cluster_name: cluster.example.com
+proxy_service:
+  enabled: true
+  public_addr: 10.0.0.5
+app_service:
+  enabled: true
+  apps:
+    - name: app
+      uri: "http://127.0.0.1:3000"
+    - name: other
+      uri: "http://127.0.0.1:3001"
+      public_addr: "app.cluster.example.com"
+`,
+			name: "IP-only proxy public_addr falls back to cluster_name and detects collision",
+			outErr: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t, err, "route to the same FQDN")
+				require.ErrorContains(t, err, "app.cluster.example.com")
+			},
+		},
+		{
+			inConfigString: `
+auth_service:
+  enabled: true
+  cluster_name: cluster.example.com
+proxy_service:
+  enabled: true
+  public_addr:
+    - 10.0.0.5
+    - teleport.test
+app_service:
+  enabled: true
+  apps:
+    - name: app
+      uri: "http://127.0.0.1:3000"
+    - name: other
+      uri: "http://127.0.0.1:3001"
+      public_addr: "app.teleport.test"
+`,
+			name: "mixed IP and hostname proxy public_addr uses only the hostname",
+			outErr: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t, err, "route to the same FQDN")
+				require.ErrorContains(t, err, "app.teleport.test")
+			},
+		},
 	}
 
 	for _, tt := range tests {

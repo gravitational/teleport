@@ -47,6 +47,7 @@ import (
 
 	"github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
+	"golang.org/x/net/idna"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
@@ -2203,7 +2204,72 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		seenNames[app.Name] = struct{}{}
 	}
 
+	// Reject apps that share an effective routing FQDN; the dedupe key
+	// mirrors the runtime routing key, else duplicates route
+	// non-deterministically.
+	seenProxyHosts := map[string]struct{}{}
+	proxyHosts := make([]string, 0, len(cfg.Proxy.PublicAddrs))
+	for _, addr := range cfg.Proxy.PublicAddrs {
+		host, err := normalizeFQDN(addr.Host())
+		if err != nil {
+			return trace.Wrap(err, "proxy public_addr %q is an invalid IDN hostname", addr)
+		}
+		// Mirror proxyDNSNames(): skip IPs, fall back to cluster_name.
+		if net.ParseIP(host) != nil {
+			continue
+		}
+		if _, ok := seenProxyHosts[host]; ok {
+			continue
+		}
+		seenProxyHosts[host] = struct{}{}
+		proxyHosts = append(proxyHosts, host)
+	}
+	// No proxy public_addr: apps fall back to the cluster name.
+	if len(proxyHosts) == 0 && fc.Proxy.Enabled() && cfg.Auth.ClusterName != nil {
+		host, err := normalizeFQDN(cfg.Auth.ClusterName.GetClusterName())
+		if err != nil {
+			return trace.Wrap(err, "cluster_name %q is an invalid IDN hostname", cfg.Auth.ClusterName.GetClusterName())
+		}
+		if host != "" {
+			proxyHosts = append(proxyHosts, host)
+		}
+	}
+	// app.Name and app.PublicAddr are already normalized by
+	// CheckAndSetDefaults; only proxy public_addr and cluster_name need
+	// normalizeFQDN.
+	seenFQDNs := map[string]string{}
+	for _, app := range cfg.Apps.Apps {
+		// Dedupe per-app first: one app can contribute both public_addr
+		// and <name>.<proxy>, and that self-collision is not a conflict.
+		appFQDNs := map[string]struct{}{}
+		if app.PublicAddr != "" {
+			appFQDNs[app.PublicAddr] = struct{}{}
+		}
+		if app.PublicAddr == "" || app.UseAnyProxyPublicAddr {
+			for _, host := range proxyHosts {
+				appFQDNs[app.Name+"."+host] = struct{}{}
+			}
+		}
+		for fqdn := range appFQDNs {
+			if seenAppName, ok := seenFQDNs[fqdn]; ok {
+				return trace.BadParameter("apps %q and %q route to the same FQDN %q in static config", seenAppName, app.Name, fqdn)
+			}
+			seenFQDNs[fqdn] = app.Name
+		}
+	}
+
 	return nil
+}
+
+// normalizeFQDN returns host as ASCII, lowercase, with any trailing
+// dot stripped, so IDN, case, and trailing-dot variants collapse to
+// one dedupe key.
+func normalizeFQDN(host string) (string, error) {
+	asciiHost, err := idna.ToASCII(strings.TrimRight(host, "."))
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return strings.ToLower(asciiHost), nil
 }
 
 // applyMetricsConfig applies file configuration for the "metrics_service" section.
