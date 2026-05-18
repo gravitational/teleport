@@ -50,5 +50,9 @@ rustls = { version = "0.23.40", default-features = false, features = [
 cbindgen = "0.29.2"
 tempfile = "3.27.0"
 
+[dev-dependencies]
+rstest = "0.26"
+pretty_assertions = "1.4"
+
 [features]
 fips = ["tokio-boring/fips", "boring/fips"]
