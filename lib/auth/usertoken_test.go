@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/durationpb"
 
@@ -198,10 +199,21 @@ func TestResetUser(t *testing.T) {
 	require.Equal(t, resp.PasswordResetToken.GetUser(), username)
 	require.Equal(t, resp.PasswordResetToken.GetURL(), "https://<proxyhost>:3080/web/reset/"+resp.PasswordResetToken.GetName())
 
-	event := mockEmitter.LastEvent()
-	require.Equal(t, events.ResetPasswordTokenCreateEvent, event.GetType())
-	require.Equal(t, username, event.(*apievents.UserTokenCreate).Name)
-	require.Equal(t, "admin", event.(*apievents.UserTokenCreate).User)
+	evts := mockEmitter.Events()
+	require.GreaterOrEqual(t, len(evts), 2)
+	evts = evts[len(evts)-2:]
+
+	e, ok := evts[0].(*apievents.UserTokenCreate)
+	require.True(t, ok)
+	require.Equal(t, events.ResetPasswordTokenCreateEvent, e.GetType())
+	require.Equal(t, username, e.Name)
+	require.Equal(t, "admin", e.User)
+
+	e2, ok := evts[1].(*apievents.UserReset)
+	require.True(t, ok)
+	assert.Equal(t, events.UserResetEvent, e2.GetType())
+	assert.Equal(t, username, e2.Name)
+	assert.Equal(t, "admin", e2.User)
 
 	// verify that user has no MFA devices
 	devs, err := srv.Auth().Services.GetMFADevices(ctx, username, false)

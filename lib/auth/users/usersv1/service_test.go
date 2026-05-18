@@ -1004,6 +1004,15 @@ func TestResetUser(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 
+	assertUserResetEvent := func(t *testing.T, e apievents.AuditEvent, username string) {
+		ure, ok := e.(*apievents.UserReset)
+		require.True(t, ok)
+		assert.Equal(t, events.UserResetEvent, ure.GetType())
+		assert.Equal(t, username, ure.Name)
+		assert.Equal(t, events.UserResetCode, ure.Code)
+		assert.Equal(t, teleport.UserSystem, ure.User)
+	}
+
 	testCases := []struct {
 		name              string
 		userCreatedBy     types.CreatedBy
@@ -1044,12 +1053,7 @@ func TestResetUser(t *testing.T) {
 				assert.Equal(t, events.ResetPasswordTokenCreateCode, e.Code)
 				assert.Equal(t, teleport.UserSystem, e.User)
 
-				e2, ok := evts[1].(*apievents.UserReset)
-				require.True(t, ok)
-				assert.Equal(t, events.UserResetEvent, e2.GetType())
-				assert.Equal(t, user.GetName(), e2.Name)
-				assert.Equal(t, events.UserResetCode, e2.Code)
-				assert.Equal(t, teleport.UserSystem, e2.User)
+				assertUserResetEvent(t, evts[1], user.GetName())
 			},
 		},
 		{
@@ -1065,6 +1069,10 @@ func TestResetUser(t *testing.T) {
 			userType:          types.UserTypeSSO,
 			assert: func(t *testing.T, env *env, user types.User, res *userspb.ResetUserResponse) {
 				assert.Nil(t, res.PasswordResetToken)
+
+				evts := getAllEvents(env.emitter.C())
+				require.GreaterOrEqual(t, len(evts), 1)
+				assertUserResetEvent(t, evts[len(evts)-1], user.GetName())
 			},
 		},
 		{
@@ -1115,6 +1123,10 @@ func TestResetUser(t *testing.T) {
 			userType:          types.UserTypeSSO,
 			assert: func(t *testing.T, env *env, user types.User, res *userspb.ResetUserResponse) {
 				assert.Nil(t, res.PasswordResetToken)
+
+				evts := getAllEvents(env.emitter.C())
+				require.GreaterOrEqual(t, len(evts), 1)
+				assertUserResetEvent(t, evts[len(evts)-1], user.GetName())
 			},
 		},
 		{
@@ -1140,6 +1152,10 @@ func TestResetUser(t *testing.T) {
 			userType:          types.UserTypeSSO,
 			assert: func(t *testing.T, env *env, user types.User, res *userspb.ResetUserResponse) {
 				assert.Nil(t, res.PasswordResetToken)
+
+				evts := getAllEvents(env.emitter.C())
+				require.GreaterOrEqual(t, len(evts), 1)
+				assertUserResetEvent(t, evts[len(evts)-1], user.GetName())
 			},
 		},
 	}
