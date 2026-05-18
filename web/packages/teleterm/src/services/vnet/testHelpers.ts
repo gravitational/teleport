@@ -24,6 +24,9 @@ import {
   CheckReportStatus,
   CommandAttempt,
   CommandAttemptStatus,
+  DNSReport,
+  DNSZoneResult,
+  DNSZoneStatus,
   Report,
   RouteConflict,
 } from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
@@ -88,6 +91,24 @@ export const makeRouteConflict = (
   vnetDest: '100.64.0.1',
   interfaceName: 'utun5',
   interfaceApp: '',
+  ...props,
+});
+
+export const makeDNSReport = (props: Partial<DNSReport> = {}): DNSReport => ({
+  vnetDnsReachable: true,
+  vnetDnsUnreachableError: '',
+  zoneResults: [],
+  ...props,
+});
+
+export const makeDNSZoneResult = (
+  props: Partial<DNSZoneResult> = {}
+): DNSZoneResult => ({
+  zone: 'company.test',
+  status: DNSZoneStatus.DNS_ZONE_STATUS_OK,
+  observedIp: 'fdff:fd74:46c0::2',
+  expectedIp: 'fdff:fd74:46c0::2',
+  error: '',
   ...props,
 });
 

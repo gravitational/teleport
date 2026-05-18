@@ -39,6 +39,7 @@ import { CanceledError, useAsync } from 'shared/hooks/useAsync';
 import { pluralize } from 'shared/utils/text';
 
 import {
+  reportOneOfIsDNSReport,
   reportOneOfIsRouteConflictReport,
   reportOneOfIsSSHConfigurationReport,
 } from 'teleterm/helpers';
@@ -304,6 +305,10 @@ const reportOneofDisplayDetails: Record<
     errorTitle: 'inspect SSH configuration',
     Component: CheckReportSSHConfiguration,
   },
+  dnsReport: {
+    errorTitle: 'inspect DNS configuration',
+    Component: CheckReportDNS,
+  },
 };
 
 /**
@@ -465,6 +470,101 @@ function CheckReportSSHConfiguration({
       ) : null}
     </>
   );
+}
+
+/**
+ * CheckReportDNS displays the DNS check's per-zone outcomes
+ */
+function CheckReportDNS({
+  checkReport: { report, status },
+}: {
+  checkReport: diag.CheckReport;
+}) {
+  if (!reportOneOfIsDNSReport(report)) {
+    return null;
+  }
+  const { vnetDnsReachable, vnetDnsUnreachableError, zoneResults } =
+    report.dnsReport;
+
+  if (!vnetDnsReachable) {
+    return (
+      <Stack>
+        <P1>
+          <Warning /> VNet's DNS server is unreachable.
+        </P1>
+        <P2 m={0}>VNet's DNS is not responding. Try restarting VNet.</P2>
+        {vnetDnsUnreachableError ? <Pre>{vnetDnsUnreachableError}</Pre> : null}
+      </Stack>
+    );
+  }
+
+  if (status === diag.CheckReportStatus.OK) {
+    return (
+      <P1>
+        <Success /> DNS queries for all VNet zones are routed through VNet.
+      </P1>
+    );
+  }
+
+  // Show only problem rows.
+  const problemRows = zoneResults.filter(
+    zr => zr.status !== diag.DNSZoneStatus.DNS_ZONE_STATUS_OK
+  );
+
+  return (
+    <Stack>
+      <P1>
+        <Warning />{' '}
+        {problemRows.length === 1
+          ? `1 of ${zoneResults.length} DNS zones is not routed through VNet.`
+          : `${problemRows.length} of ${zoneResults.length} DNS zones are not routed through VNet.`}
+      </P1>
+      <P2 m={0}>
+        VNet's DNS server is reachable, but the OS resolver is not sending
+        queries for the zones below to VNet.
+      </P2>
+      <Table
+        emptyText=""
+        data={problemRows}
+        columns={[
+          { key: 'zone', headerText: 'Zone' },
+          {
+            key: 'status',
+            headerText: 'Status',
+            render: zr => <TextCell data={dnsZoneStatusLabel(zr.status)} />,
+          },
+          {
+            key: 'observedIp',
+            headerText: 'Observed',
+            render: zr => <TextCell data={zr.observedIp || '—'} />,
+          },
+          {
+            key: 'expectedIp',
+            headerText: 'Expected',
+            render: zr => <TextCell data={zr.expectedIp || '—'} />,
+          },
+        ]}
+        row={{ getStyle: () => ({ fontFamily: 'monospace' }) }}
+      />
+    </Stack>
+  );
+}
+
+function dnsZoneStatusLabel(status: diag.DNSZoneStatus): string {
+  switch (status) {
+    case diag.DNSZoneStatus.DNS_ZONE_STATUS_OK:
+      return 'OK';
+    case diag.DNSZoneStatus.DNS_ZONE_STATUS_HIJACKED:
+      return 'Hijacked';
+    case diag.DNSZoneStatus.DNS_ZONE_STATUS_NOT_REGISTERED:
+      return 'Not registered';
+    case diag.DNSZoneStatus.DNS_ZONE_STATUS_TIMEOUT:
+      return 'Timeout';
+    case diag.DNSZoneStatus.DNS_ZONE_STATUS_RESOLVER_ERROR:
+      return 'Resolver error';
+    default:
+      return `Unknown (${status})`;
+  }
 }
 
 const Summary = styled.summary`

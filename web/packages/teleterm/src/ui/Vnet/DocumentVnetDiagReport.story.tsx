@@ -24,6 +24,8 @@ import {
   CheckAttemptStatus,
   CheckReportStatus,
   CommandAttemptStatus,
+  DNSReport,
+  DNSZoneStatus,
   RouteConflict,
   RouteConflictReport,
   SSHConfigurationReport,
@@ -36,6 +38,8 @@ import { reportToText } from 'teleterm/services/vnet/diag';
 import {
   makeCheckAttempt,
   makeCheckReport,
+  makeDNSReport,
+  makeDNSZoneResult,
   makeReport,
   makeRouteConflict,
 } from 'teleterm/services/vnet/testHelpers';
@@ -67,6 +71,7 @@ type StoryProps = {
   sshConfigured: boolean;
   userOpenSSHConfigExists: boolean;
   userOpenSSHConfigContents: string;
+  dnsAttempt: 'ok' | 'unreachable' | 'issues-found' | 'error';
   displayUnsupportedCheckAttempt: boolean;
   vnetRunning: boolean;
   reRunDiagnostics: 'success' | 'error' | 'processing';
@@ -111,6 +116,10 @@ const meta: Meta<StoryProps> = {
     sshConfigured: {
       control: { type: 'boolean' },
     },
+    dnsAttempt: {
+      control: { type: 'inline-radio' },
+      options: ['ok', 'unreachable', 'issues-found', 'error'],
+    },
     displayUnsupportedCheckAttempt: {
       description:
         "Simulate the component receiving a report with a check attempt that's not supported in the current version",
@@ -145,6 +154,7 @@ const meta: Meta<StoryProps> = {
     sshConfigured: false,
     userOpenSSHConfigExists: true,
     userOpenSSHConfigContents: defaultUserSSHConfigContents,
+    dnsAttempt: 'issues-found',
     displayUnsupportedCheckAttempt: false,
     vnetRunning: true,
     reRunDiagnostics: 'success',
@@ -256,6 +266,57 @@ export function DocumentVnetDiagReport(props: StoryProps) {
     }),
   });
   report.checks.push(sshConfigCheckAttempt);
+
+  const dnsReport: DNSReport = makeDNSReport();
+  const dnsCheckAttempt = makeCheckAttempt({
+    checkReport: makeCheckReport({
+      status: CheckReportStatus.OK,
+      report: { oneofKind: 'dnsReport', dnsReport },
+    }),
+  });
+  switch (props.dnsAttempt) {
+    case 'error':
+      dnsCheckAttempt.status = CheckAttemptStatus.ERROR;
+      dnsCheckAttempt.error = 'something went wrong';
+      break;
+    case 'ok':
+      // All zones routed correctly.
+      dnsReport.zoneResults = props.dnsZones.map(zone =>
+        makeDNSZoneResult({ zone })
+      );
+      break;
+    case 'unreachable':
+      // Reachability check failed, per-zone results are empty.
+      dnsReport.vnetDnsReachable = false;
+      dnsReport.vnetDnsUnreachableError =
+        'dial udp [fdff:fd74:46c0::2]:53: connect: connection refused';
+      dnsCheckAttempt.checkReport.status = CheckReportStatus.ISSUES_FOUND;
+      break;
+    case 'issues-found':
+      // Per-zone mixed results.
+      dnsReport.zoneResults = [
+        makeDNSZoneResult({ zone: 'company.test' }),
+        makeDNSZoneResult({
+          zone: 'leaf.mirrors.link',
+          status: DNSZoneStatus.DNS_ZONE_STATUS_HIJACKED,
+          observedIp: '100.64.0.123',
+        }),
+        makeDNSZoneResult({
+          zone: 'cluster.mirrors.link',
+          status: DNSZoneStatus.DNS_ZONE_STATUS_NOT_REGISTERED,
+          observedIp: '',
+        }),
+        makeDNSZoneResult({
+          zone: 'staging.test',
+          status: DNSZoneStatus.DNS_ZONE_STATUS_TIMEOUT,
+          observedIp: '',
+          error: 'i/o timeout',
+        }),
+      ];
+      dnsCheckAttempt.checkReport.status = CheckReportStatus.ISSUES_FOUND;
+      break;
+  }
+  report.checks.push(dnsCheckAttempt);
 
   if (props.displayUnsupportedCheckAttempt) {
     report.checks.push({

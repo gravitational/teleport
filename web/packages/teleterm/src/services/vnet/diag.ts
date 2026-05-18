@@ -21,6 +21,7 @@ import { Timestamp } from 'gen-proto-ts/google/protobuf/timestamp_pb';
 import * as diag from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
 
 import {
+  reportOneOfIsDNSReport,
   reportOneOfIsRouteConflictReport,
   reportOneOfIsSSHConfigurationReport,
 } from 'teleterm/helpers';
@@ -129,6 +130,10 @@ const reportOneofToDisplayDetails: Record<
     errorTitle: 'inspect SSH configuration',
     reportToText: sshConfigurationReportToText,
   },
+  dnsReport: {
+    errorTitle: 'inspect DNS configuration',
+    reportToText: dnsReportToText,
+  },
 };
 
 function routeConflictReportToText({
@@ -195,4 +200,62 @@ ${userOpensshConfigContents}
 ${pathsTable}
 
 ${currentContents}`;
+}
+
+function dnsReportToText({ report, status }: diag.CheckReport): string {
+  if (!reportOneOfIsDNSReport(report)) {
+    return '';
+  }
+  const { vnetDnsReachable, vnetDnsUnreachableError, zoneResults } =
+    report.dnsReport;
+
+  if (!vnetDnsReachable) {
+    return `⚠️ VNet DNS server is unreachable.
+
+${vnetDnsUnreachableError}`;
+  }
+
+  if (status === diag.CheckReportStatus.OK) {
+    return '✅ DNS queries for all VNet zones are routed through VNet.';
+  }
+
+  // Show only problem rows
+  const problemRows = zoneResults.filter(
+    zr => zr.status !== diag.DNSZoneStatus.DNS_ZONE_STATUS_OK
+  );
+
+  const tableRows = problemRows
+    .map(
+      zoneResult =>
+        `| ${zoneResult.zone} | ${dnsZoneStatusToText(zoneResult.status)} | ${zoneResult.observedIp || '—'} | ${zoneResult.expectedIp || '—'} |`
+    )
+    .join('\n');
+
+  const headerCount =
+    problemRows.length === 1
+      ? `1 of ${zoneResults.length} DNS zones is not routed through VNet.`
+      : `${problemRows.length} of ${zoneResults.length} DNS zones are not routed through VNet.`;
+
+  return `⚠️ ${headerCount}
+
+| Zone | Status | Observed | Expected |
+| ---- | ------ | -------- | -------- |
+${tableRows}`;
+}
+
+function dnsZoneStatusToText(status: diag.DNSZoneStatus): string {
+  switch (status) {
+    case diag.DNSZoneStatus.DNS_ZONE_STATUS_OK:
+      return 'OK';
+    case diag.DNSZoneStatus.DNS_ZONE_STATUS_HIJACKED:
+      return 'hijacked';
+    case diag.DNSZoneStatus.DNS_ZONE_STATUS_NOT_REGISTERED:
+      return 'not registered';
+    case diag.DNSZoneStatus.DNS_ZONE_STATUS_TIMEOUT:
+      return 'timeout';
+    case diag.DNSZoneStatus.DNS_ZONE_STATUS_RESOLVER_ERROR:
+      return 'resolver error';
+    default:
+      return `unknown (${status})`;
+  }
 }
