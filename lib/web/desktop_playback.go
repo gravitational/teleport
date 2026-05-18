@@ -22,6 +22,7 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -41,8 +42,14 @@ func (h *Handler) desktopPlaybackHandle(
 	ws *websocket.Conn,
 ) (any, error) {
 	sID := p.ByName("sid")
-	if sID == "" {
+
+	switch sID {
+	case "":
 		return nil, trace.BadParameter("missing session ID in request URL")
+	default:
+		if _, err := uuid.Parse(sID); err != nil {
+			return nil, trace.BadParameter("invalid session ID in request URL - %v", err)
+		}
 	}
 
 	clt, err := sctx.GetUserClient(r.Context(), cluster)
