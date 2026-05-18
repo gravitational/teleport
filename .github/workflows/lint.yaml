@@ -18,6 +18,7 @@ jobs:
       has_proto: ${{ steps.changes.outputs.has_proto }}
       has_rfd: ${{ steps.changes.outputs.has_rfd }}
       has_ui: ${{ steps.changes.outputs.has_ui }}
+      has_cli: ${{ steps.changes.outputs.has_cli }}
     steps:
       - name: Checkout
         if: ${{ github.event_name == 'merge_group' }}
@@ -89,6 +90,18 @@ jobs:
               - 'pnpm-lock.yaml'
               - 'tsconfig.json'
               - 'tsconfig.node.json'
+            has_cli:
+              - '.github/workflows/lint.yaml'
+              - 'tool/tsh/**.go'
+              - 'tool/tctl/**.go'
+              - 'tool/tbot/**.go'
+              - 'tool/teleport/**.go'
+              - 'lib/utils/usage_docs.go'
+              - 'lib/utils/usage_docs_test.go'
+              - 'lib/utils/docs-usage.md.tmpl'
+              - 'lib/utils/docsconfigs/**'
+              - 'docs/pages/reference/cli/**'
+
 
   lint-go:
     name: Lint (Go)
@@ -350,3 +363,22 @@ jobs:
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
         run: git config --global --add safe.directory $(realpath .) && make audit-event-reference-up-to-date
 
+  lint-cli:
+    name: CLI Reference Docs
+    needs: changes
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_cli == 'true' }}
+    runs-on: ubuntu-22.04-16core
+
+    permissions:
+      contents: read
+
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Check if CLI reference docs are up to date
+        # We have to add the current directory as a safe directory or else git commands will not work as expected.
+        run: git config --global --add safe.directory $(realpath .) && make cli-docs-up-to-date
