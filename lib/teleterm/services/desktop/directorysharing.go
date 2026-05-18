@@ -23,20 +23,24 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/gravitational/trace"
+)
+
+const (
+	// maxDirectoryRead is an upper bound on how many directory entries
+	// we will return for directory reads.
+	maxDirectoryRead = 4096
 )
 
 // DirectoryAccess enables file system operations for a given directory.
 // Should be kept in sync with web/packages/shared/libs/tdp/sharedDirectoryAccess.ts
 // where FS events are handled for Web UI.
 type DirectoryAccess struct {
-	// basePath is a shared directory path.
-	// Must not be used directly, but only through getSafePath.
-	// TODO(gzdunek): This code can be greatly simplified with os.OpenRoot.
-	// Switch to it when branch/v17 is updated to Go 1.24.
-	basePath string
+	// root is the root of the shared directory.
+	// os.Root provides protection against path traversal
+	// outside of the shared directory.
+	root *os.Root
 }
 
 // FileOrDirInfo contains metadata about a file or a directory.
@@ -64,60 +68,20 @@ func NewDirectoryAccess(baseDir string) (*DirectoryAccess, error) {
 		return nil, trace.ConvertSystemError(err)
 	}
 
-	stat, err := os.Stat(basePath)
+	root, err := os.OpenRoot(basePath)
 	if err != nil {
-		return nil, trace.ConvertSystemError(err)
-	}
-	if !stat.IsDir() {
-		return nil, trace.BadParameter("%q is not a directory", baseDir)
+		return nil, trace.BadParameter("could not open shared directory at %q - %v", basePath, err)
 	}
 
 	return &DirectoryAccess{
-		basePath: basePath,
+		root: root,
 	}, nil
 
 }
 
-// getSafePath allows building a safe path by joining the base path
-// and a relative path.
-// Returns an error if the resolved path escapes the basePath, preventing directory traversal attacks.
-func (d *DirectoryAccess) getSafePath(relativePath string) (string, error) {
-	full := filepath.Join(d.basePath, relativePath)
-	resolved, err := filepath.EvalSymlinks(full)
-	if err != nil {
-		// EvalSymlinks returns an error if the target file does not exist.
-		// In that case, attempt to resolve the symlinks of the parent directory instead.
-		if errors.Is(err, fs.ErrNotExist) {
-			parent := filepath.Dir(full)
-			resolvedParent, perr := filepath.EvalSymlinks(parent)
-			if perr != nil {
-				return "", trace.ConvertSystemError(perr)
-			}
-
-			// Reconstruct the full path by joining the resolved parent with the original file name.
-			resolved = filepath.Join(resolvedParent, filepath.Base(full))
-		} else {
-			return "", trace.ConvertSystemError(err)
-		}
-	}
-	if !isSubPath(d.basePath, resolved) {
-		return "", trace.BadParameter("path escapes from parent")
-	}
-	return resolved, nil
-}
-
-func isSubPath(parent, child string) bool {
-	return child == parent || strings.HasPrefix(child, parent+string(filepath.Separator))
-}
-
 // Stat retrieves metadata about a file or directory at the given path.
 func (d *DirectoryAccess) Stat(relativePath string) (*FileOrDirInfo, error) {
-	path, err := d.getSafePath(relativePath)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	stat, err := os.Stat(path)
+	stat, err := d.root.Stat(sanitizeEmpty(relativePath))
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
@@ -128,12 +92,13 @@ func (d *DirectoryAccess) Stat(relativePath string) (*FileOrDirInfo, error) {
 
 // ReadDir lists files and directories within the given directory path, skips symlinks.
 func (d *DirectoryAccess) ReadDir(relativePath string) ([]*FileOrDirInfo, error) {
-	path, err := d.getSafePath(relativePath)
+	file, err := d.root.Open(sanitizeEmpty(relativePath))
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.ConvertSystemError(err)
 	}
+	defer file.Close()
 
-	entries, err := os.ReadDir(path)
+	entries, err := file.ReadDir(maxDirectoryRead)
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
@@ -164,12 +129,7 @@ func (d *DirectoryAccess) ReadDir(relativePath string) ([]*FileOrDirInfo, error)
 
 // Read reads a slice of a file into buf. Returns the number of read bytes.
 func (d *DirectoryAccess) Read(relativePath string, offset int64, buf []byte) (n int, err error) {
-	path, err := d.getSafePath(relativePath)
-	if err != nil {
-		return 0, trace.Wrap(err)
-	}
-
-	file, err := os.Open(path)
+	file, err := d.root.Open(sanitizeEmpty(relativePath))
 	if err != nil {
 		return 0, trace.ConvertSystemError(err)
 	}
@@ -195,12 +155,7 @@ func (d *DirectoryAccess) Read(relativePath string, offset int64, buf []byte) (n
 
 // Write writes data to a file at a given offset.
 func (d *DirectoryAccess) Write(relativePath string, offset int64, data []byte) (n int, err error) {
-	path, err := d.getSafePath(relativePath)
-	if err != nil {
-		return 0, trace.Wrap(err)
-	}
-
-	file, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0644)
+	file, err := d.root.OpenFile(sanitizeEmpty(relativePath), os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
 		return 0, trace.ConvertSystemError(err)
 	}
@@ -224,28 +179,26 @@ func (d *DirectoryAccess) Write(relativePath string, offset int64, data []byte) 
 
 // Truncate truncates a file to the specified size.
 func (d *DirectoryAccess) Truncate(relativePath string, size uint64) error {
-	path, err := d.getSafePath(relativePath)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	if size > math.MaxInt64 {
 		size = math.MaxInt64
 	}
 
-	return trace.ConvertSystemError(os.Truncate(path, int64(size)))
+	// os.Root does not expose a "Truncate" method, so we must get
+	// a writable file handle to call truncate on.
+	file, err := d.root.OpenFile(sanitizeEmpty(relativePath), os.O_WRONLY, 0)
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	defer file.Close()
+
+	return trace.ConvertSystemError(file.Truncate(int64(size)))
 }
 
 // Create creates a new file or directory at the given path.
 func (d *DirectoryAccess) Create(relativePath string, fileType FileType) error {
-	path, err := d.getSafePath(relativePath)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	switch fileType {
 	case FileTypeFile:
-		file, err := os.Create(path)
+		file, err := d.root.Create(sanitizeEmpty(relativePath))
 		if err != nil {
 			if errors.Is(err, fs.ErrExist) {
 				return nil // Ignore if file already exists
@@ -254,7 +207,7 @@ func (d *DirectoryAccess) Create(relativePath string, fileType FileType) error {
 		}
 		return trace.ConvertSystemError(file.Close())
 	case FileTypeDir:
-		err := os.Mkdir(path, 0700)
+		err := d.root.Mkdir(relativePath, 0700)
 		if errors.Is(err, fs.ErrExist) {
 			return nil // Ignore if directory already exists
 		}
@@ -266,21 +219,10 @@ func (d *DirectoryAccess) Create(relativePath string, fileType FileType) error {
 
 // Delete removes a file or directory at the given path.
 func (d *DirectoryAccess) Delete(relativePath string) error {
-	path, err := d.getSafePath(relativePath)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	err = os.RemoveAll(path)
-	return trace.ConvertSystemError(err)
+	return trace.ConvertSystemError(d.root.RemoveAll(sanitizeEmpty(relativePath)))
 }
 
 func (d *DirectoryAccess) readFileOrDirInfo(relativePath string, f os.FileInfo) (info *FileOrDirInfo, err error) {
-	path, err := d.getSafePath(relativePath)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	info = &FileOrDirInfo{
 		Size:         f.Size(),
 		LastModified: f.ModTime().UnixMilli(),
@@ -293,7 +235,7 @@ func (d *DirectoryAccess) readFileOrDirInfo(relativePath string, f os.FileInfo) 
 		return info, nil
 	}
 
-	opened, err := os.Open(path)
+	opened, err := d.root.Open(sanitizeEmpty(relativePath))
 	if err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
@@ -315,4 +257,14 @@ func (d *DirectoryAccess) readFileOrDirInfo(relativePath string, f os.FileInfo) 
 		info.IsEmpty = true
 	}
 	return info, trace.ConvertSystemError(err)
+}
+
+// Consumers of DirectoryAccess expect to be able to pass empty path
+// strings to reference the root of the shared directory. Correct
+// these paths before passing them to os.Root methods.
+func sanitizeEmpty(path string) string {
+	if path == "" {
+		return "."
+	}
+	return path
 }

@@ -17,6 +17,7 @@
 package desktop
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -26,14 +27,21 @@ import (
 )
 
 const (
-	testDirname         = "test_dir"
-	testFilename        = "test_file"
-	testSymlinkFilename = "test_symlink"
+	testDirname              = "accessible_root"
+	testInaccessibleFileName = "test_inaccessible_file"
+	testInaccessibleDirName  = "test_inaccessible_dir"
+
+	testSymlinkInaccessibleFileName = "test_inaccessible_symlink_file"
+	testSymlinkInaccessibleDirName  = "test_inaccessible_symlink_dir"
+	testSymlinkAccessibleFile       = "test_symlink_accessible_file"
+
+	testAccessibleFileName = "test_accessible_file"
+	testAccessibleDirName  = "test_accessible_dir"
 )
 
 func TestNewDirectoryAccess(t *testing.T) {
 	path := t.TempDir()
-	filePath := filepath.Join(path, testFilename)
+	filePath := filepath.Join(path, testInaccessibleFileName)
 	err := os.WriteFile(filePath, []byte("test"), 0600)
 	require.NoError(t, err)
 	_, err = NewDirectoryAccess(filePath)
@@ -42,42 +50,93 @@ func TestNewDirectoryAccess(t *testing.T) {
 
 func setUpSharedDir(t *testing.T) (*DirectoryAccess, string) {
 	t.Helper()
-	path := t.TempDir()
-	err := os.Mkdir(filepath.Join(path, testDirname), 0700)
+	testRoot := t.TempDir()
+	// Create a test folder like so:
+	//    <random_tmp_dir_name>
+	//    |-- test_inaccessible_dir/
+	//    |-- test_inaccessible_file
+	//    |-- accessible_root/ <- DirectoryAccess is rooted here
+	//    |   |-- test_inaccessible_symlink_dir/ -> ../test_inaccessible_dir/
+	//    |   |-- test_inaccessible_symlink_file -> ../test_inaccessible_file
+	//    |   |-- test_accessible_file
+	//    |   |-- test_accessible_dir/
+	//    |   |-- test_symlink_accessible_file -> ./accessible_file
+	//
+	// The access folder contains a single regular file and symlinks
+	// to a file and directory that should not be traversible, as well
+	// as a symlink to the regular file which *should be* accessible.
+	accessRoot := filepath.Join(testRoot, testDirname)
+	err := os.Mkdir(accessRoot, 0700)
 	require.NoError(t, err)
-	err = os.WriteFile(filepath.Join(path, testFilename), []byte("test"), 0600)
+	err = os.WriteFile(filepath.Join(accessRoot, testAccessibleFileName), []byte("test"), 0600)
 	require.NoError(t, err)
-	err = os.Symlink(filepath.Join(path, testFilename), filepath.Join(path, testSymlinkFilename))
+	err = os.WriteFile(filepath.Join(testRoot, testInaccessibleFileName), []byte("data"), 0600)
 	require.NoError(t, err)
-	access, err := NewDirectoryAccess(path)
+	err = os.Mkdir(filepath.Join(accessRoot, testAccessibleDirName), 0700)
 	require.NoError(t, err)
-	return access, path
+	err = os.Mkdir(filepath.Join(testRoot, testInaccessibleDirName), 0700)
+	require.NoError(t, err)
+	err = os.Symlink(filepath.Join(testRoot, testInaccessibleFileName), filepath.Join(accessRoot, testSymlinkInaccessibleFileName))
+	require.NoError(t, err)
+	err = os.Symlink(filepath.Join(accessRoot, testInaccessibleDirName), filepath.Join(accessRoot, testSymlinkInaccessibleDirName))
+	require.NoError(t, err)
+	// Symlink must use a relative path that remains within the shared directory.
+	err = os.Symlink(testAccessibleFileName, filepath.Join(accessRoot, testSymlinkAccessibleFile))
+	require.NoError(t, err)
+	access, err := NewDirectoryAccess(accessRoot)
+	require.NoError(t, err)
+	return access, accessRoot
 }
 
 func TestDirectoryAccessEscapingPaths(t *testing.T) {
-	outOfRootPath := filepath.Join(testDirname, "../..")
-	tests := []struct {
-		name string
-		call func(*DirectoryAccess) error
-	}{
-		{"Stat", func(a *DirectoryAccess) error { _, err := a.Stat(outOfRootPath); return err }},
-		{"ReadDir", func(a *DirectoryAccess) error { _, err := a.ReadDir(outOfRootPath); return err }},
-		{"Read", func(a *DirectoryAccess) error {
+	operations := map[string]func(a *DirectoryAccess, path string) error{
+		"Stat":    func(a *DirectoryAccess, path string) error { _, err := a.Stat(path); return err },
+		"ReadDir": func(a *DirectoryAccess, path string) error { _, err := a.ReadDir(path); return err },
+		"Read": func(a *DirectoryAccess, path string) error {
 			buf := make([]byte, 10)
-			_, err := a.Read(outOfRootPath, 0, buf)
+			_, err := a.Read(path, 0, buf)
 			return err
-		}},
-		{"Write", func(a *DirectoryAccess) error { _, err := a.Write(outOfRootPath, 0, []byte("test")); return err }},
-		{"Truncate", func(a *DirectoryAccess) error { err := a.Truncate(outOfRootPath, 100); return err }},
-		{"Create", func(a *DirectoryAccess) error { err := a.Create(outOfRootPath, FileTypeDir); return err }},
-		{"Delete", func(a *DirectoryAccess) error { err := a.Delete(outOfRootPath); return err }},
+		},
+		"Write":    func(a *DirectoryAccess, path string) error { _, err := a.Write(path, 0, []byte("test")); return err },
+		"Truncate": func(a *DirectoryAccess, path string) error { err := a.Truncate(path, 100); return err },
+		"Create":   func(a *DirectoryAccess, path string) error { err := a.Create(path, FileTypeDir); return err },
+		"Delete":   func(a *DirectoryAccess, path string) error { err := a.Delete(path); return err },
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name+"_Escape", func(t *testing.T) {
+	// Try escape paths on all operations
+	paths := []string{"..", "../../"}
+	for opName, op := range operations {
+		for _, path := range paths {
+			t.Run(fmt.Sprintf("%s_Escape/%s", opName, path), func(t *testing.T) {
+				access, _ := setUpSharedDir(t)
+				err := op(access, path)
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err))
+			})
+		}
+	}
+
+	// Try operations (except create/delete) on symlink to a file outside of the root.
+	symlinkOperations := []string{"Stat", "Read", "ReadDir", "Write", "Truncate"}
+	for _, symlinkOp := range symlinkOperations {
+		t.Run(fmt.Sprintf("symlink_traversal/%s", symlinkOp), func(t *testing.T) {
+			access, path := setUpSharedDir(t)
+			fmt.Println(path)
+			err := operations[symlinkOp](access, testSymlinkInaccessibleFileName)
+			require.Error(t, err)
+			require.True(t, trace.IsAccessDenied(err))
+		})
+	}
+
+	// Try create/delete operations following a symlink to a directory outside
+	// of the root.
+	symlinkDirOperations := []string{"Create", "Delete"}
+	for _, symlinkOp := range symlinkDirOperations {
+		t.Run(fmt.Sprintf("symlink_dir_traversal/%s", symlinkOp), func(t *testing.T) {
 			access, _ := setUpSharedDir(t)
-			err := tt.call(access)
-			require.ErrorContains(t, err, "path escapes from parent")
+			err := operations[symlinkOp](access, filepath.Join(testSymlinkInaccessibleDirName, "somefile"))
+			require.Error(t, err)
+			require.True(t, trace.IsAccessDenied(err))
 		})
 	}
 }
@@ -105,31 +164,47 @@ func TestDirectoryAccessSuccessOperations(t *testing.T) {
 		dir, err := access.ReadDir("")
 		require.NoError(t, err)
 
+		// Although there are 4 entries in the shared directory, our 'ReadDir'
+		// method only shows 2 because it skips symlinks.
 		require.Len(t, dir, 2)
-		osStat, err := os.Stat(filepath.Join(path, testDirname))
+		osStat, err := os.Stat(filepath.Join(path, testAccessibleDirName))
+		// Find the directory entry
 		require.NoError(t, err)
 		require.Contains(t, dir, &FileOrDirInfo{
 			Size:         4096,
 			LastModified: osStat.ModTime().UnixMilli(),
 			FileType:     FileTypeDir,
 			IsEmpty:      true,
-			Path:         testDirname,
+			Path:         testAccessibleDirName,
 		})
-		osStat, err = os.Stat(filepath.Join(path, testFilename))
+		osStat, err = os.Stat(filepath.Join(path, testAccessibleFileName))
 		require.NoError(t, err)
 		require.Contains(t, dir, &FileOrDirInfo{
 			Size:         osStat.Size(),
 			LastModified: osStat.ModTime().UnixMilli(),
 			FileType:     FileTypeFile,
 			IsEmpty:      false,
-			Path:         testFilename,
+			Path:         testAccessibleFileName,
 		})
 	})
 
 	t.Run("Read", func(t *testing.T) {
 		access, _ := setUpSharedDir(t)
 		buf := make([]byte, 4)
-		read, err := access.Read(testFilename, 0, buf)
+		read, err := access.Read(testAccessibleFileName, 0, buf)
+		require.NoError(t, err)
+		require.Equal(t, 4, read)
+		require.Equal(t, []byte("test"), buf)
+	})
+
+	// Although we hide symlinks during ReadDir operations,
+	// a tech savvy user could still attempt I/O operations against
+	// them. This "test" is more of a demonstration that relative
+	// symlinks that stay within the bounds of the root are permitted.
+	t.Run("Read Accessible Symlink", func(t *testing.T) {
+		access, _ := setUpSharedDir(t)
+		buf := make([]byte, 4)
+		read, err := access.Read(testSymlinkAccessibleFile, 0, buf)
 		require.NoError(t, err)
 		require.Equal(t, 4, read)
 		require.Equal(t, []byte("test"), buf)
@@ -137,22 +212,36 @@ func TestDirectoryAccessSuccessOperations(t *testing.T) {
 
 	t.Run("Write", func(t *testing.T) {
 		access, _ := setUpSharedDir(t)
-		written, err := access.Write(testFilename, 4, []byte("_new_content"))
+		written, err := access.Write(testAccessibleFileName, 4, []byte("_new_content"))
 		require.NoError(t, err)
 		require.Equal(t, 12, written)
 
 		buf := make([]byte, 16)
-		read, err := access.Read(testFilename, 0, buf)
+		read, err := access.Read(testAccessibleFileName, 0, buf)
 		require.NoError(t, err)
 		require.Equal(t, 16, read)
 		require.Equal(t, []byte("test_new_content"), buf)
 	})
 
+	t.Run("Write Accessible Symlink", func(t *testing.T) {
+		access, path := setUpSharedDir(t)
+		fmt.Println(path)
+		written, err := access.Write(testSymlinkAccessibleFile, 4, []byte("_symlink"))
+		require.NoError(t, err)
+		require.Equal(t, 8, written)
+
+		buf := make([]byte, 12)
+		read, err := access.Read(testSymlinkAccessibleFile, 0, buf)
+		require.NoError(t, err)
+		require.Equal(t, 12, read)
+		require.Equal(t, []byte("test_symlink"), buf)
+	})
+
 	t.Run("Truncate", func(t *testing.T) {
 		access, _ := setUpSharedDir(t)
-		err := access.Truncate(testFilename, 100)
+		err := access.Truncate(testAccessibleFileName, 100)
 		require.NoError(t, err)
-		stat, err := access.Stat(testFilename)
+		stat, err := access.Stat(testAccessibleFileName)
 		require.NoError(t, err)
 		require.Equal(t, int64(100), stat.Size)
 	})
@@ -175,8 +264,8 @@ func TestDirectoryAccessSuccessOperations(t *testing.T) {
 
 	t.Run("Delete", func(t *testing.T) {
 		access, _ := setUpSharedDir(t)
-		err := access.Delete(testFilename)
+		err := access.Delete(testInaccessibleFileName)
 		require.NoError(t, err)
-		require.NoFileExists(t, testFilename)
+		require.NoFileExists(t, testInaccessibleFileName)
 	})
 }
