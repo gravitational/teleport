@@ -3451,7 +3451,8 @@ func (a *Server) augmentUserCertificates(
 		}
 
 		certChecker := &ssh.CertChecker{
-			Clock: a.clock.Now,
+			Clock:                    a.clock.Now,
+			SupportedCriticalOptions: []string{teleport.CertCriticalOptionScopedAgent},
 		}
 		if err := certChecker.CheckCert(principal, sshCert); err != nil {
 			return nil, trace.Wrap(err)

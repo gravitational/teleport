@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -701,6 +702,9 @@ func (k *KeyRing) checkCert(sshCert *ssh.Certificate) error {
 	// A valid principal is always passed in because the principals are not being
 	// checked here, but rather the validity period, signature, and algorithms.
 	certChecker := sshutils.CertChecker{
+		CertChecker: ssh.CertChecker{
+			SupportedCriticalOptions: []string{teleport.CertCriticalOptionScopedAgent},
+		},
 		FIPS: isFIPS(),
 	}
 	if len(sshCert.ValidPrincipals) == 0 {

@@ -25,6 +25,10 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
+// certCriticalOptionScopedAgent mirrors teleport.CertCriticalOptionScopedAgent from the main module.
+// It is duplicated here because the api module cannot import the main teleport module.
+const certCriticalOptionScopedAgent = "scoped-agent-v1@goteleport.com"
+
 // CheckersGetter defines a function that returns a list of ssh public keys.
 type CheckersGetter func() ([]ssh.PublicKey, error)
 
@@ -60,9 +64,10 @@ func NewHostKeyCallback(conf HostKeyCallbackConfig) (ssh.HostKeyCallback, error)
 	}
 	checker := CertChecker{
 		CertChecker: ssh.CertChecker{
-			IsHostAuthority: makeIsHostAuthorityFunc(conf.GetHostCheckers),
-			HostKeyFallback: conf.HostKeyFallback,
-			Clock:           conf.Clock.Now,
+			IsHostAuthority:          makeIsHostAuthorityFunc(conf.GetHostCheckers),
+			HostKeyFallback:          conf.HostKeyFallback,
+			Clock:                    conf.Clock.Now,
+			SupportedCriticalOptions: []string{certCriticalOptionScopedAgent},
 		},
 		FIPS:        conf.FIPS,
 		OnCheckCert: conf.OnCheckCert,

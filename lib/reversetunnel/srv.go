@@ -1018,7 +1018,8 @@ func (s *server) checkClientCert(user string, clusterName string, cert *ssh.Cert
 
 	checker := apisshutils.CertChecker{
 		CertChecker: ssh.CertChecker{
-			Clock: s.Clock.Now,
+			Clock:                    s.Clock.Now,
+			SupportedCriticalOptions: []string{teleport.CertCriticalOptionScopedAgent},
 		},
 		FIPS: s.FIPS,
 	}

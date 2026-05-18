@@ -380,8 +380,9 @@ func (a *LocalKeyAgent) HostKeyCallback(addr string, remote net.Addr, hostKey ss
 
 	certChecker := sshutils.CertChecker{
 		CertChecker: ssh.CertChecker{
-			IsHostAuthority: a.isHostAuthorityForClusters(clusters...),
-			HostKeyFallback: a.checkHostKey,
+			IsHostAuthority:          a.isHostAuthorityForClusters(clusters...),
+			HostKeyFallback:          a.checkHostKey,
+			SupportedCriticalOptions: []string{teleport.CertCriticalOptionScopedAgent},
 		},
 		FIPS: isFIPS(),
 	}

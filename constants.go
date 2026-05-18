@@ -549,6 +549,17 @@ const (
 	// from which this certificate is accepted for authentication.
 	// See: https://cvsweb.openbsd.org/src/usr.bin/ssh/PROTOCOL.certkeys?annotate=HEAD.
 	CertCriticalOptionSourceAddress = "source-address"
+	// TLSScopedAgentTraitsSentinel is stored in the traits (PostalCode) field of scoped agent TLS
+	// certificates in place of actual traits. Versions of Teleport that predate scoped agent support
+	// will fail to unmarshal this value and reject the certificate, which is the intended fail-closed
+	// behavior. This is a temporary measure; see CertCriticalOptionScopedAgent for context.
+	TLSScopedAgentTraitsSentinel = "scoped-agent-v1-traits-sentinel"
+	// CertCriticalOptionScopedAgent is a critical option set on agent/host certificates when they
+	// use unstable scoped features. This is a temporary measure to prevent use of scoped certificates
+	// with incompatible teleport version while scopes are behind their unstable feature flag.
+	// TODO(fspmarshall/scopes): Remove scoped agent critical option in favor of more graceful
+	// fail-closed mechanic prior to stabilization of scopes.
+	CertCriticalOptionScopedAgent = "scoped-agent-v1@goteleport.com"
 	// CertExtensionGitHubUserID indicates the GitHub user ID identified by the
 	// GitHub connector.
 	CertExtensionGitHubUserID = "github-id@goteleport.com"
