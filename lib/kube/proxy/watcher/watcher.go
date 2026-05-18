@@ -225,8 +225,8 @@ func (w *ProxyKubeServerWatcher) watch() error {
 	timer := w.armTimeout()
 	defer timer.Stop()
 
-	var initRecieved bool
-	for !initRecieved {
+	var initReceived bool
+	for !initReceived {
 		select {
 		case <-watcher.Done():
 			return trace.ConnectionProblem(watcher.Error(), "watcher is closed: %v", watcher.Error())
@@ -236,7 +236,7 @@ func (w *ProxyKubeServerWatcher) watch() error {
 			if event.Type != types.OpInit {
 				return trace.BadParameter("expected init event, got %v instead", event.Type)
 			}
-			initRecieved = true
+			initReceived = true
 		case <-timer.C:
 			// Do not return timeout here but mark the failure and continue waiting.
 			// It's possible the watcher will recover eventually. If using the cache,
