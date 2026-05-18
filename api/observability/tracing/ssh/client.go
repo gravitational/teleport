@@ -390,7 +390,7 @@ func (c *Client) HandleChannelOpen(ctx context.Context, channelType string, hand
 			}
 			handlerCtx, span := tracer.Start(
 				parentCtx,
-				fmt.Sprintf("ssh.HandleChannelOpen/%s", channelType),
+				"ssh.HandleChannelOpen/" + channelType,
 				oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 				oteltrace.WithAttributes(
 					append(
