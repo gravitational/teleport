@@ -211,7 +211,10 @@ is registered:
   duplicate names.
 - **Dynamic resources (`tctl create app`, integrations, Kubernetes
   operator)**: lowercase alphanumeric, `-`, or `.`, max 253
-  characters.
+  characters. On Teleport Cloud, avoid `.` in app names: the tenant
+  wildcard certificate only covers one subdomain level
+  (`*.<tenant>.teleport.sh`), so dotted names will fail TLS
+  validation.
 
 `public_addr` (if set) must be a bare, lowercase DNS hostname. URI
 schemes, ports, IP addresses, and uppercase letters are rejected.

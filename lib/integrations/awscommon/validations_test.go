@@ -33,6 +33,7 @@ func TestValidIntegrationName(t *testing.T) {
 		{name: "lowercase alphanumeric", input: "myintegration"},
 		{name: "with hyphen", input: "my-integration"},
 		{name: "leading digit", input: "1integration"},
+		{name: "aws account id", input: "123456789012"},
 		{name: "uppercase rejected", input: "Integration", wantErr: "must be a valid DNS label"},
 		{name: "trailing hyphen rejected", input: "INVALID-", wantErr: "must be a valid DNS label"},
 		{name: "empty rejected", input: "", wantErr: "must be a valid DNS label"},

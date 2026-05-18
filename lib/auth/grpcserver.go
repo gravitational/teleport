@@ -1673,7 +1673,7 @@ func (g *GRPCServer) UpsertApplicationServer(ctx context.Context, req *authpb.Up
 	//      names or URL-shaped public_addr; normalize so the heartbeat
 	//      passes validation and the apps keep showing up in the
 	//      cluster.
-	//   2. Admin users uploading an app_server YAML (no builtin role).
+	//   2. Admin users creating an app_server YAML (no builtin role).
 	//      Do NOT normalize - admin writes follow strict validation;
 	//      reject malformed input rather than silently rewriting it.
 	if authz.HasBuiltinRole(auth.context, string(types.RoleApp)) ||

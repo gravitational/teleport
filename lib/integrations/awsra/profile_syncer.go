@@ -22,7 +22,6 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"regexp"
 	"strings"
 	"time"
 
@@ -524,7 +523,7 @@ func processProfile(ctx context.Context, req processProfileRequest) error {
 	appName := appServer.GetApp().GetName()
 	if existing, ok := req.SeenAppNames[appName]; ok {
 		return trace.BadParameter(
-			"app name %q for profile %q conflicts with profile %q which was upserted first. Rename either profile or set %q on one of them to a unique value.",
+			"app name %q for profile %q conflicts with profile %q which was upserted first. Rename either profile or set the %q tag on one of them to a unique value.",
 			appName, req.Profile.Name, existing, types.AWSRolesAnywhereProfileNameOverrideLabel)
 	}
 
@@ -552,17 +551,17 @@ func awsConsoleURLForARN(parsedARN arn.ARN) string {
 	}
 }
 
-// invalidAppNameChar matches any char not valid in a DNS-1123
-// subdomain after lowercasing. Dots are kept as label separators.
-var invalidAppNameChar = regexp.MustCompile(`[^a-z0-9.\-]`)
-
 // sanitizeProfileName rewrites a raw AWS profile name to satisfy
 // DNS-1123 subdomain: lowercase, hyphen-substitute invalid chars,
 // and trim hyphens from each label. Runs of hyphens are kept;
 // DNS-1123 allows them and preserving them avoids extra collisions.
+// AWS IAM Roles Anywhere profile names allow `[ a-zA-Z0-9-_]*`, so
+// after lowercasing the only DNS-1123-invalid chars are space and
+// underscore.
 func sanitizeProfileName(name string) string {
 	name = strings.ToLower(name)
-	name = invalidAppNameChar.ReplaceAllString(name, "-")
+	name = strings.ReplaceAll(name, " ", "-")
+	name = strings.ReplaceAll(name, "_", "-")
 	parts := strings.Split(name, ".")
 	out := make([]string, 0, len(parts))
 	for _, p := range parts {

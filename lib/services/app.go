@@ -283,8 +283,9 @@ func validateAppTLS(a types.Application) error {
 
 // ValidateAppServer checks the outer AppServer name (the backend
 // storage key) and delegates to ValidateApp for the inner app. The
-// outer name can differ from the inner name on admin uploads, so it
-// needs its own DNS-1123 check.
+// outer name can differ from the inner name when an admin creates
+// an app_server resource directly (for example, via `tctl create`),
+// so it needs its own DNS-1123 check.
 func ValidateAppServer(server types.AppServer, proxyGetter ProxyGetter) error {
 	if server == nil {
 		return trace.BadParameter("nil app server")
