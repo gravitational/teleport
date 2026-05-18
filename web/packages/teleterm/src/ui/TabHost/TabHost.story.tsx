@@ -79,6 +79,7 @@ export function Story() {
             <TabHostContainer
               topBarConnectMyComputerRef={createRef()}
               topBarAccessRequestRef={createRef()}
+              desktopSessionControlsRef={createRef()}
             />
           </VnetContextProvider>
         </ConnectionsContextProvider>

@@ -73,6 +73,7 @@ async function getTestSetup({ documents }: { documents: Document[] }) {
           ctx={appContext}
           topBarConnectMyComputerRef={createRef()}
           topBarAccessRequestRef={createRef()}
+          desktopSessionControlsRef={createRef()}
         />
       </ResourcesContextProvider>
     </MockAppContextProvider>

@@ -16,7 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useCallback, useMemo, useState } from 'react';
+import { MutableRefObject, useCallback, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import { Text } from 'design';
 import { ACL } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
@@ -38,6 +39,7 @@ import { useWorkspaceContext } from 'teleterm/ui/Documents';
 import { useWorkspaceLoggedInUser } from 'teleterm/ui/hooks/useLoggedInUser';
 import { useLogger } from 'teleterm/ui/hooks/useLogger';
 import * as types from 'teleterm/ui/services/workspacesService';
+import { DesktopSessionControls } from 'teleterm/ui/StatusBar/DesktopSessionControls';
 import { DesktopUri, isWindowsDesktopUri, routing } from 'teleterm/ui/uri';
 
 // The check for another active session is disabled in Connect:
@@ -51,13 +53,18 @@ const noOtherSession = () => Promise.resolve(false);
 export function DocumentDesktopSession(props: {
   visible: boolean;
   doc: types.DocumentDesktopSession;
+  desktopSessionControlsRef: MutableRefObject<HTMLDivElement>;
 }) {
   return (
     <ForegroundSession
       visible={props.visible}
       connected={props.doc.status === 'connected'}
     >
-      <DesktopSessionComponent visible={props.visible} doc={props.doc} />
+      <DesktopSessionComponent
+        visible={props.visible}
+        doc={props.doc}
+        desktopSessionControlsRef={props.desktopSessionControlsRef}
+      />
     </ForegroundSession>
   );
 }
@@ -65,12 +72,14 @@ export function DocumentDesktopSession(props: {
 function DesktopSessionComponent(props: {
   visible: boolean;
   doc: types.DocumentDesktopSession;
+  desktopSessionControlsRef: MutableRefObject<HTMLDivElement>;
 }) {
   const logger = useLogger('DocumentDesktopSession');
   const { desktopUri, login, origin, uri } = props.doc;
   const appCtx = useAppContext();
   const { documentsService } = useWorkspaceContext();
   const loggedInUser = useWorkspaceLoggedInUser();
+
   const acl = useMemo<Attempt<ACL>>(() => {
     if (!loggedInUser?.acl) {
       return makeProcessingAttempt();
@@ -143,9 +152,18 @@ function DesktopSessionComponent(props: {
           routing.parseWindowsDesktopUri(desktopUri).params?.windowsDesktopId
         }
         client={client}
-        username={login}
         aclAttempt={acl}
         browserSupportsSharing
+        renderControls={controls => {
+          if (!(props.visible && controls.isConnected)) {
+            return;
+          }
+
+          return createPortal(
+            <DesktopSessionControls controls={controls} />,
+            props.desktopSessionControlsRef.current
+          );
+        }}
       />
     );
   }
