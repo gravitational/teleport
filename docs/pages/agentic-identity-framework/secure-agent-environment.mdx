@@ -18,11 +18,11 @@ approach, security is built into the system. AI agents have a limited range of
 operations they are allowed to complete, with each operation subject to auditing
 and access controls. 
 
-The implementation of a secure agent environment, [Teleport
-Beams](../beams/beams.mdx), is built on Teleport's foundation of authentication
-using cryptographically signed identities with certificate-based access
-controls. With Beams as an extension of Teleport's existing capabilities,
-security is built into AI infrastructure from the bottom up.
+One example of a secure agent environment, [Teleport Beams](../beams/beams.mdx),
+is built on Teleport's foundation of authentication using cryptographically
+signed identities with certificate-based access controls. With Beams as an
+extension of Teleport's existing capabilities, security is built into AI
+infrastructure from the bottom up.
 
 ## A multi-layered approach
 
@@ -125,7 +125,7 @@ controls, these parts of the system already are aware of the agent's identity
 and the operations it is attempting. An auditing system only needs to emit
 telemetry that includes this information.
 
-## Reference implementation
+## A secure agent environment in Teleport
 
 Teleport has implemented the secure agent environment in Teleport Beams, which
 allows you to run agentic workloads securely on Teleport-managed infrastructure.
