@@ -849,7 +849,7 @@ func TestCleanupAssignmentFilter(t *testing.T) {
 	ctx := t.Context()
 
 	fakeOkta := newFakeOktaServer(
-		withUserCount(7),
+		withUserCount(1),
 		withAppCount(0),
 		withGroupCount(1),
 		withSAMLApp(),
@@ -873,11 +873,27 @@ func TestCleanupAssignmentFilter(t *testing.T) {
 	// Add user to the Okta group so the sync picks them up as an access list member.
 	fakeOkta.AddUserToGroup(groupID, memberID)
 
+	assignmentWatcher := sut.NewResourceWatcher(t, types.KindOktaAssignment)
 	createAndWaitForOktaIntegration(t, sut, fakeOkta, witAccessListSettings(&oktav1.AccessListSettings{
 		GroupFilters: []string{"group-*"},
 		AppFilters:   []string{"app-*"},
 		DefaultOwner: []string{"alice-admin"},
 	}), withEnableFullSync())
+	// Wait for the per-user OktaAssignment to be created before proceeding.
+	//
+	// If we delete the access list member before any OktaAssignment exists,
+	// the staleOktaMemberFilter (which prevents the sync from re-adding
+	// deleted members) has no assignment to compare against, so subsequent
+	// sync cycles re-add the member.
+	//
+	// This is a low-risk production race: it only triggers when a member is
+	// removed from an access list within the brief window before the first
+	// OktaAssignment is created for a user. The impact is negligible
+	// because if applies only to first sync cycle.
+	//
+	// TODO(smallinsky): After addressing https://github.com/gravitational/teleport.e/issues/8654
+	// the access list sync and assignments creation during first sync can be synchronized.
+	waitForPerUserOktaAssignments(t, assignmentWatcher, 1)
 
 	auth := sut.Teleport.Process.GetAuthServer()
 
