@@ -245,7 +245,7 @@ func (a *App) checkPorts() error {
 	// web app gets downgraded to a version which supports multi-port only for TCP apps.
 	//
 	// For now, we simply ignore the Ports field set on non-TCP apps.
-	if uri.Scheme != "tcp" {
+	if uri.Scheme != "tcp" && uri.Scheme != types.SchemeTLS {
 		return nil
 	}
 

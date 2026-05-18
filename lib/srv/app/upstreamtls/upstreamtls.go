@@ -21,6 +21,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"iter"
 	"log/slog"
 	"net/url"
 	"slices"
@@ -31,6 +32,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -56,8 +58,8 @@ type Options struct {
 	InsecureMode bool
 }
 
-// Configure creates and configures a *tls.Config that will be used for
-// mutual authentication. This function assumes a validated AppTLS, meaning it
+// Configure creates and configures a *tls.Config that will be used to verify
+// upstream TLS servers. This function assumes a validated AppTLS, meaning it
 // won't perform validation checks for fields and their contents.
 //
 // Note that [types.AppTLS] can be nil since it is not required for supported
@@ -75,20 +77,21 @@ func Configure(ctx context.Context, opts Options) (*tls.Config, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	serverName, err := upstreamVerifyName(opts.App, appTLS)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	switch opts.App.GetTLSMode() {
 	case types.AppTLSModeVerifyFull:
-		spiffeID, _ := spiffeid.FromString(appTLS.ServerSpiffeId)
-		return configureTLSVerifyFull(opts.CipherSuites, caPool, spiffeID, serverName)
+		spiffeID, err := spiffeid.FromString(appTLS.ServerSpiffeId)
+		if err != nil {
+			return nil, trace.BadParameter("app contains an invalid tls.server_spiffe_id field: %v", err)
+		}
+		return configureTLSVerifyFull(opts.CipherSuites, caPool, opts.App.GetURI(), spiffeID, appTLS.ServerName)
 	case types.AppTLSModeVerifySpiffeID:
-		spiffeID, _ := spiffeid.FromString(appTLS.ServerSpiffeId)
+		spiffeID, err := spiffeid.FromString(appTLS.ServerSpiffeId)
+		if err != nil {
+			return nil, trace.BadParameter("app contains an invalid tls.server_spiffe_id field: %v", err)
+		}
 		return configureTLSSpiffeIDVerify(opts.CipherSuites, caPool, spiffeID)
 	case types.AppTLSModeVerifyServerName:
-		return configureTLSVerifyServerName(opts.CipherSuites, caPool, serverName)
+		return configureTLSVerifyServerName(opts.CipherSuites, caPool, appTLS.ServerName)
 	case types.AppTLSModeInsecure:
 		return configureTLSInsecure(opts.CipherSuites)
 	default:
@@ -105,29 +108,44 @@ func configureTLSSpiffeIDVerify(cipherSuites []uint16, caPool *x509.CertPool, sp
 	tlsConfig.InsecureSkipVerify = true
 	tlsConfig.ServerName = ""
 	// Skips server name verification.
-	tlsConfig.VerifyConnection = tlsVerifyPeerCertificate(tlsConfig.RootCAs, spiffeID, "")
+	tlsConfig.VerifyConnection = tlsVerifyPeerCertificateWithSPIFFE(tlsConfig.RootCAs, spiffeID, "")
 	return tlsConfig, nil
 }
 
-func configureTLSVerifyFull(cipherSuites []uint16, caPool *x509.CertPool, spiffeID spiffeid.ID, serverName string) (*tls.Config, error) {
+func configureTLSVerifyFull(cipherSuites []uint16, caPool *x509.CertPool, appURI string, spiffeID spiffeid.ID, serverName string) (*tls.Config, error) {
 	tlsConfig := utils.TLSConfig(cipherSuites)
 	tlsConfig.RootCAs = caPool
 	tlsConfig.InsecureSkipVerify = true
+
+	// Since we're providing a custom VerifyConnection we must ensure that
+	// server name is not empty, otherwise it would just skip the server name
+	// verification.
+	//
+	// To do this we parse the app URI and lookup for the hostname.
+	if serverName == "" {
+		u, err := url.Parse(appURI)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		serverName = u.Hostname()
+		if serverName == "" {
+			return nil, trace.BadParameter("cannot derive server name from app URI %q", appURI)
+		}
+	}
+
 	tlsConfig.ServerName = serverName
-	tlsConfig.VerifyConnection = tlsVerifyPeerCertificate(tlsConfig.RootCAs, spiffeID, serverName)
+	tlsConfig.VerifyConnection = tlsVerifyPeerCertificateWithSPIFFE(tlsConfig.RootCAs, spiffeID, serverName)
 	return tlsConfig, nil
 }
 
+// configureTLSVerifyServerName setups a TLS config with standard hostname
+// certificate match verification.
 func configureTLSVerifyServerName(cipherSuites []uint16, caPool *x509.CertPool, serverName string) (*tls.Config, error) {
 	tlsConfig := utils.TLSConfig(cipherSuites)
 	tlsConfig.RootCAs = caPool
-	tlsConfig.InsecureSkipVerify = true
+	// In case the property is empty (default value), the standard library
+	// will pickup the appropriate hostname value.
 	tlsConfig.ServerName = serverName
-	// We cannot use regular verify function since it would skip DNSName
-	// validation when the value set or the dialed address are an IP.
-	//
-	// Skips SPIFFE ID verification.
-	tlsConfig.VerifyConnection = tlsVerifyPeerCertificate(tlsConfig.RootCAs, spiffeid.ID{}, serverName)
 	return tlsConfig, nil
 }
 
@@ -137,13 +155,14 @@ func configureTLSInsecure(cipherSuites []uint16) (*tls.Config, error) {
 	return tlsConfig, nil
 }
 
-// tlsVerifyPeerCertificate creates a tls.VerifyConnection function that
-// verifies the certificate, SPIFFE ID extension (if not zero), and server name
-// when set to non-empty value.
-func tlsVerifyPeerCertificate(roots *x509.CertPool, spiffeID spiffeid.ID, serverName string) func(cs tls.ConnectionState) error {
+// tlsVerifyPeerCertificateWithSPIFFE creates a tls.VerifyConnection function
+// that verifies the certificate chain, SPIFFE ID extension, and server name.
+func tlsVerifyPeerCertificateWithSPIFFE(roots *x509.CertPool, spiffeID spiffeid.ID, serverName string) func(cs tls.ConnectionState) error {
 	return func(cs tls.ConnectionState) error {
 		opts := x509.VerifyOptions{
-			Roots:   roots,
+			Roots: roots,
+			// When `serverName` is empty, it means no DNSName verification will
+			// be done.
 			DNSName: serverName,
 
 			Intermediates: nil,
@@ -160,31 +179,16 @@ func tlsVerifyPeerCertificate(roots *x509.CertPool, spiffeID spiffeid.ID, server
 		if _, err := cs.PeerCertificates[0].Verify(opts); err != nil {
 			return trace.Wrap(err)
 		}
-		if !spiffeID.IsZero() {
-			// Returns error if the certificate doesn't contain URI SAN (SPIFFE ID).
-			upstreamID, err := spiffetls.PeerIDFromConnectionState(cs)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			if upstreamID != spiffeID {
-				return trace.BadParameter("spiffe id mismatch. expected %q but got %q", spiffeID, upstreamID)
-			}
+		// Returns error if the certificate doesn't contain URI SAN (SPIFFE ID).
+		upstreamID, err := spiffetls.PeerIDFromConnectionState(cs)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if upstreamID != spiffeID {
+			return trace.BadParameter("spiffe id mismatch. expected %q but got %q", spiffeID, upstreamID)
 		}
 		return nil
 	}
-}
-
-// upstreamVerifyName returns the DNSName value that will be used on verify.
-func upstreamVerifyName(app types.Application, appTLS *types.AppTLS) (string, error) {
-	if appTLS != nil && appTLS.ServerName != "" {
-		return appTLS.ServerName, nil
-	}
-
-	u, err := url.Parse(app.GetURI())
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return u.Hostname(), nil // strips port and IPv6 brackets
 }
 
 // newTLSCertPool creates a new x509 cert pool using the list of allowed CAs.
@@ -205,13 +209,18 @@ func newTLSCertPool(ctx context.Context, logger *slog.Logger, getter Certificate
 				return nil, trace.Wrap(err)
 			}
 
-			if certs == nil {
-				logger.WarnContext(ctx, "CA alias contains non active keys, it won't be effective", "alias", ca)
-				continue
+			var hasAny bool
+			for cert, err := range certs {
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				hasAny = true
+				caPool.AddCert(cert)
 			}
 
-			for _, cert := range certs {
-				caPool.AddCert(cert)
+			if !hasAny {
+				logger.WarnContext(ctx, "CA alias contains non active keys, it won't be effective", "alias", ca)
 			}
 		default:
 			caCert, err := tlsutils.ParseCertificatePEMStrict([]byte(ca))
@@ -227,7 +236,7 @@ func newTLSCertPool(ctx context.Context, logger *slog.Logger, getter Certificate
 }
 
 // loadCACertificates takes a "CA alias" and resolve to Teleport CA certificates.
-func loadCACertificates(ctx context.Context, getter CertificateAuthorityGetter, clusterName string, alias types.AppTLSInternalCA) ([]*x509.Certificate, error) {
+func loadCACertificates(ctx context.Context, getter CertificateAuthorityGetter, clusterName string, alias types.AppTLSInternalCA) (iter.Seq2[*x509.Certificate, error], error) {
 	var caType types.CertAuthType
 	switch alias {
 	case types.AppTLSInternalCAWorkloadIdentity:
@@ -235,7 +244,7 @@ func loadCACertificates(ctx context.Context, getter CertificateAuthorityGetter, 
 	default:
 		// This should be unreachable. If it happens there is probably a
 		// mismatch between this switch and the
-		// `types.AppSupportedAllowedInternalCAs` slice.
+		// `types.AppSupportedInternalCAs` function.
 		return nil, trace.BadParameter("unsupported CA %q", alias)
 	}
 
@@ -247,20 +256,5 @@ func loadCACertificates(ctx context.Context, getter CertificateAuthorityGetter, 
 		return nil, trace.Wrap(err)
 	}
 
-	keyPairs := ca.GetTrustedTLSKeyPairs()
-	if len(keyPairs) == 0 {
-		return nil, nil
-	}
-
-	certs := make([]*x509.Certificate, 0, len(keyPairs))
-	for _, keyPair := range keyPairs {
-		cert, err := tlsutils.ParseCertificatePEM(keyPair.Cert)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		certs = append(certs, cert)
-	}
-
-	return certs, nil
+	return services.GetX509Certs(ca), nil
 }

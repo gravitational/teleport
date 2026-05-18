@@ -312,6 +312,31 @@ func TestHandleConnectionTLSUpstream(t *testing.T) {
 			},
 			expectError: true,
 		},
+		"verify-full server name is set to an IP value": {
+			tlsOptsFunc: func(setup *tlsUpstreamSetup) *types.AppTLS {
+				return &types.AppTLS{
+					Mode:           types.AppTLSModeVerifyFull,
+					ServerName:     "127.0.0.1",
+					ServerSpiffeId: "spiffe://mycluster/svc/example",
+					AllowedCas:     []string{string(setup.serverCACertPEM)},
+				}
+			},
+			upstreamOpts: []upstreamServerOpt{
+				withUpstreamSpiffeID("spiffe://mycluster/svc/example"),
+			},
+		},
+		"verify-full server name falls back to app URI hostname": {
+			tlsOptsFunc: func(setup *tlsUpstreamSetup) *types.AppTLS {
+				return &types.AppTLS{
+					Mode:           types.AppTLSModeVerifyFull,
+					ServerSpiffeId: "spiffe://mycluster/svc/example",
+					AllowedCas:     []string{string(setup.serverCACertPEM)},
+				}
+			},
+			upstreamOpts: []upstreamServerOpt{
+				withUpstreamSpiffeID("spiffe://mycluster/svc/example"),
+			},
+		},
 		"service level insecure mode takes precedence": {
 			tlsOptsFunc: func(setup *tlsUpstreamSetup) *types.AppTLS {
 				return &types.AppTLS{
