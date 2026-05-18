@@ -675,6 +675,9 @@ type DynamicWindowsDesktopWatcherConfig struct {
 	DynamicWindowsDesktopGetter
 	// DynamicWindowsDesktopsC receives up-to-date list of all DynamicWindowsDesktop resources.
 	DynamicWindowsDesktopsC chan []types.DynamicWindowsDesktop
+	// DisableUpdateBroadcast skips writes to ResourcesC. Callers that only use
+	// CurrentResources should set this to avoid a blocked send on an undrained channel.
+	DisableUpdateBroadcast bool
 	// ResourceWatcherConfig is the resource watcher configuration.
 	ResourceWatcherConfig
 }
@@ -693,7 +696,7 @@ func NewDynamicWindowsDesktopWatcher(ctx context.Context, cfg DynamicWindowsDesk
 		).getAll,
 		ResourceKey:            types.DynamicWindowsDesktop.GetName,
 		ResourcesC:             cfg.DynamicWindowsDesktopsC,
-		DisableUpdateBroadcast: true,
+		DisableUpdateBroadcast: cfg.DisableUpdateBroadcast,
 		CloneFunc:              types.DynamicWindowsDesktop.Copy,
 		ReadOnlyFunc: func(resource types.DynamicWindowsDesktop) readonly.DynamicWindowsDesktop {
 			return resource

@@ -1510,18 +1510,24 @@ func (e *limitedErrorReporter) report(ctx context.Context, result server.AzureIn
 		return
 	}
 
-	instance := result.Instance
 	commandResult := result.CommandResult
 
-	var vmID string
-	if instance.Properties != nil {
-		vmID = azure.StringVal(instance.Properties.VMID)
+	var vmID, resourceID string
+	switch {
+	case result.Instance != nil:
+		if result.Instance.Properties != nil {
+			vmID = azure.StringVal(result.Instance.Properties.VMID)
+		}
+		resourceID = azure.StringVal(result.Instance.ID)
+	case result.DiscoveredVM != nil:
+		vmID = result.DiscoveredVM.VMID
+		resourceID = result.DiscoveredVM.ID
 	}
 
 	if commandResult != nil {
 		e.logger.WarnContext(ctx, "Teleport installation script failed",
 			"vm_id", vmID,
-			"resource_id", azure.StringVal(instance.ID),
+			"resource_id", resourceID,
 			"state", commandResult.ExecutionState,
 			"exit_code", commandResult.ExitCode,
 			"stdout", commandResult.StdOut,
@@ -1530,7 +1536,7 @@ func (e *limitedErrorReporter) report(ctx context.Context, result server.AzureIn
 	} else {
 		e.logger.WarnContext(ctx, "Failed to execute Teleport installation script",
 			"vm_id", vmID,
-			"resource_id", azure.StringVal(instance.ID),
+			"resource_id", resourceID,
 			"api_error", result.APIError,
 		)
 	}
@@ -2671,6 +2677,7 @@ func (s *Server) initTeleportDynamicWindowsDesktopWatcher() (err error) {
 			Clock:        s.clock,
 		},
 		DynamicWindowsDesktopGetter: s.AccessPoint,
+		DisableUpdateBroadcast:      true,
 	})
 
 	return trace.Wrap(err)
