@@ -126,6 +126,7 @@ func TestCreateBeam(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, beam.GetStatus().GetJoinTokenName(), token.GetName())
 	require.Equal(t, expectedLabels, token.GetMetadata().Labels)
+	require.Equal(t, computeReq.GetTbot().GetRegistrationSecret(), token.GetBoundKeypairStatus().RegistrationSecret)
 
 	botResourceName := services.BotResourceName(beam.GetStatus().GetBotName())
 	user, err := pack.identity.GetUser(t.Context(), botResourceName, false)

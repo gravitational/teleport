@@ -349,12 +349,15 @@ func beamJoinTokenAndSecret(beam *beamsv1.Beam) (types.ProvisionToken, string, e
 			JoinMethod: types.JoinMethodBoundKeypair,
 			BotName:    beam.GetStatus().GetBotName(),
 			BoundKeypair: &types.ProvisionTokenSpecV2BoundKeypair{
-				Onboarding: &types.ProvisionTokenSpecV2BoundKeypair_OnboardingSpec{
-					RegistrationSecret: secret,
-				},
+				Onboarding: &types.ProvisionTokenSpecV2BoundKeypair_OnboardingSpec{},
 				Recovery: &types.ProvisionTokenSpecV2BoundKeypair_RecoverySpec{
 					Limit: 1,
 				},
+			},
+		},
+		Status: &types.ProvisionTokenStatusV2{
+			BoundKeypair: &types.ProvisionTokenStatusV2BoundKeypair{
+				RegistrationSecret: secret,
 			},
 		},
 	}, secret, nil
