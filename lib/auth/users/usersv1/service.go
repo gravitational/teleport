@@ -643,7 +643,7 @@ func (s *Service) ResetUser(ctx context.Context, req *userspb.ResetUserRequest) 
 		return nil, trace.Wrap(err)
 	}
 
-	res, err := s.resetUserInternal(ctx, req)
+	res, err := s.resetUser(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -664,7 +664,7 @@ func (s *Service) ResetUser(ctx context.Context, req *userspb.ResetUserRequest) 
 	return res, nil
 }
 
-func (s *Service) resetUserInternal(ctx context.Context, req *userspb.ResetUserRequest) (*userspb.ResetUserResponse, error) {
+func (s *Service) resetUser(ctx context.Context, req *userspb.ResetUserRequest) (*userspb.ResetUserResponse, error) {
 	switch user, err := s.cache.GetUser(ctx, req.Name, false /* withSecrets */); {
 	case trace.IsNotFound(err):
 		return s.resetUnknownUser(ctx, req)
