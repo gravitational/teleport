@@ -248,7 +248,7 @@ type Identity struct {
 	// WebSessionID is the session ID of the web session associated with this identity, if any.
 	WebSessionID string
 
-	// RouteToWindowsDesktop contains routing information for Windows or Linux desktop sessions.
+	// RouteToDesktop contains routing information for Windows or Linux desktop sessions.
 	RouteToDesktop RouteToDesktop
 }
 
