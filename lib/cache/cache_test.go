@@ -248,20 +248,6 @@ func getAllAdapter[T any](fn func(context.Context) ([]T, error)) func(context.Co
 	}
 }
 
-// singletonListAdapter adapts a singleton getter to conform to [testFuncs] interface
-func singletonListAdapter[T any](fn func(context.Context) (T, error)) func(context.Context, int, string) ([]T, string, error) {
-	return func(ctx context.Context, _ int, _ string) ([]T, string, error) {
-		out, err := fn(ctx)
-		if err != nil {
-			if trace.IsNotFound(err) {
-				return nil, "", nil
-			}
-			return nil, "", trace.Wrap(err)
-		}
-		return []T{out}, "", nil
-	}
-}
-
 // testFuncs are functions to support testing an object in a cache.
 type testFuncs[T any] struct {
 	newResource func(string) (T, error)

@@ -17,36 +17,23 @@
 package cache
 
 import (
-	"context"
 	"testing"
-
-	"github.com/gravitational/trace"
+	"testing/synctest"
 
 	"github.com/gravitational/teleport/api/types"
 )
 
 func TestNetworkRestrictions(t *testing.T) {
-	t.Parallel()
-
-	p := newTestPack(t, ForAuth)
-	t.Cleanup(p.Close)
-
-	testResources(t, p, testFuncs[types.NetworkRestrictions]{
-		newResource: func(name string) (types.NetworkRestrictions, error) {
-			return types.NewNetworkRestrictions(), nil
-		},
-		create: p.restrictions.SetNetworkRestrictions,
-		list: func(ctx context.Context, _ int, _ string) ([]types.NetworkRestrictions, string, error) {
-			restrictions, err := p.restrictions.GetNetworkRestrictions(ctx)
-			return []types.NetworkRestrictions{restrictions}, "", trace.Wrap(err)
-		},
-		cacheList: func(ctx context.Context, _ int, _ string) ([]types.NetworkRestrictions, string, error) {
-			restrictions, err := p.cache.GetNetworkRestrictions(ctx)
-			if trace.IsNotFound(err) {
-				return nil, "", nil
-			}
-			return []types.NetworkRestrictions{restrictions}, "", trace.Wrap(err)
-		},
-		deleteAll: p.restrictions.DeleteNetworkRestrictions,
-	}, withSkipPaginationTest()) // skip pagination test because NetworkRestrictions is a singleton resource
+	synctest.Test(t, func(t *testing.T) {
+		p := newTestPack(t, ForAuth)
+		t.Cleanup(p.Close)
+		testLegacySingleton(t, p, testLegacySingletonFuncs[types.NetworkRestrictions]{
+			newResource: types.NewNetworkRestrictions,
+			create:      p.restrictions.SetNetworkRestrictions,
+			update:      p.restrictions.SetNetworkRestrictions,
+			get:         p.restrictions.GetNetworkRestrictions,
+			cacheGet:    p.cache.GetNetworkRestrictions,
+			delete:      p.restrictions.DeleteNetworkRestrictions,
+		})
+	})
 }
