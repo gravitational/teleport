@@ -19,8 +19,6 @@ package services
 import (
 	"context"
 	"fmt"
-	"net/url"
-	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -245,19 +243,13 @@ func IdentityCenterAccountToAppServer(acct *identitycenterv1.Account) *types.App
 		}
 	}
 
-	// StartUrl is usually a full URL; reduce to a bare hostname.
-	publicAddr := acct.GetSpec().GetStartUrl()
-	if u, err := url.Parse(publicAddr); err == nil && u.Hostname() != "" {
-		publicAddr = u.Hostname()
-	}
-	// ValidatePublicAddr requires lowercase.
-	publicAddr = strings.ToLower(publicAddr)
-
-	// Identity Center accounts can be mixed-case; lowercase so the
-	// resource passes ValidateApp. Applies to both outer and inner
-	// metadata so storage key and routing identity stay aligned.
+	// Identity Center accounts surface in the unified-resource cache as
+	// synthetic AppServers; they never traverse the app write paths
+	// (ValidateApp / ValidateAppServer), so no DNS-1123 normalization
+	// here. The web Launch button (ResourceActionButton.tsx) builds the
+	// SSO launch URL as `${publicAddr}&role_name=...`, which requires
+	// the full StartUrl - scheme, path, and case preserved.
 	metadata := types.Metadata153ToLegacy(acct.Metadata)
-	metadata.Name = strings.ToLower(metadata.Name)
 	metadata.Description = acct.GetSpec().GetName()
 
 	return &types.AppServerV3{
@@ -272,10 +264,8 @@ func IdentityCenterAccountToAppServer(acct *identitycenterv1.Account) *types.App
 				Version:  types.V3,
 				Metadata: metadata,
 				Spec: types.AppSpecV3{
-					// URI keeps the original StartUrl as the SSO
-					// redirect target; only PublicAddr is normalized.
 					URI:        acct.GetSpec().GetStartUrl(),
-					PublicAddr: publicAddr,
+					PublicAddr: acct.GetSpec().GetStartUrl(),
 					AWS: &types.AppAWS{
 						ExternalID: acct.GetSpec().GetId(),
 					},

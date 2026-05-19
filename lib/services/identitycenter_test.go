@@ -320,41 +320,36 @@ func TestIdentityCenterAccountAssignmentMatcher(t *testing.T) {
 	}
 }
 
+// TestIdentityCenterAccountToAppServer asserts the converter passes
+// StartUrl through to both URI and PublicAddr verbatim. The web
+// Launch button builds the SSO launch href as
+// `${publicAddr}&role_name=...`, so any normalization of scheme,
+// path, port, or case breaks Identity Center app launches.
 func TestIdentityCenterAccountToAppServer(t *testing.T) {
 	tests := []struct {
-		name           string
-		acctName       string
-		startURL       string
-		wantAppName    string
-		wantPublicAddr string
+		name     string
+		acctName string
+		startURL string
 	}{
 		{
-			name:           "strips scheme and path",
-			acctName:       "test-account",
-			startURL:       "https://start.example.com/start",
-			wantAppName:    "test-account",
-			wantPublicAddr: "start.example.com",
+			name:     "full launch URL preserved",
+			acctName: "test-account",
+			startURL: "https://start.example.com/start",
 		},
 		{
-			name:           "strips scheme and port",
-			acctName:       "test-account",
-			startURL:       "https://start.example.com:8443/start",
-			wantAppName:    "test-account",
-			wantPublicAddr: "start.example.com",
+			name:     "URL with port preserved",
+			acctName: "test-account",
+			startURL: "https://start.example.com:8443/start",
 		},
 		{
-			name:           "bare hostname unchanged",
-			acctName:       "test-account",
-			startURL:       "start.example.com",
-			wantAppName:    "test-account",
-			wantPublicAddr: "start.example.com",
+			name:     "bare hostname preserved",
+			acctName: "test-account",
+			startURL: "start.example.com",
 		},
 		{
-			name:           "lowercases mixed-case name and host",
-			acctName:       "Mixed-Case-Account",
-			startURL:       "https://Start.Example.COM/start",
-			wantAppName:    "mixed-case-account",
-			wantPublicAddr: "start.example.com",
+			name:     "mixed-case name and URL preserved",
+			acctName: "Mixed-Case-Account",
+			startURL: "https://Start.Example.COM/start",
 		},
 	}
 
@@ -373,13 +368,10 @@ func TestIdentityCenterAccountToAppServer(t *testing.T) {
 			}
 
 			srv := IdentityCenterAccountToAppServer(acct)
-			require.Equal(t, tt.wantAppName, srv.GetApp().GetName())
-			require.Equal(t, tt.wantAppName, srv.GetName())
-			require.Equal(t, tt.wantPublicAddr, srv.GetApp().GetPublicAddr())
+			require.Equal(t, tt.acctName, srv.GetApp().GetName())
+			require.Equal(t, tt.acctName, srv.GetName())
 			require.Equal(t, tt.startURL, srv.GetApp().GetURI())
-			// Round-trip through ValidateApp catches future write-path
-			// tightening.
-			require.NoError(t, ValidateApp(srv.GetApp(), &mockProxyGetter{addrs: []string{"proxy.example.com:443"}}))
+			require.Equal(t, tt.startURL, srv.GetApp().GetPublicAddr())
 		})
 	}
 }
