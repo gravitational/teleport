@@ -80,6 +80,33 @@ func TestDistrolessTeleportImageRepo(t *testing.T) {
 	}
 }
 
+func TestKubeAgentUpdaterImage(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		version string
+		want    string
+	}{
+		{
+			name:    "release",
+			version: "18.1.2",
+			want:    "public.ecr.aws/gravitational/teleport-kube-agent-updater:18.1.2",
+		},
+		{
+			name:    "pre-release",
+			version: "17.3.4-alpha.1",
+			want:    "public.ecr.aws/gravitational-staging/teleport-kube-agent-updater:17.3.4-alpha.1",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			semVer, err := semver.NewVersion(test.version)
+			require.NoError(t, err)
+			require.Equal(t, test.want, KubeAgentUpdaterImage(*semVer))
+		})
+	}
+}
+
 func Test_cdnBaseURLForVersion(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
