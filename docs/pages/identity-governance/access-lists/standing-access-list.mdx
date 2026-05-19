@@ -2,7 +2,7 @@
 title: Creating an Access List for Standing Access
 sidebar_label: Standing Access Lists
 sidebar_position: 3
-description: Use the Standing Access Guide to create an Access List whose members are automatically granted access to a defined set of resources on sign-in.
+description: Use the Standing Access Guide to create an Access List whose members are automatically granted access to a defined set of resources on login.
 tags:
  - how-to
  - identity-governance
@@ -11,14 +11,14 @@ enterprise: Identity Governance
 ---
 
 The **Standing Access Guide** creates an Access List whose members are automatically
-granted access to a defined set of resources when they sign in. No Access Request
+granted access to a defined set of resources when they log in. No Access Request
 is required.
 
 This guide will help you:
 
 - Decide when a Standing Access List is the right fit
 - Create one using the guided flow in the Teleport Web UI
-- Verify that members get access on sign-in
+- Verify that members get access on login
 
 ## When to use this flow
 
@@ -28,13 +28,14 @@ Use a Standing Access List when:
 - The set of resources is well-scoped (e.g. internal dashboards for the analytics team) and changes infrequently.
 - You want a single list to govern who has the access, with periodic reviews so
   the membership is reaffirmed rather than left to drift.
+- You'd rather configure access through a guided UI than write role specs by
+  hand.
 
-If members instead should only get access on-demand with justification and
-approval, use the [Just-in-Time Access Guide](./jit-access-list.mdx) instead.
+If members should instead request temporary access, use the [Just-in-Time Access Guide](./jit-access-list.mdx) instead.
 
 ## Prerequisites
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise (v18.8.0 or higher)"!)
+(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise (v18.8.0 or higher)" optionalClientNote=", required only if deploying with Terraform"!)
 
 (!docs/pages/identity-governance/access-lists/includes/preset-prerequisites.mdx!)
 
@@ -54,7 +55,7 @@ The guide steps you through:
    criteria. Most resource types are matched by
    [labels](../../zero-trust-access/rbac-get-started/labels.mdx); others may ask
    you to select the resource itself. Members get access to anything that matches
-   when they sign in.
+   when they log in.
 
    (!docs/pages/identity-governance/access-lists/includes/preview-resources-warning.mdx!)
 1. **Define Resource Identities or Principals** — for resource types that need
@@ -244,12 +245,16 @@ resource "teleport_access_list_member" "acl-member-<Var name="example-member" />
 
 ## Step 3/3. Verify the access
 
-Sign in as one of the members you added. The resources you defined in
+Log in as one of the members you added. The resources you defined in
 **Define Access to Resources** should appear in the resource list and you should be able
 to connect to them immediately.
 
 ## Next steps
 
+- Create an Access List whose members request temporary access with the
+  [Just-in-Time Access Guide](./jit-access-list.mdx).
+- Create an Access List by assigning existing roles directly with the
+  [Custom Form](./custom-access-list.mdx).
 - Group members by inheriting access from other lists with
   [nested Access Lists](./nested-access-lists.mdx).
 - Learn more about managing Access Lists as code with the

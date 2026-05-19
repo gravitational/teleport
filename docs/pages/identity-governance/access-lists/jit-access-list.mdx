@@ -13,8 +13,8 @@ enterprise: Identity Governance
 
 The **Just-in-Time Access Guide** creates an Access List whose members are required
 to request access to a defined set of resources, rather than being granted that
-access automatically. List's `members` submit an
-[Access Request](../access-requests/access-requests.mdx); the list's `owners`
+access automatically. The list's members submit an
+[Access Request](../access-requests/access-requests.mdx); the list's owners
 review and approve or deny it. Once approved, the member receives temporary
 access bounded by the request's TTL, capped by the member's remaining Teleport
 session.
@@ -33,13 +33,15 @@ Use a Just-in-Time Access List when:
 - You want a clear audit trail of *who requested what, when, and who approved it*.
 - You want a single list to govern who can request the access, with periodic
   reviews so the membership is reaffirmed rather than left to drift.
+- You'd rather configure access through a guided UI than write role specs by
+  hand.
 
-If members instead need access immediately on sign-in for the duration of their
-session, use the [Standing Access Guide](./guide.mdx) instead.
+If members instead need access immediately on login for the duration of their
+session, use the [Standing Access Guide](./standing-access-list.mdx) instead.
 
 ## Prerequisites
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise (v18.8.0 or higher)"!)
+(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise (v18.8.0 or higher)" optionalClientNote=", required only if deploying with Terraform"!)
 
 (!docs/pages/identity-governance/access-lists/includes/preset-prerequisites.mdx!)
 
@@ -248,12 +250,12 @@ resource "teleport_access_list_member" "acl-member-<Var name="example-member" />
 
 ## Step 3/3. Verify the request flow
 
-Sign in as one of the **members** you added. The resources you defined in
+Log in as one of the **members** you added. The resources you defined in
 **Define Access to Resources** should appear in the resource list with a
 **Request Access** button rather than a direct connect button.
 
 1. Submit a request for one of the resources, optionally providing a reason.
-1. Sign in as one of the **owners** and approve the request. (The JIT preset
+1. Log in as one of the **owners** and approve the request. (The JIT preset
    grants owners a `reviewer` role automatically, which is what lets them
    approve.)
 1. Back as the member, assume the approved request. You now have temporary access
@@ -262,11 +264,17 @@ Sign in as one of the **members** you added. The resources you defined in
 
 ## Next steps
 
-- Group members by inheriting access from other lists with
-  [nested Access Lists](./nested-access-lists.mdx).
+- Create an Access List whose members get access on login with the
+  [Standing Access Guide](./standing-access-list.mdx).
+- Create an Access List by assigning existing roles directly with the
+  [Custom Form](./custom-access-list.mdx).
+- Learn more about how members request and reviewers approve access in
+  [Access Requests](../access-requests/access-requests.mdx).
 - Auto-approve low-risk requests with
   [automatic reviews](../access-requests/automatic-reviews.mdx).
 - Route request notifications with
   [notification routing rules](../access-requests/notification-routing-rules.mdx).
+- Group members by inheriting access from other lists with
+  [nested Access Lists](./nested-access-lists.mdx).
 - Learn more about managing Access Lists as code with the
   [Terraform provider and Kubernetes operator](../../zero-trust-access/infrastructure-as-code/managing-resources/access-list.mdx).

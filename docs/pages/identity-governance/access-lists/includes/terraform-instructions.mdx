@@ -25,3 +25,11 @@ Click **Continue via Terraform**. Follow the in-UI instructions or below to depl
    ```
 
 The Access List is created once `terraform apply` completes.
+
+<Admonition type="note">
+The steps above use `tctl terraform env` to issue short-lived credentials,
+which is convenient for trying things out locally. For remote environments
+such as CI/CD pipelines or cloud VMs, see the
+[Terraform provider documentation](../../../zero-trust-access/infrastructure-as-code/terraform-provider/terraform-provider.mdx)
+for guidance on setting up the provider.
+</Admonition>
