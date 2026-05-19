@@ -620,8 +620,8 @@ and added to the list of cache
 
 > [!NOTE]
 > Some resources may not need to be stored in the cache, but still need to be registered with the cache to allow
-watchers for said resource to be created. These resources do NOT need a collection and can instead be [registered](https://github.com/gravitational/teleport/blob/cc9712c0444ee16e07adc75c21cb6b0a6ebd1af8/lib/cache/collections.go#L137-L147)
-with the unique set of resources to indicate as such to the cache.
+> watchers for said resource to be created. These resources do NOT need a collection and can instead be [registered](https://github.com/gravitational/teleport/blob/cc9712c0444ee16e07adc75c21cb6b0a6ebd1af8/lib/cache/collections.go#L137-L147)
+> with the unique set of resources to indicate as such to the cache.
 
 <details open><summary>lib/cache/foo.go</summary>
 
@@ -779,6 +779,90 @@ switch in the `NewWatcher` function in `lib/services/local/events.go`:
 ```go
 		case types.KindFoo:
 			parser = newFooParser()
+```
+
+### Default resources
+
+Some services might offer default resources. Those resources are always present and
+simplify the user experience by providing a working out-of-the-box experience.
+
+To ensure that the defaults can evolve later, and ease of integration with Infrastructure-as-Code,
+such default resources MUST NOT be stored in the backend.
+
+Default resources MUST be implemented by the service catching `trace.NotFoundError` and returning
+the default resource instead. Those resources are called Virtual Resources.
+
+#### Virtual singleton resources
+
+Virtual singleton resources are implemented by wrapping the default service `GetResource` and returning the virtual
+resource in case of `trace.NotFoundErr`:
+
+```go
+func (*FooService) getVirtualResource(name string) *foov1.Foo {
+	switch name {
+	case teleport.VirtualDefault1FooName:
+		return services.VirtualDefault1Foo()
+	case teleport.VirtualDefault2FooName:
+		return services.VirtualDefault2Foo()
+	}
+	return nil
+}
+
+func (s *FooService) GetFoo(ctx context.Context, name string) (*Foov1.Foo, error) {
+	item, err := s.svc.GetResource(ctx, name)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			if virtualResource := s.getVirtualResource(name); virtualResource != nil {
+				return virtualResource, nil
+			}
+		}
+		return nil, trace.Wrap(err)
+	}
+	return item, nil
+}
+```
+
+#### Virtual plural resources
+
+Virtual plural resources follow a similar pattern but also require wrapping additionally `ListResource`:
+
+```go
+func (*FooService) rangeVirtualResources(start string) iter.Seq2[*foov1.Foo, error] {
+	return func(yield func(*foov1.Foo, error) bool) {
+		switch {
+		case start <= teleport.VirtualDefault1FooName:
+			if !yield(services.VirtualDefault1Foo(), nil) {
+				return
+			}
+			fallthrough
+		case start <= teleport.VirtualDefault2FooName:
+			if !yield(services.VirtualDefault2Foo(), nil) {
+				return
+			}
+		}
+	}
+}
+
+func (s *FooService) ListFoos(ctx context.Context, pageSize int, pageToken string) ([]*Foov1.Foo, string, error) {
+	items, nextPageToken, err := generic.CollectPageAndCursor(
+		iterstream.MergeStreamsWithPriority(
+			s.svc.Resources(ctx, pageToken, ""),
+			s.rangeVirtualResources(pageToken),
+			func(a, b *Foov1.Foo) int {
+				return strings.Compare(a.GetMetadata().GetName(), b.GetMetadata().GetName())
+			},
+		),
+		pageSize,
+		func(v *Foov1.Foo) string {
+			return v.GetMetadata().GetName()
+		},
+	)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	return items, nextPageToken, nil
+}
 ```
 
 ### api client
