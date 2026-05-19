@@ -163,7 +163,19 @@ Replace:
 - `example-workload-identity` with the name of the Workload Identity resource you
   created earlier.
 
-Start or restart your `tbot` instance to apply the new configuration.
+Apply your new configuration. If `tbot` is already running, reload its
+configuration:
+
+```code
+$ sudo systemctl reload tbot
+```
+
+Otherwise, start `tbot` with your configuration file, which this example assumes
+is `/etc/tbot.yaml`:
+
+```code
+$ sudo tbot start -c /etc/tbot.yaml
+```
 
 ### Configuring Unix Workload Attestation
 
