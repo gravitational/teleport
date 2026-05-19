@@ -24,12 +24,15 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
+	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -616,16 +619,29 @@ func (s *Service) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) 
 }
 
 func (s *Service) ResetUser(ctx context.Context, req *userspb.ResetUserRequest) (*userspb.ResetUserResponse, error) {
+	res, userKind, err := s.authorizeAndResetUser(ctx, req)
+	ResetUserCounter.With(prometheus.Labels{
+		LabelUserKind: string(userKind),
+		LabelGRPCCode: status.Code(trail.ToGRPC(err)).String(),
+	}).Inc()
+	return res, trace.Wrap(err)
+}
+
+// authorizeAndResetUser authenticates a reset request and resets user's
+// credentials It returns a response and user kind (for metrics).
+func (s *Service) authorizeAndResetUser(
+	ctx context.Context, req *userspb.ResetUserRequest,
+) (*userspb.ResetUserResponse, UserKindLabelValue, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		s.emitUserResetEvent(ctx, req.Name, events.UserResetFailureEvent, events.UserResetFailureCode)
-		return nil, trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	}
 
 	// Allow reused MFA responses to allow creating a reset token after creating a user.
 	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
 		// Don't emit an event; this is a normal part of the admin action MFA flow.
-		return nil, trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	}
 
 	if err := authCtx.CheckAccessToRule(
@@ -634,26 +650,26 @@ func (s *Service) ResetUser(ctx context.Context, req *userspb.ResetUserRequest) 
 		types.VerbUpdate,
 	); err != nil {
 		s.emitUserResetEvent(ctx, req.Name, events.UserResetFailureEvent, events.UserResetFailureCode)
-		return nil, trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	}
 
 	if authz.HasBuiltinRole(*authCtx, string(types.RoleOkta)) {
 		s.emitUserResetEvent(ctx, req.Name, events.UserResetFailureEvent, events.UserResetFailureCode)
-		return nil, trace.AccessDenied("access denied")
+		return nil, "", trace.AccessDenied("access denied")
 	}
 
 	setResetUserRequestDefaults(req)
 	if err = validateResetUserRequest(req); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	}
 
-	res, err := s.resetUser(ctx, req)
+	res, userKind, err := s.resetUser(ctx, req)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, userKind, trace.Wrap(err)
 	}
 
 	s.emitUserResetEvent(ctx, req.Name, events.UserResetEvent, events.UserResetCode)
-	return res, nil
+	return res, userKind, nil
 }
 
 func (s *Service) emitUserResetEvent(
@@ -673,20 +689,31 @@ func (s *Service) emitUserResetEvent(
 	}
 }
 
-func (s *Service) resetUser(ctx context.Context, req *userspb.ResetUserRequest) (*userspb.ResetUserResponse, error) {
+// resetUser resets user's credentials and returns a response and user kind
+// (for metrics). The response contents, as well as procedure used, depends on
+// the user kind.
+func (s *Service) resetUser(
+	ctx context.Context, req *userspb.ResetUserRequest,
+) (*userspb.ResetUserResponse, UserKindLabelValue, error) {
 	switch user, err := s.cache.GetUser(ctx, req.Name, false /* withSecrets */); {
 	case trace.IsNotFound(err):
-		return s.resetUnknownUser(ctx, req)
+		res, err := s.resetUnknownUser(ctx, req)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		return res, UserKindUnknown, nil
 	case err != nil:
-		return nil, trace.Wrap(err)
+		return nil, "", trace.Wrap(err)
 	case user.IsBot():
-		return nil, trace.BadParameter("cannot reset a bot user")
+		return nil, UserKindBot, trace.BadParameter("cannot reset a bot user")
 	case user.GetUserType() == types.UserTypeLocal:
-		return s.resetLocalUser(ctx, req)
+		res, err := s.resetLocalUser(ctx, req)
+		return res, UserKindLocal, trace.Wrap(err)
 	case user.GetUserType() == types.UserTypeSSO:
-		return s.resetSSOUser(ctx, req)
+		res, err := s.resetSSOUser(ctx, req)
+		return res, UserKindSSO, trace.Wrap(err)
 	default:
-		return nil, trace.BadParameter("unknown user type: %q", user.GetUserType())
+		return nil, "", trace.BadParameter("unknown user type: %q", user.GetUserType())
 	}
 }
 
