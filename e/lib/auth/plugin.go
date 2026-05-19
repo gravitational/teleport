@@ -396,109 +396,111 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 
 	p.authServer.AuthServer.RegisterLoginHook(uac.OnLogin)
 
-	if p.Config.Modules.Features().GetEntitlement(entitlements.Policy).Enabled {
-		p.logger.InfoContext(ctx, "Session summarizer enabled")
-
-		oidcClient := AWSOIDCClient{
-			IntegrationGetter: p.authServer.AuthServer.Cache,
-			cache:             p.authServer.AuthServer.Cache,
-			keyStoreManager:   p.authServer.AuthServer.GetKeyStore(),
-			serverID:          p.authServer.AuthServer.ServerID,
-			clock:             p.authServer.AuthServer.GetClock(),
-		}
-		cfgCache, err := awsconfig.NewCache(
-			awsconfig.WithDefaults(
-				awsconfig.WithOIDCIntegrationClient(&oidcClient),
-			),
-		)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		var accessGraphClientGetter func() (accessgraphv1.SessionRecordingServiceClient, error)
-		if p.Config.AccessGraph.Enabled {
-			accessGraphConn, err := accessgraph.NewAccessGraphClient(
-				ctx,
-				accessgraph.ServiceClientConfig{
-					Addr:        p.Config.AccessGraph.Addr,
-					CA:          p.Config.AccessGraph.CA,
-					Insecure:    p.Config.AccessGraph.Insecure,
-					LazyConnect: true,
-				},
-				getClientCert,
-			)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			client := accessgraphv1.NewSessionRecordingServiceClient(accessGraphConn)
-			accessGraphClientGetter = func() (accessgraphv1.SessionRecordingServiceClient, error) {
-				return client, nil
-			}
-		} else {
-			accessGraphClientGetter = func() (accessgraphv1.SessionRecordingServiceClient, error) {
-				return nil, trace.NotFound("access graph is not enabled")
-			}
-		}
-		availabilityCache, err := summarizer.NewAvailabilityCache(
-			accessGraphClientGetter,
-			p.authServer.AuthServer.GetClock(),
-			0, // use default TTL
-		)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		sessionSummarizer, err := summarizer.NewSessionSummarizer(summarizer.SummarizerConfig{
-			Cache:                            p.authServer.AuthServer.Cache,
-			Streamer:                         p.authServer.AuthServer,
-			SummaryUploader:                  p.authServer.AuthServer,
-			Clock:                            p.authServer.AuthServer.GetClock(),
-			EnableBedrockWithoutRestrictions: !p.Config.Modules.Features().Cloud,
-			Encrypter:                        p.authServer.AuthServer.EncryptedIO,
-			AWSConfigCache:                   cfgCache,
-			EnvBedrockRegion:                 os.Getenv(envVarNameBedrockRegion),
-			EnvBedrockModelID:                os.Getenv(envVarNameBedrockModel),
-			AvailabilityCache:                availabilityCache,
-			UsageReporter:                    p.authServer.AuthServer.UsageReporter,
-			Emitter:                          p.authServer.AuthServer.GetEmitter(),
-			AccessGraphClientGetter:          accessGraphClientGetter,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		p.authServer.AuthServer.SetSummarizerService(sessionSummarizer)
-
-		summarizerService, err := summarizerv1.NewService(summarizerv1.ServiceConfig{
-			Authorizer:                       p.authServer.Authorizer,
-			Backend:                          p.authServer.AuthServer.Services,
-			Cache:                            p.authServer.AuthServer.Cache,
-			SummaryDownloader:                p.authServer.AuthServer,
-			Decrypter:                        p.authServer.AuthServer.EncryptedIO,
-			Emitter:                          p.authServer.Emitter,
-			AWSConfigCache:                   cfgCache,
-			EnableBedrockWithoutRestrictions: !p.Config.Modules.Features().Cloud,
-			UsageReporter:                    p.authServer.AuthServer.UsageReporter,
-			Modules:                          p.Config.Modules,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		summarizerv1pb.RegisterSummarizerServiceServer(gRPCServer, summarizerService)
-
-		sessionSearchService, err := sessionsearchv1.NewService(
-			sessionsearchv1.ServiceConfig{
-				Authorizer:              p.authServer.Authorizer,
-				Cache:                   p.authServer.AuthServer.Cache,
-				AWSConfigCache:          cfgCache,
-				AccessGraphClientGetter: accessGraphClientGetter,
-				AvailabilityCache:       availabilityCache,
-			},
-		)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		sessionsearchv1pb.RegisterSessionSearchServiceServer(gRPCServer, sessionSearchService)
+	oidcClient := AWSOIDCClient{
+		IntegrationGetter: p.authServer.AuthServer.Cache,
+		cache:             p.authServer.AuthServer.Cache,
+		keyStoreManager:   p.authServer.AuthServer.GetKeyStore(),
+		serverID:          p.authServer.AuthServer.ServerID,
+		clock:             p.authServer.AuthServer.GetClock(),
 	}
+	cfgCache, err := awsconfig.NewCache(
+		awsconfig.WithDefaults(
+			awsconfig.WithOIDCIntegrationClient(&oidcClient),
+		),
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	var accessGraphClientGetter func() (accessgraphv1.SessionRecordingServiceClient, error)
+	if p.Config.AccessGraph.Enabled {
+		accessGraphConn, err := accessgraph.NewAccessGraphClient(
+			ctx,
+			accessgraph.ServiceClientConfig{
+				Addr:        p.Config.AccessGraph.Addr,
+				CA:          p.Config.AccessGraph.CA,
+				Insecure:    p.Config.AccessGraph.Insecure,
+				LazyConnect: true,
+			},
+			getClientCert,
+		)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		client := accessgraphv1.NewSessionRecordingServiceClient(accessGraphConn)
+		accessGraphClientGetter = func() (accessgraphv1.SessionRecordingServiceClient, error) {
+			return client, nil
+		}
+	} else {
+		accessGraphClientGetter = func() (accessgraphv1.SessionRecordingServiceClient, error) {
+			return nil, trace.NotFound("access graph is not enabled")
+		}
+	}
+	availabilityCache, err := summarizer.NewAvailabilityCache(
+		accessGraphClientGetter,
+		p.authServer.AuthServer.GetClock(),
+		0, // use default TTL
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	isSessionSummariesLicensed := func() bool {
+		return p.Config.Modules.Features().GetEntitlement(entitlements.SessionSummaries).Enabled
+	}
+
+	sessionSummarizer, err := summarizer.NewSessionSummarizer(summarizer.SummarizerConfig{
+		Cache:                            p.authServer.AuthServer.Cache,
+		Streamer:                         p.authServer.AuthServer,
+		SummaryUploader:                  p.authServer.AuthServer,
+		Clock:                            p.authServer.AuthServer.GetClock(),
+		EnableBedrockWithoutRestrictions: !p.Config.Modules.Features().Cloud,
+		Encrypter:                        p.authServer.AuthServer.EncryptedIO,
+		AWSConfigCache:                   cfgCache,
+		EnvBedrockRegion:                 os.Getenv(envVarNameBedrockRegion),
+		EnvBedrockModelID:                os.Getenv(envVarNameBedrockModel),
+		AvailabilityCache:                availabilityCache,
+		UsageReporter:                    p.authServer.AuthServer.UsageReporter,
+		Emitter:                          p.authServer.AuthServer.GetEmitter(),
+		AccessGraphClientGetter:          accessGraphClientGetter,
+		IsLicensed:                       isSessionSummariesLicensed,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	p.authServer.AuthServer.SetSummarizerService(sessionSummarizer)
+
+	summarizerService, err := summarizerv1.NewService(summarizerv1.ServiceConfig{
+		Authorizer:                       p.authServer.Authorizer,
+		Backend:                          p.authServer.AuthServer.Services,
+		Cache:                            p.authServer.AuthServer.Cache,
+		SummaryDownloader:                p.authServer.AuthServer,
+		Decrypter:                        p.authServer.AuthServer.EncryptedIO,
+		Emitter:                          p.authServer.Emitter,
+		AWSConfigCache:                   cfgCache,
+		EnableBedrockWithoutRestrictions: !p.Config.Modules.Features().Cloud,
+		UsageReporter:                    p.authServer.AuthServer.UsageReporter,
+		IsLicensed:                       isSessionSummariesLicensed,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	summarizerv1pb.RegisterSummarizerServiceServer(gRPCServer, summarizerService)
+
+	sessionSearchService, err := sessionsearchv1.NewService(
+		sessionsearchv1.ServiceConfig{
+			Authorizer:              p.authServer.Authorizer,
+			Cache:                   p.authServer.AuthServer.Cache,
+			AWSConfigCache:          cfgCache,
+			AccessGraphClientGetter: accessGraphClientGetter,
+			AvailabilityCache:       availabilityCache,
+			IsLicensed:              isSessionSummariesLicensed,
+		},
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	sessionsearchv1pb.RegisterSessionSearchServiceServer(gRPCServer, sessionSearchService)
 
 	if err := p.registerResourceUsageService(p.authServer, resourceusagev1.ServiceConfig{
 		Modules: p.Config.Modules,

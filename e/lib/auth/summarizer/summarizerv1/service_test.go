@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strconv"
 	"testing"
 	"time"
@@ -21,6 +22,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -33,14 +36,13 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/summarizer"
-	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
-	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/plugin"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
@@ -65,21 +67,14 @@ func (p *testPlugin) RegisterAuthServices(
 	}
 
 	svc, err := NewService(ServiceConfig{
-		Authorizer:        authServer.Authorizer,
-		Cache:             authServer.AuthServer,
-		Backend:           authServer.AuthServer,
-		SummaryDownloader: authServer.AuthServer,
-		Emitter:           authServer.AuthServer.GetEmitter(),
-		Decrypter:         &fakeEncryptedIO{},
-		UsageReporter:     authServer.AuthServer.UsageReporter,
-		Modules: &modulestest.Modules{
-			TestBuildType: modules.BuildEnterprise,
-			TestFeatures: modules.Features{
-				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-					entitlements.Policy: {Enabled: true},
-				},
-			},
-		},
+		Authorizer:                       authServer.Authorizer,
+		Cache:                            authServer.AuthServer,
+		Backend:                          authServer.AuthServer,
+		SummaryDownloader:                authServer.AuthServer,
+		Emitter:                          authServer.AuthServer.GetEmitter(),
+		Decrypter:                        &fakeEncryptedIO{},
+		UsageReporter:                    authServer.AuthServer.UsageReporter,
+		IsLicensed:                       func() bool { return true },
 		EnableBedrockWithoutRestrictions: p.unrestrictedBedrock,
 	})
 	if err != nil {
@@ -1730,4 +1725,98 @@ func TestService_IsEnabled(t *testing.T) {
 			assert.Equal(t, tt.expectResult, resp.GetEnabled())
 		})
 	}
+}
+
+// TestServiceUnlicensed uses reflection to verify that every method declared by
+// [summarizerv1pb.SummarizerServiceServer] returns a gRPC Unimplemented error
+// when [ServiceConfig.IsLicensed] returns false. This ensures that newly added
+// endpoints cannot accidentally bypass the entitlement check.
+func TestServiceUnlicensed(t *testing.T) {
+	t.Parallel()
+
+	newUnlicensedSvc := func(t *testing.T, authorizer authz.Authorizer) *Service {
+		t.Helper()
+		svc, err := NewService(ServiceConfig{
+			Authorizer:        authorizer,
+			Backend:           unlicensedStubBackend{},
+			Cache:             unlicensedStubCache{},
+			SummaryDownloader: unlicensedStubDownloader{},
+			Emitter:           eventstest.NewChannelEmitter(0),
+			UsageReporter:     &fakeUsageReporter{},
+			IsLicensed:        func() bool { return false },
+		})
+		require.NoError(t, err)
+		return svc
+	}
+
+	// Most CRUD endpoints require an admin-level context to pass CheckAccessToKind.
+	adminCtx, err := authz.NewBuiltinRoleContext(types.RoleAdmin)
+	require.NoError(t, err)
+	adminSvc := newUnlicensedSvc(t, authz.AuthorizerFunc(func(context.Context) (*authz.Context, error) {
+		return adminCtx, nil
+	}))
+
+	// IsEnabled requires a proxy builtin role (HasBuiltinRole check) before the
+	// license check is reached; use a dedicated service instance for that method.
+	proxyCtx, err := authz.NewBuiltinRoleContext(types.RoleProxy)
+	require.NoError(t, err)
+	proxySvc := newUnlicensedSvc(t, authz.AuthorizerFunc(func(context.Context) (*authz.Context, error) {
+		return proxyCtx, nil
+	}))
+
+	svcType := reflect.TypeFor[*Service]()
+	ctx := t.Context()
+
+	assertUnimplemented := func(t *testing.T, methodName string, results []reflect.Value) {
+		t.Helper()
+		if methodName == "IsEnabled" {
+			require.Len(t, results, 2, "expected 2 return values from %s, got %d", methodName, len(results))
+			require.False(t, results[0].IsNil(), "expected non-nil response from %s, got nil", methodName)
+			resp := results[0].Interface().(*summarizerv1pb.IsEnabledResponse)
+			assert.False(t, resp.GetEnabled(), "expected enabled=false from %s, got enabled=true", methodName)
+			return
+		}
+		require.False(t, results[1].IsNil(), "expected Unimplemented error from %s, got nil", methodName)
+		err := results[1].Interface().(error)
+		st, ok := status.FromError(err)
+		require.True(t, ok, "expected gRPC status error from %s, got: %v", methodName, err)
+		require.Equal(t, codes.Unimplemented, st.Code(),
+			"expected Unimplemented from %s, got %v: %v", methodName, st.Code(), err)
+	}
+
+	tested := 0
+	for i := range svcType.NumMethod() {
+		m := svcType.Method(i)
+		if !m.IsExported() {
+			continue
+		}
+
+		svcVal := reflect.ValueOf(adminSvc)
+		if m.Name == "IsEnabled" {
+			svcVal = reflect.ValueOf(proxySvc)
+		}
+		reqType := m.Type.In(2)
+		results := svcVal.MethodByName(m.Name).Call([]reflect.Value{
+			reflect.ValueOf(ctx),
+			reflect.New(reqType.Elem()),
+		})
+
+		t.Run(m.Name, func(t *testing.T) {
+			assertUnimplemented(t, m.Name, results)
+		})
+		tested++
+	}
+	require.GreaterOrEqual(t, tested, 26, "reflection found fewer methods than expected — interface may have shrunk")
+}
+
+type unlicensedStubBackend struct{ services.Summarizer }
+
+type unlicensedStubCache struct {
+	services.SummarizerServiceGetter
+}
+
+type unlicensedStubDownloader struct{}
+
+func (unlicensedStubDownloader) StreamSessionSummary(context.Context, session.ID) (io.ReadCloser, error) {
+	panic("StreamSessionSummary must not be called when unlicensed")
 }

@@ -93,6 +93,8 @@ type SummarizerConfig struct {
 	// the summarizer can skip the expensive embedding-generation and push
 	// pipeline when the access graph does not support session search.
 	AvailabilityCache AvailabilityChecker
+	// IsLicensed reports whether the SessionSummaries entitlement is active.
+	IsLicensed func() bool
 }
 
 // SummaryUploader allows uploading recording summaries.
@@ -176,6 +178,7 @@ type SessionSummarizer struct {
 	emitter                          apievents.Emitter
 	accessGraphClientGetter          func() (accessgraphv1.SessionRecordingServiceClient, error)
 	accessGraphAvailabilityChecker   AvailabilityChecker
+	isLicensed                       func() bool
 }
 
 var _ summarizer.SessionSummarizer = (*SessionSummarizer)(nil)
@@ -207,6 +210,9 @@ func NewSessionSummarizer(cfg SummarizerConfig) (*SessionSummarizer, error) {
 	if cfg.AvailabilityCache == nil {
 		return nil, trace.BadParameter("availability cache is required")
 	}
+	if cfg.IsLicensed == nil {
+		return nil, trace.BadParameter("IsLicensed function is required")
+	}
 
 	clock := cfg.Clock
 	if clock == nil {
@@ -232,6 +238,7 @@ func NewSessionSummarizer(cfg SummarizerConfig) (*SessionSummarizer, error) {
 		emitter:                          cfg.Emitter,
 		accessGraphClientGetter:          cfg.AccessGraphClientGetter,
 		accessGraphAvailabilityChecker:   cfg.AvailabilityCache,
+		isLicensed:                       cfg.IsLicensed,
 	}, nil
 }
 
@@ -260,6 +267,9 @@ type sessionDetails struct {
 // so the panic guard lives on [SessionSummarizer.summarizeNowAndReportMetrics]
 // rather than here.
 func (s *SessionSummarizer) SummarizeSSH(ctx context.Context, sessionEndEvent *apievents.SessionEnd) error {
+	if !s.isLicensed() {
+		return nil
+	}
 	if sessionEndEvent == nil {
 		return trace.BadParameter("session end event is required to summarize an SSH session")
 	}
@@ -311,6 +321,9 @@ func (s *SessionSummarizer) SummarizeSSH(ctx context.Context, sessionEndEvent *a
 // SummarizeDatabase summarizes the database session recording associated with
 // the provided [apievents.DatabaseSessionEnd] event.
 func (s *SessionSummarizer) SummarizeDatabase(ctx context.Context, sessionEndEvent *apievents.DatabaseSessionEnd) error {
+	if !s.isLicensed() {
+		return nil
+	}
 	if sessionEndEvent == nil {
 		return trace.BadParameter("session end event is required to summarize a database session")
 	}
@@ -338,6 +351,9 @@ func (s *SessionSummarizer) SummarizeDatabase(ctx context.Context, sessionEndEve
 // summarize picks the appropriate inference provider and launches a
 // summarization goroutine.
 func (s *SessionSummarizer) summarize(ctx context.Context, details sessionDetails) error {
+	if !s.isLicensed() {
+		return nil
+	}
 	supportedSessionKinds := [3]types.SessionKind{
 		types.SSHSessionKind,
 		types.KubernetesSessionKind,
@@ -704,6 +720,9 @@ func (n *nopCloser) Close() error {
 // SummarizeWithoutEndEvent summarizes a session recording with a given ID.
 // Used if the caller doesn't have a reference to the end event.
 func (s *SessionSummarizer) SummarizeWithoutEndEvent(ctx context.Context, sessionID session.ID) error {
+	if !s.isLicensed() {
+		return nil
+	}
 	sEnd, err := events.FindSessionEndEvent(ctx, s.streamer, sessionID)
 	if err != nil {
 		return trace.Wrap(err, "failed to find session end event")

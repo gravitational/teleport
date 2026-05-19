@@ -19,12 +19,10 @@ import (
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/bedrock"
 	summarizererrors "github.com/gravitational/teleport/e/lib/auth/summarizer/errors"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/openai"
-	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
@@ -44,8 +42,8 @@ type ServiceConfig struct {
 	Cache             services.SummarizerServiceGetter
 	SummaryDownloader SummaryDownloader
 	Decrypter         events.DecryptionWrapper
-	// Modules defines build time constraints and licensed features.
-	Modules modules.Modules
+	// IsLicensed reports whether the SessionSummaries entitlement is active.
+	IsLicensed func() bool
 	// Emitter emits audit events.
 	Emitter apievents.Emitter
 	// OpenAIClientFactory creates OpenAI clients for testing. Optional.
@@ -68,7 +66,7 @@ type Service struct {
 	pb.UnimplementedSummarizerServiceServer
 	authorizer                       authz.Authorizer
 	backend                          services.Summarizer
-	modules                          modules.Modules
+	isLicensed                       func() bool
 	cache                            services.SummarizerServiceGetter
 	summaryDownloader                SummaryDownloader
 	logger                           *slog.Logger
@@ -105,14 +103,14 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	if cfg.Emitter == nil {
 		return nil, trace.BadParameter("emitter is required")
 	}
-	if cfg.Modules == nil {
-		return nil, trace.BadParameter("modules is required")
+	if cfg.IsLicensed == nil {
+		return nil, trace.BadParameter("is licensed function is required")
 	}
 
 	return &Service{
 		authorizer:                       cfg.Authorizer,
 		backend:                          cfg.Backend,
-		modules:                          cfg.Modules,
+		isLicensed:                       cfg.IsLicensed,
 		cache:                            cfg.Cache,
 		summaryDownloader:                cfg.SummaryDownloader,
 		logger:                           slog.With(teleport.ComponentKey, "summarizer"),
@@ -125,6 +123,10 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		usageReporter:                    cfg.UsageReporter,
 	}, nil
 }
+
+var (
+	errNotLicensed = summarizererrors.ErrUnlicensed
+)
 
 // CRUD operations for models
 
@@ -158,6 +160,9 @@ func (s *Service) CreateInferenceModel(
 	err = authCtx.CheckAccessToKind(types.KindInferenceModel, types.VerbCreate)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
 	}
 
 	if err := rejectReservedInferenceModelName(req.Model); err != nil {
@@ -210,6 +215,9 @@ func (s *Service) GetInferenceModel(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
+	}
 
 	model, err := s.backend.GetInferenceModel(ctx, req.Name)
 	return &pb.GetInferenceModelResponse{Model: model}, trace.Wrap(err)
@@ -227,6 +235,9 @@ func (s *Service) UpdateInferenceModel(
 	err = authCtx.CheckAccessToKind(types.KindInferenceModel, types.VerbUpdate)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
 	}
 
 	if err := rejectReservedInferenceModelName(req.Model); err != nil {
@@ -278,6 +289,9 @@ func (s *Service) UpsertInferenceModel(
 	err = authCtx.CheckAccessToKind(types.KindInferenceModel, types.VerbCreate, types.VerbUpdate)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
 	}
 
 	if err := rejectReservedInferenceModelName(req.Model); err != nil {
@@ -331,6 +345,9 @@ func (s *Service) DeleteInferenceModel(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
+	}
 
 	if req.Name == apisummarizer.CloudDefaultInferenceModelName {
 		// TODO(bl-nero): Add a link to the documentation on default Bedrock model
@@ -378,6 +395,9 @@ func (s *Service) ListInferenceModels(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
+	}
 
 	models, nextPageToken, err := s.backend.ListInferenceModels(ctx, int(req.PageSize), req.PageToken)
 	if err != nil {
@@ -404,6 +424,9 @@ func (s *Service) CreateInferenceSecret(
 	err = authCtx.CheckAccessToKind(types.KindInferenceSecret, types.VerbCreate)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
 	}
 
 	secret, err := s.backend.CreateInferenceSecret(ctx, req.Secret)
@@ -445,6 +468,9 @@ func (s *Service) GetInferenceSecret(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
+	}
 
 	secret, err := s.backend.GetInferenceSecret(ctx, req.Name)
 	// Don't leak the secret.
@@ -466,6 +492,9 @@ func (s *Service) UpdateInferenceSecret(
 	err = authCtx.CheckAccessToKind(types.KindInferenceSecret, types.VerbUpdate)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
 	}
 
 	secret, err := s.backend.UpdateInferenceSecret(ctx, req.Secret)
@@ -510,6 +539,9 @@ func (s *Service) UpsertInferenceSecret(
 	err = authCtx.CheckAccessToKind(types.KindInferenceSecret, types.VerbCreate, types.VerbUpdate)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
 	}
 
 	secret, err := s.backend.UpsertInferenceSecret(ctx, req.Secret)
@@ -556,6 +588,9 @@ func (s *Service) DeleteInferenceSecret(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
+	}
 
 	err = s.backend.DeleteInferenceSecret(ctx, req.Name)
 	if err != nil {
@@ -595,6 +630,9 @@ func (s *Service) ListInferenceSecrets(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
+	}
 
 	secrets, nextPageToken, err := s.backend.ListInferenceSecrets(ctx, int(req.PageSize), req.PageToken)
 	if err != nil {
@@ -625,6 +663,9 @@ func (s *Service) CreateInferencePolicy(
 	err = authCtx.CheckAccessToKind(types.KindInferencePolicy, types.VerbCreate)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
 	}
 
 	if err := s.validateInferenceModelExistence(ctx, req.GetPolicy().GetSpec().GetModel()); err != nil {
@@ -671,6 +712,9 @@ func (s *Service) GetInferencePolicy(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
+	}
 
 	policy, err := s.backend.GetInferencePolicy(ctx, req.Name)
 	return &pb.GetInferencePolicyResponse{Policy: policy}, trace.Wrap(err)
@@ -688,6 +732,9 @@ func (s *Service) UpdateInferencePolicy(
 	err = authCtx.CheckAccessToKind(types.KindInferencePolicy, types.VerbUpdate)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
 	}
 
 	if err := s.validateInferenceModelExistence(ctx, req.GetPolicy().GetSpec().GetModel()); err != nil {
@@ -733,6 +780,9 @@ func (s *Service) UpsertInferencePolicy(
 	err = authCtx.CheckAccessToKind(types.KindInferencePolicy, types.VerbCreate, types.VerbUpdate)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
 	}
 
 	if err := s.validateInferenceModelExistence(ctx, req.GetPolicy().GetSpec().GetModel()); err != nil {
@@ -780,6 +830,9 @@ func (s *Service) DeleteInferencePolicy(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
+	}
 
 	err = s.backend.DeleteInferencePolicy(ctx, req.Name)
 	if err != nil {
@@ -819,6 +872,9 @@ func (s *Service) ListInferencePolicies(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
+	}
 
 	policies, nextPageToken, err := s.backend.ListInferencePolicies(ctx, int(req.PageSize), req.PageToken)
 	if err != nil {
@@ -850,6 +906,9 @@ func (s *Service) GetSummary(
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
 	}
 
 	// Read the session summary.
@@ -945,8 +1004,7 @@ func (s *Service) IsEnabled(
 	if !authz.HasBuiltinRole(*authCtx, string(types.RoleProxy)) {
 		return nil, trace.AccessDenied("access denied")
 	}
-
-	if !s.modules.Features().GetEntitlement(entitlements.Policy).Enabled {
+	if !s.isLicensed() {
 		return &pb.IsEnabledResponse{Enabled: false}, nil
 	}
 
@@ -987,6 +1045,9 @@ func (s *Service) TestInferenceModel(
 	err = authCtx.CheckAccessToKind(types.KindInferenceModel, types.VerbCreate, types.VerbUpdate)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
 	}
 
 	if resp := validateTestResources(req); resp != nil {

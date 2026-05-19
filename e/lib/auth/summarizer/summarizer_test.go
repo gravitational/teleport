@@ -11,6 +11,7 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -51,8 +52,8 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
-	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/plugin"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/session"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
@@ -116,7 +117,7 @@ func (p *summarizerTestPlugin) RegisterAuthServices(
 		Emitter:                          authServer.AuthServer.GetEmitter(),
 		Decrypter:                        p.decrypter,
 		UsageReporter:                    authServer.AuthServer.UsageReporter,
-		Modules:                          modulestest.EnterpriseModules(),
+		IsLicensed:                       func() bool { return true },
 		EnableBedrockWithoutRestrictions: p.enableBedrockWithoutRestrictions,
 	})
 	if err != nil {
@@ -167,6 +168,9 @@ func (p *summarizerTestPlugin) RegisterAuthServices(
 		Emitter:                          emitter,
 		AccessGraphClientGetter:          p.accessGraphClientGetter,
 		AvailabilityCache:                availabilityChecker,
+		IsLicensed: func() bool {
+			return true
+		},
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -1553,4 +1557,76 @@ func TestSummarizeSSHPushesToAccessGraph(t *testing.T) {
 		require.NotEmpty(t, req.GetEmbeddings(), "expected at least one embedding chunk")
 		assert.Equal(t, []float32{0.1, 0.2, 0.3}, req.GetEmbeddings()[0].GetValues())
 	})
+}
+
+// TestSessionSummarizerUnlicensed uses reflection to verify that every method
+// declared by [summarizer.SessionSummarizer] returns immediately with a nil
+// error when [SummarizerConfig.IsLicensed] returns false. This ensures that
+// newly added summarization methods cannot accidentally run work on unlicensed
+// clusters.
+func TestSessionSummarizerUnlicensed(t *testing.T) {
+	t.Parallel()
+
+	awsCfgCache, err := createCache()
+	require.NoError(t, err)
+
+	svc, err := NewSessionSummarizer(SummarizerConfig{
+		Cache:           unlicensedSummarizerCache{},
+		Streamer:        unlicensedStreamer{},
+		SummaryUploader: unlicensedUploader{},
+		AWSConfigCache:  awsCfgCache,
+		UsageReporter:   &mockUsageReporter{},
+		Emitter:         unlicensedEmitter{},
+		AccessGraphClientGetter: func() (accessgraphv1.SessionRecordingServiceClient, error) {
+			panic("access graph client must not be called when unlicensed")
+		},
+		AvailabilityCache: &fakeAvailabilityCache{},
+		IsLicensed:        func() bool { return false },
+	})
+	require.NoError(t, err)
+
+	ifaceType := reflect.TypeFor[summarizer.SessionSummarizer]()
+	svcVal := reflect.ValueOf(svc)
+	ctx := context.Background()
+
+	tested := 0
+	for i := range ifaceType.NumMethod() {
+		m := ifaceType.Method(i)
+		if !m.IsExported() {
+			continue
+		}
+
+		results := svcVal.MethodByName(m.Name).Call([]reflect.Value{
+			reflect.ValueOf(ctx),
+			reflect.Zero(m.Type.In(1)),
+		})
+
+		t.Run(m.Name, func(t *testing.T) {
+			require.True(t, results[0].IsNil(),
+				"expected nil error from %s when unlicensed, got: %v", m.Name, results[0].Interface())
+		})
+		tested++
+	}
+	require.GreaterOrEqual(t, tested, 3, "reflection found fewer methods than expected — interface may have shrunk")
+}
+
+type unlicensedSummarizerCache struct {
+	services.SummarizerServiceGetter
+}
+
+type unlicensedStreamer struct{ events.SessionStreamer }
+
+type unlicensedUploader struct{}
+
+func (unlicensedUploader) UploadPendingSummary(context.Context, session.ID, io.Reader) (string, error) {
+	panic("UploadPendingSummary must not be called when unlicensed")
+}
+func (unlicensedUploader) UploadSummary(context.Context, session.ID, io.Reader) (string, error) {
+	panic("UploadSummary must not be called when unlicensed")
+}
+
+type unlicensedEmitter struct{}
+
+func (unlicensedEmitter) EmitAuditEvent(context.Context, apievents.AuditEvent) error {
+	panic("EmitAuditEvent must not be called when unlicensed")
 }

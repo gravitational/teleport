@@ -53,10 +53,8 @@ func TestGetRecordingSummary(t *testing.T) {
 			TestBuildType: modules.BuildEnterprise,
 			TestFeatures: modules.Features{
 				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-					entitlements.Policy: {Enabled: true},
-					// TODO(emargetis): update after https://github.com/gravitational/teleport/pull/63117 merges
-					// ensures that /e does not break when new Access Graph entitlement is added to Teleport
-					"AccessGraph": {Enabled: true},
+					entitlements.Policy:           {Enabled: true},
+					entitlements.SessionSummaries: {Enabled: true},
 				},
 			},
 		}),

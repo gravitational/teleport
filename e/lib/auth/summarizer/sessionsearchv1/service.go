@@ -13,6 +13,7 @@ import (
 	summarizerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/bedrock"
+	summarizererrors "github.com/gravitational/teleport/e/lib/auth/summarizer/errors"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/openai"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1"
 	"github.com/gravitational/teleport/lib/authz"
@@ -65,6 +66,8 @@ type ServiceConfig struct {
 	// SearchSessionSummaries can return a fast error before generating
 	// embeddings when the access graph does not support session search.
 	AvailabilityCache AvailabilityChecker
+	// IsLicensed reports whether the SessionSummaries entitlement is active.
+	IsLicensed func() bool
 }
 
 // Service implements [pb.SessionSearchServiceServer].
@@ -82,6 +85,7 @@ type Service struct {
 	cache                   services.SummarizerServiceGetter
 	accessGraphClientGetter func() (accessgraphv1.SessionRecordingServiceClient, error)
 	availabilityCache       AvailabilityChecker
+	isLicensed              func() bool
 	openAIClientFactory     openai.ClientFactory
 	bedrockClientFactory    bedrock.ClientFactory
 	awsConfigCache          *awsconfig.Cache
@@ -104,12 +108,16 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	if cfg.AvailabilityCache == nil {
 		return nil, trace.BadParameter("availability cache is required")
 	}
+	if cfg.IsLicensed == nil {
+		return nil, trace.BadParameter("is licensed function is required")
+	}
 
 	return &Service{
 		authorizer:              cfg.Authorizer,
 		cache:                   cfg.Cache,
 		accessGraphClientGetter: cfg.AccessGraphClientGetter,
 		availabilityCache:       cfg.AvailabilityCache,
+		isLicensed:              cfg.IsLicensed,
 		openAIClientFactory:     cfg.OpenAIClientFactory,
 		bedrockClientFactory:    cfg.BedrockClientFactory,
 		awsConfigCache:          cfg.AWSConfigCache,
@@ -159,6 +167,9 @@ func (s *Service) IsEnabled(
 	}
 	if err := authorizeIsEnabled(authCtx); err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if !s.isLicensed() {
+		return &pb.IsEnabledResponse{Availability: pb.SessionSearchAvailability_SESSION_SEARCH_AVAILABILITY_UNSPECIFIED}, nil
 	}
 
 	availability, err := s.availabilityCache.Get(ctx)
@@ -237,6 +248,10 @@ func (s *Service) SearchSessionSummaries(
 
 	if err := validateRequest(req); err != nil {
 		return trace.Wrap(err)
+	}
+
+	if !s.isLicensed() {
+		return summarizererrors.ErrUnlicensed
 	}
 
 	authCtx, err := s.authorizer.Authorize(ctx)

@@ -27,6 +27,9 @@ func (s *Service) CreateRetrievalModel(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
+	}
 
 	if err := s.validateRetrievalModel(ctx, req.GetModel()); err != nil {
 		return nil, trace.Wrap(err)
@@ -54,6 +57,9 @@ func (s *Service) GetRetrievalModel(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
+	}
 
 	model, err := s.backend.GetRetrievalModel(ctx)
 	if err != nil {
@@ -74,6 +80,9 @@ func (s *Service) UpdateRetrievalModel(
 	err = authCtx.CheckAccessToKind(types.KindRetrievalModel, types.VerbUpdate)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
 	}
 
 	if err := s.validateRetrievalModel(ctx, req.GetModel()); err != nil {
@@ -101,6 +110,9 @@ func (s *Service) UpsertRetrievalModel(
 	err = authCtx.CheckAccessToKind(types.KindRetrievalModel, types.VerbCreate, types.VerbUpdate)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
 	}
 
 	if err := s.validateRetrievalModel(ctx, req.GetModel()); err != nil {
@@ -138,6 +150,9 @@ func (s *Service) DeleteRetrievalModel(
 	err = authCtx.CheckAccessToKind(types.KindRetrievalModel, types.VerbDelete)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
 	}
 
 	err = s.backend.DeleteRetrievalModel(ctx)
@@ -228,6 +243,9 @@ func (s *Service) TestRetrievalModel(
 
 	if err = authCtx.CheckAccessToKind(types.KindRetrievalModel, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if !s.isLicensed() {
+		return nil, errNotLicensed
 	}
 
 	if resp := validateRetrievalTestResources(req); resp != nil {

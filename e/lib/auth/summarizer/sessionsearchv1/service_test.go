@@ -3,6 +3,7 @@ package sessionsearchv1
 import (
 	"context"
 	"net"
+	"reflect"
 	"slices"
 	"sync/atomic"
 	"testing"
@@ -16,8 +17,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -310,6 +313,7 @@ func newService(t *testing.T, srv *fakeAGServer, authorizer authz.Authorizer) *S
 		Cache:                   fakeCache{},
 		AccessGraphClientGetter: startAGServer(t, srv),
 		AvailabilityCache:       &fakeAvailabilityChecker{},
+		IsLicensed:              func() bool { return true },
 	})
 	require.NoError(t, err)
 	return svc
@@ -379,12 +383,18 @@ func TestNewService_Validation(t *testing.T) {
 			wantErr: "availability cache is required",
 		},
 		{
+			name:    "missing is licensed",
+			cfg:     ServiceConfig{Authorizer: authorizer, Cache: fakeCache{}, AccessGraphClientGetter: getter, AvailabilityCache: &fakeAvailabilityChecker{}},
+			wantErr: "is licensed function is required",
+		},
+		{
 			name: "all required fields present",
 			cfg: ServiceConfig{
 				Authorizer:              authorizer,
 				Cache:                   fakeCache{},
 				AccessGraphClientGetter: getter,
 				AvailabilityCache:       &fakeAvailabilityChecker{},
+				IsLicensed:              func() bool { return true },
 			},
 		},
 	}
@@ -907,6 +917,7 @@ func TestSearchSessionSummaries_EmbeddingsGenerated(t *testing.T) {
 		AccessGraphClientGetter: startAGServer(t, agSrv),
 		AvailabilityCache:       &fakeAvailabilityChecker{},
 		OpenAIClientFactory:     fakeOpenAIClientFactory{},
+		IsLicensed:              func() bool { return true },
 	})
 	require.NoError(t, err)
 
@@ -965,6 +976,7 @@ func newServiceWithTracking(t *testing.T, srv *fakeAGServer, factory *trackingOp
 		AccessGraphClientGetter: startAGServer(t, srv),
 		AvailabilityCache:       &fakeAvailabilityChecker{},
 		OpenAIClientFactory:     factory,
+		IsLicensed:              func() bool { return true },
 	})
 	require.NoError(t, err)
 	return svc
@@ -1061,4 +1073,91 @@ func TestSearchSessionSummaries_SearchModeForwarded(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestServiceUnlicensed uses reflection to verify that every method declared by
+// [pb.SessionSearchServiceServer] returns a "not licensed" response when
+// [ServiceConfig.IsLicensed] returns false. This ensures that newly added
+// endpoints cannot accidentally bypass the entitlement check.
+func TestServiceUnlicensed(t *testing.T) {
+	t.Parallel()
+
+	adminCtx, err := authz.NewBuiltinRoleContext(types.RoleAdmin)
+	require.NoError(t, err)
+
+	svc, err := NewService(ServiceConfig{
+		Authorizer: authz.AuthorizerFunc(func(context.Context) (*authz.Context, error) {
+			return adminCtx, nil
+		}),
+		Cache: fakeCache{},
+		AccessGraphClientGetter: func() (accessgraphv1.SessionRecordingServiceClient, error) {
+			panic("access graph client must not be called when unlicensed")
+		},
+		AvailabilityCache: &fakeAvailabilityChecker{},
+		IsLicensed:        func() bool { return false },
+	})
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	svcType := reflect.TypeFor[*Service]()
+	svcVal := reflect.ValueOf(svc)
+	ctxIfaceType := reflect.TypeFor[context.Context]()
+
+	// SearchSessionSummaries validates the request before checking the license,
+	// so supply a valid but minimal request to ensure the license guard is reached.
+	now := time.Now()
+	validSearchReq := &pb.SearchSessionSummariesRequest{
+		StartTime: timestamppb.New(now.Add(-time.Hour)),
+		EndTime:   timestamppb.New(now),
+	}
+
+	tested := 0
+	for i := range svcType.NumMethod() {
+		m := svcType.Method(i)
+		if !m.IsExported() {
+			continue
+		}
+		if m.Type.NumIn() < 3 {
+			continue
+		}
+		isUnary := m.Type.In(1).Implements(ctxIfaceType)
+
+		var results []reflect.Value
+		if isUnary {
+			reqType := m.Type.In(2)
+			results = svcVal.MethodByName(m.Name).Call([]reflect.Value{
+				reflect.ValueOf(ctx),
+				reflect.New(reqType.Elem()),
+			})
+		} else {
+			stream := &fakeStream[pb.SearchSessionSummariesResponse]{ctx: ctx}
+			results = svcVal.MethodByName(m.Name).Call([]reflect.Value{
+				reflect.ValueOf(validSearchReq),
+				reflect.ValueOf(stream),
+			})
+		}
+
+		t.Run(m.Name, func(t *testing.T) {
+			if m.Name == "IsEnabled" {
+				// IsEnabled communicates "unlicensed" through the response body
+				// (UNSPECIFIED availability) so callers can distinguish feature
+				// absence from a transient error without treating either as fatal.
+				require.True(t, results[1].IsNil(), "expected no error from IsEnabled, got: %v", results[1].Interface())
+				resp, ok := results[0].Interface().(*pb.IsEnabledResponse)
+				require.True(t, ok)
+				require.Equal(t, pb.SessionSearchAvailability_SESSION_SEARCH_AVAILABILITY_UNSPECIFIED, resp.GetAvailability())
+				return
+			}
+
+			errVal := results[0]
+			require.False(t, errVal.IsNil(), "expected Unimplemented error from %s, got nil", m.Name)
+			callErr := errVal.Interface().(error)
+			st, ok := status.FromError(callErr)
+			require.True(t, ok, "expected gRPC status error from %s, got: %v", m.Name, callErr)
+			require.Equal(t, codes.Unimplemented, st.Code(),
+				"expected Unimplemented from %s, got %v: %v", m.Name, st.Code(), callErr)
+		})
+		tested++
+	}
+	require.GreaterOrEqual(t, tested, 2, "reflection found fewer methods than expected — interface may have shrunk")
 }

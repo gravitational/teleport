@@ -28,10 +28,8 @@ func TestListInferenceResources(t *testing.T) {
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Policy: {Enabled: true},
-				// TODO(emargetis): update after https://github.com/gravitational/teleport/pull/63117 merges
-				// ensures that /e does not break when new Access Graph entitlement is added to Teleport
-				"AccessGraph": {Enabled: true},
+				entitlements.Policy:           {Enabled: true},
+				entitlements.SessionSummaries: {Enabled: true},
 			},
 		},
 	}))
@@ -213,10 +211,8 @@ func TestInferenceModelCRUD(t *testing.T) {
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Policy: {Enabled: true},
-				// TODO(emargetis): update after https://github.com/gravitational/teleport/pull/63117 merges
-				// ensures that /e does not break when new Access Graph entitlement is added to Teleport
-				"AccessGraph": {Enabled: true},
+				entitlements.Policy:           {Enabled: true},
+				entitlements.SessionSummaries: {Enabled: true},
 			},
 		},
 	}))
@@ -314,10 +310,8 @@ func TestInferenceSecretCRUD(t *testing.T) {
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Policy: {Enabled: true},
-				// TODO(emargetis): update after https://github.com/gravitational/teleport/pull/63117 merges
-				// ensures that /e does not break when new Access Graph entitlement is added to Teleport
-				"AccessGraph": {Enabled: true},
+				entitlements.Policy:           {Enabled: true},
+				entitlements.SessionSummaries: {Enabled: true},
 			},
 		},
 	}))
@@ -402,10 +396,8 @@ func TestInferencePolicyCRUD(t *testing.T) {
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Policy: {Enabled: true},
-				// TODO(emargetis): update after https://github.com/gravitational/teleport/pull/63117 merges
-				// ensures that /e does not break when new Access Graph entitlement is added to Teleport
-				"AccessGraph": {Enabled: true},
+				entitlements.Policy:           {Enabled: true},
+				entitlements.SessionSummaries: {Enabled: true},
 			},
 		},
 	}))
@@ -600,10 +592,8 @@ func TestTestInferenceModel(t *testing.T) {
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Policy: {Enabled: true},
-				// TODO(emargetis): update after https://github.com/gravitational/teleport/pull/63117 merges
-				// ensures that /e does not break when new Access Graph entitlement is added to Teleport
-				"AccessGraph": {Enabled: true},
+				entitlements.Policy:           {Enabled: true},
+				entitlements.SessionSummaries: {Enabled: true},
 			},
 		},
 	}))
