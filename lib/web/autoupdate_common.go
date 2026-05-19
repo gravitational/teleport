@@ -25,14 +25,13 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	autoupdatepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/autoupdate"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 	"github.com/gravitational/teleport/lib/utils"
-
-	"github.com/gravitational/teleport"
 )
 
 // autoUpdateAgentVersion returns the version the agent should install/update to based on
