@@ -1467,6 +1467,38 @@ func TestUnifiedResourcesGet_AppComponentFeatures(t *testing.T) {
 	}, app.SupportedFeatureIDs)
 }
 
+func Test_appServerEffectiveFeatures(t *testing.T) {
+	t.Parallel()
+	rcv1 := componentfeatures.FeatureResourceConstraintsV1
+	otherFeature := componentfeatures.FeatureID(9999)
+	clusterFeatures := componentfeatures.New(rcv1, otherFeature)
+	makeAppServer := func(t *testing.T, version string, features *componentfeaturesv1.ComponentFeatures) types.AppServer {
+		app, err := types.NewAppV3(types.Metadata{Name: "aws-app"}, types.AppSpecV3{URI: "https://console.aws.amazon.com", Cloud: "AWS"})
+		require.NoError(t, err)
+		srv, err := types.NewAppServerV3FromApp(app, "localhost", "host-1")
+		require.NoError(t, err)
+		srv.Spec.Version = version
+		srv.SetComponentFeatures(features)
+		return srv
+	}
+
+	t.Run("old app server has ResourceConstraintsV1 stripped", func(t *testing.T) {
+		srv := makeAppServer(t, "18.7.0", componentfeatures.New(rcv1, otherFeature))
+		result := appServerEffectiveFeatures(srv, clusterFeatures)
+		require.ElementsMatch(t, componentfeatures.New(otherFeature).GetFeatures(), result.GetFeatures())
+	})
+	t.Run("new app server keeps ResourceConstraintsV1", func(t *testing.T) {
+		srv := makeAppServer(t, "18.7.3", componentfeatures.New(rcv1, otherFeature))
+		result := appServerEffectiveFeatures(srv, clusterFeatures)
+		require.ElementsMatch(t, componentfeatures.New(rcv1, otherFeature).GetFeatures(), result.GetFeatures())
+	})
+	t.Run("nil features on old app server returns empty", func(t *testing.T) {
+		srv := makeAppServer(t, "18.6.4", nil)
+		result := appServerEffectiveFeatures(srv, clusterFeatures)
+		require.Empty(t, result.GetFeatures())
+	})
+}
+
 func TestUnifiedResourcesGet(t *testing.T) {
 	t.Parallel()
 	env := newWebPack(t, 1)
@@ -9130,15 +9162,12 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		FIPS:   false,
 		Logger: logtest.NewLogger(),
 		Dialer: router,
-		SignerFn: func(authzCtx *authz.ScopedContext, clusterName string) agentless.SignerCreator {
+		SignerFn: func(_ context.Context, authzCtx *authz.ScopedContext, clusterName string) (agentless.SignerCreator, error) {
 			if unscopedCtx, ok := authzCtx.UnscopedContext(); ok {
-				return agentless.SignerFromAuthzContext(unscopedCtx, client, clusterName)
+				return agentless.SignerFromAuthzContext(unscopedCtx, client, client, clusterName), nil
 			}
 
-			return func(ctx context.Context, localAccessPoint agentless.LocalAccessPoint, certGen agentless.CertGenerator) (ssh.Signer, error) {
-				// TODO(fspamarshall/scopes): implement agentless transport signer for scoped identities
-				return nil, trace.NotImplemented("agentless transport signer is not implemented for scoped identities")
-			}
+			return agentless.SignerFromScopedContext(authzCtx, client, client, clusterName), nil
 		},
 		ConnectionMonitor: connMonitor,
 		LocalAddr:         proxyListener.Addr(),

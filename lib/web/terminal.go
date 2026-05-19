@@ -700,7 +700,12 @@ func (t *sshBaseHandler) connectToHost(ctx context.Context, ws terminal.WSConn, 
 		return nil, trace.Wrap(err)
 	}
 
-	signer := agentless.SignerFromSSHIdentity(ident, t.localAccessPoint, tc.SiteName, tc.Username)
+	certGen, err := t.router.GetSiteClient(ctx, tc.SiteName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	signer := agentless.SignerFromSSHIdentity(ident, t.localAccessPoint, certGen, tc.SiteName, tc.Username)
 
 	// Try to connect directly with existing certs. This can succeed if MFA is not required or if the node supports
 	// in-band MFA and the ceremony completes successfully.

@@ -17,10 +17,8 @@
 package cache
 
 import (
-	"context"
 	"testing"
-
-	"github.com/gravitational/trace"
+	"testing/synctest"
 
 	autoupdatev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 )
@@ -28,103 +26,59 @@ import (
 // TestAutoUpdateConfig tests that CRUD operations on AutoUpdateConfig resources are
 // replicated from the backend to the cache.
 func TestAutoUpdateConfig(t *testing.T) {
-	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		p := newTestPack(t, ForAuth)
+		t.Cleanup(p.Close)
 
-	p := newTestPack(t, ForAuth)
-	t.Cleanup(p.Close)
-
-	testResources153(t, p, testFuncs[*autoupdatev1.AutoUpdateConfig]{
-		newResource: func(name string) (*autoupdatev1.AutoUpdateConfig, error) {
-			return newAutoUpdateConfig(t), nil
-		},
-		create: func(ctx context.Context, item *autoupdatev1.AutoUpdateConfig) error {
-			_, err := p.autoUpdateService.UpsertAutoUpdateConfig(ctx, item)
-			return trace.Wrap(err)
-		},
-		list: getAllAdapter(func(ctx context.Context) ([]*autoupdatev1.AutoUpdateConfig, error) {
-			item, err := p.autoUpdateService.GetAutoUpdateConfig(ctx)
-			if trace.IsNotFound(err) {
-				return []*autoupdatev1.AutoUpdateConfig{}, nil
-			}
-			return []*autoupdatev1.AutoUpdateConfig{item}, trace.Wrap(err)
-		}),
-		cacheList: getAllAdapter(func(ctx context.Context) ([]*autoupdatev1.AutoUpdateConfig, error) {
-			item, err := p.cache.GetAutoUpdateConfig(ctx)
-			if trace.IsNotFound(err) {
-				return []*autoupdatev1.AutoUpdateConfig{}, nil
-			}
-			return []*autoupdatev1.AutoUpdateConfig{item}, trace.Wrap(err)
-		}),
-		deleteAll: func(ctx context.Context) error {
-			return trace.Wrap(p.autoUpdateService.DeleteAutoUpdateConfig(ctx))
-		},
-	}, withSkipPaginationTest())
+		testSingleton153(t, p, testSingletonFuncs153[*autoupdatev1.AutoUpdateConfig]{
+			newResource: func() *autoupdatev1.AutoUpdateConfig {
+				return newAutoUpdateConfig(t)
+			},
+			create:   p.autoUpdateService.CreateAutoUpdateConfig,
+			update:   p.autoUpdateService.UpdateAutoUpdateConfig,
+			get:      p.autoUpdateService.GetAutoUpdateConfig,
+			cacheGet: p.cache.GetAutoUpdateConfig,
+			delete:   p.autoUpdateService.DeleteAutoUpdateConfig,
+		})
+	})
 }
 
 // TestAutoUpdateVersion tests that CRUD operations on AutoUpdateVersion resource are
 // replicated from the backend to the cache.
 func TestAutoUpdateVersion(t *testing.T) {
-	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		p := newTestPack(t, ForAuth)
+		t.Cleanup(p.Close)
 
-	p := newTestPack(t, ForAuth)
-	t.Cleanup(p.Close)
-
-	testResources153(t, p, testFuncs[*autoupdatev1.AutoUpdateVersion]{
-		newResource: func(name string) (*autoupdatev1.AutoUpdateVersion, error) {
-			return newAutoUpdateVersion(t), nil
-		},
-		create: func(ctx context.Context, item *autoupdatev1.AutoUpdateVersion) error {
-			_, err := p.autoUpdateService.UpsertAutoUpdateVersion(ctx, item)
-			return trace.Wrap(err)
-		},
-		list: getAllAdapter(func(ctx context.Context) ([]*autoupdatev1.AutoUpdateVersion, error) {
-			item, err := p.autoUpdateService.GetAutoUpdateVersion(ctx)
-			if trace.IsNotFound(err) {
-				return []*autoupdatev1.AutoUpdateVersion{}, nil
-			}
-			return []*autoupdatev1.AutoUpdateVersion{item}, trace.Wrap(err)
-		}),
-		cacheList: getAllAdapter(func(ctx context.Context) ([]*autoupdatev1.AutoUpdateVersion, error) {
-			item, err := p.cache.GetAutoUpdateVersion(ctx)
-			if trace.IsNotFound(err) {
-				return []*autoupdatev1.AutoUpdateVersion{}, nil
-			}
-			return []*autoupdatev1.AutoUpdateVersion{item}, trace.Wrap(err)
-		}),
-		deleteAll: p.autoUpdateService.DeleteAutoUpdateVersion,
-	}, withSkipPaginationTest())
+		testSingleton153(t, p, testSingletonFuncs153[*autoupdatev1.AutoUpdateVersion]{
+			newResource: func() *autoupdatev1.AutoUpdateVersion {
+				return newAutoUpdateVersion(t)
+			},
+			create:   p.autoUpdateService.CreateAutoUpdateVersion,
+			update:   p.autoUpdateService.UpdateAutoUpdateVersion,
+			get:      p.autoUpdateService.GetAutoUpdateVersion,
+			cacheGet: p.cache.GetAutoUpdateVersion,
+			delete:   p.autoUpdateService.DeleteAutoUpdateVersion,
+		})
+	})
 }
 
 // TestAutoUpdateAgentRollout tests that CRUD operations on AutoUpdateAgentRollout resource are
 // replicated from the backend to the cache.
 func TestAutoUpdateAgentRollout(t *testing.T) {
-	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		p := newTestPack(t, ForAuth)
+		t.Cleanup(p.Close)
 
-	p := newTestPack(t, ForAuth)
-	t.Cleanup(p.Close)
-
-	testResources153(t, p, testFuncs[*autoupdatev1.AutoUpdateAgentRollout]{
-		newResource: func(name string) (*autoupdatev1.AutoUpdateAgentRollout, error) {
-			return newAutoUpdateAgentRollout(t), nil
-		},
-		create: func(ctx context.Context, item *autoupdatev1.AutoUpdateAgentRollout) error {
-			_, err := p.autoUpdateService.UpsertAutoUpdateAgentRollout(ctx, item)
-			return trace.Wrap(err)
-		},
-		list: getAllAdapter(func(ctx context.Context) ([]*autoupdatev1.AutoUpdateAgentRollout, error) {
-			item, err := p.autoUpdateService.GetAutoUpdateAgentRollout(ctx)
-			if trace.IsNotFound(err) {
-				return []*autoupdatev1.AutoUpdateAgentRollout{}, nil
-			}
-			return []*autoupdatev1.AutoUpdateAgentRollout{item}, trace.Wrap(err)
-		}),
-		cacheList: getAllAdapter(func(ctx context.Context) ([]*autoupdatev1.AutoUpdateAgentRollout, error) {
-			item, err := p.cache.GetAutoUpdateAgentRollout(ctx)
-			if trace.IsNotFound(err) {
-				return []*autoupdatev1.AutoUpdateAgentRollout{}, nil
-			}
-			return []*autoupdatev1.AutoUpdateAgentRollout{item}, trace.Wrap(err)
-		}),
-		deleteAll: p.autoUpdateService.DeleteAutoUpdateAgentRollout,
-	}, withSkipPaginationTest())
+		testSingleton153(t, p, testSingletonFuncs153[*autoupdatev1.AutoUpdateAgentRollout]{
+			newResource: func() *autoupdatev1.AutoUpdateAgentRollout {
+				return newAutoUpdateAgentRollout(t)
+			},
+			create:   p.autoUpdateService.CreateAutoUpdateAgentRollout,
+			update:   p.autoUpdateService.UpdateAutoUpdateAgentRollout,
+			get:      p.autoUpdateService.GetAutoUpdateAgentRollout,
+			cacheGet: p.cache.GetAutoUpdateAgentRollout,
+			delete:   p.autoUpdateService.DeleteAutoUpdateAgentRollout,
+		})
+	})
 }
