@@ -20,7 +20,6 @@ import { EventEmitter } from 'events';
 
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import 'jest-canvas-mock';
 import { act } from 'react';
 
 import { render } from 'design/utils/testing';
