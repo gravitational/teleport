@@ -230,28 +230,28 @@ describe('SortMenu', () => {
     expect(onChange).toHaveBeenCalledTimes(1);
     expect(onChange).toHaveBeenLastCalledWith('test-2', 'DESC');
   });
-});
 
-it('shows the item key if the label is empty', async () => {
-  const { user, onChange } = renderComponent({
-    props: {
-      items: [
-        {
-          key: 'test1',
-          label: '',
-        },
-      ],
-      selectedKey: 'test1',
-      selectedOrder: 'ASC',
-    },
+  it('shows the item key if the label is empty', async () => {
+    const { user, onChange } = renderComponent({
+      props: {
+        items: [
+          {
+            key: 'test1',
+            label: '',
+          },
+        ],
+        selectedKey: 'test1',
+        selectedOrder: 'ASC',
+      },
+    });
+    await openMenu(user, 'test1');
+    const menu = screen.getByRole('menu');
+    const t1 = within(menu).getByRole('menuitem', { name: 'test1' });
+    expect(t1).toBeInTheDocument();
+    await user.click(t1);
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenLastCalledWith('test1', 'ASC');
   });
-  await openMenu(user, 'test1');
-  const menu = screen.getByRole('menu');
-  const t1 = within(menu).getByRole('menuitem', { name: 'test1' });
-  expect(t1).toBeInTheDocument();
-  await user.click(t1);
-  expect(onChange).toHaveBeenCalledTimes(1);
-  expect(onChange).toHaveBeenLastCalledWith('test1', 'ASC');
 });
 
 async function openMenu(user: UserEvent, label = 'Name') {
