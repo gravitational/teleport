@@ -29,6 +29,8 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/proto"
 
+	authpb "github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
 	clusterconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -65,6 +67,74 @@ func (m *mockTagEventWatcher) Send(event *accessgraphv1alpha.EventsStreamV2Reque
 	return nil
 }
 
+type mockAccessRequestLister struct {
+	requests []*types.AccessRequestV3
+	calls    []authpb.ListAccessRequestsRequest
+}
+
+func (m *mockAccessRequestLister) ListAccessRequests(_ context.Context, req *authpb.ListAccessRequestsRequest) (*authpb.ListAccessRequestsResponse, error) {
+	m.calls = append(m.calls, *req)
+
+	start := 0
+	if req.StartKey != "" {
+		var err error
+		start, err = strconv.Atoi(req.StartKey)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	limit := int(req.Limit)
+	if limit <= 0 {
+		limit = len(m.requests)
+	}
+	end := min(start+limit, len(m.requests))
+
+	nextKey := ""
+	if end < len(m.requests) {
+		nextKey = strconv.Itoa(end)
+	}
+
+	return &authpb.ListAccessRequestsResponse{
+		AccessRequests: m.requests[start:end],
+		NextKey:        nextKey,
+	}, nil
+}
+
+type mockRoleLister struct {
+	roles    []*types.RoleV6
+	requests []authpb.ListRolesRequest
+}
+
+func (m *mockRoleLister) ListRoles(_ context.Context, req *authpb.ListRolesRequest) (*authpb.ListRolesResponse, error) {
+	m.requests = append(m.requests, *req)
+
+	start := 0
+	if req.StartKey != "" {
+		var err error
+		start, err = strconv.Atoi(req.StartKey)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	limit := int(req.Limit)
+	if limit <= 0 {
+		limit = len(m.roles)
+	}
+	end := min(start+limit, len(m.roles))
+
+	nextKey := ""
+	if end < len(m.roles) {
+		nextKey = strconv.Itoa(end)
+	}
+
+	return &authpb.ListRolesResponse{
+		Roles:   m.roles[start:end],
+		NextKey: nextKey,
+	}, nil
+}
+
 func unpackEvent(t *testing.T, event *accessgraphv1alpha.EventsStreamV2Request) *types.ServerV2 {
 	t.Helper()
 
@@ -95,7 +165,8 @@ func Test_tagEventWatcher_Send(t *testing.T) {
 	err := eventWatcher.Send(types.Event{Type: types.OpInit})
 	require.NoError(t, err)
 
-	err = eventWatcher.Send(types.Event{Type: types.OpPut,
+	err = eventWatcher.Send(types.Event{
+		Type:     types.OpPut,
 		Resource: &types.ServerV2{Metadata: types.Metadata{Name: "1"}},
 	})
 	require.NoError(t, err)
@@ -103,7 +174,8 @@ func Test_tagEventWatcher_Send(t *testing.T) {
 	err = eventWatcher.markReady()
 	require.NoError(t, err)
 
-	err = eventWatcher.Send(types.Event{Type: types.OpPut,
+	err = eventWatcher.Send(types.Event{
+		Type:     types.OpPut,
 		Resource: &types.ServerV2{Metadata: types.Metadata{Name: "2"}},
 	})
 	require.NoError(t, err)
@@ -111,6 +183,81 @@ func Test_tagEventWatcher_Send(t *testing.T) {
 	require.Len(t, mock.events, 2)
 	require.Equal(t, "1", unpackEvent(t, mock.events[0]).GetName())
 	require.Equal(t, "2", unpackEvent(t, mock.events[1]).GetName())
+}
+
+func TestSendAccessRequestsPaginatedUpserts(t *testing.T) {
+	t.Parallel()
+
+	requestCount := apidefaults.DefaultChunkSize*2 + 3
+	requests := make([]*types.AccessRequestV3, 0, requestCount)
+	for i := range requestCount {
+		req, err := types.NewAccessRequest(strconv.Itoa(i), "user", "role")
+		require.NoError(t, err)
+		requests = append(requests, req.(*types.AccessRequestV3))
+	}
+
+	stream := &mockTagEventWatcher{}
+	lister := &mockAccessRequestLister{requests: requests}
+	err := sendAccessRequests(context.Background(), lister, stream)
+	require.NoError(t, err)
+
+	require.Len(t, lister.calls, 3)
+	require.Equal(t, int32(apidefaults.DefaultChunkSize), lister.calls[0].Limit)
+	require.Empty(t, lister.calls[0].StartKey)
+	require.Equal(t, strconv.Itoa(apidefaults.DefaultChunkSize), lister.calls[1].StartKey)
+	require.Equal(t, strconv.Itoa(apidefaults.DefaultChunkSize*2), lister.calls[2].StartKey)
+
+	require.Len(t, stream.events, requestCount)
+	var gotNames []string
+	for _, event := range stream.events {
+		upsert := event.GetUpsert()
+		require.NotNil(t, upsert)
+		require.Len(t, upsert.Resources, 1)
+		accessRequest := upsert.Resources[0].GetAccessRequest()
+		require.NotNil(t, accessRequest)
+		gotNames = append(gotNames, accessRequest.GetName())
+	}
+	require.Len(t, gotNames, requestCount)
+	for i, name := range gotNames {
+		require.Equal(t, strconv.Itoa(i), name)
+	}
+}
+
+func TestSendRolesPaginatedUpserts(t *testing.T) {
+	t.Parallel()
+
+	roleCount := apidefaults.DefaultChunkSize + 2
+	roles := make([]*types.RoleV6, 0, roleCount)
+	for i := range roleCount {
+		role, err := types.NewRole(strconv.Itoa(i), types.RoleSpecV6{})
+		require.NoError(t, err)
+		roles = append(roles, role.(*types.RoleV6))
+	}
+
+	stream := &mockTagEventWatcher{}
+	lister := &mockRoleLister{roles: roles}
+	err := sendRoles(context.Background(), lister, stream)
+	require.NoError(t, err)
+
+	require.Len(t, lister.requests, 2)
+	require.Equal(t, int32(apidefaults.DefaultChunkSize), lister.requests[0].Limit)
+	require.Empty(t, lister.requests[0].StartKey)
+	require.Equal(t, strconv.Itoa(apidefaults.DefaultChunkSize), lister.requests[1].StartKey)
+
+	require.Len(t, stream.events, roleCount)
+	var gotNames []string
+	for _, event := range stream.events {
+		upsert := event.GetUpsert()
+		require.NotNil(t, upsert)
+		require.Len(t, upsert.Resources, 1)
+		role := upsert.Resources[0].GetRole()
+		require.NotNil(t, role)
+		gotNames = append(gotNames, role.GetName())
+	}
+	require.Len(t, gotNames, roleCount)
+	for i, name := range gotNames {
+		require.Equal(t, strconv.Itoa(i), name)
+	}
 }
 
 func Test_tagEventWatcher_Send_Concurrent(t *testing.T) {
@@ -125,7 +272,8 @@ func Test_tagEventWatcher_Send_Concurrent(t *testing.T) {
 	require.NoError(t, err)
 
 	for i := range 100 {
-		err := eventWatcher.Send(types.Event{Type: types.OpPut,
+		err := eventWatcher.Send(types.Event{
+			Type:     types.OpPut,
 			Resource: &types.ServerV2{Metadata: types.Metadata{Name: strconv.Itoa(i)}},
 		})
 		assert.NoError(t, err)
@@ -137,9 +285,9 @@ func Test_tagEventWatcher_Send_Concurrent(t *testing.T) {
 	wg := sync.WaitGroup{}
 	// Send a bunch of events concurrently
 	wg.Go(func() {
-
 		for i := 100; i < 200; i++ {
-			err := eventWatcher.Send(types.Event{Type: types.OpPut,
+			err := eventWatcher.Send(types.Event{
+				Type:     types.OpPut,
 				Resource: &types.ServerV2{Metadata: types.Metadata{Name: strconv.Itoa(i)}},
 			})
 			assert.NoError(t, err)
@@ -209,7 +357,6 @@ func TestConvertEvent(t *testing.T) {
 			tt.validate(t, auditEvent)
 		})
 	}
-
 }
 
 type fakeUsageEventSender struct {
@@ -400,7 +547,6 @@ func newAccessGraphFakeService(t *testing.T, lis net.Listener) *accessGraphServi
 	go s.Serve(lis)
 
 	return accessService
-
 }
 
 type accessGraphService struct {
@@ -468,7 +614,6 @@ func (a *accessGraphService) EventsStreamV2(stream accessgraphv1alpha.AccessGrap
 		a.receivedMessages = append(a.receivedMessages, recv)
 		a.mu.Unlock()
 	}
-
 }
 
 type testServiceComponents struct {
@@ -626,7 +771,6 @@ func TestUserSecretsCleanup(t *testing.T) {
 		}
 		return usersFound && noSecret && hasSync
 	}, 10*time.Second, 100*time.Millisecond, "expected to receive non-secret user before timeout")
-
 }
 
 // TestProcessEventStream_WatcherCreation exercises the full watcher-initialization

@@ -16,7 +16,7 @@ import (
 	_ "google.golang.org/grpc/health"
 	"google.golang.org/grpc/metadata"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
+	authpb "github.com/gravitational/teleport/api/client/proto"
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
@@ -30,6 +30,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	legacy_header "github.com/gravitational/teleport/api/types/header/convert/legacy"
 	headerv1 "github.com/gravitational/teleport/api/types/header/convert/v1"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
@@ -50,8 +51,10 @@ const (
 	supportedKindsKey = "supported-kinds"
 )
 
-type eventStream grpc.BidiStreamingClient[accessgraphv1.EventsStreamV2Request, accessgraphv1.EventsStreamV2Response]
-type auditLogStream grpc.BidiStreamingClient[accessgraphv1.AuditLogStreamRequest, accessgraphv1.AuditLogStreamResponse]
+type (
+	eventStream    grpc.BidiStreamingClient[accessgraphv1.EventsStreamV2Request, accessgraphv1.EventsStreamV2Response]
+	auditLogStream grpc.BidiStreamingClient[accessgraphv1.AuditLogStreamRequest, accessgraphv1.AuditLogStreamResponse]
+)
 
 // initializeAndWatchAccessGraph initializes the access graph service and watches the auth server for events.
 // This function acquires a lock on the backend to ensure that only one instance of auth server is sending
@@ -524,453 +527,204 @@ func forwardEventsWatch(cacheWatcher types.Watcher, servicesWatcher types.Watche
 	}
 }
 
-// sendUsers sends all users to the access graph service.
 func sendUsers(ctx context.Context, authServer interface {
 	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
-}, stream accessgraphv1.AccessGraphService_EventsStreamV2Client,
+}, stream accessGraphSender,
 ) error {
-	req := userspb.ListUsersRequest{
-		PageSize:    apidefaults.DefaultChunkSize,
-		WithSecrets: true, /* ask for secrets */
-	}
-
-	for {
-		rsp, err := authServer.ListUsers(ctx, &req)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if err := pushUsersToTAG(ctx, stream, rsp.Users); err != nil {
-			return trace.Wrap(err)
-		}
-
-		req.PageToken = rsp.NextPageToken
-		if req.PageToken == "" {
-			break
-		}
-	}
-
-	return nil
+	return sendPaginatedResources(ctx, stream,
+		func(ctx context.Context, size int, token string) ([]*types.UserV2, string, error) {
+			rsp, err := authServer.ListUsers(ctx, &userspb.ListUsersRequest{
+				PageSize:    int32(size),
+				PageToken:   token,
+				WithSecrets: true,
+			})
+			if err != nil {
+				return nil, "", err
+			}
+			return rsp.GetUsers(), rsp.GetNextPageToken(), nil
+		},
+		func(user *types.UserV2) *accessgraphv1.ResourceEntry {
+			// If the user's weakest device is not set, set it now.
+			if auth := user.GetLocalAuth(); auth != nil &&
+				user.GetWeakestDevice() == types.MFADeviceKind_MFA_DEVICE_KIND_UNSPECIFIED {
+				user.SetWeakestDevice(local.GetWeakestMFADeviceKind(auth.MFA))
+			}
+			return &accessgraphv1.ResourceEntry{
+				Resource: &accessgraphv1.ResourceEntry_User{
+					// reset local auth to avoid sending secrets to the access graph service
+					// we load secrets only to populate the user's MFA status when not set
+					// in the database.
+					User: user.WithoutSecrets().(*types.UserV2),
+				},
+			}
+		},
+	)
 }
 
 func sendCrownJewels(ctx context.Context, authServer interface {
 	ListCrownJewels(ctx context.Context, pageSize int64, nextToken string) ([]*crownjewelv1.CrownJewel, string, error)
-}, stream accessgraphv1.AccessGraphService_EventsStreamV2Client,
+}, stream accessGraphSender,
 ) error {
-	nextToken := ""
-
-	for {
-		crownJewels, token, err := authServer.ListCrownJewels(ctx, 0, nextToken)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if err := pushCrownJewelsToTAG(ctx, stream, crownJewels); err != nil {
-			return trace.Wrap(err)
-		}
-
-		if token == "" {
-			break
-		}
-
-		nextToken = token
-	}
-
-	return nil
-}
-
-func pushUsersToTAG(ctx context.Context, stream accessgraphv1.AccessGraphService_EventsStreamV2Client, users []*types.UserV2) error {
-	if len(users) == 0 {
-		return nil
-	}
-	list := &accessgraphv1.ResourceList{}
-	for _, user := range users {
-		// If the user's weakest device is not set, set it now.
-		if auth := user.GetLocalAuth(); auth != nil &&
-			user.GetWeakestDevice() == types.MFADeviceKind_MFA_DEVICE_KIND_UNSPECIFIED {
-			user.SetWeakestDevice(local.GetWeakestMFADeviceKind(auth.MFA))
-		}
-		list.Resources = append(list.Resources, &accessgraphv1.ResourceEntry{
-			Resource: &accessgraphv1.ResourceEntry_User{
-				// reset local auth to avoid sending secrets to the access graph service
-				// we load secrets only to populate the user's MFA status when not set
-				// in the database.
-				User: user.WithoutSecrets().(*types.UserV2),
-			},
-		})
-	}
-	return trace.Wrap(stream.Send(&accessgraphv1.EventsStreamV2Request{
-		Operation: &accessgraphv1.EventsStreamV2Request_Upsert{
-			Upsert: list,
+	return sendPaginatedResources(ctx, stream,
+		func(ctx context.Context, size int, token string) ([]*crownjewelv1.CrownJewel, string, error) {
+			return authServer.ListCrownJewels(ctx, int64(size), token)
 		},
-	}))
-}
-
-func pushCrownJewelsToTAG(ctx context.Context, stream accessgraphv1.AccessGraphService_EventsStreamV2Client, crownJewels []*crownjewelv1.CrownJewel) error {
-	if len(crownJewels) == 0 {
-		return nil
-	}
-	list := &accessgraphv1.ResourceList{}
-	for _, crownJewel := range crownJewels {
-		list.Resources = append(list.Resources, &accessgraphv1.ResourceEntry{
-			Resource: &accessgraphv1.ResourceEntry_CrownJewel{
-				CrownJewel: crownJewel,
-			},
-		})
-	}
-	return trace.Wrap(stream.Send(&accessgraphv1.EventsStreamV2Request{
-		Operation: &accessgraphv1.EventsStreamV2Request_Upsert{
-			Upsert: list,
+		func(c *crownjewelv1.CrownJewel) *accessgraphv1.ResourceEntry {
+			return &accessgraphv1.ResourceEntry{Resource: &accessgraphv1.ResourceEntry_CrownJewel{CrownJewel: c}}
 		},
-	}))
+	)
 }
 
-// sendRoles sends all roles to the access graph service.
 func sendRoles(ctx context.Context, authServer interface {
-	GetRoles(context.Context) ([]types.Role, error)
-}, stream accessgraphv1.AccessGraphService_EventsStreamV2Client,
+	ListRoles(context.Context, *authpb.ListRolesRequest) (*authpb.ListRolesResponse, error)
+}, stream accessGraphSender,
 ) error {
-	// Get all roles.
-	// Auth server does not support pagination for roles, so we have to get all roles at once
-	// and we chunk them after.
-	roles, err := authServer.GetRoles(ctx)
+	return sendPaginatedResources(ctx, stream,
+		func(ctx context.Context, size int, token string) ([]*types.RoleV6, string, error) {
+			rsp, err := authServer.ListRoles(ctx, &authpb.ListRolesRequest{
+				Limit:    int32(size),
+				StartKey: token,
+			})
+			if err != nil {
+				return nil, "", err
+			}
+			return rsp.GetRoles(), rsp.GetNextKey(), nil
+		},
+		func(role *types.RoleV6) *accessgraphv1.ResourceEntry {
+			return &accessgraphv1.ResourceEntry{Resource: &accessgraphv1.ResourceEntry_Role{Role: role}}
+		},
+	)
+}
+
+func sendAccessLists(ctx context.Context, authServer interface {
+	ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error)
+	ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
+}, stream accessGraphSender,
+) error {
+	err := sendPaginatedResources(ctx, stream,
+		authServer.ListAccessLists,
+		func(al *accesslist.AccessList) *accessgraphv1.ResourceEntry {
+			return &accessgraphv1.ResourceEntry{Resource: &accessgraphv1.ResourceEntry_AccessList{AccessList: accesslistv1conv.ToProto(al)}}
+		},
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	chunkSize := apidefaults.DefaultChunkSize
-	for i := 0; i < len(roles); i += chunkSize {
-		end := min(i+chunkSize, len(roles))
+	return trace.Wrap(sendAccessListMembers(ctx, authServer, stream))
 
-		if err := pushRolesToTAG(ctx, stream, roles[i:end]); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
-}
-
-func pushRolesToTAG(ctx context.Context, stream accessgraphv1.AccessGraphService_EventsStreamV2Client, roles []types.Role) error {
-	if len(roles) == 0 {
-		return nil
-	}
-	list := &accessgraphv1.ResourceList{}
-	for _, role := range roles {
-		r, ok := role.(*types.RoleV6)
-		if !ok {
-			return trace.BadParameter("expected *types.RoleV6, got %T", role)
-		}
-		list.Resources = append(list.Resources, &accessgraphv1.ResourceEntry{
-			Resource: &accessgraphv1.ResourceEntry_Role{
-				Role: r,
-			},
-		})
-	}
-	return trace.Wrap(stream.Send(&accessgraphv1.EventsStreamV2Request{
-		Operation: &accessgraphv1.EventsStreamV2Request_Upsert{
-			Upsert: list,
-		},
-	}))
-}
-
-// sendUsers sends all users to the access graph service.
-func sendAccessLists(ctx context.Context, authServer interface {
-	ListAccessLists(context.Context, int, string) ([]*accesslist.AccessList, string, error)
-	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
-}, stream accessgraphv1.AccessGraphService_EventsStreamV2Client,
-) error {
-	startToken := ""
-	limit := 0 // use default limit
-
-	for {
-		accessLists, nextToken, err := authServer.ListAccessLists(ctx, limit, startToken)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if err := pushAccessListsToTAG(ctx, stream, accessLists); err != nil {
-			return trace.Wrap(err)
-		}
-
-		for _, accessList := range accessLists {
-			if err := sendAccessListMembers(ctx, authServer, stream, accessList); err != nil {
-				return trace.Wrap(err)
-			}
-		}
-
-		if nextToken == "" {
-			break
-		}
-		startToken = nextToken
-	}
-
-	return nil
-}
-
-func pushAccessListsToTAG(ctx context.Context, stream accessgraphv1.AccessGraphService_EventsStreamV2Client, accessLists []*accesslist.AccessList) error {
-	if len(accessLists) == 0 {
-		return nil
-	}
-	list := &accessgraphv1.ResourceList{}
-	for _, accessList := range accessLists {
-		list.Resources = append(list.Resources, &accessgraphv1.ResourceEntry{
-			Resource: &accessgraphv1.ResourceEntry_AccessList{
-				AccessList: accesslistv1conv.ToProto(accessList),
-			},
-		})
-	}
-	return trace.Wrap(stream.Send(&accessgraphv1.EventsStreamV2Request{
-		Operation: &accessgraphv1.EventsStreamV2Request_Upsert{
-			Upsert: list,
-		},
-	}))
 }
 
 func sendAccessListMembers(ctx context.Context, authServer interface {
-	ListAccessListMembers(ctx context.Context, accessListName string, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
-}, stream accessgraphv1.AccessGraphService_EventsStreamV2Client, accessList *accesslist.AccessList,
+	ListAllAccessListMembers(ctx context.Context, pageSize int, pageToken string) (members []*accesslist.AccessListMember, nextToken string, err error)
+}, stream accessGraphSender,
 ) error {
-	startToken := ""
-	limit := 0 // use default limit
-
-	for {
-
-		accessListMembers, nextToken, err := authServer.ListAccessListMembers(ctx, accessList.GetName(), limit, startToken)
+	for m, err := range clientutils.Resources(ctx, authServer.ListAllAccessListMembers) {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-
-		if err := pushAccessListMembersToTAG(ctx, stream, accessListMembers); err != nil {
+		if err := stream.Send(&accessgraphv1.EventsStreamV2Request{
+			Operation: &accessgraphv1.EventsStreamV2Request_AccessListsMembers{
+				AccessListsMembers: &accessgraphv1.AccessListsMembers{Members: []*accesslistv1.Member{accesslistv1conv.ToMemberProto(m)}},
+			},
+		}); err != nil {
 			return trace.Wrap(err)
 		}
+	}
+	return nil
+}
 
-		if nextToken == "" {
-			break
+// sendPaginatedResources pages through items using listFn and sends each item individually.
+func sendPaginatedResources[T any](
+	ctx context.Context,
+	stream accessGraphSender,
+	listFn func(ctx context.Context, size int, token string) (items []T, nextToken string, err error),
+	toEntry func(T) *accessgraphv1.ResourceEntry,
+) error {
+	for item, err := range clientutils.Resources(ctx, listFn) {
+		if err != nil {
+			return trace.Wrap(err)
 		}
-		startToken = nextToken
+		if err := stream.Send(&accessgraphv1.EventsStreamV2Request{
+			Operation: &accessgraphv1.EventsStreamV2Request_Upsert{
+				Upsert: &accessgraphv1.ResourceList{Resources: []*accessgraphv1.ResourceEntry{toEntry(item)}},
+			},
+		}); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return nil
 }
 
-func pushAccessListMembersToTAG(ctx context.Context, stream accessgraphv1.AccessGraphService_EventsStreamV2Client, accessListMembers []*accesslist.AccessListMember) error {
-	if len(accessListMembers) == 0 {
-		return nil
-	}
-	list := &accessgraphv1.AccessListsMembers{}
-	for _, accessListMember := range accessListMembers {
-		list.Members = append(
-			list.Members, accesslistv1conv.ToMemberProto(accessListMember),
-		)
-	}
-	return trace.Wrap(stream.Send(&accessgraphv1.EventsStreamV2Request{
-		Operation: &accessgraphv1.EventsStreamV2Request_AccessListsMembers{
-			AccessListsMembers: list,
+func sendDatabaseObjects(ctx context.Context, authServer services.DatabaseObjectsGetter, stream accessGraphSender) error {
+	return sendPaginatedResources(ctx, stream,
+		authServer.ListDatabaseObjects,
+		func(o *dbobjectv1.DatabaseObject) *accessgraphv1.ResourceEntry {
+			return &accessgraphv1.ResourceEntry{Resource: &accessgraphv1.ResourceEntry_DatabaseObject{DatabaseObject: o}}
 		},
-	}))
+	)
 }
 
-func sendDatabaseObjects(ctx context.Context, authServer services.DatabaseObjectsGetter, stream accessgraphv1.AccessGraphService_EventsStreamV2Client) error {
-	startToken := ""
-	limit := 0 // use default limit
-
-	for {
-		objects, nextToken, err := authServer.ListDatabaseObjects(ctx, limit, startToken)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		list := &accessgraphv1.ResourceList{}
-		for _, object := range objects {
-			list.Resources = append(list.Resources, &accessgraphv1.ResourceEntry{
-				Resource: &accessgraphv1.ResourceEntry_DatabaseObject{
-					DatabaseObject: object,
-				},
-			})
-		}
-
-		err = stream.Send(&accessgraphv1.EventsStreamV2Request{
-			Operation: &accessgraphv1.EventsStreamV2Request_Upsert{
-				Upsert: list,
-			},
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if nextToken == "" {
-			break
-		}
-
-		startToken = nextToken
-	}
-
-	return nil
-}
-
-func sendDevices(ctx context.Context, authServer services.DevicesGetter, stream accessgraphv1.AccessGraphService_EventsStreamV2Client) error {
-	pageToken := ""
-	limit := 0 // use default limit
+func sendDevices(ctx context.Context, authServer services.DevicesGetter, stream accessGraphSender) error {
 	if authServer == nil {
 		return trace.BadParameter("authServer is nil")
 	}
-	for {
-		objects, nextToken, err := authServer.ListDevices(ctx, limit, pageToken, devicepb.DeviceView_DEVICE_VIEW_RESOURCE)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		list := &accessgraphv1.ResourceList{}
-		for _, object := range objects {
-			// reset device credentials before sending to access graph
-			object.Credential = nil
-			list.Resources = append(list.Resources, &accessgraphv1.ResourceEntry{
-				Resource: &accessgraphv1.ResourceEntry_Device{
-					Device: object,
-				},
-			})
-		}
-
-		err = stream.Send(&accessgraphv1.EventsStreamV2Request{
-			Operation: &accessgraphv1.EventsStreamV2Request_Upsert{
-				Upsert: list,
-			},
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if nextToken == "" {
-			break
-		}
-
-		pageToken = nextToken
-	}
-
-	return nil
+	return sendPaginatedResources(ctx, stream,
+		func(ctx context.Context, size int, token string) ([]*devicepb.Device, string, error) {
+			return authServer.ListDevices(ctx, size, token, devicepb.DeviceView_DEVICE_VIEW_RESOURCE)
+		},
+		func(d *devicepb.Device) *accessgraphv1.ResourceEntry {
+			d.Credential = nil
+			return &accessgraphv1.ResourceEntry{Resource: &accessgraphv1.ResourceEntry_Device{Device: d}}
+		},
+	)
 }
 
-func sendPrivateKeys(ctx context.Context, authServer services.AccessGraphSecretsGetter, stream accessgraphv1.AccessGraphService_EventsStreamV2Client) error {
-	startToken := ""
-	limit := 0 // use default limit
+func sendPrivateKeys(ctx context.Context, authServer services.AccessGraphSecretsGetter, stream accessGraphSender) error {
 	if authServer == nil {
 		return trace.BadParameter("authServer is nil")
 	}
-	for {
-		objects, nextToken, err := authServer.ListAllPrivateKeys(ctx, limit, startToken)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		list := &accessgraphv1.ResourceList{}
-		for _, object := range objects {
-			list.Resources = append(list.Resources, &accessgraphv1.ResourceEntry{
-				Resource: &accessgraphv1.ResourceEntry_PrivateKey{
-					PrivateKey: object,
-				},
-			})
-		}
-
-		err = stream.Send(&accessgraphv1.EventsStreamV2Request{
-			Operation: &accessgraphv1.EventsStreamV2Request_Upsert{
-				Upsert: list,
-			},
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if nextToken == "" {
-			break
-		}
-
-		startToken = nextToken
-	}
-
-	return nil
+	return sendPaginatedResources(ctx, stream,
+		authServer.ListAllPrivateKeys,
+		func(k *accessgraphsecretsv1pb.PrivateKey) *accessgraphv1.ResourceEntry {
+			return &accessgraphv1.ResourceEntry{Resource: &accessgraphv1.ResourceEntry_PrivateKey{PrivateKey: k}}
+		},
+	)
 }
 
-func sendAuthorizedKeys(ctx context.Context, authServer services.AccessGraphSecretsGetter, stream accessgraphv1.AccessGraphService_EventsStreamV2Client) error {
-	startToken := ""
-	limit := 0 // use default limit
+func sendAuthorizedKeys(ctx context.Context, authServer services.AccessGraphSecretsGetter, stream accessGraphSender) error {
 	if authServer == nil {
 		return trace.BadParameter("authServer is nil")
 	}
-	for {
-		objects, nextToken, err := authServer.ListAllAuthorizedKeys(ctx, limit, startToken)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		list := &accessgraphv1.ResourceList{}
-		for _, object := range objects {
-			list.Resources = append(list.Resources, &accessgraphv1.ResourceEntry{
-				Resource: &accessgraphv1.ResourceEntry_AuthorizedKey{
-					AuthorizedKey: object,
-				},
-			})
-		}
-
-		err = stream.Send(&accessgraphv1.EventsStreamV2Request{
-			Operation: &accessgraphv1.EventsStreamV2Request_Upsert{
-				Upsert: list,
-			},
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if nextToken == "" {
-			break
-		}
-
-		startToken = nextToken
-	}
-
-	return nil
+	return sendPaginatedResources(ctx, stream,
+		authServer.ListAllAuthorizedKeys,
+		func(k *accessgraphsecretsv1pb.AuthorizedKey) *accessgraphv1.ResourceEntry {
+			return &accessgraphv1.ResourceEntry{Resource: &accessgraphv1.ResourceEntry_AuthorizedKey{AuthorizedKey: k}}
+		},
+	)
 }
 
 // sendAccessRequests sends all access requests to the access graph service.
-func sendAccessRequests(ctx context.Context, authServer services.AccessRequestGetter, stream accessgraphv1.AccessGraphService_EventsStreamV2Client) error {
-	requests, err := authServer.GetAccessRequests(ctx, types.AccessRequestFilter{})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	chunkSize := apidefaults.DefaultChunkSize
-	for i := 0; i < len(requests); i += chunkSize {
-		end := min(i+chunkSize, len(requests))
-
-		if err := pushAccessRequestToTAG(ctx, stream, requests[i:end]); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
-}
-
-func pushAccessRequestToTAG(ctx context.Context, stream accessgraphv1.AccessGraphService_EventsStreamV2Client, accessRequests []types.AccessRequest) error {
-	if len(accessRequests) == 0 {
-		return nil
-	}
-	list := &accessgraphv1.ResourceList{}
-	for _, accessRequest := range accessRequests {
-		a, ok := accessRequest.(*types.AccessRequestV3)
-		if !ok {
-			return trace.BadParameter("expected *types.AccessRequestV3, got %T", accessRequest)
-		}
-		list.Resources = append(
-			list.Resources,
-			&accessgraphv1.ResourceEntry{
-				Resource: &accessgraphv1.ResourceEntry_AccessRequest{
-					AccessRequest: a,
-				},
-			},
-		)
-	}
-	return trace.Wrap(stream.Send(&accessgraphv1.EventsStreamV2Request{
-		Operation: &accessgraphv1.EventsStreamV2Request_Upsert{
-			Upsert: list,
+func sendAccessRequests(ctx context.Context, authServer interface {
+	ListAccessRequests(context.Context, *authpb.ListAccessRequestsRequest) (*authpb.ListAccessRequestsResponse, error)
+}, stream accessGraphSender) error {
+	return sendPaginatedResources(ctx, stream,
+		func(ctx context.Context, size int, token string) ([]*types.AccessRequestV3, string, error) {
+			rsp, err := authServer.ListAccessRequests(ctx, &authpb.ListAccessRequestsRequest{
+				Filter:   &types.AccessRequestFilter{},
+				Limit:    int32(size),
+				StartKey: token,
+			})
+			if err != nil {
+				return nil, "", err
+			}
+			return rsp.GetAccessRequests(), rsp.GetNextKey(), nil
 		},
-	}))
+		func(a *types.AccessRequestV3) *accessgraphv1.ResourceEntry {
+			return &accessgraphv1.ResourceEntry{Resource: &accessgraphv1.ResourceEntry_AccessRequest{AccessRequest: a}}
+		},
+	)
 }
 
 type accessGraphSender interface {
@@ -1418,80 +1172,45 @@ func resourceHeaderFromMetadata(kind, version string, t interface{ GetMetadata()
 	}
 }
 
+func resourceWithLabelsToEntry(resource types.ResourceWithLabels) (*accessgraphv1.ResourceEntry, error) {
+	switch r := resource.(type) {
+	case *types.ServerV2:
+		return &accessgraphv1.ResourceEntry{Resource: &accessgraphv1.ResourceEntry_Server{Server: r}}, nil
+	case *types.KubernetesServerV3:
+		return &accessgraphv1.ResourceEntry{Resource: &accessgraphv1.ResourceEntry_KubernetesServer{KubernetesServer: r}}, nil
+	case *types.AppServerV3:
+		return &accessgraphv1.ResourceEntry{Resource: &accessgraphv1.ResourceEntry_AppServer{AppServer: r}}, nil
+	case *types.DatabaseServerV3:
+		return &accessgraphv1.ResourceEntry{Resource: &accessgraphv1.ResourceEntry_DatabaseServer{DatabaseServer: r}}, nil
+	case *types.WindowsDesktopV3:
+		return &accessgraphv1.ResourceEntry{Resource: &accessgraphv1.ResourceEntry_WindowsDesktop{WindowsDesktop: r}}, nil
+	default:
+		return nil, trace.BadParameter("unexpected resource type: %T", resource)
+	}
+}
+
 // pushResourcesViaUnifiedResourcesCache pushes resources to the access graph service via the unified resources cache.
 // It iterates over all resources in the unified resources cache whose kinds match [kinds] and pushes them to the access graph service.
 func pushResourcesViaUnifiedResourcesCache(ctx context.Context, authServer *auth.Server, stream accessgraphv1.AccessGraphService_EventsStreamV2Client, kinds ...string) error {
-	resources := make([]types.ResourceWithLabels, 0, apidefaults.DefaultChunkSize)
 	for resource, err := range authServer.UnifiedResourceCache.Resources(ctx, "", types.SortBy{Field: types.ResourceKind}, kinds...) {
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		resources = append(resources, resource)
-		if len(resources) >= apidefaults.DefaultChunkSize {
-			if err := pushResourcesWithLabelsToTAG(resources, stream); err != nil {
-				return trace.Wrap(err)
-			}
-			resources = resources[:0]
+		entry, err := resourceWithLabelsToEntry(resource)
+		if err != nil {
+			return trace.Wrap(err)
 		}
-	}
 
-	if len(resources) > 0 {
-		if err := pushResourcesWithLabelsToTAG(resources, stream); err != nil {
+		if err := stream.Send(&accessgraphv1.EventsStreamV2Request{
+			Operation: &accessgraphv1.EventsStreamV2Request_Upsert{
+				Upsert: &accessgraphv1.ResourceList{Resources: []*accessgraphv1.ResourceEntry{entry}},
+			},
+		}); err != nil {
 			return trace.Wrap(err)
 		}
 	}
-
 	return nil
-}
-
-// pushResourcesWithLabelsToTAG pushes resources with labels to the access graph service.
-func pushResourcesWithLabelsToTAG(resources []types.ResourceWithLabels, stream accessgraphv1.AccessGraphService_EventsStreamV2Client) error {
-	if len(resources) == 0 {
-		return nil
-	}
-	list := &accessgraphv1.ResourceList{}
-	for _, resource := range resources {
-		switch resource := resource.(type) {
-		case *types.ServerV2:
-			list.Resources = append(list.Resources, &accessgraphv1.ResourceEntry{
-				Resource: &accessgraphv1.ResourceEntry_Server{
-					Server: resource,
-				},
-			})
-		case *types.KubernetesServerV3:
-			list.Resources = append(list.Resources, &accessgraphv1.ResourceEntry{
-				Resource: &accessgraphv1.ResourceEntry_KubernetesServer{
-					KubernetesServer: resource,
-				},
-			})
-		case *types.AppServerV3:
-			list.Resources = append(list.Resources, &accessgraphv1.ResourceEntry{
-				Resource: &accessgraphv1.ResourceEntry_AppServer{
-					AppServer: resource,
-				},
-			})
-		case *types.DatabaseServerV3:
-			list.Resources = append(list.Resources, &accessgraphv1.ResourceEntry{
-				Resource: &accessgraphv1.ResourceEntry_DatabaseServer{
-					DatabaseServer: resource,
-				},
-			})
-		case *types.WindowsDesktopV3:
-			list.Resources = append(list.Resources, &accessgraphv1.ResourceEntry{
-				Resource: &accessgraphv1.ResourceEntry_WindowsDesktop{
-					WindowsDesktop: resource,
-				},
-			})
-		default:
-			return trace.BadParameter("unexpected resource type: %T", resource)
-		}
-	}
-	return trace.Wrap(stream.Send(&accessgraphv1.EventsStreamV2Request{
-		Operation: &accessgraphv1.EventsStreamV2Request_Upsert{
-			Upsert: list,
-		},
-	}))
 }
 
 // noOpWatcher is a watcher that does not send any events.
