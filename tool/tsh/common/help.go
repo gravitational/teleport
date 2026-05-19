@@ -126,4 +126,13 @@ Examples:
   Add the database configuration to the specified JSON file
   $ tsh mcp db config --db-user=mydbuser --db-name=mydbname --client-config=my-config.json my-db-resource
 `
+
+	beamsAddHelp = `
+Examples:
+  Create a beam and connect via SSH:
+  $ tsh beams add
+
+  Create a beam without connecting and save its ID:
+  $ BEAM_ID=$(tsh beams add --no-console -f json | jq -r '.id')
+  $ tsh beams exec $BEAM_ID -- ls examples`
 )

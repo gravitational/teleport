@@ -50,6 +50,7 @@ func newBeamsAddCommand(parent *kingpin.CmdClause) *beamsAddCommand {
 		Short('f').
 		Default(teleport.Text).
 		EnumVar(&cmd.format, defaults.DefaultFormats...)
+	cmd.Alias(beamsAddHelp)
 	return cmd
 }
 
