@@ -20,6 +20,7 @@ package discovery
 
 import (
 	"context"
+	"errors"
 	"maps"
 	"net/url"
 	"path"
@@ -135,7 +136,7 @@ func (s *Server) startKubeIntegrationWatchers() error {
 					continue
 				}
 
-				agentVersion, err := s.getKubeAgentVersion(versionGetter)
+				agentVersion, err := kubeutils.GetKubeAgentVersion(s.ctx, versionGetter)
 				if err != nil {
 					s.Log.WarnContext(s.ctx, "Could not get agent version to enroll EKS clusters", "error", err)
 					continue
@@ -334,10 +335,6 @@ func (s *Server) enrollEKSClusters(region, integration, discoveryConfigName stri
 	}
 }
 
-func (s *Server) getKubeAgentVersion(versionGetter version.Getter) (*semver.Version, error) {
-	return kubeutils.GetKubeAgentVersion(s.ctx, s.AccessPoint, s.ClusterFeatures(), versionGetter)
-}
-
 type IntegrationFetcher interface {
 	// GetIntegration returns the integration name that is used for getting credentials of the fetcher.
 	GetIntegration() string
@@ -411,10 +408,48 @@ func versionGetterForProxy(ctx context.Context, proxyPublicAddr string) (version
 		RawPath: path.Join("/webapi/automaticupgrades/channel", automaticupgrades.DefaultChannelName),
 	}
 
-	return version.FailoverGetter{
-		// We try getting the version via the new webapi
-		version.NewProxyVersionGetter(proxyClt),
-		// If this is not implemented, we fallback to the release channels
-		version.NewBasicHTTPVersionGetter(baseURL),
+	selfVersion, err := version.EnsureSemver(teleport.Version)
+	if err != nil {
+		return nil, trace.BadParameter("Cannot parse Teleport's self version %q, this is a bug", teleport.Version)
+	}
+
+	return proxyAgentVersionGetter{
+		primary: version.FailoverGetter{
+			// First try the new webapi (RFD-184).
+			version.NewProxyVersionGetter(proxyClt),
+			// If that's not implemented, fall back to release channels (RFD-109).
+			version.NewBasicHTTPVersionGetter(baseURL),
+		},
+		proxyClient: proxyClt,
+		selfVersion: selfVersion,
 	}, nil
+}
+
+// proxyAgentVersionGetter walks three tiers of fallback.
+// On primary success it returns the proxy's advertised autoupdate target.
+// On NoNewVersionError it returns the proxy's own ServerVersion from /find.
+// If the proxy can't be reached at all, it returns the Discovery service's own Teleport version
+// so enrollment can still proceed instead of stalling.
+type proxyAgentVersionGetter struct {
+	primary     version.Getter
+	proxyClient *webclient.ReusableClient
+	selfVersion *semver.Version
+}
+
+func (g proxyAgentVersionGetter) GetVersion(ctx context.Context) (*semver.Version, error) {
+	v, err := g.primary.GetVersion(ctx)
+	if err == nil {
+		return v, nil
+	}
+
+	var noNewVersionErr *version.NoNewVersionError
+	if errors.As(trace.Unwrap(err), &noNewVersionErr) {
+		if resp, findErr := g.proxyClient.Find(); findErr == nil {
+			if pv, perr := version.EnsureSemver(resp.ServerVersion); perr == nil {
+				return pv, nil
+			}
+		}
+	}
+
+	return g.selfVersion, nil
 }
