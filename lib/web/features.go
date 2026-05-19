@@ -61,8 +61,11 @@ func (h *Handler) startFeatureWatcher() {
 				continue
 			}
 
-			h.SetClusterFeatures(*pingResponse.ServerFeatures)
-			h.logger.InfoContext(ctx, "Done updating proxy features", "features", pingResponse.ServerFeatures)
+			if pingResponse.ServerFeatures != nil {
+				h.SetClusterFeatures(*pingResponse.ServerFeatures)
+				h.logger.InfoContext(ctx, "Done updating proxy features", "features", pingResponse.ServerFeatures)
+			}
+
 		case <-ctx.Done():
 			h.logger.InfoContext(ctx, "Feature service has stopped")
 			return
