@@ -662,7 +662,7 @@ func TestTrustBundleCache_Run(t *testing.T) {
 	require.Equal(t, "_teleport_app.example.com", gotBundleSet.AppClient.TrustDomain().Name())
 	require.Len(t, gotBundleSet.AppClient.X509Authorities(), 1)
 	require.True(t, gotBundleSet.AppClient.X509Authorities()[0].Equal(appClientCACert))
-	require.Len(t, gotBundleSet.AppClient.JWTAuthorities(), 0)
+	require.Empty(t, gotBundleSet.AppClient.JWTAuthorities())
 	// Check the federated bundle
 	gotFederatedBundle, ok := gotBundleSet.Federated["pre-init-federated.example.com"]
 	require.True(t, ok)
