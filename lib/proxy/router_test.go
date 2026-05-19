@@ -859,7 +859,7 @@ func TestRouter_DialHost(t *testing.T) {
 	agentGetter := func() (sshagent.Client, error) {
 		return nil, nil
 	}
-	createSigner := func(_ context.Context, _ agentless.LocalAccessPoint, _ agentless.CertGenerator) (ssh.Signer, error) {
+	createSigner := func(_ context.Context, _ agentless.LocalAccessPoint, _ string) (ssh.Signer, error) {
 		key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.Ed25519)
 		if err != nil {
 			return nil, err
@@ -923,7 +923,7 @@ func TestRouter_DialHost(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, srv, params.TargetServer)
 				require.NotNil(t, params.GetUserAgent)
-				require.Nil(t, params.AgentlessSigner)
+				require.Nil(t, params.AgentlessSignerCreator)
 				require.NotNil(t, conn)
 				require.Contains(t, params.Principals, "host")
 				require.Contains(t, params.Principals, "host.test")
@@ -942,7 +942,7 @@ func TestRouter_DialHost(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, agentlessSrv, params.TargetServer)
 				require.Nil(t, params.GetUserAgent)
-				require.NotNil(t, params.AgentlessSigner)
+				require.NotNil(t, params.AgentlessSignerCreator)
 				require.NotNil(t, conn)
 				require.Contains(t, params.Principals, "host")
 				require.Contains(t, params.Principals, "host.test")
@@ -961,7 +961,7 @@ func TestRouter_DialHost(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, agentlessEC2ICESrv, params.TargetServer)
 				require.Nil(t, params.GetUserAgent)
-				require.Nil(t, params.AgentlessSigner)
+				require.Nil(t, params.AgentlessSignerCreator)
 				require.NotNil(t, conn)
 			},
 		},

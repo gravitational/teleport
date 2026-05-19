@@ -17,7 +17,7 @@
  */
 
 import { UseQueryResult } from '@tanstack/react-query';
-import { Fragment, useCallback } from 'react';
+import { Fragment, MutableRefObject, useCallback } from 'react';
 import { useTheme } from 'styled-components';
 
 import { ButtonPrimary, Flex, Text } from 'design';
@@ -33,7 +33,10 @@ import { statusBarHeight } from './constants';
 import { ShareFeedback } from './ShareFeedback';
 import { useActiveDocumentClusterBreadcrumbs } from './useActiveDocumentClusterBreadcrumbs';
 
-export function StatusBar(props: { onAssumedRolesClick(): void }) {
+export function StatusBar(props: {
+  onAssumedRolesClick(): void;
+  desktopSessionControlsRef: MutableRefObject<HTMLDivElement>;
+}) {
   const breadcrumbs = useActiveDocumentClusterBreadcrumbs();
   const theme = useTheme();
   const rootClusterUri = useStoreSelector(
@@ -48,6 +51,7 @@ export function StatusBar(props: { onAssumedRolesClick(): void }) {
     <Flex
       width="100%"
       height={`${statusBarHeight}px`}
+      background={theme.colors.levels.surface}
       css={`
         border-top: 1px solid ${props => props.theme.colors.spotBackground[1]};
       `}
@@ -126,6 +130,7 @@ export function StatusBar(props: { onAssumedRolesClick(): void }) {
             </Text>
           </ButtonPrimary>
         )}
+        <Flex ref={props.desktopSessionControlsRef} height="100%" />
         <AccessRequestCheckoutButton />
         <ShareFeedback />
       </Flex>

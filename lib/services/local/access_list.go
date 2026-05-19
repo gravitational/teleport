@@ -20,6 +20,7 @@ package local
 
 import (
 	"context"
+	"fmt"
 	"iter"
 	"maps"
 	"slices"
@@ -1449,8 +1450,9 @@ func (a *AccessListService) checkDeletionBlockingMemberRelationships(ctx context
 	}
 
 	if len(memberOfTitles) > 0 {
-		return trace.AccessDenied(`Cannot delete "%s", as it is a member of Access Lists: %s`,
+		errMsg := fmt.Sprintf(`Cannot delete "%s", as it is a member of Access Lists: %s`,
 			accessList.Spec.Title, quoteAndJoin(memberOfTitles))
+		return trace.Wrap(accesslists.ErrDeniedAccessListDeletion, errMsg)
 	}
 
 	return nil

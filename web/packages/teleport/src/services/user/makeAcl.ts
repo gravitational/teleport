@@ -101,6 +101,8 @@ export function makeAcl(json): Acl {
   const inferenceModel = json.inferenceModel || defaultAccess;
   const inferenceSecret = json.inferenceSecret || defaultAccess;
 
+  const beam = json.beam || defaultAccess;
+
   return {
     accessList,
     authConnectors,
@@ -153,6 +155,7 @@ export function makeAcl(json): Acl {
     inferencePolicy,
     inferenceModel,
     inferenceSecret,
+    beam,
   };
 }
 

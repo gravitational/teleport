@@ -549,7 +549,6 @@ func (t *terminal) setOwner() error {
 }
 
 type remoteTerminal struct {
-	wg sync.WaitGroup
 	mu sync.Mutex
 
 	log *slog.Logger
@@ -578,9 +577,7 @@ func newRemoteTerminal(ctx *ServerContext) (*remoteTerminal, error) {
 	return t, nil
 }
 
-func (t *remoteTerminal) AddParty(delta int) {
-	t.wg.Add(delta)
-}
+func (t *remoteTerminal) AddParty(delta int) {}
 
 type ptyBuffer struct {
 	r io.Reader
@@ -706,11 +703,6 @@ func (t *remoteTerminal) Close() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	// Wait for parties to be relased after closing the remote session. This
-	// avoid cases where the parties are blocked, reading from the remote
-	// session.
-	t.wg.Wait()
 
 	t.log.DebugContext(t.ctx.CancelContext(), "Closed remote terminal and underlying SSH session")
 	return nil

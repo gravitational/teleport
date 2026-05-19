@@ -66,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join/iamjoin"
 	"github.com/gravitational/teleport/lib/modules"
@@ -497,6 +498,22 @@ func Init(ctx context.Context, cfg InitConfig, opts ...ServerOption) (*Server, e
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Initialize the unified resource cache before running period checks that rely on it.
+	unifiedResourcesCache, err := services.NewUnifiedResourceCache(asrv.CloseContext(), services.UnifiedResourceCacheConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			QueueSize:    defaults.UnifiedResourcesQueueSize,
+			Component:    teleport.ComponentUnifiedResource,
+			Logger:       cfg.Logger.With(teleport.ComponentKey, teleport.ComponentUnifiedResource),
+			Client:       asrv.Cache,
+			MaxStaleness: time.Minute,
+		},
+		ResourceGetter: asrv,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	asrv.SetUnifiedResourcesCache(unifiedResourcesCache)
 
 	domainName := cfg.ClusterName.GetClusterName()
 	if err := backend.RunWhileLocked(ctx,
@@ -1413,8 +1430,12 @@ func GetPresetRoles(buildType string) []types.Role {
 		services.NewSystemIdentityCenterAccessRole(buildType),
 		services.NewPresetWildcardWorkloadIdentityIssuerRole(),
 		services.NewPresetAccessPluginRole(),
+		services.NewPresetAccessPluginWithReviewRole(),
 		services.NewPresetListAccessRequestResourcesRole(),
 		services.NewPresetMCPUserRole(),
+		services.NewSystemBeamRole(buildType),
+		services.NewPresetBeamUserRole(buildType),
+		services.NewPresetBeamAdminRole(buildType),
 	}
 
 	// Certain `New$FooRole()` functions will return a nil role if the
@@ -1771,8 +1792,12 @@ func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 // to avoid consistency issues. A lower priority means the resource is applied
 // before.
 var ResourceApplyPriority = map[string]int{
-	types.KindRole:                    1,
-	types.KindUser:                    2, // Users must be applied after Roles
+	types.KindRole:            1,
+	types.KindInferenceSecret: 1,
+
+	types.KindUser:           2, // Users must be applied after Roles
+	types.KindInferenceModel: 2,
+
 	types.KindToken:                   3,
 	types.KindClusterNetworkingConfig: 3,
 	types.KindClusterAuthPreference:   3,
@@ -1780,7 +1805,9 @@ var ResourceApplyPriority = map[string]int{
 	// Bots should be applied after users and roles as at the moment they are actually converted to users and roles.
 	// This will ensure that Bot Users/Roles are properly created regardless of the Teleport version from which the
 	// resources have been exported.
-	types.KindBot: 3,
+	types.KindBot:             3,
+	types.KindInferencePolicy: 3,
+	types.KindRetrievalModel:  3,
 }
 
 // Unlike when resources are loaded via --bootstrap, we're inserting elements via their service.

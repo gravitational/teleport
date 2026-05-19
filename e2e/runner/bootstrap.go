@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"slices"
 
+	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
 )
 
@@ -58,7 +59,9 @@ type credentialsJSON struct {
 	WebauthnCredentialId string `json:"webauthnCredentialId"`
 }
 
-// readRoleFile reads e2eDir/testdata/roles/<filename> and extracts metadata.name. Uses os.Root so filenames sourced from test code can't escape the roles directory.
+// readRoleFile reads e2eDir/testdata/roles/<filename> and extracts
+// metadata.name. Uses os.Root so filenames sourced from test code can't escape
+// the roles directory.
 func readRoleFile(e2eDir, filename string) (*customRole, error) {
 	rolesDir := filepath.Join(e2eDir, "testdata", "roles")
 
@@ -98,14 +101,36 @@ func readRoleFile(e2eDir, filename string) (*customRole, error) {
 	}, nil
 }
 
+// recordingOwner is a single owner of a session recording: the user that
+// should appear as the session's principal and the freshly-generated session
+// ID assigned to this copy of the recording.
+type recordingOwner struct {
+	user        string
+	sessionID   string
+}
+
+type recordingOwners map[string][]recordingOwner
+
 // bootstrapResult holds the output of buildBootstrapState.
 type bootstrapResult struct {
 	state       *stateConfig
 	creds       map[string]*credentials
 	userMapping map[string]string // canonical user key → generated name
+
+	// recordingOwners maps the logical recording ID (the name of the .tar file
+	// under testdata/recordings) to the list of owners that reference it. Each
+	// owner gets its own fresh session ID so duplicates don't collide.
+	recordingOwners recordingOwners
+
+	// recordingMapping is the inverse lookup for tests: it maps a generated
+	// username to a record of `logicalID → generatedSessionID`. Written to
+	// .auth/recording-mapping.json so the TS fixture can resolve IDs.
+	recordingMapping map[string]map[string]string
 }
 
-// canonicalUserKey produces a deterministic key for a scanned user. The TS side computes the same format to look up generated names; both implementations must stay in lockstep.
+// canonicalUserKey produces a deterministic key for a scanned user. The TS
+// side computes the same format to look up generated names; both
+// implementations must stay in lockstep.
 func canonicalUserKey(su scannedUser) (string, error) {
 	roles := make([]string, 0, len(su.roles))
 	for _, r := range su.roles {
@@ -119,19 +144,32 @@ func canonicalUserKey(su scannedUser) (string, error) {
 	slices.Sort(roles)
 
 	type keyDef struct {
-		Index  *int                `json:"index,omitempty"`
-		Roles  []string            `json:"roles"`
-		Traits map[string][]string `json:"traits,omitempty"`
+		Default bool                `json:"default,omitempty"`
+		Source  string              `json:"source,omitempty"`
+		Index   *int                `json:"index,omitempty"`
+		Roles   []string            `json:"roles"`
+		Traits  map[string][]string `json:"traits,omitempty"`
 	}
 
-	kd := keyDef{Index: su.arrayIdx, Roles: roles}
+	kd := keyDef{
+		Default: su.isDefault,
+		Source:  su.sourceFile,
+		Index:   su.arrayIdx,
+		Roles:   roles,
+	}
 
 	if len(su.traits) > 0 {
-		kd.Traits = make(map[string][]string, len(su.traits))
+		traits := make(map[string][]string, len(su.traits))
 		for k, v := range su.traits {
+			if len(v) == 0 {
+				continue
+			}
 			sorted := slices.Clone(v)
 			slices.Sort(sorted)
-			kd.Traits[k] = sorted
+			traits[k] = sorted
+		}
+		if len(traits) > 0 {
+			kd.Traits = traits
 		}
 	}
 
@@ -143,7 +181,8 @@ func canonicalUserKey(su scannedUser) (string, error) {
 	return string(data), nil
 }
 
-// writeUserMapping writes the JSON file the Playwright fixture reads to resolve generated usernames.
+// writeUserMapping writes the JSON file the Playwright fixture reads to
+// resolve generated usernames.
 func writeUserMapping(path string, mapping map[string]string) error {
 	data, err := json.MarshalIndent(mapping, "", "  ")
 	if err != nil {
@@ -157,29 +196,61 @@ func writeUserMapping(path string, mapping map[string]string) error {
 	return os.WriteFile(path, data, 0644)
 }
 
-// buildBootstrapState assigns names + credentials per scanned user, resolves role refs, and dedupes custom-role files.
+// buildBootstrapState assigns names + credentials per scanned user, resolves
+// role refs, and dedupes custom-role files. Scanned users that share a
+// canonical key are aggregated into a single bootstrap account whose
+// recordings are the deduped union of every contributing declaration.
 func buildBootstrapState(e2eDir string, scannedUsers []scannedUser) (*bootstrapResult, error) {
-	state := &stateConfig{}
-	creds := make(map[string]*credentials)
-	nameGen := newHumanIDGenerator()
-	userMapping := make(map[string]string)
+	type userGroup struct {
+		key string
+		su  scannedUser
+	}
 
-	// Track custom role files already loaded to deduplicate.
-	customRolesByFile := make(map[string]*customRole)
-
+	groupByKey := make(map[string]*userGroup)
+	var groups []*userGroup
 	for _, su := range scannedUsers {
 		if len(su.roles) == 0 {
 			return nil, fmt.Errorf("user declaration has no roles; declare at least one role in test.use()")
 		}
-
-		name := nameGen.Generate()
 
 		key, err := canonicalUserKey(su)
 		if err != nil {
 			return nil, err
 		}
 
-		userMapping[key] = name
+		if g, ok := groupByKey[key]; ok {
+			for _, rec := range su.recordings {
+				if !slices.Contains(g.su.recordings, rec) {
+					g.su.recordings = append(g.su.recordings, rec)
+				}
+			}
+			if su.loginAs {
+				g.su.loginAs = true
+			}
+			continue
+		}
+
+		merged := su
+		merged.recordings = slices.Clone(su.recordings)
+		g := &userGroup{key: key, su: merged}
+		groupByKey[key] = g
+		groups = append(groups, g)
+	}
+
+	state := &stateConfig{}
+	creds := make(map[string]*credentials)
+	nameGen := newHumanIDGenerator()
+	userMapping := make(map[string]string)
+	recordingOwners := make(map[string][]recordingOwner)
+	recordingMapping := make(map[string]map[string]string)
+
+	// Track custom role files already loaded to deduplicate.
+	customRolesByFile := make(map[string]*customRole)
+
+	for _, g := range groups {
+		su := g.su
+		name := nameGen.Generate()
+		userMapping[g.key] = name
 
 		userCredentials, err := generateUserCredentials()
 		if err != nil {
@@ -221,16 +292,48 @@ func buildBootstrapState(e2eDir string, scannedUsers []scannedUser) (*bootstrapR
 		}
 
 		state.Users = append(state.Users, bu)
+
+		for _, rec := range su.recordings {
+			sid := uuid.NewString()
+			recordingOwners[rec] = append(recordingOwners[rec], recordingOwner{
+				user:      name,
+				sessionID: sid,
+			})
+			if recordingMapping[name] == nil {
+				recordingMapping[name] = make(map[string]string)
+			}
+			recordingMapping[name][rec] = sid
+		}
 	}
 
 	return &bootstrapResult{
-		state:       state,
-		creds:       creds,
-		userMapping: userMapping,
+		state:            state,
+		creds:            creds,
+		userMapping:      userMapping,
+		recordingOwners:  recordingOwners,
+		recordingMapping: recordingMapping,
 	}, nil
 }
 
-// writeCredentialsFile writes the user-credentials JSON Playwright reads at startup. File-based (not env) so the payload doesn't grow unbounded with user count.
+// writeRecordingMapping writes the recording-mapping JSON the TS `recordings`
+// fixture reads to resolve a test's logical recording ID to the seeded session
+// ID.
+func writeRecordingMapping(path string, mapping map[string]map[string]string) error {
+	data, err := json.MarshalIndent(mapping, "", "  ")
+	if err != nil {
+		return fmt.Errorf("marshaling recording mapping: %w", err)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("creating recording mapping directory: %w", err)
+	}
+
+	return os.WriteFile(path, data, 0o644)
+}
+
+// writeCredentialsFile writes the user-credentials JSON Playwright reads at
+// startup. File-based (not env) so the payload doesn't grow unbounded with
+// user count.
 func writeCredentialsFile(path string, creds map[string]*credentials) error {
 	m := make(map[string]credentialsJSON, len(creds))
 	for name, c := range creds {

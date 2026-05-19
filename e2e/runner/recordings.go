@@ -20,12 +20,14 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -36,15 +38,9 @@ import (
 )
 
 const (
-	// defaultE2EUser is the default user that seeded session recordings are associated with.
-	defaultE2EUser = "bob"
 	// defaultE2ELogin is the default login that seeded session recordings are associated with.
 	defaultE2ELogin = "root"
 )
-
-// recordingUserMap allows mapping specific session recordings to different users logins. The key is the session ID
-// which corresponds to the username.
-var recordingUserMap = map[string]string{}
 
 // kinds represents the different session recording types that can be seeded into the E2E environment. These values
 // correspond to subdirectories under recordingsDir where .tar files are stored.
@@ -65,10 +61,23 @@ type recording struct {
 	Kind      types.SessionKind
 }
 
-// seedRecordings copies session recording .tar files into Teleport's records directory and injects corresponding
-// session.end audit events so that the Web UI's session recordings page shows content immediately after startup.
-// When sharedDir differs from e2eDir, recordings from both directories are merged (e2eDir takes precedence).
-func seedRecordings(ctx context.Context, e2eDir, dataDir string) error {
+// recordingInstance represents a single seeded copy of a session recording:
+// the source recording, the owning user, and the fresh session ID assigned to
+// this copy on disk and in the audit log.
+type recordingInstance struct {
+	recording
+	user          string
+	destSessionID string
+}
+
+// seedRecordings copies session recording .tar files into Teleport's records directory and injects
+// corresponding session.end audit events. Only recordings referenced in recordingOwners are seeded.
+// Each owner of a recording gets its own copy with a freshly-generated session ID.
+func (t *teleportInstance) seedRecordings(ctx context.Context, e2eDir, dataDir string) error {
+	if len(t.recordingOwners) == 0 {
+		return nil
+	}
+
 	recordsDir := filepath.Join(dataDir, "log", "records")
 	if err := os.MkdirAll(recordsDir, 0o755); err != nil {
 		return fmt.Errorf("creating records dir: %w", err)
@@ -79,53 +88,92 @@ func seedRecordings(ctx context.Context, e2eDir, dataDir string) error {
 		return fmt.Errorf("discovering recordings: %w", err)
 	}
 
-	if len(discovered) == 0 {
-		return fmt.Errorf("no .tar files found in any session type directory")
+	// Index discovered recordings by session ID for lookup.
+	byID := make(map[string]recording, len(discovered))
+	for _, rec := range discovered {
+		byID[rec.SessionID] = rec
 	}
 
-	for _, recording := range discovered {
-		for _, ext := range []string{".tar", ".metadata", ".thumbnail"} {
-			src := filepath.Join(filepath.Dir(recording.Path), recording.SessionID+ext)
-			dst := filepath.Join(recordsDir, recording.SessionID+ext)
+	// Sort recording IDs so that instances (and the timestamps we derive from
+	// their position) are deterministic across runs.
+	recIDs := make([]string, 0, len(t.recordingOwners))
+	for id := range t.recordingOwners {
+		recIDs = append(recIDs, id)
+	}
+	slices.Sort(recIDs)
 
-			if err := utils.CopyFile(src, dst, 0o644); err != nil {
-				if errors.Is(err, os.ErrNotExist) {
-					if ext != ".tar" {
-						// metadata and thumbnails are optional
-						continue
-					}
+	var instances []recordingInstance
+	for _, recID := range recIDs {
+		rec, ok := byID[recID]
+		if !ok {
+			return fmt.Errorf("recording %q referenced in user definition not found in testdata/recordings", recID)
+		}
 
-					return fmt.Errorf("required recording file not found: %s", src)
-				}
-
-				return fmt.Errorf("copying %s: %w", recording.SessionID+ext, err)
-			}
+		for _, owner := range t.recordingOwners[recID] {
+			instances = append(instances, recordingInstance{
+				recording:     rec,
+				user:          owner.user,
+				destSessionID: owner.sessionID,
+			})
 		}
 	}
 
-	adjustedEvents, err := adjustEvents(ctx, discovered)
-	if err != nil {
-		return fmt.Errorf("adjusting events: %w", err)
-	}
+	now := time.Now()
+	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 
 	eventsLog := filepath.Join(dataDir, "log", "events.log")
 	if err := waitForFile(ctx, eventsLog, 30*time.Second); err != nil {
 		return fmt.Errorf("waiting for audit log: %w", err)
 	}
 
-	f, err := os.OpenFile(eventsLog, os.O_WRONLY|os.O_APPEND, 0o644)
+	auditLog, err := os.OpenFile(eventsLog, os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
 		return fmt.Errorf("opening active audit log: %w", err)
 	}
-	defer f.Close()
+	defer auditLog.Close()
 
-	for _, line := range adjustedEvents {
-		if _, err := fmt.Fprintln(f, line); err != nil {
+	for i, inst := range instances {
+		srcDir := filepath.Dir(inst.Path)
+
+		// Copy recording files (.tar required, others optional).
+		for _, ext := range []string{".tar", ".metadata", ".thumbnail"} {
+			src := filepath.Join(srcDir, inst.recording.SessionID+ext)
+			dst := filepath.Join(recordsDir, inst.destSessionID+ext)
+
+			if err := utils.CopyFile(src, dst, 0o644); err != nil {
+				if errors.Is(err, os.ErrNotExist) {
+					if ext != ".tar" {
+						continue
+					}
+
+					return fmt.Errorf("required recording file not found: %s", src)
+				}
+
+				return fmt.Errorf("copying %s: %w", inst.destSessionID+ext, err)
+			}
+		}
+
+		newStop := startOfDay.Add(time.Duration(i+1) * time.Second)
+		event, originalStop, err := readAndPatchEvent(ctx, inst, newStop)
+		if err != nil {
+			return fmt.Errorf("processing recording %s (user %s): %w", inst.destSessionID, inst.user, err)
+		}
+
+		endEvent, err := utils.FastMarshal(event)
+		if err != nil {
+			return fmt.Errorf("marshaling event for %s: %w", inst.destSessionID, err)
+		}
+
+		if _, err := fmt.Fprintln(auditLog, string(endEvent)); err != nil {
 			return fmt.Errorf("writing audit event: %w", err)
+		}
+
+		if err := adjustAndCopySummary(srcDir, recordsDir, inst.recording.SessionID, inst.destSessionID, endEvent, newStop.Sub(originalStop)); err != nil {
+			return fmt.Errorf("adjusting summary for %s: %w", inst.destSessionID, err)
 		}
 	}
 
-	slog.Info("seeded session recordings", "total_recordings", len(discovered))
+	slog.Info("seeded session recordings", "recordings", len(t.recordingOwners), "instances", len(instances))
 
 	return nil
 }
@@ -156,101 +204,116 @@ func discoverRecordings(e2eDir string) ([]recording, error) {
 	return recordings, nil
 }
 
-// adjustEvents reads, patches, and time-adjusts the session end event from each recording so that
-// sessions appear recent (within the UI's default "today" search window).
-func adjustEvents(ctx context.Context, discovered []recording) ([]string, error) {
-	now := time.Now()
-	startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+// adjustAndCopySummary reads a session summary JSON sidecar, replaces its session_end_event with the
+// already-patched event, shifts inference timestamps by the given duration, and writes the result to dst.
+func adjustAndCopySummary(srcDir, dstDir, srcSessionID, dstSessionID string, patchedEvent []byte, shift time.Duration) error {
+	src := filepath.Join(srcDir, srcSessionID+".summary.json")
+	dst := filepath.Join(dstDir, dstSessionID+".summary.json")
 
-	var lines []string
-	for _, rec := range discovered {
-		offset := time.Duration(len(lines)+1) * time.Second
-		event, err := readAndPatchEvent(ctx, rec, startOfDay.Add(offset))
-		if err != nil {
-			return nil, fmt.Errorf("processing recording %s: %w", rec.SessionID, err)
+	raw, err := os.ReadFile(src)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
 		}
 
-		marshaled, err := utils.FastMarshal(event)
-		if err != nil {
-			return nil, fmt.Errorf("marshaling event for %s: %w", rec.SessionID, err)
-		}
-
-		lines = append(lines, string(marshaled))
+		return err
 	}
 
-	return lines, nil
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &fields); err != nil {
+		return fmt.Errorf("parsing summary: %w", err)
+	}
+
+	fields["session_end_event"], err = json.Marshal(json.RawMessage(patchedEvent))
+	if err != nil {
+		return fmt.Errorf("marshaling patched event: %w", err)
+	}
+
+	shiftTimestamp(fields, "inference_started_at", shift)
+	shiftTimestamp(fields, "inference_finished_at", shift)
+
+	adjusted, err := json.Marshal(fields)
+	if err != nil {
+		return fmt.Errorf("marshaling adjusted summary: %w", err)
+	}
+
+	return os.WriteFile(dst, adjusted, 0o644)
 }
 
-// readAndPatchEvent reads the session end event from a recording's .tar file, updates user/cluster
+// readAndPatchEvent reads the session end event from a recording's .tar file, updates user/cluster/session
 // fields for the E2E environment, and shifts timestamps so the session appears to end at newStop.
-func readAndPatchEvent(ctx context.Context, rec recording, newStop time.Time) (apievents.AuditEvent, error) {
-	f, err := os.Open(rec.Path)
+// It returns the patched event and the original stop time (for computing time shifts on sidecars).
+func readAndPatchEvent(ctx context.Context, inst recordingInstance, newStop time.Time) (apievents.AuditEvent, time.Time, error) {
+	f, err := os.Open(inst.Path)
 	if err != nil {
-		return nil, err
+		return nil, time.Time{}, err
 	}
 	defer f.Close()
 
 	reader := events.NewProtoReader(f, nil)
 	defer reader.Close()
 
-	user := defaultE2EUser
-	if mappedUser, ok := recordingUserMap[rec.SessionID]; ok {
-		user = mappedUser
-	}
-
 	for {
 		event, err := reader.Read(ctx)
 		if err != nil {
 			if errors.Is(err, io.EOF) {
-				return nil, fmt.Errorf("no session end event found")
+				return nil, time.Time{}, fmt.Errorf("no session end event found")
 			}
-			return nil, err
+			return nil, time.Time{}, err
 		}
 
 		switch e := event.(type) {
 		case *apievents.SessionEnd:
+			originalStop := e.EndTime
 			duration := e.EndTime.Sub(e.StartTime)
 			if duration <= 0 {
-				return nil, fmt.Errorf("invalid session duration for session %s", e.GetSessionID())
+				return nil, time.Time{}, fmt.Errorf("invalid session duration for session %s", e.GetSessionID())
 			}
-			e.User = user
+			e.SessionMetadata.SessionID = inst.destSessionID
+			e.User = inst.user
 			e.Login = defaultE2ELogin
-			e.Participants = []string{user}
+			e.Participants = []string{inst.user}
 			e.ClusterName = clusterName
 			e.UserClusterName = clusterName
 			e.StartTime = newStop.Add(-duration)
 			e.EndTime = newStop
 			e.Time = newStop
 
-			return e, nil
+			return e, originalStop, nil
 
 		case *apievents.DatabaseSessionEnd:
+			originalStop := e.EndTime
 			duration := e.EndTime.Sub(e.StartTime)
 			if duration <= 0 {
-				return nil, fmt.Errorf("invalid session duration for session %s", e.GetSessionID())
+				return nil, time.Time{}, fmt.Errorf("invalid session duration for session %s", e.GetSessionID())
 			}
-			e.User = user
+			e.SessionMetadata.SessionID = inst.destSessionID
+			e.User = inst.user
+			e.Participants = []string{inst.user}
 			e.ClusterName = clusterName
 			e.UserClusterName = clusterName
 			e.StartTime = newStop.Add(-duration)
 			e.EndTime = newStop
 			e.Time = newStop
 
-			return e, nil
+			return e, originalStop, nil
 
 		case *apievents.WindowsDesktopSessionEnd:
+			originalStop := e.EndTime
 			duration := e.EndTime.Sub(e.StartTime)
 			if duration <= 0 {
-				return nil, fmt.Errorf("invalid session duration for session %s", e.GetSessionID())
+				return nil, time.Time{}, fmt.Errorf("invalid session duration for session %s", e.GetSessionID())
 			}
-			e.User = user
+			e.SessionMetadata.SessionID = inst.destSessionID
+			e.User = inst.user
+			e.Participants = []string{inst.user}
 			e.ClusterName = clusterName
 			e.UserClusterName = clusterName
 			e.StartTime = newStop.Add(-duration)
 			e.EndTime = newStop
 			e.Time = newStop
 
-			return e, nil
+			return e, originalStop, nil
 		}
 	}
 }
@@ -273,4 +336,18 @@ func waitForFile(ctx context.Context, path string, timeout time.Duration) error 
 		case <-ticker.C:
 		}
 	}
+}
+
+func shiftTimestamp(fields map[string]json.RawMessage, key string, d time.Duration) {
+	raw, ok := fields[key]
+	if !ok {
+		return
+	}
+
+	var t time.Time
+	if err := json.Unmarshal(raw, &t); err != nil {
+		return
+	}
+
+	fields[key], _ = json.Marshal(t.Add(d))
 }

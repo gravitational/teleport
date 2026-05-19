@@ -350,7 +350,7 @@ func (searchResultEntry) isSearchResult()    {}
 func (searchResultReferral) isSearchResult() {}
 
 func (l *LDAPClient) search(ctx context.Context, client ldap.Client, searchRequest *ldap.SearchRequest) (searchResult, error) {
-	l.cfg.Logger.DebugContext(ctx, "Executing paged query", "filter", searchRequest.Filter, "baseDN", searchRequest.BaseDN)
+	l.cfg.Logger.DebugContext(ctx, "Executing paged query", "filter", searchRequest.Filter, "base_dn", searchRequest.BaseDN)
 	res, err := client.SearchWithPaging(searchRequest, searchPageSize)
 
 	switch {

@@ -38,7 +38,9 @@ forwards user traffic to the database.
 - The Teleport Database Service running on an Azure virtual instance.
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/8. Create a Teleport user
+## Step 1/8. Create a Teleport token and user
+
+(!docs/pages/includes/tctl-token.mdx serviceName="Database" tokenType="db" tokenFile="/tmp/token"!)
 
 (!docs/pages/includes/database-access/create-user.mdx!)
 

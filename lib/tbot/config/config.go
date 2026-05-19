@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/services/application"
 	"github.com/gravitational/teleport/lib/tbot/services/awsra"
+	"github.com/gravitational/teleport/lib/tbot/services/beams"
 	"github.com/gravitational/teleport/lib/tbot/services/database"
 	"github.com/gravitational/teleport/lib/tbot/services/example"
 	"github.com/gravitational/teleport/lib/tbot/services/identity"
@@ -412,6 +413,12 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 				return trace.Wrap(err)
 			}
 			out = append(out, v)
+		case identity.KeyAgentServiceType:
+			v := &identity.KeyAgentConfig{}
+			if err := v.UnmarshalConfig(unmarshalContext, node); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
 		case application.TunnelServiceType:
 			v := &application.TunnelConfig{}
 			if err := node.Decode(v); err != nil {
@@ -444,6 +451,12 @@ func (o *ServiceConfigs) UnmarshalYAML(node *yaml.Node) error {
 			out = append(out, v)
 		case application.ProxyServiceType:
 			v := &application.ProxyServiceConfig{}
+			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
+		case beams.VNetServiceType:
+			v := &beams.VNetServiceConfig{}
 			if err := node.Decode(v); err != nil {
 				return trace.Wrap(err)
 			}

@@ -145,7 +145,7 @@ func (s *Session) Start(ctx context.Context, stream grpc.BidiStreamingServer[api
 	}
 
 	// Client always speaks TDPB.
-	clientConn := tdp.NewConn(downstreamRW, tdp.DecoderAdapter(tdpb.DecodePermissive))
+	clientConn := tdp.NewConn(downstreamRW, tdp.DecoderAdapter(tdpb.DecodePermissive), tdpb.WarningConstructor)
 	// Receive, enrich, and forward the ClientHello message
 	msg, err := clientConn.ReadMessage()
 	if err != nil {
@@ -171,14 +171,14 @@ func (s *Session) Start(ctx context.Context, stream grpc.BidiStreamingServer[api
 	var tdpServerConn tdp.MessageReadWriteCloser
 	if serverProtocol == tdpb.ProtocolName {
 		// Use TDPB decoder
-		tdpServerConn = tdp.NewConn(conn, tdp.DecoderAdapter(tdpb.DecodePermissive))
+		tdpServerConn = tdp.NewConn(conn, tdp.DecoderAdapter(tdpb.DecodePermissive), tdpb.WarningConstructor)
 		// Send the client hello
 		if err := tdpServerConn.WriteMessage(hello); err != nil {
 			return trace.Wrap(err)
 		}
 	} else {
 		// Use default TDP decoder
-		tdpServerConn = tdp.NewConn(conn, legacy.Decode)
+		tdpServerConn = tdp.NewConn(conn, legacy.Decode, legacy.WarningConstructor)
 		defer tdpServerConn.Close()
 
 		// Now that we have a connection to the desktop service, we can
@@ -453,7 +453,7 @@ func (d *fsRequestHandler) handleSharedDirectoryTruncateRequest(completionID uin
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	err = dirAccess.Truncate(r.Path, int64(r.EndOfFile))
+	err = dirAccess.Truncate(r.Path, r.Size)
 	if err != nil {
 		return trace.Wrap(err)
 	}

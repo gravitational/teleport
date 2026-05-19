@@ -234,6 +234,17 @@ func (c *clientApplicationServiceClient) ExchangeSSHKeys(ctx context.Context, ho
 	return userPublicKey, nil
 }
 
+// PerformSessionMFACeremony is defined to satisfy [vnetv1.ClientApplicationServiceClient].
+//
+// TODO(cthach): Implement PerformSessionMFACeremony to allow the admin process to trigger an MFA ceremony in the user
+// process and get the result.
+func (c *clientApplicationServiceClient) PerformSessionMFACeremony(
+	_ context.Context,
+	_ *vnetv1.PerformSessionMFACeremonyRequest,
+) (*vnetv1.PerformSessionMFACeremonyResponse, error) {
+	return nil, trace.NotImplemented("PerformSessionMFACeremony is not implemented")
+}
+
 // ReissueDBCert issues a new certificate for the requested database.
 func (c *clientApplicationServiceClient) ReissueDBCert(ctx context.Context, dbInfo *vnetv1.DatabaseInfo) ([]byte, error) {
 	resp, err := c.clt.ReissueDBCert(ctx, &vnetv1.ReissueDBCertRequest{

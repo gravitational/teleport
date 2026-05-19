@@ -29,9 +29,9 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-// TestWindowsDesktops tests that CRUD operations on
+// TestWindowsDesktopResources tests that CRUD operations on
 // windows desktop resources are replicated from the backend to the cache.
-func TestWindowsDesktop(t *testing.T) {
+func TestWindowsDesktopResources(t *testing.T) {
 	t.Parallel()
 
 	p := newTestPack(t, ForAuth)
@@ -96,6 +96,13 @@ func TestWindowsDesktop(t *testing.T) {
 		update:    p.windowsDesktops.UpdateWindowsDesktop,
 		deleteAll: p.windowsDesktops.DeleteAllWindowsDesktops,
 	})
+}
+
+func TestWindowsDesktop(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
 
 	wd1, err := types.NewWindowsDesktopV3(
 		"test",
@@ -154,9 +161,25 @@ func TestWindowsDesktop(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, out, 1)
 
+	out, err = p.cache.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{HostID: "b", Name: "test", Source: types.WindowsDesktopSource_WINDOWS_DESKTOP_SOURCE_LDAP})
+	require.NoError(t, err)
+	require.Empty(t, out)
+
+	out, err = p.cache.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{HostID: "b", Source: types.WindowsDesktopSource_WINDOWS_DESKTOP_SOURCE_LDAP})
+	require.NoError(t, err)
+	require.Empty(t, out)
+
+	out, err = p.cache.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{Name: "test", Source: types.WindowsDesktopSource_WINDOWS_DESKTOP_SOURCE_LDAP})
+	require.NoError(t, err)
+	require.Empty(t, out)
+
 	out, err = p.cache.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{Name: "test"})
 	require.NoError(t, err)
 	require.Len(t, out, 2)
+
+	out, err = p.cache.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{Name: "does-not-exist"})
+	require.NoError(t, err)
+	require.Empty(t, out)
 }
 
 // TestWindowsDesktopService tests that CRUD operations on

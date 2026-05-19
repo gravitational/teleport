@@ -74,6 +74,13 @@ func clampInt32ToInt16(val int32) int16 {
 	}
 }
 
+func clampUint64ToUint32(val uint64) uint32 {
+	if val > math.MaxUint32 {
+		return math.MaxUint32
+	}
+	return uint32(val)
+}
+
 // TranslateToLegacy converts a TDPB (Modern) message to one or more TDP (Legacy) messages.
 func TranslateToLegacy(msg tdp.Message) ([]tdp.Message, error) {
 	switch m := msg.(type) {
@@ -204,7 +211,7 @@ func TranslateToLegacy(msg tdp.Message) ([]tdp.Message, error) {
 				CompletionID: m.CompletionId,
 				DirectoryID:  m.DirectoryId,
 				Path:         op.Truncate.Path,
-				EndOfFile:    op.Truncate.EndOfFile,
+				EndOfFile:    clampUint64ToUint32(op.Truncate.Size),
 			}}, nil
 		default:
 			return nil, trace.BadParameter("Unknown shared directory operation")
@@ -551,8 +558,8 @@ func TranslateToModern(msg tdp.Message) ([]tdp.Message, error) {
 			CompletionId: m.CompletionID,
 			Operation: &tdpbv1.SharedDirectoryRequest_Truncate_{
 				Truncate: &tdpbv1.SharedDirectoryRequest_Truncate{
-					Path:      m.Path,
-					EndOfFile: m.EndOfFile,
+					Path: m.Path,
+					Size: uint64(m.EndOfFile),
 				},
 			},
 		}}, nil
