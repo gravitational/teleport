@@ -497,7 +497,8 @@ func TestIdentity_ToFromSubject(t *testing.T) {
 
 // TestAllowedResources_EncodeDecodeCycle verifies that AllowedResourceIDs and
 // AllowedResourceAccessIDs survive encode-decode-re-encode cycles correctly
-// across all resource mix permutations.
+// across all resource mix permutations. The re-encode step simulates the
+// database proxy CSR signing path.
 func TestAllowedResources_EncodeDecodeCycle(t *testing.T) {
 	plainNode := types.ResourceID{ClusterName: "cluster", Kind: types.KindNode, Name: "prod-node"}
 	plainDB := types.ResourceID{ClusterName: "cluster", Kind: types.KindDatabase, Name: "prod-db"}
@@ -512,6 +513,7 @@ func TestAllowedResources_EncodeDecodeCycle(t *testing.T) {
 			},
 		},
 	}
+	sentinel := types.CreateSentinelResourceID()
 
 	tests := []struct {
 		name string
@@ -521,8 +523,8 @@ func TestAllowedResources_EncodeDecodeCycle(t *testing.T) {
 		// expected state after decode
 		wantAllowedResourceIDs       []types.ResourceID
 		wantAllowedResourceAccessIDs []types.ResourceAccessID
-		// expected state after decode-re-encode-decode roundtrip
-		wantRoundtripSameAsFirst bool
+		// expected contents of the legacy extension after re-encode
+		wantLegacyExtension []types.ResourceID
 	}{
 		{
 			name:                         "plain resources only (new auth cert)",
@@ -530,15 +532,15 @@ func TestAllowedResources_EncodeDecodeCycle(t *testing.T) {
 			allowedResourceAccessIDs:     types.ResourceIDsToResourceAccessIDs([]types.ResourceID{plainNode, plainDB}),
 			wantAllowedResourceIDs:       []types.ResourceID{plainNode, plainDB},
 			wantAllowedResourceAccessIDs: types.ResourceIDsToResourceAccessIDs([]types.ResourceID{plainNode, plainDB}),
-			wantRoundtripSameAsFirst:     true,
+			wantLegacyExtension:          []types.ResourceID{plainNode, plainDB},
 		},
 		{
 			name:                         "constrained resources only (new auth cert)",
-			allowedResourceIDs:           nil, // triggers sentinel in old extension
+			allowedResourceIDs:           nil,
 			allowedResourceAccessIDs:     []types.ResourceAccessID{constrainedApp},
-			wantAllowedResourceIDs:       nil, // no plain resources to unwrap
+			wantAllowedResourceIDs:       nil,
 			wantAllowedResourceAccessIDs: []types.ResourceAccessID{constrainedApp},
-			wantRoundtripSameAsFirst:     true,
+			wantLegacyExtension:          []types.ResourceID{sentinel},
 		},
 		{
 			name:                     "mixed plain and constrained (new auth cert)",
@@ -549,28 +551,29 @@ func TestAllowedResources_EncodeDecodeCycle(t *testing.T) {
 				types.ResourceIDsToResourceAccessIDs([]types.ResourceID{plainNode}),
 				constrainedApp,
 			),
-			wantRoundtripSameAsFirst: true,
+			wantLegacyExtension: []types.ResourceID{plainNode},
 		},
 		{
 			name:                         "old auth cert (only old extension, no new extension)",
 			allowedResourceIDs:           []types.ResourceID{plainNode, plainDB},
-			allowedResourceAccessIDs:     nil, // old auth doesn't write new extension
+			allowedResourceAccessIDs:     nil,
 			wantAllowedResourceIDs:       []types.ResourceID{plainNode, plainDB},
 			wantAllowedResourceAccessIDs: types.ResourceIDsToResourceAccessIDs([]types.ResourceID{plainNode, plainDB}),
-			wantRoundtripSameAsFirst:     true,
+			wantLegacyExtension:          []types.ResourceID{plainNode, plainDB},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			identity := &Identity{
-				Username:                 "test-user",
-				Groups:                   []string{"access"},
+				Username: "test-user",
+				Groups:   []string{"access"},
+				//nolint:staticcheck // testing deprecated field
 				AllowedResourceIDs:       tt.allowedResourceIDs,
 				AllowedResourceAccessIDs: tt.allowedResourceAccessIDs,
 			}
 
-			// Encode → decode
+			// Encode then decode
 			subj, err := identity.Subject()
 			require.NoError(t, err)
 			subj.Names = append(subj.Names, subj.ExtraNames...)
@@ -579,38 +582,14 @@ func TestAllowedResources_EncodeDecodeCycle(t *testing.T) {
 			decoded, err := FromSubject(subj, time.Time{})
 			require.NoError(t, err)
 
-			require.ElementsMatch(t, tt.wantAllowedResourceAccessIDs, decoded.AllowedResourceAccessIDs,
-				"AllowedResourceAccessIDs mismatch after first decode")
+			assert.ElementsMatch(t, tt.wantAllowedResourceAccessIDs, decoded.AllowedResourceAccessIDs)
 			//nolint:staticcheck // testing deprecated field
-			require.ElementsMatch(t, tt.wantAllowedResourceIDs, decoded.AllowedResourceIDs,
-				"AllowedResourceIDs mismatch after first decode")
+			assert.ElementsMatch(t, tt.wantAllowedResourceIDs, decoded.AllowedResourceIDs)
 
-			if !tt.wantRoundtripSameAsFirst {
-				return
-			}
-
-			// re-encode then decode to simulate db csr signing path
+			// Re-encode, verify legacy extension, decode again
 			subj2, err := decoded.Subject()
 			require.NoError(t, err)
-
-			// verify the raw re-encoded subject's legacy extension directly.
-			// This is what an old agent would parse; if it contains
-			// the sentinel instead of real IDs, the agent denies access.
-			// Only check when plain resources are expected; for constrained-
-			// resources-only requests, the sentinel value is expected.
-			if len(tt.wantAllowedResourceIDs) > 0 {
-				for _, name := range subj2.ExtraNames {
-					if !name.Type.Equal(AllowedResourcesASN1ExtensionOID) {
-						continue
-					}
-					rawIDs, err := types.ResourceIDsFromString(name.Value.(string))
-					require.NoError(t, err)
-					for _, rid := range rawIDs {
-						require.False(t, types.IsSentinelResourceID(rid),
-							"sentinel value not appear expected in re-encoded legacy extension")
-					}
-				}
-			}
+			assert.ElementsMatch(t, tt.wantLegacyExtension, legacyExtensionIDs(t, subj2))
 
 			subj2.Names = append(subj2.Names, subj2.ExtraNames...)
 			subj2.ExtraNames = nil
@@ -618,13 +597,26 @@ func TestAllowedResources_EncodeDecodeCycle(t *testing.T) {
 			roundtripped, err := FromSubject(subj2, time.Time{})
 			require.NoError(t, err)
 
-			require.ElementsMatch(t, decoded.AllowedResourceAccessIDs, roundtripped.AllowedResourceAccessIDs,
-				"AllowedResourceAccessIDs changed after re-encode roundtrip")
+			assert.ElementsMatch(t, decoded.AllowedResourceAccessIDs, roundtripped.AllowedResourceAccessIDs)
 			//nolint:staticcheck // testing deprecated field
-			require.ElementsMatch(t, decoded.AllowedResourceIDs, roundtripped.AllowedResourceIDs,
-				"AllowedResourceIDs changed after re-encode roundtrip")
+			assert.ElementsMatch(t, decoded.AllowedResourceIDs, roundtripped.AllowedResourceIDs)
 		})
 	}
+}
+
+// legacyExtensionIDs extracts ResourceIDs from the legacy AllowedResources
+// extension (OID 1.3.9999.2.10) in a pkix.Name subject. This is what an
+// old agent would parse from the cert.
+func legacyExtensionIDs(t *testing.T, subj pkix.Name) []types.ResourceID {
+	t.Helper()
+	for _, name := range subj.ExtraNames {
+		if name.Type.Equal(AllowedResourcesASN1ExtensionOID) {
+			ids, err := types.ResourceIDsFromString(name.Value.(string))
+			require.NoError(t, err)
+			return ids
+		}
+	}
+	return nil
 }
 
 func TestGCPExtensions(t *testing.T) {
