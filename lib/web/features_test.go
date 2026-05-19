@@ -23,6 +23,7 @@ import (
 	"log/slog"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -43,27 +44,27 @@ type mockedFeatureGetter struct {
 	authclient.ClientI
 
 	mu       sync.Mutex
-	features proto.Features
+	features *proto.Features
 }
 
 func (m *mockedFeatureGetter) Ping(ctx context.Context) (proto.PingResponse, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return proto.PingResponse{
-		ServerFeatures: utils.CloneProtoMsg(&m.features),
+		ServerFeatures: utils.CloneProtoMsg(m.features),
 	}, nil
 }
 
 func (m *mockedFeatureGetter) setFeatures(f proto.Features) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.features = f
+	m.features = &f
 }
 
 func TestFeaturesWatcher(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 
-	mockClient := &mockedFeatureGetter{features: proto.Features{
+	mockClient := &mockedFeatureGetter{features: &proto.Features{
 		Kubernetes:     true,
 		Entitlements:   map[string]*proto.EntitlementInfo{},
 		AccessRequests: &proto.AccessRequestsFeature{},
@@ -85,7 +86,7 @@ func TestFeaturesWatcher(t *testing.T) {
 	// before running the watcher, features should match the value passed to the handler
 	requireFeatures(t, clock, proto.Features{}, handler.GetClusterFeatures)
 
-	go handler.startFeatureWatcher()
+	go handler.startFeatureWatcher(ctx)
 	clock.BlockUntil(1)
 
 	// after starting the watcher, handler.GetClusterFeatures should return
@@ -180,4 +181,39 @@ func neverFeatures(t *testing.T, fakeClock *clockwork.FakeClock, doNotWant proto
 	require.Never(t, func() bool {
 		return cmp.Diff(doNotWant, getFeatures()) == ""
 	}, 1*time.Second, time.Millisecond*100)
+}
+
+func TestFeaturesWatcherDoesNotPanicOnNilFeatures(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		initialFeatures := proto.Features{
+			Entitlements: map[string]*proto.EntitlementInfo{
+				string(entitlements.App): {Enabled: true},
+			},
+		}
+
+		handler := &Handler{
+			cfg: Config{
+				FeatureWatchInterval: time.Nanosecond,
+				ProxyClient: &mockedFeatureGetter{
+					features: nil, // Simulate auth server returning nil features.
+				},
+			},
+			clock:           clockwork.NewRealClock(),
+			clusterFeatures: initialFeatures,
+			log:             newPackageLogger(),
+		}
+
+		go handler.startFeatureWatcher(t.Context())
+		synctest.Wait()
+
+		time.Sleep(handler.cfg.FeatureWatchInterval)
+		synctest.Wait()
+
+		require.Equal(
+			t,
+			initialFeatures,
+			handler.clusterFeatures,
+			"Cluster features must remain unchanged when auth server returns nil features",
+		)
+	})
 }
