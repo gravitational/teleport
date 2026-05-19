@@ -821,7 +821,7 @@ func (h *Handler) awsOIDCEnrollEKSClusters(w http.ResponseWriter, r *http.Reques
 	}
 
 	versionGetter := &handlerVersionGetter{h}
-	agentVersion, err := kubeutils.GetKubeAgentVersion(ctx, h.cfg.ProxyClient, h.GetClusterFeatures(), versionGetter)
+	agentVersion, err := kubeutils.GetKubeAgentVersion(ctx, versionGetter)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

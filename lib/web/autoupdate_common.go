@@ -20,6 +20,7 @@ package web
 
 import (
 	"context"
+	"errors"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
@@ -30,6 +31,8 @@ import (
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 	"github.com/gravitational/teleport/lib/utils"
+
+	"github.com/gravitational/teleport"
 )
 
 // autoUpdateAgentVersion returns the version the agent should install/update to based on
@@ -51,7 +54,9 @@ func (h *Handler) autoUpdateAgentVersion(ctx context.Context, group, updaterUUID
 	return getVersionFromRollout(rollout, group, updaterUUID)
 }
 
-// handlerVersionGetter is a dummy struct implementing version.Getter by wrapping Handler.autoUpdateAgentVersion.
+// handlerVersionGetter implements version.Getter by wrapping the Handler's
+// autoupdate resolver and falling back to teleport.Version (the proxy's own
+// version) when no autoupdate target is configured.
 type handlerVersionGetter struct {
 	*Handler
 }
@@ -59,8 +64,15 @@ type handlerVersionGetter struct {
 // GetVersion implements version.Getter.
 func (h *handlerVersionGetter) GetVersion(ctx context.Context) (*semver.Version, error) {
 	const group, updaterUUID = "", ""
-	agentVersion, err := h.autoUpdateAgentVersion(ctx, group, updaterUUID)
-	return agentVersion, trace.Wrap(err)
+	v, err := h.autoUpdateAgentVersion(ctx, group, updaterUUID)
+	if err == nil {
+		return v, nil
+	}
+	var noNewVersionErr *version.NoNewVersionError
+	if !errors.As(trace.Unwrap(err), &noNewVersionErr) {
+		return nil, trace.Wrap(err)
+	}
+	return version.EnsureSemver(teleport.Version)
 }
 
 // autoUpdateAgentShouldUpdate returns if the agent should update now to based on its group
