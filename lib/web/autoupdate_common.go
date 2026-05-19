@@ -67,8 +67,13 @@ func (h *handlerVersionGetter) GetVersion(ctx context.Context) (*semver.Version,
 	if err == nil {
 		return v, nil
 	}
+	// Fall back to teleport.Version when no autoupdate target is configured.
+	// On non-cloud Handlers, AutomaticUpgradesChannels is nil so the channel
+	// lookup returns NotFound rather than NoNewVersionError; NotImplemented is
+	// returned when the autoupdate_agent_rollout resource isn't supported.
 	var noNewVersionErr *version.NoNewVersionError
-	if !errors.As(trace.Unwrap(err), &noNewVersionErr) {
+	if !errors.As(trace.Unwrap(err), &noNewVersionErr) &&
+		!trace.IsNotFound(err) && !trace.IsNotImplemented(err) {
 		return nil, trace.Wrap(err)
 	}
 	return version.EnsureSemver(teleport.Version)
