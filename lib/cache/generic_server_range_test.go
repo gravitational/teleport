@@ -23,6 +23,9 @@ import (
 	"testing"
 	"testing/synctest"
 
+	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/require"
+
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -30,8 +33,6 @@ import (
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/trace"
-	"github.com/stretchr/testify/require"
 )
 
 type hostIDGetterResource interface {
