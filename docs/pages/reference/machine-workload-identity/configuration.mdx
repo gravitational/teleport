@@ -258,7 +258,7 @@ allow_reissue: false
 
 The `identity/key-agent` service provides similar functionality to the
 `identity` output service, but makes it impossible to steal or exfiltrate the
-generated identity by keeping private key material entirely in-memory.
+generated identity by keeping private key material entirely in memory.
 
 It works similarly to the [Hardware Key Agent](https://github.com/gravitational/teleport/blob/master/rfd/0199-hardware-key-agent.md)
 in that it runs a gRPC service on a Unix socket, which the Teleport Client calls
