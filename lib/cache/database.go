@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 type databaseIndex string
@@ -273,6 +274,7 @@ func (c *Cache) RangeDatabaseServersWithName(ctx context.Context, databaseName s
 			for _, r := range resp.Resources {
 				server, ok := r.(types.DatabaseServer)
 				if !ok {
+					c.Logger.WarnContext(ctx, "expected DatabaseServer but received unexpected type", "resource_type", logutils.TypeAttr(r))
 					continue
 				}
 				if server.GetDatabase().GetName() == databaseName {
