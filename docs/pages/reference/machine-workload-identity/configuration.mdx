@@ -271,7 +271,15 @@ It can be used to authenticate:
 - Management of Teleport resources using the Teleport Terraform provider.
 - Access to the Teleport API using the Teleport Go SDK.
 
-To use the key agent service with `tsh` or `tctl`, you must set the
+```yaml
+# type specifies the type of the output. For the key agent output, this will
+# always be `identity/key-agent`.
+type: identity/key-agent
+
+(!docs/pages/includes/machine-id/common-output-config.yaml!)
+```
+
+To use the `identity/key-agent` service with `tsh` or `tctl`, you must set the
 `TELEPORT_KEY_AGENT_DIR` environment variable to the configured destination
 directory path, and use the generated identity file.
 
@@ -281,13 +289,6 @@ Example:
 $ TELEPORT_KEY_AGENT_DIR=/opt/machine-id \
   TELEPORT_IDENTITY_FILE=/opt/machine-id/identity \
   tsh ssh user@host
-```
-
-```yaml
-# type specifies the type of the output. For the key agent output, this will
-# always be `identity/key-agent`.
-type: identity/key-agent
-(!docs/pages/includes/machine-id/common-output-config.yaml!)
 ```
 
 ### `application`
