@@ -9,6 +9,7 @@ on:
 permissions:
   pull-requests: write
   id-token: write
+  contents: read
 
 jobs:
   amplify-preview:
@@ -31,7 +32,14 @@ jobs:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         wait: "true"
 
-    - name: Comment per-page preview links
+    # Check out the repository so the next step can grep docs/pages/ for
+    # image references. SHA-pin this to match the rest of the file once
+    # the repo's preferred actions/checkout SHA is confirmed.
+    - name: Check out repository
+      if: success()
+      uses: actions/checkout@v4
+
+    - name: Append per-page preview links to deployment status comment
       if: success()
       uses: actions/github-script@v7
       env:
@@ -40,6 +48,9 @@ jobs:
       with:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         script: |
+          const fs = require('fs');
+          const path = require('path');
+
           const previewBranch = process.env.PREVIEW_BRANCH;
           if (!previewBranch) {
             core.warning("No preview branch name available from amplify-preview step; skipping per-page comment.");
@@ -54,7 +65,41 @@ jobs:
 
           const previewHost = `https://${previewBranch}.${previewAppId}.amplifyapp.com`;
 
-          // Get changed files in this PR, filtered to docs/ MDX pages.
+          // Build the URL for a docs/pages/*.mdx file.
+          function pageUrl(p) {
+            let urlPath = p.replace(/^docs\/pages\//, '').replace(/\.mdx$/, '');
+            // index pages map to their parent directory; handle both
+            // top-level (docs/pages/index.mdx) and nested (foo/bar/index.mdx).
+            urlPath = urlPath.replace(/(^|\/)index$/, '');
+            // Trim any trailing slash the index strip may have left
+            // (foo/index -> foo/) to avoid producing double-slash URLs.
+            urlPath = urlPath.replace(/\/$/, '');
+            return urlPath === ''
+              ? `${previewHost}/docs/`
+              : `${previewHost}/docs/${urlPath}/`;
+          }
+
+          // Recursively list every .mdx file under a directory, skipping
+          // any subdirectory named "includes".
+          async function listMdxPages(dir) {
+            const results = [];
+            async function walk(d) {
+              const entries = await fs.promises.readdir(d, { withFileTypes: true });
+              for (const entry of entries) {
+                const full = path.join(d, entry.name);
+                if (entry.isDirectory()) {
+                  if (entry.name === 'includes') continue;
+                  await walk(full);
+                } else if (entry.isFile() && full.endsWith('.mdx')) {
+                  results.push(full);
+                }
+              }
+            }
+            await walk(dir);
+            return results;
+          }
+
+          // Get changed files in this PR.
           const { data: files } = await github.rest.pulls.listFiles({
             owner: context.repo.owner,
             repo: context.repo.repo,
@@ -62,56 +107,170 @@ jobs:
             per_page: 100,
           });
 
-          const pageLinks = files
+          const changedPaths = files
             .filter(f => f.status !== 'removed')
-            .map(f => f.filename)
-            .filter(p => p.startsWith('docs/pages/'))
-            .filter(p => p.endsWith('.mdx'))
-            .filter(p => !p.includes('/includes/'))
-            .map(p => {
-              // Strip docs/pages/ prefix and .mdx extension.
-              let urlPath = p.replace(/^docs\/pages\//, '').replace(/\.mdx$/, '');
-              // index pages map to their parent directory.
-              urlPath = urlPath.replace(/\/index$/, '');
-              return { file: p, url: `${previewHost}/docs/${urlPath}/` };
-            });
+            .map(f => f.filename);
 
-          if (pageLinks.length === 0) {
-            console.log("No docs pages changed; skipping per-page comment.");
-            return;
+          // Directly-changed MDX pages: docs/pages/**/*.mdx, excluding includes.
+          const directlyChangedPages = new Set(
+            changedPaths
+              .filter(p => p.startsWith('docs/pages/'))
+              .filter(p => p.endsWith('.mdx'))
+              .filter(p => !p.includes('/includes/'))
+          );
+
+          // Changed images: docs/img/**/*.{png,svg}.
+          // The matchSuffix is the portion of the path that MDX references
+          // contain (e.g., "img/headless/approval.png"), used for substring
+          // matching against MDX file content. Note: image references inside
+          // include files are not traced back to the pages that embed those
+          // includes; such images appear as orphans.
+          const changedImages = changedPaths
+            .filter(p => p.startsWith('docs/img/'))
+            .filter(p => /\.(png|svg)$/i.test(p))
+            .map(p => ({
+              path: p,
+              basename: path.basename(p),
+              matchSuffix: p.replace(/^docs\//, ''),
+            }));
+
+          // For each MDX page outside includes, record which changed images
+          // it references. Also track which images were referenced at all,
+          // so we can report orphans.
+          const imageRefMap = new Map(); // mdx path -> Set<basename>
+          const referencedImagePaths = new Set();
+
+          if (changedImages.length > 0) {
+            const allMdxPages = await listMdxPages('docs/pages');
+            for (const mdxPath of allMdxPages) {
+              const content = await fs.promises.readFile(mdxPath, 'utf8');
+              for (const img of changedImages) {
+                if (content.includes(img.matchSuffix)) {
+                  if (!imageRefMap.has(mdxPath)) {
+                    imageRefMap.set(mdxPath, new Set());
+                  }
+                  imageRefMap.get(mdxPath).add(img.basename);
+                  referencedImagePaths.add(img.path);
+                }
+              }
+            }
           }
 
-          const marker = "<!-- amplify-per-page-preview -->";
-          const body = [
-            marker,
-            "### Preview links for changed docs pages",
-            "",
-            ...pageLinks.map(l => `- [\`${l.file}\`](${l.url})`),
-          ].join("\n");
+          const orphanedImages = changedImages
+            .filter(img => !referencedImagePaths.has(img.path))
+            .map(img => img.path)
+            .sort();
 
-          // Update the existing comment if one exists, otherwise create a new one.
+          // Build the unified page list (direct + image-triggered, deduped).
+          const allPagePaths = [...new Set([
+            ...directlyChangedPages,
+            ...imageRefMap.keys(),
+          ])].sort();
+
+          const pageEntries = allPagePaths.map(p => {
+            const url = pageUrl(p);
+            const imageRefs = imageRefMap.get(p);
+            let annotation = '';
+            if (imageRefs && imageRefs.size > 0) {
+              const sorted = [...imageRefs].sort();
+              const label = sorted.length === 1 ? 'image change' : 'image changes';
+              annotation = ` — ${label}: ${sorted.map(b => '`' + b + '`').join(', ')}`;
+            }
+            return `- [\`${p}\`](${url})${annotation}`;
+          });
+
+          // Compose the section body. Always show the section header so the
+          // comment includes consistent feedback even when nothing matched.
+          const startMarker = "<!-- amplify-per-page-preview:start -->";
+          const endMarker = "<!-- amplify-per-page-preview:end -->";
+          const sectionLines = [startMarker, "", "### Preview links for changed docs pages", ""];
+
+          if (pageEntries.length > 0) {
+            sectionLines.push(...pageEntries);
+          } else {
+            sectionLines.push("No docs pages changed in this PR.");
+          }
+
+          if (orphanedImages.length > 0) {
+            sectionLines.push("", "#### Changed images with no associated page", "");
+            sectionLines.push(...orphanedImages.map(p => `- \`${p}\``));
+          }
+
+          sectionLines.push("", endMarker);
+          const linksSection = sectionLines.join("\n");
+
+          // Find the deployment status comment posted by the shared
+          // amplify-preview action. The shared action does not embed a
+          // dedicated HTML marker, so we match on its author (the workflow's
+          // bot identity) and distinctive substrings of its body.
           const { data: comments } = await github.rest.issues.listComments({
             owner: context.repo.owner,
             repo: context.repo.repo,
             issue_number: context.issue.number,
           });
-          const existing = comments.find(c => c.body && c.body.includes(marker));
 
-          if (existing) {
-            await github.rest.issues.updateComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              comment_id: existing.id,
-              body,
-            });
-          } else {
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body,
-            });
+          const deploymentComment = comments.find(
+            c =>
+              c.user?.login === 'github-actions[bot]' &&
+              c.body?.includes('Amplify deployment status') &&
+              c.body?.includes('amplifyapp.com')
+          );
+
+          if (!deploymentComment) {
+            core.warning(
+              "Could not find the Amplify deployment status comment to append " +
+              "per-page preview links to. Posting per-page links as a separate comment."
+            );
+
+            // Look for an existing fallback comment to update before creating
+            // a new one, so reruns do not accumulate duplicate comments if
+            // the upstream comment format ever changes.
+            const existingFallback = comments.find(
+              c => c.user?.login === 'github-actions[bot]' && c.body?.includes(startMarker)
+            );
+
+            if (existingFallback) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingFallback.id,
+                body: linksSection,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: linksSection,
+              });
+            }
+            return;
           }
+
+          // Build the updated body. If a previous per-page links section is
+          // already present (from a prior workflow run on this PR), replace
+          // it in place; otherwise append a new section after a separator.
+          let newBody;
+          const existingSectionRegex = new RegExp(
+            `\\n*${startMarker}[\\s\\S]*?${endMarker}\\n*`,
+            'g'
+          );
+
+          if (existingSectionRegex.test(deploymentComment.body)) {
+            newBody = deploymentComment.body.replace(
+              existingSectionRegex,
+              `\n\n${linksSection}\n`
+            );
+          } else {
+            newBody = `${deploymentComment.body}\n\n---\n\n${linksSection}`;
+          }
+
+          await github.rest.issues.updateComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            comment_id: deploymentComment.id,
+            body: newBody,
+          });
 
     - name: Print failure message
       if: failure()
