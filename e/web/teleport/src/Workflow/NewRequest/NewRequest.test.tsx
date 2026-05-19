@@ -419,6 +419,7 @@ test('adding constrained resources to requests', async () => {
       reason: 'some reason',
       requestTTL: new Date('2024-02-17T02:51:00.000Z'),
       requestKind: 1,
+      resourceIds: [],
       resourceAccessIds: [
         {
           id: {
@@ -564,17 +565,15 @@ test('created requests specifiable fields are respected on checkout (not overwri
       reason: 'some reason',
       requestTTL: new Date('2024-02-17T02:51:00.000Z'),
       requestKind: 1,
-      resourceAccessIds: [
+      resourceIds: [
         {
-          id: {
-            clusterName: 'localhost',
-            kind: 'node',
-            name: '1',
-            subResourceName: '',
-          },
-          constraints: undefined,
+          clusterName: 'localhost',
+          kind: 'node',
+          name: '1',
+          subResourceName: '',
         },
       ],
+      resourceAccessIds: [],
       roles: ['access'],
       suggestedReviewers: ['cat', 'george washington', 'alpaca-reviewer'],
     },
@@ -617,17 +616,15 @@ test('created requests specifiable fields are respected on checkout (not overwri
       reason: '',
       requestKind: 1,
       requestTTL: new Date('2024-02-17T02:51:00.000Z'),
-      resourceAccessIds: [
+      resourceIds: [
         {
-          id: {
-            clusterName: 'localhost',
-            kind: 'node',
-            name: '1',
-            subResourceName: '',
-          },
-          constraints: undefined,
+          clusterName: 'localhost',
+          kind: 'node',
+          name: '1',
+          subResourceName: '',
         },
       ],
+      resourceAccessIds: [],
       // These fields gotten reset after the first create.
       roles: ['access', 'editor', 'auditor'],
       suggestedReviewers: ['bob', 'cat', 'george washington'],

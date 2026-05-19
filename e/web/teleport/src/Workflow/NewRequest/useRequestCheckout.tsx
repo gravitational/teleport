@@ -187,21 +187,28 @@ export function useRequestCheckout({
     // field 'roles' is expected as just a list of strings
     // in the back.
     let roles: string[];
+    let resourceIds: ResourceId[];
     let resourceAccessIds: ResourceAccessId[];
 
     if (!isResourceRequest) {
       roles = pendingAccessRequests.map(item => item.name);
     } else {
-      resourceAccessIds = getResourceIDsForRequest({
+      // Separate plain resources (no constraints) from constrained ones.
+      // Plain resources are sent as resourceIds for backwards compatibility
+      // with older auth/proxy servers that don't understand resourceAccessIds.
+      const allResources = getResourceIDsForRequest({
         resources: pendingAccessRequestsWithoutParentResource,
         resourceConstraints: addedResourceConstraints,
         cluster: clusterId,
       });
+      resourceIds = allResources.filter(r => !r.constraints).map(r => r.id);
+      resourceAccessIds = allResources.filter(r => r.constraints);
       roles = selectedResourceRequestRoles;
     }
 
     const params: CreateAccessRequest = {
       reason: req.reason,
+      resourceIds,
       resourceAccessIds,
       suggestedReviewers: req.suggestedReviewers || [],
       dryRun: req.dryRun,

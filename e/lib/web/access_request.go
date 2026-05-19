@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -57,7 +58,10 @@ func (p *Plugin) createAccessRequestHandle(w http.ResponseWriter, r *http.Reques
 	}
 
 	clusterAuthProxyServerFeatures := componentfeatures.GetClusterAuthProxyServerFeatures(r.Context(), clt, p.Logger)
-	if len(req.ResourceAccessIDs) > 0 && !componentfeatures.InAllSets(componentfeatures.FeatureResourceConstraintsV1, clusterAuthProxyServerFeatures) {
+	hasConstraints := slices.ContainsFunc(req.ResourceAccessIDs, func(r ui.ResourceAccessID) bool {
+		return r.Constraints != nil
+	})
+	if hasConstraints && !componentfeatures.InAllSets(componentfeatures.FeatureResourceConstraintsV1, clusterAuthProxyServerFeatures) {
 		return nil, trace.BadParameter("constrained resources were specified in Access Request, but the cluster does not support Resource Constraints")
 	}
 

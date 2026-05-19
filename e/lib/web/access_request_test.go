@@ -94,6 +94,76 @@ func TestCreateAccessRequest_SearchBased(t *testing.T) {
 	require.Equal(t, types.RequestState_PENDING.String(), req.State)
 }
 
+// TestCreateAccessRequestHandle_PlainResourcesInResourceAccessIDs verifies that
+// the HTTP handler path does not reject unconstrained resources sent via the new
+// ResourceAccessIDs field when the cluster does not fully support FeatureResourceConstraintsV1.
+func TestCreateAccessRequestHandle_PlainResourcesInResourceAccessIDs(t *testing.T) {
+	t.Parallel()
+	clock := clockwork.NewRealClock()
+	s := newWebSuite(t, withClock(clock), withModules(&modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+	}))
+	ctx, cancel := context.WithTimeout(s.ctx, 15*time.Second)
+	t.Cleanup(cancel)
+
+	authClient := s.newAdminAuthClient(ctx, t)
+
+	// Create roles; one granting node access, one allowing the user to request it
+	accessRole, err := authtest.CreateRole(ctx, authClient, "node-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			NodeLabels: types.Labels{"*": []string{"*"}},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = authtest.CreateRole(ctx, authClient, "requester", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				SearchAsRoles: []string{accessRole.GetName()},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	node, err := types.NewServer("test-node", types.KindNode, types.ServerSpecV2{})
+	require.NoError(t, err)
+	_, err = authClient.UpsertNode(ctx, node)
+	require.NoError(t, err)
+
+	teleUser, err := types.NewUser("requester-user")
+	require.NoError(t, err)
+	teleUser.AddRole("requester")
+	_, err = s.testAuthServer.Auth().CreateUser(ctx, teleUser)
+	require.NoError(t, err)
+	require.NoError(t, s.testAuthServer.Auth().UpsertPassword("requester-user", []byte(s.testPassword())))
+
+	pack := s.newAuthWebPack(t, "requester-user", skipUserCreation())
+
+	// The test web suite registers the auth server without ComponentFeatures,
+	// simulating an older auth that doesn't advertise FeatureResourceConstraintsV1.
+	// Before the fix this request would be rejected with:
+	// "constrained resources were specified in Access Request, but the cluster
+	// does not support Resource Constraints"
+	body, err := json.Marshal(ui.AccessRequestParameters{
+		Reason: "testing plain resources in resourceAccessIds",
+		ResourceAccessIDs: []ui.ResourceAccessID{
+			{
+				ID: ui.ResourceID{
+					ClusterName: "localhost",
+					Name:        "test-node",
+					Kind:        "node",
+				},
+				Constraints: nil,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	resp, err := pack.clt.PostJSON(ctx, pack.clt.Endpoint("enterprise", "accessrequest"), json.RawMessage(body))
+	require.NoError(t, err, "plain resources in ResourceAccessIDs should not be rejected by the feature check")
+	require.Equal(t, 200, resp.Code())
+}
+
 func TestCreateAccessRequest_ConstrainedResource(t *testing.T) {
 	m := &mockedAccessRequestAPIGetter{}
 	var createdReq types.AccessRequest
