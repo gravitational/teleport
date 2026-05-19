@@ -867,4 +867,3 @@ func sortRoles(roles []scannedRole) {
 		return strings.Compare(a.file, b.file)
 	})
 }
-
