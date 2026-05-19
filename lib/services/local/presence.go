@@ -1058,9 +1058,7 @@ func (s *PresenceService) GetDatabaseServers(ctx context.Context, namespace stri
 // RangeDatabaseServersWithName returns an iterator over database proxy servers for a given database name.
 func (s *PresenceService) RangeDatabaseServersWithName(ctx context.Context, databaseName string) iter.Seq2[types.DatabaseServer, error] {
 	if databaseName == "" {
-		return func(yield func(types.DatabaseServer, error) bool) {
-			yield(nil, trace.BadParameter("missing database name"))
-		}
+		return stream.Fail[types.DatabaseServer](trace.BadParameter("missing database name"))
 	}
 
 	mapFn := func(item backend.Item) (types.DatabaseServer, bool) {

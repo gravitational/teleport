@@ -239,14 +239,13 @@ func (c *Cache) GetDatabaseServers(ctx context.Context, namespace string, opts .
 
 // RangeDatabaseServersWithName returns an iterator over database proxy servers for a given database name.
 func (c *Cache) RangeDatabaseServersWithName(ctx context.Context, databaseName string) iter.Seq2[types.DatabaseServer, error] {
+	if databaseName == "" {
+		return stream.Fail[types.DatabaseServer](trace.BadParameter("missing database name"))
+	}
+
 	return func(yield func(types.DatabaseServer, error) bool) {
 		ctx, span := c.Tracer.Start(ctx, "cache/RangeDatabaseServersWithName")
 		defer span.End()
-
-		if databaseName == "" {
-			yield(nil, trace.BadParameter("missing database name"))
-			return
-		}
 
 		upstreamListFn := func(ctx context.Context, pageSize int, startToken string) ([]types.DatabaseServer, string, error) {
 			// discard the databaseName, we don't need it to query the backend
