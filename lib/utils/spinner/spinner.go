@@ -64,7 +64,7 @@ func (s *Spinner) run(msg string) {
 	for {
 		select {
 		case final := <-s.finalMessage:
-			fmt.Fprintf(s.w, "\r%s\r", strings.Repeat(" ", len(msg)+4))
+			fmt.Fprintf(s.w, "\r%s\r", strings.Repeat(" ", len(msg)+2))
 			if final != "" {
 				fmt.Fprintln(s.w, final)
 			}

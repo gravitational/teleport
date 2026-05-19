@@ -62,15 +62,15 @@ func (c *beamsAddCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	interactive := utils.IsTerminal(cf.Stdout())
+	showSpinner := utils.IsTerminal(cf.Stdout())
 	format := strings.ToLower(c.format)
 	switch format {
 	case teleport.JSON, teleport.YAML:
-		interactive = false
+		showSpinner = false
 	}
 
 	var s *spinner.Spinner
-	if interactive {
+	if showSpinner {
 		s = spinner.New(cf.Stdout(), "Creating beam...")
 		defer s.Stop()
 	}
@@ -110,14 +110,13 @@ func (c *beamsAddCommand) run(cf *CLIConf) error {
 	// the beam won't be published yet, there's no need to actually fetch it.
 	const proxyAddr = ""
 
-	alias := beam.GetStatus().GetAlias()
-
 	switch format {
 	case teleport.JSON:
 		return trace.Wrap(common.PrintJSONIndent(cf.Stdout(), formatBeam(beam, proxyAddr)))
 	case teleport.YAML:
 		return trace.Wrap(common.PrintYAML(cf.Stdout(), formatBeam(beam, proxyAddr)))
 	default:
+		alias := beam.GetStatus().GetAlias()
 		if s != nil {
 			s.StopWithMessage(fmt.Sprintf("Beam %q created.\n", alias))
 		} else {
