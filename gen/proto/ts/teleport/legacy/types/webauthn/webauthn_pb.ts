@@ -27,6 +27,12 @@ import { UnknownFieldHandler } from "@protobuf-ts/runtime";
 import type { PartialMessage } from "@protobuf-ts/runtime";
 import { reflectionMergePartial } from "@protobuf-ts/runtime";
 import { MessageType } from "@protobuf-ts/runtime";
+// A partial, non-gogoproto copy of this package is defined in
+// teleport/webauthn/v2/webauthn.proto. Only a subset of this legacy WebAuthn
+// package is defined there (namely, assertion messages.) Messages that are
+// present in both packages must be kept in sync. Registration messages and any
+// other absent WebAuthn messages may be copied over lazily, if necessary.
+
 // -----------------------------------------------------------------------------
 // Assertion (aka login).
 // -----------------------------------------------------------------------------
