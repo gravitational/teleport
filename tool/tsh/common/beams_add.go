@@ -23,6 +23,7 @@ import (
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -123,7 +124,11 @@ func (c *beamsAddCommand) run(cf *CLIConf) error {
 		}
 
 		if c.console {
-			return trace.Wrap(sshBeam(cf, tc, beam, nil))
+			if err := sshBeam(cf, tc, beam, nil); err != nil {
+				return trace.Wrap(err)
+			}
+			gray := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+			fmt.Fprintln(cf.Stdout(), gray.Render(fmt.Sprintf("\nTo reconnect to this beam, run:\n    tsh beams ssh %s", alias)))
 		}
 	}
 
