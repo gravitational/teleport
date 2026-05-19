@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Link } from 'react-router';
+import { Link } from 'react-router-dom';
 
 import { Button } from 'design';
 
@@ -57,8 +57,10 @@ export default function AgentButtonAdd(props: Props) {
 
   return (
     <Link
-      to={`${cfg.routes.root}/discover`}
-      state={{ entity: agent !== 'unified_resource' ? agent : null }}
+      to={{
+        pathname: `${cfg.routes.root}/discover`,
+        state: { entity: agent !== 'unified_resource' ? agent : null },
+      }}
       style={{ textDecoration: 'none' }}
     >
       <Button

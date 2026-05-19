@@ -59,7 +59,6 @@ import (
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
-	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -1093,12 +1092,14 @@ func TestBotDatabaseTunnel(t *testing.T) {
 	// EventuallyWithT to retry.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		conn, err := pgconn.Connect(ctx, fmt.Sprintf("postgres://%s/mydb?user=llama", botListener.Addr().String()))
-		require.NoError(t, err)
+		if !assert.NoError(t, err) {
+			return
+		}
 		defer func() {
 			conn.Close(ctx)
 		}()
 		_, err = conn.Exec(ctx, "SELECT 1;").ReadAll()
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}, 10*time.Second, 100*time.Millisecond)
 
 	// Shut down bot and make sure it exits.
@@ -1194,7 +1195,7 @@ func TestBotSSHMultiplexer(t *testing.T) {
 			"ssh_config",
 		} {
 			_, err := os.Stat(filepath.Join(tmpDir, fileName))
-			require.NoError(t, err)
+			assert.NoError(t, err)
 		}
 	}, 10*time.Second, 100*time.Millisecond)
 
@@ -1221,6 +1222,7 @@ func TestBotSSHMultiplexer(t *testing.T) {
 		"server01.root:0|root\x00", // New style target with cluster
 	}
 	for _, target := range targets {
+		target := target
 		t.Run(target, func(t *testing.T) {
 			t.Parallel()
 
@@ -1232,11 +1234,9 @@ func TestBotSSHMultiplexer(t *testing.T) {
 			agentClient := agent.NewClient(agentConn)
 			callback, err := knownhosts.New(filepath.Join(tmpDir, "known_hosts"))
 			require.NoError(t, err)
-			sshConfig := apissh.ClientConfig{
-				PublicKeyAuth: apissh.PublicKeyAuthConfig{
-					Signers: func() ([]ssh.Signer, error) {
-						return agentClient.Signers()
-					},
+			sshConfig := &ssh.ClientConfig{
+				Auth: []ssh.AuthMethod{
+					ssh.PublicKeysCallback(agentClient.Signers),
 				},
 				User:            currentUser.Username,
 				HostKeyCallback: callback,
@@ -1248,19 +1248,18 @@ func TestBotSSHMultiplexer(t *testing.T) {
 			})
 			_, err = fmt.Fprint(conn, target)
 			require.NoError(t, err)
-
-			sshClient, err := apissh.NewClient(ctx, conn, "server01.root:22", sshConfig)
+			sshConn, sshChan, sshReq, err := ssh.NewClientConn(conn, "server01.root:22", sshConfig)
 			require.NoError(t, err)
+			sshClient := ssh.NewClient(sshConn, sshChan, sshReq)
 			t.Cleanup(func() {
 				sshClient.Close()
 			})
-
-			sshSess, err := sshClient.NewSession(ctx)
+			sshSess, err := sshClient.NewSession()
 			require.NoError(t, err)
 			t.Cleanup(func() {
 				sshSess.Close()
 			})
-			out, err := sshSess.CombinedOutput(ctx, "echo hello")
+			out, err := sshSess.CombinedOutput("echo hello")
 			require.NoError(t, err)
 			require.Equal(t, "hello\n", string(out))
 
@@ -1280,7 +1279,8 @@ func TestBotDeviceTrust(t *testing.T) {
 	log := logtest.NewLogger()
 
 	// Start a test server with `device.trust.mode="required-for-humans"`.
-	process, err := testenv.NewTeleportProcess(t.TempDir(),
+	process, err := testenv.NewTeleportProcess(
+		t.TempDir(),
 		defaultTestServerOpts(log),
 		testenv.WithAuthConfig(func(cfg *servicecfg.AuthConfig) {
 			cfg.Preference.SetDeviceTrust(&types.DeviceTrust{
@@ -1293,6 +1293,7 @@ func TestBotDeviceTrust(t *testing.T) {
 		require.NoError(t, process.Close())
 		require.NoError(t, process.Wait())
 	})
+
 	rootClient, err := testenv.NewDefaultAuthClient(process)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = rootClient.Close() })

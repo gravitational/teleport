@@ -55,7 +55,7 @@ jobs:
         fail-fast: false
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+      image: ghcr.io/gravitational/teleport-buildbox:teleport18
       env:
         TELEPORT_XAUTH_TEST: yes
         WEBASSETS_SKIP_BUILD: 1

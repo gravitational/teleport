@@ -83,6 +83,7 @@ func Test_handleStdioToSSE(t *testing.T) {
 	// Use a real client. Double check start event has the external MCP session
 	// ID.
 	stdioClient := mcptest.NewStdioClientFromConn(t, testCtx.clientSourceConn)
+
 	resp := mcptest.MustInitializeClient(t, stdioClient)
 	require.Equal(t, "test-server", resp.ServerInfo.Name)
 	checkSessionStartAndInitializeEvents(t, emitter.Events(),

@@ -514,23 +514,6 @@ func (l *AuditLog) SearchSessionEvents(ctx context.Context, req SearchSessionEve
 	return l.localLog.SearchSessionEvents(ctx, req)
 }
 
-func (l *AuditLog) SearchUnstructuredEvents(ctx context.Context, req SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error) {
-	g := l.log.With("event_type", req.EventTypes, "limit", req.Limit)
-	g.DebugContext(ctx, "SearchUnstructuredEvents", "from", req.From, "to", req.To)
-	limit := req.Limit
-	if limit <= 0 {
-		limit = defaults.EventsIterationLimit
-	}
-	if limit > defaults.EventsMaxIterationLimit {
-		return nil, "", trace.BadParameter("limit %v exceeds max iteration limit %v", limit, defaults.MaxIterationLimit)
-	}
-	req.Limit = limit
-	if l.ExternalLog != nil {
-		return l.ExternalLog.SearchUnstructuredEvents(ctx, req)
-	}
-	return l.localLog.SearchUnstructuredEvents(ctx, req)
-}
-
 func (l *AuditLog) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
 	l.log.DebugContext(ctx, "ExportUnstructuredEvents", "date", req.Date, "chunk", req.Chunk, "cursor", req.Cursor)
 	if l.ExternalLog != nil {
@@ -565,26 +548,27 @@ func (l *AuditLog) StreamSessionEvents(ctx context.Context, sessionID session.ID
 			startCb(evt, nil)
 		}()
 	}
-	reader, err := l.UploadHandler.StreamSessionRecording(ctx, sessionID)
-	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) || trace.IsNotFound(err) {
+	// TODO(tigrato): consider changing the implementation of Download* to return
+	// an io.ReadCloser instead of writing to a provided writer, which would allow
+	// us to avoid using io.Pipe here.
+	reader, writer := io.Pipe()
+
+	go func() {
+		err := l.UploadHandler.Download(ctx, sessionID, writer)
+		if errors.Is(err, fs.ErrNotExist) {
 			err = trace.NotFound("a recording for session %v was not found", sessionID)
 		}
-		e <- trace.Wrap(err)
-		close(sessionStartCh)
-		return c, e
-	}
+
+		// if the error is nil, it means the download was successful and closing the
+		// writer will signal the reader with io.EOF.
+		if err := writer.CloseWithError(err); err != nil {
+			l.log.WarnContext(ctx, "Failed to close the writer with error", "session_id", string(sessionID), "error", err)
+		}
+	}()
 
 	go func() {
 		defer close(sessionStartCh)
 		defer reader.Close()
-
-		// Ensure that the reader is closed when the context is done, to unblock any
-		// pending reads.
-		stop := context.AfterFunc(ctx, func() {
-			_ = reader.Close()
-		})
-		defer stop()
 
 		protoReader := NewProtoReader(reader, l.decrypter)
 		defer protoReader.Close()

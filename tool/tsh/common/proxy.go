@@ -30,9 +30,9 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"text/template"
 	"unicode"
 
-	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
@@ -455,20 +455,11 @@ func chooseProxyCommandTemplate(templateArgs map[string]any, commands []dbcmd.Co
 	return dbProxyAuthMultiTpl
 }
 
-func alpnProtocolForApp(app types.Application, appHTTPSTunnel bool) (alpncommon.Protocol, error) {
-	if appHTTPSTunnel {
-		switch app.GetProtocol() {
-		case types.ApplicationProtocolHTTP, types.ApplicationProtocolLLM:
-			return alpncommon.ProtocolAppHTTPS, nil
-		default:
-			return "", trace.BadParameter("--https-tunnel not supported for %s applications", app.GetProtocol())
-		}
-	}
-
+func alpnProtocolForApp(app types.Application) alpncommon.Protocol {
 	if app.IsTCP() {
-		return alpncommon.ProtocolTCP, nil
+		return alpncommon.ProtocolTCP
 	}
-	return alpncommon.ProtocolHTTP, nil
+	return alpncommon.ProtocolHTTP
 }
 
 func onProxyCommandApp(cf *CLIConf) error {
@@ -518,31 +509,18 @@ func onProxyCommandApp(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	alpnProtocol, err := alpnProtocolForApp(app, cf.AppHTTPSTunnel)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := proxyApp.StartLocalProxy(cf.Context, alpnproxy.WithALPNProtocol(alpnProtocol)); err != nil {
+	if err := proxyApp.StartLocalProxy(cf.Context, alpnproxy.WithALPNProtocol(alpnProtocolForApp(app))); err != nil {
 		return trace.Wrap(err)
 	}
 
 	appName := cf.AppName
 	if portMapping.TargetPort != 0 {
-		appName = net.JoinHostPort(appName, strconv.Itoa(portMapping.TargetPort))
+		appName = fmt.Sprintf("%s:%d", appName, portMapping.TargetPort)
 	}
-	fmt.Fprintf(cf.Stdout(), "Proxying connections to %s on %v\n", appName, proxyApp.GetAddr())
+	fmt.Printf("Proxying connections to %s on %v\n", appName, proxyApp.GetAddr())
 	// If target port is not equal to zero, the user must know about the port flag.
 	if portMapping.LocalPort == 0 && portMapping.TargetPort == 0 {
-		fmt.Fprintln(cf.Stdout(), "To avoid port randomization, you can choose the listening port using the --port flag.")
-	}
-
-	if cf.AppHTTPSTunnel {
-		curlCmd := fmt.Sprintf("curl --connect-to %s:443:%s https://%s", app.GetPublicAddr(), proxyApp.GetAddr(), app.GetPublicAddr())
-		if cf.InsecureSkipVerify {
-			curlCmd += " -k"
-		}
-		fmt.Fprintf(cf.Stdout(), "\nExample curl command:\n%s\n", curlCmd)
+		fmt.Println("To avoid port randomization, you can choose the listening port using the --port flag.")
 	}
 
 	defer func() {
@@ -618,7 +596,7 @@ func printProxyAWSTemplate(cf *CLIConf, awsApp awsAppInfo) error {
 		return trace.Wrap(err)
 	}
 
-	templateData := map[string]any{
+	templateData := map[string]interface{}{
 		"envVars":    envVars,
 		"format":     cf.Format,
 		"randomPort": cf.LocalProxyPort == "",
@@ -913,7 +891,7 @@ func envVarFormatFlagDescription() string {
 
 func awsProxyFormatFlagDescription() string {
 	return fmt.Sprintf(
-		"%s Or specify a service format, one of: %s.",
+		"%s Or specify a service format, one of: %s",
 		envVarFormatFlagDescription(),
 		strings.Join(awsProxyServiceFormats, ", "),
 	)
@@ -1027,7 +1005,7 @@ jdbc:awsathena://User={{.envVars.AWS_ACCESS_KEY_ID}};Password={{.envVars.AWS_SEC
 `
 
 func printCloudTemplate(envVars map[string]string, format string, randomPort bool, cloudName string) error {
-	templateData := map[string]any{
+	templateData := map[string]interface{}{
 		"envVars":    envVars,
 		"format":     format,
 		"randomPort": randomPort,

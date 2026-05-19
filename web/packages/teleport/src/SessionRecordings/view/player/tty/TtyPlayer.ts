@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { CanvasAddon } from '@xterm/addon-canvas';
 import { ImageAddon } from '@xterm/addon-image';
 import { WebLinksAddon } from '@xterm/addon-web-links';
 import { WebglAddon } from '@xterm/addon-webgl';
@@ -88,18 +89,24 @@ export class TtyPlayer extends Player<TtyEvent> {
       this.logger.error(`Failed to load image addon: ${e.message}`);
     }
 
-    let webglAddon: WebglAddon | undefined;
+    const createCanvasAddon = () => {
+      const canvasAddon = new CanvasAddon();
+
+      this.addons.push(canvasAddon);
+      this.terminal.loadAddon(canvasAddon);
+    };
+
     try {
-      webglAddon = new WebglAddon();
+      const webglAddon = new WebglAddon();
 
       webglAddon.onContextLoss(() => {
-        webglAddon?.dispose();
+        createCanvasAddon();
       });
 
       this.terminal.loadAddon(webglAddon);
       this.addons.push(webglAddon);
     } catch {
-      webglAddon?.dispose();
+      createCanvasAddon();
     }
 
     this.terminal.open(element);

@@ -376,10 +376,8 @@ spec:
                     type: boolean
                 type: object
               protocol:
-                description: 'Protocol is the database protocol. Valid options are:
-                  "cassandra" "clickhouse" "clickhouse-http" "cockroachdb" "dynamodb"
-                  "elasticsearch" "mongodb" "mysql" "oracle" "postgres" "redis" "snowflake"
-                  "spanner" "sqlserver"'
+                description: 'Protocol is the database protocol: postgres, mysql,
+                  mongodb, etc.'
                 type: string
               tls:
                 description: TLS is the TLS configuration used when establishing connection

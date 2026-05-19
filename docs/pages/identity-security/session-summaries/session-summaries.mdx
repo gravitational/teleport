@@ -104,13 +104,13 @@ Session Recording Summary Player and Timeline
 <Admonition type="tip" title="Teleport Enterprise Cloud Quick Start">
 Teleport Enterprise Cloud tenants include a pre-provisioned inference model
 (`teleport-cloud-default`). You can skip directly to
-[Step 3: Set up an inference policy](#step-34-set-up-an-inference-policy) to
+[Step 3: Set up an inference policy](#step-35-set-up-an-inference-policy) to
 start summarizing sessions.
 
 Note: Having the model pre-provisioned does not automatically enable session summarization.
 </Admonition>
 
-## Step 1/4: Configure access to inference configuration
+## Step 1/5: Configure access to inference configuration
 
 In order to manage the summary inference configuration, you need write access
 to `inference_model`, `inference_secret`, and `inference_policy` resources,
@@ -153,7 +153,7 @@ access to all necessary resources. To create a new role:
 
 1. (!docs/pages/includes/add-role-to-user.mdx role="summarizer-admin"!)
 
-## Step 2/4: Configure the inference model
+## Step 2/5: Configure the inference model
 
 In this step, you will create an `inference_model` resource. It tells Teleport
 how to summarize a session by pointing it to a large language model (LLM) API.
@@ -172,7 +172,7 @@ called `teleport-cloud-default`, powered by Amazon Bedrock. Teleport manages the
 underlying model and infrastructure.
 
 No additional configuration is needed for this step. Skip to
-[Step 3](#step-34-set-up-an-inference-policy) and reference
+[Step 3](#step-35-set-up-an-inference-policy) and reference
 `teleport-cloud-default` as the model in your inference policy.
 
 You can also add your own inference models using the **OpenAI** or **Amazon
@@ -370,7 +370,7 @@ modify the role specified in the **IAM Role** section of the instance summary.
 </TabItem>
 </Tabs>
 
-## Step 3/4: Set up an inference policy
+## Step 3/5: Set up an inference policy
 
 In this step, you will add an `inference_policy` resource that routes sessions
 to inference models using session kinds and optional custom filters. Only one
@@ -461,7 +461,7 @@ sections of [Teleport Resources Reference](../../reference/infrastructure-as-cod
 - [`inference_secret`](../../reference/infrastructure-as-code/teleport-resources/inference-secret.mdx) (only for OpenAI and compatible APIs)
 - [`inference_policy`](../../reference/infrastructure-as-code/teleport-resources/inference-policy.mdx)
 
-## Step 4/4: Configure access to session summaries
+## Step 4/5: Configure access to session summaries
 
 Every user who has access to
 [given session recording](../../reference/access-controls/roles.mdx#rbac-for-session-recordings)
@@ -498,14 +498,14 @@ access to all recordings. To create a new role:
 
 1. (!docs/pages/includes/add-role-to-user.mdx role="summary-auditor"!)
 
-## Next steps
+## Step 5/5: Conduct a session and view its summary
 
-Once you have completed the steps in this guide, you  are ready to conduct a
-test session. Connect to any of your cluster resources using `tsh ssh`, `kubectl
-exec`, `tsh db connect`, or a web terminal. Start an interactive session and
-execute any command, quit the session, and go to **Audit -> Session
-Recordings**. You should see the corresponding recording tile with a summary
-button. Clicking the summary button will show the summary.
+That's it! We are ready to conduct a test session. Connect to any of your
+cluster resources using `tsh ssh`, `kubectl exec`, `tsh db connect`, or a web
+terminal. Start an interactive session and execute any command, quit the
+session, and go to **Audit -> Session Recordings**. You should see the
+corresponding recording tile with a summary button. Clicking the summary button
+will show the summary.
 
 ### Session Recording Summary Dashboard
 
@@ -518,7 +518,7 @@ factors, including session size, model, and its temperature. Usually it should
 appear up to a minute after the session is uploaded to the Auth service.
 </Admonition>
 
-### Session Recording Search
+## Session Recording Search
 
 After summaries are enabled, you can configure
 [Session Recording Search](./session-search.mdx) to find summarized recordings

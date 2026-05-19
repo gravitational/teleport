@@ -61,78 +61,46 @@ If you are using already configured Okta connector, you can skip Okta app config
 
 Okta Integration Network support is still in beta. If unsure please proceed with the Custom SAML 2.0 app.
 
-<Tabs groupId="saml-app" defaultValue="legacy">
-<TabItem label="Okta Integration Network" value="oin">
+1. In Okta Console, go to **Applications**.
 
-  Add Teleport app to Okta if it hasn't been added previously:
+2. Click **Create App Integration**.
 
-  1. In Okta Console, go to **Applications**.
+3. Select "SAML 2.0" and click **Next**.
 
-  2. Click **Browse App Catalog**.
+4. Give your app a name, e.g. "Teleport" and optionally upload a logo and click **Next**.
 
-  3. Search for and select **Teleport**, and then click **Add Integration**.
+5. That will bring you to the "Configure SAML" step where you'll have to provide several values:
 
-  4. In the *Teleport cluster domain* field, type in your Teleport Proxy Service domain, e.g. `example.teleport.sh` and click **Done**.
+   - Single sign on URL:
 
-  5. Go to the **Sign On** tab and click **Edit** on the top-right corner of the tab.
+     ```
+     https://<Var name="example.teleport.sh" />/v1/webapi/saml/acs/okta
+     ```
 
-  6. Scroll down to the `groups` attribute, then select `Match regex` and type in `.*` in the input field.
+   - Audience URI (SP Entity ID):
 
-     {/* NOTE: This image is shared in multiple guides. */}
-     ![Set groups attribute](../../../../img/sso/okta/group-regex.png)
+     ```
+     https://<Var name="example.teleport.sh" />/v1/webapi/saml/acs/okta
+     ```
 
-  7. Scroll down and click **Save**.
+   - Name ID format `EmailAddress`
 
-</TabItem>
-<TabItem label="Custom SAML 2.0 app (legacy)" value="legacy">
+   - Application username `Okta username` 
 
-  <Admonition type="note">
-  Please note this is a legacy way of setting up the Teleport SSO app. The preferred way is to use Okta Integration Network app.
-  </Admonition>
+   {/* NOTE: This image is shared in multiple guides. */}
+   ![SAML general settings](../../../../img/sso/okta/legacy-general-settings.png)
 
-  1. In Okta Console, go to **Applications**.
+6. Click **Next**. That will bring you to the "Feedback" step where you can just click **Finish**.
 
-  2. Click **Create App Integration**.
+7. Now you should be in your newly created SAML app configuration screen in the **Sign On** tab. Scroll down to the **Attribute statements** and click **Add expression**. Provide values like below and click **Save**.
 
-  3. Select "SAML 2.0" and click **Next**.
+   - Name: `groups`
+   - Expression: `user.getGroups({'group.type': {'OKTA_GROUP', 'APP_GROUP', 'BUILT_IN'}}).![profile.name]`
+   - Name: `username`
+   - Expression: `user.profile.login`
 
-  4. Give your app a name, e.g. "Teleport" and optionally upload a logo and click **Next**.
-
-  5. That will bring you to the "Configure SAML" step where you'll have to provide several values:
-
-     - Single sign on URL:
-
-       ```
-       https://<Var name="example.teleport.sh" />/v1/webapi/saml/acs/okta
-       ```
-
-     - Audience URI (SP Entity ID):
-
-       ```
-       https://<Var name="example.teleport.sh" />/v1/webapi/saml/acs/okta
-       ```
-
-     - Name ID format `EmailAddress`
-
-     - Application username `Okta username` 
-
-     {/* NOTE: This image is shared in multiple guides. */}
-     ![SAML general settings](../../../../img/sso/okta/legacy-general-settings.png)
-
-  6. Click **Next**. That will bring you to the "Feedback" step where you can just click **Finish**.
-
-  7. Now you should be in your newly created SAML app configuration screen in the **Sign On** tab. Scroll down to the **Attribute statements** and click **Add expression**. Provide values like below and click **Save**.
-
-     - Name: `groups`
-     - Expression: `user.getGroups({'group.type': {'OKTA_GROUP', 'APP_GROUP', 'BUILT_IN'}}).![profile.name]`
-     - Name: `username`
-     - Expression: `user.profile.login`
-
-     {/* NOTE: This image is shared in multiple guides. */}
-     ![Set groups attribute](../../../../img/sso/okta/legacy-group-expression.png)
-
-</TabItem>
-</Tabs>
+   {/* NOTE: This image is shared in multiple guides. */}
+   ![Set groups attribute](../../../../img/sso/okta/legacy-group-expression.png)
 
 ## Step 3/4. Assign user groups
 
@@ -162,22 +130,9 @@ Okta Integration Network support is still in beta. If unsure please proceed with
 At this point, you have completed the guided flow for the Okta SSO integration. All users assigned
 to the Okta app are now able to log in to Teleport.
 
-To log in using the Okta connector, navigate to your Teleport cluster URL and click the **Okta** button at the bottom of the page to authenticate:
-
-```
-https://<Var name="example.teleport.sh" />
-```
-
-To log in using the `tsh` CLI:
-
-```
-tsh login --proxy=<Var name="example.teleport.sh" /> --auth=<Var name="okta" />
-```
-
-
 ## Supported features
 
-By default, the Okta SSO integration supports JIT (Just-In-Time) Provisioning using the SP-initiated flow. To enable the IdP-initiated flow you will have to:
+By default, the Okta SSO integration supports the SP-initiated flow. To enable the IdP-initiated flow you will have to:
 
  1. Edit the Okta SAML connector with the following command:
     ```code
@@ -187,19 +142,10 @@ By default, the Okta SSO integration supports JIT (Just-In-Time) Provisioning us
 
 ## SAML attributes mapping
 
-Attributes send by default:
-
-- `username` mapped to `user.login`.
-- `groups` mapped to a list all user's Okta groups.
-
-Extra attributes can be optionally configured using [this Okta guide](https://support.okta.com/help/s/article/pass-extra-attributes-in-saml-oin-apps?language=en_US).
-
 All attributes sent with the SAML assertion will be stored as the [user's external traits](../../../reference/access-controls/roles.mdx#referring-to-external-traits-in-teleport-roles) which then can be used to build RBAC rules.
 
 ## Teleport role assignment
-
 This section explains how to assign Teleport roles to Okta SSO users.
-
 ### Access Lists
 
 The preferred way to assign a Teleport role to an Okta SSO user is by adding them as members of [Access Lists](../../access-lists/access-lists.mdx) granting the desired roles. Access List membership can be created before the SSO user is created (i.e. before the user logs in for the first time).

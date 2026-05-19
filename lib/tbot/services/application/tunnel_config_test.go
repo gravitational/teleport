@@ -103,6 +103,17 @@ func TestApplicationTunnelService_CheckAndSetDefaults(t *testing.T) {
 			wantErr: "app_name: should not be empty",
 		},
 		{
+			name:   "scoped",
+			scoped: true,
+			in: func() *TunnelConfig {
+				return &TunnelConfig{
+					Listen:  "tcp://0.0.0.0:3621",
+					AppName: "my-app",
+				}
+			},
+			wantErr: "is not supported in scoped mode",
+		},
+		{
 			name: "delegation session id conflicts with roles",
 			in: func() *TunnelConfig {
 				return &TunnelConfig{
@@ -113,17 +124,6 @@ func TestApplicationTunnelService_CheckAndSetDefaults(t *testing.T) {
 				}
 			},
 			wantErr: "delegation_session_id: is mutually-exclusive with roles",
-		},
-		{
-			name:   "scoped",
-			scoped: true,
-			in: func() *TunnelConfig {
-				return &TunnelConfig{
-					Listen:  "tcp://0.0.0.0:3621",
-					AppName: "my-app",
-				}
-			},
-			wantErr: "is not supported in scoped mode",
 		},
 	}
 	testCheckAndSetDefaults(t, tests)

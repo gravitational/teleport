@@ -41,6 +41,8 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/session/networking/x11"
@@ -65,7 +67,7 @@ discovery_service:
 
 // cfgMap is a shorthand for a type that can hold the nested key-value
 // representation of a parsed YAML file.
-type cfgMap map[any]any
+type cfgMap map[interface{}]interface{}
 
 // editConfig takes the minimal YAML configuration file, de-serializes it into a
 // nested key-value dictionary suitable for manipulation by a test case,
@@ -84,8 +86,8 @@ func editConfig(t *testing.T, mutate func(cfg cfgMap)) []byte {
 
 // requireEqual creates an assertion function with a bound `expected` value
 // for use with table-driven tests
-func requireEqual(expected any) require.ValueAssertionFunc {
-	return func(t require.TestingT, actual any, msgAndArgs ...any) {
+func requireEqual(expected interface{}) require.ValueAssertionFunc {
+	return func(t require.TestingT, actual interface{}, msgAndArgs ...interface{}) {
 		require.Equal(t, expected, actual, msgAndArgs...)
 	}
 }
@@ -241,8 +243,8 @@ func TestAuthenticationSection(t *testing.T) {
 					"second_factor": "u2f",
 					"u2f": cfgMap{
 						"app_id": "https://graviton:3080",
-						"facets": []any{"https://graviton:3080"},
-						"device_attestation_cas": []any{
+						"facets": []interface{}{"https://graviton:3080"},
+						"device_attestation_cas": []interface{}{
 							"testdata/u2f_attestation_ca.pam",
 							"-----BEGIN CERTIFICATE-----\nfake certificate\n-----END CERTIFICATE-----",
 						},
@@ -271,11 +273,11 @@ func TestAuthenticationSection(t *testing.T) {
 					"second_factor": "webauthn",
 					"webauthn": cfgMap{
 						"rp_id": "example.com",
-						"attestation_allowed_cas": []any{
+						"attestation_allowed_cas": []interface{}{
 							"testdata/u2f_attestation_ca.pam",
 							"-----BEGIN CERTIFICATE-----\nfake certificate1\n-----END CERTIFICATE-----",
 						},
-						"attestation_denied_cas": []any{
+						"attestation_denied_cas": []interface{}{
 							"-----BEGIN CERTIFICATE-----\nfake certificate2\n-----END CERTIFICATE-----",
 							"testdata/u2f_attestation_ca.pam",
 						},
@@ -305,7 +307,7 @@ func TestAuthenticationSection(t *testing.T) {
 					"second_factor": "on",
 					"u2f": cfgMap{
 						"app_id": "https://example.com",
-						"facets": []any{
+						"facets": []interface{}{
 							"https://example.com",
 						},
 					},
@@ -462,7 +464,7 @@ func TestAuthenticationSection(t *testing.T) {
 					"signature_algorithm_suite": "balanced-v0",
 				}
 			},
-			expectError: func(t require.TestingT, err error, msgAndArgs ...any) {
+			expectError: func(t require.TestingT, err error, msgAndArgs ...interface{}) {
 				require.ErrorContains(t, err, "invalid value: balanced-v0")
 			},
 		}, {
@@ -832,11 +834,6 @@ func TestAuthenticationConfig_Parse_StaticToken(t *testing.T) {
 				types.RoleAuth, types.RoleNode, types.RoleProxy,
 			},
 		},
-		{
-			desc:      "reject bot role",
-			input:     "Bot:some-literal-token",
-			wantError: "role \"Bot\" is not allowed in static token configuration",
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
@@ -994,7 +991,11 @@ func TestAuthenticationConfig_RequireSessionMFA(t *testing.T) {
 }
 
 func TestAuthenticationConfig_Parse_deviceTrustPB(t *testing.T) {
-	t.Parallel()
+	// Device trust mode=required is an Enterprise feature.
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+	})
+
 	tpmEKCertPath := "testdata/tpm_ekcert_ca.pem"
 	tpmEKCertPEM, err := os.ReadFile(tpmEKCertPath)
 	require.NoError(t, err)
@@ -1276,7 +1277,7 @@ func TestHardwareKeyConfig(t *testing.T) {
 					},
 				}
 			},
-			expectParseError: func(t require.TestingT, err error, i ...any) {
+			expectParseError: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err), "got err = %v, want BadParameter", err)
 			},
@@ -1453,7 +1454,7 @@ func TestX11Config(t *testing.T) {
 					"max_display":    100,
 				}
 			},
-			expectConfigError: func(t require.TestingT, err error, i ...any) {
+			expectConfigError: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err), "got err = %v, want BadParameter", err)
 			},

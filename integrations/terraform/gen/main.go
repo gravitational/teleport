@@ -23,8 +23,7 @@ import (
 	"os"
 	"path"
 	"strings"
-
-	template "github.com/DataDog/datadog-agent/pkg/template/text"
+	"text/template"
 
 	"github.com/gravitational/teleport/integrations/terraform/gen/strcase"
 )
@@ -369,21 +368,6 @@ var (
 		Kind:                   "github",
 		HasStaticID:            true,
 		TerraformResourceType:  "teleport_github_connector",
-		HasCheckAndSetDefaults: true,
-	}
-
-	kubernetesCluster = payload{
-		Name:                   "KubeCluster",
-		TypeName:               "KubernetesClusterV3",
-		VarName:                "kubeCluster",
-		GetMethod:              "GetKubernetesCluster",
-		CreateMethod:           "CreateKubernetesCluster",
-		UpdateMethod:           "UpdateKubernetesCluster",
-		DeleteMethod:           "DeleteKubernetesCluster",
-		ID:                     `kubeCluster.Metadata.Name`,
-		Kind:                   "kube_cluster",
-		HasStaticID:            false,
-		TerraformResourceType:  "teleport_kube_cluster",
 		HasCheckAndSetDefaults: true,
 	}
 
@@ -909,32 +893,6 @@ var (
 		HasCheckAndSetDefaults: true,
 	}
 
-	appAuthConfig = payload{
-		Name:                  "AppAuthConfig",
-		TypeName:              "AppAuthConfig",
-		VarName:               "appauthconfig",
-		GetMethod:             "GetAppAuthConfig",
-		CreateMethod:          "CreateAppAuthConfig",
-		UpsertMethodArity:     2,
-		UpdateMethod:          "UpsertAppAuthConfig",
-		DeleteMethod:          "DeleteAppAuthConfig",
-		ID:                    "appauthconfig.Metadata.Name",
-		Kind:                  "app_auth_config",
-		HasStaticID:           false,
-		ProtoPackage:          "appauthconfigv1",
-		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1",
-		SchemaPackage:         "schemav1",
-		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/appauthconfig/v1",
-		TerraformResourceType: "teleport_app_auth_config",
-		// Since [RFD 153](https://github.com/gravitational/teleport/blob/master/rfd/0153-resource-guidelines.md)
-		// resources are plain structs
-		IsPlainStruct: true,
-		// As 153-style resources don't have CheckAndSetDefaults, we must set the Kind manually.
-		// We import the package containing kinds, then use ForceSetKind.
-		ExtraImports: []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
-		ForceSetKind: "apitypes.KindAppAuthConfig",
-	}
-
 	inferenceModel = payload{
 		Name:                  "InferenceModel",
 		VarName:               "inferenceModel",
@@ -1244,8 +1202,6 @@ func genTFSchema() {
 	generateDataSource(dynamicWindowsDesktop, pluralDataSource)
 	generateResource(githubConnector, pluralResource)
 	generateDataSource(githubConnector, pluralDataSource)
-	generateResource(kubernetesCluster, pluralResource)
-	generateDataSource(kubernetesCluster, pluralDataSource)
 	generateResource(lock, pluralResource)
 	generateDataSource(lock, pluralDataSource)
 	generateResource(oidcConnector, pluralResource)
@@ -1298,20 +1254,18 @@ func genTFSchema() {
 	generateDataSource(vnetConfig, singularDataSource)
 	generateResource(integration, pluralResource)
 	generateDataSource(integration, pluralDataSource)
-	generateResource(appAuthConfig, pluralResource)
-	generateDataSource(appAuthConfig, pluralDataSource)
 	generateResource(inferenceModel, pluralResource)
 	generateDataSource(inferenceModel, pluralDataSource)
 	generateResource(inferenceSecret, pluralResource)
 	generateDataSource(inferenceSecret, pluralDataSource)
 	generateResource(inferencePolicy, pluralResource)
 	generateDataSource(inferencePolicy, pluralDataSource)
-	generateResource(retrievalModel, singularResource)
-	generateDataSource(retrievalModel, singularDataSource)
 	generateResource(scopedRole, pluralResource)
 	generateDataSource(scopedRole, pluralDataSource)
 	generateResource(scopedRoleAssignment, pluralResource)
 	generateDataSource(scopedRoleAssignment, pluralDataSource)
+	generateResource(retrievalModel, singularResource)
+	generateDataSource(retrievalModel, singularDataSource)
 	generateResource(scopedToken, pluralResource)
 	generateDataSource(scopedToken, pluralDataSource)
 	generateResource(workloadCluster, pluralResource)

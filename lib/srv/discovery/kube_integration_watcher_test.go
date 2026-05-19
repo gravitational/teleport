@@ -21,7 +21,6 @@ package discovery
 import (
 	"context"
 	"log/slog"
-	"maps"
 	"testing"
 	"testing/synctest"
 
@@ -48,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -205,8 +205,8 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 		},
 	}
 
-	getDc := func(t *testing.T) *discoveryconfig.DiscoveryConfig {
-		dc, err := discoveryconfig.NewDiscoveryConfig(
+	getDc := func() *discoveryconfig.DiscoveryConfig {
+		dc, _ := discoveryconfig.NewDiscoveryConfig(
 			header.Metadata{Name: uuid.NewString()},
 			discoveryconfig.Spec{
 				DiscoveryGroup: mainDiscoveryGroup,
@@ -219,7 +219,6 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 				},
 			},
 		)
-		require.NoError(t, err)
 		return dc
 	}
 
@@ -271,7 +270,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 		{
 			name: "no clusters in auth server, discover two clusters from EKS",
 			discoveryConfig: func(t *testing.T) *discoveryconfig.DiscoveryConfig {
-				return getDc(t)
+				return getDc()
 			},
 			accessPoint: func(t *testing.T, authServer *auth.Server, authClient authclient.ClientI) authclient.DiscoveryAccessPoint {
 				return &accessPointWrapper{
@@ -300,7 +299,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 			name:                "one cluster in auth server, discover one cluster from EKS and ignore another one",
 			existingKubeServers: []types.KubeServer{mustConvertEKSToKubeServerV1(t, eksMockClusters[0], "resourceID", mainDiscoveryGroup)},
 			discoveryConfig: func(t *testing.T) *discoveryconfig.DiscoveryConfig {
-				return getDc(t)
+				return getDc()
 			},
 			accessPoint: func(t *testing.T, authServer *auth.Server, authClient authclient.ClientI) authclient.DiscoveryAccessPoint {
 				return &accessPointWrapper{
@@ -331,7 +330,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 			name:                "one non-matching cluster in auth server, discover two cluster from EKS",
 			existingKubeServers: []types.KubeServer{mustConvertEKSToKubeServerV1(t, eksMockClusters[2], "resourceID", mainDiscoveryGroup)},
 			discoveryConfig: func(t *testing.T) *discoveryconfig.DiscoveryConfig {
-				return getDc(t)
+				return getDc()
 			},
 			accessPoint: func(t *testing.T, authServer *auth.Server, authClient authclient.ClientI) authclient.DiscoveryAccessPoint {
 				return &accessPointWrapper{
@@ -457,7 +456,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 				k1 := types.KubeServers(kubeServers).ToMap()
 				k2 := types.KubeServers(tc.expectedServersToExistInAuth).ToMap()
 				for k := range k1 {
-					require.True(t, k1[k].IsEqual(k2[k]), "kube server in auth server does not match expected")
+					require.Equal(t, services.Equal, services.CompareResources(k1[k], k2[k]), "kube server in auth server does not match expected")
 				}
 			})
 		})
@@ -481,7 +480,9 @@ func mustConvertEKSToKubeServerV1(t *testing.T, eksCluster *ekstypes.Cluster, re
 
 func mustConvertEKSToKubeServerV2(t *testing.T, eksCluster *ekstypes.Cluster, resourceID, _ string) types.KubeServer {
 	eksTags := make(map[string]string, len(eksCluster.Tags))
-	maps.Copy(eksTags, eksCluster.Tags)
+	for k, v := range eksCluster.Tags {
+		eksTags[k] = v
+	}
 	eksTags[types.OriginLabel] = types.OriginCloud
 	eksTags[types.InternalResourceIDLabel] = resourceID
 

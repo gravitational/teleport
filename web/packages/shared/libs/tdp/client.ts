@@ -20,32 +20,22 @@ import { EventEmitter } from 'events';
 
 import { useEffect } from 'react';
 
-import { Logger } from 'design/logger';
 import init, {
   FastPathProcessor,
   init_wasm_log,
 } from 'shared/libs/ironrdp/pkg/ironrdp';
 // Inlines the wasm module as a static asset bundled with our app.
 import wasmUrl from 'shared/libs/ironrdp/pkg/ironrdp_bg.wasm?inline';
+import Logger from 'shared/libs/logger';
 import { ensureError, isAbortError } from 'shared/utils/error';
 
-import {
-  Alert,
-  Codec,
+import Codec, {
   FileType,
   LatencyStats,
-  MfaJson,
-  MfaResponse,
-  MouseButtonState,
-  MouseMove,
+  MessageType,
   PointerData,
-  RdpConnectionActivated,
-  RdpFastPathPdu,
-  ServerHello,
   Severity,
   SharedDirectoryErrCode,
-  TdpbCodec,
-  TdpCodec,
   type ButtonState,
   type ClientScreenSpec,
   type ClipboardData,
@@ -53,22 +43,13 @@ import {
   type MouseButton,
   type PngFrame,
   type ScrollAxis,
-  type SharedDirectoryAcknowledge,
-  type SharedDirectoryCreateRequest,
   type SharedDirectoryCreateResponse,
-  type SharedDirectoryDeleteRequest,
   type SharedDirectoryDeleteResponse,
-  type SharedDirectoryInfoRequest,
   type SharedDirectoryInfoResponse,
-  type SharedDirectoryListRequest,
   type SharedDirectoryListResponse,
-  type SharedDirectoryMoveRequest,
   type SharedDirectoryMoveResponse,
-  type SharedDirectoryReadRequest,
   type SharedDirectoryReadResponse,
-  type SharedDirectoryTruncateRequest,
   type SharedDirectoryTruncateResponse,
-  type SharedDirectoryWriteRequest,
   type SharedDirectoryWriteResponse,
   type SyncKeys,
 } from './codec';
@@ -91,11 +72,11 @@ export enum TdpClientEvent {
   CLIENT_WARNING = 'client warning',
   // TDP_INFO corresponds with the TDP info message
   TDP_INFO = 'tdp info',
-  CONNECTION_OPEN = 'connection open',
-  // CONNECTION_CLOSE is emitted when a connection ends due to the transport layer being closed.
+  TRANSPORT_OPEN = 'transport open',
+  // TRANSPORT_CLOSE is emitted when a connection ends due to the transport layer being closed.
   // This can occur with or without an error.
   // If an error is present, it will be displayed in the UI.
-  CONNECTION_CLOSE = 'connection close',
+  TRANSPORT_CLOSE = 'transport close',
   RESET = 'reset',
   POINTER = 'pointer',
   LATENCY_STATS = 'latency stats',
@@ -110,8 +91,8 @@ type EventMap = {
   [TdpClientEvent.TDP_WARNING]: [string];
   [TdpClientEvent.CLIENT_WARNING]: [string];
   [TdpClientEvent.TDP_INFO]: [string];
-  [TdpClientEvent.CONNECTION_OPEN]: [void];
-  [TdpClientEvent.CONNECTION_CLOSE]: [Error | undefined];
+  [TdpClientEvent.TRANSPORT_OPEN]: [void];
+  [TdpClientEvent.TRANSPORT_CLOSE]: [Error | undefined];
   [TdpClientEvent.RESET]: [void];
   [TdpClientEvent.POINTER]: [PointerData];
   [TdpClientEvent.LATENCY_STATS]: [LatencyStats];
@@ -150,30 +131,25 @@ type RemoveListenerFn = () => void;
 // To prevent multiple initializations, we track the initialization status in a global variable.
 let wasmReady: Promise<void> | undefined;
 
-// Defines which protocol the client will start with.
-type ConnectPolicy = { mode: 'tdpb' } | { mode: 'tdp' };
-
 // Client is the TDP client. It is responsible for connecting to a websocket serving the tdp server,
 // sending client commands, and receiving and processing server messages. Its creator is responsible for
 // ensuring the websocket gets closed and all of its event listeners cleaned up when it is no longer in use.
 // For convenience, this can be done in one fell swoop by calling Client.shutdown().
 export class TdpClient extends EventEmitter<EventMap> {
+  protected codec: Codec;
   protected transport: TdpTransport | undefined;
   private transportAbortController: AbortController | undefined;
   private fastPathProcessor: FastPathProcessor | undefined;
   private sharedDirectory: SharedDirectoryAccess | undefined;
-  private keyboardLayout: number | undefined;
-  private screenSpec: ClientScreenSpec | undefined;
-  private codec: Codec | undefined;
 
-  private logger = new Logger('TDPClient');
+  private logger = Logger.create('TDPClient');
 
   constructor(
     private getTransport: (signal: AbortSignal) => Promise<TdpTransport>,
-    private selectSharedDirectory: () => Promise<SharedDirectoryAccess>,
-    private policy: ConnectPolicy = { mode: 'tdp' }
+    private selectSharedDirectory: () => Promise<SharedDirectoryAccess>
   ) {
     super();
+    this.codec = new Codec();
   }
 
   /** Connects to the transport and registers event handlers. */
@@ -193,20 +169,6 @@ export class TdpClient extends EventEmitter<EventMap> {
       screenSpec?: ClientScreenSpec;
     } = {}
   ) {
-    // Initialize our codec according to the connection policy.
-    switch (this.policy.mode) {
-      case 'tdp':
-        // tdp policy is capable of upgrading to TDPB.
-        this.codec = new TdpCodec();
-        break;
-      case 'tdpb':
-        this.codec = new TdpbCodec();
-        break;
-      default:
-        const exhaustiveCheck: never = this.policy;
-        throw new Error(`Unknown connect policy: ${exhaustiveCheck}`);
-    }
-
     this.transportAbortController = new AbortController();
     if (!wasmReady) {
       wasmReady = this.initWasm();
@@ -222,13 +184,29 @@ export class TdpClient extends EventEmitter<EventMap> {
       return;
     }
 
-    // Encode and send initial messages
-    this.screenSpec = options.screenSpec;
-    this.keyboardLayout = options.keyboardLayout;
-    this.codec
-      .encodeInitialMessages(options.screenSpec, options.keyboardLayout)
-      .forEach(msg => this.send(msg));
-    this.emit(TdpClientEvent.CONNECTION_OPEN);
+    this.emit(TdpClientEvent.TRANSPORT_OPEN);
+    if (options.screenSpec) {
+      this.sendClientScreenSpec(options.screenSpec);
+    }
+
+    // 0 represents the default keyboard layout from the point of view of the
+    // remote desktop, so there is no need to send this message. Additionally,
+    // for clients (Connect) that don't support specifying a keyboard layout
+    // and WDS versions that don't support this feature (v17 and earlier), this
+    // avoids the connection crashing.
+    if (options.keyboardLayout !== undefined && options.keyboardLayout !== 0) {
+      this.sendClientKeyboardLayout(options.keyboardLayout);
+    } else {
+      // The proxy expects two messasges (client screen spec and keyboard layout)
+      // before it will initialise the connection to WDS. If no keyboard layout
+      // is sent, the proxy will hang waiting for a second message that won't
+      // arrive. To get around this we send another client screen spec.
+      // TODO (danielashare): Remove this once proxy doesn't block on
+      // keyboardLayout.
+      if (options.screenSpec) {
+        this.sendClientScreenSpec(options.screenSpec);
+      }
+    }
 
     let processingError: Error | undefined;
     let connectionError: Error | undefined;
@@ -264,9 +242,9 @@ export class TdpClient extends EventEmitter<EventMap> {
       // If the connection was closed intentionally by the user (aborted),
       // do not treat it as an error in the UI.
     } else if (connectionError && !isAbortError(connectionError)) {
-      this.emit(TdpClientEvent.CONNECTION_CLOSE, connectionError);
+      this.emit(TdpClientEvent.TRANSPORT_CLOSE, connectionError);
     } else {
-      this.emit(TdpClientEvent.CONNECTION_CLOSE, undefined);
+      this.emit(TdpClientEvent.TRANSPORT_CLOSE, undefined);
     }
 
     this.logger.info('Transport is closed');
@@ -316,13 +294,13 @@ export class TdpClient extends EventEmitter<EventMap> {
   };
 
   onTransportClose = (listener: (error?: Error) => void) => {
-    this.on(TdpClientEvent.CONNECTION_CLOSE, listener);
-    return () => this.off(TdpClientEvent.CONNECTION_CLOSE, listener);
+    this.on(TdpClientEvent.TRANSPORT_CLOSE, listener);
+    return () => this.off(TdpClientEvent.TRANSPORT_CLOSE, listener);
   };
 
   onTransportOpen = (listener: () => void) => {
-    this.on(TdpClientEvent.CONNECTION_OPEN, listener);
-    return () => this.off(TdpClientEvent.CONNECTION_OPEN, listener);
+    this.on(TdpClientEvent.TRANSPORT_OPEN, listener);
+    return () => this.off(TdpClientEvent.TRANSPORT_OPEN, listener);
   };
 
   onClipboardData = (listener: (clipboardData: ClipboardData) => void) => {
@@ -383,158 +361,119 @@ export class TdpClient extends EventEmitter<EventMap> {
 
   // processMessage should be await-ed when called,
   // so that its internal await-or-not logic is obeyed.
-  async processMessage(
-    buffer: ArrayBufferLike,
-    codecOverride?: Codec
-  ): Promise<void> {
-    let codec = this.codec;
-    if (codecOverride) {
-      // Allow the caller to override the codec.
-      codec = codecOverride;
-    }
-
-    const result = codec.decodeMessage(buffer);
-    if (!result) {
-      // Codec implementations *should* return an 'unknown' result kind
-      // instead of undefined, but double check anyway for safety.
-      this.logger.warn('message decoder returned undefined result');
-      return;
-    }
-
-    switch (result.kind) {
-      case 'pngFrame':
-        this.handlePngFrame(result.data);
+  async processMessage(buffer: ArrayBufferLike): Promise<void> {
+    const messageType = this.codec.decodeMessageType(buffer);
+    switch (messageType) {
+      case MessageType.PNG_FRAME:
+        this.handlePngFrame(buffer);
         break;
-      case 'rdpConnectionActivated':
-        // Comes from TDP codec
-        this.handleRdpConnectionActivated(result.data);
+      case MessageType.PNG2_FRAME:
+        this.handlePng2Frame(buffer);
         break;
-      case 'serverHello':
-        // Comes from TDPB codec
-        this.handleServerHello(result.data);
+      case MessageType.RDP_CONNECTION_ACTIVATED:
+        this.handleRdpConnectionActivated(buffer);
         break;
-      case 'rdpFastPathPdu':
-        this.handleRdpFastPathPdu(result.data);
+      case MessageType.RDP_FASTPATH_PDU:
+        this.handleRdpFastPathPdu(buffer);
         break;
-      case 'clipboardData':
-        this.handleClipboardData(result.data);
+      case MessageType.CLIENT_SCREEN_SPEC:
+        this.handleClientScreenSpec(buffer);
         break;
-      case 'tdpAlert':
-        this.handleTdpAlert(result.data);
+      case MessageType.MOUSE_BUTTON:
+        this.handleMouseButton(buffer);
         break;
-      case 'mfaChallenge':
-        this.handleMfaChallenge(result.data);
+      case MessageType.MOUSE_MOVE:
+        this.handleMouseMove(buffer);
         break;
-      case 'sharedDirectoryAcknowledge':
-        this.handleSharedDirectoryAcknowledge(result.data);
+      case MessageType.CLIPBOARD_DATA:
+        this.handleClipboardData(buffer);
         break;
-      case 'sharedDirectoryInfoRequest':
-        await this.handleSharedDirectoryInfoRequest(result.data);
+      case MessageType.ERROR:
+        throw new Error(this.codec.decodeErrorMessage(buffer));
+      case MessageType.ALERT:
+        this.handleTdpAlert(buffer);
         break;
-      case 'sharedDirectoryCreateRequest':
+      case MessageType.MFA_JSON:
+        this.handleMfaChallenge(buffer);
+        break;
+      case MessageType.SHARED_DIRECTORY_ACKNOWLEDGE:
+        this.handleSharedDirectoryAcknowledge(buffer);
+        break;
+      case MessageType.SHARED_DIRECTORY_INFO_REQUEST:
+        await this.handleSharedDirectoryInfoRequest(buffer);
+        break;
+      case MessageType.SHARED_DIRECTORY_CREATE_REQUEST:
         // A typical sequence is that we receive a SharedDirectoryCreateRequest
         // immediately followed by a SharedDirectoryWriteRequest. It's important
         // that we await here so that this client doesn't field the SharedDirectoryWriteRequest
         // until the create has successfully completed, or else we might get an error
         // trying to write to a file that hasn't been created yet.
-        await this.handleSharedDirectoryCreateRequest(result.data);
+        await this.handleSharedDirectoryCreateRequest(buffer);
         break;
-      case 'sharedDirectoryDeleteRequest':
-        await this.handleSharedDirectoryDeleteRequest(result.data);
+      case MessageType.SHARED_DIRECTORY_DELETE_REQUEST:
+        await this.handleSharedDirectoryDeleteRequest(buffer);
         break;
-      case 'sharedDirectoryReadRequest':
-        await this.handleSharedDirectoryReadRequest(result.data);
+      case MessageType.SHARED_DIRECTORY_READ_REQUEST:
+        await this.handleSharedDirectoryReadRequest(buffer);
         break;
-      case 'sharedDirectoryWriteRequest':
-        await this.handleSharedDirectoryWriteRequest(result.data);
+      case MessageType.SHARED_DIRECTORY_WRITE_REQUEST:
+        await this.handleSharedDirectoryWriteRequest(buffer);
         break;
-      case 'sharedDirectoryMoveRequest':
-        this.handleSharedDirectoryMoveRequest(result.data);
+      case MessageType.SHARED_DIRECTORY_MOVE_REQUEST:
+        this.handleSharedDirectoryMoveRequest(buffer);
         break;
-      case 'sharedDirectoryListRequest':
-        await this.handleSharedDirectoryListRequest(result.data);
+      case MessageType.SHARED_DIRECTORY_LIST_REQUEST:
+        await this.handleSharedDirectoryListRequest(buffer);
         break;
-      case 'sharedDirectoryTruncateRequest':
-        await this.handleSharedDirectoryTruncateRequest(result.data);
+      case MessageType.SHARED_DIRECTORY_TRUNCATE_REQUEST:
+        await this.handleSharedDirectoryTruncateRequest(buffer);
         break;
-      case 'latencyStats':
-        this.handleLatencyStats(result.data);
-        break;
-      case 'tdpbUpgrade':
-        this.handleTdpbUpgrade();
-        break;
-      case 'clientScreenSpec':
-        this.handleClientScreenSpec(result.data);
-        break;
-      case 'mouseButton':
-        this.handleMouseButton(result.data);
-        break;
-      case 'mouseMove':
-        this.handleMouseMove(result.data);
-        break;
-      case 'unknown':
-        // Truly unknown message types. The envelope is empty or
-        // or the server's schema is ahead of ours.
-        this.logger.debug(`received unknown message type`);
-        break;
-      case 'unsupported':
-        // Message types that we know about, but deliberately do no support on the client.
-        // 'data' should be the unsupported message kind.
-        this.logger.debug(
-          `received message type not supported by this client ${result.data}`
-        );
+      case MessageType.LATENCY_STATS:
+        this.handleLatencyStats(buffer);
         break;
       default:
-        const exhaustiveCheck: never = result;
-        throw new Error(`Message type: ${exhaustiveCheck}`);
+        this.logger.warn(`received unsupported message type ${messageType}`);
     }
   }
 
-  handleLatencyStats(stats: LatencyStats) {
+  handleLatencyStats(buffer: ArrayBufferLike) {
+    const stats = this.codec.decodeLatencyStats(buffer);
     this.emit(TdpClientEvent.LATENCY_STATS, stats);
   }
 
-  handleTdpbUpgrade() {
-    // Swap our codec to the TDPB codec.
-    const tdpbCodec = new TdpbCodec();
-    this.codec = tdpbCodec;
-
-    // Send the TDPB client hello
-    this.send(
-      tdpbCodec.encodeClientHello({
-        keyboardLayout: this.keyboardLayout,
-        screenSpec: this.screenSpec,
-      })
+  handleClientScreenSpec(buffer: ArrayBufferLike) {
+    this.logger.warn(
+      `received unsupported message type ${this.codec.decodeMessageType(
+        buffer
+      )}`
     );
   }
 
-  handleServerHello(hello: ServerHello) {
-    // In the future, we may add new server capability advertisements
-    // that will affect client configuration.
-    // For now we'll just activate the the connection.
-    this.handleRdpConnectionActivated(hello.activationEvent);
+  handleMouseButton(buffer: ArrayBufferLike) {
+    this.logger.warn(
+      `received unsupported message type ${this.codec.decodeMessageType(
+        buffer
+      )}`
+    );
   }
 
-  handleClientScreenSpec(spec: ClientScreenSpec) {
-    void spec;
-    this.logger.warn('received unexpected client screen spec message');
+  handleMouseMove(buffer: ArrayBufferLike) {
+    this.logger.warn(
+      `received unsupported message type ${this.codec.decodeMessageType(
+        buffer
+      )}`
+    );
   }
 
-  handleMouseButton(button: MouseButtonState) {
-    void button;
-    this.logger.warn('received unexpected mouse button message');
+  handleClipboardData(buffer: ArrayBufferLike) {
+    this.emit(
+      TdpClientEvent.TDP_CLIPBOARD_DATA,
+      this.codec.decodeClipboardData(buffer)
+    );
   }
 
-  handleMouseMove(move: MouseMove) {
-    void move;
-    this.logger.warn('received unexpected mouse move message');
-  }
-
-  handleClipboardData(data: ClipboardData) {
-    this.emit(TdpClientEvent.TDP_CLIPBOARD_DATA, data);
-  }
-
-  handleTdpAlert(alert: Alert) {
+  handleTdpAlert(buffer: ArrayBufferLike) {
+    const alert = this.codec.decodeAlert(buffer);
     // TODO(zmb3): info and warning should use the same handler
     if (alert.severity === Severity.Error) {
       throw new TdpError(alert.message);
@@ -547,12 +486,21 @@ export class TdpClient extends EventEmitter<EventMap> {
 
   // Assuming we have a message of type PNG_FRAME, extract its
   // bounds and png bitmap and emit a render event.
-  handlePngFrame(frame: PngFrame) {
-    this.emit(TdpClientEvent.TDP_PNG_FRAME, frame);
+  handlePngFrame(buffer: ArrayBufferLike) {
+    this.codec.decodePngFrame(buffer, (pngFrame: PngFrame) =>
+      this.emit(TdpClientEvent.TDP_PNG_FRAME, pngFrame)
+    );
   }
 
-  handleRdpConnectionActivated(activated: RdpConnectionActivated) {
-    const { ioChannelId, userChannelId, screenWidth, screenHeight } = activated;
+  handlePng2Frame(buffer: ArrayBufferLike) {
+    this.codec.decodePng2Frame(buffer, (pngFrame: PngFrame) =>
+      this.emit(TdpClientEvent.TDP_PNG_FRAME, pngFrame)
+    );
+  }
+
+  handleRdpConnectionActivated(buffer: ArrayBufferLike) {
+    const { ioChannelId, userChannelId, screenWidth, screenHeight } =
+      this.codec.decodeRdpConnectionActivated(buffer);
     const spec = { width: screenWidth, height: screenHeight };
     this.logger.info(
       `screen spec received from server ${spec.width} x ${spec.height}`
@@ -568,7 +516,9 @@ export class TdpClient extends EventEmitter<EventMap> {
     this.emit(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, spec);
   }
 
-  handleRdpFastPathPdu(rdpFastPathPdu: RdpFastPathPdu) {
+  handleRdpFastPathPdu(buffer: ArrayBufferLike) {
+    let rdpFastPathPdu = this.codec.decodeRdpFastPathPdu(buffer);
+
     // This should never happen but let's catch it with an error in case it does.
     if (!this.fastPathProcessor) {
       throw new Error('FastPathProcessor not initialized');
@@ -589,7 +539,8 @@ export class TdpClient extends EventEmitter<EventMap> {
     );
   }
 
-  handleMfaChallenge(mfaJson: MfaJson) {
+  handleMfaChallenge(buffer: ArrayBufferLike) {
+    const mfaJson = this.codec.decodeMfaJson(buffer);
     if (mfaJson.mfaType == 'n') {
       // TermEvent.MFA_CHALLENGE
       this.emit('terminal.webauthn', mfaJson.jsonString);
@@ -604,7 +555,8 @@ export class TdpClient extends EventEmitter<EventMap> {
     }
   }
 
-  handleSharedDirectoryAcknowledge(ack: SharedDirectoryAcknowledge) {
+  handleSharedDirectoryAcknowledge(buffer: ArrayBufferLike) {
+    const ack = this.codec.decodeSharedDirectoryAcknowledge(buffer);
     const sharedDirectory = this.getSharedDirectoryOrThrow();
 
     if (ack.errCode !== SharedDirectoryErrCode.Nil) {
@@ -624,7 +576,8 @@ export class TdpClient extends EventEmitter<EventMap> {
     );
   }
 
-  async handleSharedDirectoryInfoRequest(req: SharedDirectoryInfoRequest) {
+  async handleSharedDirectoryInfoRequest(buffer: ArrayBufferLike) {
+    const req = this.codec.decodeSharedDirectoryInfoRequest(buffer);
     const path = req.path;
     const sharedDirectory = this.getSharedDirectoryOrThrow();
 
@@ -654,8 +607,10 @@ export class TdpClient extends EventEmitter<EventMap> {
     }
   }
 
-  async handleSharedDirectoryCreateRequest(req: SharedDirectoryCreateRequest) {
+  async handleSharedDirectoryCreateRequest(buffer: ArrayBufferLike) {
+    const req = this.codec.decodeSharedDirectoryCreateRequest(buffer);
     const sharedDirectory = this.getSharedDirectoryOrThrow();
+
     try {
       await sharedDirectory.create(req.path, req.fileType);
       const info = await sharedDirectory.stat(req.path);
@@ -680,7 +635,8 @@ export class TdpClient extends EventEmitter<EventMap> {
     }
   }
 
-  async handleSharedDirectoryDeleteRequest(req: SharedDirectoryDeleteRequest) {
+  async handleSharedDirectoryDeleteRequest(buffer: ArrayBufferLike) {
+    const req = this.codec.decodeSharedDirectoryDeleteRequest(buffer);
     const sharedDirectory = this.getSharedDirectoryOrThrow();
 
     try {
@@ -698,7 +654,8 @@ export class TdpClient extends EventEmitter<EventMap> {
     }
   }
 
-  async handleSharedDirectoryReadRequest(req: SharedDirectoryReadRequest) {
+  async handleSharedDirectoryReadRequest(buffer: ArrayBufferLike) {
+    const req = this.codec.decodeSharedDirectoryReadRequest(buffer);
     const sharedDirectory = this.getSharedDirectoryOrThrow();
 
     const readData = await sharedDirectory.read(
@@ -714,7 +671,8 @@ export class TdpClient extends EventEmitter<EventMap> {
     });
   }
 
-  async handleSharedDirectoryWriteRequest(req: SharedDirectoryWriteRequest) {
+  async handleSharedDirectoryWriteRequest(buffer: ArrayBufferLike) {
+    const req = this.codec.decodeSharedDirectoryWriteRequest(buffer);
     const sharedDirectory = this.getSharedDirectoryOrThrow();
 
     const bytesWritten = await sharedDirectory.write(
@@ -730,7 +688,8 @@ export class TdpClient extends EventEmitter<EventMap> {
     });
   }
 
-  handleSharedDirectoryMoveRequest(req: SharedDirectoryMoveRequest) {
+  handleSharedDirectoryMoveRequest(buffer: ArrayBufferLike) {
+    const req = this.codec.decodeSharedDirectoryMoveRequest(buffer);
     // Always send back Failed for now, see https://github.com/gravitational/webapps/issues/1064
     this.sendSharedDirectoryMoveResponse({
       completionId: req.completionId,
@@ -743,7 +702,8 @@ export class TdpClient extends EventEmitter<EventMap> {
     );
   }
 
-  async handleSharedDirectoryListRequest(req: SharedDirectoryListRequest) {
+  async handleSharedDirectoryListRequest(buffer: ArrayBufferLike) {
+    const req = this.codec.decodeSharedDirectoryListRequest(buffer);
     const path = req.path;
     const sharedDirectory = this.getSharedDirectoryOrThrow();
 
@@ -757,24 +717,11 @@ export class TdpClient extends EventEmitter<EventMap> {
     });
   }
 
-  async handleSharedDirectoryTruncateRequest(
-    req: SharedDirectoryTruncateRequest
-  ) {
-    if (req.endOfFile > BigInt(Number.MAX_SAFE_INTEGER)) {
-      this.handleWarning(
-        'File truncate operation exceeds maximum allowed size.',
-        TdpClientEvent.TDP_WARNING
-      );
-      this.sendSharedDirectoryTruncateResponse({
-        completionId: req.completionId,
-        errCode: SharedDirectoryErrCode.Failed,
-      });
-      return;
-    }
-
+  async handleSharedDirectoryTruncateRequest(buffer: ArrayBufferLike) {
+    const req = this.codec.decodeSharedDirectoryTruncateRequest(buffer);
     const sharedDirectory = this.getSharedDirectoryOrThrow();
 
-    await sharedDirectory.truncate(req.path, Number(req.endOfFile));
+    await sharedDirectory.truncate(req.path, req.endOfFile);
     this.sendSharedDirectoryTruncateResponse({
       completionId: req.completionId,
       errCode: SharedDirectoryErrCode.Nil,
@@ -806,6 +753,10 @@ export class TdpClient extends EventEmitter<EventMap> {
     this.send(this.codec.encodeClientScreenSpec(spec));
   }
 
+  sendClientKeyboardLayout(keyboardLayout: number) {
+    this.send(this.codec.encodeClientKeyboardLayout(keyboardLayout));
+  }
+
   sendMouseMove(x: number, y: number) {
     this.send(this.codec.encodeMouseMove(x, y));
   }
@@ -830,8 +781,31 @@ export class TdpClient extends EventEmitter<EventMap> {
     this.send(this.codec.encodeClipboardData(clipboardData));
   }
 
-  sendChallengeResponse(data: MfaResponse) {
-    const msg = this.codec.encodeMfaJson(data);
+  sendChallengeResponse(data: {
+    totp_code?: string;
+    webauthn_response?: {
+      id: string;
+      type: string;
+      extensions: {
+        appid: boolean;
+      };
+      rawId: string;
+      response: {
+        authenticatorData: string;
+        clientDataJSON: string;
+        signature: string;
+        userHandle: string;
+      };
+    };
+    sso_response?: {
+      requestId: string;
+      token: string;
+    };
+  }) {
+    const msg = this.codec.encodeMfaJson({
+      mfaType: 'n',
+      jsonString: JSON.stringify(data),
+    });
     this.send(msg);
   }
 

@@ -22,12 +22,11 @@ import (
 	"context"
 	"io"
 
-	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/gravitational/trace"
 
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
-	config "github.com/gravitational/teleport/lib/cloud/aws/config"
 	"github.com/gravitational/teleport/lib/cloud/provisioning"
 	"github.com/gravitational/teleport/lib/cloud/provisioning/awsactions"
 	"github.com/gravitational/teleport/lib/utils/aws/iamutils"
@@ -88,7 +87,7 @@ func NewListDatabasesIAMConfigureClient(ctx context.Context, region string) (Lis
 		return nil, trace.BadParameter("region is required")
 	}
 
-	cfg, err := config.LoadDefaultConfig(ctx, awsconfig.WithRegion(region))
+	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

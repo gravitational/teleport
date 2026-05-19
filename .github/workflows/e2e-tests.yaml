@@ -1,84 +1,62 @@
 name: E2E Tests
 run-name: E2E Tests
 on:
-  pull_request:
-  merge_group:
-  push:
-    branches:
-      - master
-      - branch/**
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.head.repo.full_name || github.repository }}-${{ github.head_ref || github.run_id }}
-  cancel-in-progress: true
+  # Only allow manual triggers
+  workflow_dispatch:
 
 jobs:
-  changes:
-    name: Check for relevant changes
+  build:
+    name: Build binaries
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
     runs-on: ubuntu-latest
 
     permissions:
       contents: read
-      pull-requests: read
 
-    outputs:
-      changed: ${{ steps.changes.outputs.changed }}
+    container:
+      image: ghcr.io/gravitational/teleport-buildbox-centos7:teleport18-amd64
+      env:
+        GOCACHE: /tmp/gocache
 
     steps:
-      - name: Checkout
-        if: github.event_name != 'pull_request'
-        uses: actions/checkout@v6
-      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
-        id: changes
+      - name: Checkout Teleport
+        uses: actions/checkout@v3 # Cannot upgrade to v4 while this runs in centos:7 due to nodejs GLIBC incompatibility
+
+      - name: Prepare workspace
+        uses: ./.github/actions/prepare-workspace
+
+      - name: Run make
+        run: |
+          make binaries
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v3
         with:
-          base: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
-          ref: ${{ github.event.pull_request.head.ref || github.event.merge_group.head_ref }}
-          filters: |
-            changed:
-              - '.github/workflows/e2e-tests.yaml'
-              - '.github/workflows/e2e-tests-base.yaml'
-              - '**/*.go'
-              - 'go.mod'
-              - 'go.sum'
-              - '**/*.rs'
-              - 'rust-toolchain.toml'
-              - 'Cargo.toml'
-              - '**/Cargo.toml'
-              - 'Cargo.lock'
-              - 'e2e/**'
-              - 'web/**'
-              - 'package.json'
-              - 'pnpm-lock.yaml'
-              - 'pnpm-workspace.yaml'
-              - '.pnpmfile.cjs'
-              - '.npmrc'
-              - 'tsconfig*.json'
-              - 'gen/proto/ts/**'
-              - '.github/actions/prepare-workspace/action.yml'
-              - 'common.mk'
-              - 'build.assets/Makefile'
-              - 'build.assets/versions.mk'
-              - 'build.assets/Dockerfile*'
-              - 'build.assets/build-webassets-if-changed.sh'
-              - 'build.assets/build-e2e-binaries.sh'
-              - 'Makefile'
+          name: build
+          path: ${{ github.workspace }}/build/
+          retention-days: 1
 
-  e2e:
-    needs: changes
-    if: ${{ needs.changes.outputs.changed == 'true' && !startsWith(github.head_ref, 'dependabot/') }}
-    uses: ./.github/workflows/e2e-tests-base.yaml
-    with:
-      build-dir: build
-      e2e-dir: e2e
-      build-logs-dir: build-logs
-      type-check-package: '@gravitational/e2e'
-      build-command: make e2e-binaries
-    permissions:
-      contents: read
+  test:
+    name: E2E Tests
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-  update-pr-comment:
-    needs: e2e
-    if: ${{ always() && needs.e2e.result != 'skipped' && github.event_name == 'pull_request' }}
-    uses: ./.github/workflows/e2e-pr-comment.yaml
-    permissions:
-      pull-requests: write
+      - uses: actions/download-artifact@v3
+        with:
+          name: build
+          path: ${{ github.workspace }}/build/
+
+      - name: Chmod binaries
+        run: |
+          chmod +x build/teleport
+          chmod +x build/tctl
+          chmod +x build/tsh
+
+      - name: Build Images
+        run: |
+          make -C e2e build
+      - name: Run Tests
+        run: |
+          make test-e2e

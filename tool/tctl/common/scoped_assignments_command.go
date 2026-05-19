@@ -30,7 +30,6 @@ import (
 	scopedutils "github.com/gravitational/teleport/lib/scopes/utils"
 	"github.com/gravitational/teleport/lib/services"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
-	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
 
 // scopedAssignmentsCommand implements `tctl scoped assignments` subcommands.
@@ -109,10 +108,10 @@ func (c *scopedAssignmentsListCommand) list(ctx context.Context, client services
 		return trace.Wrap(err, "collecting filtered scoped role assignments")
 	}
 
-	collection := resources.NewScopedRoleAssignmentCollection(items)
+	collection := newScopedRoleAssignmentCollection(items)
 	switch c.format {
 	case teleport.Text:
-		return collection.WriteText(c.stdout, true)
+		return collection.writeText(c.stdout, true)
 	case teleport.YAML:
 		return writeYAML(collection, c.stdout)
 	case teleport.JSON:

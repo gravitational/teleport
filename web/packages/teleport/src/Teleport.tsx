@@ -17,6 +17,7 @@
  */
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { History } from 'history';
 import React, { Suspense, useEffect } from 'react';
 
 import { ToastNotificationProvider } from 'shared/components/ToastNotification';
@@ -63,10 +64,9 @@ const queryClient = new QueryClient({
 });
 
 const Teleport: React.FC<Props> = props => {
-  const { ctx } = props;
+  const { ctx, history } = props;
   const createPublicRoutes = props.renderPublicRoutes || publicOSSRoutes;
   const createPrivateRoutes = props.renderPrivateRoutes || privateOSSRoutes;
-
   // update the favicon based on the system pref, and listen if it changes
   // overtime.
   // TODO(avatus) this can be expanded upon eventually to handle the entire theme
@@ -97,7 +97,7 @@ const Teleport: React.FC<Props> = props => {
       <ThemeProvider>
         <CatchError>
           <LayoutContextProvider>
-            <Router>
+            <Router history={history}>
               <Suspense fallback={null}>
                 <Switch>
                   {createPublicRoutes()}
@@ -108,9 +108,8 @@ const Teleport: React.FC<Props> = props => {
                           <TeleportContextProvider ctx={ctx}>
                             <Switch>
                               <Route
-                                exact={false}
                                 path={cfg.routes.appLauncher}
-                                element={<AppLauncher />}
+                                component={AppLauncher}
                               />
                               <Route>{createPrivateRoutes()}</Route>
                             </Switch>
@@ -134,7 +133,7 @@ function publicOSSRoutes() {
     <Route
       title="Login"
       path={cfg.routes.login}
-      element={<Login />}
+      component={Login}
       key="login"
     />,
     ...getSharedPublicRoutes(),
@@ -147,49 +146,49 @@ export function getSharedPublicRoutes() {
       key="login-failed"
       title="Login Failed"
       path={cfg.routes.loginError}
-      element={<LoginFailed />}
+      component={LoginFailed}
     />,
     <Route
       key="login-failed-legacy"
       title="Login Failed"
       path={cfg.routes.loginErrorLegacy}
-      element={<LoginFailed />}
+      component={LoginFailed}
     />,
     <Route
       key="success"
       title="Success"
       path={cfg.routes.loginSuccess}
-      element={<LoginSuccess />}
+      component={LoginSuccess}
     />,
     <Route
       key="terminal"
       title="Finish Login in Terminal"
       path={cfg.routes.loginTerminalRedirect}
-      element={<LoginTerminalRedirect />}
+      component={LoginTerminalRedirect}
     />,
     <Route
       key="autoclose"
       title="Working on SSO login"
       path={cfg.routes.loginClose}
-      element={<LoginClose />}
+      component={LoginClose}
     />,
     <Route
       key="invite"
       title="Invite"
       path={cfg.routes.userInvite}
-      element={<Welcome NewCredentials={NewCredentials} />}
+      render={() => <Welcome NewCredentials={NewCredentials} />}
     />,
     <Route
       key="password-reset"
       title="Password Reset"
       path={cfg.routes.userReset}
-      element={<Welcome NewCredentials={NewCredentials} />}
+      render={() => <Welcome NewCredentials={NewCredentials} />}
     />,
     <Route
       key="saml-slo-failed"
       title="SAML Single Logout Failed"
       path={cfg.routes.samlSloFailed}
-      element={<SingleLogoutFailed />}
+      component={SingleLogoutFailed}
     />,
   ];
 }
@@ -201,11 +200,11 @@ function privateOSSRoutes() {
       <Route
         key="player"
         path={cfg.routes.player}
-        element={<ViewSessionRecordingRoute />}
+        component={ViewSessionRecordingRoute}
       />
       <Route
         path={cfg.routes.root}
-        element={<Main features={getOSSFeatures()} />}
+        render={() => <Main features={getOSSFeatures()} />}
       />
     </Switch>
   );
@@ -216,18 +215,18 @@ export function getSharedPrivateRoutes() {
     <Route
       key="desktop"
       path={cfg.routes.desktop}
-      element={<DesktopSession />}
+      component={DesktopSession}
     />,
-    <Route key="console" path={cfg.routes.console} element={<Console />} />,
+    <Route key="console" path={cfg.routes.console} component={Console} />,
     <Route
       key="headlessSSO"
       path={cfg.routes.headlessSso}
-      element={<HeadlessRequest />}
+      component={HeadlessRequest}
     />,
     <Route
       key="browserMFA"
       path={cfg.routes.browserMfa}
-      element={<BrowserMfa />}
+      component={BrowserMfa}
     />,
   ];
 }
@@ -236,6 +235,7 @@ export default Teleport;
 
 export type Props = {
   ctx: TeleportContext;
+  history: History;
   renderPublicRoutes?: () => React.ReactNode[];
   renderPrivateRoutes?: () => React.ReactNode;
 };

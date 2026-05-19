@@ -30,9 +30,9 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"text/template"
 	"time"
 
-	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/go-jose/go-jose/v4"
 	"github.com/gravitational/trace"
@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/otelhttp"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -58,7 +59,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils/teleportassets"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
-	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
 
 var mdmTokenAddTemplate = template.Must(
@@ -289,7 +289,7 @@ func (c *TokensCommand) Add(ctx context.Context, client *authclient.Client) erro
 	switch c.format {
 	case teleport.JSON, teleport.YAML:
 		expires := time.Now().Add(c.ttl)
-		tokenInfo := map[string]any{
+		tokenInfo := map[string]interface{}{
 			"token":   token,
 			"roles":   roles,
 			"expires": expires,
@@ -343,6 +343,71 @@ func (c *TokensCommand) Del(ctx context.Context, client *authclient.Client) erro
 	return nil
 }
 
+// The caller MUST make sure the MFA ceremony has been performed and is stored in the context
+// Else this function will cause several MFA prompts.
+// The MFa ceremony cannot be done in this function because we don't know if
+// the caller already attempted one (e.g. tctl get all)
+func getAllTokens(ctx context.Context, clt *authclient.Client) ([]types.ProvisionToken, error) {
+	// There are 3 tokens types:
+	// - provision tokens
+	// - static tokens
+	// - user tokens
+	// This endpoint returns all 3 for compatibility reasons.
+	// Before, all 3 tokens were returned by the same "GetTokens" RPC, now we are using
+	// separate RPCs, with pagination. However, we don't know if the auth we are talking
+	// to supports the new RPCs. As the static token one got introduced last, we
+	// try to use it.If it works, we consume the two other RPCs. If it doesn't,
+	// we fallback to the legacy all-in-one RPC.
+	var tokens []types.ProvisionToken
+
+	// Trying to get static tokens
+	staticTokens, err := clt.GetStaticTokens(ctx)
+	if err != nil && !trace.IsNotImplemented(err) {
+		return nil, trace.Wrap(err, "getting static tokens")
+	}
+
+	// TODO(hugoShaka): DELETE IN 19.0.0
+	if trace.IsNotImplemented(err) {
+		// We are connected to an old auth, that doesn't support the per-token type RPCs
+		// so we fallback to the legacy all-in-one RPC.
+		tokens, err := clt.GetTokens(ctx)
+		return tokens, trace.Wrap(err, "getting all tokens through the legacy RPC")
+	}
+
+	// We are connected to a modern auth, we must collect all 3 tokens types.
+	// Getting the provision tokens.
+	provisionTokens, err := stream.Collect(clientutils.Resources(ctx,
+		func(ctx context.Context, pageSize int, pageKey string) ([]types.ProvisionToken, string, error) {
+			return clt.ListProvisionTokens(ctx, pageSize, pageKey, nil, "")
+		},
+	))
+	if err != nil {
+		return nil, trace.Wrap(err, "getting provision tokens")
+	}
+	tokens = append(staticTokens.GetStaticTokens(), provisionTokens...)
+
+	// Getting the user tokens.
+	userTokens, err := stream.Collect(clientutils.Resources(ctx, clt.ListResetPasswordTokens))
+	if err != nil && !trace.IsNotImplemented(err) {
+		return nil, trace.Wrap(err)
+	}
+	if err != nil {
+		return nil, trace.Wrap(err, "getting user tokens")
+	}
+	// Converting the user tokens as provision tokens for presentation and
+	// backward compatibility.
+	for _, t := range userTokens {
+		roles := types.SystemRoles{types.RoleSignup}
+		tok, err := types.NewProvisionToken(t.GetName(), roles, t.Expiry())
+		if err != nil {
+			return nil, trace.Wrap(err, "converting user token as a provision token")
+		}
+		tokens = append(tokens, tok)
+	}
+
+	return tokens, nil
+}
+
 // List is called to execute "tokens ls" command.
 func (c *TokensCommand) List(ctx context.Context, client *authclient.Client) error {
 	labels, err := libclient.ParseLabelSpec(c.labels)
@@ -358,7 +423,7 @@ func (c *TokensCommand) List(ctx context.Context, client *authclient.Client) err
 		return trace.Wrap(err)
 	}
 
-	tokens, err := resources.GetAllTokens(ctx, client)
+	tokens, err := getAllTokens(ctx, client)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -412,7 +477,7 @@ func (c *TokensCommand) List(ctx context.Context, client *authclient.Client) err
 					expdur := t.Expiry().Sub(now).Round(time.Second)
 					expiry = fmt.Sprintf("%s (%s)", exptime, expdur.String())
 				}
-				table.AddRow([]string{nameFunc(t), t.GetRoles().String(), resources.PrintMetadataLabels(t.GetMetadata().Labels), expiry})
+				table.AddRow([]string{nameFunc(t), t.GetRoles().String(), printMetadataLabels(t.GetMetadata().Labels), expiry})
 			}
 			return table.AsBuffer().String()
 		}

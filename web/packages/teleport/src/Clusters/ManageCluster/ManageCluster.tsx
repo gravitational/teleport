@@ -17,7 +17,8 @@
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { useParams } from 'react-router';
+import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 
 import { Alert } from 'design/Alert';
@@ -49,7 +50,9 @@ export function ManageCluster() {
   const [cluster, setCluster] = useState<ClusterInfo>(null);
   const ctx = useTeleport();
 
-  const { clusterId } = useParams<{ clusterId: string }>();
+  const { clusterId } = useParams<{
+    clusterId: string;
+  }>();
 
   const [attempt, run] = useAsync(
     useCallback(async () => {

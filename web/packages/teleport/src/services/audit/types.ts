@@ -16,8 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { SortDir } from '../agents';
-
 // eventGroupTypes contains a map of events that were grouped under the same
 // event type but have different event codes. This is used to filter out duplicate
 // event types when listing event filters and provide modified description of event.
@@ -299,7 +297,6 @@ export const eventCodes = {
   CLUSTER_NETWORKING_CONFIG_UPDATE: 'TCNET002I',
   SESSION_RECORDING_CONFIG_UPDATE: 'TCREC003I',
   ACCESS_GRAPH_PATH_CHANGED: 'TAG001I',
-  ACCESS_GRAPH_SETTINGS_UPDATE: 'TCAGC003I',
   SPANNER_RPC: 'TSPN001I',
   SPANNER_RPC_DENIED: 'TSPN001W',
   DISCOVERY_CONFIG_CREATE: 'DC001I',
@@ -366,11 +363,6 @@ export const eventCodes = {
   SCIM_RESOURCE_PATCH: 'TSCIM006I',
   SCIM_RESOURCE_PATCH_FAILURE: 'TSCIM006E',
   CLIENT_IP_RESTRICTIONS_UPDATE: 'CIR001I',
-  APPAUTHCONFIG_CREATE: 'TAAC001I',
-  APPAUTHCONFIG_UPDATE: 'TAAC002I',
-  APPAUTHCONFIG_DELETE: 'TAAC003I',
-  APPAUTHCONFIG_VERIFY_SUCCESS: 'TAAC004I',
-  APPAUTHCONFIG_VERIFY_FAILURE: 'TAAC004E',
   VNET_CONFIG_CREATE: 'TVNET001I',
   VNET_CONFIG_UPDATE: 'TVNET002I',
   VNET_CONFIG_DELETE: 'TVNET003I',
@@ -394,10 +386,6 @@ export const eventCodes = {
   RETRIEVAL_MODEL_CREATE: 'INF011I',
   RETRIEVAL_MODEL_UPDATE: 'INF012I',
   RETRIEVAL_MODEL_DELETE: 'INF013I',
-  CERT_AUTH_OVERRIDE_CREATE: 'TCO01I',
-  CERT_AUTH_OVERRIDE_UPDATE: 'TCO02I',
-  CERT_AUTH_OVERRIDE_UPSERT: 'TCO03I',
-  CERT_AUTH_OVERRIDE_DELETE: 'TCO04I',
 } as const;
 
 /**
@@ -1389,7 +1377,6 @@ export type RawEvents = {
     {
       sid: string;
       user: string;
-      session_type?: string;
     }
   >;
   [eventCodes.SSMRUN_SUCCESS]: RawEvent<
@@ -1457,7 +1444,7 @@ export type RawEvents = {
     }
   >;
   [eventCodes.BOT_JOIN_FAILURE]: RawEvent<
-    typeof eventCodes.BOT_JOIN_FAILURE,
+    typeof eventCodes.BOT_JOIN,
     {
       bot_name: string;
       method: string;
@@ -1473,7 +1460,7 @@ export type RawEvents = {
     }
   >;
   [eventCodes.INSTANCE_JOIN_FAILURE]: RawEvent<
-    typeof eventCodes.INSTANCE_JOIN_FAILURE,
+    typeof eventCodes.INSTANCE_JOIN,
     {
       node_name: string;
       method: string;
@@ -1625,7 +1612,7 @@ export type RawEvents = {
     }
   >;
   [eventCodes.OKTA_ASSIGNMENT_CLEANUP]: RawEvent<
-    typeof eventCodes.OKTA_ASSIGNMENT_CLEANUP,
+    typeof eventCodes.OKTA_ASSIGNMENT_PROCESS,
     {
       name: string;
       source: string;
@@ -1845,12 +1832,6 @@ export type RawEvents = {
       affected_resource_name: string;
       affected_resource_source: string;
       affected_resource_kind: string;
-    }
-  >;
-  [eventCodes.ACCESS_GRAPH_SETTINGS_UPDATE]: RawEvent<
-    typeof eventCodes.ACCESS_GRAPH_SETTINGS_UPDATE,
-    {
-      user: string;
     }
   >;
   [eventCodes.SPANNER_RPC]: RawSpannerRPCEvent<typeof eventCodes.SPANNER_RPC>;
@@ -2209,32 +2190,6 @@ export type RawEvents = {
       success: boolean;
     }
   >;
-  [eventCodes.APPAUTHCONFIG_CREATE]: RawEvent<
-    typeof eventCodes.APPAUTHCONFIG_CREATE,
-    HasName
-  >;
-  [eventCodes.APPAUTHCONFIG_UPDATE]: RawEvent<
-    typeof eventCodes.APPAUTHCONFIG_UPDATE,
-    HasName
-  >;
-  [eventCodes.APPAUTHCONFIG_DELETE]: RawEvent<
-    typeof eventCodes.APPAUTHCONFIG_DELETE,
-    HasName
-  >;
-  [eventCodes.APPAUTHCONFIG_VERIFY_SUCCESS]: RawEvent<
-    typeof eventCodes.APPAUTHCONFIG_VERIFY_SUCCESS,
-    {
-      app_auth_config: string;
-      app_name: string;
-    }
-  >;
-  [eventCodes.APPAUTHCONFIG_VERIFY_FAILURE]: RawEvent<
-    typeof eventCodes.APPAUTHCONFIG_VERIFY_FAILURE,
-    {
-      app_auth_config: string;
-      error: string;
-    }
-  >;
   [eventCodes.VNET_CONFIG_CREATE]: RawEvent<
     typeof eventCodes.VNET_CONFIG_CREATE,
     HasName
@@ -2338,18 +2293,6 @@ export type RawEvents = {
       risk_level?: string;
       short_description?: string;
     }
-  >;
-  [eventCodes.CERT_AUTH_OVERRIDE_CREATE]: RawCertAuthOverrideEvent<
-    typeof eventCodes.CERT_AUTH_OVERRIDE_CREATE
-  >;
-  [eventCodes.CERT_AUTH_OVERRIDE_UPDATE]: RawCertAuthOverrideEvent<
-    typeof eventCodes.CERT_AUTH_OVERRIDE_UPDATE
-  >;
-  [eventCodes.CERT_AUTH_OVERRIDE_UPSERT]: RawCertAuthOverrideEvent<
-    typeof eventCodes.CERT_AUTH_OVERRIDE_UPSERT
-  >;
-  [eventCodes.CERT_AUTH_OVERRIDE_DELETE]: RawCertAuthOverrideEvent<
-    typeof eventCodes.CERT_AUTH_OVERRIDE_DELETE
   >;
 };
 
@@ -2468,35 +2411,6 @@ type RawDiskEvent<T extends EventCode> = RawEvent<
   }
 >;
 
-// EventResourceId mirrors the JSON encoding of events.ResourceID.
-type EventResourceId = {
-  cluster: string;
-  kind: string;
-  name: string;
-  sub_resource?: string;
-};
-
-// EventResourceConstraints mirrors the JSON encoding of the oneof constraints
-// field in events.ResourceAccessID. Exactly one variant will be present.
-type EventResourceConstraints = {
-  unknown_constraints?: Record<string, never>;
-  aws_console?: {
-    role_arns_count: number;
-    role_arns_preview?: string[];
-  };
-  ssh?: {
-    logins_count: string[];
-    logins_preview?: string[];
-  };
-};
-
-// EventResourceAccessId mirrors the JSON encoding of events.ResourceAccessId.
-type EventResourceAccessId = {
-  id: EventResourceId;
-  // constraints is the JSON key produced by the Go oneof field encoding.
-  constraints?: EventResourceConstraints;
-};
-
 type RawEventAccess<T extends EventCode> = RawEvent<
   T,
   {
@@ -2505,7 +2419,6 @@ type RawEventAccess<T extends EventCode> = RawEvent<
     roles: string[];
     state: string;
     reviewer: string;
-    RequestedResourceAccessIDs?: EventResourceAccessId[];
   }
 >;
 
@@ -2618,33 +2531,6 @@ type RawSCIMResourceEvent<T extends EventCode> = RawEvent<
   }
 >;
 
-type RawCertAuthOverrideEvent<T extends EventCode> = RawEvent<
-  T,
-  HasName & {
-    ca_override?: {
-      ca_type?: string;
-      cluster_name?: string;
-      certificate_overrides?: {
-        certificate?: {
-          issuer?: string;
-          subject?: string;
-          serial_number?: string;
-          public_key_hash?: string;
-        };
-        chain?: {
-          issuer?: string;
-          subject?: string;
-          serial_number?: string;
-          public_key_hash?: string;
-        }[];
-        disabled?: boolean;
-      }[];
-    };
-    success?: boolean;
-    user?: string;
-  }
->;
-
 /**
  * A map of event formatters that provide short and long description
  */
@@ -2665,6 +2551,7 @@ export type Events = {
     code: key;
     codeDesc: string;
     raw: RawEvents[key];
+    eventIndex: number;
   };
 };
 
@@ -2678,8 +2565,6 @@ export type EventQuery = {
   limit?: number;
   startKey?: string;
   filterBy?: string;
-  search?: string;
-  order: SortDir;
 };
 
 export type EventResponse = {

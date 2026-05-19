@@ -34,9 +34,6 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
@@ -44,8 +41,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/msgraph/models"
-	"github.com/gravitational/teleport/lib/msgraph/msgraphtest"
 )
 
 // Always sleep for a second for predictability
@@ -202,20 +197,23 @@ func paginatedHandler(t *testing.T, values []json.RawMessage) http.Handler {
 func TestIterateUsers_Empty(t *testing.T) {
 	t.Parallel()
 
-	storage := msgraphtest.NewDefaultStorage()
-	// overwrite user storage to test empty user response.
-	storage.Users = make(map[string]*models.User)
-	fakeServer := msgraphtest.NewServer(msgraphtest.WithStorage(storage))
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /v1.0/users", func(w http.ResponseWriter, r *http.Request) {
+		_, err := strconv.Atoi(r.URL.Query().Get("$top"))
+		assert.NoError(t, err, "expected to get $top parameter")
+		w.Write([]byte(`{"value": []}`))
+	})
 
-	t.Cleanup(func() { fakeServer.TLSServer.Close() })
+	srv := httptest.NewTLSServer(mux)
+	t.Cleanup(func() { srv.Close() })
 
 	client, err := NewClient(Config{
-		HTTPClient:    newHTTPClient(fakeServer.TLSServer),
+		HTTPClient:    newHTTPClient(srv),
 		TokenProvider: &fakeTokenProvider{},
 		RetryConfig:   &retryConfig,
 	})
 	require.NoError(t, err)
-	err = client.IterateUsers(t.Context(), func(*models.User) bool {
+	err = client.IterateUsers(t.Context(), func(*User) bool {
 		assert.Fail(t, "should never get called")
 		return true
 	})
@@ -241,8 +239,8 @@ func TestIterateUsers(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	var users []*models.User
-	err = client.IterateUsers(t.Context(), func(u *models.User) bool {
+	var users []*User
+	err = client.IterateUsers(t.Context(), func(u *User) bool {
 		users = append(users, u)
 		return true
 	})
@@ -309,7 +307,7 @@ func TestRetry(t *testing.T) {
 	appID := uuid.NewString()
 	route := "POST /v1.0/applications/" + appID + "/federatedIdentityCredentials"
 	name := "foo"
-	fic := &models.FederatedIdentityCredential{Name: &name}
+	fic := &FederatedIdentityCredential{Name: &name}
 	objPayload, err := json.Marshal(fic)
 	require.NoError(t, err)
 
@@ -538,8 +536,8 @@ func TestIterateGroupMembers(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	var members []models.GroupMember
-	err = client.IterateGroupMembers(t.Context(), groupID, func(u models.GroupMember) bool {
+	var members []GroupMember
+	err = client.IterateGroupMembers(t.Context(), groupID, func(u GroupMember) bool {
 		members = append(members, u)
 		return true
 	})
@@ -547,14 +545,14 @@ func TestIterateGroupMembers(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, members, 2)
 	{
-		require.IsType(t, &models.User{}, members[0])
-		user := members[0].(*models.User)
+		require.IsType(t, &User{}, members[0])
+		user := members[0].(*User)
 		require.Equal(t, "9f615773-8219-4a5e-9eb1-8e701324c683", *user.ID)
 		require.Equal(t, "alice@example.com", *user.Mail)
 	}
 	{
-		require.IsType(t, &models.Group{}, members[1])
-		group := members[1].(*models.Group)
+		require.IsType(t, &Group{}, members[1])
+		group := members[1].(*Group)
 		require.Equal(t, "7db727c5-924a-4f6d-b1f0-d44e6cafa87c", *group.ID)
 		require.Equal(t, "Test Group 1", *group.DisplayName)
 	}
@@ -609,18 +607,18 @@ func TestGetApplication(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "aeee7e9f-57ad-4ea6-a236-cd10b2dbc0b4", *app.ID)
 
-	expectation := &models.Application{
+	expectation := &Application{
 		AppID: toPtr("d2a39a2a-1636-457f-82f9-c2d76527e20e"),
-		DirectoryObject: models.DirectoryObject{
+		DirectoryObject: DirectoryObject{
 			DisplayName: toPtr("test SAML App"),
 			ID:          toPtr("aeee7e9f-57ad-4ea6-a236-cd10b2dbc0b4"),
 		},
 		GroupMembershipClaims: toPtr("SecurityGroup"),
 		IdentifierURIs:        &[]string{"goteleport.com"},
-		OptionalClaims: &models.OptionalClaims{
-			AccessToken: []models.OptionalClaim{},
-			IDToken:     []models.OptionalClaim{},
-			SAML2Token: []models.OptionalClaim{
+		OptionalClaims: &OptionalClaims{
+			AccessToken: []OptionalClaim{},
+			IDToken:     []OptionalClaim{},
+			SAML2Token: []OptionalClaim{
 				{
 					AdditionalProperties: []string{"sam_account_name"},
 					Essential:            toPtr(false),
@@ -735,7 +733,7 @@ func TestIterateUsersTransitiveMemberOf(t *testing.T) {
 
 	t.Run(types.EntraIDSecurityGroups, func(t *testing.T) {
 		var groupIDs []string
-		err := client.IterateUsersTransitiveMemberOf(t.Context(), userID, types.EntraIDSecurityGroups, func(group *models.Group) bool {
+		err := client.IterateUsersTransitiveMemberOf(t.Context(), userID, types.EntraIDSecurityGroups, func(group *Group) bool {
 			groupIDs = append(groupIDs, *group.ID)
 			return true
 		})
@@ -752,7 +750,7 @@ func TestIterateUsersTransitiveMemberOf(t *testing.T) {
 
 	t.Run(types.EntraIDAllGroups, func(t *testing.T) {
 		var groupIDs []string
-		err := client.IterateUsersTransitiveMemberOf(t.Context(), userID, types.EntraIDAllGroups, func(group *models.Group) bool {
+		err := client.IterateUsersTransitiveMemberOf(t.Context(), userID, types.EntraIDAllGroups, func(group *Group) bool {
 			groupIDs = append(groupIDs, *group.ID)
 			return true
 		})
@@ -767,7 +765,7 @@ func TestIterateUsersTransitiveMemberOf(t *testing.T) {
 
 	t.Run(types.EntraIDDirectoryRoles, func(t *testing.T) {
 		var groupIDs []string
-		err := client.IterateUsersTransitiveMemberOf(t.Context(), userID, types.EntraIDDirectoryRoles, func(group *models.Group) bool {
+		err := client.IterateUsersTransitiveMemberOf(t.Context(), userID, types.EntraIDDirectoryRoles, func(group *Group) bool {
 			groupIDs = append(groupIDs, *group.ID)
 			return true
 		})
@@ -782,7 +780,7 @@ func TestIterateUsersTransitiveMemberOf(t *testing.T) {
 
 	t.Run("unsupported-group-type", func(t *testing.T) {
 		var groupIDs []string
-		err := client.IterateUsersTransitiveMemberOf(t.Context(), userID, "unsupported-group-type", func(group *models.Group) bool {
+		err := client.IterateUsersTransitiveMemberOf(t.Context(), userID, "unsupported-group-type", func(group *Group) bool {
 			groupIDs = append(groupIDs, *group.ID)
 			return true
 		})
@@ -846,8 +844,8 @@ func TestIterateGroupOwners(t *testing.T) {
 	require.NoError(t, err)
 
 	// owners are of User type.
-	var owners []*models.User
-	err = client.IterateGroupOwners(t.Context(), groupID, func(o *models.User) bool {
+	var owners []*User
+	err = client.IterateGroupOwners(t.Context(), groupID, func(o *User) bool {
 		owners = append(owners, o)
 		return true
 	})
@@ -877,399 +875,4 @@ func newHTTPClient(server *httptest.Server) *http.Client {
 		},
 	}
 	return httpClient
-}
-
-func TestIterateUserDeltas(t *testing.T) {
-	t.Parallel()
-
-	ctx := t.Context()
-	defaultStorage := msgraphtest.NewDefaultStorage()
-
-	// Seed storage with one user carol.
-	storage := msgraphtest.NewStorage()
-	carol := defaultStorage.Users[msgraphtest.CarolID]
-	storage.Users[*carol.ID] = carol
-
-	fakeServer := msgraphtest.NewServer(msgraphtest.WithStorage(storage))
-	t.Cleanup(func() { fakeServer.TLSServer.Close() })
-
-	client, err := NewClient(Config{
-		HTTPClient:    newHTTPClient(fakeServer.TLSServer),
-		TokenProvider: &fakeTokenProvider{},
-		RetryConfig:   &retryConfig,
-	})
-	require.NoError(t, err)
-
-	fakeDeltaStore := msgraphtest.NewFakeDeltaStore()
-	const userEndpoint = "users/delta"
-
-	// Request without the latest token should fail.
-	for _, err := range client.IterateUserDeltas(ctx, userEndpoint, fakeDeltaStore) {
-		require.ErrorIs(t, err, ErrMissingDeltaLink)
-	}
-
-	// Set up latest delta token for user endpoint.
-	err = client.SetupLatestDelta(ctx, userEndpoint, fakeDeltaStore)
-	require.NoError(t, err)
-
-	// Subsequent delta requests should now succeed.
-	require.NotEmpty(t, fakeDeltaStore.Get(userEndpoint))
-
-	sortDeltas := cmpopts.SortSlices(func(a, b *models.ListUsersDeltaResponse) bool {
-		return a.User.GetID() != nil &&
-			b.User.GetID() != nil &&
-			*a.User.GetID() < *b.User.GetID()
-	})
-
-	// Add alice and bob users.
-	alice := defaultStorage.Users[msgraphtest.AliceID]
-	bob := defaultStorage.Users[msgraphtest.BobID]
-	fakeServer.SetUsers([]*models.User{alice, bob})
-	expected := []*models.ListUsersDeltaResponse{
-		{
-			User: &models.User{
-				DirectoryObject: models.DirectoryObject{
-					ID: alice.GetID(),
-				},
-				Mail:              alice.Mail,
-				UserPrincipalName: alice.UserPrincipalName,
-			},
-		},
-		{
-			User: &models.User{
-				DirectoryObject: models.DirectoryObject{
-					ID: bob.GetID(),
-				},
-				Mail:              bob.Mail,
-				UserPrincipalName: bob.UserPrincipalName,
-			},
-		},
-	}
-	// Test new users response.
-	got := []*models.ListUsersDeltaResponse{}
-	for usersDelta, err := range client.IterateUserDeltas(ctx, userEndpoint, fakeDeltaStore) {
-		require.NoError(t, err)
-
-		got = append(got, usersDelta)
-	}
-	require.Empty(t, cmp.Diff(expected, got, sortDeltas), "expected user delta response to match")
-
-	// Test user delete response
-	fakeServer.DeleteUsers([]string{*carol.GetID()})
-	expected = []*models.ListUsersDeltaResponse{
-		{
-			User: &models.User{
-				DirectoryObject: models.DirectoryObject{
-					ID: carol.GetID(),
-				},
-			},
-			Removed: &models.RemovedReason{
-				Reason: to.Ptr("deleted"),
-			},
-		},
-	}
-	got = []*models.ListUsersDeltaResponse{}
-	for usersDelta, err := range client.IterateUserDeltas(ctx, userEndpoint, fakeDeltaStore) {
-		require.NoError(t, err)
-
-		got = append(got, usersDelta)
-	}
-
-	require.Empty(t, cmp.Diff(expected, got, sortDeltas), "expected user delta response to match")
-}
-
-func TestIterateGroupDeltas(t *testing.T) {
-	t.Parallel()
-
-	ctx := t.Context()
-	defaultStorage := msgraphtest.NewDefaultStorage()
-
-	// Start with default users alice, bob and carol.
-	storage := msgraphtest.NewStorage()
-	storage.Users = defaultStorage.Users
-
-	fakeServer := msgraphtest.NewServer(msgraphtest.WithStorage(storage))
-	t.Cleanup(func() { fakeServer.TLSServer.Close() })
-
-	httpClient := &http.Client{
-		Transport: &msgraphtest.RewriteTransport{
-			Base: fakeServer.TLSServer.Client().Transport,
-			URL:  mustParseURL(t, fakeServer.TLSServer.URL),
-		},
-	}
-
-	client, err := NewClient(Config{
-		HTTPClient:    httpClient,
-		TokenProvider: &fakeTokenProvider{},
-		RetryConfig:   &retryConfig,
-	})
-	require.NoError(t, err)
-
-	fakeDeltaStore := msgraphtest.NewFakeDeltaStore()
-
-	const endpoint = "groups/delta"
-
-	// Request without the latest token should fail.
-	for _, err := range client.IterateGroupDeltas(ctx, endpoint, fakeDeltaStore) {
-		require.ErrorIs(t, err, ErrMissingDeltaLink)
-	}
-
-	// Set up latest delta token for user endpoint.
-	err = client.SetupLatestDelta(ctx, endpoint, fakeDeltaStore, WithSelect("id,displayName,description,members,owners"))
-	require.NoError(t, err)
-
-	require.NotEmpty(t, fakeDeltaStore.Get(endpoint))
-
-	sortDeltas := cmpopts.SortSlices(func(a, b *models.ListGroupsDeltaResponse) bool {
-		return a.Group.GetID() != nil &&
-			b.Group.GetID() != nil &&
-			*a.Group.GetID() < *b.Group.GetID()
-	})
-
-	// Create groups
-	group1 := defaultStorage.Groups[msgraphtest.Group1ID]
-	group2 := defaultStorage.Groups[msgraphtest.Group2ID]
-	group3 := defaultStorage.Groups[msgraphtest.Group3ID]
-	fakeServer.SetGroups([]*models.Group{group1, group2, group3})
-	// Add user alice and group3 as member
-	alice := storage.Users[msgraphtest.AliceID]
-	fakeServer.SetGroupMembers(*group1.GetID(), []models.GroupMember{alice, group3})
-	expected := []*models.ListGroupsDeltaResponse{
-		{
-			Group: &models.Group{
-				DirectoryObject: models.DirectoryObject{
-					ID:          group1.GetID(),
-					DisplayName: group1.DisplayName,
-				},
-				GroupTypes: []string{"security-groups"},
-			},
-			Members: []models.MembersDelta{
-				{
-					DirectoryObject: &models.DirectoryObject{
-						ID: alice.GetID(),
-					},
-					Type: models.ODataUser,
-				},
-				{
-					DirectoryObject: &models.DirectoryObject{
-						ID: group3.GetID(),
-					},
-					Type: models.ODataGroup,
-				},
-			},
-		},
-		{
-			Group: &models.Group{
-				DirectoryObject: models.DirectoryObject{
-					ID:          group2.GetID(),
-					DisplayName: group2.DisplayName,
-				},
-				GroupTypes: []string{"security-groups"},
-			},
-		},
-		{
-			Group: &models.Group{
-				DirectoryObject: models.DirectoryObject{
-					ID:          group3.GetID(),
-					DisplayName: group3.DisplayName,
-				},
-				GroupTypes: []string{"security-groups"},
-			},
-		},
-	}
-	got := []*models.ListGroupsDeltaResponse{}
-	for groupDeltas, err := range client.IterateGroupDeltas(ctx, endpoint, fakeDeltaStore) {
-		require.NoError(t, err)
-
-		got = append(got, groupDeltas)
-	}
-	require.Empty(t, cmp.Diff(expected, got, sortDeltas), "expected group delta response to match")
-
-	fakeServer.DeleteGroups([]string{*group3.GetID()})
-	fakeServer.DeleteUsers([]string{*alice.GetID()})
-	// Add user alice and group3 as member
-	carol := storage.Users[msgraphtest.CarolID]
-	fakeServer.SetGroupOwners(*group1.GetID(), []*models.User{carol})
-	expected = []*models.ListGroupsDeltaResponse{
-		{
-			Group: &models.Group{
-				DirectoryObject: models.DirectoryObject{
-					ID:          group1.GetID(),
-					DisplayName: group1.DisplayName,
-				},
-			},
-			Members: []models.MembersDelta{
-				{
-					DirectoryObject: &models.DirectoryObject{
-						ID: group3.GetID(),
-					},
-					Type: models.ODataGroup,
-					Removed: &models.RemovedReason{
-						Reason: to.Ptr("deleted"),
-					},
-				},
-				{
-					DirectoryObject: &models.DirectoryObject{
-						ID: alice.GetID(),
-					},
-					Type: models.ODataUser,
-					Removed: &models.RemovedReason{
-						Reason: to.Ptr("deleted"),
-					},
-				},
-			},
-			Owners: []models.OwnersDelta{
-				{
-					User: &models.User{
-						DirectoryObject: models.DirectoryObject{
-							ID: carol.GetID(),
-						},
-					},
-					Type: models.ODataUser,
-				},
-			},
-		},
-		{
-			Group: &models.Group{
-				DirectoryObject: models.DirectoryObject{
-					ID: group3.GetID(),
-				},
-			},
-			Removed: &models.RemovedReason{
-				Reason: to.Ptr("deleted"),
-			},
-		},
-	}
-	got = []*models.ListGroupsDeltaResponse{}
-	for groupDeltas, err := range client.IterateGroupDeltas(ctx, endpoint, fakeDeltaStore) {
-		require.NoError(t, err)
-
-		got = append(got, groupDeltas)
-	}
-
-	require.Empty(t, cmp.Diff(expected, got, sortDeltas), "expected group delta response to match")
-}
-
-func mustParseURL(t *testing.T, in string) *url.URL {
-	t.Helper()
-	url, err := url.Parse(in)
-	require.NoError(t, err)
-	require.Equal(t, "https", url.Scheme, "expected URL with https scheme")
-	return url
-}
-
-func TestDeltaMethodsWithoutTop(t *testing.T) {
-	ctx := t.Context()
-
-	fakeServer := msgraphtest.NewServer()
-
-	client, err := NewClient(Config{
-		HTTPClient:    newHTTPClient(fakeServer.TLSServer),
-		TokenProvider: &fakeTokenProvider{},
-		RetryConfig:   &retryConfig,
-		PageSize:      500, // pagesize added to ensure that the default $top query path is reached wihout the WithoutTop() option.
-	})
-	require.NoError(t, err)
-
-	assertNoTop := func(t *testing.T, uri string) {
-		t.Helper()
-		parsed, err := url.ParseRequestURI(uri)
-		if err != nil {
-			t.Fatalf("failed to parse delta request URI %s: %v", uri, err)
-		}
-		if parsed.Query().Has("$top") {
-			t.Fatalf("expected $top query to be absent in delta API requests, received: %s", uri)
-		}
-	}
-
-	const userEndpoint = "users/delta"
-	const groupEndpoint = "groups/delta"
-
-	deltaStore := msgraphtest.NewFakeDeltaStore()
-
-	t.Run("SetupLatestDelta", func(t *testing.T) {
-		err = client.SetupLatestDelta(ctx, userEndpoint, deltaStore)
-		require.NoError(t, err)
-		assertNoTop(t, deltaStore.Get(userEndpoint))
-
-		err = client.SetupLatestDelta(ctx, groupEndpoint, deltaStore)
-		require.NoError(t, err)
-		assertNoTop(t, deltaStore.Get(groupEndpoint))
-	})
-
-	t.Run("IterateUserDeltas", func(t *testing.T) {
-		// This test should pass by default as long as SetupLatestDelta sets up
-		// latest delta token without the $top query.
-		for _, err = range client.IterateUserDeltas(ctx, userEndpoint, deltaStore) {
-			require.NoError(t, err)
-		}
-		assertNoTop(t, deltaStore.Get(userEndpoint))
-	})
-
-	t.Run("IterateGroupDeltas", func(t *testing.T) {
-		// This test should pass by default as long as SetupLatestDelta sets up
-		// latest delta token without the $top query.
-		for _, err = range client.IterateGroupDeltas(ctx, groupEndpoint, deltaStore) {
-			require.NoError(t, err)
-		}
-		assertNoTop(t, deltaStore.Get(groupEndpoint))
-	})
-}
-
-func TestValidateDeltaLink(t *testing.T) {
-	ctx := t.Context()
-	tests := []struct {
-		name           string
-		baseURL        string
-		deltaLink      string
-		errorAssertion require.ErrorAssertionFunc
-	}{
-		{
-			name:           "matching host",
-			baseURL:        types.MSGraphDefaultEndpoint,
-			deltaLink:      fmt.Sprintf("%s/v1.0/users/delta?$deltatoken=latest", types.MSGraphDefaultEndpoint),
-			errorAssertion: require.NoError,
-		},
-		{
-			name:      "matching host with http sceheme",
-			baseURL:   types.MSGraphDefaultEndpoint,
-			deltaLink: "http://graph.microsoft.com/v1.0/users/delta?$deltatoken=latest",
-			errorAssertion: func(t require.TestingT, err error, i ...any) {
-				require.ErrorContains(t, err, "scheme")
-			},
-		},
-		{
-			name:      "different host",
-			baseURL:   types.MSGraphDefaultEndpoint,
-			deltaLink: fmt.Sprintf("%s/v1.0/users/delta?$deltatoken=latest", "https://cloudapp.azure.com"),
-			errorAssertion: func(t require.TestingT, err error, i ...any) {
-				require.ErrorContains(t, err, "host mismatch")
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			fakeServer := msgraphtest.NewServer()
-			t.Cleanup(func() { fakeServer.TLSServer.Close() })
-
-			const endpoint = "users/delta"
-			ds := msgraphtest.NewFakeDeltaStore()
-			ds.Set(endpoint, tt.deltaLink)
-
-			client, err := NewClient(Config{
-				HTTPClient:    newHTTPClient(fakeServer.TLSServer),
-				TokenProvider: &fakeTokenProvider{},
-				RetryConfig:   &retryConfig,
-				GraphEndpoint: tt.baseURL,
-			})
-			require.NoError(t, err)
-
-			err = validateDeltaLink(client.baseURL, tt.deltaLink)
-			tt.errorAssertion(t, err)
-
-			for _, err := range client.iterateDelta(ctx, endpoint, ds) {
-				tt.errorAssertion(t, err)
-			}
-		})
-	}
 }

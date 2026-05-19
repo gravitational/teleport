@@ -30,7 +30,6 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
@@ -111,19 +110,6 @@ func (a *fakeAuth) UpsertApplicationServer(_ context.Context, server types.AppSe
 	}
 	a.lastServerExpiry = server.Expiry()
 	return &types.KeepAlive{}, a.err
-}
-
-func (a *fakeAuth) UnconditionalUpdateApplicationServer(_ context.Context, server types.AppServer) (types.AppServer, error) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	a.keepalives++
-
-	if a.failKeepAlives > 0 {
-		a.failKeepAlives--
-		return nil, trace.Errorf("unconditional update failed as test condition")
-	}
-	a.lastServerExpiry = server.Expiry()
-	return server, a.err
 }
 
 func (a *fakeAuth) DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error {
@@ -738,11 +724,11 @@ func testAppServerBasics(t *testing.T) {
 	require.Equal(t, int64(1), controller.instanceHBVariableDuration.Count())
 
 	// send a fake app server heartbeat
-	for i := range appCount {
+	for i := 0; i < appCount; i++ {
 		err := downstream.Send(ctx, &proto.InventoryHeartbeat{
 			AppServer: &types.AppServerV3{
 				Metadata: types.Metadata{
-					Name: fmt.Sprintf("app-%d", i),
+					Name: serverID,
 				},
 				Spec: types.AppServerSpecV3{
 					HostID: serverID,
@@ -784,7 +770,7 @@ func testAppServerBasics(t *testing.T) {
 	// reason, we want 2x the number of apps worth of keepalives to ensure that the failed keepalive counts associated
 	// with each app have been reset. otherwise, later parts of this test become flaky.
 	var keepaliveEvents []testEvent
-	for range appCount {
+	for i := 0; i < appCount; i++ {
 		keepaliveEvents = append(keepaliveEvents, []testEvent{appKeepAliveOk, appKeepAliveOk}...)
 	}
 
@@ -793,11 +779,11 @@ func testAppServerBasics(t *testing.T) {
 		deny(appKeepAliveErr, handlerClose),
 	)
 
-	for i := range appCount {
+	for i := 0; i < appCount; i++ {
 		err := downstream.Send(ctx, &proto.InventoryHeartbeat{
 			AppServer: &types.AppServerV3{
 				Metadata: types.Metadata{
-					Name: fmt.Sprintf("app-%d", i),
+					Name: serverID,
 				},
 				Spec: types.AppServerSpecV3{
 					HostID: serverID,
@@ -806,9 +792,6 @@ func testAppServerBasics(t *testing.T) {
 						Version: types.V3,
 						Metadata: types.Metadata{
 							Name: fmt.Sprintf("app-%d", i),
-							Labels: map[string]string{
-								"foo": uuid.NewString(),
-							},
 						},
 						Spec: types.AppSpecV3{},
 					},
@@ -848,7 +831,7 @@ func testAppServerBasics(t *testing.T) {
 
 	// expect that all app keepalives fail, then the app is removed.
 	var expectedEvents []testEvent
-	for range appCount {
+	for i := 0; i < appCount; i++ {
 		expectedEvents = append(expectedEvents, []testEvent{appKeepAliveErr, appKeepAliveErr, appKeepAliveErr, appKeepAliveDel}...)
 	}
 
@@ -861,26 +844,20 @@ func testAppServerBasics(t *testing.T) {
 	// set up to induce enough consecutive errors to cause stream closure
 	auth.mu.Lock()
 	auth.failUpserts = 5
-	auth.failKeepAlives = 5
 	auth.mu.Unlock()
 
 	err = downstream.Send(ctx, &proto.InventoryHeartbeat{
 		AppServer: &types.AppServerV3{
 			Metadata: types.Metadata{
-				Name: "app-0",
+				Name: serverID,
 			},
 			Spec: types.AppServerSpecV3{
 				HostID: serverID,
 				App: &types.AppV3{
-					Kind:    types.KindApp,
-					Version: types.V3,
-					Metadata: types.Metadata{
-						Name: "app-0",
-						Labels: map[string]string{
-							"foo": uuid.NewString(),
-						},
-					},
-					Spec: types.AppSpecV3{},
+					Kind:     types.KindApp,
+					Version:  types.V3,
+					Metadata: types.Metadata{},
+					Spec:     types.AppSpecV3{},
 				},
 			},
 		},
@@ -1061,7 +1038,7 @@ func testDatabaseServerBasics(t *testing.T) {
 	// reason, we want 2x the number of apps worth of keepalives to ensure that the failed keepalive counts associated
 	// with each app have been reset. otherwise, later parts of this test become flaky.
 	var keepaliveEvents []testEvent
-	for range dbCount {
+	for i := 0; i < dbCount; i++ {
 		keepaliveEvents = append(keepaliveEvents, []testEvent{dbKeepAliveOk, dbKeepAliveOk}...)
 	}
 
@@ -1070,7 +1047,7 @@ func testDatabaseServerBasics(t *testing.T) {
 		deny(appKeepAliveErr, handlerClose),
 	)
 
-	for i := range dbCount {
+	for i := 0; i < dbCount; i++ {
 		err := downstream.Send(ctx, &proto.InventoryHeartbeat{
 			DatabaseServer: &types.DatabaseServerV3{
 				Metadata: types.Metadata{
@@ -1122,7 +1099,7 @@ func testDatabaseServerBasics(t *testing.T) {
 
 	// expect that all db keepalives fail, then the db is removed.
 	var expectedEvents []testEvent
-	for range dbCount {
+	for i := 0; i < dbCount; i++ {
 		expectedEvents = append(expectedEvents, []testEvent{dbKeepAliveErr, dbKeepAliveErr, dbKeepAliveErr, dbKeepAliveDel}...)
 	}
 
@@ -1717,116 +1694,7 @@ func TestGoodbye(t *testing.T) {
 func TestKubernetesServerBasics(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, testKubernetesServerBasics)
-	// happy path, scopes always match
-	synctest.Test(t, testKubernetesServerScoped("/test", "/test", "/test"))
-	// server scope differs from scope given during control stream registration
-	synctest.Test(t, testKubernetesServerScoped("/test", "/other", "/test"))
-	// cluster scope differs from the server scope
-	synctest.Test(t, testKubernetesServerScoped("/test", "/test", "/other"))
 }
-
-func testKubernetesServerScoped(initialScope, serverScope, clusterScope string) func(t *testing.T) {
-	return func(t *testing.T) {
-		const serverID = "test-server"
-
-		ctx := t.Context()
-
-		events := make(chan testEvent, 1024)
-
-		auth := &fakeAuth{}
-
-		rc := &resourceCounter{}
-		controller := NewController(
-			auth,
-			usagereporter.DiscardUsageReporter{},
-			withServerKeepAlive(time.Millisecond*200),
-			withTestEventsChannel(events),
-			WithOnConnect(rc.onConnect),
-			WithOnDisconnect(rc.onDisconnect),
-		)
-		defer controller.Close()
-
-		// set up fake in-memory control stream
-		upstream, downstream := client.InventoryControlStreamPipe()
-		// launch goroutine to respond to ping requests
-		go func() {
-			for {
-				select {
-				case msg := <-downstream.Recv():
-					downstream.Send(ctx, &proto.UpstreamInventoryPong{
-						ID: msg.(*proto.DownstreamInventoryPing).GetID(),
-					})
-				case <-downstream.Done():
-					return
-				case <-ctx.Done():
-					return
-				}
-			}
-		}()
-
-		controller.RegisterControlStream(upstream, &proto.UpstreamInventoryHello{
-			ServerID: serverID,
-			Version:  teleport.Version,
-			Services: types.SystemRoles{types.RoleKube}.StringSlice(),
-			Scope:    initialScope,
-		})
-
-		// verify that control stream handle is now accessible
-		_, ok := controller.GetControlStream(serverID)
-		require.True(t, ok)
-
-		// verify that hb counter has been incremented
-		require.Equal(t, int64(1), controller.instanceHBVariableDuration.Count())
-
-		// send server heartbeat with scopes applied
-		err := downstream.Send(ctx, &proto.InventoryHeartbeat{
-			KubernetesServer: &types.KubernetesServerV3{
-				Metadata: types.Metadata{
-					Name: serverID,
-				},
-				Scope: serverScope,
-				Spec: types.KubernetesServerSpecV3{
-					HostID:   serverID,
-					Hostname: serverID,
-					Cluster: &types.KubernetesClusterV3{
-						Kind:    types.KindKubernetesCluster,
-						Version: types.V3,
-						Scope:   clusterScope,
-						Metadata: types.Metadata{
-							Name: "cluster",
-						},
-						Spec: types.KubernetesClusterSpecV3{},
-					},
-				},
-			},
-		})
-		require.NoError(t, err)
-
-		if serverScope != initialScope {
-			// scope mismatch between server scope and initial scope should close
-			// the stream
-			awaitEvents(t, events,
-				expect(handlerClose),
-				deny(kubeKeepAliveErr, kubeUpsertErr),
-			)
-			return
-		}
-		if clusterScope != serverScope {
-			// scope mismatch between server scope and cluster scope should close
-			// the stream
-			awaitEvents(t, events,
-				expect(handlerClose),
-				deny(kubeKeepAliveErr, kubeUpsertErr),
-			)
-			return
-		}
-		awaitEvents(t, events,
-			expect(kubeUpsertOk, kubeKeepAliveOk),
-			deny(kubeKeepAliveErr, kubeUpsertErr, handlerClose),
-		)
-	}
-}
-
 func testKubernetesServerBasics(t *testing.T) {
 	const serverID = "test-server"
 	const kubeCount = 3
@@ -1880,7 +1748,7 @@ func testKubernetesServerBasics(t *testing.T) {
 	require.Equal(t, int64(1), controller.instanceHBVariableDuration.Count())
 
 	// send a fake kube server heartbeat
-	for i := range kubeCount {
+	for i := 0; i < kubeCount; i++ {
 		err := downstream.Send(ctx, &proto.InventoryHeartbeat{
 			KubernetesServer: &types.KubernetesServerV3{
 				Metadata: types.Metadata{
@@ -1927,7 +1795,7 @@ func testKubernetesServerBasics(t *testing.T) {
 	// reason, we want 2x the number of apps worth of keepalives to ensure that the failed keepalive counts associated
 	// with each app have been reset. otherwise, later parts of this test become flaky.
 	var keepaliveEvents []testEvent
-	for range kubeCount {
+	for i := 0; i < kubeCount; i++ {
 		keepaliveEvents = append(keepaliveEvents, []testEvent{kubeKeepAliveOk, kubeKeepAliveOk}...)
 	}
 
@@ -1936,7 +1804,7 @@ func testKubernetesServerBasics(t *testing.T) {
 		deny(appKeepAliveErr, handlerClose),
 	)
 
-	for i := range kubeCount {
+	for i := 0; i < kubeCount; i++ {
 		err := downstream.Send(ctx, &proto.InventoryHeartbeat{
 			KubernetesServer: &types.KubernetesServerV3{
 				Metadata: types.Metadata{
@@ -1989,7 +1857,7 @@ func testKubernetesServerBasics(t *testing.T) {
 
 	// expect that all app keepalives fail, then the app is removed.
 	var expectedEvents []testEvent
-	for range kubeCount {
+	for i := 0; i < kubeCount; i++ {
 		expectedEvents = append(expectedEvents, []testEvent{kubeKeepAliveErr, kubeKeepAliveErr, kubeKeepAliveErr, kubeKeepAliveDel}...)
 	}
 
@@ -2121,8 +1989,8 @@ func testGetSender(t *testing.T) {
 	// Validate that once healthy the sender is provided.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		s, ok = handle.GetSender()
-		require.True(t, ok)
-		require.NotNil(t, s)
+		assert.True(t, ok)
+		assert.NotNil(t, s)
 	}, 10*time.Second, 100*time.Millisecond)
 }
 
@@ -2232,7 +2100,7 @@ func awaitEvents(t *testing.T, ch <-chan testEvent, opts ...eventOption) {
 		opt(&options)
 	}
 
-	timeout := time.After(time.Second * 300)
+	timeout := time.After(time.Second * 30)
 	for {
 		if len(options.expect) == 0 {
 			return

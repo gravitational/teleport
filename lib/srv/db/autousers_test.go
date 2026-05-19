@@ -340,9 +340,11 @@ func TestAutoUsersMySQL(t *testing.T) {
 			_, err = testCtx.tlsServer.Auth().UpsertRole(ctx, role)
 			require.NoError(t, err)
 
-			// DatabaseUser must match identity.
-			_, err = testCtx.mysqlClient(tc.teleportUser, "mysql", "some-other-username")
-			require.Error(t, err)
+			if !tc.expectConnectionErr {
+				// DatabaseUser must match identity.
+				_, err = testCtx.mysqlClient(tc.teleportUser, "mysql", "some-other-username")
+				require.Error(t, err)
+			}
 
 			// Try to connect to the database as this user.
 			mysqlConn, err := testCtx.mysqlClient(tc.teleportUser, "mysql", tc.teleportUser)
@@ -406,6 +408,7 @@ func TestAutoUsersMongoDB(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 

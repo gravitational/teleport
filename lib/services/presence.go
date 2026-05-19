@@ -26,7 +26,6 @@ import (
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend"
 )
 
 // ProxyGetter is a service that gets proxies.
@@ -116,6 +115,9 @@ type Presence interface {
 
 	// DeleteProxy deletes proxy by name
 	DeleteProxy(ctx context.Context, name string) error
+
+	// DeleteAllProxies deletes all proxies
+	DeleteAllProxies() error
 
 	// UpsertReverseTunnel upserts reverse tunnel entry temporarily or permanently
 	UpsertReverseTunnel(ctx context.Context, tunnel types.ReverseTunnel) (types.ReverseTunnel, error)
@@ -210,26 +212,4 @@ type PresenceInternal interface {
 
 	// UpsertRelayServer creates or updates a relay server heartbeat, unconditionally.
 	UpsertRelayServer(ctx context.Context, relayServer *presencev1.RelayServer) (*presencev1.RelayServer, error)
-
-	// UnconditionalUpdateApplicationServer writes an app_server if one with the
-	// same host ID and name exists in storage, no matter its contents (i.e., it
-	// doesn't check the revision of the app_server in storage).
-	UnconditionalUpdateApplicationServer(ctx context.Context, server types.AppServer) (types.AppServer, error)
-
-	// AppendPutNodeActions adds conditional actions to an atomic write to create
-	// or update a node resource.
-	AppendPutNodeActions(
-		actions []backend.ConditionalAction,
-		server types.Server,
-		condition backend.Condition,
-	) ([]backend.ConditionalAction, error)
-
-	// AppendDeleteNodeActions adds conditional actions to an atomic write to
-	// delete a node resource.
-	AppendDeleteNodeActions(
-		actions []backend.ConditionalAction,
-		namespace string,
-		name string,
-		condition backend.Condition,
-	) ([]backend.ConditionalAction, error)
 }

@@ -4,6 +4,7 @@ on:
   merge_group:
 env:
   GOFLAGS: '-buildvcs=false'
+  GOEXPERIMENT: 'synctest'
 
 jobs:
   changes:
@@ -17,12 +18,11 @@ jobs:
       has_proto: ${{ steps.changes.outputs.has_proto }}
       has_rfd: ${{ steps.changes.outputs.has_rfd }}
       has_ui: ${{ steps.changes.outputs.has_ui }}
-      has_bpf: ${{ steps.changes.outputs.has_bpf }}
       has_cli: ${{ steps.changes.outputs.has_cli }}
     steps:
       - name: Checkout
         if: ${{ github.event_name == 'merge_group' }}
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
       - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
         id: changes
         with:
@@ -47,7 +47,7 @@ jobs:
               - '**.rs'
               - 'Cargo.toml'
               - 'Cargo.lock'
-              - 'build.assets/versions.mk'
+              - 'rust-toolchain.toml'
               - 'Makefile'
             has_proto:
               # workflow changes
@@ -73,6 +73,8 @@ jobs:
               - 'integrations/terraform-modules/teleport/**'
               - 'integrations/terraform-modules/gen/docs.sh'
               # rendered doc changes
+              - 'docs/pages/admin-guides/**'
+              - 'docs/pages/enroll-resources/**'
               - 'docs/pages/reference/infrastructure-as-code/operator-resources/**'
               - 'docs/pages/reference/infrastructure-as-code/terraform-provider/**'
               - 'docs/pages/reference/infrastructure-as-code/teleport-resources/**'
@@ -82,19 +84,12 @@ jobs:
             has_ui:
               - '.github/workflows/lint.yaml'
               - 'web/**'
-              - 'e2e/**'
               - 'gen/proto/js/**'
               - 'gen/proto/ts/**'
               - 'package.json'
               - 'pnpm-lock.yaml'
               - 'tsconfig.json'
               - 'tsconfig.node.json'
-              - 'docs/pages/reference/audit-events.mdx'
-            has_bpf:
-              - '.github/workflows/lint.yaml'
-              - 'bpf/**.c'
-              - 'bpf/**.h'
-              - 'lib/bpf/*'
             has_cli:
               - '.github/workflows/lint.yaml'
               - 'tool/tsh/**.go'
@@ -107,6 +102,7 @@ jobs:
               - 'lib/utils/docsconfigs/**'
               - 'docs/pages/reference/cli/**'
 
+
   lint-go:
     name: Lint (Go)
     needs: changes
@@ -117,11 +113,11 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+      image: ghcr.io/gravitational/teleport-buildbox:teleport18
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Check for untidy go modules
         shell: bash
@@ -144,56 +140,38 @@ jobs:
       # Run various golangci-lint checks.
       # TODO(codingllama): Using go.work could save a bunch of repetition here.
       - name: golangci-lint (api)
-        uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9.2.0
+        uses: golangci/golangci-lint-action@1481404843c368bc19ca9406f87d6e0fc97bdcfd # v7.0.0
         with:
-          # Disable verify as it downloads a json schema from an external CDN.
-          # If the config is not valid, golangci-lint will fail.
-          verify: false
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           working-directory: api
           skip-cache: true
       - name: golangci-lint (teleport)
-        uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9.2.0
+        uses: golangci/golangci-lint-action@1481404843c368bc19ca9406f87d6e0fc97bdcfd # v7.0.0
         with:
-          # Disable verify as it downloads a json schema from an external CDN.
-          # If the config is not valid, golangci-lint will fail.
-          verify: false
           version: ${{ env.GOLANGCI_LINT_VERSION }}
-          args: --build-tags bpf,libfido2,piv,tpmsimulator
+          args: --build-tags libfido2,piv,tpmsimulator
           skip-cache: true
       - name: golangci-lint (assets/backport)
-        uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9.2.0
+        uses: golangci/golangci-lint-action@1481404843c368bc19ca9406f87d6e0fc97bdcfd # v7.0.0
         with:
-          # Disable verify as it downloads a json schema from an external CDN.
-          # If the config is not valid, golangci-lint will fail.
-          verify: false
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           working-directory: assets/backport
           skip-cache: true
       - name: golangci-lint (build.assets/tooling)
-        uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9.2.0
+        uses: golangci/golangci-lint-action@1481404843c368bc19ca9406f87d6e0fc97bdcfd # v7.0.0
         with:
-          # Disable verify as it downloads a json schema from an external CDN.
-          # If the config is not valid, golangci-lint will fail.
-          verify: false
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           working-directory: build.assets/tooling
           skip-cache: true
       - name: golangci-lint (integrations/terraform)
-        uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9.2.0
+        uses: golangci/golangci-lint-action@1481404843c368bc19ca9406f87d6e0fc97bdcfd # v7.0.0
         with:
-          # Disable verify as it downloads a json schema from an external CDN.
-          # If the config is not valid, golangci-lint will fail.
-          verify: false
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           working-directory: integrations/terraform
           skip-cache: true
       - name: golangci-lint (integrations/event-handler)
-        uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9.2.0
+        uses: golangci/golangci-lint-action@1481404843c368bc19ca9406f87d6e0fc97bdcfd # v7.0.0
         with:
-          # Disable verify as it downloads a json schema from an external CDN.
-          # If the config is not valid, golangci-lint will fail.
-          verify: false
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           working-directory: integrations/event-handler
           skip-cache: true
@@ -222,7 +200,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Set Rust version
         run: echo "RUST_VERSION=$(make -s -C build.assets print-rust-version)" >> $GITHUB_ENV
@@ -249,11 +227,11 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+      image: ghcr.io/gravitational/teleport-buildbox:teleport18
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Set linter versions
         run: |
@@ -320,11 +298,11 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+      image: ghcr.io/gravitational/teleport-buildbox:teleport18
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Install JS dependencies
         run: pnpm install --frozen-lockfile
@@ -342,11 +320,11 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+      image: ghcr.io/gravitational/teleport-buildbox:teleport18
 
     steps:
       - name: Checkout OSS Teleport
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Print Node version
         run: |
@@ -384,26 +362,6 @@ jobs:
       - name: Check audit event reference docs
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
         run: git config --global --add safe.directory $(realpath .) && make audit-event-reference-up-to-date
-
-  lint-bpf:
-    name: BPF Generated Files
-    needs: changes
-    if: ${{ !startsWith(github.head_ref, 'dependabot/') && needs.changes.outputs.has_bpf == 'true' }}
-    runs-on: ubuntu-latest
-
-    permissions:
-      contents: read
-
-    container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport19
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Check if BPF generated files are up to date
-        # We have to add the current directory as a safe directory or else git commands will not work as expected.
-        run: git config --global --add safe.directory $(realpath .) && make bpf-up-to-date
 
   lint-cli:
     name: CLI Reference Docs

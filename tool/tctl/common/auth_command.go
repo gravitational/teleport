@@ -28,9 +28,9 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"text/template"
 	"time"
 
-	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -52,13 +52,10 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	libsubca "github.com/gravitational/teleport/lib/subca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/winpki"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
-	"github.com/gravitational/teleport/tool/tctl/common/resources"
-	subcacmd "github.com/gravitational/teleport/tool/tctl/common/subca"
 )
 
 // authCommandClient is aggregated client interface for auth command.
@@ -111,12 +108,10 @@ type AuthCommand struct {
 	// testInsecureSkipVerify is used to skip TLS verification during tests
 	// when connecting to the proxy ping address.
 	testInsecureSkipVerify bool
-
-	subCACommand *subcacmd.Command
 }
 
 // Initialize allows TokenCommand to plug itself into the CLI parser
-func (a *AuthCommand) Initialize(app *kingpin.Application, cliFlags *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
+func (a *AuthCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	a.config = config
 	// operations with authorities
 	auth := app.Command("auth", "Operations with user and host certificate authorities (CAs).").Hidden()
@@ -178,24 +173,11 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, cliFlags *tctlcfg.Glo
 	a.authCRL = auth.Command("crl", "Export empty certificate revocation list (CRL) for Teleport certificate authorities.")
 	a.authCRL.Flag("type", "Certificate authority type.").Required().EnumVar(&a.caType, allowedCRLCertificateTypes...)
 	a.authCRL.Flag("out", "If set, writes exported revocation lists to files with the given path prefix").StringVar(&a.output)
-
-	if libsubca.Enabled() {
-		a.subCACommand = &subcacmd.Command{}
-		a.subCACommand.Initialize(auth, cliFlags, config)
-	}
 }
 
 // TryRun takes the CLI command as an argument (like "auth gen") and executes it
 // or returns match=false if 'cmd' does not belong to it
 func (a *AuthCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
-	if a.subCACommand != nil {
-		cf := func(ctx context.Context) (_ subcacmd.SubCAClientSource, closeFn func(context.Context), _ error) {
-			return clientFunc(ctx)
-		}
-		if match, err := a.subCACommand.TryRun(ctx, cmd, cf); match || err != nil {
-			return match, trace.Wrap(err)
-		}
-	}
 	if match, err := a.authRotate.TryRun(ctx, cmd, clientFunc); match || err != nil {
 		return match, trace.Wrap(err)
 	}
@@ -241,7 +223,6 @@ var allowedCertificateTypes = []string{
 	"saml-idp",
 	"github",
 	"awsra",
-	"app-client",
 }
 
 // allowedCRLCertificateTypes list of certificate authorities types that can
@@ -430,7 +411,7 @@ func (a *AuthCommand) generateWindowsCert(ctx context.Context, clusterAPI certif
 		return trace.Wrap(err)
 	}
 
-	genResp, err := winpki.GenerateWindowsDesktopCredentials(ctx, clusterAPI, &winpki.GenerateCredentialsRequest{
+	certDER, _, err := winpki.GenerateWindowsDesktopCredentials(ctx, clusterAPI, &winpki.GenerateCredentialsRequest{
 		Username:           a.windowsUser,
 		Domain:             a.windowsDomain,
 		PKIDomain:          a.windowsPKIDomain,
@@ -445,7 +426,7 @@ func (a *AuthCommand) generateWindowsCert(ctx context.Context, clusterAPI certif
 
 	_, err = identityfile.Write(ctx, identityfile.WriteConfig{
 		OutputPath:           a.output,
-		WindowsDesktopCerts:  map[string][]byte{a.windowsUser: genResp.CertDER},
+		WindowsDesktopCerts:  map[string][]byte{a.windowsUser: certDER},
 		Format:               a.outputFormat,
 		OverwriteDestination: a.signOverwrite,
 		Writer:               a.identityWriter,
@@ -506,17 +487,17 @@ func (a *AuthCommand) ListAuthServers(ctx context.Context, clusterAPI authComman
 		return trace.Wrap(err)
 	}
 
-	sc := resources.NewServerCollection(servers)
+	sc := &serverCollection{servers}
 
 	switch a.format {
 	case teleport.Text:
 		// auth servers don't have labels.
 		verbose := false
-		return sc.WriteText(os.Stdout, verbose)
+		return sc.writeText(os.Stdout, verbose)
 	case teleport.YAML:
-		return sc.WriteYAML(os.Stdout)
+		return writeYAML(sc, os.Stdout)
 	case teleport.JSON:
-		return sc.WriteJSON(os.Stdout)
+		return writeJSON(sc, os.Stdout)
 	}
 
 	return nil
@@ -566,8 +547,24 @@ func (a *AuthCommand) ExportCRL(ctx context.Context, clusterAPI authCommandClien
 	// like we do with tctl auth export
 	type output struct{ cert, crl []byte }
 	var results []output
-	for _, keypair := range tlsKeys {
-		results = append(results, output{keypair.Cert, keypair.CRL})
+	for i, keypair := range tlsKeys {
+		crl := keypair.CRL
+		// DELETE IN v19 (probakowski, zmb3): tctl v19 means the server is either v19 or v20,
+		// both of which are guaranteed to have CRLs already in place.
+		if len(crl) == 0 {
+			// WARNING: GenerateCertAuthorityCRL will find any suitable keypair for signing the CRL,
+			// it is not guaranteed to use _this_ particular keypair.
+			fmt.Fprintf(os.Stderr, "Keypair %v is missing CRL for %v authority %v, generating legacy fallback.",
+				i, authority.GetType(), authority.GetName())
+			if len(tlsKeys) > 1 {
+				fmt.Fprintf(os.Stderr, "If you are using HSM or KMS for private key material, please update your auth server and re-export CRLs.")
+			}
+			crl, err = clusterAPI.GenerateCertAuthorityCRL(ctx, certType)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		results = append(results, output{keypair.Cert, crl})
 	}
 
 	fmt.Fprintf(os.Stderr, "Writing %d files with prefix %q\n", len(results), a.output)
@@ -727,7 +724,7 @@ func writeHelperMessageDBmTLS(writer io.Writer, filesWritten []string, output st
 		// Consider adding one to ease the installation for the end-user
 		return nil
 	}
-	tplVars := map[string]any{
+	tplVars := map[string]interface{}{
 		"files":     strings.Join(filesWritten, ", "),
 		"password":  password,
 		"output":    output,

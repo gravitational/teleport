@@ -136,15 +136,8 @@ export const formatters: Formatters = {
   [eventCodes.ACCESS_REQUEST_CREATED]: {
     type: 'access_request.create',
     desc: 'Access Request Created',
-    format: ({ id, state, RequestedResourceAccessIDs }) => {
-      if (RequestedResourceAccessIDs?.length) {
-        const resources = RequestedResourceAccessIDs.map(
-          r => `${r.id.kind}/${r.id.name}`
-        ).join(', ');
-        return `Access request [${id}] for [${resources}] has been created and is ${state}`;
-      }
-      return `Access request [${id}] has been created and is ${state}`;
-    },
+    format: ({ id, state }) =>
+      `Access request [${id}] has been created and is ${state}`,
   },
   [eventCodes.ACCESS_REQUEST_UPDATED]: {
     type: 'access_request.update',
@@ -1938,11 +1931,6 @@ export const formatters: Formatters = {
     }) =>
       `Access path for ${affected_resource_kind || 'Node'} [${affected_resource_name}/${affected_resource_source}] changed`,
   },
-  [eventCodes.ACCESS_GRAPH_SETTINGS_UPDATE]: {
-    type: 'access_graph_settings.update',
-    desc: 'Access Graph Settings Updated',
-    format: ({ user }) => `User [${user}] updated the access graph settings`,
-  },
   [eventCodes.SPANNER_RPC]: {
     type: 'db.session.spanner.rpc',
     desc: 'Spanner RPC',
@@ -2462,41 +2450,6 @@ export const formatters: Formatters = {
         ? `User [${user}] updated the Client IP Restrictions allowlist to [${client_ip_restrictions}].`
         : `User [${user}] has failed to update  Client IP Restrictions.`,
   },
-  [eventCodes.APPAUTHCONFIG_CREATE]: {
-    type: 'app_auth_config.create',
-    desc: 'App Auth Config created',
-    format: ({ user, name }) => {
-      return `User [${user}] created the app auth config [${name}]`;
-    },
-  },
-  [eventCodes.APPAUTHCONFIG_UPDATE]: {
-    type: 'app_auth_config.update',
-    desc: 'App Auth Config updated',
-    format: ({ user, name }) => {
-      return `User [${user}] updated the app auth config [${name}]`;
-    },
-  },
-  [eventCodes.APPAUTHCONFIG_DELETE]: {
-    type: 'app_auth_config.delete',
-    desc: 'App Auth Config deleted',
-    format: ({ user, name }) => {
-      return `User [${user}] deleted the app auth config [${name}]`;
-    },
-  },
-  [eventCodes.APPAUTHCONFIG_VERIFY_SUCCESS]: {
-    type: 'app_auth_config.verify.success',
-    desc: 'App authentication succeeded',
-    format: ({ user, app_name, app_auth_config }) => {
-      return `User [${user}] authenticated to app [${app_name}] using [${app_auth_config}] auth`;
-    },
-  },
-  [eventCodes.APPAUTHCONFIG_VERIFY_FAILURE]: {
-    type: 'app_auth_config.verify.failure',
-    desc: 'App authentication failed',
-    format: ({ error, app_auth_config }) => {
-      return `App authentication using [${app_auth_config}] failed: ${error}`;
-    },
-  },
   [eventCodes.VNET_CONFIG_CREATE]: {
     type: 'vnet.config.create',
     desc: 'VNet config created',
@@ -2638,42 +2591,6 @@ export const formatters: Formatters = {
     format: ({ sid, session_type, model_name }) =>
       `Session summary for ${session_type || 'session'} [${sid}] failed to be summarized${model_name ? ` using [${model_name}]` : ''}`,
   },
-  [eventCodes.CERT_AUTH_OVERRIDE_CREATE]: {
-    type: 'cert_auth_override.create',
-    desc: 'Certificate Authority Override Created',
-    format: ({ user, name, success }) => {
-      return success
-        ? `User [${user}] created a Certificate Authority Override [${name}]`
-        : `User [${user}] failed to create a Certificate Authority Override [${name}]`;
-    },
-  },
-  [eventCodes.CERT_AUTH_OVERRIDE_UPDATE]: {
-    type: 'cert_auth_override.update',
-    desc: 'Certificate Authority Override Updated',
-    format: ({ user, name, success }) => {
-      return success
-        ? `User [${user}] updated a Certificate Authority Override [${name}]`
-        : `User [${user}] failed to update a Certificate Authority Override [${name}]`;
-    },
-  },
-  [eventCodes.CERT_AUTH_OVERRIDE_UPSERT]: {
-    type: 'cert_auth_override.upsert',
-    desc: 'Certificate Authority Override Upserted',
-    format: ({ user, name, success }) => {
-      return success
-        ? `User [${user}] upserted a Certificate Authority Override [${name}]`
-        : `User [${user}] failed to upsert a Certificate Authority Override [${name}]`;
-    },
-  },
-  [eventCodes.CERT_AUTH_OVERRIDE_DELETE]: {
-    type: 'cert_auth_override.delete',
-    desc: 'Certificate Authority Override Deleted',
-    format: ({ user, name, success }) => {
-      return success
-        ? `User [${user}] deleted a Certificate Authority Override [${name}]`
-        : `User [${user}] failed to delete a Certificate Authority Override [${name}]`;
-    },
-  },
 };
 
 const unknownFormatter = {
@@ -2681,35 +2598,9 @@ const unknownFormatter = {
   format: () => 'Unknown',
 };
 
-// MFA flow types are defined in api/proto/teleport/legacy/types/events/events.proto.
-const mfaFlowTypeLabels: Record<number, string> = {
-  0: 'UNSPECIFIED',
-  1: 'PER_SESSION_CERTIFICATE',
-  2: 'IN_BAND',
-};
-
-// TODO(cthach): DELETE IN v20.0 once the only supported MFA flow_type is IN_BAND.
-function formatRawEventForUI(json: any): any {
-  // For MFA events, convert the flow_type from a number to a human readable string.
-  if (
-    json?.code == eventCodes.CREATE_MFA_AUTH_CHALLENGE ||
-    json?.code == eventCodes.VALIDATE_MFA_AUTH_RESPONSE
-  ) {
-    return {
-      ...json,
-      flow_type: mfaFlowTypeLabels[json.flow_type] ?? json.flow_type,
-    };
-  }
-
-  return json;
-}
-
 export default function makeEvent(json: any): Event {
   // lookup event formatter by code
   const formatter = formatters[json.code as EventCode] || unknownFormatter;
-
-  const raw = formatRawEventForUI(json);
-
   return {
     codeDesc:
       typeof formatter.desc === 'function'
@@ -2718,9 +2609,10 @@ export default function makeEvent(json: any): Event {
     message: formatter.format(json as any),
     id: getId(json),
     code: json.code,
+    eventIndex: json.ei,
     user: json.user,
     time: new Date(json.time),
-    raw: raw,
+    raw: json,
   };
 }
 

@@ -71,7 +71,6 @@ export default function UserList({
           }
           return { cursor: 'pointer' };
         },
-        getKey: user => user.name,
       }}
       columns={[
         {

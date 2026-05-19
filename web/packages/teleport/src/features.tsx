@@ -618,7 +618,7 @@ export class FeatureIntegrationEnroll implements TeleportFeature {
 
   route = {
     title: 'Integration',
-    path: cfg.routes.integrationEnrollNew,
+    path: cfg.routes.integrationEnroll,
     exact: false,
     component: IntegrationEnroll,
   };

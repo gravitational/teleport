@@ -130,14 +130,14 @@ type ProtoStreamerConfig struct {
 	ForceFlush chan struct{}
 	// RetryConfig defines how to retry on a failed upload
 	RetryConfig *retryutils.LinearConfig
-	// Encrypter wraps the final gzip writer with encryption.
-	Encrypter EncryptionWrapper
 	// SessionSummarizerProvider is a provider of the session summarizer service.
 	// It can be nil or provide a nil summarizer if summarization is not needed.
 	// The summarizer itself summarizes session recordings.
 	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
 	// RecordingMetadataProvider is a provider of the recording metadata service.
 	RecordingMetadataProvider *recordingmetadata.Provider
+	// Encrypter wraps the final gzip writer with encryption.
+	Encrypter EncryptionWrapper
 	// OnUploadComplete is called after an upload completes when no session end event
 	// was observed in the stream. It returns the recovered session end event, if any.
 	// If nil, no recovery is attempted.
@@ -194,9 +194,9 @@ func (s *ProtoStreamer) CreateAuditStreamForUpload(ctx context.Context, sid sess
 		ConcurrentUploads:         s.cfg.ConcurrentUploads,
 		ForceFlush:                s.cfg.ForceFlush,
 		RetryConfig:               s.cfg.RetryConfig,
-		Encrypter:                 s.cfg.Encrypter,
 		SessionSummarizerProvider: s.cfg.SessionSummarizerProvider,
 		RecordingMetadataProvider: s.cfg.RecordingMetadataProvider,
+		Encrypter:                 s.cfg.Encrypter,
 		OnUploadComplete:          s.onUploadComplete,
 	})
 }
@@ -235,9 +235,9 @@ func (s *ProtoStreamer) ResumeAuditStream(ctx context.Context, sid session.ID, u
 		MinUploadBytes:            s.cfg.MinUploadBytes,
 		CompletedParts:            parts,
 		RetryConfig:               s.cfg.RetryConfig,
-		Encrypter:                 s.cfg.Encrypter,
 		SessionSummarizerProvider: s.cfg.SessionSummarizerProvider,
 		RecordingMetadataProvider: s.cfg.RecordingMetadataProvider,
+		Encrypter:                 s.cfg.Encrypter,
 		OnUploadComplete:          s.onUploadComplete,
 	})
 }
@@ -271,14 +271,14 @@ type ProtoStreamConfig struct {
 	ConcurrentUploads int
 	// RetryConfig defines how to retry on a failed upload
 	RetryConfig *retryutils.LinearConfig
-	// Encrypter wraps the final gzip writer with encryption.
-	Encrypter EncryptionWrapper
 	// SessionSummarizerProvider is a provider of the session summarizer service.
 	// It can be nil or provide a nil summarizer if summarization is not needed.
 	// The summarizer itself summarizes session recordings.
 	SessionSummarizerProvider *summarizer.SessionSummarizerProvider
 	// RecordingMetadataProvider is a provider of the recording metadata service.
 	RecordingMetadataProvider *recordingmetadata.Provider
+	// Encrypter wraps the final gzip writer with encryption.
+	Encrypter EncryptionWrapper
 	// OnUploadComplete is called after an upload completes when no session end event
 	// was observed in the stream. It returns the recovered session end event, if any.
 	// If nil, no recovery is attempted.
@@ -585,21 +585,14 @@ type sliceWriter struct {
 	emptyHeader [ProtoStreamV2PartHeaderSize]byte
 	// retryConfig  defines how to retry on a failed upload
 	retryConfig retryutils.LinearConfig
-	// encrypter wraps writes with encryption
-	encrypter EncryptionWrapper
 	// sessionStartTime is the time of the first event in the session
 	sessionStartTime time.Time
 	// sessionEndTime is the time of the last event in the session
 	sessionEndTime time.Time
-	// sessionType is the type of the session, used for recording metadata processing
-	sessionType recordingmetadata.SessionType
-	// shouldProcessMetadata is set to true if the session should be processed
+	// shouldProcessSession is set to true if the session should be processed
 	// by the recording metadata service (currently, this is true if the session
-	// is a SSH, k8s or desktop session).
-	shouldProcessMetadata bool
-	// shouldSkipSummarize is set to true for session types that should not
-	// be summarized (e.g. desktop sessions).
-	shouldSkipSummarize bool
+	// is a SSH session).
+	shouldProcessSession bool
 	// sshSessionEndEvent is an event that marked the end of this session if it was
 	// an SSH one. It may be nil if the stream hasn't ended yet, and it may also
 	// be nil if the stream picked up after an auth server start from a point
@@ -612,6 +605,8 @@ type sliceWriter struct {
 	// point where the session end event has already been uploaded. If captured,
 	// it will be passed to the summarizer.
 	dbSessionEndEvent *apievents.DatabaseSessionEnd
+	// encrypter wraps writes with encryption
+	encrypter EncryptionWrapper
 
 	// hasSessionEnd indicates if the session end event is present.
 	hasSessionEnd bool
@@ -682,7 +677,10 @@ func (w *sliceWriter) receiveAndUpload() error {
 			}
 		case <-flushCh:
 			now := clock.Now().UTC()
-			inactivityPeriod := max(now.Sub(lastEvent), 0)
+			inactivityPeriod := now.Sub(lastEvent)
+			if inactivityPeriod < 0 {
+				inactivityPeriod = 0
+			}
 			if inactivityPeriod >= w.proto.cfg.InactivityFlushPeriod {
 				// inactivity period exceeded threshold,
 				// there is no need to schedule a timer until the next
@@ -722,18 +720,7 @@ func (w *sliceWriter) receiveAndUpload() error {
 			switch e := event.oneof.GetEvent().(type) {
 			case *apievents.OneOf_SessionStart:
 				w.sessionStartTime = e.SessionStart.Time
-				w.sessionType = recordingmetadata.SessionTypeTTY
-				w.shouldProcessMetadata = true
-
-			case *apievents.OneOf_WindowsDesktopSessionStart:
-				w.sessionStartTime = e.WindowsDesktopSessionStart.Time
-				w.sessionType = recordingmetadata.SessionTypeDesktop
-				w.shouldProcessMetadata = true
-				w.shouldSkipSummarize = true
-
-			case *apievents.OneOf_DesktopRecording:
-				w.sessionEndTime = e.DesktopRecording.Time
-				w.shouldSkipSummarize = true
+				w.shouldProcessSession = true
 
 			case *apievents.OneOf_SessionPrint:
 				w.sessionEndTime = e.SessionPrint.Time
@@ -750,14 +737,7 @@ func (w *sliceWriter) receiveAndUpload() error {
 				w.dbSessionEndEvent = e.DatabaseSessionEnd
 				w.hasSessionEnd = true
 			case *apievents.OneOf_WindowsDesktopSessionEnd:
-				w.sessionEndTime = e.WindowsDesktopSessionEnd.Time
 				w.hasSessionEnd = true
-				w.shouldProcessMetadata = true
-				w.shouldSkipSummarize = true
-				w.sessionType = recordingmetadata.SessionTypeDesktop
-				if w.sessionStartTime.IsZero() {
-					w.sessionStartTime = e.WindowsDesktopSessionEnd.StartTime
-				}
 			case *apievents.OneOf_AppSessionEnd:
 				w.hasSessionEnd = true
 			case *apievents.OneOf_MCPSessionEnd:
@@ -899,29 +879,21 @@ func (w *sliceWriter) completeStream() {
 			switch o := sessionEndEvent.(type) {
 			case *apievents.SessionEnd:
 				w.sshSessionEndEvent = o
-				w.shouldProcessMetadata = true
+				w.shouldProcessSession = true
 				w.sessionEndTime = o.EndTime
 			case *apievents.DatabaseSessionEnd:
 				w.dbSessionEndEvent = o
-			case *apievents.WindowsDesktopSessionEnd:
-				w.shouldProcessMetadata = true
-				w.shouldSkipSummarize = true
-				w.sessionType = recordingmetadata.SessionTypeDesktop
-				if w.sessionStartTime.IsZero() {
-					w.sessionStartTime = o.StartTime
-				}
-				w.sessionEndTime = o.EndTime
 			}
 		}
 
 		if w.proto.cfg.RecordingMetadataProvider != nil {
 			recordingMetadata := w.proto.cfg.RecordingMetadataProvider.Service()
 
-			if w.shouldProcessMetadata {
+			if w.shouldProcessSession {
 				if !w.sessionStartTime.IsZero() && !w.sessionEndTime.IsZero() {
 					duration := w.sessionEndTime.Sub(w.sessionStartTime)
 
-					if err := recordingMetadata.ProcessSessionRecording(w.proto.cancelCtx, w.proto.cfg.Upload.SessionID, w.sessionType, w.sessionStartTime, duration); err != nil {
+					if err := recordingMetadata.ProcessSessionRecording(w.proto.cancelCtx, w.proto.cfg.Upload.SessionID, duration); err != nil {
 						slog.WarnContext(w.proto.cancelCtx, "Failed to process session recording metadata", "error", err)
 					}
 				} else {
@@ -930,20 +902,18 @@ func (w *sliceWriter) completeStream() {
 			}
 		}
 
-		if !w.shouldSkipSummarize {
-			summarizer := w.proto.cfg.SessionSummarizerProvider.SessionSummarizer()
-			switch {
-			case w.sshSessionEndEvent != nil:
-				err = summarizer.SummarizeSSH(w.proto.cancelCtx, w.sshSessionEndEvent)
-			case w.dbSessionEndEvent != nil:
-				err = summarizer.SummarizeDatabase(w.proto.cancelCtx, w.dbSessionEndEvent)
-			default:
-				err = summarizer.SummarizeWithoutEndEvent(w.proto.cancelCtx, w.proto.cfg.Upload.SessionID)
-			}
-			if err != nil {
-				slog.WarnContext(w.proto.cancelCtx, "Failed to summarize upload", "error", err)
-				return
-			}
+		summarizer := w.proto.cfg.SessionSummarizerProvider.SessionSummarizer()
+		switch {
+		case w.sshSessionEndEvent != nil:
+			err = summarizer.SummarizeSSH(w.proto.cancelCtx, w.sshSessionEndEvent)
+		case w.dbSessionEndEvent != nil:
+			err = summarizer.SummarizeDatabase(w.proto.cancelCtx, w.dbSessionEndEvent)
+		default:
+			err = summarizer.SummarizeWithoutEndEvent(w.proto.cancelCtx, w.proto.cfg.Upload.SessionID)
+		}
+		if err != nil {
+			slog.WarnContext(w.proto.cancelCtx, "Failed to summarize upload", "error", err)
+			return
 		}
 	}
 }
@@ -998,7 +968,7 @@ func (w *sliceWriter) startUpload(partNumber int64, slice *slice) (*activeUpload
 			return
 		}
 
-		for i := range defaults.MaxIterationLimit {
+		for i := 0; i < defaults.MaxIterationLimit; i++ {
 			log := log.With("attempt", i)
 
 			part, err := w.proto.cfg.Uploader.UploadPart(w.proto.cancelCtx, w.proto.cfg.Upload, partNumber, reader)

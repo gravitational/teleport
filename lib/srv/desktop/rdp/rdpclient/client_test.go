@@ -21,7 +21,6 @@ package rdpclient
 
 import (
 	"bytes"
-	"io"
 	"log/slog"
 	"testing"
 
@@ -29,7 +28,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
 )
 
 type fakeConn struct {
@@ -56,46 +54,64 @@ func (f *fakeConn) AddMessage(message tdp.Message) error {
 
 func TestClientNew_EOF(t *testing.T) {
 	f := fakeConn{}
-	conn := tdp.NewConn(&f, tdp.DecoderAdapter(tdpb.DecodePermissive), tdpb.WarningConstructor)
+	err := f.AddMessage(tdp.ClientUsername{Username: "user"})
+	require.NoError(t, err)
+	conn := tdp.NewConn(&f)
 
-	_, _, err := PrepareConnecton(tdpb.ProtocolName, conn, slog.New(slog.DiscardHandler))
-	require.ErrorIs(t, err, io.EOF)
+	_, err = New(createConfig(conn))
+	require.EqualError(t, err, "EOF")
 }
 
 func TestClientNew_NoKeyboardLayout(t *testing.T) {
 	f := fakeConn{}
-	err := f.AddMessage(&tdpb.ClientHello{Username: "user"})
+	err := f.AddMessage(tdp.ClientUsername{Username: "user"})
+	require.NoError(t, err)
+	err = f.AddMessage(tdp.ClientScreenSpec{
+		Width:  100,
+		Height: 100,
+	})
+	require.NoError(t, err)
+	err = f.AddMessage(tdp.ClientScreenSpec{
+		Width:  100,
+		Height: 100,
+	})
 	require.NoError(t, err)
 
-	conn := tdp.NewConn(&f, tdp.DecoderAdapter(tdpb.DecodePermissive), tdpb.WarningConstructor)
+	conn := tdp.NewConn(&f)
 
-	wrappedConn, hello, err := PrepareConnecton(tdpb.ProtocolName, conn, slog.New(slog.DiscardHandler))
-	require.NoError(t, err)
-
-	_, err = New(wrappedConn, hello, createConfig())
+	_, err = New(createConfig(conn))
 	require.NoError(t, err)
 }
 
 func TestClientNew_KeyboardLayout(t *testing.T) {
 	f := fakeConn{}
-	err := f.AddMessage(&tdpb.ClientHello{Username: "user", KeyboardLayout: 1})
+	err := f.AddMessage(tdp.ClientUsername{Username: "user"})
+	require.NoError(t, err)
+	err = f.AddMessage(tdp.ClientScreenSpec{
+		Width:  100,
+		Height: 100,
+	})
+	require.NoError(t, err)
+	err = f.AddMessage(tdp.ClientKeyboardLayout{})
+	require.NoError(t, err)
+	err = f.AddMessage(tdp.ClientScreenSpec{
+		Width:  100,
+		Height: 100,
+	})
 	require.NoError(t, err)
 
-	conn := tdp.NewConn(&f, tdp.DecoderAdapter(tdpb.DecodePermissive), tdpb.WarningConstructor)
-	wrappedConn, hello, err := PrepareConnecton(tdpb.ProtocolName, conn, slog.New(slog.DiscardHandler))
-	require.NoError(t, err)
+	conn := tdp.NewConn(&f)
 
-	_, err = New(wrappedConn, hello, createConfig())
+	_, err = New(createConfig(conn))
 	require.NoError(t, err)
 }
 
-func createConfig() Config {
+func createConfig(conn *tdp.Conn) Config {
 	return Config{
 		Addr:        "example.com",
 		AuthorizeFn: func(login string) error { return nil },
+		Conn:        conn,
 		Logger:      slog.Default(),
-		Width:       1,
-		Height:      1,
 	}
 }
 

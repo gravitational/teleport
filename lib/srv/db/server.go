@@ -25,7 +25,6 @@ import (
 	"log/slog"
 	"net"
 	"runtime/debug"
-	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -40,6 +39,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
@@ -52,7 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/inventory/metadata"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv"
@@ -73,7 +73,6 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/snowflake"
 	"github.com/gravitational/teleport/lib/srv/db/spanner"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
-	dbvnet "github.com/gravitational/teleport/lib/srv/db/vnet"
 	discoverycommon "github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 	"github.com/gravitational/teleport/lib/utils"
@@ -172,7 +171,7 @@ type Config struct {
 	// CloudIAM configures IAM for cloud hosted databases.
 	CloudIAM *cloud.IAM
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
-	ConnectedProxyGetter reversetunnelclient.ConnectedProxyGetter
+	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
 	// CloudUsers manage users for cloud hosted databases.
 	CloudUsers *users.Users
 	// DatabaseObjects manages database object importers.
@@ -279,9 +278,6 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	if c.ConnectionMonitor == nil {
 		return trace.BadParameter("missing ConnectionMonitor")
 	}
-	if c.ConnectedProxyGetter == nil {
-		return trace.BadParameter("missing ConnectedProxyGetter")
-	}
 	if c.CloudMeta == nil {
 		c.CloudMeta, err = cloud.NewMetadata(cloud.MetadataConfig{
 			AWSConfigProvider: c.AWSConfigProvider,
@@ -306,6 +302,9 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 		if err != nil {
 			return trace.Wrap(err)
 		}
+	}
+	if c.ConnectedProxyGetter == nil {
+		c.ConnectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
 	}
 
 	if c.CloudUsers == nil {
@@ -380,7 +379,7 @@ type Server struct {
 	// closeFunc is the cancel function of the close context.
 	closeFunc context.CancelFunc
 	// middleware extracts identity from client certificates.
-	middleware *authz.Middleware
+	middleware *auth.Middleware
 	// dynamicLabels contains dynamic labels for databases.
 	dynamicLabels map[string]*labels.Dynamic
 	// heartbeats holds heartbeats for database servers.
@@ -440,7 +439,12 @@ func (m *monitoredDatabases) setCloud(databases types.Databases) {
 // watchers, aka legacy database discovery done by the db service.
 // The lock must be held when calling this function.
 func (m *monitoredDatabases) isCloud_Locked(database types.Database) bool {
-	return slices.Contains(m.cloud, database)
+	for i := range m.cloud {
+		if m.cloud[i] == database {
+			return true
+		}
+	}
+	return false
 }
 
 // isDiscoveryResource_Locked returns whether a database was discovered by the
@@ -454,7 +458,12 @@ func (m *monitoredDatabases) isDiscoveryResource_Locked(database types.Database)
 // object.
 // The lock must be held when calling this function.
 func (m *monitoredDatabases) isResource_Locked(database types.Database) bool {
-	return slices.Contains(m.resources, database)
+	for i := range m.resources {
+		if m.resources[i] == database {
+			return true
+		}
+	}
+	return false
 }
 
 // getLocked returns a slice containing all of the monitored databases.
@@ -493,7 +502,7 @@ func New(ctx context.Context, config Config) (*Server, error) {
 			static: config.Databases,
 		},
 		reconcileCh: make(chan struct{}),
-		middleware: &authz.Middleware{
+		middleware: &auth.Middleware{
 			ClusterName:   clustername.GetClusterName(),
 			AcceptedUsage: []string{teleport.UsageDatabaseOnly},
 		},
@@ -555,7 +564,7 @@ func (s *Server) startDatabase(ctx context.Context, database types.Database) err
 	}
 	// Heartbeat will periodically report the presence of this proxied database
 	// to the auth server.
-	if err := s.startHeartbeat(database); err != nil {
+	if err := s.startHeartbeat(ctx, database); err != nil {
 		return trace.Wrap(err)
 	}
 	// Setup managed users for database.
@@ -579,7 +588,7 @@ func (s *Server) startDatabase(ctx context.Context, database types.Database) err
 }
 
 // stopDatabase uninitializes the database with the specified name.
-func (s *Server) stopDatabase(ctx context.Context, db types.Database, unregistering bool) error {
+func (s *Server) stopDatabase(ctx context.Context, db types.Database) error {
 	// Stop database object importer.
 	if err := s.cfg.DatabaseObjects.StopImporter(db.GetName()); err != nil {
 		s.log.WarnContext(ctx, "Failed to stop database object importer",
@@ -590,10 +599,9 @@ func (s *Server) stopDatabase(ctx context.Context, db types.Database, unregister
 	s.stopDynamicLabels(db.GetName())
 
 	var errors []error
-	if err := s.stopHeartbeat(ctx, db, unregistering); err != nil {
+	if err := s.stopHeartbeat(db.GetName()); err != nil {
 		s.log.WarnContext(ctx, "Failed to stop database heartbeat",
 			"db", log.StringerAttr(db),
-			"unregistering", unregistering,
 			"error", err,
 		)
 		errors = append(errors, err)
@@ -687,8 +695,7 @@ func (s *Server) registerDatabase(ctx context.Context, database types.Database) 
 // updateDatabase updates database that is already registered.
 func (s *Server) updateDatabase(ctx context.Context, database types.Database) error {
 	// Stop heartbeat and dynamic labels before starting new ones.
-	const unregistering = false
-	if err := s.stopDatabase(ctx, database, unregistering); err != nil {
+	if err := s.stopDatabase(ctx, database); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := s.registerDatabase(ctx, database); err != nil {
@@ -704,10 +711,28 @@ func (s *Server) unregisterDatabase(ctx context.Context, database types.Database
 	if err := s.cfg.CloudIAM.Teardown(ctx, database); err != nil {
 		s.log.WarnContext(ctx, "Failed to teardown IAM.", "db", database.GetName(), "error", err)
 	}
-	// Stop heartbeat and dynamic labels updates.
-	const unregistering = true
-	if err := s.stopDatabase(ctx, database, unregistering); err != nil {
+	// Stop heartbeat, labels, etc.
+	if err := s.stopProxyingAndDeleteDatabase(ctx, database); err != nil {
 		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// stopProxyingAndDeleteDatabase stops and deletes the database, then
+// unregisters it from the list of proxied databases.
+func (s *Server) stopProxyingAndDeleteDatabase(ctx context.Context, database types.Database) error {
+	// Stop heartbeat and dynamic labels updates.
+	if err := s.stopDatabase(ctx, database); err != nil {
+		return trace.Wrap(err)
+	}
+	// stopping the upstream inventory heartbeat may incur a backend write
+	// to delete the heartbeat, which is unnecessary when updating a DB,
+	// since we will upsert a new heartbeat
+	if err := s.stopUpstreamInventoryHeartbeat(ctx, database); err != nil {
+		s.log.WarnContext(ctx, "Failed to stop upstream inventory database heartbeat",
+			"db", log.StringerAttr(database),
+			"error", err,
+		)
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -771,7 +796,7 @@ func (s *Server) copyDatabaseWithUpdatedLabelsLocked(database types.Database) *t
 }
 
 // startHeartbeat starts the registration heartbeat to the auth server.
-func (s *Server) startHeartbeat(database types.Database) error {
+func (s *Server) startHeartbeat(ctx context.Context, database types.Database) error {
 	heartbeat, err := srv.NewDatabaseServerHeartbeat(srv.HeartbeatV2Config[*types.DatabaseServerV3]{
 		InventoryHandle: s.cfg.InventoryHandle,
 		GetResource:     s.getServerInfoFunc(database),
@@ -788,73 +813,43 @@ func (s *Server) startHeartbeat(database types.Database) error {
 }
 
 // stopHeartbeat stops the heartbeat for the specified database.
-func (s *Server) stopHeartbeat(ctx context.Context, db types.Database, deleteFromUpstream bool) error {
+func (s *Server) stopHeartbeat(name string) error {
 	s.mu.Lock()
-	heartbeat, ok := s.heartbeats[db.GetName()]
+	defer s.mu.Unlock()
+	heartbeat, ok := s.heartbeats[name]
 	if !ok {
-		s.mu.Unlock()
 		return nil
 	}
-	delete(s.heartbeats, db.GetName())
-	s.mu.Unlock()
-
-	if err := heartbeat.Close(); err != nil {
-		s.log.WarnContext(ctx, "Failed to close database heartbeat",
-			"db", log.StringerAttr(db),
-			"error", err,
-		)
-		return trace.Wrap(err)
-	}
-
-	// stopping the upstream inventory heartbeat or deleting it manually
-	// will incur a backend write, so we should only do it when the database
-	// is being unregistered
-	if !deleteFromUpstream {
-		return nil
-	}
-
-	if err := s.sendUpstreamInventoryStopHeartbeat(ctx, db.GetName()); err != nil {
-		s.log.WarnContext(ctx, "Failed to stop upstream inventory database heartbeat, falling back to deleting the database heartbeat",
-			"db", log.StringerAttr(db),
-			"error", err,
-		)
-		// if upstream doesn't support graceful stop and we don't remove this
-		// database server, it can linger for up to ~10m until its TTL expires.
-		// TODO(gavin): DELETE IN 20.0.0
-		if err := s.deleteDatabaseServer(ctx, db.GetName()); err != nil {
-			s.log.WarnContext(ctx, "Failed to delete database heartbeat",
-				"db", log.StringerAttr(db),
-				"error", err,
-			)
-			return trace.Wrap(err)
-		}
-	}
-
-	return nil
+	delete(s.heartbeats, name)
+	return heartbeat.Close()
 }
 
-// sendUpstreamInventoryStopHeartbeat tells the upstream inventory controller
-// to stop the database heartbeat, unregistering its keepalives and deleting the
-// heartbeat from the backend.
+// stopUpstreamInventoryHeartbeat stops the upstream inventory control stream
+// heartbeat for a single database.
 // https://github.com/gravitational/teleport/issues/50237
-func (s *Server) sendUpstreamInventoryStopHeartbeat(ctx context.Context, name string) error {
+func (s *Server) stopUpstreamInventoryHeartbeat(ctx context.Context, db types.Database) error {
 	if _, ok := s.cfg.InventoryHandle.GetSender(); ok {
 		select {
 		// get latest sender
 		case sender := <-s.cfg.InventoryHandle.Sender():
-			if sender.Hello().GetCapabilities().GetDatabaseHeartbeatGracefulStop() {
+			if sender.Hello().Capabilities.DatabaseHeartbeatGracefulStop {
 				err := sender.Send(ctx, &proto.UpstreamInventoryStopHeartbeat{
 					Kind: proto.StopHeartbeatKind_STOP_HEARTBEAT_KIND_DATABASE_SERVER,
-					Name: name,
+					Name: db.GetName(),
 				})
 				return trace.Wrap(err)
 			}
-			return trace.BadParameter("upstream inventory controller does not support database heartbeat graceful stop")
 		case <-ctx.Done():
 			return trace.Wrap(ctx.Err())
 		}
 	}
-	return trace.NotFound("inventory control stream not established")
+	// if upstream doesn't support graceful stop and we don't remove this
+	// database server, it can linger for up to ~10m until its TTL expires.
+	// TODO(gavin): DELETE IN 20.0.0
+	if err := s.deleteDatabaseServer(ctx, db.GetName()); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // getServerInfoFunc returns function that the heartbeater uses to report the
@@ -881,7 +876,6 @@ func (s *Server) getServerInfo(ctx context.Context, database types.Database) (*t
 	if s.cfg.CloudIAM != nil {
 		s.cfg.CloudIAM.UpdateIAMStatus(ctx, copy)
 	}
-	copy.SetStatusVNetDNSName(dbvnet.DNSName(copy.GetName()))
 	expires := s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
 
 	server, err := types.NewDatabaseServerV3(types.Metadata{
@@ -1076,6 +1070,7 @@ func (s *Server) close(ctx context.Context) error {
 	// server below would be undone.
 	s.mu.RLock()
 	for name := range s.proxiedDatabases {
+		name := name
 		heartbeat := s.heartbeats[name]
 
 		if dynamic, ok := s.dynamicLabels[name]; ok {

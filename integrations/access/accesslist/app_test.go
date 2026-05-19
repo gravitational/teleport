@@ -83,7 +83,7 @@ func (m *mockMessagingBot) FetchRecipient(ctx context.Context, recipient string)
 
 func (m *mockMessagingBot) SupportedApps() []common.App {
 	return []common.App{
-		NewApp(),
+		NewApp(m),
 	}
 }
 
@@ -117,7 +117,7 @@ func TestAccessListReminders_Single(t *testing.T) {
 
 	clock := clockwork.NewFakeClockAt(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC))
 
-	authServer := newTestAuth(t, modulestest.OSSModules())
+	authServer := newTestAuth(t)
 
 	bot := &mockMessagingBot{
 		recipients: map[string]*common.Recipient{
@@ -209,7 +209,7 @@ func TestAccessListReminders_NoneForNonReviewable(t *testing.T) {
 
 	clock := clockwork.NewFakeClockAt(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC))
 
-	authServer := newTestAuth(t, modulestest.OSSModules())
+	authServer := newTestAuth(t)
 
 	bot := &mockMessagingBot{
 		recipients: map[string]*common.Recipient{
@@ -271,10 +271,11 @@ func TestAccessListReminders_NoneForNonReviewable(t *testing.T) {
 }
 
 func TestAccessListReminders_Batched(t *testing.T) {
-	t.Parallel()
+	modulestest.SetTestModules(t, *modulestest.EnterpriseModules())
+
 	clock := clockwork.NewFakeClockAt(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC))
 
-	authServer := newTestAuth(t, modulestest.EnterpriseModules())
+	authServer := newTestAuth(t)
 
 	bot := &mockMessagingBot{
 		recipients: map[string]*common.Recipient{
@@ -363,7 +364,7 @@ func TestAccessListReminders_BadClient(t *testing.T) {
 
 	clock := clockwork.NewFakeClockAt(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC))
 
-	authServer := newTestAuth(t, modulestest.OSSModules())
+	authServer := newTestAuth(t)
 
 	// Use this mock client so that we can force ListAccessLists to return an error.
 	client := &mockClient{
@@ -408,7 +409,7 @@ func TestAccessListReminders_NotImplemented(t *testing.T) {
 
 	clock := clockwork.NewFakeClockAt(time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC))
 
-	authServer := newTestAuth(t, modulestest.OSSModules())
+	authServer := newTestAuth(t)
 
 	// Use this mock client so that we can force ListAccessLists to return an error.
 	// The error we force is NotImplemented, which should not cause the app to crash.
@@ -477,12 +478,11 @@ func advanceAndLookForRecipients(t *testing.T,
 	require.ElementsMatch(t, expectedRecipients, bot.getLastRecipients())
 }
 
-func newTestAuth(t *testing.T, m *modulestest.Modules) *auth.Server {
+func newTestAuth(t *testing.T) *auth.Server {
 	server, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			Dir:     t.TempDir(),
-			Clock:   clockwork.NewFakeClock(),
-			Modules: m,
+			Dir:   t.TempDir(),
+			Clock: clockwork.NewFakeClock(),
 			AuthPreferenceSpec: &types.AuthPreferenceSpecV2{
 				SecondFactor: constants.SecondFactorOn,
 				Webauthn: &types.Webauthn{

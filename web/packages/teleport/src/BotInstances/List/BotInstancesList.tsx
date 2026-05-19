@@ -29,7 +29,7 @@ import {
   SortItem,
   SortMenu,
   SortOrder,
-} from 'shared/components/Controls/SortMenu';
+} from 'shared/components/Controls/SortMenuV2';
 
 import { Instance } from 'teleport/Bots/Details/Instance';
 import { BotInstanceSummary } from 'teleport/services/bot/types';

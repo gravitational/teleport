@@ -159,7 +159,7 @@ func TestGetTags(t *testing.T) {
 			instancesClient: &mockInstanceGetter{
 				instance: defaultInstance,
 			},
-			assertErr: func(t require.TestingT, err error, i ...any) {
+			assertErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsNotFound(err), i...)
 			},
 		},
@@ -169,7 +169,7 @@ func TestGetTags(t *testing.T) {
 			instancesClient: &mockInstanceGetter{
 				instanceErr: trace.NotFound(""),
 			},
-			assertErr: func(t require.TestingT, err error, i ...any) {
+			assertErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsNotFound(err), i...)
 			},
 		},

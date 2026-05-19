@@ -74,7 +74,6 @@ func New(botConfig *BotConfig, log *slog.Logger) (*EmbeddedBot, error) {
 				botConfig.CredentialLifetime,
 			),
 		},
-		Scoped: botConfig.Scoped,
 	}
 
 	err := cfg.CheckAndSetDefaults()

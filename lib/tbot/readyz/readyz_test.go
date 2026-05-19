@@ -464,7 +464,10 @@ func TestWaitAPI(t *testing.T) {
 }
 
 func TestWaitAPIOngoingWaiter(t *testing.T) {
-	t.Parallel()
+	// TODO: Evaluate reenabling parallel execution if this branch is updated to
+	// go1.25. Otherwise, parallel execution triggers race conditions in go1.24
+	// synctest bubbles and causes spurious failures.
+	// t.Parallel()
 
 	synctest.Test(t, func(t *testing.T) {
 		reg := readyz.NewRegistry()

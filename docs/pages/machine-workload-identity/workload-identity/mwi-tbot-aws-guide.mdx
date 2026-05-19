@@ -27,7 +27,7 @@ By the end, you'll have a working `tbot` service that issues SPIFFE-compatible c
   be named `teleport-bot-role`.
 - An AWS EC2 instance with the IAM role attached that you'll install the MWI agent, `tbot`, onto.
 
-## Step 1/6. Install `tbot`
+## Step 1/7. Install `tbot`
 
 **This step is completed on the AWS EC2 instance.**
 
@@ -37,13 +37,13 @@ Download and install the appropriate Teleport package for your platform:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-## Step 2/6. Create a Bot
+## Step 2/7. Create a Bot
 
 **This step is completed on your local machine.**
 
 (!docs/pages/includes/machine-id/create-a-bot.mdx!)
 
-## Step 3/6. Create a join token
+## Step 3/7. Create a join token
 
 **This step is completed on your local machine.**
 
@@ -84,7 +84,7 @@ Use `tctl` to apply this file:
 $ tctl create bot-token.yaml
 ```
 
-## Step 4/6. Configure `tbot`
+## Step 4/7. Configure `tbot`
 
 **This step is completed on the AWS EC2 instance.** Configure `workload-identity-api` service in `tbot`. 
 To issue SPIFFE credentials to workloads, `tbot` must expose a Workload API endpoint.
@@ -129,7 +129,7 @@ Replace:
 
 Restart your `tbot` instance to apply the new configuration.
 
-## Step 5/6. Configure Workload Identity
+## Step 5/7. Configure Workload Identity
 
 Next, we'll configure Workload Identity on the target resource you just created. 
 With your bot configured and connected to Teleport, you can now use it to issue SPIFFE-compatible 
@@ -164,11 +164,7 @@ Replace:
 - `example-workload-identity` with a name that describes your use-case.
 - `/svc/foo` with the SPIFFE ID path you have decided on issuing.
 
-Create the Workload Identity:
-
-```code
-$ tctl create ./workload-identity.yaml
-```
+Use `tctl create ./workload-identity.yaml` to create the Workload Identity.
 
 ### Using workload attestation
 
@@ -206,7 +202,7 @@ spec:
 With this configuration, the SPIFFE ID automatically 
 includes the systemd service name, such as `/svc/my-app` for a service named `my-app`.
 
-## Step 6/6. Testing the Workload API with `tbot spiffe-inspect`
+## Step 6/7. Testing the Workload API with `tbot spiffe-inspect`
 
 Use `tbot spiffe-inspect` to verify that the Workload API endpoint is issuing SPIFFE credentials correctly.
 This command connects to the endpoint, requests SVIDs, and prints detailed debug information.
@@ -229,6 +225,8 @@ Trust Bundles
 - teleport.example.com
 ```
 This confirms that workloads can successfully connect to the Workload API and receive SPIFFE-compatible credentials issued by Teleport.
+
+## Step 7/7. Configuring your workload to use the Workload API
 
 Now that you know that the Workload API is behaving as expected, you can configure your workload to use it. 
 The exact steps will depend on the workload. In cases where you have used the SPIFFE SDKs, you can configure the `SPIFFE_ENDPOINT_SOCKET` 

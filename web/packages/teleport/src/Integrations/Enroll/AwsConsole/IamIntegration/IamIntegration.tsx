@@ -18,7 +18,7 @@
 
 import { useMutation } from '@tanstack/react-query';
 import { ChangeEvent, ReactNode, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useHistory } from 'react-router';
 
 import {
   Alert,
@@ -75,7 +75,7 @@ export function IamIntegration() {
   const integrationsAccess = ctx.storeUser.getIntegrationsAccess();
   const canEnroll = integrationsAccess.create;
 
-  const navigate = useNavigate();
+  const history = useHistory();
   const [phase, setPhase] = useState(Phase.One);
   const [alert, setAlert] = useState<ReactNode>();
   const [scriptUrl, setScriptUrl] = useState<string>();
@@ -117,14 +117,15 @@ export function IamIntegration() {
         })
         .then(data => data),
     onSuccess: () => {
-      navigate(cfg.getIntegrationEnrollRoute(IntegrationKind.AwsRa, 'access'), {
-        state: {
+      history.push(
+        cfg.getIntegrationEnrollRoute(IntegrationKind.AwsRa, 'access'),
+        {
           integrationName: formState.integrationName,
           trustAnchorArn: output.trustAnchorArn,
           syncProfileArn: output.syncProfileArn,
           syncRoleArn: output.syncRoleArn,
-        },
-      });
+        }
+      );
     },
   });
 
@@ -487,7 +488,7 @@ export function IamIntegration() {
               >
                 Next: Configure Access
               </ButtonPrimary>
-              <ButtonSecondary onClick={() => navigate(-1)} width="100px">
+              <ButtonSecondary onClick={history.goBack} width="100px">
                 Back
               </ButtonSecondary>
             </Flex>

@@ -21,8 +21,8 @@ package common
 import (
 	"context"
 	"os"
+	"text/template"
 
-	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
@@ -112,7 +112,7 @@ func (c *DBCommand) ListDatabases(ctx context.Context, clt *authclient.Client) e
 	coll := &databaseServerCollection{servers: servers}
 	switch c.format {
 	case teleport.Text:
-		return trace.Wrap(coll.WriteText(os.Stdout, c.verbose))
+		return trace.Wrap(coll.writeText(os.Stdout, c.verbose))
 	case teleport.JSON:
 		return trace.Wrap(coll.writeJSON(os.Stdout))
 	case teleport.YAML:

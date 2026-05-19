@@ -54,7 +54,7 @@ func setupFirestoreContext(t *testing.T) *firestoreContext {
 	fakeClock := clockwork.NewFakeClock()
 
 	config := EventsConfig{}
-	config.SetFromParams(map[string]any{
+	config.SetFromParams(map[string]interface{}{
 		"collection_name":                   "tp-events-test",
 		"project_id":                        "tp-testproj",
 		"endpoint":                          "localhost:8618",
@@ -129,18 +129,12 @@ func (tt *firestoreContext) testSearchSessionEvensBySessionID(t *testing.T) {
 	tt.suite.SearchSessionEventsBySessionID(t)
 }
 
-func (tt *firestoreContext) testSearchEventsBySearchTerm(t *testing.T) {
-	tt.setupTest(t)
-	tt.suite.SearchEventsBySearchTerm(t)
-}
-
 func TestFirestoreEvents(t *testing.T) {
 	tt := setupFirestoreContext(t)
 
 	t.Run("TestSessionEventsCRUD", tt.testSessionEventsCRUD)
 	t.Run("TestPagination", tt.testPagination)
 	t.Run("TestSearchSessionEvensBySessionID", tt.testSearchSessionEvensBySessionID)
-	t.Run("TestSearchEventsBySearchTerm", tt.testSearchEventsBySearchTerm)
 }
 
 func emulatorRunning() bool {

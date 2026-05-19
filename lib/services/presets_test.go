@@ -37,10 +37,10 @@ import (
 )
 
 func TestAddRoleDefaults(t *testing.T) {
-	noChange := func(t require.TestingT, err error, i ...any) {
+	noChange := func(t require.TestingT, err error, i ...interface{}) {
 		require.ErrorIs(t, err, trace.AlreadyExists("no change"))
 	}
-	notModifying := func(t require.TestingT, err error, i ...any) {
+	notModifying := func(t require.TestingT, err error, i ...interface{}) {
 		require.ErrorIs(t, err, trace.AlreadyExists("not modifying user created role"))
 	}
 
@@ -729,7 +729,6 @@ func TestAddRoleDefaults(t *testing.T) {
 						DatabaseLabels:       map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
 						NodeLabels:           map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
 						WindowsDesktopLabels: map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
-						KubernetesLabels:     map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}},
 						Rules: []types.Rule{
 							{
 								Resources: []string{
@@ -762,7 +761,6 @@ func TestAddRoleDefaults(t *testing.T) {
 							},
 							// The missing resources got added as individual rules
 							types.NewRule(types.KindDiscoveryConfig, RW()),
-							types.NewRule(types.KindKubernetesCluster, RW()),
 							types.NewRule(types.KindAccessMonitoringRule, RW()),
 							types.NewRule(types.KindDynamicWindowsDesktop, RW()),
 							types.NewRule(types.KindStaticHostUser, RW()),
@@ -773,7 +771,6 @@ func TestAddRoleDefaults(t *testing.T) {
 							types.NewRule(types.KindHealthCheckConfig, RW()),
 							types.NewRule(types.KindVnetConfig, RW()),
 							types.NewRule(types.KindIntegration, RW()),
-							types.NewRule(types.KindAppAuthConfig, RW()),
 							types.NewRule(types.KindInferenceModel, RW()),
 							types.NewRule(types.KindInferenceSecret, RW()),
 							types.NewRule(types.KindInferencePolicy, RW()),
@@ -828,34 +825,6 @@ func TestAddRoleDefaults(t *testing.T) {
 					},
 				},
 			},
-		},
-		{
-			name: "access-plugin-with-review (default roles match preset rules)",
-			role: &types.RoleV6{
-				Kind:    types.KindRole,
-				Version: types.V8,
-				Metadata: types.Metadata{
-					Name:        teleport.PresetAccessPluginWithReviewRoleName,
-					Namespace:   apidefaults.Namespace,
-					Description: "Default access plugin with review role",
-					Labels: map[string]string{
-						types.TeleportInternalResourceType: types.PresetResource,
-					},
-				},
-				Spec: types.RoleSpecV6{
-					Allow: types.RoleConditions{
-						ReviewRequests: &types.AccessReviewConditions{
-							PreviewAsRoles: []string{
-								teleport.PresetListAccessRequestResourcesRoleName,
-							},
-							SubmitForUsers: []string{"*"},
-						},
-					},
-				},
-			},
-			expectedErr:    require.NoError,
-			reviewNotEmpty: true,
-			expected:       NewPresetAccessPluginWithReviewRole(),
 		},
 		{
 			name: "list-access-request-resources (default roles match preset rules)",

@@ -18,8 +18,9 @@
 
 import { useState } from 'react';
 
-import { ButtonBorder, Flex, Text } from 'design';
+import { ButtonBorder, Flex } from 'design';
 import Table, { Cell } from 'design/DataTable';
+import { dateTimeMatcher } from 'design/utils/match';
 
 import { Event } from 'teleport/services/audit';
 
@@ -29,7 +30,7 @@ import renderTypeCell from './EventTypeCell';
 import { ViewInPolicyButton } from './ViewInPolicyButton';
 
 export default function EventList(props: Props) {
-  const { events = [], sort, setSort } = props;
+  const { events = [], fetchMore, fetchStatus, pageSize = 50 } = props;
   const [detailsToShow, setDetailsToShow] = useState<Event>();
   return (
     <>
@@ -38,8 +39,8 @@ export default function EventList(props: Props) {
         columns={[
           {
             key: 'codeDesc',
-            headerText: 'Event',
-            isSortable: false,
+            headerText: 'Type',
+            isSortable: true,
             render: event => renderTypeCell(event),
           },
           {
@@ -52,6 +53,7 @@ export default function EventList(props: Props) {
             headerText: 'Created (UTC)',
             isSortable: true,
             render: renderTimeCell,
+            onSort: onSortTime,
           },
           {
             altKey: 'show-details-btn',
@@ -59,10 +61,17 @@ export default function EventList(props: Props) {
           },
         ]}
         emptyText={'No Events Found'}
-        customSort={{
-          fieldName: sort.fieldName,
-          dir: sort.dir,
-          onSort: setSort,
+        isSearchable
+        searchableProps={['code', 'codeDesc', 'time', 'user', 'message', 'id']}
+        customSearchMatchers={[dateTimeMatcher(['time'])]}
+        initialSort={{
+          key: 'time',
+          dir: 'DESC',
+        }}
+        pagination={{ pageSize }}
+        fetching={{
+          onFetchMore: fetchMore,
+          fetchStatus,
         }}
       />
       {detailsToShow && (
@@ -83,7 +92,7 @@ export const renderActionCell = (
     <Flex gap={2} justifyContent="flex-end">
       <ViewInPolicyButton event={event} />
       <ButtonBorder
-        size="medium"
+        size="small"
         onClick={() => onShowDetails(event)}
         width="87px"
       >
@@ -94,23 +103,32 @@ export const renderActionCell = (
 );
 
 export const renderTimeCell = ({ time }: Event) => (
-  <Cell style={{ minWidth: '120px' }}>
-    <Text color="text.slightlyMuted">{time.toISOString()}</Text>
-  </Cell>
+  <Cell style={{ minWidth: '120px' }}>{time.toISOString()}</Cell>
 );
 
 export function renderDescCell({ message }: Event) {
-  return (
-    <Cell style={{ wordBreak: 'break-word' }}>
-      <Text color="text.slightlyMuted">{message}</Text>
-    </Cell>
-  );
+  return <Cell style={{ wordBreak: 'break-word' }}>{message}</Cell>;
 }
+
+const onSortTime = (a: Event, b: Event) => {
+  const aTime = a.time.getTime();
+  const bTime = b.time.getTime();
+
+  const timeDiff = aTime - bTime;
+  if (timeDiff !== 0) {
+    return timeDiff;
+  }
+
+  // If times are equal, sort by event index (ei)
+  const aEventIndex = a.eventIndex || 0;
+  const bEventIndex = b.eventIndex || 0;
+  // HIGHER index - lower index to counteract the reversal for desc sort
+  return bEventIndex - aEventIndex;
+};
 
 type Props = {
   events: State['events'];
-  search: State['search'];
-  setSearch: State['setSearch'];
-  sort: State['sort'];
-  setSort: State['setSort'];
+  fetchMore: State['fetchMore'];
+  fetchStatus: State['fetchStatus'];
+  pageSize?: number;
 };

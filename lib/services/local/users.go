@@ -200,7 +200,6 @@ func (s *IdentityService) streamUsersWithSecrets(itemStream iter.Seq2[backend.It
 		}
 
 		return prev, true
-
 	})
 
 	// since a collector for a given user isn't yielded until the above stream reaches the *next*
@@ -496,31 +495,6 @@ func (s *IdentityService) UpsertUser(ctx context.Context, user types.User) (type
 	return user, nil
 }
 
-// AppendPutUserParamsActions adds conditional actions to an atomic write to
-// create or update the user params resource (without secrets, mfa devices).
-func (s *IdentityService) AppendPutUserParamsActions(
-	actions []backend.ConditionalAction,
-	user types.User,
-	condition backend.Condition,
-) ([]backend.ConditionalAction, error) {
-	if err := services.ValidateUser(user); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	withoutSecrets, ok := user.WithoutSecrets().(types.User)
-	if !ok {
-		return nil, trace.BadParameter("WithoutSecrets returned a different type (this is a bug)")
-	}
-	item, err := itemFromUser(withoutSecrets)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return append(actions, backend.ConditionalAction{
-		Key:       item.Key,
-		Condition: condition,
-		Action:    backend.Put(*item),
-	}), nil
-}
-
 // CompareAndSwapUser updates a user, but fails if the user (as exists in the
 // backend) differs from the provided `existing` user. If the existing user
 // matches, returns no error, otherwise returns `trace.CompareFailed`.
@@ -552,7 +526,7 @@ func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing 
 	// one retry because ConditionalUpdate could occasionally spuriously fail,
 	// another retry because a single retry would be weird
 	const iterationLimit = 3
-	for range iterationLimit {
+	for i := 0; i < iterationLimit; i++ {
 		const withoutSecrets = false
 		currentWithoutSecrets, err := s.GetUser(ctx, new.GetName(), withoutSecrets)
 		if err != nil {
@@ -562,7 +536,7 @@ func (s *IdentityService) CompareAndSwapUser(ctx context.Context, new, existing 
 			return trace.Wrap(err)
 		}
 
-		if !existingWithoutSecrets.IsEqual(currentWithoutSecrets) {
+		if !services.UsersEquals(existingWithoutSecrets, currentWithoutSecrets) {
 			return trace.CompareFailed("user %v did not match expected existing value", new.GetName())
 		}
 
@@ -743,24 +717,6 @@ func (s *IdentityService) DeleteUser(ctx context.Context, user string) error {
 	}
 
 	return trace.NewAggregate(notifErrors...)
-}
-
-// AppendDeleteUserParamsActions adds conditional actions to an atomic write
-// to delete the user params resource.
-//
-// Note: the returned actions will NOT delete the user's password, MFA devices,
-// etc. so is only really suitable for bot users, in most cases you should use
-// DeleteUser instead.
-func (s *IdentityService) AppendDeleteUserParamsActions(
-	actions []backend.ConditionalAction,
-	user string,
-	condition backend.Condition,
-) ([]backend.ConditionalAction, error) {
-	return append(actions, backend.ConditionalAction{
-		Key:       backend.NewKey(webPrefix, usersPrefix, user, paramsPrefix),
-		Condition: condition,
-		Action:    backend.Delete(),
-	}), nil
 }
 
 func (s *IdentityService) upsertPasswordHash(username string, hash []byte) error {
@@ -1143,7 +1099,10 @@ func (l *globalSessionDataLimiter) add(scope string, n int) int {
 		l.lastReset = now
 	}
 
-	v := max(l.scopeCount[scope]+n, 0)
+	v := l.scopeCount[scope] + n
+	if v < 0 {
+		v = 0
+	}
 	l.scopeCount[scope] = v
 	return v
 }
@@ -1234,6 +1193,7 @@ func (s *IdentityService) UpsertMFADevice(ctx context.Context, user string, d *t
 	}
 	return nil
 }
+
 func (s *IdentityService) upsertMFADevice(ctx context.Context, user string, d *types.MFADevice) error {
 	if user == "" {
 		return trace.BadParameter("missing parameter user")
@@ -1638,7 +1598,6 @@ func (s *IdentityService) RangeOIDCConnectors(ctx context.Context, start, end st
 			services.WithExpires(item.Expires),
 			services.WithRevision(item.Revision),
 		)
-
 		if err != nil {
 			s.logger.ErrorContext(ctx, "Failed to unmarshal OIDC Connector",
 				"key", item.Key,
@@ -1675,7 +1634,6 @@ func (s *IdentityService) RangeOIDCConnectors(ctx context.Context, start, end st
 			// if the end has been reached.
 			return end == "" || conn.GetName() < end
 		})
-
 }
 
 // CreateOIDCAuthRequest creates new auth request
@@ -1857,7 +1815,6 @@ func (s *IdentityService) RangeSAMLConnectorsWithOptions(ctx context.Context, st
 			opts,
 			services.WithExpires(item.Expires),
 			services.WithRevision(item.Revision))
-
 		if err != nil {
 			s.logger.ErrorContext(ctx, "Failed to unmarshal SAML Connector",
 				"key", item.Key,
@@ -2043,12 +2000,11 @@ func (s *IdentityService) DeleteMFASessionData(ctx context.Context, sessionID st
 	return trace.Wrap(s.Delete(ctx, ssoMFASessionDataKey(sessionID)))
 }
 
-// Deprecated: use UpsertMFASessionData.
+// TODO(danielashare): Remove these aliased functions once `e` no longer references them
 func (s *IdentityService) UpsertSSOMFASessionData(ctx context.Context, sd *services.SSOMFASessionData) error {
 	return trace.Wrap(s.UpsertMFASessionData(ctx, sd))
 }
 
-// Deprecated: use GetMFASessionData.
 func (s *IdentityService) GetSSOMFASessionData(ctx context.Context, sessionID string) (*services.SSOMFASessionData, error) {
 	sd, err := s.GetMFASessionData(ctx, sessionID)
 	if err != nil {
@@ -2155,7 +2111,6 @@ func (s *IdentityService) RangeGithubConnectors(ctx context.Context, start, end 
 			services.WithExpires(item.Expires),
 			services.WithRevision(item.Revision),
 		)
-
 		if err != nil {
 			s.logger.ErrorContext(ctx, "Failed to unmarshal GitHub Connector",
 				"key", item.Key,
@@ -2190,7 +2145,6 @@ func (s *IdentityService) RangeGithubConnectors(ctx context.Context, start, end 
 			// if the end has been reached.
 			return end == "" || conn.GetName() < end
 		})
-
 }
 
 // GetGithubConnector returns a particular Github connector.

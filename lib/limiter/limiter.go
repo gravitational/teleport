@@ -139,7 +139,7 @@ func (l *Limiter) UnaryServerInterceptor() grpc.UnaryServerInterceptor {
 
 // StreamServerInterceptor is a gRPC stream interceptor that rate limits
 // incoming requests by client IP.
-func (l *Limiter) StreamServerInterceptor(srv any, serverStream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
+func (l *Limiter) StreamServerInterceptor(srv interface{}, serverStream grpc.ServerStream, info *grpc.StreamServerInfo, handler grpc.StreamHandler) error {
 	peerInfo, ok := peer.FromContext(serverStream.Context())
 	if !ok {
 		return trace.AccessDenied("missing peer info")

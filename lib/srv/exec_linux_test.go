@@ -31,6 +31,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -52,7 +53,7 @@ func TestOSCommandPrep(t *testing.T) {
 	// we need to setup a real, non-root user with a valid home directory in order for this test to
 	// exercise the correct paths
 	tempHome := t.TempDir()
-	require.NoError(t, os.Chmod(filepath.Dir(tempHome), 0o777))
+	require.NoError(t, os.Chmod(filepath.Dir(tempHome), 0777))
 
 	username := "test-os-command-prep"
 	scx.Identity.Login = username
@@ -94,11 +95,8 @@ func TestOSCommandPrep(t *testing.T) {
 	// Empty command (simple shell).
 	execCmd, err := scx.ExecCommand()
 	require.NoError(t, err)
-	execCmd.Stdin = os.Stdin
-	execCmd.Stdout = os.Stdout
-	execCmd.Stderr = os.Stderr
 
-	cmd, err := reexec.BuildCommand(execCmd, usr, nil)
+	cmd, err := reexec.BuildCommand(execCmd, usr, nil, nil)
 	require.NoError(t, err)
 
 	require.NotNil(t, cmd)
@@ -112,11 +110,8 @@ func TestOSCommandPrep(t *testing.T) {
 	scx.execRequest.SetCommand("ls -lh /etc")
 	execCmd, err = scx.ExecCommand()
 	require.NoError(t, err)
-	execCmd.Stdin = os.Stdin
-	execCmd.Stdout = os.Stdout
-	execCmd.Stderr = os.Stderr
 
-	cmd, err = reexec.BuildCommand(execCmd, usr, nil)
+	cmd, err = reexec.BuildCommand(execCmd, usr, nil, nil)
 	require.NoError(t, err)
 
 	require.NotNil(t, cmd)
@@ -130,11 +125,8 @@ func TestOSCommandPrep(t *testing.T) {
 	scx.execRequest.SetCommand("top")
 	execCmd, err = scx.ExecCommand()
 	require.NoError(t, err)
-	execCmd.Stdin = os.Stdin
-	execCmd.Stdout = os.Stdout
-	execCmd.Stderr = os.Stderr
 
-	cmd, err = reexec.BuildCommand(execCmd, usr, nil)
+	cmd, err = reexec.BuildCommand(execCmd, usr, nil, nil)
 	require.NoError(t, err)
 
 	require.Equal(t, "/bin/sh", cmd.Path)
@@ -147,7 +139,7 @@ func TestOSCommandPrep(t *testing.T) {
 	usr.HomeDir = "/wrong/place"
 	root := string(os.PathSeparator)
 	expectedEnv[2] = "HOME=/wrong/place"
-	cmd, err = reexec.BuildCommand(execCmd, usr, nil)
+	cmd, err = reexec.BuildCommand(execCmd, usr, nil, nil)
 	require.NoError(t, err)
 
 	require.Equal(t, root, cmd.Dir)
@@ -165,7 +157,7 @@ func TestConfigureCommand(t *testing.T) {
 	// environment values in the server context should not be forwarded
 	scx.SetEnv(unexpectedKey, unexpectedValue)
 
-	cmd, err := scx.ConfigureCommand(nil)
+	cmd, err := ConfigureCommand(scx)
 	require.NoError(t, err)
 
 	require.NotNil(t, cmd)
@@ -173,8 +165,8 @@ func TestConfigureCommand(t *testing.T) {
 	require.NotContains(t, cmd.Env, unexpectedKey+"="+unexpectedValue)
 }
 
-// TestContinue tests if the process continues once the continue signal
-// has been sent.
+// TestContinue tests if the process hangs if a continue signal is not sent
+// and makes sure the process continues once it has been sent.
 func TestContinue(t *testing.T) {
 	srv := newMockServer(t)
 	scx := newExecServerContext(t, srv)
@@ -187,18 +179,8 @@ func TestContinue(t *testing.T) {
 	require.NoError(t, err)
 	scx.execRequest.SetCommand(lsPath)
 
-	r, w, err := os.Pipe()
-	require.NoError(t, err)
-
-	defer r.Close()
-	defer w.Close()
-
 	// Create an exec.Cmd to execute through Teleport.
-	cmd, err := scx.ConfigureCommand(map[reexec.FileFD]*os.File{
-		reexec.StdinFile:  r,
-		reexec.StdoutFile: w,
-		reexec.StderrFile: w,
-	})
+	cmd, err := ConfigureCommand(scx)
 	require.NoError(t, err)
 
 	// Create a channel that will be used to signal that execution is complete.
@@ -211,12 +193,24 @@ func TestContinue(t *testing.T) {
 			cmdDone <- err
 		}
 
-		cmdDone <- cmd.Wait()
+		// Close the read half of the pipe to unblock the ready signal.
+		closeErr := scx.readyw.Close()
+		cmdDone <- trace.NewAggregate(closeErr, cmd.Wait())
 	}()
 
+	// Wait for the process. Since the continue pipe has not been closed, the
+	// process should not have exited yet.
+	select {
+	case err := <-cmdDone:
+		t.Fatalf("Process exited before continue with error %v", err)
+	case <-time.After(5 * time.Second):
+	}
+
+	// Wait for the child process to indicate its completed initialization.
+	require.NoError(t, scx.execRequest.WaitForChild(t.Context()))
+
 	// Signal to child that it may execute the requested program.
-	err = cmd.Continue()
-	require.NoError(t, err)
+	scx.execRequest.Continue()
 
 	// Program should have executed now. If the complete signal has not come
 	// over the context, something failed.

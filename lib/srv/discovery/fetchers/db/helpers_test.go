@@ -66,7 +66,7 @@ func mustMakeAWSFetchers(t *testing.T, cfg AWSFetcherFactoryConfig, matchers []t
 
 	fetcherFactory, err := NewAWSFetcherFactory(cfg)
 	require.NoError(t, err)
-	fetchers, err := fetcherFactory.MakeFetchers(t.Context(), matchers, discoveryConfigName)
+	fetchers, err := fetcherFactory.MakeFetchers(context.Background(), matchers, discoveryConfigName)
 	require.NoError(t, err)
 	require.NotEmpty(t, fetchers)
 
@@ -135,6 +135,7 @@ type awsFetcherTest struct {
 func testAWSFetchers(t *testing.T, tests ...awsFetcherTest) {
 	t.Helper()
 	for _, test := range tests {
+		test := test
 		fakeSTS := &mocks.STSClient{}
 		require.Nil(t, test.fetcherCfg.AWSConfigProvider, "testAWSFetchers injects a fake AWSConfigProvider, but the test input had already configured it. This is a test configuration error.")
 		test.fetcherCfg.AWSConfigProvider = &mocks.AWSConfigProvider{

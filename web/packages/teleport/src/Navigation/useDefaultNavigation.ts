@@ -16,12 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useNavigate } from 'react-router';
+import { useHistory } from 'react-router-dom';
 
 import { NavigationSection } from './Navigation';
 
 export function useDefaultNavigation(section: NavigationSection) {
-  const navigate = useNavigate();
+  const history = useHistory();
 
   if (section.subsections?.length === 0) {
     return {};
@@ -32,7 +32,7 @@ export function useDefaultNavigation(section: NavigationSection) {
   return {
     onClick: () => {
       first.onClick?.();
-      navigate(first.route);
+      history.push(first.route);
     },
   };
 }

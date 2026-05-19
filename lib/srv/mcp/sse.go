@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
@@ -135,7 +136,7 @@ func (s *Server) makeBasicHTTPTransport(app types.Application) (http.RoundTrippe
 	// from the target server.
 	tr.ResponseHeaderTimeout = time.Minute
 	tr.TLSClientConfig = utils.TLSConfig(s.cfg.CipherSuites)
-	tr.TLSClientConfig.InsecureSkipVerify = s.cfg.InsecureMode || app.GetInsecureSkipVerify()
+	tr.TLSClientConfig.InsecureSkipVerify = lib.IsInsecureDevMode() || app.GetInsecureSkipVerify()
 	return tr, nil
 }
 

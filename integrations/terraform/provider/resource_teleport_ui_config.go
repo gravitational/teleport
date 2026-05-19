@@ -22,11 +22,12 @@ import (
 	"fmt"
 
 	apitypes "github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/integrations/terraform/tfschema"
 )
@@ -102,24 +103,14 @@ func (r resourceTeleportUIConfig) Create(ctx context.Context, req tfsdk.CreateRe
 	// - the ones who can deleted and return a trace.NotFoundErr
 	// - the ones who cannot be deleted, only reset. In this case, the resource revision is used to know if the change got applied.
 	tries := 0
-	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-		Driver: retryutils.NewExponentialDriver(r.p.RetryConfig.Base),
-		First:  r.p.RetryConfig.Base,
-		Max:    r.p.RetryConfig.Cap,
-		Jitter: retryutils.HalfJitter,
-	})
-	if err != nil {
-		return
-	}
+	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
 		tries = tries + 1
 		uiConfigI, err = r.p.Client.GetUIConfig(ctx)
 		if trace.IsNotFound(err) {
-		    select {
-			case <-ctx.Done():
-			    resp.Diagnostics.Append(diagFromWrappedErr("Error reading UIConfig", trace.Wrap(ctx.Err()), "ui_config"))
+			if bErr := backoff.Do(ctx); bErr != nil {
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading UIConfig", trace.Wrap(err), "ui_config"))
 				return
-			case <-retry.After():
 			}
 			if tries >= r.p.RetryConfig.MaxTries {
 				diagMessage := fmt.Sprintf("Error reading UIConfig (tried %d times) - state outdated, please import resource", tries)
@@ -138,11 +129,9 @@ func (r resourceTeleportUIConfig) Create(ctx context.Context, req tfsdk.CreateRe
 		if previousMetadata.GetRevision() != currentMetadata.GetRevision() || false {
 			break
 		}
-		select {
-		case <-ctx.Done():
-		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading UIConfig", trace.Wrap(ctx.Err()), "ui_config"))
+		if bErr := backoff.Do(ctx); bErr != nil {
+			resp.Diagnostics.Append(diagFromWrappedErr("Error reading UIConfig", trace.Wrap(bErr), "ui_config"))
 			return
-		case <-retry.After():
 		}
 		if tries >= r.p.RetryConfig.MaxTries {
 			diagMessage := fmt.Sprintf("Error reading UIConfig (tried %d times) - state outdated, please import resource", tries)
@@ -253,15 +242,7 @@ func (r resourceTeleportUIConfig) Update(ctx context.Context, req tfsdk.UpdateRe
 	var uiConfigI apitypes.UIConfig
 
 	tries := 0
-	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-		Driver: retryutils.NewExponentialDriver(r.p.RetryConfig.Base),
-		First:  r.p.RetryConfig.Base,
-		Max:    r.p.RetryConfig.Cap,
-		Jitter: retryutils.HalfJitter,
-	})
-	if err != nil {
-		return
-	}
+	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
 		tries = tries + 1
 		uiConfigI, err = r.p.Client.GetUIConfig(ctx)
@@ -272,11 +253,9 @@ func (r resourceTeleportUIConfig) Update(ctx context.Context, req tfsdk.UpdateRe
 		if uiConfigBefore.GetMetadata().Revision != uiConfigI.GetMetadata().Revision || false {
 			break
 		}
-		select {
-		case <-ctx.Done():
-		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading UIConfig", trace.Wrap(ctx.Err()), "ui_config"))
+		if bErr := backoff.Do(ctx); bErr != nil {
+			resp.Diagnostics.Append(diagFromWrappedErr("Error reading UIConfig", trace.Wrap(bErr), "ui_config"))
 			return
-		case <-retry.After():
 		}
 		if tries >= r.p.RetryConfig.MaxTries {
 			diagMessage := fmt.Sprintf("Error reading UIConfig (tried %d times) - state outdated, please import resource", tries)

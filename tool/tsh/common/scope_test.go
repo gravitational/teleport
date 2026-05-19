@@ -112,7 +112,7 @@ func TestResolveDesiredScope(t *testing.T) {
 				Scope:          "",
 				ScopeSetByUser: true,
 			},
-			profile:         &client.ProfileStatus{},
+			profile:         &client.ProfileStatus{ScopePin: &scopesv1.Pin{Scope: ""}},
 			wantScope:       "",
 			wantScopeChange: false,
 		},

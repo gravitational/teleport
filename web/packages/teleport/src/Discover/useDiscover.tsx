@@ -17,7 +17,7 @@
  */
 
 import React, { useCallback, useContext, useEffect, useState } from 'react';
-import { Location, useLocation } from 'react-router';
+import { useHistory, useLocation } from 'react-router';
 
 import { useInfoGuide } from 'shared/components/SlidingSidePanel/InfoGuide';
 
@@ -136,7 +136,8 @@ export function DiscoverProvider({
   eViewConfigs = [],
   updateFlow,
 }: React.PropsWithChildren<DiscoverProviderProps>) {
-  const location = useLocation() as Location<DiscoverUrlLocationState>;
+  const history = useHistory();
+  const location = useLocation<DiscoverUrlLocationState>();
   const { infoGuideConfig, setInfoGuideConfig } = useInfoGuide();
 
   const [currentStep, setCurrentStep] = useState(0);
@@ -211,13 +212,13 @@ export function DiscoverProvider({
       // Emit abort event upon unmounting from going back or
       // forward to a non-discover route or upon exiting from
       // the exit prompt.
-      if (location.pathname !== cfg.routes.discover) {
+      if (history.location.pathname !== cfg.routes.discover) {
         emitAbortOrSuccessEvent();
       }
 
       window.removeEventListener('beforeunload', emitAbortOrSuccessEvent);
     };
-  }, [eventState, location.pathname, emitEvent]);
+  }, [eventState, history.location.pathname, emitEvent]);
 
   useEffect(() => {
     if (location.state?.discover) {

@@ -31,7 +31,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { matchPath, useLocation } from 'react-router';
+import { matchPath, useHistory } from 'react-router';
 import styled from 'styled-components';
 
 import { Box, Flex } from 'design';
@@ -44,7 +44,6 @@ import { useUser } from 'teleport/User/UserContext';
 import useStickyClusterId from 'teleport/useStickyClusterId';
 
 import {
-  BEAMS_NAVIGATION_CATEGORIES,
   CustomNavigationSubcategory,
   NAVIGATION_CATEGORIES,
   SidenavCategory,
@@ -124,11 +123,7 @@ export type NavigationSubsection = {
 function getNavigationSections(
   features: TeleportFeature[]
 ): NavigationSection[] {
-  // Override the order for beams UI
-  const categories = cfg.beamsUi
-    ? BEAMS_NAVIGATION_CATEGORIES
-    : NAVIGATION_CATEGORIES;
-  const navigationSections = categories.map(category => ({
+  const navigationSections = NAVIGATION_CATEGORIES.map(category => ({
     category,
     subsections: getSubsectionsForCategory(category, features),
   }));
@@ -205,10 +200,10 @@ function getNavSubsectionForRoute(
   let feature = features
     .filter(feature => Boolean(feature.route))
     .find(feature =>
-      matchPath(
-        { path: feature.route.path, end: feature.route.exact ?? false },
-        route.pathname
-      )
+      matchPath(route.pathname, {
+        path: feature.route.path,
+        exact: feature.route.exact,
+      })
     );
 
   // If this is a child feature, use its parent as the subsection instead.
@@ -323,7 +318,7 @@ export function Navigation({
   showPoweredByLogo?: boolean;
 }) {
   const features = useFeatures();
-  const location = useLocation();
+  const history = useHistory();
   const { clusterId } = useStickyClusterId();
   const { preferences, updatePreferences } = useUser();
   const [targetSection, setTargetSection] = useState<NavigationSection | null>(
@@ -344,8 +339,8 @@ export function Navigation({
     };
   }, []);
   const currentView = useMemo(
-    () => getNavSubsectionForRoute(features, location),
-    [features, location]
+    () => getNavSubsectionForRoute(features, history.location),
+    [features, history.location]
   );
 
   const stickyMode = preferences.sideNavDrawerMode === SideNavDrawerMode.STICKY;
@@ -460,10 +455,10 @@ export function Navigation({
   const hideNav = features.find(
     f =>
       f.route &&
-      matchPath(
-        { path: f.route.path, end: f.route.exact ?? false },
-        location.pathname
-      )
+      matchPath(history.location.pathname, {
+        path: f.route.path,
+        exact: f.route.exact ?? false,
+      })
   )?.hideNavigation;
 
   if (hideNav) {

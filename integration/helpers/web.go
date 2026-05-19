@@ -50,7 +50,7 @@ type WebClientPack struct {
 	clusterName string
 }
 
-// Renew Creates a copy of WebClient with renewed credentials.
+// WithNewCredentials Creates a copy of WebClient with renewed credentials.
 // This can be used to assume a particular web session, like in
 // the case of JIT Access Request role assumption.
 func (w *WebClientPack) WithNewCredentials(token, cookie string) *WebClientPack {

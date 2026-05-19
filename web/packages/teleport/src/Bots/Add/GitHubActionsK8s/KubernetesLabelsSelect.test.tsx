@@ -17,15 +17,14 @@
  */
 
 import { QueryClientProvider } from '@tanstack/react-query';
+import { setupServer } from 'msw/node';
 import { ComponentProps, PropsWithChildren } from 'react';
 
 import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
-  enableMswServer,
   render,
   screen,
-  server,
   testQueryClient,
   userEvent,
   within,
@@ -43,18 +42,27 @@ import { trackingTester } from '../Shared/trackingTester';
 import { TrackingProvider } from '../Shared/useTracking';
 import { KubernetesLabelsSelect } from './KubernetesLabelsSelect';
 
-enableMswServer();
+const server = setupServer();
+
+beforeAll(() => {
+  server.listen();
+});
 
 beforeEach(() => {
   server.use(userEventCaptureSuccess());
 });
 
 afterEach(async () => {
+  server.resetHandlers();
+
   await testQueryClient.resetQueries();
+
   jest.clearAllMocks();
 });
 
 afterAll(() => {
+  server.close();
+
   jest.resetAllMocks();
 });
 

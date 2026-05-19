@@ -347,7 +347,6 @@ export function GroupsTable({
             selectedGroupName === group.name
               ? { backgroundColor: theme.colors.interactive.tonal.neutral[1] }
               : undefined,
-          getKey: group => group.name,
         }}
       />
     </TableContainer>

@@ -33,12 +33,12 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/terminal"
@@ -189,50 +189,6 @@ type TerminalRequest struct {
 	Term session.TerminalParams `json:"term"`
 }
 
-// tokenExchange sends the token over a newly created websocket and waits for server to validate and respond.
-func tokenExchange(ws *websocket.Conn, token string) error {
-	type wsBearerToken struct {
-		Token string `json:"token"`
-	}
-
-	type wsStatus struct {
-		Type    string `json:"type"`
-		Status  string `json:"status"`
-		Message string `json:"message,omitempty"`
-	}
-
-	req, err := json.Marshal(wsBearerToken{Token: token})
-	if err != nil {
-		return trace.Wrap(err, "marshaling token")
-	}
-
-	if err := ws.WriteMessage(websocket.TextMessage, req); err != nil {
-		return trace.Wrap(err, "writing to websocket")
-	}
-
-	ty, resp, err := ws.ReadMessage()
-	if err != nil {
-		return trace.Wrap(err, "reading from websocket")
-	}
-
-	var status wsStatus
-	if err := json.Unmarshal(resp, &status); err != nil {
-		return trace.Wrap(err, "unmarshalling response")
-	}
-
-	if ty != websocket.TextMessage {
-		return trace.AccessDenied("unexpected message type: %d", ty)
-	}
-
-	if status.Status != "ok" {
-		return trace.AccessDenied("unexpected response: %q", status.Message)
-	}
-
-	// At this point the socket is ready.
-	return nil
-
-}
-
 // connectToHost opens an SSH session to the target host via the Proxy web api.
 func connectToHost(ctx context.Context, tc *client.TeleportClient, webSession *webSession, host string) (io.ReadWriteCloser, error) {
 	req := TerminalRequest{
@@ -250,10 +206,13 @@ func connectToHost(ctx context.Context, tc *client.TeleportClient, webSession *w
 	}
 
 	u := url.URL{
-		Host:     tc.WebProxyAddr,
-		Scheme:   client.WSS,
-		Path:     fmt.Sprintf("/v1/webapi/sites/%v/connect/ws", tc.SiteName),
-		RawQuery: url.Values{"params": []string{string(data)}}.Encode(),
+		Host:   tc.WebProxyAddr,
+		Scheme: client.WSS,
+		Path:   fmt.Sprintf("/v1/webapi/sites/%v/connect/ws", tc.SiteName),
+		RawQuery: url.Values{
+			"params":                        []string{string(data)},
+			roundtrip.AccessTokenQueryParam: []string{webSession.getToken()},
+		}.Encode(),
 	}
 
 	dialer := websocket.Dialer{
@@ -264,43 +223,22 @@ func connectToHost(ctx context.Context, tc *client.TeleportClient, webSession *w
 	ws, resp, err := dialer.DialContext(ctx, u.String(), http.Header{
 		"Origin": []string{"http://localhost"},
 	})
-
-	if resp != nil && resp.Body != nil {
-		// the library can return a valid iocloser even on error
-		defer resp.Body.Close()
-	}
-
 	if err != nil {
-		fields := map[string]any{"url": u.String()}
-		if resp != nil {
-			fields["status"] = resp.Status
-			fields["headers"] = resp.Header
-			if resp.Body != nil {
-				if b, readErr := io.ReadAll(resp.Body); readErr != nil {
-					fields["body_error"] = readErr.Error()
-				} else {
-					fields["body"] = string(b)
-				}
-			}
-		}
+		return nil, trace.Wrap(err)
+	}
+	defer resp.Body.Close()
 
-		return nil, trace.WithFields(trace.Wrap(err, "dialing websocket"), fields)
+	ty, _, err := ws.ReadMessage()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	if err := tokenExchange(ws, webSession.getToken()); err != nil {
-		ws.Close() // clean up the websocket since we do not pass it to a Stream.
-		return nil, trace.Wrap(err, "performing token exchange")
+	if ty != websocket.BinaryMessage {
+		return nil, trace.BadParameter("unexpected websocket message received %d", ty)
 	}
 
-	return terminal.NewStream(ctx,
-		terminal.StreamConfig{
-			WS: ws,
-			Handlers: map[string]terminal.WSHandlerFunc{
-				// Unhandled currently, set to avoid nosiy logs during benchmarks:
-				defaults.WebsocketLatency:         func(ctx context.Context, e terminal.Envelope) {},
-				defaults.WebsocketSessionMetadata: func(ctx context.Context, e terminal.Envelope) {},
-			},
-		}), nil
+	stream := terminal.NewStream(ctx, terminal.StreamConfig{WS: ws})
+	return stream, trace.Wrap(err)
 }
 
 func (s *webSession) expires() time.Time {
@@ -364,9 +302,6 @@ func (s *WebSessionBenchmark) ConfigOverride(ctx context.Context, tc *client.Tel
 
 // BenchBuilder returns a WorkloadFunc for the given benchmark suite.
 func (s *WebSessionBenchmark) BenchBuilder(ctx context.Context, tc *client.TeleportClient) (WorkloadFunc, error) {
-	if s.Max < 0 {
-		return nil, trace.BadParameter("max number of sessions cannot be negative, got: %d", s.Max)
-	}
 	// The benchmark runner may override stderr to be [io.Discard] which
 	// results in the login prompt being sent into the void and the user
 	// staring at a blank terminal. Temporarily override stderr to allow
@@ -394,32 +329,34 @@ func (s *WebSessionBenchmark) BenchBuilder(ctx context.Context, tc *client.Telep
 	}
 
 	var (
-		mu   sync.Mutex
-		next int
+		mu     sync.Mutex
+		active int
+		next   int
 	)
-
-	sem := make(chan struct{}, s.Max)
 
 	// Open a ssh session to the next host if the maximum
 	// number of connections has not already been reached.
 	return func(ctx context.Context) error {
-		select {
-		case sem <- struct{}{}:
-		case <-ctx.Done():
+		mu.Lock()
+		if active >= s.Max {
+			mu.Unlock()
 			return nil
 		}
+		active++
 
-		defer func() { <-sem }()
-
-		mu.Lock()
 		current := next
 		next = (next + 1) % len(s.servers)
 		mu.Unlock()
 
-		host := s.servers[current].GetName() + ":0"
-		stream, err := connectToHost(ctx, tc, webSess, host)
+		defer func() {
+			mu.Lock()
+			active--
+			mu.Unlock()
+		}()
+
+		stream, err := connectToHost(ctx, tc, webSess, s.servers[current].GetName()+":0")
 		if err != nil {
-			return trace.Wrap(err, "connecting to host %q as %q", host, tc.HostLogin)
+			return trace.Wrap(err)
 		}
 
 		return trace.Wrap(utils.ProxyConn(ctx,
@@ -496,7 +433,10 @@ func (r repeatingReader) Read(p []byte) (int, error) {
 	case <-time.After(r.interval):
 	}
 
-	end := min(len(r.s), len(p))
+	end := len(r.s)
+	if end > len(p) {
+		end = len(p)
+	}
 
 	n := copy(p, r.s[:end])
 	return n, nil

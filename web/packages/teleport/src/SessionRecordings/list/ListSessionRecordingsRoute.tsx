@@ -29,7 +29,7 @@ import { Danger } from 'design/Alert';
 import Box from 'design/Box';
 import Flex, { Stack } from 'design/Flex';
 import { Indicator } from 'design/Indicator';
-import { SortOrder } from 'shared/components/Controls/SortMenu';
+import { SortOrder } from 'shared/components/Controls/SortMenuV2';
 import { ErrorSuspenseWrapper } from 'shared/components/ErrorSuspenseWrapper/ErrorSuspenseWrapper';
 import { getErrorMessage } from 'shared/utils/error';
 
@@ -123,6 +123,7 @@ export function ListSessionRecordings({
           <RangePicker
             ml="auto"
             range={state.range}
+            ranges={ranges}
             onChangeRange={handleSetRange}
           />
         </Flex>

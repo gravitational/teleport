@@ -67,35 +67,29 @@ func ToEventResourceAccessID(in types.ResourceAccessID) ResourceAccessID {
 
 	details := c.GetDetails()
 	if details == nil {
-		out.Constraints = &ResourceAccessID_UnknownConstraints{UnknownConstraints: &UnknownConstraints{}}
 		return out
 	}
 
 	switch d := details.(type) {
+	// AWS Console constraints variant
 	case *types.ResourceConstraints_AwsConsole:
 		if d.AwsConsole == nil {
+			// If payload is missing treat as unknown/unsupported
 			out.Constraints = &ResourceAccessID_UnknownConstraints{UnknownConstraints: &UnknownConstraints{}}
 			break
 		}
+
 		roleARNs := d.AwsConsole.RoleArns
+		count := len(roleARNs)
+		preview := previewStrings(roleARNs, MaxAuditRoleARNPreview)
+
 		out.Constraints = &ResourceAccessID_AwsConsole{
 			AwsConsole: &AWSConsoleConstraints{
-				RoleArnsCount:   uint32(len(roleARNs)),
-				RoleArnsPreview: previewStrings(roleARNs, MaxAuditRoleARNPreview),
+				RoleArnsCount:   uint32(count),
+				RoleArnsPreview: preview,
 			},
 		}
-	case *types.ResourceConstraints_Ssh:
-		if d.Ssh == nil {
-			out.Constraints = &ResourceAccessID_UnknownConstraints{UnknownConstraints: &UnknownConstraints{}}
-			break
-		}
-		logins := d.Ssh.Logins
-		out.Constraints = &ResourceAccessID_Ssh{
-			Ssh: &SSHConstraints{
-				LoginsCount:   uint32(len(logins)),
-				LoginsPreview: previewStrings(logins, MaxAuditRoleARNPreview),
-			},
-		}
+	// Unknown/unsupported constraint variant
 	default:
 		out.Constraints = &ResourceAccessID_UnknownConstraints{UnknownConstraints: &UnknownConstraints{}}
 	}

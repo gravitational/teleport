@@ -17,7 +17,6 @@
  */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
 
 import { fireEvent, render, waitFor } from 'design/utils/testing';
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
@@ -38,11 +37,12 @@ const queryClient = new QueryClient({
   },
 });
 
-const mockNavigate = jest.fn();
-
 jest.mock('react-router', () => ({
   ...jest.requireActual('react-router'),
-  useNavigate: () => mockNavigate,
+  useHistory: () => ({
+    goBack: jest.fn(),
+    push: jest.fn(),
+  }),
 }));
 
 beforeEach(() => {
@@ -63,15 +63,13 @@ afterEach(() => {
 
 test('flows through roles anywhere IAM setup', async () => {
   render(
-    <MemoryRouter>
-      <ContextProvider ctx={createTeleportContext()}>
-        <InfoGuidePanelProvider>
-          <QueryClientProvider client={queryClient}>
-            <IamIntegration />
-          </QueryClientProvider>
-        </InfoGuidePanelProvider>
-      </ContextProvider>
-    </MemoryRouter>
+    <ContextProvider ctx={createTeleportContext()}>
+      <InfoGuidePanelProvider>
+        <QueryClientProvider client={queryClient}>
+          <IamIntegration />
+        </QueryClientProvider>
+      </InfoGuidePanelProvider>
+    </ContextProvider>
   );
 
   expect(

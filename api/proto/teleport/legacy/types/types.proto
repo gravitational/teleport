@@ -19,9 +19,9 @@ package types;
 import "gogoproto/gogo.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
+import "google/protobuf/wrappers.proto";
 import "teleport/attestation/v1/attestation.proto";
 import "teleport/componentfeatures/v1/component_features.proto";
-import "teleport/legacy/types/metadata.proto";
 import "teleport/legacy/types/mfa_device.proto";
 import "teleport/legacy/types/resources.proto";
 import "teleport/legacy/types/trusted_device_requirement.proto";
@@ -72,6 +72,33 @@ message KeepAlive {
   KeepAliveType Type = 9 [(gogoproto.jsontag) = "type"];
   // HostID is an optional UUID of the host the resource belongs to.
   string HostID = 10 [(gogoproto.jsontag) = "host_id,omitempty"];
+}
+
+// Metadata is resource metadata
+message Metadata {
+  reserved 7; // ID
+  reserved "ID";
+
+  // Name is an object name
+  string Name = 1 [(gogoproto.jsontag) = "name"];
+  // Namespace is object namespace. The field should be called "namespace"
+  // when it returns in Teleport 2.4.
+  string Namespace = 2 [(gogoproto.jsontag) = "-"];
+  // Description is object description
+  string Description = 3 [(gogoproto.jsontag) = "description,omitempty"];
+  // Labels is a set of labels
+  map<string, string> Labels = 5 [(gogoproto.jsontag) = "labels,omitempty"];
+  // Expires is a global expiry time header can be set on any resource in the
+  // system.
+  google.protobuf.Timestamp Expires = 6 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "expires,omitempty"
+  ];
+  // Revision is an opaque identifier which tracks the versions of a resource
+  // over time. Clients should ignore and not alter its value but must return
+  // the revision in any updates of a resource.
+  string Revision = 8 [(gogoproto.jsontag) = "revision,omitempty"];
 }
 
 // Rotation is a status of the rotation of the certificate authority
@@ -271,21 +298,7 @@ message DatabaseV3 {
 
 // DatabaseSpecV3 is the database spec.
 message DatabaseSpecV3 {
-  // Protocol is the database protocol. Valid options are:
-  // "cassandra"
-  // "clickhouse"
-  // "clickhouse-http"
-  // "cockroachdb"
-  // "dynamodb"
-  // "elasticsearch"
-  // "mongodb"
-  // "mysql"
-  // "oracle"
-  // "postgres"
-  // "redis"
-  // "snowflake"
-  // "spanner"
-  // "sqlserver"
+  // Protocol is the database protocol: postgres, mysql, mongodb, etc.
   string Protocol = 1 [(gogoproto.jsontag) = "protocol"];
   // URI is the database connection endpoint.
   string URI = 2 [(gogoproto.jsontag) = "uri"];
@@ -393,9 +406,6 @@ message DatabaseStatusV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "azure"
   ];
-  // VNetDNSName is a DNS-safe, deterministic hash of the database name
-  // used by VNet for database FQDN resolution.
-  string VNetDNSName = 6 [(gogoproto.jsontag) = "vnet_dns_name,omitempty"];
 }
 
 // IAMPolicyStatus represents states that describe if an AWS database
@@ -1184,10 +1194,6 @@ message AppSpecV3 {
   bool UseAnyProxyPublicAddr = 14 [(gogoproto.jsontag) = "use_any_proxy_public_addr,omitempty"];
   // MCP contains MCP server related configurations.
   MCP MCP = 15 [(gogoproto.jsontag) = "mcp,omitempty"];
-  // LLM contains LLM inference endpoint related configurations.
-  LLM LLM = 16 [(gogoproto.jsontag) = "inference,omitempty"];
-  // TLS contains the app TLS configuration.
-  AppTLS TLS = 17 [(gogoproto.jsontag) = "tls,omitempty"];
 }
 
 // MCP contains MCP server-related configurations.
@@ -1233,57 +1239,6 @@ message PortRange {
   // be greater than Port when describing a port range. When omitted or set to zero, it signifies
   // that the port range defines a single port.
   uint32 EndPort = 2 [(gogoproto.jsontag) = "end_port,omitempty"];
-}
-
-// LLM contains LLM inference endpoint related configurations.
-message LLM {
-  // Model is a provider model definition.
-  message Model {
-    // Name defines the model name. This is the requested value.
-    string name = 1;
-    // Represents the model name in the configured provider.
-    string provider_name = 2;
-  }
-
-  // Defines the LLM inference API format.
-  string format = 1;
-  // Defines which inference provider will be used to serve the requests.
-  string provider = 2;
-  // Defines the list of supported models, and optionally their name on the
-  // inference provider.
-  repeated Model models = 3;
-  // Defines a model that will be used if the model requested is not on the list.
-  // The fallback model must be in the "models" list.
-  string fallback_model = 4;
-}
-
-// AppTLS contains the app TLS configuration.
-message AppTLS {
-  // Mode defines the TLS verification.
-  // Supported values:
-  //   "verify-full" (performs certificate validation, and asserts server name and SPIFFE ID),
-  //   "verify-server-name" (performs certificate validation, and asserts server name),
-  //   "verify-spiffe-id": (performs certificate validation, and asserts SPIFFE ID. Requires `server_spiffe_id` option),
-  //   "insecure": (accepts any certificate provided by app)
-  string mode = 1;
-  // ServerName specifies a custom hostname used for TLS verification against
-  // the upstream certificate.
-  string server_name = 2;
-  // ServerSpiffeId specifies a SPIFFE ID that must be present on the server
-  // certificate.
-  string server_spiffe_id = 3;
-  // AllowedCas is the list of user provided CAs used for verifying upstream
-  // certificates. Accepted values are PEM-encoded CA certificates and
-  // Teleport CA aliases.
-  // Supported aliases:
-  //   "workload_identity" (workload Identity CA. Allows accepting certificates issued by `tbot`).
-  repeated string allowed_cas = 4;
-  // ClientCertMode specifies which client certificate mode to use for the
-  // upstream connection.
-  // Supported values:
-  //   "managed" (app service will issue client certificates to use in the app upstream connection, establishing mTLS connections),
-  //   "disabled" (app upstream connection won't use client certificates).
-  string client_cert_mode = 5;
 }
 
 // CommandLabelV2 is a label that has a value as a result of the
@@ -1555,10 +1510,6 @@ message TokenRule {
   // AWSOrganizationID is used for the IAM join method, the AWS identity of joining nodes
   // must belong to this organization.
   string AWSOrganizationID = 5 [(gogoproto.jsontag) = "aws_organization_id,omitempty"];
-  // AWSOrganizationalUnits contains rules for matching AWS accounts based on their Organizational Units.
-  // Requires AWS Organization ID to be specified.
-  // The account's root ID is considered an Organizational Unit when validating the rule.
-  AWSOrganizationUnitsMatcher AWSOrganizationalUnits = 6 [(gogoproto.jsontag) = "aws_organizational_units,omitempty"];
 }
 
 // ProvisionTokenSpecV2 is a specification for V2 token
@@ -3200,7 +3151,7 @@ message AccessRequestDryRunEnrichment {
 
 // AccessReview is a review to be applied to an Access Request.
 message AccessReview {
-  // Author is the Teleport username of the review author.
+  // Author is the teleport username of the review author.
   string Author = 1 [(gogoproto.jsontag) = "author"];
   // Roles is a list used for role-subselection (not yet fully supported).
   repeated string Roles = 2 [(gogoproto.jsontag) = "roles,omitempty"];
@@ -3239,11 +3190,6 @@ message AccessReview {
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "assume_start_time,omitempty"
   ];
-
-  // SubmittedBy is the Teleport plugin identity that submitted this review request
-  // to the Auth Service on behalf of the Author.
-  // Author remains the actual Teleport user that performed the review.
-  string SubmittedBy = 11 [(gogoproto.jsontag) = "submitted_by,omitempty"];
 }
 
 // AccessReviewSubmission encodes the necessary parameters for submitting
@@ -4194,31 +4140,6 @@ message RoleConditions {
 
   // MCPPermissions defines MCP servers related permissions.
   MCPPermissions MCP = 46 [(gogoproto.jsontag) = "mcp,omitempty"];
-
-  // LinuxDesktopLogins is a list of desktop login names allowed/denied for Linux desktops.
-  repeated string LinuxDesktopLogins = 47 [(gogoproto.jsontag) = "linux_desktop_logins,omitempty"];
-
-  // LinuxDesktopLabels are used in the RBAC system to allow/deny access to Linux desktops.
-  wrappers.LabelValues LinuxDesktopLabels = 48 [
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "linux_desktop_labels,omitempty",
-    (gogoproto.customtype) = "Labels"
-  ];
-
-  // LinuxDesktopLabelsExpression is a predicate expression used to allow/deny
-  // access to Linux desktops.
-  string LinuxDesktopLabelsExpression = 49 [(gogoproto.jsontag) = "linux_desktop_labels_expression,omitempty"];
-
-  // BeamLabels are used in the RBAC system to allow/deny access to beams.
-  wrappers.LabelValues BeamLabels = 50 [
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "beam_labels,omitempty",
-    (gogoproto.customtype) = "Labels"
-  ];
-
-  // BeamLabelsExpression is a predicate expression used to allow/deny access
-  // to beams.
-  string BeamLabelsExpression = 51 [(gogoproto.jsontag) = "beam_labels_expression,omitempty"];
 }
 
 // IdentityCenterAccountAssignment captures an AWS Identity Center account
@@ -4451,12 +4372,6 @@ message AccessReviewConditions {
   // while they are viewing a Resource Access Request for the purposes of
   // viewing details such as the hostname and labels of requested resources.
   repeated string PreviewAsRoles = 4 [(gogoproto.jsontag) = "preview_as_roles,omitempty"];
-
-  // SubmitForUsers is used by Teleport plugins to indicate
-  // they can submit reviews on behalf of other users.
-  // Reviews submitted for a user are evaluated against that user's own RBAC permissions.
-  // Supports wildcard (*).
-  repeated string SubmitForUsers = 5 [(gogoproto.jsontag) = "submit_for_users,omitempty"];
 }
 
 // AccessRequestAllowedPromotion describes an allowed promotion to an Access List.
@@ -4778,6 +4693,107 @@ message LocalAuthSecrets {
   WebauthnLocalAuth Webauthn = 6 [(gogoproto.jsontag) = "webauthn,omitempty"];
 }
 
+// MFADevice is a multi-factor authentication device, such as a security key or
+// an OTP app.
+message MFADevice {
+  // Boilerplate for implementing the Resource interface.
+  string kind = 1;
+  string sub_kind = 2;
+  string version = 3;
+  Metadata metadata = 4 [(gogoproto.nullable) = false];
+
+  // ID is a UUID of this device.
+  string id = 5;
+
+  google.protobuf.Timestamp added_at = 6 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
+  google.protobuf.Timestamp last_used = 7 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
+
+  oneof device {
+    TOTPDevice totp = 8;
+    U2FDevice u2f = 9;
+    WebauthnDevice webauthn = 10;
+    SSOMFADevice sso = 11;
+    BrowserMFADevice browser = 12;
+  }
+}
+
+// TOTPDevice holds the TOTP-specific fields of MFADevice.
+message TOTPDevice {
+  string key = 1;
+}
+
+// U2FDevice holds the U2F-specific fields of MFADevice.
+message U2FDevice {
+  // KeyHandle uniquely identifies a key on a device
+  bytes key_handle = 1;
+  // PubKey is an DER encoded ecdsa public key
+  bytes pub_key = 2;
+  // Counter is the latest seen value of the U2F usage counter.
+  uint32 counter = 3;
+}
+
+// WebauthnDevice holds Webauthn-specific fields of MFADevice.
+message WebauthnDevice {
+  // Credential ID for the authenticator.
+  bytes credential_id = 1;
+  // Public key encoded in CBOR format.
+  // Webauthn support various key algorithms; CBOR encoding is used to reflect
+  // those choices.
+  // See https://w3c.github.io/webauthn/#sctn-alg-identifier for a starter
+  // reference.
+  bytes public_key_cbor = 2;
+  // Attestation format used by the authenticator, if any.
+  string attestation_type = 3;
+  // AAGUID is the globally unique identifier of the authenticator model.
+  // Zeroed for U2F devices.
+  bytes aaguid = 4;
+  // Signature counter for login operations.
+  // Actual counter values received from the authenticator are expected to be
+  // higher than the previously-stored value.
+  uint32 signature_counter = 5;
+  // Raw attestation object, as returned by the authentication during
+  // registration.
+  // Absent for legacy entries (Teleport 8.x).
+  bytes attestation_object = 6;
+  // True if a resident key was requested during registration.
+  // Marks passwordless-capable devices.
+  // (Note that resident_key=true represents the server-side / Relying Party
+  // view of the registration process; the authenticator alone can determine
+  // if a key is truly resident.)
+  bool resident_key = 7;
+  // Relying Party ID used by the credential.
+  // Recorded on registration for new credentials, or on first successful
+  // authentication for "old" credentials (created before the field existed).
+  // Ideally, this is always the same as the configured RPID.
+  // If an RPID change does happen, this helps Teleport detect it and react
+  // accordingly.
+  string credential_rp_id = 8;
+  // Authenticator Backup Eligibility (BE) bit, recorded during registration or
+  // backfill (for older authenticators).
+  // https://w3c.github.io/webauthn/#authdata-flags-be
+  google.protobuf.BoolValue credential_backup_eligible = 9;
+  // Authenticator Backup State (BS) bit, recorded during registration or
+  // backfill (for older authenticators).
+  // https://w3c.github.io/webauthn/#authdata-flags-bs
+  google.protobuf.BoolValue credential_backed_up = 10;
+}
+
+// SSOMFADevice contains details of an SSO MFA method.
+message SSOMFADevice {
+  // connector_id is the ID of the SSO connector.
+  string connector_id = 1;
+  // connector_type is the type of the SSO connector.
+  string connector_type = 2;
+  // display_name is the display name of the SSO connector
+  string display_name = 3;
+}
+
 // WebauthnLocalAuth holds settings necessary for local webauthn use.
 message WebauthnLocalAuth {
   // UserID is the random user handle generated for the user.
@@ -5055,20 +5071,6 @@ message WebSessionSpecV2 {
   // TLSPriv is the TLS private key for the user, in PEM-encoded PKCS#1 or PKCS#8
   // format. If unset, then Priv is used as both the SSH and TLS private key.
   bytes TLSPriv = 15 [(gogoproto.jsontag) = "tls_priv,omitempty"];
-  // DBSCPublicKey is the device-bound public key (JWK format) for Device Bound
-  // Session Credentials. When set, session refresh requires proof of possession
-  // of the corresponding private key. See https://www.w3.org/TR/dbsc/
-  bytes DBSCPublicKey = 16 [(gogoproto.jsontag) = "dbsc_public_key,omitempty"];
-  // Usage identifies the intended usage of the session.
-  WebSessionUsage Usage = 17 [(gogoproto.jsontag) = "usage,omitempty"];
-}
-
-// WebSessionUsage identifies the intended usage of a web session.
-enum WebSessionUsage {
-  // Session usage is unspecified (default web session).
-  WEB_SESSION_USAGE_UNSPECIFIED = 0;
-  // Session is used exclusively for Access Graph API authentication.
-  WEB_SESSION_USAGE_ACCESS_GRAPH_API = 1;
 }
 
 // Web-focused view of teleport.devicetrust.v1.DeviceWebToken.
@@ -6517,9 +6519,6 @@ message LockTarget {
   // joined. This is only valid for bot identities, and cannot be used to target
   // `token`-joined bots.
   string JoinToken = 11 [(gogoproto.jsontag) = "join_token,omitempty"];
-
-  // LinuxDesktop specifies the name of a Linux desktop.
-  string LinuxDesktop = 12 [(gogoproto.jsontag) = "linux_desktop,omitempty"];
 }
 
 // LockFilter encodes optional filters to apply when listing Lock resources
@@ -7731,23 +7730,6 @@ message PluginEntraIDSyncSettings {
 
   // Source of the Access List owners.
   EntraIDAccessListOwnersSource access_list_owners_source = 7;
-
-  // Plugin service sync intervals.
-  PluginEntraIDSyncIntervals sync_intervals = 8;
-}
-
-// PluginEntraIDSyncIntervals defines sync intervals to be
-// used by the plugin.
-message PluginEntraIDSyncIntervals {
-  option (gogoproto.equal) = true;
-
-  // Delta sync interval.
-  // Must be a valid Go duration string (e.g. "2m").
-  string delta = 1;
-
-  // Full sync interval.
-  // Must be a valid Go duration string (e.g. "1h").
-  string full = 2;
 }
 
 // PluginSyncFilter can specify inclusion or exclusion of a resource.
@@ -9342,11 +9324,8 @@ message InstallerParams {
   // Valid values:
   // 0: uses eice for EC2 matchers which use an integration and script for all the other methods
   // 1: uses script mode
-  // 2: uses eice mode (deprecated)
-  InstallParamEnrollMode EnrollMode = 8 [
-    (gogoproto.jsontag) = "enroll_mode,omitempty",
-    deprecated = true
-  ];
+  // 2: uses eice mode
+  InstallParamEnrollMode EnrollMode = 8 [(gogoproto.jsontag) = "enroll_mode,omitempty"];
   // Suffix indicates the installation suffix for the teleport installation.
   // Set this value if you want multiple installations of Teleport.
   // See --install-suffix flag in teleport-update program.
@@ -9385,8 +9364,6 @@ enum InstallParamEnrollMode {
   INSTALL_PARAM_ENROLL_MODE_SCRIPT = 1;
   // INSTALL_PARAM_ENROLL_MODE_EICE uses EC2 Instance Connect Endpoint to access the node and DiscoveryService handles the heartbeat.
   // Only available for AWS EC2 instances.
-  //
-  // DEPRECATED: EICE mode is deprecated. Use script mode.
   INSTALL_PARAM_ENROLL_MODE_EICE = 2;
 }
 

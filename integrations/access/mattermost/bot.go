@@ -24,9 +24,9 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"text/template"
 	"time"
 
-	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/go-resty/resty/v2"
 	"github.com/gravitational/trace"
 	lru "github.com/hashicorp/golang-lru/v2"
@@ -61,7 +61,7 @@ var postTextTemplate = template.Must(template.New("description").Parse(
 ))
 
 var reviewCommentTemplate = template.Must(template.New("review comment").Parse(
-	`{{.Author}} reviewed the request at {{.CreatedTime}}.
+	`{{.Author}} reviewed the request at {{.Created.Format .TimeFormat}}.
 Resolution: {{.ProposedStateEmoji}} {{.ProposedState}}.
 {{if .Reason}}Reason: {{.Reason}}.{{end}}`,
 ))
@@ -98,7 +98,7 @@ type etagCacheCtxKey struct{}
 
 type etagCacheEntry struct {
 	etag  string
-	value any
+	value interface{}
 }
 
 func NewBot(conf Config, clusterName, webProxyAddr string) (Bot, error) {
@@ -223,7 +223,7 @@ func NewBot(conf Config, clusterName, webProxyAddr string) (Bot, error) {
 // SupportedApps are the apps supported by this bot.
 func (b Bot) SupportedApps() []common.App {
 	return []common.App{
-		accessrequest.NewApp(),
+		accessrequest.NewApp(b),
 	}
 }
 
@@ -297,12 +297,12 @@ func (b Bot) PostReviewReply(ctx context.Context, channelID, rootID string, revi
 		types.AccessReview
 		ProposedState      string
 		ProposedStateEmoji string
-		CreatedTime        string
+		TimeFormat         string
 	}{
 		review,
 		review.ProposedState.String(),
 		proposedStateEmoji,
-		review.Created.Format(time.RFC822),
+		time.RFC822,
 	})
 	if err != nil {
 		return trace.Wrap(err)

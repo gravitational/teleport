@@ -39,18 +39,17 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/bot/connection"
 	"github.com/gravitational/teleport/lib/tbot/config"
-	"github.com/gravitational/teleport/lib/tbot/config/joinuri"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/internal"
 	"github.com/gravitational/teleport/lib/tbot/internal/diagnostics"
 	"github.com/gravitational/teleport/lib/tbot/services/application"
 	"github.com/gravitational/teleport/lib/tbot/services/awsra"
-	"github.com/gravitational/teleport/lib/tbot/services/beams"
 	"github.com/gravitational/teleport/lib/tbot/services/clientcredentials"
 	"github.com/gravitational/teleport/lib/tbot/services/database"
 	"github.com/gravitational/teleport/lib/tbot/services/example"
 	identitysvc "github.com/gravitational/teleport/lib/tbot/services/identity"
 	"github.com/gravitational/teleport/lib/tbot/services/k8s"
+	"github.com/gravitational/teleport/lib/tbot/services/legacyspiffe"
 	"github.com/gravitational/teleport/lib/tbot/services/ssh"
 	workloadidentitysvc "github.com/gravitational/teleport/lib/tbot/services/workloadidentity"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
@@ -123,6 +122,7 @@ func (b *Bot) getClient() *apiclient.Client {
 func (b *Bot) Run(ctx context.Context) (err error) {
 	ctx, span := tracer.Start(ctx, "Bot/Run")
 	defer func() { apitracing.EndSpan(span, err) }()
+
 	b.log.InfoContext(
 		ctx, "Initializing tbot",
 		"version", versionLogValue(),
@@ -243,6 +243,12 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 	for _, svcCfg := range b.cfg.Services {
 		// Convert the service config into the actual service type.
 		switch svcCfg := svcCfg.(type) {
+		case *legacyspiffe.WorkloadAPIConfig:
+			b.log.WarnContext(
+				ctx,
+				"The 'spiffe-workload-api' service is deprecated and will be removed in Teleport V19.0.0. See https://goteleport.com/docs/reference/workload-identity/configuration-resource-migration/ for further information.",
+			)
+			services = append(services, legacyspiffe.WorkloadAPIServiceBuilder(svcCfg, setupTrustBundleCache(), b.cfg.CredentialLifetime))
 		case *database.TunnelConfig:
 			services = append(services, database.TunnelServiceBuilder(svcCfg, b.cfg.ConnectionConfig(), b.cfg.CredentialLifetime, b.cfg.Leeway))
 		case *example.Config:
@@ -260,6 +266,8 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 				k8s.WithInsecure(b.cfg.ConnectionConfig().Insecure),
 				k8s.WithALPNUpgradeCache(alpnUpgradeCache),
 			))
+		case *legacyspiffe.SVIDOutputConfig:
+			services = append(services, legacyspiffe.SVIDOutputServiceBuilder(svcCfg, setupTrustBundleCache(), b.cfg.CredentialLifetime))
 		case *ssh.HostOutputConfig:
 			services = append(services, ssh.HostOutputServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
 		case *application.OutputConfig:
@@ -268,8 +276,6 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			services = append(services, database.OutputServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
 		case *identitysvc.OutputConfig:
 			services = append(services, identitysvc.OutputServiceBuilder(svcCfg, alpnUpgradeCache, b.cfg.CredentialLifetime, b.cfg.Insecure, b.cfg.FIPS))
-		case *identitysvc.KeyAgentConfig:
-			services = append(services, identitysvc.KeyAgentServiceBuilder(svcCfg, identitysvc.WithDefaultCredentialLifetime(b.cfg.CredentialLifetime)))
 		case *clientcredentials.UnstableConfig:
 			services = append(services, clientcredentials.ServiceBuilder(svcCfg, b.cfg.CredentialLifetime))
 		case *application.TunnelConfig:
@@ -284,11 +290,6 @@ func (b *Bot) Run(ctx context.Context) (err error) {
 			services = append(services, workloadidentitysvc.WorkloadAPIServiceBuilder(svcCfg, setupTrustBundleCache(), setupCRLCache(), b.cfg.CredentialLifetime))
 		case *awsra.Config:
 			services = append(services, awsra.ServiceBuilder(svcCfg))
-		case *beams.VNetServiceConfig:
-			services = append(services, beams.VNetServiceBuilder(
-				svcCfg,
-				beams.WithDefaultCredentialLifetime(b.cfg.CredentialLifetime),
-			))
 		default:
 			return trace.BadParameter("unknown service type: %T", svcCfg)
 		}
@@ -327,12 +328,12 @@ func (b *Bot) preRunChecks(ctx context.Context) (_ func() error, err error) {
 	defer func() { apitracing.EndSpan(span, err) }()
 
 	if b.cfg.JoinURI != "" {
-		parsed, err := joinuri.Parse(b.cfg.JoinURI)
+		parsed, err := config.ParseJoinURI(b.cfg.JoinURI)
 		if err != nil {
 			return nil, trace.Wrap(err, "parsing joining URI")
 		}
 
-		if err := config.ApplyJoinURIToConfig(parsed, b.cfg); err != nil {
+		if err := parsed.ApplyToConfig(b.cfg); err != nil {
 			return nil, trace.Wrap(err, "applying joining URI to bot config")
 		}
 	}
@@ -351,9 +352,9 @@ func (b *Bot) preRunChecks(ctx context.Context) (_ func() error, err error) {
 	}
 
 	if b.cfg.FIPS {
-		if !b.modules.IsFIPSBuild() {
+		if !b.modules.IsBoringBinary() {
 			b.log.ErrorContext(ctx, "FIPS mode enabled but FIPS compatible binary not in use. Ensure you are using the Enterprise FIPS binary to use this flag.")
-			return nil, trace.BadParameter("fips mode enabled but binary was not compiled in FIPS140 mode")
+			return nil, trace.BadParameter("fips mode enabled but binary was not compiled with boringcrypto")
 		}
 		b.log.InfoContext(ctx, "Bot is running in FIPS compliant mode.")
 	}

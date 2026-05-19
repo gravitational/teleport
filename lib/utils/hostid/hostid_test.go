@@ -51,7 +51,7 @@ func TestReadOrCreate(t *testing.T) {
 	ids := make([]string, concurrency)
 	barrier := make(chan struct{})
 
-	for i := range concurrency {
+	for i := 0; i < concurrency; i++ {
 		wg.Go(func() error {
 			<-barrier
 			id, err := hostid.ReadOrCreateFile(

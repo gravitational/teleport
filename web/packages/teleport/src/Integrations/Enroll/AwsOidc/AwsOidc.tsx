@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Link as InternalRouteLink } from 'react-router';
+import { Link as InternalRouteLink } from 'react-router-dom';
 import styled from 'styled-components';
 
 import { Box, ButtonPrimary, ButtonSecondary, Flex, Link, Text } from 'design';
@@ -66,15 +66,19 @@ export function AwsOidc() {
         credentials when performing operations automatically such as when
         connecting{' '}
         <RouteLink
-          to={`${cfg.routes.root}/discover`}
-          state={{ searchKeywords: 'ec2' }}
+          to={{
+            pathname: `${cfg.routes.root}/discover`,
+            state: { searchKeywords: 'ec2' },
+          }}
         >
           AWS EC2
         </RouteLink>{' '}
         or{' '}
         <RouteLink
-          to={`${cfg.routes.root}/discover`}
-          state={{ searchKeywords: 'rds' }}
+          to={{
+            pathname: `${cfg.routes.root}/discover`,
+            state: { searchKeywords: 'rds' },
+          }}
         >
           AWS RDS
         </RouteLink>{' '}

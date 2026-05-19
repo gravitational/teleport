@@ -67,9 +67,9 @@ func newFakeService(t *testing.T, rotater *fakeKeyRotater) *recordingencryptionv
 		Logger:                    logtest.NewLogger(),
 		Uploader:                  fakeUploader{},
 		KeyRotater:                rotater,
+		OnUploadComplete:          func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error) { return nil, nil },
 		RecordingMetadataProvider: recordingmetadata.NewProvider(),
 		SessionSummarizerProvider: summarizer.NewSessionSummarizerProvider(),
-		OnUploadComplete:          func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error) { return nil, nil },
 	})
 	require.NoError(t, err)
 	return service
@@ -304,7 +304,7 @@ func TestSessionCompleter(t *testing.T) {
 
 	metadataProvider := recordingmetadata.NewProvider()
 	recorderMetadata := &fakeRecordingMetadata{}
-	recorderMetadata.On("ProcessSessionRecording", mock.Anything, sessionID, mock.Anything, mock.Anything, mock.Anything).
+	recorderMetadata.On("ProcessSessionRecording", mock.Anything, sessionID, mock.Anything).
 		Return(nil).Once()
 	metadataProvider.SetService(recorderMetadata)
 
@@ -352,8 +352,8 @@ type fakeRecordingMetadata struct {
 	mock.Mock
 }
 
-func (f *fakeRecordingMetadata) ProcessSessionRecording(ctx context.Context, sessionID session.ID, sessionType recordingmetadata.SessionType, startTime time.Time, duration time.Duration) error {
-	args := f.Called(ctx, sessionID, sessionType, startTime, duration)
+func (f *fakeRecordingMetadata) ProcessSessionRecording(ctx context.Context, sessionID session.ID, duration time.Duration) error {
+	args := f.Called(ctx, sessionID, duration)
 	return args.Error(0)
 }
 
@@ -580,7 +580,16 @@ func TestAuthorizeUpload(t *testing.T) {
 
 	newService := func(t *testing.T) *recordingencryptionv1.Service {
 		t.Helper()
-		svc := newFakeService(t, newFakeKeyRotater())
+		svc, err := recordingencryptionv1.NewService(recordingencryptionv1.ServiceConfig{
+			Authorizer:                &fakeAuthorizer{},
+			Logger:                    logtest.NewLogger(),
+			Uploader:                  fakeUploader{},
+			KeyRotater:                newFakeKeyRotater(),
+			RecordingMetadataProvider: recordingmetadata.NewProvider(),
+			SessionSummarizerProvider: summarizer.NewSessionSummarizerProvider(),
+			OnUploadComplete:          func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error) { return nil, nil },
+		})
+		require.NoError(t, err)
 		return svc
 	}
 

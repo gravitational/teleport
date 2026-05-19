@@ -18,13 +18,13 @@
 
 import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
 import { useCallback, useMemo, useRef } from 'react';
-import { useLocation, useNavigate } from 'react-router';
+import { useHistory, useLocation } from 'react-router';
 import styled, { css } from 'styled-components';
 
 import { Alert } from 'design/Alert/Alert';
 import { CardTile } from 'design/CardTile/CardTile';
 import Flex from 'design/Flex/Flex';
-import { SortOrder } from 'shared/components/Controls/SortMenu';
+import { SortOrder } from 'shared/components/Controls/SortMenuV2';
 import { SearchPanel } from 'shared/components/Search';
 import { InfoGuideButton } from 'shared/components/SlidingSidePanel/InfoGuide/InfoGuide';
 
@@ -47,8 +47,8 @@ import {
 } from './List/BotInstancesList';
 
 export function BotInstances() {
-  const navigate = useNavigate();
-  const location = useLocation();
+  const history = useHistory();
+  const location = useLocation<{ prevPageTokens?: readonly string[] }>();
   const queryParams = new URLSearchParams(location.search);
   const query = queryParams.get('query') ?? '';
   const isAdvancedQuery = queryParams.get('is_advanced') ?? '';
@@ -113,14 +113,14 @@ export function BotInstances() {
         search.delete('is_advanced');
       }
 
-      navigate({
+      history.push({
         pathname: `${location.pathname}`,
         search: search.toString(),
       });
 
       listRef.current?.scrollToTop();
     },
-    [navigate, location.pathname, location.search]
+    [history, location.pathname, location.search]
   );
 
   const handleSortChanged = useCallback(
@@ -129,17 +129,14 @@ export function BotInstances() {
       search.set('sort_field', sortField);
       search.set('sort_dir', sortDir);
 
-      navigate(
-        {
-          pathname: location.pathname,
-          search: search.toString(),
-        },
-        { replace: true }
-      );
+      history.replace({
+        pathname: location.pathname,
+        search: search.toString(),
+      });
 
       listRef.current?.scrollToTop();
     },
-    [navigate, location.pathname, location.search]
+    [history, location.pathname, location.search]
   );
 
   const handleItemSelected = useCallback(
@@ -152,12 +149,12 @@ export function BotInstances() {
         search.delete('tab');
       }
 
-      navigate({
+      history.push({
         pathname: location.pathname,
         search: search.toString(),
       });
     },
-    [navigate, location.pathname, location.search]
+    [history, location.pathname, location.search]
   );
 
   const handleDetailsTabSelected = useCallback(
@@ -166,12 +163,12 @@ export function BotInstances() {
 
       search.set('tab', tab);
 
-      navigate({
+      history.push({
         pathname: location.pathname,
         search: search.toString(),
       });
     },
-    [navigate, location.pathname, location.search]
+    [history, location.pathname, location.search]
   );
 
   const [selectedBotName, selectedInstanceId] =

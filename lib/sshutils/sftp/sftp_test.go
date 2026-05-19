@@ -367,7 +367,7 @@ func TestTransferFiles(t *testing.T) {
 				"tres",
 				"dst_file",
 			},
-			errCheck: func(t require.TestingT, err error, i ...any) {
+			errCheck: func(t require.TestingT, err error, i ...interface{}) {
 				require.EqualError(t, err, fmt.Sprintf(`local file "%s/dst_file" is not a directory, but multiple source files were specified`, i[0]))
 			},
 		},
@@ -387,7 +387,7 @@ func TestTransferFiles(t *testing.T) {
 				"glob3",
 				"dst_file",
 			},
-			errCheck: func(t require.TestingT, err error, i ...any) {
+			errCheck: func(t require.TestingT, err error, i ...interface{}) {
 				require.EqualError(t, err, fmt.Sprintf(`local file "%s/dst_file" is not a directory, but multiple source files were matched by a glob pattern`, i[0]))
 			},
 		},
@@ -404,7 +404,7 @@ func TestTransferFiles(t *testing.T) {
 			files: []string{
 				"src/",
 			},
-			errCheck: func(t require.TestingT, err error, i ...any) {
+			errCheck: func(t require.TestingT, err error, i ...interface{}) {
 				require.EqualError(t, err, fmt.Sprintf(`"%s/src" is a directory, but the recursive option was not passed`, i[0]))
 				require.ErrorAs(t, err, new(*sftputils.NonRecursiveDirectoryTransferError))
 			},
@@ -419,7 +419,7 @@ func TestTransferFiles(t *testing.T) {
 					Path: "whocares",
 				},
 			},
-			errCheck: func(t require.TestingT, err error, i ...any) {
+			errCheck: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, os.ErrNotExist)
 			},
 		},
@@ -554,7 +554,7 @@ func TestRecursiveSymlinks(t *testing.T) {
 			dstDir := filepath.Join(root, "dst")
 			t.Cleanup(func() { os.RemoveAll(dstDir) })
 
-			srcFS := &mockFS{}
+			srcFS := &mockFS{fileAccesses: make(map[string]int)}
 			req := &FileTransferRequest{
 				Sources: Sources{
 					Paths: []string{tc.srcDir},
@@ -698,6 +698,7 @@ func TestTransferUnexpectedLargerFile(t *testing.T) {
 		srcFS:          srcFS,
 	}
 	require.NoError(t, TransferFiles(t.Context(), req))
+
 	require.FileExists(t, dstFile)
 	dstFileData, err := os.ReadFile(dstFile)
 	require.NoError(t, err)

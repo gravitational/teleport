@@ -19,13 +19,13 @@
 import type { Desktop } from './types';
 
 export function makeDesktop(json): Desktop {
-  const { os, name, addr, host_id, requiresRequest, kind } = json;
+  const { os, name, addr, host_id, requiresRequest } = json;
 
   const labels = json.labels || [];
   const logins = json.logins || [];
 
   return {
-    kind,
+    kind: 'windows_desktop',
     os,
     name,
     addr,

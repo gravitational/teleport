@@ -32,13 +32,13 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
-	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/sshagent"
@@ -203,9 +203,9 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 		dialTimeout = netConfig.GetSSHDialTimeout()
 	}
 
-	sshConfig := apissh.ClientConfig{
+	sshConfig := &ssh.ClientConfig{
 		User:            tc.HostLogin,
-		PublicKeyAuth:   tc.PublicKeyAuthConfig,
+		Auth:            tc.AuthMethods,
 		HostKeyCallback: tc.HostKeyCallback,
 		Timeout:         dialTimeout,
 	}
@@ -217,7 +217,7 @@ func (h *Handler) transferFile(w http.ResponseWriter, r *http.Request, p httprou
 		req.serverID+":0",
 		req.serverID,
 		tc,
-		h.cfg.Modules.IsFIPSBuild(),
+		modules.GetModules().IsBoringBinary(),
 	)
 	if err != nil {
 		// The close error is ignored instead of using [trace.NewAggregate] because
@@ -346,16 +346,11 @@ func (f *fileTransfer) issueSingleUseCert(mfaResponse *proto.MFAAuthenticateResp
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	signer, err := sshutils.SSHSigner(sshCert, pk.Signer)
+	am, err := sshutils.AsAuthMethod(sshCert, pk.Signer)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	tc.PublicKeyAuthConfig = apissh.PublicKeyAuthConfig{
-		Signers: func() ([]ssh.Signer, error) {
-			return []ssh.Signer{signer}, nil
-		},
-	}
-
+	tc.AuthMethods = []ssh.AuthMethod{am}
 	return nil
 }

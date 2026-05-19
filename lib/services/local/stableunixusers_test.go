@@ -17,6 +17,7 @@
 package local
 
 import (
+	"context"
 	"fmt"
 	"math/rand/v2"
 	"slices"
@@ -33,7 +34,8 @@ import (
 func TestStableUNIXUsersBasic(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	bk, err := memory.New(memory.Config{
 		Component: "TestStableUNIXUsersBasic",

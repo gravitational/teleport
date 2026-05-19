@@ -258,10 +258,6 @@ export const storageService = {
     window.localStorage.removeItem(KeysEnum.ACCESS_GRAPH_ENABLED);
   },
 
-  getAccessGraphIacEnabled(): boolean {
-    return this.getParsedJSONValue(KeysEnum.ACCESS_GRAPH_IAC_ENABLED, false);
-  },
-
   getAccessGraphSQLEnabled(): boolean {
     return this.getParsedJSONValue(KeysEnum.ACCESS_GRAPH_SQL_ENABLED, false);
   },

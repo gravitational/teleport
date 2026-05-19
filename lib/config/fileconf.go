@@ -588,7 +588,7 @@ type LogFormat struct {
 	ExtraFields []string `yaml:"extra_fields,omitempty"`
 }
 
-func (l *Log) UnmarshalYAML(unmarshal func(any) error) error {
+func (l *Log) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	// the next two lines are needed because of an infinite loop issue
 	// https://github.com/go-yaml/yaml/issues/107
 	type logYAML Log
@@ -1079,7 +1079,10 @@ func (t StaticToken) Parse() ([]types.ProvisionTokenV1, error) {
 		return nil, trace.Wrap(err)
 	}
 	if roles.Include(types.RoleBot) {
-		return nil, trace.BadParameter("role %q is not allowed in static token configuration", types.RoleBot)
+		slog.WarnContext(
+			context.Background(),
+			"Role 'Bot' is not supported in static token configurations and will not function as expected. In Teleport V19.0.0, this will become an error.",
+		)
 	}
 
 	tokenPart, err := utils.TryReadValueAsFile(parts[1])
@@ -1721,7 +1724,11 @@ func (ssh *SSH) X11ServerConfig() (*x11.ServerConfig, error) {
 
 	cfg.DisplayOffset = x11.DefaultDisplayOffset
 	if ssh.X11.DisplayOffset != nil {
-		cfg.DisplayOffset = min(int(*ssh.X11.DisplayOffset), x11.MaxDisplayNumber)
+		cfg.DisplayOffset = int(*ssh.X11.DisplayOffset)
+
+		if cfg.DisplayOffset > x11.MaxDisplayNumber {
+			cfg.DisplayOffset = x11.MaxDisplayNumber
+		}
 	}
 
 	cfg.MaxDisplay = cfg.DisplayOffset + x11.DefaultMaxDisplays
@@ -1895,14 +1902,11 @@ type BPF struct {
 	// NetworkBufferSize is the size of the perf buffer for network events.
 	NetworkBufferSize *int `yaml:"network_buffer_size,omitempty"`
 
-	// Deprecated: CgroupPath is not consumed and only exists for
-	// backwards compatibility with existing config files that may
-	// have it specified.
+	// CgroupPath controls where cgroupv2 hierarchy is mounted.
 	CgroupPath string `yaml:"cgroup_path"`
 
-	// Deprecated: RootPath is not consumed and only exists for
-	// backwards compatibility with existing config files that may
-	// have it specified.
+	// RootPath root directory for the Teleport cgroups.
+	// Optional, defaults to /teleport
 	RootPath string `yaml:"root_path"`
 }
 
@@ -1914,6 +1918,8 @@ func (b *BPF) Parse() *servicecfg.BPFConfig {
 		CommandBufferSize: b.CommandBufferSize,
 		DiskBufferSize:    b.DiskBufferSize,
 		NetworkBufferSize: b.NetworkBufferSize,
+		CgroupPath:        b.CgroupPath,
+		RootPath:          b.RootPath,
 	}
 }
 
@@ -2465,12 +2471,6 @@ type App struct {
 
 	// MCP contains MCP server-related configurations.
 	MCP *MCP `yaml:"mcp,omitempty"`
-
-	// LLM contains LLM inference endpoint related configurations.
-	LLM *LLM `yaml:"inference,omitempty"`
-
-	// TLS contains the app TLS configuration.
-	TLS *AppTLS `yaml:"tls,omitempty"`
 }
 
 // CORS represents the configuration for Cross-Origin Resource Sharing (CORS)
@@ -2538,51 +2538,6 @@ type MCP struct {
 	// RunAsHostUser is the host user account under which the command will be
 	// executed. Required for stdio-based MCP servers.
 	RunAsHostUser string `yaml:"run_as_host_user,omitempty"`
-}
-
-// LLM contains LLM inference endpoint related configurations.
-type LLM struct {
-	// Format is the LLM inference API format.
-	Format string `yaml:"format"`
-	// Provider is the inference provider that will be used to serve the
-	// requests.
-	Provider string `yaml:"provider"`
-	// Models is the list of supported models, and optionally their name on the
-	// inference provider.
-	Models []LLMModel `yaml:"models,omitempty"`
-	// FallbackModel is a model that will be used if the model requested is not
-	// on the list.
-	FallbackModel string `yaml:"fallback_model,omitempty"`
-}
-
-// LLMModel is a provider model definition.
-type LLMModel struct {
-	// Name defines the model name.
-	Name string `yaml:"name"`
-	// ProviderName is the model name in the configured provider.
-	ProviderName string `yaml:"provider_name,omitempty"`
-}
-
-// AppTLS contains the app TLS configuration.
-type AppTLS struct {
-	// Mode defines the TLS verification.
-	Mode string `yaml:"mode,omitempty"`
-	// ServerName specifies a custom hostname used for TLS verification against
-	// the upstream certificate.
-	ServerName string `yaml:"server_name,omitempty"`
-	// ServerSpiffeId specifies a SPIFFE ID that must be present on the server
-	// certificate.
-	ServerSpiffeId string `yaml:"server_spiffe_id,omitempty"`
-	// AllowedCas is the list of user provided CAs used for verifying upstream
-	// certificates. Accepted values are PEM-encoded CA certificates and
-	// Teleport CA aliases.
-	AllowedCas []string `yaml:"allowed_cas,omitempty"`
-	// AllowedCasFiles list of CA certificates file paths that will be used for
-	// verifying upstream certificates.
-	AllowedCasFiles []string `yaml:"allowed_cas_files,omitempty"`
-	// ClientCertMode specifies which client certificate mode to use for the
-	// upstream connection.
-	ClientCertMode string `yaml:"client_cert_mode,omitempty"`
 }
 
 // Proxy is a `proxy_service` section of the config file:

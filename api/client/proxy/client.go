@@ -18,6 +18,7 @@ import (
 	"cmp"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/asn1"
 	"net"
 	"slices"
@@ -26,6 +27,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -37,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	"github.com/gravitational/teleport/api/metadata"
-	"github.com/gravitational/teleport/api/ssh"
 	grpcutils "github.com/gravitational/teleport/api/utils/grpc"
 	"github.com/gravitational/teleport/api/utils/grpc/interceptors"
 )
@@ -60,7 +61,7 @@ type ClientConfig struct {
 	// to the gRPC client.
 	StreamInterceptors []grpc.StreamClientInterceptor
 	// SSHConfig is the [ssh.ClientConfig] used to connect to the Proxy SSH server.
-	SSHConfig ssh.ClientConfig
+	SSHConfig *ssh.ClientConfig
 	// DialTimeout defines how long to attempt dialing before timing out.
 	DialTimeout time.Duration
 	// DialOpts define options for dialing the client connection.
@@ -95,6 +96,9 @@ type ClientConfig struct {
 func (c *ClientConfig) CheckAndSetDefaults(ctx context.Context) error {
 	if c.ProxyAddress == "" {
 		return trace.BadParameter("missing required parameter ProxyAddress")
+	}
+	if c.SSHConfig == nil {
+		return trace.BadParameter("missing required parameter SSHConfig")
 	}
 	if c.DialTimeout <= 0 {
 		c.DialTimeout = defaults.DefaultIOTimeout
@@ -182,8 +186,8 @@ func (mc insecureCredentials) TLSConfig() (*tls.Config, error) {
 	return nil, nil
 }
 
-func (mc insecureCredentials) SSHClientConfig() (ssh.ClientConfig, error) {
-	return ssh.ClientConfig{}, trace.NotImplemented("no ssh config")
+func (mc insecureCredentials) SSHClientConfig() (*ssh.ClientConfig, error) {
+	return nil, trace.NotImplemented("no ssh config")
 }
 
 // Expiry returns the credential expiry. insecureCredentials never expire.
@@ -435,13 +439,14 @@ func (c *Client) Close() error {
 // SSHConfig returns the [ssh.ClientConfig] for the provided user which
 // should be used when creating a [tracessh.Client] with the returned
 // [net.Conn] from [Client.DialHost].
-func (c *Client) SSHConfig(user string) ssh.ClientConfig {
-	return ssh.ClientConfig{
-		SSHConfig:         c.cfg.SSHConfig.SSHConfig,
+func (c *Client) SSHConfig(user string) *ssh.ClientConfig {
+	return &ssh.ClientConfig{
+		Config:            c.cfg.SSHConfig.Config,
 		User:              user,
-		PublicKeyAuth:     c.cfg.SSHConfig.PublicKeyAuth,
+		Auth:              c.cfg.SSHConfig.Auth,
 		HostKeyCallback:   c.cfg.SSHConfig.HostKeyCallback,
 		BannerCallback:    c.cfg.SSHConfig.BannerCallback,
+		ClientVersion:     c.cfg.SSHConfig.ClientVersion,
 		HostKeyAlgorithms: c.cfg.SSHConfig.HostKeyAlgorithms,
 		Timeout:           c.cfg.SSHConfig.Timeout,
 	}
@@ -519,8 +524,8 @@ func (c *Client) ClusterDetails(ctx context.Context) (ClusterDetails, error) {
 
 // ProxyWindowsDesktopSession establishes a connection to the target desktop over a bidirectional stream.
 // The caller is required to pass a valid desktop certificate.
-func (c *Client) ProxyWindowsDesktopSession(ctx context.Context, config transportv1.WindowsDesktopSessionConfig) (*tls.Conn, error) {
-	session, err := c.transport.ProxyWindowsDesktopSession(ctx, config)
+func (c *Client) ProxyWindowsDesktopSession(ctx context.Context, cluster string, desktopName string, windowsDesktopCert tls.Certificate, rootCAs *x509.CertPool) (*tls.Conn, error) {
+	session, err := c.transport.ProxyWindowsDesktopSession(ctx, cluster, desktopName, windowsDesktopCert, rootCAs)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

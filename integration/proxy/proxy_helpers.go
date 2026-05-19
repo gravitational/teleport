@@ -51,6 +51,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integration/helpers"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -205,7 +206,6 @@ func (p *Suite) addNodeToLeafCluster(t *testing.T, tunnelNodeHostname string) {
 		tconf.Auth.Enabled = false
 		tconf.Proxy.Enabled = false
 		tconf.SSH.Enabled = true
-		tconf.InsecureMode = true
 		tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 		return tconf
 	}
@@ -329,7 +329,6 @@ func rootClusterStandardConfig(t *testing.T) func(suite *Suite) *servicecfg.Conf
 	return func(suite *Suite) *servicecfg.Config {
 		rc := suite.root
 		config := servicecfg.MakeDefaultConfig()
-		config.InsecureMode = true
 		config.DataDir = t.TempDir()
 		config.Auth.Enabled = true
 		config.Auth.Preference.SetSecondFactor("off")
@@ -350,7 +349,6 @@ func leafClusterStandardConfig(t *testing.T) func(suite *Suite) *servicecfg.Conf
 	return func(suite *Suite) *servicecfg.Config {
 		lc := suite.leaf
 		config := servicecfg.MakeDefaultConfig()
-		config.InsecureMode = true
 		config.DataDir = t.TempDir()
 		config.Auth.Enabled = true
 		config.Auth.Preference.SetSecondFactor("off")
@@ -663,7 +661,7 @@ func mustRegisterUsingIAMMethod(t *testing.T, proxyAddr utils.NetAddr, token str
 		},
 		ProxyServer: proxyAddr,
 		JoinMethod:  types.JoinMethodIAM,
-		Insecure:    true,
+		Insecure:    lib.IsInsecureDevMode(),
 	})
 	require.NoError(t, err, trace.DebugReport(err))
 }

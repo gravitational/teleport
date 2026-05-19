@@ -46,6 +46,13 @@ If health checks are enabled, then the first health check result will determine 
 
 After the first health check for a database, its health status will only change once the number of consecutive passing or failing health checks reaches a configurable threshold.
 
+<Admonition type="warning">
+
+Database health checks using the MySQL protocol are available starting with
+Teleport 18.5.1.
+
+</Admonition>
+
 ## Configuration
 
 Teleport's `health_check_config` resource determines which databases will have health checks enabled and what settings will be used for those checks:

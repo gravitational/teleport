@@ -66,84 +66,56 @@ Create two groups: "devs" and "admins".
 1. In Okta Console go to the go to **Directory** -> **Groups**, then click **Add group**.
 2. Add groups "devs" and "admins" with optional description.
 
-
 ### Create and configure an Okta app
 
 Okta Integration Network support is still in beta. If unsure please proceed with the Custom SAML 2.0 app.
 
-<Tabs groupId="saml-app" defaultValue="legacy">
-<TabItem label="Okta Integration Network" value="oin">
+1. In Okta Console, go to **Applications**.
 
-  Add Teleport app to Okta:
+2. Click **Create App Integration**.
 
-  1. In Okta Console, go to **Applications**.
-  2. Click **Browse App Catalog**.
-  3. Search for and select **Teleport**, and then click **Add Integration**.
-  4. Complete the fields on the settings page and click **Done**.
-  5. Go to the **General** tab and click **Edit** on the top-right corner of the tab.
-  6. Scroll down to the `groups` attribute, then select `Match regex` and type in `.*` in the input field.
+3. Select "SAML 2.0" and click **Next**.
 
-    {/* NOTE: This image is shared in multiple guides. */}
-    ![Set groups attribute](../../../../img/sso/okta/group-regex.png)
+4. Give your app a name, e.g. "Teleport" and optionally upload a logo and click **Next**.
 
-  7. Scroll down and click **Save**.
+5. That will bring you to the "Configure SAML" step where you'll have to provide a several values:
 
-</TabItem>
-<TabItem label="Custom SAML 2.0 app (legacy)" value="legacy">
+   - Single sign on URL:
 
-  <Admonition type="note">
-  Please note this is a legacy way of setting up the Teleport SSO app. The preferred way is to use Okta Integration Network app.
-  </Admonition>
+     ```
+     https://<Var name="example.teleport.sh" />/v1/webapi/saml/acs/okta
+     ```
 
-  1. In Okta Console, go to **Applications**.
+   - Audience URI (SP Entity ID):
 
-  2. Click **Create App Integration**.
+     ```
+     https://<Var name="example.teleport.sh" />/v1/webapi/saml/acs/okta
+     ```
 
-  3. Select "SAML 2.0" and click **Next**.
+   - Name ID format `EmailAddress`
 
-  4. Give your app a name, e.g. "Teleport" and optionally upload a logo and click **Next**.
+   - Application username `Okta username`
 
-  5. That will bring you to the "Configure SAML" step where you'll have to provide a several values:
+   {/* NOTE: This image is shared in multiple guides. */}
+   ![SAML general settings](../../../../img/sso/okta/legacy-general-settings.png)
 
-     - Single sign on URL:
+6. Click **Next**. That will bring you to the "Feedback" step where you can just click **Finish**.
 
-       ```
-       https://<Var name="example.teleport.sh" />/v1/webapi/saml/acs/okta
-       ```
+7. Now you should be in your newly created SAML app configuration screen in the **Sign On** tab. Scroll down to the **Attribute statements** and click **Add expression**. Provide values like below and click **Save**.
 
-     - Audience URI (SP Entity ID):
+   - Name: `groups`
+   - Expression: `user.getGroups({'group.type': {'OKTA_GROUP', 'APP_GROUP', 'BUILT_IN'}}).![profile.name]`
+   - Name: `username`
+   - Expression: `user.profile.login`
 
-       ```
-       https://<Var name="example.teleport.sh" />/v1/webapi/saml/acs/okta
-       ```
+   {/* NOTE: This image is shared in multiple guides. */}
+   ![Set groups attribute](../../../../img/sso/okta/legacy-group-expression.png)
 
-     - Name ID format `EmailAddress`
-
-     - Application username `Okta username`
-
-     {/* NOTE: This image is shared in multiple guides. */}
-     ![SAML general settings](../../../../img/sso/okta/legacy-general-settings.png)
-
-  6. Click **Next**. That will bring you to the "Feedback" step where you can just click **Finish**.
-
-  7. Now you should be in your newly created SAML app configuration screen in the **Sign On** tab. Scroll down to the **Attribute statements** and click **Add expression**. Provide values like below and click **Save**.
-
-     - Name: `groups`
-     - Expression: `user.getGroups({'group.type': {'OKTA_GROUP', 'APP_GROUP', 'BUILT_IN'}}).![profile.name]`
-     - Name: `username`
-     - Expression: `user.profile.login`
-
-     {/* NOTE: This image is shared in multiple guides. */}
-     ![Set groups attribute](../../../../img/sso/okta/legacy-group-expression.png)
-
-  Notice that we have set "NameID" to the email format and mapped the groups with
-  an expression returning all groups. We have also set the "Audience"
-  and SSO URLs to the same value. This is so Teleport can read and use Okta users'
-  email addresses to create their usernames in Teleport, instead of relying on additional
-  name fields.
-
-</TabItem>
-</Tabs>
+Notice that we have set "NameID" to the email format and mapped the groups with
+an expression returning all groups. We have also set the "Audience"
+and SSO URLs to the same value. This is so Teleport can read and use Okta users'
+email addresses to create their usernames in Teleport, instead of relying on additional
+name fields.
 
 ### Assign user groups
 
@@ -209,7 +181,7 @@ spec:
   - name: groups
     roles:
     - access
-    value: dev
+    value: devs
   audience: https://teleport.example.com:443/v1/webapi/saml/acs/okta
   cert: ""
   display: "Okta"
@@ -256,7 +228,7 @@ Authentication details:
   value: admins
 - name: groups
   roles:
-  - dev
+  - access
   value: devs
 
 --------------------------------------------------------------------------------

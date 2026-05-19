@@ -135,9 +135,6 @@ const (
 	// (Remote Desktop Protocol) certificates.
 	WindowsCARDP
 
-	// AppClientCATLS represents the TLS key used for the app_client CA.
-	AppClientCATLS
-
 	// keyPurposeMax is 1 greater than the last valid key purpose, used to test that all values less than this
 	// are valid for each suite.
 	keyPurposeMax
@@ -225,7 +222,6 @@ var (
 		BoundKeypairCAJWT:    ECDSAP256,
 		RecordingKeyWrapping: RSA4096,
 		WindowsCARDP:         RSA2048, // same as UserCATLS
-		AppClientCATLS:       ECDSAP256,
 	}
 
 	// balancedV1 strikes a balance between security, compatibility, and
@@ -262,7 +258,6 @@ var (
 		BoundKeypairCAJWT:       Ed25519,
 		RecordingKeyWrapping:    RSA4096,
 		WindowsCARDP:            ECDSAP256, // same as UserCATLS
-		AppClientCATLS:          ECDSAP256,
 	}
 
 	// fipsv1 is an algorithm suite tailored for FIPS compliance. It is based on
@@ -300,7 +295,6 @@ var (
 		BoundKeypairCAJWT:       ECDSAP256,
 		RecordingKeyWrapping:    RSA4096,
 		WindowsCARDP:            ECDSAP256, // same as UserCATLS
-		AppClientCATLS:          ECDSAP256,
 	}
 
 	// hsmv1 in an algorithm suite tailored for clusters using an HSM or KMS
@@ -340,7 +334,6 @@ var (
 		BoundKeypairCAJWT:       ECDSAP256,
 		RecordingKeyWrapping:    RSA4096,
 		WindowsCARDP:            ECDSAP256, // same as UserCATLS
-		AppClientCATLS:          ECDSAP256,
 	}
 
 	allSuites = map[types.SignatureAlgorithmSuite]suite{

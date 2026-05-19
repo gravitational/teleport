@@ -22,8 +22,10 @@ import (
 	"crypto"
 	"crypto/tls"
 	"crypto/x509"
-	"slices"
 
+	"github.com/gogo/protobuf/proto"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
@@ -35,6 +37,23 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+// CertAuthoritiesEquivalent checks if a pair of certificate authority resources are equivalent.
+// This differs from normal equality only in that resource IDs are ignored.
+func CertAuthoritiesEquivalent(lhs, rhs types.CertAuthority) bool {
+	return cmp.Equal(lhs, rhs,
+		ignoreProtoXXXFields(),
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		// Optimize types.CAKeySet comparison.
+		cmp.Comparer(func(a, b types.CAKeySet) bool {
+			// Note that Clone drops XXX_ fields. And it's benchmarked that cloning
+			// plus using proto.Equal is more efficient than cmp.Equal.
+			aClone := a.Clone()
+			bClone := b.Clone()
+			return proto.Equal(&aClone, &bClone)
+		}),
+	)
+}
 
 // ValidateCertAuthority validates the CertAuthority
 func ValidateCertAuthority(ca types.CertAuthority) (err error) {
@@ -59,8 +78,6 @@ func ValidateCertAuthority(ca types.CertAuthority) (err error) {
 		err = checkAWSRACA(ca)
 	case types.WindowsCA:
 		err = checkWindowsCA(ca)
-	case types.AppClientCA:
-		err = checkAppClientCA(ca)
 	default:
 		return trace.BadParameter("invalid CA type %q", ca.GetType())
 	}
@@ -210,15 +227,6 @@ func checkWindowsCA(cai types.CertAuthority) error {
 	return trace.Wrap(checkTLSKeys(ca))
 }
 
-func checkAppClientCA(cai types.CertAuthority) error {
-	ca, ok := cai.(*types.CertAuthorityV2)
-	if !ok {
-		return trace.BadParameter("unknown CA type %T", cai)
-	}
-
-	return trace.Wrap(checkTLSKeys(ca))
-}
-
 func checkTLSKeys(ca *types.CertAuthorityV2) error {
 	if len(ca.Spec.ActiveKeys.TLS) == 0 {
 		return trace.BadParameter("%s certificate authority missing TLS key pairs", ca.GetType())
@@ -257,7 +265,7 @@ func GetTLSCerts(ca types.CertAuthority) [][]byte {
 	pairs := ca.GetTrustedTLSKeyPairs()
 	out := make([][]byte, len(pairs))
 	for i, pair := range pairs {
-		out[i] = slices.Clone(pair.Cert)
+		out[i] = append([]byte{}, pair.Cert...)
 	}
 	return out
 }
@@ -267,7 +275,7 @@ func GetSSHCheckingKeys(ca types.CertAuthority) [][]byte {
 	pairs := ca.GetTrustedSSHKeyPairs()
 	out := make([][]byte, 0, len(pairs))
 	for _, pair := range pairs {
-		out = append(out, slices.Clone(pair.PublicKey))
+		out = append(out, append([]byte{}, pair.PublicKey...))
 	}
 	return out
 }

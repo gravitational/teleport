@@ -41,10 +41,9 @@ import (
 )
 
 func TestProfileSyncerTestAndSetDefaults(t *testing.T) {
-	cache := &mockCache{}
 	keyStoreManager, err := keystore.NewManager(t.Context(), &servicecfg.KeystoreConfig{}, &keystore.Options{
 		ClusterName:          &types.ClusterNameV2{Metadata: types.Metadata{Name: "cluster-name"}},
-		AuthPreferenceGetter: cache,
+		AuthPreferenceGetter: &mockCache{},
 	})
 	require.NoError(t, err)
 
@@ -198,10 +197,9 @@ func TestRunAWSRolesAnywherProfileSyncer(t *testing.T) {
 		}
 	}
 
-	cache := &mockCache{}
 	keyStoreManager, err := keystore.NewManager(t.Context(), &servicecfg.KeystoreConfig{}, &keystore.Options{
 		ClusterName:          &types.ClusterNameV2{Metadata: types.Metadata{Name: "cluster-name"}},
-		AuthPreferenceGetter: cache,
+		AuthPreferenceGetter: &mockCache{},
 	})
 	require.NoError(t, err)
 

@@ -23,7 +23,6 @@ import (
 	"context"
 	"io"
 	"iter"
-	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -234,7 +233,9 @@ func (m *MemoryUploader) GetParts(uploadID string) ([][]byte, error) {
 	for partNumber := range up.parts {
 		partNumbers = append(partNumbers, partNumber)
 	}
-	slices.Sort(partNumbers)
+	sort.Slice(partNumbers, func(i, j int) bool {
+		return partNumbers[i] < partNumbers[j]
+	})
 	for _, partNumber := range partNumbers {
 		sortedParts = append(sortedParts, up.parts[partNumber].data)
 	}
@@ -264,7 +265,9 @@ func (m *MemoryUploader) ListParts(ctx context.Context, upload events.StreamUplo
 	for partNumber := range up.parts {
 		partNumbers = append(partNumbers, partNumber)
 	}
-	slices.Sort(partNumbers)
+	sort.Slice(partNumbers, func(i, j int) bool {
+		return partNumbers[i] < partNumbers[j]
+	})
 	for _, partNumber := range partNumbers {
 		sortedParts = append(sortedParts, events.StreamPart{Number: partNumber})
 	}
@@ -355,20 +358,23 @@ func (m *MemoryUploader) UploadThumbnail(ctx context.Context, sessionID session.
 	return string(sessionID), nil
 }
 
-// StreamSessionRecording streams a session tarball and returns a ReadCloser for the content.
-func (m *MemoryUploader) StreamSessionRecording(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+// Download downloads session tarball and writes it to writer
+func (m *MemoryUploader) Download(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
 	data, ok := m.sessions[sessionID]
 	if !ok {
-		return nil, trace.NotFound("session %q is not found", sessionID)
+		return trace.NotFound("session %q is not found", sessionID)
 	}
-	return io.NopCloser(bytes.NewReader(data)), nil
+	_, err := io.Copy(writer, bytes.NewReader(data))
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	return nil
 }
 
-// StreamSessionSummary streams a session summary and returns a ReadCloser for the content.
-func (m *MemoryUploader) StreamSessionSummary(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+func (m *MemoryUploader) DownloadSummary(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
@@ -377,33 +383,45 @@ func (m *MemoryUploader) StreamSessionSummary(ctx context.Context, sessionID ses
 		data, ok = m.pendingSummaries[sessionID]
 	}
 	if !ok {
-		return nil, trace.NotFound("summary %q is not found", sessionID)
+		return trace.NotFound("summary %q is not found", sessionID)
 	}
-	return io.NopCloser(bytes.NewReader(data)), nil
+	_, err := io.Copy(writer, bytes.NewReader(data))
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	return nil
 }
 
-// StreamSessionMetadata streams session metadata and returns a ReadCloser for the content.
-func (m *MemoryUploader) StreamSessionMetadata(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+// DownloadMetadata downloads session metadata and writes it to writer
+func (m *MemoryUploader) DownloadMetadata(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
 	data, ok := m.metadata[sessionID]
 	if !ok {
-		return nil, trace.NotFound("metadata %q is not found", sessionID)
+		return trace.NotFound("metadata %q is not found", sessionID)
 	}
-	return io.NopCloser(bytes.NewReader(data)), nil
+	_, err := io.Copy(writer, bytes.NewReader(data))
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	return nil
 }
 
-// StreamSessionThumbnail streams session thumbnail and returns a ReadCloser for the content.
-func (m *MemoryUploader) StreamSessionThumbnail(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
+// DownloadThumbnail downloads session thumbnail and writes it to writer
+func (m *MemoryUploader) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer io.Writer) error {
 	m.mtx.RLock()
 	defer m.mtx.RUnlock()
 
 	data, ok := m.thumbnails[sessionID]
 	if !ok {
-		return nil, trace.NotFound("thumbnail %q is not found", sessionID)
+		return trace.NotFound("thumbnail %q is not found", sessionID)
 	}
-	return io.NopCloser(bytes.NewReader(data)), nil
+	_, err := io.Copy(writer, bytes.NewReader(data))
+	if err != nil {
+		return trace.ConvertSystemError(err)
+	}
+	return nil
 }
 
 // GetUploadMetadata gets the session upload metadata
@@ -475,25 +493,6 @@ func (m *MemoryUploader) UploadEncryptedRecording(ctx context.Context, sessionID
 	}
 
 	return trace.Wrap(m.CompleteUpload(ctx, *upload, streamParts), "completing upload")
-}
-
-// TODO(tigrato): remove once e is updated.
-func (m *MemoryUploader) DownloadSummary(ctx context.Context, sessionID session.ID, writer io.Writer) error {
-	m.mtx.RLock()
-	defer m.mtx.RUnlock()
-
-	data, ok := m.summaries[sessionID]
-	if !ok {
-		data, ok = m.pendingSummaries[sessionID]
-	}
-	if !ok {
-		return trace.NotFound("summary %q is not found", sessionID)
-	}
-	_, err := io.Copy(writer, bytes.NewReader(data))
-	if err != nil {
-		return trace.ConvertSystemError(err)
-	}
-	return nil
 }
 
 // MockUploader is a limited implementation of [events.MultipartUploader] that

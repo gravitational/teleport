@@ -249,7 +249,8 @@ func TestWrappedSSHConn(t *testing.T) {
 
 // TestGlobalAndSessionRequests tests that the tracing client correctly handles global and session requests.
 func TestGlobalAndSessionRequests(t *testing.T) {
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	// pingRequest is an example request type. Whether sent by the server or client in
 	// a global or session context, the receiver should give an ok as the reply.

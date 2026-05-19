@@ -31,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/jwt"
-	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -226,7 +225,6 @@ func TestRBAC(t *testing.T) {
 		ProxyPublicAddrGetter: func(context.Context) string { return "128.0.0.1" },
 		Cache:                 backend,
 		TokenCreator:          backend,
-		Modules:               modulestest.OSSModules(),
 	})
 	require.NoError(t, err)
 

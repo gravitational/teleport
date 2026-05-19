@@ -72,19 +72,9 @@ const (
 	DesktopSNISuffix = ".desktop." + constants.APIDomain
 )
 
-// WindowsDesktopSessionConfig defines configuration parameters
-// required to proxy a Windows desktop connection.
-type WindowsDesktopSessionConfig struct {
-	Cluster     string
-	DesktopName string
-	DesktopCert tls.Certificate
-	RootCAs     *x509.CertPool
-	Protocol    string
-}
-
 // ProxyWindowsDesktopSession establishes a connection to the target desktop over a bidirectional stream.
 // The caller is required to pass a valid desktop certificate.
-func (c *Client) ProxyWindowsDesktopSession(ctx context.Context, config WindowsDesktopSessionConfig) (*tls.Conn, error) {
+func (c *Client) ProxyWindowsDesktopSession(ctx context.Context, cluster string, desktopName string, desktopCert tls.Certificate, rootCAs *x509.CertPool) (*tls.Conn, error) {
 	connCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	stop := context.AfterFunc(ctx, cancel)
 	defer stop()
@@ -95,7 +85,7 @@ func (c *Client) ProxyWindowsDesktopSession(ctx context.Context, config WindowsD
 		return nil, trace.Wrap(err, "unable to establish desktop session")
 	}
 
-	nc, err := c.dialProxyWindowsDesktopSession(ctx, cancel, stream, config)
+	nc, err := c.dialProxyWindowsDesktopSession(ctx, cancel, stream, cluster, desktopName, desktopCert, rootCAs)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -109,11 +99,11 @@ func (c *Client) ProxyWindowsDesktopSession(ctx context.Context, config WindowsD
 	return nc, nil
 }
 
-func (c *Client) dialProxyWindowsDesktopSession(ctx context.Context, cancel context.CancelFunc, stream grpc.BidiStreamingClient[transportv1pb.ProxyWindowsDesktopSessionRequest, transportv1pb.ProxyWindowsDesktopSessionResponse], config WindowsDesktopSessionConfig) (*tls.Conn, error) {
+func (c *Client) dialProxyWindowsDesktopSession(ctx context.Context, cancel context.CancelFunc, stream grpc.BidiStreamingClient[transportv1pb.ProxyWindowsDesktopSessionRequest, transportv1pb.ProxyWindowsDesktopSessionResponse], cluster string, desktopName string, desktopCert tls.Certificate, rootCAs *x509.CertPool) (*tls.Conn, error) {
 	err := stream.Send(&transportv1pb.ProxyWindowsDesktopSessionRequest{
 		DialTarget: &transportv1pb.TargetWindowsDesktop{
-			DesktopName: config.DesktopName,
-			Cluster:     config.Cluster,
+			DesktopName: desktopName,
+			Cluster:     cluster,
 		},
 	})
 	if err != nil {
@@ -127,10 +117,9 @@ func (c *Client) dialProxyWindowsDesktopSession(ctx context.Context, cancel cont
 
 	conn := streamutils.NewConn(desktopReadWriter, &net.TCPAddr{}, &net.TCPAddr{})
 	tlsConfig := &tls.Config{
-		ServerName:   config.DesktopName + DesktopSNISuffix,
-		NextProtos:   []string{config.Protocol},
-		Certificates: []tls.Certificate{config.DesktopCert},
-		RootCAs:      config.RootCAs,
+		ServerName:   desktopName + DesktopSNISuffix,
+		Certificates: []tls.Certificate{desktopCert},
+		RootCAs:      rootCAs,
 	}
 	tlsConn := tls.Client(conn, tlsConfig)
 	if err = tlsConn.HandshakeContext(ctx); err != nil {

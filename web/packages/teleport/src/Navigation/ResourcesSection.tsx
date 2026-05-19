@@ -177,11 +177,10 @@ function getResourcesSubsections({
       category: NavigationCategory.Resources,
       exact: false,
       customRouteMatchFn: currentViewRoute =>
-        !!currentViewRoute &&
-        !!matchPath(
-          { path: cfg.routes.unifiedResources, end: false },
-          currentViewRoute
-        ) &&
+        !!matchPath(currentViewRoute, {
+          path: cfg.routes.unifiedResources,
+          exact: false,
+        }) &&
         !isPinnedOnly &&
         currentKinds.length !== 1,
       onClick: () => setPinnedUserPreference(false),
@@ -194,11 +193,10 @@ function getResourcesSubsections({
       category: NavigationCategory.Resources,
       exact: false,
       customRouteMatchFn: currentViewRoute =>
-        !!currentViewRoute &&
-        !!matchPath(
-          { path: cfg.routes.unifiedResources, end: false },
-          currentViewRoute
-        ) &&
+        !!matchPath(currentViewRoute, {
+          path: cfg.routes.unifiedResources,
+          exact: false,
+        }) &&
         isPinnedOnly &&
         currentKinds.length !== 1,
       onClick: () => setPinnedUserPreference(true),
@@ -232,8 +230,7 @@ function getResourcesSubsections({
       searchableTags: ['resources', 'desktops', 'rdp', 'windows'],
       category: NavigationCategory.Resources,
       exact: false,
-      customRouteMatchFn: () =>
-        isKindActive('windows_desktop') || isKindActive('linux_desktop'),
+      customRouteMatchFn: () => isKindActive('windows_desktop'),
       onClick: () => setPinnedUserPreference(false),
       subCategory: CustomNavigationSubcategory.FilteredViews,
     },

@@ -27,8 +27,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"text/template"
 
-	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/google/safetext/shsprintf"
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
@@ -158,7 +158,7 @@ func GetNodeInstallScript(ctx context.Context, opts InstallNodeScriptOptions) (s
 
 	// This section relies on Go's default zero values to make sure that the settings
 	// are correct when not installing an app.
-	err = installNodeBashScript.Execute(&buf, map[string]any{
+	err = installNodeBashScript.Execute(&buf, map[string]interface{}{
 		"token":    shsprintf.EscapeDefaultContext(opts.Token),
 		"hostname": hostname,
 		"port":     portStr,

@@ -135,15 +135,15 @@ func TestCertAuthorityEquivalence(t *testing.T) {
 	require.NoError(t, err)
 
 	// different CAs are different
-	require.False(t, ca1.IsEqual(ca2))
+	require.False(t, CertAuthoritiesEquivalent(ca1, ca2))
 
 	// two copies of same CA are equivalent
-	require.True(t, ca1.IsEqual(ca1.Clone()))
+	require.True(t, CertAuthoritiesEquivalent(ca1, ca1.Clone()))
 
 	// CAs with same name but different details are different
 	ca1mod := ca1.Clone()
 	ca1mod.AddRole("some-new-role")
-	require.False(t, ca1.IsEqual(ca1mod))
+	require.False(t, CertAuthoritiesEquivalent(ca1, ca1mod))
 }
 
 func TestCertAuthorityUTCUnmarshal(t *testing.T) {
@@ -182,7 +182,7 @@ func TestCertAuthorityUTCUnmarshal(t *testing.T) {
 	// see https://github.com/gogo/protobuf/issues/519
 	require.NotPanics(t, func() { caUTC.Clone() })
 
-	require.True(t, caLocal.IsEqual(caUTC))
+	require.True(t, CertAuthoritiesEquivalent(caLocal, caUTC))
 }
 
 func TestValidateCertAuthority(t *testing.T) {
@@ -205,20 +205,6 @@ func TestValidateCertAuthority(t *testing.T) {
 
 	winCA := &types.CertAuthoritySpecV2{
 		Type:        types.WindowsCA,
-		ClusterName: clusterName,
-		ActiveKeys: types.CAKeySet{
-			TLS: []*types.TLSKeyPair{
-				{
-					Cert:    certPEM,
-					Key:     keyPEM,
-					KeyType: types.PrivateKeyType_RAW,
-				},
-			},
-		},
-	}
-
-	appClientCA := &types.CertAuthoritySpecV2{
-		Type:        types.AppClientCA,
 		ClusterName: clusterName,
 		ActiveKeys: types.CAKeySet{
 			TLS: []*types.TLSKeyPair{
@@ -450,22 +436,6 @@ func TestValidateCertAuthority(t *testing.T) {
 			}(),
 			wantErr: "public key",
 		},
-
-		// AppClientCA.
-		{
-			name: "valid AppClientCA",
-			spec: appClientCA,
-		},
-		{
-			// WindowsCA already covers all corner-cases of checkTLSKeys.
-			name: "AppClientCA invalid ActiveKeys",
-			spec: func() *types.CertAuthoritySpecV2 {
-				spec := clone(appClientCA)
-				spec.ActiveKeys = types.CAKeySet{}
-				return spec
-			}(),
-			wantErr: "missing TLS",
-		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -515,13 +485,13 @@ func BenchmarkCertAuthoritiesEquivalent(b *testing.B) {
 
 	b.Run("true", func(b *testing.B) {
 		for b.Loop() {
-			require.True(b, ca1.IsEqual(ca2))
+			require.True(b, CertAuthoritiesEquivalent(ca1, ca2))
 		}
 	})
 
 	b.Run("false", func(b *testing.B) {
 		for b.Loop() {
-			require.False(b, ca1.IsEqual(ca3))
+			require.False(b, CertAuthoritiesEquivalent(ca1, ca3))
 		}
 	})
 }

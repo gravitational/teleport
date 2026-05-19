@@ -97,7 +97,7 @@ func TestSearchEvents(t *testing.T) {
 
 	sliceOfDummyEvents := func(noOfEvents int) []apievents.AuditEvent {
 		out := make([]apievents.AuditEvent, 0, noOfEvents)
-		for range noOfEvents {
+		for i := 0; i < noOfEvents; i++ {
 			out = append(out, &apievents.AppCreate{
 				Metadata: apievents.Metadata{
 					ID:   uuid.NewString(),
@@ -185,57 +185,6 @@ func TestSearchEvents(t *testing.T) {
 				wantQuery(t, mock, selectFromPrefix+whereTimeRange+
 					` AND event_type IN (?,?) ORDER BY event_time ASC, uid ASC LIMIT 100;`)
 				wantQueryParams(t, mock, append(timeRangeParams, "'app.create'", "'app.delete'")...)
-			},
-		},
-		{
-			name: "query with search terms",
-			searchParams: &events.SearchEventsRequest{
-				From:   fromUTC,
-				To:     toUTC,
-				Limit:  100,
-				Search: "Root ALICE",
-			},
-			queryResultsResps: singleCallResults(100),
-			check: func(t *testing.T, mock *mockAthenaExecutor, paginationKey string) {
-				t.Helper()
-				wantSingleCallToAthena(t, mock)
-				wantQuery(t, mock, selectFromPrefix+whereTimeRange+
-					` AND strpos(lower(event_data), ?) > 0 AND strpos(lower(event_data), ?) > 0 ORDER BY event_time ASC, uid ASC LIMIT 100;`)
-				wantQueryParams(t, mock, append(timeRangeParams, "'root'", "'alice'")...)
-			},
-		},
-		{
-			name: "query with apostrophe in search term",
-			searchParams: &events.SearchEventsRequest{
-				From:   fromUTC,
-				To:     toUTC,
-				Limit:  100,
-				Search: "O'Connor",
-			},
-			queryResultsResps: singleCallResults(100),
-			check: func(t *testing.T, mock *mockAthenaExecutor, paginationKey string) {
-				t.Helper()
-				wantSingleCallToAthena(t, mock)
-				wantQuery(t, mock, selectFromPrefix+whereTimeRange+
-					` AND strpos(lower(event_data), ?) > 0 ORDER BY event_time ASC, uid ASC LIMIT 100;`)
-				wantQueryParams(t, mock, append(timeRangeParams, "'o''connor'")...)
-			},
-		},
-		{
-			name: "query with wildcard characters in search term",
-			searchParams: &events.SearchEventsRequest{
-				From:   fromUTC,
-				To:     toUTC,
-				Limit:  100,
-				Search: "alice_admin svc%prod",
-			},
-			queryResultsResps: singleCallResults(100),
-			check: func(t *testing.T, mock *mockAthenaExecutor, paginationKey string) {
-				t.Helper()
-				wantSingleCallToAthena(t, mock)
-				wantQuery(t, mock, selectFromPrefix+whereTimeRange+
-					` AND strpos(lower(event_data), ?) > 0 AND strpos(lower(event_data), ?) > 0 ORDER BY event_time ASC, uid ASC LIMIT 100;`)
-				wantQueryParams(t, mock, append(timeRangeParams, "'alice_admin'", "'svc%prod'")...)
 			},
 		},
 		{
@@ -911,15 +860,7 @@ func Test_querier_fetchResults(t *testing.T) {
 			}
 			gotEvents, gotKeyset, err := q.fetchResults(context.Background(), "queryid", tt.limit, tt.condition)
 			require.NoError(t, err)
-
-			want := make([]events.EventFields, 0, len(tt.wantEvents))
-			for _, event := range tt.wantEvents {
-				fields, err := events.ToEventFields(event)
-				require.NoError(t, err)
-				want = append(want, fields)
-			}
-
-			require.Empty(t, cmp.Diff(want, gotEvents, cmpopts.EquateEmpty(),
+			require.Empty(t, cmp.Diff(tt.wantEvents, gotEvents, cmpopts.EquateEmpty(),
 				// Expect the database query to be trimmed
 				cmpopts.IgnoreFields(apievents.DatabaseSessionQuery{}, "DatabaseQuery")))
 			require.Equal(t, tt.wantKeyset, gotKeyset)
@@ -928,9 +869,7 @@ func Test_querier_fetchResults(t *testing.T) {
 }
 
 func mustEventToKey(t *testing.T, in apievents.AuditEvent) string {
-	fields, err := events.ToEventFields(in)
-	require.NoError(t, err)
-	ks, err := eventToKeyset(fields)
+	ks, err := eventToKeyset(in)
 	if err != nil {
 		t.Fatal(err)
 	}

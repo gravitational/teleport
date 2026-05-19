@@ -249,7 +249,7 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 									Optional:    true,
 								},
 								"enroll_mode": {
-									Description: "EnrollMode indicates the enrollment mode to be used when adding a node. Valid values: 0: uses eice for EC2 matchers which use an integration and script for all the other methods 1: uses script mode 2: uses eice mode (deprecated)",
+									Description: "EnrollMode indicates the enrollment mode to be used when adding a node. Valid values: 0: uses eice for EC2 matchers which use an integration and script for all the other methods 1: uses script mode 2: uses eice mode",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 								},
@@ -403,7 +403,7 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 								},
 								"enroll_mode": {
-									Description: "EnrollMode indicates the enrollment mode to be used when adding a node. Valid values: 0: uses eice for EC2 matchers which use an integration and script for all the other methods 1: uses script mode 2: uses eice mode (deprecated)",
+									Description: "EnrollMode indicates the enrollment mode to be used when adding a node. Valid values: 0: uses eice for EC2 matchers which use an integration and script for all the other methods 1: uses script mode 2: uses eice mode",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 								},
@@ -528,7 +528,7 @@ func GenSchemaDiscoveryConfig(ctx context.Context) (github_com_hashicorp_terrafo
 									Optional:    true,
 								},
 								"enroll_mode": {
-									Description: "EnrollMode indicates the enrollment mode to be used when adding a node. Valid values: 0: uses eice for EC2 matchers which use an integration and script for all the other methods 1: uses script mode 2: uses eice mode (deprecated)",
+									Description: "EnrollMode indicates the enrollment mode to be used when adding a node. Valid values: 0: uses eice for EC2 matchers which use an integration and script for all the other methods 1: uses script mode 2: uses eice mode",
 									Optional:    true,
 									Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 								},

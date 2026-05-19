@@ -159,7 +159,7 @@ func TestDatabaseServerLimiting(t *testing.T) {
 		})
 
 		// Connect the maximum allowed number of clients.
-		for range connLimit {
+		for i := int64(0); i < connLimit; i++ {
 			pgConn, err := testCtx.postgresClient(ctx, user, "postgres", dbUser, dbName)
 			require.NoError(t, err)
 
@@ -183,7 +183,7 @@ func TestDatabaseServerLimiting(t *testing.T) {
 			}
 		})
 		// Connect the maximum allowed number of clients.
-		for range connLimit {
+		for i := int64(0); i < connLimit; i++ {
 			mysqlConn, err := testCtx.mysqlClient(user, "mysql", dbUser)
 			require.NoError(t, err)
 
@@ -208,7 +208,7 @@ func TestDatabaseServerLimiting(t *testing.T) {
 		})
 		// Mongo driver behave different from MySQL and Postgres. In this case we just want to hit the limit
 		// by creating some DB connections.
-		for range 2 * connLimit {
+		for i := int64(0); i < 2*connLimit; i++ {
 			mongoConn, err := testCtx.mongoClient(ctx, user, "mongo", dbUser)
 
 			if err == nil {
@@ -261,7 +261,7 @@ func TestDatabaseServerAutoDisconnect(t *testing.T) {
 
 	// advance clock several times, perform query.
 	// the activity should update the idle activity timer.
-	for i := range 10 {
+	for i := 0; i < 10; i++ {
 		advanceInSteps(testCtx.clock, clientIdleTimeout/2)
 		_, err = pgConn.Exec(ctx, "select 1").ReadAll()
 		require.NoErrorf(t, err, "failed on iteration %v", i+1)
@@ -453,6 +453,7 @@ func TestShutdown(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -473,12 +474,15 @@ func TestShutdown(t *testing.T) {
 			// the configured databases exist in the inventory.
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
 				dbServers, err := testCtx.authClient.GetDatabaseServers(ctx, apidefaults.Namespace)
-				require.NoError(t, err)
-				require.Len(t, dbServers, 1)
-				require.Empty(t, cmp.Diff(dbServers[0].GetDatabase(), db0,
-					cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Expires"),
-					cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "VNetDNSName"),
-				))
+				if !assert.NoError(t, err) {
+					return
+				}
+				if !assert.Len(t, dbServers, 1) {
+					return
+				}
+				if !assert.Empty(t, cmp.Diff(dbServers[0].GetDatabase(), db0, cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Expires"))) {
+					return
+				}
 			}, 10*time.Second, 100*time.Millisecond)
 
 			require.NoError(t, server.Shutdown(ctx))
@@ -494,15 +498,16 @@ func TestShutdown(t *testing.T) {
 				dbServersAfterShutdown, err := server.cfg.AuthClient.GetDatabaseServers(ctx, apidefaults.Namespace)
 				require.NoError(t, err)
 				require.Len(t, dbServersAfterShutdown, 1)
-				require.Empty(t, cmp.Diff(dbServersAfterShutdown[0].GetDatabase(), db0,
-					cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-					cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "VNetDNSName"),
-				))
+				require.Empty(t, cmp.Diff(dbServersAfterShutdown[0].GetDatabase(), db0, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 			} else {
 				require.EventuallyWithT(t, func(t *assert.CollectT) {
 					dbServersAfterShutdown, err := server.cfg.AuthClient.GetDatabaseServers(ctx, apidefaults.Namespace)
-					require.NoError(t, err)
-					require.Empty(t, dbServersAfterShutdown)
+					if !assert.NoError(t, err) {
+						return
+					}
+					if !assert.Empty(t, dbServersAfterShutdown) {
+						return
+					}
 				}, 10*time.Second, 100*time.Millisecond)
 			}
 		})
@@ -522,7 +527,7 @@ func TestTrackActiveConnections(t *testing.T) {
 
 	// Create a few connections, increasing the active connections. Keep track
 	// of the closer functions, so we can close them later.
-	for i := range numActiveConnections {
+	for i := 0; i < numActiveConnections; i++ {
 		expectedActiveConnections := int32(i + 1)
 		conn, err := testCtx.postgresClient(ctx, "alice", "postgres", "postgres", "postgres")
 		require.NoError(t, err)
@@ -537,7 +542,7 @@ func TestTrackActiveConnections(t *testing.T) {
 	}
 
 	// For each connection we close, the active connections should drop too.
-	for i := range numActiveConnections {
+	for i := 0; i < numActiveConnections; i++ {
 		expectedActiveConnections := int32(numActiveConnections - (i + 1))
 		require.NoError(t, closeFuncs[i]())
 
@@ -603,7 +608,7 @@ func TestCloseWithActiveConnections(t *testing.T) {
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		select {
 		case err := <-connErrCh:
-			require.ErrorIs(t, err, io.ErrUnexpectedEOF)
+			assert.ErrorIs(t, err, io.ErrUnexpectedEOF)
 		default:
 		}
 	}, time.Second, 100*time.Millisecond)
@@ -673,7 +678,7 @@ func TestHealthCheck(t *testing.T) {
 	require.NoError(t, err)
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		_, err := testCtx.authServer.GetHealthCheckConfig(ctx, "match-all")
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	}, time.Second, time.Millisecond*100, "waiting for health check config")
 
 	// Generate ephemeral cert returned from mock GCP API.
@@ -754,7 +759,7 @@ func TestHealthCheck(t *testing.T) {
 			dbServer, err := testCtx.server.getServerInfo(ctx, db)
 			require.NoError(t, err)
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
-				require.Equal(t, types.TargetHealthStatusHealthy, dbServer.GetTargetHealthStatus())
+				assert.Equal(t, types.TargetHealthStatusHealthy, dbServer.GetTargetHealthStatus())
 			}, 30*time.Second, time.Millisecond*250, "waiting for database %s to become healthy", db.GetName())
 		})
 	}

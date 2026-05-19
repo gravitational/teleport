@@ -82,6 +82,7 @@ type ResourceConstraints struct {
 	// version is version; supported values are: `v1`.
 	Version string `protobuf:"bytes,1,opt,name=version,proto3" json:"version,omitempty"`
 	// Types that are valid to be assigned to Details:
+	//
 	//	*ResourceConstraints_AwsConsole
 	//	*ResourceConstraints_Ssh
 	Details              isResourceConstraints_Details `protobuf_oneof:"details"`

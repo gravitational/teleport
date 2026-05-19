@@ -76,7 +76,7 @@ export interface UserLoginEvent {
      */
     requiredPrivateKeyPolicy: string;
     /**
-     * UserOrigin specifies the origin of the user specified in user_name.
+     * UserOrigin specifies the origin of this user account.
      *
      * PostHog property: tp.user_origin
      *
@@ -3243,7 +3243,7 @@ export interface SessionSummaryCreateEvent {
      */
     resourceName: string;
     /**
-     * is_cloud_default_model indicates whether the session summary was generated using
+     * is_cloud_default_model indicates wether the session summary was generated using
      * the cloud default model.
      *
      * PostHog property: tp.ai.default_model
@@ -4330,7 +4330,7 @@ export interface HelloTeleportResponse {
 /**
  * UserOrigin is the origin of a user account.
  * Keep the values in sync with UserOrigin enum defined in
- * Teleport OSS repository.
+ * API events and prehogv1.
  *
  * @generated from protobuf enum prehog.v1alpha.UserOrigin
  */
@@ -4768,11 +4768,7 @@ export enum CTA {
     /**
      * @generated from protobuf enum value: CTA_OKTA_SCIM = 13;
      */
-    CTA_OKTA_SCIM = 13,
-    /**
-     * @generated from protobuf enum value: CTA_USAGE_REPORT = 14;
-     */
-    CTA_USAGE_REPORT = 14
+    CTA_OKTA_SCIM = 13
 }
 /**
  * IntegrationEnrollKind represents the types of integration that

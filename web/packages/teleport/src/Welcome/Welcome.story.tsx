@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter } from 'react-router-dom';
 
 import { WelcomeWrapper } from 'teleport/components/Onboard';
 import { NewCredentials } from 'teleport/Welcome/NewCredentials';

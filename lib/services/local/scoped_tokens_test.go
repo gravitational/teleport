@@ -474,7 +474,8 @@ func TestScopedTokenNameCollisions(t *testing.T) {
 			var classicErr error
 			var scopedErr error
 			wg := sync.WaitGroup{}
-			wg.Go(func() {
+			wg.Add(2)
+			go func() {
 				classicErr = provisioningService.CreateToken(ctx, &types.ProvisionTokenV2{
 					Metadata: types.Metadata{
 						Name: name,
@@ -485,15 +486,17 @@ func TestScopedTokenNameCollisions(t *testing.T) {
 						},
 					},
 				})
-			})
+				wg.Done()
+			}()
 
-			wg.Go(func() {
+			go func() {
 				token := proto.CloneOf(token)
 				token.Metadata.Name = name
 				_, scopedErr = service.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{
 					Token: token,
 				})
-			})
+				wg.Done()
+			}()
 			wg.Wait()
 
 			// One token type should always succeed and the other should always fail. When one succeeds,

@@ -25,7 +25,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
@@ -39,27 +38,10 @@ import (
 )
 
 const (
-	// SocketFileName is the name of the socket on which the Hardware Key Agent
-	// service will listen.
-	SocketFileName = "agent.sock"
-
-	// CertFileName is the name of the file containing the Hardware Key Agent
-	// server certificate.
-	CertFileName = "cert.pem"
-
-	dirName     = ".Teleport-PIV"
-	agentDirEnv = "TELEPORT_KEY_AGENT_DIR"
+	dirName      = ".Teleport-PIV"
+	sockName     = "agent.sock"
+	certFileName = "cert.pem"
 )
-
-// AgentDirFromEnv returns the directory for the hardware key agent's socket and
-// certificate files from $TELEPORT_KEY_AGENT_DIR, or defaultDir if the environment
-// variable was not set.
-func AgentDirFromEnv(defaultDir string) string {
-	if dir := os.Getenv(agentDirEnv); dir != "" {
-		return dir
-	}
-	return defaultDir
-}
 
 // DefaultAgentDir is the default dir for the hardware key agent's socket and certificate files.
 func DefaultAgentDir() string {
@@ -71,8 +53,8 @@ func DefaultAgentDir() string {
 //
 // [DefaultAgentDir] should be used for [keyAgentDir] outside of tests.
 func NewAgentClient(ctx context.Context, keyAgentDir string) (hardwarekeyagentv1.HardwareKeyAgentServiceClient, error) {
-	socketPath := filepath.Join(keyAgentDir, SocketFileName)
-	certPath := filepath.Join(keyAgentDir, CertFileName)
+	socketPath := filepath.Join(keyAgentDir, sockName)
+	certPath := filepath.Join(keyAgentDir, certFileName)
 
 	creds, err := credentials.NewClientTLSFromFile(certPath, "localhost")
 	if err != nil {
@@ -127,7 +109,7 @@ func NewAgentServer(ctx context.Context, s hardwarekey.Service, keyAgentDir stri
 }
 
 func newAgentListener(ctx context.Context, keyAgentDir string) (net.Listener, error) {
-	socketPath := filepath.Join(keyAgentDir, SocketFileName)
+	socketPath := filepath.Join(keyAgentDir, sockName)
 	l, err := net.Listen("unix", socketPath)
 	if err == nil {
 		return l, nil
@@ -158,12 +140,12 @@ func newAgentListener(ctx context.Context, keyAgentDir string) (net.Listener, er
 }
 
 func generateServerCert(keyAgentDir string) (tls.Certificate, error) {
-	creds, err := cert.GenerateSelfSignedCert([]string{"localhost"}, nil, nil, time.Now)
+	creds, err := cert.GenerateSelfSignedCert([]string{"localhost"}, nil /*ipAddresses*/)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err, "failed to generate the certificate")
 	}
 
-	certPath := filepath.Join(keyAgentDir, CertFileName)
+	certPath := filepath.Join(keyAgentDir, certFileName)
 	f, err := os.OpenFile(certPath, os.O_RDWR|os.O_CREATE, 0o600)
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
@@ -188,12 +170,7 @@ func (s *Server) Serve(ctx context.Context) error {
 // Stop the hardware key agent server.
 func (s *Server) Stop() {
 	s.grpcServer.GracefulStop()
-
-	if err := os.Remove(filepath.Join(s.dir, SocketFileName)); err != nil {
-		slog.DebugContext(context.TODO(), "failed to remove hardware key agent socket")
-	}
-
-	if err := os.Remove(filepath.Join(s.dir, CertFileName)); err != nil {
-		slog.DebugContext(context.TODO(), "failed to remove hardware key agent certificate")
+	if err := os.RemoveAll(s.dir); err != nil {
+		slog.DebugContext(context.TODO(), "failed to clear hardware key agent directory")
 	}
 }

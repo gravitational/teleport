@@ -17,7 +17,7 @@
  */
 
 import React, { useEffect, useMemo, useRef } from 'react';
-import { Link as InternalLink } from 'react-router';
+import { Link as InternalLink } from 'react-router-dom';
 
 import { Alert, Box, Button, Link as ExternalLink, Flex, Text } from 'design';
 import { HoverTooltip } from 'design/Tooltip';
@@ -285,7 +285,6 @@ export function Users(props: State) {
           </ExternalLink>{' '}
           and{' '}
           <ExternalLink
-            target="_blank"
             href="https://goteleport.com/docs/reference/user-types/"
             className="external-link"
           >

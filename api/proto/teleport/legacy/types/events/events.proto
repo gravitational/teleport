@@ -553,13 +553,6 @@ message DesktopRecording {
 
   // DelayMilliseconds is the delay in milliseconds from the start of the session
   int64 DelayMilliseconds = 3 [(gogoproto.jsontag) = "ms"]; // JSON tag intentionally matches SessionPrintEvent
-
-  // TDPBMessage is the encoded TDPB message.
-  // Only one of [Message, TDPBMessage] will be set.
-  bytes TDPBMessage = 4 [
-    (gogoproto.nullable) = true,
-    (gogoproto.jsontag) = "tdpb_message"
-  ];
 }
 
 // DesktopClipboardReceive is emitted when Teleport receives
@@ -1020,9 +1013,6 @@ message BPFMetadata {
 
   // Program is name of the executable.
   string Program = 3 [(gogoproto.jsontag) = "program"];
-
-  // AuditSessionID is the internal audit login session ID (auid).
-  uint32 AuditSessionID = 4 [(gogoproto.jsontag) = "audit_session_id"];
 }
 
 // Status contains common command or operation status fields
@@ -1344,22 +1334,6 @@ message UserLogin {
   string ConnectorID = 10 [(gogoproto.jsontag) = "connector_id,omitempty"];
 }
 
-// MFAFlowType defines how MFA was enforced for a given authentication event.
-enum MFAFlowType {
-  // MFA_FLOW_TYPE_UNSPECIFIED is the default value when the flow type is not specified. This value is used for
-  // backwards compatibility or when the MFA flow cannot be determined.
-  MFA_FLOW_TYPE_UNSPECIFIED = 0;
-
-  // MFA_FLOW_TYPE_PER_SESSION_CERTIFICATE indicates that MFA was completed using a per-session certificate during
-  // session establishment. In this flow, a short-lived certificate is issued after successful MFA, which is then used
-  // to authenticate the session.
-  MFA_FLOW_TYPE_PER_SESSION_CERTIFICATE = 1;
-
-  // MFA_FLOW_TYPE_IN_BAND indicates that MFA was completed using the in-band flow during session establishment. In this
-  // flow, the target service prompts for and verifies MFA directly as part of session creation.
-  MFA_FLOW_TYPE_IN_BAND = 2;
-}
-
 // CreateMFAAuthChallenge records the creation of an MFA auth challenge.
 message CreateMFAAuthChallenge {
   // Metadata is a common event metadata.
@@ -1382,9 +1356,6 @@ message CreateMFAAuthChallenge {
 
   // ChallengeAllowReuse defines whether the MFA challenge allows reuse.
   bool ChallengeAllowReuse = 4 [(gogoproto.jsontag) = "challenge_allow_reuse"];
-
-  // FlowType indicates the type of MFA flow used for the challenge.
-  MFAFlowType FlowType = 5 [(gogoproto.jsontag) = "flow_type,omitempty"];
 }
 
 // ValidateMFAAuthResponse records the validation of an MFA auth callenge response.
@@ -1419,9 +1390,6 @@ message ValidateMFAAuthResponse {
 
   // ChallengeAllowReuse defines whether the MFA challenge used for authentication can be reused.
   bool ChallengeAllowReuse = 6 [(gogoproto.jsontag) = "challenge_allow_reuse"];
-
-  // FlowType indicates the type of MFA flow used for the challenge.
-  MFAFlowType FlowType = 7 [(gogoproto.jsontag) = "flow_type,omitempty"];
 }
 
 // ResourceMetadata is a common resource metadata
@@ -1665,12 +1633,6 @@ message AccessRequestCreate {
   // Differs from RequestedResourceIDs, which only identifies resources and cannot be used
   // to express additional information per-resource such as ResourceConstraints.
   repeated ResourceAccessID RequestedResourceAccessIDs = 18 [(gogoproto.nullable) = false];
-
-  // The Teleport plugin identity that submitted this review request
-  // to the Auth Service on behalf of the review author.
-  // Reviewer remains the actual Teleport user that performed the review.
-  // (only used in the access_request.review event variant).
-  string submitted_by = 19;
 }
 
 // AccessRequestExpire is emitted when access request has expired.
@@ -1729,13 +1691,11 @@ message ResourceAccessID {
   ResourceID id = 1 [(gogoproto.nullable) = false];
 
   oneof constraints {
-    // unknown_constraints represents that constraints were present on the internal
-    // ResourceAccessID, but are of an unknown or unsupported type.
+    // unknown_constraints represents that constraints were present on the internal ResourceAccessID,
+    // but are of an unknown type.
     UnknownConstraints unknown_constraints = 10;
     // aws_console captures audit-log–friendly data for AWS Console scoping constraints.
     AWSConsoleConstraints aws_console = 11;
-    // ssh captures audit-log-friendly data for SSH node scoping constraints.
-    SSHConstraints ssh = 12;
   }
 }
 
@@ -1753,14 +1713,6 @@ message AWSConsoleConstraints {
 
   // role_arns_preview contains up to N role ARNs for inspection; it may be truncated.
   repeated string role_arns_preview = 2;
-}
-
-// SSHConstraints is an audit-log-friendly view of SSH node constraints.
-message SSHConstraints {
-  // logins_count is the total number of logins requested.
-  uint32 logins_count = 1;
-  // logins_preview contains up to N logins for inspection; it may be truncated.
-  repeated string logins_preview = 2;
 }
 
 // AccessRequestDelete is emitted when an access request has been deleted.
@@ -2264,13 +2216,6 @@ message AuthAttempt {
 
   // ServerMetadata holds information about the target host server
   ServerMetadata Server = 5 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // AppMetadata is a common application resource metadata.
-  AppMetadata app_metadata = 6 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
@@ -2906,8 +2851,6 @@ message AppMetadata {
   // AppTargetPort signifies that the app is a multi-port TCP app and says which port was used to
   // access the app. This field is not set for other types of apps, including single-port TCP apps.
   uint32 AppTargetPort = 5 [(gogoproto.jsontag) = "app_target_port,omitempty"];
-  // SubKind is the app sub kind.
-  string SubKind = 6 [(gogoproto.jsontag) = "sub_kind,omitempty"];
 }
 
 // AppCreate is emitted when a new application resource is created.
@@ -3173,43 +3116,6 @@ message AppSessionRequest {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
-}
-
-// AppSessionLLMRequest is an LLM inference request and response.
-message AppSessionLLMRequest {
-  // Common event metadata.
-  Metadata metadata = 1 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-  // Common application resource metadata.
-  AppMetadata app = 2 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-  // Contains request status fields.
-  Status status = 3 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-  // Relative path in the URL.
-  string path = 4 [(gogoproto.jsontag) = "path"];
-  // Request HTTP method, like GET/POST/DELETE/etc.
-  string method = 5 [(gogoproto.jsontag) = "method"];
-  // Inference provider used to serve the request.
-  string provider = 6 [(gogoproto.jsontag) = "provider"];
-  // The inference provider model name. Note that this might differ from the
-  // requested model.
-  string model = 7 [(gogoproto.jsontag) = "model,omitempty"];
-  // Indicates the requested model name, without modifications.
-  string requested_model = 8 [(gogoproto.jsontag) = "requested_model"];
-  // Count of tokens sent by the client.
-  int64 input_token_count = 9 [(gogoproto.jsontag) = "input_token_count,omitempty"];
-  // Count of tokens generated by the provider.
-  int64 output_token_count = 10 [(gogoproto.jsontag) = "output_token_count,omitempty"];
 }
 
 // AWSRequestMetadata contains extra AWS metadata of an AppSessionRequest.
@@ -3773,7 +3679,7 @@ message WindowsCertificateMetadata {
   repeated string EnhancedKeyUsage = 7 [(gogoproto.jsontag) = "enhanced_key_usage"];
 }
 
-// WindowsDesktopSessionStart is emitted when a user connects to a Windows desktop.
+// WindowsDesktopSessionStart is emitted when a user connects to a desktop.
 message WindowsDesktopSessionStart {
   // Metadata is common event metadata.
   Metadata Metadata = 1 [
@@ -3825,58 +3731,6 @@ message WindowsDesktopSessionStart {
   bool NLA = 13 [(gogoproto.jsontag) = "nla"];
 
   WindowsCertificateMetadata CertMetadata = 14 [(gogoproto.jsontag) = "certificate"];
-
-  // CA override details. Optional.
-  CAOverrideCertificateDetails CAOverride = 15 [(gogoproto.jsontag) = "ca_override,omitempty"];
-}
-
-// CAOverrideCertificateDetails holds information about an active
-// CertAuthorityOverride that took effect during certificate issuance.
-message CAOverrideCertificateDetails {
-  bool active = 1 [(gogoproto.jsontag) = "active"];
-  string public_key_hash = 2 [(gogoproto.jsontag) = "public_key_hash"];
-}
-
-// LinuxDesktopSessionStart is emitted when a user connects to a Linux desktop.
-message LinuxDesktopSessionStart {
-  // Metadata is common event metadata.
-  Metadata Metadata = 1 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-  // User is common user event metadata.
-  UserMetadata User = 2 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-  // Session is common event session metadata.
-  SessionMetadata Session = 3 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-  // Connection holds information about the connection.
-  ConnectionMetadata Connection = 4 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-  // Status indicates whether the connection was successful or denied.
-  Status Status = 5 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-  // DesktopAddr is the address of the desktop being accessed.
-  string DesktopAddr = 6 [(gogoproto.jsontag) = "desktop_addr"];
-  // LinuxUser is the Linux username used to connect.
-  string LinuxUser = 7 [(gogoproto.jsontag) = "linux_user"];
-  // DesktopLabels are the labels on the desktop resource.
-  map<string, string> DesktopLabels = 8 [(gogoproto.jsontag) = "desktop_labels"];
-  // DesktopName is the name of the desktop resource.
-  string DesktopName = 9 [(gogoproto.jsontag) = "desktop_name"];
 }
 
 // DatabaseSessionEnd is emitted when a user ends the database session.
@@ -4212,57 +4066,6 @@ message WindowsDesktopSessionEnd {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
-}
-
-// LinuxDesktopSessionEnd is emitted when a user ends a Linux desktop session.
-message LinuxDesktopSessionEnd {
-  // Metadata is a common event metadata.
-  Metadata Metadata = 1 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-  // User is a common user event metadata.
-  UserMetadata User = 2 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-  // Session is a common event session metadata.
-  SessionMetadata Session = 3 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-  // Connection holds information about the connection.
-  ConnectionMetadata Connection = 4 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-  // DesktopAddr is the address of the desktop being accessed.
-  string DesktopAddr = 5 [(gogoproto.jsontag) = "desktop_addr"];
-  string LinuxUser = 6 [(gogoproto.jsontag) = "linux_user"];
-  // DesktopLabels are the labels on the desktop resource.
-  map<string, string> DesktopLabels = 7 [(gogoproto.jsontag) = "desktop_labels"];
-  // StartTime is the timestamp at which the session began.
-  google.protobuf.Timestamp StartTime = 8 [
-    (gogoproto.stdtime) = true,
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "session_start,omitempty" // JSON tag intentionally matches SessionEnd event
-  ];
-  // EndTime is the timestamp at which the session ended.
-  google.protobuf.Timestamp EndTime = 9 [
-    (gogoproto.stdtime) = true,
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "session_stop,omitempty"
-  ];
-  // DesktopName is the name of the desktop resource.
-  string DesktopName = 10 [(gogoproto.jsontag) = "desktop_name"];
-  // Recorded is true if the session was recorded, false otherwise.
-  bool Recorded = 11 [(gogoproto.jsontag) = "recorded"];
-  // Participants is a list of participants in the session.
-  repeated string Participants = 12 [(gogoproto.jsontag) = "participants"];
 }
 
 // CertificateCreate is emitted when a certificate is issued.
@@ -5164,10 +4967,6 @@ message OneOf {
     events.SCIMListingEvent SCIMListingEvent = 225;
     events.SCIMResourceEvent SCIMResourceEvent = 226;
     events.ClientIPRestrictionsUpdate ClientIPRestrictionsUpdate = 227;
-    events.AppAuthConfigCreate AppAuthConfigCreate = 228;
-    events.AppAuthConfigUpdate AppAuthConfigUpdate = 229;
-    events.AppAuthConfigDelete AppAuthConfigDelete = 230;
-    events.AppAuthConfigVerify AppAuthConfigVerify = 231;
     events.VnetConfigCreate VnetConfigCreate = 232;
     events.VnetConfigUpdate VnetConfigUpdate = 233;
     events.VnetConfigDelete VnetConfigDelete = 234;
@@ -5184,14 +4983,10 @@ message OneOf {
     events.InferencePolicyUpdate InferencePolicyUpdate = 245;
     events.InferencePolicyDelete InferencePolicyDelete = 246;
     events.SessionSummarized SessionSummarized = 247;
-    events.CertAuthorityOverrideEvent CertAuthorityOverrideEvent = 248;
-    events.AppSessionLLMRequest AppSessionLLMRequest = 249;
     events.RetrievalModelCreate RetrievalModelCreate = 250;
     events.RetrievalModelUpdate RetrievalModelUpdate = 251;
     events.RetrievalModelDelete RetrievalModelDelete = 252;
     events.AzureRun AzureRun = 253;
-    events.LinuxDesktopSessionStart LinuxDesktopSessionStart = 254;
-    events.LinuxDesktopSessionEnd LinuxDesktopSessionEnd = 255;
     events.EnvironmentProfileUpdate EnvironmentProfileUpdate = 256;
   }
 }
@@ -9725,136 +9520,6 @@ message ClientIPRestrictionsUpdate {
   repeated string ClientIPRestrictions = 6 [(gogoproto.jsontag) = "client_ip_restrictions"];
 }
 
-// AppAuthConfigCreate is emitted when a AppAuthConfig is created.
-message AppAuthConfigCreate {
-  // Metadata is a common event metadata
-  Metadata metadata = 1 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // Resource is a common resource event metadata
-  ResourceMetadata resource = 2 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // User is a common user event metadata
-  UserMetadata user = 3 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // ConnectionMetadata holds information about the connection
-  ConnectionMetadata connection = 4 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-}
-
-// AppAuthConfigUpdate is emitted when a AppAuthConfig is updated.
-message AppAuthConfigUpdate {
-  // Metadata is a common event metadata
-  Metadata metadata = 1 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // Resource is a common resource event metadata
-  ResourceMetadata resource = 2 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // User is a common user event metadata
-  UserMetadata user = 3 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // Connection holds information about the connection
-  ConnectionMetadata connection = 4 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-}
-
-// AppAuthConfigDelete is emitted when a AppAuthConfig is deleted.
-message AppAuthConfigDelete {
-  // Metadata is a common event metadata
-  Metadata metadata = 1 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // Resource is a common resource event metadata
-  ResourceMetadata resource = 2 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // User is a common user event metadata
-  UserMetadata user = 3 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-
-  // Connection holds information about the connection
-  ConnectionMetadata connection = 4 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-}
-
-// AppAuthConfigVerify is emitted when an app auth verification happens.
-message AppAuthConfigVerify {
-  // Metadata is a common event metadata
-  Metadata metadata = 1 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-  // AppAuthConfig is the app auth config resource name used on the
-  // verification.
-  string app_auth_config = 2 [(gogoproto.jsontag) = "app_auth_config"];
-  // User is a common user event metadata
-  UserMetadata user = 3 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-  // SessionMetadata is a common event session metadata
-  SessionMetadata session = 4 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-  // App is a common application resource metadata.
-  AppMetadata app = 5 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-  // Status indicates whether the verification was successful or not.
-  Status status = 6 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-}
-
 // VnetConfigCreate is emitted when a VnetConfig is created.
 message VnetConfigCreate {
   // Metadata is a common event metadata.
@@ -10564,72 +10229,4 @@ message RetrievalModelDelete {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
-}
-
-// CertAuthorityOverrideEvent is the payload for all cert_authority_override
-// audit events.
-// Refer to the event Type, Code and Status for its meaning and outcome.
-message CertAuthorityOverrideEvent {
-  // Metadata holds common event metadata.
-  Metadata metadata = 1 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-  // UserMetadata holds metadata about the user performing the event.
-  UserMetadata user = 2 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-  // ResourceMetadata holds metadata about the resource targeted by the event.
-  ResourceMetadata resource = 3 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-  // Status indicates the outcome of the event.
-  Status status = 4 [
-    (gogoproto.nullable) = false,
-    (gogoproto.embed) = true,
-    (gogoproto.jsontag) = ""
-  ];
-  // The CA override targeted by the event.
-  CertAuthorityOverrideMetadata ca_override = 5 [(gogoproto.jsontag) = "ca_override,omitempty"];
-}
-
-// CertAuthorityOverrideMetadata represents a CertAuthorityOverride resource in
-// audit events.
-message CertAuthorityOverrideMetadata {
-  // CA type of the override.
-  string ca_type = 1 [(gogoproto.jsontag) = "ca_type,omitempty"];
-  // Cluster name.
-  string cluster_name = 2 [(gogoproto.jsontag) = "cluster_name,omitempty"];
-  // Certificate overrides.
-  repeated CertificateOverrideMetadata certificate_overrides = 3 [(gogoproto.jsontag) = "certificate_overrides,omitempty"];
-}
-
-// CertificateOverrideMetadata represents a CertificateOverride within a
-// CertAuthorityOverride.
-//
-// See CertAuthorityOverrideMetadata.
-message CertificateOverrideMetadata {
-  // Certificate presented by the override.
-  X509OverrideMetadata certificate = 1 [(gogoproto.jsontag) = "certificate,omitempty"];
-  // Certificate chain for the override.
-  repeated X509OverrideMetadata chain = 2 [(gogoproto.jsontag) = "chain,omitempty"];
-  // If true the override is disabled.
-  bool disabled = 3 [(gogoproto.jsontag) = "disabled,omitempty"];
-}
-
-// X509OverrideMetadata identifies an X.509 certificate.
-message X509OverrideMetadata {
-  // Issuer.
-  string issuer = 1 [(gogoproto.jsontag) = "issuer,omitempty"];
-  // Subject.
-  string subject = 2 [(gogoproto.jsontag) = "subject,omitempty"];
-  // Serial number.
-  string serial_number = 3 [(gogoproto.jsontag) = "serial_number,omitempty"];
-  // Public key hash, encoded as SHA256(SubjectPublicKeyInfo DER).
-  string public_key_hash = 4 [(gogoproto.jsontag) = "public_key_hash,omitempty"];
 }

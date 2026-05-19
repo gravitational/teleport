@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils/set"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/slices"
 )
 
@@ -362,11 +362,11 @@ func (s *SessionService) bestEffortCheckResourceAccess(
 		return trace.Wrap(err)
 	}
 
-	resourceNamesByKind := make(map[string]set.Set[string])
+	resourceNamesByKind := make(map[string]utils.Set[string])
 	for _, res := range resources {
 		byKind, ok := resourceNamesByKind[res.GetKind()]
 		if !ok {
-			byKind = set.New[string]()
+			byKind = utils.NewSet[string]()
 			resourceNamesByKind[res.GetKind()] = byKind
 		}
 		byKind.Add(res.GetName())
@@ -399,7 +399,7 @@ func (s *SessionService) bestEffortCheckResourceAccess(
 		resourcesByKindName[kind] = byName
 	}
 
-	unauthorizedResources := set.New[string]()
+	unauthorizedResources := utils.NewSet[string]()
 	for _, spec := range resources {
 		id := fmt.Sprintf("%s/%s", spec.GetKind(), spec.GetName())
 
@@ -421,9 +421,9 @@ func (s *SessionService) bestEffortCheckResourceAccess(
 		}
 	}
 
-	if unauthorizedResources.Len() != 0 {
-		idStrings := unauthorizedResources.Elements()
-		sort.Strings(idStrings)
+	idStrings := unauthorizedResources.Elements()
+	sort.Strings(idStrings)
+	if len(idStrings) != 0 {
 		return trace.AccessDenied("user does not have permission to delegate access to all of the required resources, missing resources: [%s]", strings.Join(idStrings, ", "))
 	}
 

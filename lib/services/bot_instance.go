@@ -19,7 +19,6 @@ package services
 import (
 	"context"
 	"slices"
-	"strings"
 
 	"github.com/charlievieth/strcase"
 	"github.com/gravitational/trace"
@@ -202,10 +201,4 @@ func (o *ListBotInstancesRequestOptions) GetFilterFn() func(*machineidv1.BotInst
 		return nil
 	}
 	return o.FilterFn
-}
-
-// BotResourceName returns the default name for resources associated with the
-// given named bot.
-func BotResourceName(botName string) string {
-	return "bot-" + strings.ReplaceAll(botName, " ", "-")
 }

@@ -127,8 +127,6 @@ type SAMLConnector interface {
 	GetIncludeSubject() bool
 	// SetIncludeSubject sets whether the Subject element should be included.
 	SetIncludeSubject(bool)
-	// IsEqual determines if two connectors are equivalent to one another.
-	IsEqual(SAMLConnector) bool
 	// GetEntraIDGroupsProvider returns Entra ID groups provider.
 	GetEntraIDGroupsProvider() *EntraIDGroupsProvider
 	// IsEntraIDGroupsProviderDisabled checks if the Entra ID groups provider is disabled.
@@ -153,15 +151,6 @@ func NewSAMLConnector(name string, spec SAMLConnectorSpecV2) (SAMLConnector, err
 		return nil, trace.Wrap(err)
 	}
 	return o, nil
-}
-
-func (o *SAMLConnectorV2) IsEqual(other SAMLConnector) bool {
-	otherv2, ok := other.(*SAMLConnectorV2)
-	if !ok {
-		return false
-	}
-
-	return deriveTeleportEqualSAMLConnectorV2(o, otherv2)
 }
 
 // GetVersion returns resource version

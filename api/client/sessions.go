@@ -54,6 +54,10 @@ func (r *webSessions) Get(ctx context.Context, req types.GetWebSessionRequest) (
 func (r *webSessions) List(ctx context.Context) ([]types.WebSession, error) {
 	sessions, err := r.listStream(ctx)
 	if err != nil {
+		// TODO(espadolini): DELETE IN 19.0.0
+		if trace.IsNotImplemented(err) {
+			return r.listUnary(ctx)
+		}
 		return nil, trace.Wrap(err)
 	}
 	return sessions, nil
@@ -76,6 +80,19 @@ func (r *webSessions) listStream(ctx context.Context) ([]types.WebSession, error
 		}
 		sessions = append(sessions, session)
 	}
+}
+
+func (r *webSessions) listUnary(ctx context.Context) ([]types.WebSession, error) {
+	//nolint:staticcheck // this rpc is used as a fallback
+	resp, err := r.c.grpc.GetWebSessions(ctx, &emptypb.Empty{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out := make([]types.WebSession, 0, len(resp.Sessions))
+	for _, session := range resp.Sessions {
+		out = append(out, session)
+	}
+	return out, nil
 }
 
 // Upsert not implemented: can only be called locally.
@@ -115,9 +132,7 @@ func (c *Client) GetWebToken(ctx context.Context, req types.GetWebTokenRequest) 
 }
 
 // GetWebTokens returns the list of all web tokens
-// Deprecated: Prefer using [Client.ListWebTokens] or [Client.RangeWebTokens] instead.
 func (c *Client) GetWebTokens(ctx context.Context) ([]types.WebToken, error) {
-	//nolint:staticcheck // TODO(okraport): deprecated, to be removed in v21
 	resp, err := c.grpc.GetWebTokens(ctx, &emptypb.Empty{})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -176,60 +191,35 @@ func (c *Client) DeleteAllWebTokens(ctx context.Context) error {
 }
 
 // WebTokens returns the web tokens controller
-//
-// TODO(okraport): DELETE IN v21
-//
-// Deprecated: Use [Client] methods directly.
 func (c *Client) WebTokens() types.WebTokenInterface {
 	return &webTokens{c: c}
 }
 
 // Get returns the web token for the specified request
-//
-// TODO(okraport): DELETE IN v21
-//
-// Deprecated: Use [Client.GetWebToken] instead.
 func (r *webTokens) Get(ctx context.Context, req types.GetWebTokenRequest) (types.WebToken, error) {
 	return r.c.GetWebToken(ctx, req)
 }
 
 // List returns the list of all web tokens
-//
-// TODO(okraport): DELETE IN v21
-//
-// Deprecated: Use [Client.GetWebTokens] instead.
 func (r *webTokens) List(ctx context.Context) ([]types.WebToken, error) {
 	return clientutils.CollectWithFallback(ctx, r.c.ListWebTokens, r.c.GetWebTokens)
 }
 
 // Upsert not implemented: can only be called locally.
-//
-// TODO(okraport): DELETE IN v21
-//
-// Deprecated: Use [Client.UpsertWebToken] instead.
 func (r *webTokens) Upsert(ctx context.Context, token types.WebToken) error {
 	return r.c.UpsertWebToken(ctx, token)
 }
 
 // Delete deletes the web token specified with the request
-//
-// TODO(okraport): DELETE IN v21
-//
-// Deprecated: Use [Client.DeleteWebToken] instead.
 func (r *webTokens) Delete(ctx context.Context, req types.DeleteWebTokenRequest) error {
 	return r.c.DeleteWebToken(ctx, req)
 }
 
 // DeleteAll deletes all web tokens
-//
-// TODO(okraport): DELETE IN v21
-//
-// Deprecated: Use [Client.DeleteAllWebTokens] instead.
 func (r *webTokens) DeleteAll(ctx context.Context) error {
 	return r.c.DeleteAllWebTokens(ctx)
 }
 
-// Deprecated: Use [Client] directly.
 type webTokens struct {
 	c *Client
 }

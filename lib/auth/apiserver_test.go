@@ -93,7 +93,7 @@ func TestUpsertServer(t *testing.T) {
 				Version:  types.V2,
 				Kind:     types.KindAuthServer,
 			},
-			assertErr: require.Error,
+			assertErr: require.NoError,
 		},
 		{
 			desc: "unknown",
@@ -107,6 +107,7 @@ func TestUpsertServer(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 			// Set up backend to upsert servers into.

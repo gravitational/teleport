@@ -6,10 +6,6 @@ description: Provides a comprehensive list of fields in the TeleportDatabaseV3 r
 {/*Auto-generated file. Do not edit.*/}
 {/*To regenerate, navigate to integrations/operator and run "make crd-docs".*/}
 
-{/* Disable the outdated name check since custom resource fields occasionally
-need to refer to these. */}
-{/* vale 3rd-party-products.former-names = NO */}
-
 This guide is a comprehensive reference to the fields in the `TeleportDatabaseV3`
 resource, which you can apply after installing the Teleport Kubernetes operator.
 
@@ -39,7 +35,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |mongo_atlas|[object](#specmongo_atlas)|MongoAtlas contains Atlas metadata about the database.|
 |mysql|[object](#specmysql)|MySQL is an additional section with MySQL database options.|
 |oracle|[object](#specoracle)|Oracle is an additional Oracle configuration options.|
-|protocol|string|Protocol is the database protocol. Valid options are: "cassandra" "clickhouse" "clickhouse-http" "cockroachdb" "dynamodb" "elasticsearch" "mongodb" "mysql" "oracle" "postgres" "redis" "snowflake" "spanner" "sqlserver"|
+|protocol|string|Protocol is the database protocol: postgres, mysql, mongodb, etc.|
 |tls|[object](#spectls)|TLS is the TLS configuration used when establishing connection to target database. Allows to provide custom CA cert or override server name.|
 |uri|string|URI is the database connection endpoint.|
 

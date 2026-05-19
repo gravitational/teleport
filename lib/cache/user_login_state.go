@@ -65,7 +65,6 @@ func newUserLoginStateCollection(upstream services.UserLoginStates, w types.Watc
 }
 
 // GetUserLoginStates returns the all user login state resources.
-// deprecated: Use paginated version ListUserLoginStates
 func (c *Cache) GetUserLoginStates(ctx context.Context) ([]*userloginstate.UserLoginState, error) {
 	ctx, span := c.Tracer.Start(ctx, "cache/GetUserLoginStates")
 	defer span.End()

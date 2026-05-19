@@ -46,41 +46,17 @@ targeted by the Access Request.
 
 - Admin account on your Discord server. Installing a bot requires at least the
   "manager server" permission.
-
 - Either a Linux host or Kubernetes cluster where you will run the Discord plugin.
-
 - (!docs/pages/includes/tctl.mdx!)
 
-- An app registered with Discord to represent the Access Request plugin. This
-  requires manually creating the app in the Discord Web UI. 
-
-  Follow the [Discord Getting Started
-  guide](https://docs.discord.com/developers/quick-start/getting-started) to
-  create an app and add it to your Discord servers. Make sure the bot is only
-  available to your Discord servers and is not a public bot.
-
-  The app must grant the following OAuth2 scopes:
-  - bot
-  - View Channels
-  - Send Messages
-
-  <Admonition type="tip">
-
-  Copy the token for use later in this guide.
-
-  </Admonition>
-
-  When registering the app, you can use the <a href={AppIcon} download>Teleport
-  icon</a> as well as our <a href={BotLogo} download>Teleport avatar</a>.
-
-## Step 1/7. Define RBAC resources
+## Step 1/8. Define RBAC resources
 
 Before you set up the Discord plugin, you will need to enable Role Access Requests
 in your Teleport cluster.
 
 (!/docs/pages/includes/plugins/editor-request-rbac.mdx!)
 
-## Step 2/7. Define a Teleport Discord plugin user
+## Step 2/8. Define a Teleport Discord plugin user
 
 The required permissions for the plugin are configured in the preset `access-plugin`
 role. To generate credentials for the plugin, define either a Machine ID bot user
@@ -95,7 +71,7 @@ or a regular Teleport user.
 </TabItem>
 </Tabs>
 
-## Step 3/7. Export the access plugin identity
+## Step 3/8. Export the access plugin identity
 
 Give the plugin access to a Teleport identity file. We recommend using Machine
 ID for this in order to produce short-lived identity files that are less
@@ -111,11 +87,56 @@ longer-lived identity files with `tctl`:
 </TabItem>
 </Tabs>
 
-## Step 4/7. Install the Teleport Discord plugin
+## Step 4/8. Install the Teleport Discord plugin
 
 (!docs/pages/includes/plugins/install-access-request.mdx name="discord"!)
 
-## Step 5/7. Configure the Teleport Discord plugin
+## Step 5/8. Register a Discord app
+
+The Access Request plugin for Discord receives Access Request events from the
+Teleport Auth Service, formats them into Discord messages, and sends them to the
+Discord API to post them in your guild (Discord server). For this to work,
+you must register a new app with the Discord API.
+
+### Create your application
+
+1. Visit
+   [https://discord.com/developers/applications](https://discord.com/developers/applications)
+   to create a new Discord application. Click "New Application" and name the
+   application "Teleport".
+1. <a href={AppIcon} download>Download the application icon.</a>
+1. Set the application icon.
+
+### Create the application bot
+
+Go to the "Bot" tab and choose "Add Bot". You can <a href={BotLogo}
+download>download</a> our avatar to set as your Bot icon. Un-check the "Public
+Bot" toggle as this bot should only be used within your Discord servers.
+Finally, press "Reset Token", copy and save the new token into a safe place.
+This token will be used by the Teleport plugin to authenticate against the
+Discord API.
+
+### Install and authorize the application in your Discord server
+
+Go to the "OAuth2" tab, open the "URL Generator" and check the following
+permissions:
+
+- bot
+- View Channels
+- Send Messages
+
+Copy and access the generated URL. Choose to install the application into the
+desired Discord server. If the server is not available in the
+dropdown list, it means you don't have sufficient rights. Ask a server
+administrator to grant you a role with the "manage server" permission.
+
+<Admonition type="note">
+The same application can be installed into multiple Discord servers. To
+do so, access the OAuth URL multiple times and choose different servers. You
+have to be admin on a Discord server to install the app into it.
+</Admonition>
+
+## Step 6/8. Configure the Teleport Discord plugin
 
 At this point, the Teleport Discord plugin has the credentials it needs to
 communicate with your Teleport cluster and the Discord API. In this step, you will
@@ -274,7 +295,7 @@ The final configuration file should resemble the following:
 </TabItem>
 </Tabs>
 
-## Step 6/7. Test your Discord app
+## Step 7/8. Test your Discord app
 
 Once Teleport is running, you've created the Discord app, and the plugin is
 configured, you can now run the plugin and test the workflow.
@@ -356,7 +377,7 @@ Request Reviewed` in the Teleport Web UI.
 
 </Admonition>
 
-## Step 7/7. Set up systemd
+## Step 8/8. Set up systemd
 
 This section is only relevant if you are running the Teleport Discord plugin on a
 Linux host.

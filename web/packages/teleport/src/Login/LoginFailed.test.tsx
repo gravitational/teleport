@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2026  Gravitational, Inc.
+ * Copyright (C) 2026 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -32,19 +32,6 @@ test('callback error path shows callback error', () => {
   );
   expect(
     screen.getByText('Unable to process SSO callback.')
-  ).toBeInTheDocument();
-});
-
-test('missing role shows missing role error', () => {
-  render(
-    <MemoryRouter initialEntries={[cfg.routes.loginErrorCallbackMissingRole]}>
-      <LoginFailed />
-    </MemoryRouter>
-  );
-  expect(
-    screen.getByText(
-      'Unable to process SSO callback. The connector has a mapping to a role that does not exist. Please contact your SSO administrator.'
-    )
   ).toBeInTheDocument();
 });
 

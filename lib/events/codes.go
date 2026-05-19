@@ -134,10 +134,6 @@ const (
 	SessionRecordingAccessCode = "T2012I"
 	// AppSessionDynamoDBRequestCode is the application request/response code.
 	AppSessionDynamoDBRequestCode = "T2013I"
-	// AppSessionLLMRequestSuccessCode is the LLM app request/response success code.
-	AppSessionLLMRequestSuccessCode = "T2014I"
-	// AppSessionLLMRequestFailureCode is the LLM app request/response success code.
-	AppSessionLLMRequestFailureCode = "T2014E"
 
 	// AppCreateCode is the app.create event code.
 	AppCreateCode = "TAP03I"
@@ -832,19 +828,6 @@ const (
 	// ClientIPRestrictionsUpdateCode is the Client IP Restriction update event code.
 	ClientIPRestrictionsUpdateCode = "CIR001I"
 
-	// AppAuthConfigCreateCode is the app auth config create event code.
-	AppAuthConfigCreateCode = "TAAC001I"
-	// AppAuthConfigUpdateCode is the app auth config update event code.
-	AppAuthConfigUpdateCode = "TAAC002I"
-	// AppAuthConfigDeleteCode is the app auth config delete event code.
-	AppAuthConfigDeleteCode = "TAAC003I"
-	// AppAuthConfigVerifySuccessCode is the app auth verification success event
-	// code.
-	AppAuthConfigVerifySuccessCode = "TAAC004I"
-	// AppAuthConfigVerifyFailureCode is the app auth verification failure event
-	// code.
-	AppAuthConfigVerifyFailureCode = "TAAC004E"
-
 	// VnetConfigCreateCode is the Vnet config create event code.
 	VnetConfigCreateCode = "TVNET001I"
 	// VnetConfigUpdateCode is the Vnet config update event code.
@@ -897,24 +880,6 @@ const (
 	RetrievalModelUpdateCode = "INF012I"
 	// RetrievalModelDeleteCode is the retrieval model delete event code.
 	RetrievalModelDeleteCode = "INF013I"
-
-	// CertAuthOverrideCreateCode is the cert_auth_override create event code.
-	CertAuthOverrideCreateCode = "TCO01I"
-	// CertAuthOverrideUpdateCode is the cert_auth_override update event code.
-	CertAuthOverrideUpdateCode = "TCO02I"
-	// CertAuthOverrideUpsertCode is the cert_auth_override upsert event code.
-	CertAuthOverrideUpsertCode = "TCO03I"
-	// CertAuthOverrideDeleteCode is the cert_auth_override delete event code.
-	CertAuthOverrideDeleteCode = "TCO04I"
-	// CertAuthOverrideCertificatesAddCode is the event code for specialized
-	// AddCertificateOverride operation.
-	CertAuthOverrideCertificatesAddCode = "TCO05I"
-	// CertAuthOverrideCertificatesUpdateCode is the event code for specialized
-	// UpdateCertificateOverride operation.
-	CertAuthOverrideCertificatesUpdateCode = "TCO06I"
-	// CertAuthOverrideCertificatesRemoveCode is the event code for specialized
-	// RemoveCertificateOverride operation.
-	CertAuthOverrideCertificatesRemoveCode = "TCO07I"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode

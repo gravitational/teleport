@@ -37,7 +37,7 @@ import (
 	"github.com/schollz/progressbar/v3"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/observability/tracing/ssh"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/session/sftputils"
@@ -50,7 +50,7 @@ type FileTransferRequest struct {
 	// Destination is the destination path, local or remote.
 	Destination Target
 	// DialHost opens an SSH client to the given address.
-	DialHost func(ctx context.Context, login, addr string) (*ssh.Client, error)
+	DialHost func(ctx context.Context, login, addr string) (*tracessh.Client, error)
 	// Recursive indicates recursive file transfer.
 	Recursive bool
 	// PreserveAttrs preserves access and modification times
@@ -121,7 +121,7 @@ type HTTPTransferRequest struct {
 	// file download transfers
 	HTTPResponse http.ResponseWriter
 	// DialHost opens an SSH client to the given address.
-	DialHost func(ctx context.Context, login, addr string) (*ssh.Client, error)
+	DialHost func(ctx context.Context, login, addr string) (*tracessh.Client, error)
 	// ModeratedSessionID is the optional ID of a moderated session.
 	ModeratedSessionID string
 }

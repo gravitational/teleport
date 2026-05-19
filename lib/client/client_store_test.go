@@ -37,9 +37,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/profile"
-	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
@@ -145,33 +143,6 @@ func (s *testAuthority) signKeyRing(t *testing.T, keyRing *KeyRing, makeExpired 
 	}
 }
 
-// signAccessGraphCert mints an Access Graph TLS certificate that mirrors the
-// production identity (usage=UsageAccessGraphAPIOnly + a WebSessionID), signed
-// by the same CA and bound to the keyRing's TLS key.
-func (s *testAuthority) signAccessGraphCert(t *testing.T, keyRing *KeyRing, makeExpired bool) []byte {
-	t.Helper()
-	ttl := 20 * time.Minute
-	if makeExpired {
-		ttl = -ttl
-	}
-	identity := tlsca.Identity{
-		Username:     keyRing.Username,
-		Groups:       []string{"access"},
-		Usage:        []string{teleport.UsageAccessGraphAPIOnly},
-		WebSessionID: "access-graph-session-id",
-	}
-	subject, err := identity.Subject()
-	require.NoError(t, err)
-	cert, err := s.tlsCA.GenerateCertificate(tlsca.CertificateRequest{
-		Clock:     s.clock,
-		PublicKey: keyRing.TLSPrivateKey.Public(),
-		Subject:   subject,
-		NotAfter:  s.clock.Now().UTC().Add(ttl),
-	})
-	require.NoError(t, err)
-	return cert
-}
-
 func newSelfSignedCA(privateKey []byte, cluster string) (*tlsca.CertAuthority, authclient.TrustedCerts, error) {
 	priv, err := keys.ParsePrivateKey(privateKey)
 	if err != nil {
@@ -238,6 +209,7 @@ func TestClientStore(t *testing.T) {
 		"software key": softKeyRing,
 		"hardware key": hardKeyRing,
 	} {
+		keyRing := keyRing
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
@@ -354,83 +326,6 @@ func TestClientStore(t *testing.T) {
 			})
 		})
 	}
-}
-
-func TestClientStore_accessGraphCertValidation(t *testing.T) {
-	t.Parallel()
-	a := newTestAuthority(t)
-
-	t.Run("absent cert is ignored", func(t *testing.T) {
-		t.Parallel()
-		testEachClientStore(t, func(t *testing.T, clientStore *Store) {
-			idx := KeyRingIndex{"test.proxy.com", "bob", "root"}
-			keyRing := a.makeSignedKeyRing(t, idx, false)
-			require.NoError(t, clientStore.AddKeyRing(keyRing))
-
-			retrieved, err := clientStore.GetKeyRing(idx, WithAllCerts...)
-			require.NoError(t, err)
-			require.Nil(t, retrieved.AccessGraphTLSCert)
-		})
-	})
-
-	t.Run("valid cert round-trips", func(t *testing.T) {
-		t.Parallel()
-		testEachClientStore(t, func(t *testing.T, clientStore *Store) {
-			idx := KeyRingIndex{"test.proxy.com", "bob", "root"}
-			keyRing := a.makeSignedKeyRing(t, idx, false)
-			keyRing.AccessGraphTLSCert = a.signAccessGraphCert(t, keyRing, false)
-			require.NoError(t, clientStore.AddKeyRing(keyRing))
-
-			retrieved, err := clientStore.GetKeyRing(idx, WithAllCerts...)
-			require.NoError(t, err)
-			require.Equal(t, keyRing.AccessGraphTLSCert, retrieved.AccessGraphTLSCert)
-
-			// The retrieved cert should carry the AccessGraph usage in its
-			// identity, confirming we really round-tripped the AccessGraph
-			// cert (not the main TLS cert).
-			parsed, err := retrieved.AccessGraphTLSCertificate()
-			require.NoError(t, err)
-			agIdentity, err := tlsca.FromSubject(parsed.Subject, parsed.NotAfter)
-			require.NoError(t, err)
-			require.Equal(t, []string{teleport.UsageAccessGraphAPIOnly}, agIdentity.Usage)
-		})
-	})
-
-	t.Run("unparseable cert is rejected", func(t *testing.T) {
-		t.Parallel()
-		testEachClientStore(t, func(t *testing.T, clientStore *Store) {
-			idx := KeyRingIndex{"test.proxy.com", "bob", "root"}
-			keyRing := a.makeSignedKeyRing(t, idx, false)
-			keyRing.AccessGraphTLSCert = []byte("not a certificate")
-			require.NoError(t, clientStore.AddKeyRing(keyRing))
-
-			_, err := clientStore.GetKeyRing(idx, WithAllCerts...)
-			require.Error(t, err)
-		})
-	})
-
-	// Expired AccessGraph certs are returned as-is, matching the main TLSCert
-	// contract (see keystore.go: "we may be returning expired certificates
-	// here, that is okay. If a certificate is expired, it's the responsibility
-	// of the TeleportClient to perform cleanup").
-	t.Run("expired cert round-trips", func(t *testing.T) {
-		t.Parallel()
-		testEachClientStore(t, func(t *testing.T, clientStore *Store) {
-			idx := KeyRingIndex{"test.proxy.com", "bob", "root"}
-			keyRing := a.makeSignedKeyRing(t, idx, false)
-			keyRing.AccessGraphTLSCert = a.signAccessGraphCert(t, keyRing, true /*makeExpired*/)
-			require.NoError(t, clientStore.AddKeyRing(keyRing))
-
-			retrieved, err := clientStore.GetKeyRing(idx, WithAllCerts...)
-			require.NoError(t, err)
-			require.Equal(t, keyRing.AccessGraphTLSCert, retrieved.AccessGraphTLSCert)
-
-			notAfter, err := retrieved.AccessGraphTLSCertValidBefore()
-			require.NoError(t, err)
-			require.True(t, notAfter.Before(a.clock.Now()),
-				"test setup: AccessGraph cert should be expired relative to the auth clock")
-		})
-	})
 }
 
 func TestPartialProfileStatusScope(t *testing.T) {
@@ -552,13 +447,13 @@ func TestProxySSHConfig(t *testing.T) {
 		require.NoError(t, srv.Start())
 		defer srv.Close()
 
-		clt, err := apissh.Dial(t.Context(), "tcp", srv.Addr(), clientConfig)
+		clt, err := ssh.Dial("tcp", srv.Addr(), clientConfig)
 		require.NoError(t, err)
 		defer clt.Close()
 
 		// Call new session to initiate opening new channel. This should get
 		// rejected and fail.
-		_, err = clt.NewSession(t.Context())
+		_, err = clt.NewSession()
 		require.Error(t, err)
 		require.Equal(t, 1, int(called.Load()))
 
@@ -577,7 +472,7 @@ func TestProxySSHConfig(t *testing.T) {
 		require.NoError(t, err)
 
 		// ssh server cert doesn't match second-host user known host thus connection should fail.
-		_, err = apissh.Dial(t.Context(), "tcp", srv.Addr(), clientConfig)
+		_, err = ssh.Dial("tcp", srv.Addr(), clientConfig)
 		require.Error(t, err)
 	})
 }
@@ -631,7 +526,7 @@ func BenchmarkLoadKeysToKubeFromStore(b *testing.B) {
 	}
 
 	kubeClusterNames := make([]string, 0, 10)
-	for i := range 10 {
+	for i := 0; i < 10; i++ {
 		kubeClusterName := fmt.Sprintf("kubecluster-%d", i)
 		keyRing.KubeTLSCredentials[kubeClusterName] = kubeCred
 		kubeClusterNames = append(kubeClusterNames, kubeClusterName)

@@ -38,9 +38,8 @@ import (
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-// LoadFromProfileStore reads the FS- or identity-file-backed client store,
-// resolves its profile, and assembles a ResolvedConfig.
-func LoadFromProfileStore(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*ResolvedConfig, error) {
+// LoadConfigFromProfile applies config from ~/.tsh/ profile if it's present
+func LoadConfigFromProfile(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Config, error) {
 	ctx := context.TODO()
 	proxyAddr := ""
 	if len(ccf.AuthServerAddr) != 0 {
@@ -51,7 +50,7 @@ func LoadFromProfileStore(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*Resolve
 	clientStore := client.NewFSClientStore(cfg.TeleportHome, client.WithHardwareKeyService(hwks))
 	if ccf.IdentityFilePath != "" {
 		clientStore = client.NewMemClientStore(client.WithHardwareKeyService(hwks))
-		if err := identityfile.LoadIdentityFileIntoClientStore(clientStore, ccf.IdentityFilePath, proxyAddr, "", identityfile.WithHardwareKeyService(hwks)); err != nil {
+		if err := identityfile.LoadIdentityFileIntoClientStore(clientStore, ccf.IdentityFilePath, proxyAddr, ""); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -120,5 +119,5 @@ func LoadFromProfileStore(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*Resolve
 		cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 	}
 
-	return &ResolvedConfig{Auth: authConfig, ClientStore: clientStore, Profile: profile}, nil
+	return authConfig, nil
 }

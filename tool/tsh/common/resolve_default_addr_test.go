@@ -85,7 +85,7 @@ func TestResolveDefaultAddr(t *testing.T) {
 	respondingHandler := newRespondingHandler()
 
 	servers := make([]*httptest.Server, 5)
-	for i := range 5 {
+	for i := 0; i < 5; i++ {
 		handler := blockingHandler
 		if i == magicServerIndex {
 			handler = respondingHandler
@@ -124,7 +124,7 @@ func TestResolveDefaultAddrSingleCandidate(t *testing.T) {
 	respondingHandler := newRespondingHandler()
 
 	servers := make([]*httptest.Server, 1)
-	for i := range servers {
+	for i := 0; i < len(servers); i++ {
 		servers[i] = apihelpers.MakeTestServer(t, respondingHandler)
 	}
 
@@ -146,7 +146,7 @@ func TestResolveDefaultAddrTimeout(t *testing.T) {
 	blockingHandler, doneCh := newWaitForeverHandler()
 
 	servers := make([]*httptest.Server, 5)
-	for i := range 5 {
+	for i := 0; i < 5; i++ {
 		servers[i] = apihelpers.MakeTestServer(t, blockingHandler)
 	}
 
@@ -227,7 +227,7 @@ func TestResolveDefaultAddrTimeoutBeforeAllRacersLaunched(t *testing.T) {
 	blockingHandler, doneCh := newWaitForeverHandler()
 
 	servers := make([]*httptest.Server, 100)
-	for i := range servers {
+	for i := 0; i < len(servers); i++ {
 		servers[i] = apihelpers.MakeTestServer(t, blockingHandler)
 	}
 

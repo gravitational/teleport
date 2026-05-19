@@ -255,7 +255,6 @@ conditions:
 - `windows_desktop_labels_expression`
 - `group_labels_expression`
 - `workload_identity_labels_expression`
-- `beam_labels_expression`
 
 Check out our
 [predicate language](predicate-language.mdx)
@@ -328,7 +327,7 @@ allow:
         - auth_connector
       verbs: [list, create, read, update, delete]
     # Session: Provides access to Session Recordings.
-    # e.g. If session read is false, users can't play the recordings
+    # e.g If session read is false, users can't play the recordings
     # It is possible to restrict "list" but to allow "read" (in this case a user will
     # be able to replay a session using `tsh play` if they know the session ID).
     - resources:
@@ -618,8 +617,6 @@ for Kubernetes sessions together with the user and session fields above.
 The following database session fields can be used in `where` expressions to filter access
 for database sessions together with the user and session fields above.
 
-{/* vale messaging.capitalization = NO */}
-
 | Database Session Field | Description | Type |
 |---|---|---|
 | `session.db_service` | The name of the database service where the session took place. | `string` |
@@ -629,8 +626,6 @@ for database sessions together with the user and session fields above.
 | `session.db_user` | The database user used during the session. | `string` |
 | `session.db_labels` | The labels assigned to the database where the session took place. | `dict<string, string>` |
 | `session.db_type` | The type of the database (e.g., "postgres", "mysql"). | `string` |
-
-{/* vale messaging.capitalization = YES */}
 
 </TabItem>
 <TabItem value="Windows Desktop Sessions" label="Windows Desktop Sessions">
@@ -771,7 +766,6 @@ Labels for resources enrolled with Teleport:
 |`node_labels`|[SSH Servers](../../enroll-resources/server-access/server-access.mdx)|
 |`windows_desktop_labels`|[Windows desktops](../../enroll-resources/server-access/server-access.mdx)|
 |`workload_identity_labels`|[Workload Identities](../machine-workload-identity/workload-identity/workload-identity-resource.mdx)|
-|`beam_labels`|Beams|
 
 Principals a user can assume on infrastructure resources:
 - `aws_role_arns`

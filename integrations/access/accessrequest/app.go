@@ -64,7 +64,7 @@ type App struct {
 }
 
 // NewApp will create a new access request application.
-func NewApp() common.App {
+func NewApp(bot MessagingBot) common.App {
 	app := &App{}
 	app.job = lib.NewServiceJob(app.run)
 	return app

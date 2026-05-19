@@ -28,10 +28,6 @@ import (
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 )
 
-// ErrDeniedAccessListDeletion is returned when an Access List which also also a
-// member of another Access List is attempted for deletion.
-var ErrDeniedAccessListDeletion = &trace.AccessDeniedError{Message: "Access List with nested Access List membership cannot be deleted without first removing the membership"}
-
 // ValidateAccessListWithMembers makes sure the given AccessList and it's members is valid before
 // storing it. If the existingAccessList is non-nil it also checks if this is a valid update
 // transition. It takes into account validation of the nested access lists membership.

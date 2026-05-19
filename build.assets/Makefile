@@ -72,7 +72,7 @@ RELEASE_TARGET ?= release
 #
 # Build 'teleport' release inside a docker container
 #
-.PHONY: build
+.PHONY:build
 build: buildbox-centos7 webassets
 	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CENTOS7) \
 		make -C $(SRCDIR) ADDFLAGS='$(ADDFLAGS)' PIV=$(PIV) release-unix-preserving-webassets
@@ -80,7 +80,7 @@ build: buildbox-centos7 webassets
 #
 # Build 'teleport' binaries inside a docker container
 #
-.PHONY: build-binaries
+.PHONY:build-binaries
 build-binaries: buildbox-centos7 webassets
 	$(call LOG_GROUP_START)
 	$(REQUIRE_HOST_ARCH)
@@ -91,7 +91,7 @@ build-binaries: buildbox-centos7 webassets
 #
 # Build 'teleport' Enterprise binaries inside a docker container
 #
-.PHONY: build-enterprise-binaries
+.PHONY:build-enterprise-binaries
 build-enterprise-binaries: buildbox-centos7 webassets
 	$(call LOG_GROUP_START)
 	$(REQUIRE_HOST_ARCH)
@@ -103,10 +103,10 @@ build-enterprise-binaries: buildbox-centos7 webassets
 # Build 'teleport' FIPS release inside a docker container
 # This builds Enterprise binaries only.
 #
-.PHONY: build-binaries-fips
+.PHONY:build-binaries-fips
 build-binaries-fips: buildbox-centos7-fips webassets
 	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CENTOS7_FIPS) \
-		make ADDFLAGS='$(ADDFLAGS)' PIV=$(PIV) FIPS=yes clean-ent full-ent
+		make -C $(SRCDIR)/e ADDFLAGS='$(ADDFLAGS)' VERSION=$(VERSION) GITTAG=v$(VERSION) PIV=$(PIV) FIPS=yes clean full
 
 #
 # Build the buildbox thirdparty components. This rarely needs to be rebuilt and is
@@ -165,7 +165,6 @@ buildbox-ng:
 		--build-arg THIRDPARTY_IMAGE=$(BUILDBOX_THIRDPARTY) \
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
-		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--cache-from $(BUILDBOX_NG) \
 		--cache-to type=inline \
 		$(if $(PUSH),--push,--load) \
@@ -180,7 +179,7 @@ buildbox-ng:
 # first used), the error is ignored and the buildbox is built using the Dockerfile.
 # BUILDARCH is set explicitly, so it's set with and without BuildKit enabled.
 #
-.PHONY: buildbox
+.PHONY:buildbox
 buildbox:
 	$(call LOG_GROUP_START)
 	docker buildx build \
@@ -193,6 +192,7 @@ buildbox:
 		--build-arg WASM_OPT_VERSION=$(WASM_OPT_VERSION) \
 		--build-arg WASM_BINDGEN_VERSION=$(WASM_BINDGEN_VERSION) \
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
+		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--build-arg BUF_VERSION=$(BUF_VERSION) \
 		--build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
 		--build-arg NODE_GRPC_TOOLS_VERSION=$(NODE_GRPC_TOOLS_VERSION) \
@@ -206,7 +206,7 @@ buildbox:
 
 # Builds a Docker buildbox for FIPS
 #
-.PHONY: buildbox-fips
+.PHONY:buildbox-fips
 buildbox-fips: buildbox-centos7-fips
 
 #
@@ -220,7 +220,7 @@ buildbox-fips: buildbox-centos7-fips
 # It is called explicitly in CI before anything that depends on it is built, and when
 # building locally it can be called manually if the assets need to be rebuilt.
 #
-.PHONY: buildbox-centos7
+.PHONY:buildbox-centos7
 buildbox-centos7:
 	$(call LOG_GROUP_START)
 	$(REQUIRE_HOST_ARCH)
@@ -234,6 +234,7 @@ buildbox-centos7:
 		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
+		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--build-arg LIBPCSCLITE_VERSION=$(LIBPCSCLITE_VERSION) \
 		--cache-to type=inline \
 		--cache-from $(BUILDBOX_CENTOS7) \
@@ -248,7 +249,7 @@ buildbox-centos7:
 # FIPS-compliant binaries. It also does a test build to ensure the built
 # binaries are FIPS-compliant.
 #
-.PHONY: buildbox-centos7-fips
+.PHONY:buildbox-centos7-fips
 buildbox-centos7-fips:
 	$(call LOG_GROUP_START)
 	docker buildx build \
@@ -274,7 +275,7 @@ buildbox-centos7-fips:
 # ARM buildboxes use a regular Teleport buildbox as a base which already has a user
 # with the correct UID and GID created, so those arguments are not needed here.
 #
-.PHONY: buildbox-arm
+.PHONY:buildbox-arm
 buildbox-arm:
 	$(call LOG_GROUP_START)
 	docker buildx build \
@@ -299,7 +300,7 @@ endif
 # Builds a Docker buildbox for builds that depend on Node.js.
 # This can be used for building webassets as well as Teleport Connect.
 #
-.PHONY: buildbox-node
+.PHONY:buildbox-node
 buildbox-node:
 	$(call LOG_GROUP_START)
 	docker buildx build \
@@ -319,13 +320,13 @@ buildbox-node:
 #
 # Builds Teleport Connect inside the buildbox container.
 #
-.PHONY: teleterm
+.PHONY:teleterm
 teleterm: buildbox-node
 	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_NODE) \
 		bash -c "cd $(SRCDIR) && export CONNECT_TSH_BIN_PATH=\$$PWD/../teleport/build/tsh && pnpm install --frozen-lockfile && pnpm build-term && pnpm package-term -c.extraMetadata.version=$(CONNECT_VERSION)"
 
 # Builds webassets inside Docker.
-.PHONY: ui
+.PHONY:ui
 ui: buildbox
 	docker run -u $(UID):$(GID) -v "$$(pwd)/../":/teleport $(BUILDBOX) \
 		bash -c "cd ../teleport && pnpm install --frozen-lockfile && pnpm build-ui"
@@ -360,22 +361,10 @@ fix-imports: buildbox
 		$(DOCKERFLAGS) -t $(BUILDBOX) \
 		make -C /go/src/github.com/gravitational/teleport fix-imports/host
 
-# Generate BPF bytecode in a container, so local setup is not required.
-.PHONY: bpf-bytecode
-bpf-bytecode:
-	docker build \
-		--build-arg UID=$(UID) \
-		--build-arg GID=$(GID) \
-		--build-arg BUILDARCH=$(RUNTIME_ARCH) \
-		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
-		-f Dockerfile-bpf -t bpf-builder .
-	docker run --rm -v "$$(pwd)/../":/teleport -w /teleport bpf-builder \
-		make bpf-bytecode
-
 #
 # Removes the docker image
 #
-.PHONY: clean
+.PHONY:clean
 clean:
 	docker image rm --force $(BUILDBOX)
 	docker image rm --force $(DOCSBOX)
@@ -386,7 +375,7 @@ clean:
 #
 # Runs tests inside a build container
 #
-.PHONY: test
+.PHONY:test
 test: buildbox
 	docker run \
 		--env TELEPORT_XAUTH_TEST="yes" \
@@ -404,35 +393,35 @@ test-root: buildbox
 		"ssh-agent > external.agent.tmp && source external.agent.tmp; \
 		cd $(SRCDIR) && make TELEPORT_DEBUG=0 FLAGS='-cover -race' clean test-go-root"
 
-.PHONY: test-sh
+.PHONY:test-sh
 test-sh: buildbox
 	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
 		/bin/bash -c "make -C $(SRCDIR) BATSFLAGS=$(BATSFLAGS) test-sh"
 
-.PHONY: test-helm
+.PHONY:test-helm
 test-helm: buildbox
 	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
 		/bin/bash -c "make -C $(SRCDIR) test-helm"
 
 .PHONY:test-helm-update-snapshots
-test-helm-update-snapshots: buildbox
+test-helm-update-snapshots:
 	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
 		/bin/bash -c "make -C $(SRCDIR) test-helm-update-snapshots"
 
-.PHONY: integration
+.PHONY:integration
 integration: buildbox
 	docker run \
 		--env TELEPORT_XAUTH_TEST="yes" \
 		$(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
 		make -C $(SRCDIR) FLAGS='-cover' integration
 
-.PHONY: integration-root
+.PHONY:integration-root
 integration-root: buildbox
 	docker run $(DOCKERFLAGS) -t $(BUILDBOX) \
 		--env TELEPORT_XAUTH_TEST="yes" \
 		/bin/bash -c "make -C $(SRCDIR) FLAGS='-cover' integration-root"
 
-.PHONY: integration-kube
+.PHONY:integration-kube
 integration-kube: buildbox
 	docker run $(DOCKERFLAGS) -t $(BUILDBOX) \
 		/bin/bash -c "make -C $(SRCDIR) FLAGS='-cover' integration-kube"
@@ -445,7 +434,7 @@ e2e-aws: buildbox
 #
 # Runs linters on new changes inside a build container.
 #
-.PHONY: lint
+.PHONY:lint
 lint: buildbox
 	docker run $(DOCKERFLAGS) $(NOROOT) -t $(BUILDBOX) \
 		/bin/bash -c "make -C $(SRCDIR) lint"
@@ -458,7 +447,7 @@ lint-helm: buildbox
 #
 # Starts shell inside the build container
 #
-.PHONY: enter
+.PHONY:enter
 enter: buildbox
 	docker run $(DOCKERFLAGS) -ti $(NOROOT) \
 		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX) /bin/bash
@@ -517,11 +506,10 @@ enter-root/buildbox-ng:
 		--workdir /home/teleport \
 		--user 0:0 \
 		$(BUILDBOX_NG)
-
 #
 # Starts shell inside the centos7 container
 #
-.PHONY: enter/centos7
+.PHONY:enter/centos7
 enter/centos7: buildbox-centos7
 	docker run $(DOCKERFLAGS) -ti $(NOROOT) \
 		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX_CENTOS7) /bin/bash
@@ -529,7 +517,7 @@ enter/centos7: buildbox-centos7
 #
 # Starts a root shell inside the centos7 container
 #
-.PHONY: enter-root/centos7
+.PHONY:enter-root/centos7
 enter-root/centos7: buildbox-centos7
 	docker run $(DOCKERFLAGS) -ti \
 		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX_CENTOS7) /bin/bash
@@ -545,7 +533,7 @@ enter/centos7-fips: buildbox-centos7-fips
 #
 # Starts a root shell inside the centos7-fips container
 #
-.PHONY: enter-root/centos7-fips
+.PHONY:enter-root/centos7-fips
 enter-root/centos7-fips: buildbox-centos7-fips
 	docker run $(DOCKERFLAGS) -ti \
 		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX_CENTOS7_FIPS) /bin/bash
@@ -560,12 +548,12 @@ enter/grpcbox: grpcbox
 #
 # Starts shell inside the node build container
 #
-.PHONY: enter/node
+.PHONY:enter/node
 enter/node: buildbox-node
 	docker run $(DOCKERFLAGS) -ti $(NOROOT) \
 		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX_NODE) /bin/bash
 
-.PHONY: enter/arm
+.PHONY:enter/arm
 enter/arm: buildbox-arm
 	docker run $(DOCKERFLAGS) -ti $(NOROOT) \
 		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX_ARM) /bin/bash
@@ -619,7 +607,7 @@ BUILDBOX_TARGET = $(or $(BUILDBOX_TARGET_$(BUILDBOX)),buildbox)
 #
 # Create a Teleport package using the build container.
 #
-.PHONY: release
+.PHONY:release
 release: $(BUILDBOX_TARGET)
 	$(call LOG_GROUP_START)
 	@echo "Build Assets Release"
@@ -667,10 +655,11 @@ release-ng: webassets buildbox-ng
 # This is a special case because it only builds and packages the Enterprise FIPS binaries, no OSS.
 # CI should not use this target, it should use named Makefile targets like release-amd64-fips.
 #
-.PHONY: release-fips
+.PHONY:release-fips
 release-fips: buildbox-centos7-fips webassets
+	@if [ -z ${VERSION} ]; then echo "VERSION is not set"; exit 1; fi
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7_FIPS) \
-		/usr/bin/make release-ent -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) FIPS=yes REPRODUCIBLE=yes
+		/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION) REPRODUCIBLE=yes
 
 #
 # Create a Teleport package for CentOS 7 using the build container.
@@ -682,7 +671,7 @@ release-fips: buildbox-centos7-fips webassets
 # is set up to use an architecture-specific builder, but building locally
 # for a foreign architecture cannot be done.
 #
-.PHONY: release-centos7
+.PHONY:release-centos7
 release-centos7: buildbox-centos7 webassets
 	$(call LOG_GROUP_START)
 	$(REQUIRE_HOST_ARCH)
@@ -698,11 +687,11 @@ release-centos7: buildbox-centos7 webassets
 # does not clean the web assets on the `release` target so there is no need
 # to call release-unix-preserving-webassets like we do for the non-fips release.
 #
-.PHONY: release-centos7-fips
+.PHONY:release-centos7-fips
 release-centos7-fips: buildbox-centos7-fips webassets
 	$(call LOG_GROUP_START)
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7_FIPS) \
-		/usr/bin/scl enable $(DEVTOOLSET) '/usr/bin/make release-ent -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) FIPS=yes REPRODUCIBLE=no'
+		/usr/bin/scl enable $(DEVTOOLSET) '/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION) REPRODUCIBLE=no'
 	$(call LOG_GROUP_END)
 
 #
@@ -716,7 +705,7 @@ release-windows: buildbox
 #
 # Create an unsigned Windows Teleport package using the build container.
 #
-.PHONY: release-windows-unsigned
+.PHONY:release-windows-unsigned
 release-windows-unsigned: buildbox
 	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX) \
 		/usr/bin/make release-windows-unsigned -e ADDFLAGS="$(ADDFLAGS)" OS=windows RUNTIME=$(GOLANG_VERSION) REPRODUCIBLE=yes PIV=yes
@@ -724,7 +713,7 @@ release-windows-unsigned: buildbox
 #
 # Run docs tester to detect problems.
 #
-.PHONY: docsbox
+.PHONY:docsbox
 docsbox:
 	if ! docker inspect --type=image $(DOCSBOX) 2>&1 >/dev/null; then docker pull $(DOCSBOX) || true; fi
 
@@ -736,7 +725,7 @@ test-docs: docsbox
 #
 # Print the Go version used to build Teleport.
 #
-.PHONY: print-go-version
+.PHONY:print-go-version
 print-go-version:
 	@echo $(GOLANG_VERSION)
 
@@ -750,14 +739,14 @@ print-golangci-lint-version:
 #
 # Print the Buf version used by Teleport.
 #
-.PHONY: print-buf-version
+.PHONY:print-buf-version
 print-buf-version:
 	@echo $(BUF_VERSION)
 
 #
 # Print the Rust version used to build Teleport.
 #
-.PHONY: print-rust-version
+.PHONY:print-rust-version
 print-rust-version:
 	@echo $(RUST_VERSION)
 
@@ -771,28 +760,28 @@ print-wasm-opt-version:
 #
 # Print the wasm-bindgen version used to build Teleport.
 #
-.PHONY: print-wasm-bindgen-version
+.PHONY:print-wasm-bindgen-version
 print-wasm-bindgen-version:
 	@echo $(WASM_BINDGEN_VERSION)
 
 #
 # Print the Node version used to build Teleport Connect.
 #
-.PHONY: print-node-version
+.PHONY:print-node-version
 print-node-version:
 	@echo $(NODE_VERSION)
 
 #
 # Print the buildbox version used to build Teleport.
 #
-.PHONY: print-buildbox-version
+.PHONY:print-buildbox-version
 print-buildbox-version:
 	@echo $(BUILDBOX_VERSION)
 
 #
 # Build CentOS 7 assets - clang.
 #
-.PHONY: build-centos7-assets
+.PHONY:build-centos7-assets
 build-centos7-assets:
 	docker buildx build \
 		--build-arg BUILDARCH=$(HOST_ARCH) \
@@ -807,7 +796,7 @@ build-centos7-assets:
 #
 # Generate event schema from proto files.
 #
-.PHONY: generate-eventschema
+.PHONY:generate-eventschema
 generate-eventschema:
 	$(eval PROTOBUF_MOD_PATH := $(shell go mod download --json github.com/gogo/protobuf | awk -F: '/"Dir"/ { print $$2 }' | tr -d ' ",'))
 

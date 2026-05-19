@@ -69,16 +69,6 @@ spec:
                       type: string
                     nullable: true
                     type: array
-                  beam_labels:
-                    additionalProperties:
-                      x-kubernetes-preserve-unknown-fields: true
-                    description: BeamLabels are used in the RBAC system to allow/deny
-                      access to beams.
-                    type: object
-                  beam_labels_expression:
-                    description: BeamLabelsExpression is a predicate expression used
-                      to allow/deny access to beams.
-                    type: string
                   cluster_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
@@ -304,23 +294,6 @@ spec:
                     type: array
                   kubernetes_users:
                     description: KubeUsers is an optional kubernetes users to impersonate
-                    items:
-                      type: string
-                    nullable: true
-                    type: array
-                  linux_desktop_labels:
-                    additionalProperties:
-                      x-kubernetes-preserve-unknown-fields: true
-                    description: LinuxDesktopLabels are used in the RBAC system to
-                      allow/deny access to Linux desktops.
-                    type: object
-                  linux_desktop_labels_expression:
-                    description: LinuxDesktopLabelsExpression is a predicate expression
-                      used to allow/deny access to Linux desktops.
-                    type: string
-                  linux_desktop_logins:
-                    description: LinuxDesktopLogins is a list of desktop login names
-                      allowed/denied for Linux desktops.
                     items:
                       type: string
                     nullable: true
@@ -564,15 +537,6 @@ spec:
                         type: array
                       roles:
                         description: Roles is the name of roles which may be reviewed.
-                        items:
-                          type: string
-                        nullable: true
-                        type: array
-                      submit_for_users:
-                        description: SubmitForUsers is used by Teleport plugins to
-                          indicate they can submit reviews on behalf of other users.
-                          Reviews submitted for a user are evaluated against that
-                          user's own RBAC permissions. Supports wildcard (*).
                         items:
                           type: string
                         nullable: true
@@ -722,16 +686,6 @@ spec:
                       type: string
                     nullable: true
                     type: array
-                  beam_labels:
-                    additionalProperties:
-                      x-kubernetes-preserve-unknown-fields: true
-                    description: BeamLabels are used in the RBAC system to allow/deny
-                      access to beams.
-                    type: object
-                  beam_labels_expression:
-                    description: BeamLabelsExpression is a predicate expression used
-                      to allow/deny access to beams.
-                    type: string
                   cluster_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
@@ -957,23 +911,6 @@ spec:
                     type: array
                   kubernetes_users:
                     description: KubeUsers is an optional kubernetes users to impersonate
-                    items:
-                      type: string
-                    nullable: true
-                    type: array
-                  linux_desktop_labels:
-                    additionalProperties:
-                      x-kubernetes-preserve-unknown-fields: true
-                    description: LinuxDesktopLabels are used in the RBAC system to
-                      allow/deny access to Linux desktops.
-                    type: object
-                  linux_desktop_labels_expression:
-                    description: LinuxDesktopLabelsExpression is a predicate expression
-                      used to allow/deny access to Linux desktops.
-                    type: string
-                  linux_desktop_logins:
-                    description: LinuxDesktopLogins is a list of desktop login names
-                      allowed/denied for Linux desktops.
                     items:
                       type: string
                     nullable: true
@@ -1217,15 +1154,6 @@ spec:
                         type: array
                       roles:
                         description: Roles is the name of roles which may be reviewed.
-                        items:
-                          type: string
-                        nullable: true
-                        type: array
-                      submit_for_users:
-                        description: SubmitForUsers is used by Teleport plugins to
-                          indicate they can submit reviews on behalf of other users.
-                          Reviews submitted for a user are evaluated against that
-                          user's own RBAC permissions. Supports wildcard (*).
                         items:
                           type: string
                         nullable: true
@@ -1672,16 +1600,6 @@ spec:
                       type: string
                     nullable: true
                     type: array
-                  beam_labels:
-                    additionalProperties:
-                      x-kubernetes-preserve-unknown-fields: true
-                    description: BeamLabels are used in the RBAC system to allow/deny
-                      access to beams.
-                    type: object
-                  beam_labels_expression:
-                    description: BeamLabelsExpression is a predicate expression used
-                      to allow/deny access to beams.
-                    type: string
                   cluster_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
@@ -1907,23 +1825,6 @@ spec:
                     type: array
                   kubernetes_users:
                     description: KubeUsers is an optional kubernetes users to impersonate
-                    items:
-                      type: string
-                    nullable: true
-                    type: array
-                  linux_desktop_labels:
-                    additionalProperties:
-                      x-kubernetes-preserve-unknown-fields: true
-                    description: LinuxDesktopLabels are used in the RBAC system to
-                      allow/deny access to Linux desktops.
-                    type: object
-                  linux_desktop_labels_expression:
-                    description: LinuxDesktopLabelsExpression is a predicate expression
-                      used to allow/deny access to Linux desktops.
-                    type: string
-                  linux_desktop_logins:
-                    description: LinuxDesktopLogins is a list of desktop login names
-                      allowed/denied for Linux desktops.
                     items:
                       type: string
                     nullable: true
@@ -2167,15 +2068,6 @@ spec:
                         type: array
                       roles:
                         description: Roles is the name of roles which may be reviewed.
-                        items:
-                          type: string
-                        nullable: true
-                        type: array
-                      submit_for_users:
-                        description: SubmitForUsers is used by Teleport plugins to
-                          indicate they can submit reviews on behalf of other users.
-                          Reviews submitted for a user are evaluated against that
-                          user's own RBAC permissions. Supports wildcard (*).
                         items:
                           type: string
                         nullable: true
@@ -2325,16 +2217,6 @@ spec:
                       type: string
                     nullable: true
                     type: array
-                  beam_labels:
-                    additionalProperties:
-                      x-kubernetes-preserve-unknown-fields: true
-                    description: BeamLabels are used in the RBAC system to allow/deny
-                      access to beams.
-                    type: object
-                  beam_labels_expression:
-                    description: BeamLabelsExpression is a predicate expression used
-                      to allow/deny access to beams.
-                    type: string
                   cluster_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
@@ -2560,23 +2442,6 @@ spec:
                     type: array
                   kubernetes_users:
                     description: KubeUsers is an optional kubernetes users to impersonate
-                    items:
-                      type: string
-                    nullable: true
-                    type: array
-                  linux_desktop_labels:
-                    additionalProperties:
-                      x-kubernetes-preserve-unknown-fields: true
-                    description: LinuxDesktopLabels are used in the RBAC system to
-                      allow/deny access to Linux desktops.
-                    type: object
-                  linux_desktop_labels_expression:
-                    description: LinuxDesktopLabelsExpression is a predicate expression
-                      used to allow/deny access to Linux desktops.
-                    type: string
-                  linux_desktop_logins:
-                    description: LinuxDesktopLogins is a list of desktop login names
-                      allowed/denied for Linux desktops.
                     items:
                       type: string
                     nullable: true
@@ -2820,15 +2685,6 @@ spec:
                         type: array
                       roles:
                         description: Roles is the name of roles which may be reviewed.
-                        items:
-                          type: string
-                        nullable: true
-                        type: array
-                      submit_for_users:
-                        description: SubmitForUsers is used by Teleport plugins to
-                          indicate they can submit reviews on behalf of other users.
-                          Reviews submitted for a user are evaluated against that
-                          user's own RBAC permissions. Supports wildcard (*).
                         items:
                           type: string
                         nullable: true

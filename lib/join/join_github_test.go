@@ -116,11 +116,9 @@ func TestJoinGHA(t *testing.T) {
 		},
 	}
 
-	testModules := modulestest.OSSModules()
 	authServer, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			Dir:     t.TempDir(),
-			Modules: testModules,
+			Dir: t.TempDir(),
 		},
 	})
 	require.NoError(t, err)
@@ -163,7 +161,7 @@ func TestJoinGHA(t *testing.T) {
 		return rule
 	}
 
-	allowRulesNotMatched := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...any) {
+	allowRulesNotMatched := require.ErrorAssertionFunc(func(t require.TestingT, err error, i ...interface{}) {
 		require.ErrorContains(t, err, "id token claims did not match any allow rules")
 		require.True(t, trace.IsAccessDenied(err))
 	})
@@ -694,9 +692,10 @@ func TestJoinGHA(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Cleanup(idTokenValidator.reset)
 			if tt.setEnterprise {
-				testModules.TestBuildType = modules.BuildEnterprise
-			} else {
-				testModules.TestBuildType = modules.BuildOSS
+				modulestest.SetTestModules(
+					t,
+					modulestest.Modules{TestBuildType: modules.BuildEnterprise},
+				)
 			}
 			token, err := types.NewProvisionTokenFromSpec(
 				tt.name, time.Now().Add(time.Minute), tt.tokenSpec,

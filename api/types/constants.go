@@ -184,18 +184,10 @@ const (
 	// SubKindMCP represents an MCP server as a subkind of app.
 	SubKindMCP = KindMCP
 
-	// SubKindLLM represents an LLM inference endpoint as a subkind of app.
-	SubKindLLM = KindLLM
-
 	// KindMCP is an MCP server resource.
 	// Currently, MCP servers are accessed through apps.
 	// In the future, they may become a standalone resource kind.
 	KindMCP = "mcp"
-
-	// KindLLM is an LLM inference endpoint server resource.
-	// Currently, inference endpoints are accessed through apps.
-	// In the future, they may become a standalone resource kind.
-	KindLLM = "llm"
 
 	// KindDatabaseServer is a database proxy server resource.
 	KindDatabaseServer = "db_server"
@@ -477,9 +469,6 @@ const (
 	// KindDynamicWindowsDesktop is a dynamic Windows desktop host.
 	KindDynamicWindowsDesktop = "dynamic_windows_desktop"
 
-	// KindLinuxDesktop is a Linux desktop host.
-	KindLinuxDesktop = "linux_desktop"
-
 	// KindRecoveryCodes is a resource that holds users recovery codes.
 	KindRecoveryCodes = "recovery_codes"
 
@@ -712,26 +701,14 @@ const (
 	// KindClientIPRestriction is the resource kind for Client IP Restriction allowlist.
 	KindClientIPRestriction = "client_ip_restriction"
 
-	// KindAppAuthConfig is the resource kind for app auth configs.
-	KindAppAuthConfig = "app_auth_config"
-
-	// KindValidatedMFAChallenge is the resource kind for validated MFA challenges.
-	KindValidatedMFAChallenge = "validated_mfa_challenge"
-
 	// KindWorkloadCluster is the resource kind for workload clusters.
 	KindWorkloadCluster = "workload_cluster"
-
-	// KindCertAuthorityOverride is the resource kind for CA overrides.
-	KindCertAuthorityOverride = "cert_authority_override"
 
 	// KindDelegationSession is the resource kind for Delegation Sessions.
 	//
 	// Delegation Sessions allow users to temporarily lend (a subset of) their
 	// access to a bot or workload, such as an AI Agent.
 	KindDelegationSession = "delegation_session"
-
-	// KindBeam is an ephemeral AI-optimized compute environment.
-	KindBeam = "beam"
 
 	// V8 is the eighth version of resources.
 	V8 = "v8"
@@ -1054,13 +1031,6 @@ const (
 	// MCPTransportHTTP indicates the MCP server uses SSE transport.
 	MCPTransportHTTP = "Streamable HTTP"
 
-	// SchemeLLMEndpoint is a URI scheme for LLM inference endpoints.
-	SchemeLLMEndpoint = "llm"
-
-	// SchemeTLS is a URI scheme for TCP apps that Teleport terminate TLS
-	// connections with upstream.
-	SchemeTLS = "tls"
-
 	// DiscoveredResourceNode identifies a discovered SSH node.
 	DiscoveredResourceNode = "node"
 	// DiscoveredResourceDatabase identifies a discovered database.
@@ -1354,21 +1324,6 @@ const (
 
 	// AppSubKindLabel is the label that has the same value of "app.sub_kind".
 	AppSubKindLabel = TeleportInternalLabelPrefix + "app-sub-kind"
-
-	// BeamIDLabel is the label used to track which Beam a resource belongs to.
-	BeamIDLabel = TeleportInternalLabelPrefix + "beams/id"
-
-	// BeamOwnerLabel is the label used to track which user's Beam a resource
-	// belongs to.
-	BeamOwnerLabel = TeleportInternalLabelPrefix + "beams/owner"
-
-	// BeamAliasLabel is the label used to track the alias of the Beam a
-	// resource belongs to.
-	BeamAliasLabel = TeleportInternalLabelPrefix + "beams/alias"
-
-	// BeamAppTypeLabel is the label used to denote the type of app created for
-	// Beams. Valid values: "ingress" and "llm".
-	BeamAppTypeLabel = TeleportInternalLabelPrefix + "beams/app-type"
 )
 
 const (
@@ -1820,26 +1775,20 @@ var KubernetesCoreResourceKinds = map[string]struct{}{
 	"services":               {},
 }
 
-// TODO(espadolini): delete in v20
+// TODO(espadolini): deprecate in v19, delete in v20
 const (
 	// TeleportDropGroup is a default group that users of the teleport automated user
 	// provisioning system get added to when provisioned in INSECURE_DROP mode. This
 	// prevents already existing users from being tampered with or deleted.
-	//
-	// Deprecated: use [constants.TeleportDropGroup].
 	//go:fix inline
 	TeleportDropGroup = constants.TeleportDropGroup
 	// TeleportKeepGroup is a default group that users of the teleport automated user
 	// provisioning system get added to when provisioned in KEEP mode. This prevents
 	// already existing users from being tampered with or deleted.
-	//
-	// Deprecated: use [constants.TeleportKeepGroup].
 	//go:fix inline
 	TeleportKeepGroup = constants.TeleportKeepGroup
 	// TeleportStaticGroup is a default group that static host users get added to. This
 	// prevents already existing users from being tampered with or deleted.
-	//
-	// Deprecated: use [constants.TeleportStaticGroup].
 	//go:fix inline
 	TeleportStaticGroup = constants.TeleportStaticGroup
 )
@@ -1870,12 +1819,6 @@ const (
 	ApplicationProtocolHTTP = "HTTP"
 	// ApplicationProtocolTCP is the TCP apps protocol.
 	ApplicationProtocolTCP = "TCP"
-	// ApplicationProtocolMCP is the protocol for MCP (Model Context Protocol)
-	// server applications.
-	ApplicationProtocolMCP = "MCP"
-	// ApplicationProtocolLLM is the protocol for applications that expose an
-	// LLM inference endpoint.
-	ApplicationProtocolLLM = "LLM"
 )
 
 const (
@@ -1954,6 +1897,3 @@ const (
 // BuiltInAutomaticReview is used within access monitoring rules and indicates
 // that the automatic_review rule should be monitored by Teleport.
 const BuiltInAutomaticReview = "builtin"
-
-// BeamsLogin is the login that should be used when SSHing into beams.
-const BeamsLogin = "beams"

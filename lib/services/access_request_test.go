@@ -433,7 +433,7 @@ func TestReviewThresholds(t *testing.T) {
 				{ // adds second denial but request was already approved.
 					author:  g.user(t, "proletariat", "intelligentsia", "military"),
 					propose: deny,
-					errCheck: func(tt require.TestingT, err error, i ...any) {
+					errCheck: func(tt require.TestingT, err error, i ...interface{}) {
 						require.ErrorIs(tt, err, trace.AccessDenied("the access request has been already approved"), i...)
 					},
 				},
@@ -455,7 +455,7 @@ func TestReviewThresholds(t *testing.T) {
 				{ // tries to approve but it was already denied
 					author:  g.user(t, "military"),
 					propose: approve,
-					errCheck: func(tt require.TestingT, err error, i ...any) {
+					errCheck: func(tt require.TestingT, err error, i ...interface{}) {
 						require.ErrorIs(tt, err, trace.AccessDenied("the access request has been already denied"), i...)
 					},
 				},
@@ -707,7 +707,7 @@ func TestReviewThresholds(t *testing.T) {
 					author:          g.user(t, "military"),
 					propose:         approve,
 					assumeStartTime: clock.Now().UTC().Add(10000 * time.Hour),
-					errCheck: func(tt require.TestingT, err error, i ...any) {
+					errCheck: func(tt require.TestingT, err error, i ...interface{}) {
 						require.ErrorContains(tt, err, "assume start time must be prior to access expiry time", i...)
 					},
 				},
@@ -1710,138 +1710,6 @@ func TestPruneMappedSearchAs(t *testing.T) {
 	}
 }
 
-// TestPruneResourceRequestRoles_WithConstraints tests that resource constraints
-// are enforced during search_as_roles pruning when roles are auto-derived for
-// resource-based access requests.
-func TestPruneResourceRequestRoles_WithConstraints(t *testing.T) {
-	ctx := context.Background()
-	g, user := newFixture(t)
-
-	testCases := []struct {
-		desc        string
-		resources   []types.ResourceAccessID
-		expectRoles []string
-		expectError bool
-	}{
-		{
-			desc: "SSH constraint prunes roles that do not grant the constrained login",
-			resources: []types.ResourceAccessID{
-				{
-					Id: types.ResourceID{
-						ClusterName: g.clusterName,
-						Kind:        types.KindNode,
-						Name:        "admins-node",
-					},
-					Constraints: &types.ResourceConstraints{
-						Details: &types.ResourceConstraints_Ssh{
-							Ssh: &types.SSHResourceConstraints{
-								Logins: []string{"root"},
-							},
-						},
-					},
-				},
-			},
-			// node-access only grants {{internal.logins}} = "responder", not
-			// "root", so it should be pruned. Only node-admins grants "root".
-			expectRoles: []string{"node-admins"},
-		},
-		{
-			desc: "SSH constraint with user login keeps only matching role",
-			resources: []types.ResourceAccessID{
-				{
-					Id: types.ResourceID{
-						ClusterName: g.clusterName,
-						Kind:        types.KindNode,
-						Name:        "admins-node",
-					},
-					Constraints: &types.ResourceConstraints{
-						Details: &types.ResourceConstraints_Ssh{
-							Ssh: &types.SSHResourceConstraints{
-								Logins: []string{"responder"},
-							},
-						},
-					},
-				},
-			},
-			// "responder" is the user's trait-derived login. node-access
-			// grants {{internal.logins}} which resolves to "responder".
-			// node-admins also grants {{internal.logins}} + "root", so it
-			// also matches "responder".
-			expectRoles: []string{"node-access", "node-admins"},
-		},
-		{
-			desc: "SSH constraint with no matching roles errors",
-			resources: []types.ResourceAccessID{
-				{
-					Id: types.ResourceID{
-						ClusterName: g.clusterName,
-						Kind:        types.KindNode,
-						Name:        "admins-node",
-					},
-					Constraints: &types.ResourceConstraints{
-						Details: &types.ResourceConstraints_Ssh{
-							Ssh: &types.SSHResourceConstraints{
-								Logins: []string{"nonexistent-login"},
-							},
-						},
-					},
-				},
-			},
-			expectError: true,
-		},
-		{
-			desc: "mixed: unconstrained resource includes its roles alongside constrained resource",
-			resources: []types.ResourceAccessID{
-				{
-					Id: types.ResourceID{
-						ClusterName: g.clusterName,
-						Kind:        types.KindNode,
-						Name:        "admins-node",
-					},
-					Constraints: &types.ResourceConstraints{
-						Details: &types.ResourceConstraints_Ssh{
-							Ssh: &types.SSHResourceConstraints{
-								Logins: []string{"root"},
-							},
-						},
-					},
-				},
-				{
-					Id: types.ResourceID{
-						ClusterName: g.clusterName,
-						Kind:        types.KindDatabase,
-						Name:        "db",
-					},
-				},
-			},
-			// node-admins for the constrained node (root login), plus
-			// db-admins for the unconstrained database.
-			expectRoles: []string{"node-admins", "db-admins"},
-		},
-	}
-	for _, tc := range testCases {
-		t.Run(tc.desc, func(t *testing.T) {
-			req, err := NewAccessRequestWithResources(user, nil, tc.resources)
-			require.NoError(t, err)
-
-			clock := clockwork.NewFakeClock()
-			identity := tlsca.Identity{
-				Expires: clock.Now().UTC().Add(8 * time.Hour),
-			}
-
-			err = ValidateAccessRequestForUser(ctx, clock, g, req, identity, WithExpandVars(true))
-			if tc.expectError {
-				require.Error(t, err)
-				return
-			}
-			require.NoError(t, err)
-
-			require.ElementsMatch(t, tc.expectRoles, req.GetRoles(),
-				"Pruned roles %v don't match expected roles %v", req.GetRoles(), tc.expectRoles)
-		})
-	}
-}
-
 // requireBadParameter is a [require.ErrorAssertionFunc] that asserts the supplied error value is a BadParameter error
 func requireBadParameter(t require.TestingT, err error, msgAndArgs ...any) {
 	var bpe *trace.BadParameterError
@@ -2100,7 +1968,7 @@ func TestGetRequestableRoles(t *testing.T) {
 		clusterName: clusterName,
 	}
 
-	for i := range 10 {
+	for i := 0; i < 10; i++ {
 		node, err := types.NewServerWithLabels(
 			fmt.Sprintf("node-%d", i),
 			types.KindNode,
@@ -2952,7 +2820,7 @@ func TestValidateResourceRequestSizeLimits(t *testing.T) {
 	require.Equal(t, "/someCluster/node/resource2", expectedRidStr1)
 
 	var requestedResourceIDs []types.ResourceID
-	for i := range 200 {
+	for i := 0; i < 200; i++ {
 		requestedResourceIDs = append(requestedResourceIDs, types.ResourceID{
 			ClusterName: "someCluster",
 			Kind:        "node",

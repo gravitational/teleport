@@ -244,9 +244,6 @@ type Identity struct {
 	// ImmutableLabelHash is the hash of the immutable labels that have been
 	// applied to the identity.
 	ImmutableLabelHash string
-
-	// WebSessionID is the session ID of the web session associated with this identity, if any.
-	WebSessionID string
 }
 
 // RouteToApp holds routing information for applications.
@@ -646,13 +643,10 @@ var (
 	// AllowedResourceAccessIDsASN1ExtensionOID is an extension OID used to list the
 	// ResourceAccessIDs which the certificate should be able to grant access to
 	AllowedResourceAccessIDsASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 26}
+
 	// ImmutableLabelHashASN1ExtensionOID is an extension OID that contains the
 	// immuable label hash used to verify immutable labels.
 	ImmutableLabelHashASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 27}
-
-	// WebSessionIDASN1ExtensionOID is an extension OID that contains the
-	// web session ID associated with this identity, if any.
-	WebSessionIDASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 28}
 
 	// BotInternalASN1ExtensionOID is a boolean OID that indicates certificates
 	// are for a bot internal identity, rather than an output certificate.
@@ -1142,14 +1136,6 @@ func (id *Identity) Subject() (pkix.Name, error) {
 			})
 	}
 
-	if id.WebSessionID != "" {
-		subject.ExtraNames = append(subject.ExtraNames,
-			pkix.AttributeTypeAndValue{
-				Type:  WebSessionIDASN1ExtensionOID,
-				Value: id.WebSessionID,
-			})
-	}
-
 	return subject, nil
 }
 
@@ -1467,10 +1453,6 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 		case attr.Type.Equal(ImmutableLabelHashASN1ExtensionOID):
 			if val, ok := attr.Value.(string); ok {
 				id.ImmutableLabelHash = val
-			}
-		case attr.Type.Equal(WebSessionIDASN1ExtensionOID):
-			if val, ok := attr.Value.(string); ok {
-				id.WebSessionID = val
 			}
 		}
 	}

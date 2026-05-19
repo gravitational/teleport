@@ -336,7 +336,7 @@ func (h *Handler) handleDatabaseGetIAMPolicy(w http.ResponseWriter, r *http.Requ
 	}
 }
 
-func (h *Handler) sqlServerConfigureADScriptHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+func (h *Handler) sqlServerConfigureADScriptHandle(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
 	tokenStr := p.ByName("token")
 	if err := validateJoinToken(tokenStr); err != nil {
 		return "", trace.Wrap(err)
@@ -420,7 +420,7 @@ func (h *Handler) dbConnect(
 	sctx *SessionContext,
 	cluster reversetunnelclient.Cluster,
 	ws *websocket.Conn,
-) (any, error) {
+) (interface{}, error) {
 	// Create a context for signaling when the terminal session is over and
 	// link it first with the trace context from the request context
 	tctx := oteltrace.ContextWithRemoteSpanContext(context.Background(), oteltrace.SpanContextFromContext(r.Context()))
@@ -559,13 +559,6 @@ type DatabaseSessionRequest struct {
 	DatabaseRoles []string `json:"dbRoles"`
 }
 
-func (r *DatabaseSessionRequest) check() error {
-	if err := types.ValidateDatabaseName(r.ServiceName); err != nil {
-		return trace.Wrap(err, "database service name %q is invalid", r.ServiceName)
-	}
-	return nil
-}
-
 // databaseConnectionRequestWaitTimeout defines how long the server will wait
 // for the user to send the connection request.
 const databaseConnectionRequestWaitTimeout = defaults.HeadlessLoginTimeout
@@ -602,10 +595,6 @@ func readDatabaseSessionRequest(ws *websocket.Conn) (*DatabaseSessionRequest, er
 
 	var req DatabaseSessionRequest
 	if err := json.Unmarshal([]byte(envelope.Payload), &req); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := req.check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

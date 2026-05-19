@@ -35,7 +35,7 @@ func TestUserTasks(t *testing.T) {
 
 	testResources153(t, p, testFuncs[*usertasksv1.UserTask]{
 		newResource: func(name string) (*usertasksv1.UserTask, error) {
-			return newUserTasks(t, name), nil
+			return newUserTasks(t), nil
 		},
 		create: func(ctx context.Context, item *usertasksv1.UserTask) error {
 			_, err := p.userTasks.CreateUserTask(ctx, item)
@@ -48,5 +48,5 @@ func TestUserTasks(t *testing.T) {
 			return p.cache.ListUserTasks(ctx, int64(pageLimit), pageToken, &usertasksv1.ListUserTasksFilters{})
 		},
 		deleteAll: p.userTasks.DeleteAllUserTasks,
-	})
+	}, withSkipPaginationTest())
 }

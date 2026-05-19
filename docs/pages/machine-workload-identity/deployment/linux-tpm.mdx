@@ -30,7 +30,7 @@ installed on the cluster's Auth Service.
 - A Linux user on that host that you wish `tbot` to run as. In the guide,
 we will use `teleport` for this.
 
-## Step 1/4. Install `tbot`
+## Step 1/5. Install `tbot`
 
 **This step is completed on the Linux host.**
 
@@ -52,11 +52,11 @@ for a different solution, we recommend creating udev rules similar to the ones
 shipped by the [TPM2 Software Stack](
 https://github.com/tpm2-software/tpm2-tss/blob/ede63dd1ac1f0a46029d457304edcac2162bfab8/dist/tpm-udev.rules#L4).
 
-## Step 2/4. Create a Bot
+## Step 2/5. Create a Bot
 
 (!docs/pages/includes/machine-id/create-a-bot.mdx!)
 
-## Step 3/4. Create a `tpm` join token
+## Step 3/5. Create a `tpm` join token
 
 With the Bot created, we now need to create a token. The token will be used by
 `tbot` to authenticate as the Bot to the Teleport cluster.
@@ -154,7 +154,7 @@ Apply this to your Teleport cluster using `tctl`:
 $ tctl create -f bot-token.yaml
 ```
 
-## Step 4/4. Configure `tbot`
+## Step 4/5. Configure `tbot`
 
 Create `/etc/tbot.yaml`:
 
@@ -199,11 +199,11 @@ $ sudo chown teleport:teleport /var/lib/teleport/bot
 
 (!docs/pages/includes/machine-id/daemon.mdx!)
 
-## Next steps
+## Step 5/5. Configure services
 
-You have now prepared the base configuration for `tbot`. At this point, it
-identifies itself to the Teleport cluster and renews its own credentials but
-does not output any credentials for other applications to use.
+(!docs/pages/includes/machine-id/configure-services.mdx!)
+
+## Next steps
 
 - Follow the [access guides](../access-guides/access-guides.mdx) to finish configuring `tbot` for
 your environment.

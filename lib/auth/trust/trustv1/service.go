@@ -33,14 +33,13 @@ import (
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // TODO(codingllama): DELETE IN 20. All valid clients support WindowsCA by then.
-var minGetUserCASemver = &semver.Version{Major: 18, Minor: 7, Patch: 0}
+var minGetUserCASemver = &semver.Version{Major: 18, Minor: 7, Patch: 0, PreRelease: "aa"}
 
 type authServer interface {
 	// GetClusterName returns cluster name
@@ -72,7 +71,6 @@ type ServiceConfig struct {
 	Cache            services.AuthorityGetter
 	Backend          services.TrustInternal
 	AuthServer       authServer
-	Modules          modules.Modules
 }
 
 // Service implements the teleport.trust.v1.TrustService RPC service.
@@ -83,7 +81,6 @@ type Service struct {
 	cache            services.AuthorityGetter
 	backend          services.TrustInternal
 	authServer       authServer
-	modules          modules.Modules
 }
 
 // NewService returns a new trust gRPC service.
@@ -99,8 +96,6 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("scoped authorizer is required")
 	case cfg.AuthServer == nil:
 		return nil, trace.BadParameter("authServer is required")
-	case cfg.Modules == nil:
-		return nil, trace.BadParameter("modules is required")
 	}
 
 	return &Service{
@@ -109,7 +104,6 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 		cache:            cfg.Cache,
 		backend:          cfg.Backend,
 		authServer:       cfg.AuthServer,
-		modules:          cfg.Modules,
 	}, nil
 }
 
@@ -481,7 +475,7 @@ func (s *Service) RotateExternalCertAuthority(ctx context.Context, req *trustpb.
 
 	// CASing `updated` over `existing` if they're equivalent will only cause
 	// backend and watcher spam for no gain, so we exit early if that's the case
-	if existing.IsEqual(updated) {
+	if services.CertAuthoritiesEquivalent(existing, updated) {
 		return &trustpb.RotateExternalCertAuthorityResponse{}, nil
 	}
 

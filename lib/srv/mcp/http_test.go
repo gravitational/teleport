@@ -103,12 +103,14 @@ func Test_handleStreamableHTTP(t *testing.T) {
 				assert.True(t, utils.IsOKNetworkError(err))
 				return
 			}
-			wg.Go(func() {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
 				defer conn.Close()
 				testCtx := setupTestContext(t, withAdminRole(t), withApp(app), withClientConn(conn))
 				testCtx.sessionID = "test-session-id" // use same session id
 				assert.NoError(t, s.HandleSession(t.Context(), testCtx.SessionCtx))
-			})
+			}()
 		}
 	}()
 

@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"golang.org/x/time/rate"
 
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
@@ -127,6 +128,8 @@ type ExporterConfig struct {
 	MaxBackoff time.Duration
 	// PollInterval optionally overrides the default poll interval used to fetch event chunks.
 	PollInterval time.Duration
+	// Clock is an optional parameter used to provide a clock for testing purposes.
+	Clock clockwork.Clock
 }
 
 // CheckAndSetDefaults validates configuration and sets default values for optional parameters.
@@ -153,6 +156,7 @@ func (cfg *ExporterConfig) CheckAndSetDefaults() error {
 		cfg.BatchExport.MaxDelay = cmp.Or(cfg.BatchExport.MaxDelay, 5*time.Second)
 		cfg.BatchExport.MaxSize = cmp.Or(cfg.BatchExport.MaxSize, 2*1024*1024 /* 2MiB */)
 	}
+	cfg.Clock = cmp.Or(cfg.Clock, clockwork.NewRealClock())
 	return nil
 }
 
@@ -331,7 +335,7 @@ func (e *Exporter) poll(ctx context.Context) (bool, error) {
 
 	var caughtUp bool
 	if e.current.IsIdle() {
-		if normalizeDate(time.Now()).After(e.currentDate) {
+		if normalizeDate(e.cfg.Clock.Now()).After(e.currentDate) {
 			nextDate := e.currentDate.AddDate(0, 0, 1)
 			// current date is idle and in the past, advance to the next date
 			if err := e.startExportLocked(ctx, nextDate); err != nil {
@@ -455,6 +459,7 @@ func (e *Exporter) resumeExportLocked(ctx context.Context, date time.Time, state
 		Concurrency:   e.cfg.Concurrency,
 		MaxBackoff:    e.cfg.MaxBackoff,
 		PollInterval:  e.cfg.PollInterval,
+		Clock:         e.cfg.Clock,
 	})
 	if err != nil {
 		return trace.Wrap(err)

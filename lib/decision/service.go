@@ -216,9 +216,15 @@ func (s *Service) EvaluateSSHAccess(ctx context.Context, req *decisionpb.Evaluat
 		bpfEvents = append(bpfEvents, event)
 	}
 
-	hostUsersDecision, err := accessChecker.HostUsers(target)
+	hostUsersInfo, err := accessChecker.HostUsers(target)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		if !trace.IsAccessDenied(err) {
+			return nil, trace.Wrap(err)
+		}
+		// the way host user creation permissions currently work, an "access denied" just indicates
+		// that host user creation is disabled, and does not indicate that access should be disallowed.
+		// for the purposes of the decision service, we represent this disabled state as nil.
+		hostUsersInfo = nil
 	}
 
 	permit := &decisionpb.SSHAccessPermit{
@@ -240,11 +246,7 @@ func (s *Service) EvaluateSSHAccess(ctx context.Context, req *decisionpb.Evaluat
 		MappedRoles:           accessInfo.Roles,
 		HostSudoers:           hostSudoers,
 		BpfEvents:             bpfEvents,
-		HostUsersInfo:         hostUsersDecision.Info,
-		DecisionContext: &decisionpb.SSHAccessPermitContext{
-			HostUserCreationAllowedBy: hostUsersDecision.AllowedBy,
-			HostUserCreationDeniedBy:  hostUsersDecision.DeniedBy,
-		},
+		HostUsersInfo:         hostUsersInfo,
 	}
 
 	if accessChecker.PinSourceIP() {
@@ -394,7 +396,6 @@ func lockTargetToProto(target types.LockTarget) *decisionpb.LockTarget {
 		Login:          target.Login,
 		MfaDevice:      target.MFADevice,
 		WindowsDesktop: target.WindowsDesktop,
-		LinuxDesktop:   target.LinuxDesktop,
 		AccessRequest:  target.AccessRequest,
 		Device:         target.Device,
 		ServerId:       target.ServerID,
@@ -419,7 +420,6 @@ func lockTargetFromProto(target *decisionpb.LockTarget) types.LockTarget {
 		Login:          target.Login,
 		MFADevice:      target.MfaDevice,
 		WindowsDesktop: target.WindowsDesktop,
-		LinuxDesktop:   target.LinuxDesktop,
 		AccessRequest:  target.AccessRequest,
 		Device:         target.Device,
 		ServerID:       target.ServerId,

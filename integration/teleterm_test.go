@@ -52,6 +52,7 @@ import (
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -70,13 +71,9 @@ func TestTeleterm(t *testing.T) {
 		dbhelpers.WithListenerSetupDatabaseTest(helpers.SingleProxyPortSetup),
 		dbhelpers.WithLeafConfig(func(config *servicecfg.Config) {
 			config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
-			config.InsecureMode = true
-			config.Modules = modulestest.EnterpriseModules()
 		}),
 		dbhelpers.WithRootConfig(func(config *servicecfg.Config) {
 			config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
-			config.InsecureMode = true
-			config.Modules = modulestest.EnterpriseModules()
 		}),
 	)
 	pack.WaitForLeaf(t)
@@ -153,13 +150,13 @@ func TestTeleterm(t *testing.T) {
 		testSettingSiteName(t, pack, creds)
 	})
 
-	t.Run("ListUnifiedResources returns database users", func(t *testing.T) {
+	t.Run("ListDatabaseUsers", func(t *testing.T) {
 		// ListDatabaseUsers cannot be run in parallel as it modifies the default roles of users set up
 		// through the test pack.
 		// TODO(ravicious): After some optimizations, those tests could run in parallel. Instead of
 		// modifying existing roles, they could create new users with new roles and then update the role
 		// mapping between the root the leaf cluster through authServer.UpdateUserCARoleMap.
-		testListDatabaseUsersFromUnifiedResources(t, pack)
+		testListDatabaseUsers(t, pack)
 	})
 
 	t.Run("with MFA", func(t *testing.T) {
@@ -889,6 +886,7 @@ func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack)
 		},
 	}
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1268,7 +1266,10 @@ func testDeleteConnectMyComputerNode(t *testing.T, pack *dbhelpers.DatabasePack)
 	}, time.Minute, time.Second, "waiting for node to be deleted")
 }
 
-func testListDatabaseUsersFromUnifiedResources(t *testing.T, pack *dbhelpers.DatabasePack) {
+// testListDatabaseUsers adds a unique string under spec.allow.db_users of the role automatically
+// given to a user by [dbhelpers.DatabasePack] and then checks if that string is returned when
+// calling [handler.Handler.ListDatabaseUsers].
+func testListDatabaseUsers(t *testing.T, pack *dbhelpers.DatabasePack) {
 	ctx := context.Background()
 
 	mustAddDBUserToUserRole := func(ctx context.Context, t *testing.T, cluster *helpers.TeleInstance, user, dbUser string) {
@@ -1284,10 +1285,11 @@ func testListDatabaseUsersFromUnifiedResources(t *testing.T, pack *dbhelpers.Dat
 		_, err = authServer.UpdateRole(ctx, role)
 		require.NoError(t, err)
 
-		require.EventuallyWithT(t, func(t *assert.CollectT) {
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
 			role, err := authServer.GetRole(ctx, roleName)
-			require.NoError(t, err)
-			require.Equal(t, dbUsers, role.GetDatabaseUsers(types.Allow))
+			if assert.NoError(collect, err) {
+				assert.Equal(collect, dbUsers, role.GetDatabaseUsers(types.Allow))
+			}
 		}, 10*time.Second, 100*time.Millisecond)
 	}
 
@@ -1301,13 +1303,18 @@ func testListDatabaseUsersFromUnifiedResources(t *testing.T, pack *dbhelpers.Dat
 		_, err = authServer.UpdateUser(ctx, user)
 		require.NoError(t, err)
 
-		require.EventuallyWithT(t, func(t *assert.CollectT) {
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
 			user, err := authServer.GetUser(ctx, userName, false /* withSecrets */)
-			require.NoError(t, err)
-
-			require.Equal(t, roles, user.GetRoles())
+			if assert.NoError(collect, err) {
+				assert.Equal(collect, roles, user.GetRoles())
+			}
 		}, 10*time.Second, 100*time.Millisecond)
 	}
+
+	// Allow resource access requests to be created.
+	currentModules := modules.GetModules()
+	t.Cleanup(func() { modules.SetModules(currentModules) })
+	modules.SetModules(&modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
 	rootClusterName, _, err := net.SplitHostPort(pack.Root.Cluster.Web)
 	require.NoError(t, err)
@@ -1459,24 +1466,14 @@ func testListDatabaseUsersFromUnifiedResources(t *testing.T, pack *dbhelpers.Dat
 				require.NoError(t, err)
 			}
 
-			res, err := handler.ListUnifiedResources(ctx, &api.ListUnifiedResourcesRequest{
-				ClusterUri: test.dbURI.GetClusterURI().String(),
-				Kinds:      []string{types.KindDatabase},
+			res, err := handler.ListDatabaseUsers(ctx, &api.ListDatabaseUsersRequest{
+				DbUri: test.dbURI.String(),
 			})
 			require.NoError(t, err)
-
-			var matchedDatabase *api.Database
-			for _, resource := range res.Resources {
-				database := resource.GetDatabase()
-				if database != nil && database.Uri == test.dbURI.String() {
-					matchedDatabase = database
-					break
-				}
-			}
-			require.NotNil(t, matchedDatabase, "database %q not found in unified resources response", test.dbURI.String())
-			require.Contains(t, matchedDatabase.DatabaseUsers, test.wantDBUser)
+			require.Contains(t, res.Users, test.wantDBUser)
 		})
 	}
+
 }
 
 // mustLogin logs in as the given user by completely skipping the actual login flow and saving valid

@@ -130,12 +130,9 @@ func (f *Forwarder) getKubeDetails(ctx context.Context) error {
 			)
 			continue
 		}
-		kubeCluster, err := types.NewKubernetesClusterV3(
-			types.Metadata{
-				Name: cluster,
-			}, types.KubernetesClusterSpecV3{},
-			types.KubeClusterWithScope(f.cfg.Scope),
-		)
+		kubeCluster, err := types.NewKubernetesClusterV3(types.Metadata{
+			Name: cluster,
+		}, types.KubernetesClusterSpecV3{})
 		if err != nil {
 			f.log.WarnContext(ctx, "failed to create KubernetesClusterV3 from credentials for cluster",
 				"cluster", cluster,

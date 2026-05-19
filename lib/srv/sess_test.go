@@ -41,7 +41,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
-	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -204,7 +203,7 @@ func TestSession_newRecorder(t *testing.T) {
 
 	logger := logtest.NewLogger()
 
-	isNotSessionWriter := func(t require.TestingT, i any, i2 ...any) {
+	isNotSessionWriter := func(t require.TestingT, i interface{}, i2 ...interface{}) {
 		require.NotNil(t, i)
 		_, ok := i.(*events.SessionWriter)
 		require.False(t, ok)
@@ -293,7 +292,7 @@ func TestSession_newRecorder(t *testing.T) {
 				},
 			},
 			errAssertion: require.NoError,
-			recAssertion: func(t require.TestingT, i any, _ ...any) {
+			recAssertion: func(t require.TestingT, i interface{}, _ ...interface{}) {
 				require.NotNil(t, i)
 				sw, ok := i.(apievents.Stream)
 				require.True(t, ok)
@@ -315,7 +314,7 @@ func TestSession_newRecorder(t *testing.T) {
 				},
 			},
 			errAssertion: require.NoError,
-			recAssertion: func(t require.TestingT, i any, i2 ...any) {
+			recAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
 				require.NotNil(t, i)
 				sw, ok := i.(apievents.Stream)
 				require.True(t, ok)
@@ -401,7 +400,8 @@ func TestSession_emitAuditEvent(t *testing.T) {
 func TestInteractiveSession(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	srv := newMockServer(t)
 	srv.component = teleport.ComponentNode
@@ -491,7 +491,8 @@ func TestNonInteractiveSession(t *testing.T) {
 	t.Run("without BPF", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := t.Context()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 
 		srv := newMockServer(t)
 		srv.component = teleport.ComponentNode
@@ -553,7 +554,8 @@ func TestNonInteractiveSession(t *testing.T) {
 	t.Run("with BPF", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := t.Context()
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
 
 		srv := newMockServer(t)
 		srv.component = teleport.ComponentNode
@@ -836,80 +838,8 @@ func TestSessionRecordingModes(t *testing.T) {
 				for _, e := range srv.Events() {
 					delete(eventsNotReceived, e.GetType())
 				}
-				require.Empty(t, slices.Collect(maps.Keys(eventsNotReceived)))
+				assert.Empty(t, slices.Collect(maps.Keys(eventsNotReceived)))
 			}, time.Second*5, time.Millisecond*500, "Some events not received")
-		})
-	}
-}
-
-func TestStopSessionWithoutClientDisconnect(t *testing.T) {
-	t.Parallel()
-
-	for _, tt := range []struct {
-		name      string
-		component string
-		setTerm   func(*testing.T, *ServerContext)
-	}{
-		{
-			name:      "local terminal",
-			component: teleport.ComponentNode,
-			setTerm: func(t *testing.T, scx *ServerContext) {
-				term, err := newLocalTerminal(scx)
-				require.NoError(t, err)
-				scx.term = term
-			},
-		},
-		{
-			name:      "remote terminal",
-			component: teleport.ComponentForwardingNode,
-			setTerm: func(t *testing.T, scx *ServerContext) {
-				term, err := newRemoteTerminal(scx)
-				require.NoError(t, err)
-				scx.term = term
-			},
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
-			srv := newMockServer(t)
-			srv.component = tt.component
-
-			reg, err := NewSessionRegistry(SessionRegistryConfig{
-				Srv:                   srv,
-				SessionTrackerService: srv.auth,
-			})
-			require.NoError(t, err)
-			t.Cleanup(func() { reg.Close() })
-
-			scx := newTestServerContext(t, reg.Srv, nil, &decisionpb.SSHAccessPermit{})
-			if tt.setTerm != nil {
-				tt.setTerm(t, scx)
-			}
-
-			// Unlike real SSH clients, the mock SSH channel does not automatically close
-			// when the session ends, which is the misbehavior this test is meant to ensure
-			// is handled.
-			sshChanOpen := newMockSSHChannel()
-			t.Cleanup(func() { require.NoError(t, sshChanOpen.Close()) })
-			go func() {
-				_, _ = io.ReadAll(sshChanOpen)
-			}()
-
-			require.NoError(t, reg.OpenSession(t.Context(), sshChanOpen, scx))
-			require.NotNil(t, scx.session)
-
-			stopDone := make(chan struct{})
-			go func() {
-				scx.session.Stop()
-				close(stopDone)
-			}()
-
-			select {
-			case <-stopDone:
-			case <-time.After(5 * time.Second):
-				require.Fail(t, "session Stop blocked while client channel remained open")
-			}
 		})
 	}
 }
@@ -981,7 +911,8 @@ func (s sessionEvaluator) IsModerated() bool {
 
 func TestTrackingSession(t *testing.T) {
 	t.Parallel()
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	me, err := user.Current()
 	require.NoError(t, err)
@@ -1238,7 +1169,8 @@ func TestSessionRecordingMode(t *testing.T) {
 }
 
 func TestCloseProxySession(t *testing.T) {
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	srv := newMockServer(t)
 	srv.component = teleport.ComponentForwardingNode
@@ -1285,7 +1217,8 @@ func TestCloseProxySession(t *testing.T) {
 // closing the session releases all the resources, and return properly to the
 // user.
 func TestCloseRemoteSession(t *testing.T) {
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	srv := newMockServer(t)
 	srv.component = teleport.ComponentForwardingNode
@@ -1391,14 +1324,10 @@ func mockSSHSession(t *testing.T) *tracessh.Session {
 	// Establish a connection to the newly created server.
 	sessCh := make(chan *tracessh.Session)
 	go func() {
-		client, err := apissh.Dial(ctx, listener.Addr().Network(), listener.Addr().String(), apissh.ClientConfig{
-			Timeout: 10 * time.Second,
-			User:    "user",
-			PublicKeyAuth: apissh.PublicKeyAuthConfig{
-				Signers: func() ([]ssh.Signer, error) {
-					return []ssh.Signer{signer}, nil
-				},
-			},
+		client, err := tracessh.Dial(ctx, listener.Addr().Network(), listener.Addr().String(), &ssh.ClientConfig{
+			Timeout:         10 * time.Second,
+			User:            "user",
+			Auth:            []ssh.AuthMethod{ssh.PublicKeys(signer)},
 			HostKeyCallback: ssh.FixedHostKey(signer.PublicKey()),
 		})
 		if err != nil {

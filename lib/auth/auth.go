@@ -148,10 +148,8 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	libsession "github.com/gravitational/teleport/lib/session"
-	dbvnet "github.com/gravitational/teleport/lib/srv/db/vnet"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/subca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/tpm"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
@@ -235,11 +233,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if cfg.Modules == nil {
-		// TODO(tross): return an error here after all callers are providing modules
-		cfg.Modules = modules.GetModules()
-	}
-
 	if cfg.VersionStorage == nil {
 		return nil, trace.BadParameter("version storage is not set")
 	}
@@ -277,18 +270,17 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 			ClusterName:          cfg.ClusterName,
 			AuthPreferenceGetter: cfg.ClusterConfiguration,
 			FIPS:                 cfg.FIPS,
-			Clock:                cfg.Clock,
 		}
 		if cfg.KeyStoreConfig.PKCS11 != (servicecfg.PKCS11Config{}) {
-			if !cfg.Modules.Features().GetEntitlement(entitlements.HSM).Enabled {
+			if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
 				return nil, fmt.Errorf("PKCS11 HSM support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
 			}
 		} else if cfg.KeyStoreConfig.GCPKMS != (servicecfg.GCPKMSConfig{}) {
-			if !cfg.Modules.Features().GetEntitlement(entitlements.HSM).Enabled {
+			if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
 				return nil, fmt.Errorf("GCP KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
 			}
 		} else if cfg.KeyStoreConfig.AWSKMS != nil {
-			if !cfg.Modules.Features().GetEntitlement(entitlements.HSM).Enabled {
+			if !modules.GetModules().Features().GetEntitlement(entitlements.HSM).Enabled {
 				return nil, fmt.Errorf("AWS KMS support requires a license with the HSM feature enabled: %w", ErrRequiresEnterprise)
 			}
 		}
@@ -376,12 +368,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 			return nil, trace.Wrap(err)
 		}
 	}
-	if cfg.LinuxDesktops == nil {
-		cfg.LinuxDesktops, err = local.NewLinuxDesktopService(cfg.Backend)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
 	if cfg.SAMLIdPServiceProviders == nil {
 		cfg.SAMLIdPServiceProviders, err = local.NewSAMLIdPServiceProviderService(cfg.Backend)
 		if err != nil {
@@ -433,8 +419,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	}
 	if cfg.AccessLists == nil {
 		cfg.AccessLists, err = local.NewAccessListServiceV2(local.AccessListServiceConfig{
-			Backend:                     cfg.Backend,
-			Modules:                     cfg.Modules,
+			Backend: cfg.Backend,
+			// TODO(tross): replace modules.GetModules with cfg.Modules
+			Modules:                     modules.GetModules(),
 			RunWhileLockedRetryInterval: cfg.RunWhileLockedRetryInterval,
 		})
 		if err != nil {
@@ -539,7 +526,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	if cfg.Summarizer == nil {
 		summarizer, err := local.NewSummarizerService(local.SummarizerServiceConfig{
 			Backend:                          cfg.Backend,
-			EnableBedrockWithoutRestrictions: !cfg.Modules.Features().Cloud,
+			EnableBedrockWithoutRestrictions: !modules.GetModules().Features().Cloud,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err, "creating Summarizer service")
@@ -606,7 +593,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 			return organizations.NewFromConfig(c)
 		}
 
-		cfg.AWSOrganizationsClientGetter, err = awsOrganizationsClientGetter(closeCtx, cfg.Clock, cfg.Modules, organizationsClientFromSDK)
+		cfg.AWSOrganizationsClientGetter, err = awsOrganizationsClientGetter(closeCtx, cfg.Clock, organizationsClientFromSDK)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -642,20 +629,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		}
 	}
 
-	if cfg.AppAuthConfig == nil {
-		cfg.AppAuthConfig, err = local.NewAppAuthConfigService(cfg.Backend)
-		if err != nil {
-			return nil, trace.Wrap(err, "creating AppAuthConfig service")
-		}
-	}
-
-	if cfg.MFAService == nil {
-		cfg.MFAService, err = local.NewMFAService(cfg.Backend)
-		if err != nil {
-			return nil, trace.Wrap(err, "creating MFAService")
-		}
-	}
-
 	if cfg.WorkloadClusterService == nil {
 		cfg.WorkloadClusterService, err = local.NewWorkloadClusterService(cfg.Backend)
 		if err != nil {
@@ -663,34 +636,17 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		}
 	}
 
-	if cfg.Beams == nil {
-		cfg.Beams, err = local.NewBeamService(cfg.Backend)
-		if err != nil {
-			return nil, trace.Wrap(err, "creating BeamsService")
-		}
-	}
-
-	if cfg.SubCAService == nil {
-		var err error
-		cfg.SubCAService, err = local.NewSubCAService(local.SubCAServiceParams{
-			Backend: cfg.Backend,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err, "creating SubCAService")
-		}
-	}
-
 	services := &Services{
 		TrustInternal:                   cfg.Trust,
 		PresenceInternal:                cfg.Presence,
-		ProvisionerInternal:             cfg.Provisioner,
-		IdentityInternal:                cfg.Identity,
-		AccessInternal:                  cfg.Access,
+		Provisioner:                     cfg.Provisioner,
+		Identity:                        cfg.Identity,
+		Access:                          cfg.Access,
 		DynamicAccessExt:                cfg.DynamicAccessExt,
 		ClusterConfigurationInternal:    cfg.ClusterConfiguration,
 		AutoUpdateService:               cfg.AutoUpdateService,
 		Restrictions:                    cfg.Restrictions,
-		ApplicationsInternal:            cfg.Apps,
+		Applications:                    cfg.Apps,
 		Kubernetes:                      cfg.Kubernetes,
 		Databases:                       cfg.Databases,
 		DatabaseServices:                cfg.DatabaseServices,
@@ -699,7 +655,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		Events:                          cfg.Events,
 		WindowsDesktops:                 cfg.WindowsDesktops,
 		DynamicWindowsDesktops:          cfg.DynamicWindowsDesktops,
-		LinuxDesktops:                   cfg.LinuxDesktops,
 		SAMLIdPServiceProviders:         cfg.SAMLIdPServiceProviders,
 		UserGroups:                      cfg.UserGroups,
 		SessionTrackerService:           cfg.SessionTrackerService,
@@ -737,15 +692,11 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		HealthCheckConfig:               cfg.HealthCheckConfig,
 		BackendInfoService:              cfg.BackendInfo,
 		VnetConfigService:               cfg.VnetConfigService,
-		RecordingEncryptionManager:      cfg.RecordingEncryption,
 		MultipartHandler:                cfg.MultipartHandler,
 		Summarizer:                      cfg.Summarizer,
+		RecordingEncryptionManager:      cfg.RecordingEncryption,
 		ScopedTokenService:              cfg.ScopedTokenService,
-		AppAuthConfig:                   cfg.AppAuthConfig,
-		MFAService:                      cfg.MFAService,
 		WorkloadClusterService:          cfg.WorkloadClusterService,
-		Beams:                           cfg.Beams,
-		SubCAService:                    cfg.SubCAService,
 	}
 
 	if cfg.FakePasswordHash == nil {
@@ -763,7 +714,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		clock:                        cfg.Clock,
 		fakePasswordHash:             cfg.FakePasswordHash,
 		fakeRecoveryCodeHash:         cfg.FakeRecoveryCodeHash,
-		modules:                      cfg.Modules,
 		limiter:                      limiter,
 		Authority:                    cfg.Authority,
 		AuthServiceName:              cfg.AuthServiceName,
@@ -786,10 +736,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		sessionSummarizerProvider:    cfg.SessionSummarizerProvider,
 		recordingMetadataProvider:    cfg.RecordingMetadataProvider,
 		awsOrganizationsClientGetter: cfg.AWSOrganizationsClientGetter,
-		insecureMode:                 cfg.InsecureMode,
 		remoteClusterRefreshLimit:    cmp.Or(cfg.RemoteClusterRefreshLimit, defaultRemoteClusterRefreshLimit),
 		remoteClusterRefreshBuckets:  cmp.Or(cfg.RemoteClusterRefreshBuckets, defaultRemoteClusterRefreshBuckets),
-		subCAEnabled:                 subca.Enabled(),
 	}
 	as.inventory = inventory.NewController(as, services,
 		inventory.WithAuthServerID(cfg.HostUUID),
@@ -943,7 +891,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		UsageEvents: as,
 		Clock:       cfg.Clock,
 		Emitter:     as.emitter,
-		Cloud:       cfg.Modules.Features().Cloud,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -981,8 +928,80 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	return as, nil
 }
 
+// Services is a collection of services that are used by the auth server.
+// Avoid using this type as a dependency and instead depend on the actual
+// methods/services you need. It should really only be necessary to directly
+// reference this type on auth.Server itself and on code that manages
+// the lifecycle of the auth server.
+type Services struct {
+	services.TrustInternal
+	services.PresenceInternal
+	services.Provisioner
+	services.Identity
+	services.Access
+	services.DynamicAccessExt
+	services.ClusterConfigurationInternal
+	services.Restrictions
+	services.Applications
+	services.Kubernetes
+	services.Databases
+	services.DatabaseServices
+	services.DelegationSessions
+	services.WindowsDesktops
+	services.DynamicWindowsDesktops
+	services.SAMLIdPServiceProviders
+	services.UserGroups
+	services.SessionTrackerService
+	services.ConnectionsDiagnostic
+	services.Status
+	services.Integrations
+	services.IntegrationsTokenGenerator
+	services.UserTasks
+	services.DiscoveryConfigs
+	services.Okta
+	services.AccessListsInternal
+	services.DatabaseObjectImportRules
+	services.DatabaseObjects
+	services.UserLoginStates
+	services.UserPreferences
+	services.PluginData
+	services.SCIM
+	services.Notifications
+	usagereporter.UsageReporter
+	types.Events
+	events.AuditLogSessionStreamer
+	services.SecReports
+	services.KubeWaitingContainer
+	services.AccessMonitoringRules
+	services.CrownJewels
+	services.BotInstance
+	services.AccessGraphSecretsGetter
+	services.DevicesGetter
+	services.SPIFFEFederations
+	services.StaticHostUser
+	services.AutoUpdateService
+	services.ProvisioningStates
+	services.IdentityCenter
+	services.Plugins
+	services.PluginStaticCredentials
+	services.GitServers
+	services.WorkloadIdentities
+	services.StableUNIXUsersInternal
+	services.WorkloadIdentityX509Revocations
+	services.WorkloadIdentityX509Overrides
+	services.SigstorePolicies
+	services.HealthCheckConfig
+	services.BackendInfoService
+	services.VnetConfigService
+	events.MultipartHandler
+	services.Summarizer
+	RecordingEncryptionManager
+	services.ScopedTokenService
+	services.WorkloadClusterService
+}
+
 // awsOrganizationsClientGetter returns an AWS Organizations client getter.
-func awsOrganizationsClientGetter(ctx context.Context, clock clockwork.Clock, modules modules.Modules, organizationsClientFromConfig func(aws.Config) iamjoin.OrganizationsAPI) (*organizationsClientGetter, error) {
+func awsOrganizationsClientGetter(ctx context.Context, clock clockwork.Clock, organizationsClientFromConfig func(aws.Config) iamjoin.OrganizationsAPI) (*organizationsClientGetter, error) {
 	awsConfigProvider, err := awsconfig.NewCache()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1002,12 +1021,10 @@ func awsOrganizationsClientGetter(ctx context.Context, clock clockwork.Clock, mo
 		describeAccountAPICache:       describeAccountAPICache,
 		awsConfig:                     awsConfigProvider,
 		organizationsClientFromConfig: organizationsClientFromConfig,
-		modules:                       modules,
 	}, nil
 }
 
 type organizationsClientGetter struct {
-	modules                       modules.Modules
 	describeAccountAPICache       *utils.FnCache
 	awsConfig                     awsconfig.Provider
 	organizationsClientFromConfig func(aws.Config) iamjoin.OrganizationsAPI
@@ -1024,7 +1041,7 @@ func (o *organizationsClientGetter) Get(ctx context.Context, integration string,
 	//
 	// Using ambient credentials when the Auth Service is running within Teleport Cloud is not supported.
 	// In that scenario a NotImplemented error is returned.
-	if integration == "" && o.modules.Features().Cloud {
+	if integration == "" && modules.GetModules().Features().Cloud {
 		return nil, trace.NotImplemented("IAM Joins based on AWS Organization ID require an integration")
 	}
 
@@ -1068,7 +1085,7 @@ func (o *organizationsClient) DescribeAccount(ctx context.Context, params *organ
 // GetWebSession returns existing web session described by req.
 // Implements ReadAccessPoint
 func (r *Services) GetWebSession(ctx context.Context, req types.GetWebSessionRequest) (types.WebSession, error) {
-	return r.IdentityInternal.WebSessions().Get(ctx, req)
+	return r.Identity.WebSessions().Get(ctx, req)
 }
 
 // GenerateAWSOIDCToken generates a token to be used to execute an AWS OIDC Integration action.
@@ -1278,14 +1295,12 @@ type ReadOnlyCache = readonly.Cache
 //   - same for users and their sessions
 //   - checks public keys to see if they're signed by it (can be trusted or not)
 type Server struct {
-	lock    sync.RWMutex
-	clock   clockwork.Clock
-	bk      backend.Backend
-	modules modules.Modules
+	lock  sync.RWMutex
+	clock clockwork.Clock
+	bk    backend.Backend
 
-	insecureMode bool
-	closeCtx     context.Context
-	cancelFunc   context.CancelFunc
+	closeCtx   context.Context
+	cancelFunc context.CancelFunc
 
 	fakePasswordHash     []byte
 	fakeRecoveryCodeHash []byte
@@ -1550,20 +1565,15 @@ type Server struct {
 	// recordings, thumbnails, and metadata.
 	EncryptedIO *recordingencryption.EncryptedIO
 
-	// anonymizationKey is used to anonymize sensitive data in a consistent way for
-	// use in telemetry and logging without exposing the original values.
-	anonymizationKey []byte
-
 	// RemoteClusterRefreshLimit is the maximum number of backend updates that will be performed
 	// during periodic remote cluster connection status refresh.
 	remoteClusterRefreshLimit int
 	// RemoteClusterRefreshBuckets is the maximum number of refresh cycles that should guarantee the status update
 	// of all remote clusters if their number exceeds RemoteClusterRefreshLimit × RemoteClusterRefreshBuckets.
 	remoteClusterRefreshBuckets int
-
-	// subCAEnabled records the value of subca.Enabled()
-	// Used by tests to enable the feature.
-	subCAEnabled bool
+	// anonymizationKey is used to anonymize sensitive data in a consistent way for
+	// use in telemetry and logging without exposing the original values.
+	anonymizationKey []byte
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -1949,7 +1959,7 @@ func (a *Server) runPeriodicOperations() {
 	defer ticker.Stop()
 
 	// Prevent some periodic operations from running for dashboard tenants.
-	if !services.IsDashboard(*a.modules.Features().ToProto()) {
+	if !services.IsDashboard(*modules.GetModules().Features().ToProto()) {
 		ticker.Push(interval.SubInterval[periodicIntervalKey]{
 			Key:           dynamicLabelsCheckKey,
 			Duration:      dynamicLabelCheckPeriod,
@@ -1998,7 +2008,7 @@ func (a *Server) runPeriodicOperations() {
 		})
 	}
 
-	if a.modules.IsOSSBuild() {
+	if modules.GetModules().IsOSSBuild() {
 		ticker.Push(interval.SubInterval[periodicIntervalKey]{
 			Key:           desktopCheckKey,
 			Duration:      OSSDesktopsCheckPeriod,
@@ -2030,7 +2040,7 @@ func (a *Server) runPeriodicOperations() {
 
 	// cloud auth servers need to periodically sync the upgrade window
 	// from the cloud db.
-	if a.modules.Features().Cloud {
+	if modules.GetModules().Features().Cloud {
 		ticker.Push(interval.SubInterval[periodicIntervalKey]{
 			Key:           upgradeWindowCheckKey,
 			Duration:      3 * time.Minute,
@@ -2181,7 +2191,10 @@ func (a *Server) doInstancePeriodics(ctx context.Context) {
 	// on the side of slowness, which is preferable for this kind of periodic.
 	instanceRate := slowRate
 	if ci := a.inventory.ConnectedInstances(); ci > 0 {
-		localDynamicRate := max(dynamicPeriod/time.Duration(ci), fastRate)
+		localDynamicRate := dynamicPeriod / time.Duration(ci)
+		if localDynamicRate < fastRate {
+			localDynamicRate = fastRate
+		}
 
 		if localDynamicRate < instanceRate {
 			instanceRate = localDynamicRate
@@ -2196,7 +2209,7 @@ func (a *Server) doInstancePeriodics(ctx context.Context) {
 	// cloud deployments shouldn't include control-plane elements in
 	// metrics since information about them is not actionable and may
 	// produce misleading/confusing results.
-	skipControlPlane := a.modules.Features().Cloud
+	skipControlPlane := modules.GetModules().Features().Cloud
 
 	// set up aggregators for our periodics
 	uep := newUpgradeEnrollPeriodic()
@@ -2290,7 +2303,7 @@ func (a *Server) syncReleaseAlerts(ctx context.Context, checkRemote bool) {
 
 	// users cannot upgrade their own auth instances in cloud, so it isn't helpful
 	// to generate alerts for releases newer than the current auth server version.
-	if a.modules.Features().Cloud {
+	if modules.GetModules().Features().Cloud {
 		visitor.NotNewerThan = current
 	}
 
@@ -2558,7 +2571,16 @@ func (a *Server) Close() error {
 }
 
 func (a *Server) GetClock() clockwork.Clock {
+	a.lock.RLock()
+	defer a.lock.RUnlock()
 	return a.clock
+}
+
+// SetClock sets clock, used in tests
+func (a *Server) SetClock(clock clockwork.Clock) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	a.clock = clock
 }
 
 // OnUploadComplete is called after a session recording upload completes. It
@@ -2662,7 +2684,7 @@ func (a *Server) InitializeAnonymizationKey() error {
 		return nil
 	}
 
-	if key := a.modules.Features().CloudAnonymizationKey; len(key) > 0 {
+	if key := modules.GetModules().Features().CloudAnonymizationKey; len(key) > 0 {
 		a.anonymizationKey = key
 		return nil
 	}
@@ -3615,7 +3637,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 	}
 
 	if unscoped := req.CheckerContext.CertParams().UnscopedCertParams(); unscoped != nil {
-		if len(unscoped.GetAllowedResourceAccessIDs()) > 0 && a.modules.BuildType() != modules.BuildEnterprise {
+		if len(unscoped.GetAllowedResourceAccessIDs()) > 0 && modules.GetModules().BuildType() != modules.BuildEnterprise {
 			return nil, trace.Errorf("resource access requests: %w", ErrRequiresEnterprise)
 		}
 	}
@@ -3761,7 +3783,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 	if req.RouteToCluster != clusterName {
 		unscoped := certParams.UnscopedCertParams()
 		if unscoped == nil {
-			return nil, trace.WrapWithMessage(services.ErrScopedIdentity, "cannot generate certs for remote cluster %q, remote cluster access is only supported for unscoped certs", req.RouteToCluster)
+			return nil, trace.BadParameter("cannot generate certs for remote cluster %q, remote cluster access is only supported for unscoped certs", req.RouteToCluster)
 		}
 
 		// Authorize access to a remote cluster.
@@ -3882,7 +3904,6 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 				DeviceCredentialID:       req.DeviceExtensions.CredentialID,
 				GitHubUserID:             githubUserID,
 				GitHubUsername:           githubUsername,
-				HeadlessAuthenticationID: req.HeadlessAuthenticationID,
 			},
 		}
 		signedSSHCert, err = a.GenerateUserCert(params)
@@ -3920,8 +3941,8 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 		gcpAccounts           []string
 	)
 
+	// only unscoped identities currently support kube groups/users.
 	if unscoped := certParams.UnscopedCertParams(); unscoped != nil {
-		// only unscoped identities need to include the kube groups/users.
 		kubeGroups, kubeUsers, err = unscoped.CheckKubeGroupsAndUsers(sessionTTL, req.OverrideRoleTTL)
 		// NotFound errors are acceptable - this user may have no k8s access
 		// granted and that shouldn't prevent us from issuing a TLS cert.
@@ -3979,7 +4000,6 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 		Traits:            req.Traits,
 		KubernetesGroups:  kubeGroups,
 		KubernetesUsers:   kubeUsers,
-		WebSessionID:      req.WebSessionID,
 		RouteToApp: tlsca.RouteToApp{
 			SessionID:                       req.AppSessionID,
 			URI:                             req.AppURI,
@@ -4110,7 +4130,7 @@ type attestHardwareKeyParams struct {
 
 func (a *Server) attestHardwareKey(ctx context.Context, params *attestHardwareKeyParams) (attestedKeyPolicy keys.PrivateKeyPolicy, err error) {
 	// Try to attest the given hardware key using the given attestation statement.
-	attestationData, err := a.modules.AttestHardwareKey(ctx, a, params.attestationStatement, params.pubKey, params.sessionTTL)
+	attestationData, err := modules.GetModules().AttestHardwareKey(ctx, a, params.attestationStatement, params.pubKey, params.sessionTTL)
 	if trace.IsNotFound(err) {
 		return attestedKeyPolicy, keys.NewPrivateKeyPolicyError(params.requiredKeyPolicy)
 	} else if err != nil {
@@ -4314,39 +4334,38 @@ func (a *Server) WithUserLock(ctx context.Context, username string, authenticate
 			return trace.WithField(err, ErrFieldKeyUserMaxedAttempts, true)
 		}
 	}
-
-	authErr := authenticateFn()
-	if authErr == nil {
+	fnErr := authenticateFn()
+	if fnErr == nil {
 		// upon successful login, reset the failed attempt counter
 		err = a.DeleteUserLoginAttempts(username)
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
+
 		return nil
 	}
-
 	// do not lock user in case if DB is flaky or down
-	if trace.IsConnectionProblem(authErr) {
-		return trace.Wrap(authErr)
+	if trace.IsConnectionProblem(err) {
+		return trace.Wrap(fnErr)
 	}
 	// log failed attempt and possibly lock user
 	attempt := services.LoginAttempt{Time: a.clock.Now().UTC(), Success: false}
 	err = a.AddUserLoginAttempt(username, attempt, defaults.AttemptTTL)
 	if err != nil {
 		a.logger.ErrorContext(ctx, "unable to persist failed login attempt", "error", err)
-		return trace.Wrap(authErr)
+		return trace.Wrap(fnErr)
 	}
 	loginAttempts, err := a.GetUserLoginAttempts(username)
 	if err != nil {
 		a.logger.ErrorContext(ctx, "unable to retrieve user login attempts", "error", err)
-		return trace.Wrap(authErr)
+		return trace.Wrap(fnErr)
 	}
 	if !services.LastFailed(defaults.MaxLoginAttempts, loginAttempts) {
 		a.logger.DebugContext(ctx, "user has less than the failed login attempt limit",
 			"user", username,
 			"failed_attempt_limit", defaults.MaxLoginAttempts,
 		)
-		return trace.Wrap(authErr)
+		return trace.Wrap(fnErr)
 	}
 	lockUntil := a.clock.Now().UTC().Add(defaults.AccountLockInterval)
 	a.logger.DebugContext(ctx, "Locking user that exceeded the failed login attempt limit",
@@ -4357,8 +4376,8 @@ func (a *Server) WithUserLock(ctx context.Context, username string, authenticate
 	user.SetLocked(lockUntil, "user has exceeded maximum failed login attempts")
 	_, err = a.UpsertUser(ctx, user)
 	if err != nil {
-		a.logger.ErrorContext(ctx, "user exceeded max login attempts, but failed to persist user record", "error", err)
-		return trace.Wrap(authErr)
+		a.logger.ErrorContext(ctx, "failed to persist user record", "error", err)
+		return trace.Wrap(fnErr)
 	}
 
 	retErr := trace.AccessDenied("%s", MaxFailedAttemptsErrMsg)
@@ -4375,18 +4394,18 @@ func (a *Server) CreateAuthPreference(ctx context.Context, p types.AuthPreferenc
 	}
 
 	// check that the given RequireMFAType is supported in this build.
-	if p.GetPrivateKeyPolicy().IsHardwareKeyPolicy() && a.modules.BuildType() != modules.BuildEnterprise {
+	if p.GetPrivateKeyPolicy().IsHardwareKeyPolicy() && modules.GetModules().BuildType() != modules.BuildEnterprise {
 		return nil, trace.AccessDenied("Hardware Key support is only available with an enterprise license")
 	}
 
-	if err := dtconfig.ValidateConfigAgainstModules(p.GetDeviceTrust(), a.modules); err != nil {
+	if err := dtconfig.ValidateConfigAgainstModules(p.GetDeviceTrust(), modules.GetModules()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	if err := p.CheckSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
 		FIPS:          a.fips,
 		UsingHSMOrKMS: a.keyStore.UsingHSMOrKMS(),
-		Cloud:         a.modules.Features().Cloud,
+		Cloud:         modules.GetModules().Features().Cloud,
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5141,7 +5160,7 @@ func (a *Server) ExtendWebSession(ctx context.Context, req authclient.WebSession
 		// We don't call from the cache layer because we want to
 		// retrieve the recently updated user. Otherwise, the cache
 		// returns stale data.
-		user, err := a.IdentityInternal.GetUser(ctx, req.User, false)
+		user, err := a.Identity.GetUser(ctx, req.User, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -5430,7 +5449,6 @@ func (a *Server) GenerateHostCerts(ctx context.Context, params HostCertsParams) 
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-
 		req.AdditionalPrincipals = utils.ReplaceInSlice(
 			req.AdditionalPrincipals,
 			defaults.AnyAddress,
@@ -5559,7 +5577,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, params HostCertsParams) 
 		PublicKey: cryptoPubKey,
 		Subject:   subject,
 		NotAfter:  a.clock.Now().UTC().Add(defaults.CATTL),
-		DNSNames:  slices.Clone(req.AdditionalPrincipals),
+		DNSNames:  append([]string{}, req.AdditionalPrincipals...),
 	}
 
 	// API requests need to specify a DNS name, which must be present in the certificate's DNS Names.
@@ -5865,6 +5883,17 @@ func (a *Server) GetTokens(ctx context.Context, opts ...services.MarshalOption) 
 		tokens = append(tokens, tok)
 	}
 	return tokens, nil
+}
+
+// GetWebSessionInfo returns the web session specified with sessionID for the given user.
+// The session is stripped of any authentication details.
+// Implements auth.WebUIService
+func (a *Server) GetWebSessionInfo(ctx context.Context, user, sessionID string) (types.WebSession, error) {
+	sess, err := a.GetWebSession(ctx, types.GetWebSessionRequest{User: user, SessionID: sessionID})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return sess.WithoutSecrets(), nil
 }
 
 // IterateRoles is a helper used to read a page of roles with a custom matcher, used by access-control logic to handle
@@ -6229,14 +6258,14 @@ func (c *cacheWithFetchedAccessLists) ListAccessLists(context.Context, int, stri
 
 // generateLongTermResourceGrouping will validate and group resources based on coverage by access lists.
 func (a *Server) generateLongTermResourceGrouping(ctx context.Context, req types.AccessRequest, acls []*accesslist.AccessList) (*types.LongTermResourceGrouping, error) {
-	return a.modules.GenerateLongTermResourceGrouping(ctx, &cacheWithFetchedAccessLists{a.Cache, acls}, req)
+	return modules.GetModules().GenerateLongTermResourceGrouping(ctx, &cacheWithFetchedAccessLists{a.Cache, acls}, req)
 }
 
 // generateAccessRequestPromotions will return potential access list promotions for an access request. On error, this function will log
 // the error and return whatever it has. The caller is expected to deal with the possibility of a nil promotions object.
 func (a *Server) generateAccessRequestPromotions(ctx context.Context, req types.AccessRequest, acls []*accesslist.AccessList) (types.AccessRequest, *types.AccessRequestAllowedPromotions) {
 	reqCopy := req.Copy()
-	promotions, err := a.modules.GenerateAccessRequestPromotions(ctx, &cacheWithFetchedAccessLists{a.Cache, acls}, reqCopy)
+	promotions, err := modules.GetModules().GenerateAccessRequestPromotions(ctx, &cacheWithFetchedAccessLists{a.Cache, acls}, reqCopy)
 	if err != nil {
 		// Do not fail the request if the promotions failed to generate.
 		// The request promotion will be blocked, but the request can still be approved.
@@ -6248,7 +6277,7 @@ func (a *Server) generateAccessRequestPromotions(ctx context.Context, req types.
 func (a *Server) generateAccessRequestSuggestedReviewers(ctx context.Context, req types.AccessRequest, acls []*accesslist.AccessList) []string {
 	reqCopy := req.Copy()
 
-	suggestedReviewers, err := a.modules.GenerateAccessRequestSuggestedReviewers(ctx, &cacheWithFetchedAccessLists{a.Cache, acls}, reqCopy)
+	suggestedReviewers, err := modules.GetModules().GenerateAccessRequestSuggestedReviewers(ctx, &cacheWithFetchedAccessLists{a.Cache, acls}, reqCopy)
 	if err != nil {
 		a.logger.WarnContext(ctx, "Failed to determine suggested reviewers", "error", err)
 	}
@@ -6702,10 +6731,10 @@ func (a *Server) UpsertNode(ctx context.Context, server types.Server) (*types.Ke
 
 // enforceLicense checks if the license allows the given resource type to be
 // created.
-func (a *Server) enforceLicense(t string) error {
+func enforceLicense(t string) error {
 	switch t {
 	case types.KindKubeServer, types.KindKubernetesCluster:
-		if !a.modules.Features().GetEntitlement(entitlements.K8s).Enabled {
+		if !modules.GetModules().Features().GetEntitlement(entitlements.K8s).Enabled {
 			return trace.AccessDenied(
 				"this Teleport cluster is not licensed for Kubernetes, please contact the cluster administrator")
 		}
@@ -6716,7 +6745,7 @@ func (a *Server) enforceLicense(t string) error {
 // UpsertKubernetesServer implements [services.Presence] by delegating to
 // [Server.Services] and then potentially emitting a [usagereporter] event.
 func (a *Server) UpsertKubernetesServer(ctx context.Context, server types.KubeServer) (*types.KeepAlive, error) {
-	if err := a.enforceLicense(types.KindKubeServer); err != nil {
+	if err := enforceLicense(types.KindKubeServer); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -6752,35 +6781,9 @@ func (a *Server) UpsertApplicationServer(ctx context.Context, server types.AppSe
 	return lease, nil
 }
 
-// UnconditionalUpdateApplicationServer implements [services.PresenceInternal]
-// by delegating to [Server.Services] and then potentially emitting a
-// [usagereporter] event.
-func (a *Server) UnconditionalUpdateApplicationServer(ctx context.Context, server types.AppServer) (types.AppServer, error) {
-	server, err := a.Services.UnconditionalUpdateApplicationServer(ctx, server)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
-		Name:   server.GetName(),
-		Kind:   usagereporter.ResourceKindAppServer,
-		Static: server.Expiry().IsZero(),
-	})
-
-	return server, nil
-}
-
 // UpsertDatabaseServer implements [services.Presence] by delegating to
 // [Server.Services] and then potentially emitting a [usagereporter] event.
 func (a *Server) UpsertDatabaseServer(ctx context.Context, server types.DatabaseServer) (*types.KeepAlive, error) {
-	// TODO(nibrasohin): DELETE IN v21.0.0 - db agents set this themselves in
-	// getServerInfo starting in v20, so this block only remains to populate
-	// the field for older agents that haven't been upgraded yet. If this
-	// change is backported to v18, we can drop it on the v20
-	if db := server.GetDatabase(); db != nil && db.GetStatusVNetDNSName() == "" {
-		db.SetStatusVNetDNSName(dbvnet.DNSName(db.GetName()))
-	}
-
 	lease, err := a.Services.UpsertDatabaseServer(ctx, server)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -6894,7 +6897,7 @@ func (a *Server) syncDesktopsLimitAlert(ctx context.Context) {
 
 // desktopsLimitExceeded checks if number of non-AD desktops exceeds limit for OSS distribution. Returns always false for Enterprise.
 func (a *Server) desktopsLimitExceeded(ctx context.Context) (bool, error) {
-	if a.modules.IsEnterpriseBuild() {
+	if modules.GetModules().IsEnterpriseBuild() {
 		return false, nil
 	}
 
@@ -7500,7 +7503,7 @@ func (a *Server) CreateSessionTracker(ctx context.Context, tracker types.Session
 	// Don't allow sessions that require moderation without the enterprise feature enabled.
 	for _, policySet := range tracker.GetHostPolicySets() {
 		if len(policySet.RequireSessionJoin) != 0 {
-			if a.modules.BuildType() != modules.BuildEnterprise {
+			if modules.GetModules().BuildType() != modules.BuildEnterprise {
 				return nil, fmt.Errorf("moderated sessions: %w", ErrRequiresEnterprise)
 			}
 		}
@@ -7632,7 +7635,7 @@ func (a *Server) ListResources(ctx context.Context, req proto.ListResourcesReque
 
 // CreateKubernetesCluster creates a new kubernetes cluster resource.
 func (a *Server) CreateKubernetesCluster(ctx context.Context, kubeCluster types.KubeCluster) error {
-	if err := a.enforceLicense(types.KindKubernetesCluster); err != nil {
+	if err := enforceLicense(types.KindKubernetesCluster); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.Services.CreateKubernetesCluster(ctx, kubeCluster); err != nil {
@@ -7659,7 +7662,7 @@ func (a *Server) CreateKubernetesCluster(ctx context.Context, kubeCluster types.
 
 // UpdateKubernetesCluster updates an existing kubernetes cluster resource.
 func (a *Server) UpdateKubernetesCluster(ctx context.Context, kubeCluster types.KubeCluster) error {
-	if err := a.enforceLicense(types.KindKubernetesCluster); err != nil {
+	if err := enforceLicense(types.KindKubernetesCluster); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := a.Kubernetes.UpdateKubernetesCluster(ctx, kubeCluster); err != nil {
@@ -7739,21 +7742,21 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 	if err != nil {
 		return proto.PingResponse{}, trace.Wrap(err)
 	}
-	features := a.modules.Features().ToProto()
+	features := modules.GetModules().Features().ToProto()
 
 	authPref, err := a.GetAuthPreference(ctx)
 	if err != nil {
 		return proto.PingResponse{}, nil
 	}
 
-	licenseExpiry := a.modules.LicenseExpiry()
+	licenseExpiry := modules.GetModules().LicenseExpiry()
 
 	return proto.PingResponse{
 		ClusterName:             cn.GetClusterName(),
 		ServerVersion:           teleport.Version,
 		ServerFeatures:          features,
 		ProxyPublicAddr:         a.getProxyPublicAddr(ctx),
-		IsBoring:                a.modules.IsFIPSBuild(),
+		IsBoring:                modules.GetModules().IsBoringBinary(),
 		LoadAllCAs:              a.loadAllCAs,
 		SignatureAlgorithmSuite: authPref.GetSignatureAlgorithmSuite(),
 		LicenseExpiry:           &licenseExpiry,
@@ -7860,28 +7863,7 @@ func MFARequiredToBool(m proto.MFARequired) (required bool) {
 	}
 }
 
-// getMFARequiredForScopedCtx returns the [services.MFARequired] decision for the given scoped auth context.
-// When unscoped, it returns the MFA requirement as defined by the context's role set.
-// When scoped, it always returns [services.MFARequiredNever] unless the cluster auth preferences dictate that
-// per-session MFA is required. This always results in an error until scopes support MFA.
-func (a *Server) getMFARequiredForScopedCtx(ctx context.Context, scopedCtx *authz.ScopedContext) (services.MFARequired, error) {
-	authPref, err := a.GetAuthPreference(ctx)
-	if err != nil {
-		return services.MFARequiredAlways, trace.Wrap(err)
-	}
-
-	if unscopedCtx, isUnscoped := scopedCtx.UnscopedContext(); isUnscoped {
-		return unscopedCtx.Checker.GetAccessState(authPref).MFARequired, nil
-	}
-
-	if authPref.GetRequireMFAType().IsSessionMFARequired() {
-		// TODO (eriktate/scopes): implement scoped MFA
-		return services.MFARequiredAlways, trace.AccessDenied("cannot perform scoped access when cluster-level MFA is required (scoped MFA is not implemented)")
-	}
-	return services.MFARequiredNever, nil
-}
-
-func (a *Server) isMFARequired(ctx context.Context, scopedCtx *authz.ScopedContext, req *proto.IsMFARequiredRequest) (resp *proto.IsMFARequiredResponse, err error) {
+func (a *Server) isMFARequired(ctx context.Context, checker services.AccessChecker, req *proto.IsMFARequiredRequest) (resp *proto.IsMFARequiredResponse, err error) {
 	// Assign Required as a function of MFARequired.
 	defer func() {
 		if resp != nil {
@@ -7889,11 +7871,12 @@ func (a *Server) isMFARequired(ctx context.Context, scopedCtx *authz.ScopedConte
 		}
 	}()
 
-	mfaRequired, err := a.getMFARequiredForScopedCtx(ctx, scopedCtx)
+	authPref, err := a.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	switch mfaRequired {
+
+	switch state := checker.GetAccessState(authPref); state.MFARequired {
 	case services.MFARequiredAlways:
 		return &proto.IsMFARequiredResponse{
 			MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
@@ -7904,14 +7887,6 @@ func (a *Server) isMFARequired(ctx context.Context, scopedCtx *authz.ScopedConte
 		}, nil
 	}
 
-	unscopedCtx, isUnscoped := scopedCtx.UnscopedContext()
-	if !isUnscoped {
-		// This should be an impossible state because if this were a scoped identity we would have either returned
-		// an error due to cluster-level per-session MFA being enabled or returned MFARequiredNever due to scoped
-		// identities not supporting it. We return an error here to prevent progressing in an unpredictable state
-		return nil, trace.AccessDenied("scoped identities must not require per-session MFA")
-	}
-	checker := unscopedCtx.Checker
 	var noMFAAccessErr error
 	switch t := req.Target.(type) {
 	case *proto.IsMFARequiredRequest_Node:
@@ -8176,7 +8151,6 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, p mfaAuthChallengeParams)
 			UserMetadata:        authz.ClientUserMetadataWithUser(ctx, p.user),
 			ChallengeScope:      p.challengeExtensions.Scope.String(),
 			ChallengeAllowReuse: p.challengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
-			FlowType:            apievents.MFAFlowType_MFA_FLOW_TYPE_PER_SESSION_CERTIFICATE,
 		}); err != nil {
 			a.logger.WarnContext(ctx, "Failed to emit CreateMFAAuthChallenge event", "error", err)
 		}
@@ -8210,7 +8184,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, p mfaAuthChallengeParams)
 			Webauthn: webConfig,
 			Identity: wanlib.WithDevices(a.Services, groupedDevs.Webauthn),
 		}
-		assertion, err := webLogin.Begin(ctx, wanlib.BeginParams{User: p.user, ChallengeExtensions: p.challengeExtensions})
+		assertion, err := webLogin.Begin(ctx, p.user, p.challengeExtensions)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -8220,16 +8194,7 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, p mfaAuthChallengeParams)
 	// If the user has an SSO device and the client provided a redirect URL to handle
 	// the MFA SSO flow, create an SSO challenge.
 	if enableSSO && groupedDevs.SSO != nil && p.ssoClientRedirectURL != "" {
-		if challenge.SSOChallenge, err = a.BeginSSOMFAChallenge(
-			ctx,
-			mfatypes.BeginSSOMFAChallengeParams{
-				User:                 p.user,
-				SSO:                  groupedDevs.SSO.GetSso(),
-				SSOClientRedirectURL: p.ssoClientRedirectURL,
-				ProxyAddress:         p.proxyAddress,
-				Ext:                  p.challengeExtensions,
-			},
-		); err != nil {
+		if challenge.SSOChallenge, err = a.beginSSOMFAChallenge(ctx, p.user, groupedDevs.SSO.GetSso(), p.ssoClientRedirectURL, p.proxyAddress, p.challengeExtensions); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -8264,7 +8229,6 @@ func (a *Server) mfaAuthChallenge(ctx context.Context, p mfaAuthChallengeParams)
 		UserMetadata:        authz.ClientUserMetadataWithUser(ctx, p.user),
 		ChallengeScope:      p.challengeExtensions.Scope.String(),
 		ChallengeAllowReuse: p.challengeExtensions.AllowReuse == mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES,
-		FlowType:            apievents.MFAFlowType_MFA_FLOW_TYPE_PER_SESSION_CERTIFICATE,
 	}); err != nil {
 		a.logger.WarnContext(ctx, "Failed to emit CreateMFAAuthChallenge event", "error", err)
 	}
@@ -8397,7 +8361,6 @@ func (a *Server) ValidateMFAAuthResponse(
 		},
 		UserMetadata:   authz.ClientUserMetadataWithUser(ctx, user),
 		ChallengeScope: requiredExtensions.Scope.String(),
-		FlowType:       apievents.MFAFlowType_MFA_FLOW_TYPE_PER_SESSION_CERTIFICATE,
 	}
 	if validateErr != nil {
 		auditEvent.Code = events.ValidateMFAAuthResponseFailureCode
@@ -8519,7 +8482,7 @@ func (a *Server) validateMFAAuthResponseInternal(
 		}, nil
 
 	case *proto.MFAAuthenticateResponse_SSO:
-		mfaAuthData, err := a.VerifySSOMFASession(ctx, user, res.SSO.RequestId, res.SSO.Token, requiredExtensions)
+		mfaAuthData, err := a.verifySSOMFASession(ctx, user, res.SSO.RequestId, res.SSO.Token, requiredExtensions)
 		return mfaAuthData, trace.Wrap(err)
 	case *proto.MFAAuthenticateResponse_Browser:
 		mfaAuthData, err := a.VerifyBrowserMFASession(ctx, user, res.Browser.RequestId, res.Browser.WebauthnResponse, requiredExtensions)
@@ -8542,7 +8505,7 @@ func mergeKeySets(a, b types.CAKeySet) types.CAKeySet {
 func (a *Server) addAdditionalTrustedKeysAtomic(ctx context.Context, ca types.CertAuthority, newKeys types.CAKeySet, needsUpdate func(types.CertAuthority) (bool, error)) error {
 	const maxIterations = 64
 
-	for range maxIterations {
+	for i := 0; i < maxIterations; i++ {
 		if update, err := needsUpdate(ca); err != nil || !update {
 			return trace.Wrap(err)
 		}
@@ -8586,8 +8549,7 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 		types.OktaCA,
 		types.AWSRACA,
 		types.BoundKeypairCA,
-		types.WindowsCA,
-		types.AppClientCA:
+		types.WindowsCA:
 		// OK, known CA type.
 	default:
 		return types.CAKeySet{}, trace.BadParameter(
@@ -8615,8 +8577,7 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 		types.SAMLIDPCA,
 		types.SPIFFECA,
 		types.AWSRACA,
-		types.WindowsCA,
-		types.AppClientCA:
+		types.WindowsCA:
 		tlsKeyPair, err := keyStore.NewTLSKeyPair(ctx, caID.DomainName, tlsCAKeyPurpose(caID.Type))
 		if err != nil {
 			return keySet, trace.Wrap(err)
@@ -8672,8 +8633,6 @@ func tlsCAKeyPurpose(caType types.CertAuthType) cryptosuites.KeyPurpose {
 		return cryptosuites.AWSRACATLS
 	case types.WindowsCA:
 		return cryptosuites.WindowsCARDP
-	case types.AppClientCA:
-		return cryptosuites.AppClientCATLS
 	}
 	return cryptosuites.KeyPurposeUnspecified
 }
@@ -8727,7 +8686,7 @@ func (a *Server) ensureLocalAdditionalKeys(ctx context.Context, ca types.CertAut
 
 // GetLicense return the license used the start the teleport enterprise auth server
 func (a *Server) GetLicense(ctx context.Context) (string, error) {
-	if a.modules.Features().Cloud {
+	if modules.GetModules().Features().Cloud {
 		return "", trace.AccessDenied("license cannot be downloaded on Cloud")
 	}
 	if a.license == nil {
@@ -8782,7 +8741,7 @@ func (a *Server) getAccessRequestMonthlyUsage(ctx context.Context) (int, error) 
 // verifyAccessRequestMonthlyLimit checks whether the cluster has exceeded the monthly access request limit.
 // If so, it returns an error. This is only applicable on usage-based billing plans.
 func (a *Server) verifyAccessRequestMonthlyLimit(ctx context.Context) error {
-	f := a.modules.Features()
+	f := modules.GetModules().Features()
 	accessRequestsEntitlement := f.GetEntitlement(entitlements.AccessRequests)
 
 	if accessRequestsEntitlement.Limit == 0 {
@@ -8973,15 +8932,4 @@ func (s *Server) GetSigstorePolicyEvaluator() workloadidentityv1.SigstorePolicyE
 		return e
 	}
 	return workloadidentityv1.OSSSigstorePolicyEvaluator{}
-}
-
-// TODO(tigrato): remove Download* methods once e no longer references them.
-func (s *Server) DownloadSummary(ctx context.Context, sessionID libsession.ID, writer io.Writer) error {
-	reader, err := s.StreamSessionSummary(ctx, sessionID)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer reader.Close()
-	_, err = io.Copy(writer, reader)
-	return trace.Wrap(err)
 }

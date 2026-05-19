@@ -34,7 +34,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/storage"
-	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -61,23 +60,12 @@ type GlobalCLIFlags struct {
 	MFAMode string
 }
 
-// ResolvedConfig is the full result of ApplyConfig: enough for tctl
-// commands to dial auth and (when applicable) reach into the caller's
-// client store. ClientStore and Profile are nil when tctl runs on the
-// auth host, where there is no tsh profile.
-type ResolvedConfig struct {
-	Auth        *authclient.Config
-	ClientStore *client.Store
-	Profile     *client.ProfileStatus
-}
-
 // ApplyConfig takes configuration values from the config file and applies them
 // to 'servicecfg.Config' object.
 //
-// The returned ResolvedConfig.Auth has the credentials needed to dial the
-// auth server. ClientStore and Profile are populated from ~/.tsh (or an
-// identity file) when present and nil for the local-auth-host path.
-func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*ResolvedConfig, error) {
+// The returned authclient.Config has the credentials needed to dial the auth
+// server.
+func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*authclient.Config, error) {
 	ctx := context.TODO()
 	// --debug flag
 	if ccf.Debug {
@@ -143,9 +131,9 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*ResolvedConfig, 
 		} else {
 			slog.DebugContext(ctx, "auth_service disabled in config file, loading auth config via extension")
 		}
-		resolved, err := LoadFromProfileStore(ccf, cfg)
+		authConfig, err := LoadConfigFromProfile(ccf, cfg)
 		if err == nil {
-			return resolved, nil
+			return authConfig, nil
 		}
 		if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
@@ -205,5 +193,5 @@ func ApplyConfig(ccf *GlobalCLIFlags, cfg *servicecfg.Config) (*ResolvedConfig, 
 	authConfig.Log = cfg.Logger
 	authConfig.DialOpts = append(authConfig.DialOpts, metadata.WithUserAgentFromTeleportComponent(teleport.ComponentTCTL))
 
-	return &ResolvedConfig{Auth: authConfig}, nil
+	return authConfig, nil
 }

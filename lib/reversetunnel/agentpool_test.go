@@ -32,7 +32,6 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
-	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -66,7 +65,7 @@ func (m *mockAgent) GetProxyID() (string, bool) {
 
 type mockClient struct {
 	authclient.ClientI
-
+	ssh.AuthMethod
 	mockGetClusterNetworkingConfig func(context.Context) (types.ClusterNetworkingConfig, error)
 }
 
@@ -81,13 +80,9 @@ func setupTestAgentPool(t *testing.T) (*AgentPool, *mockClient) {
 	client := &mockClient{}
 
 	pool, err := NewAgentPool(context.Background(), AgentPoolConfig{
-		Client:      client,
-		AccessPoint: client,
-		PublicKeyAuth: apissh.PublicKeyAuthConfig{
-			Signers: func() ([]ssh.Signer, error) {
-				return []ssh.Signer{mockSigner{}}, nil
-			},
-		},
+		Client:       client,
+		AccessPoint:  client,
+		AuthMethods:  []ssh.AuthMethod{client},
 		HostUUID:     "test-uuid",
 		LocalCluster: "test-cluster",
 		Cluster:      "test-cluster",
@@ -173,10 +168,6 @@ func TestAgentPoolConnectionCount(t *testing.T) {
 
 	require.Nil(t, pool.tracker.TryAcquire())
 	require.Equal(t, 3, pool.Count())
-}
-
-type mockSigner struct {
-	ssh.Signer
 }
 
 func TestAgentKeepAliveCountTimeout(t *testing.T) {

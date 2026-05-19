@@ -18,14 +18,14 @@
 
 import { keepPreviousData, useInfiniteQuery } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
-import { useLocation, useNavigate } from 'react-router';
+import { useHistory, useLocation } from 'react-router';
 import styled from 'styled-components';
 
 import { Alert } from 'design/Alert';
 import Box from 'design/Box';
 import Flex from 'design/Flex/Flex';
 import { MultiselectMenu } from 'shared/components/Controls/MultiselectMenu';
-import { SortMenu } from 'shared/components/Controls/SortMenu';
+import { SortMenu } from 'shared/components/Controls/SortMenuV2';
 import { SearchPanel } from 'shared/components/Search';
 
 import {
@@ -76,7 +76,7 @@ async function fetchInstances(
 }
 
 export function Instances() {
-  const navigate = useNavigate();
+  const history = useHistory();
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
   const query = queryParams.get('query') ?? '';
@@ -207,12 +207,12 @@ export function Instances() {
     (updateFn: (search: URLSearchParams) => void) => {
       const search = new URLSearchParams(location.search);
       updateFn(search);
-      navigate({
+      history.push({
         pathname: location.pathname,
         search: search.toString(),
       });
     },
-    [navigate, location.pathname, location.search]
+    [history, location.pathname, location.search]
   );
 
   const handleQueryChange = useCallback(
@@ -238,15 +238,12 @@ export function Instances() {
       search.set('sort', sortField);
       search.set('sort_dir', sortDir);
 
-      navigate(
-        {
-          pathname: location.pathname,
-          search: search.toString(),
-        },
-        { replace: true }
-      );
+      history.replace({
+        pathname: location.pathname,
+        search: search.toString(),
+      });
     },
-    [navigate, location.pathname, location.search]
+    [history, location.pathname, location.search]
   );
 
   const handleTypesChange = useCallback(

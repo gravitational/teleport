@@ -744,12 +744,13 @@ func TestEC2WatcherWithMultipleAccounts(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	const noDiscoveryConfig = ""
 	watcher := NewWatcher[*EC2Instances](t.Context(), logtest.NewLogger())
-	watcher.SetFetchers("", fetchers)
+	watcher.SetFetchers(noDiscoveryConfig, fetchers)
 
 	go watcher.Run()
 
-	expectedInstances := []EC2Instances{
+	expectedInstances := []*EC2Instances{
 		{
 			Region:        "us-west-2",
 			Instances:     []EC2Instance{toEC2Instance(instance01Account01)},
@@ -767,8 +768,7 @@ func TestEC2WatcherWithMultipleAccounts(t *testing.T) {
 	for _, instances := range expectedInstances {
 		select {
 		case result := <-watcher.InstancesC:
-			require.NotNil(t, result)
-			require.Equal(t, instances, *result)
+			require.Equal(t, instances, result)
 		case <-t.Context().Done():
 			require.Fail(t, "context canceled")
 		}

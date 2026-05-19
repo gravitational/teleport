@@ -626,7 +626,6 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 		RegionsListerGetter:    s.GetAWSRegionsLister,
 		AWSOrganizationsGetter: s.GetAWSOrganizationsClient,
 		PublicProxyAddrGetter:  s.publicProxyAddress,
-		Logger:                 s.Log,
 	})
 	if err != nil {
 		return trace.Wrap(err)

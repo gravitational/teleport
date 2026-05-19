@@ -94,11 +94,6 @@ func (a *Server) BeginBrowserMFAChallenge(ctx context.Context, params mfatypes.B
 			AllowReuse:                  params.Ext.AllowReuse,
 			UserVerificationRequirement: params.Ext.UserVerificationRequirement,
 		},
-		SourceCluster: params.SourceCluster,
-		TargetCluster: params.TargetCluster,
-		Payload: &mfatypes.SessionIdentifyingPayload{
-			SSHSessionID: params.SIP.GetSshSessionId(),
-		},
 	}
 
 	if err := a.UpsertMFASessionData(ctx, sessionData); err != nil {
@@ -219,9 +214,6 @@ func (a *Server) VerifyBrowserMFASession(ctx context.Context, username, sessionI
 		Device:        loginData.Device,
 		User:          username,
 		AllowReuse:    mfaSess.ChallengeExtensions.AllowReuse,
-		Payload:       mfaSess.Payload,
-		SourceCluster: mfaSess.SourceCluster,
-		TargetCluster: mfaSess.TargetCluster,
 		MFAViaBrowser: true,
 	}, nil
 }

@@ -6,10 +6,6 @@ description: Provides a comprehensive list of fields in the TeleportScopedRoleV1
 {/*Auto-generated file. Do not edit.*/}
 {/*To regenerate, navigate to integrations/operator and run "make crd-docs".*/}
 
-{/* Disable the outdated name check since custom resource fields occasionally
-need to refer to these. */}
-{/* vale 3rd-party-products.former-names = NO */}
-
 This guide is a comprehensive reference to the fields in the `TeleportScopedRoleV1`
 resource, which you can apply after installing the Teleport Kubernetes operator.
 
@@ -41,31 +37,14 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |Field|Type|Description|
 |---|---|---|
 |client_idle_timeout|string|ClientIdleTimeout sets the default idle timeout for access sessions across all protocols that do not specify their own value. Must be a valid Go duration string (e.g. "30m", "1h").|
-|disconnect_expired_cert|boolean|DisconnectExpiredCert defines the default behavior of all protocols when certs expire for a session. If unset, cluster wide defaults are used.|
-|lock|[object](#specdefaultslock)|Lock specifies the default locking mode for access sessions across all protocols that do not specify their own value. If unset, cluster wide defaults are used.|
-|session_recording|[object](#specdefaultssession_recording)|SessionRecording configures the session recording strategy for all protocols that don't explicitly set their session recording mode.|
-
-### spec.defaults.lock
-
-|Field|Type|Description|
-|---|---|---|
-|mode|string|Allowed values: strict or best_effort. Defaults to value cluster wide auth preference if not set.|
-
-### spec.defaults.session_recording
-
-|Field|Type|Description|
-|---|---|---|
-|mode|string|Mode sets the session recording mode. Allowed values: strict or best_effort.|
 
 ### spec.kube
 
 |Field|Type|Description|
 |---|---|---|
 |client_idle_timeout|string|Overrides the defaults block idle timeout specifically for kube sessions. Must be a valid Go duration string (e.g. "30m", "1h"). If empty, the defaults block value (or global default) applies.|
-|disconnect_expired_cert|boolean|DisconnectExpiredCert controls whether Kube sessions are disconnected when the user certificate expires.|
 |groups|[]string|The list of kubernetes groups this role allows.|
 |labels|[][object](#speckubelabels-items)|The map of kubernetes cluster labels used for RBAC.|
-|lock|[object](#speckubelock)|Lock configures the role's locking behavior for kubernetes sessions.|
 |users|[]string|An optional list of impersonatable kubernetes users this role allows.|
 
 ### spec.kube.labels items
@@ -74,12 +53,6 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |name|string|The name of the label.|
 |values|[]string|The values associated with the label.|
-
-### spec.kube.lock
-
-|Field|Type|Description|
-|---|---|---|
-|mode|string|Allowed values: strict or best_effort. Defaults to value cluster wide auth preference if not set.|
 
 ### spec.rules items
 
@@ -93,27 +66,15 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |Field|Type|Description|
 |---|---|---|
 |client_idle_timeout|string|ClientIdleTimeout overrides the defaults block idle timeout specifically for SSH sessions. Must be a valid Go duration string (e.g. "30m", "1h"). If empty, the defaults block value (or global default) applies.|
-|disconnect_expired_cert|boolean|DisconnectExpiredCert controls whether SSH sessions are disconnected when the user certificate expires. Defaults to value cluster wide auth preference if not set.|
-|enhanced_recording|[object](#specsshenhanced_recording)|EnhancedRecording is the set of BPF events to record for enhanced session recording.|
 |file_copy|boolean|FileCopy indicates whether remote file operations via SCP or SFTP are allowed over an SSH session. It defaults to allowing the user to download and upload files by default.|
 |forward_agent|boolean|ForwardAgent enables SSH agent forwarding.|
 |host_sudoers|[]string|Sudoers is a list of entries to include in a users sudoer file|
 |host_user_creation|[object](#specsshhost_user_creation)|HostUserCreation configures the creation of host users.|
 |labels|[][object](#specsshlabels-items)|Labels is the set of node labels used to dynamically select which nodes this role applies to.|
-|lock|[object](#specsshlock)|Lock configures the role's locking behavior for SSH sessions.|
 |logins|[]string|Logins is the list of OS logins this role permits on matching nodes.|
 |max_sessions|integer|MaxSessions defines the maximum number of concurrent sessions per connection.|
 |permit_x11_forwarding|boolean|PermitX11Forwarding, when true, authorizes use of X11 forwarding over SSH sessions. If not set, X11 forwarding is not permitted.|
 |port_forwarding|[object](#specsshport_forwarding)|SSHPortForwarding configures what types of SSH port forwarding are allowed by a role.|
-|session_recording|[object](#specsshsession_recording)|SessionRecording configures the session recording strategy for SSH sessions.|
-
-### spec.ssh.enhanced_recording
-
-|Field|Type|Description|
-|---|---|---|
-|command|boolean|Command enables session.command in audit logs|
-|disk|boolean|Disk enables session.disk in audit logs|
-|network|boolean|Network enables session.network in audit logs|
 
 ### spec.ssh.host_user_creation
 
@@ -129,12 +90,6 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |name|string|The name of the label.|
 |values|[]string|The values associated with the label.|
-
-### spec.ssh.lock
-
-|Field|Type|Description|
-|---|---|---|
-|mode|string|Allowed values: strict or best_effort. Defaults to value cluster wide auth preference if not set.|
 
 ### spec.ssh.port_forwarding
 
@@ -154,10 +109,4 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |Field|Type|Description|
 |---|---|---|
 |enabled|boolean||
-
-### spec.ssh.session_recording
-
-|Field|Type|Description|
-|---|---|---|
-|mode|string|Mode sets the session recording mode. Allowed values: strict or best_effort.|
 

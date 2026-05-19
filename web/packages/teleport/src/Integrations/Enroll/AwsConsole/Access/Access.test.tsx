@@ -47,11 +47,12 @@ const initialEntries = [
   },
 ];
 
-const mockNavigate = jest.fn();
-
 jest.mock('react-router', () => ({
   ...jest.requireActual('react-router'),
-  useNavigate: () => mockNavigate,
+  useHistory: () => ({
+    goBack: jest.fn(),
+    push: jest.fn(),
+  }),
 }));
 
 beforeEach(() => {

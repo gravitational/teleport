@@ -24,6 +24,7 @@ import (
 	"log/slog"
 	"maps"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -43,7 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
-	"github.com/gravitational/teleport/lib/utils/set"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // SupportedJoinMethods should match SupportedJoinMethods declared in
@@ -70,7 +71,7 @@ var SupportedJoinMethods = []types.JoinMethod{
 // BotResourceName returns the default name for resources associated with the
 // given named bot.
 func BotResourceName(botName string) string {
-	return services.BotResourceName(botName)
+	return "bot-" + strings.ReplaceAll(botName, " ", "-")
 }
 
 // Cache is the subset of the cached resources that the Service queries.
@@ -941,7 +942,7 @@ func StrongValidateBot(b *pb.Bot) error {
 // Bot when converting a User and Role to a Bot. Typically, these are internal
 // labels that are managed by this service and exposing them to the end user
 // would allow for misconfiguration.
-var nonPropagatedLabels = set.New(
+var nonPropagatedLabels = utils.NewSet(
 	types.BotLabel,
 	types.BotGenerationLabel,
 	types.BotScopeLabel,
@@ -1099,7 +1100,9 @@ func botToUserAndRole(bot *pb.Bot, now time.Time, createdBy string) (types.User,
 
 	// First copy in the labels from the Bot resource
 	userMeta.Labels = map[string]string{}
-	maps.Copy(userMeta.Labels, bot.Metadata.Labels)
+	for k, v := range bot.Metadata.Labels {
+		userMeta.Labels[k] = v
+	}
 	// Then set these labels over the top - we exclude these when converting
 	// back.
 	userMeta.Labels[types.BotLabel] = bot.Metadata.Name
@@ -1188,9 +1191,4 @@ func botExpiryFromUser(user types.User) *timestamppb.Timestamp {
 		return nil
 	}
 	return timestamppb.New(userExpiry)
-}
-
-// BotToUserAndRole converts the given bot into a user and role for storage.
-func BotToUserAndRole(bot *pb.Bot, createdBy string) (types.User, types.Role, error) {
-	return botToUserAndRole(bot, time.Now(), createdBy)
 }

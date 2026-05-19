@@ -16,7 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { createMemoryHistory } from 'history';
+import { Router } from 'react-router';
 
 import { SingleLogoutFailed } from './SingleLogoutFailed';
 
@@ -25,21 +26,27 @@ export default {
 };
 
 export const FailedDefault = () => {
+  const history = createMemoryHistory({
+    initialEntries: ['/web/msg/error/slo'],
+    initialIndex: 0,
+  });
+
   return (
-    <MemoryRouter initialEntries={['/web/msg/error/slo']}>
-      <Routes>
-        <Route path="/web/msg/error/slo" element={<SingleLogoutFailed />} />
-      </Routes>
-    </MemoryRouter>
+    <Router history={history}>
+      <SingleLogoutFailed />
+    </Router>
   );
 };
 
 export const FailedOkta = () => {
+  const history = createMemoryHistory({
+    initialEntries: ['/web/msg/error/slo?connectorName=Okta'],
+    initialIndex: 0,
+  });
+
   return (
-    <MemoryRouter initialEntries={['/web/msg/error/slo?connectorName=Okta']}>
-      <Routes>
-        <Route path="/web/msg/error/slo" element={<SingleLogoutFailed />} />
-      </Routes>
-    </MemoryRouter>
+    <Router history={history}>
+      <SingleLogoutFailed />
+    </Router>
   );
 };

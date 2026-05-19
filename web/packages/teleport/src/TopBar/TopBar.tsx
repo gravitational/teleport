@@ -17,7 +17,8 @@
  */
 
 import React, { type JSX } from 'react';
-import { Link, matchPath, useLocation } from 'react-router';
+import { matchPath, useHistory } from 'react-router';
+import { Link } from 'react-router-dom';
 import styled, { useTheme } from 'styled-components';
 
 import { breakpointsPx, Flex, Image, TopNav } from 'design';
@@ -38,7 +39,7 @@ export function TopBar({
   CustomLogo?: () => React.ReactElement;
 }) {
   const ctx = useTeleport();
-  const location = useLocation();
+  const history = useHistory();
   const features = useFeatures();
   const { currentWidth } = useLayout();
 
@@ -46,10 +47,10 @@ export function TopBar({
   const feature = features.find(
     f =>
       f.route &&
-      matchPath(
-        { path: f.route.path, end: f.route.exact ?? false },
-        location.pathname
-      )
+      matchPath(history.location.pathname, {
+        path: f.route.path,
+        exact: f.route.exact ?? false,
+      })
   );
 
   const iconSize =

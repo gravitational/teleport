@@ -154,22 +154,8 @@ endif
 		-I=../../api/proto \
 		-I=$(PROTOBUF_MOD_PATH) \
 		--plugin=$(PROTOC_GEN_TERRAFORM) \
-		--terraform_out=config=protoc-gen-terraform-appauthconfig.yaml:./tfschema \
-		teleport/appauthconfig/v1/appauthconfig.proto
-
-	@protoc \
-		-I=../../api/proto \
-		-I=$(PROTOBUF_MOD_PATH) \
-		--plugin=$(PROTOC_GEN_TERRAFORM) \
 		--terraform_out=config=protoc-gen-terraform-summarizer.yaml:./tfschema \
 		teleport/summarizer/v1/summarizer.proto
-
-	@protoc \
-		-I=../../api/proto \
-		-I=$(PROTOBUF_MOD_PATH) \
-		--plugin=$(PROTOC_GEN_TERRAFORM) \
-		--terraform_out=config=protoc-gen-terraform-vnetconfig.yaml:./tfschema \
-		teleport/vnet/v1/vnet_config.proto
 
 	@protoc \
 		-I=../../api/proto \
@@ -184,6 +170,13 @@ endif
 		--plugin=$(PROTOC_GEN_TERRAFORM) \
 		--terraform_out=config=protoc-gen-terraform-workloadcluster.yaml:./tfschema \
 		teleport/workloadcluster/v1/workloadcluster.proto
+
+	@protoc \
+		-I=../../api/proto \
+		-I=$(PROTOBUF_MOD_PATH) \
+		--plugin=$(PROTOC_GEN_TERRAFORM) \
+		--terraform_out=config=protoc-gen-terraform-vnetconfig.yaml:./tfschema \
+		teleport/vnet/v1/vnet_config.proto
 
 	@protoc \
 		-I=../../api/proto \
@@ -214,11 +207,10 @@ endif
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1/autoupdate_terraform.go ./tfschema/autoupdate/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1/health_check_config_terraform.go ./tfschema/healthcheckconfig/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1/discoveryconfig_terraform.go ./tfschema/discoveryconfig/v1/
-	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1/appauthconfig_terraform.go ./tfschema/appauthconfig/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1/summarizer_terraform.go ./tfschema/summarizer/v1/
-	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1/vnet_config_terraform.go ./tfschema/vnet/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1/token_terraform.go ./tfschema/scopes/joining/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadcluster/v1/workloadcluster_terraform.go ./tfschema/workloadcluster/v1/
+	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1/vnet_config_terraform.go ./tfschema/vnet/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1/role_terraform.go ./tfschema/scopes/access/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1/assignment_terraform.go ./tfschema/scopes/access/assignment/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1/dbobjectimportrule_terraform.go ./tfschema/dbobjectimportrule/v1/
@@ -272,11 +264,13 @@ endif
 
 	gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-terraform.xml --jsonfile unit-tests-terraform.json -- ./testlib -v $(TEST_ARGS)
 
-testlib/plugin_ent_test.go:
-	go generate testlib/plugin_test.go
+.PHONY: test-full
+test-full: TEST_ARGS=--tags enterprisetests
+test-full: test
 
 .PHONY: test-ent
-test-ent: testlib/plugin_ent_test.go test
+test-ent: TEST_ARGS=--tags enterprisetests -run 'TestTerraformEnterprise.*'
+test-ent: test
 
 .PHONY: apply
 apply: install

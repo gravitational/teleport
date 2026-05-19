@@ -25,8 +25,6 @@ import "teleport/legacy/client/proto/event.proto";
 import "teleport/legacy/client/proto/inventory.proto";
 import "teleport/legacy/client/proto/requestable_roles.proto";
 import "teleport/legacy/types/events/events.proto";
-import "teleport/legacy/types/metadata.proto";
-import "teleport/legacy/types/mfa_device.proto";
 import "teleport/legacy/types/types.proto";
 import "teleport/legacy/types/webauthn/webauthn.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
@@ -184,11 +182,6 @@ message UserCertsRequest {
     // WindowsDesktop means a request for a TLS certificate for access to a specific
     // windows desktop.
     WindowsDesktop = 5;
-    // AccessGraphAPI means a request for a TLS certificate for access to the Access Graph API.
-    AccessGraphAPI = 6;
-    // LinuxDesktop means a request for a TLS certificate for access to a specific
-    // linux desktop.
-    LinuxDesktop = 7;
   }
   // CertUsage limits the resulting user certificate to a single protocol.
   CertUsage Usage = 10 [(gogoproto.jsontag) = "usage,omitempty"];
@@ -305,13 +298,6 @@ message UserCertsRequest {
   // re-issuable. This flag is only applicable when UseRoleRequests is set to
   // true.
   bool ReissuableRoleImpersonation = 27 [(gogoproto.jsontag) = "reissuable_role_impersonation"];
-
-  // RouteToLinuxDesktop specifies the target linux desktop name to encode into
-  // certificate so linux desktop client requests are routed appropriately.
-  RouteToLinuxDesktop RouteToLinuxDesktop = 28 [
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "route_to_linux_desktop,omitempty"
-  ];
 }
 
 // RouteToDatabase combines parameters for database service routing information.
@@ -334,14 +320,6 @@ message RouteToWindowsDesktop {
   string WindowsDesktop = 1 [(gogoproto.jsontag) = "windows_desktop"];
   // Login is the Windows desktop user login to embed.
   string Login = 2 [(gogoproto.jsontag) = "login"];
-}
-
-// RouteToLinuxDesktop combines parameters for Linux desktop routing information.
-message RouteToLinuxDesktop {
-  // LinuxDesktop is the Linux Desktop server name to embed.
-  string linux_desktop = 1;
-  // Login is the Linux desktop user login to embed.
-  string login = 2;
 }
 
 // RouteToApp contains parameters for application access certificate requests.
@@ -572,16 +550,33 @@ enum SupportType {
 
 // Features are auth server features.
 message Features {
-  // Deprecated features, use entitlements
-  reserved 1, 2, 3, 4, 5, 9, 10, 18, 19, 20, 21, 23, 25, 26, 31, 33, 34;
-  reserved "Kubernetes", "App", "DB", "OIDC", "SAML", "HSM", "Desktop", "Assist", "DeviceTrust", "FeatureHiding", "AccessRequests", "IdentityGovernance", "AccessList", "AccessMonitoring", "ExternalAuditStorage", "JoinActiveSessions", "MobileDeviceManagement";
-
+  // Kubernetes enables Kubernetes Access product
+  // Deprecated remove in v18; leverage entitlements
+  bool Kubernetes = 1 [(gogoproto.jsontag) = "kubernetes"];
+  // App enables Application Access product
+  // Deprecated remove in v18; leverage entitlements
+  bool App = 2 [(gogoproto.jsontag) = "app"];
+  // DB enables database access product
+  // Deprecated remove in v18; leverage entitlements
+  bool DB = 3 [(gogoproto.jsontag) = "db"];
+  // OIDC enables OIDC connectors
+  // Deprecated remove in v18; leverage entitlements
+  bool OIDC = 4 [(gogoproto.jsontag) = "oidc"];
+  // SAML enables SAML connectors
+  // Deprecated remove in v18; leverage entitlements
+  bool SAML = 5 [(gogoproto.jsontag) = "saml"];
   // AccessControls enables FIPS access controls
   bool AccessControls = 6 [(gogoproto.jsontag) = "access_controls"];
   // AdvancedAccessWorkflows is currently set to the value of the Cloud AccessRequests entitlement
   bool AdvancedAccessWorkflows = 7 [(gogoproto.jsontag) = "advanced_access_workflows"];
   // Cloud enables some cloud-related features
   bool Cloud = 8 [(gogoproto.jsontag) = "cloud"];
+  // HSM enables PKCS#11 HSM support
+  // Deprecated remove in v18; leverage entitlements
+  bool HSM = 9 [(gogoproto.jsontag) = "hsm"];
+  // Desktop enables desktop access product
+  // Deprecated remove in v18; leverage entitlements
+  bool Desktop = 10 [(gogoproto.jsontag) = "desktop"];
   reserved 11; // bool ModeratedSessions
   reserved 12; // bool MachineID
   reserved 13; // bool ResourceAccessRequests
@@ -593,27 +588,57 @@ message Features {
   bool AutomaticUpgrades = 16 [(gogoproto.jsontag) = "automatic_upgrades"];
   // IsUsageBased enables some usage-based billing features
   bool IsUsageBased = 17 [(gogoproto.jsontag) = "is_usage_based"];
+  // Assist enables the Assistant feature
+  // Deprecated remove in v18; leverage entitlements
+  bool Assist = 18 [(gogoproto.jsontag) = "assist"];
+  // DeviceTrust holds its namesake feature settings.
+  // Deprecated remove in v18; leverage entitlements
+  DeviceTrustFeature DeviceTrust = 19 [(gogoproto.jsontag) = "device_trust,omitempty"];
+  // FeatureHiding enables hiding features from being discoverable for users who don't have the necessary permissions.
+  // Deprecated remove in v18; leverage entitlements
+  bool FeatureHiding = 20 [(gogoproto.jsontag) = "feature_hiding,omitempty"];
+  // AccessRequests holds its namesake feature settings.
+  // Deprecated remove in v18; leverage entitlements
+  AccessRequestsFeature AccessRequests = 21 [(gogoproto.jsontag) = "access_requests,omitempty"];
   // CustomTheme holds the name of WebUI custom theme.
   string CustomTheme = 22 [(gogoproto.jsontag) = "custom_theme,omitempty"];
+  // IdentityGovernance indicates whether IGS related features are enabled:
+  // access list, access request, access monitoring, device trust.
+  // Deprecated remove in v18; leverage entitlements
+  bool IdentityGovernance = 23 [(gogoproto.jsontag) = "identity_governance,omitempty"];
   // AccessGraph enables the usage of access graph.
   // NOTE: this is a legacy flag that is currently used to signal
   // that Access Graph integration is *enabled* on a cluster.
-  // *Access* to the feature is gated on the `Policy` entitlement.
+  // *Access* to the feature is gated on the `Policy` flag.
   // TODO(justinas): remove this field once "TAG enabled" status is moved to a resource in the backend.
   bool AccessGraph = 24 [(gogoproto.jsontag) = "access_graph,omitempty"];
+  // AccessListFeature holds its namesake feature settings.
+  // Deprecated remove in v18; leverage entitlements
+  AccessListFeature AccessList = 25 [(gogoproto.jsontag) = "access_list,omitempty"];
+  // AccessMonitoringFeature holds its namesake feature settings.
+  // Deprecated remove in v18; leverage entitlements for access and AccessMonitoringConfigured for enabled
+  AccessMonitoringFeature AccessMonitoring = 26 [(gogoproto.jsontag) = "access_monitoring,omitempty"];
   // ProductType describes the product being used.
   ProductType ProductType = 27 [(gogoproto.jsontag) = "product_type,omitempty"];
   // Policy enables the Teleport Policy feature set.
   // At the time of writing, this includes Teleport Access Graph (TAG).
-  // TODO(michellescripts) DELETE IN v21.0.0
-  // Deprecated, use entitlements
+  // Deprecated remove in v18; leverage entitlements
   PolicyFeature Policy = 28 [(gogoproto.jsontag) = "policy,omitempty"];
   // Questionnaire indicates whether cluster users should get an onboarding questionnaire
   bool Questionnaire = 29 [(gogoproto.jsontag) = "questionnaire,omitempty"];
   // IsStripeManaged indicates if the cluster billing is managed via Stripe
   bool IsStripeManaged = 30 [(gogoproto.jsontag) = "is_stripe_managed,omitempty"];
+  // ExternalAuditStorage indicates whether the EAS feature is enabled in the cluster.
+  // Deprecated remove in v18; leverage entitlements
+  bool ExternalAuditStorage = 31 [(gogoproto.jsontag) = "external_audit_storage,omitempty"];
   // SupportType indicates the type of the customer's support
   SupportType SupportType = 32 [(gogoproto.jsontag) = "support_type,omitempty"];
+  // JoinActiveSessions indicates whether joining active sessions via web UI is enabled
+  // Deprecated remove in v18; leverage entitlements
+  bool JoinActiveSessions = 33 [(gogoproto.jsontag) = "join_active_sessions,omitempty"];
+  // MobileDeviceManagement indicates whether endpoint management (like Jamf Plugin) can be used in the cluster
+  // Deprecated remove in v18; leverage entitlements
+  bool MobileDeviceManagement = 34 [(gogoproto.jsontag) = "mobile_device_management,omitempty"];
   // entitlements define a customer’s access to a specific features
   map<string, EntitlementInfo> entitlements = 35;
   // AccessMonitoringConfigured contributes to the enablement of access monitoring.
@@ -623,15 +648,9 @@ message Features {
   reserved 37;
   reserved "CloudAnonymizationKey";
   // AccessGraphDemoMode enables the ability to opt-in to a demo mode of Access Graph with limited features.
-  // TODO(michellescripts) DELETE IN v21.0.0
-  // Deprecated, use entitlements
   bool AccessGraphDemoMode = 38 [(gogoproto.jsontag) = "access_graph_demo_mode,omitempty"];
   // ClientIPRestrictions allows Cloud users to setup a client IP allowlist
-  // TODO(michellescripts) DELETE IN v21.0.0
-  // Deprecated, use entitlements
   bool ClientIPRestrictions = 39 [(gogoproto.jsontag) = "client_ip_restrictions,omitempty"];
-  // BeamsUI enables the Beams lite-mode UI
-  bool BeamsUI = 40 [(gogoproto.jsontag) = "beams_ui,omitempty"];
 }
 
 // EntitlementInfo is the state and limits of a particular entitlement
@@ -968,30 +987,6 @@ message DeleteAppSessionRequest {
   string SessionID = 1 [(gogoproto.jsontag) = "session_id"];
 }
 
-// SetAppSessionDBSCPublicKeyRequest contains the parameters to verify a browser
-// DBSC response and bind the resulting public key on an application web session.
-message SetAppSessionDBSCPublicKeyRequest {
-  // The ID of the application session to update.
-  string session_id = 1;
-  // The browser's signed DBSC response JWT. See https://www.w3.org/TR/dbsc/
-  bytes public_key = 2;
-}
-
-// SetAppSessionDBSCPublicKeyResponse is the response for SetAppSessionDBSCPublicKey.
-message SetAppSessionDBSCPublicKeyResponse {}
-
-// SignDBSCChallengeRequest contains the parameters to sign a DBSC challenge.
-message SignDBSCChallengeRequest {
-  // The app session ID to include in the challenge.
-  string session_id = 1;
-}
-
-// SignDBSCChallengeResponse contains the signed DBSC challenge.
-message SignDBSCChallengeResponse {
-  // The signed JWT challenge received from the browser.
-  string challenge = 1;
-}
-
 // DeleteSnowflakeSessionRequest contains the parameters used to remove a Snowflake web session.
 message DeleteSnowflakeSessionRequest {
   string SessionID = 1 [(gogoproto.jsontag) = "session_id"];
@@ -1018,6 +1013,12 @@ message DeleteUserSAMLIdPSessionsRequest {
 message GetWebSessionResponse {
   // Session is the web session.
   types.WebSessionV2 Session = 1 [(gogoproto.jsontag) = "session"];
+}
+
+// GetWebSessionsResponse contains all the requested web sessions.
+message GetWebSessionsResponse {
+  // Sessions is a list of web sessions.
+  repeated types.WebSessionV2 Sessions = 1 [(gogoproto.jsontag) = "sessions"];
 }
 
 // GetWebTokenResponse contains the requested web token.
@@ -1558,8 +1559,6 @@ message IsMFARequiredRequest {
     AdminAction AdminAction = 5;
     // App specifies the target App.
     RouteToApp App = 6;
-    // LinuxDesktop specifies the target Linux Desktop.
-    RouteToLinuxDesktop LinuxDesktop = 7;
   }
 }
 
@@ -1846,15 +1845,6 @@ message WindowsDesktopCertRequest {
 message WindowsDesktopCertResponse {
   // Cert is the signed certificate in PEM format.
   bytes Cert = 1;
-  // CA override details. Optional.
-  // If present then a CA override was active during certificate issuance.
-  CAOverrideCertificateDetails ca_override = 2;
-}
-
-// CAOverrideCertificateDetails holds information about an active
-// CertAuthorityOverride that took effect during certificate issuance.
-message CAOverrideCertificateDetails {
-  string public_key_hash = 1;
 }
 
 // Response message for GetDesktopBootstrapScript.
@@ -2224,23 +2214,6 @@ message IdentityCenterAccountAssignment {
   IdentityCenterPermissionSet PermissionSet = 7;
 }
 
-// LinuxDesktop represents Linux desktop. This is strictly a wire-format object
-// for use with the unified resource cache, and the types defined in the
-// `linuxdesktop` package should be used for actual processing.
-message LinuxDesktop {
-  // Kind is the Linux desktop resource kind.
-  string kind = 1;
-  // SubKind is an optional resource subkind.
-  string sub_kind = 2;
-  // Version is the resource version.
-  string version = 3;
-  // Metadata is the account metadata.
-  types.Metadata metadata = 4 [(gogoproto.nullable) = false];
-  string addr = 5;
-  string hostname = 6;
-  repeated string proxy_ids = 7;
-}
-
 message ListInstallersRequest {
   // The maximum number of items to return.
   // The server may impose a different page size at its discretion.
@@ -2287,8 +2260,6 @@ message PaginatedResource {
     // IdentityCenterAccountAssignment represents a requestable Identity Center
     // Account Assignment
     IdentityCenterAccountAssignment IdentityCenterAccountAssignment = 16 [(gogoproto.jsontag) = "identity_center_account_assignment,omitempty"];
-    // LinuxDesktop represents LinuxDesktop resource
-    LinuxDesktop linux_desktop = 17;
   }
 
   // Logins allowed for the included resource. Only to be populated for SSH and Desktops.
@@ -2991,27 +2962,6 @@ message ListProvisionTokensResponse {
   string NextKey = 2;
 }
 
-// ValidateTrustedClusterRequest is the request for the ValidateTrustedCluster
-// RPC.
-message ValidateTrustedClusterRequest {
-  // Token is the join token to use to join.
-  string Token = 1;
-  // CertAuthorities are the certificate authorities submitted from the leaf to
-  // the root as part of the join process.
-  repeated types.CertAuthorityV2 CertAuthorities = 2;
-  // TeleportVersion is the version of Teleport that the leaf cluster is
-  // running.
-  string TeleportVersion = 3;
-}
-
-// ValidateTrustedClusterResponse is the response for the ValidateTrustedCluster
-// RPC.
-message ValidateTrustedClusterResponse {
-  // CertAuthorities are the certificate authorities of the root cluster that
-  // should be trusted by the leaf cluster.
-  repeated types.CertAuthorityV2 CertAuthorities = 1;
-}
-
 message ListKubernetesClustersRequest {
   // The maximum number of items to return.
   // The server may impose a different page size at its discretion.
@@ -3224,9 +3174,7 @@ service AuthService {
   // CancelSemaphoreLease cancels semaphore lease early.
   rpc CancelSemaphoreLease(types.SemaphoreLease) returns (google.protobuf.Empty);
   // GetSemaphores returns a list of all semaphores matching the supplied filter.
-  rpc GetSemaphores(types.SemaphoreFilter) returns (Semaphores) {
-    option deprecated = true;
-  }
+  rpc GetSemaphores(types.SemaphoreFilter) returns (Semaphores);
   // ListSemaphores returns a page of all semaphores matching the supplied filter.
   rpc ListSemaphores(ListSemaphoresRequest) returns (ListSemaphoresResponse);
   // DeleteSemaphore deletes a semaphore matching the supplied filter.
@@ -3260,10 +3208,6 @@ service AuthService {
   rpc DeleteAllAppSessions(google.protobuf.Empty) returns (google.protobuf.Empty);
   // DeleteUserAppSessions deletes all user’s application sessions.
   rpc DeleteUserAppSessions(DeleteUserAppSessionsRequest) returns (google.protobuf.Empty);
-  // SetAppSessionDBSCPublicKey sets the DBSC public key on an application web session.
-  rpc SetAppSessionDBSCPublicKey(SetAppSessionDBSCPublicKeyRequest) returns (SetAppSessionDBSCPublicKeyResponse);
-  // SignDBSCChallenge signs a DBSC challenge for registration or refresh.
-  rpc SignDBSCChallenge(SignDBSCChallengeRequest) returns (SignDBSCChallengeResponse);
 
   // CreateSnowflakeSession creates web session with sub kind Snowflake used by Database access
   // Snowflake integration.
@@ -3271,11 +3215,7 @@ service AuthService {
   // GetSnowflakeSession returns a web session with sub kind Snowflake.
   rpc GetSnowflakeSession(GetSnowflakeSessionRequest) returns (GetSnowflakeSessionResponse);
   // GetSnowflakeSessions gets all Snowflake web sessions.
-  // Deprecated: Use [ListSnowflakeSessions] instead.
-  // TODO(okraport): DELETE IN 21.0.0
-  rpc GetSnowflakeSessions(google.protobuf.Empty) returns (GetSnowflakeSessionsResponse) {
-    option deprecated = true;
-  }
+  rpc GetSnowflakeSessions(google.protobuf.Empty) returns (GetSnowflakeSessionsResponse);
   // ListSnowflakeSessions returns a page of Snowflake web sessions.
   rpc ListSnowflakeSessions(ListSnowflakeSessionsRequest) returns (ListSnowflakeSessionsResponse);
 
@@ -3311,6 +3251,10 @@ service AuthService {
 
   // GetWebSession gets a web session.
   rpc GetWebSession(types.GetWebSessionRequest) returns (GetWebSessionResponse);
+  // GetWebSessions gets all web sessions.
+  rpc GetWebSessions(google.protobuf.Empty) returns (GetWebSessionsResponse) {
+    option deprecated = true;
+  }
   // StreamWebSessions gets all web sessions in a stream.
   rpc StreamWebSessions(google.protobuf.Empty) returns (stream types.WebSessionV2);
   // DeleteWebSession deletes a web session.
@@ -3321,9 +3265,7 @@ service AuthService {
   // GetWebToken gets a web token.
   rpc GetWebToken(types.GetWebTokenRequest) returns (GetWebTokenResponse);
   // GetWebTokens gets all web tokens.
-  rpc GetWebTokens(google.protobuf.Empty) returns (GetWebTokensResponse) {
-    option deprecated = true;
-  }
+  rpc GetWebTokens(google.protobuf.Empty) returns (GetWebTokensResponse);
   // ListWebTokens returns a page of web tokens.
   rpc ListWebTokens(ListWebTokensRequest) returns (ListWebTokensResponse);
   // DeleteWebToken deletes a web token.
@@ -3446,11 +3388,7 @@ service AuthService {
   // GetOIDCConnector gets an OIDC connector resource by name.
   rpc GetOIDCConnector(types.ResourceWithSecretsRequest) returns (types.OIDCConnectorV3);
   // GetOIDCConnectors gets all current OIDC connector resources.
-  //
-  // Deprecated: Use ListOIDCConnectors instead.
-  rpc GetOIDCConnectors(types.ResourcesWithSecretsRequest) returns (types.OIDCConnectorV3List) {
-    option deprecated = true;
-  }
+  rpc GetOIDCConnectors(types.ResourcesWithSecretsRequest) returns (types.OIDCConnectorV3List);
   // ListOIDCConnectors returns a page of current OIDC connector resources.
   rpc ListOIDCConnectors(ListOIDCConnectorsRequest) returns (ListOIDCConnectorsResponse);
   // UpsertOIDCConnector creates a new OIDC connector in the backend.
@@ -3475,11 +3413,7 @@ service AuthService {
   // GetSAMLConnector gets a SAML connector resource by name.
   rpc GetSAMLConnector(types.ResourceWithSecretsRequest) returns (types.SAMLConnectorV2);
   // GetSAMLConnectors gets all current SAML connector resources.
-  //
-  // Deprecated: Use ListSAMLConnectors instead.
-  rpc GetSAMLConnectors(types.ResourcesWithSecretsRequest) returns (types.SAMLConnectorV2List) {
-    option deprecated = true;
-  }
+  rpc GetSAMLConnectors(types.ResourcesWithSecretsRequest) returns (types.SAMLConnectorV2List);
   // ListSAMLConnectors returns a page of current SAML connector resources.
   rpc ListSAMLConnectors(ListSAMLConnectorsRequest) returns (ListSAMLConnectorsResponse);
   // CreateSAMLConnector creates a new SAML connector in the backend.
@@ -3504,11 +3438,7 @@ service AuthService {
   // GetGithubConnector gets a Github connector resource by name.
   rpc GetGithubConnector(types.ResourceWithSecretsRequest) returns (types.GithubConnectorV3);
   // GetGithubConnectors gets all current Github connector resources.
-  //
-  // Deprecated: Use ListGithubConnectors instead.
-  rpc GetGithubConnectors(types.ResourcesWithSecretsRequest) returns (types.GithubConnectorV3List) {
-    option deprecated = true;
-  }
+  rpc GetGithubConnectors(types.ResourcesWithSecretsRequest) returns (types.GithubConnectorV3List);
   // ListGithubConnectors returns a page of current Github connector resources.
   rpc ListGithubConnectors(ListGithubConnectorsRequest) returns (ListGithubConnectorsResponse);
   // CreateGithubConnector creates a new Github connector in the backend.
@@ -3547,11 +3477,7 @@ service AuthService {
   // GetTrustedCluster gets a Trusted Cluster resource by name.
   rpc GetTrustedCluster(types.ResourceRequest) returns (types.TrustedClusterV2);
   // GetTrustedClusters gets all current Trusted Cluster resources.
-  // Deprecated: Use [teleport.trust.v1.ListTrustedClusters] instead.
-  // TODO(okraport): DELETE IN 21.0.0
-  rpc GetTrustedClusters(google.protobuf.Empty) returns (types.TrustedClusterV2List) {
-    option deprecated = true;
-  }
+  rpc GetTrustedClusters(google.protobuf.Empty) returns (types.TrustedClusterV2List);
   // UpsertTrustedCluster upserts a Trusted Cluster in a backend.
   //
   // Deprecated: Use [teleport.trust.v1.UpsertTrustedCluster] instead.
@@ -3615,6 +3541,22 @@ service AuthService {
     option deprecated = true;
   }
 
+  // GetAuthPreference gets cluster auth preference.
+  // Deprecated: Use clusterconfigv1.Service.GetAuthPreference instead.
+  rpc GetAuthPreference(google.protobuf.Empty) returns (types.AuthPreferenceV2) {
+    option deprecated = true;
+  }
+  // SetAuthPreference sets cluster auth preference.
+  // Deprecated: Use clusterconfigv1.Service.Create/Update/UpsertAuthPreference instead.
+  rpc SetAuthPreference(types.AuthPreferenceV2) returns (google.protobuf.Empty) {
+    option deprecated = true;
+  }
+  // ResetAuthPreference resets cluster auth preference to defaults.
+  // Deprecated: Use clusterconfigv1.Service.ResetAuthPreference instead.
+  rpc ResetAuthPreference(google.protobuf.Empty) returns (google.protobuf.Empty) {
+    option deprecated = true;
+  }
+
   // GetUIConfig gets the configuration for the UI served by the proxy service
   rpc GetUIConfig(google.protobuf.Empty) returns (types.UIConfigV1);
   // SetUIConfig sets the configuration for the UI served by the proxy service
@@ -3630,9 +3572,7 @@ service AuthService {
   // GetLock gets a lock by name.
   rpc GetLock(GetLockRequest) returns (types.LockV2);
   // GetLocks gets all/in-force locks that match at least one of the targets when specified.
-  rpc GetLocks(GetLocksRequest) returns (GetLocksResponse) {
-    option deprecated = true;
-  }
+  rpc GetLocks(GetLocksRequest) returns (GetLocksResponse);
   // ListLocks returns a page of locks matching a filter.
   rpc ListLocks(ListLocksRequest) returns (ListLocksResponse);
   // UpsertLock upserts a lock.
@@ -3653,9 +3593,7 @@ service AuthService {
   rpc DeleteNetworkRestrictions(google.protobuf.Empty) returns (google.protobuf.Empty);
 
   // GetApps returns all registered applications.
-  rpc GetApps(google.protobuf.Empty) returns (types.AppV3List) {
-    option deprecated = true;
-  }
+  rpc GetApps(google.protobuf.Empty) returns (types.AppV3List);
   // ListApps returns a page of registered applications.
   rpc ListApps(ListAppsRequest) returns (ListAppsResponse);
   // GetApp returns an application by name.
@@ -3670,9 +3608,7 @@ service AuthService {
   rpc DeleteAllApps(google.protobuf.Empty) returns (google.protobuf.Empty);
 
   // GetDatabases returns all registered databases.
-  rpc GetDatabases(google.protobuf.Empty) returns (types.DatabaseV3List) {
-    option deprecated = true;
-  }
+  rpc GetDatabases(google.protobuf.Empty) returns (types.DatabaseV3List);
   // ListDatabases returns a page of registered databases.
   rpc ListDatabases(ListDatabasesRequest) returns (ListDatabasesResponse);
   // GetDatabase returns a database by name.
@@ -3687,9 +3623,7 @@ service AuthService {
   rpc DeleteAllDatabases(google.protobuf.Empty) returns (google.protobuf.Empty);
 
   // GetKubernetesClusters returns all registered kubernetes clusters.
-  rpc GetKubernetesClusters(google.protobuf.Empty) returns (types.KubernetesClusterV3List) {
-    option deprecated = true;
-  }
+  rpc GetKubernetesClusters(google.protobuf.Empty) returns (types.KubernetesClusterV3List);
   // ListKubernetesClusters returns a page of registered kubernetes clusters.
   rpc ListKubernetesClusters(ListKubernetesClustersRequest) returns (ListKubernetesClustersResponse);
   // GetKubernetesCluster returns a kubernetes cluster by name.
@@ -3820,9 +3754,7 @@ service AuthService {
   // GetInstaller retrieves the installer script resource
   rpc GetInstaller(types.ResourceRequest) returns (types.InstallerV1);
   // GetInstallers retrieves all of installer script resources.
-  rpc GetInstallers(google.protobuf.Empty) returns (types.InstallerV1List) {
-    option deprecated = true;
-  }
+  rpc GetInstallers(google.protobuf.Empty) returns (types.InstallerV1List);
   // ListInstallers returns a page of installer script resources.
   rpc ListInstallers(ListInstallersRequest) returns (ListInstallersResponse);
 
@@ -3928,9 +3860,4 @@ service AuthService {
 
   // DeleteClusterMaintenanceConfig deletes the current maintenance window config singleton.
   rpc DeleteClusterMaintenanceConfig(google.protobuf.Empty) returns (google.protobuf.Empty);
-
-  // ValidateTrustedCluster is a bit of a misnomer, this RPC is actually called
-  // by the proxy on behalf of a cluster that wishes to join to this one as a
-  // leaf cluster.
-  rpc ValidateTrustedCluster(ValidateTrustedClusterRequest) returns (ValidateTrustedClusterResponse);
 }

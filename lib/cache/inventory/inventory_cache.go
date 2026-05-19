@@ -42,12 +42,12 @@ import (
 	inventoryv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/inventory/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/cache"
 	"github.com/gravitational/teleport/lib/expression"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/utils/set"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/sortcache"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
@@ -647,7 +647,7 @@ func (ic *InventoryCache) populateInstances(ctx context.Context, limiter *rate.L
 		}
 
 		// Add it to the cache
-		ui := &inventoryInstance{instance: utils.CloneProtoMsg(instanceV1)}
+		ui := &inventoryInstance{instance: apiutils.CloneProtoMsg(instanceV1)}
 		ic.cache.Put(ui)
 	}
 
@@ -728,7 +728,7 @@ func (ic *InventoryCache) processPutEvent(event types.Event) error {
 	switch resource := event.Resource.(type) {
 	case *types.InstanceV1:
 		// Add/update it in the cache
-		ui := &inventoryInstance{instance: utils.CloneProtoMsg(resource)}
+		ui := &inventoryInstance{instance: apiutils.CloneProtoMsg(resource)}
 		ic.cache.Put(ui)
 	case types.Resource153UnwrapperT[*machineidv1.BotInstance]:
 		// Handle bot instances wrapped in Resource153ToLegacy adapter
@@ -797,7 +797,7 @@ func (ic *InventoryCache) parseFilter(filter *inventoryv1.ListUnifiedInstancesFi
 func (ic *InventoryCache) ListUnifiedInstances(ctx context.Context, req *inventoryv1.ListUnifiedInstancesRequest) (*inventoryv1.ListUnifiedInstancesResponse, error) {
 	if !ic.IsHealthy() {
 		// This returns HTTP error 503. Keep in sync with web/packages/teleport/src/Instances/Instances.tsx (isCacheInitializing)
-		return nil, trace.ConnectionProblem(nil, "inventory cache is not yet healthy, please try again in a few minutes'")
+		return nil, trace.ConnectionProblem(nil, "inventory cache is not yet healthy, please try again in a few minutes")
 	}
 
 	ic.metrics.requests.Inc()
@@ -951,7 +951,7 @@ func (ic *InventoryCache) matchesFilter(ui *inventoryInstance, parsed *parsedFil
 		if !ui.isInstance() {
 			return false
 		}
-		filterServices := set.New(filter.Services...)
+		filterServices := utils.NewSet(filter.Services...)
 		hasService := false
 		for _, svc := range ui.instance.Spec.Services {
 			if filterServices.Contains(string(svc)) {

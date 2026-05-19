@@ -16,22 +16,23 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import {
-  enableMswServer,
-  render,
-  screen,
-  server,
-  testQueryClient,
-} from 'design/utils/testing';
+import { setupServer } from 'msw/node';
+
+import { render, screen, testQueryClient } from 'design/utils/testing';
 
 import { getThumbnail, MOCK_THUMBNAIL } from './mock';
 import { RecordingThumbnail } from './RecordingThumbnail';
 
-enableMswServer();
+const server = setupServer();
 
-afterEach(() => {
+beforeAll(() => server.listen());
+
+afterEach(async () => {
+  server.resetHandlers();
   testQueryClient.clear();
 });
+
+afterAll(() => server.close());
 
 function setupTest(clusterId = 'localhost', sessionId = 'test-session') {
   return render(

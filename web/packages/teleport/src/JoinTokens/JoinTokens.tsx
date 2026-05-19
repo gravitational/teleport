@@ -192,7 +192,6 @@ export const JoinTokens = () => {
               data={joinTokensAttempt.data.items}
               row={{
                 getStyle: getRowStyle,
-                getKey: token => token.id,
               }}
               columns={[
                 {

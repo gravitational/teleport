@@ -34,26 +34,23 @@ import {
   type UpdateUserVariables,
 } from './types';
 
-const cache: { pendingUserContext: Promise<UserContext> | null } = {
-  pendingUserContext: null,
+const cache = {
+  userContext: null as UserContext,
 };
 
 const service = {
   fetchUserContext(fromCache = true) {
-    if (fromCache && cache.pendingUserContext) {
-      return cache.pendingUserContext;
+    if (fromCache && cache['userContext']) {
+      return Promise.resolve(cache['userContext']);
     }
 
-    // Keep track of any in-flight fetch so that we don't make this request multiple times.
-    cache.pendingUserContext = api
+    return api
       .get(cfg.getUserContextUrl())
       .then(makeUserContext)
-      .catch(err => {
-        cache.pendingUserContext = null;
-        throw err;
+      .then(userContext => {
+        cache['userContext'] = userContext;
+        return cache['userContext'];
       });
-
-    return cache.pendingUserContext;
   },
 
   fetchAccessGraphFeatures(): Promise<object> {
@@ -61,9 +58,7 @@ const service = {
   },
 
   fetchUser(username: string) {
-    return api
-      .get(cfg.getUserWithUsernameTemporaryPatchedUrl(username))
-      .then(makeUser);
+    return api.get(cfg.getUserWithUsernameUrl(username)).then(makeUser);
   },
 
   // TODO(rudream): DELETE IN v21.0

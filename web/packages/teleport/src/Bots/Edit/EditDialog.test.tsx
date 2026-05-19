@@ -18,6 +18,7 @@
 
 import { QueryClientProvider } from '@tanstack/react-query';
 import { UserEvent } from '@testing-library/user-event';
+import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
 import selectEvent from 'react-select-event';
 
@@ -25,10 +26,8 @@ import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
   act,
-  enableMswServer,
   render,
   screen,
-  server,
   testQueryClient,
   userEvent,
   waitForElementToBeRemoved,
@@ -49,12 +48,20 @@ import { successGetRoles } from 'teleport/test/helpers/roles';
 
 import { EditDialog } from './EditDialog';
 
-enableMswServer();
+const server = setupServer();
+
+beforeAll(() => {
+  server.listen();
+});
 
 afterEach(async () => {
+  server.resetHandlers();
   await testQueryClient.resetQueries();
+
   jest.clearAllMocks();
 });
+
+afterAll(() => server.close());
 
 describe('EditDialog', () => {
   it('should show a fetch error state', async () => {
@@ -329,7 +336,7 @@ describe('EditDialog', () => {
 
     expect(
       screen.getByText(
-        'We could not complete your request. Your proxy (v18.0.0) may be behind the minimum required version (v19.0.0) to support this request. Ensure all proxies are upgraded and try again.'
+        'We could not complete your request. Your proxy (v18.0.0) may be behind the minimum required version (v18.1.0) to support this request. Ensure all proxies are upgraded and try again.'
       )
     ).toBeInTheDocument();
   });

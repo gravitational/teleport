@@ -44,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
-	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
 
 // EditCommand implements the `tctl edit` command for modifying
@@ -217,26 +216,11 @@ func (e *EditCommand) editResource(ctx context.Context, client *authclient.Clien
 			continue
 		}
 
-		// Try looking for a resource handler
-		if resourceHandler, found := resources.Handlers()[newResource.Kind]; found {
-			opts := resources.CreateOpts{
-				Force:   rc.force,
-				Confirm: rc.confirm,
-			}
-			if err := editUpdateWithFallback(
-				ctx, client, resourceHandler, newResource, opts); err != nil {
-				return trace.Wrap(err)
-			}
-			continue
-		}
-
-		// Else fallback to the legacy logic
-
 		// Use the UpdateHandler if the resource has one, otherwise fallback to using
 		// the CreateHandler. UpdateHandlers are preferred over CreateHandler because an update
 		// will not forcibly overwrite a resource unlike with create which requires the force
 		// flag to be set to update an existing resource.
-		if updator, found := rc.UpdateHandlers[newResource.Kind]; found {
+		if updator, found := rc.UpdateHandlers[ResourceKind(newResource.Kind)]; found {
 			if err := updator(ctx, client, newResource); err != nil {
 				return trace.Wrap(err)
 			}
@@ -245,7 +229,7 @@ func (e *EditCommand) editResource(ctx context.Context, client *authclient.Clien
 
 		// TODO(tross) remove the fallback to CreateHandlers once all the resources
 		// have been updated to implement an UpdateHandler.
-		if creator, found := rc.CreateHandlers[newResource.Kind]; found {
+		if creator, found := rc.CreateHandlers[ResourceKind(newResource.Kind)]; found {
 			if err := creator(ctx, client, newResource); err != nil {
 				return trace.Wrap(err)
 			}
@@ -255,27 +239,6 @@ func (e *EditCommand) editResource(ctx context.Context, client *authclient.Clien
 	}
 
 	return nil
-}
-
-func editUpdateWithFallback(
-	ctx context.Context,
-	client *authclient.Client,
-	resourceHandler resources.Handler,
-	resource services.UnknownResource,
-	opts resources.CreateOpts,
-) error {
-	err := resourceHandler.Update(ctx, client, resource, opts)
-	if err == nil || !trace.IsNotImplemented(err) {
-		return trace.Wrap(err)
-	}
-
-	// TODO(tross) remove the fallback to CreateHandlers once all the resources
-	// have been updated to implement an UpdateHandler.
-	if err := resourceHandler.Create(ctx, client, resource, opts); trace.IsNotImplemented(err) {
-		return trace.BadParameter("updating resources of type %q is not supported", resource.Kind)
-	} else {
-		return trace.Wrap(err)
-	}
 }
 
 // getTextEditor returns the text editor to be used for editing the resource.

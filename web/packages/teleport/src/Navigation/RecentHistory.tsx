@@ -17,7 +17,8 @@
  */
 
 import { ReactNode, useEffect, useRef, useState } from 'react';
-import { matchPath, NavLink } from 'react-router';
+import { matchPath } from 'react-router';
+import { NavLink } from 'react-router-dom';
 import styled from 'styled-components';
 
 import { ButtonIcon, Flex, H4, P3, Text } from 'design';
@@ -44,11 +45,12 @@ function getIconForRoute(
   features: TeleportFeature[],
   route: string
 ): (props) => ReactNode {
-  const feature = features.find(feature => {
-    const path = feature?.route?.path;
-    if (!path) return false;
-    return matchPath({ path, end: false }, route);
-  });
+  const feature = features.find(feature =>
+    matchPath(route, {
+      path: feature?.route?.path,
+      exact: false,
+    })
+  );
 
   const icon = feature?.navigationItem?.icon || feature?.topMenuItem?.icon;
   if (!icon) {

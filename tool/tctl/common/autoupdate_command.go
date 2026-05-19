@@ -167,7 +167,7 @@ func (c *AutoUpdateCommand) TargetVersion(ctx context.Context, client autoupdate
 		// For parallel requests where we attempt to create a resource simultaneously, retries should be implemented.
 		// The same approach applies to updates if the resource has been deleted during the process.
 		// Second create request must return `AlreadyExists` error, update for deleted resource `NotFound` error.
-		for range maxRetries {
+		for i := 0; i < maxRetries; i++ {
 			err = c.setToolsTargetVersion(ctx, client)
 			if err == nil {
 				break
@@ -186,7 +186,7 @@ func (c *AutoUpdateCommand) SetModeCommand(enabled bool) func(ctx context.Contex
 		// For parallel requests where we attempt to create a resource simultaneously, retries should be implemented.
 		// The same approach applies to updates if the resource has been deleted during the process.
 		// Second create request must return `AlreadyExists` error, update for deleted resource `NotFound` error.
-		for range maxRetries {
+		for i := 0; i < maxRetries; i++ {
 			err := c.setToolsMode(ctx, client, enabled)
 			if err == nil {
 				break
@@ -346,11 +346,11 @@ func (c *AutoUpdateCommand) omittedSummary(reports []*autoupdatev1pb.AutoUpdateA
 
 	var sb strings.Builder
 	sb.WriteRune('\n')
-	fmt.Fprintf(&sb, "%d agents were omitted from the reports:\n", totalOmitted)
+	sb.WriteString(fmt.Sprintf("%d agents were omitted from the reports:\n", totalOmitted))
 	// We sort reasons alphabetically as this ensures the output is consistent
 	// And makes snapshot testing easier.
 	for _, reason := range slices.Sorted(maps.Keys(aggregated)) {
-		fmt.Fprintf(&sb, "- %d omitted because: %s\n", aggregated[reason], reason)
+		sb.WriteString(fmt.Sprintf("- %d omitted because: %s\n", aggregated[reason], reason))
 	}
 	return sb.String()
 }

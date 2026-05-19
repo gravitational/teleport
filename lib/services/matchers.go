@@ -30,7 +30,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
-	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/utils"
 	libslices "github.com/gravitational/teleport/lib/utils/slices"
 	"github.com/gravitational/teleport/lib/utils/typical"
@@ -57,6 +56,7 @@ type ResourceMatcherAWS struct {
 func ResourceMatchersToTypes(in []ResourceMatcher) []*types.DatabaseResourceMatcher {
 	out := make([]*types.DatabaseResourceMatcher, len(in))
 	for i, resMatcher := range in {
+		resMatcher := resMatcher
 		out[i] = &types.DatabaseResourceMatcher{
 			Labels: &resMatcher.Labels,
 			AWS: types.ResourceMatcherAWS{
@@ -66,6 +66,15 @@ func ResourceMatchersToTypes(in []ResourceMatcher) []*types.DatabaseResourceMatc
 		}
 	}
 	return out
+}
+
+// AssumeRoleFromAWSMetadata is a conversion helper function that extracts
+// AWS IAM role ARN and external ID from AWS metadata.
+func AssumeRoleFromAWSMetadata(meta *types.AWS) types.AssumeRole {
+	return types.AssumeRole{
+		RoleARN:    meta.AssumeRoleARN,
+		ExternalID: meta.ExternalID,
+	}
 }
 
 // SimplifyAzureMatchers returns simplified Azure matchers. Each selector list
@@ -164,7 +173,7 @@ func (r *resourceWithTargetHealth) GetTargetHealthStatus() types.TargetHealthSta
 // ResourceSeenKey is used as a key for a map that keeps track
 // of unique resource names and address. Currently "addr"
 // only applies to resource Application.
-type ResourceSeenKey struct{ name, kind, addr, scope string }
+type ResourceSeenKey struct{ name, kind, addr string }
 
 // MatchResourcesByFilters filters provided resources with profiled filter.
 func MatchResourcesByFilters[E types.ResourceWithLabels, S ~[]E](all S, filter MatchResourceFilter) (S, error) {
@@ -195,26 +204,17 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 	var specResource types.ResourceWithLabels
 	kind := resource.GetKind()
 
-	scope := ""
-	switch res := resource.(type) {
-	case *types.KubernetesClusterV3:
-		scope = res.GetScope()
-	case types.KubeServer:
-		scope = res.GetScope()
-	}
 	// We assume when filtering for services like KubeService, AppServer, and DatabaseServer
 	// the user is wanting to filter the contained resource ie. KubeClusters, Application, and Database.
 	key := ResourceSeenKey{
-		kind:  kind,
-		name:  resource.GetName(),
-		scope: scopes.NormalizeForEquality(scope),
+		kind: kind,
+		name: resource.GetName(),
 	}
 	switch kind {
 	case types.KindNode,
 		types.KindDatabaseService,
 		types.KindKubernetesCluster,
 		types.KindWindowsDesktop, types.KindWindowsDesktopService,
-		types.KindLinuxDesktop,
 		types.KindUserGroup,
 		types.KindIdentityCenterAccount,
 		types.KindIdentityCenterAccountAssignment,

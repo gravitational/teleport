@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import 'whatwg-fetch';
+
 // eslint-disable-next-line no-restricted-imports -- FIXME
 import { Node } from 'teleport/services/nodes';
 

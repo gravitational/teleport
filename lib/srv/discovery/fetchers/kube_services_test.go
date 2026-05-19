@@ -277,6 +277,7 @@ func TestKubeAppFetcher_Get(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 
@@ -312,8 +313,8 @@ type mockProtocolChecker struct {
 }
 
 func (m *mockProtocolChecker) CheckProtocol(service corev1.Service, port corev1.ServicePort) string {
-	hostport := net.JoinHostPort(services.GetServiceFQDN(service), strconv.Itoa(int(port.Port)))
-	if result, ok := m.results[hostport]; ok {
+	uri := fmt.Sprintf("%s:%d", services.GetServiceFQDN(service), port.Port)
+	if result, ok := m.results[uri]; ok {
 		return result
 	}
 	return "tcp"

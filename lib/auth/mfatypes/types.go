@@ -26,8 +26,3 @@ type ChallengeExtensions struct {
 	AllowReuse                  mfav1.ChallengeAllowReuse `json:"allow_reuse,omitempty"`
 	UserVerificationRequirement string                    `json:"user_verification_requirement,omitempty"`
 }
-
-// SessionIdentifyingPayload is a json struct for [mfav1.SessionIdentifyingPayload].
-type SessionIdentifyingPayload struct {
-	SSHSessionID []byte `json:"ssh_session_id,omitempty"`
-}

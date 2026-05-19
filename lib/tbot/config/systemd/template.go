@@ -20,8 +20,7 @@ package systemd
 
 import (
 	_ "embed"
-
-	template "github.com/DataDog/datadog-agent/pkg/template/text"
+	"text/template"
 )
 
 var (

@@ -18,6 +18,7 @@ package msgraph
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"strconv"
 	"strings"
@@ -25,12 +26,19 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// unsupportedGroupMember is an internal error to indicate that
+// the `groupmembers` endpoint has returned a member of type that we do not support (yet).
+type unsupportedGroupMember struct {
+	Type string
+}
+
+func (u *unsupportedGroupMember) Error() string {
+	return fmt.Sprintf("Unsupported group member: %q", u.Type)
+}
+
 type graphErrorResponse struct {
 	Error *GraphError `json:"error,omitempty"`
 }
-
-// ErrMissingDeltaLink is returned if a delta link is missing from the delta store.
-var ErrMissingDeltaLink = &trace.BadParameterError{Message: "missing delta token"}
 
 // GraphError defines the structure of errors returned from MS Graph API.
 // https://learn.microsoft.com/en-us/graph/errors#json-representation

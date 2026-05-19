@@ -142,13 +142,18 @@ func TestSPIFFEFederationSyncer(t *testing.T) {
 	// Wait for the initially created SPIFFEFederation to be synced
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		got, err := store.GetSPIFFEFederation(ctx, created1.Metadata.Name)
-		require.NoError(t, err)
+		if !assert.NoError(t, err) {
+			return
+		}
 		// Check that some update as occurred (as indicated by the revision)
-		require.NotEqual(t, got.Metadata.Revision, created1.Metadata.Revision)
-
+		if !assert.NotEqual(t, got.Metadata.Revision, created1.Metadata.Revision) {
+			return
+		}
 		// Check that the expected status fields have been set...
-		require.NotNil(t, got.Status)
-		require.Equal(t, string(marshaledBundle1), got.Status.CurrentBundle)
+		if !assert.NotNil(t, got.Status) {
+			return
+		}
+		assert.Equal(t, string(marshaledBundle1), got.Status.CurrentBundle)
 	}, time.Second*10, time.Millisecond*200)
 
 	// Create a second SPIFFEFederation and wait for it to be synced
@@ -169,19 +174,24 @@ func TestSPIFFEFederationSyncer(t *testing.T) {
 	require.NoError(t, err)
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		got, err := store.GetSPIFFEFederation(ctx, created2.Metadata.Name)
-		require.NoError(t, err)
+		if !assert.NoError(t, err) {
+			return
+		}
 		// Check that some update as occurred (as indicated by the revision)
-		require.NotEqual(t, got.Metadata.Revision, created2.Metadata.Revision)
-
+		if !assert.NotEqual(t, got.Metadata.Revision, created2.Metadata.Revision) {
+			return
+		}
 		// Check that the expected status fields have been set...
-		require.NotNil(t, got.Status)
-		require.Equal(t, string(marshaledBundle2), got.Status.CurrentBundle)
+		if !assert.NotNil(t, got.Status) {
+			return
+		}
+		assert.Equal(t, string(marshaledBundle2), got.Status.CurrentBundle)
 	}, time.Second*10, time.Millisecond*200)
 
 	cancel()
 	select {
 	case err := <-errCh:
-		require.NoError(t, err)
+		assert.NoError(t, err)
 	case <-time.After(time.Second * 5):
 		t.Fatalf("timeout waiting for syncer to stop")
 	}

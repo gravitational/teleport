@@ -35,7 +35,7 @@ import (
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
-func TestLoadFromProfileStore(t *testing.T) {
+func TestLoadConfigFromProfile(t *testing.T) {
 	tmpHomePath := t.TempDir()
 	connector := mockConnector(t)
 
@@ -83,15 +83,12 @@ func TestLoadFromProfileStore(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			resolved, err := tctlcfg.LoadFromProfileStore(tc.ccf, tc.cfg)
+			_, err := tctlcfg.LoadConfigFromProfile(tc.ccf, tc.cfg)
 			if tc.want != nil {
 				require.ErrorIs(t, err, tc.want)
 				return
 			}
 			require.NoError(t, err)
-			require.NotNil(t, resolved.Auth, "profile-store path must populate Auth")
-			require.NotNil(t, resolved.ClientStore, "profile-store path must populate ClientStore")
-			require.NotNil(t, resolved.Profile, "profile-store path must populate Profile")
 		})
 	}
 }

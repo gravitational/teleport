@@ -1239,18 +1239,6 @@
           },
           {
             "resources": [
-              "app_auth_config"
-            ],
-            "verbs": [
-              "list",
-              "create",
-              "read",
-              "update",
-              "delete"
-            ]
-          },
-          {
-            "resources": [
               "workload_cluster"
             ],
             "verbs": [

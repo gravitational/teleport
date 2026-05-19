@@ -20,14 +20,12 @@ package services
 
 import (
 	"bytes"
-	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net"
-	"os"
 	"path"
 	"regexp"
 	"slices"
@@ -80,7 +78,6 @@ var DefaultImplicitRules = []types.Rule{
 	types.NewRule(types.KindWindowsDesktopService, RO()),
 	types.NewRule(types.KindWindowsDesktop, RO()),
 	types.NewRule(types.KindDynamicWindowsDesktop, RO()),
-	types.NewRule(types.KindLinuxDesktop, RO()),
 	types.NewRule(types.KindKubernetesCluster, RO()),
 	types.NewRule(types.KindUsageEvent, []string{types.VerbCreate}),
 	types.NewRule(types.KindVnetConfig, RO()),
@@ -367,7 +364,6 @@ func validateRoleExpressions(r types.Role) error {
 			{"windows_desktop_labels", types.KindWindowsDesktop},
 			{"windows_desktop_labels", types.KindDynamicWindowsDesktop},
 			{"group_labels", types.KindUserGroup},
-			{"beam_labels", types.KindBeam},
 		} {
 			labelMatchers, err := r.GetLabelMatchers(condition.condition, labels.kind)
 			if err != nil {
@@ -510,11 +506,6 @@ func ApplyTraitsWithContext(r types.Role, ctx RoleTemplateContext) (types.Role, 
 		outWindowsLogins = filterInvalidWindowsLogins(outWindowsLogins)
 		r.SetWindowsLogins(condition, apiutils.Deduplicate(outWindowsLogins))
 
-		inLinuxDesktopLogins := r.GetLinuxDesktopLogins(condition)
-		outLinuxDesktopLogins := applyValueTraitsSlice(inLinuxDesktopLogins, ctx, "linux_desktop_login")
-		outLinuxDesktopLogins = filterInvalidUnixLogins(outLinuxDesktopLogins)
-		r.SetLinuxDesktopLogins(condition, apiutils.Deduplicate(outLinuxDesktopLogins))
-
 		inRoleARNs := r.GetAWSRoleARNs(condition)
 		outRoleARNs := applyValueTraitsSlice(inRoleARNs, ctx, "AWS role ARN")
 		r.SetAWSRoleARNs(condition, apiutils.Deduplicate(outRoleARNs))
@@ -598,7 +589,6 @@ func ApplyTraitsWithContext(r types.Role, ctx RoleTemplateContext) (types.Role, 
 			types.KindUserGroup,
 			types.KindSAMLIdPServiceProvider,
 			types.KindWorkloadIdentity,
-			types.KindBeam,
 		} {
 			labelMatchers, err := r.GetLabelMatchers(condition, kind)
 			if err != nil {
@@ -1170,8 +1160,10 @@ func MatchNamespace(selectors []string, namespace string) (bool, string) {
 
 // MatchAWSRoleARN returns true if provided role ARN matches selectors.
 func MatchAWSRoleARN(selectors []string, roleARN string) (bool, string) {
-	if slices.Contains(selectors, roleARN) {
-		return true, "matched"
+	for _, l := range selectors {
+		if l == roleARN {
+			return true, "matched"
+		}
 	}
 	return false, fmt.Sprintf("no match, role selectors %v, role ARN: %v", selectors, roleARN)
 }
@@ -1309,7 +1301,7 @@ func (set RoleSet) RoleNames() []string {
 
 // Roles returns the list underlying roles this RoleSet is based on.
 func (set RoleSet) Roles() []types.Role {
-	return slices.Clone(set)
+	return append([]types.Role{}, set...)
 }
 
 // HasRole checks if the role set has the role
@@ -1754,7 +1746,7 @@ func (set RoleSet) CheckAccessToSAMLIdP(r AccessCheckable, username string, trai
 		return nil
 	}
 
-	if _, err := v8RoleSet.checkAccess(r, username, traits, state, matchers...); err != nil {
+	if err := v8RoleSet.checkAccess(r, username, traits, state, matchers...); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -2477,8 +2469,10 @@ func NewLoginMatcher(login string) RoleMatcher {
 // Match matches a login against a role.
 func (l *loginMatcher) Match(role types.Role, typ types.RoleConditionType) (bool, error) {
 	logins := role.GetLogins(typ)
-	if slices.Contains(logins, l.login) {
-		return true, nil
+	for _, login := range logins {
+		if l.login == login {
+			return true, nil
+		}
 	}
 	return false, nil
 }
@@ -2496,26 +2490,12 @@ func NewWindowsLoginMatcher(login string) RoleMatcher {
 // Match matches a Windows Desktop login against a role.
 func (l *windowsLoginMatcher) Match(role types.Role, typ types.RoleConditionType) (bool, error) {
 	logins := role.GetWindowsLogins(typ)
-	if slices.Contains(logins, l.login) {
-		return true, nil
+	for _, login := range logins {
+		if l.login == login {
+			return true, nil
+		}
 	}
 	return false, nil
-}
-
-type linuxDesktopLoginMatcher struct {
-	login string
-}
-
-// NewLinuxDesktopLoginMatcher creates a RoleMatcher that checks whether the role's
-// Linux desktop logins match the specified condition.
-func NewLinuxDesktopLoginMatcher(login string) RoleMatcher {
-	return &linuxDesktopLoginMatcher{login: login}
-}
-
-// Match matches a Linux Desktop login against a role.
-func (l *linuxDesktopLoginMatcher) Match(role types.Role, typ types.RoleConditionType) (bool, error) {
-	logins := role.GetLinuxDesktopLogins(typ)
-	return slices.Contains(logins, l.login), nil
 }
 
 type awsAppLoginMatcher struct {
@@ -2531,8 +2511,10 @@ func NewAppAWSLoginMatcher(awsRole string) RoleMatcher {
 // Match matches an AWS Role ARN login against a role.
 func (l *awsAppLoginMatcher) Match(role types.Role, typ types.RoleConditionType) (bool, error) {
 	awsRoles := role.GetAWSRoleARNs(typ)
-	if slices.Contains(awsRoles, l.awsRole) {
-		return true, nil
+	for _, awsRole := range awsRoles {
+		if l.awsRole == awsRole {
+			return true, nil
+		}
 	}
 	return false, nil
 }
@@ -2704,17 +2686,13 @@ func resourceRequiresLabelMatching(r AccessCheckable) bool {
 	return true
 }
 
-// checkAccess determines whether access should be granted to a resource based on the provided roles, resource
-// attributes, user traits, access state (MFA, device trust, etc.), and optional matchers. If state.ReturnPreconditions
-// is true, it returns a list of preconditions (e.g., MFA required) that must be satisfied for access. If
-// state.ReturnPreconditions is false, it returns an error immediately if access is denied.
 func (set RoleSet) checkAccess(
 	r AccessCheckable,
 	username string,
 	traits wrappers.Traits,
 	state AccessState,
 	matchers ...RoleMatcher,
-) ([]*decisionpb.Precondition, error) {
+) error {
 	// Note: logging in this function only happens in trace mode. This is because
 	// adding logging to this function (which is called on every resource returned
 	// by the backend) can slow down this function by 50x for large clusters!
@@ -2725,25 +2703,9 @@ func (set RoleSet) checkAccess(
 		logger = logger.With("resource_kind", r.GetKind(), "resource_name", r.GetName())
 	}
 
-	// Collect preconditions to return to the caller.
-	var preconds []*decisionpb.Precondition
-
-	// If the cluster requires per-session MFA and it hasn't been verified yet, add an MFA precondition or deny access early.
-	// If the legacy out-of-band MFA flow is allowed (see below) and MFA has already been verified for this session, skip this check.
-	//
-	// The legacy out-of-band MFA flow is allowed as long as TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA is not set to "yes".
-	// When TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA is set to "yes", only in-band MFA is allowed and enforced.
-	//
-	// TODO(cthach): Remove in v20.0 when the legacy out-of-band MFA flow is removed.
-	if state.MFARequired == MFARequiredAlways && (os.Getenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA") == "yes" || !state.MFAVerified) {
-		// If the caller doesn't want preconditions returned, deny access early to avoid unnecessary work.
-		if !state.ReturnPreconditions {
-			logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, cluster requires per-session MFA")
-			return nil, ErrSessionMFARequired
-		}
-
-		// Mark that MFA is required and continue evaluating access.
-		preconds = append(preconds, &decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA})
+	if !state.MFAVerified && state.MFARequired == MFARequiredAlways {
+		logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, cluster requires per-session MFA")
+		return ErrSessionMFARequired
 	}
 
 	requiresLabelMatching := resourceRequiresLabelMatching(r)
@@ -2774,7 +2736,7 @@ func (set RoleSet) checkAccess(
 		if requiresLabelMatching {
 			matchLabels, labelsMessage, err := checkRoleLabelsMatch(types.Deny, role, username, traits, r, isLoggingEnabled)
 			if err != nil {
-				return nil, trace.Wrap(err)
+				return trace.Wrap(err)
 			}
 			if matchLabels {
 				logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, deny rule in role matched",
@@ -2782,7 +2744,7 @@ func (set RoleSet) checkAccess(
 					slog.String("namespace_message", namespaceMessage),
 					slog.String("label_message", labelsMessage),
 				)
-				return nil, trace.AccessDenied("access to %v denied. User does not have permissions. %v",
+				return trace.AccessDenied("access to %v denied. User does not have permissions. %v",
 					r.GetKind(), additionalDeniedMessage)
 			}
 		} else {
@@ -2792,32 +2754,19 @@ func (set RoleSet) checkAccess(
 		// at least one of the matchers returns true.
 		matchMatchers, matchersMessage, err := RoleMatchers(matchers).MatchAny(role, types.Deny)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 		if matchMatchers {
 			logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, deny rule in role matched",
 				slog.String("role", role.GetName()),
 				slog.Any("matcher_message", matchersMessage),
 			)
-			return nil, trace.AccessDenied("access to %v denied. User does not have permissions. %v",
+			return trace.AccessDenied("access to %v denied. User does not have permissions. %v",
 				r.GetKind(), additionalDeniedMessage)
 		}
 	}
 
-	// MFA checks can be bypassed if either:
-	//  1. The cluster doesn't require per-session MFA (MFARequiredNever), OR
-	//  2. Legacy out-of-band MFA has already been verified for the session AND
-	//     a. The legacy out-of-band MFA flow is allowed (TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA is not set to "yes") OR
-	//     b. The caller doesn't want preconditions returned (state.ReturnPreconditions is false)
-	//
-	// Listing resources sets state.MFAVerified to true and state.ReturnPreconditions to false to allow bypassing MFA
-	// checks for resources that require per-session MFA. This is because listing resources is a read-only operation and
-	// MFA is not required to list resources, even if MFA is required to access the resource. The actual enforcement
-	// will happen at connection time, so this is not a concern from a security perspective.
-	//
-	// TODO(cthach): Remove in v20.0 when the legacy out-of-band MFA flow is removed.
-	bypassMFAChecks := state.MFARequired == MFARequiredNever ||
-		(state.MFAVerified && (os.Getenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA") != "yes" || !state.ReturnPreconditions))
+	mfaAllowed := state.MFAVerified || state.MFARequired == MFARequiredNever
 
 	// TODO(codingllama): Consider making EnableDeviceVerification opt-out instead
 	//  of opt-in.
@@ -2839,7 +2788,7 @@ func (set RoleSet) checkAccess(
 		if requiresLabelMatching {
 			matchLabels, labelsMessage, err := checkRoleLabelsMatch(types.Allow, role, username, traits, r, isLoggingEnabled)
 			if err != nil {
-				return nil, trace.Wrap(err)
+				return trace.Wrap(err)
 			}
 
 			if !matchLabels {
@@ -2857,7 +2806,7 @@ func (set RoleSet) checkAccess(
 		// matchers return true.
 		matchMatchers, err := RoleMatchers(matchers).MatchAll(role, types.Allow)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 		if !matchMatchers {
 			if isLoggingEnabled {
@@ -2877,26 +2826,19 @@ func (set RoleSet) checkAccess(
 		// (and gets an early exit) or we need to check every applicable role to
 		// ensure the access is permitted.
 
-		if bypassMFAChecks && deviceTrusted {
+		if mfaAllowed && deviceTrusted {
 			logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource granted, allow rule in role matched",
-
 				slog.String("role", role.GetName()),
 			)
-			return deduplicateAndSortPreconditions(preconds), nil
+			return nil
 		}
 
-		// Check if MFA is required at the role-level.
-		if !bypassMFAChecks && role.GetOptions().RequireMFAType.IsSessionMFARequired() {
-			// If the caller doesn't want preconditions returned, deny access early to avoid unnecessary work.
-			if !state.ReturnPreconditions {
-				logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, role requires per-session MFA",
-					slog.String("role", role.GetName()),
-				)
-				return nil, ErrSessionMFARequired
-			}
-
-			// Mark that MFA is required and continue evaluating access.
-			preconds = append(preconds, &decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA})
+		// MFA verification.
+		if !mfaAllowed && role.GetOptions().RequireMFAType.IsSessionMFARequired() {
+			logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, role requires per-session MFA",
+				slog.String("role", role.GetName()),
+			)
+			return ErrSessionMFARequired
 		}
 
 		// Device verification.
@@ -2911,7 +2853,7 @@ func (set RoleSet) checkAccess(
 			logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, role requires a trusted device",
 				slog.String("role", role.GetName()),
 			)
-			return nil, trace.Wrap(err)
+			return trace.Wrap(err)
 		}
 
 		// Current role allows access, but keep looking for a more restrictive
@@ -2923,33 +2865,14 @@ func (set RoleSet) checkAccess(
 	}
 
 	if allowed {
-		return deduplicateAndSortPreconditions(preconds), nil
+		return nil
 	}
 
 	logger.LogAttrs(ctx, logutils.TraceLevel, "Access to resource denied, no allow rule matched",
 		slog.Any("errors", errs),
 	)
-	return nil, trace.AccessDenied("access to %v denied. User does not have permissions. %v",
+	return trace.AccessDenied("access to %v denied. User does not have permissions. %v",
 		r.GetKind(), additionalDeniedMessage)
-}
-
-func deduplicateAndSortPreconditions(preconds []*decisionpb.Precondition) []*decisionpb.Precondition {
-	// Deduplicate preconditions by kind.
-	preconds = slices.CompactFunc(
-		preconds, func(a, b *decisionpb.Precondition) bool {
-			return a.Kind == b.Kind
-		},
-	)
-
-	// Sort by kind for deterministic ordering during enforcement.
-	slices.SortFunc(
-		preconds,
-		func(a, b *decisionpb.Precondition) int {
-			return cmp.Compare(a.Kind, b.Kind)
-		},
-	)
-
-	return preconds
 }
 
 // checkRoleLabelsMatch checks if the [role] matches the labels of [resource]
@@ -3330,7 +3253,7 @@ func (set RoleSet) GuessIfAccessIsPossible(ctx RuleContext, namespace string, re
 
 type boolParser bool
 
-func (p boolParser) Parse(string) (any, error) {
+func (p boolParser) Parse(string) (interface{}, error) {
 	return predicate.BoolPredicate(func() bool {
 		return bool(p)
 	}), nil
@@ -3795,10 +3718,6 @@ type AccessState struct {
 	// IsBot determines whether the user certificate belongs to a bot. It's used
 	// when deciding whether to enforce device verification.
 	IsBot bool
-	// ReturnPreconditions, when set to true, causes access checks to return a set of preconditions (such as MFA or
-	// device verification requirements) instead of immediately returning an access error. This allows callers to
-	// programmatically determine what additional steps are required for access, rather than failing outright.
-	ReturnPreconditions bool
 }
 
 // MFARequired determines when MFA is required for a user to access a resource.
@@ -3924,26 +3843,6 @@ func AccessStateFromSSHIdentity(ctx context.Context, ident *sshca.Identity, chec
 
 	state.EnableDeviceVerification = true
 	state.DeviceVerified = dtauthz.IsSSHDeviceVerified(ident)
-	state.IsBot = ident.IsBot()
-	return state, nil
-}
-
-// AccessStateFromTLSIdentity populates access state based on user's TLS
-// identity and auth preference.
-func AccessStateFromTLSIdentity(ctx context.Context, ident *tlsca.Identity, checker AccessChecker, authPrefGetter AuthPreferenceGetter) (AccessState, error) {
-	authPref, err := authPrefGetter.GetAuthPreference(ctx)
-	if err != nil {
-		return AccessState{}, trace.Wrap(err)
-	}
-	state := checker.GetAccessState(authPref)
-	state.MFAVerified = ident.MFAVerified != ""
-	// Certain hardware-key based private key policies are treated as MFA verification.
-	if ident.PrivateKeyPolicy.MFAVerified() {
-		state.MFAVerified = true
-	}
-
-	state.EnableDeviceVerification = true
-	state.DeviceVerified = dtauthz.IsTLSDeviceVerified(&ident.DeviceExtensions)
 	state.IsBot = ident.IsBot()
 	return state, nil
 }

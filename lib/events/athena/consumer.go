@@ -33,9 +33,9 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
-	"github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager"
-	tmtypes "github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager/types"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	sqsTypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/aws/smithy-go/tracing/smithyoteltracing"
@@ -113,7 +113,7 @@ type sqsDeleter interface {
 }
 
 type s3downloader interface {
-	DownloadObject(ctx context.Context, input *transfermanager.DownloadObjectInput, opts ...func(*transfermanager.Options)) (*transfermanager.DownloadObjectOutput, error)
+	Download(ctx context.Context, w io.WriterAt, input *s3.GetObjectInput, options ...func(*manager.Downloader)) (n int64, err error) //nolint:staticcheck // TODO(tigrato)
 }
 
 func newConsumer(cfg Config, cancelFn context.CancelFunc) (*consumer, error) {
@@ -148,7 +148,7 @@ func newConsumer(cfg Config, cancelFn context.CancelFunc) (*consumer, error) {
 		sqsReceiver: sqsClient,
 		queueURL:    cfg.QueueURL,
 		// TODO(nklaassen): use s3 manager from teleport observability.
-		payloadDownloader: transfermanager.New(publisherS3Client),
+		payloadDownloader: manager.NewDownloader(publisherS3Client), //nolint:staticcheck // TODO(tigrato)
 		payloadBucket:     cfg.largeEventsBucket,
 		visibilityTimeout: int32(cfg.BatchMaxInterval.Seconds()),
 		batchMaxItems:     cfg.BatchMaxItems,
@@ -185,9 +185,9 @@ func newConsumer(cfg Config, cancelFn context.CancelFunc) (*consumer, error) {
 				return nil, trace.Wrap(err)
 			}
 			key := fmt.Sprintf("%s/%s/%s.parquet", cfg.locationS3Prefix, date, id.String())
-			fw, err := awsutils.NewS3V2FileWriter(ctx, storerS3Client, cfg.locationS3Bucket, key, nil /* uploader options */, func(uoi *transfermanager.UploadObjectInput) {
+			fw, err := awsutils.NewS3V2FileWriter(ctx, storerS3Client, cfg.locationS3Bucket, key, nil /* uploader options */, func(poi *s3.PutObjectInput) {
 				// ChecksumAlgorithm is required for putting objects when object lock is enabled.
-				uoi.ChecksumAlgorithm = tmtypes.ChecksumAlgorithmSha256
+				poi.ChecksumAlgorithm = s3Types.ChecksumAlgorithmSha256
 			})
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -490,7 +490,7 @@ func (s *sqsMessagesCollector) fromSQS(ctx context.Context) {
 	)
 
 	wg.Add(s.cfg.noOfWorkers)
-	for i := range s.cfg.noOfWorkers {
+	for i := 0; i < s.cfg.noOfWorkers; i++ {
 		go func(i int) {
 			defer wg.Done()
 			for {
@@ -769,17 +769,16 @@ func (s *sqsMessagesCollector) downloadEventFromS3(ctx context.Context, payload 
 		versionIDPtr = aws.String(versionID)
 	}
 
-	buf := tmtypes.NewWriteAtBuffer([]byte{})
-	out, err := s.cfg.payloadDownloader.DownloadObject(ctx, &transfermanager.DownloadObjectInput{
+	buf := manager.NewWriteAtBuffer([]byte{})
+	written, err := s.cfg.payloadDownloader.Download(ctx, buf, &s3.GetObjectInput{
 		Bucket:    aws.String(s.cfg.payloadBucket),
 		Key:       aws.String(path),
-		VersionID: versionIDPtr,
-		WriterAt:  buf,
+		VersionId: versionIDPtr,
 	})
 	if err != nil {
 		return nil, awsutils.ConvertS3Error(err)
 	}
-	if aws.ToInt64(out.ContentLength) == 0 {
+	if written == 0 {
 		return nil, trace.NotFound("payload for %v is not found", path)
 	}
 	return buf.Bytes(), nil
@@ -905,7 +904,7 @@ func (c *consumer) deleteMessagesFromQueue(ctx context.Context, handles []string
 	var wg sync.WaitGroup
 
 	// Start the worker goroutines
-	for range noOfWorkers {
+	for i := 0; i < noOfWorkers; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -936,7 +935,10 @@ func (c *consumer) deleteMessagesFromQueue(ctx context.Context, handles []string
 
 	// Batch the receipt handles and send them to the worker pool.
 	for i := 0; i < len(handles); i += maxDeleteBatchSize {
-		end := min(i+maxDeleteBatchSize, len(handles))
+		end := i + maxDeleteBatchSize
+		if end > len(handles) {
+			end = len(handles)
+		}
 		workerCh <- handles[i:end]
 	}
 	close(workerCh)

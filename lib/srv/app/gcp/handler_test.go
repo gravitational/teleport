@@ -19,7 +19,6 @@
 package gcp
 
 import (
-	"cmp"
 	"context"
 	"testing"
 	"time"
@@ -55,15 +54,12 @@ func TestHandler_getToken(t *testing.T) {
 		}
 	}
 
-	testContext, testContextCancel := context.WithCancel(t.Context())
-
 	tests := []struct {
 		name string
 
 		initState func() any
 
-		getTokenContext context.Context
-		config          func(state any) HandlerConfig
+		config func(state any) HandlerConfig
 
 		wantToken  *credentialspb.GenerateAccessTokenResponse
 		checkErr   require.ErrorAssertionFunc
@@ -115,7 +111,8 @@ func TestHandler_getToken(t *testing.T) {
 					}),
 				}
 			},
-			checkErr: func(t require.TestingT, err error, i ...any) {
+			checkErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "timeout waiting for access token for 5s")
 				require.ErrorIs(t, err, context.DeadlineExceeded)
 			},
 		},
@@ -128,24 +125,9 @@ func TestHandler_getToken(t *testing.T) {
 					},
 				}),
 			}),
-			checkErr: func(t require.TestingT, err error, i ...any) {
+			checkErr: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "bad param foo")
 				require.True(t, trace.IsBadParameter(err))
-			},
-		},
-		{
-			name:            "context cancel",
-			getTokenContext: testContext,
-			config: mkConstConfig(HandlerConfig{
-				cloudClientGCP: makeTestCloudClient(&testIAMCredentialsClient{
-					generateAccessToken: func(ctx context.Context, req *credentialspb.GenerateAccessTokenRequest, opts ...gax.CallOption) (*credentialspb.GenerateAccessTokenResponse, error) {
-						testContextCancel()
-						return nil, trace.BadParameter("bad param foo")
-					},
-				}),
-			}),
-			checkErr: func(t require.TestingT, err error, i ...any) {
-				require.ErrorIs(t, err, context.Canceled)
 			},
 		},
 	}
@@ -157,10 +139,12 @@ func TestHandler_getToken(t *testing.T) {
 				state = tt.initState()
 			}
 
-			fwd, err := newGCPHandler(t.Context(), tt.config(state))
+			ctx := context.Background()
+
+			fwd, err := newGCPHandler(ctx, tt.config(state))
 			require.NoError(t, err)
 
-			token, err := fwd.getToken(cmp.Or(tt.getTokenContext, context.Background()), "MY_ACCOUNT")
+			token, err := fwd.getToken(ctx, "MY_ACCOUNT")
 			require.Equal(t, tt.wantToken, token)
 			tt.checkErr(t, err)
 

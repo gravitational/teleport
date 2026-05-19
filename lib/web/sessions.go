@@ -27,7 +27,6 @@ import (
 	"io"
 	"log/slog"
 	"net"
-	"slices"
 	"sync"
 	"time"
 
@@ -604,10 +603,9 @@ func (c *SessionContext) expired(ctx context.Context) bool {
 		c.cfg.Log.DebugContext(ctx, "Failed to query web session", "error", err)
 	}
 
-	expiry := c.cfg.Session.GetEarliestExpiry()
-
 	// If the session has no expiry time, then also by definition it
 	// cannot be expired
+	expiry := c.cfg.Session.GetBearerTokenExpiryTime()
 	if expiry.IsZero() {
 		return false
 	}
@@ -644,7 +642,6 @@ type sessionCacheOptions struct {
 	// See [sessionCache.sessionWatcherEventProcessedChannel]. Used for testing.
 	sessionWatcherEventProcessedChannel chan struct{}
 	logger                              *slog.Logger
-	buildType                           string
 }
 
 // newSessionCache creates a [sessionCache] from the provided [config] and
@@ -686,7 +683,6 @@ func newSessionCache(ctx context.Context, config sessionCacheOptions) (*sessionC
 			}
 		}),
 		sessionWatcherEventProcessedChannel: config.sessionWatcherEventProcessedChannel,
-		buildType:                           config.buildType,
 	}
 
 	// periodically close expired and unused sessions
@@ -713,7 +709,6 @@ type sessionCache struct {
 	sessionLingeringThreshold time.Duration
 	// cipherSuites is the list of supported TLS cipher suites.
 	cipherSuites []uint16
-	buildType    string
 
 	mu sync.RWMutex
 	// sessions maps user/sessionID to an active web session value between renewals.
@@ -797,7 +792,7 @@ func (s *sessionCache) clearExpiredSessions(ctx context.Context) {
 // It only stops when ctx is done.
 func (s *sessionCache) watchWebSessions(ctx context.Context) {
 	// Watcher not necessary for OSS.
-	if s.buildType != modules.BuildEnterprise {
+	if modules.GetModules().BuildType() != modules.BuildEnterprise {
 		return
 	}
 
@@ -1054,12 +1049,12 @@ func (s *sessionCache) getOrCreateSession(ctx context.Context, user, sessionID s
 		return nil, trace.Wrap(err)
 	}
 
-	// Enforce IP Pinning if it is present in the user's certificate.
 	var clientAddr string
 	if clientSrcAddr, err := authz.ClientSrcAddrFromContext(ctx); err == nil {
 		clientAddr = clientSrcAddr.String()
 	}
 
+	// Enforce IP Pinning if it is present in the user's certificate.
 	if err := authz.CheckIPPinning(ctx, clientAddr, identity.PinnedIP, false, s.log); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1323,7 +1318,7 @@ func (c *sessionResources) removeCloser(closer io.Closer) {
 	defer c.mu.Unlock()
 	for i, cls := range c.closers {
 		if cls == closer {
-			c.closers = slices.Delete(c.closers, i, i+1)
+			c.closers = append(c.closers[:i], c.closers[i+1:]...)
 			return
 		}
 	}

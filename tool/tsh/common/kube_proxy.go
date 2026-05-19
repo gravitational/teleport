@@ -28,9 +28,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"text/template"
 	"time"
 
-	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"k8s.io/client-go/tools/clientcmd"
@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
+	kubeclient "github.com/gravitational/teleport/lib/client/kube"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -78,7 +79,7 @@ func newProxyKubeCommand(parent *kingpin.CmdClause) *proxyKubeCommand {
 	// kube-namespace exists for backwards compatibility.
 	c.Flag("kube-namespace", "Configure the default Kubernetes namespace.").Hidden().StringVar(&c.namespace)
 	c.Flag("namespace", "Configure the default Kubernetes namespace.").Short('n').StringVar(&c.namespace)
-	c.Flag("port", "Specifies the source port used by the proxy listener.").Short('p').StringVar(&c.port)
+	c.Flag("port", "Specifies the source port used by the proxy listener").Short('p').StringVar(&c.port)
 	c.Flag("format", envVarFormatFlagDescription()).Short('f').Default(envVarDefaultFormat()).EnumVar(&c.format, envVarFormats...)
 	c.Flag("labels", labelHelp).StringVar(&c.labels)
 	c.Flag("query", queryHelp).StringVar(&c.predicateExpression)
@@ -298,11 +299,11 @@ func (c *proxyKubeCommand) printPrepare(cf *CLIConf, title string, clusters kube
 
 func (c *proxyKubeCommand) printTemplate(w io.Writer, isReexec bool, localProxy *kubeLocalProxy) error {
 	if isReexec {
-		return trace.Wrap(proxyKubeHeadlessTemplate.Execute(w, map[string]any{
+		return trace.Wrap(proxyKubeHeadlessTemplate.Execute(w, map[string]interface{}{
 			"multipleContexts": len(localProxy.kubeconfig.Contexts) > 1,
 		}))
 	}
-	return trace.Wrap(proxyKubeTemplate.Execute(w, map[string]any{
+	return trace.Wrap(proxyKubeTemplate.Execute(w, map[string]interface{}{
 		"addr":           localProxy.GetAddr(),
 		"format":         c.format,
 		"randomPort":     c.port == "",
@@ -641,6 +642,23 @@ func issueKubeCert(ctx context.Context, tc *client.TeleportClient, clusterClient
 		},
 	)
 	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+
+	// Make sure the cert is allowed to access the cluster.
+	// At this point we already know that the user has access to the cluster
+	// via the RBAC rules, but we also need to make sure that the user has
+	// access to the cluster with at least one kubernetes_user or kubernetes_group
+	// defined.
+	rootClusterName, err := tc.RootClusterName(ctx)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	if err := kubeclient.CheckIfCertsAreAllowedToAccessCluster(
+		result.KeyRing,
+		rootClusterName,
+		teleportCluster,
+		kubeCluster); err != nil {
 		return tls.Certificate{}, trace.Wrap(err)
 	}
 

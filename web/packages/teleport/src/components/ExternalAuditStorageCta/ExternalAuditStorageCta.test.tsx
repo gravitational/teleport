@@ -28,13 +28,8 @@ import { storageService } from 'teleport/services/storageService';
 
 import { ExternalAuditStorageCta } from './ExternalAuditStorageCta';
 
-const defaultExternalAuditStorageEntitlement =
-  cfg.entitlements.ExternalAuditStorage;
-
 describe('externalAuditStorageCta', () => {
   afterEach(() => {
-    cfg.entitlements.ExternalAuditStorage =
-      defaultExternalAuditStorageEntitlement;
     jest.clearAllMocks();
   });
 
@@ -52,10 +47,7 @@ describe('externalAuditStorageCta', () => {
     });
 
     cfg.isCloud = isCloud;
-    cfg.entitlements.ExternalAuditStorage = {
-      enabled: !lockedFeature,
-      limit: 0,
-    };
+    cfg.externalAuditStorage = !lockedFeature;
 
     jest
       .spyOn(storageService, 'getExternalAuditStorageCtaDisabled')

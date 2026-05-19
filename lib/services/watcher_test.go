@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"slices"
 	"sort"
-	"strings"
 	"sync"
 	"testing"
 	"testing/synctest"
@@ -95,7 +94,7 @@ func TestResourceWatcher_Backoff(t *testing.T) {
 	t.Cleanup(w.Close)
 
 	step := w.MaxRetryPeriod / 5.0
-	for i := range 5 {
+	for i := 0; i < 5; i++ {
 		// wait for watcher to reload
 		select {
 		case duration := <-w.ResetC:
@@ -1119,7 +1118,7 @@ func TestNodeWatcherFallback(t *testing.T) {
 
 	// Add some servers.
 	nodes := make([]types.Server, 0, 5)
-	for i := range 5 {
+	for i := 0; i < 5; i++ {
 		node := newNodeServer(t, fmt.Sprintf("node%d", i), fmt.Sprintf("hostname%d", i), "127.0.0.1:2023", i%2 == 0)
 		_, err = presence.UpsertNode(ctx, node)
 		require.NoError(t, err)
@@ -1171,7 +1170,7 @@ func TestNodeWatcher(t *testing.T) {
 	require.NoError(t, w.WaitInitialization())
 	// Add some node servers.
 	nodes := make([]types.Server, 0, 5)
-	for i := range 5 {
+	for i := 0; i < 5; i++ {
 		node := newNodeServer(t, fmt.Sprintf("node%d", i), fmt.Sprintf("hostname%d", i), "127.0.0.1:2023", i%2 == 0)
 		_, err = presence.UpsertNode(ctx, node)
 		require.NoError(t, err)
@@ -1180,8 +1179,8 @@ func TestNodeWatcher(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		filtered, err := w.CurrentResources(ctx)
-		require.NoError(t, err)
-		require.Len(t, filtered, len(nodes))
+		assert.NoError(t, err)
+		assert.Len(t, filtered, len(nodes))
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive nodes.")
 
 	filtered, err := w.CurrentResourcesWithFilter(ctx, func(n readonly.Server) bool { return n.GetUseTunnel() })
@@ -1192,8 +1191,8 @@ func TestNodeWatcher(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		filtered, err := w.CurrentResources(ctx)
-		require.NoError(t, err)
-		require.Len(t, filtered, len(nodes)-1)
+		assert.NoError(t, err)
+		assert.Len(t, filtered, len(nodes)-1)
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive nodes.")
 
 	filtered, err = w.CurrentResourcesWithFilter(ctx, func(n readonly.Server) bool { return n.GetName() == nodes[0].GetName() })
@@ -1257,7 +1256,7 @@ func TestKubeServerWatcher(t *testing.T) {
 
 	// Add some kube servers.
 	kubeServers := make([]types.KubeServer, 0, 5)
-	for i := range 5 {
+	for i := 0; i < 5; i++ {
 		kubeServer := newKubeServer(t, fmt.Sprintf("kube_cluster-%d", i), "addr", fmt.Sprintf("host-%d", i))
 		_, err = presence.UpsertKubernetesServer(ctx, kubeServer)
 		require.NoError(t, err)
@@ -1266,8 +1265,8 @@ func TestKubeServerWatcher(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		filtered, err := w.CurrentResources(context.Background())
-		require.NoError(t, err)
-		require.Len(t, filtered, len(kubeServers))
+		assert.NoError(t, err)
+		assert.Len(t, filtered, len(kubeServers))
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive kube servers.")
 
 	// Test filtering by cluster name.
@@ -1281,8 +1280,8 @@ func TestKubeServerWatcher(t *testing.T) {
 	require.NoError(t, presence.DeleteKubernetesServer(ctx, kubeServers[0].GetHostID(), kubeServers[0].GetName()))
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		kube, err := w.CurrentResources(context.Background())
-		require.NoError(t, err)
-		require.Len(t, kube, len(kubeServers)-1)
+		assert.NoError(t, err)
+		assert.Len(t, kube, len(kubeServers)-1)
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive the delete event.")
 
 	filtered, err = w.CurrentResourcesWithFilter(context.Background(), func(ks readonly.KubeServer) bool {
@@ -1299,8 +1298,8 @@ func TestKubeServerWatcher(t *testing.T) {
 		filtered, err := w.CurrentResourcesWithFilter(context.Background(), func(ks readonly.KubeServer) bool {
 			return ks.GetName() == kubeServers[1].GetName()
 		})
-		require.NoError(t, err)
-		require.Len(t, filtered, 2)
+		assert.NoError(t, err)
+		assert.Len(t, filtered, 2)
 	}, 1000*time.Second, time.Millisecond, "Timeout waiting for watcher to the new registered kube server.")
 
 	// Test deleting all kube servers with the same name.
@@ -1315,15 +1314,15 @@ func TestKubeServerWatcher(t *testing.T) {
 		filtered, err := w.CurrentResourcesWithFilter(context.Background(), func(ks readonly.KubeServer) bool {
 			return ks.GetName() == kubeServers[1].GetName()
 		})
-		require.NoError(t, err)
-		require.Empty(t, filtered)
+		assert.NoError(t, err)
+		assert.Empty(t, filtered)
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive the two delete events.")
 
 	require.NoError(t, presence.DeleteAllKubernetesServers(ctx))
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		filtered, err := w.CurrentResources(context.Background())
-		require.NoError(t, err)
-		require.Empty(t, filtered)
+		assert.NoError(t, err)
+		assert.Empty(t, filtered)
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive all delete events.")
 }
 
@@ -1728,7 +1727,7 @@ func TestGitServerWatcher(t *testing.T) {
 
 	// Add some git servers.
 	servers := make([]types.Server, 0, 5)
-	for i := range 5 {
+	for i := 0; i < 5; i++ {
 		server := newGitServer(t, fmt.Sprintf("org%v", i+1))
 		_, err = gitServerService.CreateGitServer(ctx, server)
 		require.NoError(t, err)
@@ -1737,8 +1736,8 @@ func TestGitServerWatcher(t *testing.T) {
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		filtered, err := w.CurrentResources(ctx)
-		require.NoError(t, err)
-		require.Len(t, filtered, len(servers))
+		assert.NoError(t, err)
+		assert.Len(t, filtered, len(servers))
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive nodes.")
 
 	filtered, err := w.CurrentResourcesWithFilter(ctx, func(s readonly.Server) bool {
@@ -1754,8 +1753,8 @@ func TestGitServerWatcher(t *testing.T) {
 	require.NoError(t, gitServerService.DeleteGitServer(ctx, servers[0].GetName()))
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		filtered, err := w.CurrentResources(ctx)
-		require.NoError(t, err)
-		require.Len(t, filtered, len(servers)-1)
+		assert.NoError(t, err)
+		assert.Len(t, filtered, len(servers)-1)
 	}, time.Second, time.Millisecond, "Timeout waiting for watcher to receive nodes.")
 
 	filtered, err = w.CurrentResourcesWithFilter(ctx, func(s readonly.Server) bool {
@@ -1851,123 +1850,4 @@ func newHealthCheckConfig(t *testing.T, name string) *healthcheckconfigv1.Health
 	)
 	require.NoError(t, err)
 	return c
-}
-
-func TestAppServerWatcher(t *testing.T) {
-	synctest.Test(t, syncTestAppServerWatcher)
-}
-
-func syncTestAppServerWatcher(t *testing.T) {
-	ctx := t.Context()
-
-	bk, err := memory.New(memory.Config{Context: ctx})
-	require.NoError(t, err)
-	defer bk.Close()
-	type client struct {
-		services.Presence
-		types.Events
-	}
-
-	presence := local.NewPresenceService(bk)
-	w, err := services.NewAppServersWatcher(ctx, services.AppServersWatcherConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: "test",
-			Client: &client{
-				Presence: presence,
-				Events:   local.NewEventsService(bk),
-			},
-		},
-	})
-
-	require.NoError(t, err)
-	t.Cleanup(w.Close)
-
-	require.NoError(t, w.WaitInitialization())
-
-	newAppServer := func(t *testing.T, name, hostId, appName string) *types.AppServerV3 {
-		s, err := types.NewAppServerV3(types.Metadata{
-			Name:      name,
-			Namespace: apidefaults.Namespace,
-		}, types.AppServerSpecV3{
-			HostID: hostId,
-
-			App: newApp(t, appName),
-		})
-		require.NoError(t, err)
-		return s
-	}
-
-	diffAppServers := func(a, b []types.AppServer) string {
-		return cmp.Diff(a, b,
-			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-			cmpopts.EquateEmpty(),
-			cmpopts.SortSlices(func(a, b types.AppServer) bool {
-				if c := strings.Compare(a.GetHostID(), b.GetHostID()); c != 0 {
-					return c < 0
-				}
-				return a.GetName() < b.GetName()
-			}),
-		)
-	}
-
-	appServers := make([]types.AppServer, 0, 10)
-	for i := range 10 {
-		appServer := newAppServer(t,
-			fmt.Sprintf("app-%d", i%5),
-			fmt.Sprintf("host-%d", i), // Multiple hosts per app
-			fmt.Sprintf("app-%d", i%5))
-		_, err = presence.UpsertApplicationServer(ctx, appServer)
-		require.NoError(t, err)
-		appServers = append(appServers, appServer)
-	}
-
-	// Check all registered app servers are returned by the watcher.
-	synctest.Wait()
-	current, err := w.CurrentResources(ctx)
-	require.NoError(t, err)
-	require.Len(t, current, len(appServers))
-	require.Empty(t, diffAppServers(appServers, current))
-
-	// Delete the first app server, ensure watcher correctly removes the entry
-	err = presence.DeleteApplicationServer(ctx, "default", appServers[0].GetHostID(), appServers[0].GetName())
-	require.NoError(t, err)
-
-	synctest.Wait()
-
-	appServers = appServers[1:]
-	current, err = w.CurrentResources(ctx)
-	require.NoError(t, err)
-	require.Len(t, current, len(appServers))
-	require.Empty(t, diffAppServers(appServers, current))
-
-	// Overwrite existing
-	_, err = presence.UpsertApplicationServer(ctx, newAppServer(t, "app-1", "host-1", "app-1"))
-	require.NoError(t, err)
-
-	synctest.Wait()
-
-	current, err = w.CurrentResources(ctx)
-	require.NoError(t, err)
-	require.Len(t, current, len(appServers))
-	require.Empty(t, diffAppServers(appServers, current))
-
-	// New server with the same app name but different host is added to the list
-	appServer := newAppServer(t, "app-1", "host-20", "app-1")
-	_, err = presence.UpsertApplicationServer(ctx, appServer)
-	require.NoError(t, err)
-	appServers = append(appServers, appServer)
-
-	synctest.Wait()
-
-	current, err = w.CurrentResources(ctx)
-	require.NoError(t, err)
-	require.Len(t, current, len(appServers))
-	require.Empty(t, diffAppServers(appServers, current))
-
-	// Ensure filtering works
-	filtered, err := w.CurrentResourcesWithFilter(context.Background(), func(s readonly.AppServer) bool {
-		return s.GetName() == appServers[0].GetName()
-	})
-	require.NoError(t, err)
-	require.Len(t, filtered, 3)
 }

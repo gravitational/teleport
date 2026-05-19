@@ -37,7 +37,8 @@ import (
 
 func TestErrorCounter(t *testing.T) {
 	t.Parallel()
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	testError := errors.New("test error")
 	badError := errors.New(strings.Repeat("bad test error\r\n", 1000))
@@ -71,8 +72,8 @@ func TestErrorCounter(t *testing.T) {
 			steps: []testStep{
 				{
 					action: func(pack *testPack) {
-						pack.errHandler.StreamSessionRecording(ctx, "")
-						pack.successHandler.StreamSessionRecording(ctx, "")
+						pack.errHandler.Download(ctx, "", nil)
+						pack.successHandler.Download(ctx, "", nil)
 					},
 					repeat: 10,
 				},
@@ -105,8 +106,8 @@ func TestErrorCounter(t *testing.T) {
 			steps: []testStep{
 				{
 					action: func(pack *testPack) {
-						pack.errHandler.StreamSessionSummary(ctx, "")
-						pack.successHandler.StreamSessionSummary(ctx, "")
+						pack.errHandler.DownloadSummary(ctx, "", nil)
+						pack.successHandler.DownloadSummary(ctx, "", nil)
 					},
 					repeat: 10,
 				},
@@ -139,8 +140,8 @@ func TestErrorCounter(t *testing.T) {
 			steps: []testStep{
 				{
 					action: func(pack *testPack) {
-						pack.errHandler.StreamSessionMetadata(ctx, "")
-						pack.successHandler.StreamSessionMetadata(ctx, "")
+						pack.errHandler.DownloadMetadata(ctx, "", nil)
+						pack.successHandler.DownloadMetadata(ctx, "", nil)
 					},
 					repeat: 10,
 				},
@@ -173,8 +174,8 @@ func TestErrorCounter(t *testing.T) {
 			steps: []testStep{
 				{
 					action: func(pack *testPack) {
-						pack.errHandler.StreamSessionThumbnail(ctx, "")
-						pack.successHandler.StreamSessionThumbnail(ctx, "")
+						pack.errHandler.DownloadThumbnail(ctx, "", nil)
+						pack.successHandler.DownloadThumbnail(ctx, "", nil)
 					},
 					repeat: 10,
 				},
@@ -284,6 +285,7 @@ func TestErrorCounter(t *testing.T) {
 			}},
 		},
 	} {
+		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
 			t.Parallel()
 			alertService := newFakeAlertService()
@@ -387,61 +389,18 @@ func (h *errorHandler) UploadThumbnail(ctx context.Context, sessionID session.ID
 	return "", h.err
 }
 
-func (h *errorHandler) StreamSessionRecording(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
-	return nil, h.err
+func (h *errorHandler) Download(ctx context.Context, sessionID session.ID, writer io.Writer) error {
+	return h.err
 }
 
-func (h *errorHandler) StreamSessionSummary(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
-	return nil, h.err
+func (h *errorHandler) DownloadSummary(ctx context.Context, sessionID session.ID, writer io.Writer) error {
+	return h.err
 }
 
-func (h *errorHandler) StreamSessionMetadata(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
-	return nil, h.err
+func (h *errorHandler) DownloadMetadata(ctx context.Context, sessionID session.ID, writer io.Writer) error {
+	return h.err
 }
 
-func (h *errorHandler) StreamSessionThumbnail(ctx context.Context, sessionID session.ID) (io.ReadCloser, error) {
-	return nil, h.err
-}
-
-// bodyErrorHandler is a handler whose Download succeeds (returns a ReadCloser)
-// but whose body returns readErr when Read is called.
-type bodyErrorHandler struct {
-	readErr error
-	events.MultipartHandler
-}
-
-func (h *bodyErrorHandler) StreamSessionRecording(_ context.Context, _ session.ID) (io.ReadCloser, error) {
-	return io.NopCloser(errorReader{h.readErr}), nil
-}
-
-// errorReader is an io.Reader that always returns a fixed error.
-type errorReader struct{ err error }
-
-func (e errorReader) Read(_ []byte) (int, error) { return 0, e.err }
-
-// TestDownloadBodyReadError verifies that an error returned while reading the
-// body of a successful Download call is still counted as a download failure
-// and eventually raises a cluster alert.
-func TestDownloadBodyReadError(t *testing.T) {
-	t.Parallel()
-	ctx := t.Context()
-
-	readErr := errors.New("read body error")
-	alertService := newFakeAlertService()
-	counter := NewErrorCounter(alertService)
-	handler := counter.WrapSessionHandler(&bodyErrorHandler{readErr: readErr})
-
-	for range 4 {
-		rc, err := handler.StreamSessionRecording(ctx, "")
-		assert.NoError(t, err, "Download call itself must succeed")
-		_, readErr := io.ReadAll(rc)
-		assert.Error(t, readErr, "reading the body must fail")
-		rc.Close()
-	}
-
-	counter.sync(ctx)
-
-	assert.Equal(t, map[string]string{
-		sessionDownloadFailureClusterAlert: fmt.Sprintf(sessionDownloadFailureClusterAlertMsgTemplate, readErr),
-	}, alertService.alerts)
+func (h *errorHandler) DownloadThumbnail(ctx context.Context, sessionID session.ID, writer io.Writer) error {
+	return h.err
 }

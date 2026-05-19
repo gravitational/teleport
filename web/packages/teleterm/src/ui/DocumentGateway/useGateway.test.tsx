@@ -19,7 +19,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 
 import {
-  makeDatabase,
   makeDatabaseGateway,
   makeRootCluster,
 } from 'teleterm/services/tshd/testHelpers';
@@ -45,18 +44,6 @@ it('creates a gateway on mount if it does not exist already', async () => {
         draftState.gateways.set(gateway.uri, gateway);
       });
       return gateway;
-    });
-  jest
-    .spyOn(appContext.resourcesService, 'listUnifiedResources')
-    .mockResolvedValue({
-      nextKey: '',
-      resources: [
-        {
-          kind: 'database',
-          resource: makeDatabase({ uri: doc.targetUri }),
-          requiresRequest: false,
-        },
-      ],
     });
 
   const { result } = renderHook(() => useGateway(doc), {
@@ -138,7 +125,6 @@ const testSetup = () => {
     origin: 'resource_table',
     title: '',
     status: '',
-    autoUserProvisioning: undefined,
   };
   appContext.addRootClusterWithDoc(cluster, doc);
   const workspaceContext = {

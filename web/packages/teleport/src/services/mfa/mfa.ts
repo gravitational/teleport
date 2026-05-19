@@ -30,10 +30,9 @@ import {
 
 class MfaService {
   fetchDevicesWithToken(tokenId: string): Promise<MfaDevice[]> {
-    const opts = { isPasswordlessEnabled: cfg.isPasswordlessEnabled() };
     return api
       .get(cfg.getMfaDevicesWithTokenUrl(tokenId))
-      .then((devices: any[]) => devices.map(d => makeMfaDevice(d, opts)));
+      .then(devices => devices.map(makeMfaDevice));
   }
 
   removeDevice(tokenId: string, deviceName: string) {
@@ -41,10 +40,9 @@ class MfaService {
   }
 
   fetchDevices(): Promise<MfaDevice[]> {
-    const opts = { isPasswordlessEnabled: cfg.isPasswordlessEnabled() };
     return api
       .get(cfg.api.mfaDevicesPath)
-      .then((devices: any[]) => devices.map(d => makeMfaDevice(d, opts)));
+      .then(devices => devices.map(makeMfaDevice));
   }
 
   addNewTotpDevice(req: AddNewTotpDeviceRequest) {

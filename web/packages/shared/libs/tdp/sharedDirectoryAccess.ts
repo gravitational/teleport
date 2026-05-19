@@ -157,14 +157,17 @@ class BrowserFileSystem implements SharedDirectoryAccess {
    * Writes the bytes in writeData to the file at path starting at offset.
    * @throws {PathDoesNotExistError} if the pathstr isn't a valid path in the shared directory
    */
-  async write(
-    path: string,
-    offset: bigint,
-    data: Uint8Array<ArrayBuffer>
-  ): Promise<number> {
+  async write(path: string, offset: bigint, data: Uint8Array): Promise<number> {
     const fileHandle = await this.getFileHandle(path);
     const file = await fileHandle.createWritable({ keepExistingData: true });
-    await file.write({ type: 'write', position: Number(offset), data });
+    // Uint8Array's buffer is typed as ArrayBufferLike (which includes SharedArrayBuffer), but
+    // FileSystemWritableFileStream.write() in TypeScript 7 only accepts ArrayBuffer.
+    // SharedArrayBuffer is never used here.
+    await file.write({
+      type: 'write',
+      position: Number(offset),
+      data: data as Uint8Array<ArrayBuffer>,
+    });
     await file.close(); // Needed to actually write data to disk.
 
     return data.length;

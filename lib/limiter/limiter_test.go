@@ -64,23 +64,23 @@ func TestRateLimiter(t *testing.T) {
 		})
 	require.NoError(t, err)
 
-	for range 20 {
+	for i := 0; i < 20; i++ {
 		require.NoError(t, limiter.RegisterRequest("token1"))
 	}
-	for range 20 {
+	for i := 0; i < 20; i++ {
 		require.NoError(t, limiter.RegisterRequest("token2"))
 	}
 
 	require.Error(t, limiter.RegisterRequest("token1"))
 
 	clock.Advance(10 * time.Millisecond)
-	for range 10 {
+	for i := 0; i < 10; i++ {
 		require.NoError(t, limiter.RegisterRequest("token1"))
 	}
 	require.Error(t, limiter.RegisterRequest("token1"))
 
 	clock.Advance(10 * time.Millisecond)
-	for range 10 {
+	for i := 0; i < 10; i++ {
 		require.NoError(t, limiter.RegisterRequest("token1"))
 	}
 	require.Error(t, limiter.RegisterRequest("token1"))
@@ -88,7 +88,7 @@ func TestRateLimiter(t *testing.T) {
 	clock.Advance(10 * time.Millisecond)
 	// the second rate is full
 	err = nil
-	for range 10 {
+	for i := 0; i < 10; i++ {
 		err = limiter.RegisterRequest("token1")
 		if err != nil {
 			break
@@ -100,7 +100,7 @@ func TestRateLimiter(t *testing.T) {
 	// Now the second rate has free space
 	require.NoError(t, limiter.RegisterRequest("token1"))
 	err = nil
-	for range 15 {
+	for i := 0; i < 15; i++ {
 		err = limiter.RegisterRequest("token1")
 		if err != nil {
 			break
@@ -172,14 +172,14 @@ func TestLimiter_StreamServerInterceptor(t *testing.T) {
 		ctx: ctx,
 	}
 	info := &grpc.StreamServerInfo{}
-	handler := func(srv any, stream grpc.ServerStream) error { return nil }
+	handler := func(srv interface{}, stream grpc.ServerStream) error { return nil }
 
 	// pass at least once
 	err = limiter.StreamServerInterceptor(nil, ss, info, handler)
 	require.NoError(t, err)
 
 	// should eventually fail, not testing the limiter behavior here
-	for range 10 {
+	for i := 0; i < 10; i++ {
 		err = limiter.StreamServerInterceptor(nil, ss, info, handler)
 		if err != nil {
 			break
@@ -286,7 +286,7 @@ func TestListener(t *testing.T) {
 
 			// open connections without closing to enforce limits
 			conns := make([]net.Conn, 0, connLimit)
-			for i := range connLimit {
+			for i := 0; i < connLimit; i++ {
 				conn, err := ln.Accept()
 				test.acceptAssertion(t, i, conn, err)
 
@@ -317,7 +317,7 @@ func TestListener(t *testing.T) {
 
 			// open connections again after closing to
 			// ensure that closing reset limits
-			for i := range 5 {
+			for i := 0; i < 5; i++ {
 				conn, err := ln.Accept()
 				test.acceptAssertion(t, i, conn, err)
 

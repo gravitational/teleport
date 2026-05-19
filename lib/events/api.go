@@ -325,6 +325,9 @@ const (
 	// PPID is the PID of the parent process.
 	PPID = "ppid"
 
+	// CgroupID is the internal cgroupv2 ID of the event.
+	CgroupID = "cgroup_id"
+
 	// Program is name of the executable.
 	Program = "program"
 
@@ -422,13 +425,6 @@ const (
 	// AppSessionDynamoDBRequestEvent is emitted when DynamoDB client sends
 	// a request via app access session.
 	AppSessionDynamoDBRequestEvent = "app.session.dynamodb.request"
-
-	// AppSessionLLMRequestSuccessEvent is emitted when an LLM inference request
-	// is sent and succeeds.
-	AppSessionLLMRequestSuccessEvent = "app.session.llm.request.success"
-	// AppSessionLLMRequestFailureEvent is emitted when an LLM inference request
-	// is sent and fails.
-	AppSessionLLMRequestFailureEvent = "app.session.llm.request.failure"
 
 	// DatabaseCreateEvent is emitted when a database resource is created.
 	DatabaseCreateEvent = "db.create"
@@ -980,22 +976,6 @@ const (
 	// ClientIPRestrictionsUpdateEvent is emitted when a Client IP Restriction list is updated.
 	ClientIPRestrictionsUpdateEvent = "cir.update"
 
-	// AppAuthConfigCreateEvent is emitted when an app auth config
-	// resource is created.
-	AppAuthConfigCreateEvent = "app_auth_config.create"
-	// AppAuthConfigUpdateEvent is emitted when an app auth config
-	// resource is updated.
-	AppAuthConfigUpdateEvent = "app_auth_config.update"
-	// AppAuthConfigDeleteEvent is emitted when an app auth config
-	// resource is deleted.
-	AppAuthConfigDeleteEvent = "app_auth_config.delete"
-	// AppAuthConfigVerifySuccessEvent is emitted when an app auth verification
-	// succeeds.
-	AppAuthConfigVerifySuccessEvent = "app_auth_config.verify.success"
-	// AppAuthConfigVerifyFailureEvent is emitted when an app auth verification
-	// fails.
-	AppAuthConfigVerifyFailureEvent = "app_auth_config.verify.failure"
-
 	// VnetConfigCreateEvent is emitted when a Vnet config resource is created.
 	VnetConfigCreateEvent = "vnet.config.create"
 	// VnetConfigUpdateEvent is emitted when a Vnet config resource is updated.
@@ -1040,19 +1020,6 @@ const (
 
 	// SessionSummarizedEvent is emitted when a session summary is created.
 	SessionSummarizedEvent = "session.summarized"
-
-	// CertAuthOverrideCreateEvent is the create event for cert_auth_override
-	// resources.
-	CertAuthOverrideCreateEvent = "cert_auth_override.create"
-	// CertAuthOverrideUpdateEvent is the update event for cert_auth_override
-	// resources.
-	CertAuthOverrideUpdateEvent = "cert_auth_override.update"
-	// CertAuthOverrideUpsertEvent is the upsert event for cert_auth_override
-	// resources.
-	CertAuthOverrideUpsertEvent = "cert_auth_override.upsert"
-	// CertAuthOverrideDeleteEvent is the delete event for cert_auth_override
-	// resources.
-	CertAuthOverrideDeleteEvent = "cert_auth_override.delete"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add
@@ -1295,8 +1262,6 @@ type SearchEventsRequest struct {
 	// If the previous response had LastKey set then this should be
 	// set to its value. Otherwise leave empty.
 	StartKey string
-	// Search is an optional search query to filter events.
-	Search string
 }
 
 type SearchSessionEventsRequest struct {
@@ -1353,16 +1318,6 @@ type AuditLogger interface {
 	// GetEventExportChunks returns a stream of event chunks that can be exported via ExportUnstructuredEvents. The returned
 	// list isn't ordered and polling for new chunks requires re-consuming the entire stream from the beginning.
 	GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk]
-
-	// SearchUnstructuredEvents is a flexible way to find events and returns them in an unstructured format (JSON like)
-	//
-	// Event types to filter can be specified and pagination is handled by an iterator key that allows
-	// a query to be resumed.
-	//
-	// The only mandatory requirement is a date range (UTC).
-	//
-	// This function may never return more than 1 MiB of event data.
-	SearchUnstructuredEvents(ctx context.Context, req SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error)
 }
 
 // EventFields instance is attached to every logged event

@@ -149,7 +149,29 @@ func (c ec2ClientRunning) DescribeInstances(ctx context.Context, params *ec2.Des
 }
 
 func TestJoinEC2(t *testing.T) {
-	t.Parallel()
+	ctx := context.Background()
+
+	testServer, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			Dir: t.TempDir(),
+		},
+	})
+	require.NoError(t, err)
+
+	// upsert a node to test duplicates
+	node := &types.ServerV2{
+		Kind:    types.KindNode,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name:      instance2.account + "-" + instance2.instanceID,
+			Namespace: defaults.Namespace,
+		},
+	}
+	_, err = testServer.Auth().UpsertNode(ctx, node)
+	require.NoError(t, err)
+
+	nopClient, err := testServer.NewClient(authtest.TestNop())
+	require.NoError(t, err)
 
 	isAccessDenied := func(t require.TestingT, err error, args ...any) {
 		if helper, ok := t.(interface{ Helper() }); ok {
@@ -158,7 +180,7 @@ func TestJoinEC2(t *testing.T) {
 		require.ErrorAs(t, err, new(*trace.AccessDeniedError), args...)
 	}
 
-	badInstanceID := instance1.account + "-i-99999999"
+	badInstanceId := instance1.account + "-i-99999999"
 
 	testCases := []struct {
 		desc          string
@@ -286,7 +308,7 @@ func TestJoinEC2(t *testing.T) {
 				},
 			},
 			ec2Client:     ec2ClientRunning{},
-			requestHostID: badInstanceID,
+			requestHostID: badInstanceId,
 			document:      instance1.iid,
 			expectError:   isAccessDenied,
 			clock:         clockwork.NewFakeClockAt(instance1.pendingTime),
@@ -448,30 +470,11 @@ func TestJoinEC2(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			t.Parallel()
-
-			testServer, err := authtest.NewTestServer(authtest.ServerConfig{
-				Auth: authtest.AuthServerConfig{
-					Dir:   t.TempDir(),
-					Clock: tc.clock,
-				},
-			})
-			require.NoError(t, err)
-
-			// upsert a node to test duplicates
-			node := &types.ServerV2{
-				Kind:    types.KindNode,
-				Version: types.V2,
-				Metadata: types.Metadata{
-					Name:      instance2.account + "-" + instance2.instanceID,
-					Namespace: defaults.Namespace,
-				},
+			clock := tc.clock
+			if clock == nil {
+				clock = clockwork.NewRealClock()
 			}
-			_, err = testServer.Auth().UpsertNode(t.Context(), node)
-			require.NoError(t, err)
-
-			nopClient, err := testServer.NewClient(authtest.TestNop())
-			require.NoError(t, err)
+			testServer.Auth().SetClock(clock)
 
 			token, err := types.NewProvisionTokenFromSpec(
 				"test_token",
@@ -479,7 +482,7 @@ func TestJoinEC2(t *testing.T) {
 				tc.tokenSpec)
 			require.NoError(t, err)
 
-			err = testServer.Auth().UpsertToken(t.Context(), token)
+			err = testServer.Auth().UpsertToken(context.Background(), token)
 			require.NoError(t, err)
 
 			scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(tc.tokenSpec, &joiningv1.ScopedToken{
@@ -508,7 +511,7 @@ func TestJoinEC2(t *testing.T) {
 			testServer.Auth().SetEC2ClientForEC2JoinMethod(tc.ec2Client)
 
 			t.Run("new", func(t *testing.T) {
-				if tc.requestHostID == badInstanceID {
+				if tc.requestHostID == badInstanceId {
 					// New join method does not allow the client so request a
 					// specific host ID, so the join would pass and fail the
 					// error assertion.
@@ -544,7 +547,7 @@ func TestJoinEC2(t *testing.T) {
 				tc.expectError(t, err)
 			})
 			t.Run("scoped", func(t *testing.T) {
-				if tc.requestHostID == badInstanceID {
+				if tc.requestHostID == badInstanceId {
 					// New join method does not allow the client to request a
 					// specific host ID, so the join would pass and fail the
 					// error assertion.
@@ -564,7 +567,7 @@ func TestJoinEC2(t *testing.T) {
 				tc.expectError(t, err)
 			})
 
-			err = testServer.Auth().DeleteToken(t.Context(), token.GetName())
+			err = testServer.Auth().DeleteToken(context.Background(), token.GetName())
 			require.NoError(t, err)
 		})
 	}
@@ -574,8 +577,7 @@ func TestJoinEC2(t *testing.T) {
 func TestHostUniqueCheck(t *testing.T) {
 	testServer, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			Dir:   t.TempDir(),
-			Clock: clockwork.NewFakeClockAt(instance1.pendingTime),
+			Dir: t.TempDir(),
 		},
 	})
 	require.NoError(t, err)
@@ -773,6 +775,7 @@ func TestHostUniqueCheck(t *testing.T) {
 	a.SetEC2ClientForEC2JoinMethod(ec2ClientRunning{})
 	nopClient, err := testServer.NewClient(authtest.TestNop())
 	require.NoError(t, err)
+	a.SetClock(clockwork.NewFakeClockAt(instance1.pendingTime))
 
 	for _, tc := range testCases {
 		t.Run(string(tc.role), func(t *testing.T) {

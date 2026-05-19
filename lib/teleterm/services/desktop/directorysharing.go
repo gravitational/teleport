@@ -20,7 +20,6 @@ import (
 	"errors"
 	"io"
 	"io/fs"
-	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -223,17 +222,13 @@ func (d *DirectoryAccess) Write(relativePath string, offset int64, data []byte) 
 }
 
 // Truncate truncates a file to the specified size.
-func (d *DirectoryAccess) Truncate(relativePath string, size uint64) error {
+func (d *DirectoryAccess) Truncate(relativePath string, size int64) error {
 	path, err := d.getSafePath(relativePath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if size > math.MaxInt64 {
-		size = math.MaxInt64
-	}
-
-	return trace.ConvertSystemError(os.Truncate(path, int64(size)))
+	return trace.ConvertSystemError(os.Truncate(path, size))
 }
 
 // Create creates a new file or directory at the given path.

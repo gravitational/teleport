@@ -37,7 +37,7 @@ import (
 // the local file system
 type RemoteFS struct {
 	*sftp.Client
-	session *tracessh.Session
+	session io.Closer
 }
 
 // NewRemoteFilesystem creates a new FileSystem over SFTP.
@@ -47,9 +47,7 @@ func NewRemoteFilesystem(c *sftp.Client) *RemoteFS {
 
 // OpenRemoteFilesystem opens a new remote file system on the given ssh client.
 func OpenRemoteFilesystem(ctx context.Context, sshClient *tracessh.Client, moderatedSessionID string) (fs *RemoteFS, openErr error) {
-	s, err := sshClient.NewSessionWithParams(ctx, &tracessh.SessionParams{
-		ModeratedSessionID: moderatedSessionID,
-	})
+	s, err := sshClient.NewSession(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -100,13 +98,6 @@ func OpenRemoteFilesystem(ctx context.Context, sshClient *tracessh.Client, moder
 		sftp.UseConcurrentWrites(true),
 	)
 	if err != nil {
-		// After the subsystem request succeeds, the sftp server subprocess may still
-		// fail to initialize, resulting in an EOF error here. Check the stderr from
-		// the subsystem for a more actionable error.
-		var sb strings.Builder
-		if n, _ := io.Copy(&sb, pe); n > 0 {
-			return nil, trace.Errorf("%s", sb.String())
-		}
 		return nil, trace.Wrap(err)
 	}
 	return &RemoteFS{
@@ -162,6 +153,5 @@ func (r *RemoteFS) Close() error {
 	if r.session != nil {
 		sessionErr = r.session.Close()
 	}
-
 	return trace.NewAggregate(sessionErr, r.Client.Close())
 }

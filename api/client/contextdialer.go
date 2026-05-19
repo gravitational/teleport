@@ -26,11 +26,12 @@ import (
 
 	"github.com/gravitational/trace"
 	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/observability/tracing"
-	"github.com/gravitational/teleport/api/ssh"
+	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 )
@@ -229,8 +230,8 @@ func NewDialer(ctx context.Context, keepAlivePeriod, dialTimeout time.Duration, 
 
 // NewProxyDialer makes a dialer to connect to an Auth server through the SSH reverse tunnel on the proxy.
 // The dialer will ping the web client to discover the tunnel proxy address on each dial.
-func NewProxyDialer(sshConfig ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Duration, discoveryAddr string, insecure bool, opts ...DialProxyOption) ContextDialer {
-	dialer := newTunnelDialer(sshConfig, keepAlivePeriod, dialTimeout, opts...)
+func NewProxyDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Duration, discoveryAddr string, insecure bool, opts ...DialProxyOption) ContextDialer {
+	dialer := newTunnelDialer(ssh, keepAlivePeriod, dialTimeout, opts...)
 	return ContextDialerFunc(func(ctx context.Context, network, _ string) (conn net.Conn, err error) {
 		resp, err := webclient.Find(&webclient.Config{Context: ctx, ProxyAddr: discoveryAddr, Insecure: insecure})
 		if err != nil {
@@ -261,7 +262,7 @@ func GRPCContextDialer(dialer ContextDialer) func(context.Context, string) (net.
 }
 
 // newTunnelDialer makes a dialer to connect to an Auth server through the SSH reverse tunnel on the proxy.
-func newTunnelDialer(sshConfig ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Duration, opts ...DialProxyOption) ContextDialer {
+func newTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Duration, opts ...DialProxyOption) ContextDialer {
 	dialer := newDirectDialer(keepAlivePeriod, dialTimeout)
 	return ContextDialerFunc(func(ctx context.Context, network, addr string) (conn net.Conn, err error) {
 		if proxyURL := utils.GetProxyURL(addr); proxyURL != nil {
@@ -274,7 +275,7 @@ func newTunnelDialer(sshConfig ssh.ClientConfig, keepAlivePeriod, dialTimeout ti
 			return nil, trace.Wrap(err)
 		}
 
-		sconn, err := sshConnect(ctx, conn, sshConfig, dialTimeout, addr)
+		sconn, err := sshConnect(ctx, conn, ssh, dialTimeout, addr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -284,7 +285,7 @@ func newTunnelDialer(sshConfig ssh.ClientConfig, keepAlivePeriod, dialTimeout ti
 
 // newTLSRoutingTunnelDialer makes a reverse tunnel TLS Routing dialer to connect to an Auth server
 // through the SSH reverse tunnel on the proxy.
-func newTLSRoutingTunnelDialer(sshConfig ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Duration, discoveryAddr string, insecure bool) ContextDialer {
+func newTLSRoutingTunnelDialer(ssh ssh.ClientConfig, keepAlivePeriod, dialTimeout time.Duration, discoveryAddr string, insecure bool) ContextDialer {
 	return ContextDialerFunc(func(ctx context.Context, network, addr string) (conn net.Conn, err error) {
 		resp, err := webclient.Find(&webclient.Config{Context: ctx, ProxyAddr: discoveryAddr, Insecure: insecure})
 		if err != nil {
@@ -323,7 +324,7 @@ func newTLSRoutingTunnelDialer(sshConfig ssh.ClientConfig, keepAlivePeriod, dial
 			return nil, trace.Wrap(err)
 		}
 
-		sconn, err := sshConnect(ctx, tlsConn, sshConfig, dialTimeout, tunnelAddr)
+		sconn, err := sshConnect(ctx, tlsConn, ssh, dialTimeout, tunnelAddr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -334,7 +335,7 @@ func newTLSRoutingTunnelDialer(sshConfig ssh.ClientConfig, keepAlivePeriod, dial
 
 // newTLSRoutingWithConnUpgradeDialer makes a reverse tunnel TLS Routing dialer
 // through the web proxy with ALPN connection upgrade.
-func newTLSRoutingWithConnUpgradeDialer(sshConfig ssh.ClientConfig, params connectParams) ContextDialer {
+func newTLSRoutingWithConnUpgradeDialer(ssh ssh.ClientConfig, params connectParams) ContextDialer {
 	return ContextDialerFunc(func(ctx context.Context, network, addr string) (net.Conn, error) {
 		insecure := params.cfg.InsecureAddressDiscovery
 		resp, err := webclient.Find(&webclient.Config{
@@ -371,7 +372,7 @@ func newTLSRoutingWithConnUpgradeDialer(sshConfig ssh.ClientConfig, params conne
 			return nil, trace.Wrap(err)
 		}
 
-		sconn, err := sshConnect(ctx, conn, sshConfig, params.cfg.DialTimeout, params.addr)
+		sconn, err := sshConnect(ctx, conn, ssh, params.cfg.DialTimeout, params.addr)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -380,9 +381,9 @@ func newTLSRoutingWithConnUpgradeDialer(sshConfig ssh.ClientConfig, params conne
 }
 
 // sshConnect upgrades the underling connection to ssh and connects to the Auth service.
-func sshConnect(ctx context.Context, conn net.Conn, sshConfig ssh.ClientConfig, dialTimeout time.Duration, addr string) (net.Conn, error) {
-	sshConfig.Timeout = dialTimeout
-	sconn, err := ssh.NewClient(ctx, conn, addr, sshConfig)
+func sshConnect(ctx context.Context, conn net.Conn, ssh ssh.ClientConfig, dialTimeout time.Duration, addr string) (net.Conn, error) {
+	ssh.Timeout = dialTimeout
+	sconn, err := tracessh.NewClientWithTimeout(ctx, conn, addr, &ssh)
 	if err != nil {
 		return nil, trace.NewAggregate(err, conn.Close())
 	}

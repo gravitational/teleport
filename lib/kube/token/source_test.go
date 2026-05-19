@@ -58,7 +58,6 @@ func TestGetIDToken(t *testing.T) {
 		name        string
 		getEnv      getEnvFunc
 		readFile    readFileFunc
-		customPath  string
 		wantString  string
 		assertError require.ErrorAssertionFunc
 	}{
@@ -80,7 +79,7 @@ func TestGetIDToken(t *testing.T) {
 			name:     "no-token-no-var",
 			getEnv:   fakeGetEnv(""),
 			readFile: fakeReadFile("foobarbizz", "/custom"),
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, kubernetesDefaultTokenPath+": no such file")
 			},
 		},
@@ -88,23 +87,15 @@ func TestGetIDToken(t *testing.T) {
 			name:     "no-token-with-var",
 			getEnv:   fakeGetEnv("/custom"),
 			readFile: fakeReadFile("foobarbizz", kubernetesDefaultTokenPath),
-			assertError: func(t require.TestingT, err error, i ...any) {
+			assertError: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "/custom: no such file")
 			},
-		},
-		{
-			name:        "custom-token-via-path",
-			getEnv:      nil, // should not be called
-			readFile:    fakeReadFile("foobarbizz", "/custom"),
-			customPath:  "/custom",
-			wantString:  "foobarbizz",
-			assertError: require.NoError,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(t.Name(), func(t *testing.T) {
-			str, err := GetIDToken(tt.customPath, tt.getEnv, tt.readFile)
+			str, err := GetIDToken(tt.getEnv, tt.readFile)
 			require.Equal(t, tt.wantString, str)
 			tt.assertError(t, err)
 		})

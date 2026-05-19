@@ -62,8 +62,8 @@ func (s *Server) startKubeWatchers() error {
 				return utils.FromSlice(kubeResources, types.KubeCluster.GetName)
 			},
 			CompareResources: func(kc1, kc2 types.KubeCluster) int {
-				if !kc1.IsEqual(kc2) {
-					return services.Different
+				if res := services.CompareResources(kc1, kc2); res != services.Equal {
+					return res
 				}
 				// Additionally compare Status field using its IsEqual method.
 				// This is needed because CompareResources ignores Status field of KubeCluster and for most

@@ -97,8 +97,6 @@ var eventsMap = map[string]apievents.AuditEvent{
 	AppSessionChunkEvent:                           &apievents.AppSessionChunk{},
 	AppSessionRequestEvent:                         &apievents.AppSessionRequest{},
 	AppSessionDynamoDBRequestEvent:                 &apievents.AppSessionDynamoDBRequest{},
-	AppSessionLLMRequestSuccessEvent:               &apievents.AppSessionLLMRequest{},
-	AppSessionLLMRequestFailureEvent:               &apievents.AppSessionLLMRequest{},
 	AppCreateEvent:                                 &apievents.AppCreate{},
 	AppUpdateEvent:                                 &apievents.AppUpdate{},
 	AppDeleteEvent:                                 &apievents.AppDelete{},
@@ -298,10 +296,6 @@ var eventsMap = map[string]apievents.AuditEvent{
 	SCIMUpdateEvent:                               &apievents.SCIMResourceEvent{},
 	SCIMDeleteEvent:                               &apievents.SCIMResourceEvent{},
 	SCIMPatchEvent:                                &apievents.SCIMResourceEvent{},
-	CertAuthOverrideCreateEvent:                   &apievents.CertAuthorityOverrideEvent{},
-	CertAuthOverrideUpdateEvent:                   &apievents.CertAuthorityOverrideEvent{},
-	CertAuthOverrideUpsertEvent:                   &apievents.CertAuthorityOverrideEvent{},
-	CertAuthOverrideDeleteEvent:                   &apievents.CertAuthorityOverrideEvent{},
 }
 
 // TestJSON tests JSON marshal events
@@ -309,7 +303,7 @@ func TestJSON(t *testing.T) {
 	type testCase struct {
 		name  string
 		json  string
-		event any
+		event interface{}
 	}
 	testCases := []testCase{
 		{
@@ -421,7 +415,7 @@ func TestJSON(t *testing.T) {
 		},
 		{
 			name: "session command event",
-			json: `{"argv":["/usr/bin/lesspipe"],"login":"alice","path":"/usr/bin/dirname","return_code":0,"time":"2020-03-30T15:58:54.65Z","user":"alice@example.com","code":"T4000I","event":"session.command","pid":31638,"server_id":"a7c54b0c-469c-431e-af4d-418cd3ae9694","server_hostname":"ip-172-31-11-148","uid":"4f725f11-e87a-452f-96ec-ef93e9e6a260","cgroup_id":4294971450,"audit_session_id":9001,"ppid":31637,"program":"dirname","namespace":"default","sid":"5b3555dc-729f-11ea-b66a-507b9dd95841","cluster_name":"test","ei":4}`,
+			json: `{"argv":["/usr/bin/lesspipe"],"login":"alice","path":"/usr/bin/dirname","return_code":0,"time":"2020-03-30T15:58:54.65Z","user":"alice@example.com","code":"T4000I","event":"session.command","pid":31638,"server_id":"a7c54b0c-469c-431e-af4d-418cd3ae9694","server_hostname":"ip-172-31-11-148","uid":"4f725f11-e87a-452f-96ec-ef93e9e6a260","cgroup_id":4294971450,"ppid":31637,"program":"dirname","namespace":"default","sid":"5b3555dc-729f-11ea-b66a-507b9dd95841","cluster_name":"test","ei":4}`,
 			event: apievents.SessionCommand{
 				Metadata: apievents.Metadata{
 					Index:       4,
@@ -444,10 +438,9 @@ func TestJSON(t *testing.T) {
 					Login: "alice",
 				},
 				BPFMetadata: apievents.BPFMetadata{
-					CgroupID:       4294971450,
-					AuditSessionID: 9001,
-					Program:        "dirname",
-					PID:            31638,
+					CgroupID: 4294971450,
+					Program:  "dirname",
+					PID:      31638,
 				},
 				PPID:       31637,
 				ReturnCode: 0,
@@ -457,7 +450,7 @@ func TestJSON(t *testing.T) {
 		},
 		{
 			name: "session network event",
-			json: `{"dst_port":443,"cgroup_id":4294976805,"audit_session_id":9001,"dst_addr":"2607:f8b0:400a:801::200e","program":"curl","sid":"e9a4bd34-78ff-11ea-b062-507b9dd95841","src_addr":"2601:602:8700:4470:a3:813c:1d8c:30b9","login":"alice","pid":17604,"uid":"729498e0-c28b-438f-baa7-663a74418449","user":"alice@example.com","event":"session.network","namespace":"default","time":"2020-04-07T18:45:16.602Z","version":6,"ei":0,"code":"T4002I","server_id":"00b54ef5-ae1e-425f-8565-c71b01d8f7b8","server_hostname":"ip-172-31-11-148","cluster_name":"example","operation":0,"action":1}`,
+			json: `{"dst_port":443,"cgroup_id":4294976805,"dst_addr":"2607:f8b0:400a:801::200e","program":"curl","sid":"e9a4bd34-78ff-11ea-b062-507b9dd95841","src_addr":"2601:602:8700:4470:a3:813c:1d8c:30b9","login":"alice","pid":17604,"uid":"729498e0-c28b-438f-baa7-663a74418449","user":"alice@example.com","event":"session.network","namespace":"default","time":"2020-04-07T18:45:16.602Z","version":6,"ei":0,"code":"T4002I","server_id":"00b54ef5-ae1e-425f-8565-c71b01d8f7b8","server_hostname":"ip-172-31-11-148","cluster_name":"example","operation":0,"action":1}`,
 			event: apievents.SessionNetwork{
 				Metadata: apievents.Metadata{
 					Index:       0,
@@ -480,10 +473,9 @@ func TestJSON(t *testing.T) {
 					Login: "alice",
 				},
 				BPFMetadata: apievents.BPFMetadata{
-					CgroupID:       4294976805,
-					AuditSessionID: 9001,
-					Program:        "curl",
-					PID:            17604,
+					CgroupID: 4294976805,
+					Program:  "curl",
+					PID:      17604,
 				},
 				DstPort:    443,
 				DstAddr:    "2607:f8b0:400a:801::200e",
@@ -495,7 +487,7 @@ func TestJSON(t *testing.T) {
 		},
 		{
 			name: "session disk event",
-			json: `{"time":"2020-04-07T19:56:38.545Z","login":"bob","pid":31521,"sid":"ddddce15-7909-11ea-b062-507b9dd95841","user":"bob@example.com","ei":175,"code":"T4001I","flags":142606336,"namespace":"default","uid":"ab8467af-6d85-46ce-bb5c-bdfba8acad3f","cgroup_id":4294976835,"audit_session_id":9001,"program":"clear_console","server_id":"00b54ef5-ae1e-425f-8565-c71b01d8f7b8","server_hostname":"ip-172-31-11-148","event":"session.disk","path":"/etc/ld.so.cache","return_code":3,"cluster_name":"example2"}`,
+			json: `{"time":"2020-04-07T19:56:38.545Z","login":"bob","pid":31521,"sid":"ddddce15-7909-11ea-b062-507b9dd95841","user":"bob@example.com","ei":175,"code":"T4001I","flags":142606336,"namespace":"default","uid":"ab8467af-6d85-46ce-bb5c-bdfba8acad3f","cgroup_id":4294976835,"program":"clear_console","server_id":"00b54ef5-ae1e-425f-8565-c71b01d8f7b8","server_hostname":"ip-172-31-11-148","event":"session.disk","path":"/etc/ld.so.cache","return_code":3,"cluster_name":"example2"}`,
 			event: apievents.SessionDisk{
 				Metadata: apievents.Metadata{
 					Index:       175,
@@ -518,10 +510,9 @@ func TestJSON(t *testing.T) {
 					Login: "bob",
 				},
 				BPFMetadata: apievents.BPFMetadata{
-					CgroupID:       4294976835,
-					AuditSessionID: 9001,
-					Program:        "clear_console",
-					PID:            31521,
+					CgroupID: 4294976835,
+					Program:  "clear_console",
+					PID:      31521,
 				},
 				Flags:      142606336,
 				Path:       "/etc/ld.so.cache",
@@ -545,20 +536,20 @@ func TestJSON(t *testing.T) {
 				UserMetadata: apievents.UserMetadata{
 					User: "bob@example.com",
 				},
-				IdentityAttributes: apievents.MustEncodeMap(map[string]any{
+				IdentityAttributes: apievents.MustEncodeMap(map[string]interface{}{
 					"followers_url": "https://api.github.com/users/bob/followers",
 					"err":           nil,
 					"public_repos":  20,
 					"site_admin":    false,
-					"app_metadata":  map[string]any{"roles": []any{"example/admins", "example/devc"}},
-					"emails": []any{
-						map[string]any{
+					"app_metadata":  map[string]interface{}{"roles": []interface{}{"example/admins", "example/devc"}},
+					"emails": []interface{}{
+						map[string]interface{}{
 							"email":      "bob@example.com",
 							"primary":    true,
 							"verified":   true,
 							"visibility": "public",
 						},
-						map[string]any{
+						map[string]interface{}{
 							"email":      "bob@alternative.com",
 							"primary":    false,
 							"verified":   true,
@@ -1190,6 +1181,7 @@ func TestJSON(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1252,6 +1244,7 @@ func TestEventCodesInWebTypes(t *testing.T) {
 		"TCB00W":      true, // RenewableCertificateGenerationMismatchCode
 		"TSPIFFE001I": true, // SPIFFEFederationCreateCode
 		"TSPIFFE002I": true, // SPIFFEFederationDeleteCode
+		"TCAGC003I":   true, // AccessGraphSettingsUpdateCode
 		"WID004I":     true, // WorkloadIdentityX509RevocationCreateCode
 		"WID005I":     true, // WorkloadIdentityX509RevocationUpdateCode
 		"WID006I":     true, // WorkloadIdentityX509RevocationDeleteCode
@@ -1338,7 +1331,7 @@ func setProtoFields(msg proto.Message) {
 
 	fields := m.Descriptor().Fields()
 
-	for i := range fields.Len() {
+	for i := 0; i < fields.Len(); i++ {
 		fd := fields.Get(i)
 		if m.Has(fd) {
 			continue
@@ -1693,6 +1686,7 @@ func TestInferenceEvents(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+
 			require.Equal(t, tt.eventType, tt.event.GetType())
 			require.Equal(t, tt.eventCode, tt.event.GetCode())
 			require.Equal(t, "test-cluster", tt.event.GetClusterName())

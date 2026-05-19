@@ -45,7 +45,7 @@ export function IntegrationEnroll() {
         {getRoutesToEnrollIntegrations()}
         <Route
           path={cfg.routes.integrationEnroll}
-          element={<IntegrationPicker />}
+          component={IntegrationPicker}
         />
       </Switch>
     </FeatureBox>

@@ -23,9 +23,9 @@ import (
 	"log/slog"
 	"maps"
 	"slices"
-	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
@@ -71,8 +71,6 @@ type ServiceConfig struct {
 	Cache Cache
 	// Emitter is the event emitter.
 	Emitter apievents.Emitter
-	// Modules defines build time constraints and licensed features.
-	Modules modules.Modules
 }
 
 // Backend interface for manipulating AutoUpdate resources.
@@ -88,7 +86,7 @@ type Service struct {
 	backend    services.AutoUpdateService
 	emitter    apievents.Emitter
 	cache      Cache
-	modules    modules.Modules
+	clock      clockwork.Clock
 }
 
 // NewService returns a new AutoUpdate API service using the given storage layer and authorizer.
@@ -102,15 +100,13 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("cache is required")
 	case cfg.Emitter == nil:
 		return nil, trace.BadParameter("Emitter is required")
-	case cfg.Modules == nil:
-		return nil, trace.BadParameter("Modules is required")
 	}
 	return &Service{
 		authorizer: cfg.Authorizer,
 		backend:    cfg.Backend,
 		cache:      cfg.Cache,
 		emitter:    cfg.Emitter,
-		modules:    cfg.Modules,
+		clock:      clockwork.NewRealClock(),
 	}, nil
 }
 
@@ -148,7 +144,7 @@ func (s *Service) CreateAutoUpdateConfig(ctx context.Context, req *autoupdate.Cr
 		return nil, trace.Wrap(err)
 	}
 
-	if err := validateServerSideAgentConfig(req.Config, s.modules.Features()); err != nil {
+	if err := validateServerSideAgentConfig(req.Config); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -192,7 +188,7 @@ func (s *Service) UpdateAutoUpdateConfig(ctx context.Context, req *autoupdate.Up
 		return nil, trace.Wrap(err)
 	}
 
-	if err := validateServerSideAgentConfig(req.Config, s.modules.Features()); err != nil {
+	if err := validateServerSideAgentConfig(req.Config); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -236,7 +232,7 @@ func (s *Service) UpsertAutoUpdateConfig(ctx context.Context, req *autoupdate.Up
 		return nil, trace.Wrap(err)
 	}
 
-	if err := validateServerSideAgentConfig(req.Config, s.modules.Features()); err != nil {
+	if err := validateServerSideAgentConfig(req.Config); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -272,9 +268,8 @@ func UpsertAutoUpdateConfig(
 	ctx context.Context,
 	backend Backend,
 	config *autoupdate.AutoUpdateConfig,
-	features modules.Features,
 ) (*autoupdate.AutoUpdateConfig, error) {
-	if err := validateServerSideAgentConfig(config, features); err != nil {
+	if err := validateServerSideAgentConfig(config); err != nil {
 		return nil, trace.Wrap(err, "validating config")
 	}
 	out, err := backend.UpsertAutoUpdateConfig(ctx, config)
@@ -347,7 +342,7 @@ func (s *Service) CreateAutoUpdateVersion(ctx context.Context, req *autoupdate.C
 		return nil, trace.Wrap(err)
 	}
 
-	if err := checkAdminCloudAccess(authCtx, s.modules.Features().Cloud); err != nil {
+	if err := checkAdminCloudAccess(authCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -392,7 +387,7 @@ func (s *Service) UpdateAutoUpdateVersion(ctx context.Context, req *autoupdate.U
 		return nil, trace.Wrap(err)
 	}
 
-	if err := checkAdminCloudAccess(authCtx, s.modules.Features().Cloud); err != nil {
+	if err := checkAdminCloudAccess(authCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -437,7 +432,7 @@ func (s *Service) UpsertAutoUpdateVersion(ctx context.Context, req *autoupdate.U
 		return nil, trace.Wrap(err)
 	}
 
-	if err := checkAdminCloudAccess(authCtx, s.modules.Features().Cloud); err != nil {
+	if err := checkAdminCloudAccess(authCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -494,7 +489,7 @@ func (s *Service) DeleteAutoUpdateVersion(ctx context.Context, req *autoupdate.D
 		return nil, trace.Wrap(err)
 	}
 
-	if err := checkAdminCloudAccess(authCtx, s.modules.Features().Cloud); err != nil {
+	if err := checkAdminCloudAccess(authCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -737,7 +732,7 @@ func (s *Service) TriggerAutoUpdateAgentGroup(ctx context.Context, req *autoupda
 			return nil, trace.Wrap(err, "getting reports")
 		}
 
-		err = rollout.TriggerGroups(existingRollout, reports, rollout.GroupListToGroupSet(req.Groups), req.DesiredState, time.Now())
+		err = rollout.TriggerGroups(existingRollout, reports, rollout.GroupListToGroupSet(req.Groups), req.DesiredState, s.clock.Now())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -799,7 +794,7 @@ func (s *Service) ForceAutoUpdateAgentGroup(ctx context.Context, req *autoupdate
 			return nil, trace.Wrap(err)
 		}
 
-		err = rollout.ForceGroupsDone(existingRollout, rollout.GroupListToGroupSet(req.Groups), time.Now())
+		err = rollout.ForceGroupsDone(existingRollout, rollout.GroupListToGroupSet(req.Groups), s.clock.Now())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -877,7 +872,7 @@ func (s *Service) RollbackAutoUpdateAgentGroup(ctx context.Context, req *autoupd
 			return nil, trace.AlreadyExists("no groups to rollback")
 		}
 
-		err = rollout.RollbackGroups(existingRollout, groups, time.Now())
+		err = rollout.RollbackGroups(existingRollout, groups, s.clock.Now())
 
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1121,8 +1116,8 @@ func (s *Service) emitEvent(ctx context.Context, e apievents.AuditEvent) {
 }
 
 // checkAdminCloudAccess validates if the given context has the builtin admin role if cloud feature is enabled.
-func checkAdminCloudAccess(authCtx *authz.Context, cloud bool) error {
-	if cloud && !authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin)) {
+func checkAdminCloudAccess(authCtx *authz.Context) error {
+	if modules.GetModules().Features().Cloud && !authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin)) {
 		return trace.AccessDenied("This Teleport instance is running on Teleport Cloud. "+
 			"The %q resource is managed by the Teleport Cloud team. You can use the %q resource to opt-in, "+
 			"opt-out or configure update schedules.",
@@ -1151,7 +1146,7 @@ var (
 //
 // This function should not be confused with api/types/autoupdate.ValidateAutoUpdateConfig which validates the integrity
 // of the resource and does not enforce potentially changing rules.
-func validateServerSideAgentConfig(config *autoupdate.AutoUpdateConfig, features modules.Features) error {
+func validateServerSideAgentConfig(config *autoupdate.AutoUpdateConfig) error {
 	agentsSpec := config.GetSpec().GetAgents()
 	if agentsSpec == nil {
 		return nil
@@ -1163,7 +1158,8 @@ func validateServerSideAgentConfig(config *autoupdate.AutoUpdateConfig, features
 		return trace.Wrap(err, "validating autoupdate config")
 	}
 
-	isLimitedCloud := features.Cloud && !features.Entitlements[entitlements.UnrestrictedManagedUpdates].Enabled
+	isLimitedCloud := modules.GetModules().Features().Cloud &&
+		!modules.GetModules().Features().Entitlements[entitlements.UnrestrictedManagedUpdates].Enabled
 
 	var maxGroups int
 	switch {

@@ -265,7 +265,7 @@ func CreateSession(ctx context.Context, req CreateSessionRequest) (*CreateSessio
 	// List of signed headers
 	canonicalReqStrBuilder.WriteString(signedHeaders + "\n")
 	// Body hash encoded as hex
-	fmt.Fprintf(&canonicalReqStrBuilder, "%x", canonicalRequestBodyHash)
+	canonicalReqStrBuilder.WriteString(fmt.Sprintf("%x", canonicalRequestBodyHash))
 
 	// Task 1-8
 	canonicalRequestStr := canonicalReqStrBuilder.String()

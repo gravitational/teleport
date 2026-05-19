@@ -72,7 +72,6 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -206,7 +205,7 @@ func (m *mockEC2Client) DescribeInstances(ctx context.Context, input *ec2.Descri
 
 func genEC2InstanceIDs(n int) []string {
 	var ec2InstanceIDs []string
-	for i := range n {
+	for i := 0; i < n; i++ {
 		ec2InstanceIDs = append(ec2InstanceIDs, fmt.Sprintf("instance-id-%d", i))
 	}
 	return ec2InstanceIDs
@@ -1033,6 +1032,7 @@ func (f *fakeAccessPointWithWatcher) createDiscoveryConfig(discoveryConfig *disc
 		Resource: discoveryConfig,
 	}
 }
+
 func (f *fakeAccessPointWithWatcher) closeDiscoveryConfigWatcher() error {
 	f.discoveryConfigMu.Lock()
 	defer f.discoveryConfigMu.Unlock()
@@ -1152,16 +1152,7 @@ func TestDiscoveryServer_dynamicMatcherRestart(t *testing.T) {
 }
 
 func TestDiscoveryServerConcurrency(t *testing.T) {
-	// Most Server installations flows rely on installing teleport in the target server, which then joins the cluster.
-	// Even if multiple installations happen, only one agent will run at the same time in the target server.
-	// So, there's effectively no concurrency issue.
-	//
-	// EICE flow is different, because servers are created in the cluster directly.
-	// If two different discovery servers discover the same EC2 instance, they will both try to create
-	// the same EICE Node in the cluster, causing a conflict.
-	//
-	// After removing the EICE feature, this test must be removed as well.
-	t.Setenv(constants.UnstableEnableEICEEnvVar, "true")
+	t.Parallel()
 	logger := logtest.NewLogger()
 
 	defaultDiscoveryGroup := "dg01"
@@ -1411,6 +1402,7 @@ func TestDiscoveryKubeServices(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -1474,7 +1466,9 @@ func TestDiscoveryKubeServices(t *testing.T) {
 				a1 := types.Apps(existingApps)
 				a2 := types.Apps(tt.expectedAppsToExistInAuth)
 				for k := range a1 {
-					require.True(t, a1[k].IsEqual(a2[k]))
+					if !assert.Equal(t, services.Equal, services.CompareResources(a1[k], a2[k])) {
+						return
+					}
 				}
 			})
 		})
@@ -1895,7 +1889,9 @@ func TestDiscoveryInCloudKube(t *testing.T) {
 				c1 := types.KubeClusters(tc.expectedClustersToExistInAuth).ToMap()
 				c2 := types.KubeClusters(kubeClusters).ToMap()
 				for k := range c1 {
-					require.True(t, c1[k].IsEqual(c2[k]), "expected no differences")
+					if services.CompareResources(c1[k], c2[k]) != services.Equal {
+						require.Equal(t, c1[k], c2[k], "expected no differences")
+					}
 				}
 			case <-time.After(10 * time.Second):
 				require.FailNow(t, "Didn't receive reconcile event after 10s")
@@ -1932,7 +1928,7 @@ func TestDiscoveryServer_New(t *testing.T) {
 
 			cloudClients: &mockFetchersClients{},
 			matchers:     Matchers{},
-			errAssertion: func(t require.TestingT, err error, i ...any) {
+			errAssertion: func(t require.TestingT, err error, i ...interface{}) {
 				require.ErrorIs(t, err, &trace.BadParameterError{Message: "no matchers or discovery group configured for discovery"})
 			},
 			discServerAssertion: require.Nil,
@@ -1956,7 +1952,7 @@ func TestDiscoveryServer_New(t *testing.T) {
 				},
 			},
 			errAssertion: require.NoError,
-			discServerAssertion: func(t require.TestingT, i any, i2 ...any) {
+			discServerAssertion: func(t require.TestingT, i interface{}, i2 ...interface{}) {
 				require.NotNil(t, i)
 				val, ok := i.(*Server)
 				require.True(t, ok)
@@ -1997,7 +1993,8 @@ func TestDiscoveryServer_New(t *testing.T) {
 
 	for _, tt := range testCases {
 		t.Run(tt.desc, func(t *testing.T) {
-			ctx := t.Context()
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
 
 			discServer, err := New(
 				ctx,
@@ -3449,6 +3446,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -3794,6 +3792,7 @@ func TestGCPVMDiscovery(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 

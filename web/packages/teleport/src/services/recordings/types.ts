@@ -86,9 +86,6 @@ export interface SessionRecordingThumbnail {
   cursorVisible: boolean;
   startOffset: number;
   endOffset: number;
-  png?: string;
-  screenWidth?: number;
-  screenHeight?: number;
 }
 
 export interface SessionRecordingMetadata {

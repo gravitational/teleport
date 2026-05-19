@@ -119,9 +119,6 @@ type AuthServerConfig struct {
 	FIPS bool
 	// KeystoreConfig is configuration for the CA keystore.
 	KeystoreConfig servicecfg.KeystoreConfig
-	InsecureMode   bool
-	// Modules defines build time constraints and licensed features.
-	Modules modules.Modules
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -147,12 +144,6 @@ func (cfg *AuthServerConfig) CheckAndSetDefaults() error {
 	if cfg.UploadHandler == nil {
 		cfg.UploadHandler = eventstest.NewMemoryUploader()
 	}
-
-	if cfg.Modules == nil {
-		// TODO(tross) return an error after all callers are updated
-		cfg.Modules = modules.GetModules()
-	}
-
 	return nil
 }
 
@@ -171,11 +162,7 @@ type ServerConfig struct {
 	TLS *TLSServerConfig
 }
 
-// NewTestServer creates a new test server configuration and exposes
-// the Auth Service on a random local address. It is the callers
-// responsibility close the server when it is no longer needed.
-//
-// Prefer NewAuthServer if Auth Service RPCs are never invoked.
+// NewTestServer creates a new test server configuration
 func NewTestServer(cfg ServerConfig) (*Server, error) {
 	authServer, err := NewAuthServer(cfg.Auth)
 	if err != nil {
@@ -249,6 +236,14 @@ func (a *Server) Shutdown(ctx context.Context) error {
 	)
 }
 
+// WithClock is a functional server option that sets the server's clock
+func WithClock(clock clockwork.Clock) auth.ServerOption {
+	return func(s *auth.Server) error {
+		s.SetClock(clock)
+		return nil
+	}
+}
+
 // WithBcryptCost is a functional server option that sets the server's bcrypt cost.
 func WithBcryptCost(cost int) auth.ServerOption {
 	return func(s *auth.Server) error {
@@ -289,11 +284,8 @@ const (
 	FakeRecoveryCodeHash = `$2a$04$04QoQDbwYTwSIppmJLQQkebbFrMS9V02ttus3rHi2cwujcnDHKbL6`
 )
 
-// NewAuthServer returns a new test auth server. It is the callers
-// responsibility close the server when it is no longer needed.
-//
-// Prefer using this over NewTestTLSServer if Auth Service RPCs are
-// never invoked.
+// NewAuthServer returns a new test auth server.
+// The caller should close the server when it is no longer needed.
 func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 	ctx := context.Background()
 
@@ -346,7 +338,8 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 
 	accessLists, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
 		Backend: srv.Backend,
-		Modules: cfg.Modules,
+		// TODO(tross): replace with cfg.Modules
+		Modules: modules.GetModules(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -360,7 +353,8 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	authority, err := authority.NewKeygen(cfg.Modules.BuildType(), cfg.Clock.Now)
+	// TODO(tross): replace with cfg.Modules.BuildType
+	authority, err := authority.NewKeygen(modules.GetModules().BuildType(), cfg.Clock.Now)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -368,7 +362,6 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 	srv.AuthServer, err = auth.NewServer(&auth.InitConfig{
 		DataDir:                      cfg.Dir,
 		Backend:                      srv.Backend,
-		Modules:                      cfg.Modules,
 		VersionStorage:               NewFakeTeleportVersion(),
 		Authority:                    authority,
 		Access:                       access,
@@ -390,8 +383,8 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 		AWSOrganizationsClientGetter: cfg.AWSOrganizationsClientGetter,
 		FakePasswordHash:             []byte(FakePasswordHash),
 		FakeRecoveryCodeHash:         []byte(FakeRecoveryCodeHash),
-		InsecureMode:                 cfg.InsecureMode,
 	},
+		WithClock(cfg.Clock),
 		// Reduce auth.Server bcrypt costs when testing.
 		WithBcryptCost(bcrypt.MinCost),
 	)
@@ -599,12 +592,11 @@ func InitAuthCache(p AuthCacheParams) error {
 		EventsSystem: true,
 		Unstarted:    p.Unstarted,
 
-		Access:                  p.AuthServer.Services.AccessInternal,
+		Access:                  p.AuthServer.Services.Access,
 		AccessLists:             p.AuthServer.Services.AccessListsInternal,
 		AccessMonitoringRules:   p.AuthServer.Services.AccessMonitoringRules,
-		AppSession:              p.AuthServer.Services.IdentityInternal,
-		Applications:            p.AuthServer.Services.ApplicationsInternal,
-		Beams:                   p.AuthServer.Services.Beams,
+		AppSession:              p.AuthServer.Services.Identity,
+		Apps:                    p.AuthServer.Services.Applications,
 		ClusterConfig:           p.AuthServer.Services.ClusterConfigurationInternal,
 		CrownJewels:             p.AuthServer.Services.CrownJewels,
 		DatabaseObjects:         p.AuthServer.Services.DatabaseObjects,
@@ -620,23 +612,22 @@ func InitAuthCache(p AuthCacheParams) error {
 		Notifications:           p.AuthServer.Services.Notifications,
 		Okta:                    p.AuthServer.Services.Okta,
 		Presence:                p.AuthServer.Services.PresenceInternal,
-		Provisioner:             p.AuthServer.Services.ProvisionerInternal,
+		Provisioner:             p.AuthServer.Services.Provisioner,
 		Restrictions:            p.AuthServer.Services.Restrictions,
 		SAMLIdPServiceProviders: p.AuthServer.Services.SAMLIdPServiceProviders,
 		SecReports:              p.AuthServer.Services.SecReports,
-		SnowflakeSession:        p.AuthServer.Services.IdentityInternal,
+		SnowflakeSession:        p.AuthServer.Services.Identity,
 		SPIFFEFederations:       p.AuthServer.Services.SPIFFEFederations,
 		StaticHostUsers:         p.AuthServer.Services.StaticHostUser,
 		Trust:                   p.AuthServer.Services.TrustInternal,
 		UserGroups:              p.AuthServer.Services.UserGroups,
 		UserTasks:               p.AuthServer.Services.UserTasks,
 		UserLoginStates:         p.AuthServer.Services.UserLoginStates,
-		Users:                   p.AuthServer.Services.IdentityInternal,
-		WebSession:              p.AuthServer.Services.IdentityInternal.WebSessions(),
-		WebToken:                p.AuthServer.Services.IdentityInternal,
+		Users:                   p.AuthServer.Services.Identity,
+		WebSession:              p.AuthServer.Services.Identity.WebSessions(),
+		WebToken:                p.AuthServer.Services.Identity,
 		WorkloadIdentity:        p.AuthServer.Services.WorkloadIdentities,
 		DynamicWindowsDesktops:  p.AuthServer.Services.DynamicWindowsDesktops,
-		LinuxDesktops:           p.AuthServer.Services.LinuxDesktops,
 		WindowsDesktops:         p.AuthServer.Services.WindowsDesktops,
 		AutoUpdateService:       p.AuthServer.Services.AutoUpdateService,
 		ProvisioningStates:      p.AuthServer.Services.ProvisioningStates,
@@ -645,12 +636,10 @@ func InitAuthCache(p AuthCacheParams) error {
 		GitServers:              p.AuthServer.Services.GitServers,
 		HealthCheckConfig:       p.AuthServer.Services.HealthCheckConfig,
 		BotInstance:             p.AuthServer.Services.BotInstance,
-		RecordingEncryption:     p.AuthServer.Services.RecordingEncryptionManager,
 		Plugin:                  p.AuthServer.Services.Plugins,
-		AppAuthConfig:           p.AuthServer.Services.AppAuthConfig,
+		RecordingEncryption:     p.AuthServer.Services.RecordingEncryptionManager,
 		StaticScopedToken:       p.AuthServer.Services.ClusterConfigurationInternal,
 		Summarizer:              p.AuthServer.Services.Summarizer,
-		SubCAService:            p.AuthServer.Services.SubCAService,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -777,7 +766,6 @@ func generateCertificate(authServer *auth.Server, identity TestIdentity) ([]byte
 				PublicSSHKey: sshPublicKeyPEM,
 				SystemRoles:  id.AdditionalSystemRoles,
 			},
-			AgentScope: id.Identity.AgentScope,
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -881,8 +869,7 @@ func (a *AuthServer) Trust(ctx context.Context, remote *AuthServer, roleMap type
 	return nil
 }
 
-// NewTestTLSServer creates a test TLS server configured to use
-// this AuthServer.
+// NewTestTLSServer returns new test TLS server
 func (a *AuthServer) NewTestTLSServer(opts ...TestTLSServerOption) (*TLSServer, error) {
 	apiConfig := &auth.APIConfig{
 		AuthServer:       a.AuthServer,
@@ -1028,10 +1015,7 @@ func (cfg *TLSServerConfig) CheckAndSetDefaults() error {
 }
 
 // NewTestTLSServer returns new test TLS server that is started and is listening
-// on 127.0.0.1 loopback on any available port. It is the callers responsibility
-// close the server when it is no longer needed.
-//
-// Prefer using authtest.AuthServer directly if Auth Service RPCs are never used.
+// on 127.0.0.1 loopback on any available port
 func NewTestTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	err := cfg.CheckAndSetDefaults()
 	if err != nil {
@@ -1449,10 +1433,11 @@ func (t *TLSServer) Close() error {
 		errs = append(errs, err)
 	}
 
-	if err := t.AuthServer.Close(); err != nil {
-		errs = append(errs, err)
+	if t.AuthServer.Backend != nil {
+		if err := t.AuthServer.Backend.Close(); err != nil {
+			errs = append(errs, err)
+		}
 	}
-
 	return trace.NewAggregate(errs...)
 }
 
@@ -1462,15 +1447,14 @@ func (t *TLSServer) Shutdown(ctx context.Context) error {
 	if err := t.TLSServer.Shutdown(ctx); err != nil {
 		errs = append(errs, err)
 	}
-
 	if t.Mux != nil {
 		t.Mux.Close()
 	}
-
-	if err := t.AuthServer.Close(); err != nil {
-		errs = append(errs, err)
+	if t.AuthServer.Backend != nil {
+		if err := t.AuthServer.Backend.Close(); err != nil {
+			errs = append(errs, err)
+		}
 	}
-
 	return trace.NewAggregate(errs...)
 }
 
@@ -1692,7 +1676,7 @@ func WithRoleMutator(mutate ...func(role types.Role)) CreateUserAndRoleOption {
 	}
 }
 
-// CreateUserAndRole creates user and role and assigns role to a user, used in tests.
+// CreateUserAndRole creates user and role and assigns role to a user, used in tests
 // If allowRules is nil, the role has admin privileges.
 // If allowRules is not-nil, then the rules associated with the role will be
 // replaced with those specified.

@@ -25,7 +25,7 @@ import {
   useState,
   type RefObject,
 } from 'react';
-import { Link } from 'react-router';
+import { Link } from 'react-router-dom';
 import styled, { keyframes } from 'styled-components';
 import { useEventListener } from 'usehooks-ts';
 

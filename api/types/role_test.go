@@ -139,13 +139,6 @@ func TestAccessReviewConditionsIsEmpty(t *testing.T) {
 			},
 			expected: false,
 		},
-		{
-			name: "submit_for_users",
-			arc: AccessReviewConditions{
-				SubmitForUsers: []string{"test"},
-			},
-			expected: false,
-		},
 	}
 
 	for _, test := range tests {
@@ -1424,32 +1417,4 @@ func TestRoleGitHubPermissions(t *testing.T) {
 	require.Equal(t, LabelMatchers{Labels: Labels{
 		GitHubOrgLabel: []string{"jedi", "night-watch"},
 	}}, denyMatchers)
-}
-
-func TestRoleBeamLabelMatchers(t *testing.T) {
-	role, err := NewRole("beam-role", RoleSpecV6{
-		Allow: RoleConditions{
-			BeamLabels:           Labels{"env": []string{"prod"}},
-			BeamLabelsExpression: `labels["env"] == "prod"`,
-		},
-		Deny: RoleConditions{
-			BeamLabels:           Labels{"owner": []string{"alice"}},
-			BeamLabelsExpression: `labels["owner"] == "alice"`,
-		},
-	})
-	require.NoError(t, err)
-
-	allowMatchers, err := role.GetLabelMatchers(Allow, KindBeam)
-	require.NoError(t, err)
-	require.Equal(t, LabelMatchers{
-		Labels:     Labels{"env": []string{"prod"}},
-		Expression: `labels["env"] == "prod"`,
-	}, allowMatchers)
-
-	denyMatchers, err := role.GetLabelMatchers(Deny, KindBeam)
-	require.NoError(t, err)
-	require.Equal(t, LabelMatchers{
-		Labels:     Labels{"owner": []string{"alice"}},
-		Expression: `labels["owner"] == "alice"`,
-	}, denyMatchers)
 }

@@ -60,7 +60,6 @@ func (c *Client) GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, 
 }
 
 // ListAccessLists returns a paginated list of access lists.
-// Deprecated: Use [Client.ListAccessListsV2] instead.
 // TODO (avatus): DELETE IN 21.0.0
 func (c *Client) ListAccessLists(ctx context.Context, pageSize int, nextToken string) ([]*accesslist.AccessList, string, error) {
 	//nolint:staticcheck // SA1019. ListAccessLists is deprecated but will

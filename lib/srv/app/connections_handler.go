@@ -44,12 +44,12 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	appaws "github.com/gravitational/teleport/lib/srv/app/aws"
@@ -117,14 +117,8 @@ type ConnectionsHandlerConfig struct {
 	// Logger is the slog.Logger.
 	Logger *slog.Logger
 
-	// LimiterConfig is the configuration for connection and rate limits.
-	LimiterConfig limiter.Config
-
 	// MCPDemoServer enables the "Teleport Demo" MCP server.
 	MCPDemoServer bool
-
-	// InsecureMode defines whether insecure connections are allowed.
-	InsecureMode bool
 }
 
 // CheckAndSetDefaults validates the config values and sets defaults.
@@ -188,7 +182,6 @@ type ConnectionsHandler struct {
 	tlsConfig  *tls.Config
 	tcpServer  *tcpServer
 	mcpServer  *mcp.Server
-	limiter    *limiter.Limiter
 
 	// cache holds sessionChunk objects for in-flight app sessions.
 	cache *utils.FnCache
@@ -206,7 +199,7 @@ type ConnectionsHandler struct {
 	gcpHandler   http.Handler
 
 	// authMiddleware allows wrapping connections with identity information.
-	authMiddleware *authz.Middleware
+	authMiddleware *auth.Middleware
 
 	proxyPort string
 
@@ -270,14 +263,9 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clustername, err := c.cfg.AccessPoint.GetClusterName(closeContext)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	go c.expireSessions()
 
-	// Create limiter for connection and rate limiting. Applied to all
-	// app protocols (HTTP, TCP, MCP) in handleConnection.
-	c.limiter, err = limiter.NewLimiter(cfg.LimiterConfig)
+	clustername, err := c.cfg.AccessPoint.GetClusterName(closeContext)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -301,7 +289,6 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		EnableDemoServer: c.cfg.MCPDemoServer,
 		CipherSuites:     c.cfg.CipherSuites,
 		AuthClient:       c.cfg.AuthClient,
-		InsecureMode:     c.cfg.InsecureMode,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -313,8 +300,6 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 
 	// Figure out the port the proxy is running on.
 	c.proxyPort = c.getProxyPort(c.closeContext)
-
-	go c.expireSessions()
 
 	return c, nil
 }
@@ -348,12 +333,12 @@ func (c *ConnectionsHandler) HandleConnection(conn net.Conn) {
 	// connection closes. The second cancel call is a no-op.
 	defer cancel(nil)
 
-	// Wrap conn to detect when it is closed.
+	// Wrap conn in a CloserConn to detect when it is closed.
 	// Returning early will close conn before it has been serviced.
 	// httpServer will initiate the close call.
-	waitConn := utils.NewWaitConn(conn)
+	closerConn := utils.NewCloserConn(conn)
 
-	cleanup, err := c.handleConnection(ctx, cancel, waitConn)
+	cleanup, err := c.handleConnection(ctx, cancel, closerConn)
 	// Make sure that the cleanup function is run
 	if cleanup != nil {
 		defer cleanup()
@@ -370,10 +355,11 @@ func (c *ConnectionsHandler) HandleConnection(conn net.Conn) {
 	}
 
 	// Wait for the connection to close. TCP and MCP handlers block until
-	// done, so waitConn is already closed by the time we get here. The HTTP
-	// handler returns immediately after handing the conn to http.Server, so
-	// this is where we block until the HTTP server closes it.
-	waitConn.Wait()
+	// done, so closerConn is already closed by the time we get here. The
+	// HTTP handler returns immediately after handing the conn to
+	// http.Server, so this is where we block until the HTTP server
+	// closes it.
+	closerConn.Wait()
 }
 
 // serveSession finds the app session and forwards the request.
@@ -476,10 +462,6 @@ func (c *ConnectionsHandler) serveHTTP(w http.ResponseWriter, r *http.Request) e
 
 	case app.IsGCP():
 		return c.serveSession(w, r, &identity, app, c.withGCPHandler)
-
-	// TODO(gabrielcorado): implement inference endpoint handler.
-	case app.IsLLM():
-		return trace.NotImplemented("LLM access is not implemented")
 
 	default:
 		return c.serveSession(w, r, &identity, app, c.withJWTTokenForwarder)
@@ -622,23 +604,6 @@ func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel contex
 		return nil, trace.Wrap(err)
 	}
 
-	// Apply connection and rate limiting to all app protocols
-	// (HTTP, TCP, MCP) before any protocol-specific handling.
-	// Skip limiting when the client IP cannot be extracted (e.g.
-	// net.Pipe connections used by integration app proxying).
-	var release func()
-	if clientIP, err := utils.ClientIPFromConn(conn); err == nil {
-		release, err = c.limiter.RegisterRequestAndConnection(clientIP)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-	defer func() {
-		if release != nil {
-			release()
-		}
-	}()
-
 	// Proxy sends a X.509 client certificate to pass identity information,
 	// extract it and run authorization checks on it.
 	tlsConn, user, app, err := c.getConnectionInfo(c.closeContext, tc)
@@ -658,9 +623,6 @@ func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel contex
 	// 3. If the application is an HTTP application, store the error and let the HTTP handler
 	//    serve the error directly so that it's properly converted to an HTTP status code.
 	//    This will ensure users will get a 403 when authorization fails.
-	//
-	// Note: LLM doesn't require a special handling. It must work like other
-	// HTTP applications.
 	if err != nil {
 		switch {
 		case app.IsTCP():
@@ -686,7 +648,7 @@ func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel contex
 	// (nil, err) and the caller has nothing to clean up. The HTTP handler is
 	// asynchronous: handleHTTPApp hands the conn to http.Server.Serve and
 	// returns immediately, so it returns a cleanup function and the caller
-	// blocks on waitConn.Wait() until the HTTP server closes the conn.
+	// blocks on closerConn.Wait() until the HTTP server closes the conn.
 	switch {
 	case app.IsTCP():
 		identity := authCtx.Identity.GetIdentity()
@@ -701,14 +663,7 @@ func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel contex
 		return nil, trace.Wrap(c.mcpServer.HandleSession(ctx, &sessionCtx))
 
 	default:
-		// Transfer release ownership to the cleanup function so
-		// the deferred release above becomes a no-op.
-		releaseConn := release
-		release = nil
 		cleanup := func() {
-			if releaseConn != nil {
-				releaseConn()
-			}
 			c.deleteConnAuth(tlsConn)
 		}
 		return cleanup, trace.Wrap(c.handleHTTPApp(ctx, tlsConn))
@@ -747,11 +702,11 @@ func (c *ConnectionsHandler) newHTTPServer(clusterName string) *http.Server {
 	// Reuse the auth.Middleware to authorize requests but only accept
 	// certificates that were specifically generated for applications.
 
-	c.authMiddleware = &authz.Middleware{
+	c.authMiddleware = &auth.Middleware{
 		ClusterName:   clusterName,
 		AcceptedUsage: []string{teleport.UsageAppsOnly},
-		Handler:       c,
 	}
+	c.authMiddleware.Wrap(c)
 
 	return &http.Server{
 		// Note: read/write timeouts *should not* be set here because it will
@@ -853,7 +808,7 @@ func (c *ConnectionsHandler) getConnectionInfo(ctx context.Context, conn net.Con
 		return nil, nil, nil, trace.Wrap(err, "TLS handshake failed")
 	}
 
-	user, err := c.authMiddleware.GetUser(ctx, tlsConn.ConnectionState())
+	user, err := c.authMiddleware.GetUser(tlsConn.ConnectionState())
 	if err != nil {
 		return nil, nil, nil, trace.Wrap(err)
 	}

@@ -17,7 +17,8 @@
  */
 
 import { useEffect } from 'react';
-import { Link as InternalLink, useParams } from 'react-router';
+import { useParams } from 'react-router';
+import { Link as InternalLink } from 'react-router-dom';
 
 import { Box, ButtonPrimary, Indicator } from 'design';
 import { Danger } from 'design/Alert';
@@ -88,8 +89,10 @@ export function Agents() {
         emptyButton={
           <ButtonPrimary
             as={InternalLink}
-            to={cfg.routes.discover}
-            state={{ searchKeywords: resourceKind }}
+            to={{
+              pathname: cfg.routes.discover,
+              state: { searchKeywords: resourceKind },
+            }}
           >
             Add Enrollment Rule
           </ButtonPrimary>

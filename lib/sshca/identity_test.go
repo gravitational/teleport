@@ -94,16 +94,15 @@ func TestIdentityConversion(t *testing.T) {
 				},
 			},
 		}},
-		ConnectionDiagnosticID:   "diag",
-		PrivateKeyPolicy:         keys.PrivateKeyPolicy("policy"),
-		DeviceID:                 "device",
-		DeviceAssetTag:           "asset",
-		DeviceCredentialID:       "cred",
-		GitHubUserID:             "github",
-		GitHubUsername:           "ghuser",
-		HeadlessAuthenticationID: "headless-auth-id",
-		DelegationSessionID:      "delegation-session-id",
-		AgentScope:               "/foo",
+		ConnectionDiagnosticID: "diag",
+		PrivateKeyPolicy:       keys.PrivateKeyPolicy("policy"),
+		DeviceID:               "device",
+		DeviceAssetTag:         "asset",
+		DeviceCredentialID:     "cred",
+		GitHubUserID:           "github",
+		GitHubUsername:         "ghuser",
+		DelegationSessionID:    "delegation-session-id",
+		AgentScope:             "/foo",
 		ImmutableLabelHash: joining.HashImmutableLabels(&joiningv1.ImmutableLabels{
 			Ssh: map[string]string{
 				"one": "1",
@@ -129,6 +128,14 @@ func TestIdentityConversion(t *testing.T) {
 		"PinnedAssignments.XXX_NoUnkeyedLiteral",
 		"PinnedAssignments.XXX_unrecognized",
 		"PinnedAssignments.XXX_sizecache",
+		"AssignmentNode.XXX_NoUnkeyedLiteral",
+		"AssignmentNode.XXX_unrecognized",
+		"AssignmentNode.XXX_sizecache",
+		"AssignmentNode.Children", // has to be empty in leaf nodes because of how trees work
+		"RoleNode.XXX_NoUnkeyedLiteral",
+		"RoleNode.XXX_unrecognized",
+		"RoleNode.XXX_sizecache",
+		"RoleNode.Children", // has to be empty in leaf nodes because of how trees work
 		"ResourceAccessID.XXX_NoUnkeyedLiteral",
 		"ResourceAccessID.XXX_unrecognized",
 		"ResourceAccessID.XXX_sizecache",
@@ -139,14 +146,6 @@ func TestIdentityConversion(t *testing.T) {
 		"AWSConsoleResourceConstraints.XXX_unrecognized",
 		"AWSConsoleResourceConstraints.XXX_sizecache",
 		"Identity.AllowedResourceIDs", // at decode, allowedResourceIDs are converted to ResourceAccessIDs and stored in Identity.AllowedResourceAccessIDs
-		"AssignmentNode.XXX_NoUnkeyedLiteral",
-		"AssignmentNode.XXX_unrecognized",
-		"AssignmentNode.XXX_sizecache",
-		"AssignmentNode.Children", // has to be empty in leaf nodes because of how trees work
-		"RoleNode.XXX_NoUnkeyedLiteral",
-		"RoleNode.XXX_unrecognized",
-		"RoleNode.XXX_sizecache",
-		"RoleNode.Children", // has to be empty in leaf nodes because of how trees work
 	}
 
 	require.True(t, testutils.ExhaustiveNonEmpty(ident, ignores...), "empty=%+v", testutils.FindAllEmpty(ident, ignores...))

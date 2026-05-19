@@ -425,7 +425,7 @@ func TestUploadBackoff(t *testing.T) {
 	attempts := 5
 	var prev time.Time
 	var diffs []time.Duration
-	for i := range attempts {
+	for i := 0; i < attempts; i++ {
 		// wait for the upload event
 		var event events.UploadEvent
 		select {
@@ -473,11 +473,9 @@ func TestUploadBackoff(t *testing.T) {
 func TestUploadCorruptSession(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		ctx := t.Context()
-
 		p := newUploaderPack(ctx, t, uploaderPackConfig{
 			clock: clockwork.NewRealClock(),
 		})
-
 		sessionID := session.NewID()
 		fileName := filepath.Join(p.scanDir, string(sessionID)+tarExt)
 
@@ -504,6 +502,7 @@ func TestUploadCorruptSession(t *testing.T) {
 		// make sure the file has been moved from the scan dir to the corrupted dir
 		require.NoFileExists(t, fileName)
 		require.FileExists(t, filepath.Join(p.uploader.cfg.CorruptedDir, string(sessionID)+tarExt))
+
 	})
 }
 
@@ -829,6 +828,7 @@ func TestUploadEncryptedRecordingSizes(t *testing.T) {
 func TestUploadCorruptEncryptedRecording(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		ctx := t.Context()
+
 		var corruptSessionID string
 		var failedSessionID string
 		wrapUploaderFn := func(uploader events.EncryptedRecordingUploader) events.EncryptedRecordingUploader {
@@ -851,7 +851,6 @@ func TestUploadCorruptEncryptedRecording(t *testing.T) {
 		sessionCount := concurrentUploads * 3
 
 		p := newUploaderPack(ctx, t, uploaderPackConfig{
-			// clock:                              clockwork.NewRealClock(),
 			minimumFileUploadBytes:             64,
 			encrypter:                          &fakeEncryptedIO{},
 			encryptedRecordingUploadTargetSize: 128,
@@ -1188,7 +1187,7 @@ func runResume(t *testing.T, testCase resumeTestCase) {
 		t.Fatalf("Timeout waiting for async upload, try `go test -v` to get more logs for details")
 	}
 
-	for i := range testCase.retries {
+	for i := 0; i < testCase.retries; i++ {
 		if testCase.onRetry != nil {
 			testCase.onRetry(t, i, uploader)
 		}
@@ -1235,6 +1234,12 @@ func emitStream(ctx context.Context, t *testing.T, streamer events.Streamer, inE
 	}
 	err = stream.Complete(ctx)
 	require.NoError(t, err)
+}
+
+type encryptedUploaderFn func(ctx context.Context, sessionID string, parts iter.Seq2[[]byte, error]) error
+
+func (e encryptedUploaderFn) UploadEncryptedRecording(ctx context.Context, sessionID string, parts iter.Seq2[[]byte, error]) error {
+	return e(ctx, sessionID, parts)
 }
 
 // readStream reads and decodes the audit stream from uploadID
@@ -1291,10 +1296,4 @@ func (f *fakeEncryptedIO) WithEncryption(ctx context.Context, writer io.WriteClo
 
 func (f *fakeEncryptedIO) WithDecryption(ctx context.Context, reader io.Reader) (io.Reader, error) {
 	return hex.NewDecoder(reader), f.err
-}
-
-type encryptedUploaderFn func(ctx context.Context, sessionID string, parts iter.Seq2[[]byte, error]) error
-
-func (e encryptedUploaderFn) UploadEncryptedRecording(ctx context.Context, sessionID string, parts iter.Seq2[[]byte, error]) error {
-	return e(ctx, sessionID, parts)
 }

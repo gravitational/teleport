@@ -205,8 +205,7 @@ export interface UserActivityRecord {
      */
     spiffeIdsIssued: SPIFFEIDRecord[];
     /**
-     * Indicates origin of this user account. Only
-     * recorded for the user login event.
+     * Indicates origin of user account.
      *
      * @generated from protobuf field: prehog.v1.UserOrigin user_origin = 19;
      */
@@ -224,15 +223,13 @@ export interface UserActivityRecord {
      */
     accessRequestsReviewed: bigint;
     /**
-     * counter of Access Lists reviewed by this user.
+     * counter of Access List review.
      *
      * @generated from protobuf field: uint64 access_lists_reviewed = 22;
      */
     accessListsReviewed: bigint;
     /**
-     * counter of roles or traits granted to this user based on
-     * the Access List membership. The event is emitted during
-     * user login state calculation.
+     * counter of roles or traits grant event based on Access List membership.
      *
      * @generated from protobuf field: uint64 access_lists_grants = 23;
      */
@@ -268,12 +265,6 @@ export interface UserActivityRecord {
      * @generated from protobuf field: uint64 session_summary_search_queries_with_filters = 28;
      */
     sessionSummarySearchQueriesWithFilters: bigint;
-    /**
-     * counter of linux.desktop.session.start events
-     *
-     * @generated from protobuf field: uint64 linux_desktop_sessions = 29;
-     */
-    linuxDesktopSessions: bigint;
 }
 /**
  * @generated from protobuf message prehog.v1.ResourcePresenceReport
@@ -756,7 +747,7 @@ export enum UserKind {
 /**
  * UserOrigin is the origin of a user account.
  * Keep the values in sync with UserOrigin enum defined in
- * Teleport OSS repository.
+ * API events and prehogv1alpha.
  *
  * @generated from protobuf enum prehog.v1.UserOrigin
  */
@@ -969,8 +960,7 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
             { no: 25, name: "session_summaries_accessed", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => SessionSummariesAccessedRecord },
             { no: 26, name: "access_graph_queries", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
             { no: 27, name: "session_summary_search_queries", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
-            { no: 28, name: "session_summary_search_queries_with_filters", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ },
-            { no: 29, name: "linux_desktop_sessions", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
+            { no: 28, name: "session_summary_search_queries_with_filters", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
         ]);
     }
     create(value?: PartialMessage<UserActivityRecord>): UserActivityRecord {
@@ -1003,7 +993,6 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
         message.accessGraphQueries = 0n;
         message.sessionSummarySearchQueries = 0n;
         message.sessionSummarySearchQueriesWithFilters = 0n;
-        message.linuxDesktopSessions = 0n;
         if (value !== undefined)
             reflectionMergePartial<UserActivityRecord>(this, message, value);
         return message;
@@ -1096,9 +1085,6 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
                     break;
                 case /* uint64 session_summary_search_queries_with_filters */ 28:
                     message.sessionSummarySearchQueriesWithFilters = reader.uint64().toBigInt();
-                    break;
-                case /* uint64 linux_desktop_sessions */ 29:
-                    message.linuxDesktopSessions = reader.uint64().toBigInt();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1196,9 +1182,6 @@ class UserActivityRecord$Type extends MessageType<UserActivityRecord> {
         /* uint64 session_summary_search_queries_with_filters = 28; */
         if (message.sessionSummarySearchQueriesWithFilters !== 0n)
             writer.tag(28, WireType.Varint).uint64(message.sessionSummarySearchQueriesWithFilters);
-        /* uint64 linux_desktop_sessions = 29; */
-        if (message.linuxDesktopSessions !== 0n)
-            writer.tag(29, WireType.Varint).uint64(message.linuxDesktopSessions);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

@@ -40,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/itertools/stream"
-	scopecache "github.com/gravitational/teleport/lib/scopes/cache"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 	"github.com/gravitational/teleport/lib/utils"
@@ -229,21 +228,6 @@ func (s *PresenceService) DeleteNode(ctx context.Context, namespace string, name
 	return s.Delete(ctx, key)
 }
 
-// AppendDeleteNodeActions adds conditional actions to an atomic write to
-// delete a node resource.
-func (s *PresenceService) AppendDeleteNodeActions(
-	actions []backend.ConditionalAction,
-	namespace string,
-	name string,
-	condition backend.Condition,
-) ([]backend.ConditionalAction, error) {
-	return append(actions, backend.ConditionalAction{
-		Key:       backend.NewKey(nodesPrefix, namespace, name),
-		Condition: condition,
-		Action:    backend.Delete(),
-	}), nil
-}
-
 // GetNode returns a node by name and namespace.
 func (s *PresenceService) GetNode(ctx context.Context, namespace, name string) (types.Server, error) {
 	if namespace == "" {
@@ -322,32 +306,6 @@ func (s *PresenceService) UpsertNode(ctx context.Context, server types.Server) (
 		Type: types.KeepAlive_NODE,
 		Name: server.GetName(),
 	}, nil
-}
-
-// AppendPutNodeActions adds conditional actions to an atomic write to create
-// or update a node resource.
-func (s *PresenceService) AppendPutNodeActions(
-	actions []backend.ConditionalAction,
-	server types.Server,
-	condition backend.Condition,
-) ([]backend.ConditionalAction, error) {
-	if server.GetNamespace() == "" {
-		server.SetNamespace(apidefaults.Namespace)
-	}
-	if err := types.ValidateNamespaceDefault(server.GetNamespace()); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	item, err := itemFromNode(server)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return append(actions, backend.ConditionalAction{
-		Key:       item.Key,
-		Condition: condition,
-		Action:    backend.Put(*item),
-	}), nil
 }
 
 func itemFromNode(server types.Server) (*backend.Item, error) {
@@ -481,6 +439,12 @@ func (s *PresenceService) ListProxyServers(ctx context.Context, pageSize int, pa
 	return generic.CollectPageAndCursor(s.rangeProxyServers(ctx, pageToken, ""), pageSize, serverToPaginationKey)
 }
 
+// DeleteAllProxies deletes all proxies
+func (s *PresenceService) DeleteAllProxies() error {
+	startKey := backend.ExactKey(proxiesPrefix)
+	return s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
+}
+
 // DeleteProxy deletes proxy
 func (s *PresenceService) DeleteProxy(ctx context.Context, name string) error {
 	key := backend.NewKey(proxiesPrefix, name)
@@ -608,7 +572,7 @@ func (s *PresenceService) AcquireSemaphore(ctx context.Context, req types.Acquir
 	key := backend.NewKey(semaphoresPrefix, req.SemaphoreKind, req.SemaphoreName)
 
 Acquire:
-	for i := range leaseRetryAttempts {
+	for i := int64(0); i < leaseRetryAttempts; i++ {
 		if i > 0 {
 			// Not our first attempt, apply backoff. If we knew that we were only in
 			// contention with one other acquire attempt we could retry immediately
@@ -785,7 +749,7 @@ func (s *PresenceService) CancelSemaphoreLease(ctx context.Context, lease types.
 		return trace.BadParameter("the lease %v has expired at %v", lease.LeaseID, lease.Expires)
 	}
 
-	for i := range leaseRetryAttempts {
+	for i := int64(0); i < leaseRetryAttempts; i++ {
 		if i > 0 {
 			// Not our first attempt, apply backoff. If we knew that we were only in
 			// contention with one other cancel attempt we could retry immediately
@@ -1194,42 +1158,6 @@ func (s *PresenceService) UpsertApplicationServer(ctx context.Context, server ty
 	}, nil
 }
 
-// UnconditionalUpdateApplicationServer implements [services.PresenceInternal].
-func (s *PresenceService) UnconditionalUpdateApplicationServer(ctx context.Context, server types.AppServer) (types.AppServer, error) {
-	if err := services.CheckAndSetDefaults(server); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := types.ValidateNamespaceDefault(server.GetNamespace()); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	value, err := services.MarshalAppServer(server)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Since an app server represents a single proxied application, there may
-	// be multiple database servers on a single host, so they are stored under
-	// the following path in the backend:
-	//   /appServers/<namespace>/<host-uuid>/<name>
-	lease, err := s.Update(ctx, backend.Item{
-		Key: backend.NewKey(appServersPrefix,
-			server.GetNamespace(),
-			server.GetHostID(),
-			server.GetName(),
-		),
-		Value:    value,
-		Expires:  server.Expiry(),
-		Revision: server.GetRevision(),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	server.SetRevision(lease.Revision)
-	return server, nil
-}
-
 // DeleteApplicationServer removes specified application server.
 func (s *PresenceService) DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error {
 	key := backend.NewKey(appServersPrefix, namespace, hostID, name)
@@ -1555,27 +1483,6 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 	return &resp, nil
 }
 
-func getFakePaginationKey(ki backend.KeyedItem) string {
-	// TODO(eriktate/scopes): this will need to be reassessed when we implement scoped namespacing
-	if kubeCluster, ok := ki.(types.KubeCluster); ok {
-		if scope := kubeCluster.GetScope(); scope != "" {
-			// It should not be possible for EncodeStringToCursor to fail given that we've already
-			// confirmed the scope is non-empty and "@" is not a valid character for kube cluster
-			// names. However, in the case that it does fail for some reason, we fall back to
-			// backend.GetPaginationKey() since it will still work perfectly fine in lieu of
-			// duplicates cluster names across scope boundaries.
-			if key, err := scopecache.EncodeStringCursor(scopecache.Cursor[string]{
-				Key:   kubeCluster.GetName(),
-				Scope: scope,
-			}); err == nil {
-				return key
-			}
-		}
-	}
-
-	return backend.GetPaginationKey(ki)
-}
-
 // listResourcesWithSort supports sorting by falling back to retrieving all resources
 // with GetXXXs, filter, and then fake pagination.
 func (s *PresenceService) listResourcesWithSort(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
@@ -1797,7 +1704,7 @@ func FakePaginate(resources []types.ResourceWithLabels, req FakePaginateParams) 
 	// Trim resources that precede start key.
 	if req.StartKey != "" {
 		for i, resource := range filtered {
-			if getFakePaginationKey(resource) == req.StartKey {
+			if backend.GetPaginationKey(resource) == req.StartKey {
 				pageStart = i
 				break
 			}
@@ -1809,7 +1716,7 @@ func FakePaginate(resources []types.ResourceWithLabels, req FakePaginateParams) 
 	if pageEnd >= len(filtered) {
 		pageEnd = len(filtered)
 	} else {
-		nextKey = getFakePaginationKey(filtered[pageEnd])
+		nextKey = backend.GetPaginationKey(filtered[pageEnd])
 	}
 
 	return &types.ListResourcesResponse{

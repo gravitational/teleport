@@ -24,9 +24,9 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"text/template"
 	"time"
 
-	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
@@ -44,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
-	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
 
 // NodeCommand implements `tctl nodes` group of commands
@@ -248,18 +247,18 @@ func (c *NodeCommand) ListActive(ctx context.Context, clt *authclient.Client) er
 		return trace.Wrap(err)
 	}
 
-	coll := resources.NewServerCollection(nodes)
+	coll := &serverCollection{servers: nodes}
 	switch c.lsFormat {
 	case teleport.Text:
-		if err := coll.WriteText(os.Stdout, c.verbose); err != nil {
+		if err := coll.writeText(os.Stdout, c.verbose); err != nil {
 			return trace.Wrap(err)
 		}
 	case teleport.YAML:
-		if err := coll.WriteYAML(os.Stdout); err != nil {
+		if err := coll.writeYAML(os.Stdout); err != nil {
 			return trace.Wrap(err)
 		}
 	case teleport.JSON:
-		if err := coll.WriteJSON(os.Stdout); err != nil {
+		if err := coll.writeJSON(os.Stdout); err != nil {
 			return trace.Wrap(err)
 		}
 	default:

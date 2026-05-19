@@ -26,7 +26,7 @@ import {
   useMemo,
   useState,
 } from 'react';
-import { matchPath, useLocation } from 'react-router';
+import { matchPath, useHistory } from 'react-router';
 import styled from 'styled-components';
 
 import { Box, Flex, Indicator } from 'design';
@@ -70,7 +70,7 @@ export interface MainProps {
 
 export function Main(props: MainProps) {
   const ctx = useTeleport();
-  const location = useLocation();
+  const history = useHistory();
 
   const { attempt, setAttempt, run } = useAttempt('processing');
 
@@ -96,12 +96,14 @@ export function Main(props: MainProps) {
 
   useEffect(() => {
     if (
-      ctx.redirectUrl &&
-      matchPath({ path: ctx.redirectUrl, end: true }, location.pathname)
+      matchPath(history.location.pathname, {
+        path: ctx.redirectUrl,
+        exact: true,
+      })
     ) {
       ctx.redirectUrl = null;
     }
-  }, [ctx, location.pathname]);
+  }, [ctx, history.location.pathname]);
 
   if (attempt.status === 'failed') {
     return <Failed message={attempt.statusText} />;
@@ -116,7 +118,9 @@ export function Main(props: MainProps) {
   }
 
   // redirect to the default feature when hitting the root /web URL
-  if (matchPath(cfg.routes.root, location.pathname)) {
+  if (
+    matchPath(history.location.pathname, { path: cfg.routes.root, exact: true })
+  ) {
     if (ctx.redirectUrl) {
       return <Redirect to={ctx.redirectUrl} />;
     }

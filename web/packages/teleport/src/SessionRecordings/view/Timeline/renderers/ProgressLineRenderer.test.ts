@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import 'jest-canvas-mock';
 import { darkTheme } from 'design/theme';
 
 import { SessionRecordingMetadata } from 'teleport/services/recordings';

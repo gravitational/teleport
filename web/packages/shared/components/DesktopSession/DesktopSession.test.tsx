@@ -30,6 +30,8 @@ import {
   SharedDirectoryAccess,
   TdpClient,
 } from 'shared/libs/tdp';
+import 'jest-canvas-mock';
+
 import { TdpTransport } from 'shared/libs/tdp/client';
 
 import { DesktopSessionWithSharing } from './DesktopSessionWithSharing';

@@ -24,11 +24,12 @@ import (
 
 	vnet "github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/jonboulle/clockwork"
 
 	schemav1 "github.com/gravitational/teleport/integrations/terraform/tfschema/vnet/v1"
 )
@@ -103,24 +104,14 @@ func (r resourceTeleportVnetConfig) Create(ctx context.Context, req tfsdk.Create
 	// - the ones who can deleted and return a trace.NotFoundErr
 	// - the ones who cannot be deleted, only reset. In this case, the resource revision is used to know if the change got applied.
 	tries := 0
-	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-		Driver: retryutils.NewExponentialDriver(r.p.RetryConfig.Base),
-		First:  r.p.RetryConfig.Base,
-		Max:    r.p.RetryConfig.Cap,
-		Jitter: retryutils.HalfJitter,
-	})
-	if err != nil {
-		return
-	}
+	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
 		tries = tries + 1
 		vnetConfigI, err = r.p.Client.VnetConfigClient().GetVnetConfig(ctx)
 		if trace.IsNotFound(err) {
-		    select {
-			case <-ctx.Done():
-			    resp.Diagnostics.Append(diagFromWrappedErr("Error reading VnetConfig", trace.Wrap(ctx.Err()), "vnet_config"))
+			if bErr := backoff.Do(ctx); bErr != nil {
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading VnetConfig", trace.Wrap(err), "vnet_config"))
 				return
-			case <-retry.After():
 			}
 			if tries >= r.p.RetryConfig.MaxTries {
 				diagMessage := fmt.Sprintf("Error reading VnetConfig (tried %d times) - state outdated, please import resource", tries)
@@ -139,11 +130,9 @@ func (r resourceTeleportVnetConfig) Create(ctx context.Context, req tfsdk.Create
 		if previousMetadata.GetRevision() != currentMetadata.GetRevision() || false {
 			break
 		}
-		select {
-		case <-ctx.Done():
-		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading VnetConfig", trace.Wrap(ctx.Err()), "vnet_config"))
+		if bErr := backoff.Do(ctx); bErr != nil {
+			resp.Diagnostics.Append(diagFromWrappedErr("Error reading VnetConfig", trace.Wrap(bErr), "vnet_config"))
 			return
-		case <-retry.After():
 		}
 		if tries >= r.p.RetryConfig.MaxTries {
 			diagMessage := fmt.Sprintf("Error reading VnetConfig (tried %d times) - state outdated, please import resource", tries)
@@ -249,15 +238,7 @@ func (r resourceTeleportVnetConfig) Update(ctx context.Context, req tfsdk.Update
 	var vnetConfigI *vnet.VnetConfig
 
 	tries := 0
-	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-		Driver: retryutils.NewExponentialDriver(r.p.RetryConfig.Base),
-		First:  r.p.RetryConfig.Base,
-		Max:    r.p.RetryConfig.Cap,
-		Jitter: retryutils.HalfJitter,
-	})
-	if err != nil {
-		return
-	}
+	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
 		tries = tries + 1
 		vnetConfigI, err = r.p.Client.VnetConfigClient().GetVnetConfig(ctx)
@@ -268,11 +249,9 @@ func (r resourceTeleportVnetConfig) Update(ctx context.Context, req tfsdk.Update
 		if vnetConfigBefore.GetMetadata().Revision != vnetConfigI.GetMetadata().Revision || false {
 			break
 		}
-		select {
-		case <-ctx.Done():
-		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading VnetConfig", trace.Wrap(ctx.Err()), "vnet_config"))
+		if bErr := backoff.Do(ctx); bErr != nil {
+			resp.Diagnostics.Append(diagFromWrappedErr("Error reading VnetConfig", trace.Wrap(bErr), "vnet_config"))
 			return
-		case <-retry.After():
 		}
 		if tries >= r.p.RetryConfig.MaxTries {
 			diagMessage := fmt.Sprintf("Error reading VnetConfig (tried %d times) - state outdated, please import resource", tries)

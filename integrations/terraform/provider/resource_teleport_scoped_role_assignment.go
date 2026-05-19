@@ -25,12 +25,13 @@ import (
 
 	accessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	
-	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/jonboulle/clockwork"
 
 	assignmentschemav1 "github.com/gravitational/teleport/integrations/terraform/tfschema/scopes/access/assignment/v1"
 )
@@ -113,15 +114,7 @@ func (r resourceTeleportScopedRoleAssignment) Create(ctx context.Context, req tf
 		var scopedRoleAssignmentI *accessv1.ScopedRoleAssignment
 	// Try getting the resource until it exists.
 	tries := 0
-	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-		Driver: retryutils.NewExponentialDriver(r.p.RetryConfig.Base),
-		First:  r.p.RetryConfig.Base,
-		Max:    r.p.RetryConfig.Cap,
-		Jitter: retryutils.HalfJitter,
-	})
-	if err != nil {
-		return
-	}
+	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
 		tries = tries + 1
 		scopedRoleAssignmentGetResp, getErr := r.p.Client.ScopedAccessServiceClient().GetScopedRoleAssignment(ctx, &accessv1.GetScopedRoleAssignmentRequest{
@@ -133,11 +126,9 @@ func (r resourceTeleportScopedRoleAssignment) Create(ctx context.Context, req tf
 			scopedRoleAssignmentI = scopedRoleAssignmentGetResp.GetAssignment()
 		}
 		if trace.IsNotFound(err) {
-		    select {
-			case <-ctx.Done():
-			    resp.Diagnostics.Append(diagFromWrappedErr("Error reading ScopedRoleAssignment", trace.Wrap(ctx.Err()), "scoped_role_assignment"))
+			if bErr := backoff.Do(ctx); bErr != nil {
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading ScopedRoleAssignment", trace.Wrap(err), "scoped_role_assignment"))
 				return
-			case <-retry.After():
 			}
 			if tries >= r.p.RetryConfig.MaxTries {
 				diagMessage := fmt.Sprintf("Error reading ScopedRoleAssignment (tried %d times) - state outdated, please import resource", tries)
@@ -276,15 +267,7 @@ func (r resourceTeleportScopedRoleAssignment) Update(ctx context.Context, req tf
 		var scopedRoleAssignmentI *accessv1.ScopedRoleAssignment
 
 	tries := 0
-	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-		Driver: retryutils.NewExponentialDriver(r.p.RetryConfig.Base),
-		First:  r.p.RetryConfig.Base,
-		Max:    r.p.RetryConfig.Cap,
-		Jitter: retryutils.HalfJitter,
-	})
-	if err != nil {
-		return
-	}
+	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
 		tries = tries + 1
 		scopedRoleAssignmentGetResp, getErr := r.p.Client.ScopedAccessServiceClient().GetScopedRoleAssignment(ctx, &accessv1.GetScopedRoleAssignmentRequest{
@@ -303,11 +286,9 @@ func (r resourceTeleportScopedRoleAssignment) Update(ctx context.Context, req tf
 			break
 		}
 
-		select {
-		case <-ctx.Done():
-		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading ScopedRoleAssignment", trace.Wrap(ctx.Err()), "scoped_role_assignment"))
+		if err := backoff.Do(ctx); err != nil {
+			resp.Diagnostics.Append(diagFromWrappedErr("Error reading ScopedRoleAssignment", trace.Wrap(err), "scoped_role_assignment"))
 			return
-		case <-retry.After():
 		}
 		if tries >= r.p.RetryConfig.MaxTries {
 			diagMessage := fmt.Sprintf("Error reading ScopedRoleAssignment (tried %d times) - state outdated, please import resource", tries)

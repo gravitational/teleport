@@ -22,12 +22,11 @@ import (
 	"context"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/gravitational/trace"
 
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
-	config "github.com/gravitational/teleport/lib/cloud/aws/config"
 )
 
 // AWSClientConfig contains the required fields to set up an AWS SDK Clients.
@@ -65,8 +64,8 @@ func newAWSConfig(ctx context.Context, req *AWSClientConfig) (aws.Config, error)
 
 	awsConfig, err := config.LoadDefaultConfig(
 		ctx,
-		awsconfig.WithRegion(req.Region),
-		awsconfig.WithCredentialsProvider(
+		config.WithRegion(req.Region),
+		config.WithCredentialsProvider(
 			credentials.NewStaticCredentialsProvider(
 				req.Credentials.AccessKeyID,
 				req.Credentials.SecretAccessKey,

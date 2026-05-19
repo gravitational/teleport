@@ -62,12 +62,11 @@ class TextEditor extends Component {
 
     // If the data changes, reset the value in each session so changes are
     // rendered.
-    if (prevProps.data !== this.props.data) {
+    // Only update the content if the editor is read-only to prevent
+    // interrupting the editing experience.
+    if (this.props.readOnly && prevProps.data !== this.props.data) {
       this.props.data.forEach((doc, i) => {
-        const session = this.sessions[i];
-        if (session.getValue() !== doc.content) {
-          session.setValue(doc.content); // Note: resets the cursor to 0:0
-        }
+        this.sessions[i].setValue(doc.content);
       });
     }
 
@@ -147,10 +146,7 @@ class TextEditor extends Component {
 
     return (
       <StyledTextEditor bg={bg}>
-        <div
-          ref={e => (this.ace_viewer = e)}
-          data-testid={this.props.testId ?? 'text-editor'}
-        />
+        <div ref={e => (this.ace_viewer = e)} />
         {hasButton && (
           <ButtonSection>
             {this.props.copyButton && (

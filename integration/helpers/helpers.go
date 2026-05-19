@@ -48,6 +48,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/backend"
@@ -456,10 +457,11 @@ func MakeTestServers(t *testing.T) (auth *service.TeleportProcess, proxy *servic
 // MakeTestDatabaseServer creates a Database Service
 // It receives the Proxy Address, a Token (to join the cluster) and a list of Datbases
 func MakeTestDatabaseServer(t *testing.T, proxyAddr utils.NetAddr, token string, resMatchers []services.ResourceMatcher, dbs ...servicecfg.Database) (db *service.TeleportProcess) {
+	// Proxy uses self-signed certificates in tests.
+	lib.SetInsecureDevMode(true)
+
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.DebugService.Enabled = false
-	// Proxy uses self-signed certificates in tests.
-	cfg.InsecureMode = true
 	cfg.Hostname = "localhost"
 	cfg.DataDir = t.TempDir()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
@@ -493,7 +495,8 @@ func MakeTestDatabaseServer(t *testing.T, proxyAddr utils.NetAddr, token string,
 // It receives the Proxy Address, a Token (to join the cluster).
 func MakeAgentServer(t *testing.T, cfg *servicecfg.Config, proxyAddr utils.NetAddr, token string) *service.TeleportProcess {
 	// Proxy uses self-signed certificates in tests.
-	cfg.InsecureMode = true
+	lib.SetInsecureDevMode(true)
+
 	cfg.Hostname = "localhost"
 	cfg.DataDir = t.TempDir()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
@@ -561,6 +564,6 @@ func UpsertAuthPrefAndWaitForCache(
 		rp, err := srv.GetReadOnlyAuthPreference(ctx)
 		require.NoError(t, err)
 		p := rp.Clone()
-		require.Empty(t, cmp.Diff(&pref, &p))
+		assert.Empty(t, cmp.Diff(&pref, &p))
 	}, 5*time.Second, 100*time.Millisecond)
 }

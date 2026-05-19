@@ -592,8 +592,8 @@ func TestGenericListResourcesWithFilterForScale(t *testing.T) {
 	totalResourcesPerProp := 100
 	totalProps := 100
 	var totalResources []*testResource
-	for range totalResourcesPerProp {
-		for j := range totalProps {
+	for i := 0; i < totalResourcesPerProp; i++ {
+		for j := 0; j < totalProps; j++ {
 			r := newTestResourceWithSpec(uuid.NewString(), strconv.Itoa(j))
 			totalResources = append(totalResources, r)
 		}
@@ -679,7 +679,8 @@ func TestGenericValidation(t *testing.T) {
 }
 
 func TestGenericKeyOverride(t *testing.T) {
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	memBackend, err := memory.New(memory.Config{
 		Context: ctx,

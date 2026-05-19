@@ -1141,7 +1141,12 @@ func hasDynamoDBDatabases(flags configurators.BootstrapFlags, targetCfg targetCo
 // is found.
 func isAutoDiscoveryEnabledForMatcher(matcherType string, matchers []types.AWSMatcher) bool {
 	return findAWSMatcherIs(matchers, func(matcher *types.AWSMatcher) bool {
-		return slices.Contains(matcher.Types, matcherType)
+		for _, databaseType := range matcher.Types {
+			if databaseType == matcherType {
+				return true
+			}
+		}
+		return false
 	})
 }
 
@@ -1156,7 +1161,12 @@ func findEndpointIs(databases []*servicecfg.Database, endpointIs func(string) bo
 // findDatabaseIs returns true if provided check returns true for any static
 // database config.
 func findDatabaseIs(databases []*servicecfg.Database, is func(*servicecfg.Database) bool) bool {
-	return slices.ContainsFunc(databases, is)
+	for _, database := range databases {
+		if is(database) {
+			return true
+		}
+	}
+	return false
 }
 
 // findAWSMatcherIs returns true if the provided check returns true for any
@@ -1546,7 +1556,7 @@ func parseForcedAWSRoles(flags configurators.BootstrapFlags, target awslib.Ident
 		return nil, nil
 	}
 	var out []string
-	for role := range strings.SplitSeq(flags.ForceAssumesRoles, ",") {
+	for _, role := range strings.Split(flags.ForceAssumesRoles, ",") {
 		if role == "" {
 			continue
 		}

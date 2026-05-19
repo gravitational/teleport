@@ -13,7 +13,8 @@
     "start": "pnpm build-wasm && electron-vite dev",
     "build": "pnpm build-wasm && electron-vite build",
     "package": "electron-builder build --config electron-builder-config.js --publish never -c.extraMetadata.name=teleport-connect",
-    "build-wasm": "pnpm --filter=@gravitational/shared build-wasm"
+    "build-wasm": "pnpm --filter=@gravitational/shared build-wasm",
+    "generate-grpc-shared": "buf generate"
   },
   "repository": {
     "type": "git",
@@ -23,26 +24,26 @@
   "private": true,
   "homepage": "https://goteleport.com",
   "dependencies": {
-    "@grpc/grpc-js": "1.14.3",
+    "@grpc/grpc-js": "1.13.3",
+    "@types/which": "^3.0.4",
     "node-forge": "^1.4.0",
     "node-pty": "1.2.0-beta.12",
     "ring-buffer-ts": "^1.2.0",
     "split2": "4.2.0",
-    "strip-ansi": "^7.2.0",
-    "tar-fs": "^3.1.2",
-    "which": "^6.0.1",
-    "winston": "^3.19.0"
+    "strip-ansi": "^7.1.0",
+    "tar-fs": "^3.1.1",
+    "which": "^5.0.0",
+    "winston": "^3.17.0"
   },
   "devDependencies": {
     "@gravitational/build": "workspace:*",
     "@gravitational/design": "workspace:*",
     "@gravitational/shared": "workspace:*",
-    "@protobuf-ts/grpc-transport": "^2.11.1",
-    "@types/node-forge": "^1.3.14",
+    "@protobuf-ts/grpc-transport": "^2.10.0",
+    "@types/node-forge": "^1.3.11",
     "@types/tar-fs": "^2.0.4",
-    "@types/which": "^3.0.4",
-    "@xterm/addon-fit": "^0.11.0",
-    "@xterm/xterm": "^6.0.0",
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/xterm": "^5.5.0",
     "electron": "41.1.1",
     "electron-builder": "^26.8.2",
     "electron-updater": "^6.8.3",

@@ -878,8 +878,8 @@ With this configuration, Teleport will generate certificates for users in
 
 ## Cross-Domain Login
 
-Windows Desktop Service supports logins for users outside of a given `windows_desktop_service` instance's
-configured domain so long as there is an outgoing trust relationship from the primary (Teleport configured)
+As of Teleport v18.8, Windows Desktop Service supports logins for users outside of a given `windows_desktop_service`
+instance's configured domain so long as there is an outgoing trust relationship from the primary (Teleport configured)
 domain to user's domain. For example, if Windows Desktop Service is configured against the root domain
 `example.com` and there exists child domain, `dev.example.com`, Teleport can authenticate the user
 `user@dev.example.com` for logon to a desktop in the root domain. Similarly, if `example.com` has an outgoing
@@ -962,8 +962,8 @@ is most commonly performed on TCP port 88.
 Teleport determines the address of the KDC by checking the following (in order of priority):
 
 1. If `kdc_address` is set, Teleport will use this address.
-1. If `locate_server` is enabled and `kdc_address` is not set, Teleport will
-   attempt to discover the KDC address via DNS SRV records.
+1. As of version 18.3.1, if `locate_server` is enabled and `kdc_address` is
+   not set, Teleport will attempt to discover the KDC address via DNS SRV records.
 1. If neither `locate_server` or `kdc_address` is specified, Teleport will
    assume that a KDC is available on the same host that is specified in the
    `ldap` configuration's `addr` field.

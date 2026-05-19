@@ -213,7 +213,7 @@ func GetAllUsers() ([]string, int, error) {
 		return nil, -1, trace.Wrap(err)
 	}
 	var users []string
-	for line := range bytes.SplitSeq(output, []byte("\n")) {
+	for _, line := range bytes.Split(output, []byte("\n")) {
 		line := string(line)
 		passwdEnt := strings.SplitN(line, ":", 2)
 		if passwdEnt[0] != "" {

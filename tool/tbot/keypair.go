@@ -27,8 +27,8 @@ import (
 	"io"
 	"os"
 	"strings"
+	"text/template"
 
-	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
@@ -37,7 +37,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/join/boundkeypair"
-	libboundkeypair "github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/tbot/bot/destination"
 	"github.com/gravitational/teleport/lib/tbot/bot/onboarding"
@@ -89,21 +88,13 @@ To register the keypair with Teleport, include this public key in the token's
 
 	{{ .PublicKey }}
 
-You can use 'tctl' to create a bot and token automatically:
-
-	$ tctl bots add bot-name \
-	  --roles=some-role,some-other-role \
-	  --initial-public-key='{{ .PublicKey }}'{{ if or .StaticKeyPath .EncodedPrivateKey }} \
-	  --recovery-mode=insecure{{ end }}
-
 Refer to this token example as a reference:
 
 {{ .TokenExample }}
-
-{{- if or .EncodedPrivateKey .StaticKeyPath }}
+{{- if .StaticKeyPath }}
 Note that you must also set 'spec.bound_keypair.recovery.mode' to 'insecure'
 to use static keys.
-{{ if .StaticKeyPath }}
+
 The static key has been written to: {{ .StaticKeyPath }}
 
 Configure your bot to use this static key by setting the following 'tbot.yaml'
@@ -126,16 +117,9 @@ will be unable to join if a rotation is requested server-side via the token's
 shown above. Read more at:
 
 	https://goteleport.com/docs/reference/machine-workload-identity/machine-id/bound-keypair/concepts/#recovery
-{{ end }}`))
+`))
 
 func generateExampleToken(params KeypairMessageParams, indent string) (string, error) {
-	mode := string(libboundkeypair.RecoveryModeStandard)
-	if params.EncodedPrivateKey != "" {
-		// EncodedPrivateKey is always set if a static key is used, even if we
-		// only write the unencoded key to a file
-		mode = string(libboundkeypair.RecoveryModeInsecure)
-	}
-
 	token := &types.ProvisionTokenV2{
 		Version: types.V2,
 		Kind:    types.KindToken,
@@ -150,12 +134,15 @@ func generateExampleToken(params KeypairMessageParams, indent string) (string, e
 				Onboarding: &types.ProvisionTokenSpecV2BoundKeypair_OnboardingSpec{
 					InitialPublicKey: params.PublicKey,
 				},
-				Recovery: &types.ProvisionTokenSpecV2BoundKeypair_RecoverySpec{
-					Mode:  mode,
-					Limit: 1,
-				},
+				Recovery: &types.ProvisionTokenSpecV2BoundKeypair_RecoverySpec{},
 			},
 		},
+	}
+
+	if params.EncodedPrivateKey != "" {
+		// EncodedPrivateKey is always set if a static key is used, even if we
+		// only write the unencoded key to a file
+		token.Spec.BoundKeypair.Recovery.Mode = "insecure"
 	}
 
 	w := strings.Builder{}

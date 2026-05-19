@@ -76,11 +76,13 @@ func (p *PluginStaticCredentialsService) UpdatePluginStaticCredentials(ctx conte
 
 // GetPluginStaticCredentialsByLabels will get a list of plugin static credentials resource by matching labels.
 func (p *PluginStaticCredentialsService) GetPluginStaticCredentialsByLabels(ctx context.Context, labels map[string]string) ([]types.PluginStaticCredentials, error) {
+	creds, err := p.svc.GetResources(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	var foundCredentials []types.PluginStaticCredentials
-	for cred, err := range p.svc.Resources(ctx, "", "") {
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+	for _, cred := range creds {
 		if types.MatchLabels(cred, labels) {
 			foundCredentials = append(foundCredentials, cred)
 		}

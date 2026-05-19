@@ -31,7 +31,6 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"slices"
 	"testing"
 	"time"
 
@@ -79,6 +78,7 @@ import (
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/jwt"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
@@ -89,7 +89,8 @@ import (
 )
 
 func TestRejectedClients(t *testing.T) {
-	t.Parallel()
+	t.Setenv("TELEPORT_UNSTABLE_REJECT_OLD_CLIENTS", "yes")
+
 	server, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:         t.TempDir(),
 		ClusterName: "cluster",
@@ -135,7 +136,7 @@ func TestRejectedClients(t *testing.T) {
 	t.Run("allow valid versions", func(t *testing.T) {
 		version := teleport.MinClientSemVer()
 		version.Major--
-		for range 5 {
+		for i := 0; i < 5; i++ {
 			version.Major++
 
 			ctx := context.WithValue(context.Background(), metadata.DisableInterceptors{}, struct{}{})
@@ -312,14 +313,6 @@ func TestRemoteRotation(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, remoteAuth.Close()) })
 
-	remoteCA, err := remoteServer.AuthServer.Services.GetCertAuthority(ctx, types.CertAuthID{
-		DomainName: remoteServer.ClusterName,
-		Type:       types.HostCA,
-	}, false)
-	require.NoError(t, err)
-	// a CA that was never rotated has a blank state, which is equal to "standby"
-	require.Contains(t, []string{"", types.RotationStateStandby}, remoteCA.GetRotation().State)
-
 	// remote cluster starts rotation
 	gracePeriod := time.Hour
 	privateKey, ok := fixtures.PEMBytes["rsa"]
@@ -343,13 +336,11 @@ func TestRemoteRotation(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	remoteCA, err = remoteServer.AuthServer.Services.GetCertAuthority(ctx, types.CertAuthID{
+	remoteCA, err := remoteServer.AuthServer.GetCertAuthority(ctx, types.CertAuthID{
 		DomainName: remoteServer.ClusterName,
 		Type:       types.HostCA,
 	}, false)
 	require.NoError(t, err)
-	require.Equal(t, types.RotationStateInProgress, remoteCA.GetRotation().State)
-	require.Equal(t, types.RotationPhaseUpdateClients, remoteCA.GetRotation().Phase)
 
 	// remote proxy should be rejected when trying to rotate ca
 	// that is not associated with the remote cluster
@@ -391,12 +382,8 @@ func TestRemoteRotation(t *testing.T) {
 		authtest.TestBuiltin(types.RoleProxy), testSrv.Addr(), certPool)
 	require.NoError(t, err)
 
-	// the testSrv listener needs to wait for a Put event on the CA that has
-	// just rotated to refresh its TLS config
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		_, err = newRemoteProxy.GetNodes(ctx, apidefaults.Namespace)
-		require.NoError(t, err)
-	}, 30*time.Second, 100*time.Millisecond)
+	_, err = newRemoteProxy.GetNodes(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
 
 	// old proxy client is still trusted
 	_, err = testSrv.CloneClient(t, remoteProxy).GetNodes(ctx, apidefaults.Namespace)
@@ -772,12 +759,9 @@ func TestRollback(t *testing.T) {
 	require.NoError(t, err)
 	defer newProxy.Close()
 
-	newClient := func() *authclient.Client {
-		return testSrv.CloneClient(t, newProxy)
-	}
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		_, err = newClient().GetNodes(ctx, apidefaults.Namespace)
-		require.NoError(t, err)
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		_, err = testSrv.CloneClient(t, newProxy).GetNodes(ctx, apidefaults.Namespace)
+		assert.NoError(ct, err)
 	}, 15*time.Second, 100*time.Millisecond)
 
 	// advance rotation:
@@ -822,9 +806,9 @@ func TestRollback(t *testing.T) {
 	require.NoError(t, err)
 
 	// clients with new creds will no longer work as soon as backend modification event propagates.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		_, err := newClient().GetNodes(ctx, apidefaults.Namespace)
-		require.Error(t, err)
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		_, err := testSrv.CloneClient(t, newProxy).GetNodes(ctx, apidefaults.Namespace)
+		assert.Error(ct, err)
 	}, time.Second*15, time.Millisecond*100)
 
 	// clients with old creds will still work
@@ -1589,7 +1573,7 @@ func TestAuthPreferenceSettings_ScopedIdentity(t *testing.T) {
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		_, err := srv.AuthServer.AuthServer.ScopedAccessCache.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
 			Name:    createResp.GetAssignment().GetMetadata().GetName(),
-			SubKind: createResp.GetAssignment().GetSubKind(),
+			SubKind: scopedaccess.SubKindDynamic,
 		})
 		require.NoError(t, err)
 	}, 10*time.Second, 100*time.Millisecond)
@@ -1652,13 +1636,15 @@ func TestTunnelConnectionsCRUD(t *testing.T) {
 	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff(out[0], conn, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-	// Delete all to reset test environment
-	out, err = clt.GetAllTunnelConnections()
+	err = clt.DeleteAllTunnelConnections()
 	require.NoError(t, err)
-	for _, tc := range out {
-		err := testSrv.Auth().DeleteTunnelConnection(tc.GetClusterName(), tc.GetName())
-		require.NoError(t, err)
-	}
+
+	out, err = clt.GetTunnelConnections(clusterName)
+	require.NoError(t, err)
+	require.Empty(t, out)
+
+	err = clt.DeleteAllTunnelConnections()
+	require.NoError(t, err)
 
 	// test delete individual connection
 	err = clt.UpsertTunnelConnection(conn)
@@ -1759,7 +1745,7 @@ func TestServersCRUD(t *testing.T) {
 
 	auth := NewServer(types.KindAuthServer, "auth1", "127.0.0.1:2025", apidefaults.Namespace)
 	auth.Spec.Hostname = "auth.llama"
-	require.NoError(t, testSrv.Auth().UpsertAuthServer(ctx, auth))
+	require.NoError(t, clt.UpsertAuthServer(ctx, auth))
 
 	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	out, err = clt.GetAuthServers()
@@ -1865,37 +1851,35 @@ func TestPasswordCRUD(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, as.Close()) })
-	clock := as.Clock()
+	testSrv := newTestTLSServer(t)
+	clock := testSrv.AuthServer.AuthServerConfig.Clock
 
 	// Create a user.
 	u, err := types.NewUser("user1")
 	require.NoError(t, err)
-	_, err = as.AuthServer.CreateUser(ctx, u)
+	_, err = testSrv.Auth().CreateUser(ctx, u)
 	require.NoError(t, err)
 
 	pass := []byte("abcdef123456")
 	rawSecret := "def456"
 	otpSecret := base32.StdEncoding.EncodeToString([]byte(rawSecret))
 
-	err = as.AuthServer.CheckPassword(ctx, "user1", pass, "123456")
+	err = testSrv.Auth().CheckPassword(ctx, "user1", pass, "123456")
 	require.Error(t, err)
 
-	err = as.AuthServer.UpsertPassword("user1", pass)
+	err = testSrv.Auth().UpsertPassword("user1", pass)
 	require.NoError(t, err)
 
 	dev, err := services.NewTOTPDevice("otp", otpSecret, clock.Now())
 	require.NoError(t, err)
 
-	err = as.AuthServer.UpsertMFADevice(ctx, "user1", dev)
+	err = testSrv.Auth().UpsertMFADevice(ctx, "user1", dev)
 	require.NoError(t, err)
 
-	validToken, err := totp.GenerateCode(otpSecret, clock.Now())
+	validToken, err := totp.GenerateCode(otpSecret, testSrv.Clock().Now())
 	require.NoError(t, err)
 
-	err = as.AuthServer.CheckPassword(ctx, "user1", pass, validToken)
+	err = testSrv.Auth().CheckPassword(ctx, "user1", pass, validToken)
 	require.NoError(t, err)
 }
 
@@ -1903,10 +1887,8 @@ func TestOTPCRUD(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, as.Close()) })
-	clock := as.Clock()
+	testSrv := newTestTLSServer(t)
+	clock := testSrv.AuthServer.AuthServerConfig.Clock
 
 	user := "user1"
 	pass := []byte("abcdef123456")
@@ -1916,20 +1898,20 @@ func TestOTPCRUD(t *testing.T) {
 	// Create a user.
 	u, err := types.NewUser(user)
 	require.NoError(t, err)
-	_, err = as.AuthServer.CreateUser(ctx, u)
+	_, err = testSrv.Auth().CreateUser(ctx, u)
 	require.NoError(t, err)
 
 	// upsert a password and totp secret
-	err = as.AuthServer.UpsertPassword("user1", pass)
+	err = testSrv.Auth().UpsertPassword("user1", pass)
 	require.NoError(t, err)
 	dev, err := services.NewTOTPDevice("otp", otpSecret, clock.Now())
 	require.NoError(t, err)
 
-	err = as.AuthServer.UpsertMFADevice(ctx, user, dev)
+	err = testSrv.Auth().UpsertMFADevice(ctx, user, dev)
 	require.NoError(t, err)
 
 	// a completely invalid token should return access denied
-	err = as.AuthServer.CheckPassword(ctx, "user1", pass, "123456")
+	err = testSrv.Auth().CheckPassword(ctx, "user1", pass, "123456")
 	require.Error(t, err)
 
 	// an invalid token should return access denied
@@ -1939,20 +1921,20 @@ func TestOTPCRUD(t *testing.T) {
 	// valid for 30 seconds + 30 second skew before and after for a usability
 	// reasons. so a token made between seconds 31 and 60 is still valid, and
 	// invalidity starts at 61 seconds in the future.
-	invalidToken, err := totp.GenerateCode(otpSecret, clock.Now().Add(61*time.Second))
+	invalidToken, err := totp.GenerateCode(otpSecret, testSrv.Clock().Now().Add(61*time.Second))
 	require.NoError(t, err)
-	err = as.AuthServer.CheckPassword(ctx, "user1", pass, invalidToken)
+	err = testSrv.Auth().CheckPassword(ctx, "user1", pass, invalidToken)
 	require.Error(t, err)
 
 	// a valid token (created right now and from a valid key) should return success
-	validToken, err := totp.GenerateCode(otpSecret, clock.Now())
+	validToken, err := totp.GenerateCode(otpSecret, testSrv.Clock().Now())
 	require.NoError(t, err)
 
-	err = as.AuthServer.CheckPassword(ctx, "user1", pass, validToken)
+	err = testSrv.Auth().CheckPassword(ctx, "user1", pass, validToken)
 	require.NoError(t, err)
 
 	// try the same valid token now it should fail because we don't allow re-use of tokens
-	err = as.AuthServer.CheckPassword(ctx, "user1", pass, validToken)
+	err = testSrv.Auth().CheckPassword(ctx, "user1", pass, validToken)
 	require.Error(t, err)
 }
 
@@ -1998,6 +1980,9 @@ func TestWebSessionWithoutAccessRequest(t *testing.T) {
 	web, err := testSrv.NewClientFromWebSession(ws)
 	require.NoError(t, err)
 
+	_, err = web.GetWebSessionInfo(ctx, user, ws.GetName())
+	require.NoError(t, err)
+
 	ns, err := web.ExtendWebSession(ctx, authclient.WebSessionReq{
 		User:          user,
 		PrevSessionID: ws.GetName(),
@@ -2009,16 +1994,10 @@ func TestWebSessionWithoutAccessRequest(t *testing.T) {
 	err = web.DeleteUser(ctx, user)
 	require.True(t, trace.IsAccessDenied(err))
 
-	err = clt.WebSessions().Delete(ctx, types.DeleteWebSessionRequest{
-		User:      user,
-		SessionID: ws.GetName(),
-	})
+	err = clt.DeleteWebSession(ctx, user, ws.GetName())
 	require.NoError(t, err)
 
-	_, err = clt.WebSessions().Get(ctx, types.GetWebSessionRequest{
-		User:      user,
-		SessionID: ws.GetName(),
-	})
+	_, err = web.GetWebSessionInfo(ctx, user, ws.GetName())
 	require.Error(t, err)
 
 	_, err = web.ExtendWebSession(ctx, authclient.WebSessionReq{
@@ -2029,10 +2008,13 @@ func TestWebSessionWithoutAccessRequest(t *testing.T) {
 }
 
 func TestWebSessionMultiAccessRequests(t *testing.T) {
-	t.Parallel()
-	ctx := t.Context()
+	// Can not use t.Parallel() when changing modules
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
-	testSrv := newTestTLSServer(t, withModules(modulestest.EnterpriseModules()))
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	testSrv := newTestTLSServer(t)
 	clock := testSrv.AuthServer.AuthServerConfig.Clock
 
 	clt, err := testSrv.NewClient(authtest.TestAdmin())
@@ -2229,6 +2211,7 @@ func TestWebSessionMultiAccessRequests(t *testing.T) {
 			expectRoles: []string{baseRoleName},
 		},
 	} {
+		tc := tc
 		t.Run(tc.desc, func(t *testing.T) {
 			t.Parallel()
 			clt, sess := baseWebClient, baseWebSession
@@ -2279,10 +2262,7 @@ func TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
 	require.NoError(t, err)
 
 	initialRole := newUser.GetRoles()[0]
-	initialSession, err := testSrv.Auth().GetWebSession(ctx, types.GetWebSessionRequest{
-		User:      user,
-		SessionID: ws.GetName(),
-	})
+	initialSession, err := web.GetWebSessionInfo(ctx, user, ws.GetName())
 	require.NoError(t, err)
 
 	// Create a approved access request.
@@ -2680,7 +2660,7 @@ func TestGetCertAuthority_ScopedIdentity(t *testing.T) {
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		_, err := srv.AuthServer.AuthServer.ScopedAccessCache.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
 			Name:    createResp.GetAssignment().GetMetadata().GetName(),
-			SubKind: createResp.GetAssignment().GetSubKind(),
+			SubKind: scopedaccess.SubKindDynamic,
 		})
 		require.NoError(t, err)
 	}, 10*time.Second, 100*time.Millisecond)
@@ -3596,11 +3576,23 @@ func TestAuthenticateWebUserOTP(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 
 	// authentication succeeds
-	_, err = proxy.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
+	ws, err := proxy.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 		Username: user,
 		OTP:      &authclient.OTPCreds{Password: pass, Token: validToken},
 	})
 	require.NoError(t, err)
+
+	userClient, err := testSrv.NewClientFromWebSession(ws)
+	require.NoError(t, err)
+
+	_, err = userClient.GetWebSessionInfo(ctx, user, ws.GetName())
+	require.NoError(t, err)
+
+	err = clt.DeleteWebSession(ctx, user, ws.GetName())
+	require.NoError(t, err)
+
+	_, err = userClient.GetWebSessionInfo(ctx, user, ws.GetName())
+	require.Error(t, err)
 }
 
 // TestLoginAttempts makes sure the login attempt counter is incremented and
@@ -3713,7 +3705,7 @@ func TestChangeUserAuthenticationSettings(t *testing.T) {
 	t.Run("Reset link not allowed when user does not exist", func(t *testing.T) {
 		var tokenID string
 		var resp *proto.MFARegisterResponse
-		for range 5 {
+		for i := 0; i < 5; i++ {
 			token, err := testSrv.Auth().CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 				Name: username,
 				TTL:  time.Hour,
@@ -3863,7 +3855,7 @@ func TestTLSFailover(t *testing.T) {
 	require.NoError(t, err)
 
 	// couple of runs to get enough connections
-	for range 4 {
+	for i := 0; i < 4; i++ {
 		_, err = client.Get(ctx, client.Endpoint("not", "exist"), url.Values{})
 		require.True(t, trace.IsNotFound(err))
 	}
@@ -3873,7 +3865,7 @@ func TestTLSFailover(t *testing.T) {
 	require.NoError(t, err)
 
 	// client detects closed sockets and reconnect to the backup server
-	for range 4 {
+	for i := 0; i < 4; i++ {
 		_, err = client.Get(ctx, client.Endpoint("not", "exist"), url.Values{})
 		require.True(t, trace.IsNotFound(err))
 	}
@@ -4056,7 +4048,8 @@ func TestJoinCAPath(t *testing.T) {
 func TestClusterAlertAck(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	testSrv := newTestTLSServer(t)
 
@@ -4100,7 +4093,8 @@ func TestClusterAlertAck(t *testing.T) {
 func TestClusterAlertClearAckWildcard(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	testSrv := newTestTLSServer(t)
 
@@ -4158,14 +4152,17 @@ func TestClusterAlertClearAckWildcard(t *testing.T) {
 func TestClusterAlertAccessControls(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	testSrv := newTestTLSServer(t)
 
 	expectAlerts := func(alerts []types.ClusterAlert, names ...string) {
 		for _, alert := range alerts {
-			if slices.Contains(names, alert.Metadata.Name) {
-				return
+			for _, name := range names {
+				if alert.Metadata.Name == name {
+					return
+				}
 			}
 			t.Fatalf("unexpected alert %q", alert.Metadata.Name)
 		}
@@ -4829,9 +4826,8 @@ func TestEvents(t *testing.T) {
 				out, err := testSrv.Auth().GetProxies()
 				require.NoError(t, err)
 
-				for _, p := range out {
-					require.NoError(t, testSrv.Auth().DeleteProxy(ctx, p.GetName()))
-				}
+				err = testSrv.Auth().DeleteAllProxies()
+				require.NoError(t, err)
 
 				return out[0]
 			},
@@ -4855,7 +4851,7 @@ func TestEvents(t *testing.T) {
 				out, err := testSrv.Auth().GetTunnelConnections("example.com")
 				require.NoError(t, err)
 
-				err = testSrv.Auth().DeleteTunnelConnection(conn.GetClusterName(), conn.GetName())
+				err = testSrv.Auth().DeleteAllTunnelConnections()
 				require.NoError(t, err)
 
 				return out[0]
@@ -5359,7 +5355,7 @@ func mustNewTokenFromSpec(
 	return tok
 }
 
-func requireAccessDenied(t require.TestingT, err error, i ...any) {
+func requireAccessDenied(t require.TestingT, err error, i ...interface{}) {
 	require.True(
 		t,
 		trace.IsAccessDenied(err),
@@ -5367,7 +5363,7 @@ func requireAccessDenied(t require.TestingT, err error, i ...any) {
 	)
 }
 
-func requireBadParameter(t require.TestingT, err error, i ...any) {
+func requireBadParameter(t require.TestingT, err error, i ...interface{}) {
 	require.True(
 		t,
 		trace.IsBadParameter(err),
@@ -5375,7 +5371,7 @@ func requireBadParameter(t require.TestingT, err error, i ...any) {
 	)
 }
 
-func requireNotFound(t require.TestingT, err error, i ...any) {
+func requireNotFound(t require.TestingT, err error, i ...interface{}) {
 	require.True(
 		t,
 		trace.IsNotFound(err),
@@ -5501,7 +5497,7 @@ func TestGRPCServer_CreateTokenV2(t *testing.T) {
 			name:     "already exists",
 			identity: authtest.TestUser(privilegedUser.GetName()),
 			token:    alreadyExistsToken,
-			requireError: func(t require.TestingT, err error, i ...any) {
+			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(
 					t,
 					trace.IsAlreadyExists(err),
@@ -6035,7 +6031,6 @@ type testTLSServerOptions struct {
 	accessGraph     *auth.AccessGraphConfig
 	clock           clockwork.Clock
 	bufconnListener bool
-	modules         *modulestest.Modules
 }
 
 type testTLSServerOption func(*testTLSServerOptions)
@@ -6064,17 +6059,11 @@ func withBufconnListener() testTLSServerOption {
 	}
 }
 
-func withModules(mod *modulestest.Modules) testTLSServerOption {
-	return func(options *testTLSServerOptions) {
-		options.modules = mod
-	}
-}
-
 // newTestTLSServer is a helper that returns a *authtest.TLSServer with sensible
-// defaults for most tests that are exercising Auth Service RPCs. For more advanced
-// use-cases, NewTestTLSServer to provide a more detailed configuration.
+// defaults for most tests that are exercising Auth Service RPCs.
 //
-// Prefer using authtest.AuthServer directly if Auth Service RPCs are never used.
+// For more advanced use-cases, call NewTestAuthServer and NewTestTLSServer
+// to provide a more detailed configuration.
 func newTestTLSServer(t testing.TB, opts ...testTLSServerOption) *authtest.TLSServer {
 	var options testTLSServerOptions
 	for _, opt := range opts {
@@ -6083,14 +6072,10 @@ func newTestTLSServer(t testing.TB, opts ...testTLSServerOption) *authtest.TLSSe
 	if options.clock == nil {
 		options.clock = clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC())
 	}
-	if options.modules == nil {
-		options.modules = modulestest.OSSModules()
-	}
 	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
 		Dir:          t.TempDir(),
 		Clock:        options.clock,
 		CacheEnabled: options.cacheEnabled,
-		Modules:      options.modules,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, as.Close()) })

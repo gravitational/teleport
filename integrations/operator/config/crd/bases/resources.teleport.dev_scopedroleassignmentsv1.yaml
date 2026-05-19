@@ -14,12 +14,7 @@ spec:
     singular: teleportscopedroleassignmentv1
   scope: Namespaced
   versions:
-  - additionalPrinterColumns:
-    - description: Resource's scope.
-      jsonPath: .scope
-      name: scope
-      type: string
-    name: v1
+  - name: v1
     schema:
       openAPIV3Schema:
         description: ScopedRoleAssignmentV1 is the Schema for the scopedroleassignmentsv1

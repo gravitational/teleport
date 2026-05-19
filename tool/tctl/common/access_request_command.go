@@ -206,7 +206,7 @@ func (c *AccessRequestCommand) List(ctx context.Context, client *authclient.Clie
 
 func (c *AccessRequestCommand) Get(ctx context.Context, client *authclient.Client) error {
 	reqs := []types.AccessRequest{}
-	for reqID := range strings.SplitSeq(c.reqIDs, ",") {
+	for _, reqID := range strings.Split(c.reqIDs, ",") {
 		req, err := client.GetAccessRequests(ctx, types.AccessRequestFilter{
 			ID: reqID,
 		})
@@ -226,7 +226,7 @@ func (c *AccessRequestCommand) Get(ctx context.Context, client *authclient.Clien
 
 func (c *AccessRequestCommand) splitAnnotations() (map[string][]string, error) {
 	annotations := make(map[string][]string)
-	for s := range strings.SplitSeq(c.annotations, ",") {
+	for _, s := range strings.Split(c.annotations, ",") {
 		if s == "" {
 			continue
 		}
@@ -250,7 +250,7 @@ func (c *AccessRequestCommand) splitAnnotations() (map[string][]string, error) {
 
 func (c *AccessRequestCommand) splitRoles() []string {
 	var roles []string
-	for s := range strings.SplitSeq(c.roles, ",") {
+	for _, s := range strings.Split(c.roles, ",") {
 		if s == "" {
 			continue
 		}
@@ -275,7 +275,7 @@ func (c *AccessRequestCommand) Approve(ctx context.Context, client *authclient.C
 		}
 		assumeStartTime = &parsedAssumeStartTime
 	}
-	for reqID := range strings.SplitSeq(c.reqIDs, ",") {
+	for _, reqID := range strings.Split(c.reqIDs, ",") {
 		if err := client.SetAccessRequestState(ctx, types.AccessRequestUpdate{
 			RequestID:       reqID,
 			State:           types.RequestState_APPROVED,
@@ -298,7 +298,7 @@ func (c *AccessRequestCommand) Deny(ctx context.Context, client *authclient.Clie
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	for reqID := range strings.SplitSeq(c.reqIDs, ",") {
+	for _, reqID := range strings.Split(c.reqIDs, ",") {
 		if err := client.SetAccessRequestState(ctx, types.AccessRequestUpdate{
 			RequestID:   reqID,
 			State:       types.RequestState_DENIED,
@@ -349,7 +349,7 @@ func (c *AccessRequestCommand) Create(ctx context.Context, client *authclient.Cl
 
 func (c *AccessRequestCommand) Delete(ctx context.Context, client *authclient.Client) error {
 	var approvedTokens []string
-	for reqID := range strings.SplitSeq(c.reqIDs, ",") {
+	for _, reqID := range strings.Split(c.reqIDs, ",") {
 		// Fetch the requests first to see if they were approved to provide the
 		// proper messaging.
 		reqs, err := client.GetAccessRequests(ctx, types.AccessRequestFilter{
@@ -367,7 +367,7 @@ func (c *AccessRequestCommand) Delete(ctx context.Context, client *authclient.Cl
 	}
 
 	if len(approvedTokens) == 0 || c.force {
-		for reqID := range strings.SplitSeq(c.reqIDs, ",") {
+		for _, reqID := range strings.Split(c.reqIDs, ",") {
 			if err := client.DeleteAccessRequest(ctx, reqID); err != nil {
 				return trace.Wrap(err)
 			}
@@ -552,7 +552,7 @@ func printRequestsDetailed(reqs []types.AccessRequest, format string) error {
 	}
 }
 
-func printJSON(in any, desc string) error {
+func printJSON(in interface{}, desc string) error {
 	out, err := json.MarshalIndent(in, "", "  ")
 	if err != nil {
 		return trace.Wrap(err, fmt.Sprintf("failed to marshal %v", desc))

@@ -29,7 +29,6 @@ func TestWithPingProtocols(t *testing.T) {
 		[]Protocol{
 			"teleport-tcp-ping",
 			"teleport-redis-ping",
-			"teleport-app-https-ping",
 			"teleport-reversetunnel",
 			"teleport-tcp",
 			"teleport-redis",
@@ -41,7 +40,6 @@ func TestWithPingProtocols(t *testing.T) {
 			ProtocolRedisDB,
 			ProtocolReverseTunnel,
 			ProtocolHTTP2,
-			ProtocolAppHTTPS,
 		}),
 	)
 }
@@ -56,5 +54,4 @@ func TestIsDBTLSProtocol(t *testing.T) {
 func TestProtocolToStringsWithPing(t *testing.T) {
 	require.Equal(t, []string{"teleport-proxy-grpc-mtls"}, ProtocolToStringsWithPing(ProtocolProxyGRPCSecure))
 	require.Equal(t, []string{"teleport-mcp-ping", "teleport-mcp"}, ProtocolToStringsWithPing(ProtocolMCP))
-	require.Equal(t, []string{"teleport-app-https-ping"}, ProtocolToStringsWithPing(ProtocolAppHTTPS))
 }

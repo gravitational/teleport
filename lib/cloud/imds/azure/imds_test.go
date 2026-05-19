@@ -79,6 +79,7 @@ func TestAzureIsInstanceMetadataAvailable(t *testing.T) {
 	}
 
 	for _, tc := range tests {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -304,6 +305,7 @@ func TestGetInstanceInfo(t *testing.T) {
 			wantErr:    "error found in #0 byte",
 		},
 	} {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -352,11 +354,12 @@ func TestGetInstanceID(t *testing.T) {
 		{
 			name:       "request error",
 			statusCode: http.StatusNotFound,
-			errAssertion: func(tt require.TestingT, err error, i ...any) {
+			errAssertion: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(t, err, "not found")
 			},
 		},
 	} {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 

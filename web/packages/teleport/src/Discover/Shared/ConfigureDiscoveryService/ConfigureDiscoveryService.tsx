@@ -17,7 +17,7 @@
  */
 
 import { useState } from 'react';
-import { Link as InternalLink } from 'react-router';
+import { Link as InternalLink } from 'react-router-dom';
 
 import { Mark, Text } from 'design';
 import { Info } from 'design/Alert/Alert';
@@ -163,8 +163,10 @@ function EnrollInfo({ kind }: { kind: ResourceKind }) {
           want to enroll a <Mark>single</Mark> EC2 instance instead, consider
           following{' '}
           <InternalLink
-            to={cfg.routes.discover}
-            state={{ searchKeywords: 'linux' }}
+            to={{
+              pathname: cfg.routes.discover,
+              state: { searchKeywords: 'linux' },
+            }}
           >
             the Teleport service installation flow
           </InternalLink>

@@ -17,18 +17,16 @@
  */
 
 import { QueryClientProvider } from '@tanstack/react-query';
+import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
-import { MemoryRouter } from 'react-router';
 import selectEvent from 'react-select-event';
 
 import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
   act,
-  enableMswServer,
   render,
   screen,
-  server,
   testQueryClient,
   userEvent,
 } from 'design/utils/testing';
@@ -62,9 +60,11 @@ jest.mock('shared/components/FieldSelect/FieldSelectCreatable', () => {
   };
 });
 
-enableMswServer();
+const server = setupServer();
 
-beforeEach(() => {
+beforeAll(() => {
+  server.listen();
+
   // Basic mock for all tests
   server.use(genWizardCiCdSuccess());
   server.use(fetchUnifiedResourcesSuccess());
@@ -74,6 +74,8 @@ beforeEach(() => {
 });
 
 afterAll(() => {
+  server.close();
+
   jest.useRealTimers();
   jest.resetAllMocks();
 });
@@ -195,7 +197,7 @@ function makeWrapper(opts?: {
           <ConfiguredThemeProvider theme={darkTheme}>
             <TrackingProvider disabled={disableTracking}>
               <GitHubK8sFlowProvider intitialState={initialState}>
-                <MemoryRouter>{children}</MemoryRouter>
+                {children}
               </GitHubK8sFlowProvider>
             </TrackingProvider>
           </ConfiguredThemeProvider>

@@ -33,13 +33,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
-	_ "modernc.org/sqlite"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
@@ -49,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/cryptosuites"
-	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/regular"
@@ -107,24 +104,20 @@ func TestRootUTMPEntryExists(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("successful login is logged in utmp and wtmp", func(t *testing.T) {
-		sshConfig := apissh.ClientConfig{
-			User: teleportTestUser,
-			PublicKeyAuth: apissh.PublicKeyAuthConfig{
-				Signers: func() ([]ssh.Signer, error) {
-					return []ssh.Signer{up.certSigner}, nil
-				},
-			},
+		sshConfig := &ssh.ClientConfig{
+			User:            teleportTestUser,
+			Auth:            []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
 			HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
 		}
 
-		client, err := apissh.Dial(t.Context(), "tcp", s.srv.Addr(), sshConfig)
+		client, err := ssh.Dial("tcp", s.srv.Addr(), sshConfig)
 		require.NoError(t, err)
 		defer func() {
 			err := client.Close()
 			require.NoError(t, err)
 		}()
 
-		se, err := client.NewSession(t.Context())
+		se, err := client.NewSession()
 		require.NoError(t, err)
 		defer se.Close()
 
@@ -134,8 +127,8 @@ func TestRootUTMPEntryExists(t *testing.T) {
 			ssh.TTY_OP_OSPEED: 14400, // output speed = 14.4kbaud
 		}
 
-		require.NoError(t, se.RequestPty(t.Context(), "xterm", 80, 80, modes), nil)
-		err = se.Shell(t.Context())
+		require.NoError(t, se.RequestPty("xterm", 80, 80, modes), nil)
+		err = se.Shell()
 		require.NoError(t, err)
 
 		require.EventuallyWithTf(t, func(collect *assert.CollectT) {
@@ -151,24 +144,20 @@ func TestRootUTMPEntryExists(t *testing.T) {
 	})
 
 	t.Run("unsuccessful login is logged in btmp", func(t *testing.T) {
-		sshConfig := apissh.ClientConfig{
-			User: teleportFakeUser,
-			PublicKeyAuth: apissh.PublicKeyAuthConfig{
-				Signers: func() ([]ssh.Signer, error) {
-					return []ssh.Signer{up.certSigner}, nil
-				},
-			},
+		sshConfig := &ssh.ClientConfig{
+			User:            teleportFakeUser,
+			Auth:            []ssh.AuthMethod{ssh.PublicKeys(up.certSigner)},
 			HostKeyCallback: ssh.FixedHostKey(s.signer.PublicKey()),
 		}
 
-		client, err := apissh.Dial(t.Context(), "tcp", s.srv.Addr(), sshConfig)
+		client, err := ssh.Dial("tcp", s.srv.Addr(), sshConfig)
 		require.NoError(t, err)
 		defer func() {
 			err := client.Close()
 			require.NoError(t, err)
 		}()
 
-		se, err := client.NewSession(t.Context())
+		se, err := client.NewSession()
 		require.NoError(t, err)
 		defer se.Close()
 
@@ -178,19 +167,19 @@ func TestRootUTMPEntryExists(t *testing.T) {
 			ssh.TTY_OP_OSPEED: 14400, // output speed = 14.4kbaud
 		}
 
-		require.NoError(t, se.RequestPty(t.Context(), "xterm", 80, 80, modes), nil)
-		err = se.Shell(t.Context())
+		require.NoError(t, se.RequestPty("xterm", 80, 80, modes), nil)
+		err = se.Shell()
 		require.NoError(t, err)
 
-		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			checkUserInFile(t, utmp, s.btmpPath, teleportFakeUser, true)
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+			checkUserInFile(collect, utmp, s.btmpPath, teleportFakeUser, true)
 			// Ensure that entries were not written to utmp and wtmp
-			checkUserInFile(t, utmp, s.utmpPath, teleportFakeUser, false)
-			checkUserInFile(t, utmp, s.wtmpPath, teleportFakeUser, false)
+			checkUserInFile(collect, utmp, s.utmpPath, teleportFakeUser, false)
+			checkUserInFile(collect, utmp, s.wtmpPath, teleportFakeUser, false)
 
 			inWtmpdb, err := wtmpdb.IsUserLoggedIn(teleportFakeUser)
-			require.NoError(t, err)
-			require.False(t, inWtmpdb)
+			assert.NoError(collect, err)
+			assert.False(collect, inWtmpdb)
 		}, 5*time.Minute, time.Second, "did not detect btmp entry within 5 minutes")
 	})
 
@@ -202,7 +191,7 @@ type upack struct {
 	key []byte
 
 	// pkey is parsed private SSH key
-	pkey any
+	pkey interface{}
 
 	// pub is a public user key
 	pub []byte
@@ -308,7 +297,7 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 	s.wtmpdbPath = wtmpdbPath
 
 	// Initialize wtmpdb database.
-	db, err := sql.Open("sqlite", wtmpdbPath)
+	db, err := sql.Open("sqlite3", wtmpdbPath)
 	require.NoError(t, err)
 	// Schema: https://github.com/thkukuk/wtmpdb/blob/272b109f5b3bdfb3008604461b4ddbff03c28b77/lib/sqlite.c#L128
 	_, err = db.Exec("CREATE TABLE IF NOT EXISTS wtmp(ID INTEGER PRIMARY KEY, Type INTEGER, User TEXT NOT NULL, Login INTEGER, Logout INTEGER, TTY TEXT, RemoteHost TEXT, Service TEXT) STRICT;")
@@ -362,7 +351,6 @@ func newSrvCtx(ctx context.Context, t *testing.T) *SrvCtx {
 		regular.SetUserAccountingPaths(utmpPath, wtmpPath, btmpPath, wtmpdbPath),
 		regular.SetLockWatcher(lockWatcher),
 		regular.SetSessionController(nodeSessionController),
-		regular.SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
 	)
 	require.NoError(t, err)
 	s.srv = srv

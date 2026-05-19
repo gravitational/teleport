@@ -343,6 +343,8 @@ const (
 	ALPNSNIProtocolReverseTunnel = "teleport-reversetunnel"
 	// ALPNSNIProtocolSSH is the TLS ALPN protocol value used to indicate Proxy SSH protocol.
 	ALPNSNIProtocolSSH = "teleport-proxy-ssh"
+	// ALPNSNIProtocolPingSuffix is TLS ALPN suffix used to wrap connections with Ping.
+	ALPNSNIProtocolPingSuffix = "-ping"
 )
 
 const (
@@ -499,11 +501,17 @@ const (
 	// WebAPIConnUpgradeHeader is the header used to indicate the requested
 	// connection upgrade types in the connection upgrade API.
 	WebAPIConnUpgradeHeader = "Upgrade"
-	// WebAPIConnUpgradeTypeALPN is a WebSocket subprotocol identifier for
-	// ALPN connection upgrades.
+	// WebAPIConnUpgradeTeleportHeader is a Teleport-specific header used to
+	// indicate the requested connection upgrade types in the connection
+	// upgrade API. This header is sent in addition to "Upgrade" header in case
+	// a load balancer/reverse proxy removes "Upgrade".
+	WebAPIConnUpgradeTeleportHeader = "X-Teleport-Upgrade"
+	// WebAPIConnUpgradeTypeALPN is a connection upgrade type that specifies
+	// the upgraded connection should be handled by the ALPN handler.
 	WebAPIConnUpgradeTypeALPN = "alpn"
-	// WebAPIConnUpgradeTypeALPNPing is a WebSocket subprotocol identifier for
-	// ALPN connection upgrades with WebSocket ping frames enabled.
+	// WebAPIConnUpgradeTypeALPNPing is a connection upgrade type that
+	// specifies the upgraded connection should be handled by the ALPN handler
+	// wrapped with the Ping protocol.
 	//
 	// This should be used when the tunneled TLS Routing protocol cannot keep
 	// long-lived connections alive as L7 LB usually ignores TCP keepalives and
@@ -596,18 +604,6 @@ const AutoUpdateAgentReportPeriod = time.Minute
 // AutoUpdateBotInstanceReportPeriod is the period of the autoupdate bot instance
 // reporting routine.
 const AutoUpdateBotInstanceReportPeriod = time.Minute
-
-const (
-	// UnstableEnableEICEEnvVar is the environment variable that enables EC2 Instance Connect Endpoint (EICE) functionality.
-	// Accessing EC2 instances using EICE was deprecated in v15, and will definitely be removed in a future release.
-	// This variable allows users to temporarily re-enable this functionality if they need more time to migrate away from it.
-	// Users must be encoraged to use other methods of accessing EC2 Instances: using a teleport agent or OpenSSH integration.
-	//
-	// Set its value to "yes" to re-enable EICE functionality.
-	UnstableEnableEICEEnvVar = "TELEPORT_UNSTABLE_ENABLE_EICE"
-	// EICEDisabledMessage is the message that gets returned to the user when they try to use this functionality.
-	EICEDisabledMessage = "support for accessing EC2 instances using EC2 Instance Connect Endpoint was removed"
-)
 
 const (
 	// TeleportDropGroup is a default group that users of the teleport automated user

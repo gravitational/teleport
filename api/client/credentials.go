@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/identityfile"
 	"github.com/gravitational/teleport/api/profile"
-	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -48,7 +47,7 @@ type Credentials interface {
 	TLSConfig() (*tls.Config, error)
 	// SSHClientConfig returns SSH configuration used to connect to the
 	// Auth server through a reverse tunnel.
-	SSHClientConfig() (apissh.ClientConfig, error)
+	SSHClientConfig() (*ssh.ClientConfig, error)
 	// Expiry returns the Credentials expiry if it's possible to know its expiry.
 	// When expiry can be determined returns true, else returns false.
 	// If the Credentials don't expire, returns the zero time.
@@ -92,8 +91,8 @@ func (c *tlsConfigCreds) TLSConfig() (*tls.Config, error) {
 }
 
 // SSHClientConfig returns SSH configuration.
-func (c *tlsConfigCreds) SSHClientConfig() (apissh.ClientConfig, error) {
-	return apissh.ClientConfig{}, trace.NotImplemented("no ssh config")
+func (c *tlsConfigCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
+	return nil, trace.NotImplemented("no ssh config")
 }
 
 // Expiry returns the credential expiry. As the tlsConfigCreds are built from an existing tlsConfig
@@ -152,8 +151,8 @@ func (c *keypairCreds) TLSConfig() (*tls.Config, error) {
 }
 
 // SSHClientConfig returns SSH configuration.
-func (c *keypairCreds) SSHClientConfig() (apissh.ClientConfig, error) {
-	return apissh.ClientConfig{}, trace.NotImplemented("no ssh config")
+func (c *keypairCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
+	return nil, trace.NotImplemented("no ssh config")
 }
 
 // Expiry returns the credential expiry.
@@ -213,16 +212,16 @@ func (c *identityCredsFile) TLSConfig() (*tls.Config, error) {
 }
 
 // SSHClientConfig returns SSH configuration.
-func (c *identityCredsFile) SSHClientConfig() (apissh.ClientConfig, error) {
+func (c *identityCredsFile) SSHClientConfig() (*ssh.ClientConfig, error) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
 	if err := c.load(); err != nil {
-		return apissh.ClientConfig{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	sshConfig, err := c.identityFile.SSHClientConfig()
 	if err != nil {
-		return apissh.ClientConfig{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	return sshConfig, nil
@@ -291,14 +290,14 @@ func (c *identityCredsString) TLSConfig() (*tls.Config, error) {
 }
 
 // SSHClientConfig returns SSH configuration.
-func (c *identityCredsString) SSHClientConfig() (apissh.ClientConfig, error) {
+func (c *identityCredsString) SSHClientConfig() (*ssh.ClientConfig, error) {
 	if err := c.load(); err != nil {
-		return apissh.ClientConfig{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	sshConfig, err := c.identityFile.SSHClientConfig()
 	if err != nil {
-		return apissh.ClientConfig{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	return sshConfig, nil
@@ -369,14 +368,14 @@ func (c *profileCreds) TLSConfig() (*tls.Config, error) {
 }
 
 // SSHClientConfig returns SSH configuration.
-func (c *profileCreds) SSHClientConfig() (apissh.ClientConfig, error) {
+func (c *profileCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
 	if err := c.load(); err != nil {
-		return apissh.ClientConfig{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	sshConfig, err := c.profile.SSHClientConfig()
 	if err != nil {
-		return apissh.ClientConfig{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	return sshConfig, nil
@@ -578,7 +577,7 @@ func (d *DynamicIdentityFileCreds) TLSConfig() (*tls.Config, error) {
 
 // SSHClientConfig returns SSH configuration, implementing the Credentials
 // interface.
-func (d *DynamicIdentityFileCreds) SSHClientConfig() (apissh.ClientConfig, error) {
+func (d *DynamicIdentityFileCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
 	hostKeyCallback, err := sshutils.NewHostKeyCallback(sshutils.HostKeyCallbackConfig{
 		GetHostCheckers: func() ([]ssh.PublicKey, error) {
 			d.mu.RLock()
@@ -587,25 +586,23 @@ func (d *DynamicIdentityFileCreds) SSHClientConfig() (apissh.ClientConfig, error
 		},
 	})
 	if err != nil {
-		return apissh.ClientConfig{}, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// Build a "dynamic" ssh config. Based roughly on
 	// `sshutils.ProxyClientSSHConfig` with modifications to make it work with
 	// dynamically changing credentials and CAs.
-	cfg := apissh.ClientConfig{
-		PublicKeyAuth: apissh.PublicKeyAuthConfig{
-			Signers: func() ([]ssh.Signer, error) {
+	cfg := &ssh.ClientConfig{
+		Auth: []ssh.AuthMethod{
+			ssh.PublicKeysCallback(func() (signers []ssh.Signer, err error) {
 				d.mu.RLock()
 				defer d.mu.RUnlock()
-
 				sshSigner, err := sshutils.SSHSigner(d.sshCert, d.sshKey)
 				if err != nil {
 					return nil, trace.Wrap(err)
 				}
-
 				return []ssh.Signer{sshSigner}, nil
-			},
+			}),
 		},
 		HostKeyCallback: hostKeyCallback,
 		Timeout:         defaults.DefaultIOTimeout,
@@ -689,8 +686,8 @@ func (c *staticKeypairCreds) TLSConfig() (*tls.Config, error) {
 }
 
 // SSHClientConfig returns SSH configuration.
-func (c *staticKeypairCreds) SSHClientConfig() (apissh.ClientConfig, error) {
-	return apissh.ClientConfig{}, trace.NotImplemented("no ssh config")
+func (c *staticKeypairCreds) SSHClientConfig() (*ssh.ClientConfig, error) {
+	return nil, trace.NotImplemented("no ssh config")
 }
 
 // Expiry returns the credential expiry.

@@ -247,7 +247,7 @@ func (p *resourceWatcher) hasStaleView() bool {
 // runWatchLoop runs a watch loop.
 func (p *resourceWatcher) runWatchLoop() {
 	for {
-		p.Logger.Log(p.ctx, logutils.TraceLevel, "Starting watch.")
+		p.Logger.DebugContext(p.ctx, "Starting watch.")
 		err := p.watch()
 
 		select {
@@ -490,62 +490,6 @@ func NewAppWatcher(ctx context.Context, cfg AppWatcherConfig) (*GenericWatcher[t
 	return w, trace.Wrap(err)
 }
 
-type AppServersWatcherConfig struct {
-	AppServersGetter
-	ResourceWatcherConfig
-}
-
-// CheckAndSetDefaults checks parameters and sets default values.
-func (cfg *AppServersWatcherConfig) CheckAndSetDefaults() error {
-	if err := cfg.ResourceWatcherConfig.CheckAndSetDefaults(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if cfg.MaxStaleness == 0 {
-		const appServerMaxStaleness = time.Minute
-		cfg.MaxStaleness = appServerMaxStaleness
-	}
-
-	if cfg.AppServersGetter == nil {
-		getter, ok := cfg.Client.(AppServersGetter)
-		if !ok {
-			return trace.BadParameter("missing parameter AppServersGetter and Client not usable as AppServersGetter")
-		}
-		cfg.AppServersGetter = getter
-	}
-
-	return nil
-}
-
-func NewAppServersWatcher(ctx context.Context, cfg AppServersWatcherConfig) (*GenericWatcher[types.AppServer, readonly.AppServer], error) {
-	if err := cfg.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	w, err := NewGenericResourceWatcher(ctx, GenericWatcherConfig[types.AppServer, readonly.AppServer]{
-		ResourceWatcherConfig: cfg.ResourceWatcherConfig,
-		ResourceKind:          types.KindAppServer,
-		ResourceKey: func(resource types.AppServer) string {
-			// host IDs are guaranteed to not contain "/"
-			return resource.GetHostID() + "/" + resource.GetName()
-		},
-		DeleteKey: func(r types.Resource) string {
-			// the host ID is stored in metadata.description in app server delete events
-			return r.GetMetadata().Description + "/" + r.GetName()
-		},
-		ResourceGetter: func(ctx context.Context) ([]types.AppServer, error) {
-			return cfg.AppServersGetter.GetApplicationServers(ctx, apidefaults.Namespace)
-		},
-		DisableUpdateBroadcast: true,
-		CloneFunc:              types.AppServer.Copy,
-		ReadOnlyFunc: func(resource types.AppServer) readonly.AppServer {
-			return resource
-		},
-	})
-
-	return w, trace.Wrap(err)
-}
-
 type DatabaseServerWatcherConfig struct {
 	DatabaseServersGetter
 	ResourceWatcherConfig
@@ -732,10 +676,6 @@ type GenericWatcherConfig[T any, R any] struct {
 	ResourceWatcherConfig
 	// ResourceKind specifies the kind of resource the watcher is monitoring.
 	ResourceKind string
-	// ResourceFilter is an optional filter that is applied on the backend when
-	// watching for resources. Only resources matching the filter will be sent
-	// to the watcher.
-	ResourceFilter map[string]string
 	// RequireResourcesForInitialBroadcast indicates whether an update should be
 	// performed if the initial set of resources is empty.
 	RequireResourcesForInitialBroadcast bool
@@ -881,7 +821,6 @@ func (g *genericCollector[T, R]) resourceKinds() []types.WatchKind {
 	return []types.WatchKind{{
 		Kind:        g.ResourceKind,
 		LoadSecrets: g.LoadSecrets,
-		Filter:      g.ResourceFilter,
 	}}
 }
 
@@ -989,7 +928,7 @@ func (g *genericCollector[T, R]) processEventsAndUpdateCurrent(ctx context.Conte
 			// Always broadcast when a resource is deleted.
 			updated = true
 		case types.OpPut:
-			resource, err := types.ConvertResource[T](event.Resource)
+			resource, err := convertResource[T](event.Resource)
 			if err != nil {
 				g.Logger.WarnContext(ctx, "Failed to convert event resource",
 					"resource", event.Resource.GetKind(),
@@ -1551,7 +1490,7 @@ func (c *caCollector) processEventsAndUpdateCurrent(ctx context.Context, events 
 			}
 
 			authority, ok := c.cas[ca.GetType()][ca.GetName()]
-			if ok && authority.IsEqual(ca) {
+			if ok && CertAuthoritiesEquivalent(authority, ca) {
 				continue
 			}
 

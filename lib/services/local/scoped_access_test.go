@@ -19,6 +19,7 @@
 package local
 
 import (
+	"context"
 	"testing"
 	"testing/synctest"
 
@@ -203,7 +204,8 @@ func testScopedRoleEvents(t *testing.T) {
 func TestScopedRoleBasicCRUD(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	backend, err := memory.New(memory.Config{
 		Context: ctx,
@@ -422,7 +424,8 @@ func TestScopedRoleBasicCRUD(t *testing.T) {
 func TestScopedRoleAssignmentBasicCRD(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	backend, err := memory.New(memory.Config{
 		Context: ctx,

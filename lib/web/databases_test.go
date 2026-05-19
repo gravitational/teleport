@@ -96,7 +96,7 @@ func TestCreateDatabaseRequestParameters(t *testing.T) {
 				Protocol: "protocol",
 				URI:      "uri",
 			},
-			errAssert: func(t require.TestingT, err error, i ...any) {
+			errAssert: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got", err)
 			},
@@ -108,7 +108,7 @@ func TestCreateDatabaseRequestParameters(t *testing.T) {
 				Protocol: "",
 				URI:      "uri",
 			},
-			errAssert: func(t require.TestingT, err error, i ...any) {
+			errAssert: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got", err)
 			},
@@ -120,7 +120,7 @@ func TestCreateDatabaseRequestParameters(t *testing.T) {
 				Protocol: "protocol",
 				URI:      "",
 			},
-			errAssert: func(t require.TestingT, err error, i ...any) {
+			errAssert: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got", err)
 			},
@@ -137,7 +137,7 @@ func TestCreateDatabaseRequestParameters(t *testing.T) {
 					VPCID:      "vpc-123",
 				},
 			},
-			errAssert: func(t require.TestingT, err error, i ...any) {
+			errAssert: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got", err)
 			},
@@ -154,7 +154,7 @@ func TestCreateDatabaseRequestParameters(t *testing.T) {
 					VPCID:     "vpc-123",
 				},
 			},
-			errAssert: func(t require.TestingT, err error, i ...any) {
+			errAssert: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got", err)
 			},
@@ -171,7 +171,7 @@ func TestCreateDatabaseRequestParameters(t *testing.T) {
 					VPCID:      "vpc-123",
 				},
 			},
-			errAssert: func(t require.TestingT, err error, i ...any) {
+			errAssert: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got", err)
 			},
@@ -188,7 +188,7 @@ func TestCreateDatabaseRequestParameters(t *testing.T) {
 					Subnets:    []string{"subnet-123", "subnet-321"},
 				},
 			},
-			errAssert: func(t require.TestingT, err error, i ...any) {
+			errAssert: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got", err)
 			},
@@ -242,7 +242,7 @@ func TestUpdateDatabaseRequestParameters(t *testing.T) {
 			req: updateDatabaseRequest{
 				CACert: strPtr(""),
 			},
-			errAssert: func(t require.TestingT, err error, i ...any) {
+			errAssert: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got", err)
 			},
@@ -252,7 +252,7 @@ func TestUpdateDatabaseRequestParameters(t *testing.T) {
 			req: updateDatabaseRequest{
 				CACert: strPtr("ca_cert"),
 			},
-			errAssert: func(t require.TestingT, err error, i ...any) {
+			errAssert: func(t require.TestingT, err error, i ...interface{}) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err), "expected a bad parameter error, got", err)
 			},
@@ -663,24 +663,15 @@ func TestConnectDatabaseInteractiveSession(t *testing.T) {
 	_, err = s.server.Auth().UpsertDatabaseServer(ctx, mustCreateDatabaseServer(t, selfHosted))
 	require.NoError(t, err)
 	tests := []struct {
-		desc                     string
-		databaseServiceName      string
-		replErr                  error
-		expectRequestErrContains string
+		desc    string
+		replErr error
 	}{
 		{
-			desc:                "success",
-			databaseServiceName: databaseName,
+			desc: "success",
 		},
 		{
-			desc:                "errors are sent to the user",
-			databaseServiceName: databaseName,
-			replErr:             trace.Errorf("database connection interrupted by unexpected llama crossing"),
-		},
-		{
-			desc:                     "invalid service name",
-			databaseServiceName:      "invalid service name",
-			expectRequestErrContains: "does not match regex",
+			desc:    "errors are sent to the user",
+			replErr: trace.Errorf("database connection interrupted by unexpected llama crossing"),
 		},
 	}
 	for _, test := range tests {
@@ -724,7 +715,7 @@ func TestConnectDatabaseInteractiveSession(t *testing.T) {
 
 			req := DatabaseSessionRequest{
 				Protocol:      databaseProtocol,
-				ServiceName:   test.databaseServiceName,
+				ServiceName:   databaseName,
 				DatabaseName:  "postgres",
 				DatabaseUser:  "postgres",
 				DatabaseRoles: []string{"reader"},
@@ -738,16 +729,6 @@ func TestConnectDatabaseInteractiveSession(t *testing.T) {
 			})
 			require.NoError(t, err)
 			require.NoError(t, ws.WriteMessage(websocket.BinaryMessage, reqWebSocketMessage))
-
-			if test.expectRequestErrContains != "" {
-				_, raw, err := ws.ReadMessage()
-				require.NoError(t, err)
-
-				var env terminal.Envelope
-				require.NoError(t, proto.Unmarshal(raw, &env))
-				require.Contains(t, env.Payload, test.expectRequestErrContains)
-				return
-			}
 
 			performMFACeremonyWS(t, ws, pack)
 

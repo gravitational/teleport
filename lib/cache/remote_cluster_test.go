@@ -104,21 +104,11 @@ func TestTunnelConnections(t *testing.T) {
 		cacheList: getAllAdapter(func(ctx context.Context) ([]types.TunnelConnection, error) { return p.cache.GetAllTunnelConnections() }),
 		update:    modifyNoContext(p.trustS.UpsertTunnelConnection),
 		deleteAll: func(ctx context.Context) error {
-			all, err := p.trustS.GetAllTunnelConnections()
-			if err != nil {
-				return err
-			}
-			for _, tc := range all {
-				err := p.trustS.DeleteTunnelConnection(tc.GetClusterName(), tc.GetName())
-				if err != nil {
-					return err
-				}
-			}
-			return nil
+			return p.trustS.DeleteAllTunnelConnections()
 		},
 	}, withSkipPaginationTest())
 
-	for i := range 17 {
+	for i := 0; i < 17; i++ {
 		tunnel, err := types.NewTunnelConnection("conn"+strconv.Itoa(i+1), types.TunnelConnectionSpecV2{
 			ClusterName:   clusterName,
 			ProxyName:     "p1",
@@ -129,7 +119,7 @@ func TestTunnelConnections(t *testing.T) {
 		require.NoError(t, p.trustS.UpsertTunnelConnection(tunnel))
 	}
 
-	for i := range 3 {
+	for i := 0; i < 3; i++ {
 		tunnel, err := types.NewTunnelConnection("conn"+strconv.Itoa(i+100), types.TunnelConnectionSpecV2{
 			ClusterName:   "other-cluster",
 			ProxyName:     "p1",

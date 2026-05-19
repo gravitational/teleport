@@ -80,9 +80,6 @@ const (
 	//
 	// https://github.com/gravitational/teleport/blob/master/rfd/0239-windows-ca-split.md
 	WindowsCA CertAuthType = "windows"
-	// AppClientCA is the certificate authority used to issue app access client
-	// certificates.
-	AppClientCA CertAuthType = "app_client"
 )
 
 // CertAuthTypes lists all certificate authority types.
@@ -100,7 +97,6 @@ var CertAuthTypes = []CertAuthType{
 	OktaCA,
 	AWSRACA,
 	BoundKeypairCA,
-	AppClientCA,
 }
 
 // NewlyAdded should return true for CA types that were added in the current
@@ -108,9 +104,9 @@ var CertAuthTypes = []CertAuthType{
 // remote server doesn't know about them.
 func (c CertAuthType) NewlyAdded() bool {
 	return c.addedInMajorVer() >= api.VersionMajor ||
-		// WindowsCA and AppClientCA are considered new in both v18.x and v19.
+		// WindowsCA is considered new in both v18.x and v19.
 		// TODO(codingllama): DELETE IN 20. Only here for backport purposes.
-		((c == WindowsCA || c == AppClientCA) && api.VersionMajor == 18)
+		(c == WindowsCA && api.VersionMajor == 18)
 }
 
 // addedInMajorVer returns the major version in which given CA was added.
@@ -130,10 +126,10 @@ func (c CertAuthType) addedInMajorVer() int64 {
 		return 17
 	case AWSRACA, BoundKeypairCA:
 		return 18
-	case WindowsCA, AppClientCA:
-		// Note: WindowsCA and AppClientCA were added in an 18.x minor release,
-		// so unlike others they are considered "new" in both versions 18 and 19.
-		// That is to allow for, at least, a full release cycle.
+	case WindowsCA:
+		// Note: WindowsCA was added in a 18.x minor release, so unlike others it's
+		// considered "new" in both versions 18 and 19. That is to allow for, at
+		// least, a full release cycle.
 		return 19
 	default:
 		// We don't care about other CAs added before v4.0.0

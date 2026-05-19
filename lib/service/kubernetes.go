@@ -25,11 +25,9 @@ import (
 	"net/http"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/authz"
@@ -48,7 +46,6 @@ func (process *TeleportProcess) initKubernetes() {
 	logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id))
 
 	process.RegisterWithAuthServer(types.RoleKube, KubeIdentityEvent)
-	process.ExpectService(teleport.ComponentKube)
 	process.RegisterCriticalFunc("kube.init", func() error {
 		conn, err := process.WaitForConnector(KubeIdentityEvent, logger)
 		if conn == nil {
@@ -138,17 +135,12 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 		agentPool, err = reversetunnel.NewAgentPool(
 			process.ExitContext(),
 			reversetunnel.AgentPoolConfig{
-				InsecureMode: process.Config.InsecureMode,
-				Component:    teleport.ComponentKube,
-				HostUUID:     conn.HostID(),
-				Resolver:     conn.TunnelProxyResolver(),
-				Client:       conn.Client,
-				AccessPoint:  accessPoint,
-				PublicKeyAuth: apissh.PublicKeyAuthConfig{
-					Signers: func() ([]ssh.Signer, error) {
-						return conn.ClientSigners(), nil
-					},
-				},
+				Component:                teleport.ComponentKube,
+				HostUUID:                 conn.HostID(),
+				Resolver:                 conn.TunnelProxyResolver(),
+				Client:                   conn.Client,
+				AccessPoint:              accessPoint,
+				AuthMethods:              conn.ClientAuthMethods(),
 				Cluster:                  teleportClusterName,
 				Server:                   shtl,
 				FIPS:                     process.Config.FIPS,
@@ -227,17 +219,16 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 	}
 
 	// Create the kube server to service listener.
-	scopedAuthorizer, err := authz.NewScopedAuthorizer(authz.AuthorizerOpts{
-		ClusterName:      teleportClusterName,
-		AccessPoint:      accessPoint,
-		ScopedRoleReader: accessPoint.ScopedRoleReader(),
-		LockWatcher:      lockWatcher,
-		Logger:           process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id)),
+	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
+		ClusterName: teleportClusterName,
+		AccessPoint: accessPoint,
+		LockWatcher: lockWatcher,
+		Logger:      process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id)),
 	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	tlsConfig, err := process.ServerTLSConfig(conn)
+	tlsConfig, err := conn.ServerTLSConfig(cfg.CipherSuites)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -275,7 +266,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 			Namespace:                     apidefaults.Namespace,
 			Keygen:                        cfg.Keygen,
 			ClusterName:                   teleportClusterName,
-			ScopedAuthz:                   scopedAuthorizer,
+			Authz:                         authorizer,
 			AuthClient:                    conn.Client,
 			Emitter:                       asyncEmitter,
 			DataDir:                       cfg.DataDir,
@@ -290,7 +281,6 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 			CheckImpersonationPermissions: cfg.Kube.CheckImpersonationPermissions,
 			PublicAddr:                    publicAddr,
 			ClusterFeatures:               process.GetClusterFeatures,
-			Scope:                         conn.Scope(),
 		},
 		TLS:                  tlsConfig,
 		AccessPoint:          accessPoint,
@@ -334,7 +324,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 	})
 
 	// Cleanup, when process is exiting.
-	process.OnExit("kube.shutdown", func(payload any) {
+	process.OnExit("kube.shutdown", func(payload interface{}) {
 		// Clean up items in reverse order from their initialization.
 		if payload != nil {
 			// Graceful shutdown.

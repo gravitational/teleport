@@ -24,7 +24,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
-	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/entitlements"
-	config "github.com/gravitational/teleport/lib/cloud/aws/config"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc/credprovider"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
@@ -99,13 +98,13 @@ func (o *Options) setDefaults(ctx context.Context, region string) error {
 	}
 	if o.stsClient == nil {
 		var useFips aws.FIPSEndpointState
-		if modules.GetModules().IsFIPSBuild() {
+		if modules.GetModules().IsBoringBinary() {
 			useFips = aws.FIPSEndpointStateEnabled
 		}
 		cfg, err := config.LoadDefaultConfig(
 			ctx,
-			awsconfig.WithRegion(region),
-			awsconfig.WithUseFIPSEndpoint(useFips),
+			config.WithRegion(region),
+			config.WithUseFIPSEndpoint(useFips),
 		)
 		if err != nil {
 			return trace.Wrap(err)

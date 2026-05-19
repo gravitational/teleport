@@ -630,7 +630,9 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) (err error)
 		return trace.ConvertSystemError(err)
 	}
 
-	u.wg.Go(func() {
+	u.wg.Add(1)
+	go func() {
+		defer u.wg.Done()
 		if err := u.upload(ctx, upload); err != nil {
 			log.WarnContext(ctx, "Upload failed.", "error", err)
 			u.emitEvent(events.UploadEvent{
@@ -645,7 +647,7 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) (err error)
 			SessionID: string(upload.sessionID),
 			Created:   u.cfg.Clock.Now().UTC(),
 		})
-	})
+	}()
 	return nil
 }
 
@@ -700,7 +702,9 @@ func (u *Uploader) uploadEncrypted(ctx context.Context, up *upload) error {
 	// https://github.com/gravitational/teleport/blob/master/rfd/0127-encrypted-session-recordings.md#session-recording-modes
 	partIter := encryptedUploadAggregateIter(up.file, u.cfg.EncryptedRecordingUploadTargetSize, uploadMaxSize)
 
-	u.wg.Go(func() {
+	u.wg.Add(1)
+	go func() {
+		defer u.wg.Done()
 		defer u.releaseSemaphore(ctx)
 		defer up.Close()
 		log.DebugContext(ctx, "uploading encrypted recording")
@@ -722,7 +726,7 @@ func (u *Uploader) uploadEncrypted(ctx context.Context, up *upload) error {
 		if err := os.Remove(up.file.Name()); err != nil {
 			log.ErrorContext(ctx, "failed to remove session file after successful upload", "error", err)
 		}
-	})
+	}()
 
 	return nil
 }

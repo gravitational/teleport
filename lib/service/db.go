@@ -20,10 +20,8 @@ package service
 
 import (
 	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/limiter"
@@ -46,7 +44,6 @@ func (process *TeleportProcess) shouldInitDatabases() bool {
 
 func (process *TeleportProcess) initDatabases() {
 	process.RegisterWithAuthServer(types.RoleDatabase, DatabasesIdentityEvent)
-	process.ExpectService(teleport.ComponentDatabase)
 	process.RegisterCriticalFunc("db.init", process.initDatabaseService)
 }
 
@@ -112,7 +109,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	tlsConfig, err := process.ServerTLSConfig(conn)
+	tlsConfig, err := conn.ServerTLSConfig(process.Config.CipherSuites)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -186,18 +183,13 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	agentPool, err := reversetunnel.NewAgentPool(
 		process.ExitContext(),
 		reversetunnel.AgentPoolConfig{
-			InsecureMode: process.Config.InsecureMode,
-			Component:    teleport.ComponentDatabase,
-			HostUUID:     conn.HostID(),
-			Resolver:     tunnelAddrResolver,
-			Client:       conn.Client,
-			Server:       dbService,
-			AccessPoint:  conn.Client,
-			PublicKeyAuth: apissh.PublicKeyAuthConfig{
-				Signers: func() ([]ssh.Signer, error) {
-					return conn.ClientSigners(), nil
-				},
-			},
+			Component:                teleport.ComponentDatabase,
+			HostUUID:                 conn.HostID(),
+			Resolver:                 tunnelAddrResolver,
+			Client:                   conn.Client,
+			Server:                   dbService,
+			AccessPoint:              conn.Client,
+			AuthMethods:              conn.ClientAuthMethods(),
 			Cluster:                  clusterName,
 			FIPS:                     process.Config.FIPS,
 			ConnectedProxyGetter:     proxyGetter,
@@ -216,7 +208,7 @@ func (process *TeleportProcess) initDatabaseService() (retErr error) {
 	}()
 
 	// Execute this when the process running database proxy service exits.
-	process.OnExit("db.stop", func(payload any) {
+	process.OnExit("db.stop", func(payload interface{}) {
 		if dbService != nil {
 			if payload == nil {
 				logger.InfoContext(process.ExitContext(), "Shutting down immediately.")

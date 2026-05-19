@@ -29,7 +29,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
-	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/lib/multiplexer"
 )
 
@@ -104,13 +103,8 @@ func TestFixedHeader(t *testing.T) {
 	// a separate connection (we have to, in fact, or serveOneSSH will fail
 	// the test)
 
-	sshClient, err := apissh.Dial(t.Context(), listener.Addr().Network(), listener.Addr().String(), apissh.ClientConfig{
-		User: "bob",
-		PublicKeyAuth: apissh.PublicKeyAuthConfig{
-			Signers: func() ([]ssh.Signer, error) {
-				return []ssh.Signer{mockSigner{}}, nil
-			},
-		},
+	sshClient, err := ssh.Dial(listener.Addr().Network(), listener.Addr().String(), &ssh.ClientConfig{
+		User:            "bob",
 		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 		Timeout:         5 * time.Second,
 	})
@@ -165,8 +159,4 @@ func serveOneSSH(t *testing.T, listener net.Listener) {
 	}()
 
 	_ = conn.Wait()
-}
-
-type mockSigner struct {
-	ssh.Signer
 }

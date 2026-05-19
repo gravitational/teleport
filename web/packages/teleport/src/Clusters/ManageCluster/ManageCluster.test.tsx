@@ -17,15 +17,10 @@
  */
 
 import { http, HttpResponse } from 'msw';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { setupServer } from 'msw/node';
+import { MemoryRouter, Route } from 'react-router-dom';
 
-import {
-  enableMswServer,
-  render,
-  screen,
-  server,
-  waitFor,
-} from 'design/utils/testing';
+import { render, screen, waitFor } from 'design/utils/testing';
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 
 import cfg from 'teleport/config';
@@ -36,44 +31,39 @@ import { createTeleportContext } from 'teleport/mocks/contexts';
 import { clusterInfoFixture } from '../fixtures';
 import { ManageCluster } from './ManageCluster';
 
-enableMswServer();
-
 function renderElement(element, ctx) {
   return render(
     <MemoryRouter initialEntries={[`/clusters/cluster-id`]}>
-      <Routes>
-        <Route
-          path="/clusters/:clusterId"
-          element={
-            <InfoGuidePanelProvider>
-              <ContentMinWidth>
-                <ContextProvider ctx={ctx}>{element}</ContextProvider>
-              </ContentMinWidth>
-            </InfoGuidePanelProvider>
-          }
-        />
-      </Routes>
+      <Route path="/clusters/:clusterId">
+        <InfoGuidePanelProvider>
+          <ContentMinWidth>
+            <ContextProvider ctx={ctx}>{element}</ContextProvider>
+          </ContentMinWidth>
+        </InfoGuidePanelProvider>
+      </Route>
     </MemoryRouter>
   );
 }
 
 describe('test ManageCluster component', () => {
-  beforeEach(() => {
-    server.use(
-      http.get(cfg.getClusterInfoPath('cluster-id'), () => {
-        return HttpResponse.json({
-          name: 'cluster-id',
-          lastConnected: new Date(),
-          status: 'active',
-          publicURL: 'cluster-id.teleport.com',
-          authVersion: 'v17.0.0',
-          proxyVersion: 'v17.0.0',
-          isCloud: false,
-          licenseExpiry: new Date(),
-        });
-      })
-    );
-  });
+  const server = setupServer(
+    http.get(cfg.getClusterInfoPath('cluster-id'), () => {
+      return HttpResponse.json({
+        name: 'cluster-id',
+        lastConnected: new Date(),
+        status: 'active',
+        publicURL: 'cluster-id.teleport.com',
+        authVersion: 'v17.0.0',
+        proxyVersion: 'v17.0.0',
+        isCloud: false,
+        licenseExpiry: new Date(),
+      });
+    })
+  );
+
+  beforeAll(() => server.listen());
+  afterEach(() => server.resetHandlers());
+  afterAll(() => server.close());
 
   test('fetches cluster information on load', async () => {
     const ctx = createTeleportContext();

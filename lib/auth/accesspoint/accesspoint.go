@@ -72,9 +72,8 @@ type Config struct {
 	Access                  services.Access
 	AccessLists             services.AccessLists
 	AccessMonitoringRules   services.AccessMonitoringRules
-	AppSession              services.AppSessionReader
-	Applications            services.Applications
-	Beams                   services.BeamReader
+	AppSession              services.AppSession
+	Apps                    services.Applications
 	BotInstance             services.BotInstance
 	ClusterConfig           services.ClusterConfiguration
 	StaticScopedToken       services.StaticScopedTokenService
@@ -109,18 +108,15 @@ type Config struct {
 	WorkloadIdentity        services.WorkloadIdentities
 	DynamicWindowsDesktops  services.DynamicWindowsDesktops
 	WindowsDesktops         services.WindowsDesktops
-	LinuxDesktops           services.LinuxDesktops
 	AutoUpdateService       services.AutoUpdateServiceGetter
 	ProvisioningStates      services.ProvisioningStates
 	IdentityCenter          services.IdentityCenter
 	PluginStaticCredentials services.PluginStaticCredentials
 	GitServers              services.GitServers
 	HealthCheckConfig       services.HealthCheckConfigReader
-	RecordingEncryption     services.RecordingEncryption
 	Plugin                  services.Plugins
-	AppAuthConfig           services.AppAuthConfigReader
+	RecordingEncryption     services.RecordingEncryption
 	Summarizer              services.Summarizer
-	SubCAService            services.SubCAServiceGetter
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -166,8 +162,7 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		AccessLists:             cfg.AccessLists,
 		AccessMonitoringRules:   cfg.AccessMonitoringRules,
 		AppSession:              cfg.AppSession,
-		Apps:                    cfg.Applications,
-		Beams:                   cfg.Beams,
+		Apps:                    cfg.Apps,
 		ClusterConfig:           cfg.ClusterConfig,
 		StaticScopedToken:       cfg.StaticScopedToken,
 		AutoUpdateService:       cfg.AutoUpdateService,
@@ -200,7 +195,6 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		WebToken:                cfg.WebToken,
 		WorkloadIdentity:        cfg.WorkloadIdentity,
 		WindowsDesktops:         cfg.WindowsDesktops,
-		LinuxDesktops:           cfg.LinuxDesktops,
 		DynamicWindowsDesktops:  cfg.DynamicWindowsDesktops,
 		ProvisioningStates:      cfg.ProvisioningStates,
 		IdentityCenter:          cfg.IdentityCenter,
@@ -208,11 +202,9 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		GitServers:              cfg.GitServers,
 		HealthCheckConfig:       cfg.HealthCheckConfig,
 		BotInstanceService:      cfg.BotInstance,
-		RecordingEncryption:     cfg.RecordingEncryption,
 		Plugin:                  cfg.Plugin,
-		AppAuthConfig:           cfg.AppAuthConfig,
+		RecordingEncryption:     cfg.RecordingEncryption,
 		Summarizer:              cfg.Summarizer,
-		SubCAService:            cfg.SubCAService,
 	}
 
 	return cache.New(cfg.Setup(cacheCfg))

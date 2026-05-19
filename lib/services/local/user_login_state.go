@@ -58,7 +58,6 @@ func NewUserLoginStateService(b backend.Backend) (*UserLoginStateService, error)
 }
 
 // GetUserLoginStates returns the all user login state resources.
-// deprecated: Use paginated version ListUserLoginStates
 func (u *UserLoginStateService) GetUserLoginStates(ctx context.Context) ([]*userloginstate.UserLoginState, error) {
 	states, err := u.svc.GetResources(ctx)
 	return states, trace.Wrap(err)

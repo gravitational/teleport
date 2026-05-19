@@ -17,7 +17,8 @@
  */
 
 import { useQueries } from '@tanstack/react-query';
-import { Link as InternalLink, useNavigate, useParams } from 'react-router';
+import { useHistory, useParams } from 'react-router';
+import { Link as InternalLink } from 'react-router-dom';
 import { useTheme } from 'styled-components';
 
 import { ButtonIcon, Flex, Link, MenuItem, Text } from 'design';
@@ -114,7 +115,7 @@ export function AwsRaDashboard() {
 
 function AwsRaTitle({ integration }: { integration: IntegrationAwsRa }) {
   const theme = useTheme();
-  const navigate = useNavigate();
+  const history = useHistory();
   const integrationOps = useIntegrationOperation();
 
   const anchorIdReg = new RegExp('[^\\/]+$');
@@ -123,7 +124,7 @@ function AwsRaTitle({ integration }: { integration: IntegrationAwsRa }) {
   async function removeIntegration() {
     await integrationOps.remove();
     integrationOps.clear();
-    navigate(cfg.routes.integrations);
+    history.push(cfg.routes.integrations);
   }
 
   async function editIntegration(req: EditableIntegrationFields) {
@@ -181,17 +182,14 @@ function AwsRaTitle({ integration }: { integration: IntegrationAwsRa }) {
         <MenuButton icon={<Icons.Cog size="small" />}>
           <MenuItem
             onClick={() =>
-              navigate(
+              history.push(
                 cfg.getIntegrationEnrollRoute(IntegrationKind.AwsRa, 'access'),
                 {
-                  state: {
-                    integrationName: integration.name,
-                    trustAnchorArn: integration.spec.trustAnchorARN,
-                    syncProfileArn:
-                      integration.spec.profileSyncConfig.profileArn,
-                    syncRoleArn: integration.spec.profileSyncConfig.roleArn,
-                    edit: true,
-                  },
+                  integrationName: integration.name,
+                  trustAnchorArn: integration.spec.trustAnchorARN,
+                  syncProfileArn: integration.spec.profileSyncConfig.profileArn,
+                  syncRoleArn: integration.spec.profileSyncConfig.roleArn,
+                  edit: true,
                 }
               )
             }

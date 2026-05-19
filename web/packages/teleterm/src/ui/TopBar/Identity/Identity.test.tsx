@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+/* oxlint-disable jest/no-standalone-expect */
+
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
@@ -30,8 +32,6 @@ import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvi
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 
 import { IdentityContainer } from './Identity';
-
-/* oxlint-disable jest/no-standalone-expect */
 
 test.each([
   {

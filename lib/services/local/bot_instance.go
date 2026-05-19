@@ -166,7 +166,7 @@ func (b *BotInstanceService) PatchBotInstance(
 ) (*machineidv1.BotInstance, error) {
 	const iterLimit = 3
 
-	for range iterLimit {
+	for i := 0; i < iterLimit; i++ {
 		existing, err := b.GetBotInstance(ctx, botName, instanceID)
 		if err != nil {
 			return nil, trace.Wrap(err)

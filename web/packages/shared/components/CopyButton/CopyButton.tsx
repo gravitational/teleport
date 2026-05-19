@@ -18,7 +18,7 @@
 
 import { MouseEventHandler, useEffect, useRef, useState } from 'react';
 
-import Box, { BoxProps } from 'design/Box';
+import Box from 'design/Box';
 import ButtonIcon from 'design/ButtonIcon';
 import { Check, Copy } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
@@ -27,14 +27,17 @@ import { copyToClipboard } from 'design/utils/copyToClipboard';
 /**
  * Renders a button that copies the provided value to clipboard when clicked.
  */
-export function CopyButton(
-  props: {
-    value: string;
-    tooltip?: string;
-  } & BoxProps
-) {
-  const { tooltip, value, ...rest } = props;
-
+export function CopyButton({
+  value,
+  mr,
+  ml,
+  tooltip,
+}: {
+  value: string;
+  mr?: number;
+  ml?: number;
+  tooltip?: string;
+}) {
   const copySuccess = 'Copied!';
   const copyDefault = tooltip || 'Click to copy';
   const timeout = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -66,14 +69,13 @@ export function CopyButton(
   }, []);
 
   return (
-    <Box {...rest}>
+    <Box mr={mr} ml={ml}>
       <HoverTooltip tipContent={copiedText}>
         <ButtonIcon
           ref={copyAnchorEl}
           size={0}
           onClick={handleCopy}
           aria-label="copy"
-          type="button"
         >
           {copiedText === copySuccess ? (
             <Check size="small" />

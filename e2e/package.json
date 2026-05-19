@@ -1,19 +1,13 @@
 {
-  "name": "@gravitational/e2e",
+  "name": "playwright-e2e-testing",
   "version": "1.0.0",
-  "type": "module",
   "description": "Playwright tests for e2e testing.",
   "scripts": {
-    "test": "./run.sh",
-    "type-check": "tsc --noEmit",
-    "test:canonical-key": "tsx scripts/verify-canonical-key.ts",
-    "show-report": "playwright show-report --port 0"
+    "test": "playwright test --project=chromium",
+    "report": "playwright show-report"
   },
   "license": "Apache-2.0",
   "devDependencies": {
-    "@playwright/test": "^1.59.1",
-    "cbor-x": "^1.6.4",
-    "tsx": "^4.21.0",
-    "undici": "^7.24.5"
+    "@playwright/test": "^1.55.1"
   }
 }

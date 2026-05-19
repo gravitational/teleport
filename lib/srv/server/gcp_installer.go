@@ -67,6 +67,7 @@ func (gi *GCPInstaller) Run(ctx context.Context, req GCPRunRequest) error {
 	runErrorsMu := &sync.Mutex{}
 
 	for _, inst := range req.Instances {
+		inst := inst
 		g.Go(func() error {
 			runRequest := gcp.RunCommandRequest{
 				Client: req.Client,

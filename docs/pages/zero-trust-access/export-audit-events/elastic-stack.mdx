@@ -45,7 +45,7 @@ The instructions below demonstrate a local test of the Event Handler plugin on
 your workstation. You will need to adjust paths, ports, and domains for other
 environments.
 
-## Step 1/2. Configure a Logstash pipeline
+## Step 1/3. Configure a Logstash pipeline
 
 The Event Handler plugin forwards audit logs from Teleport by sending HTTP
 requests to a user-configured endpoint. We will define a Logstash pipeline that
@@ -334,7 +334,7 @@ Edit the file `/etc/elasticsearch/elasticsearch.yml` to set
 
 </details>
 
-## Step 2/2. Run the Event Handler plugin
+## Step 2/3. Run the Event Handler plugin
 
 In this section, you will modify the Event Handler configuration you generated
 and run the Event Handler to test your configuration.
@@ -358,24 +358,10 @@ your Logstash `http` input earlier, `https://localhost:9601`. Change
 
 (!docs/pages/includes/plugins/start-event-handler.mdx!)
 
-## Troubleshooting connection issues
+## Step 3/3. Create a data view in Kibana
 
-If the Teleport Event Handler is displaying error logs while connecting to your
-Teleport Cluster, ensure that:
-
-- The certificate the Teleport Event Handler is using to connect to your
-  Teleport cluster is not past its expiration date. This is the value of the
-  `--ttl` flag in the `tctl auth sign` command, which is 12 hours by default.
-- In your Teleport Event Handler configuration file, you have provided
-  the correct host *and* port for the Teleport Proxy Service.
-
-## Next step: set up a data view
-
-Now that you are exporting your audit events to the Elastic Stack, you can set
-up a data view in Kibana so that you can understand activity in your Teleport
-cluster.
-
-In the Elastic Stack UI, find the hamburger menu on the upper
+Make it possible to explore your Teleport audit events in Kibana by creating a
+data view. In the Elastic Stack UI, find the hamburger menu on the upper
 left of the screen, then click "Management" > "Data Views". Click "Create data
 view".
 
@@ -398,13 +384,22 @@ the event types for your Teleport audit events over time:
 
 ![Creating a visualization](../../../img/enterprise/plugins/elasticsearch/lens.png)
 
-Consult the [audit event
-reference](../../reference/deployment/monitoring/audit.mdx) so you can see the
-structures of the audit events you are interested in and plan visualizations and
-alerts.
+## Troubleshooting connection issues
 
-## Further reading
+If the Teleport Event Handler is displaying error logs while connecting to your
+Teleport Cluster, ensure that:
 
-To see all of the options you can set in the values file for the
+- The certificate the Teleport Event Handler is using to connect to your
+  Teleport cluster is not past its expiration date. This is the value of the
+  `--ttl` flag in the `tctl auth sign` command, which is 12 hours by default.
+- In your Teleport Event Handler configuration file, you have provided
+  the correct host *and* port for the Teleport Proxy Service.
+
+## Next steps
+
+- Now that you are exporting your audit events to the Elastic Stack, consult our
+[audit event reference](../../reference/deployment/monitoring/audit.mdx) so you can plan
+visualizations and alerts.
+- To see all of the options you can set in the values file for the
 `teleport-plugin-event-handler` Helm chart, consult our [reference
 guide](../../reference/helm-reference/teleport-plugin-event-handler.mdx).

@@ -29,7 +29,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	awssdkconfig "github.com/aws/aws-sdk-go-v2/config"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
@@ -40,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/backend"
-	awsconfig "github.com/gravitational/teleport/lib/cloud/aws/config"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
 	"github.com/gravitational/teleport/lib/observability/metrics"
@@ -446,8 +445,8 @@ func (cfg *Config) UpdateForExternalAuditStorage(ctx context.Context, externalAu
 	cfg.Region = spec.Region
 
 	awsCfg, err := awsconfig.LoadDefaultConfig(ctx,
-		awssdkconfig.WithRegion(cfg.Region),
-		awssdkconfig.WithCredentialsProvider(externalAuditStorage.CredentialsProvider()),
+		awsconfig.WithRegion(cfg.Region),
+		awsconfig.WithCredentialsProvider(externalAuditStorage.CredentialsProvider()),
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -498,7 +497,7 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 	}
 
 	l := &Log{
-		publisher: newPublisherFromAthenaConfig(ctx, cfg),
+		publisher: newPublisherFromAthenaConfig(cfg),
 		querier:   querier,
 	}
 
@@ -524,16 +523,7 @@ func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error
 }
 
 func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
-	values, next, err := l.querier.SearchEvents(ctx, req)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	// Convert the values to apievents.AuditEvent.
-	evts, err := events.FromEventFieldsSlice(values)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	return evts, next, nil
+	return l.querier.SearchEvents(ctx, req)
 }
 
 func (l *Log) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
@@ -545,27 +535,7 @@ func (l *Log) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEvent
 }
 
 func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
-	values, next, err := l.querier.SearchSessionEvents(ctx, req)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	evts, err := events.FromEventFieldsSlice(values)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	return evts, next, nil
-}
-
-func (l *Log) SearchUnstructuredEvents(ctx context.Context, req events.SearchEventsRequest) ([]*auditlogpb.EventUnstructured, string, error) {
-	values, next, err := l.querier.SearchEvents(ctx, req)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	evts, err := events.FromEventFieldsSliceToUnstructured(values)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	return evts, next, nil
+	return l.querier.SearchSessionEvents(ctx, req)
 }
 
 func (l *Log) Close() error {

@@ -201,10 +201,11 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient, suite
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	requestsC := make(chan benchMeasure)
 	resultC := make(chan benchMeasure)
 
 	var wg sync.WaitGroup
-	wg.Go(func() {
+	go func() {
 		interval := time.Duration(1 / float64(c.Rate) * float64(time.Second))
 		ticker := time.NewTicker(interval)
 		defer ticker.Stop()
@@ -220,12 +221,17 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient, suite
 					ResponseStart: t,
 				}
 
-				wg.Go(func() { work(ctx, measure, resultC, workload) })
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					work(ctx, measure, resultC, workload)
+				}()
 			case <-ctx.Done():
+				close(requestsC)
 				return
 			}
 		}
-	})
+	}()
 
 	defer wg.Wait()
 
@@ -238,24 +244,22 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient, suite
 		if c.MinimumWindow <= time.Since(start) {
 			timeElapsed = true
 		}
-
 		select {
-		case <-ctx.Done():
-			result.Duration = time.Since(start)
-			return result, nil
 		case measure := <-resultC:
 			result.Histogram.RecordValue(int64(measure.End.Sub(measure.ResponseStart) / time.Millisecond))
 			result.RequestsOriginated++
+			if timeElapsed && result.RequestsOriginated >= c.MinimumMeasurements {
+				cancel()
+			}
 			if measure.Error != nil {
 				result.RequestsFailed++
 				result.LastError = measure.Error
 			}
+		case <-ctx.Done():
+			result.Duration = time.Since(start)
+			return result, nil
 		case <-statusTicker.C:
 			slog.InfoContext(ctx, "working...", "current_observation_count", result.RequestsOriginated)
-		}
-
-		if timeElapsed && result.RequestsOriginated >= c.MinimumMeasurements {
-			cancel()
 		}
 	}
 }

@@ -131,7 +131,7 @@ func (s *Server) reconcileAccessGraph(
 	errs := make([]error, 0, len(allFetchers))
 	// Collect the results from all fetchers.
 	// Each fetcher can return an error and a result.
-	for range allFetchers {
+	for i := 0; i < len(allFetchers); i++ {
 		fetcherResult := <-resultsC
 		fetcher, result, err := fetcherResult.fetcher, fetcherResult.result, fetcherResult.err
 		if err != nil {
@@ -247,7 +247,10 @@ func pushUpsertInBatches(
 	upsert *accessgraphv1alpha.AWSResourceList,
 ) error {
 	for i := 0; i < len(upsert.Resources); i += batchSize {
-		end := min(i+batchSize, len(upsert.Resources))
+		end := i + batchSize
+		if end > len(upsert.Resources) {
+			end = len(upsert.Resources)
+		}
 		err := client.Send(
 			&accessgraphv1alpha.AWSEventsStreamRequest{
 				Operation: &accessgraphv1alpha.AWSEventsStreamRequest_Upsert{
@@ -269,7 +272,10 @@ func pushDeleteInBatches(
 	toDel *accessgraphv1alpha.AWSResourceList,
 ) error {
 	for i := 0; i < len(toDel.Resources); i += batchSize {
-		end := min(i+batchSize, len(toDel.Resources))
+		end := i + batchSize
+		if end > len(toDel.Resources) {
+			end = len(toDel.Resources)
+		}
 		err := client.Send(
 			&accessgraphv1alpha.AWSEventsStreamRequest{
 				Operation: &accessgraphv1alpha.AWSEventsStreamRequest_Delete{
@@ -803,9 +809,9 @@ func (s *Server) startCloudtrailPoller(ctx context.Context, reloadCh <-chan stru
 			}
 			return matchersMap
 		},
-		CompareResources: func(aga1, aga2 *types.AccessGraphAWSSync) int {
-			return services.EqualFromBool(aga1.IsEqual(aga2))
-		},
+		// Compare allows custom comparators without having to implement IsEqual.
+		// Defaults to `CompareResources[T]` if not specified.
+		CompareResources: services.CompareResources[*types.AccessGraphAWSSync],
 		OnCreate: func(_ context.Context, disc *types.AccessGraphAWSSync) error {
 			spawnMatcher(ctx, disc)
 			return nil
@@ -965,7 +971,7 @@ func (s *Server) pollEventsFromSQSFilesImpl(ctx context.Context,
 ) error {
 	parallelDownloads := make(chan struct{}, 60)
 	errG, ctx := errgroup.WithContext(ctx)
-	for range 10 {
+	for i := 0; i < 10; i++ {
 		errG.Go(
 			s.processMessagesWorker(
 				ctx,

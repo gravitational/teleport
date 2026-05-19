@@ -34,9 +34,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/gitserver"
 	"github.com/gravitational/teleport/api/constants"
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
-	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -208,10 +206,12 @@ func TestForwardServer(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			ctx := t.Context()
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
 
 			mockEmitter := &eventstest.MockRecorderEmitter{}
 			mockGitService := newMockGitHostingService(t, caSigner)
@@ -249,16 +249,13 @@ func TestForwardServer(t *testing.T) {
 			clientDialConn, err := s.Dial()
 			require.NoError(t, err)
 
-			conn, chCh, reqCh, err := apissh.NewClientConn(
-				t.Context(),
+			conn, chCh, reqCh, err := ssh.NewClientConn(
 				clientDialConn,
 				"127.0.0.1:222",
-				apissh.ClientConfig{
+				&ssh.ClientConfig{
 					User: test.clientLogin,
-					PublicKeyAuth: apissh.PublicKeyAuthConfig{
-						Signers: func() ([]ssh.Signer, error) {
-							return []ssh.Signer{userCert}, nil
-						},
+					Auth: []ssh.AuthMethod{
+						ssh.PublicKeys(userCert),
 					},
 					HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 					Timeout:         5 * time.Second,
@@ -276,7 +273,7 @@ func TestForwardServer(t *testing.T) {
 			if test.verifyEvent != nil {
 				// Server emits exec event after sending result to client.
 				require.EventuallyWithT(t, func(t *assert.CollectT) {
-					require.NotNil(t, mockEmitter.LastEvent())
+					assert.NotNil(t, mockEmitter.LastEvent())
 				}, time.Second*2, time.Millisecond*100, "Timeout waiting for audit event.")
 				test.verifyEvent(t, mockEmitter.LastEvent())
 			}
@@ -412,14 +409,6 @@ func (m mockAuthClient) NewWatcher(ctx context.Context, watch types.Watch) (type
 		return nil, trace.AccessDenied("unauthorized")
 	}
 	return m.events.NewWatcher(ctx, watch)
-}
-
-type mockMFAServiceClient struct {
-	mfav1.MFAServiceClient
-}
-
-func (m mockAuthClient) MFAServiceClient() mfav1.MFAServiceClient {
-	return &mockMFAServiceClient{}
 }
 
 type mockAccessPoint struct {

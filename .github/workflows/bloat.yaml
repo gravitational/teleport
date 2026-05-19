@@ -1,8 +1,5 @@
 name: Bloat Check
 on:
-  pull_request:
-    paths:
-      - '.github/workflows/bloat.yaml'
   push:
     paths:
       - '.github/workflows/bloat.yaml'
@@ -30,11 +27,11 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+      image: ghcr.io/gravitational/teleport-buildbox:teleport18
 
     steps:
       - name: Checkout base
-        uses: actions/checkout@v6
+        uses: actions/checkout@v3 # Cannot upgrade to v4 while this runs in centos:7 due to nodejs GLIBC incompatibility
         with:
           ref: ${{ github.event.pull_request.base.sha || github.event.before }}
 
@@ -42,14 +39,14 @@ jobs:
         uses: ./.github/actions/prepare-workspace
 
       - name: Checkout shared-workflow
-        uses: actions/checkout@v6
+        uses: actions/checkout@v3 # Cannot upgrade to v4 while this runs in centos:7 due to nodejs GLIBC incompatibility
         with:
           repository: gravitational/shared-workflows
           path: .github/shared-workflows
           ref: dd8f30e8fd5dd1d1655b9d27049e5d0f6f4f9ef2 # workflows/v0.0.3
 
       - name: Setup base cache
-        uses: actions/cache/restore@v5
+        uses: actions/cache/restore@v3
         id: cache-build-restore
         with:
           path: |
@@ -58,24 +55,24 @@ jobs:
 
       - name: Generate GitHub Token
         id: generate_token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@v1.0.5 # Cannot upgrade past v1.1 while this runs in centos:7 due to nodejs GLIBC incompatibility
         with:
-          app-id: ${{ secrets.REVIEWERS_APP_ID }}
-          private-key: ${{ secrets.REVIEWERS_PRIVATE_KEY }}
+          app_id: ${{ secrets.REVIEWERS_APP_ID }}
+          private_key: ${{ secrets.REVIEWERS_PRIVATE_KEY }}
 
       - if: ${{ steps.cache-build-restore.outputs.cache-hit != 'true' }}
         name: Build base
         id: build_base
         run: |
           make WEBASSETS_SKIP_BUILD=1 BUILDDIR=base_build binaries
-          cd .github/shared-workflows/bot && go run main.go -workflow=binary-sizes --artifacts="tbot,tctl,teleport,tsh,teleport-update,fdpass-teleport,sessionhelper" --builddir="../../../base_build" -token="${{ steps.generate_token.outputs.token }}" -reviewers="${{ secrets.reviewers }}"  > ~/teleport_base_build_stats
+          cd .github/shared-workflows/bot && go run main.go -workflow=binary-sizes --artifacts="tbot,tctl,teleport,tsh,teleport-update,fdpass-teleport,sessionhelper" --builddir="../../../base_build" -token="${{ steps.generate_token.outputs.token }}" -reviewers="${{ secrets.reviewers }}"  >> ~/teleport_base_build_stats
           echo "base_stats_file=~/teleport_base_build_stats" >> $GITHUB_OUTPUT
           echo "base_stats=$(cat ~/teleport_base_build_stats)" >> $GITHUB_ENV
 
       - if: ${{ steps.cache-build-restore.outputs.cache-hit != 'true' }}
         name: Save base build
         id: base-build-save
-        uses: actions/cache/save@v5
+        uses: actions/cache/save@v3
         with:
           path: |
             ${{ steps.build_base.outputs.base_stats_file }}
@@ -88,12 +85,12 @@ jobs:
           echo "base_stats=$(cat ~/teleport_base_build_stats)" >> $GITHUB_ENV
 
       - name: Checkout branch
-        uses: actions/checkout@v6
+        uses: actions/checkout@v3 # Cannot upgrade to v4 while this runs in centos:7 due to nodejs GLIBC incompatibility
         with:
           clean: false
 
       - name: Checkout shared-workflow
-        uses: actions/checkout@v6
+        uses: actions/checkout@v3 # Cannot upgrade to v4 while this runs in centos:7 due to nodejs GLIBC incompatibility
         with:
           repository: gravitational/shared-workflows
           path: .github/shared-workflows

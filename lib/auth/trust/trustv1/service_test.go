@@ -42,7 +42,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -473,7 +472,6 @@ func TestRBAC(t *testing.T) {
 				Authorizer:       &test.authorizer,
 				ScopedAuthorizer: &test.authorizer,
 				AuthServer:       &fakeAuthServer{},
-				Modules:          modulestest.OSSModules(),
 			}
 
 			service, err := NewService(cfg)
@@ -509,7 +507,6 @@ func TestGetCertAuthority(t *testing.T) {
 		Authorizer:       authorizer,
 		ScopedAuthorizer: authorizer,
 		AuthServer:       &fakeAuthServer{},
-		Modules:          modulestest.OSSModules(),
 	}
 
 	service, err := NewService(cfg)
@@ -657,7 +654,6 @@ func TestGetCertAuthority_outdatedTctl(t *testing.T) {
 		Authorizer:       authorizer,
 		ScopedAuthorizer: authorizer,
 		AuthServer:       &fakeAuthServer{}, // unused, only needs to be non-nil
-		Modules:          modulestest.OSSModules(),
 	}
 	service, err := NewService(cfg)
 	require.NoError(t, err)
@@ -776,7 +772,6 @@ func TestGetCertAuthorities(t *testing.T) {
 		Authorizer:       authorizer,
 		ScopedAuthorizer: authorizer,
 		AuthServer:       &fakeAuthServer{},
-		Modules:          modulestest.OSSModules(),
 	}
 
 	service, err := NewService(cfg)
@@ -883,7 +878,6 @@ func TestDeleteCertAuthority(t *testing.T) {
 		Authorizer:       authorizer,
 		ScopedAuthorizer: authorizer,
 		AuthServer:       &fakeAuthServer{},
-		Modules:          modulestest.OSSModules(),
 	}
 
 	service, err := NewService(cfg)
@@ -959,7 +953,6 @@ func TestUpsertCertAuthority(t *testing.T) {
 		Authorizer:       authorizer,
 		ScopedAuthorizer: authorizer,
 		AuthServer:       &fakeAuthServer{},
-		Modules:          modulestest.OSSModules(),
 	}
 
 	service, err := NewService(cfg)
@@ -1046,7 +1039,6 @@ func TestRotateCertAuthority(t *testing.T) {
 		Authorizer:       authorizer,
 		ScopedAuthorizer: authorizer,
 		AuthServer:       authServer,
-		Modules:          modulestest.OSSModules(),
 	}
 
 	tests := []struct {
@@ -1134,7 +1126,7 @@ func TestRotateExternalCertAuthority(t *testing.T) {
 				},
 			},
 			ca: externalCA,
-			assertError: func(tt require.TestingT, err error, i ...any) {
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
 				require.True(tt, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
 			},
 		}, {
@@ -1148,35 +1140,35 @@ func TestRotateExternalCertAuthority(t *testing.T) {
 				},
 			},
 			ca: externalCA,
-			assertError: func(tt require.TestingT, err error, i ...any) {
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
 				require.True(tt, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
 			},
 		}, {
 			name:     "NOK no ca",
 			authzCtx: authorizedCtx,
 			ca:       nil,
-			assertError: func(tt require.TestingT, err error, i ...any) {
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
 				require.True(tt, trace.IsBadParameter(err))
 			},
 		}, {
 			name:     "NOK invalid ca",
 			authzCtx: authorizedCtx,
 			ca:       &types.CertAuthorityV2{},
-			assertError: func(tt require.TestingT, err error, i ...any) {
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
 				require.True(tt, trace.IsBadParameter(err))
 			},
 		}, {
 			name:     "NOK rotate local ca",
 			authzCtx: remoteUserCtx,
 			ca:       localCA,
-			assertError: func(tt require.TestingT, err error, i ...any) {
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
 				require.True(tt, trace.IsBadParameter(err))
 			},
 		}, {
 			name:     "NOK nonexistent ca",
 			authzCtx: remoteUserCtx,
 			ca:       newCertAuthority(t, types.HostCA, "na").(*types.CertAuthorityV2),
-			assertError: func(tt require.TestingT, err error, i ...any) {
+			assertError: func(tt require.TestingT, err error, i ...interface{}) {
 				require.True(tt, trace.IsBadParameter(err))
 			},
 		}, {
@@ -1197,7 +1189,6 @@ func TestRotateExternalCertAuthority(t *testing.T) {
 			cfg := &ServiceConfig{
 				Cache:   trust,
 				Backend: trust,
-				Modules: modulestest.OSSModules(),
 				Authorizer: &fakeAuthorizer{
 					authzCtx: test.authzCtx,
 				},
@@ -1259,7 +1250,6 @@ func TestGenerateHostCert(t *testing.T) {
 		Authorizer:       authorizer,
 		ScopedAuthorizer: authorizer,
 		AuthServer:       hostCertSigner,
-		Modules:          modulestest.OSSModules(),
 	}
 
 	tests := []struct {

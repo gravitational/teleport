@@ -43,9 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessmonitoringrulesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
-	appauthconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
-	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	dbobjectv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1"
@@ -54,14 +52,12 @@ import (
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
-	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	recordingencryptionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
-	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	summaryv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
@@ -98,6 +94,7 @@ import (
 const eventBufferSize = 1024
 
 func TestMain(m *testing.M) {
+	logtest.InitLogger(testing.Verbose)
 	modules.SetModules(&modulestest.Modules{
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
@@ -109,7 +106,6 @@ func TestMain(m *testing.M) {
 			},
 		},
 	})
-	logtest.InitLogger(testing.Verbose)
 	os.Exit(m.Run())
 }
 
@@ -148,7 +144,6 @@ type testPack struct {
 	webTokenS               *local.IdentityService
 	windowsDesktops         *local.WindowsDesktopService
 	dynamicWindowsDesktops  *local.DynamicWindowsDesktopService
-	linuxDesktops           *local.LinuxDesktopService
 	samlIDPServiceProviders *local.SAMLIdPServiceProviderService
 	userGroups              *local.UserGroupService
 	okta                    *local.OktaService
@@ -171,14 +166,11 @@ type testPack struct {
 	pluginStaticCredentials *local.PluginStaticCredentialsService
 	gitServers              *local.GitServerService
 	workloadIdentity        *local.WorkloadIdentityService
-	beams                   *local.BeamService
 	healthCheckConfig       *local.HealthCheckConfigService
 	botInstanceService      *local.BotInstanceService
-	recordingEncryption     *local.RecordingEncryptionService
 	plugin                  *local.PluginsService
-	appAuthConfigs          *local.AppAuthConfigService
+	recordingEncryption     *local.RecordingEncryptionService
 	summarizer              *local.SummarizerService
-	subCA                   *local.SubCAService
 }
 
 // resourceOps contains helpers to modify the state of either types.Resource or types.Resource153  which
@@ -391,10 +383,6 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	p.databases = local.NewDatabasesService(p.backend)
 	p.databaseServices = local.NewDatabaseServicesService(p.backend)
 	p.windowsDesktops = local.NewWindowsDesktopService(p.backend)
-	p.linuxDesktops, err = local.NewLinuxDesktopService(p.backend)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	p.dynamicWindowsDesktops = dynamicWindowsDesktopService
 	p.samlIDPServiceProviders, err = local.NewSAMLIdPServiceProviderService(p.backend)
 	if err != nil {
@@ -472,12 +460,6 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	}
 	p.workloadIdentity = workloadIdentitySvc
 
-	beamSvc, err := local.NewBeamService(p.backend)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	p.beams = beamSvc
-
 	databaseObjectsSvc, err := local.NewDatabaseObjectService(p.backend)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -532,6 +514,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	p.plugin = local.NewPluginsService(p.backend)
 
 	p.botInstanceService, err = local.NewBotInstanceService(p.backend, p.backend.Clock())
 	if err != nil {
@@ -542,21 +525,8 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	p.plugin = local.NewPluginsService(p.backend)
-
-	p.appAuthConfigs, err = local.NewAppAuthConfigService(p.backend)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	p.summarizer, err = local.NewSummarizerService(local.SummarizerServiceConfig{
-		Backend: p.backend,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	p.subCA, err = local.NewSubCAService(local.SubCAServiceParams{
 		Backend: p.backend,
 	})
 	if err != nil {
@@ -589,7 +559,6 @@ func newPack(t testing.TB, setupConfig func(c Config) Config, opts ...packOption
 		AppSession:              p.appSessionS,
 		WebSession:              p.webSessionS,
 		WebToken:                p.webTokenS,
-		Beams:                   p.beams,
 		SnowflakeSession:        p.snowflakeSessionS,
 		Restrictions:            p.restrictions,
 		Apps:                    p.apps,
@@ -598,7 +567,6 @@ func newPack(t testing.TB, setupConfig func(c Config) Config, opts ...packOption
 		Databases:               p.databases,
 		WindowsDesktops:         p.windowsDesktops,
 		DynamicWindowsDesktops:  p.dynamicWindowsDesktops,
-		LinuxDesktops:           p.linuxDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
@@ -623,14 +591,12 @@ func newPack(t testing.TB, setupConfig func(c Config) Config, opts ...packOption
 		HealthCheckConfig:       p.healthCheckConfig,
 		WorkloadIdentity:        p.workloadIdentity,
 		BotInstanceService:      p.botInstanceService,
-		RecordingEncryption:     p.recordingEncryption,
 		Plugin:                  p.plugin,
+		RecordingEncryption:     p.recordingEncryption,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
-		AppAuthConfig:           p.appAuthConfigs,
 		StaticScopedToken:       p.clusterConfigS,
 		Summarizer:              p.summarizer,
-		SubCAService:            p.subCA,
 	}))
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -865,7 +831,6 @@ func TestCompletenessInit(t *testing.T) {
 			WebSession:              p.webSessionS,
 			SnowflakeSession:        p.snowflakeSessionS,
 			WebToken:                p.webTokenS,
-			Beams:                   p.beams,
 			Restrictions:            p.restrictions,
 			Apps:                    p.apps,
 			Kubernetes:              p.kubernetes,
@@ -873,7 +838,6 @@ func TestCompletenessInit(t *testing.T) {
 			Databases:               p.databases,
 			WindowsDesktops:         p.windowsDesktops,
 			DynamicWindowsDesktops:  p.dynamicWindowsDesktops,
-			LinuxDesktops:           p.linuxDesktops,
 			SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 			UserGroups:              p.userGroups,
 			Okta:                    p.okta,
@@ -902,10 +866,8 @@ func TestCompletenessInit(t *testing.T) {
 			HealthCheckConfig:       p.healthCheckConfig,
 			BotInstanceService:      p.botInstanceService,
 			Plugin:                  p.plugin,
-			AppAuthConfig:           p.appAuthConfigs,
 			StaticScopedToken:       p.clusterConfigS,
 			Summarizer:              p.summarizer,
-			SubCAService:            p.subCA,
 		}))
 		require.NoError(t, err)
 
@@ -959,7 +921,6 @@ func TestCompletenessReset(t *testing.T) {
 		WebSession:              p.webSessionS,
 		SnowflakeSession:        p.snowflakeSessionS,
 		WebToken:                p.webTokenS,
-		Beams:                   p.beams,
 		Restrictions:            p.restrictions,
 		Apps:                    p.apps,
 		Kubernetes:              p.kubernetes,
@@ -967,7 +928,6 @@ func TestCompletenessReset(t *testing.T) {
 		Databases:               p.databases,
 		WindowsDesktops:         p.windowsDesktops,
 		DynamicWindowsDesktops:  p.dynamicWindowsDesktops,
-		LinuxDesktops:           p.linuxDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
@@ -996,10 +956,8 @@ func TestCompletenessReset(t *testing.T) {
 		HealthCheckConfig:       p.healthCheckConfig,
 		BotInstanceService:      p.botInstanceService,
 		Plugin:                  p.plugin,
-		AppAuthConfig:           p.appAuthConfigs,
 		StaticScopedToken:       p.clusterConfigS,
 		Summarizer:              p.summarizer,
-		SubCAService:            p.subCA,
 	}))
 	require.NoError(t, err)
 
@@ -1008,7 +966,7 @@ func TestCompletenessReset(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, cas, caCount)
 
-	for range resets {
+	for i := 0; i < resets; i++ {
 		// simulate bad connection to auth server
 		p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is unavailable"))
 		p.eventsS.closeWatchers()
@@ -1032,7 +990,7 @@ func TestCompletenessReset(t *testing.T) {
 func TestInitStrategy(t *testing.T) {
 	t.Parallel()
 
-	for range utils.GetIterations() {
+	for i := 0; i < utils.GetIterations(); i++ {
 		initStrategy(t)
 	}
 }
@@ -1056,7 +1014,7 @@ func BenchmarkListResourcesWithSort(b *testing.B) {
 	ctx := context.Background()
 
 	count := 100000
-	for i := range count {
+	for i := 0; i < count; i++ {
 		server := NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
 		// Set some static and dynamic labels.
 		server.Metadata.Labels = map[string]string{"os": "mac", "env": "prod", "country": "us", "tier": "frontend"}
@@ -1128,7 +1086,6 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		WebSession:              p.webSessionS,
 		WebToken:                p.webTokenS,
 		SnowflakeSession:        p.snowflakeSessionS,
-		Beams:                   p.beams,
 		Restrictions:            p.restrictions,
 		Apps:                    p.apps,
 		Kubernetes:              p.kubernetes,
@@ -1136,7 +1093,6 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		Databases:               p.databases,
 		WindowsDesktops:         p.windowsDesktops,
 		DynamicWindowsDesktops:  p.dynamicWindowsDesktops,
-		LinuxDesktops:           p.linuxDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
@@ -1166,14 +1122,12 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		HealthCheckConfig:       p.healthCheckConfig,
 		BotInstanceService:      p.botInstanceService,
 		Plugin:                  p.plugin,
-		AppAuthConfig:           p.appAuthConfigs,
 		StaticScopedToken:       p.clusterConfigS,
 		Summarizer:              p.summarizer,
-		SubCAService:            p.subCA,
 	}))
 	require.NoError(t, err)
 
-	for range nodeCount {
+	for i := 0; i < nodeCount; i++ {
 		server := NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
 		_, err := p.presenceS.UpsertNode(ctx, server)
 		require.NoError(t, err)
@@ -1199,11 +1153,11 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 			Limit:        int32(pageSize),
 			SortBy:       sortBy,
 		})
-		require.NoError(t, err)
+		assert.NoError(t, err)
 
 		resources = append(resources, resp.Resources...)
 		listResourcesStartKey = resp.NextKey
-		require.Len(t, resources, nodeCount)
+		assert.Len(t, resources, nodeCount)
 	}, 5*time.Second, 100*time.Millisecond)
 
 	servers, err := types.ResourcesWithLabels(resources).AsServers()
@@ -1234,7 +1188,6 @@ func initStrategy(t *testing.T) {
 		SnowflakeSession:        p.snowflakeSessionS,
 		WebSession:              p.webSessionS,
 		WebToken:                p.webTokenS,
-		Beams:                   p.beams,
 		Restrictions:            p.restrictions,
 		Apps:                    p.apps,
 		Kubernetes:              p.kubernetes,
@@ -1242,7 +1195,6 @@ func initStrategy(t *testing.T) {
 		Databases:               p.databases,
 		WindowsDesktops:         p.windowsDesktops,
 		DynamicWindowsDesktops:  p.dynamicWindowsDesktops,
-		LinuxDesktops:           p.linuxDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
@@ -1271,10 +1223,8 @@ func initStrategy(t *testing.T) {
 		HealthCheckConfig:       p.healthCheckConfig,
 		BotInstanceService:      p.botInstanceService,
 		Plugin:                  p.plugin,
-		AppAuthConfig:           p.appAuthConfigs,
 		StaticScopedToken:       p.clusterConfigS,
 		Summarizer:              p.summarizer,
-		SubCAService:            p.subCA,
 	}))
 	require.NoError(t, err)
 
@@ -1396,11 +1346,11 @@ func mustCreateDatabase(t *testing.T, name, protocol, uri string) *types.Databas
 	return database
 }
 
-func newUserTasks(t *testing.T, name string) *usertasksv1.UserTask {
+func newUserTasks(t *testing.T) *usertasksv1.UserTask {
 	t.Helper()
 
 	ut, err := usertasks.NewDiscoverEC2UserTask(&usertasksv1.UserTaskSpec{
-		Integration: "my-integration-" + name,
+		Integration: "my-integration",
 		TaskType:    usertasks.TaskTypeDiscoverEC2,
 		IssueType:   "ec2-ssm-agent-not-registered",
 		State:       "OPEN",
@@ -1443,6 +1393,11 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 
 // testResources153 is a wrapper for testing resources conforming to types.Resource153
 func testResources153[T types.Resource153](t *testing.T, p *testPack, funcs testFuncs[T], opts ...optionsFunc) {
+	// TODO(rana): Add broader support for virtual resources in list operations.
+	// Virtual resources change the total count returned by list operations,
+	// and is unexpected for the current test. When updated, we can remove virtual
+	// resource filtering and paging from lib/cache/health_check_config_test.go.
+	opts = append(opts, withSkipPaginationTest())
 	funcs.resource = defaultResource153Ops[T]()
 	testResourcesInternal(t, p, funcs, opts...)
 }
@@ -1494,11 +1449,11 @@ func testResourcesInternal[T any](t *testing.T, p *testPack, funcs testFuncs[T],
 			// would be overly-pedantic about a service returning `nil` rather
 			// than an empty slice.
 			if len(expected) == 0 {
-				require.Empty(t, out)
+				assert.Empty(t, out)
 				return
 			}
 
-			require.Empty(t, cmp.Diff(expected, out, cmpOpts...))
+			assert.Empty(t, cmp.Diff(expected, out, cmpOpts...))
 		}, 2*time.Second, 10*time.Millisecond)
 	}
 
@@ -1591,7 +1546,7 @@ func TestRelativeExpiry(t *testing.T) {
 
 	// add servers that expire at a range of times
 	now := clock.Now()
-	for i := range nodeCount {
+	for i := int64(0); i < nodeCount; i++ {
 		exp := now.Add(time.Minute * time.Duration(i))
 		server := NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
 		server.SetExpiry(exp)
@@ -1600,7 +1555,7 @@ func TestRelativeExpiry(t *testing.T) {
 	}
 
 	// wait for nodes to reach cache (we batch insert first for performance reasons)
-	for range nodeCount {
+	for i := int64(0); i < nodeCount; i++ {
 		expectEvent(t, p.eventsC, EventProcessed)
 	}
 
@@ -1669,7 +1624,7 @@ func TestRelativeExpiryLimit(t *testing.T) {
 
 	// add servers that expire at a range of times
 	now := clock.Now()
-	for i := range nodeCount {
+	for i := 0; i < nodeCount; i++ {
 		exp := now.Add(time.Minute * time.Duration(i))
 		server := NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", apidefaults.Namespace)
 		server.SetExpiry(exp)
@@ -1678,7 +1633,7 @@ func TestRelativeExpiryLimit(t *testing.T) {
 	}
 
 	// wait for nodes to reach cache (we batch insert first for performance reasons)
-	for range nodeCount {
+	for i := 0; i < nodeCount; i++ {
 		expectEvent(t, p.eventsC, EventProcessed)
 	}
 
@@ -1726,7 +1681,7 @@ func TestRelativeExpiryOnlyForAuth(t *testing.T) {
 	})
 	t.Cleanup(p2.Close)
 
-	for range 2 {
+	for i := 0; i < 2; i++ {
 		clock.Advance(time.Hour * 24)
 		drainEvents(p.eventsC)
 		unexpectedEvent(t, p.eventsC, RelativeExpiry)
@@ -1755,7 +1710,7 @@ func TestCache_Backoff(t *testing.T) {
 	p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is unavailable"))
 
 	step := p.cache.Config.MaxRetryPeriod / 16.0
-	for i := range 5 {
+	for i := 0; i < 5; i++ {
 		// wait for cache to reload
 		select {
 		case event := <-p.eventsC:
@@ -1974,7 +1929,6 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindWindowsDesktopService:             &types.WindowsDesktopServiceV3{},
 		types.KindWindowsDesktop:                    &types.WindowsDesktopV3{},
 		types.KindDynamicWindowsDesktop:             &types.DynamicWindowsDesktopV1{},
-		types.KindLinuxDesktop:                      types.ProtoResource153ToLegacy(newLinuxDesktop("linux-desktop")),
 		types.KindInstaller:                         &types.InstallerV1{},
 		types.KindKubernetesCluster:                 &types.KubernetesClusterV3{},
 		types.KindSAMLIdPServiceProvider:            &types.SAMLIdPServiceProviderV1{},
@@ -1994,10 +1948,9 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindKubeWaitingContainer:              newKubeWaitingContainer(t),
 		types.KindNotification:                      types.Resource153ToLegacy(newUserNotification(t, "test")),
 		types.KindGlobalNotification:                types.Resource153ToLegacy(newGlobalNotification(t, "test")),
-		types.KindAccessMonitoringRule:              types.Resource153ToLegacy(newAccessMonitoringRule(t, "test")),
+		types.KindAccessMonitoringRule:              types.Resource153ToLegacy(newAccessMonitoringRule(t)),
 		types.KindCrownJewel:                        types.Resource153ToLegacy(newCrownJewel(t, "test")),
 		types.KindDatabaseObject:                    types.Resource153ToLegacy(newDatabaseObject(t, "test")),
-		types.KindBeam:                              types.Resource153ToLegacy(newBeamResource("some-beam", "curious-harbor", clock.Now().Add(time.Hour))),
 		types.KindAccessGraphSettings:               types.Resource153ToLegacy(newAccessGraphSettings(t)),
 		types.KindSPIFFEFederation:                  types.Resource153ToLegacy(newSPIFFEFederation("test")),
 		types.KindStaticHostUser:                    types.Resource153ToLegacy(newStaticHostUser(t, "test")),
@@ -2006,7 +1959,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindAutoUpdateAgentRollout:            types.Resource153ToLegacy(newAutoUpdateAgentRollout(t)),
 		types.KindAutoUpdateAgentReport:             types.Resource153ToLegacy(newAutoUpdateAgentReport(t, "test")),
 		types.KindAutoUpdateBotInstanceReport:       types.Resource153ToLegacy(newAutoUpdateBotInstanceReport(t)),
-		types.KindUserTask:                          types.Resource153ToLegacy(newUserTasks(t, "test")),
+		types.KindUserTask:                          types.Resource153ToLegacy(newUserTasks(t)),
 		types.KindProvisioningPrincipalState:        types.Resource153ToLegacy(newProvisioningPrincipalState("u-alice@example.com")),
 		types.KindIdentityCenterAccount:             types.Resource153ToLegacy(newIdentityCenterAccount("some_account")),
 		types.KindIdentityCenterAccountAssignment:   types.Resource153ToLegacy(newIdentityCenterAccountAssignment("some_account_assignment")),
@@ -2017,17 +1970,14 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindWorkloadIdentity:                  types.Resource153ToLegacy(newWorkloadIdentity("some_identifier")),
 		types.KindRecordingEncryption:               types.Resource153ToLegacy(newRecordingEncryption()),
 		types.KindHealthCheckConfig:                 types.Resource153ToLegacy(newHealthCheckConfig(t, "some-name")),
+		types.KindBotInstance:                       types.ProtoResource153ToLegacy(new(machineidv1.BotInstance)),
 		scopedaccess.KindScopedRole:                 types.Resource153ToLegacy(&scopedaccessv1.ScopedRole{}),
 		scopedaccess.KindScopedRoleAssignment:       types.Resource153ToLegacy(&scopedaccessv1.ScopedRoleAssignment{}),
 		types.KindRelayServer:                       types.ProtoResource153ToLegacy(new(presencev1.RelayServer)),
-		types.KindBotInstance:                       types.ProtoResource153ToLegacy(new(machineidv1.BotInstance)),
-		types.KindAppAuthConfig:                     types.Resource153ToLegacy(new(appauthconfigv1.AppAuthConfig)),
 		types.KindInferenceModel:                    types.Resource153ToLegacy(new(summaryv1.InferenceModel)),
 		types.KindInferenceSecret:                   types.Resource153ToLegacy(new(summaryv1.InferenceSecret)),
 		types.KindInferencePolicy:                   types.Resource153ToLegacy(new(summaryv1.InferencePolicy)),
 		types.KindRetrievalModel:                    types.Resource153ToLegacy(new(summaryv1.RetrievalModel)),
-		types.KindCertAuthorityOverride:             types.Resource153ToLegacy(&subcav1.CertAuthorityOverride{}),
-		types.KindValidatedMFAChallenge:             &types.ResourceHeader{Kind: types.KindValidatedMFAChallenge},
 	}
 
 	for name, cfg := range cases {
@@ -2049,8 +1999,6 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 				switch uw := event.Resource.(type) {
 				case types.Resource153UnwrapperT[*workloadidentityv1.WorkloadIdentity]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*workloadidentityv1.WorkloadIdentity]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*identitycenterv1.PrincipalAssignment]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*identitycenterv1.PrincipalAssignment]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*identitycenterv1.AccountAssignment]:
@@ -2093,16 +2041,14 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*kubewaitingcontainerpb.KubernetesWaitingContainer]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*healthcheckconfigv1.HealthCheckConfig]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*healthcheckconfigv1.HealthCheckConfig]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*machineidv1.BotInstance]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*machineidv1.BotInstance]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*scopedaccessv1.ScopedRole]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*scopedaccessv1.ScopedRole]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*scopedaccessv1.ScopedRoleAssignment]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*scopedaccessv1.ScopedRoleAssignment]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*presencev1.RelayServer]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*presencev1.RelayServer]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*machineidv1.BotInstance]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*machineidv1.BotInstance]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*appauthconfigv1.AppAuthConfig]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*appauthconfigv1.AppAuthConfig]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*summaryv1.InferenceModel]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*summaryv1.InferenceModel]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*summaryv1.InferenceSecret]:
@@ -2111,11 +2057,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*summaryv1.InferencePolicy]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*summaryv1.RetrievalModel]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*summaryv1.RetrievalModel]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-				case types.Resource153UnwrapperT[*subcav1.CertAuthorityOverride]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*subcav1.CertAuthorityOverride]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 
-				case types.Resource153UnwrapperT[*beamsv1.Beam]:
-					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*beamsv1.Beam]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				default:
 					require.Empty(t, cmp.Diff(resource, event.Resource))
 				}
@@ -2266,8 +2208,8 @@ func TestInvalidDatabases(t *testing.T) {
 				// Wait until the database appear on cache.
 				require.EventuallyWithT(t, func(t *assert.CollectT) {
 					dbs, err := c.GetDatabases(ctx)
-					require.NoError(t, err)
-					require.Len(t, dbs, 1)
+					assert.NoError(t, err)
+					assert.Len(t, dbs, 1)
 				}, time.Second, 100*time.Millisecond, "expected database to be on cache, but nothing found")
 
 				cacheDB, err := c.GetDatabase(ctx, dbName)
@@ -2285,6 +2227,7 @@ func TestInvalidDatabases(t *testing.T) {
 			},
 		},
 	} {
+		tc := tc
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			p := newTestPack(t, ForAuth)
@@ -2565,20 +2508,6 @@ func newAccessGraphSettings(t *testing.T) *clusterconfigpb.AccessGraphSettings {
 	return r
 }
 
-func newLinuxDesktop(name string) *linuxdesktopv1.LinuxDesktop {
-	return &linuxdesktopv1.LinuxDesktop{
-		Kind:    types.KindLinuxDesktop,
-		Version: types.V1,
-		Metadata: &headerv1.Metadata{
-			Name: name,
-		},
-		Spec: &linuxdesktopv1.LinuxDesktopSpec{
-			Addr:     "127.0.0.1:22",
-			Hostname: "host",
-		},
-	}
-}
-
 func newUserNotification(t *testing.T, name string) *notificationsv1.Notification {
 	t.Helper()
 
@@ -2616,14 +2545,12 @@ func newGlobalNotification(t *testing.T, title string) *notificationsv1.GlobalNo
 	return notification
 }
 
-func newAccessMonitoringRule(t *testing.T, name string) *accessmonitoringrulesv1.AccessMonitoringRule {
+func newAccessMonitoringRule(t *testing.T) *accessmonitoringrulesv1.AccessMonitoringRule {
 	t.Helper()
 	notification := &accessmonitoringrulesv1.AccessMonitoringRule{
-		Kind:    types.KindAccessMonitoringRule,
-		Version: types.V1,
-		Metadata: &headerv1.Metadata{
-			Name: name,
-		},
+		Kind:     types.KindAccessMonitoringRule,
+		Version:  types.V1,
+		Metadata: &headerv1.Metadata{},
 		Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
 			Notification: &accessmonitoringrulesv1.Notification{
 				Name: "test",
@@ -2838,7 +2765,10 @@ func testResourcePagination[T any](t *testing.T, p *testPack, funcs testFuncs[T]
 	assert.Len(t, page3, 1)
 	assert.Empty(t, end)
 
-	listed := slices.Concat(page1, page2, page3)
+	var listed []T
+	listed = append(listed, page1...)
+	listed = append(listed, page2...)
+	listed = append(listed, page3...)
 
 	// All items have been returned as expected
 	assert.Empty(t, cmp.Diff(expected, listed, cmpOpts...))
@@ -2848,31 +2778,6 @@ func testResourcePagination[T any](t *testing.T, p *testPack, funcs testFuncs[T]
 	require.NoError(t, err)
 	assert.Len(t, pageSmall, 1)
 	assert.NotEmpty(t, pageSmallNext)
-
-	// Verify pagination behaves correctly through the upstream-fallback path
-	// when the cache is not healthy.
-	p.cache.ok = false
-
-	upstreamPage1, upstreamNext1, err := funcs.cacheList(ctx, defaultTestPageSize, "")
-	require.NoError(t, err)
-	assert.Len(t, upstreamPage1, defaultTestPageSize)
-	assert.NotEmpty(t, upstreamNext1)
-
-	upstreamPage2, upstreamNext2, err := funcs.cacheList(ctx, defaultTestPageSize, upstreamNext1)
-	require.NoError(t, err)
-	assert.Len(t, upstreamPage2, defaultTestPageSize)
-	assert.NotEmpty(t, upstreamNext2)
-	assert.NotEqual(t, upstreamPage1, upstreamPage2)
-
-	upstreamPage3, end, err := funcs.cacheList(ctx, defaultTestPageSize, upstreamNext2)
-	require.NoError(t, err)
-	assert.Len(t, upstreamPage3, 1)
-	assert.Empty(t, end)
-
-	upstreamListed := slices.Concat(upstreamPage1, upstreamPage2, upstreamPage3)
-	assert.Empty(t, cmp.Diff(expected, upstreamListed, cmpOpts...))
-
-	p.cache.ok = true
 
 	if funcs.Range != nil && funcs.cacheRange != nil {
 		out, err := stream.Collect(funcs.cacheRange(ctx, "", page2Start))

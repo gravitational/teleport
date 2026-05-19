@@ -39,7 +39,7 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+      image: ghcr.io/gravitational/teleport-buildbox:teleport18
       options: --cap-add=SYS_ADMIN --privileged
       env:
         TELEPORT_XAUTH_TEST: yes

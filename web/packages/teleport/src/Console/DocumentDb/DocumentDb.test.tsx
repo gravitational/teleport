@@ -16,11 +16,12 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import '@testing-library/jest-dom';
 import { screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router';
+import { MemoryRouter, useLocation } from 'react-router';
+import '@testing-library/jest-dom';
+import 'jest-canvas-mock';
 
-import { act, CurrentPath, render } from 'design/utils/testing';
+import { act, render } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport';
 import ConsoleCtx from 'teleport/Console/consoleContext';
@@ -141,7 +142,7 @@ test('should keep the document at the connect URL after connecting', async () =>
           <DocumentDb doc={connectDoc} visible={true} />
         </ConsoleContextProvider>
       </ContextProvider>
-      <CurrentPath testId="location-display" />
+      <LocationDisplay />
     </MemoryRouter>
   );
 
@@ -153,6 +154,12 @@ test('should keep the document at the connect URL after connecting', async () =>
 
   expect(screen.getByTestId('location-display')).toHaveTextContent(connectUrl);
 });
+
+const LocationDisplay = () => {
+  const location = useLocation();
+
+  return <div data-testid="location-display">{location.pathname}</div>;
+};
 
 function getContexts() {
   const ctx = createTeleportContext();

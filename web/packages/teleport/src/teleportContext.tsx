@@ -94,7 +94,7 @@ class TeleportContext implements types.Context {
   // The caller of this function provides the try/catch
   // block.
   // preferences are needed in TeleportContextE, but not in TeleportContext.
-  // eslint-disable-next-line no-unused-vars
+  // eslint-disable-next-line unused-imports/no-unused-vars
   async init(preferences: UserPreferences) {
     const user = await userService.fetchUserContext();
     this.storeUser.setState(user);
@@ -240,8 +240,6 @@ class TeleportContext implements types.Context {
         userContext.getInferencePolicyAccess().list ||
         userContext.getInferenceModelAccess().list ||
         userContext.getInferenceSecretAccess().list,
-      listBeam: userContext.getBeamAccess().list,
-      readBeam: userContext.getBeamAccess().read,
     };
   }
 }
@@ -295,8 +293,6 @@ export const disabledFeatureFlags: types.FeatureFlags = {
   readAutoUpdateAgentRollout: false,
   listAutoUpdateAgentReport: false,
   sessionSummaries: false,
-  listBeam: false,
-  readBeam: false,
 };
 
 export default TeleportContext;

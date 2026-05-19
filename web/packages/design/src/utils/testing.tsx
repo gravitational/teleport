@@ -17,7 +17,6 @@
  */
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import '@testing-library/jest-dom';
 import {
   act,
   fireEvent,
@@ -30,11 +29,11 @@ import {
   within,
 } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import 'jest-styled-components';
 import { HttpResponse, JsonBodyType } from 'msw';
-import { setupServer } from 'msw/node';
 import { PropsWithChildren, ReactNode } from 'react';
-import { MemoryRouter, useLocation } from 'react-router';
+import { MemoryRouter as Router } from 'react-router-dom';
+import '@testing-library/jest-dom';
+import 'jest-styled-components';
 
 import { darkTheme } from 'design/theme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
@@ -82,32 +81,6 @@ type RenderOptions = {
   wrapper?: React.FC<PropsWithChildren>;
   container?: HTMLElement;
 };
-
-type CurrentPathProps = {
-  testId?: string;
-};
-
-export function CurrentPath({ testId = 'current-path' }: CurrentPathProps) {
-  const location = useLocation();
-  return <span data-testid={testId}>{location.pathname}</span>;
-}
-
-type CurrentLocationProps = {
-  testId?: string;
-};
-
-export function CurrentLocation({
-  testId = 'location-display',
-}: CurrentLocationProps) {
-  const location = useLocation();
-  return (
-    <span data-testid={testId}>
-      {location.pathname}
-      {location.search}
-      {location.hash}
-    </span>
-  );
-}
 
 /**
  * createDeferredResponse is a utility function to create a deferred response
@@ -157,22 +130,6 @@ export function createDeferredResponse<T extends JsonBodyType>(data: T) {
   };
 }
 
-export const server = setupServer();
-
-/**
- * Registers MSW lifecycle hooks for the current test suite. Call this at the
- * top level of every test file that uses `server.use()`.
- *
- * This is intentionally opt-in rather than global (via setupTests.ts) to
- * avoid the overhead of patching fetch/XHR in the hundreds of test suites
- * that don't use MSW.
- */
-export function enableMswServer() {
-  beforeAll(() => server.listen());
-  afterEach(() => server.resetHandlers());
-  afterAll(() => server.close());
-}
-
 export {
   act,
   screen,
@@ -183,7 +140,7 @@ export {
   prettyDOM,
   waitFor,
   getByTestId,
-  MemoryRouter as Router,
+  Router,
   userEvent,
   waitForElementToBeRemoved,
   within,

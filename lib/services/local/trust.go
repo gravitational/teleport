@@ -291,7 +291,7 @@ func (s *CA) CompareAndSwapCertAuthority(new, expected types.CertAuthority) erro
 		return trace.Wrap(err)
 	}
 
-	if !actual.IsEqual(expected) {
+	if !services.CertAuthoritiesEquivalent(actual, expected) {
 		return trace.CompareFailed("cluster %v settings have been updated, try again", new.GetName())
 	}
 
@@ -708,7 +708,6 @@ func (s *CA) GetTrustedCluster(ctx context.Context, name string) (types.TrustedC
 }
 
 // GetTrustedClusters returns all TrustedClusters in the backend.
-// Deprecated: Prefer paginated variant such as [ListTrustedClusters] or [RangeTrustedClusters]
 func (s *CA) GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster, error) {
 	startKey := backend.ExactKey(trustedClustersPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
@@ -911,6 +910,23 @@ func (s *CA) DeleteTunnelConnection(clusterName, connectionName string) error {
 	return s.Delete(context.TODO(), backend.NewKey(tunnelConnectionsPrefix, clusterName, connectionName))
 }
 
+// DeleteTunnelConnections deletes all tunnel connections for cluster
+func (s *CA) DeleteTunnelConnections(clusterName string) error {
+	if clusterName == "" {
+		return trace.BadParameter("missing cluster name")
+	}
+	startKey := backend.ExactKey(tunnelConnectionsPrefix, clusterName)
+	err := s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
+	return trace.Wrap(err)
+}
+
+// DeleteAllTunnelConnections deletes all tunnel connections
+func (s *CA) DeleteAllTunnelConnections() error {
+	startKey := backend.ExactKey(tunnelConnectionsPrefix)
+	err := s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
+	return trace.Wrap(err)
+}
+
 // CreateRemoteCluster creates a remote cluster
 func (s *CA) CreateRemoteCluster(ctx context.Context, rc types.RemoteCluster) (types.RemoteCluster, error) {
 	rev, err := s.CreateRemoteClusterInternal(ctx, rc, nil)
@@ -991,7 +1007,7 @@ func (s *CA) UpdateRemoteCluster(ctx context.Context, rc types.RemoteCluster) (t
 	// in the provided remote cluster is not used. We should eventually make a
 	// breaking change to this behavior.
 	const iterationLimit = 3
-	for range iterationLimit {
+	for i := 0; i < iterationLimit; i++ {
 		existing, err := s.GetRemoteCluster(ctx, rc.GetName())
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1029,7 +1045,7 @@ func (s *CA) PatchRemoteCluster(
 ) (types.RemoteCluster, error) {
 	// Retry to update the remote cluster in case of a conflict.
 	const iterationLimit = 3
-	for range 3 {
+	for i := 0; i < 3; i++ {
 		existing, err := s.GetRemoteCluster(ctx, name)
 		if err != nil {
 			return nil, trace.Wrap(err)

@@ -60,7 +60,6 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
@@ -290,7 +289,7 @@ func TestDatabaseServiceResource(t *testing.T) {
 
 	randomDBServiceName := ""
 	totalDBServices := apidefaults.DefaultChunkSize*2 + 20 // testing partial pages
-	for i := range totalDBServices {
+	for i := 0; i < totalDBServices; i++ {
 		dbS.SetName(uuid.NewString())
 		if i == apidefaults.DefaultChunkSize { // A "random" database service name
 			randomDBServiceName = dbS.GetName()
@@ -377,7 +376,6 @@ version: v1
 	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
 	clt, err := testenv.NewDefaultAuthClient(auth)
 	require.NoError(t, err)
-	t.Cleanup(func() { _ = clt.Close() })
 
 	scopedRoleYAMLPath := filepath.Join(t.TempDir(), "some-role.yaml")
 	require.NoError(t, os.WriteFile(scopedRoleYAMLPath, []byte(scopedRoleYAML), 0644))
@@ -441,25 +439,30 @@ version: v1
 
 	// Create the valid scoped role assignment
 	require.NoError(t, os.WriteFile(scopedRoleAssignmentYAMLPath, []byte(scopedRoleAssignmentYAML), 0644))
-	_, err = runResourceCommand(t, clt, []string{"create", scopedRoleAssignmentYAMLPath})
+
+	// Create the scoped role assignment
+	buff, err := runResourceCommand(t, clt, []string{"create", scopedRoleAssignmentYAMLPath})
 	require.NoError(t, err)
+
+	parts := bytes.Split(buff.Bytes(), []byte("\""))
+	require.Len(t, parts, 3)
+
+	assignmentName := string(parts[1])
+
+	_, err = uuid.Parse(assignmentName)
+	require.NoError(t, err, "expected assignment name to be a UUID, got %q (extracted from output %q)", assignmentName, buff.String())
 
 	// wait for cache propagation
 	timeout = time.After(time.Second * 30)
 	var rawAssignment []byte
-	var as []*scopedaccessv1.ScopedRoleAssignment
 	for {
-		// Get the scoped role assignment.
-		buff, err := runResourceCommand(t, clt, []string{"get", "scoped_role_assignment", "--format=json"})
+		// Get the scoped role assignment
+		buff, err := runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/dynamic/" + assignmentName, "--format=json"})
 		if err == nil {
 			rawAssignment = buff.Bytes()
-			// Unmarshal the response into a ScopedRoleAssignment object
-			as, err = services.UnmarshalProtoResourceArray[*scopedaccessv1.ScopedRoleAssignment](rawAssignment, services.DisallowUnknown())
-			require.NoError(t, err)
-			if len(as) > 0 {
-				break
-			}
+			break
 		}
+		require.True(t, trace.IsNotFound(err), "expected a NotFound error, got %v", err)
 
 		select {
 		case <-timeout:
@@ -468,8 +471,11 @@ version: v1
 		}
 	}
 
+	// Unmarshal the response into a ScopedRoleAssignment object
+	as, err := services.UnmarshalProtoResourceArray[*scopedaccessv1.ScopedRoleAssignment](rawAssignment, services.DisallowUnknown())
+	require.NoError(t, err)
 	require.Len(t, as, 1)
-	assignmentName := as[0].GetMetadata().GetName()
+	assignmentName = as[0].GetMetadata().GetName()
 
 	// Ensure that retrieving the scoped role assignment with incorrect sub_kind fails.
 	_, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/materialized/" + assignmentName, "--format=json"})
@@ -480,7 +486,7 @@ version: v1
 	require.ErrorContains(t, err, "requires an explicit subkind")
 
 	// Ensure that retrieving the scoped role assignment by name with explicit sub_kind works.
-	buff, err := runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/dynamic/" + assignmentName, "--format=json"})
+	buff, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/dynamic/" + assignmentName, "--format=json"})
 	require.NoError(t, err)
 	var asByName []*scopedaccessv1.ScopedRoleAssignment
 	err = json.Unmarshal(buff.Bytes(), &asByName)
@@ -777,7 +783,7 @@ func TestIntegrationResource(t *testing.T) {
 
 		randomIntegrationName := ""
 		totalIntegrations := apidefaults.DefaultChunkSize*2 + 20 // testing partial pages
-		for i := range totalIntegrations {
+		for i := 0; i < totalIntegrations; i++ {
 			ig1.SetName(uuid.NewString())
 			if i == apidefaults.DefaultChunkSize { // A "random" integration name
 				randomIntegrationName = ig1.GetName()
@@ -893,7 +899,7 @@ func TestDiscoveryConfigResource(t *testing.T) {
 
 		randomDiscoveryConfigName := ""
 		totalDiscoveryConfigs := apidefaults.DefaultChunkSize*2 + 20 // testing partial pages
-		for i := range totalDiscoveryConfigs {
+		for i := 0; i < totalDiscoveryConfigs; i++ {
 			dc.SetName(uuid.NewString())
 			if i == apidefaults.DefaultChunkSize { // A "random" discoveryConfig name
 				randomDiscoveryConfigName = dc.GetName()
@@ -1583,6 +1589,7 @@ func TestDatabaseResource(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	require.NoError(t, err)
 	test := dynamicResourceTest[*types.DatabaseV3]{
 		kind:                    types.KindDatabase,
 		resourceYAML:            dbYAML,
@@ -1661,10 +1668,117 @@ func TestAppResource(t *testing.T) {
 	test.run(t)
 }
 
+func TestGetOneResourceNameToDelete(t *testing.T) {
+	foo1 := mustCreateNewKubeServer(t, "foo-eks", "host-foo1", "foo", nil)
+	foo2 := mustCreateNewKubeServer(t, "foo-eks", "host-foo2", "foo", nil)
+	fooBar1 := mustCreateNewKubeServer(t, "foo-bar-eks-us-west-1", "host-foo-bar1", "foo-bar", nil)
+	fooBar2 := mustCreateNewKubeServer(t, "foo-bar-eks-us-west-2", "host-foo-bar2", "foo-bar", nil)
+	tests := []struct {
+		desc            string
+		refName         string
+		wantErrContains string
+		resources       []types.KubeServer
+		wantName        string
+	}{
+		{
+			desc:      "one resource is ok",
+			refName:   "foo-bar-eks-us-west-1",
+			resources: []types.KubeServer{fooBar1},
+			wantName:  "foo-bar-eks-us-west-1",
+		},
+		{
+			desc:      "multiple resources with same name is ok",
+			refName:   "foo",
+			resources: []types.KubeServer{foo1, foo2},
+			wantName:  "foo-eks",
+		},
+		{
+			desc:            "zero resources is an error",
+			refName:         "xxx",
+			wantErrContains: `kubernetes server "xxx" not found`,
+		},
+		{
+			desc:            "multiple resources with different names is an error",
+			refName:         "foo-bar",
+			resources:       []types.KubeServer{fooBar1, fooBar2},
+			wantErrContains: "matches multiple",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			ref := services.Ref{Kind: types.KindKubeServer, Name: test.refName}
+			resDesc := "kubernetes server"
+			name, err := getOneResourceNameToDelete(test.resources, ref, resDesc)
+			if test.wantErrContains != "" {
+				require.ErrorContains(t, err, test.wantErrContains)
+				return
+			}
+			require.Equal(t, test.wantName, name)
+		})
+	}
+}
+
+func TestFilterByNameOrDiscoveredName(t *testing.T) {
+	foo1 := mustCreateNewKubeServer(t, "foo-eks-us-west-1", "host-foo", "foo", nil)
+	foo2 := mustCreateNewKubeServer(t, "foo-eks-us-west-2", "host-foo", "foo", nil)
+	fooBar1 := mustCreateNewKubeServer(t, "foo-bar", "host-foo-bar1", "", nil)
+	fooBar2 := mustCreateNewKubeServer(t, "foo-bar-eks-us-west-2", "host-foo-bar2", "foo-bar", nil)
+	resources := []types.KubeServer{
+		foo1, foo2, fooBar1, fooBar2,
+	}
+	hostNameGetter := func(ks types.KubeServer) string { return ks.GetHostname() }
+	tests := []struct {
+		desc           string
+		filter         string
+		altNameGetters []altNameFn[types.KubeServer]
+		want           []types.KubeServer
+	}{
+		{
+			desc:   "filters by exact name",
+			filter: "foo-eks-us-west-1",
+			want:   []types.KubeServer{foo1},
+		},
+		{
+			desc:   "filters by exact name over discovered names",
+			filter: "foo-bar",
+			want:   []types.KubeServer{fooBar1},
+		},
+		{
+			desc:   "filters by discovered name",
+			filter: "foo",
+			want:   []types.KubeServer{foo1, foo2},
+		},
+		{
+			desc:           "checks alt names for exact matches",
+			filter:         "host-foo",
+			altNameGetters: []altNameFn[types.KubeServer]{hostNameGetter},
+			want:           []types.KubeServer{foo1, foo2},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.desc, func(t *testing.T) {
+			got := filterByNameOrDiscoveredName(resources, test.filter, test.altNameGetters...)
+			require.Empty(t, cmp.Diff(test.want, got))
+		})
+	}
+}
+
+func TestFormatAmbiguousDeleteMessage(t *testing.T) {
+	ref := services.Ref{Kind: types.KindDatabase, Name: "x"}
+	resDesc := "database"
+	names := []string{"xbbb", "xaaa", "xccc", "xb"}
+	got := formatAmbiguousDeleteMessage(ref, resDesc, names)
+	require.Contains(t, got, "db/x matches multiple auto-discovered databases",
+		"should have formatted the ref used and pluralized the resource description")
+	wantSortedNames := strings.Join([]string{"xaaa", "xb", "xbbb", "xccc"}, "\n")
+	require.Contains(t, got, wantSortedNames, "should have sorted the matching names")
+	require.Contains(t, got, "$ tctl rm db/xaaa", "should have contained an example command")
+}
+
 // requireEqual creates an assertion function with a bound `expected` value
 // for use with table-driven tests
-func requireEqual(expected any) require.ValueAssertionFunc {
-	return func(t require.TestingT, actual any, msgAndArgs ...any) {
+func requireEqual(expected interface{}) require.ValueAssertionFunc {
+	return func(t require.TestingT, actual interface{}, msgAndArgs ...interface{}) {
 		require.Equal(t, expected, actual, msgAndArgs...)
 	}
 }
@@ -1681,7 +1795,6 @@ func requireGotDatabaseServers(t *testing.T, buf *bytes.Buffer, want ...types.Da
 	}
 	require.Empty(t, cmp.Diff(types.Databases(want).ToMap(), databases.ToMap(),
 		cmpopts.IgnoreFields(types.Metadata{}, "Namespace", "Expires"),
-		cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "VNetDNSName"),
 	))
 }
 
@@ -2438,22 +2551,22 @@ version: v1
 }
 
 // TestCreateEnterpriseResources asserts that tctl create
-// behaves as expected for enterprise resources. The tests are
-// grouped to amortize the cost of creating and auth server since
+// behaves as expected for enterprise resources. These resources cannot
+// be tested in parallel because they alter the modules to enable features.
+// The tests are grouped to amortize the cost of creating and auth server since
 // that is the most expensive part of testing editing the resource.
 func TestCreateEnterpriseResources(t *testing.T) {
-	t.Parallel()
-	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithConfig(func(cfg *servicecfg.Config) {
-		cfg.Modules = &modulestest.Modules{
-			TestBuildType: modules.BuildEnterprise,
-			TestFeatures: modules.Features{
-				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-					entitlements.OIDC: {Enabled: true},
-					entitlements.SAML: {Enabled: true},
-				},
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.OIDC: {Enabled: true},
+				entitlements.SAML: {Enabled: true},
 			},
-		}
-	}))
+		},
+	})
+
+	process, err := testenv.NewTeleportProcess(t.TempDir())
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, process.Close())

@@ -27,11 +27,7 @@ package rdpclient
 import (
 	"context"
 	"errors"
-	"log/slog"
 	"time"
-
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
-	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
 )
 
 // Client is the dummy RDP client.
@@ -41,7 +37,7 @@ type Client struct {
 // New creates and connects a new Client based on opts.
 //
 //nolint:staticcheck // SA4023. False positive, depends on build tags.
-func New(_ tdp.MessageReadWriteCloser, _ *tdpb.ClientHello, cfg Config) (*Client, error) {
+func New(cfg Config) (*Client, error) {
 	return nil, errors.New("the real rdpclient.Client implementation was not included in this build")
 }
 
@@ -62,12 +58,6 @@ func (c *Client) GetClientLastActive() time.Time {
 
 // UpdateClientActivity updates the client activity timestamp.
 func (c *Client) UpdateClientActivity() {}
-
-// PrepareConnecton reads in handshake messages and optionally wraps the connection in a translation layer
-// based on the client protocol.
-func PrepareConnecton(_ string, _ *tdp.Conn, _ *slog.Logger) (tdp.MessageReadWriteCloser, *tdpb.ClientHello, error) {
-	return nil, nil, errors.New("the real rdpclient.Client implementation was not included in this build")
-}
 
 // DisableNLA disables NLA in the client configuration.
 func (c *Client) DisableNLA() {}

@@ -70,8 +70,6 @@ type ServerConfig struct {
 	// CipherSuites is the list of TLS cipher suites that have been configured
 	// for this process.
 	CipherSuites []uint16
-	// InsecureMode defines whether insecure connections are allowed.
-	InsecureMode bool
 
 	clock clockwork.Clock
 }

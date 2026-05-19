@@ -40,7 +40,6 @@ const (
 	statusPackageName = "teleportcr"
 	statusPackage     = statusPackagePath + "/" + statusPackageName
 	statusTypeName    = "Status"
-	scopeFieldName    = "scope"
 )
 
 // Add names to this array when adding support to new Teleport resources that could conflict with Kubernetes
@@ -152,17 +151,11 @@ func withCustomSpecFields(customSpecFields []string) resourceSchemaOption {
 	}
 }
 
-// withScope says that the resource is scoped. A scope field will be inserted at the CRD root.
-func withScope() resourceSchemaOption {
+// withAdditionalRootFields adds fields from the root proto message as top-level
+// properties on the CRD.
+func withAdditionalRootFields(rootFields []string) resourceSchemaOption {
 	return func(cfg *resourceSchemaConfig) {
-		cfg.additionalRootFields = append(cfg.additionalRootFields, scopeFieldName)
-		cfg.additionalColumns = append(cfg.additionalColumns, apiextv1.CustomResourceColumnDefinition{
-			Name:        scopeFieldName,
-			Type:        "string",
-			Description: "Resource's scope.",
-			Priority:    0,
-			JSONPath:    "." + scopeFieldName,
-		})
+		cfg.additionalRootFields = rootFields
 	}
 }
 

@@ -17,14 +17,13 @@
  */
 
 import { http, HttpResponse } from 'msw';
+import { setupServer } from 'msw/node';
 import { generatePath, MemoryRouter } from 'react-router';
 
 import {
   createDeferredResponse,
-  enableMswServer,
   render,
   screen,
-  server,
   testQueryClient,
   userEvent,
   waitFor,
@@ -37,8 +36,9 @@ import { createTeleportContext } from 'teleport/mocks/contexts';
 import { ListSessionRecordingsRoute } from './ListSessionRecordingsRoute';
 import { getThumbnail, MOCK_EVENTS, MOCK_THUMBNAIL } from './mock';
 
-enableMswServer();
+const server = setupServer();
 
+beforeAll(() => server.listen());
 beforeEach(() => {
   server.use(
     getThumbnail(MOCK_THUMBNAIL),
@@ -56,9 +56,12 @@ beforeEach(() => {
     })
   );
 });
-afterEach(() => {
+afterEach(async () => {
+  server.resetHandlers();
+
   testQueryClient.clear();
 });
+afterAll(() => server.close());
 
 const listRecordingsUrl = generatePath(cfg.api.clusterEventsRecordingsPath, {
   clusterId: 'localhost',

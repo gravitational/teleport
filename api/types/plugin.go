@@ -183,13 +183,11 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 			// this should validate that credentials are not empty
 			break
 		}
-		if p.Credentials.GetOauth2AccessToken() == nil && p.Credentials.GetStaticCredentialsRef() == nil {
-			return trace.BadParameter("Slack access plugin must be used with either OAuth2 access token, or a static credential")
+		if p.Credentials.GetOauth2AccessToken() == nil {
+			return trace.BadParameter("Slack access plugin can only be used with OAuth2 access token credential type")
 		}
-		if p.Credentials.GetOauth2AccessToken() != nil {
-			if err := p.Credentials.GetOauth2AccessToken().CheckAndSetDefaults(); err != nil {
-				return trace.Wrap(err)
-			}
+		if err := p.Credentials.GetOauth2AccessToken().CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
 		}
 	case *PluginSpecV1_Openai:
 		if p.Credentials == nil {
@@ -357,7 +355,6 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if settings.EntraId == nil {
 			return trace.BadParameter("missing Entra ID settings")
 		}
-
 		if err := settings.EntraId.Validate(); err != nil {
 			return trace.Wrap(err)
 		}
@@ -790,55 +787,6 @@ func (c *PluginEntraIDSettings) Validate() error {
 		return trace.BadParameter("sync_settings.sso_connector_id must be set")
 	}
 
-	if syncIntervals := c.SyncSettings.SyncIntervals; syncIntervals != nil {
-		if err := syncIntervals.Validate(); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	return nil
-}
-
-func (c *PluginEntraIDSyncIntervals) Validate() error {
-	// Delta and full intervals must be either
-	// empty or a valid interval.
-	if c.Delta == "" && c.Full == "" {
-		// Must be an existing plugin installation without sync interval fields.
-		return nil
-	}
-
-	var full, delta time.Duration
-	// Entra ID service will deal with picking up defaults for empty value.
-	if c.Delta != "" {
-		d, err := time.ParseDuration(c.Delta)
-		if err != nil {
-			return trace.BadParameter("invalid delta sync interval, value must be a valid Go duration string, got %q: %v", c.Delta, err)
-		} else {
-			delta = d
-		}
-	}
-
-	// Entra ID service will deal with picking up defaults for empty value.
-	if c.Full != "" {
-		f, err := time.ParseDuration(c.Full)
-		if err != nil {
-			return trace.BadParameter("invalid full sync interval, value must be a valid Go duration string, got %q: %v", c.Full, err)
-		} else {
-			full = f
-		}
-	}
-
-	if delta < 0 {
-		return trace.BadParameter(`sync_settings.sync_intervals.delta cannot be a negative value`)
-	}
-	if full < 0 {
-		return trace.BadParameter(`sync_settings.sync_intervals.full cannot be a negative value`)
-	}
-	if delta > 0 && full > 0 && delta >= full {
-		return trace.BadParameter(`sync_settings.sync_intervals.delta sync interval value ` +
-			`should be less than sync_settings.sync_intervals.full sync interval`)
-	}
-
 	return nil
 }
 
@@ -873,6 +821,7 @@ const (
 )
 
 func (c *PluginAWSICSettings) CheckAndSetDefaults() error {
+
 	// Handle legacy records that pre-date the polymorphic Credentials settings
 	// TODO(tcsc): remove this check in v19
 	if c.Credentials == nil {
@@ -1097,7 +1046,7 @@ func (c *PluginIntuneSettings) Validate() error {
 		return trace.BadParameter("tenant must be set")
 	}
 
-	if err := ValidateMSGraphAndLoginEndpoints(c.LoginEndpoint, c.GraphEndpoint); err != nil {
+	if err := ValidateMSGraphEndpoints(c.LoginEndpoint, c.GraphEndpoint); err != nil {
 		return trace.Wrap(err)
 	}
 

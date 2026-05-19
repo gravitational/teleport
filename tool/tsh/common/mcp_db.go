@@ -23,8 +23,8 @@ import (
 	"log/slog"
 	"maps"
 	"net"
+	"text/template"
 
-	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
@@ -55,7 +55,7 @@ func newMCPDBCommand(parent *kingpin.CmdClause, cf *CLIConf) *mcpDBStartCommand 
 		cf:        cf,
 	}
 
-	cmd.Arg("uris", "List of database MCP resource URIs that will be served by the server.").Required().StringsVar(&cmd.databaseURIs)
+	cmd.Arg("uris", "List of database MCP resource URIs that will be served by the server").Required().StringsVar(&cmd.databaseURIs)
 	return cmd
 }
 

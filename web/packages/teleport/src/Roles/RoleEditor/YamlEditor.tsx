@@ -78,22 +78,12 @@ export const YamlEditor = ({
       <ActionButtonsContainer>
         <SaveButton
           isEditing={isEditing}
-          disabled={
-            isProcessing ||
-            !yamlEditorModel.isDirty ||
-            !wasPreviewed ||
-            yamlEditorModel.content === ''
-          }
+          disabled={isProcessing || !yamlEditorModel.isDirty || !wasPreviewed}
           onClick={handleSave}
         />
         {onPreview && (
           <PreviewButton
-            disabled={
-              isProcessing ||
-              wasPreviewed ||
-              !yamlEditorModel.isDirty ||
-              yamlEditorModel.content === ''
-            }
+            disabled={isProcessing || wasPreviewed || !yamlEditorModel.isDirty}
             onClick={handlePreview}
           />
         )}

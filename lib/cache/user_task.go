@@ -76,8 +76,8 @@ func (c *Cache) ListUserTasks(ctx context.Context, pageSize int64, pageToken str
 		cache:      c,
 		collection: c.collections.userTasks,
 		index:      userTaskNameIndex,
-		upstreamList: func(ctx context.Context, pageSize int, pageToken string) ([]*usertasksv1.UserTask, string, error) {
-			out, next, err := c.Config.UserTasks.ListUserTasks(ctx, int64(pageSize), pageToken, filters)
+		upstreamList: func(ctx context.Context, i int, s string) ([]*usertasksv1.UserTask, string, error) {
+			out, next, err := c.Config.UserTasks.ListUserTasks(ctx, pageSize, pageToken, filters)
 			return out, next, trace.Wrap(err)
 		},
 		nextToken: func(t *usertasksv1.UserTask) string {

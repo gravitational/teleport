@@ -17,7 +17,8 @@
  */
 
 import { http, HttpResponse } from 'msw';
-import { MemoryRouter, Route } from 'react-router';
+import { MemoryRouter } from 'react-router';
+import { Route } from 'react-router-dom';
 
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 

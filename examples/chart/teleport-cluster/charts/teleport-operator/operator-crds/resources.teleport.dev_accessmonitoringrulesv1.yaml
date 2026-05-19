@@ -118,7 +118,8 @@ spec:
                       type: object
                   type: object
                 description: schedules specifies a map of schedules that can be used
-                  to configure the access monitoring rule conditions.
+                  to configure the access monitoring rule conditions.  Available in
+                  Teleport v18.2.8 or higher.
                 nullable: true
                 type: object
               states:

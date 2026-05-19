@@ -76,6 +76,7 @@ func (req *AzureInstallRequest) Run(ctx context.Context, client azure.RunCommand
 	g.SetLimit(azureParallelInstallLimit)
 
 	for _, inst := range req.Instances {
+		inst := inst
 		g.Go(func() error {
 			// If the caller cancels, stop trying to run more commands.
 			if err := ctx.Err(); err != nil {

@@ -16,6 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+/* oxlint-disable jest/no-standalone-expect */
+
 import { enablePatches } from 'immer';
 
 import Logger, { NullService } from 'teleterm/logger';
@@ -34,8 +36,6 @@ import {
   ClusterLifecycleEvent,
   ClusterLifecycleManager,
 } from './clusterLifecycleManager';
-
-/* oxlint-disable jest/no-standalone-expect */
 
 beforeAll(() => {
   Logger.init(new NullService());

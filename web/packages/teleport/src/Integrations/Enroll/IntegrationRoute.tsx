@@ -30,25 +30,25 @@ export function getRoutesToEnrollIntegrations() {
     <Route
       key={IntegrationKind.AwsRa}
       path={cfg.getIntegrationEnrollRoute(IntegrationKind.AwsRa)}
-      element={<AwsRolesAnywhereSetup />}
+      component={AwsRolesAnywhereSetup}
     />,
     <Route
       key={IntegrationKind.AwsOidc}
       exact
       path={cfg.getIntegrationEnrollRoute(IntegrationKind.AwsOidc)}
-      element={<AwsOidc />}
+      component={AwsOidc}
     />,
     <Route
       key={IntegrationKind.AwsCloud}
       exact
       path={cfg.getIntegrationEnrollRoute(IntegrationKind.AwsCloud)}
-      element={<EnrollAws />}
+      component={EnrollAws}
     />,
     <Route
       key={IntegrationKind.AzureCloud}
       exact
       path={cfg.getIntegrationEnrollRoute(IntegrationKind.AzureCloud)}
-      element={<EnrollAzure />}
+      component={EnrollAzure}
     />,
   ];
 }

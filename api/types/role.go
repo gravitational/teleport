@@ -67,8 +67,7 @@ func (f *RoleFilter) Match(role *RoleV6) bool {
 type Role interface {
 	// Resource provides common resource methods.
 	ResourceWithLabels
-	// IsEqual determines if two roles are equivalent to one another.
-	IsEqual(Role) bool
+
 	// SetMetadata sets role metadata
 	SetMetadata(meta Metadata)
 
@@ -224,17 +223,6 @@ type Role interface {
 	// SetWindowsLogins sets Windows desktop logins for allow or deny condition.
 	SetWindowsLogins(RoleConditionType, []string)
 
-	// GetLinuxDesktopLabels gets the Linux desktop labels this role
-	// is allowed or denied access to.
-	GetLinuxDesktopLabels(RoleConditionType) Labels
-	// SetLinuxDesktopLabels sets the Linux desktop labels this role
-	// is allowed or denied access to.
-	SetLinuxDesktopLabels(RoleConditionType, Labels)
-	// GetLinuxDesktopLogins gets Linux desktop logins for allow or deny condition.
-	GetLinuxDesktopLogins(RoleConditionType) []string
-	// SetLinuxDesktopLogins sets Linux desktop logins for allow or deny condition.
-	SetLinuxDesktopLogins(RoleConditionType, []string)
-
 	// GetSessionRequirePolicies returns the RBAC required policies for a session.
 	GetSessionRequirePolicies() []*SessionRequirePolicy
 	// SetSessionRequirePolicies sets the RBAC required policies for a session.
@@ -267,13 +255,6 @@ type Role interface {
 	// purposes of viewing details such as the hostname and labels of requested
 	// resources.
 	SetPreviewAsRoles(RoleConditionType, []string)
-
-	// GetSubmitForUsers returns the list of users that the reviewer can submit reviews for,
-	// to be used by teleport plugins submitting reviews on behalf of users.
-	GetSubmitForUsers(RoleConditionType) []string
-	// SetSubmitForUsers sets the list of users that the reviewer can submit reviews for,
-	// to be used by teleport plugins submitting reviews on behalf of users.
-	SetSubmitForUsers(RoleConditionType, []string)
 
 	// GetHostGroups gets the list of groups this role is put in when users are provisioned
 	GetHostGroups(RoleConditionType) []string
@@ -367,15 +348,6 @@ const (
 	Deny RoleConditionType = false
 )
 
-func (r *RoleV6) IsEqual(other Role) bool {
-	otherv6, ok := other.(*RoleV6)
-	if !ok {
-		return false
-	}
-
-	return deriveTeleportEqualRoleV6(r, otherv6)
-}
-
 // GetVersion returns resource version
 func (r *RoleV6) GetVersion() string {
 	return r.Version
@@ -468,7 +440,7 @@ func (r *RoleV6) GetLogins(rct RoleConditionType) []string {
 
 // SetLogins sets system logins for allow or deny condition.
 func (r *RoleV6) SetLogins(rct RoleConditionType, logins []string) {
-	lcopy := slices.Clone(logins)
+	lcopy := utils.CopyStrings(logins)
 
 	if rct == Allow {
 		r.Spec.Allow.Logins = lcopy
@@ -487,7 +459,7 @@ func (r *RoleV6) GetKubeGroups(rct RoleConditionType) []string {
 
 // SetKubeGroups sets kubernetes groups for allow or deny condition.
 func (r *RoleV6) SetKubeGroups(rct RoleConditionType, groups []string) {
-	lcopy := slices.Clone(groups)
+	lcopy := utils.CopyStrings(groups)
 
 	if rct == Allow {
 		r.Spec.Allow.KubeGroups = lcopy
@@ -691,7 +663,7 @@ func (r *RoleV6) GetKubeUsers(rct RoleConditionType) []string {
 
 // SetKubeUsers sets kubernetes user for allow or deny condition.
 func (r *RoleV6) SetKubeUsers(rct RoleConditionType, users []string) {
-	lcopy := slices.Clone(users)
+	lcopy := utils.CopyStrings(users)
 
 	if rct == Allow {
 		r.Spec.Allow.KubeUsers = lcopy
@@ -786,7 +758,7 @@ func (r *RoleV6) GetNamespaces(rct RoleConditionType) []string {
 
 // SetNamespaces sets a list of namespaces this role is allowed or denied access to.
 func (r *RoleV6) SetNamespaces(rct RoleConditionType, namespaces []string) {
-	ncopy := slices.Clone(namespaces)
+	ncopy := utils.CopyStrings(namespaces)
 
 	if rct == Allow {
 		r.Spec.Allow.Namespaces = ncopy
@@ -1083,48 +1055,12 @@ func (r *RoleV6) GetWindowsLogins(rct RoleConditionType) []string {
 
 // SetWindowsLogins sets Windows desktop logins for the role's allow or deny condition.
 func (r *RoleV6) SetWindowsLogins(rct RoleConditionType, logins []string) {
-	lcopy := slices.Clone(logins)
+	lcopy := utils.CopyStrings(logins)
 
 	if rct == Allow {
 		r.Spec.Allow.WindowsDesktopLogins = lcopy
 	} else {
 		r.Spec.Deny.WindowsDesktopLogins = lcopy
-	}
-}
-
-// GetLinuxDesktopLabels gets the desktop labels this role is allowed or denied access to.
-func (r *RoleV6) GetLinuxDesktopLabels(rct RoleConditionType) Labels {
-	if rct == Allow {
-		return r.Spec.Allow.LinuxDesktopLabels
-	}
-	return r.Spec.Deny.LinuxDesktopLabels
-}
-
-// SetLinuxDesktopLabels sets the desktop labels this role is allowed or denied access to.
-func (r *RoleV6) SetLinuxDesktopLabels(rct RoleConditionType, labels Labels) {
-	if rct == Allow {
-		r.Spec.Allow.LinuxDesktopLabels = labels.Clone()
-	} else {
-		r.Spec.Deny.LinuxDesktopLabels = labels.Clone()
-	}
-}
-
-// GetLinuxLogins gets Linux desktop logins for the role's allow or deny condition.
-func (r *RoleV6) GetLinuxDesktopLogins(rct RoleConditionType) []string {
-	if rct == Allow {
-		return r.Spec.Allow.LinuxDesktopLogins
-	}
-	return r.Spec.Deny.LinuxDesktopLogins
-}
-
-// SetLinuxLogins sets Linux desktop logins for the role's allow or deny condition.
-func (r *RoleV6) SetLinuxDesktopLogins(rct RoleConditionType, logins []string) {
-	lcopy := slices.Clone(logins)
-
-	if rct == Allow {
-		r.Spec.Allow.LinuxDesktopLogins = lcopy
-	} else {
-		r.Spec.Deny.LinuxDesktopLogins = lcopy
 	}
 }
 
@@ -1157,7 +1093,7 @@ func (r *RoleV6) GetHostGroups(rct RoleConditionType) []string {
 
 // SetHostGroups sets all groups for provisioned user
 func (r *RoleV6) SetHostGroups(rct RoleConditionType, groups []string) {
-	ncopy := slices.Clone(groups)
+	ncopy := utils.CopyStrings(groups)
 	if rct == Allow {
 		r.Spec.Allow.HostGroups = ncopy
 	} else {
@@ -1175,7 +1111,7 @@ func (r *RoleV6) GetDesktopGroups(rct RoleConditionType) []string {
 
 // SetDesktopGroups sets all groups for provisioned user
 func (r *RoleV6) SetDesktopGroups(rct RoleConditionType, groups []string) {
-	ncopy := slices.Clone(groups)
+	ncopy := utils.CopyStrings(groups)
 	if rct == Allow {
 		r.Spec.Allow.DesktopGroups = ncopy
 	} else {
@@ -1193,7 +1129,7 @@ func (r *RoleV6) GetHostSudoers(rct RoleConditionType) []string {
 
 // GetHostSudoers sets the list of sudoers entries for the role
 func (r *RoleV6) SetHostSudoers(rct RoleConditionType, sudoers []string) {
-	ncopy := slices.Clone(sudoers)
+	ncopy := utils.CopyStrings(sudoers)
 	if rct == Allow {
 		r.Spec.Allow.HostSudoers = ncopy
 	} else {
@@ -1522,7 +1458,6 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		r.Spec.Allow.WindowsDesktopLabels,
 		r.Spec.Allow.GroupLabels,
 		r.Spec.Allow.WorkloadIdentityLabels,
-		r.Spec.Allow.BeamLabels,
 	} {
 		if err := checkWildcardSelector(labels); err != nil {
 			return trace.Wrap(err)
@@ -2092,29 +2027,6 @@ func (r *RoleV6) SetPreviewAsRoles(rct RoleConditionType, roles []string) {
 	roleConditions.ReviewRequests.PreviewAsRoles = roles
 }
 
-// GetSubmitForUsers returns the list of users that the reviewer can submit reviews for,
-// to be used by teleport plugins submitting reviews on behalf of users.
-func (r *RoleV6) GetSubmitForUsers(rct RoleConditionType) []string {
-	roleConditions := r.GetRoleConditions(rct)
-	if roleConditions.ReviewRequests == nil {
-		return nil
-	}
-	return roleConditions.ReviewRequests.SubmitForUsers
-}
-
-// SetSubmitForUsers sets the list of users that the reviewer can submit reviews for,
-// to be used by teleport plugins submitting reviews on behalf of users.
-func (r *RoleV6) SetSubmitForUsers(rct RoleConditionType, users []string) {
-	roleConditions := &r.Spec.Allow
-	if rct == Deny {
-		roleConditions = &r.Spec.Deny
-	}
-	if roleConditions.ReviewRequests == nil {
-		roleConditions.ReviewRequests = &AccessReviewConditions{}
-	}
-	roleConditions.ReviewRequests.SubmitForUsers = users
-}
-
 // validateRoleSpecKubeResources validates the Allow/Deny Kubernetes Resources
 // entries.
 func validateRoleSpecKubeResources(version string, spec RoleSpecV6) error {
@@ -2283,8 +2195,7 @@ func (a AccessReviewConditions) IsEmpty() bool {
 	return len(a.ClaimsToRoles) == 0 &&
 		len(a.PreviewAsRoles) == 0 &&
 		len(a.Roles) == 0 &&
-		len(a.Where) == 0 &&
-		len(a.SubmitForUsers) == 0
+		len(a.Where) == 0
 }
 
 // LabelMatchers holds the role label matchers and label expression that are
@@ -2331,16 +2242,12 @@ func (r *RoleV6) GetLabelMatchers(rct RoleConditionType, kind string) (LabelMatc
 		return LabelMatchers{cond.WindowsDesktopLabels, cond.WindowsDesktopLabelsExpression}, nil
 	case KindWindowsDesktopService:
 		return LabelMatchers{cond.WindowsDesktopLabels, cond.WindowsDesktopLabelsExpression}, nil
-	case KindLinuxDesktop:
-		return LabelMatchers{cond.LinuxDesktopLabels, cond.LinuxDesktopLabelsExpression}, nil
 	case KindUserGroup:
 		return LabelMatchers{cond.GroupLabels, cond.GroupLabelsExpression}, nil
 	case KindGitServer:
 		return r.makeGitServerLabelMatchers(cond), nil
 	case KindWorkloadIdentity:
 		return LabelMatchers{cond.WorkloadIdentityLabels, cond.WorkloadIdentityLabelsExpression}, nil
-	case KindBeam:
-		return LabelMatchers{cond.BeamLabels, cond.BeamLabelsExpression}, nil
 	}
 	return LabelMatchers{}, trace.BadParameter("can't get label matchers for resource kind %q", kind)
 }
@@ -2397,10 +2304,6 @@ func (r *RoleV6) SetLabelMatchers(rct RoleConditionType, kind string, labelMatch
 	case KindWorkloadIdentity:
 		cond.WorkloadIdentityLabels = labelMatchers.Labels
 		cond.WorkloadIdentityLabelsExpression = labelMatchers.Expression
-		return nil
-	case KindBeam:
-		cond.BeamLabels = labelMatchers.Labels
-		cond.BeamLabelsExpression = labelMatchers.Expression
 		return nil
 	}
 	return trace.BadParameter("can't set label matchers for resource kind %q", kind)
@@ -2516,7 +2419,6 @@ var LabelMatcherKinds = []string{
 	KindWindowsDesktop,
 	KindWindowsDesktopService,
 	KindUserGroup,
-	KindBeam,
 }
 
 const (

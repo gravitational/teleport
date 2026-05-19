@@ -193,6 +193,7 @@ func (n *NonRecursiveDirectoryTransferError) Error() string {
 func setstat(req *sftp.Request, fs FileSystem) error {
 	attrFlags := req.AttrFlags()
 	attrs := req.Attributes()
+
 	if attrFlags.Acmodtime {
 		atime := time.Unix(int64(attrs.Atime), 0)
 		mtime := time.Unix(int64(attrs.Mtime), 0)

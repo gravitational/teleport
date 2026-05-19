@@ -127,5 +127,5 @@ func TestRetrievalModelCache(t *testing.T) {
 		list:      singletonListAdapter(p.summarizer.GetRetrievalModel),
 		cacheList: singletonListAdapter(p.cache.GetRetrievalModel),
 		deleteAll: p.summarizer.DeleteRetrievalModel,
-	}, withSkipPaginationTest()) // skip pagination test because RetrievalModel is a singleton resource
+	}, withSkipPaginationTest()) // skip pagination test because NetworkRestrictions is a singleton resource
 }

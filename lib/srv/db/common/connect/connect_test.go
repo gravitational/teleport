@@ -121,7 +121,7 @@ func TestGetServerTLSConfig(t *testing.T) {
 			server:          databaseServerWithName("db", "server1"),
 			identity:        identityWithDatabase("db", clusterName, user.GetName(), []string{role.GetName()}),
 			expectErrorFunc: require.NoError,
-			expectTLSConfigFunc: func(tt require.TestingT, tlsConfigI any, _ ...any) {
+			expectTLSConfigFunc: func(tt require.TestingT, tlsConfigI interface{}, _ ...interface{}) {
 				require.IsType(t, &tls.Config{}, tlsConfigI)
 				tlsConfig, _ := tlsConfigI.(*tls.Config)
 				require.Len(t, tlsConfig.Certificates, 1)

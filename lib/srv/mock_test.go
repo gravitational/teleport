@@ -106,6 +106,22 @@ func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet servic
 	err = scx.SetExecRequest(&localExec{Ctx: scx})
 	require.NoError(t, err)
 
+	scx.cmdr, scx.cmdw, err = os.Pipe()
+	require.NoError(t, err)
+
+	_, scx.logw, err = os.Pipe()
+	require.NoError(t, err)
+
+	scx.contr, scx.contw, err = os.Pipe()
+	require.NoError(t, err)
+
+	scx.readyr, scx.readyw, err = os.Pipe()
+	require.NoError(t, err)
+
+	scx.killShellr, scx.killShellw, err = os.Pipe()
+	require.NoError(t, err)
+	scx.AddCloser(scx.killShellw)
+
 	// TODO (joerger): check the error coming from Close once the logic around
 	// closing open files has been fixed to fail with "close |1: file already closed".
 	// Note that outside of tests, we never check the error form scx.Close because this
@@ -146,8 +162,7 @@ func newMockServer(t *testing.T) *mockServer {
 		ClusterName:    clusterName,
 		StaticTokens:   staticTokens,
 		HostUUID:       uuid.NewString(),
-		Clock:          clock,
-	})
+	}, authtest.WithClock(clock))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, authServer.Close())
@@ -170,7 +185,6 @@ type mockServer struct {
 	component string
 	clock     clocki.FakeClock
 	bpf       bpf.BPF
-	pamCfg    *pamcfg.PAMConfig
 }
 
 // ID is the unique ID of the server.
@@ -217,10 +231,7 @@ func (m *mockServer) GetDataDir() string {
 
 // GetPAM returns PAM configuration for this server.
 func (m *mockServer) GetPAM() *pamcfg.PAMConfig {
-	if m.pamCfg != nil {
-		return m.pamCfg
-	}
-	return new(pamcfg.PAMConfig)
+	return &pamcfg.PAMConfig{Enabled: false}
 }
 
 // GetClock returns a clock setup for the server
@@ -330,10 +341,9 @@ func (m *mockServer) GetSELinuxEnabled() bool {
 func (m *mockServer) ChildLogConfig() ChildLogConfig {
 	return ChildLogConfig{
 		ExecLogConfig: reexec.ExecLogConfig{
-			Level:  slog.LevelDebug,
-			Format: "json",
+			Level: &slog.LevelVar{},
 		},
-		Writer: os.Stdout,
+		Writer: io.Discard,
 	}
 }
 
@@ -444,7 +454,7 @@ type fakeBPF struct {
 	bpf bpf.NOP
 }
 
-func (f fakeBPF) OpenSession(ctx *bpf.SessionContext) error {
+func (f fakeBPF) OpenSession(ctx *bpf.SessionContext) (uint64, error) {
 	return f.bpf.OpenSession(ctx)
 }
 
@@ -458,8 +468,4 @@ func (f fakeBPF) Close(restarting bool) error {
 
 func (f fakeBPF) Enabled() bool {
 	return true
-}
-
-func (f fakeBPF) LostEvents() bpf.EventCount {
-	return bpf.EventCount{}
 }

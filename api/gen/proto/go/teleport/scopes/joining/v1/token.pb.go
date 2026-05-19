@@ -613,52 +613,6 @@ func (x *ScopedTokenStatus) GetUsage() *UsageStatus {
 	return nil
 }
 
-// A set of configurations for immutable labels.
-type ImmutableLabels struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Labels that should be applied to SSH nodes.
-	Ssh           map[string]string `protobuf:"bytes,1,rep,name=ssh,proto3" json:"ssh,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *ImmutableLabels) Reset() {
-	*x = ImmutableLabels{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[6]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *ImmutableLabels) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*ImmutableLabels) ProtoMessage() {}
-
-func (x *ImmutableLabels) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[6]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ImmutableLabels.ProtoReflect.Descriptor instead.
-func (*ImmutableLabels) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_joining_v1_token_proto_rawDescGZIP(), []int{6}
-}
-
-func (x *ImmutableLabels) GetSsh() map[string]string {
-	if x != nil {
-		return x.Ssh
-	}
-	return nil
-}
-
 // The resource representing static scoped tokens defined in the auth service file configuration. These are
 // represented as a separate resource so that they can be managed separately from dynamic scoped tokens as
 // a singleton.
@@ -682,7 +636,7 @@ type StaticScopedTokens struct {
 
 func (x *StaticScopedTokens) Reset() {
 	*x = StaticScopedTokens{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[7]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -694,7 +648,7 @@ func (x *StaticScopedTokens) String() string {
 func (*StaticScopedTokens) ProtoMessage() {}
 
 func (x *StaticScopedTokens) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[7]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -707,7 +661,7 @@ func (x *StaticScopedTokens) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StaticScopedTokens.ProtoReflect.Descriptor instead.
 func (*StaticScopedTokens) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_joining_v1_token_proto_rawDescGZIP(), []int{7}
+	return file_teleport_scopes_joining_v1_token_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *StaticScopedTokens) GetKind() string {
@@ -764,7 +718,7 @@ type StaticScopedTokensSpec struct {
 
 func (x *StaticScopedTokensSpec) Reset() {
 	*x = StaticScopedTokensSpec{}
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[8]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -776,7 +730,7 @@ func (x *StaticScopedTokensSpec) String() string {
 func (*StaticScopedTokensSpec) ProtoMessage() {}
 
 func (x *StaticScopedTokensSpec) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[8]
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -789,12 +743,58 @@ func (x *StaticScopedTokensSpec) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use StaticScopedTokensSpec.ProtoReflect.Descriptor instead.
 func (*StaticScopedTokensSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_joining_v1_token_proto_rawDescGZIP(), []int{8}
+	return file_teleport_scopes_joining_v1_token_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *StaticScopedTokensSpec) GetTokens() []*ScopedToken {
 	if x != nil {
 		return x.Tokens
+	}
+	return nil
+}
+
+// A set of configurations for immutable labels.
+type ImmutableLabels struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Labels that should be applied to SSH nodes.
+	Ssh           map[string]string `protobuf:"bytes,1,rep,name=ssh,proto3" json:"ssh,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ImmutableLabels) Reset() {
+	*x = ImmutableLabels{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ImmutableLabels) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ImmutableLabels) ProtoMessage() {}
+
+func (x *ImmutableLabels) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ImmutableLabels.ProtoReflect.Descriptor instead.
+func (*ImmutableLabels) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_joining_v1_token_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *ImmutableLabels) GetSsh() map[string]string {
+	if x != nil {
+		return x.Ssh
 	}
 	return nil
 }
@@ -2138,12 +2138,7 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\x06status\"j\n" +
 	"\x11ScopedTokenStatus\x12\x16\n" +
 	"\x06secret\x18\x01 \x01(\tR\x06secret\x12=\n" +
-	"\x05usage\x18\x02 \x01(\v2'.teleport.scopes.joining.v1.UsageStatusR\x05usage\"\x91\x01\n" +
-	"\x0fImmutableLabels\x12F\n" +
-	"\x03ssh\x18\x01 \x03(\v24.teleport.scopes.joining.v1.ImmutableLabels.SshEntryR\x03ssh\x1a6\n" +
-	"\bSshEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xf5\x01\n" +
+	"\x05usage\x18\x02 \x01(\v2'.teleport.scopes.joining.v1.UsageStatusR\x05usage\"\xf5\x01\n" +
 	"\x12StaticScopedTokens\x12\x12\n" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x18\n" +
@@ -2152,7 +2147,12 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\x05scope\x18\x05 \x01(\tR\x05scope\x12F\n" +
 	"\x04spec\x18\x06 \x01(\v22.teleport.scopes.joining.v1.StaticScopedTokensSpecR\x04spec\"Y\n" +
 	"\x16StaticScopedTokensSpec\x12?\n" +
-	"\x06tokens\x18\x01 \x03(\v2'.teleport.scopes.joining.v1.ScopedTokenR\x06tokens\"\xab\x02\n" +
+	"\x06tokens\x18\x01 \x03(\v2'.teleport.scopes.joining.v1.ScopedTokenR\x06tokens\"\x91\x01\n" +
+	"\x0fImmutableLabels\x12F\n" +
+	"\x03ssh\x18\x01 \x03(\v24.teleport.scopes.joining.v1.ImmutableLabels.SshEntryR\x03ssh\x1a6\n" +
+	"\bSshEntry\x12\x10\n" +
+	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xab\x02\n" +
 	"\x03AWS\x12:\n" +
 	"\x05allow\x18\x01 \x03(\v2$.teleport.scopes.joining.v1.AWS.RuleR\x05allow\x12\x17\n" +
 	"\aiid_ttl\x18\x02 \x01(\tR\x06iidTtl\x12 \n" +
@@ -2257,9 +2257,9 @@ var file_teleport_scopes_joining_v1_token_proto_goTypes = []any{
 	(*SingleUseStatus)(nil),                 // 3: teleport.scopes.joining.v1.SingleUseStatus
 	(*UsageStatus)(nil),                     // 4: teleport.scopes.joining.v1.UsageStatus
 	(*ScopedTokenStatus)(nil),               // 5: teleport.scopes.joining.v1.ScopedTokenStatus
-	(*ImmutableLabels)(nil),                 // 6: teleport.scopes.joining.v1.ImmutableLabels
-	(*StaticScopedTokens)(nil),              // 7: teleport.scopes.joining.v1.StaticScopedTokens
-	(*StaticScopedTokensSpec)(nil),          // 8: teleport.scopes.joining.v1.StaticScopedTokensSpec
+	(*StaticScopedTokens)(nil),              // 6: teleport.scopes.joining.v1.StaticScopedTokens
+	(*StaticScopedTokensSpec)(nil),          // 7: teleport.scopes.joining.v1.StaticScopedTokensSpec
+	(*ImmutableLabels)(nil),                 // 8: teleport.scopes.joining.v1.ImmutableLabels
 	(*AWS)(nil),                             // 9: teleport.scopes.joining.v1.AWS
 	(*GCP)(nil),                             // 10: teleport.scopes.joining.v1.GCP
 	(*Azure)(nil),                           // 11: teleport.scopes.joining.v1.Azure
@@ -2286,7 +2286,7 @@ var file_teleport_scopes_joining_v1_token_proto_depIdxs = []int32{
 	28, // 0: teleport.scopes.joining.v1.ScopedToken.metadata:type_name -> teleport.header.v1.Metadata
 	1,  // 1: teleport.scopes.joining.v1.ScopedToken.spec:type_name -> teleport.scopes.joining.v1.ScopedTokenSpec
 	5,  // 2: teleport.scopes.joining.v1.ScopedToken.status:type_name -> teleport.scopes.joining.v1.ScopedTokenStatus
-	6,  // 3: teleport.scopes.joining.v1.ScopedTokenSpec.immutable_labels:type_name -> teleport.scopes.joining.v1.ImmutableLabels
+	8,  // 3: teleport.scopes.joining.v1.ScopedTokenSpec.immutable_labels:type_name -> teleport.scopes.joining.v1.ImmutableLabels
 	9,  // 4: teleport.scopes.joining.v1.ScopedTokenSpec.aws:type_name -> teleport.scopes.joining.v1.AWS
 	10, // 5: teleport.scopes.joining.v1.ScopedTokenSpec.gcp:type_name -> teleport.scopes.joining.v1.GCP
 	11, // 6: teleport.scopes.joining.v1.ScopedTokenSpec.azure:type_name -> teleport.scopes.joining.v1.Azure
@@ -2300,10 +2300,10 @@ var file_teleport_scopes_joining_v1_token_proto_depIdxs = []int32{
 	3,  // 14: teleport.scopes.joining.v1.UsageStatus.single_use:type_name -> teleport.scopes.joining.v1.SingleUseStatus
 	16, // 15: teleport.scopes.joining.v1.UsageStatus.bound_keypair:type_name -> teleport.scopes.joining.v1.BoundKeypairStatus
 	4,  // 16: teleport.scopes.joining.v1.ScopedTokenStatus.usage:type_name -> teleport.scopes.joining.v1.UsageStatus
-	17, // 17: teleport.scopes.joining.v1.ImmutableLabels.ssh:type_name -> teleport.scopes.joining.v1.ImmutableLabels.SshEntry
-	28, // 18: teleport.scopes.joining.v1.StaticScopedTokens.metadata:type_name -> teleport.header.v1.Metadata
-	8,  // 19: teleport.scopes.joining.v1.StaticScopedTokens.spec:type_name -> teleport.scopes.joining.v1.StaticScopedTokensSpec
-	0,  // 20: teleport.scopes.joining.v1.StaticScopedTokensSpec.tokens:type_name -> teleport.scopes.joining.v1.ScopedToken
+	28, // 17: teleport.scopes.joining.v1.StaticScopedTokens.metadata:type_name -> teleport.header.v1.Metadata
+	7,  // 18: teleport.scopes.joining.v1.StaticScopedTokens.spec:type_name -> teleport.scopes.joining.v1.StaticScopedTokensSpec
+	0,  // 19: teleport.scopes.joining.v1.StaticScopedTokensSpec.tokens:type_name -> teleport.scopes.joining.v1.ScopedToken
+	17, // 20: teleport.scopes.joining.v1.ImmutableLabels.ssh:type_name -> teleport.scopes.joining.v1.ImmutableLabels.SshEntry
 	18, // 21: teleport.scopes.joining.v1.AWS.allow:type_name -> teleport.scopes.joining.v1.AWS.Rule
 	19, // 22: teleport.scopes.joining.v1.GCP.allow:type_name -> teleport.scopes.joining.v1.GCP.Rule
 	20, // 23: teleport.scopes.joining.v1.Azure.allow:type_name -> teleport.scopes.joining.v1.Azure.Rule

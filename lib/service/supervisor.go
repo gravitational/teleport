@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"slices"
 	"sync"
 	"time"
 
@@ -142,8 +141,10 @@ func (e EventMapping) matches(currentEvent string, m map[string]Event) (bool, er
 		}
 	}
 	// current event that is firing should match one of the expected events
-	if slices.Contains(e.In, currentEvent) {
-		return true, nil
+	for _, in := range e.In {
+		if currentEvent == in {
+			return true, nil
+		}
 	}
 
 	// mapping not satisfied, and this event is not part of the mapping
@@ -235,7 +236,7 @@ func NewSupervisor(id string, parentLog *slog.Logger, clock clockwork.Clock) (*L
 // by various goroutines in the supervisor
 type Event struct {
 	Name    string
-	Payload any
+	Payload interface{}
 }
 
 func (e *Event) String() string {
@@ -243,7 +244,7 @@ func (e *Event) String() string {
 }
 
 func (s *LocalSupervisor) Register(srv Service) {
-	s.log.Log(s.closeContext, logutils.TraceLevel, "Adding service to supervisor", "service", srv.Name())
+	s.log.DebugContext(s.closeContext, "Adding service to supervisor", "service", srv.Name())
 	s.Lock()
 	defer s.Unlock()
 	s.services = append(s.services, srv)
@@ -280,8 +281,8 @@ func (s *LocalSupervisor) RemoveService(srv Service) error {
 	defer s.Unlock()
 	for i, el := range s.services {
 		if el == srv {
-			s.services = slices.Delete(s.services, i, i+1)
-			l.Log(s.closeContext, logutils.TraceLevel, "Service is completed and removed")
+			s.services = append(s.services[:i], s.services[i+1:]...)
+			l.DebugContext(s.closeContext, "Service is completed and removed")
 			return nil
 		}
 	}
@@ -353,7 +354,7 @@ func (s *LocalSupervisor) serve(srv Service) {
 		}
 
 		l := s.log.With("service", srv.Name())
-		l.Log(s.closeContext, logutils.TraceLevel, "Service has started")
+		l.DebugContext(s.closeContext, "Service has started")
 		err := srv.Serve()
 		if err != nil {
 			if errors.Is(err, ErrTeleportExited) {

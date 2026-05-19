@@ -36,7 +36,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
@@ -67,31 +66,6 @@ type UsersService interface {
 	GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error)
 	// ListUsers returns a page of users.
 	ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error)
-}
-
-// IdentityInternal extends the Identity interface with auth-specific internal methods.
-type IdentityInternal interface {
-	Identity
-
-	// AppendPutUserParamsActions adds conditional actions to an atomic write to
-	// create or update the user params resource (without secrets, mfa devices).
-	AppendPutUserParamsActions(
-		actions []backend.ConditionalAction,
-		user types.User,
-		condition backend.Condition,
-	) ([]backend.ConditionalAction, error)
-
-	// AppendDeleteUserParamsActions adds conditional actions to an atomic write
-	// to delete the user params resource.
-	//
-	// Note: the returned actions will NOT delete the user's password, MFA devices,
-	// etc. so is only really suitable for bot users, in most cases you should use
-	// DeleteUser instead.
-	AppendDeleteUserParamsActions(
-		actions []backend.ConditionalAction,
-		user string,
-		condition backend.Condition,
-	) ([]backend.ConditionalAction, error)
 }
 
 // Identity is responsible for managing user entries and external identities
@@ -310,18 +284,12 @@ type Identity interface {
 	// UpsertSSOMFASessionData creates or updates SSO MFA session data in
 	// storage, for the purpose of later verifying an SSO MFA authentication
 	// attempt.
-	//
-	// Deprecated: use UpsertMFASessionData.
 	UpsertSSOMFASessionData(ctx context.Context, sd *SSOMFASessionData) error
 
 	// GetSSOMFASessionData retrieves SSO MFA session data by ID.
-	//
-	// Deprecated: use GetMFASessionData.
 	GetSSOMFASessionData(ctx context.Context, sessionID string) (*SSOMFASessionData, error)
 
 	// DeleteSSOMFASessionData deletes SSO MFA session data by ID.
-	//
-	// Deprecated: use DeleteMFASessionData.
 	DeleteSSOMFASessionData(ctx context.Context, sessionID string) error
 
 	// CreateUserToken creates a new user token.
@@ -365,27 +333,20 @@ type Identity interface {
 	SnowflakeSession
 }
 
-// AppSessionReader defines application session features available to remote clients.
-type AppSessionReader interface {
+// AppSession defines application session features.
+type AppSession interface {
 	// GetAppSession gets an application web session.
 	GetAppSession(context.Context, types.GetAppSessionRequest) (types.WebSession, error)
 	// ListAppSessions gets a paginated list of application web sessions.
 	ListAppSessions(ctx context.Context, pageSize int, pageToken, user string) ([]types.WebSession, string, error)
+	// UpsertAppSession upserts an application web session.
+	UpsertAppSession(context.Context, types.WebSession) error
 	// DeleteAppSession removes an application web session.
 	DeleteAppSession(context.Context, types.DeleteAppSessionRequest) error
 	// DeleteAllAppSessions removes all application web sessions.
 	DeleteAllAppSessions(context.Context) error
 	// DeleteUserAppSessions deletes all user’s application sessions.
 	DeleteUserAppSessions(ctx context.Context, req *proto.DeleteUserAppSessionsRequest) error
-}
-
-// AppSession defines application session features.
-type AppSession interface {
-	AppSessionReader
-	// UpdateAppSession updates an existing application web session if the revisions match.
-	UpdateAppSession(context.Context, types.WebSession) error
-	// UpsertAppSession upserts an application web session.
-	UpsertAppSession(context.Context, types.WebSession) error
 }
 
 // SnowflakeSession defines Snowflake session features.

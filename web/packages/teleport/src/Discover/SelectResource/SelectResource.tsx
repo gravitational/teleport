@@ -17,7 +17,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router';
+import { useHistory, useLocation } from 'react-router';
 import styled from 'styled-components';
 
 import { Alert, Box, Flex, H3, Link, P3, Text } from 'design';
@@ -78,9 +78,8 @@ function getDefaultResources(
 
 export function SelectResource({ onSelect }: SelectResourceProps) {
   const ctx = useTeleport();
-  const location = useLocation();
-  const state = location.state as UrlLocationState;
-  const navigate = useNavigate();
+  const location = useLocation<UrlLocationState>();
+  const history = useHistory();
   const { preferences, updateDiscoverResourcePreferences } = useUser();
 
   const [filters, setFilters] = useState<Filters>({
@@ -148,7 +147,7 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
   function onSearch(s: string, customList?: SelectResourceSpec[]) {
     const list = customList || defaultResources;
     if (s == '') {
-      navigate(location.pathname, { replace: true, state: {} }); // Clear any loc state.
+      history.replace({ state: {} }); // Clear any loc state.
       setResources(list);
       setSearch(s);
       return;
@@ -171,7 +170,7 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
     // We don't do this if the resource type is `unified_resource`,
     // since we want to show all resources.
     // TODO(bl-nero): remove this once the localstorage setting to disable unified resources is removed.
-    const resourceKindSpecifiedByUrlLoc = state?.entity;
+    const resourceKindSpecifiedByUrlLoc = location.state?.entity;
     if (
       resourceKindSpecifiedByUrlLoc &&
       resourceKindSpecifiedByUrlLoc !== SearchResource.UNIFIED_RESOURCE
@@ -184,7 +183,7 @@ export function SelectResource({ onSelect }: SelectResourceProps) {
       return;
     }
 
-    const searchKeywordSpecifiedByUrlLoc = state?.searchKeywords;
+    const searchKeywordSpecifiedByUrlLoc = location.state?.searchKeywords;
     if (searchKeywordSpecifiedByUrlLoc) {
       onSearch(searchKeywordSpecifiedByUrlLoc, defaultResources);
       return;

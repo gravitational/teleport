@@ -43,7 +43,6 @@ import (
 	"google.golang.org/api/option"
 
 	"github.com/gravitational/teleport/api/internalutils/stream"
-	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -264,7 +263,7 @@ func (clt *instancesClient) getHostKeys(ctx context.Context, req *gcpimds.Instan
 	keys := make([]ssh.PublicKey, 0, len(items))
 	var errs []error
 	for _, item := range items {
-		key, _, _, _, err := ssh.ParseAuthorizedKey(fmt.Appendf(nil, "%v %v", item.GetKey(), item.GetValue()))
+		key, _, _, _, err := ssh.ParseAuthorizedKey([]byte(fmt.Sprintf("%v %v", item.GetKey(), item.GetValue())))
 		if err == nil {
 			keys = append(keys, key)
 		} else {
@@ -567,12 +566,10 @@ https://cloud.google.com/solutions/connecting-securely#storing_host_keys_by_enab
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	config := apissh.ClientConfig{
+	config := &ssh.ClientConfig{
 		User: sshUser,
-		PublicKeyAuth: apissh.PublicKeyAuthConfig{
-			Signers: func() ([]ssh.Signer, error) {
-				return []ssh.Signer{signer}, nil
-			},
+		Auth: []ssh.AuthMethod{
+			ssh.PublicKeys(signer),
 		},
 		HostKeyCallback: callback,
 	}

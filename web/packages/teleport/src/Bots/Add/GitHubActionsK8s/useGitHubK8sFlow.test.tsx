@@ -18,9 +18,10 @@
 
 import { QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
+import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
 
-import { enableMswServer, server, testQueryClient } from 'design/utils/testing';
+import { testQueryClient } from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport/index';
 import { createTeleportContext } from 'teleport/mocks/contexts';
@@ -30,7 +31,11 @@ import { userEventCaptureSuccess } from 'teleport/test/helpers/userEvents';
 import { TrackingProvider } from '../Shared/useTracking';
 import { GitHubK8sFlowProvider, useGitHubK8sFlow } from './useGitHubK8sFlow';
 
-enableMswServer();
+const server = setupServer();
+
+beforeAll(() => {
+  server.listen();
+});
 
 beforeEach(() => {
   server.use(userEventCaptureSuccess());
@@ -40,10 +45,14 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
+  server.resetHandlers();
   await testQueryClient.resetQueries();
+
   jest.useRealTimers();
   jest.clearAllMocks();
 });
+
+afterAll(() => server.close());
 
 describe('useGitHubK8sFlow', () => {
   test('initial', async () => {

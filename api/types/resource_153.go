@@ -18,7 +18,6 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -326,12 +325,7 @@ type ProtoResource153 interface {
 
 type protoResource153ToLegacyAdapter[T ProtoResource153] struct {
 	inner T
-	resource153ToResourceWithLabelsAdapter[T]
-}
-
-func (r *protoResource153ToLegacyAdapter[T]) CloneResource() ResourceWithLabels {
-	clone := proto.CloneOf(r.inner)
-	return ProtoResource153ToLegacy(clone)
+	resource153ToLegacyAdapter[T]
 }
 
 // UnwrapT is an escape hatch for Resource153 instances that are piped down into
@@ -357,72 +351,9 @@ func (r *protoResource153ToLegacyAdapter[T]) MarshalJSON() ([]byte, error) {
 //
 // Note that CheckAndSetDefaults is a noop for the returned resource and
 // SetSubKind is not implemented and panics on use.
-func ProtoResource153ToLegacy[T ProtoResource153](r T) ClonableResourceWithLabels {
+func ProtoResource153ToLegacy[T ProtoResource153](r T) Resource {
 	return &protoResource153ToLegacyAdapter[T]{
 		r,
-		resource153ToResourceWithLabelsAdapter[T]{
-			resource153ToLegacyAdapter[T]{r},
-		},
+		resource153ToLegacyAdapter[T]{r},
 	}
-}
-
-type legacyMetadataResourceAdapter[T interface {
-	GetKind() string
-	GetSubKind() string
-	GetVersion() string
-	GetMetadata() *Metadata
-}] struct {
-	*ResourceHeader
-
-	inner T
-}
-
-func (r *legacyMetadataResourceAdapter[T]) UnwrapT() T {
-	return r.inner
-}
-
-// LegacyMetadataToResource adapts resources that expose the legacy [types.Metadata] to the legacy [Resource] interface.
-//
-// This is needed for resource types that are not full [Resource153] implementations (their GetMetadata method returns
-// *types.Metadata instead of *headerv1.Metadata) but still need to flow through legacy watch/event paths that require
-// [Resource].
-// TODO(cthach): Delete when ValidatedMFAChallenge resource is converted to a full Resource153 implementation.
-func LegacyMetadataToResource[T interface {
-	GetKind() string
-	GetSubKind() string
-	GetVersion() string
-	GetMetadata() *Metadata
-}](resource T) Resource {
-	metadata := Metadata{}
-	if resource.GetMetadata() != nil {
-		metadata = *resource.GetMetadata()
-	}
-
-	return &legacyMetadataResourceAdapter[T]{
-		ResourceHeader: &ResourceHeader{
-			Kind:     resource.GetKind(),
-			SubKind:  resource.GetSubKind(),
-			Version:  resource.GetVersion(),
-			Metadata: metadata,
-		},
-		inner: resource,
-	}
-}
-
-// ConvertResource is a generic helper func that converts a [types.Resource] by
-// direct type assertion or assertion to an [types.Resource153UnwrapperT].
-func ConvertResource[T any](resource Resource) (T, error) {
-	switch resource := resource.(type) {
-	case interface{ UnwrapT() T }:
-		return resource.UnwrapT(), nil
-	case T:
-		return resource, nil
-	}
-	var zero T
-	return zero, trace.BadParameter("expected resource type %T, got %T", zero, resource)
-}
-
-type ClonableResourceWithLabels interface {
-	ResourceWithLabels
-	CloneResource() ResourceWithLabels
 }

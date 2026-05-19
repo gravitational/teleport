@@ -53,7 +53,6 @@ export function Tabs(props: Props) {
           key={item.uri}
           index={index}
           name={item.title}
-          docKind={item.kind}
           active={active}
           Icon={getStaticNameAndIcon(item)?.Icon}
           nextActive={nextActive}
@@ -71,7 +70,7 @@ export function Tabs(props: Props) {
   );
 
   return (
-    <StyledTabs role="tablist" {...styledProps}>
+    <StyledTabs as="nav" {...styledProps}>
       {$items}
       <NewTabItem tooltip={newTabTooltip} onClick={onNew} />
     </StyledTabs>

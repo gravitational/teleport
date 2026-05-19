@@ -19,9 +19,7 @@
 import styled from 'styled-components';
 
 import { Cell } from 'design/DataTable';
-import Flex from 'design/Flex';
 import * as Icons from 'design/Icon';
-import Text from 'design/Text/Text';
 
 import { Event, EventCode, eventCodes } from 'teleport/services/audit';
 
@@ -222,7 +220,6 @@ export const EventIconMap: Record<EventCode, any> = {
   [eventCodes.CERTIFICATE_CREATED]: Icons.Keypair,
   [eventCodes.UPGRADE_WINDOW_UPDATED]: Icons.Info,
   [eventCodes.ENVIRONMENT_PROFILE_UPDATED]: Icons.Info,
-  [eventCodes.ACCESS_GRAPH_SETTINGS_UPDATE]: Icons.Info,
   [eventCodes.SESSION_RECORDING_ACCESS]: Icons.Info,
   [eventCodes.SSMRUN_SUCCESS]: Icons.Info,
   [eventCodes.SSMRUN_FAIL]: Icons.Warning,
@@ -347,11 +344,6 @@ export const EventIconMap: Record<EventCode, any> = {
   [eventCodes.SCIM_RESOURCE_PATCH]: Icons.Info,
   [eventCodes.SCIM_RESOURCE_PATCH_FAILURE]: Icons.Warning,
   [eventCodes.CLIENT_IP_RESTRICTIONS_UPDATE]: Icons.Info,
-  [eventCodes.APPAUTHCONFIG_CREATE]: Icons.Info,
-  [eventCodes.APPAUTHCONFIG_UPDATE]: Icons.Info,
-  [eventCodes.APPAUTHCONFIG_DELETE]: Icons.Info,
-  [eventCodes.APPAUTHCONFIG_VERIFY_SUCCESS]: Icons.Info,
-  [eventCodes.APPAUTHCONFIG_VERIFY_FAILURE]: Icons.Warning,
   [eventCodes.VNET_CONFIG_CREATE]: Icons.Info,
   [eventCodes.VNET_CONFIG_UPDATE]: Icons.Info,
   [eventCodes.VNET_CONFIG_DELETE]: Icons.Info,
@@ -375,17 +367,13 @@ export const EventIconMap: Record<EventCode, any> = {
   [eventCodes.RETRIEVAL_MODEL_DELETE]: Icons.Info,
   [eventCodes.SESSION_SUMMARIZED]: Icons.Info,
   [eventCodes.SESSION_SUMMARIZED_FAILURE]: Icons.Warning,
-  [eventCodes.CERT_AUTH_OVERRIDE_CREATE]: Icons.Info,
-  [eventCodes.CERT_AUTH_OVERRIDE_UPDATE]: Icons.Info,
-  [eventCodes.CERT_AUTH_OVERRIDE_UPSERT]: Icons.Info,
-  [eventCodes.CERT_AUTH_OVERRIDE_DELETE]: Icons.Info,
 };
 
 export default function renderTypeCell(event: Event) {
   const Icon = EventIconMap[event.code] || Icons.ListThin;
 
   const iconProps = {
-    p: 2,
+    p: 1,
     mr: 3,
   };
 
@@ -393,19 +381,7 @@ export default function renderTypeCell(event: Event) {
     <Cell style={{ verticalAlign: 'inherit' }}>
       <StyledEventType>
         <Icon {...iconProps} size="medium" />
-        <Flex
-          gap={0}
-          flexDirection="column"
-          minHeight={64}
-          justifyContent="center"
-        >
-          <Text typography="body2" fontWeight={500} mb={0}>
-            {event.raw.event}
-          </Text>
-          <Text typography="body2" color="text.muted">
-            {event.codeDesc}
-          </Text>
-        </Flex>
+        {event.codeDesc}
       </StyledEventType>
     </Cell>
   );

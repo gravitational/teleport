@@ -129,30 +129,6 @@ Arguments:
 |---|---|---|
 |access-list-name|*no default* (required)|The access list name to fetch review history for.|
 
-## tctl acl summary
-
-Show summary information for access lists, including their members and last
-review.
-
-Usage:
-
-```code
-$ tctl acl summary [<flags>] [<access-list-name>]
-```
-
-Flags:
-
-|Flag|Default|Description|
-|---|---|---|
-|`--format`|`yaml` (one of: `yaml`, `json`)|Output format.|
-|`--[no-]review-only`|`true`|Show only access lists that are due for review within the next 2 weeks or past due. Defaults to true.|
-
-Arguments:
-
-|Argument|Default|Description|
-|---|---|---|
-|access-list-name|*no default* (optional)|The access list name to show summary for. If not provided, shows summary for all access lists.|
-
 ## tctl acl users add
 
 Add a user to an Access List.
@@ -520,7 +496,7 @@ Flags:
 |`--integration`|*no default*|Name of the integration. Only applies to "github" CAs.|
 |`--[no-]keys`|`false`|if set, will print private keys|
 |`--out`|*no default*|If set writes exported authorities to files with the given path prefix|
-|`--type`|*no default* (one of: `user`, `host`, `tls-host`, `tls-user`, `tls-user-der`, `tls-spiffe`, `windows`, `db`, `db-der`, `db-client`, `db-client-der`, `openssh`, `saml-idp`, `github`, `awsra`, `app-client`)|export certificate type (user, host, tls-host, tls-user, tls-user-der, tls-spiffe, windows, db, db-der, db-client, db-client-der, openssh, saml-idp, github, awsra, app-client)|
+|`--type`|*no default* (one of: `user`, `host`, `tls-host`, `tls-user`, `tls-user-der`, `tls-spiffe`, `windows`, `db`, `db-der`, `db-client`, `db-client-der`, `openssh`, `saml-idp`, `github`, `awsra`)|export certificate type (user, host, tls-host, tls-user, tls-user-der, tls-spiffe, windows, db, db-der, db-client, db-client-der, openssh, saml-idp, github, awsra)|
 
 ## tctl auth ls
 
@@ -557,7 +533,7 @@ Flags:
 |`--[no-]interactive`|`false`|Enable interactive mode|
 |`--[no-]manual`|`false`|Activate manual rotation, set rotation phases manually|
 |`--phase`|*no default*|Target rotation phase to set, used in manual rotation, one of: init, standby, update_clients, update_servers, rollback|
-|`--type`|*no default* (one of: `host`, `windows`, `user`, `db`, `db_client`, `openssh`, `jwt`, `saml_idp`, `oidc_idp`, `spiffe`, `okta`, `awsra`, `bound_keypair`, `app_client`)|Certificate authority to rotate.|
+|`--type`|*no default* (one of: `host`, `windows`, `user`, `db`, `db_client`, `openssh`, `jwt`, `saml_idp`, `oidc_idp`, `spiffe`, `okta`, `awsra`, `bound_keypair`)|Certificate authority to rotate.|
 
 ## tctl auth sign
 
@@ -734,7 +710,7 @@ Arguments:
 
 ## tctl bots add
 
-Add a new bot to the cluster.
+Add a new certificate renewal bot to the cluster.
 
 Usage:
 
@@ -746,17 +722,11 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--format`|`text` (one of: `text`, `json`)|Output format.|
-|`--initial-public-key`|*no default*|If set, use the given initial public key in SSH authorized_keys format, instead of generating a registration secret. The value must be quoted. Not compatible with --token or --legacy.|
 |`--logins`|*no default*|List of allowed SSH logins for the bot user|
 |`--max-session-ttl`|*no default*|Set a max session TTL for the bot's internal identity. 12h default, 168h maximum.|
-|`--[no-]legacy`|`false`|If set, generate a legacy joining token instead of a bound keypair token. No effect if --token is set.|
-|`--recovery-limit`|*no default*|Overrides the recovery limit (default: 1) for the bound keypair token. No effect if --token or --legacy is set, or if --recovery-mode is not standard. Must be greater than 1.|
-|`--recovery-mode`|`standard` (one of: `standard`, `relaxed`, `insecure`)|If set, overrides the recovery mode for the bound keypair token. No effect if --token or --legacy is set.|
-|`--registration-secret`|*no default*|Sets a registration secret for the bound keypair token. If not set, one will be randomly generated. No effect if --initial-public-key, --token, or --legacy is set. |
 |`--roles`|*no default*|Roles the bot is able to assume.|
-|`--token`|*no default*|The token to use, if any. If unset, a new single-use token will be created.|
-|`--ttl`|`1h0m0s`|TTL for the bot join token. For standard bound keypair tokens, this sets must_register_before; for legacy tokens, this sets the resource TTL.|
+|`--token`|*no default*|Name of an existing token to use.|
+|`--ttl`|*no default*|TTL for the bot join token.|
 
 Arguments:
 
@@ -778,14 +748,8 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--format`|`text` (one of: `text`, `json`)|Output format.|
-|`--initial-public-key`|*no default*|If set, use the given initial public key in SSH authorized_keys format, instead of generating a registration secret. The value must be quoted. Not compatible with --token or --legacy.|
-|`--[no-]legacy`|`false`|If set, generate a legacy joining token instead of a bound keypair token. No effect if --token is set.|
-|`--recovery-limit`|*no default*|Overrides the recovery limit (default: 1) for the bound keypair token. No effect if --token or --legacy is set, or if --recovery-mode is not standard. Must be greater than 1.|
-|`--recovery-mode`|`standard` (one of: `standard`, `relaxed`, `insecure`)|If set, overrides the recovery mode for the bound keypair token. No effect if --token or --legacy is set.|
-|`--registration-secret`|*no default*|Sets a registration secret for the bound keypair token. If not set, one will be randomly generated. No effect if --initial-public-key, --token, or --legacy is set. |
-|`--token`|*no default*|The token to use, if any. If unset, a new single-use token will be created.|
-|`--ttl`|`1h0m0s`|TTL for the bot join token. For standard bound keypair tokens, this sets must_register_before; for legacy tokens, this sets the resource TTL.|
+|`--format`|`text` (one of: `text`, `json`)|Output format, one of: text, json|
+|`--token`|*no default*|The token to use, if any. If unset, a new one-time-use token will be created.|
 
 Arguments:
 
@@ -1246,22 +1210,6 @@ Arguments:
 |---|---|---|
 |labels|*no default* (optional)|List of comma separated labels to filter by labels (e.g. key1=value1,key2=value2)|
 
-## tctl list-kinds
-
-Lists all resource kinds supported by this tctl version.
-
-Usage:
-
-```code
-$ tctl list-kinds [<flags>]
-```
-
-Flags:
-
-|Flag|Default|Description|
-|---|---|---|
-|`--[no-]wide`|`false`|Do not truncate the Description column, even if it exceeds terminal width|
-
 ## tctl lock
 
 Create a new lock.
@@ -1281,7 +1229,6 @@ Flags:
 |`--device`|*no default*|UUID of a trusted device to disable.|
 |`--expires`|*no default*|Time point (RFC3339) when the lock expires.|
 |`--join-token`|*no default*|Bot join token name to disable|
-|`--linux-desktop`|*no default*|Name of a Linux desktop to disable.|
 |`--login`|*no default*|Name of a local UNIX user to disable.|
 |`--message`|*no default*|Message to display to locked-out users.|
 |`--mfa-device`|*no default*|UUID of a user MFA device to disable.|
@@ -1725,7 +1672,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--format`|`text`|Format output (text, json, yaml).. Defaults to 'text'.|
+|`--format`|`text`|Format output (text, json, yaml). Defaults to 'text'.|
 
 ## tctl recordings ls
 
@@ -1741,7 +1688,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--format`|`text`|Format output (text, json, yaml).. Defaults to 'text'.|
+|`--format`|`text`|Format output (text, json, yaml). Defaults to 'text'.|
 |`--from-utc`|*no default*|Start of time range in which recordings are listed. Format 2006-01-02. Defaults to 24 hours ago.|
 |`--last`|*no default*|Duration into the past from which session recordings should be listed. Format 5h30m40s|
 |`--limit`|`50`|Maximum number of recordings to show. Default 50.|
@@ -1763,7 +1710,7 @@ Flags:
 |---|---|---|
 |`--access-request`|*no default*|Filter by access request ID. Can be specified multiple times.|
 |`--database-name`|*no default*|Filter database sessions by database name.|
-|`--format`|`text`|Format output (text, json, yaml).. Defaults to 'text'.|
+|`--format`|`text`|Format output (text, json, yaml). Defaults to 'text'.|
 |`--from`|*no default*|Start of time range. Format 2006-01-02. Defaults to 24 hours ago.|
 |`--kind`|*no default*|Filter by session kind (ssh, db, k8s, desktop). Can be specified multiple times.|
 |`--label`|*no default*|Filter by resource labels (key=value pairs), e.g. env/prod=true,db/type=postgres.|
@@ -1992,7 +1939,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`-f`, `--format`|`text` (one of: `text`, `json`, `yaml`)|Format output (text, json, yaml).|
+|`-f`, `--format`|`text` (one of: `text`, `json`, `yaml`)|Format output (text, json, yaml)|
 |`--role`|*no default*|Filter by assigned role.|
 |`--user`|*no default*|Filter by user.|
 
@@ -2021,7 +1968,7 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`--assign-scope`|*no default*|Scope that should be applied to resources provisioned by this token|
-|`--format`|*no default* (one of: `text`, `json`, `yaml`)|Format output (text, json, yaml).|
+|`--format`|*no default* (one of: `text`, `json`, `yaml`)|Format output (text, json, yaml)|
 |`--labels`|*no default*|Set token labels, e.g. env=prod,region=us-west|
 |`--mode`|*no default*|Usage mode of a token (default: unlimited, single_use)|
 |`--name`|*no default*|Override the default, randomly generated token name with a specified name|
@@ -2044,7 +1991,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`-f`, `--format`|*no default* (one of: `text`, `json`, `yaml`)|Format output (text, json, yaml).|
+|`-f`, `--format`|*no default* (one of: `text`, `json`, `yaml`)|Format output (text, json, yaml)|
 |`--[no-]with-secrets`|`false`|Do not redact join tokens|
 
 ## tctl scoped tokens rm

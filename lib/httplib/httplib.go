@@ -31,6 +31,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/gravitational/roundtrip"
@@ -248,6 +249,22 @@ func RouteNotFoundResponse(ctx context.Context, w http.ResponseWriter) {
 	}
 
 	roundtrip.ReplyJSON(w, http.StatusNotFound, errObj)
+}
+
+// ParseBool will parse boolean variable from url query
+// returns value, ok, error
+func ParseBool(q url.Values, name string) (bool, bool, error) {
+	stringVal := q.Get(name)
+	if stringVal == "" {
+		return false, false, nil
+	}
+
+	val, err := strconv.ParseBool(stringVal)
+	if err != nil {
+		return false, false, trace.BadParameter(
+			"'%v': expected 'true' or 'false', got %v", name, stringVal)
+	}
+	return val, true, nil
 }
 
 // RewritePair is a rewrite expression

@@ -152,12 +152,6 @@ message ScopedTokenStatus {
   UsageStatus usage = 2;
 }
 
-// A set of configurations for immutable labels.
-message ImmutableLabels {
-  // Labels that should be applied to SSH nodes.
-  map<string, string> ssh = 1;
-}
-
 // The resource representing static scoped tokens defined in the auth service file configuration. These are
 // represented as a separate resource so that they can be managed separately from dynamic scoped tokens as
 // a singleton.
@@ -186,6 +180,12 @@ message StaticScopedTokens {
 message StaticScopedTokensSpec {
   // The statically parsed scoped tokens.
   repeated ScopedToken tokens = 1;
+}
+
+// A set of configurations for immutable labels.
+message ImmutableLabels {
+  // Labels that should be applied to SSH nodes.
+  map<string, string> ssh = 1;
 }
 
 // The AWS-specific configuration used with the "ec2" and "iam" join methods.

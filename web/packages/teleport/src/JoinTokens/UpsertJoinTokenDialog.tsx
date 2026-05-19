@@ -41,6 +41,7 @@ import { requiredField } from 'shared/components/Validation/rules';
 import { useAsync } from 'shared/hooks/useAsync';
 import { collectKeys } from 'shared/utils/collectKeys';
 
+import 'teleport/services/resources';
 import { useTeleport } from 'teleport';
 import auth from 'teleport/services/auth';
 import {
@@ -50,7 +51,6 @@ import {
   JoinRole,
   JoinToken,
 } from 'teleport/services/joinToken';
-import 'teleport/services/resources';
 import { YamlSupportedResourceKind } from 'teleport/services/yaml/types';
 
 import {
@@ -171,10 +171,7 @@ function makeDefaultEditState(token: JoinToken): NewJoinTokenState {
     iam: token.allow,
     gcp: token.gcp?.allow.map(r => ({
       project_ids: r.project_ids?.map(i => ({ value: i, label: i })),
-      service_accounts: r.service_accounts?.map(i => ({
-        value: i,
-        label: i,
-      })),
+      service_accounts: r.service_accounts?.map(i => ({ value: i, label: i })),
       locations: r.locations?.map(i => ({ value: i, label: i })),
     })),
     oracle: token.oracle?.allow.map(r => ({

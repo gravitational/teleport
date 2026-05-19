@@ -278,21 +278,21 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 			name: "ScopedToken",
 			opts: []resourceSchemaOption{
 				withVersionOverride(types.V1),
-				withScope(),
+				withAdditionalRootFields([]string{"scope"}),
 			},
 		},
 		{
 			name: "ScopedRole",
 			opts: []resourceSchemaOption{
 				withVersionOverride(types.V1),
-				withScope(),
+				withAdditionalRootFields([]string{"scope"}),
 			},
 		},
 		{
 			name: "ScopedRoleAssignment",
 			opts: []resourceSchemaOption{
 				withVersionOverride(types.V1),
-				withScope(),
+				withAdditionalRootFields([]string{"scope"}),
 			},
 		},
 	}

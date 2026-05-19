@@ -65,7 +65,6 @@ import (
 	"github.com/gravitational/teleport/lib/join/terraformcloud"
 	"github.com/gravitational/teleport/lib/join/tpmjoin"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
@@ -105,11 +104,11 @@ type AuthService interface {
 	GetGHAIDTokenValidator() githubactions.GithubIDTokenValidator
 	GetGHAIDTokenJWKSValidator() githubactions.GithubIDTokenJWKSValidator
 	GetGitlabIDTokenValidator() gitlab.Validator
-	GetTPMValidator() tpmjoin.TPMValidator
 	GetK8sTokenReviewValidator() kubetoken.InClusterValidator
 	GetK8sJWKSValidator() kubetoken.JWKSValidator
 	GetK8sOIDCValidator() *kubetoken.KubernetesOIDCTokenValidator
 	GetSpaceliftIDTokenValidator() spacelift.Validator
+	GetTPMValidator() tpmjoin.TPMValidator
 	GetTerraformIDTokenValidator() terraformcloud.Validator
 	GetAzureJoinConfig() *azurejoin.AzureJoinConfig
 	services.Presence
@@ -121,10 +120,9 @@ type ServerConfig struct {
 	AuthService        AuthService
 	ScopedAuthorizer   authz.ScopedAuthorizer
 	FIPS               bool
-	ScopedTokenService services.ScopedTokenService
 	OracleHTTPClient   utils.HTTPDoClient
+	ScopedTokenService services.ScopedTokenService
 	Logger             *slog.Logger
-	Modules            modules.Modules
 }
 
 // Server implements cluster joining for nodes and bots.
@@ -155,7 +153,10 @@ func (s *Server) getProvisionToken(ctx context.Context, name string) (provision.
 	var classicErr error
 
 	wg := &sync.WaitGroup{}
-	wg.Go(func() {
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
 		staticTokens, err := s.cfg.AuthService.GetStaticScopedTokens(ctx)
 		if err != nil {
 			if !trace.IsNotFound(err) {
@@ -185,11 +186,14 @@ func (s *Server) getProvisionToken(ctx context.Context, name string) (provision.
 		}
 
 		scoped, scopedErr = joining.NewToken(res.GetToken())
-	})
-	wg.Go(func() {
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
 		// Fetch the provision token and validate that it is not expired.
 		classic, classicErr = s.cfg.AuthService.ValidateToken(ctx, name)
-	})
+	}()
 	wg.Wait()
 
 	// we explicitly disallow a join if the provided token name returns both a scoped and classic provision token
@@ -235,6 +239,7 @@ func (s *Server) getProvisionToken(ctx context.Context, name string) (provision.
 // token expires).
 //
 // Only secret tokens are currently supported.
+// TODO(nklaassen): support all join methods.
 func (s *Server) Join(stream messages.ServerStream) (err error) {
 	ctx := stream.Context()
 	diag := stream.Diagnostic()
@@ -363,14 +368,15 @@ func (s *Server) handleJoinMethod(
 		return s.handleOracleJoin(stream, authCtx, clientInit, token)
 	case types.JoinMethodSpacelift:
 		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateSpaceliftToken)
-	case types.JoinMethodTerraformCloud:
-		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateTerraformCloudToken)
-	case types.JoinMethodToken:
-		return s.handleTokenJoin(stream, authCtx, clientInit, token)
 	case types.JoinMethodTPM:
 		return s.handleTPMJoin(stream, authCtx, clientInit, token)
+	case types.JoinMethodToken:
+		return s.handleTokenJoin(stream, authCtx, clientInit, token)
+	case types.JoinMethodTerraformCloud:
+		return s.handleOIDCJoin(stream, authCtx, clientInit, token, s.validateTerraformCloudToken)
 	default:
-		return nil, trace.NotImplemented("join method %s is not implemented", joinMethod)
+		// TODO(nklaassen): implement checks for all join methods.
+		return nil, trace.NotImplemented("join method %s is not yet implemented by the new join service", joinMethod)
 	}
 }
 

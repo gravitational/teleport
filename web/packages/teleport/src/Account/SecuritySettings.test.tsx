@@ -151,9 +151,9 @@ test.each`
 test.each`
   pwdless  | passkeys         | state
   ${true}  | ${[testPasskey]} | ${/^active$/}
-  ${true}  | ${[]}            | ${/^inactive$/}
-  ${false} | ${[testPasskey]} | ${/^disabled/}
-  ${false} | ${[]}            | ${/^disabled/}
+  ${true}  | ${[]}            | ${null}
+  ${false} | ${[testPasskey]} | ${/^inactive$/}
+  ${false} | ${[]}            | ${null}
 `(
   "Passkey state pill: passwordless=$pwdless, $passkeys.length passkey(s) => state='$state'",
   async ({ pwdless, passkeys, state }) => {
@@ -265,10 +265,17 @@ test('loading state', async () => {
     </ContextProvider>
   );
 
-  expect(screen.getByTestId('device-list-loading')).toBeVisible();
+  expect(
+    within(screen.getByTestId('passkey-list')).getByTestId('indicator-wrapper')
+  ).toBeVisible();
+  expect(
+    within(screen.getByTestId('mfa-list')).getByTestId('indicator-wrapper')
+  ).toBeVisible();
   expect(screen.getByText(/add a passkey/i)).toBeVisible();
   expect(screen.getByText(/add mfa/i)).toBeVisible();
-  expect(screen.queryByTestId('passwordless-state-pill')).toBeEmptyDOMElement();
+  expect(
+    screen.queryByTestId('passwordless-state-pill')
+  ).not.toBeInTheDocument();
   expect(screen.getByTestId('mfa-state-pill')).toBeEmptyDOMElement();
 });
 
@@ -395,7 +402,7 @@ test('removing an MFA method', async () => {
   await renderComponent(ctx);
 
   await user.click(
-    within(screen.getByTestId('device-list')).getByRole('button', {
+    within(screen.getByTestId('mfa-list')).getByRole('button', {
       name: 'Delete',
     })
   );

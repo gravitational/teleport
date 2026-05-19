@@ -49,7 +49,7 @@ func peekPrelude(peeker peeker, prelude string) (bool, error) {
 // peekLine peeks up to maxSize bytes looking for a newline ('\n'), returning
 // the peeked line (or the first maxSize bytes, if no newline is found).
 func peekLine(peeker peeker, maxSize int) (line []byte, err error) {
-	for i := range maxSize {
+	for i := 0; i < maxSize; i++ {
 		line, err = peeker.Peek(i + 1)
 		if err != nil {
 			return nil, trace.Wrap(err)

@@ -42,7 +42,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestOSSModules(t *testing.T) {
-	require.False(t, modules.GetModules().IsFIPSBuild())
+	require.False(t, modules.GetModules().IsBoringBinary())
 	require.Equal(t, modules.BuildOSS, modules.GetModules().BuildType())
 }
 
@@ -138,16 +138,11 @@ func TestFeatures_ToProto(t *testing.T) {
 		RecoveryCodes:              true,
 		AccessMonitoringConfigured: false,
 		Entitlements: map[string]*proto.EntitlementInfo{
-			string(entitlements.AccessGraph):                {Enabled: true},
-			string(entitlements.AccessGraphDemoMode):        {Enabled: true},
 			string(entitlements.AccessLists):                {Enabled: true, Limit: 111},
 			string(entitlements.AccessMonitoring):           {Enabled: true, Limit: 2113},
 			string(entitlements.AccessRequests):             {Enabled: true, Limit: 39},
-			string(entitlements.ActivityCenter):             {Enabled: true},
 			string(entitlements.App):                        {Enabled: false},
-			string(entitlements.Beams):                      {Enabled: true},
 			string(entitlements.CloudAuditLogRetention):     {Enabled: true},
-			string(entitlements.ClientIPRestrictions):       {Enabled: true},
 			string(entitlements.DB):                         {Enabled: true},
 			string(entitlements.Desktop):                    {Enabled: true},
 			string(entitlements.DeviceTrust):                {Enabled: true, Limit: 103},
@@ -157,7 +152,6 @@ func TestFeatures_ToProto(t *testing.T) {
 			string(entitlements.Identity):                   {Enabled: true},
 			string(entitlements.JoinActiveSessions):         {Enabled: true},
 			string(entitlements.K8s):                        {Enabled: true},
-			string(entitlements.LicenseAutoUpdate):          {Enabled: true},
 			string(entitlements.MobileDeviceManagement):     {Enabled: true},
 			string(entitlements.OIDC):                       {Enabled: true},
 			string(entitlements.OktaSCIM):                   {Enabled: true},
@@ -165,20 +159,44 @@ func TestFeatures_ToProto(t *testing.T) {
 			string(entitlements.Policy):                     {Enabled: true},
 			string(entitlements.SAML):                       {Enabled: true},
 			string(entitlements.SessionLocks):               {Enabled: true},
-			string(entitlements.SessionSummaries):           {Enabled: true},
 			string(entitlements.UpsellAlert):                {Enabled: true},
 			string(entitlements.UsageReporting):             {Enabled: true},
+			string(entitlements.LicenseAutoUpdate):          {Enabled: true},
+			string(entitlements.AccessGraphDemoMode):        {Enabled: true},
 			string(entitlements.UnrestrictedManagedUpdates): {Enabled: true},
+			string(entitlements.ClientIPRestrictions):       {Enabled: true},
 			string(entitlements.WorkloadClusters):           {Enabled: true},
 		},
-		// Deprecated fields
-		// TODO(michellescripts) DELETE IN v21.0.0
+		//	 Legacy Fields; remove in v18
+		Kubernetes:             true,
+		App:                    false,
+		DB:                     true,
+		OIDC:                   true,
+		SAML:                   true,
+		HSM:                    true,
+		Desktop:                true,
+		FeatureHiding:          true,
+		IdentityGovernance:     true,
+		ExternalAuditStorage:   true,
+		JoinActiveSessions:     true,
+		MobileDeviceManagement: true,
+		DeviceTrust: &proto.DeviceTrustFeature{
+			Enabled:           true,
+			DevicesUsageLimit: 103,
+		},
+		AccessRequests: &proto.AccessRequestsFeature{
+			MonthlyRequestLimit: 39,
+		},
+		AccessMonitoring: &proto.AccessMonitoringFeature{
+			Enabled:             false, // set to value of AccessMonitoringConfigured
+			MaxReportRangeLimit: 2113,
+		},
+		AccessList: &proto.AccessListFeature{
+			CreateLimit: 111,
+		},
 		Policy: &proto.PolicyFeature{
 			Enabled: true,
 		},
-		AccessGraphDemoMode:  true,
-		ClientIPRestrictions: true,
-		BeamsUI:              true,
 	}
 
 	f := modules.Features{
@@ -198,17 +216,11 @@ func TestFeatures_ToProto(t *testing.T) {
 		RecoveryCodes:              true,
 		AccessMonitoringConfigured: false,
 		CloudAnonymizationKey:      []byte("001"),
-		BeamsUI:                    true,
 		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-			entitlements.AccessGraph:                {Enabled: true, Limit: 0},
-			entitlements.AccessGraphDemoMode:        {Enabled: true, Limit: 0},
 			entitlements.AccessLists:                {Enabled: true, Limit: 111},
 			entitlements.AccessMonitoring:           {Enabled: true, Limit: 2113},
 			entitlements.AccessRequests:             {Enabled: true, Limit: 39},
-			entitlements.ActivityCenter:             {Enabled: true, Limit: 0},
 			entitlements.App:                        {Enabled: false, Limit: 0},
-			entitlements.Beams:                      {Enabled: true, Limit: 0},
-			entitlements.ClientIPRestrictions:       {Enabled: true, Limit: 0},
 			entitlements.CloudAuditLogRetention:     {Enabled: true, Limit: 0},
 			entitlements.DB:                         {Enabled: true, Limit: 0},
 			entitlements.Desktop:                    {Enabled: true, Limit: 0},
@@ -219,7 +231,6 @@ func TestFeatures_ToProto(t *testing.T) {
 			entitlements.Identity:                   {Enabled: true, Limit: 0},
 			entitlements.JoinActiveSessions:         {Enabled: true, Limit: 0},
 			entitlements.K8s:                        {Enabled: true, Limit: 0},
-			entitlements.LicenseAutoUpdate:          {Enabled: true, Limit: 0},
 			entitlements.MobileDeviceManagement:     {Enabled: true, Limit: 0},
 			entitlements.OIDC:                       {Enabled: true, Limit: 0},
 			entitlements.OktaSCIM:                   {Enabled: true, Limit: 0},
@@ -227,10 +238,12 @@ func TestFeatures_ToProto(t *testing.T) {
 			entitlements.Policy:                     {Enabled: true, Limit: 0},
 			entitlements.SAML:                       {Enabled: true, Limit: 0},
 			entitlements.SessionLocks:               {Enabled: true, Limit: 0},
-			entitlements.SessionSummaries:           {Enabled: true, Limit: 0},
 			entitlements.UpsellAlert:                {Enabled: true, Limit: 0},
 			entitlements.UsageReporting:             {Enabled: true, Limit: 0},
+			entitlements.LicenseAutoUpdate:          {Enabled: true, Limit: 0},
+			entitlements.AccessGraphDemoMode:        {Enabled: true, Limit: 0},
 			entitlements.UnrestrictedManagedUpdates: {Enabled: true, Limit: 0},
+			entitlements.ClientIPRestrictions:       {Enabled: true, Limit: 0},
 			entitlements.WorkloadClusters:           {Enabled: true, Limit: 0},
 		},
 	}

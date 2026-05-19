@@ -140,13 +140,13 @@ type IntegrationWithSummary struct {
 	// UserTasks contains the list of unresolved user tasks related to this integration.
 	UserTasks []UserTask `json:"userTasks,omitempty"`
 	// AWSEC2 contains the summary for the AWS EC2 resources for this integration.
-	AWSEC2 ResourceTypeSummary `json:"awsec2"`
+	AWSEC2 ResourceTypeSummary `json:"awsec2,omitempty"`
 	// AWSRDS contains the summary for the AWS RDS resources and agents for this integration.
-	AWSRDS ResourceTypeSummary `json:"awsrds"`
+	AWSRDS ResourceTypeSummary `json:"awsrds,omitempty"`
 	// AWSEKS contains the summary for the AWS EKS resources for this integration.
-	AWSEKS ResourceTypeSummary `json:"awseks"`
+	AWSEKS ResourceTypeSummary `json:"awseks,omitempty"`
 	// AzureVM contains the summary for the AzureVM resources for this integration.
-	AzureVM ResourceTypeSummary `json:"azurevm"`
+	AzureVM ResourceTypeSummary `json:"azurevm,omitempty"`
 
 	// RolesAnywhereProfileSync contains the summary for the AWS Roles Anywhere Profile Sync.
 	RolesAnywhereProfileSync *RolesAnywhereProfileSync `json:"rolesAnywhereProfileSync,omitempty"`

@@ -67,7 +67,7 @@ type BaseJSONRPCMessage struct {
 	// JSONRPC specifies the version of JSONRPC.
 	JSONRPC string `json:"jsonrpc"`
 	// ID is the ID for request and response. ID is nil for notification.
-	ID mcp.RequestId `json:"id"`
+	ID mcp.RequestId `json:"id,omitempty"`
 	// Method is the request or notification method. Method is empty for response.
 	Method string `json:"method,omitempty"`
 	// Params is the params for request and notification.
@@ -155,7 +155,7 @@ func (n *JSONRPCNotification) UnmarshalJSON(data []byte) error {
 type JSONRPCRequest struct {
 	JSONRPC string        `json:"jsonrpc"`
 	Method  string        `json:"method"`
-	ID      mcp.RequestId `json:"id"`
+	ID      mcp.RequestId `json:"id,omitempty"`
 	Params  JSONRPCParams `json:"params,omitempty"`
 }
 

@@ -17,6 +17,7 @@
  */
 
 import { QueryClientProvider } from '@tanstack/react-query';
+import { setupServer } from 'msw/node';
 import { ComponentProps, PropsWithChildren } from 'react';
 import selectEvent from 'react-select-event';
 
@@ -24,10 +25,8 @@ import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
   act,
-  enableMswServer,
   render,
   screen,
-  server,
   testQueryClient,
   userEvent,
 } from 'design/utils/testing';
@@ -44,9 +43,11 @@ import { TrackingProvider } from '../Shared/useTracking';
 import { ConnectGitHub } from './ConnectGitHub';
 import { GitHubK8sFlowProvider } from './useGitHubK8sFlow';
 
-enableMswServer();
+const server = setupServer();
 
-beforeEach(() => {
+beforeAll(() => {
+  server.listen();
+
   // Basic mock for all tests
   server.use(genWizardCiCdSuccess());
   server.use(fetchUnifiedResourcesSuccess());
@@ -56,6 +57,8 @@ beforeEach(() => {
 });
 
 afterAll(() => {
+  server.close();
+
   jest.useRealTimers();
   jest.resetAllMocks();
 });

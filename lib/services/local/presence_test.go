@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"maps"
 	"slices"
-	"strconv"
 	"testing"
 	"time"
 
@@ -33,7 +32,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	gproto "google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -622,6 +620,8 @@ func TestListResources(t *testing.T) {
 	}
 
 	for testName, test := range tests {
+		testName := testName
+		test := test
 		t.Run(testName, func(t *testing.T) {
 			t.Parallel()
 			backend, err := memory.New(memory.Config{
@@ -649,13 +649,13 @@ func TestListResources(t *testing.T) {
 			totalResources := totalWithLabels + totalWithoutLabels
 
 			// with labels
-			for i := range totalWithLabels {
+			for i := 0; i < totalWithLabels; i++ {
 				err = test.createResourceFunc(ctx, presence, fmt.Sprintf("foo-%d", i), labels)
 				require.NoError(t, err)
 			}
 
 			// without labels
-			for i := range totalWithoutLabels {
+			for i := 0; i < totalWithoutLabels; i++ {
 				err = test.createResourceFunc(ctx, presence, fmt.Sprintf("foo-label-%d", i), map[string]string{})
 				require.NoError(t, err)
 			}
@@ -807,6 +807,7 @@ func TestListResources_Helpers(t *testing.T) {
 			Limit:        5,
 		}
 		for _, tc := range tests {
+			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				resp, err := tc.fetch(req)
@@ -819,7 +820,7 @@ func TestListResources_Helpers(t *testing.T) {
 	})
 
 	// Add some test servers.
-	for range 20 {
+	for i := 0; i < 20; i++ {
 		server := NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", namespace)
 		_, err = presence.UpsertNode(ctx, server)
 		require.NoError(t, err)
@@ -837,6 +838,7 @@ func TestListResources_Helpers(t *testing.T) {
 			Limit:        -1,
 		}
 		for _, tc := range tests {
+			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				_, err := tc.fetch(req)
@@ -852,6 +854,7 @@ func TestListResources_Helpers(t *testing.T) {
 			Limit:        int32(len(nodes)),
 		}
 		for _, tc := range tests {
+			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				resp, err := tc.fetch(req)
@@ -867,6 +870,7 @@ func TestListResources_Helpers(t *testing.T) {
 
 	t.Run("test first, middle, last fetching", func(t *testing.T) {
 		for _, tc := range tests {
+			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				// First fetch.
@@ -926,6 +930,7 @@ func TestListResources_Helpers(t *testing.T) {
 			SearchKeywords: []string{targetVal},
 		}
 		for _, tc := range tests {
+			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				resp, err := tc.fetch(req)
@@ -964,7 +969,7 @@ func TestFakePaginate_TotalCount(t *testing.T) {
 	require.NoError(t, err)
 
 	// Add some test servers.
-	for range 10 {
+	for i := 0; i < 10; i++ {
 		server := NewServer(types.KindNode, uuid.New().String(), "127.0.0.1:2022", namespace)
 		_, err = presence.UpsertNode(ctx, server)
 		require.NoError(t, err)
@@ -1003,6 +1008,7 @@ func TestFakePaginate_TotalCount(t *testing.T) {
 		}
 
 		for _, tc := range tests {
+			tc := tc
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				req := FakePaginateParams{
@@ -1068,69 +1074,6 @@ func TestFakePaginate_TotalCount(t *testing.T) {
 	})
 }
 
-// TestFakePaginateWithScopes ensures that a resource scope can be used to
-// paginate resources with duplicate names.
-func TestFakePaginateWithScopes(t *testing.T) {
-	t.Parallel()
-	clock := clockwork.NewFakeClock()
-	bend, err := memory.New(memory.Config{
-		Clock: clock,
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = bend.Close() })
-
-	makeScope := func(i int) string {
-		a := byte('a')
-		z := byte('z')
-		mod := int(z - a)
-		return fmt.Sprintf("/%c%c", a+byte(i/mod), a+byte(i%mod))
-	}
-	newKubeCluster := func(i int) *types.KubernetesClusterV3 {
-		kubeCluster, err := types.NewKubernetesClusterV3(
-			types.Metadata{
-				Name: "cluster",
-				// we use the revision to easily tell the resources apart
-				Revision: strconv.Itoa(i),
-			},
-			types.KubernetesClusterSpecV3{},
-			types.KubeClusterWithScope(makeScope(i)),
-		)
-		require.NoError(t, err)
-		return kubeCluster
-	}
-
-	clusterCount := 100
-	// all kube clusters have the same name, so the only way to
-	// correctly paginate them is by scope
-	resources := make([]types.ResourceWithLabels, clusterCount)
-	for i := range clusterCount {
-		resources[i] = newKubeCluster(i)
-	}
-
-	for _, pageSize := range []int{1, 2, 3, 5, 8, 13, 21} {
-		startKey := ""
-		count := 0
-		for range clusterCount/pageSize + 1 {
-			res, err := FakePaginate(resources, FakePaginateParams{
-				ResourceType: types.KindKubernetesCluster,
-				Limit:        int32(pageSize),
-				Kinds:        []string{types.KindKubernetesCluster},
-				StartKey:     startKey,
-			})
-			require.NoError(t, err)
-			for _, r := range res.Resources {
-				assert.Equal(t, strconv.Itoa(count), r.GetRevision())
-				count++
-			}
-			startKey = res.NextKey
-			if startKey == "" {
-				break
-			}
-		}
-		require.Equal(t, clusterCount, count)
-	}
-}
-
 func TestPresenceService_CancelSemaphoreLease(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -1180,12 +1123,13 @@ func TestPresenceService_CancelSemaphoreLease(t *testing.T) {
 	// cancellations are honored
 	errCh := make(chan error, maxLeases)
 	for _, l := range leases {
+		l := l
 		go func() {
 			errCh <- presence.CancelSemaphoreLease(ctx, *l)
 		}()
 	}
 
-	for range maxLeases {
+	for i := 0; i < maxLeases; i++ {
 		err := <-errCh
 		require.NoError(t, err)
 	}
@@ -1243,7 +1187,7 @@ func TestListResources_DuplicateResourceFilterByLabel(t *testing.T) {
 			name: "KindDatabaseServer",
 			kind: types.KindDatabaseServer,
 			insertResources: func() {
-				for i := range names {
+				for i := 0; i < len(names); i++ {
 					db, err := types.NewDatabaseServerV3(types.Metadata{
 						Name: fmt.Sprintf("name-%v", i),
 					}, types.DatabaseServerSpecV3{
@@ -1270,7 +1214,7 @@ func TestListResources_DuplicateResourceFilterByLabel(t *testing.T) {
 			name: "KindAppServer",
 			kind: types.KindAppServer,
 			insertResources: func() {
-				for i := range names {
+				for i := 0; i < len(names); i++ {
 					server, err := types.NewAppServerV3(types.Metadata{
 						Name: fmt.Sprintf("name-%v", i),
 					}, types.AppServerSpecV3{
@@ -1293,7 +1237,7 @@ func TestListResources_DuplicateResourceFilterByLabel(t *testing.T) {
 			name: "KindKubernetesCluster",
 			kind: types.KindKubernetesCluster,
 			insertResources: func() {
-				for i := range names {
+				for i := 0; i < len(names); i++ {
 
 					kube, err := types.NewKubernetesClusterV3(
 						types.Metadata{
@@ -1431,7 +1375,7 @@ func TestPresenceService_ListReverseTunnels(t *testing.T) {
 	require.Empty(t, rcs)
 
 	// Create a few remote clusters
-	for i := range 10 {
+	for i := 0; i < 10; i++ {
 		rc, err := types.NewReverseTunnel(fmt.Sprintf("rt-%d", i), []string{"example.com:443"})
 		require.NoError(t, err)
 		_, err = presenceService.UpsertReverseTunnel(ctx, rc)
@@ -1448,7 +1392,7 @@ func TestPresenceService_ListReverseTunnels(t *testing.T) {
 	// behaves correctly.
 	rcs = []types.ReverseTunnel{}
 	pageToken = ""
-	for i := range 10 {
+	for i := 0; i < 10; i++ {
 		var got []types.ReverseTunnel
 		got, pageToken, err = presenceService.ListReverseTunnels(ctx, 1, pageToken)
 		require.NoError(t, err)

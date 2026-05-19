@@ -18,12 +18,12 @@
 
 import { act } from '@testing-library/react';
 import { userEvent, UserEvent } from '@testing-library/user-event';
-import { createMemoryRouter, RouterProvider } from 'react-router';
+import { createMemoryHistory } from 'history';
+import { MemoryRouter, Route, Router } from 'react-router';
 
 import { fireEvent, render, screen, waitFor } from 'design/utils/testing';
 import { Logger } from 'shared/libs/logger';
 
-import { Route, Switch } from 'teleport/components/Router';
 import cfg from 'teleport/config';
 import auth from 'teleport/services/auth';
 import history from 'teleport/services/history';
@@ -60,19 +60,17 @@ describe('teleport/components/Welcome', () => {
   it('should have correct welcome prompt flow for invite', async () => {
     jest.spyOn(history, 'push').mockImplementation();
 
-    const router = createMemoryRouter(
-      [
-        {
-          path: '*',
-          element: renderWelcomeRoutes(),
-        },
-      ],
-      {
-        initialEntries: [invitePath],
-      }
-    );
+    const mockHistory = createMemoryHistory({
+      initialEntries: [invitePath],
+    });
 
-    render(<RouterProvider router={router} />);
+    render(
+      <Router history={mockHistory}>
+        <Route path={cfg.routes.userInvite}>
+          <Welcome NewCredentials={NewCredentials} />
+        </Route>
+      </Router>
+    );
 
     expect(
       screen.getByText(/Please click the button below to create an account/i)
@@ -81,13 +79,9 @@ describe('teleport/components/Welcome', () => {
     expect(auth.fetchPasswordToken).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByText(/get started/i));
+    act(() => mockHistory.push(inviteContinuePath));
+
     expect(history.push).toHaveBeenCalledWith(inviteContinuePath);
-
-    // Navigate the router to the continue path (since history.push is mocked)
-    await act(async () => {
-      router.navigate(inviteContinuePath);
-    });
-
     await waitFor(() => {
       expect(auth.fetchPasswordToken).toHaveBeenCalled();
     });
@@ -98,19 +92,17 @@ describe('teleport/components/Welcome', () => {
   it('should have correct welcome prompt flow for reset', async () => {
     jest.spyOn(history, 'push').mockImplementation();
 
-    const router = createMemoryRouter(
-      [
-        {
-          path: '*',
-          element: renderWelcomeRoutes(),
-        },
-      ],
-      {
-        initialEntries: [resetPath],
-      }
-    );
+    const mockHistory = createMemoryHistory({
+      initialEntries: [resetPath],
+    });
 
-    render(<RouterProvider router={router} />);
+    render(
+      <Router history={mockHistory}>
+        <Route path={cfg.routes.userReset}>
+          <Welcome NewCredentials={NewCredentials} />
+        </Route>
+      </Router>
+    );
 
     expect(
       screen.getByText(
@@ -121,16 +113,12 @@ describe('teleport/components/Welcome', () => {
     expect(auth.fetchPasswordToken).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByText(/Continue/i));
-    expect(history.push).toHaveBeenCalledWith(resetContinuePath);
-
-    // Navigate the router to the continue path (since history.push is mocked)
-    await act(async () => {
-      router.navigate(resetContinuePath);
-    });
+    act(() => mockHistory.push(resetContinuePath));
 
     await waitFor(() => {
-      expect(auth.fetchPasswordToken).toHaveBeenCalled();
+      expect(history.push).toHaveBeenCalledWith(resetContinuePath);
     });
+    expect(auth.fetchPasswordToken).toHaveBeenCalled();
 
     expect(await screen.findByText(/submit/i)).toBeInTheDocument();
   });
@@ -340,30 +328,11 @@ describe('teleport/components/Welcome', () => {
 });
 
 function renderInvite(url = inviteContinuePath) {
-  const router = createMemoryRouter(
-    [
-      {
-        path: '*',
-        element: renderWelcomeRoutes(),
-      },
-    ],
-    {
-      initialEntries: [url],
-    }
-  );
-
-  render(<RouterProvider router={router} />);
-}
-
-function renderWelcomeRoutes() {
-  return (
-    <Switch>
-      <Route path={cfg.routes.userInvite}>
+  render(
+    <MemoryRouter initialEntries={[url]}>
+      <Route path={cfg.routes.userInviteContinue}>
         <Welcome NewCredentials={NewCredentials} />
       </Route>
-      <Route path={cfg.routes.userReset}>
-        <Welcome NewCredentials={NewCredentials} />
-      </Route>
-    </Switch>
+    </MemoryRouter>
   );
 }

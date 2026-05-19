@@ -44,7 +44,6 @@ export function getEmptyResourceState(): ResourceMap {
     kube_cluster: {},
     user_group: {},
     windows_desktop: {},
-    linux_desktop: {},
     role: {},
     saml_idp_service_provider: {},
     namespace: {},

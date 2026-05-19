@@ -16,8 +16,9 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { LocationDescriptor } from 'history';
 import React, { useState } from 'react';
-import { Link } from 'react-router';
+import { Link } from 'react-router-dom';
 import styled, { useTheme } from 'styled-components';
 import { color, ColorProps, style } from 'styled-system';
 
@@ -155,12 +156,7 @@ export interface Action {
   /**
    * a link that takes you to a different route within the app
    */
-  linkTo?: string;
-  /**
-   * Adds persistent client side routing state to the next location
-   * defined by field "linkTo".
-   */
-  linkState?: any;
+  linkTo?: LocationDescriptor;
   onClick?: (event: React.MouseEvent) => void;
 }
 
@@ -425,7 +421,7 @@ const ActionButtons = ({
 
 /** Renders either a regular or a link button, depending on the action. */
 export const ActionButton = ({
-  action: { href, content, onClick, linkTo, linkState },
+  action: { href, content, onClick, linkTo },
   fill,
   intent,
   inputAlignment = false,
@@ -461,7 +457,7 @@ export const ActionButton = ({
 
   if (linkTo) {
     return (
-      <Button {...sharedProps} as={Link} to={linkTo} state={linkState}>
+      <Button {...sharedProps} as={Link} to={linkTo}>
         {content}
       </Button>
     );

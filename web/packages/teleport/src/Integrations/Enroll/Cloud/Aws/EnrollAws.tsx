@@ -17,7 +17,7 @@
  */
 
 import { useMemo, useState } from 'react';
-import { Link as InternalLink } from 'react-router';
+import { Link as InternalLink } from 'react-router-dom';
 
 import { Box, ButtonSecondary, Flex, Subtitle1, Text } from 'design';
 import FieldInput from 'shared/components/FieldInput';

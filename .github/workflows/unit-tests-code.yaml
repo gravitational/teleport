@@ -37,11 +37,12 @@ jobs:
       id-token: write # required for AWS credentials
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport19
+      image: ghcr.io/gravitational/teleport-buildbox:teleport18
       env:
         TELEPORT_ETCD_TEST: yes
         TELEPORT_ETCD_TEST_ENDPOINT: https://etcd0:2379
         TELEPORT_XAUTH_TEST: yes
+        TELEPORT_BPF_TEST: yes
         WEBASSETS_SKIP_BUILD: 1
       options: --cap-add=SYS_ADMIN --privileged
 
@@ -60,7 +61,7 @@ jobs:
 
     steps:
       - name: Checkout Teleport
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Prepare workspace
         id: prepare

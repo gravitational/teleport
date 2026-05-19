@@ -95,10 +95,6 @@ const (
 	// attributeTerraformGitlabIDTokenEnvVar is the attribute configuring the environment variable used to fetch the ID
 	// token issued by GitLab for the `gitlab` join method. If unset, this defaults to `TBOT_GITLAB_JWT`.
 	attributeTerraformGitlabIDTokenEnvVar = "gitlab_id_token_env_var"
-	// attributeKubernetesTokenPath configures the Kubernetes token location when joining using MachineID and the `kubernetes` join method.
-	// When unset, the join client will try the `KUBERNETES_TOKEN_PATH` env var, else it will use the standard location:
-	// "/var/run/secrets/kubernetes.io/serviceaccount/token".
-	attributeKubernetesTokenPath = "kubernetes_token_path"
 )
 
 type RetryConfig struct {
@@ -162,10 +158,6 @@ type providerData struct {
 	// defaults to `TBOT_GITLAB_JWT`. Useful in cases where multiple Teleport
 	// clusters are managed by the same GitLab job.
 	GitlabIDTokenEnvVar types.String `tfsdk:"gitlab_id_token_env_var"`
-	// KubernetesTokenPath configures the Kubernetes token location when joining using MachineID and the `kubernetes` join method.
-	// When unset, the join client will try the `KUBERNETES_TOKEN_PATH` env var, else it will use the standard location:
-	// "/var/run/secrets/kubernetes.io/serviceaccount/token".
-	KubernetesTokenPath types.String `tfsdk:"kubernetes_token_path"`
 }
 
 // New returns an empty provider struct
@@ -292,12 +284,6 @@ func (p *Provider) GetSchema(_ context.Context) (tfsdk.Schema, diag.Diagnostics)
 				Sensitive:   false,
 				Optional:    true,
 				Description: fmt.Sprintf("Environment variable used to fetch the ID token issued by GitLab for the `gitlab` join method. If unset, this defaults to `TBOT_GITLAB_JWT`. This can also be set with the environment variable `%s`.", constants.EnvVarGitlabIDTokenEnvVar),
-			},
-			attributeKubernetesTokenPath: {
-				Type:        types.StringType,
-				Sensitive:   false,
-				Optional:    true,
-				Description: "KubernetesTokenPath configures the Kubernetes token location when joining using MachineID and the `kubernetes` join method. When unset, the join client will try the `KUBERNETES_TOKEN_PATH` env var, else it will use the standard location: `/var/run/secrets/kubernetes.io/serviceaccount/token`.",
 			},
 		},
 	}, nil
@@ -544,7 +530,6 @@ func (p *Provider) configureLog() {
 func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceType, diag.Diagnostics) {
 	return map[string]tfsdk.ResourceType{
 		"teleport_app":                        resourceTeleportAppType{},
-		"teleport_app_auth_config":            resourceTeleportAppAuthConfigType{},
 		"teleport_auth_preference":            resourceTeleportAuthPreferenceType{},
 		"teleport_cluster_maintenance_config": resourceTeleportClusterMaintenanceConfigType{},
 		"teleport_cluster_networking_config":  resourceTeleportClusterNetworkingConfigType{},
@@ -552,7 +537,6 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 		"teleport_discovery_config":           resourceTeleportDiscoveryConfigType{},
 		"teleport_dynamic_windows_desktop":    resourceTeleportDynamicWindowsDesktopType{},
 		"teleport_github_connector":           resourceTeleportGithubConnectorType{},
-		"teleport_kube_cluster":               resourceTeleportKubeClusterType{},
 		"teleport_lock":                       resourceTeleportLockType{},
 		"teleport_provision_token":            resourceTeleportProvisionTokenType{},
 		"teleport_oidc_connector":             resourceTeleportOIDCConnectorType{},
@@ -595,7 +579,6 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourceType, diag.Diagnostics) {
 	return map[string]tfsdk.DataSourceType{
 		"teleport_app":                        dataSourceTeleportAppType{},
-		"teleport_app_auth_config":            dataSourceTeleportAppAuthConfigType{},
 		"teleport_auth_preference":            dataSourceTeleportAuthPreferenceType{},
 		"teleport_cluster_maintenance_config": dataSourceTeleportClusterMaintenanceConfigType{},
 		"teleport_cluster_networking_config":  dataSourceTeleportClusterNetworkingConfigType{},
@@ -603,7 +586,6 @@ func (p *Provider) GetDataSources(_ context.Context) (map[string]tfsdk.DataSourc
 		"teleport_discovery_config":           dataSourceTeleportDiscoveryConfigType{},
 		"teleport_dynamic_windows_desktop":    dataSourceTeleportDynamicWindowsDesktopType{},
 		"teleport_github_connector":           dataSourceTeleportGithubConnectorType{},
-		"teleport_kube_cluster":               dataSourceTeleportKubeClusterType{},
 		"teleport_lock":                       dataSourceTeleportLockType{},
 		"teleport_provision_token":            dataSourceTeleportProvisionTokenType{},
 		"teleport_oidc_connector":             dataSourceTeleportOIDCConnectorType{},

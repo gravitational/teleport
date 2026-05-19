@@ -24,14 +24,12 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
-	"os"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/crypto/ssh"
-	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -39,8 +37,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
-	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -79,12 +75,6 @@ var (
 
 var errRoleFileCopyingNotPermitted = trace.AccessDenied("file copying via SCP or SFTP is not permitted")
 
-// ValidatedMFAChallengeVerifier verifies that a validated MFA challenge exists in order to determine if the user has
-// completed MFA.
-type ValidatedMFAChallengeVerifier interface {
-	VerifyValidatedMFAChallenge(ctx context.Context, req *mfav1.VerifyValidatedMFAChallengeRequest, opts ...grpc.CallOption) (*mfav1.VerifyValidatedMFAChallengeResponse, error)
-}
-
 // AuthHandlerConfig is the configuration for an application handler.
 type AuthHandlerConfig struct {
 	// Server is the services.Server in the backend.
@@ -112,12 +102,9 @@ type AuthHandlerConfig struct {
 	// Defaults to real clock if unspecified
 	Clock clockwork.Clock
 
-	// OnRBACFailure is an optional callback used to hook in metrics/logs related to
+	// OnRBACFailure is an opitonal callback used to hook in metrics/logs related to
 	// RBAC failures.
 	OnRBACFailure func(conn ssh.ConnMetadata, ident *sshca.Identity, err error)
-
-	// ValidatedMFAChallengeVerifier is used to verify that a validated MFA challenge resource exists.
-	ValidatedMFAChallengeVerifier ValidatedMFAChallengeVerifier
 }
 
 func (c *AuthHandlerConfig) CheckAndSetDefaults() error {
@@ -135,10 +122,6 @@ func (c *AuthHandlerConfig) CheckAndSetDefaults() error {
 
 	if c.Clock == nil {
 		c.Clock = clockwork.NewRealClock()
-	}
-
-	if c.ValidatedMFAChallengeVerifier == nil {
-		return trace.BadParameter("ValidatedMFAChallengeVerifier required")
 	}
 
 	return nil
@@ -325,7 +308,7 @@ func (h *AuthHandlers) CheckX11Forward(ctx *ServerContext) error {
 		return nil
 	}
 
-	return trace.AccessDenied("X11 forwarding not permitted")
+	return trace.AccessDenied("x11 forwarding not permitted")
 }
 
 // CheckPortForward checks if port forwarding is allowed for the users RoleSet.
@@ -371,14 +354,9 @@ func (h *AuthHandlers) CheckPortForward(addr string, ctx *ServerContext, request
 	return nil
 }
 
-// PublicKeyCallback performs full certificate and RBAC checks for a proposed SSH public key.
-//
-// This method is intended to be used as the PublicKeyCallback in ssh.ServerConfig before the client proves key
-// possession. It decides whether the offered key could be accepted once ownership is proven.
-//
-// If the certificate is valid and authorized, this callback returns permissions that will be passed through to
-// VerifiedPublicKeyCallback. If the certificate is invalid or unauthorized, it returns a non-nil error.
-func (h *AuthHandlers) PublicKeyCallback(conn ssh.ConnMetadata, key ssh.PublicKey) (*ssh.Permissions, error) {
+// UserKeyAuth implements SSH client authentication using public keys and is
+// called by the server every time the client connects.
+func (h *AuthHandlers) UserKeyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (ppms *ssh.Permissions, rerr error) {
 	ctx := context.Background()
 
 	fingerprint := fmt.Sprintf("%v %v", key.Type(), sshutils.Fingerprint(key))
@@ -405,8 +383,7 @@ func (h *AuthHandlers) PublicKeyCallback(conn ssh.ConnMetadata, key ssh.PublicKe
 			"valid_principals", cert.ValidPrincipals,
 			"valid_after", cert.ValidAfter,
 			"valid_before", cert.ValidBefore,
-			"critical_options", cert.CriticalOptions,
-			"extensions", cert.Extensions,
+			"permissions", cert.Permissions,
 			"reserved", cert.Reserved,
 		),
 	)
@@ -701,141 +678,7 @@ func (h *AuthHandlers) PublicKeyCallback(conn ssh.ConnMetadata, key ssh.PublicKe
 		}
 	}
 
-	h.log.DebugContext(ctx, "permission granted",
-		"local_addr", conn.LocalAddr(),
-		"remote_addr", conn.RemoteAddr(),
-		"user", conn.User(),
-		"fingerprint", fingerprint,
-		"access_permit", accessPermit,
-		"proxy_permit", proxyPermit,
-		"git_forwarding_permit", gitForwardingPermit,
-	)
-
 	return outputPermissions, nil
-}
-
-// VerifiedPublicKeyCallback performs post-verification auth steering for an already-authorized key.
-//
-// This method is intended to be used as the VerifiedPublicKeyCallback in ssh.ServerConfig after the client proves key
-// possession. Key acceptance decisions are performed in PublicKeyCallback.
-func (h *AuthHandlers) VerifiedPublicKeyCallback(
-	conn ssh.ConnMetadata,
-	key ssh.PublicKey,
-	perms *ssh.Permissions,
-	_ string,
-) (*ssh.Permissions, error) {
-	// Access preconditions are only set in the SSH access permit. For all other permit types, it is expected for this
-	// entry to be unset, so grant access.
-	rawPermit, ok := perms.Extensions[utils.ExtIntSSHAccessPermit]
-	if !ok {
-		return perms, nil
-	}
-
-	permit := &decisionpb.SSHAccessPermit{}
-	if err := (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal([]byte(rawPermit), permit); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// If no preconditions are set, allow the connection to proceed without additional checks.
-	preconds := permit.GetPreconditions()
-	if len(preconds) == 0 {
-		return perms, nil
-	}
-
-	cert, ok := key.(*ssh.Certificate)
-	if !ok {
-		return nil, trace.BadParameter("unsupported key type: %v %v", key.Type(), sshutils.Fingerprint(key))
-	}
-
-	id, err := sshca.DecodeIdentity(cert)
-	if err != nil {
-		return nil, trace.BadParameter("failed to decode ssh identity from cert: %v %v", key.Type(), sshutils.Fingerprint(key))
-	}
-
-	// Determine if keyboard-interactive authentication is required to satisfy any outstanding preconditions.
-	requiresKeyboardInteractive := false
-
-	for _, precond := range preconds {
-		switch precond.GetKind() {
-		case decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA:
-			required, err := requiresInBandMFA(id, conn)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			requiresKeyboardInteractive = requiresKeyboardInteractive || required
-
-		case decisionpb.PreconditionKind_PRECONDITION_KIND_PIN_SOURCE_IP:
-			// No interactive auth needed.
-
-		default:
-			// If an unknown or unsupported precondition is provided, fail close to prevent potential auth bypasses.
-			return nil, trace.BadParameter("unexpected precondition type %q found (this is a bug)", precond.GetKind())
-		}
-	}
-
-	// If we have determined that keyboard-interactive authentication is not required to satisfy any outstanding
-	// preconditions, allow the connection to proceed. Otherwise, proceed to the keyboard-interactive callback to
-	// evaluate the remaining preconditions.
-	if !requiresKeyboardInteractive {
-		return perms, nil
-	}
-
-	return h.KeyboardInteractiveAuth(
-		context.Background(),
-		preconds,
-		id,
-		perms,
-	)
-}
-
-func requiresInBandMFA(id *sshca.Identity, conn ssh.ConnMetadata) (bool, error) {
-	// If the certificate indicates that hardware MFA was used, we can trust that MFA was completed and allow the
-	// connection to proceed without performing in-band MFA checks, even if the client doesn't support in-band MFA.
-	if id.PrivateKeyPolicy.MFAVerified() {
-		return false, nil
-	}
-
-	// If the certificate was issued as a result of headless login, then in-band MFA checks are not required since the
-	// user would have been required to complete MFA to obtain the headless certificate in the first place.
-	if id.HeadlessAuthenticationID != "" {
-		return false, nil
-	}
-
-	inBandMFASupported, err := apissh.IsFeatureSupported(string(conn.ClientVersion()), apissh.InBandMFAFeature)
-	if err != nil && !errors.Is(err, apissh.NonTeleportSSHVersionError{}) {
-		return false, trace.Wrap(err)
-	}
-
-	var (
-		forceInBandMFA      = os.Getenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA") == "yes"
-		isLegacyClient      = !inBandMFASupported
-		isRegularSSHCert    = id.MFAVerified == ""
-		isPerSessionMFACert = !isRegularSSHCert
-	)
-
-	// TODO(cthach): DELETE IN v20.0 when in-band MFA is required for all clients and backwards compatibility with
-	// legacy clients is no longer supported.
-	if isLegacyClient {
-		if forceInBandMFA {
-			// In-band MFA is required and the client doesn't support in-band MFA, deny.
-			return false, trace.AccessDenied(
-				"This connection requires in-band MFA, but your SSH client does not support it. " +
-					"Please update your Teleport SSH client to the latest version to connect.",
-			)
-		}
-
-		if isPerSessionMFACert {
-			// In-band MFA is optional, and the client is using a legacy per-session MFA certificate, allow
-			// during the RFD 234 transition period.
-			return false, nil
-		}
-
-		// In-band MFA is optional, but MFA is required and client is using a regular cert, deny.
-		return false, services.ErrSessionMFARequired
-	}
-
-	// Client must proceed with in-band MFA checks to satisfy the precondition.
-	return true, nil
 }
 
 func (h *AuthHandlers) maybeAppendDiagnosticTrace(ctx context.Context, connectionDiagnosticID string, traceType types.ConnectionDiagnosticTrace_TraceType, message string, traceError error) error {
@@ -1028,7 +871,7 @@ func (a *ahLoginChecker) evaluateGitForwarding(ident *sshca.Identity, ca types.C
 	ctx := a.c.Server.Context()
 
 	if clusterName != ca.GetClusterName() {
-		// we don't currently support cross-cluster git forwarding (see comments in PublicKeyCallback for details).
+		// we don't currently support cross-cluster git forwarding (see comments in UserKeyAuth for details).
 		return nil, trace.BadParameter("evaluateGitForwarding called with non-local identity (this is a bug)")
 	}
 
@@ -1162,9 +1005,15 @@ func (a *ahLoginChecker) evaluateScopedSSHAccess(ident *sshca.Identity, ca types
 		bpfEvents = append(bpfEvents, event)
 	}
 
-	hostUsersDecision, err := checker.SSH().HostUsers(target)
+	hostUsersInfo, err := checker.SSH().HostUsers(target)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		if !trace.IsAccessDenied(err) {
+			return nil, trace.Wrap(err)
+		}
+		// the way host user creation permissions currently work, an "access denied" just indicates
+		// that host user creation is disabled, and does not indicate that access should be disallowed.
+		// for the purposes of the decision service, we represent this disabled state as nil.
+		hostUsersInfo = nil
 	}
 
 	clientIdleTimeout, err := checker.SSH().AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())
@@ -1182,17 +1031,13 @@ func (a *ahLoginChecker) evaluateScopedSSHAccess(ident *sshca.Identity, ca types
 		ClientIdleTimeout:     durationpb.New(clientIdleTimeout),
 		DisconnectExpiredCert: timestampFromGoTime(getDisconnectExpiredCertFromSSHIdentityScoped(checker.SSH(), authPref, ident)),
 		SessionRecordingMode:  string(checker.SSH().SessionRecordingMode()),
-		LockingMode:           string(checker.SSH().LockingMode(authPref.GetLockingMode())),
+		LockingMode:           string(checker.LockingMode(authPref.GetLockingMode())),
 		PrivateKeyPolicy:      string(privateKeyPolicy),
 		LockTargets:           decision.LockTargetsToProto(lockTargets),
 		MappedRoles:           accessInfo.Roles,
 		HostSudoers:           hostSudoers,
 		BpfEvents:             bpfEvents,
-		HostUsersInfo:         hostUsersDecision.Info,
-		DecisionContext: &decisionpb.SSHAccessPermitContext{
-			HostUserCreationAllowedBy: hostUsersDecision.AllowedBy,
-			HostUserCreationDeniedBy:  hostUsersDecision.DeniedBy,
-		},
+		HostUsersInfo:         hostUsersInfo,
 	}
 
 	if checker.PinSourceIP() {
@@ -1228,28 +1073,21 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 		return nil, trace.Wrap(err)
 	}
 
-	// Determine if session join can bypass standard node access checks. This is allowed if all are true:
-	//  1. The requested OS user is the special session join principal (for moderated sessions).
-	//  2. The user's roles support moderated sessions.
-	//  3. MFA is NOT required for this session (MFARequiredNever),
-	//      OR the legacy out-of-band MFA flow is allowed (see below) and MFA has already been verified for this session.
-	//
-	// The legacy out-of-band MFA flow is allowed as long as TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA is not set to "yes"
-	// and MFA has already been verified for this session.
-	//
-	// TODO(cthach): Remove in v20.0 when the legacy out-of-band MFA flow is removed.
-	bypassAccessCheck :=
-		osUser == teleport.SSHSessionJoinPrincipal &&
-			moderation.RoleSupportsModeratedSessions(accessChecker.Roles()) &&
-			(state.MFARequired == services.MFARequiredNever ||
-				(os.Getenv("TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA") != "yes" && state.MFAVerified))
+	var isModeratedSessionJoin bool
+	// custom moderated session join permissions allow bypass of the standard node access checks
+	if osUser == teleport.SSHSessionJoinPrincipal &&
+		moderation.RoleSupportsModeratedSessions(accessChecker.Roles()) {
 
-	// Collect preconditions that must be met before the session can start.
-	var preconds []*decisionpb.Precondition
+		// bypass of standard node access checks can only proceed if MFA is not required and/or
+		// the MFA ceremony was already completed.
+		if state.MFARequired == services.MFARequiredNever || state.MFAVerified {
+			isModeratedSessionJoin = true
+		}
+	}
 
-	// Perform the primary node access check unless bypass is allowed.
-	if !bypassAccessCheck {
-		if preconds, err = accessChecker.CheckConditionalAccess(
+	if !isModeratedSessionJoin {
+		// perform the primary node access check in all cases except for moderated session join
+		if err := accessChecker.CheckAccess(
 			target,
 			state,
 			services.NewLoginMatcher(osUser),
@@ -1288,18 +1126,18 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 		bpfEvents = append(bpfEvents, event)
 	}
 
-	hostUsersDecision, err := accessChecker.HostUsers(target)
+	hostUsersInfo, err := accessChecker.HostUsers(target)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		if !trace.IsAccessDenied(err) {
+			return nil, trace.Wrap(err)
+		}
+		// the way host user creation permissions currently work, an "access denied" just indicates
+		// that host user creation is disabled, and does not indicate that access should be disallowed.
+		// for the purposes of the decision service, we represent this disabled state as nil.
+		hostUsersInfo = nil
 	}
 
-	if accessChecker.PinSourceIP() {
-		preconds = append(preconds, &decisionpb.Precondition{
-			Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_PIN_SOURCE_IP,
-		})
-	}
-
-	return &decisionpb.SSHAccessPermit{
+	permit := &decisionpb.SSHAccessPermit{
 		ForwardAgent:          accessChecker.CheckAgentForward(osUser) == nil,
 		X11Forwarding:         accessChecker.PermitX11Forwarding(),
 		MaxConnections:        accessChecker.MaxConnections(),
@@ -1315,13 +1153,16 @@ func (a *ahLoginChecker) evaluateSSHAccess(ident *sshca.Identity, ca types.CertA
 		MappedRoles:           accessInfo.Roles,
 		HostSudoers:           hostSudoers,
 		BpfEvents:             bpfEvents,
-		HostUsersInfo:         hostUsersDecision.Info,
-		Preconditions:         preconds,
-		DecisionContext: &decisionpb.SSHAccessPermitContext{
-			HostUserCreationAllowedBy: hostUsersDecision.AllowedBy,
-			HostUserCreationDeniedBy:  hostUsersDecision.DeniedBy,
-		},
-	}, nil
+		HostUsersInfo:         hostUsersInfo,
+	}
+
+	if accessChecker.PinSourceIP() {
+		permit.Preconditions = append(permit.Preconditions, &decisionpb.Precondition{
+			Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_PIN_SOURCE_IP,
+		})
+	}
+
+	return permit, nil
 }
 
 // fetchAccessInfo fetches the services.AccessChecker (after role mapping)

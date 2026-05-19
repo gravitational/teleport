@@ -95,7 +95,7 @@ func Test_evaluateRules(t *testing.T) {
 		},
 	}
 
-	var noMatchRule require.ErrorAssertionFunc = func(t require.TestingT, err error, i ...any) {
+	var noMatchRule require.ErrorAssertionFunc = func(t require.TestingT, err error, i ...interface{}) {
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "no matching rule found")
 	}

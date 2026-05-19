@@ -56,7 +56,6 @@ export function DesktopSession() {
                 .replace(':clusterId', clusterId)
                 .replace(':desktopName', desktopName)
                 .replace(':username', username)
-                .replace(':version', 'teleport-tdpb-1.0')
             ),
             abortSignal
           ),

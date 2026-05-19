@@ -66,8 +66,6 @@ type Features struct {
 	// Only applicable for Cloud customers (self-hosted clusters get their anonymization key from the
 	// license file).
 	CloudAnonymizationKey []byte
-	// BeamsUI indicates whether the Beams lite-mode UI is enabled
-	BeamsUI bool
 
 	// todo (michellescripts) have the following fields evaluated for deprecation, consolidation, or fetch from Cloud
 	// AdvancedAccessWorkflows is currently set to the value of the Cloud Access Requests entitlement
@@ -119,7 +117,7 @@ func (e EntitlementInfo) UnderLimit(count int) bool {
 
 // ToProto converts Features into proto.Features
 func (f Features) ToProto() *proto.Features {
-	return &proto.Features{
+	protoF := &proto.Features{
 		Cloud:                      f.Cloud,
 		CustomTheme:                f.CustomTheme,
 		IsStripeManaged:            f.IsStripeManaged,
@@ -135,15 +133,42 @@ func (f Features) ToProto() *proto.Features {
 		RecoveryCodes:              f.RecoveryCodes,
 		AccessMonitoringConfigured: f.AccessMonitoringConfigured,
 		Entitlements:               f.EntitlementsToProto(),
+	}
 
-		// TODO(michellescripts) DELETE IN v21.0.0
-		// Deprecated, use entitlements
-		Policy: &proto.PolicyFeature{
-			Enabled: f.GetEntitlement(entitlements.Policy).Enabled,
-		},
-		AccessGraphDemoMode:  f.GetEntitlement(entitlements.AccessGraphDemoMode).Enabled,
-		ClientIPRestrictions: f.GetEntitlement(entitlements.ClientIPRestrictions).Enabled,
-		BeamsUI:              f.BeamsUI && f.GetEntitlement(entitlements.Beams).Enabled,
+	// remove setLegacyLogic in v18
+	setLegacyLogic(protoF, f)
+	return protoF
+}
+
+// setLegacyLogic sets the deprecated fields; to be removed in v18 - use entitlements
+func setLegacyLogic(protoF *proto.Features, f Features) {
+	protoF.Kubernetes = f.GetEntitlement(entitlements.K8s).Enabled
+	protoF.App = f.GetEntitlement(entitlements.App).Enabled
+	protoF.DB = f.GetEntitlement(entitlements.DB).Enabled
+	protoF.OIDC = f.GetEntitlement(entitlements.OIDC).Enabled
+	protoF.SAML = f.GetEntitlement(entitlements.SAML).Enabled
+	protoF.HSM = f.GetEntitlement(entitlements.HSM).Enabled
+	protoF.Desktop = f.GetEntitlement(entitlements.Desktop).Enabled
+	protoF.FeatureHiding = f.GetEntitlement(entitlements.FeatureHiding).Enabled
+	protoF.IdentityGovernance = f.GetEntitlement(entitlements.Identity).Enabled
+	protoF.ExternalAuditStorage = f.GetEntitlement(entitlements.ExternalAuditStorage).Enabled
+	protoF.JoinActiveSessions = f.GetEntitlement(entitlements.JoinActiveSessions).Enabled
+	protoF.MobileDeviceManagement = f.GetEntitlement(entitlements.MobileDeviceManagement).Enabled
+
+	protoF.DeviceTrust = &proto.DeviceTrustFeature{
+		Enabled: f.GetEntitlement(entitlements.DeviceTrust).Enabled, DevicesUsageLimit: f.GetEntitlement(entitlements.DeviceTrust).Limit,
+	}
+	protoF.AccessRequests = &proto.AccessRequestsFeature{
+		MonthlyRequestLimit: f.GetEntitlement(entitlements.AccessRequests).Limit,
+	}
+	protoF.AccessMonitoring = &proto.AccessMonitoringFeature{
+		Enabled: f.AccessMonitoringConfigured, MaxReportRangeLimit: f.GetEntitlement(entitlements.AccessMonitoring).Limit,
+	}
+	protoF.AccessList = &proto.AccessListFeature{
+		CreateLimit: f.GetEntitlement(entitlements.AccessLists).Limit,
+	}
+	protoF.Policy = &proto.PolicyFeature{
+		Enabled: f.GetEntitlement(entitlements.Policy).Enabled,
 	}
 }
 
@@ -255,6 +280,8 @@ type AccessListAndMembersGetter interface {
 type Modules interface {
 	// PrintVersion prints teleport version
 	PrintVersion()
+	// IsBoringBinary checks if the binary was compiled with BoringCrypto.
+	IsBoringBinary() bool
 	// Features returns supported features
 	Features() Features
 	// SetFeatures set features queried from Cloud
@@ -265,10 +292,8 @@ type Modules interface {
 	IsEnterpriseBuild() bool
 	// IsOSSBuild returns if the binary was built without enterprise modules
 	IsOSSBuild() bool
-	// IsFIPSBuild checks if the binary was compiled in FIPS140 mode.
-	IsFIPSBuild() bool
 	// AttestHardwareKey attests a hardware key and returns its associated private key policy.
-	AttestHardwareKey(context.Context, any, *hardwarekey.AttestationStatement, crypto.PublicKey, time.Duration) (*keys.AttestationData, error)
+	AttestHardwareKey(context.Context, interface{}, *hardwarekey.AttestationStatement, crypto.PublicKey, time.Duration) (*keys.AttestationData, error)
 	// GenerateAccessRequestPromotions generates a list of valid promotions for given access request.
 	GenerateAccessRequestPromotions(context.Context, AccessResourcesGetter, types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
 	// GenerateAccessRequestSuggestedReviewers generates a list of suggested reviewers for a given access request.
@@ -409,13 +434,12 @@ func (p *defaultModules) Features() Features {
 func (p *defaultModules) SetFeatures(f Features) {
 }
 
-// IsFIPSBuild checks if the binary was compiled in FIPS140 mode.
-func (p *defaultModules) IsFIPSBuild() bool {
-	return IsFIPSBuild()
+func (p *defaultModules) IsBoringBinary() bool {
+	return IsBoringBinary()
 }
 
 // AttestHardwareKey attests a hardware key.
-func (p *defaultModules) AttestHardwareKey(_ context.Context, _ any, _ *hardwarekey.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
+func (p *defaultModules) AttestHardwareKey(_ context.Context, _ interface{}, _ *hardwarekey.AttestationStatement, _ crypto.PublicKey, _ time.Duration) (*keys.AttestationData, error) {
 	// Default modules do not support attesting hardware keys.
 	return nil, trace.NotFound("no attestation data for the given key")
 }

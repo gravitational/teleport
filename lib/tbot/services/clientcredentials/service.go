@@ -51,7 +51,6 @@ func ServiceBuilder(cfg *UnstableConfig, credentialLifetime bot.CredentialLifeti
 			identityGenerator:  deps.IdentityGenerator,
 			log:                deps.Logger,
 			statusReporter:     deps.GetStatusReporter(),
-			scoped:             deps.Scoped,
 		}
 		return svc, nil
 	}
@@ -88,7 +87,6 @@ type Service struct {
 	statusReporter     readyz.Reporter
 	reloadCh           <-chan struct{}
 	identityGenerator  *identity.Generator
-	scoped             bool
 }
 
 func (s *Service) String() string {
@@ -99,21 +97,14 @@ func (s *Service) String() string {
 }
 
 func (s *Service) OneShot(ctx context.Context) error {
-	if s.scoped {
-		return s.generateScoped(ctx)
-	}
 	return s.generate(ctx)
 }
 
 func (s *Service) Run(ctx context.Context) error {
-	f := s.generate
-	if s.scoped {
-		f = s.generateScoped
-	}
 	err := internal.RunOnInterval(ctx, internal.RunOnIntervalConfig{
 		Service:         s.String(),
 		Name:            "output-renewal",
-		F:               f,
+		F:               s.generate,
 		Interval:        s.credentialLifetime.RenewalInterval,
 		RetryLimit:      internal.RenewalRetryLimit,
 		Log:             s.log,
@@ -132,33 +123,12 @@ func (s *Service) generate(ctx context.Context) error {
 	defer span.End()
 	s.log.InfoContext(ctx, "Generating output")
 
-	opts := []identity.GenerateOption{
+	id, err := s.identityGenerator.Generate(ctx,
 		identity.WithLifetime(s.credentialLifetime.TTL, s.credentialLifetime.RenewalInterval),
 		identity.WithLogger(s.log),
-	}
-	if s.cfg.DelegationSessionID != "" {
-		opts = append(opts, identity.WithDelegation(s.cfg.DelegationSessionID))
-	}
-	id, err := s.identityGenerator.Generate(ctx, opts...)
+	)
 	if err != nil {
 		return trace.Wrap(err, "generating identity")
-	}
-
-	s.cfg.SetOrUpdateFacade(id)
-	return nil
-}
-
-func (s *Service) generateScoped(ctx context.Context) error {
-	ctx, span := tracer.Start(
-		ctx,
-		"Service/generateScoped",
-	)
-	defer span.End()
-	s.log.InfoContext(ctx, "Generating scoped output")
-
-	id, err := s.identityGenerator.GenerateScoped(ctx, s.credentialLifetime.TTL, s.credentialLifetime.RenewalInterval)
-	if err != nil {
-		return trace.Wrap(err, "generating scoped identity")
 	}
 
 	s.cfg.SetOrUpdateFacade(id)

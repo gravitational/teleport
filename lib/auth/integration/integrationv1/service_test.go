@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -58,7 +59,8 @@ func TestMain(m *testing.M) {
 }
 
 func TestIntegrationCRUD(t *testing.T) {
-	t.Parallel()
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
+
 	clusterName := "test-cluster"
 	proxyPublicAddr := "127.0.0.1.nip.io"
 
@@ -149,7 +151,7 @@ func TestIntegrationCRUD(t *testing.T) {
 				}}},
 			},
 			Setup: func(t *testing.T, _ string) {
-				for range 10 {
+				for i := 0; i < 10; i++ {
 					_, err := localClient.CreateIntegration(ctx, sampleIntegrationFn(t, uuid.NewString()))
 					require.NoError(t, err)
 				}
@@ -789,6 +791,7 @@ func TestIntegrationCRUD(t *testing.T) {
 	}
 
 	for _, tc := range tt {
+		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			localCtx := authorizerForDummyUser(t, ctx, tc.Role, localClient)
 			igName := cmp.Or(tc.IntegrationName, uuid.NewString())
@@ -1017,7 +1020,6 @@ func initSvc(t *testing.T, ca types.CertAuthority, clusterName string, proxyPubl
 		Cache:           cache,
 		KeyStoreManager: keystoreManager,
 		Emitter:         events.NewDiscardEmitter(),
-		Modules:         modulestest.EnterpriseModules(),
 		awsRolesAnywhereCreateSessionFn: func(ctx context.Context, req createsession.CreateSessionRequest) (*createsession.CreateSessionResponse, error) {
 			return &createsession.CreateSessionResponse{
 				Version:         1,
@@ -1211,9 +1213,6 @@ func mustMakeDiscoveryConfig(t *testing.T, ig types.Integration) *discoveryconfi
 					Types:       []string{"ec2"},
 					Regions:     []string{"us-west-2"},
 					Integration: ig.GetName(),
-					Params: &types.InstallerParams{
-						EnrollMode: types.InstallParamEnrollMode_INSTALL_PARAM_ENROLL_MODE_SCRIPT,
-					},
 				},
 			},
 		},

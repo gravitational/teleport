@@ -172,7 +172,6 @@ export async function setUpAppGateway(
     targetUser: '',
     targetSubresourceName: options.targetPort?.toString(),
     targetProtocol: options.targetProtocol,
-    autoUserProvisioning: undefined,
   });
 
   const connectionToReuse = ctx.connectionTracker.findConnectionByDocument(doc);

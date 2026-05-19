@@ -17,17 +17,17 @@
  */
 
 import { QueryClientProvider } from '@tanstack/react-query';
+import { createMemoryHistory } from 'history';
 import { http, HttpResponse } from 'msw';
+import { setupServer } from 'msw/node';
 import { PropsWithChildren } from 'react';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { MemoryRouter, Route, Router } from 'react-router';
 
 import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
-  enableMswServer,
   render,
   screen,
-  server,
   testQueryClient,
   userEvent,
   waitFor,
@@ -47,9 +47,11 @@ import {
 
 import { Instances } from './Instances';
 
-enableMswServer();
+const server = setupServer();
 
 beforeAll(() => {
+  server.listen();
+
   global.IntersectionObserver = class IntersectionObserver {
     constructor() {}
     disconnect() {}
@@ -62,9 +64,12 @@ beforeAll(() => {
 });
 
 afterEach(async () => {
+  server.resetHandlers();
   await testQueryClient.resetQueries();
   jest.clearAllMocks();
 });
+
+afterAll(() => server.close());
 
 it('having no permissions should show correct error', async () => {
   renderComponent({
@@ -273,13 +278,15 @@ function renderComponent(options?: {
   initialUrl?: string;
 }) {
   const user = userEvent.setup();
-  const initialUrl = options?.initialUrl || cfg.routes.instances;
+  const history = createMemoryHistory({
+    initialEntries: [options?.initialUrl || cfg.routes.instances],
+  });
 
   return {
     ...render(<Instances />, {
       wrapper: makeWrapper({
         customAcl: options?.customAcl,
-        initialUrl,
+        history,
       }),
     }),
     user,
@@ -287,11 +294,11 @@ function renderComponent(options?: {
 }
 
 function makeWrapper(options: {
-  initialUrl: string;
+  history: ReturnType<typeof createMemoryHistory>;
   customAcl?: ReturnType<typeof makeAcl>;
 }) {
   const {
-    initialUrl,
+    history,
     customAcl = makeAcl({
       instances: {
         ...defaultAccess,
@@ -314,13 +321,13 @@ function makeWrapper(options: {
     ctx.storeUser.state.cluster.authVersion = '18.2.4';
 
     return (
-      <MemoryRouter initialEntries={[initialUrl]}>
+      <MemoryRouter>
         <QueryClientProvider client={testQueryClient}>
           <ConfiguredThemeProvider theme={darkTheme}>
             <ContextProvider ctx={ctx}>
-              <Routes>
-                <Route path={cfg.routes.instances} element={children} />
-              </Routes>
+              <Router history={history}>
+                <Route path={cfg.routes.instances}>{children}</Route>
+              </Router>
             </ContextProvider>
           </ConfiguredThemeProvider>
         </QueryClientProvider>

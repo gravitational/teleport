@@ -24,12 +24,13 @@ import (
 
 	discoveryconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1"
 	convert "github.com/gravitational/teleport/api/types/discoveryconfig/convert/v1"
-	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/jonboulle/clockwork"
 
 	schemav1 "github.com/gravitational/teleport/integrations/terraform/tfschema/discoveryconfig/v1"
 )
@@ -107,24 +108,14 @@ func (r resourceTeleportDiscoveryConfig) Create(ctx context.Context, req tfsdk.C
 		var discoveryConfigI = discoveryConfigResource
 	// Try getting the resource until it exists.
 	tries := 0
-	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-		Driver: retryutils.NewExponentialDriver(r.p.RetryConfig.Base),
-		First:  r.p.RetryConfig.Base,
-		Max:    r.p.RetryConfig.Cap,
-		Jitter: retryutils.HalfJitter,
-	})
-	if err != nil {
-		return
-	}
+	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
 		tries = tries + 1
 		discoveryConfigI, err = r.p.Client.DiscoveryConfigClient().GetDiscoveryConfig(ctx, id)
 		if trace.IsNotFound(err) {
-		    select {
-			case <-ctx.Done():
-			    resp.Diagnostics.Append(diagFromWrappedErr("Error reading DiscoveryConfig", trace.Wrap(ctx.Err()), "discovery_config"))
+			if bErr := backoff.Do(ctx); bErr != nil {
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading DiscoveryConfig", trace.Wrap(err), "discovery_config"))
 				return
-			case <-retry.After():
 			}
 			if tries >= r.p.RetryConfig.MaxTries {
 				diagMessage := fmt.Sprintf("Error reading DiscoveryConfig (tried %d times) - state outdated, please import resource", tries)
@@ -245,15 +236,7 @@ func (r resourceTeleportDiscoveryConfig) Update(ctx context.Context, req tfsdk.U
 		var discoveryConfigI = discoveryConfigResource
 
 	tries := 0
-	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-		Driver: retryutils.NewExponentialDriver(r.p.RetryConfig.Base),
-		First:  r.p.RetryConfig.Base,
-		Max:    r.p.RetryConfig.Cap,
-		Jitter: retryutils.HalfJitter,
-	})
-	if err != nil {
-		return
-	}
+	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
 		tries = tries + 1
 		discoveryConfigI, err = r.p.Client.DiscoveryConfigClient().GetDiscoveryConfig(ctx, name)
@@ -265,11 +248,9 @@ func (r resourceTeleportDiscoveryConfig) Update(ctx context.Context, req tfsdk.U
 			break
 		}
 
-		select {
-		case <-ctx.Done():
-		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading DiscoveryConfig", trace.Wrap(ctx.Err()), "discovery_config"))
+		if err := backoff.Do(ctx); err != nil {
+			resp.Diagnostics.Append(diagFromWrappedErr("Error reading DiscoveryConfig", trace.Wrap(err), "discovery_config"))
 			return
-		case <-retry.After():
 		}
 		if tries >= r.p.RetryConfig.MaxTries {
 			diagMessage := fmt.Sprintf("Error reading DiscoveryConfig (tried %d times) - state outdated, please import resource", tries)

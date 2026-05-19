@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/app/common"
@@ -56,8 +57,7 @@ type transportConfig struct {
 	rewriteTraits wrappers.Traits
 	log           *slog.Logger
 	// hostID is purely for troubleshooting purposes (put in the error messages)
-	hostID       string
-	insecureMode bool
+	hostID string
 }
 
 // Check validates configuration.
@@ -292,7 +292,7 @@ func configureTLS(c *transportConfig) (*tls.Config, error) {
 	// Don't verify the server's certificate if Teleport was started with
 	// the --insecure flag, or 'insecure_skip_verify' was specifically requested in
 	// the application config.
-	tlsConfig.InsecureSkipVerify = (c.insecureMode || c.app.GetInsecureSkipVerify())
+	tlsConfig.InsecureSkipVerify = (lib.IsInsecureDevMode() || c.app.GetInsecureSkipVerify())
 
 	return tlsConfig, nil
 }
@@ -309,9 +309,9 @@ func host(addr string) string {
 // charWrap wraps a line to about 80 characters to make it easier to read.
 func charWrap(message string) string {
 	var sb strings.Builder
-	for line := range strings.SplitSeq(message, "\n") {
+	for _, line := range strings.Split(message, "\n") {
 		var n int
-		for word := range strings.FieldsSeq(line) {
+		for _, word := range strings.Fields(line) {
 			sb.WriteString(word)
 			sb.WriteString(" ")
 

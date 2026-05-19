@@ -39,7 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/labels"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv"
@@ -89,7 +89,7 @@ type Config struct {
 	OnReconcile func(types.Apps)
 
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
-	ConnectedProxyGetter reversetunnelclient.ConnectedProxyGetter
+	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
 
 	// ConnectionsHandler handles the HTTP/TCP App proxy connections.
 	ConnectionsHandler *ConnectionsHandler
@@ -130,7 +130,7 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("connections handler missing")
 	}
 	if c.ConnectedProxyGetter == nil {
-		return trace.BadParameter("ConnectedProxyGetter missing")
+		c.ConnectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
 	}
 	return nil
 }
@@ -589,6 +589,7 @@ func (s *Server) close(ctx context.Context) error {
 	// server below would be undone.
 	s.mu.RLock()
 	for name := range s.apps {
+		name := name
 		heartbeat := s.heartbeats[name]
 
 		if dynamic, ok := s.dynamicLabels[name]; ok {

@@ -47,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -162,13 +161,13 @@ type Config struct {
 	Events types.Events
 
 	// Provisioner is a service that keeps track of provisioning tokens
-	Provisioner services.ProvisionerInternal
+	Provisioner services.Provisioner
 
 	// Identity is a service that manages users and credentials
-	Identity services.IdentityInternal
+	Identity services.Identity
 
 	// Access is a service that controls access
-	Access services.AccessInternal
+	Access services.Access
 
 	// ClusterConfiguration is a service that provides cluster configuration
 	ClusterConfiguration services.ClusterConfigurationInternal
@@ -213,11 +212,8 @@ type Config struct {
 	// Clock is used to control time in tests.
 	Clock clockwork.Clock
 
-	// FIPS means FedRAMP/FIPS compliant configuration was requested via the --fips flag.
+	// FIPS means FedRAMP/FIPS compliant configuration was requested.
 	FIPS bool
-
-	// Modules defines build time constraints and licensed features.
-	Modules modules.Modules
 
 	// SkipVersionCheck means the version checking between server and client
 	// will be skipped.
@@ -278,8 +274,7 @@ type Config struct {
 	// DatabaseREPLRegistry is used to retrieve datatabase REPL given the
 	// protocol.
 	DatabaseREPLRegistry dbrepl.REPLRegistry
-	// InsecureMode defines whether insecure connections are allowed.
-	InsecureMode bool
+
 	// token is either the token needed to join the auth server, or a path pointing to a file
 	// that contains the token
 	//
@@ -336,17 +331,6 @@ type ConfigTesting struct {
 	// HTTPTransport is an optional HTTP round tripper to used in tests
 	// to mock HTTP requests to the third party services like Okta integration
 	HTTPTransport http.RoundTripper
-
-	// RunWhileLockedRetryInterval defines the interval at which the auth server retries
-	// a locking operation for backend objects.
-	// This setting is particularly useful in test environments,
-	// as it can help accelerate operations such as updating the access list,
-	// especially when the list is also being modified concurrently by the background
-	// eligibility handler.
-	RunWhileLockedRetryInterval time.Duration
-
-	// TriggerOktaSyncC is a channel that can be used in tests to trigger Okta sync immediately instead of waiting for the next scheduled sync.
-	TriggerOktaSyncC chan struct{}
 }
 
 // UserMonitorConfig contains configuration for the user monitor service, which is responsible for monitoring
@@ -754,10 +738,6 @@ func ApplyDefaults(cfg *Config) {
 		cfg.LoggerLevel = new(slog.LevelVar)
 	}
 
-	if cfg.Modules == nil {
-		cfg.Modules = modules.GetModules()
-	}
-
 	// Remove insecure and (borderline insecure) cryptographic primitives from
 	// default configuration. These can still be added back in file configuration by
 	// users, but not supported by default by Teleport. See #1856 for more
@@ -818,7 +798,6 @@ func ApplyDefaults(cfg *Config) {
 
 	// Apps service defaults. It's disabled by default.
 	cfg.Apps.Enabled = false
-	defaults.ConfigureLimiter(&cfg.Apps.Limiter)
 
 	// Databases proxy service is disabled by default.
 	cfg.Databases.Enabled = false

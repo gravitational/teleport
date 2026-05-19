@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	gcputils "github.com/gravitational/teleport/api/utils/gcp"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -63,6 +64,7 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage/easconfig"
 	"github.com/gravitational/teleport/lib/integrations/samlidp/samlidpconfig"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -70,7 +72,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	awsregion "github.com/gravitational/teleport/lib/utils/aws/region"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
-	libslices "github.com/gravitational/teleport/lib/utils/slices"
 )
 
 // CommandLineFlags stores command line flag values, it's a much simplified subset
@@ -716,7 +717,6 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		&cfg.Databases.Limiter,
 		&cfg.Kube.Limiter,
 		&cfg.WindowsDesktop.ConnLimiter,
-		&cfg.Apps.Limiter,
 	}
 	for _, l := range limiters {
 		if fc.Limits.MaxConnections > 0 {
@@ -2154,38 +2154,6 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			}
 		}
 
-		if application.LLM != nil {
-			app.LLM = &types.LLM{
-				Format:        application.LLM.Format,
-				Provider:      application.LLM.Provider,
-				FallbackModel: application.LLM.FallbackModel,
-			}
-			app.LLM.Models = make([]*types.LLM_Model, 0, len(application.LLM.Models))
-			for _, model := range application.LLM.Models {
-				app.LLM.Models = append(app.LLM.Models, &types.LLM_Model{
-					Name:         model.Name,
-					ProviderName: model.ProviderName,
-				})
-			}
-		}
-
-		if application.TLS != nil {
-			app.TLS = &types.AppTLS{
-				Mode:           application.TLS.Mode,
-				ServerName:     application.TLS.ServerName,
-				ServerSpiffeId: application.TLS.ServerSpiffeId,
-				AllowedCas:     application.TLS.AllowedCas,
-				ClientCertMode: application.TLS.ClientCertMode,
-			}
-			for _, caCertPath := range application.TLS.AllowedCasFiles {
-				caCertContents, err := os.ReadFile(caCertPath)
-				if err != nil {
-					return trace.ConvertSystemError(err)
-				}
-				app.TLS.AllowedCas = append(app.TLS.AllowedCas, string(caCertContents))
-			}
-		}
-
 		if err := app.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
@@ -2544,6 +2512,9 @@ func applyConfigVersion(fc *FileConfig, cfg *servicecfg.Config) {
 // Configure merges command line arguments with what's in a configuration file
 // with CLI commands taking precedence
 func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags bool) error {
+	// pass the value of --insecure flag to the runtime
+	lib.SetInsecureDevMode(clf.InsecureMode)
+
 	// load /etc/teleport.yaml and apply its values:
 	fileConf, err := ReadConfigFile(clf.ConfigFile)
 	if err != nil {
@@ -2743,20 +2714,19 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 	// If FIPS mode is specified, validate Teleport uses a FIPS-validated module
 	if clf.FIPS {
 		// Make sure all cryptographic primitives are FIPS compliant.
-		//
-		err = libslices.ContainsAll(defaults.FIPSCipherSuites, cfg.CipherSuites)
+		err = utils.UintSliceSubset(defaults.FIPSCipherSuites, cfg.CipherSuites)
 		if err != nil {
 			return trace.BadParameter("non-FIPS compliant TLS cipher suite selected: %v", err)
 		}
-		err = libslices.ContainsAll(defaults.FIPSCiphers, cfg.Ciphers)
+		err = utils.StringSliceSubset(defaults.FIPSCiphers, cfg.Ciphers)
 		if err != nil {
 			return trace.BadParameter("non-FIPS compliant SSH cipher selected: %v", err)
 		}
-		err = libslices.ContainsAll(defaults.FIPSKEXAlgorithms, cfg.KEXAlgorithms)
+		err = utils.StringSliceSubset(defaults.FIPSKEXAlgorithms, cfg.KEXAlgorithms)
 		if err != nil {
 			return trace.BadParameter("non-FIPS compliant SSH kex algorithm selected: %v", err)
 		}
-		err = libslices.ContainsAll(defaults.FIPSMACAlgorithms, cfg.MACAlgorithms)
+		err = utils.StringSliceSubset(defaults.FIPSMACAlgorithms, cfg.MACAlgorithms)
 		if err != nil {
 			return trace.BadParameter("non-FIPS compliant SSH mac algorithm selected: %v", err)
 		}
@@ -2778,7 +2748,7 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 				return trace.BadParameter("non-FIPS compliant proxy settings: \"proxy_checks_host_keys\" must be true")
 			}
 
-			if err := services.ValidateSessionRecordingConfig(cfg.Auth.SessionRecordingConfig, clf.FIPS, cfg.Modules.Features().Cloud); err != nil {
+			if err := services.ValidateSessionRecordingConfig(cfg.Auth.SessionRecordingConfig, clf.FIPS, modules.GetModules().Features().Cloud); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -2792,7 +2762,7 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 		if err := cfg.Auth.Preference.CheckSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
 			FIPS:          clf.FIPS,
 			UsingHSMOrKMS: cfg.Auth.KeyStore != servicecfg.KeystoreConfig{},
-			Cloud:         cfg.Modules.Features().Cloud,
+			Cloud:         modules.GetModules().Features().Cloud,
 		}); err != nil {
 			return trace.Wrap(err)
 		}
@@ -2956,16 +2926,14 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 		cfg.Auth.AgentRolloutControllerSyncPeriod = period
 	}
 
-	// pass the value of --insecure flag to the runtime
-	if clf.InsecureMode {
-		cfg.InsecureMode = true
-	}
-
 	return nil
 }
 
 // ConfigureOpenSSH initializes a config from the commandline flags passed
 func ConfigureOpenSSH(clf *CommandLineFlags, cfg *servicecfg.Config) error {
+	// pass the value of --insecure flag to the runtime
+	lib.SetInsecureDevMode(clf.InsecureMode)
+
 	// Apply command line --debug flag to override logger severity.
 	level := slog.LevelError
 	if clf.Debug {
@@ -3011,7 +2979,7 @@ func ConfigureOpenSSH(clf *CommandLineFlags, cfg *servicecfg.Config) error {
 	cfg.Hostname = hostname
 	cfg.OpenSSH.InstanceAddr = clf.Address
 	cfg.OpenSSH.AdditionalPrincipals = []string{hostname, clf.Address}
-	for principal := range strings.SplitSeq(clf.AdditionalPrincipals, ",") {
+	for _, principal := range strings.Split(clf.AdditionalPrincipals, ",") {
 		if principal == "" {
 			continue
 		}
@@ -3029,10 +2997,6 @@ func ConfigureOpenSSH(clf *CommandLineFlags, cfg *servicecfg.Config) error {
 	cfg.SetAuthServerAddresses(nil)
 	cfg.ProxyServer = *proxyServer
 
-	// pass the value of --insecure flag to the runtime
-	if clf.InsecureMode {
-		cfg.InsecureMode = true
-	}
 	return nil
 }
 

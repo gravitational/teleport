@@ -21,26 +21,18 @@ mapped by [JWT authentication](https://grafana.com/docs/grafana/latest/setup-gra
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport (v18.3.0 or higher)" clients="\`tsh\` client"!)
-
+- Ability to configure your Grafana instance.
 - A host to run the MCP server that is reachable by the Teleport Application Service.
-
 - A running Teleport Application Service. If you have not yet done this, follow
   the [Getting Started guide](../getting-started.mdx).
-
 - A Teleport user with sufficient permissions (e.g. role `mcp-user`) to access
   MCP servers.
 
-- A Grafana instance configured for JWT authentication. Setting this up depends
-  on your infrastructure and is outside the scope of this guide.
+## Step 1/3. Configure JWT authentication in Grafana
 
-  <details>
-  <summary>Configuring JWT authentication in Grafana</summary>
+(!docs/pages/includes/application-access/jwt-grafana-config.mdx!)
 
-  (!docs/pages/includes/application-access/jwt-grafana-config.mdx!)
-
-  </details>
-
-## Step 1/2. Run the Grafana MCP server
+## Step 2/3. Run the Grafana MCP server
 
 The Grafana MCP Server can be run either as a compiled binary or via the
 official Docker image:
@@ -71,7 +63,7 @@ $ docker run -d -p 8000:8000 \
 
 The Grafana MCP Server now exposes a streamable-HTTP endpoint at `http://<Var name="MCP_HOST"/>:8000/mcp`.
 
-## Step 2/2. Connect via Teleport
+## Step 3/3. Connect via Teleport
 
 (!docs/pages/includes/mcp-access/integration-teleport-app-rewrite.mdx service="grafana" serviceName="Grafana" port="8000" headerName="X-Grafana-API-Key" headerValue="&#123;&#123;internal.jwt&#125;&#125;" !)
 

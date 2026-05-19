@@ -51,7 +51,7 @@ type GetAppDetailsResponse struct {
 // its app details.
 //
 // GET /v1/webapi/apps/:fqdnHint/:clusterName/:publicAddr
-func (h *Handler) getAppDetails(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext) (any, error) {
+func (h *Handler) getAppDetails(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	values := r.URL.Query()
 
 	isRedirectFlow := values.Get("required-apps") != ""
@@ -132,7 +132,7 @@ type CreateAppSessionResponse struct {
 // createAppSession creates a new application session.
 //
 // POST /v1/webapi/sessions/app
-func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext) (any, error) {
+func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	var req CreateAppSessionRequest
 	if err := httplib.ReadResourceJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
@@ -232,6 +232,12 @@ type resolveAppResult struct {
 // Use the information the caller provided to attempt to resolve to an
 // application running within either the root or leaf cluster.
 func (h *Handler) resolveApp(ctx context.Context, scx *SessionContext, params ResolveAppParams) (*resolveAppResult, error) {
+	// Get an auth client connected with the user's identity.
+	authClient, err := scx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Get a reverse tunnel proxy aware of the user's permissions.
 	proxy, err := h.ProxyWithRoles(ctx, scx)
 	if err != nil {
@@ -252,7 +258,7 @@ func (h *Handler) resolveApp(ctx context.Context, scx *SessionContext, params Re
 	case params.PublicAddr != "" && params.ClusterName != "":
 		server, appClusterName, err = h.resolveDirect(ctx, proxy, params.PublicAddr, params.ClusterName)
 	case params.FQDNHint != "":
-		server, appClusterName, err = app.ResolveFQDN(ctx, proxy, h.auth.clusterName, h.proxyDNSNames(), params.FQDNHint)
+		server, appClusterName, err = h.resolveFQDN(ctx, authClient, proxy, params.FQDNHint)
 	default:
 		err = trace.BadParameter("no inputs to resolve application")
 	}
@@ -282,7 +288,12 @@ func (h *Handler) resolveAppByName(ctx context.Context, clusterGetter reversetun
 		return nil, "", trace.Wrap(err)
 	}
 
-	servers, err := app.MatchUnshuffled(ctx, clusterClient, app.MatchName(appName))
+	authClient, err := clusterClient.GetClient()
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	servers, err := app.MatchUnshuffled(ctx, authClient, app.MatchName(appName))
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -302,7 +313,12 @@ func (h *Handler) resolveDirect(ctx context.Context, clusterGetter reversetunnel
 		return nil, "", trace.Wrap(err)
 	}
 
-	servers, err := app.MatchUnshuffled(ctx, clusterClient, app.MatchPublicAddr(publicAddr))
+	authClient, err := clusterClient.GetClient()
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	servers, err := app.MatchUnshuffled(ctx, authClient, app.MatchPublicAddr(publicAddr))
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
@@ -312,6 +328,12 @@ func (h *Handler) resolveDirect(ctx context.Context, clusterGetter reversetunnel
 	}
 
 	return servers[rand.N(len(servers))], clusterName, nil
+}
+
+// resolveFQDN makes a best effort attempt to resolve FQDN to an application
+// running within a root or leaf cluster.
+func (h *Handler) resolveFQDN(ctx context.Context, clt app.Getter, clusterGetter reversetunnelclient.ClusterGetter, fqdn string) (types.AppServer, string, error) {
+	return app.ResolveFQDN(ctx, clt, clusterGetter, h.proxyDNSNames(), fqdn)
 }
 
 // proxyDNSName is a DNS name the HTTP proxy is available at, where

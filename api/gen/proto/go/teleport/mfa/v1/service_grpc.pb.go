@@ -33,12 +33,7 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	MFAService_CreateSessionChallenge_FullMethodName         = "/teleport.mfa.v1.MFAService/CreateSessionChallenge"
-	MFAService_ValidateSessionChallenge_FullMethodName       = "/teleport.mfa.v1.MFAService/ValidateSessionChallenge"
-	MFAService_ListValidatedMFAChallenges_FullMethodName     = "/teleport.mfa.v1.MFAService/ListValidatedMFAChallenges"
-	MFAService_ReplicateValidatedMFAChallenge_FullMethodName = "/teleport.mfa.v1.MFAService/ReplicateValidatedMFAChallenge"
-	MFAService_VerifyValidatedMFAChallenge_FullMethodName    = "/teleport.mfa.v1.MFAService/VerifyValidatedMFAChallenge"
-	MFAService_CompleteBrowserMFAChallenge_FullMethodName    = "/teleport.mfa.v1.MFAService/CompleteBrowserMFAChallenge"
+	MFAService_CompleteBrowserMFAChallenge_FullMethodName = "/teleport.mfa.v1.MFAService/CompleteBrowserMFAChallenge"
 )
 
 // MFAServiceClient is the client API for MFAService service.
@@ -49,24 +44,6 @@ const (
 // sessions, new MFA related RPCs should be added here instead of the AuthService, to maintain a clear separation of
 // concerns instead of further bloating the AuthService.
 type MFAServiceClient interface {
-	// CreateSessionChallenge creates an MFA challenge that is tied to a user session.
-	CreateSessionChallenge(ctx context.Context, in *CreateSessionChallengeRequest, opts ...grpc.CallOption) (*CreateSessionChallengeResponse, error)
-	// ValidateSessionChallenge validates the MFA challenge response for a user session and stores the validated response
-	// in the backend.
-	ValidateSessionChallenge(ctx context.Context, in *ValidateSessionChallengeRequest, opts ...grpc.CallOption) (*ValidateSessionChallengeResponse, error)
-	// ListValidatedMFAChallenges lists validated MFA challenges that have been created for all user sessions. This is
-	// intended to be used by the reverse tunnel server to watch for new validated challenges that need to be replicated
-	// for SSH session establishment in leaf clusters.
-	ListValidatedMFAChallenges(ctx context.Context, in *ListValidatedMFAChallengesRequest, opts ...grpc.CallOption) (*ListValidatedMFAChallengesResponse, error)
-	// ReplicateValidatedMFAChallenge replicates a validated MFA challenge from root cluster to leaf cluster for
-	// verification during SSH session establishment. The reverse tunnel server watches for validated challenges in the
-	// root cluster and invokes this RPC on the leaf cluster. This is a NOOP when invoked in the root cluster.
-	ReplicateValidatedMFAChallenge(ctx context.Context, in *ReplicateValidatedMFAChallengeRequest, opts ...grpc.CallOption) (*ReplicateValidatedMFAChallengeResponse, error)
-	// VerifyValidatedMFAChallenge verifies a previously validated MFA challenge response for a user session. If the
-	// challenge does not yet exist, this method will block until the resource appears or until the timeout is reached.
-	// The payload is used to verify the challenge is tied to the correct user session. If the verification fails, an
-	// error is returned.
-	VerifyValidatedMFAChallenge(ctx context.Context, in *VerifyValidatedMFAChallengeRequest, opts ...grpc.CallOption) (*VerifyValidatedMFAChallengeResponse, error)
 	// CompleteBrowserMFAChallenge completes a browser MFA challenge request by encrypting
 	// it and returning it to the browser.
 	// This is called when a user has been sent to the browser to solve an MFA challenge
@@ -83,56 +60,6 @@ type mFAServiceClient struct {
 
 func NewMFAServiceClient(cc grpc.ClientConnInterface) MFAServiceClient {
 	return &mFAServiceClient{cc}
-}
-
-func (c *mFAServiceClient) CreateSessionChallenge(ctx context.Context, in *CreateSessionChallengeRequest, opts ...grpc.CallOption) (*CreateSessionChallengeResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(CreateSessionChallengeResponse)
-	err := c.cc.Invoke(ctx, MFAService_CreateSessionChallenge_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *mFAServiceClient) ValidateSessionChallenge(ctx context.Context, in *ValidateSessionChallengeRequest, opts ...grpc.CallOption) (*ValidateSessionChallengeResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ValidateSessionChallengeResponse)
-	err := c.cc.Invoke(ctx, MFAService_ValidateSessionChallenge_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *mFAServiceClient) ListValidatedMFAChallenges(ctx context.Context, in *ListValidatedMFAChallengesRequest, opts ...grpc.CallOption) (*ListValidatedMFAChallengesResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ListValidatedMFAChallengesResponse)
-	err := c.cc.Invoke(ctx, MFAService_ListValidatedMFAChallenges_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *mFAServiceClient) ReplicateValidatedMFAChallenge(ctx context.Context, in *ReplicateValidatedMFAChallengeRequest, opts ...grpc.CallOption) (*ReplicateValidatedMFAChallengeResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(ReplicateValidatedMFAChallengeResponse)
-	err := c.cc.Invoke(ctx, MFAService_ReplicateValidatedMFAChallenge_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func (c *mFAServiceClient) VerifyValidatedMFAChallenge(ctx context.Context, in *VerifyValidatedMFAChallengeRequest, opts ...grpc.CallOption) (*VerifyValidatedMFAChallengeResponse, error) {
-	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(VerifyValidatedMFAChallengeResponse)
-	err := c.cc.Invoke(ctx, MFAService_VerifyValidatedMFAChallenge_FullMethodName, in, out, cOpts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
 }
 
 func (c *mFAServiceClient) CompleteBrowserMFAChallenge(ctx context.Context, in *CompleteBrowserMFAChallengeRequest, opts ...grpc.CallOption) (*CompleteBrowserMFAChallengeResponse, error) {
@@ -153,24 +80,6 @@ func (c *mFAServiceClient) CompleteBrowserMFAChallenge(ctx context.Context, in *
 // sessions, new MFA related RPCs should be added here instead of the AuthService, to maintain a clear separation of
 // concerns instead of further bloating the AuthService.
 type MFAServiceServer interface {
-	// CreateSessionChallenge creates an MFA challenge that is tied to a user session.
-	CreateSessionChallenge(context.Context, *CreateSessionChallengeRequest) (*CreateSessionChallengeResponse, error)
-	// ValidateSessionChallenge validates the MFA challenge response for a user session and stores the validated response
-	// in the backend.
-	ValidateSessionChallenge(context.Context, *ValidateSessionChallengeRequest) (*ValidateSessionChallengeResponse, error)
-	// ListValidatedMFAChallenges lists validated MFA challenges that have been created for all user sessions. This is
-	// intended to be used by the reverse tunnel server to watch for new validated challenges that need to be replicated
-	// for SSH session establishment in leaf clusters.
-	ListValidatedMFAChallenges(context.Context, *ListValidatedMFAChallengesRequest) (*ListValidatedMFAChallengesResponse, error)
-	// ReplicateValidatedMFAChallenge replicates a validated MFA challenge from root cluster to leaf cluster for
-	// verification during SSH session establishment. The reverse tunnel server watches for validated challenges in the
-	// root cluster and invokes this RPC on the leaf cluster. This is a NOOP when invoked in the root cluster.
-	ReplicateValidatedMFAChallenge(context.Context, *ReplicateValidatedMFAChallengeRequest) (*ReplicateValidatedMFAChallengeResponse, error)
-	// VerifyValidatedMFAChallenge verifies a previously validated MFA challenge response for a user session. If the
-	// challenge does not yet exist, this method will block until the resource appears or until the timeout is reached.
-	// The payload is used to verify the challenge is tied to the correct user session. If the verification fails, an
-	// error is returned.
-	VerifyValidatedMFAChallenge(context.Context, *VerifyValidatedMFAChallengeRequest) (*VerifyValidatedMFAChallengeResponse, error)
 	// CompleteBrowserMFAChallenge completes a browser MFA challenge request by encrypting
 	// it and returning it to the browser.
 	// This is called when a user has been sent to the browser to solve an MFA challenge
@@ -188,21 +97,6 @@ type MFAServiceServer interface {
 // pointer dereference when methods are called.
 type UnimplementedMFAServiceServer struct{}
 
-func (UnimplementedMFAServiceServer) CreateSessionChallenge(context.Context, *CreateSessionChallengeRequest) (*CreateSessionChallengeResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method CreateSessionChallenge not implemented")
-}
-func (UnimplementedMFAServiceServer) ValidateSessionChallenge(context.Context, *ValidateSessionChallengeRequest) (*ValidateSessionChallengeResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ValidateSessionChallenge not implemented")
-}
-func (UnimplementedMFAServiceServer) ListValidatedMFAChallenges(context.Context, *ListValidatedMFAChallengesRequest) (*ListValidatedMFAChallengesResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ListValidatedMFAChallenges not implemented")
-}
-func (UnimplementedMFAServiceServer) ReplicateValidatedMFAChallenge(context.Context, *ReplicateValidatedMFAChallengeRequest) (*ReplicateValidatedMFAChallengeResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method ReplicateValidatedMFAChallenge not implemented")
-}
-func (UnimplementedMFAServiceServer) VerifyValidatedMFAChallenge(context.Context, *VerifyValidatedMFAChallengeRequest) (*VerifyValidatedMFAChallengeResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method VerifyValidatedMFAChallenge not implemented")
-}
 func (UnimplementedMFAServiceServer) CompleteBrowserMFAChallenge(context.Context, *CompleteBrowserMFAChallengeRequest) (*CompleteBrowserMFAChallengeResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CompleteBrowserMFAChallenge not implemented")
 }
@@ -224,96 +118,6 @@ func RegisterMFAServiceServer(s grpc.ServiceRegistrar, srv MFAServiceServer) {
 		t.testEmbeddedByValue()
 	}
 	s.RegisterService(&MFAService_ServiceDesc, srv)
-}
-
-func _MFAService_CreateSessionChallenge_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(CreateSessionChallengeRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(MFAServiceServer).CreateSessionChallenge(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: MFAService_CreateSessionChallenge_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MFAServiceServer).CreateSessionChallenge(ctx, req.(*CreateSessionChallengeRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _MFAService_ValidateSessionChallenge_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ValidateSessionChallengeRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(MFAServiceServer).ValidateSessionChallenge(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: MFAService_ValidateSessionChallenge_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MFAServiceServer).ValidateSessionChallenge(ctx, req.(*ValidateSessionChallengeRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _MFAService_ListValidatedMFAChallenges_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ListValidatedMFAChallengesRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(MFAServiceServer).ListValidatedMFAChallenges(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: MFAService_ListValidatedMFAChallenges_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MFAServiceServer).ListValidatedMFAChallenges(ctx, req.(*ListValidatedMFAChallengesRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _MFAService_ReplicateValidatedMFAChallenge_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ReplicateValidatedMFAChallengeRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(MFAServiceServer).ReplicateValidatedMFAChallenge(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: MFAService_ReplicateValidatedMFAChallenge_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MFAServiceServer).ReplicateValidatedMFAChallenge(ctx, req.(*ReplicateValidatedMFAChallengeRequest))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _MFAService_VerifyValidatedMFAChallenge_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(VerifyValidatedMFAChallengeRequest)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(MFAServiceServer).VerifyValidatedMFAChallenge(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: MFAService_VerifyValidatedMFAChallenge_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(MFAServiceServer).VerifyValidatedMFAChallenge(ctx, req.(*VerifyValidatedMFAChallengeRequest))
-	}
-	return interceptor(ctx, in, info, handler)
 }
 
 func _MFAService_CompleteBrowserMFAChallenge_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -341,26 +145,6 @@ var MFAService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "teleport.mfa.v1.MFAService",
 	HandlerType: (*MFAServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
-		{
-			MethodName: "CreateSessionChallenge",
-			Handler:    _MFAService_CreateSessionChallenge_Handler,
-		},
-		{
-			MethodName: "ValidateSessionChallenge",
-			Handler:    _MFAService_ValidateSessionChallenge_Handler,
-		},
-		{
-			MethodName: "ListValidatedMFAChallenges",
-			Handler:    _MFAService_ListValidatedMFAChallenges_Handler,
-		},
-		{
-			MethodName: "ReplicateValidatedMFAChallenge",
-			Handler:    _MFAService_ReplicateValidatedMFAChallenge_Handler,
-		},
-		{
-			MethodName: "VerifyValidatedMFAChallenge",
-			Handler:    _MFAService_VerifyValidatedMFAChallenge_Handler,
-		},
 		{
 			MethodName: "CompleteBrowserMFAChallenge",
 			Handler:    _MFAService_CompleteBrowserMFAChallenge_Handler,

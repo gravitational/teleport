@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport"
@@ -43,11 +44,12 @@ import (
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/join/boundkeypair"
@@ -251,8 +253,7 @@ func (process *TeleportProcess) connect(role types.SystemRole, opts ...certOptio
 		if role == types.RoleAdmin || role == types.RoleAuth {
 			return newConnector(identity, identity)
 		}
-		process.logger.InfoContext(process.ExitContext(), "Connecting to the cluster with TLS client certificate.",
-			"cluster", identity.ClusterName, "role", role.String())
+		process.logger.InfoContext(process.ExitContext(), "Connecting to the cluster with TLS client certificate.", "cluster", identity.ClusterName)
 		connector, err := process.getConnector(identity, identity)
 		if err != nil {
 			// In the event that a user is attempting to connect a machine to
@@ -388,7 +389,7 @@ func (process *TeleportProcess) healInstanceIdentity(currentIdentity *state.Iden
 		newIdentity.ImmutableLabels = rejoinResult.ImmutableLabels
 	}
 
-	newSystemRoles := set.New(newIdentity.SystemRoles...)
+	newSystemRoles := utils.NewSet(newIdentity.SystemRoles...)
 
 	// Sanity check we didn't lose any system roles.
 	if lostRoles := currentSystemRoles.Clone().Subtract(newSystemRoles); len(lostRoles) > 0 {
@@ -812,7 +813,7 @@ func (process *TeleportProcess) makeJoinParams(
 		// requests before closing
 		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
 		FIPS:                 process.Config.FIPS,
-		Insecure:             process.Config.InsecureMode,
+		Insecure:             lib.IsInsecureDevMode(),
 	}
 	if joinParams.JoinMethod == types.JoinMethodAzure {
 		joinParams.AzureParams = joinclient.AzureParams{
@@ -1424,7 +1425,10 @@ func (process *TeleportProcess) getConnector(clientIdentity, serverIdentity *sta
 	}
 
 	// Set cluster features and return successfully with a working connector.
-	process.setClusterFeatures(pingResponse.GetServerFeatures())
+	// TODO(michellescripts) remove clone & compatibility check in v18
+	cloned := apiutils.CloneProtoMsg(pingResponse.GetServerFeatures())
+	entitlements.BackfillFeatures(cloned)
+	process.setClusterFeatures(cloned)
 	process.setAuthSubjectiveAddr(pingResponse.RemoteAddr)
 	process.logger.InfoContext(process.ExitContext(), "features loaded from auth server", "identity", clientIdentity.ID.Role, "features", pingResponse.GetServerFeatures())
 
@@ -1448,7 +1452,7 @@ func (process *TeleportProcess) newClient(connector *Connector) (*authclient.Cli
 	}
 	tlsConfig.ServerName = apiutils.EncodeClusterName(connector.ClusterName())
 	tlsConfig.InsecureSkipVerify = true
-	tlsConfig.VerifyConnection = utils.VerifyConnection(process.Clock.Now, connector.ClientGetPool)
+	tlsConfig.VerifyConnection = utils.VerifyConnectionWithRoots(connector.ClientGetPool)
 
 	sshClientConfig, err := connector.clientSSHClientConfig(process.Config.FIPS)
 	if err != nil {
@@ -1545,12 +1549,12 @@ func (process *TeleportProcess) breakerConfigForRole(role types.SystemRole) brea
 	return servicebreaker.InstrumentBreakerForConnector(role, process.Config.CircuitBreakerConfig)
 }
 
-func (process *TeleportProcess) newClientThroughTunnel(tlsConfig *tls.Config, sshConfig ssh.ClientConfig, role types.SystemRole, getClusterCAs func() (*x509.CertPool, error)) (*authclient.Client, *proto.PingResponse, error) {
+func (process *TeleportProcess) newClientThroughTunnel(tlsConfig *tls.Config, sshConfig *ssh.ClientConfig, role types.SystemRole, getClusterCAs func() (*x509.CertPool, error)) (*authclient.Client, *proto.PingResponse, error) {
 	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
 		Resolver:              process.resolver,
 		ClientConfig:          sshConfig,
 		Log:                   process.logger,
-		InsecureSkipTLSVerify: process.Config.InsecureMode,
+		InsecureSkipTLSVerify: lib.IsInsecureDevMode(),
 		GetClusterCAs: func(context.Context) (*x509.CertPool, error) {
 			return getClusterCAs()
 		},

@@ -21,7 +21,7 @@ use crate::{
     CGOSharedDirectoryAnnounce, CGOSharedDirectoryCreateRequest, CGOSharedDirectoryCreateResponse,
     CGOSharedDirectoryDeleteRequest, CGOSharedDirectoryInfoRequest, CGOSharedDirectoryInfoResponse,
     CGOSharedDirectoryListRequest, CGOSharedDirectoryListResponse, CGOSharedDirectoryMoveRequest,
-    CGOSharedDirectoryReadRequest, CGOSharedDirectoryReadResponse, CGOSharedDirectoryRemove,
+    CGOSharedDirectoryReadRequest, CGOSharedDirectoryReadResponse,
     CGOSharedDirectoryTruncateRequest, CGOSharedDirectoryWriteRequest,
 };
 
@@ -53,21 +53,6 @@ impl From<CGOSharedDirectoryAnnounce> for SharedDirectoryAnnounce {
                 directory_id: cgo.directory_id,
                 name: from_c_string(cgo.name),
             }
-        }
-    }
-}
-
-/// SharedDirectoryAnnounce is sent by the TDP client to the server
-/// to announce a new directory to be shared over TDP.
-#[derive(Debug)]
-pub struct SharedDirectoryRemove {
-    pub directory_id: u32,
-}
-
-impl From<CGOSharedDirectoryRemove> for SharedDirectoryRemove {
-    fn from(cgo: CGOSharedDirectoryRemove) -> SharedDirectoryRemove {
-        SharedDirectoryRemove {
-            directory_id: cgo.directory_id,
         }
     }
 }
@@ -589,7 +574,7 @@ pub struct SharedDirectoryTruncateRequest {
     pub completion_id: u32,
     pub directory_id: u32,
     pub path: UnixPath,
-    pub end_of_file: u64,
+    pub end_of_file: u32,
 }
 
 impl SharedDirectoryTruncateRequest {

@@ -1147,14 +1147,17 @@ func (h *Handler) awsOIDCCreateAWSAppAccess(w http.ResponseWriter, r *http.Reque
 		return nil, trace.Wrap(err)
 	}
 
-	roleSet := set.New(allowedAWSRoles...)
+	allowedAWSRolesLookup := map[string][]string{
+		appServer.GetName(): allowedAWSRoles,
+	}
+
 	return ui.MakeApp(appServer.GetApp(), ui.MakeAppsConfig{
-		LocalClusterName:  h.auth.clusterName,
-		LocalProxyDNSName: h.proxyDNSName(),
-		AppClusterName:    cluster.GetName(),
-		AWSRoles:          &ui.PrincipalSet{All: roleSet, Granted: roleSet},
-		UserGroupLookup:   getUserGroupLookup(),
-		Logger:            h.logger,
+		LocalClusterName:      h.auth.clusterName,
+		LocalProxyDNSName:     h.proxyDNSName(),
+		AppClusterName:        cluster.GetName(),
+		AllowedAWSRolesLookup: allowedAWSRolesLookup,
+		UserGroupLookup:       getUserGroupLookup(),
+		Logger:                h.logger,
 	}), nil
 }
 

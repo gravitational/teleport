@@ -63,8 +63,6 @@ type NewWebSessionRequest struct {
 	CreateDeviceWebToken bool
 	// Scope, if non-empty, makes the authentication scoped.
 	Scope string
-	// Usage identifies the intended usage of the session.
-	Usage types.WebSessionUsage
 	// DelegationSessionID is the ID of the Delegation Session this session is
 	// being created for.
 	DelegationSessionID string
@@ -115,8 +113,6 @@ type NewAppSessionRequest struct {
 	Identity tlsca.Identity
 	// ClientAddr is a client (user's) address.
 	ClientAddr string
-	// SuggestedSessionID is a session ID suggested by the requester.
-	SuggestedSessionID string
 	// BotName is the name of the bot that is creating this session.
 	BotName string
 	// BotInstanceID is the ID of the bot instance that is creating this session.

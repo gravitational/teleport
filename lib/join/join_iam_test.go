@@ -26,9 +26,9 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"text/template"
 	"time"
 
-	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/organizations"
 	organizationstypes "github.com/aws/aws-sdk-go-v2/service/organizations/types"
@@ -180,10 +180,10 @@ func TestJoinIAM(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { assert.NoError(t, fipsServer.Shutdown(ctx)) })
 
-	isAccessDenied := func(t require.TestingT, err error, _ ...any) {
+	isAccessDenied := func(t require.TestingT, err error, _ ...interface{}) {
 		require.True(t, trace.IsAccessDenied(err), "expected Access Denied error, actual error: %v", err)
 	}
-	isBadParameter := func(t require.TestingT, err error, _ ...any) {
+	isBadParameter := func(t require.TestingT, err error, _ ...interface{}) {
 		require.True(t, trace.IsBadParameter(err), "expected Bad Parameter error, actual error: %v", err)
 	}
 

@@ -117,8 +117,9 @@ func Validate(ctx context.Context, params ValidateParams) (*ValidatedTPM, error)
 	}
 
 	activationParameters := attest.ActivationParameters{
-		AK: params.AttestParams,
-		EK: ekPub,
+		TPMVersion: attest.TPMVersion20,
+		AK:         params.AttestParams,
+		EK:         ekPub,
 	}
 	// The generate method completes initial validation that provides the
 	// following assurances:

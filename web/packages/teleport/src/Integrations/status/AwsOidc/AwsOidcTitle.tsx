@@ -16,7 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 import { JSX } from 'react';
-import { Link as InternalLink, useNavigate } from 'react-router';
+import { useHistory } from 'react-router';
+import { Link as InternalLink } from 'react-router-dom';
 import { useTheme } from 'styled-components';
 
 import { ButtonIcon, Flex, Link, MenuItem, Text } from 'design';
@@ -50,14 +51,14 @@ export function AwsOidcTitle({
   tasks?: boolean;
 }) {
   const theme = useTheme();
-  const navigate = useNavigate();
+  const history = useHistory();
   const integrationOps = useIntegrationOperation();
   const content = getContent(integration, resource, tasks);
 
   async function removeIntegration(opt: DeleteRequestOptions) {
     await integrationOps.remove(opt);
     integrationOps.clear();
-    navigate(cfg.routes.integrations);
+    history.push(cfg.routes.integrations);
   }
 
   async function editIntegration(req: EditableIntegrationFields) {

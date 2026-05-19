@@ -25,9 +25,9 @@ import {
   type Dispatch,
   type SetStateAction,
 } from 'react';
-import { useLocation, useNavigate } from 'react-router';
+import { useHistory } from 'react-router';
 
-import { SortOrder } from 'shared/components/Controls/SortMenu';
+import { SortOrder } from 'shared/components/Controls/SortMenuV2';
 
 import {
   EventRange,
@@ -251,11 +251,10 @@ export function statesAreEqual(a: RecordingsListState, b: RecordingsListState) {
 export function useRecordingsListState(
   ranges: EventRange[]
 ): [RecordingsListState, Dispatch<SetStateAction<RecordingsListState>>] {
-  const navigate = useNavigate();
-  const location = useLocation();
+  const history = useHistory();
 
   const [state, _setState] = useState<RecordingsListState>(() =>
-    searchParamsToState(ranges, new URLSearchParams(location.search))
+    searchParamsToState(ranges, new URLSearchParams(history.location.search))
   );
 
   const setState = useCallback(
@@ -283,36 +282,41 @@ export function useRecordingsListState(
     []
   );
 
-  const currentSearch = useRef<string>(location.search);
-  const currentHash = useRef<string>(location.hash);
+  const currentSearch = useRef<string>(history.location.search);
 
   useEffect(() => {
     const params = stateToSearchParams(state);
-    const nextSearch = params.length > 0 ? `?${params}` : '';
 
-    if (currentSearch.current !== nextSearch) {
-      currentSearch.current = nextSearch;
-      navigate(
-        {
-          hash: currentHash.current,
-          search: nextSearch,
-        },
-        { replace: true }
-      );
+    currentSearch.current = `?${params.toString()}`;
+
+    if (
+      history.location.search.length === 0 &&
+      currentSearch.current.length === 1 // empty, i.e. just '?'
+    ) {
+      // the current search is empty, and the state is also empty,
+      // so we don't need to update the URL
+      return;
     }
-  }, [navigate, state]);
+
+    if (history.location.search !== currentSearch.current) {
+      history.replace({
+        hash: history.location.hash,
+        search: currentSearch.current,
+      });
+    }
+  }, [history, state]);
 
   useEffect(() => {
-    currentHash.current = location.hash;
+    return history.listen(next => {
+      if (next.search !== currentSearch.current) {
+        _setState(
+          searchParamsToState(ranges, new URLSearchParams(next.search))
+        );
 
-    if (location.search !== currentSearch.current) {
-      _setState(
-        searchParamsToState(ranges, new URLSearchParams(location.search))
-      );
-
-      currentSearch.current = location.search;
-    }
-  }, [location.hash, location.search, ranges]);
+        currentSearch.current = next.search;
+      }
+    });
+  }, [history, ranges]);
 
   return [state, setState] as const;
 }

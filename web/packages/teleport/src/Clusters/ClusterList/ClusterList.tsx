@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import { NavLink } from 'react-router';
+import { NavLink } from 'react-router-dom';
 import styled from 'styled-components';
 
 import Table, { Cell } from 'design/DataTable';
@@ -54,9 +54,6 @@ export default function ClustersList(props: Props) {
         clusters.find(c => c.clusterId === cfg.proxyCluster)
       }
       pagination={{ pageSize }}
-      row={{
-        getKey: cluster => cluster.clusterId,
-      }}
     />
   );
 }

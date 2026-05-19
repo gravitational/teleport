@@ -247,7 +247,7 @@ func TestExportAllAuthorities(t *testing.T) {
 			req: ExportAuthoritiesRequest{
 				AuthType: "invalid",
 			},
-			errorCheck: func(tt require.TestingT, err error, i ...any) {
+			errorCheck: func(tt require.TestingT, err error, i ...interface{}) {
 				require.ErrorContains(tt, err, `"invalid" authority type is not supported`)
 			},
 		},
@@ -333,15 +333,6 @@ func TestExportAllAuthorities(t *testing.T) {
 			name: "aws iam roles anywhere",
 			req: ExportAuthoritiesRequest{
 				AuthType: "awsra",
-			},
-			errorCheck:      require.NoError,
-			assertNoSecrets: validateTLSCertificatePEMFunc,
-			assertSecrets:   validatePrivateKeyPEMFunc,
-		},
-		{
-			name: "app-client",
-			req: ExportAuthoritiesRequest{
-				AuthType: "app-client",
 			},
 			errorCheck:      require.NoError,
 			assertNoSecrets: validateTLSCertificatePEMFunc,

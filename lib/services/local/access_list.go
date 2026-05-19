@@ -20,13 +20,13 @@ package local
 
 import (
 	"context"
-	"fmt"
 	"iter"
 	"maps"
 	"slices"
 	"strings"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
@@ -44,7 +44,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 const (
@@ -799,7 +798,7 @@ func (a *AccessListService) writeAccessListWithMembers(ctx context.Context, acce
 					newMember.Spec.AddedBy = existingMember.Spec.AddedBy
 
 					// Compare members and update if necessary.
-					if !newMember.IsEqual(existingMember) {
+					if !cmp.Equal(newMember, existingMember) {
 						// Update the member.
 						upserted, err := a.memberService.WithPrefix(accessList.GetName()).UpsertResource(ctx, newMember)
 						if err != nil {
@@ -900,14 +899,14 @@ func (a *AccessListService) checkScopedRoleGrants(existingList, newList *accessl
 		return nil
 	}
 
-	var existingListGrants set.Set[accesslist.ScopedRoleGrant]
+	var existingListGrants utils.Set[accesslist.ScopedRoleGrant]
 	if existingList != nil {
-		existingListGrants = set.New(existingList.Spec.Grants.ScopedRoles...).Add(existingList.Spec.OwnerGrants.ScopedRoles...)
+		existingListGrants = utils.NewSet(existingList.Spec.Grants.ScopedRoles...).Add(existingList.Spec.OwnerGrants.ScopedRoles...)
 	}
-	newListGrants := set.New(newList.Spec.Grants.ScopedRoles...).Add(newList.Spec.OwnerGrants.ScopedRoles...)
+	newListGrants := utils.NewSet(newList.Spec.Grants.ScopedRoles...).Add(newList.Spec.OwnerGrants.ScopedRoles...)
 	addedGrants := newListGrants.Subtract(existingListGrants)
 
-	if addedGrants.Len() == 0 {
+	if len(addedGrants) == 0 {
 		// The new list does not grant any scoped roles at scopes not already
 		// granted by the existing list.
 		return nil
@@ -1187,11 +1186,6 @@ func keepAWSIdentityCenterLabels(old, new *accesslist.AccessListMember) {
 	}
 }
 
-// ListUserAccessLists is not implemented in the local service.
-func (a *AccessListService) ListUserAccessLists(ctx context.Context, req *accesslistv1.ListUserAccessListsRequest) ([]*accesslist.AccessList, string, error) {
-	return nil, "", trace.NotImplemented("ListUserAccessLists should not be called on local service")
-}
-
 func (a *AccessListService) insertMembersAndUpdateNestedRelationships(ctx context.Context, accessListName string, members []*accesslist.AccessListMember) error {
 	if err := a.insertMembers(ctx, accessListName, members); err != nil {
 		return trace.Wrap(err)
@@ -1392,6 +1386,11 @@ func (a *AccessListService) collectionToBackendItemsIter(collection *accesslists
 	}
 }
 
+// ListUserAccessLists is not implemented in the local service.
+func (a *AccessListService) ListUserAccessLists(ctx context.Context, req *accesslistv1.ListUserAccessListsRequest) ([]*accesslist.AccessList, string, error) {
+	return nil, "", trace.NotImplemented("ListUserAccessLists should not be called on local service")
+}
+
 func (a *AccessListService) runWithGlobalLock(ctx context.Context, accessListName string, fn func() error) error {
 	return a.service.RunWhileLocked(ctx, []string{accessListResourceLockName}, 2*accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
 		return a.service.RunWhileLocked(ctx, lockName(accessListName), 2*accessListLockTTL, func(ctx context.Context, _ backend.Backend) error {
@@ -1450,9 +1449,8 @@ func (a *AccessListService) checkDeletionBlockingMemberRelationships(ctx context
 	}
 
 	if len(memberOfTitles) > 0 {
-		errMsg := fmt.Sprintf(`Cannot delete "%s", as it is a member of Access Lists: %s`,
+		return trace.AccessDenied(`Cannot delete "%s", as it is a member of Access Lists: %s`,
 			accessList.Spec.Title, quoteAndJoin(memberOfTitles))
-		return trace.Wrap(accesslists.ErrDeniedAccessListDeletion, errMsg)
 	}
 
 	return nil

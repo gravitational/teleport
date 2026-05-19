@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
@@ -49,8 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/relaytunnel"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/srv"
@@ -74,7 +74,7 @@ type TLSServerConfig struct {
 	// GetRotation returns the certificate rotation state.
 	GetRotation services.RotationGetter
 	// ConnectedProxyGetter gets the proxies teleport is connected to.
-	ConnectedProxyGetter reversetunnelclient.ConnectedProxyGetter
+	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
 	// RelayInfoGetter is the function used to get the relay tunnel client info
 	// to fill in the server heartbeats.
 	RelayInfoGetter relaytunnel.GetRelayInfoFunc
@@ -153,9 +153,6 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 	if c.InventoryHandle == nil {
 		return trace.BadParameter("missing parameter InventoryHandle")
 	}
-	if c.ConnectedProxyGetter == nil {
-		return trace.BadParameter("missing parameter ConnectedProxyGetter")
-	}
 	if c.HealthCheckManager == nil {
 		return trace.BadParameter("missing parameter HealthCheckManager")
 	}
@@ -168,10 +165,6 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 	case ProxyService, LegacyProxyService:
 		if c.KubernetesServersWatcher == nil {
 			return trace.BadParameter("missing parameter KubernetesServersWatcher")
-		}
-	case KubeService:
-		if c.Scope != "" && c.KubernetesServersWatcher != nil {
-			return trace.BadParameter("KubernetesServersWatcher is not supported for scoped KubeService")
 		}
 	}
 
@@ -190,6 +183,9 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 	}
 	if c.awsClients == nil {
 		c.awsClients = &awsClientsGetter{}
+	}
+	if c.ConnectedProxyGetter == nil {
+		c.ConnectedProxyGetter = reversetunnel.NewConnectedProxyGetter()
 	}
 	return nil
 }
@@ -241,17 +237,11 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(eriktate/scopes): remove this validation once dynamic cluster registration supports scopes
-	if cfg.Scope != "" && len(cfg.ResourceMatchers) > 0 {
-		return nil, trace.BadParameter("dynamic cluster registration not supported for scoped kube_service, resource matchers must be empty")
-	}
 	cfg.ForwarderConfig.log = log
 	fwd, err := NewForwarder(cfg.ForwarderConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	if len(fwd.kubeClusters()) == 0 && cfg.KubeServiceType == KubeService &&
+	} else if len(fwd.kubeClusters()) == 0 && cfg.KubeServiceType == KubeService &&
 		len(cfg.ResourceMatchers) == 0 {
 		// if fwd has no clusters and the service type is KubeService but no resource watcher is configured
 		// then the kube_service does not need to start since it will not serve any static or dynamic cluster.
@@ -266,7 +256,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	// authMiddleware authenticates request assuming TLS client authentication
 	// adds authentication information to the context
 	// and passes it to the API server
-	authMiddleware := &authz.Middleware{
+	authMiddleware := &auth.Middleware{
 		ClusterName:   clustername.GetClusterName(),
 		AcceptedUsage: []string{teleport.UsageKubeOnly},
 		// EnableCredentialsForwarding is set to true to allow the proxy to forward
@@ -275,8 +265,8 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		// to be able to replace the client identity with the header payload when
 		// the request is forwarded from a Teleport Proxy.
 		EnableCredentialsForwarding: true,
-		Handler:                     fwd,
 	}
+	authMiddleware.Wrap(fwd)
 	// Wrap sets the next middleware in chain to the authMiddleware
 	limiter.WrapHandle(authMiddleware)
 	// force client auth if given
@@ -550,9 +540,6 @@ func (t *TLSServer) GetServerInfo(name string) (*types.KubernetesServerV3, error
 			RelayGroup: relayGroup,
 			RelayIds:   relayIDs,
 		},
-		// getKubeClusterWithServiceLabels already ensures that the cluster has the correct scope and that scope
-		// is usable by this forwarder. We only need to make sure that the kube server we build shares the same scope
-		types.KubeServerWithScope(cluster.GetScope()),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -652,17 +639,6 @@ func (t *TLSServer) getKubeClusterWithServiceLabels(name string) (*types.Kuberne
 	clusterWithoutCreds, err := types.NewKubernetesClusterV3WithoutSecrets(details.kubeCluster)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	// The Proxy Service forwarder will always be unscoped and needs to be able to forward
-	// to scoped clusters as well.
-	if t.Scope != "" {
-		if scopes.Compare(t.Scope, details.kubeCluster.GetScope()) != scopes.Equivalent {
-			// This should only happen if there's a bug in scoped access checking for KubernetesCluster resources.
-			// The kube proxy should never have access to clusters from orthogonal scopes. We also block access
-			// to clusters in child scopes but this may be relaxed in the future.
-			return nil, trace.AccessDenied("kube forwarder found kube cluster from different scope")
-		}
 	}
 
 	if details.dynamicLabels != nil {

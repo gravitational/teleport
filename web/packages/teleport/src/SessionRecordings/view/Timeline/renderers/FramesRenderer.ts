@@ -22,7 +22,6 @@ import type { SessionRecordingThumbnail } from 'teleport/services/recordings';
 import {
   generateTerminalSVGStyleTag,
   injectSVGStyles,
-  pngToDataURIBase64,
   svgToDataURIBase64,
 } from 'teleport/SessionRecordings/svg';
 import { calculateThumbnailViewport } from 'teleport/SessionRecordings/view/Timeline/utils';
@@ -97,9 +96,7 @@ export class FramesRenderer extends TimelineCanvasRenderer {
     this.frames = frames.map((frame, index) => ({
       ...frame,
       id: `frame-${index}`,
-      svg: frame.png
-        ? pngToDataURIBase64(frame.png)
-        : svgToDataURIBase64(injectSVGStyles(frame.svg, svgTheme)),
+      svg: svgToDataURIBase64(injectSVGStyles(frame.svg, svgTheme)),
     }));
 
     this.setHeight(initialHeight, eventsHeight);
@@ -131,7 +128,7 @@ export class FramesRenderer extends TimelineCanvasRenderer {
 
     for (let i = 0; i < this.frames.length; i++) {
       const frame = this.frames[i];
-      const frameAspectRatio = getFrameAspectRatio(frame);
+      const frameAspectRatio = frame.cols / frame.rows;
 
       const calculatedWidth = Math.ceil(this.frameHeight * frameAspectRatio);
       const frameWidth = Math.min(calculatedWidth, this.maxFrameWidth);
@@ -305,7 +302,7 @@ export class FramesRenderer extends TimelineCanvasRenderer {
     canvas: OffscreenCanvas,
     image: HTMLImageElement
   ) {
-    const frameAspectRatio = getFrameAspectRatio(frame);
+    const frameAspectRatio = frame.cols / frame.rows;
     const calculatedWidth = Math.ceil(this.frameHeight * frameAspectRatio);
     const width = Math.min(calculatedWidth, this.maxFrameWidth);
     const height = this.frameHeight;
@@ -400,14 +397,6 @@ export class FramesRenderer extends TimelineCanvasRenderer {
 export interface LoadedImageResult {
   canvas: OffscreenCanvas;
   img: HTMLImageElement;
-}
-
-function getFrameAspectRatio(frame: SessionRecordingThumbnail): number {
-  if (frame.screenWidth && frame.screenHeight) {
-    return frame.screenWidth / frame.screenHeight;
-  }
-
-  return frame.cols / frame.rows;
 }
 
 function defaultImageLoader(frame: ThumbnailWithId) {

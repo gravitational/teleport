@@ -95,9 +95,10 @@ func PlatformParametersFromProto(in *devicepb.TPMPlatformParameters) *attest.Pla
 		return nil
 	}
 	return &attest.PlatformParameters{
-		Quotes:   quotesFromProto(in.Quotes),
-		PCRs:     pcrsFromProto(in.Pcrs),
-		EventLog: in.EventLog,
+		TPMVersion: attest.TPMVersion20,
+		Quotes:     quotesFromProto(in.Quotes),
+		PCRs:       pcrsFromProto(in.Pcrs),
+		EventLog:   in.EventLog,
 	}
 }
 
@@ -138,6 +139,7 @@ func quotesFromProto(in []*devicepb.TPMQuote) []attest.Quote {
 	out := make([]attest.Quote, len(in))
 	for i, q := range in {
 		out[i] = attest.Quote{
+			Version:   attest.TPMVersion20,
 			Quote:     q.Quote,
 			Signature: q.Signature,
 		}

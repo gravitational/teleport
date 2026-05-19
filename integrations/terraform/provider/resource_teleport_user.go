@@ -23,12 +23,13 @@ import (
 
 	apitypes "github.com/gravitational/teleport/api/types"
 	
-	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/integrations/terraform/tfschema"
 )
@@ -109,24 +110,14 @@ func (r resourceTeleportUser) Create(ctx context.Context, req tfsdk.CreateResour
 	var userI apitypes.User
 	// Try getting the resource until it exists.
 	tries := 0
-	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-		Driver: retryutils.NewExponentialDriver(r.p.RetryConfig.Base),
-		First:  r.p.RetryConfig.Base,
-		Max:    r.p.RetryConfig.Cap,
-		Jitter: retryutils.HalfJitter,
-	})
-	if err != nil {
-		return
-	}
+	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
 		tries = tries + 1
 		userI, err = r.p.Client.GetUser(ctx, id, false)
 		if trace.IsNotFound(err) {
-		    select {
-			case <-ctx.Done():
-			    resp.Diagnostics.Append(diagFromWrappedErr("Error reading User", trace.Wrap(ctx.Err()), "user"))
+			if bErr := backoff.Do(ctx); bErr != nil {
+				resp.Diagnostics.Append(diagFromWrappedErr("Error reading User", trace.Wrap(err), "user"))
 				return
-			case <-retry.After():
 			}
 			if tries >= r.p.RetryConfig.MaxTries {
 				diagMessage := fmt.Sprintf("Error reading User (tried %d times) - state outdated, please import resource", tries)
@@ -251,15 +242,7 @@ func (r resourceTeleportUser) Update(ctx context.Context, req tfsdk.UpdateResour
 	var userI apitypes.User
 
 	tries := 0
-	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-		Driver: retryutils.NewExponentialDriver(r.p.RetryConfig.Base),
-		First:  r.p.RetryConfig.Base,
-		Max:    r.p.RetryConfig.Cap,
-		Jitter: retryutils.HalfJitter,
-	})
-	if err != nil {
-		return
-	}
+	backoff := backoff.NewDecorr(r.p.RetryConfig.Base, r.p.RetryConfig.Cap, clockwork.NewRealClock())
 	for {
 		tries = tries + 1
 		userI, err = r.p.Client.GetUser(ctx, name, false)
@@ -271,11 +254,9 @@ func (r resourceTeleportUser) Update(ctx context.Context, req tfsdk.UpdateResour
 			break
 		}
 
-		select {
-		case <-ctx.Done():
-		    resp.Diagnostics.Append(diagFromWrappedErr("Error reading User", trace.Wrap(ctx.Err()), "user"))
+		if err := backoff.Do(ctx); err != nil {
+			resp.Diagnostics.Append(diagFromWrappedErr("Error reading User", trace.Wrap(err), "user"))
 			return
-		case <-retry.After():
 		}
 		if tries >= r.p.RetryConfig.MaxTries {
 			diagMessage := fmt.Sprintf("Error reading User (tried %d times) - state outdated, please import resource", tries)

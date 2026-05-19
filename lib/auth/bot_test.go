@@ -29,9 +29,9 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"text/template"
 	"time"
 
-	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
@@ -180,7 +180,7 @@ func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
 	certs := result.Certs
 
 	// Renew the cert a bunch of times.
-	for i := range 10 {
+	for i := 0; i < 10; i++ {
 		// Ensure the state of the bot instance before renewal is sane.
 		bi, err := srv.Auth().BotInstance.GetBotInstance(ctx, initialIdent.BotName, initialIdent.BotInstanceID)
 		require.NoError(t, err)
@@ -665,14 +665,17 @@ func TestRegisterBotCertificateExtensions(t *testing.T) {
 func TestRegisterBot_RemoteAddr(t *testing.T) {
 	t.Parallel()
 
-	ctx := t.Context()
-	p := newAuthSuite(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	p, err := newTestPack(ctx, t.TempDir())
+	require.NoError(t, err)
 	a := p.a
 
 	_, sshPubKey, _, tlsPubKey := newSSHAndTLSKeyPairs(t)
 
 	roleName := "test-role"
-	_, err := authtest.CreateRole(ctx, a, roleName, types.RoleSpecV6{})
+	_, err = authtest.CreateRole(ctx, a, roleName, types.RoleSpecV6{})
 	require.NoError(t, err)
 
 	botName := "botty"
@@ -1224,7 +1227,7 @@ func TestRegisterBotMultipleTokens(t *testing.T) {
 
 	require.NotEqual(t, initialInstanceA, initialInstanceB)
 
-	for i := range 6 {
+	for i := 0; i < 6; i++ {
 		_, certsA, err = renewBotCerts(ctx, srv, certsA.TLS, bot.Status.UserName, resultA.PrivateKey)
 		require.NoError(t, err)
 

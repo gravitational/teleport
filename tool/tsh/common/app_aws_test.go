@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/service"
@@ -94,8 +95,8 @@ func TestAWS(t *testing.T) {
 		// Validate AWS credentials are set.
 		getEnvValue := func(key string) string {
 			for _, env := range cmd.Env {
-				if after, ok := strings.CutPrefix(env, key+"="); ok {
-					return after
+				if strings.HasPrefix(env, key+"=") {
+					return strings.TrimPrefix(env, key+"=")
 				}
 			}
 			return ""
@@ -447,7 +448,6 @@ func TestAWSConsoleLogins(t *testing.T) {
 		testserver.WithClusterName("root"),
 		testserver.WithBootstrap(connector, user, rootAWSRole),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
-			cfg.InsecureMode = true
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			cfg.Apps.Enabled = true
 			cfg.Apps.Apps = []servicecfg.App{
@@ -477,7 +477,6 @@ func TestAWSConsoleLogins(t *testing.T) {
 		testserver.WithClusterName("leaf"),
 		testserver.WithBootstrap(leafAWSRole),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
-			cfg.InsecureMode = true
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			cfg.Apps.Enabled = true
 			cfg.Apps.Apps = []servicecfg.App{
@@ -553,6 +552,11 @@ func makeUserWithAWSRole(t *testing.T) (types.User, types.Role) {
 }
 
 func SetupTrustedCluster(ctx context.Context, t *testing.T, rootServer, leafServer *service.TeleportProcess, additionalRoleMappings ...types.RoleMapping) {
+	// Use insecure mode so that the trusted cluster can establish trust over reverse tunnel.
+	isInsecure := lib.IsInsecureDevMode()
+	lib.SetInsecureDevMode(true)
+	t.Cleanup(func() { lib.SetInsecureDevMode(isInsecure) })
+
 	rootProxyAddr, err := rootServer.ProxyWebAddr()
 	require.NoError(t, err)
 	rootProxyTunnelAddr, err := rootServer.ProxyTunnelAddr()
@@ -583,8 +587,8 @@ func SetupTrustedCluster(ctx context.Context, t *testing.T, rootServer, leafServ
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		rts, err := rootServer.GetAuthServer().GetRemoteClusters(ctx)
-		require.NoError(t, err)
-		require.Len(t, rts, 1)
+		assert.NoError(t, err)
+		assert.Len(t, rts, 1)
 	}, time.Second*10, time.Second)
 
 	tsrv, err := rootServer.GetReverseTunnelServer()

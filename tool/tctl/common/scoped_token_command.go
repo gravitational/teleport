@@ -45,7 +45,6 @@ import (
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
-	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
 
 // ScopedTokensCommand implements `tctl scoped tokens` group of commands
@@ -326,7 +325,7 @@ func (c *ScopedTokensCommand) List(ctx context.Context, client *authclient.Clien
 			fmt.Fprintln(c.Stdout, token.GetMetadata().GetName())
 		}
 	default:
-		fmt.Fprint(c.Stdout, resources.ScopedTokenTextHelper(tokens, c.withSecrets).String())
+		fmt.Fprint(c.Stdout, scopedTokenTextHelper(tokens, c.withSecrets).String())
 	}
 	return nil
 }

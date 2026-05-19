@@ -98,19 +98,19 @@ func TestHandover(t *testing.T) {
 
 	require.IsType((*Conn)(nil), wrappedNC)
 
-	clt, err := sshClient(t.Context(), wrappedNC)
+	clt, err := sshClient(wrappedNC)
 	require.NoError(err)
 	defer clt.Close()
 
 	const wantReplyTrue = true
-	_, _, err = clt.SendRequest(t.Context(), "foo", wantReplyTrue, nil)
+	_, _, err = clt.SendRequest("foo", wantReplyTrue, nil)
 	require.NoError(err)
 
 	_ = originalNC.Close()
 	nextNC := dial(s2.HandleConnection, netip.MustParseAddr("127.0.0.1"))
 	redialConns <- nextNC
 
-	_, _, err = clt.SendRequest(t.Context(), "foo", wantReplyTrue, nil)
+	_, _, err = clt.SendRequest("foo", wantReplyTrue, nil)
 	require.NoError(err)
 
 	_ = nextNC.Close()

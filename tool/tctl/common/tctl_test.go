@@ -239,25 +239,14 @@ func TestConnect(t *testing.T) {
 				tc.modifyConfig(cfg)
 			}
 
-			resolved, err := tctlcfg.ApplyConfig(&tc.cliFlags, cfg)
+			clientConfig, err := tctlcfg.ApplyConfig(&tc.cliFlags, cfg)
 			if tc.wantErrContains != "" {
 				require.ErrorContains(t, err, tc.wantErrContains)
 				return
 			}
 			require.NoError(t, err)
 
-			// Identity-file and tsh-profile paths populate ClientStore+Profile
-			// for downstream callers (e.g. Access Graph credential lookup);
-			// auth-host fallback leaves both nil.
-			if tc.cliFlags.IdentityFilePath != "" {
-				require.NotNil(t, resolved.ClientStore, "identity-file path must populate ClientStore")
-				require.NotNil(t, resolved.Profile, "identity-file path must populate Profile")
-			} else {
-				require.Nil(t, resolved.ClientStore, "auth-host path must leave ClientStore nil")
-				require.Nil(t, resolved.Profile, "auth-host path must leave Profile nil")
-			}
-
-			_, err = authclient.Connect(ctx, resolved.Auth)
+			_, err = authclient.Connect(ctx, clientConfig)
 			require.NoError(t, err)
 		})
 	}

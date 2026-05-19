@@ -54,7 +54,6 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
-	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 var (
@@ -139,7 +138,6 @@ func ForAuth(cfg Config) Config {
 	cfg.EnableRelativeExpiry = true
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindCertAuthority, LoadSecrets: true},
-		{Kind: types.KindCertAuthorityOverride},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
@@ -161,7 +159,6 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAccessRequest},
 		{Kind: types.KindAppServer},
 		{Kind: types.KindApp},
-		{Kind: types.KindBeam},
 		{Kind: types.KindWebSession, SubKind: types.KindSnowflakeSession, LoadSecrets: true},
 		{Kind: types.KindWebSession, SubKind: types.KindAppSession, LoadSecrets: true},
 		{Kind: types.KindWebSession, SubKind: types.KindWebSession, LoadSecrets: true},
@@ -175,7 +172,6 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindWindowsDesktopService},
 		{Kind: types.KindWindowsDesktop},
 		{Kind: types.KindDynamicWindowsDesktop},
-		{Kind: types.KindLinuxDesktop},
 		{Kind: types.KindKubeServer},
 		{Kind: types.KindInstaller},
 		{Kind: types.KindKubernetesCluster},
@@ -220,12 +216,10 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindRelayServer},
 		{Kind: types.KindBotInstance},
 		{Kind: types.KindRecordingEncryption},
-		{Kind: types.KindAppAuthConfig},
 		{Kind: types.KindInferenceModel},
 		{Kind: types.KindInferencePolicy},
 		{Kind: types.KindInferenceSecret},
 		{Kind: types.KindRetrievalModel},
-		{Kind: types.KindValidatedMFAChallenge},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -267,7 +261,6 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindWindowsDesktopService},
 		{Kind: types.KindWindowsDesktop},
 		{Kind: types.KindDynamicWindowsDesktop},
-		{Kind: types.KindLinuxDesktop},
 		{Kind: types.KindKubeServer},
 		{Kind: types.KindKubernetesCluster},
 		{Kind: types.KindSAMLIdPServiceProvider},
@@ -282,9 +275,8 @@ func ForProxy(cfg Config) Config {
 		{Kind: types.KindAutoUpdateAgentRollout},
 		{Kind: types.KindUserTask},
 		{Kind: types.KindGitServer},
-		{Kind: types.KindRelayServer},
 		{Kind: types.KindHealthCheckConfig},
-		{Kind: types.KindAppAuthConfig},
+		{Kind: types.KindRelayServer},
 	}
 	cfg.QueueSize = defaults.ProxyQueueSize
 	return cfg
@@ -323,7 +315,6 @@ func ForRemoteProxy(cfg Config) Config {
 		{Kind: types.KindNode},
 		{Kind: types.KindWindowsDesktop},
 		{Kind: types.KindWindowsDesktopService},
-		{Kind: types.KindLinuxDesktop},
 		{Kind: types.KindProxy},
 		{Kind: types.KindAuthServer},
 		{Kind: types.KindReverseTunnel},
@@ -433,7 +424,6 @@ func ForWindowsDesktop(cfg Config) Config {
 	cfg.target = "windows_desktop"
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindCertAuthority, LoadSecrets: false, Filter: makeAllKnownCAsFilter().IntoMap()},
-		{Kind: types.KindCertAuthorityOverride},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
@@ -446,33 +436,6 @@ func ForWindowsDesktop(cfg Config) Config {
 		{Kind: types.KindDynamicWindowsDesktop},
 	}
 	cfg.QueueSize = defaults.WindowsDesktopQueueSize
-	return cfg
-}
-
-// ForLinuxDesktop sets up watch configuration for a Linux desktop service.
-func ForLinuxDesktop(cfg Config) Config {
-	var caFilter map[string]string
-	if cfg.ClusterConfig != nil {
-		clusterName, err := cfg.ClusterConfig.GetClusterName(context.TODO())
-		if err == nil {
-			caFilter = types.CertAuthorityFilter{
-				types.HostCA: clusterName.GetClusterName(),
-			}.IntoMap()
-		}
-	}
-	cfg.target = "linux_desktop"
-	cfg.Watches = []types.WatchKind{
-		{Kind: types.KindCertAuthority, LoadSecrets: false, Filter: caFilter},
-		{Kind: types.KindClusterName},
-		{Kind: types.KindClusterAuditConfig},
-		{Kind: types.KindClusterNetworkingConfig},
-		{Kind: types.KindClusterAuthPreference},
-		{Kind: types.KindSessionRecordingConfig},
-		{Kind: types.KindUser},
-		{Kind: types.KindRole},
-		{Kind: types.KindLinuxDesktop},
-	}
-	cfg.QueueSize = defaults.LinuxDesktopQueueSize
 	return cfg
 }
 
@@ -713,8 +676,6 @@ type Config struct {
 	Restrictions services.Restrictions
 	// Apps is an apps service.
 	Apps services.Applications
-	// Beams is a beam reader service.
-	Beams services.BeamReader
 	// Kubernetes is an kubernetes service.
 	Kubernetes services.Kubernetes
 	// CrownJewels is a CrownJewels service.
@@ -728,17 +689,15 @@ type Config struct {
 	// SnowflakeSession holds Snowflake sessions.
 	SnowflakeSession services.SnowflakeSession
 	// AppSession holds application sessions.
-	AppSession services.AppSessionReader
+	AppSession services.AppSession
 	// WebSession holds regular web sessions.
 	WebSession types.WebSessionInterface
 	// WebToken holds web tokens.
 	WebToken services.WebToken
-	// WindowsDesktops is a Windows desktop service.
+	// WindowsDesktops is a windows desktop service.
 	WindowsDesktops services.WindowsDesktops
 	// DynamicWindowsDesktops is a dynamic Windows desktop service.
 	DynamicWindowsDesktops services.DynamicWindowsDesktops
-	// LinuxDesktops is a Linux desktop service.
-	LinuxDesktops services.LinuxDesktops
 	// SAMLIdPServiceProviders is a SAML IdP service providers service.
 	SAMLIdPServiceProviders services.SAMLIdPServiceProviders
 	// UserGroups is a user groups service.
@@ -830,16 +789,11 @@ type Config struct {
 	HealthCheckConfig services.HealthCheckConfigReader
 	// BotInstanceService is the upstream service that we're caching
 	BotInstanceService services.BotInstance
+	Plugin             services.Plugins
 	// RecordingEncryption manages state surrounding session recording encryption
 	RecordingEncryption services.RecordingEncryption
-	// Plugins is the plugin service used to retrieve plugin information.
-	Plugin services.Plugins
-	// AppAuthConfig is a app auth config service.
-	AppAuthConfig services.AppAuthConfigReader
 	// Summarizer is a summarizer service.
 	Summarizer services.Summarizer
-	// SubCAService reads CertAuthorityOverride resources.
-	SubCAService services.SubCAServiceGetter
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -952,7 +906,7 @@ func New(config Config) (*Cache, error) {
 
 	fanout := services.NewFanoutV2(services.FanoutV2Config{})
 	lowVolumeFanouts := make([]*services.FanoutV2, 0, config.FanoutShards)
-	for range config.FanoutShards {
+	for i := 0; i < config.FanoutShards; i++ {
 		lowVolumeFanouts = append(lowVolumeFanouts, services.NewFanoutV2(services.FanoutV2Config{}))
 	}
 
@@ -1337,7 +1291,7 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 			"duration", fetchAndApplyDuration.String(),
 		)
 	} else {
-		c.Logger.Log(ctx, logutils.TraceLevel, "fetch and apply",
+		c.Logger.DebugContext(ctx, "fetch and apply",
 			"cache_target", c.Config.target,
 			"duration", fetchAndApplyDuration.String(),
 		)

@@ -28,7 +28,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -159,7 +158,7 @@ func (t *beamCopyTarget) toSFTP() string {
 	}
 	return fmt.Sprintf(
 		"%s@%s:%s",
-		types.BeamsLogin,
+		beamsLogin,
 		t.beam.GetStatus().GetNodeId(),
 		t.path,
 	)

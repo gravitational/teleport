@@ -65,7 +65,6 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	sessPkg "github.com/gravitational/teleport/lib/session"
@@ -80,7 +79,6 @@ type TestContext struct {
 	AuthServer           *auth.Server
 	AuthClient           *authclient.Client
 	Authz                authz.Authorizer
-	ScopedAuthz          authz.ScopedAuthorizer
 	KubeServer           *proxy.TLSServer
 	KubeProxy            *proxy.TLSServer
 	Emitter              *eventstest.ChannelEmitter
@@ -186,16 +184,11 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	t.Cleanup(func() {
 		testCtx.lockWatcher.Close()
 	})
-	authOpts := authz.AuthorizerOpts{
-		ClusterName:      testCtx.ClusterName,
-		AccessPoint:      proxyAuthClient,
-		ScopedRoleReader: proxyAuthClient.ScopedRoleReader(),
-		LockWatcher:      testCtx.lockWatcher,
-	}
-
-	testCtx.Authz, err = authz.NewAuthorizer(authOpts)
-	require.NoError(t, err)
-	testCtx.ScopedAuthz, err = authz.NewScopedAuthorizer(authOpts)
+	testCtx.Authz, err = authz.NewAuthorizer(authz.AuthorizerOpts{
+		ClusterName: testCtx.ClusterName,
+		AccessPoint: proxyAuthClient,
+		LockWatcher: testCtx.lockWatcher,
+	})
 	require.NoError(t, err)
 
 	// TLS config for kube proxy and Kube service.
@@ -270,7 +263,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			Namespace:   apidefaults.Namespace,
 			Keygen:      keyGen,
 			ClusterName: testCtx.ClusterName,
-			ScopedAuthz: testCtx.ScopedAuthz,
+			Authz:       testCtx.Authz,
 			// fileStreamer continues to write events after the server is shutdown and
 			// races against os.RemoveAll leading the test to fail.
 			// Using "node-sync" mode to write the events and session recordings
@@ -305,14 +298,13 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		// each time heartbeat is called we insert data into the channel.
 		// this is used to make sure that heartbeat started and the clusters
 		// are registered in the auth server
-		OnHeartbeat:          func(err error) {},
-		GetRotation:          func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
-		ResourceMatchers:     cfg.ResourceMatchers,
-		OnReconcile:          cfg.OnReconcile,
-		Log:                  logtest.NewLogger(),
-		InventoryHandle:      inventoryHandle,
-		ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
-		HealthCheckManager:   healthCheckManager,
+		OnHeartbeat:        func(err error) {},
+		GetRotation:        func(role types.SystemRole) (*types.Rotation, error) { return &types.Rotation{}, nil },
+		ResourceMatchers:   cfg.ResourceMatchers,
+		OnReconcile:        cfg.OnReconcile,
+		Log:                logtest.NewLogger(),
+		InventoryHandle:    inventoryHandle,
+		HealthCheckManager: healthCheckManager,
 	})
 	require.NoError(t, err)
 
@@ -354,7 +346,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			Namespace:   apidefaults.Namespace,
 			Keygen:      keyGen,
 			ClusterName: testCtx.ClusterName,
-			ScopedAuthz: testCtx.ScopedAuthz,
+			Authz:       testCtx.Authz,
 			// fileStreamer continues to write events after the server is shutdown and
 			// races against os.RemoveAll leading the test to fail.
 			// Using "node-sync" mode to write the events and session recordings
@@ -393,8 +385,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		GetRotation: func(role types.SystemRole) (*types.Rotation, error) {
 			return &types.Rotation{}, nil
 		},
-		ConnectedProxyGetter: reversetunnel.NewConnectedProxyGetter(),
-		HealthCheckManager:   healthCheckManager,
+		HealthCheckManager: healthCheckManager,
 	})
 	require.NoError(t, err)
 	require.Equal(t, testCtx.KubeServer.Server.ReadTimeout, time.Duration(0), "kube server write timeout must be 0")

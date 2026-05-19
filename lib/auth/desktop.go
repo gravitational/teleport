@@ -29,15 +29,15 @@ import (
 	"encoding/pem"
 	"fmt"
 	"strconv"
+	"text/template"
 
-	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/subca"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/winpki"
@@ -46,7 +46,7 @@ import (
 // GenerateWindowsDesktopCert generates client certificate for Windows RDP
 // authentication.
 func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.WindowsDesktopCertRequest) (*proto.WindowsDesktopCertResponse, error) {
-	if !a.modules.Features().GetEntitlement(entitlements.Desktop).Enabled {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.Desktop).Enabled {
 		return nil, trace.AccessDenied(
 			"this Teleport cluster is not licensed for desktop access, please contact the cluster administrator")
 	}
@@ -89,21 +89,6 @@ func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// Calculate CA override.
-	subCAResolver, err := subca.NewCAOverrideResolver(a.Cache, a.modules.IsEnterpriseBuild(), a.subCAEnabled)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	overrideResult, err := subCAResolver.CalculateOverride(ctx, types.CertAuthorityOverrideID{
-		ClusterName: ca.GetClusterName(),
-		CAType:      string(ca.GetType()),
-	}, subca.Certificate{PEM: caCert})
-	if err != nil {
-		return nil, trace.Wrap(err, "calculate CA override")
-	}
-	caCert = overrideResult.CACertificate.PEM
-
 	tlsCA, err := tlsca.FromCertAndSigner(caCert, signer)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -142,7 +127,7 @@ func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 
 	certReq.ExtraExtensions = append(certReq.ExtraExtensions, pkix.Extension{
 		Id:    tlsca.LicenseOID,
-		Value: []byte(a.modules.BuildType()),
+		Value: []byte(modules.GetModules().BuildType()),
 	}, pkix.Extension{
 		Id:    tlsca.DesktopsLimitExceededOID,
 		Value: []byte(strconv.FormatBool(limitExceeded)),
@@ -152,8 +137,7 @@ func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 		return nil, trace.Wrap(err)
 	}
 	return &proto.WindowsDesktopCertResponse{
-		Cert:       cert,
-		CaOverride: overrideResult.ToClientOverrideDetailsProto(),
+		Cert: cert,
 	}, nil
 }
 

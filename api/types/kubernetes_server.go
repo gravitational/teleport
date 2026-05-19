@@ -58,12 +58,6 @@ type KubeServer interface {
 	SetCluster(KubeCluster) error
 	// ProxiedService provides common methods for a proxied service.
 	ProxiedService
-	// GetRelayGroup returns the name of the Relay group that the kube server is
-	// connected to.
-	GetRelayGroup() string
-	// GetRelayIDs returns the list of Relay host IDs that the kube server is
-	// connected to.
-	GetRelayIDs() []string
 	// GetTargetHealth gets health details for a target Kubernetes cluster.
 	GetTargetHealth() *TargetHealth
 	// SetTargetHealth sets health details for a target Kubernetes cluster.
@@ -72,32 +66,22 @@ type KubeServer interface {
 	GetTargetHealthStatus() TargetHealthStatus
 	// SetTargetHealthStatus sets the health status of a target Kubernetes cluster.
 	SetTargetHealthStatus(status TargetHealthStatus)
+	// GetRelayGroup returns the name of the Relay group that the kube server is
+	// connected to.
+	GetRelayGroup() string
+	// GetRelayIDs returns the list of Relay host IDs that the kube server is
+	// connected to.
+	GetRelayIDs() []string
 	// GetScope returns the scope this server belongs to.
 	GetScope() string
-	// IsEqual determines if two kube server resources are equivalent to one another.
-	IsEqual(i KubeServer) bool
-}
-
-type kubeServerOpt func(*KubernetesServerV3)
-
-// KubeServerWithScope is an option that sets the scope when building a [KubernetesServerV3].
-func KubeServerWithScope(scope string) kubeServerOpt {
-	return func(s *KubernetesServerV3) {
-		s.Scope = scope
-	}
 }
 
 // NewKubernetesServerV3 creates a new kube server instance.
-func NewKubernetesServerV3(meta Metadata, spec KubernetesServerSpecV3, opts ...kubeServerOpt) (*KubernetesServerV3, error) {
+func NewKubernetesServerV3(meta Metadata, spec KubernetesServerSpecV3) (*KubernetesServerV3, error) {
 	s := &KubernetesServerV3{
 		Metadata: meta,
 		Spec:     spec,
 	}
-
-	for _, opt := range opts {
-		opt(s)
-	}
-
 	if err := s.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -106,16 +90,13 @@ func NewKubernetesServerV3(meta Metadata, spec KubernetesServerSpecV3, opts ...k
 
 // NewKubernetesServerV3FromCluster creates a new kubernetes server from the provided clusters.
 func NewKubernetesServerV3FromCluster(cluster *KubernetesClusterV3, hostname, hostID string) (*KubernetesServerV3, error) {
-	return NewKubernetesServerV3(
-		Metadata{
-			Name: cluster.GetName(),
-		}, KubernetesServerSpecV3{
-			Hostname: hostname,
-			HostID:   hostID,
-			Cluster:  cluster,
-		},
-		KubeServerWithScope(cluster.GetScope()),
-	)
+	return NewKubernetesServerV3(Metadata{
+		Name: cluster.GetName(),
+	}, KubernetesServerSpecV3{
+		Hostname: hostname,
+		HostID:   hostID,
+		Cluster:  cluster,
+	})
 }
 
 // GetVersion returns the kubernetes server resource version.

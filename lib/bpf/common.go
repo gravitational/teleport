@@ -33,7 +33,7 @@ import (
 type BPF interface {
 	// OpenSession will start monitoring all events within a session and
 	// emitting them to the Audit Log.
-	OpenSession(ctx *SessionContext) error
+	OpenSession(ctx *SessionContext) (uint64, error)
 
 	// CloseSession will stop monitoring events for a particular session.
 	CloseSession(ctx *SessionContext) error
@@ -43,10 +43,6 @@ type BPF interface {
 
 	// Enabled returns whether enhanced recording is active.
 	Enabled() bool
-
-	// LostEvents returns the total number of lost events for command, disk,
-	// and network events since the service was started.
-	LostEvents() EventCount
 }
 
 // SessionContext contains all the information needed to track and emit
@@ -79,71 +75,35 @@ type SessionContext struct {
 	// originally from.
 	UserOriginClusterName string
 
+	// PID is the process ID of Teleport when it re-executes itself. This is
+	// used by Teleport to find itself by cgroup.
+	PID int
+
 	// Emitter is used to record events for a particular session
 	Emitter apievents.Emitter
 
 	// Events is the set of events (command, disk, or network) to record for
 	// this session.
-	Events map[string]struct{}
+	Events map[string]bool
 
 	// UserRoles are the roles assigned to the user.
 	UserRoles []string
 	// UserTraits are the traits assigned to the user.
 	UserTraits wrappers.Traits
-
-	// AuditSessionID is the audit session ID that should be the same
-	// for all processes in an SSH session. It is used to correlate
-	// audit events with the session. See
-	// https://github.com/torvalds/linux/blob/b75d8f38bcc9599af42635530c00268c71911f11/Documentation/ABI/stable/procfs-audit_loginuid
-	// for more details.
-	AuditSessionID uint32
-}
-
-// EventCount is a simple struct to track the number of events.
-type EventCount struct {
-	commandEvents uint64
-	diskEvents    uint64
-	networkEvents uint64
-}
-
-// Delta returns the number of events that have occurred since the previous
-// EventCount.
-func (e EventCount) Delta(prev EventCount) EventCount {
-	return EventCount{
-		commandEvents: e.commandEvents - prev.commandEvents,
-		diskEvents:    e.diskEvents - prev.diskEvents,
-		networkEvents: e.networkEvents - prev.networkEvents,
-	}
-}
-
-// Empty returns true if there are no events.
-func (e EventCount) Empty() bool {
-	return max(e.commandEvents, e.diskEvents, e.networkEvents) == 0
-}
-
-func (e EventCount) CommandEvents() uint64 {
-	return e.commandEvents
-}
-
-func (e EventCount) DiskEvents() uint64 {
-	return e.diskEvents
-}
-
-func (e EventCount) NetworkEvents() uint64 {
-	return e.networkEvents
 }
 
 // NOP is used on either non-Linux systems or when BPF support is not enabled.
-type NOP struct{}
+type NOP struct {
+}
 
 // Close closes the NOP service. Note this function does nothing.
-func (s *NOP) Close(_ bool) error {
+func (s *NOP) Close(bool) error {
 	return nil
 }
 
 // OpenSession opens a NOP session. Note this function does nothing.
-func (s *NOP) OpenSession(_ *SessionContext) error {
-	return nil
+func (s *NOP) OpenSession(_ *SessionContext) (uint64, error) {
+	return 0, nil
 }
 
 // CloseSession closes a NOP session. Note this function does nothing.
@@ -155,19 +115,13 @@ func (s *NOP) Enabled() bool {
 	return false
 }
 
-// LostEvents returns the number of lost events. Note this function
-// does nothing.
-func (s *NOP) LostEvents() EventCount {
-	return EventCount{}
-}
-
 // IsHostCompatible checks that BPF programs can run on this host.
 func IsHostCompatible() error {
 	version, err := utils.KernelVersion()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	minKernelVersion := semver.Version{Major: 5, Minor: 11, Patch: 0}
+	minKernelVersion := semver.Version{Major: 5, Minor: 8, Patch: 0}
 	if version.LessThan(minKernelVersion) {
 		return trace.BadParameter("incompatible kernel found, minimum supported kernel is %v", minKernelVersion)
 	}

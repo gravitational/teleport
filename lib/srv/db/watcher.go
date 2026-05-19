@@ -41,14 +41,11 @@ func (s *Server) startReconciler(ctx context.Context) error {
 	reconciler, err := services.NewReconciler(services.ReconcilerConfig[types.Database]{
 		Matcher:             s.matcher,
 		GetCurrentResources: s.getResources,
-		CompareResources: func(d1, d2 types.Database) int {
-			return services.EqualFromBool(d1.IsEqual(d2))
-		},
-		GetNewResources: s.monitoredDatabases.getLocked,
-		OnCreate:        s.onCreate,
-		OnUpdate:        s.onUpdate,
-		OnDelete:        s.onDelete,
-		Logger:          s.log.With("kind", types.KindDatabase),
+		GetNewResources:     s.monitoredDatabases.getLocked,
+		OnCreate:            s.onCreate,
+		OnUpdate:            s.onUpdate,
+		OnDelete:            s.onDelete,
+		Logger:              s.log.With("kind", types.KindDatabase),
 	})
 	if err != nil {
 		return trace.Wrap(err)

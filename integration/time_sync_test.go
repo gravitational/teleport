@@ -19,6 +19,7 @@
 package integration
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -28,15 +29,19 @@ import (
 
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/integration/helpers"
+	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
 // TestTimeReconciliation launches two instances with clock differences in system clock,
 // to verify that global notification is created about time drifting.
 func TestTimeReconciliation(t *testing.T) {
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
 	helpers.SetTestTimeouts(2 * time.Second)
 
-	ctx := t.Context()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	// Start Teleport Auth and Proxy services
 	authProcess, proxyProcess, provisionToken := helpers.MakeTestServers(t)

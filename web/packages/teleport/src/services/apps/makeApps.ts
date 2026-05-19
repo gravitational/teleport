@@ -37,10 +37,9 @@ function getLaunchUrl({
   publicAddr: string;
 }) {
   if (useAnyProxyPublicAddr) {
-    if (!fqdn) {
-      return '';
-    }
-    return cfg.getAppLauncherRoute({ fqdn });
+    return cfg.getAppLauncherRoute({
+      fqdn,
+    });
   }
 
   if (publicAddr && clusterId && fqdn) {
@@ -106,7 +105,7 @@ export default function makeApp(json: any): App {
     }
   }
 
-  if (useAnyProxyPublicAddr && fqdn) {
+  if (useAnyProxyPublicAddr) {
     addrWithProtocol = `https://${fqdn}`;
   }
   let samlAppSsoUrl = '';

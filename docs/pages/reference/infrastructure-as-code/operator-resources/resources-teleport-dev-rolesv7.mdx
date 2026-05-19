@@ -6,10 +6,6 @@ description: Provides a comprehensive list of fields in the TeleportRoleV7 resou
 {/*Auto-generated file. Do not edit.*/}
 {/*To regenerate, navigate to integrations/operator and run "make crd-docs".*/}
 
-{/* Disable the outdated name check since custom resource fields occasionally
-need to refer to these. */}
-{/* vale 3rd-party-products.former-names = NO */}
-
 This guide is a comprehensive reference to the fields in the `TeleportRoleV7`
 resource, which you can apply after installing the Teleport Kubernetes operator.
 
@@ -42,8 +38,6 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |app_labels_expression|string|AppLabelsExpression is a predicate expression used to allow/deny access to Apps.|
 |aws_role_arns|[]string|AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.|
 |azure_identities|[]string|AzureIdentities is a list of Azure identities this role is allowed to assume.|
-|beam_labels|[object](#specallowbeam_labels)|BeamLabels are used in the RBAC system to allow/deny access to beams.|
-|beam_labels_expression|string|BeamLabelsExpression is a predicate expression used to allow/deny access to beams.|
 |cluster_labels|[object](#specallowcluster_labels)|ClusterLabels is a map of node labels (used to dynamically grant access to clusters).|
 |cluster_labels_expression|string|ClusterLabelsExpression is a predicate expression used to allow/deny access to remote Teleport clusters.|
 |db_labels|[object](#specallowdb_labels)|DatabaseLabels are used in RBAC system to allow/deny access to databases.|
@@ -68,9 +62,6 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |kubernetes_labels_expression|string|KubernetesLabelsExpression is a predicate expression used to allow/deny access to kubernetes clusters.|
 |kubernetes_resources|[][object](#specallowkubernetes_resources-items)|KubernetesResources is the Kubernetes Resources this Role grants access to.|
 |kubernetes_users|[]string|KubeUsers is an optional kubernetes users to impersonate|
-|linux_desktop_labels|[object](#specallowlinux_desktop_labels)|LinuxDesktopLabels are used in the RBAC system to allow/deny access to Linux desktops.|
-|linux_desktop_labels_expression|string|LinuxDesktopLabelsExpression is a predicate expression used to allow/deny access to Linux desktops.|
-|linux_desktop_logins|[]string|LinuxDesktopLogins is a list of desktop login names allowed/denied for Linux desktops.|
 |logins|[]string|Logins is a list of *nix system logins.|
 |mcp|[object](#specallowmcp)|MCPPermissions defines MCP servers related permissions.|
 |node_labels|[object](#specallownode_labels)|NodeLabels is a map of node labels (used to dynamically grant access to nodes).|
@@ -94,13 +85,6 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |permission_set|string||
 
 ### spec.allow.app_labels
-
-|Field|Type|Description|
-|---|---|---|
-|key|string||
-|value|string||
-
-### spec.allow.beam_labels
 
 |Field|Type|Description|
 |---|---|---|
@@ -189,13 +173,6 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |namespace|string|Namespace is the resource namespace. It supports wildcards.|
 |verbs|[]string|Verbs are the allowed Kubernetes verbs for the following resource.|
 
-### spec.allow.linux_desktop_labels
-
-|Field|Type|Description|
-|---|---|---|
-|key|string||
-|value|string||
-
 ### spec.allow.mcp
 
 |Field|Type|Description|
@@ -279,7 +256,6 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |claims_to_roles|[][object](#specallowreview_requestsclaims_to_roles-items)|ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.|
 |preview_as_roles|[]string|PreviewAsRoles is a list of extra roles which should apply to a reviewer while they are viewing a Resource Access Request for the purposes of viewing details such as the hostname and labels of requested resources.|
 |roles|[]string|Roles is the name of roles which may be reviewed.|
-|submit_for_users|[]string|SubmitForUsers is used by Teleport plugins to indicate they can submit reviews on behalf of other users. Reviews submitted for a user are evaluated against that user's own RBAC permissions. Supports wildcard (*).|
 |where|string|Where is an optional predicate which further limits which requests are reviewable.|
 
 ### spec.allow.review_requests.claims_to_roles items
@@ -330,8 +306,6 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |app_labels_expression|string|AppLabelsExpression is a predicate expression used to allow/deny access to Apps.|
 |aws_role_arns|[]string|AWSRoleARNs is a list of AWS role ARNs this role is allowed to assume.|
 |azure_identities|[]string|AzureIdentities is a list of Azure identities this role is allowed to assume.|
-|beam_labels|[object](#specdenybeam_labels)|BeamLabels are used in the RBAC system to allow/deny access to beams.|
-|beam_labels_expression|string|BeamLabelsExpression is a predicate expression used to allow/deny access to beams.|
 |cluster_labels|[object](#specdenycluster_labels)|ClusterLabels is a map of node labels (used to dynamically grant access to clusters).|
 |cluster_labels_expression|string|ClusterLabelsExpression is a predicate expression used to allow/deny access to remote Teleport clusters.|
 |db_labels|[object](#specdenydb_labels)|DatabaseLabels are used in RBAC system to allow/deny access to databases.|
@@ -356,9 +330,6 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |kubernetes_labels_expression|string|KubernetesLabelsExpression is a predicate expression used to allow/deny access to kubernetes clusters.|
 |kubernetes_resources|[][object](#specdenykubernetes_resources-items)|KubernetesResources is the Kubernetes Resources this Role grants access to.|
 |kubernetes_users|[]string|KubeUsers is an optional kubernetes users to impersonate|
-|linux_desktop_labels|[object](#specdenylinux_desktop_labels)|LinuxDesktopLabels are used in the RBAC system to allow/deny access to Linux desktops.|
-|linux_desktop_labels_expression|string|LinuxDesktopLabelsExpression is a predicate expression used to allow/deny access to Linux desktops.|
-|linux_desktop_logins|[]string|LinuxDesktopLogins is a list of desktop login names allowed/denied for Linux desktops.|
 |logins|[]string|Logins is a list of *nix system logins.|
 |mcp|[object](#specdenymcp)|MCPPermissions defines MCP servers related permissions.|
 |node_labels|[object](#specdenynode_labels)|NodeLabels is a map of node labels (used to dynamically grant access to nodes).|
@@ -382,13 +353,6 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |permission_set|string||
 
 ### spec.deny.app_labels
-
-|Field|Type|Description|
-|---|---|---|
-|key|string||
-|value|string||
-
-### spec.deny.beam_labels
 
 |Field|Type|Description|
 |---|---|---|
@@ -477,13 +441,6 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |namespace|string|Namespace is the resource namespace. It supports wildcards.|
 |verbs|[]string|Verbs are the allowed Kubernetes verbs for the following resource.|
 
-### spec.deny.linux_desktop_labels
-
-|Field|Type|Description|
-|---|---|---|
-|key|string||
-|value|string||
-
 ### spec.deny.mcp
 
 |Field|Type|Description|
@@ -567,7 +524,6 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |claims_to_roles|[][object](#specdenyreview_requestsclaims_to_roles-items)|ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.|
 |preview_as_roles|[]string|PreviewAsRoles is a list of extra roles which should apply to a reviewer while they are viewing a Resource Access Request for the purposes of viewing details such as the hostname and labels of requested resources.|
 |roles|[]string|Roles is the name of roles which may be reviewed.|
-|submit_for_users|[]string|SubmitForUsers is used by Teleport plugins to indicate they can submit reviews on behalf of other users. Reviews submitted for a user are evaluated against that user's own RBAC permissions. Supports wildcard (*).|
 |where|string|Where is an optional predicate which further limits which requests are reviewable.|
 
 ### spec.deny.review_requests.claims_to_roles items

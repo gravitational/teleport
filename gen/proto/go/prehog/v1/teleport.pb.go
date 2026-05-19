@@ -111,7 +111,7 @@ func (UserKind) EnumDescriptor() ([]byte, []int) {
 
 // UserOrigin is the origin of a user account.
 // Keep the values in sync with UserOrigin enum defined in
-// Teleport OSS repository.
+// API events and prehogv1alpha.
 type UserOrigin int32
 
 const (
@@ -400,18 +400,15 @@ type UserActivityRecord struct {
 	CertificatesIssued uint64 `protobuf:"varint,17,opt,name=certificates_issued,json=certificatesIssued,proto3" json:"certificates_issued,omitempty"`
 	// counter of SVIDs issued for each SPIFFE ID.
 	SpiffeIdsIssued []*SPIFFEIDRecord `protobuf:"bytes,18,rep,name=spiffe_ids_issued,json=spiffeIdsIssued,proto3" json:"spiffe_ids_issued,omitempty"`
-	// Indicates origin of this user account. Only
-	// recorded for the user login event.
+	// Indicates origin of user account.
 	UserOrigin UserOrigin `protobuf:"varint,19,opt,name=user_origin,json=userOrigin,proto3,enum=prehog.v1.UserOrigin" json:"user_origin,omitempty"`
 	// counter of Access Requests created by this user.
 	AccessRequestsCreated uint64 `protobuf:"varint,20,opt,name=access_requests_created,json=accessRequestsCreated,proto3" json:"access_requests_created,omitempty"`
 	// counter of Access Requests reviewed by this user.
 	AccessRequestsReviewed uint64 `protobuf:"varint,21,opt,name=access_requests_reviewed,json=accessRequestsReviewed,proto3" json:"access_requests_reviewed,omitempty"`
-	// counter of Access Lists reviewed by this user.
+	// counter of Access List review.
 	AccessListsReviewed uint64 `protobuf:"varint,22,opt,name=access_lists_reviewed,json=accessListsReviewed,proto3" json:"access_lists_reviewed,omitempty"`
-	// counter of roles or traits granted to this user based on
-	// the Access List membership. The event is emitted during
-	// user login state calculation.
+	// counter of roles or traits grant event based on Access List membership.
 	AccessListsGrants uint64 `protobuf:"varint,23,opt,name=access_lists_grants,json=accessListsGrants,proto3" json:"access_lists_grants,omitempty"`
 	// counter of successful SAML IdP authentication by this user.
 	SamlIdpSessions uint64 `protobuf:"varint,24,opt,name=saml_idp_sessions,json=samlIdpSessions,proto3" json:"saml_idp_sessions,omitempty"`
@@ -424,10 +421,8 @@ type UserActivityRecord struct {
 	// counter of free-text session summary search queries submitted by this user
 	// where the request included filters.
 	SessionSummarySearchQueriesWithFilters uint64 `protobuf:"varint,28,opt,name=session_summary_search_queries_with_filters,json=sessionSummarySearchQueriesWithFilters,proto3" json:"session_summary_search_queries_with_filters,omitempty"`
-	// counter of linux.desktop.session.start events
-	LinuxDesktopSessions uint64 `protobuf:"varint,29,opt,name=linux_desktop_sessions,json=linuxDesktopSessions,proto3" json:"linux_desktop_sessions,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	unknownFields                          protoimpl.UnknownFields
+	sizeCache                              protoimpl.SizeCache
 }
 
 func (x *UserActivityRecord) Reset() {
@@ -653,13 +648,6 @@ func (x *UserActivityRecord) GetSessionSummarySearchQueries() uint64 {
 func (x *UserActivityRecord) GetSessionSummarySearchQueriesWithFilters() uint64 {
 	if x != nil {
 		return x.SessionSummarySearchQueriesWithFilters
-	}
-	return 0
-}
-
-func (x *UserActivityRecord) GetLinuxDesktopSessions() uint64 {
-	if x != nil {
-		return x.LinuxDesktopSessions
 	}
 	return 0
 }
@@ -1652,7 +1640,8 @@ const file_prehog_v1_teleport_proto_rawDesc = "" +
 	"\x0freporter_hostid\x18\x03 \x01(\fR\x0ereporterHostid\x129\n" +
 	"\n" +
 	"start_time\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\tstartTime\x127\n" +
-	"\arecords\x18\x05 \x03(\v2\x1d.prehog.v1.UserActivityRecordR\arecords\"\xa3\v\n" +
+	"\arecords\x18\x05 \x03(\v2\x1d.prehog.v1.UserActivityRecordR\arecords\"\xed\n" +
+	"\n" +
 	"\x12UserActivityRecord\x12\x1b\n" +
 	"\tuser_name\x18\x01 \x01(\fR\buserName\x120\n" +
 	"\tuser_kind\x18\x0e \x01(\x0e2\x13.prehog.v1.UserKindR\buserKind\x12\x16\n" +
@@ -1685,8 +1674,7 @@ const file_prehog_v1_teleport_proto_rawDesc = "" +
 	"\x1asession_summaries_accessed\x18\x19 \x03(\v2).prehog.v1.SessionSummariesAccessedRecordR\x18sessionSummariesAccessed\x120\n" +
 	"\x14access_graph_queries\x18\x1a \x01(\x04R\x12accessGraphQueries\x12C\n" +
 	"\x1esession_summary_search_queries\x18\x1b \x01(\x04R\x1bsessionSummarySearchQueries\x12[\n" +
-	"+session_summary_search_queries_with_filters\x18\x1c \x01(\x04R&sessionSummarySearchQueriesWithFilters\x124\n" +
-	"\x16linux_desktop_sessions\x18\x1d \x01(\x04R\x14linuxDesktopSessions\"\x9b\x02\n" +
+	"+session_summary_search_queries_with_filters\x18\x1c \x01(\x04R&sessionSummarySearchQueriesWithFilters\"\x9b\x02\n" +
 	"\x16ResourcePresenceReport\x12\x1f\n" +
 	"\vreport_uuid\x18\x01 \x01(\fR\n" +
 	"reportUuid\x12!\n" +

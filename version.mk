@@ -1,6 +1,3 @@
-# Include common makefile shared between OSS and Ent.
-include common.mk
-
 GITREF=$(shell git describe --long --tags)
 
 # $(GITREF_GO) will be written to gitref.go
@@ -20,10 +17,14 @@ setver: validate-semver helm-version tsh-version
 # so that chart versions are also kept in sync when the Teleport version is updated for a release.
 # If the version contains '-dev' (as it does on the master branch, or for development builds) then we get the latest
 # published major version number by parsing a sorted list of git tags instead, to make deploying the chart from master
-# work as expected.
+# work as expected. Version numbers are quoted as a string because Helm otherwise treats dotted decimals as floats.
+# The weird -i usage is to make the sed commands work the same on both Linux and Mac. Test on both platforms if you change it.
 .PHONY:helm-version
 helm-version:
-	$(HELMJANITOR) update-version $(VERSION)
+	for CHART in teleport-cluster tbot tbot-spiffe-daemon-set teleport-kube-updater teleport-kube-agent teleport-cluster/charts/teleport-operator teleport-relay event-handler access/discord access/email access/jira access/mattermost access/msteams access/pagerduty access/slack access/datadog; do \
+		sed -i'.bak' -e "s_^\\.version:\ .*_.version: \\&version \"$${VERSION}\"_g" examples/chart/$${CHART}/Chart.yaml || exit 1; \
+		rm -f examples/chart/$${CHART}/Chart.yaml.bak; \
+	done
 
 TSH_APP_PLISTS := $(wildcard build.assets/macos/*/tsh.app/Contents/Info.plist)
 PLIST_FILES := $(abspath $(TSH_APP_PLISTS))

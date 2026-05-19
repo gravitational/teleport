@@ -41,9 +41,12 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
+	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/app/common"
@@ -160,6 +163,7 @@ func testForward(p *Pack, t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 			status, body, err := p.MakeRequest(tt.inCookies, http.MethodGet, "/")
@@ -221,6 +225,7 @@ func testWebsockets(p *Pack, t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 			body, err := p.makeWebsocketRequest(tt.inCookies, "/")
@@ -271,6 +276,7 @@ func testForwardModes(p *Pack, t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 			status, body, err := p.MakeRequest(tt.inCookies, http.MethodGet, "/")
@@ -284,6 +290,14 @@ func testForwardModes(p *Pack, t *testing.T) {
 // testClientCert tests mutual TLS authentication flow with application
 // access typically used in CLI by curl and other clients.
 func testClientCert(p *Pack, t *testing.T) {
+	modulestest.SetTestModules(t, modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.App: {Enabled: true},
+			},
+		},
+	})
 	evilUser, _ := p.CreateUser(t)
 	rootWs := p.CreateAppSession(t, CreateAppSessionParams{
 		Username:      p.username,
@@ -378,6 +392,7 @@ func testClientCert(p *Pack, t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 			status, body, err := p.makeRequestWithClientCert(tt.inTLSConfig, http.MethodGet, "/")
@@ -825,6 +840,7 @@ func TestTCP(t *testing.T) {
 	}
 
 	for _, test := range tests {
+		test := test
 		t.Run(test.description, func(t *testing.T) {
 			t.Parallel()
 

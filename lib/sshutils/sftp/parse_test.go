@@ -235,14 +235,14 @@ var parseTestCases = []struct {
 	{
 		name: "invalid IPv6 addr, only one colon",
 		in:   "[user]@[:",
-		errCheck: func(t require.TestingT, err error, i ...any) {
+		errCheck: func(t require.TestingT, err error, i ...interface{}) {
 			require.EqualError(t, err, fmt.Sprintf("%q has an invalid host, host cannot contain '[' unless it is an IPv6 address", i[0]))
 		},
 	},
 	{
 		name: "invalid IPv6 addr, only one colon",
 		in:   "[user]@[::1:file",
-		errCheck: func(t require.TestingT, err error, i ...any) {
+		errCheck: func(t require.TestingT, err error, i ...interface{}) {
 			require.EqualError(t, err, fmt.Sprintf("%q has an invalid host, host cannot contain '[' or ':' unless it is an IPv6 address", i[0]))
 		},
 	},

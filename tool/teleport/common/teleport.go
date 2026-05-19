@@ -697,7 +697,7 @@ Examples:
   force: false`)
 
 	// parse CLI commands+flags:
-	utils.UpdateAppUsageTemplate(app)
+	utils.UpdateAppUsageTemplate(app, options.Args)
 	command, err := app.Parse(options.Args)
 	if err != nil {
 		app.Usage(options.Args)

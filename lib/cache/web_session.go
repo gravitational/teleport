@@ -52,7 +52,7 @@ func newWebSessionCollection(upstream types.WebSessionInterface, w types.WatchKi
 			}
 
 			if !loadSecrets {
-				for i := range webSessions {
+				for i := 0; i < len(webSessions); i++ {
 					webSessions[i] = webSessions[i].WithoutSecrets()
 				}
 			}
@@ -112,7 +112,7 @@ const (
 	appSessionUserIndex appSessionIndex = "user"
 )
 
-func newAppSessionCollection(upstream services.AppSessionReader, w types.WatchKind) (*collection[types.WebSession, appSessionIndex], error) {
+func newAppSessionCollection(upstream services.AppSession, w types.WatchKind) (*collection[types.WebSession, appSessionIndex], error) {
 	if upstream == nil {
 		return nil, trace.BadParameter("missing parameter AppSession")
 	}
@@ -261,7 +261,7 @@ func newSnowflakeSessionCollection(upstream services.SnowflakeSession, w types.W
 			}
 
 			if !loadSecrets {
-				for i := range webSessions {
+				for i := 0; i < len(webSessions); i++ {
 					webSessions[i] = webSessions[i].WithoutSecrets()
 				}
 			}

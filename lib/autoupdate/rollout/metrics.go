@@ -269,7 +269,7 @@ func valuesHelpString[K constraints.Integer](possibleValues map[K]string) string
 	// maps are nor ordered, so we must sort keys to consistently generate the help message.
 	keys := maps.Keys(possibleValues)
 	for _, k := range slices.Sorted(keys) {
-		fmt.Fprintf(&sb, " %d:%s", k, possibleValues[k])
+		sb.WriteString(fmt.Sprintf(" %d:%s", k, possibleValues[k]))
 	}
 
 	sb.WriteRune('.')

@@ -17,7 +17,7 @@
  */
 
 import React from 'react';
-import { Link } from 'react-router';
+import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 
 import Box from 'design/Box/Box';

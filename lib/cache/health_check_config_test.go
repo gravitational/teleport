@@ -51,26 +51,23 @@ func TestHealthCheckConfig(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(p.Close)
 
-	testResources153(t, p,
-		testFuncs[*healthcheckconfigv1.HealthCheckConfig]{
-			newResource: func(name string) (*healthcheckconfigv1.HealthCheckConfig, error) {
-				return newHealthCheckConfig(t, name), nil
-			},
-			create: func(ctx context.Context, cfg *healthcheckconfigv1.HealthCheckConfig) error {
-				_, err := p.healthCheckConfig.CreateHealthCheckConfig(ctx, cfg)
-				return trace.Wrap(err)
-			},
-			list: filterHealthCfgNonVirtual(p.healthCheckConfig.ListHealthCheckConfigs),
-			update: func(ctx context.Context, cfg *healthcheckconfigv1.HealthCheckConfig) error {
-				_, err := p.healthCheckConfig.UpdateHealthCheckConfig(ctx, cfg)
-				return trace.Wrap(err)
-			},
-			deleteAll: p.healthCheckConfig.DeleteAllHealthCheckConfigs,
-			cacheList: filterHealthCfgNonVirtual(p.cache.ListHealthCheckConfigs),
-			cacheGet:  p.cache.GetHealthCheckConfig,
+	testResources153(t, p, testFuncs[*healthcheckconfigv1.HealthCheckConfig]{
+		newResource: func(name string) (*healthcheckconfigv1.HealthCheckConfig, error) {
+			return newHealthCheckConfig(t, name), nil
 		},
-		withSkipPaginationTest(),
-	)
+		create: func(ctx context.Context, cfg *healthcheckconfigv1.HealthCheckConfig) error {
+			_, err := p.healthCheckConfig.CreateHealthCheckConfig(ctx, cfg)
+			return trace.Wrap(err)
+		},
+		list: filterHealthCfgNonVirtual(p.healthCheckConfig.ListHealthCheckConfigs),
+		update: func(ctx context.Context, cfg *healthcheckconfigv1.HealthCheckConfig) error {
+			_, err := p.healthCheckConfig.UpdateHealthCheckConfig(ctx, cfg)
+			return trace.Wrap(err)
+		},
+		deleteAll: p.healthCheckConfig.DeleteAllHealthCheckConfigs,
+		cacheList: filterHealthCfgNonVirtual(p.cache.ListHealthCheckConfigs),
+		cacheGet:  p.cache.GetHealthCheckConfig,
+	}, withSkipPaginationTest())
 }
 
 type listHealthCfgFunc func(ctx context.Context, pageSize int, pageToken string) ([]*healthcheckconfigv1.HealthCheckConfig, string, error)

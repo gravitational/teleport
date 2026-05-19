@@ -202,7 +202,6 @@ func newTeleportConfig() *servicecfg.Config {
 	tconf.PollingPeriod = 500 * time.Millisecond
 	tconf.Testing.ClientTimeout = time.Second
 	tconf.Testing.ShutdownTimeout = 2 * tconf.Testing.ClientTimeout
-	tconf.InsecureMode = true
 	return tconf
 }
 

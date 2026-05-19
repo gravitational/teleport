@@ -67,7 +67,6 @@ import (
 	apitracing "github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/profile"
-	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -100,7 +99,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
-	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 const (
@@ -114,8 +112,10 @@ var AllAddKeysOptions = []string{AddKeysToAgentAuto, AddKeysToAgentNo, AddKeysTo
 
 // ValidateAgentKeyOption validates that a string is a valid option for the AddKeysToAgent parameter.
 func ValidateAgentKeyOption(supplied string) error {
-	if slices.Contains(AllAddKeysOptions, supplied) {
-		return nil
+	for _, option := range AllAddKeysOptions {
+		if supplied == option {
+			return nil
+		}
 	}
 
 	return trace.BadParameter("invalid value %q, must be one of %v", supplied, AllAddKeysOptions)
@@ -287,9 +287,9 @@ type Config struct {
 	// X11ForwardingTrusted specifies the X11 forwarding security mode.
 	X11ForwardingTrusted bool
 
-	// PublicKeyAuthConfig specifies how the client should obtain public keys for SSH authentication. If specified, the
-	// client will use this in addition to certs stored in the client store.
-	PublicKeyAuthConfig apissh.PublicKeyAuthConfig
+	// AuthMethods are used to login into the cluster. If specified, the client will
+	// use them in addition to certs stored in the client store.
+	AuthMethods []ssh.AuthMethod
 
 	// TLSConfig is TLS configuration, if specified, the client
 	// will use this TLS configuration to access API endpoints
@@ -546,8 +546,8 @@ type CachePolicy struct {
 
 func (c *Config) CheckAndSetDefaults() error {
 	if c.ClientStore == nil {
-		if c.TLS == nil && c.PublicKeyAuthConfig.IsEmpty() {
-			return trace.BadParameter("either client store is set or public key auth config must be set")
+		if c.TLS == nil && c.AuthMethods == nil {
+			return trace.BadParameter("either client store is or static auth methods are required")
 		}
 		// Client will use static auth methods instead of client store.
 		// Initialize empty client store to prevent panics.
@@ -2010,10 +2010,11 @@ func (tc *TeleportClient) SSH(ctx context.Context, command []string, opts ...fun
 	return tc.runShellOrCommandOnSingleNode(ctx, clt, nodeAddrs[0].Addr, command, options)
 }
 
-// ConnectToNode establishes a connection to the target host. It first attempts to connect with the existing
-// certificates, which can succeed if per-session MFA is not required or if the node supports in-band MFA. If that
-// fails, it falls back to the legacy per-session MFA certificate flow. If both attempts fail, it returns the error
-// that is most likely to be helpful to the user.
+// ConnectToNode attempts to establish a connection to the node resolved to by the provided
+// NodeDetails. Connecting is attempted both with the already provisioned certificates and
+// if per session mfa is required, after completing the mfa ceremony. In the event that both
+// fail the error from the connection attempt with the already provisioned certificates will
+// be returned. The client from whichever attempt succeeds first will be returned.
 func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient, nodeDetails NodeDetails, user string) (_ *NodeClient, err error) {
 	node := nodeName(TargetNode{Addr: nodeDetails.Addr})
 	ctx, span := tc.Tracer.Start(
@@ -2027,24 +2028,91 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 	)
 	defer func() { apitracing.EndSpan(span, err) }()
 
-	// Try to connect directly with existing certs. This can succeed if MFA is not required or if the node supports
-	// in-band MFA and the ceremony completes successfully.
-	nodeClient, directErr := tc.connectToNode(ctx, clt, nodeDetails, user, node)
-	if directErr == nil {
-		return nodeClient, nil
+	// if per-session mfa is required, perform the mfa ceremony to get
+	// new certificates and use them to connect.
+	if nodeDetails.MFACheck != nil && nodeDetails.MFACheck.Required {
+		clt, err := tc.connectToNodeWithMFA(ctx, clt, nodeDetails, user)
+		return clt, trace.Wrap(err)
 	}
 
-	// Fall back to attempting to connect with certs issued from the session MFA ceremony. This can succeed if MFA is
-	// required and the user has enrolled MFA devices, but will fail if the user does not have any enrolled MFA devices
-	// or if there are any issues during the MFA ceremony.
-	//
-	// TODO(cthach): DELETE IN v20.0 when the legacy per-session MFA with certifcates flow is removed.
-	nodeClient, mfaErr := tc.connectToNodeWithLegacyMFA(ctx, clt, nodeDetails, user)
-	if mfaErr == nil {
-		return nodeClient, nil
+	type clientRes struct {
+		clt *NodeClient
+		err error
 	}
+
+	directResultC := make(chan clientRes, 1)
+	mfaResultC := make(chan clientRes, 1)
+
+	// use a child context so the goroutines can terminate the other if they succeed
+	directCtx, directCancel := context.WithCancel(ctx)
+	mfaCtx, mfaCancel := context.WithCancel(ctx)
+	go func() {
+		connectCtx, span := tc.Tracer.Start(
+			directCtx,
+			"teleportClient/connectToNode",
+			oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+			oteltrace.WithAttributes(
+				attribute.String("cluster", nodeDetails.Cluster),
+				attribute.String("node", node),
+			),
+		)
+		defer span.End()
+
+		// Try connecting to the node with the certs we already have. Note that the different context being provided
+		// here is intentional. The underlying stream backing the connection will run for the duration of the session
+		// and cause the current span to have a duration longer than just the initial connection. To avoid this the
+		// parent context is used.
+		conn, details, err := clt.DialHostWithResumption(ctx, nodeDetails.Addr, nodeDetails.Cluster, tc.localAgent.ExtendedAgent)
+		if err != nil {
+			directResultC <- clientRes{err: err}
+			return
+		}
+
+		sshConfig := clt.ProxyClient.SSHConfig(user)
+		clt, err := NewNodeClient(connectCtx, sshConfig, conn, nodeDetails.ProxyFormat(), nodeDetails.Addr, tc, details.FIPS,
+			WithNodeHostname(nodeDetails.hostname), WithSSHLogDir(tc.SSHLogDir))
+		directResultC <- clientRes{clt: clt, err: err}
+	}()
+
+	go func() {
+		// try performing mfa and then connecting with the single use certs
+		clt, err := tc.connectToNodeWithMFA(mfaCtx, clt, nodeDetails, user)
+		mfaResultC <- clientRes{clt: clt, err: err}
+	}()
+
+	var directErr, mfaErr error
+	for i := 0; i < 2; i++ {
+		select {
+		case <-ctx.Done():
+			mfaCancel()
+			directCancel()
+			return nil, ctx.Err()
+		case res := <-directResultC:
+			if res.clt != nil {
+				mfaCancel()
+				res.clt.AddCancel(directCancel)
+				return res.clt, nil
+			}
+
+			directErr = res.err
+		case res := <-mfaResultC:
+			if res.clt != nil {
+				directCancel()
+				res.clt.AddCancel(mfaCancel)
+				return res.clt, nil
+			}
+
+			mfaErr = res.err
+		}
+	}
+
+	mfaCancel()
+	directCancel()
 
 	switch {
+	// No MFA errors, return any errors from the direct connection
+	case mfaErr == nil:
+		return nil, trace.Wrap(directErr)
 	// Any direct connection errors other than access denied, which should be returned
 	// if MFA is required, take precedent over MFA errors due to users not having any
 	// enrolled devices.
@@ -2059,44 +2127,6 @@ func (tc *TeleportClient) ConnectToNode(ctx context.Context, clt *ClusterClient,
 		log.DebugContext(ctx, "Failed to connect to node, returning direct connection error and ignoring MFA ceremony error", "mfa_error", mfaErr)
 		return nil, trace.Wrap(directErr)
 	}
-}
-
-// connectToNode attempts to connect to a node using already provisioned certificates.
-func (tc *TeleportClient) connectToNode(ctx context.Context, clt *ClusterClient, nodeDetails NodeDetails, user, node string) (*NodeClient, error) {
-	connectCtx, connectSpan := tc.Tracer.Start(
-		ctx,
-		"teleportClient/connectToNode",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-		oteltrace.WithAttributes(
-			attribute.String("cluster", nodeDetails.Cluster),
-			attribute.String("node", node),
-		),
-	)
-	defer connectSpan.End()
-
-	// The underlying stream backing the connection may live for the duration of the session and would make this span
-	// look longer than the dial itself. Use the parent context for dialing to keep span timing focused on connect.
-	conn, details, err := clt.DialHostWithResumption(ctx, nodeDetails.Addr, nodeDetails.Cluster, tc.localAgent.ExtendedAgent)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	nodeClient, err := NewNodeClient(
-		connectCtx,
-		clt.ProxyClient.SSHConfig(user),
-		conn,
-		nodeDetails.ProxyFormat(),
-		nodeDetails.Addr,
-		tc,
-		details.FIPS,
-		WithNodeHostname(nodeDetails.hostname),
-		WithSSHLogDir(tc.SSHLogDir),
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return nodeClient, nil
 }
 
 // MFARequiredUnknownError indicates that connections to an instance failed due
@@ -2127,14 +2157,14 @@ func (m *MFARequiredUnknownError) Unwrap() error {
 	return m.err
 }
 
-// connectToNodeWithLegacyMFA attempts to connect with certificates issued by the legacy per-session MFA flow.
-// If per-session MFA is required, it performs the MFA ceremony before dialing the target host with the new
-// certificates.
-func (tc *TeleportClient) connectToNodeWithLegacyMFA(ctx context.Context, clt *ClusterClient, nodeDetails NodeDetails, user string) (*NodeClient, error) {
+// connectToNodeWithMFA checks if per session mfa is required to connect to the target host, and
+// if it is required, then the mfa ceremony is attempted. The target host is dialed once the ceremony
+// completes and new certificates are retrieved.
+func (tc *TeleportClient) connectToNodeWithMFA(ctx context.Context, clt *ClusterClient, nodeDetails NodeDetails, user string) (*NodeClient, error) {
 	node := nodeName(TargetNode{Addr: nodeDetails.Addr})
 	ctx, span := tc.Tracer.Start(
 		ctx,
-		"teleportClient/connectToNodeWithLegacyMFA",
+		"teleportClient/connectToNodeWithMFA",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 		oteltrace.WithAttributes(
 			attribute.String("cluster", nodeDetails.Cluster),
@@ -2983,6 +3013,7 @@ func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, clt *ClusterCli
 	}
 
 	for _, node := range nodes {
+		node := node
 		g.Go(func() error {
 			ctx, span := tc.Tracer.Start(
 				gctx,
@@ -3231,8 +3262,7 @@ func (tc *TeleportClient) ConnectToCluster(ctx context.Context) (_ *ClusterClien
 // clientConfig wraps [ssh.ClientConfig] with additional
 // information about a cluster.
 type clientConfig struct {
-	apissh.ClientConfig
-
+	*ssh.ClientConfig
 	proxyAddress string
 	clusterName  func() string
 }
@@ -3246,44 +3276,21 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 	}
 
 	hostKeyCallback := tc.HostKeyCallback
-
-	// Collect static and dynamic signers. Static signers are loaded once and do not change based on the target cluster.
-	// Dynamic signers are loaded on demand and can change based on the target cluster (e.g. when connecting through a
-	// jump host and using host certificates to infer the target cluster). They will be combined at the time of
-	// connection to provide the full set of signers to use for authentication.
-	var (
-		staticSigners  []ssh.Signer
-		dynamicSigners []func() ([]ssh.Signer, error)
-	)
-
-	// Add any configured public key signers to the static list. These do not change based on the target cluster.
-	if !tc.PublicKeyAuthConfig.IsEmpty() {
-		signers, err := tc.PublicKeyAuthConfig.Signers()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		staticSigners = append(staticSigners, signers...)
-	}
-
+	authMethods := append([]ssh.AuthMethod{}, tc.Config.AuthMethods...)
 	clusterName := func() string { return tc.SiteName }
 	if len(tc.JumpHosts) > 0 {
 		log.DebugContext(ctx, "Overriding SSH proxy to JumpHosts's address", "addr", logutils.StringerAttr(&tc.JumpHosts[0].Addr))
 		proxyAddr = tc.JumpHosts[0].Addr.Addr
 
 		if tc.localAgent != nil {
-			// Wrap host key and signer callbacks using clusterGuesser.
+			// Wrap host key and auth callbacks using clusterGuesser.
 			//
-			// clusterGuesser will use the host key callback to guess the target cluster based on the host certificate.
-			// It will then use the signer callback to load the appropriate SSH certificate for that cluster.
+			// clusterGuesser will use the host key callback to guess the target
+			// cluster based on the host certificate. It will then use the auth
+			// callback to load the appropriate SSH certificate for that cluster.
 			clusterGuesser := newProxyClusterGuesser(hostKeyCallback, tc.SignersForClusterWithReissue)
 			hostKeyCallback = clusterGuesser.hostKeyCallback
-			dynamicSigners = append(
-				dynamicSigners,
-				func() ([]ssh.Signer, error) {
-					return clusterGuesser.signers(ctx, tc.localAgent.Signers)
-				},
-			)
+			authMethods = append(authMethods, clusterGuesser.authMethod(ctx))
 
 			rootClusterName, err := tc.rootClusterName()
 			if err != nil {
@@ -3304,44 +3311,27 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 	} else if tc.localAgent != nil {
 		// Load SSH certs for all clusters we have, in case we don't yet
 		// have a certificate for tc.SiteName (like during `tsh login leaf`).
-		localSigners, err := tc.localAgent.Signers()
+		signers, err := tc.localAgent.Signers()
 		// errNoLocalKeyStore is returned when running in the proxy. The proxy
-		// should be passing the public key auth config via tc.Config.PublicKeyAuthConfig.
+		// should be passing auth methods via tc.Config.AuthMethods.
 		if err != nil && !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err)
 		}
-		if len(localSigners) > 0 {
-			staticSigners = append(staticSigners, localSigners...)
+		if len(signers) > 0 {
+			authMethods = append(authMethods, ssh.PublicKeys(signers...))
 		}
 	}
 
-	if len(staticSigners) == 0 && len(dynamicSigners) == 0 {
+	if len(authMethods) == 0 {
 		return nil, trace.BadParameter("no SSH auth methods loaded, are you logged in?")
 	}
 
-	collectSigners := func() ([]ssh.Signer, error) {
-		allSigners := slices.Clone(staticSigners)
-
-		for _, getSigner := range dynamicSigners {
-			dynamicSigner, err := getSigner()
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			allSigners = append(allSigners, dynamicSigner...)
-		}
-
-		return allSigners, nil
-	}
-
 	return &clientConfig{
-		ClientConfig: apissh.ClientConfig{
+		ClientConfig: &ssh.ClientConfig{
 			User:            tc.getProxySSHPrincipal(),
 			HostKeyCallback: hostKeyCallback,
-			PublicKeyAuth: apissh.PublicKeyAuthConfig{
-				Signers: collectSigners,
-			},
-			Timeout: tc.SSHDialTimeout,
+			Auth:            authMethods,
+			Timeout:         tc.SSHDialTimeout,
 		},
 		proxyAddress: proxyAddr,
 		clusterName:  clusterName,
@@ -3429,12 +3419,10 @@ func (g *proxyClusterGuesser) clusterName() string {
 	return ""
 }
 
-func (g *proxyClusterGuesser) signers(ctx context.Context, allSigners func() ([]ssh.Signer, error)) ([]ssh.Signer, error) {
-	if clusterName := g.clusterName(); clusterName != "" {
-		return g.signersForCluster(ctx, clusterName)
-	}
-
-	return allSigners()
+func (g *proxyClusterGuesser) authMethod(ctx context.Context) ssh.AuthMethod {
+	return ssh.PublicKeysCallback(func() ([]ssh.Signer, error) {
+		return g.signersForCluster(ctx, g.clusterName())
+	})
 }
 
 // WithoutJumpHosts executes the given function with a Teleport client that has
@@ -5297,7 +5285,7 @@ func InsecureSkipHostKeyChecking(host string, remote net.Addr, key ssh.PublicKey
 // isFIPS returns if the binary was built with a FIPS validated
 // module, which implies FedRAMP/FIPS mode for tsh.
 func isFIPS() bool {
-	return modules.GetModules().IsFIPSBuild()
+	return modules.GetModules().IsBoringBinary()
 }
 
 func findActiveDatabases(keyRing *KeyRing) ([]tlsca.RouteToDatabase, error) {
@@ -5617,11 +5605,14 @@ func (tc *TeleportClient) GetSiteName() string {
 // so we need to ensure that we only present the allowed logins that would
 // result in a successful connection, if any exists.
 func CalculateSSHLogins(identityPrincipals []string, allowedLogins []string) ([]string, error) {
-	allowed := set.New(allowedLogins...)
+	allowed := make(map[string]struct{})
+	for _, login := range allowedLogins {
+		allowed[login] = struct{}{}
+	}
 
 	var logins []string
 	for _, local := range identityPrincipals {
-		if allowed.Contains(local) {
+		if _, ok := allowed[local]; ok {
 			logins = append(logins, local)
 		}
 	}

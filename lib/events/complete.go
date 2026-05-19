@@ -22,6 +22,7 @@ import (
 	"cmp"
 	"context"
 	"log/slog"
+	"os"
 	"time"
 
 	"github.com/google/uuid"
@@ -193,7 +194,10 @@ func (u *UploadCompleter) PerformPeriodicCheck(ctx context.Context) {
 	// If configured with a server ID, then acquire a semaphore prior to completing uploads.
 	// This is used for auth's upload completer and ensures that multiple auth servers do not
 	// attempt to complete the same uploads at the same time.
-	if u.cfg.ServerID != "" && u.cfg.Semaphores != nil {
+	// TODO(zmb3): remove the env var check once the semaphore is proven to be reliable
+	if u.cfg.Semaphores != nil && os.Getenv("TELEPORT_DISABLE_UPLOAD_COMPLETER_SEMAPHORE") == "" {
+		u.log.DebugContext(ctx, "acquiring semaphore in order to complete uploads", "server_id", u.cfg.ServerID)
+
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
@@ -366,13 +370,13 @@ func (u *UploadCompleter) ensureSessionEndEvent(ctx context.Context, uploadData 
 		return trace.Wrap(err)
 	}
 
-	// For PTY and Desktop sessions, process recording metadata.
+	// For PTY sessions, process recording metadata and summarization.
 	recordingMetadata := u.cfg.RecordingMetadataProvider.Service()
-	if startTime, duration, sessionType := metadataParamsForSessionEnd(sessionEndEvent); duration > 0 {
-		if err := recordingMetadata.ProcessSessionRecording(ctx, uploadData.SessionID, sessionType, startTime, duration); err != nil {
+	if duration, isPTY := isPTYSession(sessionEndEvent); isPTY && duration > 0 {
+		if err := recordingMetadata.ProcessSessionRecording(ctx, uploadData.SessionID, duration); err != nil {
 			slog.WarnContext(ctx, "Failed to process session recording metadata", "error", err)
 		}
-	} else if sessionType == recordingmetadata.SessionTypeTTY || sessionType == recordingmetadata.SessionTypeDesktop {
+	} else if isPTY {
 		slog.WarnContext(ctx, "Session start or end time is not set, skipping recording metadata processing")
 	}
 
@@ -400,30 +404,17 @@ func transformedUsername(u apievents.UserMetadata, localCluster string) string {
 	)
 }
 
-// metadataParamsForSessionEnd returns the duration and session type used to
-// gate and parameterize recording metadata generation for a session end event.
-// Returns (>0, sessionType) for sessions whose recordings should be processed
-// (SSH/PTY and Windows Desktop). Returns (-1, sessionType) when the session is
-// eligible but its start or end time is missing, signaling the caller to warn.
-// Returns (0, SessionTypeUnspecified) for session types that don't produce
-// recording metadata.
-func metadataParamsForSessionEnd(sessionEnd apievents.AuditEvent) (time.Time, time.Duration, recordingmetadata.SessionType) {
-	switch evt := sessionEnd.(type) {
-	case *apievents.SessionEnd:
-		if evt.EndTime.IsZero() || evt.StartTime.IsZero() {
-			return time.Time{}, -1, recordingmetadata.SessionTypeTTY
-		}
-		return evt.StartTime, evt.EndTime.Sub(evt.StartTime), recordingmetadata.SessionTypeTTY
-	case *apievents.DatabaseSessionEnd:
-		if evt.EndTime.IsZero() || evt.StartTime.IsZero() {
-			return time.Time{}, -1, recordingmetadata.SessionTypeUnspecified
-		}
-		return evt.StartTime, evt.EndTime.Sub(evt.StartTime), recordingmetadata.SessionTypeUnspecified
-	case *apievents.WindowsDesktopSessionEnd:
-		if evt.EndTime.IsZero() || evt.StartTime.IsZero() {
-			return time.Time{}, -1, recordingmetadata.SessionTypeDesktop
-		}
-		return evt.StartTime, evt.EndTime.Sub(evt.StartTime), recordingmetadata.SessionTypeDesktop
+// isPTYSession returns the session duration and true if the event is an
+// interactive (PTY) SSH session end. Returns (0, false) for non-SSH sessions.
+// Returns (-1, true) if the event is a PTY session but the start or end time
+// is missing.
+func isPTYSession(sessionEnd apievents.AuditEvent) (time.Duration, bool) {
+	evt, isPTY := sessionEnd.(*apievents.SessionEnd)
+	if !isPTY {
+		return 0, false
 	}
-	return time.Time{}, 0, recordingmetadata.SessionTypeUnspecified
+	if evt.EndTime.IsZero() || evt.StartTime.IsZero() {
+		return -1, true
+	}
+	return evt.EndTime.Sub(evt.StartTime), true
 }

@@ -35,7 +35,6 @@ import (
 
 	"github.com/gravitational/teleport/lib/cloud/provisioning"
 	"github.com/gravitational/teleport/lib/msgraph"
-	"github.com/gravitational/teleport/lib/msgraph/models"
 	libslices "github.com/gravitational/teleport/lib/utils/slices"
 )
 
@@ -63,9 +62,9 @@ type AccessGraphAzureConfigureClient interface {
 	// CreateRoleAssignment assigns a role to an Azure principal
 	CreateRoleAssignment(ctx context.Context, scope string, roleAssignment armauthorization.RoleAssignmentCreateParameters) error
 	// GetServicePrincipalByAppID returns a service principal based on its application ID
-	GetServicePrincipalByAppID(ctx context.Context, appID string) (*models.ServicePrincipal, error)
+	GetServicePrincipalByAppID(ctx context.Context, appID string) (*msgraph.ServicePrincipal, error)
 	// GrantAppRoleToServicePrincipal grants a specific type of application role to a service principal
-	GrantAppRoleToServicePrincipal(ctx context.Context, roleAssignment models.AppRoleAssignment) error
+	GrantAppRoleToServicePrincipal(ctx context.Context, roleAssignment msgraph.AppRoleAssignment) error
 }
 
 // azureConfigClient wraps the role definition, role assignments, and Graph API clients
@@ -143,7 +142,7 @@ func (c *azureConfigClient) CreateRoleAssignment(ctx context.Context, scope stri
 }
 
 // GetServicePrincipalByAppID returns a service principal based on its application ID
-func (c *azureConfigClient) GetServicePrincipalByAppID(ctx context.Context, appID string) (*models.ServicePrincipal, error) {
+func (c *azureConfigClient) GetServicePrincipalByAppID(ctx context.Context, appID string) (*msgraph.ServicePrincipal, error) {
 	graphPrincipal, err := c.graphCli.GetServicePrincipalByAppId(ctx, appID)
 	if err != nil {
 		return nil, trace.BadParameter("failed to get the graph API service principal: %v", err)
@@ -152,7 +151,7 @@ func (c *azureConfigClient) GetServicePrincipalByAppID(ctx context.Context, appI
 }
 
 // GrantAppRoleToServicePrincipal grants a specific type of application role to a service principal
-func (c *azureConfigClient) GrantAppRoleToServicePrincipal(ctx context.Context, roleAssignment models.AppRoleAssignment) error {
+func (c *azureConfigClient) GrantAppRoleToServicePrincipal(ctx context.Context, roleAssignment msgraph.AppRoleAssignment) error {
 	_, err := c.graphCli.GrantAppRoleToServicePrincipal(ctx, *roleAssignment.PrincipalID, &roleAssignment)
 	if err != nil {
 		return trace.Wrap(err)
@@ -220,10 +219,12 @@ func roleAssignmentAction(clt AccessGraphAzureConfigureClient, subscriptionID st
 			return trace.Errorf("could not get the graph API service principal: %v", err)
 		}
 		rolesNotAssigned := make(map[string]struct{})
-		maps.Copy(rolesNotAssigned, requiredGraphRoleNames)
+		for k, v := range requiredGraphRoleNames {
+			rolesNotAssigned[k] = v
+		}
 		for _, appRole := range graphPrincipal.AppRoles {
 			if _, ok := requiredGraphRoleNames[*appRole.Value]; ok {
-				roleAssignment := models.AppRoleAssignment{
+				roleAssignment := msgraph.AppRoleAssignment{
 					AppRoleID:   appRole.ID,
 					PrincipalID: &managedID,
 					ResourceID:  graphPrincipal.ID,

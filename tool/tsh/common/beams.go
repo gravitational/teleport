@@ -33,6 +33,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+const beamsLogin = "beams"
+
 type beamsCommands struct {
 	ls        *beamsLSCommand
 	add       *beamsAddCommand

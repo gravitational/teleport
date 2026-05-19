@@ -71,21 +71,12 @@ type FakeCluster struct {
 	closedMtx sync.Mutex
 	// closed is set to true after the cluster is being closed.
 	closed bool
-	// appServerWatcher ia a app server watcher to speed up app look up.
-	appServerWatcher *services.GenericWatcher[types.AppServer, readonly.AppServer]
 	// databaseServerWatcher is a database server watcher to speed up database server look up.
 	databaseServerWatcher *services.GenericWatcher[types.DatabaseServer, readonly.DatabaseServer]
 }
 
 // NewFakeCluster is a FakeCluster constructor.
 func NewFakeCluster(clusterName string, accessPoint authclient.RemoteProxyAccessPoint) *FakeCluster {
-	appServerWatcher, _ := services.NewAppServersWatcher(context.TODO(), services.AppServersWatcherConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			Component: "FakeCluster",
-			Client:    accessPoint,
-		},
-	})
-
 	databaseServerWatcher, _ := services.NewDatabaseServerWatcher(context.TODO(), services.DatabaseServerWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: "FakeCluster",
@@ -97,14 +88,8 @@ func NewFakeCluster(clusterName string, accessPoint authclient.RemoteProxyAccess
 		Name:                  clusterName,
 		connCh:                make(chan net.Conn),
 		AccessPoint:           accessPoint,
-		appServerWatcher:      appServerWatcher,
 		databaseServerWatcher: databaseServerWatcher,
 	}
-}
-
-// AppServerWatcher returns the watcher that maintains the app server set for the cluster
-func (s *FakeCluster) AppServerWatcher() (*services.GenericWatcher[types.AppServer, readonly.AppServer], error) {
-	return s.appServerWatcher, nil
 }
 
 // DatabaseServerWatcher returns the watcher that maintains the database server set for the cluster

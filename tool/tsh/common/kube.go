@@ -66,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
+	kubeclient "github.com/gravitational/teleport/lib/client/kube"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	kuberelay "github.com/gravitational/teleport/lib/kube/relay"
@@ -86,7 +87,7 @@ type kubeCommands struct {
 }
 
 func newKubeCommand(app *kingpin.Application) kubeCommands {
-	kube := app.Command("kube", "Manage available Kubernetes clusters.")
+	kube := app.Command("kube", "Manage available Kubernetes clusters")
 	cmds := kubeCommands{
 		credentials: newKubeCredentialsCommand(kube),
 		ls:          newKubeLSCommand(kube),
@@ -492,19 +493,19 @@ func newKubeExecCommand(parent *kingpin.CmdClause) *kubeExecCommand {
 		CmdClause: parent.Command("exec", "Execute a command in a Kubernetes pod."),
 	}
 
-	c.Flag("container", "Container name. If omitted, use the kubectl.kubernetes.io/default-container annotation for selecting the container to be attached or the first container in the pod will be chosen.").Short('c').StringVar(&c.container)
+	c.Flag("container", "Container name. If omitted, use the kubectl.kubernetes.io/default-container annotation for selecting the container to be attached or the first container in the pod will be chosen").Short('c').StringVar(&c.container)
 	c.Flag("namespace", "Configure the default Kubernetes namespace.").Short('n').StringVar(&c.namespace)
 	// kube-namespace exists for backwards compatibility.
 	c.Flag("kube-namespace", "Configure the default Kubernetes namespace.").Hidden().StringVar(&c.namespace)
-	c.Flag("filename", "To use to exec into the resource.").Short('f').StringVar(&c.filename)
-	c.Flag("quiet", "Only print output from the remote session.").Short('q').BoolVar(&c.quiet)
-	c.Flag("stdin", "Pass stdin to the container.").Short('s').BoolVar(&c.stdin)
-	c.Flag("tty", "Stdin is a TTY.").Short('t').BoolVar(&c.tty)
+	c.Flag("filename", "to use to exec into the resource").Short('f').StringVar(&c.filename)
+	c.Flag("quiet", "Only print output from the remote session").Short('q').BoolVar(&c.quiet)
+	c.Flag("stdin", "Pass stdin to the container").Short('s').BoolVar(&c.stdin)
+	c.Flag("tty", "Stdin is a TTY").Short('t').BoolVar(&c.tty)
 	c.Flag("reason", "The purpose of the session.").StringVar(&c.reason)
 	c.Flag("invite", "A comma separated list of people to mark as invited for the session.").StringVar(&c.invited)
 	c.Flag("participant-req", "Displays a verbose list of required participants in a moderated session.").BoolVar(&c.displayParticipantRequirements)
-	c.Arg("target", "Pod or deployment name.").Required().StringVar(&c.target)
-	c.Arg("command", "Command to execute in the container.").Required().StringsVar(&c.command)
+	c.Arg("target", "Pod or deployment name").Required().StringVar(&c.target)
+	c.Arg("command", "Command to execute in the container").Required().StringsVar(&c.command)
 	return c
 }
 
@@ -578,7 +579,7 @@ type kubeSessionsCommand struct {
 
 func newKubeSessionsCommand(parent *kingpin.CmdClause) *kubeSessionsCommand {
 	c := &kubeSessionsCommand{
-		CmdClause: parent.Command("sessions", "Get a list of active Kubernetes sessions. (DEPRECATED: use tsh sessions ls --kind=kube instead.)"),
+		CmdClause: parent.Command("sessions", "Get a list of active Kubernetes sessions. (DEPRECATED: use tsh sessions ls --kind=kube instead)"),
 	}
 	c.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&c.format, defaults.DefaultFormats...)
 	c.Flag("cluster", clusterHelp).Short('c').StringVar(&c.siteName)
@@ -619,7 +620,7 @@ func newKubeCredentialsCommand(parent *kingpin.CmdClause) *kubeCredentialsComman
 	c := &kubeCredentialsCommand{
 		// This command is always hidden. It's called from the kubeconfig that
 		// tsh generates and never by users directly.
-		CmdClause: parent.Command("credentials", "Get credentials for kubectl access.").Hidden(),
+		CmdClause: parent.Command("credentials", "Get credentials for kubectl access").Hidden(),
 	}
 	c.Flag("teleport-cluster", "Name of the Teleport cluster to get credentials for.").Required().StringVar(&c.teleportCluster)
 	c.Flag("kube-cluster", "Name of the Kubernetes cluster to get credentials for.").Required().StringVar(&c.kubeCluster)
@@ -817,6 +818,25 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 		}
 		return trace.Wrap(err)
 	}
+	// Make sure the cert is allowed to access the cluster.
+	// At this point we already know that the user has access to the cluster
+	// via the RBAC rules, but we also need to make sure that the user has
+	// access to the cluster with at least one kubernetes_user or kubernetes_group
+	// defined.
+	// This is a safety check in order to print a better message to the user even
+	// before hitting Teleport Kubernetes Proxy.
+	// We only enforce this check for root clusters, since we don't have knowledge
+	// of the RBAC role mappings for remote clusters.
+	rootClusterName, err := tc.RootClusterName(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := kubeclient.CheckIfCertsAreAllowedToAccessCluster(k,
+		rootClusterName,
+		c.teleportCluster,
+		c.kubeCluster); err != nil {
+		return trace.Wrap(err)
+	}
 	// Cache the new cert on disk for reuse.
 	if err := tc.LocalAgent().AddKubeKeyRing(k); err != nil {
 		return trace.Wrap(err)
@@ -993,34 +1013,34 @@ func (c *kubeLSCommand) showKubeClusters(w io.Writer, kubeClusters types.KubeClu
 	return nil
 }
 
-func getKubeClusterTextRow(kc types.KubeCluster, selected, verbose bool) []string {
+func getKubeClusterTextRow(kc types.KubeCluster, selectedCluster string, verbose bool) []string {
 	var selectedMark string
 	var row []string
-	if selected {
+	if selectedCluster != "" && kc.GetName() == selectedCluster {
 		selectedMark = "*"
 	}
 	displayName := common.FormatResourceName(kc, verbose)
 	labels := common.FormatLabels(kc.GetAllLabels(), verbose)
-	row = append(row, displayName, labels, kc.GetScope(), selectedMark)
+	row = append(row, displayName, labels, selectedMark)
 	return row
 }
 
 func formatKubeClustersAsText(kubeClusters types.KubeClusters, selectedCluster string, quiet, verbose bool) string {
 	var (
-		columns = []string{"Kube Cluster Name", "Labels", "Scope", "Selected"}
+		columns = []string{"Kube Cluster Name", "Labels", "Selected"}
 		t       asciitable.Table
 		rows    [][]string
 	)
 
 	for _, cluster := range kubeClusters {
-		r := getKubeClusterTextRow(cluster, isClusterSelected(kubeClusters, cluster, selectedCluster), verbose)
+		r := getKubeClusterTextRow(cluster, selectedCluster, verbose)
 		rows = append(rows, r)
 	}
 
 	switch {
 	case quiet:
-		// no column headers and only include the cluster name, scope, and labels.
-		t = asciitable.MakeHeadlessTable(3)
+		// no column headers and only include the cluster name and labels.
+		t = asciitable.MakeHeadlessTable(2)
 		for _, row := range rows {
 			t.AddRow(row)
 		}
@@ -1035,32 +1055,11 @@ func formatKubeClustersAsText(kubeClusters types.KubeClusters, selectedCluster s
 	return t.AsBuffer().String()
 }
 
-func isClusterSelected(kubeClusters []types.KubeCluster, cluster types.KubeCluster, selectedCluster string) bool {
-	if cluster.GetName() != selectedCluster {
-		return false
-	}
-
-	// if there are duplicate cluster names present in the list, we can't disambiguate so none of them should be
-	// selected
-	var found bool
-	for _, cl := range kubeClusters {
-		if cl.GetName() == cluster.GetName() {
-			if found {
-				return false
-			}
-			found = true
-		}
-	}
-
-	return true
-}
-
 func serializeKubeClusters(kubeClusters []types.KubeCluster, selectedCluster, format string) (string, error) {
 	type cluster struct {
 		KubeClusterName string            `json:"kube_cluster_name"`
 		Labels          map[string]string `json:"labels"`
 		Selected        bool              `json:"selected"`
-		Scope           string            `json:"scope"`
 	}
 	clusterInfo := make([]cluster, 0, len(kubeClusters))
 	for _, cl := range kubeClusters {
@@ -1071,8 +1070,7 @@ func serializeKubeClusters(kubeClusters []types.KubeCluster, selectedCluster, fo
 		clusterInfo = append(clusterInfo, cluster{
 			KubeClusterName: cl.GetName(),
 			Labels:          labels,
-			Selected:        isClusterSelected(kubeClusters, cl, selectedCluster),
-			Scope:           cl.GetScope(),
+			Selected:        cl.GetName() == selectedCluster,
 		})
 	}
 	var out []byte
@@ -1109,6 +1107,7 @@ func (c *kubeLSCommand) runAllClusters(cf *CLIConf) error {
 		errors   []error
 	)
 	for _, cluster := range clusters {
+		cluster := cluster
 		if cluster.connectionError != nil {
 			mu.Lock()
 			errors = append(errors, cluster.connectionError)
@@ -1172,7 +1171,7 @@ func (c *kubeLSCommand) runAllClusters(cf *CLIConf) error {
 
 func formatKubeListingsAsText(listings kubeListings, quiet, verbose bool) string {
 	var (
-		columns = []string{"Proxy", "Cluster", "Kube Cluster Name", "Labels", "Scope"}
+		columns = []string{"Proxy", "Cluster", "Kube Cluster Name", "Labels"}
 		t       asciitable.Table
 		rows    [][]string
 	)
@@ -1180,14 +1179,14 @@ func formatKubeListingsAsText(listings kubeListings, quiet, verbose bool) string
 		r := append([]string{
 			listing.Proxy,
 			listing.Cluster,
-		}, getKubeClusterTextRow(listing.KubeCluster, false, verbose)...)
+		}, getKubeClusterTextRow(listing.KubeCluster, "", verbose)...)
 		rows = append(rows, r)
 	}
 
 	switch {
 	case quiet:
 		// quiet, so no column headers.
-		t = asciitable.MakeHeadlessTable(5)
+		t = asciitable.MakeHeadlessTable(4)
 		for _, row := range rows {
 			t.AddRow(row)
 		}
@@ -1241,13 +1240,13 @@ func newKubeLoginCommand(parent *kingpin.CmdClause) *kubeLoginCommand {
 	c.Flag("kube-namespace", "Configure the default Kubernetes namespace.").Hidden().StringVar(&c.namespace)
 	c.Flag("namespace", "Configure the default Kubernetes namespace.").Short('n').StringVar(&c.namespace)
 	c.Flag("all", "Generate a kubeconfig with every cluster the user has access to. Mutually exclusive with --labels or --query.").BoolVar(&c.all)
-	c.Flag("set-context-name", "Define a custom context name. To use it with --all include \"{{.KubeName}}\".").
+	c.Flag("set-context-name", "Define a custom context name. To use it with --all include \"{{.KubeName}}\"").
 		// Use the default context name template if --set-context-name is not set.
 		// This works as an hint to the user that the context name can be customized.
 		Default(kubeconfig.ContextName("{{.ClusterName}}", "{{.KubeName}}")).
 		StringVar(&c.overrideContextName)
-	c.Flag("request-reason", "Reason for requesting access.").StringVar(&c.requestReason)
-	c.Flag("disable-access-request", "Disable automatic resource Access Requests.").BoolVar(&c.disableAccessRequest)
+	c.Flag("request-reason", "Reason for requesting access").StringVar(&c.requestReason)
+	c.Flag("disable-access-request", "Disable automatic resource access requests").BoolVar(&c.disableAccessRequest)
 
 	return c
 }
@@ -1410,18 +1409,15 @@ func matchClustersByNameOrDiscoveredName(name string, clusters types.KubeCluster
 		return clusters
 	}
 
-	// look for exact full name matches.
-	var out types.KubeClusters
+	// look for an exact full name match.
 	for _, kc := range clusters {
 		if kc.GetName() == name {
-			out = append(out, kc)
+			return types.KubeClusters{kc}
 		}
-	}
-	if len(out) > 0 {
-		return out
 	}
 
 	// or look for exact "discovered name" matches.
+	var out types.KubeClusters
 	for _, kc := range clusters {
 		discoveredName, ok := kc.GetLabel(types.DiscoveredNameLabel)
 		if ok && discoveredName == name {

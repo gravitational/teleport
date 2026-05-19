@@ -57,35 +57,18 @@ Here is an example of sending an Access Request via Teleport's Slack plugin:
 - Slack admin privileges to create an app and install it to your workspace. Your
   Slack profile must have the "Workspace Owner" or "Workspace Admin" banner
   below your profile picture.
-
 - Either a Linux host or Kubernetes cluster where you will run the Slack plugin.
-
-- A Slack application and OAuth token to use for the plugin. These require
-  manual preparation in the Slack Web UI. Follow the [Slack
-  documentation](https://docs.slack.dev/tools/node-slack-sdk/getting-started) to
-  set up the application.
-
-  The application's name should be "Teleport".
-
-  The application requires the following scopes:
-  - `chat:write`
-  - `incoming-webhook`
-  - `users:read`
-  - `users:read.email`
-
-  Choose "Slackbot" as the default channel the plugin will post to. The plugin
-  will post here when sending direct messages.
 
 (!/docs/pages/includes/tctl.mdx!)
 
-## Step 1/7. Define RBAC resources
+## Step 1/8. Define RBAC resources
 
 Before you set up the Slack plugin, you will need to enable Role Access Requests
 in your Teleport cluster.
 
 (!/docs/pages/includes/plugins/editor-request-rbac.mdx!)
 
-## Step 2/7. Define a Teleport Slack plugin user
+## Step 2/8. Define a Teleport Slack plugin user
 
 The required permissions for the plugin are configured in the preset `access-plugin`
 role. To generate credentials for the plugin, define either a Machine ID bot user
@@ -100,7 +83,7 @@ or a regular Teleport user.
 </TabItem>
 </Tabs>
 
-## Step 3/7. Export the access plugin identity
+## Step 3/8. Export the access plugin identity
 
 Give the plugin access to a Teleport identity file. We recommend using Machine
 ID for this in order to produce short-lived identity files that are less
@@ -116,11 +99,73 @@ longer-lived identity files with `tctl`:
 </TabItem>
 </Tabs>
 
-## Step 4/7. Install the Teleport Slack plugin
+## Step 4/8. Install the Teleport Slack plugin
 
 (!docs/pages/includes/plugins/install-access-request.mdx name="slack"!)
 
-## Step 5/7. Configure the Teleport Slack plugin
+## Step 5/8. Register a Slack app
+
+The Access Request plugin for Slack receives Access Request events from the
+Teleport Auth Service, formats them into Slack messages, and sends them to the
+Slack API to post them in your workspace. For this to work, you must register a
+new app with the Slack API.
+
+### Create your app
+
+Visit [https://api.slack.com/apps](https://api.slack.com/apps) to create a new
+Slack app. Click "Create an App", then "From scratch". Fill in the form as shown
+below:
+
+![Create Slack App](../../../../img/enterprise/plugins/slack/Create-a-Slack-App.png)
+
+The "App Name" should be "Teleport". Click the "Development Slack Workspace"
+dropdown and choose the workspace where you would like to see Access Request
+messages.
+
+### Generate an OAuth token with scopes
+
+Next, configure your application to authenticate to the Slack API. We will do
+this by generating an OAuth token that the plugin will present to the Slack API.
+
+We will restrict the plugin to the narrowest possible permissions by using OAuth
+scopes. The Slack plugin needs to post messages to your workspace. It also needs
+to read usernames and email addresses in order to direct Access Request
+notifications from the Auth Service to the appropriate Teleport users in Slack.
+
+After creating your app, the Slack website will open a console where you can
+specify configuration options. On the sidebar menu under "Features", click
+"OAuth & Permissions".
+
+Scroll to the "Scopes" section and click "Add an OAuth Scope" for each of the
+following scopes:
+
+- `chat:write`
+- `incoming-webhook`
+- `users:read`
+- `users:read.email`
+
+The result should look like this:
+
+![API Scopes](../../../../img/enterprise/plugins/slack/api-scopes.png)
+
+After you have configured scopes for your plugin, scroll back to the top of the
+OAuth & Permissions page, find the "OAuth Tokens for Your Workspace" section,
+and click "Install to Workspace". You will see a summary of the permission you
+configured for the Slack plugin earlier.
+
+In "Where should Teleport post?", choose "Slackbot" as the default channel the
+plugin will post to. The plugin will post here when sending direct messages.
+Later in this guide, we will configure the plugin to post in other channels as
+well.
+
+After submitting this form, you will see an OAuth token in the "OAuth &
+Permissions" tab under "Tokens for Your Workspace":
+
+![OAuth Tokens](../../../../img/enterprise/plugins/slack/OAuth.png)
+
+You will use this token later when configuring the Slack plugin.
+
+## Step 6/8. Configure the Teleport Slack plugin
 
 At this point, the Teleport Slack plugin has the credentials it needs to
 communicate with your Teleport cluster and the Slack API. In this step, you will
@@ -274,7 +319,7 @@ any other channel you mention in your `role_to_recipients` map, you will need
 to invite the plugin to that channel. Navigate to each channel and enter `/invite
 @teleport` in the message box.
 
-## Step 6/7. Test your Slack app
+## Step 7/8. Test your Slack app
 
 Once Teleport is running, you've created the Slack app, and the plugin is
 configured, you can now run the plugin and test the workflow.
@@ -357,7 +402,7 @@ Request Reviewed` in the Teleport Web UI.
 
 </Admonition>
 
-## Step 7/7. Set up systemd
+## Step 8/8. Set up systemd
 
 This section is only relevant if you are running the Teleport Slack plugin on a
 Linux host.

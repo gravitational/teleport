@@ -16,14 +16,13 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { setupServer } from 'msw/node';
 import { MemoryRouter } from 'react-router';
 
 import {
-  enableMswServer,
   fireEvent,
   render,
   screen,
-  server,
   testQueryClient,
   userEvent,
   waitFor,
@@ -40,8 +39,6 @@ import { successGetUsersV2 } from 'teleport/test/helpers/users';
 import { Users } from './Users';
 import { State } from './useUsers';
 
-enableMswServer();
-
 const defaultAcl: Access = {
   read: true,
   edit: true,
@@ -50,9 +47,15 @@ const defaultAcl: Access = {
   create: true,
 };
 
+const server = setupServer();
+
+beforeEach(() => server.listen());
 afterEach(() => {
+  server.resetHandlers();
+
   return testQueryClient.resetQueries();
 });
+afterAll(() => server.close());
 
 describe('invite collaborators integration', () => {
   const ctx = createTeleportContext();
@@ -145,9 +148,7 @@ describe('invite collaborators integration', () => {
         </InfoGuidePanelProvider>
       </MemoryRouter>
     );
-    expect(
-      await screen.findByTestId('invite-collaborators')
-    ).toBeInTheDocument();
+    expect(screen.getByTestId('invite-collaborators')).toBeInTheDocument();
   });
 });
 

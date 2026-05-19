@@ -483,20 +483,17 @@ func (m *AccessRequestCreate) TrimToMaxSize(maxSize int) AuditEvent {
 	out.Roles = nil
 	out.Reason = ""
 	out.Annotations = nil
-	out.SubmittedBy = ""
 
 	maxSize = adjustedMaxSize(out, maxSize)
 
 	customFieldsCount := nonEmptyStrsInSlice(m.Roles) +
 		nonEmptyStrs(m.Reason) +
-		m.Annotations.nonEmptyStrs() +
-		nonEmptyStrs(m.SubmittedBy)
+		m.Annotations.nonEmptyStrs()
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
 	out.Roles = trimStrSlice(m.Roles, maxFieldsSize)
 	out.Reason = trimStr(m.Reason, maxFieldsSize)
 	out.Annotations = m.Annotations.trimToMaxFieldSize(maxFieldsSize)
-	out.SubmittedBy = trimStr(m.SubmittedBy, maxFieldsSize)
 
 	return out
 }
@@ -1462,60 +1459,6 @@ func (m *WindowsDesktopSessionEnd) TrimToMaxSize(maxSize int) AuditEvent {
 	return out
 }
 
-func (m *LinuxDesktopSessionStart) TrimToMaxSize(maxSize int) AuditEvent {
-	size := m.Size()
-	if size <= maxSize {
-		return m
-	}
-
-	out := utils.CloneProtoMsg(m)
-	out.Status = Status{}
-	out.LinuxUser = ""
-	out.DesktopLabels = nil
-	out.DesktopName = ""
-
-	maxSize = adjustedMaxSize(out, maxSize)
-
-	customFieldsCount := m.Status.nonEmptyStrs() +
-		nonEmptyStrs(m.LinuxUser, m.DesktopName) +
-		nonEmptyStrsInMap(m.DesktopLabels)
-	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
-
-	out.Status = m.Status.trimToMaxFieldSize(maxFieldsSize)
-	out.LinuxUser = trimStr(m.LinuxUser, maxFieldsSize)
-	out.DesktopLabels = trimMap(m.DesktopLabels, maxFieldsSize)
-	out.DesktopName = trimStr(m.DesktopName, maxFieldsSize)
-
-	return out
-}
-
-func (m *LinuxDesktopSessionEnd) TrimToMaxSize(maxSize int) AuditEvent {
-	size := m.Size()
-	if size <= maxSize {
-		return m
-	}
-
-	out := utils.CloneProtoMsg(m)
-	out.LinuxUser = ""
-	out.DesktopLabels = nil
-	out.DesktopName = ""
-	out.Participants = nil
-
-	maxSize = adjustedMaxSize(out, maxSize)
-
-	customFieldsCount := nonEmptyStrs(m.LinuxUser, m.DesktopName) +
-		nonEmptyStrsInMap(m.DesktopLabels) +
-		nonEmptyStrsInSlice(m.Participants)
-	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
-
-	out.LinuxUser = trimStr(m.LinuxUser, maxFieldsSize)
-	out.DesktopLabels = trimMap(m.DesktopLabels, maxFieldsSize)
-	out.DesktopName = trimStr(m.DesktopName, maxFieldsSize)
-	out.Participants = trimStrSlice(m.Participants, maxFieldsSize)
-
-	return out
-}
-
 func (m *DesktopClipboardSend) TrimToMaxSize(maxSize int) AuditEvent {
 	return m
 }
@@ -1671,7 +1614,7 @@ func (m *DesktopSharedDirectoryStart) TrimToMaxSize(maxSize int) AuditEvent {
 
 	maxSize = adjustedMaxSize(out, maxSize)
 
-	customFieldsCount := nonEmptyStrs(m.DirectoryName, m.DesktopName)
+	customFieldsCount := nonEmptyStrs(m.DirectoryName)
 	maxFieldsSize := maxSizePerField(maxSize, customFieldsCount)
 
 	out.DirectoryName = trimStr(m.DirectoryName, maxFieldsSize)
@@ -2872,26 +2815,6 @@ func (m *ClientIPRestrictionsUpdate) TrimToMaxSize(int) AuditEvent {
 	return m
 }
 
-func (m *AppAuthConfigCreate) TrimToMaxSize(int) AuditEvent {
-	return m
-}
-
-func (m *AppAuthConfigUpdate) TrimToMaxSize(int) AuditEvent {
-	return m
-}
-
-func (m *AppAuthConfigDelete) TrimToMaxSize(int) AuditEvent {
-	return m
-}
-
-func (m *AppAuthConfigVerify) TrimToMaxSize(maxSize int) AuditEvent {
-	return trimEventToMaxSize(m, maxSize, func(m, out *AppAuthConfigVerify) fieldTrimmer {
-		return fieldTrimmers{
-			newGenericTrimmer(&m.Status, &out.Status),
-		}
-	})
-}
-
 func (m *VnetConfigCreate) TrimToMaxSize(int) AuditEvent {
 	return m
 }
@@ -3006,23 +2929,4 @@ func (m *RetrievalModelDelete) TrimToMaxSize(_ int) AuditEvent {
 
 func (m *SessionSummarized) TrimToMaxSize(_ int) AuditEvent {
 	return m
-}
-
-func (m *CertAuthorityOverrideEvent) TrimToMaxSize(maxSize int) AuditEvent {
-	return trimEventToMaxSize(m, maxSize, func(m, out *CertAuthorityOverrideEvent) fieldTrimmer {
-		return fieldTrimmers{
-			newStrTrimmer(m.Status.Error, &out.Status.Error),
-			newStrTrimmer(m.Status.UserMessage, &out.Status.UserMessage),
-		}
-	})
-}
-
-func (m *AppSessionLLMRequest) TrimToMaxSize(maxSize int) AuditEvent {
-	return trimEventToMaxSize(m, maxSize, func(m, out *AppSessionLLMRequest) fieldTrimmer {
-		return fieldTrimmers{
-			newStrTrimmer(m.Path, &out.Path),
-			newStrTrimmer(m.Method, &out.Method),
-			newStrTrimmer(m.RequestedModel, &out.RequestedModel),
-		}
-	})
 }

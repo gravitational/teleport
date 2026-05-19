@@ -43,15 +43,22 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/events"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	sessionpkg "github.com/gravitational/teleport/lib/session"
 )
 
 func TestModeratedSessions(t *testing.T) {
-	t.Parallel()
+	// enable enterprise features to have access to ModeratedSessions.
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise, TestFeatures: modules.Features{
+		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+			entitlements.K8s: {Enabled: true},
+		},
+	}})
 	const (
 		moderatorUsername       = "moderator_user"
 		moderatorRoleName       = "mod_role"
@@ -83,7 +90,6 @@ func TestModeratedSessions(t *testing.T) {
 		context.Background(),
 		t,
 		TestConfig{
-			Modules:  modulestest.EnterpriseModules(),
 			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
 			// onEvent is called each time a new event is produced. We only care about
 			// sessionEnd events.
@@ -244,6 +250,7 @@ func TestModeratedSessions(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		if tt.want.sessionEndEvent {
 			numberOfExpectedSessionEnds++
 		}
@@ -506,7 +513,12 @@ func validateSessionTracker(testCtx *TestContext, sessionID string, reason strin
 // covered by the integration test mentioned above because we need to fake the
 // Lock watcher connection to be stale and it takes ~5 minutes to happen.
 func TestInteractiveSessionsNoAuth(t *testing.T) {
-	t.Parallel()
+	// enable enterprise features to have access to ModeratedSessions.
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise, TestFeatures: modules.Features{
+		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+			entitlements.K8s: {Enabled: true},
+		},
+	}})
 	const (
 		moderatorUsername       = "moderator_user"
 		moderatorRoleName       = "mod_role"
@@ -536,7 +548,6 @@ func TestInteractiveSessionsNoAuth(t *testing.T) {
 		context.Background(),
 		t,
 		TestConfig{
-			Modules:  modulestest.EnterpriseModules(),
 			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
 			WrapAuthClient: func(client authclient.ClientI) authclient.ClientI {
 				authClient.ClientI = client
@@ -659,6 +670,7 @@ func TestInteractiveSessionsNoAuth(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
@@ -699,10 +711,8 @@ func validateSessionRecordingEvents(t *testing.T, testCtx *TestContext, sessionI
 
 	// validate that session recording was correctly uploaded.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		rc, err := testCtx.UploadHandler.StreamSessionRecording(testCtx.Context, sessionpkg.ID(sessionID))
-		if assert.NoError(t, err) {
-			rc.Close()
-		}
+		err := testCtx.UploadHandler.Download(testCtx.Context, sessionpkg.ID(sessionID), &writerAtDiscarder{})
+		assert.NoError(t, err)
 	}, 10*time.Second, 50*time.Millisecond, "session recording was not uploaded")
 
 	auditsC, errC := testCtx.AuthServer.StreamSessionEvents(testCtx.Context, sessionpkg.ID(sessionID), 0)
@@ -735,4 +745,16 @@ loop:
 	require.True(t, foundJoinEvent, "session join event not found")
 	require.True(t, foundLeaveEvent, "session leave event not found")
 	require.True(t, foundEndEvent, "session end event not found")
+}
+
+// writerAtDiscarder is a fake implementation of io.WriterAt
+// that discards all data written to it.
+type writerAtDiscarder struct{}
+
+func (f writerAtDiscarder) Write(p []byte) (int, error) {
+	return len(p), nil
+}
+
+func (f writerAtDiscarder) WriteAt(p []byte, offset int64) (int, error) {
+	return len(p), nil
 }

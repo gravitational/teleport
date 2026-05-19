@@ -18,6 +18,3 @@ k8s/secrets/**
 .secrets
 
 control-plane/vars.env
-
-# Rendered templates
-*.rendered.*
