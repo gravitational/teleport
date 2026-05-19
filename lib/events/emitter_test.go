@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -133,6 +134,9 @@ func TestWriterEmitter(t *testing.T) {
 }
 
 func TestAsyncEmitter(t *testing.T) {
+	if enabled, _ := strconv.ParseBool(os.Getenv("TELEPORT_UNSTABLE_AUDIT_LOG_RELIABILITY")); enabled {
+		t.Skip("TestAsyncEmitter assumes in-order delivery. Skipping because SQLite queue is enabled")
+	}
 	ctx := context.Background()
 	evts := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 20})
 
@@ -212,6 +216,43 @@ func TestAsyncEmitter(t *testing.T) {
 			}
 		}
 	})
+}
+
+// TestCheckingAsyncEmitter_FieldsSetBeforePersist verifies that fields
+// are written to the event before it is enqueued.
+func TestCheckingAsyncEmitter_FieldsSetBeforePersist(t *testing.T) {
+	emitter, err := events.NewCheckingAsyncEmitter(
+		events.CheckingEmitterConfig{
+			ClusterName: "test-cluster",
+		},
+		events.AsyncEmitterConfig{
+			Inner:      eventstest.NewCountingEmitter(),
+			BufferSize: 8,
+		},
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = emitter.Close()
+	})
+
+	event := &apievents.UserLogin{
+		Metadata: apievents.Metadata{
+			Type: events.UserLoginEvent,
+			Code: events.UserLocalLoginCode,
+		},
+	}
+	require.Empty(t, event.GetID(), "event must start with empty UID")
+	require.True(t, event.GetTime().IsZero(), "event must start with zero Time")
+
+	before := time.Now().Truncate(time.Millisecond)
+	require.NoError(t, emitter.EmitAuditEvent(context.Background(), event))
+
+	require.NotEmpty(t, event.GetID(),
+		"UID should be set on the input event after EmitAuditEvent",
+	)
+	require.False(t, event.GetTime().Before(before),
+		"Time on event should be >= time captured before EmitAuditEvent")
+	require.Equal(t, "test-cluster", event.GetClusterName())
 }
 
 // TestExport tests export to JSON format.
