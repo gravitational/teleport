@@ -19,9 +19,11 @@ package cache
 import (
 	"context"
 	"iter"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
+	"rsc.io/ordered"
 
 	"github.com/gravitational/teleport/api/client"
 	clientproto "github.com/gravitational/teleport/api/client/proto"
@@ -30,6 +32,7 @@ import (
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -166,6 +169,15 @@ func (c *Cache) RangeDatabases(ctx context.Context, start, end string) iter.Seq2
 type databaseServerIndex string
 
 const databaseServerNameIndex databaseServerIndex = "name"
+const databaseServerDatabaseNameIndex databaseServerIndex = "database_name"
+
+func databaseServerByDatabaseNameKey(s types.DatabaseServer) string {
+	db := s.GetDatabase()
+	if db == nil {
+		return ""
+	}
+	return string(ordered.Encode(db.GetName(), s.GetHostID(), s.GetName()))
+}
 
 func newDatabaseServerCollection(p services.Presence, w types.WatchKind) (*collection[types.DatabaseServer, databaseServerIndex], error) {
 	if p == nil {
@@ -180,6 +192,7 @@ func newDatabaseServerCollection(p services.Presence, w types.WatchKind) (*colle
 				databaseServerNameIndex: func(u types.DatabaseServer) string {
 					return u.GetHostID() + "/" + u.GetName()
 				},
+				databaseServerDatabaseNameIndex: databaseServerByDatabaseNameKey,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.DatabaseServer, error) {
 			return p.GetDatabaseServers(ctx, defaults.Namespace)
@@ -222,6 +235,74 @@ func (c *Cache) GetDatabaseServers(ctx context.Context, namespace string, opts .
 	}
 
 	return out, nil
+}
+
+// RangeDatabaseServersWithName returns an iterator over database proxy servers for a given database name.
+func (c *Cache) RangeDatabaseServersWithName(ctx context.Context, databaseName string) iter.Seq2[types.DatabaseServer, error] {
+	return func(yield func(types.DatabaseServer, error) bool) {
+		ctx, span := c.Tracer.Start(ctx, "cache/RangeDatabaseServersWithName")
+		defer span.End()
+
+		if databaseName == "" {
+			yield(nil, trace.BadParameter("missing database name"))
+			return
+		}
+
+		upstreamListFn := func(ctx context.Context, pageSize int, startToken string) ([]types.DatabaseServer, string, error) {
+			// discard the databaseName, we don't need it to query the backend
+			var hostID, serverName string
+			_ = ordered.Decode([]byte(startToken), nil, &hostID, &serverName)
+			backendKey := ""
+			if hostID != "" {
+				backendKey = hostID + "/" + serverName
+			}
+
+			resp, err := c.Config.Presence.ListResources(ctx, clientproto.ListResourcesRequest{
+				ResourceType: types.KindDatabaseServer,
+				Namespace:    defaults.Namespace,
+				Limit:        int32(pageSize),
+				StartKey:     backendKey,
+			})
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+
+			var page []types.DatabaseServer
+			for _, r := range resp.Resources {
+				server, ok := r.(types.DatabaseServer)
+				if !ok {
+					continue
+				}
+				if server.GetDatabase().GetName() == databaseName {
+					page = append(page, server)
+				}
+			}
+
+			next := ""
+			if resp.NextKey != "" {
+				hostID, serverName, _ := strings.Cut(resp.NextKey, backend.SeparatorString)
+				next = string(ordered.Encode(databaseName, hostID, serverName))
+			}
+			return page, next, nil
+		}
+
+		lister := genericLister[types.DatabaseServer, databaseServerIndex]{
+			cache:           c,
+			collection:      c.collections.dbServers,
+			index:           databaseServerDatabaseNameIndex,
+			nextToken:       databaseServerByDatabaseNameKey,
+			defaultPageSize: defaults.DefaultChunkSize,
+			upstreamList:    upstreamListFn,
+		}
+
+		start := string(ordered.Encode(databaseName))
+		end := string(ordered.Encode(databaseName, ordered.Inf))
+		for item, err := range lister.Range(ctx, start, end) {
+			if !yield(item, err) {
+				return
+			}
+		}
+	}
 }
 
 type databaseServiceIndex string

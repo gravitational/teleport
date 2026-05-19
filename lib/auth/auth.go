@@ -8016,16 +8016,13 @@ func (a *Server) isMFARequired(ctx context.Context, scopedCtx *authz.ScopedConte
 		if t.Database.ServiceName == "" {
 			return nil, trace.BadParameter("missing ServiceName field in a database-only UserCertsRequest")
 		}
-		servers, err := a.GetDatabaseServers(ctx, apidefaults.Namespace)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 		var db types.Database
-		for _, server := range servers {
-			if server.GetDatabase().GetName() == t.Database.ServiceName {
-				db = server.GetDatabase()
-				break
+		for server, err := range a.RangeDatabaseServersWithName(ctx, t.Database.ServiceName) {
+			if err != nil {
+				return nil, trace.Wrap(err)
 			}
+			db = server.GetDatabase()
+			break
 		}
 		if db == nil {
 			return nil, trace.NotFound("database service %q not found", t.Database.ServiceName)
