@@ -29,6 +29,8 @@ import (
 	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/spinner"
 	"github.com/gravitational/teleport/tool/common"
 )
 
@@ -56,6 +58,19 @@ func (c *beamsAddCommand) run(cf *CLIConf) error {
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	interactive := utils.IsTerminal(cf.Stdout())
+	format := strings.ToLower(c.format)
+	switch format {
+	case teleport.JSON, teleport.YAML:
+		interactive = false
+	}
+
+	var s *spinner.Spinner
+	if interactive {
+		s = spinner.New(cf.Stdout(), "Creating beam...")
+		defer s.Stop()
 	}
 
 	var beam *beamsv1.Beam
@@ -93,21 +108,20 @@ func (c *beamsAddCommand) run(cf *CLIConf) error {
 	// the beam won't be published yet, there's no need to actually fetch it.
 	const proxyAddr = ""
 
-	switch strings.ToLower(c.format) {
+	alias := beam.GetStatus().GetAlias()
+
+	switch format {
 	case teleport.JSON:
 		return trace.Wrap(common.PrintJSONIndent(cf.Stdout(), formatBeam(beam, proxyAddr)))
 	case teleport.YAML:
 		return trace.Wrap(common.PrintYAML(cf.Stdout(), formatBeam(beam, proxyAddr)))
 	default:
-		if _, err := fmt.Fprintf(
-			cf.Stdout(),
-			"Beam %q created.\n",
-			beam.GetStatus().GetAlias(),
-		); err != nil {
-			return trace.Wrap(err)
+		if s != nil {
+			s.StopWithMessage(fmt.Sprintf("Beam %q created.\n", alias))
+		} else {
+			fmt.Fprintf(cf.Stdout(), "Beam %q created.\n", alias)
 		}
 
-		// Connect to the beam via SSH.
 		if c.console {
 			return trace.Wrap(sshBeam(cf, tc, beam, nil))
 		}
