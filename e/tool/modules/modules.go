@@ -259,6 +259,16 @@ func setLegacyLogic(license types.License) modules.Features {
 		f.ProductType = modules.ProductTypeEUB
 	}
 
+	// Enable Access Graph, Activity Center and Session Summaries if Policy is enabled,
+	// as these features depend on Policy; this is for backwards compatibility with
+	// older licenses that may not have these entitlements explicitly set,
+	// but should have them enabled if they have Policy enabled.
+	if license.GetSupportsPolicy().Value() {
+		f.Entitlements[entitlements.AccessGraph] = modules.EntitlementInfo{Enabled: true}
+		f.Entitlements[entitlements.ActivityCenter] = modules.EntitlementInfo{Enabled: true}
+		f.Entitlements[entitlements.SessionSummaries] = modules.EntitlementInfo{Enabled: true}
+	}
+
 	// Set Identity Entitlements second; override legacy license with hard coded previews; backwards compatibility with older licenses
 	// Override legacy license values
 	legacyLicense := !f.IsUsageBasedBilling
