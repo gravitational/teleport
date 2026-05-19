@@ -760,7 +760,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		}
 	}
 
-	go h.startFeatureWatcher()
+	go h.startFeatureWatcher(h.cfg.Context)
 
 	return &APIHandler{
 		handler:    h,
