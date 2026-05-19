@@ -551,27 +551,11 @@ const logInterval = 10000
 
 // WatchEvents returns a new stream of cluster events
 func (g *GRPCServer) WatchEvents(watch *authpb.Watch, stream authpb.AuthService_WatchEventsServer) (err error) {
-	auth, err := g.authenticate(stream.Context())
+	auth, err := g.scopedAuthenticate(stream.Context())
 	if err != nil {
-		// Support scoped identities calling the RPC by falling back to scoped
-		// authorizer check.
-		if errors.Is(err, services.ErrScopedIdentity) {
-			scopedAuth, err := g.scopedAuthenticate(stream.Context())
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			return trace.Wrap(WatchEvents(
-				watch,
-				stream,
-				scopedAuth.scopedContext.User.GetName(),
-				scopedAuth,
-				g.AuthServer.modules,
-			))
-		}
 		return trace.Wrap(err)
 	}
-
-	return trace.Wrap(WatchEvents(watch, stream, auth.User.GetName(), auth, g.AuthServer.modules))
+	return trace.Wrap(WatchEvents(watch, stream, auth.scopedContext.User.GetName(), auth, g.AuthServer.modules))
 }
 
 // WatchEvent is a stream interface for sending events.
@@ -709,28 +693,28 @@ func (g *GRPCServer) GenerateUserCerts(ctx context.Context, req *authpb.UserCert
 	}
 
 	// deny access to scoped bots
-	if ident := auth.getIdentity(); ident.IsBot() && ident.ScopePin != nil {
+	if ident := auth.scopedContext.Identity.GetIdentity(); ident.IsBot() && ident.ScopePin != nil {
 		return nil, trace.AccessDenied("scoped bots can not generate user certs")
 	}
 
-	if err := validateUserCertsRequest(auth.ServerWithRoles, req); err != nil {
+	if err := validateUserCertsRequest(auth.ScopedServerWithRoles, req); err != nil {
 		g.logger.DebugContext(ctx, "Validation of user certs request failed", "error", err)
 		return nil, trace.Wrap(err)
 	}
 
 	if req.Purpose == authpb.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS {
-		certs, err := g.generateUserSingleUseCerts(ctx, auth.ServerWithRoles, req)
+		certs, err := g.generateUserSingleUseCerts(ctx, auth.ScopedServerWithRoles, req)
 		return certs, trace.Wrap(err)
 	}
 
-	certs, err := auth.ServerWithRoles.GenerateUserCerts(ctx, *req)
+	certs, err := auth.GenerateUserCerts(ctx, *req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return certs, nil
 }
 
-func validateUserCertsRequest(srv *ServerWithRoles, req *authpb.UserCertsRequest) error {
+func validateUserCertsRequest(srv *ScopedServerWithRoles, req *authpb.UserCertsRequest) error {
 	if err := validateCertUsage(req); err != nil {
 		return trace.Wrap(err)
 	}
@@ -815,7 +799,7 @@ func validateAccessGraphcertificateReq(req *authpb.UserCertsRequest) error {
 }
 
 // generateUserSingleUseCerts issues single-use user certificates.
-func (g *GRPCServer) generateUserSingleUseCerts(ctx context.Context, srv *ServerWithRoles, req *authpb.UserCertsRequest) (*authpb.Certs, error) {
+func (g *GRPCServer) generateUserSingleUseCerts(ctx context.Context, srv *ScopedServerWithRoles, req *authpb.UserCertsRequest) (*authpb.Certs, error) {
 	setUserSingleUseCertsTTL(srv, req)
 
 	// We don't do MFA requirement validations here.
@@ -2883,7 +2867,7 @@ func (g *GRPCServer) GenerateUserSingleUseCerts(stream authpb.AuthService_Genera
 	return trace.NotImplemented("method GenerateUserSingleUseCerts is deprecated, use GenerateUserCerts instead")
 }
 
-func setUserSingleUseCertsTTL(srv *ServerWithRoles, req *authpb.UserCertsRequest) {
+func setUserSingleUseCertsTTL(srv *ScopedServerWithRoles, req *authpb.UserCertsRequest) {
 	if !isCertWrittenToDiskFlow(req) {
 		// Don't limit the cert expiry to 1 minute for certs that are not written to disk.
 		// When MFA is required, cert expiration time is bounded by the lifetime of the local proxy process
@@ -2924,7 +2908,7 @@ func isCertWrittenToDiskFlow(req *authpb.UserCertsRequest) bool {
 	return !isInMemoryCertRequest(req) && !isCredentialsStdoutCertRequest(req)
 }
 
-func userSingleUseCertsGenerate(ctx context.Context, srv *ServerWithRoles, req authpb.UserCertsRequest) (*authpb.Certs, error) {
+func userSingleUseCertsGenerate(ctx context.Context, srv *ScopedServerWithRoles, req authpb.UserCertsRequest) (*authpb.Certs, error) {
 	// Get the client IP.
 	clientPeer, ok := peer.FromContext(ctx)
 	if !ok {
@@ -2938,9 +2922,9 @@ func userSingleUseCertsGenerate(ctx context.Context, srv *ServerWithRoles, req a
 	// MFA certificates are supposed to be always pinned to IP, but it was decided to turn this off until
 	// IP pinning comes out of preview. Here we would add option to pin the cert, see commit of this comment for restoring.
 	opts := []certRequestOption{
-		certRequestPreviousIdentityExpires(srv.getIdentity().Expires),
+		certRequestPreviousIdentityExpires(srv.scopedContext.Identity.GetIdentity().Expires),
 		certRequestLoginIP(clientIP),
-		certRequestDeviceExtensions(srv.getIdentity().DeviceExtensions),
+		certRequestDeviceExtensions(srv.scopedContext.Identity.GetIdentity().DeviceExtensions),
 	}
 
 	// Generate the cert.
@@ -3809,7 +3793,7 @@ func (g *GRPCServer) DeleteToken(ctx context.Context, req *types.ResourceRequest
 
 // ListAuthServers returns a paginated list of auth servers.
 func (g *GRPCServer) ListAuthServers(ctx context.Context, req *presencev1pb.ListAuthServersRequest) (*presencev1pb.ListAuthServersResponse, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3836,7 +3820,7 @@ func (g *GRPCServer) ListAuthServers(ctx context.Context, req *presencev1pb.List
 
 // ListProxyServers returns a paginated list of proxy servers.
 func (g *GRPCServer) ListProxyServers(ctx context.Context, req *presencev1pb.ListProxyServersRequest) (*presencev1pb.ListProxyServersResponse, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5006,51 +4990,21 @@ func (g *GRPCServer) GenerateCertAuthorityCRL(ctx context.Context, req *authpb.C
 
 // ListUnifiedResources retrieves a paginated list of unified resources.
 func (g *GRPCServer) ListUnifiedResources(ctx context.Context, req *authpb.ListUnifiedResourcesRequest) (*authpb.ListUnifiedResourcesResponse, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
-		if errors.Is(err, services.ErrScopedIdentity) {
-			// TODO(fspmarshall/scopes): Do away with this bifurcated implementation in favor of making ListUnifiedResources
-			// able to support scoped callers directly.
-			return g.scopedListUnifiedResources(ctx, req)
-		}
 		return nil, trace.Wrap(err)
 	}
-
 	return auth.ListUnifiedResources(ctx, req)
 }
 
-// scopedListUnifiedResources handles ListUnifiedResources requests for scoped identities. eventually we want to do away with
-// this in favor of fully porting over the ListUnifiedResources API to support scopes natively. for the time being, we use
-// this method to specifically make it possible to use 'tsh ls' with scoped credentials. usecases other than that are not
-// guaranteed to work properly at this time.
-func (g *GRPCServer) scopedListUnifiedResources(ctx context.Context, req *authpb.ListUnifiedResourcesRequest) (*authpb.ListUnifiedResourcesResponse, error) {
+// ListResources retrieves a paginated list of resources.
+func (g *GRPCServer) ListResources(ctx context.Context, req *authpb.ListResourcesRequest) (*authpb.ListResourcesResponse, error) {
 	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return auth.scopedListUnifiedResources(ctx, req)
-}
-
-// ListResources retrieves a paginated list of resources.
-func (g *GRPCServer) ListResources(ctx context.Context, req *authpb.ListResourcesRequest) (*authpb.ListResourcesResponse, error) {
-
-	var swr *ServerWithRoles
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		if !errors.Is(err, services.ErrScopedIdentity) {
-			return nil, trace.Wrap(err)
-		}
-		scopedAuth, err := g.scopedAuthenticate(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		swr = scopedAuth.ServerWithRoles
-	} else {
-		swr = auth.ServerWithRoles
-	}
-
-	resp, err := swr.ListResources(ctx, *req)
+	resp, err := auth.ListResources(ctx, *req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5069,38 +5023,11 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *authpb.ListResource
 }
 
 func (g *GRPCServer) GetSSHTargets(ctx context.Context, req *authpb.GetSSHTargetsRequest) (*authpb.GetSSHTargetsResponse, error) {
-	auth, err := g.authenticate(ctx)
-	if err != nil {
-		if errors.Is(err, services.ErrScopedIdentity) {
-			// NOTE: this pattern of having separate code paths for scoped identities is temporary. GetSSHTargets
-			// relies upon ListUnifiedResources internally, which hasn't yet been fully ported to support scopes.
-			// until that work is done, we need to have this separate code path to ensure that search_as_roles
-			// functions as expected for unscoped callers.
-			return g.scopedGetSSHTargets(ctx, req)
-		}
-		return nil, trace.Wrap(err)
-	}
-
-	rsp, err := auth.ServerWithRoles.GetSSHTargets(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return rsp, nil
-}
-
-func (g *GRPCServer) scopedGetSSHTargets(ctx context.Context, req *authpb.GetSSHTargetsRequest) (*authpb.GetSSHTargetsResponse, error) {
 	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	rsp, err := auth.GetSSHTargets(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return rsp, nil
+	return auth.GetSSHTargets(ctx, req)
 }
 
 // ResolveSSHTarget gets a server that would match an equivalent ssh dial request.
@@ -5273,7 +5200,7 @@ func (g *GRPCServer) GetClusterCACert(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return auth.ServerWithRoles.GetClusterCACert(ctx)
+	return auth.GetClusterCACert(ctx)
 }
 
 // GetConnectionDiagnostic reads a connection diagnostic.
@@ -6832,18 +6759,15 @@ func (g *GRPCServer) authenticate(ctx context.Context) (*grpcContext, error) {
 	return &grpcContext{
 		Context: authContext,
 		ServerWithRoles: &ServerWithRoles{
-			authServer: g.AuthServer,
+			serverBase: serverBase{authServer: g.AuthServer, alog: g.AuthServer},
 			context:    *authContext,
-			alog:       g.AuthServer,
 		},
 	}, nil
 }
 
-// scopedGRPCContext servers the same role as [grpcContext] but for scoped identities. It is currently
-// a thin wrapper around [ServerWithRoles] since we don't have any need to embed an [authz.Context] yet,
-// but we may embed one in the future.
+// scopedGRPCContext serves the same role as [grpcContext] but for scoped identities.
 type scopedGRPCContext struct {
-	*ServerWithRoles
+	*ScopedServerWithRoles
 }
 
 // scopedAuthenticate functions similarly to authenticate but supports scoped identities. It returns an initialized auth server
@@ -6854,10 +6778,9 @@ func (g *GRPCServer) scopedAuthenticate(ctx context.Context) (*scopedGRPCContext
 		return nil, trace.Wrap(err)
 	}
 	return &scopedGRPCContext{
-		ServerWithRoles: &ServerWithRoles{
-			authServer:    g.AuthServer,
+		ScopedServerWithRoles: &ScopedServerWithRoles{
+			serverBase:    serverBase{authServer: g.AuthServer, alog: g.AuthServer},
 			scopedContext: authContext,
-			alog:          g.AuthServer,
 		},
 	}, nil
 }

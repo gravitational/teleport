@@ -280,16 +280,14 @@ func UpsertServer(srv *APIServer, auth presenceForAPIServer, role types.SystemRo
 
 func NewServerWithRoles(srv *Server, alog events.AuditLogSessionStreamer, authzContext authz.Context) *ServerWithRoles {
 	return &ServerWithRoles{
-		authServer: srv,
-		alog:       alog,
+		serverBase: serverBase{authServer: srv, alog: alog},
 		context:    authzContext,
 	}
 }
 
-func NewScopedServerWithRoles(srv *Server, alog events.AuditLogSessionStreamer, scopedContext *authz.ScopedContext) *ServerWithRoles {
-	return &ServerWithRoles{
-		authServer:    srv,
-		alog:          alog,
+func NewScopedServerWithRoles(srv *Server, alog events.AuditLogSessionStreamer, scopedContext *authz.ScopedContext) *ScopedServerWithRoles {
+	return &ScopedServerWithRoles{
+		serverBase:    serverBase{authServer: srv, alog: alog},
 		scopedContext: scopedContext,
 	}
 }
