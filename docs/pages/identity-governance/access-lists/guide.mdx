@@ -17,11 +17,16 @@ This guide walks you through the Teleport Web UI to:
 - Assign a member to it
 - Verify permissions granted through the list membership
 
+If you'd rather manage Access Lists as code, follow the
+[Access Lists with Terraform and Kubernetes Operator](../../zero-trust-access/infrastructure-as-code/managing-resources/access-list.mdx)
+guide instead.
+
 ## Prerequisites
 
 - A running Teleport Enterprise (v18.8.0 or higher) cluster. If you don't have one yet,
   [sign up](https://goteleport.com/signup) for a free trial.
-- An admin user with the preset `editor` role, which will have permissions to create Access Lists.
+
+(!docs/pages/identity-governance/access-lists/includes/acl-permissions.mdx!)
 
 ## Step 1/4. Enroll a test resource
 
@@ -59,7 +64,7 @@ Try logging into the cluster with the test user to verify that no resources show
 
 ## Step 3/4. Create an Access List
 
-Next, we'll create a simple Access List that grants its members access to the SSH
+Next, we'll create an Access List that grants its members access to the SSH
 host we enrolled in Step 1. Login as the admin user mentioned in the
 prerequisites.
 
@@ -67,9 +72,11 @@ From the sidebar menu, hover over **Add New** then click **Access List**.
 
 Enter `test-list` as the Access List name, optionally add a description, then
 select **Standing Access Guide** — this is the flow that grants members access on
-sign-in, which is what we want for this tutorial. (The other option,
-[Just-in-Time Access](./jit-access-list.mdx), makes resources *requestable*
-instead of granted automatically.)
+login, which is what we want for this tutorial. (Other options:
+[Just-in-Time Access](./jit-access-list.mdx) makes resources *requestable*
+instead of granted automatically, and the
+[Custom Form](./custom-access-list.mdx) lets you assign existing roles
+directly without the guided flow.)
 
 Click **Start Guide**.
 
@@ -78,10 +85,6 @@ As you fill out the guided flow, a Terraform panel on the side mirrors your inpu
 live. At the final **Deployment** step you can choose to apply the list with Teleport
 directly or follow the in-UI instructions to apply it with Terraform.
 </Admonition>
-
-### Walk through the guide
-
-The guide will step you through six screens.
 
 #### 1. Define Access to Resources
 
@@ -93,6 +96,8 @@ The guide will step you through six screens.
 
 This gives members of the list access to SSH servers matching the
 `env: test` label (or any SSH server, if you used `*`).
+
+(!docs/pages/identity-governance/access-lists/includes/preview-resources-warning.mdx!)
 
 #### 2. Define Resource Identities or Principals
 
@@ -130,11 +135,12 @@ type you selected in the previous step.
 
 (!docs/pages/identity-governance/access-lists/includes/editing-roles-warning.mdx!)
 
-## Step 4/4. Login as the test user
+## Step 4/4. Log in as the test user
 
-Login as the test user. When logging in now, you should see the SSH server you
-enrolled in Step 1 in the resource list, and should be able to SSH into it using
-one of the logins you allowed in **Define Resource Identities or Principals** step.
+Log in as the test user in the Web UI. You should see the SSH server from
+Step 1 in the **Resources** list. Click **Connect**, then click one of the
+logins you allowed in the **Define Resource Identities or Principals** step
+to SSH into the server.
 
 ## Cleanup (optional)
 
@@ -149,7 +155,9 @@ resource list after a few minutes.
 - Read more about the flow you just used in [Standing Access
   Lists](./standing-access-list.mdx).
 - Create an Access List whose members can [request temporary access to
-  resources](./jit-access-list.mdx) instead of receiving them on sign-in.
+  resources](./jit-access-list.mdx) instead of receiving them on login.
+- Create an Access List by assigning existing roles directly with the
+  [Custom Form](./custom-access-list.mdx).
 - Read [Creating Access Lists with
   IaC](../../zero-trust-access/infrastructure-as-code/managing-resources/access-list.mdx) for instructions on managing Access Lists with the Teleport Terraform provider and Kubernetes operator.
 - Familiarize yourself with the CLI tooling available for managing Access Lists in the [reference](../../reference/access-controls/access-lists.mdx).
