@@ -24,7 +24,6 @@ import (
 	"crypto/x509/pkix"
 	"encoding/asn1"
 	"log/slog"
-	"strings"
 	"testing"
 	"time"
 
@@ -386,10 +385,6 @@ func TestDBCertSigning(t *testing.T) {
 			})
 		})
 	}
-}
-
-func comparePEMs(a, b []byte) int {
-	return strings.Compare(string(a), string(b))
 }
 
 // mustVerifyCert is a helper func that verifies leaf cert with root cert.
