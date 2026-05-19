@@ -51,14 +51,15 @@ type CAOverrideResolver struct {
 // caGetter a CA override source, likely a cached services.SubCAServiceGetter
 // implementation.
 //
-// Production callers should use [Enabled] as the featureEnabled value.
-func NewCAOverrideResolver(caGetter CAOverrideGetter, featureEnabled bool) (*CAOverrideResolver, error) {
+// Production callers should use `modules.Modules.IsEnterpriseBuild()` and
+// [Enabled] as the boolean values, respectively.
+func NewCAOverrideResolver(caGetter CAOverrideGetter, isEnterpriseBuild, featureEnabled bool) (*CAOverrideResolver, error) {
 	if caGetter == nil {
 		return nil, trace.BadParameter("nil caGetter")
 	}
 	return &CAOverrideResolver{
 		caGetter:       caGetter,
-		featureEnabled: featureEnabled,
+		featureEnabled: isEnterpriseBuild && featureEnabled,
 	}, nil
 }
 

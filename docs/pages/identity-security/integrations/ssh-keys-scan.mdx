@@ -83,7 +83,7 @@ Check the [Identity Security page](../identity-security.mdx) for details on
 how to set up Access Graph.
   - The node running the Access Graph service must be reachable from the Teleport Auth Service.
 
-## Step 1/3. Enable SSH Key Scanning
+## Step 1/2. Enable SSH Key Scanning
 
 To enable SSH Key Scanning, you need to configure the Teleport cluster to scan for SSH authorized keys.
 
@@ -110,7 +110,7 @@ SSH authorized keys. This process may take a few minutes to complete.
 After a few minutes, you can navigate to the Access Graph page in the Teleport UI to view the imported SSH authorized keys
 and local users.
 
-## Step 2/3. Scan for SSH private keys
+## Step 2/2. Scan for SSH private keys
 
 On devices enrolled in the Teleport, you can use the `tsh` CLI tool to scan for SSH private keys. Check [Device Trust](../../zero-trust-access/device-trust/device-trust.mdx)
 for details on how to enroll devices in Teleport, specially if you are using Jamf Pro.
@@ -136,10 +136,17 @@ fingerprints to the Teleport cluster. The Teleport cluster will then import the 
 Once the scan is complete, `tsh` will display the number of keys found, their fingerprints and their paths. The program
 output is the only place where the private key paths are displayed. The paths are not sent to the Teleport cluster.
 
+## Next steps
 
-## Step 3/3. View Access Graph
+Now that you have set up SSH key scanning, you can visualize the use of insecure
+SSH key patterns in your infrastructure and integrate with Jamf Pro.
+
+### View Access Graph
 
 Once the SSH authorized keys and private keys have been imported, you can view them on the Access Graph page.
+
+From the Teleport Web UI, visit **Identity Security** > **Graph Explorer**.
+
 Users whose devices have private keys will see direct paths to the servers they can access.
 
 The access paths shown include the following relationships:
@@ -154,7 +161,7 @@ Insecure paths are also visible in a user's access paths. To view them, click on
 from the context menu. This will show the Teleport permissions granted to the user, the resources they can access,
 and any detected insecure paths.
 
-### Access Graph: Dedicated `ssh_keys` SQL View
+### Use the `ssh_keys` SQL View
 
 Starting in version **v1.25.0**, Access Graph introduces a dedicated `ssh_keys` SQL view for managing SSH access paths.
 This view excludes access paths granted through Teleport and focuses on:
@@ -176,8 +183,7 @@ Below are a few example queries demonstrating how the `ssh_keys` view can be use
   SELECT * FROM ssh_keys WHERE resource_labels @> '{"env": "dev"}';
   ```
 
-
-## Jamf Pro Integration
+### Integrate Jamf Pro 
 
 If you are using Jamf Pro to manage your devices, you can integrate it with Teleport to automate the device enrollment
 process and periodically scan for SSH private keys. Check the [Jamf Pro Integration](../../zero-trust-access/device-trust/jamf-integration.mdx)

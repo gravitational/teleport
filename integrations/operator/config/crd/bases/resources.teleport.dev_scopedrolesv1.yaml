@@ -14,7 +14,12 @@ spec:
     singular: teleportscopedrolev1
   scope: Namespaced
   versions:
-  - name: v1
+  - additionalPrinterColumns:
+    - description: Resource's scope.
+      jsonPath: .scope
+      name: scope
+      type: string
+    name: v1
     schema:
       openAPIV3Schema:
         description: ScopedRoleV1 is the Schema for the scopedrolesv1 API
@@ -56,6 +61,22 @@ spec:
                       access sessions across all protocols that do not specify their
                       own value. Must be a valid Go duration string (e.g. "30m", "1h").
                     type: string
+                  disconnect_expired_cert:
+                    description: DisconnectExpiredCert defines the default behavior
+                      of all protocols when certs expire for a session. If unset,
+                      cluster wide defaults are used.
+                    type: boolean
+                  lock:
+                    description: Lock specifies the default locking mode for access
+                      sessions across all protocols that do not specify their own
+                      value. If unset, cluster wide defaults are used.
+                    nullable: true
+                    properties:
+                      mode:
+                        description: 'Allowed values: strict or best_effort. Defaults
+                          to value cluster wide auth preference if not set.'
+                        type: string
+                    type: object
                   session_recording:
                     description: SessionRecording configures the session recording
                       strategy for all protocols that don't explicitly set their session
@@ -64,7 +85,7 @@ spec:
                     properties:
                       mode:
                         description: 'Mode sets the session recording mode. Allowed
-                          values: strict | best_effort.'
+                          values: strict or best_effort.'
                         type: string
                     type: object
                 type: object
@@ -78,6 +99,10 @@ spec:
                       "30m", "1h"). If empty, the defaults block value (or global
                       default) applies.
                     type: string
+                  disconnect_expired_cert:
+                    description: DisconnectExpiredCert controls whether Kube sessions
+                      are disconnected when the user certificate expires.
+                    type: boolean
                   groups:
                     description: The list of kubernetes groups this role allows.
                     items:
@@ -100,6 +125,16 @@ spec:
                       type: object
                     nullable: true
                     type: array
+                  lock:
+                    description: Lock configures the role's locking behavior for kubernetes
+                      sessions.
+                    nullable: true
+                    properties:
+                      mode:
+                        description: 'Allowed values: strict or best_effort. Defaults
+                          to value cluster wide auth preference if not set.'
+                        type: string
+                    type: object
                   users:
                     description: An optional list of impersonatable kubernetes users
                       this role allows.
@@ -140,6 +175,11 @@ spec:
                       string (e.g. "30m", "1h"). If empty, the defaults block value
                       (or global default) applies.
                     type: string
+                  disconnect_expired_cert:
+                    description: DisconnectExpiredCert controls whether SSH sessions
+                      are disconnected when the user certificate expires. Defaults
+                      to value cluster wide auth preference if not set.
+                    type: boolean
                   enhanced_recording:
                     description: EnhancedRecording is the set of BPF events to record
                       for enhanced session recording.
@@ -206,6 +246,16 @@ spec:
                       type: object
                     nullable: true
                     type: array
+                  lock:
+                    description: Lock configures the role's locking behavior for SSH
+                      sessions.
+                    nullable: true
+                    properties:
+                      mode:
+                        description: 'Allowed values: strict or best_effort. Defaults
+                          to value cluster wide auth preference if not set.'
+                        type: string
+                    type: object
                   logins:
                     description: Logins is the list of OS logins this role permits
                       on matching nodes.
@@ -250,7 +300,7 @@ spec:
                     properties:
                       mode:
                         description: 'Mode sets the session recording mode. Allowed
-                          values: strict | best_effort.'
+                          values: strict or best_effort.'
                         type: string
                     type: object
                 type: object

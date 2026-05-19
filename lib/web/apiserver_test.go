@@ -1925,7 +1925,7 @@ func TestFileTransferEvents(t *testing.T) {
 	// Create file transfer event
 	data, err := json.Marshal(events.EventFields{
 		"download": true,
-		"location": "~/myfile.txt",
+		"location": "/home/alice/myfile.txt",
 	})
 
 	require.NoError(t, err)
@@ -5095,6 +5095,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 				string(entitlements.AccessLists):                {Enabled: false},
 				string(entitlements.AccessMonitoring):           {Enabled: false},
 				string(entitlements.AccessRequests):             {Enabled: false},
+				string(entitlements.ActivityCenter):             {Enabled: false},
 				string(entitlements.App):                        {Enabled: true},
 				string(entitlements.Beams):                      {Enabled: false},
 				string(entitlements.ClientIPRestrictions):       {Enabled: false},
@@ -5116,6 +5117,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 				string(entitlements.Policy):                     {Enabled: false},
 				string(entitlements.SAML):                       {Enabled: false},
 				string(entitlements.SessionLocks):               {Enabled: false},
+				string(entitlements.SessionSummaries):           {Enabled: false},
 				string(entitlements.UpsellAlert):                {Enabled: false},
 				string(entitlements.UsageReporting):             {Enabled: false},
 				string(entitlements.UnrestrictedManagedUpdates): {Enabled: false},
