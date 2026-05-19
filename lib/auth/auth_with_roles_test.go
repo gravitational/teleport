@@ -8748,69 +8748,69 @@ func TestUpsertNode(t *testing.T) {
 	const otherID = "test2"
 
 	makeNode := func(t *testing.T, name, scope string) types.Server {
-		node, err := types.NewServerWithLabels(name, types.KindNode, types.ServerSpecV2{
-			Addr:     "127.0.0.1:22",
-			Hostname: name,
-		}, nil)
-		require.NoError(t, err)
-		node.SetSubKind(types.SubKindOpenSSHNode)
-		if scope != "" {
-			serverV2, ok := node.(*types.ServerV2)
-			require.True(t, ok)
-			serverV2.Scope = scope
+		node := &types.ServerV2{
+			Kind:    types.KindNode,
+			SubKind: types.SubKindOpenSSHNode,
+			Metadata: types.Metadata{
+				Name: name,
+			},
+			Spec: types.ServerSpecV2{
+				Addr:     "someaddr.com:443",
+				Hostname: name,
+			},
+			Scope: scope,
 		}
+		require.NoError(t, node.CheckAndSetDefaults())
 		return node
 	}
 
-	t.Run("mode caller", func(t *testing.T) {
-		tests := []struct {
-			name        string
-			callerScope string
-			nodeName    string
-			nodeScope   string
-			shouldErr   bool
-		}{
-			{
-				name:        "unscoped - bypasses node ID check",
-				callerScope: "",
-				nodeName:    otherID,
-				nodeScope:   "",
-			},
-			{
-				name:        "scoped - matching ID and scope allowed",
-				callerScope: "/staging",
-				nodeName:    nodeName,
-				nodeScope:   "/staging",
-			},
-			{
-				name:        "scoped - matching ID but mismatched scope denied",
-				callerScope: "/staging",
-				nodeName:    nodeName,
-				nodeScope:   "/prod",
-				shouldErr:   true,
-			},
-			{
-				name:        "scoped - matching scope but mismatched ID denied",
-				callerScope: "/staging",
-				nodeName:    otherID,
-				nodeScope:   "/staging",
-				shouldErr:   true,
-			},
-		}
+	tests := []struct {
+		name        string
+		callerScope string
+		nodeName    string
+		nodeScope   string
+		shouldErr   bool
+	}{
+		{
+			name:        "unscoped - bypasses node ID check",
+			callerScope: "",
+			nodeName:    otherID,
+			nodeScope:   "",
+		},
+		{
+			name:        "scoped - matching ID and scope allowed",
+			callerScope: "/staging",
+			nodeName:    nodeName,
+			nodeScope:   "/staging",
+		},
+		{
+			name:        "scoped - matching ID but mismatched scope denied",
+			callerScope: "/staging",
+			nodeName:    nodeName,
+			nodeScope:   "/prod",
+			shouldErr:   true,
+		},
+		{
+			name:        "scoped - matching scope but mismatched ID denied",
+			callerScope: "/staging",
+			nodeName:    otherID,
+			nodeScope:   "/staging",
+			shouldErr:   true,
+		},
+	}
 
-		for _, tt := range tests {
-			t.Run(tt.name, func(t *testing.T) {
-				srv := newScopedTestServerForHost(t, as, nodeName, tt.callerScope, types.RoleNode)
-				_, err := srv.UpsertNode(t.Context(), makeNode(t, tt.nodeName, tt.nodeScope))
-				if tt.shouldErr {
-					require.Error(t, err)
-					require.True(t, trace.IsAccessDenied(err))
-					return
-				}
-				require.NoError(t, err)
-			})
-		}
-	})
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := newScopedTestServerForHost(t, as, nodeName, tt.callerScope, types.RoleNode)
+			_, err := srv.UpsertNode(t.Context(), makeNode(t, tt.nodeName, tt.nodeScope))
+			if tt.shouldErr {
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err))
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
 }
 
 // TestLocalServiceRolesHavePermissionsForUploaderService verifies that all of Teleport's
