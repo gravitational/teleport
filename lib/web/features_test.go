@@ -71,14 +71,13 @@ func TestFeaturesWatcher(t *testing.T) {
 			cfg: Config{
 				FeatureWatchInterval: 100 * time.Millisecond,
 				ProxyClient:          mockClient,
-				Context:              ctx,
 			},
 			clock:           clockwork.NewRealClock(),
 			clusterFeatures: proto.Features{},
 			logger:          slog.Default().With(teleport.ComponentKey, teleport.ComponentWeb),
 		}
 
-		go handler.startFeatureWatcher()
+		go handler.startFeatureWatcher(ctx)
 		synctest.Wait()
 
 		// before running the watcher, features should match the value passed to the handler
@@ -164,14 +163,13 @@ func TestFeaturesWatcherDoesNotPanicOnNilFeatures(t *testing.T) {
 				ProxyClient: &mockedFeatureGetter{
 					features: nil, // Simulate auth server returning nil features.
 				},
-				Context: t.Context(),
 			},
 			clock:           clockwork.NewRealClock(),
 			clusterFeatures: initialFeatures,
 			logger:          slog.Default().With(teleport.ComponentKey, teleport.ComponentWeb),
 		}
 
-		go handler.startFeatureWatcher()
+		go handler.startFeatureWatcher(t.Context())
 		synctest.Wait()
 
 		time.Sleep(handler.cfg.FeatureWatchInterval)
