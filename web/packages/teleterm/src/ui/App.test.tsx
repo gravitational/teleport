@@ -18,7 +18,6 @@
 
 import { act, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import 'jest-canvas-mock';
 import { mockIntersectionObserver } from 'jsdom-testing-mocks';
 
 import { render } from 'design/utils/testing';
