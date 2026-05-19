@@ -145,22 +145,20 @@ export function SortMenu(props: {
         menuListCss={() => `padding-bottom: 8px;`}
       >
         <MenuTitle>Sort by</MenuTitle>
-        {items.map(({ key, label: optionLabel, hidden }) => {
-          const checked = selectedKey === key;
-          if (hidden && !checked) {
-            return null;
-          }
-          return (
-            <StyledMenuItem key={key} onClick={() => handleItemSelected(key)}>
-              <Tick
-                size={'small'}
-                checked={checked}
-                color={theme.colors.text.muted}
-              />
-              {optionLabel || key}
-            </StyledMenuItem>
-          );
-        })}
+        {items
+          .filter(({ key, hidden }) => !hidden || selectedKey === key)
+          .map(({ key, label: optionLabel }) => {
+            return (
+              <StyledMenuItem key={key} onClick={() => handleItemSelected(key)}>
+                <Tick
+                  size={'small'}
+                  checked={selectedKey === key}
+                  color={theme.colors.text.muted}
+                />
+                {optionLabel || key}
+              </StyledMenuItem>
+            );
+          })}
         <MenuTitle>Order</MenuTitle>
         <StyledMenuItem
           onClick={() => handleOrderSelected('ASC')}
