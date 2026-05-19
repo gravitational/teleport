@@ -172,6 +172,9 @@ const databaseServerNameIndex databaseServerIndex = "name"
 const databaseServerDatabaseNameIndex databaseServerIndex = "database_name"
 
 func databaseServerByDatabaseNameKey(s types.DatabaseServer) string {
+	// Delete events deliver header only resources with a nil Database. This
+	// returns "" so the secondary index lookup is a no-op. The primary
+	// index deletion removes the entry from all indexes.
 	db := s.GetDatabase()
 	if db == nil {
 		return ""
