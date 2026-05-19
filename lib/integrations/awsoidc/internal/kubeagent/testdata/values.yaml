@@ -1,0 +1,24 @@
+# Values consumed by internal/gen at build time.
+#
+# The placeholders are patched at runtime with the correct values.
+
+roles: "kube"
+
+proxyAddr: "proxy-placeholder:443"
+authToken: "token-placeholder"
+kubeClusterName: "cluster-placeholder"
+
+enterprise: true
+
+updater:
+  enabled: true
+  releaseChannel: "channel-placeholder"
+
+highAvailability:
+  replicaCount: 2
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+
+podSecurityPolicy:
+  enabled: false

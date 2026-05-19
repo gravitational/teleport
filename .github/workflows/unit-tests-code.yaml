@@ -71,7 +71,7 @@ jobs:
 
       - name: Run tests
         timeout-minutes: 30
-        run: make -j"$(nproc)" test-go test-sh test-api
+        run: make -j"$(nproc)" test-go test-sh test-api test-kube-agent-gen
 
       - name: Upload test metrics
         if: always()

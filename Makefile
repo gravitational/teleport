@@ -1140,6 +1140,17 @@ test-kube-agent-updater: SUBJECT ?= $(shell cd integrations/kube-agent-updater &
 test-kube-agent-updater:
 	cd integrations/kube-agent-updater && $(CGOFLAG) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| $(GOTESTSUM) --junitfile $(TEST_LOG_DIR)/unit-tests-kube-agent-updater.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-kube-agent-updater.json --raw-command -- cat
+#
+# Runs Go tests on the kubeagent generator module. These have to be run separately as the package name is different.
+#
+.PHONY: test-kube-agent-gen
+test-kube-agent-gen: | $(TEST_LOG_DIR)
+test-kube-agent-gen: FLAGS ?= -race -shuffle on
+test-kube-agent-gen: SUBJECT ?= $(shell cd lib/integrations/awsoidc/internal/kubeagent/internal/gen && go list ./...)
+test-kube-agent-gen:
+	cd lib/integrations/awsoidc/internal/kubeagent/internal/gen && $(CGOFLAG) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
+		| $(GOTESTSUM) --junitfile $(TEST_LOG_DIR)/unit-tests-kubeagent-gen.xml --jsonfile $(TEST_LOG_DIR)/unit-tests-kubeagent-gen.json --raw-command -- cat
+
 
 .PHONY: test-access-integrations
 test-access-integrations:
