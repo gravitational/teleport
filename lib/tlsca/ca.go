@@ -1458,12 +1458,20 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 	}
 
 	if len(allowedResourceAccessIDs) > 0 {
-		// Prefer new extension when present, old extension is redundant
-		// (exists for backward-compat with older agents/proxies).
+		// Prefer new extension when present.
 		id.AllowedResourceAccessIDs = allowedResourceAccessIDs
+		// Populate AllowedResourceIDs with any present unconstrained resources,
+		// so any path re-encoding this identity (e.g., database proxy CSR signing)
+		// persists the resourceIDs to the legacy extension, instead of adding a
+		// sentinel.
+		//
+		// TODO(kiosion): DELETE in 20.0.0
+		id.AllowedResourceIDs, _ = types.UnwrapResourceAccessIDs(allowedResourceAccessIDs)
 	} else if len(allowedResourceIDs) > 0 {
-		// Fallback for certs from older auth servers that don't write the new extension.
+		// Fallback for certs from older Auths that don't write the new extension.
 		id.AllowedResourceAccessIDs = types.CombineAsResourceAccessIDs(allowedResourceIDs, nil)
+		//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v20
+		id.AllowedResourceIDs = allowedResourceIDs
 	}
 
 	if err := id.CheckAndSetDefaults(); err != nil {
