@@ -34,7 +34,7 @@ type DiscoveredVM struct {
 	ResourceGroup string
 	// OSType is the VM's OS family from osDisk.osType, e.g. OSTypeLinux or OSTypeWindows.
 	// Empty when ARG omits the field; non-string drift skips the row at parse time.
-	OSType string
+	OSType OSType
 	// Tags are the VM tags, e.g. {"env": "prod"}. Empty map (not nil) when the VM has no tags.
 	Tags map[string]string
 }

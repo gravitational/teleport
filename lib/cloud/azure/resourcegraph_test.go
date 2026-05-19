@@ -27,8 +27,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"unicode"
-	"unicode/utf8"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
@@ -47,7 +45,7 @@ func TestBuildVMDiscoveryKQL(t *testing.T) {
 		name            string
 		regions         []string
 		resourceGroups  []string
-		osTypes         []string
+		osTypes         []OSType
 		wantContains    []string
 		wantNotContains []string
 	}{
@@ -74,7 +72,7 @@ func TestBuildVMDiscoveryKQL(t *testing.T) {
 			name:           "wildcard region, rg, and os types",
 			regions:        []string{types.Wildcard},
 			resourceGroups: []string{types.Wildcard},
-			osTypes:        []string{types.Wildcard},
+			osTypes:        []OSType{types.Wildcard},
 			wantNotContains: []string{
 				"| where location in~",
 				"| where resourceGroup in~",
@@ -85,7 +83,7 @@ func TestBuildVMDiscoveryKQL(t *testing.T) {
 			name:           "wildcard mixed with concrete filters matches all",
 			regions:        []string{types.Wildcard, "eastus"},
 			resourceGroups: []string{types.Wildcard, "rg1"},
-			osTypes:        []string{types.Wildcard, OSTypeLinux},
+			osTypes:        []OSType{types.Wildcard, OSTypeLinux},
 			wantNotContains: []string{
 				"| where location in~",
 				"| where resourceGroup in~",
@@ -108,14 +106,14 @@ func TestBuildVMDiscoveryKQL(t *testing.T) {
 		},
 		{
 			name:    "single os type uses case-insensitive set membership",
-			osTypes: []string{OSTypeLinux},
+			osTypes: []OSType{OSTypeLinux},
 			wantContains: []string{
 				"| where tostring(properties.storageProfile.osDisk.osType) in~ ('Linux')",
 			},
 		},
 		{
 			name:    "multiple os types render as a set",
-			osTypes: []string{OSTypeLinux, OSTypeWindows},
+			osTypes: []OSType{OSTypeLinux, OSTypeWindows},
 			wantContains: []string{
 				"| where tostring(properties.storageProfile.osDisk.osType) in~ ('Linux', 'Windows')",
 			},
@@ -140,7 +138,7 @@ func TestBuildVMDiscoveryKQL(t *testing.T) {
 		},
 		{
 			name:    "defense-in-depth: single quote in os type is escaped",
-			osTypes: []string{"odd'os"},
+			osTypes: []OSType{"odd'os"},
 			wantContains: []string{
 				"| where tostring(properties.storageProfile.osDisk.osType) in~ ('odd''os')",
 			},
@@ -150,7 +148,11 @@ func TestBuildVMDiscoveryKQL(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := buildVMDiscoveryKQL(tt.regions, tt.resourceGroups, tt.osTypes)
+			got := buildVMDiscoveryKQL(sanitizedParams{
+				Regions:        tt.regions,
+				ResourceGroups: tt.resourceGroups,
+				OSTypes:        tt.osTypes,
+			})
 			for _, want := range tt.wantContains {
 				assert.Contains(t, got, want, "missing expected fragment %q in:\n%s", want, got)
 			}
@@ -176,23 +178,15 @@ func TestQueryVMsParamsFieldsStayInSyncWithARGMock(t *testing.T) {
 			"or document why the new parameter is not part of ARG filtering.")
 }
 
-func TestEscapeKQL(t *testing.T) {
-	t.Parallel()
-	assert.Empty(t, escapeKQL(""))
-	assert.Equal(t, "plain", escapeKQL("plain"))
-	assert.Equal(t, "it''s", escapeKQL("it's"))
-	assert.Equal(t, "''both''", escapeKQL("'both'"))
-}
-
 func makeARGVMRow(id, name string) map[string]any {
 	return map[string]any{
 		"id":             id,
-		"subscriptionId": "sub",
+		"subscriptionId": "00000000-0000-0000-0000-000000000000",
 		"name":           name,
 		"vmId":           name + "-vmid",
 		"location":       "eastus",
 		"resourceGroup":  "rg",
-		"osType":         OSTypeLinux,
+		"osType":         string(OSTypeLinux),
 	}
 }
 
@@ -234,12 +228,12 @@ func TestParseDiscoveredVMs(t *testing.T) {
 			name: "happy path projects all fields",
 			data: []any{map[string]any{
 				"id":             "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm1",
-				"subscriptionId": "sub",
+				"subscriptionId": "00000000-0000-0000-0000-000000000000",
 				"name":           "vm1",
 				"vmId":           "abc-123",
 				"location":       "eastus",
 				"resourceGroup":  "rg",
-				"osType":         OSTypeLinux,
+				"osType":         string(OSTypeLinux),
 				"tags": map[string]any{
 					"env":   "prod",
 					"owner": "alice",
@@ -248,7 +242,7 @@ func TestParseDiscoveredVMs(t *testing.T) {
 			verify: func(t *testing.T, got []DiscoveredVM) {
 				want := []DiscoveredVM{{
 					ID:             "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm1",
-					SubscriptionID: "sub",
+					SubscriptionID: "00000000-0000-0000-0000-000000000000",
 					Name:           "vm1",
 					VMID:           "abc-123",
 					Location:       "eastus",
@@ -302,7 +296,7 @@ func TestParseDiscoveredVMs(t *testing.T) {
 				makeARGVMRow("/subscriptions/sub/.../good", "good-empty-id"),
 				map[string]any{
 					"id":             "",
-					"subscriptionId": "sub",
+					"subscriptionId": "00000000-0000-0000-0000-000000000000",
 					"name":           "drop-empty-id",
 					"vmId":           "vm-1",
 					"location":       "eastus",
@@ -319,7 +313,7 @@ func TestParseDiscoveredVMs(t *testing.T) {
 			data: []any{
 				makeARGVMRow("/subscriptions/sub/.../good", "good-missing-id"),
 				map[string]any{
-					"subscriptionId": "sub",
+					"subscriptionId": "00000000-0000-0000-0000-000000000000",
 					"name":           "drop-missing-id",
 					"vmId":           "vm-2",
 					"location":       "eastus",
@@ -338,7 +332,7 @@ func TestParseDiscoveredVMs(t *testing.T) {
 				makeARGVMRow("/subscriptions/sub/.../good", "good-nil-name"),
 				map[string]any{
 					"id":             "/subscriptions/sub/.../vm",
-					"subscriptionId": "sub",
+					"subscriptionId": "00000000-0000-0000-0000-000000000000",
 					"name":           nil,
 					"vmId":           "vm-vmid",
 					"location":       "westeurope",
@@ -374,7 +368,7 @@ func TestParseDiscoveredVMs(t *testing.T) {
 				makeARGVMRow("/subscriptions/sub/.../good", "good-nonstring-scalar"),
 				map[string]any{
 					"id":             "/subscriptions/sub/.../vm",
-					"subscriptionId": "sub",
+					"subscriptionId": "00000000-0000-0000-0000-000000000000",
 					"name":           "vm",
 					"vmId":           42, // wrong type
 					"location":       "westeurope",
@@ -417,7 +411,7 @@ func TestParseDiscoveredVMs(t *testing.T) {
 			name: "tags wrong type yields empty tags, VM kept",
 			data: []any{map[string]any{
 				"id":             "/subscriptions/sub/.../vm",
-				"subscriptionId": "sub",
+				"subscriptionId": "00000000-0000-0000-0000-000000000000",
 				"name":           "vm",
 				"vmId":           "vm-vmid",
 				"location":       "eastus",
@@ -437,7 +431,7 @@ func TestParseDiscoveredVMs(t *testing.T) {
 				makeARGVMRow("/subscriptions/sub/.../good-vm", "good-vm"),
 				map[string]any{
 					"id":             "",
-					"subscriptionId": "sub",
+					"subscriptionId": "00000000-0000-0000-0000-000000000000",
 					"name":           "bad-vm",
 					"vmId":           "vm-bad",
 					"location":       "eastus",
@@ -505,7 +499,7 @@ func TestQueryVMsContractDriftOnAllQueryRowsFail(t *testing.T) {
 				"not a map",
 				map[string]any{
 					// missing id
-					"subscriptionId": "sub",
+					"subscriptionId": "00000000-0000-0000-0000-000000000000",
 					"name":           "vm-a",
 					"vmId":           "vm-a-id",
 					"location":       "eastus",
@@ -513,7 +507,7 @@ func TestQueryVMsContractDriftOnAllQueryRowsFail(t *testing.T) {
 				},
 				map[string]any{
 					"id":             "/sub/.../vm-b",
-					"subscriptionId": "sub",
+					"subscriptionId": "00000000-0000-0000-0000-000000000000",
 					"name":           "vm-b",
 					"vmId":           42, // wrong type
 					"location":       "eastus",
@@ -524,7 +518,7 @@ func TestQueryVMsContractDriftOnAllQueryRowsFail(t *testing.T) {
 	}
 	c := &resourceGraphClient{api: api}
 
-	got, err := c.QueryVMs(t.Context(), QueryVMsParams{SubscriptionIDs: []string{"sub"}})
+	got, err := c.QueryVMs(t.Context(), QueryVMsParams{SubscriptionIDs: []string{"00000000-0000-0000-0000-000000000000"}})
 	require.Error(t, err,
 		"all rows failing to parse must surface as drift, not silent empty result")
 	assert.Empty(t, got, "drift error must not return partial results")
@@ -553,7 +547,7 @@ func TestQueryVMsContractDriftIsQueryScopedNotPageScoped(t *testing.T) {
 				// Query-level guard sees rawRowsTotal=2, kept=1, so no drift.
 				data: []any{
 					map[string]any{
-						"subscriptionId": "sub",
+						"subscriptionId": "00000000-0000-0000-0000-000000000000",
 						"name":           "bad-trailing-vm",
 						"vmId":           "bad-id",
 						"location":       "eastus",
@@ -565,7 +559,7 @@ func TestQueryVMsContractDriftIsQueryScopedNotPageScoped(t *testing.T) {
 	}
 	c := &resourceGraphClient{api: api}
 
-	got, err := c.QueryVMs(t.Context(), QueryVMsParams{SubscriptionIDs: []string{"sub"}})
+	got, err := c.QueryVMs(t.Context(), QueryVMsParams{SubscriptionIDs: []string{"00000000-0000-0000-0000-000000000000"}})
 	require.NoError(t, err,
 		"a single bad row on a trailing page must not tank the chunk; "+
 			"page-scoped drift detection would lose page 1's valid VMs")
@@ -588,7 +582,7 @@ func TestQueryVMsContractDriftIsQueryScopedNotChunkScoped(t *testing.T) {
 				// Chunk 2: a single row that fails to parse (missing id).
 				data: []any{
 					map[string]any{
-						"subscriptionId": "sub",
+						"subscriptionId": "00000000-0000-0000-0000-000000000000",
 						"name":           "bad-chunk-vm",
 						"vmId":           "bad-id",
 						"location":       "eastus",
@@ -692,7 +686,7 @@ func TestQueryVMs(t *testing.T) {
 				}},
 			},
 			params: QueryVMsParams{
-				SubscriptionIDs: []string{"sub-1", "sub-2"},
+				SubscriptionIDs: []string{"11111111-1111-1111-1111-111111111111", "22222222-2222-2222-2222-222222222222"},
 				Regions:         []string{"eastus"},
 				ResourceGroups:  []string{"rg-1", "rg-2"},
 			},
@@ -706,8 +700,8 @@ func TestQueryVMs(t *testing.T) {
 				assert.Contains(t, *req.Query, "| where resourceGroup in~ ('rg-1', 'rg-2')")
 				require.Len(t, req.Subscriptions, 2)
 				require.NotNil(t, req.Subscriptions[0])
-				assert.Equal(t, "sub-1", *req.Subscriptions[0])
-				assert.Equal(t, "sub-2", *req.Subscriptions[1])
+				assert.Equal(t, "11111111-1111-1111-1111-111111111111", *req.Subscriptions[0])
+				assert.Equal(t, "22222222-2222-2222-2222-222222222222", *req.Subscriptions[1])
 				require.NotNil(t, req.Options)
 				require.NotNil(t, req.Options.ResultFormat)
 				assert.Equal(t, armresourcegraph.ResultFormatObjectArray, *req.Options.ResultFormat)
@@ -734,7 +728,7 @@ func TestQueryVMs(t *testing.T) {
 					},
 				},
 			},
-			params: QueryVMsParams{SubscriptionIDs: []string{"sub"}},
+			params: QueryVMsParams{SubscriptionIDs: []string{"00000000-0000-0000-0000-000000000000"}},
 			verify: func(t *testing.T, got []DiscoveredVM, api *fakeARGAPI, err error) {
 				require.NoError(t, err)
 				require.Len(t, got, 2)
@@ -747,7 +741,7 @@ func TestQueryVMs(t *testing.T) {
 		{
 			name:   "propagates SDK errors",
 			api:    &fakeARGAPI{err: errors.New("boom")},
-			params: QueryVMsParams{SubscriptionIDs: []string{"sub"}},
+			params: QueryVMsParams{SubscriptionIDs: []string{"00000000-0000-0000-0000-000000000000"}},
 			verify: func(t *testing.T, got []DiscoveredVM, api *fakeARGAPI, err error) {
 				require.Error(t, err)
 				assert.True(t, strings.Contains(err.Error(), "boom"), "expected wrapped error, got %v", err)
@@ -757,7 +751,7 @@ func TestQueryVMs(t *testing.T) {
 			name: "403 surfaces AccessDenied with remediation message",
 			// Build an *azcore.ResponseError so ConvertResponseError maps it to AccessDenied.
 			api:    &fakeARGAPI{err: &azcore.ResponseError{StatusCode: http.StatusForbidden}},
-			params: QueryVMsParams{SubscriptionIDs: []string{"sub"}},
+			params: QueryVMsParams{SubscriptionIDs: []string{"00000000-0000-0000-0000-000000000000"}},
 			verify: func(t *testing.T, got []DiscoveredVM, api *fakeARGAPI, err error) {
 				require.Error(t, err)
 				assert.True(t, trace.IsAccessDenied(err), "expected AccessDenied, got %T: %v", err, err)
@@ -772,7 +766,7 @@ func TestQueryVMs(t *testing.T) {
 			// detect throttling (vs auth failure, transient breakage) and back off.
 			name:   "429 surfaces LimitExceeded so callers can back off",
 			api:    &fakeARGAPI{err: &azcore.ResponseError{StatusCode: http.StatusTooManyRequests}},
-			params: QueryVMsParams{SubscriptionIDs: []string{"sub"}},
+			params: QueryVMsParams{SubscriptionIDs: []string{"00000000-0000-0000-0000-000000000000"}},
 			verify: func(t *testing.T, got []DiscoveredVM, api *fakeARGAPI, err error) {
 				require.Error(t, err)
 				assert.True(t, trace.IsLimitExceeded(err),
@@ -786,7 +780,7 @@ func TestQueryVMs(t *testing.T) {
 			api: &fakeARGAPI{
 				pages: makeRunawayARGPages(argMaxPagesPerChunk),
 			},
-			params: QueryVMsParams{SubscriptionIDs: []string{"sub"}},
+			params: QueryVMsParams{SubscriptionIDs: []string{"00000000-0000-0000-0000-000000000000"}},
 			verify: func(t *testing.T, got []DiscoveredVM, api *fakeARGAPI, err error) {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), "pagination exceeded")
@@ -901,7 +895,7 @@ func TestQueryVMs(t *testing.T) {
 					},
 				},
 			},
-			params: QueryVMsParams{SubscriptionIDs: []string{"sub"}},
+			params: QueryVMsParams{SubscriptionIDs: []string{"00000000-0000-0000-0000-000000000000"}},
 			verify: func(t *testing.T, got []DiscoveredVM, api *fakeARGAPI, err error) {
 				require.Error(t, err)
 				assert.True(t, trace.IsBadParameter(err),
@@ -930,7 +924,7 @@ func TestQueryVMs(t *testing.T) {
 					},
 				},
 			},
-			params: QueryVMsParams{SubscriptionIDs: []string{"sub"}},
+			params: QueryVMsParams{SubscriptionIDs: []string{"00000000-0000-0000-0000-000000000000"}},
 			verify: func(t *testing.T, got []DiscoveredVM, api *fakeARGAPI, err error) {
 				require.NoError(t, err,
 					"per-row drift must skip the row, not abort the chunk")
@@ -957,7 +951,7 @@ func TestQueryVMs(t *testing.T) {
 func makeSubscriptionIDs(n int) []string {
 	out := make([]string, n)
 	for i := range n {
-		out[i] = fmt.Sprintf("sub-%d", i)
+		out[i] = fmt.Sprintf("00000000-0000-0000-0000-%012d", i)
 	}
 
 	return out
@@ -982,13 +976,13 @@ func TestARMResourceGraphMock_caseInsensitiveFilters(t *testing.T) {
 	t.Parallel()
 	mock := &ARMResourceGraphMock{
 		VMs: []DiscoveredVM{
-			makeMockARGVM("sub-1", "rg-a", "eastus", "vm1"), // ARG canonical lowercase; RG names are case-insensitive in ARM.
-			makeMockARGVM("sub-1", "rg-b", "westus2", "vm2"),
+			makeMockARGVM("11111111-1111-1111-1111-111111111111", "rg-a", "eastus", "vm1"), // ARG canonical lowercase; RG names are case-insensitive in ARM.
+			makeMockARGVM("11111111-1111-1111-1111-111111111111", "rg-b", "westus2", "vm2"),
 		},
 	}
 
 	got, err := mock.QueryVMs(t.Context(), QueryVMsParams{
-		SubscriptionIDs: []string{"sub-1"},
+		SubscriptionIDs: []string{"11111111-1111-1111-1111-111111111111"},
 		Regions:         []string{"EastUS"}, // display-cased
 		ResourceGroups:  []string{"RG-A"},   // mixed-case
 	})
@@ -997,7 +991,7 @@ func TestARMResourceGraphMock_caseInsensitiveFilters(t *testing.T) {
 	require.Len(t, got, 1,
 		"mock must apply case-insensitive matching to mirror KQL `in~`; "+
 			"otherwise display-cased operator config silently returns zero VMs")
-	assert.Equal(t, "/subscriptions/sub-1/resourceGroups/rg-a/providers/Microsoft.Compute/virtualMachines/vm1", got[0].ID)
+	assert.Equal(t, "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/rg-a/providers/Microsoft.Compute/virtualMachines/vm1", got[0].ID)
 }
 
 // TestARMResourceGraphMock_OSTypesFiltering proves the mock enforces OSTypes
@@ -1006,8 +1000,8 @@ func TestARMResourceGraphMock_caseInsensitiveFilters(t *testing.T) {
 // tests despite breaking against real ARG.
 func TestARMResourceGraphMock_OSTypesFiltering(t *testing.T) {
 	t.Parallel()
-	linuxVM := makeMockARGVM("sub-1", "rg-a", "eastus", "linux-vm")
-	windowsVM := makeMockARGVM("sub-1", "rg-a", "eastus", "windows-vm")
+	linuxVM := makeMockARGVM("11111111-1111-1111-1111-111111111111", "rg-a", "eastus", "linux-vm")
+	windowsVM := makeMockARGVM("11111111-1111-1111-1111-111111111111", "rg-a", "eastus", "windows-vm")
 	windowsVM.OSType = OSTypeWindows
 	mock := &ARMResourceGraphMock{
 		VMs: []DiscoveredVM{linuxVM, windowsVM},
@@ -1016,8 +1010,8 @@ func TestARMResourceGraphMock_OSTypesFiltering(t *testing.T) {
 	t.Run("Linux-only filter returns only Linux VMs", func(t *testing.T) {
 		t.Parallel()
 		got, err := mock.QueryVMs(t.Context(), QueryVMsParams{
-			SubscriptionIDs: []string{"sub-1"},
-			OSTypes:         []string{OSTypeLinux},
+			SubscriptionIDs: []string{"11111111-1111-1111-1111-111111111111"},
+			OSTypes:         []OSType{OSTypeLinux},
 		})
 		require.NoError(t, err)
 		require.Len(t, got, 1)
@@ -1027,8 +1021,8 @@ func TestARMResourceGraphMock_OSTypesFiltering(t *testing.T) {
 	t.Run("Windows-only filter returns only Windows VMs", func(t *testing.T) {
 		t.Parallel()
 		got, err := mock.QueryVMs(t.Context(), QueryVMsParams{
-			SubscriptionIDs: []string{"sub-1"},
-			OSTypes:         []string{OSTypeWindows},
+			SubscriptionIDs: []string{"11111111-1111-1111-1111-111111111111"},
+			OSTypes:         []OSType{OSTypeWindows},
 		})
 		require.NoError(t, err)
 		require.Len(t, got, 1)
@@ -1038,22 +1032,22 @@ func TestARMResourceGraphMock_OSTypesFiltering(t *testing.T) {
 	t.Run("wildcard OSTypes returns all OS types", func(t *testing.T) {
 		t.Parallel()
 		got, err := mock.QueryVMs(t.Context(), QueryVMsParams{
-			SubscriptionIDs: []string{"sub-1"},
-			OSTypes:         []string{types.Wildcard},
+			SubscriptionIDs: []string{"11111111-1111-1111-1111-111111111111"},
+			OSTypes:         []OSType{types.Wildcard},
 		})
 		require.NoError(t, err)
 		assert.Len(t, got, 2)
 	})
 
-	t.Run("OSTypes uses case-insensitive matching like KQL in~", func(t *testing.T) {
+	t.Run("non-canonical case rejected at validation", func(t *testing.T) {
 		t.Parallel()
-		got, err := mock.QueryVMs(t.Context(), QueryVMsParams{
-			SubscriptionIDs: []string{"sub-1"},
-			OSTypes:         []string{"linux"}, // canonical lowercase; fixture has "Linux"
+		_, err := mock.QueryVMs(t.Context(), QueryVMsParams{
+			SubscriptionIDs: []string{"11111111-1111-1111-1111-111111111111"},
+			OSTypes:         []OSType{"linux"},
 		})
-		require.NoError(t, err)
-		require.Len(t, got, 1)
-		assert.Equal(t, "linux-vm", got[0].Name)
+		require.Error(t, err)
+		assert.True(t, trace.IsBadParameter(err),
+			"strict canonical-case enforcement must surface as BadParameter, got %T: %v", err, err)
 	})
 }
 
@@ -1061,13 +1055,13 @@ func TestARMResourceGraphMock_wildcardMixedWithConcreteFiltersMatchesAll(t *test
 	t.Parallel()
 	mock := &ARMResourceGraphMock{
 		VMs: []DiscoveredVM{
-			makeMockARGVM("sub-1", "rg-a", "eastus", "vm1"),
-			makeMockARGVM("sub-1", "rg-b", "westus2", "vm2"),
+			makeMockARGVM("11111111-1111-1111-1111-111111111111", "rg-a", "eastus", "vm1"),
+			makeMockARGVM("11111111-1111-1111-1111-111111111111", "rg-b", "westus2", "vm2"),
 		},
 	}
 
 	got, err := mock.QueryVMs(t.Context(), QueryVMsParams{
-		SubscriptionIDs: []string{"sub-1"},
+		SubscriptionIDs: []string{"11111111-1111-1111-1111-111111111111"},
 		Regions:         []string{types.Wildcard, "eastus"},
 		ResourceGroups:  []string{types.Wildcard, "rg-a"},
 	})
@@ -1084,7 +1078,7 @@ func TestARMResourceGraphMock_rejectsInvalidFixtures(t *testing.T) {
 		VMs: []DiscoveredVM{
 			{
 				ID:             "/subscriptions/sub-1/resourceGroups/rg-a/providers/Microsoft.Compute/virtualMachines/vm1",
-				SubscriptionID: "sub-1",
+				SubscriptionID: "11111111-1111-1111-1111-111111111111",
 				Name:           "vm1",
 				Location:       "eastus",
 				ResourceGroup:  "rg-a",
@@ -1093,7 +1087,7 @@ func TestARMResourceGraphMock_rejectsInvalidFixtures(t *testing.T) {
 		},
 	}
 
-	_, err := mock.QueryVMs(t.Context(), QueryVMsParams{SubscriptionIDs: []string{"sub-1"}})
+	_, err := mock.QueryVMs(t.Context(), QueryVMsParams{SubscriptionIDs: []string{"11111111-1111-1111-1111-111111111111"}})
 	require.Error(t, err)
 	assert.True(t, trace.IsBadParameter(err), "invalid fixtures should fail like production row parsing, got %T: %v", err, err)
 	assert.Contains(t, err.Error(), "ARMResourceGraphMock fixture missing or empty required field")
@@ -1104,10 +1098,10 @@ func TestARMResourceGraphMock_LastParamsClones(t *testing.T) {
 	t.Parallel()
 	mock := &ARMResourceGraphMock{}
 
-	subs := []string{"sub-1"}
+	subs := []string{"11111111-1111-1111-1111-111111111111"}
 	regions := []string{"eastus"}
 	rgs := []string{"rg-a"}
-	osTypes := []string{OSTypeLinux}
+	osTypes := []OSType{OSTypeLinux}
 	_, err := mock.QueryVMs(t.Context(), QueryVMsParams{
 		SubscriptionIDs: subs,
 		Regions:         regions,
@@ -1123,13 +1117,13 @@ func TestARMResourceGraphMock_LastParamsClones(t *testing.T) {
 	osTypes[0] = "MUTATED"
 
 	got := mock.LastParams()
-	assert.Equal(t, []string{"sub-1"}, got.SubscriptionIDs,
+	assert.Equal(t, []string{"11111111-1111-1111-1111-111111111111"}, got.SubscriptionIDs,
 		"LastParams must snapshot SubscriptionIDs, not alias the caller's slice")
 	assert.Equal(t, []string{"eastus"}, got.Regions,
 		"LastParams must snapshot Regions, not alias the caller's slice")
 	assert.Equal(t, []string{"rg-a"}, got.ResourceGroups,
 		"LastParams must snapshot ResourceGroups, not alias the caller's slice")
-	assert.Equal(t, []string{OSTypeLinux}, got.OSTypes,
+	assert.Equal(t, []OSType{OSTypeLinux}, got.OSTypes,
 		"LastParams must snapshot OSTypes, not alias the caller's slice")
 
 	first := mock.LastParams()
@@ -1143,11 +1137,11 @@ func TestARMResourceGraphMock_LastParamsClones(t *testing.T) {
 	first.OSTypes[0] = "MUTATED"
 
 	second := mock.LastParams()
-	assert.Equal(t, []string{"sub-1"}, second.SubscriptionIDs,
+	assert.Equal(t, []string{"11111111-1111-1111-1111-111111111111"}, second.SubscriptionIDs,
 		"LastParams must clone on read so prior callers cannot mutate the snapshot")
 	assert.Equal(t, []string{"eastus"}, second.Regions)
 	assert.Equal(t, []string{"rg-a"}, second.ResourceGroups)
-	assert.Equal(t, []string{OSTypeLinux}, second.OSTypes)
+	assert.Equal(t, []OSType{OSTypeLinux}, second.OSTypes)
 }
 
 // TestARMResourceGraphMock_ValidationFailureDoesNotBumpCalls pins the mock's
@@ -1166,7 +1160,7 @@ func TestARMResourceGraphMock_ValidationFailureDoesNotBumpCalls(t *testing.T) {
 		"validation failure must not register as a call; production never reaches the SDK either")
 
 	_, err = mock.QueryVMs(t.Context(), QueryVMsParams{
-		SubscriptionIDs: []string{"sub"},
+		SubscriptionIDs: []string{"00000000-0000-0000-0000-000000000000"},
 		Regions:         []string{"east'us"}, // invalid char
 	})
 	require.Error(t, err)
@@ -1174,7 +1168,7 @@ func TestARMResourceGraphMock_ValidationFailureDoesNotBumpCalls(t *testing.T) {
 		"filter validation failure must not register as a call either")
 
 	// Sanity: a valid call increments.
-	_, err = mock.QueryVMs(t.Context(), QueryVMsParams{SubscriptionIDs: []string{"sub"}})
+	_, err = mock.QueryVMs(t.Context(), QueryVMsParams{SubscriptionIDs: []string{"00000000-0000-0000-0000-000000000000"}})
 	require.NoError(t, err)
 	assert.Equal(t, 1, mock.Calls())
 }
@@ -1188,7 +1182,7 @@ func TestARMResourceGraphMock_PreservesNonNilTags(t *testing.T) {
 		VMs: []DiscoveredVM{
 			{
 				ID:             "/subscriptions/sub/resourceGroups/rg/providers/Microsoft.Compute/virtualMachines/vm1",
-				SubscriptionID: "sub",
+				SubscriptionID: "00000000-0000-0000-0000-000000000000",
 				Name:           "vm1",
 				VMID:           "vm1-vmid",
 				Location:       "eastus",
@@ -1198,7 +1192,7 @@ func TestARMResourceGraphMock_PreservesNonNilTags(t *testing.T) {
 		},
 	}
 
-	got, err := mock.QueryVMs(t.Context(), QueryVMsParams{SubscriptionIDs: []string{"sub"}})
+	got, err := mock.QueryVMs(t.Context(), QueryVMsParams{SubscriptionIDs: []string{"00000000-0000-0000-0000-000000000000"}})
 	require.NoError(t, err)
 	require.Len(t, got, 1)
 	require.NotNil(t, got[0].Tags,
@@ -1214,10 +1208,10 @@ func TestARMResourceGraphMock_AccessorsAreRaceFree(t *testing.T) {
 	ctx := t.Context()
 	mock := &ARMResourceGraphMock{
 		VMsBySubscription: map[string][]DiscoveredVM{
-			"sub-0": {makeMockARGVM("sub-0", "rg-a", "eastus", "vm-0")},
-			"sub-1": {makeMockARGVM("sub-1", "rg-a", "eastus", "vm-1")},
-			"sub-2": {makeMockARGVM("sub-2", "rg-a", "eastus", "vm-2")},
-			"sub-3": {makeMockARGVM("sub-3", "rg-a", "eastus", "vm-3")},
+			"00000000-0000-0000-0000-000000000000": {makeMockARGVM("00000000-0000-0000-0000-000000000000", "rg-a", "eastus", "vm-0")},
+			"00000000-0000-0000-0000-000000000001": {makeMockARGVM("00000000-0000-0000-0000-000000000001", "rg-a", "eastus", "vm-1")},
+			"00000000-0000-0000-0000-000000000002": {makeMockARGVM("00000000-0000-0000-0000-000000000002", "rg-a", "eastus", "vm-2")},
+			"00000000-0000-0000-0000-000000000003": {makeMockARGVM("00000000-0000-0000-0000-000000000003", "rg-a", "eastus", "vm-3")},
 		},
 	}
 
@@ -1233,7 +1227,7 @@ func TestARMResourceGraphMock_AccessorsAreRaceFree(t *testing.T) {
 		go func(i int) {
 			defer wg.Done()
 			params := QueryVMsParams{
-				SubscriptionIDs: []string{fmt.Sprintf("sub-%d", i)},
+				SubscriptionIDs: []string{fmt.Sprintf("00000000-0000-0000-0000-%012d", i)},
 				Regions:         []string{"eastus"},
 				ResourceGroups:  []string{"rg-a"},
 			}
@@ -1374,14 +1368,14 @@ func TestQueryVMsValidatesInputs(t *testing.T) {
 		for _, d := range dangerous {
 			t.Run(fld.kind+"/"+d.name, func(t *testing.T) {
 				t.Parallel()
-				params := QueryVMsParams{SubscriptionIDs: []string{"sub"}}
+				params := QueryVMsParams{SubscriptionIDs: []string{"00000000-0000-0000-0000-000000000000"}}
 				switch fld.f {
 				case fieldRegion:
 					params.Regions = []string{d.value}
 				case fieldRG:
 					params.ResourceGroups = []string{d.value}
 				case fieldOSType:
-					params.OSTypes = []string{d.value}
+					params.OSTypes = []OSType{OSType(d.value)}
 				}
 
 				c := &resourceGraphClient{api: &fakeARGAPI{}}
@@ -1410,10 +1404,10 @@ func TestQueryVMsValidatesInputs(t *testing.T) {
 		t.Parallel()
 		c := &resourceGraphClient{api: emptyPage()}
 		_, err := c.QueryVMs(t.Context(), QueryVMsParams{
-			SubscriptionIDs: []string{"sub"},
+			SubscriptionIDs: []string{"00000000-0000-0000-0000-000000000000"},
 			Regions:         []string{types.Wildcard},
 			ResourceGroups:  []string{types.Wildcard},
-			OSTypes:         []string{types.Wildcard},
+			OSTypes:         []OSType{types.Wildcard},
 		})
 		require.NoError(t, err)
 	})
@@ -1424,10 +1418,37 @@ func TestQueryVMsValidatesInputs(t *testing.T) {
 		t.Parallel()
 		c := &resourceGraphClient{api: emptyPage()}
 		_, err := c.QueryVMs(t.Context(), QueryVMsParams{
-			SubscriptionIDs: []string{"sub"},
+			SubscriptionIDs: []string{"00000000-0000-0000-0000-000000000000"},
 			Regions:         []string{types.Wildcard, "eastus"},
 			ResourceGroups:  []string{types.Wildcard, "rg-1"},
-			OSTypes:         []string{types.Wildcard, OSTypeLinux},
+			OSTypes:         []OSType{types.Wildcard, OSTypeLinux},
+		})
+		require.NoError(t, err)
+	})
+
+	// Resource group names commonly contain underscores (e.g. "my_resource_group").
+	// An earlier revision of azureResourceGroupPattern omitted `_` from the
+	// allowlist, silently rejecting valid Azure RG names. This case pins that
+	// underscore-bearing values are accepted.
+	t.Run("underscore in resource group passes", func(t *testing.T) {
+		t.Parallel()
+		c := &resourceGraphClient{api: emptyPage()}
+		_, err := c.QueryVMs(t.Context(), QueryVMsParams{
+			SubscriptionIDs: []string{"00000000-0000-0000-0000-000000000000"},
+			ResourceGroups:  []string{"my_resource_group"},
+		})
+		require.NoError(t, err)
+	})
+
+	// Resource group allowlist accepts the full character class: letters,
+	// digits, underscore, hyphen, period, and parenthesis. A single value
+	// exercises every char class at once.
+	t.Run("full char-class resource group passes", func(t *testing.T) {
+		t.Parallel()
+		c := &resourceGraphClient{api: emptyPage()}
+		_, err := c.QueryVMs(t.Context(), QueryVMsParams{
+			SubscriptionIDs: []string{"00000000-0000-0000-0000-000000000000"},
+			ResourceGroups:  []string{"My-RG_v1.0(test)"},
 		})
 		require.NoError(t, err)
 	})
@@ -1438,7 +1459,7 @@ func TestQueryVMsValidatesInputs(t *testing.T) {
 		t.Parallel()
 		c := &resourceGraphClient{api: &fakeARGAPI{}}
 		_, err := c.QueryVMs(t.Context(), QueryVMsParams{
-			SubscriptionIDs: []string{"sub"},
+			SubscriptionIDs: []string{"00000000-0000-0000-0000-000000000000"},
 			Regions:         []string{""},
 		})
 		require.Error(t, err)
@@ -1459,7 +1480,7 @@ func TestQueryVMsValidatesInputs(t *testing.T) {
 		{
 			name: "untrimmed region rejected with clear message",
 			params: QueryVMsParams{
-				SubscriptionIDs: []string{"sub"},
+				SubscriptionIDs: []string{"00000000-0000-0000-0000-000000000000"},
 				Regions:         []string{" eastus "},
 			},
 			kind:  "region",
@@ -1468,7 +1489,7 @@ func TestQueryVMsValidatesInputs(t *testing.T) {
 		{
 			name: "untrimmed resource group rejected with clear message",
 			params: QueryVMsParams{
-				SubscriptionIDs: []string{"sub"},
+				SubscriptionIDs: []string{"00000000-0000-0000-0000-000000000000"},
 				ResourceGroups:  []string{" rg-1 "},
 			},
 			kind:  "resource group",
@@ -1477,8 +1498,8 @@ func TestQueryVMsValidatesInputs(t *testing.T) {
 		{
 			name: "untrimmed OS type rejected with clear message",
 			params: QueryVMsParams{
-				SubscriptionIDs: []string{"sub"},
-				OSTypes:         []string{" Linux "},
+				SubscriptionIDs: []string{"00000000-0000-0000-0000-000000000000"},
+				OSTypes:         []OSType{" Linux "},
 			},
 			kind:  "OS type",
 			value: " Linux ",
@@ -1520,7 +1541,9 @@ func TestQueryVMsValidatesInputs(t *testing.T) {
 		})
 		require.Error(t, err)
 		assert.True(t, trace.IsBadParameter(err))
-		assert.Contains(t, err.Error(), "subscription ID must not be empty")
+		// Whitespace-only falls into the trim-whitespace branch (not the empty branch),
+		// which yields a more accurate message: the input is not empty, it is whitespace.
+		assert.Contains(t, err.Error(), "must not have leading or trailing whitespace")
 	})
 
 	t.Run("untrimmed subscription ID rejected", func(t *testing.T) {
@@ -1550,7 +1573,7 @@ func TestQueryVMsTruncatedWithoutSkipToken(t *testing.T) {
 		},
 	}
 	c := &resourceGraphClient{api: api}
-	_, err := c.QueryVMs(t.Context(), QueryVMsParams{SubscriptionIDs: []string{"sub"}})
+	_, err := c.QueryVMs(t.Context(), QueryVMsParams{SubscriptionIDs: []string{"00000000-0000-0000-0000-000000000000"}})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "truncated",
 		"truncation without a skip token must surface; silently returning partial results would be worse")
@@ -1572,7 +1595,7 @@ func TestQueryVMsNotTruncatedWithoutSkipTokenReturnsResults(t *testing.T) {
 		},
 	}
 	c := &resourceGraphClient{api: api}
-	got, err := c.QueryVMs(t.Context(), QueryVMsParams{SubscriptionIDs: []string{"sub"}})
+	got, err := c.QueryVMs(t.Context(), QueryVMsParams{SubscriptionIDs: []string{"00000000-0000-0000-0000-000000000000"}})
 	require.NoError(t, err)
 	require.Len(t, got, 1)
 	assert.Equal(t, "vm1", got[0].Name)
@@ -1588,380 +1611,15 @@ func TestQueryVMsForwardsDuplicateSubscriptions(t *testing.T) {
 	}
 	c := &resourceGraphClient{api: api}
 	_, err := c.QueryVMs(t.Context(), QueryVMsParams{
-		SubscriptionIDs: []string{"sub-1", "sub-1", "sub-2"},
+		SubscriptionIDs: []string{"11111111-1111-1111-1111-111111111111", "11111111-1111-1111-1111-111111111111", "22222222-2222-2222-2222-222222222222"},
 	})
 	require.NoError(t, err)
 	require.Len(t, api.gotRequests, 1, "all entries fit in one chunk")
 	require.Len(t, api.gotRequests[0].Subscriptions, 3,
 		"duplicates must pass through unchanged; deduplication is the caller's contract")
-	for i, want := range []string{"sub-1", "sub-1", "sub-2"} {
+	for i, want := range []string{"11111111-1111-1111-1111-111111111111", "11111111-1111-1111-1111-111111111111", "22222222-2222-2222-2222-222222222222"} {
 		require.NotNil(t, api.gotRequests[0].Subscriptions[i])
 		assert.Equal(t, want, *api.gotRequests[0].Subscriptions[i],
 			"subscription order must be preserved across the dedup-skipping path")
 	}
-}
-
-// TestDecodeKQLSingleQuoted exercises the quoteKQL inverse directly so a bug in
-// the test decoder cannot silently make FuzzEscapeKQL pass for the wrong reasons.
-func TestDecodeKQLSingleQuoted(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name string
-		in   string
-		want string
-	}{
-		{"empty", `''`, ""},
-		{"plain", `'plain'`, "plain"},
-		{"doubled quote", `'with''quote'`, "with'quote"},
-		{"two doubled quotes", `'two''''quotes'`, "two''quotes"},
-		{"leading quote", `'''leading'`, "'leading"},
-		{"trailing quote", `'trailing'''`, "trailing'"},
-		{"backslash literal", `'back\slash'`, `back\slash`},
-		{"newline literal", "'line\nbreak'", "line\nbreak"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			got, err := decodeKQLSingleQuoted(tt.in)
-			require.NoError(t, err)
-			assert.Equal(t, tt.want, got)
-		})
-	}
-
-	bad := []struct {
-		name string
-		in   string
-	}{
-		{"unwrapped", `plain`},
-		{"missing closing quote", `'plain`},
-		{"missing opening quote", `plain'`},
-		{"isolated quote in body", `'east'us'`},
-		{"single byte", `'`},
-	}
-	for _, tt := range bad {
-		t.Run("rejects "+tt.name, func(t *testing.T) {
-			t.Parallel()
-			_, err := decodeKQLSingleQuoted(tt.in)
-			require.Error(t, err)
-		})
-	}
-}
-
-// TestDecodeKQLDoubleQuoted exercises the double-quoted KQL decoder directly so
-// a decoder bug cannot mask reference-encoder disagreement in FuzzQuoteKQL.
-func TestDecodeKQLDoubleQuoted(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		name string
-		in   string
-		want string
-	}{
-		{"empty", `""`, ""},
-		{"plain", `"plain"`, "plain"},
-		{"escaped double quote", `"with\"quote"`, `with"quote`},
-		{"escaped single quote", `"with\'quote"`, `with'quote`},
-		{"escaped backslash", `"with\\slash"`, `with\slash`},
-		{"null", `"with\0null"`, "with\x00null"},
-		{"control chars", `"a\bb\fc\nd\re\tf\vg"`, "a\bb\fc\nd\re\tf\vg"},
-		{"unicode bmp", `"é"`, "é"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			got, err := decodeKQLDoubleQuoted(tt.in)
-			require.NoError(t, err)
-			assert.Equal(t, tt.want, got)
-		})
-	}
-
-	bad := []struct {
-		name string
-		in   string
-	}{
-		{"unwrapped", `plain`},
-		{"missing closing quote", `"plain`},
-		{"unknown escape", `"\q"`},
-		{"truncated unicode", `"\u12"`},
-		{"non-hex unicode", `"\uzzzz"`},
-		{"single byte", `"`},
-	}
-	for _, tt := range bad {
-		t.Run("rejects "+tt.name, func(t *testing.T) {
-			t.Parallel()
-			_, err := decodeKQLDoubleQuoted(tt.in)
-			require.Error(t, err)
-		})
-	}
-}
-
-// FuzzEscapeKQL is the second half of the C73 defense-in-depth: even if a
-// dangerous value ever bypasses validateKQLValues, escapeKQL must produce
-// output that cannot break out of the surrounding single-quoted KQL literal.
-// Two invariants:
-//  1. Round-trip: undoing the quote-doubling recovers the original input.
-//  2. No isolated single quote remains in the output.
-func FuzzEscapeKQL(f *testing.F) {
-	seeds := []string{
-		"",
-		"plain",
-		"with'quote",
-		"two''quotes",
-		"'leading",
-		"trailing'",
-		`back\slash`,
-		"new\nline",
-		"null\x00byte",
-		"tab\there",
-		"unicode-é",
-		"emoji-🎉",
-		"' OR 1=1 --",
-		"'; drop table; --",
-	}
-	for _, s := range seeds {
-		f.Add(s)
-	}
-	f.Fuzz(func(t *testing.T, s string) {
-		escaped := escapeKQL(s)
-
-		// Invariant 1: round-trip recovers the input exactly.
-		recovered := strings.ReplaceAll(escaped, "''", "'")
-		if recovered != s {
-			t.Fatalf("escapeKQL round-trip failed: input %q -> escaped %q -> recovered %q",
-				s, escaped, recovered)
-		}
-
-		// Invariant 2: every single quote in the output is part of a
-		// doubled pair. An isolated quote would close the surrounding
-		// KQL literal and let the rest of the input be parsed as KQL.
-		for i := 0; i < len(escaped); i++ {
-			if escaped[i] != '\'' {
-				continue
-			}
-			if i+1 >= len(escaped) || escaped[i+1] != '\'' {
-				t.Fatalf("escapeKQL left an isolated single quote at index %d in %q (input %q)",
-					i, escaped, s)
-			}
-			i++
-		}
-	})
-}
-
-// FuzzQuoteKQL checks quoteKQL against an independent local double-quoted KQL
-// reference. The two encoders produce different forms by design:
-//   - ours: single-quoted with ” doubling, e.g. 'east”us'
-//   - reference: double-quoted with backslash escapes, e.g. "east\'us"
-//
-// String equality between the two outputs is meaningless; we compare by
-// decoding both back to the original input and asserting they match.
-func FuzzQuoteKQL(f *testing.F) {
-	seeds := []string{
-		"",
-		"plain",
-		"with'quote",
-		"two''quotes",
-		`back\slash`,
-		`mixed'and\both`,
-		"new\nline",
-		"null\x00byte",
-		"tab\there",
-		"unicode-é",
-		"emoji-🎉",
-		"' OR 1=1 --",
-		"'; drop table; --",
-	}
-	for _, s := range seeds {
-		f.Add(s)
-	}
-	f.Fuzz(func(t *testing.T, s string) {
-		// The dependency-free reference below mirrors Azure Kusto's string quoting
-		// behavior, which ranges over runes. Skip inputs where that behavior is
-		// intentionally lossy or ambiguous compared to production's byte-preserving
-		// single-quote escape.
-		if !utf8.ValidString(s) {
-			t.Skip()
-		}
-		for _, r := range s {
-			// Azure Kusto's QuoteString emits fmt.Sprintf("\\u%04x", r), which
-			// produces 5+ hex digits for astral-plane runes. KQL \u escapes are
-			// four hex digits, so skip these rather than make the local decoder
-			// accept ambiguous nonstandard output.
-			if r > 0xFFFF {
-				t.Skip()
-			}
-		}
-
-		ours := quoteKQL(s)
-		theirs := quoteKQLDoubleQuotedReference(s)
-
-		oursDecoded, err := decodeKQLSingleQuoted(ours)
-		if err != nil {
-			t.Fatalf("quoteKQL produced an undecodable string: input=%q ours=%q err=%v", s, ours, err)
-		}
-		if oursDecoded != s {
-			t.Fatalf("quoteKQL did not faithfully encode input: input=%q ours=%q decoded=%q",
-				s, ours, oursDecoded)
-		}
-
-		theirsDecoded, err := decodeKQLDoubleQuoted(theirs)
-		if err != nil {
-			t.Fatalf("double-quoted reference produced an undecodable string: input=%q theirs=%q err=%v",
-				s, theirs, err)
-		}
-		if theirsDecoded != s {
-			t.Fatalf("double-quoted reference did not faithfully encode input: input=%q theirs=%q decoded=%q",
-				s, theirs, theirsDecoded)
-		}
-
-		// Parity: both encoders agreed on the original value.
-		if oursDecoded != theirsDecoded {
-			t.Fatalf("parity failed: input=%q ours=%q→%q theirs=%q→%q",
-				s, ours, oursDecoded, theirs, theirsDecoded)
-		}
-	})
-}
-
-// quoteKQLDoubleQuotedReference is a test-only, dependency-free port of Azure
-// Kusto's QuoteString(value, false) string escaping behavior. It intentionally
-// uses a different representation than production quoteKQL, which makes
-// FuzzQuoteKQL compare semantics rather than output form.
-func quoteKQLDoubleQuotedReference(s string) string {
-	var out strings.Builder
-	out.Grow(len(s) + 2)
-	out.WriteByte('"')
-	for _, r := range s {
-		switch r {
-		case '\\':
-			out.WriteString(`\\`)
-		case '\'':
-			out.WriteString(`\'`)
-		case '"':
-			out.WriteString(`\"`)
-		case '\x00':
-			out.WriteString(`\0`)
-		case '\a':
-			out.WriteString(`\a`)
-		case '\b':
-			out.WriteString(`\b`)
-		case '\f':
-			out.WriteString(`\f`)
-		case '\n':
-			out.WriteString(`\n`)
-		case '\r':
-			out.WriteString(`\r`)
-		case '\t':
-			out.WriteString(`\t`)
-		case '\v':
-			out.WriteString(`\v`)
-		default:
-			if !shouldEscapeKQLRune(r) {
-				out.WriteRune(r)
-			} else {
-				fmt.Fprintf(&out, `\u%04x`, r)
-			}
-		}
-	}
-	out.WriteByte('"')
-	return out.String()
-}
-
-func shouldEscapeKQLRune(r rune) bool {
-	if r <= unicode.MaxLatin1 {
-		return unicode.IsControl(r)
-	}
-	return true
-}
-
-// decodeKQLSingleQuoted is the inverse of quoteKQL: strip the surrounding
-// single quotes and undo the ” doubling. Errors if the input is not a
-// well-formed single-quoted KQL string literal.
-func decodeKQLSingleQuoted(s string) (string, error) {
-	if len(s) < 2 || s[0] != '\'' || s[len(s)-1] != '\'' {
-		return "", fmt.Errorf("not a single-quoted literal: %q", s)
-	}
-	inner := s[1 : len(s)-1]
-	// Walk the body to ensure every ' is doubled (no isolated quote).
-	var out strings.Builder
-	for i := 0; i < len(inner); i++ {
-		if inner[i] != '\'' {
-			out.WriteByte(inner[i])
-			continue
-		}
-		if i+1 >= len(inner) || inner[i+1] != '\'' {
-			return "", fmt.Errorf("isolated single quote at index %d in %q", i, inner)
-		}
-		out.WriteByte('\'')
-		i++
-	}
-	return out.String(), nil
-}
-
-// decodeKQLDoubleQuoted is the inverse of quoteKQLDoubleQuotedReference: strip
-// the surrounding double quotes and undo backslash escapes. Mirrors the escape
-// set in quoteKQLDoubleQuotedReference plus \uNNNN so decoder tests can catch
-// malformed unicode escapes.
-func decodeKQLDoubleQuoted(s string) (string, error) {
-	if len(s) < 2 || s[0] != '"' || s[len(s)-1] != '"' {
-		return "", fmt.Errorf("not a double-quoted literal: %q", s)
-	}
-	inner := s[1 : len(s)-1]
-	var out strings.Builder
-	for i := 0; i < len(inner); i++ {
-		if inner[i] != '\\' {
-			out.WriteByte(inner[i])
-			continue
-		}
-		if i+1 >= len(inner) {
-			return "", fmt.Errorf("trailing backslash in %q", inner)
-		}
-		switch inner[i+1] {
-		case '\\':
-			out.WriteByte('\\')
-		case '\'':
-			out.WriteByte('\'')
-		case '"':
-			out.WriteByte('"')
-		case '0':
-			out.WriteByte('\x00')
-		case 'a':
-			out.WriteByte('\a')
-		case 'b':
-			out.WriteByte('\b')
-		case 'f':
-			out.WriteByte('\f')
-		case 'n':
-			out.WriteByte('\n')
-		case 'r':
-			out.WriteByte('\r')
-		case 't':
-			out.WriteByte('\t')
-		case 'v':
-			out.WriteByte('\v')
-		case 'u':
-			if i+5 >= len(inner) {
-				return "", fmt.Errorf("truncated \\uNNNN at index %d in %q", i, inner)
-			}
-			var r rune
-			for j := 2; j < 6; j++ {
-				c := inner[i+j]
-				var d rune
-				switch {
-				case '0' <= c && c <= '9':
-					d = rune(c - '0')
-				case 'a' <= c && c <= 'f':
-					d = rune(c-'a') + 10
-				case 'A' <= c && c <= 'F':
-					d = rune(c-'A') + 10
-				default:
-					return "", fmt.Errorf("non-hex digit %q in \\uNNNN at index %d in %q", c, i, inner)
-				}
-				r = r*16 + d
-			}
-			out.WriteRune(r)
-			i += 4
-		default:
-			return "", fmt.Errorf("unknown escape \\%c at index %d in %q", inner[i+1], i, inner)
-		}
-		i++
-	}
-	return out.String(), nil
 }

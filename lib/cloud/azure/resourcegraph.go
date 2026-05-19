@@ -22,7 +22,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"regexp"
 	"slices"
 	"strings"
 
@@ -50,7 +49,8 @@ type ResourceGraphClient interface {
 // subsumes all other entries in that list and causes that filter to match every value even when the
 // list also contains entries that would narrow it.
 type QueryVMsParams struct {
-	// SubscriptionIDs is the set of Azure subscriptions to query. QueryVMs requires at least one entry.
+	// SubscriptionIDs is the set of Azure subscriptions to query, e.g.
+	// "11111111-1111-1111-1111-111111111111". QueryVMs requires at least one entry.
 	// Empty is an error, not a wildcard: this is the query scope, not a filter.
 	// QueryVMs rejects empty or untrimmed entries; duplicates pass through (caller's job).
 	SubscriptionIDs []string
@@ -59,17 +59,22 @@ type QueryVMsParams struct {
 	// ResourceGroups filters VMs by resource group. An empty slice or any
 	// occurrence of types.Wildcard matches every resource group.
 	ResourceGroups []string
-	// OSTypes filters VMs by osDisk.osType, e.g. []string{OSTypeLinux, OSTypeWindows}.
+	// OSTypes filters VMs by osDisk.osType, e.g. []OSType{OSTypeLinux, OSTypeWindows}.
 	// An empty slice or any occurrence of types.Wildcard matches every OS type.
-	OSTypes []string
+	OSTypes []OSType
 }
 
-// OS-type values accepted by QueryVMsParams.OSTypes. ARG records osDisk.osType in
-// canonical case; matching is case-insensitive so callers may pass any casing, but
-// these constants give a single source of truth and catch typos at compile time.
+// OSType is the closed enum of OS family values that QueryVMsParams.OSTypes accepts
+// and that DiscoveredVM.OSType reports. Microsoft documents the full set as exactly
+// Linux and Windows; callers must use the constants below rather than constructing
+// OSType values directly. ARG records osDisk.osType in this canonical case.
+type OSType string
+
+// OS-type values accepted by QueryVMsParams.OSTypes and reported by DiscoveredVM.OSType.
+// Strict canonical case: validation rejects any other casing or whitespace.
 const (
-	OSTypeLinux   = "Linux"
-	OSTypeWindows = "Windows"
+	OSTypeLinux   OSType = "Linux"
+	OSTypeWindows OSType = "Windows"
 )
 
 // argResourcesAPI is the slice of armresourcegraph.Client we depend on, extracted as an interface
@@ -130,17 +135,18 @@ const (
 // trimmed, deduped, with wildcards collapsed to []string{types.Wildcard}. QueryVMs defensively rejects
 // empty or untrimmed subscription IDs and filter values; deduplication remains the caller's job.
 func (c *resourceGraphClient) QueryVMs(ctx context.Context, params QueryVMsParams) ([]DiscoveredVM, error) {
-	if err := validateQueryVMsParams(params); err != nil {
+	sanitized, err := sanitizeQueryVMsParams(params)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	query := buildVMDiscoveryKQL(params.Regions, params.ResourceGroups, params.OSTypes)
+	query := buildVMDiscoveryKQL(sanitized)
 
 	var (
 		all          []DiscoveredVM
 		rawRowsTotal int
 	)
-	for chunk := range slices.Chunk(params.SubscriptionIDs, argMaxSubscriptionsPerQuery) {
+	for chunk := range slices.Chunk(sanitized.SubscriptionIDs, argMaxSubscriptionsPerQuery) {
 		result, err := c.queryChunk(ctx, query, chunk)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -178,7 +184,15 @@ func (c *resourceGraphClient) queryChunk(ctx context.Context, query string, subs
 		rawRowsTotal int
 	)
 
-	for range argMaxPagesPerChunk {
+	// Logged once per chunk: the KQL text and scope do not change across the
+	// SkipToken loop. Per-page diagnostic (page index, response summary) is
+	// emitted inside the loop after each Resources call; the chunk-complete
+	// log fires on the success return below with aggregate counts.
+	slog.DebugContext(ctx, "Resource Graph query starting",
+		"subscription_count", len(subscriptionIDs),
+		"query", query)
+
+	for page := range argMaxPagesPerChunk {
 		req := armresourcegraph.QueryRequest{
 			Query:         to.Ptr(query),
 			Subscriptions: subs,
@@ -206,11 +220,15 @@ func (c *resourceGraphClient) queryChunk(ctx context.Context, query string, subs
 		}
 		lastResp = resp
 
+		slog.DebugContext(ctx, "Resource Graph page returned",
+			"page", page,
+			"summary", resourceGraphResponseSummary(resp))
+
 		rows, err := parseDiscoveredVMs(ctx, resp.Data)
 		if err != nil {
 			return queryVMsResult{}, trace.Wrap(err)
 		}
-		// parseDiscoveredVMs returned no error → Data was nil or []any. Track raw row count
+		// parseDiscoveredVMs returned no error: Data was nil or []any. Track raw row count
 		// across pages so QueryVMs can distinguish "no rows ever returned" (empty tenant)
 		// from "rows returned but none parsed" (systemic schema drift) across the whole query.
 		if data, ok := resp.Data.([]any); ok {
@@ -225,6 +243,10 @@ func (c *resourceGraphClient) queryChunk(ctx context.Context, query string, subs
 						"results are incomplete (%s)",
 					resourceGraphResponseSummary(resp))
 			}
+			slog.DebugContext(ctx, "Resource Graph chunk complete",
+				"pages", page+1,
+				"rows_kept", len(all),
+				"raw_rows_total", rawRowsTotal)
 			return queryVMsResult{vms: all, rawRowsTotal: rawRowsTotal}, nil
 		}
 		skipToken = resp.SkipToken
@@ -255,24 +277,37 @@ func resourceGraphResponseSummary(resp armresourcegraph.ClientResourcesResponse)
 	return strings.Join(parts, ", ")
 }
 
-// buildVMDiscoveryKQL composes the KQL query used by QueryVMs. The shape is intentionally fixed: type and
-// power-state predicates are baked in; OS, region, and resource-group predicates are caller-controllable.
+// buildVMDiscoveryKQL composes the KQL (Kusto Query Language) query used by QueryVMs.
+// The shape is intentionally fixed: type and power-state predicates are baked in;
+// OS, region, and resource-group predicates are caller-controllable.
 //
 // Single quotes in inputs are doubled according to KQL's escape rule.
-func buildVMDiscoveryKQL(regions []string, resourceGroups []string, osTypes []string) string {
+//
+// The sanitizedParams type is constructed only by sanitizeQueryVMsParams (in
+// kqlsafety.go), which allowlists every interpolated literal. Injection safety
+// is therefore a compile-time invariant: an unsanitized input cannot reach this
+// function. quoteKQL is defense-in-depth on top of that guarantee.
+//
+// All comparisons use case-insensitive KQL operators (`=~` for equality, `in~` for
+// set membership), not `==` or `in`. ARG normalizes some columns to lowercase
+// (e.g. `resourceGroup`) and preserves portal casing on others, so case-insensitive
+// comparison matches uniformly without the caller needing to know which is which.
+//
+// Note: when adding a new `| where` clause here, use `=~` / `in~`, not `==` / `in`.
+func buildVMDiscoveryKQL(params sanitizedParams) string {
 	var sb strings.Builder
 	sb.WriteString("Resources")
 	sb.WriteString("\n| where type =~ " + quoteKQL(argVMType))
-	if pred := osTypesPredicate(osTypes); pred != "" {
+	if pred := osTypesPredicate(params.OSTypes); pred != "" {
 		sb.WriteString("\n")
 		sb.WriteString(pred)
 	}
 	sb.WriteString("\n| where tostring(" + argPowerStatePath + ") =~ " + quoteKQL(argRunningPowerState))
-	if pred := regionPredicate(regions); pred != "" {
+	if pred := regionPredicate(params.Regions); pred != "" {
 		sb.WriteString("\n")
 		sb.WriteString(pred)
 	}
-	if pred := resourceGroupsPredicate(resourceGroups); pred != "" {
+	if pred := resourceGroupsPredicate(params.ResourceGroups); pred != "" {
 		sb.WriteString("\n")
 		sb.WriteString(pred)
 	}
@@ -298,7 +333,7 @@ func regionPredicate(regions []string) string {
 
 // resourceGroupsPredicate returns a KQL `| where resourceGroup in~ (...)` clause, or empty string
 // when the filter is effectively unset. Uses case-insensitive set membership (in~) because ARM
-// resource path segments are case-insensitive.
+// (Azure Resource Manager) resource path segments are case-insensitive.
 //
 // Any occurrence of types.Wildcard is treated as "match everything" to avoid
 // interpreting unsimplified wildcard-containing input as a resource group name.
@@ -310,105 +345,26 @@ func resourceGroupsPredicate(rgs []string) string {
 }
 
 // osTypesPredicate returns a KQL clause filtering VMs by osDisk.osType, or empty string when the
-// filter is effectively unset. Uses case-insensitive set membership (in~) because ARG records
-// osType in canonical form ("Linux", "Windows") but callers may pass any casing.
+// filter is effectively unset. Uses case-insensitive set membership (in~) for symmetry with
+// regionPredicate and resourceGroupsPredicate; the file-wide rationale for case-insensitive
+// operators is documented on buildVMDiscoveryKQL.
 //
 // Any occurrence of types.Wildcard is treated as "match everything" to avoid
 // interpreting unsimplified wildcard-containing input as an OS-type name.
-func osTypesPredicate(osTypes []string) string {
+func osTypesPredicate(osTypes []OSType) string {
 	if isMatchAll(osTypes) {
 		return ""
 	}
-	return "| where tostring(" + argOSTypePath + ") in~ (" + strings.Join(libslices.Map(osTypes, quoteKQL), ", ") + ")"
+	quoted := libslices.Map(osTypes, func(t OSType) string { return quoteKQL(string(t)) })
+	return "| where tostring(" + argOSTypePath + ") in~ (" + strings.Join(quoted, ", ") + ")"
 }
 
 // isMatchAll reports whether values is an unset filter or contains an explicit wildcard. Callers
 // normally pass values trimmed, deduped, and with wildcards collapsed, but treating wildcard as absorbing
 // here prevents unsimplified inputs from silently narrowing results by treating "*" as a value to match.
-func isMatchAll(values []string) bool {
-	return len(values) == 0 || slices.Contains(values, types.Wildcard)
-}
-
-// quoteKQL escapes single quotes in s and wraps the result in single quotes to produce a KQL string literal.
-func quoteKQL(s string) string {
-	return "'" + escapeKQL(s) + "'"
-}
-
-// escapeKQL escapes single quotes in a KQL string literal by doubling them.
-func escapeKQL(s string) string {
-	return strings.ReplaceAll(s, "'", "''")
-}
-
-// Defense-in-depth allowlists for caller-supplied values that flow into KQL string literals.
-// Each is a Teleport-supported safe subset of Azure's naming surface, narrow enough to reject any
-// character that could break out of a single-quoted KQL string (quote, backslash, newline, null, etc.).
-//
-// types.Wildcard ("*") is whitelisted by validateKQLValues; the predicate
-// helpers absorb wildcards before any KQL is generated.
-var (
-	// azureRegionPattern is an injection-safety allowlist for region values:
-	// alphanumeric only, matching Azure's display and canonical forms.
-	azureRegionPattern = regexp.MustCompile(`^[A-Za-z0-9]+$`)
-	// azureResourceGroupPattern is our safe subset of Azure resource group
-	// names: letters, digits, underscore, hyphen, period, and parenthesis.
-	// Length is enforced by Azure; this pattern only blocks unsafe chars.
-	azureResourceGroupPattern = regexp.MustCompile(`^[A-Za-z0-9._()\-]+$`)
-	// azureOSTypePattern matches Azure VM OS type names. With OSTypeLinux and
-	// OSTypeWindows as canonical values, only letter-only inputs are valid;
-	// any future single-word OS name will fit.
-	azureOSTypePattern = regexp.MustCompile(`^[A-Za-z]+$`)
-)
-
-// validateQueryVMsParams enforces the input contract shared by QueryVMs and the ARMResourceGraphMock:
-// a non-empty subscription list with no empty or untrimmed entries, and per-field allowlist validation
-// for the filter slices. Centralized so the mock cannot drift from production behavior.
-func validateQueryVMsParams(params QueryVMsParams) error {
-	if len(params.SubscriptionIDs) == 0 {
-		return trace.BadParameter("at least one subscription ID is required")
-	}
-
-	for _, id := range params.SubscriptionIDs {
-		if strings.TrimSpace(id) == "" {
-			return trace.BadParameter("subscription ID must not be empty")
-		}
-		if strings.TrimSpace(id) != id {
-			return trace.BadParameter("subscription ID %q must not have leading or trailing whitespace", id)
-		}
-	}
-
-	if err := validateKQLValues(params.Regions, azureRegionPattern, "region"); err != nil {
-		return err
-	}
-	if err := validateKQLValues(params.ResourceGroups, azureResourceGroupPattern, "resource group"); err != nil {
-		return err
-	}
-	if err := validateKQLValues(params.OSTypes, azureOSTypePattern, "OS type"); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// validateKQLValues rejects any non-wildcard entry that is empty, untrimmed, or doesn't
-// match the supplied pattern. kind is a human-readable label used in error messages.
-// types.Wildcard is whitelisted because predicate helpers absorb it before KQL is built.
-func validateKQLValues(values []string, pattern *regexp.Regexp, kind string) error {
-	for _, v := range values {
-		if v == types.Wildcard {
-			continue
-		}
-		if strings.TrimSpace(v) == "" {
-			return trace.BadParameter("%s must not be empty", kind)
-		}
-		if strings.TrimSpace(v) != v {
-			return trace.BadParameter("%s %q must not have leading or trailing whitespace", kind, v)
-		}
-		if !pattern.MatchString(v) {
-			return trace.BadParameter("%s %q contains invalid characters; allowed pattern: %s", kind, v, pattern.String())
-		}
-	}
-
-	return nil
+// Generic over ~string so the same predicate covers []string (Regions, ResourceGroups) and []OSType.
+func isMatchAll[S ~string](values []S) bool {
+	return len(values) == 0 || slices.Contains(values, S(types.Wildcard))
 }
 
 // parseDiscoveredVMs parses Resource Graph QueryResponse.Data into VMs.
@@ -487,7 +443,10 @@ func parseDiscoveredVMRow(ctx context.Context, m map[string]any) (DiscoveredVM, 
 		return DiscoveredVM{}, err
 	}
 	// OS type is not identity: empty when ARG omits the field is fine. Non-string
-	// drift propagates to parseDiscoveredVMs's per-row skip path.
+	// drift propagates to parseDiscoveredVMs's per-row skip path. ARG returns this
+	// in canonical case ("Linux" / "Windows") per the documented Azure enum; if a
+	// future ARG response drifts to lowercase or an unknown value, it surfaces as
+	// OSType(<raw>) for the consumer to see rather than being silently rejected here.
 	osType, err := getStringIfPresent(m, "osType")
 	if err != nil {
 		return DiscoveredVM{}, err
@@ -501,7 +460,7 @@ func parseDiscoveredVMRow(ctx context.Context, m map[string]any) (DiscoveredVM, 
 		VMID:           vmID,
 		Location:       location,
 		ResourceGroup:  rg,
-		OSType:         osType,
+		OSType:         OSType(osType),
 		Tags:           tags,
 	}, nil
 }
@@ -539,12 +498,14 @@ func getStringIfPresent(m map[string]any, key string) (string, error) {
 // nil or non-string inner values) is logged at debug and the affected entries
 // are dropped, rather than failing the parent row.
 //
-// This policy is shaped by how Azure VM tags flow into Teleport's discovery
-// label matchers (lib/srv/server/azure_watcher.go calls services.MatchLabels
-// on vm.Tags): fabricating selector values via fmt.Sprint of arbitrary
-// Go-typed data could let drifted ARG output present unintended selector
-// matches. Dropping enforces the rule "selectors only see literal string
-// values that Azure actually returned."
+// Non-string values are dropped, not stringified. The general rule is that
+// callers may use tag values as inputs to identity, authorization, or selector
+// logic, where a fmt.Sprint'd Go literal (e.g. "map[k:v]") could be
+// misinterpreted as a value Azure actually returned. The live caller making
+// this concrete today is lib/srv/server/azure_watcher.go, which feeds vm.Tags
+// into services.MatchLabels for discovery label matching; dropping non-string
+// values enforces "selectors only see literal string values Azure returned" so
+// drifted ARG output cannot present unintended selector matches.
 func getStringMap(ctx context.Context, m map[string]any, key string) map[string]string {
 	raw, ok := m[key]
 	if !ok || raw == nil {

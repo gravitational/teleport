@@ -751,7 +751,7 @@ type ARMResourceGraphMock struct {
 	// Err is returned verbatim from QueryVMs when non-nil.
 	Err error
 
-	mu         sync.RWMutex
+	mu         sync.Mutex
 	calls      int
 	lastParams QueryVMsParams
 }
@@ -761,7 +761,7 @@ func (m *ARMResourceGraphMock) QueryVMs(_ context.Context, params QueryVMsParams
 	// Validate before touching call state: production rejects these inputs
 	// before any SDK round trip, so the mock's calls counter must not move
 	// on validation failure.
-	if err := validateQueryVMsParams(params); err != nil {
+	if _, err := sanitizeQueryVMsParams(params); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -793,25 +793,26 @@ func (m *ARMResourceGraphMock) QueryVMs(_ context.Context, params QueryVMsParams
 
 // Calls returns the number of QueryVMs invocations.
 func (m *ARMResourceGraphMock) Calls() int {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	return m.calls
 }
 
 // LastParams returns a snapshot of the most recent QueryVMs params.
 func (m *ARMResourceGraphMock) LastParams() QueryVMsParams {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	return cloneQueryVMsParams(m.lastParams)
 }
 
 // cloneQueryVMsParams copies params without sharing slice backing arrays.
 func cloneQueryVMsParams(params QueryVMsParams) QueryVMsParams {
-	params.SubscriptionIDs = slices.Clone(params.SubscriptionIDs)
-	params.Regions = slices.Clone(params.Regions)
-	params.ResourceGroups = slices.Clone(params.ResourceGroups)
-	params.OSTypes = slices.Clone(params.OSTypes)
-	return params
+	return QueryVMsParams{
+		SubscriptionIDs: slices.Clone(params.SubscriptionIDs),
+		Regions:         slices.Clone(params.Regions),
+		ResourceGroups:  slices.Clone(params.ResourceGroups),
+		OSTypes:         slices.Clone(params.OSTypes),
+	}
 }
 
 func cloneDiscoveredVMsBySubscription(vms map[string][]DiscoveredVM) map[string][]DiscoveredVM {
@@ -892,8 +893,10 @@ func validateMockARGVM(vm DiscoveredVM) error {
 }
 
 // equalFoldAny reports whether s case-insensitively matches any candidate.
-func equalFoldAny(s string, candidates []string) bool {
-	return slices.ContainsFunc(candidates, func(candidate string) bool {
-		return strings.EqualFold(s, candidate)
+// Generic over ~string so Location/ResourceGroup ([]string) and OSTypes ([]OSType)
+// share one helper.
+func equalFoldAny[S ~string](s S, candidates []S) bool {
+	return slices.ContainsFunc(candidates, func(candidate S) bool {
+		return strings.EqualFold(string(s), string(candidate))
 	})
 }
