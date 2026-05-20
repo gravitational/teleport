@@ -2,6 +2,14 @@
 
 ## 18.8.1 (05/14/26)
 
+**Warning:** This release contains a regression that affects connectivity to
+resources via an approved just-in-time resource access request when the cluster
+is running agents older than v18.8.0.
+
+If you use resource access requests and unable to ensure all agents are upgraded
+to v18.8.1 in tandem with auth and proxy, we recommend skipping this release and
+upgrading to v18.8.2 once it's available instead.
+
 * Improved the performance of certain predicate expressions used to select SSH servers. [#66769](https://github.com/gravitational/teleport/pull/66769)
 * Fixes an issue preventing joins using the azure join method in regions where the trust chain has been updated with an additional intermediate. [#66764](https://github.com/gravitational/teleport/pull/66764)
 * Fix Teleport Connect's VNet failing to start on Linux when an older `tsh` is present at `/usr/local/bin/tsh`. [#66757](https://github.com/gravitational/teleport/pull/66757)
@@ -19,6 +27,14 @@ Enterprise:
 * Fixed Web UI to no longer show audit review prompts or 0001-01-01 dates for static Access Lists.
 
 ## 18.8.0 (05/07/26)
+
+**Warning:** This release contains a regression that affects connectivity to
+resources via an approved just-in-time resource access request when the cluster
+is running agents older than v18.8.0.
+
+If you use resource access requests and unable to ensure all agents are upgraded
+to v18.8.0 in tandem with auth and proxy, we recommend skipping this release and
+upgrading to v18.8.2 once it's available instead.
 
 ### Performance improvements in the SSH service
 
@@ -67,6 +83,12 @@ Teleport Connect for Windows now supports both per-machine and per-user installa
 Per-machine installations can now receive automatic updates without prompting for administrator privileges. Those privileges are only required during the initial installation.
 
 Starting with this release, Teleport Connect only supports automatic upgrades. Downgrades must now be performed manually. This change applies to all platforms.
+
+#### Access requests privilege escalation UX for AWS
+
+Teleport users are now able to see specific IAM roles available to them when requesting
+elevated access to AWS CLI/console. Future releases will extend support for specific
+principal selection to access requests for other resource types as well.
 
 ### Other fixes and improvements
 
@@ -350,12 +372,6 @@ account using terraform module.
 Teleport can now be configured to apply a set of static labels to Windows
 desktops that it discovers via LDAP. This is an alternative to setting labels
 based on the value of LDAP attributes.
-
-#### Access requests privilege escalation UX for AWS
-
-Teleport users are now able to see specific IAM roles available to them when requesting
-elevated access to AWS CLI/console. Future releases will extend support for specific
-principal selection to access requests for other resource types as well.
 
 #### Entra ID integration status page
 
