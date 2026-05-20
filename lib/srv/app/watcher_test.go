@@ -58,7 +58,7 @@ func TestCloudHostedAppServiceRejectsDynamicLabels(t *testing.T) {
 	}
 
 	// Create app with label group=a and dynamic labels.
-	app, err := makeDynamicApp("app_with_dynamic_labels", map[string]string{"group": "a"})
+	app, err := makeDynamicApp("app-with-dynamic-labels", map[string]string{"group": "a"})
 	require.NoError(t, err)
 	app.SetDynamicLabels(map[string]types.CommandLabel{
 		"foo": &types.CommandLabelV2{

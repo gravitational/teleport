@@ -160,7 +160,7 @@ func TestValidateAWSRolesAnywhereIntegration(t *testing.T) {
 			integrationName: "INVALID-",
 			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
 				require.Error(tt, err)
-				require.ErrorContains(tt, err, "must be a lower case valid DNS subdomain")
+				require.ErrorContains(tt, err, "must be a valid DNS label")
 			},
 		},
 		{
