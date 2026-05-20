@@ -39,7 +39,7 @@ type listedScopedToken struct {
 	Version  string
 	Metadata struct {
 		Name    string
-		Expires timestamppb.Timestamp
+		Expires *timestamppb.Timestamp
 		ID      uint
 	}
 	Spec struct {
