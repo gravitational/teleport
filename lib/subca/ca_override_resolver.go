@@ -51,8 +51,8 @@ type CAOverrideResolver struct {
 // caGetter a CA override source, likely a cached services.SubCAServiceGetter
 // implementation.
 //
-// Production callers should use `modules.Modules.IsEnterpriseBuild()` and
-// [Enabled] as the boolean values, respectively.
+// Production callers should use `modules.Modules.IsEnterpriseBuild()` as
+// `isEnterpriseBuild`.
 func NewCAOverrideResolver(caGetter CAOverrideGetter, isEnterpriseBuild bool) (*CAOverrideResolver, error) {
 	if caGetter == nil {
 		return nil, trace.BadParameter("nil caGetter")
