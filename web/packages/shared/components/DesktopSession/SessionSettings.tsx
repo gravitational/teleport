@@ -20,7 +20,6 @@ import { getPlatform } from '@floating-ui/react/utils';
 import styled from 'styled-components';
 
 import { Flex, H2, H3, Text, Toggle } from 'design';
-import { Monitor } from 'design/Icon';
 import { Cog } from 'design/Icon';
 import { Platform } from 'design/platform';
 import { MenuIcon } from 'shared/components/MenuAction';
