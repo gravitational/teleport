@@ -557,13 +557,13 @@ func (g *GRPCServer) WatchEvents(watch *authpb.Watch, stream authpb.AuthService_
 				stream,
 				scopedAuth.scopedContext.User.GetName(),
 				scopedAuth,
-				g.AuthServer.modules,
+				modules.GetModules(),
 			))
 		}
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(WatchEvents(watch, stream, auth.User.GetName(), auth, g.AuthServer.modules))
+	return trace.Wrap(WatchEvents(watch, stream, auth.User.GetName(), auth, modules.GetModules()))
 }
 
 // WatchEvent is a stream interface for sending events.

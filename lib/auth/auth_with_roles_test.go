@@ -10456,10 +10456,12 @@ func TestScopedRoleEvents(t *testing.T) {
 // this test) is auth role which has access to all cache kinds and will fail
 // early if there is a mismatch.
 func TestWatchAllCacheKinds(t *testing.T) {
-	t.Parallel()
+	// Don't t.Parallel, uses modulestest.SetTestModules.
+
+	modulestest.SetTestModules(t, *modulestest.EnterpriseModules())
 
 	ctx := t.Context()
-	srv := newTestTLSServer(t, withModules(modulestest.EnterpriseModules()))
+	srv := newTestTLSServer(t)
 
 	for role, watchKinds := range map[types.SystemRole][]types.WatchKind{
 		types.RoleProxy:          cache.ForProxy(cache.Config{}).Watches,

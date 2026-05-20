@@ -92,7 +92,7 @@ func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 	}
 
 	// Calculate CA override.
-	subCAResolver, err := subca.NewCAOverrideResolver(a.Cache, a.modules.IsEnterpriseBuild(), a.subCAEnabled)
+	subCAResolver, err := subca.NewCAOverrideResolver(a.Cache, modules.GetModules().IsEnterpriseBuild(), a.subCAEnabled)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

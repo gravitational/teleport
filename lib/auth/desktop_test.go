@@ -61,9 +61,11 @@ func TestDesktopAccessDisabled(t *testing.T) {
 }
 
 func TestDesktopAccessCAOverrides(t *testing.T) {
-	t.Parallel()
+	// Don't t.Parallel, uses modulestest.SetTestModules.
 
-	tlsServer := newTestTLSServer(t, withModules(modulestest.EnterpriseModules()))
+	modulestest.SetTestModules(t, *modulestest.EnterpriseModules())
+
+	tlsServer := newTestTLSServer(t)
 	authServer := tlsServer.Auth()
 	authServer.SetSubCAEnabled(true)
 
