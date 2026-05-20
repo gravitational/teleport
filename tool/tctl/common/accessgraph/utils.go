@@ -151,6 +151,12 @@ func fetchAllLogs(
 		if resp.JSON200.NextCursor == nil {
 			break
 		}
+		// Guard against a backend that returns a non-advancing cursor, which would otherwise spin forever.
+		if cursor != nil && *resp.JSON200.NextCursor == *cursor {
+			slog.DebugContext(ctx, "Access Graph cursor did not advance; stopping pagination", "cursor", *cursor)
+			truncated = true
+			break
+		}
 		cursor = resp.JSON200.NextCursor
 	}
 	slog.DebugContext(ctx, "logs fetch complete", "pages", pages, "events", len(events), "truncated", truncated)

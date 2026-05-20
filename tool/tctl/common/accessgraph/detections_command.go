@@ -343,7 +343,7 @@ func fetchAlertEvents(ctx context.Context, client *accessgraph.ClientWithRespons
 		Order:     &order,
 		StartTime: &a.StartTime,
 		EndTime:   &a.EndTime,
-	}, 0)
+	}, len(*a.LogEntries))
 	return events, trace.Wrap(err)
 }
 
