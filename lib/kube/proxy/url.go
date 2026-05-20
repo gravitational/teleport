@@ -171,14 +171,35 @@ func parseResourcePath(p string) apiResource {
 			kind := append([]string{parts[2]}, parts[4:]...)
 			r.resourceKind = strings.Join(kind, "/")
 			r.resourceName = parts[3]
+			if len(parts) > 4 && parts[4] == "proxy" {
+				r.resourceName = stripProxyNamePortScheme(r.resourceName)
+			}
 		} else {
 			// e.g. /api/v1/nodes/{name}/proxy/{path}
 			kind := append([]string{parts[0]}, parts[2:]...)
 			r.resourceKind = strings.Join(kind, "/")
 			r.resourceName = parts[1]
+			if len(parts) > 2 && parts[2] == "proxy" {
+				r.resourceName = stripProxyNamePortScheme(r.resourceName)
+			}
 		}
 	}
 	return r
+}
+
+// stripProxyNamePortScheme extracts the bare resource name from the [scheme:]name[:port] segment that
+// the Kubernetes API server accepts on pods/{name}/proxy, services/{name}/proxy, and nodes/{name}/proxy.
+//
+//	"svc"            -> "svc"
+//	"svc:8443"       -> "svc"
+//	"https:svc:8443" -> "svc"
+//	"https:svc:"     -> "svc"
+func stripProxyNamePortScheme(segment string) string {
+	parts := strings.Split(segment, ":")
+	if len(parts) == 3 {
+		return parts[1]
+	}
+	return parts[0]
 }
 
 func (r apiResource) populateEvent(e *apievents.KubeRequest) {

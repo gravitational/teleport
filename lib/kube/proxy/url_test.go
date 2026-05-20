@@ -112,6 +112,13 @@ func TestParseResourcePath(t *testing.T) {
 		{path: "/api/v1/namespaces/default/pods/foo/proxy/8080", want: apiResource{apiGroup: "", apiGroupVersion: "v1", namespace: "default", resourceKind: "pods/proxy/8080", resourceName: "foo"}},
 		{path: "/api/v1/namespaces/default/services/svc/proxy/path", want: apiResource{apiGroup: "", apiGroupVersion: "v1", namespace: "default", resourceKind: "services/proxy/path", resourceName: "svc"}},
 		{path: "/api/v1/nodes/node-1/proxy/pods", want: apiResource{apiGroup: "", apiGroupVersion: "v1", resourceKind: "nodes/proxy/pods", resourceName: "node-1"}},
+		// Proxy subresources accept the [scheme:]name[:port] format for the name segment.
+		// We strip it down to the bare name so RBAC rules scoped to a specific name still match.
+		{path: "/api/v1/namespaces/default/services/svc:443/proxy/path", want: apiResource{apiGroup: "", apiGroupVersion: "v1", namespace: "default", resourceKind: "services/proxy/path", resourceName: "svc"}},
+		{path: "/api/v1/namespaces/default/services/https:svc:443/proxy/path", want: apiResource{apiGroup: "", apiGroupVersion: "v1", namespace: "default", resourceKind: "services/proxy/path", resourceName: "svc"}},
+		{path: "/api/v1/namespaces/default/services/https:svc:/proxy/path", want: apiResource{apiGroup: "", apiGroupVersion: "v1", namespace: "default", resourceKind: "services/proxy/path", resourceName: "svc"}},
+		{path: "/api/v1/namespaces/default/pods/https:foo:8080/proxy/healthz", want: apiResource{apiGroup: "", apiGroupVersion: "v1", namespace: "default", resourceKind: "pods/proxy/healthz", resourceName: "foo"}},
+		{path: "/api/v1/nodes/https:node-1:10250/proxy/pods", want: apiResource{apiGroup: "", apiGroupVersion: "v1", resourceKind: "nodes/proxy/pods", resourceName: "node-1"}},
 	}
 
 	for _, tt := range tests {
@@ -232,6 +239,10 @@ func Test_getResourceFromRequest(t *testing.T) {
 		{path: "/api/v1/namespaces/default/services", want: &types.KubernetesResource{Kind: "services", Namespace: "default", Verbs: []string{"list"}, APIGroup: ""}},
 		{path: "/api/v1/namespaces/default/services/foo", want: &types.KubernetesResource{Kind: "services", Namespace: "default", Name: "foo", Verbs: []string{"get"}, APIGroup: ""}},
 		{path: "/api/v1/namespaces/default/services/svc/proxy/path", want: &types.KubernetesResource{Kind: "services", Namespace: "default", Name: "svc", Verbs: []string{"proxy"}, APIGroup: ""}},
+		// [scheme:]name[:port] format on proxy paths must reduce to the bare name so name-scoped RBAC rules still match.
+		{path: "/api/v1/namespaces/default/services/svc:443/proxy/path", want: &types.KubernetesResource{Kind: "services", Namespace: "default", Name: "svc", Verbs: []string{"proxy"}, APIGroup: ""}},
+		{path: "/api/v1/namespaces/default/services/https:svc:443/proxy/path", want: &types.KubernetesResource{Kind: "services", Namespace: "default", Name: "svc", Verbs: []string{"proxy"}, APIGroup: ""}},
+		{path: "/api/v1/namespaces/default/pods/https:foo:8080/proxy/healthz", want: &types.KubernetesResource{Kind: "pods", Namespace: "default", Name: "foo", Verbs: []string{"proxy"}, APIGroup: ""}},
 		{path: "/api/v1/watch/namespaces/default/services/foo", want: &types.KubernetesResource{Kind: "services", Namespace: "default", Name: "foo", Verbs: []string{"watch"}, APIGroup: ""}},
 		{path: "/api/v1/namespaces/default/services", body: bodyFunc("Service", "v1"), want: &types.KubernetesResource{Kind: "services", Namespace: "default", Name: "foo-create", Verbs: []string{"create"}, APIGroup: ""}},
 
