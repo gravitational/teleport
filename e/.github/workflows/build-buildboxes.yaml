@@ -29,7 +29,6 @@ jobs:
           - buildbox-node
           - buildbox-arm
           - buildbox-centos7
-          - buildbox-centos7-fips
           - build-centos7-assets
         exclude:
           # Exclude buildbox and buildbox-arm on arm64. They are amd64 only
