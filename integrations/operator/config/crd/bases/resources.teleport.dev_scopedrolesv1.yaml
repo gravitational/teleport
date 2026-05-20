@@ -379,6 +379,10 @@ spec:
                 type: integer
             type: object
         type: object
+        x-kubernetes-validations:
+        - message: Scope is immutable. To create the resource in a different scope
+            you must delete it first.
+          rule: has(self.scope) == has(oldSelf.scope)
     served: true
     storage: true
     subresources:

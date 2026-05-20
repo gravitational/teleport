@@ -241,7 +241,7 @@ TIMESTAMP := $(shell date +%Y%m%d%H%M%S)
 TELEPORT_VERSION ?= 19.0.0-dev
 TELEPORT_IMAGE_DEFAULT := public.ecr.aws/gravitational/teleport-distroless
 TELEPORT_IMAGE ?= $(TELEPORT_IMAGE_DEFAULT)
-TELEPORT_IMAGE_VERSION ?= 18.6.4
+TELEPORT_IMAGE_VERSION ?= 18.8.1
 LOCAL_BUILD := $(if $(filter-out $(TELEPORT_IMAGE_DEFAULT),$(TELEPORT_IMAGE)),1,)
 ARCH ?= $(shell go env GOARCH)
 
@@ -271,6 +271,8 @@ endif
 		--set "teleportVersionOverride=$(TELEPORT_IMAGE_VERSION)" \
 		--set "operator.teleportVersionOverride=$(VERSION)" \
 		--set "operator.image=$(subst :$(VERSION),,$(IMG))" \
+		--set "extraEnv[0].name=TELEPORT_UNSTABLE_SCOPES" \
+		--set "extraEnv[0].value=yes" \
 		$(if $(LOCAL_BUILD),--set "image=$(TELEPORT_IMAGE)") \
 		$(if $(ENTERPRISE),--set "enterprise=true") \
 		$(if $(ENTERPRISE),--set "enterpriseImage=$(TELEPORT_IMAGE)")

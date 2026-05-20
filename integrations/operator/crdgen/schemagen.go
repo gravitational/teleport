@@ -35,12 +35,13 @@ import (
 )
 
 const (
-	k8sKindPrefix     = "Teleport"
-	statusPackagePath = "github.com/gravitational/teleport/integrations/operator/apis/resources"
-	statusPackageName = "teleportcr"
-	statusPackage     = statusPackagePath + "/" + statusPackageName
-	statusTypeName    = "Status"
-	scopeFieldName    = "scope"
+	k8sKindPrefix         = "Teleport"
+	statusPackagePath     = "github.com/gravitational/teleport/integrations/operator/apis/resources"
+	statusPackageName     = "teleportcr"
+	statusPackage         = statusPackagePath + "/" + statusPackageName
+	statusTypeName        = "Status"
+	scopeFieldName        = "scope"
+	immutableScopeMessage = "Scope is immutable. To create the resource in a different scope you must delete it first."
 )
 
 // Add names to this array when adding support to new Teleport resources that could conflict with Kubernetes
@@ -273,6 +274,8 @@ func (generator *SchemaGenerator) addResource(file *File, name string, opts ...r
 		kubernetesVersion = "v1"
 	}
 
+	validationRules := cfg.validationRules
+
 	var rootFields map[string]apiextv1.JSONSchemaProps
 	if cfg.withScopeRootField {
 		rootFields = make(map[string]apiextv1.JSONSchemaProps)
@@ -289,10 +292,16 @@ func (generator *SchemaGenerator) addResource(file *File, name string, opts ...r
 		prop.XValidations = apiextv1.ValidationRules{
 			{
 				Rule:    "self == oldSelf",
-				Message: fmt.Sprintf("Scope is immutable. To create the resource in a different scope you must delete it first."),
+				Message: immutableScopeMessage,
 			},
 		}
 		rootFields[scopeFieldName] = prop
+		// The validation rule only triggers if the field is set.
+		// To make sure a resource doesn't go from scoped to unscoped we must also make sure that `scope` is not set/unset.
+		validationRules = append(validationRules, apiextv1.ValidationRule{
+			Rule:    "has(self.scope) == has(oldSelf.scope)",
+			Message: immutableScopeMessage,
+		})
 	}
 
 	root.versions = append(root.versions, SchemaVersion{
@@ -300,7 +309,7 @@ func (generator *SchemaGenerator) addResource(file *File, name string, opts ...r
 		Schema:               schema,
 		additionalColumns:    cfg.additionalColumns,
 		additionalRootFields: rootFields,
-		validationRules:      cfg.validationRules,
+		validationRules:      validationRules,
 	})
 
 	return nil
