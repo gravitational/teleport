@@ -29,6 +29,7 @@ interface SessionSettingsProps {
   onToggleHiDpi: () => void;
   screenIsHiDpi: boolean;
   hiDpiSupported: boolean;
+  openUpward?: boolean;
 }
 
 export function SessionSettings({
@@ -36,9 +37,14 @@ export function SessionSettings({
   onToggleHiDpi,
   screenIsHiDpi,
   hiDpiSupported,
+  openUpward,
 }: SessionSettingsProps) {
   return (
-    <MenuIcon Icon={Cog} tooltip="Session Settings">
+    <MenuIcon
+      Icon={Cog}
+      tooltip="Session Settings"
+      menuProps={openUpward ? upwardMenuProps : defaultMenuProps}
+    >
       <Container>
         <Flex
           gap={2}
@@ -108,3 +114,19 @@ const Divider = styled.div`
   background: ${props => props.theme.colors.interactive.tonal.neutral[1]};
   margin-bottom: ${props => props.theme.space[2]}px;
 `;
+
+const defaultMenuProps = {
+  updatePositionOnChildResize: true,
+} as const;
+
+const upwardMenuProps = {
+  ...defaultMenuProps,
+  anchorOrigin: {
+    vertical: 'top' as const,
+    horizontal: 'center' as const,
+  },
+  transformOrigin: {
+    vertical: 'bottom' as const,
+    horizontal: 'center' as const,
+  },
+} as const;
