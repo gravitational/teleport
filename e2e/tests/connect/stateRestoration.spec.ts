@@ -28,6 +28,7 @@ import {
   test,
   withDefaultAppConfig,
 } from '@gravitational/e2e/helpers/connect';
+import { startUrl } from '@gravitational/e2e/helpers/env';
 
 // These tests manage the app lifecycle manually (multiple launches/closes), so they do not use the
 // `app` fixture.
@@ -138,12 +139,14 @@ test.describe('state restoration from disk', () => {
       await using app = await launchApp(temp.path);
       const { page } = app;
 
-      // With no tsh dir, no cluster can be connected.
-      await expect(page.getByText('Connect a Cluster')).toBeVisible();
-      // app_state.json still references the old cluster, so setActiveWorkspace should show an error.
       await expect(
-        page.getByText('Could not set cluster as active')
+        page.getByText('Log in to a cluster to use Teleport Connect')
       ).toBeVisible();
+      const proxyHostname = new URL(startUrl).hostname;
+      const inHistoryCluster = page
+        .getByRole('listitem')
+        .filter({ hasText: proxyHostname });
+      await expect(inHistoryCluster.getByText('In history')).toBeVisible();
     }
   });
 
@@ -166,7 +169,9 @@ test.describe('state restoration from disk', () => {
       page.getByText('Are you sure you want to log out?')
     ).toBeVisible();
     await page.getByRole('button', { name: 'Log Out', exact: true }).click();
-    await expect(page.getByText('Connect a Cluster')).toBeVisible();
+    await expect(
+      page.getByText('Log in to a cluster to use Teleport Connect')
+    ).toBeVisible();
 
     // Login to the same cluster again.
     await login(page);

@@ -31,7 +31,7 @@ about Bound Keypair Joining][bkp].
 - A Linux user on that host that you wish `tbot` to run as. In the guide, we
   will use `teleport` for this.
 
-## Step 1/4. Install `tbot`
+## Step 1/3. Install `tbot`
 
 **This step is completed on the Linux host.**
 
@@ -42,7 +42,7 @@ Install Teleport as appropriate for your platform:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-## Step 2/4. Create a bot user
+## Step 2/3. Create a bot user
 
 **This step is completed on your local machine.**
 
@@ -62,7 +62,7 @@ authenticate with your Teleport cluster. Be aware that this URI contains a
 single use secret value (shown as `secret` in the above example) and should be
 copied with care.
 
-## Step 3/4. Configure `tbot`
+## Step 3/3. Configure `tbot`
 
 **This step is completed on the Linux host.**
 
@@ -98,11 +98,11 @@ doing so.
 
 (!docs/pages/includes/machine-id/daemon.mdx!)
 
-## Step 4/4. Configure services
-
-(!docs/pages/includes/machine-id/configure-services.mdx!)
-
 ## Next steps
+
+You have now prepared the base configuration for `tbot`. At this point, it
+identifies itself to the Teleport cluster and renews its own credentials but
+does not output any credentials for other applications to use.
 
 - Follow the [access guides](../access-guides/access-guides.mdx) to finish configuring `tbot` for
   your environment.

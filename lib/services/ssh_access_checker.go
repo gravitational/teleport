@@ -62,21 +62,8 @@ func (c *SSHAccessChecker) AdjustClientIdleTimeout(timeout time.Duration) (time.
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.AdjustClientIdleTimeout(timeout), nil
 	}
-	// SSH block takes precedence over defaults block.
-	idleStr := c.checker.role.GetSpec().GetSsh().GetClientIdleTimeout()
-	if idleStr == "" {
-		idleStr = c.checker.role.GetSpec().GetDefaults().GetClientIdleTimeout()
-	}
-	if idleStr != "" {
-		d, err := time.ParseDuration(idleStr)
-		if err != nil {
-			return 0, trace.Errorf("invalid client_idle_timeout %q in scoped role %q: %w", idleStr, c.checker.role.GetMetadata().GetName(), err)
-		}
-		if d > 0 && (timeout == 0 || d < timeout) {
-			return max(d, 0), nil
-		}
-	}
-	return max(timeout, 0), nil
+
+	return c.checker.adjustScopedClientIdleTimeout(c.checker.role.GetSpec().GetSsh().GetClientIdleTimeout(), timeout)
 }
 
 // AdjustDisconnectExpiredCert adjusts whether to disconnect on certificate expiry.
@@ -84,7 +71,21 @@ func (c *SSHAccessChecker) AdjustDisconnectExpiredCert(disconnect bool) bool {
 	if !c.checker.isScoped() {
 		return c.checker.unscopedChecker.AdjustDisconnectExpiredCert(disconnect)
 	}
-	return c.checker.scopedCompatChecker.AdjustDisconnectExpiredCert(disconnect)
+	ssh := c.checker.role.GetSpec().GetSsh()
+	var disconnectExpiredCert *bool
+	if ssh != nil {
+		disconnectExpiredCert = ssh.DisconnectExpiredCert
+	}
+	return c.checker.adjustScopedDisconnectExpiredCert(disconnectExpiredCert, disconnect)
+}
+
+// LockingMode returns the SSH lock enforcement mode to apply.
+func (c *SSHAccessChecker) LockingMode(defaultMode constants.LockingMode) constants.LockingMode {
+	if !c.checker.isScoped() {
+		return c.checker.unscopedChecker.LockingMode(defaultMode)
+	}
+
+	return c.checker.scopedLockingMode(c.checker.role.GetSpec().GetSsh().GetLock(), defaultMode)
 }
 
 // SessionRecordingMode returns the session recording mode for SSH sessions.

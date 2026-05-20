@@ -103,6 +103,8 @@ export enum ScrollAxis {
 export type ClientScreenSpec = {
   width: number;
   height: number;
+  // scale is only supported for TDPB connections.
+  scale: number;
 };
 
 export type PointerData = {
@@ -358,6 +360,7 @@ export type LatencyStats = {
 
 export type ServerHello = {
   clipboardSupport: boolean;
+  hidpiSupported: boolean;
   activationEvent: RdpConnectionActivated;
   sessions: string[];
 };
@@ -634,6 +637,7 @@ export class TdpbCodec implements Codec {
           data: {
             sessions: hello.sessions.map(s => s.name),
             clipboardSupport: hello.clipboardEnabled,
+            hidpiSupported: hello.hidpiSupported,
             activationEvent: hello.activationSpec,
           },
         };
@@ -1289,6 +1293,8 @@ export class TdpCodec implements Codec {
     return {
       width: dv.getUint32(1),
       height: dv.getUint32(5),
+      // Scale is only used in the protobuf message, so we can default to 0 here.
+      scale: 0,
     };
   }
 

@@ -256,20 +256,6 @@ func getAllAdapter[T any](fn func(context.Context) ([]T, error)) func(context.Co
 	}
 }
 
-// singletonListAdapter adapts a singleton getter to conform to [testFuncs] interface
-func singletonListAdapter[T any](fn func(context.Context) (T, error)) func(context.Context, int, string) ([]T, string, error) {
-	return func(ctx context.Context, _ int, _ string) ([]T, string, error) {
-		out, err := fn(ctx)
-		if err != nil {
-			if trace.IsNotFound(err) {
-				return nil, "", nil
-			}
-			return nil, "", trace.Wrap(err)
-		}
-		return []T{out}, "", nil
-	}
-}
-
 // testFuncs are functions to support testing an object in a cache.
 type testFuncs[T any] struct {
 	newResource func(string) (T, error)
@@ -1396,11 +1382,11 @@ func mustCreateDatabase(t *testing.T, name, protocol, uri string) *types.Databas
 	return database
 }
 
-func newUserTasks(t *testing.T) *usertasksv1.UserTask {
+func newUserTasks(t *testing.T, name string) *usertasksv1.UserTask {
 	t.Helper()
 
 	ut, err := usertasks.NewDiscoverEC2UserTask(&usertasksv1.UserTaskSpec{
-		Integration: "my-integration",
+		Integration: "my-integration-" + name,
 		TaskType:    usertasks.TaskTypeDiscoverEC2,
 		IssueType:   "ec2-ssm-agent-not-registered",
 		State:       "OPEN",
@@ -1443,11 +1429,6 @@ func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[
 
 // testResources153 is a wrapper for testing resources conforming to types.Resource153
 func testResources153[T types.Resource153](t *testing.T, p *testPack, funcs testFuncs[T], opts ...optionsFunc) {
-	// TODO(rana): Add broader support for virtual resources in list operations.
-	// Virtual resources change the total count returned by list operations,
-	// and is unexpected for the current test. When updated, we can remove virtual
-	// resource filtering and paging from lib/cache/health_check_config_test.go.
-	opts = append(opts, withSkipPaginationTest())
 	funcs.resource = defaultResource153Ops[T]()
 	testResourcesInternal(t, p, funcs, opts...)
 }
@@ -2011,7 +1992,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindAutoUpdateAgentRollout:            types.Resource153ToLegacy(newAutoUpdateAgentRollout(t)),
 		types.KindAutoUpdateAgentReport:             types.Resource153ToLegacy(newAutoUpdateAgentReport(t, "test")),
 		types.KindAutoUpdateBotInstanceReport:       types.Resource153ToLegacy(newAutoUpdateBotInstanceReport(t)),
-		types.KindUserTask:                          types.Resource153ToLegacy(newUserTasks(t)),
+		types.KindUserTask:                          types.Resource153ToLegacy(newUserTasks(t, "test")),
 		types.KindProvisioningPrincipalState:        types.Resource153ToLegacy(newProvisioningPrincipalState("u-alice@example.com")),
 		types.KindIdentityCenterAccount:             types.Resource153ToLegacy(newIdentityCenterAccount("some_account")),
 		types.KindIdentityCenterAccountAssignment:   types.Resource153ToLegacy(newIdentityCenterAccountAssignment("some_account_assignment")),
@@ -2843,10 +2824,7 @@ func testResourcePagination[T any](t *testing.T, p *testPack, funcs testFuncs[T]
 	assert.Len(t, page3, 1)
 	assert.Empty(t, end)
 
-	var listed []T
-	listed = append(listed, page1...)
-	listed = append(listed, page2...)
-	listed = append(listed, page3...)
+	listed := slices.Concat(page1, page2, page3)
 
 	// All items have been returned as expected
 	assert.Empty(t, cmp.Diff(expected, listed, cmpOpts...))
@@ -2856,6 +2834,31 @@ func testResourcePagination[T any](t *testing.T, p *testPack, funcs testFuncs[T]
 	require.NoError(t, err)
 	assert.Len(t, pageSmall, 1)
 	assert.NotEmpty(t, pageSmallNext)
+
+	// Verify pagination behaves correctly through the upstream-fallback path
+	// when the cache is not healthy.
+	p.cache.ok = false
+
+	upstreamPage1, upstreamNext1, err := funcs.cacheList(ctx, defaultTestPageSize, "")
+	require.NoError(t, err)
+	assert.Len(t, upstreamPage1, defaultTestPageSize)
+	assert.NotEmpty(t, upstreamNext1)
+
+	upstreamPage2, upstreamNext2, err := funcs.cacheList(ctx, defaultTestPageSize, upstreamNext1)
+	require.NoError(t, err)
+	assert.Len(t, upstreamPage2, defaultTestPageSize)
+	assert.NotEmpty(t, upstreamNext2)
+	assert.NotEqual(t, upstreamPage1, upstreamPage2)
+
+	upstreamPage3, end, err := funcs.cacheList(ctx, defaultTestPageSize, upstreamNext2)
+	require.NoError(t, err)
+	assert.Len(t, upstreamPage3, 1)
+	assert.Empty(t, end)
+
+	upstreamListed := slices.Concat(upstreamPage1, upstreamPage2, upstreamPage3)
+	assert.Empty(t, cmp.Diff(expected, upstreamListed, cmpOpts...))
+
+	p.cache.ok = true
 
 	if funcs.Range != nil && funcs.cacheRange != nil {
 		out, err := stream.Collect(funcs.cacheRange(ctx, "", page2Start))

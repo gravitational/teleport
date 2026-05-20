@@ -131,12 +131,12 @@ func FuzzValidateApp(f *testing.F) {
 	f.Add("proxy.example.com:443", "")                      // valid: empty app address
 	f.Add("example.com", "app.example.com")                 // valid: proxy without port
 	f.Add("web.example.com:443", "web.example.com")         // conflict: same as proxy
-	f.Add("web.example.com:443", "web.example.com.")        // conflict: trailing dot
-	f.Add("web.example.com:443", "web.example.com..")       // conflict: multiple trailing dots
-	f.Add("web.example.com:443", "WeB.ExAmPle.CoM")         // conflict: case insensitive
+	f.Add("web.example.com:443", "web.example.com.")        // conflict: trailing dot stripped before compare
+	f.Add("web.example.com:443", "web.example.com..")       // rejected by shape check: multiple trailing dots
+	f.Add("web.example.com:443", "WeB.ExAmPle.CoM")         // rejected by shape check: mixed case
 	f.Add("web.example.com:443,other.com:443", "other.com") // conflict: matches second proxy
-	f.Add("xn--mnchen-3ya.de:443", "münchen.de")            // conflict: IDN
-	f.Add("münchen.de:443", "MünchEn.de")                   // conflict: IDN case insensitive
+	f.Add("xn--mnchen-3ya.de:443", "münchen.de")            // rejected by shape check: IDN Unicode
+	f.Add("münchen.de:443", "MünchEn.de")                   // rejected by shape check: mixed case + IDN
 	f.Add("example.com:443,example.com:80", "example.com")  // conflict: multiple proxy ports
 
 	f.Fuzz(func(t *testing.T, proxyPublicAddrs string, appPublicAddr string) {

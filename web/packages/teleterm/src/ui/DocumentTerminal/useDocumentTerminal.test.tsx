@@ -17,7 +17,6 @@
  */
 
 import { renderHook, waitFor } from '@testing-library/react';
-import 'jest-canvas-mock';
 
 import Logger, { NullService } from 'teleterm/logger';
 import {
@@ -254,6 +253,7 @@ const testSetup = (
     draftState.clusters.set(rootClusterUri, cluster);
     draftState.clusters.set(leafCluster.uri, leafCluster);
   });
+  appContext.workspacesService.addWorkspace(cluster);
   appContext.workspacesService.setActiveWorkspace(rootClusterUri);
   const documentsService =
     appContext.workspacesService.getWorkspaceDocumentService(rootClusterUri);

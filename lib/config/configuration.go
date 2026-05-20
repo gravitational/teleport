@@ -2198,6 +2198,17 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.Apps.Apps = append(cfg.Apps.Apps, app)
 	}
 
+	// Reject literal duplicates: at registration two entries with the
+	// same name would write to the same backend key (host_id + name)
+	// and the second would silently overwrite the first.
+	seenNames := make(map[string]struct{}, len(cfg.Apps.Apps))
+	for _, app := range cfg.Apps.Apps {
+		if _, ok := seenNames[app.Name]; ok {
+			return trace.BadParameter("duplicate application name %q in static config", app.Name)
+		}
+		seenNames[app.Name] = struct{}{}
+	}
+
 	return nil
 }
 
