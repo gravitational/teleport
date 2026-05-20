@@ -82,12 +82,12 @@ func New(cfg Config) (*APIServer, error) {
 
 	grpcServer := grpc.NewServer(cfg.TshdServerCreds,
 		grpc.ChainUnaryInterceptor(
-			withUnaryPanicRecovery(cfg.Logger),
 			withUnaryErrorHandling(cfg.Logger),
+			withUnaryPanicRecovery(cfg.Logger),
 		),
 		grpc.ChainStreamInterceptor(
-			withStreamPanicRecovery(cfg.Logger),
 			withStreamErrorHandling(cfg.Logger),
+			withStreamPanicRecovery(cfg.Logger),
 		),
 		grpc.MaxConcurrentStreams(defaults.GRPCMaxConcurrentStreams),
 	)
