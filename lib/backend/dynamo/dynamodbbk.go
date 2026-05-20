@@ -45,6 +45,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	config "github.com/gravitational/teleport/lib/cloud/aws/config"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -677,21 +678,74 @@ func (b *Backend) GetRange(ctx context.Context, startKey, endKey backend.Key, li
 	return &result, nil
 }
 
-const (
-	// batchOperationItemsLimit is the maximum number of items that can be put or deleted in a single batch operation.
-	// From https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Limits.html:
-	// A single call to BatchWriteItem can transmit up to 16MB of data over the network,
-	// consisting of up to 25 item put or delete operations.
-	batchOperationItemsLimit = 25
-)
+func (b *Backend) batchWriteItem(ctx context.Context, requests []types.WriteRequest) error {
+	if len(requests) == 0 {
+		return nil
+	}
+
+	requestItems := map[string][]types.WriteRequest{
+		b.TableName: requests,
+	}
+
+	// maxBatchWriteItemAttempts is the maximum number of attempts to write a
+	// single batch, including retries of UnprocessedItems returned by DynamoDB.
+	const maxBatchWriteItemAttempts = 4
+
+	var retry retryutils.Retry
+	for range maxBatchWriteItemAttempts {
+		resp, err := b.svc.BatchWriteItem(ctx, &dynamodb.BatchWriteItemInput{
+			RequestItems: requestItems,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if resp == nil || len(resp.UnprocessedItems) == 0 {
+			return nil
+		}
+
+		requestItems = resp.UnprocessedItems
+
+		if retry == nil {
+			firstRetry := b.RetryPeriod / 10
+			retry, err = retryutils.NewRetryV2(retryutils.RetryV2Config{
+				First:  firstRetry,
+				Driver: retryutils.NewExponentialDriver(firstRetry),
+				Max:    b.RetryPeriod,
+				Jitter: retryutils.FullJitter,
+				Clock:  b.clock,
+			})
+			if err != nil {
+				return trace.Errorf("failed to setup retry for dynamodb batch write: %v", err)
+			}
+		}
+
+		retry.Inc()
+		select {
+		case <-retry.After():
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+		}
+	}
+
+	return trace.LimitExceeded("not all items deleted, dynamodb returned unprocessed items after %d attempts", maxBatchWriteItemAttempts)
+}
 
 // DeleteRange deletes range of items with keys between startKey and endKey
 func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey backend.Key) error {
+	const (
+		// batchOperationItemsLimit is the maximum number of items that can be put or deleted in a single batch operation.
+		// From https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Limits.html:
+		// A single call to BatchWriteItem can transmit up to 16MB of data over the network,
+		// consisting of up to 25 item put or delete operations.
+		batchOperationItemsLimit = 25
+		maxDeletionOperations    = backend.DefaultRangeLimit / 100 / batchOperationItemsLimit
+	)
+
 	// Attempt to pull all existing items and delete them in batches
 	// in accordance with the BatchWriteItem limits. There is a hard
 	// cap on the total number of items that can be deleted in a single
 	// DeleteRange call to avoid racing with additional records being added.
-	const maxDeletionOperations = backend.DefaultRangeLimit / 100 / batchOperationItemsLimit
 	requests := make([]types.WriteRequest, 0, batchOperationItemsLimit)
 	var deletions int
 	for item, err := range b.Items(ctx, backend.ItemsParams{StartKey: startKey, EndKey: endKey}) {
@@ -713,11 +767,7 @@ func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey backend.Key)
 		})
 
 		if len(requests) == batchOperationItemsLimit {
-			if _, err := b.svc.BatchWriteItem(ctx, &dynamodb.BatchWriteItemInput{
-				RequestItems: map[string][]types.WriteRequest{
-					b.TableName: requests,
-				},
-			}); err != nil {
+			if err := b.batchWriteItem(ctx, requests); err != nil {
 				return trace.Wrap(err)
 			}
 
@@ -734,11 +784,7 @@ func (b *Backend) DeleteRange(ctx context.Context, startKey, endKey backend.Key)
 	}
 
 	if len(requests) > 0 {
-		if _, err := b.svc.BatchWriteItem(ctx, &dynamodb.BatchWriteItemInput{
-			RequestItems: map[string][]types.WriteRequest{
-				b.TableName: requests,
-			},
-		}); err != nil {
+		if err := b.batchWriteItem(ctx, requests); err != nil {
 			return trace.Wrap(err)
 		}
 	}
