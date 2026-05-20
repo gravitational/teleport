@@ -23,33 +23,29 @@ connections after upgrading to v19.
 
 #### Stricter application validation
 
-The application service now applies stricter naming rules at every
-write path (`teleport.yaml`, dynamic `tctl create`, and agent
-heartbeats). The rules differ slightly by field.
+The application service now applies stricter naming rules on every
+write path (static config in `teleport.yaml`, the dynamic API via
+`tctl create`, the Terraform provider, the Kubernetes operator,
+direct API calls, and apps registered by existing agents). The
+change is backwards compatible apart from three cases:
 
-App `name` in `teleport.yaml` is a lowercase DNS label:
+- Names in `teleport.yaml` static config must now be a valid DNS
+  label (lowercase alphanumeric and `-`, max 63 chars). Update the
+  config before upgrading.
+- `public_addr` values that remain unroutable after normalization
+  (IP addresses, IDN Unicode, trailing dots, underscores) are
+  rejected. The affected app drops from the registry until
+  corrected.
+- Duplicate `name` entries in the `app_service.apps` block of a
+  single agent's `teleport.yaml` now fail validation at startup.
+  Previously, the second entry silently overwrote the first, so
+  only one of the two apps was actually served. Deduplicate the
+  config before upgrading. The check is per-agent; multiple agents
+  heartbeating the same app name remain supported for load
+  balancing.
 
-- only letters `a-z`, digits `0-9`, and dashes (`-`),
-- starts and ends with a letter or digit,
-- up to 63 characters.
-
-App `name` written through the dynamic API, `public_addr`, and
-`required_apps` entries are lowercase DNS hostnames. The same
-rules apply, with dots (`.`) allowed as label separators for
-AWS OIDC integration compatibility, up to 253 characters in
-total, and no trailing dot or IDN Unicode (use punycode for
-non-ASCII).
-
-The change is backwards compatible for most existing records.
-Heartbeats from older agents are first normalized (URL schemes and
-ports stripped, value lowercased) so URL-shaped or mixed-case
-legacy values keep working after upgrade.
-
-The exception is `public_addr` values that are still invalid after
-normalization, for example IP addresses, IDN Unicode, trailing
-dots, or underscores. Such records are rejected on the next
-heartbeat and drop from the app registry until the `public_addr`
-is corrected.
+Rolling upgrades are supported: older-agent heartbeats are
+normalized so previously valid names still pass.
 
 #### CLI --help Output Improvements
 
