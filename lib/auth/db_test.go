@@ -113,7 +113,10 @@ func Test_getSnowflakeJWTParams(t *testing.T) {
 }
 
 func TestDBCertSigning(t *testing.T) {
-	t.Parallel()
+	// Don't t.Parallel, uses modulestest.SetTestModules.
+
+	// Required for CA override tests.
+	modulestest.SetTestModules(t, *modulestest.EnterpriseModules())
 
 	clock := clockwork.NewFakeClockAt(time.Now())
 	const clusterName = "local.me"
@@ -121,8 +124,6 @@ func TestDBCertSigning(t *testing.T) {
 		Clock:       clock,
 		ClusterName: clusterName,
 		Dir:         t.TempDir(),
-		// Required for CA override tests.
-		Modules: modulestest.EnterpriseModules(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
