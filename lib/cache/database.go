@@ -252,11 +252,20 @@ func (c *Cache) RangeDatabaseServersWithName(ctx context.Context, databaseName s
 		defer span.End()
 
 		upstreamListFn := func(ctx context.Context, pageSize int, startToken string) ([]types.DatabaseServer, string, error) {
-			// discard the databaseName, we don't need it to query the backend
-			var hostID, serverName string
-			_ = ordered.Decode([]byte(startToken), nil, &hostID, &serverName)
+			// discard the database name prefix since it is always equal to the
+			// outer databaseName by construction. The start and next tokens
+			// both encode it from the same source.
+			rest, err := ordered.DecodePrefix([]byte(startToken), nil)
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+
 			backendKey := ""
-			if hostID != "" {
+			if len(rest) > 0 {
+				var hostID, serverName string
+				if err := ordered.Decode(rest, &hostID, &serverName); err != nil {
+					return nil, "", trace.Wrap(err)
+				}
 				backendKey = hostID + "/" + serverName
 			}
 
