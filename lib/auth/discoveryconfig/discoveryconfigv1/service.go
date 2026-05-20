@@ -53,10 +53,11 @@ type ServiceConfig struct {
 	Logger *slog.Logger
 
 	// Authorizer is the authorizer to use.
-	Authorizer authz.Authorizer
+	Authorizer authz.ScopedAuthorizer
 
-	// Backend is the backend for storing DiscoveryConfigs.
-	Backend services.DiscoveryConfigs
+	// Backend is the backend for storing DiscoveryConfigs. This must be a local
+	// backend because list authorization requires server-side filtering.
+	Backend services.DiscoveryConfigsWithFilter
 
 	// Clock is the clock.
 	Clock clockwork.Clock
@@ -101,8 +102,8 @@ type Service struct {
 	discoveryconfigv1.UnimplementedDiscoveryConfigServiceServer
 
 	log           *slog.Logger
-	authorizer    authz.Authorizer
-	backend       services.DiscoveryConfigs
+	authorizer    authz.ScopedAuthorizer
+	backend       services.DiscoveryConfigsWithFilter
 	clock         clockwork.Clock
 	emitter       apievents.Emitter
 	usageReporter usagereporter.UsageReporter
@@ -126,16 +127,25 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 
 // ListDiscoveryConfigs returns a paginated list of all DiscoveryConfig resources.
 func (s *Service) ListDiscoveryConfigs(ctx context.Context, req *discoveryconfigv1.ListDiscoveryConfigsRequest) (*discoveryconfigv1.ListDiscoveryConfigsResponse, error) {
-	authCtx, err := s.authorizer.Authorize(ctx)
+	authCtx, err := s.authorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(types.KindDiscoveryConfig, types.VerbRead, types.VerbList); err != nil {
+	// Perform pre-authz check to break early if the caller definitely can't
+	// list discovery configs.
+	ruleCtx := authCtx.RuleContext()
+	if err := authCtx.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindDiscoveryConfig, types.VerbRead, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	results, nextKey, err := s.backend.ListDiscoveryConfigs(ctx, int(req.GetPageSize()), req.GetNextToken())
+	results, nextKey, err := s.backend.ListDiscoveryConfigsWithFilter(ctx, int(req.GetPageSize()), req.GetNextToken(), func(dc *discoveryconfig.DiscoveryConfig) bool {
+		ruleCtx.Resource = dc
+		err := authCtx.CheckerContext.Decision(ctx, dc.GetScope(), func(checker *services.ScopedAccessChecker) error {
+			return checker.CheckAccessToRules(&ruleCtx, types.KindDiscoveryConfig, types.VerbRead, types.VerbList)
+		})
+		return err == nil
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -157,17 +167,25 @@ func (s *Service) ListDiscoveryConfigs(ctx context.Context, req *discoveryconfig
 
 // GetDiscoveryConfig returns the specified DiscoveryConfig resource.
 func (s *Service) GetDiscoveryConfig(ctx context.Context, req *discoveryconfigv1.GetDiscoveryConfigRequest) (*discoveryconfigv1.DiscoveryConfig, error) {
-	authCtx, err := s.authorizer.Authorize(ctx)
+	authCtx, err := s.authorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(types.KindDiscoveryConfig, types.VerbRead); err != nil {
+	ruleCtx := authCtx.RuleContext()
+	if err := authCtx.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, types.KindDiscoveryConfig, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	dc, err := s.backend.GetDiscoveryConfig(ctx, req.Name)
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ruleCtx.Resource = dc
+	if err := authCtx.CheckerContext.Decision(ctx, dc.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		return checker.CheckAccessToRules(&ruleCtx, types.KindDiscoveryConfig, types.VerbRead)
+	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -181,17 +199,21 @@ func (s *Service) GetDiscoveryConfig(ctx context.Context, req *discoveryconfigv1
 
 // CreateDiscoveryConfig creates a new DiscoveryConfig resource.
 func (s *Service) CreateDiscoveryConfig(ctx context.Context, req *discoveryconfigv1.CreateDiscoveryConfigRequest) (*discoveryconfigv1.DiscoveryConfig, error) {
-	authCtx, err := s.authorizer.Authorize(ctx)
+	authCtx, err := s.authorizer.AuthorizeScoped(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := authCtx.CheckAccessToKind(types.KindDiscoveryConfig, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	dc, err := conv.FromProto(req.GetDiscoveryConfig())
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ruleCtx := authCtx.RuleContext()
+	ruleCtx.Resource = dc
+	if err := authCtx.CheckerContext.Decision(ctx, dc.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		return checker.CheckAccessToRules(&ruleCtx, types.KindDiscoveryConfig, types.VerbCreate)
+	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -209,7 +231,7 @@ func (s *Service) CreateDiscoveryConfig(ctx context.Context, req *discoveryconfi
 			Type: events.DiscoveryConfigCreateEvent,
 			Code: events.DiscoveryConfigCreateCode,
 		},
-		UserMetadata: authCtx.GetUserMetadata(),
+		UserMetadata: authCtx.Identity.GetIdentity().GetUserMetadata(),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    resp.GetName(),
 			Expires: resp.Expiry(),
@@ -226,17 +248,21 @@ func (s *Service) CreateDiscoveryConfig(ctx context.Context, req *discoveryconfi
 
 // UpdateDiscoveryConfig updates an existing DiscoveryConfig.
 func (s *Service) UpdateDiscoveryConfig(ctx context.Context, req *discoveryconfigv1.UpdateDiscoveryConfigRequest) (*discoveryconfigv1.DiscoveryConfig, error) {
-	authCtx, err := s.authorizer.Authorize(ctx)
+	authCtx, err := s.authorizer.AuthorizeScoped(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := authCtx.CheckAccessToKind(types.KindDiscoveryConfig, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	dc, err := conv.FromProto(req.GetDiscoveryConfig())
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ruleCtx := authCtx.RuleContext()
+	ruleCtx.Resource = dc
+	if err := authCtx.CheckerContext.Decision(ctx, dc.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		return checker.CheckAccessToRules(&ruleCtx, types.KindDiscoveryConfig, types.VerbUpdate)
+	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -257,7 +283,7 @@ func (s *Service) UpdateDiscoveryConfig(ctx context.Context, req *discoveryconfi
 			Type: events.DiscoveryConfigUpdateEvent,
 			Code: events.DiscoveryConfigUpdateCode,
 		},
-		UserMetadata: authCtx.GetUserMetadata(),
+		UserMetadata: authCtx.Identity.GetIdentity().GetUserMetadata(),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    resp.GetName(),
 			Expires: resp.Expiry(),
@@ -274,17 +300,21 @@ func (s *Service) UpdateDiscoveryConfig(ctx context.Context, req *discoveryconfi
 
 // UpsertDiscoveryConfig creates or updates a DiscoveryConfig.
 func (s *Service) UpsertDiscoveryConfig(ctx context.Context, req *discoveryconfigv1.UpsertDiscoveryConfigRequest) (*discoveryconfigv1.DiscoveryConfig, error) {
-	authCtx, err := s.authorizer.Authorize(ctx)
+	authCtx, err := s.authorizer.AuthorizeScoped(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := authCtx.CheckAccessToKind(types.KindDiscoveryConfig, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	dc, err := conv.FromProto(req.GetDiscoveryConfig())
 	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ruleCtx := authCtx.RuleContext()
+	ruleCtx.Resource = dc
+	if err := authCtx.CheckerContext.Decision(ctx, dc.GetScope(), func(checker *services.ScopedAccessChecker) error {
+		return checker.CheckAccessToRules(&ruleCtx, types.KindDiscoveryConfig, types.VerbCreate, types.VerbUpdate)
+	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -302,7 +332,7 @@ func (s *Service) UpsertDiscoveryConfig(ctx context.Context, req *discoveryconfi
 			Type: events.DiscoveryConfigCreateEvent,
 			Code: events.DiscoveryConfigCreateCode,
 		},
-		UserMetadata: authCtx.GetUserMetadata(),
+		UserMetadata: authCtx.Identity.GetIdentity().GetUserMetadata(),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name:    resp.GetName(),
 			Expires: resp.Expiry(),
@@ -319,21 +349,42 @@ func (s *Service) UpsertDiscoveryConfig(ctx context.Context, req *discoveryconfi
 
 // DeleteDiscoveryConfig removes the specified DiscoveryConfig resource.
 func (s *Service) DeleteDiscoveryConfig(ctx context.Context, req *discoveryconfigv1.DeleteDiscoveryConfigRequest) (*emptypb.Empty, error) {
-	authCtx, err := s.authorizer.Authorize(ctx)
+	authCtx, err := s.authorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	ruleCtx := authCtx.RuleContext()
 
-	if err := authCtx.CheckAccessToKind(types.KindDiscoveryConfig, types.VerbDelete); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Fetch the DiscoveryConfig before deletion to capture metadata for the usage event.
+	// Fetch the DiscoveryConfig before deletion to check access and capture
+	// metadata for the usage event.
 	dc, err := s.backend.GetDiscoveryConfig(ctx, req.GetName())
-	if err != nil && !trace.IsNotFound(err) {
-		s.log.WarnContext(ctx, "Skipping DiscoveryConfig delete usage event due to GetDiscoveryConfig failure.",
-			"discovery_config_name", req.GetName(),
-			"error", err)
+	if err != nil {
+		// If we can't fetch the current discovery config from the backend, the
+		// caller should be allowed to do an unconditional delete iff they
+		// are allowed to delete unscoped discovery configs.
+		//
+		// Unscoped identities that are allowed to delete discovery configs
+		// will be allowed here.
+		const emptyScope = ""
+		if err := authCtx.CheckerContext.Decision(ctx, emptyScope, func(checker *services.ScopedAccessChecker) error {
+			return checker.CheckAccessToRules(&ruleCtx, types.KindDiscoveryConfig, types.VerbDelete)
+		}); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if !trace.IsNotFound(err) {
+			s.log.WarnContext(ctx, "Skipping DiscoveryConfig delete usage event due to GetDiscoveryConfig failure.",
+				"discovery_config_name", req.GetName(),
+				"error", err)
+		}
+	} else {
+		// If we were able to fetch the current discovery config, check access at its real scope.
+		ruleCtx.Resource = dc
+		if err := authCtx.CheckerContext.Decision(ctx, dc.GetScope(), func(checker *services.ScopedAccessChecker) error {
+			return checker.CheckAccessToRules(&ruleCtx, types.KindDiscoveryConfig, types.VerbDelete)
+		}); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	if err := s.backend.DeleteDiscoveryConfig(ctx, req.GetName()); err != nil {
@@ -345,7 +396,7 @@ func (s *Service) DeleteDiscoveryConfig(ctx context.Context, req *discoveryconfi
 			Type: events.DiscoveryConfigDeleteEvent,
 			Code: events.DiscoveryConfigDeleteCode,
 		},
-		UserMetadata: authCtx.GetUserMetadata(),
+		UserMetadata: authCtx.Identity.GetIdentity().GetUserMetadata(),
 		ResourceMetadata: apievents.ResourceMetadata{
 			Name: req.Name,
 		},
@@ -363,12 +414,18 @@ func (s *Service) DeleteDiscoveryConfig(ctx context.Context, req *discoveryconfi
 
 // DeleteAllDiscoveryConfigs removes all DiscoveryConfig resources.
 func (s *Service) DeleteAllDiscoveryConfigs(ctx context.Context, _ *discoveryconfigv1.DeleteAllDiscoveryConfigsRequest) (*emptypb.Empty, error) {
-	authCtx, err := s.authorizer.Authorize(ctx)
+	authCtx, err := s.authorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToKind(types.KindDiscoveryConfig, types.VerbDelete); err != nil {
+	// Deleting all discovery configs must only be allowed if the caller is
+	// allowed to delete unscoped discovery configs.
+	const emptyScope = ""
+	ruleCtx := authCtx.RuleContext()
+	if err := authCtx.CheckerContext.Decision(ctx, emptyScope, func(checker *services.ScopedAccessChecker) error {
+		return checker.CheckAccessToRules(&ruleCtx, types.KindDiscoveryConfig, types.VerbDelete)
+	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -381,7 +438,7 @@ func (s *Service) DeleteAllDiscoveryConfigs(ctx context.Context, _ *discoverycon
 			Type: events.DiscoveryConfigDeleteAllEvent,
 			Code: events.DiscoveryConfigDeleteAllCode,
 		},
-		UserMetadata:       authCtx.GetUserMetadata(),
+		UserMetadata:       authCtx.Identity.GetIdentity().GetUserMetadata(),
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 	}); err != nil {
 		s.log.WarnContext(ctx, "Failed to emit discovery config delete all event.", "error", err)
@@ -392,12 +449,15 @@ func (s *Service) DeleteAllDiscoveryConfigs(ctx context.Context, _ *discoverycon
 
 // UpdateDiscoveryConfigStatus updates the status of a DiscoveryConfig.
 func (s *Service) UpdateDiscoveryConfigStatus(ctx context.Context, req *discoveryconfigv1.UpdateDiscoveryConfigStatusRequest) (*discoveryconfigv1.DiscoveryConfig, error) {
-	authCtx, err := s.authorizer.Authorize(ctx)
+	authCtx, err := s.authorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if !authz.HasBuiltinRole(*authCtx, string(types.RoleDiscovery)) {
+	// Currently only unscoped discovery services can call this API.
+	// TODO(nklaassen): support UpdateDiscoveryConfigStatus for scoped discovery service.
+	unscopedCtx, ok := authCtx.UnscopedContext()
+	if !ok || !authz.HasBuiltinRole(*unscopedCtx, string(types.RoleDiscovery)) {
 		return nil, trace.AccessDenied("UpdateDiscoveryConfigStatus request can be only executed by a Discovery Service")
 	}
 

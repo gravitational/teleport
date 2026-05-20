@@ -267,3 +267,10 @@ func (a *DiscoveryConfig) CloneResource() types.ResourceWithLabels {
 	utils.StrictObjectToStruct(a, &copy)
 	return copy
 }
+
+// GetScope returns the scope this discovery config belongs to.
+func (a *DiscoveryConfig) GetScope() string {
+	// Discovery configs are currently always unscoped.
+	// TODO(nklaassen): scope discovery configs.
+	return ""
+}
