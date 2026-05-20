@@ -394,6 +394,12 @@ linters:
         - pattern: ^ssh\.(Dial|NewClientWithTimeout|NewClientConnWithTimeout)$
           pkg: ^github\.com/gravitational/teleport/api/observability/tracing/ssh$
           msg: Use api/ssh package to construct SSH clients with proper defaults
+        # only takes effect outside of e due to exclusion rules defined later
+        - pattern: ^.*\.Unimplemented.*Server$
+          msg: Use UnsafeFooServer instead
+        # only takes effect in e due to exclusion rules defined later
+        - pattern: ^.*\.Unsafe.*Server$
+          msg: Use UnimplementedFooServer instead
       analyze-types: true
     misspell:
       locale: US
@@ -570,6 +576,16 @@ linters:
       - linters:
           - forcetypeassert
         path-except: ^lib/tlsca/ca\.go$
+
+      - linters:
+          - forbidigo
+        text: Use UnimplementedFooServer instead
+        # no exclusion for test files because tests in e should also continue to build
+        path-except: ^e/
+      - linters:
+          - forbidigo
+        text: Use UnsafeFooServer instead
+        path: (^e/)|(_test.go$)
 
     paths:
       - (^|/)node_modules/

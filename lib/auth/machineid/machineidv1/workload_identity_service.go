@@ -125,7 +125,7 @@ func NewWorkloadIdentityService(
 // WorkloadIdentityService implements the teleport.machineid.v1.WorkloadIdentity
 // RPC service.
 type WorkloadIdentityService struct {
-	pb.UnimplementedWorkloadIdentityServiceServer
+	pb.UnsafeWorkloadIdentityServiceServer
 
 	cache      WorkloadIdentityCacher
 	authorizer authz.Authorizer

@@ -93,7 +93,7 @@ type joinServiceClient interface {
 // remain here for a while for backward compat (ETA pending until we figure out
 // an LTS strategy).
 type JoinServiceGRPCServer struct {
-	proto.UnimplementedJoinServiceServer
+	proto.UnsafeJoinServiceServer
 
 	joinServiceClient joinServiceClient
 }

@@ -157,7 +157,7 @@ func (s *ServiceConfig) CheckAndSetDefaults() error {
 
 // Service implements the teleport.integration.v1.IntegrationService RPC service.
 type Service struct {
-	integrationpb.UnimplementedIntegrationServiceServer
+	integrationpb.UnsafeIntegrationServiceServer
 	authorizer      authz.Authorizer
 	cache           Cache
 	keyStoreManager KeyStoreManager

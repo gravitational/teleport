@@ -61,7 +61,7 @@ type ResourceServiceConfig struct {
 // ResourceService is the gRPC service for managing workload identity resources.
 // It implements the workloadidentityv1pb.WorkloadIdentityResourceServiceServer
 type ResourceService struct {
-	workloadidentityv1pb.UnimplementedWorkloadIdentityResourceServiceServer
+	workloadidentityv1pb.UnsafeWorkloadIdentityResourceServiceServer
 
 	authorizer authz.Authorizer
 	backend    workloadIdentityReadWriter

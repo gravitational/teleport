@@ -32,7 +32,7 @@ import (
 // is required to use the service. Using a [loginrulepb.UnimplementedLoginRuleServiceServer]
 // would result in ambiguous not implemented errors being returned from open source.
 type NotImplementedService struct {
-	loginrulepb.UnimplementedLoginRuleServiceServer
+	loginrulepb.UnsafeLoginRuleServiceServer
 }
 
 func (NotImplementedService) CreateLoginRule(context.Context, *loginrulepb.CreateLoginRuleRequest) (*loginrulepb.LoginRule, error) {

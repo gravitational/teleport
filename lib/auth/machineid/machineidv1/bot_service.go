@@ -157,7 +157,7 @@ func NewBotService(cfg BotServiceConfig) (*BotService, error) {
 
 // BotService implements the teleport.machineid.v1.BotService RPC service.
 type BotService struct {
-	pb.UnimplementedBotServiceServer
+	pb.UnsafeBotServiceServer
 
 	cache            Cache
 	backend          Backend

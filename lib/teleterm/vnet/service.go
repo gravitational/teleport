@@ -59,7 +59,7 @@ const (
 
 // Service implements gRPC service for VNet.
 type Service struct {
-	api.UnimplementedVnetServiceServer
+	api.UnsafeVnetServiceServer
 
 	cfg                Config
 	mu                 sync.Mutex

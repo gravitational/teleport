@@ -96,7 +96,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 
 // Service implements a gRPC server for interacting with encrypted recordings.
 type Service struct {
-	recordingencryptionv1.UnimplementedRecordingEncryptionServiceServer
+	recordingencryptionv1.UnsafeRecordingEncryptionServiceServer
 
 	auth     authz.Authorizer
 	logger   *slog.Logger

@@ -95,7 +95,7 @@ func WorkloadAPIServiceBuilder(
 // - https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE-ID.md
 // - https://github.com/spiffe/spiffe/blob/main/standards/X509-SVID.md
 type WorkloadAPIService struct {
-	workloadpb.UnimplementedSpiffeWorkloadAPIServer
+	workloadpb.UnsafeSpiffeWorkloadAPIServer
 
 	svcIdentity               *clientcredentials.UnstableConfig
 	defaultCredentialLifetime bot.CredentialLifetime

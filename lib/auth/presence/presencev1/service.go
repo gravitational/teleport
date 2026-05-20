@@ -24,6 +24,8 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
@@ -78,7 +80,7 @@ type ServiceConfig struct {
 
 // Service implements the teleport.presence.v1.PresenceService RPC service.
 type Service struct {
-	presencepb.UnimplementedPresenceServiceServer
+	presencepb.UnsafePresenceServiceServer
 
 	authorizer authz.Authorizer
 	authServer AuthServer
@@ -476,4 +478,14 @@ func (s *Service) DeleteRelayServer(ctx context.Context, req *presencepb.DeleteR
 	}
 
 	return &presencepb.DeleteRelayServerResponse{}, nil
+}
+
+// ListAuthServers implements [presencev1.PresenceServiceServer].
+func (*Service) ListAuthServers(context.Context, *presencepb.ListAuthServersRequest) (*presencepb.ListAuthServersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListAuthServers not implemented")
+}
+
+// ListProxyServers implements [presencev1.PresenceServiceServer].
+func (*Service) ListProxyServers(context.Context, *presencepb.ListProxyServersRequest) (*presencepb.ListProxyServersResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListProxyServers not implemented")
 }

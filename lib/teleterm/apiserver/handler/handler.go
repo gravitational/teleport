@@ -58,7 +58,7 @@ func (c *Config) CheckAndSetDefaults() error {
 
 // Handler implements teleterm api service
 type Handler struct {
-	api.UnimplementedTerminalServiceServer
+	api.UnsafeTerminalServiceServer
 
 	// Config is the service config
 	Config

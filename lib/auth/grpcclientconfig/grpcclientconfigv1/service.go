@@ -54,7 +54,7 @@ func NewService() (*Service, error) {
 // Service is an impementation of the [grpcv1.ServiceConfigDiscoveryServiceServer].
 // It allows grpc clients to discover their client configuration at runtime.
 type Service struct {
-	grpcv1.UnimplementedServiceConfigDiscoveryServiceServer
+	grpcv1.UnsafeServiceConfigDiscoveryServiceServer
 	config *grpcv1.ServiceConfig
 }
 

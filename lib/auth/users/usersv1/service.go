@@ -78,7 +78,7 @@ type ServiceConfig struct {
 
 // Service implements the teleport.users.v1.UsersService RPC service.
 type Service struct {
-	userspb.UnimplementedUsersServiceServer
+	userspb.UnsafeUsersServiceServer
 
 	authorizer authz.Authorizer
 	cache      Cache

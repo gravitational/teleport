@@ -149,7 +149,7 @@ func (s *AWSRolesAnywhereServiceConfig) CheckAndSetDefaults() error {
 
 // AWSRolesAnywhereService implements the teleport.integration.v1.AWSRolesAnywhereService RPC service.
 type AWSRolesAnywhereService struct {
-	integrationpb.UnimplementedAWSRolesAnywhereServiceServer
+	integrationpb.UnsafeAWSRolesAnywhereServiceServer
 
 	integrationService *Service
 	authorizer         authz.Authorizer

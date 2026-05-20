@@ -34,7 +34,7 @@ func NewSigstorePolicyResourceService() workloadidentityv1.SigstorePolicyResourc
 }
 
 type sigstorePolicyResourceService struct {
-	workloadidentityv1.UnimplementedSigstorePolicyResourceServiceServer
+	workloadidentityv1.UnsafeSigstorePolicyResourceServiceServer
 }
 
 func (s sigstorePolicyResourceService) CreateSigstorePolicy(context.Context, *workloadidentityv1.CreateSigstorePolicyRequest) (*workloadidentityv1.SigstorePolicy, error) {
@@ -54,6 +54,11 @@ func (s sigstorePolicyResourceService) GetSigstorePolicy(context.Context, *workl
 }
 
 func (s sigstorePolicyResourceService) ListSigstorePolicies(context.Context, *workloadidentityv1.ListSigstorePoliciesRequest) (*workloadidentityv1.ListSigstorePoliciesResponse, error) {
+	return nil, s.requireEnterprise()
+}
+
+// UpsertSigstorePolicy implements [workloadidentityv1.SigstorePolicyResourceServiceServer].
+func (s sigstorePolicyResourceService) UpsertSigstorePolicy(context.Context, *workloadidentityv1.UpsertSigstorePolicyRequest) (*workloadidentityv1.SigstorePolicy, error) {
 	return nil, s.requireEnterprise()
 }
 

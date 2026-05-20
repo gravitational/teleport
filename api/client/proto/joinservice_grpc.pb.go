@@ -156,7 +156,7 @@ func (c *joinServiceClient) RegisterUsingToken(ctx context.Context, in *types.Re
 }
 
 // JoinServiceServer is the server API for JoinService service.
-// All implementations should embed UnimplementedJoinServiceServer
+// All implementations must embed UnimplementedJoinServiceServer
 // for forward compatibility.
 //
 // JoinService provides methods which allow Teleport nodes, proxies, and other
@@ -183,9 +183,10 @@ type JoinServiceServer interface {
 	// RegisterUsingToken is used to register a new node to the cluster using one
 	// of the legacy join methods which do not yet have their own gRPC method.
 	RegisterUsingToken(context.Context, *types.RegisterUsingTokenRequest) (*Certs, error)
+	mustEmbedUnimplementedJoinServiceServer()
 }
 
-// UnimplementedJoinServiceServer should be embedded to have
+// UnimplementedJoinServiceServer must be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
@@ -210,7 +211,8 @@ func (UnimplementedJoinServiceServer) RegisterUsingBoundKeypairMethod(grpc.BidiS
 func (UnimplementedJoinServiceServer) RegisterUsingToken(context.Context, *types.RegisterUsingTokenRequest) (*Certs, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method RegisterUsingToken not implemented")
 }
-func (UnimplementedJoinServiceServer) testEmbeddedByValue() {}
+func (UnimplementedJoinServiceServer) mustEmbedUnimplementedJoinServiceServer() {}
+func (UnimplementedJoinServiceServer) testEmbeddedByValue()                     {}
 
 // UnsafeJoinServiceServer may be embedded to opt out of forward compatibility for this service.
 // Use of this interface is not recommended, as added methods to JoinServiceServer will

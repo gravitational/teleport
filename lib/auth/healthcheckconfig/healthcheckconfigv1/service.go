@@ -48,7 +48,7 @@ type ServiceConfig struct {
 // Service implements the teleport.healthcheck.v1.HealthCheckConfigService gRPC
 // API.
 type Service struct {
-	healthcheckconfigv1.UnimplementedHealthCheckConfigServiceServer
+	healthcheckconfigv1.UnsafeHealthCheckConfigServiceServer
 
 	authorizer authz.Authorizer
 	backend    services.HealthCheckConfig

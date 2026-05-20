@@ -32,14 +32,14 @@ import (
 )
 
 //nolint:unused // used by StaticDiscoverServiceServer
-type unimplementedDiscoveryServiceServer = relaytunnelv1alpha.UnimplementedDiscoveryServiceServer
+type unsafeDiscoveryServiceServer = relaytunnelv1alpha.UnsafeDiscoveryServiceServer
 
 // StaticDiscoverServiceServer is a [relaytunnelv1alpha.DiscoveryServiceServer]
 // implementation that responds with fixed data to the Discover rpc.
 type StaticDiscoverServiceServer struct {
 	_ struct{} // prevent unkeyed literals
 
-	unimplementedDiscoveryServiceServer //nolint:unused // required and used by grpc-go
+	unsafeDiscoveryServiceServer //nolint:unused // required and used by grpc-go
 
 	RelayGroup            string
 	TargetConnectionCount int32

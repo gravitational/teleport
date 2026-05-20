@@ -158,6 +158,7 @@ type TestServer struct {
 	srv      *grpc.Server
 	listener net.Listener
 	port     string
+	//nolint:forbidigo // we don't own the google.spanner.v1.Spanner service
 	spannerpb.UnimplementedSpannerServer
 }
 

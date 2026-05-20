@@ -33,6 +33,8 @@ import (
 
 // proxyService implements the grpc ProxyService.
 type proxyService struct {
+	proto.UnsafeProxyServiceServer
+
 	dialer peerdial.Dialer
 	log    *slog.Logger
 }

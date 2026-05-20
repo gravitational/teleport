@@ -32,6 +32,4 @@ plugins:
       - run
       - google.golang.org/grpc/cmd/protoc-gen-go-grpc
     out: ./gogogen
-    opt:
-      - require_unimplemented_servers=false
     strategy: all

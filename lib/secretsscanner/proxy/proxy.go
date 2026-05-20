@@ -25,6 +25,9 @@ import (
 	"log/slog"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
 	grpcutils "github.com/gravitational/teleport/lib/utils/grpc"
@@ -61,7 +64,7 @@ func New(cfg ServiceConfig) (*Service, error) {
 // It only implements the ReportSecrets method of the SecretsScannerService because it is the only method that needs to be proxied
 // from the proxy to the Auth's secret service.
 type Service struct {
-	accessgraphsecretsv1pb.UnimplementedSecretsScannerServiceServer
+	accessgraphsecretsv1pb.UnsafeSecretsScannerServiceServer
 	// authClient is the client to the Auth service.
 	authClient AuthClient
 
@@ -75,4 +78,9 @@ func (s *Service) ReportSecrets(client accessgraphsecretsv1pb.SecretsScannerServ
 		return server, trace.Wrap(err)
 	})
 	return trace.Wrap(err)
+}
+
+// ReportAuthorizedKeys implements [accessgraphsecretsv1pb.SecretsScannerServiceServer].
+func (*Service) ReportAuthorizedKeys(grpc.BidiStreamingServer[accessgraphsecretsv1pb.ReportAuthorizedKeysRequest, accessgraphsecretsv1pb.ReportAuthorizedKeysResponse]) error {
+	return status.Errorf(codes.Unimplemented, "method ReportAuthorizedKeys not implemented")
 }

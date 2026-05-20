@@ -82,7 +82,7 @@ type Backend interface {
 
 // Service implements the gRPC API layer for the AutoUpdate.
 type Service struct {
-	autoupdate.UnimplementedAutoUpdateServiceServer
+	autoupdate.UnsafeAutoUpdateServiceServer
 
 	authorizer authz.Authorizer
 	backend    services.AutoUpdateService

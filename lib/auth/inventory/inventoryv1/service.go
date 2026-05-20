@@ -44,7 +44,7 @@ type ServiceConfig struct {
 
 // Service implements the teleport.inventory.v1.InventoryService RPC service.
 type Service struct {
-	inventorypb.UnimplementedInventoryServiceServer
+	inventorypb.UnsafeInventoryServiceServer
 
 	authorizer     authz.Authorizer
 	inventoryCache InventoryCache

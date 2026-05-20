@@ -46,7 +46,7 @@ const (
 
 // Service implements gRPC service for autoupdate.
 type Service struct {
-	api.UnimplementedAutoUpdateServiceServer
+	api.UnsafeAutoUpdateServiceServer
 
 	cfg Config
 }

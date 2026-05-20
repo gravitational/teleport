@@ -53,7 +53,7 @@ type Cache interface {
 
 // Service implements the static host user RPC service.
 type Service struct {
-	userprovisioningpb.UnimplementedStaticHostUsersServiceServer
+	userprovisioningpb.UnsafeStaticHostUsersServiceServer
 
 	authorizer authz.Authorizer
 	emitter    apievents.Emitter

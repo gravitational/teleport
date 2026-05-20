@@ -3974,7 +3974,7 @@ func (c *authServiceClient) ValidateTrustedCluster(ctx context.Context, in *Vali
 }
 
 // AuthServiceServer is the server API for AuthService service.
-// All implementations should embed UnimplementedAuthServiceServer
+// All implementations must embed UnimplementedAuthServiceServer
 // for forward compatibility.
 //
 // AuthService is authentication/authorization service implementation
@@ -4725,9 +4725,10 @@ type AuthServiceServer interface {
 	// by the proxy on behalf of a cluster that wishes to join to this one as a
 	// leaf cluster.
 	ValidateTrustedCluster(context.Context, *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error)
+	mustEmbedUnimplementedAuthServiceServer()
 }
 
-// UnimplementedAuthServiceServer should be embedded to have
+// UnimplementedAuthServiceServer must be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
@@ -5556,7 +5557,8 @@ func (UnimplementedAuthServiceServer) DeleteClusterMaintenanceConfig(context.Con
 func (UnimplementedAuthServiceServer) ValidateTrustedCluster(context.Context, *ValidateTrustedClusterRequest) (*ValidateTrustedClusterResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ValidateTrustedCluster not implemented")
 }
-func (UnimplementedAuthServiceServer) testEmbeddedByValue() {}
+func (UnimplementedAuthServiceServer) mustEmbedUnimplementedAuthServiceServer() {}
+func (UnimplementedAuthServiceServer) testEmbeddedByValue()                     {}
 
 // UnsafeAuthServiceServer may be embedded to opt out of forward compatibility for this service.
 // Use of this interface is not recommended, as added methods to AuthServiceServer will
