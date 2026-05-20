@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	apiworkloadidentity "github.com/gravitational/teleport/api/workloadidentity"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -508,9 +509,9 @@ func (s *IssuanceService) issueAppAccessX509Identity(
 	// domain, matching regular workload identity issuance behavior. Clusters
 	// with names that are not valid SPIFFE trust domain are expected to fail
 	// issuance.
-	//
-	// TODO(gabrielcorado): use [NewInternalAppTrustDomain] from https://github.com/gravitational/teleport/pull/66587 once it is merged
-	td, err := spiffeid.TrustDomainFromString("_teleport_app." + s.clusterName)
+	td, err := spiffeid.TrustDomainFromString(
+		apiworkloadidentity.NewInternalAppTrustDomain(s.clusterName),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err, "cluster name cannot be used as SPIFFE ID trust domain")
 	}
@@ -648,7 +649,14 @@ func (s *IssuanceService) routeToAppFromCert(ctx context.Context, rawCert []byte
 	return route, identity, nil
 }
 
-// getApp retrieves the app from a RouteToApp.
+// getApp retrieves the app definition from an AppServer registered by the
+// requesting host. Requiring the requestor (identified by hostID) to be one
+// of the app's serving AppServers ensures the app definition we sign comes from
+// a service authoritative for the app, not from an arbitrary cached entry.
+//
+// This is not a strong authorization check: any app service that advertises the
+// target app can satisfy this lookup, even if it is not actually serving the
+// specific session referenced by the app session certificate.
 func (s *IssuanceService) getApp(ctx context.Context, hostID string, route tlsca.RouteToApp) (types.Application, error) {
 	appServersIter := clientutils.Resources(ctx, func(ctx context.Context, limit int, startKey string) ([]types.ResourceWithLabels, string, error) {
 		resp, err := s.cache.ListResources(ctx, apiproto.ListResourcesRequest{
