@@ -290,7 +290,9 @@ func (c *Client) request(ctx context.Context, method string, uri string, header 
 		retryAfter = retry.Duration()
 		retryAfterFromHeader := time.Duration(0)
 		if ra := resp.Header.Get("Retry-After"); ra != "" {
-			if seconds, err := strconv.Atoi(ra); err == nil {
+			if seconds, err := strconv.Atoi(ra); err != nil {
+				c.logger.WarnContext(ctx, `Failed to parse "Retry-After" header`, "error", err)
+			} else {
 				retryAfterFromHeader = time.Duration(seconds) * time.Second
 				retryAfter = time.Duration(seconds) * time.Second
 			}
