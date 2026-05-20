@@ -3389,6 +3389,8 @@ message DatabaseSessionStart {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+  // CA override details. Optional.
+  CAOverrideCertificateDetails CAOverride = 10 [(gogoproto.jsontag) = "ca_override,omitempty"];
 }
 
 // DatabaseSessionQuery is emitted when a user executes a database query.

@@ -20,6 +20,7 @@ package azure
 
 import (
 	"context"
+	"log/slog"
 	"os"
 	"time"
 
@@ -30,6 +31,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -37,8 +39,8 @@ import (
 // virtual scale set VMs.
 const virtualScaleSetUniformVMResourceType = "virtualMachineScaleSets/virtualMachines"
 
-// armCompute provides an interface for an Azure virtual machine client.
-type armCompute interface {
+// virtualMachinesLister provides an interface for an Azure virtual machine client.
+type virtualMachinesLister interface {
 	// Get retrieves information about an Azure virtual machine.
 	Get(ctx context.Context, resourceGroupName string, vmName string, options *armcompute.VirtualMachinesClientGetOptions) (armcompute.VirtualMachinesClientGetResponse, error)
 	// NewListPager lists Azure virtual Machines.
@@ -47,10 +49,20 @@ type armCompute interface {
 	NewListAllPager(opts *armcompute.VirtualMachinesClientListAllOptions) *runtime.Pager[armcompute.VirtualMachinesClientListAllResponse]
 }
 
-// scaleSet provides an interfaces for an Azure VM scale set client.
-type scaleSet interface {
+// scaleSetsLister provides an interface for an Azure VM scale set client.
+type scaleSetsLister interface {
+	// NewListAllPager gets a list of all VM Scale Sets in the subscription, regardless of the associated resource group.
+	NewListAllPager(options *armcompute.VirtualMachineScaleSetsClientListAllOptions) *runtime.Pager[armcompute.VirtualMachineScaleSetsClientListAllResponse]
+	// NewListPager gets a list of all VM scale sets under a resource group.
+	NewListPager(resourceGroupName string, options *armcompute.VirtualMachineScaleSetsClientListOptions) *runtime.Pager[armcompute.VirtualMachineScaleSetsClientListResponse]
+}
+
+// scaleSetVMsLister provides an interface for an Azure VM scale set VMs client.
+type scaleSetVMsLister interface {
 	// Get retrieves a virtual machine from a VM scale set.
 	Get(ctx context.Context, resourceGroupName string, vmScaleSetName string, instanceID string, options *armcompute.VirtualMachineScaleSetVMsClientGetOptions) (armcompute.VirtualMachineScaleSetVMsClientGetResponse, error)
+	// NewListPager gets a list of all virtual machines in a VM scale set.
+	NewListPager(resourceGroupName string, virtualMachineScaleSetName string, options *armcompute.VirtualMachineScaleSetVMsClientListOptions) *runtime.Pager[armcompute.VirtualMachineScaleSetVMsClientListResponse]
 }
 
 // VirtualMachinesClient is a client for Azure virtual machines.
@@ -61,7 +73,7 @@ type VirtualMachinesClient interface {
 	// GetByVMID returns the virtual machine for a given VM ID.
 	GetByVMID(ctx context.Context, vmID string) (*VirtualMachine, error)
 	// ListVirtualMachines gets all of the virtual machines in the given resource group.
-	ListVirtualMachines(ctx context.Context, resourceGroup string) ([]*armcompute.VirtualMachine, error)
+	ListVirtualMachines(ctx context.Context, resourceGroup string) ([]*VirtualMachine, error)
 }
 
 // VirtualMachine represents an Azure virtual machine.
@@ -74,10 +86,19 @@ type VirtualMachine struct {
 	Subscription string
 	// ResourceGroup is the resource group the VM is in.
 	ResourceGroup string
+	// Location is the Azure region containing the VM, e.g. "eastus".
+	Location string
 	// VMID is the VM's ID.
 	VMID string
+	// UniformScaleSetName is the name of the Virtual Machine Scale Set. Empty string if the VM is not part of a uniform Scale Set.
+	UniformScaleSetName string
+	// UniformScaleSetVMInstanceID is the instance ID of the Virtual Machine Scale Set VM. Empty string if the VM is not part of a uniform Scale Set.
+	// This is a unique identifier for the VM within its Scale Set, e.g. "0", "1".
+	UniformScaleSetVMInstanceID string
 	// Identities are the identities associated with the resource.
 	Identities []Identity
+	// Tags are the VM tags, e.g. {"env": "prod"}. Empty map (not nil) when the VM has no tags.
+	Tags map[string]string
 }
 
 // Identity represents an Azure virtual machine identity.
@@ -87,10 +108,14 @@ type Identity struct {
 }
 
 type vmClient struct {
-	// api is the Azure virtual machine client.
-	api armCompute
-	// scaleSetAPI is the Azure VM scale set client.
-	scaleSetAPI scaleSet
+	// virtualMachinesLister is the Azure virtual machine client.
+	virtualMachinesLister virtualMachinesLister
+	// scaleSetVMsLister is the Azure VM scale set VMs client.
+	scaleSetVMsLister scaleSetVMsLister
+	// scaleSetsLister is the Azure VM scale set client.
+	scaleSetsLister scaleSetsLister
+
+	logger *slog.Logger
 }
 
 // NewVirtualMachinesClient creates a new Azure virtual machines client by
@@ -100,77 +125,45 @@ func NewVirtualMachinesClient(subscription string, cred azcore.TokenCredential, 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	scaleSetAPI, err := armcompute.NewVirtualMachineScaleSetVMsClient(subscription, cred, options)
+	scaleSetVMsLister, err := armcompute.NewVirtualMachineScaleSetVMsClient(subscription, cred, options)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	scaleSetAPI, err := armcompute.NewVirtualMachineScaleSetsClient(subscription, cred, options)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return NewVirtualMachinesClientByAPI(computeAPI, scaleSetAPI), nil
+	config := VirtualMachinesClientConfig{
+		VirtualMachineAPI: computeAPI,
+		ScaleSetsAPI:      scaleSetAPI,
+		ScaleSetVMsAPI:    scaleSetVMsLister,
+	}
+	return NewVirtualMachinesClientByAPI(config), nil
+}
+
+// VirtualMachinesClientConfig combines dependencies for creating a VirtualMachinesClient.
+type VirtualMachinesClientConfig struct {
+	VirtualMachineAPI virtualMachinesLister
+	ScaleSetsAPI      scaleSetsLister
+	ScaleSetVMsAPI    scaleSetVMsLister
+	Logger            *slog.Logger
 }
 
 // NewVirtualMachinesClientByAPI creates a new Azure virtual machines client by
 // ARM API client.
-func NewVirtualMachinesClientByAPI(api armCompute, scaleSetAPI scaleSet) VirtualMachinesClient {
+func NewVirtualMachinesClientByAPI(config VirtualMachinesClientConfig) VirtualMachinesClient {
+	logger := config.Logger
+	if logger == nil {
+		logger = slog.Default().With(teleport.ComponentKey, "azure_virtualmachines_client")
+	}
+
 	return &vmClient{
-		api:         api,
-		scaleSetAPI: scaleSetAPI,
+		virtualMachinesLister: config.VirtualMachineAPI,
+		scaleSetsLister:       config.ScaleSetsAPI,
+		scaleSetVMsLister:     config.ScaleSetVMsAPI,
+		logger:                logger,
 	}
-}
-
-type vmTypes interface {
-	*armcompute.VirtualMachine | *armcompute.VirtualMachineScaleSetVM
-}
-
-func parseVirtualMachine[T vmTypes](vm T) (*VirtualMachine, error) {
-	var (
-		id       string
-		name     string
-		identity *armcompute.VirtualMachineIdentity
-		vmID     *string
-	)
-
-	switch v := any(vm).(type) {
-	case *armcompute.VirtualMachine:
-		id = *v.ID
-		name = *v.Name
-		identity = v.Identity
-		if v.Properties != nil {
-			vmID = v.Properties.VMID
-		}
-
-	case *armcompute.VirtualMachineScaleSetVM:
-		id = *v.ID
-		name = *v.Name
-		identity = v.Identity
-		if v.Properties != nil {
-			vmID = v.Properties.VMID
-		}
-	}
-
-	resourceID, err := arm.ParseResourceID(id)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	var identities []Identity
-	if identity != nil {
-		if systemAssigned := StringVal(identity.PrincipalID); systemAssigned != "" {
-			identities = append(identities, Identity{ResourceID: systemAssigned})
-		}
-
-		for identityID := range identity.UserAssignedIdentities {
-			identities = append(identities, Identity{ResourceID: identityID})
-		}
-	}
-
-	return &VirtualMachine{
-		ID:            id,
-		Name:          name,
-		Subscription:  resourceID.SubscriptionID,
-		ResourceGroup: resourceID.ResourceGroupName,
-		VMID:          StringVal(vmID),
-		Identities:    identities,
-	}, nil
 }
 
 // Get returns the virtual machine (including scale set VMs) for the given
@@ -192,18 +185,23 @@ func (c *vmClient) Get(ctx context.Context, resourceID string) (*VirtualMachine,
 		return c.getScaleSetVM(ctx, parsedResourceID)
 	}
 
-	resp, err := c.api.Get(ctx, parsedResourceID.ResourceGroupName, parsedResourceID.Name, nil)
+	resp, err := c.virtualMachinesLister.Get(ctx, parsedResourceID.ResourceGroupName, parsedResourceID.Name, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	vm, err := parseVirtualMachine(&resp.VirtualMachine)
+	vm, err := virtualMachineFromARMComputeVirtualMachine(&resp.VirtualMachine)
 	return vm, trace.Wrap(err)
 }
 
 // GetByVMID returns the virtual machine for a given VM ID.
 func (c *vmClient) GetByVMID(ctx context.Context, vmID string) (*VirtualMachine, error) {
-	pager := newListAllPager(c.api.NewListAllPager(&armcompute.VirtualMachinesClientListAllOptions{}))
+	pager := newAPIPager(
+		c.virtualMachinesLister.NewListAllPager(&armcompute.VirtualMachinesClientListAllOptions{}),
+		func(resp armcompute.VirtualMachinesClientListAllResponse) []*armcompute.VirtualMachine {
+			return resp.Value
+		},
+	)
 	for pager.more() {
 		res, err := pager.nextPage(ctx)
 		if err != nil {
@@ -212,7 +210,7 @@ func (c *vmClient) GetByVMID(ctx context.Context, vmID string) (*VirtualMachine,
 
 		for _, vm := range res {
 			if vm.Properties != nil && *vm.Properties.VMID == vmID {
-				result, err := parseVirtualMachine(vm)
+				result, err := virtualMachineFromARMComputeVirtualMachine(vm)
 				return result, trace.Wrap(err)
 			}
 		}
@@ -225,36 +223,36 @@ func (c *vmClient) getScaleSetVM(ctx context.Context, resourceID *arm.ResourceID
 		return nil, trace.BadParameter("expected resource ID to include scale set as parent resource")
 	}
 
-	resp, err := c.scaleSetAPI.Get(ctx, resourceID.ResourceGroupName, resourceID.Parent.Name, resourceID.Name, nil)
+	resp, err := c.scaleSetVMsLister.Get(ctx, resourceID.ResourceGroupName, resourceID.Parent.Name, resourceID.Name, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	result, err := parseVirtualMachine(&resp.VirtualMachineScaleSetVM)
+	scaleSetName := resourceID.Parent.Name
+	resourceGroup := resourceID.ResourceGroupName
+	subscriptionID := resourceID.SubscriptionID
+
+	result, err := virtualMachineFromARMComputeVirtualMachineScaleSetVM(&resp.VirtualMachineScaleSetVM, subscriptionID, resourceGroup, scaleSetName)
 	return result, trace.Wrap(err)
 }
 
-type vmPager struct {
+type apiPager[T any] struct {
 	more     func() bool
-	nextPage func(context.Context) ([]*armcompute.VirtualMachine, error)
+	nextPage func(context.Context) ([]*T, error)
 }
 
-func newListPager(azurePager *runtime.Pager[armcompute.VirtualMachinesClientListResponse]) vmPager {
-	return vmPager{
-		more: azurePager.More,
-		nextPage: func(ctx context.Context) ([]*armcompute.VirtualMachine, error) {
-			res, err := azurePager.NextPage(ctx)
-			return res.Value, trace.Wrap(err)
-		},
-	}
-}
-
-func newListAllPager(azurePager *runtime.Pager[armcompute.VirtualMachinesClientListAllResponse]) vmPager {
-	return vmPager{
-		more: azurePager.More,
-		nextPage: func(ctx context.Context) ([]*armcompute.VirtualMachine, error) {
-			res, err := azurePager.NextPage(ctx)
-			return res.Value, trace.Wrap(err)
+// newAPIPager wraps an Azure SDK pager into a apiPager. The values function
+// extracts the slice of *T from each response page; this keeps the wrapper
+// generic over the response type R while remaining type-safe at compile time.
+func newAPIPager[T, R any](p *runtime.Pager[R], values func(R) []*T) apiPager[T] {
+	return apiPager[T]{
+		more: p.More,
+		nextPage: func(ctx context.Context) ([]*T, error) {
+			res, err := p.NextPage(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return values(res), nil
 		},
 	}
 }
@@ -262,22 +260,143 @@ func newListAllPager(azurePager *runtime.Pager[armcompute.VirtualMachinesClientL
 // ListVirtualMachines lists all virtual machines in a given resource group
 // using the Azure virtual machines API. If resourceGroup is "*", it lists
 // all virtual machines in any resource group.
-func (c *vmClient) ListVirtualMachines(ctx context.Context, resourceGroup string) ([]*armcompute.VirtualMachine, error) {
-	var pager vmPager
-	if resourceGroup == types.Wildcard {
-		pager = newListAllPager(c.api.NewListAllPager(&armcompute.VirtualMachinesClientListAllOptions{}))
-	} else {
-		pager = newListPager(c.api.NewListPager(resourceGroup, &armcompute.VirtualMachinesClientListOptions{}))
+// It includes regular VMs and VMs from VM Scale Sets.
+func (c *vmClient) ListVirtualMachines(ctx context.Context, resourceGroup string) ([]*VirtualMachine, error) {
+	regularVMs, listVMsErr := c.listARMVirtualMachinesAsVirtualMachines(ctx, resourceGroup)
+
+	uniformScaleSetVirtualMachines, uniformVMSSListVMsErr := c.listVirtualMachinesFromUniformVMSS(ctx, resourceGroup)
+
+	switch {
+	case listVMsErr != nil && uniformVMSSListVMsErr != nil:
+		return nil, trace.NewAggregate(listVMsErr, uniformVMSSListVMsErr)
+
+	case listVMsErr != nil:
+		c.logger.WarnContext(ctx, "failed to call ListVirtualMachines API, continuing with uniform VMSS VMs", "error", listVMsErr)
+		return uniformScaleSetVirtualMachines, nil
+
+	case uniformVMSSListVMsErr != nil:
+		c.logger.WarnContext(ctx, "failed to list VMs from uniform VMSS, continuing with regular VMs", "error", uniformVMSSListVMsErr)
+		return regularVMs, nil
+
+	default:
+		return append(regularVMs, uniformScaleSetVirtualMachines...), nil
 	}
-	var virtualMachines []*armcompute.VirtualMachine
+}
+
+// vmScaleSetIsFlexible reports whether the Scale Set was created with flexible orchestration mode.
+func vmScaleSetIsFlexible(vmScaleSetProperties *armcompute.VirtualMachineScaleSetProperties) bool {
+	return vmScaleSetProperties != nil && StringVal(vmScaleSetProperties.OrchestrationMode) == string(armcompute.OrchestrationModeFlexible)
+}
+
+func (c *vmClient) listARMVirtualMachinesAsVirtualMachines(ctx context.Context, resourceGroup string) ([]*VirtualMachine, error) {
+	var allVMs []*VirtualMachine
+
+	var pager apiPager[armcompute.VirtualMachine]
+	if resourceGroup == types.Wildcard {
+		pager = newAPIPager(
+			c.virtualMachinesLister.NewListAllPager(&armcompute.VirtualMachinesClientListAllOptions{}),
+			func(resp armcompute.VirtualMachinesClientListAllResponse) []*armcompute.VirtualMachine {
+				return resp.Value
+			},
+		)
+	} else {
+		pager = newAPIPager(
+			c.virtualMachinesLister.NewListPager(resourceGroup, &armcompute.VirtualMachinesClientListOptions{}),
+			func(resp armcompute.VirtualMachinesClientListResponse) []*armcompute.VirtualMachine {
+				return resp.Value
+			},
+		)
+	}
+
 	for pager.more() {
 		res, err := pager.nextPage(ctx)
 		if err != nil {
 			return nil, trace.Wrap(ConvertResponseError(err))
 		}
-		virtualMachines = append(virtualMachines, res...)
+		for _, rawVM := range res {
+			vm, err := virtualMachineFromARMComputeVirtualMachine(rawVM)
+			if err != nil {
+				c.logger.DebugContext(ctx, "skipping Azure VM", "resource_id", StringVal(rawVM.ID), "error", err)
+				continue
+			}
+			allVMs = append(allVMs, vm)
+		}
 	}
 
+	return allVMs, nil
+}
+
+func (c *vmClient) listVirtualMachinesFromUniformVMSS(ctx context.Context, resourceGroupFilter string) ([]*VirtualMachine, error) {
+	var pager apiPager[armcompute.VirtualMachineScaleSet]
+	if resourceGroupFilter == types.Wildcard {
+		pager = newAPIPager(
+			c.scaleSetsLister.NewListAllPager(&armcompute.VirtualMachineScaleSetsClientListAllOptions{}),
+			func(resp armcompute.VirtualMachineScaleSetsClientListAllResponse) []*armcompute.VirtualMachineScaleSet {
+				return resp.Value
+			},
+		)
+	} else {
+		pager = newAPIPager(
+			c.scaleSetsLister.NewListPager(resourceGroupFilter, &armcompute.VirtualMachineScaleSetsClientListOptions{}),
+			func(resp armcompute.VirtualMachineScaleSetsClientListResponse) []*armcompute.VirtualMachineScaleSet {
+				return resp.Value
+			},
+		)
+	}
+
+	var virtualMachines []*VirtualMachine
+	for pager.more() {
+		scaleSetsPage, err := pager.nextPage(ctx)
+		if err != nil {
+			return nil, trace.Wrap(ConvertResponseError(err))
+		}
+
+		for _, scaleSet := range scaleSetsPage {
+			// Skip VM Scale Sets whose orchestration mode is Flexible, because those are returned in the regular List Virtual Machines API.
+			if vmScaleSetIsFlexible(scaleSet.Properties) {
+				continue
+			}
+
+			scaleSetName := StringVal(scaleSet.Name)
+
+			scaleSetResourceID, err := arm.ParseResourceID(StringVal(scaleSet.ID))
+			if err != nil {
+				c.logger.DebugContext(ctx, "skipping entire Azure VM Scale Set", "scale_set_name", scaleSetName, "resource_id", StringVal(scaleSet.ID), "error", err)
+				continue
+			}
+			resourceGroup := scaleSetResourceID.ResourceGroupName
+			subscriptionID := scaleSetResourceID.SubscriptionID
+
+			scaleSetVMsPager := newAPIPager(
+				c.scaleSetVMsLister.NewListPager(resourceGroup, scaleSetName, &armcompute.VirtualMachineScaleSetVMsClientListOptions{}),
+				func(resp armcompute.VirtualMachineScaleSetVMsClientListResponse) []*armcompute.VirtualMachineScaleSetVM {
+					return resp.Value
+				},
+			)
+			pageCount := 0
+			vmsCounter := 0
+			for scaleSetVMsPager.more() {
+				pageCount++
+				scaleSetVMsPage, err := scaleSetVMsPager.nextPage(ctx)
+				if err != nil {
+					c.logger.DebugContext(ctx, "error when fetching Azure VM Scale Set VMs page", "scale_set_name", scaleSetName, "resource_id", StringVal(scaleSet.ID), "page", pageCount, "error", err)
+					break
+				}
+
+				vmsCounter += len(scaleSetVMsPage)
+				for _, vm := range scaleSetVMsPage {
+					discoveredVM, err := virtualMachineFromARMComputeVirtualMachineScaleSetVM(vm, subscriptionID, resourceGroup, scaleSetName)
+					if err != nil {
+						c.logger.DebugContext(ctx, "skipping Azure VM Scale Set VM", "scale_set_name", scaleSetName, "resource_id", StringVal(vm.ID), "error", err)
+						continue
+					}
+					virtualMachines = append(virtualMachines, discoveredVM)
+				}
+			}
+
+			c.logger.DebugContext(ctx, "fetched all VMs from Azure VM Scale Set", "scale_set_name", scaleSetName, "resource_id", StringVal(scaleSet.ID), "pages_listed", pageCount, "vms_listed", vmsCounter)
+		}
+	}
 	return virtualMachines, nil
 }
 
@@ -289,8 +408,20 @@ type RunCommandRequest struct {
 	ResourceGroup string
 	// VMName is the name of the VM.
 	VMName string
+	// UniformScaleSetName is the name of the Scale Set this VM belongs to.
+	// Only used when the VM is part of a uniform VM Scale Set.
+	// Regular VMs and VMs from flexible VM Scale Sets should leave this field empty.
+	UniformScaleSetName string
+	// UniformScaleSetVMInstanceID is the instance ID of this VM within the uniform Scale Set.
+	// Only used when the VM is part of a uniform VM Scale Set.
+	// Regular VMs and VMs from flexible VM Scale Sets should leave this field empty.
+	UniformScaleSetVMInstanceID string
 	// Script is the shell script to be executed in the virtual machine.
 	Script string
+}
+
+func (r RunCommandRequest) isUniformVMSS() bool {
+	return r.UniformScaleSetName != "" && r.UniformScaleSetVMInstanceID != ""
 }
 
 // RunCommandResult contains the result of executing a command on an Azure VM.
@@ -317,7 +448,8 @@ type RunCommandClient interface {
 }
 
 type runCommandClient struct {
-	api *armcompute.VirtualMachineRunCommandsClient
+	virtualMachineRunCommandsAPI *armcompute.VirtualMachineRunCommandsClient
+	scaleSetVMRunCommandsAPI     *armcompute.VirtualMachineScaleSetVMRunCommandsClient
 }
 
 // NewRunCommandClient creates a new Azure Run Command client by subscription
@@ -327,10 +459,20 @@ func NewRunCommandClient(subscription string, cred azcore.TokenCredential, optio
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	scaleSetVMRunCommandsAPI, err := armcompute.NewVirtualMachineScaleSetVMRunCommandsClient(subscription, cred, options)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &runCommandClient{
-		api: runCommandAPI,
+		virtualMachineRunCommandsAPI: runCommandAPI,
+		scaleSetVMRunCommandsAPI:     scaleSetVMRunCommandsAPI,
 	}, nil
 }
+
+// TODO(Tener): make the run command name actual parameter.
+const runCommandName = "teleport-install"
 
 // Run runs Teleport installation command on a virtual machine.
 func (c *runCommandClient) Run(ctx context.Context, req RunCommandRequest) (*RunCommandResult, error) {
@@ -338,10 +480,8 @@ func (c *runCommandClient) Run(ctx context.Context, req RunCommandRequest) (*Run
 	// pad the timeout so we can still attempt to collect output if it times out
 	ctx, cancel := context.WithTimeout(ctx, runCommandTimeout+time.Minute)
 	defer cancel()
-	// TODO(Tener): make the run command name actual parameter.
-	const runCommandName = "teleport-install"
 
-	poller, err := c.api.BeginCreateOrUpdate(ctx, req.ResourceGroup, req.VMName, runCommandName, armcompute.VirtualMachineRunCommand{
+	runCommand := armcompute.VirtualMachineRunCommand{
 		Location: to.Ptr(req.Region),
 		Properties: &armcompute.VirtualMachineRunCommandProperties{
 			AsyncExecution: to.Ptr(false),
@@ -350,36 +490,87 @@ func (c *runCommandClient) Run(ctx context.Context, req RunCommandRequest) (*Run
 			},
 			TimeoutInSeconds: to.Ptr(int32(runCommandTimeout.Seconds())),
 		},
-	}, nil)
+	}
+
+	var runCommandProperties *armcompute.VirtualMachineRunCommandProperties
+	var err error
+
+	if req.isUniformVMSS() {
+		runCommandProperties, err = c.uniformScaleSetVirtualMachineRunCommand(ctx, req, runCommand)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		runCommandProperties, err = c.regularVirtualMachineRunCommand(ctx, req, runCommand)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	commandResult, err := commandResultFromInstanceView(runCommandProperties)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	return commandResult, nil
+}
+
+func (c *runCommandClient) regularVirtualMachineRunCommand(ctx context.Context, req RunCommandRequest, runCommand armcompute.VirtualMachineRunCommand) (*armcompute.VirtualMachineRunCommandProperties, error) {
+	poller, err := c.virtualMachineRunCommandsAPI.BeginCreateOrUpdate(ctx, req.ResourceGroup, req.VMName, runCommandName, runCommand, nil)
+	if err != nil {
+		return nil, trace.Wrap(ConvertResponseError(err))
 	}
 
 	_, err = poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{Frequency: 10 * time.Second})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(ConvertResponseError(err))
 	}
 
 	// note: we are not guaranteed to receive the output of the command above if the req.Name is not unique.
 	// in particular, two discovery services may race, causing the output to be empty: our attempt can be shadowed by a newer one.
-	resp, err := c.api.GetByVirtualMachine(ctx, req.ResourceGroup, req.VMName, runCommandName, &armcompute.VirtualMachineRunCommandsClientGetByVirtualMachineOptions{
+	resp, err := c.virtualMachineRunCommandsAPI.GetByVirtualMachine(ctx, req.ResourceGroup, req.VMName, runCommandName, &armcompute.VirtualMachineRunCommandsClientGetByVirtualMachineOptions{
 		Expand: to.Ptr("instanceView"),
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(ConvertResponseError(err))
 	}
 
-	if resp.Properties == nil || resp.Properties.InstanceView == nil {
-		return nil, trace.BadParameter("unable to query command execution state, failure assumed")
+	return resp.Properties, nil
+}
+
+func (c *runCommandClient) uniformScaleSetVirtualMachineRunCommand(ctx context.Context, req RunCommandRequest, runCommand armcompute.VirtualMachineRunCommand) (*armcompute.VirtualMachineRunCommandProperties, error) {
+	poller, err := c.scaleSetVMRunCommandsAPI.BeginCreateOrUpdate(ctx, req.ResourceGroup, req.UniformScaleSetName, req.UniformScaleSetVMInstanceID, runCommandName, runCommand, nil)
+	if err != nil {
+		return nil, trace.Wrap(ConvertResponseError(err))
 	}
-	iv := resp.Properties.InstanceView
-	result := &RunCommandResult{
-		ExecutionState: string(fromPtr(iv.ExecutionState)),
-		ExitCode:       fromPtr(iv.ExitCode),
-		StdOut:         fromPtr(iv.Output),
-		StdErr:         fromPtr(iv.Error),
+
+	_, err = poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{Frequency: 10 * time.Second})
+	if err != nil {
+		return nil, trace.Wrap(ConvertResponseError(err))
 	}
-	return result, nil
+
+	// note: we are not guaranteed to receive the output of the command above if the req.Name is not unique.
+	// in particular, two discovery services may race, causing the output to be empty: our attempt can be shadowed by a newer one.
+	resp, err := c.scaleSetVMRunCommandsAPI.Get(ctx, req.ResourceGroup, req.UniformScaleSetName, req.UniformScaleSetVMInstanceID, runCommandName, &armcompute.VirtualMachineScaleSetVMRunCommandsClientGetOptions{
+		Expand: to.Ptr("instanceView"),
+	})
+	if err != nil {
+		return nil, trace.Wrap(ConvertResponseError(err))
+	}
+
+	return resp.Properties, nil
+}
+
+func commandResultFromInstanceView(properties *armcompute.VirtualMachineRunCommandProperties) (*RunCommandResult, error) {
+	if properties == nil || properties.InstanceView == nil {
+		return nil, trace.BadParameter("unable to query command execution state")
+	}
+	return &RunCommandResult{
+		ExecutionState: string(fromPtr(properties.InstanceView.ExecutionState)),
+		ExitCode:       fromPtr(properties.InstanceView.ExitCode),
+		StdOut:         fromPtr(properties.InstanceView.Output),
+		StdErr:         fromPtr(properties.InstanceView.Error),
+	}, nil
 }
 
 func fromPtr[T any](ptr *T) T {
@@ -401,4 +592,73 @@ func getRunCommandTimeout() time.Duration {
 		return min(maxTimeout, max(minTimeout, dur))
 	}
 	return 5 * time.Minute // default to 5m
+}
+
+func virtualMachineFromARMComputeVirtualMachine(vm *armcompute.VirtualMachine) (*VirtualMachine, error) {
+	if vm == nil {
+		return nil, trace.BadParameter("vm cannot be nil")
+	}
+
+	var vmid string
+	if vm.Properties != nil {
+		vmid = StringVal(vm.Properties.VMID)
+	}
+
+	// The ARM resource ID should never fail to parse, unless Azure changes the contract.
+	resourceMetadata, err := arm.ParseResourceID(StringVal(vm.ID))
+	if err != nil {
+		return nil, trace.BadParameter("failed to parse Virtual Machine resource ID %q: %v", StringVal(vm.ID), err)
+	}
+
+	return &VirtualMachine{
+		ID:            StringVal(vm.ID),
+		VMID:          vmid,
+		Name:          StringVal(vm.Name),
+		Location:      StringVal(vm.Location),
+		Subscription:  resourceMetadata.SubscriptionID,
+		ResourceGroup: resourceMetadata.ResourceGroupName,
+		Identities:    parseVMIdentities(vm.Identity),
+		Tags:          ConvertTags(vm.Tags),
+	}, nil
+}
+
+func virtualMachineFromARMComputeVirtualMachineScaleSetVM(vm *armcompute.VirtualMachineScaleSetVM, subscriptionID, resourceGroup, scaleSetName string) (*VirtualMachine, error) {
+	if vm == nil {
+		return nil, trace.BadParameter("vm cannot be nil")
+	}
+
+	var vmid string
+	if vm.Properties != nil {
+		vmid = StringVal(vm.Properties.VMID)
+	}
+
+	return &VirtualMachine{
+		ID:                          StringVal(vm.ID),
+		VMID:                        vmid,
+		Name:                        StringVal(vm.Name),
+		Location:                    StringVal(vm.Location),
+		Subscription:                subscriptionID,
+		ResourceGroup:               resourceGroup,
+		Identities:                  parseVMIdentities(vm.Identity),
+		Tags:                        ConvertTags(vm.Tags),
+		UniformScaleSetName:         scaleSetName,
+		UniformScaleSetVMInstanceID: StringVal(vm.InstanceID),
+	}, nil
+}
+
+func parseVMIdentities(identity *armcompute.VirtualMachineIdentity) []Identity {
+	if identity == nil {
+		return nil
+	}
+
+	var identities []Identity
+	if systemAssigned := StringVal(identity.PrincipalID); systemAssigned != "" {
+		identities = append(identities, Identity{ResourceID: systemAssigned})
+	}
+
+	for identityID := range identity.UserAssignedIdentities {
+		identities = append(identities, Identity{ResourceID: identityID})
+	}
+
+	return identities
 }

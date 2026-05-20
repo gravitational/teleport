@@ -21,6 +21,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -314,6 +316,62 @@ func TestIdentityCenterAccountAssignmentMatcher(t *testing.T) {
 			require.NoError(t, err)
 
 			testCase.expectMatch(t, match)
+		})
+	}
+}
+
+// TestIdentityCenterAccountToAppServer asserts the converter passes
+// StartUrl through to both URI and PublicAddr verbatim. The web
+// Launch button builds the SSO launch href as
+// `${publicAddr}&role_name=...`, so any normalization of scheme,
+// path, port, or case breaks Identity Center app launches.
+func TestIdentityCenterAccountToAppServer(t *testing.T) {
+	tests := []struct {
+		name     string
+		acctName string
+		startURL string
+	}{
+		{
+			name:     "full launch URL preserved",
+			acctName: "test-account",
+			startURL: "https://start.example.com/start",
+		},
+		{
+			name:     "URL with port preserved",
+			acctName: "test-account",
+			startURL: "https://start.example.com:8443/start",
+		},
+		{
+			name:     "bare hostname preserved",
+			acctName: "test-account",
+			startURL: "start.example.com",
+		},
+		{
+			name:     "mixed-case name and URL preserved",
+			acctName: "Mixed-Case-Account",
+			startURL: "https://Start.Example.COM/start",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			acct := &identitycenterv1.Account{
+				Kind:    types.KindIdentityCenterAccount,
+				Version: types.V1,
+				Metadata: &headerv1.Metadata{
+					Name: tt.acctName,
+				},
+				Spec: &identitycenterv1.AccountSpec{
+					Id:       "123456789012",
+					StartUrl: tt.startURL,
+				},
+			}
+
+			srv := IdentityCenterAccountToAppServer(acct)
+			require.Equal(t, tt.acctName, srv.GetApp().GetName())
+			require.Equal(t, tt.acctName, srv.GetName())
+			require.Equal(t, tt.startURL, srv.GetApp().GetURI())
+			require.Equal(t, tt.startURL, srv.GetApp().GetPublicAddr())
 		})
 	}
 }

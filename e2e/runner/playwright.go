@@ -292,6 +292,8 @@ func (p *playwrightRunner) startEnv(inst *testInstance) ([]string, error) {
 		env = append(env, "START_URL="+p.startURL(inst))
 	}
 
+	env = append(env, "E2E_DIR="+p.config.e2eDir)
+
 	if p.config.creds != nil {
 		env = append(env, "E2E_USERS_FILE="+filepath.Join(p.config.e2eDir, ".auth", "user-credentials.json"))
 	}

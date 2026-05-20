@@ -143,7 +143,12 @@ access_graph:
   ca: /etc/access_graph_ca.pem
 ```
 
-Then, restart Auth Service instances, followed by Proxy Service instances.
+Restart Auth Service instances, followed by Proxy Service instances, using the
+following command:
+
+```code
+$ sudo systemctl reload teleport
+```
 
 ## Step 3/3. View Access Graph data in the Graph Explorer
 

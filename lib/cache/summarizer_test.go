@@ -19,8 +19,7 @@ package cache
 import (
 	"context"
 	"testing"
-
-	"github.com/gravitational/trace"
+	"testing/synctest"
 
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -99,33 +98,27 @@ func TestInferencePolicyCache(t *testing.T) {
 }
 
 func TestRetrievalModelCache(t *testing.T) {
-	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		p := newTestPack(t, ForAuth)
+		t.Cleanup(p.Close)
 
-	p := newTestPack(t, ForAuth)
-	t.Cleanup(p.Close)
-
-	testResources153(t, p, testFuncs[*summarizerv1.RetrievalModel]{
-		newResource: func(name string) (*summarizerv1.RetrievalModel, error) {
-			return summarizer.NewRetrievalModel(&summarizerv1.RetrievalModelSpec{
-				EmbeddingsProvider: &summarizerv1.RetrievalModelSpec_Openai{
-					Openai: &summarizerv1.OpenAIProvider{
-						OpenaiModelId:   "text-embedding-3-small",
-						ApiKeySecretRef: "some",
+		testSingleton153(t, p, testSingletonFuncs153[*summarizerv1.RetrievalModel]{
+			newResource: func() *summarizerv1.RetrievalModel {
+				return summarizer.NewRetrievalModel(&summarizerv1.RetrievalModelSpec{
+					EmbeddingsProvider: &summarizerv1.RetrievalModelSpec_Openai{
+						Openai: &summarizerv1.OpenAIProvider{
+							OpenaiModelId:   "text-embedding-3-small",
+							ApiKeySecretRef: "some",
+						},
 					},
-				},
-				InferenceModelName: "some",
-			}), nil
-		},
-		create: func(ctx context.Context, item *summarizerv1.RetrievalModel) error {
-			_, err := p.summarizer.CreateRetrievalModel(ctx, item)
-			return err
-		},
-		update: func(ctx context.Context, item *summarizerv1.RetrievalModel) error {
-			_, err := p.summarizer.UpdateRetrievalModel(ctx, item)
-			return trace.Wrap(err)
-		},
-		list:      singletonListAdapter(p.summarizer.GetRetrievalModel),
-		cacheList: singletonListAdapter(p.cache.GetRetrievalModel),
-		deleteAll: p.summarizer.DeleteRetrievalModel,
-	}, withSkipPaginationTest()) // skip pagination test because NetworkRestrictions is a singleton resource
+					InferenceModelName: "some",
+				})
+			},
+			create:   p.summarizer.CreateRetrievalModel,
+			update:   p.summarizer.UpdateRetrievalModel,
+			get:      p.summarizer.GetRetrievalModel,
+			cacheGet: p.cache.GetRetrievalModel,
+			delete:   p.summarizer.DeleteRetrievalModel,
+		})
+	})
 }

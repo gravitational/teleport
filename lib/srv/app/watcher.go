@@ -20,7 +20,6 @@ package app
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/gravitational/trace"
 
@@ -170,7 +169,7 @@ func FindPublicAddr(ctx context.Context, client FindPublicAddrClient, appPublicA
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	return fmt.Sprintf("%v.%v", appName, cn.GetClusterName()), nil
+	return utils.DefaultAppPublicAddr(appName, cn.GetClusterName()), nil
 }
 
 func (s *Server) getResources() map[string]types.Application {

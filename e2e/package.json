@@ -5,7 +5,7 @@
   "description": "Playwright tests for e2e testing.",
   "scripts": {
     "test": "./run.sh",
-    "type-check": "tsc --noEmit",
+    "type-check": "tsgo --noEmit",
     "test:canonical-key": "tsx scripts/verify-canonical-key.ts",
     "show-report": "playwright show-report --port 0"
   },

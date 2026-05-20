@@ -243,33 +243,40 @@ func IdentityCenterAccountToAppServer(acct *identitycenterv1.Account) *types.App
 		}
 	}
 
-	appServer := &types.AppServerV3{
+	// Identity Center accounts surface in the unified-resource cache as
+	// synthetic AppServers; they never traverse the app write paths
+	// (ValidateApp / ValidateAppServer), so no DNS-1123 normalization
+	// here. The web Launch button (ResourceActionButton.tsx) builds the
+	// SSO launch URL as `${publicAddr}&role_name=...`, which requires
+	// the full StartUrl - scheme, path, and case preserved.
+	metadata := types.Metadata153ToLegacy(acct.Metadata)
+	metadata.Description = acct.GetSpec().GetName()
+
+	return &types.AppServerV3{
 		Kind:     types.KindAppServer,
 		SubKind:  types.KindIdentityCenterAccount,
 		Version:  types.V3,
-		Metadata: types.Metadata153ToLegacy(acct.Metadata),
+		Metadata: metadata,
 		Spec: types.AppServerSpecV3{
 			App: &types.AppV3{
 				Kind:     types.KindApp,
 				SubKind:  types.KindIdentityCenterAccount,
 				Version:  types.V3,
-				Metadata: types.Metadata153ToLegacy(acct.Metadata),
+				Metadata: metadata,
 				Spec: types.AppSpecV3{
-					URI:        acct.Spec.StartUrl,
-					PublicAddr: acct.Spec.StartUrl,
+					URI:        acct.GetSpec().GetStartUrl(),
+					PublicAddr: acct.GetSpec().GetStartUrl(),
 					AWS: &types.AppAWS{
-						ExternalID: acct.Spec.Id,
+						ExternalID: acct.GetSpec().GetId(),
 					},
 					IdentityCenter: &types.AppIdentityCenter{
-						AccountID:      acct.Spec.Id,
+						AccountID:      acct.GetSpec().GetId(),
 						PermissionSets: pss,
 					},
 				},
 			},
 		},
 	}
-	appServer.Metadata.Description = acct.Spec.Name
-	return appServer
 }
 
 // NewIdentityCenterAppMatcher creates a new [RoleMatcher] configured to

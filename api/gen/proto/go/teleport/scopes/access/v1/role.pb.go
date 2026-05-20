@@ -234,8 +234,14 @@ type ScopedRoleDefaults struct {
 	// SessionRecording configures the session recording strategy for all protocols that don't
 	// explicitly set their session recording mode.
 	SessionRecording *SessionRecording `protobuf:"bytes,2,opt,name=session_recording,json=sessionRecording,proto3" json:"session_recording,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// DisconnectExpiredCert defines the default behavior of all protocols when certs expire for a session.
+	// If unset, cluster wide defaults are used.
+	DisconnectExpiredCert *bool `protobuf:"varint,3,opt,name=disconnect_expired_cert,json=disconnectExpiredCert,proto3,oneof" json:"disconnect_expired_cert,omitempty"`
+	// Lock specifies the default locking mode for access sessions across all protocols that
+	// do not specify their own value. If unset, cluster wide defaults are used.
+	Lock          *Lock `protobuf:"bytes,4,opt,name=lock,proto3" json:"lock,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ScopedRoleDefaults) Reset() {
@@ -282,6 +288,20 @@ func (x *ScopedRoleDefaults) GetSessionRecording() *SessionRecording {
 	return nil
 }
 
+func (x *ScopedRoleDefaults) GetDisconnectExpiredCert() bool {
+	if x != nil && x.DisconnectExpiredCert != nil {
+		return *x.DisconnectExpiredCert
+	}
+	return false
+}
+
+func (x *ScopedRoleDefaults) GetLock() *Lock {
+	if x != nil {
+		return x.Lock
+	}
+	return nil
+}
+
 // ScopedRoleSSH groups all scoped role fields relevant to SSH access. Fields within the SSH block
 // encompass selection criteria and preconditions for access, as well as the controls to be applied in
 // cases where access is permitted. An SSH block is the primary source of truth for controls to be applied
@@ -318,8 +338,14 @@ type ScopedRoleSSH struct {
 	EnhancedRecording *EnhancedRecording `protobuf:"bytes,12,opt,name=enhanced_recording,json=enhancedRecording,proto3" json:"enhanced_recording,omitempty"`
 	// SessionRecording configures the session recording strategy for SSH sessions.
 	SessionRecording *SessionRecording `protobuf:"bytes,13,opt,name=session_recording,json=sessionRecording,proto3" json:"session_recording,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// DisconnectExpiredCert controls whether SSH sessions are disconnected when the
+	// user certificate expires.
+	// Defaults to value cluster wide auth preference if not set.
+	DisconnectExpiredCert *bool `protobuf:"varint,14,opt,name=disconnect_expired_cert,json=disconnectExpiredCert,proto3,oneof" json:"disconnect_expired_cert,omitempty"`
+	// Lock configures the role's locking behavior for SSH sessions.
+	Lock          *Lock `protobuf:"bytes,15,opt,name=lock,proto3" json:"lock,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ScopedRoleSSH) Reset() {
@@ -436,6 +462,20 @@ func (x *ScopedRoleSSH) GetSessionRecording() *SessionRecording {
 	return nil
 }
 
+func (x *ScopedRoleSSH) GetDisconnectExpiredCert() bool {
+	if x != nil && x.DisconnectExpiredCert != nil {
+		return *x.DisconnectExpiredCert
+	}
+	return false
+}
+
+func (x *ScopedRoleSSH) GetLock() *Lock {
+	if x != nil {
+		return x.Lock
+	}
+	return nil
+}
+
 // The group of all scoped role fields relevant to kube access. Fields within the kube block
 // encompass selection criteria and preconditions for access, as well as the controls to be applied in
 // cases where access is permitted. A kube block is the primary source of truth for controls to be applied
@@ -453,8 +493,12 @@ type ScopedRoleKube struct {
 	// Must be a valid Go duration string (e.g. "30m", "1h"). If empty, the defaults block value
 	// (or global default) applies.
 	ClientIdleTimeout string `protobuf:"bytes,5,opt,name=client_idle_timeout,json=clientIdleTimeout,proto3" json:"client_idle_timeout,omitempty"`
-	unknownFields     protoimpl.UnknownFields
-	sizeCache         protoimpl.SizeCache
+	// DisconnectExpiredCert controls whether Kube sessions are disconnected when the user certificate expires.
+	DisconnectExpiredCert *bool `protobuf:"varint,6,opt,name=disconnect_expired_cert,json=disconnectExpiredCert,proto3,oneof" json:"disconnect_expired_cert,omitempty"`
+	// Lock configures the role's locking behavior for kubernetes sessions.
+	Lock          *Lock `protobuf:"bytes,7,opt,name=lock,proto3" json:"lock,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ScopedRoleKube) Reset() {
@@ -513,6 +557,20 @@ func (x *ScopedRoleKube) GetClientIdleTimeout() string {
 		return x.ClientIdleTimeout
 	}
 	return ""
+}
+
+func (x *ScopedRoleKube) GetDisconnectExpiredCert() bool {
+	if x != nil && x.DisconnectExpiredCert != nil {
+		return *x.DisconnectExpiredCert
+	}
+	return false
+}
+
+func (x *ScopedRoleKube) GetLock() *Lock {
+	if x != nil {
+		return x.Lock
+	}
+	return nil
 }
 
 // ScopedRule maps resources to verbs. This is the underlying type used to describe
@@ -847,7 +905,7 @@ func (x *EnhancedRecording) GetDisk() bool {
 // SessionRecording sets the session recording behavior.
 type SessionRecording struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// Mode sets the session recording mode. Allowed values: strict | best_effort.
+	// Mode sets the session recording mode. Allowed values: strict or best_effort.
 	Mode          string `protobuf:"bytes,1,opt,name=mode,proto3" json:"mode,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -890,6 +948,54 @@ func (x *SessionRecording) GetMode() string {
 	return ""
 }
 
+// Lock controls locking mode for sessions authorized via this
+// scoped role.
+type Lock struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Allowed values: strict or best_effort.
+	// Defaults to value cluster wide auth preference if not set.
+	Mode          string `protobuf:"bytes,1,opt,name=mode,proto3" json:"mode,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Lock) Reset() {
+	*x = Lock{}
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Lock) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Lock) ProtoMessage() {}
+
+func (x *Lock) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_role_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Lock.ProtoReflect.Descriptor instead.
+func (*Lock) Descriptor() ([]byte, []int) {
+	return file_teleport_scopes_access_v1_role_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *Lock) GetMode() string {
+	if x != nil {
+		return x.Mode
+	}
+	return ""
+}
+
 var File_teleport_scopes_access_v1_role_proto protoreflect.FileDescriptor
 
 const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
@@ -908,10 +1014,13 @@ const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	"\bdefaults\x18\x05 \x01(\v2-.teleport.scopes.access.v1.ScopedRoleDefaultsR\bdefaults\x12;\n" +
 	"\x05rules\x18\x06 \x03(\v2%.teleport.scopes.access.v1.ScopedRuleR\x05rules\x12:\n" +
 	"\x03ssh\x18\a \x01(\v2(.teleport.scopes.access.v1.ScopedRoleSSHR\x03ssh\x12=\n" +
-	"\x04kube\x18\b \x01(\v2).teleport.scopes.access.v1.ScopedRoleKubeR\x04kubeJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04R\x05allowR\aoptions\"\x9e\x01\n" +
+	"\x04kube\x18\b \x01(\v2).teleport.scopes.access.v1.ScopedRoleKubeR\x04kubeJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04R\x05allowR\aoptions\"\xac\x02\n" +
 	"\x12ScopedRoleDefaults\x12.\n" +
 	"\x13client_idle_timeout\x18\x01 \x01(\tR\x11clientIdleTimeout\x12X\n" +
-	"\x11session_recording\x18\x02 \x01(\v2+.teleport.scopes.access.v1.SessionRecordingR\x10sessionRecording\"\x8b\x06\n" +
+	"\x11session_recording\x18\x02 \x01(\v2+.teleport.scopes.access.v1.SessionRecordingR\x10sessionRecording\x12;\n" +
+	"\x17disconnect_expired_cert\x18\x03 \x01(\bH\x00R\x15disconnectExpiredCert\x88\x01\x01\x123\n" +
+	"\x04lock\x18\x04 \x01(\v2\x1f.teleport.scopes.access.v1.LockR\x04lockB\x1a\n" +
+	"\x18_disconnect_expired_cert\"\x99\a\n" +
 	"\rScopedRoleSSH\x12\x16\n" +
 	"\x06logins\x18\x01 \x03(\tR\x06logins\x120\n" +
 	"\x06labels\x18\x02 \x03(\v2\x18.teleport.label.v1.LabelR\x06labels\x12.\n" +
@@ -925,17 +1034,23 @@ const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	" \x03(\tR\vhostSudoers\x12 \n" +
 	"\tfile_copy\x18\v \x01(\bH\x03R\bfileCopy\x88\x01\x01\x12[\n" +
 	"\x12enhanced_recording\x18\f \x01(\v2,.teleport.scopes.access.v1.EnhancedRecordingR\x11enhancedRecording\x12X\n" +
-	"\x11session_recording\x18\r \x01(\v2+.teleport.scopes.access.v1.SessionRecordingR\x10sessionRecordingB\x18\n" +
+	"\x11session_recording\x18\r \x01(\v2+.teleport.scopes.access.v1.SessionRecordingR\x10sessionRecording\x12;\n" +
+	"\x17disconnect_expired_cert\x18\x0e \x01(\bH\x04R\x15disconnectExpiredCert\x88\x01\x01\x123\n" +
+	"\x04lock\x18\x0f \x01(\v2\x1f.teleport.scopes.access.v1.LockR\x04lockB\x18\n" +
 	"\x16_permit_x11_forwardingB\x10\n" +
 	"\x0e_forward_agentB\x0f\n" +
 	"\r_max_sessionsB\f\n" +
 	"\n" +
-	"_file_copy\"\xb1\x01\n" +
+	"_file_copyB\x1a\n" +
+	"\x18_disconnect_expired_cert\"\xbf\x02\n" +
 	"\x0eScopedRoleKube\x120\n" +
 	"\x06labels\x18\x01 \x03(\v2\x18.teleport.label.v1.LabelR\x06labels\x12\x16\n" +
 	"\x06groups\x18\x02 \x03(\tR\x06groups\x12\x14\n" +
 	"\x05users\x18\x03 \x03(\tR\x05users\x12.\n" +
-	"\x13client_idle_timeout\x18\x05 \x01(\tR\x11clientIdleTimeoutJ\x04\b\x04\x10\x05R\tresources\"@\n" +
+	"\x13client_idle_timeout\x18\x05 \x01(\tR\x11clientIdleTimeout\x12;\n" +
+	"\x17disconnect_expired_cert\x18\x06 \x01(\bH\x00R\x15disconnectExpiredCert\x88\x01\x01\x123\n" +
+	"\x04lock\x18\a \x01(\v2\x1f.teleport.scopes.access.v1.LockR\x04lockB\x1a\n" +
+	"\x18_disconnect_expired_certJ\x04\b\x04\x10\x05R\tresources\"@\n" +
 	"\n" +
 	"ScopedRule\x12\x1c\n" +
 	"\tresources\x18\x01 \x03(\tR\tresources\x12\x14\n" +
@@ -965,6 +1080,8 @@ const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	"\b_networkB\a\n" +
 	"\x05_disk\"&\n" +
 	"\x10SessionRecording\x12\x12\n" +
+	"\x04mode\x18\x01 \x01(\tR\x04mode\"\x1a\n" +
+	"\x04Lock\x12\x12\n" +
 	"\x04mode\x18\x01 \x01(\tR\x04modeBWZUgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1;accessv1b\x06proto3"
 
 var (
@@ -979,7 +1096,7 @@ func file_teleport_scopes_access_v1_role_proto_rawDescGZIP() []byte {
 	return file_teleport_scopes_access_v1_role_proto_rawDescData
 }
 
-var file_teleport_scopes_access_v1_role_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_teleport_scopes_access_v1_role_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_teleport_scopes_access_v1_role_proto_goTypes = []any{
 	(*ScopedRole)(nil),              // 0: teleport.scopes.access.v1.ScopedRole
 	(*ScopedRoleSpec)(nil),          // 1: teleport.scopes.access.v1.ScopedRoleSpec
@@ -993,30 +1110,34 @@ var file_teleport_scopes_access_v1_role_proto_goTypes = []any{
 	(*CreateHostUser)(nil),          // 9: teleport.scopes.access.v1.CreateHostUser
 	(*EnhancedRecording)(nil),       // 10: teleport.scopes.access.v1.EnhancedRecording
 	(*SessionRecording)(nil),        // 11: teleport.scopes.access.v1.SessionRecording
-	(*v1.Metadata)(nil),             // 12: teleport.header.v1.Metadata
-	(*v11.Label)(nil),               // 13: teleport.label.v1.Label
+	(*Lock)(nil),                    // 12: teleport.scopes.access.v1.Lock
+	(*v1.Metadata)(nil),             // 13: teleport.header.v1.Metadata
+	(*v11.Label)(nil),               // 14: teleport.label.v1.Label
 }
 var file_teleport_scopes_access_v1_role_proto_depIdxs = []int32{
-	12, // 0: teleport.scopes.access.v1.ScopedRole.metadata:type_name -> teleport.header.v1.Metadata
+	13, // 0: teleport.scopes.access.v1.ScopedRole.metadata:type_name -> teleport.header.v1.Metadata
 	1,  // 1: teleport.scopes.access.v1.ScopedRole.spec:type_name -> teleport.scopes.access.v1.ScopedRoleSpec
 	2,  // 2: teleport.scopes.access.v1.ScopedRoleSpec.defaults:type_name -> teleport.scopes.access.v1.ScopedRoleDefaults
 	5,  // 3: teleport.scopes.access.v1.ScopedRoleSpec.rules:type_name -> teleport.scopes.access.v1.ScopedRule
 	3,  // 4: teleport.scopes.access.v1.ScopedRoleSpec.ssh:type_name -> teleport.scopes.access.v1.ScopedRoleSSH
 	4,  // 5: teleport.scopes.access.v1.ScopedRoleSpec.kube:type_name -> teleport.scopes.access.v1.ScopedRoleKube
 	11, // 6: teleport.scopes.access.v1.ScopedRoleDefaults.session_recording:type_name -> teleport.scopes.access.v1.SessionRecording
-	13, // 7: teleport.scopes.access.v1.ScopedRoleSSH.labels:type_name -> teleport.label.v1.Label
-	6,  // 8: teleport.scopes.access.v1.ScopedRoleSSH.port_forwarding:type_name -> teleport.scopes.access.v1.SSHPortForwarding
-	9,  // 9: teleport.scopes.access.v1.ScopedRoleSSH.host_user_creation:type_name -> teleport.scopes.access.v1.CreateHostUser
-	10, // 10: teleport.scopes.access.v1.ScopedRoleSSH.enhanced_recording:type_name -> teleport.scopes.access.v1.EnhancedRecording
-	11, // 11: teleport.scopes.access.v1.ScopedRoleSSH.session_recording:type_name -> teleport.scopes.access.v1.SessionRecording
-	13, // 12: teleport.scopes.access.v1.ScopedRoleKube.labels:type_name -> teleport.label.v1.Label
-	7,  // 13: teleport.scopes.access.v1.SSHPortForwarding.local:type_name -> teleport.scopes.access.v1.SSHLocalPortForwarding
-	8,  // 14: teleport.scopes.access.v1.SSHPortForwarding.remote:type_name -> teleport.scopes.access.v1.SSHRemotePortForwarding
-	15, // [15:15] is the sub-list for method output_type
-	15, // [15:15] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	12, // 7: teleport.scopes.access.v1.ScopedRoleDefaults.lock:type_name -> teleport.scopes.access.v1.Lock
+	14, // 8: teleport.scopes.access.v1.ScopedRoleSSH.labels:type_name -> teleport.label.v1.Label
+	6,  // 9: teleport.scopes.access.v1.ScopedRoleSSH.port_forwarding:type_name -> teleport.scopes.access.v1.SSHPortForwarding
+	9,  // 10: teleport.scopes.access.v1.ScopedRoleSSH.host_user_creation:type_name -> teleport.scopes.access.v1.CreateHostUser
+	10, // 11: teleport.scopes.access.v1.ScopedRoleSSH.enhanced_recording:type_name -> teleport.scopes.access.v1.EnhancedRecording
+	11, // 12: teleport.scopes.access.v1.ScopedRoleSSH.session_recording:type_name -> teleport.scopes.access.v1.SessionRecording
+	12, // 13: teleport.scopes.access.v1.ScopedRoleSSH.lock:type_name -> teleport.scopes.access.v1.Lock
+	14, // 14: teleport.scopes.access.v1.ScopedRoleKube.labels:type_name -> teleport.label.v1.Label
+	12, // 15: teleport.scopes.access.v1.ScopedRoleKube.lock:type_name -> teleport.scopes.access.v1.Lock
+	7,  // 16: teleport.scopes.access.v1.SSHPortForwarding.local:type_name -> teleport.scopes.access.v1.SSHLocalPortForwarding
+	8,  // 17: teleport.scopes.access.v1.SSHPortForwarding.remote:type_name -> teleport.scopes.access.v1.SSHRemotePortForwarding
+	18, // [18:18] is the sub-list for method output_type
+	18, // [18:18] is the sub-list for method input_type
+	18, // [18:18] is the sub-list for extension type_name
+	18, // [18:18] is the sub-list for extension extendee
+	0,  // [0:18] is the sub-list for field type_name
 }
 
 func init() { file_teleport_scopes_access_v1_role_proto_init() }
@@ -1024,7 +1145,9 @@ func file_teleport_scopes_access_v1_role_proto_init() {
 	if File_teleport_scopes_access_v1_role_proto != nil {
 		return
 	}
+	file_teleport_scopes_access_v1_role_proto_msgTypes[2].OneofWrappers = []any{}
 	file_teleport_scopes_access_v1_role_proto_msgTypes[3].OneofWrappers = []any{}
+	file_teleport_scopes_access_v1_role_proto_msgTypes[4].OneofWrappers = []any{}
 	file_teleport_scopes_access_v1_role_proto_msgTypes[7].OneofWrappers = []any{}
 	file_teleport_scopes_access_v1_role_proto_msgTypes[8].OneofWrappers = []any{}
 	file_teleport_scopes_access_v1_role_proto_msgTypes[10].OneofWrappers = []any{}
@@ -1034,7 +1157,7 @@ func file_teleport_scopes_access_v1_role_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_scopes_access_v1_role_proto_rawDesc), len(file_teleport_scopes_access_v1_role_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   12,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -162,7 +162,9 @@ func TestCAOverrideResolver_CalculateOverride(t *testing.T) {
 	}
 
 	t.Run("ok: empty CA override", func(t *testing.T) {
-		r, err := subca.NewCAOverrideResolver(subCA, true)
+		const isEnterpriseBuild = true
+		const featureEnabled = true
+		r, err := subca.NewCAOverrideResolver(subCA, isEnterpriseBuild, featureEnabled)
 		require.NoError(t, err, "NewCAOverrideResolver errored")
 		got, err := r.CalculateOverride(t.Context(), caID, subca.Certificate{PEM: caCert1PEM})
 		require.NoError(t, err, "CalculateCAOverride errored")
@@ -201,12 +203,13 @@ func TestCAOverrideResolver_CalculateOverride(t *testing.T) {
 	caOtherCertPEM := []byte("Pretend this is a PEM. Contents not parsed.")
 
 	tests := []struct {
-		name            string
-		featureDisabled bool // Inverse because most tests want enabled.
-		id              types.CertAuthorityOverrideID
-		caCert          subca.Certificate
-		wantErr         string
-		want            *subca.CalculateOverrideResult
+		name              string
+		notEntepriseBuild bool // Inverse because most tests want enterprise.
+		featureDisabled   bool // Inverse because most tests want enabled.
+		id                types.CertAuthorityOverrideID
+		caCert            subca.Certificate
+		wantErr           string
+		want              *subca.CalculateOverrideResult
 	}{
 		{
 			name:   "ok: no CA override resource exists",
@@ -226,6 +229,9 @@ func TestCAOverrideResolver_CalculateOverride(t *testing.T) {
 				OverrideActive: true,
 				PublicKeyHash:  o1.PublicKey,
 				CACertificate:  subca.Certificate{PEM: []byte(o1.Certificate)},
+				CAChain: []subca.Certificate{
+					{PEM: []byte(o1.Certificate)},
+				},
 			},
 		},
 		{
@@ -238,9 +244,20 @@ func TestCAOverrideResolver_CalculateOverride(t *testing.T) {
 				PublicKeyHash:  o4.PublicKey,
 				CACertificate:  subca.Certificate{PEM: []byte(o4.Certificate)},
 				CAChain: []subca.Certificate{
+					{PEM: []byte(o4.Certificate)},
 					{PEM: []byte(o4.Chain[0])},
 					{PEM: []byte(o4.Chain[1])},
 				},
+			},
+		},
+		{
+			name:              "ok: build is not Enterprise",
+			notEntepriseBuild: true,
+			id:                caID,
+			caCert:            subca.Certificate{PEM: caCert1PEM},
+			want: &subca.CalculateOverrideResult{
+				// If enabled then o1 would apply, per test above.
+				CACertificate: subca.Certificate{PEM: caCert1PEM},
 			},
 		},
 		{
@@ -316,7 +333,7 @@ func TestCAOverrideResolver_CalculateOverride(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			r, err := subca.NewCAOverrideResolver(subCA, !test.featureDisabled)
+			r, err := subca.NewCAOverrideResolver(subCA, !test.notEntepriseBuild, !test.featureDisabled)
 			require.NoError(t, err, "NewCAOverrideResolver errored")
 
 			got, err := r.CalculateOverride(t.Context(), test.id, test.caCert)
