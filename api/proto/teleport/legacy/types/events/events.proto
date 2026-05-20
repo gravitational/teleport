@@ -1574,6 +1574,40 @@ message UserPasswordChange {
   ];
 }
 
+// UserReset is emitted when user's credentials (password and/or MFA) are
+// reset. This event is emitted in all successful cases, as opposed to
+// [UserTokenCreate], which only gets emitted for cases where a token is
+// created.
+message UserReset {
+  // Metadata is a common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User represents the user that performed the action
+  UserMetadata User = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata represents the user whose credentials were reset
+  ResourceMetadata Resource = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ConnectionMetadata holds information about the connection
+  ConnectionMetadata Connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
 // AccessRequestCreate is emitted when access request has been created or updated
 message AccessRequestCreate {
   // Metadata is a common event metadata
@@ -5193,6 +5227,7 @@ message OneOf {
     events.LinuxDesktopSessionStart LinuxDesktopSessionStart = 254;
     events.LinuxDesktopSessionEnd LinuxDesktopSessionEnd = 255;
     events.EnvironmentProfileUpdate EnvironmentProfileUpdate = 256;
+    events.UserReset UserReset = 257;
   }
 }
 

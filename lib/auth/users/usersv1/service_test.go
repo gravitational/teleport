@@ -664,14 +664,14 @@ func TestRBAC(t *testing.T) {
 
 	tests := []struct {
 		desc         string
-		f            func(t *testing.T, service *usersv1.Service)
+		f            func(t *testing.T, env *env)
 		checker      *fakeChecker
 		expectChecks []check
 	}{
 		{
 			desc: "get no access",
-			f: func(t *testing.T, service *usersv1.Service) {
-				_, err := service.GetUser(ctx, &userspb.GetUserRequest{Name: "alice"})
+			f: func(t *testing.T, env *env) {
+				_, err := env.GetUser(ctx, &userspb.GetUserRequest{Name: "alice"})
 				assert.Error(t, err, "expected RBAC to prevent getting user")
 				assert.True(t, trace.IsAccessDenied(err), "expected access denied error got %T", err)
 			},
@@ -689,8 +689,8 @@ func TestRBAC(t *testing.T) {
 		},
 		{
 			desc: "get current users when no access",
-			f: func(t *testing.T, service *usersv1.Service) {
-				user, err := service.GetUser(ctx, &userspb.GetUserRequest{CurrentUser: true})
+			f: func(t *testing.T, env *env) {
+				user, err := env.GetUser(ctx, &userspb.GetUserRequest{CurrentUser: true})
 				assert.NoError(t, err, "expected RBAC to allow getting the current user")
 				assert.Empty(t, cmp.Diff(llama, user.User, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 			},
@@ -704,8 +704,8 @@ func TestRBAC(t *testing.T) {
 		},
 		{
 			desc: "get with secrets no access",
-			f: func(t *testing.T, service *usersv1.Service) {
-				_, err := service.GetUser(ctx, &userspb.GetUserRequest{Name: "alice", WithSecrets: true})
+			f: func(t *testing.T, env *env) {
+				_, err := env.GetUser(ctx, &userspb.GetUserRequest{Name: "alice", WithSecrets: true})
 				assert.Error(t, err, "expected RBAC to prevent getting user")
 				assert.True(t, trace.IsAccessDenied(err), "expected access denied error got %T", err)
 			},
@@ -721,8 +721,8 @@ func TestRBAC(t *testing.T) {
 		},
 		{
 			desc: "get",
-			f: func(t *testing.T, service *usersv1.Service) {
-				resp, err := service.GetUser(ctx, &userspb.GetUserRequest{Name: "llama"})
+			f: func(t *testing.T, env *env) {
+				resp, err := env.GetUser(ctx, &userspb.GetUserRequest{Name: "llama"})
 				assert.NoError(t, err, "expected RBAC to allow getting user")
 				assert.Empty(t, cmp.Diff(llama, resp.User, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 			},
@@ -741,8 +741,8 @@ func TestRBAC(t *testing.T) {
 		},
 		{
 			desc: "create no access",
-			f: func(t *testing.T, service *usersv1.Service) {
-				_, err := service.CreateUser(ctx, &userspb.CreateUserRequest{User: llama.(*types.UserV2)})
+			f: func(t *testing.T, env *env) {
+				_, err := env.CreateUser(ctx, &userspb.CreateUserRequest{User: llama.(*types.UserV2)})
 				assert.Error(t, err, "expected RBAC to prevent creating user")
 				assert.True(t, trace.IsAccessDenied(err), "expected access denied error got %T", err)
 			},
@@ -759,10 +759,10 @@ func TestRBAC(t *testing.T) {
 		},
 		{
 			desc: "create",
-			f: func(t *testing.T, service *usersv1.Service) {
+			f: func(t *testing.T, env *env) {
 				u := utils.CloneProtoMsg(llama.(*types.UserV2))
 				u.SetName("alpaca")
-				created, err := service.CreateUser(ctx, &userspb.CreateUserRequest{User: u})
+				created, err := env.CreateUser(ctx, &userspb.CreateUserRequest{User: u})
 				assert.NoError(t, err, "expected RBAC to allow creating user")
 				assert.Empty(t, cmp.Diff(u, created.User, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 			},
@@ -780,8 +780,8 @@ func TestRBAC(t *testing.T) {
 		},
 		{
 			desc: "update no access",
-			f: func(t *testing.T, service *usersv1.Service) {
-				_, err := service.UpdateUser(ctx, &userspb.UpdateUserRequest{User: llama.(*types.UserV2)})
+			f: func(t *testing.T, env *env) {
+				_, err := env.UpdateUser(ctx, &userspb.UpdateUserRequest{User: llama.(*types.UserV2)})
 				assert.Error(t, err, "expected RBAC to prevent updating user")
 				assert.True(t, trace.IsAccessDenied(err), "expected access denied error got %T", err)
 			},
@@ -798,10 +798,10 @@ func TestRBAC(t *testing.T) {
 		},
 		{
 			desc: "update",
-			f: func(t *testing.T, service *usersv1.Service) {
+			f: func(t *testing.T, env *env) {
 				u := utils.CloneProtoMsg(llama.(*types.UserV2))
 				u.SetLogins([]string{"alpaca"})
-				updated, err := service.UpdateUser(ctx, &userspb.UpdateUserRequest{User: u})
+				updated, err := env.UpdateUser(ctx, &userspb.UpdateUserRequest{User: u})
 				assert.NoError(t, err, "expected RBAC to allow updating user")
 				assert.Empty(t, cmp.Diff(u, updated.User, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 			},
@@ -819,8 +819,8 @@ func TestRBAC(t *testing.T) {
 		},
 		{
 			desc: "upsert no access",
-			f: func(t *testing.T, service *usersv1.Service) {
-				_, err := service.UpsertUser(ctx, &userspb.UpsertUserRequest{User: llama.(*types.UserV2)})
+			f: func(t *testing.T, env *env) {
+				_, err := env.UpsertUser(ctx, &userspb.UpsertUserRequest{User: llama.(*types.UserV2)})
 				assert.Error(t, err, "expected RBAC to prevent upserting user")
 				assert.True(t, trace.IsAccessDenied(err), "expected access denied error got %T", err)
 			},
@@ -838,8 +838,8 @@ func TestRBAC(t *testing.T) {
 		},
 		{
 			desc: "upsert without create",
-			f: func(t *testing.T, service *usersv1.Service) {
-				_, err := service.UpsertUser(ctx, &userspb.UpsertUserRequest{User: llama.(*types.UserV2)})
+			f: func(t *testing.T, env *env) {
+				_, err := env.UpsertUser(ctx, &userspb.UpsertUserRequest{User: llama.(*types.UserV2)})
 				assert.Error(t, err, "expected RBAC to prevent upserting user")
 				assert.True(t, trace.IsAccessDenied(err), "expected access denied error got %T", err)
 			},
@@ -858,8 +858,8 @@ func TestRBAC(t *testing.T) {
 		},
 		{
 			desc: "upsert without update",
-			f: func(t *testing.T, service *usersv1.Service) {
-				_, err := service.UpsertUser(ctx, &userspb.UpsertUserRequest{User: llama.(*types.UserV2)})
+			f: func(t *testing.T, env *env) {
+				_, err := env.UpsertUser(ctx, &userspb.UpsertUserRequest{User: llama.(*types.UserV2)})
 				assert.Error(t, err, "expected RBAC to prevent upserting user")
 				assert.True(t, trace.IsAccessDenied(err), "expected access denied error got %T", err)
 			},
@@ -878,8 +878,8 @@ func TestRBAC(t *testing.T) {
 		},
 		{
 			desc: "upsert",
-			f: func(t *testing.T, service *usersv1.Service) {
-				upserted, err := service.UpsertUser(ctx, &userspb.UpsertUserRequest{User: llama.(*types.UserV2)})
+			f: func(t *testing.T, env *env) {
+				upserted, err := env.UpsertUser(ctx, &userspb.UpsertUserRequest{User: llama.(*types.UserV2)})
 				assert.NoError(t, err, "expected RBAC to allow updating user")
 				assert.Empty(t, cmp.Diff(llama, upserted.User, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 			},
@@ -898,8 +898,8 @@ func TestRBAC(t *testing.T) {
 		},
 		{
 			desc: "delete no access",
-			f: func(t *testing.T, service *usersv1.Service) {
-				_, err := service.DeleteUser(ctx, &userspb.DeleteUserRequest{Name: llama.GetName()})
+			f: func(t *testing.T, env *env) {
+				_, err := env.DeleteUser(ctx, &userspb.DeleteUserRequest{Name: llama.GetName()})
 				assert.Error(t, err, "expected RBAC to prevent deleting user")
 				assert.True(t, trace.IsAccessDenied(err), "expected access denied error got %T", err)
 			},
@@ -916,8 +916,8 @@ func TestRBAC(t *testing.T) {
 		},
 		{
 			desc: "delete",
-			f: func(t *testing.T, service *usersv1.Service) {
-				_, err := service.DeleteUser(ctx, &userspb.DeleteUserRequest{Name: llama.GetName()})
+			f: func(t *testing.T, env *env) {
+				_, err := env.DeleteUser(ctx, &userspb.DeleteUserRequest{Name: llama.GetName()})
 				assert.NoError(t, err, "expected RBAC to allow deleting user")
 			},
 			checker: &fakeChecker{
@@ -934,8 +934,8 @@ func TestRBAC(t *testing.T) {
 		},
 		{
 			desc: "list no access",
-			f: func(t *testing.T, service *usersv1.Service) {
-				_, err := service.ListUsers(ctx, &userspb.ListUsersRequest{PageSize: 1})
+			f: func(t *testing.T, env *env) {
+				_, err := env.ListUsers(ctx, &userspb.ListUsersRequest{PageSize: 1})
 				assert.Error(t, err, "expected RBAC to prevent listing users")
 				assert.True(t, trace.IsAccessDenied(err), "expected access denied error got %T", err)
 			},
@@ -953,8 +953,8 @@ func TestRBAC(t *testing.T) {
 		},
 		{
 			desc: "list",
-			f: func(t *testing.T, service *usersv1.Service) {
-				resp, err := service.ListUsers(ctx, &userspb.ListUsersRequest{PageSize: 1})
+			f: func(t *testing.T, env *env) {
+				resp, err := env.ListUsers(ctx, &userspb.ListUsersRequest{PageSize: 1})
 				assert.NoError(t, err, "expected RBAC to prevent deleting user")
 				require.Len(t, resp.Users, 1, "expected list to return a single user got %d", len(resp.Users))
 				assert.Empty(t, cmp.Diff(llama, resp.Users[0], cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
@@ -970,6 +970,51 @@ func TestRBAC(t *testing.T) {
 			expectChecks: []check{
 				{kind: types.KindUser, verb: types.VerbList},
 				{kind: types.KindUser, verb: types.VerbRead},
+			},
+		},
+		{
+			desc: "reset no access",
+			f: func(t *testing.T, env *env) {
+				_, err := env.ResetUser(ctx, &userspb.ResetUserRequest{Name: llama.GetName()})
+				assert.Error(t, err, "eexpected RBAC to prevent resetting user")
+				assert.True(t, trace.IsAccessDenied(err), "expected access denied, got %T %v", err, err)
+
+				evts := getAllEvents(env.emitter.C())
+				require.GreaterOrEqual(t, len(evts), 1)
+
+				e, ok := evts[len(evts)-1].(*apievents.UserReset)
+				require.True(t, ok)
+				assert.Equal(t, events.UserResetFailureEvent, e.GetType())
+				assert.Equal(t, events.UserResetFailureCode, e.Code)
+			},
+			checker: &fakeChecker{
+				rules: []types.Rule{
+					{
+						Resources: []string{types.KindUser},
+						Verbs:     []string{types.VerbCreate, types.VerbRead, types.VerbList},
+					},
+				},
+			},
+			expectChecks: []check{
+				{kind: types.KindUser, verb: types.VerbUpdate},
+			},
+		},
+		{
+			desc: "reset",
+			f: func(t *testing.T, env *env) {
+				_, err := env.ResetUser(ctx, &userspb.ResetUserRequest{Name: llama.GetName()})
+				assert.NoError(t, err)
+			},
+			checker: &fakeChecker{
+				rules: []types.Rule{
+					{
+						Resources: []string{types.KindUser},
+						Verbs:     []string{types.VerbUpdate},
+					},
+				},
+			},
+			expectChecks: []check{
+				{kind: types.KindUser, verb: types.VerbUpdate},
 			},
 		},
 	}
@@ -994,7 +1039,7 @@ func TestRBAC(t *testing.T) {
 			require.NoError(t, err, "creating test user")
 
 			// Validate RBAC is enforced.
-			test.f(t, env.Service)
+			test.f(t, env)
 			require.ElementsMatch(t, test.expectChecks, test.checker.checks)
 		})
 	}
@@ -1003,6 +1048,15 @@ func TestRBAC(t *testing.T) {
 func TestResetUser(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
+
+	assertUserResetEvent := func(t *testing.T, e apievents.AuditEvent, username string) {
+		ure, ok := e.(*apievents.UserReset)
+		require.True(t, ok)
+		assert.Equal(t, events.UserResetEvent, ure.GetType())
+		assert.Equal(t, username, ure.Name)
+		assert.Equal(t, events.UserResetCode, ure.Code)
+		assert.Equal(t, teleport.UserSystem, ure.User)
+	}
 
 	testCases := []struct {
 		name              string
@@ -1033,10 +1087,18 @@ func TestResetUser(t *testing.T) {
 				assert.Equal(t, authclient.UserTokenTypeResetPassword, res.PasswordResetToken.SubKind)
 				assert.Equal(t, user.GetName(), res.PasswordResetToken.GetUser(), user.GetName())
 
-				event := getLastEvent(env.emitter.C())
-				assert.Equal(t, events.ResetPasswordTokenCreateEvent, event.GetType())
-				assert.Equal(t, user.GetName(), event.(*apievents.UserTokenCreate).Name)
-				assert.Equal(t, teleport.UserSystem, event.(*apievents.UserTokenCreate).User)
+				evts := getAllEvents(env.emitter.C())
+				require.GreaterOrEqual(t, len(evts), 2)
+				evts = evts[len(evts)-2:]
+
+				e, ok := evts[0].(*apievents.UserTokenCreate)
+				require.True(t, ok)
+				assert.Equal(t, events.ResetPasswordTokenCreateEvent, e.GetType())
+				assert.Equal(t, user.GetName(), e.Name)
+				assert.Equal(t, events.ResetPasswordTokenCreateCode, e.Code)
+				assert.Equal(t, teleport.UserSystem, e.User)
+
+				assertUserResetEvent(t, evts[1], user.GetName())
 			},
 		},
 		{
@@ -1052,6 +1114,10 @@ func TestResetUser(t *testing.T) {
 			userType:          types.UserTypeSSO,
 			assert: func(t *testing.T, env *env, user types.User, res *userspb.ResetUserResponse) {
 				assert.Nil(t, res.PasswordResetToken)
+
+				evts := getAllEvents(env.emitter.C())
+				require.GreaterOrEqual(t, len(evts), 1)
+				assertUserResetEvent(t, evts[len(evts)-1], user.GetName())
 			},
 		},
 		{
@@ -1102,6 +1168,10 @@ func TestResetUser(t *testing.T) {
 			userType:          types.UserTypeSSO,
 			assert: func(t *testing.T, env *env, user types.User, res *userspb.ResetUserResponse) {
 				assert.Nil(t, res.PasswordResetToken)
+
+				evts := getAllEvents(env.emitter.C())
+				require.GreaterOrEqual(t, len(evts), 1)
+				assertUserResetEvent(t, evts[len(evts)-1], user.GetName())
 			},
 		},
 		{
@@ -1127,6 +1197,10 @@ func TestResetUser(t *testing.T) {
 			userType:          types.UserTypeSSO,
 			assert: func(t *testing.T, env *env, user types.User, res *userspb.ResetUserResponse) {
 				assert.Nil(t, res.PasswordResetToken)
+
+				evts := getAllEvents(env.emitter.C())
+				require.GreaterOrEqual(t, len(evts), 1)
+				assertUserResetEvent(t, evts[len(evts)-1], user.GetName())
 			},
 		},
 	}
@@ -1253,13 +1327,52 @@ func TestResetUser_Bot(t *testing.T) {
 	assert.True(t, trace.IsBadParameter(err), "expected trace.BadParameter, got %T %v", err, err)
 }
 
-func getLastEvent(c <-chan apievents.AuditEvent) apievents.AuditEvent {
-	var event apievents.AuditEvent
+func TestResetUser_AdminMFARequired(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	authzContext, err := authz.ContextForBuiltinRole(authz.BuiltinRole{
+		Role:     types.RoleAdmin,
+		Username: string(types.RoleAdmin),
+	}, &types.SessionRecordingConfigV2{})
+	require.NoError(t, err)
+
+	env, err := newTestEnv(withAuthorizer(fakeAuthorizer{
+		authorize:    true,
+		authzContext: authzContext,
+	}))
+	require.NoError(t, err, "creating test service")
+
+	user, err := types.NewUser("dave")
+	require.NoError(t, err)
+	_, err = env.CreateUser(ctx, &userspb.CreateUserRequest{User: user.(*types.UserV2)})
+	require.NoError(t, err)
+	err = env.backend.UpsertPassword(user.GetName(), []byte("dummypassword"))
+	require.NoError(t, err)
+	storedHash, err := env.backend.GetPasswordHash(user.GetName())
+	require.NoError(t, err)
+
+	authzContext.AdminActionAuthState = authz.AdminActionAuthUnauthorized
+	_, err = env.ResetUser(ctx, &userspb.ResetUserRequest{
+		Name: user.GetName(),
+		Type: authclient.UserTokenTypeResetPassword,
+	})
+	assert.True(t, trace.IsAccessDenied(err), "expected trace.AccessDenied, got %T %v", err, err)
+
+	// The password should remain intact.
+	currentHash, err := env.backend.GetPasswordHash(user.GetName())
+	require.NoError(t, err)
+	assert.Equal(t, storedHash, currentHash)
+}
+
+func getAllEvents(c <-chan apievents.AuditEvent) []apievents.AuditEvent {
+	var events []apievents.AuditEvent
 	for {
 		select {
-		case event = <-c:
+		case e := <-c:
+			events = append(events, e)
 		default:
-			return event
+			return events
 		}
 	}
 }

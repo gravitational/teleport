@@ -108,6 +108,8 @@ export const EventIconMap: Record<EventCode, any> = {
   [eventCodes.SIGSTORE_POLICY_DELETE]: Icons.Info,
   [eventCodes.RESET_PASSWORD_TOKEN_CREATED]: Icons.Info,
   [eventCodes.USER_PASSWORD_CHANGED]: Icons.Info,
+  [eventCodes.USER_RESET]: Icons.Info,
+  [eventCodes.USER_RESET_FAILURE]: Icons.Warning,
   [eventCodes.ACCESS_REQUEST_CREATED]: Icons.Info,
   [eventCodes.ACCESS_REQUEST_UPDATED]: Icons.Info,
   [eventCodes.ACCESS_REQUEST_REVIEWED]: Icons.Info,

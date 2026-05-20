@@ -618,6 +618,13 @@ func (s *Service) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) 
 func (s *Service) ResetUser(ctx context.Context, req *userspb.ResetUserRequest) (*userspb.ResetUserResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
+		s.emitUserResetEvent(ctx, req.Name, events.UserResetFailureEvent, events.UserResetFailureCode)
+		return nil, trace.Wrap(err)
+	}
+
+	// Allow reused MFA responses to allow creating a reset token after creating a user.
+	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+		// Don't emit an event; this is a normal part of the admin action MFA flow.
 		return nil, trace.Wrap(err)
 	}
 
@@ -626,16 +633,13 @@ func (s *Service) ResetUser(ctx context.Context, req *userspb.ResetUserRequest) 
 		types.KindUser,
 		types.VerbUpdate,
 	); err != nil {
+		s.emitUserResetEvent(ctx, req.Name, events.UserResetFailureEvent, events.UserResetFailureCode)
 		return nil, trace.Wrap(err)
 	}
 
 	if authz.HasBuiltinRole(*authCtx, string(types.RoleOkta)) {
+		s.emitUserResetEvent(ctx, req.Name, events.UserResetFailureEvent, events.UserResetFailureCode)
 		return nil, trace.AccessDenied("access denied")
-	}
-
-	// Allow reused MFA responses to allow creating a reset token after creating a user.
-	if err := authCtx.AuthorizeAdminActionAllowReusedMFA(); err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	setResetUserRequestDefaults(req)
@@ -643,6 +647,33 @@ func (s *Service) ResetUser(ctx context.Context, req *userspb.ResetUserRequest) 
 		return nil, trace.Wrap(err)
 	}
 
+	res, err := s.resetUser(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	s.emitUserResetEvent(ctx, req.Name, events.UserResetEvent, events.UserResetCode)
+	return res, nil
+}
+
+func (s *Service) emitUserResetEvent(
+	ctx context.Context, username string, eventType string, eventCode string,
+) {
+	if err := s.emitter.EmitAuditEvent(ctx, &apievents.UserReset{
+		Metadata: apievents.Metadata{
+			Type: eventType,
+			Code: eventCode,
+		},
+		UserMetadata: authz.ClientUserMetadata(ctx),
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name: username,
+		},
+	}); err != nil {
+		s.logger.WarnContext(ctx, "Failed to emit user reset event", "error", err)
+	}
+}
+
+func (s *Service) resetUser(ctx context.Context, req *userspb.ResetUserRequest) (*userspb.ResetUserResponse, error) {
 	switch user, err := s.cache.GetUser(ctx, req.Name, false /* withSecrets */); {
 	case trace.IsNotFound(err):
 		return s.resetUnknownUser(ctx, req)

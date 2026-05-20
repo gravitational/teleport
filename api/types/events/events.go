@@ -473,6 +473,10 @@ func (m *UserPasswordChange) TrimToMaxSize(maxSize int) AuditEvent {
 	return m
 }
 
+func (m *UserReset) TrimToMaxSize(maxSize int) AuditEvent {
+	return m
+}
+
 func (m *AccessRequestCreate) TrimToMaxSize(maxSize int) AuditEvent {
 	size := m.Size()
 	if size <= maxSize {

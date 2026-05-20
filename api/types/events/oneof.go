@@ -60,6 +60,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_UserPasswordChange{
 			UserPasswordChange: e,
 		}
+	case *UserReset:
+		out.Event = &OneOf_UserReset{
+			UserReset: e,
+		}
 	case *SessionStart:
 		out.Event = &OneOf_SessionStart{
 			SessionStart: e,
