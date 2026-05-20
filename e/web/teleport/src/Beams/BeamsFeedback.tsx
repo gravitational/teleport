@@ -89,6 +89,7 @@ export function BeamsFeedback() {
                 </Text>
                 <Button
                   as="a"
+                  size="large"
                   href={cta.href}
                   target="_blank"
                   rel="noopener noreferrer"
