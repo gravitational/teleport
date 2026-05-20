@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 )
 
 // genericGetter is a helper to retrieve a single item from a cache collection.
@@ -180,39 +181,22 @@ func (l genericLister[T, I]) list(ctx context.Context, pageSize int, startToken 
 // Range retrieves a stream of items from the configured cache collection within the range [start, end).
 // If the cache is not healthy, then the items are retrieved from the upstream backend.
 func (l genericLister[T, I]) Range(ctx context.Context, start, end string) iter.Seq2[T, error] {
-	return func(yield func(T, error) bool) {
-		token := start
-		for {
-			items, next, err := l.listRange(ctx, l.defaultPageSize, token, end)
-			if err != nil {
-				yield(*new(T), err)
-				return
-			}
-
-			for _, item := range items {
-				if !yield(item, nil) {
-					return
-				}
-			}
-
-			if next == "" {
-				return
-			}
-
-			token = next
-		}
+	pageFunc := func(ctx context.Context, pageSize int, token string) ([]T, string, error) {
+		return l.listRange(ctx, pageSize, token, end)
 	}
+	return clientutils.RangeResourcesWithPageSize(ctx, start, end, pageFunc, l.nextToken, l.defaultPageSize)
 }
 
 // RangeWithFallback retrieves a stream of items from the configured cache collection within the range [start, end).
 // If the cache is not healthy, then the items are retrieved from the upstream backend. In addition, a fallback getter
 // is supported if the upstream does not implement a list operation, this is only checked on the first page.
 func (l genericLister[T, I]) RangeWithFallback(ctx context.Context, start, end string) iter.Seq2[T, error] {
+	pageFunc := func(ctx context.Context, pageSize int, token string) ([]T, string, error) {
+		return l.listRange(ctx, pageSize, token, end)
+	}
 	return func(yield func(T, error) bool) {
-		// Fallback is only allowed when configured and the entire range is requested.
 		fallbackAllowed := l.fallbackGetter != nil && start == "" && end == ""
-
-		for item, err := range l.Range(ctx, start, end) {
+		for item, err := range clientutils.RangeResourcesWithPageSize(ctx, start, end, pageFunc, l.nextToken, l.defaultPageSize) {
 			if err != nil {
 				if fallbackAllowed && trace.IsNotImplemented(err) {
 					items, err := l.fallbackGetter(ctx)
@@ -241,6 +225,5 @@ func (l genericLister[T, I]) RangeWithFallback(ctx context.Context, start, end s
 			// Disable the fallback once the first item is successfully yielded.
 			fallbackAllowed = false
 		}
-
 	}
 }
