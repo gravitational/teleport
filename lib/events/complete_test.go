@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -177,63 +178,67 @@ func TestUploadCompleterAcquiresSemaphore(t *testing.T) {
 // that are completed.
 func TestUploadCompleterEmitsSessionEnd(t *testing.T) {
 	for _, test := range []struct {
-		startEvent   apievents.AuditEvent
-		endEventType string
+		startEvent            apievents.AuditEvent
+		endEventType          string
+		ensureSessionEndEvent bool
 	}{
-		{&apievents.SessionStart{}, events.SessionEndEvent},
-		{&apievents.WindowsDesktopSessionStart{}, events.WindowsDesktopSessionEndEvent},
+		{&apievents.SessionStart{}, events.SessionEndEvent, true},
+		{&apievents.WindowsDesktopSessionStart{}, events.WindowsDesktopSessionEndEvent, true},
+		{&apievents.SessionStart{}, events.SessionEndEvent, false},
 	} {
-		t.Run(test.endEventType, func(t *testing.T) {
-			clock := clockwork.NewFakeClock()
-			mu := eventstest.NewMemoryUploader()
-			mu.Clock = clock
-			startTime := clock.Now().UTC()
-			endTime := startTime.Add(2 * time.Minute)
+		t.Run(fmt.Sprintf("%s ensure end event %t", test.endEventType, test.ensureSessionEndEvent), func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				clock := clockwork.NewFakeClock()
+				mu := eventstest.NewMemoryUploader()
+				startTime := clock.Now().UTC()
+				endTime := startTime.Add(2 * time.Minute)
 
-			test.startEvent.SetTime(startTime)
+				test.startEvent.SetTime(startTime)
 
-			log := &eventstest.MockAuditLog{
-				Emitter: &eventstest.MockRecorderEmitter{},
-				SessionEvents: []apievents.AuditEvent{
-					test.startEvent,
-					&apievents.SessionPrint{Metadata: apievents.Metadata{Time: endTime}},
-				},
-			}
+				log := &eventstest.MockAuditLog{
+					Emitter: &eventstest.MockRecorderEmitter{},
+					SessionEvents: []apievents.AuditEvent{
+						test.startEvent,
+						&apievents.SessionPrint{Metadata: apievents.Metadata{Time: endTime}},
+					},
+				}
 
-			uc, err := events.NewUploadCompleter(events.UploadCompleterConfig{
-				Uploader:       mu,
-				AuditLog:       log,
-				Clock:          clock,
-				SessionTracker: &mockSessionTrackerService{},
-				ClusterName:    "teleport-cluster",
-				GracePeriod:    -1,
+				uc, err := events.NewUploadCompleter(events.UploadCompleterConfig{
+					Uploader:              mu,
+					AuditLog:              log,
+					SessionTracker:        &mockSessionTrackerService{},
+					ClusterName:           "teleport-cluster",
+					GracePeriod:           -1,
+					EnsureSessionEndEvent: test.ensureSessionEndEvent,
+				})
+				require.NoError(t, err)
+
+				upload, err := mu.CreateUpload(context.Background(), session.NewID())
+				require.NoError(t, err)
+
+				// session end events are only emitted if there's at least one
+				// part to be uploaded, so create that here
+				_, err = mu.UploadPart(context.Background(), *upload, 0, strings.NewReader("part"))
+				require.NoError(t, err)
+
+				err = uc.CheckUploads(context.Background())
+				require.NoError(t, err)
+
+				time.Sleep(3 * time.Minute)
+				synctest.Wait()
+				synctest.Wait()
+
+				if len(log.Emitter.Events()) == 2 && !test.ensureSessionEndEvent {
+					require.FailNow(t, "should only have emitted 1 session upload event")
+				}
+
+				require.IsType(t, &apievents.SessionUpload{}, log.Emitter.Events()[0])
+				require.Equal(t, startTime, log.Emitter.Events()[0].GetTime())
+				if test.ensureSessionEndEvent {
+					require.Equal(t, test.endEventType, log.Emitter.Events()[1].GetType())
+					require.Equal(t, endTime, log.Emitter.Events()[1].GetTime())
+				}
 			})
-			require.NoError(t, err)
-
-			upload, err := mu.CreateUpload(context.Background(), session.NewID())
-			require.NoError(t, err)
-
-			// session end events are only emitted if there's at least one
-			// part to be uploaded, so create that here
-			_, err = mu.UploadPart(context.Background(), *upload, 0, strings.NewReader("part"))
-			require.NoError(t, err)
-
-			err = uc.CheckUploads(context.Background())
-			require.NoError(t, err)
-
-			// advance the clock to force the asynchronous session end event emission
-			clock.BlockUntil(1)
-			clock.Advance(3 * time.Minute)
-
-			// expect two events - a session end and a session upload
-			// the session end is done asynchronously, so wait for that
-			require.Eventually(t, func() bool { return len(log.Emitter.Events()) == 2 }, 5*time.Second, 1*time.Second,
-				"should have emitted 2 events, but only got %d", len(log.Emitter.Events()))
-
-			require.IsType(t, &apievents.SessionUpload{}, log.Emitter.Events()[0])
-			require.Equal(t, startTime, log.Emitter.Events()[0].GetTime())
-			require.Equal(t, test.endEventType, log.Emitter.Events()[1].GetType())
-			require.Equal(t, endTime, log.Emitter.Events()[1].GetTime())
 		})
 	}
 }

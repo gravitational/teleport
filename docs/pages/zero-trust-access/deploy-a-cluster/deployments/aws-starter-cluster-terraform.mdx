@@ -109,7 +109,7 @@ level of AWS permissions.
 Firstly, you'll need to clone the Teleport repo to get the Terraform code available on your system:
 
 ```code
-$ git clone https://github.com/gravitational/teleport -b branch/v(=teleport.major_version=)
+$ git clone https://github.com/gravitational/teleport -b branch/v(=teleport.major_version=) --depth=1
 # Cloning into 'teleport'...
 # remote: Enumerating objects: 106, done.
 # remote: Counting objects: 100% (106/106), done.
@@ -192,36 +192,7 @@ cluster from scratch, so choose carefully. A good example might be something lik
 $ export TF_VAR_ami_name="teleport-ent-(=teleport.version=)-x86_64"
 ```
 
-Teleport (Gravitational) automatically builds and publishes OSS, Enterprise and Enterprise FIPS AMIs when we
-release a new version of Teleport. The AMI names follow the format: `teleport-<type>-<version>-<arch>`
-where `<type>` is either `oss` or `ent` (Enterprise), `<version>` is the version of Teleport, e.g. `(=teleport.version=)`,
-and `<arch>` is either `x86_64` or `arm64`.
-
-FIPS compatible AMIs (which deploy Teleport in FIPS mode by default) have the `-fips` suffix after `<arch>`,
-e.g. `teleport-ent-(=teleport.version=)-x86_64-fips`.
-
-The AWS account ID that publishes these AMIs is `146628656107`. You can list the available AMIs with
-the example `awscli` commands below. The output is in JSON format by default.
-
-<Admonition
-  type="tip"
-  title="List Teleport AMIs"
->
-  OSS AMIs<br/>
-  ```code
-  $ aws --region <Var name="us-west-2" /> ec2 describe-images --owners 146628656107 --filters 'Name=name,Values=teleport-oss-(=teleport.version=)-*'
-  ```
-
-  Enterprise AMIs<br/>
-  ```code
-  $ aws --region <Var name="us-west-2" /> ec2 describe-images --owners 146628656107 --filters 'Name=name,Values=teleport-ent-(=teleport.version=)-*'
-  ```
-
-  Enterprise FIPS AMIs<br/>
-  ```code
-  $ aws --region <Var name="us-west-2" /> ec2 describe-images --owners 146628656107 --filters 'Name=name,Values=teleport-ent-(=teleport.version=)-*-fips-*'
-  ```
-</Admonition>
+(!docs/pages/includes/teleport-amis.mdx!)
 
 ### key_name
 
@@ -579,13 +550,17 @@ To add users to the Teleport cluster, you will need to connect to the Teleport c
    # Warning: Permanently added '1.2.3.4' (ECDSA) to the list of known hosts.
    # Last login: Tue Mar  3 18:57:12 2020 from 1.2.3.5
 
-   #       __|  __|_  )
-   #       _|  (     /   Amazon Linux 2 AMI
-   #      ___|\___|___|
+   #   ,     #_
+   #   ~\_  ####_        Amazon Linux 2023
+   #  ~~  \_#####\
+   #  ~~     \###|
+   #  ~~       \#/ ___   https://aws.amazon.com/linux/amazon-linux-2023
+   #   ~~       V~' '->
+   #    ~~~         /
+   #      ~~._.   _/
+   #         _/ _/
+   #       _/m/'
 
-   # https://aws.amazon.com/amazon-linux-2/
-   # 1 package(s) needed for security, out of 6 available
-   # Run "sudo yum update" to apply all updates.
    # [ec2-user@ip-172-31-29-119 ~]$
    ```
 
@@ -741,7 +716,7 @@ The `systemd` service name is different between Let's Encrypt (`teleport.service
 The easiest way to quickly join new resources to your cluster is to use the "Enroll New Resource" wizards in the Teleport web UI.
 
 Customers run many workloads within AWS and depending on how you work, there are many manual
-ways to integrate Teleport onto your servers. We recommend looking at our [Installation guide](../../../installation/installation.mdx).
+ways to integrate Teleport onto your servers. We recommend looking at our [Installation guide](../../../installation/single-machine/single-machine.mdx).
 
 To add new nodes/EC2 servers that you can "SSH into" you'll need to:
 
@@ -749,7 +724,7 @@ To add new nodes/EC2 servers that you can "SSH into" you'll need to:
 - [Run Teleport - we recommend using systemd](../../management/admin/daemon.mdx)
 - [Set the correct settings in /etc/teleport.yaml](../../../reference/config.mdx)
 - [Add Nodes to the Teleport
-  cluster](../../../enroll-resources/agents/agents.mdx)
+  cluster](../../../installation/agents/agents.mdx)
 
 ## Troubleshooting
 

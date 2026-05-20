@@ -448,17 +448,17 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			require.NoError(t, err)
 			require.Empty(t, sessions)
 
+			cl, err := teleport.NewClient(helpers.ClientConfig{
+				Login:        suite.Me.Username,
+				Cluster:      helpers.Site,
+				Host:         Host,
+				Port:         helpers.Port(t, nodeConf.SSH.Addr.Addr),
+				ForwardAgent: tt.inForwardAgent,
+			})
 			// create interactive session (this goroutine is this user's terminal time)
 			endC := make(chan error)
 			myTerm := NewTerminal(250)
 			go func() {
-				cl, err := teleport.NewClient(helpers.ClientConfig{
-					Login:        suite.Me.Username,
-					Cluster:      helpers.Site,
-					Host:         Host,
-					Port:         helpers.Port(t, nodeConf.SSH.Addr.Addr),
-					ForwardAgent: tt.inForwardAgent,
-				})
 				if err != nil {
 					endC <- err
 					return
@@ -522,7 +522,11 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 				}
 			}
 
-			capturedStream, sessionEvents := streamSession(ctx, t, site, sessionID)
+			cc, err := cl.ConnectToCluster(ctx)
+			require.NoError(t, err)
+			t.Cleanup(func() { cc.Close() })
+			// Test streaming events and recording.
+			capturedStream, sessionEvents := streamSession(ctx, t, cc.AuthClient, sessionID)
 
 			findByType := func(et string) apievents.AuditEvent {
 				for _, e := range sessionEvents {
@@ -536,7 +540,7 @@ func testAuditOn(t *testing.T, suite *integrationTestSuite) {
 			// general audit log.
 			requireInAuditLog := func(t *testing.T, sessionEvent apievents.AuditEvent) {
 				t.Helper()
-				auditEvents, _, err := site.SearchEvents(ctx, events.SearchEventsRequest{
+				auditEvents, _, err := cc.AuthClient.SearchEvents(ctx, events.SearchEventsRequest{
 					To:         time.Now(),
 					EventTypes: []string{sessionEvent.GetType()},
 				})
@@ -1834,58 +1838,12 @@ type disconnectTestCase struct {
 	verifyError errorVerifier
 }
 
-// repeatingReader is an [io.ReadCloser] that produces the
-// provided output at the configured interval until closed.
-// For example, all calls to Read on the following reader will
-// block for a minute and then return "hi" to the caller. Once
-// Closed an `io.EOF` will be returned from Read
-//
-// r := repeatingReader{output: hi, interval:time.Minute}
-// n, err := r.Read(out)
-type repeatingReader struct {
-	output   string
-	interval time.Duration
-	closed   chan struct{}
-}
-
-func newRepeatingReader(output string, interval time.Duration) repeatingReader {
-	return repeatingReader{
-		interval: interval,
-		output:   output,
-		closed:   make(chan struct{}),
-	}
-}
-
-func (r repeatingReader) Read(p []byte) (int, error) {
-	if len(p) == 0 {
-		return 0, nil
-	}
-
-	select {
-	case <-time.After(r.interval):
-	case <-r.closed:
-		return 0, io.EOF
-	}
-
-	end := len(r.output)
-	if end > len(p) {
-		end = len(p)
-	}
-
-	n := copy(p, r.output[:end])
-	return n, nil
-}
-
-func (r repeatingReader) Close() error {
-	close(r.closed)
-	return nil
-}
-
 // testClientIdleConnection validates that if a user is active beyond
 // the client idle timeout that the session is not terminated.
 func testClientIdleConnection(t *testing.T, suite *integrationTestSuite) {
+	const idleTimeout = 3 * time.Second
 	netConfig := types.DefaultClusterNetworkingConfig()
-	netConfig.SetClientIdleTimeout(3 * time.Second)
+	netConfig.SetClientIdleTimeout(idleTimeout)
 
 	tconf := suite.defaultServiceConfig()
 	tconf.SSH.Enabled = true
@@ -1894,48 +1852,71 @@ func testClientIdleConnection(t *testing.T, suite *integrationTestSuite) {
 	instance := suite.NewTeleportWithConfig(t, nil, nil, tconf)
 	t.Cleanup(func() { require.NoError(t, instance.StopAll()) })
 
-	var output bytes.Buffer
+	term := NewTerminal(250)
+	sessionErr := make(chan error, 1)
 
-	// SSH into the server, and stay active for longer than
-	// the client idle timeout.
-	sessionErr := make(chan error)
-	openSession := func() {
+	waitForOutput := func(t *testing.T, pattern string) {
+		outputErr := make(chan error, 1)
+		go func() {
+			outputErr <- waitForTerminalOutput(t.Context(), term, pattern)
+		}()
+
+		select {
+		case err := <-outputErr:
+			require.NoError(t, err)
+		case err := <-sessionErr:
+			require.FailNowf(t, "session error", "session ended while waiting for output matching %q; err: %v", pattern, err)
+		}
+	}
+
+	go func() {
+		defer close(sessionErr)
 		cl, err := instance.NewClient(helpers.ClientConfig{
 			Login:                suite.Me.Username,
 			Cluster:              helpers.Site,
 			Host:                 Host,
+			Interactive:          true,
 			DisableSSHResumption: true,
 		})
 		if err != nil {
 			sessionErr <- trace.Wrap(err)
 			return
 		}
-		cl.Stdout = &output
-		// Execute a command faster than the idle timeout to stay active.
-		reader := newRepeatingReader("echo txlxport | sed 's/x/e/g'\n", 100*time.Millisecond)
-		defer func() { reader.Close() }()
-		cl.Stdin = reader
+		cl.Stdout = term
+		cl.Stdin = term
 
-		// Terminate the session after 2x the idle timeout
-		ctx, cancel := context.WithTimeout(t.Context(), netConfig.GetClientIdleTimeout()*2)
-		defer cancel()
-		sessionErr <- cl.SSH(ctx, nil)
+		// Print a ready marker, then echo bytes from stdin back to the client.
+		const clientIdleKeepaliveCommand = `sh -c 'echo __READY__; exec cat'`
+		sessionErr <- cl.SSH(t.Context(), []string{clientIdleKeepaliveCommand})
+	}()
+	waitForOutput(t, "__READY__")
+
+	// With the session established, write to the terminal to refresh the client idle timeout
+	// before proceeding to the test below.
+	// TODO(Joerger): We can remove this once we address the issue causing the client idle timeout timer
+	// to start progressing during session establishment.
+	term.Type("start\r\n")
+	waitForOutput(t, "start")
+
+	// Keep the session alive by writing/reading with the terminal within the idle timeout.
+	keepaliveInterval := idleTimeout / 3
+	keepaliveTicker := time.NewTicker(keepaliveInterval)
+	defer keepaliveTicker.Stop()
+	keepaliveEnd := time.After(idleTimeout + keepaliveInterval)
+
+	for i := 0; ; i++ {
+		select {
+		case <-keepaliveTicker.C:
+			msg := "keepalive-" + strconv.Itoa(i)
+			term.Type(msg + "\r\n")
+			waitForOutput(t, msg)
+		case <-keepaliveEnd:
+			// The session survived beyond the idle timeout, success.
+			return
+		case err := <-sessionErr:
+			require.FailNowf(t, "session error", "session ended before exceeding idle timeout: %v", err)
+		}
 	}
-
-	go openSession()
-
-	// Wait for the sessions to end - we expect an error
-	// since we are canceling the context.
-	err := waitForError(sessionErr, time.Second*15)
-	require.Error(t, err)
-
-	// Ensure that the session was alive beyond the idle timeout by
-	// counting the number of times "teleport" was output. If the session
-	// was alive past the idle timeout, then there should be at least 30 occurrences
-	// since the command is run more frequently the idle timeout.
-	require.NotEmpty(t, output)
-	count := strings.Count(output.String(), "teleport")
-	require.Greater(t, count, 30)
 }
 
 // TestDisconnectScenarios tests multiple scenarios with client disconnects
@@ -2025,7 +2006,6 @@ func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 					require.Empty(t, next)
 					require.NoError(t, err)
 					require.Len(t, sems, 1)
-
 				}, 2*time.Second, 100*time.Millisecond)
 
 				timeoutCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -2175,22 +2155,27 @@ func timeNow() string {
 	return time.Now().Format(time.StampMilli)
 }
 
-// enterInput simulates entering user input into a terminal and awaiting a
-// response. Returns an error if the given response text doesn't match
-// the supplied regexp string.
+// enterInput simulates typing command into the terminal and waits for output
+// matching pattern. Returns an error on timeout, nil on match or context
+// cancellation.
 func enterInput(ctx context.Context, person *Terminal, command, pattern string) error {
 	person.Type(command)
+	return waitForTerminalOutput(ctx, person, pattern)
+}
+
+// waitForTerminalOutput polls the terminal until output matches pattern,
+// 10 seconds elapse, or ctx is canceled.
+// Returns nil on match or cancellation, error on timeout.
+func waitForTerminalOutput(ctx context.Context, person *Terminal, pattern string) error {
 	abortTime := time.Now().Add(10 * time.Second)
-	var matched bool
-	var output string
 	for {
-		output = replaceNewlines(person.Output(1000))
-		matched, _ = regexp.MatchString(pattern, output)
+		output := replaceNewlines(person.Output(1000))
+		matched, _ := regexp.MatchString(pattern, output)
 		if matched {
 			return nil
 		}
 		select {
-		case <-time.After(time.Millisecond * 50):
+		case <-time.After(50 * time.Millisecond):
 		case <-ctx.Done():
 			// cancellation means that we don't care about the input being
 			// confirmed anymore; not equivalent to a timeout.
@@ -2416,6 +2401,9 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	// wait for active tunnel connections to be established
 	helpers.WaitForActiveTunnelConnections(t, b.Tunnel, a.Secrets.SiteName, 1)
 
+	err = b.WaitForNodeCount(ctx, a.Secrets.SiteName, 1)
+	require.NoError(t, err)
+
 	// via tunnel b->a:
 	tc, err = b.NewClient(helpers.ClientConfig{
 		Login:        username,
@@ -2431,12 +2419,12 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	require.NoError(t, err)
 	require.Equal(t, outputA.String(), outputB.String())
 
-	clientHasEvents := func(site authclient.ClientI, count int) func() bool {
+	clientHasEvents := func(cc authclient.ClientI, count int) func() bool {
 		// only look for exec events
 		eventTypes := []string{events.ExecEvent}
 
 		return func() bool {
-			eventsInSite, _, err := site.SearchEvents(ctx, events.SearchEventsRequest{
+			eventsInSite, _, err := cc.SearchEvents(ctx, events.SearchEventsRequest{
 				From:       now,
 				To:         now.Add(1 * time.Hour),
 				EventTypes: eventTypes,
@@ -2447,10 +2435,20 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 		}
 	}
 
-	siteA := a.GetSiteAPI(a.Secrets.SiteName)
+	tA, err := a.NewClient(helpers.ClientConfig{
+		Login:        username,
+		Cluster:      a.Secrets.SiteName,
+		Host:         Host,
+		Port:         sshPort,
+		ForwardAgent: true,
+	})
+	require.NoError(t, err)
 
+	cA, err := tA.ConnectToCluster(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { cA.Close() })
 	// Wait for 2nd event before stopping auth.
-	require.Eventually(t, clientHasEvents(siteA, 2), 5*time.Second, 500*time.Millisecond,
+	require.Eventually(t, clientHasEvents(cA.AuthClient, 2), 5*time.Second, 500*time.Millisecond,
 		"Failed to find %d events on helpers.Site A after 5s", execCountSiteA)
 
 	// Stop "site-A" and try to connect to it again via "site-A" (expect a connection error)
@@ -2474,12 +2472,21 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	require.Eventually(t, tcHasReconnected, 10*time.Second, 250*time.Millisecond,
 		"Timed out waiting for helpers.Site A to restart: %v", sshErr)
 
-	siteA = a.GetSiteAPI(a.Secrets.SiteName)
-	require.Eventually(t, clientHasEvents(siteA, execCountSiteA), 5*time.Second, 500*time.Millisecond,
+	require.Eventually(t, clientHasEvents(cA.AuthClient, execCountSiteA), 5*time.Second, 500*time.Millisecond,
 		"Failed to find %d events on helpers.Site A after 5s", execCountSiteA)
 
-	siteB := b.GetSiteAPI(b.Secrets.SiteName)
-	require.Eventually(t, clientHasEvents(siteB, execCountSiteB), 5*time.Second, 500*time.Millisecond,
+	bClient, err := b.NewClient(helpers.ClientConfig{
+		Login:        username,
+		Cluster:      b.Secrets.SiteName,
+		Host:         Host,
+		Port:         sshPort,
+		ForwardAgent: true,
+	})
+	require.NoError(t, err)
+	cB, err := bClient.ConnectToCluster(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { cB.Close() })
+	require.Eventually(t, clientHasEvents(cB.AuthClient, execCountSiteB), 5*time.Second, 500*time.Millisecond,
 		"Failed to find %d events on helpers.Site B after 5s", execCountSiteB)
 }
 
@@ -4963,17 +4970,14 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 	endCh := make(chan error, 1)
 
 	myTerm := NewTerminal(250)
+	cl, err := teleport.NewClient(helpers.ClientConfig{
+		Login:   suite.Me.Username,
+		Cluster: helpers.Site,
+		Host:    Host,
+		Port:    helpers.Port(t, teleport.SSH),
+	})
+	require.NoError(t, err)
 	go func() {
-		cl, err := teleport.NewClient(helpers.ClientConfig{
-			Login:   suite.Me.Username,
-			Cluster: helpers.Site,
-			Host:    Host,
-			Port:    helpers.Port(t, teleport.SSH),
-		})
-		if err != nil {
-			endCh <- err
-			return
-		}
 		cl.Stdout = myTerm
 		cl.Stdin = myTerm
 		err = cl.SSH(ctx, []string{})
@@ -5012,7 +5016,10 @@ func testAuditOff(t *testing.T, suite *integrationTestSuite) {
 
 	// however, attempts to read the actual sessions should fail because it was
 	// not actually recorded
-	eventsCh, errCh := site.StreamSessionEvents(ctx, session.ID(tracker.GetSessionID()), 0)
+	cc, err := cl.ConnectToCluster(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { cc.Close() })
+	eventsCh, errCh := cc.AuthClient.StreamSessionEvents(ctx, session.ID(tracker.GetSessionID()), 0)
 	err = nil
 readLoop:
 	for {
@@ -5030,7 +5037,7 @@ readLoop:
 	// ensure that session related events were emitted to audit log
 	var auditEvents []apievents.AuditEvent
 	require.Eventually(t, func() bool {
-		ae, _, err := site.SearchEvents(ctx, events.SearchEventsRequest{
+		ae, _, err := cc.AuthClient.SearchEvents(ctx, events.SearchEventsRequest{
 			From: beforeSession,
 			To:   time.Now(),
 			EventTypes: []string{
@@ -7409,6 +7416,16 @@ func testSessionStreaming(t *testing.T, suite *integrationTestSuite) {
 	defer teleport.StopAll()
 
 	api := teleport.GetSiteAPI(helpers.Site)
+	cl, err := teleport.NewClient(helpers.ClientConfig{
+		Login:   suite.Me.Username,
+		Cluster: helpers.Site,
+		Host:    Host,
+		Port:    helpers.Port(t, teleport.SSH),
+	})
+	require.NoError(t, err)
+	clusterClient, err := cl.ConnectToCluster(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { clusterClient.Close() })
 	uploadStream, err := api.CreateAuditStream(ctx, sessionID)
 	require.NoError(t, err)
 
@@ -7433,7 +7450,9 @@ outer:
 		time.Sleep(time.Second * 5)
 
 		receivedSession := make([]apievents.AuditEvent, 0)
-		sessionPlayback, e := api.StreamSessionEvents(ctx, sessionID, 0)
+		// StreamSessionEvents can no longer be called by builtin Teleport identities, so
+		// we need to stream using a ClusterClient
+		sessionPlayback, e := clusterClient.AuthClient.StreamSessionEvents(ctx, sessionID, 0)
 
 	inner:
 		for {

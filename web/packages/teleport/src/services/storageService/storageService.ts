@@ -29,7 +29,6 @@ import {
 } from 'teleport/services/userPreferences/userPreferences';
 import { BearerToken } from 'teleport/services/websession';
 import { getPrefersDark } from 'teleport/ThemeProvider';
-import type { RecommendFeature } from 'teleport/types';
 
 import { CloudUserInvites, KeysEnum, LocalStorageSurvey } from './types';
 
@@ -38,7 +37,6 @@ const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [
   KeysEnum.THEME,
   KeysEnum.USER_PREFERENCES,
   KeysEnum.ACCESS_LIST_PREFERENCES,
-  KeysEnum.RECOMMEND_FEATURE,
   KeysEnum.LICENSE_ACKNOWLEDGED,
   KeysEnum.USERS_NOT_EQUAL_TO_MAU_ACKNOWLEDGED,
   KeysEnum.USE_NEW_ROLE_EDITOR,
@@ -246,17 +244,6 @@ export const storageService = {
     window.localStorage.removeItem(messageType);
   },
 
-  // setRecommendFeature persists states used to determine if
-  // given feature needs to be recommended to the user.
-  // Currently, it only shows a red dot in the side navigation menu.
-  setRecommendFeature(d: RecommendFeature) {
-    window.localStorage.setItem(KeysEnum.RECOMMEND_FEATURE, JSON.stringify(d));
-  },
-
-  getFeatureRecommendationStatus(): RecommendFeature {
-    return this.getParsedJSONValue(KeysEnum.RECOMMEND_FEATURE, null);
-  },
-
   getAccessGraphEnabled(): boolean {
     return this.getParsedJSONValue(KeysEnum.ACCESS_GRAPH_ENABLED, false);
   },
@@ -333,5 +320,35 @@ export const storageService = {
     );
 
     return newHistory;
+  },
+
+  // setAppLauncherFragment stashes the URL fragment from a logged-out
+  // app-launcher request in sessionStorage so it can be reattached
+  // after the user completes the web login flow. sessionStorage is
+  // used (not localStorage or a query parameter) so the fragment
+  // value never reaches the server and never persists beyond the
+  // current tab.
+  setAppLauncherFragment(path: string, hash: string) {
+    window.sessionStorage.setItem(
+      KeysEnum.APP_LAUNCHER_FRAGMENT,
+      JSON.stringify({ path, hash })
+    );
+  },
+
+  // consumeAppLauncherFragment returns the previously stashed
+  // fragment if and only if it was stashed for the same launcher
+  // path. The entry is removed on read so a stale value cannot
+  // surface on a later launcher run.
+  consumeAppLauncherFragment(path: string): string {
+    const raw = window.sessionStorage.getItem(KeysEnum.APP_LAUNCHER_FRAGMENT);
+    if (!raw) {
+      return '';
+    }
+    window.sessionStorage.removeItem(KeysEnum.APP_LAUNCHER_FRAGMENT);
+    const parsed = JSON.parse(raw) as { path: string; hash: string };
+    if (parsed.path !== path) {
+      return '';
+    }
+    return parsed.hash;
   },
 };

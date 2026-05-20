@@ -2051,12 +2051,13 @@ func (process *TeleportProcess) initAuthService() error {
 	process.backend = b
 
 	var emitter apievents.Emitter
-	var streamer events.Streamer
+	var streamer events.StreamerWithCallback
 	var uploadHandler events.MultipartHandler
 	var externalAuditStorage *externalauditstorage.Configurator
 
 	// create the audit log, which will be consuming (and recording) all events
 	// and recording all sessions.
+	var localLog *events.AuditLog
 	if cfg.Auth.NoAudit {
 		// this is for teleconsole
 		process.auditLog = events.NewDiscardAuditLog()
@@ -2118,7 +2119,7 @@ func (process *TeleportProcess) initAuthService() error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		localLog, err := events.NewAuditLog(auditServiceConfig)
+		localLog, err = events.NewAuditLog(auditServiceConfig)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -2253,6 +2254,13 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 
+	if streamer != nil {
+		streamer.SetOnUploadComplete(authServer.OnUploadComplete)
+	}
+	if localLog != nil {
+		localLog.SetOnUploadComplete(authServer.OnUploadComplete)
+	}
+
 	lockWatcher, err := services.NewLockWatcher(process.ExitContext(), services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
 			Component: teleport.ComponentAuth,
@@ -2331,13 +2339,14 @@ func (process *TeleportProcess) initAuthService() error {
 		logger.WarnContext(process.ExitContext(), "auth service's upload completer is disabled, abandoned uploads may accumulate in external storage")
 	case uploadHandler != nil:
 		err = events.StartNewUploadCompleter(process.ExitContext(), events.UploadCompleterConfig{
-			Uploader:       uploadHandler,
-			Component:      teleport.ComponentAuth,
-			ClusterName:    clusterName,
-			AuditLog:       process.auditLog,
-			SessionTracker: authServer.Services,
-			Semaphores:     authServer.Services,
-			ServerID:       cfg.HostUUID,
+			Uploader:              uploadHandler,
+			Component:             teleport.ComponentAuth,
+			ClusterName:           clusterName,
+			AuditLog:              process.auditLog,
+			SessionTracker:        authServer.Services,
+			Semaphores:            authServer.Services,
+			ServerID:              cfg.HostUUID,
+			EnsureSessionEndEvent: true,
 		})
 		if err != nil {
 			return trace.Wrap(err, "starting upload completer")
@@ -6096,11 +6105,10 @@ var appDependEvents = []string{
 }
 
 func (process *TeleportProcess) initApps() {
-	// If no applications are specified, broadcast AppsReady so the
-	// process readiness gate is not blocked, then return. This is due
-	// to the strange behavior in reading file configuration. If the
-	// user does not specify an "app_service" section, that is
-	// considered enabling "app_service".
+	// If app_service is enabled but no apps, debug app, MCP demo
+	// server, or resource matchers are configured, there is nothing
+	// to proxy. Broadcast AppsReady so the process readiness gate is
+	// not blocked, then return.
 	if len(process.Config.Apps.Apps) == 0 &&
 		!process.Config.Apps.DebugApp &&
 		len(process.Config.Apps.ResourceMatchers) == 0 {

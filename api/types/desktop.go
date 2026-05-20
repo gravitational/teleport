@@ -411,15 +411,22 @@ func (d *WindowsDesktopV3) IsEqual(i WindowsDesktop) bool {
 	return false
 }
 
-// Match checks if a given desktop request matches this filter.
-func (f *WindowsDesktopFilter) Match(req WindowsDesktop) bool {
-	if f.HostID != "" && req.GetHostID() != f.HostID {
+// Match checks if a given desktop matches this filter.
+func (f *WindowsDesktopFilter) Match(desktop WindowsDesktop) bool {
+	if f.HostID != "" && desktop.GetHostID() != f.HostID {
 		return false
 	}
-	if f.Name != "" && req.GetName() != f.Name {
+	if f.Name != "" && desktop.GetName() != f.Name {
 		return false
 	}
-	return true
+
+	switch f.Source {
+	case WindowsDesktopSource_WINDOWS_DESKTOP_SOURCE_UNSPECIFIED:
+		return true // no source filtering
+	default:
+		dv3, ok := desktop.(*WindowsDesktopV3)
+		return ok && dv3.Status != nil && dv3.Status.Source == f.Source
+	}
 }
 
 // WindowsDesktops represents a list of Windows desktops.

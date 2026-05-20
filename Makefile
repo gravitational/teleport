@@ -13,7 +13,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=17.7.20
+VERSION=17.7.23
 
 DOCKER_IMAGE ?= teleport
 
@@ -1340,25 +1340,27 @@ ADDLICENSE_COMMON_ARGS := -c 'Gravitational, Inc.' \
 		-ignore '**/*.sh' \
 		-ignore '**/*.sql' \
 		-ignore '**/*.tf' \
+		-ignore '**/*.tftest.hcl' \
 		-ignore '**/*.yaml' \
 		-ignore '**/*.yml' \
 		-ignore '**/.terraform.lock.hcl' \
 		-ignore '**/Dockerfile' \
 		-ignore '**/node_modules/**' \
-		-ignore 'build.assets/.cache/**' \
 		-ignore 'api/version.go' \
+		-ignore 'build.assets/.cache/**' \
 		-ignore 'docs/pages/includes/**/*.go' \
 		-ignore 'e/**' \
 		-ignore 'gen/**' \
 		-ignore 'gitref.go' \
+		-ignore 'lib/limiter/internal/ratelimit/**' \
+		-ignore 'lib/srv/desktop/rdp/decoder/target/**' \
 		-ignore 'lib/srv/desktop/rdp/rdpclient/target/**' \
 		-ignore 'lib/web/build/**' \
 		-ignore 'target/**' \
 		-ignore 'web/packages/design/src/assets/icomoon/style.css' \
 		-ignore 'web/packages/shared/libs/ironrdp/**' \
-		-ignore 'lib/limiter/internal/ratelimit/**' \
-		-ignore 'webassets/**' \
-		-ignore 'ignoreme'
+		-ignore 'web/packages/teleterm/build/**' \
+		-ignore 'webassets/**'
 ADDLICENSE_AGPL3_ARGS := $(ADDLICENSE_COMMON_ARGS) \
 		-ignore 'api/**' \
 		-f $(CURDIR)/build.assets/LICENSE.header

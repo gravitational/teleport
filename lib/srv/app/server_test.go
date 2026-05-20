@@ -24,6 +24,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -37,7 +38,7 @@ import (
 	"time"
 
 	"github.com/go-jose/go-jose/v3/jwt"
-	"github.com/google/go-cmp/cmp"
+	gocmp "github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -155,6 +156,9 @@ type suiteConfig struct {
 	Rewrite *types.Rewrite
 	// Login is used to specify "login" trait in the jwt token
 	Login string
+	// ManualStart skips calling Start() automatically so the
+	// caller can inject state before starting the server.
+	ManualStart bool
 }
 
 type fakeConnMonitor struct{}
@@ -406,6 +410,18 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	})
 	require.NoError(t, err)
 
+	t.Cleanup(func() {
+		s.appServer.Close()
+
+		// wait for the server to close before allowing other cleanup
+		// actions to proceed
+		s.appServer.Wait()
+	})
+
+	if config.ManualStart {
+		return s
+	}
+
 	err = s.appServer.Start(s.closeContext)
 	require.NoError(t, err)
 
@@ -422,14 +438,6 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 			t.Fatal("timed out waiting for inventory handle sender")
 		}
 	}
-
-	t.Cleanup(func() {
-		s.appServer.Close()
-
-		// wait for the server to close before allowing other cleanup
-		// actions to proceed
-		s.appServer.Wait()
-	})
 
 	return s
 }
@@ -497,7 +505,7 @@ func TestStart(t *testing.T) {
 	require.NoError(t, err)
 
 	sort.Sort(types.AppServers(servers))
-	require.Empty(t, cmp.Diff([]types.AppServer{serverAWS, serverAWSWithIntegration, serverFoo}, servers,
+	require.Empty(t, gocmp.Diff([]types.AppServer{serverAWS, serverAWSWithIntegration, serverFoo}, servers,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Expires")))
 
 	// Check the expiry time is correct.
@@ -572,7 +580,7 @@ func TestShutdown(t *testing.T) {
 				if !assert.Len(t, appServers, 1) {
 					return
 				}
-				if !assert.Empty(t, cmp.Diff(appServers[0].GetApp(), app0, cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Expires"))) {
+				if !assert.Empty(t, gocmp.Diff(appServers[0].GetApp(), app0, cmpopts.IgnoreFields(types.Metadata{}, "Revision", "Expires"))) {
 					return
 				}
 			}, 10*time.Second, 100*time.Millisecond)
@@ -591,7 +599,7 @@ func TestShutdown(t *testing.T) {
 				appServersAfterShutdown, err := s.authClient.GetApplicationServers(ctx, defaults.Namespace)
 				require.NoError(t, err)
 				require.Len(t, appServersAfterShutdown, 1)
-				require.Empty(t, cmp.Diff(appServersAfterShutdown[0].GetApp(), app0, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+				require.Empty(t, gocmp.Diff(appServersAfterShutdown[0].GetApp(), app0, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 			} else {
 				require.EventuallyWithT(t, func(t *assert.CollectT) {
 					appServersAfterShutdown, err := s.authClient.GetApplicationServers(ctx, defaults.Namespace)
@@ -1148,7 +1156,7 @@ func TestRequestAuditEvents(t *testing.T) {
 						AppName:       app.Metadata.Name,
 					},
 				}
-				require.Empty(t, cmp.Diff(
+				require.Empty(t, gocmp.Diff(
 					expectedEvent,
 					event,
 					cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
@@ -1172,7 +1180,7 @@ func TestRequestAuditEvents(t *testing.T) {
 					Method:     "GET",
 					Path:       "/",
 				}
-				require.Empty(t, cmp.Diff(
+				require.Empty(t, gocmp.Diff(
 					expectedEvent,
 					event,
 					cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
@@ -1225,7 +1233,7 @@ func TestRequestAuditEvents(t *testing.T) {
 			AppName:       app.Metadata.Name,
 		},
 	}
-	require.Empty(t, cmp.Diff(
+	require.Empty(t, gocmp.Diff(
 		expectedEvent,
 		searchEvents[0],
 		cmpopts.IgnoreTypes(apievents.ServerMetadata{}, apievents.SessionMetadata{}, apievents.UserMetadata{}, apievents.ConnectionMetadata{}),
@@ -1356,6 +1364,90 @@ func (c *testCloud) GetAWSSigninURL(_ context.Context, _ AWSSigninRequest) (*AWS
 	return &AWSSigninResponse{
 		SigninURL: "https://signin.aws.amazon.com",
 	}, nil
+}
+
+// TestCleanupOrphanedAppServers verifies that orphaned app server
+// records from a previous instance are deleted on startup.
+func TestCleanupOrphanedAppServers(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name             string
+		resourceMatchers []services.ResourceMatcher
+	}{
+		{
+			name: "static apps only",
+		},
+		{
+			name: "with resource matchers",
+			resourceMatchers: []services.ResourceMatcher{
+				{Labels: types.Labels{"group": []string{"a"}}},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			app0, err := makeStaticApp("app0", maps.Clone(staticLabels))
+			require.NoError(t, err)
+
+			s := SetUpSuiteWithConfig(t, suiteConfig{
+				Apps:             types.Apps{app0},
+				ResourceMatchers: test.resourceMatchers,
+				ManualStart:      true,
+			})
+
+			// Plant an orphaned app server record with this host ID
+			// before starting the server.
+			orphanApp, err := types.NewAppV3(types.Metadata{
+				Name: "orphan",
+			}, types.AppSpecV3{
+				URI: "localhost:9999",
+			})
+			require.NoError(t, err)
+			orphanServer, err := types.NewAppServerV3FromApp(orphanApp, "test", s.hostUUID)
+			require.NoError(t, err)
+			_, err = s.tlsServer.Auth().UpsertApplicationServer(t.Context(), orphanServer)
+			require.NoError(t, err)
+
+			// Plant an app server record for app0 with this host ID
+			// to verify that cleanup preserves running apps' records.
+			app0Server, err := types.NewAppServerV3FromApp(app0, "test", s.hostUUID)
+			require.NoError(t, err)
+			_, err = s.tlsServer.Auth().UpsertApplicationServer(t.Context(), app0Server)
+			require.NoError(t, err)
+
+			// Plant an app server record with a different host ID to
+			// verify that cleanup does not delete other hosts' records.
+			otherServer, err := types.NewAppServerV3FromApp(orphanApp, "test", "other-host-id")
+			require.NoError(t, err)
+			_, err = s.tlsServer.Auth().UpsertApplicationServer(t.Context(), otherServer)
+			require.NoError(t, err)
+
+			// Start the server. The cleanup goroutine runs
+			// asynchronously after Start returns.
+			err = s.appServer.Start(s.closeContext)
+			require.NoError(t, err)
+
+			// The orphaned record for this host should be deleted.
+			// The record for the other host must remain.
+			require.EventuallyWithT(t, func(t *assert.CollectT) {
+				servers, err := s.authClient.GetApplicationServers(s.closeContext, defaults.Namespace)
+				if !assert.NoError(t, err) {
+					return
+				}
+				var names []string
+				for _, srv := range servers {
+					names = append(names, srv.GetHostID()+"/"+srv.GetApp().GetName())
+				}
+				assert.NotContains(t, names, s.hostUUID+"/orphan", "orphan for this host should have been cleaned up")
+				assert.Contains(t, names, s.hostUUID+"/app0", "running app record should be preserved")
+				assert.Contains(t, names, "other-host-id/orphan", "orphan for other host should remain")
+			}, 10*time.Second, 100*time.Millisecond)
+		})
+	}
 }
 
 var (
