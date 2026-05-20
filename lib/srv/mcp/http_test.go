@@ -19,10 +19,15 @@
 package mcp
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -94,8 +99,7 @@ func Test_handleStreamableHTTP(t *testing.T) {
 	var wg sync.WaitGroup
 	t.Cleanup(wg.Wait)
 	listener := listenerutils.NewInMemoryListener()
-	require.NoError(t, err)
-	defer listener.Close()
+	t.Cleanup(func() { _ = listener.Close() })
 	go func() {
 		for {
 			conn, err := listener.Accept()
@@ -211,6 +215,114 @@ func Test_handleStreamableHTTP(t *testing.T) {
 		events := emitter.Events()
 		require.Empty(t, events)
 	})
+}
+
+// Test_Server_HandleSession_reject_req_missing_name makes sure requests with missing canonical
+// "name" param are rejected.
+func Test_Server_HandleSession_reject_req_missing_name(t *testing.T) {
+	t.Parallel()
+
+	const forbiddenTool = "forbidden_tool"
+	const forbiddenToolTextContent = "FORBIDDEN_TOOL_EXECUTED_ON_UPSTREAM"
+
+	role := newAllowAllDenyForbiddenToolRole(t, forbiddenTool)
+
+	upstream := mcpserver.NewMCPServer("test-server", "1.0.0")
+	upstream.AddTool(
+		mcp.Tool{
+			Name: forbiddenTool,
+		},
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{mcp.NewTextContent(forbiddenToolTextContent)},
+			}, nil
+		},
+	)
+
+	emitter, httpClient := newStreamableMCPServer(t, upstream, role)
+
+	// initialize establishes an upstream streamable-HTTP session and returns
+	// the Mcp-Session-Id the upstream expects on follow-up requests.
+	initialize := func(t *testing.T) string {
+		t.Helper()
+
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "http://memory/", strings.NewReader(`{
+			"jsonrpc": "2.0",
+			"id": 1,
+			"method": "initialize",
+			"params": {
+				"protocolVersion": "`+mcp.LATEST_PROTOCOL_VERSION+`",
+				"capabilities": {},
+				"clientInfo": {"name": "raw-test-client", "version": "1.0.0"}
+			}
+		}`))
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json, text/event-stream")
+
+		resp, err := httpClient.Do(req)
+		require.NoError(t, err)
+		resp.Body.Close()
+
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		sessionID := resp.Header.Get("Mcp-Session-Id")
+		require.NotEmpty(t, sessionID)
+
+		return sessionID
+	}
+
+	postToolsCall := func(t *testing.T, sessionID, body string) (int, string) {
+		t.Helper()
+		req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "http://memory/", strings.NewReader(body))
+		require.NoError(t, err)
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json, text/event-stream")
+		req.Header.Set("Mcp-Session-Id", sessionID)
+
+		resp, err := httpClient.Do(req)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+
+		respBody, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		return resp.StatusCode, string(respBody)
+	}
+
+	// Verify it works as expected if the canonical lower-case "name" param is provided.
+	emitter.Reset()
+	sessionID := initialize(t)
+	status, body := postToolsCall(t, sessionID, `{
+		"jsonrpc": "2.0",
+		"id": 2,
+		"method": "tools/call",
+		"params": {
+			"name": "`+forbiddenTool+`",
+			"arguments": {}
+		}
+	}`)
+	require.Equal(t, http.StatusOK, status)
+	require.NotContains(t, body, forbiddenToolTextContent)
+	require.Contains(t, body, `"code":`+strconv.Itoa(mcp.INVALID_PARAMS))
+	require.Contains(t, body, "User does not have permissions")
+
+	// Verify that when non-canonical capitalized "Name" param is specified the request is
+	// rejected.
+	emitter.Reset()
+	sessionID = initialize(t)
+	status, body = postToolsCall(t, sessionID, `{
+			"jsonrpc": "2.0",
+			"id": 2,
+			"method": "tools/call",
+			"params": {
+				"Name": "`+forbiddenTool+`",
+				"arguments": {}
+			}
+		}`)
+	require.Equal(t, http.StatusOK, status)
+	require.Contains(t, body, `"code":`+strconv.Itoa(mcp.INVALID_REQUEST))
+	escaped, err := json.Marshal(errorInvalidRequestMissingName.Error())
+	require.NoError(t, err)
+	require.Contains(t, body, string(escaped))
 }
 
 func Test_handleAuthErrHTTP(t *testing.T) {

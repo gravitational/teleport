@@ -24,6 +24,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"slices"
 	"sync"
@@ -33,6 +35,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/mark3labs/mcp-go/mcp"
+	mcpserver "github.com/mark3labs/mcp-go/server"
 	"github.com/moby/moby/api/types/container"
 	docker "github.com/moby/moby/client"
 	"github.com/stretchr/testify/assert"
@@ -42,9 +45,11 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	listenerutils "github.com/gravitational/teleport/lib/utils/listener"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/utils/mcputils"
 )
@@ -404,4 +409,88 @@ func checkSessionStartHasExternalSessionID() func(*testing.T, *apievents.MCPSess
 		t.Helper()
 		require.NotEmpty(t, sessionStart.SessionID)
 	}
+}
+
+func newAllowAllDenyForbiddenToolRole(t *testing.T, forbiddenTool string) types.Role {
+	t.Helper()
+	role, err := types.NewRole("allow-all-deny-forbidden", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels: map[string]apiutils.Strings{
+				types.Wildcard: {types.Wildcard},
+			},
+			MCP: &types.MCPPermissions{
+				Tools: []string{types.Wildcard},
+			},
+		},
+		Deny: types.RoleConditions{
+			MCP: &types.MCPPermissions{
+				Tools: []string{forbiddenTool},
+			},
+		},
+	})
+	require.NoError(t, err)
+	return role
+}
+
+func newStreamableMCPServer(t *testing.T, upstream *mcpserver.MCPServer, role types.Role) (*eventstest.MockRecorderEmitter, *http.Client) {
+	t.Helper()
+
+	remoteMCPServer := mcpserver.NewStreamableHTTPServer(upstream)
+	remoteHTTPServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/mcp" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		remoteMCPServer.ServeHTTP(w, r)
+	}))
+	t.Cleanup(remoteHTTPServer.Close)
+
+	app, err := types.NewAppV3(
+		types.Metadata{
+			Name:   "test-mcp-server",
+			Labels: map[string]string{"env": "prod"},
+		},
+		types.AppSpecV3{
+			URI: fmt.Sprintf("mcp+%s/mcp", remoteHTTPServer.URL),
+		},
+	)
+	require.NoError(t, err)
+
+	emitter := eventstest.MockRecorderEmitter{}
+	s, err := NewServer(ServerConfig{
+		Emitter:       &emitter,
+		ParentContext: t.Context(),
+		HostID:        "my-host-id",
+		AccessPoint:   fakeAccessPoint{},
+		CipherSuites:  utils.DefaultCipherSuites(),
+		AuthClient:    &mockAuthClient{},
+	})
+	require.NoError(t, err)
+
+	var wg sync.WaitGroup
+	t.Cleanup(wg.Wait)
+	listener := listenerutils.NewInMemoryListener()
+	t.Cleanup(func() { _ = listener.Close() })
+	go func() {
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				assert.True(t, utils.IsOKNetworkError(err))
+				return
+			}
+			wg.Go(func() {
+				defer conn.Close()
+				testCtx := setupTestContext(t,
+					withRole(role),
+					withApp(app),
+					withClientConn(conn),
+				)
+				assert.NoError(t, s.HandleSession(t.Context(), testCtx.SessionCtx))
+			})
+		}
+	}()
+
+	httpClient := listener.MakeHTTPClient()
+
+	return &emitter, httpClient
 }
