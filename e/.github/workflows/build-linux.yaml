@@ -205,7 +205,7 @@ jobs:
       # Log into ECR to raise rate limits, needed for the public.ecr.aws/gravitational/fpm
       # image used for building .deb and .rpm files.
       - name: Log into ECR
-        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
+        uses: aws-actions/amazon-ecr-login@fa648b43de3d4d023bcb3f89ed6940096949c419 # v2.1.5
         with:
           registry-type: public
         env:
@@ -339,7 +339,7 @@ jobs:
           role-duration-seconds: 900
   
       - name: Log into ECR
-        uses: aws-actions/amazon-ecr-login@062b18b96a7aff071d4dc91bc00c4c1a7945b076 # v2.0.1
+        uses: aws-actions/amazon-ecr-login@fa648b43de3d4d023bcb3f89ed6940096949c419 # v2.1.5
 
       - name: Generate release server manifests
         working-directory: build/artifacts
