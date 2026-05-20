@@ -302,9 +302,11 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 				instanceType: types.InstanceMetadataTypeAzure,
 			},
 			cloud: &azuretest.Clients{
-				AzureVirtualMachines: azure.NewVirtualMachinesClientByAPI(&azure.ARMComputeMock{
-					GetResult: mocks.AzureVM([]string{identityResourceID(t, "identity")}),
-				}, nil /* scaleSetAPI */),
+				AzureVirtualMachines: azure.NewVirtualMachinesClientByAPI(azure.VirtualMachinesClientConfig{
+					VirtualMachineAPI: &azure.ARMComputeMock{
+						GetResult: mocks.AzureVM([]string{identityResourceID(t, "identity")}),
+					},
+				}),
 			},
 			errAssertion: require.NoError,
 			resourceIDAssertion: func(requireT require.TestingT, value any, _ ...any) {
@@ -319,9 +321,11 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 				instanceType: types.InstanceMetadataTypeAzure,
 			},
 			cloud: &azuretest.Clients{
-				AzureVirtualMachines: azure.NewVirtualMachinesClientByAPI(&azure.ARMComputeMock{
-					GetResult: mocks.AzureVM([]string{identityResourceID(t, "identity")}),
-				}, nil /* scaleSetAPI */),
+				AzureVirtualMachines: azure.NewVirtualMachinesClientByAPI(azure.VirtualMachinesClientConfig{
+					VirtualMachineAPI: &azure.ARMComputeMock{
+						GetResult: mocks.AzureVM([]string{identityResourceID(t, "identity")}),
+					},
+				}),
 			},
 			errAssertion:        require.Error,
 			resourceIDAssertion: require.Empty,
@@ -334,9 +338,11 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 				instanceType: types.InstanceMetadataTypeAzure,
 			},
 			cloud: &azuretest.Clients{
-				AzureVirtualMachines: azure.NewVirtualMachinesClientByAPI(&azure.ARMComputeMock{
-					GetResult: mocks.AzureVM([]string{"identity"}),
-				}, nil /* scaleSetAPI */),
+				AzureVirtualMachines: azure.NewVirtualMachinesClientByAPI(azure.VirtualMachinesClientConfig{
+					VirtualMachineAPI: &azure.ARMComputeMock{
+						GetResult: mocks.AzureVM([]string{"identity"}),
+					},
+				}),
 			},
 			errAssertion:        require.Error,
 			resourceIDAssertion: require.Empty,
@@ -359,9 +365,11 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 				instanceType: types.InstanceMetadataTypeAzure,
 			},
 			cloud: &azuretest.Clients{
-				AzureVirtualMachines: azure.NewVirtualMachinesClientByAPI(&azure.ARMComputeMock{
-					GetErr: errors.New("failed to get VM"),
-				}, nil /* scaleSetAPI */),
+				AzureVirtualMachines: azure.NewVirtualMachinesClientByAPI(azure.VirtualMachinesClientConfig{
+					VirtualMachineAPI: &azure.ARMComputeMock{
+						GetErr: errors.New("failed to get VM"),
+					},
+				}),
 			},
 			errAssertion:        require.Error,
 			resourceIDAssertion: require.Empty,
@@ -374,12 +382,11 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 				instanceType: types.InstanceMetadataTypeAzure,
 			},
 			cloud: &azuretest.Clients{
-				AzureVirtualMachines: azure.NewVirtualMachinesClientByAPI(
-					nil, /* api */
-					&azure.ARMScaleSetMock{
+				AzureVirtualMachines: azure.NewVirtualMachinesClientByAPI(azure.VirtualMachinesClientConfig{
+					ScaleSetVMsAPI: &azure.ARMScaleSetVMsMock{
 						GetResult: mocks.AzureScaleSetVM([]string{identityResourceID(t, "identity")}),
 					},
-				),
+				}),
 			},
 			errAssertion: require.NoError,
 			resourceIDAssertion: func(requireT require.TestingT, value any, _ ...any) {
@@ -394,12 +401,11 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 				instanceType: types.InstanceMetadataTypeAzure,
 			},
 			cloud: &azuretest.Clients{
-				AzureVirtualMachines: azure.NewVirtualMachinesClientByAPI(
-					nil, /* api */
-					&azure.ARMScaleSetMock{
+				AzureVirtualMachines: azure.NewVirtualMachinesClientByAPI(azure.VirtualMachinesClientConfig{
+					ScaleSetVMsAPI: &azure.ARMScaleSetVMsMock{
 						GetResult: mocks.AzureScaleSetVM([]string{identityResourceID(t, "identity")}),
 					},
-				),
+				}),
 			},
 			errAssertion:        require.Error,
 			resourceIDAssertion: require.Empty,
@@ -412,12 +418,11 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 				instanceType: types.InstanceMetadataTypeAzure,
 			},
 			cloud: &azuretest.Clients{
-				AzureVirtualMachines: azure.NewVirtualMachinesClientByAPI(
-					nil, /* api */
-					&azure.ARMScaleSetMock{
+				AzureVirtualMachines: azure.NewVirtualMachinesClientByAPI(azure.VirtualMachinesClientConfig{
+					ScaleSetVMsAPI: &azure.ARMScaleSetVMsMock{
 						GetResult: mocks.AzureScaleSetVM([]string{"identity"}),
 					},
-				),
+				}),
 			},
 			errAssertion:        require.Error,
 			resourceIDAssertion: require.Empty,
@@ -430,12 +435,11 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 				instanceType: types.InstanceMetadataTypeAzure,
 			},
 			cloud: &azuretest.Clients{
-				AzureVirtualMachines: azure.NewVirtualMachinesClientByAPI(
-					nil, /* api */
-					&azure.ARMScaleSetMock{
+				AzureVirtualMachines: azure.NewVirtualMachinesClientByAPI(azure.VirtualMachinesClientConfig{
+					ScaleSetVMsAPI: &azure.ARMScaleSetVMsMock{
 						GetErr: trace.NotFound("vm not found"),
 					},
-				),
+				}),
 			},
 			errAssertion:        require.Error,
 			resourceIDAssertion: require.Empty,
@@ -474,7 +478,9 @@ func TestGetAzureIdentityResourceIDCache(t *testing.T) {
 		AuthClient:  new(authClientMock),
 		AccessPoint: new(accessPointMock),
 		AzureClients: &azuretest.Clients{
-			AzureVirtualMachines: azure.NewVirtualMachinesClientByAPI(virtualMachinesMock, nil /* scaleSetAPI */),
+			AzureVirtualMachines: azure.NewVirtualMachinesClientByAPI(azure.VirtualMachinesClientConfig{
+				VirtualMachineAPI: virtualMachinesMock,
+			}),
 		},
 		azureIMDSClient: &imdsMock{
 			id:           "/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/rg/providers/microsoft.compute/virtualmachines/vm",
