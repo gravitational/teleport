@@ -19,6 +19,10 @@ spec:
       jsonPath: .scope
       name: scope
       type: string
+    - description: The age of this resource
+      jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
     name: v1
     schema:
       openAPIV3Schema:

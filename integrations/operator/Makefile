@@ -158,12 +158,12 @@ crd-manifests-diff: crdgen
 
 # This is a helper to dump a request sent to crdgen.
 # See crdgen/DEBUG.md for instruction on how to use this target to replay crdgen with a debugger attached.
-.PHONY: crdgen-debug-dump-request
+.PHONY: debug-dump-request
 debug-dump-request:
 	$(eval PROTOBUF_MOD_PATH := $(shell go mod download --json github.com/gogo/protobuf | awk -F: '/"Dir"/ { print $$2 }' | tr -d ' ",'))
 	for proto in $(PROTOS); do \
 		protoc \
-			-I=../../../api/proto/ \
+			-I=../../api/proto/ \
 			-I=$(PROTOBUF_MOD_PATH) \
 			--plugin=./crdgen/hack/protoc-gen-dump \
 			--dump_out="." \

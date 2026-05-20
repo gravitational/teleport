@@ -166,22 +166,9 @@ func withScope() resourceSchemaOption {
 	}
 }
 
-var ageColumn = apiextv1.CustomResourceColumnDefinition{
-	Name:        "Age",
-	Type:        "date",
-	Description: "The age of this resource",
-	JSONPath:    ".metadata.creationTimestamp",
-}
-
 func withAdditionalColumns(additionalColumns []apiextv1.CustomResourceColumnDefinition) resourceSchemaOption {
-	// We add the age column back (it's removed if we set additional columns for the CRD).
-	// See https://github.com/kubernetes/kubectl/issues/903#issuecomment-669244656.
-	columns := make([]apiextv1.CustomResourceColumnDefinition, len(additionalColumns)+1)
-	copy(columns, additionalColumns)
-	columns[len(additionalColumns)] = ageColumn
-
 	return func(cfg *resourceSchemaConfig) {
-		cfg.additionalColumns = columns
+		cfg.additionalColumns = append(cfg.additionalColumns, additionalColumns...)
 	}
 }
 
@@ -543,6 +530,13 @@ func (generator *SchemaGenerator) singularProp(field *Field, prop *apiextv1.JSON
 	return nil
 }
 
+var ageColumn = apiextv1.CustomResourceColumnDefinition{
+	Name:        "Age",
+	Type:        "date",
+	Description: "The age of this resource",
+	JSONPath:    ".metadata.creationTimestamp",
+}
+
 func (root RootSchema) CustomResourceDefinition() (apiextv1.CustomResourceDefinition, error) {
 	crd := apiextv1.CustomResourceDefinition{
 		TypeMeta: metav1.TypeMeta{
@@ -595,6 +589,11 @@ func (root RootSchema) CustomResourceDefinition() (apiextv1.CustomResourceDefini
 	}
 
 	for i, schemaVersion := range root.versions {
+		// Restore the age column if some additional columns were set.
+		columns := schemaVersion.additionalColumns
+		if len(columns) > 0 {
+			columns = append(columns, ageColumn)
+		}
 
 		schema := schemaVersion.Schema
 		version := apiextv1.CustomResourceDefinitionVersion{
@@ -624,7 +623,7 @@ func (root RootSchema) CustomResourceDefinition() (apiextv1.CustomResourceDefini
 					},
 				},
 			},
-			AdditionalPrinterColumns: schemaVersion.additionalColumns,
+			AdditionalPrinterColumns: columns,
 		}
 
 		// Add any additional root-level fields as siblings to spec/metadata/status.
