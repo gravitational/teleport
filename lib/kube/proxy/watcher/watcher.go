@@ -130,11 +130,11 @@ type ProxyKubeServerWatcher struct {
 	initC    chan struct{}
 	initOnce sync.Once
 
-	// lastFullFetchAttempt is the time when we last attempted to fetch kube servers from the fallback getter.
-	lastFullFetchAttempt time.Time
-
 	// rw protects below fields
 	rw sync.RWMutex
+
+	// lastFullFetchAttempt is the time when we last attempted to fetch kube servers from the fallback getter.
+	lastFullFetchAttempt time.Time
 
 	// current holds a map of the currently known servers.
 	current map[serverKey]types.KubeServer
@@ -371,7 +371,7 @@ func (w *ProxyKubeServerWatcher) maybeFetchFromUpstream(ctx context.Context) err
 	}
 
 	w.current = newCurrent
-	return err
+	return nil
 }
 
 // handleWatchError handles errors from the watch loop.
