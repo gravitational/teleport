@@ -35,18 +35,18 @@ type Spinner struct {
 	model spinner.Spinner
 	style lipgloss.Style
 
-	finalMessage chan string
-	done         chan struct{}
-	stopOnce     sync.Once
+	stop     chan struct{}
+	done     chan struct{}
+	stopOnce sync.Once
 }
 
 // New creates and starts an inline spinner that writes to w.
 // Call Stop to replace the spinner line with a final message.
 func New(w io.Writer, msg string) *Spinner {
 	s := &Spinner{
-		w:            w,
-		finalMessage: make(chan string, 1),
-		done:         make(chan struct{}),
+		w:    w,
+		stop: make(chan struct{}),
+		done: make(chan struct{}),
 		// ANSI color "6" is cyan. style and model are hard-coded atm but can
 		// potentially become options for spinners.
 		style: lipgloss.NewStyle().Foreground(lipgloss.Color("6")).Bold(true),
@@ -63,11 +63,8 @@ func (s *Spinner) run(msg string) {
 	i := 0
 	for {
 		select {
-		case final := <-s.finalMessage:
+		case <-s.stop:
 			fmt.Fprintf(s.w, "\r%s\r", strings.Repeat(" ", len(msg)+2))
-			if final != "" {
-				fmt.Fprintln(s.w, final)
-			}
 			return
 		case <-ticker.C:
 			frame := s.model.Frames[i%len(s.model.Frames)]
@@ -77,15 +74,10 @@ func (s *Spinner) run(msg string) {
 	}
 }
 
-// Stop clears the spinner line.
+// Stop clears the spinner line. Safe to call multiple times.
 func (s *Spinner) Stop() {
-	s.StopWithMessage("")
-}
-
-// StopWithMessage clears the spinner line and prints msg.
-func (s *Spinner) StopWithMessage(msg string) {
 	s.stopOnce.Do(func() {
-		s.finalMessage <- msg
+		close(s.stop)
 		<-s.done
 	})
 }

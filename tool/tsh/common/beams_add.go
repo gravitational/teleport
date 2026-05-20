@@ -20,6 +20,7 @@ package common
 
 import (
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -37,8 +38,9 @@ import (
 
 type beamsAddCommand struct {
 	*kingpin.CmdClause
-	console bool
-	format  string
+	console             bool
+	format              string
+	isTerminalOverwrite func(io.Writer) bool
 }
 
 func newBeamsAddCommand(parent *kingpin.CmdClause) *beamsAddCommand {
@@ -62,19 +64,6 @@ func (c *beamsAddCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	showSpinner := utils.IsTerminal(cf.Stdout())
-	format := strings.ToLower(c.format)
-	switch format {
-	case teleport.JSON, teleport.YAML:
-		showSpinner = false
-	}
-
-	var s *spinner.Spinner
-	if showSpinner {
-		s = spinner.New(cf.Stdout(), "Creating beam...")
-		defer s.Stop()
-	}
-
 	var beam *beamsv1.Beam
 	err = client.RetryWithRelogin(ctx, tc, func() error {
 		clusterClient, err := tc.ConnectToCluster(ctx)
@@ -82,6 +71,12 @@ func (c *beamsAddCommand) run(cf *CLIConf) error {
 			return trace.Wrap(err)
 		}
 		defer clusterClient.Close()
+
+		// Show spinner after successful connection to avoid spinning during re-login.
+		if c.shouldShowSpinner(cf.Stdout(), c.format) {
+			creatingBeamSpinner := spinner.New(cf.Stdout(), "Creating beam...")
+			defer creatingBeamSpinner.Stop()
+		}
 
 		rootClient, err := clusterClient.ConnectToRootCluster(ctx)
 		if err != nil {
@@ -110,27 +105,46 @@ func (c *beamsAddCommand) run(cf *CLIConf) error {
 	// the beam won't be published yet, there's no need to actually fetch it.
 	const proxyAddr = ""
 
-	switch format {
+	switch strings.ToLower(c.format) {
 	case teleport.JSON:
 		return trace.Wrap(common.PrintJSONIndent(cf.Stdout(), formatBeam(beam, proxyAddr)))
 	case teleport.YAML:
 		return trace.Wrap(common.PrintYAML(cf.Stdout(), formatBeam(beam, proxyAddr)))
 	default:
-		alias := beam.GetStatus().GetAlias()
-		if s != nil {
-			s.StopWithMessage(fmt.Sprintf("Beam %q created.\n", alias))
-		} else {
-			fmt.Fprintf(cf.Stdout(), "Beam %q created.\n", alias)
+		if _, err := fmt.Fprintf(
+			cf.Stdout(),
+			"Beam %q created.\n",
+			beam.GetStatus().GetAlias(),
+		); err != nil {
+			return trace.Wrap(err)
 		}
 
+		// Connect to the beam via SSH.
 		if c.console {
 			if err := sshBeam(cf, tc, beam, nil); err != nil {
 				return trace.Wrap(err)
 			}
-			gray := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
-			fmt.Fprintln(cf.Stdout(), gray.Render(fmt.Sprintf("\nTo reconnect to this beam, run:\n    tsh beams ssh %s", alias)))
+			return trace.Wrap(c.printReconnectMessage(cf.Stdout(), beam.GetStatus().GetAlias()))
 		}
 	}
 
 	return nil
+}
+
+func (c *beamsAddCommand) printReconnectMessage(w io.Writer, alias string) error {
+	gray := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
+	_, err := fmt.Fprintln(w, gray.Render(fmt.Sprintf("\nTo reconnect to this beam, run:\n    tsh beams ssh %s", alias)))
+	return trace.Wrap(err)
+}
+
+func (c *beamsAddCommand) shouldShowSpinner(w io.Writer, format string) bool {
+	switch strings.ToLower(format) {
+	case teleport.JSON, teleport.YAML:
+		return false
+	default:
+		if c.isTerminalOverwrite != nil {
+			return c.isTerminalOverwrite(w)
+		}
+		return utils.IsTerminal(w)
+	}
 }

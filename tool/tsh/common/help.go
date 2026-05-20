@@ -133,6 +133,6 @@ Examples:
   $ tsh beams add
 
   Create a beam without connecting and save its ID:
-  $ BEAM_ID=$(tsh beams add --no-console -f json | jq -r '.id')
+  $ BEAM_ID=$(tsh beams add -f json | jq -r '.id')
   $ tsh beams exec $BEAM_ID -- ls examples`
 )

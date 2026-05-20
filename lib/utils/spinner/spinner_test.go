@@ -20,7 +20,6 @@ package spinner
 
 import (
 	"bytes"
-	"strings"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -35,16 +34,12 @@ func TestSpinner(t *testing.T) {
 		t.Cleanup(s.Stop)
 
 		time.Sleep(s.model.FPS * time.Duration(len(s.model.Frames)*2))
-
-		s.StopWithMessage("done!")
-		s.StopWithMessage("second stop should be ignored")
+		s.Stop()
 
 		// Every frame should be preceded by a carriage return after two full cycles.
 		output := buf.String()
 		for _, frame := range s.model.Frames {
 			assert.Contains(t, output, "\r"+s.style.Render(frame)+" creating...")
 		}
-		assert.True(t, strings.HasSuffix(output, "done!\n"))
-		assert.NotContains(t, output, "second stop should be ignored")
 	})
 }
