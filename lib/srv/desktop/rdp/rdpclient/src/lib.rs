@@ -122,6 +122,7 @@ pub unsafe extern "C" fn client_run(cgo_handle: CgoHandle, params: CGOConnectPar
             kdc_addr: kdc,
             screen_width: params.screen_width,
             screen_height: params.screen_height,
+            screen_scale: params.screen_scale,
             allow_clipboard: params.allow_clipboard,
             allow_directory_sharing: params.allow_directory_sharing,
             show_desktop_wallpaper: params.show_desktop_wallpaper,
@@ -486,11 +487,12 @@ pub unsafe extern "C" fn client_write_screen_resize(
     cgo_handle: CgoHandle,
     width: u32,
     height: u32,
+    scale: u32,
 ) -> CGOErrCode {
     handle_operation(
         cgo_handle,
         "client_write_screen_resize",
-        move |client_handle| client_handle.write_screen_resize(width, height),
+        move |client_handle| client_handle.write_screen_resize(width, height, scale),
     )
 }
 
@@ -509,6 +511,7 @@ pub struct CGOConnectParams {
     key_der: *mut u8,
     screen_width: u16,
     screen_height: u16,
+    screen_scale: u16,
     allow_clipboard: bool,
     allow_directory_sharing: bool,
     show_desktop_wallpaper: bool,
