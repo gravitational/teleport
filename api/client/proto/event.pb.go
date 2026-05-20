@@ -36,6 +36,7 @@ import (
 	v121 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	v19 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	v122 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	v21 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	v16 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	v118 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	v113 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
@@ -215,6 +216,7 @@ type Event struct {
 	//	*Event_InferencePolicy
 	//	*Event_RetrievalModel
 	//	*Event_Beam
+	//	*Event_ValidatedMFAChallengeV2
 	Resource      isEvent_Resource `protobuf_oneof:"Resource"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1002,6 +1004,7 @@ func (x *Event) GetLinuxDesktop() *v121.LinuxDesktop {
 	return nil
 }
 
+// Deprecated: Marked as deprecated in teleport/legacy/client/proto/event.proto.
 func (x *Event) GetValidatedMFAChallenge() *v122.ValidatedMFAChallenge {
 	if x != nil {
 		if x, ok := x.Resource.(*Event_ValidatedMFAChallenge); ok {
@@ -1060,6 +1063,15 @@ func (x *Event) GetBeam() *v125.Beam {
 	if x != nil {
 		if x, ok := x.Resource.(*Event_Beam); ok {
 			return x.Beam
+		}
+	}
+	return nil
+}
+
+func (x *Event) GetValidatedMFAChallengeV2() *v21.ValidatedMFAChallenge {
+	if x != nil {
+		if x, ok := x.Resource.(*Event_ValidatedMFAChallengeV2); ok {
+			return x.ValidatedMFAChallengeV2
 		}
 	}
 	return nil
@@ -1486,6 +1498,8 @@ type Event_LinuxDesktop struct {
 
 type Event_ValidatedMFAChallenge struct {
 	// ValidatedMFAChallenge is a resource for representing a validated MFA challenge.
+	//
+	// Deprecated: Marked as deprecated in teleport/legacy/client/proto/event.proto.
 	ValidatedMFAChallenge *v122.ValidatedMFAChallenge `protobuf:"bytes,89,opt,name=ValidatedMFAChallenge,proto3,oneof"`
 }
 
@@ -1517,6 +1531,11 @@ type Event_RetrievalModel struct {
 type Event_Beam struct {
 	// Beam is an ephemeral AI-optimized compute environment.
 	Beam *v125.Beam `protobuf:"bytes,95,opt,name=Beam,proto3,oneof"`
+}
+
+type Event_ValidatedMFAChallengeV2 struct {
+	// ValidatedMFAChallengeV2 is a resource for representing a validated MFA challenge.
+	ValidatedMFAChallengeV2 *v21.ValidatedMFAChallenge `protobuf:"bytes,96,opt,name=ValidatedMFAChallengeV2,proto3,oneof"`
 }
 
 func (*Event_ResourceHeader) isEvent_Resource() {}
@@ -1697,11 +1716,13 @@ func (*Event_RetrievalModel) isEvent_Resource() {}
 
 func (*Event_Beam) isEvent_Resource() {}
 
+func (*Event_ValidatedMFAChallengeV2) isEvent_Resource() {}
+
 var File_teleport_legacy_client_proto_event_proto protoreflect.FileDescriptor
 
 const file_teleport_legacy_client_proto_event_proto_rawDesc = "" +
 	"\n" +
-	"(teleport/legacy/client/proto/event.proto\x12\x05proto\x1a'teleport/accesslist/v1/accesslist.proto\x1a?teleport/accessmonitoringrules/v1/access_monitoring_rules.proto\x1a-teleport/appauthconfig/v1/appauthconfig.proto\x1a'teleport/autoupdate/v1/autoupdate.proto\x1a\x1cteleport/beams/v1/beam.proto\x1a5teleport/clusterconfig/v1/access_graph_settings.proto\x1a'teleport/crownjewel/v1/crownjewel.proto\x1a#teleport/dbobject/v1/dbobject.proto\x1a1teleport/discoveryconfig/v1/discoveryconfig.proto\x1a7teleport/healthcheckconfig/v1/health_check_config.proto\x1a/teleport/identitycenter/v1/identitycenter.proto\x1a;teleport/kubewaitingcontainer/v1/kubewaitingcontainer.proto\x1a!teleport/legacy/types/types.proto\x1a,teleport/linuxdesktop/v1/linux_desktop.proto\x1a(teleport/machineid/v1/bot_instance.proto\x1a&teleport/machineid/v1/federation.proto\x1a)teleport/mfa/v1/validated_challenge.proto\x1a-teleport/notifications/v1/notifications.proto\x1a'teleport/presence/v1/relay_server.proto\x1a+teleport/provisioning/v1/provisioning.proto\x1a:teleport/recordingencryption/v1/recording_encryption.proto\x1a*teleport/scopes/access/v1/assignment.proto\x1a$teleport/scopes/access/v1/role.proto\x1a'teleport/secreports/v1/secreports.proto\x1a/teleport/subca/v1/cert_authority_override.proto\x1a'teleport/summarizer/v1/summarizer.proto\x1a/teleport/userloginstate/v1/userloginstate.proto\x1a1teleport/userprovisioning/v2/statichostuser.proto\x1a&teleport/usertasks/v1/user_tasks.proto\x1a+teleport/workloadidentity/v1/resource.proto\x1a6teleport/workloadidentity/v1/revocation_resource.proto\"\xd96\n" +
+	"(teleport/legacy/client/proto/event.proto\x12\x05proto\x1a'teleport/accesslist/v1/accesslist.proto\x1a?teleport/accessmonitoringrules/v1/access_monitoring_rules.proto\x1a-teleport/appauthconfig/v1/appauthconfig.proto\x1a'teleport/autoupdate/v1/autoupdate.proto\x1a\x1cteleport/beams/v1/beam.proto\x1a5teleport/clusterconfig/v1/access_graph_settings.proto\x1a'teleport/crownjewel/v1/crownjewel.proto\x1a#teleport/dbobject/v1/dbobject.proto\x1a1teleport/discoveryconfig/v1/discoveryconfig.proto\x1a7teleport/healthcheckconfig/v1/health_check_config.proto\x1a/teleport/identitycenter/v1/identitycenter.proto\x1a;teleport/kubewaitingcontainer/v1/kubewaitingcontainer.proto\x1a!teleport/legacy/types/types.proto\x1a,teleport/linuxdesktop/v1/linux_desktop.proto\x1a(teleport/machineid/v1/bot_instance.proto\x1a&teleport/machineid/v1/federation.proto\x1a)teleport/mfa/v1/validated_challenge.proto\x1a)teleport/mfa/v2/validated_challenge.proto\x1a-teleport/notifications/v1/notifications.proto\x1a'teleport/presence/v1/relay_server.proto\x1a+teleport/provisioning/v1/provisioning.proto\x1a:teleport/recordingencryption/v1/recording_encryption.proto\x1a*teleport/scopes/access/v1/assignment.proto\x1a$teleport/scopes/access/v1/role.proto\x1a'teleport/secreports/v1/secreports.proto\x1a/teleport/subca/v1/cert_authority_override.proto\x1a'teleport/summarizer/v1/summarizer.proto\x1a/teleport/userloginstate/v1/userloginstate.proto\x1a1teleport/userprovisioning/v2/statichostuser.proto\x1a&teleport/usertasks/v1/user_tasks.proto\x1a+teleport/workloadidentity/v1/resource.proto\x1a6teleport/workloadidentity/v1/revocation_resource.proto\"\xc17\n" +
 	"\x05Event\x12$\n" +
 	"\x04Type\x18\x01 \x01(\x0e2\x10.proto.OperationR\x04Type\x12?\n" +
 	"\x0eResourceHeader\x18\x02 \x01(\v2\x15.types.ResourceHeaderH\x00R\x0eResourceHeader\x12>\n" +
@@ -1798,14 +1819,15 @@ const file_teleport_legacy_client_proto_event_proto_rawDesc = "" +
 	"\x06plugin\x18T \x01(\v2\x0f.types.PluginV1H\x00R\x06plugin\x12w\n" +
 	"\x1bAutoUpdateBotInstanceReport\x18U \x01(\v23.teleport.autoupdate.v1.AutoUpdateBotInstanceReportH\x00R\x1bAutoUpdateBotInstanceReport\x12P\n" +
 	"\rAppAuthConfig\x18V \x01(\v2(.teleport.appauthconfig.v1.AppAuthConfigH\x00R\rAppAuthConfig\x12L\n" +
-	"\fLinuxDesktop\x18W \x01(\v2&.teleport.linuxdesktop.v1.LinuxDesktopH\x00R\fLinuxDesktop\x12^\n" +
-	"\x15ValidatedMFAChallenge\x18Y \x01(\v2&.teleport.mfa.v1.ValidatedMFAChallengeH\x00R\x15ValidatedMFAChallenge\x12`\n" +
+	"\fLinuxDesktop\x18W \x01(\v2&.teleport.linuxdesktop.v1.LinuxDesktopH\x00R\fLinuxDesktop\x12b\n" +
+	"\x15ValidatedMFAChallenge\x18Y \x01(\v2&.teleport.mfa.v1.ValidatedMFAChallengeB\x02\x18\x01H\x00R\x15ValidatedMFAChallenge\x12`\n" +
 	"\x15CertAuthorityOverride\x18Z \x01(\v2(.teleport.subca.v1.CertAuthorityOverrideH\x00R\x15CertAuthorityOverride\x12P\n" +
 	"\x0eInferenceModel\x18[ \x01(\v2&.teleport.summarizer.v1.InferenceModelH\x00R\x0eInferenceModel\x12S\n" +
 	"\x0fInferenceSecret\x18\\ \x01(\v2'.teleport.summarizer.v1.InferenceSecretH\x00R\x0fInferenceSecret\x12S\n" +
 	"\x0fInferencePolicy\x18] \x01(\v2'.teleport.summarizer.v1.InferencePolicyH\x00R\x0fInferencePolicy\x12P\n" +
 	"\x0eRetrievalModel\x18^ \x01(\v2&.teleport.summarizer.v1.RetrievalModelH\x00R\x0eRetrievalModel\x12-\n" +
-	"\x04Beam\x18_ \x01(\v2\x17.teleport.beams.v1.BeamH\x00R\x04BeamB\n" +
+	"\x04Beam\x18_ \x01(\v2\x17.teleport.beams.v1.BeamH\x00R\x04Beam\x12b\n" +
+	"\x17ValidatedMFAChallengeV2\x18` \x01(\v2&.teleport.mfa.v2.ValidatedMFAChallengeH\x00R\x17ValidatedMFAChallengeV2B\n" +
 	"\n" +
 	"\bResourceJ\x04\b\a\x10\bJ\x04\b1\x102J\x04\b?\x10@J\x04\bD\x10EJ\x04\bX\x10YR\x12ExternalCloudAuditR\x0eStaticHostUserR\x13AutoUpdateAgentPlanR\x0fWorkloadCluster**\n" +
 	"\tOperation\x12\b\n" +
@@ -1917,6 +1939,7 @@ var file_teleport_legacy_client_proto_event_proto_goTypes = []any{
 	(*v124.InferencePolicy)(nil),                // 85: teleport.summarizer.v1.InferencePolicy
 	(*v124.RetrievalModel)(nil),                 // 86: teleport.summarizer.v1.RetrievalModel
 	(*v125.Beam)(nil),                           // 87: teleport.beams.v1.Beam
+	(*v21.ValidatedMFAChallenge)(nil),           // 88: teleport.mfa.v2.ValidatedMFAChallenge
 }
 var file_teleport_legacy_client_proto_event_proto_depIdxs = []int32{
 	0,  // 0: proto.Event.Type:type_name -> proto.Operation
@@ -2009,11 +2032,12 @@ var file_teleport_legacy_client_proto_event_proto_depIdxs = []int32{
 	85, // 87: proto.Event.InferencePolicy:type_name -> teleport.summarizer.v1.InferencePolicy
 	86, // 88: proto.Event.RetrievalModel:type_name -> teleport.summarizer.v1.RetrievalModel
 	87, // 89: proto.Event.Beam:type_name -> teleport.beams.v1.Beam
-	90, // [90:90] is the sub-list for method output_type
-	90, // [90:90] is the sub-list for method input_type
-	90, // [90:90] is the sub-list for extension type_name
-	90, // [90:90] is the sub-list for extension extendee
-	0,  // [0:90] is the sub-list for field type_name
+	88, // 90: proto.Event.ValidatedMFAChallengeV2:type_name -> teleport.mfa.v2.ValidatedMFAChallenge
+	91, // [91:91] is the sub-list for method output_type
+	91, // [91:91] is the sub-list for method input_type
+	91, // [91:91] is the sub-list for extension type_name
+	91, // [91:91] is the sub-list for extension extendee
+	0,  // [0:91] is the sub-list for field type_name
 }
 
 func init() { file_teleport_legacy_client_proto_event_proto_init() }
@@ -2111,6 +2135,7 @@ func file_teleport_legacy_client_proto_event_proto_init() {
 		(*Event_InferencePolicy)(nil),
 		(*Event_RetrievalModel)(nil),
 		(*Event_Beam)(nil),
+		(*Event_ValidatedMFAChallengeV2)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
