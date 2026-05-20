@@ -1667,8 +1667,18 @@ func (g *GRPCServer) UpsertApplicationServer(ctx context.Context, req *authpb.Up
 		}
 	}
 
-	if err := services.ValidateApp(app, auth); err != nil {
-		return nil, trace.Wrap(err)
+	// Two callers reach this RPC:
+	//   1. App-service agents heartbeating (have builtin role RoleApp
+	//      or RoleInstance). Legacy agents may still send mixed-case
+	//      names or URL-shaped public_addr; normalize so the heartbeat
+	//      passes validation and the apps keep showing up in the
+	//      cluster.
+	//   2. Admin users creating an app_server YAML (no builtin role).
+	//      Do NOT normalize - admin writes follow strict validation;
+	//      reject malformed input rather than silently rewriting it.
+	if authz.HasBuiltinRole(auth.context, string(types.RoleApp)) ||
+		authz.HasBuiltinRole(auth.context, string(types.RoleInstance)) {
+		services.NormalizeAppServerForHeartbeat(server)
 	}
 
 	keepAlive, err := auth.UpsertApplicationServer(ctx, server)
@@ -4285,9 +4295,6 @@ func (g *GRPCServer) CreateApp(ctx context.Context, app *types.AppV3) (*emptypb.
 	if app.Origin() == "" {
 		app.SetOrigin(types.OriginDynamic)
 	}
-	if err := services.ValidateApp(app, auth); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	if err := auth.CreateApp(ctx, app); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4302,9 +4309,6 @@ func (g *GRPCServer) UpdateApp(ctx context.Context, app *types.AppV3) (*emptypb.
 	}
 	if app.Origin() == "" {
 		app.SetOrigin(types.OriginDynamic)
-	}
-	if err := services.ValidateApp(app, auth); err != nil {
-		return nil, trace.Wrap(err)
 	}
 	if err := auth.UpdateApp(ctx, app); err != nil {
 		return nil, trace.Wrap(err)
