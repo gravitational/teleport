@@ -21,8 +21,8 @@ package apiserver
 import (
 	"context"
 	"log/slog"
-	"runtime/debug"
 
+	"github.com/gravitational/trace"
 	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/recovery"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -81,10 +81,12 @@ func withStreamPanicRecovery(log *slog.Logger) grpc.StreamServerInterceptor {
 
 func panicRecoveryOption(log *slog.Logger) recovery.Option {
 	return recovery.WithRecoveryHandlerContext(func(ctx context.Context, p any) error {
+		// trace captures the stack trace.
+		// p is not logged as it may contain sensitive data.
+		err := trace.Errorf("handler panic")
 		log.ErrorContext(ctx, "Recovered from panic in gRPC handler",
-			"panic", p,
-			"stack", string(debug.Stack()),
+			"error", err,
 		)
-		return status.Errorf(codes.Internal, "handler panic: %v", p)
+		return status.Errorf(codes.Internal, "handler panic")
 	})
 }
