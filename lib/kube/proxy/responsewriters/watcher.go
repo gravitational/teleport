@@ -313,6 +313,21 @@ func (w *WatcherResponseWriter) watchDecoder(contentType string, writer io.Write
 			)
 			return trace.Wrap(err)
 		default:
+			if eventType == watch.Bookmark {
+				// Bookmarks are protocol signals (KEP-956, KEP-3157), not resources.
+				// The envelope carries only resourceVersion and an optional
+				// k8s.io/initial-events-end annotation, with empty name and namespace.
+				// Resource RBAC would silently drop them for any non-wildcard rule,
+				// which causes client-go v0.35+ WatchList informers to hang forever
+				// waiting for the terminating bookmark.
+				if err := writeEventAndFlush(&watch.Event{
+					Type:   eventType,
+					Object: obj,
+				}); err != nil {
+					return trace.Wrap(err)
+				}
+				continue
+			}
 			if filter != nil {
 				// check if the event object matches the filtering criteria.
 				// If it does not match, ignore the event.
