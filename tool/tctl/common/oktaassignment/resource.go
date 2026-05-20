@@ -48,6 +48,8 @@ type spec struct {
 type target struct {
 	ID         string `json:"id"`
 	TargetType string `json:"type"`
+	Status     string `json:"status"`
+	Reason     string `json:"reason"`
 }
 
 // ToResource converts an OktaAssignment into a *Resource which
@@ -61,6 +63,8 @@ func ToResource(assignment types.OktaAssignment) *Resource {
 		resourceTargets[i] = target{
 			ID:         sourceTarget.GetID(),
 			TargetType: sourceTarget.GetTargetType(),
+			Status:     sourceTarget.GetStatus(),
+			Reason:     sourceTarget.GetReason(),
 		}
 	}
 

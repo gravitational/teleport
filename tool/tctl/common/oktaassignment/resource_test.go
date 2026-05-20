@@ -41,12 +41,15 @@ func TestToResource(t *testing.T) {
 		Status: types.OktaAssignmentSpecV1_PENDING,
 		Targets: []*types.OktaAssignmentTargetV1{
 			{
-				Id:   "1",
-				Type: types.OktaAssignmentTargetV1_APPLICATION,
+				Id:     "1",
+				Type:   types.OktaAssignmentTargetV1_APPLICATION,
+				Status: types.OktaAssignmentTargetV1_STATUS_PENDING,
 			},
 			{
-				Id:   "2",
-				Type: types.OktaAssignmentTargetV1_GROUP,
+				Id:     "2",
+				Type:   types.OktaAssignmentTargetV1_GROUP,
+				Status: types.OktaAssignmentTargetV1_STATUS_FAILED,
+				Reason: types.OktaAssignmentTargetV1_REASON_ERROR,
 			},
 		},
 	})
@@ -83,12 +86,20 @@ func TestToResource(t *testing.T) {
 	resourceTarget1, ok := resourceTargets[0].(map[string]any)
 	require.True(t, ok)
 	require.Equal(t, constants.OktaAssignmentTargetApplication, resourceTarget1["type"])
+	require.Equal(t, constants.OktaAssignmentTargetStatusPending, resourceTarget1["status"])
+	require.Equal(t, constants.OktaAssignmentTargetReasonUnknown, resourceTarget1["reason"])
 	resourceTarget1["type"] = int(types.OktaAssignmentTargetV1_APPLICATION)
+	resourceTarget1["status"] = int(types.OktaAssignmentTargetV1_STATUS_PENDING)
+	resourceTarget1["reason"] = int(types.OktaAssignmentTargetV1_REASON_UNKNOWN)
 
 	resourceTarget2, ok := resourceTargets[1].(map[string]any)
 	require.True(t, ok)
 	require.Equal(t, constants.OktaAssignmentTargetGroup, resourceTarget2["type"])
+	require.Equal(t, constants.OktaAssignmentTargetStatusFailed, resourceTarget2["status"])
+	require.Equal(t, constants.OktaAssignmentTargetReasonError, resourceTarget2["reason"])
 	resourceTarget2["type"] = int(types.OktaAssignmentTargetV1_GROUP)
+	resourceTarget2["status"] = int(types.OktaAssignmentTargetV1_STATUS_FAILED)
+	resourceTarget2["reason"] = int(types.OktaAssignmentTargetV1_REASON_ERROR)
 
 	require.Equal(t, assignmentMap, resourceMap)
 }
