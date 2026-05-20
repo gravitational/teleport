@@ -33,12 +33,14 @@ endif
 OS ?= $(shell go env GOOS)
 ARCH ?= $(shell go env GOARCH)
 
+FIPS_CHECK =
 FIPS_ENT_MESSAGE := without-FIPS-support
 # FIPS support must be requested at build time.
 ifneq ("$(FIPS)","")
 FIPS_TAG := fips
 FIPS_ENT_MESSAGE := with-FIPS-support
 RELEASE_ENT = teleport-ent-$(GITTAG)-$(OS)-$(ARCH)-fips-bin
+FIPS_CHECK = go run -C ../build.assets/tooling ./cmd/gobuildverify $(abspath $(1)) '-tags=(fips)' 'GOFIPS140=/^$(subst .,\.,$(GOFIPS140))/' 'DefaultGODEBUG=(fips140=on)'
 endif
 
 PAM_ENT_MESSAGE := without-PAM-support
@@ -248,37 +250,31 @@ $(BUILDDIR)/tctl:
 	$(MAKE) -C .. e/$@ BUILDDIR=e/$(BUILDDIR)
 
 .PHONY: $(BUILDDIR)/teleport
-$(BUILDDIR)/teleport: ensure-webassets-e teleport-fips-check rdpclient ../session/reexec/embed/sessionhelper
+$(BUILDDIR)/teleport: ensure-webassets-e rdpclient ../session/reexec/embed/sessionhelper
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -buildvcs=false -tags "grpcnotrace webassets_embed webassets_ent $(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(SESSIONHELPER_EMBED_TAG) $(WEBASSETS_TAG) $(RDPCLIENT_TAG) $(PIV_BUILD_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/teleport $(BUILDFLAGS) ./tool/teleport
+	$(call FIPS_CHECK,$@)
 
 .PHONY: ../session/reexec/embed/sessionhelper
 ../session/reexec/embed/sessionhelper:
+ifneq ($(SESSIONHELPER_EMBED_TAG),)
 	$(MAKE) -C .. session/reexec/embed/sessionhelper BUILDDIR=e/$(BUILDDIR)
+	$(call FIPS_CHECK,$(BUILDDIR)/sessionhelper)
+endif
 
 .PHONY: $(BUILDDIR)/tsh
 $(BUILDDIR)/tsh:
 	$(MAKE) -C .. e/$@ BUILDDIR=e/$(BUILDDIR)
+	$(call FIPS_CHECK,$@)
 
 .PHONY: $(BUILDDIR)/teleport-update
 $(BUILDDIR)/teleport-update:
 	$(MAKE) -C .. e/$@ BUILDDIR=e/$(BUILDDIR)
-
-TBOT_DYNAMIC :=
-ifneq ("$(FIPS)","")
-# FIPS requires cgo and dynamic linking
-	TBOT_DYNAMIC = yes
-else ifeq ("$(CGO_ENABLED)", "1")
-	TBOT_DYNAMIC = yes
-endif
+	$(call FIPS_CHECK,$@)
 
 .PHONY: $(BUILDDIR)/tbot
-$(BUILDDIR)/tbot: CGO_ENABLED ?= 0
 $(BUILDDIR)/tbot:
-ifeq ("$(TBOT_DYNAMIC)", "yes")
-	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=1 go build -tags "grpcnotrace $(FIPS_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tbot $(BUILDFLAGS_TBOT) ../tool/tbot
-else
-	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=0 go build -tags "grpcnotrace $(FIPS_TAG) $(KUSTOMIZE_NO_DYNAMIC_PLUGIN)" -o $(BUILDDIR)/tbot $(BUILDFLAGS_TBOT) ../tool/tbot
-endif
+	$(MAKE) -C .. e/$@ BUILDDIR=e/$(BUILDDIR)
+	$(call FIPS_CHECK,$@)
 
 # A target that allows recompiling and restarting Teleport when Go sources
 # change. Note: contrary to what the CompileDaemon documentation says, the
@@ -330,21 +326,6 @@ ifeq ("$(with_rdpclient)", "yes")
 	$(RDPCLIENT_ENV) \
 		cargo build -p rdp-client $(if $(FIPS),--features=fips) --release --locked $(CARGO_TARGET)
 endif
-
-# If FIPS mode was requested, first compile an extra Teleport binary with symbols included and check that it contains BoringCrypto references.
-.PHONY: teleport-fips-check
-teleport-fips-check:
-	@if [ "$(FIPS)" != "" ]; then \
-		echo "FIPS mode requested, pre-compiling and checking binary for BoringCrypto symbols."; \
-		GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go build -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(WEBASSETS_TAG)" $(BUILDFLAGS) -o $(BUILDDIR)/teleport-unstripped -ldflags "" ./tool/teleport; \
-		if go tool nm $(BUILDDIR)/teleport-unstripped 2>&1 | grep boringcrypto; then \
-			echo "BoringCrypto appears enabled."; \
-		else \
-			echo "-- FIPS mode was requested, but the compiled teleport binary does not contain any BoringCrypto symbols. This is an error!"; \
-			exit 1; \
-		fi; \
-		rm -f $(BUILDDIR)/teleport-unstripped; \
-	fi
 
 # make clean: cleans the build
 .PHONY: clean

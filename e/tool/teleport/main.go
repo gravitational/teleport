@@ -6,6 +6,7 @@ import (
 
 	emodules "github.com/gravitational/teleport/e/tool/modules"
 	"github.com/gravitational/teleport/e/tool/teleport/process"
+	_ "github.com/gravitational/teleport/lib/fipscheck"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/service"
