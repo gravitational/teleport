@@ -1483,12 +1483,12 @@ func Test_appServerEffectiveFeatures(t *testing.T) {
 	}
 
 	t.Run("old app server has ResourceConstraintsV1 stripped", func(t *testing.T) {
-		srv := makeAppServer(t, "18.7.0", componentfeatures.New(rcv1, otherFeature))
+		srv := makeAppServer(t, "18.7.5", componentfeatures.New(rcv1, otherFeature))
 		result := appServerEffectiveFeatures(srv, clusterFeatures)
 		require.ElementsMatch(t, componentfeatures.New(otherFeature).GetFeatures(), result.GetFeatures())
 	})
 	t.Run("new app server keeps ResourceConstraintsV1", func(t *testing.T) {
-		srv := makeAppServer(t, "18.7.3", componentfeatures.New(rcv1, otherFeature))
+		srv := makeAppServer(t, "18.7.6", componentfeatures.New(rcv1, otherFeature))
 		result := appServerEffectiveFeatures(srv, clusterFeatures)
 		require.ElementsMatch(t, componentfeatures.New(rcv1, otherFeature).GetFeatures(), result.GetFeatures())
 	})
