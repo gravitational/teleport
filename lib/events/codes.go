@@ -92,6 +92,8 @@ const (
 	ValidateMFAAuthResponseFailureCode = "T1016W"
 	// UserResetCode is an event code for when user's credentials are reset.
 	UserResetCode = "T1017I"
+	// UserResetCode is an event code for when user's credentials are reset.
+	UserResetFailureCode = "T1017W"
 
 	// BillingCardCreateCode is an event code for when a user creates a new credit card.
 	BillingCardCreateCode = "TBL00I"

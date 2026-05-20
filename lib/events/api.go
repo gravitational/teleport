@@ -195,6 +195,10 @@ const (
 	// created.
 	UserResetEvent = "user.reset"
 
+	// UserResetFailureEvent is emitted when an attempt to reset a user fails
+	// because of an authorization error.
+	UserResetFailureEvent = "user.reset.failure"
+
 	// UserExpires is when the user will expire.
 	UserExpires = "expires"
 
