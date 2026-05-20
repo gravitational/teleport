@@ -638,7 +638,7 @@ func (s *Service) ResetUser(ctx context.Context, req *userspb.ResetUserRequest) 
 	}
 
 	if authz.HasBuiltinRole(*authCtx, string(types.RoleOkta)) {
-		s.emitUserResetEvent(ctx, req.Name, events.UserResetFailureEvent, events.UserResetCode)
+		s.emitUserResetEvent(ctx, req.Name, events.UserResetFailureEvent, events.UserResetFailureCode)
 		return nil, trace.AccessDenied("access denied")
 	}
 

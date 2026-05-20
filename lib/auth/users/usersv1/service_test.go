@@ -1347,7 +1347,9 @@ func TestResetUser_AdminMFARequired(t *testing.T) {
 	require.NoError(t, err)
 	_, err = env.CreateUser(ctx, &userspb.CreateUserRequest{User: user.(*types.UserV2)})
 	require.NoError(t, err)
-	err = env.backend.UpsertPassword(user.GetName(), []byte("dummypasswordhash"))
+	err = env.backend.UpsertPassword(user.GetName(), []byte("dummypassword"))
+	require.NoError(t, err)
+	storedHash, err := env.backend.GetPasswordHash(user.GetName())
 	require.NoError(t, err)
 
 	authzContext.AdminActionAuthState = authz.AdminActionAuthUnauthorized
@@ -1358,9 +1360,9 @@ func TestResetUser_AdminMFARequired(t *testing.T) {
 	assert.True(t, trace.IsAccessDenied(err), "expected trace.AccessDenied, got %T %v", err, err)
 
 	// The password should remain intact.
-	hash, err := env.backend.GetPasswordHash(user.GetName())
+	currentHash, err := env.backend.GetPasswordHash(user.GetName())
 	require.NoError(t, err)
-	assert.Equal(t, "dummypasswordhash", string(hash))
+	assert.Equal(t, storedHash, currentHash)
 }
 
 func getAllEvents(c <-chan apievents.AuditEvent) []apievents.AuditEvent {
