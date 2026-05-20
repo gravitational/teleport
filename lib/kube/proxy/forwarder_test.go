@@ -2447,9 +2447,7 @@ func (g *goawayServer) Serve() error {
 			return err
 		}
 
-		if err := g.handleConn(conn); err != nil {
-			return err
-		}
+		go func() { _ = g.handleConn(conn) }()
 	}
 }
 
