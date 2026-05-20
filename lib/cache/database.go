@@ -252,12 +252,17 @@ func (c *Cache) RangeDatabaseServersWithName(ctx context.Context, databaseName s
 		defer span.End()
 
 		upstreamListFn := func(ctx context.Context, pageSize int, startToken string) ([]types.DatabaseServer, string, error) {
-			// discard the database name prefix since it is always equal to the
-			// outer databaseName by construction. The start and next tokens
-			// both encode it from the same source.
-			rest, err := ordered.DecodePrefix([]byte(startToken), nil)
+			var tokenDatabaseName string
+			rest, err := ordered.DecodePrefix([]byte(startToken), &tokenDatabaseName)
 			if err != nil {
 				return nil, "", trace.Wrap(err)
+			}
+
+			// Verify that the token's database name matches the requested database name.
+			// This ensures that if the token is malformed or belongs to a different
+			// database, we don't return incorrect results.
+			if tokenDatabaseName != databaseName {
+				return nil, "", trace.BadParameter("pagination token does not match the requested database name")
 			}
 
 			backendKey := ""
