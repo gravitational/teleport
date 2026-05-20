@@ -14,7 +14,12 @@ spec:
     singular: teleportscopedrolev1
   scope: Namespaced
   versions:
-  - name: v1
+  - additionalPrinterColumns:
+    - description: Resource's scope.
+      jsonPath: .scope
+      name: scope
+      type: string
+    name: v1
     schema:
       openAPIV3Schema:
         description: ScopedRoleV1 is the Schema for the scopedrolesv1 API
