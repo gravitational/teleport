@@ -3550,16 +3550,15 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 
 // appServerEffectiveFeatures computes the effective feature set for an app server,
 // intersected with cluster-wide auth/proxy features. App servers between v18.6.4 and
-// v18.7.2 advertise FeatureResourceConstraintsV1 but predate the constraint enforcement
+// v18.7.5 advertise FeatureResourceConstraintsV1 but predate the constraint enforcement
 // code; for those versions, the advertisement is stripped before intersection so the
 // frontend doesn't show the constraints UI.
 //
 // TODO(kiosion): DELETE in 20.0.0
 func appServerEffectiveFeatures(appServer types.AppServer, clusterFeatures *componentfeaturesv1.ComponentFeatures) *componentfeaturesv1.ComponentFeatures {
 	appFeatures := appServer.GetComponentFeatures()
-	minVer, minVerErr := semver.NewVersion("18.7.3")
 	ver, verErr := semver.NewVersion(appServer.GetTeleportVersion())
-	if verErr == nil && minVerErr == nil && ver.LessThan(*minVer) && appFeatures != nil {
+	if verErr == nil && ver.LessThan(semver.Version{Major: 18, Minor: 7, Patch: 6}) && appFeatures != nil {
 		features := slices.DeleteFunc(slices.Clone(appFeatures.GetFeatures()), func(f componentfeaturesv1.ComponentFeatureID) bool {
 			return f == componentfeatures.FeatureResourceConstraintsV1.ToProto()
 		})
