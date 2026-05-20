@@ -45,9 +45,7 @@ type fqdnResolverConfig struct {
 	clientApplication  ClientApplication
 	clusterConfigCache *ClusterConfigCache
 	leafClusterCache   *leafClusterCache
-	// allowDatabaseAccess gates VNet database FQDN resolution. Database access
-	// via VNet is currently intended for use only within Teleport Beams, when
-	// false, DB resolution is skipped and the dispatcher falls through to SSH.
+	// allowDatabaseAccess gates VNet database FQDN resolution for tsh/Connect.
 	allowDatabaseAccess bool
 }
 
@@ -378,9 +376,6 @@ func (r *fqdnResolver) resolveDBInfoForCluster(
 	candidate clusterResolutionCandidate,
 	fqdn string,
 ) (*vnetv1.ResolveFQDNResponse, error) {
-	// VNet database resolution is currently intended for use only within
-	// Teleport Beams. When disabled, skip DB resolution so the dispatcher
-	// falls through to SSH resolution unchanged.
 	if !r.cfg.allowDatabaseAccess {
 		return nil, errNoMatch
 	}

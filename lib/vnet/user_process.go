@@ -19,7 +19,6 @@ package vnet
 import (
 	"context"
 	"crypto/tls"
-	"os"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -109,18 +108,14 @@ func RunUserProcess(ctx context.Context, clientApplication ClientApplication) (*
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// VNet database access is currently intended for use only within Teleport
-	// Beams. The beams runtime sets TELEPORT_BEAMS_RUNTIME=yes, which is the
-	// same signal used by the beams tbot VNet service.
-	allowDatabaseAccess := os.Getenv("TELEPORT_BEAMS_RUNTIME") == "yes"
-	if allowDatabaseAccess {
-		log.InfoContext(ctx, "Detected beams runtime, VNet database access is enabled")
-	}
 	fqdnResolver := newFQDNResolver(&fqdnResolverConfig{
-		clientApplication:   clientApplication,
-		clusterConfigCache:  clusterConfigCache,
-		leafClusterCache:    leafClusterCache,
-		allowDatabaseAccess: allowDatabaseAccess,
+		clientApplication:  clientApplication,
+		clusterConfigCache: clusterConfigCache,
+		leafClusterCache:   leafClusterCache,
+		// DB access via VNet is currently only supported by the tbot beams, but
+		// disabled for tsh/Connect by default. flip to true to enable DB access via VNet
+		// for tsh/Connect to validate locally.
+		allowDatabaseAccess: false,
 	})
 	unifiedClusterConfigProvider := NewUnifiedClusterConfigProvider(&UnifiedClusterConfigProviderConfig{
 		clientApplication:  clientApplication,
