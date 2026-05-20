@@ -1061,6 +1061,10 @@ func (s *PresenceService) RangeDatabaseServersWithName(ctx context.Context, data
 		return stream.Fail[types.DatabaseServer](trace.BadParameter("missing database name"))
 	}
 
+	// TODO(wethreetrees): if Metadata.Name == Spec.Database.GetName() becomes a
+	// CheckAndSetDefaults invariant, this filter could check against the backend
+	// key's trailing component before unmarshalling. Currently no such invariant
+	// exists, so we unmarshal every item to read the embedded database name.
 	mapFn := func(item backend.Item) (types.DatabaseServer, bool) {
 		server, err := services.UnmarshalDatabaseServer(
 			item.Value,
