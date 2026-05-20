@@ -1754,6 +1754,12 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		)
 	}
 
+	if command == login.FullCommand() {
+		if err := maybeCheckLoginManagedUpdate(&cf, args); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	switch command {
 	case ver.FullCommand():
 		err = onVersion(&cf)
@@ -2409,14 +2415,6 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 		}()
 	}
 
-	// The user is not logged in and has typed in `tsh --proxy=... login`, if
-	// the running binary needs to be updated, update and re-exec.
-	if profile == nil {
-		if err := autoupdatetools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
 	// client is already logged in and profile is not expired and scope hasn't changed
 	if profile != nil && !profile.IsExpired(time.Now()) && !scopeChanged {
 		switch {
@@ -2715,6 +2713,26 @@ func onLogin(cf *CLIConf, reExecArgs ...string) (err error) {
 	}
 
 	return nil
+}
+
+// maybeCheckLoginManagedUpdate checks for updates if the current profile
+// does not exist or if the profile is expired.
+func maybeCheckLoginManagedUpdate(cf *CLIConf, reExecArgs []string) error {
+	profile, _, err := cf.FullProfileStatus()
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+
+	if profile != nil && !profile.IsExpired(time.Now()) {
+		return nil
+	}
+
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(autoupdatetools.CheckAndUpdateRemote(cf.Context, tc.WebProxyAddr, tc.InsecureSkipVerify, reExecArgs))
 }
 
 // onLogout deletes a "session certificate" from ~/.tsh for a given proxy
