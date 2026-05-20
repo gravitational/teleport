@@ -293,7 +293,10 @@ func (c *Cache) RangeDatabaseServersWithName(ctx context.Context, databaseName s
 
 			next := ""
 			if resp.NextKey != "" {
-				hostID, serverName, _ := strings.Cut(resp.NextKey, backend.SeparatorString)
+				hostID, serverName, ok := strings.Cut(resp.NextKey, backend.SeparatorString)
+				if !ok {
+					return nil, "", trace.BadParameter("invalid pagination token: %q", resp.NextKey)
+				}
 				next = string(ordered.Encode(databaseName, hostID, serverName))
 			}
 			return page, next, nil
