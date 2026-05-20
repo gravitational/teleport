@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/itertools/stream"
@@ -328,6 +329,21 @@ func TestGenericListerRangeWithFallback(t *testing.T) {
 			cacheOk:         false,
 			wantErr:         "resource is too large to retrieve",
 		},
+		{
+			name: "zero defaultPageSize falls back to DefaultChunkSize",
+			upstreamList: func(ctx context.Context, pageSize int, token string) ([]types.Application, string, error) {
+				if pageSize != defaults.DefaultChunkSize {
+					return nil, "", trace.BadParameter(
+						"expected default chunk size %d, got %d", defaults.DefaultChunkSize, pageSize,
+					)
+				}
+				return p.apps.ListApps(ctx, pageSize, token)
+			},
+			fallbackGetter:  p.apps.GetApps,
+			defaultPageSize: 0,
+			cacheOk:         false,
+			want:            expected,
+		},
 	}
 
 	for _, tt := range tests {
@@ -344,7 +360,7 @@ func TestGenericListerRangeWithFallback(t *testing.T) {
 			}
 
 			p.cache.ok = tt.cacheOk
-			got, err := stream.Collect(l.RangeWithFallback(context.Background(), tt.start, tt.end))
+			got, err := stream.Collect(l.RangeWithFallback(t.Context(), tt.start, tt.end))
 
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)

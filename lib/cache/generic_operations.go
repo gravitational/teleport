@@ -125,6 +125,15 @@ func (g genericLister[T, I]) clipEnd(page []T, next, end string) ([]T, string) {
 // If the cache is not healthy, then the items are retrieved from the upstream backend.
 // The items returend are cloned and ownership is retained by the caller.
 func (l genericLister[T, I]) listRange(ctx context.Context, pageSize int, startToken, endToken string) ([]T, string, error) {
+	defaultPageSize := defaults.DefaultChunkSize
+	if l.defaultPageSize > 0 {
+		defaultPageSize = l.defaultPageSize
+	}
+
+	if pageSize <= 0 {
+		pageSize = defaultPageSize
+	}
+
 	rg, err := acquireReadGuard(l.cache, l.collection)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
@@ -139,15 +148,6 @@ func (l genericLister[T, I]) listRange(ctx context.Context, pageSize int, startT
 
 		out, next = l.clipEnd(out, next, endToken)
 		return out, next, nil
-	}
-
-	defaultPageSize := defaults.DefaultChunkSize
-	if l.defaultPageSize > 0 {
-		defaultPageSize = l.defaultPageSize
-	}
-
-	if pageSize <= 0 {
-		pageSize = defaultPageSize
 	}
 
 	fetchFn := rg.store.cache.Ascend
