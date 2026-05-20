@@ -53,3 +53,7 @@ require (
 	google.golang.org/genproto/googleapis/api v0.0.0-20260401024825-9d38bb4040a9 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+// XXX: Temporary to use local copy of https://go-review.googlesource.com/c/crypto/+/717140 for in-band SSH MFA.
+// TODO(cthach): Remove when the change is merged and released in golang.org/x/crypto.
+replace golang.org/x/crypto => ../crypto

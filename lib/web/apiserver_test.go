@@ -94,6 +94,7 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	transportpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
@@ -8608,6 +8609,14 @@ func (mock authProviderMock) GetUser(_ context.Context, _ string, _ bool) (types
 
 func (mock authProviderMock) GetRole(_ context.Context, _ string) (types.Role, error) {
 	return nil, nil
+}
+
+func (mock authProviderMock) MFAServiceClient() mfav1.MFAServiceClient { //nolint:staticcheck // required for interface compatibility
+	return nil
+}
+
+func (mock authProviderMock) MFAServiceClientV2() mfav2.MFAServiceClient {
+	return nil
 }
 
 func waitForOutput(t *testing.T, r io.Reader, substr string, msgAndArgs ...interface{}) {

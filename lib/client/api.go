@@ -81,6 +81,7 @@ import (
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/authz"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
+	clientssh "github.com/gravitational/teleport/lib/client/ssh"
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -1762,6 +1763,18 @@ func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	return result.KeyRing, nil
 }
 
+// PerformSessionMFACeremony performs a session-bound MFA ceremony for an SSH session
+// and returns the challenge name.
+func (tc *TeleportClient) PerformSessionMFACeremony(ctx context.Context, sessionID []byte) (string, error) {
+	clusterClient, err := tc.ConnectToCluster(ctx)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	defer clusterClient.Close()
+
+	return clusterClient.PerformSessionMFACeremony(ctx, sessionID)
+}
+
 // CreateAccessRequestV2 registers a new access request with the auth server.
 func (tc *TeleportClient) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest) (types.AccessRequest, error) {
 	ctx, span := tc.Tracer.Start(
@@ -3334,6 +3347,19 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 		return allSigners, nil
 	}
 
+	authCallback := func(authCtx *ssh.ClientAuthContext) (ssh.AuthMethod, error) {
+		// If the server responds with partial success for publickey auth method and keyboard-interactive is allowed,
+		// then the server is likely enforcing in-band MFA. In this case, return a keyboard-interactive callback that
+		// will perform the MFA ceremony when invoked.
+		if slices.Contains(authCtx.PartialSuccessMethods, "publickey") && slices.Contains(authCtx.AllowedMethods, "keyboard-interactive") {
+			return clientssh.KeyboardInteractive(ctx, tc, authCtx.Metadata), nil
+		}
+
+		// Returning nil, nil tells the SSH client there is no additional auth method to offer for this server response
+		// and fallback to the default behavior of trying the next auth method in the list.
+		return nil, nil
+	}
+
 	return &clientConfig{
 		ClientConfig: apissh.ClientConfig{
 			User:            tc.getProxySSHPrincipal(),
@@ -3341,7 +3367,8 @@ func (tc *TeleportClient) generateClientConfig(ctx context.Context) (*clientConf
 			PublicKeyAuth: apissh.PublicKeyAuthConfig{
 				Signers: collectSigners,
 			},
-			Timeout: tc.SSHDialTimeout,
+			AuthCallback: authCallback,
+			Timeout:      tc.SSHDialTimeout,
 		},
 		proxyAddress: proxyAddr,
 		clusterName:  clusterName,

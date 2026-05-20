@@ -20,6 +20,8 @@ package web
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -36,7 +38,11 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
 
+	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -86,6 +92,84 @@ func TestTerminalReadFromClosedConn(t *testing.T) {
 
 	_, err = io.Copy(io.Discard, stream)
 	require.NoError(t, err)
+}
+
+func TestGenerateClientConfig(t *testing.T) {
+	t.Parallel()
+
+	_, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+
+	signer, err := ssh.NewSignerFromSigner(privateKey)
+	require.NoError(t, err)
+
+	handler := &sshBaseHandler{
+		userAuthClient:  mockAuthClient{},
+		proxyPublicAddr: "proxy.example.com",
+		sshDialTimeout:  5 * time.Second,
+	}
+
+	tc := &client.TeleportClient{
+		Config: client.Config{
+			HostLogin: "alice",
+			SiteName:  "leaf-cluster",
+			PublicKeyAuthConfig: apissh.PublicKeyAuthConfig{
+				Signers: func() ([]ssh.Signer, error) {
+					return []ssh.Signer{signer}, nil
+				},
+			},
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(), //nolint:gosec // This is a test.
+		},
+	}
+
+	cfg := handler.generateClientConfig(t.Context(), &terminal.Stream{}, tc)
+	require.Equal(t, "alice", cfg.User)
+	require.Equal(t, 5*time.Second, cfg.Timeout)
+	require.NotNil(t, cfg.HostKeyCallback)
+	require.NotNil(t, cfg.AuthCallback)
+
+	signers, err := cfg.PublicKeyAuth.Signers()
+	require.NoError(t, err)
+	require.Len(t, signers, 1)
+
+	t.Run("returns keyboard-interactive method when publickey succeeds and keyboard-interactive is allowed", func(t *testing.T) {
+		authMethod, err := cfg.AuthCallback(
+			&ssh.ClientAuthContext{
+				PartialSuccessMethods: []string{"publickey"},
+				AllowedMethods:        []string{"keyboard-interactive"},
+			},
+		)
+		require.NoError(t, err)
+		require.IsType(t, ssh.KeyboardInteractiveChallenge(nil), authMethod)
+	})
+
+	t.Run("returns nil, nil when keyboard-interactive is not allowed", func(t *testing.T) {
+		authMethod, err := cfg.AuthCallback(
+			&ssh.ClientAuthContext{
+				PartialSuccessMethods: []string{"publickey"},
+				AllowedMethods:        []string{"password"},
+			},
+		)
+		require.NoError(t, err)
+		require.Nil(t, authMethod)
+	})
+}
+
+type mockAuthClient struct {
+	authProviderMock
+}
+
+//nolint:staticcheck // Required for interface compatibility.
+func (m mockAuthClient) MFAServiceClient() mfav1.MFAServiceClient {
+	return struct {
+		mfav1.MFAServiceClient
+	}{}
+}
+
+func (m mockAuthClient) MFAServiceClientV2() mfav2.MFAServiceClient {
+	return struct {
+		mfav2.MFAServiceClient
+	}{}
 }
 
 type testTerminal struct {

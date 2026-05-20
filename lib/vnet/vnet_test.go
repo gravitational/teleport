@@ -46,10 +46,13 @@ import (
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 	grpccredentials "google.golang.org/grpc/credentials"
+	"google.golang.org/protobuf/encoding/protojson"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	sshpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/ssh/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
@@ -303,10 +306,11 @@ type fakeClientApp struct {
 	teleportHostCA ssh.Signer
 	teleportUserCA ssh.Signer
 
-	onNewSSHSessionCallCount    atomic.Uint32
-	onNewAppConnectionCallCount atomic.Uint32
-	onNewDBConnectionCallCount  atomic.Uint32
-	onInvalidLocalPortCallCount atomic.Uint32
+	onNewSSHSessionCallCount           atomic.Uint32
+	performSessionMFACeremonyCallCount atomic.Uint32
+	onNewAppConnectionCallCount        atomic.Uint32
+	onNewDBConnectionCallCount         atomic.Uint32
+	onInvalidLocalPortCallCount        atomic.Uint32
 	// requestedRouteToApps indexed by public address.
 	requestedRouteToApps   map[string][]*proto.RouteToApp
 	requestedRouteToAppsMu sync.RWMutex
@@ -513,6 +517,11 @@ func (p *fakeClientApp) OnNewSSHSession(ctx context.Context, profileName, rootCl
 	p.onNewSSHSessionCallCount.Add(1)
 }
 
+func (p *fakeClientApp) PerformSessionMFACeremony(_ context.Context, _, _ string, _ []byte) (string, error) {
+	p.performSessionMFACeremonyCallCount.Add(1)
+	return "test-challenge-name", nil
+}
+
 func (p *fakeClientApp) OnNewAppConnection(_ context.Context, _ *vnetv1.AppKey) error {
 	p.onNewAppConnectionCallCount.Add(1)
 	return nil
@@ -632,6 +641,19 @@ func (c *fakeClusterClient) SessionSSHKeyRing(ctx context.Context, user string, 
 		ValidAfter:      uint64(now.Add(-1 * time.Minute).Unix()),
 		ValidBefore:     uint64(now.Add(time.Minute).Unix()),
 	}
+
+	// We treat fallbackLegacyMFAUser as having completed MFA if the target
+	// requires MFA checks or doesn't specify them at all. This allows us to
+	// test both MFA and non-MFA scenarios without needing to implement a fake
+	// MFA service and ceremony.
+	mfaVerified := user == fallbackLegacyMFAUser &&
+		(target.MFACheck == nil || target.MFACheck.Required)
+
+	if mfaVerified {
+		cert.Extensions = map[string]string{
+			teleport.CertExtensionMFAVerified: mfaDeviceID,
+		}
+	}
 	if err := cert.SignCert(rand.Reader, c.teleportUserCA); err != nil {
 		return nil, false, trace.Wrap(err)
 	}
@@ -646,7 +668,7 @@ func (c *fakeClusterClient) SessionSSHKeyRing(ctx context.Context, user string, 
 			},
 		},
 	}
-	return k, false, nil
+	return k, mfaVerified, nil
 }
 
 func (c *fakeClusterClient) PerformSessionMFACeremony(ctx context.Context, sessionID []byte) (string, error) {
@@ -1414,6 +1436,17 @@ func testWithAlgorithmSuite(t *testing.T, suite types.SignatureAlgorithmSuite) {
 	require.Error(t, err)
 }
 
+const (
+	// inbandMFAUser is the username used for testing in-band MFA.
+	inbandMFAUser = "in-band-mfa-user"
+
+	// fallbackLegacyMFAUser is the username used for testing fallback to legacy MFA certs.
+	fallbackLegacyMFAUser = "fallback-legacy-mfa-user"
+
+	// mfaDeviceID is the MFA device ID encoded in fake legacy MFA certs.
+	mfaDeviceID = "mfa-device-id"
+)
+
 // TestSSH tests basic VNet SSH functionality.
 func TestSSH(t *testing.T) {
 	ctx := t.Context()
@@ -1497,6 +1530,13 @@ func TestSSH(t *testing.T) {
 			"OnNewSSHSession call count does not match the expected number of reported SSH sessions")
 	})
 
+	// Check that each session-bound MFA ceremony is performed through the client application when expected.
+	var expectMFACeremonies atomic.Uint32
+	t.Cleanup(func() {
+		assert.Equal(t, expectMFACeremonies.Load(), clientApp.performSessionMFACeremonyCallCount.Load(),
+			"PerformSessionMFACeremony call count does not match the expected number of MFA ceremonies")
+	})
+
 	for _, tc := range []struct {
 		dialAddr                 string
 		dialPort                 int
@@ -1508,6 +1548,8 @@ func TestSSH(t *testing.T) {
 		expectSSHHandshakeToFail bool
 		expectBannerMessages     []string
 		expectSSHSessionReported bool
+		extraSSHSessionReports   uint32
+		expectMFACeremonies      uint32
 	}{
 		{
 			// Connection to node in root cluster should work.
@@ -1570,7 +1612,30 @@ func TestSSH(t *testing.T) {
 			// The session should be reported because VNet successfully got a
 			// Teleport user SSH cert for this session and made the SSH dial to
 			// the target, only then the target SSH server rejected the
-			// connection.
+			// connection. The fallback attempt is part of the same logical SSH
+			// session and is not reported separately.
+			expectSSHSessionReported: true,
+		},
+		{
+			// When the target requests in-band MFA, VNet should complete the
+			// session-bound MFA ceremony through the client application.
+			dialAddr:                 "node.root1.example.com",
+			dialPort:                 22,
+			expectCIDR:               root1CIDR,
+			sshUser:                  inbandMFAUser,
+			sshUserSigner:            sshUserSigner,
+			expectSSHSessionReported: true,
+			expectMFACeremonies:      1,
+		},
+		{
+			// If direct auth fails because the target doesn't support in-band
+			// MFA, or if the client does not support in-band MFA, then VNet
+			// should retry with the legacy MFA cert credential mode.
+			dialAddr:                 "node.root1.example.com",
+			dialPort:                 22,
+			expectCIDR:               root1CIDR,
+			sshUser:                  fallbackLegacyMFAUser,
+			sshUserSigner:            sshUserSigner,
 			expectSSHSessionReported: true,
 		},
 		{
@@ -1623,6 +1688,8 @@ func TestSSH(t *testing.T) {
 			if tc.expectSSHSessionReported {
 				expectReportedSSHSessions.Add(1)
 			}
+			expectReportedSSHSessions.Add(tc.extraSSHSessionReports)
+			expectMFACeremonies.Add(tc.expectMFACeremonies)
 
 			if tc.expectLookupToFail {
 				// In these cases the DNS lookup is expected to fail, just run the DNS lookup.
@@ -2103,7 +2170,29 @@ func mustStartFakeWebProxy(
 				if !cfg.forwardedAgents.forwarded(pubKey) {
 					return nil, trace.Errorf("user SSH key was not forwarded")
 				}
-				return certChecker.Authenticate(conn, pubKey)
+
+				perms, err := certChecker.Authenticate(conn, pubKey)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				// Special test cases for certain usernames to test MFA behavior.
+				switch conn.User() {
+				case fallbackLegacyMFAUser:
+					cert, ok := pubKey.(*ssh.Certificate)
+					if !ok || cert.Extensions[teleport.CertExtensionMFAVerified] != mfaDeviceID {
+						return nil, trace.AccessDenied("expected legacy MFA cert, got %T", pubKey)
+					}
+
+				case inbandMFAUser:
+					return nil, &ssh.PartialSuccessError{
+						Next: ssh.ServerAuthCallbacks{
+							KeyboardInteractiveCallback: handleSSHKeyboardInteractive,
+						},
+					}
+				}
+
+				return perms, nil
 			},
 		}
 		serverConfig.AddHostKey(hostCert)
@@ -2234,4 +2323,19 @@ func (a *forwardedAgents) forwarded(key ssh.PublicKey) bool {
 		}
 	}
 	return false
+}
+
+func handleSSHKeyboardInteractive(_ ssh.ConnMetadata, clt ssh.KeyboardInteractiveChallenge) (*ssh.Permissions, error) {
+	prompt := &sshpb.AuthPrompt{
+		Prompt: &sshpb.AuthPrompt_MfaPrompt{
+			MfaPrompt: &sshpb.MFAPrompt{},
+		},
+	}
+	promptBytes, err := protojson.Marshal(prompt)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	_, err = clt("", "", []string{string(promptBytes)}, []bool{false})
+	return nil, trace.Wrap(err)
 }
