@@ -1524,7 +1524,7 @@ func (OktaAssignmentTargetV1_OktaAssignmentTargetStatus) EnumDescriptor() ([]byt
 type OktaAssignmentTargetV1_OktaAssignmentTargetStatusReason int32
 
 const (
-	// REASON_UNKNOWN indicates the absense of a reason for processing failure.
+	// REASON_UNKNOWN indicates the absence of a reason for processing failure.
 	OktaAssignmentTargetV1_REASON_UNKNOWN OktaAssignmentTargetV1_OktaAssignmentTargetStatusReason = 0
 	// REASON_ERROR indicates processing failed due to an unspecified error.
 	OktaAssignmentTargetV1_REASON_ERROR OktaAssignmentTargetV1_OktaAssignmentTargetStatusReason = 1

@@ -8881,7 +8881,7 @@ message OktaAssignmentTargetV1 {
 
   // OktaAssignmentTargetStatusReason represents the reason for the status of an Okta assignment target.
   enum OktaAssignmentTargetStatusReason {
-    // REASON_UNKNOWN indicates the absense of a reason for processing failure.
+    // REASON_UNKNOWN indicates the absence of a reason for processing failure.
     REASON_UNKNOWN = 0;
     // REASON_ERROR indicates processing failed due to an unspecified error.
     REASON_ERROR = 1;
