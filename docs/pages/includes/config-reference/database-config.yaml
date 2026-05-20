@@ -150,6 +150,22 @@ db_service:
       #  guides for default value.
       default_database: "teleport"
 
+    # Optional. For self-hosted and RDS-managed PostgreSQL databases using
+    # best_effort_drop mode, specifies a database user to receive ownership of
+    # any objects owned by the auto-provisioned user when the auto-provisioned
+    # user is dropped at session end. This prevents the fallback to
+    # keep mode that occurs when the user owns database objects. Ignored when
+    # user auto-provisioning is disabled, or when create_db_user_mode is not
+    # best_effort_drop.
+    #
+    # For reassignment to work, the database admin user (i.e. admin_user.name)
+    # must either:
+    # 1. Be the same user as the one referenced by orphaned_resource_owner
+    # 2. Be a member of orphaned_resource_owner.
+    #
+    # See the PostgreSQL docs for REASSIGN OWNED BY for more info.
+    orphaned_resource_owner: "bob"
+
     # Optional AWS configuration for AWS hosted databases. AWS region- and
     # service-specific configurations can usually be auto-detected from the
     # endpoint.

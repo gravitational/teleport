@@ -46,8 +46,8 @@ GRANT rds_iam TO "teleport-admin" WITH ADMIN OPTION;
 
 Note that the RDS database must have IAM authentication enabled.
 
-Refer to the [AWS documentation](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.DBAccounts.html) to make sure you are using the `rds_iam` role correctly.
-for more information.
+For details on configuring the `rds_iam` role, see the
+[AWS documentation](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/UsingWithRDS.IAMDBAuth.DBAccounts.html#UsingWithRDS.IAMDBAuth.DBAccounts.PostgreSQL).
 
 If the admin user needs to grant the `rds_superuser` role to auto-provisioned
 users, the admin user must also be a `rds_superuser`:
@@ -60,6 +60,13 @@ PostgreSQL role that Teleport will assign to your Teleport user. For example, to
 allow the admin user to grant and revoke role `reader`:
 ```sql
 GRANT reader TO "teleport-admin" WITH ADMIN OPTION;
+```
+
+Finally, if you are configuring the `orphaned_resource_owner` option, you must
+provide the admin user with membership to this user. For example, if
+`orphaned_resource_owner` is set to `bob`:
+```sql
+GRANT bob TO "teleport-admin";
 ```
 </TabItem>
 <TabItem label="Self-hosted PostgreSQL">
@@ -74,6 +81,13 @@ PostgreSQL role that Teleport will assign to your Teleport user. For example, to
 allow the admin user to grant and revoke role `reader`:
 ```sql
 GRANT reader TO "teleport-admin" WITH ADMIN OPTION;
+```
+
+If you are configuring the `orphaned_resource_owner` option, you must provide the
+admin user with membership to this user. For example, if `orphaned_resource_owner`
+is set to `bob`:
+```sql
+GRANT bob TO "teleport-admin";
 ```
 
 Note that the database must be configured to accept client certificate auth
@@ -106,7 +120,40 @@ GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA schema1, schema2, schema3 TO "telep
 Users created by Teleport will be placed in the `teleport-auto-user` group in
 the database, which will be created automatically if it doesn't exist.
 
-(!docs/pages/includes/database-access/auto-user-provisioning/db-definition-default-dbname.mdx protocol="postgres" uri="localhost:5432" default="the same database that the user is accessing" !)
+Next, configure the database admin user in the Teleport database configuration:
+
+```yaml
+kind: db
+version: v3
+metadata:
+  name: example
+spec:
+  protocol: "postgres"
+  uri: "localhost:5432"
+  admin_user:
+    name: "teleport-admin"
+    # Optional default database the admin user logs into. Default is
+    # the same database that the user is accessing, if not specified.
+    # default_database: teleport
+  # Optional database user to reassign objects to.
+  # orphaned_resource_owner: bob
+```
+
+This example assumes that you have configured the database as a dynamic
+resource. If you have configured your database using a static Teleport Database
+Service configuration, edit the entry in your `db_service.databases`
+configuration.
+
+If `orphaned_resource_owner` is specified, user auto-provisioning is
+in effect, and `create_db_user_mode` is set to `best_effort_drop`, all
+database objects owned by the auto-provisioned user will be reassigned to
+`orphaned_resource_owner` each time the auto-provisioned user's session ends.
+`admin_user` must be a member of `orphaned_resource_owner` for this to work.
+
+For auto-discovered cloud databases, the name of the admin user is taken from
+the `teleport.dev/db-admin` label, the default database is taken from the
+`teleport.dev/db-admin-default-database` label, and the orphaned resource owner
+is taken from the `teleport.dev/db-orphaned-resource-owner` label.
 
 ## Step 2/3. Configure a Teleport role
 
@@ -148,8 +195,6 @@ See PostgreSQL [CREATE ROLE](https://www.postgresql.org/docs/current/sql-creater
 
 </TabItem>
 <TabItem label="Database Access Controls">
-
-Required Teleport version: v15.2 or above.
 
 Use `spec.allow.db_permissions` section in a user role to specify object permissions given user should have.
 
@@ -300,14 +345,8 @@ admin user through Teleport.
 
 ## Next steps
 
-- Connect using your [GUI database
-  client](../../../connect-your-client/third-party/gui-clients.mdx).
-- Learn about [role
-  templating](../../../zero-trust-access/rbac-get-started/role-templates.mdx).
-- Read automatic user provisioning [RFD](https://github.com/gravitational/teleport/blob/master/rfd/0113-automatic-database-users.md).
-- Read database permission management [RFD](https://github.com/gravitational/teleport/blob/master/rfd/0151-database-permission-management.md).
-- The `internal.db_roles` traits we illustrated in this guide
-  are replaced with values from the Teleport local user database. For full
-  details on how variable expansion works in Teleport roles, see the [Teleport
-  Access Controls Reference](../../../reference/access-controls/roles.mdx).
+- Connect using your [GUI database client](../../../connect-your-client/third-party/gui-clients.mdx).
+- Learn about [role templating](../../../zero-trust-access/rbac-get-started/role-templates.mdx).
+- Read the automatic user provisioning [RFD](https://github.com/gravitational/teleport/blob/master/rfd/0113-automatic-database-users.md).
+- Read the database permission management [RFD](https://github.com/gravitational/teleport/blob/master/rfd/0151-database-permission-management.md).
 
