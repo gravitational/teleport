@@ -521,6 +521,56 @@ func TestProxyKubeServerWatcher_KeepsStaleServers(t *testing.T) {
 	synctest.Test(t, testProxyKubeServerWatcherKeepsStaleServersSynctest)
 }
 
+func TestProxyKubeServerWatcher_MaybeFetchFromUpstreamDoesNotOverwriteHotCache(t *testing.T) {
+	ctx := t.Context()
+
+	primaryServer := newTestKubeServer(t, "primary", "host")
+	fallbackServer := newTestKubeServer(t, "fallback", "host")
+
+	fallback := &mockKubeServerWatcherGetter{}
+	fetchStarted := make(chan struct{})
+	continueFetch := make(chan struct{})
+	fallback.On("GetKubernetesServers", mock.Anything).
+		Run(func(args mock.Arguments) {
+			close(fetchStarted)
+			<-continueFetch
+		}).
+		Return([]types.KubeServer{fallbackServer}, nil).Once()
+
+	cfg := ProxyKubeServerWatcherConfig{
+		FallbackGetter:   fallback,
+		FallbackInterval: 0,
+	}
+	w := &ProxyKubeServerWatcher{
+		ProxyKubeServerWatcherConfig: cfg,
+		current: map[serverKey]types.KubeServer{
+			kubeServerKey(primaryServer): primaryServer,
+		},
+	}
+
+	w.hot.Store(false)
+
+	done := make(chan error, 1)
+	go func() {
+		done <- w.maybeFetchFromUpstream(ctx)
+	}()
+
+	<-fetchStarted
+	w.hot.Store(true)
+	close(continueFetch)
+
+	require.NoError(t, <-done)
+
+	w.rw.RLock()
+	defer w.rw.RUnlock()
+	require.Len(t, w.current, 1)
+	srv, ok := w.current[kubeServerKey(primaryServer)]
+	require.True(t, ok)
+	require.Equal(t, primaryServer.GetName(), srv.GetName())
+
+	fallback.AssertExpectations(t)
+}
+
 func testProxyKubeServerWatcherDiscardsBadInitEventSynctest(t *testing.T) {
 	ctx := t.Context()
 
