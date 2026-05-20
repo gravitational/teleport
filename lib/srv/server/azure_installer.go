@@ -21,7 +21,6 @@ package server
 import (
 	"context"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
 
@@ -32,7 +31,7 @@ import (
 // AzureInstallRequest combines parameters for running commands on a set of Azure
 // virtual machines.
 type AzureInstallRequest struct {
-	Instances            []*armcompute.VirtualMachine
+	Instances            []*azure.VirtualMachine
 	InstallerParams      *types.InstallerParams
 	ProxyAddrGetter      func(context.Context) (string, error)
 	Region               string
@@ -42,8 +41,8 @@ type AzureInstallRequest struct {
 
 // AzureInstallResult stores installation results for particular VM instance.
 type AzureInstallResult struct {
-	// Instance is VM instance.
-	Instance *armcompute.VirtualMachine
+	// Instance is the Azure Virtual Machine the installation was attempted on.
+	Instance *azure.VirtualMachine
 	// APIError is potential API error encountered.
 	APIError error
 	// CommandResult is the result of run command: execution status, exit code, stdout, stderr.
@@ -84,10 +83,12 @@ func (req *AzureInstallRequest) Run(ctx context.Context, client azure.RunCommand
 			}
 
 			runRequest := azure.RunCommandRequest{
-				Region:        req.Region,
-				ResourceGroup: req.ResourceGroup,
-				VMName:        azure.StringVal(inst.Name),
-				Script:        script,
+				Region:                      req.Region,
+				ResourceGroup:               req.ResourceGroup,
+				VMName:                      inst.Name,
+				Script:                      script,
+				UniformScaleSetName:         inst.UniformScaleSetName,
+				UniformScaleSetVMInstanceID: inst.UniformScaleSetVMInstanceID,
 			}
 
 			commandResult, apiError := client.Run(ctx, runRequest)
