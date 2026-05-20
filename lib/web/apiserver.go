@@ -3499,7 +3499,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			// Compute end-to-end feature support for this app: only features that are supported by the AppServer *and*
 			// by all required cluster hops (Auth + Proxy), so clients can hide features that would fail somewhere
 			// along the request path.
-			appComponentFeatures := appServerEffectiveFeatures(r, clusterAuthProxyServerFeatures)
+			appComponentFeatures := componentfeatures.Intersect(componentfeatures.GetEffectiveServerFeatures(r), clusterAuthProxyServerFeatures)
 
 			app := ui.MakeApp(r.GetApp(), ui.MakeAppsConfig{
 				LocalClusterName:      h.auth.clusterName,
@@ -3546,25 +3546,6 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 	}
 
 	return resp, nil
-}
-
-// appServerEffectiveFeatures computes the effective feature set for an app server,
-// intersected with cluster-wide auth/proxy features. App servers between v18.6.4 and
-// v18.7.5 advertise FeatureResourceConstraintsV1 but predate the constraint enforcement
-// code; for those versions, the advertisement is stripped before intersection so the
-// frontend doesn't show the constraints UI.
-//
-// TODO(kiosion): DELETE in 20.0.0
-func appServerEffectiveFeatures(appServer types.AppServer, clusterFeatures *componentfeaturesv1.ComponentFeatures) *componentfeaturesv1.ComponentFeatures {
-	appFeatures := appServer.GetComponentFeatures()
-	ver, verErr := semver.NewVersion(appServer.GetTeleportVersion())
-	if verErr == nil && ver.LessThan(semver.Version{Major: 18, Minor: 7, Patch: 6}) && appFeatures != nil {
-		features := slices.DeleteFunc(slices.Clone(appFeatures.GetFeatures()), func(f componentfeaturesv1.ComponentFeatureID) bool {
-			return f == componentfeatures.FeatureResourceConstraintsV1.ToProto()
-		})
-		appFeatures = &componentfeaturesv1.ComponentFeatures{Features: features}
-	}
-	return componentfeatures.Intersect(appFeatures, clusterFeatures)
 }
 
 // clusterNodesGet returns a list of nodes for a given cluster site.
