@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/ui"
-	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 func newApp(t *testing.T, name, publicAddr, description string, labels map[string]string) types.Application {
@@ -102,14 +101,12 @@ func TestMakeApp_AWSRolesVisibility(t *testing.T) {
 	grantedARN := "arn:aws:iam::123456789012:role/granted"
 	requestableARN := "arn:aws:iam::123456789012:role/requestable"
 	baseCfg := MakeAppsConfig{
-		LocalClusterName:  "root",
-		LocalProxyDNSName: "proxy.example.com",
-		AppClusterName:    "root",
-		UserGroupLookup:   map[string]types.UserGroup{},
-		AWSRoles: &PrincipalSet{
-			All:     set.New(grantedARN, requestableARN),
-			Granted: set.New(grantedARN),
-		},
+		LocalClusterName:      "root",
+		LocalProxyDNSName:     "proxy.example.com",
+		AppClusterName:        "root",
+		UserGroupLookup:       map[string]types.UserGroup{},
+		GrantedAWSRolesLookup: map[string][]string{"aws-console": {grantedARN}},
+		AllowedAWSRolesLookup: map[string][]string{"aws-console": {grantedARN, requestableARN}},
 	}
 
 	t.Run("with constraint support returns granted and requestable", func(t *testing.T) {
