@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
@@ -102,28 +103,70 @@ func (a *authorizer) authorizeScoped(ctx context.Context) (scopedCtx *ScopedCont
 		return nil, trace.Wrap(err)
 	}
 
-	user, ok := userI.(LocalUser)
-	if !ok {
-		return nil, trace.AccessDenied("scoped authorization is only supported for local users, got %T", userI)
-	}
-
-	if user.Identity.ScopePin == nil {
-		return nil, trace.AccessDenied("scoped authorization is not supported for unscoped identities")
-	}
-
 	if a.scopedRoleReader == nil {
 		return nil, trace.AccessDenied("authorizer not configured for scoped authorization")
 	}
 
-	scopedCtx, err = scopedContextForLocalUser(ctx, user, a.accessPoint, a.scopedRoleReader, a.clusterName)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	switch user := userI.(type) {
+	case LocalUser:
+		if user.Identity.ScopePin == nil {
+			return nil, trace.AccessDenied("scoped authorization is not supported for unscoped identities")
+		}
+		scopedCtx, err = scopedContextForLocalUser(ctx, user, a.accessPoint, a.scopedRoleReader, a.clusterName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	case SPIFFEIdentity:
+		if a.spiffeAssignmentPopulator == nil {
+			return nil, trace.AccessDenied("authorizer not configured for SPIFFE/SVID identities")
+		}
+		scopedCtx, err = scopedContextForSPIFFEIdentity(ctx, user, a.spiffeAssignmentPopulator, a.scopedRoleReader, a.clusterName)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	default:
+		return nil, trace.AccessDenied("scoped authorization is not supported for %T", userI)
 	}
 
 	// TODO(fspmarshall/scopes): include controls like locks/device enforcement here or (better), refactor to
 	// have enforcement use a common implementation across scoped/unscoped authorize variants.
 
 	return scopedCtx, nil
+}
+
+// scopedContextForSPIFFEIdentity builds a ScopedContext for a SVID. The Pin is
+// constructed on every request at root scope and populated from the assignment
+// cache by SPIFFE ID. The SVID carries no Teleport identity, so the synthetic
+// User and AccessInfo are derived entirely from the SPIFFE ID.
+func scopedContextForSPIFFEIdentity(ctx context.Context, u SPIFFEIdentity, populator SPIFFEAssignmentPopulator, reader services.ScopedRoleReader, clusterName string) (*ScopedContext, error) {
+	pin := &scopesv1.Pin{
+		Scope: scopes.Root,
+	}
+	if err := populator.PopulatePinnedAssignmentsForSPIFFEID(ctx, u.ID, pin); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	username := u.ID.String()
+	user, err := types.NewUser(username)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessInfo := &services.AccessInfo{
+		Username: username,
+		ScopePin: pin,
+	}
+
+	checkerContext, err := services.NewScopedAccessCheckerContext(ctx, accessInfo, clusterName, reader)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &ScopedContext{
+		User:           user,
+		Identity:       u,
+		CheckerContext: checkerContext,
+	}, nil
 }
 
 func scopedContextForLocalUser(ctx context.Context, u LocalUser, accessPoint AuthorizerAccessPoint, reader services.ScopedRoleReader, clusterName string) (*ScopedContext, error) {

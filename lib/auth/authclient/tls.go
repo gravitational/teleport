@@ -45,9 +45,13 @@ type CAGetter interface {
 type HostAndUserCAInfo = map[string]CATypeInfo
 
 // CATypeInfo indicates whether the CA is a host or user CA, or both.
+// IsSPIFFECA marks SPIFFE CAs: client certs issued by a SPIFFE CA are SVIDs
+// and do not carry Teleport identity OIDs, so the verify-peer-cert path
+// must skip the standard Teleport identity decoding for them.
 type CATypeInfo struct {
-	IsHostCA bool
-	IsUserCA bool
+	IsHostCA   bool
+	IsUserCA   bool
+	IsSPIFFECA bool
 }
 
 // ClientCertPool returns trusted x509 certificate authority pool with CAs provided as caType.
@@ -85,6 +89,21 @@ func DefaultClientCertPool(ctx context.Context, client CAGetter, clusterName str
 		return nil, nil, 0, trace.Wrap(err)
 	}
 
+	// SPIFFECA is optional: a remote/leaf cluster may not have one replicated
+	// locally (e.g. older Teleport versions or mid-rollout deployments). If it
+	// is absent, fall through without trusting SVIDs from that cluster — but do
+	// not fail pool generation, since that would break legitimate Host/User CA
+	// based mTLS for clients of that cluster.
+	spiffeAuthorities, err := getCACerts(ctx, client, clusterName, types.SPIFFECA)
+	switch {
+	case err == nil:
+		authorities = append(authorities, spiffeAuthorities...)
+	case trace.IsNotFound(err):
+		// no SPIFFECA for this cluster — proceed without trusting SVIDs
+	default:
+		return nil, nil, 0, trace.Wrap(err)
+	}
+
 	pool := x509.NewCertPool()
 	caInfos := make(HostAndUserCAInfo, len(authorities))
 	var totalSubjectsLen int64
@@ -103,6 +122,8 @@ func DefaultClientCertPool(ctx context.Context, client CAGetter, clusterName str
 				caInfo.IsHostCA = true
 			case types.UserCA:
 				caInfo.IsUserCA = true
+			case types.SPIFFECA:
+				caInfo.IsSPIFFECA = true
 			default:
 				return nil, nil, 0, trace.BadParameter("unexpected CA type %q", caType)
 			}
