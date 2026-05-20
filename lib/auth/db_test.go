@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	subcaenv "github.com/gravitational/teleport/lib/subca/testenv"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/tlscatest"
@@ -120,6 +121,8 @@ func TestDBCertSigning(t *testing.T) {
 		Clock:       clock,
 		ClusterName: clusterName,
 		Dir:         t.TempDir(),
+		// Required for CA override tests.
+		Modules: modulestest.EnterpriseModules(),
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
