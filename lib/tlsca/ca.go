@@ -446,11 +446,18 @@ func (id *Identity) CheckAndSetDefaults() error {
 	return nil
 }
 
-// Custom ranges are taken from this article
-//
-// https://serverfault.com/questions/551477/is-there-reserved-oid-space-for-internal-enterprise-cas
-//
-// http://oid-info.com/get/1.3.9999
+// Custom OID arc used for Teleport-specific certificate attributes.
+var teleportOIDPrefix = asn1.ObjectIdentifier{1, 3, 9999}
+
+// isTeleportOID returns whether the given OID falls under the Teleport-custom
+// arc (1.3.9999).
+func isTeleportOID(oid asn1.ObjectIdentifier) bool {
+	return len(oid) >= len(teleportOIDPrefix) &&
+		oid[0] == teleportOIDPrefix[0] &&
+		oid[1] == teleportOIDPrefix[1] &&
+		oid[2] == teleportOIDPrefix[2]
+}
+
 var (
 	// KubeUsersASN1ExtensionOID is an extension ID used when encoding/decoding
 	// license payload into certificates
@@ -1628,9 +1635,17 @@ func (ca *CertAuthority) GenerateCertificate(req CertificateRequest) ([]byte, er
 
 	// Go deserializes extra names into Names field, but it uses ExtraNames for serialization,
 	// if we have any then we have to copy them over, or they will get lost during another
-	// serialization in x509.CreateCertificate
-	if len(req.Subject.Names) > 0 {
-		req.Subject.ExtraNames = req.Subject.Names
+	// serialization in x509.CreateCertificate.
+	//
+	// However, we must only copy non-standard OIDs (Teleport-custom attributes under 1.3.9999.*).
+	// Standard PKIX attributes (CN, O, OU, etc. under 2.5.4.*) are already handled by
+	// pkix.Name's typed fields and should not be duplicated into ExtraNames; ExtraNames
+	// values take precedence over typed fields during marshaling. This would override the
+	// caller's intended CommonName/Organization values.
+	for _, name := range req.Subject.Names {
+		if isTeleportOID(name.Type) {
+			req.Subject.ExtraNames = append(req.Subject.ExtraNames, name)
+		}
 	}
 
 	template := &x509.Certificate{

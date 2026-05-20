@@ -120,7 +120,111 @@ func TestPrincipals(t *testing.T) {
 	}
 }
 
-// TestScopePin verifies the encoding/decoding of the scope pin field.
+// TestGenerateCertificate_ParsedSubject tests that GenerateCertificate
+// correctly handles subjects parsed from existing certificates, where Go
+// populates Names (from deserialization) but not ExtraNames.
+func TestGenerateCertificate_ParsedSubject(t *testing.T) {
+	t.Parallel()
+
+	clock := clockwork.NewFakeClock()
+
+	genKey := func(t *testing.T) crypto.Signer {
+		t.Helper()
+		key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+		require.NoError(t, err)
+		return key
+	}
+
+	generateAndParse := func(t *testing.T, ca *CertAuthority, subject pkix.Name, dnsNames ...string) *x509.Certificate {
+		t.Helper()
+		certPEM, err := ca.GenerateCertificate(CertificateRequest{
+			Clock:     clock,
+			PublicKey: genKey(t).Public(),
+			Subject:   subject,
+			NotAfter:  clock.Now().Add(time.Hour),
+			DNSNames:  dnsNames,
+		})
+		require.NoError(t, err)
+		cert, err := ParseCertificatePEM(certPEM)
+		require.NoError(t, err)
+		return cert
+	}
+
+	newSelfSignedCA := func(t *testing.T) *CertAuthority {
+		t.Helper()
+		key := genKey(t)
+		certPEM, err := GenerateSelfSignedCAWithConfig(GenerateCAConfig{
+			Entity: pkix.Name{
+				CommonName:   "localhost",
+				Organization: []string{"Teleport"},
+			},
+			Signer:   key,
+			DNSNames: []string{"localhost"},
+			TTL:      time.Hour,
+		})
+		require.NoError(t, err)
+		keyPEM, err := keys.MarshalPrivateKey(key)
+		require.NoError(t, err)
+		tlsCert, err := tls.X509KeyPair(certPEM, keyPEM)
+		require.NoError(t, err)
+		ca, err := FromTLSCertificate(tlsCert)
+		require.NoError(t, err)
+		return ca
+	}
+
+	// Regression test for GenerateCertificate's blanket Names to ExtraNames copying
+	// caused CA's parsed CN (e.g., "localhost") to override the caller's intended CN,
+	// making child cert's Subject == the CA's Subject.
+	t.Run("parsed subject does not override caller CommonName", func(t *testing.T) {
+		t.Parallel()
+
+		localCA := newSelfSignedCA(t)
+
+		// Use the CA's parsed Subject with an overridden CommonName;
+		// same pattern used by LocalCertGenerator.generateCert and alpnproxy listener.
+		sniHost := "sts.amazonaws.com"
+		subject := localCA.Cert.Subject
+		subject.CommonName = sniHost
+
+		childCert := generateAndParse(t, localCA, subject, sniHost)
+
+		assert.Equal(t, sniHost, childCert.Subject.CommonName,
+			"child cert CN should be the SNI host, not the CA's CN")
+		assert.NotEqual(t, childCert.Subject.String(), childCert.Issuer.String(),
+			"child cert Subject must not equal Issuer (would look self-signed)")
+	})
+
+	// Desktop Access multi-domain needs custom Teleport OIDs to
+	// survive a parse and re-encode cycle through GenerateCertificate.
+	t.Run("custom Teleport OIDs survive parsed-subject re-encoding", func(t *testing.T) {
+		t.Parallel()
+
+		ca, err := FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
+		require.NoError(t, err)
+
+		identity := Identity{
+			Username:        "alice",
+			Groups:          []string{"devs"},
+			KubernetesUsers: []string{"admin"},
+			Expires:         clock.Now().Add(time.Hour),
+		}
+		identitySubj, err := identity.Subject()
+		require.NoError(t, err)
+
+		// Generate a cert then parse it and re-encode using the parsed subject.
+		firstCert := generateAndParse(t, ca, identitySubj)
+		secondCert := generateAndParse(t, ca, firstCert.Subject)
+
+		firstID, err := FromSubject(firstCert.Subject, firstCert.NotAfter)
+		require.NoError(t, err)
+		secondID, err := FromSubject(secondCert.Subject, secondCert.NotAfter)
+		require.NoError(t, err)
+
+		assert.Equal(t, firstID.Username, secondID.Username)
+		assert.Equal(t, firstID.KubernetesUsers, secondID.KubernetesUsers)
+	})
+}
+
 func TestScopePin(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	expires := clock.Now().Add(1 * time.Hour)
