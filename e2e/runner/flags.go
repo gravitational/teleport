@@ -97,7 +97,7 @@ func parseFlags(repoRoot string) (*e2eFlags, runMode, error) {
 
 	flag.Parse()
 
-	if err := resolveAbsPaths(&f.teleportBin, &f.tctlBin); err != nil {
+	if err := resolveAbsPaths(&f.teleportBin, &f.tctlBin, &f.licenseFile); err != nil {
 		return nil, 0, err
 	}
 

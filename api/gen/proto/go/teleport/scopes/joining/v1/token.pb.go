@@ -1860,12 +1860,27 @@ func (x *Kubernetes_OIDCConfig) GetInsecureAllowHttpIssuer() bool {
 
 // A rule that a joining node must match in order to use the associated token
 // with the "kubernetes" join method.
+//
+// Either `service_account` or both `service_account_name` and
+// `service_account_namespace` must be specified.
 type Kubernetes_Rule struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The namespaced name of the Kubernetes service account. Its format is "namespace:service-account".
 	ServiceAccount string `protobuf:"bytes,1,opt,name=service_account,json=serviceAccount,proto3" json:"service_account,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// The name of the Kubernetes service account.
+	//
+	// This field supports "glob-style" matching:
+	// - Use '*' to match zero or more characters.
+	// - Use '?' to match any single character.
+	ServiceAccountName string `protobuf:"bytes,2,opt,name=service_account_name,json=serviceAccountName,proto3" json:"service_account_name,omitempty"`
+	// The namespace of the Kubernetes service account.
+	//
+	// This field supports "glob-style" matching:
+	// - Use '*' to match zero or more characters.
+	// - Use '?' to match any single character.
+	ServiceAccountNamespace string `protobuf:"bytes,3,opt,name=service_account_namespace,json=serviceAccountNamespace,proto3" json:"service_account_namespace,omitempty"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
 }
 
 func (x *Kubernetes_Rule) Reset() {
@@ -1901,6 +1916,20 @@ func (*Kubernetes_Rule) Descriptor() ([]byte, []int) {
 func (x *Kubernetes_Rule) GetServiceAccount() string {
 	if x != nil {
 		return x.ServiceAccount
+	}
+	return ""
+}
+
+func (x *Kubernetes_Rule) GetServiceAccountName() string {
+	if x != nil {
+		return x.ServiceAccountName
+	}
+	return ""
+}
+
+func (x *Kubernetes_Rule) GetServiceAccountNamespace() string {
+	if x != nil {
+		return x.ServiceAccountNamespace
 	}
 	return ""
 }
@@ -2168,7 +2197,7 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\atenancy\x18\x01 \x01(\tR\atenancy\x12/\n" +
 	"\x13parent_compartments\x18\x02 \x03(\tR\x12parentCompartments\x12\x18\n" +
 	"\aregions\x18\x03 \x03(\tR\aregions\x12\x1c\n" +
-	"\tinstances\x18\x04 \x03(\tR\tinstances\"\xc0\x03\n" +
+	"\tinstances\x18\x04 \x03(\tR\tinstances\"\xaf\x04\n" +
 	"\n" +
 	"Kubernetes\x12A\n" +
 	"\x05allow\x18\x01 \x03(\v2+.teleport.scopes.joining.v1.Kubernetes.RuleR\x05allow\x12\x12\n" +
@@ -2181,9 +2210,11 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\n" +
 	"OIDCConfig\x12\x16\n" +
 	"\x06issuer\x18\x01 \x01(\tR\x06issuer\x12;\n" +
-	"\x1ainsecure_allow_http_issuer\x18\x02 \x01(\bR\x17insecureAllowHttpIssuer\x1a/\n" +
+	"\x1ainsecure_allow_http_issuer\x18\x02 \x01(\bR\x17insecureAllowHttpIssuer\x1a\x9d\x01\n" +
 	"\x04Rule\x12'\n" +
-	"\x0fservice_account\x18\x01 \x01(\tR\x0eserviceAccount\"\xff\x03\n" +
+	"\x0fservice_account\x18\x01 \x01(\tR\x0eserviceAccount\x120\n" +
+	"\x14service_account_name\x18\x02 \x01(\tR\x12serviceAccountName\x12:\n" +
+	"\x19service_account_namespace\x18\x03 \x01(\tR\x17serviceAccountNamespace\"\xff\x03\n" +
 	"\x10BoundKeypairSpec\x12[\n" +
 	"\n" +
 	"onboarding\x18\x01 \x01(\v2;.teleport.scopes.joining.v1.BoundKeypairSpec.OnboardingSpecR\n" +
