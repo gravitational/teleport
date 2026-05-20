@@ -56,9 +56,6 @@ type ClientApplication interface {
 	// started, after getting the user SSH certificate for the session.
 	OnNewSSHSession(ctx context.Context, profileName, rootClusterName string)
 
-	// PerformSessionMFACeremony performs a session-bound MFA ceremony for a SSH session and returns the challenge name.
-	PerformSessionMFACeremony(ctx context.Context, profileName, leafClusterName string, sessionID []byte) (string, error)
-
 	// OnNewAppConnection gets called whenever a new app connection is about to be established through VNet.
 	// By the time OnNewAppConnection, VNet has already verified that the user holds a valid cert for the
 	// app.
@@ -90,6 +87,7 @@ type ClusterClient interface {
 	ClusterName() string
 	RootClusterName() string
 	SessionSSHKeyRing(ctx context.Context, user string, target client.NodeDetails) (keyRing *client.KeyRing, completedMFA bool, err error)
+	PerformSessionMFACeremony(ctx context.Context, sessionID []byte) (challengeName string, err error)
 }
 
 // RunUserProcess is the entry point called by all VNet client applications

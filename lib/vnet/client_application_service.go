@@ -457,9 +457,8 @@ func (s *clientApplicationService) ExchangeSSHKeys(ctx context.Context, req *vne
 	}, nil
 }
 
-// PerformSessionMFACeremony implements [vnetv1.ClientApplicationServiceServer.PerformSessionMFACeremony]. It invokes
-// the client application's PerformSessionMFACeremony method to perform a session-bound MFA ceremony for a SSH session
-// and returns the challenge name.
+// PerformSessionMFACeremony implements [vnetv1.ClientApplicationServiceServer.PerformSessionMFACeremony]. It performs
+// a session-bound MFA ceremony for a SSH session and returns the challenge name.
 func (s *clientApplicationService) PerformSessionMFACeremony(
 	ctx context.Context,
 	req *vnetv1.PerformSessionMFACeremonyRequest,
@@ -472,12 +471,12 @@ func (s *clientApplicationService) PerformSessionMFACeremony(
 		return nil, trace.BadParameter("SSH session ID must not be empty")
 	}
 
-	challengeName, err := s.cfg.clientApplication.PerformSessionMFACeremony(
-		ctx,
-		req.GetProfile(),
-		req.GetLeafCluster(),
-		req.GetSshSessionId(),
-	)
+	clusterClient, err := s.cfg.clientApplication.GetCachedClient(ctx, req.GetProfile(), req.GetLeafCluster())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	challengeName, err := clusterClient.PerformSessionMFACeremony(ctx, req.GetSshSessionId())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

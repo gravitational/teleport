@@ -103,6 +103,47 @@ func (c *ClusterClient) ConnectToCluster(ctx context.Context, clusterName string
 	return authClient, trace.Wrap(err)
 }
 
+// PerformSessionMFACeremony performs a session-bound MFA ceremony for a SSH session and returns the challenge name.
+func (c *ClusterClient) PerformSessionMFACeremony(ctx context.Context, sessionID []byte) (string, error) {
+	rootClient, err := c.ConnectToRootCluster(ctx)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	defer rootClient.Close()
+
+	mfaClient := rootClient.MFAServiceClient()
+	if mfaClient == nil {
+		return "", trace.BadParameter("MFA service client is not initialized (this is a bug)")
+	}
+
+	ceremony, err := mfa.NewSessionBoundCeremony(
+		mfa.SessionBoundCeremonyConfig{
+			CreateSessionChallenge:      mfaClient.CreateSessionChallenge,
+			ValidateSessionChallenge:    mfaClient.ValidateSessionChallenge,
+			PromptConstructor:           c.tc.NewMFAPrompt,
+			CallbackCeremonyConstructor: c.tc.NewRedirectorMFACeremony,
+			TargetCluster:               c.cluster,
+		},
+	)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	name, err := ceremony.Run(
+		ctx,
+		&mfav1.SessionIdentifyingPayload{
+			Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{
+				SshSessionId: sessionID,
+			},
+		},
+	)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return name, nil
+}
+
 // Close terminates the connections to Auth and Proxy.
 func (c *ClusterClient) Close() error {
 	// close auth client first since it is tunneled through the proxy client
