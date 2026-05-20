@@ -223,6 +223,13 @@ export const formatters: Formatters = {
       `User [${user}] reset credentials for user [${name}]`,
   },
 
+  [eventCodes.USER_RESET_FAILURE]: {
+    type: 'user.reset.failure',
+    desc: 'User Credentials Reset Failed',
+    format: ({ user, name }) =>
+      `User [${user}] failed to reset credentials for user [${name}]`,
+  },
+
   [eventCodes.USER_UPDATED]: {
     type: 'user.update',
     desc: 'User Updated',

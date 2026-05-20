@@ -57,6 +57,7 @@ var eventsMap = map[string]apievents.AuditEvent{
 	UserUpdatedEvent:                               &apievents.UserUpdate{},
 	UserPasswordChangeEvent:                        &apievents.UserPasswordChange{},
 	UserResetEvent:                                 &apievents.UserReset{},
+	UserResetFailureEvent:                          &apievents.UserReset{},
 	AccessRequestCreateEvent:                       &apievents.AccessRequestCreate{},
 	AccessRequestReviewEvent:                       &apievents.AccessRequestCreate{},
 	AccessRequestUpdateEvent:                       &apievents.AccessRequestCreate{},
