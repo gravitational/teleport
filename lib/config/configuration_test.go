@@ -2756,6 +2756,34 @@ app_service:
 			name:   "App TLS configuration fails to read file",
 			outErr: require.Error,
 		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    - name: Foo
+      uri: "http://127.0.0.1:8080"
+`,
+			name: "uppercase app name is rejected",
+			outErr: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t, err, "must be a valid DNS label")
+			},
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    - name: foo
+      uri: "http://127.0.0.1:8080"
+    - name: foo
+      uri: "http://127.0.0.1:8081"
+`,
+			name: "duplicate app names rejected",
+			outErr: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t, err, "duplicate application name")
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -2907,7 +2935,7 @@ func TestAppsCLF(t *testing.T) {
 			outApps:   nil,
 			requireError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsBadParameter(err))
-				require.ErrorContains(t, err, "application name \"-foo\" must be a lower case valid DNS subdomain: https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#application-name")
+				require.ErrorContains(t, err, "application name \"-foo\" must be a valid DNS label (lowercase alphanumeric or '-', must start and end with alphanumeric, max 63 chars): https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#application-name")
 			},
 		},
 		{

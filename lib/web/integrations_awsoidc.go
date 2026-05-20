@@ -20,6 +20,7 @@ package web
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -46,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	autoupdateversion "github.com/gravitational/teleport/lib/automaticupgrades/version"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
@@ -761,10 +763,8 @@ func (h *Handler) awsOIDCConfigureEKSIAM(w http.ResponseWriter, r *http.Request,
 	return nil, trace.Wrap(err)
 }
 
-// TODO(hugoShaka): change the version getter signature to take group and id
-// so we can get rid of this wrapper.
-
-// handlerVersionGetter is a dummy struct implementing version.Getter by wrapping Handler.GetVersion.
+// handlerVersionGetter implements version.Getter by wrapping the Handler's autoupdate resolver
+// and falling back to teleport.Version (the proxy's own version) when no autoupdate target is configured.
 type handlerVersionGetter struct {
 	*Handler
 }
@@ -772,8 +772,15 @@ type handlerVersionGetter struct {
 // GetVersion implements version.Getter.
 func (h *handlerVersionGetter) GetVersion(ctx context.Context) (*semver.Version, error) {
 	const group, updaterUUID = "", ""
-	agentVersion, err := h.autoUpdateResolver.GetVersion(ctx, group, updaterUUID)
-	return agentVersion, trace.Wrap(err)
+	v, err := h.autoUpdateResolver.GetVersion(ctx, group, updaterUUID)
+	if err == nil {
+		return v, nil
+	}
+	var noNewVersionErr *autoupdateversion.NoNewVersionError
+	if !errors.As(trace.Unwrap(err), &noNewVersionErr) {
+		return nil, trace.Wrap(err)
+	}
+	return autoupdateversion.EnsureSemver(teleport.Version)
 }
 
 // awsOIDCEnrollEKSClusters enroll EKS clusters by installing teleport-kube-agent Helm chart on them.
@@ -797,7 +804,7 @@ func (h *Handler) awsOIDCEnrollEKSClusters(w http.ResponseWriter, r *http.Reques
 	}
 
 	versionGetter := &handlerVersionGetter{h}
-	agentVersion, err := kubeutils.GetKubeAgentVersion(ctx, h.cfg.ProxyClient, h.GetClusterFeatures(), versionGetter)
+	agentVersion, err := kubeutils.GetKubeAgentVersion(ctx, versionGetter)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1103,6 +1110,12 @@ func (h *Handler) awsOIDCCreateAWSAppAccess(w http.ResponseWriter, r *http.Reque
 
 	getUserGroupLookup := h.getUserGroupLookup(r.Context(), clt)
 
+	// Reject mixed-case integration names; do not silently lowercase.
+	// The backend lookup is case-sensitive, so a stored record from
+	// before ValidIntegrationName enforced lowercase would be missed.
+	if strings.ToLower(integrationName) != integrationName {
+		return nil, trace.BadParameter("integration name %q contains uppercase characters which are no longer supported; recreate the integration with a lowercase name", integrationName)
+	}
 	publicAddr := libutils.DefaultAppPublicAddr(integrationName, h.PublicProxyAddr())
 
 	parsedRoleARN, err := awsutils.ParseRoleARN(ig.GetAWSOIDCIntegrationSpec().RoleARN)
