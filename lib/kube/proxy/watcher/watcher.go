@@ -130,8 +130,8 @@ type ProxyKubeServerWatcher struct {
 	initC    chan struct{}
 	initOnce sync.Once
 
-	// gate limits the calls to the fallback getter
-	gate *WindowedGate
+	// lastFullFetchAttempt is the time when we last attempted to fetch kube servers from the fallback getter.
+	lastFullFetchAttempt time.Time
 
 	// rw protects below fields
 	rw sync.RWMutex
@@ -164,13 +164,6 @@ func NewProxyKubeServerWatcher(ctx context.Context, cfg ProxyKubeServerWatcherCo
 		return nil, trace.Wrap(err, "creating retry")
 	}
 
-	gate, err := NewWindowedGate(WindowedGateConfig{
-		Window: cfg.FallbackInterval,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err, "creating windowed gate")
-	}
-
 	cfg.Logger = cfg.Logger.With("resource_kinds", types.KindKubeServer)
 	ctx, cancel := context.WithCancel(ctx)
 
@@ -181,7 +174,6 @@ func NewProxyKubeServerWatcher(ctx context.Context, cfg ProxyKubeServerWatcherCo
 		ctx:    ctx,
 		retry:  retry,
 		initC:  make(chan struct{}),
-		gate:   gate,
 	}
 
 	go w.runWatchLoop()
@@ -348,28 +340,37 @@ func (w *ProxyKubeServerWatcher) fetchInitialState(ctx context.Context) error {
 }
 
 // maybeFetchFromUpstream attempts to fetch the kube servers from the auth server if the cache is cold and
-// the next cold fetch time has been reached. This is used to single flight calls to the auth server when the cache is cold.
+// the next cold fetch time has been reached. This is used to throttle calls to the auth server when the cache is cold.
 func (w *ProxyKubeServerWatcher) maybeFetchFromUpstream(ctx context.Context) error {
 	if w.hot.Load() {
 		// fast path watcher is hot, no need to fetch from upstream
 		return nil
 	}
-	_, err := w.gate.MaybeDo(ctx, func(ctx context.Context) error {
-		newCurrent, err := w.getAllKubeServers(ctx, w.FallbackGetter)
-		if err != nil {
-			return trace.Wrap(err, "fetching from fallback")
-		}
 
-		w.rw.Lock()
-		defer w.rw.Unlock()
-		if w.hot.Load() {
-			// Double check cache is not hot while we waited on the lock and/or fetch.
-			return nil
-		}
+	now := time.Now()
 
-		w.current = newCurrent
+	w.rw.Lock()
+	if now.Before(w.lastFullFetchAttempt.Add(w.FallbackInterval)) {
+		w.rw.Unlock()
 		return nil
-	})
+	}
+	w.lastFullFetchAttempt = now
+	w.rw.Unlock()
+
+	newCurrent, err := w.getAllKubeServers(ctx, w.FallbackGetter)
+	if err != nil {
+		return trace.Wrap(err, "fetching from fallback")
+	}
+
+	w.rw.Lock()
+	defer w.rw.Unlock()
+
+	if w.hot.Load() {
+		// Double check cache is not hot while we waited on the lock and/or fetch.
+		return nil
+	}
+
+	w.current = newCurrent
 	return err
 }
 
