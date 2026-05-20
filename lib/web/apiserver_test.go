@@ -11955,3 +11955,21 @@ func TestIPPinning(t *testing.T) {
 	_, err = pack.clt.Get(t.Context(), endpoint, url.Values{})
 	require.NoError(t, err)
 }
+
+func TestGlobMatch(t *testing.T) {
+	for _, test := range []struct {
+		pattern, input string
+		wantGlobMatch  bool
+	}{
+		{"alice", "malice", false},
+		{"alice", "alice-bob", false},
+		{"*@example.com", "foo@example.com.attacker.com", false},
+
+		{"alice", "alice", true},
+		{"*@example.com", "bob@example.com", true},
+	} {
+		got, err := globMatch(test.pattern, test.input)
+		require.NoError(t, err)
+		require.Equal(t, test.wantGlobMatch, got, "pattern=%q input=%q", test.pattern, test.input)
+	}
+}

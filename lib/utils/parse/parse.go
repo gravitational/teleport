@@ -420,7 +420,7 @@ func newRegexp(raw string, escape bool) (*regexp.Regexp, error) {
 			// replace glob-style wildcards with regexp wildcards
 			// for plain strings, and quote all characters that could
 			// be interpreted in regular expression
-			raw = "^" + utils.GlobToRegexp(raw) + "$"
+			raw = utils.GlobToRegexp(raw)
 		}
 	}
 
