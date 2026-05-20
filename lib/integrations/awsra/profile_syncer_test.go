@@ -20,6 +20,8 @@ package awsra
 
 import (
 	"context"
+	"fmt"
+	"strconv"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -28,15 +30,19 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go-v2/service/rolesanywhere"
 	ratypes "github.com/aws/aws-sdk-go-v2/service/rolesanywhere/types"
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
+	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
@@ -225,10 +231,10 @@ func TestRunAWSRolesAnywherProfileSyncer(t *testing.T) {
 
 		params := baseParams(serverClient)
 		params.rolesAnywhereClient = &mockRolesAnywhereClient{
-			profiles: []ratypes.ProfileDetail{
+			pages: [][]ratypes.ProfileDetail{{
 				syncProfile,
 				disabledProfile,
-			},
+			}},
 			tags: exampleProfileTags,
 		}
 
@@ -250,11 +256,11 @@ func TestRunAWSRolesAnywherProfileSyncer(t *testing.T) {
 
 		params := baseParams(serverClient)
 		params.rolesAnywhereClient = &mockRolesAnywhereClient{
-			profiles: []ratypes.ProfileDetail{
+			pages: [][]ratypes.ProfileDetail{{
 				syncProfile,
 				disabledProfile,
 				exampleProfile,
-			},
+			}},
 			tags: exampleProfileTags,
 		}
 
@@ -269,7 +275,7 @@ func TestRunAWSRolesAnywherProfileSyncer(t *testing.T) {
 
 			require.Len(t, serverClient.appServers, 1)
 			appServer := serverClient.appServers[0]
-			require.Equal(t, "ExampleProfile-test-integration", appServer.GetName())
+			require.Equal(t, "exampleprofile-test-integration", appServer.GetName())
 			require.Equal(t, "123456789012", appServer.GetApp().GetAWSAccountID())
 			require.True(t, appServer.GetApp().GetAWSRolesAnywhereAcceptRoleSessionName())
 			require.Equal(t, "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/uuid1", appServer.GetApp().GetAWSRolesAnywhereProfileARN())
@@ -302,9 +308,9 @@ func TestRunAWSRolesAnywherProfileSyncer(t *testing.T) {
 			},
 		}
 		params.rolesAnywhereClient = &mockRolesAnywhereClient{
-			profiles: []ratypes.ProfileDetail{
+			pages: [][]ratypes.ProfileDetail{{
 				exampleProfile,
-			},
+			}},
 			tags: tags,
 		}
 
@@ -319,7 +325,7 @@ func TestRunAWSRolesAnywherProfileSyncer(t *testing.T) {
 
 			require.Len(t, serverClient.appServers, 1)
 			appServer := serverClient.appServers[0]
-			require.Equal(t, "ProfileCustomName", appServer.GetName())
+			require.Equal(t, "profilecustomname-test-integration", appServer.GetName())
 			require.Equal(t, "123456789012", appServer.GetApp().GetAWSAccountID())
 			require.True(t, appServer.GetApp().GetAWSRolesAnywhereAcceptRoleSessionName())
 			require.Equal(t, "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/uuid1", appServer.GetApp().GetAWSRolesAnywhereProfileARN())
@@ -339,13 +345,13 @@ func TestRunAWSRolesAnywherProfileSyncer(t *testing.T) {
 		params := baseParams(serverClient)
 		tags := map[string][]ratypes.Tag{
 			aws.ToString(exampleProfile.ProfileArn): {
-				{Key: aws.String("TeleportApplicationName"), Value: aws.String("``invalid host $ name")},
+				{Key: aws.String("TeleportApplicationName"), Value: aws.String("___")},
 			},
 		}
 		params.rolesAnywhereClient = &mockRolesAnywhereClient{
-			profiles: []ratypes.ProfileDetail{
+			pages: [][]ratypes.ProfileDetail{{
 				exampleProfile,
-			},
+			}},
 			tags: tags,
 		}
 
@@ -366,6 +372,99 @@ func TestRunAWSRolesAnywherProfileSyncer(t *testing.T) {
 			require.NotEmpty(t, lastSyncSummary.EndTime)
 			require.Equal(t, int32(0), lastSyncSummary.SyncedProfiles)
 			require.NotEmpty(t, lastSyncSummary.ErrorMessage)
+		})
+	})
+
+	t.Run("colliding sanitized names report an error", func(t *testing.T) {
+		serverClient := baseServerClient(t)
+
+		// prod_ops and prod-ops sanitize to the same name; the second
+		// must error rather than overwrite the first.
+		profileA := ratypes.ProfileDetail{
+			Name:                  aws.String("prod_ops"),
+			ProfileArn:            aws.String("arn:aws:rolesanywhere:eu-west-2:123456789012:profile/uuid-a"),
+			Enabled:               aws.Bool(true),
+			AcceptRoleSessionName: aws.Bool(true),
+		}
+		profileB := ratypes.ProfileDetail{
+			Name:                  aws.String("prod-ops"),
+			ProfileArn:            aws.String("arn:aws:rolesanywhere:eu-west-2:123456789012:profile/uuid-b"),
+			Enabled:               aws.Bool(true),
+			AcceptRoleSessionName: aws.Bool(true),
+		}
+
+		params := baseParams(serverClient)
+		params.rolesAnywhereClient = &mockRolesAnywhereClient{
+			pages: [][]ratypes.ProfileDetail{{profileA, profileB}},
+			tags:  map[string][]ratypes.Tag{},
+		}
+
+		synctest.Test(t, func(t *testing.T) {
+			go func() {
+				err := RunAWSRolesAnywhereProfileSyncerWhileLocked(t.Context(), params)
+				assert.NoError(t, err)
+			}()
+
+			synctest.Wait()
+
+			require.Len(t, serverClient.appServers, 1)
+			require.Equal(t, "prod-ops-test-integration", serverClient.appServers[0].GetName())
+			require.Equal(t, aws.ToString(profileA.ProfileArn), serverClient.appServers[0].GetApp().GetAWSRolesAnywhereProfileARN())
+
+			status := serverClient.integrations[integrationWithProfileSync.GetName()].GetStatus()
+			require.NotNil(t, status)
+			lastSyncSummary := status.AWSRolesAnywhere.LastProfileSync
+			require.Equal(t, types.IntegrationAWSRolesAnywhereProfileSyncStatusError, lastSyncSummary.Status)
+			require.Equal(t, int32(1), lastSyncSummary.SyncedProfiles)
+			require.Contains(t, lastSyncSummary.ErrorMessage, "prod-ops-test-integration")
+			require.Contains(t, lastSyncSummary.ErrorMessage, "prod_ops")
+		})
+	})
+
+	t.Run("colliding sanitized names across pages report an error", func(t *testing.T) {
+		// Returns the collision across two pages, exercising the
+		// cross-page detection path (seenAppNames declared outside
+		// the page loop).
+		serverClient := baseServerClient(t)
+
+		profileA := ratypes.ProfileDetail{
+			Name:                  aws.String("prod_ops"),
+			ProfileArn:            aws.String("arn:aws:rolesanywhere:eu-west-2:123456789012:profile/uuid-a"),
+			Enabled:               aws.Bool(true),
+			AcceptRoleSessionName: aws.Bool(true),
+		}
+		profileB := ratypes.ProfileDetail{
+			Name:                  aws.String("prod-ops"),
+			ProfileArn:            aws.String("arn:aws:rolesanywhere:eu-west-2:123456789012:profile/uuid-b"),
+			Enabled:               aws.Bool(true),
+			AcceptRoleSessionName: aws.Bool(true),
+		}
+
+		params := baseParams(serverClient)
+		params.rolesAnywhereClient = &mockRolesAnywhereClient{
+			pages: [][]ratypes.ProfileDetail{{profileA}, {profileB}},
+			tags:  map[string][]ratypes.Tag{},
+		}
+
+		synctest.Test(t, func(t *testing.T) {
+			go func() {
+				err := RunAWSRolesAnywhereProfileSyncerWhileLocked(t.Context(), params)
+				assert.NoError(t, err)
+			}()
+
+			synctest.Wait()
+
+			require.Len(t, serverClient.appServers, 1)
+			require.Equal(t, "prod-ops-test-integration", serverClient.appServers[0].GetName())
+			require.Equal(t, aws.ToString(profileA.ProfileArn), serverClient.appServers[0].GetApp().GetAWSRolesAnywhereProfileARN())
+
+			status := serverClient.integrations[integrationWithProfileSync.GetName()].GetStatus()
+			require.NotNil(t, status)
+			lastSyncSummary := status.AWSRolesAnywhere.LastProfileSync
+			require.Equal(t, types.IntegrationAWSRolesAnywhereProfileSyncStatusError, lastSyncSummary.Status)
+			require.Equal(t, int32(1), lastSyncSummary.SyncedProfiles)
+			require.Contains(t, lastSyncSummary.ErrorMessage, "prod-ops-test-integration")
+			require.Contains(t, lastSyncSummary.ErrorMessage, "prod_ops")
 		})
 	})
 
@@ -390,7 +489,7 @@ func TestRunAWSRolesAnywherProfileSyncer(t *testing.T) {
 				trustAnchor:   "arn:aws-us-gov:rolesanywhere:us-gov-west-1:123456789012:trust-anchor/ExampleTrustAnchor",
 				roleARN:       "arn:aws-us-gov:iam::123456789012:role/SyncRole",
 				expectedURI:   constants.AWSUSGovConsoleURL,
-				expectedAppID: "GovProfile-govcloud-integration",
+				expectedAppID: "govprofile-govcloud-integration",
 			},
 			{
 				name:          "china",
@@ -401,7 +500,7 @@ func TestRunAWSRolesAnywherProfileSyncer(t *testing.T) {
 				trustAnchor:   "arn:aws-cn:rolesanywhere:cn-north-1:123456789012:trust-anchor/ExampleTrustAnchor",
 				roleARN:       "arn:aws-cn:iam::123456789012:role/SyncRole",
 				expectedURI:   constants.AWSCNConsoleURL,
-				expectedAppID: "ChinaProfile-china-integration",
+				expectedAppID: "chinaprofile-china-integration",
 			},
 		} {
 			t.Run(tt.name, func(t *testing.T) {
@@ -439,10 +538,10 @@ func TestRunAWSRolesAnywherProfileSyncer(t *testing.T) {
 
 				params := baseParams(serverClient)
 				params.rolesAnywhereClient = &mockRolesAnywhereClient{
-					profiles: []ratypes.ProfileDetail{
+					pages: [][]ratypes.ProfileDetail{{
 						syncProfile,
 						appProfile,
-					},
+					}},
 					tags: map[string][]ratypes.Tag{},
 				}
 
@@ -485,10 +584,10 @@ func TestRunAWSRolesAnywherProfileSyncer(t *testing.T) {
 
 		params := baseParams(serverClient)
 		params.rolesAnywhereClient = &mockRolesAnywhereClient{
-			profiles: []ratypes.ProfileDetail{
+			pages: [][]ratypes.ProfileDetail{{
 				syncProfile,
 				invalidProfile,
-			},
+			}},
 			tags: map[string][]ratypes.Tag{},
 		}
 
@@ -512,6 +611,140 @@ func TestRunAWSRolesAnywherProfileSyncer(t *testing.T) {
 			require.NotEmpty(t, lastSyncSummary.ErrorMessage)
 		})
 	})
+}
+
+func TestSanitizeProfileName(t *testing.T) {
+	// Inputs and wants are raw profile.Name; the integration suffix
+	// is appended later by convertProfile.
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "already valid",
+			input: "prod-ops",
+			want:  "prod-ops",
+		},
+		{
+			name:  "underscore replaced",
+			input: "prod_ops",
+			want:  "prod-ops",
+		},
+		{
+			name:  "space replaced",
+			input: "my profile",
+			want:  "my-profile",
+		},
+		{
+			name:  "uppercase lowercased",
+			input: "ProdOps",
+			want:  "prodops",
+		},
+		{
+			name:  "leading underscore stripped",
+			input: "_foo",
+			want:  "foo",
+		},
+		{
+			name:  "consecutive invalid chars become consecutive hyphens",
+			input: "foo__bar",
+			want:  "foo--bar",
+		},
+		{
+			name:  "dotted name preserved",
+			input: "env.prod",
+			want:  "env.prod",
+		},
+		{
+			name:  "underscore adjacent to dot",
+			input: "env_.prod_",
+			want:  "env.prod",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, sanitizeProfileName(tt.input))
+		})
+	}
+}
+
+func TestConvertProfile(t *testing.T) {
+	tests := []struct {
+		name        string
+		profileName string
+		tags        map[string]string
+		wantAppName string
+	}{
+		{
+			name:        "valid name unchanged",
+			profileName: "ExampleProfile",
+			wantAppName: "exampleprofile-test-integration",
+		},
+		{
+			name:        "underscores in profile name replaced with hyphens",
+			profileName: "prod_ops",
+			wantAppName: "prod-ops-test-integration",
+		},
+		{
+			name:        "spaces in profile name replaced with hyphens",
+			profileName: "my profile",
+			wantAppName: "my-profile-test-integration",
+		},
+		{
+			name:        "override tag sanitized",
+			profileName: "ExampleProfile",
+			tags:        map[string]string{types.AWSRolesAnywhereProfileNameOverrideLabel: "custom_override name"},
+			// The integration suffix is preserved on override to
+			// prevent a single-profile tagger from picking a name
+			// that collides with a different integration.
+			wantAppName: "custom-override-name-test-integration",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			profile := &integrationv1.RolesAnywhereProfile{
+				Name:    tt.profileName,
+				Arn:     "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/uuid1",
+				Enabled: true,
+				Tags:    tt.tags,
+			}
+
+			appServer, err := convertProfile(AWSRolesAnywhereProfileSyncerParams{
+				Clock:    clockwork.NewFakeClock(),
+				HostUUID: "test-host-uuid",
+			}, profile, "test-integration", "proxy.example.com")
+			require.NoError(t, err)
+			require.Equal(t, tt.wantAppName, appServer.GetApp().GetName())
+			require.Equal(t, tt.wantAppName, appServer.GetName())
+			// Round-trip through ValidateApp so a runtime heartbeat
+			// rejection surfaces here at sync time.
+			proxyGetter := &mockProxyGetter{addrs: []string{"proxy.example.com:443"}}
+			require.NoError(t, services.ValidateApp(appServer.GetApp(), proxyGetter))
+		})
+	}
+}
+
+// mockProxyGetter is a test implementation of services.ProxyGetter.
+type mockProxyGetter struct {
+	addrs []string
+}
+
+func (m *mockProxyGetter) GetProxies() ([]types.Server, error) {
+	servers := make([]types.Server, 0, len(m.addrs))
+	for _, addr := range m.addrs {
+		servers = append(servers, &types.ServerV2{
+			Spec: types.ServerSpecV2{PublicAddrs: []string{addr}},
+		})
+	}
+	return servers, nil
+}
+
+func (m *mockProxyGetter) ListProxyServers(_ context.Context, _ int, _ string) ([]types.Server, string, error) {
+	servers, _ := m.GetProxies()
+	return servers, "", nil
 }
 
 func TestAWSConsoleURLForARN(t *testing.T) {
@@ -552,14 +785,32 @@ func TestAWSConsoleURLForARN(t *testing.T) {
 }
 
 type mockRolesAnywhereClient struct {
-	profiles []ratypes.ProfileDetail
-	tags     map[string][]ratypes.Tag
+	// pages returns one element per ListProfiles call with a NextToken
+	// pointing at the following index. Single-page tests set one entry.
+	pages [][]ratypes.ProfileDetail
+	tags  map[string][]ratypes.Tag
 }
 
 // Lists all profiles in the authenticated account and Amazon Web Services Region.
 func (m *mockRolesAnywhereClient) ListProfiles(ctx context.Context, params *rolesanywhere.ListProfilesInput, optFns ...func(*rolesanywhere.Options)) (*rolesanywhere.ListProfilesOutput, error) {
+	idx := 0
+	if params.NextToken != nil {
+		n, err := strconv.Atoi(aws.ToString(params.NextToken))
+		if err != nil {
+			return nil, trace.Wrap(err, "malformed page token %q", aws.ToString(params.NextToken))
+		}
+		idx = n
+	}
+	if idx >= len(m.pages) {
+		return &rolesanywhere.ListProfilesOutput{}, nil
+	}
+	var nextToken *string
+	if idx+1 < len(m.pages) {
+		nextToken = aws.String(fmt.Sprintf("%d", idx+1))
+	}
 	return &rolesanywhere.ListProfilesOutput{
-		Profiles: m.profiles,
+		Profiles:  m.pages[idx],
+		NextToken: nextToken,
 	}, nil
 }
 

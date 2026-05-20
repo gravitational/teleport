@@ -44,6 +44,7 @@ import (
 	"time"
 
 	template "github.com/DataDog/datadog-agent/pkg/template/html"
+	"github.com/coreos/go-semver/semver"
 	gogoproto "github.com/gogo/protobuf/proto"
 	"github.com/google/safetext/shsprintf"
 	"github.com/google/uuid"
@@ -65,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
@@ -821,7 +823,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		}
 	}
 
-	go h.startFeatureWatcher()
+	go h.startFeatureWatcher(h.cfg.Context)
 
 	return &APIHandler{
 		handler:    h,
@@ -3565,7 +3567,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			// Compute end-to-end feature support for this app: only features that are supported by the AppServer *and*
 			// by all required cluster hops (Auth + Proxy), so clients can hide features that would fail somewhere
 			// along the request path.
-			appComponentFeatures := componentfeatures.Intersect(r.GetComponentFeatures(), clusterAuthProxyServerFeatures)
+			appComponentFeatures := appServerEffectiveFeatures(r, clusterAuthProxyServerFeatures)
 
 			app := ui.MakeApp(r.GetApp(), ui.MakeAppsConfig{
 				LocalClusterName:  h.auth.clusterName,
@@ -3613,6 +3615,26 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 	}
 
 	return resp, nil
+}
+
+// appServerEffectiveFeatures computes the effective feature set for an app server,
+// intersected with cluster-wide auth/proxy features. App servers between v18.6.4 and
+// v18.7.2 advertise FeatureResourceConstraintsV1 but predate the constraint enforcement
+// code; for those versions, the advertisement is stripped before intersection so the
+// frontend doesn't show the constraints UI.
+//
+// TODO(kiosion): DELETE in 20.0.0
+func appServerEffectiveFeatures(appServer types.AppServer, clusterFeatures *componentfeaturesv1.ComponentFeatures) *componentfeaturesv1.ComponentFeatures {
+	appFeatures := appServer.GetComponentFeatures()
+	minVer, minVerErr := semver.NewVersion("18.7.3")
+	ver, verErr := semver.NewVersion(appServer.GetTeleportVersion())
+	if verErr == nil && minVerErr == nil && ver.LessThan(*minVer) && appFeatures != nil {
+		features := slices.DeleteFunc(slices.Clone(appFeatures.GetFeatures()), func(f componentfeaturesv1.ComponentFeatureID) bool {
+			return f == componentfeatures.FeatureResourceConstraintsV1.ToProto()
+		})
+		appFeatures = &componentfeaturesv1.ComponentFeatures{Features: features}
+	}
+	return componentfeatures.Intersect(appFeatures, clusterFeatures)
 }
 
 // clusterNodesGet returns a list of nodes for a given cluster site.

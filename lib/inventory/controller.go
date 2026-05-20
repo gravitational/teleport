@@ -1067,6 +1067,11 @@ func (c *Controller) handleAppServerHB(handle *upstreamHandle, appServer *types.
 		return trace.AccessDenied("incorrect app server scope (expected %q, got %q)", handle.Hello().GetScope(), appServer.Scope)
 	}
 
+	// Older agents send mixed-case names and URL-shaped public_addr;
+	// normalize before deriving the cache key so it matches the
+	// backend write.
+	services.NormalizeAppServerForHeartbeat(appServer)
+
 	if handle.appServers == nil {
 		handle.appServers = make(map[resourceKey]*heartBeatInfo[*types.AppServerV3])
 	}
@@ -1290,7 +1295,19 @@ func (c *Controller) keepAliveAppServer(handle *upstreamHandle, now time.Time, n
 	}
 
 	srv.resource.SetExpiry(now.Add(c.serverTTL).UTC())
-	if _, err := c.auth.UnconditionalUpdateApplicationServer(c.closeContext, srv.resource); err == nil {
+	// retryUpsert is set when the previous UpsertApplicationServer call
+	// failed. Route the retry back through UpsertApplicationServer so
+	// ValidateApp re-runs - UnconditionalUpdate would let an unvalidated
+	// app_server record slip through. Steady-state keepalives skip
+	// ValidateApp via UnconditionalUpdate; the record was already
+	// validated on its first successful upsert.
+	var err error
+	if srv.retryUpsert {
+		_, err = c.auth.UpsertApplicationServer(c.closeContext, srv.resource)
+	} else {
+		_, err = c.auth.UnconditionalUpdateApplicationServer(c.closeContext, srv.resource)
+	}
+	if err == nil {
 		if srv.retryUpsert {
 			c.testEvent(appUpsertRetryOk)
 		} else {

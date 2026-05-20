@@ -916,6 +916,195 @@ func testAppServerBasics(t *testing.T) {
 	require.Zero(t, rc.count())
 }
 
+// TestAppServerHeartbeatNormalization verifies handleAppServerHB calls
+// services.NormalizeAppServerForHeartbeat on the inventory control
+// stream path so an older agent that heartbeats a mixed-case name and
+// URL-shaped public_addr lands the same lowercased, bare-hostname
+// resource as the gRPC handler would. A regression that dropped the
+// normalize call would still leave the gRPC test passing.
+func TestAppServerHeartbeatNormalization(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, testAppServerHeartbeatNormalization)
+}
+
+func testAppServerHeartbeatNormalization(t *testing.T) {
+	const serverID = "test-server"
+	ctx := t.Context()
+	events := make(chan testEvent, 1024)
+
+	auth := &fakeAuth{}
+	controller := NewController(
+		auth,
+		usagereporter.DiscardUsageReporter{},
+		withServerKeepAlive(time.Millisecond*200),
+		withTestEventsChannel(events),
+	)
+	upstream, downstream := client.InventoryControlStreamPipe()
+	t.Cleanup(func() {
+		upstream.Close()
+		downstream.Close()
+		controller.Close()
+	})
+
+	go func() {
+		for {
+			select {
+			case msg := <-downstream.Recv():
+				downstream.Send(ctx, &proto.UpstreamInventoryPong{
+					ID: msg.(*proto.DownstreamInventoryPing).GetID(),
+				})
+			case <-downstream.Done():
+				return
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	controller.RegisterControlStream(upstream, &proto.UpstreamInventoryHello{
+		ServerID: serverID,
+		Version:  teleport.Version,
+		Services: types.SystemRoles{types.RoleApp}.StringSlice(),
+	})
+
+	h, ok := controller.GetControlStream(serverID)
+	require.True(t, ok)
+	handle := h.(*upstreamHandle)
+
+	err := downstream.Send(ctx, &proto.InventoryHeartbeat{
+		AppServer: &types.AppServerV3{
+			Metadata: types.Metadata{
+				Name: "MixedCaseApp",
+			},
+			Spec: types.AppServerSpecV3{
+				HostID: serverID,
+				App: &types.AppV3{
+					Kind:    types.KindApp,
+					Version: types.V3,
+					Metadata: types.Metadata{
+						Name: "MixedCaseApp",
+					},
+					Spec: types.AppSpecV3{
+						URI:        "http://localhost:8080",
+						PublicAddr: "https://mixedcaseapp.example.com:8443/start",
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	awaitEvents(t, events,
+		expect(appUpsertOk),
+		deny(appUpsertErr, handlerClose),
+	)
+	synctest.Wait()
+
+	expectedKey := resourceKey{hostID: serverID, name: "mixedcaseapp"}
+	srv, ok := handle.appServers[expectedKey]
+	require.True(t, ok, "expected handle.appServers key %+v; got %+v", expectedKey, handle.appServers)
+	require.Equal(t, "mixedcaseapp", srv.resource.GetApp().GetName())
+	require.Equal(t, "mixedcaseapp", srv.resource.GetName())
+	require.Equal(t, "mixedcaseapp.example.com", srv.resource.GetApp().GetPublicAddr())
+}
+
+// TestAppKeepAliveRetryRoutesThroughUpsert asserts a retry tick
+// re-runs Upsert while steady-state uses UnconditionalUpdate.
+func TestAppKeepAliveRetryRoutesThroughUpsert(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, testAppKeepAliveRetryRoutesThroughUpsert)
+}
+
+func testAppKeepAliveRetryRoutesThroughUpsert(t *testing.T) {
+	const serverID = "test-server"
+	ctx := t.Context()
+	events := make(chan testEvent, 1024)
+
+	auth := &fakeAuth{}
+	controller := NewController(
+		auth,
+		usagereporter.DiscardUsageReporter{},
+		withServerKeepAlive(time.Millisecond*200),
+		withTestEventsChannel(events),
+	)
+	upstream, downstream := client.InventoryControlStreamPipe()
+	t.Cleanup(func() {
+		upstream.Close()
+		downstream.Close()
+		controller.Close()
+	})
+
+	go func() {
+		for {
+			select {
+			case msg := <-downstream.Recv():
+				downstream.Send(ctx, &proto.UpstreamInventoryPong{
+					ID: msg.(*proto.DownstreamInventoryPing).GetID(),
+				})
+			case <-downstream.Done():
+				return
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+
+	controller.RegisterControlStream(upstream, &proto.UpstreamInventoryHello{
+		ServerID: serverID,
+		Version:  teleport.Version,
+		Services: types.SystemRoles{types.RoleApp}.StringSlice(),
+	})
+
+	auth.mu.Lock()
+	auth.failUpserts = 1
+	auth.mu.Unlock()
+
+	err := downstream.Send(ctx, &proto.InventoryHeartbeat{
+		AppServer: &types.AppServerV3{
+			Metadata: types.Metadata{Name: "app-retry"},
+			Spec: types.AppServerSpecV3{
+				HostID: serverID,
+				App: &types.AppV3{
+					Kind:    types.KindApp,
+					Version: types.V3,
+					Metadata: types.Metadata{
+						Name:   "app-retry",
+						Labels: map[string]string{"foo": uuid.NewString()},
+					},
+					Spec: types.AppSpecV3{},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	awaitEvents(t, events,
+		expect(appUpsertErr, appUpsertRetryOk),
+		deny(appKeepAliveErr, handlerClose),
+	)
+
+	auth.mu.Lock()
+	upserts := auth.upserts
+	keepalives := auth.keepalives
+	auth.mu.Unlock()
+
+	require.Equal(t, 2, upserts, "retry tick must route through Upsert")
+	require.Zero(t, keepalives, "retry tick must not use UnconditionalUpdate")
+
+	awaitEvents(t, events,
+		expect(appKeepAliveOk),
+		deny(appKeepAliveErr, handlerClose),
+	)
+
+	auth.mu.Lock()
+	upsertsAfter := auth.upserts
+	keepalivesAfter := auth.keepalives
+	auth.mu.Unlock()
+
+	require.Equal(t, 2, upsertsAfter, "steady-state keepalive must not call Upsert")
+	require.Positive(t, keepalivesAfter, "steady-state keepalive must call UnconditionalUpdate")
+}
+
 // TestDatabaseServerBasics verifies basic expected behaviors for a single control stream heartbeating
 // a database server.
 func TestDatabaseServerBasics(t *testing.T) {

@@ -18,6 +18,6 @@ package usersv1
 
 import "context"
 
-func (s *Service) ResetPassword(ctx context.Context, username string) error {
-	return s.resetPassword(ctx, username)
+func (s *Service) ResetCredentials(ctx context.Context, username string) (bool, error) {
+	return s.resetCredentials(ctx, username)
 }

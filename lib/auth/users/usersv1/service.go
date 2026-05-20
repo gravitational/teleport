@@ -684,11 +684,7 @@ func (s *Service) resetUser(ctx context.Context, req *userspb.ResetUserRequest) 
 func (s *Service) resetLocalUser(
 	ctx context.Context, req *userspb.ResetUserRequest,
 ) (*userspb.ResetUserResponse, error) {
-	if err := s.resetPassword(ctx, req.Name); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if _, err := s.resetMFA(ctx, req.Name); err != nil {
+	if _, err := s.resetCredentials(ctx, req.Name); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -743,7 +739,7 @@ func (s *Service) resetLocalUser(
 func (s *Service) resetSSOUser(
 	ctx context.Context, req *userspb.ResetUserRequest,
 ) (*userspb.ResetUserResponse, error) {
-	if _, err := s.resetMFA(ctx, req.Name); err != nil {
+	if _, err := s.resetCredentials(ctx, req.Name); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &userspb.ResetUserResponse{}, nil
@@ -752,7 +748,7 @@ func (s *Service) resetSSOUser(
 func (s *Service) resetUnknownUser(
 	ctx context.Context, req *userspb.ResetUserRequest,
 ) (*userspb.ResetUserResponse, error) {
-	hadMFAs, err := s.resetMFA(ctx, req.Name)
+	hadMFAs, err := s.resetCredentials(ctx, req.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -763,22 +759,22 @@ func (s *Service) resetUnknownUser(
 	}
 }
 
-// resetPassword deletes the user's password. Used to invalidate existing user
-// password during password reset process.
+// resetCredentials deletes the user's password and MFA devices. It does not
+// fail if the user doesn't exist, doesn't have a password, or doesn't have any
+// MFA devices. Returns hadMFAs=true if there were MFA devices to remove, false
+// otherwise. The returned value corresponds to the initial number of MFA
+// devices, not the result of the operation.
 //
-// It does not fail if the user doesn't exist or doesn't have a password.
-func (s *Service) resetPassword(ctx context.Context, username string) error {
+// This function is deliberately used even for SSO users, because it provides
+// an idempotent password removal and provides additional protection against
+// cases where stale cache may misclassify a freshly created local user for an
+// expired SSO user.
+func (s *Service) resetCredentials(ctx context.Context, username string) (hadMFAs bool, err error) {
 	if err := s.backend.DeletePassword(ctx, username); err != nil && !trace.IsNotFound(err) {
-		return trace.Wrap(err)
+		return false, trace.Wrap(err)
 	}
-	return nil
-}
 
-// resetMFA removes all MFA devices of a given user. Returns true if there were
-// devices to remove, false otherwise. The returned value corresponds to the
-// initial number of devices, not the result of the operation.
-func (s *Service) resetMFA(ctx context.Context, user string) (bool, error) {
-	devs, err := s.backend.GetMFADevices(ctx, user, false)
+	devs, err := s.backend.GetMFADevices(ctx, username, false)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
@@ -792,7 +788,7 @@ func (s *Service) resetMFA(ctx context.Context, user string) (bool, error) {
 			// SSO MFA devices are synthetic and cannot be deleted.
 			continue
 		}
-		errs = append(errs, s.backend.DeleteMFADevice(ctx, user, d.Id))
+		errs = append(errs, s.backend.DeleteMFADevice(ctx, username, d.Id))
 	}
 	return true, trace.NewAggregate(errs...)
 }

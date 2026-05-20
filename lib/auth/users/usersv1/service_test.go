@@ -1305,7 +1305,7 @@ func getAllEvents(c <-chan apievents.AuditEvent) []apievents.AuditEvent {
 	}
 }
 
-func TestResetPassword(t *testing.T) {
+func TestResetCredentials_ResetsPassword(t *testing.T) {
 	t.Parallel()
 
 	ctx := t.Context()
@@ -1323,7 +1323,7 @@ func TestResetPassword(t *testing.T) {
 	require.NoError(t, err)
 
 	// Reset password.
-	err = env.ResetPassword(ctx, "dave")
+	_, err = env.ResetCredentials(ctx, "dave")
 	require.NoError(t, err)
 
 	// Make sure that the password has been reset.
@@ -1334,6 +1334,6 @@ func TestResetPassword(t *testing.T) {
 
 	// Make sure that we can reset once again (i.e. we don't complain if there's
 	// no password).
-	err = env.ResetPassword(ctx, "dave")
+	_, err = env.ResetCredentials(ctx, "dave")
 	require.NoError(t, err)
 }
