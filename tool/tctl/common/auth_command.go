@@ -164,7 +164,7 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, cliFlags *tctlcfg.Glo
 	a.authSign.Flag("db-service", `Database to generate identity file for. Mutually exclusive with "--app-name".`).StringVar(&a.dbService)
 	a.authSign.Flag("db-user", `Database user placed on the identity file. Only used when "--db-service" is set.`).StringVar(&a.dbUser)
 	a.authSign.Flag("db-name", `Database name placed on the identity file. Only used when "--db-service" is set.`).StringVar(&a.dbName)
-	a.authSign.Flag("windows-user", `Window user placed on the identity file. Only used when --format is set to "windows"`).StringVar(&a.windowsUser)
+	a.authSign.Flag("windows-user", `Windows user placed on the identity file. Only used when --format is set to "windows"`).StringVar(&a.windowsUser)
 	a.authSign.Flag("windows-domain", `Active Directory domain for which this cert is valid. Only used when --format is set to "windows"`).StringVar(&a.windowsDomain)
 	a.authSign.Flag("windows-pki-domain", `Active Directory domain where CRLs will be located. Only used when --format is set to "windows"`).StringVar(&a.windowsPKIDomain)
 	a.authSign.Flag("windows-sid", `Optional Security Identifier to embed in the certificate. Only used when --format is set to "windows"`).StringVar(&a.windowsSID)
