@@ -222,8 +222,8 @@ func (t *streamableHTTPTransport) handleMCPMessage(r *http.Request) (*http.Respo
 	switch {
 	case baseMessage.IsRequest():
 		mcpRequest := baseMessage.MakeRequest()
-		if errResp, authErr := t.sessionHandler.processClientRequest(r.Context(), mcpRequest); authErr != nil {
-			return t.handleRequestAuthError(r, mcpRequest, errResp, authErr)
+		if errResp := t.sessionHandler.processClientRequest(r.Context(), mcpRequest); errResp != nil {
+			return t.handleRequestError(r, *errResp)
 		}
 	case baseMessage.IsNotification():
 		t.sessionHandler.processClientNotification(r.Context(), baseMessage.MakeNotification())
@@ -257,9 +257,7 @@ func (t *streamableHTTPTransport) handleMCPMessage(r *http.Request) (*http.Respo
 	return resp, trace.Wrap(err)
 }
 
-func (t *streamableHTTPTransport) handleRequestAuthError(r *http.Request, mcpRequest *mcputils.JSONRPCRequest, errResp mcp.JSONRPCMessage, authErr error) (*http.Response, error) {
-	t.emitRequestEvent(t.parentCtx, mcpRequest, eventWithError(authErr), eventWithHeader(r.Header))
-
+func (t *streamableHTTPTransport) handleRequestError(r *http.Request, errResp mcp.JSONRPCMessage) (*http.Response, error) {
 	errRespAsBody, err := json.Marshal(errResp)
 	if err != nil {
 		// Should not happen. If it does, we are failing the request either way.
