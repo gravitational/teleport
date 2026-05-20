@@ -35,8 +35,6 @@ type commandInflightExecT struct {
 	Filename [512]uint8
 	_        [7]byte
 	Argv     uint64
-	Emitted  bool
-	_        [7]byte
 }
 
 // loadCommand returns the embedded CollectionSpec for command.
