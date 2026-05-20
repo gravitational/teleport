@@ -140,6 +140,19 @@ export function DesktopSession({
     [desktop, setHiDpiSettings]
   );
 
+  // Track devicePixelRatio so the HiDPI screen indicator updates
+  // when the window is dragged between displays with different DPRs.
+  const [devicePixelRatio, setDevicePixelRatio] = useState(
+    window.devicePixelRatio
+  );
+  useEffect(() => {
+    const mql = window.matchMedia(`(resolution: ${devicePixelRatio}dppx)`);
+    const onChange = () => setDevicePixelRatio(window.devicePixelRatio);
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, [devicePixelRatio]);
+  const screenIsHiDpi = devicePixelRatio > 1;
+
   const inputHandler = useRef(new InputHandler());
   useEffect(() => {
     return () => inputHandler.current.dispose();
@@ -436,7 +449,7 @@ export function DesktopSession({
     latencyStats,
     hiDpiEnabled: isHiDpi,
     onToggleHiDpi: () => setIsHiDpi(!isHiDpi),
-    screenIsHiDpi: window.devicePixelRatio > 1,
+    screenIsHiDpi,
     hiDpiSupported: client.hidpiSupported,
   };
   return (
