@@ -118,6 +118,8 @@ func (s *Server) startKubeIntegrationWatchers() error {
 			resourcesEnrolledByGroup := make(map[awsResourceGroup]int)
 			iterationDiscoveryConfigs := make(map[string]struct{})
 
+			inflightInstallations := sync.WaitGroup{}
+
 			select {
 			case resources := <-watcher.ResourcesC():
 				if len(resources) == 0 {
@@ -197,7 +199,9 @@ func (s *Server) startKubeIntegrationWatchers() error {
 
 				for key, val := range clustersByRegionAndIntegration {
 					key, val := key, val
-					go s.enrollEKSClusters(key.region, key.integration, key.discoveryConfigName, val, agentVersion, &mu, enrollingClusters)
+					inflightInstallations.Go(func() {
+						s.enrollEKSClusters(key.region, key.integration, key.discoveryConfigName, val, agentVersion, &mu, enrollingClusters)
+					})
 				}
 
 			case <-s.ctx.Done():
@@ -207,6 +211,8 @@ func (s *Server) startKubeIntegrationWatchers() error {
 			for group, count := range resourcesEnrolledByGroup {
 				s.awsEKSResourcesStatus.incrementEnrolled(group, count)
 			}
+
+			inflightInstallations.Wait()
 
 			s.updateDiscoveryConfigStatus(slices.Collect(maps.Keys(iterationDiscoveryConfigs))...)
 		}
