@@ -21,14 +21,19 @@ package apiserver
 import (
 	"context"
 	"log/slog"
+	"runtime/debug"
 
+	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/recovery"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport/api/trail"
 )
 
-// withErrorHandling is gRPC middleware that maps internal errors to proper gRPC error codes
-func withErrorHandling(log *slog.Logger) grpc.UnaryServerInterceptor {
+// withUnaryErrorHandling is gRPC middleware that maps internal errors from unary
+// handlers to proper gRPC error codes.
+func withUnaryErrorHandling(log *slog.Logger) grpc.UnaryServerInterceptor {
 	return func(
 		ctx context.Context,
 		req any,
@@ -43,4 +48,43 @@ func withErrorHandling(log *slog.Logger) grpc.UnaryServerInterceptor {
 
 		return resp, nil
 	}
+}
+
+// withStreamErrorHandling is gRPC middleware that maps internal errors from streaming
+// handlers to proper gRPC error codes.
+func withStreamErrorHandling(log *slog.Logger) grpc.StreamServerInterceptor {
+	return func(
+		srv any,
+		stream grpc.ServerStream,
+		info *grpc.StreamServerInfo,
+		handler grpc.StreamHandler,
+	) error {
+		err := handler(srv, stream)
+		if err != nil {
+			log.ErrorContext(stream.Context(), "Stream request failed", "error", err)
+			return trail.ToGRPC(err)
+		}
+
+		return nil
+	}
+}
+
+// withUnaryPanicRecovery is gRPC middleware that recovers from panics in unary handlers.
+func withUnaryPanicRecovery(log *slog.Logger) grpc.UnaryServerInterceptor {
+	return recovery.UnaryServerInterceptor(panicRecoveryOption(log))
+}
+
+// withStreamPanicRecovery is gRPC middleware that recovers from panics in streaming handlers.
+func withStreamPanicRecovery(log *slog.Logger) grpc.StreamServerInterceptor {
+	return recovery.StreamServerInterceptor(panicRecoveryOption(log))
+}
+
+func panicRecoveryOption(log *slog.Logger) recovery.Option {
+	return recovery.WithRecoveryHandlerContext(func(ctx context.Context, p any) error {
+		log.ErrorContext(ctx, "Recovered from panic in gRPC handler",
+			"panic", p,
+			"stack", string(debug.Stack()),
+		)
+		return status.Errorf(codes.Internal, "handler panic: %v", p)
+	})
 }
