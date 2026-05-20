@@ -203,6 +203,17 @@ If you wish to migrate an existing Teleport cluster from software keys to AWS
 KMS keys, read on to
 [migrating an existing cluster](#migrating-an-existing-cluster).
 
+If the Auth Service is already running, execute the following command on each
+Auth Service host to restart the Auth Service:
+
+```code
+$ sudo systemctl reload teleport
+```
+
+Otherwise, start Teleport on each Auth Service host:
+
+(!docs/pages/includes/start-teleport.mdx!)
+
 ## Step 3/3. Make sure everything is working
 
 After starting up your Auth Service with the `aws_kms` configuration, you can
