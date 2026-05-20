@@ -1110,6 +1110,12 @@ func (h *Handler) awsOIDCCreateAWSAppAccess(w http.ResponseWriter, r *http.Reque
 
 	getUserGroupLookup := h.getUserGroupLookup(r.Context(), clt)
 
+	// Reject mixed-case integration names; do not silently lowercase.
+	// The backend lookup is case-sensitive, so a stored record from
+	// before ValidIntegrationName enforced lowercase would be missed.
+	if strings.ToLower(integrationName) != integrationName {
+		return nil, trace.BadParameter("integration name %q contains uppercase characters which are no longer supported; recreate the integration with a lowercase name", integrationName)
+	}
 	publicAddr := libutils.DefaultAppPublicAddr(integrationName, h.PublicProxyAddr())
 
 	parsedRoleARN, err := awsutils.ParseRoleARN(ig.GetAWSOIDCIntegrationSpec().RoleARN)

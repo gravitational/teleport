@@ -1187,7 +1187,20 @@ message DatabaseCertResponse {
   // Cert is the signed certificate.
   bytes Cert = 1 [(gogoproto.jsontag) = "cert"];
   // CACerts is a list of certificate authorities.
+  //
+  // CACerts are the root CAs that the client itself should trust
+  // (tls.Config.RootCAs).
   repeated bytes CACerts = 2 [(gogoproto.jsontag) = "ca_certs"];
+  // Certificate trust chain, in PEM form. Sorted from leaf to root.
+  //
+  // Cert and TrustChain are the certificates the client should present
+  // (tls.Config.Certificates). Pseudocode:
+  //
+  // 	tlsConfig.Certificates = append([]*tls.Certificate{resp.Cert}, resp.TrustChain...)
+  repeated bytes TrustChain = 3 [(gogoproto.jsontag) = "trust_chain"];
+  // CA override details. Optional.
+  // If present then a CA override was active during certificate issuance.
+  CAOverrideCertificateDetails CAOverride = 4 [(gogoproto.jsontag) = "ca_override"];
 }
 
 // SnowflakeJWTRequest contains data required to generate Snowflake JWT used for authorization.

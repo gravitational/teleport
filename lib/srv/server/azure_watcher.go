@@ -23,8 +23,6 @@ import (
 	"log/slog"
 	"slices"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/gravitational/trace"
 
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
@@ -57,7 +55,7 @@ type AzureInstances struct {
 	// InstallerParams are the installer parameters used for installation.
 	InstallerParams *types.InstallerParams
 	// Instances is a list of discovered Azure virtual machines.
-	Instances []*armcompute.VirtualMachine
+	Instances []*azure.VirtualMachine
 }
 
 func (instances *AzureInstances) LogValue() slog.Value {
@@ -82,8 +80,8 @@ func (instances *AzureInstances) resourceType() string {
 }
 
 // MakeUsageEvent builds usage event for a single installation result.
-func (instances *AzureInstances) MakeUsageEvent(instance *armcompute.VirtualMachine) (string, *usageeventsv1.ResourceCreateEvent) {
-	return azureEventPrefix + azure.StringVal(instance.ID), &usageeventsv1.ResourceCreateEvent{
+func (instances *AzureInstances) MakeUsageEvent(instance *azure.VirtualMachine) (string, *usageeventsv1.ResourceCreateEvent) {
+	return azureEventPrefix + instance.ID, &usageeventsv1.ResourceCreateEvent{
 		ResourceType:        instances.resourceType(),
 		ResourceOrigin:      types.OriginCloud,
 		CloudProvider:       types.CloudAzure,
@@ -101,11 +99,9 @@ func (instances *AzureInstances) MakeRunEvent(result AzureInstallResult) *apieve
 
 	var vmID, vmName, resourceID string
 	if result.Instance != nil {
-		vmName = azure.StringVal(result.Instance.Name)
-		resourceID = azure.StringVal(result.Instance.ID)
-		if result.Instance.Properties != nil {
-			vmID = azure.StringVal(result.Instance.Properties.VMID)
-		}
+		vmName = result.Instance.Name
+		resourceID = result.Instance.ID
+		vmID = result.Instance.VMID
 	}
 
 	evt := &apievents.AzureRun{
@@ -162,12 +158,8 @@ func (instances *AzureInstances) FilterExistingNodes(existingNodes []types.Serve
 		}
 	}
 
-	instances.Instances = slices.DeleteFunc(instances.Instances, func(instance *armcompute.VirtualMachine) bool {
-		var vmID string
-		if instance.Properties != nil && instance.Properties.VMID != nil {
-			vmID = *instance.Properties.VMID
-		}
-		_, found := vmIDs[vmID]
+	instances.Instances = slices.DeleteFunc(instances.Instances, func(instance *azure.VirtualMachine) bool {
+		_, found := vmIDs[instance.VMID]
 		return found
 	})
 }
@@ -305,54 +297,28 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*Azu
 		return nil, trace.Wrap(err)
 	}
 
-	instancesByRegionAndResourceGroup := make(map[resourceGroupLocation][]*armcompute.VirtualMachine)
+	instanceGroups := make(map[resourceGroupLocation][]*azure.VirtualMachine)
 
 	allowAllLocations := slices.Contains(f.Regions, types.Wildcard)
-	allowAllResourceGroups := f.ResourceGroup == types.Wildcard
 
 	for _, vm := range vms {
-		location := azure.StringVal(vm.Location)
-		if !slices.Contains(f.Regions, location) && !allowAllLocations {
+		if !slices.Contains(f.Regions, vm.Location) && !allowAllLocations {
 			continue
 		}
-
-		vmTags := make(map[string]string, len(vm.Tags))
-		for key, value := range vm.Tags {
-			vmTags[key] = azure.StringVal(value)
-		}
-		if match, _, _ := services.MatchLabels(f.Labels, vmTags); !match {
+		if match, _, _ := services.MatchLabels(f.Labels, vm.Tags); !match {
 			continue
-		}
-
-		resourceGroup := f.ResourceGroup
-		if allowAllResourceGroups {
-			resourceMetadata, err := arm.ParseResourceID(azure.StringVal(vm.ID))
-			if err != nil {
-				f.Logger.WarnContext(ctx, "Skipping Teleport installation on Azure VM - failed to infer resource group from vm id",
-					"subscription_id", f.Subscription,
-					"vm_id", azure.StringVal(vm.Properties.VMID),
-					"resource_id", azure.StringVal(vm.ID),
-					"error", err,
-				)
-				continue
-			}
-			resourceGroup = resourceMetadata.ResourceGroupName
 		}
 
 		batchGroup := resourceGroupLocation{
-			resourceGroup: resourceGroup,
-			location:      location,
+			resourceGroup: vm.ResourceGroup,
+			location:      vm.Location,
 		}
 
-		if _, ok := instancesByRegionAndResourceGroup[batchGroup]; !ok {
-			instancesByRegionAndResourceGroup[batchGroup] = make([]*armcompute.VirtualMachine, 0)
-		}
-
-		instancesByRegionAndResourceGroup[batchGroup] = append(instancesByRegionAndResourceGroup[batchGroup], vm)
+		instanceGroups[batchGroup] = append(instanceGroups[batchGroup], vm)
 	}
 
 	var instances []*AzureInstances
-	for batchGroup, vms := range instancesByRegionAndResourceGroup {
+	for batchGroup, vms := range instanceGroups {
 		instances = append(instances, &AzureInstances{
 			SubscriptionID:      f.Subscription,
 			Region:              batchGroup.location,

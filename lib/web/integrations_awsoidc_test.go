@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -1106,6 +1107,8 @@ func TestAWSOIDCAppAccessAppServerCreationDeletion(t *testing.T) {
 	proxy := env.proxies[0]
 	proxy.handler.handler.cfg.PublicProxyAddr = strings.TrimPrefix(proxy.handler.handler.cfg.PublicProxyAddr, "https://")
 	proxyPublicAddr := proxy.handler.handler.cfg.PublicProxyAddr
+	proxyPublicHost, _, err := net.SplitHostPort(proxyPublicAddr)
+	require.NoError(t, err)
 	pack := proxy.authPack(t, "foo@example.com", []types.Role{roleTokenCRD})
 
 	myIntegration, err := types.NewIntegrationAWSOIDC(types.Metadata{
@@ -1155,7 +1158,7 @@ func TestAWSOIDCAppAccessAppServerCreationDeletion(t *testing.T) {
 					URI:         "https://console.aws.amazon.com",
 					Integration: "my-integration",
 					Cloud:       "AWS",
-					PublicAddr:  "my-integration." + proxyPublicAddr,
+					PublicAddr:  "my-integration." + proxyPublicHost,
 				},
 			},
 		},
@@ -1207,6 +1210,22 @@ func TestAWSOIDCAppAccessAppServerCreationDeletion(t *testing.T) {
 		_, err = pack.clt.PostJSON(ctx, endpoint, nil)
 		require.Error(t, err)
 		require.ErrorContains(t, err, `Invalid integration name ("env.prod") for enabling AWS Access.`)
+	})
+
+	t.Run("mixed-case integration name is rejected", func(t *testing.T) {
+		mixedCaseIntegration, err := types.NewIntegrationAWSOIDC(types.Metadata{
+			Name: "MixedCase",
+		}, &types.AWSOIDCIntegrationSpecV1{
+			RoleARN: "arn:aws:iam::123456789012:role/teleport",
+		})
+		require.NoError(t, err)
+
+		_, err = env.server.Auth().CreateIntegration(ctx, mixedCaseIntegration)
+		require.NoError(t, err)
+		endpoint = pack.clt.Endpoint("webapi", "sites", "localhost", "integrations", "aws-oidc", "MixedCase", "aws-app-access")
+		_, err = pack.clt.PostJSON(ctx, endpoint, nil)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "contains uppercase characters")
 	})
 }
 
