@@ -104,14 +104,18 @@ func ValidateApp(app types.Application, proxyGetter ProxyGetter) error {
 		return trace.BadParameter("nil application")
 	}
 	// Subdomain (not label) so integrations can produce dotted names.
-	if errs := validation.IsDNS1123Subdomain(app.GetName()); len(errs) > 0 {
-		return trace.BadParameter("application name %q must be a valid DNS name (lowercase alphanumeric, '-', or '.', must start and end with alphanumeric, max 253 chars): https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#application-name", app.GetName())
+	// Allow underscores: Cloud and self-hosted both already accept
+	// underscored app names, and curl/Go-based clients route them via
+	// the wildcard cert. Stricter rejection would break callers like
+	// the Terraform provider whose test fixtures use snake_case.
+	if errs := validation.IsDNS1123SubdomainWithUnderscore(app.GetName()); len(errs) > 0 {
+		return trace.BadParameter("application name %q must be a valid DNS name (lowercase alphanumeric, '-', '_', or '.', must start and end with alphanumeric, max 253 chars): https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#application-name", app.GetName())
 	}
 	// required_apps lookup is exact-string; a mixed-case entry would
 	// never match a lowercased primary name.
 	for _, required := range app.GetRequiredAppNames() {
-		if errs := validation.IsDNS1123Subdomain(required); len(errs) > 0 {
-			return trace.BadParameter("application %q references required_apps entry %q which must be a valid DNS name (lowercase alphanumeric, '-', or '.', start and end alphanumeric, max 253 chars): https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#application-name", app.GetName(), required)
+		if errs := validation.IsDNS1123SubdomainWithUnderscore(required); len(errs) > 0 {
+			return trace.BadParameter("application %q references required_apps entry %q which must be a valid DNS name (lowercase alphanumeric, '-', '_', or '.', start and end alphanumeric, max 253 chars): https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#application-name", app.GetName(), required)
 		}
 	}
 
@@ -290,8 +294,8 @@ func ValidateAppServer(server types.AppServer, proxyGetter ProxyGetter) error {
 	if server == nil {
 		return trace.BadParameter("nil app server")
 	}
-	if errs := validation.IsDNS1123Subdomain(server.GetName()); len(errs) > 0 {
-		return trace.BadParameter("app server name %q must be a valid DNS name (lowercase alphanumeric, '-', or '.', must start and end with alphanumeric, max 253 chars): %s", server.GetName(), strings.Join(errs, ", "))
+	if errs := validation.IsDNS1123SubdomainWithUnderscore(server.GetName()); len(errs) > 0 {
+		return trace.BadParameter("app server name %q must be a valid DNS name (lowercase alphanumeric, '-', '_', or '.', must start and end with alphanumeric, max 253 chars): %s", server.GetName(), strings.Join(errs, ", "))
 	}
 	return trace.Wrap(ValidateApp(server.GetApp(), proxyGetter))
 }

@@ -23,7 +23,6 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
@@ -140,8 +139,6 @@ func TestHandlers(t *testing.T) {
 			kind: types.KindAppServer,
 			makeResource: func(t *testing.T, name string) types.Resource {
 				t.Helper()
-				// Shared name generator emits underscores; DNS-1123 rejects.
-				name = strings.ReplaceAll(name, "_", "-")
 				app, err := types.NewAppV3(
 					types.Metadata{
 						Name: name,

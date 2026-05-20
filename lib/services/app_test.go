@@ -233,10 +233,8 @@ func TestValidateAppServer(t *testing.T) {
 		require.ErrorContains(t, err, "app server name")
 		require.ErrorContains(t, err, "MyApp")
 	})
-	t.Run("underscore in outer rejected", func(t *testing.T) {
-		err := ValidateAppServer(makeServer(t, "bad_name", "good-name"), proxyGetter)
-		require.ErrorContains(t, err, "app server name")
-		require.ErrorContains(t, err, "bad_name")
+	t.Run("underscore in outer accepted", func(t *testing.T) {
+		require.NoError(t, ValidateAppServer(makeServer(t, "ok_name", "good-name"), proxyGetter))
 	})
 	t.Run("mixed-case inner rejected", func(t *testing.T) {
 		err := ValidateAppServer(makeServer(t, "myapp", "MyApp"), proxyGetter)
@@ -289,7 +287,7 @@ func TestValidateAppName(t *testing.T) {
 		{name: "valid all digits", appName: "123"},
 		{name: "valid dotted name", appName: "env.prod"},
 		{name: "reject uppercase", appName: "MyApp", wantErr: "must be a valid DNS name"},
-		{name: "reject underscore", appName: "my_app", wantErr: "must be a valid DNS name"},
+		{name: "accept underscore", appName: "my_app"},
 		{name: "reject trailing hyphen", appName: "foo-", wantErr: "must be a valid DNS name"},
 		{name: "accept 63-char label", appName: strings.Repeat("a", 63)},
 		{name: "reject too long", appName: strings.Repeat("a", 254), wantErr: "must be a valid DNS name"},

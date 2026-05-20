@@ -210,11 +210,14 @@ is registered:
   with alphanumeric. Mixed-case names are rejected at startup, as are
   duplicate names.
 - **Dynamic resources (`tctl create app`, integrations, Kubernetes
-  operator)**: lowercase alphanumeric, `-`, or `.`, max 253
+  operator)**: lowercase alphanumeric, `-`, `_`, or `.`, max 253
   characters. On Teleport Cloud, avoid `.` in app names: the tenant
   wildcard certificate only covers one subdomain level
   (`*.<tenant>.teleport.sh`), so dotted names will fail TLS
-  validation.
+  validation. Underscores are accepted by the Auth Service and the
+  cluster's wildcard cert, but strict TLS clients
+  (OpenSSL with `verify_hostname`) and proxies like NGINX (with
+  `underscores_in_headers off`) may reject them at access time.
 
 `public_addr` (if set) must be a bare, lowercase DNS hostname. URI
 schemes, ports, IP addresses, and uppercase letters are rejected.
