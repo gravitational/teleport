@@ -32,9 +32,6 @@ import (
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-const eventBufferMaxSize = 2048
-const eventBufferInitialSize = 32
-
 // KubernetesServerGetter defines interface for fetching kubernetes server resources.
 type KubernetesServerGetter interface {
 	// GetKubernetesServers returns all kubernetes server resources.
@@ -206,10 +203,10 @@ func (w *ProxyKubeServerWatcher) armTimeout() *time.Timer {
 }
 
 // fillEventBuf fills the given buffer with events from the watcher channel until the buffer is reaches [eventBufferMaxSize] or the channel is closed.
-func fillEventBuf(ctx context.Context, buf []types.Event, w types.Watcher) (out []types.Event) {
+func fillEventBuf(ctx context.Context, buf []types.Event, w types.Watcher, maxSize int) (out []types.Event) {
 	out = buf // does not reset, caller is responsible for clearing the buffer after processing
 
-	for len(out) < eventBufferMaxSize {
+	for len(out) < maxSize {
 		select {
 		case <-w.Done():
 			return
@@ -269,6 +266,8 @@ func (w *ProxyKubeServerWatcher) watch() error {
 
 	// At this point watcher is successfully initialized and the cache is warmed up, we can reset the retry backoff and start processing events.
 	w.retry.Reset()
+	const eventBufferMaxSize = 2048
+	const eventBufferInitialSize = 32
 	eventBuf := make([]types.Event, 0, eventBufferInitialSize)
 
 	for {
@@ -283,7 +282,7 @@ func (w *ProxyKubeServerWatcher) watch() error {
 				return trace.ConnectionProblem(nil, "watcher events channel is closed (this is a bug)")
 			}
 			eventBuf = append(eventBuf[:0], event)
-			eventBuf = fillEventBuf(w.ctx, eventBuf, watcher)
+			eventBuf = fillEventBuf(w.ctx, eventBuf, watcher, eventBufferMaxSize)
 			w.processEvents(w.ctx, eventBuf)
 			clear(eventBuf)
 		}

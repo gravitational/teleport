@@ -613,22 +613,24 @@ func TestProxyKubeServerWatcher_RecoversFromFirstFetchFail(t *testing.T) {
 func TestFillEventBuf_DoesNotExceedMaxBufferSize(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
-	const pageCount = 2
-	const totalEvents = eventBufferMaxSize * pageCount
+	const pageCount = 3
+	const bufferSize = 64
+	const bufferStartingSize = 16
+	const totalEvents = bufferSize * pageCount
 	fw := newFakeWatcher(totalEvents)
 	t.Cleanup(func() { fw.Close() })
 
 	for i := range totalEvents {
 		fw.send(types.Event{Type: types.OpPut, Resource: newTestKubeServer(t, fmt.Sprintf("kube-%d", i), "host")})
 	}
-	eventBuf := make([]types.Event, 0, eventBufferInitialSize)
+	eventBuf := make([]types.Event, 0, bufferStartingSize)
 	seen := make(map[string]struct{}, totalEvents)
 	for page := range pageCount {
 		eventBuf = eventBuf[:0] // caller must reset
-		eventBuf = fillEventBuf(ctx, eventBuf, fw)
-		require.Len(t, eventBuf, eventBufferMaxSize, "expected page %d to be full", page)
+		eventBuf = fillEventBuf(ctx, eventBuf, fw, bufferSize)
+		require.Len(t, eventBuf, bufferSize, "expected page %d to be full", page)
 
-		pageSeen := make(map[string]struct{}, eventBufferMaxSize)
+		pageSeen := make(map[string]struct{}, bufferSize)
 		for idx, event := range eventBuf {
 			name := event.Resource.GetName()
 			require.NotEmpty(t, name)
@@ -637,7 +639,7 @@ func TestFillEventBuf_DoesNotExceedMaxBufferSize(t *testing.T) {
 			pageSeen[name] = struct{}{}
 			seen[name] = struct{}{}
 
-			expectedName := fmt.Sprintf("kube-%d", page*eventBufferMaxSize+idx)
+			expectedName := fmt.Sprintf("kube-%d", page*bufferSize+idx)
 			require.Equal(t, expectedName, name)
 		}
 	}
