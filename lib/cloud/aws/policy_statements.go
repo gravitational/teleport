@@ -20,6 +20,7 @@ package aws
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/gravitational/trace"
@@ -191,8 +192,8 @@ func StatementForEKSAccess() *Statement {
 
 // StatementForAWSOIDCRoleTrustRelationship returns the Trust Relationship to allow the OpenID Connect Provider
 // set up during the AWS OIDC Onboarding to assume this Role.
-func StatementForAWSOIDCRoleTrustRelationship(accountID, providerURL string, audiences []string) *Statement {
-	federatedARN := fmt.Sprintf("arn:aws:iam::%s:oidc-provider/%s", accountID, providerURL)
+func StatementForAWSOIDCRoleTrustRelationship(partition, accountID, providerURL string, audiences []string) *Statement {
+	federatedARN := fmt.Sprintf("arn:%s:iam::%s:oidc-provider/%s", partition, accountID, providerURL)
 	federatedAudience := fmt.Sprintf("%s:aud", providerURL)
 
 	return &Statement{
@@ -226,7 +227,7 @@ func StatementForListRDSDatabases() *Statement {
 
 // StatementForS3BucketPublicRead returns the statement that
 // allows public/anonynous access to s3 bucket/prefix objects.
-func StatementForS3BucketPublicRead(s3bucketName, objectPrefix string) *Statement {
+func StatementForS3BucketPublicRead(partition, s3bucketName, objectPrefix string) *Statement {
 	return &Statement{
 		Effect: EffectAllow,
 		Principals: StringOrMap{
@@ -236,7 +237,7 @@ func StatementForS3BucketPublicRead(s3bucketName, objectPrefix string) *Statemen
 			"s3:GetObject",
 		},
 		Resources: []string{
-			fmt.Sprintf("arn:aws:s3:::%s/%s/*", s3bucketName, objectPrefix),
+			fmt.Sprintf("arn:%s:s3:::%s/%s/*", partition, s3bucketName, objectPrefix),
 		},
 	}
 }
@@ -265,8 +266,12 @@ type ExternalAuditStoragePolicyConfig struct {
 
 func (c *ExternalAuditStoragePolicyConfig) CheckAndSetDefaults() error {
 	if len(c.Partition) == 0 {
-		c.Partition = "aws"
-	}
+        if strings.HasPrefix(c.Region, "us-gov") {
+            c.Partition = "aws-us-gov"
+        } else {
+            c.Partition = "aws"
+        }
+    }
 	if len(c.Region) == 0 {
 		return trace.BadParameter("region is required")
 	}
