@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/subca"
 )
 
 // Handlers returns a map of Handler per kind.
@@ -101,12 +100,8 @@ func Handlers() map[string]Handler {
 		scopedaccess.KindScopedRoleAssignment:        scopedRoleAssignmentHandler(),
 		types.KindWorkloadCluster:                    workloadClusterHandler(),
 		scopedaccess.KindScopedToken:                 scopedTokenHandler(),
+		types.KindCertAuthorityOverride:              certAuthorityOverrideHandler(),
 	}
-
-	if subca.Enabled() {
-		m[types.KindCertAuthorityOverride] = certAuthorityOverrideHandler()
-	}
-
 	return m
 }
 
