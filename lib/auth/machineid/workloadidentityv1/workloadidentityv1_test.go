@@ -1679,7 +1679,7 @@ func TestIssueTeleportWorkloadIdentity(t *testing.T) {
 
 	const appServiceID = "test-server"
 	const appName = "panel"
-	ctx := context.Background()
+	ctx := t.Context()
 	tp := newIssuanceTestPack(t, ctx)
 	clusterName := tp.srv.ClusterName()
 
@@ -1886,7 +1886,7 @@ func TestIssueTeleportWorkloadIdentityRejectsExpiredUserCA(t *testing.T) {
 	const appServiceID = "test-server"
 	const appName = "panel"
 
-	ctx := context.Background()
+	ctx := t.Context()
 	tp := newIssuanceTestPack(t, ctx)
 	clusterName := tp.srv.ClusterName()
 

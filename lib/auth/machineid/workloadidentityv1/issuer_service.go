@@ -499,7 +499,7 @@ func (s *IssuanceService) issueAppAccessX509Identity(
 		req.RequestedTtl.AsDuration(),
 		// Cap the cert TTL at the session expiry, plus an alloweance for clock
 		// drift that mirrors [veirfyCertValidityWithSkew]. Without the
-		// allowance session that are within the skew window would yiedl app
+		// allowance session that are within the skew window would yield app
 		// certs with a near-zero (or negative) TTL.
 		s.clock.Until(userIdentity.Expires)+certVerifyClockSkewAllowance,
 	)
