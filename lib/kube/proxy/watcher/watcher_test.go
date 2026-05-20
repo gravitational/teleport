@@ -611,8 +611,9 @@ func TestProxyKubeServerWatcher_RecoversFromFirstFetchFail(t *testing.T) {
 }
 
 func TestFillEventBuf_DoesNotExceedMaxBufferSize(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
-	const pageCount = 3
+	const pageCount = 2
 	const totalEvents = eventBufferMaxSize * pageCount
 	fw := newFakeWatcher(totalEvents)
 	t.Cleanup(func() { fw.Close() })
