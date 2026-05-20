@@ -137,10 +137,8 @@ describe('Beams nav category', () => {
 
     renderNav();
 
-    const beamsButton = screen.getByRole('button', { name: /^Beams$/ });
-    const resourcesButton = screen.getByRole('button', {
-      name: /^Resources$/,
-    });
+    const beamsButton = screen.getByRole('button', { name: 'Beams' });
+    const resourcesButton = screen.getByRole('button', { name: 'Resources' });
     const buttons = screen.getAllByRole('button');
 
     expect(buttons.indexOf(beamsButton)).toBeLessThan(
@@ -153,10 +151,8 @@ describe('Beams nav category', () => {
 
     renderNav();
 
-    const beamsButton = screen.getByRole('button', { name: /^Beams$/ });
-    const resourcesButton = screen.getByRole('button', {
-      name: /^Resources$/,
-    });
+    const beamsButton = screen.getByRole('button', { name: 'Beams' });
+    const resourcesButton = screen.getByRole('button', { name: 'Resources' });
     const buttons = screen.getAllByRole('button');
 
     expect(buttons.indexOf(resourcesButton)).toBeLessThan(
@@ -181,7 +177,13 @@ describe('Beams first-visit auto-expand', () => {
     localStorage.clear();
   });
 
-  function mountNav(initialPath: string, updatePreferences = jest.fn()) {
+  function mountNav({
+    initialPath,
+    updatePreferences,
+  }: {
+    initialPath: string;
+    updatePreferences: jest.Mock;
+  }) {
     mockUserContextProviderWith(
       makeTestUserContext({
         preferences: makeDefaultUserPreferences(),
@@ -200,13 +202,16 @@ describe('Beams first-visit auto-expand', () => {
         </ContextProvider>
       </MemoryRouter>
     );
-    return updatePreferences;
   }
 
   test('flips sideNavDrawerMode to STICKY and sets the flag on first Beams page visit', () => {
+    const updatePreferences = jest.fn();
     expect(storageService.getBeamsFirstVisitExpanded()).toBe(false);
 
-    const updatePreferences = mountNav('/web/beams/get-started');
+    mountNav({
+      initialPath: '/web/beams/get-started',
+      updatePreferences,
+    });
 
     expect(storageService.getBeamsFirstVisitExpanded()).toBe(true);
     expect(updatePreferences).toHaveBeenCalledWith({
@@ -215,15 +220,24 @@ describe('Beams first-visit auto-expand', () => {
   });
 
   test('does not run again once the flag is set', () => {
+    const updatePreferences = jest.fn();
     storageService.setBeamsFirstVisitExpanded();
 
-    const updatePreferences = mountNav('/web/beams/get-started');
+    mountNav({
+      initialPath: '/web/beams/get-started',
+      updatePreferences,
+    });
 
     expect(updatePreferences).not.toHaveBeenCalled();
   });
 
   test('does not fire when landing on a non-Beams page', () => {
-    const updatePreferences = mountNav('/web/cluster/x/resources');
+    const updatePreferences = jest.fn();
+
+    mountNav({
+      initialPath: '/web/cluster/x/resources',
+      updatePreferences,
+    });
 
     expect(storageService.getBeamsFirstVisitExpanded()).toBe(false);
     expect(updatePreferences).not.toHaveBeenCalled();
