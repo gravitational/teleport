@@ -33,8 +33,9 @@ import { CredentialAssertion } from "../../legacy/types/webauthn/webauthn_pb";
 /**
  * AuthenticateChallenge is a challenge for all MFA devices registered for a user.
  *
- * Deprecated: Use teleport.mfa.v2.AuthenticateChallenge for new session-bound MFA APIs.
+ * Deprecated: Use teleport.mfa.v2.
  *
+ * @deprecated
  * @generated from protobuf message teleport.mfa.v1.AuthenticateChallenge
  */
 export interface AuthenticateChallenge {
@@ -70,8 +71,9 @@ export interface AuthenticateChallenge {
 /**
  * AuthenticateResponse is a response to AuthenticateChallenge using one of the MFA devices registered for a user.
  *
- * Deprecated: Use teleport.mfa.v2.AuthenticateResponse for new session-bound MFA APIs.
+ * Deprecated: Use teleport.mfa.v2.
  *
+ * @deprecated
  * @generated from protobuf message teleport.mfa.v1.AuthenticateResponse
  */
 export interface AuthenticateResponse {
@@ -116,8 +118,9 @@ export interface AuthenticateResponse {
 /**
  * SSOChallenge contains SSO auth request details to perform an SSO MFA check.
  *
- * Deprecated: Use teleport.mfa.v2.SSOChallenge for new session-bound MFA APIs.
+ * Deprecated: Use teleport.mfa.v2.
  *
+ * @deprecated
  * @generated from protobuf message teleport.mfa.v1.SSOChallenge
  */
 export interface SSOChallenge {
@@ -143,8 +146,9 @@ export interface SSOChallenge {
 /**
  * SSOChallengeResponse is a response to SSOChallenge.
  *
- * Deprecated: Use teleport.mfa.v2.SSOChallengeResponse for new session-bound MFA APIs.
+ * Deprecated: Use teleport.mfa.v2.
  *
+ * @deprecated
  * @generated from protobuf message teleport.mfa.v1.SSOChallengeResponse
  */
 export interface SSOChallengeResponse {
@@ -164,8 +168,9 @@ export interface SSOChallengeResponse {
 /**
  * BrowserMFAChallenge contains browser MFA request details to perform a browser MFA check.
  *
- * Deprecated: Use teleport.mfa.v2.BrowserMFAChallenge for new session-bound MFA APIs.
+ * Deprecated: Use teleport.mfa.v2.
  *
+ * @deprecated
  * @generated from protobuf message teleport.mfa.v1.BrowserMFAChallenge
  */
 export interface BrowserMFAChallenge {
@@ -179,8 +184,9 @@ export interface BrowserMFAChallenge {
 /**
  * BrowserMFAResponse is a response to BrowserMFAChallenge.
  *
- * Deprecated: Use teleport.mfa.v2.BrowserMFAResponse for new session-bound MFA APIs.
+ * Deprecated: Use teleport.mfa.v2.
  *
+ * @deprecated
  * @generated from protobuf message teleport.mfa.v1.BrowserMFAResponse
  */
 export interface BrowserMFAResponse {
@@ -262,6 +268,7 @@ class AuthenticateChallenge$Type extends MessageType<AuthenticateChallenge> {
     }
 }
 /**
+ * @deprecated
  * @generated MessageType for protobuf message teleport.mfa.v1.AuthenticateChallenge
  */
 export const AuthenticateChallenge = new AuthenticateChallenge$Type();
@@ -340,6 +347,7 @@ class AuthenticateResponse$Type extends MessageType<AuthenticateResponse> {
     }
 }
 /**
+ * @deprecated
  * @generated MessageType for protobuf message teleport.mfa.v1.AuthenticateResponse
  */
 export const AuthenticateResponse = new AuthenticateResponse$Type();
@@ -402,6 +410,7 @@ class SSOChallenge$Type extends MessageType<SSOChallenge> {
     }
 }
 /**
+ * @deprecated
  * @generated MessageType for protobuf message teleport.mfa.v1.SSOChallenge
  */
 export const SSOChallenge = new SSOChallenge$Type();
@@ -457,6 +466,7 @@ class SSOChallengeResponse$Type extends MessageType<SSOChallengeResponse> {
     }
 }
 /**
+ * @deprecated
  * @generated MessageType for protobuf message teleport.mfa.v1.SSOChallengeResponse
  */
 export const SSOChallengeResponse = new SSOChallengeResponse$Type();
@@ -504,6 +514,7 @@ class BrowserMFAChallenge$Type extends MessageType<BrowserMFAChallenge> {
     }
 }
 /**
+ * @deprecated
  * @generated MessageType for protobuf message teleport.mfa.v1.BrowserMFAChallenge
  */
 export const BrowserMFAChallenge = new BrowserMFAChallenge$Type();
@@ -558,6 +569,7 @@ class BrowserMFAResponse$Type extends MessageType<BrowserMFAResponse> {
     }
 }
 /**
+ * @deprecated
  * @generated MessageType for protobuf message teleport.mfa.v1.BrowserMFAResponse
  */
 export const BrowserMFAResponse = new BrowserMFAResponse$Type();

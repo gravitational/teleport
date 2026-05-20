@@ -5581,7 +5581,9 @@ func (c *Client) StableUNIXUsersClient() stableunixusersv1.StableUNIXUsersServic
 }
 
 // MFAServiceClient returns a client for the MFA service.
-func (c *Client) MFAServiceClient() mfav1.MFAServiceClient { //nolint:staticcheck // TODO(danielashare): Delete when Browser MFA has migrated to mfav2.
+//
+//nolint:staticcheck // TODO(danielashare): Delete when Browser MFA has migrated to mfav2.
+func (c *Client) MFAServiceClient() mfav1.MFAServiceClient {
 	return mfav1.NewMFAServiceClient(c.conn)
 }
 
