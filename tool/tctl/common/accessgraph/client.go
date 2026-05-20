@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"time"
@@ -136,6 +137,13 @@ func newAccessGraphHTTPClient(ctx context.Context, proxyAddr string, keyRing *cl
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// SNI follows the resolved proxy host
+	host, _, splitErr := net.SplitHostPort(proxyAddr)
+	if splitErr != nil {
+		host = proxyAddr
+	}
+	baseTLSConfig.ServerName = host
 
 	httpClient := &http.Client{
 		// Honor HTTPS_PROXY / NO_PROXY, matching the webclient used by

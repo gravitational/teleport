@@ -23,6 +23,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -215,11 +216,13 @@ func TestDoRequest(t *testing.T) {
 func TestAccessGraphClient_AgainstMockServer(t *testing.T) {
 	t.Parallel()
 
-	// Use a non-IP ProxyHost so the TLS client actually sends SNI —
-	// per RFC 6066, IP literals don't get SNI. We use `example.com`
-	// the certs that httptest generate include `example.com` as a valid DNS name
-	const proxyHost = "example.com"
-	keyRing := newClientTestKeyRing(t, proxyHost)
+	// dialHost and keyringProxyHost differ so SNI propagation can be
+	// distinguished from the keyring's ProxyHost.
+	const (
+		dialHost         = "example.com"
+		keyringProxyHost = "stale.example.org"
+	)
+	keyRing := newClientTestKeyRing(t, keyringProxyHost)
 
 	const aliasesPath = "/v1/enterprise/accessgraph/graph/account-aliases"
 
@@ -308,10 +311,18 @@ func TestAccessGraphClient_AgainstMockServer(t *testing.T) {
 			srv.StartTLS()
 			t.Cleanup(srv.Close)
 
-			// Manually construct the http client so we can inject the RootCAs needed to verify the cert
-			httpClient, err := newAccessGraphHTTPClient(context.Background(), srv.Listener.Addr().String(), keyRing)
+			// Dial via dialHost (a hostname so SNI is sent) but redirect the
+			// connection to the loopback listener.
+			_, port, err := net.SplitHostPort(srv.Listener.Addr().String())
+			require.NoError(t, err)
+			dialAddr := net.JoinHostPort(dialHost, port)
+
+			httpClient, err := newAccessGraphHTTPClient(context.Background(), dialAddr, keyRing)
 			require.NoError(t, err)
 			tr := httpClient.Transport.(*http.Transport)
+			tr.DialContext = func(ctx context.Context, network, _ string) (net.Conn, error) {
+				return (&net.Dialer{}).DialContext(ctx, network, srv.Listener.Addr().String())
+			}
 			// httptest's cert is signed by a private CA, so we need to add it to the client's RootCAs
 			tr.TLSClientConfig.RootCAs = x509.NewCertPool()
 			tr.TLSClientConfig.RootCAs.AddCert(srv.Certificate())
@@ -319,7 +330,7 @@ func TestAccessGraphClient_AgainstMockServer(t *testing.T) {
 			// Construct the client with the test HTTP client, then do a request to verify the full stack,
 			baseURL := (&url.URL{
 				Scheme: "https",
-				Host:   srv.Listener.Addr().String(),
+				Host:   dialAddr,
 				Path:   accessGraphAPIPath,
 			}).String()
 			ag, err := accessgraph.NewClientWithResponses(
@@ -331,7 +342,7 @@ func TestAccessGraphClient_AgainstMockServer(t *testing.T) {
 			_, err = doRequest(ag.GetAccountAliasesWithResponse(context.Background()))
 			tt.assert(t, err)
 			require.Equal(t, aliasesPath, gotPath, "client must hit the AG-mounted path")
-			require.Equal(t, proxyHost, gotSNI, "client must propagate keyring ProxyHost as SNI")
+			require.Equal(t, dialHost, gotSNI, "client must propagate resolved proxy host as SNI, not keyring ProxyHost")
 		})
 	}
 }

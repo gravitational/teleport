@@ -22,6 +22,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -141,6 +142,11 @@ func fetchAlerts(
 			return alerts[:limit], nil
 		}
 		if resp.JSON200.NextCursor == nil {
+			return alerts, nil
+		}
+		// Guard against a backend that returns a non-advancing cursor, which would otherwise spin forever.
+		if cursor != nil && *resp.JSON200.NextCursor == *cursor {
+			slog.DebugContext(ctx, "Access Graph cursor did not advance; stopping pagination", "cursor", *cursor)
 			return alerts, nil
 		}
 		cursor = resp.JSON200.NextCursor

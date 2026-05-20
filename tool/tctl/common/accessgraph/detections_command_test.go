@@ -445,4 +445,24 @@ func TestFetchAlerts(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, got, 3)
 	})
+
+	t.Run("non-advancing cursor breaks the loop", func(t *testing.T) {
+		t.Parallel()
+		var calls atomic.Int64
+		// Always returns the same non-nil cursor regardless of input, which
+		// would loop forever without the cursor-advance guard.
+		handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			calls.Add(1)
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"data":        []accessgraph.SecurityAlert{alertFixture(t)},
+				"next_cursor": "stuck",
+			})
+		})
+		ag := newAccessGraphTestClient(t, handler)
+		got, err := fetchAlerts(context.Background(), ag, accessgraph.ListAlertsV1Params{}, 0)
+		require.NoError(t, err)
+		require.Len(t, got, 2, "should return alerts collected before the loop broke")
+		require.EqualValues(t, 2, calls.Load(), "loop must stop on the first non-advancing cursor")
+	})
 }
