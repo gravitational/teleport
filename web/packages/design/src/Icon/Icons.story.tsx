@@ -180,7 +180,6 @@ export const Icons = () => (
     <IconBox IconCmpt={Icon.Minus} text="Minus" />
     <IconBox IconCmpt={Icon.MinusCircle} text="MinusCircle" />
     <IconBox IconCmpt={Icon.ModelContextProtocol} text="ModelContextProtocol" />
-    <IconBox IconCmpt={Icon.Monitor} text="Monitor" />
     <IconBox IconCmpt={Icon.Moon} text="Moon" />
     <IconBox IconCmpt={Icon.MoreHoriz} text="MoreHoriz" />
     <IconBox IconCmpt={Icon.MoreVert} text="MoreVert" />
