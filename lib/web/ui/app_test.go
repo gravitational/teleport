@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/ui"
+	"github.com/gravitational/teleport/lib/utils/set"
 )
 
 func newApp(t *testing.T, name, publicAddr, description string, labels map[string]string) types.Application {
@@ -80,6 +81,54 @@ func TestMakeApp_SupportedFeatureIDs(t *testing.T) {
 		out := MakeApp(app, cfg)
 
 		require.ElementsMatch(t, []int{int(f1), int(f2)}, out.SupportedFeatureIDs)
+	})
+}
+
+func TestMakeApp_AWSRolesVisibility(t *testing.T) {
+	t.Parallel()
+
+	app, err := types.NewAppV3(
+		types.Metadata{
+			Name:   "aws-console",
+			Labels: map[string]string{"aws_account_id": "123456789012"},
+		},
+		types.AppSpecV3{
+			URI:   "https://console.aws.amazon.com",
+			Cloud: types.CloudAWS,
+		},
+	)
+	require.NoError(t, err)
+
+	grantedARN := "arn:aws:iam::123456789012:role/granted"
+	requestableARN := "arn:aws:iam::123456789012:role/requestable"
+	baseCfg := MakeAppsConfig{
+		LocalClusterName:  "root",
+		LocalProxyDNSName: "proxy.example.com",
+		AppClusterName:    "root",
+		UserGroupLookup:   map[string]types.UserGroup{},
+		AWSRoles: &PrincipalSet{
+			All:     set.New(grantedARN, requestableARN),
+			Granted: set.New(grantedARN),
+		},
+	}
+
+	t.Run("with constraint support returns granted and requestable", func(t *testing.T) {
+		t.Parallel()
+		cfg := baseCfg
+		cfg.SupportedFeatures = componentfeatures.New(componentfeatures.FeatureResourceConstraintsV1)
+
+		out := MakeApp(app, cfg)
+		require.Len(t, out.AWSRoles, 2)
+	})
+	t.Run("without constraint support returns only granted", func(t *testing.T) {
+		t.Parallel()
+		cfg := baseCfg
+		cfg.SupportedFeatures = nil
+
+		out := MakeApp(app, cfg)
+		require.Len(t, out.AWSRoles, 1)
+		require.Equal(t, grantedARN, out.AWSRoles[0].ARN)
+		require.False(t, out.AWSRoles[0].RequiresRequest)
 	})
 }
 

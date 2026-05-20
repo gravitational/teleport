@@ -214,9 +214,13 @@ func MakeApp(app types.Application, c MakeAppsConfig) App {
 			grantedSet[gr.ARN] = struct{}{}
 		}
 
+		supportsResourceConstraints := componentfeatures.InAllSets(componentfeatures.FeatureResourceConstraintsV1, c.SupportedFeatures)
 		uiRoles := make([]aws.Role, 0, len(visibleRoles))
 		for _, r := range visibleRoles {
 			_, isGranted := grantedSet[r.ARN]
+			if !supportsResourceConstraints && !isGranted {
+				continue
+			}
 			uiRoles = append(uiRoles, aws.Role{
 				Name:            r.Name,
 				Display:         r.Display,
