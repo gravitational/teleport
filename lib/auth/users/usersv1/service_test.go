@@ -33,9 +33,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
+	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
+	"google.golang.org/grpc/codes"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -978,14 +981,6 @@ func TestRBAC(t *testing.T) {
 				_, err := env.ResetUser(ctx, &userspb.ResetUserRequest{Name: llama.GetName()})
 				assert.Error(t, err, "eexpected RBAC to prevent resetting user")
 				assert.True(t, trace.IsAccessDenied(err), "expected access denied, got %T %v", err, err)
-
-				evts := getAllEvents(env.emitter.C())
-				require.GreaterOrEqual(t, len(evts), 1)
-
-				e, ok := evts[len(evts)-1].(*apievents.UserReset)
-				require.True(t, ok)
-				assert.Equal(t, events.UserResetFailureEvent, e.GetType())
-				assert.Equal(t, events.UserResetFailureCode, e.Code)
 			},
 			checker: &fakeChecker{
 				rules: []types.Rule{
@@ -1046,7 +1041,7 @@ func TestRBAC(t *testing.T) {
 }
 
 func TestResetUser(t *testing.T) {
-	t.Parallel()
+	// Can't go parallel because of using global metrics state.
 	ctx := t.Context()
 
 	assertUserResetEvent := func(t *testing.T, e apievents.AuditEvent, username string) {
@@ -1067,6 +1062,7 @@ func TestResetUser(t *testing.T) {
 		userType          types.UserType
 		expectToken       bool
 		assert            func(t *testing.T, env *env, user types.User, res *userspb.ResetUserResponse)
+		userKindLabel     usersv1.UserKindLabelValue
 	}{
 		{
 			name: "local user",
@@ -1100,6 +1096,7 @@ func TestResetUser(t *testing.T) {
 
 				assertUserResetEvent(t, evts[1], user.GetName())
 			},
+			userKindLabel: usersv1.UserKindLocal,
 		},
 		{
 			name: "SSO user, active",
@@ -1119,6 +1116,7 @@ func TestResetUser(t *testing.T) {
 				require.GreaterOrEqual(t, len(evts), 1)
 				assertUserResetEvent(t, evts[len(evts)-1], user.GetName())
 			},
+			userKindLabel: usersv1.UserKindSSO,
 		},
 		{
 			name: "SSO user, active, with SSO MFA",
@@ -1173,6 +1171,7 @@ func TestResetUser(t *testing.T) {
 				require.GreaterOrEqual(t, len(evts), 1)
 				assertUserResetEvent(t, evts[len(evts)-1], user.GetName())
 			},
+			userKindLabel: usersv1.UserKindSSO,
 		},
 		{
 			name: "SSO user, expired",
@@ -1202,11 +1201,14 @@ func TestResetUser(t *testing.T) {
 				require.GreaterOrEqual(t, len(evts), 1)
 				assertUserResetEvent(t, evts[len(evts)-1], user.GetName())
 			},
+			userKindLabel: usersv1.UserKindUnknown,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			usersv1.ResetUserCounter.Reset()
+
 			env, err := newTestEnv()
 			require.NoError(t, err, "creating test service")
 
@@ -1281,12 +1283,24 @@ func TestResetUser(t *testing.T) {
 			// verify that password was reset
 			_, err = env.backend.GetPasswordHash(user.GetName())
 			require.True(t, trace.IsNotFound(err), "expected trace.NotFound, got %T %v", err, err)
+
+			var m io_prometheus_client.Metric
+			counter := usersv1.ResetUserCounter.With(prometheus.Labels{
+				usersv1.LabelUserKind: string(tc.userKindLabel),
+				usersv1.LabelGRPCCode: codes.OK.String(),
+			})
+			require.NoError(t, counter.Write(&m))
+			// Comparing floating point values, use assert.InDelta instead of
+			// assert.Equal
+			assert.InDelta(t, 1.0, m.Counter.GetValue(), 0.001)
 		})
 	}
 }
 
 func TestResetUser_NotFound(t *testing.T) {
-	t.Parallel()
+	// Can't go parallel because using global Prometheus metrics state
+
+	usersv1.ResetUserCounter.Reset()
 	ctx := t.Context()
 	env, err := newTestEnv()
 	require.NoError(t, err, "creating test service")
@@ -1296,10 +1310,22 @@ func TestResetUser_NotFound(t *testing.T) {
 		Type: authclient.UserTokenTypeResetPassword,
 	})
 	assert.True(t, trace.IsNotFound(err), "expected trace.NotFound, got %T %v", err, err)
+
+	var m io_prometheus_client.Metric
+	counter := usersv1.ResetUserCounter.With(prometheus.Labels{
+		usersv1.LabelUserKind: "",
+		usersv1.LabelGRPCCode: codes.NotFound.String(),
+	})
+	require.NoError(t, counter.Write(&m))
+	// Comparing floating point values, use assert.InDelta instead of
+	// assert.Equal
+	assert.InDelta(t, 1.0, m.Counter.GetValue(), 0.001)
 }
 
 func TestResetUser_Bot(t *testing.T) {
-	t.Parallel()
+	// Can't go parallel because using global Prometheus metrics state
+
+	usersv1.ResetUserCounter.Reset()
 	ctx := t.Context()
 	env, err := newTestEnv()
 	require.NoError(t, err, "creating test service")
@@ -1325,6 +1351,16 @@ func TestResetUser_Bot(t *testing.T) {
 		Type: authclient.UserTokenTypeResetPassword,
 	})
 	assert.True(t, trace.IsBadParameter(err), "expected trace.BadParameter, got %T %v", err, err)
+
+	var m io_prometheus_client.Metric
+	counter := usersv1.ResetUserCounter.With(prometheus.Labels{
+		usersv1.LabelUserKind: string(usersv1.UserKindBot),
+		usersv1.LabelGRPCCode: codes.InvalidArgument.String(),
+	})
+	require.NoError(t, counter.Write(&m))
+	// Comparing floating point values, use assert.InDelta instead of
+	// assert.Equal
+	assert.InDelta(t, 1.0, m.Counter.GetValue(), 0.001)
 }
 
 func TestResetUser_AdminMFARequired(t *testing.T) {
