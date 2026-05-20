@@ -522,10 +522,6 @@ func (p *fakeClientApp) OnInvalidLocalPort(_ context.Context, _ *vnetv1.AppInfo,
 	p.onInvalidLocalPortCallCount.Add(1)
 }
 
-func (p *fakeClientApp) PerformSessionMFACeremony(_ context.Context, _, _ string, _ []byte) (string, error) {
-	return "", trace.NotImplemented("PerformSessionMFACeremony not implemented")
-}
-
 func (p *fakeClientApp) ReissueDBCert(ctx context.Context, dbInfo *vnetv1.DatabaseInfo) (tls.Certificate, error) {
 	p.requestedRouteToDatabasesMu.Lock()
 	defer p.requestedRouteToDatabasesMu.Unlock()
@@ -651,6 +647,10 @@ func (c *fakeClusterClient) SessionSSHKeyRing(ctx context.Context, user string, 
 		},
 	}
 	return k, false, nil
+}
+
+func (c *fakeClusterClient) PerformSessionMFACeremony(ctx context.Context, sessionID []byte) (string, error) {
+	return "", trace.NotImplemented("PerformSessionMFACeremony not implemented")
 }
 
 // fakeAuthClient is a fake auth client that answers GetResources requests with a static list of apps.
