@@ -32,6 +32,15 @@ type Listener struct {
 	limiter *ConnectionsLimiter
 }
 
+// retryableAcceptError wraps expected per-connection listener errors so the
+// server accept loops keep serving after a single connection is rejected.
+type retryableAcceptError struct {
+	error
+}
+
+func (e retryableAcceptError) Unwrap() error   { return e.error }
+func (e retryableAcceptError) Temporary() bool { return true }
+
 // NewListener creates a [Listener] that enforces the limits of
 // the provided [ConnectionsLimiter] on the all connections accepted
 // by the provided [net.Listener].
@@ -66,7 +75,7 @@ func (l *Listener) Accept() (net.Conn, error) {
 		// return false, which poses problems for consumers relying
 		// on that to determine if the connection was prevented.
 		_ = conn.Close()
-		return nil, trace.Wrap(err)
+		return nil, retryableAcceptError{trace.Wrap(err)}
 	}
 
 	return &wrappedConn{

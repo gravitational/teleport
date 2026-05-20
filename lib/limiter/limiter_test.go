@@ -616,3 +616,32 @@ func TestIndependentLimiters(t *testing.T) {
 	}
 	require.Error(t, defaultLimiter.RegisterRequest("127.0.0.1"))
 }
+
+func TestListenerLimitExceededErrorRetryable(t *testing.T) {
+	limiter := NewConnectionsLimiter(1)
+	ln, err := NewListener(&fakeListener{
+		acceptConn: &fakeConn{addr: mockAddr{}},
+	}, limiter)
+	require.NoError(t, err)
+
+	// First connection is accepted and kept open
+	conn, err := ln.Accept()
+	require.NoError(t, err)
+	require.NotNil(t, conn)
+	defer conn.Close()
+
+	// Second connection from the same IP exceeds the limit
+	conn, err = ln.Accept()
+	require.Nil(t, conn)
+	require.Error(t, err)
+
+	require.True(t, trace.IsLimitExceeded(err))
+
+	// grpc.Server.Serve uses Temporary() to decide
+	// whether an Accept error should stop the server
+	temporary, ok := err.(interface {
+		Temporary() bool
+	})
+	require.True(t, ok)
+	require.True(t, temporary.Temporary())
+}
