@@ -743,3 +743,58 @@ func TestDelegationSessionID(t *testing.T) {
 	require.False(t, out.Renewable)
 	require.Empty(t, cmp.Diff(out, &identity, cmpopts.EquateApproxTime(time.Second)))
 }
+
+func TestGenerateCertificate_ExtraNamesPreserved(t *testing.T) {
+	ca, err := FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
+	require.NoError(t, err)
+	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	generated, err := ca.GenerateCertificate(CertificateRequest{
+		Subject: pkix.Name{
+			CommonName:         "alice",
+			Organization:       []string{"org"},
+			OrganizationalUnit: []string{"engineering"},
+			Locality:           []string{"Somewhere"},
+			Province:           []string{"N/A"},
+			StreetAddress:      []string{"123 Cherry Street"},
+			PostalCode:         []string{"99999"},
+			Country:            []string{"US"},
+			SerialNumber:       "12345",
+		},
+		PublicKey: key.Public(),
+		DNSNames:  []string{"overridden-cn"},
+		NotAfter:  time.Now().Add(10 * time.Second),
+	})
+	require.NoError(t, err)
+
+	parsed, err := ParseCertificatePEM(generated)
+	require.NoError(t, err)
+
+	// Let's re-use the original subject, but add an extra value.
+	parsed.Subject.ExtraNames = []pkix.AttributeTypeAndValue{
+		{
+			Type:  []int{1, 2, 3},
+			Value: "somevalue",
+		},
+	}
+
+	roundTripped, err := ca.GenerateCertificate(CertificateRequest{
+		Subject:   parsed.Subject,
+		PublicKey: key.Public(),
+		DNSNames:  []string{"overridden-cn"},
+		NotAfter:  time.Now().Add(10 * time.Second),
+	})
+	require.NoError(t, err)
+
+	parsedRoundTripped, err := ParseCertificatePEM(roundTripped)
+	require.NoError(t, err)
+
+	// Names should contain exactly one more entry than the original
+	require.Len(t, parsedRoundTripped.Subject.Names, len(parsed.Subject.Names)+1)
+	for _, item := range parsed.Subject.Names {
+		// All standard subject fields are preserved.
+		require.Contains(t, parsedRoundTripped.Subject.Names, item)
+	}
+	// The extra name that we added should be present in the roundtripped cert.
+	require.Contains(t, parsedRoundTripped.Subject.Names, parsed.Subject.ExtraNames[0])
+}
