@@ -24,6 +24,10 @@ export const TypeBadge = ({ type }: { type: AccessListOrigin }) => {
         iconName = 'entraid';
         title = 'Entra ID';
         break;
+      case AccessListOrigin.Scim:
+        iconName = 'scim';
+        title = 'SCIM';
+        break;
     }
     return (
       <>

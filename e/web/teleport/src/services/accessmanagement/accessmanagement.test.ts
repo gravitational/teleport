@@ -75,6 +75,19 @@ test('fetch access lists, empty responses does not throw error', async () => {
   ]);
 });
 
+test('fetch a SCIM access list derives origin from spec.type', async () => {
+  jest.spyOn(api, 'get').mockResolvedValue({
+    accessList: {
+      metadata: { name: 'scim-list' },
+      spec: { type: AccessListType.Scim, title: 'scim list' },
+    },
+  });
+  const response =
+    await accessManagementService.fetchAccessList('does-not-matter');
+  expect(response.type).toBe(AccessListType.Scim);
+  expect(response.origin).toBe(AccessListOrigin.Scim);
+});
+
 test('fetch an access list, empty response does not throw error', async () => {
   const madeResponse = {
     audit: {

@@ -272,6 +272,7 @@ export enum AccessListOrigin {
   Okta = 'okta',
   AwsIdentityCenter = 'aws-identity-center',
   EntraID = 'entra-id',
+  Scim = 'scim',
 }
 
 export enum AccessListType {

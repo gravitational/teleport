@@ -394,7 +394,10 @@ export function makeAccessLists(json: any): AccessList[] {
   return accesslists.map(makeAccessList);
 }
 
-function originFromMetadataLabel(labels: object): AccessListOrigin {
+function originFromMetadataLabel(
+  labels: object,
+  type: AccessListType
+): AccessListOrigin {
   if (Object.keys(labels).includes('okta/org')) {
     return AccessListOrigin.Okta;
   }
@@ -409,6 +412,12 @@ function originFromMetadataLabel(labels: object): AccessListOrigin {
     if (k === 'teleport.dev/origin' && v === 'entra-id') {
       return AccessListOrigin.EntraID;
     }
+  }
+
+  // SCIM-synced lists are identified by spec.type rather than an origin label,
+  // but should be displayed as another synced source in the UI.
+  if (type === AccessListType.Scim) {
+    return AccessListOrigin.Scim;
   }
 
   return AccessListOrigin.Unspecified;
@@ -432,13 +441,14 @@ export function getPresetRolesFromMetadataLabel(labels: object): string[] {
 export function makeAccessList(json: any): AccessList {
   const spec = json?.spec || { spec: {} };
   const metadata = json?.metadata || {};
+  const type = spec.type || AccessListType.Default;
 
   return {
     id: metadata?.name || '',
     metadata,
-    origin: originFromMetadataLabel(metadata?.labels || {}),
+    origin: originFromMetadataLabel(metadata?.labels || {}, type),
     preset: getPresetTypeFromMetadataLabel(metadata?.labels || {}),
-    type: spec.type || AccessListType.Default,
+    type,
     title: spec.title || '',
     description: spec.description || '',
     owners: makeOwners(spec.owners),
