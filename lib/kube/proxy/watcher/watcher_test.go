@@ -609,3 +609,41 @@ func testProxyKubeServerWatcherRecoversFromFirstFetchFailSynctest(t *testing.T) 
 func TestProxyKubeServerWatcher_RecoversFromFirstFetchFail(t *testing.T) {
 	synctest.Test(t, testProxyKubeServerWatcherRecoversFromFirstFetchFailSynctest)
 }
+
+func TestFillEventBuf_DoesNotExceedMaxBufferSize(t *testing.T) {
+	ctx := t.Context()
+	const pageCount = 3
+	const totalEvents = eventBufferMaxSize * pageCount
+	fw := newFakeWatcher(totalEvents)
+	t.Cleanup(func() { fw.Close() })
+
+	for i := range totalEvents {
+		fw.send(types.Event{Type: types.OpPut, Resource: newTestKubeServer(t, fmt.Sprintf("kube-%d", i), "host")})
+	}
+	eventBuf := make([]types.Event, 0, eventBufferInitialSize)
+	seen := make(map[string]struct{}, totalEvents)
+	for page := range pageCount {
+		eventBuf = eventBuf[:0] // caller must reset
+		eventBuf = fillEventBuf(ctx, eventBuf, fw)
+		require.Len(t, eventBuf, eventBufferMaxSize, "expected page %d to be full", page)
+
+		pageSeen := make(map[string]struct{}, eventBufferMaxSize)
+		for idx, event := range eventBuf {
+			name := event.Resource.GetName()
+			require.NotEmpty(t, name)
+			require.NotContains(t, pageSeen, name, "duplicate event in page %d", page)
+			require.NotContains(t, seen, name, "duplicate event across pages at page %d", page)
+			pageSeen[name] = struct{}{}
+			seen[name] = struct{}{}
+
+			expectedName := fmt.Sprintf("kube-%d", page*eventBufferMaxSize+idx)
+			require.Equal(t, expectedName, name)
+		}
+	}
+
+	select {
+	case event := <-fw.Events():
+		t.Fatalf("expected no remaining events after consuming %d pages, got %s", totalEvents, event.Resource.GetName())
+	default:
+	}
+}

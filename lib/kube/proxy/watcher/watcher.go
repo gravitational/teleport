@@ -32,6 +32,9 @@ import (
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
+const eventBufferMaxSize = 2048
+const eventBufferInitialSize = 32
+
 // KubernetesServerGetter defines interface for fetching kubernetes server resources.
 type KubernetesServerGetter interface {
 	// GetKubernetesServers returns all kubernetes server resources.
@@ -210,6 +213,28 @@ func (w *ProxyKubeServerWatcher) armTimeout() *time.Timer {
 
 }
 
+// fillEventBuf fills the given buffer with events from the watcher channel until the buffer is reaches [eventBufferMaxSize] or the channel is closed.
+func fillEventBuf(ctx context.Context, buf []types.Event, w types.Watcher) (out []types.Event) {
+	out = buf // does not reset, caller is responsible for clearing the buffer after processing
+
+	for len(out) < eventBufferMaxSize {
+		select {
+		case <-w.Done():
+			return
+		case <-ctx.Done():
+			return
+		case event, ok := <-w.Events():
+			if !ok {
+				return
+			}
+			out = append(out, event)
+		default:
+			return
+		}
+	}
+	return
+}
+
 // watch spawns a watcher on [types.KindKubeServer] and if successful, initlizes the local cache nad fetches events.
 func (w *ProxyKubeServerWatcher) watch() error {
 	watcher, err := w.AccessPoint.NewWatcher(w.ctx, types.Watch{
@@ -252,34 +277,7 @@ func (w *ProxyKubeServerWatcher) watch() error {
 
 	// At this point watcher is successfully initialized and the cache is warmed up, we can reset the retry backoff and start processing events.
 	w.retry.Reset()
-
-	// start out with a modestly sized event buffer
-	eventBuf := make([]types.Event, 0, 32)
-	const eventBufferMaxSize = 2048
-
-	batchCollectEvents := func(ctx context.Context, w types.Watcher) {
-		// resource collectors want to process events in batches
-		// when possible in order to reduce contention on their locks.
-		// we therefore optimistically try to gather a larger number of
-		// events without blocking.
-		for len(eventBuf) < eventBufferMaxSize {
-			select {
-
-			case <-w.Done():
-				return
-			case <-ctx.Done():
-				return
-			case event, ok := <-w.Events():
-				// Safety check
-				if !ok {
-					return
-				}
-				eventBuf = append(eventBuf, event)
-			default:
-				return
-			}
-		}
-	}
+	eventBuf := make([]types.Event, 0, eventBufferInitialSize)
 
 	for {
 		select {
@@ -292,11 +290,10 @@ func (w *ProxyKubeServerWatcher) watch() error {
 			if !ok {
 				return trace.ConnectionProblem(nil, "watcher events channel is closed (this is a bug)")
 			}
-			eventBuf = append(eventBuf, event)
-			batchCollectEvents(w.ctx, watcher)
+			eventBuf = append(eventBuf[:0], event)
+			eventBuf = fillEventBuf(w.ctx, eventBuf, watcher)
 			w.processEvents(w.ctx, eventBuf)
 			clear(eventBuf)
-			eventBuf = eventBuf[:0]
 		}
 	}
 }
