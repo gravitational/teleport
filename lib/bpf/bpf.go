@@ -432,6 +432,11 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 // command event arguments into a slice of strings.
 func convertArgs(rawArgs []byte, truncated bool) []string {
 	if len(rawArgs) == 0 {
+		// this is possible if the args would be truncated but reading
+		// them failed for a different reason
+		if truncated {
+			return []string{TruncatedArg}
+		}
 		return nil
 	}
 

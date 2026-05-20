@@ -36,6 +36,13 @@ func TestConvertArgs(t *testing.T) {
 		{
 			name: "no args",
 		},
+		// this is possible if the args would be truncated but reading
+		// them failed for a different reason
+		{
+			name:      "no args truncated",
+			truncated: true,
+			expected:  []string{TruncatedArg},
+		},
 		{
 			name:     "only null byte",
 			rawArgs:  []byte("\x00"),
