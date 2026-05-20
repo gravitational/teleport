@@ -170,7 +170,7 @@ func (a *Server) generateDatabaseCert(
 	var trustChain [][]byte
 	var caOverrideDetails *proto.CAOverrideCertificateDetails
 	if ca.GetType() == types.DatabaseClientCA {
-		subCAResolver, err := subca.NewCAOverrideResolver(a.Cache, a.modules.IsEnterpriseBuild(), true)
+		subCAResolver, err := subca.NewCAOverrideResolver(a.Cache, a.modules.IsEnterpriseBuild())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

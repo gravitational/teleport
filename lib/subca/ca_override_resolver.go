@@ -53,13 +53,13 @@ type CAOverrideResolver struct {
 //
 // Production callers should use `modules.Modules.IsEnterpriseBuild()` and
 // [Enabled] as the boolean values, respectively.
-func NewCAOverrideResolver(caGetter CAOverrideGetter, isEnterpriseBuild, featureEnabled bool) (*CAOverrideResolver, error) {
+func NewCAOverrideResolver(caGetter CAOverrideGetter, isEnterpriseBuild bool) (*CAOverrideResolver, error) {
 	if caGetter == nil {
 		return nil, trace.BadParameter("nil caGetter")
 	}
 	return &CAOverrideResolver{
 		caGetter:       caGetter,
-		featureEnabled: isEnterpriseBuild && featureEnabled,
+		featureEnabled: isEnterpriseBuild,
 	}, nil
 }
 
