@@ -368,6 +368,13 @@ type Service struct {
 	// serviceStatus holds the serviceStatus information for the service and
 	// broadcasts changes as necessary.
 	serviceStatus *serviceStatus
+
+	// accessListSyncAppFilters limits which Okta apps will have Access List memberships
+	// synced back to Okta.
+	accessListSyncAppFilters []*regexp.Regexp
+	// accessListSyncGroupFilters limits which Okta groups will have Access List memberships
+	// synced back to Okta.
+	accessListSyncGroupFilters []*regexp.Regexp
 }
 
 // New will create a new Okta service.
@@ -488,6 +495,8 @@ func newWithClientCreator(ctx context.Context, config Config, creator oktaapi.Ok
 		assignDefaultRoles:                config.SyncSettings.GetAssignDefaultRoles(),
 		disableOktaAppGroupSync:           config.SyncSettings.DisableSyncAppGroups,
 		serviceStatus:                     serviceStatus,
+		accessListSyncAppFilters:          config.accessListSyncAppFilters,
+		accessListSyncGroupFilters:        config.accessListSyncGroupFilters,
 	}
 	s.tlsConfig = app.CopyAndConfigureTLSForCluster(s.logger, s.accessPoint, config.ClusterName, config.TLSConfig)
 

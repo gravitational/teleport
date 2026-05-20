@@ -389,7 +389,7 @@ func TestAccessRequest(t *testing.T) {
 	})
 }
 
-func assertAccessListMembers(t *testing.T, ctx context.Context, sut *common.SUT, accessListName string, want []string) {
+func assertAccessListMembers(t require.TestingT, ctx context.Context, sut *common.SUT, accessListName string, want []string) {
 	got, _, err := sut.Teleport.Process.GetAuthServer().ListAccessListMembers(ctx, accessListName, 0, "")
 	require.NoError(t, err)
 

@@ -255,7 +255,7 @@ func withBackendTasksPerSecond(backendTasksPerSecond int) testServiceOpt {
 func newTestConfig(t *testing.T, ap *testAccessPoint, options ...testServiceOpt) (Config, *eventstest.ChannelEmitter) {
 	t.Helper()
 
-	emitter := eventstest.NewChannelEmitter(3)
+	emitter := eventstest.NewChannelEmitter(4)
 	lockWatcher := newLockWatcher(t, ap)
 	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName: testClusterName,
@@ -406,7 +406,6 @@ type newAppServerOpt func(*newAppServerOptions)
 func withHostID(hostID string) newAppServerOpt {
 	return func(o *newAppServerOptions) {
 		o.hostID = hostID
-
 	}
 }
 

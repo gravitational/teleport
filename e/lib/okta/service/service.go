@@ -23,6 +23,7 @@ import (
 	"crypto"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -80,6 +81,13 @@ type ServiceConfig struct {
 	PluginBackend services.Plugins
 	// CredsBackend is the plugin static credentials backend to use.
 	CredsBackend services.PluginStaticCredentials
+
+	// AccessListSyncAppFilters limits which Okta apps will have Access List memberships
+	// synced back to Okta.
+	AccessListSyncAppFilters []*regexp.Regexp
+	// AccessListSyncGroupFilters limits which Okta groups will have Access List memberships
+	// synced back to Okta.
+	AccessListSyncGroupFilters []*regexp.Regexp
 }
 
 type jwtSignerGetter interface {
@@ -169,21 +177,23 @@ type authServer interface {
 type Service struct {
 	oktapb.UnimplementedOktaServiceServer
 
-	logger              *slog.Logger
-	authorizer          authz.Authorizer
-	modules             modules.Modules
-	oktaImportRules     services.OktaImportRules
-	oktaAssignments     services.OktaAssignments
-	jwtSigner           jwtSignerGetter
-	authCache           authCache
-	authService         authServer
-	pluginService       pluginService
-	cache               *utils.FnCache
-	roundTripper        http.RoundTripper
-	pluginBackend       services.Plugins
-	credsBackend        services.PluginStaticCredentials
-	apiClientProviderFn oktaapi.OktaClientFn
-	clock               clockwork.Clock
+	logger                     *slog.Logger
+	authorizer                 authz.Authorizer
+	modules                    modules.Modules
+	oktaImportRules            services.OktaImportRules
+	oktaAssignments            services.OktaAssignments
+	jwtSigner                  jwtSignerGetter
+	authCache                  authCache
+	authService                authServer
+	pluginService              pluginService
+	cache                      *utils.FnCache
+	roundTripper               http.RoundTripper
+	pluginBackend              services.Plugins
+	credsBackend               services.PluginStaticCredentials
+	apiClientProviderFn        oktaapi.OktaClientFn
+	clock                      clockwork.Clock
+	accessListSyncAppFilters   []*regexp.Regexp
+	accessListSyncGroupFilters []*regexp.Regexp
 }
 
 // NewService creates a new Okta gRPC service.
@@ -204,21 +214,23 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 
 	return &Service{
-		logger:              cfg.Logger,
-		authorizer:          cfg.Authorizer,
-		modules:             cfg.Modules,
-		oktaImportRules:     cfg.OktaImportRules,
-		oktaAssignments:     cfg.OktaAssignments,
-		jwtSigner:           cfg.JWTSigner,
-		authCache:           cfg.AuthCache,
-		authService:         cfg.AuthService,
-		pluginService:       cfg.PluginService,
-		cache:               cache,
-		roundTripper:        cfg.RoundTripper,
-		pluginBackend:       cfg.PluginBackend,
-		credsBackend:        cfg.CredsBackend,
-		apiClientProviderFn: oktaapi.New,
-		clock:               cfg.Clock,
+		logger:                     cfg.Logger,
+		authorizer:                 cfg.Authorizer,
+		modules:                    cfg.Modules,
+		oktaImportRules:            cfg.OktaImportRules,
+		oktaAssignments:            cfg.OktaAssignments,
+		jwtSigner:                  cfg.JWTSigner,
+		authCache:                  cfg.AuthCache,
+		authService:                cfg.AuthService,
+		pluginService:              cfg.PluginService,
+		cache:                      cache,
+		roundTripper:               cfg.RoundTripper,
+		pluginBackend:              cfg.PluginBackend,
+		credsBackend:               cfg.CredsBackend,
+		apiClientProviderFn:        oktaapi.New,
+		clock:                      cfg.Clock,
+		accessListSyncAppFilters:   cfg.AccessListSyncAppFilters,
+		accessListSyncGroupFilters: cfg.AccessListSyncGroupFilters,
 	}, nil
 }
 

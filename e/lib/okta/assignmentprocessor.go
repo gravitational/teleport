@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -93,6 +94,11 @@ type assignmentProcessor struct {
 	userTargetCounter map[string]map[string]struct{}
 
 	processingAssignmentLock utils.KeyLock[string]
+
+	// appFilters are used to determine which Okta app assignments to process.
+	appFilters []*regexp.Regexp
+	// groupFilters are used to determine which Okta groups assignments to process.
+	groupFilters []*regexp.Regexp
 }
 
 func newAssignmentProcessor(svc *Service) *assignmentProcessor {
@@ -108,6 +114,8 @@ func newAssignmentProcessor(svc *Service) *assignmentProcessor {
 		},
 		syncedAppServers:                  &svc.appServers,
 		syncedUserGroups:                  &svc.groups,
+		appFilters:                        svc.accessListSyncAppFilters,
+		groupFilters:                      svc.accessListSyncGroupFilters,
 		oktaClient:                        svc.client,
 		assignmentClient:                  newAssignmentClient(svc.logger, svc.client),
 		stopCh:                            make(chan struct{}, 1),
@@ -418,6 +426,9 @@ func (a *assignmentProcessor) processTarget(ctx context.Context, logger *slog.Lo
 	case targetNotFound:
 		// If we can't find the target, then we'll continue because there's nothing we can do here.
 		logger.DebugContext(ctx, "Resource for the target not found, ignoring")
+		return nil
+	case targetNotIncluded:
+		logger.DebugContext(ctx, "Target not included, skipping")
 		return nil
 	default:
 		logger.WarnContext(ctx, "target is not managed by this service", "reason", outcome)

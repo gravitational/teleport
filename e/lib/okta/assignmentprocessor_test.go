@@ -418,14 +418,16 @@ func TestProcessAssignments(t *testing.T) {
 				),
 				assignment(t, "assignment2", testUser, timeout, constants.OktaAssignmentStatusSuccessful, startTime, false,
 					target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
-				)},
+				),
+			},
 			expected: types.OktaAssignments{
 				assignment(t, "assignment1", testUser, zero, constants.OktaAssignmentStatusSuccessful, startTime.Add(oktaplugin.DefaultTimeBetweenAssignmentProcessLoops), false,
 					target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
 				),
 				assignment(t, "assignment2", testUser, timeout, constants.OktaAssignmentStatusSuccessful, startTime.Add(oktaplugin.DefaultTimeBetweenAssignmentProcessLoops), true,
 					target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
-				)},
+				),
+			},
 			oktaClientAppMapping: map[oktaapi.OktaAppID]set.Set[oktaapi.AppAssignment]{
 				"app1": set.New(oktaapi.AppAssignment{UserID: string(testOktaUserID), Scope: oktaapi.UserScope}),
 			},
@@ -452,14 +454,16 @@ func TestProcessAssignments(t *testing.T) {
 				),
 				assignment(t, "assignment2", testUser, zero, constants.OktaAssignmentStatusSuccessful, startTime, false,
 					target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
-				)},
+				),
+			},
 			expected: types.OktaAssignments{
 				assignment(t, "assignment1", testUser, timeout, constants.OktaAssignmentStatusSuccessful, startTime.Add(oktaplugin.DefaultTimeBetweenAssignmentProcessLoops), true,
 					target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
 				),
 				assignment(t, "assignment2", testUser, zero, constants.OktaAssignmentStatusSuccessful, startTime.Add(oktaplugin.DefaultTimeBetweenAssignmentProcessLoops), false,
 					target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
-				)},
+				),
+			},
 			oktaClientAppMapping: map[oktaapi.OktaAppID]set.Set[oktaapi.AppAssignment]{
 				"app1": set.New(oktaapi.AppAssignment{UserID: string(testOktaUserID), Scope: oktaapi.UserScope}),
 			},
@@ -953,6 +957,69 @@ func Test_assignmentProcessor_cleanup_after_start(t *testing.T) {
 	// Okta-side.
 	requireOktaSideApplicationAssignments(t, oktaClient, application1, nil)
 	requireOktaSideGroupAssignments(t, oktaClient, group1, nil)
+}
+
+func Test_assignmentProcessor_sync_back_filters(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	clock := clockwork.NewRealClock()
+	ap := newTestAccessPoint(t, clock)
+
+	oktaClient, oktaData := oktaapitest.NewLocalDataClient(t)
+	oktaClient.OrgURLFunc = func(t *testing.T) string { return oktaapitest.TestOrgURL }
+
+	svc, emitter := newTestService(t, ap, oktaClient, withClock(clock), func(cfg *Config) {
+		cfg.SyncSettings.AppFilters = []string{"^.*dev-app$"}
+		cfg.SyncSettings.GroupFilters = []string{"^.*dev-group$"}
+	})
+
+	oktaData.UpsertUserForId("test-user", "test-user")
+	oktaData.UpsertAppForId("dev-app")
+	oktaData.UpsertAppForId("admin-app")
+	oktaData.UpsertGroupForId("dev-group")
+	oktaData.UpsertGroupForId("product-group")
+
+	require.NoError(t, svc.synchronize(ctx))
+	collectAllEvents(t, emitter, new([]apievents.AuditEvent))
+
+	processor := svc.assignmentReconciler.assignmentProcessor
+
+	assignment1 := assignment(t, "test_assignment_1", "test-user", time.Time{}, constants.OktaAssignmentStatusPending, time.Now(), false,
+		target(types.OktaAssignmentTargetV1_GROUP, "dev-group"),
+	)
+	assignment2 := assignment(t, "test_assignment_2", "test-user", time.Time{}, constants.OktaAssignmentStatusPending, time.Now(), false,
+		target(types.OktaAssignmentTargetV1_GROUP, "product-group"),
+	)
+	assignment3 := assignment(t, "test_assignment_3", "test-user", time.Time{}, constants.OktaAssignmentStatusPending, time.Now(), false,
+		target(types.OktaAssignmentTargetV1_APPLICATION, mustAppName(t, "dev-app", oktaapitest.TestLink1Name)),
+	)
+	assignment4 := assignment(t, "test_assignment_4", "test-user", time.Time{}, constants.OktaAssignmentStatusPending, time.Now(), false,
+		target(types.OktaAssignmentTargetV1_APPLICATION, mustAppName(t, "admin-app", oktaapitest.TestLink1Name)),
+	)
+
+	assignment1, err := ap.CreateOktaAssignment(ctx, assignment1)
+	require.NoError(t, err)
+	assignment2, err = ap.CreateOktaAssignment(ctx, assignment2)
+	require.NoError(t, err)
+	assignment3, err = ap.CreateOktaAssignment(ctx, assignment3)
+	require.NoError(t, err)
+	assignment4, err = ap.CreateOktaAssignment(ctx, assignment4)
+	require.NoError(t, err)
+
+	result1 := processor.processAssignment(ctx, processor.logger, assignment1)
+	require.Equal(t, processAssignmentProcessed, result1)
+	result2 := processor.processAssignment(ctx, processor.logger, assignment2)
+	require.Equal(t, processAssignmentProcessed, result2)
+	result3 := processor.processAssignment(ctx, processor.logger, assignment3)
+	require.Equal(t, processAssignmentProcessed, result3)
+	result4 := processor.processAssignment(ctx, processor.logger, assignment4)
+	require.Equal(t, processAssignmentProcessed, result4)
+
+	requireOktaSideGroupAssignments(t, oktaClient, "dev-group", []string{"test-user"})
+	requireOktaSideGroupAssignments(t, oktaClient, "product-group", []string{})
+	requireOktaSideApplicationAssignments(t, oktaClient, "dev-app", []string{"test-user"})
+	requireOktaSideApplicationAssignments(t, oktaClient, "admin-app", []string{})
 }
 
 func getOktaAssignmentNames(assignments []types.OktaAssignment) []string {

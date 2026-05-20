@@ -265,6 +265,7 @@ type integrationSettings struct {
 	enableAppGroupSync      bool
 	enableAccessListSync    bool
 	enableBidirectionalSync bool
+	accessListSettings      *oktav1.AccessListSettings
 }
 
 type createIntegrationSettings struct {
@@ -284,6 +285,7 @@ func mustCreateIntegration(t *testing.T, sut *common.SUT, oktaAuthClient oktav1.
 		EnableAppGroupSync:      settings.enableAppGroupSync,
 		EnableAccessListSync:    settings.enableAccessListSync,
 		EnableBidirectionalSync: settings.enableBidirectionalSync,
+		AccessListSettings:      settings.accessListSettings,
 	})
 	require.NoError(t, err)
 	updateOktaDelays(t, sut, delays{
@@ -328,6 +330,7 @@ func updateOktaDelays(t *testing.T, sut *common.SUT, delays delays) {
 		p.Spec.GetOkta().SyncSettings.TimeBetweenAssignmentProcessLoops = delays.timeBetweenAssignmentProcessLoops.String()
 	})
 }
+
 func updateOktaPlugin(t *testing.T, plugins services.Plugins, updateFn func(p *types.PluginV1)) {
 	t.Helper()
 	ctx := t.Context()
