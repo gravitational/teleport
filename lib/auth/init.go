@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/api/types/vnet"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/auth/autoupdate/autoupdatev1"
 	igcredentials "github.com/gravitational/teleport/lib/auth/integration/credentials"
 	"github.com/gravitational/teleport/lib/auth/keystore"
@@ -455,6 +456,9 @@ type InitConfig struct {
 	// Beams is the service for reading and writing beams.
 	Beams services.Beams
 
+	// BeamsConfigService is the service for reading and writing the Beams config singleton.
+	BeamsConfigService services.BeamsConfigService
+
 	// SubCAService manages CertAuthorityOverride resources.
 	SubCAService services.SubCAService
 
@@ -656,6 +660,12 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 		ctx, span := cfg.Tracer.Start(gctx, "auth/InitializeVnetConfig")
 		defer span.End()
 		return trace.Wrap(initializeVnetConfig(ctx, asrv))
+	})
+
+	g.Go(func() error {
+		ctx, span := cfg.Tracer.Start(gctx, "auth/InitializeBeamsConfig")
+		defer span.End()
+		return trace.Wrap(initializeBeamsConfig(ctx, asrv))
 	})
 
 	g.Go(func() error {
@@ -1345,6 +1355,29 @@ func initializeVnetConfig(ctx context.Context, asrv *Server) error {
 		return nil
 	}
 
+	return trace.Wrap(err)
+}
+
+func initializeBeamsConfig(ctx context.Context, asrv *Server) error {
+	if !modules.GetModules().Features().GetEntitlement(entitlements.Beams).Enabled {
+		return nil
+	}
+
+	stored, err := asrv.Services.GetBeamsConfig(ctx)
+	switch {
+	case trace.IsNotImplemented(err):
+		return nil
+	case err != nil && !trace.IsNotFound(err):
+		return trace.Wrap(err)
+	case stored != nil:
+		return nil
+	}
+
+	asrv.logger.InfoContext(ctx, "Creating Beams config")
+	_, err = asrv.Services.CreateBeamsConfig(ctx, services.DefaultCloudManagedBeamsConfig())
+	if trace.IsAlreadyExists(err) {
+		return nil
+	}
 	return trace.Wrap(err)
 }
 
