@@ -271,7 +271,7 @@ func (w *ProxyKubeServerWatcher) watch() error {
 		}
 	}
 
-	if err := w.warmUpCache(w.ctx); err != nil {
+	if err := w.fetchInitialState(w.ctx); err != nil {
 		return trace.Wrap(err, "warming up cache")
 	}
 
@@ -329,8 +329,8 @@ func (w *ProxyKubeServerWatcher) getAllKubeServers(ctx context.Context, getter K
 	return current, nil
 }
 
-// warmUpCache attempts to pre warm the cache after the watcher is initialized.
-func (w *ProxyKubeServerWatcher) warmUpCache(ctx context.Context) error {
+// fetchInitialState fetches all kube servers from the primary access point and marks the watcher as initialized.
+func (w *ProxyKubeServerWatcher) fetchInitialState(ctx context.Context) error {
 	newCurrent, err := w.getAllKubeServers(ctx, w.AccessPoint)
 	if err != nil {
 		return trace.Wrap(err, "fetching from primary")
