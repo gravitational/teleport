@@ -23,6 +23,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"math/big"
 	"net/url"
@@ -38,11 +39,15 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
+	apiproto "github.com/gravitational/teleport/api/client/proto"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	traitv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trait/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/clientutils"
+	apiworkloadidentity "github.com/gravitational/teleport/api/workloadidentity"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/jwt"
@@ -88,6 +93,7 @@ type issuerCache interface {
 	GetProxies() ([]types.Server, error)
 	ListProxyServers(context.Context, int, string) ([]types.Server, string, error)
 	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
+	ListResources(ctx context.Context, req apiproto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 }
 
 // IssuanceServiceConfig holds configuration options for the IssuanceService.
@@ -134,7 +140,6 @@ func NewIssuanceService(cfg *IssuanceServiceConfig) (*IssuanceService, error) {
 		return nil, trace.BadParameter("key store is required")
 	case cfg.OverrideGetter == nil:
 		return nil, trace.BadParameter("override getter is required")
-
 	case cfg.ClusterName == "":
 		return nil, trace.BadParameter("cluster name is required")
 	case cfg.GetSigstorePolicyEvaluator == nil:
@@ -239,7 +244,7 @@ func (s *IssuanceService) IssueWorkloadIdentity(
 	var cred *workloadidentityv1pb.Credential
 	switch v := req.GetCredential().(type) {
 	case *workloadidentityv1pb.IssueWorkloadIdentityRequest_X509SvidParams:
-		ca, chain, err := s.getX509CA(ctx, v.X509SvidParams.GetUseIssuerOverrides())
+		ca, chain, err := s.getX509CA(ctx, types.SPIFFECA, v.X509SvidParams.GetUseIssuerOverrides())
 		if err != nil {
 			return nil, trace.Wrap(err, "fetching X509 SPIFFE CA")
 		}
@@ -349,7 +354,7 @@ func (s *IssuanceService) IssueWorkloadIdentities(
 	creds := make([]*workloadidentityv1pb.Credential, 0, len(shouldIssue))
 	switch v := req.GetCredential().(type) {
 	case *workloadidentityv1pb.IssueWorkloadIdentitiesRequest_X509SvidParams:
-		ca, chain, err := s.getX509CA(ctx, v.X509SvidParams.GetUseIssuerOverrides())
+		ca, chain, err := s.getX509CA(ctx, types.SPIFFECA, v.X509SvidParams.GetUseIssuerOverrides())
 		if err != nil {
 			return nil, trace.Wrap(err, "fetching CA to sign X509 SVID")
 		}
@@ -411,6 +416,281 @@ func (s *IssuanceService) IssueWorkloadIdentities(
 	}, nil
 }
 
+// IssueTeleportWorkloadIdentity issues a workload identity credential for the
+// requested Teleport usage. This request cannot be performed by users, only
+// by Teleport services.
+//
+// Optional future work: define the audit semantics for the workload identity
+// issued by this RPC. This path currently does not emit per-issuance audit
+// events because the app-access usage issues short-lived credentials
+// periodically, up to once every 5 minutes per app session.
+//
+// If explicit audit is needed here, prefer a dedicated lower-volume Teleport
+// workload event over reusing SPIFFESVIDIssued, and review event frequency
+// before enabling it.
+func (s *IssuanceService) IssueTeleportWorkloadIdentity(
+	ctx context.Context,
+	req *workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest,
+) (*workloadidentityv1pb.IssueTeleportWorkloadIdentityResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	builtin, ok := authCtx.Identity.(authz.BuiltinRole)
+	if !ok {
+		return nil, trace.AccessDenied("only Teleport services can execute this request")
+	}
+
+	switch usage := req.Usage.(type) {
+	case *workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_AppAccess:
+		if !authz.HasBuiltinRole(*authCtx, string(types.RoleApp)) {
+			return nil, trace.AccessDenied("only app services can issue workload identity for app access")
+		}
+		switch credParams := req.Credential.(type) {
+		case *workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_X509SvidParams:
+			return s.issueAppAccessX509Identity(ctx, builtin.GetServerID(), req, usage.AppAccess, credParams)
+		default:
+			return nil, trace.BadParameter("app access usage only supports issuing x509 credentials")
+		}
+	default:
+		return nil, trace.BadParameter("invalid identity usage")
+	}
+}
+
+func (s *IssuanceService) issueAppAccessX509Identity(
+	ctx context.Context,
+	hostID string,
+	req *workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest,
+	appUsage *workloadidentityv1pb.AppAccessUsage,
+	credParams *workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_X509SvidParams,
+) (_ *workloadidentityv1pb.IssueTeleportWorkloadIdentityResponse, err error) {
+	ctx, span := tracer.Start(ctx, "IssuanceService/issueAppAccessX509Identity")
+	defer func() { tracing.EndSpan(span, err) }()
+
+	route, userIdentity, err := s.routeToAppFromCert(ctx, appUsage.GetUserCertificate())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// We cannot rely on RouteToApp.Name because:
+	//   1. It might not be available.
+	//   2. The value is not guarateed to be from the correct app, and in some
+	//      flows requestors can provide arbitrary values.
+	app, err := s.getApp(ctx, hostID, route)
+	if err != nil {
+		return nil, trace.Wrap(err, "unable to locate app")
+	}
+
+	pubKey, err := x509.ParsePKIXPublicKey(credParams.X509SvidParams.PublicKey)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing public key")
+	}
+
+	// AppClient CA doesn't support workload identity CA override.
+	ca, chain, err := s.getX509CA(ctx, types.AppClientCA, false /* useIssuerOverrides */)
+	if err != nil {
+		return nil, trace.Wrap(err, "fetching X509 SPIFFE CA")
+	}
+
+	_, notBefore, notAfter, ttl := calculateTTL(
+		ctx,
+		s.logger,
+		s.clock,
+		req.RequestedTtl.AsDuration(),
+		// Cap the cert TTL at the session expiry, plus an alloweance for clock
+		// drift that mirrors [veirfyCertValidityWithSkew]. Without the
+		// allowance session that are within the skew window would yield app
+		// certs with a near-zero (or negative) TTL.
+		s.clock.Until(userIdentity.Expires)+certVerifyClockSkewAllowance,
+	)
+
+	// This intentionally uses cluster name as part of the the SPIFFE trust
+	// domain, matching regular workload identity issuance behavior. Clusters
+	// with names that are not valid SPIFFE trust domain are expected to fail
+	// issuance.
+	td, err := spiffeid.TrustDomainFromString(
+		apiworkloadidentity.NewInternalAppTrustDomain(s.clusterName),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err, "cluster name cannot be used as SPIFFE ID trust domain")
+	}
+
+	spiffeID, err := spiffeid.FromSegments(td, "app", app.GetName())
+	if err != nil {
+		return nil, trace.Wrap(err, "app name contains invalid format and cannot be used as SPIFFE ID")
+	}
+
+	certSerial, err := generateCertSerial()
+	if err != nil {
+		return nil, trace.Wrap(err, "generating certificate serial")
+	}
+
+	certBytes, err := x509.CreateCertificate(
+		rand.Reader,
+		x509Template(
+			certSerial,
+			notBefore,
+			notAfter,
+			spiffeID,
+			nil, /* dnsSANs */
+			&workloadidentityv1pb.X509DistinguishedNameTemplate{
+				CommonName: userIdentity.Username,
+			},
+		),
+		ca.Cert,
+		pubKey,
+		ca.Signer,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &workloadidentityv1pb.IssueTeleportWorkloadIdentityResponse{
+		Credential: &workloadidentityv1pb.Credential{
+			SpiffeId: spiffeID.String(),
+
+			ExpiresAt: timestamppb.New(notAfter),
+			Ttl:       durationpb.New(ttl),
+
+			Credential: &workloadidentityv1pb.Credential_X509Svid{
+				X509Svid: &workloadidentityv1pb.X509SVIDCredential{
+					Cert:         certBytes,
+					SerialNumber: serialString(certSerial),
+					Chain:        chain,
+				},
+			},
+		},
+	}, nil
+}
+
+// routeToAppFromCert validates the certificate and extracts the RouteToApp info.
+//
+// We intentionally validate only the user certificate signature and expiration,
+// and app routing metadata here. The app service is expected to call this RPC
+// only after it has already authenticated the app request and verified that the
+// referenced AppSession still exists.
+//
+// Because it won't look up the AppSession, callers must not use this as the
+// AppSession validity check.
+func (s *IssuanceService) routeToAppFromCert(ctx context.Context, rawCert []byte) (tlsca.RouteToApp, *tlsca.Identity, error) {
+	cert, err := x509.ParseCertificate(rawCert)
+	if err != nil {
+		return tlsca.RouteToApp{}, nil, trace.Wrap(err)
+	}
+
+	ca, err := s.cache.GetCertAuthority(ctx, types.CertAuthID{
+		Type:       types.UserCA,
+		DomainName: s.clusterName,
+	}, false)
+	if err != nil {
+		return tlsca.RouteToApp{}, nil, trace.Wrap(err)
+	}
+
+	roots := x509.NewCertPool()
+	for _, key := range ca.GetTrustedTLSKeyPairs() {
+		if ok := roots.AppendCertsFromPEM(key.Cert); !ok {
+			return tlsca.RouteToApp{}, nil, trace.BadParameter("unable to build UserCA pool to validate certificate")
+		}
+	}
+
+	// cert.Verify applies CurrentTime to every certificate in the chain and
+	// does not support separate NotBefore/NotAfter leeway for the leaf
+	// certificate.
+	//
+	// For this reason we perform the certificate verify in two steps:
+	//   1. Verify certificate validity using custom clock-skew policy.
+	//   2. Perform the remaining verification on the cert using a shallow copy
+	//      of the certificate that will pass the expiry verification.
+	//
+	// The shallow copy usage still checks the original TBSCertificate bytes,
+	// the only effective difference is the Verify's leaf time check.
+	now := s.clock.Now()
+	if err := verifyCertValidityWithSkew(cert, now); err != nil {
+		return tlsca.RouteToApp{}, nil, trace.Wrap(err)
+	}
+
+	verifyCert := *cert
+	verifyCert.NotAfter = now.Add(time.Second)
+	verifyCert.NotBefore = now.Add(-time.Second)
+
+	if _, err := verifyCert.Verify(x509.VerifyOptions{
+		Roots:       roots,
+		CurrentTime: now,
+		KeyUsages: []x509.ExtKeyUsage{
+			// Extensions added by tlsca.
+			// See https://github.com/gravitational/teleport/blob/master/lib/tlsca/ca.go
+			x509.ExtKeyUsageServerAuth,
+			x509.ExtKeyUsageClientAuth,
+		},
+	}); err != nil {
+		return tlsca.RouteToApp{}, nil, trace.Wrap(err, "requestor provided an invalid certificate")
+	}
+
+	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+	if err != nil {
+		return tlsca.RouteToApp{}, nil, trace.Wrap(err, "requestor provided a certificate that doesn't contain a Teleport identity")
+	}
+
+	route, err := identity.GetRouteToApp()
+	if err != nil {
+		return tlsca.RouteToApp{}, nil, trace.Wrap(err, "identity must be from an app access session")
+	}
+
+	// Ensure the required information is available on the identity.
+	//
+	// This acts as a guardrail for any inconsistent or malformed identity and
+	// shouldn't happen. This validation just prevents generating workload
+	// identity that is inconsistent as well.
+	if route.ClusterName != s.clusterName {
+		return tlsca.RouteToApp{}, nil, trace.BadParameter("cannot request workload identity for a different cluster")
+	}
+
+	return route, identity, nil
+}
+
+// getApp retrieves the app definition from an AppServer registered by the
+// requesting host. Requiring the requestor (identified by hostID) to be one
+// of the app's serving AppServers ensures the app definition we sign comes from
+// a service authoritative for the app, not from an arbitrary cached entry.
+//
+// This is not a strong authorization check: any app service that advertises the
+// target app can satisfy this lookup, even if it is not actually serving the
+// specific session referenced by the app session certificate.
+func (s *IssuanceService) getApp(ctx context.Context, hostID string, route tlsca.RouteToApp) (types.Application, error) {
+	appServersIter := clientutils.Resources(ctx, func(ctx context.Context, limit int, startKey string) ([]types.ResourceWithLabels, string, error) {
+		resp, err := s.cache.ListResources(ctx, apiproto.ListResourcesRequest{
+			Namespace:           apidefaults.Namespace,
+			ResourceType:        types.KindAppServer,
+			Limit:               int32(limit),
+			StartKey:            startKey,
+			PredicateExpression: fmt.Sprintf(`resource.spec.public_addr == %q`, route.PublicAddr),
+		})
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		return resp.Resources, resp.NextKey, nil
+	})
+
+	for resource, err := range appServersIter {
+		if err != nil {
+			return nil, trace.Wrap(err, "unabled to complete app servers list")
+		}
+
+		appServer, ok := resource.(types.AppServer)
+		if !ok {
+			return nil, trace.BadParameter("expected types.AppServer, got: %T", resource)
+		}
+
+		// Ensure the requesting app service can serve the app.
+		if appServer.GetHostID() == hostID {
+			return appServer.GetApp(), nil
+		}
+	}
+
+	return nil, trace.NotFound("application at %q not found for app service %q", route.PublicAddr, hostID)
+}
+
 func generateCertSerial() (*big.Int, error) {
 	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
 	return rand.Int(rand.Reader, serialNumberLimit)
@@ -470,6 +750,7 @@ func x509Template(
 
 func (s *IssuanceService) getX509CA(
 	ctx context.Context,
+	caType types.CertAuthType,
 	useIssuerOverrides bool,
 ) (_ *tlsca.CertAuthority, _ [][]byte, err error) {
 	ctx, span := tracer.Start(ctx, "IssuanceService/getX509CA")
@@ -477,7 +758,7 @@ func (s *IssuanceService) getX509CA(
 
 	const loadKeysTrue = true
 	ca, err := s.cache.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.SPIFFECA,
+		Type:       caType,
 		DomainName: s.clusterName,
 	}, loadKeysTrue)
 
@@ -951,4 +1232,28 @@ func serialString(serial *big.Int) string {
 		out.WriteString(hex[i : i+2])
 	}
 	return out.String()
+}
+
+// certVerifyClockSkewAllowance is the amount of leeway added to the
+// certificate's expiration status check to allow for clock drift.
+const certVerifyClockSkewAllowance = 1 * time.Minute
+
+func verifyCertValidityWithSkew(cert *x509.Certificate, now time.Time) error {
+	if now.Add(certVerifyClockSkewAllowance).Before(cert.NotBefore) {
+		return x509.CertificateInvalidError{
+			Cert:   cert,
+			Reason: x509.Expired,
+			Detail: "certificate is not yet valid",
+		}
+	}
+
+	if now.Add(-certVerifyClockSkewAllowance).After(cert.NotAfter) {
+		return x509.CertificateInvalidError{
+			Cert:   cert,
+			Reason: x509.Expired,
+			Detail: "certificate has expired",
+		}
+	}
+
+	return nil
 }
