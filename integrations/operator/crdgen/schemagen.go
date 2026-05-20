@@ -113,13 +113,13 @@ func NewSchema() *Schema {
 }
 
 type resourceSchemaConfig struct {
-	nameOverride         string
-	versionOverride      string
-	customSpecFields     []string
-	additionalRootFields []string
-	kindWithoutVersion   bool
-	additionalColumns    []apiextv1.CustomResourceColumnDefinition
-	validationRules      apiextv1.ValidationRules
+	nameOverride       string
+	versionOverride    string
+	customSpecFields   []string
+	withScopeRootField bool
+	kindWithoutVersion bool
+	additionalColumns  []apiextv1.CustomResourceColumnDefinition
+	validationRules    apiextv1.ValidationRules
 }
 
 type resourceSchemaOption func(*resourceSchemaConfig)
@@ -155,7 +155,7 @@ func withCustomSpecFields(customSpecFields []string) resourceSchemaOption {
 // withScope says that the resource is scoped. A scope field will be inserted at the CRD root.
 func withScope() resourceSchemaOption {
 	return func(cfg *resourceSchemaConfig) {
-		cfg.additionalRootFields = append(cfg.additionalRootFields, scopeFieldName)
+		cfg.withScopeRootField = true
 		cfg.additionalColumns = append(cfg.additionalColumns, apiextv1.CustomResourceColumnDefinition{
 			Name:        scopeFieldName,
 			Type:        "string",
@@ -274,19 +274,25 @@ func (generator *SchemaGenerator) addResource(file *File, name string, opts ...r
 	}
 
 	var rootFields map[string]apiextv1.JSONSchemaProps
-	if len(cfg.additionalRootFields) > 0 {
-		rootFields = make(map[string]apiextv1.JSONSchemaProps, len(cfg.additionalRootFields))
-		for _, fieldName := range cfg.additionalRootFields {
-			field, ok := rootMsg.GetField(fieldName)
-			if !ok {
-				return trace.NotFound("root field %q not found", fieldName)
-			}
-			prop, err := generator.prop(field)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-			rootFields[fieldName] = prop
+	if cfg.withScopeRootField {
+		rootFields = make(map[string]apiextv1.JSONSchemaProps)
+		field, ok := rootMsg.GetField(scopeFieldName)
+		if !ok {
+			return trace.NotFound("root field %q not found", scopeFieldName)
 		}
+		prop, err := generator.prop(field)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		// Scopes are immutable. We force the user to delete and re-create the CRD.
+		// This prevents leaving dangling resources in Teleport.
+		prop.XValidations = apiextv1.ValidationRules{
+			{
+				Rule:    "self == oldSelf",
+				Message: fmt.Sprintf("Scope is immutable. To create the resource in a different scope you must delete it first."),
+			},
+		}
+		rootFields[scopeFieldName] = prop
 	}
 
 	root.versions = append(root.versions, SchemaVersion{

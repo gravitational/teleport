@@ -44,6 +44,10 @@ spec:
           scope:
             description: Scope is the scope of the role assignment resource.
             type: string
+            x-kubernetes-validations:
+            - message: Scope is immutable. To create the resource in a different scope
+                you must delete it first.
+              rule: self == oldSelf
           spec:
             description: ScopedRoleAssignment resource definition v1 from Teleport
             properties:
