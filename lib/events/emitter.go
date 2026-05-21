@@ -94,20 +94,15 @@ func NewAsyncEmitter(cfg AsyncEmitterConfig) (*AsyncEmitter, error) {
 		cfg:      cfg,
 		queue:    queue,
 	}
-	a.wg.Add(1) // On Close, ensure we wait for the background goroutine to exit.
 	if queue != nil {
-		go func() {
-			defer a.wg.Done()
+		a.wg.Go(func() {
 			if err := queue.Run(ctx, a.deliver); err != nil && ctx.Err() == nil {
 				slog.ErrorContext(ctx, "Audit queue Run returned error.", "error", err)
 			}
-		}()
+		})
 	} else {
 		// TODO: Remove this in v19 - We will only use the SQLite queue in future releases.
-		go func() {
-			defer a.wg.Done()
-			a.forward()
-		}()
+		a.wg.Go(a.forward)
 	}
 	return a, nil
 }

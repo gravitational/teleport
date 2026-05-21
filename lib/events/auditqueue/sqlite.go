@@ -191,10 +191,9 @@ func newSQLiteQueue(cfg Config) (*sqliteQueue, error) {
 		softLimit:          softLimit,
 	}
 
-	q.wg.Add(3) // Wait for the following goroutines to finish on close.
-	go q.writeLoop()
-	go q.vacuumLoop()
-	go q.softLimitLoop()
+	q.wg.Go(q.writeLoop)
+	q.wg.Go(q.vacuumLoop)
+	q.wg.Go(q.softLimitLoop)
 
 	return q, nil
 }
@@ -254,7 +253,6 @@ func initQueueDir(path string) (func() error, error) {
 // vacuumLoop periodically cleans up deleted records from the SQLite database
 // file.
 func (q *sqliteQueue) vacuumLoop() {
-	defer q.wg.Done()
 	ticker := time.NewTicker(incrementalVacuumInterval)
 	defer ticker.Stop()
 	for {
@@ -272,7 +270,6 @@ func (q *sqliteQueue) vacuumLoop() {
 // softLimitLoop periodically stats queue.db and emits a warning when its
 // size exceeds the configured soft limit.
 func (q *sqliteQueue) softLimitLoop() {
-	defer q.wg.Done()
 	ticker := time.NewTicker(softLimitCheckInterval)
 	defer ticker.Stop()
 	for {
@@ -363,8 +360,6 @@ func (q *sqliteQueue) Enqueue(ctx context.Context, event apievents.AuditEvent) e
 // together events produced by the `Enqueue` method. It drains the `toBeWritten`
 // channel.
 func (q *sqliteQueue) writeLoop() {
-	defer q.wg.Done()
-
 	for {
 		// Wait until we get the first event.
 		var first writeRequest
@@ -476,11 +471,9 @@ func (q *sqliteQueue) Run(ctx context.Context, handler Handler) error {
 
 	// Startup the orphan scanner.
 	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
+	wg.Go(func() {
 		q.orphanScanLoop(ctx, handler)
-	}()
+	})
 	defer wg.Wait()
 
 	pollTimer := time.NewTimer(pollInterval)
