@@ -6403,7 +6403,9 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 			createAuditStreamRejectedTotalMetric,
 			createAuditStreamLimitMetric,
 		)
-		createAuditStreamSemaphore = make(chan struct{}, max(0, *cfg.CreateAuditStreamInflightLimit))
+		limit := max(0, *cfg.CreateAuditStreamInflightLimit)
+		createAuditStreamLimitMetric.Set(float64(limit))
+		createAuditStreamSemaphore = make(chan struct{}, limit)
 	}
 
 	var resolveSSHTargetRateLimiter *rate.Limiter
