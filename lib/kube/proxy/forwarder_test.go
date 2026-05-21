@@ -2021,9 +2021,10 @@ type goawayServer struct {
 	listener  net.Listener
 	tlsConfig *tls.Config
 
-	mu       sync.Mutex
-	conns    []net.Conn
-	wg       sync.WaitGroup
+	mu     sync.Mutex
+	closed bool
+	conns  []net.Conn
+	wg     sync.WaitGroup
 }
 
 // URL returns the address clients should use to connect to the server.
@@ -2046,6 +2047,11 @@ func (g *goawayServer) Serve() error {
 		}
 
 		g.mu.Lock()
+		if g.closed {
+			g.mu.Unlock()
+			_ = conn.Close()
+			continue
+		}
 		g.conns = append(g.conns, conn)
 		g.wg.Go(func() { _ = g.handleConn(conn) })
 		g.mu.Unlock()
@@ -2058,6 +2064,7 @@ func (g *goawayServer) Serve() error {
 func (g *goawayServer) Close() error {
 	err := g.listener.Close()
 	g.mu.Lock()
+	g.closed = true
 	for _, c := range g.conns {
 		_ = c.Close()
 	}
