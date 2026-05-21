@@ -83,7 +83,7 @@ func NewAsyncEmitter(cfg AsyncEmitterConfig) (*AsyncEmitter, error) {
 	case err != nil:
 		return nil, trace.Wrap(err)
 	default:
-		slog.Info("SQLite-backed audit queue is enabled.") //nolint:sloglint // No meaningful context available.
+		slog.InfoContext(context.TODO(), "SQLite-backed audit queue is enabled.")
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
