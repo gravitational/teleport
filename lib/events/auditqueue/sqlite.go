@@ -253,16 +253,17 @@ func initQueueDir(path string) (func() error, error) {
 // vacuumLoop periodically cleans up deleted records from the SQLite database
 // file.
 func (q *sqliteQueue) vacuumLoop() {
-	ticker := time.NewTicker(incrementalVacuumInterval)
-	defer ticker.Stop()
+	timer := time.NewTimer(incrementalVacuumInterval)
+	defer timer.Stop()
 	for {
 		select {
 		case <-q.ctx.Done():
 			return
-		case <-ticker.C:
+		case <-timer.C:
 			if _, err := q.db.ExecContext(q.ctx, "PRAGMA incremental_vacuum"); err != nil {
 				slog.ErrorContext(q.ctx, "Failed to run incremental_vacuum.", "error", err)
 			}
+			timer.Reset(incrementalVacuumInterval)
 		}
 	}
 }
