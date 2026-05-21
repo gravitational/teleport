@@ -144,7 +144,8 @@ func TestAsyncEmitter(t *testing.T) {
 	// on slow emitters
 	t.Run("Slow", func(t *testing.T) {
 		emitter, err := events.NewAsyncEmitter(events.AsyncEmitterConfig{
-			Inner: eventstest.NewSlowEmitter(time.Hour),
+			Inner:   eventstest.NewSlowEmitter(time.Hour),
+			DataDir: t.TempDir(),
 		})
 		require.NoError(t, err)
 		defer emitter.Close()
@@ -161,7 +162,8 @@ func TestAsyncEmitter(t *testing.T) {
 	t.Run("Receive", func(t *testing.T) {
 		chanEmitter := eventstest.NewChannelEmitter(len(evts))
 		emitter, err := events.NewAsyncEmitter(events.AsyncEmitterConfig{
-			Inner: chanEmitter,
+			Inner:   chanEmitter,
+			DataDir: t.TempDir(),
 		})
 
 		require.NoError(t, err)
@@ -189,6 +191,7 @@ func TestAsyncEmitter(t *testing.T) {
 		emitter, err := events.NewAsyncEmitter(events.AsyncEmitterConfig{
 			Inner:      counter,
 			BufferSize: len(evts),
+			DataDir:    t.TempDir(),
 		})
 		require.NoError(t, err)
 
@@ -228,6 +231,7 @@ func TestCheckingAsyncEmitter_FieldsSetBeforePersist(t *testing.T) {
 		events.AsyncEmitterConfig{
 			Inner:      eventstest.NewCountingEmitter(),
 			BufferSize: 8,
+			DataDir:    t.TempDir(),
 		},
 	)
 	require.NoError(t, err)
