@@ -99,6 +99,7 @@ export async function login(
     .filter({ hasText: 'Add Cluster' });
 
   // The 'Connect' button is visible only when no clusters are present.
+  await expect(connectButton.or(addClusterItem)).toBeVisible();
   if (await connectButton.isVisible()) {
     await connectButton.click();
   } else {
