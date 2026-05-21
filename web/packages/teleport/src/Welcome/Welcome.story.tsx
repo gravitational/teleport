@@ -16,9 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useEffect } from 'react';
 import { MemoryRouter } from 'react-router';
 
 import { WelcomeWrapper } from 'teleport/components/Onboard';
+import cfg from 'teleport/config';
 import { NewCredentials } from 'teleport/Welcome/NewCredentials';
 
 import { CardWelcome } from './CardWelcome';
@@ -48,3 +50,18 @@ export const WelcomeReset = () => (
     <Welcome NewCredentials={NewCredentials} />
   </MemoryRouter>
 );
+
+export const WelcomeInviteBeams = () => {
+  const previous = cfg.beamsUi;
+  cfg.beamsUi = true;
+  useEffect(() => {
+    return () => {
+      cfg.beamsUi = previous;
+    };
+  }, [previous]);
+  return (
+    <MemoryRouter initialEntries={['/web/invite/1234']}>
+      <Welcome NewCredentials={NewCredentials} />
+    </MemoryRouter>
+  );
+};
