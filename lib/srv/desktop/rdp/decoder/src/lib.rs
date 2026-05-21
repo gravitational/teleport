@@ -19,8 +19,8 @@
 //! Go (via cgo) can create a decoder and call its methods.
 
 mod cursor;
-mod regions;
 mod image;
+mod regions;
 
 use crate::cursor::CursorState;
 use crate::regions::UpdatedRegions;
@@ -647,12 +647,44 @@ mod tests {
         let cases: &[(u16, u16, u16, u16, u16, u16, &str)] = &[
             (800, 600, 1024, 768, 800, 600, "no upscale: source fits"),
             (800, 600, 800, 600, 800, 600, "exact fit"),
-            (1920, 1080, 960, 540, 960, 540, "landscape proportional downscale"),
-            (1080, 1920, 540, 960, 540, 960, "portrait proportional downscale"),
+            (
+                1920,
+                1080,
+                960,
+                540,
+                960,
+                540,
+                "landscape proportional downscale",
+            ),
+            (
+                1080,
+                1920,
+                540,
+                960,
+                540,
+                960,
+                "portrait proportional downscale",
+            ),
             (1920, 1080, 800, 600, 800, 450, "landscape clamped by width"),
             (1080, 1920, 800, 600, 338, 600, "portrait clamped by height"),
-            (1, 10000, 100, 100, 1, 100, "extreme aspect ratio scales to 1"),
-            (10000, 1, 100, 100, 100, 1, "extreme aspect ratio scales to 1 (other axis)"),
+            (
+                1,
+                10000,
+                100,
+                100,
+                1,
+                100,
+                "extreme aspect ratio scales to 1",
+            ),
+            (
+                10000,
+                1,
+                100,
+                100,
+                100,
+                1,
+                "extreme aspect ratio scales to 1 (other axis)",
+            ),
             (3, 3, 2, 2, 2, 2, "round-down to fit"),
         ];
 
@@ -671,7 +703,10 @@ mod tests {
     fn fitted_dimensions_minimum_is_one_pixel() {
         let decoder = RdpDecoder::new(1000, 1, 1003, 1007);
         let (w, h) = decoder.fitted_dimensions(10, 10);
-        assert!(w >= 1 && h >= 1, "fitted dims must be at least 1x1, got ({w},{h})");
+        assert!(
+            w >= 1 && h >= 1,
+            "fitted dims must be at least 1x1, got ({w},{h})"
+        );
     }
 
     fn make_decoder(width: u16, height: u16) -> *mut RdpDecoder {
@@ -686,9 +721,7 @@ mod tests {
         let mut buf = vec![0xAAu8; 10 * 10 * 4];
 
         unsafe {
-            rdp_decoder_resize_crop(
-                ptr, 90, 0, 20, 10, 10, 10, buf.as_mut_ptr(), buf.len(),
-            );
+            rdp_decoder_resize_crop(ptr, 90, 0, 20, 10, 10, 10, buf.as_mut_ptr(), buf.len());
         }
 
         // Crop extends past right edge → call returns without writing.
@@ -703,9 +736,7 @@ mod tests {
         let mut buf = vec![0xAAu8; 10 * 10 * 4];
 
         unsafe {
-            rdp_decoder_resize_crop(
-                ptr, 0, 95, 10, 10, 10, 10, buf.as_mut_ptr(), buf.len(),
-            );
+            rdp_decoder_resize_crop(ptr, 0, 95, 10, 10, 10, 10, buf.as_mut_ptr(), buf.len());
         }
 
         assert!(buf.iter().all(|&b| b == 0xAA));
@@ -738,13 +769,14 @@ mod tests {
 
         unsafe {
             // Exactly fills the right edge: 90 + 10 == 100.
-            rdp_decoder_resize_crop(
-                ptr, 90, 90, 10, 10, 10, 10, buf.as_mut_ptr(), buf.len(),
-            );
+            rdp_decoder_resize_crop(ptr, 90, 90, 10, 10, 10, 10, buf.as_mut_ptr(), buf.len());
         }
 
         // Decoder buffer is zero-initialized, so the resize writes zeros.
-        assert!(buf.iter().any(|&b| b != 0xAA), "expected buffer to be written");
+        assert!(
+            buf.iter().any(|&b| b != 0xAA),
+            "expected buffer to be written"
+        );
 
         unsafe { rdp_decoder_free(ptr) };
     }
