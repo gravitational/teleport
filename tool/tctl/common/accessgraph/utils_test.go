@@ -526,3 +526,35 @@ func TestWriteOutput(t *testing.T) {
 		require.ErrorIs(t, err, want)
 	})
 }
+
+func TestOptionalFloat32(t *testing.T) {
+	t.Parallel()
+
+	t.Run("set valid float", func(t *testing.T) {
+		t.Parallel()
+		var target *float32
+		v := optionalFloat32{target: &target}
+		require.NoError(t, v.Set("37.7749"))
+		require.NotNil(t, target)
+		require.InDelta(t, 37.7749, *target, 1e-4)
+		require.Equal(t, "37.7749", v.String())
+	})
+
+	t.Run("set zero", func(t *testing.T) {
+		t.Parallel()
+		var target *float32
+		v := optionalFloat32{target: &target}
+		require.NoError(t, v.Set("0"))
+		require.NotNil(t, target, "0 must be distinguishable from 'flag not set'")
+		require.InDelta(t, 0.0, *target, 1e-9)
+	})
+
+	t.Run("invalid input → BadParameter", func(t *testing.T) {
+		t.Parallel()
+		var target *float32
+		v := optionalFloat32{target: &target}
+		err := v.Set("not-a-number")
+		require.True(t, trace.IsBadParameter(err), "want BadParameter, got %v", err)
+		require.Nil(t, target, "target must remain nil on parse failure")
+	})
+}

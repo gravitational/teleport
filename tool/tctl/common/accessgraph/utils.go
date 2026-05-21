@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"strconv"
 	"strings"
 	"time"
 
@@ -55,6 +56,28 @@ func (v timeValue) String() string {
 	}
 
 	return v.target.Format(time.RFC3339)
+}
+
+// optionalFloat32 is a kingpin Value that distinguishes 0 from "not set".
+type optionalFloat32 struct {
+	target **float32
+}
+
+func (v optionalFloat32) Set(s string) error {
+	f, err := strconv.ParseFloat(s, 32)
+	if err != nil {
+		return trace.BadParameter("invalid float %q: %v", s, err)
+	}
+	f32 := float32(f)
+	*v.target = &f32
+	return nil
+}
+
+func (v optionalFloat32) String() string {
+	if v.target == nil || *v.target == nil {
+		return ""
+	}
+	return strconv.FormatFloat(float64(**v.target), 'f', -1, 32)
 }
 
 func parseTimeFilterValue(s string, now time.Time) (time.Time, error) {
