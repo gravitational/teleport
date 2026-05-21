@@ -1838,6 +1838,14 @@ var disableUnqualifiedLookups = os.Getenv("TELEPORT_UNSTABLE_DISABLE_UNQUALIFIED
 // which is what we want when handling things like ambiguous host errors and resource-based access requests,
 // but may result in confusing behavior if it is used outside of those contexts.
 func (a *ServerWithRoles) GetSSHTargets(ctx context.Context, req *proto.GetSSHTargetsRequest) (*proto.GetSSHTargetsResponse, error) {
+	servers, err := iterstream.Collect(a.sshTargets(ctx, req.GetHost(), req.GetPort()))
+	if err != nil {
+		return nil, err
+	}
+	return &proto.GetSSHTargetsResponse{Servers: servers}, nil
+}
+
+func (a *ServerWithRoles) sshTargets(ctx context.Context, host, port string) iterstream.Stream[*types.ServerV2] {
 	// try to detect case-insensitive routing setting, but default to false if we can't load
 	// networking config (equivalent to proxy routing behavior).
 	var caseInsensitiveRouting bool
@@ -1846,63 +1854,68 @@ func (a *ServerWithRoles) GetSSHTargets(ctx context.Context, req *proto.GetSSHTa
 	}
 
 	matcher, err := apiutils.NewSSHRouteMatcherFromConfig(apiutils.SSHRouteMatcherConfig{
-		Host:                      req.Host,
-		Port:                      req.Port,
+		Host:                      host,
+		Port:                      port,
 		CaseInsensitive:           caseInsensitiveRouting,
 		DisableUnqualifiedLookups: disableUnqualifiedLookups,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	lreq := &proto.ListUnifiedResourcesRequest{
-		Kinds:            []string{types.KindNode},
-		SortBy:           types.SortBy{Field: types.ResourceMetadataName},
-		UseSearchAsRoles: a.scopedContext == nil, // TODO(fspmarshall/scopes): switch this to always be true once we support search_as_roles with scoped identities
+		return iterstream.Fail[*types.ServerV2](trace.Wrap(err))
 	}
 
 	// note that we're using a ServerWithRoles level method here rather than some internal method. We are
 	// delegating all RBAC filtering to the lister and then performing additional filtering on top of that.
 	// Until we unify scoped/unscoped resource listing this bifurcation is necessary to ensure that search_as_roles
 	// results are available for unscoped identities.
-	lister := a.ListUnifiedResources
-	if a.scopedContext != nil {
-		lister = a.scopedListUnifiedResources
+	var pageFunc func(ctx context.Context, pageSize int, pageToken string) ([]*proto.PaginatedResource, string, error)
+	if a.scopedContext == nil {
+		pageFunc = func(ctx context.Context, pageSize int, pageToken string) ([]*proto.PaginatedResource, string, error) {
+			resp, err := a.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+				Kinds:            []string{types.KindNode},
+				SortBy:           types.SortBy{Field: types.ResourceMetadataName},
+				UseSearchAsRoles: true,
+
+				StartKey: pageToken,
+				Limit:    int32(pageSize),
+			})
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+			return resp.GetResources(), resp.GetNextKey(), nil
+		}
+	} else {
+		pageFunc = func(ctx context.Context, pageSize int, pageToken string) ([]*proto.PaginatedResource, string, error) {
+			resp, err := a.scopedListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+				Kinds:            []string{types.KindNode},
+				SortBy:           types.SortBy{Field: types.ResourceMetadataName},
+				UseSearchAsRoles: false, // TODO(fspmarshall/scopes): switch this to true once we support search_as_roles with scoped identities
+
+				StartKey: pageToken,
+				Limit:    int32(pageSize),
+			})
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+			return resp.GetResources(), resp.GetNextKey(), nil
+		}
 	}
 
-	var servers []*types.ServerV2
-	for {
-		lrsp, err := lister(ctx, lreq)
-		if err != nil {
-			return nil, trace.Wrap(err)
+	resources := clientutils.Resources(ctx, pageFunc)
+	servers := iterstream.FilterMap(resources, func(rsc *proto.PaginatedResource) (*types.ServerV2, bool) {
+		srv := rsc.GetNode()
+		if srv == nil {
+			a.authServer.logger.WarnContext(ctx, "Skipping unexpected resource type, expected *types.ServerV2",
+				"resource_type", logutils.TypeAttr(rsc.GetResource()),
+			)
+			return nil, false
 		}
-
-		for _, rsc := range lrsp.Resources {
-			srv := rsc.GetNode()
-			if srv == nil {
-				a.authServer.logger.WarnContext(ctx, "Skipping unexpected resource type, expected *types.ServerV2",
-					"resource_type", logutils.TypeAttr(rsc),
-				)
-				continue
-			}
-
-			if !matcher.RouteToServer(srv) {
-				continue
-			}
-
-			servers = append(servers, srv)
+		if !matcher.RouteToServer(srv) {
+			return nil, false
 		}
+		return srv, true
+	})
 
-		if lrsp.NextKey == "" || len(lrsp.Resources) == 0 {
-			break
-		}
-
-		lreq.StartKey = lrsp.NextKey
-	}
-
-	return &proto.GetSSHTargetsResponse{
-		Servers: servers,
-	}, nil
+	return servers
 }
 
 // ResolveSSHTarget gets a server that would match an equivalent ssh dial request.
@@ -1921,15 +1934,7 @@ func (a *ServerWithRoles) ResolveSSHTarget(ctx context.Context, req *proto.Resol
 			a.authServer.logger.WarnContext(ctx, "ssh target resolution request contained both host and a resource matcher - ignoring resource matcher")
 		}
 
-		resp, err := a.GetSSHTargets(ctx, &proto.GetSSHTargetsRequest{
-			Host: req.Host,
-			Port: req.Port,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		servers = iterstream.Slice(resp.Servers)
+		servers = a.sshTargets(ctx, req.GetHost(), req.GetPort())
 
 	case len(req.Labels) > 0 || req.PredicateExpression != "" || len(req.SearchKeywords) > 0:
 		resources := clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageToken string) ([]*proto.PaginatedResource, string, error) {
