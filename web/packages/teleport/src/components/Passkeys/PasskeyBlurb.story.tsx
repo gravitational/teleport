@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 import cfg from 'teleport/config';
 
@@ -27,12 +27,16 @@ export default { title: 'Teleport/Components/PasskeyBlurb' };
 export const Default = () => <PasskeyBlurb />;
 
 export const Beams = () => {
-  const previous = cfg.beamsUi;
-  cfg.beamsUi = true;
+  const [key, setKey] = useState(0);
+
   useEffect(() => {
+    const previous = cfg.beamsUi;
+    cfg.beamsUi = true;
+    setKey(k => k + 1);
     return () => {
       cfg.beamsUi = previous;
     };
-  }, [previous]);
-  return <PasskeyBlurb />;
+  }, []);
+
+  return <PasskeyBlurb key={key} />;
 };
