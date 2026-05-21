@@ -171,6 +171,7 @@ int BPF_PROG(bprm_execve_exit, struct linux_binprm *bprm, int ret)
         args_len = ARGBUFSIZE;
         data->args_truncated = true;
     }
+    data->failed_to_read_args = false;
     int read_ret = bpf_probe_read_user(&data->args, args_len, arg_start);
     if (read_ret < 0) {
         args_len = 0;
