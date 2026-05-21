@@ -196,7 +196,7 @@ func (s *ProxyServer) ServePostgres(listener net.Listener) error {
 		// to listening.
 		go func() {
 			defer clientConn.Close()
-			err := s.PostgresProxy().HandleConnection(s.closeCtx, clientConn)
+			err := s.PostgresProxy().HandleConnectionWithLimiting(s.closeCtx, clientConn)
 			if err != nil && !utils.IsOKNetworkError(err) {
 				s.log.ErrorContext(s.closeCtx, "Failed to handle Postgres client connection.", "error", err)
 			}
