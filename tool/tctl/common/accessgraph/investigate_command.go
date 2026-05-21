@@ -20,8 +20,10 @@ package accessgraph
 
 import (
 	"context"
+	_ "embed"
 	"fmt"
 	"io"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -29,11 +31,18 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/term"
 
 	"github.com/gravitational/teleport"
 	accessgraph "github.com/gravitational/teleport/lib/accessgraph/apiclient"
 	logmodels "github.com/gravitational/teleport/lib/accessgraph/apiclient/models/logs"
 )
+
+// investigateSkill is the Markdown blob `--skill` prints, written for an
+// LLM agent that needs to learn the command from a single read.
+//
+//go:embed skills/investigate.md
+var investigateSkill string
 
 // investigateArgs holds the parsed flag values for `tctl investigate`. The
 // include/exclude slices mirror the filter fields exposed by the Identity
@@ -92,11 +101,21 @@ type investigateArgs struct {
 	// Raw query
 	rawQuery string
 
+	// Geo filters
+	latitude  *float32
+	longitude *float32
+	radius    *float32
+
 	// General flags
 	printQuery    bool
+	allFacets     bool
 	showUnmatched bool
 	facetsOnly    bool
+	skill         bool
 }
+
+// facetTextTopN is the default number of facet values to show in text output
+const facetTextTopN = 5
 
 // filterField describes one structured filter exposed by the CLI
 type filterField struct {
@@ -162,14 +181,17 @@ func (c *AccessGraphCommand) initInvestigate(app *kingpin.Application) {
 	cmd.Flag("order", "Result order by timestamp. (Values: asc, desc)").
 		Default(string(accessgraph.Desc)).
 		EnumVar(&c.investigate.order, string(accessgraph.Asc), string(accessgraph.Desc))
-	// TODO(ghassanachi): add text output option and set to default
-	cmd.Flag("format", "Output format. (Values: json, yaml)").
-		Default(teleport.YAML).
-		EnumVar(&c.investigate.format, teleport.JSON, teleport.YAML)
+	cmd.Flag("format", "Output format. (Values: text, json, yaml)").
+		Default(teleport.Text).
+		EnumVar(&c.investigate.format, teleport.Text, teleport.JSON, teleport.YAML)
+	cmd.Flag("all-facets", fmt.Sprintf("Show every facet value in text output. Without this flag, each facet is truncated to the top %d values by count. Has no effect on JSON/YAML output.", facetTextTopN)).
+		BoolVar(&c.investigate.allFacets)
 	cmd.Flag("show-unmatched", "Include facet values that exist in the time window but did not match the current filter (the backend reports these with count=-1). Useful for discovering filters to broaden.").
 		BoolVar(&c.investigate.showUnmatched)
 	cmd.Flag("facets-only", "Skip fetching events; return only the facet summary. Useful for narrowing a query before pulling logs.").
 		BoolVar(&c.investigate.facetsOnly)
+	cmd.Flag("skill", "Print a Markdown skill describing how an LLM agent should use this command, then exit. All other flags are ignored.").
+		BoolVar(&c.investigate.skill)
 
 	for _, f := range c.investigate.filterFields() {
 		include := cmd.Flag(f.flag, f.help)
@@ -187,12 +209,27 @@ func (c *AccessGraphCommand) initInvestigate(app *kingpin.Application) {
 		StringVar(&c.investigate.rawQuery)
 	cmd.Flag("print-query", "Print the constructed query and exit without contacting the backend.").
 		BoolVar(&c.investigate.printQuery)
+
+	cmd.Flag("latitude", "Center latitude for geo-filtered search (decimal degrees). Requires --longitude and --radius.").
+		SetValue(optionalFloat32{target: &c.investigate.latitude})
+	cmd.Flag("longitude", "Center longitude for geo-filtered search (decimal degrees). Requires --latitude and --radius.").
+		SetValue(optionalFloat32{target: &c.investigate.longitude})
+	cmd.Flag("radius", "Radius in kilometers around the geo center. Requires --latitude and --longitude.").
+		SetValue(optionalFloat32{target: &c.investigate.radius})
+
 	c.investigate.cmd = cmd
 }
 
 // Investigate executes `tctl investigate`.
 func (c *AccessGraphCommand) Investigate(ctx context.Context, client *accessgraph.ClientWithResponses) error {
 	args := &c.investigate
+
+	// --skill short-circuits everything: print the agent skill and exit
+	// without touching the backend or any other flag.
+	if args.skill {
+		_, err := io.WriteString(c.stdout, investigateSkill)
+		return trace.Wrap(err)
+	}
 
 	// Check raw-vs-structured conflict before --print-query: it shapes the query.
 	if err := args.validateRawQueryExclusive(); err != nil {
@@ -209,6 +246,10 @@ func (c *AccessGraphCommand) Investigate(ctx context.Context, client *accessgrap
 	if err := validateTimeWindow(args.from, args.to); err != nil {
 		return trace.Wrap(err)
 	}
+	if err := args.validateGeo(); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Normalize to UTC before sending to the backend
 	// non-UTC time shifts the stats window relative to the logs window
 	fromUTC := args.from.UTC()
@@ -219,6 +260,9 @@ func (c *AccessGraphCommand) Investigate(ctx context.Context, client *accessgrap
 		StartTime: &fromUTC,
 		EndTime:   &toUTC,
 		Order:     &order,
+		Latitude:  args.latitude,
+		Longitude: args.longitude,
+		Radius:    args.radius,
 	}
 	if query != "" {
 		params.Query = &query
@@ -237,6 +281,7 @@ func (c *AccessGraphCommand) Investigate(ctx context.Context, client *accessgrap
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
 		var err error
+		// TODO(ghassanachi): when gravitational/access-graph#2006 update the params to take in geo filters
 		facets, total, err = fetchLogsFacets(gctx, client, accessgraph.ExecuteLogsStatsQueryV1Params{
 			StartTime: &fromUTC,
 			EndTime:   &toUTC,
@@ -271,9 +316,13 @@ func (c *AccessGraphCommand) Investigate(ctx context.Context, client *accessgrap
 		Data:      events,
 	}
 
+	// --facets-only implies --all-facets in text output
+	allFacets := args.allFacets || args.facetsOnly
+	// Geo applies to events only; stats has no geo params.
+	geoActive := args.latitude != nil || args.longitude != nil || args.radius != nil
+
 	return writeOutput(c.stdout, output, args.format, func(w io.Writer) error {
-		// TODO(ghassanachi): Replace with actual text output in child PR.
-		return trace.NotImplemented("unreachable: text output not yet supported")
+		return displayInvestigateText(w, output, args.from, args.to, args.limit, truncated, allFacets, args.facetsOnly, geoActive)
 	})
 }
 
@@ -404,4 +453,192 @@ func (a *investigateArgs) validateRawQueryExclusive() error {
 	}
 	sort.Strings(offenders)
 	return trace.BadParameter("--query is mutually exclusive with structured filter flags; remove: %s", strings.Join(offenders, ", "))
+}
+
+// validateGeo checks the geo flags form a complete, usable filter.
+func (a *investigateArgs) validateGeo() error {
+	var missing []string
+	if a.latitude == nil {
+		missing = append(missing, "--latitude")
+	}
+	if a.longitude == nil {
+		missing = append(missing, "--longitude")
+	}
+	if a.radius == nil {
+		missing = append(missing, "--radius")
+	}
+
+	switch len(missing) {
+	case 3:
+		// No geo flags set.
+		return nil
+	case 0:
+		// Geo filters events only, so --facets-only would silently do nothing.
+		// TODO(ghassanachi): when gravitational/access-graph#2006 is merged remove this condition
+		if a.facetsOnly {
+			return trace.BadParameter("--facets-only cannot be combined with geo filters (--latitude/--longitude/--radius); geo applies to events, which --facets-only skips")
+		}
+		return nil
+	default:
+		return trace.BadParameter("geo filter requires all of --latitude, --longitude, and --radius; missing: %s", strings.Join(missing, ", "))
+	}
+}
+
+// displayInvestigateText renders the period header, the facet panel and the events table
+func displayInvestigateText(out io.Writer, output investigateOutput, from, to time.Time, limit int, truncated, allFacets, facetsOnly, geoActive bool) error {
+	if _, err := fmt.Fprintf(out, "Period: %s → %s\n", from.Format(time.RFC3339), to.Format(time.RFC3339)); err != nil {
+		return trace.Wrap(err)
+	}
+	// "~" prefix because the total is derived from the stats endpoint, which
+	// can drift from the logs count
+	matches := fmt.Sprintf("Matches: ~%d", output.Total)
+	if !facetsOnly {
+		matches += fmt.Sprintf(" (showing %d)", len(output.Data))
+	}
+	if _, err := fmt.Fprintf(out, "%s\n", matches); err != nil {
+		return trace.Wrap(err)
+	}
+	// TODO(ghassanachi): when gravitational/access-graph#2006 is merged remove this condition
+	if geoActive {
+		if _, err := fmt.Fprintln(out, warningStyle.Render("Note: geo filters apply to events only; total and facet counts cover the window+query without these filters.")); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	if _, err := fmt.Fprintln(out); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := displayFacetsText(out, output.Facets, allFacets); err != nil {
+		return trace.Wrap(err)
+	}
+	if facetsOnly {
+		return nil
+	}
+	if err := displayEventsText(out, output.Data); err != nil {
+		return trace.Wrap(err)
+	}
+	if truncated && limit > 0 {
+		if _, err := fmt.Fprintf(out, "Results truncated at %d; re-run with --limit <larger> for more.\n", limit); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+// displayFacetsText prints one block per non-empty facet column in the form
+//
+//	name (top N of M): value (count), value (count),
+//	                   value (count), ...
+//
+// Values are truncated to facetTextTopN unless allFacets is set. Unmatched
+// values (count == -1) are filtered upstream in Investigate, so by the time
+// they reach this function the caller has already chosen what to render.
+// When values are wrapped to a second line, the continuation lines align
+// under the first value.
+func displayFacetsText(out io.Writer, facets []logsFacet, allFacets bool) error {
+	if len(facets) == 0 {
+		if _, err := fmt.Fprintln(out, "Facets: none"); err != nil {
+			return trace.Wrap(err)
+		}
+		_, err := fmt.Fprintln(out)
+		return trace.Wrap(err)
+	}
+
+	width := facetWrapWidth(out)
+	if _, err := fmt.Fprintln(out, "Facets:"); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// First pass: build (header, values) for each facet, and find the
+	// longest header so we can align every facet's values to the same column
+	// on emit.
+	type row struct {
+		header string
+		parts  []string
+	}
+	rows := make([]row, 0, len(facets))
+	maxHeader := 0
+	for _, f := range facets {
+		values := f.Values
+		total := len(values)
+		if total == 0 {
+			continue
+		}
+		truncated := !allFacets && total > facetTextTopN
+		if truncated {
+			values = values[:facetTextTopN]
+		}
+
+		header := fmt.Sprintf("%s (%d)", f.Name, total)
+		if truncated {
+			header = fmt.Sprintf("%s (top %d of %d)", f.Name, facetTextTopN, total)
+		}
+
+		parts := make([]string, len(values))
+		for i, v := range values {
+			// count == -1 is the --show-unmatched sentinel; render it as a
+			// label rather than leaking the negative count.
+			if v.Count < 0 {
+				parts[i] = fmt.Sprintf("%s (unmatched)", v.Value)
+				continue
+			}
+			parts[i] = fmt.Sprintf("%s (%d)", v.Value, v.Count)
+		}
+		rows = append(rows, row{header: header, parts: parts})
+		if len(header) > maxHeader {
+			maxHeader = len(header)
+		}
+	}
+
+	for _, r := range rows {
+		padding := strings.Repeat(" ", maxHeader-len(r.header))
+		prefix := "  " + r.header + ":" + padding + "  "
+		if err := writeWrappedList(out, prefix, r.parts, width); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	_, err := fmt.Fprintln(out)
+	return trace.Wrap(err)
+}
+
+// facetWrapWidth returns the column count to wrap facet values at.
+func facetWrapWidth(out io.Writer) int {
+	f, ok := out.(*os.File)
+	if !ok {
+		return 80
+	}
+	width, _, err := term.GetSize(int(f.Fd()))
+	if err != nil || width <= 0 {
+		return 80
+	}
+	return width
+}
+
+// writeWrappedList prints "prefix" followed by items joined with ", ",
+// wrapping at width with a hanging indent equal to the prefix length so
+// continuation lines align under the first item.
+func writeWrappedList(out io.Writer, prefix string, items []string, width int) error {
+	if len(items) == 0 {
+		_, err := fmt.Fprintln(out, prefix)
+		return trace.Wrap(err)
+	}
+	indent := strings.Repeat(" ", len(prefix))
+	var line strings.Builder
+	line.WriteString(prefix)
+	line.WriteString(items[0])
+	for _, item := range items[1:] {
+		// "+2" accounts for the ", " separator we'd add before this item.
+		if line.Len()+2+len(item) > width {
+			if _, err := fmt.Fprintln(out, line.String()+","); err != nil {
+				return trace.Wrap(err)
+			}
+			line.Reset()
+			line.WriteString(indent)
+			line.WriteString(item)
+			continue
+		}
+		line.WriteString(", ")
+		line.WriteString(item)
+	}
+	_, err := fmt.Fprintln(out, line.String())
+	return trace.Wrap(err)
 }

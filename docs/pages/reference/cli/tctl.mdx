@@ -1357,18 +1357,23 @@ Flags:
 |`--exclude-user`|*no default*|Exclude identity_id values (repeatable).|
 |`--exclude-user-agent`|*no default*|Exclude user_agent values (repeatable).|
 |`--exclude-user-kind`|*no default*|Exclude identity_kind values (repeatable).|
-|`--format`|`yaml` (one of: `json`, `yaml`)|Output format. (Values: json, yaml)|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format. (Values: text, json, yaml)|
 |`--from`|`1d`|Include activity at or after this time. (Examples: 2006-01-02T15:04:05Z07:00, 2006-01-02, 24h, 7d; negative durations like -1h are future-relative. Default: 1d)|
 |`--github-org`|*no default*|Filter by GitHub organization (repeatable).|
 |`--github-repo`|*no default*|Filter by GitHub repository (repeatable).|
 |`--ip`|*no default*|Filter by source IP address (repeatable).|
+|`--latitude`|*no default*|Center latitude for geo-filtered search (decimal degrees). Requires --longitude and --radius.|
 |`--limit`|`100`|Maximum number of events to return (0 for unlimited).|
+|`--longitude`|*no default*|Center longitude for geo-filtered search (decimal degrees). Requires --latitude and --radius.|
+|`--[no-]all-facets`|`false`|Show every facet value in text output. Without this flag, each facet is truncated to the top 5 values by count. Has no effect on JSON/YAML output.|
 |`--[no-]facets-only`|`false`|Skip fetching events; return only the facet summary. Useful for narrowing a query before pulling logs.|
 |`--[no-]print-query`|`false`|Print the constructed query and exit without contacting the backend.|
 |`--[no-]show-unmatched`|`false`|Include facet values that exist in the time window but did not match the current filter (the backend reports these with count=-1). Useful for discovering filters to broaden.|
+|`--[no-]skill`|`false`|Print a Markdown skill describing how an LLM agent should use this command, then exit. All other flags are ignored.|
 |`--okta-org`|*no default*|Filter by Okta organization (repeatable).|
 |`--order`|`desc` (one of: `asc`, `desc`)|Result order by timestamp. (Values: asc, desc)|
 |`--query`|*no default*|Raw Lucene query. Mutually exclusive with structured filter flags. Example: --query 'identity_id:"alice@example.com" AND NOT status:"failure"'|
+|`--radius`|*no default*|Radius in kilometers around the geo center. Requires --latitude and --longitude.|
 |`--region`|*no default*|Filter by region (e.g. us-east-1 or a US state code; repeatable).|
 |`--resource`|*no default*|Filter by target resource (repeatable).|
 |`--resource-kind`|*no default*|Filter by resource kind, e.g. ssh, kube, session_recording (repeatable).|
