@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"runtime/debug"
+	"strconv"
 	"sync"
 	"sync/atomic"
 
@@ -228,7 +229,7 @@ func (s *FakeJira) GetAuthor() jira.UserDetails {
 func (s *FakeJira) StoreIssue(issue jira.Issue) jira.Issue {
 	if issue.ID == "" {
 		id := atomic.AddUint64(&s.issueIDCounter, 1)
-		issue.ID = fmt.Sprintf("%v", id)
+		issue.ID = strconv.FormatUint(id, 10)
 		issue.Key = fmt.Sprintf("ISSUE-%v", id)
 	}
 	s.issues.Store(issue.ID, issue)

@@ -20,7 +20,6 @@ package healthcheckconfigv1
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"testing"
 
@@ -182,7 +181,7 @@ func (c *accessTest) setup(t *testing.T, specs ...types.RoleSpecV6) (context.Con
 }
 
 func (c *accessTest) run(t *testing.T) {
-	t.Run(fmt.Sprintf("%s is allowed", c.name), func(t *testing.T) {
+	t.Run(c.name+" is allowed", func(t *testing.T) {
 		spec := types.RoleSpecV6{
 			Allow: types.RoleConditions{Rules: c.requiredAccessRules},
 		}
@@ -196,7 +195,7 @@ func (c *accessTest) run(t *testing.T) {
 		}
 	})
 
-	t.Run(fmt.Sprintf("%s is not allowed", c.name), func(t *testing.T) {
+	t.Run(c.name+" is not allowed", func(t *testing.T) {
 		spec := types.RoleSpecV6{}
 		ctx, clt := c.setup(t, spec)
 		err := c.actionFn(t, ctx, clt)
@@ -204,7 +203,7 @@ func (c *accessTest) run(t *testing.T) {
 		require.True(t, trace.IsAccessDenied(err))
 	})
 
-	t.Run(fmt.Sprintf("%s is denied", c.name), func(t *testing.T) {
+	t.Run(c.name+" is denied", func(t *testing.T) {
 		spec := types.RoleSpecV6{
 			Allow: types.RoleConditions{Rules: c.requiredAccessRules},
 			Deny:  types.RoleConditions{Rules: c.requiredAccessRules},

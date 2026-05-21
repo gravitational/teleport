@@ -45,11 +45,11 @@ func (c *autoUpdateAgentRolloutCollection) WriteText(w io.Writer, verbose bool) 
 	t := asciitable.MakeTable([]string{"Name", "Start Version", "Target Version", "Mode", "Schedule", "Strategy"})
 	t.AddRow([]string{
 		c.rollout.GetMetadata().GetName(),
-		fmt.Sprintf("%v", c.rollout.GetSpec().GetStartVersion()),
-		fmt.Sprintf("%v", c.rollout.GetSpec().GetTargetVersion()),
-		fmt.Sprintf("%v", c.rollout.GetSpec().GetAutoupdateMode()),
-		fmt.Sprintf("%v", c.rollout.GetSpec().GetSchedule()),
-		fmt.Sprintf("%v", c.rollout.GetSpec().GetStrategy()),
+		c.rollout.GetSpec().GetStartVersion(),
+		c.rollout.GetSpec().GetTargetVersion(),
+		c.rollout.GetSpec().GetAutoupdateMode(),
+		c.rollout.GetSpec().GetSchedule(),
+		c.rollout.GetSpec().GetStrategy(),
 	})
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)

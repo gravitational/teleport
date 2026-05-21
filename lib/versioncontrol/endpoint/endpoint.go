@@ -20,7 +20,6 @@ package endpoint
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net/url"
 	"os"
@@ -38,7 +37,7 @@ const stableCloudPath = "v1/webapi/automaticupgrades/channel/stable/cloud"
 
 // Export exports the proxy version server config.
 func Export(ctx context.Context, proxyAddr string) error {
-	versionEndpoint := fmt.Sprint(path.Join(proxyAddr, stableCloudPath))
+	versionEndpoint := path.Join(proxyAddr, stableCloudPath)
 	if err := verifyVersionEndpoint(ctx, versionEndpoint); err != nil {
 		return trace.Wrap(err, "version endpoint may be invalid or unreachable")
 	}
@@ -58,7 +57,7 @@ func Export(ctx context.Context, proxyAddr string) error {
 // verifyVersionEndpoint verifies that the provided endpoint serves a valid teleport
 // version.
 func verifyVersionEndpoint(ctx context.Context, endpoint string) error {
-	baseURL, err := url.Parse(fmt.Sprintf("https://%s", endpoint))
+	baseURL, err := url.Parse("https://" + endpoint)
 	if err != nil {
 		return trace.Wrap(err)
 	}

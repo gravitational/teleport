@@ -853,7 +853,7 @@ func generateTbotValues(params valueGeneratorParams) ([]byte, error) {
 		DefaultOutput: struct {
 			SecretName string `yaml:"secretName"`
 		}{
-			SecretName: fmt.Sprintf("%s-output", params.botName),
+			SecretName: params.botName + "-output",
 		},
 		Token: params.tokenName,
 	}

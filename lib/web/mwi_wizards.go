@@ -82,7 +82,7 @@ func (h *Handler) machineIDWizardGenerateIaC(_ http.ResponseWriter, r *http.Requ
 		Kind:    types.KindRole,
 		Version: types.V7,
 		Metadata: types.Metadata{
-			Name: fmt.Sprintf("%s-kube-access", namePrefix),
+			Name: namePrefix + "-kube-access",
 		},
 		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{},

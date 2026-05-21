@@ -332,7 +332,7 @@ func (s SSHConnectionTester) handleErrFromSSH(ctx context.Context, connectionDia
 
 	connDiag, err := s.cfg.UserClient.AppendDiagnosticTrace(ctx, connectionDiagnosticID, types.NewTraceDiagnosticConnection(
 		types.ConnectionDiagnosticTrace_UNKNOWN_ERROR,
-		fmt.Sprintf("Unknown error. %s", processStdoutString),
+		"Unknown error. "+processStdoutString,
 		sshError,
 	))
 	if err != nil {

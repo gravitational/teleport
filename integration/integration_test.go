@@ -944,7 +944,7 @@ func testSessionRecordingModes(t *testing.T, suite *integrationTestSuite) {
 			// cross-test cache/state reuse when role mappings are updated.
 			id := uuid.NewString()[:8]
 			teleportUser := fmt.Sprintf("%s-%s", strings.ToLower(name), id)
-			roleName := fmt.Sprintf("devs-%s", id)
+			roleName := "devs-" + id
 			role, err := types.NewRole(roleName, types.RoleSpecV6{
 				Allow: types.RoleConditions{
 					Logins:     []string{login},
@@ -4607,7 +4607,7 @@ func testControlMaster(t *testing.T, suite *integrationTestSuite) {
 	}
 
 	for _, tt := range tests {
-		t.Run(fmt.Sprintf("recording_mode=%s", tt.inRecordLocation), func(t *testing.T) {
+		t.Run("recording_mode="+tt.inRecordLocation, func(t *testing.T) {
 			controlDir, err := os.MkdirTemp("", "teleport-")
 			require.NoError(t, err)
 			defer os.RemoveAll(controlDir)
@@ -4717,7 +4717,7 @@ func testX11Forwarding(t *testing.T, suite *integrationTestSuite) {
 	t.Cleanup(func() { clientXServer.Close() })
 
 	for _, recordLocation := range []string{types.RecordAtNode, types.RecordAtProxy} {
-		t.Run(fmt.Sprintf("recording_mode=%s", recordLocation), func(t *testing.T) {
+		t.Run("recording_mode="+recordLocation, func(t *testing.T) {
 			// Create a Teleport instance with auth, proxy, and node.
 			recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
 				Mode: recordLocation,
@@ -5985,7 +5985,7 @@ func testList(t *testing.T, suite *integrationTestSuite) {
 		tconf := suite.defaultServiceConfig()
 		tconf.Hostname = "server-02"
 		tconf.SSH.Enabled = true
-		tconf.SSH.Addr.Addr = net.JoinHostPort(teleport.Hostname, fmt.Sprintf("%v", nodeSSHPort))
+		tconf.SSH.Addr.Addr = net.JoinHostPort(teleport.Hostname, strconv.Itoa(nodeSSHPort))
 		tconf.SSH.Labels = map[string]string{
 			"role": "database",
 		}

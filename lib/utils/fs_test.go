@@ -20,7 +20,7 @@ package utils
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -354,7 +354,7 @@ func TestLockWithBlocking(t *testing.T) {
 			return
 		}
 		if locked.Load() {
-			errChan <- fmt.Errorf("first lock is still acquired, second lock must be blocking")
+			errChan <- errors.New("first lock is still acquired, second lock must be blocking")
 			return
 		}
 		if err := unlock(); err != nil {

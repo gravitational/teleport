@@ -85,7 +85,7 @@ func (m mockListDatabasesClient) DescribeDBInstances(ctx context.Context, params
 	}
 
 	if sliceEnd < totalInstances {
-		nextToken := fmt.Sprintf("%d", requestedPage+1)
+		nextToken := strconv.Itoa(requestedPage + 1)
 		ret.Marker = stringPointer(nextToken)
 	}
 

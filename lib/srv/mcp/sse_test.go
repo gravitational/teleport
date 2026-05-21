@@ -19,7 +19,6 @@
 package mcp
 
 import (
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -50,7 +49,7 @@ func Test_handleStdioToSSE(t *testing.T) {
 	app, err := types.NewAppV3(types.Metadata{
 		Name: "test-sse",
 	}, types.AppSpecV3{
-		URI: fmt.Sprintf("mcp+sse+%s", sseServerWithAuth.URL+"/sse"),
+		URI: "mcp+sse+" + sseServerWithAuth.URL + "/sse",
 		Rewrite: &types.Rewrite{
 			Headers: []*types.Header{{
 				Name:  "Authorization",

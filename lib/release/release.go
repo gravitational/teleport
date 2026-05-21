@@ -22,7 +22,6 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -77,7 +76,7 @@ func NewClient(cfg ClientConfig) (*Client, error) {
 		},
 	}
 
-	client, err := roundtrip.NewClient(fmt.Sprintf("https://%s", cfg.ReleaseServerAddr), "", roundtrip.HTTPClient(httpClient))
+	client, err := roundtrip.NewClient("https://"+cfg.ReleaseServerAddr, "", roundtrip.HTTPClient(httpClient))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

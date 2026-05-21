@@ -403,7 +403,7 @@ func (i *Identity) LogValue() slog.Value {
 
 	botDesc := ""
 	if tlsIdent.BotInstanceID != "" {
-		botDesc = fmt.Sprintf(", id=%s", tlsIdent.BotInstanceID)
+		botDesc = ", id=" + tlsIdent.BotInstanceID
 	}
 
 	scopePin := ""

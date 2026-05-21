@@ -24,6 +24,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -259,7 +260,7 @@ func (s *remoteCommandProxy) sendStatus(err error) error {
 				Causes: []metav1.StatusCause{
 					{
 						Type:    remotecommandconsts.ExitCodeCauseType,
-						Message: fmt.Sprintf("%d", rc),
+						Message: strconv.Itoa(rc),
 					},
 				},
 			},

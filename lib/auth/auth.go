@@ -6096,7 +6096,7 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 	if len(req.GetRequestedResourceIDs()) > 0 {
 		notificationText = fmt.Sprintf("%s requested access to %d resources.", req.GetUser(), len(req.GetAllRequestedResourceIDs()))
 		if len(req.GetRequestedResourceIDs()) == 1 {
-			notificationText = fmt.Sprintf("%s requested access to a resource.", req.GetUser())
+			notificationText = req.GetUser() + " requested access to a resource."
 		}
 		// If this is a role request.
 	} else {
@@ -6490,7 +6490,7 @@ func generateAccessRequestReviewedNotification(req types.AccessRequest, params t
 
 	var notificationText string
 	if req.GetState().IsPromoted() {
-		notificationText = fmt.Sprintf("%s promoted your access request to long-term access.", params.Review.Author)
+		notificationText = params.Review.Author + " promoted your access request to long-term access."
 	} else {
 		// If this was a resource request.
 		if len(req.GetRequestedResourceIDs()) > 0 {

@@ -957,7 +957,7 @@ func (id *Identity) Subject() (pkix.Name, error) {
 		subject.ExtraNames = append(subject.ExtraNames,
 			pkix.AttributeTypeAndValue{
 				Type:  GenerationASN1ExtensionOID,
-				Value: fmt.Sprint(id.Generation),
+				Value: strconv.FormatUint(id.Generation, 10),
 			},
 		)
 	}

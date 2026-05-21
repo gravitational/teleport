@@ -20,7 +20,6 @@
 package sshca
 
 import (
-	"fmt"
 	"maps"
 	"strconv"
 	"strings"
@@ -250,7 +249,7 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 		cert.Permissions.Extensions[teleport.CertExtensionRenewable] = ""
 	}
 	if i.Generation > 0 {
-		cert.Permissions.Extensions[teleport.CertExtensionGeneration] = fmt.Sprint(i.Generation)
+		cert.Permissions.Extensions[teleport.CertExtensionGeneration] = strconv.FormatUint(i.Generation, 10)
 	}
 	if i.BotName != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionBotName] = i.BotName

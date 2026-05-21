@@ -144,7 +144,7 @@ func (b Bot) FetchRecipient(ctx context.Context, name string) (*common.Recipient
 	var kind string
 	if lib.IsEmail(name) {
 		kind = common.RecipientKindEmail
-		name = fmt.Sprintf("@%s", name)
+		name = "@" + name
 	} else {
 		kind = common.RecipientKindTeam
 	}

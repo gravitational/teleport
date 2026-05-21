@@ -19,7 +19,6 @@
 package terraformcloud
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -39,14 +38,14 @@ type IDTokenSource struct {
 func (its *IDTokenSource) GetIDToken() (string, error) {
 	name := "TFC_WORKLOAD_IDENTITY_TOKEN"
 	if its.audienceTag != "" {
-		name = fmt.Sprintf("TFC_WORKLOAD_IDENTITY_TOKEN_%s", strings.ToUpper(its.audienceTag))
+		name = "TFC_WORKLOAD_IDENTITY_TOKEN_" + strings.ToUpper(its.audienceTag)
 	}
 
 	tok := its.getEnv(name)
 	if tok == "" {
 		audienceName := "TFC_WORKLOAD_IDENTITY_AUDIENCE"
 		if its.audienceTag != "" {
-			audienceName = fmt.Sprintf("TFC_WORKLOAD_IDENTITY_AUDIENCE_%s", strings.ToUpper(its.audienceTag))
+			audienceName = "TFC_WORKLOAD_IDENTITY_AUDIENCE_" + strings.ToUpper(its.audienceTag)
 		}
 
 		return "", trace.BadParameter(

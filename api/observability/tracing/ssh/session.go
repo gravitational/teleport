@@ -42,7 +42,7 @@ func (s *Session) SendRequest(ctx context.Context, name string, wantReply bool, 
 	config := tracing.NewConfig(s.wrapper.opts)
 	ctx, span := config.TracerProvider.Tracer(instrumentationName).Start(
 		ctx,
-		fmt.Sprintf("ssh.SessionRequest/%s", name),
+		"ssh.SessionRequest/"+name,
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 		oteltrace.WithAttributes(
 			attribute.Bool("want_reply", wantReply),
@@ -66,7 +66,7 @@ func (s *Session) Setenv(ctx context.Context, name, value string) error {
 	config := tracing.NewConfig(s.wrapper.opts)
 	ctx, span := config.TracerProvider.Tracer(instrumentationName).Start(
 		ctx,
-		fmt.Sprintf("ssh.Setenv/%s", name),
+		"ssh.Setenv/"+name,
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 		oteltrace.WithAttributes(
 			semconv.RPCServiceKey.String("ssh.Session"),
@@ -146,7 +146,7 @@ func (s *Session) RequestPty(ctx context.Context, term string, h, w int, termmod
 	tracer := config.TracerProvider.Tracer(instrumentationName)
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("ssh.RequestPty/%s", term),
+		"ssh.RequestPty/"+term,
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 		oteltrace.WithAttributes(
 			semconv.RPCServiceKey.String("ssh.Session"),
@@ -169,7 +169,7 @@ func (s *Session) RequestSubsystem(ctx context.Context, subsystem string) error 
 	config := tracing.NewConfig(s.wrapper.opts)
 	ctx, span := config.TracerProvider.Tracer(instrumentationName).Start(
 		ctx,
-		fmt.Sprintf("ssh.RequestSubsystem/%s", subsystem),
+		"ssh.RequestSubsystem/"+subsystem,
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 		oteltrace.WithAttributes(
 			semconv.RPCServiceKey.String("ssh.Session"),
@@ -234,7 +234,7 @@ func (s *Session) Start(ctx context.Context, cmd string) error {
 	config := tracing.NewConfig(s.wrapper.opts)
 	ctx, span := config.TracerProvider.Tracer(instrumentationName).Start(
 		ctx,
-		fmt.Sprintf("ssh.Start/%s", cmd),
+		"ssh.Start/"+cmd,
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 		oteltrace.WithAttributes(
 			semconv.RPCServiceKey.String("ssh.Session"),
@@ -287,7 +287,7 @@ func (s *Session) Run(ctx context.Context, cmd string) error {
 	config := tracing.NewConfig(s.wrapper.opts)
 	ctx, span := config.TracerProvider.Tracer(instrumentationName).Start(
 		ctx,
-		fmt.Sprintf("ssh.Run/%s", cmd),
+		"ssh.Run/"+cmd,
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 		oteltrace.WithAttributes(
 			semconv.RPCServiceKey.String("ssh.Session"),
@@ -307,7 +307,7 @@ func (s *Session) Output(ctx context.Context, cmd string) ([]byte, error) {
 	config := tracing.NewConfig(s.wrapper.opts)
 	ctx, span := config.TracerProvider.Tracer(instrumentationName).Start(
 		ctx,
-		fmt.Sprintf("ssh.Output/%s", cmd),
+		"ssh.Output/"+cmd,
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 		oteltrace.WithAttributes(
 			semconv.RPCServiceKey.String("ssh.Session"),
@@ -329,7 +329,7 @@ func (s *Session) CombinedOutput(ctx context.Context, cmd string) ([]byte, error
 	config := tracing.NewConfig(s.wrapper.opts)
 	ctx, span := config.TracerProvider.Tracer(instrumentationName).Start(
 		ctx,
-		fmt.Sprintf("ssh.CombinedOutput/%s", cmd),
+		"ssh.CombinedOutput/"+cmd,
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 		oteltrace.WithAttributes(
 			semconv.RPCServiceKey.String("ssh.Session"),

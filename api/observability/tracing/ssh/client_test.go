@@ -171,7 +171,7 @@ func TestSetEnvs(t *testing.T) {
 						}
 					}()
 				default:
-					if err := ch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unexpected channel %s", ch.ChannelType())); err != nil {
+					if err := ch.Reject(ssh.ConnectionFailed, "unexpected channel "+ch.ChannelType()); err != nil {
 						assert.NoError(t, err)
 						return
 					}
@@ -310,7 +310,7 @@ func TestGlobalAndSessionRequests(t *testing.T) {
 					assert.NoError(t, err, "server failed to send ping request")
 					clientSessionReply <- ok
 				default:
-					err := ch.Reject(ssh.ConnectionFailed, fmt.Sprintf("unexpected channel %s", ch.ChannelType()))
+					err := ch.Reject(ssh.ConnectionFailed, "unexpected channel "+ch.ChannelType())
 					assert.NoError(t, err)
 				}
 			}

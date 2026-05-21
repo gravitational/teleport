@@ -22,7 +22,6 @@ import (
 	"context"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -46,7 +45,7 @@ func TestDiscovery_SimpleSigning(t *testing.T) {
 
 	payloads, err := sigstore.Discover(
 		context.Background(),
-		fmt.Sprintf("%s/simple-signing:v1", registry),
+		registry+"/simple-signing:v1",
 		"sha256:21c76c650023cac8d753af4cb591e6f7450c6e2b499b5751d4a21e26e2fc5012",
 		sigstore.DiscoveryConfig{
 			Logger:                        logtest.NewLogger(),
@@ -125,7 +124,7 @@ func TestDiscovery_Attestations(t *testing.T) {
 
 	payloads, err := sigstore.Discover(
 		context.Background(),
-		fmt.Sprintf("%s/attestations:v1", registry),
+		registry+"/attestations:v1",
 		"sha256:32c91fcdf8b41ef78cf63e7be080a366597fd5a748480f5d2a6dc0cff5203807",
 		sigstore.DiscoveryConfig{
 			Logger:                        logtest.NewLogger(),
@@ -165,7 +164,7 @@ func TestDiscovery_InfiniteRedirects(t *testing.T) {
 
 	_, err = sigstore.Discover(
 		context.Background(),
-		fmt.Sprintf("%s/foo:v1", regURL.Host),
+		regURL.Host+"/foo:v1",
 		"sha256:32c91fcdf8b41ef78cf63e7be080a366597fd5a748480f5d2a6dc0cff5203807",
 		sigstore.DiscoveryConfig{
 			Logger:                        logtest.NewLogger(),

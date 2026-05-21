@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -1967,7 +1968,7 @@ func Test_shouldRetryGetDatabaseUsingSearchAsRoles(t *testing.T) {
 				command: "db connect",
 			},
 			tc:          &client.TeleportClient{},
-			inputError:  trace.ConnectionProblem(fmt.Errorf("timed out"), "timed out"),
+			inputError:  trace.ConnectionProblem(errors.New("timed out"), "timed out"),
 			checkOutput: require.False,
 		},
 		{

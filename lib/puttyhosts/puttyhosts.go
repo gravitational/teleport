@@ -64,7 +64,7 @@ func wildcardFromHostname(hostname string) string {
 	if !hostnameContainsDot(hostname) {
 		return hostname
 	}
-	return fmt.Sprintf("*.%s", strings.Join(strings.Split(hostname, ".")[1:], "."))
+	return "*." + strings.Join(strings.Split(hostname, ".")[1:], ".")
 }
 
 // AddHostToHostList adds a new hostname to PuTTY's list of trusted hostnames for a given host CA.

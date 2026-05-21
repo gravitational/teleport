@@ -18,6 +18,7 @@ package access_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"sync/atomic"
@@ -1431,7 +1432,7 @@ func (b *breakableAccessListReader) Fix() {
 }
 
 func (b *breakableAccessListReader) err() error {
-	return fmt.Errorf("access list reader is broken")
+	return errors.New("access list reader is broken")
 }
 
 func (b *breakableAccessListReader) ListAccessLists(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessList, string, error) {

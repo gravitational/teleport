@@ -635,10 +635,10 @@ func CompareACL(expected, candidate acl.ACL) []string {
 
 	var issues []string
 	for m := range missing {
-		issues = append(issues, fmt.Sprintf("missing required entry: %s", formatEntry(m)))
+		issues = append(issues, "missing required entry: "+formatEntry(m))
 	}
 	for u := range unexpected {
-		issues = append(issues, fmt.Sprintf("unexpected entry: %s", formatEntry(u)))
+		issues = append(issues, "unexpected entry: "+formatEntry(u))
 	}
 
 	return issues

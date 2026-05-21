@@ -355,7 +355,7 @@ func (h *Handler) emitErrorEventAndDeleteAppSession(r *http.Request, f emitError
 		ConnectionMetadata: connectionMetadataFromRequest(r),
 		Status: apievents.Status{
 			Success: false,
-			Error:   fmt.Sprintf("Failed app access authentication: %s", f.err),
+			Error:   "Failed app access authentication: " + f.err,
 		},
 	})
 }

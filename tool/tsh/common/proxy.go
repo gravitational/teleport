@@ -191,7 +191,7 @@ func onProxyCommandDB(cf *CLIConf) error {
 		addr = cf.LocalProxyAddr
 	} else if cf.LocalProxyPort != "" {
 		randomPort = false
-		addr = fmt.Sprintf("127.0.0.1:%s", cf.LocalProxyPort)
+		addr = "127.0.0.1:" + cf.LocalProxyPort
 	}
 
 	listener, err := createLocalProxyListener(addr, dbInfo.RouteToDatabase, profile)

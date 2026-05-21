@@ -21,7 +21,6 @@ package web
 import (
 	"bytes"
 	"encoding/base64"
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -123,12 +122,12 @@ func (h *Handler) awsRolesAnywhereConfigureTrustAnchor(w http.ResponseWriter, r 
 	// teleport integration configure awsra-trust-anchor
 	argsList := []string{
 		"integration", "configure", "awsra-trust-anchor",
-		fmt.Sprintf("--cluster=%s", shsprintf.EscapeDefaultContext(clusterName)),
-		fmt.Sprintf("--name=%s", shsprintf.EscapeDefaultContext(integrationName)),
-		fmt.Sprintf("--trust-anchor=%s", shsprintf.EscapeDefaultContext(trustAnchorName)),
-		fmt.Sprintf("--sync-profile=%s", shsprintf.EscapeDefaultContext(syncProfileName)),
-		fmt.Sprintf("--sync-role=%s", shsprintf.EscapeDefaultContext(syncRoleName)),
-		fmt.Sprintf("--trust-anchor-cert-b64=%s", awsRACACertB64),
+		"--cluster=" + shsprintf.EscapeDefaultContext(clusterName),
+		"--name=" + shsprintf.EscapeDefaultContext(integrationName),
+		"--trust-anchor=" + shsprintf.EscapeDefaultContext(trustAnchorName),
+		"--sync-profile=" + shsprintf.EscapeDefaultContext(syncProfileName),
+		"--sync-role=" + shsprintf.EscapeDefaultContext(syncRoleName),
+		"--trust-anchor-cert-b64=" + awsRACACertB64,
 	}
 
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{

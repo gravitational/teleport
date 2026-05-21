@@ -989,7 +989,7 @@ func TestDialFakeApp(t *testing.T) {
 		// It's important not to run these subtests which advance a shared clock in parallel. It's okay for
 		// the inner app dial/connection tests to run in parallel because they don't advance the clock.
 		for i := range 3 {
-			t.Run(fmt.Sprint(i), func(t *testing.T) {
+			t.Run(strconv.Itoa(i), func(t *testing.T) {
 				for _, tc := range validTestCases {
 					if tc.expectRouteToApp.URI == "" && tc.expectRouteToApp.PublicAddr != "" {
 						tc.expectRouteToApp.URI = "tcp://" + tc.expectRouteToApp.PublicAddr

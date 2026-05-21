@@ -97,7 +97,7 @@ func EnsureSCIMEndpointURL(baseURL *url.URL) (*url.URL, error) {
 	newBaseURL := &url.URL{
 		Scheme: "https",
 		Host:   fmt.Sprintf("scim.%s.amazonaws.com", region),
-		Path:   fmt.Sprintf("%s/scim/v2", pathParts[1]),
+		Path:   pathParts[1] + "/scim/v2",
 	}
 	return newBaseURL, nil
 }

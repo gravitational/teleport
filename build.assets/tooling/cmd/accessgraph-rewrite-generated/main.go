@@ -22,6 +22,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/format"
@@ -115,7 +116,7 @@ func rewriteGeneratedFile(source []byte, mode rewriteMode) ([]byte, error) {
 			}
 		}
 		if hasStyleParamCall(file) {
-			return nil, fmt.Errorf("unconverted StyleParamWithOptions call remains")
+			return nil, errors.New("unconverted StyleParamWithOptions call remains")
 		}
 	}
 

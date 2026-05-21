@@ -20,7 +20,7 @@ package credentials
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"maps"
 	"testing"
 
@@ -139,7 +139,7 @@ func TestGetByPurpose(t *testing.T) {
 			ref:  ref,
 			setupMock: func(m *mockByLabelsGetter) {
 				m.On("GetPluginStaticCredentialsByLabels", labels).
-					Return(nil, trace.ConnectionProblem(fmt.Errorf("backend"), "problem"))
+					Return(nil, trace.ConnectionProblem(errors.New("backend"), "problem"))
 			},
 			wantError: trace.IsConnectionProblem,
 		},

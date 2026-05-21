@@ -1554,7 +1554,7 @@ func tracedApplyFn(parent oteltrace.Span, tracer oteltrace.Tracer, kind resource
 	return func(ctx context.Context) (err error) {
 		ctx, span := tracer.Start(
 			oteltrace.ContextWithSpan(ctx, parent),
-			fmt.Sprintf("cache/apply/%s", kind.String()),
+			"cache/apply/"+kind.String(),
 		)
 		defer func() { apitracing.EndSpan(span, err) }()
 
@@ -1602,7 +1602,7 @@ func (c *Cache) fetch(ctx context.Context, confirmedKinds map[resourceKind]types
 		g.Go(func() (err error) {
 			ctx, span := c.Tracer.Start(
 				ctx,
-				fmt.Sprintf("cache/fetch/%s", kind.String()),
+				"cache/fetch/"+kind.String(),
 				oteltrace.WithAttributes(
 					attribute.String("target", c.target),
 				),

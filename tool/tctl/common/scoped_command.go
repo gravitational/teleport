@@ -25,6 +25,7 @@ import (
 	"maps"
 	"os"
 	"slices"
+	"strconv"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
@@ -149,8 +150,8 @@ func (c *scopedStatusCommand) status(ctx context.Context, client *authclient.Cli
 	for _, scope := range sortedScopes {
 		table.AddRow([]string{
 			scope,
-			fmt.Sprintf("%d", rows[scope].roles),
-			fmt.Sprintf("%d", rows[scope].assignments),
+			strconv.Itoa(rows[scope].roles),
+			strconv.Itoa(rows[scope].assignments),
 		})
 	}
 

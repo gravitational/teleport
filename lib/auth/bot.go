@@ -104,7 +104,7 @@ func (a *Server) legacyValidateGenerationLabel(ctx context.Context, username str
 		}
 		newUser := apiutils.CloneProtoMsg(userV2)
 		metadata := newUser.GetMetadata()
-		generation := fmt.Sprint(certReq.Generation)
+		generation := strconv.FormatUint(certReq.Generation, 10)
 		metadata.Labels[types.BotGenerationLabel] = generation
 		newUser.SetMetadata(metadata)
 
@@ -150,7 +150,7 @@ func (a *Server) legacyValidateGenerationLabel(ctx context.Context, username str
 		return trace.Wrap(err)
 	}
 	metadata := newUser.GetMetadata()
-	metadata.Labels[types.BotGenerationLabel] = fmt.Sprint(newGeneration)
+	metadata.Labels[types.BotGenerationLabel] = strconv.FormatUint(newGeneration, 10)
 	newUser.SetMetadata(metadata)
 
 	if err := a.CompareAndSwapUser(ctx, newUser, user); err != nil {
@@ -210,7 +210,7 @@ func (a *Server) commitLegacyGenerationCounterToBotUser(ctx context.Context, use
 		}
 		newUser := apiutils.CloneProtoMsg(userV2)
 		metadata := newUser.GetMetadata()
-		metadata.Labels[types.BotGenerationLabel] = fmt.Sprint(newValue)
+		metadata.Labels[types.BotGenerationLabel] = strconv.FormatUint(newValue, 10)
 		newUser.SetMetadata(metadata)
 
 		// Attempt to commit the change. If it fails due to a comparison

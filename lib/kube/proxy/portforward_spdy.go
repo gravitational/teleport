@@ -176,7 +176,7 @@ func (h *portForwardProxy) Close() error {
 func (h *portForwardProxy) forwardStreamPair(p *httpStreamPair, remotePort int64) error {
 	// create error stream
 	headers := http.Header{}
-	port := fmt.Sprintf("%d", remotePort)
+	port := strconv.FormatInt(remotePort, 10)
 	headers.Set(StreamType, StreamTypeError)
 	headers.Set(PortHeader, port)
 	headers.Set(PortForwardRequestIDHeader, p.requestID)

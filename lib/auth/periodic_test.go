@@ -19,7 +19,6 @@
 package auth
 
 import (
-	"fmt"
 	"runtime"
 	"testing"
 
@@ -429,7 +428,7 @@ func TestUpgradeEnrollPeriodic(t *testing.T) {
 
 			require.True(t, ok, "expected prompt containing version %s, but prompt was not generated. tt=%q", tt.promptVersion, tt.desc)
 
-			pattern := fmt.Sprintf("--older-than=%s", tt.promptVersion)
+			pattern := "--older-than=" + tt.promptVersion
 			require.Contains(t, msg, pattern, "tt=%q", tt.desc)
 		})
 	}

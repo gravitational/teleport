@@ -18,7 +18,6 @@ package msgraph
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"net/url"
 	"time"
@@ -64,7 +63,7 @@ func WithLastSyncDateTimeGt(lastSyncDateTime time.Time) IterateOpt {
 		}
 		// As noted in the docs, DateTimeOffset values aren't enclosed in quotes in $filter expressions.
 		// https://learn.microsoft.com/en-us/graph/filter-query-parameter
-		ic.filter = fmt.Sprintf("lastSyncDateTime gt %s", lastSyncDateTime.UTC().Format(time.RFC3339))
+		ic.filter = "lastSyncDateTime gt " + lastSyncDateTime.UTC().Format(time.RFC3339)
 	}
 }
 

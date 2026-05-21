@@ -202,7 +202,7 @@ func TestAccessRequestSearch(t *testing.T) {
 					"--insecure",
 					"request",
 					"search",
-					fmt.Sprintf("--kind=%s", tc.args.kind),
+					"--kind=" + tc.args.kind,
 				},
 					tc.args.extraArgs...,
 				),

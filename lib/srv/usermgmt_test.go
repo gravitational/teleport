@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os/user"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -143,7 +144,7 @@ func (tm *testHostUserBackend) CreateGroup(group, gid string) error {
 		return trace.AlreadyExists("Group %q, already exists", group)
 	}
 	if gid == "" {
-		gid = fmt.Sprint(len(tm.groups) + 1)
+		gid = strconv.Itoa(len(tm.groups) + 1)
 	}
 	tm.groups[group] = gid
 	return nil
@@ -155,10 +156,10 @@ func (tm *testHostUserBackend) CreateUser(user string, groups []string, opts hos
 		return trace.AlreadyExists("Group %q, already exists", user)
 	}
 	if opts.UID == "" {
-		opts.UID = fmt.Sprint(len(tm.users) + 1)
+		opts.UID = strconv.Itoa(len(tm.users) + 1)
 	}
 	if opts.GID == "" {
-		opts.GID = fmt.Sprint(len(tm.groups) + 1)
+		opts.GID = strconv.Itoa(len(tm.groups) + 1)
 	}
 	// Ensure that the user has a primary group. It's OK if it already exists.
 	_ = tm.CreateGroup(user, opts.GID)

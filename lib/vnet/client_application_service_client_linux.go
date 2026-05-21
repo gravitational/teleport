@@ -18,7 +18,6 @@ package vnet
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
@@ -34,7 +33,7 @@ func newUnixClientApplicationServiceClient(_ context.Context, socketPath string)
 	if socketPath == "" {
 		return nil, trace.BadParameter("missing unix socket path")
 	}
-	conn, err := grpc.NewClient(fmt.Sprintf("unix://%s", socketPath),
+	conn, err := grpc.NewClient("unix://"+socketPath,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
 		grpc.WithUnaryInterceptor(interceptors.GRPCClientUnaryErrorInterceptor),
 		grpc.WithStreamInterceptor(interceptors.GRPCClientStreamErrorInterceptor),

@@ -180,7 +180,7 @@ func normalizeECSResourceName(name string) string {
 
 // normalizeECSClusterName returns the normalized ECS Cluster Name
 func normalizeECSClusterName(teleportClusterName string) string {
-	return normalizeECSResourceName(fmt.Sprintf("%s-teleport", teleportClusterName))
+	return normalizeECSResourceName(teleportClusterName + "-teleport")
 }
 
 // normalizeECSServiceName returns the normalized ECS Service Name

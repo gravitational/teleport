@@ -437,7 +437,7 @@ func (c *Client) GetServicePrincipalsByDisplayName(ctx context.Context, displayN
 // GetServicePrincipal returns the service principal for the given principal ID.
 // Ref: [https://learn.microsoft.com/en-us/graph/api/serviceprincipal-get].
 func (c *Client) GetServicePrincipal(ctx context.Context, principalId string) (*models.ServicePrincipal, error) {
-	uri := c.endpointURI(fmt.Sprintf("servicePrincipals/%s", principalId))
+	uri := c.endpointURI("servicePrincipals/" + principalId)
 	out, err := roundtrip[*models.ServicePrincipal](ctx, c, http.MethodGet, uri.String(), nil)
 	if err != nil {
 		return nil, trace.Wrap(err)

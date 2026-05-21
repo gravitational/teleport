@@ -102,7 +102,7 @@ func TestAliasLoginWithUpdater(t *testing.T) {
 	matchVersion(t, string(out), testVersions[1])
 
 	// Verifies that version commands shows version re-executed from.
-	require.Contains(t, string(out), fmt.Sprintf("Re-executed from version: %s", testVersions[0]))
+	require.Contains(t, string(out), "Re-executed from version: "+testVersions[0])
 }
 
 // TestSequentialUpdate runs test cluster with sequential changing version required for

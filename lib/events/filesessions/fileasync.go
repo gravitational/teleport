@@ -873,7 +873,7 @@ func (u *Uploader) monitorStreamStatus(ctx context.Context, up *upload, stream a
 	}
 }
 
-var errContext = fmt.Errorf("context has closed")
+var errContext = errors.New("context has closed")
 
 func (u *Uploader) takeSemaphore(ctx context.Context) error {
 	select {

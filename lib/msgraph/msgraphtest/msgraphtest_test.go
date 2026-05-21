@@ -19,7 +19,6 @@ package msgraphtest_test
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"testing"
 
@@ -308,7 +307,7 @@ func roundTrip[T any](t *testing.T, ctx context.Context, url string, client *htt
 func setupLatestUserDelta(t *testing.T, ctx context.Context, s *msgraphtest.Server) string {
 	t.Helper()
 
-	url := fmt.Sprintf("%s/v1.0/users/delta?$deltatoken=latest", s.TLSServer.URL)
+	url := s.TLSServer.URL + "/v1.0/users/delta?$deltatoken=latest"
 	userDeltaLink, userDeltas := roundTrip[models.ListUsersDeltaResponse](t, ctx, url, s.TLSServer.Client())
 	require.Empty(t, userDeltas)
 
@@ -318,7 +317,7 @@ func setupLatestUserDelta(t *testing.T, ctx context.Context, s *msgraphtest.Serv
 func setupLatestGroupsDelta(t *testing.T, ctx context.Context, s *msgraphtest.Server) string {
 	t.Helper()
 
-	url := fmt.Sprintf("%s/v1.0/groups/delta?$deltatoken=latest", s.TLSServer.URL)
+	url := s.TLSServer.URL + "/v1.0/groups/delta?$deltatoken=latest"
 	groupDeltaLink, groupDeltas := roundTrip[models.ListGroupsDeltaResponse](t, ctx, url, s.TLSServer.Client())
 	require.Empty(t, groupDeltas)
 

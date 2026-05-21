@@ -208,7 +208,7 @@ If you got a role granted recently, you might have to run "tsh logout" and login
 	}
 
 	// Export environment variables
-	c.showProgress(fmt.Sprintf("🚀 Certificates obtained, you can now use Terraform in this terminal for %s", c.botTTL.String()))
+	c.showProgress("🚀 Certificates obtained, you can now use Terraform in this terminal for " + c.botTTL.String())
 	for env, value := range envVars {
 		fmt.Fprintf(c.envOutput, "export %s=%q\n", env, value)
 	}

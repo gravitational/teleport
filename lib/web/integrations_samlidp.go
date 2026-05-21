@@ -50,10 +50,10 @@ func (h *Handler) gcpWorkforceConfigScript(w http.ResponseWriter, r *http.Reques
 	// teleport integration configure samlidp gcp-workforce
 	argsList := []string{
 		"integration", "configure", "samlidp", "gcp-workforce",
-		fmt.Sprintf("--org-id=%s", shsprintf.EscapeDefaultContext(queryParams.Get("orgId"))),
-		fmt.Sprintf("--pool-name=%s", shsprintf.EscapeDefaultContext(queryParams.Get("poolName"))),
-		fmt.Sprintf("--pool-provider-name=%s", shsprintf.EscapeDefaultContext(queryParams.Get("poolProviderName"))),
-		fmt.Sprintf("--idp-metadata-url=%s", shsprintf.EscapeDefaultContext(samlIdPMetadataURL)),
+		"--org-id=" + shsprintf.EscapeDefaultContext(queryParams.Get("orgId")),
+		"--pool-name=" + shsprintf.EscapeDefaultContext(queryParams.Get("poolName")),
+		"--pool-provider-name=" + shsprintf.EscapeDefaultContext(queryParams.Get("poolProviderName")),
+		"--idp-metadata-url=" + shsprintf.EscapeDefaultContext(samlIdPMetadataURL),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		EntrypointArgs: strings.Join(argsList, " "),

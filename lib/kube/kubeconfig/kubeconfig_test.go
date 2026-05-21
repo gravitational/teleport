@@ -318,8 +318,8 @@ func TestUpdateWithExec(t *testing.T) {
 					Command:    tshPath,
 					Args: []string{
 						"kube", "credentials",
-						fmt.Sprintf("--kube-cluster=%s", kubeCluster),
-						fmt.Sprintf("--teleport-cluster=%s", clusterName),
+						"--kube-cluster=" + kubeCluster,
+						"--teleport-cluster=" + clusterName,
 					},
 					Env:             []clientcmdapi.ExecEnvVar{{Name: homeEnvVar, Value: home}},
 					InteractiveMode: clientcmdapi.IfAvailableExecInteractiveMode,
@@ -417,9 +417,9 @@ func TestUpdateWithExecAndProxy(t *testing.T) {
 			Command:    tshPath,
 			Args: []string{
 				"kube", "credentials",
-				fmt.Sprintf("--kube-cluster=%s", kubeCluster),
-				fmt.Sprintf("--teleport-cluster=%s", clusterName),
-				fmt.Sprintf("--proxy=%s", proxy),
+				"--kube-cluster=" + kubeCluster,
+				"--teleport-cluster=" + clusterName,
+				"--proxy=" + proxy,
 			},
 			Env:             []clientcmdapi.ExecEnvVar{{Name: homeEnvVar, Value: home}},
 			InteractiveMode: clientcmdapi.IfAvailableExecInteractiveMode,

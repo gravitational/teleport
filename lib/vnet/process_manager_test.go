@@ -18,7 +18,7 @@ package vnet
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -46,7 +46,7 @@ func TestProcessManager_ReturnWithError(t *testing.T) {
 	pm, pmCtx := newProcessManager()
 	defer pm.Close()
 
-	expectedErr := fmt.Errorf("lorem ipsum dolor sit amet")
+	expectedErr := errors.New("lorem ipsum dolor sit amet")
 	pm.AddCriticalBackgroundTask("return with error", func() error {
 		return expectedErr
 	})

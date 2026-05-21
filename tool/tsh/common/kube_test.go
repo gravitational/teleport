@@ -29,6 +29,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -99,7 +100,7 @@ func TestKubeLogin(t *testing.T) {
 		pack := setupKubeTestPack(t, false /* withMultiplexMode */)
 		proxyAddr, err := pack.root.ProxyKubeAddr()
 		require.NoError(t, err)
-		addr := net.JoinHostPort("localhost", fmt.Sprintf("%d", proxyAddr.Port(defaults.KubeListenPort)))
+		addr := net.JoinHostPort("localhost", strconv.Itoa(proxyAddr.Port(defaults.KubeListenPort)))
 		testKubeLogin(t, pack.rootKubeCluster1, addr)
 	})
 }

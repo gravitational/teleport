@@ -30,6 +30,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"sort"
+	"strconv"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -5963,7 +5964,7 @@ func TestGetVnetConfig(t *testing.T) {
 
 func TestCreateAuditStreamLimit(t *testing.T) {
 	const N = 5
-	t.Setenv("TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT", fmt.Sprintf("%d", N))
+	t.Setenv("TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT", strconv.Itoa(N))
 
 	ctx := t.Context()
 

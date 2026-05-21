@@ -100,28 +100,28 @@ func (pack *databaseClusterPack) StartDatabaseServices(t *testing.T, clock clock
 
 	postgresListener, pack.postgresAddr = mustListen(t)
 	pack.PostgresService = servicecfg.Database{
-		Name:     fmt.Sprintf("%s-postgres", pack.name),
+		Name:     pack.name + "-postgres",
 		Protocol: defaults.ProtocolPostgres,
 		URI:      pack.postgresAddr,
 	}
 
 	mysqlListener, pack.mysqlAddr = mustListen(t)
 	pack.MysqlService = servicecfg.Database{
-		Name:     fmt.Sprintf("%s-mysql", pack.name),
+		Name:     pack.name + "-mysql",
 		Protocol: defaults.ProtocolMySQL,
 		URI:      pack.mysqlAddr,
 	}
 
 	mongoListener, pack.mongoAddr = mustListen(t)
 	pack.MongoService = servicecfg.Database{
-		Name:     fmt.Sprintf("%s-mongo", pack.name),
+		Name:     pack.name + "-mongo",
 		Protocol: defaults.ProtocolMongoDB,
 		URI:      fmt.Sprintf("mongodb://%s/?heartbeatintervalms=500", pack.mongoAddr),
 	}
 
 	cassandaListener, pack.cassandraAddr = mustListen(t)
 	pack.CassandraService = servicecfg.Database{
-		Name:     fmt.Sprintf("%s-cassandra", pack.name),
+		Name:     pack.name + "-cassandra",
 		Protocol: defaults.ProtocolCassandra,
 		URI:      pack.cassandraAddr,
 	}
@@ -500,7 +500,7 @@ func (p *DatabasePack) testLargeQuery(t *testing.T) {
 	require.NoError(t, err)
 
 	now := time.Now()
-	query := fmt.Sprintf("select %s", strings.Repeat("A", 100*1024))
+	query := "select " + strings.Repeat("A", 100*1024)
 	result, err := client.Execute(query)
 	require.NoError(t, err)
 	require.Equal(t, mysql.TestQueryResponse, result)

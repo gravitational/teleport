@@ -688,7 +688,7 @@ func resourceLabel(event types.Event) string {
 
 	sub := event.Resource.GetSubKind()
 	if sub == "" {
-		return fmt.Sprintf("/%s", event.Resource.GetKind())
+		return "/" + event.Resource.GetKind()
 	}
 
 	return fmt.Sprintf("/%s/%s", event.Resource.GetKind(), sub)

@@ -20,7 +20,6 @@ package testlib
 
 import (
 	"context"
-	"fmt"
 	"runtime"
 	"time"
 
@@ -131,7 +130,7 @@ func (s *DatadogSuiteOSS) TestIncidentCreation() {
 	require.Len(t, incident.Data.Attributes.NotificationHandles, 1)
 
 	assert.Equal(t, incident.Data.ID, pluginData.SentMessages[0].MessageID)
-	assert.Equal(t, fmt.Sprintf("@%s", integration.Reviewer1UserName), incident.Data.Attributes.NotificationHandles[0].Handle)
+	assert.Equal(t, "@"+integration.Reviewer1UserName, incident.Data.Attributes.NotificationHandles[0].Handle)
 	assert.Equal(t, "active", incident.Data.Attributes.Fields.State.Value)
 }
 
@@ -288,7 +287,7 @@ func (s *DatadogSuiteOSS) TestRecipientsFromAccessMonitoringRule() {
 	require.NoError(t, err, "no new incidents stored")
 
 	assert.Equal(t, incident.Data.ID, pluginData.SentMessages[0].MessageID)
-	assert.Equal(t, fmt.Sprintf("@%s", integration.Reviewer1UserName), incident.Data.Attributes.NotificationHandles[0].Handle)
+	assert.Equal(t, "@"+integration.Reviewer1UserName, incident.Data.Attributes.NotificationHandles[0].Handle)
 	assert.Equal(t, "active", incident.Data.Attributes.Fields.State.Value)
 	assert.NoError(t, s.ClientByName(integration.RulerUserName).
 		AccessMonitoringRulesClient().DeleteAccessMonitoringRule(ctx, "test-datadog-amr"))
@@ -342,7 +341,7 @@ func (s *DatadogSuiteOSS) TestRecipientsFromAccessMonitoringRuleAfterUpdate() {
 	require.NoError(t, err, "no new incidents stored")
 
 	assert.Equal(t, incident.Data.ID, pluginData.SentMessages[0].MessageID)
-	assert.Equal(t, fmt.Sprintf("@%s", integration.Reviewer1UserName), incident.Data.Attributes.NotificationHandles[0].Handle)
+	assert.Equal(t, "@"+integration.Reviewer1UserName, incident.Data.Attributes.NotificationHandles[0].Handle)
 	assert.Equal(t, "active", incident.Data.Attributes.Fields.State.Value)
 
 	// Update the Access Monitoring Rule so it is no longer applied
@@ -378,7 +377,7 @@ func (s *DatadogSuiteOSS) TestRecipientsFromAccessMonitoringRuleAfterUpdate() {
 	require.NoError(t, err, "no new incidents stored")
 
 	assert.Equal(t, incident.Data.ID, pluginData.SentMessages[0].MessageID)
-	assert.Equal(t, fmt.Sprintf("@%s", integration.Reviewer2UserName), incident.Data.Attributes.NotificationHandles[0].Handle)
+	assert.Equal(t, "@"+integration.Reviewer2UserName, incident.Data.Attributes.NotificationHandles[0].Handle)
 	assert.Equal(t, "active", incident.Data.Attributes.Fields.State.Value)
 
 	assert.NoError(t, s.ClientByName(integration.RulerUserName).

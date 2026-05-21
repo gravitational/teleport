@@ -19,7 +19,6 @@
 package common
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -85,7 +84,7 @@ func sshBeam(cf *CLIConf, tc *client.TeleportClient, beam *beamsv1.Beam, command
 		return trace.Errorf("beam %q is not ready to accept SSH connections", beam.GetStatus().GetAlias())
 	}
 
-	target := fmt.Sprintf("%s:0", beam.GetStatus().GetNodeId())
+	target := beam.GetStatus().GetNodeId() + ":0"
 	tc.HostLogin = types.BeamsLogin
 	tc.Stdin = cf.Stdin()
 

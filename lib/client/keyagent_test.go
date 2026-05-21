@@ -21,6 +21,7 @@ package client
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -528,7 +529,7 @@ func TestHostKeyVerification(t *testing.T) {
 	require.NoError(t, err)
 
 	// test user refusing connection:
-	fakeErr := fmt.Errorf("luna cannot be trusted")
+	fakeErr := errors.New("luna cannot be trusted")
 	lka.hostPromptFunc = func(host string, k ssh.PublicKey) error {
 		require.Equal(t, "luna", host)
 		require.Equal(t, pk, k)

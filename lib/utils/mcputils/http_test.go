@@ -22,12 +22,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"log/slog"
 	"maps"
 	"net/http"
 	"os"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -143,7 +143,7 @@ func (t *testReplaceHTTPResponseTransport) RoundTrip(r *http.Request) (*http.Res
 	if resp != nil {
 		switch {
 		case resp.ContentLength >= 0:
-			if resp.Header.Get("Content-Length") != fmt.Sprintf("%d", resp.ContentLength) {
+			if resp.Header.Get("Content-Length") != strconv.FormatInt(resp.ContentLength, 10) {
 				return nil, trace.CompareFailed("Content-Length does not match Content-Length header")
 			}
 

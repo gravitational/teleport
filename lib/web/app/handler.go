@@ -23,7 +23,6 @@ package app
 import (
 	"context"
 	"crypto/tls"
-	"fmt"
 	"io"
 	"log/slog"
 	"net"
@@ -761,7 +760,7 @@ func makeAppRedirectURL(r *http.Request, proxyPublicAddr, addr string, req launc
 	u := url.URL{
 		Scheme: "https",
 		Host:   proxyPublicAddr,
-		Path:   fmt.Sprintf("/web/launch/%s", addr),
+		Path:   "/web/launch/" + addr,
 	}
 
 	// Presence of a stateToken means we are beginning an app auth exchange.

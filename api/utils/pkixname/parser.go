@@ -573,18 +573,18 @@ func tokenize(dn string) (*tokenList, error) {
 	case tokenizeStateInit:
 		// OK.
 	case tokenizeStateNameComponent:
-		return nil, fmt.Errorf("want attributeType, found EOF")
+		return nil, errors.New("want attributeType, found EOF")
 	case tokenizeStateAttrType:
-		return nil, fmt.Errorf("want attributeType or '=', found EOF")
+		return nil, errors.New("want attributeType or '=', found EOF")
 	case tokenizeStateAttrTypeEnd:
-		return nil, fmt.Errorf("want '=' attributeValue, found EOF")
+		return nil, errors.New("want '=' attributeValue, found EOF")
 	case tokenizeStateStringStart, tokenizeStateString, tokenizeStateStringEnd:
 		// OK.
 		emitBuffer(tokenString)
 	case tokenizeStateStringEscape:
-		return nil, fmt.Errorf("want escaped character, found EOF")
+		return nil, errors.New("want escaped character, found EOF")
 	case tokenizeStateStringQuote:
-		return nil, fmt.Errorf("want closing quote, found EOF")
+		return nil, errors.New("want closing quote, found EOF")
 	case tokenizeStateStringQuoteEnd:
 		// OK.
 	default:

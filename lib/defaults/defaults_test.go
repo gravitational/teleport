@@ -19,7 +19,6 @@
 package defaults
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -133,6 +132,6 @@ func TestSearchSessionRange(t *testing.T) {
 }
 
 func TestReadableDatabaseProtocol(t *testing.T) {
-	require.Equal(t, "Microsoft SQL Server", fmt.Sprint(ReadableDatabaseProtocol(ProtocolSQLServer)))
-	require.Equal(t, "unknown", fmt.Sprint(ReadableDatabaseProtocol("unknown")))
+	require.Equal(t, "Microsoft SQL Server", ReadableDatabaseProtocol(ProtocolSQLServer))
+	require.Equal(t, "unknown", ReadableDatabaseProtocol("unknown"))
 }

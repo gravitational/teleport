@@ -301,7 +301,7 @@ func publicKeyAlgorithmName(pubKey crypto.PublicKey) string {
 	case *rsa.PublicKey:
 		return fmt.Sprintf("RSA %d", k.Size()*8)
 	case *ecdsa.PublicKey:
-		return fmt.Sprintf("ECDSA %s", k.Params().Name)
+		return "ECDSA " + k.Params().Name
 	case ed25519.PublicKey:
 		return "Ed25519"
 	case ssh.CryptoPublicKey:

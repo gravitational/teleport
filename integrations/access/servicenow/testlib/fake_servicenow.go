@@ -243,7 +243,7 @@ func (s *FakeServiceNow) CheckIncidentUpdate(ctx context.Context) (servicenow.In
 // StoreOnCall allows creating a fake on-call rotation (called shift in
 // SevriceNow UI) and set users on-call in this rotation.
 func (s *FakeServiceNow) StoreOnCall(rotaID string, userIDs []string) {
-	key := fmt.Sprintf("rota-%s", rotaID)
+	key := "rota-" + rotaID
 	s.objects.Store(key, userIDs)
 }
 
@@ -256,7 +256,7 @@ func (s *FakeServiceNow) StoreUser(userName string) string {
 }
 
 func (s *FakeServiceNow) getUser(userID string) string {
-	key := fmt.Sprintf("user-%s", userID)
+	key := "user-" + userID
 	value, ok := s.objects.Load(key)
 	if !ok {
 		return ""
@@ -269,7 +269,7 @@ func (s *FakeServiceNow) getUser(userID string) string {
 }
 
 func (s *FakeServiceNow) getOnCall(rotationName string) []string {
-	key := fmt.Sprintf("rota-%s", rotationName)
+	key := "rota-" + rotationName
 	value, ok := s.objects.Load(key)
 	if !ok {
 		return nil

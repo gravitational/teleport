@@ -236,9 +236,9 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 	addDestinationToKnownPaths := func(d destination.Destination) {
 		switch d := d.(type) {
 		case *destination.Directory:
-			destinationPaths[fmt.Sprintf("file://%s", d.Path)]++
+			destinationPaths["file://"+d.Path]++
 		case *k8s.SecretDestination:
-			destinationPaths[fmt.Sprintf("kubernetes-secret://%s", d.Name)]++
+			destinationPaths["kubernetes-secret://"+d.Name]++
 		}
 	}
 	for _, svc := range conf.Services {

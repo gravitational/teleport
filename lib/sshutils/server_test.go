@@ -21,7 +21,7 @@ package sshutils
 import (
 	"bytes"
 	"context"
-	"fmt"
+	"errors"
 	"os"
 	"sync/atomic"
 	"testing"
@@ -302,7 +302,7 @@ func pass(need string) PasswordFunc {
 				},
 			}, nil
 		}
-		return nil, fmt.Errorf("passwords don't match")
+		return nil, errors.New("passwords don't match")
 	}
 }
 

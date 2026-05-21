@@ -81,7 +81,7 @@ func (e *Engine) handleRequest(req *http.Request, sessionCtx *common.Session, tr
 
 	queryEvent := common.Query{
 		Query:      query,
-		Parameters: []string{fmt.Sprintf("url=%s", req.URL.String())},
+		Parameters: []string{"url=" + req.URL.String()},
 	}
 
 	e.Audit.OnQuery(e.Context, sessionCtx, queryEvent)

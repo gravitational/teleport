@@ -17,7 +17,6 @@
 package web
 
 import (
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -57,8 +56,8 @@ func (h *Handler) azureOIDCConfigure(w http.ResponseWriter, r *http.Request, p h
 	// The script must execute the following command:
 	argsList := []string{
 		"integration", "configure", "azure-oidc",
-		fmt.Sprintf("--proxy-public-addr=%s", shsprintf.EscapeDefaultContext(oidcIssuer)),
-		fmt.Sprintf("--auth-connector-name=%s", shsprintf.EscapeDefaultContext(authConnectorName)),
+		"--proxy-public-addr=" + shsprintf.EscapeDefaultContext(oidcIssuer),
+		"--auth-connector-name=" + shsprintf.EscapeDefaultContext(authConnectorName),
 	}
 
 	if tagParam := queryParams.Get("accessGraph"); tagParam != "" {

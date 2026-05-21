@@ -18,7 +18,6 @@ package stream
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"strconv"
 	"testing"
@@ -54,7 +53,7 @@ func TestFilterMap(t *testing.T) {
 	// normal usage
 	s, err := Collect(FilterMap(Slice([]int{1, 2, 3, 4}), func(i int) (string, bool) {
 		if i%2 == 0 {
-			return fmt.Sprintf("%d", i*10), true
+			return strconv.Itoa(i * 10), true
 		}
 		return "", false
 	}))
@@ -84,7 +83,7 @@ func TestFilterMap(t *testing.T) {
 	require.Empty(t, s)
 
 	// failure
-	err = Drain(FilterMap(Fail[int](fmt.Errorf("unexpected error")), func(_ int) (string, bool) { panic("unreachable") }))
+	err = Drain(FilterMap(Fail[int](errors.New("unexpected error")), func(_ int) (string, bool) { panic("unreachable") }))
 	require.Error(t, err)
 }
 
@@ -97,7 +96,7 @@ func TestMapWhile(t *testing.T) {
 		if i == 3 {
 			return "", false
 		}
-		return fmt.Sprintf("%d", i*10), true
+		return strconv.Itoa(i * 10), true
 	}))
 	require.NoError(t, err)
 	require.Equal(t, []string{"10", "20"}, s)
@@ -125,7 +124,7 @@ func TestMapWhile(t *testing.T) {
 	require.Empty(t, s)
 
 	// failure
-	err = Drain(MapWhile(Fail[int](fmt.Errorf("unexpected error")), func(_ int) (string, bool) { panic("unreachable") }))
+	err = Drain(MapWhile(Fail[int](errors.New("unexpected error")), func(_ int) (string, bool) { panic("unreachable") }))
 	require.Error(t, err)
 }
 
@@ -172,14 +171,14 @@ func TestChain(t *testing.T) {
 	// late failure
 	s, err = Collect(Chain(
 		Slice([]int{7, 7, 7}),
-		Fail[int](fmt.Errorf("some error")),
+		Fail[int](errors.New("some error")),
 	))
 	require.Error(t, err)
 	require.Equal(t, []int{7, 7, 7}, s)
 
 	// early failure
 	s, err = Collect(Chain(
-		Fail[int](fmt.Errorf("some other error")),
+		Fail[int](errors.New("some other error")),
 		Func(func() (int, error) { panic("unreachable") }),
 	))
 	require.Error(t, err)
@@ -223,7 +222,7 @@ func TestFunc(t *testing.T) {
 
 	// immediate error
 	err = Drain(Func(func() (int, error) {
-		return 0, fmt.Errorf("unexpected error")
+		return 0, errors.New("unexpected error")
 	}))
 	require.Error(t, err)
 
@@ -232,7 +231,7 @@ func TestFunc(t *testing.T) {
 	err = Drain(Func(func() (int, error) {
 		n++
 		if n > 10 {
-			return 0, fmt.Errorf("unexpected error")
+			return 0, errors.New("unexpected error")
 		}
 		return n, nil
 	}))
@@ -327,7 +326,7 @@ func TestPageFunc(t *testing.T) {
 	s, err = Collect(PageFunc(func() ([]int, error) {
 		n++
 		if n > 3 {
-			return nil, fmt.Errorf("bad things")
+			return nil, errors.New("bad things")
 		}
 		return []int{1, 2, 3}, nil
 	}))
@@ -336,7 +335,7 @@ func TestPageFunc(t *testing.T) {
 
 	// immediate failure
 	err = Drain(PageFunc(func() ([]int, error) {
-		return nil, fmt.Errorf("very bad things")
+		return nil, errors.New("very bad things")
 	}))
 	require.Error(t, err)
 }
@@ -351,7 +350,7 @@ func TestEmpty(t *testing.T) {
 	require.Empty(t, s)
 
 	// normal error case
-	s, err = Collect(Fail[int](fmt.Errorf("unexpected error")))
+	s, err = Collect(Fail[int](errors.New("unexpected error")))
 	require.Error(t, err)
 	require.Empty(t, s)
 
@@ -381,7 +380,7 @@ func TestOnceFunc(t *testing.T) {
 
 	// error case
 	s, err = Collect(OnceFunc(func() (int, error) {
-		return 1, fmt.Errorf("unexpected error")
+		return 1, errors.New("unexpected error")
 	}))
 	require.Error(t, err)
 	require.Empty(t, s)
@@ -421,7 +420,7 @@ func TestCollectPages(t *testing.T) {
 			desc: "empty-case",
 		},
 		{
-			err:  fmt.Errorf("failure"),
+			err:  errors.New("failure"),
 			desc: "error-case",
 		},
 	}
@@ -551,13 +550,13 @@ func TestSkip(t *testing.T) {
 	require.Empty(t, s)
 
 	// immediate failure
-	err = Drain(Skip(Fail[int](fmt.Errorf("unexpected error")), 1))
+	err = Drain(Skip(Fail[int](errors.New("unexpected error")), 1))
 	require.Error(t, err)
 
 	// failure during skip
 	err = Drain(Skip(Chain(
 		Slice([]int{1, 2}),
-		Fail[int](fmt.Errorf("unexpected error")),
+		Fail[int](errors.New("unexpected error")),
 		Slice([]int{3, 4}),
 	), 3))
 	require.Error(t, err)
@@ -593,13 +592,13 @@ func TestFlatten(t *testing.T) {
 	require.Equal(t, []int{1, 2, 3, 4, 5, 6}, s)
 
 	// immediate failure
-	err = Drain(Flatten(Fail[Stream[int]](fmt.Errorf("unexpected error"))))
+	err = Drain(Flatten(Fail[Stream[int]](errors.New("unexpected error"))))
 	require.Error(t, err)
 
 	// failure during streaming
 	s, err = Collect(Flatten(Slice([]Stream[int]{
 		Slice([]int{1, 2}),
-		Fail[int](fmt.Errorf("unexpected error")),
+		Fail[int](errors.New("unexpected error")),
 		Slice([]int{3, 4}),
 	})))
 	require.Error(t, err)
@@ -613,19 +612,19 @@ func TestMapErr(t *testing.T) {
 	// normal inject error
 	err := Drain(MapErr(Slice([]int{1, 2, 3}), func(err error) error {
 		require.NoError(t, err)
-		return fmt.Errorf("unexpected error")
+		return errors.New("unexpected error")
 	}))
 	require.Error(t, err)
 
 	// empty inject error
 	err = Drain(MapErr(Empty[int](), func(err error) error {
 		require.NoError(t, err)
-		return fmt.Errorf("unexpected error")
+		return errors.New("unexpected error")
 	}))
 	require.Error(t, err)
 
 	// normal suppress error
-	s, err := Collect(MapErr(Chain(Slice([]int{1, 2, 3}), Fail[int](fmt.Errorf("unexpected error"))), func(err error) error {
+	s, err := Collect(MapErr(Chain(Slice([]int{1, 2, 3}), Fail[int](errors.New("unexpected error"))), func(err error) error {
 		require.Error(t, err)
 		return nil
 	}))
@@ -633,7 +632,7 @@ func TestMapErr(t *testing.T) {
 	require.Equal(t, []int{1, 2, 3}, s)
 
 	// empty suppress error
-	s, err = Collect(MapErr(Fail[int](fmt.Errorf("unexpected error")), func(err error) error {
+	s, err = Collect(MapErr(Fail[int](errors.New("unexpected error")), func(err error) error {
 		require.Error(t, err)
 		return nil
 	}))

@@ -19,8 +19,6 @@
 package versioncontrol
 
 import (
-	"fmt"
-
 	"golang.org/x/mod/semver" //nolint:depguard // Usage precedes the x/mod/semver rule.
 )
 
@@ -39,7 +37,7 @@ func Normalize(v string) string {
 		return v
 	}
 
-	if n := fmt.Sprintf("v%s", v); semver.IsValid(n) {
+	if n := "v" + v; semver.IsValid(n) {
 		return n
 	}
 

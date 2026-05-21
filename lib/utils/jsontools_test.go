@@ -20,7 +20,7 @@ package utils
 
 import (
 	"bytes"
-	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -118,6 +118,6 @@ func TestStreamJSONArray(t *testing.T) {
 
 		// we add at the end of the loop so that this test case
 		// covers the empty slice case.
-		iterative = append(iterative, fmt.Sprintf("%d", i))
+		iterative = append(iterative, strconv.Itoa(i))
 	}
 }

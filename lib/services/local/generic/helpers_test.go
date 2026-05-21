@@ -17,7 +17,7 @@
 package generic_test
 
 import (
-	"fmt"
+	"strconv"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -65,7 +65,7 @@ func TestCollectPageAndCursor(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, gotNext, gotErr := generic.CollectPageAndCursor(tt.s, tt.limit,
-				func(item int) string { return fmt.Sprintf("%d", item) })
+				func(item int) string { return strconv.Itoa(item) })
 			require.Empty(t, cmp.Diff(tt.wantItems, got))
 			require.Equal(t, tt.wantNext, gotNext)
 			tt.errAssert(t, gotErr)

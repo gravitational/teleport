@@ -64,7 +64,7 @@ func formCanonicalRequest(accessKeyId string, scope string, t time.Time, nonce s
 	headers := []string{
 		"X-Amz-Algorithm=AWS4-HMAC-SHA256",
 		fmt.Sprintf("X-Amz-Credential=%s%%2F%s", accessKeyId, url.QueryEscape(scope)),
-		fmt.Sprintf("X-Amz-Date=%s", url.QueryEscape(t.Format("2006-01-02T15:04:05.000Z"))),
+		"X-Amz-Date=" + url.QueryEscape(t.Format("2006-01-02T15:04:05.000Z")),
 		"X-Amz-Expires=900"}
 	sort.Strings(headers)
 	queryString := strings.Join(headers, "&")
@@ -107,7 +107,7 @@ func buildSignedResponse(region string, nonce string, accessKeyId string, secret
 	signature := createSignature(canonicalRequest, t, scope, signingKey)
 	result := fmt.Sprintf("signature=%s,access_key=%s,amzdate=%s", hex.EncodeToString(signature), accessKeyId, t.Format("2006-01-02T15:04:05.000Z"))
 	if sessionToken != "" {
-		result += fmt.Sprintf(",session_token=%s", sessionToken)
+		result += ",session_token=" + sessionToken
 	}
 	return result
 }

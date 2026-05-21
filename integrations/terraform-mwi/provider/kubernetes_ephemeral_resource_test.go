@@ -17,6 +17,7 @@ limitations under the License.
 package provider
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"testing"
@@ -97,7 +98,7 @@ resource "kubernetes_namespace" "ns" {
 						},
 					)
 					if !containsCreatedNamespace {
-						return fmt.Errorf("expected to find created namespace in TF state")
+						return errors.New("expected to find created namespace in TF state")
 					}
 					return nil
 				},

@@ -21,7 +21,7 @@ package web
 import (
 	"context"
 	"encoding/binary"
-	"fmt"
+	"errors"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -356,21 +356,21 @@ func (s *recordingPlayback) handleFetchRequest(req *fetchRequest) {
 	needNewStream := s.stream.eventsChan == nil || req.startOffset < s.stream.lastEndTime
 
 	if needNewStream {
-		events, errors := s.clt.StreamSessionEvents(
+		events, errs := s.clt.StreamSessionEvents(
 			metadata.WithSessionRecordingFormatContext(s.ctx, teleport.PTY),
 			session.ID(s.sessionID),
 			0,
 		)
 
-		if events == nil || errors == nil {
-			s.sendError(fmt.Errorf("failed to start session event stream"), req.requestID)
+		if events == nil || errs == nil {
+			s.sendError(errors.New("failed to start session event stream"), req.requestID) //nolint:perfsprint // `errors` variable shadows the package
 			s.stream.Unlock()
 
 			return
 		}
 
 		s.stream.eventsChan = events
-		s.stream.errorsChan = errors
+		s.stream.errorsChan = errs
 		s.stream.lastEndTime = 0
 
 		s.terminal.Lock()
@@ -584,7 +584,7 @@ func (s *recordingPlayback) writeMessage(data []byte) error {
 	case s.writeChan <- websocketMessage{messageType: websocket.BinaryMessage, data: data}:
 		return nil
 	case <-time.After(10 * time.Second):
-		return fmt.Errorf("timeout sending message")
+		return errors.New("timeout sending message")
 	}
 }
 

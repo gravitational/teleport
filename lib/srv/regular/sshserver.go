@@ -32,6 +32,7 @@ import (
 	"os"
 	"os/user"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -1791,7 +1792,7 @@ func (s *Server) handleSessionRequests(ctx context.Context, ccx *sshutils.Connec
 			reqCtx := tracessh.ContextFromRequest(req)
 			ctx, span := s.tracerProvider.Tracer("ssh").Start(
 				oteltrace.ContextWithRemoteSpanContext(ctx, oteltrace.SpanContextFromContext(reqCtx)),
-				fmt.Sprintf("ssh.Regular.SessionRequest/%s", req.Type),
+				"ssh.Regular.SessionRequest/"+req.Type,
 				oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 				oteltrace.WithAttributes(
 					semconv.RPCServiceKey.String("ssh.RegularServer"),
@@ -2011,7 +2012,7 @@ func (s *Server) serveAgent(ctx context.Context, scx *srv.ServerContext) error {
 	agentServer.SetListener(listener)
 	scx.Parent().AddCloser(agentServer)
 	scx.Parent().SetEnv(teleport.SSHAuthSock, listener.Addr().String())
-	scx.Parent().SetEnv(teleport.SSHAgentPID, fmt.Sprintf("%v", os.Getpid()))
+	scx.Parent().SetEnv(teleport.SSHAgentPID, strconv.Itoa(os.Getpid()))
 	scx.Logger.DebugContext(ctx, "Starting agent server for user", "teleport_user", scx.Identity.TeleportUser, "socket", agentServer.Path)
 	go func() {
 		if err := agentServer.Serve(); err != nil {
@@ -2309,7 +2310,7 @@ func (s *Server) handleProxyJump(ctx context.Context, ccx *sshutils.ConnectionCo
 
 	subsys, err := newProxySubsys(ctx, scx, s, proxySubsysRequest{
 		host: req.Host,
-		port: fmt.Sprintf("%v", req.Port),
+		port: strconv.FormatUint(uint64(req.Port), 10),
 	})
 	if err != nil {
 		s.logger.ErrorContext(ctx, "Unable instantiate proxy subsystem", "error", err)

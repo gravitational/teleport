@@ -20,6 +20,7 @@ package terminal
 import (
 	"bytes"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/hinshun/vt10x"
@@ -202,15 +203,15 @@ func colorToANSI(color vt10x.Color, isForeground bool) []string {
 
 	// Default color
 	if (isForeground && color == vt10x.DefaultFG) || (!isForeground && color == vt10x.DefaultBG) {
-		return []string{fmt.Sprintf("%d", baseCode+9)}
+		return []string{strconv.Itoa(baseCode + 9)}
 	}
 
 	// Basic 16 colors
 	if color < 16 {
 		if color < 8 {
-			return []string{fmt.Sprintf("%d", baseCode+int(color))}
+			return []string{strconv.Itoa(baseCode + int(color))}
 		}
-		return []string{fmt.Sprintf("%d", baseCode+60+int(color)-8)}
+		return []string{strconv.Itoa(baseCode + 60 + int(color) - 8)}
 	}
 
 	// 256 color palette

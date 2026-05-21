@@ -1294,7 +1294,7 @@ func newAppServerFromApp(t *testing.T, app *types.AppV3) *types.AppServerV3 {
 			Name: app.GetName(),
 		},
 		types.AppServerSpecV3{
-			HostID: fmt.Sprintf("%s-host-id", app.GetName()),
+			HostID: app.GetName() + "-host-id",
 			App:    app,
 		},
 	)

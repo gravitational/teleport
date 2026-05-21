@@ -277,7 +277,7 @@ func (c *fetchConfig) fetchContainerOrchestrator(ctx context.Context) string {
 		return ""
 	}
 
-	return fmt.Sprintf("kubernetes-%s", version.GitVersion)
+	return "kubernetes-" + version.GitVersion
 }
 
 // fetchCloudEnvironment returns aws, gpc or azure if the instance is running on

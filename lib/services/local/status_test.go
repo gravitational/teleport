@@ -20,6 +20,7 @@ package local
 
 import (
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -67,7 +68,7 @@ func TestClusterAlerts(t *testing.T) {
 			fmt.Sprintf("alert-%d", i),
 			"some message",
 			types.WithAlertSeverity(sev),
-			types.WithAlertLabel("num", fmt.Sprintf("%d", i)),
+			types.WithAlertLabel("num", strconv.Itoa(i)),
 			types.WithAlertLabel("grp", group),
 		)
 		require.NoError(t, err)

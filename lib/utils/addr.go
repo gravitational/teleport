@@ -236,7 +236,7 @@ func ParseHostPortAddr(hostport string, defaultPort int) (*NetAddr, error) {
 	if defaultPort == -1 && addr.Addr == addr.Host() {
 		return nil, trace.BadParameter("missing port in address %q", hostport)
 	}
-	addr.Addr = net.JoinHostPort(addr.Host(), fmt.Sprintf("%v", addr.Port(defaultPort)))
+	addr.Addr = net.JoinHostPort(addr.Host(), strconv.Itoa(addr.Port(defaultPort)))
 	return addr, nil
 }
 

@@ -20,7 +20,7 @@ package awsoidc
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"net/http"
 	"sync"
 	"testing"
@@ -283,7 +283,7 @@ func (m *mockDeployServiceClient) ListServices(ctx context.Context, params *ecs.
 						StatusCode: http.StatusBadRequest,
 					},
 				},
-				Err: fmt.Errorf("AccessDeniedException"),
+				Err: errors.New("AccessDeniedException"),
 			},
 			RequestID: uuid.NewString(),
 		}

@@ -21,7 +21,6 @@ package maintenance
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -55,7 +54,7 @@ func (w windowTrigger) Name() string {
 // maintenance window.
 func (w windowTrigger) CanStart(ctx context.Context, object kclient.Object) (bool, error) {
 	log := ctrllog.FromContext(ctx).V(1)
-	secretName := fmt.Sprintf("%s-shared-state", object.GetName())
+	secretName := object.GetName() + "-shared-state"
 	var secret v1.Secret
 	err := w.Get(ctx, kclient.ObjectKey{Namespace: object.GetNamespace(), Name: secretName}, &secret)
 	if err != nil {

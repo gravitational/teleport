@@ -19,7 +19,7 @@
 package stream
 
 import (
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -87,7 +87,7 @@ func TestLegacyCompat(t *testing.T) {
 
 	// error from legacy compat
 	err = nil
-	for _, ierr := range FromLegacy(legacy.Fail[int](fmt.Errorf("unexpected error"))) {
+	for _, ierr := range FromLegacy(legacy.Fail[int](errors.New("unexpected error"))) {
 		err = ierr
 		break
 	}
@@ -95,7 +95,7 @@ func TestLegacyCompat(t *testing.T) {
 
 	// error into legacy compat
 	s, err = legacy.Collect(IntoLegacy(func(yield func(int, error) bool) {
-		yield(0, fmt.Errorf("unexpected error"))
+		yield(0, errors.New("unexpected error"))
 	}))
 	require.Error(t, err)
 	require.Empty(t, s)

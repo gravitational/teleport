@@ -535,7 +535,7 @@ type eventWithTime struct {
 // Afterwards, it merges these smaller files into a final sorted output.
 // The function returns json file which is sorted by createdAtDate ascending.
 func createSortedExport(inFile *os.File, dir string, itemCount, maxSize int) (f *os.File, err error) {
-	tmpSortedFilesDir := path.Join(dir, fmt.Sprintf("sort-%s", uuid.NewString()))
+	tmpSortedFilesDir := path.Join(dir, "sort-"+uuid.NewString())
 	if err := os.Mkdir(tmpSortedFilesDir, 0o755); err != nil {
 		return nil, trace.Wrap(err)
 	}

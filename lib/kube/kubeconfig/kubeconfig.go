@@ -24,7 +24,6 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
-	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
@@ -208,11 +207,11 @@ func UpdateConfig(path string, v Values, storeAllCAs bool, fs ConfigFS) error {
 			}
 			execArgs := []string{
 				"kube", "credentials",
-				fmt.Sprintf("--kube-cluster=%s", c),
-				fmt.Sprintf("--teleport-cluster=%s", v.TeleportClusterName),
+				"--kube-cluster=" + c,
+				"--teleport-cluster=" + v.TeleportClusterName,
 			}
 			if v.ProxyAddr != "" {
-				execArgs = append(execArgs, fmt.Sprintf("--proxy=%s", v.ProxyAddr))
+				execArgs = append(execArgs, "--proxy="+v.ProxyAddr)
 			}
 			authInfo := &clientcmdapi.AuthInfo{
 				Impersonate:       v.Impersonate,

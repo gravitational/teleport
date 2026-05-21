@@ -712,7 +712,7 @@ func mustConnectWebAppGateway(ctx context.Context, t *testing.T, _ *daemon.Servi
 	t.Helper()
 
 	gatewayAddress := net.JoinHostPort(gw.LocalAddress(), gw.LocalPort())
-	gatewayURL := fmt.Sprintf("http://%s", gatewayAddress)
+	gatewayURL := "http://" + gatewayAddress
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, gatewayURL, nil)
 	require.NoError(t, err)

@@ -287,7 +287,7 @@ func (s *FakeOpsgenie) CheckNewAlertNote(ctx context.Context) (FakeAlertNote, er
 // The schedule can then be directly notified as a responder, or queried for
 // on-call users as a schedule.
 func (s *FakeOpsgenie) StoreSchedule(scheduleName string, responders ...opsgenie.Responder) opsgenie.Responder {
-	key := fmt.Sprintf("schedule-%s", scheduleName)
+	key := "schedule-" + scheduleName
 	s.objects.Store(key, responders)
 	responder := opsgenie.Responder{
 		Name: scheduleName,
@@ -299,7 +299,7 @@ func (s *FakeOpsgenie) StoreSchedule(scheduleName string, responders ...opsgenie
 
 // GetSchedule gets a schedule.
 func (s *FakeOpsgenie) GetSchedule(scheduleName string) ([]opsgenie.Responder, bool) {
-	key := fmt.Sprintf("schedule-%s", scheduleName)
+	key := "schedule-" + scheduleName
 	value, ok := s.objects.Load(key)
 	if !ok {
 		return nil, false

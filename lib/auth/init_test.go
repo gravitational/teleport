@@ -2216,7 +2216,7 @@ func TestSyncUpgradeWindowStartHour(t *testing.T) {
 	// set sync to fail with error
 	mu.Lock()
 	fakeHour = 12
-	fakeError = fmt.Errorf("uh-oh")
+	fakeError = errors.New("uh-oh")
 	mu.Unlock()
 
 	require.Error(t, authServer.SyncUpgradeWindowStartHour(ctx))

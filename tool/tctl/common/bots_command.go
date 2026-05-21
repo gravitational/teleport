@@ -30,6 +30,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -1201,7 +1202,7 @@ func formatBotInstanceAuthentication(record *machineidv1pb.BotInstanceStatusAuth
 		meta = attrs
 	}
 	table.AddRow([]string{"Join Metadata:", meta.String()})
-	table.AddRow([]string{"Generation:", fmt.Sprint(record.Generation)})
+	table.AddRow([]string{"Generation:", strconv.Itoa(int(record.Generation))})
 	table.AddRow([]string{"Public Key:", fmt.Sprintf("<%d bytes>", len(record.PublicKey))})
 
 	return "\n" + indentString(table.AsBuffer().String(), "  ")
@@ -1212,12 +1213,12 @@ func formatBotInstanceAuthentication(record *machineidv1pb.BotInstanceStatusAuth
 func formatBotInstanceHeartbeat(record *machineidv1pb.BotInstanceStatusHeartbeat) string {
 	table := asciitable.MakeHeadlessTable(2)
 	table.AddRow([]string{"Recorded At:", record.RecordedAt.AsTime().Format(time.RFC3339)})
-	table.AddRow([]string{"Is Startup:", fmt.Sprint(record.IsStartup)})
+	table.AddRow([]string{"Is Startup:", strconv.FormatBool(record.IsStartup)})
 	table.AddRow([]string{"Version:", record.Version})
 	table.AddRow([]string{"Hostname:", record.Hostname})
 	table.AddRow([]string{"Uptime:", record.Uptime.AsDuration().String()})
 	table.AddRow([]string{"Join Method:", record.JoinMethod})
-	table.AddRow([]string{"One Shot:", fmt.Sprint(record.OneShot)})
+	table.AddRow([]string{"One Shot:", strconv.FormatBool(record.OneShot)})
 	table.AddRow([]string{"Architecture:", record.Architecture})
 	table.AddRow([]string{"OS:", record.Os})
 

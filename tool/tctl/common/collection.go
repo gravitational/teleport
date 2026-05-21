@@ -289,7 +289,7 @@ func (c *integrationCollection) WriteText(w io.Writer, verbose bool) error {
 		specProps := []string{}
 		switch ig.GetSubKind() {
 		case types.IntegrationSubKindAWSOIDC:
-			specProps = append(specProps, fmt.Sprintf("RoleARN=%s", ig.GetAWSOIDCIntegrationSpec().RoleARN))
+			specProps = append(specProps, "RoleARN="+ig.GetAWSOIDCIntegrationSpec().RoleARN)
 		}
 
 		rows = append(rows, []string{

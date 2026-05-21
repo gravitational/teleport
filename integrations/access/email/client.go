@@ -195,8 +195,8 @@ func (c *Client) buildBody(reqID string, reqData RequestData, subject string) st
 		msgFieldToBuilder(&builder, "Link", reqURL.String())
 	} else {
 		if resolution.Tag == Unresolved {
-			msgFieldToBuilder(&builder, "Approve", fmt.Sprintf("tsh request review --approve %s", reqID))
-			msgFieldToBuilder(&builder, "Deny", fmt.Sprintf("tsh request review --deny %s", reqID))
+			msgFieldToBuilder(&builder, "Approve", "tsh request review --approve "+reqID)
+			msgFieldToBuilder(&builder, "Deny", "tsh request review --deny "+reqID)
 		}
 	}
 

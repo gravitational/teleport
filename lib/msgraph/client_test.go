@@ -1227,7 +1227,7 @@ func TestValidateDeltaLink(t *testing.T) {
 		{
 			name:           "matching host",
 			baseURL:        types.MSGraphDefaultEndpoint,
-			deltaLink:      fmt.Sprintf("%s/v1.0/users/delta?$deltatoken=latest", types.MSGraphDefaultEndpoint),
+			deltaLink:      types.MSGraphDefaultEndpoint + "/v1.0/users/delta?$deltatoken=latest",
 			errorAssertion: require.NoError,
 		},
 		{
@@ -1241,7 +1241,7 @@ func TestValidateDeltaLink(t *testing.T) {
 		{
 			name:      "different host",
 			baseURL:   types.MSGraphDefaultEndpoint,
-			deltaLink: fmt.Sprintf("%s/v1.0/users/delta?$deltatoken=latest", "https://cloudapp.azure.com"),
+			deltaLink: "https://cloudapp.azure.com" + "/v1.0/users/delta?$deltatoken=latest",
 			errorAssertion: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "host mismatch")
 			},

@@ -33,6 +33,7 @@ import (
 	"os"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"testing/synctest"
@@ -1486,7 +1487,7 @@ func TestIssueWorkloadIdentities(t *testing.T) {
 			Kind:    types.KindWorkloadIdentity,
 			Version: types.V1,
 			Metadata: &headerv1.Metadata{
-				Name: fmt.Sprintf("%d", i),
+				Name: strconv.Itoa(i),
 				Labels: map[string]string{
 					"error":  "too-many",
 					"access": "yes",

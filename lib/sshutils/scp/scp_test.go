@@ -436,7 +436,7 @@ func TestVerifyDirectoryModeIsRequiredForDirectory(t *testing.T) {
 	// Run command in non-recursive mode. Since the source is a directory,
 	// it should fail.
 	err = runSCP(cmd, "-t", dir)
-	require.Regexp(t, fmt.Sprintf("%s is a directory, use -r flag to copy recursively", filepath.Base(dir)), err)
+	require.Regexp(t, filepath.Base(dir)+" is a directory, use -r flag to copy recursively", err)
 }
 
 func runSCP(cmd Command, args ...string) error {

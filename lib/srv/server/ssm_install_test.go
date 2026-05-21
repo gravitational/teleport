@@ -181,9 +181,9 @@ func (me *mockInstallationResults) ReportInstallationResult(ctx context.Context,
 func TestSSMInstaller(t *testing.T) {
 	document := "ssmdocument"
 	joinFailureTimeout := installer.JoinFailureTimeout.String()
-	joinFailureMessage := fmt.Sprintf("node did not become ready (join cluster) within %s", joinFailureTimeout)
+	joinFailureMessage := "node did not become ready (join cluster) within " + joinFailureTimeout
 	joinFailureStatus := fmt.Sprintf("Teleport was installed successfully but the agent did not become ready within the configured timeout. Check standard error output for join diagnostics. (timeout: %s)", joinFailureTimeout)
-	joinFailureStandardError := fmt.Sprintf("ERROR: join failure: token is expired or not found; %s", joinFailureMessage)
+	joinFailureStandardError := "ERROR: join failure: token is expired or not found; " + joinFailureMessage
 
 	for _, tc := range []struct {
 		client                *mockSSMClient

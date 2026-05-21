@@ -296,7 +296,7 @@ func makeTestIdentityCenterPermissionSet(t *testing.T, ctx context.Context, svc 
 		Version:  types.V1,
 		Metadata: &headerv1.Metadata{Name: id},
 		Spec: &identitycenterv1.PermissionSetSpec{
-			Arn:         fmt.Sprintf("arn:aws:sso:::permissionSet/ic-instance/%s", id),
+			Arn:         "arn:aws:sso:::permissionSet/ic-instance/" + id,
 			Name:        "aws-permission-set-" + id,
 			Description: "Test permission set " + id,
 		},

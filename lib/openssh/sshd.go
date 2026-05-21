@@ -43,7 +43,7 @@ var (
 )
 
 func sshdConfigInclude(dataDir string) string {
-	return fmt.Sprintf("Include %s", filepath.Join(dataDir, sshdConfigFile))
+	return "Include " + filepath.Join(dataDir, sshdConfigFile)
 }
 
 const (

@@ -497,7 +497,7 @@ func printRequestsOverview(reqs []types.AccessRequest, format string) error {
 			table.AddRow([]string{
 				req.GetName(),
 				req.GetUser(),
-				fmt.Sprintf("roles=%s", strings.Join(req.GetRoles(), ",")),
+				"roles=" + strings.Join(req.GetRoles(), ","),
 				resourceIDsString,
 				req.GetCreationTime().Format(time.RFC822),
 				time.Until(req.Expiry()).Round(time.Minute).String(),
@@ -531,7 +531,7 @@ func printRequestsDetailed(reqs []types.AccessRequest, format string) error {
 			table := asciitable.MakeHeadlessTable(2)
 			table.AddRow([]string{"Token: ", req.GetName()})
 			table.AddRow([]string{"Requestor: ", req.GetUser()})
-			table.AddRow([]string{"Metadata: ", fmt.Sprintf("roles=%s", strings.Join(req.GetRoles(), ","))})
+			table.AddRow([]string{"Metadata: ", "roles=" + strings.Join(req.GetRoles(), ",")})
 			table.AddRow([]string{"Resources: ", resourceIDsString})
 			table.AddRow([]string{"Created At (UTC): ", req.GetCreationTime().Format(time.RFC822)})
 			table.AddRow([]string{"Status: ", req.GetState().String()})

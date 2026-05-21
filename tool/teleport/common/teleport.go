@@ -351,7 +351,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dbConfigureAWS := dbConfigure.Command("aws", "Bootstrap for AWS hosted databases.")
 	dbConfigureAWSPrintIAM := dbConfigureAWS.Command("print-iam", "Generate and show IAM policies.")
 	dbConfigureAWSPrintIAM.Flag("types",
-		fmt.Sprintf("Comma-separated list of database types to include in the policy. Any of %s", strings.Join(awsDatabaseTypes, ","))).
+		"Comma-separated list of database types to include in the policy. Any of "+strings.Join(awsDatabaseTypes, ",")).
 		Short('r').
 		StringVar(&configureDatabaseAWSPrintFlags.types)
 	dbConfigureAWSPrintIAM.Flag("role", "IAM role name to attach policy to. Mutually exclusive with --user").StringVar(&configureDatabaseAWSPrintFlags.role)
@@ -364,7 +364,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		StringVar(&configureDatabaseAWSPrintFlags.assumesRoles)
 	dbConfigureAWSCreateIAM := dbConfigureAWS.Command("create-iam", "Generate, create and attach IAM policies.")
 	dbConfigureAWSCreateIAM.Flag("types",
-		fmt.Sprintf("Comma-separated list of database types to include in the policy. Any of %s", strings.Join(awsDatabaseTypes, ","))).
+		"Comma-separated list of database types to include in the policy. Any of "+strings.Join(awsDatabaseTypes, ",")).
 		Short('r').
 		StringVar(&configureDatabaseAWSCreateFlags.types)
 	dbConfigureAWSCreateIAM.Flag("name", "Created policy name. Defaults to empty. Will be auto-generated if not provided.").Default(awsconfigurators.DatabaseAccessPolicyName).StringVar(&configureDatabaseAWSCreateFlags.policyName)
@@ -400,7 +400,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	systemdInstall := installCmd.Command("systemd", "Creates a systemd unit file configuration.")
 	systemdInstall.Flag("env-file", "Full path to the environment file.").Default(systemd.DefaultEnvironmentFile).StringVar(&systemdInstallFlags.EnvironmentFile)
 	systemdInstall.Flag("pid-file", "Full path to the PID file.").Default(systemd.DefaultPIDFile).StringVar(&systemdInstallFlags.PIDFile)
-	systemdInstall.Flag("fd-limit", "Maximum number of open file descriptors.").Default(fmt.Sprintf("%v", systemd.DefaultFileDescriptorLimit)).IntVar(&systemdInstallFlags.FileDescriptorLimit)
+	systemdInstall.Flag("fd-limit", "Maximum number of open file descriptors.").Default(strconv.Itoa(systemd.DefaultFileDescriptorLimit)).IntVar(&systemdInstallFlags.FileDescriptorLimit)
 	systemdInstall.Flag("teleport-path", "Full path to the Teleport binary.").StringVar(&systemdInstallFlags.TeleportInstallationFile)
 	systemdInstall.Flag("output", `Write to stdout with "--output=stdout" or custom path with --output=file:///path`).Short('o').Default(teleport.SchemeStdout).StringVar(&systemdInstallFlags.output)
 	systemdInstall.Alias(systemdInstallExamples) // We're using "alias" section to display usage examples.
@@ -631,7 +631,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	debugCmd := app.Command("debug", "Debug commands")
 	debugCmd.Flag("config", fmt.Sprintf("Path to a configuration file [%v].", defaults.ConfigFilePath)).Short('c').ExistingFileVar(&ccf.ConfigFile)
 	setLogLevelCmd := debugCmd.Command("set-log-level", "Changes the log level.")
-	setLogLevelCmd.Arg("LEVEL", fmt.Sprintf("Log level (case-insensitive). Any of: %s", strings.Join(logutils.SupportedLevelsText, ","))).Required().StringVar(&ccf.LogLevel)
+	setLogLevelCmd.Arg("LEVEL", "Log level (case-insensitive). Any of: "+strings.Join(logutils.SupportedLevelsText, ",")).Required().StringVar(&ccf.LogLevel)
 	getLogLevelCmd := debugCmd.Command("get-log-level", "Fetches current log level.")
 	collectProfilesCmd := debugCmd.Command("profile", "Export the application profiles (pprof format). Outputs to stdout .tar.gz file contents.")
 	collectProfilesCmd.Alias(collectProfileUsageExamples) // We're using "alias" section to display usage examples.

@@ -145,7 +145,7 @@ func (d *Display) tcpSocket() (*net.TCPAddr, error) {
 		return nil, trace.BadParameter("display is not a tcp socket, hostname can't be empty")
 	}
 
-	port := fmt.Sprint(d.DisplayNumber + x11BasePort)
+	port := strconv.Itoa(d.DisplayNumber + x11BasePort)
 	rawAddr := net.JoinHostPort(d.HostName, port)
 	addr, err := net.ResolveTCPAddr("tcp", rawAddr)
 	if err != nil {

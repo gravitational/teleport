@@ -491,7 +491,7 @@ func makeAzureSQLServer(t *testing.T, name, group string) (*armsql.Server, types
 
 	server := &armsql.Server{
 		ID:   to.Ptr(fmt.Sprintf("/subscriptions/sub-id/resourceGroups/%v/providers/Microsoft.Sql/servers/%v", group, name)),
-		Name: to.Ptr(fmt.Sprintf("%s-database-windows-net", name)),
+		Name: to.Ptr(name + "-database-windows-net"),
 		Properties: &armsql.ServerProperties{
 			FullyQualifiedDomainName: to.Ptr("localhost"),
 		},

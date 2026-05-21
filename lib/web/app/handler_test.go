@@ -26,6 +26,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -697,7 +698,7 @@ type fakeClusterListener struct {
 func (r *fakeClusterListener) Accept() (net.Conn, error) {
 	conn, ok := <-r.fakeCluster.ProxyConn()
 	if !ok {
-		return nil, fmt.Errorf("cluster closed")
+		return nil, errors.New("cluster closed")
 	}
 
 	return conn, nil

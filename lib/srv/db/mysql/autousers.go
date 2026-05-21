@@ -280,7 +280,7 @@ func (e *Engine) setupDatabaseForAutoUsers(conn *clientConn, sessionCtx *common.
 	e.Log.DebugContext(e.Context, "Updating stored procedures for MySQL server")
 	return trace.Wrap(doTransaction(conn, func() error {
 		for _, procedureName := range allProcedureNames {
-			dropCommand := fmt.Sprintf("DROP PROCEDURE IF EXISTS %s", procedureName)
+			dropCommand := "DROP PROCEDURE IF EXISTS " + procedureName
 			createCommand, found := getCreateProcedureCommand(conn, procedureName)
 			updateCommand := fmt.Sprintf("ALTER PROCEDURE %s COMMENT %q", procedureName, procedureVersion)
 

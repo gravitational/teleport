@@ -132,7 +132,7 @@ func onInstallSystemdCmd(
 		return trace.Wrap(err)
 	}
 	generated := buf.Bytes()
-	path := filepath.Join(systemdDirectory, fmt.Sprintf("%s.service", unitName))
+	path := filepath.Join(systemdDirectory, unitName+".service")
 
 	if !write {
 		_, _ = fmt.Fprintf(

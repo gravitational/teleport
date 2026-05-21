@@ -26,6 +26,7 @@ import (
 	"crypto/x509"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -310,7 +311,7 @@ func (s *Service) renderAWSCreds(
 	sec.Key("aws_access_key_id").SetValue(creds.AccessKeyID)
 	sec.Key("aws_session_token").SetValue(creds.SessionToken)
 	sec.Key("expiration").SetValue(
-		fmt.Sprintf("%d", expiresAt.UnixMilli()),
+		strconv.FormatInt(expiresAt.UnixMilli(), 10),
 	)
 
 	b := &bytes.Buffer{}

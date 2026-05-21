@@ -14,6 +14,7 @@ linters:
     - ineffassign
     - misspell
     - nolintlint
+    - perfsprint
     - revive
     - sloglint
     - staticcheck

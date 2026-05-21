@@ -20,6 +20,7 @@ import (
 	"cmp"
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/dustin/go-humanize"
@@ -52,12 +53,14 @@ func getMetricLabelString(labels []*dto.LabelPair) string {
 		return ""
 	}
 
+	var outSb55 strings.Builder
 	for i, label := range labels {
 		if i > 0 {
-			out += ","
+			outSb55.WriteString(",")
 		}
-		out += label.GetName() + "=\"" + label.GetValue() + "\""
+		outSb55.WriteString(label.GetName() + "=\"" + label.GetValue() + "\"")
 	}
+	out += outSb55.String()
 
 	return "{" + out + "}"
 }

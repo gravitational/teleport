@@ -18,7 +18,6 @@ package postgres
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"slices"
 	"strconv"
@@ -75,7 +74,7 @@ func newAlloyDBEndpointsResolver(db types.Database, clients healthchecks.GCPClie
 }
 
 func newEndpointsResolver(uri string) (healthcheck.EndpointsResolverFunc, error) {
-	config, err := pgconn.ParseConfig(fmt.Sprintf("postgres://%s", uri))
+	config, err := pgconn.ParseConfig("postgres://" + uri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

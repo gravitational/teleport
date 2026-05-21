@@ -20,7 +20,6 @@ package machineidv1
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"maps"
 	"slices"
@@ -1080,9 +1079,7 @@ func botToUserAndRole(bot *pb.Bot, now time.Time, createdBy string) (types.User,
 		return nil, nil, trace.Wrap(err, "new role")
 	}
 	roleMeta := role.GetMetadata()
-	roleMeta.Description = fmt.Sprintf(
-		"Automatically generated role for bot %s", bot.Metadata.Name,
-	)
+	roleMeta.Description = "Automatically generated role for bot " + bot.Metadata.Name
 	roleMeta.Labels = map[string]string{
 		types.BotLabel: bot.Metadata.Name,
 	}

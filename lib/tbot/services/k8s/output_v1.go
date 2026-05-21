@@ -398,7 +398,7 @@ func generateKubeConfigWithPlugin(ks *kubernetesStatus, destPath string, executa
 
 	// Configure the auth info.
 	execArgs := []string{"kube", "credentials",
-		fmt.Sprintf("--destination-dir=%s", absDestPath),
+		"--destination-dir=" + absDestPath,
 	}
 	config.AuthInfos[contextName] = &clientcmdapi.AuthInfo{
 		Exec: &clientcmdapi.ExecConfig{
@@ -468,12 +468,12 @@ func selectKubeConnectionMethod(proxyPong *connection.ProxyPong) (
 			return "", "", trace.Wrap(err, "parsing proxy public_addr")
 		}
 
-		return fmt.Sprintf("https://%s", addr), libclient.GetKubeTLSServerName(host), nil
+		return "https://" + addr, libclient.GetKubeTLSServerName(host), nil
 	}
 
 	// Next, we try to use the KubePublicAddr.
 	if proxyPong.Proxy.Kube.PublicAddr != "" {
-		return fmt.Sprintf("https://%s", proxyPong.Proxy.Kube.PublicAddr), "", nil
+		return "https://" + proxyPong.Proxy.Kube.PublicAddr, "", nil
 	}
 
 	// Finally, we fall back to the main proxy PublicAddr with the port from

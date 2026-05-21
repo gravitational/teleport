@@ -20,7 +20,7 @@ package upgradewindow
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"os"
 	"path/filepath"
 	"sync"
@@ -245,10 +245,10 @@ func TestExporterBasics(t *testing.T) {
 		exportLock.Lock()
 		exportCount++
 		if exportFlaky && exportCount%2 == 0 {
-			err = fmt.Errorf("fake-export-flaky")
+			err = errors.New("fake-export-flaky")
 		}
 		if exportFail {
-			err = fmt.Errorf("fake-export-fail")
+			err = errors.New("fake-export-fail")
 		}
 		exportLock.Unlock()
 		return
@@ -307,7 +307,7 @@ func TestExporterBasics(t *testing.T) {
 		driver.sync = func(ctx context.Context, rsp proto.ExportUpgradeWindowsResponse) error {
 			si++
 			if si%2 == 0 {
-				return fmt.Errorf("some-fake-error")
+				return errors.New("some-fake-error")
 			}
 			return nil
 		}

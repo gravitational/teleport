@@ -75,7 +75,7 @@ func addAWSProfileToConfig(appName string) error {
 		return trace.Wrap(err)
 	}
 
-	credentialProcessCommand := fmt.Sprintf("tsh apps config --format aws-credential-process %s", appName)
+	credentialProcessCommand := "tsh apps config --format aws-credential-process " + appName
 	profileName := appName
 
 	if err := awsconfigfile.UpsertProfileCredentialProcess(awsConfigFileLocation, profileName, credentialProcessCommand); err != nil {

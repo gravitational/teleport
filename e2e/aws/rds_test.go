@@ -334,8 +334,8 @@ func testRDS(t *testing.T) {
 			// best effort cleanup all the users created for the tests,
 			// including the auto drop user in case Teleport fails to do so.
 			for _, stmt := range []string{
-				fmt.Sprintf("DROP TABLE %s", testTable1),
-				fmt.Sprintf("DROP TABLE %s", testTable2),
+				"DROP TABLE " + testTable1,
+				"DROP TABLE " + testTable2,
 				fmt.Sprintf("DROP ROLE IF EXISTS %q", autoRole1),
 				fmt.Sprintf("DROP ROLE IF EXISTS %q", autoRole2),
 				fmt.Sprintf("DROP USER IF EXISTS %q", autoUserKeep),
@@ -423,13 +423,13 @@ func testRDS(t *testing.T) {
 		_, err = conn.Execute(fmt.Sprintf("CREATE TABLE %s (x int)", testTable1))
 		require.NoError(t, err)
 		t.Cleanup(func() {
-			_, _ = conn.Execute(fmt.Sprintf("DROP TABLE %s", testTable1))
+			_, _ = conn.Execute("DROP TABLE " + testTable1)
 		})
 		testTable2 := "teleport.test_" + randASCII(t)
 		_, err = conn.Execute(fmt.Sprintf("CREATE TABLE %s (x int)", testTable2))
 		require.NoError(t, err)
 		t.Cleanup(func() {
-			_, _ = conn.Execute(fmt.Sprintf("DROP TABLE %s", testTable2))
+			_, _ = conn.Execute("DROP TABLE " + testTable2)
 		})
 
 		// create the roles that Teleport will auto assign.

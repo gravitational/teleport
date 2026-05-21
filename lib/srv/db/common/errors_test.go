@@ -19,7 +19,7 @@
 package common
 
 import (
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/go-mysql-org/go-mysql/mysql"
@@ -89,7 +89,7 @@ func TestConvertError(t *testing.T) {
 		},
 		{
 			name:               "wrapped",
-			input:              &someErr{inner: trace.Wrap(fmt.Errorf("dummy error"))},
+			input:              &someErr{inner: trace.Wrap(errors.New("dummy error"))},
 			checkError:         require.Error,
 			checkErrorContains: "dummy error",
 		},

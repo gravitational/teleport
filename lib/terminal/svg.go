@@ -220,7 +220,7 @@ func renderText(buf *bytes.Buffer, terminal vt10x.Terminal, charWidthPx, rowHeig
 			} else if attrs.foreground < 16 {
 				classes = append(classes, fmt.Sprintf("fg-%d", attrs.foreground))
 			} else {
-				style = fmt.Sprintf("fill:%s", colorToHex(attrs.foreground))
+				style = "fill:" + colorToHex(attrs.foreground)
 			}
 
 			if attrs.bold {

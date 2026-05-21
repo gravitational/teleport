@@ -80,7 +80,7 @@ do shell script quoted form of executableName & `+
 
 			stderrDesc := ""
 			if stderr != "" {
-				stderrDesc = fmt.Sprintf(", stderr: %s", stderr)
+				stderrDesc = ", stderr: " + stderr
 			}
 			return trace.Wrap(exitError, "osascript exited%s", stderrDesc)
 		}

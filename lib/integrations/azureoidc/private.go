@@ -19,7 +19,6 @@ package azureoidc
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -160,7 +159,7 @@ func privateAPIGet(ctx context.Context, accessToken string, endpoint string) ([]
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", accessToken))
+	req.Header.Add("Authorization", "Bearer "+accessToken)
 	req.Header.Add("x-ms-client-request-id", uuid.NewString())
 
 	client, err := defaults.HTTPClient()

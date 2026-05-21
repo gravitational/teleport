@@ -20,7 +20,6 @@ package common
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"regexp"
 
@@ -44,7 +43,7 @@ func onKubeStateDelete() error {
 	if len(namespace) == 0 {
 		return trace.BadParameter("invalid release name provided")
 	}
-	secretRegex, err := regexp.Compile(fmt.Sprintf(`%s-[0-9]+-state`, releaseName))
+	secretRegex, err := regexp.Compile(releaseName + "-[0-9]+-state")
 	if err != nil {
 		return trace.Wrap(err)
 	}

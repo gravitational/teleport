@@ -20,7 +20,7 @@ package awsoidc
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -99,7 +99,7 @@ func TestCreateEC2ICE_success_multiple(t *testing.T) {
 func TestCreateEC2ICE_error_quota_reached(t *testing.T) {
 	ctx := context.Background()
 	mockCreateClient := &mockCreateEC2ICEClient{
-		err: fmt.Errorf("api error ResourceLimitExceeded: You've reached the quota for the maximum number of Instance Connect Endpoints for this subnet. Delete unused Instance Connect Endpoints, or request a quota increase."),
+		err: errors.New("api error ResourceLimitExceeded: You've reached the quota for the maximum number of Instance Connect Endpoints for this subnet. Delete unused Instance Connect Endpoints, or request a quota increase."),
 	}
 	_, err := CreateEC2ICE(ctx, mockCreateClient, CreateEC2ICERequest{
 		Cluster:         "c1",

@@ -51,7 +51,7 @@ func (c *autoUpdateConfigCollection) WriteText(w io.Writer, verbose bool) error 
 	t := asciitable.MakeTable([]string{"Name", "Tools AutoUpdate Enabled"})
 	t.AddRow([]string{
 		c.config.GetMetadata().GetName(),
-		fmt.Sprintf("%v", c.config.GetSpec().GetTools().GetMode()),
+		c.config.GetSpec().GetTools().GetMode(),
 	})
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)

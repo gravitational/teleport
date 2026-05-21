@@ -76,8 +76,8 @@ func BuildCard(id string, webProxyURL *url.URL, clusterName string, data plugind
 		if data.ResolutionTag == plugindata.Unresolved {
 			facts = append(
 				facts,
-				&cards.Fact{Title: "Approve", Value: fmt.Sprintf("tsh request review --approve %s", id)},
-				&cards.Fact{Title: "Deny", Value: fmt.Sprintf("tsh request review --deny %s", id)},
+				&cards.Fact{Title: "Approve", Value: "tsh request review --approve " + id},
+				&cards.Fact{Title: "Deny", Value: "tsh request review --deny " + id},
 			)
 		}
 	}

@@ -18,7 +18,7 @@ package testlib
 
 import (
 	"context"
-	"fmt"
+	"errors"
 
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
@@ -222,7 +222,7 @@ func (s *TerraformSuiteOSS) TestProvisionTokenDoesNotLeakSensitiveData() {
 						tokenID := tokenResource.Primary.Attributes["id"]
 						tokenName := tokenResource.Primary.Attributes["metadata.name"]
 						if tokenID == tokenName {
-							return fmt.Errorf("token id must not include the name because the name is the actual token secret")
+							return errors.New("token id must not include the name because the name is the actual token secret")
 						}
 
 						return nil

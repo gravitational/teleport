@@ -191,7 +191,7 @@ func TestTeleterm(t *testing.T) {
 
 		setupUserMFA := func(t *testing.T, userName string, tshdEventsService *mockTSHDEventsService) client.WebauthnLoginFunc {
 			// Configure user account with an MFA device.
-			origin := fmt.Sprintf("https://%s", rpID)
+			origin := "https://" + rpID
 			device, err := mocku2f.Create()
 			require.NoError(t, err)
 			device.SetPasswordless()
@@ -897,7 +897,7 @@ func testCreateConnectMyComputerRole(t *testing.T, pack *dbhelpers.DatabasePack)
 
 			authServer := pack.Root.Cluster.Process.GetAuthServer()
 			uuid := uuid.NewString()
-			userName := fmt.Sprintf("user-cmc-%s", uuid)
+			userName := "user-cmc-" + uuid
 			roleName := fmt.Sprintf("connect-my-computer-%v", userName)
 
 			var existingRole *types.RoleV6
@@ -1023,7 +1023,7 @@ func testCreateConnectMyComputerToken(t *testing.T, pack *dbhelpers.DatabasePack
 
 	authServer := pack.Root.Cluster.Process.GetAuthServer()
 	uuid := uuid.NewString()
-	userName := fmt.Sprintf("user-cmc-%s", uuid)
+	userName := "user-cmc-" + uuid
 
 	// Prepare a role with rules required to call CreateConnectMyComputerNodeToken.
 	ruleWithAllowRules, err := types.NewRole(fmt.Sprintf("cmc-allow-rules-%v", uuid),
@@ -1180,7 +1180,7 @@ func testDeleteConnectMyComputerNode(t *testing.T, pack *dbhelpers.DatabasePack)
 
 	authServer := pack.Root.Cluster.Process.GetAuthServer()
 	uuid := uuid.NewString()
-	userName := fmt.Sprintf("user-cmc-%s", uuid)
+	userName := "user-cmc-" + uuid
 
 	// Prepare a role with rules required to call DeleteConnectMyComputerNode.
 	ruleWithAllowRules, err := types.NewRole(fmt.Sprintf("cmc-allow-rules-%v", uuid),
@@ -1314,9 +1314,9 @@ func testListDatabaseUsersFromUnifiedResources(t *testing.T, pack *dbhelpers.Dat
 	rootDatabaseURI := uri.NewClusterURI(rootClusterName).AppendDB(pack.Root.PostgresService.Name)
 	leafDatabaseURI := uri.NewClusterURI(rootClusterName).AppendLeafCluster(pack.Leaf.Cluster.Secrets.SiteName).AppendDB(pack.Leaf.PostgresService.Name)
 
-	rootDBUser := fmt.Sprintf("root-db-user-%s", uuid.NewString())
-	leafDBUser := fmt.Sprintf("leaf-db-user-%s", uuid.NewString())
-	leafDBUserWithAccessRequest := fmt.Sprintf("leaf-db-user-with-access-request-%s", uuid.NewString())
+	rootDBUser := "root-db-user-" + uuid.NewString()
+	leafDBUser := "leaf-db-user-" + uuid.NewString()
+	leafDBUserWithAccessRequest := "leaf-db-user-with-access-request-" + uuid.NewString()
 
 	rootUserName := pack.Root.User.GetName()
 	leafUserName := pack.Leaf.User.GetName()
@@ -1361,7 +1361,7 @@ func testListDatabaseUsersFromUnifiedResources(t *testing.T, pack *dbhelpers.Dat
 				authServer := pack.Root.Cluster.Process.GetAuthServer()
 
 				// Create new role that lets root-user request the database.
-				requesterRole, err := types.NewRole(fmt.Sprintf("requester-%s", uuid.NewString()), types.RoleSpecV6{
+				requesterRole, err := types.NewRole("requester-"+uuid.NewString(), types.RoleSpecV6{
 					Allow: types.RoleConditions{
 						Request: &types.AccessRequestConditions{
 							SearchAsRoles: []string{rootRoleName},

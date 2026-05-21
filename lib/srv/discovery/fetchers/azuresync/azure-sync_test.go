@@ -20,7 +20,7 @@ package azuresync
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
@@ -39,7 +39,7 @@ type testRoleDefCli struct {
 
 func (t testRoleDefCli) ListRoleDefinitions(ctx context.Context, scope string) ([]*armauthorization.RoleDefinition, error) {
 	if t.returnErr {
-		return nil, fmt.Errorf("error")
+		return nil, errors.New("error")
 	}
 	return t.roleDefs, nil
 }
@@ -51,7 +51,7 @@ type testRoleAssignCli struct {
 
 func (t testRoleAssignCli) ListRoleAssignments(ctx context.Context, scope string) ([]*armauthorization.RoleAssignment, error) {
 	if t.returnErr {
-		return nil, fmt.Errorf("error")
+		return nil, errors.New("error")
 	}
 	return t.roleAssigns, nil
 }
@@ -63,7 +63,7 @@ type testVmCli struct {
 
 func (t testVmCli) ListVirtualMachines(ctx context.Context, resourceGroup string) ([]*azure.VirtualMachine, error) {
 	if t.returnErr {
-		return nil, fmt.Errorf("error")
+		return nil, errors.New("error")
 	}
 	return t.vms, nil
 }

@@ -20,7 +20,7 @@ package eventschema
 
 import (
 	"bytes"
-	"fmt"
+	"errors"
 	"go/format"
 	"sort"
 	"strings"
@@ -133,7 +133,7 @@ func (generator *SchemaGenerator) Render() (string, error) {
 		var buf strings.Builder
 		if v, ok := includedNames[name]; ok {
 			if v > recursionMaxNums {
-				return "", trace.WrapWithMessage(fmt.Errorf("unable to execute template"), "rendering template has a nested reference name: %s", name)
+				return "", trace.WrapWithMessage(errors.New("unable to execute template"), "rendering template has a nested reference name: %s", name)
 			}
 			includedNames[name]++
 		} else {

@@ -19,7 +19,6 @@ package dynamo
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"os"
 	"strconv"
@@ -435,7 +434,7 @@ func newEventWriter(
 
 	seedStr := os.Getenv("TEST_SEED")
 	if seedStr == "" {
-		seedStr = fmt.Sprintf("%d", time.Now().UnixNano())
+		seedStr = strconv.FormatInt(time.Now().UnixNano(), 10)
 	}
 
 	t.Logf("using test seed: TEST_SEED=%q", seedStr)

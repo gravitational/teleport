@@ -21,6 +21,7 @@ package testutils
 import (
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 )
 
@@ -178,7 +179,7 @@ func findAllEmpty(value reflect.Value, ignore map[string]struct{}, path []string
 
 		var emptyPaths []string
 		for i := range value.Len() {
-			emptyPaths = append(emptyPaths, findAllEmpty(value.Index(i), ignore, append(path, fmt.Sprintf("%d", i)))...)
+			emptyPaths = append(emptyPaths, findAllEmpty(value.Index(i), ignore, append(path, strconv.Itoa(i)))...)
 		}
 		return emptyPaths
 	case reflect.Map:

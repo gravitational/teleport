@@ -473,9 +473,9 @@ func (l *Log) configureTable(ctx context.Context, svc *applicationautoscaling.Cl
 			{
 				readDimension:  autoscalingtypes.ScalableDimensionDynamoDBTableReadCapacityUnits,
 				writeDimension: autoscalingtypes.ScalableDimensionDynamoDBTableWriteCapacityUnits,
-				resourceID:     fmt.Sprintf("table/%s", l.Tablename),
-				readPolicy:     fmt.Sprintf("%s-read-target-tracking-scaling-policy", l.Tablename),
-				writePolicy:    fmt.Sprintf("%s-write-target-tracking-scaling-policy", l.Tablename),
+				resourceID:     "table/" + l.Tablename,
+				readPolicy:     l.Tablename + "-read-target-tracking-scaling-policy",
+				writePolicy:    l.Tablename + "-write-target-tracking-scaling-policy",
 			},
 			{
 				readDimension:  autoscalingtypes.ScalableDimensionDynamoDBIndexReadCapacityUnits,
@@ -1068,7 +1068,7 @@ func getExprFilter(filter searchEventsFilter) *string {
 	var filterConds []string
 	if len(filter.eventTypes) > 0 {
 		typeList := eventFilterList(len(filter.eventTypes))
-		filterConds = append(filterConds, fmt.Sprintf("EventType IN %s", typeList))
+		filterConds = append(filterConds, "EventType IN "+typeList)
 	}
 	if filter.condExpr != "" {
 		filterConds = append(filterConds, filter.condExpr)
@@ -1185,12 +1185,12 @@ func fromWhereExpr(cond *types.WhereExpr, params *condFilterParams) (string, err
 	addAttrName := func(n string) string {
 		for k, v := range params.attrNames {
 			if n == v {
-				return fmt.Sprintf("FieldsMap.%s", k)
+				return "FieldsMap." + k
 			}
 		}
 		k := fmt.Sprintf("#condName%d", len(params.attrNames))
 		params.attrNames[k] = n
-		return fmt.Sprintf("FieldsMap.%s", k)
+		return "FieldsMap." + k
 	}
 
 	addMultiAttrNames := func(vals ...string) string {
@@ -1206,7 +1206,7 @@ func fromWhereExpr(cond *types.WhereExpr, params *condFilterParams) (string, err
 			params.attrNames[k] = n
 			names = append(names, k)
 		}
-		return fmt.Sprintf("FieldsMap.%s", strings.Join(names, "."))
+		return "FieldsMap." + strings.Join(names, ".")
 	}
 
 	formatMap := func(m *types.WhereExpr2) (string, error) {

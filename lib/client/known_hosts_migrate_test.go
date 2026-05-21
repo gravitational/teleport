@@ -136,7 +136,7 @@ func TestIsOldHostsEntry(t *testing.T) {
 
 	// Also test an invalid old cert to ensure it won't be accidentally pruned.
 	// In this case, multiple hosts should invalidate the key.
-	hostsEntryString := fmt.Sprintf("foo,bar %s", strings.TrimSpace(string(cert)))
+	hostsEntryString := "foo,bar " + strings.TrimSpace(string(cert))
 	hostsEntry, err := parseKnownHost(hostsEntryString)
 	require.NoError(t, err)
 	require.False(t, isOldStyleHostsEntry(hostsEntry))

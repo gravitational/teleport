@@ -19,7 +19,6 @@
 package hostid_test
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -103,7 +102,7 @@ func TestIgnoreWhitespace(t *testing.T) {
 
 	// newlines are getting ignored
 	dir := t.TempDir()
-	id := fmt.Sprintf("%s\n", uuid.NewString())
+	id := uuid.NewString() + "\n"
 	err := os.WriteFile(filepath.Join(dir, hostid.FileName), []byte(id), 0666)
 	require.NoError(t, err)
 	out, err := hostid.ReadFile(dir)

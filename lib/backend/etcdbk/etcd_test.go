@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"maps"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -219,7 +220,7 @@ func TestLeaseBucketing(t *testing.T) {
 
 	buckets := make(map[int64]struct{})
 	for i := range count {
-		key := backend.NewKey(pfx, fmt.Sprintf("%d", i))
+		key := backend.NewKey(pfx, strconv.Itoa(i))
 		_, err := bk.Put(ctx, backend.Item{
 			Key:     key,
 			Value:   fmt.Appendf(nil, "val-%d", i),

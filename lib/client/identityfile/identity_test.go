@@ -23,7 +23,6 @@ import (
 	"context"
 	"crypto"
 	"crypto/x509/pkix"
-	"fmt"
 	"net"
 	"os"
 	"path"
@@ -312,7 +311,7 @@ func TestIdentityRead(t *testing.T) {
 	}
 	for _, id := range ids {
 		// test reading:
-		k, err := KeyRingFromIdentityFile(fixturePath(fmt.Sprintf("certs/identities/%s", id)), "proxy.example.com", "")
+		k, err := KeyRingFromIdentityFile(fixturePath("certs/identities/"+id), "proxy.example.com", "")
 		require.NoError(t, err)
 		require.NotNil(t, k)
 

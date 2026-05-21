@@ -19,8 +19,8 @@
 package common
 
 import (
-	"fmt"
 	"net/http"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -53,7 +53,7 @@ func TestStatusFromStatusCode(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		t.Run(fmt.Sprintf("%d", tc.httpCode), func(t *testing.T) {
+		t.Run(strconv.Itoa(tc.httpCode), func(t *testing.T) {
 			require.Equal(t, tc.want, StatusFromStatusCode(tc.httpCode).GetCode())
 		})
 	}

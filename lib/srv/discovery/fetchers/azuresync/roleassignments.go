@@ -20,7 +20,6 @@ package azuresync
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
 	"github.com/gravitational/trace"
@@ -36,7 +35,7 @@ type RoleAssignmentsClient interface {
 // fetchRoleAssignments fetches Azure role assignments using the Azure role assignments API
 func fetchRoleAssignments(ctx context.Context, subscriptionID string, cli RoleAssignmentsClient) ([]*accessgraphv1alpha.AzureRoleAssignment, error) { //nolint:unused // invoked in a dependent PR
 	// List the role definitions
-	roleAssigns, err := cli.ListRoleAssignments(ctx, fmt.Sprintf("/subscriptions/%s", subscriptionID))
+	roleAssigns, err := cli.ListRoleAssignments(ctx, "/subscriptions/"+subscriptionID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

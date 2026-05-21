@@ -21,6 +21,7 @@ package common
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -1358,7 +1359,7 @@ func setupMFAPrompt(client *authclient.Client, pingResp proto.PingResponse, prom
 	})
 }
 
-var errNoStdin = fmt.Errorf("interactive CA rotation does not support reading passwords from stdin")
+var errNoStdin = errors.New("interactive CA rotation does not support reading passwords from stdin")
 
 // brokenStdinReader implements [prompt.StdinReader] and returns errNoStdin for
 // all methods. Currently this should be unnecessary because MFA for admin

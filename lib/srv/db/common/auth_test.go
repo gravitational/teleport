@@ -25,7 +25,6 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
-	"fmt"
 	"net/url"
 	"os"
 	"testing"
@@ -1188,7 +1187,7 @@ func newSpannerDatabase(t *testing.T, uri string, specOpts ...databaseSpecOpt) t
 // identityResourceID generates full resource ID of the Azure user identity.
 func identityResourceID(t *testing.T, identityName string) string {
 	t.Helper()
-	return fmt.Sprintf("/subscriptions/sub-id/resourceGroups/group-name/providers/Microsoft.ManagedIdentity/userAssignedIdentities/%s", identityName)
+	return "/subscriptions/sub-id/resourceGroups/group-name/providers/Microsoft.ManagedIdentity/userAssignedIdentities/" + identityName
 }
 
 // authClientMock is a mock that implements AuthClient interface.

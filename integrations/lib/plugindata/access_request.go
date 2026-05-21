@@ -21,6 +21,7 @@ package plugindata
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -137,7 +138,7 @@ func EncodeAccessRequestData(data AccessRequestData) (map[string]string, error) 
 
 	var reviewsCountStr string
 	if data.ReviewsCount > 0 {
-		reviewsCountStr = fmt.Sprintf("%d", data.ReviewsCount)
+		reviewsCountStr = strconv.Itoa(data.ReviewsCount)
 	}
 	result["reviews_count"] = reviewsCountStr
 	result["resolution"] = string(data.ResolutionTag)

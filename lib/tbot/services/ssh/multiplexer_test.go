@@ -20,7 +20,7 @@ package ssh
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"net"
 	"sync"
 	"testing"
@@ -60,7 +60,7 @@ func (m *mockHostDialer) DialHost(
 	defer m.mu.Unlock()
 	if m.closed {
 		m.t.Errorf("attempt to dial on closed host dialer")
-		return nil, proxyclient.ClusterDetails{}, fmt.Errorf("closed")
+		return nil, proxyclient.ClusterDetails{}, errors.New("closed")
 	}
 	conn := &mockConn{
 		Conn: &net.TCPConn{},

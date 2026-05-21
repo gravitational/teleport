@@ -17,7 +17,6 @@ package ssh
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -50,7 +49,7 @@ func (c *Channel) SendRequest(ctx context.Context, name string, wantReply bool, 
 
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("ssh.ChannelRequest/%s", name),
+		"ssh.ChannelRequest/"+name,
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 		oteltrace.WithAttributes(
 			semconv.RPCServiceKey.String("ssh.Channel"),

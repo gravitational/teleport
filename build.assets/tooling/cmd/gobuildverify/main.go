@@ -121,7 +121,7 @@ type matchError struct {
 func (e *matchError) Error() string {
 	switch m := e.matcher.(type) {
 	case nil:
-		return fmt.Sprintf("Build setting not present: %s", e.key)
+		return "Build setting not present: " + e.key
 	case *listMatcher:
 		return fmt.Sprintf("Build setting does not contain value: %s: %s not in %s", e.key, m.inner, e.actual)
 	default:

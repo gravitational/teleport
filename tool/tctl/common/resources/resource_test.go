@@ -22,7 +22,6 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
-	"fmt"
 	"testing"
 	"time"
 
@@ -283,9 +282,9 @@ func TestHandlers(t *testing.T) {
 
 			// TODO(greedy52): update logic for singleton
 			resources := []types.Resource{
-				tt.makeResource(t, fmt.Sprintf("%s-1", tt.kind)),
-				tt.makeResource(t, fmt.Sprintf("%s-2", tt.kind)),
-				tt.makeResource(t, fmt.Sprintf("%s-3", tt.kind)),
+				tt.makeResource(t, tt.kind+"-1"),
+				tt.makeResource(t, tt.kind+"-2"),
+				tt.makeResource(t, tt.kind+"-3"),
 			}
 
 			t.Run("MFARequired", func(t *testing.T) {

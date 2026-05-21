@@ -1115,7 +1115,7 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		return nil, trace.Wrap(err, "configuration error")
 	}
 
-	processID := fmt.Sprintf("%v", nextProcessID())
+	processID := strconv.Itoa(int(nextProcessID()))
 	cfg.Logger = cfg.Logger.With(
 		teleport.ComponentKey, teleport.Component(teleport.ComponentProcess, processID),
 		"pid", fmt.Sprintf("%v.%v", os.Getpid(), processID),
