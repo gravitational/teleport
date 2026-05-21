@@ -109,6 +109,20 @@ func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 		return nil, trace.Wrap(err)
 	}
 
+	// Our CSR may contains non-standard subject OIDs that
+	// we need to preserve, but de-serializing the CSR puts those fields
+	// in csr.Subject.Names which is ignored when re-serializing
+	// (See documentation on Names and ExtraNames fields of [pkix.Name])
+	// Copy the Names -> ExtraNames but be warned - The values in `ExtraNames`
+	// take precedence over standard Subject values (CommonName, Country, Organization, etc.)
+	// in the pkix.Name struct. If you modified any of these values after parsing the CSR,
+	// those modifications will be LOST upon cert generation.
+	// If you need to modify the original CSR's subject in this function, then we must
+	// take care to prune standard OIDs for these fields from csr.Subject.Names first.
+	if len(csr.Subject.Names) > 0 {
+		csr.Subject.ExtraNames = csr.Subject.Names
+	}
+
 	// See https://docs.microsoft.com/en-us/troubleshoot/windows-server/windows-security/enabling-smart-card-logon-third-party-certification-authorities
 	// for cert requirements for Windows authn.
 	certReq := tlsca.CertificateRequest{
