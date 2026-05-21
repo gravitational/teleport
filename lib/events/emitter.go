@@ -78,7 +78,7 @@ func NewAsyncEmitter(cfg AsyncEmitterConfig) (*AsyncEmitter, error) {
 	queue, err := makeQueue(cfg.DataDir)
 	switch {
 	case errors.Is(err, ErrAuditQueueDisabled):
-		slog.Info("Using default in-memory audit event channel. SQLite-backed audit queue is disabled.") //nolint:sloglint // No meaningful context available.
+		slog.InfoContext(context.TODO(), "Using default in-memory audit event channel. SQLite-backed audit queue is disabled.")
 		queue = nil
 	case err != nil:
 		return nil, trace.Wrap(err)
