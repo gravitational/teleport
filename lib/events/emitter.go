@@ -103,7 +103,7 @@ func NewAsyncEmitter(cfg AsyncEmitterConfig) (*AsyncEmitter, error) {
 			}
 		}()
 	} else {
-		// TODO: Remove this in v19 - We will only use the SQLite queue in future releases.
+		// TODO(kkloberdanz): Remove this in v19 - We will only use the SQLite queue in future releases.
 		go func() {
 			defer a.wg.Done()
 			a.forward()
