@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/lib/entraid/directory"
 	"github.com/gravitational/teleport/e/lib/mdmsync"
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -27,17 +28,13 @@ type fakeDirectoryReconciler struct {
 	importedGroups int
 }
 
-func (r *fakeDirectoryReconciler) ImportedUsers() int {
-	return r.importedUsers
-}
-
-func (r *fakeDirectoryReconciler) ImportedGroups() int {
-	return r.importedGroups
-}
-
-func (r *fakeDirectoryReconciler) Reconcile(ctx context.Context, _ mdmsync.SyncMode) error {
+func (r *fakeDirectoryReconciler) Reconcile(ctx context.Context, _ mdmsync.SyncMode) (directory.Result, error) {
 	atomic.AddInt64(&r.timesCalled, 1)
-	return trace.Wrap(r.err)
+	out := directory.Result{
+		ImportedUsers:  r.importedUsers,
+		ImportedGroups: r.importedGroups,
+	}
+	return out, trace.Wrap(r.err)
 }
 
 // fakeTAGSynchronizer that "does nothing" until the context is canceled.

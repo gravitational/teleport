@@ -84,10 +84,8 @@ func (u *userDeltaProcessor) apply(in *models.ListUsersDeltaResponse) error {
 	// New or updated user.
 	user, err := convertUser(
 		in.User,
-		u.userConfig.tenantID,
-		u.userConfig.ssoConnectorID,
 		u.entraUserGroupMemberships,
-		u.userConfig.emitAsRoles,
+		u.userConfig,
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -99,13 +97,11 @@ func (u *userDeltaProcessor) apply(in *models.ListUsersDeltaResponse) error {
 
 // result returns the final state of the Entra ID users
 // after applying delta changes.
-func (u *userDeltaProcessor) result() listEntraUsersResponse {
+func (u *userDeltaProcessor) result() map[string]types.User {
 	newEntraUsers := make(map[string]types.User, len(u.entraUsersMap))
 	for _, user := range u.entraUsersMap {
 		newEntraUsers[user.GetName()] = user
 	}
 
-	return listEntraUsersResponse{
-		users: newEntraUsers,
-	}
+	return newEntraUsers
 }

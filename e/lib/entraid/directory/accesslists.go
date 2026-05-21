@@ -39,9 +39,17 @@ const (
 	onPremisesNetBiosNameLabel = types.TeleportInternalLabelPrefix + "on-premises-net-bios-name"
 )
 
+// groupsByID is a Entra group map with Entra
+// group ID as the map key.
+type groupsByID map[entraUniqueID]*models.Group
+
+// groupMembersByGroupID is a Entra group member map
+// with Entra group ID as the map key.
+type groupMembersByGroupID map[entraUniqueID][]models.GroupMember
+
 type entraGroups struct {
-	groupsMap       map[string]*models.Group
-	groupMembersMap map[string][]models.GroupMember
+	groupsMap       groupsByID
+	groupMembersMap groupMembersByGroupID
 }
 
 func (g entraGroups) toAccessListsWithMembers(
@@ -66,9 +74,9 @@ func (g entraGroups) toAccessListsWithMembers(
 	}
 
 	var notFoundMembers []string
-	for entraUniqueID, accessList := range accessListsById {
+	for id, accessList := range accessListsById {
 		var members []*accesslist.AccessListMember
-		for _, member := range g.groupMembersMap[string(entraUniqueID)] {
+		for _, member := range g.groupMembersMap[id] {
 			m, err := convertGroupMember(member, accessList, usersByEntraID, accessListsById)
 			if err != nil {
 				if trace.IsNotFound(err) {
@@ -304,7 +312,7 @@ func accessListName(displayName string, id string) string {
 	return uuid.NewSHA1(uuidNamespace, []byte(p)).String()
 }
 
-func unwindGroupMembership(groups map[string]*models.Group, groupMembers map[string][]models.GroupMember) map[string][]string {
+func unwindGroupMembership(in entraGroups) map[string][]string {
 	// result map to hold the membership paths for each group.
 	result := make(map[string][]string)
 	// visited tracks groups in the current path to avoid cycles.
@@ -328,7 +336,7 @@ func unwindGroupMembership(groups map[string]*models.Group, groupMembers map[str
 		path := []string{groupID}
 
 		// Traverse each member of the group.
-		for _, member := range groupMembers[groupID] {
+		for _, member := range in.groupMembersMap[entraUniqueID(groupID)] {
 			if nestedGroup, ok := member.(*models.Group); ok {
 				// Skip Office 365 groups, we only care about security groups.
 				if nestedGroup.IsOffice365Group() {
@@ -349,12 +357,12 @@ func unwindGroupMembership(groups map[string]*models.Group, groupMembers map[str
 	}
 
 	// Collect the membership paths for each group.
-	for groupID, group := range groups {
+	for groupID, group := range in.groupsMap {
 		// Skip Office 365 groups, we only care about security groups.
 		if group.IsOffice365Group() {
 			continue
 		}
-		collectPaths(groupID)
+		collectPaths(string(groupID))
 	}
 
 	// Convert the result to a map where each group ID maps to a list of group IDs

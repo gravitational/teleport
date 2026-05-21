@@ -19,33 +19,33 @@ import (
 func TestUnwindGroupMembership(t *testing.T) {
 	tests := []struct {
 		name         string
-		groups       map[string]*models.Group
-		groupMembers map[string][]models.GroupMember
+		groups       groupsByID
+		groupMembers groupMembersByGroupID
 		expected     map[string][]string
 	}{
 		{
 			name:         "empty input",
-			groups:       map[string]*models.Group{},
-			groupMembers: map[string][]models.GroupMember{},
+			groups:       groupsByID{},
+			groupMembers: groupMembersByGroupID{},
 			expected:     map[string][]string{},
 		},
 		{
 			name: "single group",
-			groups: map[string]*models.Group{
+			groups: groupsByID{
 				"group1": {
 					DirectoryObject: models.DirectoryObject{
 						ID: valToPTR("group1"),
 					},
 				},
 			},
-			groupMembers: map[string][]models.GroupMember{},
+			groupMembers: groupMembersByGroupID{},
 			expected: map[string][]string{
 				"group1": {"group1"},
 			},
 		},
 		{
 			name: "groups with other groups as members",
-			groups: map[string]*models.Group{
+			groups: groupsByID{
 				"group1": {
 					DirectoryObject: models.DirectoryObject{
 						ID: valToPTR("group1"),
@@ -62,7 +62,7 @@ func TestUnwindGroupMembership(t *testing.T) {
 					},
 				},
 			},
-			groupMembers: map[string][]models.GroupMember{
+			groupMembers: groupMembersByGroupID{
 				"group1": {
 					&models.Group{
 						DirectoryObject: models.DirectoryObject{
@@ -84,7 +84,7 @@ func TestUnwindGroupMembership(t *testing.T) {
 		},
 		{
 			name: "complex group membership with 4 levels",
-			groups: map[string]*models.Group{
+			groups: groupsByID{
 				"group1": {
 					DirectoryObject: models.DirectoryObject{
 						ID: valToPTR("group1"),
@@ -116,7 +116,7 @@ func TestUnwindGroupMembership(t *testing.T) {
 					},
 				},
 			},
-			groupMembers: map[string][]models.GroupMember{
+			groupMembers: groupMembersByGroupID{
 				"group1": {
 					&models.Group{
 						DirectoryObject: models.DirectoryObject{
@@ -162,7 +162,7 @@ func TestUnwindGroupMembership(t *testing.T) {
 		},
 		{
 			name: "groups with cycles",
-			groups: map[string]*models.Group{
+			groups: groupsByID{
 				"group1": {
 					DirectoryObject: models.DirectoryObject{
 						ID: valToPTR("group1"),
@@ -179,7 +179,7 @@ func TestUnwindGroupMembership(t *testing.T) {
 					},
 				},
 			},
-			groupMembers: map[string][]models.GroupMember{
+			groupMembers: groupMembersByGroupID{
 				"group1": {
 					&models.Group{
 						DirectoryObject: models.DirectoryObject{
@@ -215,7 +215,10 @@ func TestUnwindGroupMembership(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := unwindGroupMembership(tt.groups, tt.groupMembers)
+			result := unwindGroupMembership(entraGroups{
+				groupsMap:       tt.groups,
+				groupMembersMap: tt.groupMembers,
+			})
 
 			sort := func(m map[string][]string) {
 				for _, v := range m {

@@ -111,7 +111,7 @@ func (c *fakeGraphClient) IterateGroupDeltas(ctx context.Context, endpoint strin
 }
 
 func (c *fakeGraphClient) SetupLatestDelta(context.Context, string, msgraph.DeltaStore, ...msgraph.IterateOpt) error {
-	return trace.NotImplemented("not implemented")
+	return nil
 }
 
 func TestDirectoryReconciler(t *testing.T) {
@@ -168,7 +168,12 @@ func TestDirectoryReconciler(t *testing.T) {
 	bobEntra := entraUser(t, bobID, "bob@example.com")
 	graphClient.users = append(graphClient.users, bobEntra)
 
-	bobTeleport, err := convertUser(bobEntra, env.cfg.TenantID, env.cfg.SSOConnectorID, userMemberships, false /* emitAsRoles */)
+	cfg := userConfig{
+		tenantID:       env.cfg.TenantID,
+		ssoConnectorID: env.cfg.SSOConnectorID,
+		emitAsRoles:    false,
+	}
+	bobTeleport, err := convertUser(bobEntra, userMemberships, cfg)
 	require.NoError(t, err)
 	bobTeleport.SetRoles([]string{"access", "editor"})
 	sortTraits(bobTeleport)
@@ -186,7 +191,7 @@ func TestDirectoryReconciler(t *testing.T) {
 	michaelEntra := entraUser(t, michaelID, "michael_someothercompany.io#EXT#@example.com")
 	graphClient.users = append(graphClient.users, michaelEntra)
 
-	michaelTeleport, err := convertUser(michaelEntra, env.cfg.TenantID, env.cfg.SSOConnectorID, userMemberships, false /* emitAsRoles */)
+	michaelTeleport, err := convertUser(michaelEntra, userMemberships, cfg)
 	require.NoError(t, err)
 	michaelTeleport, err = env.cfg.AccessPoint.CreateUser(ctx, michaelTeleport)
 	require.NoError(t, err)
@@ -196,7 +201,7 @@ func TestDirectoryReconciler(t *testing.T) {
 	carolEntra := entraUser(t, carolID, "carol@example.com")
 	graphClient.users = append(graphClient.users, carolEntra)
 
-	carolTeleport, err := convertUser(carolEntra, env.cfg.TenantID, env.cfg.SSOConnectorID, userMemberships, false /* emitAsRoles */)
+	carolTeleport, err := convertUser(carolEntra, userMemberships, cfg)
 	require.NoError(t, err)
 	carolTeleport, err = env.cfg.AccessPoint.CreateUser(ctx, carolTeleport)
 	require.NoError(t, err)
@@ -221,7 +226,7 @@ func TestDirectoryReconciler(t *testing.T) {
 	// Dave exists in Teleport, but was removed from Entra
 	daveEntra := entraUser(t, daveID, "dave@example.com")
 
-	daveTeleport, err := convertUser(daveEntra, env.cfg.TenantID, env.cfg.SSOConnectorID, userMemberships, false /* emitAsRoles */)
+	daveTeleport, err := convertUser(daveEntra, userMemberships, cfg)
 	require.NoError(t, err)
 	_, err = env.cfg.AccessPoint.CreateUser(ctx, daveTeleport)
 	require.NoError(t, err)
@@ -269,8 +274,9 @@ func TestDirectoryReconciler(t *testing.T) {
 	r, err := New(env.cfg)
 	require.NoError(t, err)
 
-	err = r.Reconcile(ctx, mdmsync.SyncModeFull)
-	require.ErrorContains(t, err, "eve@example.com")
+	result, err := r.Reconcile(ctx, mdmsync.SyncModeFull)
+	require.NoError(t, err)
+	require.ErrorContains(t, result.ErrSkippedResources, "eve@example.com")
 
 	t.Run("alice created and assigned to team A", func(t *testing.T) {
 		aliceTeleport, err := env.identitySvc.GetUser(ctx, aliceUPN, false)
@@ -639,7 +645,9 @@ func TestUserSync(t *testing.T) {
 
 		r, err := New(env.cfg)
 		require.NoError(t, err)
-		require.NoError(t, r.Reconcile(ctx, mdmsync.SyncModeFull))
+		result, err := r.Reconcile(ctx, mdmsync.SyncModeFull)
+		require.NoError(t, err)
+		require.Equal(t, 2, result.ImportedUsers)
 
 		users, err := listTeleportUsers(ctx, env.cfg.AccessPoint, env.cfg.SSOConnectorID)
 		require.NoError(t, err)
@@ -676,8 +684,11 @@ func TestUserSync(t *testing.T) {
 
 		r, err := New(env.cfg)
 		require.NoError(t, err)
-		err = r.Reconcile(ctx, mdmsync.SyncModeFull)
-		require.ErrorContains(t, err, "al'ice@example.com")
+		result, err := r.Reconcile(ctx, mdmsync.SyncModeFull)
+		require.NoError(t, err)
+		require.Equal(t, 2, result.ImportedUsers)
+		require.Equal(t, 2, result.ImportedGroups)
+		require.ErrorContains(t, result.ErrSkippedResources, "al'ice@example.com")
 
 		users, err := listTeleportUsers(ctx, env.cfg.AccessPoint, env.cfg.SSOConnectorID)
 		require.NoError(t, err)
@@ -727,8 +738,11 @@ func TestUserSync(t *testing.T) {
 
 		r, err := New(env.cfg)
 		require.NoError(t, err)
-		err = r.Reconcile(ctx, mdmsync.SyncModeFull)
-		require.ErrorContains(t, err, "bob@example.com")
+		result, err := r.Reconcile(ctx, mdmsync.SyncModeFull)
+		require.NoError(t, err)
+		require.Equal(t, 2, result.ImportedUsers)
+		require.Equal(t, 2, result.ImportedGroups)
+		require.ErrorContains(t, result.ErrSkippedResources, "bob@example.com")
 
 		users, err := listTeleportUsers(ctx, env.cfg.AccessPoint, env.cfg.SSOConnectorID)
 		require.NoError(t, err)
@@ -785,9 +799,10 @@ func TestUserSync(t *testing.T) {
 
 		r, err := New(env.cfg)
 		require.NoError(t, err)
-		err = r.Reconcile(ctx, mdmsync.SyncModeFull)
-		require.ErrorContains(t, err, "bob@example.com")
-		require.ErrorContains(t, err, "Member IDs: u2")
+		result, err := r.Reconcile(ctx, mdmsync.SyncModeFull)
+		require.NoError(t, err)
+		require.ErrorContains(t, result.ErrSkippedResources, "bob@example.com")
+		require.ErrorContains(t, result.ErrSkippedResources, "Member IDs: u2")
 
 		users, err := listTeleportUsers(ctx, env.cfg.AccessPoint, env.cfg.SSOConnectorID)
 		require.NoError(t, err)
@@ -839,7 +854,11 @@ func TestUserSync(t *testing.T) {
 
 		r, err := New(env.cfg)
 		require.NoError(t, err)
-		require.NoError(t, r.Reconcile(ctx, mdmsync.SyncModeFull))
+		result, err := r.Reconcile(ctx, mdmsync.SyncModeFull)
+		require.NoError(t, err)
+		require.Equal(t, 2, result.ImportedUsers)
+		require.Equal(t, 2, result.ImportedGroups)
+		require.NoError(t, result.ErrSkippedResources)
 
 		users, err := listTeleportUsers(ctx, env.cfg.AccessPoint, env.cfg.SSOConnectorID)
 		require.NoError(t, err)
@@ -1007,7 +1026,9 @@ func TestGroupFilters(t *testing.T) {
 			r, err := New(env.cfg)
 			require.NoError(t, err)
 
-			require.NoError(t, r.Reconcile(ctx, mdmsync.SyncModeFull))
+			result, err := r.Reconcile(ctx, mdmsync.SyncModeFull)
+			require.NoError(t, err)
+			require.NoError(t, result.ErrSkippedResources)
 
 			requireAccessListCount(t, env.aclSvc, len(tc.expected))
 			for _, g := range tc.expected {
@@ -1085,8 +1106,9 @@ func TestInvalidGroupIsSkipped(t *testing.T) {
 			r, err := New(env.cfg)
 			require.NoError(t, err)
 
-			err = r.Reconcile(ctx, mdmsync.SyncModeFull)
-			require.ErrorContains(t, err, "have a non-empty")
+			result, err := r.Reconcile(ctx, mdmsync.SyncModeFull)
+			require.NoError(t, err)
+			require.ErrorContains(t, result.ErrSkippedResources, "have a non-empty")
 
 			requireAccessListCount(t, env.aclSvc, len(tc.expectedGroups))
 			for _, g := range tc.expectedGroups {
@@ -1128,7 +1150,10 @@ func TestUnknownFilter(t *testing.T) {
 	// reconcile
 	r, err := New(env.cfg)
 	require.NoError(t, err)
-	require.NoError(t, r.Reconcile(ctx, mdmsync.SyncModeFull))
+
+	result, err := r.Reconcile(ctx, mdmsync.SyncModeFull)
+	require.NoError(t, err)
+	require.Equal(t, 4, result.ImportedGroups)
 
 	requireAccessListCount(t, env.aclSvc, 4)
 	al1 := requireAccessListForEntraGroupExists(t, env.aclSvc, g1)
@@ -1167,8 +1192,10 @@ func TestUnknownFilter(t *testing.T) {
 	// reconcile
 	r, err = New(env.cfg)
 	require.NoError(t, err)
-	err = r.Reconcile(ctx, mdmsync.SyncModeFull)
+
+	result, err = r.Reconcile(ctx, mdmsync.SyncModeFull)
 	require.NoError(t, err)
+	require.Equal(t, 3, result.ImportedGroups)
 
 	// If the group was deleted in entra, it must be deleted in Teleport.
 	// If group member was added to already-synced group, that must be reflected.
@@ -1211,7 +1238,8 @@ func TestNestedMembership(t *testing.T) {
 
 	r, err := New(env.cfg)
 	require.NoError(t, err)
-	require.NoError(t, r.Reconcile(ctx, mdmsync.SyncModeFull))
+	_, err = r.Reconcile(ctx, mdmsync.SyncModeFull)
+	require.NoError(t, err)
 
 	requireAccessListCount(t, env.aclSvc, 4)
 	al1 := requireAccessListForEntraGroupExists(t, env.aclSvc, g1)
@@ -1233,7 +1261,7 @@ func TestNestedMembership(t *testing.T) {
 		"g4": {g1},
 	}
 
-	err = r.Reconcile(ctx, mdmsync.SyncModeFull)
+	_ /* result */, err = r.Reconcile(ctx, mdmsync.SyncModeFull)
 	require.ErrorContains(t, err, "is already included as a Member or Owner in")
 }
 

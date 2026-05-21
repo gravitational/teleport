@@ -23,10 +23,6 @@ type groupDeltaProcessor struct {
 	log                  *slog.Logger
 }
 
-// groupsByID is a Entra group map with Entra
-// group ID as the map key.
-type groupsByID map[entraUniqueID]*models.Group
-
 func newGroupsDeltaProcessor(
 	ctx context.Context,
 	matcher func(g *models.Group) bool,
@@ -68,8 +64,8 @@ func (g *groupDeltaProcessor) apply(ctx context.Context, in *models.ListGroupsDe
 		if !ok {
 			// Delta API may replay previously deleted
 			// group which no longer exists in Teleport too.
-			g.log.DebugContext(ctx, `Existing Access List not found for deleted Entra ID group, `+
-				`deletion of the Access List will be skipped`, "entra_group_id", groupID)
+			g.log.DebugContext(ctx, `Existing Access List not found for deleted Entra ID group, deletion of the Access List will be skipped`,
+				"entra_group_id", groupID)
 			return nil
 		}
 
@@ -181,20 +177,12 @@ func memberFromDelta(in models.MembersDelta) (models.GroupMember, bool) {
 // result returns the final state of the Entra ID groups and members
 // after applying delta changes to an existing group base created
 // from the Entra ID Access List and members.
-func (g *groupDeltaProcessor) result() listEntraGroupsResponse {
-	out := listEntraGroupsResponse{
-		groupsMap:       make(map[string]*models.Group),
-		groupMembersMap: make(map[string][]models.GroupMember),
+func (g *groupDeltaProcessor) result() entraGroups {
+	out := entraGroups{
+		groupsMap:       g.entraGroupsMap,
+		groupMembersMap: make(groupMembersByGroupID),
 	}
-
-	// TODO(sshah): use named maps in full sync response types
-	// so that the conversions aren't necessary.
-	for id, group := range g.entraGroupsMap {
-		groupID := string(id)
-		out.groupsMap[groupID] = group
-	}
-	for id, memberMap := range g.entraGroupMembersMap {
-		groupID := string(id)
+	for groupID, memberMap := range g.entraGroupMembersMap {
 		out.groupMembersMap[groupID] = append(out.groupMembersMap[groupID],
 			slices.Collect(maps.Values(memberMap))...,
 		)

@@ -244,3 +244,13 @@ func requireDefaultEntraIDAccessListOwners(t *assert.CollectT, acls map[string]*
 			), "expected Entra ID group owners to match")
 	}
 }
+
+func requireRoleAndTraits(t *testing.T, ctx context.Context, authClt authclient.ClientI, username string, expectedRoles []string, expectedTraits []string, msg string) {
+	t.Helper()
+
+	user, err := authClt.GetUser(ctx, username, false)
+	require.NoError(t, err)
+	require.ElementsMatch(t, expectedRoles, user.GetRoles(), msg)
+	userGroupTraits := user.GetTraits()["http://schemas.microsoft.com/ws/2008/06/identity/claims/groups"]
+	require.ElementsMatch(t, expectedTraits, userGroupTraits, msg)
+}

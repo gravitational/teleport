@@ -48,7 +48,7 @@ func newTestEnv(t *testing.T, storage *msgraphtest.Storage, opts ...common.Optio
 	}
 
 	opts = append(opts,
-		common.WithSAMLConnector(idp.EntraIDSAMLConnector(connectorName)),
+		common.WithSAMLConnector(idp.EntraIDSAMLConnector(connectorName, group3ID)),
 		common.WithLicense("../../../fixtures/license-eub.pem"),
 		common.WithUser(t, "user-editor", "editor"),
 		common.WithHTTPClient(httpClient.Transport))

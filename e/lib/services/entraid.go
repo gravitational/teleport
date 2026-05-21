@@ -102,6 +102,8 @@ func startEntraIDService(ctx context.Context, reg *metrics.Registry, process *se
 		}
 	}
 
+	syncIntervals := entraSyncIntervals(ctx, spec.SyncSettings.SyncIntervals, logger)
+
 	directoryReconciler, err := directory.New(directory.Config{
 		Clock:                  process.Clock,
 		Logger:                 logger.With(teleport.ComponentKey, teleport.Component(eteleport.ComponentEntraIDDirectoryReconciler, process.GetID())),
@@ -114,6 +116,7 @@ func startEntraIDService(ctx context.Context, reg *metrics.Registry, process *se
 		SSOConnectorID:         spec.SyncSettings.SsoConnectorId,
 		GroupsFilter:           groupsFilters,
 		AccessListOwnersSource: spec.SyncSettings.AccessListOwnersSource,
+		DeltaSyncEnabled:       syncIntervals.Delta > 0,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -139,8 +142,6 @@ func startEntraIDService(ctx context.Context, reg *metrics.Registry, process *se
 			return trace.Wrap(err)
 		}
 	}
-
-	syncIntervals := entraSyncIntervals(ctx, spec.SyncSettings.SyncIntervals, logger)
 
 	// Construct the main Entra ID service
 

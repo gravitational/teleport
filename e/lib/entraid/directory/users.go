@@ -15,6 +15,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/msgraph/models"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 var errUnsupportedUsername = &trace.BadParameterError{Message: "username not supported"}
@@ -23,6 +24,12 @@ func errUnsupportedUsers(users []string) error {
 	names := utils.Deduplicate(users)
 	return trace.BadParameter(`username contains unsupported character(s), it should only include alphanumerics, `+
 		`hyphens, dots, and plus sign. Unsupported usernames: %s`, strings.Join(names, ", "))
+}
+
+func errConflictingUsers(users []string) error {
+	names := utils.Deduplicate(users)
+	return trace.AlreadyExists(`existing user account found which was not created by this Microsoft Entra ID `+
+		`integration, account and group sync will be skipped for these user(s): %s`, strings.Join(names, ", "))
 }
 
 const (
@@ -38,7 +45,7 @@ const (
 	displayNameClaim        = defaultSchemasNamespace + "displayname"
 )
 
-func convertUser(in *models.User, tenantID string, ssoConnectorID string, usersMemberships groupMembershipMap, emitAsRoles bool) (types.User, error) {
+func convertUser(in *models.User, usersMemberships groupMembershipMap, cfg userConfig) (types.User, error) {
 	username, isExternal, err := processUsername(in)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -49,7 +56,7 @@ func convertUser(in *models.User, tenantID string, ssoConnectorID string, usersM
 	out, err := types.NewUser(username)
 	labels := map[string]string{
 		types.EntraUniqueIDLabel:                                *in.ID,
-		types.EntraTenantIDLabel:                                tenantID,
+		types.EntraTenantIDLabel:                                cfg.tenantID,
 		types.EntraUPNLabel:                                     upn,
 		types.TeleportInternalLabelPrefix + "entra-is-external": strconv.FormatBool(isExternal),
 	}
@@ -67,7 +74,7 @@ func convertUser(in *models.User, tenantID string, ssoConnectorID string, usersM
 		},
 		Time: time.Now().UTC(),
 		Connector: &types.ConnectorRef{
-			ID:       ssoConnectorID,
+			ID:       cfg.ssoConnectorID,
 			Type:     constants.SAML,
 			Identity: upn,
 		},
@@ -75,7 +82,7 @@ func convertUser(in *models.User, tenantID string, ssoConnectorID string, usersM
 
 	traits := map[string][]string{
 		entraIDSAMLClaimName:  {username},
-		tenantIDClaim:         {tenantID},
+		tenantIDClaim:         {cfg.tenantID},
 		objectIdentifierClaim: {*in.ID},
 	}
 
@@ -95,7 +102,7 @@ func convertUser(in *models.User, tenantID string, ssoConnectorID string, usersM
 		traits[entraIDSAMLClaimEmail] = []string{*in.Mail}
 	}
 	if groups := userGroupNames(*in.GetID(), usersMemberships); len(groups) > 0 {
-		if emitAsRoles {
+		if cfg.emitAsRoles {
 			traits[entraIDSAMLClaimRoles] = groups
 		} else {
 			traits[entraIDSAMLClaimGroups] = groups
@@ -121,22 +128,22 @@ type groupMembershipInfo struct {
 
 type groupMembershipMap map[string]groupMembershipInfo
 
-func buildUserMemberships(groupsMap map[string]*models.Group, groupMembersMap map[string][]models.GroupMember, groupNameBuilder func(*models.Group) string) groupMembershipMap {
-	unwindedGroupMemberships := unwindGroupMembership(groupsMap, groupMembersMap)
+func buildUserMemberships(in entraGroups, groupNameBuilder func(*models.Group) string) groupMembershipMap {
+	unwindedGroupMemberships := unwindGroupMembership(in)
 	result := map[string]groupMembershipInfo{}
-	for groupID, members := range groupMembersMap {
+	for groupID, members := range in.groupMembersMap {
 		for _, member := range members {
 			if user, ok := member.(*models.User); ok {
 				var displayNames []string
-				for _, membershipGroup := range unwindedGroupMemberships[groupID] {
-					group, ok := groupsMap[membershipGroup]
+				for _, membershipGroup := range unwindedGroupMemberships[string(groupID)] {
+					group, ok := in.groupsMap[entraUniqueID(membershipGroup)]
 					if !ok || group.DisplayName == nil {
 						continue
 					}
 					displayNames = append(displayNames, groupNameBuilder(group))
 				}
 				result[*user.ID] = groupMembershipInfo{
-					groupIds:   append(result[*user.ID].groupIds, unwindedGroupMemberships[groupID]...),
+					groupIds:   append(result[*user.ID].groupIds, unwindedGroupMemberships[string(groupID)]...),
 					groupNames: append(result[*user.ID].groupNames, displayNames...),
 				}
 			}
@@ -192,4 +199,23 @@ func userGroupNames(id string, membershipMap groupMembershipMap) []string {
 	groups := slices.Clone(membershipMap[id].groupNames)
 	sort.Strings(groups)
 	return groups
+}
+
+type postProcessUser struct {
+	teleportUsers map[string]types.User
+	tms           types.TraitMappingSet
+}
+
+// apply applies role mapping to user [in] and preserves
+// user metadata if [in] is an existing user account.
+func (p *postProcessUser) apply(in map[string]types.User) {
+	for _, user := range in {
+		_, roles := services.TraitsToRoles(p.tms, user.GetTraits())
+		user.SetRoles(roles)
+	}
+	for _, src := range p.teleportUsers {
+		if dst, ok := in[src.GetName()]; ok {
+			preserveUserMetadata(dst, src)
+		}
+	}
 }

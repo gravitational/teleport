@@ -2,6 +2,7 @@ package entraid
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -38,9 +39,7 @@ type SyncIntervals struct {
 }
 
 type directoryReconciler interface {
-	Reconcile(ctx context.Context, syncMode mdmsync.SyncMode) error
-	ImportedUsers() int
-	ImportedGroups() int
+	Reconcile(ctx context.Context, syncMode mdmsync.SyncMode) (directory.Result, error)
 }
 
 type accessGraphSynchronizer interface {
@@ -112,6 +111,9 @@ type Service struct {
 
 	// syncIntervals configures Entra ID sync intervals.
 	syncIntervals *mdmsync.Scheduler[*SyncIntervals]
+
+	firstSyncCompleted bool
+	deltaSyncEnabled   bool
 }
 
 // New returns a new Entra ID service.
@@ -134,6 +136,7 @@ func New(cfg Config) (*Service, error) {
 		hostID:              cfg.HostID,
 		directoryReconciler: cfg.DirectoryReconciler,
 		syncIntervals:       scheduler,
+		deltaSyncEnabled:    cfg.SyncIntervals.Delta > 0,
 	}
 
 	// Be explicit and assign `accessGraphSynchronizer` only if the config field is non-nil
@@ -230,40 +233,67 @@ func (s *Service) runScheduled(ctx context.Context) error {
 		case <-s.clock.After(offset):
 			start := s.clock.Now()
 			e := s.syncIntervals.Next()
+			if !s.firstSyncCompleted {
+				// Delta sync expects a full sync to have completed.
+				// Force full sync if first sync completion isn't reported.
+				e.Mode = mdmsync.SyncModeFull
+			}
 
 			s.log.InfoContext(ctx, "Starting Entra ID directory sync", "sync_mode", e.Mode)
-			err := s.directoryReconciler.Reconcile(ctx, e.Mode)
-			// TODO(sshah): process errors based on delta or full sync.
-			partialSuccess := s.directoryReconciler.ImportedUsers() > 0 || s.directoryReconciler.ImportedGroups() > 0
+			result, err := s.directoryReconciler.Reconcile(ctx, e.Mode)
+			if e.Mode == mdmsync.SyncModeFull && !s.deltaSyncEnabled {
+				// TODO(sshah): Stop joining sync warnigns and error
+				// once the plugin status and UI supports diffrentiating
+				// between hard reconciler errors and skipped warnings.
+				err = errors.Join(err, result.ErrSkippedResources)
+			}
+			// If delta sync is enabled, but error occurred on first full sync,
+			// (e.g. failure to set up latest delta token, transient Teleport backend
+			// read/write issues etc) the service will never proceed to delta sync
+			// and full sync will run in the delta sync interval.
+			// TODO(sshah): maybe fallback to running service on DefaultFullSyncInterval
+			// in such case?
 			if err != nil {
-				s.logFailedSync(ctx, err, partialSuccess)
+				s.logFailedSync(ctx, err, e.Mode, result)
+			} else {
+				if !s.firstSyncCompleted {
+					s.firstSyncCompleted = true
+				}
 			}
 			took := s.clock.Since(start)
-			s.log.InfoContext(ctx, "Entra ID directory sync finished", "sync_mode", e.Mode, "took", took.String(), "imported_users", s.directoryReconciler.ImportedUsers(), "imported_groups", s.directoryReconciler.ImportedGroups())
 
-			s.emitStatus(ctx, err, partialSuccess)
+			s.log.InfoContext(ctx, "Entra ID directory sync finished",
+				"sync_mode", e.Mode,
+				"took", took.String(),
+				"imported_users", result.ImportedUsers,
+				"imported_groups", result.ImportedGroups,
+				"warnings", errString(result.ErrSkippedResources),
+			)
+
+			s.emitStatus(ctx, err, result)
 		case <-ctx.Done():
 			return ctx.Err()
 		}
 	}
 }
 
-func (s *Service) logFailedSync(ctx context.Context, err error, partialSuccess bool) {
-	if partialSuccess {
+func (s *Service) logFailedSync(ctx context.Context, err error, syncMode mdmsync.SyncMode, result directory.Result) {
+	if result.ImportedUsers > 0 || result.ImportedGroups > 0 {
 		s.log.ErrorContext(
 			ctx,
 			"Microsoft Entra ID directory sync completed with partial success",
-			"imported_users", s.directoryReconciler.ImportedUsers(),
-			"imported_groups", s.directoryReconciler.ImportedGroups(),
+			"sync_mode", syncMode,
+			"imported_users", result.ImportedUsers,
+			"imported_groups", result.ImportedGroups,
 			"error", err,
 		)
 		return
 	}
 
-	s.log.ErrorContext(ctx, "Entra ID directory sync failed", "error", err)
+	s.log.ErrorContext(ctx, "Entra ID directory sync failed", "sync_mode", syncMode, "error", err)
 }
 
-func (s *Service) emitStatus(ctx context.Context, err error, partialSuccess bool) {
+func (s *Service) emitStatus(ctx context.Context, err error, result directory.Result) {
 	if s.pluginStatusSink == nil {
 		s.log.DebugContext(ctx, "Failed to emit Entra ID plugin status, status sink is not available")
 		return
@@ -274,7 +304,7 @@ func (s *Service) emitStatus(ctx context.Context, err error, partialSuccess bool
 	rawErr := ""
 	if err != nil {
 		friendlyErrMsg = "Entra directory sync failed"
-		if partialSuccess {
+		if result.ImportedUsers > 0 || result.ImportedGroups > 0 {
 			friendlyErrMsg = "Entra directory sync completed with partial success"
 		}
 		code, rawErr = getErrorDetails(err)
@@ -287,8 +317,8 @@ func (s *Service) emitStatus(ctx context.Context, err error, partialSuccess bool
 		LastRawError: rawErr,
 		Details: &types.PluginStatusV1_EntraId{
 			EntraId: &types.PluginEntraIDStatusV1{
-				ImportedUsers:  uint32(s.directoryReconciler.ImportedUsers()),
-				ImportedGroups: uint32(s.directoryReconciler.ImportedGroups()),
+				ImportedUsers:  uint32(result.ImportedUsers),
+				ImportedGroups: uint32(result.ImportedGroups),
 			},
 		},
 	}); err != nil {
@@ -306,4 +336,11 @@ func (s *Service) runAccessGraphSync(ctx context.Context) error {
 	}
 
 	return trace.Wrap(s.accessGraphSynchronizer.Run(ctx))
+}
+
+func errString(err error) string {
+	if err != nil {
+		return err.Error()
+	}
+	return ""
 }

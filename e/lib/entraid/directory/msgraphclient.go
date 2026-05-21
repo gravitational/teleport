@@ -32,6 +32,11 @@ type GraphClient interface {
 	SetupLatestDelta(ctx context.Context, endpoint string, ds msgraph.DeltaStore, opts ...msgraph.IterateOpt) error
 }
 
+const (
+	usersDeltaEndpoint  = "users/delta"
+	groupsDeltaEndpoint = "groups/delta"
+)
+
 // deltaStore implements msgraph.DeltaStore
 type deltaStore struct {
 	mu    sync.Mutex
@@ -81,12 +86,16 @@ func newGraphClient(client GraphClient, log *slog.Logger, deltaStore msgraph.Del
 }
 
 type listEntraGroupsResponse struct {
-	groupsMap       map[string]*models.Group
-	groupMembersMap map[string][]models.GroupMember
+	groupsMap groupsByID
 	// errSkippedGroups is an error collection of failed group validation.
 	// These errors should not stop the sync and instead should be reported
 	// via the plugin status.
 	errSkippedGroups []error
+}
+
+type listEntraGroupsAndMembersResponse struct {
+	listEntraGroupsResponse
+	groupMembersMap groupMembersByGroupID
 }
 
 func (c *graphClient) listEntraGroups(
@@ -95,8 +104,7 @@ func (c *graphClient) listEntraGroups(
 	accessListOwnersSource types.EntraIDAccessListOwnersSource,
 ) (listEntraGroupsResponse, error) {
 	var errSkippedGroups []error
-
-	result := map[string]*models.Group{}
+	result := groupsByID{}
 	err := c.IterateGroups(ctx, func(g *models.Group) bool {
 		if err := validateGroup(g); err != nil {
 			errSkippedGroups = append(errSkippedGroups, trace.Wrap(err))
@@ -105,7 +113,7 @@ func (c *graphClient) listEntraGroups(
 		if filterMatches(g) {
 			c.setEntraOwners(ctx, accessListOwnersSource, g)
 
-			result[*g.ID] = g
+			result[entraUniqueID(*g.ID)] = g
 		}
 
 		// defaults to true so the iteration continues.
@@ -151,13 +159,13 @@ func (c *graphClient) listEntraGroupOwners(
 	return owners, nil
 }
 
-func (c *graphClient) listEntraGroupsMembers(ctx context.Context, groups map[string]*models.Group) (map[string][]models.GroupMember, error) {
+func (c *graphClient) listEntraGroupsMembers(ctx context.Context, groups groupsByID) (groupMembersByGroupID, error) {
 	// membersPageSize is the maximum number of members to fetch per page.
 	// https://learn.microsoft.com/en-us/graph/api/group-list-members?view=graph-rest-1.0&tabs=http#http-request
 	// We don't want to send 9 requests to fetch 900 members where 999 is max page size supported by API
 	const membersPageSize = 300
 
-	result := make(map[string][]models.GroupMember, len(groups))
+	result := make(groupMembersByGroupID, len(groups))
 	var mu sync.Mutex
 
 	// TODO(smallinsky) move to static goroutine workers to not allocate space for each goroutine.
@@ -183,6 +191,7 @@ func (c *graphClient) listEntraGroupsMembers(ctx context.Context, groups map[str
 	if err := g.Wait(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return result, nil
 }
 
@@ -221,15 +230,14 @@ type listEntraUsersResponse struct {
 
 func (c *graphClient) listEntraUsers(
 	ctx context.Context,
-	usersMemberships groupMembershipMap,
-	tenantID, ssoConnectorID string,
-	emitAsRoles bool,
+	cfg entraUserSyncCfg,
 ) (listEntraUsersResponse, error) {
 	result := map[string]types.User{}
 	var errSkippedUsers []error
 	var unsupportedUsers []string
+
 	err := c.IterateUsers(ctx, func(u *models.User) bool {
-		user, err := convertUser(u, tenantID, ssoConnectorID, usersMemberships, emitAsRoles)
+		user, err := convertUser(u, cfg.usersMemberships, cfg.userConfig)
 		if err != nil {
 			if errors.Is(err, errUnsupportedUsername) {
 				unsupportedUsers = append(unsupportedUsers, unameForLog(u))
@@ -241,11 +249,15 @@ func (c *graphClient) listEntraUsers(
 		result[user.GetName()] = user
 		return true
 	})
+	postProcess := postProcessUser{
+		teleportUsers: cfg.teleportUsers,
+		tms:           cfg.userConfig.tms,
+	}
+	postProcess.apply(result)
 
 	if len(unsupportedUsers) > 0 {
 		errSkippedUsers = append(errSkippedUsers, errUnsupportedUsers(unsupportedUsers))
 	}
-
 	resp := listEntraUsersResponse{
 		users:           result,
 		errSkippedUsers: errSkippedUsers,
@@ -302,4 +314,115 @@ func isValidUsername(in string) error {
 	}
 
 	return nil
+}
+
+// setupUserAndGroupDelta configures latest delta token from msgraph
+// user and group delta API. Should always be called before iterating
+// over user and group delta API.
+func (c *graphClient) setupUserAndGroupDelta(ctx context.Context) error {
+	// Ensure these properties are always included.
+	// A delta token, including the initial and subsequent tokens,
+	// encodes all the queries that are requested in the
+	// first delta query, i.e. when a "latest" token is asked.
+	userOpts := []msgraph.IterateOpt{
+		msgraph.WithSelect("id,displayName,userPrincipalName,mail,onPremisesSamAccountName,givenName,surname"),
+	}
+	// TODO(sshah): include owners property based on opt value.
+	groupOpts := []msgraph.IterateOpt{
+		msgraph.WithSelect("id,displayName,description,members,onPremisesSamAccountName,onPremisesDomainName,onPremisesNetBiosName"),
+	}
+
+	// Only a single page of delta token is expected.
+	if err := c.SetupLatestDelta(ctx, usersDeltaEndpoint, c.deltaStore, userOpts...); err != nil {
+		return trace.Wrap(err, "setting up user latest delta token")
+	}
+	if err := c.SetupLatestDelta(ctx, groupsDeltaEndpoint, c.deltaStore, groupOpts...); err != nil {
+		return trace.Wrap(err, "setting up group latest delta token")
+	}
+
+	return nil
+}
+
+type entraUserSyncCfg struct {
+	userConfig       userConfig
+	usersMemberships groupMembershipMap
+	teleportUsers    map[string]types.User
+}
+
+// listEntraUsersDelta returns Entra ID users by processing over
+// user delta response.
+func (c *graphClient) listEntraUsersDelta(
+	ctx context.Context,
+	cfg entraUserSyncCfg,
+) (listEntraUsersResponse, error) {
+
+	var out listEntraUsersResponse
+	var errSkipped []error
+	var unsupportedUsers []string
+
+	deltaProcessor := newUserDeltaProcessor(cfg.usersMemberships, cfg.teleportUsers, cfg.userConfig)
+
+	for userDelta, err := range c.IterateUserDeltas(ctx, usersDeltaEndpoint, c.deltaStore) {
+		if err != nil {
+			return listEntraUsersResponse{}, trace.Wrap(err, "processing user deltas")
+		}
+
+		if err := deltaProcessor.apply(userDelta); err != nil {
+			if errors.Is(err, errUnsupportedUsername) {
+				unsupportedUsers = append(unsupportedUsers, unameForLog(userDelta.User))
+			} else {
+				errSkipped = append(errSkipped, trace.Wrap(err))
+			}
+			continue
+		}
+	}
+
+	result := deltaProcessor.result()
+	postProcess := postProcessUser{
+		teleportUsers: cfg.teleportUsers,
+		tms:           cfg.userConfig.tms,
+	}
+	postProcess.apply(result)
+	out.users = result
+
+	if len(unsupportedUsers) > 0 {
+		errSkipped = append(errSkipped, errUnsupportedUsers(unsupportedUsers))
+	}
+	out.errSkippedUsers = errSkipped
+	return out, nil
+}
+
+// listEntraGroupsDelta handles changes received in group, group owners and group members.
+func (c *graphClient) listEntraGroupsDelta(
+	ctx context.Context,
+	groupMatcher func(g *models.Group) bool,
+	accessListsMap map[string]*accessListWithMembers,
+	teleportUsersMap map[string]types.User,
+) (listEntraGroupsAndMembersResponse, error) {
+	var out listEntraGroupsAndMembersResponse
+
+	deltaProcessor := newGroupsDeltaProcessor(
+		ctx,
+		groupMatcher,
+		accessListsMap,
+		teleportUsersMap,
+		c.log,
+	)
+
+	var errSkipped []error
+	for groupDelta, err := range c.IterateGroupDeltas(ctx, groupsDeltaEndpoint, c.deltaStore) {
+		if err != nil {
+			return out, trace.Wrap(err, "failed iterating over group deltas")
+		}
+
+		if err := deltaProcessor.apply(ctx, groupDelta); err != nil {
+			errSkipped = append(errSkipped, err)
+		}
+	}
+
+	result := deltaProcessor.result()
+	out.groupsMap = result.groupsMap
+	out.groupMembersMap = result.groupMembersMap
+	out.errSkippedGroups = errSkipped
+	return out, nil
 }

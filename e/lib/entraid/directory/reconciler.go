@@ -5,7 +5,6 @@ import (
 	"errors"
 	"log/slog"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -62,6 +61,8 @@ type Reconciler struct {
 	// group or group member import. These errors should be reported
 	// after the reconciler returns.
 	errSkippedResources errSkippedResources
+	// deltaSyncEnabled indicates if delta is enabled or disabled.
+	deltaSyncEnabled bool
 }
 
 type errSkippedResources struct {
@@ -94,6 +95,8 @@ type Config struct {
 	// owners configured for the group, default owners will be used
 	// as Access List owners.
 	AccessListOwnersSource types.EntraIDAccessListOwnersSource
+	// DeltaSyncEnabled indicates if delta is enabled or disabled.
+	DeltaSyncEnabled bool
 }
 
 // Validate ensures that required values are set.
@@ -174,96 +177,131 @@ func New(cfg Config) (*Reconciler, error) {
 		groupsFilter:           cfg.GroupsFilter,
 		metrics:                metrics,
 		accessListOwnersSource: cfg.AccessListOwnersSource,
+		deltaSyncEnabled:       cfg.DeltaSyncEnabled,
 	}, nil
+}
+
+// Result is the reconciliation result.
+type Result struct {
+	// ImportedUsers is the total number of users imported.
+	ImportedUsers int
+	// ImportedGroups is the total number of groups imported.
+	ImportedGroups int
+	// ErrSkippedResources is the [Reconciler.errSkippedResources]
+	// error collected during sync.
+	ErrSkippedResources error
 }
 
 // Reconcile does a one-time reconciliation of users and access lists
 // from Entra ID to Teleport.
-func (r *Reconciler) Reconcile(ctx context.Context, _ mdmsync.SyncMode) (err error) {
+func (r *Reconciler) Reconcile(ctx context.Context, syncMode mdmsync.SyncMode) (result Result, err error) {
 	defer func() {
+		result.ImportedUsers = r.importedUsers
+		result.ImportedGroups = r.importedGroups
+		result.ErrSkippedResources = r.syncErrors()
+
+		metricErr := err
+		if syncMode == mdmsync.SyncModeFull && !r.deltaSyncEnabled {
+			// TODO(sshah): Stop sending sync warnigns as error
+			// once the plugin status and UI supports diffrentiating
+			// between hard reconciler errors and skipped warnings.
+			metricErr = errors.Join(err, result.ErrSkippedResources)
+		}
+
 		r.metrics.reconciliationCount.With(prometheus.Labels{
-			metricLabelResult: metricLabelResultFromError(err),
+			metricLabelResult: metricLabelResultFromError(metricErr),
 		}).Inc()
 	}()
 
 	r.errSkippedResources = errSkippedResources{}
 	reconciliationStart := r.clock.Now()
-	useLocalGroupMatcher := false
-	entraGroupMatcher := groupFilterMatcher(r.groupsFilter)
-	if _, err := filter.New(r.groupsFilter); err != nil {
-		switch {
-		case errors.Is(err, filter.ErrUnknownFilter):
-			// If the configured filter has an unknown filter type,
-			// which may happen during cluster downgrade where an older cluster
-			// may not understand the newer filter type, the reconciliation
-			// should only apply to the already-synced groups.
-			useLocalGroupMatcher = true
-			r.logger.ErrorContext(ctx, "Unknown group filter encountered, filters will be skipped and reconciliation will be limited to the existing Entra ID groups", "error", err.Error())
-		default:
-			return trace.Wrap(err)
-		}
-	}
 
 	start := r.clock.Now()
 	teleportAccessListsWithMembersMap, err := listTeleportAccessListsWithMembers(ctx, r.accessPoint)
 	if err != nil {
-		return trace.Wrap(err)
+		return result, trace.Wrap(err)
 	}
 	took := r.clock.Since(start)
 	r.metrics.reconciliationDuration.With(prometheus.Labels{
 		metricLabelSection: "read_list_backend",
 	}).Observe(took.Seconds())
 
-	if useLocalGroupMatcher {
-		entraGroupMatcher = groupLocalMatcher(teleportAccessListsWithMembersMap)
+	teleportUsers, err := listTeleportUsers(ctx, r.accessPoint, r.ssoConnectorID)
+	if err != nil {
+		return result, trace.Wrap(err)
+	}
+
+	var errDeltaSetup error
+	if syncMode == mdmsync.SyncModeFull && r.deltaSyncEnabled {
+		// Full sync sets up the latest delta token which will be used
+		// by the next delta sync. Delta token must be set up before
+		// listing Entra directory so it can track any changes that
+		// may happen while running the full sync.
+		// Error is processed at the end to let the full sync continue.
+		errDeltaSetup = r.graphClient.setupUserAndGroupDelta(ctx)
+	}
+
+	teleportState := teleportEntraDirectoryState{
+		accessListsMap: teleportAccessListsWithMembersMap,
+		usersMap:       teleportUsers,
 	}
 
 	start = r.clock.Now()
-	entraGroupsResp, err := r.graphClient.listEntraGroups(ctx, entraGroupMatcher, r.accessListOwnersSource)
+	entraGroupResp, err := r.getEntraGroupsAndMembers(ctx, syncMode, teleportState)
+	r.errSkippedResources.groups = append(r.errSkippedResources.groups, entraGroupResp.errSkippedGroups...)
 	if err != nil {
-		return trace.Wrap(err)
+		return result, trace.Wrap(err)
 	}
-	r.errSkippedResources.groups = append(r.errSkippedResources.groups, entraGroupsResp.errSkippedGroups...)
-	took = r.clock.Since(start)
-	r.logger.DebugContext(ctx, "Finished listing Entra ID groups", "took", took.String())
-	r.metrics.reconciliationDuration.With(prometheus.Labels{
-		metricLabelSection: "read_entra_groups",
-	}).Observe(took.Seconds())
-	r.metrics.discoveredEntraGroups.Set(float64(len(entraGroupsResp.groupsMap)))
+	r.logger.DebugContext(ctx,
+		"Finished listing Entra ID groups and members",
+		"sync_mode", syncMode,
+		"took", r.clock.Since(start),
+	)
+	entraGroups := entraGroups{
+		groupsMap:       entraGroupResp.groupsMap,
+		groupMembersMap: entraGroupResp.groupMembersMap,
+	}
 
 	start = r.clock.Now()
-	groupMembersMap, err := r.graphClient.listEntraGroupsMembers(ctx, entraGroupsResp.groupsMap)
+	entraUsersResp, err := r.getEntraUsers(ctx, syncMode, teleportState.usersMap, entraGroups)
+	r.errSkippedResources.users = append(r.errSkippedResources.users, entraUsersResp.errSkippedUsers...)
 	if err != nil {
-		return trace.Wrap(err)
+		return result, trace.Wrap(err)
 	}
-	took = r.clock.Since(start)
-	r.logger.DebugContext(ctx, "Finished listing Entra ID group members", "took", took.String())
-	r.metrics.reconciliationDuration.With(prometheus.Labels{
-		metricLabelSection: "read_entra_members",
-	}).Observe(took.Seconds())
-	r.metrics.discoveredEntraMemberships.Set(float64(len(groupMembersMap)))
+	r.logger.DebugContext(ctx,
+		"Finished listing Entra ID users",
+		"sync_mode", syncMode,
+		"took", r.clock.Since(start),
+	)
 
 	start = r.clock.Now()
-	usersByEntraID, err := r.reconcileUsers(ctx, entraGroupsResp.groupsMap, groupMembersMap)
+	usersByEntraID, err := r.reconcileUsers(ctx, entraUsersResp.users, teleportState.usersMap)
 	if err != nil {
-		return trace.Wrap(err)
+		return result, trace.Wrap(err)
 	}
 	took = r.clock.Since(start)
-	r.logger.DebugContext(ctx, "Finished reconciling Entra ID and Teleport users", "took", took.String())
+	r.logger.DebugContext(ctx, "Finished reconciling Entra ID and Teleport users", "sync_mode", syncMode, "took", took.String())
 	r.metrics.reconciliationDuration.With(prometheus.Labels{
 		metricLabelSection: "reconcile_users",
 	}).Observe(took.Seconds())
 
 	start = r.clock.Now()
+	aclOwnersCfg := aclOwnersConfig{
+		defaultOwners: r.defaultOwners,
+		source:        r.accessListOwnersSource,
+	}
+	entraAccessListsWithMembersMap, errSkipped := entraGroups.toAccessListsWithMembers(ctx, r.tenantID, usersByEntraID, aclOwnersCfg)
+	r.errSkippedResources.groups = slices.Concat(r.errSkippedResources.groups, errSkipped.groups)
+	r.errSkippedResources.groupMembers = slices.Concat(r.errSkippedResources.groupMembers, errSkipped.groupMembers)
 	if err := r.reconcileAccessLists(ctx,
-		usersByEntraID,
-		entraGroupsResp.groupsMap, groupMembersMap,
+		entraAccessListsWithMembersMap,
 		teleportAccessListsWithMembersMap,
 	); err != nil {
-		return trace.Wrap(err)
+		return result, trace.Wrap(err)
 	}
 	took = r.clock.Since(start)
-	r.logger.DebugContext(ctx, "Finished reconciling Entra ID groups and Teleport access lists", "took", took.String())
+	r.logger.DebugContext(ctx, "Finished reconciling Entra ID groups and Teleport Access Lists", "sync_mode", syncMode, "took", took.String())
+
 	r.metrics.reconciliationDuration.With(prometheus.Labels{
 		metricLabelSection: "reconcile_access_lists",
 	}).Observe(took.Seconds())
@@ -271,56 +309,123 @@ func (r *Reconciler) Reconcile(ctx context.Context, _ mdmsync.SyncMode) (err err
 		metricLabelSection: "total",
 	}).Observe(r.clock.Since(reconciliationStart).Seconds())
 
-	if err := r.syncErrors(); err != nil {
-		// Clear errors as they do not have any
-		// purpose beyond this point.
-		r.errSkippedResources = errSkippedResources{}
-		return trace.Wrap(err)
+	if errDeltaSetup != nil {
+		// Returning error will force the next sync to be a full sync.
+		r.logger.ErrorContext(ctx, "Latest delta token setup failed, delta sync will be skipped and the next sync will be a full sync", "error", errDeltaSetup)
+		return result, trace.Wrap(errDeltaSetup)
 	}
 
-	return nil
+	return
+}
+
+func (r *Reconciler) getEntraGroupsAndMembers(
+	ctx context.Context,
+	syncMode mdmsync.SyncMode,
+	teleportState teleportEntraDirectoryState,
+) (listEntraGroupsAndMembersResponse, error) {
+	var out listEntraGroupsAndMembersResponse
+	entraGroupMatcher, err := r.buildGroupFilterMatcher(ctx, teleportState.accessListsMap)
+	if err != nil {
+		return out, trace.Wrap(err)
+	}
+
+	if syncMode == mdmsync.SyncModePartial &&
+		// TODO(sshah): remove owners source check once owners are supported in delta sync.
+		r.accessListOwnersSource == types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN {
+		resp, err := r.graphClient.listEntraGroupsDelta(
+			ctx,
+			entraGroupMatcher,
+			teleportState.accessListsMap,
+			teleportState.usersMap,
+		)
+
+		return resp, trace.Wrap(err)
+	}
+
+	start := r.clock.Now()
+	groupResp, err := r.graphClient.listEntraGroups(ctx, entraGroupMatcher, r.accessListOwnersSource)
+	if err != nil {
+		return out, trace.Wrap(err)
+	}
+	out.groupsMap = groupResp.groupsMap
+	out.errSkippedGroups = groupResp.errSkippedGroups
+	took := r.clock.Since(start)
+	r.logger.DebugContext(ctx,
+		"Finished listing Entra ID groups",
+		"sync_mode", syncMode,
+		"took", took,
+	)
+	r.metrics.reconciliationDuration.With(prometheus.Labels{
+		metricLabelSection: "read_entra_groups",
+	}).Observe(took.Seconds())
+	r.metrics.discoveredEntraGroups.Set(float64(len(groupResp.groupsMap)))
+
+	start = r.clock.Now()
+	membersResp, err := r.graphClient.listEntraGroupsMembers(ctx, groupResp.groupsMap)
+	if err != nil {
+		return out, trace.Wrap(err)
+	}
+	out.groupMembersMap = membersResp
+	took = r.clock.Since(start)
+	r.logger.DebugContext(ctx,
+		"Finished listing Entra ID group members",
+		"sync_mode", syncMode,
+		"took", took,
+	)
+	r.metrics.reconciliationDuration.With(prometheus.Labels{
+		metricLabelSection: "read_entra_members",
+	}).Observe(took.Seconds())
+	r.metrics.discoveredEntraMemberships.Set(float64(len(membersResp)))
+
+	return out, nil
+}
+
+func (r *Reconciler) getEntraUsers(
+	ctx context.Context,
+	syncMode mdmsync.SyncMode,
+	teleportUsers map[string]types.User,
+	entraGroups entraGroups,
+) (listEntraUsersResponse, error) {
+
+	var resp listEntraUsersResponse
+	app, err := r.getApplication(ctx, r.entraAppID)
+	if err != nil {
+		return resp, trace.Wrap(err, "failed to get Entra ID application")
+	}
+	emitAsRoles, groupNameBuilder := getGroupNameBuilderFunc(app)
+	connector, err := r.accessPoint.GetSAMLConnector(ctx, r.ssoConnectorID, false /* withSecrets */)
+	if err != nil {
+		return resp, trace.Wrap(err, "failed to get SAML connector")
+	}
+
+	userMemberships := buildUserMemberships(entraGroups, groupNameBuilder)
+	cfg := entraUserSyncCfg{
+		userConfig: userConfig{
+			tenantID:       r.tenantID,
+			ssoConnectorID: r.ssoConnectorID,
+			emitAsRoles:    emitAsRoles,
+			tms:            connector.GetTraitMappings(),
+		},
+		teleportUsers:    teleportUsers,
+		usersMemberships: userMemberships,
+	}
+
+	if syncMode == mdmsync.SyncModePartial {
+		resp, err := r.graphClient.listEntraUsersDelta(ctx, cfg)
+		return resp, trace.Wrap(err, "failed processing user deltas")
+	}
+
+	resp, err = r.graphClient.listEntraUsers(ctx, cfg)
+	r.metrics.discoveredEntraUsers.Set(float64(len(resp.users)))
+	return resp, trace.Wrap(err)
 }
 
 func (r *Reconciler) reconcileUsers(ctx context.Context,
-	groupsMap map[string]*models.Group,
-	groupMembersMap map[string][]models.GroupMember,
+	entraUsers, teleportUsers map[string]types.User,
 ) (map[entraUniqueID]types.User, error) {
-	app, err := r.getApplication(ctx, r.entraAppID)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to get Entra ID application")
-	}
-	emitAsRoles, groupNameBuilder := getGroupNameBuilderFunc(app)
-
-	userMemberships := buildUserMemberships(groupsMap, groupMembersMap, groupNameBuilder)
-	entraUsersResp, err := r.graphClient.listEntraUsers(ctx, userMemberships, r.tenantID, r.ssoConnectorID, emitAsRoles)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	r.errSkippedResources.users = append(r.errSkippedResources.users, entraUsersResp.errSkippedUsers...)
-	r.metrics.discoveredEntraUsers.Set(float64(len(entraUsersResp.users)))
-
-	connector, err := r.accessPoint.GetSAMLConnector(ctx, r.ssoConnectorID, false /* withSecrets */)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to get SAML connector")
-	}
-
-	for _, entraUser := range entraUsersResp.users {
-		_, roles := services.TraitsToRoles(connector.GetTraitMappings(), entraUser.GetTraits())
-		entraUser.SetRoles(roles)
-	}
-
-	teleportUsers, err := listTeleportUsers(ctx, r.accessPoint, r.ssoConnectorID)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	for _, src := range teleportUsers {
-		if dst, ok := entraUsersResp.users[src.GetName()]; ok {
-			preserveUserMetadata(dst, src)
-		}
-	}
 
 	usersByEntraID := map[entraUniqueID]types.User{}
-	for _, u := range entraUsersResp.users {
+	for _, u := range entraUsers {
 		id, ok := u.GetLabel(types.EntraUniqueIDLabel)
 		if !ok {
 			return nil, trace.BadParameter("user %v missing Entra ID unique ID label", u.GetName())
@@ -332,7 +437,7 @@ func (r *Reconciler) reconcileUsers(ctx context.Context,
 		Matcher:             matchByLabel[types.User],
 		CompareResources:    func(u1, u2 types.User) int { return services.EqualFromBool(u1.IsEqual(u2)) },
 		GetCurrentResources: func() map[string]types.User { return teleportUsers },
-		GetNewResources:     func() map[string]types.User { return entraUsersResp.users },
+		GetNewResources:     func() map[string]types.User { return entraUsers },
 		OnCreate: func(ctx context.Context, u types.User) error {
 			_, err := r.accessPoint.CreateUser(ctx, u)
 			// if Entra user clashes with a local user, do not overwrite
@@ -363,36 +468,18 @@ func (r *Reconciler) reconcileUsers(ctx context.Context,
 	if err := backend.Reconcile(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	r.importedUsers = len(usersByEntraID)
 
-	var errConflict error
 	if len(conflictingUsers) != 0 {
-		errConflict = trace.AlreadyExists(`existing user account found which was not created by this Microsoft Entra ID `+
-			`integration, account and group sync will be skipped for these user(s): %s`, strings.Join(conflictingUsers, ", "))
-		r.errSkippedResources.users = append(r.errSkippedResources.users, errConflict)
+		r.errSkippedResources.users = append(r.errSkippedResources.users, errConflictingUsers(conflictingUsers))
 	}
 
 	return usersByEntraID, nil
 }
 
 func (r *Reconciler) reconcileAccessLists(ctx context.Context,
-	usersByEntraID map[entraUniqueID]types.User,
-	groupsMap map[string]*models.Group,
-	groupMembersMap map[string][]models.GroupMember,
-	teleportAccessListsWithMembersMap map[string]*accessListWithMembers,
+	entraAccessListWithMembersMap, teleportAccessListsWithMembersMap map[string]*accessListWithMembers,
 ) error {
-	aclOwnersCfg := aclOwnersConfig{
-		defaultOwners: r.defaultOwners,
-		source:        r.accessListOwnersSource,
-	}
-	g := entraGroups{
-		groupsMap:       groupsMap,
-		groupMembersMap: groupMembersMap,
-	}
-	entraAccessListWithMembersMap, errSkippedResources := g.toAccessListsWithMembers(ctx, r.tenantID, usersByEntraID, aclOwnersCfg)
-	r.errSkippedResources.groups = slices.Concat(r.errSkippedResources.groups, errSkippedResources.groups)
-	r.errSkippedResources.groupMembers = slices.Concat(r.errSkippedResources.groupMembers, errSkippedResources.groupMembers)
 
 	// It's crucial to sort the members for the CompareResources func in the Reconciler.
 	sortMembers(teleportAccessListsWithMembersMap)
@@ -493,16 +580,6 @@ func (r *Reconciler) reconcileAccessLists(ctx context.Context,
 	return nil
 }
 
-// ImportedUsers returns the total number of users imported as of the most recent reconciliation.
-func (r *Reconciler) ImportedUsers() int {
-	return r.importedUsers
-}
-
-// ImportedUsers returns the total number of groups imported as of the most recent reconciliation.
-func (r *Reconciler) ImportedGroups() int {
-	return r.importedGroups
-}
-
 func matchByLabel[T types.Resource](resource T) bool {
 	origin, ok := resource.GetMetadata().Labels[types.OriginLabel]
 	return ok && origin == types.OriginEntraID
@@ -562,6 +639,36 @@ func getGroupNameBuilderFunc(app *models.Application) (bool, func(*models.Group)
 	return emitAsRoles, getGroupID
 }
 
+func (r *Reconciler) buildGroupFilterMatcher(
+	ctx context.Context,
+	accessListMap map[string]*accessListWithMembers,
+) (func(g *models.Group) bool, error) {
+	useLocalGroupMatcher := false
+	groupFilterMatcher := groupFilterMatcher(r.groupsFilter)
+	if _, err := filter.New(r.groupsFilter); err != nil {
+		switch {
+		case errors.Is(err, filter.ErrUnknownFilter):
+			// If the configured filter has an unknown filter type,
+			// which may happen during cluster downgrade where an older cluster
+			// may not understand the newer filter type, the reconciliation
+			// should only apply to the already-synced groups.
+			useLocalGroupMatcher = true
+			r.logger.ErrorContext(ctx,
+				"Unknown group filter encountered, filters will be skipped and reconciliation will be limited to the existing Entra ID groups",
+				"error", err.Error(),
+			)
+		default:
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	if useLocalGroupMatcher {
+		groupFilterMatcher = groupLocalMatcher(accessListMap)
+	}
+
+	return groupFilterMatcher, nil
+}
+
 // groupFilterMatcher matches group based on the
 // configured group filters.
 func groupFilterMatcher(
@@ -592,4 +699,11 @@ func (r *Reconciler) syncErrors() error {
 	errG := errors.Join(r.errSkippedResources.groups...)
 	errGm := errors.Join(r.errSkippedResources.groupMembers...)
 	return errors.Join(errUsers, errG, errGm)
+}
+
+// teleportEntraDirectoryState holds Access Lists and users
+// resources created from Entra ID groups and users.
+type teleportEntraDirectoryState struct {
+	accessListsMap map[string]*accessListWithMembers
+	usersMap       map[string]types.User
 }

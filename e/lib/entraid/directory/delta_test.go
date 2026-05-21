@@ -197,14 +197,14 @@ func TestProcessUserDelta(t *testing.T) {
 			err := deltaProcessor.apply(tc.userDelta)
 			require.NoError(t, err)
 
-			out := deltaProcessor.result()
-			require.Len(t, out.users, tc.expectedUsersCount)
+			result := deltaProcessor.result()
+			require.Len(t, result, tc.expectedUsersCount)
 
 			if tc.isRemoved {
 				return
 			}
 
-			teleportUserOut, ok := out.users[tc.expectedUsername]
+			teleportUserOut, ok := result[tc.expectedUsername]
 			require.True(t, ok, "expected Teleport user to be found in deltaProcessor newState")
 
 			require.Equal(t, tc.expectedLabels, teleportUserOut.GetAllLabels(), "expected labels to match")
@@ -328,12 +328,12 @@ func TestProcessGroupDelta(t *testing.T) {
 				entraUniqueID(bob):   mustTeleportUser("bob", bob),
 				entraUniqueID(carol): mustTeleportUser("carol", carol),
 			}
-			groupsMap := map[string]*models.Group{
+			groupsMap := groupsByID{
 				group1: newEntraGroup(t, group1, "group1"),
 				group2: newEntraGroup(t, group2, "group2"),
 				group3: newEntraGroup(t, group3, "group3"),
 			}
-			groupMembersMap := map[string][]models.GroupMember{
+			groupMembersMap := groupMembersByGroupID{
 				group1: {entraUser(t, alice, "alice"), newEntraGroup(t, group2, "group2")},
 				group2: {entraUser(t, alice, "alice"), entraUser(t, carol, "carol")},
 				group3: {entraUser(t, alice, "alice"), entraUser(t, bob, "bob")},
@@ -367,13 +367,13 @@ func TestProcessGroupDelta(t *testing.T) {
 
 			out := deltaProcessor.result()
 			require.Len(t, out.groupsMap, tc.expectedGroupsCount, "expected groups map to be equal")
-			require.Len(t, out.groupMembersMap[*tc.groupDelta.ID], tc.expectedGroupMembersCount, "expected groups members map to be equal")
+			require.Len(t, out.groupMembersMap[entraUniqueID(*tc.groupDelta.ID)], tc.expectedGroupMembersCount, "expected groups members map to be equal")
 
 			if tc.isRemoved {
 				return
 			}
 
-			require.Equal(t, tc.expectedDisplay, *out.groupsMap[*tc.groupDelta.ID].DisplayName, "expected group display name to match")
+			require.Equal(t, tc.expectedDisplay, *out.groupsMap[entraUniqueID(*tc.groupDelta.ID)].DisplayName, "expected group display name to match")
 		})
 	}
 }

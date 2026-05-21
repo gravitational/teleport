@@ -422,8 +422,8 @@ func mustParseCert(t *testing.T) *x509.Certificate {
 // EntraIDSAMLConnector generates a SAML connector spec
 // of the given [name]. Connector spec may need some tuning to
 // be usable in a real SSO login simulation.
-func EntraIDSAMLConnector(name string) string {
-	return fmt.Sprintf(entraIDSAMLConnector, name)
+func EntraIDSAMLConnector(name string, groupIDForAccessRole string) string {
+	return fmt.Sprintf(entraIDSAMLConnector, name, groupIDForAccessRole)
 }
 
 // entraIDSAMLConnector defines connector spec for
@@ -440,6 +440,10 @@ spec:
     roles:
     - requester
     value: '*'
+  - name: http://schemas.microsoft.com/ws/2008/06/identity/claims/groups
+    roles:
+    - access
+    value: %s
   audience: https://teleport.example.com/v1/webapi/saml/acs/entra-id
   cert: ""
   display: entra-id
