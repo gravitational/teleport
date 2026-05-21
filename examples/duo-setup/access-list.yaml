@@ -1,0 +1,16 @@
+kind: access_list
+version: v1
+metadata:
+  name: duo-scim-test
+spec:
+  type: scim
+  title: Duo SCIM Test
+  description: Empty SCIM access list for Duo user sync testing
+  owners:
+    - name: roman@goteleport.com
+  audit:
+    frequency: 6months
+    next_audit_date: "2026-11-13T00:00:00Z"
+  grants:
+    roles:
+      - access
