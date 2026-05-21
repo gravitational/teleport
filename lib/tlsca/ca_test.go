@@ -762,7 +762,7 @@ func TestGenerateCertificate_ExtraNamesPreserved(t *testing.T) {
 			SerialNumber:       "12345",
 		},
 		PublicKey: key.Public(),
-		DNSNames:  []string{"overridden-cn"},
+		DNSNames:  []string{"dns"},
 		NotAfter:  time.Now().Add(10 * time.Second),
 	})
 	require.NoError(t, err)
@@ -770,31 +770,36 @@ func TestGenerateCertificate_ExtraNamesPreserved(t *testing.T) {
 	parsed, err := ParseCertificatePEM(generated)
 	require.NoError(t, err)
 
-	// Let's re-use the original subject, but add an extra value.
+	// Let's modify the subject a bit from the original.
+	// Add some new OIDs, modify the CN, etc.
 	parsed.Subject.ExtraNames = []pkix.AttributeTypeAndValue{
 		{
 			Type:  []int{1, 2, 3},
 			Value: "somevalue",
 		},
 	}
+	parsed.Subject.CommonName = "bob"
+	parsed.Subject.Organization = []string{"marketing"}
 
 	roundTripped, err := ca.GenerateCertificate(CertificateRequest{
 		Subject:   parsed.Subject,
 		PublicKey: key.Public(),
-		DNSNames:  []string{"overridden-cn"},
-		NotAfter:  time.Now().Add(10 * time.Second),
+		// Override DNSNames as well
+		DNSNames: []string{"overridden-dns"},
+		NotAfter: time.Now().Add(10 * time.Second),
 	})
 	require.NoError(t, err)
 
 	parsedRoundTripped, err := ParseCertificatePEM(roundTripped)
 	require.NoError(t, err)
 
-	// Names should contain exactly one more entry than the original
-	require.Len(t, parsedRoundTripped.Subject.Names, len(parsed.Subject.Names)+1)
-	for _, item := range parsed.Subject.Names {
-		// All standard subject fields are preserved.
-		require.Contains(t, parsedRoundTripped.Subject.Names, item)
-	}
+	// Subject modifications are preserved.
+	assert.Equal(t, parsedRoundTripped.Subject.CommonName, "bob")
+	assert.Equal(t, parsedRoundTripped.Subject.Organization, []string{"marketing"})
+	// DNS modification preserved.
+	assert.Equal(t, parsedRoundTripped.DNSNames, []string{"overridden-dns"})
+
 	// The extra name that we added should be present in the roundtripped cert.
-	require.Contains(t, parsedRoundTripped.Subject.Names, parsed.Subject.ExtraNames[0])
+	assert.Len(t, parsedRoundTripped.Subject.Names, len(parsed.Subject.Names)+1)
+	assert.Contains(t, parsedRoundTripped.Subject.Names, parsed.Subject.ExtraNames[0])
 }
