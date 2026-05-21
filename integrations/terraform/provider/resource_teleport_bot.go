@@ -164,6 +164,12 @@ func GenSchemaBot(ctx context.Context) (tfsdk.Schema, diag.Diagnostics) {
 				Description: "Fields that are set by the server as results of operations. These should not be modified by users.",
 				Computed:    true,
 			},
+			"scope": {
+				Description:   "Scope is the scope of the bot resource. Leave empty for unscoped bots.",
+				PlanModifiers: []tfsdk.AttributePlanModifier{tfsdk.RequiresReplace()},
+				Optional:      true,
+				Type:          types.StringType,
+			},
 
 			// Deprecated fields.
 			"name": {
@@ -348,6 +354,7 @@ func (r resourceTeleportBot) botFromProto(ctx context.Context, bot *machineidv1.
 		// user provided legacy or RFD 153-style attributes.
 		Metadata: types.Object{AttrTypes: attrTypes("metadata")},
 		Spec:     types.Object{AttrTypes: attrTypes("spec")},
+		Scope:    stringValue(bot.GetScope()),
 
 		// Deprecated user-provided attributes.
 		Name: types.String{},
@@ -451,9 +458,13 @@ func (r resourceTeleportBot) botFromProto(ctx context.Context, bot *machineidv1.
 		// returned.
 		if attrPresent(base.Spec) {
 			if prev, ok := base.Spec.Attrs["max_session_ttl"]; ok {
-				if dur, ok := prev.(tfschema.DurationValue); ok {
-					if dur.Value == bot.GetSpec().GetMaxSessionTtl().AsDuration() {
-						result.Spec.Attrs["max_session_ttl"] = prev
+				// Scoped bots don't have a max_session_ttl. We don't want to replace the new value by the old one
+				// if the old one is Unknown.
+				if !prev.IsUnknown() {
+					if dur, ok := prev.(tfschema.DurationValue); ok {
+						if dur.Value == bot.GetSpec().GetMaxSessionTtl().AsDuration() {
+							result.Spec.Attrs["max_session_ttl"] = prev
+						}
 					}
 				}
 			}
@@ -618,6 +629,7 @@ type Bot struct {
 	Metadata types.Object `tfsdk:"metadata"`
 	Spec     types.Object `tfsdk:"spec"`
 	Status   types.Object `tfsdk:"status"`
+	Scope    types.String `tfsdk:"scope"`
 
 	// Deprecated fields
 	Name     types.String   `tfsdk:"name"`
@@ -635,6 +647,7 @@ func (b Bot) ToProto() *machineidv1.Bot {
 		Version:  apitypes.V1,
 		Metadata: b.GetMetadata(),
 		Spec:     b.GetSpec(),
+		Scope:    b.GetScope(),
 	}
 }
 
@@ -802,6 +815,13 @@ func (b Bot) GetMaxSessionTTL() *durationpb.Duration {
 	}
 
 	return durationpb.New(dur.Value)
+}
+
+func (b Bot) GetScope() string {
+	if !attrPresent(b.Scope) {
+		return ""
+	}
+	return b.Scope.Value
 }
 
 func attrPresent(v attr.Value) bool {

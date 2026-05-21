@@ -40,6 +40,7 @@ resource "teleport_bot" "example" {
 - `metadata` (Attributes) Common metadata that all resources share (see [below for nested schema](#nested-schema-for-metadata))
 - `name` (String, Deprecated) The name of the bot, i.e. the unprefixed User name
 - `roles` (List of String, Deprecated) A list of roles the created bot should be allowed to assume via role impersonation.
+- `scope` (String) Scope is the scope of the bot resource. Leave empty for unscoped bots.
 - `spec` (Attributes) The configured properties of a bot. (see [below for nested schema](#nested-schema-for-spec))
 - `sub_kind` (String) Differentiates variations of the same kind. All resources should contain one, even if it is never populated.
 - `token_id` (String, Sensitive, Deprecated)
