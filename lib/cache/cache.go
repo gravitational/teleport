@@ -628,7 +628,7 @@ func (c *Cache) setReadStatus(ok bool, confirmedKinds map[resourceKind]types.Wat
 
 // acquireReadGuard provides a readGuard that may be used to determine how
 // a cache read should operate. The returned guard *must* be released to prevent deadlocks.
-func acquireReadGuard[T any, I comparable](cache *Cache, c *collection[T, I]) (readGuard[T, I], error) {
+func acquireReadGuard[T comparable, I comparable](cache *Cache, c *collection[T, I]) (readGuard[T, I], error) {
 	if cache.closed.Load() {
 		return readGuard[T, I]{}, trace.Errorf("cache is closed")
 	}
@@ -652,7 +652,7 @@ func acquireReadGuard[T any, I comparable](cache *Cache, c *collection[T, I]) (r
 
 // readGuard holds a reference to a read-only "collection" T. If the referenced resource is in the cache,
 // then readGuard also holds the release function for the read lock, and ensures that it is not double-called.
-type readGuard[T any, I comparable] struct {
+type readGuard[T comparable, I comparable] struct {
 	cacheRead bool
 	store     *store[T, I]
 	once      sync.Once

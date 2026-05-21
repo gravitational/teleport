@@ -27,7 +27,7 @@ import (
 )
 
 // store persists cached resources directly in memory.
-type store[T any, I comparable] struct {
+type store[T comparable, I comparable] struct {
 	kind    string
 	cache   *sortcache.SortCache[T, I]
 	clone   func(T) T
@@ -36,7 +36,7 @@ type store[T any, I comparable] struct {
 
 // newStore creates a store that will index the resource
 // based on the provided indexes.
-func newStore[T any, I comparable](kind string, clone func(T) T, indexes map[I]func(T) string) *store[T, I] {
+func newStore[T comparable, I comparable](kind string, clone func(T) T, indexes map[I]func(T) string) *store[T, I] {
 	return &store[T, I]{
 		kind:    kind,
 		clone:   clone,
