@@ -820,25 +820,16 @@ func ackDB(ctx context.Context, db *sql.DB, items []Item) error {
 		return nil
 	}
 
-	// Batch the deletes inside a transaction for better performance.
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer tx.Rollback()
+	placeholders := strings.Repeat("?,", len(items))
+	query := "DELETE FROM audit_queue WHERE id IN (" + placeholders[:len(placeholders)-1] + ")"
 
-	stmt, err := tx.PrepareContext(ctx, "DELETE FROM audit_queue WHERE id = ?")
-	if err != nil {
-		return trace.Wrap(err)
+	args := make([]any, len(items))
+	for i, item := range items {
+		args[i] = item.ID
 	}
-	defer stmt.Close()
 
-	for _, item := range items {
-		if _, err := stmt.ExecContext(ctx, item.ID); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return trace.Wrap(tx.Commit())
+	_, err := db.ExecContext(ctx, query, args...)
+	return trace.Wrap(err)
 }
 
 func (q *sqliteQueue) Close() error {

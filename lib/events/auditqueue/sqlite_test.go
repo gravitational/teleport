@@ -568,6 +568,35 @@ func TestOrphanAdoption_StaleTmpSwept(t *testing.T) {
 	require.NoError(t, <-runErr)
 }
 
+func TestAckDB_DeletesOnlyAckedItems(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	q := newSqliteTestQueue(t)
+
+	for i := int64(0); i < 5; i++ {
+		require.NoError(t, q.Enqueue(ctx, newTestEvent(i)))
+	}
+
+	// Fetch 4 of the 5 items and ack them.
+	items, err := q.fetch(4)
+	require.NoError(t, err)
+	require.Len(t, items, 4)
+
+	ackedIDs := make(map[int64]struct{}, len(items))
+	for _, item := range items {
+		ackedIDs[item.ID] = struct{}{}
+	}
+
+	require.NoError(t, ackDB(ctx, q.db, items))
+
+	// Only the one un-acked item should remain.
+	remaining, err := q.fetch(10)
+	require.NoError(t, err)
+	require.Len(t, remaining, 1)
+	_, wasAcked := ackedIDs[remaining[0].ID]
+	require.False(t, wasAcked, "remaining item should not be one that was acked")
+}
+
 func TestIsSQLiteFullError(t *testing.T) {
 	t.Parallel()
 
