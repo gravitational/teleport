@@ -19,7 +19,6 @@
 package auth
 
 import (
-	"cmp"
 	"context"
 	"crypto/tls"
 	"errors"
@@ -156,6 +155,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/joinv1"
 	"github.com/gravitational/teleport/lib/join/legacyjoin"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -557,12 +557,13 @@ func (g *GRPCServer) WatchEvents(watch *authpb.Watch, stream authpb.AuthService_
 				stream,
 				scopedAuth.scopedContext.User.GetName(),
 				scopedAuth,
+				g.AuthServer.modules,
 			))
 		}
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(WatchEvents(watch, stream, auth.User.GetName(), auth))
+	return trace.Wrap(WatchEvents(watch, stream, auth.User.GetName(), auth, g.AuthServer.modules))
 }
 
 // WatchEvent is a stream interface for sending events.
@@ -575,14 +576,18 @@ type Watcher interface {
 	NewStream(ctx context.Context, watch types.Watch) (stream.Stream[types.Event], error)
 }
 
-// WatchEvents watches for events and streams them to the provided stream.
-func WatchEvents(watch *authpb.Watch, stream WatchEvent, componentName string, auth Watcher) error {
-	servicesWatch := types.Watch{
-		Name:                componentName,
-		Kinds:               watch.Kinds,
-		AllowPartialSuccess: watch.AllowPartialSuccess,
-	}
+var enterpriseOnlyWatchKinds = []string{
+	types.KindCertAuthorityOverride,
+}
 
+// WatchEvents watches for events and streams them to the provided stream.
+func WatchEvents(
+	watch *authpb.Watch,
+	stream WatchEvent,
+	componentName string,
+	auth Watcher,
+	mods modules.Modules,
+) error {
 	// KindNamespace is being removed but v17 agents will still try to include
 	// it in their cache and they will occasionally do a GetNamespace, so we
 	// pretend to support it as a resource kind here; it's sound to do so
@@ -597,9 +602,27 @@ func WatchEvents(watch *authpb.Watch, stream WatchEvent, componentName string, a
 			removedNamespaceWatch = true
 			continue
 		}
+
+		// Deny watchers for Enteprise-only Kinds if we are running OSS.
+		// This simplifies remote event streams that would otherwise try to hit
+		// unimplemented endpoints (Enterprise-only services tend to only bind in
+		// Enterprise builds).
+		if mods.IsOSSBuild() && goslices.Contains(enterpriseOnlyWatchKinds, k.Kind) {
+			if watch.AllowPartialSuccess {
+				continue
+			}
+			return trace.BadParameter("watch for kind %s only available in Teleport Enterprise", k.Kind)
+		}
+
 		filteredKinds = append(filteredKinds, k)
 	}
 	watch.Kinds = filteredKinds
+
+	servicesWatch := types.Watch{
+		Name:                componentName,
+		Kinds:               watch.Kinds,
+		AllowPartialSuccess: watch.AllowPartialSuccess,
+	}
 
 	events, err := auth.NewStream(stream.Context(), servicesWatch)
 	if err != nil {
@@ -1644,8 +1667,18 @@ func (g *GRPCServer) UpsertApplicationServer(ctx context.Context, req *authpb.Up
 		}
 	}
 
-	if err := services.ValidateApp(app, auth); err != nil {
-		return nil, trace.Wrap(err)
+	// Two callers reach this RPC:
+	//   1. App-service agents heartbeating (have builtin role RoleApp
+	//      or RoleInstance). Legacy agents may still send mixed-case
+	//      names or URL-shaped public_addr; normalize so the heartbeat
+	//      passes validation and the apps keep showing up in the
+	//      cluster.
+	//   2. Admin users creating an app_server YAML (no builtin role).
+	//      Do NOT normalize - admin writes follow strict validation;
+	//      reject malformed input rather than silently rewriting it.
+	if authz.HasBuiltinRole(auth.context, string(types.RoleApp)) ||
+		authz.HasBuiltinRole(auth.context, string(types.RoleInstance)) {
+		services.NormalizeAppServerForHeartbeat(server)
 	}
 
 	keepAlive, err := auth.UpsertApplicationServer(ctx, server)
@@ -2684,23 +2717,27 @@ func doMFAPresenceChallenge(ctx context.Context, actx *grpcContext, stream authp
 	chalExt := &mfav1pb.ChallengeExtensions{Scope: mfav1pb.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION}
 
 	// When completing a Browser MFA flow, only a WebAuthn challenge is needed, so
-	// clear the redirect URL so SSO and Browser MFA challenges are not generated.
-	clientRedirectURL := ""
+	// clear the redirect URLs so SSO and Browser MFA challenges are not generated.
+	ssoClientRedirectURL := ""
+	browserMFATSHRedirectURL := ""
 	if challengeReq.BrowserMfaRequestId == "" {
-		// Both SSO and Browser MFA redirect URLs point to the same callback server on tsh.
-		// So we can take either one and generate an auth challenge with it.
-		ssoURL := challengeReq.SSOClientRedirectURL
-		browserURL := challengeReq.BrowserMFATSHRedirectURL
-		clientRedirectURL = cmp.Or(ssoURL, browserURL)
-		if ssoURL != "" && browserURL != "" && ssoURL != browserURL {
+		ssoClientRedirectURL = challengeReq.SSOClientRedirectURL
+		browserMFATSHRedirectURL = challengeReq.BrowserMFATSHRedirectURL
+		if ssoClientRedirectURL != "" && browserMFATSHRedirectURL != "" && ssoClientRedirectURL != browserMFATSHRedirectURL {
 			slog.WarnContext(ctx, "SSO and Browser MFA redirect URLs do not match, this is a bug.",
 				// Strip out the sensitive query params before printing
-				"sso_url", strings.Split(ssoURL, "?")[0],
-				"browser_url", strings.Split(browserURL, "?")[0],
+				"sso_url", strings.Split(ssoClientRedirectURL, "?")[0],
+				"browser_url", strings.Split(browserMFATSHRedirectURL, "?")[0],
 			)
 		}
 	}
-	authChallenge, err := actx.authServer.mfaAuthChallenge(ctx, user, clientRedirectURL, challengeReq.ProxyAddress, chalExt)
+	authChallenge, err := actx.authServer.mfaAuthChallenge(ctx, mfaAuthChallengeParams{
+		user:                     user,
+		ssoClientRedirectURL:     ssoClientRedirectURL,
+		browserMFATSHRedirectURL: browserMFATSHRedirectURL,
+		proxyAddress:             challengeReq.ProxyAddress,
+		challengeExtensions:      chalExt,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -4258,9 +4295,6 @@ func (g *GRPCServer) CreateApp(ctx context.Context, app *types.AppV3) (*emptypb.
 	if app.Origin() == "" {
 		app.SetOrigin(types.OriginDynamic)
 	}
-	if err := services.ValidateApp(app, auth); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	if err := auth.CreateApp(ctx, app); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4275,9 +4309,6 @@ func (g *GRPCServer) UpdateApp(ctx context.Context, app *types.AppV3) (*emptypb.
 	}
 	if app.Origin() == "" {
 		app.SetOrigin(types.OriginDynamic)
-	}
-	if err := services.ValidateApp(app, auth); err != nil {
-		return nil, trace.Wrap(err)
 	}
 	if err := auth.UpdateApp(ctx, app); err != nil {
 		return nil, trace.Wrap(err)
@@ -6610,9 +6641,9 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	notificationsv1pb.RegisterNotificationServiceServer(server, notificationsServer)
 
 	vnetConfigServiceServer, err := vnetconfigv1.NewService(vnetconfigv1.ServiceConfig{
-		Authorizer: cfg.Authorizer,
-		Storage:    cfg.AuthServer.VnetConfigService,
-		Emitter:    cfg.Emitter,
+		ScopedAuthorizer: cfg.ScopedAuthorizer,
+		Storage:          cfg.AuthServer.VnetConfigService,
+		Emitter:          cfg.Emitter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

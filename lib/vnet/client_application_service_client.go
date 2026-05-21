@@ -37,8 +37,8 @@ import (
 // service. This client is used in the VNet admin process to make requests to
 // the VNet client application.
 type clientApplicationServiceClient struct {
-	clt  vnetv1.ClientApplicationServiceClient
-	conn *grpc.ClientConn
+	clt    vnetv1.ClientApplicationServiceClient
+	closer io.Closer
 }
 
 // newClientApplicationServiceClient creates a gRPC client over a TCP
@@ -57,13 +57,13 @@ func newClientApplicationServiceClient(ctx context.Context, creds *credentials, 
 		return nil, trace.Wrap(err, "creating user process gRPC client")
 	}
 	return &clientApplicationServiceClient{
-		clt:  vnetv1.NewClientApplicationServiceClient(conn),
-		conn: conn,
+		clt:    vnetv1.NewClientApplicationServiceClient(conn),
+		closer: conn,
 	}, nil
 }
 
 func (c *clientApplicationServiceClient) close() error {
-	return trace.Wrap(c.conn.Close())
+	return trace.Wrap(c.closer.Close())
 }
 
 // Authenticate process authenticates the client application process.
@@ -232,6 +232,17 @@ func (c *clientApplicationServiceClient) ExchangeSSHKeys(ctx context.Context, ho
 		return nil, trace.Wrap(err, "parsing trusted user public key")
 	}
 	return userPublicKey, nil
+}
+
+// PerformSessionMFACeremony is defined to satisfy [vnetv1.ClientApplicationServiceClient].
+//
+// TODO(cthach): Implement PerformSessionMFACeremony to allow the admin process to trigger an MFA ceremony in the user
+// process and get the result.
+func (c *clientApplicationServiceClient) PerformSessionMFACeremony(
+	_ context.Context,
+	_ *vnetv1.PerformSessionMFACeremonyRequest,
+) (*vnetv1.PerformSessionMFACeremonyResponse, error) {
+	return nil, trace.NotImplemented("PerformSessionMFACeremony is not implemented")
 }
 
 // ReissueDBCert issues a new certificate for the requested database.

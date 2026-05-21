@@ -62,7 +62,7 @@ func TestTDPConnTracksLocalRemoteAddrs(t *testing.T) {
 		},
 	} {
 		t.Run(test.desc, func(t *testing.T) {
-			tc := NewConn(test.conn, nil)
+			tc := NewConn(test.conn, nil, nil)
 			l := tc.LocalAddr()
 			r := tc.RemoteAddr()
 			require.Equal(t, test.local, l)
@@ -136,7 +136,39 @@ func (r *mockReadWriterCloser) Close() error {
 type mockMessage string
 
 func (m mockMessage) Encode() ([]byte, error) {
-	return []byte(string(m)), nil
+	var buf bytes.Buffer
+	if err := gob.NewEncoder(&buf).Encode(m); err != nil {
+		return nil, err
+	}
+	data := buf.Bytes()
+	return []byte(string(data)), nil
+}
+
+// Returns a Decoder which decodes a mockMessage from
+// the stream. Certain message text will yield non-fatal errors.
+func newMockDecoder() Decoder {
+	var dec *gob.Decoder
+
+	// Assume that we'll be given the same byteReader for each decode.
+	return func(br ByteReader) (Message, error) {
+		if dec == nil {
+			dec = gob.NewDecoder(br)
+		}
+		var msg string
+		err := dec.Decode(&msg)
+		// Optionally return non-fatal errors
+		switch msg {
+		case "badPath":
+			return nil, StringMaxLenErr
+		case "largeReadWrite":
+			return nil, FileReadWriteMaxLenErr
+		case "clipboard":
+			return nil, ClipDataMaxLenErr
+		case "fatal":
+			return nil, errors.New("simulated fatal error")
+		}
+		return mockMessage(msg), err
+	}
 }
 
 func TestConnProxy(t *testing.T) {
@@ -414,4 +446,44 @@ func TestRemoveNilMessages(t *testing.T) {
 			assert.NotNil(t, msg)
 		}
 	}
+}
+
+func TestErrorAlerting(t *testing.T) {
+	a, b := net.Pipe()
+	client := NewConn(a, newMockDecoder(), func(s string) Message {
+		t.Fatalf("Client's warning constructor should not be called")
+		return nil
+	})
+	defer client.Close()
+
+	server := NewConn(b, newMockDecoder(), func(s string) Message {
+		return mockMessage("warn: " + s)
+	})
+	defer server.Close()
+
+	proxy := NewConnProxy(client, server)
+	proxyErr := make(chan error)
+	go func() {
+		proxyErr <- proxy.Run()
+	}()
+
+	require.NoError(t, client.WriteMessage(mockMessage("clipboard")))
+	require.NoError(t, client.WriteMessage(mockMessage("ok")))
+	// Reads only the second message since the first yields a non-fatal error.
+	msg, err := server.ReadMessage()
+	require.NoError(t, err)
+	require.Equal(t, "ok", string(msg.(mockMessage)))
+
+	// The non-fatal error should be communicated back to the client.
+	msg, err = client.ReadMessage()
+	require.NoError(t, err)
+	mockMsg := msg.(mockMessage)
+	require.Contains(t, mockMsg, ClipDataMaxLenErr.Error())
+
+	// Now send a message that the server treats as fatal
+	// (simulates a decode error)
+	require.NoError(t, client.WriteMessage(mockMessage("fatal")))
+	err = <-proxyErr
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "simulated fatal error")
 }

@@ -30,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -148,6 +149,14 @@ func (i *appCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) 
 		return i.appProvider.ReissueAppCert(ctx, i.appInfo, i.targetPort)
 	})
 	return cert.(tls.Certificate), trace.Wrap(err)
+}
+
+// IsVNetApp returns true if the app type is supported by VNet.
+func IsVNetApp(app types.Application) bool {
+	return app.IsTCP() ||
+		app.GetProtocol() == "HTTP" ||
+		app.IsLLM() ||
+		types.GetMCPServerTransportType(app.GetURI()) == types.MCPTransportHTTP
 }
 
 // RouteToApp returns a *proto.RouteToApp populated from appInfo and targetPort.

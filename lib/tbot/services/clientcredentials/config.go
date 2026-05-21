@@ -51,6 +51,11 @@ type UnstableConfig struct {
 	// Name of the service for logs and the /readyz endpoint.
 	Name string `yaml:"name,omitempty"`
 
+	// DelegationSessionID identifies the delegation session the generated
+	// credentials will be associated with, enabling the bot to act on a (human)
+	// user's behalf.
+	DelegationSessionID string `yaml:"delegation_session_id,omitempty"`
+
 	mu     sync.Mutex
 	facade *identity.Facade
 	ready  chan struct{}
@@ -147,8 +152,8 @@ func (o *UnstableConfig) SetOrUpdateFacade(id *identity.Identity) {
 
 // CheckAndSetDefaults checks and sets default values for the configuration.
 func (o *UnstableConfig) CheckAndSetDefaults(scoped bool) error {
-	if scoped {
-		return trace.BadParameter("service type %q is not supported in scoped mode", ServiceType)
+	if scoped && o.DelegationSessionID != "" {
+		return trace.BadParameter("Delegation session ID is not supported in scoped mode")
 	}
 	return nil
 }

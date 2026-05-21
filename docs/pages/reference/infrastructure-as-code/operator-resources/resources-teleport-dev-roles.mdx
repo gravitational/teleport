@@ -279,6 +279,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |claims_to_roles|[][object](#specallowreview_requestsclaims_to_roles-items)|ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.|
 |preview_as_roles|[]string|PreviewAsRoles is a list of extra roles which should apply to a reviewer while they are viewing a Resource Access Request for the purposes of viewing details such as the hostname and labels of requested resources.|
 |roles|[]string|Roles is the name of roles which may be reviewed.|
+|submit_for_users|[]string|SubmitForUsers is used by Teleport plugins to indicate they can submit reviews on behalf of other users. Reviews submitted for a user are evaluated against that user's own RBAC permissions. Supports wildcard (*).|
 |where|string|Where is an optional predicate which further limits which requests are reviewable.|
 
 ### spec.allow.review_requests.claims_to_roles items
@@ -566,6 +567,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |claims_to_roles|[][object](#specdenyreview_requestsclaims_to_roles-items)|ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.|
 |preview_as_roles|[]string|PreviewAsRoles is a list of extra roles which should apply to a reviewer while they are viewing a Resource Access Request for the purposes of viewing details such as the hostname and labels of requested resources.|
 |roles|[]string|Roles is the name of roles which may be reviewed.|
+|submit_for_users|[]string|SubmitForUsers is used by Teleport plugins to indicate they can submit reviews on behalf of other users. Reviews submitted for a user are evaluated against that user's own RBAC permissions. Supports wildcard (*).|
 |where|string|Where is an optional predicate which further limits which requests are reviewable.|
 
 ### spec.deny.review_requests.claims_to_roles items
@@ -956,6 +958,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |claims_to_roles|[][object](#specallowreview_requestsclaims_to_roles-items)|ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.|
 |preview_as_roles|[]string|PreviewAsRoles is a list of extra roles which should apply to a reviewer while they are viewing a Resource Access Request for the purposes of viewing details such as the hostname and labels of requested resources.|
 |roles|[]string|Roles is the name of roles which may be reviewed.|
+|submit_for_users|[]string|SubmitForUsers is used by Teleport plugins to indicate they can submit reviews on behalf of other users. Reviews submitted for a user are evaluated against that user's own RBAC permissions. Supports wildcard (*).|
 |where|string|Where is an optional predicate which further limits which requests are reviewable.|
 
 ### spec.allow.review_requests.claims_to_roles items
@@ -1243,6 +1246,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |claims_to_roles|[][object](#specdenyreview_requestsclaims_to_roles-items)|ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.|
 |preview_as_roles|[]string|PreviewAsRoles is a list of extra roles which should apply to a reviewer while they are viewing a Resource Access Request for the purposes of viewing details such as the hostname and labels of requested resources.|
 |roles|[]string|Roles is the name of roles which may be reviewed.|
+|submit_for_users|[]string|SubmitForUsers is used by Teleport plugins to indicate they can submit reviews on behalf of other users. Reviews submitted for a user are evaluated against that user's own RBAC permissions. Supports wildcard (*).|
 |where|string|Where is an optional predicate which further limits which requests are reviewable.|
 
 ### spec.deny.review_requests.claims_to_roles items

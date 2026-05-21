@@ -26,6 +26,13 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+const (
+	// ODataUser is the Graph API oData user type.
+	ODataUser = "#microsoft.graph.user"
+	// ODataGroup is the Graph API oData group type.
+	ODataGroup = "#microsoft.graph.group"
+)
+
 // GroupMember represents Microsoft Graph API group members.
 type GroupMember interface {
 	GetID() *string
@@ -38,6 +45,9 @@ type DirectoryObject struct {
 	ID          *string `json:"id,omitempty"`
 	DisplayName *string `json:"displayName,omitempty"`
 }
+
+// GetID returns directory object ID.
+func (g *DirectoryObject) GetID() *string { return g.ID }
 
 // Group defines Microsoft Graph API group object.
 type Group struct {
@@ -227,4 +237,66 @@ type UnsupportedGroupMember struct {
 // Error returns friendly string for UnsupportedGroupMember error.
 func (u *UnsupportedGroupMember) Error() string {
 	return fmt.Sprintf("Unsupported group member: %q", u.Type)
+}
+
+// OwnersDelta defines shape of a delta response
+// related to group membership changes.
+type MembersDelta struct {
+	*DirectoryObject
+	// Type can be user or group.
+	Type string `json:"@odata.type,omitempty"`
+	// Removed reason is returned if member was removed.
+	Removed *RemovedReason `json:"@removed,omitempty"`
+}
+
+// OwnersDelta defines shape of a delta response
+// related to group ownership changes.
+type OwnersDelta struct {
+	*User
+	// Type can be user or group.
+	Type string `json:"@odata.type,omitempty"`
+	// Removed reason is returned if member was removed.
+	Removed *RemovedReason `json:"@removed,omitempty"`
+}
+
+// RemovedReason returned in the delta response.
+type RemovedReason struct {
+	// value can be "changed" or "deleted".
+	// "changed" implies soft delete that could be restored.
+	Reason *string `json:"reason,omitempty"`
+}
+
+// ListGroupsDeltaResponse defines group delta response.
+type ListGroupsDeltaResponse struct {
+	*Group
+	// Owners are group ownership changes.
+	Owners []OwnersDelta `json:"owners@delta,omitempty"`
+	// Members are group membership changes.
+	Members []MembersDelta `json:"members@delta,omitempty"`
+	// Removed reason for the group.
+	Removed *RemovedReason `json:"@removed,omitempty"`
+}
+
+// ListUsersDeltaResponse defines user delta response.
+type ListUsersDeltaResponse struct {
+	*User
+	// Removed reason for the user.
+	Removed *RemovedReason `json:"@removed,omitempty"`
+}
+
+// ODataPage defines the structure of a response to a paginated MS Graph endpoint.
+// Value is an abstract `json.RawMessage` type to offer flexibility for the consumer,
+// e.g. [client.IterateGroupMembers] will deserialize each of the array elements into potentially different concrete types.
+type ODataPage struct {
+	// NextLink contains the $skiptoken used for pagination.
+	NextLink string `json:"@odata.nextLink,omitempty"`
+	// DeltaLink contains the $deltatoken used for delta query.
+	DeltaLink string `json:"@odata.deltaLink,omitempty"`
+	// Value is the actual response value for the given API request.
+	Value json.RawMessage `json:"value,omitempty"`
+}
+
+// ODataListResponse defines the structure of a simple "list" response from the MS Graph API.
+type ODataListResponse[T any] struct {
+	Value []T `json:"value,omitempty"`
 }

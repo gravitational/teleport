@@ -437,6 +437,17 @@ func (s *clientApplicationService) ExchangeSSHKeys(ctx context.Context, req *vne
 	}, nil
 }
 
+// PerformSessionMFACeremony is defined to satisfy [vnetv1.ClientApplicationServiceServer].
+//
+// TODO(cthach): Implement PerformSessionMFACeremony to allow the admin process to trigger an MFA ceremony in the user
+// process and get the result.
+func (s *clientApplicationService) PerformSessionMFACeremony(
+	_ context.Context,
+	_ *vnetv1.PerformSessionMFACeremonyRequest,
+) (*vnetv1.PerformSessionMFACeremonyResponse, error) {
+	return nil, trace.NotImplemented("PerformSessionMFACeremony is not implemented")
+}
+
 // checkAppKey checks that at least the app profile and name are set, which are
 // necessary to to disambiguate apps. LeafCluster is expected to be empty if the
 // app is in a root cluster.

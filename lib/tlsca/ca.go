@@ -1475,8 +1475,13 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 		}
 	}
 
-	if len(allowedResourceIDs) > 0 || len(allowedResourceAccessIDs) > 0 {
-		id.AllowedResourceAccessIDs = types.CombineAsResourceAccessIDs(allowedResourceIDs, allowedResourceAccessIDs)
+	if len(allowedResourceAccessIDs) > 0 {
+		// Prefer new extension when present, old extension is redundant
+		// (exists for backward-compat with older agents/proxies).
+		id.AllowedResourceAccessIDs = allowedResourceAccessIDs
+	} else if len(allowedResourceIDs) > 0 {
+		// Fallback for certs from older auth servers that don't write the new extension.
+		id.AllowedResourceAccessIDs = types.CombineAsResourceAccessIDs(allowedResourceIDs, nil)
 	}
 
 	if err := id.CheckAndSetDefaults(); err != nil {

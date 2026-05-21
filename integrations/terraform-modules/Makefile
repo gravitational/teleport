@@ -21,8 +21,15 @@ docs: $(README_FILES)
 %/README.md: force
 	terraform-docs markdown table --config .terraform-docs.yml $*
 
+.PHONY: test
+test:
+	@for dir in $(PUBLISHED_TF_MODULES); do \
+		terraform -chdir=$$dir init -upgrade && \
+		terraform -chdir=$$dir test || exit 1; \
+	done
+
 .PHONY: check
-check:
+check: clean
 	git ls-files -- . \
 	| xargs pre-commit run --hook-stage=manual --verbose --files
 
@@ -56,6 +63,7 @@ PLUGIN_TYPE := terraform-module
 # This list controls which modules are actually published.
 PUBLISHED_TF_MODULES := \
 	teleport/discovery/aws \
+	teleport/discovery/azure \
 
 MODULE_TARBALLS:=$(addsuffix .tar.gz, $(subst /,_,$(PUBLISHED_TF_MODULES)))
 BUILD_TARGETS:=$(addprefix $(BUILD_DIR)/$(PLUGIN_TYPE)_, $(MODULE_TARBALLS))

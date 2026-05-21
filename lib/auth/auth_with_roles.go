@@ -343,15 +343,6 @@ func (a *ServerWithRoles) hasBuiltinRole(roles ...types.SystemRole) bool {
 	return false
 }
 
-// HasBuiltinRole checks if the identity is a builtin role with the matching
-// name.
-// Deprecated: use authz.HasBuiltinRole instead.
-func HasBuiltinRole(authContext authz.Context, name string) bool {
-	// TODO(jakule): This function can be removed once teleport.e is updated
-	// to use authz.HasBuiltinRole.
-	return authz.HasBuiltinRole(authContext, name)
-}
-
 // HasRemoteBuiltinRole checks if the identity is a remote builtin role with the
 // matching name.
 func HasRemoteBuiltinRole(authContext authz.Context, name string) bool {
@@ -1058,9 +1049,28 @@ func (a *ServerWithRoles) UpsertNode(ctx context.Context, s types.Server) (*type
 	if err := a.authorizeAction(types.KindNode, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if s.GetScope() != "" {
-		return nil, trace.BadParameter("UpsertNode does not yet support scoped resources")
+
+	agentScope := a.context.Identity.GetIdentity().AgentScope
+	if nodeScope := s.GetScope(); agentScope != "" {
+		if nodeScope != agentScope {
+			return nil, trace.AccessDenied("node scope %q does not match agent identity scope %q", nodeScope, agentScope)
+		}
+
+		if a.hasBuiltinRole(types.RoleNode) {
+			clusterName, err := a.GetDomainName(ctx)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			callerID, err := ExtractHostID(a.context.User.GetName(), clusterName)
+			if err != nil {
+				return nil, trace.AccessDenied("access denied")
+			}
+			if s.GetName() != callerID {
+				return nil, trace.AccessDenied("node ID %q does not match agent identity ID %q", s.GetName(), callerID)
+			}
+		}
 	}
+
 	return a.authServer.UpsertNode(ctx, s)
 }
 
@@ -6934,6 +6944,12 @@ func (a *ServerWithRoles) CreateApp(ctx context.Context, app types.Application) 
 	if err := a.authorizeAction(types.KindApp, types.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
+	// Validate before the label-matching access check so callers with
+	// the correct role see input errors rather than access-denied from
+	// a label mismatch on a malformed app.
+	if err := services.ValidateApp(app, a.authServer); err != nil {
+		return trace.Wrap(err)
+	}
 	// Don't allow users create apps they wouldn't have access to (e.g.
 	// non-matching labels).
 	if err := a.checkAccessToApp(app); err != nil {
@@ -6945,6 +6961,11 @@ func (a *ServerWithRoles) CreateApp(ctx context.Context, app types.Application) 
 // UpdateApp updates existing application resource.
 func (a *ServerWithRoles) UpdateApp(ctx context.Context, app types.Application) error {
 	if err := a.authorizeAction(types.KindApp, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+	// Validate before the GetApp existence check so a malformed name
+	// returns the input error rather than "doesn't exist".
+	if err := services.ValidateApp(app, a.authServer); err != nil {
 		return trace.Wrap(err)
 	}
 	// Don't allow users update apps they don't have access to (e.g.

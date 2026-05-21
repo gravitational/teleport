@@ -50,7 +50,7 @@ joining token.
   installed.
 - (!docs/pages/includes/iac-clients.mdx!)
 
-## Step 1/5. Set up AWS IAM credentials
+## Step 1/3. Set up AWS IAM credentials
 
 Every Teleport process using the IAM method to join your Teleport cluster needs
 AWS IAM credentials in order to call the `sts:GetCallerIdentity` API. No
@@ -60,7 +60,7 @@ this API.
 If you are running Teleport on an EC2 instance, it is sufficient to attach any
 IAM role to the instance, using either the AWS Management Console or CLI. If the
 instance already has a role attached, you can skip to [Step
-2](#step-25-create-the-aws-joining-token).
+2](#step-23-create-the-aws-joining-token).
 
 <Tabs>
 <TabItem label="AWS Management Console">
@@ -115,7 +115,7 @@ policies.
 </TabItem>
 </Tabs>
 
-## Step 2/5. Create the AWS joining token
+## Step 2/3. Create the AWS joining token
 
 Create the following `token.yaml` with an `allow` rule specifying your AWS
 account and the ARN that the Teleport process's identity must match.
@@ -159,43 +159,39 @@ Add the following Kubernetes resource manifest, replacing values as indicated:
 </TabItem>
 </Tabs>
 
-## Step 3/5 Install Teleport
+## Step 3/3. Launch a Teleport Agent
 
-Install Teleport on your AWS EC2 instance.
+1. Install Teleport on your AWS EC2 instance:
 
-(!docs/pages/includes/install-linux.mdx!)
+   (!docs/pages/includes/install-linux.mdx!)
 
-## Step 4/5. Configure your services
+1. Configure your Teleport service with a custom `teleport.yaml` file. Use the
+   `join_params` section with `token_name` matching your token created in Step 2
+   and `method: iam` as shown in the following example config:
 
-Configure your Teleport service with a custom `teleport.yaml` file. Use the
-`join_params` section with `token_name` matching your token created in Step 2
-and `method: iam` as shown in the following example config:
+   ```yaml
+   # /etc/teleport.yaml
+   version: v3
+   teleport:
+     join_params:
+       token_name: iam-token
+       method: iam
+     proxy_server: teleport.example.com:443
+   ssh_service:
+     enabled: true
+   auth_service:
+     enabled: false
+   proxy_service:
+     enabled: false
+   ```
 
-```
-# /etc/teleport.yaml
-version: v3
-teleport:
-  join_params:
-    token_name: iam-token
-    method: iam
-  proxy_server: teleport.example.com:443
-ssh_service:
-  enabled: true
-auth_service:
-  enabled: false
-proxy_service:
-  enabled: false
-```
+   In the `teleport.proxy_server` field, replace the value with the host and web
+   port of your Teleport Proxy Service or Teleport Enterprise Cloud tenant,
+   e.g., `mytenant.teleport.sh:443`.
 
-In the `teleport.proxy_server` field, replace the value with the host and web
-port of your Teleport Proxy Service or Teleport Enterprise Cloud tenant, e.g.,
-`mytenant.teleport.sh:443`.
+1. (!docs/pages/includes/aws-credentials.mdx!)
 
-## Step 5/5. Launch your Teleport process
-
-(!docs/pages/includes/aws-credentials.mdx!)
-
-(!docs/pages/includes/start-teleport.mdx!)
+1. (!docs/pages/includes/start-teleport.mdx!)
 
 Once you have started Teleport, confirm that your service is able to connect to and
 join your cluster.

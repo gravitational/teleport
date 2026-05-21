@@ -111,6 +111,22 @@ func TestAppliesLDAPLabels(t *testing.T) {
 	require.Empty(t, l["ldap/quux"])
 }
 
+func TestDNToDomain(t *testing.T) {
+	for _, test := range []struct {
+		dn, domain string
+	}{
+		{"CN=Computers,DC=child,DC=root,DC=zac,DC=local", "child.root.zac.local"},
+		{"CN=me,OU=Engineering,OU=Users,OU=DevGroup,DC=domain,DC=ad,DC=example,DC=com", "domain.ad.example.com"},
+		{"CN=me,OU=Engineering,OU=Users,OU=DevGroup,dC=domain,Dc=ad,dc=example,DC=com", "domain.ad.example.com"},
+		{"", ""},
+		{"CN=me,OU=Engineering,OU=Users,OU=DevGroup", ""},
+	} {
+		t.Run(test.dn, func(t *testing.T) {
+			require.Equal(t, test.domain, dnToDomain(test.dn))
+		})
+	}
+}
+
 func TestLabelsDomainControllers(t *testing.T) {
 	s := &WindowsService{}
 	for _, test := range []struct {
@@ -416,16 +432,24 @@ func TestCurrentDesktops(t *testing.T) {
 	}
 
 	desktops := []struct {
-		name   string
-		hostID string
-		origin string
-		expect bool
+		name       string
+		hostID     string
+		origin     string
+		ldapSource bool
+		expect     bool
 	}{
 		{
-			name:   "dynamic-same-host",
+			name:       "ldap-same-host",
+			hostID:     hostUUID,
+			origin:     types.OriginDynamic,
+			ldapSource: true,
+			expect:     true, // LDAP source, same host
+		},
+		{
+			name:   "dynamic-same-host-no-ldap",
 			hostID: hostUUID,
 			origin: types.OriginDynamic,
-			expect: true, // Should be included
+			expect: false, // No LDAP source status, excluded
 		},
 		{
 			name:   "static-same-host",
@@ -440,10 +464,11 @@ func TestCurrentDesktops(t *testing.T) {
 			expect: false, // Wrong host
 		},
 		{
-			name:   "dynamic-same-host-2",
-			hostID: hostUUID,
-			origin: types.OriginDynamic,
-			expect: true, // Should be included
+			name:       "ldap-same-host-2",
+			hostID:     hostUUID,
+			origin:     types.OriginDynamic,
+			ldapSource: true,
+			expect:     true, // LDAP source, same host
 		},
 	}
 
@@ -455,13 +480,18 @@ func TestCurrentDesktops(t *testing.T) {
 			HostID: d.hostID,
 		})
 		require.NoError(t, err)
+		if d.ldapSource {
+			desktop.Status = &types.WindowsDesktopStatus{
+				Source: types.WindowsDesktopSource_WINDOWS_DESKTOP_SOURCE_LDAP,
+			}
+		}
 		err = tlsServer.Auth().UpsertWindowsDesktop(t.Context(), desktop)
 		require.NoError(t, err)
 	}
 
 	t.Run("single page", func(t *testing.T) {
 		// Call currentDesktops and verify results
-		result := s.currentDesktops(t.Context())
+		result := s.currentLDAPDesktops(t.Context())
 
 		// Count expected desktops
 		var expectedCount int
@@ -495,7 +525,7 @@ func TestCurrentDesktops(t *testing.T) {
 		ap := &smallPageAccessPoint{WindowsDesktopAccessPoint: client, pageSize: 1}
 		s.cfg.AccessPoint = ap
 
-		result := s.currentDesktops(t.Context())
+		result := s.currentLDAPDesktops(t.Context())
 		require.Len(t, result, 2)
 	})
 }
@@ -510,6 +540,78 @@ type smallPageAccessPoint struct {
 func (a *smallPageAccessPoint) ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error) {
 	req.Limit = a.pageSize
 	return a.WindowsDesktopAccessPoint.ListWindowsDesktops(ctx, req)
+}
+
+// TestLDAPReconcilerDoesNotDeleteDynamicDesktops verifies that desktops registered
+// via dynamic registration (not via LDAP) are not deleted by the LDAP reconciler,
+// even when those desktops have labels that the LDAP matcher would otherwise select.
+func TestLDAPReconcilerDoesNotDeleteDynamicDesktops(t *testing.T) {
+	t.Parallel()
+
+	synctest.Test(t, func(t *testing.T) {
+		authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+			ClusterName: "test",
+			Dir:         t.TempDir(),
+			AuditLog:    &eventstest.MockAuditLog{Emitter: new(eventstest.MockRecorderEmitter)},
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, authServer.Close()) })
+
+		tlsServer, err := authServer.NewTestTLSServer(authtest.WithBufconnListener())
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, tlsServer.Close()) })
+
+		const hostUUID = "test-host-uuid"
+		client, err := tlsServer.NewClient(authtest.TestServerID(types.RoleWindowsDesktop, hostUUID))
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, client.Close()) })
+
+		s := &WindowsService{
+			closeCtx: t.Context(),
+			cfg: WindowsServiceConfig{
+				Heartbeat:         HeartbeatConfig{HostUUID: hostUUID},
+				Logger:            slog.New(slog.DiscardHandler),
+				Clock:             clockwork.NewRealClock(),
+				AccessPoint:       client,
+				AuthClient:        client,
+				DiscoveryInterval: 5 * time.Minute,
+			},
+			ldapTLSConfig:          new(tls.Config),
+			ldapTLSConfigExpiresAt: time.Now().Add(24 * time.Hour),
+			lastDiscoveryResults:   map[string]types.WindowsDesktop{},
+		}
+
+		// Create a desktop registered via the dynamic registration API
+		// but using labels that the LDAP reconciler also uses.
+		desktop, err := types.NewWindowsDesktopV3(
+			"dynamic-desktop",
+			map[string]string{
+				types.OriginLabel:             types.OriginDynamic,
+				types.DiscoveryLabelWindowsOS: "Windows 10",
+			},
+			types.WindowsDesktopSpecV3{
+				HostID: hostUUID,
+				Addr:   "dynamic.example.com:3389",
+			},
+		)
+		require.NoError(t, err)
+		require.NoError(t, tlsServer.Auth().UpsertWindowsDesktop(t.Context(), desktop))
+
+		// Run the LDAP reconciler. It will fail to connect to LDAP (no real server)
+		// and fall back to the empty lastDiscoveryResults.
+		require.NoError(t, s.startDesktopDiscovery())
+		synctest.Wait()
+
+		time.Sleep(15 * time.Second)
+		synctest.Wait()
+
+		desktops, err := client.GetWindowsDesktops(t.Context(), types.WindowsDesktopFilter{
+			HostID: hostUUID,
+			Name:   "dynamic-desktop",
+		})
+		require.NoError(t, err)
+		require.Len(t, desktops, 1, "dynamic desktop must not be deleted by the LDAP reconciler")
+	})
 }
 
 func TestLDAPDiscoveryFailurePreservesDesktops(t *testing.T) {

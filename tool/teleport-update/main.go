@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport"
 	common "github.com/gravitational/teleport/lib/autoupdate"
 	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
+	_ "github.com/gravitational/teleport/lib/fipscheck"
 	"github.com/gravitational/teleport/lib/modules"
 	libutils "github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
