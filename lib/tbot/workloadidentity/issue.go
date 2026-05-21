@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/durationpb"
 
-	apiclient "github.com/gravitational/teleport/api/client"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/tbot/bot"
@@ -177,12 +176,18 @@ func labelsToSelectors(in map[string][]string) []*workloadidentityv1pb.LabelSele
 	return selectors
 }
 
+// jwtAuthClient is the minimal client interface required to issue JWT workload
+// identity credentials.
+type jwtAuthClient interface {
+	WorkloadIdentityIssuanceClient() workloadidentityv1pb.WorkloadIdentityIssuanceServiceClient
+}
+
 // IssueJWTWorkloadIdentity uses a given client and selector to issue a single
 // or multiple JWT-SVID workload identity credentials.
 func IssueJWTWorkloadIdentity(
 	ctx context.Context,
 	log *slog.Logger,
-	clt *apiclient.Client,
+	clt jwtAuthClient,
 	workloadIdentity bot.WorkloadIdentitySelector,
 	audiences []string,
 	ttl time.Duration,
