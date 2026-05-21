@@ -1726,7 +1726,9 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 		}
 
 		s.emitSessionEndEvent()
-		s.Close()
+		if err := s.Close(); err != nil {
+			s.logger.WarnContext(ctx, "Failed to close session.", "error", err)
+		}
 
 		s.io.Close()
 		close(s.doneCh)
