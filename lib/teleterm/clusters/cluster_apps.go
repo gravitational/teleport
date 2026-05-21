@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/aws"
@@ -134,6 +135,20 @@ func (c *Cluster) GetAWSRoles(app types.Application) aws.Roles {
 		return aws.FilterAWSRoles(c.GetAWSRolesARNs(), app.GetAWSAccountID())
 	}
 	return aws.Roles{}
+}
+
+// GetAllowedAWSRolesForApp returns the AWS roles the user is currently allowed to use
+// for the given app, using the access checker to account for resource constraints.
+// Falls back to the cert-based [GetAWSRoles] on any error.
+func (c *Cluster) GetAllowedAWSRolesForApp(accessChecker services.AccessChecker, app types.Application) aws.Roles {
+	if accessChecker == nil || !app.IsAWSConsole() {
+		return c.GetAWSRoles(app)
+	}
+	allowed, err := accessChecker.GetAllowedLoginsForResource(app)
+	if err != nil {
+		return c.GetAWSRoles(app)
+	}
+	return aws.FilterAWSRoles(allowed, app.GetAWSAccountID())
 }
 
 // ValidateTargetPort parses rawTargetPort to uint32 and checks if it's included in TCP ports of app.

@@ -20,6 +20,7 @@ package unifiedresources
 
 import (
 	"context"
+	"log/slog"
 	"slices"
 
 	"github.com/gravitational/trace"
@@ -82,6 +83,14 @@ func List(ctx context.Context, cluster *clusters.Cluster, authClient AuthClient,
 	if err := g.Wait(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Build an access checker once so AWS role filtering accounts for resource
+	// constraints from assumed access requests (see WithConstraints).
+	accessChecker, err := cluster.NewAccessChecker(ctx, authClient)
+	if err != nil {
+		slog.DebugContext(ctx, "Could not create access checker for unified resources, falling back to cert-based AWS roles", "error", err)
+	}
+
 	response := &ListResponse{
 		NextKey: nextKey,
 	}
@@ -141,7 +150,7 @@ func List(ctx context.Context, cluster *clusters.Cluster, authClient AuthClient,
 				App: &clusters.App{
 					URI:      cluster.URI.AppendApp(app.GetName()),
 					FQDN:     cluster.AssembleAppFQDN(app),
-					AWSRoles: cluster.GetAWSRoles(app),
+					AWSRoles: cluster.GetAllowedAWSRolesForApp(accessChecker, app),
 					App:      app,
 				},
 				RequiresRequest: requiresRequest,
