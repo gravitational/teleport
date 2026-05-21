@@ -186,6 +186,19 @@ func TestKubernetesV2Output_CheckAndSetDefaults(t *testing.T) {
 			},
 			wantErr: "is not supported in scoped mode",
 		},
+		{
+			name:   "scoped valid",
+			scoped: true,
+			in: func() *OutputV2Config {
+				return &OutputV2Config{
+					Destination: destination.NewMemory(),
+					Selectors: []*KubernetesSelector{
+						{Name: "foo", Labels: map[string]string{}},
+					},
+					ContextNameTemplate: "{{.KubeName}}",
+				}
+			},
+		},
 	}
 	testCheckAndSetDefaults(t, tests)
 }
