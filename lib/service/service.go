@@ -2683,6 +2683,17 @@ func (process *TeleportProcess) initAuthService() error {
 		}
 	}
 
+	var resolveSSHTargetRateLimit *float64
+	if en := os.Getenv("TELEPORT_UNSTABLE_RESOLVESSHTARGET_RATE_LIMIT"); en != "" {
+		limit, err := strconv.ParseFloat(en, 64)
+		if err != nil {
+			logger.ErrorContext(context.Background(), "Failed to parse the TELEPORT_UNSTABLE_RESOLVESSHTARGET_RATE_LIMIT envvar, limit will not be enforced", "error", err)
+		} else {
+			resolveSSHTargetRateLimit = &limit
+			logger.DebugContext(process.ExitContext(), "TELEPORT_UNSTABLE_RESOLVESSHTARGET_RATE_LIMIT is set, enabling rate limit for ResolveSSHTarget", "limit", *resolveSSHTargetRateLimit)
+		}
+	}
+
 	apiConf := &auth.APIConfig{
 		AuthServer:       authServer,
 		Authorizer:       authorizer,
@@ -2698,6 +2709,7 @@ func (process *TeleportProcess) initAuthService() error {
 			Insecure: cfg.AccessGraph.Insecure,
 		},
 		CreateAuditStreamInflightLimit: createAuditStreamInflightLimit,
+		ResolveSSHTargetRateLimit:      resolveSSHTargetRateLimit,
 	}
 
 	// Auth initialization is done (including creation/updating of all singleton

@@ -26,6 +26,7 @@ import (
 	"io"
 	"iter"
 	"log/slog"
+	"math"
 	"net"
 	goslices "slices"
 	"strings"
@@ -37,6 +38,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	collectortracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
+	"golang.org/x/time/rate"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	_ "google.golang.org/grpc/encoding/gzip" // gzip compressor for gRPC.
@@ -239,6 +241,12 @@ type GRPCServer struct {
 	// in-flight CreateAuditStream RPCs, by sending a value in at the beginning
 	// of the RPC and pulling one out before returning.
 	createAuditStreamSemaphore chan struct{}
+
+	// resolveSSHTargetRateLimiter is an optional (server-wide) rate limiter for
+	// calls to ResolveSSHTarget, since those might end up iterating over the
+	// whole inventory of nodes and that can be quite heavy. Calls beyond the
+	// rate limit will block until their execution would be allowed.
+	resolveSSHTargetRateLimiter *rate.Limiter
 }
 
 func (g *GRPCServer) SetServingStatus(service string, servingStatus grpc_health_v1.HealthCheckResponse_ServingStatus) {
@@ -5100,6 +5108,12 @@ func (g *GRPCServer) ResolveSSHTarget(ctx context.Context, req *authpb.ResolveSS
 		return nil, trace.Wrap(err)
 	}
 
+	if l := g.resolveSSHTargetRateLimiter; l != nil {
+		if err := l.Wait(ctx); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	rsp, err := auth.ServerWithRoles.ResolveSSHTarget(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -6392,6 +6406,11 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		createAuditStreamSemaphore = make(chan struct{}, max(0, *cfg.CreateAuditStreamInflightLimit))
 	}
 
+	var resolveSSHTargetRateLimiter *rate.Limiter
+	if cfg.ResolveSSHTargetRateLimit != nil {
+		resolveSSHTargetRateLimiter = rate.NewLimiter(rate.Limit(*cfg.ResolveSSHTargetRateLimit), int(math.Ceil(*cfg.ResolveSSHTargetRateLimit)))
+	}
+
 	authServer := &GRPCServer{
 		APIConfig:   cfg.APIConfig,
 		logger:      logger,
@@ -6400,6 +6419,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 		createAuthenticateChallengeLimiter: createAuthenticateChallengeLimiter,
 		createAuditStreamSemaphore:         createAuditStreamSemaphore,
+		resolveSSHTargetRateLimiter:        resolveSSHTargetRateLimiter,
 	}
 
 	authpb.RegisterAuthServiceServer(server, authServer)
