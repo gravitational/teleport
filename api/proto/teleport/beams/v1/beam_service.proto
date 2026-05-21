@@ -122,6 +122,14 @@ message ListBeamsRequest {
     // users.
     repeated string users = 1;
   }
+
+  // The sort field to use for the results. If unspecified, the default sort
+  // field is used.
+  BeamSortField sort_field = 4;
+
+  // The sort order to use for the results. If unspecified, the default sort
+  // order is used.
+  BeamSortOrder sort_order = 5;
 }
 
 // ListBeamsResponse contains the results of the ListBeams RPC.
@@ -132,4 +140,26 @@ message ListBeamsResponse {
   // Token to retrieve the next page of results, or empty if there are no more
   // results in the list.
   string next_page_token = 2;
+}
+
+// BeamSortField specifies the sort field for listing.
+enum BeamSortField {
+  BEAM_SORT_FIELD_UNSPECIFIED = 0;
+  // BEAM_SORT_FIELD_NAME sorts by metadata.name.
+  BEAM_SORT_FIELD_NAME = 1;
+  // BEAM_SORT_FIELD_ALIAS sorts by spec.alias.
+  BEAM_SORT_FIELD_ALIAS = 2;
+  // BEAM_SORT_FIELD_USER sorts by spec.user and metadata.name.
+  BEAM_SORT_FIELD_USER = 3;
+  // BEAM_SORT_FIELD_EXPIRES sorts by spec.expires and metadata.name.
+  BEAM_SORT_FIELD_EXPIRES = 4;
+}
+
+// BeamSortOrder specifies the sort order for listing.
+enum BeamSortOrder {
+  BEAM_SORT_ORDER_UNSPECIFIED = 0;
+  // SORT_ORDER_ASCENDING sorts in ascending order.
+  BEAM_SORT_ORDER_ASCENDING = 1;
+  // SORT_ORDER_DESCENDING sorts in descending order.
+  BEAM_SORT_ORDER_DESCENDING = 2;
 }

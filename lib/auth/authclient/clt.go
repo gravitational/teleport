@@ -43,6 +43,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	beamsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	dbobjectimportrulev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1"
 	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
@@ -57,6 +58,7 @@ import (
 	recordingmetadatav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
 	resourceusagepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
+	sessionsearchv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/sessionsearch/v1"
 	stableunixusersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1"
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
@@ -179,6 +181,11 @@ func NewClient(cfg client.Config, params ...roundtrip.ClientParam) (*Client, err
 		TLS:                        httpTLS,
 		Dialer:                     httpDialer,
 		ALPNSNIAuthDialClusterName: cfg.ALPNSNIAuthDialClusterName,
+		// we are ok with the HTTP client using a separate circuit breaker with
+		// the same configuration, since there's so few auth API calls using
+		// HTTP and most of them are used by the Proxy, which is going to have a
+		// no-op circuit breaker to begin with
+		CircuitBreakerConfig: cfg.CircuitBreakerConfig,
 	}
 	httpClient, err := NewHTTPClient(httpClientCfg, params...)
 	if err != nil {
@@ -861,8 +868,11 @@ type WebService interface {
 	// SnowflakeSession defines Snowflake session features.
 	services.SnowflakeSession
 
-	// SetAppSessionDBSCPublicKey sets the DBSC public key on an application web session.
-	SetAppSessionDBSCPublicKey(ctx context.Context, sessionID string, publicKey []byte) error
+	// SetAppSessionDBSCPublicKey verifies a browser DBSC response and binds the
+	// resulting public key to an application web session.
+	SetAppSessionDBSCPublicKey(ctx context.Context, sessionID string, responseJWT []byte) error
+	// SignDBSCChallenge signs a DBSC challenge for app-session registration or refresh.
+	SignDBSCChallenge(ctx context.Context, sessionID string) (string, error)
 }
 
 // OIDCAuthResponse is returned when auth server validated callback parameters
@@ -1631,7 +1641,6 @@ type ClientI interface {
 	services.AppAuthConfigSessions
 	types.Events
 	services.ScopedAccessClientGetter
-	services.WorkloadClusterService
 	services.SubCAServiceGetter
 
 	// ListUnifiedInstances returns a paginated list of unified instances (teleport instances and bot instances).
@@ -1967,4 +1976,11 @@ type ClientI interface {
 	// DelegationSessionServiceClient returns a client for the delegation
 	// session service.
 	DelegationSessionServiceClient() delegationv1.DelegationSessionServiceClient
+
+	// SessionSearchServiceClient returns a client for the session search
+	// service.
+	SessionSearchServiceClient() sessionsearchv1pb.SessionSearchServiceClient
+
+	// BeamServiceClient returns a client for the beam service.
+	BeamServiceClient() beamsv1.BeamServiceClient
 }

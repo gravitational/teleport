@@ -52,11 +52,6 @@ import (
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
-// NewAdminContext returns new admin auth context
-func NewAdminContext() (*Context, error) {
-	return NewBuiltinRoleContext(types.RoleAdmin)
-}
-
 // NewBuiltinRoleContext create auth context for the provided builtin role.
 func NewBuiltinRoleContext(role types.SystemRole) (*Context, error) {
 	authContext, err := ContextForBuiltinRole(BuiltinRole{Role: role, Username: fmt.Sprintf("%v", role)}, nil)
@@ -950,6 +945,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
 				types.NewRule(types.KindUser, services.RO()),
 				types.NewRule(types.KindRole, services.RO()),
+				types.NewRule(scopedaccess.KindScopedRole, services.RO()),
 				types.NewRule(types.KindClusterAuthPreference, services.RO()),
 				types.NewRule(types.KindClusterName, services.RO()),
 				types.NewRule(types.KindClusterAuditConfig, services.RO()),
@@ -1097,6 +1093,11 @@ func scopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.Sessi
 						types.NewRule(types.KindLock, services.RO()),
 						types.NewRule(types.KindSemaphore, services.RW()),
 						types.NewRule(types.KindHealthCheckConfig, services.RO()),
+						// TODO(fspmarshall/scopes): we eventually want to remove blanket scoped role
+						// access in favor of agents only being able to read scoped roles that may affect
+						// access decisions for the given agent specifically. this verb grant will need to
+						// be revisited as part of that work.
+						types.NewRule(scopedaccess.KindScopedRole, services.RO()),
 					},
 				},
 			},
@@ -1348,6 +1349,7 @@ func unscopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.Ses
 					Rules: []types.Rule{
 						types.NewRule(types.KindEvent, services.WO()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
+						types.NewRule(types.KindCertAuthorityOverride, services.RO()),
 						types.NewRule(types.KindClusterName, services.RO()),
 						types.NewRule(types.KindClusterAuditConfig, services.RO()),
 						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
@@ -1655,17 +1657,6 @@ func GetClientUserIsSSO(ctx context.Context) (bool, error) {
 		return false, trace.Wrap(err)
 	}
 	return identity.UserType == types.UserTypeSSO, nil
-}
-
-// ClientImpersonator returns the impersonator username of a remote client
-// making the call. If not present, returns an empty string
-func ClientImpersonator(ctx context.Context) string {
-	userWithIdentity, err := UserFromContext(ctx)
-	if err != nil {
-		return ""
-	}
-	identity := userWithIdentity.GetIdentity()
-	return identity.Impersonator
 }
 
 // ClientUserMetadata returns a UserMetadata suitable for events caused by a
@@ -2091,6 +2082,12 @@ func IsLocalOrRemoteService(authContext Context) bool {
 // IsCurrentUser checks if the identity is a local user matching the given username
 func IsCurrentUser(authContext Context, username string) bool {
 	return IsLocalUser(authContext) && authContext.User.GetName() == username
+}
+
+// ScopedIsCurrentUser checks if the scoped identity is a local user matching the given username.
+func ScopedIsCurrentUser(scopedContext *ScopedContext, username string) bool {
+	_, isLocal := scopedContext.Identity.(LocalUser)
+	return isLocal && scopedContext.User.GetName() == username
 }
 
 // IsRemoteUser checks if the identity is a remote user.

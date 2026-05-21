@@ -28,8 +28,8 @@ export default function PromptSsoStatus(props: {
 }) {
   const { onCancel, ssoPrompt } = props;
   return (
-    <Flex gap={4} flexDirection="column" alignItems="flex-start">
-      <Box width="100%" style={{ position: 'relative' }}>
+    <Flex width="100%" gap={4} flexDirection="column" alignItems="flex-start">
+      <Box width="100%" textAlign="center" style={{ position: 'relative' }}>
         <Text bold mb={2} textAlign="center">
           {ssoPrompt === 'follow-browser-steps' && (
             <>Please follow the steps in the browser to&nbsp;authenticate.</>

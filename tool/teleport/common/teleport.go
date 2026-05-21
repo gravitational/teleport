@@ -158,8 +158,11 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	start.Flag("config",
 		fmt.Sprintf("Path to a configuration file [%v]", defaults.ConfigFilePath)).
 		Short('c').ExistingFileVar(&ccf.ConfigFile)
+
+	applyOnStartupSupportedKinds := slices.Collect(maps.Keys(auth.ResourceApplyPriority))
+	slices.Sort(applyOnStartupSupportedKinds)
 	start.Flag("apply-on-startup",
-		fmt.Sprintf("Path to a non-empty YAML file containing resources to apply on startup. Works on initialized clusters, unlike --bootstrap. Only supports the following kinds: %s.", slices.Collect(maps.Keys(auth.ResourceApplyPriority)))).
+		fmt.Sprintf("Path to a non-empty YAML file containing resources to apply on startup. Works on initialized clusters, unlike --bootstrap. Only supports the following kinds: %s.", strings.Join(applyOnStartupSupportedKinds, ","))).
 		ExistingFileVar(&ccf.ApplyOnStartupFile)
 	start.Flag("bootstrap",
 		"Path to a non-empty YAML file containing bootstrap resources (ignored if already initialized)").ExistingFileVar(&ccf.BootstrapFile)
@@ -273,7 +276,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	for _, endpointType := range gcp.AlloyDBEndpointTypes {
 		alloyDBEndpointTypes = append(alloyDBEndpointTypes, string(endpointType))
 	}
-	dbStartCmd.Flag("gcp-alloydb-endpoint-type", fmt.Sprintf("(Only for AlloyDB) Endpoint type. One of: %v", alloyDBEndpointTypes)).EnumVar(&ccf.DatabaseGCPAlloyDBEndpointType, alloyDBEndpointTypes...)
+	dbStartCmd.Flag("gcp-alloydb-endpoint-type", "(Only for AlloyDB) Endpoint type.").EnumVar(&ccf.DatabaseGCPAlloyDBEndpointType, alloyDBEndpointTypes...)
 	dbStartCmd.Flag("ad-keytab-file", "(Only for SQL Server) Kerberos keytab file.").StringVar(&ccf.DatabaseADKeytabFile)
 	dbStartCmd.Flag("ad-krb5-file", "(Only for SQL Server) Kerberos krb5.conf file.").Default(defaults.Krb5FilePath).StringVar(&ccf.DatabaseADKrb5File)
 	dbStartCmd.Flag("ad-domain", "(Only for SQL Server) Active Directory domain.").StringVar(&ccf.DatabaseADDomain)
@@ -445,7 +448,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dump.Flag("key-file", "Path to a TLS key file for the proxy.").ExistingFileVar(&dumpFlags.KeyFile)
 	dump.Flag("data-dir", "Path to a directory where Teleport keep its data.").Default(defaults.DataDir).StringVar(&dumpFlags.DataDir)
 	dump.Flag("token", "Invitation token or path to file with token value to register with an auth server.").StringVar(&dumpFlags.AuthToken)
-	dump.Flag("join-method", fmt.Sprintf("Method to use to join the cluster (%s)", strings.Join(joinMethods, ", "))).Default("token").EnumVar(&dumpFlags.JoinMethod, joinMethods...)
+	dump.Flag("join-method", "Method to use to join the cluster.").Default("token").EnumVar(&dumpFlags.JoinMethod, joinMethods...)
 	dump.Flag("roles", "Comma-separated list of roles to create config with.").StringVar(&dumpFlags.Roles)
 	dump.Flag("auth-server", "Address of the auth server.").StringVar(&dumpFlags.AuthServer)
 	dump.Flag("proxy", "Address of the proxy.").StringVar(&dumpFlags.ProxyAddress)
@@ -472,7 +475,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dumpNodeConfigure.Flag("proxy", "Address of the proxy server.").StringVar(&dumpFlags.ProxyAddress)
 	dumpNodeConfigure.Flag("labels", "Comma-separated list of labels to add to newly created nodes ex) env=staging,cloud=aws.").StringVar(&dumpFlags.NodeLabels)
 	dumpNodeConfigure.Flag("ca-pin", "Comma-separated list of SKPI hashes for the CA used to verify the auth server.").StringVar(&dumpFlags.CAPin)
-	dumpNodeConfigure.Flag("join-method", fmt.Sprintf("Method to use to join the cluster (%s)", strings.Join(joinMethods, ", "))).Default("token").EnumVar(&dumpFlags.JoinMethod, joinMethods...)
+	dumpNodeConfigure.Flag("join-method", "Method to use to join the cluster.").Default("token").EnumVar(&dumpFlags.JoinMethod, joinMethods...)
 	dumpNodeConfigure.Flag("node-name", "Name for the Teleport node.").StringVar(&dumpFlags.NodeName)
 	dumpNodeConfigure.Flag("silent", "Suppress user hint message.").BoolVar(&dumpFlags.Silent)
 	dumpNodeConfigure.Flag("azure-client-id", "Sets the client ID of the managed identity to join with. Only applies to the 'azure' join method.").StringVar(&dumpFlags.AzureClientID)
@@ -491,7 +494,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	// teleport join --proxy-server=proxy.example.com --token=aws-join-token [--openssh-config=/path/to/sshd.conf] [--restart-sshd=true]
 	joinOpenSSH.Flag("proxy-server", "Address of the proxy server.").StringVar(&ccf.ProxyServer)
 	joinOpenSSH.Flag("token", "Invitation token or path to file with token value to register with an auth server.").StringVar(&ccf.AuthToken)
-	joinOpenSSH.Flag("join-method", "Method to use to join the cluster (token, iam, ec2).").EnumVar(&ccf.JoinMethod, "token", "iam", "ec2")
+	joinOpenSSH.Flag("join-method", "Method to use to join the cluster.").EnumVar(&ccf.JoinMethod, "token", "iam", "ec2")
+	joinOpenSSH.Flag("token-secret", "Invitation token secret or path to file with secret value. Used to register with an auth server [none]").StringVar(&ccf.TokenSecret)
 	joinOpenSSH.Flag("openssh-config", fmt.Sprintf("Path to the OpenSSH config file [%v].", "/etc/ssh/sshd_config")).Default("/etc/ssh/sshd_config").StringVar(&ccf.OpenSSHConfigPath)
 	joinOpenSSH.Flag("data-dir", fmt.Sprintf("Path to directory to store teleport data [%v].", defaults.DataDir)).Default(defaults.DataDir).StringVar(&ccf.DataDir)
 	joinOpenSSH.Flag("restart-sshd", "Restart OpenSSH.").Default("true").BoolVar(&ccf.RestartOpenSSH)
@@ -631,7 +635,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	getLogLevelCmd := debugCmd.Command("get-log-level", "Fetches current log level.")
 	collectProfilesCmd := debugCmd.Command("profile", "Export the application profiles (pprof format). Outputs to stdout .tar.gz file contents.")
 	collectProfilesCmd.Alias(collectProfileUsageExamples) // We're using "alias" section to display usage examples.
-	collectProfilesCmd.Arg("PROFILES", fmt.Sprintf("Comma-separated profile names to be exported. Supported profiles: %s. Default: %s", strings.Join(slices.Collect(maps.Keys(debugclient.SupportedProfiles)), ","), strings.Join(defaultCollectProfiles, ","))).StringVar(&ccf.Profiles)
+	supportedProfiles := slices.Sorted(maps.Keys(debugclient.SupportedProfiles))
+	collectProfilesCmd.Arg("PROFILES", fmt.Sprintf("Comma-separated profile names to be exported. Supported profiles: %s. Default: %s", strings.Join(supportedProfiles, ","), strings.Join(defaultCollectProfiles, ","))).StringVar(&ccf.Profiles)
 	collectProfilesCmd.Flag("seconds", "For CPU and trace profiles, profile for the given duration (if set to 0, it returns a profile snapshot). For other profiles, return a delta profile. Default: 0").Short('s').Default("0").IntVar(&ccf.ProfileSeconds)
 	readyzCmd := debugCmd.Command("readyz", "Checks if the instance is ready to serve requests.")
 	metricsCmd := debugCmd.Command("metrics", "Fetches the cluster's Prometheus metrics.")

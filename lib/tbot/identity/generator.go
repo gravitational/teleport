@@ -21,6 +21,7 @@ package identity
 import (
 	"cmp"
 	"context"
+	"crypto"
 	"log/slog"
 	"time"
 
@@ -111,6 +112,7 @@ type generateOpts struct {
 	currentIdentity      *Identity
 	logger               *slog.Logger
 	requestModifiers     []func(*proto.UserCertsRequest)
+	privateKey           crypto.Signer
 }
 
 // GenerateOption allows you to customize aspects of the generated identity.
@@ -222,6 +224,16 @@ func WithRouteToCluster(cluster string) GenerateOption {
 	}
 }
 
+// WithPrivateKey overrides the private key that will be used.
+//
+// In most cases, you should NOT provide this option, and allow the function to
+// use a throwaway key for each identity.
+func WithPrivateKey(key crypto.Signer) GenerateOption {
+	return func(opts *generateOpts) {
+		opts.privateKey = key
+	}
+}
+
 // GenerateFacade calls Generate and wraps the resulting Identity in a Facade
 // for easy use in API clients, etc.
 func (g *Generator) GenerateFacade(ctx context.Context, opts ...GenerateOption) (*Facade, error) {
@@ -289,23 +301,32 @@ func (g *Generator) Generate(ctx context.Context, opts ...GenerateOption) (*Iden
 		keyPurpose = cryptosuites.DatabaseClient
 	}
 
-	// Generate a fresh keypair for the impersonated identity. We don't care to
-	// reuse keys here, constantly rotate private keys to limit their effective
-	// lifetime.
-	key, err := cryptosuites.GenerateKey(ctx,
-		cryptosuites.GetCurrentSuiteFromAuthPreference(g.client),
-		keyPurpose)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if o.privateKey == nil {
+		// Generate a fresh keypair for the impersonated identity. We generally
+		// don't care to reuse keys here, and instead constantly rotate private
+		// keys to limit their effective lifetime.
+		//
+		// In the beams/vnet service, the private key remains in-memory only and
+		// the benefit of rotating it is minimal. It's also convenient to reuse
+		// the key because VNet splits client certificate issuance and signing
+		// into separate RPCs, so we'd need to store and correlate keys to their
+		// respective applications.
+		var err error
+		o.privateKey, err = cryptosuites.GenerateKey(ctx,
+			cryptosuites.GetCurrentSuiteFromAuthPreference(g.client),
+			keyPurpose)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
-	sshPub, err := ssh.NewPublicKey(key.Public())
+	sshPub, err := ssh.NewPublicKey(o.privateKey.Public())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	req.SSHPublicKey = ssh.MarshalAuthorizedKey(sshPub)
 
-	req.TLSPublicKey, err = keys.MarshalPublicKey(key.Public())
+	req.TLSPublicKey, err = keys.MarshalPublicKey(o.privateKey.Public())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -353,7 +374,7 @@ func (g *Generator) Generate(ctx context.Context, opts ...GenerateOption) (*Iden
 	// Instead, copy the SSHCACerts from the primary identity.
 	certs.SSHCACerts = o.currentIdentity.SSHCACertBytes
 
-	privateKeyPEM, err := keys.MarshalPrivateKey(key)
+	privateKeyPEM, err := keys.MarshalPrivateKey(o.privateKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

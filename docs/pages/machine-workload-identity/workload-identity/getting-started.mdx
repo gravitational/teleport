@@ -29,7 +29,7 @@ receive SPIFFE SVID-compatible workload identity credentials.
   workloads which need to access Teleport Workload Identity will run. For more
   information, see the [deployment guides](../deployment/deployment.mdx).
 
-## Step 1/4. Configure Workload Identity
+## Step 1/3. Configure Workload Identity
 
 First, you will need to create a Workload Identity resource.
 
@@ -136,7 +136,7 @@ spec:
 Use `tctl create -f ./workload-identity.yaml` to update the WorkloadIdentity
 resource with your changes.
 
-## Step 2/4. Configure `workload-identity-api` service in `tbot`
+## Step 2/3. Configure `workload-identity-api` service in `tbot`
 
 To set up a SPIFFE Workload API endpoint with `tbot`, we configure an instance
 of the `workload-identity-api` service.
@@ -163,7 +163,19 @@ Replace:
 - `example-workload-identity` with the name of the Workload Identity resource you
   created earlier.
 
-Start or restart your `tbot` instance to apply the new configuration.
+Apply your new configuration. If `tbot` is already running, reload its
+configuration:
+
+```code
+$ sudo systemctl reload tbot
+```
+
+Otherwise, start `tbot` with your configuration file, which this example assumes
+is `/etc/tbot.yaml`:
+
+```code
+$ sudo tbot start -c /etc/tbot.yaml
+```
 
 ### Configuring Unix Workload Attestation
 
@@ -210,7 +222,7 @@ spec:
     id: /svc/foo
 ```
 
-## Step 3/4. Testing the Workload API with `tbot spiffe-inspect`
+## Step 3/3. Testing the Workload API with `tbot spiffe-inspect`
 
 The `tbot` binary includes a `spiffe-inspect` command that can be used to
 test the configuration of the Workload API. This command will connect to the
@@ -234,7 +246,7 @@ Trust Bundles
 - example.teleport.sh
 ```
 
-## Step 4/4. Configuring your workload to use the Workload API
+## Next step: configure your workload to use the Workload API
 
 Now that you know that the Workload API is behaving as expected, you can
 configure your workload to use it. The exact steps will depend on the workload.
@@ -246,7 +258,7 @@ In cases where you have used the SPIFFE SDKs, you can configure the
 See the [Best Practices](./best-practices.mdx) guide for more information on
 integrating SPIFFE with your workloads.
 
-## Next steps
+## Further reading
 
 - [Workload Identity Overview](./introduction.mdx): Overview of Teleport
 Workload Identity.

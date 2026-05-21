@@ -85,8 +85,8 @@ ifneq ("$(FIPS)","")
 FIPS_TAG := fips
 FIPS_MESSAGE := with-FIPS-support
 RELEASE = teleport-$(GITTAG)-$(OS)-$(ARCH)-fips-bin
-GOEXPERIMENT = boringcrypto
-export GOEXPERIMENT
+GOFIPS140 = v1.0.0
+export GOFIPS140
 ifeq ($(BUILDBOX_MODE),cross)
 # We need to set CGO_ENABLED=0 when building rdpclient as the build of
 # boring-sys builds and runs a Go program as part of its integrity testing.
@@ -288,6 +288,15 @@ VERSRC = gitref.go api/version.go
 
 KUBECONFIG ?=
 TEST_KUBE ?=
+export
+# This unexport statement is required for make to work with the `-e` flag.
+# With -e, the first Makefile sets HELMJANITOR=$$(go tool ...),
+# passes HELMJANITOR=$(go tool) to the child make process.
+# Because of the `-e` flag it takes precedence over the child's make definition
+# of HELMJANITOR and breaks environment variable expansion.
+# To avoid breaking other parts of the release pipeline, the easiest fix is to
+# unexport HELMJANITOR so the child uses the definition from its Makefile.
+unexport HELMJANITOR
 export KUBECONFIG
 export TEST_KUBE
 
@@ -429,7 +438,7 @@ $(BUILDDIR)/tbot:
 
 .PHONY: $(BUILDDIR)/teleport-update
 $(BUILDDIR)/teleport-update:
-	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=0 go build -tags "grpcnotrace" -o $(BUILDDIR)/teleport-update $(BUILDFLAGS_TELEPORT_UPDATE) $(TOOLS_LDFLAGS) ./tool/teleport-update
+	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=0 go build -tags "grpcnotrace $(FIPS_TAG)" -o $(BUILDDIR)/teleport-update $(BUILDFLAGS_TELEPORT_UPDATE) $(TOOLS_LDFLAGS) ./tool/teleport-update
 
 TELEPORT_ARGS ?= start
 .PHONY: teleport-hot-reload
@@ -476,6 +485,7 @@ tctl-app:
 .PHONY: test-bpf
 test-bpf:
 	mkdir -p _test
+	gcc ./lib/srv/testdata/bpf_rodata_args.c -o _test/bpf_rodata_args
 	go test -c -tags bpf,pam -o _test/libsrv.test ./lib/srv
 
 	# ignore non bpf-related tests
@@ -617,6 +627,10 @@ clean-ui:
 	rm -rf web/packages/teleterm/build
 	find . -type d -name node_modules -prune -exec rm -rf {} \;
 
+.PHONY: clean-ent
+clean-ent:
+	$(MAKE) -C e clean
+
 # RELEASE_DIR is where release artifact files are put, such as tarballs, packages, etc.
 $(RELEASE_DIR):
 	mkdir -p $@
@@ -637,9 +651,7 @@ endif
 
 .PHONY: release-ent
 release-ent:
-ifneq (,$(wildcard e/Makefile))
 	$(MAKE) -C e release
-endif
 
 # These are aliases used to make build commands uniform.
 .PHONY: release-amd64
@@ -950,25 +962,11 @@ helmunit/installed:
 # environment variable.
 .PHONY: test-helm
 test-helm: helmunit/installed
-	helm unittest -3 --with-subchart=false examples/chart/teleport-cluster
-	helm unittest -3 --with-subchart=false examples/chart/teleport-kube-agent
-	helm unittest -3 --with-subchart=false examples/chart/teleport-relay
-	helm unittest -3 --with-subchart=false examples/chart/teleport-cluster/charts/teleport-operator
-	helm unittest -3 --with-subchart=false examples/chart/access/*
-	helm unittest -3 --with-subchart=false examples/chart/event-handler
-	helm unittest -3 --with-subchart=false examples/chart/tbot
-	helm unittest -3 --with-subchart=false examples/chart/tbot-spiffe-daemon-set
+	$(HELMJANITOR) test
 
 .PHONY: test-helm-update-snapshots
 test-helm-update-snapshots: helmunit/installed
-	helm unittest -3 -u --with-subchart=false examples/chart/teleport-cluster
-	helm unittest -3 -u --with-subchart=false examples/chart/teleport-kube-agent
-	helm unittest -3 -u --with-subchart=false examples/chart/teleport-relay
-	helm unittest -3 -u --with-subchart=false examples/chart/teleport-cluster/charts/teleport-operator
-	helm unittest -3 -u --with-subchart=false examples/chart/access/*
-	helm unittest -3 -u --with-subchart=false examples/chart/event-handler
-	helm unittest -3 -u --with-subchart=false examples/chart/tbot
-	helm unittest -3 -u --with-subchart=false examples/chart/tbot-spiffe-daemon-set
+	$(HELMJANITOR) test --update-snapshots
 
 #
 # Runs all Go tests except integration, called by CI/CD.
@@ -1349,7 +1347,7 @@ lint-backport:
 .PHONY: lint-api
 lint-api: GO_LINT_API_FLAGS ?=
 lint-api:
-	cd api && golangci-lint run -c ../.golangci.yml $(GO_LINT_API_FLAGS)
+	cd api && golangci-lint run -c ../.golangci.yml  --build-tags='$(PIV_LINT_TAG)' $(GO_LINT_API_FLAGS)
 
 .PHONY: lint-kube-agent-updater
 lint-kube-agent-updater: GO_LINT_API_FLAGS ?=
@@ -1382,30 +1380,8 @@ lint-sh:
 # If errors are found, the file is printed with line numbers to aid in debugging.
 .PHONY: lint-helm
 lint-helm:
-	@if ! type yamllint 2>&1 >/dev/null; then \
-		echo "Not running 'lint-helm' target as 'yamllint' is not installed."; \
-		if [ "$${CI}" = "true" ]; then echo "This is a failure when running in CI." && exit 1; fi; \
-		exit 0; \
-	fi; \
-	for CHART in ./examples/chart/teleport-cluster ./examples/chart/teleport-kube-agent ./examples/chart/teleport-relay ./examples/chart/teleport-cluster/charts/teleport-operator ./examples/chart/tbot ./examples/chart/tbot-spiffe-daemon-set; do \
-		if [ -d $${CHART}/.lint ]; then \
-			for VALUES in $${CHART}/.lint/*.yaml; do \
-				export HELM_TEMP=$$(mktemp); \
-				echo -n "Using values from '$${VALUES}': "; \
-				yamllint -c examples/chart/.lint-config.yaml $${VALUES} || { cat -en $${VALUES}; exit 1; }; \
-				helm lint --quiet --strict $${CHART} -f $${VALUES} || exit 1; \
-				helm template test $${CHART} -f $${VALUES} 1>$${HELM_TEMP} || exit 1; \
-				yamllint -c examples/chart/.lint-config.yaml $${HELM_TEMP} || { cat -en $${HELM_TEMP}; exit 1; }; \
-				echo; \
-			done \
-		else \
-			export HELM_TEMP=$$(mktemp); \
-			helm lint --quiet --strict $${CHART} || exit 1; \
-			helm template test $${CHART} 1>$${HELM_TEMP} || exit 1; \
-			yamllint -c examples/chart/.lint-config.yaml $${HELM_TEMP} || { cat -en $${HELM_TEMP}; exit 1; }; \
-		fi; \
-	done
-	$(MAKE) -C examples/chart check-chart-ref
+	$(HELMJANITOR) reference -check
+	$(HELMJANITOR) lint
 
 ADDLICENSE_COMMON_ARGS := -c 'Gravitational, Inc.' \
 		-ignore '**/*.c' \
@@ -1416,26 +1392,27 @@ ADDLICENSE_COMMON_ARGS := -c 'Gravitational, Inc.' \
 		-ignore '**/*.sh' \
 		-ignore '**/*.sql' \
 		-ignore '**/*.tf' \
+		-ignore '**/*.tftest.hcl' \
 		-ignore '**/*.yaml' \
 		-ignore '**/*.yml' \
 		-ignore '**/.terraform.lock.hcl' \
 		-ignore '**/Dockerfile' \
 		-ignore '**/node_modules/**' \
-		-ignore 'build.assets/.cache/**' \
 		-ignore 'api/version.go' \
+		-ignore 'build.assets/.cache/**' \
 		-ignore 'docs/pages/includes/**/*.go' \
 		-ignore 'e/**' \
 		-ignore 'gen/**' \
 		-ignore 'gitref.go' \
-		-ignore 'lib/srv/desktop/rdp/rdpclient/target/**' \
+		-ignore 'lib/limiter/internal/ratelimit/**' \
 		-ignore 'lib/srv/desktop/rdp/decoder/target/**' \
+		-ignore 'lib/srv/desktop/rdp/rdpclient/target/**' \
 		-ignore 'lib/web/build/**' \
 		-ignore 'target/**' \
 		-ignore 'web/packages/design/src/assets/icomoon/style.css' \
 		-ignore 'web/packages/shared/libs/ironrdp/**' \
-		-ignore 'lib/limiter/internal/ratelimit/**' \
-		-ignore 'webassets/**' \
-		-ignore 'ignoreme'
+		-ignore 'web/packages/teleterm/build/**' \
+		-ignore 'webassets/**'
 ADDLICENSE_AGPL3_ARGS := $(ADDLICENSE_COMMON_ARGS) \
 		-ignore 'api/**' \
 		-f $(CURDIR)/build.assets/LICENSE.header
@@ -2047,12 +2024,14 @@ dump-preset-roles:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go run ./build.assets/dump-preset-roles/main.go
 	pnpm test web/packages/teleport/src/Roles/RoleEditor/StandardEditor/standardmodel.test.ts
 
+cli-docs: cli-docs-tsh cli-docs-tbot cli-docs-teleport cli-docs-tctl
+
 .PHONY: cli-docs-tsh
 cli-docs-tsh:
 # Executing go build instead of go run since we don't want to redirect
 # irrelevant output along with the docs page content.
 	go build -o $(BUILDDIR)/tshdocs -tags docs ./tool/tsh && \
-	$(BUILDDIR)/tshdocs help 2>docs/pages/reference/cli/tsh.mdx && \
+	$(BUILDDIR)/tshdocs help >docs/pages/reference/cli/tsh.mdx && \
 	rm $(BUILDDIR)/tshdocs
 
 .PHONY: cli-docs-tbot
@@ -2060,7 +2039,7 @@ cli-docs-tbot:
 # Executing go build instead of go run since we don't want to redirect
 # irrelevant output along with the docs page content.
 	go build -o $(BUILDDIR)/tbotdocs -tags docs ./tool/tbot && \
-	$(BUILDDIR)/tbotdocs help 2>docs/pages/reference/cli/tbot.mdx && \
+	$(BUILDDIR)/tbotdocs help >docs/pages/reference/cli/tbot.mdx && \
 	rm $(BUILDDIR)/tbotdocs
 
 .PHONY: cli-docs-teleport
@@ -2068,7 +2047,7 @@ cli-docs-teleport:
 # Executing go build instead of go run since we don't want to redirect
 # irrelevant output along with the docs page content.
 	go build -o $(BUILDDIR)/teleportdocs -tags docs ./tool/teleport && \
-	$(BUILDDIR)/teleportdocs help 2>docs/pages/reference/cli/teleport.mdx && \
+	$(BUILDDIR)/teleportdocs help >docs/pages/reference/cli/teleport.mdx && \
 	rm $(BUILDDIR)/teleportdocs
 
 .PHONY: cli-docs-tctl
@@ -2076,8 +2055,20 @@ cli-docs-tctl:
 # Executing go build instead of go run since we don't want to redirect
 # irrelevant output along with the docs page content.
 	go build -o $(BUILDDIR)/tctldocs -tags docs ./tool/tctl && \
-	$(BUILDDIR)/tctldocs help 2>docs/pages/reference/cli/tctl.mdx && \
+	$(BUILDDIR)/tctldocs help >docs/pages/reference/cli/tctl.mdx && \
 	rm $(BUILDDIR)/tctldocs
+
+# cli-docs-up-to-date checks if the generated CLI reference docs are up to date.
+.PHONY: cli-docs-up-to-date
+cli-docs-up-to-date: must-start-clean/host cli-docs
+	@if ! git diff --quiet -- docs/pages/reference/cli/; then \
+		echo ""; \
+		echo "CLI reference documentation is out of date."; \
+		echo "Please run 'make cli-docs' and commit the changes."; \
+		echo ""; \
+		git diff --stat -- docs/pages/reference/cli/; \
+		exit 1; \
+	fi
 
 # audit-event-reference generates audit event reference docs using the Web UI
 # source.

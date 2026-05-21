@@ -65,15 +65,31 @@ func TestJoinKubernetes(t *testing.T) {
 
 	// Creating an auth server with mock Kubernetes token validator
 	tokenReviewTokens := map[string]*kubetoken.ValidationResult{
-		"matching-implicit-in-cluster": {Username: "system:serviceaccount:namespace1:service-account1"},
+		"matching-implicit-in-cluster": {
+			Username:                "system:serviceaccount:namespace1:service-account1",
+			ServiceAccountName:      "service-account1",
+			ServiceAccountNamespace: "namespace1",
+		},
 		// "matching-explicit-in-cluster" intentionally matches the second allow
 		// rule of explicitInCluster to ensure all rules are processed.
-		"matching-explicit-in-cluster": {Username: "system:serviceaccount:namespace2:service-account2"},
-		"user-token":                   {Username: "namespace1:service-account1"},
+		"matching-explicit-in-cluster": {
+			Username:                "system:serviceaccount:namespace2:service-account2",
+			ServiceAccountName:      "service-account2",
+			ServiceAccountNamespace: "namespace2",
+		},
+		"user-token": {Username: "namespace1:service-account1"},
 	}
 	jwksTokens := map[string]*kubetoken.ValidationResult{
-		"jwks-matching-service-account":   {Username: "system:serviceaccount:static-jwks:matching"},
-		"jwks-mismatched-service-account": {Username: "system:serviceaccount:static-jwks:mismatched"},
+		"jwks-matching-service-account": {
+			Username:                "system:serviceaccount:static-jwks:matching",
+			ServiceAccountName:      "matching",
+			ServiceAccountNamespace: "static-jwks",
+		},
+		"jwks-mismatched-service-account": {
+			Username:                "system:serviceaccount:static-jwks:mismatched",
+			ServiceAccountName:      "mismatched",
+			ServiceAccountNamespace: "static-jwks",
+		},
 	}
 
 	ctx := t.Context()
@@ -163,12 +179,111 @@ func TestJoinKubernetes(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+	wildcardInClusterPT, err := types.NewProvisionTokenFromSpec("wildcard-in-cluster", time.Now().Add(10*time.Minute), types.ProvisionTokenSpecV2{
+		JoinMethod: types.JoinMethodKubernetes,
+		Roles:      []types.SystemRole{types.RoleNode},
+		Kubernetes: &types.ProvisionTokenSpecV2Kubernetes{
+			Type: types.KubernetesJoinTypeInCluster,
+			Allow: []*types.ProvisionTokenSpecV2Kubernetes_Rule{
+				{ServiceAccountName: "*-account1", ServiceAccountNamespace: "*"},
+			},
+		},
+	})
+	require.NoError(t, err)
+	wildcardStaticJWKSPT, err := types.NewProvisionTokenFromSpec("wildcard-static-jwks", time.Now().Add(10*time.Minute), types.ProvisionTokenSpecV2{
+		JoinMethod: types.JoinMethodKubernetes,
+		Roles:      []types.SystemRole{types.RoleNode},
+		Kubernetes: &types.ProvisionTokenSpecV2Kubernetes{
+			Type: types.KubernetesJoinTypeStaticJWKS,
+			Allow: []*types.ProvisionTokenSpecV2Kubernetes_Rule{
+				{ServiceAccountName: "match*", ServiceAccountNamespace: "*"},
+			},
+			StaticJWKS: &types.ProvisionTokenSpecV2Kubernetes_StaticJWKSConfig{
+				JWKS: "fake-jwks",
+			},
+		},
+	})
+	require.NoError(t, err)
+	wildcardOIDCPT, err := types.NewProvisionTokenFromSpec("wildcard-oidc", time.Now().Add(10*time.Minute), types.ProvisionTokenSpecV2{
+		JoinMethod: types.JoinMethodKubernetes,
+		Roles:      []types.SystemRole{types.RoleNode},
+		Kubernetes: &types.ProvisionTokenSpecV2Kubernetes{
+			Type: types.KubernetesJoinTypeOIDC,
+			Allow: []*types.ProvisionTokenSpecV2Kubernetes_Rule{
+				{ServiceAccountName: "oidc-*", ServiceAccountNamespace: "*"},
+			},
+			OIDC: &types.ProvisionTokenSpecV2Kubernetes_OIDCConfig{
+				Issuer:                  oidcIssuerURL,
+				InsecureAllowHTTPIssuer: true,
+			},
+		},
+	})
+	require.NoError(t, err)
+	exactInClusterPT, err := types.NewProvisionTokenFromSpec("exact-in-cluster", time.Now().Add(10*time.Minute), types.ProvisionTokenSpecV2{
+		JoinMethod: types.JoinMethodKubernetes,
+		Roles:      []types.SystemRole{types.RoleNode},
+		Kubernetes: &types.ProvisionTokenSpecV2Kubernetes{
+			Type: types.KubernetesJoinTypeInCluster,
+			Allow: []*types.ProvisionTokenSpecV2Kubernetes_Rule{
+				{ServiceAccountName: "service-account1", ServiceAccountNamespace: "namespace1"},
+			},
+		},
+	})
+	require.NoError(t, err)
+	namespaceOnlyInClusterPT, err := types.NewProvisionTokenFromSpec("namespace-only-in-cluster", time.Now().Add(10*time.Minute), types.ProvisionTokenSpecV2{
+		JoinMethod: types.JoinMethodKubernetes,
+		Roles:      []types.SystemRole{types.RoleNode},
+		Kubernetes: &types.ProvisionTokenSpecV2Kubernetes{
+			Type: types.KubernetesJoinTypeInCluster,
+			Allow: []*types.ProvisionTokenSpecV2Kubernetes_Rule{
+				{ServiceAccountName: "*", ServiceAccountNamespace: "namespace1"},
+			},
+		},
+	})
+	require.NoError(t, err)
+	combinedInClusterPT, err := types.NewProvisionTokenFromSpec("combined-in-cluster", time.Now().Add(10*time.Minute), types.ProvisionTokenSpecV2{
+		JoinMethod: types.JoinMethodKubernetes,
+		Roles:      []types.SystemRole{types.RoleNode},
+		Kubernetes: &types.ProvisionTokenSpecV2Kubernetes{
+			Type: types.KubernetesJoinTypeInCluster,
+			Allow: []*types.ProvisionTokenSpecV2Kubernetes_Rule{
+				{
+					ServiceAccount:          "namespace1:service-account1",
+					ServiceAccountName:      "service-account?",
+					ServiceAccountNamespace: "namespace1",
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	combinedStrictInClusterPT, err := types.NewProvisionTokenFromSpec("combined-strict-in-cluster", time.Now().Add(10*time.Minute), types.ProvisionTokenSpecV2{
+		JoinMethod: types.JoinMethodKubernetes,
+		Roles:      []types.SystemRole{types.RoleNode},
+		Kubernetes: &types.ProvisionTokenSpecV2Kubernetes{
+			Type: types.KubernetesJoinTypeInCluster,
+			Allow: []*types.ProvisionTokenSpecV2Kubernetes_Rule{
+				{
+					ServiceAccount:          "namespace1:service-account1",
+					ServiceAccountName:      "doesnt-match",
+					ServiceAccountNamespace: "namespace1",
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
 	require.NoError(t, auth.CreateToken(ctx, implicitInClusterPT))
 	require.NoError(t, auth.CreateToken(ctx, explicitInClusterPT))
 	require.NoError(t, auth.CreateToken(ctx, staticJWKSPT))
 	require.NoError(t, auth.CreateToken(ctx, oidcPT))
+	require.NoError(t, auth.CreateToken(ctx, wildcardInClusterPT))
+	require.NoError(t, auth.CreateToken(ctx, wildcardStaticJWKSPT))
+	require.NoError(t, auth.CreateToken(ctx, wildcardOIDCPT))
+	require.NoError(t, auth.CreateToken(ctx, exactInClusterPT))
+	require.NoError(t, auth.CreateToken(ctx, namespaceOnlyInClusterPT))
+	require.NoError(t, auth.CreateToken(ctx, combinedInClusterPT))
+	require.NoError(t, auth.CreateToken(ctx, combinedStrictInClusterPT))
 
-	for _, pt := range []types.ProvisionToken{implicitInClusterPT, explicitInClusterPT, staticJWKSPT, oidcPT} {
+	for _, pt := range []types.ProvisionToken{implicitInClusterPT, explicitInClusterPT, staticJWKSPT, oidcPT, wildcardInClusterPT, wildcardStaticJWKSPT, wildcardOIDCPT, exactInClusterPT, namespaceOnlyInClusterPT, combinedInClusterPT, combinedStrictInClusterPT} {
 		ptv2, ok := pt.(*types.ProvisionTokenV2)
 		require.True(t, ok, "expected provision token to be types.ProvisionTokenSpecV2")
 		scoped, err := jointest.ScopedTokenFromProvisionTokenSpec(ptv2.Spec, &joiningv1.ScopedToken{
@@ -295,6 +410,84 @@ func TestJoinKubernetes(t *testing.T) {
 			oidcPT,
 			func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "issuer does not match")
+			},
+		},
+		{
+			"in_cluster wildcard: success",
+			"matching-implicit-in-cluster",
+			wildcardInClusterPT,
+			require.NoError,
+		},
+		{
+			"in_cluster wildcard: service account rule mismatch",
+			"matching-explicit-in-cluster",
+			wildcardInClusterPT,
+			func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "kubernetes token did not match any allow rules")
+			},
+		},
+		{
+			"static_jwks wildcard: success",
+			"jwks-matching-service-account",
+			wildcardStaticJWKSPT,
+			require.NoError,
+		},
+		{
+			"static_jwks wildcard: service account rule mismatch",
+			"jwks-mismatched-service-account",
+			wildcardStaticJWKSPT,
+			func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "kubernetes token did not match any allow rules")
+			},
+		},
+		{
+			"oidc wildcard: success",
+			oidcIDToken,
+			wildcardOIDCPT,
+			require.NoError,
+		},
+		{
+			"oidc wildcard: allow rule mismatch",
+			oidcAllowMismatchToken,
+			wildcardOIDCPT,
+			func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "kubernetes token did not match any allow rules")
+			},
+		},
+		{
+			"in_cluster exact: success",
+			"matching-implicit-in-cluster",
+			exactInClusterPT,
+			require.NoError,
+		},
+		{
+			"in_cluster exact: service account rule mismatch",
+			"matching-explicit-in-cluster",
+			exactInClusterPT,
+			func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "kubernetes token did not match any allow rules")
+			},
+		},
+		{
+			"in_cluster namespace-only: namespace mismatch",
+			"matching-explicit-in-cluster",
+			namespaceOnlyInClusterPT,
+			func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "kubernetes token did not match any allow rules")
+			},
+		},
+		{
+			"in_cluster combined: success",
+			"matching-implicit-in-cluster",
+			combinedInClusterPT,
+			require.NoError,
+		},
+		{
+			"in_cluster combined: glob filter rejects",
+			"matching-implicit-in-cluster",
+			combinedStrictInClusterPT,
+			func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "kubernetes token did not match any allow rules")
 			},
 		},
 	}

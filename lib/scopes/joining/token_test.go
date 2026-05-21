@@ -346,8 +346,32 @@ func TestValidateScopedToken(t *testing.T) {
 					Type:  string(types.KubernetesJoinTypeInCluster),
 				}
 			},
-			expectedStrongErr: "allow[0].service_account must be set",
-			expectedWeakErr:   "allow[0].service_account must be set",
+			expectedStrongErr: "allow[0]: must specify service_account or (service_account_name and service_account_namespace)",
+			expectedWeakErr:   "allow[0]: must specify service_account or (service_account_name and service_account_namespace)",
+		},
+		{
+			name: "kubernetes token with service_account_name without service_account_namespace",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
+				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
+					Allow: []*joiningv1.Kubernetes_Rule{{ServiceAccountName: "my-sa"}},
+					Type:  string(types.KubernetesJoinTypeInCluster),
+				}
+			},
+			expectedStrongErr: "allow[0]: must specify service_account or (service_account_name and service_account_namespace)",
+			expectedWeakErr:   "allow[0]: must specify service_account or (service_account_name and service_account_namespace)",
+		},
+		{
+			name: "kubernetes token with service_account_namespace without service_account_name",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
+				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
+					Allow: []*joiningv1.Kubernetes_Rule{{ServiceAccountNamespace: "my-ns"}},
+					Type:  string(types.KubernetesJoinTypeInCluster),
+				}
+			},
+			expectedStrongErr: "allow[0]: must specify service_account or (service_account_name and service_account_namespace)",
+			expectedWeakErr:   "allow[0]: must specify service_account or (service_account_name and service_account_namespace)",
 		},
 		{
 			name: "kubernetes token with malformed service account allow rule",
@@ -720,6 +744,37 @@ func TestValidateScopedToken(t *testing.T) {
 					Oidc: &joiningv1.Kubernetes_OIDCConfig{
 						Issuer: "https://oidc.example.com/my-cluster",
 					},
+				}
+			},
+		},
+		{
+			name: "valid kubernetes scoped token with service_account_name and service_account_namespace",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
+				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
+					Allow: []*joiningv1.Kubernetes_Rule{
+						{
+							ServiceAccountName:      "my-sa",
+							ServiceAccountNamespace: "my-ns",
+						},
+					},
+					Type: string(types.KubernetesJoinTypeInCluster),
+				}
+			},
+		},
+		{
+			name: "valid kubernetes scoped token with service_account, service_account_name, and service_account_namespace",
+			modFn: func(tok *joiningv1.ScopedToken) {
+				tok.Spec.JoinMethod = string(types.JoinMethodKubernetes)
+				tok.Spec.Kubernetes = &joiningv1.Kubernetes{
+					Allow: []*joiningv1.Kubernetes_Rule{
+						{
+							ServiceAccount:          "my-ns:my-sa",
+							ServiceAccountName:      "my-sa",
+							ServiceAccountNamespace: "my-ns",
+						},
+					},
+					Type: string(types.KubernetesJoinTypeInCluster),
 				}
 			},
 		},

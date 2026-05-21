@@ -39,7 +39,7 @@ type listedScopedToken struct {
 	Version  string
 	Metadata struct {
 		Name    string
-		Expires timestamppb.Timestamp
+		Expires *timestamppb.Timestamp
 		ID      uint
 	}
 	Spec struct {
@@ -53,18 +53,6 @@ func TestScopedTokens(t *testing.T) {
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
 			DataDir: t.TempDir(),
-		},
-		Apps: config.Apps{
-			Service: config.Service{
-				EnabledFlag: "true",
-			},
-		},
-		Proxy: config.Proxy{
-			Service: config.Service{
-				EnabledFlag: "true",
-			},
-			WebAddr: dynAddr.WebAddr,
-			TunAddr: dynAddr.TunnelAddr,
 		},
 		Auth: config.Auth{
 			Service: config.Service{

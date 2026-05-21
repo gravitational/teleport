@@ -21,17 +21,17 @@ package azuresync
 import (
 	"context"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/gravitational/trace"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
+	"github.com/gravitational/teleport/lib/cloud/azure"
 )
 
 const allResourceGroups = "*" //nolint:unused // invoked in a dependent PR
 
 // VirtualMachinesClient specifies the methods used to fetch virtual machines from Azure
 type VirtualMachinesClient interface {
-	ListVirtualMachines(ctx context.Context, resourceGroup string) ([]*armcompute.VirtualMachine, error)
+	ListVirtualMachines(ctx context.Context, resourceGroup string) ([]*azure.VirtualMachine, error)
 }
 
 func fetchVirtualMachines(ctx context.Context, subscriptionID string, cli VirtualMachinesClient) ([]*accessgraphv1alpha.AzureVirtualMachine, error) { //nolint:unused // invoked in a dependent PR
@@ -44,14 +44,14 @@ func fetchVirtualMachines(ctx context.Context, subscriptionID string, cli Virtua
 	pbVms := make([]*accessgraphv1alpha.AzureVirtualMachine, 0, len(vms))
 	var fetchErrs []error
 	for _, vm := range vms {
-		if vm.ID == nil || vm.Name == nil {
-			fetchErrs = append(fetchErrs, trace.BadParameter("nil values on AzureVirtualMachine object: %v", vm))
+		if vm.ID == "" || vm.Name == "" {
+			fetchErrs = append(fetchErrs, trace.BadParameter("empty values on AzureVirtualMachine object: %v", vm))
 			continue
 		}
 		pbVm := accessgraphv1alpha.AzureVirtualMachine{
-			Id:             *vm.ID,
+			Id:             vm.ID,
 			SubscriptionId: subscriptionID,
-			Name:           *vm.Name,
+			Name:           vm.Name,
 		}
 		pbVms = append(pbVms, &pbVm)
 	}

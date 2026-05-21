@@ -17,9 +17,13 @@
 package joinclient
 
 import (
+	"bytes"
 	"context"
 	"crypto/x509"
+	"log/slog"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -66,7 +70,7 @@ func azureJoin(ctx context.Context, stream messages.ClientStream, joinParams Joi
 	if err != nil {
 		return nil, trace.Wrap(err, "getting attested data document")
 	}
-	intermediate, err := getIntermediate(ctx, joinParams.AzureParams.IssuerHTTPClient, ad)
+	intermediate, err := getIntermediateChain(ctx, joinParams.AzureParams.IssuerHTTPClient, ad)
 	if err != nil {
 		return nil, trace.Wrap(err, "getting intermediate CA for attested data")
 	}
@@ -87,7 +91,55 @@ func azureJoin(ctx context.Context, stream messages.ClientStream, joinParams Joi
 	return result, trace.Wrap(err, "receiving join result")
 }
 
-func getIntermediate(ctx context.Context, httpClient utils.HTTPDoClient, ad []byte) ([]byte, error) {
+func validateAzureCertIssuerURL(issuerURLString string) (string, error) {
+	// All active issuing certs are listed here
+	// https://www.microsoft.com/pkiops/docs/repository.htm
+	//
+	// The cert path always looks like the following, although this does not
+	// appear to be guaranteed by Microsoft.
+	// url: http://www.microsoft.com/pkiops/certs/<cert-name>.crt
+	//
+	// This code path is only used by the legacy join service which will be
+	// removed in v20, v18+ agents use the new join service where the joining
+	// client sends the intermediate CAs along with the request.
+	const (
+		allowedHost       = "www.microsoft.com"
+		allowedPathPrefix = "/pkiops/certs/"
+		allowedPathSuffix = ".crt"
+	)
+
+	issuerURL, err := url.Parse(issuerURLString)
+	if err != nil {
+		return "", trace.AccessDenied("url failed to parse")
+	}
+
+	switch issuerURL.Scheme {
+	case "http", "https":
+	default:
+		return "", trace.AccessDenied("invalid url scheme %q", issuerURL.Scheme)
+	}
+
+	if issuerURL.Host != allowedHost {
+		return "", trace.AccessDenied("invalid host %q", issuerURL.Host)
+	}
+
+	if !strings.HasPrefix(issuerURL.Path, allowedPathPrefix) ||
+		!strings.HasSuffix(issuerURL.Path, allowedPathSuffix) {
+		return "", trace.AccessDenied("invalid path, must match %s<name>%s",
+			allowedPathPrefix, allowedPathSuffix)
+	}
+
+	// Construct a new URL with only the scheme, host, and path to strip any
+	// possible extra fields like query params or fragments.
+	sanitizedURL := url.URL{
+		Scheme: issuerURL.Scheme,
+		Host:   allowedHost,
+		Path:   issuerURL.Path,
+	}
+	return sanitizedURL.String(), nil
+}
+
+func getIntermediateChain(ctx context.Context, httpClient utils.HTTPDoClient, ad []byte) ([]byte, error) {
 	_, p7, err := azurejoin.ParseAttestedData(ad)
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing attested data document")
@@ -100,11 +152,6 @@ func getIntermediate(ctx context.Context, httpClient utils.HTTPDoClient, ad []by
 		return nil, trace.Errorf("attested data leaf certificate has no issuing certificate URL")
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, leafCert.IssuingCertificateURL[0], nil /*body*/)
-	if err != nil {
-		return nil, trace.Wrap(err, "building HTTP request")
-	}
-
 	if httpClient == nil {
 		httpClient, err = defaults.HTTPClient()
 		if err != nil {
@@ -112,24 +159,76 @@ func getIntermediate(ctx context.Context, httpClient utils.HTTPDoClient, ad []by
 		}
 	}
 
-	resp, err := httpClient.Do(req)
+	// mostly arbitrary, meant as a sanity check against infinite loops
+	const maxDepth = 10
+	// track which certificates we've seen to detect cycles
+	seen := make(map[string]struct{})
+	cert := leafCert
+	var chainDER []byte
+	for range maxDepth {
+		if len(cert.IssuingCertificateURL) == 0 {
+			break
+		}
+
+		url, err := validateAzureCertIssuerURL(cert.IssuingCertificateURL[0])
+		if err != nil {
+			return nil, trace.BadParameter("invalid cert issuer URL: %s", cert.IssuingCertificateURL[0])
+		}
+		if _, ok := seen[url]; ok {
+			return nil, trace.Errorf("found cycle in intermediate chain")
+		}
+		seen[url] = struct{}{}
+		issuer, err := fetchIssuerCert(ctx, httpClient, url)
+		if err != nil {
+			// failing to fetch may not guarantee an invalid state, so we log, break out
+			// of the loop, and return the intermediates we've collected so far
+			slog.WarnContext(ctx, "failed to fetch an issuing certificate while joining with azure", "error", err, "url", url)
+			break
+		}
+
+		// we don't want to include the root in the chain, so we stop if we
+		// find it
+		if bytes.Equal(issuer.RawSubject, issuer.RawIssuer) {
+			break
+		}
+
+		chainDER = append(chainDER, issuer.Raw...)
+		cert = issuer
+	}
+
+	if len(chainDER) == 0 {
+		return nil, trace.Errorf("attested data certificate has no intermediate chain")
+	}
+	return chainDER, nil
+}
+
+func fetchIssuerCert(ctx context.Context, httpClient utils.HTTPDoClient, issuerURL string) (*x509.Certificate, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, issuerURL, nil /*body*/)
+	if err != nil {
+		return nil, trace.Wrap(err, "building HTTP request")
+	}
+
+	res, err := httpClient.Do(req)
 	if err != nil {
 		return nil, trace.Wrap(err, "fetching intermediate certificate")
 	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, trace.Errorf("failed to fetch intermediate cert, got HTTP status code %d", resp.StatusCode)
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, trace.Errorf("failed to fetch intermediate cert, got HTTP status code %d", res.StatusCode)
 	}
 
-	body, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPResponseSize)
+	body, err := utils.ReadAtMost(res.Body, teleport.MaxHTTPResponseSize)
 	if err != nil {
 		return nil, trace.Wrap(err, "reading HTTP response body")
 	}
 
-	if _, err := x509.ParseCertificates(body); err != nil {
+	intermediates, err := x509.ParseCertificates(body)
+	if err != nil {
 		return nil, trace.Wrap(err, "parsing intermediate certificate")
 	}
 
-	return body, nil
+	if len(intermediates) != 1 {
+		return nil, trace.Errorf("expected 1 intermediate, found %d", len(intermediates))
+	}
+	return intermediates[0], nil
 }

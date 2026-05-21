@@ -297,8 +297,8 @@ func (p *cliModules) Features() modules.Features {
 	}
 }
 
-// IsBoringBinary checks if the binary was compiled with BoringCrypto.
-func (p *cliModules) IsBoringBinary() bool {
+// IsFIPSBuild checks if the binary was compiled in FIPS140 mode.
+func (p *cliModules) IsFIPSBuild() bool {
 	return false
 }
 
@@ -5520,12 +5520,14 @@ func TestSerializeKubeClusters(t *testing.T) {
 		{
 			"kube_cluster_name": "cluster1",
 			"labels": {"cmd": "result", "foo": "bar"},
-			"selected": true
+			"selected": true,
+			"scope": ""
 		},
 		{
 			"kube_cluster_name": "cluster2",
 			"labels": null,
-			"selected": false
+			"selected": false,
+			"scope": "/test"
 		}
 	]
 	`
@@ -5550,6 +5552,7 @@ func TestSerializeKubeClusters(t *testing.T) {
 			Name: "cluster2",
 		},
 		types.KubernetesClusterSpecV3{},
+		types.KubeClusterWithScope("/test"),
 	)
 
 	require.NoError(t, err)

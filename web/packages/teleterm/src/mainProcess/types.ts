@@ -234,6 +234,7 @@ export type MainProcessClient = {
   syncCluster(clusterUri: RootClusterUri): Promise<void>;
   syncRootClusters(): Promise<Cluster[]>;
   logout(clusterUri: RootClusterUri): Promise<void>;
+  forgetCluster(clusterUri: RootClusterUri): Promise<void>;
   subscribeToClusterStore(listener: (value: ClusterStoreUpdate) => void): {
     cleanup: () => void;
   };
@@ -377,6 +378,7 @@ export enum MainProcessIpc {
   AddCluster = 'main-process-add-cluster',
   SyncRootClusters = 'main-process-sync-root-clusters',
   Logout = 'main-process-logout',
+  ForgetCluster = 'main-process-forget-cluster',
   RegisterClusterLifecycleHandler = 'main-process-register-cluster-lifecycle-handler',
 }
 

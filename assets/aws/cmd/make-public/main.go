@@ -128,7 +128,7 @@ func main() {
 
 	fmt.Fprintf(os.Stderr, "%d errors occurred:\n", len(publishingErrors))
 	for _, err := range publishingErrors {
-		fmt.Fprintf(os.Stderr, "%w\n", err)
+		fmt.Fprintf(os.Stderr, "%v\n", err)
 	}
 	os.Exit(1)
 }

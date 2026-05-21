@@ -112,9 +112,19 @@ export type IntegrationGitHub = IntegrationTemplate<
   IntegrationSpecGitHub
 >;
 
+export type IntegrationSpecAzureOidc = {
+  tenantId: string;
+  clientId: string;
+  managedIdentity?: {
+    region: string;
+    resourceGroup: string;
+  };
+};
+
 export type IntegrationAzureOidc = IntegrationTemplate<
   'integration',
-  IntegrationKind.AzureOidc
+  IntegrationKind.AzureOidc,
+  IntegrationSpecAzureOidc
 >;
 
 /**
@@ -612,6 +622,8 @@ export type IntegrationWithSummary = {
   awsrds: ResourceTypeSummary;
   // awseks contains the summary for the AWS EKS resources for this integration.
   awseks: ResourceTypeSummary;
+  // azurevm contains the summary for the Azure VM resources for this integration.
+  azurevm: ResourceTypeSummary;
   // rolesAnywhereProfileSync contains the summary for the AWS Roles Anywhere Profile Sync.
   rolesAnywhereProfileSync: RolesAnywhereProfileSync;
   isManagedByTerraform?: boolean;
@@ -659,11 +671,13 @@ export type UserTaskDetail = UserTask & {
   // description is a markdown document that explains the issue and how to fix it.
   description: string;
   // discoverEc2 contains the task details for the DiscoverEc2 tasks.
-  discoverEc2: DiscoverEc2;
+  discoverEc2?: DiscoverEc2;
   // discoverEKS contains the task details for the DiscoverEKS tasks.
-  discoverEks: DiscoverEks;
+  discoverEks?: DiscoverEks;
   // discoverRDS contains the task details for the DiscoverRDS tasks.
-  discoverRds: DiscoverRds;
+  discoverRds?: DiscoverRds;
+  // discoverAzureVm contains the task details for the DiscoverAzureVM tasks.
+  discoverAzureVm?: DiscoverAzureVm;
 };
 
 // DiscoverEc2 contains the instances that failed to auto-enroll into the cluster.
@@ -768,6 +782,38 @@ export type DiscoverRdsDatabase = {
   resourceUrl: string;
 };
 
+// DiscoverAzureVm contains the VMs that failed to auto-enroll into the cluster.
+export type DiscoverAzureVm = {
+  // instances maps a VM resource ID to the result of enrolling that VM into teleport.
+  instances: Record<string, DiscoverAzureVmInstance>;
+  // subscription_id is the Azure Subscription ID for the VMs.
+  subscription_id: string;
+  // resource_group is the Azure Resource Group where VMs are located.
+  resource_group: string;
+  // region is the Azure Region where Teleport failed to enroll VMs.
+  region: string;
+};
+
+// DiscoverAzureVmInstance contains the result of enrolling an Azure VM.
+export type DiscoverAzureVmInstance = {
+  // vm_id is the Azure VM ID that uniquely identifies the virtual machine.
+  vm_id: string;
+  // resource_id is the full Azure resource path for this VM.
+  resource_id: string;
+  // name is the VM name.
+  name: string;
+  // discovery_config is the discovery config name that originated this VM enrollment.
+  discovery_config: string;
+  // discovery_group is the DiscoveryGroup name that originated this task.
+  discovery_group: string;
+  // sync_time is the timestamp when the error was produced.
+  sync_time: number;
+  // resourceUrl is the Azure Portal URL to access this VM.
+  // Always present.
+  // Format: https://portal.azure.com/#resource/subscriptions/<subscription-id>/resourceGroups/<resource-group>/providers/Microsoft.Compute/virtualMachines/<vm-name>
+  resourceUrl: string;
+};
+
 // IntegrationDiscoveryRule describes a discovery rule associated with an integration.
 export type IntegrationDiscoveryRule = {
   // resourceType indicates the type of resource that this rule targets.
@@ -778,6 +824,10 @@ export type IntegrationDiscoveryRule = {
   region: string;
   // labelMatcher is the set of labels that are used to filter the resources before trying to auto-enroll them.
   labelMatcher: Label[];
+  // subscriptions is the set of Azure subscriptions that are used to filter Azure resources
+  subscriptions?: string[];
+  // resourceGroups is the set of Azure resource groups that are used to filter Azure resources
+  resourceGroups?: string[];
   // discoveryConfig is the name of the DiscoveryConfig that created this rule.
   discoveryConfig: string;
   // lastSync contains the time when this rule was used.
@@ -994,6 +1044,10 @@ export const azureRegionMap = {
 };
 
 export type AzureRegion = keyof typeof azureRegionMap;
+
+export enum AzureResource {
+  vm = 'vm',
+}
 
 // RdsEngine are the expected backend string values,
 // used when requesting lists of rds databases of the

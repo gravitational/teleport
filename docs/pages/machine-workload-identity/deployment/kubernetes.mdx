@@ -77,11 +77,11 @@ The examples in this guide will install a `tbot` deployment in the `default`
 Namespace of the Kubernetes cluster. Adjust references to `default` to the
 Namespace you wish to use.
 
-## Step 1/4. Create a Bot
+## Step 1/3. Create a Bot
 
 (!docs/pages/includes/machine-id/create-a-bot.mdx!)
 
-## Step 2/4. Create a join token
+## Step 2/3. Create a join token
 
 Next, a join token needs to be configured. This will be used by `tbot` to join
 the cluster. As the `kubernetes` join method will be used, the public key of the
@@ -131,7 +131,7 @@ Use `tctl` to apply this file:
 $ tctl create -f bot-token.yaml
 ```
 
-## Step 3/4. Create a `tbot` deployment
+## Step 3/3. Create a `tbot` deployment
 
 Now, you'll deploy `tbot` to your Kubernetes cluster using the Teleport `tbot`
 Helm chart. This will be configured using values provided to the Helm CLI tool.
@@ -182,7 +182,7 @@ $ kubectl logs deployment/tbot
 
 With this complete, `tbot` is now successfully deployed to your cluster.
 
-## Step 4/4. Using the output
+## Next step: configure infrastructure access
 
 By default, the `tbot` Helm chart is configured to write an identity file to a
 Kubernetes Secret called `tbot-out` in the namespace where `tbot` has been
@@ -225,11 +225,9 @@ type of output using the `services` value of the Helm chart and setting
 Follow one of the [access guides](../access-guides/access-guides.mdx) to find
 out more about how to configure `tbot` for your use case.
 
-## Next steps
+## Further reading
 
 - Explore the [Helm chart configuration reference](../../reference/helm-reference/tbot.mdx).
-- Follow the [access guides](../access-guides/access-guides.mdx) to finish
-  configuring `tbot` for your environment.
 - Read the [configuration reference](../../reference/machine-workload-identity/configuration.mdx) to explore
   all the available configuration options.
 - [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../../reference/machine-workload-identity/telemetry.mdx)

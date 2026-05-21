@@ -235,6 +235,51 @@ export const events = [
     roles: ['admin'],
   },
   {
+    id: '77c938c3-2c1c-623c-076e-7d8a0499e9a0',
+    code: 'T5000I',
+    event: 'access_request.create',
+    time: '2020-06-05T19:26:53Z',
+    uid: '79b0d4bb-11f7-5ff7-9909-48g2a0584g2b',
+    user: 'Carrie_Sandoval',
+    state: 'PENDING',
+    RequestedResourceAccessIDs: [
+      {
+        id: {
+          cluster: 'example.teleport.sh',
+          kind: 'node',
+          name: 'server-01',
+        },
+        Constraints: {
+          ssh: { logins: ['alice', 'root'] },
+        },
+      },
+      {
+        id: {
+          cluster: 'example.teleport.sh',
+          kind: 'app',
+          name: 'aws-console',
+        },
+        Constraints: {
+          aws_console: {
+            role_arns_count: 3,
+            role_arns_preview: [
+              'arn:aws:iam::123456789012:role/Admin',
+              'arn:aws:iam::123456789012:role/Developer',
+            ],
+          },
+        },
+      },
+      {
+        id: {
+          cluster: 'example.teleport.sh',
+          kind: 'node',
+          name: 'legacy-server',
+        },
+        Constraints: { unknown_constraints: {} },
+      },
+    ],
+  },
+  {
     id: '66b827b2-1b0b-512b-965d-6c789388d3c9',
     code: 'T5001I',
     event: 'access_request.update',
@@ -2769,6 +2814,19 @@ export const events = [
     user: 'alice@example.com',
     event: 'upgradewindowstart.update',
     upgrade_window_start: '23:00',
+  },
+  {
+    code: 'TCAGC003I',
+    time: '2022-04-13T20:00:05.000Z',
+    user: 'alice@example.com',
+    event: 'access_graph_settings.update',
+  },
+  {
+    code: 'TEP01I',
+    time: '2022-04-13T20:00:05.000Z',
+    user: 'alice@example.com',
+    event: 'environmentprofile.update',
+    environment_profile: 'staging',
   },
   {
     code: 'T2012I',

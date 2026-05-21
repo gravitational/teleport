@@ -1057,6 +1057,10 @@ const (
 	// SchemeLLMEndpoint is a URI scheme for LLM inference endpoints.
 	SchemeLLMEndpoint = "llm"
 
+	// SchemeTLS is a URI scheme for TCP apps that Teleport terminate TLS
+	// connections with upstream.
+	SchemeTLS = "tls"
+
 	// DiscoveredResourceNode identifies a discovered SSH node.
 	DiscoveredResourceNode = "node"
 	// DiscoveredResourceDatabase identifies a discovered database.
@@ -1361,6 +1365,10 @@ const (
 	// BeamAliasLabel is the label used to track the alias of the Beam a
 	// resource belongs to.
 	BeamAliasLabel = TeleportInternalLabelPrefix + "beams/alias"
+
+	// BeamAppTypeLabel is the label used to denote the type of app created for
+	// Beams. Valid values: "ingress" and "llm".
+	BeamAppTypeLabel = TeleportInternalLabelPrefix + "beams/app-type"
 )
 
 const (
@@ -1862,6 +1870,12 @@ const (
 	ApplicationProtocolHTTP = "HTTP"
 	// ApplicationProtocolTCP is the TCP apps protocol.
 	ApplicationProtocolTCP = "TCP"
+	// ApplicationProtocolMCP is the protocol for MCP (Model Context Protocol)
+	// server applications.
+	ApplicationProtocolMCP = "MCP"
+	// ApplicationProtocolLLM is the protocol for applications that expose an
+	// LLM inference endpoint.
+	ApplicationProtocolLLM = "LLM"
 )
 
 const (
@@ -1940,3 +1954,6 @@ const (
 // BuiltInAutomaticReview is used within access monitoring rules and indicates
 // that the automatic_review rule should be monitored by Teleport.
 const BuiltInAutomaticReview = "builtin"
+
+// BeamsLogin is the login that should be used when SSHing into beams.
+const BeamsLogin = "beams"

@@ -1475,8 +1475,13 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 		}
 	}
 
-	if len(allowedResourceIDs) > 0 || len(allowedResourceAccessIDs) > 0 {
-		id.AllowedResourceAccessIDs = types.CombineAsResourceAccessIDs(allowedResourceIDs, allowedResourceAccessIDs)
+	if len(allowedResourceAccessIDs) > 0 {
+		// Prefer new extension when present, old extension is redundant
+		// (exists for backward-compat with older agents/proxies).
+		id.AllowedResourceAccessIDs = allowedResourceAccessIDs
+	} else if len(allowedResourceIDs) > 0 {
+		// Fallback for certs from older auth servers that don't write the new extension.
+		id.AllowedResourceAccessIDs = types.CombineAsResourceAccessIDs(allowedResourceIDs, nil)
 	}
 
 	if err := id.CheckAndSetDefaults(); err != nil {
@@ -1620,6 +1625,13 @@ func (ca *CertAuthority) GenerateCertificate(req CertificateRequest) ([]byte, er
 		"common_name", req.Subject.CommonName,
 		"issuer_skid", base32.HexEncoding.EncodeToString(ca.Cert.SubjectKeyId),
 	)
+
+	// Go deserializes extra names into Names field, but it uses ExtraNames for serialization,
+	// if we have any then we have to copy them over, or they will get lost during another
+	// serialization in x509.CreateCertificate
+	if len(req.Subject.Names) > 0 {
+		req.Subject.ExtraNames = req.Subject.Names
+	}
 
 	template := &x509.Certificate{
 		SerialNumber: serialNumber,

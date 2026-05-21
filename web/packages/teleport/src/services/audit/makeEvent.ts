@@ -136,8 +136,15 @@ export const formatters: Formatters = {
   [eventCodes.ACCESS_REQUEST_CREATED]: {
     type: 'access_request.create',
     desc: 'Access Request Created',
-    format: ({ id, state }) =>
-      `Access request [${id}] has been created and is ${state}`,
+    format: ({ id, state, RequestedResourceAccessIDs }) => {
+      if (RequestedResourceAccessIDs?.length) {
+        const resources = RequestedResourceAccessIDs.map(
+          r => `${r.id.kind}/${r.id.name}`
+        ).join(', ');
+        return `Access request [${id}] for [${resources}] has been created and is ${state}`;
+      }
+      return `Access request [${id}] has been created and is ${state}`;
+    },
   },
   [eventCodes.ACCESS_REQUEST_UPDATED]: {
     type: 'access_request.update',
@@ -1450,6 +1457,13 @@ export const formatters: Formatters = {
       return `Upgrade Window Start updated to [${upgrade_window_start}] by user [${user}]`;
     },
   },
+  [eventCodes.ENVIRONMENT_PROFILE_UPDATED]: {
+    type: 'environmentprofile.update',
+    desc: 'Environment Profile Updated',
+    format: ({ user, environment_profile }) => {
+      return `Environment profile updated to [${environment_profile}] by user [${user}]`;
+    },
+  },
   [eventCodes.SESSION_RECORDING_ACCESS]: {
     type: 'session.recording.access',
     desc: 'Session Recording Accessed',
@@ -1923,6 +1937,11 @@ export const formatters: Formatters = {
       affected_resource_source,
     }) =>
       `Access path for ${affected_resource_kind || 'Node'} [${affected_resource_name}/${affected_resource_source}] changed`,
+  },
+  [eventCodes.ACCESS_GRAPH_SETTINGS_UPDATE]: {
+    type: 'access_graph_settings.update',
+    desc: 'Access Graph Settings Updated',
+    format: ({ user }) => `User [${user}] updated the access graph settings`,
   },
   [eventCodes.SPANNER_RPC]: {
     type: 'db.session.spanner.rpc',

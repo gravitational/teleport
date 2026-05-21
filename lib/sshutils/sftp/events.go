@@ -32,7 +32,7 @@ func SFTPEventToProto(ev *sftputils.SFTPEvent) (*apievents.SFTP, error) {
 	event := &apievents.SFTP{
 		Metadata: apievents.Metadata{
 			Type: events.SFTPEvent,
-			Time: time.Unix(0, ev.Time),
+			Time: time.Unix(0, ev.Time).UTC(),
 		},
 	}
 
@@ -137,16 +137,18 @@ func SFTPSummaryEventToProto(ev *sftputils.SFTPSummaryEvent) *apievents.SFTPSumm
 		Metadata: apievents.Metadata{
 			Type: events.SFTPSummaryEvent,
 			Code: events.SFTPSummaryCode,
-			Time: time.Now(),
+			Time: time.Unix(0, ev.Time).UTC(),
 		},
-		FileTransferStats: make([]*apievents.FileTransferStat, 0, len(ev.Stats)),
 	}
-	for _, stat := range ev.Stats {
-		event.FileTransferStats = append(event.FileTransferStats, &apievents.FileTransferStat{
-			Path:         stat.Path,
-			BytesRead:    stat.Read,
-			BytesWritten: stat.Written,
-		})
+	if ev.Stats != nil {
+		event.FileTransferStats = make([]*apievents.FileTransferStat, 0, len(ev.Stats))
+		for _, stat := range ev.Stats {
+			event.FileTransferStats = append(event.FileTransferStats, &apievents.FileTransferStat{
+				Path:         stat.Path,
+				BytesRead:    stat.Read,
+				BytesWritten: stat.Written,
+			})
+		}
 	}
 	return event
 }

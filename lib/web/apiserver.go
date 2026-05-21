@@ -44,6 +44,7 @@ import (
 	"time"
 
 	template "github.com/DataDog/datadog-agent/pkg/template/html"
+	"github.com/coreos/go-semver/semver"
 	gogoproto "github.com/gogo/protobuf/proto"
 	"github.com/google/safetext/shsprintf"
 	"github.com/google/uuid"
@@ -65,6 +66,8 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
+	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
@@ -466,7 +469,7 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// request has a session cookie or a client cert, forward to
 	// application handlers. If the request is requesting a
 	// FQDN that is not of the proxy, redirect to application launcher.
-	if h.appHandler != nil && (app.HasFragment(r) || app.HasSessionCookie(r) || app.HasClientCert(r)) {
+	if h.appHandler != nil && (app.HasFragment(r) || app.HasSessionCookie(r) || app.HasClientCert(r) || app.IsHTTPSTunnelConn(r)) {
 		h.appHandler.ServeHTTP(w, r)
 		return
 	}
@@ -820,7 +823,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		}
 	}
 
-	go h.startFeatureWatcher()
+	go h.startFeatureWatcher(h.cfg.Context)
 
 	return &APIHandler{
 		handler:    h,
@@ -1820,7 +1823,7 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		AutomaticUpgrades: pr.ServerFeatures.GetAutomaticUpgrades(),
 		AutoUpdate:        h.automaticUpdateSettings184(r.Context(), group, updaterID),
 		Edition:           h.cfg.Modules.BuildType(),
-		FIPS:              h.cfg.Modules.IsBoringBinary(),
+		FIPS:              h.cfg.Modules.IsFIPSBuild(),
 	}, nil
 }
 
@@ -1852,7 +1855,7 @@ func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Para
 			MinClientVersion: teleport.MinClientSemVer().String(),
 			ClusterName:      h.auth.clusterName,
 			Edition:          h.cfg.Modules.BuildType(),
-			FIPS:             h.cfg.Modules.IsBoringBinary(),
+			FIPS:             h.cfg.Modules.IsFIPSBuild(),
 			AutoUpdate:       h.automaticUpdateSettings184(ctx, group, "" /* updater UUID */),
 		}, nil
 	})
@@ -3428,6 +3431,7 @@ func makeUnifiedResourceRequest(r *http.Request) (*proto.ListUnifiedResourcesReq
 			types.KindDatabase,
 			types.KindNode,
 			types.KindWindowsDesktop,
+			types.KindLinuxDesktop,
 			types.KindKubernetesCluster,
 			types.KindSAMLIdPServiceProvider,
 			types.KindGitServer,
@@ -3563,7 +3567,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			// Compute end-to-end feature support for this app: only features that are supported by the AppServer *and*
 			// by all required cluster hops (Auth + Proxy), so clients can hide features that would fail somewhere
 			// along the request path.
-			appComponentFeatures := componentfeatures.Intersect(r.GetComponentFeatures(), clusterAuthProxyServerFeatures)
+			appComponentFeatures := appServerEffectiveFeatures(r, clusterAuthProxyServerFeatures)
 
 			app := ui.MakeApp(r.GetApp(), ui.MakeAppsConfig{
 				LocalClusterName:  h.auth.clusterName,
@@ -3587,7 +3591,9 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			})
 			unifiedResources = append(unifiedResources, app)
 		case types.WindowsDesktop:
-			unifiedResources = append(unifiedResources, ui.MakeDesktop(r, enriched.Logins, enriched.RequiresRequest))
+			unifiedResources = append(unifiedResources, ui.MakeWindowsDesktop(r, enriched.Logins, enriched.RequiresRequest))
+		case types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop]:
+			unifiedResources = append(unifiedResources, ui.MakeLinuxDesktop(r.UnwrapT(), enriched.Logins, enriched.RequiresRequest))
 		case types.KubeCluster:
 			kube := ui.MakeKubeCluster(r, accessChecker, enriched.RequiresRequest)
 			unifiedResources = append(unifiedResources, kube)
@@ -3609,6 +3615,26 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 	}
 
 	return resp, nil
+}
+
+// appServerEffectiveFeatures computes the effective feature set for an app server,
+// intersected with cluster-wide auth/proxy features. App servers between v18.6.4 and
+// v18.7.2 advertise FeatureResourceConstraintsV1 but predate the constraint enforcement
+// code; for those versions, the advertisement is stripped before intersection so the
+// frontend doesn't show the constraints UI.
+//
+// TODO(kiosion): DELETE in 20.0.0
+func appServerEffectiveFeatures(appServer types.AppServer, clusterFeatures *componentfeaturesv1.ComponentFeatures) *componentfeaturesv1.ComponentFeatures {
+	appFeatures := appServer.GetComponentFeatures()
+	minVer, minVerErr := semver.NewVersion("18.7.3")
+	ver, verErr := semver.NewVersion(appServer.GetTeleportVersion())
+	if verErr == nil && minVerErr == nil && ver.LessThan(*minVer) && appFeatures != nil {
+		features := slices.DeleteFunc(slices.Clone(appFeatures.GetFeatures()), func(f componentfeaturesv1.ComponentFeatureID) bool {
+			return f == componentfeatures.FeatureResourceConstraintsV1.ToProto()
+		})
+		appFeatures = &componentfeaturesv1.ComponentFeatures{Features: features}
+	}
+	return componentfeatures.Intersect(appFeatures, clusterFeatures)
 }
 
 // clusterNodesGet returns a list of nodes for a given cluster site.
@@ -3885,6 +3911,8 @@ func (h *Handler) getClusterLocksV2(
 				target.MFADevice = parts[1]
 			case "windows_desktop":
 				target.WindowsDesktop = parts[1]
+			case "linux_desktop":
+				target.LinuxDesktop = parts[1]
 			case "access_request":
 				target.AccessRequest = parts[1]
 			case "device":
@@ -4146,7 +4174,7 @@ func (h *Handler) siteNodeConnect(
 		PresenceChecker:    h.cfg.PresenceChecker,
 		WebsocketConn:      ws,
 		SSHDialTimeout:     dialTimeout,
-		FIPSBuild:          h.cfg.Modules.IsBoringBinary(),
+		FIPSBuild:          h.cfg.Modules.IsFIPSBuild(),
 		HostNameResolver: func(serverID string) (string, error) {
 			matches, err := nw.CurrentResourcesWithFilter(r.Context(), func(n readonly.Server) bool {
 				return n.GetName() == serverID
