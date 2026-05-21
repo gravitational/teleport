@@ -71,13 +71,14 @@ type SessionStream struct {
 	// A notification channel for force termination requests.
 	forceTerminate chan struct{}
 
-	writeSync   sync.Mutex
-	done        chan struct{}
-	closeOnce   sync.Once
-	closed      atomic.Bool
-	MFARequired bool
-	Mode        types.SessionParticipantMode
-	isClient    bool
+	writeSync          sync.Mutex
+	done               chan struct{}
+	closeOnce          sync.Once
+	forceTerminateOnce sync.Once
+	closed             atomic.Bool
+	MFARequired        bool
+	Mode               types.SessionParticipantMode
+	isClient           bool
 }
 
 // NewSessionStream creates a new session stream.
@@ -209,7 +210,7 @@ func (s *SessionStream) readTask() {
 			}
 
 			if msg.ForceTerminate {
-				close(s.forceTerminate)
+				s.forceTerminateOnce.Do(func() { close(s.forceTerminate) })
 			}
 		}
 
