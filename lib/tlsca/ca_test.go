@@ -745,7 +745,7 @@ func TestDelegationSessionID(t *testing.T) {
 	require.Empty(t, cmp.Diff(out, &identity, cmpopts.EquateApproxTime(time.Second)))
 }
 
-func TestGenerateCertificate_ExtraNamesPreserved(t *testing.T) {
+func TestGenerateCertificate_SubjectModifcationsPreserved(t *testing.T) {
 	ca, err := FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
 	require.NoError(t, err)
 	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
@@ -795,10 +795,10 @@ func TestGenerateCertificate_ExtraNamesPreserved(t *testing.T) {
 	require.NoError(t, err)
 
 	// Subject modifications are preserved.
-	assert.Equal(t, parsedRoundTripped.Subject.CommonName, "bob")
-	assert.Equal(t, parsedRoundTripped.Subject.Organization, []string{"marketing"})
+	assert.Equal(t, "bob", parsedRoundTripped.Subject.CommonName)
+	assert.Equal(t, []string{"marketing"}, parsedRoundTripped.Subject.Organization)
 	// DNS modification preserved.
-	assert.Equal(t, parsedRoundTripped.DNSNames, []string{"overridden-dns"})
+	assert.Equal(t, []string{"overridden-dns"}, parsedRoundTripped.DNSNames)
 
 	// The extra name that we added should be present in the roundtripped cert.
 	assert.Len(t, parsedRoundTripped.Subject.Names, len(parsed.Subject.Names)+1)
