@@ -176,18 +176,12 @@ func labelsToSelectors(in map[string][]string) []*workloadidentityv1pb.LabelSele
 	return selectors
 }
 
-// jwtAuthClient is the minimal client interface required to issue JWT workload
-// identity credentials.
-type jwtAuthClient interface {
-	WorkloadIdentityIssuanceClient() workloadidentityv1pb.WorkloadIdentityIssuanceServiceClient
-}
-
 // IssueJWTWorkloadIdentity uses a given client and selector to issue a single
 // or multiple JWT-SVID workload identity credentials.
 func IssueJWTWorkloadIdentity(
 	ctx context.Context,
 	log *slog.Logger,
-	clt jwtAuthClient,
+	clt authClient,
 	workloadIdentity bot.WorkloadIdentitySelector,
 	audiences []string,
 	ttl time.Duration,
