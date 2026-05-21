@@ -1,5 +1,3 @@
-//go:build unix
-
 /*
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
@@ -75,8 +73,6 @@ var teleportSignals = []os.Signal{
 	syscall.SIGQUIT, // graceful shutdown
 	syscall.SIGTERM, // fast shutdown
 	syscall.SIGINT,  // fast shutdown
-	syscall.SIGUSR1, // log process diagnostic info
-	syscall.SIGUSR2, // initiate process restart procedure
 	syscall.SIGHUP,  // graceful restart procedure
 }
 
@@ -122,25 +118,6 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context, sigC <-chan 
 					process.logger.InfoContext(process.ExitContext(), "All services stopped or timeout passed, exiting immediately.")
 				}
 				return nil
-			case syscall.SIGUSR1:
-				// All programs placed diagnostics on the standard output.
-				// This had always caused trouble when the output was redirected into a file, but became intolerable
-				// when the output was sent to an unsuspecting process.
-				// Nevertheless, unwilling to violate the simplicity of the standard-input-standard-output model,
-				// people tolerated this state of affairs through v6. Shortly thereafter Dennis Ritchie cut the Gordian
-				// knot by introducing the standard error file.
-				// That was not quite enough. With pipelines diagnostics could come from any of several programs running simultaneously.
-				// Diagnostics needed to identify themselves.
-				// - Doug McIllroy, "A Research UNIX Reader: Annotated Excerpts from the Programmer’s Manual, 1971-1986"
-				process.logger.InfoContext(process.ExitContext(), "Got signal SIGUSR1, logging diagnostic info to stderr.")
-				writeDebugInfo(os.Stderr)
-			case syscall.SIGUSR2:
-				process.logger.InfoContext(process.ExitContext(), "Got signal SIGUSR2, forking a new process.")
-				if err := process.forkChild(); err != nil {
-					process.logger.WarnContext(process.ExitContext(), "Failed to fork process", "error", err)
-				} else {
-					process.logger.InfoContext(process.ExitContext(), "Successfully started new process.")
-				}
 			case syscall.SIGHUP:
 				process.logger.InfoContext(process.ExitContext(), "Got signal SIGHUP, performing graceful restart.")
 				if err := process.forkChild(); err != nil {

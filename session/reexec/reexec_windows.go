@@ -1,5 +1,3 @@
-//go:build unix
-
 /*
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
@@ -36,15 +34,10 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
-	"strconv"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
-
-	"github.com/gravitational/trace"
-	ocselinux "github.com/opencontainers/selinux/go-selinux"
-	"golang.org/x/sys/unix"
 
 	apiconstants "github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/session/auditd"
@@ -58,11 +51,12 @@ import (
 	"github.com/gravitational/teleport/session/pam/pamcfg"
 	"github.com/gravitational/teleport/session/reexec/internal/logutils"
 	"github.com/gravitational/teleport/session/reexec/reexecconstants"
-	"github.com/gravitational/teleport/session/reexec/reexecsftp"
 	"github.com/gravitational/teleport/session/selinux"
 	"github.com/gravitational/teleport/session/shell"
 	"github.com/gravitational/teleport/session/uacc"
 	"github.com/gravitational/teleport/session/uds"
+	"github.com/gravitational/trace"
+	ocselinux "github.com/opencontainers/selinux/go-selinux"
 )
 
 const (
@@ -506,24 +500,6 @@ func RunCommand() (exitErr error, err error) {
 		slog.DebugContext(ctx, "Received continue signal")
 	}
 
-	// If we're planning on changing credentials, we should first park an
-	// innocuous process with the same UID and then check the user database
-	// again, to avoid it getting deleted under our nose.
-	parkerCtx, parkerCancel := context.WithCancel(context.Background())
-	defer parkerCancel()
-
-	osPack := newOsWrapper()
-	if c.UserCreatedByTeleport {
-		// Parker is only needed when the user was created by Teleport.
-		err := osPack.startNewParker(
-			parkerCtx,
-			cmd.SysProcAttr.Credential,
-			c.Login, &systemUser{u: localUser})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
 	if err := setNeutralOOMScore(); err != nil {
 		slog.WarnContext(ctx, "failed to adjust OOM score", "error", err)
 	}
@@ -555,8 +531,6 @@ func RunCommand() (exitErr error, err error) {
 		return nil, trace.Wrap(err)
 	}
 	slog.DebugContext(ctx, "Started command")
-
-	parkerCancel()
 
 	exitErr = waitForShell(terminatefd, cmd)
 	return trace.Wrap(exitErr), nil
@@ -691,53 +665,6 @@ func (s *systemUser) GroupIds() ([]string, error) {
 	return s.u.GroupIds()
 }
 
-// startNewParker starts a new parker process only if the requested user has been created
-// by Teleport. Otherwise, does nothing.
-func (o *osWrapper) startNewParker(ctx context.Context, credential *syscall.Credential,
-	loginAsUser string, localUser userInfo,
-) error {
-	if credential == nil {
-		// Empty credential, no reason to start the parker.
-		return nil
-	}
-
-	group, err := o.LookupGroup(apiconstants.TeleportDropGroup)
-	if err != nil {
-		if isUnknownGroupError(err, apiconstants.TeleportDropGroup) {
-			// The service group doesn't exist. Auto-provision is disabled, do nothing.
-			return nil
-		}
-		return trace.Wrap(err)
-	}
-
-	groups, err := localUser.GroupIds()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	found := slices.Contains(groups, group.Gid)
-
-	if !found {
-		// Check if the new user guid matches the TeleportDropGroup. If not
-		// this user hasn't been created by Teleport, and we don't need the parker.
-		return nil
-	}
-
-	if err := o.newParker(ctx, *credential); err != nil {
-		return trace.Wrap(err)
-	}
-
-	localUserCheck, err := o.LookupUser(loginAsUser)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if localUser.UID() != localUserCheck.Uid || localUser.GID() != localUserCheck.Gid {
-		return trace.BadParameter("user %q has been changed", loginAsUser)
-	}
-
-	return nil
-}
-
 const rootDirectory = "/"
 
 func RunNetworking() (code int, err error) {
@@ -800,29 +727,6 @@ func RunNetworking() (code int, err error) {
 	localUser, err := user.Lookup(c.Login)
 	if err != nil {
 		return reexecconstants.RemoteCommandFailure, trace.NotFound("%s", err)
-	}
-
-	cred, err := host.GetHostUserCredential(localUser)
-	if err != nil {
-		return reexecconstants.RemoteCommandFailure, trace.Wrap(err)
-	}
-
-	if os.Getuid() != int(cred.Uid) || os.Getgid() != int(cred.Gid) {
-		if !cred.NoSetGroups {
-			groups := make([]int, len(cred.Groups))
-			for i, g := range cred.Groups {
-				groups[i] = int(g)
-			}
-			if err := unix.Setgroups(groups); err != nil {
-				return reexecconstants.RemoteCommandFailure, trace.Wrap(err, "failed to set groups for networking process")
-			}
-		}
-		if err := unix.Setgid(int(cred.Gid)); err != nil {
-			return reexecconstants.RemoteCommandFailure, trace.Wrap(err, "failed to set gid for networking process")
-		}
-		if err := unix.Setuid(int(cred.Uid)); err != nil {
-			return reexecconstants.RemoteCommandFailure, trace.Wrap(err, "failed to set uid for networking process")
-		}
 	}
 
 	// Create a minimal default environment for the user.
@@ -1132,12 +1036,6 @@ func RunAndExit(commandType string) {
 		code = runPark()
 	case reexecconstants.TrueSubCommand:
 		// nothing to do
-	case reexecconstants.SFTPSubCommand:
-		initLogger("sftp", os.Stderr, ExecLogConfig{})
-		err = reexecsftp.RunSFTP(slog.Default())
-		if err != nil {
-			code = 1
-		}
 	default:
 		code, err = reexecconstants.RemoteCommandFailure, fmt.Errorf("unknown command type: %v", commandType)
 	}
@@ -1196,43 +1094,7 @@ func IsReexec() bool {
 // openFileAsUser opens a file as the given user to ensure proper access checks. This is unsafe and should not be used outside of
 // bootstrapping reexec commands.
 func openFileAsUser(localUser *user.User, path string) (file *os.File, err error) {
-	if os.Args[1] != reexecconstants.ExecSubCommand {
-		return nil, trace.Errorf("opening files as a user is only possible in a reexec context")
-	}
-
-	uid, err := strconv.Atoi(localUser.Uid)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	gid, err := strconv.Atoi(localUser.Gid)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	prevUID := os.Geteuid()
-	prevGID := os.Getegid()
-
-	defer func() {
-		gidErr := syscall.Setegid(prevGID)
-		uidErr := syscall.Seteuid(prevUID)
-		if uidErr != nil || gidErr != nil {
-			file.Close()
-			slog.ErrorContext(context.Background(), "cannot proceed with invalid effective credentials", "uid_err", uidErr, "gid_err", gidErr, "error", err)
-			os.Exit(reexecconstants.UnexpectedCredentials)
-		}
-	}()
-
-	if err := syscall.Setegid(gid); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := syscall.Seteuid(uid); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	file, err = os.Open(path)
-	return file, trace.ConvertSystemError(err)
+	return nil, nil
 }
 
 func readUserEnv(localUser *user.User, path string) ([]string, error) {
@@ -1335,15 +1197,11 @@ func BuildCommand(c *ExecCommand, localUser *user.User, pamEnvironment []string)
 
 	if c.Terminal {
 		cmd.SysProcAttr = &syscall.SysProcAttr{
-			Setsid:  true,
-			Setctty: true,
 			// Note: leaving Ctty empty will default it to stdin fd, which is
 			// set to our tty above.
 		}
 	} else {
-		cmd.SysProcAttr = &syscall.SysProcAttr{
-			Setsid: true,
-		}
+		cmd.SysProcAttr = &syscall.SysProcAttr{}
 	}
 
 	// Pass extra files for SFTP to grandchild.
@@ -1494,21 +1352,13 @@ func checkHomeDir(localUser *user.User) (bool, error) {
 		return false, trace.Wrap(err)
 	}
 
-	credential, err := host.GetHostUserCredential(localUser)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-
 	// Build the "teleport exec" command.
 	cmd := &exec.Cmd{
-		Path: executable,
-		Args: []string{executable, reexecconstants.CheckHomeDirSubCommand},
-		Env:  []string{"HOME=" + localUser.HomeDir},
-		Dir:  rootDirectory,
-		SysProcAttr: &syscall.SysProcAttr{
-			Setsid:     true,
-			Credential: credential,
-		},
+		Path:        executable,
+		Args:        []string{executable, reexecconstants.CheckHomeDirSubCommand},
+		Env:         []string{"HOME=" + localUser.HomeDir},
+		Dir:         rootDirectory,
+		SysProcAttr: &syscall.SysProcAttr{},
 	}
 
 	// Perform OS-specific tweaks to the command.
@@ -1523,32 +1373,6 @@ func checkHomeDir(localUser *user.User) (bool, error) {
 	}
 
 	return true, nil
-}
-
-// Spawns a process with the given credentials, outliving the context.
-func (o *osWrapper) newParker(ctx context.Context, credential syscall.Credential) error {
-	executable, err := os.Executable()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	cmd := o.CommandContext(ctx, executable, reexecconstants.ParkSubCommand)
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Credential: &credential,
-	}
-
-	// Perform OS-specific tweaks to the command.
-	parkerCommandOSTweaks(cmd)
-
-	if err := cmd.Start(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// the process will get killed when the context ends, but we still need to
-	// Wait on it
-	go cmd.Wait()
-
-	return nil
 }
 
 // WaitForSignal will wait for the other side of the pipe to signal, if not

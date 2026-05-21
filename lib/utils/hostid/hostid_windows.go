@@ -16,11 +16,25 @@
 
 package hostid
 
-import "github.com/gravitational/trace"
+import (
+	"errors"
+	"io/fs"
+	"os"
+
+	"github.com/gravitational/trace"
+)
 
 // WriteFile writes host UUID into a file
 func WriteFile(dataDir string, id string) error {
-	return trace.NotImplemented("host id writing is not supported on windows")
+	err := os.WriteFile(GetPath(dataDir), []byte(id), 0o400)
+	if err != nil {
+		if errors.Is(err, fs.ErrPermission) {
+			//do not convert to system error as this loses the ability to compare that it is a permission error
+			return trace.Wrap(err)
+		}
+		return trace.ConvertSystemError(err)
+	}
+	return nil
 }
 
 // ReadOrCreateFile looks for a hostid file in the data dir. If present,

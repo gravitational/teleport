@@ -48,7 +48,6 @@ import (
 	"time"
 
 	"github.com/coreos/go-semver/semver"
-	"github.com/google/renameio/v2"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -6364,7 +6363,7 @@ func (process *TeleportProcess) readOrInitPeerStatelessResetKey() (*quic.Statele
 	if _, err := rand.Read(k[:]); err != nil {
 		return nil, trace.ConvertSystemError(err)
 	}
-	if err := renameio.WriteFile(resetKeyPath, k[:], 0o600); err != nil {
+	if err := os.WriteFile(resetKeyPath, k[:], 0o600); err != nil {
 		process.logger.WarnContext(process.ExitContext(), "Failed to persist stateless reset key.", "error", err)
 	}
 	return k, nil

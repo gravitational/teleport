@@ -1,5 +1,3 @@
-//go:build unix
-
 /*
  * Teleport
  * Copyright (C) 2023  Gravitational, Inc.
@@ -42,7 +40,6 @@ func ServeSignals(app Terminable, shutdownTimeout time.Duration) {
 	signal.Notify(sigC,
 		syscall.SIGTERM, // graceful shutdown
 		syscall.SIGINT,  // graceful-then-fast shutdown
-		syscall.SIGUSR1, // capture pprof profiles
 	)
 	defer signal.Stop(sigC)
 
@@ -69,10 +66,6 @@ func ServeSignals(app Terminable, shutdownTimeout time.Duration) {
 			}
 			go gracefulShutdown()
 			alreadyInterrupted = true
-		case syscall.SIGUSR1:
-			if p, ok := app.(interface{ Profile() }); ok {
-				go p.Profile()
-			}
 		}
 	}
 }
