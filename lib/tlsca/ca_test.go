@@ -744,3 +744,63 @@ func TestDelegationSessionID(t *testing.T) {
 	require.False(t, out.Renewable)
 	require.Empty(t, cmp.Diff(out, &identity, cmpopts.EquateApproxTime(time.Second)))
 }
+
+func TestGenerateCertificate_SubjectModifcationsPreserved(t *testing.T) {
+	ca, err := FromKeys([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
+	require.NoError(t, err)
+	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	generated, err := ca.GenerateCertificate(CertificateRequest{
+		Subject: pkix.Name{
+			CommonName:         "alice",
+			Organization:       []string{"org"},
+			OrganizationalUnit: []string{"engineering"},
+			Locality:           []string{"Somewhere"},
+			Province:           []string{"N/A"},
+			StreetAddress:      []string{"123 Cherry Street"},
+			PostalCode:         []string{"99999"},
+			Country:            []string{"US"},
+			SerialNumber:       "12345",
+		},
+		PublicKey: key.Public(),
+		DNSNames:  []string{"dns"},
+		NotAfter:  time.Now().Add(10 * time.Second),
+	})
+	require.NoError(t, err)
+
+	parsed, err := ParseCertificatePEM(generated)
+	require.NoError(t, err)
+
+	// Let's modify the subject a bit from the original.
+	// Add some new OIDs, modify the CN, etc.
+	parsed.Subject.ExtraNames = []pkix.AttributeTypeAndValue{
+		{
+			Type:  []int{1, 2, 3},
+			Value: "somevalue",
+		},
+	}
+	parsed.Subject.CommonName = "bob"
+	parsed.Subject.Organization = []string{"marketing"}
+
+	roundTripped, err := ca.GenerateCertificate(CertificateRequest{
+		Subject:   parsed.Subject,
+		PublicKey: key.Public(),
+		// Override DNSNames as well
+		DNSNames: []string{"overridden-dns"},
+		NotAfter: time.Now().Add(10 * time.Second),
+	})
+	require.NoError(t, err)
+
+	parsedRoundTripped, err := ParseCertificatePEM(roundTripped)
+	require.NoError(t, err)
+
+	// Subject modifications are preserved.
+	assert.Equal(t, "bob", parsedRoundTripped.Subject.CommonName)
+	assert.Equal(t, []string{"marketing"}, parsedRoundTripped.Subject.Organization)
+	// DNS modification preserved.
+	assert.Equal(t, []string{"overridden-dns"}, parsedRoundTripped.DNSNames)
+
+	// The extra name that we added should be present in the roundtripped cert.
+	assert.Len(t, parsedRoundTripped.Subject.Names, len(parsed.Subject.Names)+1)
+	assert.Contains(t, parsedRoundTripped.Subject.Names, parsed.Subject.ExtraNames[0])
+}
