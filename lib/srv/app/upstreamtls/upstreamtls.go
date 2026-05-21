@@ -58,6 +58,24 @@ type Options struct {
 	InsecureMode bool
 }
 
+// CheckAndSetDefaults validates required fields and sets defaults for optional
+// ones.
+func (o *Options) CheckAndSetDefaults() error {
+	if o.CAGetter == nil {
+		return trace.BadParameter("CAGetter is required")
+	}
+	if o.ClusterName == "" {
+		return trace.BadParameter("ClusterName is required")
+	}
+	if o.App == nil {
+		return trace.BadParameter("App is required")
+	}
+	if o.Logger == nil {
+		o.Logger = slog.Default()
+	}
+	return nil
+}
+
 // Configure creates and configures a *tls.Config that will be used to verify
 // upstream TLS servers. This function assumes a validated AppTLS, meaning it
 // won't perform validation checks for fields and their contents.
@@ -65,14 +83,19 @@ type Options struct {
 // Note that [types.AppTLS] can be nil since it is not required for supported
 // protocols. This function must take that into account.
 func Configure(ctx context.Context, opts Options) (*tls.Config, error) {
+	if err := opts.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Service-level insecure mode takes precedence over app configuration.
 	if opts.InsecureMode {
 		return configureTLSInsecure(opts.CipherSuites)
 	}
 
 	appTLS := cmp.Or(opts.App.GetTLS(), &types.AppTLS{})
+	logger := opts.Logger.With("app", opts.App.GetName())
 
-	caPool, err := newTLSCertPool(ctx, opts.Logger, opts.CAGetter, opts.ClusterName, appTLS.AllowedCas)
+	caPool, err := newTLSCertPool(ctx, logger, opts.CAGetter, opts.ClusterName, appTLS.AllowedCas)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -94,11 +117,16 @@ func Configure(ctx context.Context, opts Options) (*tls.Config, error) {
 		return configureTLSVerifyServerName(opts.CipherSuites, caPool, appTLS.ServerName)
 	case types.AppTLSModeInsecure:
 		return configureTLSInsecure(opts.CipherSuites)
-	default:
-		// Unsupported protocols will return a non-valid TLS mode. For those
-		// cases, the TLS configuration won't be effective, so we can return
-		// an empty option here.
+	case "":
+		// Empty mode is returned by GetTLSMode() for app protocols that don't
+		// support TLS configuration. Return baseline tls.Config so callers
+		// still get configured cipher suites.
 		return utils.TLSConfig(opts.CipherSuites), nil
+	default:
+		// This should be unreachable. In case it does, it is probably caused by
+		// a new TLS mode being added to the config but not here. Ensure this
+		// switch-case handles all valid options.
+		return nil, trace.BadParameter("unsupported TLS mode %q", opts.App.GetTLSMode())
 	}
 }
 
@@ -197,6 +225,7 @@ func newTLSCertPool(ctx context.Context, logger *slog.Logger, getter Certificate
 	// This is mainly to keep backwards compatibility for apps using TLS
 	// connections, and that doesn't configure the CA list.
 	if len(cas) == 0 {
+		logger.DebugContext(ctx, "using system trust store")
 		return nil, nil
 	}
 
