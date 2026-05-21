@@ -181,6 +181,7 @@ func TestKubernetesV2Output_CheckAndSetDefaults(t *testing.T) {
 						{Name: "foo", Labels: map[string]string{}},
 					},
 					ContextNameTemplate: "{{.KubeName}}",
+					DelegationSessionID: "foo-bar-buzz",
 				}
 			},
 			wantErr: "is not supported in scoped mode",
