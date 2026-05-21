@@ -491,6 +491,7 @@ func (o *OktaAssignmentTargetV1) SetStatus(status string) error {
 			return makeInvalidTransitionError()
 		}
 	case OktaAssignmentTargetV1_STATUS_UNKNOWN:
+		// All transitions are allowed from UNKNOWN.
 	default:
 		return makeInvalidTransitionError()
 	}
