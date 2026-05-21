@@ -35,7 +35,7 @@ import {
   SortItem,
   SortMenu,
   SortOrder,
-} from 'shared/components/Controls/SortMenuV2';
+} from 'shared/components/Controls/SortMenu';
 import { useLocalStorage } from 'shared/hooks/useLocalStorage';
 
 import { ClusterDropdown } from 'teleport/components/ClusterDropdown/ClusterDropdown';
