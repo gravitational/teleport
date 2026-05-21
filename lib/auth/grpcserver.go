@@ -27,9 +27,7 @@ import (
 	"iter"
 	"log/slog"
 	"net"
-	"os"
 	goslices "slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -230,17 +228,17 @@ type GRPCServer struct {
 	// collect and forward spans
 	collectortracepb.TraceServiceServer
 
-	// createAuditStreamSemaphore, if not nil, is used to limit the amount of
-	// in-flight CreateAuditStream RPCs, by sending a value in at the beginning
-	// of the RPC and pulling one out before returning.
-	createAuditStreamSemaphore chan struct{}
-
 	// createAuthenticateChallengeLimiter is a rate limiter for invocations of
 	// /proto.AuthService/CreateAuthenticateChallenge that don't rely on a user
 	// context and thus warrant additional rate limiting since they are
 	// unauthenticated (either through direct API connections or coming from the
 	// proxy on behalf of a remote unauthenticated user).
 	createAuthenticateChallengeLimiter *limiter.RateLimiter
+
+	// createAuditStreamSemaphore, if not nil, is used to limit the amount of
+	// in-flight CreateAuditStream RPCs, by sending a value in at the beginning
+	// of the RPC and pulling one out before returning.
+	createAuditStreamSemaphore chan struct{}
 }
 
 func (g *GRPCServer) SetServingStatus(service string, servingStatus grpc_health_v1.HealthCheckResponse_ServingStatus) {
@@ -6384,6 +6382,16 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	var createAuditStreamSemaphore chan struct{}
+	if cfg.CreateAuditStreamInflightLimit != nil {
+		metrics.RegisterPrometheusCollectors(
+			createAuditStreamAcceptedTotalMetric,
+			createAuditStreamRejectedTotalMetric,
+			createAuditStreamLimitMetric,
+		)
+		createAuditStreamSemaphore = make(chan struct{}, max(0, *cfg.CreateAuditStreamInflightLimit))
+	}
+
 	authServer := &GRPCServer{
 		APIConfig:   cfg.APIConfig,
 		logger:      logger,
@@ -6391,26 +6399,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		healthcheck: health.NewServer(),
 
 		createAuthenticateChallengeLimiter: createAuthenticateChallengeLimiter,
-	}
-
-	if en := os.Getenv("TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT"); en != "" {
-		inflightLimit, err := strconv.ParseInt(en, 10, 64)
-		if err != nil {
-			logger.ErrorContext(context.Background(), "Failed to parse the TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT envvar, limit will not be enforced")
-			inflightLimit = -1
-		}
-		if inflightLimit == 0 {
-			logger.WarnContext(context.Background(), "TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT is set to 0, no CreateAuditStream RPCs will be allowed")
-		}
-		metrics.RegisterPrometheusCollectors(
-			createAuditStreamAcceptedTotalMetric,
-			createAuditStreamRejectedTotalMetric,
-			createAuditStreamLimitMetric,
-		)
-		createAuditStreamLimitMetric.Set(float64(inflightLimit))
-		if inflightLimit >= 0 {
-			authServer.createAuditStreamSemaphore = make(chan struct{}, inflightLimit)
-		}
+		createAuditStreamSemaphore:         createAuditStreamSemaphore,
 	}
 
 	authpb.RegisterAuthServiceServer(server, authServer)

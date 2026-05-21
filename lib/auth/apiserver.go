@@ -68,6 +68,11 @@ type APIConfig struct {
 	// DisableJoinV1 disables registration of the new join gRPC service.
 	// Intended for tests that need to exercise legacy join fallback paths.
 	DisableJoinV1 bool
+	// CreateAuditStreamInflightLimit, if set, is the maximum amount of allowed
+	// in-flight CreateAuditStream rpc calls. Calls beyond the limit will
+	// immediately return with an error. A non-positive limit means that no
+	// calls will be allowed.
+	CreateAuditStreamInflightLimit *int
 }
 
 // CheckAndSetDefaults checks and sets default values
