@@ -1019,6 +1019,35 @@ func (s *PresenceService) GetDatabaseServers(ctx context.Context, namespace stri
 	return servers, nil
 }
 
+// RangeDatabaseServersWithName returns an iterator over database proxy servers for a given database name.
+func (s *PresenceService) RangeDatabaseServersWithName(ctx context.Context, databaseName string) iter.Seq2[types.DatabaseServer, error] {
+	if databaseName == "" {
+		return stream.Fail[types.DatabaseServer](trace.BadParameter("missing database name"))
+	}
+
+	// TODO(wethreetrees): if Metadata.Name == Spec.Database.GetName() becomes a
+	// CheckAndSetDefaults invariant, this filter could check against the backend
+	// key's trailing component before unmarshalling. Currently no such invariant
+	// exists, so we unmarshal every item to read the embedded database name.
+	mapFn := func(item backend.Item) (types.DatabaseServer, bool) {
+		server, err := services.UnmarshalDatabaseServer(
+			item.Value,
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision),
+		)
+		if err != nil {
+			s.logger.WarnContext(ctx, "Failed to unmarshal database server", "key", item.Key, "error", err)
+			return nil, false
+		}
+		return server, server.GetDatabase().GetName() == databaseName
+	}
+
+	startKey := backend.ExactKey(dbServersPrefix, apidefaults.Namespace)
+	endKey := backend.RangeEnd(startKey)
+
+	return stream.FilterMap(s.Backend.Items(ctx, backend.ItemsParams{StartKey: startKey, EndKey: endKey}), mapFn)
+}
+
 // UpsertDatabaseServer registers new database proxy server.
 func (s *PresenceService) UpsertDatabaseServer(ctx context.Context, server types.DatabaseServer) (*types.KeepAlive, error) {
 	if err := services.CheckAndSetDefaults(server); err != nil {
