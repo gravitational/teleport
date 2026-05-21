@@ -200,7 +200,7 @@ func (a *AsyncEmitter) EmitAuditEvent(ctx context.Context, event apievents.Audit
 				"event_type", event.GetType(),
 				"event_code", event.GetCode(),
 			)
-			return nil
+			return err
 		}
 		return trace.Wrap(err)
 	}
