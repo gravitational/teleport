@@ -319,7 +319,7 @@ func TestConvertAuditEvent(t *testing.T) {
 			actual := ConvertAuditEvent(tt.event)
 			assert.Equal(t, tt.expected, actual)
 			actualAnonymized := actual.Anonymize(anonymizer)
-			assert.Equal(t, tt.expectedAnonymized, &actualAnonymized)
+			assert.Equal(t, tt.expectedAnonymized, actualAnonymized)
 		})
 	}
 }

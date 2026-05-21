@@ -229,7 +229,7 @@ func (c *Client) request(ctx context.Context, method string, uri string, header 
 
 	var lastErr error
 	var start time.Time
-	for range maxRetries {
+	for i := range maxRetries {
 		if retryAfter > 0 {
 			select {
 			case <-c.clock.After(retryAfter):
@@ -284,12 +284,28 @@ func (c *Client) request(ctx context.Context, method string, uri string, header 
 			"status", resp.StatusCode,
 			"url", req.URL,
 			"client_request_id", requestID,
+			"retry_count", i,
 		)
+
+		retryAfter = retry.Duration()
+		retryAfterFromHeader := time.Duration(0)
+		if ra := resp.Header.Get("Retry-After"); ra != "" {
+			if seconds, err := strconv.Atoi(ra); err != nil {
+				c.logger.WarnContext(ctx, `Failed to parse "Retry-After" header`, "error", err)
+			} else {
+				retryAfterFromHeader = time.Duration(seconds) * time.Second
+				retryAfter = time.Duration(seconds) * time.Second
+			}
+		}
+		retry.Inc()
 
 		graphError, err := readError(respBody, resp.StatusCode)
 		if err != nil {
 			lastErr = err // error while reading the graph error, relay
 		} else if graphError != nil {
+			if retryAfterFromHeader > 0 {
+				graphError.RetryAfter = retryAfterFromHeader
+			}
 			lastErr = trace.Wrap(graphError)
 		} else {
 			// API did not return a valid error structure, best-effort reporting.
@@ -298,14 +314,6 @@ func (c *Client) request(ctx context.Context, method string, uri string, header 
 		if !isRetriable(resp.StatusCode) {
 			break
 		}
-
-		retryAfter = retry.Duration()
-		if ra := resp.Header.Get("Retry-After"); ra != "" {
-			if seconds, err := strconv.Atoi(ra); err == nil {
-				retryAfter = time.Duration(seconds) * time.Second
-			}
-		}
-		retry.Inc()
 
 		// prepare for the next request attempt by rewinding the body
 		if body != nil {
