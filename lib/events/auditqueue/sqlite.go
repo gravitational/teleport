@@ -316,6 +316,10 @@ func (q *sqliteQueue) aboveSoftLimit() (bool, int64, error) {
 // commits together. This works by utilizing the latency of the commit in
 // progress to enqueue and batch together subsequent events. These events will
 // be committed together as a batch once the in-progress commit finishes.
+//
+// Events that are in-flight at the time of shutdown may be lost, as the queue
+// context cancellation causes both this function and writeLoop to return before
+// the commit completes.
 func (q *sqliteQueue) Enqueue(ctx context.Context, event apievents.AuditEvent) error {
 	// Serialize the event to bytes.
 	oneOf, err := apievents.ToOneOf(event)
