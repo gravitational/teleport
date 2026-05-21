@@ -530,12 +530,19 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 		allowedResourceAccessIDs = resourceAccessIDs
 	}
 	if len(allowedResourceAccessIDs) > 0 {
-		// Prefer new extension when present, old extension is redundant
-		// (exists for backward-compat with older agents/proxies).
+		// Prefer new extension when present.
 		ident.AllowedResourceAccessIDs = allowedResourceAccessIDs
+		// Populate AllowedResourceIDs with any present unconstrained resources,
+		// so any path re-encoding this identity persists the resourceIDs
+		// to the legacy extension instead of adding a sentinel.
+		//
+		// TODO(kiosion): DELETE in 20.0.0
+		ident.AllowedResourceIDs, _ = types.UnwrapResourceAccessIDs(allowedResourceAccessIDs)
 	} else if len(allowedResourceIDs) > 0 {
-		// Fallback for certs from older auth servers that don't write the new extension.
+		// Fallback for certs from older Auths that don't write the new extension.
 		ident.AllowedResourceAccessIDs = types.CombineAsResourceAccessIDs(allowedResourceIDs, nil)
+		//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v20
+		ident.AllowedResourceIDs = allowedResourceIDs
 	}
 
 	ident.ConnectionDiagnosticID = takeValue(teleport.CertExtensionConnectionDiagnosticID)
