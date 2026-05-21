@@ -3,8 +3,10 @@ package entraid
 import (
 	"context"
 	"errors"
+	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -22,19 +24,33 @@ import (
 
 // fakeDirectoryReconciler is a no-op reconciler that returns the given error.
 type fakeDirectoryReconciler struct {
-	timesCalled    int64
-	err            error
+	timesCalled int64
+
+	mu  sync.Mutex
+	err error
+
 	importedUsers  int
 	importedGroups int
 }
 
 func (r *fakeDirectoryReconciler) Reconcile(ctx context.Context, _ mdmsync.SyncMode) (directory.Result, error) {
 	atomic.AddInt64(&r.timesCalled, 1)
+
+	r.mu.Lock()
+	err := r.err
+	r.mu.Unlock()
+
 	out := directory.Result{
 		ImportedUsers:  r.importedUsers,
 		ImportedGroups: r.importedGroups,
 	}
-	return out, trace.Wrap(r.err)
+	return out, trace.Wrap(err)
+}
+
+func (r *fakeDirectoryReconciler) setErr(err error) {
+	r.mu.Lock()
+	r.err = err
+	r.mu.Unlock()
 }
 
 // fakeTAGSynchronizer that "does nothing" until the context is canceled.
@@ -46,136 +62,125 @@ func (r *fakeTAGSynchronizer) Run(ctx context.Context) error {
 }
 
 func TestServiceRetryAndCancelation(t *testing.T) {
-	backend, err := memory.New(memory.Config{})
-	require.NoError(t, err)
-	semaphoreSvc := local.NewPresenceService(backend)
-	clock := clockwork.NewFakeClock()
+	synctest.Test(t, func(t *testing.T) {
+		backend, err := memory.New(memory.Config{})
+		require.NoError(t, err)
 
-	directoryReconciler := &fakeDirectoryReconciler{
-		err: errors.New("something bad happened"),
-	}
+		semaphoreSvc := local.NewPresenceService(backend)
+		clock := clockwork.NewRealClock()
 
-	shedules, err := newScheduler(SyncIntervals{
-		Full:  DefaultFullSyncInterval,
-		Delta: 0,
+		directoryReconciler := &fakeDirectoryReconciler{
+			err: errors.New("something bad happened"),
+		}
+
+		shedules, err := newScheduler(SyncIntervals{
+			Full:  DefaultFullSyncInterval,
+			Delta: 0,
+		})
+		require.NoError(t, err)
+		svc := &Service{
+			clock:                   clock,
+			log:                     logtest.NewLogger(),
+			pluginStatusSink:        &integration.FakeStatusSink{},
+			semaphoreSvc:            semaphoreSvc,
+			hostID:                  "foo",
+			directoryReconciler:     directoryReconciler,
+			accessGraphSynchronizer: &fakeTAGSynchronizer{},
+			syncIntervals:           shedules,
+		}
+
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+
+		returned := make(chan error, 1)
+		go func() {
+			returned <- svc.Run(ctx)
+		}()
+
+		synctest.Wait()
+		// Expect directory reconciler to get called once.
+		require.Equal(t, int64(1), atomic.LoadInt64(&directoryReconciler.timesCalled))
+
+		// Advance to the next sync interval
+		time.Sleep(DefaultFullSyncInterval)
+		synctest.Wait()
+		// Expect directory reconciler to get called a second time.
+		require.Equal(t, int64(2), atomic.LoadInt64(&directoryReconciler.timesCalled))
+
+		cancel()
+		synctest.Wait()
+		require.ErrorIs(t, <-returned, context.Canceled)
 	})
-	require.NoError(t, err)
-	svc := &Service{
-		clock:                   clock,
-		log:                     logtest.NewLogger(),
-		pluginStatusSink:        &integration.FakeStatusSink{},
-		semaphoreSvc:            semaphoreSvc,
-		hostID:                  "foo",
-		directoryReconciler:     directoryReconciler,
-		accessGraphSynchronizer: &fakeTAGSynchronizer{},
-		syncIntervals:           shedules,
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	returned := make(chan error, 1)
-	go func() {
-		returned <- svc.Run(ctx)
-	}()
-
-	// Expect directory reconciler to get called once.
-	require.Eventually(t, func() bool {
-		return atomic.LoadInt64(&directoryReconciler.timesCalled) == 1
-	}, time.Second, time.Second/100)
-
-	// Advance to the next sync interval
-	clock.Advance(DefaultFullSyncInterval)
-
-	// Expect directory reconciler to get called a second time.
-	require.Eventually(t, func() bool {
-		return atomic.LoadInt64(&directoryReconciler.timesCalled) == 2
-	}, time.Second, time.Second/100)
-
-	cancel()
-
-	select {
-	case err := <-returned:
-		require.ErrorIs(t, err, context.Canceled)
-	case <-time.After(time.Second):
-		require.Fail(t, "expected Run() to return after canceling the context, but it did not")
-	}
 }
 
 func TestDirectoryReconcilerStatus(t *testing.T) {
-	backend, err := memory.New(memory.Config{})
-	require.NoError(t, err)
-	semaphoreSvc := local.NewPresenceService(backend)
-	clock := clockwork.NewFakeClock()
+	synctest.Test(t, func(t *testing.T) {
+		backend, err := memory.New(memory.Config{})
+		require.NoError(t, err)
+		semaphoreSvc := local.NewPresenceService(backend)
+		clock := clockwork.NewRealClock()
 
-	directoryReconciler := &fakeDirectoryReconciler{
-		importedUsers:  34,
-		importedGroups: 12,
-	}
+		directoryReconciler := &fakeDirectoryReconciler{
+			importedUsers:  34,
+			importedGroups: 12,
+		}
 
-	statusSink := &integration.FakeStatusSink{}
+		statusSink := &integration.FakeStatusSink{}
 
-	shedules, err := newScheduler(SyncIntervals{
-		Full:  DefaultFullSyncInterval,
-		Delta: 0,
+		shedules, err := newScheduler(SyncIntervals{
+			Full:  DefaultFullSyncInterval,
+			Delta: 0,
+		})
+		require.NoError(t, err)
+
+		svc := &Service{
+			clock:                   clock,
+			log:                     logtest.NewLogger(),
+			pluginStatusSink:        statusSink,
+			semaphoreSvc:            semaphoreSvc,
+			hostID:                  "foo",
+			directoryReconciler:     directoryReconciler,
+			accessGraphSynchronizer: &fakeTAGSynchronizer{},
+			syncIntervals:           shedules,
+		}
+
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+
+		go func() {
+			svc.Run(ctx)
+		}()
+
+		synctest.Wait()
+		// Expect directory reconciler to get called once.
+		require.Equal(t, int64(1), atomic.LoadInt64(&directoryReconciler.timesCalled))
+
+		// Expect a "running" status and details.
+		status := statusSink.Get()
+		require.Equal(t, types.PluginStatusCode_RUNNING, status.GetCode())
+		entraStatus := status.GetEntraId()
+		require.NotNil(t, entraStatus)
+		require.Equal(t, uint32(34), entraStatus.ImportedUsers)
+		require.Equal(t, uint32(12), entraStatus.ImportedGroups)
+
+		// Mock an error and advance to the next sync interval
+		syncErr := errors.New("something bad happened")
+		directoryReconciler.setErr(syncErr)
+		time.Sleep(DefaultFullSyncInterval)
+		synctest.Wait()
+		// Expect directory reconciler to get called a second time.
+		require.Equal(t, int64(2), atomic.LoadInt64(&directoryReconciler.timesCalled))
+
+		// Expect an error status with a message, and details to remain.
+		status = statusSink.Get()
+		require.Equal(t, types.PluginStatusCode_OTHER_ERROR, status.GetCode())
+		require.Contains(t, status.GetErrorMessage(), "completed with partial success")
+		statusV1, ok := status.(*types.PluginStatusV1)
+		require.True(t, ok, "expected type PluginStatusV1 but got %T", statusV1)
+		require.Contains(t, statusV1.LastRawError, syncErr.Error())
+		entraStatus = statusSink.Get().GetEntraId()
+		require.NotNil(t, entraStatus)
+		require.Equal(t, uint32(34), entraStatus.ImportedUsers)
+		require.Equal(t, uint32(12), entraStatus.ImportedGroups)
 	})
-	require.NoError(t, err)
-
-	svc := &Service{
-		clock:                   clock,
-		log:                     logtest.NewLogger(),
-		pluginStatusSink:        statusSink,
-		semaphoreSvc:            semaphoreSvc,
-		hostID:                  "foo",
-		directoryReconciler:     directoryReconciler,
-		accessGraphSynchronizer: &fakeTAGSynchronizer{},
-		syncIntervals:           shedules,
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	go func() {
-		svc.Run(ctx)
-	}()
-
-	// Expect directory reconciler to get called once.
-	require.Eventually(t, func() bool {
-		return atomic.LoadInt64(&directoryReconciler.timesCalled) == 1
-	}, time.Second, time.Second/100)
-
-	// Expect a "running" status and details.
-	require.Eventually(t, func() bool {
-		return statusSink.Get() != nil
-	}, time.Second, time.Second/100)
-	status := statusSink.Get()
-	require.Equal(t, types.PluginStatusCode_RUNNING, status.GetCode())
-	entraStatus := status.GetEntraId()
-	require.NotNil(t, entraStatus)
-	require.Equal(t, uint32(34), entraStatus.ImportedUsers)
-	require.Equal(t, uint32(12), entraStatus.ImportedGroups)
-
-	// Mock an error and advance to the next sync interval
-	directoryReconciler.err = errors.New("something bad happened")
-	clock.Advance(DefaultFullSyncInterval)
-
-	// Expect directory reconciler to get called a second time.
-	require.Eventually(t, func() bool {
-		return atomic.LoadInt64(&directoryReconciler.timesCalled) == 2
-	}, time.Second, time.Second/100)
-
-	// Expect an error status with a message, and details to remain.
-	require.Eventually(t, func() bool {
-		return statusSink.Get().GetCode() == types.PluginStatusCode_OTHER_ERROR
-	}, time.Second, time.Second/100)
-
-	status = statusSink.Get()
-	require.Contains(t, status.GetErrorMessage(), "completed with partial success")
-	statusV1, ok := status.(*types.PluginStatusV1)
-	require.True(t, ok, "expected type PluginStatusV1 but got %T", statusV1)
-	require.Contains(t, statusV1.LastRawError, directoryReconciler.err.Error())
-	entraStatus = statusSink.Get().GetEntraId()
-	require.NotNil(t, entraStatus)
-	require.Equal(t, uint32(34), entraStatus.ImportedUsers)
-	require.Equal(t, uint32(12), entraStatus.ImportedGroups)
 }
