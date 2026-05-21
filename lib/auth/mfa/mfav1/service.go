@@ -66,7 +66,9 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 }
 
 // CompleteBrowserMFAChallenge completes a browser MFA challenge.
-func (s *Service) CompleteBrowserMFAChallenge(ctx context.Context, req *mfav1.CompleteBrowserMFAChallengeRequest) (*mfav1.CompleteBrowserMFAChallengeResponse, error) { //nolint:staticcheck // TODO(danielashare): Delete when Browser MFA has migrated to mfav2.
+//
+//nolint:staticcheck // TODO(danielashare): Delete when Browser MFA has migrated to mfav2.
+func (s *Service) CompleteBrowserMFAChallenge(ctx context.Context, req *mfav1.CompleteBrowserMFAChallengeRequest) (*mfav1.CompleteBrowserMFAChallengeResponse, error) {
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -97,7 +99,7 @@ func (s *Service) CompleteBrowserMFAChallenge(ctx context.Context, req *mfav1.Co
 		return nil, trace.Wrap(err)
 	}
 
-	return &mfav1.CompleteBrowserMFAChallengeResponse{ //nolint:staticcheck // TODO(danielashare): Delete when Browser MFA has migrated to mfav2.
+	return &mfav1.CompleteBrowserMFAChallengeResponse{
 		TshRedirectUrl: tshRedirectURL,
 	}, nil
 }

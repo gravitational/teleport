@@ -32,6 +32,7 @@ import (
 // with a TDPB client.
 func NewTDPBMFAPrompt(rw tdp.MessageReadWriter, withheld *[]tdp.Message, log *slog.Logger) func(string) mfa.PromptFunc {
 	return func(channelID string) mfa.PromptFunc {
+		//nolint:staticcheck // TODO: Delete when Desktop has migrated to mfav2.
 		convert := func(challenge *proto.MFAAuthenticateChallenge) (tdp.Message, error) {
 			if challenge == nil {
 				return nil, trace.Errorf("empty MFA challenge")
@@ -39,7 +40,7 @@ func NewTDPBMFAPrompt(rw tdp.MessageReadWriter, withheld *[]tdp.Message, log *sl
 
 			mfaMsg := &MFA{
 				ChannelId: channelID,
-				Challenge: &mfav1.AuthenticateChallenge{}, //nolint:staticcheck // TODO: Delete when Desktop has migrated to mfav2.
+				Challenge: &mfav1.AuthenticateChallenge{},
 			}
 
 			if challenge.WebauthnChallenge != nil {
@@ -47,7 +48,7 @@ func NewTDPBMFAPrompt(rw tdp.MessageReadWriter, withheld *[]tdp.Message, log *sl
 			}
 
 			if challenge.SSOChallenge != nil {
-				mfaMsg.Challenge.SsoChallenge = &mfav1.SSOChallenge{ //nolint:staticcheck // TODO: Delete when Desktop has migrated to mfav2.
+				mfaMsg.Challenge.SsoChallenge = &mfav1.SSOChallenge{
 					RequestId:   challenge.SSOChallenge.RequestId,
 					RedirectUrl: challenge.SSOChallenge.RedirectUrl,
 					Device:      challenge.SSOChallenge.Device,

@@ -100,6 +100,8 @@ func (p *mfaPrompt) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 }
 
 // promptApp handles the client modal, cancellation, and TOTP.
+//
+//nolint:staticcheck // TODO(danielashare): Delete when Browser MFA has migrated to mfav2.
 func (p *mfaPrompt) promptApp(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
 	promptOTP := chal.TOTP != nil
 	promptWebauthn := chal.WebauthnChallenge != nil && p.cfg.WebauthnSupported
@@ -117,9 +119,9 @@ func (p *mfaPrompt) promptApp(ctx context.Context, chal *proto.MFAAuthenticateCh
 		}
 	}
 
-	var browserMfaChallenge *mfav1.BrowserMFAChallenge //nolint:staticcheck // TODO(danielashare): Delete when Browser MFA has migrated to mfav2.
+	var browserMfaChallenge *mfav1.BrowserMFAChallenge
 	if promptBrowserMfa {
-		browserMfaChallenge = &mfav1.BrowserMFAChallenge{ //nolint:staticcheck // TODO(danielashare): Delete when Browser MFA has migrated to mfav2.
+		browserMfaChallenge = &mfav1.BrowserMFAChallenge{
 			RequestId: chal.BrowserMFAChallenge.RequestId,
 		}
 	}

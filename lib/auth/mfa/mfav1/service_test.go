@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 )
 
+//nolint:staticcheck // SA1019: this package tests the deprecated mfav1 service.
 func TestCompleteBrowserMFAChallenge_Success(t *testing.T) {
 	t.Parallel()
 
@@ -42,8 +43,8 @@ func TestCompleteBrowserMFAChallenge_Success(t *testing.T) {
 
 	resp, err := service.CompleteBrowserMFAChallenge(
 		ctx,
-		&mfav1.CompleteBrowserMFAChallengeRequest{ //nolint:staticcheck // SA1019: this package tests the deprecated mfav1 service.
-			BrowserMfaResponse: &mfav1.BrowserMFAResponse{ //nolint:staticcheck // SA1019: this package tests the deprecated mfav1 service.
+		&mfav1.CompleteBrowserMFAChallengeRequest{
+			BrowserMfaResponse: &mfav1.BrowserMFAResponse{
 				RequestId: requestID,
 				WebauthnResponse: &webauthnpb.CredentialAssertionResponse{
 					Type: "public-key",
@@ -57,6 +58,7 @@ func TestCompleteBrowserMFAChallenge_Success(t *testing.T) {
 	require.Contains(t, resp.TshRedirectUrl, "127.0.0.1")
 }
 
+//nolint:staticcheck // SA1019: this package tests the deprecated mfav1 service.
 func TestCompleteBrowserMFAChallenge_NonUserDenied(t *testing.T) {
 	t.Parallel()
 
@@ -67,8 +69,8 @@ func TestCompleteBrowserMFAChallenge_NonUserDenied(t *testing.T) {
 
 	resp, err := service.CompleteBrowserMFAChallenge(
 		ctx,
-		&mfav1.CompleteBrowserMFAChallengeRequest{ //nolint:staticcheck // SA1019: this package tests the deprecated mfav1 service.
-			BrowserMfaResponse: &mfav1.BrowserMFAResponse{ //nolint:staticcheck // SA1019: this package tests the deprecated mfav1 service.
+		&mfav1.CompleteBrowserMFAChallengeRequest{
+			BrowserMfaResponse: &mfav1.BrowserMFAResponse{
 				RequestId: "test-request-id",
 				WebauthnResponse: &webauthnpb.CredentialAssertionResponse{
 					Type: "public-key",
@@ -82,6 +84,7 @@ func TestCompleteBrowserMFAChallenge_NonUserDenied(t *testing.T) {
 	require.Nil(t, resp)
 }
 
+//nolint:staticcheck // SA1019: this package tests the deprecated mfav1 service.
 func TestCompleteBrowserMFAChallenge_InvalidRequest(t *testing.T) {
 	t.Parallel()
 
@@ -91,20 +94,20 @@ func TestCompleteBrowserMFAChallenge_InvalidRequest(t *testing.T) {
 
 	for _, testCase := range []struct {
 		name          string
-		req           *mfav1.CompleteBrowserMFAChallengeRequest //nolint:staticcheck // SA1019: this package tests the deprecated mfav1 service.
+		req           *mfav1.CompleteBrowserMFAChallengeRequest
 		expectedError string
 	}{
 		{
 			name: "missing BrowserMfaResponse",
-			req: &mfav1.CompleteBrowserMFAChallengeRequest{ //nolint:staticcheck // SA1019: this package tests the deprecated mfav1 service.
+			req: &mfav1.CompleteBrowserMFAChallengeRequest{
 				BrowserMfaResponse: nil,
 			},
 			expectedError: "missing browser_mfa_response in request",
 		},
 		{
 			name: "missing RequestId",
-			req: &mfav1.CompleteBrowserMFAChallengeRequest{ //nolint:staticcheck // SA1019: this package tests the deprecated mfav1 service.
-				BrowserMfaResponse: &mfav1.BrowserMFAResponse{ //nolint:staticcheck // SA1019: this package tests the deprecated mfav1 service.
+			req: &mfav1.CompleteBrowserMFAChallengeRequest{
+				BrowserMfaResponse: &mfav1.BrowserMFAResponse{
 					RequestId: "",
 					WebauthnResponse: &webauthnpb.CredentialAssertionResponse{
 						Type: "public-key",
@@ -115,8 +118,8 @@ func TestCompleteBrowserMFAChallenge_InvalidRequest(t *testing.T) {
 		},
 		{
 			name: "missing WebauthnResponse",
-			req: &mfav1.CompleteBrowserMFAChallengeRequest{ //nolint:staticcheck // SA1019: this package tests the deprecated mfav1 service.
-				BrowserMfaResponse: &mfav1.BrowserMFAResponse{ //nolint:staticcheck // SA1019: this package tests the deprecated mfav1 service.
+			req: &mfav1.CompleteBrowserMFAChallengeRequest{
+				BrowserMfaResponse: &mfav1.BrowserMFAResponse{
 					RequestId:        "test-request-id",
 					WebauthnResponse: nil,
 				},
@@ -125,9 +128,9 @@ func TestCompleteBrowserMFAChallenge_InvalidRequest(t *testing.T) {
 		},
 		{
 			name: "non-existent RequestId",
-			req: func() *mfav1.CompleteBrowserMFAChallengeRequest { //nolint:staticcheck // SA1019: this package tests the deprecated mfav1 service.
-				return &mfav1.CompleteBrowserMFAChallengeRequest{ //nolint:staticcheck // SA1019: this package tests the deprecated mfav1 service.
-					BrowserMfaResponse: &mfav1.BrowserMFAResponse{ //nolint:staticcheck // SA1019: this package tests the deprecated mfav1 service.
+			req: func() *mfav1.CompleteBrowserMFAChallengeRequest {
+				return &mfav1.CompleteBrowserMFAChallengeRequest{
+					BrowserMfaResponse: &mfav1.BrowserMFAResponse{
 						RequestId: "non-existent-request-id",
 						WebauthnResponse: &webauthnpb.CredentialAssertionResponse{
 							Type: "public-key",

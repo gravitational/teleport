@@ -30,6 +30,8 @@ import (
 // putBrowserMFA accepts a webauthn response from a Browser MFA attempt which is
 // sent to CompleteBrowserMFAChallenge for verification. Once verified a tsh
 // redirect URL with an encrypted webauthn response is returned.
+//
+//nolint:staticcheck // TODO(danielashare): Delete when Browser MFA has migrated to mfav2.
 func (h *Handler) putBrowserMFA(_ http.ResponseWriter, r *http.Request, params httprouter.Params, sctx *SessionContext) (any, error) {
 	requestID := params.ByName("request_id")
 	if requestID == "" {
@@ -55,8 +57,8 @@ func (h *Handler) putBrowserMFA(_ http.ResponseWriter, r *http.Request, params h
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := clt.MFAServiceClient().CompleteBrowserMFAChallenge(r.Context(), &mfav1.CompleteBrowserMFAChallengeRequest{ //nolint:staticcheck // TODO(danielashare): Delete when Browser MFA has migrated to mfav2.
-		BrowserMfaResponse: &mfav1.BrowserMFAResponse{ //nolint:staticcheck // TODO(danielashare): Delete when Browser MFA has migrated to mfav2.
+	resp, err := clt.MFAServiceClient().CompleteBrowserMFAChallenge(r.Context(), &mfav1.CompleteBrowserMFAChallengeRequest{
+		BrowserMfaResponse: &mfav1.BrowserMFAResponse{
 			RequestId:        requestID,
 			WebauthnResponse: mfaResp.GetWebauthn(),
 		},
