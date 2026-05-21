@@ -34,7 +34,7 @@ as the Auth Service.
 ## Prerequisites
 
 - A running Teleport cluster in Kubernetes. For details on how to set this up,
-  see [Guides for running Teleport using Helm](../../zero-trust-access/deploy-a-cluster/helm-deployments/helm-deployments.mdx).
+  see [Guides for running Teleport using Helm](../self-hosted/helm-deployments/helm-deployments.mdx).
 - Editor access to the Kubernetes cluster running the Teleport cluster.
   You must be able to create Namespaces and Deployments.
 - A Teleport user with `access` role, or any other role that allows access to
@@ -47,7 +47,7 @@ as the Auth Service.
   have the correct role by default.
 - (!docs/pages/includes/iac-clients.mdx!)
 
-## Step 1/5. Create a Kubernetes join token
+## Step 1/4. Create a Kubernetes join token
 
 Configure your Teleport Auth Service with a join token (also called provision
 token) to allow Teleport services hosted in the Kubernetes cluster to
@@ -117,7 +117,7 @@ Add the following Kubernetes resource manifest, replacing values as indicated:
 </TabItem>
 </Tabs>
 
-## Step 2/5. Deploy a demonstration HTTP app
+## Step 2/4. Deploy a demonstration HTTP app
 
 In this step, we deploy a demonstration HTTP application and don't expose it
 publicly. Instead, we will manage access to this application with the Teleport
@@ -143,68 +143,66 @@ NAME                        READY   STATUS    RESTARTS   AGE
 demo-app-7664d59cb8-bv888   1/1     Running   0          67s
 ```
 
-## Step 3/5. Configure the Application Service
-
+## Step 3/4. Configure and start the Application Service
 
 Configure the `teleport-kube-agent` chart to deploy Teleport instances running
-the Application Service by creating a `values.yaml` file with the
-following content:
-
-```yaml
-# values.yaml
-
-# Public address of the Teleport cluster with port.
-# You must replace the placeholder with your proxy address.
-proxyAddr: "teleport.example.com:443"
-
-# Comma-separated list of services the `teleport-kube-agent` chart must run
-# (supported values are: kube,db,app,discovery)
-# In this guide we only deploy app access.
-# Adding more services here also requires to add role to the provision token created in step 1.
-roles: app
-
-joinParams:
-  method: "kubernetes"
-  # this must match the provision token created in Step 1.
-  tokenName: "kubernetes-token"
-  
-apps:
-  - name: demo-app
-    uri: "http://demo-app.demo-app.svc.cluster.local:80"
-```
-
-## Step 4/5. Deploy the Application Service
+the Application Service. 
 
 To use the token created in Step 1, the joining instance must run in the same
 Kubernetes cluster as the Auth Service and have a Kubernetes ServiceAccount
-token mounted.
-The `teleport-kube-agent` chart that you will install in this section will take care of this by default.
+token mounted. The `teleport-kube-agent` chart that you will install in this
+section will take care of this by default.
 
-Deploy the Teleport Application Service by running the following command:
+1. Create a `values.yaml` file with the following content:
 
-```code
-$ helm install teleport-app-service teleport/teleport-kube-agent -n teleport-agent --create-namespace -f values.yaml
-```
+   ```yaml
+   # values.yaml
+   
+   # Public address of the Teleport cluster with port.
+   # You must replace the placeholder with your proxy address.
+   proxyAddr: "teleport.example.com:443"
+   
+   # Comma-separated list of services the `teleport-kube-agent` chart must run
+   # (supported values are: kube,db,app,discovery)
+   # In this guide we only deploy app access.
+   # Adding more services here also requires to add role to the provision token created in step 1.
+   roles: app
+   
+   joinParams:
+     method: "kubernetes"
+     # this must match the provision token created in Step 1.
+     tokenName: "kubernetes-token"
+     
+   apps:
+     - name: demo-app
+       uri: "http://demo-app.demo-app.svc.cluster.local:80"
+   ```
 
-Then, validate the pod is running after a couple of seconds:
+1. Deploy the Teleport Application Service by running the following command:
 
-```code
-$ kubectl get pods -n teleport-agent
-NAME                  READY   STATUS    RESTARTS   AGE
-teleport-app-service-0   1/1     Running   0          23s
-```
+   ```code
+   $ helm install teleport-app-service teleport/teleport-kube-agent -n teleport-agent --create-namespace -f values.yaml
+   ```
+   
+1. Validate the pod is running after a couple of seconds:
 
-Finally, validate you can see the application in the Teleport Web UI, or using
-the command line:
+   ```code
+   $ kubectl get pods -n teleport-agent
+   NAME                  READY   STATUS    RESTARTS   AGE
+   teleport-app-service-0   1/1     Running   0          23s
+   ```
 
-```code
-$ tsh apps ls
-Application Description Type Public Address       Labels              
------------ ----------- ---- -------------------- ------------------- 
-demo-app                HTTP teleport.example.com teleport.dev/origin 
-```
+1. Validate you can see the application in the Teleport Web UI, or using the
+   command line:
 
-## Step 5/5. Clean up
+   ```code
+   $ tsh apps ls
+   Application Description Type Public Address       Labels              
+   ----------- ----------- ---- -------------------- ------------------- 
+   demo-app                HTTP teleport.example.com teleport.dev/origin 
+   ```
+
+## Step 4/4. Clean up
 
 Uninstall the `teleport-app-service` Helm release and delete both the `demo-app`
 and `teleport-agent` namespaces.

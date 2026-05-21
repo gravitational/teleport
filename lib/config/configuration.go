@@ -63,7 +63,6 @@ import (
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage/easconfig"
 	"github.com/gravitational/teleport/lib/integrations/samlidp/samlidpconfig"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -2170,10 +2169,38 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			}
 		}
 
+		if application.TLS != nil {
+			app.TLS = &types.AppTLS{
+				Mode:           application.TLS.Mode,
+				ServerName:     application.TLS.ServerName,
+				ServerSpiffeId: application.TLS.ServerSpiffeId,
+				AllowedCas:     application.TLS.AllowedCas,
+				ClientCertMode: application.TLS.ClientCertMode,
+			}
+			for _, caCertPath := range application.TLS.AllowedCasFiles {
+				caCertContents, err := os.ReadFile(caCertPath)
+				if err != nil {
+					return trace.ConvertSystemError(err)
+				}
+				app.TLS.AllowedCas = append(app.TLS.AllowedCas, string(caCertContents))
+			}
+		}
+
 		if err := app.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
 		cfg.Apps.Apps = append(cfg.Apps.Apps, app)
+	}
+
+	// Reject literal duplicates: at registration two entries with the
+	// same name would write to the same backend key (host_id + name)
+	// and the second would silently overwrite the first.
+	seenNames := make(map[string]struct{}, len(cfg.Apps.Apps))
+	for _, app := range cfg.Apps.Apps {
+		if _, ok := seenNames[app.Name]; ok {
+			return trace.BadParameter("duplicate application name %q in static config", app.Name)
+		}
+		seenNames[app.Name] = struct{}{}
 	}
 
 	return nil
@@ -2762,7 +2789,7 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 				return trace.BadParameter("non-FIPS compliant proxy settings: \"proxy_checks_host_keys\" must be true")
 			}
 
-			if err := services.ValidateSessionRecordingConfig(cfg.Auth.SessionRecordingConfig, clf.FIPS, modules.GetModules().Features().Cloud); err != nil {
+			if err := services.ValidateSessionRecordingConfig(cfg.Auth.SessionRecordingConfig, clf.FIPS, cfg.Modules.Features().Cloud); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -2776,7 +2803,7 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 		if err := cfg.Auth.Preference.CheckSignatureAlgorithmSuite(types.SignatureAlgorithmSuiteParams{
 			FIPS:          clf.FIPS,
 			UsingHSMOrKMS: cfg.Auth.KeyStore != servicecfg.KeystoreConfig{},
-			Cloud:         modules.GetModules().Features().Cloud,
+			Cloud:         cfg.Modules.Features().Cloud,
 		}); err != nil {
 			return trace.Wrap(err)
 		}

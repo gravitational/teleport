@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/inventory/internal/delay"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
@@ -1066,6 +1067,11 @@ func (c *Controller) handleAppServerHB(handle *upstreamHandle, appServer *types.
 		return trace.AccessDenied("incorrect app server scope (expected %q, got %q)", handle.Hello().GetScope(), appServer.Scope)
 	}
 
+	// Older agents send mixed-case names and URL-shaped public_addr;
+	// normalize before deriving the cache key so it matches the
+	// backend write.
+	services.NormalizeAppServerForHeartbeat(appServer)
+
 	if handle.appServers == nil {
 		handle.appServers = make(map[resourceKey]*heartBeatInfo[*types.AppServerV3])
 	}
@@ -1199,15 +1205,18 @@ func (c *Controller) handleKubernetesServerHB(handle *upstreamHandle, kubernetes
 		return trace.AccessDenied("incorrect kubernetes server ID (expected %q, got %q)", handle.Hello().ServerID, kubernetesServer.GetHostID())
 	}
 
-	// Agent's that don't know about scopes can still have a scoped identity. In that case, we consider an empty
-	// scope to defer to what was found in the identity during the initial hello.
-	if kubernetesServer.Scope == "" {
-		kubernetesServer.Scope = handle.Hello().GetScope()
+	if kubernetesServer.Scope != handle.Hello().GetScope() {
+		// The heartbeated server's scope must match the scope found in the identity during registration
+		if scopes.Compare(kubernetesServer.Scope, handle.Hello().GetScope()) != scopes.Equivalent {
+			return trace.AccessDenied("incorrect kubernetes server scope (expected %q, got %q)", handle.Hello().GetScope(), kubernetesServer.Scope)
+		}
 	}
 
-	// When an agent includes a scope in its heartbeat, we enforce that it matches what was found in the hello.
-	if kubernetesServer.Scope != handle.Hello().GetScope() {
-		return trace.AccessDenied("incorrect kubernetes server scope (expected %q, got %q)", handle.Hello().GetScope(), kubernetesServer.Scope)
+	if kubernetesServer.Scope != kubernetesServer.GetCluster().GetScope() {
+		// If a kube server's cluster scope somehow drifts from the server's scope, we should deny.
+		if scopes.Compare(kubernetesServer.GetCluster().GetScope(), kubernetesServer.Scope) != scopes.Equivalent {
+			return trace.AccessDenied("kubernetes cluster scope does not match the server's scope (expected %q, got %q)", kubernetesServer.GetScope(), kubernetesServer.GetCluster().GetScope())
+		}
 	}
 
 	if handle.kubernetesServers == nil {
@@ -1286,7 +1295,19 @@ func (c *Controller) keepAliveAppServer(handle *upstreamHandle, now time.Time, n
 	}
 
 	srv.resource.SetExpiry(now.Add(c.serverTTL).UTC())
-	if _, err := c.auth.UnconditionalUpdateApplicationServer(c.closeContext, srv.resource); err == nil {
+	// retryUpsert is set when the previous UpsertApplicationServer call
+	// failed. Route the retry back through UpsertApplicationServer so
+	// ValidateApp re-runs - UnconditionalUpdate would let an unvalidated
+	// app_server record slip through. Steady-state keepalives skip
+	// ValidateApp via UnconditionalUpdate; the record was already
+	// validated on its first successful upsert.
+	var err error
+	if srv.retryUpsert {
+		_, err = c.auth.UpsertApplicationServer(c.closeContext, srv.resource)
+	} else {
+		_, err = c.auth.UnconditionalUpdateApplicationServer(c.closeContext, srv.resource)
+	}
+	if err == nil {
 		if srv.retryUpsert {
 			c.testEvent(appUpsertRetryOk)
 		} else {

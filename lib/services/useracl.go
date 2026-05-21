@@ -22,6 +22,8 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 type ResourceAccess struct {
@@ -142,6 +144,8 @@ type UserACL struct {
 	AutoUpdateAgentRollout ResourceAccess `json:"autoUpdateAgentRollout"`
 	// AutoUpdateAgentReport defines access to autoupdate agent reports.
 	AutoUpdateAgentReport ResourceAccess `json:"autoUpdateAgentReport"`
+	// Beam defines access to Beams
+	Beam ResourceAccess `json:"beam"`
 }
 
 func hasAccess(roleSet RoleSet, ctx *Context, kind string, verbs ...string) bool {
@@ -259,6 +263,12 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	autoUpdateAgentRollout := newAccess(userRoles, ctx, types.KindAutoUpdateAgentRollout)
 	autoUpdateAgentReport := newAccess(userRoles, ctx, types.KindAutoUpdateAgentReport)
 
+	beamsEntitlement := modules.GetProtoEntitlement(&features, entitlements.Beams)
+	var beam ResourceAccess
+	if beamsEntitlement.Enabled {
+		beam = newAccess(userRoles, ctx, types.KindBeam)
+	}
+
 	return UserACL{
 		AccessRequests:          requestAccess,
 		AppServers:              appServerAccess,
@@ -313,5 +323,6 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		AutoUpdateVersion:       autoUpdateVersion,
 		AutoUpdateAgentRollout:  autoUpdateAgentRollout,
 		AutoUpdateAgentReport:   autoUpdateAgentReport,
+		Beam:                    beam,
 	}
 }

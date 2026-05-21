@@ -22,7 +22,7 @@ THIS FILE IS GENERATED. DO NOT EDIT.
 
 */
 
-export { Icon } from './Icon';
+export * from './Icon';
 
 export { Add } from './Icons/Add';
 export { AddCircle } from './Icons/AddCircle';
@@ -46,7 +46,9 @@ export { ArrowUp } from './Icons/ArrowUp';
 export { ArrowUpRight } from './Icons/ArrowUpRight';
 export { ArrowsIn } from './Icons/ArrowsIn';
 export { ArrowsOut } from './Icons/ArrowsOut';
+export { Beams } from './Icons/Beams';
 export { BedrockLogo } from './Icons/BedrockLogo';
+export { Bell } from './Icons/Bell';
 export { BellRinging } from './Icons/BellRinging';
 export { BookOpenText } from './Icons/BookOpenText';
 export { Bots } from './Icons/Bots';
@@ -64,6 +66,7 @@ export { CardView } from './Icons/CardView';
 export { Cash } from './Icons/Cash';
 export { Chart } from './Icons/Chart';
 export { ChatBubble } from './Icons/ChatBubble';
+export { ChatCircle } from './Icons/ChatCircle';
 export { ChatCircleSparkle } from './Icons/ChatCircleSparkle';
 export { Check } from './Icons/Check';
 export { CheckCircleDotted } from './Icons/CheckCircleDotted';

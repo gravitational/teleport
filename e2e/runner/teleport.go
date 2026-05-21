@@ -33,18 +33,21 @@ import (
 	"syscall"
 	"text/template"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 // clusterName is the name of the Teleport cluster used for E2E testing.
 const clusterName = "teleport-e2e"
 
 type teleportInstance struct {
-	log         *slog.Logger
-	teleportBin string
-	proxyPort   int
-	configPath  string
-	stateFile   string
-	logFile     string // empty means stdout/stderr
+	log             *slog.Logger
+	teleportBin     string
+	proxyPort       int
+	configPath      string
+	stateFile       string
+	logFile         string // empty means stdout/stderr
+	recordingOwners recordingOwners
 
 	cmd      *exec.Cmd
 	logF     *os.File
@@ -220,20 +223,8 @@ func resolveDockerEndpointHost() (string, error) {
 	return host, nil
 }
 
-type StateConfig struct {
-	PasswordHashBase64  string
-	CredentialIDBase64  string
-	PublicKeyCBORBase64 string
-}
-
-func generateStateFile(templatePath string, creds *credentials) (string, error) {
-	stateConfig := &StateConfig{
-		PasswordHashBase64:  creds.passwordHashBase64,
-		CredentialIDBase64:  creds.credentialIDBase64,
-		PublicKeyCBORBase64: creds.publicKeyCBORBase64,
-	}
-
-	return renderTemplate(templatePath, stateConfig)
+func generateStateFile(templatePath string, state *stateConfig) (string, error) {
+	return renderTemplate(templatePath, state)
 }
 
 func renderTemplate(templatePath string, data any) (string, error) {
@@ -245,7 +236,9 @@ func renderTemplateToPath(templatePath, outPath string, data any) (string, error
 		return "", err
 	}
 
-	tmpl, err := template.ParseFiles(templatePath)
+	tmpl, err := template.New(filepath.Base(templatePath)).
+		Funcs(template.FuncMap{"yamlQuote": yamlQuote}).
+		ParseFiles(templatePath)
 	if err != nil {
 		return "", err
 	}
@@ -265,4 +258,12 @@ func renderTemplateToPath(templatePath, outPath string, data any) (string, error
 	}
 
 	return outPath, nil
+}
+
+func yamlQuote(v any) (string, error) {
+	out, err := yaml.Marshal(v)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimRight(string(out), "\n"), nil
 }

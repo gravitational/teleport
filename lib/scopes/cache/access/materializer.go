@@ -50,9 +50,13 @@ const (
 
 	// A century is close enough to forever for scheduling the repair
 	// indefinitely in the future when it's not needed.
-	century                     time.Duration = 100 * 365 * 24 * time.Hour
-	expiredMembersRepairBackoff               = 30 * time.Second
-	missedMembersRepairBackoff                = 30 * time.Second
+	century time.Duration = 100 * 365 * 24 * time.Hour
+	// ExpiredMembersRepairBackoff is an amount of time the materializer backs
+	// of after failing to repair expired member paths.
+	ExpiredMembersRepairBackoff = 30 * time.Second
+	// MissedMembersRepairBackoff is an amount of time the materializer backs
+	// of after failing to repair missed member paths.
+	MissedMembersRepairBackoff = 30 * time.Second
 )
 
 // AccessListReader provides the upstream source of access list and member resources.
@@ -65,6 +69,13 @@ type AccessListReader interface {
 	GetAccessListMember(ctx context.Context, accessList string, memberName string) (*accesslist.AccessListMember, error)
 }
 
+// AssignmentStore is the interface the materializer uses to persist
+// materialized assignments.
+type AssignmentStore interface {
+	Put(assignment *scopedaccessv1.ScopedRoleAssignment) error
+	Delete(name, subKind string)
+}
+
 // listAccessListMembers is a helper for calling clientutils.Resources to range
 // over all members of [listName].
 func listAccessListMembers(aclReader AccessListReader, listName string) func(context.Context, int, string) ([]*accesslist.AccessListMember, string, error) {
@@ -73,7 +84,7 @@ func listAccessListMembers(aclReader AccessListReader, listName string) func(con
 	}
 }
 
-// materializer is responsible for "materializing" scoped role assignments into
+// Materializer is responsible for "materializing" scoped role assignments into
 // the scoped access cache as they are derived from access lists and their
 // members and owners. See RFD 243 for design decisions.
 //
@@ -84,29 +95,32 @@ func listAccessListMembers(aclReader AccessListReader, listName string) func(con
 // the spec of that list for members, owners, or both depending on the user's
 // relationship with the list.
 //
-// [materializer.Init] must always be called before any other methods.
+// [Materializer.Init] must always be called before any other methods.
 //
-// The materializer is not safe for concurrent use, it is meant to be driven
-// from a single event loop, pushing events into [materializer.ProcessEvent].
+// The Materializer is not safe for concurrent use, it is meant to be driven
+// from a single event loop, pushing events into [Materializer.ProcessEvent].
 //
-// If the materializer is expected to be long-lived, callers should run
-// [materializer.RepairEventLoop] in a goroutine after [materializer.Init]
+// If the Materializer is expected to be long-lived, callers should run
+// [Materializer.RepairEventLoop] in a goroutine after [Materializer.Init]
 // succeeds.
-// Then, in the main event loop, events from [materializer.RepairEvents]
-// should be received and pushed into [materializer.ProcessRepairEvent].
+// Then, in the main event loop, events from [Materializer.RepairEvents]
+// should be received and pushed into [Materializer.ProcessRepairEvent].
 //
-// Notably, the materializer never reads the actual scoped roles it is
+// Notably, the Materializer never reads the actual scoped roles it is
 // generating assignments for. It does not attempt to validate that scoped role
 // exist or that the assigned scope is allowed by the scoped role definition.
 // This validation is the responsibility of the backend service. Anything that
 // reads scoped role assignments must also validate them before using them for
 // access decisions.
-type materializer struct {
+type Materializer struct {
 	// aclReader is used for upstream reads of access lists and members, it is
 	// expected to be an in-memory cache, and all events are expected to be
 	// pushed in to ProcessEvent after the state has been persisted to the
 	// cache.
 	aclReader AccessListReader
+
+	// assignmentStore is where materialized assignments are persisted.
+	assignmentStore AssignmentStore
 
 	// ancestorCache holds all possible direct membership and ownership edges,
 	// even if they may be expired or invalid based on membership or ownership
@@ -115,7 +129,7 @@ type materializer struct {
 
 	// materializedAssignments is just internal bookkeeping holding the current
 	// set of assignments that have been "materialized" into the cache state.
-	materializedAssignments map[materializedAssignmentKey]ancestorRelation
+	materializedAssignments map[MaterializedAssignmentKey]ancestorRelation
 
 	logger *slog.Logger
 	tracer oteltrace.Tracer
@@ -127,25 +141,31 @@ type materializer struct {
 	nextRepairMissedMembersTime  time.Time
 }
 
-type materializedAssignmentKey struct {
-	user string
-	list string
+// MaterializedAssignmentKey uniquely identifies a materialized scoped role assignment.
+type MaterializedAssignmentKey struct {
+	// User is the name of the user the assignment is materialized for.
+	User string
+	// List is the name of the access list the assignment is materialized for.
+	List string
 }
 
-func (k materializedAssignmentKey) assignmentName() string {
+// AssignmentName returns the canonical name for the materialized scoped role assignment.
+func (k MaterializedAssignmentKey) AssignmentName() string {
 	h := sha256.New224()
-	binary.Write(h, binary.LittleEndian, uint16(len(k.user)))
-	h.Write([]byte(k.user))
-	h.Write([]byte(k.list))
+	binary.Write(h, binary.LittleEndian, uint16(len(k.User)))
+	h.Write([]byte(k.User))
+	h.Write([]byte(k.List))
 	return "acl-" + base64.RawURLEncoding.EncodeToString(h.Sum(nil))
 }
 
-func newMaterializer(aclReader AccessListReader, tracer oteltrace.Tracer) *materializer {
+// NewMaterializer returns a new scoped role assignment materializer.
+func NewMaterializer(assignmentStore AssignmentStore, aclReader AccessListReader, tracer oteltrace.Tracer) *Materializer {
 	now := time.Now()
-	return &materializer{
+	return &Materializer{
+		assignmentStore:              assignmentStore,
 		aclReader:                    aclReader,
 		ancestorCache:                newAncestorCache(),
-		materializedAssignments:      make(map[materializedAssignmentKey]ancestorRelation),
+		materializedAssignments:      make(map[MaterializedAssignmentKey]ancestorRelation),
 		logger:                       slog.With(teleport.ComponentKey, "sra_materializer"),
 		tracer:                       tracer,
 		repairEventC:                 make(chan repairEvent),
@@ -155,9 +175,9 @@ func newMaterializer(aclReader AccessListReader, tracer oteltrace.Tracer) *mater
 	}
 }
 
-// Init materializes all necessary scoped role assignments into [state] based
-// on the current set of access list memberships.
-func (m *materializer) Init(ctx context.Context, state state) (err error) {
+// Init materializes all necessary scoped role assignments into the assignment
+// store based on the current set of access list memberships.
+func (m *Materializer) Init(ctx context.Context) (err error) {
 	ctx, span := m.tracer.Start(ctx, "scoped_access_cache/materializer/init")
 	defer func() { tracing.EndSpan(span, err) }()
 	m.syncMaterializedAssignmentsMetric()
@@ -204,9 +224,9 @@ func (m *materializer) Init(ctx context.Context, state state) (err error) {
 			return trace.Wrap(err, "reading access lists")
 		}
 		// Materialize assignments as necessary for all members of every access list.
-		m.initAccessListMembers(ctx, state, list)
+		m.initAccessListMembers(ctx, list)
 		// Materialize assignments as necessary for all owners of every access list.
-		m.initAccessListOwners(ctx, state, list)
+		m.initAccessListOwners(ctx, list)
 	}
 
 	return nil
@@ -214,7 +234,7 @@ func (m *materializer) Init(ctx context.Context, state state) (err error) {
 
 // ProcessEvent is the entry point for all event-driven changes to materializer
 // state, driven by access list and access list member events.
-func (m *materializer) ProcessEvent(ctx context.Context, state state, event types.Event) (err error) {
+func (m *Materializer) ProcessEvent(ctx context.Context, event types.Event) (err error) {
 	ctx, span := m.tracer.Start(ctx, "scoped_access_cache/materializer/process_event",
 		oteltrace.WithAttributes(materializerEventAttributes(event)...),
 	)
@@ -224,32 +244,32 @@ func (m *materializer) ProcessEvent(ctx context.Context, state state, event type
 	case types.OpPut:
 		switch item := event.Resource.(type) {
 		case *accesslist.AccessList:
-			m.handleAccessListPut(ctx, state, item)
+			m.handleAccessListPut(ctx, item)
 		case *accesslist.AccessListMember:
-			m.handleAccessListMemberPut(ctx, state, item)
+			m.handleAccessListMemberPut(ctx, item)
 		}
 	case types.OpDelete:
 		switch event.Resource.GetKind() {
 		case types.KindAccessList:
-			m.handleAccessListDelete(ctx, state, event.Resource.GetName())
+			m.handleAccessListDelete(ctx, event.Resource.GetName())
 		case types.KindAccessListMember:
 			listName := event.Resource.GetMetadata().Description
 			if listName == "" {
 				// This is a bug, return a hard failure.
 				return trace.Errorf("missing access list name in access list member delete event description")
 			}
-			m.handleAccessListMemberDelete(ctx, state, listName, event.Resource.GetName())
+			m.handleAccessListMemberDelete(ctx, listName, event.Resource.GetName())
 		}
 	}
 	return nil
 }
 
-func (m *materializer) handleAccessListMemberPut(ctx context.Context, state state, member *accesslist.AccessListMember) {
+func (m *Materializer) handleAccessListMemberPut(ctx context.Context, member *accesslist.AccessListMember) {
 	if member.IsUser() {
-		m.handleUserMemberPut(ctx, state, member)
+		m.handleUserMemberPut(ctx, member)
 	}
 	if member.Spec.MembershipKind == accesslist.MembershipKindList {
-		m.handleListMemberPut(ctx, state, member)
+		m.handleListMemberPut(ctx, member)
 	}
 }
 
@@ -258,7 +278,7 @@ func (m *materializer) handleAccessListMemberPut(ctx context.Context, state stat
 //
 // If the member resource is expired, it re-checks all materialized assignments
 // for the user in case they were granted via this membership.
-func (m *materializer) handleUserMemberPut(ctx context.Context, state state, member *accesslist.AccessListMember) {
+func (m *Materializer) handleUserMemberPut(ctx context.Context, member *accesslist.AccessListMember) {
 	listName := member.Spec.AccessList
 	userName := member.GetName()
 
@@ -267,11 +287,11 @@ func (m *materializer) handleUserMemberPut(ctx context.Context, state state, mem
 		// have been observed with membership kind list before, and now has
 		// membership kind user. Process a list member delete first, and then
 		// carry on to handle the user member put.
-		m.handleListMemberDelete(ctx, state, listName, userName)
+		m.handleListMemberDelete(ctx, listName, userName)
 	}
 
 	if member.IsExpired(time.Now()) {
-		m.handleUserMemberDeleteOrExpired(ctx, state, listName, userName)
+		m.handleUserMemberDeleteOrExpired(ctx, listName, userName)
 		return
 	}
 	m.reportFutureMemberExpiry(ctx, member.Spec.Expires)
@@ -294,7 +314,7 @@ func (m *materializer) handleUserMemberPut(ctx context.Context, state state, mem
 		return
 	}
 
-	if err := m.addMemberRelationshipAndMaterialize(ctx, state, list, userName); err != nil {
+	if err := m.addMemberRelationshipAndMaterialize(ctx, list, userName); err != nil {
 		m.logger.WarnContext(ctx, "Failed to materialize assignment",
 			"error", err,
 			"user", userName,
@@ -313,7 +333,7 @@ func (m *materializer) handleUserMemberPut(ctx context.Context, state state, mem
 	// As a member of this list, the user shares the list's relationship with
 	// all of its ancestors, make sure assignments are materialized.
 	for _, ancestor := range ancestors {
-		if err := m.updateRelationshipAndMaterialize(ctx, state, ancestor.list, ancestor.relation, userName); err != nil {
+		if err := m.updateRelationshipAndMaterialize(ctx, ancestor.list, ancestor.relation, userName); err != nil {
 			m.logger.WarnContext(ctx, "Failed to materialize assignment",
 				"error", err,
 				"user", userName,
@@ -329,18 +349,18 @@ func (m *materializer) handleUserMemberPut(ctx context.Context, state state, mem
 //
 // If the member resource is expired, it re-checks all materialized assignments
 // for the parent list and all of its ancestors, in case they were granted via this membership.
-func (m *materializer) handleListMemberPut(ctx context.Context, state state, member *accesslist.AccessListMember) {
+func (m *Materializer) handleListMemberPut(ctx context.Context, member *accesslist.AccessListMember) {
 	parentListName, memberListName := member.Spec.AccessList, member.Spec.Name
 
 	// It's possible this member resource used to have membership kind user and
 	// was updated to have membership kind list, so we must clear anything
 	// related to a previous user membership.
-	m.handleUserMemberDeleteOrExpired(ctx, state, parentListName, memberListName)
+	m.handleUserMemberDeleteOrExpired(ctx, parentListName, memberListName)
 
 	m.ancestorCache.addMembership(parentListName, memberListName)
 
 	if member.IsExpired(time.Now()) {
-		m.handleListMemberExpired(ctx, state, parentListName)
+		m.handleListMemberExpired(ctx, parentListName)
 		return
 	}
 	m.reportFutureMemberExpiry(ctx, member.Spec.Expires)
@@ -398,7 +418,7 @@ func (m *materializer) handleListMemberPut(ctx context.Context, state state, mem
 		}
 
 		// User is now a member of the parent list, materialize an assignment.
-		if err := m.addMemberRelationshipAndMaterialize(ctx, state, parentList, member.GetName()); err != nil {
+		if err := m.addMemberRelationshipAndMaterialize(ctx, parentList, member.GetName()); err != nil {
 			m.logger.WarnContext(ctx, "Failed to materialize assignment",
 				"error", err,
 				"user", member.GetName(),
@@ -409,7 +429,7 @@ func (m *materializer) handleListMemberPut(ctx context.Context, state state, mem
 		// list's relationship with all of its ancestors, make sure assignments
 		// are materialized.
 		for _, ancestor := range ancestors {
-			if err := m.updateRelationshipAndMaterialize(ctx, state, ancestor.list, ancestor.relation, member.GetName()); err != nil {
+			if err := m.updateRelationshipAndMaterialize(ctx, ancestor.list, ancestor.relation, member.GetName()); err != nil {
 				m.logger.WarnContext(ctx, "Failed to materialize assignment",
 					"error", err,
 					"user", member.GetName(),
@@ -419,7 +439,7 @@ func (m *materializer) handleListMemberPut(ctx context.Context, state state, mem
 	}
 }
 
-func (m *materializer) handleAccessListMemberDelete(ctx context.Context, state state, listName, memberName string) {
+func (m *Materializer) handleAccessListMemberDelete(ctx context.Context, listName, memberName string) {
 	// We don't get enough info from the event to know if the deleted member
 	// was a user or a list. Luckily member names are unique, so we know that
 	// if this membership is present in the ancestor cache as a list, then this
@@ -427,21 +447,21 @@ func (m *materializer) handleAccessListMemberDelete(ctx context.Context, state s
 	// cache, then it was last observed as a user (or not observed at all) and
 	// we handle it as a user member delete.
 	if m.ancestorCache.children.Get(listName).Contains(memberName) {
-		m.handleListMemberDelete(ctx, state, listName, memberName)
+		m.handleListMemberDelete(ctx, listName, memberName)
 		return
 	}
-	m.handleUserMemberDeleteOrExpired(ctx, state, listName, memberName)
+	m.handleUserMemberDeleteOrExpired(ctx, listName, memberName)
 }
 
 // handleListMemberDelete handles delete events for nested access list memberships.
-func (m *materializer) handleListMemberDelete(ctx context.Context, state state, parentListName, memberListName string) {
+func (m *Materializer) handleListMemberDelete(ctx context.Context, parentListName, memberListName string) {
 	// First and foremost, always keep the ancestor cache up to date with all
 	// direct list->list memberships.
 	m.ancestorCache.removeMembership(parentListName, memberListName)
 
 	// The membership being deleted is equivalent to it being expired. Expired
 	// memberships remain in the ancestor cache.
-	m.handleListMemberExpired(ctx, state, parentListName)
+	m.handleListMemberExpired(ctx, parentListName)
 }
 
 // handleListMemberExpired handles the event where an access list membership
@@ -449,7 +469,7 @@ func (m *materializer) handleListMemberDelete(ctx context.Context, state state, 
 // no longer be valid members or owners of the parent list or any of its
 // ancestors. At risk of being overly pessimistic, we re-check every
 // materialized assignment for the parent list and all of its ancestors.
-func (m *materializer) handleListMemberExpired(ctx context.Context, state state, parentListName string) {
+func (m *Materializer) handleListMemberExpired(ctx context.Context, parentListName string) {
 	// We must iterate all ancestors without relying on paging through
 	// collections in the cache to make sure we don't miss any assignments that
 	// need to be invalidated due to a paging error or any other transient
@@ -459,19 +479,19 @@ func (m *materializer) handleListMemberExpired(ctx context.Context, state state,
 
 	// Iterate all currently materialized assignments.
 	for key := range m.materializedAssignments {
-		_, isAncestor := ancestors[key.list]
-		if key.list != parentListName && !isAncestor {
+		_, isAncestor := ancestors[key.List]
+		if key.List != parentListName && !isAncestor {
 			// We don't need to validate any assignments that are not for the
 			// parent list or any of its ancestors.
 			continue
 		}
 
-		if err := m.recheckAssignment(ctx, state, key); err != nil {
+		if err := m.recheckAssignment(ctx, key); err != nil {
 			// Must pessimistically assume any assignment is invalid if we
 			// encountered an error trying to validate it.
 			m.logger.InfoContext(ctx, "Encountered an error validating materialized assignment, will delete the assignment",
 				"error", err)
-			m.deleteMaterializedAssignment(ctx, state, key)
+			m.deleteMaterializedAssignment(ctx, key)
 			m.scheduleMissedMembersRepair(ctx)
 		}
 	}
@@ -481,7 +501,7 @@ func (m *materializer) handleListMemberExpired(ctx context.Context, state state,
 // It's possible they are no longer a valid member of the parent list or any of
 // its ancestors. We need to re-check all current materialized assignments for
 // this user in the initial list or any of its ancestors.
-func (m *materializer) handleUserMemberDeleteOrExpired(ctx context.Context, state state, parentListName, userName string) {
+func (m *Materializer) handleUserMemberDeleteOrExpired(ctx context.Context, parentListName, userName string) {
 	// We must iterate all ancestors without relying on paging through
 	// collections in the cache to make sure we don't miss any assignments that
 	// need to be invalidated due to a paging error or any other transient
@@ -489,18 +509,18 @@ func (m *materializer) handleUserMemberDeleteOrExpired(ctx context.Context, stat
 	// memberships and ownerships, which is sufficient.
 	ancestors := m.collectAncestorListsWithoutValidation(parentListName)
 	for key := range m.materializedAssignmentsForUser(userName) {
-		_, isAncestor := ancestors[key.list]
-		if key.list != parentListName && !isAncestor {
+		_, isAncestor := ancestors[key.List]
+		if key.List != parentListName && !isAncestor {
 			// We don't need to validate any assignments that are not for the
 			// parent list or any of its ancestors.
 			continue
 		}
-		if err := m.recheckAssignment(ctx, state, key); err != nil {
+		if err := m.recheckAssignment(ctx, key); err != nil {
 			// Must pessimistically assume any assignment is invalid if we
 			// encountered an error trying to validate it.
 			m.logger.InfoContext(ctx, "Encountered an error validating materialized assignment, will delete the assignment",
 				"error", err)
-			m.deleteMaterializedAssignment(ctx, state, key)
+			m.deleteMaterializedAssignment(ctx, key)
 			m.scheduleMissedMembersRepair(ctx)
 		}
 	}
@@ -521,7 +541,7 @@ func (m *materializer) handleUserMemberDeleteOrExpired(ctx context.Context, stat
 //
 // If the list has any scoped owner grants and any owner lists were added,
 // materialize an assignment for them.
-func (m *materializer) handleAccessListPut(ctx context.Context, state state, list *accesslist.AccessList) {
+func (m *Materializer) handleAccessListPut(ctx context.Context, list *accesslist.AccessList) {
 	// Update any owner list edges in the ancestor cache.
 	m.ancestorCache.clearOwnersOf(list.GetName())
 	for _, owner := range list.Spec.Owners {
@@ -538,19 +558,19 @@ func (m *materializer) handleAccessListPut(ctx context.Context, state state, lis
 		if hasScopedGrants {
 			// The list has some grants we should re-check. This may delete
 			// assignments as necessary.
-			if err := m.recheckAssignment(ctx, state, key); err != nil {
+			if err := m.recheckAssignment(ctx, key); err != nil {
 				// Must pessimistically assume any assignment is invalid if we
 				// encountered an error trying to validate it.
 				m.logger.InfoContext(ctx, "Encountered an error validating materialized assignment, will delete the assignment",
 					"error", err)
-				m.deleteMaterializedAssignment(ctx, state, key)
+				m.deleteMaterializedAssignment(ctx, key)
 				m.scheduleMissedMembersRepair(ctx)
 			}
 		} else {
 			// If the list doesn't grant any scoped roles, we can just delete
 			// all extant assignments for it without actually checking
 			// anything.
-			m.deleteMaterializedAssignment(ctx, state, key)
+			m.deleteMaterializedAssignment(ctx, key)
 		}
 	}
 
@@ -562,12 +582,12 @@ func (m *materializer) handleAccessListPut(ctx context.Context, state state, lis
 		ancestors := m.collectAncestorListsWithoutValidation(list.GetName())
 		for ancestorListName := range ancestors {
 			for key := range m.materializedAssignmentsForList(ancestorListName) {
-				if err := m.recheckAssignment(ctx, state, key); err != nil {
+				if err := m.recheckAssignment(ctx, key); err != nil {
 					// Must pessimistically assume any assignment is invalid if we
 					// encountered an error trying to validate it.
 					m.logger.InfoContext(ctx, "Encountered an error validating materialized assignment, will delete the assignment",
 						"error", err)
-					m.deleteMaterializedAssignment(ctx, state, key)
+					m.deleteMaterializedAssignment(ctx, key)
 					m.scheduleMissedMembersRepair(ctx)
 				}
 			}
@@ -577,13 +597,13 @@ func (m *materializer) handleAccessListPut(ctx context.Context, state state, lis
 	// Now that any invalidated assignments have been deleted, we can call
 	// initAccessListMembers and initAccessListOwners to materialize any
 	// necessary new assignments.
-	m.initAccessListMembers(ctx, state, list)
-	m.initAccessListOwners(ctx, state, list)
+	m.initAccessListMembers(ctx, list)
+	m.initAccessListOwners(ctx, list)
 }
 
 // initAccessListMembers additively materializes scoped role assignments for
 // all members of the given list.
-func (m *materializer) initAccessListMembers(ctx context.Context, state state, list *accesslist.AccessList) {
+func (m *Materializer) initAccessListMembers(ctx context.Context, list *accesslist.AccessList) {
 	if hasMembershipRequires(list) {
 		// membership requires are not supported, do not follow any membership
 		// edges if this list has membership requires.
@@ -622,7 +642,7 @@ func (m *materializer) initAccessListMembers(ctx context.Context, state state, l
 
 		if hasMemberGrants {
 			// This user is a confirmed member, make sure a member assignment is materialized.
-			if err := m.addMemberRelationshipAndMaterialize(ctx, state, list, member.GetName()); err != nil {
+			if err := m.addMemberRelationshipAndMaterialize(ctx, list, member.GetName()); err != nil {
 				m.logger.WarnContext(ctx, "Failed to materialize assignment",
 					"error", err,
 					"user", member.GetName(),
@@ -633,7 +653,7 @@ func (m *materializer) initAccessListMembers(ctx context.Context, state state, l
 		// As a member of this list, the user shares the list's relationship
 		// with all of its ancestors, make sure assignments are materialized.
 		for _, ancestor := range ancestors {
-			if err := m.updateRelationshipAndMaterialize(ctx, state, ancestor.list, ancestor.relation, member.GetName()); err != nil {
+			if err := m.updateRelationshipAndMaterialize(ctx, ancestor.list, ancestor.relation, member.GetName()); err != nil {
 				m.logger.WarnContext(ctx, "Failed to materialize assignment",
 					"error", err,
 					"user", member.GetName(),
@@ -647,7 +667,7 @@ func (m *materializer) initAccessListMembers(ctx context.Context, state state, l
 // initAccessListOwners additively materializes scoped role assignments for
 // all owners of the given list. That includes direct owers and (nested)
 // members of owner lists.
-func (m *materializer) initAccessListOwners(ctx context.Context, state state, list *accesslist.AccessList) {
+func (m *Materializer) initAccessListOwners(ctx context.Context, list *accesslist.AccessList) {
 	if hasOwnershipRequires(list) || !hasOwnerGrants(list) {
 		// There is nothing to materialize for owners of this list.
 		return
@@ -664,7 +684,7 @@ func (m *materializer) initAccessListOwners(ctx context.Context, state state, li
 			// This user is a confirmed direct owner, make sure an owner
 			// assignment is materialized.
 			seenUsers.Add(owner.Name)
-			if err := m.addOwnerRelationshipAndMaterialize(ctx, state, list, owner.Name); err != nil {
+			if err := m.addOwnerRelationshipAndMaterialize(ctx, list, owner.Name); err != nil {
 				m.logger.WarnContext(ctx, "Failed to materialize assignment",
 					"error", err,
 					"user", owner.Name,
@@ -698,7 +718,7 @@ func (m *materializer) initAccessListOwners(ctx context.Context, state state, li
 				// member lists, but it may not be done, so continue the loop.
 				continue
 			}
-			if err := m.addOwnerRelationshipAndMaterialize(ctx, state, list, member.GetName()); err != nil {
+			if err := m.addOwnerRelationshipAndMaterialize(ctx, list, member.GetName()); err != nil {
 				m.logger.WarnContext(ctx, "Failed to materialize assignment",
 					"error", err,
 					"user", member.GetName(),
@@ -713,7 +733,7 @@ func (m *materializer) initAccessListOwners(ctx context.Context, state state, li
 // another list (the access list service attempts to prevent it), but to be
 // defensive we re-check assignments for all ancestors anyway in case a
 // membership path through this list has been broken.
-func (m *materializer) handleAccessListDelete(ctx context.Context, state state, listName string) {
+func (m *Materializer) handleAccessListDelete(ctx context.Context, listName string) {
 	// First of all, keep the ancestor cache up to date with respect to owners.
 	// Access lists are the source of truth for direct owner relationships.
 	// While the deletion of the access list may invalidate a direct membership
@@ -731,19 +751,19 @@ func (m *materializer) handleAccessListDelete(ctx context.Context, state state, 
 
 	// Iterate all currently materialized assignments.
 	for key := range m.materializedAssignments {
-		_, isAncestor := ancestors[key.list]
-		if key.list != listName && !isAncestor {
+		_, isAncestor := ancestors[key.List]
+		if key.List != listName && !isAncestor {
 			// We don't need to validate any assignments that are not for the
 			// deleted list or any of its ancestors.
 			continue
 		}
 
-		if err := m.recheckAssignment(ctx, state, key); err != nil {
+		if err := m.recheckAssignment(ctx, key); err != nil {
 			// Must pessimistically assume any assignment is invalid if we
 			// encountered an error trying to validate it.
 			m.logger.InfoContext(ctx, "Encountered an error validating materialized assignment, will delete the assignment",
 				"error", err)
-			m.deleteMaterializedAssignment(ctx, state, key)
+			m.deleteMaterializedAssignment(ctx, key)
 			m.scheduleMissedMembersRepair(ctx)
 		}
 	}
@@ -753,18 +773,18 @@ func (m *materializer) handleAccessListDelete(ctx context.Context, state state, 
 // additively merges with any existing materialized assignment for the user in
 // case the user is already a known owner of the list, and materializes an
 // assignment.
-func (m *materializer) addMemberRelationshipAndMaterialize(ctx context.Context, state state, list *accesslist.AccessList, userName string) error {
+func (m *Materializer) addMemberRelationshipAndMaterialize(ctx context.Context, list *accesslist.AccessList, userName string) error {
 	relation := ancestorRelation{isMember: true}
-	return m.updateRelationshipAndMaterialize(ctx, state, list, relation, userName)
+	return m.updateRelationshipAndMaterialize(ctx, list, relation, userName)
 }
 
 // addOwnerRelationshipAndMaterialize adds the given user as an owner of list,
 // additively merges with any existing materialized assignment for the user in
 // case the user is already a known member of the list, and materializes an
 // assignment.
-func (m *materializer) addOwnerRelationshipAndMaterialize(ctx context.Context, state state, list *accesslist.AccessList, userName string) error {
+func (m *Materializer) addOwnerRelationshipAndMaterialize(ctx context.Context, list *accesslist.AccessList, userName string) error {
 	relation := ancestorRelation{isOwner: true}
-	return m.updateRelationshipAndMaterialize(ctx, state, list, relation, userName)
+	return m.updateRelationshipAndMaterialize(ctx, list, relation, userName)
 }
 
 // updateRelationshipAndMaterialize additively updates our knowledge about a
@@ -773,43 +793,41 @@ func (m *materializer) addOwnerRelationshipAndMaterialize(ctx context.Context, s
 // assignment is created or updated as-needed. This function is called both for
 // direct relationships, and to record the transitive relationships implied by
 // nested lists.
-func (m *materializer) updateRelationshipAndMaterialize(
+func (m *Materializer) updateRelationshipAndMaterialize(
 	ctx context.Context,
-	state state,
 	list *accesslist.AccessList,
 	relation ancestorRelation,
 	userName string,
 ) error {
-	currentRelation := m.materializedAssignments[materializedAssignmentKey{
-		list: list.GetName(),
-		user: userName,
+	currentRelation := m.materializedAssignments[MaterializedAssignmentKey{
+		List: list.GetName(),
+		User: userName,
 	}]
 	relation.isMember = relation.isMember || currentRelation.isMember
 	relation.isOwner = relation.isOwner || currentRelation.isOwner
-	return m.materializeAssignment(ctx, state, list, relation, userName)
+	return m.materializeAssignment(ctx, list, relation, userName)
 }
 
 // materializeAssignment materializes a scoped role assignment for the given
 // (user, list) pair with the given relation between the user and list.
 //
-// The assignment will be injected into state.assignments, unless it contains
-// no grants, in which case any extant assignment in the state will be deleted.
-func (m *materializer) materializeAssignment(
+// The assignment will be injected into the assignment store, unless it contains
+// no grants, in which case any extant assignment in the store will be deleted.
+func (m *Materializer) materializeAssignment(
 	ctx context.Context,
-	state state,
 	list *accesslist.AccessList,
 	relation ancestorRelation,
 	userName string,
 ) error {
-	key := materializedAssignmentKey{
-		user: userName,
-		list: list.GetName(),
+	key := MaterializedAssignmentKey{
+		User: userName,
+		List: list.GetName(),
 	}
 
 	if (!relation.isMember || !hasMemberGrants(list)) && (!relation.isOwner || !hasOwnerGrants(list)) {
 		// This access list does not grant any scoped roles to this user,
 		// delete any existing materialized assignment if present.
-		m.deleteMaterializedAssignment(ctx, state, key)
+		m.deleteMaterializedAssignment(ctx, key)
 		return nil
 	}
 
@@ -819,7 +837,7 @@ func (m *materializer) materializeAssignment(
 		Version: types.V1,
 		Scope:   "/",
 		Metadata: &headerv1.Metadata{
-			Name: key.assignmentName(),
+			Name: key.AssignmentName(),
 		},
 		Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
 			User: userName,
@@ -850,9 +868,9 @@ func (m *materializer) materializeAssignment(
 	}
 
 	m.logger.DebugContext(ctx, "Materializing scoped role assignment",
-		"user", key.user,
-		"list", key.list)
-	if err := state.assignments.Put(assignment); err != nil {
+		"user", key.User,
+		"list", key.List)
+	if err := m.assignmentStore.Put(assignment); err != nil {
 		return trace.Wrap(err, "putting materialized assignment into cache")
 	}
 	m.materializedAssignments[key] = relation
@@ -860,40 +878,40 @@ func (m *materializer) materializeAssignment(
 	return nil
 }
 
-func (m *materializer) deleteMaterializedAssignment(ctx context.Context, state state, key materializedAssignmentKey) {
+func (m *Materializer) deleteMaterializedAssignment(ctx context.Context, key MaterializedAssignmentKey) {
 	if _, ok := m.materializedAssignments[key]; ok {
 		m.logger.DebugContext(ctx, "Deleting materialized scoped role assignment",
-			"user", key.user,
-			"list", key.list)
-		state.assignments.Delete(key.assignmentName(), scopedaccess.SubKindMaterialized)
+			"user", key.User,
+			"list", key.List)
+		m.assignmentStore.Delete(key.AssignmentName(), scopedaccess.SubKindMaterialized)
 		delete(m.materializedAssignments, key)
 		m.syncMaterializedAssignmentsMetric()
 
 	}
 }
 
-func (m *materializer) syncMaterializedAssignmentsMetric() {
+func (m *Materializer) syncMaterializedAssignmentsMetric() {
 	materializedAssignmentsMetric.Set(float64(len(m.materializedAssignments)))
 }
 
-func (m *materializer) recheckAssignment(ctx context.Context, state state, key materializedAssignmentKey) error {
-	list, err := m.aclReader.GetAccessList(ctx, key.list)
+func (m *Materializer) recheckAssignment(ctx context.Context, key MaterializedAssignmentKey) error {
+	list, err := m.aclReader.GetAccessList(ctx, key.List)
 	if err != nil {
-		return trace.Wrap(err, "getting access list %v", key.list)
+		return trace.Wrap(err, "getting access list %v", key.List)
 	}
 
 	relation := ancestorRelation{
-		isOwner:  m.checkNestedOwnership(ctx, list, key.user),
-		isMember: m.checkNestedMembership(ctx, list, key.user),
+		isOwner:  m.checkNestedOwnership(ctx, list, key.User),
+		isMember: m.checkNestedMembership(ctx, list, key.User),
 	}
 
-	if err := m.materializeAssignment(ctx, state, list, relation, key.user); err != nil {
+	if err := m.materializeAssignment(ctx, list, relation, key.User); err != nil {
 		return trace.Wrap(err, "materializing assignment")
 	}
 	return nil
 }
 
-func (m *materializer) checkNestedOwnership(ctx context.Context, list *accesslist.AccessList, userName string) bool {
+func (m *Materializer) checkNestedOwnership(ctx context.Context, list *accesslist.AccessList, userName string) bool {
 	if hasOwnershipRequires(list) {
 		// Ownerships can not be valid, for the puposes of granting scoped
 		// roles, if the list has any ownership requires.
@@ -928,7 +946,7 @@ func (m *materializer) checkNestedOwnership(ctx context.Context, list *accesslis
 	return false
 }
 
-func (m *materializer) checkNestedMembership(ctx context.Context, list *accesslist.AccessList, userName string) bool {
+func (m *Materializer) checkNestedMembership(ctx context.Context, list *accesslist.AccessList, userName string) bool {
 	seen := set.New[string]()
 
 	var checkNestedMembershipRecursive func(*accesslist.AccessList) bool
@@ -978,10 +996,10 @@ func (m *materializer) checkNestedMembership(ctx context.Context, list *accessli
 	return checkNestedMembershipRecursive(list)
 }
 
-func (m *materializer) materializedAssignmentsForList(listName string) iter.Seq2[materializedAssignmentKey, ancestorRelation] {
-	return func(yield func(materializedAssignmentKey, ancestorRelation) bool) {
+func (m *Materializer) materializedAssignmentsForList(listName string) iter.Seq2[MaterializedAssignmentKey, ancestorRelation] {
+	return func(yield func(MaterializedAssignmentKey, ancestorRelation) bool) {
 		for key, relation := range m.materializedAssignments {
-			if key.list != listName {
+			if key.List != listName {
 				continue
 			}
 			if !yield(key, relation) {
@@ -991,10 +1009,10 @@ func (m *materializer) materializedAssignmentsForList(listName string) iter.Seq2
 	}
 }
 
-func (m *materializer) materializedAssignmentsForUser(userName string) iter.Seq2[materializedAssignmentKey, ancestorRelation] {
-	return func(yield func(materializedAssignmentKey, ancestorRelation) bool) {
+func (m *Materializer) materializedAssignmentsForUser(userName string) iter.Seq2[MaterializedAssignmentKey, ancestorRelation] {
+	return func(yield func(MaterializedAssignmentKey, ancestorRelation) bool) {
 		for key, relation := range m.materializedAssignments {
-			if key.user != userName {
+			if key.User != userName {
 				continue
 			}
 			if !yield(key, relation) {
@@ -1014,7 +1032,7 @@ func (m *materializer) materializedAssignmentsForUser(userName string) iter.Seq2
 //
 // It will yield any errors encountered while fetching list or member resources
 // but may continue iterating over other lists/members.
-func (m *materializer) walkUserMembers(ctx context.Context, list *accesslist.AccessList) iter.Seq2[*accesslist.AccessListMember, error] {
+func (m *Materializer) walkUserMembers(ctx context.Context, list *accesslist.AccessList) iter.Seq2[*accesslist.AccessListMember, error] {
 	seenLists := set.New[string]()
 	seenUsers := set.New[string]()
 	return m.walkUserMembersRecursive(ctx, list, seenLists, seenUsers)
@@ -1038,7 +1056,7 @@ func (m *materializer) walkUserMembers(ctx context.Context, list *accesslist.Acc
 //
 // It will yield any errors encountered while fetching list or member resources
 // but may continue iterating over other lists/members.
-func (m *materializer) walkUserMembersRecursive(ctx context.Context, list *accesslist.AccessList, seenLists set.Set[string], seenUsers set.Set[string]) iter.Seq2[*accesslist.AccessListMember, error] {
+func (m *Materializer) walkUserMembersRecursive(ctx context.Context, list *accesslist.AccessList, seenLists set.Set[string], seenUsers set.Set[string]) iter.Seq2[*accesslist.AccessListMember, error] {
 	return func(yield func(*accesslist.AccessListMember, error) bool) {
 		seenLists.Add(list.GetName())
 		if hasMembershipRequires(list) {
@@ -1260,7 +1278,7 @@ func (c *ancestorCache) collectAncestorLists(params collectAncestorListsParams) 
 // This is useful when handling membership deletions, which requires
 // pessimistic validation of every possible already-materialized assignment
 // that may need to be invalidated.
-func (m *materializer) collectAncestorListsWithoutValidation(startListName string) map[string]ancestorRelation {
+func (m *Materializer) collectAncestorListsWithoutValidation(startListName string) map[string]ancestorRelation {
 	return m.ancestorCache.collectAncestorLists(collectAncestorListsParams{
 		startListName:      startListName,
 		validateMembership: func(string, string) bool { return true },
@@ -1293,7 +1311,7 @@ type ancestor struct {
 // Finally, any lists that do not contain any effective scoped role grants are
 // filted out. It is safe to materialize an assignment for all returned lists
 // without any further validation.
-func (m *materializer) collectAncestors(ctx context.Context, startListName string) ([]ancestor, []error) {
+func (m *Materializer) collectAncestors(ctx context.Context, startListName string) ([]ancestor, []error) {
 	var validationErrors []error
 	fetchedLists := make(map[string]*accesslist.AccessList)
 	ancestorRelations := m.ancestorCache.collectAncestorLists(collectAncestorListsParams{
@@ -1367,7 +1385,7 @@ func (m *materializer) collectAncestors(ctx context.Context, startListName strin
 // if the materializer is expected to be long-lived. It runs continuously until
 // ctx is done. It will send an event on [materializer.RepairEvents] at the
 // time of each scheduled repair event.
-func (m *materializer) RepairEventLoop(ctx context.Context) {
+func (m *Materializer) RepairEventLoop(ctx context.Context) {
 	for {
 		nextEvent, nextEventTime := m.nextRepairEvent()
 
@@ -1400,14 +1418,14 @@ func (m *materializer) RepairEventLoop(ctx context.Context) {
 // RepairEvents returns a channel from which events should be received and
 // passed to [materializer.ProcessRepairEvent]. This facilitates
 // single-threaded processing of cache events and repair events.
-func (m *materializer) RepairEvents() <-chan repairEvent {
+func (m *Materializer) RepairEvents() <-chan repairEvent {
 	return m.repairEventC
 }
 
 // ProcessRepairEvent should be called with repair events read from
 // [materializer.RepairEvents]. It must not be called concurrently with
 // [materializer.ProcessEvent].
-func (m *materializer) ProcessRepairEvent(ctx context.Context, state state, event repairEvent) {
+func (m *Materializer) ProcessRepairEvent(ctx context.Context, event repairEvent) {
 	ctx, span := m.tracer.Start(ctx, "scoped_access_cache/materializer/process_repair_event",
 		oteltrace.WithAttributes(attribute.String("repair.type", event.String())),
 	)
@@ -1415,13 +1433,13 @@ func (m *materializer) ProcessRepairEvent(ctx context.Context, state state, even
 
 	switch event {
 	case repairExpiredMembersEvent:
-		m.repairExpiredMembers(ctx, state)
+		m.repairExpiredMembers(ctx)
 	case repairMissedMembersEvent:
-		m.repairMissedMembers(ctx, state)
+		m.repairMissedMembers(ctx)
 	}
 }
 
-func (m *materializer) scheduleRepair(ctx context.Context, event repairEvent, t time.Time) {
+func (m *Materializer) scheduleRepair(ctx context.Context, event repairEvent, t time.Time) {
 	m.repairTimeMu.Lock()
 	defer m.repairTimeMu.Unlock()
 
@@ -1447,7 +1465,7 @@ func (m *materializer) scheduleRepair(ctx context.Context, event repairEvent, t 
 	}
 }
 
-func (m *materializer) resetRepairTime(event repairEvent) {
+func (m *Materializer) resetRepairTime(event repairEvent) {
 	m.repairTimeMu.Lock()
 	defer m.repairTimeMu.Unlock()
 	switch event {
@@ -1460,7 +1478,7 @@ func (m *materializer) resetRepairTime(event repairEvent) {
 
 // reportFutureMemberExpiry schedules repairExpiredMembers for the expiry time,
 // if one is not already scheduled for earlier.
-func (m *materializer) reportFutureMemberExpiry(ctx context.Context, expires time.Time) {
+func (m *Materializer) reportFutureMemberExpiry(ctx context.Context, expires time.Time) {
 	if expires.IsZero() {
 		return
 	}
@@ -1469,11 +1487,11 @@ func (m *materializer) reportFutureMemberExpiry(ctx context.Context, expires tim
 
 // scheduleMissedMembersRepair schedules repairMissedMembers for some time in
 // the future.
-func (m *materializer) scheduleMissedMembersRepair(ctx context.Context) {
-	m.scheduleRepair(ctx, repairMissedMembersEvent, time.Now().Add(missedMembersRepairBackoff))
+func (m *Materializer) scheduleMissedMembersRepair(ctx context.Context) {
+	m.scheduleRepair(ctx, repairMissedMembersEvent, time.Now().Add(MissedMembersRepairBackoff))
 }
 
-func (m *materializer) nextRepairEvent() (repairEvent, time.Time) {
+func (m *Materializer) nextRepairEvent() (repairEvent, time.Time) {
 	m.repairTimeMu.Lock()
 	defer m.repairTimeMu.Unlock()
 	if m.nextRepairMissedMembersTime.Before(m.nextExpiredMembersRepairTime) {
@@ -1484,7 +1502,7 @@ func (m *materializer) nextRepairEvent() (repairEvent, time.Time) {
 
 // repairExpiredMembers processes all expired member resources to make sure
 // that any invalid materialized assignments are cleared.
-func (m *materializer) repairExpiredMembers(ctx context.Context, state state) {
+func (m *Materializer) repairExpiredMembers(ctx context.Context) {
 	m.logger.InfoContext(ctx, "Running expired membership repair")
 
 	expiredMembersOf, nextExpiry := m.collectExpiredMembers(ctx)
@@ -1493,12 +1511,12 @@ func (m *materializer) repairExpiredMembers(ctx context.Context, state state) {
 	affected := 0
 	for key := range m.affectedAssignmentsForExpiredMembers(expiredMembersOf) {
 		affected++
-		if err := m.recheckAssignment(ctx, state, key); err != nil {
+		if err := m.recheckAssignment(ctx, key); err != nil {
 			// Must pessimistically assume any assignment is invalid if we
 			// encountered an error trying to validate it.
 			m.logger.InfoContext(ctx, "Encountered an error validating materialized assignment, will delete the assignment",
 				"error", err)
-			m.deleteMaterializedAssignment(ctx, state, key)
+			m.deleteMaterializedAssignment(ctx, key)
 			m.scheduleMissedMembersRepair(ctx)
 		}
 	}
@@ -1507,7 +1525,7 @@ func (m *materializer) repairExpiredMembers(ctx context.Context, state state) {
 
 // collectExpiredMembers collects all expired access list members by parent
 // list, and returns the earliest seen future expiry.
-func (m *materializer) collectExpiredMembers(ctx context.Context) (expiredMembersOf map[string]expiredMembers, nextExpiry time.Time) {
+func (m *Materializer) collectExpiredMembers(ctx context.Context) (expiredMembersOf map[string]expiredMembers, nextExpiry time.Time) {
 	// Use a consistent time for "now" so that this will report all members
 	// expired before this time, and schedule another repair for any members
 	// expiring after this time.
@@ -1526,7 +1544,7 @@ func (m *materializer) collectExpiredMembers(ctx context.Context) (expiredMember
 			// missed an expired member or one that will be expiring soon.
 			m.logger.WarnContext(ctx, "Failed to iterate access list members, some stale scoped role assignments may remain despite expired access list membership",
 				"error", err)
-			nextRepairAt := time.Now().Add(expiredMembersRepairBackoff)
+			nextRepairAt := time.Now().Add(ExpiredMembersRepairBackoff)
 			if nextRepairAt.Before(nextExpiry) {
 				nextExpiry = nextRepairAt
 			}
@@ -1559,7 +1577,7 @@ func (m *materializer) collectExpiredMembers(ctx context.Context) (expiredMember
 
 // affectedAssignmentsForExpiredMembers returns an iterator of all current
 // materialized assignments that may be affected by an expired membership.
-func (m *materializer) affectedAssignmentsForExpiredMembers(expiredMembersOf map[string]expiredMembers) iter.Seq[materializedAssignmentKey] {
+func (m *Materializer) affectedAssignmentsForExpiredMembers(expiredMembersOf map[string]expiredMembers) iter.Seq[MaterializedAssignmentKey] {
 	assignmentFilters := make(map[string]assignmentFilter)
 	for parentListName, knownExpiredMembers := range expiredMembersOf {
 		currFilter := assignmentFilters[parentListName]
@@ -1591,9 +1609,9 @@ func (m *materializer) affectedAssignmentsForExpiredMembers(expiredMembersOf map
 		}
 	}
 
-	return func(yield func(materializedAssignmentKey) bool) {
+	return func(yield func(MaterializedAssignmentKey) bool) {
 		for key := range m.materializedAssignments {
-			if !assignmentFilters[key.list].match(key.user) {
+			if !assignmentFilters[key.List].match(key.User) {
 				continue
 			}
 			if !yield(key) {
@@ -1653,7 +1671,7 @@ func (f *assignmentFilter) merge(other assignmentFilter) {
 
 // repairMissedMembers additively materializes assignments for all members and
 // owners in all lists.
-func (m *materializer) repairMissedMembers(ctx context.Context, state state) {
+func (m *Materializer) repairMissedMembers(ctx context.Context) {
 	m.logger.InfoContext(ctx, "Running missed membership repair")
 
 	// Iterate all access lists to additively materialize assignments for all
@@ -1668,8 +1686,8 @@ func (m *materializer) repairMissedMembers(ctx context.Context, state state) {
 			return
 		}
 		repairedLists++
-		m.initAccessListMembers(ctx, state, list)
-		m.initAccessListOwners(ctx, state, list)
+		m.initAccessListMembers(ctx, list)
+		m.initAccessListOwners(ctx, list)
 	}
 	oteltrace.SpanFromContext(ctx).SetAttributes(attribute.Int("lists.repaired", repairedLists))
 }

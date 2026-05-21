@@ -607,6 +607,9 @@ type KubernetesAccessPoint interface {
 
 	// accessPoint provides common access point functionality
 	accessPoint
+
+	// ScopedRoleReader returns a read-only scoped role client.
+	ScopedRoleReader() services.ScopedRoleReader
 }
 
 // ReadAppsAccessPoint is a read only API interface implemented by a certificate authority (CA) to be
@@ -762,6 +765,8 @@ type DatabaseAccessPoint interface {
 type ReadWindowsDesktopAccessPoint interface {
 	// Closer closes all the resources
 	io.Closer
+	// SubCAServiceGetter reads CA override resources.
+	services.SubCAServiceGetter
 
 	// NewWatcher returns a new event watcher.
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
@@ -935,8 +940,8 @@ type ReadDiscoveryAccessPoint interface {
 	// GetApp returns the specified application resource.
 	GetApp(ctx context.Context, name string) (types.Application, error)
 
-	// ListDiscoveryConfigs returns a paginated list of Discovery Config resources.
-	ListDiscoveryConfigs(ctx context.Context, pageSize int, nextKey string) ([]*discoveryconfig.DiscoveryConfig, string, error)
+	// DiscoveryConfigsGetter lists and reads discovery config resources.
+	services.DiscoveryConfigsGetter
 
 	// GetIntegration returns the specified integration resource.
 	GetIntegration(ctx context.Context, name string) (types.Integration, error)
@@ -1555,8 +1560,6 @@ type Cache interface {
 	// AppAuthConfigGetter defines methods for fetching app auth configs.
 	services.AppAuthConfigReader
 
-	// WorkloadClusterServiceGetter defines methods for fetching workload clusters.
-	services.WorkloadClusterServiceGetter
 	// SummarizerServiceGetter defines methods for fetching summarizer resources.
 	services.SummarizerServiceGetter
 	// BeamReader defines methods for reading beam resources.
@@ -1684,6 +1687,12 @@ func NewKubernetesWrapper(base KubernetesAccessPoint, cache ReadKubernetesAccess
 		accessPoint:               base,
 		ReadKubernetesAccessPoint: cache,
 	}
+}
+
+func (w *KubernetesWrapper) ScopedRoleReader() services.ScopedRoleReader {
+	// TODO(fspmarshall/scopes): implement caching for scoped roles
+	// on kube agents.
+	return w.NoCache.ScopedRoleReader()
 }
 
 // Close closes all associated resources
@@ -1866,6 +1875,12 @@ func (w *DiscoveryWrapper) Ping(ctx context.Context) (proto.PingResponse, error)
 // UpdateDiscoveryConfigStatus updates the status of a discovery config.
 func (w *DiscoveryWrapper) UpdateDiscoveryConfigStatus(ctx context.Context, name string, status discoveryconfig.Status) (*discoveryconfig.DiscoveryConfig, error) {
 	return w.NoCache.UpdateDiscoveryConfigStatus(ctx, name, status)
+}
+
+// GetDiscoveryConfig retrieves a discovery config by name.
+// This method is not cached to ensure that updating the DiscoveryConfig Status does not use (possibly) stale cache data.
+func (w *DiscoveryWrapper) GetDiscoveryConfig(ctx context.Context, name string) (*discoveryconfig.DiscoveryConfig, error) {
+	return w.NoCache.GetDiscoveryConfig(ctx, name)
 }
 
 // UpserUserTask creates or updates an User Task.

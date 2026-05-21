@@ -559,6 +559,13 @@ type DatabaseSessionRequest struct {
 	DatabaseRoles []string `json:"dbRoles"`
 }
 
+func (r *DatabaseSessionRequest) check() error {
+	if err := types.ValidateDatabaseName(r.ServiceName); err != nil {
+		return trace.Wrap(err, "database service name %q is invalid", r.ServiceName)
+	}
+	return nil
+}
+
 // databaseConnectionRequestWaitTimeout defines how long the server will wait
 // for the user to send the connection request.
 const databaseConnectionRequestWaitTimeout = defaults.HeadlessLoginTimeout
@@ -595,6 +602,10 @@ func readDatabaseSessionRequest(ws *websocket.Conn) (*DatabaseSessionRequest, er
 
 	var req DatabaseSessionRequest
 	if err := json.Unmarshal([]byte(envelope.Payload), &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := req.check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

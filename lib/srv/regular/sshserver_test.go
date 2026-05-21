@@ -544,7 +544,7 @@ func TestSessionAuditLog(t *testing.T) {
 	require.NoError(t, err)
 
 	x11Event := <-emitter.C()
-	require.IsType(t, &apievents.X11Forward{}, x11Event, "expected X11Forward event but got event of tgsype %T", x11Event)
+	require.IsType(t, &apievents.X11Forward{}, x11Event, "expected X11Forward event but got event of type %T", x11Event)
 
 	// LOCAL PORT FORWARDING
 	// Start up a test server that doesn't do any remote port forwarding
@@ -640,6 +640,131 @@ func TestSessionAuditLog(t *testing.T) {
 	endEvent, ok := e.(*apievents.SessionEnd)
 	require.True(t, ok, "expected SessionEnd event but got event of type %T", e)
 	require.Equal(t, sessionID, endEvent.SessionID)
+}
+
+func TestX11AuditLog(t *testing.T) {
+	if os.Getenv("TELEPORT_XAUTH_TEST") == "" {
+		t.Skip("Skipping x11 test as xauth is not enabled")
+	}
+
+	ctx := t.Context()
+	t.Parallel()
+
+	f := newCustomFixture(t, func(cfg *authtest.ServerConfig) {
+		cfg.Auth.AuditLog = events.NewDiscardAuditLog()
+	})
+
+	// use a sync recording mode because the disk-based uploader
+	// that runs in the background introduces races with test cleanup
+	recConfig := types.DefaultSessionRecordingConfig()
+	recConfig.SetMode(types.RecordAtNodeSync)
+	_, err := f.testSrv.Auth().UpsertSessionRecordingConfig(t.Context(), recConfig)
+	require.NoError(t, err)
+
+	// Set up a mock emitter so we can capture audit events.
+	emitter := eventstest.NewChannelEmitter(32)
+	f.ssh.srv.StreamEmitter = events.StreamerAndEmitter{
+		Streamer: events.NewDiscardStreamer(),
+		Emitter:  emitter,
+	}
+
+	// Enable x11 forwarding
+	f.ssh.srv.x11 = &x11.ServerConfig{
+		Enabled:       true,
+		DisplayOffset: x11.DefaultDisplayOffset,
+		MaxDisplay:    x11.DefaultMaxDisplays,
+	}
+
+	awaitX11Event := func(t *testing.T) *apievents.X11Forward {
+		t.Helper()
+
+		for event := range emitter.C() {
+			if x11Event, ok := event.(*apievents.X11Forward); ok {
+				return x11Event
+			}
+		}
+
+		t.Fatal("emitter closed before an x11 audit event was emitted")
+		return nil
+	}
+
+	testX11Audit := func(t *testing.T, clientConfig apissh.ClientConfig, assertX11Event func(t require.TestingT, e *apievents.X11Forward)) {
+		t.Helper()
+
+		if clientConfig.IsEmpty() {
+			clientConfig = f.ssh.cltConfig
+		}
+
+		// Start a new session
+		newClient, err := apissh.Dial(ctx, "tcp", f.ssh.srvAddress, clientConfig)
+		require.NoError(t, err)
+		sess, err := newClient.NewSession(ctx)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			if err := sess.Close(); !errors.Is(err, io.EOF) {
+				require.NoError(t, err)
+			}
+			if err := newClient.Close(); !errors.Is(err, io.EOF) {
+				require.NoError(t, err)
+			}
+		})
+
+		// Request x11 forwarding, event should be emitted immediately.
+		clientXAuthEntry, err := x11.NewFakeXAuthEntry(x11.Display{})
+		require.NoError(t, err)
+		_ = x11forward.RequestForwarding(ctx, sess, clientXAuthEntry)
+
+		assertX11Event(t, awaitX11Event(t))
+	}
+
+	t.Run("success", func(t *testing.T) {
+		testX11Audit(t, apissh.ClientConfig{}, func(t require.TestingT, e *apievents.X11Forward) {
+			require.Equal(t, events.X11ForwardCode, e.GetCode(), "expected X11 forward code")
+			require.True(t, e.Status.Success)
+			require.Empty(t, e.Status.Error)
+		})
+	})
+
+	t.Run("reexec failure", func(t *testing.T) {
+		missingLogin := "missing-login"
+		up, err := newUpack(t.Context(), f.testSrv, "x11-audit-missing-login", []string{missingLogin}, wildcardAllow)
+		require.NoError(t, err)
+		sshConfig := apissh.ClientConfig{
+			User: missingLogin,
+			PublicKeyAuth: apissh.PublicKeyAuthConfig{
+				Signers: func() ([]ssh.Signer, error) {
+					return []ssh.Signer{up.certSigner}, nil
+				},
+			},
+			HostKeyCallback: ssh.FixedHostKey(f.signer.PublicKey()),
+		}
+
+		expectErr := fmt.Sprintf("Failed to launch: %v.", user.UnknownUserError(missingLogin))
+		testX11Audit(t, sshConfig, func(t require.TestingT, e *apievents.X11Forward) {
+			require.Equal(t, events.X11ForwardFailureCode, e.GetCode(), "expected X11 forward failure code")
+			require.False(t, e.Status.Success)
+			require.Equal(t, expectErr, e.Status.Error)
+		})
+	})
+
+	// Deny x11 forwarding for the user.
+	roleName := services.RoleNameForUser(f.user)
+	role, err := f.testSrv.Auth().GetRole(ctx, roleName)
+	require.NoError(t, err)
+	roleOptions := role.GetOptions()
+	roleOptions.PermitX11Forwarding = types.NewBool(false)
+	role.SetOptions(roleOptions)
+	_, err = f.testSrv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	t.Run("not permitted", func(t *testing.T) {
+		testX11Audit(t, apissh.ClientConfig{}, func(t require.TestingT, e *apievents.X11Forward) {
+			require.Equal(t, events.X11ForwardFailureCode, e.GetCode(), "expected X11 forward failure code")
+			require.False(t, e.Status.Success)
+			require.Equal(t, "X11 forwarding not permitted", e.Status.Error)
+		})
+	})
+
 }
 
 func newProxyClient(t *testing.T, testSvr *authtest.Server) (*authclient.Client, string) {

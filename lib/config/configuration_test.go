@@ -470,6 +470,18 @@ func TestConfigReading(t *testing.T) {
 						FallbackModel: "claude-opus-4-6",
 					},
 				},
+				{
+					Name:         "grpc-with-mtls",
+					StaticLabels: Labels,
+					URI:          "tcp://127.0.0.1:8080",
+					TLS: &AppTLS{
+						Mode:           types.AppTLSModeVerifyFull,
+						ServerName:     "example.com",
+						ServerSpiffeId: "spiffe://mycluster/svc/example",
+						AllowedCas:     []string{types.AppTLSInternalCAWorkloadIdentity},
+						ClientCertMode: types.AppClientCertModeManaged,
+					},
+				},
 			},
 			ResourceMatchers: []ResourceMatcher{
 				{
@@ -1714,6 +1726,18 @@ func makeConfigFixture() string {
 				FallbackModel: "claude-opus-4-6",
 			},
 		},
+		{
+			Name:         "grpc-with-mtls",
+			StaticLabels: Labels,
+			URI:          "tcp://127.0.0.1:8080",
+			TLS: &AppTLS{
+				Mode:           types.AppTLSModeVerifyFull,
+				ServerName:     "example.com",
+				ServerSpiffeId: "spiffe://mycluster/svc/example",
+				AllowedCas:     []string{types.AppTLSInternalCAWorkloadIdentity},
+				ClientCertMode: types.AppClientCertModeManaged,
+			},
+		},
 	}
 	conf.Apps.ResourceMatchers = []ResourceMatcher{
 		{
@@ -2703,6 +2727,63 @@ app_service:
 			name:   "LLM inference endpoint",
 			outErr: require.NoError,
 		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    - name: app-tls
+      uri: https://localhost:8080
+      tls:
+        mode: verify-full
+        client_cert_mode: managed
+`,
+			name:   "App TLS configuration",
+			outErr: require.NoError,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    - name: app-tls
+      uri: https://localhost:8080
+      tls:
+        mode: verify-full
+        allowed_cas_files:
+        - _random-file.pem
+`,
+			name:   "App TLS configuration fails to read file",
+			outErr: require.Error,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    - name: Foo
+      uri: "http://127.0.0.1:8080"
+`,
+			name: "uppercase app name is rejected",
+			outErr: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t, err, "must be a valid DNS label")
+			},
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    - name: foo
+      uri: "http://127.0.0.1:8080"
+    - name: foo
+      uri: "http://127.0.0.1:8081"
+`,
+			name: "duplicate app names rejected",
+			outErr: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t, err, "duplicate application name")
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -2854,7 +2935,7 @@ func TestAppsCLF(t *testing.T) {
 			outApps:   nil,
 			requireError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsBadParameter(err))
-				require.ErrorContains(t, err, "application name \"-foo\" must be a lower case valid DNS subdomain: https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#application-name")
+				require.ErrorContains(t, err, "application name \"-foo\" must be a valid DNS label (lowercase alphanumeric or '-', must start and end with alphanumeric, max 63 chars): https://goteleport.com/docs/enroll-resources/application-access/guides/connecting-apps/#application-name")
 			},
 		},
 		{
@@ -3353,6 +3434,76 @@ func TestTLSCert(t *testing.T) {
 
 			require.Len(t, cfg.Databases.Databases, 1)
 			require.Equal(t, fixtures.LocalhostCert, cfg.Databases.Databases[0].TLS.CACert)
+		})
+	}
+}
+
+func TestAppTLSCert(t *testing.T) {
+	tmpDir := t.TempDir()
+	tmpCA := filepath.Join(tmpDir, "ca.pem")
+
+	err := os.WriteFile(tmpCA, fixtures.LocalhostCert, 0o644)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name               string
+		conf               *FileConfig
+		expectedAllowedCas []string
+	}{
+		{
+			"only files",
+			&FileConfig{
+				Apps: Apps{
+					Service: Service{
+						EnabledFlag: "true",
+					},
+					Apps: []*App{
+						{
+							Name: "test-app-1",
+							URI:  "https://localhost:1234",
+							TLS: &AppTLS{
+								Mode:            types.AppTLSModeVerifyFull,
+								AllowedCasFiles: []string{tmpCA},
+							},
+						},
+					},
+				},
+			},
+			[]string{string(fixtures.LocalhostCert)},
+		},
+		{
+			"mixed configuration",
+			&FileConfig{
+				Apps: Apps{
+					Service: Service{
+						EnabledFlag: "true",
+					},
+					Apps: []*App{
+						{
+							Name: "test-app-1",
+							URI:  "https://localhost:1234",
+							TLS: &AppTLS{
+								Mode:            types.AppTLSModeVerifyFull,
+								AllowedCas:      []string{types.AppTLSInternalCAWorkloadIdentity, string(fixtures.LocalhostCert)},
+								AllowedCasFiles: []string{tmpCA},
+							},
+						},
+					},
+				},
+			},
+			[]string{types.AppTLSInternalCAWorkloadIdentity, string(fixtures.LocalhostCert), string(fixtures.LocalhostCert)},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := servicecfg.MakeDefaultConfig()
+
+			err = ApplyFileConfig(tt.conf, cfg)
+			require.NoError(t, err)
+
+			require.Len(t, cfg.Apps.Apps, 1)
+			require.ElementsMatch(t, tt.expectedAllowedCas, cfg.Apps.Apps[0].TLS.AllowedCas)
 		})
 	}
 }
@@ -3883,13 +4034,13 @@ jamf_service:
 				Spec: &types.JamfSpecV1{
 					Enabled:     true,
 					Name:        "jamf2",
-					SyncDelay:   types.Duration(1 * time.Minute),
+					SyncDelay:   types.DurationStringForJamfSpecV1(1 * time.Minute),
 					ApiEndpoint: "https://yourtenant.jamfcloud.com",
 					Inventory: []*types.JamfInventoryEntry{
 						{
 							FilterRsql:        "1==1",
-							SyncPeriodPartial: types.Duration(4 * time.Hour),
-							SyncPeriodFull:    types.Duration(48 * time.Hour),
+							SyncPeriodPartial: types.DurationStringForJamfSpecV1(4 * time.Hour),
+							SyncPeriodFull:    types.DurationStringForJamfSpecV1(48 * time.Hour),
 							OnMissing:         "NOOP",
 							PageSize:          10,
 						},
@@ -5605,6 +5756,7 @@ debug_service:
 }
 
 func TestSignatureAlgorithmSuite(t *testing.T) {
+	t.Parallel()
 	for desc, tc := range map[string]struct {
 		fips            bool
 		hsm             bool
@@ -5659,15 +5811,16 @@ func TestSignatureAlgorithmSuite(t *testing.T) {
 		},
 	} {
 		t.Run(desc, func(t *testing.T) {
-			modulestest.SetTestModules(t, modulestest.Modules{
-				TestFeatures: modules.Features{
-					Cloud: tc.cloud,
-				},
-			})
+			t.Parallel()
 			clf := &CommandLineFlags{
 				FIPS: tc.fips,
 			}
 			cfg := servicecfg.MakeDefaultConfig()
+			cfg.Modules = &modulestest.Modules{
+				TestFeatures: modules.Features{
+					Cloud: tc.cloud,
+				},
+			}
 			if tc.fips {
 				servicecfg.ApplyFIPSDefaults(cfg)
 			}

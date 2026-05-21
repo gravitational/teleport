@@ -20,7 +20,6 @@ package app
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/gravitational/trace"
 
@@ -56,8 +55,11 @@ func (s *Server) startReconciler(ctx context.Context) error {
 			case <-s.reconcileCh:
 				if err := reconciler.Reconcile(ctx); err != nil {
 					s.log.ErrorContext(ctx, "Failed to reconcile.", "error", err)
-				} else if s.c.OnReconcile != nil {
-					s.c.OnReconcile(s.getApps())
+				} else {
+					s.reconcileDoneOnce.Do(func() { close(s.reconcileDone) })
+					if s.c.OnReconcile != nil {
+						s.c.OnReconcile(s.getApps())
+					}
 				}
 			case <-ctx.Done():
 				s.log.DebugContext(ctx, "Reconciler done.")
@@ -167,7 +169,7 @@ func FindPublicAddr(ctx context.Context, client FindPublicAddrClient, appPublicA
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	return fmt.Sprintf("%v.%v", appName, cn.GetClusterName()), nil
+	return utils.DefaultAppPublicAddr(appName, cn.GetClusterName()), nil
 }
 
 func (s *Server) getResources() map[string]types.Application {
@@ -187,5 +189,21 @@ func (s *Server) onDelete(ctx context.Context, app types.Application) error {
 }
 
 func (s *Server) matcher(app types.Application) bool {
-	return services.MatchResourceLabels(s.c.ResourceMatchers, app.GetAllLabels())
+	matchesLabels := services.MatchResourceLabels(s.c.ResourceMatchers, app.GetAllLabels())
+	if !matchesLabels {
+		return false
+	}
+
+	if s.c.IgnoreAppsWithCommandLabels {
+		if len(app.GetDynamicLabels()) > 0 {
+			s.log.WarnContext(
+				context.Background(),
+				"refusing to register app with dynamic labels",
+				"app_name", app.GetName(),
+			)
+			return false
+		}
+	}
+
+	return true
 }

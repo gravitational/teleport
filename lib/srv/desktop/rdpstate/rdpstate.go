@@ -22,7 +22,9 @@ import (
 	"bytes"
 	"encoding/binary"
 	"image"
+	"image/draw"
 	"io"
+	"math"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
@@ -37,6 +39,7 @@ const (
 	// Legacy TDP message types relevant for recording replay.
 	legacyTypeConnectionActivated = 31
 	legacyTypeRDPFastPathPDU      = 29
+	legacyTypeMouseMove           = 3
 
 	// tdpbHeaderLength is the size of the TDPB message length prefix.
 	tdpbHeaderLength = 4
@@ -55,6 +58,9 @@ const (
 // Subsequent FastPathPDU messages are fed to the decoder, which maintains the screen framebuffer and cursor state.
 type RDPState struct {
 	decoder *decoder.Decoder
+
+	mouseX, mouseY uint16
+	hasMouse       bool
 }
 
 // New creates a new RDPState.
@@ -104,6 +110,55 @@ func (s *RDPState) Release() {
 	}
 }
 
+// ImageWithCursor returns the current screen image with the cursor composited at its current position, along with the
+// cursor state.
+// When MouseMove TDPB messages have set a position, that overrides the Rust decoder's internal cursor position for compositing.
+func (s *RDPState) ImageWithCursor() (*image.RGBA, decoder.CursorState) {
+	if s.decoder == nil {
+		return nil, decoder.CursorState{}
+	}
+
+	img := s.decoder.Image()
+	cs := s.CursorState()
+	if img == nil || !cs.Visible {
+		return img, cs
+	}
+
+	bmp := s.decoder.CursorBitmap()
+	if bmp == nil {
+		return img, cs
+	}
+
+	cursorX, cursorY := cs.X, cs.Y
+	if s.hasMouse {
+		cursorX, cursorY = s.mouseX, s.mouseY
+	}
+
+	drawX := int(cursorX) - bmp.HotspotX
+	drawY := int(cursorY) - bmp.HotspotY
+	cb := bmp.Image.Bounds()
+
+	dstRect := image.Rect(drawX, drawY, drawX+cb.Dx(), drawY+cb.Dy())
+	draw.Draw(img, dstRect, bmp.Image, image.Point{}, draw.Over)
+
+	return img, cs
+}
+
+// UpdatedRegions returns the individual screen regions updated since the last call to ResetUpdatedRegions.
+func (s *RDPState) UpdatedRegions() []image.Rectangle {
+	if s.decoder == nil {
+		return nil
+	}
+	return s.decoder.UpdatedRegions()
+}
+
+// ResetUpdatedRegions clears the accumulated update regions.
+func (s *RDPState) ResetUpdatedRegions() {
+	if s.decoder != nil {
+		s.decoder.ResetUpdatedRegions()
+	}
+}
+
 type connectionActivated struct {
 	IOChannelID, UserChannelID, ScreenWidth, ScreenHeight uint16
 }
@@ -148,6 +203,14 @@ func (s *RDPState) processTDPMessage(data []byte) error {
 		}
 
 		return s.handleFastPathPDU(&tdpbv1.FastPathPDU{Pdu: pdu})
+
+	case legacyTypeMouseMove:
+		var mm struct{ X, Y uint32 }
+		if err := binary.Read(r, binary.BigEndian, &mm); err != nil {
+			return trace.Wrap(err, "reading legacy MouseMove")
+		}
+
+		return s.handleMouseMove(&tdpbv1.MouseMove{X: mm.X, Y: mm.Y})
 	}
 
 	return nil
@@ -181,6 +244,8 @@ func (s *RDPState) processTDPBMessage(data []byte) error {
 		return s.handleServerHello(m.ServerHello)
 	case *tdpbv1.Envelope_FastPathPdu:
 		return s.handleFastPathPDU(m.FastPathPdu)
+	case *tdpbv1.Envelope_MouseMove:
+		return s.handleMouseMove(m.MouseMove)
 	}
 
 	return nil
@@ -206,8 +271,20 @@ func (s *RDPState) handleServerHello(msg *tdpbv1.ServerHello) error {
 	}
 
 	if s.decoder == nil {
-		d, err := decoder.New(w, h) //nolint:staticcheck // err is always non-nil in nop build but nil in RDP build
-		if err != nil {             //nolint:staticcheck // err is always non-nil in nop build but nil in RDP build
+		ioChan, userChan := spec.GetIoChannelId(), spec.GetUserChannelId()
+		if ioChan > math.MaxUint16 || userChan > math.MaxUint16 {
+			return trace.BadParameter("channel IDs out of range: io=%d, user=%d", ioChan, userChan)
+		}
+		ioChannelID := uint16(ioChan)
+		userChannelID := uint16(userChan)
+
+		//nolint:staticcheck // err is always non-nil in nop build but nil in RDP build
+		d, err := decoder.New(
+			w, h,
+			decoder.WithIOChannelID(ioChannelID),
+			decoder.WithUserChannelID(userChannelID),
+		)
+		if err != nil { //nolint:staticcheck // err is always non-nil in nop build but nil in RDP build
 			return trace.Wrap(err, "creating RDP decoder")
 		}
 
@@ -230,6 +307,18 @@ func (s *RDPState) handleFastPathPDU(msg *tdpbv1.FastPathPDU) error {
 	}
 
 	s.decoder.Process(pdu)
+
+	return nil
+}
+
+func (s *RDPState) handleMouseMove(msg *tdpbv1.MouseMove) error {
+	if msg.X > math.MaxUint16 || msg.Y > math.MaxUint16 {
+		return trace.BadParameter("mouse coordinates out of range: (%d, %d)", msg.X, msg.Y)
+	}
+
+	s.mouseX = uint16(msg.X)
+	s.mouseY = uint16(msg.Y)
+	s.hasMouse = true
 
 	return nil
 }

@@ -22,13 +22,13 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { test, expect } from '@gravitational/e2e/helpers/connect';
+import { defaultUsername } from '@gravitational/e2e/helpers/defaultUser';
 import { connectTshBin, startUrl } from '@gravitational/e2e/helpers/env';
 import { login as webLogin } from '@gravitational/e2e/helpers/login';
 import { HeadlessAuthDialogPage } from '@gravitational/e2e/helpers/pages/connect/HeadlessAuthDialog';
 import { chromium } from '@playwright/test';
 
 const REQUEST_URL_RE = /https?:\/\/\S+\/web\/headless\/[0-9a-f-]+/i;
-const HEADLESS_USER = 'bob';
 
 type CreatedRequest = {
   url: string;
@@ -58,7 +58,7 @@ async function startHeadlessRequestProcess(options?: {
         'ls',
         '--headless',
         '--insecure',
-        `--user=${HEADLESS_USER}`,
+        `--user=${defaultUsername()}`,
         `--proxy=${proxyHost}`,
       ],
       {
@@ -128,7 +128,7 @@ async function approveInWebUi(requestUrl: string) {
   const page = await context.newPage();
 
   try {
-    await webLogin(page);
+    await webLogin(page, defaultUsername());
     await page.goto(requestUrl);
 
     await expect(page.getByRole('button', { name: 'Approve' })).toBeVisible();

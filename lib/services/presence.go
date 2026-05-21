@@ -117,9 +117,6 @@ type Presence interface {
 	// DeleteProxy deletes proxy by name
 	DeleteProxy(ctx context.Context, name string) error
 
-	// DeleteAllProxies deletes all proxies
-	DeleteAllProxies() error
-
 	// UpsertReverseTunnel upserts reverse tunnel entry temporarily or permanently
 	UpsertReverseTunnel(ctx context.Context, tunnel types.ReverseTunnel) (types.ReverseTunnel, error)
 

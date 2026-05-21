@@ -12,3 +12,4 @@ node/*.yaml
 kube/*-kubeconfig
 *.log
 .auth/
+!config/resources/*.yaml

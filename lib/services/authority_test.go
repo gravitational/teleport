@@ -217,6 +217,20 @@ func TestValidateCertAuthority(t *testing.T) {
 		},
 	}
 
+	appClientCA := &types.CertAuthoritySpecV2{
+		Type:        types.AppClientCA,
+		ClusterName: clusterName,
+		ActiveKeys: types.CAKeySet{
+			TLS: []*types.TLSKeyPair{
+				{
+					Cert:    certPEM,
+					Key:     keyPEM,
+					KeyType: types.PrivateKeyType_RAW,
+				},
+			},
+		},
+	}
+
 	samlIDPCA := &types.CertAuthoritySpecV2{
 		Type:        types.SAMLIDPCA,
 		ClusterName: clusterName,
@@ -435,6 +449,22 @@ func TestValidateCertAuthority(t *testing.T) {
 				return spec
 			}(),
 			wantErr: "public key",
+		},
+
+		// AppClientCA.
+		{
+			name: "valid AppClientCA",
+			spec: appClientCA,
+		},
+		{
+			// WindowsCA already covers all corner-cases of checkTLSKeys.
+			name: "AppClientCA invalid ActiveKeys",
+			spec: func() *types.CertAuthoritySpecV2 {
+				spec := clone(appClientCA)
+				spec.ActiveKeys = types.CAKeySet{}
+				return spec
+			}(),
+			wantErr: "missing TLS",
 		},
 	}
 	for _, test := range tests {

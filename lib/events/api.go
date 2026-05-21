@@ -627,6 +627,9 @@ const (
 	// UpgradeWindowStartUpdateEvent is emitted when the upgrade window start time
 	// is updated. Used only for teleport cloud.
 	UpgradeWindowStartUpdateEvent = "upgradewindowstart.update"
+	// EnvironmentProfileUpdateEvent is emitted when the environment profile
+	// is updated. Used only for teleport cloud.
+	EnvironmentProfileUpdateEvent = "environmentprofile.update"
 
 	// SessionRecordingAccessEvent is emitted when a session recording is accessed
 	SessionRecordingAccessEvent = "session.recording.access"
@@ -634,6 +637,10 @@ const (
 	// SSMRunEvent is emitted when a run of an install script
 	// completes on a discovered EC2 node
 	SSMRunEvent = "ssm.run"
+
+	// AzureRunEvent is emitted when a run of an install script
+	// completes on a discovered Azure VM
+	AzureRunEvent = "azure.run"
 
 	// DeviceEvent is the catch-all event for Device Trust events.
 	// Deprecated: Use one of the more specific event codes below.
@@ -1129,6 +1136,18 @@ type Streamer interface {
 	// ResumeAuditStream resumes the stream for session upload that
 	// has not been completed yet.
 	ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error)
+}
+
+// StreamerWithCallback extends [Streamer] to allow setting a callback that is
+// invoked when a session recording upload completes without a session end event.
+type StreamerWithCallback interface {
+	Streamer
+	// SetOnUploadComplete registers a callback invoked after a session
+	// recording upload completes without a session end event. The callback
+	// may return a session end event or nil if unavailable.
+	//
+	// MUST be called before any streams are created.
+	SetOnUploadComplete(func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error))
 }
 
 // StreamPart represents uploaded stream part

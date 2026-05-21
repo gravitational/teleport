@@ -157,12 +157,10 @@ func TestHandler_getToken(t *testing.T) {
 				state = tt.initState()
 			}
 
-			ctx := cmp.Or(tt.getTokenContext, context.Background())
-
-			fwd, err := newGCPHandler(ctx, tt.config(state))
+			fwd, err := newGCPHandler(t.Context(), tt.config(state))
 			require.NoError(t, err)
 
-			token, err := fwd.getToken(ctx, "MY_ACCOUNT")
+			token, err := fwd.getToken(cmp.Or(tt.getTokenContext, context.Background()), "MY_ACCOUNT")
 			require.Equal(t, tt.wantToken, token)
 			tt.checkErr(t, err)
 

@@ -181,8 +181,20 @@ func (r *SSEResponseReader) ReadMessage(ctx context.Context) (string, error) {
 	} else if err != nil {
 		return "", trace.Wrap(err, "reading SSE server message")
 	}
+	// Per SSE spec events can have no data. For MCP events without data usually
+	// represent events with Last-Event-ID information used for session
+	// resumption (defined by SEP-1699).
+	//
+	// For those scenarios, since Teleport doesn't support session resumption
+	// yet, skip those events to avoid breaking the connection.
+	//
+	// Ref: https://html.spec.whatwg.org/multipage/server-sent-events.html#event-stream-interpretation
+	// Ref: https://modelcontextprotocol.io/community/seps/1699-support-sse-polling-via-server-side-disconnect
+	if len(evt.Data) == 0 {
+		return "", errSSEEventNoData
+	}
 	if evt.Name != sseEventMessage {
-		return "", newReaderParseError(trace.BadParameter("unexpected event type %s", evt.Name))
+		return "", newReaderParseError(trace.BadParameter("unexpected event type %q", evt.Name))
 	}
 	return string(evt.Data), nil
 }

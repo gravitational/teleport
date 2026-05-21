@@ -22,7 +22,14 @@ import { test, expect } from '@gravitational/e2e/helpers/connect';
 import { TerminalPage } from '@gravitational/e2e/helpers/pages/Terminal';
 import { UnifiedResourcesPage } from '@gravitational/e2e/helpers/pages/UnifiedResources';
 
-test.use({ autoLogin: true, fixtures: ['kube'] });
+test.use({
+  autoLogin: true,
+  fixtures: ['kube'],
+  user: {
+    roles: ['access'],
+    traits: { kubernetes_groups: ['system:masters'] },
+  },
+});
 
 const kubeResourceName = /teleport-e2e-kube-/i;
 const kubePromptText = 'Try "kubectl version" to test the connection.';

@@ -56,22 +56,28 @@ import (
 func TestServer_getKubeFetchers(t *testing.T) {
 	eks1, err := fetchers.NewEKSFetcher(fetchers.EKSFetcherConfig{
 		ClientGetter: &mockFetchersClients{},
-		FilterLabels: types.Labels{"l1": []string{"v1"}},
-		Region:       "region1",
+		Matcher: types.AWSMatcher{
+			Regions: []string{"region1"},
+			Tags:    types.Labels{"l1": []string{"v1"}},
+		},
 	})
 	require.NoError(t, err)
 	eks2, err := fetchers.NewEKSFetcher(fetchers.EKSFetcherConfig{
 		ClientGetter: &mockFetchersClients{},
-		FilterLabels: types.Labels{"l1": []string{"v1"}},
-		Region:       "region1",
-		Integration:  "aws1",
+		Matcher: types.AWSMatcher{
+			Regions:     []string{"region1"},
+			Tags:        types.Labels{"l1": []string{"v1"}},
+			Integration: "aws1",
+		},
 	})
 	require.NoError(t, err)
 	eks3, err := fetchers.NewEKSFetcher(fetchers.EKSFetcherConfig{
 		ClientGetter: &mockFetchersClients{},
-		FilterLabels: types.Labels{"l1": []string{"v1"}},
-		Region:       "region1",
-		Integration:  "aws1",
+		Matcher: types.AWSMatcher{
+			Regions:     []string{"region1"},
+			Tags:        types.Labels{"l1": []string{"v1"}},
+			Integration: "aws1",
+		},
 	})
 	require.NoError(t, err)
 
@@ -281,6 +287,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 				{
 					Types:       []string{"eks"},
 					Regions:     []string{"eu-west-1"},
+					Tags:        types.Labels{types.Wildcard: {types.Wildcard}},
 					Integration: "integration1",
 				},
 			},
@@ -311,6 +318,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 				{
 					Types:       []string{"eks"},
 					Regions:     []string{"eu-west-1"},
+					Tags:        types.Labels{types.Wildcard: {types.Wildcard}},
 					Integration: "integration1",
 				},
 			},
@@ -341,6 +349,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 				{
 					Types:       []string{"eks"},
 					Regions:     []string{"eu-west-1"},
+					Tags:        types.Labels{types.Wildcard: {types.Wildcard}},
 					Integration: "integration1",
 				},
 			},
@@ -538,16 +547,16 @@ func (m *mockIntegrationsTokenGenerator) GenerateAzureOIDCToken(ctx context.Cont
 }
 
 type mockEnrollEKSClusterClient struct {
-	createAccessEntry           func(context.Context, *eks.CreateAccessEntryInput, ...func(*eks.Options)) (*eks.CreateAccessEntryOutput, error)
-	associateAccessPolicy       func(context.Context, *eks.AssociateAccessPolicyInput, ...func(*eks.Options)) (*eks.AssociateAccessPolicyOutput, error)
-	listAccessEntries           func(context.Context, *eks.ListAccessEntriesInput, ...func(*eks.Options)) (*eks.ListAccessEntriesOutput, error)
-	deleteAccessEntry           func(context.Context, *eks.DeleteAccessEntryInput, ...func(*eks.Options)) (*eks.DeleteAccessEntryOutput, error)
-	describeCluster             func(context.Context, *eks.DescribeClusterInput, ...func(*eks.Options)) (*eks.DescribeClusterOutput, error)
-	getCallerIdentity           func(context.Context, *sts.GetCallerIdentityInput, ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
-	checkAgentAlreadyInstalled  func(context.Context, genericclioptions.RESTClientGetter, *slog.Logger) (bool, error)
-	installKubeAgent            func(context.Context, *ekstypes.Cluster, string, string, string, genericclioptions.RESTClientGetter, *slog.Logger, awsoidc.EnrollEKSClustersRequest) error
-	createToken                 func(context.Context, types.ProvisionToken) error
-	presignGetCallerIdentityURL func(ctx context.Context, clusterName string) (string, error)
+	createAccessEntry          func(context.Context, *eks.CreateAccessEntryInput, ...func(*eks.Options)) (*eks.CreateAccessEntryOutput, error)
+	associateAccessPolicy      func(context.Context, *eks.AssociateAccessPolicyInput, ...func(*eks.Options)) (*eks.AssociateAccessPolicyOutput, error)
+	listAccessEntries          func(context.Context, *eks.ListAccessEntriesInput, ...func(*eks.Options)) (*eks.ListAccessEntriesOutput, error)
+	deleteAccessEntry          func(context.Context, *eks.DeleteAccessEntryInput, ...func(*eks.Options)) (*eks.DeleteAccessEntryOutput, error)
+	describeCluster            func(context.Context, *eks.DescribeClusterInput, ...func(*eks.Options)) (*eks.DescribeClusterOutput, error)
+	getCallerIdentity          func(context.Context, *sts.GetCallerIdentityInput, ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
+	checkAgentAlreadyInstalled func(context.Context, genericclioptions.RESTClientGetter, *slog.Logger) (bool, error)
+	installKubeAgent           func(context.Context, *ekstypes.Cluster, string, string, string, genericclioptions.RESTClientGetter, *slog.Logger, awsoidc.EnrollEKSClustersRequest) error
+	createToken                func(context.Context, types.ProvisionToken) error
+	genEKSAuthToken            func(ctx context.Context, clusterName string) (string, error)
 }
 
 func (m *mockEnrollEKSClusterClient) CreateAccessEntry(ctx context.Context, params *eks.CreateAccessEntryInput, optFns ...func(*eks.Options)) (*eks.CreateAccessEntryOutput, error) {
@@ -613,9 +622,9 @@ func (m *mockEnrollEKSClusterClient) CreateToken(ctx context.Context, token type
 	return nil
 }
 
-func (m *mockEnrollEKSClusterClient) PresignGetCallerIdentityURL(ctx context.Context, clusterName string) (string, error) {
-	if m.presignGetCallerIdentityURL != nil {
-		return m.presignGetCallerIdentityURL(ctx, clusterName)
+func (m *mockEnrollEKSClusterClient) GenEKSAuthToken(ctx context.Context, clusterName string) (string, error) {
+	if m.genEKSAuthToken != nil {
+		return m.genEKSAuthToken(ctx, clusterName)
 	}
 	return "", nil
 }

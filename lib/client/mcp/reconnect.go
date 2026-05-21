@@ -59,8 +59,6 @@ type ProxyStdioConnConfig struct {
 
 	// clientResponseWriter replies to ClientStdio.
 	clientResponseWriter mcputils.MessageWriter
-	// onServerConnClosed is a callback when remote server connection is dead.
-	onServerConnClosed func()
 }
 
 // CheckAndSetDefaults validates the config and sets default values.
@@ -315,9 +313,6 @@ func (r *serverConnWithAutoReconnect) getServerRequestWriterLocked(ctx context.C
 				r.ClientStdio.Close()
 			}
 			r.serverMessageWriter = nil
-			if r.onServerConnClosed != nil {
-				r.onServerConnClosed()
-			}
 			r.mu.Unlock()
 		},
 		Logger:       r.Logger.With("server", "stdout"),

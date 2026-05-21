@@ -30,8 +30,12 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/lib/cloud/azure"
+	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
@@ -58,82 +62,91 @@ func TestAzureWatcher(t *testing.T) {
 	)
 	clients := mockClients{
 		vmClients: map[string]azure.VirtualMachinesClient{
-			sub1: azure.NewVirtualMachinesClientByAPI(&azure.ARMComputeMock{
-				VirtualMachines: map[string][]*armcompute.VirtualMachine{
-					"rg1": {
-						{
-							ID:       to.Ptr(makeAzureVMID(sub1, "rg1", "vm1")),
-							Location: to.Ptr("location1"),
-						},
-						{
-							ID:       to.Ptr(makeAzureVMID(sub1, "rg1", "vm2")),
-							Location: to.Ptr("location1"),
-							Tags: map[string]*string{
-								"teleport": to.Ptr("yes"),
+			sub1: azure.NewVirtualMachinesClientByAPI(azure.VirtualMachinesClientConfig{
+				VirtualMachineAPI: &azure.ARMComputeMock{
+					VirtualMachines: map[string][]*armcompute.VirtualMachine{
+						"rg1": {
+							{
+								ID:       to.Ptr(makeAzureVMID(sub1, "rg1", "vm1")),
+								Location: to.Ptr("location1"),
+							},
+							{
+								ID:       to.Ptr(makeAzureVMID(sub1, "rg1", "vm2")),
+								Location: to.Ptr("location1"),
+								Tags: map[string]*string{
+									"teleport": to.Ptr("yes"),
+								},
+							},
+							{
+								ID:       to.Ptr(makeAzureVMID(sub1, "rg1", "vm5")),
+								Location: to.Ptr("location2"),
 							},
 						},
-						{
-							ID:       to.Ptr(makeAzureVMID(sub1, "rg1", "vm5")),
-							Location: to.Ptr("location2"),
-						},
-					},
-					"rg2": {
-						{
-							ID:       to.Ptr(makeAzureVMID(sub1, "rg2", "vm3")),
-							Location: to.Ptr("location1"),
-						},
-						{
-							ID:       to.Ptr(makeAzureVMID(sub1, "rg2", "vm4")),
-							Location: to.Ptr("location1"),
-							Tags: map[string]*string{
-								"teleport": to.Ptr("yes"),
+						"rg2": {
+							{
+								ID:       to.Ptr(makeAzureVMID(sub1, "rg2", "vm3")),
+								Location: to.Ptr("location1"),
 							},
-						},
-						{
-							ID:       to.Ptr(makeAzureVMID(sub1, "rg2", "vm6")),
-							Location: to.Ptr("location2"),
-						},
-					},
-				},
-			}, nil /* scaleSetAPI */),
-			sub2: azure.NewVirtualMachinesClientByAPI(&azure.ARMComputeMock{
-				VirtualMachines: map[string][]*armcompute.VirtualMachine{
-					"rg3": {
-						{
-							ID:       to.Ptr(makeAzureVMID(sub2, "rg3", "vm7")),
-							Location: to.Ptr("location1"),
-						},
-						{
-							ID:       to.Ptr(makeAzureVMID(sub2, "rg3", "vm8")),
-							Location: to.Ptr("location1"),
-							Tags: map[string]*string{
-								"teleport": to.Ptr("yes"),
+							{
+								ID:       to.Ptr(makeAzureVMID(sub1, "rg2", "vm4")),
+								Location: to.Ptr("location1"),
+								Tags: map[string]*string{
+									"teleport": to.Ptr("yes"),
+								},
 							},
-						},
-						{
-							ID:       to.Ptr(makeAzureVMID(sub2, "rg3", "vm9")),
-							Location: to.Ptr("location2"),
-						},
-					},
-					"rg4": {
-						{
-							ID:       to.Ptr(makeAzureVMID(sub2, "rg4", "vm10")),
-							Location: to.Ptr("location1"),
-						},
-						{
-							ID:       to.Ptr(makeAzureVMID(sub2, "rg4", "vm11")),
-							Location: to.Ptr("location1"),
-							Tags: map[string]*string{
-								"teleport": to.Ptr("yes"),
+							{
+								ID:       to.Ptr(makeAzureVMID(sub1, "rg2", "vm6")),
+								Location: to.Ptr("location2"),
 							},
-						},
-						{
-							ID:       to.Ptr(makeAzureVMID(sub2, "rg4", "vm12")),
-							Location: to.Ptr("location2"),
 						},
 					},
 				},
-			}, nil /* scaleSetAPI */),
+				ScaleSetVMsAPI: &azure.ARMScaleSetVMsMock{},
+				ScaleSetsAPI:   &azure.ARMScaleSetsMock{},
+			},
+			),
+			sub2: azure.NewVirtualMachinesClientByAPI(azure.VirtualMachinesClientConfig{
+				ScaleSetVMsAPI: &azure.ARMScaleSetVMsMock{},
+				ScaleSetsAPI:   &azure.ARMScaleSetsMock{},
+				VirtualMachineAPI: &azure.ARMComputeMock{
+					VirtualMachines: map[string][]*armcompute.VirtualMachine{
+						"rg3": {
+							{
+								ID:       to.Ptr(makeAzureVMID(sub2, "rg3", "vm7")),
+								Location: to.Ptr("location1"),
+							},
+							{
+								ID:       to.Ptr(makeAzureVMID(sub2, "rg3", "vm8")),
+								Location: to.Ptr("location1"),
+								Tags: map[string]*string{
+									"teleport": to.Ptr("yes"),
+								},
+							},
+							{
+								ID:       to.Ptr(makeAzureVMID(sub2, "rg3", "vm9")),
+								Location: to.Ptr("location2"),
+							},
+						},
+						"rg4": {
+							{
+								ID:       to.Ptr(makeAzureVMID(sub2, "rg4", "vm10")),
+								Location: to.Ptr("location1"),
+							},
+							{
+								ID:       to.Ptr(makeAzureVMID(sub2, "rg4", "vm11")),
+								Location: to.Ptr("location1"),
+								Tags: map[string]*string{
+									"teleport": to.Ptr("yes"),
+								},
+							},
+							{
+								ID:       to.Ptr(makeAzureVMID(sub2, "rg4", "vm12")),
+								Location: to.Ptr("location2"),
+							},
+						},
+					},
+				},
+			}),
 		},
 	}
 
@@ -231,7 +244,7 @@ func TestAzureWatcher(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			t.Cleanup(cancel)
-			watcher := NewWatcher[*AzureInstances](ctx)
+			watcher := NewWatcher[*AzureInstances](ctx, logger)
 
 			const noDiscoveryConfig = ""
 			watcher.SetFetchers(noDiscoveryConfig,
@@ -258,7 +271,7 @@ func TestAzureWatcher(t *testing.T) {
 				select {
 				case results := <-watcher.InstancesC:
 					for _, vm := range results.Instances {
-						parsedResource, err := arm.ParseResourceID(*vm.ID)
+						parsedResource, err := arm.ParseResourceID(vm.ID)
 						require.NoError(t, err)
 						vmID := parsedResource.Name
 						vmIDs = append(vmIDs, vmID)
@@ -288,18 +301,14 @@ func TestAzureInstances_FilterExistingNodes(t *testing.T) {
 			name: "no existing nodes",
 			instances: &AzureInstances{
 				SubscriptionID: "sub-1",
-				Instances: []*armcompute.VirtualMachine{
+				Instances: []*azure.VirtualMachine{
 					{
-						ID: to.Ptr("/subscriptions/sub-1/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/vm1"),
-						Properties: &armcompute.VirtualMachineProperties{
-							VMID: to.Ptr("vm-id-1"),
-						},
+						ID:   "/subscriptions/sub-1/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/vm1",
+						VMID: "vm-id-1",
 					},
 					{
-						ID: to.Ptr("/subscriptions/sub-1/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/vm2"),
-						Properties: &armcompute.VirtualMachineProperties{
-							VMID: to.Ptr("vm-id-2"),
-						},
+						ID:   "/subscriptions/sub-1/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/vm2",
+						VMID: "vm-id-2",
 					},
 				},
 			},
@@ -310,18 +319,14 @@ func TestAzureInstances_FilterExistingNodes(t *testing.T) {
 			name: "filter out matching node",
 			instances: &AzureInstances{
 				SubscriptionID: "sub-1",
-				Instances: []*armcompute.VirtualMachine{
+				Instances: []*azure.VirtualMachine{
 					{
-						ID: to.Ptr("/subscriptions/sub-1/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/vm1"),
-						Properties: &armcompute.VirtualMachineProperties{
-							VMID: to.Ptr("vm-id-1"),
-						},
+						ID:   "/subscriptions/sub-1/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/vm1",
+						VMID: "vm-id-1",
 					},
 					{
-						ID: to.Ptr("/subscriptions/sub-1/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/vm2"),
-						Properties: &armcompute.VirtualMachineProperties{
-							VMID: to.Ptr("vm-id-2"),
-						},
+						ID:   "/subscriptions/sub-1/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/vm2",
+						VMID: "vm-id-2",
 					},
 				},
 			},
@@ -334,18 +339,14 @@ func TestAzureInstances_FilterExistingNodes(t *testing.T) {
 			name: "filter out all matching nodes",
 			instances: &AzureInstances{
 				SubscriptionID: "sub-1",
-				Instances: []*armcompute.VirtualMachine{
+				Instances: []*azure.VirtualMachine{
 					{
-						ID: to.Ptr("/subscriptions/sub-1/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/vm1"),
-						Properties: &armcompute.VirtualMachineProperties{
-							VMID: to.Ptr("vm-id-1"),
-						},
+						ID:   "/subscriptions/sub-1/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/vm1",
+						VMID: "vm-id-1",
 					},
 					{
-						ID: to.Ptr("/subscriptions/sub-1/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/vm2"),
-						Properties: &armcompute.VirtualMachineProperties{
-							VMID: to.Ptr("vm-id-2"),
-						},
+						ID:   "/subscriptions/sub-1/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/vm2",
+						VMID: "vm-id-2",
 					},
 				},
 			},
@@ -359,12 +360,10 @@ func TestAzureInstances_FilterExistingNodes(t *testing.T) {
 			name: "different subscription is not filtered",
 			instances: &AzureInstances{
 				SubscriptionID: "sub-1",
-				Instances: []*armcompute.VirtualMachine{
+				Instances: []*azure.VirtualMachine{
 					{
-						ID: to.Ptr("/subscriptions/sub-1/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/vm1"),
-						Properties: &armcompute.VirtualMachineProperties{
-							VMID: to.Ptr("vm-id-1"),
-						},
+						ID:   "/subscriptions/sub-1/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/vm1",
+						VMID: "vm-id-1",
 					},
 				},
 			},
@@ -377,12 +376,10 @@ func TestAzureInstances_FilterExistingNodes(t *testing.T) {
 			name: "node without vm id is not used for filtering",
 			instances: &AzureInstances{
 				SubscriptionID: "sub-1",
-				Instances: []*armcompute.VirtualMachine{
+				Instances: []*azure.VirtualMachine{
 					{
-						ID: to.Ptr("/subscriptions/sub-1/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/vm1"),
-						Properties: &armcompute.VirtualMachineProperties{
-							VMID: to.Ptr("vm-id-1"),
-						},
+						ID:   "/subscriptions/sub-1/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/vm1",
+						VMID: "vm-id-1",
 					},
 				},
 			},
@@ -395,10 +392,9 @@ func TestAzureInstances_FilterExistingNodes(t *testing.T) {
 			name: "instance without properties is not filtered",
 			instances: &AzureInstances{
 				SubscriptionID: "sub-1",
-				Instances: []*armcompute.VirtualMachine{
+				Instances: []*azure.VirtualMachine{
 					{
-						ID:         to.Ptr("/subscriptions/sub-1/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/vm1"),
-						Properties: nil,
+						ID: "/subscriptions/sub-1/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/vm1",
 					},
 				},
 			},
@@ -415,11 +411,7 @@ func TestAzureInstances_FilterExistingNodes(t *testing.T) {
 
 			var gotVMIDs []string
 			for _, vm := range tc.instances.Instances {
-				var vmID string
-				if vm.Properties != nil {
-					vmID = *vm.Properties.VMID
-				}
-				gotVMIDs = append(gotVMIDs, vmID)
+				gotVMIDs = append(gotVMIDs, vm.VMID)
 			}
 
 			require.ElementsMatch(t, tc.expectedVMIDs, gotVMIDs)
@@ -446,4 +438,244 @@ func makeAzureVMID(subscription, resourceGroup, name string) string {
 	return fmt.Sprintf("/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Compute/virtualMachines/%s",
 		subscription, resourceGroup, name,
 	)
+}
+
+func TestMakeRunEvent(t *testing.T) {
+	t.Parallel()
+
+	const (
+		subscriptionID = "sub-1"
+		resourceGroup  = "rg1"
+		region         = "eastus"
+		vmID           = "vm-id-1"
+		vmName         = "vm1"
+		resourceID     = "/subscriptions/sub-1/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/vm1"
+	)
+
+	vm := &azure.VirtualMachine{
+		ID:   resourceID,
+		Name: vmName,
+		VMID: vmID,
+	}
+
+	tests := []struct {
+		name   string
+		result AzureInstallResult
+		want   *apievents.AzureRun
+	}{
+		{
+			name: "success",
+			result: AzureInstallResult{
+				Instance: vm,
+				CommandResult: &azure.RunCommandResult{
+					ExecutionState: "Succeeded",
+					ExitCode:       0,
+					StdOut:         "ok",
+				},
+			},
+			want: &apievents.AzureRun{
+				Metadata: apievents.Metadata{Type: libevents.AzureRunEvent, Code: libevents.AzureRunSuccessCode},
+				AzureMetadata: apievents.AzureMetadata{
+					SubscriptionID: subscriptionID,
+					ResourceGroup:  resourceGroup,
+					Region:         region,
+					ResourceID:     resourceID,
+				},
+				AzureVMMetadata: apievents.AzureVMMetadata{
+					VMID:   vmID,
+					VMName: vmName,
+				},
+				Status:         "Installation completed successfully.",
+				ExecutionState: "Succeeded",
+				StandardOutput: "ok",
+			},
+		},
+		{
+			name: "command failure",
+			result: AzureInstallResult{
+				Instance: vm,
+				CommandResult: &azure.RunCommandResult{
+					ExecutionState: "Failed",
+					ExitCode:       1,
+					StdErr:         "something broke",
+				},
+			},
+			want: &apievents.AzureRun{
+				Metadata: apievents.Metadata{Type: libevents.AzureRunEvent, Code: libevents.AzureRunFailCode},
+				AzureMetadata: apievents.AzureMetadata{
+					SubscriptionID: subscriptionID,
+					ResourceGroup:  resourceGroup,
+					Region:         region,
+					ResourceID:     resourceID,
+				},
+				AzureVMMetadata: apievents.AzureVMMetadata{
+					VMID:   vmID,
+					VMName: vmName,
+				},
+				Status:         "Installation failed with exit code 1. Please check stdout and stderr and try again.",
+				ExitCode:       1,
+				ExecutionState: "Failed",
+				StandardError:  "something broke",
+			},
+		},
+		{
+			name: "API error",
+			result: AzureInstallResult{
+				Instance: vm,
+				APIError: trace.AccessDenied("forbidden"),
+			},
+			want: &apievents.AzureRun{
+				Metadata: apievents.Metadata{Type: libevents.AzureRunEvent, Code: libevents.AzureRunFailCode},
+				AzureMetadata: apievents.AzureMetadata{
+					SubscriptionID: subscriptionID,
+					ResourceGroup:  resourceGroup,
+					Region:         region,
+					ResourceID:     resourceID,
+				},
+				AzureVMMetadata: apievents.AzureVMMetadata{
+					VMID:   vmID,
+					VMName: vmName,
+				},
+				Status:   "API call failed",
+				APIError: "forbidden",
+			},
+		},
+		{
+			name: "known exit code",
+			result: AzureInstallResult{
+				Instance: vm,
+				CommandResult: &azure.RunCommandResult{
+					ExecutionState: "Failed",
+					ExitCode:       102,
+				},
+			},
+			want: &apievents.AzureRun{
+				Metadata: apievents.Metadata{Type: libevents.AzureRunEvent, Code: libevents.AzureRunFailCode},
+				AzureMetadata: apievents.AzureMetadata{
+					SubscriptionID: subscriptionID,
+					ResourceGroup:  resourceGroup,
+					Region:         region,
+					ResourceID:     resourceID,
+				},
+				AzureVMMetadata: apievents.AzureVMMetadata{
+					VMID:   vmID,
+					VMName: vmName,
+				},
+				Status:         "curl is not installed in the instance. Please install all required tools (bash, sudo, curl) and try again.",
+				ExitCode:       102,
+				ExecutionState: "Failed",
+			},
+		},
+		{
+			name: "nil instance",
+			result: AzureInstallResult{
+				Instance: nil,
+				APIError: trace.AccessDenied("forbidden"),
+			},
+			want: &apievents.AzureRun{
+				Metadata: apievents.Metadata{Type: libevents.AzureRunEvent, Code: libevents.AzureRunFailCode},
+				AzureMetadata: apievents.AzureMetadata{
+					SubscriptionID: subscriptionID,
+					ResourceGroup:  resourceGroup,
+					Region:         region,
+				},
+				Status:   "API call failed",
+				APIError: "forbidden",
+			},
+		},
+		{
+			name: "instance without properties",
+			result: AzureInstallResult{
+				Instance: &azure.VirtualMachine{
+					ID:   resourceID,
+					Name: vmName,
+				},
+				APIError: trace.AccessDenied("forbidden"),
+			},
+			want: &apievents.AzureRun{
+				Metadata: apievents.Metadata{Type: libevents.AzureRunEvent, Code: libevents.AzureRunFailCode},
+				AzureMetadata: apievents.AzureMetadata{
+					SubscriptionID: subscriptionID,
+					ResourceGroup:  resourceGroup,
+					Region:         region,
+					ResourceID:     resourceID,
+				},
+				AzureVMMetadata: apievents.AzureVMMetadata{
+					VMName: vmName,
+				},
+				Status:   "API call failed",
+				APIError: "forbidden",
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			instances := &AzureInstances{
+				SubscriptionID: subscriptionID,
+				ResourceGroup:  resourceGroup,
+				Region:         region,
+			}
+			evt := instances.MakeRunEvent(tc.result)
+			require.Equal(t, tc.want, evt)
+		})
+	}
+}
+
+func TestMakeUsageEvent(t *testing.T) {
+	t.Parallel()
+
+	const (
+		discoveryConfig = "my-config"
+		resourceID      = "/subscriptions/sub-1/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/vm1"
+	)
+
+	vm := &azure.VirtualMachine{
+		ID: resourceID,
+	}
+
+	tests := []struct {
+		name      string
+		instances *AzureInstances
+		wantKey   string
+		want      *usageeventsv1.ResourceCreateEvent
+	}{
+		{
+			name: "node",
+			instances: &AzureInstances{
+				DiscoveryConfigName: discoveryConfig,
+			},
+			wantKey: azureEventPrefix + resourceID,
+			want: &usageeventsv1.ResourceCreateEvent{
+				ResourceType:        types.DiscoveredResourceNode,
+				ResourceOrigin:      types.OriginCloud,
+				CloudProvider:       types.CloudAzure,
+				DiscoveryConfigName: discoveryConfig,
+			},
+		},
+		{
+			name: "agentless node",
+			instances: &AzureInstances{
+				DiscoveryConfigName: discoveryConfig,
+				InstallerParams: &types.InstallerParams{
+					ScriptName: installers.InstallerScriptNameAgentless,
+				},
+			},
+			wantKey: azureEventPrefix + resourceID,
+			want: &usageeventsv1.ResourceCreateEvent{
+				ResourceType:        types.DiscoveredResourceAgentlessNode,
+				ResourceOrigin:      types.OriginCloud,
+				CloudProvider:       types.CloudAzure,
+				DiscoveryConfigName: discoveryConfig,
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			key, evt := tc.instances.MakeUsageEvent(vm)
+			require.Equal(t, tc.wantKey, key)
+			require.Equal(t, tc.want, evt)
+		})
+	}
 }

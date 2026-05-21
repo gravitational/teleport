@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"log/slog"
 	"reflect"
-	"strings"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
@@ -150,11 +149,6 @@ type LegacyCommand struct {
 // NewLegacyCommand initializes and returns a command supporting
 // `tbot start legacy` and `tbot configure legacy`.
 func NewLegacyCommand(parentCmd *kingpin.CmdClause, action MutatorAction, mode CommandMode) *LegacyCommand {
-	joinMethodList := fmt.Sprintf(
-		"(%s)",
-		strings.Join(onboarding.SupportedJoinMethods, ", "),
-	)
-
 	c := &LegacyCommand{
 		action: action,
 		cmd:    parentCmd.Command("legacy", fmt.Sprintf("%s tbot with either a config file or a legacy output.", mode)).Default(),
@@ -167,7 +161,7 @@ func NewLegacyCommand(parentCmd *kingpin.CmdClause, action MutatorAction, mode C
 	c.cmd.Flag("ca-pin", "CA pin to validate the Teleport Auth Server; used on first connect.").StringsVar(&c.CAPins)
 	c.cmd.Flag("certificate-ttl", "TTL of short-lived machine certificates.").DurationVar(&c.CertificateTTL)
 	c.cmd.Flag("renewal-interval", "Interval at which short-lived certificates are renewed; must be less than the certificate TTL.").DurationVar(&c.RenewalInterval)
-	c.cmd.Flag("join-method", "Method to use to join the cluster. "+joinMethodList).EnumVar(&c.JoinMethod, onboarding.SupportedJoinMethods...)
+	c.cmd.Flag("join-method", "Method to use to join the cluster.").EnumVar(&c.JoinMethod, onboarding.SupportedJoinMethods...)
 	c.cmd.Flag("oneshot", "If set, quit after the first renewal.").IsSetByUser(&c.oneshotSetByUser).BoolVar(&c.Oneshot)
 	c.cmd.Flag("diag-addr", "If set and the bot is in debug mode, a diagnostics service will listen on specified address.").StringVar(&c.DiagAddr)
 	c.cmd.Flag("diag-socket-for-updater", "If set, run the diagnostics service on the specified socket path for teleport-update to consume.").Hidden().StringVar(&c.DiagSocketForUpdater)

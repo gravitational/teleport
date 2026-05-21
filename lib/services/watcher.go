@@ -1149,6 +1149,11 @@ func (p *lockCollector) Subscribe(ctx context.Context, targets ...types.LockTarg
 // CheckLockInForce returns an AccessDenied error if there is a lock in force
 // matching at least one of the targets.
 func (p *lockCollector) CheckLockInForce(mode constants.LockingMode, targets ...types.LockTarget) error {
+	if len(targets) == 0 {
+		// A lock can't match any targets if there are no targets.
+		return nil
+	}
+
 	p.currentRW.RLock()
 	defer p.currentRW.RUnlock()
 	if p.isStale && mode == constants.LockingModeStrict {
@@ -1164,9 +1169,6 @@ func (p *lockCollector) findLockInForceUnderMutex(targets []types.LockTarget) ty
 	for _, lock := range p.current {
 		if !lock.IsInForce(p.Clock.Now()) {
 			continue
-		}
-		if len(targets) == 0 {
-			return lock
 		}
 		for _, target := range targets {
 			if target.Match(lock) {
