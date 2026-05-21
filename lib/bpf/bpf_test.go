@@ -28,10 +28,11 @@ import (
 
 func TestConvertArgs(t *testing.T) {
 	tests := []struct {
-		name      string
-		rawArgs   []byte
-		truncated bool
-		expected  []string
+		name         string
+		rawArgs      []byte
+		truncated    bool
+		failedToRead bool
+		expected     []string
 	}{
 		{
 			name: "no args",
@@ -39,9 +40,9 @@ func TestConvertArgs(t *testing.T) {
 		// this is possible if the args would be truncated but reading
 		// them failed for a different reason
 		{
-			name:      "no args truncated",
-			truncated: true,
-			expected:  []string{TruncatedArg},
+			name:         "failed to read args",
+			failedToRead: true,
+			expected:     []string{FailedToReadArg},
 		},
 		{
 			name:     "only null byte",
@@ -122,7 +123,7 @@ func TestConvertArgs(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := convertArgs(tt.rawArgs, tt.truncated)
+			got := convertArgs(tt.rawArgs, tt.truncated, tt.failedToRead)
 			require.Equal(t, tt.expected, got)
 		})
 	}

@@ -31,6 +31,8 @@ struct data_t {
     u32 args_len;
     // ArgsTruncated is true if the args were truncated.
     bool args_truncated;
+    // FailedToReadArgs is true if the args could not be read.
+    bool failed_to_read_args;
     // CgroupID is the internal cgroupv2 ID of the event.
     u64 cgroup;
     // AuditSessionID is the audit session ID that is used to correlate
@@ -172,6 +174,7 @@ int BPF_PROG(bprm_execve_exit, struct linux_binprm *bprm, int ret)
     int read_ret = bpf_probe_read_user(&data->args, args_len, arg_start);
     if (read_ret < 0) {
         args_len = 0;
+        data->failed_to_read_args = true;
     }
     data->args_len = args_len;
 
