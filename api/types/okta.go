@@ -426,8 +426,8 @@ type OktaAssignmentTarget interface {
 	SetStatus(status string) error
 	// GetReason returns the reason for processing failure of the target.
 	GetReason() string
-	// SetFailed sets the failure reason and the processing status of the target to failed.
-	SetFailed(reason string) error
+	// TransitionToFailed sets the failure reason and the processing status of the target to failed.
+	TransitionToFailed(reason string) error
 }
 
 // GetTargetType returns the target type.
@@ -459,14 +459,16 @@ func (o *OktaAssignmentTargetV1) GetStatus() string {
 // * SUCCESSFUL -> (PROCESSING)
 // * FAILED -> (PROCESSING)
 func (o *OktaAssignmentTargetV1) SetStatus(status string) error {
-	invalidTransition := false
+	makeInvalidTransitionError := func() error {
+		return trace.BadParameter("invalid transition: %s -> %s", o.GetStatus(), status)
+	}
 
 	switch o.Status {
 	case OktaAssignmentTargetV1_STATUS_PENDING:
 		switch status {
 		case constants.OktaAssignmentTargetStatusProcessing:
 		default:
-			invalidTransition = true
+			return makeInvalidTransitionError()
 		}
 	case OktaAssignmentTargetV1_STATUS_PROCESSING:
 		switch status {
@@ -474,27 +476,23 @@ func (o *OktaAssignmentTargetV1) SetStatus(status string) error {
 		case constants.OktaAssignmentTargetStatusSuccessful:
 		case constants.OktaAssignmentTargetStatusFailed:
 		default:
-			invalidTransition = true
+			return makeInvalidTransitionError()
 		}
 	case OktaAssignmentTargetV1_STATUS_SUCCESSFUL:
 		switch status {
 		case constants.OktaAssignmentTargetStatusProcessing:
 		default:
-			invalidTransition = true
+			return makeInvalidTransitionError()
 		}
 	case OktaAssignmentTargetV1_STATUS_FAILED:
 		switch status {
 		case constants.OktaAssignmentTargetStatusProcessing:
 		default:
-			invalidTransition = true
+			return makeInvalidTransitionError()
 		}
 	case OktaAssignmentTargetV1_STATUS_UNKNOWN:
 	default:
-		invalidTransition = true
-	}
-
-	if invalidTransition {
-		return trace.BadParameter("invalid transition: %s -> %s", o.GetStatus(), status)
+		return makeInvalidTransitionError()
 	}
 
 	o.Status = OktaAssignmentTargetStatusToProto(status)
@@ -510,8 +508,8 @@ func (o *OktaAssignmentTargetV1) GetReason() string {
 	return OktaAssignmentTargetStatusReasonProtoToString(o.Reason)
 }
 
-// SetFailed sets the processing status of the target to failed and sets the failed reason.
-func (o *OktaAssignmentTargetV1) SetFailed(reason string) error {
+// TransitionToFailed sets the processing status of the target to failed and sets the failed reason.
+func (o *OktaAssignmentTargetV1) TransitionToFailed(reason string) error {
 	if err := o.SetStatus(constants.OktaAssignmentTargetStatusFailed); err != nil {
 		return trace.Wrap(err)
 	}

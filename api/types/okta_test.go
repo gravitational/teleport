@@ -414,55 +414,55 @@ func Test_PluginOktaSyncSettings_SyncEnabledGetters(t *testing.T) {
 
 func TestOktaAssignmentTargetSetStatus(t *testing.T) {
 	tests := []struct {
-		startStatus string
-		nextStatus  string
-		invalid     bool
+		start   string
+		next    string
+		invalid bool
 	}{
 		// PENDING transitions
-		{startStatus: constants.OktaAssignmentTargetStatusPending, nextStatus: constants.OktaAssignmentTargetStatusPending, invalid: true},
-		{startStatus: constants.OktaAssignmentTargetStatusPending, nextStatus: constants.OktaAssignmentTargetStatusProcessing},
-		{startStatus: constants.OktaAssignmentTargetStatusPending, nextStatus: constants.OktaAssignmentTargetStatusSuccessful, invalid: true},
-		{startStatus: constants.OktaAssignmentTargetStatusPending, nextStatus: constants.OktaAssignmentTargetStatusFailed, invalid: true},
+		{start: constants.OktaAssignmentTargetStatusPending, next: constants.OktaAssignmentTargetStatusPending, invalid: true},
+		{start: constants.OktaAssignmentTargetStatusPending, next: constants.OktaAssignmentTargetStatusProcessing},
+		{start: constants.OktaAssignmentTargetStatusPending, next: constants.OktaAssignmentTargetStatusSuccessful, invalid: true},
+		{start: constants.OktaAssignmentTargetStatusPending, next: constants.OktaAssignmentTargetStatusFailed, invalid: true},
 
 		// PROCESSING transitions
-		{startStatus: constants.OktaAssignmentTargetStatusProcessing, nextStatus: constants.OktaAssignmentTargetStatusPending, invalid: true},
-		{startStatus: constants.OktaAssignmentTargetStatusProcessing, nextStatus: constants.OktaAssignmentTargetStatusProcessing},
-		{startStatus: constants.OktaAssignmentTargetStatusProcessing, nextStatus: constants.OktaAssignmentTargetStatusSuccessful},
-		{startStatus: constants.OktaAssignmentTargetStatusProcessing, nextStatus: constants.OktaAssignmentTargetStatusFailed},
+		{start: constants.OktaAssignmentTargetStatusProcessing, next: constants.OktaAssignmentTargetStatusPending, invalid: true},
+		{start: constants.OktaAssignmentTargetStatusProcessing, next: constants.OktaAssignmentTargetStatusProcessing},
+		{start: constants.OktaAssignmentTargetStatusProcessing, next: constants.OktaAssignmentTargetStatusSuccessful},
+		{start: constants.OktaAssignmentTargetStatusProcessing, next: constants.OktaAssignmentTargetStatusFailed},
 
 		// SUCCESSFUL transitions
-		{startStatus: constants.OktaAssignmentTargetStatusSuccessful, nextStatus: constants.OktaAssignmentTargetStatusPending, invalid: true},
-		{startStatus: constants.OktaAssignmentTargetStatusSuccessful, nextStatus: constants.OktaAssignmentTargetStatusProcessing},
-		{startStatus: constants.OktaAssignmentTargetStatusSuccessful, nextStatus: constants.OktaAssignmentTargetStatusSuccessful, invalid: true},
-		{startStatus: constants.OktaAssignmentTargetStatusSuccessful, nextStatus: constants.OktaAssignmentTargetStatusFailed, invalid: true},
+		{start: constants.OktaAssignmentTargetStatusSuccessful, next: constants.OktaAssignmentTargetStatusPending, invalid: true},
+		{start: constants.OktaAssignmentTargetStatusSuccessful, next: constants.OktaAssignmentTargetStatusProcessing},
+		{start: constants.OktaAssignmentTargetStatusSuccessful, next: constants.OktaAssignmentTargetStatusSuccessful, invalid: true},
+		{start: constants.OktaAssignmentTargetStatusSuccessful, next: constants.OktaAssignmentTargetStatusFailed, invalid: true},
 
 		// FAILED transitions
-		{startStatus: constants.OktaAssignmentTargetStatusFailed, nextStatus: constants.OktaAssignmentTargetStatusPending, invalid: true},
-		{startStatus: constants.OktaAssignmentTargetStatusFailed, nextStatus: constants.OktaAssignmentTargetStatusProcessing},
-		{startStatus: constants.OktaAssignmentTargetStatusFailed, nextStatus: constants.OktaAssignmentTargetStatusSuccessful, invalid: true},
-		{startStatus: constants.OktaAssignmentTargetStatusFailed, nextStatus: constants.OktaAssignmentTargetStatusFailed, invalid: true},
+		{start: constants.OktaAssignmentTargetStatusFailed, next: constants.OktaAssignmentTargetStatusPending, invalid: true},
+		{start: constants.OktaAssignmentTargetStatusFailed, next: constants.OktaAssignmentTargetStatusProcessing},
+		{start: constants.OktaAssignmentTargetStatusFailed, next: constants.OktaAssignmentTargetStatusSuccessful, invalid: true},
+		{start: constants.OktaAssignmentTargetStatusFailed, next: constants.OktaAssignmentTargetStatusFailed, invalid: true},
 
 		// UNKNOWN transitions
-		{startStatus: constants.OktaAssignmentTargetStatusUnknown, nextStatus: constants.OktaAssignmentTargetStatusPending},
-		{startStatus: constants.OktaAssignmentTargetStatusUnknown, nextStatus: constants.OktaAssignmentTargetStatusProcessing},
-		{startStatus: constants.OktaAssignmentTargetStatusUnknown, nextStatus: constants.OktaAssignmentTargetStatusSuccessful},
-		{startStatus: constants.OktaAssignmentTargetStatusUnknown, nextStatus: constants.OktaAssignmentTargetStatusFailed},
+		{start: constants.OktaAssignmentTargetStatusUnknown, next: constants.OktaAssignmentTargetStatusPending},
+		{start: constants.OktaAssignmentTargetStatusUnknown, next: constants.OktaAssignmentTargetStatusProcessing},
+		{start: constants.OktaAssignmentTargetStatusUnknown, next: constants.OktaAssignmentTargetStatusSuccessful},
+		{start: constants.OktaAssignmentTargetStatusUnknown, next: constants.OktaAssignmentTargetStatusFailed},
 	}
 
 	for _, test := range tests {
-		t.Run(fmt.Sprintf("%s -> %s", test.startStatus, test.nextStatus), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s -> %s", test.start, test.next), func(t *testing.T) {
 			assignmentTarget := OktaAssignmentTargetV1{
-				Status: OktaAssignmentTargetStatusToProto(test.startStatus),
+				Status: OktaAssignmentTargetStatusToProto(test.start),
 			}
 
-			err := assignmentTarget.SetStatus(test.nextStatus)
+			err := assignmentTarget.SetStatus(test.next)
 
 			if test.invalid {
-				require.ErrorIs(t, err, trace.BadParameter("invalid transition: %s -> %s", test.startStatus, test.nextStatus))
-				require.Equal(t, test.startStatus, assignmentTarget.GetStatus())
+				require.ErrorIs(t, err, trace.BadParameter("invalid transition: %s -> %s", test.start, test.next))
+				require.Equal(t, test.start, assignmentTarget.GetStatus())
 			} else {
 				require.NoError(t, err)
-				require.Equal(t, test.nextStatus, assignmentTarget.GetStatus())
+				require.Equal(t, test.next, assignmentTarget.GetStatus())
 			}
 		})
 	}
@@ -494,7 +494,7 @@ func TestOktaAssignmentTargetSetFailedReason(t *testing.T) {
 				Status: OktaAssignmentTargetStatusToProto(test.status),
 			}
 
-			err := assignmentTarget.SetFailed(test.reason)
+			err := assignmentTarget.TransitionToFailed(test.reason)
 
 			if test.invalid {
 				require.Error(t, err)
@@ -511,13 +511,9 @@ func TestOktaAssignmentTargetSetFailedReason(t *testing.T) {
 
 func TestSetStatusResetsReasonUnknown(t *testing.T) {
 	assignmentTarget := OktaAssignmentTargetV1{
-		Status: OktaAssignmentTargetStatusToProto(constants.OktaAssignmentTargetStatusProcessing),
-		Reason: OktaAssignmentTargetStatusReasonToProto(constants.OktaAssignmentTargetReasonUnknown),
+		Status: OktaAssignmentTargetStatusToProto(constants.OktaAssignmentTargetStatusFailed),
+		Reason: OktaAssignmentTargetStatusReasonToProto(constants.OktaAssignmentTargetReasonError),
 	}
-
-	require.NoError(t, assignmentTarget.SetFailed(constants.OktaAssignmentTargetReasonError))
-	require.Equal(t, constants.OktaAssignmentTargetStatusFailed, assignmentTarget.GetStatus())
-	require.Equal(t, constants.OktaAssignmentTargetReasonError, assignmentTarget.GetReason())
 
 	require.NoError(t, assignmentTarget.SetStatus(constants.OktaAssignmentTargetStatusProcessing))
 	require.Equal(t, constants.OktaAssignmentTargetStatusProcessing, assignmentTarget.GetStatus())
