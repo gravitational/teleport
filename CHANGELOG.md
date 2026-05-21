@@ -1,5 +1,18 @@
 # Changelog
 
+## 18.8.2 (05/21/26)
+
+* Fixed tsh aws, tsh gcp, tsh azure, and tsh proxy app failing from certificate errors. [#66962](https://github.com/gravitational/teleport/pull/66962)
+* Fixed a regression introduced in v18.7.6 affecting connectivity to resources via approved just-in-time resource access requests when the cluster is running agents older than v18.7.6. [#66933](https://github.com/gravitational/teleport/pull/66933)
+* Teleport Connect now remembers recently used clusters after logout. [#66781](https://github.com/gravitational/teleport/pull/66781)
+* Fixed an issue where Windows desktop LDAP discovery could conflict with dynamic registration causing desktops to be removed from the cluster. [#66743](https://github.com/gravitational/teleport/pull/66743)
+* Windows desktop controls in Teleport Connect now reside in the status bar in order to allocate more screen real estate to the RDP session. [#66726](https://github.com/gravitational/teleport/pull/66726)
+
+Enterprise:
+* Fixed access monitoring graph data handling in the Web UI when the amount of results exceeds the display maximum - now hides earlier instead of later data.
+* Restricted user traits preserved during a SAML logon to those created by the Okta or SCIM integrations.
+* Improved reliability of Okta assignments processing.
+
 ## 18.8.1 (05/14/26)
 
 **Warning:** This release contains a regression that affects connectivity to
