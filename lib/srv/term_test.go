@@ -116,13 +116,12 @@ func TestTerminal_KillUnderlyingShell(t *testing.T) {
 	go func() {
 		// Call wait to avoid creating zombie process.
 		// Ignore exit code as we're checking term.cmd.ProcessState already
-		_, err := term.Wait()
-
-		errors <- err
+		errors <- term.Wait().Error
 	}()
 
 	// Continue execution
-	scx.execRequest.Continue()
+	err = term.cmd.Continue()
+	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	t.Cleanup(cancel)

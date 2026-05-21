@@ -91,14 +91,15 @@ db.getSiblingDB("$external").runCommand({
 
 ## Step 2/3. Configure a Teleport role
 
-To specify the database roles a user should be assigned within the database,
-use the `db_roles` role option:
+To specify the database roles a user should be assigned within the database, use
+the `db_roles` role option. To create the role below, open a file called
+`db-user-creator.yaml`:
 
 ```yaml
 kind: role
 version: v7
 metadata:
-  name: auto-db-users
+  name: db-user-creator
 spec:
   options:
     # create_db_user_mode enables automatic user provisioning for matching databases
@@ -115,6 +116,12 @@ spec:
     - "myCustomRole@db2"
     - "{{internal.db_roles}}"
     - "{{external.db_roles}}"
+```
+
+Apply your change:
+
+```code
+$ tctl create -f db-user-creator.yaml
 ```
 
 (!docs/pages/includes/database-access/auto-user-provisioning/db_users_ignored.mdx!)

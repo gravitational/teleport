@@ -30,7 +30,9 @@ const (
 	AccessLists                EntitlementKind = "AccessLists"
 	AccessMonitoring           EntitlementKind = "AccessMonitoring"
 	AccessRequests             EntitlementKind = "AccessRequests"
+	ActivityCenter             EntitlementKind = "ActivityCenter"
 	App                        EntitlementKind = "App"
+	Beams                      EntitlementKind = "Beams"
 	ClientIPRestrictions       EntitlementKind = "ClientIPRestrictions"
 	CloudAuditLogRetention     EntitlementKind = "CloudAuditLogRetention"
 	DB                         EntitlementKind = "DB"
@@ -50,6 +52,7 @@ const (
 	Policy                     EntitlementKind = "Policy"
 	SAML                       EntitlementKind = "SAML"
 	SessionLocks               EntitlementKind = "SessionLocks"
+	SessionSummaries           EntitlementKind = "SessionSummaries"
 	UnrestrictedManagedUpdates EntitlementKind = "UnrestrictedManagedUpdates"
 	UpsellAlert                EntitlementKind = "UpsellAlert"
 	UsageReporting             EntitlementKind = "UsageReporting"
@@ -58,9 +61,9 @@ const (
 
 // AllEntitlements returns all Entitlements; should be 1:1 with the const declared above.
 var AllEntitlements = []EntitlementKind{
-	AccessGraph, AccessGraphDemoMode, AccessLists, AccessMonitoring, AccessRequests, App,
+	AccessGraph, AccessGraphDemoMode, AccessLists, AccessMonitoring, AccessRequests, ActivityCenter, App, Beams,
 	ClientIPRestrictions, CloudAuditLogRetention, DB, Desktop, DeviceTrust,
 	ExternalAuditStorage, FeatureHiding, HSM, Identity, JoinActiveSessions, K8s, LicenseAutoUpdate,
-	MobileDeviceManagement, OIDC, OktaSCIM, OktaUserSync, Policy, SAML, SessionLocks,
+	MobileDeviceManagement, OIDC, OktaSCIM, OktaUserSync, Policy, SAML, SessionLocks, SessionSummaries,
 	UnrestrictedManagedUpdates, UpsellAlert, UsageReporting, WorkloadClusters,
 }

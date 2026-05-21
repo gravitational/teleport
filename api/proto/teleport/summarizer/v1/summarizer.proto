@@ -20,6 +20,7 @@ import "google/protobuf/duration.proto";
 import "google/protobuf/struct.proto";
 import "google/protobuf/timestamp.proto";
 import "teleport/header/v1/metadata.proto";
+import "teleport/summarizer/v1/access_request.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1;summarizerv1";
 
@@ -215,6 +216,30 @@ enum CommandCategory {
   // CommandCategoryOther indicates that the command does not fit into any of the
   // other categories.
   COMMAND_CATEGORY_OTHER = 7;
+  // CommandCategoryPackageManagement indicates that the command is related to
+  // package management, such as installing or updating packages.
+  COMMAND_CATEGORY_PACKAGE_MANAGEMENT = 8;
+  // CommandCategoryContainer indicates that the command is related to container
+  // operations, such as Docker or Kubernetes commands.
+  COMMAND_CATEGORY_CONTAINER = 9;
+  // CommandCategorySourceControl indicates that the command is related to source
+  // control, such as Git operations.
+  COMMAND_CATEGORY_SOURCE_CONTROL = 10;
+  // CommandCategoryScheduling indicates that the command is related to scheduling,
+  // such as cron or systemd timer operations.
+  COMMAND_CATEGORY_SCHEDULING = 11;
+  // CommandCategoryMonitoring indicates that the command is related to monitoring
+  // and observability.
+  COMMAND_CATEGORY_MONITORING = 12;
+  // CommandCategoryUserManagement indicates that the command is related to user
+  // and group management.
+  COMMAND_CATEGORY_USER_MANAGEMENT = 13;
+  // CommandCategoryTransfer indicates that the command is related to data transfer
+  // operations, such as scp or rsync.
+  COMMAND_CATEGORY_TRANSFER = 14;
+  // CommandCategoryDevelopment indicates that the command is related to development
+  // tools, such as compilers or build tools.
+  COMMAND_CATEGORY_DEVELOPMENT = 15;
 }
 
 // RiskLevel represents the risk level associated with a command.
@@ -274,8 +299,84 @@ enum ThreatCategory {
   THREAT_CATEGORY_NONE = 12;
 }
 
+// SessionEvent represents a single event during a session.
+message SessionEvent {
+  // Category is the category of the command.
+  CommandCategory category = 1;
+  // RiskLevel is the risk level associated with the command.
+  RiskLevel risk_level = 2;
+  // RiskScore is a numerical score representing the risk associated with the command.
+  int32 risk_score = 3;
+  // ThreatCategory is the category of any detected threat associated with the command.
+  ThreatCategory threat_category = 4;
+  // TimelineTitle is a brief title for the command's entry in the session timeline.
+  string timeline_title = 5;
+  // TimelineSubtitle is a more detailed subtitle for the command's entry in the session timeline.
+  string timeline_subtitle = 6;
+  // ShortDescription is a concise description of the command and its purpose.
+  string short_description = 7;
+  // DetailedDescription is an in-depth explanation of the command, its function,
+  // and any relevant context.
+  string detailed_description = 8;
+  // SuspiciousFlags contains any suspicious flags or indicators associated with the command.
+  repeated string suspicious_flags = 9;
+  // SensitiveItems contains any sensitive items accessed or modified by the command.
+  repeated string sensitive_items = 10;
+  // SuspiciousPatterns contains any suspicious patterns detected in relation to the command.
+  repeated string suspicious_patterns = 11;
+  // IOCs contains any indicators of compromise associated with the command.
+  repeated string iocs = 12;
+  // MitreAttackIDs contains any MITRE ATT&CK IDs relevant to the command.
+  repeated string mitre_attack_ids = 13;
+  // HasSensitiveData indicates whether the command involved access to or modification of sensitive data.
+  bool has_sensitive_data = 14;
+  // PrivilegeEscalation indicates whether the command involved privilege escalation.
+  bool privilege_escalation = 15;
+  // DataExfiltration indicates whether the command involved data exfiltration.
+  bool data_exfiltration = 16;
+  // Persistence indicates whether the command involved persistence mechanisms.
+  bool persistence = 17;
+  // StartOffset is the start time of the command, relative to the start of the session.
+  google.protobuf.Duration start_offset = 18;
+  // EndOffset is the end time of the command, relative to the start of the session.
+  google.protobuf.Duration end_offset = 19;
+  // InferenceErrorMessage is an error message if the inference provider failed to analyze this command.
+  string inference_error_message = 20;
+  // Details is the type-specific details of the event.
+  oneof details {
+    // CommandEventDetails holds the details for a command ran during a TTY session.
+    CommandEventDetails command_event_details = 21;
+    // DesktopEventDetails holds the details for an event during a desktop session.
+    DesktopEventDetails desktop_event_details = 22;
+  }
+}
+
+// CommandEventDetails represents the details of a command event during a TTY session.
+message CommandEventDetails {
+  // Command is the command that was executed.
+  string command = 1;
+  // Success indicates whether the command executed successfully.
+  bool success = 2;
+  // ErrorMessages contains any error messages produced during the execution of the command.
+  repeated string error_messages = 3;
+}
+
+// DesktopEventDetails represents the details of a desktop session event.
+message DesktopEventDetails {
+  // Applications visible or interacted with during this event.
+  repeated string applications = 1;
+  // URLs visible on screen (browser address bars, etc).
+  repeated string visible_urls = 2;
+  // File paths visible on screen (Explorer, save dialogs, terminals).
+  repeated string visible_file_paths = 3;
+  // The title of the active/focused window.
+  string active_window_title = 4;
+}
+
 // CommandAnalysis represents a summary of a single command executed during a
 // session.
+// Deprecated: This message is deprecated in favor of SessionEvent with CommandEventDetails.
+// DO NOT DELETE: This is used for backwards compatibility with summaries generated by older versions of Teleport.
 message CommandAnalysis {
   // Command is the command that was executed.
   string command = 1;
@@ -346,6 +447,20 @@ enum NeedsReviewReason {
   // NeedsReviewReasonCommandAnalysisFailed indicates that one or more commands failed to be analyzed by the
   // inference provider.
   NEEDS_REVIEW_REASON_COMMAND_ANALYSIS_FAILED = 2;
+  // NeedsReviewReasonFailedToFetchAccessRequest indicates that Teleport failed to fetch the access request associated
+  // with this session, if any.
+  NEEDS_REVIEW_REASON_FAILED_TO_FETCH_ACCESS_REQUEST = 3;
+  // NeedsReviewReasonAccessRequestResourceMismatch indicates that the session's access requests do not reference the
+  // resource being connected to.
+  NEEDS_REVIEW_REASON_ACCESS_REQUEST_RESOURCE_MISMATCH = 4;
+}
+
+// RiskScoreReason represents a reason that contributed to the overall risk score of a session.
+message RiskScoreReason {
+  // Reason is a concise sentence explaining this risk factor.
+  string reason = 1;
+  // ScoreImpact is a numerical value representing how much this reason contributed to the overall risk score of the session.
+  int32 score_impact = 2;
 }
 
 // EnhancedSummary represents an enhanced summary of a session recording,
@@ -364,7 +479,66 @@ message EnhancedSummary {
   // NotableCommandIndexes is a list of indexes of commands that are considered notable.
   repeated int32 notable_command_indexes = 6;
   // Commands is a list of command summaries extracted from the session.
-  repeated CommandAnalysis commands = 7;
+  // Deprecated: This field is deprecated in favor of SessionEvents with CommandEventDetails.
+  // DO NOT DELETE: This is used for backwards compatibility with summaries generated by older versions of Teleport.
+  repeated CommandAnalysis commands = 7 [deprecated = true];
   // NeedsFurtherReview indicates the reason why the session needs further review.
-  optional NeedsReviewReason needs_further_review = 8;
+  // Deprecated: This field is deprecated in favor of NeedsFurtherReviewReasons, which allows specifying multiple reasons.
+  // DO NOT DELETE: This is used for backwards compatibility with summaries generated by older versions of Teleport.
+  optional NeedsReviewReason needs_further_review = 8 [deprecated = true];
+  // RiskScore is a numerical score representing the overall risk associated with the session.
+  int32 risk_score = 9;
+  // ShortTitle is a brief title for the session summary, suitable for display in a list of sessions.
+  string short_title = 10;
+  // RiskScoreReasons contains a list of reasons that contributed to the overall risk score of the session.
+  repeated RiskScoreReason risk_score_reasons = 11;
+  // AccessRequestConsistency indicates whether session activity was consistent with the stated access request reason.
+  AccessRequestConsistency access_request_consistency = 12;
+  // AccessRequestAssessment is a free-text explanation of how session activity  relates to the stated access request
+  // reason. Empty if no access request.
+  string access_request_assessment = 13;
+  // AccessRequests contains snapshots of access requests associated with this session, if any.
+  repeated AccessRequestSnapshot access_requests = 14;
+  // NeedsFurtherReviewReasons contains a list of reasons why the session needs further review.
+  repeated NeedsReviewReason needs_further_review_reasons = 15;
+  // SessionEvents contains a list of significant events that occurred during the session, such as command executions or
+  // desktop interactions.
+  repeated SessionEvent session_events = 16;
+}
+
+// RetrievalModel resource specifies the model configuration used to
+// generate embeddings for the session and perform search inference.
+// It tells Teleport how to generate embeddings for a specific session summary
+// and how to convert natural language queries into API requests.
+message RetrievalModel {
+  // Kind is the resource kind. Should always be set to "retrieval_model".
+  string kind = 1;
+  // SubKind is the resource sub-kind. Should be empty.
+  string sub_kind = 2;
+  // Version is the resource version. Should be set to "v1".
+  string version = 3;
+  teleport.header.v1.Metadata metadata = 4;
+  // spec contains the configuration for the retrieval model, including the
+  // embeddings provider and the search inference model.
+  // In the future it can be extended with re-rankers configuration and
+  // other settings.
+  RetrievalModelSpec spec = 5;
+}
+
+// RetrievalModelSpec specifies the embeddings provider and search inference model.
+// In the future it can be extended with re-rankers configuration and
+// other settings.
+message RetrievalModelSpec {
+  oneof embeddings_provider {
+    // Openai indicates that this model uses OpenAI as the embeddings provider
+    // and specifies OpenAI-specific parameters.
+    OpenAIProvider openai = 1;
+    // Bedrock indicates that this model uses Amazon Bedrock as the embeddings
+    // provider and specifies Bedrock-specific parameters.
+    BedrockProvider bedrock = 3;
+  }
+  // inference_model_name is the name of the model used to convert natural
+  // language search queries into API requests and generate prose from a session
+  // summary.
+  string inference_model_name = 2;
 }

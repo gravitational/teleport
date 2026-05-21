@@ -24,9 +24,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/constants"
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/wrappers"
 )
 
 // newScopedCheckerWithRole is a test helper that builds a minimal ScopedAccessChecker
@@ -185,6 +188,709 @@ func TestSSHAccessCheckerAdjustClientIdleTimeout(t *testing.T) {
 			}
 			require.NoError(t, err)
 			require.Equal(t, tt.expect, got)
+		})
+	}
+}
+
+func ptr[T any](v T) *T { return &v }
+
+func TestSSHAccessCheckerAdjustDisconnectExpiredCert(t *testing.T) {
+	t.Parallel()
+
+	tts := []struct {
+		name       string
+		spec       *scopedaccessv1.ScopedRoleSpec
+		defaultVal bool
+		expect     bool
+	}{
+		{
+			name: "unset defers to default false",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{},
+			},
+			defaultVal: false,
+			expect:     false,
+		},
+		{
+			name: "unset defers to default true",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{},
+			},
+			defaultVal: true,
+			expect:     true,
+		},
+		{
+			name: "explicit true overrides default false",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					DisconnectExpiredCert: ptr(true),
+				},
+			},
+			defaultVal: false,
+			expect:     true,
+		},
+		{
+			name: "explicit false overrides default true",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					DisconnectExpiredCert: ptr(false),
+				},
+			},
+			defaultVal: true,
+			expect:     false,
+		},
+		{
+			name: "unset ssh block defaults to default block",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Defaults: &scopedaccessv1.ScopedRoleDefaults{
+					DisconnectExpiredCert: ptr(false),
+				},
+				Ssh: &scopedaccessv1.ScopedRoleSSH{},
+			},
+			defaultVal: true,
+			expect:     false,
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			checker := newScopedCheckerWithRole(tt.spec).SSH()
+			require.Equal(t, tt.expect, checker.AdjustDisconnectExpiredCert(tt.defaultVal))
+		})
+	}
+}
+
+func TestSSHAccessCheckerLockingMode(t *testing.T) {
+	t.Parallel()
+
+	tts := []struct {
+		name        string
+		spec        *scopedaccessv1.ScopedRoleSpec
+		defaultMode constants.LockingMode
+		expect      constants.LockingMode
+	}{
+		{
+			name: "unset defers to default",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{},
+			},
+			defaultMode: constants.LockingModeBestEffort,
+			expect:      constants.LockingModeBestEffort,
+		},
+		{
+			name: "strict from role",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					Lock: &scopedaccessv1.Lock{
+						Mode: string(constants.LockingModeStrict),
+					},
+				},
+			},
+			defaultMode: constants.LockingModeBestEffort,
+			expect:      constants.LockingModeStrict,
+		},
+		{
+			name: "best effort from role",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					Lock: &scopedaccessv1.Lock{
+						Mode: string(constants.LockingModeBestEffort),
+					},
+				},
+			},
+			defaultMode: constants.LockingModeStrict,
+			expect:      constants.LockingModeBestEffort,
+		},
+		{
+			name: "invalid value falls back to default",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+
+					Lock: &scopedaccessv1.Lock{
+						Mode: "invalid",
+					},
+				},
+			},
+			defaultMode: constants.LockingModeStrict,
+			expect:      constants.LockingModeStrict,
+		},
+		{
+			name: "empty mode falls back to default",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+
+					Lock: &scopedaccessv1.Lock{},
+				},
+			},
+			defaultMode: constants.LockingModeStrict,
+			expect:      constants.LockingModeStrict,
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			checker := newScopedCheckerWithRole(tt.spec).SSH()
+			require.Equal(t, tt.expect, checker.LockingMode(tt.defaultMode))
+		})
+	}
+}
+
+func TestSSHAccessCheckerPermitX11Forwarding(t *testing.T) {
+	t.Parallel()
+
+	tts := []struct {
+		name   string
+		spec   *scopedaccessv1.ScopedRoleSpec
+		expect bool
+	}{
+		{
+			name: "nil ssh block defaults to false",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{},
+			},
+			expect: false,
+		},
+		{
+			name: "set true",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					PermitX11Forwarding: ptr(true),
+				},
+			},
+			expect: true,
+		},
+		{
+			name: "set false",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					PermitX11Forwarding: ptr(false),
+				},
+			},
+			expect: false,
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			checker := newScopedCheckerWithRole(tt.spec).SSH()
+			require.Equal(t, tt.expect, checker.PermitX11Forwarding())
+		})
+	}
+}
+
+func TestSSHAccessCheckerCheckAgentForward(t *testing.T) {
+	t.Parallel()
+
+	tts := []struct {
+		name      string
+		spec      *scopedaccessv1.ScopedRoleSpec
+		expectErr bool
+	}{
+		{
+			name: "nil agent forwarding denies",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{},
+			},
+			expectErr: true,
+		},
+		{
+			name: "set true allows",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					ForwardAgent: ptr(true),
+				},
+			},
+			expectErr: false,
+		},
+		{
+			name: "set false denies",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					ForwardAgent: ptr(false),
+				},
+			},
+			expectErr: true,
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			checker := newScopedCheckerWithRole(tt.spec).SSH()
+			err := checker.CheckAgentForward("testuser")
+			if tt.expectErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestSSHAccessCheckerCanCopyFiles(t *testing.T) {
+	t.Parallel()
+
+	tts := []struct {
+		name   string
+		spec   *scopedaccessv1.ScopedRoleSpec
+		expect bool
+	}{
+		{
+			name: "nil file_copy defaults to true",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					FileCopy: nil,
+				},
+			},
+			expect: true,
+		},
+		{
+			name: "true",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					FileCopy: ptr(true),
+				},
+			},
+			expect: true,
+		},
+		{
+			name: "false",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					FileCopy: ptr(false),
+				},
+			},
+			expect: false,
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			checker := newScopedCheckerWithRole(tt.spec).SSH()
+			require.Equal(t, tt.expect, checker.CanCopyFiles())
+		})
+	}
+}
+
+func TestSSHAccessCheckerSSHPortForwardMode(t *testing.T) {
+	t.Parallel()
+
+	tts := []struct {
+		name   string
+		spec   *scopedaccessv1.ScopedRoleSpec
+		expect decisionpb.SSHPortForwardMode
+	}{
+		{
+			name: "nil port forwarding defaults to ON",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					PortForwarding: nil,
+				},
+			},
+			expect: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON,
+		},
+		{
+			name: "both enabled",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					PortForwarding: &scopedaccessv1.SSHPortForwarding{
+						Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: ptr(true)},
+						Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: ptr(true)},
+					},
+				},
+			},
+			expect: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON,
+		},
+		{
+			name: "both disabled",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					PortForwarding: &scopedaccessv1.SSHPortForwarding{
+						Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: ptr(false)},
+						Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: ptr(false)},
+					},
+				},
+			},
+			expect: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_OFF,
+		},
+		{
+			name: "local enabled remote disabled",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					PortForwarding: &scopedaccessv1.SSHPortForwarding{
+						Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: ptr(true)},
+						Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: ptr(false)},
+					},
+				},
+			},
+			expect: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_LOCAL,
+		},
+		{
+			name: "local disabled remote enabled",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					PortForwarding: &scopedaccessv1.SSHPortForwarding{
+						Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: ptr(false)},
+						Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: ptr(true)},
+					},
+				},
+			},
+			expect: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_REMOTE,
+		},
+		{
+			name: "local and remote enabled not set defaults to ON",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					PortForwarding: &scopedaccessv1.SSHPortForwarding{
+						Local:  &scopedaccessv1.SSHLocalPortForwarding{},
+						Remote: &scopedaccessv1.SSHRemotePortForwarding{},
+					},
+				},
+			},
+			expect: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_ON,
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			checker := newScopedCheckerWithRole(tt.spec).SSH()
+			require.Equal(t, tt.expect, checker.SSHPortForwardMode())
+		})
+	}
+}
+
+func TestSSHAccessCheckerMaxSessions(t *testing.T) {
+	t.Parallel()
+
+	tts := []struct {
+		name   string
+		spec   *scopedaccessv1.ScopedRoleSpec
+		expect int64
+	}{
+		{
+			name: "not set defaults to 0",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{},
+			},
+			expect: 0,
+		},
+		{
+			name: "set to 5",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					MaxSessions: ptr(int64(5)),
+				},
+			},
+			expect: 5,
+		},
+		{
+			name: "set to 0",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					MaxSessions: ptr(int64(0)),
+				},
+			},
+			expect: 0,
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			checker := newScopedCheckerWithRole(tt.spec).SSH()
+			require.Equal(t, tt.expect, checker.MaxSessions())
+		})
+	}
+}
+
+func TestSSHAccessCheckerHostSudoers(t *testing.T) {
+	t.Parallel()
+
+	srv := &types.ServerV2{}
+
+	tts := []struct {
+		name   string
+		spec   *scopedaccessv1.ScopedRoleSpec
+		expect []string
+	}{
+		{
+			name: "no sudoers",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					HostSudoers: nil,
+				},
+			},
+			expect: nil,
+		},
+		{
+			name: "has sudoers",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					HostSudoers: []string{"ALL=(ALL) NOPASSWD: ALL"},
+				},
+			},
+			expect: []string{"ALL=(ALL) NOPASSWD: ALL"},
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			checker := newScopedCheckerWithRole(tt.spec).SSH()
+			sudoers, err := checker.HostSudoers(srv)
+			require.NoError(t, err)
+			require.Equal(t, tt.expect, sudoers)
+		})
+	}
+}
+
+func TestSSHAccessCheckerSessionRecordingMode(t *testing.T) {
+	t.Parallel()
+
+	tts := []struct {
+		name   string
+		spec   *scopedaccessv1.ScopedRoleSpec
+		expect constants.SessionRecordingMode
+	}{
+		{
+			name:   "unset defaults to best_effort",
+			spec:   &scopedaccessv1.ScopedRoleSpec{Ssh: &scopedaccessv1.ScopedRoleSSH{}},
+			expect: constants.SessionRecordingModeBestEffort,
+		},
+		{
+			name: "ssh strict",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					SessionRecording: &scopedaccessv1.SessionRecording{
+						Mode: string(constants.SessionRecordingModeStrict),
+					},
+				},
+			},
+			expect: constants.SessionRecordingModeStrict,
+		},
+		{
+			name: "defaults used when ssh unset",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Defaults: &scopedaccessv1.ScopedRoleDefaults{
+					SessionRecording: &scopedaccessv1.SessionRecording{
+						Mode: string(constants.SessionRecordingModeStrict),
+					},
+				},
+			},
+			expect: constants.SessionRecordingModeStrict,
+		},
+		{
+			name: "ssh overrides defaults",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Defaults: &scopedaccessv1.ScopedRoleDefaults{
+					SessionRecording: &scopedaccessv1.SessionRecording{
+						Mode: string(constants.SessionRecordingModeBestEffort),
+					},
+				},
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					SessionRecording: &scopedaccessv1.SessionRecording{
+						Mode: string(constants.SessionRecordingModeBestEffort),
+					},
+				},
+			},
+			expect: constants.SessionRecordingModeBestEffort,
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			checker := newScopedCheckerWithRole(tt.spec).SSH()
+			require.Equal(t, tt.expect, checker.SessionRecordingMode())
+		})
+	}
+}
+
+func TestSSHAccessCheckerEnhancedRecording(t *testing.T) {
+	t.Parallel()
+
+	tts := []struct {
+		name   string
+		spec   *scopedaccessv1.ScopedRoleSpec
+		expect map[string]bool
+	}{
+		{
+			name: "no events",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					EnhancedRecording: nil,
+				},
+			},
+			expect: map[string]bool{},
+		},
+		{
+			name: "has events",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					EnhancedRecording: &scopedaccessv1.EnhancedRecording{
+						Network: ptr(true),
+						Command: ptr(true),
+						Disk:    ptr(true),
+					},
+				},
+			},
+			expect: map[string]bool{"command": true, "network": true, "disk": true},
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			checker := newScopedCheckerWithRole(tt.spec).SSH()
+			require.Equal(t, tt.expect, checker.EnhancedRecordingSet())
+		})
+	}
+}
+
+func TestSSHAccessCheckerHostUsers(t *testing.T) {
+	t.Parallel()
+
+	srv := &types.ServerV2{}
+
+	tts := []struct {
+		name         string
+		spec         *scopedaccessv1.ScopedRoleSpec
+		traits       wrappers.Traits
+		expectNil    bool
+		expectErr    bool
+		expectMode   decisionpb.HostUserMode
+		expectGroups []string
+		expectShell  string
+		expectUID    string
+		expectGID    string
+	}{
+		{
+			name: "nil host_user_creation - denied",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					HostUserCreation: nil,
+				},
+			},
+			expectNil: true,
+		},
+		{
+			name: "empty mode string - denied",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					HostUserCreation: &scopedaccessv1.CreateHostUser{
+						Mode: "",
+					},
+				},
+			},
+			expectNil: true,
+		},
+		{
+			name: "mode off - denied",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					HostUserCreation: &scopedaccessv1.CreateHostUser{
+						Mode: "off",
+					},
+				},
+			},
+			expectNil: true,
+		},
+		{
+			name: "mode keep",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					HostUserCreation: &scopedaccessv1.CreateHostUser{
+						Mode:   "keep",
+						Groups: []string{"test"},
+						Shell:  "/bin/bash",
+					},
+				},
+			},
+			expectNil:    false,
+			expectMode:   decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
+			expectGroups: []string{"test"},
+			expectShell:  "/bin/bash",
+		},
+		{
+			name: "mode insecure-drop",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					HostUserCreation: &scopedaccessv1.CreateHostUser{
+						Mode:   "insecure-drop",
+						Groups: []string{"test"},
+					},
+				},
+			},
+			expectNil:    false,
+			expectMode:   decisionpb.HostUserMode_HOST_USER_MODE_DROP,
+			expectGroups: []string{"test"},
+		},
+		{
+			name: "uid and gid from traits",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					HostUserCreation: &scopedaccessv1.CreateHostUser{
+						Mode: "keep",
+					},
+				},
+			},
+			traits: wrappers.Traits{
+				constants.TraitHostUserUID: []string{"1001"},
+				constants.TraitHostUserGID: []string{"1001"},
+			},
+			expectNil:  false,
+			expectMode: decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
+			expectUID:  "1001",
+			expectGID:  "1001",
+		},
+		{
+			name: "invalid mode returns error",
+			spec: &scopedaccessv1.ScopedRoleSpec{
+				Ssh: &scopedaccessv1.ScopedRoleSSH{
+					HostUserCreation: &scopedaccessv1.CreateHostUser{
+						Mode: "invalid",
+					},
+				},
+			},
+			expectErr: true,
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			checker := newScopedCheckerWithRole(tt.spec).SSH()
+			checker.checker.scopedCompatChecker = newAccessChecker(&AccessInfo{
+				Traits: tt.traits,
+			}, "local", NewRoleSet())
+
+			decision, err := checker.HostUsers(srv)
+			if tt.expectErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.NotNil(t, decision)
+
+			if tt.expectNil {
+				require.Nil(t, decision.Info)
+				require.NotEmpty(t, decision.DeniedBy)
+				return
+			}
+
+			require.NotNil(t, decision.Info, "expected Info to be non-nil (allowed)")
+			require.NotEmpty(t, decision.AllowedBy, "expected AllowedBy to be populated")
+			require.Equal(t, tt.expectMode, decision.Info.Mode)
+			require.Equal(t, tt.expectGroups, decision.Info.Groups)
+			require.Equal(t, tt.expectShell, decision.Info.Shell)
+			require.Equal(t, tt.expectUID, decision.Info.Uid)
+			require.Equal(t, tt.expectGID, decision.Info.Gid)
 		})
 	}
 }

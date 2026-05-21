@@ -143,6 +143,10 @@ func (s *Server) CreateScopedRoleAssignment(ctx context.Context, req *scopedacce
 	if req.GetAssignment().GetMetadata().GetName() == "" {
 		req.GetAssignment().GetMetadata().Name = uuid.New().String()
 	}
+	// Currently, don't allow assignments created via the API to have a status,
+	// as they could impersonate an access-list-materialized assignment.
+	// TODO(nklaassen): set assignment status based on authenticated identity.
+	req.GetAssignment().Status = nil
 
 	if err := scopedaccess.StrongValidateAssignment(req.GetAssignment()); err != nil {
 		return nil, trace.Wrap(err)
@@ -180,16 +184,11 @@ func (s *Server) DeleteScopedRole(ctx context.Context, req *scopedaccessv1.Delet
 		return s.cfg.Writer.DeleteScopedRole(ctx, req)
 	}
 
-	// load the role so we can determine the resource scope
-	grsp, err := s.cfg.Reader.GetScopedRole(ctx, &scopedaccessv1.GetScopedRoleRequest{
+	// load the role so we can determine the resource scope.
+	grsp, err := s.cfg.BackendReader.GetScopedRole(ctx, &scopedaccessv1.GetScopedRoleRequest{
 		Name: req.GetName(),
 	})
 	if err != nil {
-		if trace.IsNotFound(err) {
-			// this API deliberately does not distinguish between kinds of concurrent modification
-			// in its error kinds.
-			return nil, trace.CompareFailed("scoped role %q has been concurrently modified and/or deleted", req.GetName())
-		}
 		return nil, trace.Wrap(err)
 	}
 
@@ -239,17 +238,12 @@ func (s *Server) DeleteScopedRoleAssignment(ctx context.Context, req *scopedacce
 		return s.cfg.Writer.DeleteScopedRoleAssignment(ctx, req)
 	}
 
-	// load the assignment so we can determine the resource scope
-	grsp, err := s.cfg.Reader.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
+	// load the assignment so we can determine the resource scope.
+	grsp, err := s.cfg.BackendReader.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
 		Name:    req.GetName(),
 		SubKind: req.GetSubKind(),
 	})
 	if err != nil {
-		if trace.IsNotFound(err) {
-			// this API deliberately does not distinguish between kinds of concurrent modification
-			// in its error kinds.
-			return nil, trace.CompareFailed("scoped role assignment %q has been concurrently modified and/or deleted", req.GetName())
-		}
 		return nil, trace.Wrap(err)
 	}
 
@@ -492,6 +486,13 @@ func (s *Server) UpdateScopedRoleAssignment(ctx context.Context, req *scopedacce
 		return nil, trace.Wrap(err)
 	}
 
+	// Currently, don't allow assignments created via the API to have a status,
+	// as they could impersonate an access-list-materialized assignment.
+	// TODO(nklaassen): set assignment status based on authenticated identity.
+	if req.GetAssignment().GetStatus() != nil {
+		req.GetAssignment().Status = nil
+	}
+
 	return s.cfg.Writer.UpdateScopedRoleAssignment(ctx, req)
 }
 
@@ -540,6 +541,13 @@ func (s *Server) UpsertScopedRoleAssignment(ctx context.Context, req *scopedacce
 			"user", authzContext.User.GetName(),
 			"scope", req.GetAssignment().GetScope())
 		return nil, trace.Wrap(err)
+	}
+
+	// Currently, don't allow assignments created via the API to have a status,
+	// as they could impersonate an access-list-materialized assignment.
+	// TODO(nklaassen): set assignment status based on authenticated identity.
+	if req.GetAssignment().GetStatus() != nil {
+		req.GetAssignment().Status = nil
 	}
 
 	return s.cfg.Writer.UpsertScopedRoleAssignment(ctx, req)

@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/scopes/access"
 )
 
 func TestAddRoleDefaults(t *testing.T) {
@@ -698,6 +699,7 @@ func TestAddRoleDefaults(t *testing.T) {
 									types.KindSessionRecordingConfig,
 									types.KindToken,
 									types.KindTrustedCluster,
+									types.KindUIConfig,
 									types.KindUser,
 									// Some of the new resources got introduced, but not all
 									types.KindBot,
@@ -750,6 +752,7 @@ func TestAddRoleDefaults(t *testing.T) {
 									types.KindSessionRecordingConfig,
 									types.KindToken,
 									types.KindTrustedCluster,
+									types.KindUIConfig,
 									types.KindUser,
 									// The resources that already got into the main rule are still present.
 									types.KindBot,
@@ -774,7 +777,11 @@ func TestAddRoleDefaults(t *testing.T) {
 							types.NewRule(types.KindInferenceModel, RW()),
 							types.NewRule(types.KindInferenceSecret, RW()),
 							types.NewRule(types.KindInferencePolicy, RW()),
+							types.NewRule(types.KindRetrievalModel, RW()),
 							types.NewRule(types.KindScopedToken, RW()),
+							types.NewRule(access.KindScopedRole, RW()),
+							types.NewRule(access.KindScopedRoleAssignment, RW()),
+							types.NewRule(types.KindDatabaseObjectImportRule, RW()),
 						},
 					},
 				},
@@ -821,6 +828,34 @@ func TestAddRoleDefaults(t *testing.T) {
 					},
 				},
 			},
+		},
+		{
+			name: "access-plugin-with-review (default roles match preset rules)",
+			role: &types.RoleV6{
+				Kind:    types.KindRole,
+				Version: types.V8,
+				Metadata: types.Metadata{
+					Name:        teleport.PresetAccessPluginWithReviewRoleName,
+					Namespace:   apidefaults.Namespace,
+					Description: "Default access plugin with review role",
+					Labels: map[string]string{
+						types.TeleportInternalResourceType: types.PresetResource,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						ReviewRequests: &types.AccessReviewConditions{
+							PreviewAsRoles: []string{
+								teleport.PresetListAccessRequestResourcesRoleName,
+							},
+							SubmitForUsers: []string{"*"},
+						},
+					},
+				},
+			},
+			expectedErr:    require.NoError,
+			reviewNotEmpty: true,
+			expected:       NewPresetAccessPluginWithReviewRole(),
 		},
 		{
 			name: "list-access-request-resources (default roles match preset rules)",

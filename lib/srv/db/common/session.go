@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
@@ -72,6 +73,10 @@ type Session struct {
 	UserAgent string
 	// ClientIP is the client IP address.
 	ClientIP string
+
+	// caOverrideDetails holds optional CA override details for the session.
+	// Assigned by the Auth implementation and used to augment audit events.
+	caOverrideDetails *proto.CAOverrideCertificateDetails
 }
 
 // String returns string representation of the session parameters.

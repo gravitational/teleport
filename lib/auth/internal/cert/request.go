@@ -154,6 +154,10 @@ type Request struct {
 	// BotInstanceID is the unique identifier of the bot instance associated
 	// with this cert, if any.
 	BotInstanceID string
+	// BotInternal is a flag that indicates an identity is specifically a bot
+	// internal identity, rather than output certificates intended for direct
+	// consumption by users or user-facing bot services.
+	BotInternal bool
 	// JoinToken is the name of the join token used to join, set only for bot
 	// identities. It is unset for token-joined bots, whose token names are
 	// secret values.
@@ -169,6 +173,14 @@ type Request struct {
 	// a valid web session so that we can properly report access graph usage
 	// and reuse the same handlers.
 	WebSessionID string
+	// DelegationSessionID is the ID of the Delegation Session this certificate
+	// is being generated for.
+	DelegationSessionID string
+	// HeadlessAuthenticationID is the ID of the headless authentication
+	// resource this certificate is being generated for.
+	HeadlessAuthenticationID string
+	// Login is the SSH login (OS username) the user is requesting to connect as.
+	Login string
 }
 
 // Check verifies the cert request is valid.

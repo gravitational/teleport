@@ -67,14 +67,25 @@ export class TtyPlayer extends Player<TtyEvent> {
     });
 
     const linksAddon = new WebLinksAddon();
-    const imageAddon = new ImageAddon();
 
-    this.addons.push(this.aspectFitAddon, linksAddon, imageAddon);
+    this.addons.push(this.aspectFitAddon, linksAddon);
 
     this.aspectFitAddon.activate(this.terminal);
 
     for (const addon of this.addons) {
       this.terminal.loadAddon(addon);
+    }
+
+    // @xterm/addon-image relies on WebAssembly internally. The vite plugin
+    // guard-wasm-globals rewrites bare WebAssembly references so the module can
+    // be statically imported without crashing; construction and activation will
+    // still throw when WebAssembly is genuinely unavailable, so we catch that here.
+    try {
+      const imageAddon = new ImageAddon();
+      this.terminal.loadAddon(imageAddon);
+      this.addons.push(imageAddon);
+    } catch (e) {
+      this.logger.error(`Failed to load image addon: ${e.message}`);
     }
 
     let webglAddon: WebglAddon | undefined;

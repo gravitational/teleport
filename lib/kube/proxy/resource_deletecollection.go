@@ -300,7 +300,6 @@ func newImpersonatedKubeClient(creds kubeCreds, username string, groups []string
 		UserName: username,
 		Groups:   groups,
 	}
-	// TODO(tigrato): reuse the http client.
 	client, err := dynamic.NewForConfig(&c)
 	return client, trace.Wrap(err)
 }
@@ -335,15 +334,20 @@ func deleteResources[T kubeObjectInterface](
 	deleteOptions metav1.DeleteOptions,
 ) ([]T, error) {
 	deletedItems := make([]T, 0, len(items))
+	checker, err := params.authCtx.getAccessChecker()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	for _, item := range items {
 		// Compute users and groups from available roles that match the
 		// cluster labels and kubernetes resources.
-		allowedKubeGroups, allowedKubeUsers, err := params.authCtx.Checker.CheckKubeGroupsAndUsers(
+		allowedKubeGroups, allowedKubeUsers, err := checker.Kube().GetGroupsAndUsers(
 			params.authCtx.sessionTTL,
 			false,
 			services.NewKubernetesClusterLabelMatcher(
 				params.authCtx.kubeClusterLabels,
-				params.authCtx.Checker.Traits(),
+				checker.AccessInfo().Username,
+				params.authCtx.CheckerContext.Traits(),
 			),
 			services.NewKubernetesResourceMatcher(
 				getKubeResource(kind, group, types.KubeVerbDeleteCollection, item),

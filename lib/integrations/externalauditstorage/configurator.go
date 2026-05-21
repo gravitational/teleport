@@ -99,7 +99,7 @@ func (o *Options) setDefaults(ctx context.Context, region string) error {
 	}
 	if o.stsClient == nil {
 		var useFips aws.FIPSEndpointState
-		if modules.GetModules().IsBoringBinary() {
+		if modules.GetModules().IsFIPSBuild() {
 			useFips = aws.FIPSEndpointStateEnabled
 		}
 		cfg, err := config.LoadDefaultConfig(

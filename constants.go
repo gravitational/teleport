@@ -171,9 +171,6 @@ const (
 	// ComponentSubsystemProxy is the proxy subsystem.
 	ComponentSubsystemProxy = "subsystem:proxy"
 
-	// ComponentSubsystemSFTP is the SFTP subsystem.
-	ComponentSubsystemSFTP = "subsystem:sftp"
-
 	// ComponentLocalTerm is a terminal on a regular SSH node.
 	ComponentLocalTerm = "term:local"
 
@@ -544,6 +541,9 @@ const (
 	// CertExtensionJoinToken is the name of the join token used to join this
 	// bot, if any.
 	CertExtensionJoinToken = "join-token@goteleport.com"
+	// CertExtensionDelegationSessionID contains the identifier of the
+	// Delegation Session this certificate was created for.
+	CertExtensionDelegationSessionID = "delegation-session-id@goteleport.com"
 
 	// CertCriticalOptionSourceAddress is a critical option that defines IP addresses (in CIDR notation)
 	// from which this certificate is accepted for authentication.
@@ -558,6 +558,9 @@ const (
 	// CertExtensionImmutableLabelHash is the hash used to verify immutable
 	// labels against a certificate.
 	CertExtensionImmutableLabelHash = "immutable-label-hash@goteleport.com"
+	// CertExtensionHeadlessAuthenticationID is the ID of the headless
+	// authentication resource this certificate was created for.
+	CertExtensionHeadlessAuthenticationID = "headless-authentication-id@goteleport.com"
 )
 
 // Note: when adding new providers to this list, consider updating the help message for --provider flag
@@ -744,6 +747,10 @@ const (
 	// Access Requests.
 	SystemIdentityCenterAccessRoleName = "aws-ic-access"
 
+	// SystemBeamRoleName specifies the name of a system role that grants the
+	// beam bot permission to issue itself credentials.
+	SystemBeamRoleName = "beam"
+
 	// PresetWildcardWorkloadIdentityIssuerRoleName is a name of a preset role
 	// that includes the permissions necessary to issue workload identity
 	// credentials using any workload_identity resource. This exists to simplify
@@ -754,6 +761,10 @@ const (
 	// permissions required by self-hosted access request plugin.
 	PresetAccessPluginRoleName = "access-plugin"
 
+	// PresetAccessPluginWithReviewRoleName names the preset role that includes
+	// permissions required by self-hosted access request plugins that permit native reviews.
+	PresetAccessPluginWithReviewRoleName = "access-plugin-with-review"
+
 	// PresetListAccessRequestResourcesRoleName is a name of a preset role that
 	// includes permissions to read access request resources.
 	PresetListAccessRequestResourcesRoleName = "list-access-request-resources"
@@ -761,6 +772,14 @@ const (
 	// PresetMCPUserRoleName is a name of a preset role that allows
 	// accessing MCP servers.
 	PresetMCPUserRoleName = "mcp-user"
+
+	// PresetBeamUserRoleName is a name of a preset role that allows users to use
+	// the Beams feature.
+	PresetBeamUserRoleName = "beam-user"
+
+	// PresetBeamAdminRoleName is a name of a preset role that allows users to
+	// administer beams belonging to other users.
+	PresetBeamAdminRoleName = "beam-admin"
 )
 
 var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}
@@ -962,10 +981,6 @@ const (
 )
 
 const (
-	// GetHomeDirSubsystem is an SSH subsystem request that Teleport
-	// uses to get the home directory of a remote user.
-	GetHomeDirSubsystem = "gethomedir"
-
 	// SFTPSubsystem is the SFTP SSH subsystem.
 	SFTPSubsystem = "sftp"
 )

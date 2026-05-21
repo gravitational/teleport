@@ -224,6 +224,17 @@ type Role interface {
 	// SetWindowsLogins sets Windows desktop logins for allow or deny condition.
 	SetWindowsLogins(RoleConditionType, []string)
 
+	// GetLinuxDesktopLabels gets the Linux desktop labels this role
+	// is allowed or denied access to.
+	GetLinuxDesktopLabels(RoleConditionType) Labels
+	// SetLinuxDesktopLabels sets the Linux desktop labels this role
+	// is allowed or denied access to.
+	SetLinuxDesktopLabels(RoleConditionType, Labels)
+	// GetLinuxDesktopLogins gets Linux desktop logins for allow or deny condition.
+	GetLinuxDesktopLogins(RoleConditionType) []string
+	// SetLinuxDesktopLogins sets Linux desktop logins for allow or deny condition.
+	SetLinuxDesktopLogins(RoleConditionType, []string)
+
 	// GetSessionRequirePolicies returns the RBAC required policies for a session.
 	GetSessionRequirePolicies() []*SessionRequirePolicy
 	// SetSessionRequirePolicies sets the RBAC required policies for a session.
@@ -256,6 +267,13 @@ type Role interface {
 	// purposes of viewing details such as the hostname and labels of requested
 	// resources.
 	SetPreviewAsRoles(RoleConditionType, []string)
+
+	// GetSubmitForUsers returns the list of users that the reviewer can submit reviews for,
+	// to be used by teleport plugins submitting reviews on behalf of users.
+	GetSubmitForUsers(RoleConditionType) []string
+	// SetSubmitForUsers sets the list of users that the reviewer can submit reviews for,
+	// to be used by teleport plugins submitting reviews on behalf of users.
+	SetSubmitForUsers(RoleConditionType, []string)
 
 	// GetHostGroups gets the list of groups this role is put in when users are provisioned
 	GetHostGroups(RoleConditionType) []string
@@ -1074,6 +1092,42 @@ func (r *RoleV6) SetWindowsLogins(rct RoleConditionType, logins []string) {
 	}
 }
 
+// GetLinuxDesktopLabels gets the desktop labels this role is allowed or denied access to.
+func (r *RoleV6) GetLinuxDesktopLabels(rct RoleConditionType) Labels {
+	if rct == Allow {
+		return r.Spec.Allow.LinuxDesktopLabels
+	}
+	return r.Spec.Deny.LinuxDesktopLabels
+}
+
+// SetLinuxDesktopLabels sets the desktop labels this role is allowed or denied access to.
+func (r *RoleV6) SetLinuxDesktopLabels(rct RoleConditionType, labels Labels) {
+	if rct == Allow {
+		r.Spec.Allow.LinuxDesktopLabels = labels.Clone()
+	} else {
+		r.Spec.Deny.LinuxDesktopLabels = labels.Clone()
+	}
+}
+
+// GetLinuxLogins gets Linux desktop logins for the role's allow or deny condition.
+func (r *RoleV6) GetLinuxDesktopLogins(rct RoleConditionType) []string {
+	if rct == Allow {
+		return r.Spec.Allow.LinuxDesktopLogins
+	}
+	return r.Spec.Deny.LinuxDesktopLogins
+}
+
+// SetLinuxLogins sets Linux desktop logins for the role's allow or deny condition.
+func (r *RoleV6) SetLinuxDesktopLogins(rct RoleConditionType, logins []string) {
+	lcopy := slices.Clone(logins)
+
+	if rct == Allow {
+		r.Spec.Allow.LinuxDesktopLogins = lcopy
+	} else {
+		r.Spec.Deny.LinuxDesktopLogins = lcopy
+	}
+}
+
 // GetRules gets all allow or deny rules.
 func (r *RoleV6) GetRules(rct RoleConditionType) []Rule {
 	if rct == Allow {
@@ -1468,6 +1522,7 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		r.Spec.Allow.WindowsDesktopLabels,
 		r.Spec.Allow.GroupLabels,
 		r.Spec.Allow.WorkloadIdentityLabels,
+		r.Spec.Allow.BeamLabels,
 	} {
 		if err := checkWildcardSelector(labels); err != nil {
 			return trace.Wrap(err)
@@ -2037,6 +2092,29 @@ func (r *RoleV6) SetPreviewAsRoles(rct RoleConditionType, roles []string) {
 	roleConditions.ReviewRequests.PreviewAsRoles = roles
 }
 
+// GetSubmitForUsers returns the list of users that the reviewer can submit reviews for,
+// to be used by teleport plugins submitting reviews on behalf of users.
+func (r *RoleV6) GetSubmitForUsers(rct RoleConditionType) []string {
+	roleConditions := r.GetRoleConditions(rct)
+	if roleConditions.ReviewRequests == nil {
+		return nil
+	}
+	return roleConditions.ReviewRequests.SubmitForUsers
+}
+
+// SetSubmitForUsers sets the list of users that the reviewer can submit reviews for,
+// to be used by teleport plugins submitting reviews on behalf of users.
+func (r *RoleV6) SetSubmitForUsers(rct RoleConditionType, users []string) {
+	roleConditions := &r.Spec.Allow
+	if rct == Deny {
+		roleConditions = &r.Spec.Deny
+	}
+	if roleConditions.ReviewRequests == nil {
+		roleConditions.ReviewRequests = &AccessReviewConditions{}
+	}
+	roleConditions.ReviewRequests.SubmitForUsers = users
+}
+
 // validateRoleSpecKubeResources validates the Allow/Deny Kubernetes Resources
 // entries.
 func validateRoleSpecKubeResources(version string, spec RoleSpecV6) error {
@@ -2205,7 +2283,8 @@ func (a AccessReviewConditions) IsEmpty() bool {
 	return len(a.ClaimsToRoles) == 0 &&
 		len(a.PreviewAsRoles) == 0 &&
 		len(a.Roles) == 0 &&
-		len(a.Where) == 0
+		len(a.Where) == 0 &&
+		len(a.SubmitForUsers) == 0
 }
 
 // LabelMatchers holds the role label matchers and label expression that are
@@ -2252,12 +2331,16 @@ func (r *RoleV6) GetLabelMatchers(rct RoleConditionType, kind string) (LabelMatc
 		return LabelMatchers{cond.WindowsDesktopLabels, cond.WindowsDesktopLabelsExpression}, nil
 	case KindWindowsDesktopService:
 		return LabelMatchers{cond.WindowsDesktopLabels, cond.WindowsDesktopLabelsExpression}, nil
+	case KindLinuxDesktop:
+		return LabelMatchers{cond.LinuxDesktopLabels, cond.LinuxDesktopLabelsExpression}, nil
 	case KindUserGroup:
 		return LabelMatchers{cond.GroupLabels, cond.GroupLabelsExpression}, nil
 	case KindGitServer:
 		return r.makeGitServerLabelMatchers(cond), nil
 	case KindWorkloadIdentity:
 		return LabelMatchers{cond.WorkloadIdentityLabels, cond.WorkloadIdentityLabelsExpression}, nil
+	case KindBeam:
+		return LabelMatchers{cond.BeamLabels, cond.BeamLabelsExpression}, nil
 	}
 	return LabelMatchers{}, trace.BadParameter("can't get label matchers for resource kind %q", kind)
 }
@@ -2314,6 +2397,10 @@ func (r *RoleV6) SetLabelMatchers(rct RoleConditionType, kind string, labelMatch
 	case KindWorkloadIdentity:
 		cond.WorkloadIdentityLabels = labelMatchers.Labels
 		cond.WorkloadIdentityLabelsExpression = labelMatchers.Expression
+		return nil
+	case KindBeam:
+		cond.BeamLabels = labelMatchers.Labels
+		cond.BeamLabelsExpression = labelMatchers.Expression
 		return nil
 	}
 	return trace.BadParameter("can't set label matchers for resource kind %q", kind)
@@ -2429,6 +2516,7 @@ var LabelMatcherKinds = []string{
 	KindWindowsDesktop,
 	KindWindowsDesktopService,
 	KindUserGroup,
+	KindBeam,
 }
 
 const (
@@ -2546,6 +2634,16 @@ func (h *CreateHostUserMode) UnmarshalJSON(data []byte) error {
 	}
 
 	err = h.decode(val)
+	return trace.Wrap(err)
+}
+
+// UnmarshalText supports parsing CreateHostUserMode from string.
+//
+// The JSON and YAML unmarshaller will not call this method because CreateHostUserMode
+// also implements yaml/json.Unmarshaler, which takes precedence.
+// Callers that have a plain string should call UnmarshalText directly.
+func (h *CreateHostUserMode) UnmarshalText(text []byte) error {
+	err := h.decode(string(text))
 	return trace.Wrap(err)
 }
 

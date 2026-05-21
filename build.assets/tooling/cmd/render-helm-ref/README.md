@@ -13,8 +13,8 @@ go run ./cmd/render-helm-ref/ \
 
 ### `values.yaml` syntax
 
-See [the test data `values.yaml`](./testdata/values.yaml) for an example input,
-and [its expected output](./testdata/values.yaml)
+See [the test data `values.yaml`](../../lib/helm/testdata/values.yaml) for an example input,
+and [its expected output](../../lib/helm/testdata/values.yaml)
 
 ### Why?
 

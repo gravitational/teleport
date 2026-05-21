@@ -163,6 +163,8 @@ const (
 	PreconditionKind_PRECONDITION_KIND_UNSPECIFIED PreconditionKind = 0
 	// PreconditionKindInBandMFA requires in-band MFA to be completed.
 	PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA PreconditionKind = 1
+	// PreconditionKindPinSourceIP enforces the client IP observed at login matches the client IP of SSH connections.
+	PreconditionKind_PRECONDITION_KIND_PIN_SOURCE_IP PreconditionKind = 2
 )
 
 // Enum value maps for PreconditionKind.
@@ -170,10 +172,12 @@ var (
 	PreconditionKind_name = map[int32]string{
 		0: "PRECONDITION_KIND_UNSPECIFIED",
 		1: "PRECONDITION_KIND_IN_BAND_MFA",
+		2: "PRECONDITION_KIND_PIN_SOURCE_IP",
 	}
 	PreconditionKind_value = map[string]int32{
-		"PRECONDITION_KIND_UNSPECIFIED": 0,
-		"PRECONDITION_KIND_IN_BAND_MFA": 1,
+		"PRECONDITION_KIND_UNSPECIFIED":   0,
+		"PRECONDITION_KIND_IN_BAND_MFA":   1,
+		"PRECONDITION_KIND_PIN_SOURCE_IP": 2,
 	}
 )
 
@@ -769,7 +773,9 @@ type LockTarget struct {
 	// JoinToken is the name of the join token used when this identity originally
 	// joined. This only applies to bot identities, and cannot be used to target
 	// bots that joined via the `token` join method.
-	JoinToken     string `protobuf:"bytes,10,opt,name=join_token,json=joinToken,proto3" json:"join_token,omitempty"`
+	JoinToken string `protobuf:"bytes,10,opt,name=join_token,json=joinToken,proto3" json:"join_token,omitempty"`
+	// LinuxDesktop specifies the name of a Linux desktop.
+	LinuxDesktop  string `protobuf:"bytes,11,opt,name=linux_desktop,json=linuxDesktop,proto3" json:"linux_desktop,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -870,6 +876,13 @@ func (x *LockTarget) GetBotInstanceId() string {
 func (x *LockTarget) GetJoinToken() string {
 	if x != nil {
 		return x.JoinToken
+	}
+	return ""
+}
+
+func (x *LockTarget) GetLinuxDesktop() string {
+	if x != nil {
+		return x.LinuxDesktop
 	}
 	return ""
 }
@@ -1048,7 +1061,7 @@ const file_teleport_decision_v1alpha1_ssh_access_proto_rawDesc = "" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\"Y\n" +
 	"\x0fSSHAccessDenial\x12F\n" +
-	"\bmetadata\x18\x01 \x01(\v2*.teleport.decision.v1alpha1.DenialMetadataR\bmetadata\"\xb5\x02\n" +
+	"\bmetadata\x18\x01 \x01(\v2*.teleport.decision.v1alpha1.DenialMetadataR\bmetadata\"\xda\x02\n" +
 	"\n" +
 	"LockTarget\x12\x12\n" +
 	"\x04user\x18\x01 \x01(\tR\x04user\x12\x12\n" +
@@ -1063,7 +1076,8 @@ const file_teleport_decision_v1alpha1_ssh_access_proto_rawDesc = "" +
 	"\x0fbot_instance_id\x18\t \x01(\tR\rbotInstanceId\x12\x1d\n" +
 	"\n" +
 	"join_token\x18\n" +
-	" \x01(\tR\tjoinToken\"\x9f\x01\n" +
+	" \x01(\tR\tjoinToken\x12#\n" +
+	"\rlinux_desktop\x18\v \x01(\tR\flinuxDesktop\"\x9f\x01\n" +
 	"\rHostUsersInfo\x12\x16\n" +
 	"\x06groups\x18\x01 \x03(\tR\x06groups\x12<\n" +
 	"\x04mode\x18\x02 \x01(\x0e2(.teleport.decision.v1alpha1.HostUserModeR\x04mode\x12\x10\n" +
@@ -1082,10 +1096,11 @@ const file_teleport_decision_v1alpha1_ssh_access_proto_rawDesc = "" +
 	"\x1aHOST_USER_MODE_UNSPECIFIED\x10\x00\x12\x17\n" +
 	"\x13HOST_USER_MODE_KEEP\x10\x01\x12\x17\n" +
 	"\x13HOST_USER_MODE_DROP\x10\x02\x12\x19\n" +
-	"\x15HOST_USER_MODE_STATIC\x10\x03*X\n" +
+	"\x15HOST_USER_MODE_STATIC\x10\x03*}\n" +
 	"\x10PreconditionKind\x12!\n" +
 	"\x1dPRECONDITION_KIND_UNSPECIFIED\x10\x00\x12!\n" +
-	"\x1dPRECONDITION_KIND_IN_BAND_MFA\x10\x01BZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1;decisionpbb\x06proto3"
+	"\x1dPRECONDITION_KIND_IN_BAND_MFA\x10\x01\x12#\n" +
+	"\x1fPRECONDITION_KIND_PIN_SOURCE_IP\x10\x02BZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1;decisionpbb\x06proto3"
 
 var (
 	file_teleport_decision_v1alpha1_ssh_access_proto_rawDescOnce sync.Once

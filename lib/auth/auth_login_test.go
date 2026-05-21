@@ -1849,19 +1849,15 @@ func TestSSOPasswordBypass(t *testing.T) {
 // TestSSOAccountRecoveryProhibited tests that SSO users cannot perform account
 // recovery.
 func TestSSOAccountRecoveryProhibited(t *testing.T) {
-	// Can't t.Parallel because of modules.SetTestModules.
-
-	testServer := newTestTLSServer(t)
-	authServer := testServer.Auth()
-	clock := testServer.Clock()
-	ctx := context.Background()
-
-	// Enable RecoveryCodes feature.
-	modulestest.SetTestModules(t, modulestest.Modules{
+	t.Parallel()
+	testServer := newTestTLSServer(t, withModules(&modulestest.Modules{
 		TestFeatures: modules.Features{
 			RecoveryCodes: true,
 		},
-	})
+	}))
+	authServer := testServer.Auth()
+	clock := testServer.Clock()
+	ctx := t.Context()
 
 	// Make second factor mandatory.
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -2024,7 +2020,7 @@ func TestServer_Authenticate_nonPasswordlessRequiresUsername(t *testing.T) {
 func TestServer_Authenticate_headless(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	headlessID := services.NewHeadlessAuthenticationID([]byte(sshPubKey))
 
 	for _, tc := range []struct {
@@ -2032,6 +2028,7 @@ func TestServer_Authenticate_headless(t *testing.T) {
 		timeout     time.Duration
 		update      func(*types.HeadlessAuthentication, *types.MFADevice)
 		assertError require.ErrorAssertionFunc
+		assertResp  func(*testing.T, *authclient.CLILoginResponse, *authtest.Device)
 	}{
 		{
 			name:    "OK approved",
@@ -2041,6 +2038,20 @@ func TestServer_Authenticate_headless(t *testing.T) {
 				ha.MfaDevice = mfa
 			},
 			assertError: require.NoError,
+			assertResp: func(t *testing.T, resp *authclient.CLILoginResponse, webDev *authtest.Device) {
+				require.NotNil(t, resp)
+				require.NotNil(t, webDev)
+				require.NotNil(t, webDev.MFA)
+
+				sshCert, err := sshutils.ParseCertificate(resp.Cert)
+				require.NoError(t, err)
+
+				identity, err := sshca.DecodeIdentity(sshCert)
+				require.NoError(t, err)
+
+				assert.Equal(t, webDev.MFA.GetName(), identity.MFAVerified)
+				assert.Equal(t, headlessID, identity.HeadlessAuthenticationID)
+			},
 		}, {
 			name:    "NOK approved without MFA",
 			timeout: 10 * time.Second,
@@ -2048,7 +2059,10 @@ func TestServer_Authenticate_headless(t *testing.T) {
 				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED
 			},
 			assertError: func(t require.TestingT, err error, i ...any) {
-				require.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
+				assert.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
+			},
+			assertResp: func(t *testing.T, resp *authclient.CLILoginResponse, _ *authtest.Device) {
+				assert.Nil(t, resp)
 			},
 		}, {
 			name:    "NOK denied",
@@ -2057,18 +2071,23 @@ func TestServer_Authenticate_headless(t *testing.T) {
 				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED
 			},
 			assertError: func(t require.TestingT, err error, i ...any) {
-				require.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
+				assert.True(t, trace.IsAccessDenied(err), "expected access denied error but got %v", err)
+			},
+			assertResp: func(t *testing.T, resp *authclient.CLILoginResponse, _ *authtest.Device) {
+				assert.Nil(t, resp)
 			},
 		}, {
 			name:    "NOK timeout",
 			timeout: 100 * time.Millisecond,
 			assertError: func(t require.TestingT, err error, i ...any) {
-				require.ErrorIs(t, err, context.DeadlineExceeded)
+				assert.ErrorIs(t, err, context.DeadlineExceeded)
+			},
+			assertResp: func(t *testing.T, resp *authclient.CLILoginResponse, _ *authtest.Device) {
+				assert.Nil(t, resp)
 			},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			tc := tc
 			t.Parallel()
 
 			srv := newTestTLSServer(t)
@@ -2114,7 +2133,7 @@ func TestServer_Authenticate_headless(t *testing.T) {
 				}
 			}()
 
-			_, err = proxyClient.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
+			resp, err := proxyClient.AuthenticateSSHUser(ctx, authclient.AuthenticateSSHRequest{
 				AuthenticateUserRequest: authclient.AuthenticateUserRequest{
 					// HeadlessAuthenticationID should take precedence over WebAuthn and OTP fields.
 					HeadlessAuthenticationID: headlessID,
@@ -2134,6 +2153,7 @@ func TestServer_Authenticate_headless(t *testing.T) {
 			assert.NoError(t, <-errC, "Failed to get and update headless authentication in background")
 
 			tc.assertError(t, err, trace.DebugReport(err))
+			tc.assertResp(t, resp, mfa.WebDev)
 		})
 	}
 }

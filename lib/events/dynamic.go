@@ -193,6 +193,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.AppSessionRequest{}
 	case AppSessionDynamoDBRequestEvent:
 		e = &events.AppSessionDynamoDBRequest{}
+	case AppSessionLLMRequestSuccessEvent, AppSessionLLMRequestFailureEvent:
+		e = &events.AppSessionLLMRequest{}
 	case AppCreateEvent:
 		e = &events.AppCreate{}
 	case AppUpdateEvent:
@@ -320,10 +322,14 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.SFTP{}
 	case UpgradeWindowStartUpdateEvent:
 		e = &events.UpgradeWindowStartUpdate{}
+	case EnvironmentProfileUpdateEvent:
+		e = &events.EnvironmentProfileUpdate{}
 	case SessionRecordingAccessEvent:
 		e = &events.SessionRecordingAccess{}
 	case SSMRunEvent:
 		e = &events.SSMRun{}
+	case AzureRunEvent:
+		e = &events.AzureRun{}
 	case KubernetesClusterCreateEvent:
 		e = &events.KubernetesClusterCreate{}
 	case KubernetesClusterUpdateEvent:
@@ -621,6 +627,12 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.InferencePolicyUpdate{}
 	case InferencePolicyDeleteEvent:
 		e = &events.InferencePolicyDelete{}
+	case RetrievalModelCreateEvent:
+		e = &events.RetrievalModelCreate{}
+	case RetrievalModelUpdateEvent:
+		e = &events.RetrievalModelUpdate{}
+	case RetrievalModelDeleteEvent:
+		e = &events.RetrievalModelDelete{}
 
 	case SessionSummarizedEvent:
 		e = &events.SessionSummarized{}

@@ -52,7 +52,6 @@ import (
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -72,10 +71,12 @@ func TestTeleterm(t *testing.T) {
 		dbhelpers.WithLeafConfig(func(config *servicecfg.Config) {
 			config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			config.InsecureMode = true
+			config.Modules = modulestest.EnterpriseModules()
 		}),
 		dbhelpers.WithRootConfig(func(config *servicecfg.Config) {
 			config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			config.InsecureMode = true
+			config.Modules = modulestest.EnterpriseModules()
 		}),
 	)
 	pack.WaitForLeaf(t)
@@ -557,10 +558,17 @@ func testClientCache(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.
 	require.NoError(t, err)
 	require.Equal(t, concurrentCallsForClient[0], secondCallForClient)
 
-	// Let's remove the client from the cache.
-	// The call to GetCachedClient will
-	// connect to proxy and return a new client.
-	err = daemonService.ClearCachedClientsForRoot(cluster.URI)
+	// Reissue user certs by assuming a role with a bogus ID in DropAccessRequests.
+	// This makes the cached client stale.
+	accessRequest := &api.AssumeRoleRequest{
+		RootClusterUri: cluster.URI.String(),
+		DropRequestIds: []string{"does-not-matter"},
+	}
+	err = cluster.AssumeRole(ctx, secondCallForClient, accessRequest)
+	require.NoError(t, err)
+
+	// Clearing stale clients should delete the stale client and force a new one.
+	err = daemonService.ClearStaleCachedClientsForRoot(cluster.URI)
 	require.NoError(t, err)
 	thirdCallForClient, err := daemonService.GetCachedClient(ctx, cluster.URI)
 	require.NoError(t, err)
@@ -1300,11 +1308,6 @@ func testListDatabaseUsersFromUnifiedResources(t *testing.T, pack *dbhelpers.Dat
 			require.Equal(t, roles, user.GetRoles())
 		}, 10*time.Second, 100*time.Millisecond)
 	}
-
-	// Allow resource access requests to be created.
-	currentModules := modules.GetModules()
-	t.Cleanup(func() { modules.SetModules(currentModules) })
-	modules.SetModules(&modulestest.Modules{TestBuildType: modules.BuildEnterprise})
 
 	rootClusterName, _, err := net.SplitHostPort(pack.Root.Cluster.Web)
 	require.NoError(t, err)

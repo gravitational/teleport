@@ -24,7 +24,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/mfa"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
-	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/mfatypes"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 )
@@ -35,13 +35,13 @@ func NewTDPMFAPrompt(rw tdp.MessageReadWriter, withheld *[]tdp.Message, log *slo
 	return func(channelID string) mfa.PromptFunc {
 		convert := func(chal *proto.MFAAuthenticateChallenge) (tdp.Message, error) {
 			// Convert from proto to JSON types.
-			var challenge client.MFAAuthenticateChallenge
+			var challenge mfatypes.MFAAuthenticateChallenge
 			if chal.WebauthnChallenge != nil {
 				challenge.WebauthnChallenge = wantypes.CredentialAssertionFromProto(chal.WebauthnChallenge)
 			}
 
 			if chal.SSOChallenge != nil {
-				challenge.SSOChallenge = client.SSOChallengeFromProto(chal.SSOChallenge)
+				challenge.SSOChallenge = mfatypes.SSOChallengeFromProto(chal.SSOChallenge)
 				challenge.SSOChallenge.ChannelID = channelID
 			}
 

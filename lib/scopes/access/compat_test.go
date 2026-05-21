@@ -22,6 +22,8 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
@@ -221,31 +223,192 @@ func TestRulesConversion(t *testing.T) {
 	}
 }
 
+func baseScopedRole() *scopedaccessv1.ScopedRole {
+	return &scopedaccessv1.ScopedRole{
+		Kind:     KindScopedRole,
+		Metadata: &headerv1.Metadata{Name: "test"},
+		Scope:    "/foo",
+		Spec: &scopedaccessv1.ScopedRoleSpec{
+			AssignableScopes: []string{"/foo/bar"},
+			Ssh:              &scopedaccessv1.ScopedRoleSSH{},
+			Kube:             &scopedaccessv1.ScopedRoleKube{},
+		},
+		Version: types.V1,
+	}
+}
+
+func ptr[T any](v T) *T { return &v }
+
 // TestClientIdleTimeoutNotInClassicRole verifies that ScopedRoleToRole does not populate ClientIdleTimeout
 // in the classic role options. Per the scoped role design, client_idle_timeout is read directly from the
 // appropriate protocol block on the scoped role, which does not have a direct classic role equivalent.
 func TestClientIdleTimeoutNotInClassicRole(t *testing.T) {
 	t.Parallel()
 
-	role, err := ScopedRoleToRole(&scopedaccessv1.ScopedRole{
-		Kind: KindScopedRole,
-		Metadata: &headerv1.Metadata{
-			Name: "test",
-		},
-		Scope: "/foo",
-		Spec: &scopedaccessv1.ScopedRoleSpec{
-			AssignableScopes: []string{"/foo/bar"},
-			Ssh: &scopedaccessv1.ScopedRoleSSH{
-				ClientIdleTimeout: "30m",
-			},
-		},
-		Version: types.V1,
-	}, "/foo/bar")
+	sr := baseScopedRole()
+	sr.Spec.Ssh.ClientIdleTimeout = "30m"
+
+	role, err := ScopedRoleToRole(sr, "/foo/bar")
 	require.NoError(t, err)
 	require.NotNil(t, role)
 	// ClientIdleTimeout must be zero in the converted role; it is evaluated at access-check time
 	// via SSHAccessChecker.AdjustClientIdleTimeout reading directly from the scoped role proto.
 	require.Zero(t, role.GetOptions().ClientIdleTimeout.Duration())
+}
+
+func TestX11ForwardingNotInClassicRole(t *testing.T) {
+	t.Parallel()
+
+	sr := baseScopedRole()
+	sr.Spec.Ssh.PermitX11Forwarding = ptr(true)
+
+	role, err := ScopedRoleToRole(sr, "/foo/bar")
+	require.NoError(t, err)
+	require.Equal(t, types.NewBool(false), role.GetOptions().PermitX11Forwarding)
+}
+
+func TestForwardAgentNotInClassicRole(t *testing.T) {
+	t.Parallel()
+
+	sr := baseScopedRole()
+	sr.Spec.Ssh.ForwardAgent = ptr(true)
+
+	role, err := ScopedRoleToRole(sr, "/foo/bar")
+	require.NoError(t, err)
+	require.Equal(t, types.NewBool(UnstableGetScopedForwardAgent()), role.GetOptions().ForwardAgent)
+}
+
+func TestMaxSessionsNotInClassicRole(t *testing.T) {
+	t.Parallel()
+
+	sr := baseScopedRole()
+	sr.Spec.Ssh.MaxSessions = ptr(int64(10))
+
+	role, err := ScopedRoleToRole(sr, "/foo/bar")
+	require.NoError(t, err)
+	require.Equal(t, int64(0), role.GetOptions().MaxSessions)
+}
+
+func TestSSHPortForwardingNotInClassicRole(t *testing.T) {
+	t.Parallel()
+
+	sr := baseScopedRole()
+	sr.Spec.Ssh.PortForwarding = &scopedaccessv1.SSHPortForwarding{
+		Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: ptr(false)},
+		Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: ptr(false)},
+	}
+
+	role, err := ScopedRoleToRole(sr, "/foo/bar")
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(getScopedPortForwardingConfig(), role.GetOptions().SSHPortForwarding))
+}
+
+func TestHostUserCreationNotInClassicRole(t *testing.T) {
+	t.Parallel()
+
+	sr := baseScopedRole()
+	sr.Spec.Ssh.HostUserCreation = &scopedaccessv1.CreateHostUser{
+		Mode: "keep",
+	}
+
+	role, err := ScopedRoleToRole(sr, "/foo/bar")
+	require.NoError(t, err)
+	require.Equal(t, types.CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED, role.GetOptions().CreateHostUserMode)
+}
+
+func TestSSHFileCopyNotInClassicRole(t *testing.T) {
+	t.Parallel()
+
+	sr := baseScopedRole()
+	sr.Spec.Ssh.FileCopy = ptr(false)
+
+	role, err := ScopedRoleToRole(sr, "/foo/bar")
+	require.NoError(t, err)
+	require.Equal(t, types.NewBoolOption(true), role.GetOptions().SSHFileCopy)
+}
+
+func TestEnhancedRecordingNotInClassicRole(t *testing.T) {
+	t.Parallel()
+
+	sr := baseScopedRole()
+	sr.Spec.Ssh.EnhancedRecording = &scopedaccessv1.EnhancedRecording{
+		Command: ptr(true),
+		Network: ptr(true),
+		Disk:    ptr(true),
+	}
+	role, err := ScopedRoleToRole(sr, "/foo/bar")
+	require.NoError(t, err)
+	// BPF is the classic role equivalent of enhanced_recording.
+	require.Equal(t, apidefaults.EnhancedEvents(), role.GetOptions().BPF)
+}
+
+func TestDisconnectExpiredCertNotInClassicRole(t *testing.T) {
+	t.Parallel()
+
+	sr := baseScopedRole()
+	sr.Spec.Ssh.DisconnectExpiredCert = ptr(true)
+
+	role, err := ScopedRoleToRole(sr, "/foo/bar")
+	require.NoError(t, err)
+	require.Equal(t, types.NewBool(false), role.GetOptions().DisconnectExpiredCert)
+}
+
+func TestKubeDisconnectExpiredCertNotInClassicRole(t *testing.T) {
+	t.Parallel()
+
+	sr := baseScopedRole()
+	sr.Spec.Kube = &scopedaccessv1.ScopedRoleKube{
+		DisconnectExpiredCert: ptr(true),
+	}
+
+	role, err := ScopedRoleToRole(sr, "/foo/bar")
+	require.NoError(t, err)
+	require.Equal(t, types.NewBool(false), role.GetOptions().DisconnectExpiredCert)
+}
+
+func TestSessionRecordingNotInClassicRole(t *testing.T) {
+	t.Parallel()
+
+	sr := baseScopedRole()
+	sr.Spec.Ssh.SessionRecording = &scopedaccessv1.SessionRecording{
+		Mode: string(constants.SessionRecordingModeBestEffort),
+	}
+
+	role, err := ScopedRoleToRole(sr, "/foo/bar")
+	require.NoError(t, err)
+
+	// RecordSession is the classic role equivalent of session_recording_mode.
+	require.Equal(t, &types.RecordSession{
+		Desktop: types.NewBoolOption(true),
+		Default: constants.SessionRecordingModeBestEffort,
+	}, role.GetOptions().RecordSession)
+}
+
+func TestSSHLockingModeNotInClassicRole(t *testing.T) {
+	t.Parallel()
+
+	sr := baseScopedRole()
+	sr.Spec.Ssh.Lock = &scopedaccessv1.Lock{
+		Mode: "strict",
+	}
+
+	role, err := ScopedRoleToRole(sr, "/foo/bar")
+	require.NoError(t, err)
+
+	require.Empty(t, string(role.GetOptions().Lock))
+}
+
+func TestKubeLockingModeNotInClassicRole(t *testing.T) {
+	t.Parallel()
+
+	sr := baseScopedRole()
+	sr.Spec.Kube.Lock = &scopedaccessv1.Lock{
+		Mode: "strict",
+	}
+
+	role, err := ScopedRoleToRole(sr, "/foo/bar")
+	require.NoError(t, err)
+	require.Empty(t, string(role.GetOptions().Lock))
 }
 
 // TestKubeConversion verifies the various kube-related scoped role conversion scenarios.

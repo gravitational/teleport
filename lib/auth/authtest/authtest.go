@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"fmt"
 	"net"
 	"strings"
 	"testing"
@@ -367,6 +368,7 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 	srv.AuthServer, err = auth.NewServer(&auth.InitConfig{
 		DataDir:                      cfg.Dir,
 		Backend:                      srv.Backend,
+		Modules:                      cfg.Modules,
 		VersionStorage:               NewFakeTeleportVersion(),
 		Authority:                    authority,
 		Access:                       access,
@@ -602,11 +604,13 @@ func InitAuthCache(p AuthCacheParams) error {
 		AccessMonitoringRules:   p.AuthServer.Services.AccessMonitoringRules,
 		AppSession:              p.AuthServer.Services.IdentityInternal,
 		Applications:            p.AuthServer.Services.ApplicationsInternal,
+		Beams:                   p.AuthServer.Services.Beams,
 		ClusterConfig:           p.AuthServer.Services.ClusterConfigurationInternal,
 		CrownJewels:             p.AuthServer.Services.CrownJewels,
 		DatabaseObjects:         p.AuthServer.Services.DatabaseObjects,
 		DatabaseServices:        p.AuthServer.Services.DatabaseServices,
 		Databases:               p.AuthServer.Services.Databases,
+		DelegationSessions:      p.AuthServer.Services.DelegationSessions,
 		DiscoveryConfigs:        p.AuthServer.Services.DiscoveryConfigs,
 		DynamicAccess:           p.AuthServer.Services.DynamicAccessExt,
 		Events:                  p.AuthServer.Services.Events,
@@ -632,6 +636,7 @@ func InitAuthCache(p AuthCacheParams) error {
 		WebToken:                p.AuthServer.Services.IdentityInternal,
 		WorkloadIdentity:        p.AuthServer.Services.WorkloadIdentities,
 		DynamicWindowsDesktops:  p.AuthServer.Services.DynamicWindowsDesktops,
+		LinuxDesktops:           p.AuthServer.Services.LinuxDesktops,
 		WindowsDesktops:         p.AuthServer.Services.WindowsDesktops,
 		AutoUpdateService:       p.AuthServer.Services.AutoUpdateService,
 		ProvisioningStates:      p.AuthServer.Services.ProvisioningStates,
@@ -644,7 +649,8 @@ func InitAuthCache(p AuthCacheParams) error {
 		Plugin:                  p.AuthServer.Services.Plugins,
 		AppAuthConfig:           p.AuthServer.Services.AppAuthConfig,
 		StaticScopedToken:       p.AuthServer.Services.ClusterConfigurationInternal,
-		WorkloadClusterService:  p.AuthServer.Services.WorkloadClusterService,
+		Summarizer:              p.AuthServer.Services.Summarizer,
+		SubCAService:            p.AuthServer.Services.SubCAService,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -753,6 +759,8 @@ func generateCertificate(authServer *auth.Server, identity TestIdentity) ([]byte
 			Renewable:                identity.Renewable,
 			Usage:                    identity.AcceptedUsage,
 			Scope:                    identity.Scope,
+			BotInternal:              id.Identity.BotInternal,
+			DisallowReissue:          id.Identity.DisallowReissue,
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -769,6 +777,7 @@ func generateCertificate(authServer *auth.Server, identity TestIdentity) ([]byte
 				PublicSSHKey: sshPublicKeyPEM,
 				SystemRoles:  id.AdditionalSystemRoles,
 			},
+			AgentScope: id.Identity.AgentScope,
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
@@ -1122,6 +1131,39 @@ func TestScopedUser(username string, scope string) TestIdentity {
 	}
 }
 
+// TestBot returns a TestIdentity for an unscoped bot user
+func TestBot(botName string, botInternal bool) TestIdentity {
+	userName := fmt.Sprintf("bot-%s", botName)
+	return TestIdentity{
+		I: authz.LocalUser{
+			Username: userName,
+			Identity: tlsca.Identity{
+				Username: userName,
+				// GenerateUserTestCertsWithContext will inject BotName and
+				// BotInstanceID.
+				BotInternal: botInternal,
+			},
+		},
+	}
+}
+
+// TestScopedBot returns a TestIdentity for a scoped bot user
+func TestScopedBot(botName string, scope string, botInternal bool) TestIdentity {
+	userName := fmt.Sprintf("bot-%s", botName)
+	return TestIdentity{
+		I: authz.LocalUser{
+			Username: userName,
+			Identity: tlsca.Identity{
+				Username: userName,
+				// GenerateUserTestCertsWithContext will inject BotName and
+				// BotInstanceID.
+				BotInternal: botInternal,
+			},
+		},
+		Scope: scope,
+	}
+}
+
 // TestUserWithRoles returns a local user TestIdentity with the specified username and roles.
 func TestUserWithRoles(username string, roles []string) TestIdentity {
 	return TestIdentity{
@@ -1180,6 +1222,16 @@ func TestAdmin() TestIdentity {
 func TestBuiltin(role types.SystemRole) TestIdentity {
 	return TestIdentity{
 		I: authz.BuiltinRole{
+			Role:     role,
+			Username: string(role),
+		},
+	}
+}
+
+// TestUnauthenticated returns TestIdentity for unauthenticate user
+func TestUnauthenticated(role types.UnauthenticatedRole) TestIdentity {
+	return TestIdentity{
+		I: authz.UnauthenticatedRole{
 			Role:     role,
 			Username: string(role),
 		},
@@ -1271,7 +1323,7 @@ func (t *TLSServer) ClientTLSConfig(identity TestIdentity) (*tls.Config, error) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if identity.I != nil {
+	if !isUnauthenticated(identity) {
 		cert, err := t.AuthServer.NewCertificate(identity)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1284,6 +1336,14 @@ func (t *TLSServer) ClientTLSConfig(identity TestIdentity) (*tls.Config, error) 
 	}
 	tlsConfig.Time = t.AuthServer.AuthServer.GetClock().Now
 	return tlsConfig, nil
+}
+
+func isUnauthenticated(identity TestIdentity) bool {
+	if identity.I == nil {
+		return true
+	}
+	_, ok := identity.I.(authz.UnauthenticatedRole)
+	return ok
 }
 
 // CloneClient uses the same credentials as the passed client

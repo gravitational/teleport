@@ -911,23 +911,6 @@ func (s *CA) DeleteTunnelConnection(clusterName, connectionName string) error {
 	return s.Delete(context.TODO(), backend.NewKey(tunnelConnectionsPrefix, clusterName, connectionName))
 }
 
-// DeleteTunnelConnections deletes all tunnel connections for cluster
-func (s *CA) DeleteTunnelConnections(clusterName string) error {
-	if clusterName == "" {
-		return trace.BadParameter("missing cluster name")
-	}
-	startKey := backend.ExactKey(tunnelConnectionsPrefix, clusterName)
-	err := s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
-	return trace.Wrap(err)
-}
-
-// DeleteAllTunnelConnections deletes all tunnel connections
-func (s *CA) DeleteAllTunnelConnections() error {
-	startKey := backend.ExactKey(tunnelConnectionsPrefix)
-	err := s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
-	return trace.Wrap(err)
-}
-
 // CreateRemoteCluster creates a remote cluster
 func (s *CA) CreateRemoteCluster(ctx context.Context, rc types.RemoteCluster) (types.RemoteCluster, error) {
 	rev, err := s.CreateRemoteClusterInternal(ctx, rc, nil)

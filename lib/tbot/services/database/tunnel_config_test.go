@@ -32,11 +32,12 @@ func TestDatabaseTunnelService_YAML(t *testing.T) {
 		{
 			name: "full",
 			in: TunnelConfig{
-				Listen:   "tcp://0.0.0.0:3621",
-				Roles:    []string{"role1", "role2"},
-				Service:  "service",
-				Database: "database",
-				Username: "username",
+				Listen:              "tcp://0.0.0.0:3621",
+				Roles:               []string{"role1", "role2"},
+				Service:             "service",
+				Database:            "database",
+				Username:            "username",
+				DelegationSessionID: "8a50ba48-2fad-4c2c-a8ce-f48bc18db9ee",
 				CredentialLifetime: bot.CredentialLifetime{
 					TTL:             1 * time.Minute,
 					RenewalInterval: 30 * time.Second,
@@ -111,6 +112,33 @@ func TestDatabaseTunnelService_CheckAndSetDefaults(t *testing.T) {
 				}
 			},
 			wantErr: "username: should not be empty",
+		},
+		{
+			name: "delegation session id conflicts with roles",
+			in: func() *TunnelConfig {
+				return &TunnelConfig{
+					Listen:              "tcp://0.0.0.0:3621",
+					Roles:               []string{"role1", "role2"},
+					Service:             "service",
+					Database:            "database",
+					Username:            "username",
+					DelegationSessionID: "8a50ba48-2fad-4c2c-a8ce-f48bc18db9ee",
+				}
+			},
+			wantErr: "delegation_session_id: is mutually-exclusive with roles",
+		},
+		{
+			name:   "scoped",
+			scoped: true,
+			in: func() *TunnelConfig {
+				return &TunnelConfig{
+					Listen:   "tcp://0.0.0.0:3621",
+					Service:  "service",
+					Database: "database",
+					Username: "username",
+				}
+			},
+			wantErr: "is not supported in scoped mode",
 		},
 	}
 	testCheckAndSetDefaults(t, tests)

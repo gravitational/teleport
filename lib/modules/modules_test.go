@@ -42,7 +42,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestOSSModules(t *testing.T) {
-	require.False(t, modules.GetModules().IsBoringBinary())
+	require.False(t, modules.GetModules().IsFIPSBuild())
 	require.Equal(t, modules.BuildOSS, modules.GetModules().BuildType())
 }
 
@@ -143,7 +143,9 @@ func TestFeatures_ToProto(t *testing.T) {
 			string(entitlements.AccessLists):                {Enabled: true, Limit: 111},
 			string(entitlements.AccessMonitoring):           {Enabled: true, Limit: 2113},
 			string(entitlements.AccessRequests):             {Enabled: true, Limit: 39},
+			string(entitlements.ActivityCenter):             {Enabled: true},
 			string(entitlements.App):                        {Enabled: false},
+			string(entitlements.Beams):                      {Enabled: true},
 			string(entitlements.CloudAuditLogRetention):     {Enabled: true},
 			string(entitlements.ClientIPRestrictions):       {Enabled: true},
 			string(entitlements.DB):                         {Enabled: true},
@@ -163,6 +165,7 @@ func TestFeatures_ToProto(t *testing.T) {
 			string(entitlements.Policy):                     {Enabled: true},
 			string(entitlements.SAML):                       {Enabled: true},
 			string(entitlements.SessionLocks):               {Enabled: true},
+			string(entitlements.SessionSummaries):           {Enabled: true},
 			string(entitlements.UpsellAlert):                {Enabled: true},
 			string(entitlements.UsageReporting):             {Enabled: true},
 			string(entitlements.UnrestrictedManagedUpdates): {Enabled: true},
@@ -175,6 +178,7 @@ func TestFeatures_ToProto(t *testing.T) {
 		},
 		AccessGraphDemoMode:  true,
 		ClientIPRestrictions: true,
+		BeamsUI:              true,
 	}
 
 	f := modules.Features{
@@ -194,13 +198,16 @@ func TestFeatures_ToProto(t *testing.T) {
 		RecoveryCodes:              true,
 		AccessMonitoringConfigured: false,
 		CloudAnonymizationKey:      []byte("001"),
+		BeamsUI:                    true,
 		Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
 			entitlements.AccessGraph:                {Enabled: true, Limit: 0},
 			entitlements.AccessGraphDemoMode:        {Enabled: true, Limit: 0},
 			entitlements.AccessLists:                {Enabled: true, Limit: 111},
 			entitlements.AccessMonitoring:           {Enabled: true, Limit: 2113},
 			entitlements.AccessRequests:             {Enabled: true, Limit: 39},
+			entitlements.ActivityCenter:             {Enabled: true, Limit: 0},
 			entitlements.App:                        {Enabled: false, Limit: 0},
+			entitlements.Beams:                      {Enabled: true, Limit: 0},
 			entitlements.ClientIPRestrictions:       {Enabled: true, Limit: 0},
 			entitlements.CloudAuditLogRetention:     {Enabled: true, Limit: 0},
 			entitlements.DB:                         {Enabled: true, Limit: 0},
@@ -220,6 +227,7 @@ func TestFeatures_ToProto(t *testing.T) {
 			entitlements.Policy:                     {Enabled: true, Limit: 0},
 			entitlements.SAML:                       {Enabled: true, Limit: 0},
 			entitlements.SessionLocks:               {Enabled: true, Limit: 0},
+			entitlements.SessionSummaries:           {Enabled: true, Limit: 0},
 			entitlements.UpsellAlert:                {Enabled: true, Limit: 0},
 			entitlements.UsageReporting:             {Enabled: true, Limit: 0},
 			entitlements.UnrestrictedManagedUpdates: {Enabled: true, Limit: 0},

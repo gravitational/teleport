@@ -298,6 +298,44 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 			},
 		},
 		{
+			desc: "github valid enterprise only",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodGitHub,
+					GitHub: &ProvisionTokenSpecV2GitHub{
+						Allow: []*ProvisionTokenSpecV2GitHub_Rule{
+							{
+								Enterprise: "my-enterprise",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "github valid enterprise_id only",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodGitHub,
+					GitHub: &ProvisionTokenSpecV2GitHub{
+						Allow: []*ProvisionTokenSpecV2GitHub_Rule{
+							{
+								EnterpriseID: "123456",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
 			desc: "github ghes valid",
 			token: &ProvisionTokenV2{
 				Metadata: Metadata{
@@ -612,6 +650,87 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 					Kubernetes: &ProvisionTokenSpecV2Kubernetes{
 						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
 							{},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			desc: "kubernetes: valid service_account_name and service_account_namespace",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodKubernetes,
+					Kubernetes: &ProvisionTokenSpecV2Kubernetes{
+						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
+							{
+								ServiceAccountName:      "my-sa",
+								ServiceAccountNamespace: "my-ns",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "kubernetes: valid service_account, service_account_name, and service_account_namespace",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodKubernetes,
+					Kubernetes: &ProvisionTokenSpecV2Kubernetes{
+						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
+							{
+								ServiceAccount:          "my-ns:my-sa",
+								ServiceAccountName:      "my-sa",
+								ServiceAccountNamespace: "my-ns",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "kubernetes: service_account_name without service_account_namespace",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodKubernetes,
+					Kubernetes: &ProvisionTokenSpecV2Kubernetes{
+						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
+							{
+								ServiceAccountName: "my-sa",
+							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			desc: "kubernetes: service_account_namespace without service_account_name",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodKubernetes,
+					Kubernetes: &ProvisionTokenSpecV2Kubernetes{
+						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
+							{
+								ServiceAccountNamespace: "my-ns",
+							},
 						},
 					},
 				},
@@ -1383,6 +1502,64 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 							{
 								DeploymentEnvironmentUUID: "{foo}",
 							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			desc: "azure success with subscription",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodAzure,
+					Azure: &ProvisionTokenSpecV2Azure{
+						Allow: []*ProvisionTokenSpecV2Azure_Rule{
+							{
+								Subscription: "00000000-0000-0000-0000-000000000001",
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			desc: "azure success with tenant only",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodAzure,
+					Azure: &ProvisionTokenSpecV2Azure{
+						Allow: []*ProvisionTokenSpecV2Azure_Rule{
+							{
+								Tenant: "00000000-0000-0000-0000-000000000002",
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			desc: "azure missing subscription and tenant",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodAzure,
+					Azure: &ProvisionTokenSpecV2Azure{
+						Allow: []*ProvisionTokenSpecV2Azure_Rule{
+							{},
 						},
 					},
 				},

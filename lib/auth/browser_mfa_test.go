@@ -523,6 +523,30 @@ func TestCreateAuthenticateChallenge_BrowserMFARequestID(t *testing.T) {
 				assert.ErrorContains(t, err, "stored session lacks challenge extensions")
 			},
 		},
+		{
+			name: "NOK username mismatch",
+			setup: func(t *testing.T) {
+				session := &services.MFASessionData{
+					RequestID:     "test-request-3",
+					Username:      "mismatch",
+					ConnectorID:   constants.BrowserMFA,
+					ConnectorType: constants.BrowserMFA,
+					ChallengeExtensions: &mfatypes.ChallengeExtensions{
+						Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+					},
+				}
+				err := a.UpsertMFASessionData(ctx, session)
+				require.NoError(t, err)
+			},
+			request: &proto.CreateAuthenticateChallengeRequest{
+				Request:             userCredsRequest,
+				BrowserMFARequestID: "test-request-3",
+			},
+			checkError: func(t *testing.T, err error) {
+				assert.ErrorAs(t, err, new(*trace.AccessDeniedError), "CreateAuthenticateChallenge error mismatch")
+				assert.ErrorContains(t, err, "invalid browser MFA request")
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -745,6 +769,20 @@ func TestBrowserMFAChallengeCreation(t *testing.T) {
 				sd, err := a.GetMFASessionData(ctx, chal.BrowserMFAChallenge.RequestId)
 				require.NoError(t, err)
 				assert.Equal(t, mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES, sd.ChallengeExtensions.AllowReuse)
+			},
+		},
+		{
+			name: "NOK SSO redirect URL must not fall back to Browser MFA redirect URL",
+			// Use a user with webauthn to ensure Browser MFA would be triggered if
+			// SSO redirect URL was incorrectly used for the Browser MFA flow.
+			username: env.webauthnUser.GetName(),
+			challengeRequest: &proto.CreateAuthenticateChallengeRequest{
+				ChallengeExtensions:  loginExt,
+				SSOClientRedirectURL: "/web/sso_confirm?channel_id=test-channel",
+				// BrowserMFATSHRedirectURL not set.
+			},
+			assertChallenge: func(t *testing.T, chal *proto.MFAAuthenticateChallenge) {
+				assert.Nil(t, chal.BrowserMFAChallenge, "Browser MFA challenge must not be created when only SSOClientRedirectURL is set")
 			},
 		},
 	} {

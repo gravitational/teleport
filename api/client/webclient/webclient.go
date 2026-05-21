@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"mime"
 	"net"
 	"net/http"
 	"net/url"
@@ -284,10 +285,27 @@ func pingWithClient(cfg *Config, clt *http.Client) (*PingResponse, error) {
 			return nil, trace.Wrap(err, "could not read ping response body; check the network connection")
 		}
 
+		helpQuestion := "is proxy reachable?"
+		if resp.StatusCode == http.StatusNotFound {
+			// More often than not, a 404 from /webapi/ping is going to indicate
+			// that cfg.ProxyAddr is not a Teleport server in the first place.
+			helpQuestion = fmt.Sprintf("is %q a Teleport server?", "https://"+cfg.ProxyAddr)
+		}
+
+		// A non-200 response is not necessarily from the proxy. Something in front
+		// of it (a load balancer, a tunnel like Cloudflare, etc.) can return its
+		// own non-JSON error page.
+		// Only attempt to parse the body as JSON when the Content-Type says so.
+		if contentType, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type")); contentType != "application/json" {
+			slog.DebugContext(req.Context(), "Ping response is not JSON", "content_type", contentType, "body", string(bodyBytes), "error", err)
+
+			return nil, trace.Errorf("/webapi/ping returned a %d response; %s", resp.StatusCode, helpQuestion)
+		}
+
 		errResp := &PingErrorResponse{}
 		if err := json.Unmarshal(bodyBytes, errResp); err != nil {
-			slog.DebugContext(req.Context(), "Could not parse ping response body", "body", string(bodyBytes))
-			return nil, trace.Wrap(err, "cannot parse ping response; is proxy reachable?")
+			slog.DebugContext(req.Context(), "Could not parse ping response body", "body", string(bodyBytes), "error", err)
+			return nil, trace.Errorf("/webapi/ping returned a %d JSON response; %s", resp.StatusCode, helpQuestion)
 		}
 
 		return nil, trace.Wrap(errors.New(errResp.Error.Message), "proxy service returned unsuccessful ping response; Teleport cluster auth may be misconfigured")
@@ -295,7 +313,7 @@ func pingWithClient(cfg *Config, clt *http.Client) (*PingResponse, error) {
 
 	pr := &PingResponse{}
 	if err := json.NewDecoder(resp.Body).Decode(pr); err != nil {
-		return nil, trace.Wrap(err, "cannot parse server response; is %q a Teleport server?", "https://"+cfg.ProxyAddr)
+		return nil, trace.Wrap(err, "cannot parse server ping response; is %q a Teleport server?", "https://"+cfg.ProxyAddr)
 	}
 
 	return pr, nil
@@ -423,9 +441,6 @@ type PingResponse struct {
 	Edition string `json:"edition"`
 	// FIPS represents if Teleport is using FIPS-compliant cryptography.
 	FIPS bool `json:"fips"`
-	// AuthServerScopesStatus reports whether the scopes feature is enabled or not on the auth server.
-	// Possible values: "enabled", "disabled", "unknown".
-	AuthServerScopesStatus string `json:"auth_server_scopes_status,omitempty"`
 }
 
 // PingErrorResponse contains the error from /webapi/ping.
@@ -567,6 +582,10 @@ type AuthenticationSettings struct {
 	// SignatureAlgorithmSuite is the configured signature algorithm suite for
 	// the cluster.
 	SignatureAlgorithmSuite types.SignatureAlgorithmSuite `json:"signature_algorithm_suite,omitempty"`
+	// Scopes reports whether the scopes feature is enabled or not on the auth server.
+	// Possible values: "enabled", "disabled", "unknown".
+	// This value is populated from the auth server's ping endpoint.
+	Scopes string `json:"scopes,omitempty"`
 }
 
 // LocalSettings holds settings for local authentication.

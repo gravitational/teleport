@@ -60,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
@@ -474,18 +475,14 @@ version: v1
 	_, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/materialized/" + assignmentName, "--format=json"})
 	require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
 
-	// Ensure that retrieving the scoped role assignment by name with default sub_kind works.
-	buff, err := runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/" + assignmentName, "--format=json"})
-	require.NoError(t, err)
-	var asByName []*scopedaccessv1.ScopedRoleAssignment
-	err = json.Unmarshal(buff.Bytes(), &asByName)
-	require.NoError(t, err)
-	require.Len(t, asByName, 1)
-	require.Equal(t, assignmentName, asByName[0].GetMetadata().GetName())
+	// Ensure that trying to retrieve the scoped role assignment without a subkind fails.
+	_, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/" + assignmentName, "--format=json"})
+	require.ErrorContains(t, err, "requires an explicit subkind")
 
 	// Ensure that retrieving the scoped role assignment by name with explicit sub_kind works.
-	buff, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/dynamic/" + assignmentName, "--format=json"})
+	buff, err := runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/dynamic/" + assignmentName, "--format=json"})
 	require.NoError(t, err)
+	var asByName []*scopedaccessv1.ScopedRoleAssignment
 	err = json.Unmarshal(buff.Bytes(), &asByName)
 	require.NoError(t, err)
 	require.Len(t, asByName, 1)
@@ -513,6 +510,14 @@ version: v1
 
 	require.Empty(t, cmp.Diff(expectedAssignment, as[0], protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
 
+	// verify delete of assignment fails without subkind
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role_assignment/" + assignmentName})
+	require.ErrorContains(t, err, "requires an explicit subkind")
+
+	// verify delete of assignment fails without materialized subkind.
+	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role_assignment/materialized/" + assignmentName})
+	require.ErrorContains(t, err, "cannot be deleted")
+
 	// verify delete of assignment
 	_, err = runResourceCommand(t, clt, []string{"rm", "scoped_role_assignment/dynamic/" + assignmentName})
 	require.NoError(t, err)
@@ -521,7 +526,7 @@ version: v1
 	timeout = time.After(time.Second * 30)
 	for {
 		// verify assignment is gone
-		_, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/" + assignmentName, "--format=json"})
+		_, err = runResourceCommand(t, clt, []string{"get", "scoped_role_assignment/dynamic/" + assignmentName, "--format=json"})
 		if err != nil {
 			require.True(t, trace.IsNotFound(err), "expected a NotFound error, got %v", err)
 			break
@@ -1676,6 +1681,7 @@ func requireGotDatabaseServers(t *testing.T, buf *bytes.Buffer, want ...types.Da
 	}
 	require.Empty(t, cmp.Diff(types.Databases(want).ToMap(), databases.ToMap(),
 		cmpopts.IgnoreFields(types.Metadata{}, "Namespace", "Expires"),
+		cmpopts.IgnoreFields(types.DatabaseStatusV3{}, "VNetDNSName"),
 	))
 }
 
@@ -2432,22 +2438,22 @@ version: v1
 }
 
 // TestCreateEnterpriseResources asserts that tctl create
-// behaves as expected for enterprise resources. These resources cannot
-// be tested in parallel because they alter the modules to enable features.
-// The tests are grouped to amortize the cost of creating and auth server since
+// behaves as expected for enterprise resources. The tests are
+// grouped to amortize the cost of creating and auth server since
 // that is the most expensive part of testing editing the resource.
 func TestCreateEnterpriseResources(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.OIDC: {Enabled: true},
-				entitlements.SAML: {Enabled: true},
+	t.Parallel()
+	process, err := testenv.NewTeleportProcess(t.TempDir(), testenv.WithConfig(func(cfg *servicecfg.Config) {
+		cfg.Modules = &modulestest.Modules{
+			TestBuildType: modules.BuildEnterprise,
+			TestFeatures: modules.Features{
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.OIDC: {Enabled: true},
+					entitlements.SAML: {Enabled: true},
+				},
 			},
-		},
-	})
-
-	process, err := testenv.NewTeleportProcess(t.TempDir())
+		}
+	}))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, process.Close())

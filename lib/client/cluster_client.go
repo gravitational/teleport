@@ -19,6 +19,7 @@
 package client
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -353,6 +354,7 @@ func (c *ClusterClient) SessionSSHKeyRing(ctx context.Context, user string, targ
 		mfaClt,
 		ReissueParams{
 			NodeName:       nodeName(TargetNode{Addr: target.Addr}),
+			SSHLogin:       user,
 			RouteToCluster: target.Cluster,
 			MFACheck:       target.MFACheck,
 		},
@@ -453,6 +455,8 @@ func (c *ClusterClient) prepareUserCertsRequest(ctx context.Context, params Reis
 		purpose = proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS
 	}
 
+	sshLogin := cmp.Or(params.SSHLogin, c.tc.HostLogin)
+
 	return newUserKeys, &proto.UserCertsRequest{
 		SSHPublicKey:                     sshPub,
 		TLSPublicKey:                     tlsPub,
@@ -469,7 +473,7 @@ func (c *ClusterClient) prepareUserCertsRequest(ctx context.Context, params Reis
 		Usage:                            params.usage(),
 		Format:                           c.tc.CertificateFormat,
 		RequesterName:                    params.RequesterName,
-		SSHLogin:                         c.tc.HostLogin,
+		SSHLogin:                         sshLogin,
 		SSHPublicKeyAttestationStatement: sshAttestationStatement.ToProto(),
 		TLSPublicKeyAttestationStatement: tlsAttestationStatement.ToProto(),
 		Purpose:                          purpose,
@@ -485,30 +489,37 @@ func (c *ClusterClient) performSessionMFACeremony(ctx context.Context, rootClien
 		return nil, trace.Wrap(err)
 	}
 
-	mfaRequiredReq, err := params.isMFARequiredRequest(c.tc.HostLogin)
+	sshLogin := cmp.Or(params.SSHLogin, c.tc.HostLogin)
+	mfaRequiredReq, err := params.isMFARequiredRequest(sshLogin)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	mfaAgainstRoot := c.cluster == rootClient.cluster
+	var leafClusterName string
+	if !mfaAgainstRoot {
+		leafClusterName = c.cluster
 	}
 
 	var promptOpts []mfa.PromptOpt
 	switch {
 	case params.NodeName != "":
-		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Node", params.NodeName))
+		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("node", params.NodeName, leafClusterName))
 	case params.KubernetesCluster != "":
-		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Kubernetes cluster", params.KubernetesCluster))
+		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Kubernetes cluster", params.KubernetesCluster, leafClusterName))
 	case params.RouteToDatabase.ServiceName != "":
-		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Database", params.RouteToDatabase.ServiceName))
+		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("database", params.RouteToDatabase.ServiceName, leafClusterName))
 	case params.RouteToApp.Name != "":
-		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Application", params.RouteToApp.Name))
+		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("application", params.RouteToApp.Name, leafClusterName))
 	case params.RouteToWindowsDesktop.WindowsDesktop != "":
-		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Windows desktop", params.RouteToWindowsDesktop.WindowsDesktop))
+		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Windows desktop", params.RouteToWindowsDesktop.WindowsDesktop, leafClusterName))
 	}
 
 	result, err := PerformSessionMFACeremony(ctx, PerformSessionMFACeremonyParams{
 		CurrentAuthClient: c.AuthClient,
 		RootAuthClient:    rootClient.AuthClient,
 		MFACeremony:       c.tc.NewMFACeremony(),
-		MFAAgainstRoot:    c.cluster == rootClient.cluster,
+		MFAAgainstRoot:    mfaAgainstRoot,
 		MFARequiredReq:    mfaRequiredReq,
 		CertsReq:          certsReq,
 		KeyRing:           keyRing,
@@ -568,7 +579,8 @@ func (c *ClusterClient) IssueUserCertsWithMFA(ctx context.Context, params Reissu
 			}
 		}
 
-		mfaRequiredReq, err := params.isMFARequiredRequest(c.tc.HostLogin)
+		sshLogin := cmp.Or(params.SSHLogin, c.tc.HostLogin)
+		mfaRequiredReq, err := params.isMFARequiredRequest(sshLogin)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

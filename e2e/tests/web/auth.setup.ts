@@ -1,4 +1,4 @@
-/*
+/**
  * Teleport
  * Copyright (C) 2026  Gravitational, Inc.
  *
@@ -16,19 +16,29 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { login } from '@gravitational/e2e/helpers/login';
-import { test as setup } from '@gravitational/e2e/helpers/test';
+import { startUrl, users } from '@gravitational/e2e/helpers/env';
+import { directLogin } from '@gravitational/e2e/helpers/login';
+// oxlint-disable-next-line no-restricted-imports
+import { test as setup } from '@playwright/test';
 
 const authDir = join(dirname(fileURLToPath(import.meta.url)), '../../.auth');
 
-setup('authenticate', async ({ page }, testInfo) => {
-  await login(page);
+mkdirSync(authDir, { recursive: true });
 
-  const browser = testInfo.project.name.split(':')[0];
-  await page
-    .context()
-    .storageState({ path: join(authDir, `${browser}-user.json`) });
-});
+for (const [username, creds] of Object.entries(users)) {
+  // oxlint-disable-next-line no-empty-pattern -- Playwright requires fixture argument to be destructured.
+  setup(`authenticate as ${username}`, async ({}, testInfo) => {
+    const state = await directLogin(startUrl, username, creds.password);
+
+    const browser = testInfo.project.name.split(':')[0];
+
+    writeFileSync(
+      join(authDir, `${browser}-${username}.json`),
+      JSON.stringify(state, null, 2)
+    );
+  });
+}

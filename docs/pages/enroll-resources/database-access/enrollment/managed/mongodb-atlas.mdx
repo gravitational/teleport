@@ -106,7 +106,7 @@ db_service:
 
 (!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
 
-See the full [YAML reference](../../reference/configuration.mdx) for details.
+See the full [config reference](../../../../reference/deployment/config.mdx) for details.
 
 </TabItem>
 </Tabs>
@@ -270,6 +270,8 @@ To retrieve credentials for a database and connect to it:
 ```code
 $ tsh db connect --db-user=alice --db-name dev mongodb-atlas
 ```
+
+(!docs/pages/includes/database-access/proxy-db-tunnel.mdx db="mongodb-atlas" dbArgs="--db-user=alice --db-name=dev"!)
 </TabItem>
 <TabItem label="AWS IAM authentication">
 To retrieve credentials for a database and connect to it, you must provide the

@@ -118,14 +118,16 @@ Database permissions are associated with a Teleport role, which can either alloc
 
 <Tabs>
 <TabItem label="Database roles">
+
 To specify the database roles a user should be assigned within the database,
-use the `db_roles` role option:
+use the `db_roles` role option. To create the role below, open a file called
+`db-user-creator.yaml` with the following content:
 
 ```yaml
 kind: role
 version: v7
 metadata:
-  name: auto-db-users
+  name: db-user-creator
 spec:
   options:
     # create_db_user_mode enables automatic user provisioning for matching databases
@@ -142,6 +144,12 @@ spec:
     - "{{external.db_roles}}"
 ```
 
+Create the role:
+
+```code
+$ tctl create -f db-user-creator.yaml
+```
+
 The provisioned database user will be assigned all roles from the Teleport user's role set that match the database.
 The role names must be valid and exist in the database.
 See PostgreSQL [CREATE ROLE](https://www.postgresql.org/docs/current/sql-createrole.html) for information on how to create database roles.
@@ -151,12 +159,14 @@ See PostgreSQL [CREATE ROLE](https://www.postgresql.org/docs/current/sql-creater
 
 Required Teleport version: v15.2 or above.
 
-Use `spec.allow.db_permissions` section in a user role to specify object permissions given user should have.
+Use `spec.allow.db_permissions` section in a user role to specify object
+permissions given user should have. To create the role below, open a file called
+`all-table-reader.yaml` with the following content:
 
 ```yaml
 kind: role
 metadata:
-  name: read_all_tables
+  name: all-table-reader
 spec:
   options:
     # create_db_user_mode enables automatic user provisioning for matching databases
@@ -175,6 +185,12 @@ spec:
       permissions:
       - SELECT
 version: v7
+```
+
+Create the role:
+
+```code
+$ tctl create -f all-table-reader.yaml
 ```
 
 You can define your own labels for database objects, applying them based on customizable import rules. These custom labels, such as `owner` or `environment`, can then be utilized when granting permissions.

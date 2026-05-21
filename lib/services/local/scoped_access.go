@@ -113,6 +113,10 @@ func (s *ScopedAccessService) ListScopedRoles(ctx context.Context, req *scopedac
 		return nil, trace.NotImplemented("filtering by assignable scope is not implemented for direct backend scoped role reads")
 	}
 
+	if req.GetNameFilter() != "" {
+		return nil, trace.NotImplemented("filtering by name is not implemented for direct backend scoped role reads")
+	}
+
 	if req.GetPageToken() != "" {
 		return nil, trace.NotImplemented("pagination is not implemented for direct backend scoped role reads")
 	}
@@ -232,7 +236,7 @@ func (s *ScopedAccessService) UpdateScopedRole(ctx context.Context, req *scopeda
 	}
 
 	// use the observed revision as the condition so that a concurrent modification is detected.
-	role.GetMetadata().Revision = extant.GetRole().GetMetadata().GetRevision()
+	role = scopedRoleWithRevision(role, extant.GetRole().GetMetadata().GetRevision())
 	item, err := scopedRoleToItem(role)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -268,7 +272,7 @@ func (s *ScopedAccessService) DeleteScopedRole(ctx context.Context, req *scopeda
 		if err := s.bk.Delete(ctx, scopedRoleKey(roleName)); err != nil {
 			if trace.IsNotFound(err) {
 				// generic condition failure keeps error handling simpler
-				return nil, trace.CompareFailed("scoped role %q not found", roleName)
+				return nil, trace.NotFound("scoped role %q not found", roleName)
 			}
 			return nil, trace.Wrap(err)
 		}
@@ -288,7 +292,7 @@ func (s *ScopedAccessService) UpsertScopedRole(ctx context.Context, req *scopeda
 	}
 
 	// upsert operations ignore user-provided revision
-	role.GetMetadata().Revision = ""
+	role = scopedRoleWithRevision(role, "")
 
 	for attempt := range maxScopedResourceUpsertAttempts {
 		if attempt != 0 {
@@ -318,9 +322,8 @@ func (s *ScopedAccessService) UpsertScopedRole(ctx context.Context, req *scopeda
 			return nil, trace.Wrap(err)
 		}
 
-		role.GetMetadata().Revision = existing.GetRole().GetMetadata().GetRevision()
 		rsp, err := s.UpdateScopedRole(ctx, &scopedaccessv1.UpdateScopedRoleRequest{
-			Role: role,
+			Role: scopedRoleWithRevision(role, existing.GetRole().GetMetadata().GetRevision()),
 		})
 		if err != nil {
 			if trace.IsCompareFailed(err) || trace.IsNotFound(err) {
@@ -520,7 +523,7 @@ func (s *ScopedAccessService) UpdateScopedRoleAssignment(ctx context.Context, re
 	}
 
 	// use the observed revision as the condition so that a concurrent modification is detected.
-	assignment.GetMetadata().Revision = extant.GetAssignment().GetMetadata().GetRevision()
+	assignment = scopedRoleAssignmentWithRevision(assignment, extant.GetAssignment().GetMetadata().GetRevision())
 	item, err := scopedRoleAssignmentToItem(assignment)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -550,7 +553,7 @@ func (s *ScopedAccessService) UpsertScopedRoleAssignment(ctx context.Context, re
 	}
 
 	// upsert operations ignore user-provided revision
-	assignment.GetMetadata().Revision = ""
+	assignment = scopedRoleAssignmentWithRevision(assignment, "")
 
 	for attempt := range maxScopedResourceUpsertAttempts {
 		if attempt != 0 {
@@ -623,7 +626,7 @@ func (s *ScopedAccessService) DeleteScopedRoleAssignment(ctx context.Context, re
 		if err := s.bk.Delete(ctx, key); err != nil {
 			if trace.IsNotFound(err) {
 				// generic condition failure keeps error handling simpler
-				return nil, trace.CompareFailed("scoped role assignment %q not found", assignmentName)
+				return nil, trace.NotFound("scoped role assignment %q not found", assignmentName)
 			}
 			return nil, trace.Wrap(err)
 		}

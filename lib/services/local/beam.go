@@ -20,6 +20,8 @@ package local
 
 import (
 	"context"
+	"iter"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -88,13 +90,71 @@ func (s *BeamService) GetBeamByAlias(ctx context.Context, alias string) (*beamsv
 	return s.GetBeam(ctx, string(item.Value))
 }
 
-// ListBeams returns a paginated list of Beam resources.
+// ListBeams lists beams with pagination.
 func (s *BeamService) ListBeams(ctx context.Context, pageSize int, pageToken string) ([]*beamsv1.Beam, string, error) {
-	items, nextKey, err := s.svc.ListResources(ctx, pageSize, pageToken)
+	return s.ListBeamsV2(ctx, pageSize, pageToken, nil)
+}
+
+// ListBeamsV2 lists beams with pagination, sorting and filtering.
+func (s *BeamService) ListBeamsV2(ctx context.Context, pageSize int, pageToken string, options *services.ListBeamsRequestOptions) ([]*beamsv1.Beam, string, error) {
+	// The backend does not support sorting beyond the default (name:asc). This
+	// check raises an error if any other sort is requested. The cache should
+	// provide sorting and there are no plans to implement it here.
+	if err := validateListOptions(options); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	items, nextKey, err := s.svc.ListResourcesWithFilter(ctx, pageSize, pageToken, services.MakeBeamFilterFunc(options))
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 	return items, nextKey, nil
+}
+
+// IterateBeams returns a sequence of beams starting from the given pageToken.
+func (s *BeamService) IterateBeams(ctx context.Context, pageToken string) iter.Seq2[*beamsv1.Beam, error] {
+	return s.IterateBeamsV2(ctx, pageToken, nil)
+}
+
+// IterateBeamsV2 returns a sequence of beams starting from the given pageToken
+// with sorting and filtering.
+func (s *BeamService) IterateBeamsV2(ctx context.Context, pageToken string, options *services.ListBeamsRequestOptions) iter.Seq2[*beamsv1.Beam, error] {
+	// The backend does not support sorting beyond the default (name:asc). This
+	// check raises an error if any other sort is requested. The cache should
+	// provide sorting and there are no plans to implement it here.
+	if err := validateListOptions(options); err != nil {
+		return func(yield func(*beamsv1.Beam, error) bool) {
+			yield(nil, trace.Wrap(err))
+		}
+	}
+
+	filterFn := services.MakeBeamFilterFunc(options)
+	seq := s.svc.Resources(ctx, pageToken, "")
+
+	return func(yield func(*beamsv1.Beam, error) bool) {
+		for beam, err := range seq {
+			if err != nil {
+				yield(nil, trace.Wrap(err))
+				return
+			}
+			if !filterFn(beam) {
+				continue
+			}
+			if !yield(beam, nil) {
+				break
+			}
+		}
+	}
+}
+
+func validateListOptions(options *services.ListBeamsRequestOptions) error {
+	if options.GetSortField() != beamsv1.BeamSortField_BEAM_SORT_FIELD_UNSPECIFIED && options.GetSortField() != beamsv1.BeamSortField_BEAM_SORT_FIELD_NAME {
+		return trace.CompareFailed("unsupported sort, only name field is supported")
+	}
+	if options.GetSortOrder() != beamsv1.BeamSortOrder_BEAM_SORT_ORDER_UNSPECIFIED && options.GetSortOrder() != beamsv1.BeamSortOrder_BEAM_SORT_ORDER_ASCENDING {
+		return trace.CompareFailed("unsupported sort, only ascending order is supported")
+	}
+	return nil
 }
 
 // AppendPutBeamActions adds conditional actions to an atomic write to create
@@ -159,4 +219,44 @@ func (s *BeamService) AppendDeleteBeamActions(
 
 func beamAliasKey(alias string) backend.Key {
 	return backend.NewKey(beamAliasPrefix, alias)
+}
+
+func newBeamParser() *beamParser {
+	return &beamParser{
+		baseParser: newBaseParser(backend.NewKey(beamPrefix).ExactKey()),
+	}
+}
+
+type beamParser struct {
+	baseParser
+}
+
+func (p *beamParser) parse(event backend.Event) (types.Resource, error) {
+	switch event.Type {
+	case types.OpDelete:
+		name := event.Item.Key.TrimPrefix(backend.NewKey(beamPrefix)).String()
+		if name == "" {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		return &types.ResourceHeader{
+			Kind:    types.KindBeam,
+			Version: types.V1,
+			Metadata: types.Metadata{
+				Name: strings.TrimPrefix(name, backend.SeparatorString),
+			},
+		}, nil
+	case types.OpPut:
+		resource, err := services.UnmarshalProtoResource[*beamsv1.Beam](
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err, "unmarshalling resource from event")
+		}
+		return types.Resource153ToLegacy(resource), nil
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
 }

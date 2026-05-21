@@ -40,7 +40,8 @@ import (
 	"github.com/gravitational/teleport"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	rsession "github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/sshutils/reexec"
+	reexecutils "github.com/gravitational/teleport/lib/sshutils/reexec"
+	"github.com/gravitational/teleport/session/reexec"
 	"github.com/gravitational/teleport/session/reexec/reexecconstants"
 )
 
@@ -66,7 +67,7 @@ type Terminal interface {
 	Run(ctx context.Context, errorWriter io.Writer) error
 
 	// Wait will block until the terminal is complete.
-	Wait() (*ExecResult, error)
+	Wait() ExecResult
 
 	// ReadAuditSessionID reads the unique audit session ID of the process
 	// that will be used to correlate audit events to the SSH session for
@@ -120,6 +121,12 @@ type Terminal interface {
 // NewTerminal returns a new terminal. Terminal can be local or remote
 // depending on cluster configuration.
 func NewTerminal(ctx *ServerContext) (Terminal, error) {
+	// In tests, use a remote terminal (ptybuffer) rather than allocating a real PTY
+	// for higher throughput, especially under high CPU load.
+	if ctx.IsTestStub {
+		return newRemoteTerminal(ctx)
+	}
+
 	// It doesn't matter what mode the cluster is in, if this is a Teleport node
 	// return a local terminal.
 	if ctx.srv.Component() == teleport.ComponentNode {
@@ -141,21 +148,20 @@ type terminal struct {
 
 	log *slog.Logger
 
-	cmd           *exec.Cmd
+	cmd           *reexec.CommandExecutor
 	serverContext *ServerContext
 
 	pty     *os.File
 	tty     *os.File
 	ttyName string
 
-	// terminateFD when closed informs the terminal that
-	// the process running in the shell should be killed.
-	terminateFD *os.File
-
 	// waitForOutputStreams tracks goroutines that copy stderr/stdout from child
 	// reexec and shell processes. This is necessary due to the use of custom pipes,
 	// which exec.Cmd does not wait for closure of in cmd.Wait().
 	waitForOutputStreams sync.WaitGroup
+	// childStderr is stderr read from the child process which may be populated once
+	// waitForOutputStreams completes.
+	childStderr string
 
 	pid int
 
@@ -177,7 +183,6 @@ func newLocalTerminal(ctx *ServerContext) (*terminal, error) {
 	t := &terminal{
 		log:           logger,
 		serverContext: ctx,
-		terminateFD:   ctx.killShellw,
 		pty:           pty,
 		tty:           tty,
 		ttyName:       tty.Name(),
@@ -220,7 +225,9 @@ func (t *terminal) Run(ctx context.Context, errorWriter io.Writer) error {
 
 	var err error
 	// Create the command that will actually execute.
-	t.cmd, err = ConfigureCommand(t.serverContext, tty)
+	t.cmd, err = t.serverContext.ConfigureCommand(map[reexec.FileFD]*os.File{
+		reexec.TTYFile: tty,
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -236,7 +243,7 @@ func (t *terminal) Run(ctx context.Context, errorWriter io.Writer) error {
 	t.waitForOutputStreams.Go(func() {
 		defer stderrR.Close()
 
-		childErr, err := reexec.ReadChildError(stderrR, &reexec.ErrorContext{
+		childErr, err := reexecutils.ReadChildErrorWithContext(stderrR, &reexecutils.ErrorContext{
 			DecisionContext: t.serverContext.Identity.AccessPermit.DecisionContext,
 			Login:           t.serverContext.Identity.Login,
 		})
@@ -248,6 +255,7 @@ func (t *terminal) Run(ctx context.Context, errorWriter io.Writer) error {
 			return
 		}
 
+		t.childStderr = childErr
 		if _, err := crlfReplacer.WriteString(errorWriter, childErr); err != nil {
 			t.serverContext.Logger.WarnContext(context.WithoutCancel(ctx), "Failed to propagate child process stderr to all parties", "error", err)
 		}
@@ -262,12 +270,6 @@ func (t *terminal) Run(ctx context.Context, errorWriter io.Writer) error {
 	if err := t.cmd.Start(); err != nil {
 		return trace.Wrap(err)
 	}
-	// Close our half of the write pipe since it is only to be used by the child process.
-	// Not closing prevents being signaled when the child closes its half.
-	if err := t.serverContext.readyw.Close(); err != nil {
-		t.log.WarnContext(ctx, "Failed to close parent process audit session ID signal write fd", "error", err)
-	}
-	t.serverContext.readyw = nil
 
 	// Save off the PID of the Teleport process under which the shell is executing.
 	t.pid = t.cmd.Process.Pid
@@ -276,27 +278,33 @@ func (t *terminal) Run(ctx context.Context, errorWriter io.Writer) error {
 }
 
 // Wait will block until the terminal is complete.
-func (t *terminal) Wait() (*ExecResult, error) {
-	err := t.cmd.Wait()
+func (t *terminal) Wait() ExecResult {
+	exitErr := t.cmd.Wait()
 	t.waitForOutputStreams.Wait()
-	if err != nil {
-		var exitErr *exec.ExitError
-		if errors.As(err, &exitErr) {
-			status := exitErr.Sys().(syscall.WaitStatus)
-			return &ExecResult{Code: status.ExitStatus(), Command: t.cmd.Path}, nil
+
+	var cmd string
+	if execRequest, err := t.serverContext.GetExecRequest(); err == nil {
+		cmd = execRequest.GetCommand()
+	}
+
+	result := ExecResult{
+		Code:    exitCode(exitErr),
+		Command: cmd,
+		// Error omitted on purpose, we don't want trivial errors to be logged to audit.
+	}
+
+	if t.childStderr != "" {
+		result.Error = errors.New(strings.TrimRight(t.childStderr, "\r\n"))
+	} else if exitErr != nil {
+		// If we get a non exec.ExitError and no launch error, preserve the
+		// error from Wait as it may indicate some other genuine error.
+		var execExitErr *exec.ExitError
+		if !errors.As(exitErr, &execExitErr) {
+			result.Error = exitErr
 		}
-		return nil, err
 	}
 
-	status, ok := t.cmd.ProcessState.Sys().(syscall.WaitStatus)
-	if !ok {
-		return nil, trace.Errorf("unknown exit status: %T(%v)", t.cmd.ProcessState.Sys(), t.cmd.ProcessState.Sys())
-	}
-
-	return &ExecResult{
-		Code:    status.ExitStatus(),
-		Command: t.cmd.Path,
-	}, nil
+	return result
 }
 
 // ReadAuditSessionID reads the unique audit session ID of the process
@@ -308,7 +316,7 @@ func (t *terminal) ReadAuditSessionID() (uint32, error) {
 		return 0, nil
 	}
 
-	if err := t.serverContext.WaitForChild(t.serverContext.cancelContext); err != nil {
+	if err := t.cmd.WaitForChild(); err != nil {
 		return 0, trace.Wrap(err)
 	}
 
@@ -319,16 +327,18 @@ func (t *terminal) ReadAuditSessionID() (uint32, error) {
 // pre-processing routine if Enhanced Session Recording is enabled.
 // Otherwise, this method is a no-op.
 func (t *terminal) Continue() {
-	if err := t.serverContext.contw.Close(); err != nil {
+	if err := t.cmd.Continue(); err != nil {
 		t.log.WarnContext(t.serverContext.CancelContext(), "failed to close server context")
 	}
 }
 
 // KillUnderlyingShell tries to kill the shell/bash process and waits for the process PID to be released.
 func (t *terminal) KillUnderlyingShell(ctx context.Context) error {
-	if err := t.terminateFD.Close(); err != nil {
-		if !errors.Is(err, os.ErrClosed) {
-			t.log.DebugContext(t.serverContext.CancelContext(), "Failed to close the shell file descriptor", "error", err)
+	if t.cmd != nil {
+		if err := t.cmd.Kill(); err != nil {
+			if !errors.Is(err, os.ErrClosed) {
+				t.log.DebugContext(t.serverContext.CancelContext(), "Failed to close the shell file descriptor", "error", err)
+			}
 		}
 	}
 
@@ -545,7 +555,6 @@ func (t *terminal) setOwner() error {
 }
 
 type remoteTerminal struct {
-	wg sync.WaitGroup
 	mu sync.Mutex
 
 	log *slog.Logger
@@ -574,9 +583,7 @@ func newRemoteTerminal(ctx *ServerContext) (*remoteTerminal, error) {
 	return t, nil
 }
 
-func (t *remoteTerminal) AddParty(delta int) {
-	t.wg.Add(delta)
-}
+func (t *remoteTerminal) AddParty(delta int) {}
 
 type ptyBuffer struct {
 	r io.Reader
@@ -640,32 +647,24 @@ func (t *remoteTerminal) Run(ctx context.Context, _ io.Writer) error {
 	return nil
 }
 
-func (t *remoteTerminal) Wait() (*ExecResult, error) {
-	execRequest, err := t.ctx.GetExecRequest()
-	if err != nil {
-		return nil, trace.Wrap(err)
+func (t *remoteTerminal) Wait() ExecResult {
+	var result ExecResult
+
+	if execRequest, err := t.ctx.GetExecRequest(); err == nil {
+		result.Command = execRequest.GetCommand()
 	}
 
-	err = t.session.Wait()
-	if err != nil {
-		var exitErr *ssh.ExitError
-		if errors.As(err, &exitErr) {
-			return &ExecResult{
-				Code:    exitErr.ExitStatus(),
-				Command: execRequest.GetCommand(),
-			}, err
-		}
-
-		return &ExecResult{
-			Code:    reexecconstants.RemoteCommandFailure,
-			Command: execRequest.GetCommand(),
-		}, err
+	err := t.session.Wait()
+	var sshExitErr *ssh.ExitError
+	if errors.As(err, &sshExitErr) {
+		result.Code = sshExitErr.ExitStatus()
+		// Error omitted on purpose, we don't want trivial errors to be logged to audit.
+	} else if err != nil {
+		result.Code = reexecconstants.RemoteCommandFailure
+		result.Error = err
 	}
 
-	return &ExecResult{
-		Code:    reexecconstants.RemoteCommandSuccess,
-		Command: execRequest.GetCommand(),
-	}, nil
+	return result
 }
 
 func (t *remoteTerminal) ReadAuditSessionID() (uint32, error) {
@@ -710,11 +709,6 @@ func (t *remoteTerminal) Close() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	// Wait for parties to be relased after closing the remote session. This
-	// avoid cases where the parties are blocked, reading from the remote
-	// session.
-	t.wg.Wait()
 
 	t.log.DebugContext(t.ctx.CancelContext(), "Closed remote terminal and underlying SSH session")
 	return nil

@@ -41,18 +41,36 @@ var (
 	}
 )
 
-// ValidateMSGraphEndpoints checks if API endpoints point to one of the official deployments of
+// ValidateMSGraphAndLoginEndpoints checks if API endpoints point to one of the official deployments of
 // the Microsoft identity platform and Microsoft Graph.
 // https://learn.microsoft.com/en-us/graph/deployments
-func ValidateMSGraphEndpoints(loginEndpoint, graphEndpoint string) error {
-	if loginEndpoint != "" && !slices.Contains(validLoginEndpoints, loginEndpoint) {
-		return trace.BadParameter("expected login endpoint to be one of %q, got %q", validLoginEndpoints, loginEndpoint)
+func ValidateMSGraphAndLoginEndpoints(loginEndpoint, graphEndpoint string) error {
+	if err := ValidateMSGraphEndpoint(graphEndpoint); err != nil {
+		return trace.Wrap(err)
 	}
 
+	if err := ValidateMSLoginEndpoint(loginEndpoint); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// ValidateMSGraphEndpoint checks if the given endpoint points to a valid MS Graph endpoint.
+// Note: An empty string is considered valid to maintain backward compatibility.
+func ValidateMSGraphEndpoint(graphEndpoint string) error {
 	if graphEndpoint != "" && !slices.Contains(validGraphEndpoints, graphEndpoint) {
 		return trace.BadParameter("expected graph endpoint to be one of %q, got %q", validGraphEndpoints, graphEndpoint)
 	}
+	return nil
+}
 
+// ValidateMSLoginEndpoint checks if the given endpoint points to a valid MS login endpoint.
+// Note: An empty string is considered valid to maintain backward compatibility.
+func ValidateMSLoginEndpoint(loginEndpoint string) error {
+	if loginEndpoint != "" && !slices.Contains(validLoginEndpoints, loginEndpoint) {
+		return trace.BadParameter("expected login endpoint to be one of %q, got %q", validLoginEndpoints, loginEndpoint)
+	}
 	return nil
 }
 
@@ -71,4 +89,20 @@ var EntraIDGroupsTypes = []string{
 	EntraIDSecurityGroups,
 	EntraIDDirectoryRoles,
 	EntraIDAllGroups,
+}
+
+// checkAndSetDefaults validates fields on the Entra ID groups provider and
+// returns an error for invalid configurations.
+func (e *EntraIDGroupsProvider) checkAndSetDefaults() error {
+	if e.GroupType != "" {
+		if !slices.Contains(EntraIDGroupsTypes, e.GroupType) {
+			return trace.BadParameter("expected group type to be one of %q, got %q", EntraIDGroupsTypes, e.GroupType)
+		}
+	}
+
+	if err := ValidateMSGraphEndpoint(e.GraphEndpoint); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }

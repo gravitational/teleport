@@ -40,6 +40,7 @@ import cfg from 'teleport/config';
 import {
   filterByIntegrationStatus,
   filterBySearch,
+  getAwsIcErrorMessage,
   sortByStatus,
 } from 'teleport/Integrations/helpers';
 import api from 'teleport/services/api';
@@ -77,6 +78,7 @@ const statusKinds = [
   'entra-id',
   IntegrationKind.AwsOidc,
   IntegrationKind.AwsRa,
+  IntegrationKind.AzureOidc,
 ];
 
 type Filters = {
@@ -148,6 +150,7 @@ export function IntegrationList(props: Props) {
         row={{
           onClick: handleRowClick,
           getStyle: getRowStyle,
+          getKey: row => `${row.kind}:${row.name}`,
         }}
         columns={[
           {
@@ -187,6 +190,7 @@ export function IntegrationList(props: Props) {
               if (
                 item.kind === IntegrationKind.AwsOidc ||
                 item.kind === IntegrationKind.AwsRa ||
+                item.kind === IntegrationKind.AzureOidc ||
                 item.kind === 'entra-id'
               ) {
                 // action menu for these integrations are available on the status page dashboard.
@@ -386,7 +390,7 @@ const NameCell = ({ item }: { item: IntegrationLike }) => {
         icon = <IconContainer name="awsidentityandaccessmanagementiam" />;
         break;
       case IntegrationKind.AzureOidc:
-        formattedText = 'Azure OIDC';
+        formattedText = item.name;
         icon = <IconContainer name="azure" />;
         break;
       case IntegrationKind.GitHub:
@@ -489,7 +493,8 @@ export function percent(n: number, d: number): string {
 }
 
 const DetailsCell = ({ integration }: { integration: IntegrationLike }) => {
-  let content = <Text>{integration.details}</Text>;
+  const awsIcErrorMessage = getAwsIcErrorMessage(integration);
+  let content = <Text>{awsIcErrorMessage ?? integration.details}</Text>;
   switch (integration.kind) {
     case IntegrationKind.AwsOidc:
     case IntegrationKind.AzureOidc:

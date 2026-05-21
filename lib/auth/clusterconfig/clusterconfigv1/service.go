@@ -31,7 +31,6 @@ import (
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 )
@@ -81,6 +80,7 @@ type ServiceConfig struct {
 	AccessGraph                   AccessGraphConfig
 	ReadOnlyCache                 ReadOnlyCache
 	SignatureAlgorithmSuiteParams types.SignatureAlgorithmSuiteParams
+	Modules                       modules.Modules
 }
 
 // AccessGraphConfig contains the configuration about the access graph service
@@ -110,6 +110,7 @@ type Service struct {
 	accessGraph                   AccessGraphConfig
 	readOnlyCache                 ReadOnlyCache
 	signatureAlgorithmSuiteParams types.SignatureAlgorithmSuiteParams
+	modules                       modules.Modules
 }
 
 // NewService validates the provided configuration and returns a [Service].
@@ -125,6 +126,8 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("scoped authorizer is required")
 	case cfg.Emitter == nil:
 		return nil, trace.BadParameter("emitter is required")
+	case cfg.Modules == nil:
+		return nil, trace.BadParameter("modules is required")
 	}
 
 	if cfg.ReadOnlyCache == nil {
@@ -146,6 +149,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		accessGraph:                   cfg.AccessGraph,
 		readOnlyCache:                 cfg.ReadOnlyCache,
 		signatureAlgorithmSuiteParams: cfg.SignatureAlgorithmSuiteParams,
+		modules:                       cfg.Modules,
 	}, nil
 }
 
@@ -156,18 +160,10 @@ func (s *Service) GetAuthPreference(ctx context.Context, _ *clusterconfigpb.GetA
 		return nil, trace.Wrap(err)
 	}
 
-	// Use RiskyUnpinnedDecision to allow scoped identities (regardless of their
+	// Use RiskyAuthorizeUnpinnedRead to allow scoped identities (regardless of their
 	// scope pin) to call GetAuthPreference.
 	ruleCtx := authzCtx.RuleContext()
-	if err := authzCtx.CheckerContext.RiskyUnpinnedDecision(
-		ctx,
-		scopes.Root,
-		func(checker *services.ScopedAccessChecker) error {
-			return checker.CheckAccessToRules(
-				&ruleCtx, types.KindClusterAuthPreference, types.VerbRead,
-			)
-		},
-	); err != nil {
+	if err := authzCtx.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadAuthPreference, &ruleCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -218,11 +214,11 @@ func (s *Service) UpdateAuthPreference(ctx context.Context, req *clusterconfigpb
 	}
 
 	// check that the given RequireMFAType is supported in this build.
-	if req.AuthPreference.GetPrivateKeyPolicy().IsHardwareKeyPolicy() && modules.GetModules().BuildType() != modules.BuildEnterprise {
+	if req.AuthPreference.GetPrivateKeyPolicy().IsHardwareKeyPolicy() && s.modules.BuildType() != modules.BuildEnterprise {
 		return nil, trace.AccessDenied("Hardware Key support is only available with an enterprise license")
 	}
 
-	if err := dtconfig.ValidateConfigAgainstModules(req.AuthPreference.GetDeviceTrust(), modules.GetModules()); err != nil {
+	if err := dtconfig.ValidateConfigAgainstModules(req.AuthPreference.GetDeviceTrust(), s.modules); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -286,11 +282,11 @@ func (s *Service) UpsertAuthPreference(ctx context.Context, req *clusterconfigpb
 	}
 
 	// check that the given RequireMFAType is supported in this build.
-	if req.AuthPreference.GetPrivateKeyPolicy().IsHardwareKeyPolicy() && modules.GetModules().BuildType() != modules.BuildEnterprise {
+	if req.AuthPreference.GetPrivateKeyPolicy().IsHardwareKeyPolicy() && s.modules.BuildType() != modules.BuildEnterprise {
 		return nil, trace.AccessDenied("Hardware Key support is only available with an enterprise license")
 	}
 
-	if err := dtconfig.ValidateConfigAgainstModules(req.AuthPreference.GetDeviceTrust(), modules.GetModules()); err != nil {
+	if err := dtconfig.ValidateConfigAgainstModules(req.AuthPreference.GetDeviceTrust(), s.modules); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -453,7 +449,7 @@ func (s *Service) CreateClusterNetworkingConfig(ctx context.Context, cfg types.C
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if tst == types.ProxyPeering && modules.GetModules().BuildType() != modules.BuildEnterprise {
+	if tst == types.ProxyPeering && s.modules.BuildType() != modules.BuildEnterprise {
 		return nil, trace.AccessDenied("proxy peering is an enterprise-only feature")
 	}
 
@@ -493,7 +489,7 @@ func (s *Service) UpdateClusterNetworkingConfig(ctx context.Context, req *cluste
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if tst == types.ProxyPeering && modules.GetModules().BuildType() != modules.BuildEnterprise {
+	if tst == types.ProxyPeering && s.modules.BuildType() != modules.BuildEnterprise {
 		return nil, trace.AccessDenied("proxy peering is an enterprise-only feature")
 	}
 
@@ -506,7 +502,7 @@ func (s *Service) UpdateClusterNetworkingConfig(ctx context.Context, req *cluste
 
 	newCfg := req.GetClusterNetworkConfig()
 
-	if err := ValidateCloudNetworkConfigUpdate(*authzCtx, newCfg, oldCfg); err != nil {
+	if err := ValidateCloudNetworkConfigUpdate(*authzCtx, s.modules, newCfg, oldCfg); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -558,7 +554,7 @@ func (s *Service) UpsertClusterNetworkingConfig(ctx context.Context, req *cluste
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if tst == types.ProxyPeering && modules.GetModules().BuildType() != modules.BuildEnterprise {
+	if tst == types.ProxyPeering && s.modules.BuildType() != modules.BuildEnterprise {
 		return nil, trace.AccessDenied("proxy peering is an enterprise-only feature")
 	}
 
@@ -571,7 +567,7 @@ func (s *Service) UpsertClusterNetworkingConfig(ctx context.Context, req *cluste
 
 	newCfg := req.GetClusterNetworkConfig()
 
-	if err := ValidateCloudNetworkConfigUpdate(*authzCtx, newCfg, oldCfg); err != nil {
+	if err := ValidateCloudNetworkConfigUpdate(*authzCtx, s.modules, newCfg, oldCfg); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -625,7 +621,7 @@ func (s *Service) ResetClusterNetworkingConfig(ctx context.Context, _ *clusterco
 		return nil, trace.Wrap(err)
 	}
 
-	if err := ValidateCloudNetworkConfigUpdate(*authzCtx, defaultConfig, oldCfg); err != nil {
+	if err := ValidateCloudNetworkConfigUpdate(*authzCtx, s.modules, defaultConfig, oldCfg); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -680,12 +676,12 @@ func (s *Service) ResetClusterNetworkingConfig(ctx context.Context, _ *clusterco
 // customers are not allowed to edit certain fields of the cluster networking config, and even if they were,
 // the edits would be overwritten by the values from the static config file every time an auth process starts
 // up.
-func ValidateCloudNetworkConfigUpdate(authzCtx authz.Context, newConfig, oldConfig types.ClusterNetworkingConfig) error {
+func ValidateCloudNetworkConfigUpdate(authzCtx authz.Context, modules modules.Modules, newConfig, oldConfig types.ClusterNetworkingConfig) error {
 	if authz.HasBuiltinRole(authzCtx, string(types.RoleAdmin)) {
 		return nil
 	}
 
-	if !modules.GetModules().Features().Cloud {
+	if !modules.Features().Cloud {
 		return nil
 	}
 
@@ -948,7 +944,7 @@ func (s *Service) GetClusterAccessGraphConfig(ctx context.Context, _ *clustercon
 	}
 
 	// If the policy feature is disabled in the license, return a disabled response. if cloud, return the response to allow demo mode enabling
-	if !modules.GetModules().Features().GetEntitlement(entitlements.Policy).Enabled && !modules.GetModules().Features().AccessGraph && !modules.GetModules().Features().Cloud {
+	if !s.modules.Features().GetEntitlement(entitlements.Policy).Enabled && !s.modules.Features().AccessGraph && !s.modules.Features().Cloud {
 		return &clusterconfigpb.GetClusterAccessGraphConfigResponse{
 			AccessGraph: &clusterconfigpb.AccessGraphConfig{
 				Enabled: false,
@@ -1049,7 +1045,7 @@ func (s *Service) UpdateAccessGraphSettings(ctx context.Context, req *clustercon
 		return nil, trace.Wrap(err)
 	}
 
-	if !modules.GetModules().Features().GetEntitlement(entitlements.Policy).Enabled && !modules.GetModules().Features().AccessGraph && !modules.GetModules().Features().Cloud {
+	if !s.modules.Features().GetEntitlement(entitlements.Policy).Enabled && !s.modules.Features().AccessGraph && !s.modules.Features().Cloud {
 		return nil, trace.AccessDenied("access graph is feature isn't enabled")
 	}
 
@@ -1093,7 +1089,7 @@ func (s *Service) UpsertAccessGraphSettings(ctx context.Context, req *clustercon
 		return nil, trace.Wrap(err)
 	}
 
-	if !modules.GetModules().Features().GetEntitlement(entitlements.Policy).Enabled && !modules.GetModules().Features().AccessGraph {
+	if !s.modules.Features().GetEntitlement(entitlements.Policy).Enabled && !s.modules.Features().AccessGraph {
 		return nil, trace.AccessDenied("access graph is feature isn't enabled")
 	}
 
@@ -1137,7 +1133,7 @@ func (s *Service) ResetAccessGraphSettings(ctx context.Context, _ *clusterconfig
 		return nil, trace.Wrap(err)
 	}
 
-	if !modules.GetModules().Features().GetEntitlement(entitlements.Policy).Enabled && !modules.GetModules().Features().AccessGraph {
+	if !s.modules.Features().GetEntitlement(entitlements.Policy).Enabled && !s.modules.Features().AccessGraph {
 		return nil, trace.AccessDenied("access graph is feature isn't enabled")
 	}
 

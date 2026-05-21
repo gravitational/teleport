@@ -17,77 +17,12 @@
  */
 
 import { readFileSync } from 'fs';
-import type { IncomingHttpHeaders } from 'http';
-import { get } from 'https';
+import type * as http from 'http';
+import * as https from 'https';
+import { isIP } from 'net';
 import { resolve } from 'path';
 
-import { JSDOM } from 'jsdom';
 import type { Plugin } from 'vite';
-
-function getHTML(target: string, headers: IncomingHttpHeaders) {
-  return new Promise<{ data: string; headers: IncomingHttpHeaders }>(
-    (resolve, reject) => {
-      // Remove http2 pseudo-headers since the target may only accept http1.
-      const filteredHeaders: IncomingHttpHeaders = Object.fromEntries(
-        Object.entries(headers).filter(
-          ([name, value]) => value != null && !name.startsWith(':')
-        )
-      );
-
-      filteredHeaders.host = target;
-
-      get(
-        `https://${target}/web`,
-        { headers: filteredHeaders, rejectUnauthorized: false },
-        res => {
-          let data = '';
-
-          res.on('data', d => {
-            data += d.toString();
-          });
-
-          res.on('end', () => {
-            resolve({ data, headers: res.headers });
-          });
-
-          res.on('error', reject);
-        }
-      ).on('error', reject);
-    }
-  );
-}
-
-function replaceMetaTag(name: string, source: JSDOM, target: JSDOM) {
-  const sourceTag = source.window.document.querySelector(
-    `meta[name=${name}]`
-  ) as HTMLMetaElement;
-  const targetTag = target.window.document.querySelector(
-    `meta[name=${name}]`
-  ) as HTMLMetaElement;
-
-  const value = sourceTag.getAttribute('content');
-
-  targetTag.setAttribute('content', value);
-}
-
-export function transformPlugin(): Plugin {
-  return {
-    name: 'teleport-transform-html-plugin',
-    transformIndexHtml(html) {
-      return {
-        html,
-        tags: [
-          {
-            tag: 'script',
-            attrs: {
-              src: '/web/config.js',
-            },
-          },
-        ],
-      };
-    },
-  };
-}
 
 export function htmlPlugin(target: string): Plugin {
   return {
@@ -97,38 +32,48 @@ export function htmlPlugin(target: string): Plugin {
         if (req.url === '/') {
           res.writeHead(302, { Location: '/web' });
           res.end();
-
           return;
         }
-
         next();
       });
 
       return () => {
         server.middlewares.use(async (req, res, next) => {
+          if (req.url !== '/index.html') {
+            next();
+            return;
+          }
+
           try {
-            const { data, headers } = await getHTML(target, req.headers);
+            const { body, headers } = await fetchIndexHtml(req.headers, target);
 
-            let template = readFileSync(
-              resolve(process.cwd(), 'index.html'),
-              'utf-8'
-            );
+            if (cachedTemplate === null) {
+              cachedTemplate = readFileSync(indexHtmlPath, 'utf-8');
+            }
 
-            template = await server.transformIndexHtml(
+            const transformed = await server.transformIndexHtml(
               req.originalUrl,
-              template
+              cachedTemplate
             );
 
-            const source = new JSDOM(data);
-            const result = new JSDOM(template);
+            const bearerToken = body.match(BEARER_META_RE)?.[1] ?? '';
+            const csrfToken = body.match(CSRF_META_RE)?.[1] ?? '';
+            const html = transformed
+              .replace(
+                BEARER_META_RE,
+                `<meta name="grv_bearer_token" content="${bearerToken}">`
+              )
+              .replace(
+                CSRF_META_RE,
+                `<meta name="grv_csrf_token" content="${csrfToken}">`
+              );
 
-            replaceMetaTag('grv_csrf_token', source, result);
-            replaceMetaTag('grv_bearer_token', source, result);
+            if (headers['set-cookie']) {
+              res.setHeader('set-cookie', headers['set-cookie']);
+            }
 
-            res.setHeader('set-cookie', headers['set-cookie']);
             res.writeHead(200, { 'Content-Type': 'text/html' });
-            res.write(result.serialize());
-            res.end();
+            res.end(html);
           } catch (err) {
             server.ssrFixStacktrace(err);
             next(err);
@@ -137,4 +82,108 @@ export function htmlPlugin(target: string): Plugin {
       };
     },
   };
+}
+
+export function transformPlugin(): Plugin {
+  return {
+    name: 'teleport-transform-html-plugin',
+    transformIndexHtml(html) {
+      return {
+        html,
+        tags: [{ tag: 'script', attrs: { src: '/web/config.js' } }],
+      };
+    },
+  };
+}
+
+// Headers that shouldn't be forwarded to the upstream request.
+const FORBIDDEN_HEADERS = new Set([
+  'connection',
+  'proxy-connection',
+  'keep-alive',
+  'transfer-encoding',
+  'upgrade',
+  'host',
+]);
+
+// Captures the content of `<meta name="grv_bearer_token" content="…">` with
+// either quote style and arbitrary attribute order.
+const BEARER_META_RE =
+  /<meta\s+[^>]*name=["']grv_bearer_token["'][^>]*content=["']([^"']*)["'][^>]*>/i;
+
+// Captures the content of `<meta name="grv_csrf_token" content="…">` with
+// either quote style and arbitrary attribute order.
+const CSRF_META_RE =
+  /<meta\s+[^>]*name=["']grv_csrf_token["'][^>]*content=["']([^"']*)["'][^>]*>/i;
+
+const indexHtmlPath = resolve(process.cwd(), 'index.html');
+// index.html can't change during a dev session (vite restarts on config changes), so
+// read it once.
+let cachedTemplate: string | null = null;
+
+// Cached HTTPS agent for connection reuse.
+let cachedAgent: https.Agent | null = null;
+
+function getAgent(target: string): https.Agent {
+  if (cachedAgent) {
+    return cachedAgent;
+  }
+
+  const { hostname } = new URL(`https://${target}`);
+
+  cachedAgent = new https.Agent({
+    rejectUnauthorized: false,
+    // SNI must not be an IP literal. Newer Node will silently drop the IP
+    // servername, which can leave the connection in a broken state; suppress
+    // it explicitly here.
+    ...(isIP(hostname) && { servername: '' }),
+  });
+
+  return cachedAgent;
+}
+
+function fetchIndexHtml(reqHeaders: http.IncomingHttpHeaders, target: string) {
+  const headers: http.OutgoingHttpHeaders = {
+    host: target,
+  };
+
+  for (const [name, value] of Object.entries(reqHeaders)) {
+    if (value == null || name.startsWith(':')) {
+      continue;
+    }
+
+    if (FORBIDDEN_HEADERS.has(name.toLowerCase())) {
+      continue;
+    }
+
+    headers[name] = value;
+  }
+
+  const { hostname, port } = new URL(`https://${target}`);
+
+  return new Promise<{ body: string; headers: http.IncomingHttpHeaders }>(
+    (resolve, reject) => {
+      const req = https.request(
+        {
+          hostname,
+          port: port || 443,
+          path: '/web',
+          method: 'GET',
+          headers,
+          agent: getAgent(target),
+        },
+        res => {
+          let body = '';
+          res.setEncoding('utf8');
+          res.on('data', chunk => {
+            body += chunk;
+          });
+          res.on('end', () => resolve({ body, headers: res.headers }));
+        }
+      );
+
+      req.on('error', reject);
+      req.end();
+    }
+  );
 }

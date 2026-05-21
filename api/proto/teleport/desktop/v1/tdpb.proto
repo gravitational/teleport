@@ -36,6 +36,19 @@ message ClientHello {
 message ServerHello {
   ConnectionActivated activation_spec = 1;
   bool clipboard_enabled = 2;
+  bool directory_remove_supported = 3;
+  repeated SessionIdentifier sessions = 4;
+  bool hidpi_supported = 5;
+}
+
+// Used to identify sessions available to and selected by users
+message SessionIdentifier {
+  string name = 1;
+}
+
+// Sent by client to select one of available sessions
+message SessionSelection {
+  SessionIdentifier session = 1;
 }
 
 // Defines the boundaries that PNG frame will update.
@@ -113,6 +126,8 @@ message KeyboardButton {
 message ClientScreenSpec {
   uint32 width = 1;
   uint32 height = 2;
+  // Display scale factor as a percentage (e.g. 100 for 1x, 200 for 2x).
+  uint32 scale = 3;
 }
 
 // Severity of an alert contained in an Alert message.
@@ -168,6 +183,11 @@ message MFA {
 message SharedDirectoryAnnounce {
   uint32 directory_id = 1;
   string name = 2;
+}
+
+// Sent by client to remove a previously announced shared directory.
+message SharedDirectoryRemove {
+  uint32 directory_id = 1;
 }
 
 // Sent by server to acknowledge a new shared directory.
@@ -226,7 +246,9 @@ message SharedDirectoryRequest {
   // Truncate Request.
   message Truncate {
     string path = 1;
-    uint32 end_of_file = 2;
+    reserved 2;
+    reserved "end_of_file";
+    uint64 size = 3;
   }
 
   // operation is the particular operation type being requested.
@@ -341,5 +363,7 @@ message Envelope {
     SharedDirectoryResponse shared_directory_response = 18;
     LatencyStats latency_stats = 19;
     Ping ping = 20;
+    SharedDirectoryRemove shared_directory_remove = 21;
+    SessionSelection session_selection = 22;
   }
 }

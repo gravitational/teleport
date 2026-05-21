@@ -247,6 +247,12 @@ func (s *Service) EvaluateSSHAccess(ctx context.Context, req *decisionpb.Evaluat
 		},
 	}
 
+	if accessChecker.PinSourceIP() {
+		permit.Preconditions = append(permit.Preconditions, &decisionpb.Precondition{
+			Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_PIN_SOURCE_IP,
+		})
+	}
+
 	return &decisionpb.EvaluateSSHAccessResponse{
 		Decision: &decisionpb.EvaluateSSHAccessResponse_Permit{
 			Permit: permit,
@@ -388,6 +394,7 @@ func lockTargetToProto(target types.LockTarget) *decisionpb.LockTarget {
 		Login:          target.Login,
 		MfaDevice:      target.MFADevice,
 		WindowsDesktop: target.WindowsDesktop,
+		LinuxDesktop:   target.LinuxDesktop,
 		AccessRequest:  target.AccessRequest,
 		Device:         target.Device,
 		ServerId:       target.ServerID,
@@ -412,6 +419,7 @@ func lockTargetFromProto(target *decisionpb.LockTarget) types.LockTarget {
 		Login:          target.Login,
 		MFADevice:      target.MfaDevice,
 		WindowsDesktop: target.WindowsDesktop,
+		LinuxDesktop:   target.LinuxDesktop,
 		AccessRequest:  target.AccessRequest,
 		Device:         target.Device,
 		ServerID:       target.ServerId,

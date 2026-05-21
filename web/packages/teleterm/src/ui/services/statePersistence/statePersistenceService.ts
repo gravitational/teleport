@@ -43,6 +43,7 @@ export type PersistedWorkspace = Omit<
   // TODO(gzdunek) DELETE IN v19.0.0: Make the field required by removing the 'color' type below and the omitted 'color' above.
   // This only expresses that existing persisted state from older versions might not have color defined.
   color?: WorkspaceColor;
+  proxyHost?: string;
 };
 
 export type WorkspacesPersistedState = Omit<
@@ -66,6 +67,8 @@ export interface StatePersistenceState {
   };
   /** Shows a banner above the cluster list to notify that a new tsh home dir is used. */
   showTshHomeMigrationBanner: boolean;
+  /** Remembers whether the roles section in the identity popover is expanded. */
+  showRolesExpanded?: boolean;
 }
 
 // Before adding new methods to this service, consider using usePersistedState instead.

@@ -41,7 +41,6 @@ import (
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
-	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/trail"
@@ -59,7 +58,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
-	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
 
@@ -115,7 +113,6 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 	rc.CreateHandlers = map[string]ResourceCreateHandler{
 		types.KindTrustedCluster:      rc.createTrustedCluster,
 		types.KindNetworkRestrictions: rc.createNetworkRestrictions,
-		types.KindLoginRule:           rc.createLoginRule,
 		types.KindDevice:              rc.createDevice,
 		types.KindOktaImportRule:      rc.createOktaImportRule,
 		types.KindIntegration:         rc.createIntegration,
@@ -277,6 +274,15 @@ func (rc *ResourceCommand) Get(ctx context.Context, client *authclient.Client) e
 }
 
 func (rc *ResourceCommand) GetMany(ctx context.Context, client *authclient.Client) error {
+	const skipNotSupported = false
+	return trace.Wrap(rc.getMany(ctx, client, skipNotSupported))
+}
+
+func (rc *ResourceCommand) getMany(
+	ctx context.Context,
+	client *authclient.Client,
+	skipNotSupported bool,
+) error {
 	if rc.format != teleport.YAML {
 		return trace.BadParameter("mixed resource types only support YAML formatting")
 	}
@@ -285,6 +291,9 @@ func (rc *ResourceCommand) GetMany(ctx context.Context, client *authclient.Clien
 	for _, ref := range rc.refs {
 		rc.ref = ref
 		collection, err := rc.getCollection(ctx, client)
+		if skipNotSupported && errors.As(err, new(*errNotSupported)) {
+			continue
+		}
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -307,7 +316,12 @@ func (rc *ResourceCommand) GetAll(ctx context.Context, client *authclient.Client
 		allRefs = append(allRefs, ref)
 	}
 	rc.refs = services.Refs(allRefs)
-	return rc.GetMany(ctx, client)
+
+	// This lets OSS query Enterprise-only kinds without failing when the
+	// corresponding RPCs return "NotImplemented".
+	const skipNotSupported = true
+
+	return rc.getMany(ctx, client, skipNotSupported)
 }
 
 // Create updates or inserts one or many resources
@@ -472,33 +486,6 @@ func (rc *ResourceCommand) updateCrownJewel(ctx context.Context, client *authcli
 		return trace.Wrap(err)
 	}
 	fmt.Printf("crown jewel %q has been updated\n", in.GetMetadata().GetName())
-	return nil
-}
-
-func (rc *ResourceCommand) createLoginRule(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	rule, err := loginrule.UnmarshalLoginRule(raw.Raw)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	loginRuleClient := client.LoginRuleClient()
-	if rc.IsForced() {
-		_, err := loginRuleClient.UpsertLoginRule(ctx, &loginrulepb.UpsertLoginRuleRequest{
-			LoginRule: rule,
-		})
-		if err != nil {
-			return trail.FromGRPC(err)
-		}
-	} else {
-		_, err = loginRuleClient.CreateLoginRule(ctx, &loginrulepb.CreateLoginRuleRequest{
-			LoginRule: rule,
-		})
-		if err != nil {
-			return trail.FromGRPC(err)
-		}
-	}
-	verb := UpsertVerb(false /* we don't know if it existed before */, rc.IsForced() /* force update */)
-	fmt.Printf("login_rule %q has been %s\n", rule.GetMetadata().GetName(), verb)
 	return nil
 }
 
@@ -714,15 +701,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("crown_jewel %q has been deleted\n", rc.ref.Name)
-	case types.KindLoginRule:
-		loginRuleClient := client.LoginRuleClient()
-		_, err := loginRuleClient.DeleteLoginRule(ctx, &loginrulepb.DeleteLoginRuleRequest{
-			Name: rc.ref.Name,
-		})
-		if err != nil {
-			return trail.FromGRPC(err)
-		}
-		fmt.Printf("login rule %q has been deleted\n", rc.ref.Name)
 	case types.KindDevice:
 		remote := client.DevicesClient()
 		device, err := findDeviceByIDOrTag(ctx, remote, rc.ref.Name)
@@ -842,7 +820,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		coll, err := handler.Get(ctx, client, rc.ref, resources.GetOpts{WithSecrets: rc.withSecrets})
 		if err != nil {
 			if trace.IsNotImplemented(err) {
-				return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
+				return nil, &errNotSupported{trace.BadParameter("getting %q is not supported", rc.ref.String())}
 			}
 			return nil, trace.Wrap(err, "getting resource %q of type %q", rc.ref.Name, rc.ref.Kind)
 		}
@@ -967,26 +945,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 
 		return &databaseServiceCollection{databaseServices: databaseServices}, nil
-	case types.KindLoginRule:
-		loginRuleClient := client.LoginRuleClient()
-		if rc.ref.Name == "" {
-			rules, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, limit int, token string) ([]*loginrulepb.LoginRule, string, error) {
-				resp, err := loginRuleClient.ListLoginRules(ctx, &loginrulepb.ListLoginRulesRequest{
-					PageSize:  int32(limit),
-					PageToken: token,
-				})
-				return resp.GetLoginRules(), resp.GetNextPageToken(), trace.Wrap(err)
-			}))
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			return &loginRuleCollection{rules}, trace.Wrap(err)
-		}
-		rule, err := loginRuleClient.GetLoginRule(ctx, &loginrulepb.GetLoginRuleRequest{
-			Name: rc.ref.Name,
-		})
-		return &loginRuleCollection{[]*loginrulepb.LoginRule{rule}}, trail.FromGRPC(err)
 	case types.KindDevice:
 		remote := client.DevicesClient()
 		if rc.ref.Name != "" {
@@ -1152,6 +1110,20 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		return &healthCheckConfigCollection{items: items}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
+}
+
+// errNotSupported is used to mark NotImplemented errors that were transformed
+// into BadParameter, so they can later be identified.
+type errNotSupported struct {
+	cause error
+}
+
+func (e *errNotSupported) Error() string {
+	return e.cause.Error()
+}
+
+func (e *errNotSupported) Unwrap() error {
+	return e.cause
 }
 
 // UpsertVerb generates the correct string form of a verb based on the action taken

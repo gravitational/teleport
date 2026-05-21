@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/join/boundkeypair"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -83,12 +84,10 @@ var (
 	CreateAuditStreamAcceptedTotalMetric = createAuditStreamAcceptedTotalMetric
 )
 
-func (a *Server) SetRemoteClusterRefreshLimit(limit int) {
-	remoteClusterRefreshLimit = limit
-}
-
-func (a *Server) RemoteClusterRefreshBuckets(buckets int) {
-	remoteClusterRefreshBuckets = buckets
+func ServerWithModules(mt *modulestest.Modules) *Server {
+	return &Server{
+		modules: mt,
+	}
 }
 
 func (a *Server) VerifyRecoveryCode(ctx context.Context, username string, recoveryCode []byte) (errResult error) {
@@ -208,6 +207,10 @@ func (a *Server) CreateGithubUser(ctx context.Context, p *CreateUserParams, dryR
 	return a.createGithubUser(ctx, p, dryRun)
 }
 
+func (a *Server) SetSubCAEnabled(b bool) {
+	a.subCAEnabled = b
+}
+
 func BuildAPIEndpoint(apiEndpointURLStr string) (string, error) {
 	return buildAPIEndpoint(apiEndpointURLStr)
 }
@@ -216,8 +219,8 @@ func FormatGithubURL(host string, path string) string {
 	return formatGithubURL(host, path)
 }
 
-func CheckGithubOrgSSOSupport(ctx context.Context, conn types.GithubConnector, userTeams []GithubTeamResponse, orgCache *utils.FnCache, client httpRequester) error {
-	return checkGithubOrgSSOSupport(ctx, conn, userTeams, orgCache, client)
+func CheckGithubOrgSSOSupport(ctx context.Context, conn types.GithubConnector, userTeams []GithubTeamResponse, buildType string, orgCache *utils.FnCache, client httpRequester) error {
+	return checkGithubOrgSSOSupport(ctx, conn, userTeams, buildType, orgCache, client)
 }
 
 func ChangeUserAuthentication(ctx context.Context, a *Server, req *proto.ChangeUserAuthenticationRequest) (types.User, error) {
@@ -280,6 +283,14 @@ func NewServerWithRoles(srv *Server, alog events.AuditLogSessionStreamer, authzC
 		authServer: srv,
 		alog:       alog,
 		context:    authzContext,
+	}
+}
+
+func NewScopedServerWithRoles(srv *Server, alog events.AuditLogSessionStreamer, scopedContext *authz.ScopedContext) *ServerWithRoles {
+	return &ServerWithRoles{
+		authServer:    srv,
+		alog:          alog,
+		scopedContext: scopedContext,
 	}
 }
 

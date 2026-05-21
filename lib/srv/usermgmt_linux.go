@@ -266,7 +266,7 @@ func (u *HostUsersProvisioningBackend) CreateHomeDirectory(userHome, uidS, gidS 
 
 	err = os.Mkdir(userHome, 0o700)
 	if err != nil {
-		return trace.Wrap(err)
+		return trace.ConvertSystemError(err)
 	}
 
 	skelDir, err := readDefaultSkel()
@@ -276,7 +276,7 @@ func (u *HostUsersProvisioningBackend) CreateHomeDirectory(userHome, uidS, gidS 
 
 	_, err = os.Stat(skelDir)
 	if err != nil && !os.IsNotExist(err) {
-		return trace.Wrap(err)
+		return trace.ConvertSystemError(err)
 	}
 
 	if !os.IsNotExist(err) {

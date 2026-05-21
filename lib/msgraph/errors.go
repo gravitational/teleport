@@ -18,27 +18,23 @@ package msgraph
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 )
 
-// unsupportedGroupMember is an internal error to indicate that
-// the `groupmembers` endpoint has returned a member of type that we do not support (yet).
-type unsupportedGroupMember struct {
-	Type string
-}
-
-func (u *unsupportedGroupMember) Error() string {
-	return fmt.Sprintf("Unsupported group member: %q", u.Type)
-}
+// ErrMissingDeltaToken is returned if a delta token is missing from the cache.
+var ErrMissingDeltaToken = &trace.BadParameterError{Message: "missing delta token"}
 
 type graphErrorResponse struct {
 	Error *GraphError `json:"error,omitempty"`
 }
+
+// ErrMissingDeltaLink is returned if a delta link is missing from the delta store.
+var ErrMissingDeltaLink = &trace.BadParameterError{Message: "missing delta token"}
 
 // GraphError defines the structure of errors returned from MS Graph API.
 // https://learn.microsoft.com/en-us/graph/errors#json-representation
@@ -56,6 +52,8 @@ type GraphError struct {
 	Details []GraphError `json:"details,omitempty"`
 	// StatusCode is the status code of the HTTP response that GraphError arrived with.
 	StatusCode int `json:"-"`
+	// RetryAfter holds the value of "Retry-After" header as sent by the Graph API.
+	RetryAfter time.Duration `json:"-"`
 }
 
 func (g *GraphError) Error() string {
@@ -141,4 +139,22 @@ const (
 	// and instead a regular string that doesn't match said requirements.
 	// https://login.microsoftonline.com/error?code=900023
 	DiagCodeInvalidTenantIdentifier = 900023
+)
+
+const (
+	// resyncRequired is returned by the msgraph delta API when a resync is required.
+	// https://learn.microsoft.com/en-us/graph/delta-query-overview#synchronization-reset
+	ErrCodeResyncRequired = "resyncRequired"
+	// syncStateNotFound is returned by the msgraph delta API when the provided
+	// delta token may have expired or no longer valid.
+	// https://learn.microsoft.com/en-us/graph/delta-query-overview#token-duration
+	ErrCodeSyncStateNotFound = "syncStateNotFound"
+	// resyncApplyDifferences is returned by the msgraph delta API, generally
+	// returned if there is an issue with the provided delta token.
+	ErrCodeResyncApplyDifferences = "resyncApplyDifferences"
+
+	// Throttled is returned when request throttled.
+	ErrCodeThrottled = "Request_ThrottledTemporarily"
+	// TooManyRequest is returned when client sends too many requests.
+	ErrCodeTooManyRequest = "TooManyRequests"
 )

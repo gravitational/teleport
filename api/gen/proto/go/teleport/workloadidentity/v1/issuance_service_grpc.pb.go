@@ -33,8 +33,9 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	WorkloadIdentityIssuanceService_IssueWorkloadIdentity_FullMethodName   = "/teleport.workloadidentity.v1.WorkloadIdentityIssuanceService/IssueWorkloadIdentity"
-	WorkloadIdentityIssuanceService_IssueWorkloadIdentities_FullMethodName = "/teleport.workloadidentity.v1.WorkloadIdentityIssuanceService/IssueWorkloadIdentities"
+	WorkloadIdentityIssuanceService_IssueWorkloadIdentity_FullMethodName         = "/teleport.workloadidentity.v1.WorkloadIdentityIssuanceService/IssueWorkloadIdentity"
+	WorkloadIdentityIssuanceService_IssueWorkloadIdentities_FullMethodName       = "/teleport.workloadidentity.v1.WorkloadIdentityIssuanceService/IssueWorkloadIdentities"
+	WorkloadIdentityIssuanceService_IssueTeleportWorkloadIdentity_FullMethodName = "/teleport.workloadidentity.v1.WorkloadIdentityIssuanceService/IssueTeleportWorkloadIdentity"
 )
 
 // WorkloadIdentityIssuanceServiceClient is the client API for WorkloadIdentityIssuanceService service.
@@ -51,6 +52,10 @@ type WorkloadIdentityIssuanceServiceClient interface {
 	// IssueWorkloadIdentities can issue multiple workload identity credentials
 	// based on label selectors for the WorkloadIdentity resources.
 	IssueWorkloadIdentities(ctx context.Context, in *IssueWorkloadIdentitiesRequest, opts ...grpc.CallOption) (*IssueWorkloadIdentitiesResponse, error)
+	// IssueTeleportWorkloadIdentity issues a workload identity credential for the
+	// requested Teleport usage. This request cannot be performed by users, only
+	// by Teleport services.
+	IssueTeleportWorkloadIdentity(ctx context.Context, in *IssueTeleportWorkloadIdentityRequest, opts ...grpc.CallOption) (*IssueTeleportWorkloadIdentityResponse, error)
 }
 
 type workloadIdentityIssuanceServiceClient struct {
@@ -81,6 +86,16 @@ func (c *workloadIdentityIssuanceServiceClient) IssueWorkloadIdentities(ctx cont
 	return out, nil
 }
 
+func (c *workloadIdentityIssuanceServiceClient) IssueTeleportWorkloadIdentity(ctx context.Context, in *IssueTeleportWorkloadIdentityRequest, opts ...grpc.CallOption) (*IssueTeleportWorkloadIdentityResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(IssueTeleportWorkloadIdentityResponse)
+	err := c.cc.Invoke(ctx, WorkloadIdentityIssuanceService_IssueTeleportWorkloadIdentity_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // WorkloadIdentityIssuanceServiceServer is the server API for WorkloadIdentityIssuanceService service.
 // All implementations must embed UnimplementedWorkloadIdentityIssuanceServiceServer
 // for forward compatibility.
@@ -95,6 +110,10 @@ type WorkloadIdentityIssuanceServiceServer interface {
 	// IssueWorkloadIdentities can issue multiple workload identity credentials
 	// based on label selectors for the WorkloadIdentity resources.
 	IssueWorkloadIdentities(context.Context, *IssueWorkloadIdentitiesRequest) (*IssueWorkloadIdentitiesResponse, error)
+	// IssueTeleportWorkloadIdentity issues a workload identity credential for the
+	// requested Teleport usage. This request cannot be performed by users, only
+	// by Teleport services.
+	IssueTeleportWorkloadIdentity(context.Context, *IssueTeleportWorkloadIdentityRequest) (*IssueTeleportWorkloadIdentityResponse, error)
 	mustEmbedUnimplementedWorkloadIdentityIssuanceServiceServer()
 }
 
@@ -110,6 +129,9 @@ func (UnimplementedWorkloadIdentityIssuanceServiceServer) IssueWorkloadIdentity(
 }
 func (UnimplementedWorkloadIdentityIssuanceServiceServer) IssueWorkloadIdentities(context.Context, *IssueWorkloadIdentitiesRequest) (*IssueWorkloadIdentitiesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method IssueWorkloadIdentities not implemented")
+}
+func (UnimplementedWorkloadIdentityIssuanceServiceServer) IssueTeleportWorkloadIdentity(context.Context, *IssueTeleportWorkloadIdentityRequest) (*IssueTeleportWorkloadIdentityResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method IssueTeleportWorkloadIdentity not implemented")
 }
 func (UnimplementedWorkloadIdentityIssuanceServiceServer) mustEmbedUnimplementedWorkloadIdentityIssuanceServiceServer() {
 }
@@ -169,6 +191,24 @@ func _WorkloadIdentityIssuanceService_IssueWorkloadIdentities_Handler(srv interf
 	return interceptor(ctx, in, info, handler)
 }
 
+func _WorkloadIdentityIssuanceService_IssueTeleportWorkloadIdentity_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(IssueTeleportWorkloadIdentityRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(WorkloadIdentityIssuanceServiceServer).IssueTeleportWorkloadIdentity(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: WorkloadIdentityIssuanceService_IssueTeleportWorkloadIdentity_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(WorkloadIdentityIssuanceServiceServer).IssueTeleportWorkloadIdentity(ctx, req.(*IssueTeleportWorkloadIdentityRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // WorkloadIdentityIssuanceService_ServiceDesc is the grpc.ServiceDesc for WorkloadIdentityIssuanceService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -183,6 +223,10 @@ var WorkloadIdentityIssuanceService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "IssueWorkloadIdentities",
 			Handler:    _WorkloadIdentityIssuanceService_IssueWorkloadIdentities_Handler,
+		},
+		{
+			MethodName: "IssueTeleportWorkloadIdentity",
+			Handler:    _WorkloadIdentityIssuanceService_IssueTeleportWorkloadIdentity_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

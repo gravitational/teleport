@@ -99,20 +99,22 @@ func TestSSHIdentityConversion(t *testing.T) {
 				},
 			},
 		}},
-		ConnectionDiagnosticID: "diag",
-		PrivateKeyPolicy:       keys.PrivateKeyPolicy("policy"),
-		DeviceID:               "device",
-		DeviceAssetTag:         "asset",
-		DeviceCredentialID:     "cred",
-		GitHubUserID:           "github",
-		GitHubUsername:         "ghuser",
-		AgentScope:             "/foo",
+		ConnectionDiagnosticID:   "diag",
+		PrivateKeyPolicy:         keys.PrivateKeyPolicy("policy"),
+		DeviceID:                 "device",
+		DeviceAssetTag:           "asset",
+		DeviceCredentialID:       "cred",
+		GitHubUserID:             "github",
+		GitHubUsername:           "ghuser",
+		HeadlessAuthenticationID: "headless-auth-id",
+		AgentScope:               "/foo",
 		ImmutableLabelHash: joining.HashImmutableLabels(&joiningv1.ImmutableLabels{
 			Ssh: map[string]string{
 				"one": "1",
 				"two": "2",
 			},
 		}),
+		DelegationSessionID: "delegation-session",
 	}
 
 	ignores := []string{

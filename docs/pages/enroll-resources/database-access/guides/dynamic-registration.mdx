@@ -13,7 +13,7 @@ databases (or update/unregister existing ones) without having to update the
 static configuration and restart Teleport Database Service instances. 
 
 Dynamic registration also enables administrators to deploy multiple Database
-Service instances for [high availability](../../agents/high-availability.mdx) by
+Service instances for [high availability](../../../installation/agents/high-availability.mdx) by
 configuring Database Service replicas to watch for the same database resources.
 
 To enable dynamic registration, include a `resources` section in your Teleport
@@ -102,7 +102,7 @@ spec:
 version: v5
 ```
 
-See the full database resource spec [reference](../reference/configuration.mdx).
+See the full database resource [reference](../../../reference/infrastructure-as-code/teleport-resources/database-v3.mdx).
 
 To create a database resource, run:
 

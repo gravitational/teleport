@@ -19,9 +19,9 @@ package cache
 import (
 	"context"
 	"testing"
+	"testing/synctest"
 	"time"
 
-	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -61,23 +61,22 @@ func newStaticScopedTokens() *joiningv1.StaticScopedTokens {
 // TestStaticScopedTokens tests that CRUD operations on the StaticScopedTokens resource are
 // replicated from the backend to the cache.
 func TestStaticScopedTokens(t *testing.T) {
-	t.Parallel()
-
-	p := newTestPack(t, ForAuth)
-	t.Cleanup(p.Close)
-
-	testResources153(t, p, testFuncs[*joiningv1.StaticScopedTokens]{
-		newResource: func(name string) (*joiningv1.StaticScopedTokens, error) {
-			return newStaticScopedTokens(), nil
-		},
-		create: func(ctx context.Context, item *joiningv1.StaticScopedTokens) error {
-			return trace.Wrap(p.clusterConfigS.SetStaticScopedTokens(ctx, item))
-		},
-		update: func(ctx context.Context, item *joiningv1.StaticScopedTokens) error {
-			return trace.Wrap(p.clusterConfigS.SetStaticScopedTokens(ctx, item))
-		},
-		list:      singletonListAdapter(p.clusterConfigS.GetStaticScopedTokens),
-		cacheList: singletonListAdapter(p.cache.GetStaticScopedTokens),
-		deleteAll: p.clusterConfigS.DeleteStaticScopedTokens,
-	}, withSkipPaginationTest())
+	synctest.Test(t, func(t *testing.T) {
+		p := newTestPack(t, ForAuth)
+		t.Cleanup(p.Close)
+		testSingleton153(t, p, testSingletonFuncs153[*joiningv1.StaticScopedTokens]{
+			newResource: newStaticScopedTokens,
+			create: func(ctx context.Context, sst *joiningv1.StaticScopedTokens) (*joiningv1.StaticScopedTokens, error) {
+				// Does not obey 153 semantics.
+				return sst, p.clusterConfigS.SetStaticScopedTokens(ctx, sst)
+			},
+			update: func(ctx context.Context, sst *joiningv1.StaticScopedTokens) (*joiningv1.StaticScopedTokens, error) {
+				// Does not obey 153 semantics.
+				return sst, p.clusterConfigS.SetStaticScopedTokens(ctx, sst)
+			},
+			get:      p.clusterConfigS.GetStaticScopedTokens,
+			cacheGet: p.cache.GetStaticScopedTokens,
+			delete:   p.clusterConfigS.DeleteStaticScopedTokens,
+		})
+	})
 }

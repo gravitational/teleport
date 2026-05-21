@@ -47,7 +47,10 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
+	"syscall"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/coreos/go-semver/semver"
@@ -69,6 +72,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/test/bufconn"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/testing/protocmp"
 	corev1 "k8s.io/api/core/v1"
@@ -186,14 +190,9 @@ type WebSuite struct {
 // TestMain will re-execute Teleport to run a command if "exec" is passed to
 // it as an argument. Otherwise, it will run tests as normal.
 func TestMain(m *testing.M) {
+	reexec.MaybeReexec()
 	logtest.InitLogger(testing.Verbose)
 	modules.SetInsecureTestMode(true)
-	// If the test is re-executing itself, execute the command that comes over
-	// the pipe.
-	if reexec.IsReexec() {
-		reexec.RunAndExit(os.Args[1])
-		return
-	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cryptosuitestest.PrecomputeRSAKeys(ctx)
@@ -259,9 +258,6 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 
 	if cfg.modules == nil {
 		cfg.modules = modulestest.OSSModules()
-	} else {
-		// TODO(tross) remove this when modules are injected into the auth server
-		modulestest.SetTestModules(t, *cfg.modules)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -285,6 +281,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 			Clock:                   s.clock,
 			ClusterNetworkingConfig: networkingConfig,
 			AuthPreferenceSpec:      cfg.authPreferenceSpec,
+			Modules:                 cfg.modules,
 		},
 	}
 
@@ -1470,6 +1467,38 @@ func TestUnifiedResourcesGet_AppComponentFeatures(t *testing.T) {
 	}, app.SupportedFeatureIDs)
 }
 
+func Test_appServerEffectiveFeatures(t *testing.T) {
+	t.Parallel()
+	rcv1 := componentfeatures.FeatureResourceConstraintsV1
+	otherFeature := componentfeatures.FeatureID(9999)
+	clusterFeatures := componentfeatures.New(rcv1, otherFeature)
+	makeAppServer := func(t *testing.T, version string, features *componentfeaturesv1.ComponentFeatures) types.AppServer {
+		app, err := types.NewAppV3(types.Metadata{Name: "aws-app"}, types.AppSpecV3{URI: "https://console.aws.amazon.com", Cloud: "AWS"})
+		require.NoError(t, err)
+		srv, err := types.NewAppServerV3FromApp(app, "localhost", "host-1")
+		require.NoError(t, err)
+		srv.Spec.Version = version
+		srv.SetComponentFeatures(features)
+		return srv
+	}
+
+	t.Run("old app server has ResourceConstraintsV1 stripped", func(t *testing.T) {
+		srv := makeAppServer(t, "18.7.0", componentfeatures.New(rcv1, otherFeature))
+		result := appServerEffectiveFeatures(srv, clusterFeatures)
+		require.ElementsMatch(t, componentfeatures.New(otherFeature).GetFeatures(), result.GetFeatures())
+	})
+	t.Run("new app server keeps ResourceConstraintsV1", func(t *testing.T) {
+		srv := makeAppServer(t, "18.7.3", componentfeatures.New(rcv1, otherFeature))
+		result := appServerEffectiveFeatures(srv, clusterFeatures)
+		require.ElementsMatch(t, componentfeatures.New(rcv1, otherFeature).GetFeatures(), result.GetFeatures())
+	})
+	t.Run("nil features on old app server returns empty", func(t *testing.T) {
+		srv := makeAppServer(t, "18.6.4", nil)
+		result := appServerEffectiveFeatures(srv, clusterFeatures)
+		require.Empty(t, result.GetFeatures())
+	})
+}
+
 func TestUnifiedResourcesGet(t *testing.T) {
 	t.Parallel()
 	env := newWebPack(t, 1)
@@ -1928,7 +1957,7 @@ func TestFileTransferEvents(t *testing.T) {
 	// Create file transfer event
 	data, err := json.Marshal(events.EventFields{
 		"download": true,
-		"location": "~/myfile.txt",
+		"location": "/home/alice/myfile.txt",
 	})
 
 	require.NoError(t, err)
@@ -2490,7 +2519,7 @@ func TestTerminalRouting(t *testing.T) {
 			// for is not present in the command itself
 			_, err = io.WriteString(term, "echo txlxport | sed 's/x/e/g'\r\n")
 			require.NoError(t, err)
-			require.NoError(t, waitForOutput(term, tt.output))
+			waitForOutput(t, term, tt.output)
 		})
 	}
 }
@@ -2581,9 +2610,51 @@ func TestTerminalRequireSessionMFA(t *testing.T) {
 			// Test we can write.
 			_, err = io.WriteString(term, "echo txlxport | sed 's/x/e/g'\r\n")
 			require.NoError(t, err)
-			require.NoError(t, waitForOutput(term, "teleport"))
+			waitForOutput(t, term, "teleport")
 		})
 	}
+}
+
+func TestTerminalRequireSessionMFANoRegisteredDevice(t *testing.T) {
+	env := newWebPack(t, 1)
+
+	proxy := env.proxies[0]
+
+	const username = "alice"
+
+	pack := proxy.authPack(t, username, nil)
+
+	ap, err := types.NewAuthPreference(
+		types.AuthPreferenceSpecV2{
+			Type:         constants.Local,
+			SecondFactor: constants.SecondFactorWebauthn,
+			Webauthn: &types.Webauthn{
+				RPID: "localhost",
+			},
+			RequireMFAType: types.RequireMFAType_SESSION,
+		},
+	)
+	require.NoError(t, err)
+
+	_, err = env.server.Auth().UpsertAuthPreference(t.Context(), ap)
+	require.NoError(t, err)
+
+	term, err := connectToHost(
+		t.Context(),
+		connectConfig{
+			pack:  pack,
+			host:  proxy.node.ID(),
+			proxy: proxy.webURL.Host,
+		},
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		if err := term.Close(); err != nil {
+			t.Logf("failed to close terminal: %v", err)
+		}
+	})
+
+	waitForOutput(t, term, "no supported MFA devices enrolled")
 }
 
 type windowsDesktopServiceMock struct {
@@ -2639,7 +2710,7 @@ func mustStartWindowsDesktopMock(t *testing.T, authClient *auth.Server) *windows
 }
 
 func (w *windowsDesktopServiceMock) handleConn(t *testing.T, conn *tls.Conn) {
-	tdpConn := tdp.NewConn(conn, legacy.Decode)
+	tdpConn := tdp.NewConn(conn, legacy.Decode, legacy.WarningConstructor)
 
 	// Ensure that incoming connection is MFAVerified.
 	require.NotEmpty(t, conn.ConnectionState().PeerCertificates)
@@ -2745,7 +2816,7 @@ func TestDesktopAccessMFA(t *testing.T) {
 
 			tc.mfaHandler(t, ws, dev)
 
-			tdpClient := tdp.NewConn(&WebsocketIO{Conn: ws}, legacy.Decode)
+			tdpClient := tdp.NewConn(&WebsocketIO{Conn: ws}, legacy.Decode, legacy.WarningConstructor)
 
 			msg, err := tdpClient.ReadMessage()
 			require.NoError(t, err)
@@ -2762,7 +2833,7 @@ func TestDesktopAccessMFA(t *testing.T) {
 
 func handleDesktopMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *authtest.Device) {
 	wsrwc := &WebsocketIO{Conn: ws}
-	tdpConn := tdp.NewConn(wsrwc, legacy.Decode)
+	tdpConn := tdp.NewConn(wsrwc, legacy.Decode, legacy.WarningConstructor)
 
 	br := bufio.NewReader(wsrwc)
 	mt, err := br.ReadByte()
@@ -2804,8 +2875,7 @@ func TestWebAgentForward(t *testing.T) {
 	_, err = io.WriteString(term, "echo $SSH_AUTH_SOCK\r\n")
 	require.NoError(t, err)
 
-	err = waitForOutput(term, "/")
-	require.NoError(t, err)
+	waitForOutput(t, term, "/")
 }
 
 func TestActiveSessions(t *testing.T) {
@@ -4867,129 +4937,248 @@ func TestGetAppDetails(t *testing.T) {
 	}
 }
 
-func TestGetWebConfig_WithEntitlements(t *testing.T) {
-	ctx := context.Background()
-	testModules := modulestest.OSSModules()
-	env := newWebPack(t, 1, withModules(testModules))
-	handler := env.proxies[0].handler.handler
+// connRemoteAddrOverride wraps a net.Conn for the sole purpose of
+// specifying a remote address with a valid hostport. This is meant
+// to be used with bufconn.Listeners which hardcode addresses to "bufconn"
+// which results in Proxy requests to fail that require net.SplitHostPort
+// to succeed.
+type connRemoteAddrOverride struct {
+	net.Conn
+}
 
-	// Set auth preference with passwordless.
-	const MOTD = "Welcome to cluster, your activity will be recorded."
-	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
-		Type:          constants.Local,
-		SecondFactor:  constants.SecondFactorOn,
-		ConnectorName: constants.PasswordlessConnector,
-		Webauthn: &types.Webauthn{
-			RPID: "localhost",
-		},
-		MessageOfTheDay: MOTD,
-	})
-	require.NoError(t, err)
-	_, err = env.server.Auth().UpsertAuthPreference(ctx, ap)
-	require.NoError(t, err)
+func (c *connRemoteAddrOverride) RemoteAddr() net.Addr { return &utils.NetAddr{Addr: "127.0.0.1:0"} }
 
-	// Add a test connector.
-	github, err := types.NewGithubConnector("test-github", types.GithubConnectorSpecV3{
-		TeamsToLogins: []types.TeamMapping{
-			{
-				Organization: "octocats",
-				Team:         "dummy",
-				Logins:       []string{"dummy"},
-			},
-		},
-	})
-	require.NoError(t, err)
-	_, err = env.server.Auth().UpsertGithubConnector(ctx, github)
-	require.NoError(t, err)
+// listenerAddrOverride wraps a bufconn.Listener for the sole purpose of
+// specifying addresses with a valid hostport. The bufconn.Listeners
+// hardcodes addresses to "bufconn" which results in Proxy requests to
+// fail that require net.SplitHostPort to succeed.
+type listenerAddrOverride struct {
+	*bufconn.Listener
+}
 
-	// start the feature watcher so the web config gets new features
-	env.clock.Advance(DefaultFeatureWatchInterval * 2)
+func (l *listenerAddrOverride) Addr() net.Addr { return &utils.NetAddr{Addr: "127.0.0.1:0"} }
 
-	expectedCfg := webclient.WebConfig{
-		Auth: webclient.WebConfigAuthSettings{
-			SecondFactor: constants.SecondFactorOn,
-			Providers: []webclient.WebConfigAuthProvider{{
-				Name:      "test-github",
-				Type:      constants.Github,
-				WebAPIURL: webclient.WebConfigAuthProviderGitHubURL,
-			}},
-			LocalAuthEnabled:   true,
-			AllowPasswordless:  true,
-			AuthType:           constants.Local,
-			PreferredLocalMFA:  constants.SecondFactorWebauthn,
-			LocalConnectorName: constants.PasswordlessConnector,
-			PrivateKeyPolicy:   keys.PrivateKeyPolicyNone,
-			MOTD:               MOTD,
-		},
-		CanJoinSessions:   true,
-		ProxyClusterName:  env.server.ClusterName(),
-		IsCloud:           false,
-		AutomaticUpgrades: false,
-		Edition:           testModules.BuildType(),
-		Entitlements: map[string]webclient.EntitlementInfo{
-			string(entitlements.AccessGraph):                {Enabled: false},
-			string(entitlements.AccessGraphDemoMode):        {Enabled: false},
-			string(entitlements.AccessLists):                {Enabled: false},
-			string(entitlements.AccessMonitoring):           {Enabled: false},
-			string(entitlements.AccessRequests):             {Enabled: false},
-			string(entitlements.App):                        {Enabled: true},
-			string(entitlements.ClientIPRestrictions):       {Enabled: false},
-			string(entitlements.CloudAuditLogRetention):     {Enabled: false},
-			string(entitlements.DB):                         {Enabled: true},
-			string(entitlements.Desktop):                    {Enabled: true},
-			string(entitlements.DeviceTrust):                {Enabled: false},
-			string(entitlements.ExternalAuditStorage):       {Enabled: false},
-			string(entitlements.FeatureHiding):              {Enabled: false},
-			string(entitlements.HSM):                        {Enabled: false},
-			string(entitlements.Identity):                   {Enabled: false},
-			string(entitlements.JoinActiveSessions):         {Enabled: true},
-			string(entitlements.K8s):                        {Enabled: true},
-			string(entitlements.LicenseAutoUpdate):          {Enabled: false},
-			string(entitlements.MobileDeviceManagement):     {Enabled: false},
-			string(entitlements.OIDC):                       {Enabled: false},
-			string(entitlements.OktaSCIM):                   {Enabled: false},
-			string(entitlements.OktaUserSync):               {Enabled: false},
-			string(entitlements.Policy):                     {Enabled: false},
-			string(entitlements.SAML):                       {Enabled: false},
-			string(entitlements.SessionLocks):               {Enabled: false},
-			string(entitlements.UpsellAlert):                {Enabled: false},
-			string(entitlements.UsageReporting):             {Enabled: false},
-			string(entitlements.UnrestrictedManagedUpdates): {Enabled: false},
-			string(entitlements.WorkloadClusters):           {Enabled: false},
-		},
-		TunnelPublicAddress:            "",
-		RecoveryCodesEnabled:           false,
-		UI:                             webclient.UIConfig{},
-		IsPolicyRoleVisualizerEnabled:  true,
-		IsDashboard:                    false,
-		IsUsageBasedBilling:            false,
-		AutomaticUpgradesTargetVersion: "",
-		CustomTheme:                    "",
-		Questionnaire:                  false,
-		IsStripeManaged:                false,
-		PremiumSupport:                 false,
-		PlayableDatabaseProtocols:      player.SupportedDatabaseProtocols,
+func (l *listenerAddrOverride) Accept() (net.Conn, error) {
+	conn, err := l.Listener.Accept()
+	if err != nil {
+		return nil, err
 	}
+	return &connRemoteAddrOverride{Conn: conn}, nil
+}
 
-	// Make a request.
-	clt := env.proxies[0].newClient(t)
-	endpoint := clt.Endpoint("web", "config.js")
-	re, err := clt.Get(ctx, endpoint, nil)
-	require.NoError(t, err)
-	require.True(t, strings.HasPrefix(string(re.Bytes()), "var GRV_CONFIG"))
+// TODO(tross): move this functionality into modulestest.Modules
+// once modulestest.SetTestModules is removed.
+type safeModules struct {
+	mu sync.Mutex
+	*modulestest.Modules
+}
 
-	// Response is type application/javascript, we need to strip off the variable name
-	// and the semicolon at the end, then we are left with json like object.
-	var cfg webclient.WebConfig
-	str := strings.ReplaceAll(string(re.Bytes()), "var GRV_CONFIG = ", "")
-	err = json.Unmarshal([]byte(str[:len(str)-1]), &cfg)
-	require.NoError(t, err)
-	require.Equal(t, expectedCfg, cfg)
+func (s *safeModules) Features() modules.Features {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	// update features and assert that it is properly updated on the config object
-	// TODO(tross): remove when auth modules can be injected
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestFeatures: modules.Features{
+	return s.Modules.Features()
+}
+
+// SetFeatures set features queried from Cloud
+func (s *safeModules) SetFeatures(f modules.Features) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.Modules.TestFeatures = f
+}
+
+func TestGetWebConfig_WithEntitlements(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx := t.Context()
+		testModules := &safeModules{Modules: modulestest.OSSModules()}
+
+		const MOTD = "Welcome to cluster, your activity will be recorded."
+		authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+			ClusterName: "localhost",
+			Dir:         t.TempDir(),
+			AuditLog:    events.NewDiscardAuditLog(),
+			Modules:     testModules,
+			AuthPreferenceSpec: &types.AuthPreferenceSpecV2{
+				Type:          constants.Local,
+				SecondFactor:  constants.SecondFactorOn,
+				ConnectorName: constants.PasswordlessConnector,
+				Webauthn: &types.Webauthn{
+					RPID: "localhost",
+				},
+				MessageOfTheDay: MOTD,
+			},
+		})
+		require.NoError(t, err)
+
+		server, err := authServer.NewTestTLSServer(authtest.WithBufconnListener())
+		require.NoError(t, err)
+
+		t.Cleanup(func() { require.NoError(t, server.Close()) })
+
+		// Add a test connector.
+		github, err := types.NewGithubConnector("test-github", types.GithubConnectorSpecV3{
+			TeamsToRoles: []types.TeamRolesMapping{
+				{
+					Organization: "octocats",
+					Team:         "dummy",
+					Roles:        []string{"dummy"},
+				},
+			},
+		})
+		require.NoError(t, err)
+		_, err = authServer.AuthServer.UpsertGithubConnector(ctx, github)
+		require.NoError(t, err)
+
+		authClient, err := server.NewClient(authtest.TestIdentity{
+			I: authz.BuiltinRole{
+				Role:     types.RoleProxy,
+				Username: "proxy",
+			},
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, authClient.Close()) })
+
+		const featureWatcherInterval = time.Hour
+		var pingFailure atomic.Bool
+		handler, err := NewHandler(Config{
+			Proxy:       nil,
+			AuthServers: utils.FromAddr(server.Addr()),
+			ProxyClient: mockedPingTestProxy{
+				ClientI: authClient,
+				mockedPing: func(ctx context.Context) (authproto.PingResponse, error) {
+					if pingFailure.Load() {
+						return authproto.PingResponse{}, errors.New("err")
+					}
+
+					return authClient.Ping(ctx)
+				},
+			},
+			AccessPoint: authClient,
+			Context:     ctx,
+			HostUUID:    "proxy",
+			Emitter:     authClient,
+			ProxySettings: &ProxySettings{
+				ServiceConfig: servicecfg.MakeDefaultConfig(),
+				ProxySSHAddr:  "127.0.0.1",
+				AccessPoint:   authClient,
+			},
+			Modules:               testModules,
+			ClusterFeatures:       *testModules.TestFeatures.ToProto(),
+			InsecureMode:          true,
+			FeatureWatchInterval:  featureWatcherInterval,
+			CipherSuites:          utils.DefaultCipherSuites(),
+			IntegrationAppHandler: &mockIntegrationAppHandler{},
+		})
+		require.NoError(t, err)
+
+		webListener := bufconn.Listen(1024)
+		webServer := &httptest.Server{
+			Listener: &listenerAddrOverride{
+				Listener: webListener,
+			},
+			Config: &http.Server{Handler: handler},
+		}
+		webServer.StartTLS()
+		t.Cleanup(webServer.Close)
+
+		clt := webServer.Client()
+		clt.Transport = &http.Transport{
+			DialTLSContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				raw, err := webListener.DialContext(ctx)
+				if err != nil {
+					return nil, err
+				}
+
+				tlsConfig := &tls.Config{InsecureSkipVerify: true}
+
+				tlsConn := tls.Client(raw, tlsConfig)
+				if err := tlsConn.HandshakeContext(ctx); err != nil {
+					return nil, err
+				}
+				return tlsConn, nil
+			},
+		}
+
+		expectedCfg := webclient.WebConfig{
+			Auth: webclient.WebConfigAuthSettings{
+				SecondFactor: constants.SecondFactorOn,
+				Providers: []webclient.WebConfigAuthProvider{{
+					Name:      "test-github",
+					Type:      constants.Github,
+					WebAPIURL: webclient.WebConfigAuthProviderGitHubURL,
+				}},
+				LocalAuthEnabled:   true,
+				AllowPasswordless:  true,
+				AuthType:           constants.Local,
+				PreferredLocalMFA:  constants.SecondFactorWebauthn,
+				LocalConnectorName: constants.PasswordlessConnector,
+				PrivateKeyPolicy:   keys.PrivateKeyPolicyNone,
+				MOTD:               MOTD,
+			},
+			CanJoinSessions:   true,
+			ProxyClusterName:  server.ClusterName(),
+			IsCloud:           false,
+			AutomaticUpgrades: false,
+			Edition:           testModules.BuildType(),
+			Entitlements: map[string]webclient.EntitlementInfo{
+				string(entitlements.AccessGraph):                {Enabled: false},
+				string(entitlements.AccessGraphDemoMode):        {Enabled: false},
+				string(entitlements.AccessLists):                {Enabled: false},
+				string(entitlements.AccessMonitoring):           {Enabled: false},
+				string(entitlements.AccessRequests):             {Enabled: false},
+				string(entitlements.ActivityCenter):             {Enabled: false},
+				string(entitlements.App):                        {Enabled: true},
+				string(entitlements.Beams):                      {Enabled: false},
+				string(entitlements.ClientIPRestrictions):       {Enabled: false},
+				string(entitlements.CloudAuditLogRetention):     {Enabled: false},
+				string(entitlements.DB):                         {Enabled: true},
+				string(entitlements.Desktop):                    {Enabled: true},
+				string(entitlements.DeviceTrust):                {Enabled: false},
+				string(entitlements.ExternalAuditStorage):       {Enabled: false},
+				string(entitlements.FeatureHiding):              {Enabled: false},
+				string(entitlements.HSM):                        {Enabled: false},
+				string(entitlements.Identity):                   {Enabled: false},
+				string(entitlements.JoinActiveSessions):         {Enabled: true},
+				string(entitlements.K8s):                        {Enabled: true},
+				string(entitlements.LicenseAutoUpdate):          {Enabled: false},
+				string(entitlements.MobileDeviceManagement):     {Enabled: false},
+				string(entitlements.OIDC):                       {Enabled: false},
+				string(entitlements.OktaSCIM):                   {Enabled: false},
+				string(entitlements.OktaUserSync):               {Enabled: false},
+				string(entitlements.Policy):                     {Enabled: false},
+				string(entitlements.SAML):                       {Enabled: false},
+				string(entitlements.SessionLocks):               {Enabled: false},
+				string(entitlements.SessionSummaries):           {Enabled: false},
+				string(entitlements.UpsellAlert):                {Enabled: false},
+				string(entitlements.UsageReporting):             {Enabled: false},
+				string(entitlements.UnrestrictedManagedUpdates): {Enabled: false},
+				string(entitlements.WorkloadClusters):           {Enabled: false},
+			},
+			TunnelPublicAddress:            "",
+			RecoveryCodesEnabled:           false,
+			UI:                             webclient.UIConfig{},
+			IsPolicyRoleVisualizerEnabled:  true,
+			IsDashboard:                    false,
+			IsUsageBasedBilling:            false,
+			AutomaticUpgradesTargetVersion: "",
+			CustomTheme:                    "",
+			Questionnaire:                  false,
+			IsStripeManaged:                false,
+			PremiumSupport:                 false,
+			PlayableDatabaseProtocols:      player.SupportedDatabaseProtocols,
+			BeamsUI:                        false,
+		}
+
+		// Make a request.
+		resp, err := clt.Get(webServer.URL + "/web/config.js")
+		require.NoError(t, err)
+		cfg := testGRVConfig(t, resp)
+		diff := cmp.Diff(expectedCfg, cfg)
+		require.Empty(t, diff)
+
+		// update features and assert that it is properly updated on the config object
+		testModules.SetFeatures(modules.Features{
 			Cloud:               true,
 			IsUsageBasedBilling: true,
 			AutomaticUpgrades:   true,
@@ -4998,80 +5187,228 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 				entitlements.DeviceTrust: {Enabled: true, Limit: 33},
 				entitlements.Desktop:     {Enabled: true, Limit: 44},
 			},
-		},
-	})
-	env.clock.Advance(DefaultFeatureWatchInterval * 2)
+		})
 
-	require.NoError(t, err)
-	// This version is too high and MUST NOT be used
-	testVersion := "v99.0.1"
-	channels := automaticupgrades.Channels{
-		automaticupgrades.DefaultCloudChannelName: {
-			StaticVersion: testVersion,
-		},
-	}
-	require.NoError(t, channels.CheckAndSetDefaults())
-	handler.cfg.AutomaticUpgradesChannels = channels
+		// This version is too high and MUST NOT be used
+		const testVersion = "v99.0.1"
+		channels := automaticupgrades.Channels{
+			automaticupgrades.DefaultCloudChannelName: {
+				StaticVersion: testVersion,
+			},
+		}
+		require.NoError(t, channels.CheckAndSetDefaults())
+		handler.handler.cfg.AutomaticUpgradesChannels = channels
 
-	expectedCfg.IsCloud = true
-	expectedCfg.IsUsageBasedBilling = true
-	expectedCfg.AutomaticUpgrades = true
-	expectedCfg.AutomaticUpgradesTargetVersion = "v" + teleport.Version
-	expectedCfg.Edition = testModules.BuildType()
-	expectedCfg.Entitlements[string(entitlements.App)] = webclient.EntitlementInfo{Enabled: false}
-	expectedCfg.Entitlements[string(entitlements.DB)] = webclient.EntitlementInfo{Enabled: true, Limit: 22}
-	expectedCfg.Entitlements[string(entitlements.DeviceTrust)] = webclient.EntitlementInfo{Enabled: true, Limit: 33}
-	expectedCfg.Entitlements[string(entitlements.Desktop)] = webclient.EntitlementInfo{Enabled: true, Limit: 44}
-	expectedCfg.Entitlements[string(entitlements.JoinActiveSessions)] = webclient.EntitlementInfo{Enabled: false}
-	expectedCfg.Entitlements[string(entitlements.K8s)] = webclient.EntitlementInfo{Enabled: false}
+		expectedCfg.IsCloud = true
+		expectedCfg.IsUsageBasedBilling = true
+		expectedCfg.AutomaticUpgrades = true
+		expectedCfg.AutomaticUpgradesTargetVersion = "v" + teleport.Version
+		expectedCfg.Edition = testModules.BuildType()
+		expectedCfg.Entitlements[string(entitlements.App)] = webclient.EntitlementInfo{Enabled: false}
+		expectedCfg.Entitlements[string(entitlements.DB)] = webclient.EntitlementInfo{Enabled: true, Limit: 22}
+		expectedCfg.Entitlements[string(entitlements.DeviceTrust)] = webclient.EntitlementInfo{Enabled: true, Limit: 33}
+		expectedCfg.Entitlements[string(entitlements.Desktop)] = webclient.EntitlementInfo{Enabled: true, Limit: 44}
+		expectedCfg.Entitlements[string(entitlements.JoinActiveSessions)] = webclient.EntitlementInfo{Enabled: false}
+		expectedCfg.Entitlements[string(entitlements.K8s)] = webclient.EntitlementInfo{Enabled: false}
 
-	// request and verify enabled features are eventually enabled.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		re, err := clt.Get(ctx, endpoint, nil)
+		// Advance time to unblock the feature watcher. Wait until
+		// the features have been retrieved and the feature watcher is blocked
+		// on the next tick before continuing.
+		time.Sleep(featureWatcherInterval)
+		synctest.Wait()
+
+		// request and verify enabled features are eventually enabled.
+		resp, err = clt.Get(webServer.URL + "/web/config.js")
 		require.NoError(t, err)
-		require.True(t, bytes.HasPrefix(re.Bytes(), []byte("var GRV_CONFIG")))
-		res := bytes.ReplaceAll(re.Bytes(), []byte("var GRV_CONFIG = "), []byte{})
-		err = json.Unmarshal(res[:len(res)-1], &cfg)
-		require.NoError(t, err)
-		diff := cmp.Diff(expectedCfg, cfg)
+		cfg = testGRVConfig(t, resp)
+		diff = cmp.Diff(expectedCfg, cfg)
 		require.Empty(t, diff)
-	}, time.Second*5, time.Millisecond*50)
 
-	// use mock client to assert that if ping returns an error, we'll default to
-	// cluster config
-	mockClient := mockedPingTestProxy{
-		mockedPing: func(ctx context.Context) (authproto.PingResponse, error) {
-			return authproto.PingResponse{}, errors.New("err")
-		},
-	}
-	env.proxies[0].client = mockClient
-	expectedCfg.AutomaticUpgrades = false
-	expectedCfg.Entitlements[string(entitlements.DB)] = webclient.EntitlementInfo{Enabled: false}
-	expectedCfg.Entitlements[string(entitlements.Desktop)] = webclient.EntitlementInfo{Enabled: false}
-	expectedCfg.Entitlements[string(entitlements.DeviceTrust)] = webclient.EntitlementInfo{Enabled: false}
+		// use mock client to assert that if ping returns an error, we'll default to
+		// cluster config
+		pingFailure.Store(true)
 
-	// update modules but NOT the expected config
-	// TODO(tross): remove when auth modules can be injected
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestFeatures: modules.Features{
+		// update modules but NOT the expected config
+		testModules.TestFeatures = modules.Features{
 			Cloud:               false,
 			IsUsageBasedBilling: false,
-		},
-	})
-	env.clock.Advance(DefaultFeatureWatchInterval * 2)
+		}
 
-	// request and verify again
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		re, err := clt.Get(ctx, endpoint, nil)
-		require.NoError(t, err)
+		// Advance time to unblock the feature watcher. Wait until
+		// the features have been retrieved and the feature watcher is blocked
+		// on the next tick before continuing.
+		time.Sleep(featureWatcherInterval)
+		synctest.Wait()
 
-		require.True(t, bytes.HasPrefix(re.Bytes(), []byte("var GRV_CONFIG")))
-		res := bytes.ReplaceAll(re.Bytes(), []byte("var GRV_CONFIG = "), []byte{})
-		err = json.Unmarshal(res[:len(res)-1], &cfg)
+		resp, err = clt.Get(webServer.URL + "/web/config.js")
 		require.NoError(t, err)
-		diff := cmp.Diff(expectedCfg, cfg)
+		cfg = testGRVConfig(t, resp)
+		diff = cmp.Diff(expectedCfg, cfg)
 		require.Empty(t, diff)
-	}, time.Second*5, time.Millisecond*50)
+	})
+}
+
+func TestGetWebConfig_Beams(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		ctx := t.Context()
+		testModules := &safeModules{Modules: modulestest.OSSModules()}
+
+		authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+			ClusterName: "localhost",
+			Dir:         t.TempDir(),
+			AuditLog:    events.NewDiscardAuditLog(),
+			Modules:     testModules,
+		})
+		require.NoError(t, err)
+
+		server, err := authServer.NewTestTLSServer(authtest.WithBufconnListener())
+		require.NoError(t, err)
+
+		t.Cleanup(func() { require.NoError(t, server.Close()) })
+
+		authClient, err := server.NewClient(authtest.TestIdentity{
+			I: authz.BuiltinRole{
+				Role:     types.RoleProxy,
+				Username: "proxy",
+			},
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, authClient.Close()) })
+
+		const featureWatcherInterval = time.Hour
+		handler, err := NewHandler(Config{
+			Proxy:       nil,
+			AuthServers: utils.FromAddr(server.Addr()),
+			ProxyClient: authClient,
+			AccessPoint: authClient,
+			Context:     ctx,
+			HostUUID:    "proxy",
+			Emitter:     authClient,
+			ProxySettings: &ProxySettings{
+				ServiceConfig: servicecfg.MakeDefaultConfig(),
+				ProxySSHAddr:  "127.0.0.1",
+				AccessPoint:   authClient,
+			},
+			Modules:               testModules,
+			ClusterFeatures:       *testModules.TestFeatures.ToProto(),
+			InsecureMode:          true,
+			FeatureWatchInterval:  featureWatcherInterval,
+			CipherSuites:          utils.DefaultCipherSuites(),
+			IntegrationAppHandler: &mockIntegrationAppHandler{},
+		})
+		require.NoError(t, err)
+
+		webListener := bufconn.Listen(1024)
+		webServer := &httptest.Server{
+			Listener: &listenerAddrOverride{
+				Listener: webListener,
+			},
+			Config: &http.Server{Handler: handler},
+		}
+		webServer.StartTLS()
+		t.Cleanup(webServer.Close)
+
+		clt := webServer.Client()
+		clt.Transport = &http.Transport{
+			DialTLSContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+				raw, err := webListener.DialContext(ctx)
+				if err != nil {
+					return nil, err
+				}
+
+				tlsConfig := &tls.Config{InsecureSkipVerify: true}
+
+				tlsConn := tls.Client(raw, tlsConfig)
+				if err := tlsConn.HandshakeContext(ctx); err != nil {
+					return nil, err
+				}
+				return tlsConn, nil
+			},
+		}
+
+		testCases := []struct {
+			name                   string
+			hasBeamsEntitlement    bool
+			hasBeamsUI             bool
+			expectBeamsEntitlement bool
+			expectBeamsUI          bool
+		}{
+			{
+				name:                   "Beams entitlement and UI",
+				hasBeamsEntitlement:    true,
+				hasBeamsUI:             true,
+				expectBeamsEntitlement: true,
+				expectBeamsUI:          true,
+			},
+			{
+				name:                   "Beams entitlement and no UI",
+				hasBeamsEntitlement:    true,
+				hasBeamsUI:             false,
+				expectBeamsEntitlement: true,
+				expectBeamsUI:          false,
+			},
+			{
+				name:                   "No beams entitlement and no UI",
+				hasBeamsEntitlement:    false,
+				hasBeamsUI:             false,
+				expectBeamsEntitlement: false,
+				expectBeamsUI:          false,
+			},
+			{
+				name:                   "No beams entitlement, but has UI",
+				hasBeamsEntitlement:    false,
+				hasBeamsUI:             true,
+				expectBeamsEntitlement: false,
+				expectBeamsUI:          false,
+			},
+		}
+
+		for _, tc := range testCases {
+			testModules.SetFeatures(modules.Features{
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.Beams: {Enabled: tc.hasBeamsEntitlement},
+				},
+				BeamsUI: tc.hasBeamsUI,
+			})
+
+			// Advance time to unblock the feature watcher. Wait until
+			// the features have been retrieved and the feature watcher is blocked
+			// on the next tick before continuing.
+			time.Sleep(featureWatcherInterval)
+			synctest.Wait()
+
+			// Make a request.
+			resp, err := clt.Get(webServer.URL + "/web/config.js")
+			require.NoError(t, err)
+
+			cfg := testGRVConfig(t, resp)
+			require.NoError(t, err)
+
+			require.Equal(t, webclient.EntitlementInfo{
+				Enabled: tc.expectBeamsEntitlement,
+				Limit:   0,
+			}, cfg.Entitlements[string(entitlements.Beams)])
+			require.Equal(t, tc.expectBeamsUI, cfg.BeamsUI)
+		}
+	})
+
+}
+
+func testGRVConfig(t *testing.T, resp *http.Response) webclient.WebConfig {
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, resp.Body.Close())
+	require.Equal(t, http.StatusOK, resp.StatusCode, string(body))
+	require.NoError(t, err)
+	require.True(t, bytes.HasPrefix(body, []byte("var GRV_CONFIG")))
+
+	// Response is type application/javascript, we need to strip off the variable name
+	// and the semicolon at the end, then we are left with json like object.
+	var cfg webclient.WebConfig
+	str := strings.ReplaceAll(string(body), "var GRV_CONFIG = ", "")
+	err = json.Unmarshal([]byte(str[:len(str)-1]), &cfg)
+	require.NoError(t, err)
+
+	return cfg
 }
 
 func TestCreatePrivilegeToken(t *testing.T) {
@@ -8273,55 +8610,50 @@ func (mock authProviderMock) GetRole(_ context.Context, _ string) (types.Role, e
 	return nil, nil
 }
 
-func waitForOutputWithDuration(r ReaderWithDeadline, substr string, timeout time.Duration) error {
+func waitForOutput(t *testing.T, r io.Reader, substr string, msgAndArgs ...interface{}) {
+	t.Helper()
+	require.NoError(t, waitForOutputWithDuration(t.Context(), r, substr, 30*time.Second), msgAndArgs...)
+}
+
+func waitForOutputWithDuration(ctx context.Context, r io.Reader, substr string, timeout time.Duration) error {
 	timeoutCh := time.After(timeout)
+	errC := make(chan error, 1)
+	go func() {
+		var prev string
+		out := make([]byte, int64(len(substr)*3))
+		for {
+			n, err := r.Read(out)
+			outStr := removeSpace(string(out[:n]))
 
-	var prev string
-	out := make([]byte, int64(len(substr)*3))
-	for {
-		select {
-		case <-timeoutCh:
-			return trace.BadParameter("timeout waiting on terminal for output: %v", substr)
-		default:
-		}
+			slog.DebugContext(ctx, "waitForOutput read", "output", outStr, "expected", substr)
 
-		if err := r.SetReadDeadline(time.Now().Add(timeout)); err != nil {
-			return trace.Wrap(err)
+			// Check for [substr] before checking the error,
+			// as it's valid for n > 0 even when there is an error.
+			// The [substr] is checked against the current and previous
+			// output to account for scenarios where the [substr] is split
+			// across two reads. While we try to prevent this by reading
+			// twice the length of [substr] there are no guarantees the
+			// whole thing will arrive in a single read.
+			if n > 0 && strings.Contains(prev+outStr, substr) {
+				errC <- nil
+				return
+			}
+			if err != nil {
+				errC <- err
+				return
+			}
+			prev = outStr
 		}
-		n, err := r.Read(out)
-		outStr := removeSpace(string(out[:n]))
+	}()
 
-		// Check for [substr] before checking the error,
-		// as it's valid for n > 0 even when there is an error.
-		// The [substr] is checked against the current and previous
-		// output to account for scenarios where the [substr] is split
-		// across two reads. While we try to prevent this by reading
-		// twice the length of [substr] there are no guarantees the
-		// whole thing will arrive in a single read.
-		if n > 0 && strings.Contains(prev+outStr, substr) {
-			return nil
-		}
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		prev = outStr
+	select {
+	case <-timeoutCh:
+		// The read goroutine is still blocked in the case of a timeout, but it will be
+		// unblocked once the test harness is torn down and the reader closed.
+		return fmt.Errorf("timeout waiting on terminal for output: %v", substr)
+	case err := <-errC:
+		return trace.Wrap(err)
 	}
-}
-
-type ReaderWithDeadline interface {
-	io.Reader
-	SetReadDeadline(time.Time) error
-}
-
-type ReadWriterWithDeadline interface {
-	io.Reader
-	io.Writer
-	SetReadDeadline(time.Time) error
-	SetWriteDeadline(time.Time) error
-}
-
-func waitForOutput(r ReaderWithDeadline, substr string) error {
-	return waitForOutputWithDuration(r, substr, 10*time.Second)
 }
 
 func (s *WebSuite) client(t *testing.T, opts ...roundtrip.ClientParam) *TestWebClient {
@@ -8418,9 +8750,6 @@ func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 
 	if options.modules == nil {
 		options.modules = modulestest.OSSModules()
-	} else {
-		// TODO(tross) remove this when modules are injected into the auth server
-		modulestest.SetTestModules(t, *options.modules)
 	}
 
 	ctx := context.Background()
@@ -8434,6 +8763,7 @@ func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 			AuditLog:     events.NewDiscardAuditLog(),
 			CacheEnabled: options.enableAuthCache,
 			InsecureMode: options.insecureMode,
+			Modules:      options.modules,
 		},
 	})
 	require.NoError(t, err)
@@ -8832,15 +9162,12 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		FIPS:   false,
 		Logger: logtest.NewLogger(),
 		Dialer: router,
-		SignerFn: func(authzCtx *authz.ScopedContext, clusterName string) agentless.SignerCreator {
+		SignerFn: func(_ context.Context, authzCtx *authz.ScopedContext, clusterName string) (agentless.SignerCreator, error) {
 			if unscopedCtx, ok := authzCtx.UnscopedContext(); ok {
-				return agentless.SignerFromAuthzContext(unscopedCtx, client, clusterName)
+				return agentless.SignerFromAuthzContext(unscopedCtx, client, client, clusterName), nil
 			}
 
-			return func(ctx context.Context, localAccessPoint agentless.LocalAccessPoint, certGen agentless.CertGenerator) (ssh.Signer, error) {
-				// TODO(fspamarshall/scopes): implement agentless transport signer for scoped identities
-				return nil, trace.NotImplemented("agentless transport signer is not implemented for scoped identities")
-			}
+			return agentless.SignerFromScopedContext(authzCtx, client, client, clusterName), nil
 		},
 		ConnectionMonitor: connMonitor,
 		LocalAddr:         proxyListener.Addr(),
@@ -9187,14 +9514,14 @@ func (r *testProxy) makeDesktopSession(t *testing.T, pack *authPack) *websocket.
 	return ws
 }
 
-func validateTerminal(t *testing.T, term ReadWriterWithDeadline) {
+func validateTerminal(t *testing.T, term io.ReadWriter) {
 	t.Helper()
 
 	// here we intentionally run a command where the output we're looking
 	// for is not present in the command itself
 	_, err := io.WriteString(term, "echo txlxport | sed 's/x/e/g'\r\n")
 	require.NoError(t, err)
-	require.NoError(t, waitForOutput(term, "teleport"))
+	waitForOutput(t, term, "teleport")
 }
 
 // TestUserContextWithAccessRequest checks that the userContext includes the ID of the
@@ -9651,10 +9978,11 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 		},
 	})
 	require.NoError(t, err)
-	proxyAuthorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-		ClusterName: cfg.authServer.ClusterName(),
-		AccessPoint: proxyAuthClient,
-		LockWatcher: proxyLockWatcher,
+	proxyAuthorizer, err := authz.NewScopedAuthorizer(authz.AuthorizerOpts{
+		ClusterName:      cfg.authServer.ClusterName(),
+		AccessPoint:      proxyAuthClient,
+		ScopedRoleReader: proxyAuthClient.ScopedRoleReader(),
+		LockWatcher:      proxyLockWatcher,
 	})
 	require.NoError(t, err)
 
@@ -9725,7 +10053,7 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 			Namespace:         apidefaults.Namespace,
 			Keygen:            keyGen,
 			ClusterName:       cfg.authServer.ClusterName(),
-			Authz:             proxyAuthorizer,
+			ScopedAuthz:       proxyAuthorizer,
 			AuthClient:        client,
 			Emitter:           client,
 			DataDir:           t.TempDir(),
@@ -10588,9 +10916,14 @@ func TestModeratedSession(t *testing.T) {
 		proxy: s.webServer.Listener.Addr().String(),
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, peerTerm.Close()) })
+	t.Cleanup(func() {
+		// This close can race with the moderated forced termination, which completes after the output is collected.
+		if err := peerTerm.Close(); !errors.Is(err, syscall.EPIPE) && !errors.Is(err, syscall.ECONNRESET) {
+			require.NoError(t, err)
+		}
+	})
 
-	require.NoError(t, waitForOutput(peerTerm, "Teleport > Waiting for required participants..."), "waiting for peer to enter session")
+	waitForOutput(t, peerTerm, "Teleport > Waiting for required participants...", "waiting for peer to enter session")
 
 	moderatorTerm, err := connectToHost(ctx, connectConfig{
 		pack:            s.authPack(t, "bar", moderatorRole.GetName()),
@@ -10599,24 +10932,32 @@ func TestModeratedSession(t *testing.T) {
 		sessionID:       peerTerm.GetSession().ID,
 		participantMode: types.SessionModeratorMode,
 	})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, moderatorTerm.Close()) })
 
-	require.NoError(t, waitForOutput(peerTerm, "Teleport > Connecting to node over SSH"), "waiting for peer connection to node after moderator joins")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		// This close can race with the moderated forced termination, which completes after the output is collected.
+		if err := moderatorTerm.Close(); !errors.Is(err, syscall.EPIPE) && !errors.Is(err, syscall.ECONNRESET) {
+			require.NoError(t, err)
+		}
+	})
+
+	waitForOutput(t, peerTerm, "Teleport > Connecting to node over SSH", "waiting for peer connection to node after moderator joins")
 
 	// here we intentionally run a command where the output we're looking
 	// for is not present in the command itself
 	_, err = io.WriteString(peerTerm, "echo llxmx | sed 's/x/a/g'\r\n")
 	require.NoError(t, err)
-	require.NoError(t, waitForOutput(peerTerm, "llama"), "waiting for output on peer terminal")
-	require.NoError(t, waitForOutput(moderatorTerm, "llama"), "waiting for output on moderator terminal")
+	waitForOutput(t, peerTerm, "llama", "waiting for output on peer terminal")
+	waitForOutput(t, moderatorTerm, "llama", "waiting for output on moderator terminal")
 
 	// the moderator terminates the session
 	_, err = io.WriteString(moderatorTerm, "t")
 	require.NoError(t, err)
 
-	require.NoError(t, waitForOutput(moderatorTerm, "Stopping session..."), "waiting for moderator to terminate session")
-	require.NoError(t, waitForOutput(peerTerm, "Process exited with status 255"), "waiting for peer session to be terminated")
+	// During forced termination, terminal output is not deterministic for the moderator client, which force
+	// closes its own connection without waiting for the session to end, so we only check peer output.
+	waitForOutput(t, peerTerm, "Forcefully terminating session...", "waiting for peer session to see termination broadcast")
+	waitForOutput(t, peerTerm, "Process exited with status 255", "waiting for peer session to be terminated")
 }
 
 // TestModeratedSessionWithMFA validates the same behavior as TestModeratedSession while
@@ -10705,9 +11046,15 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, peerTerm.Close()) })
 
-	require.NoError(t, waitForOutput(peerTerm, "Teleport > Waiting for required participants..."), "waiting for peer to start session")
+	t.Cleanup(func() {
+		// This close can race with the moderated forced termination, which completes after the output is collected.
+		if err := peerTerm.Close(); !errors.Is(err, syscall.EPIPE) && !errors.Is(err, syscall.ECONNRESET) {
+			require.NoError(t, err)
+		}
+	})
+
+	waitForOutput(t, peerTerm, "Teleport > Waiting for required participants...", "waiting for peer to start session")
 
 	moderatorTerm, err := connectToHost(ctx, connectConfig{
 		pack:            moderator,
@@ -10736,22 +11083,27 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, moderatorTerm.Close()) })
+	t.Cleanup(func() {
+		// This close can race with the moderated forced termination, which completes after the output is collected.
+		if err := moderatorTerm.Close(); !errors.Is(err, syscall.EPIPE) && !errors.Is(err, syscall.ECONNRESET) {
+			require.NoError(t, err)
+		}
+	})
 
-	require.NoError(t, waitForOutput(peerTerm, "Teleport > Connecting to node over SSH"), "waiting for peer to connect after moderator joins")
+	waitForOutput(t, peerTerm, "Teleport > Connecting to node over SSH", "waiting for peer to connect after moderator joins")
 
 	// here we intentionally run a command where the output we're looking
 	// for is not present in the command itself
 	_, err = io.WriteString(peerTerm, "echo llxmx | sed 's/x/a/g'\r\n")
 	require.NoError(t, err)
-	require.NoError(t, waitForOutput(peerTerm, "llama"), "waiting for output in peer terminal")
-	require.NoError(t, waitForOutput(moderatorTerm, "llama"), "waiting for output in moderator terminal")
+	waitForOutput(t, peerTerm, "llama", "waiting for output in peer terminal")
+	waitForOutput(t, moderatorTerm, "llama", "waiting for output in moderator terminal")
 
 	// run the presence check a few times
 	for range 3 {
 		presenceClock.BlockUntil(1)
 		presenceClock.Advance(30 * time.Second)
-		require.NoError(t, waitForOutput(moderatorTerm, "Teleport > Please tap your MFA key"), "waiting for moderator mfa prompt")
+		waitForOutput(t, moderatorTerm, "Teleport > Please tap your MFA key", "waiting for moderator mfa prompt")
 
 		challenge, err := moderatorTerm.stream.ReadChallenge(protobufMFACodec{})
 		require.NoError(t, err)
@@ -10778,9 +11130,9 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 	// components, it's not practical to use BlockUntil here, so we use EventuallyWithT instead.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		s.clock.Advance(3 * time.Minute)
-		require.NoError(t, waitForOutputWithDuration(moderatorTerm, "wait: remote command exited without exit status or exit signal", 3*time.Second))
-		require.NoError(t, waitForOutputWithDuration(peerTerm, "Process exited with status 255", 3*time.Second))
-	}, 15*time.Second, 500*time.Millisecond)
+		require.NoError(t, waitForOutputWithDuration(ctx, moderatorTerm, "wait: remote command exited without exit status or exit signal", 3*time.Second))
+		require.NoError(t, waitForOutputWithDuration(ctx, peerTerm, "Process exited with status 255", 3*time.Second))
+	}, 15*time.Second, 3*time.Second)
 }
 
 type proxyClientMock struct {
@@ -11414,6 +11766,7 @@ func TestGetLocksV2(t *testing.T) {
 			User: "test-user-1",
 			Role: "test-role-1",
 		}),
+		newLock(t, "test-lock-11", false, types.LockTarget{LinuxDesktop: "test-linux-desktop-1"}),
 	}
 
 	for _, l := range locks {
@@ -11576,8 +11929,7 @@ func TestAuthenticateReqForAccessGraphAPI(t *testing.T) {
 }
 
 func TestIPPinning(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
-
+	t.Parallel()
 	clientAddr := utils.MustParseAddr("1.2.3.4:1234")
 	hostAddr := utils.MustParseAddr("127.0.0.1:3080")
 	clientAddrMiddleware := func(next http.Handler) http.Handler {
@@ -11591,6 +11943,7 @@ func TestIPPinning(t *testing.T) {
 
 	s := newWebSuiteWithConfig(t, webSuiteConfig{
 		middleware: clientAddrMiddleware,
+		modules:    modulestest.EnterpriseModules(),
 	})
 
 	// Create a role that enforces IP Pinning.

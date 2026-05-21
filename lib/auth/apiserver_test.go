@@ -93,7 +93,7 @@ func TestUpsertServer(t *testing.T) {
 				Version:  types.V2,
 				Kind:     types.KindAuthServer,
 			},
-			assertErr: require.NoError,
+			assertErr: require.Error,
 		},
 		{
 			desc: "unknown",
