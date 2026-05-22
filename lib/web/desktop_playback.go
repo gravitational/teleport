@@ -22,7 +22,6 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -46,12 +45,10 @@ func (h *Handler) desktopPlaybackHandle(
 		return nil, trace.BadParameter("missing session ID in request URL")
 	}
 
-	parsed, err := uuid.Parse(sID)
+	sessionID, err := session.ParseID(sID)
 	if err != nil {
 		return nil, trace.BadParameter("invalid session ID in request URL - %v", err)
 	}
-	// Ensure sID is in canonical form which is necessary for session lookup to succeed.
-	sID = parsed.String()
 
 	clt, err := sctx.GetUserClient(r.Context(), cluster)
 	if err != nil {
@@ -61,7 +58,7 @@ func (h *Handler) desktopPlaybackHandle(
 	player, err := player.New(&player.Config{
 		Clock:     h.clock,
 		Log:       h.logger,
-		SessionID: session.ID(sID),
+		SessionID: *sessionID,
 		Streamer:  clt,
 		Context:   r.Context(),
 	})
