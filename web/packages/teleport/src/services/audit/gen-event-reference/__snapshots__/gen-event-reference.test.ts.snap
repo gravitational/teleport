@@ -1,0 +1,251 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`createReferencePage deduplicates event codes 1`] = `
+"---
+title: \\"Audit Event Reference\\"
+description: \\"Provides a comprehensive list of Teleport audit events and their fields.\\"
+---
+{/* Generated file. Do not edit. */}
+{/* To regenerate, navigate to docs/gen-event-reference and run pnpm gen-docs */}
+
+This is an intro paragraph.
+
+## event.a
+
+Event A
+
+Example:
+
+\`\`\`json
+{
+  \\"event\\": \\"event.a\\",
+  \\"code\\": \\"ABC123\\"
+}
+\`\`\`
+"
+`;
+
+exports[`createReferencePage displays multiple events with only one raw field 1`] = `
+"---
+title: \\"Audit Event Reference\\"
+description: \\"Provides a comprehensive list of Teleport audit events and their fields.\\"
+---
+{/* Generated file. Do not edit. */}
+{/* To regenerate, navigate to docs/gen-event-reference and run pnpm gen-docs */}
+
+This is an intro paragraph.
+
+## access_request.review
+
+Access Request Reviewed
+
+Code: \`T5002I\`
+
+Event: \`access_request.review\`
+
+## stable_unix_user.create
+
+Stable UNIX user created
+
+Code: \`TSUU001I\`
+
+Event: \`stable_unix_user.create\`
+"
+`;
+
+exports[`createReferencePage formats a list of events as expected 1`] = `
+"---
+title: \\"Audit Event Reference\\"
+description: \\"Provides a comprehensive list of Teleport audit events and their fields.\\"
+---
+{/* Generated file. Do not edit. */}
+{/* To regenerate, navigate to docs/gen-event-reference and run pnpm gen-docs */}
+
+This is an intro paragraph.
+
+## kube.create
+
+Kubernetes Created
+
+Example:
+
+\`\`\`json
+{
+  \\"cluster_name\\": \\"root\\",
+  \\"code\\": \\"T3010I\\",
+  \\"kube_labels\\": [
+    null
+  ],
+  \\"ei\\": 0,
+  \\"event\\": \\"kube.create\\",
+  \\"expires\\": \\"0001-01-01T00:00:00Z\\",
+  \\"name\\": \\"kube-local\\",
+  \\"time\\": \\"2022-09-08T15:42:36.005Z\\",
+  \\"uid\\": \\"9d37514f-aef5-426f-9fda-31fd35d070f5\\",
+  \\"user\\": \\"05ff66c9-a948-42f4-af0e-a1b6ba62561e.root\\"
+}
+\`\`\`
+
+## kube.update
+
+Kubernetes Updated
+
+Example:
+
+\`\`\`json
+{
+  \\"cluster_name\\": \\"root\\",
+  \\"code\\": \\"T3011I\\",
+  \\"kube_labels\\": [
+    null
+  ],
+  \\"ei\\": 0,
+  \\"event\\": \\"kube.update\\",
+  \\"expires\\": \\"0001-01-01T00:00:00Z\\",
+  \\"name\\": \\"kube-local\\",
+  \\"time\\": \\"2022-09-08T15:42:36.005Z\\",
+  \\"uid\\": \\"fe631a5a-6418-49d6-99e7-5280654663ec\\",
+  \\"user\\": \\"05ff66c9-a948-42f4-af0e-a1b6ba62561e.root\\"
+}
+\`\`\`
+"
+`;
+
+exports[`createReferencePage includes H3 sections for event codes if there are duplicate types 1`] = `
+"---
+title: \\"Audit Event Reference\\"
+description: \\"Provides a comprehensive list of Teleport audit events and their fields.\\"
+---
+{/* Generated file. Do not edit. */}
+{/* To regenerate, navigate to docs/gen-event-reference and run pnpm gen-docs */}
+
+This is an intro paragraph.
+
+## event.a
+
+There are multiple events with the \`event.a\` type.
+
+### ABC123
+
+Event A
+
+Example:
+
+\`\`\`json
+{
+  \\"event\\": \\"event.a\\",
+  \\"code\\": \\"ABC123\\"
+}
+\`\`\`
+
+### ABC456
+
+Event A failed
+
+Example:
+
+\`\`\`json
+{
+  \\"event\\": \\"event.a\\",
+  \\"code\\": \\"ABC456\\"
+}
+\`\`\`
+"
+`;
+
+exports[`createReferencePage includes H3 sections for event codes with duplicate types and partial fields 1`] = `
+"---
+title: \\"Audit Event Reference\\"
+description: \\"Provides a comprehensive list of Teleport audit events and their fields.\\"
+---
+{/* Generated file. Do not edit. */}
+{/* To regenerate, navigate to docs/gen-event-reference and run pnpm gen-docs */}
+
+This is an intro paragraph.
+
+## event.a
+
+There are multiple events with the \`event.a\` type.
+
+### ABC123
+
+Event A
+
+Code: \`ABC123\`
+
+Event: \`event.a\`
+
+### ABC456
+
+Event A failed
+
+Example:
+
+\`\`\`json
+{
+  \\"event\\": \\"event.a\\",
+  \\"code\\": \\"ABC456\\",
+  \\"user\\": \\"myuser\\"
+}
+\`\`\`
+
+### ABC789
+
+Event A starting
+
+Code: \`ABC789\`
+
+Event: \`event.a\`
+"
+`;
+
+exports[`createReferencePage orders event sections by H2 1`] = `
+"---
+title: \\"Audit Event Reference\\"
+description: \\"Provides a comprehensive list of Teleport audit events and their fields.\\"
+---
+{/* Generated file. Do not edit. */}
+{/* To regenerate, navigate to docs/gen-event-reference and run pnpm gen-docs */}
+
+This is an intro paragraph.
+
+## event.a
+
+Event A
+
+Example:
+
+\`\`\`json
+{
+  \\"event\\": \\"event.a\\",
+  \\"code\\": \\"ABC123\\"
+}
+\`\`\`
+
+## event.b
+
+Event B
+
+Example:
+
+\`\`\`json
+{
+  \\"event\\": \\"event.b\\",
+  \\"code\\": \\"DEF123\\"
+}
+\`\`\`
+
+## event.c
+
+Event C
+
+Example:
+
+\`\`\`json
+{
+  \\"event\\": \\"event.c\\",
+  \\"code\\": \\"GHI123\\"
+}
+\`\`\`
+"
+`;
