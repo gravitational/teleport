@@ -35,7 +35,7 @@ your Azure joining token.
   Identity](https://learn.microsoft.com/en-us/azure/active-directory/managed-identities-azure-resources/overview)
   assigned to it.
 
-  Your network must allow the Azure Virtual Machine to access child paths at the
+- Your network must allow the Azure Virtual Machine to access child paths at the
   following endpoint in order to fetch a certificate authority that the Auth
   Service can use to authenticate it as an Azure VM in the correct account:
 
@@ -49,7 +49,8 @@ your Azure joining token.
 
   |Endpoint|Resource at the endpoint|
   |---|---|
-  |`https://login.microsoftonline.com/common/discovery/keys`|Public keys used to verify the signature of a JSON web token sent by the Agent|
+  |`https://sts.windows.net/` and child paths|OIDC discovery document, required for requesting keys for verifying the JSON web token sent by the Teleport Agent|
+  |`https://login.microsoftonline.com/common/discovery/keys`|Public keys used to verify the signature of a JSON web token sent by the Teleport Agent|
   |`https://management.azure.com/`|Data about the VM's subscription ID and resource group. Retrieved if the Auth Service cannot extract a VM resource ID from the JWT sent by the Teleport Agent.|
 
 - (!docs/pages/includes/iac-clients.mdx!)
