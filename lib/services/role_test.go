@@ -10124,11 +10124,71 @@ func TestCheckSPIFFESVID(t *testing.T) {
 			requireErr: requireAccessDenied,
 		},
 		{
+			name: "explicit deny - multiple ip sans",
+
+			spiffeIDPath: "/foo/bar",
+			dnsSANs:      []string{},
+			ipSANs: []net.IP{
+				{10, 0, 0, 42},
+				{8, 8, 8, 8},
+			},
+
+			roles: []types.Role{
+				makeRole([]*types.SPIFFERoleCondition{
+					{
+						Path:    "/foo/*",
+						DNSSANs: []string{},
+						IPSANs:  []string{"10.0.0.1/8"},
+					},
+				}, []*types.SPIFFERoleCondition{
+					{
+						Path: "/*",
+						IPSANs: []string{
+							"10.0.0.42/32",
+						},
+					},
+				}),
+			},
+
+			requireErr: requireAccessDenied,
+		},
+		{
 			name: "explicit deny - dns san",
 
 			spiffeIDPath: "/foo/bar",
 			dnsSANs: []string{
 				"foo.example.com",
+			},
+			ipSANs: []net.IP{},
+
+			roles: []types.Role{
+				makeRole([]*types.SPIFFERoleCondition{
+					{
+						Path: "/foo/*",
+						DNSSANs: []string{
+							"*",
+						},
+						IPSANs: []string{},
+					},
+				}, []*types.SPIFFERoleCondition{
+					{
+						Path: "/*",
+						DNSSANs: []string{
+							"foo.example.com",
+						},
+					},
+				}),
+			},
+
+			requireErr: requireAccessDenied,
+		},
+		{
+			name: "explicit deny - multiple dns sans",
+
+			spiffeIDPath: "/foo/bar",
+			dnsSANs: []string{
+				"foo.example.com",
+				"bar.example.com",
 			},
 			ipSANs: []net.IP{},
 
