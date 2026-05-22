@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/scopes"
 )
 
 func TestPing(t *testing.T) {
@@ -232,21 +233,21 @@ func TestPing(t *testing.T) {
 }
 
 func TestPing_scopesEnabled(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name                        string
-		envValue                    string
+		scopesFeatures              scopes.Features
 		expectProxyEnabled          bool
 		expectAuthServerScopesField string
 	}{
 		{
 			name:                        "scopes disabled by default",
-			envValue:                    "",
 			expectProxyEnabled:          false,
 			expectAuthServerScopesField: "disabled",
 		},
 		{
 			name:                        "scopes enabled",
-			envValue:                    "yes",
+			scopesFeatures:              scopes.Features{Enabled: true},
 			expectProxyEnabled:          true,
 			expectAuthServerScopesField: "enabled",
 		},
@@ -254,8 +255,8 @@ func TestPing_scopesEnabled(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			t.Setenv("TELEPORT_UNSTABLE_SCOPES", test.envValue)
-			env := newWebPack(t, 1)
+			t.Parallel()
+			env := newWebPack(t, 1, withScopesFeatures(test.scopesFeatures))
 
 			clt, err := client.NewWebClient(env.proxies[0].webURL.String(), roundtrip.HTTPClient(client.NewInsecureWebClient()))
 			require.NoError(t, err)

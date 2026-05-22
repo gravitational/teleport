@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/access"
 )
 
@@ -157,19 +158,19 @@ func (g *scopedRoleAssignmentTestingPrimitives) CompareTeleportAndKubernetesReso
 }
 
 func TestScopedRoleAssignmentCreation(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	t.Parallel()
 	test := &scopedRoleAssignmentTestingPrimitives{}
-	testlib.ResourceCreationSynchronousTest(t, resources.NewScopedRoleAssignmentV1Reconciler, test, testlib.WithResourceName(uuid.New().String()))
+	testlib.ResourceCreationSynchronousTest(t, resources.NewScopedRoleAssignmentV1Reconciler, test, testlib.WithResourceName(uuid.New().String()), testlib.WithScopesFeatures(scopes.Features{Enabled: true}))
 }
 
 func TestScopedRoleAssignmentDeletionDrift(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	t.Parallel()
 	test := &scopedRoleAssignmentTestingPrimitives{}
-	testlib.ResourceDeletionDriftSynchronousTest(t, resources.NewScopedRoleAssignmentV1Reconciler, test, testlib.WithResourceName(uuid.New().String()))
+	testlib.ResourceDeletionDriftSynchronousTest(t, resources.NewScopedRoleAssignmentV1Reconciler, test, testlib.WithResourceName(uuid.New().String()), testlib.WithScopesFeatures(scopes.Features{Enabled: true}))
 }
 
 func TestScopedRoleAssignmentUpdate(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	t.Parallel()
 	test := &scopedRoleAssignmentTestingPrimitives{}
-	testlib.ResourceUpdateTestSynchronous(t, resources.NewScopedRoleAssignmentV1Reconciler, test, testlib.WithResourceName(uuid.New().String()))
+	testlib.ResourceUpdateTestSynchronous(t, resources.NewScopedRoleAssignmentV1Reconciler, test, testlib.WithResourceName(uuid.New().String()), testlib.WithScopesFeatures(scopes.Features{Enabled: true}))
 }

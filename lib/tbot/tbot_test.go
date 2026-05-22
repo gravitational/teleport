@@ -80,6 +80,7 @@ import (
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/observability/tracing"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	jointoken "github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/scopes/pinning"
@@ -1402,7 +1403,7 @@ func TestBotJoiningURI(t *testing.T) {
 // TestScopedBotSSH tests that a scoped bot can produce an identity output
 // with scope pins, and that the identity can be used to SSH to a scoped node.
 func TestScopedBotSSH(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	t.Parallel()
 
 	ctx := t.Context()
 	log := logtest.NewLogger()
@@ -1421,6 +1422,7 @@ func TestScopedBotSSH(t *testing.T) {
 	process, err := testenv.NewTeleportProcess(
 		t.TempDir(),
 		defaultTestServerOpts(log),
+		testenv.WithScopesFeatures(scopes.Features{Enabled: true}),
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -1466,6 +1468,7 @@ func TestScopedBotSSH(t *testing.T) {
 	// Start a second Teleport process as an SSH-only node, joining with the
 	// scoped token so the node gets scope "/test-scope".
 	nodeCfg := servicecfg.MakeDefaultConfig()
+	nodeCfg.ScopesFeatures = scopes.Features{Enabled: true}
 	nodeCfg.Hostname = nodeHostname
 	nodeCfg.DataDir = t.TempDir()
 	nodeCfg.SetToken(nodeTokenResp.Token.Metadata.Name)
@@ -1627,8 +1630,6 @@ func TestScopedBotSSH(t *testing.T) {
 // discover a scoped Kubernetes cluster via selectors, and that a valid
 // kubeconfig is rendered.
 func TestScopedBotKubernetes(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
-
 	ctx := t.Context()
 	log := logtest.NewLogger()
 
@@ -1644,6 +1645,7 @@ func TestScopedBotKubernetes(t *testing.T) {
 		t.TempDir(),
 		defaultTestServerOpts(log),
 		testenv.WithProxyKube(),
+		testenv.WithScopesFeatures(scopes.Features{Enabled: true}),
 	)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -1710,6 +1712,7 @@ func TestScopedBotKubernetes(t *testing.T) {
 	// Start a second Teleport process as a kube_service-only agent, joining
 	// with the scoped kube token.
 	kubeNodeCfg := servicecfg.MakeDefaultConfig()
+	kubeNodeCfg.ScopesFeatures = scopes.Features{Enabled: true}
 	kubeNodeCfg.DataDir = t.TempDir()
 	kubeNodeCfg.SetToken(kubeTokenResp.Token.Metadata.Name)
 	kubeNodeCfg.SetTokenSecret(kubeTokenResp.Token.Status.Secret)
