@@ -21,7 +21,7 @@ import { QueryClient } from '@tanstack/react-query';
 import { ComponentProps, useRef, useState } from 'react';
 
 import { CardTile } from 'design/CardTile/CardTile';
-import { SortOrder } from 'shared/components/Controls/SortMenuV2';
+import { SortOrder } from 'shared/components/Controls/SortMenu';
 
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { TeleportProviderBasic } from 'teleport/mocks/providers';

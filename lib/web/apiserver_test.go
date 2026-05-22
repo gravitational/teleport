@@ -85,7 +85,6 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
@@ -1424,38 +1423,6 @@ func TestUnifiedResourcesGet_AppComponentFeatures(t *testing.T) {
 	require.True(t, app.AWSConsole)
 
 	require.ElementsMatch(t, []int{int(feature1)}, app.SupportedFeatureIDs)
-}
-
-func Test_appServerEffectiveFeatures(t *testing.T) {
-	t.Parallel()
-	rcv1 := componentfeatures.FeatureResourceConstraintsV1
-	otherFeature := componentfeatures.FeatureID(9999)
-	clusterFeatures := componentfeatures.New(rcv1, otherFeature)
-	makeAppServer := func(t *testing.T, version string, features *componentfeaturesv1.ComponentFeatures) types.AppServer {
-		app, err := types.NewAppV3(types.Metadata{Name: "aws-app"}, types.AppSpecV3{URI: "https://console.aws.amazon.com", Cloud: "AWS"})
-		require.NoError(t, err)
-		srv, err := types.NewAppServerV3FromApp(app, "localhost", "host-1")
-		require.NoError(t, err)
-		srv.Spec.Version = version
-		srv.SetComponentFeatures(features)
-		return srv
-	}
-
-	t.Run("old app server has ResourceConstraintsV1 stripped", func(t *testing.T) {
-		srv := makeAppServer(t, "18.7.0", componentfeatures.New(rcv1, otherFeature))
-		result := appServerEffectiveFeatures(srv, clusterFeatures)
-		require.ElementsMatch(t, componentfeatures.New(otherFeature).GetFeatures(), result.GetFeatures())
-	})
-	t.Run("new app server keeps ResourceConstraintsV1", func(t *testing.T) {
-		srv := makeAppServer(t, "18.7.3", componentfeatures.New(rcv1, otherFeature))
-		result := appServerEffectiveFeatures(srv, clusterFeatures)
-		require.ElementsMatch(t, componentfeatures.New(rcv1, otherFeature).GetFeatures(), result.GetFeatures())
-	})
-	t.Run("nil features on old app server returns empty", func(t *testing.T) {
-		srv := makeAppServer(t, "18.6.4", nil)
-		result := appServerEffectiveFeatures(srv, clusterFeatures)
-		require.Empty(t, result.GetFeatures())
-	})
 }
 
 func TestUnifiedResourcesGet(t *testing.T) {

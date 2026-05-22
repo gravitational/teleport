@@ -25,7 +25,7 @@ import {
 } from 'react';
 import { useHistory } from 'react-router';
 
-import { SortOrder } from 'shared/components/Controls/SortMenuV2';
+import { SortOrder } from 'shared/components/Controls/SortMenu';
 
 import { isIntegrationTag, type IntegrationTag } from './common';
 

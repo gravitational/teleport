@@ -83,6 +83,52 @@ func TestMakeApp_SupportedFeatureIDs(t *testing.T) {
 	})
 }
 
+func TestMakeApp_AWSRolesVisibility(t *testing.T) {
+	t.Parallel()
+
+	app, err := types.NewAppV3(
+		types.Metadata{
+			Name:   "aws-console",
+			Labels: map[string]string{"aws_account_id": "123456789012"},
+		},
+		types.AppSpecV3{
+			URI:   "https://console.aws.amazon.com",
+			Cloud: types.CloudAWS,
+		},
+	)
+	require.NoError(t, err)
+
+	grantedARN := "arn:aws:iam::123456789012:role/granted"
+	requestableARN := "arn:aws:iam::123456789012:role/requestable"
+	baseCfg := MakeAppsConfig{
+		LocalClusterName:      "root",
+		LocalProxyDNSName:     "proxy.example.com",
+		AppClusterName:        "root",
+		UserGroupLookup:       map[string]types.UserGroup{},
+		GrantedAWSRolesLookup: map[string][]string{"aws-console": {grantedARN}},
+		AllowedAWSRolesLookup: map[string][]string{"aws-console": {grantedARN, requestableARN}},
+	}
+
+	t.Run("with constraint support returns granted and requestable", func(t *testing.T) {
+		t.Parallel()
+		cfg := baseCfg
+		cfg.SupportedFeatures = componentfeatures.New(componentfeatures.FeatureResourceConstraintsV1)
+
+		out := MakeApp(app, cfg)
+		require.Len(t, out.AWSRoles, 2)
+	})
+	t.Run("without constraint support returns only granted", func(t *testing.T) {
+		t.Parallel()
+		cfg := baseCfg
+		cfg.SupportedFeatures = nil
+
+		out := MakeApp(app, cfg)
+		require.Len(t, out.AWSRoles, 1)
+		require.Equal(t, grantedARN, out.AWSRoles[0].ARN)
+		require.False(t, out.AWSRoles[0].RequiresRequest)
+	})
+}
+
 func TestMakeAppTypeFromSAMLApp(t *testing.T) {
 	tests := []struct {
 		name             string
