@@ -42,15 +42,16 @@ func (h *Handler) desktopPlaybackHandle(
 	ws *websocket.Conn,
 ) (any, error) {
 	sID := p.ByName("sid")
-
-	switch sID {
-	case "":
+	if sID == "" {
 		return nil, trace.BadParameter("missing session ID in request URL")
-	default:
-		if _, err := uuid.Parse(sID); err != nil {
-			return nil, trace.BadParameter("invalid session ID in request URL - %v", err)
-		}
 	}
+
+	parsed, err := uuid.Parse(sID)
+	if err != nil {
+		return nil, trace.BadParameter("invalid session ID in request URL - %v", err)
+	}
+	// Ensure sID is in canonical form which is necessary for session lookup to succeed.
+	sID = parsed.String()
 
 	clt, err := sctx.GetUserClient(r.Context(), cluster)
 	if err != nil {
