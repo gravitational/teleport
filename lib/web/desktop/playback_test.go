@@ -19,9 +19,15 @@
 package desktop_test
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -108,4 +114,168 @@ func newServer(t *testing.T, streamInterval time.Duration, events []apievents.Au
 
 	t.Cleanup(s.Close)
 	return s
+}
+
+type mockJSONReader struct {
+	json chan json.RawMessage
+	err  chan error
+	once sync.Once
+}
+
+func (m *mockJSONReader) Close() {
+	m.once.Do(func() {
+		close(m.json)
+	})
+}
+
+func (m *mockJSONReader) ReadJSON(v interface{}) error {
+	select {
+	case jsn, ok := <-m.json:
+		if !ok {
+			return io.EOF
+		}
+		return json.Unmarshal(jsn, v)
+	case e := <-m.err:
+		return e
+	}
+}
+
+type mockPlayer struct {
+	setPosCount   int
+	setSpeedCount int
+	speedSettings []float64
+	pauseCount    int
+	playCount     int
+}
+
+func (m *mockPlayer) SetPos(d time.Duration) error {
+	m.setPosCount++
+	return nil
+}
+
+func (m *mockPlayer) SetSpeed(s float64) error {
+	m.setSpeedCount++
+	m.speedSettings = append(m.speedSettings, s)
+	return nil
+}
+
+func (m *mockPlayer) Pause() error {
+	m.pauseCount++
+	return nil
+}
+
+func (m *mockPlayer) Play() error {
+	m.playCount++
+	return nil
+}
+
+func jsonActionMessage(action string, speed float64, pos int64) json.RawMessage {
+	if speed > 0 {
+		return fmt.Appendf(nil, `{"action": "%s", "speed": %f, "pos": %d}`, action, speed, pos)
+	}
+	return fmt.Appendf(nil, `{"action": "%s", "pos": %d}`, action, pos)
+
+}
+
+func sendWithDeadline[T any](ctx context.Context, c chan T, val T) {
+	select {
+	case c <- val:
+	case <-ctx.Done():
+	}
+}
+
+func TestPlaybackActions(t *testing.T) {
+	newFixture := func() (*mockJSONReader, *mockPlayer, chan error) {
+
+		mockReader := &mockJSONReader{
+			json: make(chan json.RawMessage),
+			err:  make(chan error),
+		}
+
+		mockPlayer := &mockPlayer{}
+
+		errCh := make(chan error)
+		go func() {
+			errCh <- desktop.ReceivePlaybackActions(t.Context(), slog.New(slog.DiscardHandler), mockReader, mockPlayer)
+		}()
+
+		return mockReader, mockPlayer, errCh
+	}
+
+	t.Run("invalid-action", func(t *testing.T) {
+		mockReader, mockPlayer, errCh := newFixture()
+		defer mockReader.Close()
+
+		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+		defer cancel()
+
+		sendWithDeadline(ctx, mockReader.json, jsonActionMessage("invalid", 0, 0))
+		select {
+		case err := <-errCh:
+			require.Error(t, err)
+		case <-ctx.Done():
+			t.Fatalf("playback action reader did not exit before deadline")
+		}
+		assert.Zero(t, mockPlayer.playCount)
+		assert.Zero(t, mockPlayer.pauseCount)
+		assert.Zero(t, mockPlayer.setPosCount)
+		assert.Zero(t, mockPlayer.setSpeedCount)
+	})
+
+	t.Run("invalid-speeds", func(t *testing.T) {
+		mockReader, mockPlayer, errCh := newFixture()
+		defer mockReader.Close()
+
+		ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+		defer cancel()
+
+		// Too low
+		sendWithDeadline(ctx, mockReader.json, jsonActionMessage("speed", 0.01, 0))
+		// Too high
+		sendWithDeadline(ctx, mockReader.json, jsonActionMessage("speed", 17, 0))
+		mockReader.Close()
+		select {
+		case err := <-errCh:
+			require.Error(t, err)
+		case <-ctx.Done():
+			t.Fatalf("playback action reader did not exit before deadline")
+		}
+		assert.Zero(t, mockPlayer.playCount)
+		assert.Zero(t, mockPlayer.pauseCount)
+		assert.Zero(t, mockPlayer.setPosCount)
+		assert.Equal(t, 2, mockPlayer.setSpeedCount)
+		assert.Contains(t, mockPlayer.speedSettings, 0.25)
+		assert.Contains(t, mockPlayer.speedSettings, float64(16))
+	})
+
+	t.Run("happy-paths", func(t *testing.T) {
+		mockReader, mockPlayer, errCh := newFixture()
+		defer mockReader.Close()
+
+		ctx, cancel := context.WithTimeout(t.Context(), 1*time.Second)
+		defer cancel()
+
+		for _, action := range []json.RawMessage{
+			jsonActionMessage("speed", 0.25, 0),
+			jsonActionMessage("speed", 16, 0),
+			jsonActionMessage("play/pause", 16, 0),
+			jsonActionMessage("play/pause", 16, 0),
+			jsonActionMessage("seek", 0, 1000),
+		} {
+			sendWithDeadline(ctx, mockReader.json, action)
+		}
+		// Should return EOF on error
+		mockReader.Close()
+
+		select {
+		case err := <-errCh:
+			require.ErrorIs(t, err, io.EOF, "expected ReceivePlaybackActions to return an EOF but got %v", err)
+		case <-ctx.Done():
+			t.Fatalf("playback action reader did not exit before deadline")
+		}
+		assert.Equal(t, 1, mockPlayer.playCount)
+		assert.Equal(t, 1, mockPlayer.pauseCount)
+		assert.Equal(t, 1, mockPlayer.setPosCount)
+		assert.Equal(t, 2, mockPlayer.setSpeedCount)
+	})
 }

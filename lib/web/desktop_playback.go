@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/player"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/desktop"
 )
 
@@ -71,12 +72,19 @@ func (h *Handler) desktopPlaybackHandle(
 
 	go func() {
 		defer cancel()
-		desktop.ReceivePlaybackActions(ctx, h.logger, ws, player)
+		err := desktop.ReceivePlaybackActions(ctx, h.logger, ws, player)
+		// Connection close errors are expected if the user closes the tab.
+		// Only log unexpected errors to avoid cluttering the logs.
+		if !utils.IsOKNetworkError(err) {
+			h.logger.WarnContext(ctx, "websocket read error", "error", err)
+		}
 	}()
 
 	go func() {
 		defer cancel()
 		defer ws.Close()
+
+		player.Play()
 		desktop.PlayRecording(ctx, h.logger, ws, player)
 	}()
 

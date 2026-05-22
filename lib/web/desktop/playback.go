@@ -21,14 +21,15 @@ package desktop
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/player"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -53,13 +54,60 @@ const (
 	actionSeek = playbackAction("seek")
 )
 
+// UnmarshalJSON implements custom json unmarshalling for playbackAction.
+// It ensures that actions conform to the expected set of values.
+func (a *playbackAction) UnmarshalJSON(data []byte) error {
+	var action string
+	if err := json.Unmarshal(data, &action); err != nil {
+		return err
+	}
+
+	switch action {
+	case string(actionPlayPause), string(actionSpeed), string(actionSeek):
+		*a = playbackAction(action)
+		return nil
+	default:
+		return errors.New("invalid desktop action")
+	}
+}
+
+type playbackSpeed float64
+
+// UnmarshalJSON implements custom json unmarshalling for playbackSpeed.
+// It coerces the received value into the range [minPlaybackSpeed, maxPlaybackSpeed].
+func (p *playbackSpeed) UnmarshalJSON(data []byte) error {
+	var speed float64
+	if err := json.Unmarshal(data, &speed); err != nil {
+		return err
+	}
+
+	speed = max(speed, minPlaybackSpeed)
+	speed = min(speed, maxPlaybackSpeed)
+	*p = playbackSpeed(speed)
+	return nil
+}
+
 // actionMessage is a message passed from the playback client
 // to the server over the websocket connection in order to
 // control playback.
 type actionMessage struct {
 	Action        playbackAction `json:"action"`
-	PlaybackSpeed float64        `json:"speed,omitempty"`
+	PlaybackSpeed playbackSpeed  `json:"speed,omitempty"`
 	Pos           int64          `json:"pos"`
+}
+
+// JSONReader is used to read JSON messages containing
+// commands for the session player.
+type JSONReader interface {
+	ReadJSON(v any) error
+}
+
+// PlayerController models the session player.
+type PlayerController interface {
+	SetPos(time.Duration) error
+	SetSpeed(float64) error
+	Pause() error
+	Play() error
 }
 
 // ReceivePlaybackActions handles logic for receiving playbackAction messages
@@ -67,21 +115,16 @@ type actionMessage struct {
 func ReceivePlaybackActions(
 	ctx context.Context,
 	logger *slog.Logger,
-	ws *websocket.Conn,
-	player *player.Player) {
+	reader JSONReader,
+	player PlayerController) error {
 	// playback always starts in a playing state
 	playing := true
 
 	for {
 		var action actionMessage
-
-		if err := ws.ReadJSON(&action); err != nil {
-			// Connection close errors are expected if the user closes the tab.
-			// Only log unexpected errors to avoid cluttering the logs.
-			if !utils.IsOKNetworkError(err) {
-				logger.WarnContext(ctx, "websocket read error", "error", err)
-			}
-			return
+		err := reader.ReadJSON(&action)
+		if err != nil {
+			return trace.Wrap(err)
 		}
 
 		switch action.Action {
@@ -93,16 +136,20 @@ func ReceivePlaybackActions(
 			}
 			playing = !playing
 		case actionSpeed:
-			action.PlaybackSpeed = max(action.PlaybackSpeed, minPlaybackSpeed)
-			action.PlaybackSpeed = min(action.PlaybackSpeed, maxPlaybackSpeed)
-			player.SetSpeed(action.PlaybackSpeed)
+			player.SetSpeed(float64(action.PlaybackSpeed))
 		case actionSeek:
 			player.SetPos(time.Duration(action.Pos) * time.Millisecond)
 		default:
 			slog.WarnContext(ctx, "invalid desktop playback action", "action", action.Action)
-			return
+			return errors.New("invalid desktop action")
 		}
 	}
+}
+
+// RecordingPlayer models the read actions of the session player.
+type RecordingPlayer interface {
+	C() <-chan events.AuditEvent
+	Err() error
 }
 
 // PlayRecording feeds recorded events from a player
@@ -111,8 +158,7 @@ func PlayRecording(
 	ctx context.Context,
 	log *slog.Logger,
 	ws *websocket.Conn,
-	player *player.Player) {
-	player.Play()
+	player RecordingPlayer) {
 	for {
 		select {
 		case <-ctx.Done():
