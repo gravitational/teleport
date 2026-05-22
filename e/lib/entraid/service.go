@@ -111,9 +111,11 @@ type Service struct {
 
 	// syncIntervals configures Entra ID sync intervals.
 	syncIntervals *mdmsync.Scheduler[*SyncIntervals]
-
+	// deltaSyncEnabled indicates if delta sync is enabled.
+	deltaSyncEnabled bool
+	// firstSyncCompleted indicates whether the first full sync was
+	// completed successfully.
 	firstSyncCompleted bool
-	deltaSyncEnabled   bool
 }
 
 // New returns a new Entra ID service.
@@ -233,12 +235,13 @@ func (s *Service) runScheduled(ctx context.Context) error {
 		case <-s.clock.After(offset):
 			start := s.clock.Now()
 			e := s.syncIntervals.Next()
-			if !s.firstSyncCompleted {
-				// Delta sync expects a full sync to have completed.
-				// Force full sync if first sync completion isn't reported.
+			if e.Mode == mdmsync.SyncModePartial && !s.firstSyncCompleted {
+				// Force the first sync to be a full sync, regardless of the
+				// sync interval settings. This is needed because the delta
+				// sync depends on the baseline snapshot of the Entra ID
+				// directory created by a successful full sync.
 				e.Mode = mdmsync.SyncModeFull
 			}
-
 			s.log.InfoContext(ctx, "Starting Entra ID directory sync", "sync_mode", e.Mode)
 			result, err := s.directoryReconciler.Reconcile(ctx, e.Mode)
 			if e.Mode == mdmsync.SyncModeFull && !s.deltaSyncEnabled {
@@ -254,14 +257,13 @@ func (s *Service) runScheduled(ctx context.Context) error {
 			// TODO(sshah): maybe fallback to running service on DefaultFullSyncInterval
 			// in such case?
 			if err != nil {
-				s.logFailedSync(ctx, err, e.Mode, result)
+				s.handleReconcilerError(ctx, err, e.Mode, result)
 			} else {
-				if !s.firstSyncCompleted {
+				if e.Mode == mdmsync.SyncModeFull && !s.firstSyncCompleted {
 					s.firstSyncCompleted = true
 				}
 			}
 			took := s.clock.Since(start)
-
 			s.log.InfoContext(ctx, "Entra ID directory sync finished",
 				"sync_mode", e.Mode,
 				"took", took.String(),
@@ -277,20 +279,22 @@ func (s *Service) runScheduled(ctx context.Context) error {
 	}
 }
 
-func (s *Service) logFailedSync(ctx context.Context, err error, syncMode mdmsync.SyncMode, result directory.Result) {
+func (s *Service) handleReconcilerError(ctx context.Context, err error, syncMode mdmsync.SyncMode, result directory.Result) {
+	s.maybeResetSyncSchedule(ctx, err, syncMode)
+
 	if result.ImportedUsers > 0 || result.ImportedGroups > 0 {
 		s.log.ErrorContext(
 			ctx,
 			"Microsoft Entra ID directory sync completed with partial success",
-			"sync_mode", syncMode,
 			"imported_users", result.ImportedUsers,
 			"imported_groups", result.ImportedGroups,
+			"sync_mode", syncMode,
 			"error", err,
 		)
 		return
 	}
 
-	s.log.ErrorContext(ctx, "Entra ID directory sync failed", "sync_mode", syncMode, "error", err)
+	s.log.ErrorContext(ctx, "Entra ID directory sync failed", "error", err, "sync_mode", syncMode)
 }
 
 func (s *Service) emitStatus(ctx context.Context, err error, result directory.Result) {
@@ -336,6 +340,32 @@ func (s *Service) runAccessGraphSync(ctx context.Context) error {
 	}
 
 	return trace.Wrap(s.accessGraphSynchronizer.Run(ctx))
+}
+
+// maybeResetSyncSchedule processes reconciler error and may reset
+// the sync schedule based on the known error types.
+func (s *Service) maybeResetSyncSchedule(ctx context.Context, err error, syncMode mdmsync.SyncMode) {
+	if err == nil {
+		return
+	}
+	switch {
+	case isErrDeltaSetup(err) || isErrDeltaAPI(err):
+		s.log.DebugContext(ctx, "Failed to complete delta sync, next sync will be a full sync", "sync_mode", syncMode)
+	case s.deltaSyncEnabled && syncMode == mdmsync.SyncModeFull:
+		// If delta sync is enabled but the full sync fails, delta
+		// sync can either entirely fail or proceed with incomplete
+		// snapshot of the Entra ID directory and bear unwanted results.
+		s.log.DebugContext(ctx, "Failed to complete full sync, another full sync will be retried before delta sync", "sync_mode", syncMode)
+	default:
+		return
+	}
+
+	// Delay with DefaultFullSyncInterval as a recovery backoff.
+	// It also resembles older full sync interval.
+	delayFn := func() time.Duration { return DefaultFullSyncInterval }
+	if err := s.syncIntervals.Reset(delayFn); err != nil {
+		s.log.ErrorContext(ctx, "Failed to reset Entra ID sync schedule", "error", err)
+	}
 }
 
 func errString(err error) string {

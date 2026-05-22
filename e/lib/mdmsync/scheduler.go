@@ -50,6 +50,8 @@ type Scheduler[E any] struct {
 	// Guaranteed to always have at least one entry.
 	schedule []Entry[E]
 	infoFn   func(E) EntryInfo
+	// entries are interval entries.
+	entries []E
 }
 
 // New creates a new sync scheduler.
@@ -69,9 +71,10 @@ func New[E any](entries []E, initialDelayFn func() time.Duration, infoFn func(E)
 	}
 
 	t := &Scheduler[E]{
-		infoFn: infoFn,
+		entries: slices.Clone(entries),
+		infoFn:  infoFn,
 	}
-	t.initializeSchedule(entries, initialDelayFn)
+	t.initializeSchedule(initialDelayFn)
 	if len(t.schedule) == 0 {
 		return nil, trace.Wrap(ErrScheduleEmpty)
 	}
@@ -104,8 +107,27 @@ func (t *Scheduler[E]) Next() Entry[E] {
 	return entry
 }
 
-func (t *Scheduler[E]) initializeSchedule(entries []E, initialDelayFn func() time.Duration) {
-	for _, e := range entries {
+// Reset resets the schedule. Must only be called on a scheduler
+// returned by [New].
+//
+// `delayFn` calculates the reset delay for each entries configured when
+// creating a new schedule with [New], effectively delaying the first
+// sync schedule after the reset.
+func (t *Scheduler[E]) Reset(delayFn func() time.Duration) error {
+	if delayFn == nil {
+		return trace.BadParameter("delayFn is required")
+	}
+	// Reset existing schedules.
+	t.schedule = t.schedule[:0]
+	t.initializeSchedule(delayFn)
+	if len(t.schedule) == 0 {
+		return trace.Wrap(ErrScheduleEmpty)
+	}
+	return nil
+}
+
+func (t *Scheduler[E]) initializeSchedule(initialDelayFn func() time.Duration) {
+	for _, e := range t.entries {
 		t.reschedule(e, initialDelayFn(), true /* initialSync */)
 	}
 	t.sort()

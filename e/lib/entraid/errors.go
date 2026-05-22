@@ -9,6 +9,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/msgraph"
 )
 
 func getErrorDetails(err error) (types.PluginStatusCode, string) {
@@ -62,4 +63,21 @@ func getEntraErrorDetails(err error) (types.PluginStatusCode, string) {
 	}
 
 	return types.PluginStatusCode_OTHER_ERROR, trace.Unwrap(err).Error()
+}
+
+// isErrDeltaSetup checks sentinel delta setup related error
+// returned by the /lib/msgraph client.
+func isErrDeltaSetup(err error) bool {
+	return errors.Is(err, msgraph.ErrMissingDeltaLink)
+}
+
+// isErrDeltaAPI checks error returned by the Graph API.
+func isErrDeltaAPI(err error) bool {
+	graphError := &msgraph.GraphError{}
+	if errors.As(err, &graphError) {
+		return graphError.Code == msgraph.ErrCodeResyncRequired ||
+			graphError.Code == msgraph.ErrCodeResyncApplyDifferences ||
+			graphError.Code == msgraph.ErrCodeSyncStateNotFound
+	}
+	return false
 }

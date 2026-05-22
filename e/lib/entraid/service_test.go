@@ -18,6 +18,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/mdmsync"
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/msgraph"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
@@ -183,4 +184,175 @@ func TestDirectoryReconcilerStatus(t *testing.T) {
 		require.Equal(t, uint32(34), entraStatus.ImportedUsers)
 		require.Equal(t, uint32(12), entraStatus.ImportedGroups)
 	})
+}
+
+func TestMaybeResetSyncScheduleOnStart(t *testing.T) {
+	// fullSyncInterval configured to be greater than
+	// DefaultFullSyncInterval which is 5 minutes.
+	const fullSyncInterval = time.Hour
+	const deltaSyncInterval = 2 * time.Minute
+	tests := []struct {
+		name         string
+		err          error
+		syncInterval SyncIntervals
+		wantReset    bool
+	}{
+		{
+			name: "nil error should not reset",
+			err:  nil,
+			syncInterval: SyncIntervals{
+				Full:  fullSyncInterval,
+				Delta: deltaSyncInterval, // duration > 0 enables delta sync.
+			},
+			wantReset: false,
+		},
+		{
+			name: "delta setup error should reset",
+			err:  msgraph.ErrMissingDeltaLink,
+			syncInterval: SyncIntervals{
+				Full:  fullSyncInterval,
+				Delta: deltaSyncInterval,
+			},
+			wantReset: true,
+		},
+		{
+			name: "delta api error should reset",
+			err: trace.Wrap(&msgraph.GraphError{
+				Code: msgraph.ErrCodeSyncStateNotFound,
+			}),
+			syncInterval: SyncIntervals{
+				Full:  fullSyncInterval,
+				Delta: deltaSyncInterval,
+			},
+			wantReset: true,
+		},
+		{
+			name: "unknown error from full sync resets if deltasync is enabled",
+			err:  errors.New("random error"),
+			syncInterval: SyncIntervals{
+				Full:  fullSyncInterval,
+				Delta: deltaSyncInterval,
+			},
+			wantReset: true,
+		},
+		{
+			name: "unknown error should not reset if deltasync is disabled",
+			err:  errors.New("random error"),
+			syncInterval: SyncIntervals{
+				Full:  fullSyncInterval,
+				Delta: 0, // disables delta sync
+			},
+			wantReset: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				scheduler, err := newScheduler(tc.syncInterval)
+				require.NoError(t, err)
+				deltaEnabled := tc.syncInterval.Delta > 0
+
+				clock := clockwork.NewRealClock()
+
+				directoryReconciler := &fakeDirectoryReconciler{}
+				directoryReconciler.setErr(tc.err)
+
+				svc := &Service{
+					clock:               clock,
+					log:                 logtest.NewLogger(),
+					directoryReconciler: directoryReconciler,
+					syncIntervals:       scheduler,
+					deltaSyncEnabled:    deltaEnabled,
+				}
+
+				ctx, cancel := context.WithCancel(t.Context())
+				defer cancel()
+
+				go func() {
+					// First sync is always a full sync.
+					svc.runScheduled(ctx)
+				}()
+
+				synctest.Wait()
+				// Expect directory reconciler to get called once.
+				require.Equal(t, int64(1), atomic.LoadInt64(&directoryReconciler.timesCalled))
+
+				if tc.wantReset {
+					// Reset offsets next sync to start after DefaultFullSyncInterval.
+					require.Equal(t, DefaultFullSyncInterval, scheduler.NextOffset())
+
+					next := scheduler.Next()
+					require.Equal(t, mdmsync.SyncModeFull, next.Mode)
+					return
+				}
+
+				if deltaEnabled {
+					require.Equal(t, tc.syncInterval.Delta, scheduler.NextOffset())
+				} else {
+					require.Equal(t, tc.syncInterval.Full, scheduler.NextOffset())
+				}
+			})
+		})
+	}
+}
+
+func TestMaybeResetSyncSchedule_SyncModePartial(t *testing.T) {
+	const deltaSyncInterval = 2 * time.Minute
+	tests := []struct {
+		name      string
+		err       error
+		wantReset bool
+	}{
+		{
+			name:      "missing delta link error should reset",
+			err:       msgraph.ErrMissingDeltaLink,
+			wantReset: true,
+		},
+		{
+			name: "delta api error should reset",
+			err: trace.Wrap(&msgraph.GraphError{
+				Code: msgraph.ErrCodeSyncStateNotFound,
+			}),
+			wantReset: true,
+		},
+		{
+			name:      "should not reset on unknown error on partial sync mode",
+			err:       errors.New("random error"),
+			wantReset: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+
+			scheduler, err := newScheduler(SyncIntervals{
+				Full:  time.Hour,
+				Delta: deltaSyncInterval,
+			})
+			require.NoError(t, err)
+
+			// Consume first full sync schedule i.e. 0 offset.
+			firstSync := scheduler.Next()
+			require.Equal(t, mdmsync.SyncModeFull, firstSync.Mode)
+
+			svc := &Service{
+				log:              logtest.NewLogger(),
+				deltaSyncEnabled: true,
+				syncIntervals:    scheduler,
+			}
+
+			svc.maybeResetSyncSchedule(t.Context(), tc.err, mdmsync.SyncModePartial)
+
+			if tc.wantReset {
+				require.Equal(t, DefaultFullSyncInterval, scheduler.NextOffset())
+
+				next := scheduler.Next()
+				require.Equal(t, mdmsync.SyncModeFull, next.Mode)
+				return
+			}
+
+			require.Equal(t, deltaSyncInterval, scheduler.NextOffset())
+		})
+	}
 }

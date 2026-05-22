@@ -298,6 +298,82 @@ func TestNewSyncScheduler_errors(t *testing.T) {
 	}
 }
 
+func TestSyncScheduler_resetSchedule(t *testing.T) {
+	entries := []*types.JamfInventoryEntry{
+		{
+			FilterRsql:        "full+partial", // Abuse RSQL strings for easier debugging.
+			SyncPeriodPartial: types.DurationStringForJamfSpecV1(6 * time.Hour),
+			SyncPeriodFull:    types.DurationStringForJamfSpecV1(18 * time.Hour),
+		},
+	}
+	fullPartial := entries[0]
+
+	scheduler, err := mdmsync.New(entries, incDelay(), jamfInfo)
+	if err != nil {
+		t.Fatalf("New failed: %v", err)
+	}
+
+	assertSchedule(t, scheduler, []wantSchedule{
+		// t=0, initial sync
+		{
+			offset: 0,
+			entry:  fullPartial,
+			mode:   mdmsync.SyncModeFull,
+		},
+		// t=6h
+		{
+			offset: 1 * time.Hour,
+			entry:  fullPartial,
+			mode:   mdmsync.SyncModePartial,
+		},
+		// t=12h
+		{
+			offset: 2 * time.Hour,
+			entry:  fullPartial,
+			mode:   mdmsync.SyncModePartial,
+		},
+		// t=18h
+		{
+			offset: 2 * time.Hour,
+			entry:  fullPartial,
+			mode:   mdmsync.SyncModeFull,
+		},
+	})
+
+	err = scheduler.Reset(incDelay())
+	if err != nil {
+		t.Fatalf("Scheduler reset failed: %v", err)
+	}
+
+	// Schedule starts from SyncModeFull again.
+	assertSchedule(t, scheduler, []wantSchedule{
+		// t=0, initial sync
+		{
+			offset: 0,
+			entry:  fullPartial,
+			mode:   mdmsync.SyncModeFull,
+		},
+		// t=6h
+		{
+			offset: 1 * time.Hour,
+			entry:  fullPartial,
+			mode:   mdmsync.SyncModePartial,
+		},
+		// t=12h
+		{
+			offset: 2 * time.Hour,
+			entry:  fullPartial,
+			mode:   mdmsync.SyncModePartial,
+		},
+		// t=18h
+		{
+			offset: 2 * time.Hour,
+			entry:  fullPartial,
+			mode:   mdmsync.SyncModeFull,
+		},
+	})
+}
+
 // incDelay returns a function with a monotonically-increasing delay.
 // Useful to space out starting entries evenly.
 func incDelay() func() time.Duration {
