@@ -1055,7 +1055,9 @@ func TestTCPIPForward(t *testing.T) {
 			// calculated with the updated rules.
 			clientConn, err := tracessh.Dial(t.Context(), "tcp", f.ssh.srvAddress, f.ssh.cltConfig)
 			require.NoError(t, err)
-			defer clientConn.Close()
+			t.Cleanup(func() {
+				assert.NoError(t, clientConn.Close(), "clientConn.Close()")
+			})
 
 			// Request a listener from the server.
 			listener, err := clientConn.Listen("tcp", tc.listenAddr)
@@ -1071,7 +1073,7 @@ func TestTCPIPForward(t *testing.T) {
 				fmt.Fprintln(w, "hello, world")
 			}))
 			t.Cleanup(ts.Close)
-			ts.Listener = listener
+			ts.Listener = listener // takes ownership of listener
 			ts.Start()
 
 			// Dial the test server over the SSH connection.
@@ -1082,12 +1084,9 @@ func TestTCPIPForward(t *testing.T) {
 			resp, err := ts.Client().Do(req)
 			require.NoError(t, err)
 
-			t.Cleanup(func() {
-				require.NoError(t, resp.Body.Close())
-			})
-
 			// Make sure the response is what was expected.
 			body, err := io.ReadAll(resp.Body)
+			_ = resp.Body.Close()
 			require.NoError(t, err)
 			require.Equal(t, []byte("hello, world\n"), body)
 		})
