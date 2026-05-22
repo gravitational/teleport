@@ -140,6 +140,7 @@ func (s *Service) ListDiscoveryConfigs(ctx context.Context, req *discoveryconfig
 	}
 
 	results, nextKey, err := s.backend.ListDiscoveryConfigsWithFilter(ctx, int(req.GetPageSize()), req.GetNextToken(), func(dc *discoveryconfig.DiscoveryConfig) bool {
+		ruleCtx := authCtx.RuleContext()
 		ruleCtx.Resource = dc
 		err := authCtx.CheckerContext.Decision(ctx, dc.GetScope(), func(checker *services.ScopedAccessChecker) error {
 			return checker.CheckAccessToRules(&ruleCtx, types.KindDiscoveryConfig, types.VerbRead, types.VerbList)
