@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/api/types/usertasks"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 	awsregions "github.com/gravitational/teleport/lib/cloud/aws/regions"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/azure"
@@ -197,6 +198,10 @@ type Config struct {
 	initAzureClients func(opts ...azure.ClientsOption) (azure.Clients, error)
 	// gcpClients is a reference to GCP clients.
 	gcpClients gcp.Clients
+
+	// versionGetterOverride overrides the default version getter.
+	// Used in tests to mock the version returned by the version getter.
+	versionGetterOverride version.Getter
 }
 
 // AccessGraphConfig represents TAG server config.

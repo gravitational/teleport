@@ -71,6 +71,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/fake"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
@@ -91,6 +92,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/azure"
@@ -2817,6 +2819,9 @@ func TestDiscoveryDatabase(t *testing.T) {
 					},
 				}
 
+				staticVersionGetter, err := version.NewStaticGetter(teleport.Version, nil)
+				require.NoError(t, err)
+
 				srv, err := New(
 					authz.ContextWithUser(ctx, identity.I),
 					&Config{
@@ -2837,8 +2842,9 @@ func TestDiscoveryDatabase(t *testing.T) {
 							AWS:   tc.awsMatchers,
 							Azure: tc.azureMatchers,
 						},
-						Emitter:        authClient,
-						DiscoveryGroup: mainDiscoveryGroup,
+						Emitter:               authClient,
+						DiscoveryGroup:        mainDiscoveryGroup,
+						versionGetterOverride: staticVersionGetter,
 					})
 
 				require.NoError(t, err)

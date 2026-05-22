@@ -23,7 +23,6 @@ import (
 	"encoding/hex"
 	"errors"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -32,7 +31,6 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 )
 
 // GetKubeClient returns instance of client to the kubernetes cluster
@@ -180,11 +178,4 @@ func extractAndSortKubeClusters(kss []types.KubeServer) []types.KubeCluster {
 	})
 
 	return []types.KubeCluster(sorted)
-}
-
-// GetKubeAgentVersion returns a version of the Kube agent appropriate for this Teleport cluster. Used for example when deciding version
-// for enrolling EKS clusters.
-func GetKubeAgentVersion(ctx context.Context, versionGetter version.Getter) (*semver.Version, error) {
-	v, err := versionGetter.GetVersion(ctx)
-	return v, trace.Wrap(err)
 }

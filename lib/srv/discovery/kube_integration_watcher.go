@@ -41,10 +41,48 @@ import (
 	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
-	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	libslices "github.com/gravitational/teleport/lib/utils/slices"
 )
+
+func (s *Server) versionGetter() (version.Getter, error) {
+	if s.versionGetterOverride != nil {
+		return s.versionGetterOverride, nil
+	}
+
+	pingResponse, err := s.AccessPoint.Ping(s.ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	proxyPublicAddr := pingResponse.GetProxyPublicAddr()
+	if proxyPublicAddr == "" {
+		// If there are no proxy services running, we might fail to get the proxy URL and build a client.
+		// In this case we "gracefully" fallback to our own version.
+		// This is not supposed to happen outside of tests as the discovery service must join via a proxy.
+		s.Log.WarnContext(s.ctx,
+			"Failed to determine proxy public address, agents will install our own Teleport version instead of the one advertised by the proxy.",
+			"version", teleport.Version)
+		versionGetter, err := version.NewStaticGetter(teleport.Version, nil)
+		if err != nil {
+			return nil, trace.BadParameter("Cannot parse Teleport's self version %q, this is a bug", teleport.Version)
+		}
+		return versionGetter, nil
+	}
+
+	versionGetter, err := versionGetterForProxy(s.ctx, proxyPublicAddr)
+	if err != nil {
+		s.Log.WarnContext(s.ctx,
+			"Failed to build a version client, falling back to Discovery service Teleport version.",
+			"error", err,
+			"version", teleport.Version)
+		versionGetter, err = version.NewStaticGetter(teleport.Version, nil)
+		if err != nil {
+			return nil, trace.BadParameter("Cannot parse Teleport's self version %q, this is a bug", teleport.Version)
+		}
+	}
+
+	return versionGetter, nil
+}
 
 // startKubeIntegrationWatchers starts kube watchers that use integration for the credentials. Currently only
 // EKS watchers can do that and they behave differently from non-integration ones - we install agent on the
@@ -61,36 +99,9 @@ func (s *Server) startKubeIntegrationWatchers() error {
 
 	clt := s.AccessPoint
 
-	pingResponse, err := s.AccessPoint.Ping(s.ctx)
+	versionGetter, err := s.versionGetter()
 	if err != nil {
-		return trace.Wrap(err)
-	}
-	proxyPublicAddr := pingResponse.GetProxyPublicAddr()
-
-	var versionGetter version.Getter
-	if proxyPublicAddr == "" {
-		// If there are no proxy services running, we might fail to get the proxy URL and build a client.
-		// In this case we "gracefully" fallback to our own version.
-		// This is not supposed to happen outside of tests as the discovery service must join via a proxy.
-		s.Log.WarnContext(s.ctx,
-			"Failed to determine proxy public address, agents will install our own Teleport version instead of the one advertised by the proxy.",
-			"version", teleport.Version)
-		versionGetter, err = version.NewStaticGetter(teleport.Version, nil)
-		if err != nil {
-			return trace.BadParameter("Cannot parse Teleport's self version %q, this is a bug", teleport.Version)
-		}
-	} else {
-		versionGetter, err = versionGetterForProxy(s.ctx, proxyPublicAddr)
-		if err != nil {
-			s.Log.WarnContext(s.ctx,
-				"Failed to build a version client, falling back to Discovery service Teleport version.",
-				"error", err,
-				"version", teleport.Version)
-			versionGetter, err = version.NewStaticGetter(teleport.Version, nil)
-			if err != nil {
-				return trace.BadParameter("Cannot parse Teleport's self version %q, this is a bug", teleport.Version)
-			}
-		}
+		return trace.Wrap(err, "failed to get version getter for kube integration watcher")
 	}
 
 	watcher, err := common.NewWatcher(s.ctx, common.WatcherConfig{
@@ -136,7 +147,7 @@ func (s *Server) startKubeIntegrationWatchers() error {
 					continue
 				}
 
-				agentVersion, err := kubeutils.GetKubeAgentVersion(s.ctx, versionGetter)
+				agentVersion, err := versionGetter.GetVersion(s.ctx)
 				if err != nil {
 					s.Log.WarnContext(s.ctx, "Could not get agent version to enroll EKS clusters", "error", err)
 					continue
