@@ -139,7 +139,11 @@ func PlayRecording(
 			msg, err := utils.FastMarshal(evt)
 			if err != nil {
 				log.ErrorContext(ctx, "failed to marshal desktop event", "error", err)
-				ws.WriteMessage(websocket.BinaryMessage, []byte(`{"message":"error","errorText":"server error"}`))
+				if err := ws.WriteMessage(websocket.BinaryMessage, []byte(`{"message":"error","errorText":"server error"}`)); err != nil {
+					if !utils.IsOKNetworkError(err) {
+						log.WarnContext(ctx, "failed to write error message to client", "error", err)
+					}
+				}
 				return
 			}
 			if err := ws.WriteMessage(websocket.BinaryMessage, msg); err != nil {
