@@ -39,7 +39,44 @@ type reconcilerFactory struct {
 }
 
 // SetupAllControllers sets up all controllers
-func SetupAllControllers(log logr.Logger, mgr manager.Manager, teleportClient *client.Client, features *proto.Features) error {
+func SetupAllControllers(log logr.Logger, mgr manager.Manager, teleportClient *client.Client, features *proto.Features, scoped bool) error {
+	kubeClient := mgr.GetClient()
+	for _, reconciler := range enabledReconcilers(log, features, scoped) {
+		r, err := reconciler.factory(kubeClient, teleportClient)
+		if err != nil {
+			return trace.Wrap(err, "failed to create controller for %s", reconciler.cr)
+		}
+		err = r.SetupWithManager(mgr)
+		if err != nil {
+			return trace.Wrap(err, "failed to setup controller for: %s", reconciler.cr)
+		}
+	}
+
+	return nil
+}
+
+func enabledReconcilers(log logr.Logger, features *proto.Features, scoped bool) []reconcilerFactory {
+	var reconcilers []reconcilerFactory
+
+	// We always run
+	reconcilers = append(reconcilers, scopedReconcilers(log, features)...)
+	if scoped {
+		log.Info("Running in scoped mode. Unscoped resources will not be reconciled.")
+	} else {
+		reconcilers = append(reconcilers, unscopedReconcilers(log, features)...)
+	}
+	return reconcilers
+}
+
+func scopedReconcilers(log logr.Logger, features *proto.Features) []reconcilerFactory {
+	return []reconcilerFactory{
+		{"TeleportScopedTokenV1", NewScopedTokenV1Reconciler},
+		{"TeleportScopedRoleV1", NewScopedRoleV1Reconciler},
+		{"TeleportScopedRoleAssignmentV1", NewScopedRoleAssignmentV1Reconciler},
+	}
+}
+
+func unscopedReconcilers(log logr.Logger, features *proto.Features) []reconcilerFactory {
 	reconcilers := []reconcilerFactory{
 		{"TeleportRole", NewRoleReconciler},
 		{"TeleportRoleV6", NewRoleV6Reconciler},
@@ -65,9 +102,6 @@ func SetupAllControllers(log logr.Logger, mgr manager.Manager, teleportClient *c
 		// saml_idp_service_provider objects using tctl for any build. We
 		// therefore enable it here unconditionally to mirror tctl behavior.
 		{"TeleportSAMLIdPServiceProviderV1", NewSAMLIdPServiceProviderV1Reconciler},
-		{"TeleportScopedTokenV1", NewScopedTokenV1Reconciler},
-		{"TeleportScopedRoleV1", NewScopedRoleV1Reconciler},
-		{"TeleportScopedRoleAssignmentV1", NewScopedRoleAssignmentV1Reconciler},
 	}
 
 	oidc := modules.GetProtoEntitlement(features, entitlements.OIDC)
@@ -110,17 +144,5 @@ func SetupAllControllers(log logr.Logger, mgr manager.Manager, teleportClient *c
 		log.Info("The cluster license does not contain advanced workflows. TeleportAccessList, TeleportOktaImportRule resources won't be reconciled")
 	}
 
-	kubeClient := mgr.GetClient()
-	for _, reconciler := range reconcilers {
-		r, err := reconciler.factory(kubeClient, teleportClient)
-		if err != nil {
-			return trace.Wrap(err, "failed to create controller for %s", reconciler.cr)
-		}
-		err = r.SetupWithManager(mgr)
-		if err != nil {
-			return trace.Wrap(err, "failed to setup controller for: %s", reconciler.cr)
-		}
-	}
-
-	return nil
+	return reconcilers
 }

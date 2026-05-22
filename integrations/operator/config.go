@@ -36,6 +36,7 @@ type operatorConfig struct {
 	syncPeriod       time.Duration
 	namespace        string
 	logLevel         string
+	scoped           bool
 }
 
 // BindFlags binds operatorConfig fields to CLI flags.
@@ -52,6 +53,7 @@ func (c *operatorConfig) BindFlags(fs *flag.FlagSet) {
 	fs.StringVar(&c.namespace, "namespace", "", "The namespace containing the Teleport CRs.")
 	fs.DurationVar(&c.syncPeriod, "sync-period", defaultSyncPeriod, "Operator sync period (format: https://pkg.go.dev/time#ParseDuration)")
 	fs.StringVar(&c.logLevel, "log-level", "INFO", "Log level (DEBUG, INFO, WARN, ERROR).")
+	fs.BoolVar(&c.scoped, "scoped", false, "Run operator in scoped mode. Only scoped resources will be reconciled.")
 }
 
 // CheckAndSetDefaults checks the operatorConfig and populates unspecified
