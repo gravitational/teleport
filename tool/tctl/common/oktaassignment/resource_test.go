@@ -21,6 +21,7 @@ package oktaassignment
 import (
 	"bytes"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
@@ -34,6 +35,8 @@ import (
 // and make a best effort to ensuring there are no missing fields from the Okta assignment
 // that have not yet been added to this resource.
 func TestToResource(t *testing.T) {
+	lastTransition := time.Now().UTC()
+
 	assignment, err := types.NewOktaAssignment(types.Metadata{
 		Name: "assignment",
 	}, types.OktaAssignmentSpecV1{
@@ -41,15 +44,19 @@ func TestToResource(t *testing.T) {
 		Status: types.OktaAssignmentSpecV1_PENDING,
 		Targets: []*types.OktaAssignmentTargetV1{
 			{
-				Id:     "1",
-				Type:   types.OktaAssignmentTargetV1_APPLICATION,
-				Status: types.OktaAssignmentTargetV1_STATUS_PENDING,
+				Id:             "1",
+				Type:           types.OktaAssignmentTargetV1_APPLICATION,
+				Status:         types.OktaAssignmentTargetV1_STATUS_SUCCESSFUL,
+				LastTransition: lastTransition,
+				Op:             types.OktaAssignmentTargetV1_OP_CLEANUP,
 			},
 			{
-				Id:     "2",
-				Type:   types.OktaAssignmentTargetV1_GROUP,
-				Status: types.OktaAssignmentTargetV1_STATUS_FAILED,
-				Reason: types.OktaAssignmentTargetV1_REASON_ERROR,
+				Id:             "2",
+				Type:           types.OktaAssignmentTargetV1_GROUP,
+				Status:         types.OktaAssignmentTargetV1_STATUS_FAILED,
+				Reason:         types.OktaAssignmentTargetV1_REASON_ERROR,
+				LastTransition: lastTransition,
+				Op:             types.OktaAssignmentTargetV1_OP_PROVISION,
 			},
 		},
 	})
@@ -86,20 +93,26 @@ func TestToResource(t *testing.T) {
 	resourceTarget1, ok := resourceTargets[0].(map[string]any)
 	require.True(t, ok)
 	require.Equal(t, constants.OktaAssignmentTargetApplication, resourceTarget1["type"])
-	require.Equal(t, constants.OktaAssignmentTargetStatusPending, resourceTarget1["status"])
+	require.Equal(t, constants.OktaAssignmentTargetStatusSuccessful, resourceTarget1["status"])
 	require.Equal(t, constants.OktaAssignmentTargetReasonUnknown, resourceTarget1["reason"])
+	require.Equal(t, lastTransition.Format(time.RFC3339Nano), resourceTarget1["last_transition"])
+	require.Equal(t, constants.OktaAssignmentTargetOpCleanup, resourceTarget1["op"])
 	resourceTarget1["type"] = int(types.OktaAssignmentTargetV1_APPLICATION)
-	resourceTarget1["status"] = int(types.OktaAssignmentTargetV1_STATUS_PENDING)
+	resourceTarget1["status"] = int(types.OktaAssignmentTargetV1_STATUS_SUCCESSFUL)
 	resourceTarget1["reason"] = int(types.OktaAssignmentTargetV1_REASON_UNKNOWN)
+	resourceTarget1["op"] = int(types.OktaAssignmentTargetV1_OP_CLEANUP)
 
 	resourceTarget2, ok := resourceTargets[1].(map[string]any)
 	require.True(t, ok)
 	require.Equal(t, constants.OktaAssignmentTargetGroup, resourceTarget2["type"])
 	require.Equal(t, constants.OktaAssignmentTargetStatusFailed, resourceTarget2["status"])
 	require.Equal(t, constants.OktaAssignmentTargetReasonError, resourceTarget2["reason"])
+	require.Equal(t, lastTransition.Format(time.RFC3339Nano), resourceTarget2["last_transition"])
+	require.Equal(t, constants.OktaAssignmentTargetOpProvision, resourceTarget2["op"])
 	resourceTarget2["type"] = int(types.OktaAssignmentTargetV1_GROUP)
 	resourceTarget2["status"] = int(types.OktaAssignmentTargetV1_STATUS_FAILED)
 	resourceTarget2["reason"] = int(types.OktaAssignmentTargetV1_REASON_ERROR)
+	resourceTarget2["op"] = int(types.OktaAssignmentTargetV1_OP_PROVISION)
 
 	require.Equal(t, assignmentMap, resourceMap)
 }

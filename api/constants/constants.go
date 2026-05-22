@@ -179,10 +179,6 @@ const (
 
 	// OktaAssignmentTargetStatusUnknown indicates the status is not set.
 	OktaAssignmentTargetStatusUnknown = "unknown"
-	// OktaAssignmentTargetStatusPending indicates the target is pending processing.
-	OktaAssignmentTargetStatusPending = "pending"
-	// OktaAssignmentTargetStatusProcessing indicates the target is being processed.
-	OktaAssignmentTargetStatusProcessing = "processing"
 	// OktaAssignmentTargetStatusSuccessful indicates the target was processed successfully.
 	OktaAssignmentTargetStatusSuccessful = "successful"
 	// OktaAssignmentTargetStatusFailed indicates the target failed to process successfully.
@@ -194,6 +190,10 @@ const (
 	OktaAssignmentTargetReasonError = "error"
 	// OktaAssignmentTargetReasonTimeout indicates processing failed due to a timeout.
 	OktaAssignmentTargetReasonTimeout = "timeout"
+
+	OktaAssignmentTargetOpUnknown   = "unknown"
+	OktaAssignmentTargetOpProvision = "provision"
+	OktaAssignmentTargetOpCleanup   = "cleanup"
 )
 
 // LocalConnectors are the system connectors that use local auth.

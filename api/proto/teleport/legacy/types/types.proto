@@ -8859,25 +8859,18 @@ message OktaAssignmentTargetV1 {
   // ID is the ID of the Okta resource that's being targeted.
   string id = 2 [(gogoproto.jsontag) = "id"];
 
-  // Status represents the processing status of the target.
-  OktaAssignmentTargetStatus status = 3 [(gogoproto.jsontag) = "status"];
-
   // OktaAssignmentTargetStatus represents the processing status of an Okta assignment target.
   enum OktaAssignmentTargetStatus {
     // STATUS_UNKNOWN indicates the status is not set.
     STATUS_UNKNOWN = 0;
-    // STATUS_PENDING indicates the target is pending processing.
-    STATUS_PENDING = 1;
-    // STATUS_PROCESSING indicates the target is being processed.
-    STATUS_PROCESSING = 2;
     // STATUS_SUCCESSFUL indicates the target was processed successfully.
-    STATUS_SUCCESSFUL = 3;
+    STATUS_SUCCESSFUL = 1;
     // STATUS_FAILED indicates the target failed to process successfully.
-    STATUS_FAILED = 4;
+    STATUS_FAILED = 2;
   }
 
-  // Reason represents the reason for the status of this target. It's populated only when Status is FAILED.
-  OktaAssignmentTargetStatusReason reason = 4 [(gogoproto.jsontag) = "reason"];
+  // Status represents the processing status of the target.
+  OktaAssignmentTargetStatus status = 3 [(gogoproto.jsontag) = "status"];
 
   // OktaAssignmentTargetStatusReason represents the reason for the status of an Okta assignment target.
   enum OktaAssignmentTargetStatusReason {
@@ -8888,6 +8881,28 @@ message OktaAssignmentTargetV1 {
     // REASON_TIMEOUT indicates processing failed due to a timeout.
     REASON_TIMEOUT = 2;
   }
+
+  // Reason represents the reason for the status of this target. It's populated only when Status is FAILED.
+  OktaAssignmentTargetStatusReason reason = 4 [(gogoproto.jsontag) = "reason"];
+
+  // OktaAssignmentTargetOp represents the type of operation being performed.
+  enum OktaAssignmentTargetOp {
+    OP_UNKNOWN = 0;
+    // PROVISION indicates the operation being performed is provisioning.
+    OP_PROVISION = 1;
+    // CLEANUP indicates the operation being performed is cleanup.
+    OP_CLEANUP = 2;
+  }
+
+  OktaAssignmentTargetOp op = 5 [(gogoproto.jsontag) = "op"];
+
+  // LastTransition is an optional field that notes when the last state transition
+  // occurred for this action. If absent, this object has never transitioned.
+  google.protobuf.Timestamp LastTransition = 6 [
+    (gogoproto.jsontag) = "last_transition",
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
 }
 
 // IntegrationV1 represents a connection between Teleport and some other 3rd party system.

@@ -46,10 +46,12 @@ type spec struct {
 
 // target holds an Okta assignment target.
 type target struct {
-	ID         string `json:"id"`
-	TargetType string `json:"type"`
-	Status     string `json:"status"`
-	Reason     string `json:"reason"`
+	ID             string    `json:"id"`
+	TargetType     string    `json:"type"`
+	Status         string    `json:"status"`
+	Reason         string    `json:"reason"`
+	LastTransition time.Time `json:"last_transition"`
+	Op             string    `json:"op"`
 }
 
 // ToResource converts an OktaAssignment into a *Resource which
@@ -61,10 +63,12 @@ func ToResource(assignment types.OktaAssignment) *Resource {
 
 	for i, sourceTarget := range sourceTargets {
 		resourceTargets[i] = target{
-			ID:         sourceTarget.GetID(),
-			TargetType: sourceTarget.GetTargetType(),
-			Status:     sourceTarget.GetStatus(),
-			Reason:     sourceTarget.GetReason(),
+			ID:             sourceTarget.GetID(),
+			TargetType:     sourceTarget.GetTargetType(),
+			Status:         sourceTarget.GetStatus(),
+			Reason:         sourceTarget.GetReason(),
+			LastTransition: sourceTarget.GetLastTransition(),
+			Op:             sourceTarget.GetOp(),
 		}
 	}
 
