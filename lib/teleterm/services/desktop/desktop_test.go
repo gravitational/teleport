@@ -58,5 +58,5 @@ func TestGetDirectory(t *testing.T) {
 	require.NoError(t, err)
 	resolvedPath, err := filepath.EvalSymlinks(path)
 	require.NoError(t, err)
-	require.Equal(t, resolvedPath, access.basePath)
+	require.Equal(t, resolvedPath, access.root.Name())
 }
