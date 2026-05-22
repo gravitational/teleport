@@ -132,6 +132,16 @@ jobs:
         working-directory: 'docs'
         run: yarn spellcheck content/current
 
+      - name: Check for unused images and partials
+        working-directory: 'docs/content/current'
+        run: |
+          UNUSED=$(build.assets/unused-docs-assets.sh);
+          if [ -n "$UNUSED" ]; then
+            echo "There are unused docs partials and images:";
+            echo "$UNUSED";
+            exit 1;
+          fi
+
       - name: Lint docs formatting
         working-directory: 'docs'
         run: yarn markdown-lint
