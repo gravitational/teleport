@@ -94,7 +94,7 @@ func TestOktAssignmentIsEqual(t *testing.T) {
 				User: "user",
 				Targets: []*OktaAssignmentTargetV1{
 					{Id: "1", Type: OktaAssignmentTargetV1_APPLICATION, Status: OktaAssignmentTargetV1_STATUS_UNKNOWN, Reason: OktaAssignmentTargetV1_REASON_UNKNOWN, Op: OktaAssignmentTargetV1_OP_CLEANUP, LastTransition: now},
-					{Id: "2", Type: OktaAssignmentTargetV1_GROUP, Status: OktaAssignmentTargetV1_STATUS_UNKNOWN, Reason: OktaAssignmentTargetV1_REASON_UNKNOWN, Op: OktaAssignmentTargetV1_OP_PROVISION, LastTransition: now},
+					{Id: "2", Type: OktaAssignmentTargetV1_GROUP, Status: OktaAssignmentTargetV1_STATUS_UNKNOWN, Reason: OktaAssignmentTargetV1_REASON_UNKNOWN, Op: OktaAssignmentTargetV1_OP_CLEANUP, LastTransition: now},
 				},
 				CleanupTime:    time.Time{},
 				Status:         OktaAssignmentSpecV1_PENDING,
