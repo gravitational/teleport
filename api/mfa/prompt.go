@@ -82,7 +82,8 @@ type Prompt interface {
 	NotifyRegistrationSuccess(ctx context.Context, config RegistrationPromptConfig) error
 }
 
-// PromptFunc is a function wrapper that implements the Prompt interface.
+// PromptFunc is a function wrapper that implements the Prompt interface, but
+// does not support device registration.
 type PromptFunc func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error)
 
 // Run prompts the user to complete an MFA authentication challenge.
@@ -92,19 +93,19 @@ func (f PromptFunc) Run(ctx context.Context, chal *proto.MFAAuthenticateChalleng
 
 // AskRegister is not implemented.
 func (f PromptFunc) AskRegister(ctx context.Context, config RegistrationPromptConfig) (*RegistrationPromptConfig, error) {
-	return nil, trace.NotImplemented("not supported")
+	return nil, trace.NotImplemented("MFA device registration not supported")
 }
 
 // RunRegister is not implemented.
 func (f PromptFunc) RunRegister(
 	ctx context.Context, config RegistrationPromptConfig, challenge *proto.MFARegisterChallenge,
 ) (*RegistrationResult, error) {
-	return nil, trace.NotImplemented("not supported")
+	return nil, trace.NotImplemented("MFA device registration not supported")
 }
 
 // NotifyRegistrationSuccess is not implemented.
 func (f PromptFunc) NotifyRegistrationSuccess(ctx context.Context, config RegistrationPromptConfig) error {
-	return trace.NotImplemented("not supported")
+	return trace.NotImplemented("MFA device registration not supported")
 }
 
 // PromptConstructor is a function that creates a new MFA prompt.
@@ -125,9 +126,6 @@ type PromptConfig struct {
 	Extensions *mfav1.ChallengeExtensions
 	// CallbackCeremony is an SSO or Browser MFA ceremony.
 	CallbackCeremony CallbackCeremony
-	// MFACeremony is an MFA ceremony. Used when the prompt is used for
-	// registering a new MFA device.
-	MFACeremony *Ceremony
 }
 
 // DeviceDescriptor is a descriptor for a device, such as "registered".

@@ -28,16 +28,54 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	"github.com/gravitational/teleport/api/mfa"
+	webauthn "github.com/gravitational/teleport/api/types/webauthn"
 )
+
+type mockPrompt struct {
+	authResponse         *proto.MFAAuthenticateResponse
+	regResult            *mfa.RegistrationResult
+	askedToRegister      bool
+	notifiedAboutSuccess bool
+}
+
+func (m *mockPrompt) Run(
+	ctx context.Context, chal *proto.MFAAuthenticateChallenge,
+) (*proto.MFAAuthenticateResponse, error) {
+	return m.authResponse, nil
+}
+
+func (m *mockPrompt) AskRegister(
+	ctx context.Context, config mfa.RegistrationPromptConfig,
+) (*mfa.RegistrationPromptConfig, error) {
+	m.askedToRegister = true
+	config.RegistrationCeremonyConfig = mfa.RegistrationCeremonyConfig{
+		DeviceType: mfa.MFADeviceTypeWebauthn,
+		DeviceName: "new-device",
+	}
+	return &config, nil
+}
+
+func (m *mockPrompt) RunRegister(
+	ctx context.Context, config mfa.RegistrationPromptConfig, challenge *proto.MFARegisterChallenge,
+) (*mfa.RegistrationResult, error) {
+	return m.regResult, nil
+}
+
+func (m *mockPrompt) NotifyRegistrationSuccess(
+	ctx context.Context, config mfa.RegistrationPromptConfig,
+) error {
+	m.notifiedAboutSuccess = true
+	return nil
+}
 
 func TestMFACeremony(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
-	testMFAChallenge := &proto.MFAAuthenticateChallenge{
+	testOTPChallenge := &proto.MFAAuthenticateChallenge{
 		TOTP: &proto.TOTPChallenge{},
 	}
-	testMFAResponse := &proto.MFAAuthenticateResponse{
+	testOTPResponse := &proto.MFAAuthenticateResponse{
 		Response: &proto.MFAAuthenticateResponse_TOTP{
 			TOTP: &proto.TOTPResponse{
 				Code: "otp-test-code",
@@ -45,26 +83,67 @@ func TestMFACeremony(t *testing.T) {
 		},
 	}
 
+	testWebauthnChallenge := &proto.MFAAuthenticateChallenge{
+		WebauthnChallenge: &webauthn.CredentialAssertion{
+			PublicKey: &webauthn.PublicKeyCredentialRequestOptions{
+				Challenge: []byte("webauthn-challenge"),
+			},
+		},
+	}
+	testWebauthnResponse := &proto.MFAAuthenticateResponse{
+		Response: &proto.MFAAuthenticateResponse_Webauthn{
+			Webauthn: &webauthn.CredentialAssertionResponse{
+				Type:  "public-key",
+				RawId: []byte("raw-id"),
+				Response: &webauthn.AuthenticatorAssertionResponse{
+					ClientDataJson:    []byte("client data json"),
+					AuthenticatorData: []byte("authenticator data"),
+					Signature:         []byte("signature"),
+					UserHandle:        []byte("user handle"),
+				},
+			},
+		},
+	}
+
 	for _, tt := range []struct {
 		name                   string
 		ceremony               *mfa.Ceremony
+		scope                  mfav1.ChallengeScope
 		assertCeremonyResponse func(*testing.T, *proto.MFAAuthenticateResponse, error, ...interface{})
 	}{
 		{
-			name: "OK ceremony success prompt",
+			name: "OK OTP ceremony success prompt",
 			ceremony: &mfa.Ceremony{
 				CreateAuthenticateChallenge: func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
-					return testMFAChallenge, nil
+					return testOTPChallenge, nil
 				},
 				PromptConstructor: func(po ...mfa.PromptOpt) mfa.Prompt {
 					return mfa.PromptFunc(func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-						return testMFAResponse, nil
+						return testOTPResponse, nil
 					})
 				},
 			},
+			scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 			assertCeremonyResponse: func(t *testing.T, mr *proto.MFAAuthenticateResponse, err error, i ...interface{}) {
 				assert.NoError(t, err)
-				assert.Equal(t, testMFAResponse, mr)
+				assert.Equal(t, testOTPResponse, mr)
+			},
+		}, {
+			name: "OK WebAuthn ceremony success prompt",
+			ceremony: &mfa.Ceremony{
+				CreateAuthenticateChallenge: func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
+					return testWebauthnChallenge, nil
+				},
+				PromptConstructor: func(po ...mfa.PromptOpt) mfa.Prompt {
+					return mfa.PromptFunc(func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+						return testWebauthnResponse, nil
+					})
+				},
+			},
+			scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+			assertCeremonyResponse: func(t *testing.T, mr *proto.MFAAuthenticateResponse, err error, i ...interface{}) {
+				assert.NoError(t, err)
+				assert.Equal(t, testWebauthnResponse, mr)
 			},
 		}, {
 			name: "OK ceremony not required",
@@ -80,6 +159,7 @@ func TestMFACeremony(t *testing.T) {
 					})
 				},
 			},
+			scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 			assertCeremonyResponse: func(t *testing.T, mr *proto.MFAAuthenticateResponse, err error, i ...interface{}) {
 				assert.Error(t, err, mfa.ErrMFANotRequired)
 				assert.Nil(t, mr)
@@ -96,6 +176,7 @@ func TestMFACeremony(t *testing.T) {
 					})
 				},
 			},
+			scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 			assertCeremonyResponse: func(t *testing.T, mr *proto.MFAAuthenticateResponse, err error, i ...interface{}) {
 				assert.ErrorContains(t, err, "create authenticate challenge failure")
 				assert.Nil(t, mr)
@@ -104,7 +185,7 @@ func TestMFACeremony(t *testing.T) {
 			name: "NOK prompt mfa fail",
 			ceremony: &mfa.Ceremony{
 				CreateAuthenticateChallenge: func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
-					return testMFAChallenge, nil
+					return testOTPChallenge, nil
 				},
 				PromptConstructor: func(po ...mfa.PromptOpt) mfa.Prompt {
 					return mfa.PromptFunc(func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
@@ -112,6 +193,7 @@ func TestMFACeremony(t *testing.T) {
 					})
 				},
 			},
+			scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 			assertCeremonyResponse: func(t *testing.T, mr *proto.MFAAuthenticateResponse, err error, i ...interface{}) {
 				assert.ErrorContains(t, err, "prompt mfa failure")
 				assert.Nil(t, mr)
@@ -121,7 +203,7 @@ func TestMFACeremony(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			resp, err := tt.ceremony.Run(ctx, &proto.CreateAuthenticateChallengeRequest{
 				ChallengeExtensions: &mfav1.ChallengeExtensions{
-					Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+					Scope: tt.scope,
 				},
 				MFARequiredCheck: &proto.IsMFARequiredRequest{},
 			})
@@ -233,16 +315,168 @@ func TestMFACeremony_BrowserMFA(t *testing.T) {
 				},
 			}, nil
 		},
+		CreateRegisterChallenge: func(ctx context.Context, req *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error) {
+			return &proto.MFARegisterChallenge{}, nil
+		},
+		AddMFADevice: func(ctx context.Context, req *proto.MFARegisterResponse, config mfa.RegistrationCeremonyConfig) error {
+			return nil
+		},
 	}
 
-	resp, err := browserMFACeremony.Run(ctx, &proto.CreateAuthenticateChallengeRequest{
-		ChallengeExtensions: &mfav1.ChallengeExtensions{
-			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+	testCases := []struct {
+		name  string
+		scope mfav1.ChallengeScope
+	}{
+		{
+			name:  "login",
+			scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
 		},
-		MFARequiredCheck: &proto.IsMFARequiredRequest{},
-	})
-	require.NoError(t, err)
-	require.Equal(t, testMFAResponse, resp)
+		{
+			name:  "admin action",
+			scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_ADMIN_ACTION,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			resp, err := browserMFACeremony.Run(ctx, &proto.CreateAuthenticateChallengeRequest{
+				ChallengeExtensions: &mfav1.ChallengeExtensions{
+					Scope: tc.scope,
+				},
+				MFARequiredCheck: &proto.IsMFARequiredRequest{},
+			})
+			require.NoError(t, err)
+			require.Equal(t, testMFAResponse, resp)
+		})
+	}
+}
+
+func TestMFACeremony_NilRequest(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	expectedResponse := &proto.MFAAuthenticateResponse{
+		Response: &proto.MFAAuthenticateResponse_Webauthn{
+			Webauthn: &webauthn.CredentialAssertionResponse{},
+		},
+	}
+
+	ceremony := &mfa.Ceremony{
+		CreateAuthenticateChallenge: func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
+			return &proto.MFAAuthenticateChallenge{
+				WebauthnChallenge: &webauthn.CredentialAssertion{},
+			}, nil
+		},
+		PromptConstructor: func(po ...mfa.PromptOpt) mfa.Prompt {
+			return mfa.PromptFunc(func(ctx context.Context, chal *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+				return expectedResponse, nil
+			})
+		},
+	}
+
+	resp, err := ceremony.Run(ctx, nil)
+
+	assert.NoError(t, err)
+	assert.Equal(t, expectedResponse, resp)
+}
+
+func TestMFACeremony_Registration(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	testCases := []struct {
+		scope  mfav1.ChallengeScope
+		assert func(t *testing.T, err error, mp *mockPrompt, callbacks *mockRegistrationCallbacks, devicesAdded []string)
+	}{
+		{
+			scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION,
+			assert: func(t *testing.T, err error, mp *mockPrompt, callbacks *mockRegistrationCallbacks, devicesAdded []string) {
+				require.NoError(t, err)
+				assert.True(t, mp.askedToRegister)
+				assert.True(t, mp.notifiedAboutSuccess)
+				assert.False(t, callbacks.rolledBack)
+				assert.True(t, callbacks.confirmed)
+				assert.Equal(t, []string{"new-device"}, devicesAdded)
+			},
+		}, {
+			scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_LOGIN,
+			assert: func(t *testing.T, err error, mp *mockPrompt, callbacks *mockRegistrationCallbacks, devicesAdded []string) {
+				require.NoError(t, err)
+				assert.False(t, mp.askedToRegister)
+				assert.False(t, mp.notifiedAboutSuccess)
+				assert.False(t, callbacks.rolledBack)
+				assert.False(t, callbacks.confirmed)
+				assert.Empty(t, devicesAdded)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.scope.String(), func(t *testing.T) {
+			callbacks := mockRegistrationCallbacks{}
+			mp := mockPrompt{
+				authResponse: &proto.MFAAuthenticateResponse{},
+				regResult: &mfa.RegistrationResult{
+					Callbacks: &callbacks,
+					Response: &proto.MFARegisterResponse{
+						Response: &proto.MFARegisterResponse_Webauthn{
+							Webauthn: &webauthn.CredentialCreationResponse{
+								Type:  "public-key",
+								RawId: []byte("some-id"),
+							},
+						},
+					},
+				},
+			}
+
+			var devicesAdded []string
+			ceremony := &mfa.Ceremony{
+				CreateAuthenticateChallenge: func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error) {
+					chal := &proto.MFAAuthenticateChallenge{
+						MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
+					}
+					if len(devicesAdded) > 0 {
+						chal.WebauthnChallenge = newWebauthnChallenge("some-challenge")
+					}
+					return chal, nil
+				},
+				CreateRegisterChallenge: func(ctx context.Context, req *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error) {
+					return &proto.MFARegisterChallenge{}, nil
+				},
+				AddMFADevice: func(ctx context.Context, req *proto.MFARegisterResponse, config mfa.RegistrationCeremonyConfig) error {
+					devicesAdded = append(devicesAdded, config.DeviceName)
+					return nil
+				},
+				PromptConstructor: func(po ...mfa.PromptOpt) mfa.Prompt {
+					return &mp
+				},
+			}
+
+			_, err := ceremony.RunWithRegisterRetry(ctx, &proto.CreateAuthenticateChallengeRequest{
+				ChallengeExtensions: &mfav1.ChallengeExtensions{
+					Scope: tc.scope,
+				},
+				MFARequiredCheck: &proto.IsMFARequiredRequest{},
+			})
+			require.NoError(t, err)
+			tc.assert(t, err, &mp, &callbacks, devicesAdded)
+		})
+	}
+}
+
+type mockRegistrationCallbacks struct {
+	rolledBack bool
+	confirmed  bool
+}
+
+func (m *mockRegistrationCallbacks) Rollback() error {
+	m.rolledBack = true
+	return nil
+}
+
+func (m *mockRegistrationCallbacks) Confirm() error {
+	m.confirmed = true
+	return nil
 }
 
 type mockMFACeremony struct {

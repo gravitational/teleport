@@ -18,6 +18,7 @@ package mfa
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"slices"
 
@@ -47,13 +48,6 @@ type Ceremony struct {
 	AddMFADevice AddMFADeviceFunc
 	// Ping fetches a [webclient.PingResponse] from the server.
 	Ping PingFunc
-	// isRegistering is set to indicate that the ceremony is currently
-	// registering an MFA device. In such case, another registration should not
-	// be attempted. This prevents infinite recursion where adding a new device
-	// results in an MFA ceremony that is naturally resolved without human
-	// intervention (no MFA on file), but then, since there's no MFA, another
-	// attempt to register an MFA would be conducted, and so on.
-	isRegistering bool
 }
 
 // CallbackCeremony is an SSO/Browser callback ceremony.
@@ -87,19 +81,71 @@ type AddMFADeviceFunc func(
 	ctx context.Context, req *proto.MFARegisterResponse, config RegistrationCeremonyConfig,
 ) error
 
-// PingFunc is a function that
+// PingFunc is a function that fetches a PingResponse from the server. Its
+// purpose is to discover available MFA methods.
 type PingFunc func(ctx context.Context) (*webclient.PingResponse, error)
+
+// RunWithRegisterRetry runs the MFA ceremony. If the user has no eligible MFA
+// devices and the ceremony is requested for per-session MFA, this function
+// will attempt to register a new device and then retry the ceremony.
+//
+// req may be nil if ceremony.CreateAuthenticateChallenge does not require it, e.g. in
+// the moderated session mfa ceremony which uses a custom stream rpc to create challenges.
+func (c *Ceremony) RunWithRegisterRetry(
+	ctx context.Context, req *proto.CreateAuthenticateChallengeRequest, promptOpts ...PromptOpt,
+) (*proto.MFAAuthenticateResponse, error) {
+	res, chal, err := c.run(ctx, req, promptOpts...)
+	// The success case is actually trivial here, so deal with it first.
+	if err == nil {
+		return res, nil
+	}
+
+	if !errors.Is(err, &ErrNoMFADevices) ||
+		c.CreateRegisterChallenge == nil ||
+		c.AddMFADevice == nil ||
+		req == nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// The user has no device registered that would allow per-session MFA, so
+	// prompt them to register and then retry the ceremony.
+	reason := RegistrationReasonSessionMFANoDevices
+	if chal.TOTP != nil {
+		// The user has some MFA devices, but still no eligible one.
+		reason = RegistrationReasonSessionMFANoEligibleDevices
+	}
+	added, err := c.Register(ctx, RegistrationCeremonyConfig{
+		Reason: reason,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if !added {
+		return nil, &ErrNoMFADevices
+	}
+
+	res, _, err = c.run(ctx, req, promptOpts...)
+	return res, trace.Wrap(err)
+}
 
 // Run the MFA ceremony.
 //
 // req may be nil if ceremony.CreateAuthenticateChallenge does not require it, e.g. in
 // the moderated session mfa ceremony which uses a custom stream rpc to create challenges.
-//
-// If the ceremony and was configured to support it, this method also offers
-// the user to register their first MFA device.
-func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest, promptOpts ...PromptOpt) (*proto.MFAAuthenticateResponse, error) {
+func (c *Ceremony) Run(
+	ctx context.Context, req *proto.CreateAuthenticateChallengeRequest, promptOpts ...PromptOpt,
+) (*proto.MFAAuthenticateResponse, error) {
+	res, _, err := c.run(ctx, req, promptOpts...)
+	return res, trace.Wrap(err)
+}
+
+// run runs the MFA ceremony. It returns the result, the error, and, if the
+// error is [ErrNoMFADevices], it also returns the challenge that's been used.
+func (c *Ceremony) run(
+	ctx context.Context, req *proto.CreateAuthenticateChallengeRequest, promptOpts ...PromptOpt,
+) (*proto.MFAAuthenticateResponse, *proto.MFAAuthenticateChallenge, error) {
 	if c.CreateAuthenticateChallenge == nil {
-		return nil, trace.BadParameter("mfa ceremony must have CreateAuthenticateChallenge set in order to begin")
+		return nil, nil, trace.BadParameter("mfa ceremony must have CreateAuthenticateChallenge set in order to begin")
 	}
 
 	// If available, prepare an MFA ceremony and set the client redirect URL in the challenge
@@ -136,45 +182,30 @@ func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallen
 		// user is not a Teleport user - for example, the AdminRole. Treat this as an MFA
 		// not supported error so the client knows when it can be ignored.
 		if trace.IsBadParameter(err) {
-			return nil, &ErrMFANotSupported
+			return nil, nil, &ErrMFANotSupported
 		}
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	// If an MFA required check was provided, and the client discovers MFA is not required,
-	// skip the MFA prompt and return an empty response.
-	if chal.MFARequired == proto.MFARequired_MFA_REQUIRED_NO {
-		return nil, &ErrMFANotRequired
+	switch chal.MFARequired {
+	case proto.MFARequired_MFA_REQUIRED_NO:
+		// If an MFA required check was provided, and the client discovers MFA is not
+		// required, skip the MFA prompt and return an error.
+		return nil, nil, &ErrMFANotRequired
+	case proto.MFARequired_MFA_REQUIRED_YES:
+		// If the user has no eligible device while attempting a per-session MFA,
+		// return an error. The caller might retry after registering a new device.
+		// TOTP devices are not eligible, so we don't check for them.
+		if chal.WebauthnChallenge == nil &&
+			chal.SSOChallenge == nil &&
+			chal.BrowserMFAChallenge == nil &&
+			req.GetChallengeExtensions().GetScope() == mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION {
+			return nil, chal, trace.Wrap(&ErrNoMFADevices)
+		}
 	}
 
 	if c.PromptConstructor == nil {
-		return nil, trace.Wrap(&ErrMFANotSupported, "mfa ceremony must have PromptConstructor set in order to succeed")
-	}
-
-	// If the user has no device registered that would allow per-session MFA,
-	// prompt them to register and then re-generate the challenge. TOTP devices
-	// don't count as eligible, so even if we do have one, don't offer.
-	noPerSessionMFADevices := chal.WebauthnChallenge == nil && chal.SSOChallenge == nil
-	if noPerSessionMFADevices && c.CreateRegisterChallenge != nil && c.AddMFADevice != nil && !c.isRegistering {
-		reason := RegistrationReasonSessionMFANoDevices
-		if chal.TOTP != nil {
-			// The user has some MFA devices, but still no eligible one.
-			reason = RegistrationReasonSessionMFANoEligibleDevices
-		}
-		added, err := c.Register(ctx, RegistrationCeremonyConfig{
-			Reason: reason,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if !added {
-			return nil, &ErrNoMFADevices
-		}
-
-		chal, err = c.CreateAuthenticateChallenge(ctx, req)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+		return nil, nil, trace.Wrap(&ErrMFANotSupported, "mfa ceremony must have PromptConstructor set in order to succeed")
 	}
 
 	// Set challenge extensions in the prompt, if present, but set it first so the
@@ -184,7 +215,7 @@ func (c *Ceremony) Run(ctx context.Context, req *proto.CreateAuthenticateChallen
 	}
 
 	resp, err := c.PromptConstructor(promptOpts...).Run(ctx, chal)
-	return resp, trace.Wrap(err)
+	return resp, nil, trace.Wrap(err)
 }
 
 type RegistrationReason string
@@ -194,12 +225,11 @@ const (
 	// register an MFA device.
 	RegistrationReasonExplicit RegistrationReason = "explicit"
 	// RegistrationReasonSessionMFANoDevices indicates that the registration is
-	// attempted because a per-session MFA, but there are no MFA devices
-	// registered.
+	// attempted for per-session MFA, but there are no MFA devices registered.
 	RegistrationReasonSessionMFANoDevices RegistrationReason = "session_mfa_no_devices"
 	// RegistrationReasonSessionMFANoEligibleDevices indicates that the
-	// registration is attempted because a per-session MFA, but none of the
-	// registered MFA devices are eligible.
+	// registration is attempted for per-session MFA, but none of the registered
+	// MFA devices are eligible.
 	RegistrationReasonSessionMFANoEligibleDevices RegistrationReason = "session_mfa_no_eligible_devices"
 )
 
@@ -215,8 +245,8 @@ type RegistrationCeremonyConfig struct {
 	// be prompted to enter it.
 	DeviceType MFADeviceType
 	// DeviceUsage is the intended usage for the MFA device to be added. If set
-	// to [proto.DeviceUsage_DEVICE_USAGE_UNSPECIFIED], the user may be offered
-	// registering a passwordless device.
+	// to [proto.DeviceUsage_DEVICE_USAGE_UNSPECIFIED], the user may be prompted
+	// whether to register the device as passwordless.
 	DeviceUsage proto.DeviceUsage
 }
 
@@ -225,24 +255,12 @@ type RegistrationCeremonyConfig struct {
 // added, and false if it was not (for example, the user refused to register
 // it).
 func (c *Ceremony) Register(ctx context.Context, config RegistrationCeremonyConfig) (bool, error) {
-	// Normally, registration can cause the MFA ceremony to be executed using
-	// Run(). However, Run() can also be executed standalone and attempt to
-	// register user's first MFA device. In such case, we prevent recursion here
-	// and just report that no device has been registered.
-	if c.isRegistering {
-		return false, nil
-	}
-	c.isRegistering = true
-	defer func() {
-		c.isRegistering = false
-	}()
-
-	regPrompt := c.PromptConstructor(func(cfg *PromptConfig) { cfg.MFACeremony = c })
+	regPrompt := c.PromptConstructor()
 
 	promptConfig := RegistrationPromptConfig{
 		RegistrationCeremonyConfig: config,
 	}
-	if config.DeviceType == "" {
+	if config.DeviceType == "" && c.Ping != nil {
 		// If we are prompting the user for the device type, then take a glimpse at
 		// server-side settings and adjust the options accordingly.
 		// This is undesirable to do during flag setup, but we can do it here.
@@ -308,7 +326,11 @@ func (c *Ceremony) Register(ctx context.Context, config RegistrationCeremonyConf
 		return false, trace.Wrap(err)
 	}
 
-	regPrompt.NotifyRegistrationSuccess(ctx, promptConfig)
+	// Failure to notify doesn't justify making it an error, so just log it and
+	// move on.
+	if err = regPrompt.NotifyRegistrationSuccess(ctx, promptConfig); err != nil {
+		slog.ErrorContext(ctx, "Unable to notify about registration success", "error", err)
+	}
 	return true, nil
 }
 

@@ -81,11 +81,6 @@ func initWebDevs() []mfa.MFADeviceType {
 	return []mfa.MFADeviceType{mfa.MFADeviceTypeWebauthn}
 }
 
-type ClusterClient interface {
-	CreateRegisterChallenge(ctx context.Context, in *proto.CreateRegisterChallengeRequest) (*proto.MFARegisterChallenge, error)
-	AddMFADeviceSync(ctx context.Context, in *proto.AddMFADeviceSyncRequest) (*proto.AddMFADeviceSyncResponse, error)
-}
-
 // CLIPromptConfig contains CLI prompt config options.
 type CLIPromptConfig struct {
 	PromptConfig
