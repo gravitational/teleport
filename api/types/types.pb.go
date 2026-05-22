@@ -23352,7 +23352,7 @@ type OktaAssignmentTargetV1 struct {
 	Reason OktaAssignmentTargetV1_OktaAssignmentTargetStatusReason `protobuf:"varint,4,opt,name=reason,proto3,enum=types.OktaAssignmentTargetV1_OktaAssignmentTargetStatusReason" json:"reason"`
 	// Op is the operation to be performed for the assignment target.
 	Op OktaAssignmentTargetV1_OktaAssignmentTargetOp `protobuf:"varint,5,opt,name=op,proto3,enum=types.OktaAssignmentTargetV1_OktaAssignmentTargetOp" json:"op"`
-	// // LastTransition notes when the last state transition occurred for this target.
+	// LastTransition notes when the last state transition occurred for this target.
 	LastTransition       time.Time `protobuf:"bytes,6,opt,name=LastTransition,proto3,stdtime" json:"last_transition"`
 	XXX_NoUnkeyedLiteral struct{}  `json:"-"`
 	XXX_unrecognized     []byte    `json:"-"`

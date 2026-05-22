@@ -8897,7 +8897,7 @@ message OktaAssignmentTargetV1 {
   // Op is the operation to be performed for the assignment target.
   OktaAssignmentTargetOp op = 5 [(gogoproto.jsontag) = "op"];
 
-  // // LastTransition notes when the last state transition occurred for this target.
+  // LastTransition notes when the last state transition occurred for this target.
   google.protobuf.Timestamp LastTransition = 6 [
     (gogoproto.jsontag) = "last_transition",
     (gogoproto.stdtime) = true,

@@ -426,9 +426,9 @@ type OktaAssignmentTarget interface {
 	GetReason() string
 	// GetLastTransition returns the last transition time.
 	GetLastTransition() time.Time
-	// TransitionToSuccessful sets the processing status of the target to successful and updates the last transition time.
+	// TransitionToSuccessful sets the processing status of the target to successful, updates the last transition time, and clears any failure reason.
 	TransitionToSuccessful(t time.Time) error
-	// TransitionToFailed sets the failure reason, updates the last transition time and sets the processing status of the target to failed.
+	// TransitionToFailed sets the failure reason, updates the last transition time, and sets the processing status of the target to failed.
 	TransitionToFailed(reason string, t time.Time) error
 	// GetOp returns the type of operation for the target.
 	GetOp() string
@@ -458,17 +458,17 @@ func (o *OktaAssignmentTargetV1) GetStatus() string {
 	return OktaAssignmentTargetStatusProtoToString(o.Status)
 }
 
-// GetReason returns the failure reason for the target with a failed status.
+// GetReason returns the failure reason for the target.
 func (o *OktaAssignmentTargetV1) GetReason() string {
 	return OktaAssignmentTargetStatusReasonProtoToString(o.Reason)
 }
 
-// GetLastTransition returns the optional time that the action last transitioned.
+// GetLastTransition returns the time that the target status last transitioned.
 func (o *OktaAssignmentTargetV1) GetLastTransition() time.Time {
 	return o.LastTransition
 }
 
-// TransitionToSuccessful sets the processing status of the target to successful and updates the last transition time.
+// TransitionToSuccessful sets the processing status of the target to successful, updates the last transition time, and clears any failure reason.
 // Valid states to transition to SUCCESSFUL from are: UNKNOWN, FAILED.
 func (o *OktaAssignmentTargetV1) TransitionToSuccessful(t time.Time) error {
 	switch o.Status {

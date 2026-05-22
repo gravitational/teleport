@@ -80,6 +80,7 @@ func TestOktaAssignments_SetStatus(t *testing.T) {
 }
 
 func TestOktAssignmentIsEqual(t *testing.T) {
+	now := time.Now().UTC()
 	newAssignment := func(changeFns ...func(*OktaAssignmentV1)) *OktaAssignmentV1 {
 		assignment := &OktaAssignmentV1{
 			ResourceHeader: ResourceHeader{
@@ -92,8 +93,8 @@ func TestOktAssignmentIsEqual(t *testing.T) {
 			Spec: OktaAssignmentSpecV1{
 				User: "user",
 				Targets: []*OktaAssignmentTargetV1{
-					{Id: "1", Type: OktaAssignmentTargetV1_APPLICATION, Status: OktaAssignmentTargetV1_STATUS_UNKNOWN, Reason: OktaAssignmentTargetV1_REASON_UNKNOWN},
-					{Id: "2", Type: OktaAssignmentTargetV1_GROUP, Status: OktaAssignmentTargetV1_STATUS_UNKNOWN, Reason: OktaAssignmentTargetV1_REASON_UNKNOWN},
+					{Id: "1", Type: OktaAssignmentTargetV1_APPLICATION, Status: OktaAssignmentTargetV1_STATUS_UNKNOWN, Reason: OktaAssignmentTargetV1_REASON_UNKNOWN, Op: OktaAssignmentTargetV1_OP_CLEANUP, LastTransition: now},
+					{Id: "2", Type: OktaAssignmentTargetV1_GROUP, Status: OktaAssignmentTargetV1_STATUS_UNKNOWN, Reason: OktaAssignmentTargetV1_REASON_UNKNOWN, Op: OktaAssignmentTargetV1_OP_PROVISION, LastTransition: now},
 				},
 				CleanupTime:    time.Time{},
 				Status:         OktaAssignmentSpecV1_PENDING,
@@ -214,7 +215,7 @@ func TestOktAssignmentIsEqual(t *testing.T) {
 			expected: false,
 		},
 		{
-			name: "targets status is different",
+			name: "targets assignment status is different",
 			o1: newAssignment(func(o *OktaAssignmentV1) {
 				o.Spec.Targets = []*OktaAssignmentTargetV1{
 					{Id: "1", Type: OktaAssignmentTargetV1_APPLICATION, Status: OktaAssignmentTargetV1_STATUS_SUCCESSFUL},
@@ -228,7 +229,7 @@ func TestOktAssignmentIsEqual(t *testing.T) {
 			expected: false,
 		},
 		{
-			name: "targets status reason is different",
+			name: "targets assignment status reason is different",
 			o1: newAssignment(func(o *OktaAssignmentV1) {
 				o.Spec.Targets = []*OktaAssignmentTargetV1{
 					{Id: "1", Type: OktaAssignmentTargetV1_APPLICATION, Status: OktaAssignmentTargetV1_STATUS_FAILED, Reason: OktaAssignmentTargetV1_REASON_ERROR},
@@ -237,6 +238,34 @@ func TestOktAssignmentIsEqual(t *testing.T) {
 			o2: newAssignment(func(o *OktaAssignmentV1) {
 				o.Spec.Targets = []*OktaAssignmentTargetV1{
 					{Id: "1", Type: OktaAssignmentTargetV1_APPLICATION, Status: OktaAssignmentTargetV1_STATUS_FAILED, Reason: OktaAssignmentTargetV1_REASON_UNKNOWN},
+				}
+			}),
+			expected: false,
+		},
+		{
+			name: "targets assignment op is different",
+			o1: newAssignment(func(o *OktaAssignmentV1) {
+				o.Spec.Targets = []*OktaAssignmentTargetV1{
+					{Id: "1", Type: OktaAssignmentTargetV1_APPLICATION, Op: OktaAssignmentTargetV1_OP_CLEANUP},
+				}
+			}),
+			o2: newAssignment(func(o *OktaAssignmentV1) {
+				o.Spec.Targets = []*OktaAssignmentTargetV1{
+					{Id: "1", Type: OktaAssignmentTargetV1_APPLICATION, Op: OktaAssignmentTargetV1_OP_PROVISION},
+				}
+			}),
+			expected: false,
+		},
+		{
+			name: "targets assignment last transitioned time is different",
+			o1: newAssignment(func(o *OktaAssignmentV1) {
+				o.Spec.Targets = []*OktaAssignmentTargetV1{
+					{Id: "1", Type: OktaAssignmentTargetV1_APPLICATION, LastTransition: time.Date(2026, time.January, 2, 3, 4, 5, 0, time.UTC)},
+				}
+			}),
+			o2: newAssignment(func(o *OktaAssignmentV1) {
+				o.Spec.Targets = []*OktaAssignmentTargetV1{
+					{Id: "1", Type: OktaAssignmentTargetV1_APPLICATION, LastTransition: time.Date(2026, time.February, 2, 3, 4, 5, 0, time.UTC)},
 				}
 			}),
 			expected: false,
