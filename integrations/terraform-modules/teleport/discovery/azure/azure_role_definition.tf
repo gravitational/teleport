@@ -12,10 +12,12 @@ locals {
 
   vm_actions = [
     "Microsoft.Compute/virtualMachines/read",
-    "Microsoft.Compute/virtualMachines/runCommand/action",
-    "Microsoft.Compute/virtualMachines/runCommands/delete",
     "Microsoft.Compute/virtualMachines/runCommands/read",
     "Microsoft.Compute/virtualMachines/runCommands/write",
+    "Microsoft.Compute/virtualMachineScaleSets/read",
+    "Microsoft.Compute/virtualMachineScaleSets/virtualMachines/read",
+    "Microsoft.Compute/virtualMachineScaleSets/virtualMachines/runCommands/read",
+    "Microsoft.Compute/virtualMachineScaleSets/virtualMachines/runCommands/write",
   ]
 
   role_actions = distinct(concat(
