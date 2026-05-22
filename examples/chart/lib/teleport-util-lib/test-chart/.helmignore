@@ -1,0 +1,16 @@
+# Because this chart is a test harness nested inside the teleport-util-lib
+# library chart and it pulls the library's named templates in through a symlink
+# (charts/teleport-util-lib -> ../../ — the lib chart directory), we have to
+# ignore this dir in this root (application) chart to break the symlink loop
+# Helm's loader would otherwise hit while walking the chart directory: the
+# symlink points back into a directory that contains this chart (whose charts/
+# symlinks back again), so the walk would never terminate. It's a filesystem
+# traversal loop, not a dependency-graph cycle.
+#
+# One alternative would be `repository: file://../` in the dependency in
+# Chart.yaml, but because helm-janitor doesn't run `helm dependency build`
+# that isn't an option.
+#
+# NOTE: any other chart that symlinks this lib needs the same line in its own
+# .helmignore (e.g. teleport-cluster/.helmignore), for the same reason.
+test-chart/

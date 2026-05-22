@@ -3,9 +3,7 @@ templates:
   - auth/predeploy_job.yaml
   - auth/predeploy_config.yaml
   - auth/predeploy_serviceaccount.yaml
-  - proxy/predeploy_job.yaml
-  - proxy/predeploy_config.yaml
-  - proxy/predeploy_serviceaccount.yaml
+  - proxy.yaml
 tests:
   - it: Deploys the auth-test config
     template: auth/predeploy_config.yaml
@@ -19,10 +17,18 @@ tests:
           namespace: NAMESPACE
 
   - it: Deploys the proxy-test config
-    template: proxy/predeploy_config.yaml
+    template: proxy.yaml
     set:
       clusterName: helm-lint
+    # expected: ConfigMap/RELEASE-NAME-proxy-test
+    # 2 - ConfigMap/RELEASE-NAME-proxy-test
+    documentIndex: 2
     asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy-test
       - containsDocument:
           kind: ConfigMap
           apiVersion: v1
@@ -41,20 +47,69 @@ tests:
           namespace: NAMESPACE
 
   - it: Is executed as a pre-install and pre-upgrade hook
+    template: proxy.yaml
     set:
       clusterName: helm-lint
+    # expected:
+    # 2 - ConfigMap/RELEASE-NAME-proxy-test
+    # 3 - Job/RELEASE-NAME-proxy-test
+    # 4 - ServiceAccount/RELEASE-NAME-proxy-hook
     asserts:
+      - isKind:
+          of: ConfigMap
+        documentIndex: 2
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy-test
+        documentIndex: 2
       - equal:
           path: metadata.annotations.helm\.sh/hook
           value: pre-install,pre-upgrade
+        documentIndex: 2
+      - isKind:
+          of: Job
+        documentIndex: 3
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy-test
+        documentIndex: 3
+      - equal:
+          path: metadata.annotations.helm\.sh/hook
+          value: pre-install,pre-upgrade
+        documentIndex: 3
+      - isKind:
+          of: ServiceAccount
+        documentIndex: 4
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy-hook
+        documentIndex: 4
+      - equal:
+          path: metadata.annotations.helm\.sh/hook
+          value: pre-install,pre-upgrade
+        documentIndex: 4
 
   - it: Does not render hooks when config validation is disabled
+    template: proxy.yaml
     set:
       clusterName: helm-lint
       validateConfigOnDeploy: false
     asserts:
-      - hasDocuments:
-          count: 0
+      - containsDocument:
+          kind: ConfigMap
+          apiVersion: v1
+          name: RELEASE-NAME-proxy-test
+        not: true
+      - containsDocument:
+          kind: Job
+          apiVersion: batch/v1
+          name: RELEASE-NAME-proxy-test
+        not: true
+      - containsDocument:
+          kind: ServiceAccount
+          apiVersion: v1
+          name: RELEASE-NAME-proxy-hook
+        not: true
 
   - it: should not set resources on auth predeploy job when resources set in values
     template: auth/predeploy_job.yaml
@@ -65,10 +120,18 @@ tests:
           path: spec.template.spec.containers[0].resources
 
   - it: should not set resources on proxy predeploy job when resources set in values
-    template: proxy/predeploy_job.yaml
+    template: proxy.yaml
     values:
       - ../.lint/resources.yaml
+    # expected: Job/RELEASE-NAME-proxy-test
+    # 3 - Job/RELEASE-NAME-proxy-test
+    documentIndex: 3
     asserts:
+      - isKind:
+          of: Job
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy-test
       - isEmpty:
           path: spec.template.spec.containers[0].resources
 
@@ -95,7 +158,7 @@ tests:
           value: 512Mi
 
   - it: should set resources on proxy predeploy job when jobResources set in values
-    template: proxy/predeploy_job.yaml
+    template: proxy.yaml
     values:
       - ../.lint/resources.yaml
     set:
@@ -105,7 +168,15 @@ tests:
         requests:
           memory: 512Mi
           cpu: 1
+    # expected: Job/RELEASE-NAME-proxy-test
+    # 3 - Job/RELEASE-NAME-proxy-test
+    documentIndex: 3
     asserts:
+      - isKind:
+          of: Job
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy-test
       - equal:
           path: spec.template.spec.containers[0].resources.limits.memory
           value: 512Mi
@@ -117,10 +188,18 @@ tests:
           value: 512Mi
 
   - it: should set imagePullSecrets on proxy predeploy job when set in values
-    template: proxy/predeploy_job.yaml
+    template: proxy.yaml
     values:
       - ../.lint/imagepullsecrets.yaml
+    # expected: Job/RELEASE-NAME-proxy-test
+    # 3 - Job/RELEASE-NAME-proxy-test
+    documentIndex: 3
     asserts:
+      - isKind:
+          of: Job
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy-test
       - equal:
           path: spec.template.spec.imagePullSecrets[0].name
           value: myRegistryKeySecretName
@@ -199,7 +278,7 @@ tests:
           value: overridden
 
   - it: should set extraLabels on proxy predeploy job when set in values
-    template: proxy/predeploy_job.yaml
+    template: proxy.yaml
     set:
       clusterName: helm-lint
       extraLabels:
@@ -210,7 +289,15 @@ tests:
         extraLabels:
           job:
             baz: overridden
+    # expected: Job/RELEASE-NAME-proxy-test
+    # 3 - Job/RELEASE-NAME-proxy-test
+    documentIndex: 3
     asserts:
+      - isKind:
+          of: Job
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy-test
       - equal:
           path: metadata.labels.foo
           value: bar
@@ -219,7 +306,7 @@ tests:
           value: overridden
 
   - it: should set extraLabels.jobPod on proxy predeploy job when set in values
-    template: proxy/predeploy_job.yaml
+    template: proxy.yaml
     set:
       clusterName: helm-lint
       extraLabels:
@@ -230,7 +317,15 @@ tests:
         extraLabels:
           jobPod:
             baz: overridden
+    # expected: Job/RELEASE-NAME-proxy-test
+    # 3 - Job/RELEASE-NAME-proxy-test
+    documentIndex: 3
     asserts:
+      - isKind:
+          of: Job
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy-test
       - equal:
           path: spec.template.metadata.labels.foo
           value: bar
@@ -239,7 +334,7 @@ tests:
           value: overridden
 
   - it: should set extraLabels on proxy predeploy config when set in values
-    template: proxy/predeploy_config.yaml
+    template: proxy.yaml
     set:
       clusterName: helm-lint
       extraLabels:
@@ -250,7 +345,15 @@ tests:
         extraLabels:
           config:
             baz: overridden
+    # expected: ConfigMap/RELEASE-NAME-proxy-test
+    # 2 - ConfigMap/RELEASE-NAME-proxy-test
+    documentIndex: 2
     asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy-test
       - equal:
           path: metadata.labels.foo
           value: bar
@@ -291,33 +394,57 @@ tests:
           value: helm-test-sa
 
   - it: should use default serviceAccount name suffixed with -hook for proxy predeploy job SA when not set in values and we're creating SAs
-    template: proxy/predeploy_job.yaml
+    template: proxy.yaml
     set:
       clusterName: helm-lint
+    # expected: Job/RELEASE-NAME-proxy-test
+    # 3 - Job/RELEASE-NAME-proxy-test
+    documentIndex: 3
     asserts:
+      - isKind:
+          of: Job
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy-test
       - equal:
           path: spec.template.spec.serviceAccountName
           value: RELEASE-NAME-proxy-hook
 
   - it: should use serviceAccount.name suffixed with -hook for proxy predeploy job SA when set in values and we're creating SAs
-    template: proxy/predeploy_job.yaml
+    template: proxy.yaml
     set:
       clusterName: helm-lint
       serviceAccount:
         name: helm-test-sa
+    # expected: Job/RELEASE-NAME-proxy-test
+    # 3 - Job/RELEASE-NAME-proxy-test
+    documentIndex: 3
     asserts:
+      - isKind:
+          of: Job
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy-test
       - equal:
           path: spec.template.spec.serviceAccountName
           value: helm-test-sa-proxy-hook
 
   - it: should use serviceAccount.name for proxy predeploy job SA when set in values and we're not creating SAs
-    template: proxy/predeploy_job.yaml
+    template: proxy.yaml
     set:
       clusterName: helm-lint
       serviceAccount:
         name: helm-test-sa
         create: false
+    # expected: Job/RELEASE-NAME-proxy-test
+    # 3 - Job/RELEASE-NAME-proxy-test
+    documentIndex: 3
     asserts:
+      - isKind:
+          of: Job
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy-test
       - equal:
           path: spec.template.spec.serviceAccountName
           value: helm-test-sa-proxy
