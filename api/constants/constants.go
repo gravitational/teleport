@@ -191,9 +191,12 @@ const (
 	// OktaAssignmentTargetReasonTimeout indicates processing failed due to a timeout.
 	OktaAssignmentTargetReasonTimeout = "timeout"
 
-	OktaAssignmentTargetOpUnknown   = "unknown"
+	// OktaAssignmentTargetOpUnknown indicates the operation is not known.
+	OktaAssignmentTargetOpUnknown = "unknown"
+	// OktaAssignmentTargetOpProvision indicates a provision operation.
 	OktaAssignmentTargetOpProvision = "provision"
-	OktaAssignmentTargetOpCleanup   = "cleanup"
+	// OktaAssignmentTargetOpCleanup indicates a cleanup operation.
+	OktaAssignmentTargetOpCleanup = "cleanup"
 )
 
 // LocalConnectors are the system connectors that use local auth.

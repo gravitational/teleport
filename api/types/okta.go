@@ -430,8 +430,9 @@ type OktaAssignmentTarget interface {
 	TransitionToSuccessful(t time.Time) error
 	// TransitionToFailed sets the failure reason, updates the last transition time and sets the processing status of the target to failed.
 	TransitionToFailed(reason string, t time.Time) error
-
+	// GetOp returns the type of operation for the target.
 	GetOp() string
+	// SetOp sets the type of operation for the target.
 	SetOp(op string)
 }
 
@@ -468,6 +469,7 @@ func (o *OktaAssignmentTargetV1) GetLastTransition() time.Time {
 }
 
 // TransitionToSuccessful sets the processing status of the target to successful and updates the last transition time.
+// Valid states to transition to SUCCESSFUL from are: UNKNOWN, FAILED.
 func (o *OktaAssignmentTargetV1) TransitionToSuccessful(t time.Time) error {
 	switch o.Status {
 	case OktaAssignmentTargetV1_STATUS_UNKNOWN:
@@ -477,12 +479,14 @@ func (o *OktaAssignmentTargetV1) TransitionToSuccessful(t time.Time) error {
 	}
 
 	o.Status = OktaAssignmentTargetV1_STATUS_SUCCESSFUL
+	o.Reason = OktaAssignmentTargetV1_REASON_UNKNOWN
 	o.LastTransition = t.UTC()
 
 	return nil
 }
 
 // TransitionToFailed sets the failure reason, sets the processing status of the target to failed, and updates the last transition time.
+// Valid states to transition to FAILED from are: UNKNOWN, FAILED.
 func (o *OktaAssignmentTargetV1) TransitionToFailed(reason string, t time.Time) error {
 	switch o.Status {
 	case OktaAssignmentTargetV1_STATUS_UNKNOWN:
@@ -498,14 +502,17 @@ func (o *OktaAssignmentTargetV1) TransitionToFailed(reason string, t time.Time) 
 	return nil
 }
 
+// SetOp sets the type of operation for the target.
 func (o *OktaAssignmentTargetV1) SetOp(op string) {
 	o.Op = OktaAssignmentTargetOpToProto(op)
 }
 
+// GetOp gets the type of operation for the target.
 func (o *OktaAssignmentTargetV1) GetOp() string {
 	return OktaAssignmentTargetOpProtoToString(o.Op)
 }
 
+// OktaAssignmentTargetOpProtoToString returns a string representation of an OktaAssignmentTargetOp.
 func OktaAssignmentTargetOpProtoToString(op OktaAssignmentTargetV1_OktaAssignmentTargetOp) string {
 	switch op {
 	case OktaAssignmentTargetV1_OP_PROVISION:
@@ -517,6 +524,7 @@ func OktaAssignmentTargetOpProtoToString(op OktaAssignmentTargetV1_OktaAssignmen
 	}
 }
 
+// OktaAssignmentTargetOpToProto returns the OktaAssignmentTargetOp proto of an op string.
 func OktaAssignmentTargetOpToProto(op string) OktaAssignmentTargetV1_OktaAssignmentTargetOp {
 	switch op {
 	case constants.OktaAssignmentTargetOpProvision:
