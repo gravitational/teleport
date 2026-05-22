@@ -119,3 +119,13 @@ func CountBy[S ~[]E, E any](elements S, mapper func(E) string) map[string]int {
 	}
 	return out
 }
+
+// ContainsAll checks whether haystack contains all needles.
+func ContainsAll[S ~[]E, E comparable](haystack S, needles S) bool {
+	for _, needle := range needles {
+		if !slices.Contains(haystack, needle) {
+			return false
+		}
+	}
+	return true
+}

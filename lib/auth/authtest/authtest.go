@@ -649,7 +649,6 @@ func InitAuthCache(p AuthCacheParams) error {
 		Plugin:                  p.AuthServer.Services.Plugins,
 		AppAuthConfig:           p.AuthServer.Services.AppAuthConfig,
 		StaticScopedToken:       p.AuthServer.Services.ClusterConfigurationInternal,
-		WorkloadClusterService:  p.AuthServer.Services.WorkloadClusterService,
 		Summarizer:              p.AuthServer.Services.Summarizer,
 		SubCAService:            p.AuthServer.Services.SubCAService,
 	})
@@ -1229,6 +1228,16 @@ func TestBuiltin(role types.SystemRole) TestIdentity {
 	}
 }
 
+// TestUnauthenticated returns TestIdentity for unauthenticate user
+func TestUnauthenticated(role types.UnauthenticatedRole) TestIdentity {
+	return TestIdentity{
+		I: authz.UnauthenticatedRole{
+			Role:     role,
+			Username: string(role),
+		},
+	}
+}
+
 // TestScopedHost returns TestIdentity for a scoped host
 func TestScopedHost(clusterName, hostID, scope string, role types.SystemRole) TestIdentity {
 	username := hostID
@@ -1314,7 +1323,7 @@ func (t *TLSServer) ClientTLSConfig(identity TestIdentity) (*tls.Config, error) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if identity.I != nil {
+	if !isUnauthenticated(identity) {
 		cert, err := t.AuthServer.NewCertificate(identity)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1327,6 +1336,14 @@ func (t *TLSServer) ClientTLSConfig(identity TestIdentity) (*tls.Config, error) 
 	}
 	tlsConfig.Time = t.AuthServer.AuthServer.GetClock().Now
 	return tlsConfig, nil
+}
+
+func isUnauthenticated(identity TestIdentity) bool {
+	if identity.I == nil {
+		return true
+	}
+	_, ok := identity.I.(authz.UnauthenticatedRole)
+	return ok
 }
 
 // CloneClient uses the same credentials as the passed client

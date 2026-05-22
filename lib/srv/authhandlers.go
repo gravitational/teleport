@@ -325,7 +325,7 @@ func (h *AuthHandlers) CheckX11Forward(ctx *ServerContext) error {
 		return nil
 	}
 
-	return trace.AccessDenied("x11 forwarding not permitted")
+	return trace.AccessDenied("X11 forwarding not permitted")
 }
 
 // CheckPortForward checks if port forwarding is allowed for the users RoleSet.
@@ -795,6 +795,12 @@ func requiresInBandMFA(id *sshca.Identity, conn ssh.ConnMetadata) (bool, error) 
 		return false, nil
 	}
 
+	// If the certificate was issued as a result of headless login, then in-band MFA checks are not required since the
+	// user would have been required to complete MFA to obtain the headless certificate in the first place.
+	if id.HeadlessAuthenticationID != "" {
+		return false, nil
+	}
+
 	inBandMFASupported, err := apissh.IsFeatureSupported(string(conn.ClientVersion()), apissh.InBandMFAFeature)
 	if err != nil && !errors.Is(err, apissh.NonTeleportSSHVersionError{}) {
 		return false, trace.Wrap(err)
@@ -1176,7 +1182,7 @@ func (a *ahLoginChecker) evaluateScopedSSHAccess(ident *sshca.Identity, ca types
 		ClientIdleTimeout:     durationpb.New(clientIdleTimeout),
 		DisconnectExpiredCert: timestampFromGoTime(getDisconnectExpiredCertFromSSHIdentityScoped(checker.SSH(), authPref, ident)),
 		SessionRecordingMode:  string(checker.SSH().SessionRecordingMode()),
-		LockingMode:           string(checker.LockingMode(authPref.GetLockingMode())),
+		LockingMode:           string(checker.SSH().LockingMode(authPref.GetLockingMode())),
 		PrivateKeyPolicy:      string(privateKeyPolicy),
 		LockTargets:           decision.LockTargetsToProto(lockTargets),
 		MappedRoles:           accessInfo.Roles,

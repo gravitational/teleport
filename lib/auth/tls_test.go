@@ -1156,10 +1156,18 @@ func TestListUsers(t *testing.T) {
 	clt, err := testSrv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
-	// set up some users with distinct names/labels (the only to user attributes currently relevant to filtering)
+	// set up some roles to assign users
+	_, err = authtest.CreateRole(ctx, clt, "good-role", types.RoleSpecV6{})
+	require.NoError(t, err)
+	_, err = authtest.CreateRole(ctx, clt, "evil-role", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	// set up some users with distinct names/labels/roles/traits
 	usersToCreate := []struct {
 		name   string
 		labels map[string]string
+		roles  []string
+		traits map[string][]string
 	}{
 		{
 			name: "alice@good.example.com",
@@ -1167,6 +1175,8 @@ func TestListUsers(t *testing.T) {
 				"group":    "red",
 				"location": "mauka",
 			},
+			roles:  []string{"good-role"},
+			traits: map[string][]string{"logins": {"good-login"}},
 		},
 		{
 			name: "bob@good.example.com",
@@ -1174,6 +1184,8 @@ func TestListUsers(t *testing.T) {
 				"group":    "blue",
 				"location": "mauka",
 			},
+			roles:  []string{"good-role"},
+			traits: map[string][]string{"logins": {"good-login"}},
 		},
 		{
 			name: "carol@evil.example.com",
@@ -1181,6 +1193,8 @@ func TestListUsers(t *testing.T) {
 				"group":    "red",
 				"location": "mauka",
 			},
+			roles:  []string{"evil-role"},
+			traits: map[string][]string{"logins": {"evil-login"}},
 		},
 		{
 			name: "dave@evil.example.com",
@@ -1188,6 +1202,8 @@ func TestListUsers(t *testing.T) {
 				"group":    "blue",
 				"location": "makai",
 			},
+			roles:  []string{"evil-role"},
+			traits: map[string][]string{"logins": {"evil-login"}},
 		},
 	}
 
@@ -1199,6 +1215,8 @@ func TestListUsers(t *testing.T) {
 		require.NoError(t, err)
 
 		user.SetStaticLabels(u.labels)
+		user.SetRoles(u.roles)
+		user.SetTraits(u.traits)
 
 		_, err = clt.CreateUser(ctx, user)
 		require.NoError(t, err)
@@ -1272,6 +1290,43 @@ func TestListUsers(t *testing.T) {
 		"alice@good.example.com",
 		"bob@good.example.com",
 		"carol@evil.example.com",
+	}, namesOf(users))
+
+	users = getUsers(t, &userspb.ListUsersRequest{
+		Filter: &types.UserFilter{
+			SearchKeywords: []string{
+				"good-role",
+			},
+		},
+	})
+
+	require.ElementsMatch(t, []string{
+		"alice@good.example.com",
+		"bob@good.example.com",
+	}, namesOf(users))
+
+	users = getUsers(t, &userspb.ListUsersRequest{
+		Filter: &types.UserFilter{
+			SearchKeywords: []string{
+				"good-login",
+			},
+		},
+	})
+
+	require.ElementsMatch(t, []string{
+		"alice@good.example.com",
+		"bob@good.example.com",
+	}, namesOf(users))
+
+	users = getUsers(t, &userspb.ListUsersRequest{
+		Filter: &types.UserFilter{
+			Traits: map[string][]string{"logins": {"good-login"}},
+		},
+	})
+
+	require.ElementsMatch(t, []string{
+		"alice@good.example.com",
+		"bob@good.example.com",
 	}, namesOf(users))
 }
 
@@ -2082,9 +2137,6 @@ func TestWebSessionWithoutAccessRequest(t *testing.T) {
 	web, err := testSrv.NewClientFromWebSession(ws)
 	require.NoError(t, err)
 
-	_, err = web.GetWebSessionInfo(ctx, user, ws.GetName())
-	require.NoError(t, err)
-
 	ns, err := web.ExtendWebSession(ctx, authclient.WebSessionReq{
 		User:          user,
 		PrevSessionID: ws.GetName(),
@@ -2096,10 +2148,16 @@ func TestWebSessionWithoutAccessRequest(t *testing.T) {
 	err = web.DeleteUser(ctx, user)
 	require.True(t, trace.IsAccessDenied(err))
 
-	err = clt.DeleteWebSession(ctx, user, ws.GetName())
+	err = clt.WebSessions().Delete(ctx, types.DeleteWebSessionRequest{
+		User:      user,
+		SessionID: ws.GetName(),
+	})
 	require.NoError(t, err)
 
-	_, err = web.GetWebSessionInfo(ctx, user, ws.GetName())
+	_, err = clt.WebSessions().Get(ctx, types.GetWebSessionRequest{
+		User:      user,
+		SessionID: ws.GetName(),
+	})
 	require.Error(t, err)
 
 	_, err = web.ExtendWebSession(ctx, authclient.WebSessionReq{
@@ -2360,7 +2418,10 @@ func TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
 	require.NoError(t, err)
 
 	initialRole := newUser.GetRoles()[0]
-	initialSession, err := web.GetWebSessionInfo(ctx, user, ws.GetName())
+	initialSession, err := testSrv.Auth().GetWebSession(ctx, types.GetWebSessionRequest{
+		User:      user,
+		SessionID: ws.GetName(),
+	})
 	require.NoError(t, err)
 
 	// Create a approved access request.
@@ -3674,23 +3735,11 @@ func TestAuthenticateWebUserOTP(t *testing.T) {
 	require.True(t, trace.IsAccessDenied(err))
 
 	// authentication succeeds
-	ws, err := proxy.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
+	_, err = proxy.AuthenticateWebUser(ctx, authclient.AuthenticateUserRequest{
 		Username: user,
 		OTP:      &authclient.OTPCreds{Password: pass, Token: validToken},
 	})
 	require.NoError(t, err)
-
-	userClient, err := testSrv.NewClientFromWebSession(ws)
-	require.NoError(t, err)
-
-	_, err = userClient.GetWebSessionInfo(ctx, user, ws.GetName())
-	require.NoError(t, err)
-
-	err = clt.DeleteWebSession(ctx, user, ws.GetName())
-	require.NoError(t, err)
-
-	_, err = userClient.GetWebSessionInfo(ctx, user, ws.GetName())
-	require.Error(t, err)
 }
 
 // TestLoginAttempts makes sure the login attempt counter is incremented and
@@ -4318,7 +4367,7 @@ func TestClusterAlertAccessControls(t *testing.T) {
 	}
 
 	// verify that we still reject unauthenticated clients
-	nopClt, err := testSrv.NewClient(authtest.TestBuiltin(types.RoleNop))
+	nopClt, err := testSrv.NewClient(authtest.TestUnauthenticated(types.RoleNop))
 	require.NoError(t, err)
 	defer nopClt.Close()
 
@@ -4417,7 +4466,7 @@ func TestEventsNodePresence(t *testing.T) {
 	}
 
 	// upsert node and keep alives will fail for users with no privileges
-	nopClt, err := testSrv.NewClient(authtest.TestBuiltin(types.RoleNop))
+	nopClt, err := testSrv.NewClient(authtest.TestUnauthenticated(types.RoleNop))
 	require.NoError(t, err)
 	defer nopClt.Close()
 
@@ -4560,7 +4609,7 @@ func TestEventsPermissions(t *testing.T) {
 		},
 		{
 			name:     "nop role is not authorized to watch users and roles",
-			identity: authtest.TestBuiltin(types.RoleNop),
+			identity: authtest.TestUnauthenticated(types.RoleNop),
 			watches: []types.WatchKind{
 				{Kind: types.KindUser},
 				{Kind: types.KindRole},
@@ -4568,12 +4617,12 @@ func TestEventsPermissions(t *testing.T) {
 		},
 		{
 			name:     "nop role is not authorized to watch cert authorities",
-			identity: authtest.TestBuiltin(types.RoleNop),
+			identity: authtest.TestUnauthenticated(types.RoleNop),
 			watches:  []types.WatchKind{{Kind: types.KindCertAuthority, LoadSecrets: false}},
 		},
 		{
 			name:     "nop role is not authorized to watch cluster config resources",
-			identity: authtest.TestBuiltin(types.RoleNop),
+			identity: authtest.TestUnauthenticated(types.RoleNop),
 			watches: []types.WatchKind{
 				{Kind: types.KindClusterAuthPreference},
 				{Kind: types.KindClusterNetworkingConfig},
@@ -6147,6 +6196,7 @@ func withClock(clock clockwork.Clock) testTLSServerOption {
 		options.clock = clock
 	}
 }
+
 func withBufconnListener() testTLSServerOption {
 	return func(options *testTLSServerOptions) {
 		options.bufconnListener = true

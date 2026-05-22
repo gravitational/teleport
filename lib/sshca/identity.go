@@ -153,6 +153,9 @@ type Identity struct {
 	// DelegationSessionID is the identifier of the Delegation Session this
 	// certificate was created for.
 	DelegationSessionID string
+	// HeadlessAuthenticationID is the ID of the headless authentication
+	// resource this certificate is being generated for.
+	HeadlessAuthenticationID string
 	// AgentScope is the scope this identity belongs to.
 	AgentScope string
 	// ImmutableLabelHash is the immutable label hash used to verify
@@ -309,6 +312,9 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 	}
 	if i.GitHubUsername != "" {
 		cert.Permissions.Extensions[teleport.CertExtensionGitHubUsername] = i.GitHubUsername
+	}
+	if i.HeadlessAuthenticationID != "" {
+		cert.Permissions.Extensions[teleport.CertExtensionHeadlessAuthenticationID] = i.HeadlessAuthenticationID
 	}
 
 	if i.PinnedIP != "" {
@@ -524,8 +530,20 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 		}
 		allowedResourceAccessIDs = resourceAccessIDs
 	}
-	if len(allowedResourceIDs) > 0 || len(allowedResourceAccessIDs) > 0 {
-		ident.AllowedResourceAccessIDs = types.CombineAsResourceAccessIDs(allowedResourceIDs, allowedResourceAccessIDs)
+	if len(allowedResourceAccessIDs) > 0 {
+		// Prefer new extension when present.
+		ident.AllowedResourceAccessIDs = allowedResourceAccessIDs
+		// Populate AllowedResourceIDs with any present unconstrained resources,
+		// so any path re-encoding this identity persists the resourceIDs
+		// to the legacy extension instead of adding a sentinel.
+		//
+		// TODO(kiosion): DELETE in 20.0.0
+		ident.AllowedResourceIDs, _ = types.UnwrapResourceAccessIDs(allowedResourceAccessIDs)
+	} else if len(allowedResourceIDs) > 0 {
+		// Fallback for certs from older Auths that don't write the new extension.
+		ident.AllowedResourceAccessIDs = types.CombineAsResourceAccessIDs(allowedResourceIDs, nil)
+		//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v20
+		ident.AllowedResourceIDs = allowedResourceIDs
 	}
 
 	ident.ConnectionDiagnosticID = takeValue(teleport.CertExtensionConnectionDiagnosticID)
@@ -536,6 +554,7 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 	ident.DelegationSessionID = takeValue(teleport.CertExtensionDelegationSessionID)
 	ident.GitHubUserID = takeValue(teleport.CertExtensionGitHubUserID)
 	ident.GitHubUsername = takeValue(teleport.CertExtensionGitHubUsername)
+	ident.HeadlessAuthenticationID = takeValue(teleport.CertExtensionHeadlessAuthenticationID)
 
 	if v, ok := cert.CriticalOptions[teleport.CertCriticalOptionSourceAddress]; ok {
 		parts := strings.Split(v, "/")

@@ -147,11 +147,10 @@ func (a *Middleware) GetUser(ctx context.Context, connState tls.ConnectionState)
 	// for connections without auth, but this is not active use-case
 	// therefore it is not allowed to reduce scope
 	if len(peers) == 0 {
-		return BuiltinRole{
+		return UnauthenticatedRole{
 			Role:        types.RoleNop,
 			Username:    string(types.RoleNop),
 			ClusterName: a.ClusterName,
-			Identity:    tlsca.Identity{},
 		}, nil
 	}
 	clientCert := peers[0]
@@ -221,6 +220,7 @@ func (a *Middleware) GetUser(ctx context.Context, connState tls.ConnectionState)
 			Identity:         *identity,
 		}, nil
 	}
+
 	// code below expects user or service from local cluster, to distinguish between
 	// interactive users and services (e.g. proxies), the code below
 	// checks for presence of system roles issued in certificate identity

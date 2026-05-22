@@ -262,6 +262,13 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 			},
 		},
 		{
+			name: "RetrievalModel",
+			opts: []resourceSchemaOption{
+				withVersionOverride(types.V1),
+				withSingletonName(types.MetaNameRetrievalModel),
+			},
+		},
+		{
 			name: "AccessMonitoringRule",
 			opts: []resourceSchemaOption{
 				withVersionOverride(types.V1),
@@ -271,21 +278,21 @@ func generateSchema(file *File, groupName string, format crdFormatFunc, resp *go
 			name: "ScopedToken",
 			opts: []resourceSchemaOption{
 				withVersionOverride(types.V1),
-				withAdditionalRootFields([]string{"scope"}),
+				withScope(),
 			},
 		},
 		{
 			name: "ScopedRole",
 			opts: []resourceSchemaOption{
 				withVersionOverride(types.V1),
-				withAdditionalRootFields([]string{"scope"}),
+				withScope(),
 			},
 		},
 		{
 			name: "ScopedRoleAssignment",
 			opts: []resourceSchemaOption{
 				withVersionOverride(types.V1),
-				withAdditionalRootFields([]string{"scope"}),
+				withScope(),
 			},
 		},
 	}

@@ -23,10 +23,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
@@ -35,6 +37,16 @@ import (
 	subcaenv "github.com/gravitational/teleport/lib/subca/testenv"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
+
+func TestParseCAOverride_nil(t *testing.T) {
+	t.Parallel()
+
+	// See TestValidateAndParseCAOverride for additional parsing scenarios.
+
+	got, err := subca.ParseCAOverride(nil)
+	assert.NoError(t, err)
+	assert.Nil(t, got)
+}
 
 func TestValidateAndParseCAOverride(t *testing.T) {
 	t.Parallel()
@@ -101,9 +113,10 @@ func TestValidateAndParseCAOverride(t *testing.T) {
 	})
 
 	tests := []struct {
-		name    string
-		modify  func(t *testing.T, ca *subcav1.CertAuthorityOverride)
-		wantErr string
+		name         string
+		modify       func(t *testing.T, ca *subcav1.CertAuthorityOverride)
+		wantErr      string
+		wantParseErr bool // if true ParseCAOverride should fail too.
 	}{
 		{
 			name: "OK: Valid CA override",
@@ -211,7 +224,8 @@ func TestValidateAndParseCAOverride(t *testing.T) {
 			modify: func(t *testing.T, ca *subcav1.CertAuthorityOverride) {
 				ca.Spec.CertificateOverrides[0].Certificate = "ceci n'est pas a certificate"
 			},
-			wantErr: "expected PEM",
+			wantErr:      "expected PEM",
+			wantParseErr: true,
 		},
 		{
 			name: "certificate_override: invalid public key",
@@ -250,7 +264,8 @@ func TestValidateAndParseCAOverride(t *testing.T) {
 					leafToRootChain[2],
 				}
 			},
-			wantErr: "chain[1]: expected PEM",
+			wantErr:      "chain[1]: expected PEM",
+			wantParseErr: true,
 		},
 		{
 			name: "certificate_override: certificate included in chain",
@@ -405,14 +420,31 @@ func TestValidateAndParseCAOverride(t *testing.T) {
 			caOverride := proto.Clone(sharedCAOverride).(*subcav1.CertAuthorityOverride)
 			test.modify(t, caOverride)
 
-			_, err := subca.ValidateAndParseCAOverride(caOverride)
-			if test.wantErr == "" {
-				assert.NoError(t, err, "ValidateAndParseCAOverride errored")
+			parsed, err := subca.ValidateAndParseCAOverride(caOverride)
+			if test.wantErr != "" {
+				assert.ErrorContains(t, err, test.wantErr, "ValidateAndParseCAOverride error mismatch")
+				assert.ErrorAs(t, err, new(*trace.BadParameterError), "ValidateAndParseCAOverride error type mismatch")
+
+				// Make sure parsing handles errors gracefully.
+				t.Run("ParseCAOverride", func(t *testing.T) {
+					_, err := subca.ParseCAOverride(caOverride)
+					if test.wantParseErr {
+						assert.Error(t, err, "ParseCAOverride error mismatch")
+					} else {
+						assert.NoError(t, err, "ParseCAOverride errored")
+					}
+				})
 				return
 			}
+			require.NoError(t, err, "ValidateAndParseCAOverride errored")
 
-			require.ErrorContains(t, err, test.wantErr, "ValidateAndParseCAOverride error mismatch")
-			assert.ErrorAs(t, err, new(*trace.BadParameterError), "ValidateAndParseCAOverride error type mismatch")
+			t.Run("ParseCAOverride", func(t *testing.T) {
+				got, err := subca.ParseCAOverride(caOverride)
+				require.NoError(t, err, "ParseCAOverride errored")
+				if diff := cmp.Diff(parsed, got, protocmp.Transform()); diff != "" {
+					t.Errorf("ParsedCAOverride mismatch (-want +got)\n%s", diff)
+				}
+			})
 		})
 	}
 }
@@ -484,4 +516,12 @@ func TestValidateAndParseCAOverride_ParsedResource(t *testing.T) {
 	assert.Equal(t, publicKey1, co1.PublicKey, "PublicKey mismatch")
 	assert.Nil(t, co1.Certificate)
 	assert.Empty(t, co1.Chain)
+
+	t.Run("ParseCAOverride", func(t *testing.T) {
+		got, err := subca.ParseCAOverride(caOverride)
+		require.NoError(t, err, "ParseCAOverride errored")
+		if diff := cmp.Diff(parsed, got, protocmp.Transform()); diff != "" {
+			t.Errorf("ParsedCAOverride mismatch (-want +got)\n%s", diff)
+		}
+	})
 }

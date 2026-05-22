@@ -40,7 +40,6 @@ import (
 	summaryv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	usertasksv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
-	workloadclusterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadcluster/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
@@ -192,10 +191,6 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 	case types.Resource153UnwrapperT[*appauthconfigv1.AppAuthConfig]:
 		out.Resource = &proto.Event_AppAuthConfig{
 			AppAuthConfig: r.UnwrapT(),
-		}
-	case types.Resource153UnwrapperT[*workloadclusterv1.WorkloadCluster]:
-		out.Resource = &proto.Event_WorkloadCluster{
-			WorkloadCluster: r.UnwrapT(),
 		}
 	case types.Resource153UnwrapperT[*summaryv1.InferenceModel]:
 		out.Resource = &proto.Event_InferenceModel{
@@ -739,9 +734,6 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 	} else if r := in.GetLinuxDesktop(); r != nil {
 		out.Resource = types.ProtoResource153ToLegacy(r)
 		return &out, nil
-	} else if r := in.GetWorkloadCluster(); r != nil {
-		out.Resource = types.Resource153ToLegacy(r)
-		return &out, nil
 	} else if r := in.GetInferenceModel(); r != nil {
 		out.Resource = types.ProtoResource153ToLegacy(r)
 		return &out, nil
@@ -757,7 +749,7 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 	} else if r := in.GetCertAuthorityOverride(); r != nil {
 		out.Resource = types.ProtoResource153ToLegacy(r)
 		return &out, nil
-	} else if r := in.GetValidatedMFAChallenge(); r != nil {
+	} else if r := in.GetValidatedMFAChallenge(); r != nil { //nolint:staticcheck // TODO(cthach): Convert to mfav2.ValidatedMFAChallenge.
 		out.Resource = &validatedMFAChallengeResourceWrapper{
 			Resource: types.LegacyMetadataToResource(r),
 			inner:    r,

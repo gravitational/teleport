@@ -113,7 +113,7 @@ const tests: {
         removeProfile: true,
       });
       expect(rendererHandler.send).toHaveBeenCalledWith({
-        op: 'will-logout-and-remove',
+        op: 'will-logout',
         uri: cluster.uri,
       });
     },
@@ -236,6 +236,36 @@ const tests: {
     },
   },
   {
+    name: 'when cluster proxy host changes, it updates state and notifies renderer',
+    setup: async ({ tshdClient }) => {
+      const next = makeRootCluster({
+        connected: false,
+        proxyHost: 'new.example.com:443',
+      });
+      jest
+        .spyOn(tshdClient, 'listRootClusters')
+        .mockResolvedValue(new MockedUnaryCall({ clusters: [cluster] }));
+      jest.spyOn(tshdClient, 'clearStaleClusterClients');
+      return {
+        profileWatcher: makeWatcher([
+          { op: 'changed', next, previous: cluster },
+        ]),
+      };
+    },
+    expect: ({ clusterStore, tshdClient, rendererHandler }) => {
+      expect(clusterStore.getState().get(cluster.uri).proxyHost).toBe(
+        'new.example.com:443'
+      );
+      expect(tshdClient.clearStaleClusterClients).toHaveBeenCalledWith({
+        rootClusterUri: cluster.uri,
+      });
+      expect(rendererHandler.send).toHaveBeenCalledWith({
+        op: 'did-change-proxy-host',
+        uri: cluster.uri,
+      });
+    },
+  },
+  {
     name: 'when access of logged in user changes, it updates state, clears stale clients, and notifies renderer',
     setup: async ({ tshdClient }) => {
       const next = makeRootCluster({
@@ -341,6 +371,7 @@ test.each(tests)('$name', async ({ setup, expect: testExpect }) => {
     consumer
   );
   const mockRendererHandler = {
+    id: 'test-renderer-handler',
     send: throwInRendererHandler
       ? jest.fn().mockRejectedValue(new Error('Error in renderer'))
       : jest.fn().mockResolvedValue(undefined),

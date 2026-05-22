@@ -74,3 +74,31 @@ func LegacyConnectionActivated(width, height uint16) (*apievents.DesktopRecordin
 
 	return LegacyEvent(data), nil
 }
+
+// LegacyMouseMove creates a DesktopRecording event containing a legacy TDP MouseMove message at the given coordinates.
+func LegacyMouseMove(x, y uint32) (*apievents.DesktopRecording, error) {
+	data, err := legacy.MouseMove{X: x, Y: y}.Encode()
+	if err != nil {
+		return nil, err
+	}
+
+	return LegacyEvent(data), nil
+}
+
+// EncodeTDPBServerHelloWithChannels creates a DesktopRecording event containing a TDPB ServerHello message with the
+// given screen dimensions and channel IDs.
+func EncodeTDPBServerHelloWithChannels(width, height, ioChannelID, userChannelID uint32) (*apievents.DesktopRecording, error) {
+	data, err := (&tdpb.ServerHello{
+		ActivationSpec: &tdpbv1.ConnectionActivated{
+			ScreenWidth:   width,
+			ScreenHeight:  height,
+			IoChannelId:   ioChannelID,
+			UserChannelId: userChannelID,
+		},
+	}).Encode()
+	if err != nil {
+		return nil, err
+	}
+
+	return TDPBEvent(data), nil
+}

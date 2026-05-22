@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/entitlements"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/subca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/winpki"
@@ -88,9 +89,38 @@ func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Calculate CA override.
+	subCAResolver, err := subca.NewCAOverrideResolver(a.Cache, a.modules.IsEnterpriseBuild(), a.subCAEnabled)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	overrideResult, err := subCAResolver.CalculateOverride(ctx, types.CertAuthorityOverrideID{
+		ClusterName: ca.GetClusterName(),
+		CAType:      string(ca.GetType()),
+	}, subca.Certificate{PEM: caCert})
+	if err != nil {
+		return nil, trace.Wrap(err, "calculate CA override")
+	}
+	caCert = overrideResult.CACertificate.PEM
+
 	tlsCA, err := tlsca.FromCertAndSigner(caCert, signer)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// Our CSR may contains non-standard subject OIDs that
+	// we need to preserve, but de-serializing the CSR puts those fields
+	// in csr.Subject.Names which is ignored when re-serializing
+	// (See documentation on Names and ExtraNames fields of [pkix.Name])
+	// Copy the Names -> ExtraNames but be warned - The values in `ExtraNames`
+	// take precedence over standard Subject values (CommonName, Country, Organization, etc.)
+	// in the pkix.Name struct. If you modified any of these values after parsing the CSR,
+	// those modifications will be LOST upon cert generation.
+	// If you need to modify the original CSR's subject in this function, then we must
+	// take care to prune standard OIDs for these fields from csr.Subject.Names first.
+	if len(csr.Subject.Names) > 0 {
+		csr.Subject.ExtraNames = csr.Subject.Names
 	}
 
 	// See https://docs.microsoft.com/en-us/troubleshoot/windows-server/windows-security/enabling-smart-card-logon-third-party-certification-authorities
@@ -136,7 +166,8 @@ func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 		return nil, trace.Wrap(err)
 	}
 	return &proto.WindowsDesktopCertResponse{
-		Cert: cert,
+		Cert:       cert,
+		CaOverride: overrideResult.ToClientOverrideDetailsProto(),
 	}, nil
 }
 

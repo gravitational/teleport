@@ -80,7 +80,6 @@ func generateUserCredentials() (*credentials, error) {
 	}
 
 	slog.Debug("generated per-run credentials",
-		"user", "bob",
 		"credentialID", creds.credentialIDBase64,
 	)
 

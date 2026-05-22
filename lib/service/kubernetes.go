@@ -227,11 +227,12 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 	}
 
 	// Create the kube server to service listener.
-	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-		ClusterName: teleportClusterName,
-		AccessPoint: accessPoint,
-		LockWatcher: lockWatcher,
-		Logger:      process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id)),
+	scopedAuthorizer, err := authz.NewScopedAuthorizer(authz.AuthorizerOpts{
+		ClusterName:      teleportClusterName,
+		AccessPoint:      accessPoint,
+		ScopedRoleReader: accessPoint.ScopedRoleReader(),
+		LockWatcher:      lockWatcher,
+		Logger:           process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id)),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -274,7 +275,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 			Namespace:                     apidefaults.Namespace,
 			Keygen:                        cfg.Keygen,
 			ClusterName:                   teleportClusterName,
-			Authz:                         authorizer,
+			ScopedAuthz:                   scopedAuthorizer,
 			AuthClient:                    conn.Client,
 			Emitter:                       asyncEmitter,
 			DataDir:                       cfg.DataDir,

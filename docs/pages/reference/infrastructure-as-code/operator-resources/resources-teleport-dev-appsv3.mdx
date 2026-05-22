@@ -43,6 +43,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |required_app_names|[]string|RequiredAppNames is a list of app names that are required for this app to function. Any app listed here will be part of the authentication redirect flow and authenticate alongside this app.|
 |rewrite|[object](#specrewrite)|Rewrite is a list of rewriting rules to apply to requests and responses.|
 |tcp_ports|[][object](#spectcp_ports-items)|TCPPorts is a list of ports and port ranges that an app agent can forward connections to. Only applicable to TCP App Access. If this field is not empty, URI is expected to contain no port number and start with the tcp protocol.|
+|tls|[object](#spectls)|TLS contains the app TLS configuration.|
 |uri|string|URI is the web app endpoint.|
 |use_any_proxy_public_addr|boolean|UseAnyProxyPublicAddr will rebuild this app's fqdn based on the proxy public addr that the request originated from. This should be true if your proxy has multiple proxy public addrs and you want the app to be accessible from any of them. If `public_addr` is explicitly set in the app spec, setting this value to true will overwrite that public address in the web UI.|
 
@@ -146,4 +147,14 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |---|---|---|
 |end_port|integer|EndPort describes the end of the range, inclusive. If set, it must be between 2 and 65535 and be greater than Port when describing a port range. When omitted or set to zero, it signifies that the port range defines a single port.|
 |port|integer|Port describes the start of the range. It must be between 1 and 65535.|
+
+### spec.tls
+
+|Field|Type|Description|
+|---|---|---|
+|allowed_cas|[]string|AllowedCas is the list of user provided CAs used for verifying upstream certificates. Accepted values are PEM-encoded CA certificates and Teleport CA aliases. Supported aliases: "workload_identity" (workload Identity CA. Allows accepting certificates issued by `tbot`).|
+|client_cert_mode|string|ClientCertMode specifies which client certificate mode to use for the upstream connection. Supported values: "managed" (app service will issue client certificates to use in the app upstream connection, establishing mTLS connections), "disabled" (app upstream connection won't use client certificates).|
+|mode|string|Mode defines the TLS verification. Supported values: "verify-full" (performs certificate validation, and asserts server name and SPIFFE ID), "verify-server-name" (performs certificate validation, and asserts server name), "verify-spiffe-id": (performs certificate validation, and asserts SPIFFE ID. Requires `server_spiffe_id` option), "insecure": (accepts any certificate provided by app)|
+|server_name|string|ServerName specifies a custom hostname used for TLS verification against the upstream certificate.|
+|server_spiffe_id|string|ServerSpiffeId specifies a SPIFFE ID that must be present on the server certificate.|
 

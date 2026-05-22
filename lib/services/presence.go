@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"iter"
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -233,4 +234,7 @@ type PresenceInternal interface {
 		name string,
 		condition backend.Condition,
 	) ([]backend.ConditionalAction, error)
+
+	// RangeDatabaseServersWithName returns an iterator over database proxy servers for a given database name.
+	RangeDatabaseServersWithName(ctx context.Context, databaseName string) iter.Seq2[types.DatabaseServer, error]
 }

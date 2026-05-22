@@ -139,8 +139,11 @@ type ListScopedRolesRequest struct {
 	ResourceScope *v1.Filter `protobuf:"bytes,3,opt,name=resource_scope,json=resourceScope,proto3" json:"resource_scope,omitempty"`
 	// AssignableScope filters roles by their assignable scope if specified.
 	AssignableScope *v1.Filter `protobuf:"bytes,4,opt,name=assignable_scope,json=assignableScope,proto3" json:"assignable_scope,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// NameFilter filters roles by their name using a case-insensitive substring
+	// match if specified.
+	NameFilter    string `protobuf:"bytes,5,opt,name=name_filter,json=nameFilter,proto3" json:"name_filter,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ListScopedRolesRequest) Reset() {
@@ -199,6 +202,13 @@ func (x *ListScopedRolesRequest) GetAssignableScope() *v1.Filter {
 		return x.AssignableScope
 	}
 	return nil
+}
+
+func (x *ListScopedRolesRequest) GetNameFilter() string {
+	if x != nil {
+		return x.NameFilter
+	}
+	return ""
 }
 
 // ListScopedRolesResponse is the response to list scoped roles.
@@ -1269,13 +1279,15 @@ const file_teleport_scopes_access_v1_service_proto_rawDesc = "" +
 	"\x14GetScopedRoleRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"R\n" +
 	"\x15GetScopedRoleResponse\x129\n" +
-	"\x04role\x18\x01 \x01(\v2%.teleport.scopes.access.v1.ScopedRoleR\x04role\"\xde\x01\n" +
+	"\x04role\x18\x01 \x01(\v2%.teleport.scopes.access.v1.ScopedRoleR\x04role\"\xff\x01\n" +
 	"\x16ListScopedRolesRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
 	"page_token\x18\x02 \x01(\tR\tpageToken\x12A\n" +
 	"\x0eresource_scope\x18\x03 \x01(\v2\x1a.teleport.scopes.v1.FilterR\rresourceScope\x12E\n" +
-	"\x10assignable_scope\x18\x04 \x01(\v2\x1a.teleport.scopes.v1.FilterR\x0fassignableScope\"~\n" +
+	"\x10assignable_scope\x18\x04 \x01(\v2\x1a.teleport.scopes.v1.FilterR\x0fassignableScope\x12\x1f\n" +
+	"\vname_filter\x18\x05 \x01(\tR\n" +
+	"nameFilter\"~\n" +
 	"\x17ListScopedRolesResponse\x12;\n" +
 	"\x05roles\x18\x01 \x03(\v2%.teleport.scopes.access.v1.ScopedRoleR\x05roles\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"T\n" +
