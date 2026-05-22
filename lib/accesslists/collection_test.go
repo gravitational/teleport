@@ -319,9 +319,7 @@ func TestCollection_Validate(t *testing.T) {
 		require.Contains(t, list3.Status.MemberOf, list2.GetName())
 	})
 
-	t.Run("calls ValidateAccessListWithMembers for each list", func(t *testing.T) {
-		// This test ensures that ValidateAccessListWithMembers is being called
-		// by creating a scenario that would fail ValidateAccessListWithMembers
+	t.Run("filters member that introduces membership cycle", func(t *testing.T) {
 		// Create a circular reference that ValidateAccessListWithMembers should catch
 
 		list1 := newAccessList(t, "list1", clock)
@@ -341,8 +339,16 @@ func TestCollection_Validate(t *testing.T) {
 		collection.AddAccessList(list2, []*accesslist.AccessListMember{member2})
 
 		err := collection.Validate(ctx)
-		// circular reference should cause validation to fail
-		require.Error(t, err)
+		// Circular reference should not cause validation to fail
+		require.NoError(t, err)
+
+		list1Members := collection.MembersByAccessList[list1.GetName()]
+		list2Members := collection.MembersByAccessList[list2.GetName()]
+
+		// Only one of the membership survives filtering.
+		require.Equal(t, 1, len(list1Members)+len(list2Members))
+		atLeastOneAclHasMember := len(list1Members) == 1 || len(list2Members) == 1
+		require.True(t, atLeastOneAclHasMember)
 	})
 }
 
