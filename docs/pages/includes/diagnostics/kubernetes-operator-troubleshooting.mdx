@@ -42,8 +42,9 @@ the issue, check the operator logs:
 
 ### The CR doesn't have a status
 
-1. Check if the CR is in the same namespace as the operator. The operator only
-   watches for resource in its own namespace.
+1. By default the operator only watches for resources in its own namespace,
+   you can either put the CR in the same namespace as the operator or run the 
+   operator with the `--watch-all-namespaces` flag.
 1. Check if the operator pods are running and healthy:
    ```code
    kubectl get pods -n "$OPERATOR_NAMESPACE"`

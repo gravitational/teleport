@@ -60,6 +60,9 @@ spec:
             - -ca-pin
             - '{{ join "," .Values.caPins }}'
   {{- end }}
+  {{- if .Values.watchAllNamespaces }}
+            - -watch-all-namespaces
+  {{- end }}
   {{- if .Values.extraArgs }}
             {{- toYaml .Values.extraArgs | nindent 12 }}
   {{- end }}

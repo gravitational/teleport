@@ -38,6 +38,20 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
+type k8sCRContextKey struct{}
+
+// ContextWithK8sCRKey stores the Kubernetes CR's namespace and name in context
+// so resource clients can access the originating CR's identity during operations.
+func ContextWithK8sCRKey(ctx context.Context, key kclient.ObjectKey) context.Context {
+	return context.WithValue(ctx, k8sCRContextKey{}, key)
+}
+
+// K8sCRKeyFromContext retrieves the Kubernetes CR's key (namespace/name) from context.
+func K8sCRKeyFromContext(ctx context.Context) (kclient.ObjectKey, bool) {
+	key, ok := ctx.Value(k8sCRContextKey{}).(kclient.ObjectKey)
+	return key, ok
+}
+
 const (
 	// DeletionFinalizer is a name of finalizer added to Resource's 'finalizers' field
 	// for tracking deletion events.
@@ -128,6 +142,8 @@ func (r resourceReconciler[T, K]) Upsert(ctx context.Context, obj kclient.Object
 	}
 
 	teleportResource := k8sResource.ToTeleport()
+	objKey := kclient.ObjectKeyFromObject(k8sResource)
+	ctx = ContextWithK8sCRKey(ctx, objKey)
 
 	debugLog.Info("Converting resource to teleport")
 	name := r.adapter.GetResourceName(teleportResource)
@@ -181,7 +197,6 @@ func (r resourceReconciler[T, K]) Upsert(ctx context.Context, obj kclient.Object
 
 	if mutator, ok := r.resourceClient.(resourceMutator[T]); ok {
 		debugLog.Info("Mutating resource")
-		objKey := kclient.ObjectKeyFromObject(k8sResource)
 		if err := mutator.Mutate(ctx, teleportResource, existingResource, objKey); err != nil {
 			// If an error happens we want to put it in status.conditions before returning.
 			updateErr = updateStatus(updateStatusConfig{
@@ -224,6 +239,8 @@ func (r resourceReconciler[T, K]) Upsert(ctx context.Context, obj kclient.Object
 
 // Delete is the resourceReconciler of the ResourceBaseReconciler DeleteExertal
 func (r resourceReconciler[T, K]) Delete(ctx context.Context, obj kclient.Object) error {
+	ctx = ContextWithK8sCRKey(ctx, kclient.ObjectKeyFromObject(obj))
+
 	// This call catches non-existing resources or subkind mismatch (e.g. openssh nodes)
 	// We can then check that we own the Resource before deleting it.
 	resource, err := r.resourceClient.Get(ctx, obj.GetName())

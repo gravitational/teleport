@@ -39,7 +39,7 @@ type reconcilerFactory struct {
 }
 
 // SetupAllControllers sets up all controllers
-func SetupAllControllers(log logr.Logger, mgr manager.Manager, teleportClient *client.Client, features *proto.Features) error {
+func SetupAllControllers(log logr.Logger, mgr manager.Manager, teleportClient *client.Client, features *proto.Features, watchAllNamespaces bool) error {
 	reconcilers := []reconcilerFactory{
 		{"TeleportRole", NewRoleReconciler},
 		{"TeleportRoleV6", NewRoleV6Reconciler},
@@ -56,7 +56,12 @@ func SetupAllControllers(log logr.Logger, mgr manager.Manager, teleportClient *c
 		{"TeleportWorkloadIdentityV1", NewWorkloadIdentityV1Reconciler},
 		{"TeleportAutoupdateConfigV1", NewAutoUpdateConfigV1Reconciler},
 		{"TeleportAutoupdateVersionV1", NewAutoUpdateVersionV1Reconciler},
-		{"TeleportAppV3", NewAppV3Reconciler},
+		{
+			"TeleportAppV3",
+			func(client kclient.Client, tClient *client.Client) (controllers.Reconciler, error) {
+				return NewAppV3ReconcilerWithNamespaceSuffix(client, tClient, watchAllNamespaces)
+			},
+		},
 		{"TeleportDatabaseV3", NewDatabaseV3Reconciler},
 		{"TeleportAccessMonitoringRuleV1", NewAccessMonitoringRuleV1Reconciler},
 		// Although the WebUi doesn't show "SAML Application (Generic)" for

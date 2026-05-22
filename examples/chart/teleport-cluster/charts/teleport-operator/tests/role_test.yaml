@@ -42,6 +42,15 @@ tests:
           apiVersion: rbac.authorization.k8s.io/v1
           name: RELEASE-NAME-operator
 
+  - it: creates a ClusterRole when watchAllNamespaces is true
+    set:
+      watchAllNamespaces: true
+    asserts:
+      - containsDocument:
+          kind: ClusterRole
+          apiVersion: rbac.authorization.k8s.io/v1
+          name: RELEASE-NAME-teleport-operator
+
   - it: grants access to secret in the namespace
     asserts:
       - contains:
