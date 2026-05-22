@@ -358,8 +358,8 @@ func (s *Service) DeleteDiscoveryConfig(ctx context.Context, req *discoveryconfi
 
 	// Fetch the DiscoveryConfig before deletion to check access and capture
 	// metadata for the usage event.
-	dc, err := s.backend.GetDiscoveryConfig(ctx, req.GetName())
-	if err != nil {
+	dc, getErr := s.backend.GetDiscoveryConfig(ctx, req.GetName())
+	if getErr != nil {
 		// If we can't fetch the current discovery config from the backend, the
 		// caller should be allowed to do an unconditional delete iff they
 		// are allowed to delete unscoped discovery configs.
@@ -371,12 +371,6 @@ func (s *Service) DeleteDiscoveryConfig(ctx context.Context, req *discoveryconfi
 			return checker.CheckAccessToRules(&ruleCtx, types.KindDiscoveryConfig, types.VerbDelete)
 		}); err != nil {
 			return nil, trace.Wrap(err)
-		}
-
-		if !trace.IsNotFound(err) {
-			s.log.WarnContext(ctx, "Skipping DiscoveryConfig delete usage event due to GetDiscoveryConfig failure.",
-				"discovery_config_name", req.GetName(),
-				"error", err)
 		}
 	} else {
 		// If we were able to fetch the current discovery config, check access at its real scope.
@@ -406,8 +400,16 @@ func (s *Service) DeleteDiscoveryConfig(ctx context.Context, req *discoveryconfi
 		s.log.WarnContext(ctx, "Failed to emit discovery config delete event.", "error", err)
 	}
 
-	if dc != nil {
+	switch {
+	case getErr == nil:
 		s.emitUsageEvent(dc, prehogv1a.DiscoveryConfigAction_DISCOVERY_CONFIG_ACTION_DELETE)
+	case trace.IsNotFound(getErr):
+		// If the discovery config was not found it probably didn't exist, we
+		// can't emit the usage event but there's no need to log.
+	default:
+		s.log.WarnContext(ctx, "Skipping DiscoveryConfig delete usage event due to GetDiscoveryConfig failure.",
+			"discovery_config_name", req.GetName(),
+			"error", getErr)
 	}
 
 	return &emptypb.Empty{}, nil
