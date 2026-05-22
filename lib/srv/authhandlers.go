@@ -31,7 +31,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	"golang.org/x/crypto/ssh"
-	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -39,7 +38,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -52,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
+	srvssh "github.com/gravitational/teleport/lib/srv/ssh"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
@@ -78,12 +77,6 @@ var (
 )
 
 var errRoleFileCopyingNotPermitted = trace.AccessDenied("file copying via SCP or SFTP is not permitted")
-
-// ValidatedMFAChallengeVerifier verifies that a validated MFA challenge exists in order to determine if the user has
-// completed MFA.
-type ValidatedMFAChallengeVerifier interface {
-	VerifyValidatedMFAChallenge(ctx context.Context, req *mfav1.VerifyValidatedMFAChallengeRequest, opts ...grpc.CallOption) (*mfav1.VerifyValidatedMFAChallengeResponse, error)
-}
 
 // AuthHandlerConfig is the configuration for an application handler.
 type AuthHandlerConfig struct {
@@ -117,7 +110,7 @@ type AuthHandlerConfig struct {
 	OnRBACFailure func(conn ssh.ConnMetadata, ident *sshca.Identity, err error)
 
 	// ValidatedMFAChallengeVerifier is used to verify that a validated MFA challenge resource exists.
-	ValidatedMFAChallengeVerifier ValidatedMFAChallengeVerifier
+	ValidatedMFAChallengeVerifier srvssh.ValidatedMFAChallengeVerifier
 }
 
 func (c *AuthHandlerConfig) CheckAndSetDefaults() error {

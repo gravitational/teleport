@@ -77,6 +77,7 @@ import (
 	loginrulev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	mfav1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	mfav2pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	notificationsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	presencev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	recordingencryptionv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
@@ -126,7 +127,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth/loginrule/loginrulev1"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1"
-	"github.com/gravitational/teleport/lib/auth/mfa/mfav1"
+	"github.com/gravitational/teleport/lib/auth/mfa/mfav1" //nolint:staticcheck // SA1019: mfav1 is required for Browser MFA backward compatibility.
+	"github.com/gravitational/teleport/lib/auth/mfa/mfav2"
 	"github.com/gravitational/teleport/lib/auth/notifications/notificationsv1"
 	"github.com/gravitational/teleport/lib/auth/presence/presencev1"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption/recordingencryptionv1"
@@ -6730,7 +6732,17 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 	decisionpb.RegisterDecisionServiceServer(server, decisionService)
 
-	mfaService, err := mfav1.NewService(mfav1.ServiceConfig{
+	// TODO(danielashare): Delete when browser MFA has migrated from mfav1 to mfav2.
+	mfav1Service, err := mfav1.NewService(mfav1.ServiceConfig{
+		Authorizer: cfg.Authorizer,
+		AuthServer: cfg.AuthServer,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	mfav1pb.RegisterMFAServiceServer(server, mfav1Service) //nolint: staticcheck // TODO(danielashare): Delete when browser MFA has migrated to mfav2.
+
+	mfav2Service, err := mfav2.NewService(mfav2.ServiceConfig{
 		Authorizer: cfg.Authorizer,
 		AuthServer: cfg.AuthServer,
 		Cache:      cfg.AuthServer.Cache,
@@ -6741,7 +6753,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	mfav1pb.RegisterMFAServiceServer(server, mfaService)
+	mfav2pb.RegisterMFAServiceServer(server, mfav2Service)
 
 	healthCheckConfigSvc, err := healthcheckconfigv1.NewService(healthcheckconfigv1.ServiceConfig{
 		Authorizer: cfg.Authorizer,
