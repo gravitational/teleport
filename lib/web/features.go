@@ -20,6 +20,7 @@ package web
 
 import (
 	"bytes"
+	"context"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/entitlements"
@@ -53,10 +54,9 @@ func (h *Handler) GetClusterFeatures() proto.Features {
 // which will cause a panic.
 // The watcher doesn't ping the auth server immediately upon start because features are
 // already set by the config object in `NewHandler`.
-func (h *Handler) startFeatureWatcher() {
+func (h *Handler) startFeatureWatcher(ctx context.Context) {
 	ticker := h.clock.NewTicker(h.cfg.FeatureWatchInterval)
 	h.log.WithField("interval", h.cfg.FeatureWatchInterval).Info("Proxy handler features watcher has started")
-	ctx := h.cfg.Context
 
 	defer ticker.Stop()
 	for {
@@ -69,8 +69,11 @@ func (h *Handler) startFeatureWatcher() {
 				continue
 			}
 
-			h.SetClusterFeatures(*pingResponse.ServerFeatures)
-			h.log.WithField("features", pingResponse.ServerFeatures).Info("Done updating proxy features")
+			if pingResponse.ServerFeatures != nil {
+				h.SetClusterFeatures(*pingResponse.ServerFeatures)
+				h.log.WithField("features", pingResponse.ServerFeatures).Info("Done updating proxy features")
+			}
+
 		case <-ctx.Done():
 			h.log.Info("Feature service has stopped")
 			return
