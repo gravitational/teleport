@@ -710,6 +710,102 @@ func TestWatcherResponseWriter(t *testing.T) {
 	}
 }
 
+// TestWatcherResponseWriter_BookmarkPassthrough reproduces the bug from
+// https://github.com/gravitational/teleport/issues/64188:
+// kubectl/client-go v0.35+ sends watch requests with sendInitialEvents=true and
+// expects a terminating BOOKMARK event annotated k8s.io/initial-events-end="true"
+// to mark the cache as synced. Teleport's kube agent runs every decoded event
+// (including BOOKMARK) through the resource filter; the BOOKMARK envelope is a
+// stripped Pod with empty Name and Namespace, so any restrictive name/namespace
+// rule rejects it and the bookmark is silently dropped. The client then waits
+// indefinitely for a bookmark that never arrives.
+func TestWatcherResponseWriter_BookmarkPassthrough(t *testing.T) {
+	t.Parallel()
+	const (
+		ns      = "default"
+		podName = "myPod"
+	)
+
+	// A restrictive allow rule: only "myPod" in "default". This is the shape
+	// that exposes the bug — the bookmark's empty name fails the name match.
+	allowed := []types.KubernetesResource{{
+		Kind:      types.KindKubePod,
+		Namespace: ns,
+		Name:      podName,
+		Verbs:     []string{types.Wildcard},
+	}}
+
+	// The bookmark sent by kube-apiserver when sendInitialEvents=true completes:
+	// a near-empty Pod envelope with only resourceVersion + the
+	// k8s.io/initial-events-end annotation.
+	bookmarkPod := &corev1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			ResourceVersion: "12345",
+			Annotations: map[string]string{
+				"k8s.io/initial-events-end": "true",
+			},
+		},
+	}
+
+	upstreamEvents := []*watch.Event{
+		{Type: watch.Added, Object: newFakePod(podName, ns)},
+		{Type: watch.Bookmark, Object: bookmarkPod},
+	}
+
+	userReader, userWriter := io.Pipe()
+	negotiator := newClientNegotiator(&globalKubeCodecs)
+	log := logrus.New()
+	filterWrapper := newResourceFilterer(
+		types.KindKubePod, types.KubeVerbWatch,
+		&globalKubeCodecs, allowed, nil, log,
+	)
+	watcher, err := responsewriters.NewWatcherResponseWriter(
+		newFakeResponseWriter(userWriter), negotiator, filterWrapper,
+	)
+	require.NoError(t, err)
+
+	watchEncoder, decoder := newWatchSerializers(
+		t, responsewriters.DefaultContentType, negotiator, watcher, userReader,
+	)
+	watcher.Header().Set(responsewriters.ContentTypeHeader, responsewriters.DefaultContentType)
+	watcher.WriteHeader(http.StatusOK)
+
+	var collected []*metav1.WatchEvent
+	var wg sync.WaitGroup
+	wg.Go(func() {
+		for {
+			event, err := decoder.decodeStreamingMessage()
+			if err != nil {
+				return
+			}
+			collected = append(collected, event)
+		}
+	})
+
+	for _, evt := range upstreamEvents {
+		require.NoError(t, watchEncoder.Encode(evt))
+	}
+
+	require.NoError(t, watcher.Close())
+	userReader.CloseWithError(io.EOF)
+	userWriter.CloseWithError(io.EOF)
+	wg.Wait()
+
+	gotTypes := make([]watch.EventType, 0, len(collected))
+	for _, e := range collected {
+		gotTypes = append(gotTypes, watch.EventType(e.Type))
+	}
+	require.Equal(t,
+		[]watch.EventType{watch.Added, watch.Bookmark},
+		gotTypes,
+		"BOOKMARK event was dropped by the kube agent filter — client-go WatchList informers will hang",
+	)
+}
+
 func newRawExtension(name, namespace string) runtime.RawExtension {
 	return runtime.RawExtension{
 		Object: newFakePod(name, namespace),
