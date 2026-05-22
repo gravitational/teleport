@@ -1,0 +1,107 @@
+---
+title: Teleport's FedRAMP 20x KSI Mapping
+sidebar_label: FedRAMP 20x KSI Mapping
+description: How Teleport's capabilities map to FedRAMP 20x Key Security Indicators (KSIs).
+tags:
+ - conceptual
+ - zero-trust
+ - audit
+enterprise: FedRAMP compliance
+---
+
+This page maps Teleport's capabilities to the **FedRAMP 20x Key Security Indicators (KSIs)**. Coverage applies uniformly across every access modality inside your authorization boundary — SSH, Kubernetes, databases, web applications, Windows desktops, and AI agents.
+
+For deployment guidance (FIPS build, cluster configuration, agent setup) see the main [FedRAMP compliance page](./fedramp.mdx). For coverage against the legacy NIST SP 800-53 Rev 5 control set, see the [Rev 5 control mapping](./fedramp-rev5.mdx).
+
+<Admonition type="note" title="A moving target">
+
+FedRAMP 20x is evolving rapidly. The KSI set below reflects **Phase Two (RFC-0014)** as of the "Last reviewed" date at the bottom of this page, integrating the retained Phase One KSIs. Phase Two ran from November 2025 through March 2026 and extends the program to Low **and** Moderate baselines. Always confirm current KSI text, phase status, and baseline applicability at [fedramp.gov/docs/20x/key-security-indicators/](https://www.fedramp.gov/docs/20x/key-security-indicators/).
+
+</Admonition>
+
+## How to read this page
+
+Teleport's coverage of the 20x KSIs concentrates in four themes:
+
+- **KSI-IAM** (Identity and Access Management) — broad, direct coverage
+- **KSI-MLA** (Monitoring, Logging, and Auditing) — Teleport is your tamper-resistant access audit log
+- **KSI-SVC** (Service Configuration) — cryptographic coverage for traffic and certificate lifecycle
+- **KSI-CNA** (Cloud Native Architecture) — lateral movement, attack surface, traffic flow controls
+
+KSIs outside these themes — cybersecurity education (CED), change management process (CMT), incident response process (INR), policy and inventory (PIY), recovery planning (RPL), and third-party risk (TPR) — are generally **customer responsibility** at the program level. Teleport's audit log and session recordings feed several of them (notably INR investigations and CMT change evidence), but the policies, processes, and broader platform controls live with your team.
+
+Tables below show only the KSIs where Teleport directly contributes. The **Class** column uses the FedRAMP Authorization Class designations **proposed** by [RFC-0020 / Notice-0004](https://www.fedramp.gov/notices/0004/), which would replace the legacy Low / Moderate / High naming. These designations are not yet final — FedRAMP plans to formalize them in the Consolidated Rules for 2026 (CR26), targeted for publication by the end of June 2026, with full transition to the class structure planned for January 2027.
+
+| Class | Replaces | Notes |
+| - | - | - |
+| **A** | Pilot / Ready | New pilot baseline (Rev 5 only). No 20x path. |
+| **B** | Li-SaaS and Low | 20x applies. |
+| **C** | Moderate | 20x applies. |
+| **D** | High | No 20x path. |
+
+Until CR26 is published, the legacy Low / Moderate / High labels remain in force. The table below uses the proposed Class letters because the RFC and Notice make the mapping clear and these will be the operative terms by the time most readers are planning a 20x authorization — but if you're working an authorization today, expect to see Low / Moderate in the official artifacts.
+
+## KSI-IAM — Identity and Access Management
+
+| KSI | Class | Requirement | Teleport coverage |
+| - | - | - | - |
+| **KSI-IAM-01** | B, C | Enforce multi-factor authentication using methods that are difficult to intercept for all user authentication. | Teleport supports phishing-resistant MFA via WebAuthn, PIV-compatible hardware keys (YubiKey, Titan), and per-session MFA. SSO connectors enforce the IdP's MFA policy; local accounts can require MFA at login and per session. |
+| **KSI-IAM-02** | B, C | Use secure passwordless methods for user authentication when feasible, otherwise enforce strong passwords with MFA. | Teleport supports passwordless WebAuthn and hardware-key-bound login. When local accounts are used, password complexity and MFA are enforced. In FedRAMP/FIPS mode, local authentication is disabled entirely — all access flows through your SSO provider. |
+| **KSI-IAM-03** | B, C | Enforce appropriately secure authentication methods for non-user accounts and services. | Teleport's [Machine & Workload Identity](../../machine-workload-identity/machine-workload-identity.mdx) issues short-lived X.509 certificates and JWTs (SPIFFE-compatible SVIDs) to bots, CI/CD pipelines, workloads, and AI agents. Static API keys and service-account passwords are replaced with auto-rotating cryptographic identities. |
+| **KSI-IAM-04** | B, C | Use a least-privileged, role and attribute-based, and just-in-time security authorization model. | Teleport [RBAC](../../reference/access-controls/roles.mdx) supports role and attribute-based authorization with fine-grained allow/deny rules per resource. [Access Requests](../../identity-governance/access-requests/access-requests.mdx) provide just-in-time elevation with approval workflows and time-bound grants. |
+| **KSI-IAM-05** | B, C | Apply zero trust design principles (assume compromise). | Every access decision is authenticated and authorized at the proxy on every connection. No standing network trust: hosts join via reverse-tunnel and serve only authenticated, certificate-bearing clients. Short-lived certificates limit blast radius if credentials are compromised. |
+| **KSI-IAM-06** | B, C | Automatically disable or otherwise secure accounts with privileged access in response to suspicious activity. | [Session and identity locks](../../identity-governance/locking.mdx) can be applied to a user, role, MFA device, host, or Access Request — terminating active sessions and preventing new ones. Locks can be issued manually or automated via integration with SIEM/SOAR. |
+| **KSI-IAM-07** | B, C | Securely manage the lifecycle and privileges of accounts, roles, and groups. | User lifecycle is sourced from the SSO IdP — provisioning, deprovisioning, and group/role changes propagate via SAML/OIDC. Local account changes emit audit events (create, update, delete, lock, unlock). [Access Lists](../../identity-governance/access-lists/access-lists.mdx) provide periodic reviews of role membership with required attestation. |
+
+## KSI-MLA — Monitoring, Logging, and Auditing
+
+| KSI | Class | Requirement | Teleport coverage |
+| - | - | - | - |
+| **KSI-MLA-01** | B, C | Operate a SIEM or similar system(s) for centralized, tamper-resistant logging. | Teleport's [Audit Log](../../reference/deployment/monitoring/audit.mdx) captures all access-plane events (logins, role changes, session starts, commands executed, files transferred, port-forwards) in a structured, append-only stream. Logs can be forwarded to your SIEM (Splunk, Elastic, Datadog, Panther, etc.) or stored in DynamoDB/Firestore/S3 with object lock for tamper resistance. |
+| **KSI-MLA-02** | B, C | Regularly review and audit logs. | Teleport provides the unified access log that makes this practical — every privileged session across SSH, Kubernetes, databases, web apps, desktops, and AI tool calls is in one place, queryable by user, host, time, and event type. Session recordings can be replayed for retrospective review. |
+| **KSI-MLA-07** | B, C | Maintain a list of resources and event types for monitoring/logging. | The Teleport audit event reference is published and versioned; the set of audited events is exhaustive for the access plane and stable across releases (additions are documented in release notes). |
+| **KSI-MLA-08** | C | Use least-privileged, role-based, just-in-time access for log data. | Teleport RBAC governs which users can read the audit log and session recordings via standard `event` and `session_recording` resource rules. `where`-clause filtering supports patterns like "session participants only," and Access Requests can gate elevated log access just-in-time. |
+
+## KSI-SVC — Service Configuration
+
+| KSI | Class | Requirement | Teleport coverage |
+| - | - | - | - |
+| **KSI-SVC-02** | B, C | Encrypt or otherwise secure network traffic. | All access traffic between Teleport components and between clients and target resources is protected by mTLS using certificates issued by the Teleport CA. In FedRAMP/FIPS mode, only FIPS 140-validated cipher suites are negotiated. |
+| **KSI-SVC-05** | B, C | Use cryptographic methods to validate resource integrity. | Hosts and clients present X.509 / SSH certificates signed by the Teleport CA on every connection. Identity, role, and validity are cryptographically verified before any session is established. Session recordings can be encrypted at rest, and the underlying object stores (S3 with object lock, KMS-encrypted DynamoDB) provide tamper-evident retention. |
+| **KSI-SVC-06** | B, C | Use automated key management systems to manage, protect, and regularly rotate digital keys and certificates. | Teleport operates as a private CA that issues short-lived (typically minutes to hours) certificates to users, hosts, and workloads. Rotation is automatic; certificate lifetime is configured per role. CA keys can be stored in an HSM or KMS. |
+| **KSI-SVC-09** | C | Use mechanisms validating authenticity and integrity of communications. | mTLS with Teleport-CA-issued certificates is the default for every component-to-component and client-to-resource path. Identity and integrity are cryptographically validated on every connection. |
+
+## KSI-CNA — Cloud Native Architecture
+
+| KSI | Class | Requirement | Teleport coverage |
+| - | - | - | - |
+| **KSI-CNA-02** | B, C | Design systems to minimize the attack surface and minimize lateral movement. | In the default reverse-tunnel deployment mode, Teleport agents on protected hosts initiate outbound connections to the Teleport proxy — **no public inbound access is required** to those hosts. All access flows through the identity-aware proxy with per-connection authorization, eliminating the flat lateral-movement surface of traditional bastion or VPN designs. (Direct-mode agents do open local listening ports such as `3022`; reverse tunnels are the standard for production deployments and the recommended pattern inside a FedRAMP authorization boundary.) |
+| **KSI-CNA-03** | B, C | Use logical networking and related capabilities to enforce traffic flow controls. | Teleport enforces logical access-layer flow controls through its identity-aware proxy. RBAC rules define which users and workloads can reach which resources; [Trusted Clusters](../management/trustedclusters.mdx) extend the model across network boundaries with role mapping. |
+| **KSI-CNA-04** | B, C | Use immutable infrastructure with strictly defined functionality and privileges by default. | Teleport eliminates standing credentials: users and workloads receive short-lived certificates scoped to their role, with no persistent secrets on hosts. Combined with `tbot` for machines, this aligns with immutable-infrastructure patterns — instances are deployed with a join token and identities expire on rotation. |
+
+## KSI-CMT — Change Management
+
+| KSI | Class | Requirement | Teleport coverage |
+| - | - | - | - |
+| **KSI-CMT-01** | B, C | Log and monitor service modifications. | Teleport emits audit events for all access-plane configuration changes (role create/update/delete, user lifecycle events, cluster configuration changes, lock applications). These provide tamper-resistant evidence of who changed what and when, feeding the broader change-management evidence chain. |
+
+## KSIs outside Teleport's scope
+
+The following KSI themes are program-level responsibilities. Teleport's audit log and session recordings frequently provide supporting evidence (especially for INR investigations and CMT change reviews) but Teleport is not the system of record for them:
+
+- **KSI-CED** — Cybersecurity Education (training)
+- **KSI-INR** — Incident Response (process, reporting, AARs)
+- **KSI-PIY** — Policy and Inventory (asset inventory, Software Development Lifecycle, vulnerability disclosure, security staffing)
+- **KSI-RPL** — Recovery Planning (RTO/RPO, backups, recovery testing)
+- **KSI-TPR** — Third-Party Information Resources (supply chain)
+- **KSI-AFR** — Authorization by FedRAMP (program-level requirements)
+
+Other themes (CMT, CNA, SVC) contain KSIs that are partly customer responsibility — for example KSI-CNA-05 (DoS protection), KSI-CNA-06 (high availability — Teleport supports HA deployment but the broader system design is yours), KSI-SVC-03 (encryption at rest for all federal information), KSI-SVC-07 (patching). Where Teleport contributes, it's reflected in the tables above.
+
+---
+
+<Admonition type="note" title="Last reviewed">
+
+KSI text and applicability on this page were last reviewed against [fedramp.gov/docs/20x/key-security-indicators/](https://www.fedramp.gov/docs/20x/key-security-indicators/) and [RFC-0014 (Phase Two KSIs)](https://www.fedramp.gov/rfcs/0014/) on **2026-05-20**. FedRAMP 20x is evolving rapidly — verify current text and baseline applicability with the FedRAMP sources before relying on this page for an authorization package.
+
+</Admonition>
