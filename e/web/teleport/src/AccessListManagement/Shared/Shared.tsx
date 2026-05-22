@@ -1,4 +1,4 @@
-import React, { PropsWithChildren, useState } from 'react';
+import React from 'react';
 import {
   components,
   type GroupBase,
@@ -7,7 +7,7 @@ import {
 } from 'react-select';
 import styled from 'styled-components';
 
-import { Label, Popover, Text } from 'design';
+import { Label, Text } from 'design';
 import { User as UserIcon, UserList } from 'design/Icon';
 import Link from 'design/Link';
 import type { Theme } from 'design/theme/themes/types';
@@ -153,66 +153,6 @@ const inverseLabel = ({
         background: theme.colors.text.slightlyMuted,
       }
     : {};
-
-export const ToolTipText: React.FC<
-  PropsWithChildren<{
-    tipContent: React.ReactElement;
-    fontSize?: number;
-  }>
-> = ({ tipContent, fontSize = 10, children }) => {
-  const [anchorEl, setAnchorEl] = useState<HTMLElement>(null);
-  const open = Boolean(anchorEl);
-
-  function handlePopoverOpen(
-    event: React.MouseEvent<HTMLButtonElement, MouseEvent>
-  ) {
-    setAnchorEl(event.currentTarget);
-  }
-
-  function handlePopoverClose() {
-    setAnchorEl(null);
-  }
-
-  return (
-    <>
-      <span
-        aria-owns={open ? 'mouse-over-popover' : undefined}
-        onMouseEnter={handlePopoverOpen}
-        onMouseLeave={handlePopoverClose}
-      >
-        {children}
-      </span>
-      <Popover
-        modalCss={modalCss}
-        onClose={handlePopoverClose}
-        open={open}
-        anchorEl={anchorEl}
-        anchorOrigin={{
-          vertical: 'bottom',
-          horizontal: 'left',
-        }}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'left',
-        }}
-      >
-        <StyledOnHover px={2} py={1} fontSize={`${fontSize}px`}>
-          {tipContent}
-        </StyledOnHover>
-      </Popover>
-    </>
-  );
-};
-
-const modalCss = () => `
-  pointer-events: none;
-`;
-
-const StyledOnHover = styled(Text)`
-  color: ${props => props.theme.colors.text.main};
-  background-color: ${props => props.theme.colors.tooltip.background};
-  max-width: 350px;
-`;
 
 export const TruncatingLabel = styled(Label)<{
   inverse?: boolean;
