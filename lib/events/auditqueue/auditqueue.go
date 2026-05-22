@@ -62,6 +62,15 @@ type Config struct {
 	// SoftLimit is the size of the audit log queue at which we start logging
 	// warning messages.
 	SoftLimit int64
+	// MaxAttempts is the number of delivery failures before an event is moved
+	// to the dead-letter queue.
+	MaxAttempts int
+	// DeadLetterSweepInterval is how often the dead-letter sweeper re-attempts
+	// delivery of failed events.
+	DeadLetterSweepInterval time.Duration
+	// DeadLetterTTL is the maximum age of a dead-letter event before it is
+	// permanently deleted.
+	DeadLetterTTL time.Duration
 }
 
 // Item is an event yielded to a Handler.

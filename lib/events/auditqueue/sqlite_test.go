@@ -198,7 +198,9 @@ func TestRun_HandlerSubsetIsAcked(t *testing.T) {
 	runCtx, cancel := context.WithCancel(ctx)
 	t.Cleanup(cancel)
 
+	var once sync.Once
 	handler := func(_ context.Context, items []Item) []Item {
+		once.Do(cancel)
 		var ack []Item
 		for _, it := range items {
 			if it.Event.GetIndex()%2 == 0 {
@@ -211,16 +213,12 @@ func TestRun_HandlerSubsetIsAcked(t *testing.T) {
 	runErr := make(chan error, 1)
 	go func() { runErr <- q.Run(runCtx, handler) }()
 
-	require.Eventually(t, func() bool {
-		items, err := q.fetch(10)
-		if err != nil || len(items) != 1 {
-			return false
-		}
-		return items[0].Event.GetIndex() == 1
-	}, 2*time.Second, 10*time.Millisecond)
-
-	cancel()
 	require.NoError(t, <-runErr)
+
+	items, err := q.fetch(10)
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	require.Equal(t, int64(1), items[0].Event.GetIndex())
 }
 
 func TestClose(t *testing.T) {
@@ -479,6 +477,65 @@ func TestOrphanAdoption_DrainsAndDeletes(t *testing.T) {
 	require.Len(t, got, 5, "expected all 5 orphan events delivered through B's handler")
 }
 
+func TestOrphanAdoption_MigratesDeadLetter(t *testing.T) {
+	t.Parallel()
+	parent := t.TempDir()
+	ctx := context.Background()
+
+	aPath := filepath.Join(parent, "a")
+	a, err := newSQLiteQueue(Config{
+		Path:                    aPath,
+		MaxAttempts:             1,
+		DeadLetterSweepInterval: time.Hour,
+	})
+	require.NoError(t, err)
+	require.NoError(t, a.Enqueue(ctx, newTestEvent(42)))
+
+	runCtx, cancelA := context.WithCancel(ctx)
+	runErrA := make(chan error, 1)
+	go func() { runErrA <- a.Run(runCtx, func(context.Context, []Item) []Item { return nil }) }()
+
+	require.Eventually(t, func() bool {
+		dl, err := a.fetchDeadLetter(10)
+		return err == nil && len(dl) == 1
+	}, 5*time.Second, 50*time.Millisecond, "expected A's event to land in its dead-letter queue")
+
+	cancelA()
+	require.NoError(t, <-runErrA)
+	require.NoError(t, a.Close())
+
+	_, err = os.Stat(aPath)
+	require.NoError(t, err, "expected A's directory to remain after Close due to non-empty dead-letter")
+
+	b, err := newSQLiteQueue(Config{
+		Path:                    filepath.Join(parent, "b"),
+		OrphanScanInterval:      50 * time.Millisecond,
+		DeadLetterSweepInterval: time.Hour, // prevent B from re-delivering during the test
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = b.Close() })
+
+	bRunCtx, cancelB := context.WithCancel(ctx)
+	t.Cleanup(cancelB)
+	bRunErr := make(chan error, 1)
+	go func() {
+		bRunErr <- b.Run(bRunCtx, func(_ context.Context, items []Item) []Item { return items })
+	}()
+
+	require.Eventually(t, func() bool {
+		dl, err := b.fetchDeadLetter(10)
+		return err == nil && len(dl) == 1 && dl[0].Event.GetIndex() == 42
+	}, 5*time.Second, 50*time.Millisecond, "expected B to migrate A's dead-letter row")
+
+	require.Eventually(t, func() bool {
+		_, err := os.Stat(aPath)
+		return os.IsNotExist(err)
+	}, 5*time.Second, 50*time.Millisecond, "expected A's directory to be removed after migration")
+
+	cancelB()
+	require.NoError(t, <-bRunErr)
+}
+
 func TestOrphanAdoption_SkipsLockedQueue(t *testing.T) {
 	t.Parallel()
 	parent := t.TempDir()
@@ -626,4 +683,156 @@ func TestIsSQLiteFullError(t *testing.T) {
 	}
 	require.Error(t, fullErr, "expected an insert to fail with SQLITE_FULL")
 	require.True(t, isSQLiteFullError(fullErr))
+}
+
+func TestIncrementAttempts_ReturnsExhausted(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	q, err := newSQLiteQueue(Config{
+		Path:        filepath.Join(t.TempDir(), queueDir),
+		MaxAttempts: 3,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = q.Close() })
+
+	require.NoError(t, q.Enqueue(ctx, newTestEvent(0)))
+	require.NoError(t, q.Enqueue(ctx, newTestEvent(1)))
+
+	items, err := q.fetch(10)
+	require.NoError(t, err)
+	require.Len(t, items, 2)
+
+	// First two increments should not exhaust either item.
+	for i := 0; i < 2; i++ {
+		exhausted, err := q.incrementAttempts(items)
+		require.NoError(t, err)
+		require.Empty(t, exhausted, "should not be exhausted after attempt %d", i+1)
+	}
+
+	// Third increment reaches max_attempts. Both items should be exhausted.
+	exhausted, err := q.incrementAttempts(items)
+	require.NoError(t, err)
+	require.Len(t, exhausted, 2)
+}
+
+func TestRetry_ExhaustedMovesToDeadLetter(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	const maxAttempts = 3
+	q, err := newSQLiteQueue(Config{
+		Path:                    filepath.Join(t.TempDir(), queueDir),
+		MaxAttempts:             maxAttempts,
+		DeadLetterSweepInterval: time.Hour, // don't interfere with this test
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = q.Close() })
+
+	require.NoError(t, q.Enqueue(ctx, newTestEvent(42)))
+
+	alwaysFail := func(_ context.Context, items []Item) []Item { return nil }
+
+	runCtx, cancel := context.WithCancel(ctx)
+	t.Cleanup(cancel)
+
+	runErr := make(chan error, 1)
+	go func() { runErr <- q.Run(runCtx, alwaysFail) }()
+
+	// Wait until audit_queue is empty, i.e., item promoted to dead-letter.
+	require.Eventually(t, func() bool {
+		items, err := q.fetch(1)
+		return err == nil && len(items) == 0
+	}, 10*time.Second, 50*time.Millisecond, "expected item to be promoted out of main queue")
+
+	// Confirm it is in the dead-letter table.
+	dlItems, err := q.fetchDeadLetter(10)
+	require.NoError(t, err)
+	require.Len(t, dlItems, 1)
+	require.Equal(t, int64(42), dlItems[0].Event.GetIndex())
+
+	cancel()
+	require.NoError(t, <-runErr)
+}
+
+func TestDeadLetterSweep_RedeliversOnRecovery(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	sweepInterval := 50 * time.Millisecond
+	q, err := newSQLiteQueue(Config{
+		Path:                    filepath.Join(t.TempDir(), queueDir),
+		MaxAttempts:             1,
+		DeadLetterSweepInterval: sweepInterval,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = q.Close() })
+
+	require.NoError(t, q.Enqueue(ctx, newTestEvent(7)))
+
+	var recovered atomic.Bool
+	handler := func(_ context.Context, items []Item) []Item {
+		if recovered.Load() {
+			return items // succeed on re-delivery
+		}
+		return nil // fail initially
+	}
+
+	runCtx, cancel := context.WithCancel(ctx)
+	t.Cleanup(cancel)
+
+	runErr := make(chan error, 1)
+	go func() { runErr <- q.Run(runCtx, handler) }()
+
+	// Wait for item to land in dead-letter.
+	require.Eventually(t, func() bool {
+		items, _ := q.fetchDeadLetter(10)
+		return len(items) == 1
+	}, 5*time.Second, 50*time.Millisecond)
+
+	// Signal recovery. Sweep should redeliver and ack it.
+	recovered.Store(true)
+
+	require.Eventually(t, func() bool {
+		items, _ := q.fetchDeadLetter(10)
+		return len(items) == 0
+	}, 5*time.Second, sweepInterval)
+
+	cancel()
+	require.NoError(t, <-runErr)
+}
+
+func TestDeadLetterTTL_ExpiresOldRows(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	q, err := newSQLiteQueue(Config{
+		Path:          filepath.Join(t.TempDir(), queueDir),
+		DeadLetterTTL: time.Hour,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = q.Close() })
+
+	// Enqueue one event, then move it to dead-letter directly so we can
+	// control its failed_at timestamp.
+	require.NoError(t, q.Enqueue(ctx, newTestEvent(99)))
+	items, err := q.fetch(1)
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	require.NoError(t, q.moveToDeadLetter(items))
+
+	// Back-date the row to simulate an entry older than the TTL.
+	pastTimestamp := time.Now().Add(-2 * time.Hour).Unix()
+	_, err = q.db.Exec("UPDATE audit_dead_letter SET failed_at = ?", pastTimestamp)
+	require.NoError(t, err)
+
+	dlItems, err := q.fetchDeadLetter(10)
+	require.NoError(t, err)
+	require.Len(t, dlItems, 1, "row should exist before expiry")
+
+	q.expireDeadLetter()
+
+	dlItems, err = q.fetchDeadLetter(10)
+	require.NoError(t, err)
+	require.Empty(t, dlItems, "row should have been deleted by expireDeadLetter")
 }

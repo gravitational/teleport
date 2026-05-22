@@ -37,14 +37,17 @@ var allKinds []Kind = []Kind{KindSQLite}
 
 func newTestQueue(t *testing.T, kind Kind) Queue {
 	t.Helper()
+	return newTestQueueWithConfig(t, kind, Config{})
+}
 
-	path := filepath.Join(t.TempDir(), queueDir)
-	q, err := New(kind, Config{Path: path})
+func newTestQueueWithConfig(t *testing.T, kind Kind, cfg Config) Queue {
+	t.Helper()
+	cfg.Path = filepath.Join(t.TempDir(), queueDir)
+	q, err := New(kind, cfg)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		require.NoError(t, q.Close())
 	})
-
 	return q
 }
 
@@ -296,6 +299,109 @@ func TestRun_StopsCleanlyOnContextCancel(t *testing.T) {
 			case <-time.After(time.Second):
 				t.Fatal("Run did not stop after context cancel")
 			}
+		})
+	}
+}
+
+func TestRun_DeadLetter_ExhaustedEventLeavesMainQueue(t *testing.T) {
+	t.Parallel()
+
+	for _, kind := range allKinds {
+		t.Run(string(kind), func(t *testing.T) {
+			t.Parallel()
+			ctx := context.Background()
+
+			const maxAttempts = 2
+			q := newTestQueueWithConfig(t, kind, Config{
+				MaxAttempts:             maxAttempts,
+				DeadLetterSweepInterval: time.Hour, // prevent sweep from interfering
+			})
+
+			require.NoError(t, q.Enqueue(ctx, newTestEvent(0)))
+
+			var calls atomic.Int32
+			alwaysFail := func(_ context.Context, items []Item) []Item {
+				calls.Add(int32(len(items)))
+				return nil
+			}
+
+			runCtx, cancel := context.WithCancel(ctx)
+			t.Cleanup(cancel)
+
+			runErr := make(chan error, 1)
+			go func() { runErr <- q.Run(runCtx, alwaysFail) }()
+
+			// Wait until the handler has been called exactly maxAttempts times.
+			require.Eventually(t, func() bool {
+				return calls.Load() >= maxAttempts
+			}, testDefaultTimeout, 10*time.Millisecond)
+
+			// Give the run loop a few more cycles and confirm the count does not grow.
+			time.Sleep(5 * pollInterval)
+			require.Equal(t, int32(maxAttempts), calls.Load(),
+				"handler should not be called again after event is promoted to dead-letter")
+
+			cancel()
+			require.NoError(t, <-runErr)
+		})
+	}
+}
+
+func TestRun_DeadLetter_RedeliversAfterRecovery(t *testing.T) {
+	t.Parallel()
+
+	for _, kind := range allKinds {
+		t.Run(string(kind), func(t *testing.T) {
+			t.Parallel()
+			ctx := context.Background()
+
+			const sweepInterval = 50 * time.Millisecond
+			q := newTestQueueWithConfig(t, kind, Config{
+				MaxAttempts:             1,
+				DeadLetterSweepInterval: sweepInterval,
+			})
+
+			require.NoError(t, q.Enqueue(ctx, newTestEvent(99)))
+
+			var recovered atomic.Bool
+			delivered := make(chan apievents.AuditEvent, 1)
+			handler := func(_ context.Context, items []Item) []Item {
+				if !recovered.Load() {
+					return nil
+				}
+
+				// Once we are here, this means that the event has been moved to
+				// the dead letter queue. Let's now deliver it.
+				for _, it := range items {
+					select {
+					case delivered <- it.Event:
+					default:
+					}
+				}
+				return items
+			}
+
+			runCtx, cancel := context.WithCancel(ctx)
+			t.Cleanup(cancel)
+
+			runErr := make(chan error, 1)
+			go func() { runErr <- q.Run(runCtx, handler) }()
+
+			// Wait long enough for the event to exhaust its attempts and land in
+			// the dead-letter queue, then signal recovery.
+			time.Sleep(5 * pollInterval)
+			recovered.Store(true)
+
+			select {
+			case event := <-delivered:
+				require.Equal(t, int64(99), event.GetIndex(),
+					"dead-letter sweep should re-deliver the original event")
+			case <-time.After(testDefaultTimeout):
+				t.Fatal("dead-letter sweep never re-delivered the event after recovery")
+			}
+
+			cancel()
+			require.NoError(t, <-runErr)
 		})
 	}
 }
