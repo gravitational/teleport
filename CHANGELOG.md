@@ -9,6 +9,7 @@
 * Windows desktop controls in Teleport Connect now reside in the status bar in order to allocate more screen real estate to the RDP session. [#66726](https://github.com/gravitational/teleport/pull/66726)
 
 Enterprise:
+* SCIM-synced access lists will now have a badge displayed next to them in the web UI.
 * Fixed access monitoring graph data handling in the Web UI when the amount of results exceeds the display maximum - now hides earlier instead of later data.
 * Restricted user traits preserved during a SAML logon to those created by the Okta or SCIM integrations.
 * Improved reliability of Okta assignments processing.
