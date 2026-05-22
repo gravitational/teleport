@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
@@ -1814,7 +1815,12 @@ func TestDeleteProxy(t *testing.T) {
 		proxy := newProxy("proxy-grpc")
 		require.NoError(t, clt.UpsertProxyServerWithoutReturn(ctx, proxy))
 
-		require.NoError(t, clt.APIClient.DeleteProxyServer(ctx, proxy.GetName()))
+		_, err := clt.APIClient.PresenceServiceClient().DeleteProxyServer(
+			ctx, &presencev1.DeleteProxyServerRequest{
+				Name: proxy.GetName(),
+			},
+		)
+		require.NoError(t, err)
 
 		require.NotContains(t, proxyNames(t), proxy.GetName())
 	})
@@ -1881,8 +1887,12 @@ func TestUpsertProxy(t *testing.T) {
 	}
 
 	t.Run("direct gRPC RPC", func(t *testing.T) {
-		proxy := newProxy("proxy-grpc")
-		_, err := clt.APIClient.UpsertProxyServer(ctx, proxy)
+		proxy := newProxy("proxy-grpc").(*types.ServerV2)
+		_, err := clt.APIClient.PresenceServiceClient().UpsertProxyServer(
+			ctx, &presencev1.UpsertProxyServerRequest{
+				Server: proxy,
+			},
+		)
 		require.NoError(t, err)
 
 		require.Contains(t, proxyNames(t), proxy.GetName())

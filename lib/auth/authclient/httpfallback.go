@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -109,7 +110,13 @@ func (c *HTTPClient) GetAuthServers() ([]types.Server, error) {
 //
 // TODO(noah): DELETE IN v20.0.0
 func (c *Client) UpsertProxyServerWithoutReturn(ctx context.Context, s types.Server) error {
-	_, err := c.APIClient.UpsertProxyServer(ctx, s)
+	serverV2, ok := s.(*types.ServerV2)
+	if !ok {
+		return trace.BadParameter("unsupported proxy server type %T", s)
+	}
+	_, err := c.APIClient.PresenceServiceClient().UpsertProxyServer(ctx, &presencev1.UpsertProxyServerRequest{
+		Server: serverV2,
+	})
 	if err == nil {
 		return nil
 	}
@@ -141,7 +148,9 @@ func (c *HTTPClient) upsertProxyServerLegacy(ctx context.Context, s types.Server
 //
 // TODO(noah): DELETE IN v20.0.0
 func (c *Client) DeleteProxyServer(ctx context.Context, name string) error {
-	err := c.APIClient.DeleteProxyServer(ctx, name)
+	_, err := c.APIClient.PresenceServiceClient().DeleteProxyServer(ctx, &presencev1.DeleteProxyServerRequest{
+		Name: name,
+	})
 	if err == nil {
 		return nil
 	}

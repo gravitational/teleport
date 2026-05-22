@@ -37,6 +37,8 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
+// TODO(noah): In a seperate PR soon, nuke this test. We cover this elsewhere
+// much better. This test awkwardly skips some important layers.
 func TestUpsertServer(t *testing.T) {
 	t.Parallel()
 
