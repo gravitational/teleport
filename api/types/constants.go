@@ -1324,6 +1324,24 @@ const (
 
 	// AppSubKindLabel is the label that has the same value of "app.sub_kind".
 	AppSubKindLabel = TeleportInternalLabelPrefix + "app-sub-kind"
+
+	// BeamsInternalLabelPrefix is the prefix used by internal beams labels.
+	BeamsInternalLabelPrefix = TeleportInternalLabelPrefix + "beams/"
+
+	// BeamIDLabel is the label used to track which Beam a resource belongs to.
+	BeamIDLabel = BeamsInternalLabelPrefix + "id"
+
+	// BeamOwnerLabel is the label used to track which user's Beam a resource
+	// belongs to.
+	BeamOwnerLabel = BeamsInternalLabelPrefix + "owner"
+
+	// BeamAliasLabel is the label used to track the alias of the Beam a
+	// resource belongs to.
+	BeamAliasLabel = BeamsInternalLabelPrefix + "alias"
+
+	// BeamAppTypeLabel is the label used to denote the type of app created for
+	// Beams. Valid values: "ingress" and "llm".
+	BeamAppTypeLabel = BeamsInternalLabelPrefix + "app-type"
 )
 
 const (
