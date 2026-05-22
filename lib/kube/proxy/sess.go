@@ -180,6 +180,9 @@ func (p *kubeProxyClientStreams) stderrStream() io.Writer {
 
 func (p *kubeProxyClientStreams) resizeQueue() <-chan terminalResizeMessage {
 	ch := make(chan terminalResizeMessage)
+	if p.sizeQueue == nil {
+		return ch
+	}
 	p.wg.Add(1)
 	go func() {
 		defer p.wg.Done()
