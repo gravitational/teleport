@@ -358,9 +358,16 @@ func (c *Cache) GetAccessListOwners(ctx context.Context, accessListName string) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer rg.Release()
 
-	if !rg.ReadCache() {
+	upstreamRead := !rg.ReadCache()
+
+	// Release the read guard before performing nested cache reads.
+	// The read guard's sync.RWMutex blocks new readers while a writer
+	// is waiting, so holding this read lock across c.GetAccessList or
+	// accesslists.GetOwnersFor could result in a deadlock.
+	rg.Release()
+
+	if upstreamRead {
 		return c.Config.AccessLists.GetAccessListOwners(ctx, accessListName)
 	}
 
