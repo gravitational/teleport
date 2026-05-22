@@ -2037,10 +2037,72 @@ func contains[S ~[]E, E any](s S, f func(E) (bool, error)) (bool, error) {
 	return false, nil
 }
 
-// matchSPIFFESVIDConditions compares a slice of SPIFFE Role Conditions against
+// matchSPIFFESVIDDenyConditions compares a slice of SPIFFE Role Conditions against
+// a requested SPIFFE SVID generation. Any field within a condition must match,
+// and any condition in the slice can match for the function to return true.
+func matchSPIFFESVIDDenyConditions(
+	conds []*types.SPIFFERoleCondition,
+	spiffeIDPath string,
+	dnsSANs []string,
+	ipSANs []net.IP,
+) (bool, error) {
+	return contains(conds, func(cond *types.SPIFFERoleCondition) (bool, error) {
+		// Match SPIFFE ID path.
+		pathMatches, err := utils.MatchString(spiffeIDPath, cond.Path)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		if !pathMatches {
+			// No match - skip to next condition.
+			return false, nil
+		}
+
+		// if any DNS SAN in the condition matches, we say the DNS SAN part
+		// of the condition matches
+		dnsMatches := true
+		for _, dnsSAN := range cond.DNSSANs {
+			dnsMatches, err := contains(dnsSANS, func(s string) (bool, error) {
+				return utils.MatchString(dnsSAN, s)
+			})
+			if err != nil {
+				return false, trace.Wrap(err)
+			}
+			if dnsMatches {
+				break
+			}
+		}
+		if !dnsMatches {
+			return false, nil
+		}
+
+		// Any IP SAN requested can match one of the IP SAN matchers in the
+		// condition.
+		ipMatches := true
+		for _, ipSAN := range cond.IPSANs {
+			ipMatches, err := contains(ipSANs, func(s string) (bool, error) {
+				_, cidr, err := net.ParseCIDR(s)
+				if err != nil {
+					return false, trace.Wrap(err, "parsing cidr")
+				}
+				return cidr.Contains(ipSAN), nil
+			})
+			if err != nil {
+				return false, trace.Wrap(err)
+			}
+			if ipMatches {
+				break
+			}
+		}
+
+		// All condition fields matched.
+		return ipMatches, nil
+	})
+}
+
+// matchSPIFFESVIDAllowConditions compares a slice of SPIFFE Role Conditions against
 // a requested SPIFFE SVID generation. All fields within a condition must match,
 // but any condition in the slice can match for the function to return true.
-func matchSPIFFESVIDConditions(
+func matchSPIFFESVIDAllowConditions(
 	conds []*types.SPIFFERoleCondition,
 	spiffeIDPath string,
 	dnsSANs []string,
@@ -2108,7 +2170,7 @@ func (set RoleSet) CheckSPIFFESVID(spiffeIDPath string, dnsSANs []string, ipSANs
 	// check deny: a single match on a deny rule prohibits generation
 	for _, role := range set {
 		cond := role.GetSPIFFEConditions(types.Deny)
-		matched, err := matchSPIFFESVIDConditions(cond, spiffeIDPath, dnsSANs, ipSANs)
+		matched, err := matchSPIFFESVIDDenyConditions(cond, spiffeIDPath, dnsSANs, ipSANs)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -2120,7 +2182,7 @@ func (set RoleSet) CheckSPIFFESVID(spiffeIDPath string, dnsSANs []string, ipSANs
 	// check allow: if a single condition matches, allow generation
 	for _, role := range set {
 		cond := role.GetSPIFFEConditions(types.Allow)
-		matched, err := matchSPIFFESVIDConditions(cond, spiffeIDPath, dnsSANs, ipSANs)
+		matched, err := matchSPIFFESVIDAllowConditions(cond, spiffeIDPath, dnsSANs, ipSANs)
 		if err != nil {
 			return trace.Wrap(err)
 		}
