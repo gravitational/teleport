@@ -30,53 +30,11 @@ We continue to support the following major versions of Teleport:
 
 We plan to release the following versions in the coming months:
 
-| Version | Date                   |
-|---------|------------------------|
-| 18.8.0  | Week of May 4, 2026    |
-| 18.9.0  | Week of June 1, 2026   |
-| 19.0.0  | August 2026            |
-
-### 18.8.0
-
-#### VNet for Linux
-
-Teleport VNet support will be extended to Linux workstations.
-
-*Delayed from 18.7.0.*
-
-#### Improvements to access list creation UX
-
-Teleport will provide guided in-product UX for creating common types of access
-lists centered around granting users permissions to resources and permissions
-to request access to resources.
-
-*Delayed from 18.7.0.*
-
-#### `tsh` MFA via browser
-
-`tsh` will be able to delegate MFA checks (both on login and for per-session
-MFA) to the browser, enabling the use of browser based passkeys or password
-managers with `tsh`.
-
-#### Multi-domain support for Windows desktop access
-
-Teleport will support RDP connections to Windows hosts where the Windows users
-belong to different Active Directory domains than the target hosts.
-
-#### Bound keypair joining for agents
-
-Teleport's bound keypair join method will be extended to support arbitrary
-Teleport agents in addition to bots.
-
-#### Session summaries search
-
-Identity Security will provide users with CLI tooling for searching session
-summaries allowing users to find sessions based on natural language queries.
-
-#### Reduce resource consumption of SSH sessions
-
-Teleport SSH session latency will be reduced and each session will consume
-less memory.
+| Version | Date                  |
+|---------|-----------------------|
+| 18.9.0  | Week of June 15, 2026 |
+| 18.10.0 | Week of June 29, 2026 |
+| 19.0.0  | August 2026           |
 
 ### 18.9.0
 
@@ -86,6 +44,23 @@ Application access session cookies will be compatible with Google's [Device
 Bound Session Credentials](https://developer.chrome.com/docs/web-platform/device-bound-session-credentials),
 adding a layer of protection against session hijacking and cookie theft.
 
+#### High-DPI support for Windows desktop sessions
+
+Remote desktop sessions will support high-DPI mode, improving the clarity and
+quality of the display rendering on supported displays.
+
+#### Sub-CA
+
+Teleport will support operating as a sub-CA of an external root for the Windows
+Desktop and Database Client CAs. Subsequent releases will extend support for
+other CAs.
+
+### 18.10.0
+
+#### Linux Desktop Access
+
+Teleport will support remote desktop sessions to Linux hosts.
+
 #### Directory sharing enhancements for Windows desktop access
 
 Teleport will support sharing multiple directories in a single RDP session.  In
@@ -94,23 +69,9 @@ the session.
 
 #### Windows sessions summaries
 
-Identity Security will support AI summarization for Windows desktop access session
-recordings.
+Identity Security will support AI summarization for Windows desktop access
+session recordings.
 
-#### Terraform support for AWS EKS discovery
-
-Users will be able to set up AWS EKS discovery on an AWS account level using
-Terraform module.
-
-#### Terraform support for Azure VM discovery
-
-Users will be able to set up Azure VM discovery on a subscription level using
-Terraform module.
-
-#### Terraform support for access list workflows
-
-Short and long term access list creation flows in the web UI will include terraform
-support allowing users to define access with infrastructure-as-code.
 
 ## Teleport Cloud
 
@@ -118,8 +79,8 @@ The key deliverables for Teleport Cloud in the next quarter:
 
 | Week of          | Description                                                 |
 |------------------|-------------------------------------------------------------|
-| May 11, 2026     | Teleport 18.8 will begin rollout on Cloud.                   |
-| May 11, 2026     | Teleport 18.8 agents will begin rollout to eligible tenants. |
+| June 22, 2026     | Teleport 18.9 will begin rollout on Cloud.                   |
+| June 22, 2026     | Teleport 18.9 agents will begin rollout to eligible tenants. |
 
 ## Production readiness
 
