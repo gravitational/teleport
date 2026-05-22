@@ -122,6 +122,12 @@ export function RuleList({
       ]}
       emptyText="No Access Automations Found"
       isSearchable
+      row={{
+        getKey: row =>
+          'item' in row
+            ? `rule:${row.name}`
+            : `plugin:${row.plugin.kind}:${row.plugin.name}`,
+      }}
     />
   );
 }
