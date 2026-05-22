@@ -131,6 +131,28 @@ var charts = []Chart{
 		ReferencePath: "",
 		IsLibrary:     true,
 	},
+	{
+		Name:          "teleport-util-lib",
+		Path:          "examples/chart/lib/teleport-util-lib",
+		ReferencePath: "",
+		IsLibrary:     true,
+	},
+	{
+		Name:          "teleport-util-lib-test",
+		Path:          "examples/chart/lib/teleport-util-lib/test-chart",
+		ReferencePath: "",
+	},
+	{
+		Name:          "teleport-proxy-lib",
+		Path:          "examples/chart/lib/teleport-proxy-lib",
+		ReferencePath: "",
+		IsLibrary:     true,
+	},
+	{
+		Name:          "teleport-proxy-lib-test",
+		Path:          "examples/chart/lib/teleport-proxy-lib/test-chart",
+		ReferencePath: "",
+	},
 }
 
 const usage = `Usage:

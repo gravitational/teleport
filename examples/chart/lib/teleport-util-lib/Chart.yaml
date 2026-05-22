@@ -1,0 +1,15 @@
+.version: &version "19.0.0-prealpha.2"
+
+apiVersion: v2
+name: teleport-util-lib
+type: library
+version: *version
+appVersion: *version
+description: |
+  Library chart containing named templates used across multiple charts.
+  IMPORTANT: this chart is not meant for public consumption, stability and versioning guarantees do not apply here.
+icon: https://goteleport.com/static/teleport-symbol-bimi.svg
+keywords:
+  - Teleport
+  - util
+  - library

@@ -1,0 +1,33 @@
+suite: version
+templates:
+  - templates/version.yaml
+tests:
+  - it: falls back to the chart version when no override is set
+    asserts:
+      - isNotEmpty:
+          path: data.version
+      - matchRegex:
+          path: data.majorVersion
+          pattern: "^[0-9]+$"
+
+  - it: uses the override version when set, and derives the major from it
+    set:
+      teleportVersionOverride: "13.4.5"
+    asserts:
+      - equal:
+          path: data.version
+          value: "13.4.5"
+      - equal:
+          path: data.majorVersion
+          value: "13"
+
+  - it: derives the major version from a multi-digit override
+    set:
+      teleportVersionOverride: "120.0.1-dev"
+    asserts:
+      - equal:
+          path: data.version
+          value: "120.0.1-dev"
+      - equal:
+          path: data.majorVersion
+          value: "120"

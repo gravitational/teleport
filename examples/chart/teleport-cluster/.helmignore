@@ -1,0 +1,12 @@
+# This chart symlinks library charts into charts/. Some of those libs contain a
+# test harness in a test-chart/ dir whose own charts/ symlinks back into the
+# lib, so we have to ignore these dirs here to break the symlink loop Helm's
+# loader would otherwise hit while walking the chart directory: the symlink
+# points back into a directory that contains that chart (whose charts/ symlinks
+# back again), so the walk would never terminate. It's a filesystem traversal
+# loop, not a dependency-graph cycle.
+#
+# One alternative would be `repository: file://...` dependencies in Chart.yaml,
+# but because helm-janitor doesn't run `helm dependency build` that isn't an
+# option.
+test-chart/

@@ -1,0 +1,27 @@
+suite: Proxy PodDisruptionBudget
+templates:
+  - pdb.yaml
+tests:
+  - it: should create a PDB when enabled in values
+    set:
+      highAvailability:
+        podDisruptionBudget:
+          enabled: true
+          minAvailable: 2
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: PodDisruptionBudget
+      - equal:
+          path: spec.minAvailable
+          value: 2
+
+  - it: shoud not create a PDB when disabled in values
+    set:
+      highAvailability:
+        podDisruptionBudget:
+          enabled: false
+    asserts:
+      - hasDocuments:
+          count: 0

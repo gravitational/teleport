@@ -1,0 +1,3 @@
+should set imagePullSecrets on proxy predeploy job when set in values:
+  1: |
+    - name: myRegistryKeySecretName
