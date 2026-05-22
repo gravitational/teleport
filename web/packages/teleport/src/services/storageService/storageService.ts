@@ -231,17 +231,6 @@ export const storageService = {
     window.localStorage.setItem(KeysEnum.LICENSE_ACKNOWLEDGED, 'true');
   },
 
-  getBeamsFirstVisitExpanded(): boolean {
-    return (
-      window.localStorage.getItem(KeysEnum.BEAMS_FIRST_VISIT_EXPANDED) ===
-      'true'
-    );
-  },
-
-  setBeamsFirstVisitExpanded() {
-    window.localStorage.setItem(KeysEnum.BEAMS_FIRST_VISIT_EXPANDED, 'true');
-  },
-
   getUsersMauAcknowledged(): boolean {
     return (
       window.localStorage.getItem(

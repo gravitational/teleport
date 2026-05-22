@@ -39,7 +39,6 @@ import { SideNavDrawerMode } from 'gen-proto-ts/teleport/userpreferences/v1/side
 
 import cfg from 'teleport/config';
 import { useFeatures } from 'teleport/FeaturesContext';
-import { storageService } from 'teleport/services/storageService';
 import type { TeleportFeature } from 'teleport/types';
 import { useUser } from 'teleport/User/UserContext';
 import useStickyClusterId from 'teleport/useStickyClusterId';
@@ -459,23 +458,23 @@ export function Navigation({
     }
   }, [currentPageSection]);
 
-  // First-time Beams page landing: flip sideNavDrawerMode to STICKY globally
-  // so the panel pushes content and keeps side panel expanded. This becomes the user's
-  // ongoing preference — they can toggle it off via the collapse button.
+  // The `UNSPECIFIED` check makes this server-side idempotent: once the user
+  // has any explicit preference (STICKY or COLLAPSED), we never override it
+  // again, even across different browsers/devices.
   useEffect(() => {
-    if (storageService.getBeamsFirstVisitExpanded()) {
+    if (!cfg.beamsUi) {
       return;
     }
     if (currentView?.category !== NavigationCategory.Beams) {
       return;
     }
-    storageService.setBeamsFirstVisitExpanded();
-    if (!stickyMode) {
-      updatePreferences({
-        sideNavDrawerMode: SideNavDrawerMode.STICKY,
-      });
+    if (preferences.sideNavDrawerMode !== SideNavDrawerMode.UNSPECIFIED) {
+      return;
     }
-  }, [currentView, stickyMode, updatePreferences]);
+    updatePreferences({
+      sideNavDrawerMode: SideNavDrawerMode.STICKY,
+    });
+  }, [currentView, preferences.sideNavDrawerMode, updatePreferences]);
 
   // Handler for clicking nav items.
   const onNavigationItemClick = useCallback(() => {

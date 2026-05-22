@@ -19,7 +19,7 @@
 import { MemoryRouter } from 'react-router';
 
 import { Beams } from 'design/Icon';
-import { render, screen } from 'design/utils/testing';
+import { act, render, screen, tick } from 'design/utils/testing';
 import { SideNavDrawerMode } from 'gen-proto-ts/teleport/userpreferences/v1/sidenav_preferences_pb';
 
 import cfg from 'teleport/config';
@@ -27,7 +27,6 @@ import { getOSSFeatures } from 'teleport/features';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 import { ContextProvider } from 'teleport/index';
 import { createTeleportContext } from 'teleport/mocks/contexts';
-import { storageService } from 'teleport/services/storageService';
 import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
 import { NavTitle, type TeleportFeature } from 'teleport/types';
 import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
@@ -168,27 +167,26 @@ describe('Beams first-visit auto-expand', () => {
   beforeEach(() => {
     cfg.isDashboard = false;
     cfg.beamsUi = true;
-    localStorage.clear();
   });
 
   afterEach(() => {
     cfg.isDashboard = originalIsDashboard;
     cfg.beamsUi = originalBeamsUi;
-    localStorage.clear();
   });
 
-  function mountNav({
-    initialPath,
+  async function mountNav({
+    drawerMode,
     updatePreferences,
+    initialPath = '/web/beams/get-started',
   }: {
-    initialPath: string;
+    drawerMode: SideNavDrawerMode;
     updatePreferences: jest.Mock;
+    initialPath?: string;
   }) {
+    const preferences = makeDefaultUserPreferences();
+    preferences.sideNavDrawerMode = drawerMode;
     mockUserContextProviderWith(
-      makeTestUserContext({
-        preferences: makeDefaultUserPreferences(),
-        updatePreferences,
-      })
+      makeTestUserContext({ preferences, updatePreferences })
     );
     const ctx = createTeleportContext();
     const features = [beamsFeature];
@@ -202,44 +200,59 @@ describe('Beams first-visit auto-expand', () => {
         </ContextProvider>
       </MemoryRouter>
     );
+    await act(tick);
   }
 
-  test('flips sideNavDrawerMode to STICKY and sets the flag on first Beams page visit', () => {
+  test('flips sideNavDrawerMode to STICKY when the user has no prior preference', async () => {
     const updatePreferences = jest.fn();
-    expect(storageService.getBeamsFirstVisitExpanded()).toBe(false);
 
-    mountNav({
-      initialPath: '/web/beams/get-started',
+    await mountNav({
+      drawerMode: SideNavDrawerMode.UNSPECIFIED,
       updatePreferences,
     });
 
-    expect(storageService.getBeamsFirstVisitExpanded()).toBe(true);
     expect(updatePreferences).toHaveBeenCalledWith({
       sideNavDrawerMode: SideNavDrawerMode.STICKY,
     });
   });
 
-  test('does not run again once the flag is set', () => {
-    const updatePreferences = jest.fn();
-    storageService.setBeamsFirstVisitExpanded();
+  test('does not run if the user already has a sideNavDrawerMode set', async () => {
+    const collapsedUpdate = jest.fn();
+    await mountNav({
+      drawerMode: SideNavDrawerMode.COLLAPSED,
+      updatePreferences: collapsedUpdate,
+    });
+    expect(collapsedUpdate).not.toHaveBeenCalled();
 
-    mountNav({
-      initialPath: '/web/beams/get-started',
+    const stickyUpdate = jest.fn();
+    await mountNav({
+      drawerMode: SideNavDrawerMode.STICKY,
+      updatePreferences: stickyUpdate,
+    });
+    expect(stickyUpdate).not.toHaveBeenCalled();
+  });
+
+  test('does not fire when cfg.beamsUi is false', async () => {
+    cfg.beamsUi = false;
+    const updatePreferences = jest.fn();
+
+    await mountNav({
+      drawerMode: SideNavDrawerMode.UNSPECIFIED,
       updatePreferences,
     });
 
     expect(updatePreferences).not.toHaveBeenCalled();
   });
 
-  test('does not fire when landing on a non-Beams page', () => {
+  test('does not fire when the user is not on a Beams page', async () => {
     const updatePreferences = jest.fn();
 
-    mountNav({
-      initialPath: '/web/cluster/x/resources',
+    await mountNav({
+      drawerMode: SideNavDrawerMode.UNSPECIFIED,
       updatePreferences,
+      initialPath: '/web/cluster/x/resources',
     });
 
-    expect(storageService.getBeamsFirstVisitExpanded()).toBe(false);
     expect(updatePreferences).not.toHaveBeenCalled();
   });
 });
