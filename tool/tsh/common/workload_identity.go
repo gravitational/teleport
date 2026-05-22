@@ -42,8 +42,18 @@ import (
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
 )
 
+// Based on the default paths listed in
+// https://github.com/spiffe/spiffe-helper/blob/v0.7.0/README.md
+const (
+	svidPEMPath            = "svid.pem"
+	svidKeyPEMPath         = "svid_key.pem"
+	svidTrustBundlePEMPath = "svid_bundle.pem"
+	jwtSVIDPath            = "jwt_svid"
+)
+
 type workloadIdentityCommands struct {
 	issueX509 *issueX509Command
+	issueJWT  *issueJWTCommand
 }
 
 func newWorkloadIdentityCommands(
@@ -52,6 +62,7 @@ func newWorkloadIdentityCommands(
 	cmd := app.Command("workload-identity", "Issue Workload Identity credentials")
 	cmds := workloadIdentityCommands{
 		issueX509: newIssueX509Command(cmd),
+		issueJWT:  newIssueJWTCommand(cmd),
 	}
 	return cmds
 }
@@ -241,6 +252,137 @@ func (c *issueX509Command) run(cf *CLIConf) error {
 	})
 }
 
+type issueJWTCommand struct {
+	*kingpin.CmdClause
+	nameSelector    string
+	labelSelector   string
+	ttl             time.Duration
+	outputDirectory string
+	audiences       []string
+}
+
+func newIssueJWTCommand(parent *kingpin.CmdClause) *issueJWTCommand {
+	cmd := &issueJWTCommand{
+		CmdClause: parent.Command("issue-jwt", "Use Teleport Workload Identity to issue a JWT credential and write it to a local directory."),
+	}
+
+	cmd.Flag(
+		"name-selector",
+		"The name of the workload identity to issue.",
+	).StringVar(&cmd.nameSelector)
+	cmd.Flag(
+		"label-selector",
+		"A label-based selector for which workload identities to issue. Multiple labels can be provided using ','.",
+	).StringVar(&cmd.labelSelector)
+	cmd.Flag("credential-ttl", "Sets the time to live for the credential.").
+		Default("1h").
+		DurationVar(&cmd.ttl)
+	cmd.Flag("output", "Path to the directory to write the SVID into.").
+		Required().
+		StringVar(&cmd.outputDirectory)
+	cmd.Flag("audience", "The audience to include in the JWT. Can be specified multiple times.").
+		Required().
+		StringsVar(&cmd.audiences)
+
+	return cmd
+}
+
+func (c *issueJWTCommand) run(cf *CLIConf) error {
+	ctx := cf.Context
+
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	tc.AllowHeadless = true
+
+	selector := bot.WorkloadIdentitySelector{}
+	switch {
+	case c.nameSelector != "" && c.labelSelector != "":
+		return trace.BadParameter("cannot specify both name and label selectors")
+	case c.nameSelector != "":
+		selector.Name = c.nameSelector
+	case c.labelSelector != "":
+		labels, err := client.ParseLabelSpec(c.labelSelector)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		selector.Labels = map[string][]string{}
+		for k, v := range labels {
+			selector.Labels[k] = []string{v}
+		}
+	default:
+		return trace.BadParameter("name-selector or label-selector must be specified")
+	}
+
+	return client.RetryWithRelogin(ctx, tc, func() error {
+		clusterClient, err := tc.ConnectToCluster(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer clusterClient.Close()
+
+		credentials, err := workloadidentity.IssueJWTWorkloadIdentity(
+			ctx,
+			logger,
+			clusterClient.AuthClient,
+			selector,
+			c.audiences,
+			c.ttl,
+			nil,
+		)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		var jwtCredential *workloadidentityv1pb.Credential
+		switch len(credentials) {
+		case 0:
+			return trace.BadParameter("no JWT SVIDs returned")
+		case 1:
+			jwtCredential = credentials[0]
+		default:
+			// We could eventually implement some kind of hint selection mechanism
+			// to pick the "right" one.
+			received := make([]string, 0, len(credentials))
+			for _, cred := range credentials {
+				received = append(received,
+					fmt.Sprintf(
+						"%s:%s",
+						cred.WorkloadIdentityName,
+						cred.SpiffeId,
+					),
+				)
+			}
+			return trace.BadParameter(
+				"multiple JWT SVIDs received: %v", received,
+			)
+		}
+
+		// Create directory if it does not exist.
+		if err := os.MkdirAll(c.outputDirectory, teleport.PrivateDirMode); err != nil {
+			return trace.Wrap(err, "creating output directory")
+		}
+
+		jwtPath := filepath.Join(c.outputDirectory, jwtSVIDPath)
+		if err := os.WriteFile(
+			jwtPath,
+			[]byte(jwtCredential.GetJwtSvid().GetJwt()),
+			teleport.FileMaskOwnerOnly,
+		); err != nil {
+			return trace.Wrap(err)
+		}
+
+		fmt.Fprintf(
+			cf.Stdout(),
+			"SVID %q issued. File written to: \n - %s\n",
+			jwtCredential.SpiffeId,
+			jwtPath,
+		)
+
+		return nil
+	})
+}
+
 // svidCommands manages the SVID commands.
 // Deprecated and being replaced by workloadIdentityCommands
 type svidCommands struct {
@@ -256,12 +398,6 @@ func newSVIDCommands(app *kingpin.Application) svidCommands {
 }
 
 const (
-	// Based on the default paths listed in
-	// https://github.com/spiffe/spiffe-helper/blob/v0.7.0/README.md
-	svidPEMPath            = "svid.pem"
-	svidKeyPEMPath         = "svid_key.pem"
-	svidTrustBundlePEMPath = "svid_bundle.pem"
-
 	svidTypeX509 = "x509"
 )
 
