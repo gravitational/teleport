@@ -215,7 +215,10 @@ message UpsertProxyServerRequest {
 }
 
 // Response message for the PresenceService.UpsertProxyServer rpc.
-message UpsertProxyServerResponse {}
+message UpsertProxyServerResponse {
+  // Server is the upserted Proxy server.
+  types.ServerV2 server = 1;
+}
 
 // Request message for the PresenceService.DeleteProxyServer rpc.
 message DeleteProxyServerRequest {

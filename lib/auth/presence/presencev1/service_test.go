@@ -907,7 +907,8 @@ func TestDeleteProxyServer(t *testing.T) {
 
 	proxy, err := types.NewServer("proxy-1", types.KindProxy, types.ServerSpecV2{})
 	require.NoError(t, err)
-	require.NoError(t, srv.Auth().UpsertProxy(ctx, proxy))
+	_, err = srv.Auth().UpsertProxyServer(ctx, proxy)
+	require.NoError(t, err)
 
 	tests := []struct {
 		name                  string

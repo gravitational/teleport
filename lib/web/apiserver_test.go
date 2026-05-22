@@ -1378,7 +1378,7 @@ func TestUnifiedResourcesGet_AppComponentFeatures(t *testing.T) {
 	{
 		for srv := range clientutils.Resources(ctx, env.server.Auth().ListProxyServers) {
 			srv.SetComponentFeatures(componentfeatures.New(feature1))
-			err := env.server.Auth().UpsertProxy(ctx, srv)
+			_, err := env.server.Auth().UpsertProxyServer(ctx, srv)
 			require.NoError(t, err)
 		}
 	}

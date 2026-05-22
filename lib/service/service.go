@@ -5235,7 +5235,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			// reverse tunnel agents during rollouts, as otherwise they'll keep
 			// trying to reach proxies until the heartbeats expire.
 			if services.ShouldDeleteServerHeartbeatsOnShutdown(ctx) {
-				if err := conn.Client.DeleteProxy(ctx, conn.HostUUID()); err != nil {
+				if err := conn.Client.DeleteProxyServer(ctx, conn.HostUUID()); err != nil {
 					if !trace.IsNotFound(err) {
 						logger.WarnContext(ctx, "Failed to delete heartbeat", "error", err)
 					} else {

@@ -238,7 +238,7 @@ type upsertServerRawReq struct {
 // presenceForAPIServer is a subset of [services.Presence].
 type presenceForAPIServer interface {
 	UpsertNode(ctx context.Context, s types.Server) (*types.KeepAlive, error)
-	UpsertProxy(ctx context.Context, s types.Server) error
+	UpsertProxyServer(ctx context.Context, s types.Server) (types.Server, error)
 }
 
 // upsertServer is a common utility function
@@ -279,7 +279,7 @@ func (s *APIServer) upsertServer(auth presenceForAPIServer, role types.SystemRol
 		}
 		return handle, nil
 	case types.RoleProxy:
-		if err := auth.UpsertProxy(r.Context(), server); err != nil {
+		if _, err := auth.UpsertProxyServer(r.Context(), server); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	default:
@@ -315,7 +315,7 @@ func (s *APIServer) deleteProxy(auth *ServerWithRoles, w http.ResponseWriter, r 
 	if name == "" {
 		return nil, trace.BadParameter("missing proxy name")
 	}
-	err := auth.DeleteProxy(r.Context(), name)
+	err := auth.DeleteProxyServer(r.Context(), name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -50,8 +50,8 @@ type Backend interface {
 
 	DeleteRelayServer(ctx context.Context, name string) error
 
-	UpsertProxy(ctx context.Context, server types.Server) error
-	DeleteProxy(ctx context.Context, name string) error
+	UpsertProxyServer(ctx context.Context, server types.Server) (types.Server, error)
+	DeleteProxyServer(ctx context.Context, name string) error
 }
 
 type Cache interface {
@@ -508,10 +508,17 @@ func (s *Service) UpsertProxyServer(
 		req.Server.SetAddr(utils.ReplaceLocalhost(req.Server.GetAddr(), p.Addr.String()))
 	}
 
-	if err := s.backend.UpsertProxy(ctx, req.Server); err != nil {
+	upserted, err := s.backend.UpsertProxyServer(ctx, req.Server)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &presencepb.UpsertProxyServerResponse{}, nil
+	upsertedV2, ok := upserted.(*types.ServerV2)
+	if !ok {
+		return nil, trace.BadParameter("unsupported proxy server type %T", upserted)
+	}
+	return &presencepb.UpsertProxyServerResponse{
+		Server: upsertedV2,
+	}, nil
 }
 
 // DeleteProxyServer deletes a proxy server heartbeat by name.
@@ -530,7 +537,7 @@ func (s *Service) DeleteProxyServer(
 		return nil, trace.BadParameter("name: must be specified")
 	}
 
-	if err := s.backend.DeleteProxy(ctx, req.Name); err != nil {
+	if err := s.backend.DeleteProxyServer(ctx, req.Name); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &presencepb.DeleteProxyServerResponse{}, nil

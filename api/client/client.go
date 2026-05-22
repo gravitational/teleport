@@ -5943,16 +5943,20 @@ func (c *Client) DeleteProxyServer(ctx context.Context, name string) error {
 	return trace.Wrap(err)
 }
 
-// UpsertProxyServer registers a proxy server heartbeat.
-func (c *Client) UpsertProxyServer(ctx context.Context, s types.Server) error {
+// UpsertProxyServer registers a proxy server heartbeat and returns the
+// upserted proxy server.
+func (c *Client) UpsertProxyServer(ctx context.Context, s types.Server) (types.Server, error) {
 	serverV2, ok := s.(*types.ServerV2)
 	if !ok {
-		return trace.BadParameter("unsupported proxy server type %T", s)
+		return nil, trace.BadParameter("unsupported proxy server type %T", s)
 	}
-	_, err := c.PresenceServiceClient().UpsertProxyServer(ctx, &presencepb.UpsertProxyServerRequest{
+	resp, err := c.PresenceServiceClient().UpsertProxyServer(ctx, &presencepb.UpsertProxyServerRequest{
 		Server: serverV2,
 	})
-	return trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp.Server, nil
 }
 
 // UpsertReverseTunnel creates or updates reverse tunnel resource

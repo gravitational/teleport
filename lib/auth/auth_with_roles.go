@@ -2646,16 +2646,12 @@ func (a *ServerWithRoles) DeleteAuthServer(name string) error {
 	return a.authServer.DeleteAuthServer(name)
 }
 
-// UpsertProxy registers proxy server presence.
-//
-// Deprecated: Use PresenceService.UpsertProxyServer instead.
-//
-// TODO(noah): DELETE IN v20.0.0
-func (a *ServerWithRoles) UpsertProxy(ctx context.Context, s types.Server) error {
+// UpsertProxyServer registers proxy server presence.
+func (a *ServerWithRoles) UpsertProxyServer(ctx context.Context, s types.Server) (types.Server, error) {
 	if err := a.authorizeAction(types.KindProxy, types.VerbCreate, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return a.authServer.UpsertProxy(ctx, s)
+	return a.authServer.UpsertProxyServer(ctx, s)
 }
 
 // Deprecated: Prefer paginated variant [ListProxyServers].
@@ -2709,16 +2705,16 @@ func (a *ServerWithRoles) ListProxyServers(ctx context.Context, pageSize int, pa
 	return a.authServer.ListProxyServers(ctx, pageSize, pageToken)
 }
 
-// DeleteProxy deletes proxy by name
+// DeleteProxyServer deletes proxy by name
 //
 // Deprecated: Use PresenceService.DeleteProxyServer instead.
 //
 // TODO(noah): DELETE IN v20.0.0
-func (a *ServerWithRoles) DeleteProxy(ctx context.Context, name string) error {
+func (a *ServerWithRoles) DeleteProxyServer(ctx context.Context, name string) error {
 	if err := a.authorizeAction(types.KindProxy, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.DeleteProxy(ctx, name)
+	return a.authServer.DeleteProxyServer(ctx, name)
 }
 
 func (a *ServerWithRoles) DeleteToken(ctx context.Context, token string) error {

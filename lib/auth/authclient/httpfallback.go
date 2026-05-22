@@ -100,27 +100,30 @@ func (c *HTTPClient) GetAuthServers() ([]types.Server, error) {
 	return re, nil
 }
 
-// UpsertProxy registers a proxy server heartbeat. It calls the gRPC
-// PresenceService and falls back to the legacy HTTP endpoint if the server
-// does not yet implement the gRPC RPC.
+// UpsertProxyServerWithoutReturn registers a proxy server heartbeat. It calls
+// the gRPC PresenceService and falls back to the legacy HTTP endpoint if the
+// server does not yet implement the gRPC RPC. The upserted proxy server is not
+// returned because the HTTP fallback path cannot provide it; once the fallback
+// is removed in v20 this can be replaced with a method that returns the
+// upserted server.
 //
 // TODO(noah): DELETE IN v20.0.0
-func (c *Client) UpsertProxy(ctx context.Context, s types.Server) error {
-	err := c.APIClient.UpsertProxyServer(ctx, s)
+func (c *Client) UpsertProxyServerWithoutReturn(ctx context.Context, s types.Server) error {
+	_, err := c.APIClient.UpsertProxyServer(ctx, s)
 	if err == nil {
 		return nil
 	}
 	if !trace.IsNotImplemented(err) {
 		return trace.Wrap(err)
 	}
-	return c.HTTPClient.upsertProxyLegacy(ctx, s)
+	return c.HTTPClient.upsertProxyServerLegacy(ctx, s)
 }
 
-// upsertProxyLegacy registers a proxy server heartbeat via the legacy HTTP
-// endpoint.
+// upsertProxyServerLegacy registers a proxy server heartbeat via the legacy
+// HTTP endpoint.
 //
 // TODO(noah): DELETE IN v20.0.0
-func (c *HTTPClient) upsertProxyLegacy(ctx context.Context, s types.Server) error {
+func (c *HTTPClient) upsertProxyServerLegacy(ctx context.Context, s types.Server) error {
 	data, err := services.MarshalServer(s)
 	if err != nil {
 		return trace.Wrap(err)
@@ -132,12 +135,12 @@ func (c *HTTPClient) upsertProxyLegacy(ctx context.Context, s types.Server) erro
 	return trace.Wrap(err)
 }
 
-// DeleteProxy deletes a proxy server heartbeat by name. It calls the gRPC
-// PresenceService and falls back to the legacy HTTP endpoint if the server
-// does not yet implement the gRPC RPC.
+// DeleteProxyServer deletes a proxy server heartbeat by name. It calls the
+// gRPC PresenceService and falls back to the legacy HTTP endpoint if the
+// server does not yet implement the gRPC RPC.
 //
 // TODO(noah): DELETE IN v20.0.0
-func (c *Client) DeleteProxy(ctx context.Context, name string) error {
+func (c *Client) DeleteProxyServer(ctx context.Context, name string) error {
 	err := c.APIClient.DeleteProxyServer(ctx, name)
 	if err == nil {
 		return nil
@@ -145,13 +148,13 @@ func (c *Client) DeleteProxy(ctx context.Context, name string) error {
 	if !trace.IsNotImplemented(err) {
 		return trace.Wrap(err)
 	}
-	return c.HTTPClient.deleteProxyLegacy(ctx, name)
+	return c.HTTPClient.deleteProxyServerLegacy(ctx, name)
 }
 
-// deleteProxyLegacy deletes proxy by name via the legacy HTTP endpoint.
+// deleteProxyServerLegacy deletes proxy by name via the legacy HTTP endpoint.
 //
 // TODO(noah): DELETE IN v20.0.0
-func (c *HTTPClient) deleteProxyLegacy(ctx context.Context, name string) error {
+func (c *HTTPClient) deleteProxyServerLegacy(ctx context.Context, name string) error {
 	if name == "" {
 		return trace.BadParameter("missing parameter name")
 	}

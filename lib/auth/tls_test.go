@@ -1007,7 +1007,7 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = clt.UpsertProxy(ctx, proxyServer)
+	err = clt.UpsertProxyServerWithoutReturn(ctx, proxyServer)
 	require.NoError(t, err)
 
 	integrationName := "my-integration"
@@ -1681,7 +1681,7 @@ func TestServersCRUD(t *testing.T) {
 
 	proxy := NewServer(types.KindProxy, "proxy1", "127.0.0.1:2023", apidefaults.Namespace)
 	proxy.Spec.Hostname = "proxy.llama"
-	require.NoError(t, clt.UpsertProxy(ctx, proxy))
+	require.NoError(t, clt.UpsertProxyServerWithoutReturn(ctx, proxy))
 
 	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	out, err = clt.GetProxies()
@@ -1689,7 +1689,7 @@ func TestServersCRUD(t *testing.T) {
 	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff(out, []types.Server{proxy}, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-	err = clt.DeleteProxy(ctx, proxy.GetName())
+	err = clt.DeleteProxyServer(ctx, proxy.GetName())
 	require.NoError(t, err)
 
 	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
@@ -1757,7 +1757,7 @@ func TestDeleteProxy(t *testing.T) {
 
 	t.Run("direct gRPC RPC", func(t *testing.T) {
 		proxy := newProxy("proxy-grpc")
-		require.NoError(t, clt.UpsertProxy(ctx, proxy))
+		require.NoError(t, clt.UpsertProxyServerWithoutReturn(ctx, proxy))
 
 		require.NoError(t, clt.APIClient.DeleteProxyServer(ctx, proxy.GetName()))
 
@@ -1766,16 +1766,16 @@ func TestDeleteProxy(t *testing.T) {
 
 	t.Run("through fallback abstraction", func(t *testing.T) {
 		proxy := newProxy("proxy-through-fallback-grpc")
-		require.NoError(t, clt.UpsertProxy(ctx, proxy))
+		require.NoError(t, clt.UpsertProxyServerWithoutReturn(ctx, proxy))
 
-		require.NoError(t, clt.DeleteProxy(ctx, proxy.GetName()))
+		require.NoError(t, clt.DeleteProxyServer(ctx, proxy.GetName()))
 
 		require.NotContains(t, proxyNames(t), proxy.GetName())
 	})
 
 	t.Run("legacy HTTP endpoint", func(t *testing.T) {
 		proxy := newProxy("proxy-http")
-		require.NoError(t, clt.UpsertProxy(ctx, proxy))
+		require.NoError(t, clt.UpsertProxyServerWithoutReturn(ctx, proxy))
 
 		_, err := clt.HTTPClient.Delete(ctx, clt.HTTPClient.Endpoint("proxies", proxy.GetName()))
 		require.NoError(t, err)
@@ -1827,14 +1827,15 @@ func TestUpsertProxy(t *testing.T) {
 
 	t.Run("direct gRPC RPC", func(t *testing.T) {
 		proxy := newProxy("proxy-grpc")
-		require.NoError(t, clt.APIClient.UpsertProxyServer(ctx, proxy))
+		_, err := clt.APIClient.UpsertProxyServer(ctx, proxy)
+		require.NoError(t, err)
 
 		require.Contains(t, proxyNames(t), proxy.GetName())
 	})
 
 	t.Run("through fallback abstraction", func(t *testing.T) {
 		proxy := newProxy("proxy-through-fallback-grpc")
-		require.NoError(t, clt.UpsertProxy(ctx, proxy))
+		require.NoError(t, clt.UpsertProxyServerWithoutReturn(ctx, proxy))
 
 		require.Contains(t, proxyNames(t), proxy.GetName())
 	})
@@ -3410,7 +3411,7 @@ func TestGenerateAppToken(t *testing.T) {
 		PublicAddrs: []string{"https://teleport.example.com"},
 	})
 	require.NoError(t, err)
-	require.NoError(t, authClient.UpsertProxy(ctx, proxyServer))
+	require.NoError(t, authClient.UpsertProxyServerWithoutReturn(ctx, proxyServer))
 
 	tests := []struct {
 		inMachineRole   types.SystemRole
@@ -4911,7 +4912,7 @@ func TestEvents(t *testing.T) {
 					},
 				}
 
-				err := testSrv.Auth().UpsertProxy(ctx, srv)
+				_, err := testSrv.Auth().UpsertProxyServer(ctx, srv)
 				require.NoError(t, err)
 
 				//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
@@ -4919,7 +4920,7 @@ func TestEvents(t *testing.T) {
 				require.NoError(t, err)
 
 				for _, p := range out {
-					require.NoError(t, testSrv.Auth().DeleteProxy(ctx, p.GetName()))
+					require.NoError(t, testSrv.Auth().DeleteProxyServer(ctx, p.GetName()))
 				}
 
 				return out[0]
