@@ -363,37 +363,51 @@ func TestScopePinnedIdentityCannotReadUnscopedDiscoveryConfig(t *testing.T) {
 
 	localCtx := authorizerForScopePinnedDummyUser(t, ctx, localClient)
 
-	_, err = resourceSvc.GetDiscoveryConfig(localCtx, &discoveryconfigpb.GetDiscoveryConfigRequest{
-		Name: dcName,
+	t.Run("get", func(t *testing.T) {
+		_, err = resourceSvc.GetDiscoveryConfig(localCtx, &discoveryconfigpb.GetDiscoveryConfigRequest{
+			Name: dcName,
+		})
+		require.ErrorAs(t, err, new(*trace.AccessDeniedError))
 	})
-	require.ErrorAs(t, err, new(*trace.AccessDeniedError))
 
-	listResp, err := resourceSvc.ListDiscoveryConfigs(localCtx, &discoveryconfigpb.ListDiscoveryConfigsRequest{})
-	require.NoError(t, err)
-	require.Empty(t, listResp.GetDiscoveryConfigs())
-
-	_, err = resourceSvc.CreateDiscoveryConfig(localCtx, &discoveryconfigpb.CreateDiscoveryConfigRequest{
-		DiscoveryConfig: convert.ToProto(dc),
+	t.Run("list", func(t *testing.T) {
+		listResp, err := resourceSvc.ListDiscoveryConfigs(localCtx, &discoveryconfigpb.ListDiscoveryConfigsRequest{})
+		require.NoError(t, err)
+		require.Empty(t, listResp.GetDiscoveryConfigs())
 	})
-	require.ErrorAs(t, err, new(*trace.AccessDeniedError))
 
-	_, err = resourceSvc.UpdateDiscoveryConfig(localCtx, &discoveryconfigpb.UpdateDiscoveryConfigRequest{
-		DiscoveryConfig: convert.ToProto(dc),
+	t.Run("create", func(t *testing.T) {
+		_, err = resourceSvc.CreateDiscoveryConfig(localCtx, &discoveryconfigpb.CreateDiscoveryConfigRequest{
+			DiscoveryConfig: convert.ToProto(dc),
+		})
+		require.ErrorAs(t, err, new(*trace.AccessDeniedError))
 	})
-	require.ErrorAs(t, err, new(*trace.AccessDeniedError))
 
-	_, err = resourceSvc.UpsertDiscoveryConfig(localCtx, &discoveryconfigpb.UpsertDiscoveryConfigRequest{
-		DiscoveryConfig: convert.ToProto(dc),
+	t.Run("update", func(t *testing.T) {
+		_, err = resourceSvc.UpdateDiscoveryConfig(localCtx, &discoveryconfigpb.UpdateDiscoveryConfigRequest{
+			DiscoveryConfig: convert.ToProto(dc),
+		})
+		require.ErrorAs(t, err, new(*trace.AccessDeniedError))
 	})
-	require.ErrorAs(t, err, new(*trace.AccessDeniedError))
 
-	_, err = resourceSvc.DeleteDiscoveryConfig(localCtx, &discoveryconfigpb.DeleteDiscoveryConfigRequest{
-		Name: dcName,
+	t.Run("upsert", func(t *testing.T) {
+		_, err = resourceSvc.UpsertDiscoveryConfig(localCtx, &discoveryconfigpb.UpsertDiscoveryConfigRequest{
+			DiscoveryConfig: convert.ToProto(dc),
+		})
+		require.ErrorAs(t, err, new(*trace.AccessDeniedError))
 	})
-	require.ErrorAs(t, err, new(*trace.AccessDeniedError))
 
-	_, err = resourceSvc.DeleteAllDiscoveryConfigs(localCtx, &discoveryconfigpb.DeleteAllDiscoveryConfigsRequest{})
-	require.ErrorAs(t, err, new(*trace.AccessDeniedError))
+	t.Run("delete", func(t *testing.T) {
+		_, err = resourceSvc.DeleteDiscoveryConfig(localCtx, &discoveryconfigpb.DeleteDiscoveryConfigRequest{
+			Name: dcName,
+		})
+		require.ErrorAs(t, err, new(*trace.AccessDeniedError))
+	})
+
+	t.Run("deleteall", func(t *testing.T) {
+		_, err = resourceSvc.DeleteAllDiscoveryConfigs(localCtx, &discoveryconfigpb.DeleteAllDiscoveryConfigsRequest{})
+		require.ErrorAs(t, err, new(*trace.AccessDeniedError))
+	})
 }
 
 func TestUpdateDiscoveryConfigStatus(t *testing.T) {
