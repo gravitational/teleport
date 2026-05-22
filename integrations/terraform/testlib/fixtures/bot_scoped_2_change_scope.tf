@@ -39,8 +39,8 @@ resource "teleport_bot" "test_scoped" {
   metadata = {
     name = local.bot_name_scoped
     labels = {
-      "teleport.dev/origin": "dynamic"
-      env: "production"
+      "teleport.dev/origin" : "dynamic"
+      env : "production"
     }
   }
 
