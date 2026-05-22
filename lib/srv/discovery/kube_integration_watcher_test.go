@@ -138,6 +138,7 @@ func TestServer_getKubeFetchers(t *testing.T) {
 }
 
 func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
+	t.Log("Trigger")
 	const (
 		mainDiscoveryGroup = "main"
 		awsAccountID       = "880713328506"

@@ -259,6 +259,7 @@ func (m *mockSSMInstaller) GetInstalledInstances() []string {
 }
 
 func TestDiscoveryServer(t *testing.T) {
+	t.Log("Trigger")
 	t.Parallel()
 
 	defaultDiscoveryGroup := "dc001"
@@ -2348,6 +2349,7 @@ type UserTaskLister interface {
 }
 
 func TestDiscoveryDatabase(t *testing.T) {
+	t.Log("Trigger")
 	const (
 		mainDiscoveryGroup  = "main"
 		integrationName     = "my-integration"
@@ -3233,6 +3235,7 @@ func (m *mockAzureClient) ListVirtualMachines(_ context.Context, _ string) ([]*a
 }
 
 func TestAzureVMDiscovery(t *testing.T) {
+	t.Log("Trigger")
 	t.Parallel()
 
 	const defaultDiscoveryGroup = "dc001"
