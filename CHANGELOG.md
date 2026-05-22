@@ -2,7 +2,7 @@
 
 ## 18.8.2 (05/21/26)
 
-* Fixed tsh aws, tsh gcp, tsh azure, and tsh proxy app failing from certificate errors. [#66962](https://github.com/gravitational/teleport/pull/66962)
+* Fixed `tsh aws`, `tsh gcp`, `tsh azure`, and `tsh proxy app` failing with certificate errors. [#66962](https://github.com/gravitational/teleport/pull/66962)
 * Fixed a regression introduced in v18.7.6 affecting connectivity to resources via approved just-in-time resource access requests when the cluster is running agents older than v18.7.6. [#66933](https://github.com/gravitational/teleport/pull/66933)
 * Teleport Connect now remembers recently used clusters after logout. [#66781](https://github.com/gravitational/teleport/pull/66781)
 * Fixed an issue where Windows desktop LDAP discovery could conflict with dynamic registration causing desktops to be removed from the cluster. [#66743](https://github.com/gravitational/teleport/pull/66743)
