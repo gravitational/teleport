@@ -486,6 +486,19 @@ func (s *Service) DeleteRelayServer(ctx context.Context, req *presencepb.DeleteR
 func (s *Service) UpsertProxyServer(
 	ctx context.Context, req *presencepb.UpsertProxyServerRequest,
 ) (*presencepb.UpsertProxyServerResponse, error) {
+	srv := req.GetServer()
+	if srv == nil {
+		return nil, trace.BadParameter("server: must be specified")
+	}
+	// nb(noah): This forced overwrite of kind is load-bearing. You will be
+	// surprised to learn that in its current state the Proxy heartbeater will
+	// upsert the Server with Kind=Node.
+	// See https://github.com/gravitational/teleport/issues/66997
+	srv.Kind = types.KindProxy
+	if err := srv.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -494,21 +507,13 @@ func (s *Service) UpsertProxyServer(
 		return nil, trace.Wrap(err)
 	}
 
-	if req.Server == nil {
-		return nil, trace.BadParameter("server: must be specified")
-	}
-	req.Server.Kind = types.KindProxy
-	if err := req.Server.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	// If the proxy advertised a local/unspecified address, replace the host
 	// component with the peer address observed on the socket.
 	if p, ok := peer.FromContext(ctx); ok {
-		req.Server.SetAddr(utils.ReplaceLocalhost(req.Server.GetAddr(), p.Addr.String()))
+		srv.SetAddr(utils.ReplaceLocalhost(srv.GetAddr(), p.Addr.String()))
 	}
 
-	upserted, err := s.backend.UpsertProxyServer(ctx, req.Server)
+	upserted, err := s.backend.UpsertProxyServer(ctx, srv)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -537,7 +542,7 @@ func (s *Service) DeleteProxyServer(
 		return nil, trace.BadParameter("name: must be specified")
 	}
 
-	if err := s.backend.DeleteProxyServer(ctx, req.Name); err != nil {
+	if err := s.backend.DeleteProxyServer(ctx, req.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &presencepb.DeleteProxyServerResponse{}, nil
