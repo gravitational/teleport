@@ -2020,6 +2020,11 @@ func TestGOAWAYHandling_Concurrent(t *testing.T) {
 type goawayServer struct {
 	listener  net.Listener
 	tlsConfig *tls.Config
+
+	mu     sync.Mutex
+	closed bool
+	conns  []net.Conn
+	wg     sync.WaitGroup
 }
 
 // URL returns the address clients should use to connect to the server.
@@ -2041,15 +2046,31 @@ func (g *goawayServer) Serve() error {
 			return err
 		}
 
-		if err := g.handleConn(conn); err != nil {
-			return err
+		g.mu.Lock()
+		if g.closed {
+			g.mu.Unlock()
+			_ = conn.Close()
+			continue
 		}
+		g.conns = append(g.conns, conn)
+		g.wg.Go(func() { _ = g.handleConn(conn) })
+		g.mu.Unlock()
 	}
 }
 
-// Close terminates the server and unblocks any calls to [Serve].
+// Close terminates the server and unblocks any calls to [Serve], then
+// closes all in-flight connections and waits for their handler goroutines
+// to exit.
 func (g *goawayServer) Close() error {
-	return g.listener.Close()
+	err := g.listener.Close()
+	g.mu.Lock()
+	g.closed = true
+	for _, c := range g.conns {
+		_ = c.Close()
+	}
+	g.mu.Unlock()
+	g.wg.Wait()
+	return err
 }
 
 // handleConn performs the initial HTTP/2 message exchange and then
