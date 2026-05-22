@@ -26,10 +26,10 @@ import (
 	"net/netip"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/sync/errgroup"
 
 	diagv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/diag/v1"
 	vnetdns "github.com/gravitational/teleport/lib/vnet/dns"
@@ -40,7 +40,6 @@ const (
 	defaultNotRegisteredRetryDelay = 500 * time.Millisecond
 	defaultReachabilityMaxAttempts = 3
 	defaultReachabilityRetryDelay  = 500 * time.Millisecond
-	probeRandomBytes               = 8
 	// reachabilityProbeZone is the TLD used to build the reachability probe FQDN.
 	// VNet's probe handler matches on the "vnet-diag-" prefix only, so the zone
 	// is purely DNS-message filler. ".test" is RFC 2606 reserved.
@@ -57,11 +56,11 @@ type DNSConfig struct {
 	VNetDNSServer netip.AddrPort
 	// Resolver does name resolution through the OS resolver.
 	Resolver Resolver
-	// DirectQuerier sends DNS queries directly to a specific nameserver,bypassing the OS resolver.
+	// DirectQuerier sends DNS queries directly to a specific nameserver, bypassing the OS resolver.
 	DirectQuerier DirectQuerier
 	// QueryTimeout caps the duration of an individual DNS query.
 	QueryTimeout time.Duration
-	// NotRegisteredRetryDelay delays the retry of a per-zone query that returned NOT_REGISTERED .
+	// NotRegisteredRetryDelay delays the retry of a per-zone query that returned NOT_REGISTERED.
 	NotRegisteredRetryDelay time.Duration
 	// ReachabilityMaxAttempts caps reachability-check retries before reporting
 	// VNet's DNS as unreachable.
@@ -203,15 +202,13 @@ func (d *DNSDiag) queryReachabilityOnce(ctx context.Context) (netip.Addr, error)
 // resolver in parallel and returns a per-zone result.
 func (d *DNSDiag) runPerZoneCheck(ctx context.Context, expectedIP netip.Addr) []*diagv1.DNSZoneResult {
 	results := make([]*diagv1.DNSZoneResult, len(d.cfg.DNSZones))
-	var g errgroup.Group
+	var wg sync.WaitGroup
 	for i, zone := range d.cfg.DNSZones {
-		i, zone := i, zone
-		g.Go(func() error {
+		wg.Go(func() {
 			results[i] = d.queryZone(ctx, zone, expectedIP)
-			return nil
 		})
 	}
-	_ = g.Wait()
+	wg.Wait()
 	return results
 }
 
@@ -276,8 +273,8 @@ func classifyDNSResult(addrs []netip.Addr, err error, expectedIP netip.Addr) (di
 	if len(addrs) == 1 && addrs[0] == expectedIP {
 		return diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, addrs[0], ""
 	}
-	// HIJACKED: surface the IPv6 if present — VNet answers AAAA only, so a
-	// non-VNet IPv6 is the most direct evidence of interception.
+	// HIJACKED: surface the IPv6 if present, probes get AAAA only from VNet
+	// so a non-VNet IPv6 is the most direct evidence of interception.
 	//
 	// TODO(tangyatsu): proto carries a single observed_ip today. Consider
 	// widening to a repeated field so the UI can show multiple addresses for
@@ -295,6 +292,7 @@ func classifyDNSResult(addrs []netip.Addr, err error, expectedIP netip.Addr) (di
 //
 //	vnet-diag-<hex>.<zone>.
 func probeFQDN(zone string) string {
+	const probeRandomBytes = 8
 	var b [probeRandomBytes]byte
 	if _, err := rand.Read(b[:]); err != nil {
 		// crypto/rand should never fail; if it does, return a deterministic

@@ -297,12 +297,12 @@ export function DocumentVnetDiagReport(props: StoryProps) {
       dnsReport.zoneResults = [
         makeDNSZoneResult({ zone: 'company.test' }),
         makeDNSZoneResult({
-          zone: 'leaf.mirrors.link',
+          zone: 'hijacked.zone.test',
           status: DNSZoneStatus.DNS_ZONE_STATUS_HIJACKED,
           observedIp: '100.64.0.123',
         }),
         makeDNSZoneResult({
-          zone: 'cluster.mirrors.link',
+          zone: 'not-registered.zone.test',
           status: DNSZoneStatus.DNS_ZONE_STATUS_NOT_REGISTERED,
           observedIp: '',
         }),
@@ -316,6 +316,12 @@ export function DocumentVnetDiagReport(props: StoryProps) {
       dnsCheckAttempt.checkReport.status = CheckReportStatus.ISSUES_FOUND;
       break;
   }
+  dnsCheckAttempt.commands.push({
+    status: CommandAttemptStatus.OK,
+    error: '',
+    command: 'scutil --dns',
+    output: scutilOutput,
+  });
   report.checks.push(dnsCheckAttempt);
 
   if (props.displayUnsupportedCheckAttempt) {
@@ -368,6 +374,48 @@ export function DocumentVnetDiagReport(props: StoryProps) {
 
   return <Component visible doc={doc} />;
 }
+
+const scutilOutput = `DNS configuration
+
+resolver #1
+  nameserver[0] : 1.1.1.1
+  nameserver[1] : 192.168.1.1
+  if_index : 14 (en0)
+  flags    : Request A records
+  reach    : 0x00000002 (Reachable)
+  order    : 200000
+
+resolver #2
+  domain   : local
+  options  : mdns
+  timeout  : 5
+  flags    : Request A records
+  reach    : 0x00000000 (Not Reachable)
+  order    : 300000
+
+resolver #3
+  domain   : company.test
+  nameserver[0] : fdff:fd74:46c0::2
+  nameserver[1] : 100.64.0.2
+  flags    : Request A records
+  reach    : 0x00000002 (Reachable)
+
+resolver #4
+  domain   : other.test
+  nameserver[0] : fdff:fd74:46c0::2
+  nameserver[1] : 100.64.0.2
+  flags    : Request A records
+  reach    : 0x00000002 (Reachable)
+
+DNS configuration (for scoped queries)
+
+resolver #1
+  nameserver[0] : 1.1.1.1
+  nameserver[1] : 192.168.1.1
+  if_index : 14 (en0)
+  flags    : Scoped, Request A records
+  reach    : 0x00000002 (Reachable)
+`;
 
 const netstatOutput = `Routing tables
 

@@ -492,7 +492,10 @@ function CheckReportDNS({
         <P1>
           <Warning /> VNet's DNS server is unreachable.
         </P1>
-        <P2 m={0}>VNet's DNS is not responding. Try restarting VNet.</P2>
+        <P2 m={0}>
+          This might be caused by network routes set up by another program that
+          capture traffic meant for VNet.
+        </P2>
         {vnetDnsUnreachableError ? <Pre>{vnetDnsUnreachableError}</Pre> : null}
       </Stack>
     );
@@ -521,7 +524,7 @@ function CheckReportDNS({
       </P1>
       <P2 m={0}>
         VNet's DNS server is reachable, but the OS resolver is not sending
-        queries for the zones below to VNet.
+        queries for the zones below to&nbsp VNet.
       </P2>
       <Table
         emptyText=""

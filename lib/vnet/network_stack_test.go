@@ -17,7 +17,6 @@
 package vnet
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -40,7 +39,7 @@ func TestResolveADiagProbe(t *testing.T) {
 
 	const probeFQDN = "vnet-diag-abcdef.company.test."
 
-	result, err := ns.ResolveA(context.Background(), probeFQDN)
+	result, err := ns.ResolveA(t.Context(), probeFQDN)
 	require.NoError(t, err)
 	require.True(t, result.NoRecord, "A query for probe must return NoRecord (NODATA)")
 	require.Equal(t, [4]byte{}, result.A, "probe A query must not return any address")
@@ -57,7 +56,7 @@ func TestResolveAAAADiagProbe(t *testing.T) {
 
 	const probeFQDN = "vnet-diag-abcdef.company.test."
 
-	result, err := ns.ResolveAAAA(context.Background(), probeFQDN)
+	result, err := ns.ResolveAAAA(t.Context(), probeFQDN)
 	require.NoError(t, err)
 	require.Equal(t, testProbeIPv6, result.AAAA, "AAAA query for probe must return diagProbeIPv6")
 	require.Equal(t, [4]byte{}, result.A, "AAAA result must not include an A record")
@@ -77,7 +76,7 @@ func TestResolveAAAADiagProbeCaseInsensitive(t *testing.T) {
 		"Vnet-Diag-abc.company.test.",
 		"vNeT-dIaG-abc.company.test.",
 	} {
-		result, err := ns.ResolveAAAA(context.Background(), fqdn)
+		result, err := ns.ResolveAAAA(t.Context(), fqdn)
 		require.NoError(t, err, fqdn)
 		require.Equal(t, testProbeIPv6, result.AAAA, fqdn)
 	}

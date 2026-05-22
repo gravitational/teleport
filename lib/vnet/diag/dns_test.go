@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	diagv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/diag/v1"
@@ -107,7 +108,7 @@ func TestDNSDiagReachabilityFailureSkipsPerZone(t *testing.T) {
 		},
 	})
 
-	report, err := d.Run(context.Background())
+	report, err := d.Run(t.Context())
 	require.NoError(t, err)
 	require.Equal(t, diagv1.CheckReportStatus_CHECK_REPORT_STATUS_ISSUES_FOUND, report.Status)
 	dnsReport := report.GetDnsReport()
@@ -132,7 +133,7 @@ func TestDNSDiagAllZonesOK(t *testing.T) {
 		},
 	})
 
-	report, err := d.Run(context.Background())
+	report, err := d.Run(t.Context())
 	require.NoError(t, err)
 	require.Equal(t, diagv1.CheckReportStatus_CHECK_REPORT_STATUS_OK, report.Status)
 	dnsReport := report.GetDnsReport()
@@ -189,7 +190,7 @@ func TestDNSDiagPerZoneClassification(t *testing.T) {
 		},
 	})
 
-	report, err := d.Run(context.Background())
+	report, err := d.Run(t.Context())
 	require.NoError(t, err)
 	require.Equal(t, diagv1.CheckReportStatus_CHECK_REPORT_STATUS_ISSUES_FOUND, report.Status)
 
@@ -198,31 +199,31 @@ func TestDNSDiagPerZoneClassification(t *testing.T) {
 		byZone[zr.Zone] = zr
 	}
 
-	require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, byZone["ok.test"].Status)
-	require.Equal(t, testExpectedIP.String(), byZone["ok.test"].ObservedIp)
+	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, byZone["ok.test"].Status)
+	assert.Equal(t, testExpectedIP.String(), byZone["ok.test"].ObservedIp)
 
-	require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_HIJACKED, byZone["hijacked.test"].Status)
-	require.Equal(t, testOtherIP.String(), byZone["hijacked.test"].ObservedIp)
+	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_HIJACKED, byZone["hijacked.test"].Status)
+	assert.Equal(t, testOtherIP.String(), byZone["hijacked.test"].ObservedIp)
 
-	require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_HIJACKED, byZone["hijacked-ipv4-only.test"].Status)
-	require.Equal(t, testIPv4Hijack.String(), byZone["hijacked-ipv4-only.test"].ObservedIp,
+	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_HIJACKED, byZone["hijacked-ipv4-only.test"].Status)
+	assert.Equal(t, testIPv4Hijack.String(), byZone["hijacked-ipv4-only.test"].ObservedIp,
 		"IPv4-only hijack must surface the IPv4 as observed evidence")
 
-	require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_HIJACKED, byZone["hijacked-extra-addr.test"].Status,
+	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_HIJACKED, byZone["hijacked-extra-addr.test"].Status,
 		"probe present but with extra addresses must classify as HIJACKED — VNet only ever returns one")
 
-	require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_HIJACKED, byZone["hijacked-mixed.test"].Status)
-	require.Equal(t, testOtherIP.String(), byZone["hijacked-mixed.test"].ObservedIp,
+	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_HIJACKED, byZone["hijacked-mixed.test"].Status)
+	assert.Equal(t, testOtherIP.String(), byZone["hijacked-mixed.test"].ObservedIp,
 		"with both IPv4 and IPv6 in a HIJACKED response, the IPv6 must be surfaced as it is the more direct evidence")
 
-	require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_NOT_REGISTERED, byZone["missing.test"].Status)
-	require.Empty(t, byZone["missing.test"].ObservedIp)
+	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_NOT_REGISTERED, byZone["missing.test"].Status)
+	assert.Empty(t, byZone["missing.test"].ObservedIp)
 
-	require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_TIMEOUT, byZone["slow.test"].Status)
-	require.NotEmpty(t, byZone["slow.test"].Error)
+	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_TIMEOUT, byZone["slow.test"].Status)
+	assert.NotEmpty(t, byZone["slow.test"].Error)
 
-	require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_RESOLVER_ERROR, byZone["borked.test"].Status)
-	require.Contains(t, byZone["borked.test"].Error, "SERVFAIL")
+	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_RESOLVER_ERROR, byZone["borked.test"].Status)
+	assert.Contains(t, byZone["borked.test"].Error, "SERVFAIL")
 }
 
 func TestDNSDiagEmptyZonesOnlyReachability(t *testing.T) {
@@ -240,7 +241,7 @@ func TestDNSDiagEmptyZonesOnlyReachability(t *testing.T) {
 		},
 	})
 
-	report, err := d.Run(context.Background())
+	report, err := d.Run(t.Context())
 	require.NoError(t, err)
 	require.Equal(t, diagv1.CheckReportStatus_CHECK_REPORT_STATUS_OK, report.Status)
 	require.True(t, report.GetDnsReport().VnetDnsReachable)
@@ -265,7 +266,7 @@ func TestDNSDiagReachabilityNoAnswer(t *testing.T) {
 		},
 	})
 
-	report, err := d.Run(context.Background())
+	report, err := d.Run(t.Context())
 	require.NoError(t, err)
 	require.Equal(t, diagv1.CheckReportStatus_CHECK_REPORT_STATUS_ISSUES_FOUND, report.Status)
 	require.False(t, report.GetDnsReport().VnetDnsReachable)
@@ -318,7 +319,7 @@ func TestDNSDiagNotRegisteredRetryRecovers(t *testing.T) {
 		},
 	})
 
-	report, err := d.Run(context.Background())
+	report, err := d.Run(t.Context())
 	require.NoError(t, err)
 	require.Equal(t, diagv1.CheckReportStatus_CHECK_REPORT_STATUS_OK, report.Status,
 		"transient NOT_REGISTERED followed by OK on retry must result in overall OK")
@@ -348,7 +349,7 @@ func TestDNSDiagNotRegisteredRetryPersistentFailure(t *testing.T) {
 		},
 	})
 
-	report, err := d.Run(context.Background())
+	report, err := d.Run(t.Context())
 	require.NoError(t, err)
 	zr := report.GetDnsReport().ZoneResults[0]
 	require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_NOT_REGISTERED, zr.Status,
@@ -375,7 +376,7 @@ func TestDNSDiagReachabilityRetryRecoversFromStartupGap(t *testing.T) {
 		},
 	})
 
-	report, err := d.Run(context.Background())
+	report, err := d.Run(t.Context())
 	require.NoError(t, err)
 	require.True(t, report.GetDnsReport().VnetDnsReachable,
 		"reachability check must succeed on the third attempt once VNet's DNS comes up")
@@ -400,7 +401,7 @@ func TestDNSDiagReachabilityRetryPersistentFailure(t *testing.T) {
 		},
 	})
 
-	report, err := d.Run(context.Background())
+	report, err := d.Run(t.Context())
 	require.NoError(t, err)
 	dnsReport := report.GetDnsReport()
 	require.False(t, dnsReport.VnetDnsReachable)
@@ -444,7 +445,7 @@ func TestDNSDiagNotRegisteredRetryOnlyForNotRegistered(t *testing.T) {
 					},
 				},
 			})
-			_, err := d.Run(context.Background())
+			_, err := d.Run(t.Context())
 			require.NoError(t, err)
 			require.Equal(t, int32(1), calls.Load(), "%s must not trigger a retry", tc.name)
 		})

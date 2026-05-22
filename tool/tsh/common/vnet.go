@@ -166,7 +166,6 @@ func printDNSReport(r *diagv1.DNSReport) {
 		fmt.Printf("VNet DNS is unreachable: %s\n", r.VnetDnsUnreachableError)
 		return
 	}
-	// TODO(tangyatsu): make prettier
 	for _, zr := range r.ZoneResults {
 		switch zr.Status {
 		case diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK:
