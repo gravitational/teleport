@@ -1954,6 +1954,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = svidCmd.issue.run(&cf)
 	case workloadIdentityCmd.issueX509.FullCommand():
 		err = workloadIdentityCmd.issueX509.run(&cf)
+	case workloadIdentityCmd.issueJWT.FullCommand():
+		err = workloadIdentityCmd.issueJWT.run(&cf)
 	case vnetCommand.FullCommand():
 		err = vnetCommand.run(&cf)
 	case vnetSSHAutoConfigCommand.FullCommand():
