@@ -18,21 +18,34 @@
 
 import { useCallback } from 'react';
 
-import { Cluster } from 'teleterm/services/tshd/types';
+import { Cluster } from 'gen-proto-ts/teleport/lib/teleterm/v1/cluster_pb';
+import { getErrorMessage } from 'shared/utils/error';
+
 import { useAppContext } from 'teleterm/ui/appContextProvider';
-import {
-  useWorkspaceServiceState,
-  WorkspaceColor,
-} from 'teleterm/ui/services/workspacesService';
+import { useStoreSelector } from 'teleterm/ui/hooks/useStoreSelector';
+import { WorkspaceColor } from 'teleterm/ui/services/workspacesService';
+import { Workspace } from 'teleterm/ui/services/workspacesService';
 import { RootClusterUri } from 'teleterm/ui/uri';
 
 export function useIdentity() {
   const ctx = useAppContext();
 
-  ctx.clustersService.useState();
-  useWorkspaceServiceState();
+  const workspaces = useStoreSelector(
+    'workspacesService',
+    useCallback(state => state.workspaces, [])
+  );
+  const clusters = useStoreSelector(
+    'clustersService',
+    useCallback(state => state.clusters, [])
+  );
+  const activeClusterUri = useStoreSelector(
+    'workspacesService',
+    useCallback(state => state.rootClusterUri, [])
+  );
+  const activeWorkspaceCluster =
+    activeClusterUri && clusters.get(activeClusterUri);
 
-  async function changeRootCluster(clusterUri: RootClusterUri): Promise<void> {
+  async function changeWorkspace(clusterUri: RootClusterUri): Promise<void> {
     await ctx.workspacesService.setActiveWorkspace(clusterUri);
   }
 
@@ -48,9 +61,15 @@ export function useIdentity() {
     ctx.commandLauncher.executeCommand('cluster-logout', { clusterUri });
   }
 
-  const activeClusterUri = ctx.workspacesService.getRootClusterUri();
-  function getActiveRootCluster(): Cluster | undefined {
-    return ctx.clustersService.findCluster(activeClusterUri);
+  async function forget(clusterUri: RootClusterUri): Promise<void> {
+    try {
+      await ctx.mainProcessClient.forgetCluster(clusterUri);
+    } catch (err) {
+      ctx.notificationsService.notifyError({
+        title: 'Failed to forget cluster',
+        description: getErrorMessage(err),
+      });
+    }
   }
 
   function changeColor(color: WorkspaceColor): undefined {
@@ -61,18 +80,28 @@ export function useIdentity() {
     ctx.workspacesService.changeWorkspaceColor(clusterUri, color);
   }
 
-  const rootClusters = ctx.clustersService
-    .getClusters()
-    .filter(c => !c.leaf)
-    .filter(c => c.uri !== activeClusterUri);
+  const otherWorkspaces: IdentityItem[] = Object.entries(workspaces)
+    .filter(([uri]) => uri !== activeClusterUri)
+    .map(([uri, workspace]) => ({
+      uri,
+      workspace: workspace,
+      cluster: clusters.get(uri),
+    }));
 
   return {
-    changeRootCluster,
+    changeWorkspace,
     addCluster,
     refreshCluster,
     logout,
+    forget,
     changeColor,
-    activeRootCluster: getActiveRootCluster(),
-    rootClusters,
+    activeWorkspaceCluster,
+    otherWorkspaces,
   };
+}
+
+export interface IdentityItem {
+  uri: RootClusterUri;
+  workspace: Workspace;
+  cluster: Cluster | undefined;
 }

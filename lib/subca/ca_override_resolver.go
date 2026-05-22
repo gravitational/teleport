@@ -51,14 +51,15 @@ type CAOverrideResolver struct {
 // caGetter a CA override source, likely a cached services.SubCAServiceGetter
 // implementation.
 //
-// Production callers should use [Enabled] as the featureEnabled value.
-func NewCAOverrideResolver(caGetter CAOverrideGetter, featureEnabled bool) (*CAOverrideResolver, error) {
+// Production callers should use `modules.Modules.IsEnterpriseBuild()` and
+// [Enabled] as the boolean values, respectively.
+func NewCAOverrideResolver(caGetter CAOverrideGetter, isEnterpriseBuild, featureEnabled bool) (*CAOverrideResolver, error) {
 	if caGetter == nil {
 		return nil, trace.BadParameter("nil caGetter")
 	}
 	return &CAOverrideResolver{
 		caGetter:       caGetter,
-		featureEnabled: featureEnabled,
+		featureEnabled: isEnterpriseBuild && featureEnabled,
 	}, nil
 }
 
@@ -75,6 +76,7 @@ type CalculateOverrideResult struct {
 	// on the value of OverrideActive.
 	CACertificate Certificate
 	// CAChain is the certificate override trust chain, sorted leaf-to-root.
+	// Includes the override CA certificate if active.
 	CAChain []Certificate
 }
 
@@ -154,14 +156,14 @@ func calculateOverrides(
 			continue
 		}
 
-		var chain []Certificate
-		if len(co.CertificateOverride.Chain) > 0 {
-			chain = make([]Certificate, len(co.CertificateOverride.Chain))
-			for i, pem := range co.CertificateOverride.Chain {
-				chain[i] = Certificate{
-					PEM: []byte(pem),
-				}
-			}
+		chain := make([]Certificate, 0, len(co.CertificateOverride.Chain)+1)
+		chain = append(chain, Certificate{
+			PEM: []byte(co.CertificateOverride.Certificate),
+		})
+		for _, pem := range co.CertificateOverride.Chain {
+			chain = append(chain, Certificate{
+				PEM: []byte(pem),
+			})
 		}
 
 		*res = CalculateOverrideResult{

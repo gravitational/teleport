@@ -609,7 +609,7 @@ func (h *AuthHandlers) PublicKeyCallback(conn ssh.ConnMetadata, key ssh.PublicKe
 	case teleport.ComponentForwardingGit:
 		gitForwardingPermit, err = h.evaluateGitForwarding(ident, ca, clusterName.GetClusterName(), h.c.TargetServer)
 	case teleport.ComponentProxy:
-		proxyPermit, err = h.evaluateProxying(ident, ca, clusterName.GetClusterName())
+		proxyPermit, err = h.evaluateProxying(ident, ca, clusterName.GetClusterName(), h.c.TargetServer, conn.User())
 	case teleport.ComponentForwardingNode:
 		diagnosticTracing = true
 		if h.c.TargetServer != nil && h.c.TargetServer.IsOpenSSHNode() {
@@ -618,7 +618,7 @@ func (h *AuthHandlers) PublicKeyCallback(conn ssh.ConnMetadata, key ssh.PublicKe
 				accessPermit, err = h.evaluateScopedSSHAccess(ident, ca, clusterName.GetClusterName(), h.c.TargetServer, conn.User())
 			}
 		} else {
-			proxyPermit, err = h.evaluateProxying(ident, ca, clusterName.GetClusterName())
+			proxyPermit, err = h.evaluateProxying(ident, ca, clusterName.GetClusterName(), h.c.TargetServer, conn.User())
 		}
 	case teleport.ComponentNode:
 		diagnosticTracing = true
@@ -948,7 +948,7 @@ type scopedLoginChecker interface {
 type proxyingChecker interface {
 	// evaluateProxying evaluates the capabilities/constraints related to a user's
 	// attempt to access proxy forwarding.
-	evaluateProxying(ident *sshca.Identity, ca types.CertAuthority, clusterName string) (*proxyingPermit, error)
+	evaluateProxying(ident *sshca.Identity, ca types.CertAuthority, clusterName string, target types.Server, osUser string) (*proxyingPermit, error)
 }
 
 type gitForwardingChecker interface {
@@ -975,7 +975,7 @@ type proxyingPermit struct {
 	PinSourceIP           bool
 }
 
-func (a *ahLoginChecker) evaluateProxying(ident *sshca.Identity, ca types.CertAuthority, clusterName string) (*proxyingPermit, error) {
+func (a *ahLoginChecker) evaluateProxying(ident *sshca.Identity, ca types.CertAuthority, clusterName string, target types.Server, osUser string) (*proxyingPermit, error) {
 	// Use the server's shutdown context.
 	ctx := a.c.Server.Context()
 
@@ -986,9 +986,49 @@ func (a *ahLoginChecker) evaluateProxying(ident *sshca.Identity, ca types.CertAu
 		return nil, trace.Wrap(err)
 	}
 
-	accessChecker, err := services.NewAccessChecker(accessInfo, clusterName, a.c.AccessPoint)
+	// Build context — scoped or unscoped-wrapping.
+	var checkerContext *services.ScopedAccessCheckerContext
+	if accessInfo.ScopePin != nil {
+		checkerContext, err = services.NewScopedAccessCheckerContext(ctx, accessInfo, clusterName, a.c.AccessPoint.ScopedRoleReader())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		unscoped, err := services.NewAccessChecker(accessInfo, clusterName, a.c.AccessPoint)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		checkerContext = services.NewScopedAccessCheckerContextFromUnscoped(unscoped)
+	}
+
+	if accessInfo.ScopePin != nil && target == nil {
+		return nil, trace.AccessDenied("scoped proxying without a target is not supported")
+	}
+
+	agentScope := ""
+	if target != nil && target.GetScope() != "" {
+		agentScope = target.GetScope()
+	}
+
+	state, err := checkerContext.AccessStateFromSSHIdentity(ctx, ident, a.c.AccessPoint)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	var checker *services.ScopedAccessChecker
+	if err := checkerContext.Decision(ctx, agentScope, func(c *services.ScopedAccessChecker) error {
+		// Clients are able to dial nodes as an SSH subsystem (ComponentProxy), and the target server is not known at this time.
+		// We do not support this mode for scopes right now.
+		if target != nil {
+			if err := c.SSH().CheckAccessToSSHServer(target, state, osUser); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+		checker = c
+		return nil
+	}); err != nil {
+		return nil, trace.AccessDenied("user %s@%s is not authorized to login as %v@%s: %v",
+			ident.Username, ca.GetClusterName(), osUser, clusterName, err)
 	}
 
 	netConfig, err := a.c.AccessPoint.GetClusterNetworkingConfig(ctx)
@@ -1002,24 +1042,28 @@ func (a *ahLoginChecker) evaluateProxying(ident *sshca.Identity, ca types.CertAu
 		return nil, trace.Wrap(err)
 	}
 
-	privateKeyPolicy, err := accessChecker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
+	privateKeyPolicy, err := checker.PrivateKeyPolicy(authPref.GetPrivateKeyPolicy())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	lockTargets := services.ProxyingLockTargets(clusterName, a.c.Server.HostUUID() /* id of underlying proxy */, accessInfo, ident)
+	clientIdleTimeout, err := checker.SSH().AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
+	lockTargets := services.ProxyingLockTargets(clusterName, a.c.Server.HostUUID(), accessInfo, ident)
 	return &proxyingPermit{
-		ClientIdleTimeout:     accessChecker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
-		LockingMode:           accessChecker.LockingMode(authPref.GetLockingMode()),
+		ClientIdleTimeout:     clientIdleTimeout,
+		LockingMode:           checker.SSH().LockingMode(authPref.GetLockingMode()),
 		PrivateKeyPolicy:      privateKeyPolicy,
 		LockTargets:           lockTargets,
-		MaxConnections:        accessChecker.MaxConnections(),
-		SSHFileCopy:           accessChecker.CanCopyFiles(),
-		DisconnectExpiredCert: getDisconnectExpiredCertFromSSHIdentity(accessChecker, authPref, ident),
+		MaxConnections:        checker.SSH().MaxConnections(),
+		SSHFileCopy:           checker.SSH().CanCopyFiles(),
+		DisconnectExpiredCert: getDisconnectExpiredCertFromSSHIdentityScoped(checker.SSH(), authPref, ident),
 		MappedRoles:           accessInfo.Roles,
-		SessionRecordingMode:  accessChecker.SessionRecordingMode(constants.SessionRecordingServiceSSH),
-		PinSourceIP:           accessChecker.PinSourceIP(),
+		SessionRecordingMode:  checker.SSH().SessionRecordingMode(),
+		PinSourceIP:           checker.PinSourceIP(),
 	}, nil
 }
 
@@ -1182,7 +1226,7 @@ func (a *ahLoginChecker) evaluateScopedSSHAccess(ident *sshca.Identity, ca types
 		ClientIdleTimeout:     durationpb.New(clientIdleTimeout),
 		DisconnectExpiredCert: timestampFromGoTime(getDisconnectExpiredCertFromSSHIdentityScoped(checker.SSH(), authPref, ident)),
 		SessionRecordingMode:  string(checker.SSH().SessionRecordingMode()),
-		LockingMode:           string(checker.LockingMode(authPref.GetLockingMode())),
+		LockingMode:           string(checker.SSH().LockingMode(authPref.GetLockingMode())),
 		PrivateKeyPolicy:      string(privateKeyPolicy),
 		LockTargets:           decision.LockTargetsToProto(lockTargets),
 		MappedRoles:           accessInfo.Roles,

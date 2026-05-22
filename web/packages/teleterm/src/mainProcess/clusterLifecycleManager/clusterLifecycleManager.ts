@@ -53,15 +53,18 @@ export interface ClusterLifecycleEvent {
    * * did-add-cluster - A cluster has been successfully added.
    * * did-change-access - The logged-in user has changed, or their roles,
    * or access requests have been updated.
-   * * will-logout - The user is about to be logged out.
-   * * will-logout-and-remove - The user is about to be logged out
-   * and their profile (cluster) will be removed.
+   * * did-change-proxy-host - The proxy address saved in the profile has changed.
+   * * will-logout - The user is about to be logged out, but Connect should
+   * keep the workspace as remembered cluster state.
+   * * will-forget-cluster - The user is about to forget the cluster in
+   * Connect. Its workspace and profile will be removed.
    */
   op:
     | 'did-add-cluster'
     | 'did-change-access'
+    | 'did-change-proxy-host'
     | 'will-logout'
-    | 'will-logout-and-remove';
+    | 'will-forget-cluster';
 }
 
 export interface ProfileWatcherError {
@@ -142,15 +145,44 @@ export class ClusterLifecycleManager {
     }
   }
 
-  async logoutAndRemoveCluster(uri: RootClusterUri): Promise<void> {
-    this.logger.info('Logging out and removing cluster', { uri });
+  /**
+   * Logs out from the cluster without removing the tsh profile.
+   * Session credentials are cleared, but the cluster remains visible in both
+   * Connect and tsh.
+   */
+  async logoutCluster(uri: RootClusterUri): Promise<void> {
+    this.logger.info('Logging out cluster', { uri });
     try {
-      await this.sendRendererEvent({ op: 'will-logout-and-remove', uri });
-      this.onBeforeRemove(uri);
-      await this.clusterStore.logoutAndRemove(uri);
-      this.logger.info('Logged out and removed cluster', { uri });
+      await this.sendRendererEvent({ op: 'will-logout', uri });
+      await this.clusterStore.logout(uri, { removeProfile: false });
+      this.logger.info('Logged out cluster', { uri });
     } catch (error) {
-      this.logger.error('Failed to log out and remove cluster', { uri }, error);
+      this.logger.error('Failed to log out cluster', { uri }, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Forgets the cluster in Connect and removes its tsh profile.
+   * If this cluster was selected to manage app updates, clears that selection.
+   */
+  async forgetCluster(uri: RootClusterUri): Promise<void> {
+    this.logger.info('Forgetting cluster', { uri });
+    try {
+      await this.sendRendererEvent({ op: 'will-forget-cluster', uri });
+      // Clear the managing cluster only when the cluster is forgotten in Connect.
+      // If the stored managing cluster is missing, auto-update resolution ignores it.
+      // Once that cluster is added back, the stored selection applies again.
+      //
+      // Do not wait for this promise to finish as we don't want to block logout
+      // on checking app updates.
+      this.appUpdater.maybeRemoveManagingCluster(uri).catch(error => {
+        this.logger.error('Failed to remove managing cluster', { uri }, error);
+      });
+      await this.clusterStore.logout(uri, { removeProfile: true });
+      this.logger.info('Forgot cluster', { uri });
+    } catch (error) {
+      this.logger.error('Failed to forget cluster', { uri }, error);
       throw error;
     }
   }
@@ -159,17 +191,8 @@ export class ClusterLifecycleManager {
     this.logger.info('Syncing cluster', { uri });
     try {
       const { previous, next } = await this.clusterStore.sync(uri);
-      const accessChanged = hasAccessChanged(
-        previous.loggedInUser,
-        next.loggedInUser
-      );
-      if (accessChanged) {
-        await this.sendRendererEvent({
-          op: 'did-change-access',
-          uri: next.uri,
-        });
-      }
-      this.logger.info('Cluster synced', { uri: next.uri, accessChanged });
+      await this.emitClusterChangedEvents(previous, next);
+      this.logger.info('Cluster synced', { uri: next.uri });
     } catch (error) {
       this.logger.error('Failed to sync cluster', { uri }, error);
       throw error;
@@ -190,14 +213,6 @@ export class ClusterLifecycleManager {
       this.logger.error('Failed to sync root clusters', error);
       throw error;
     }
-  }
-
-  private onBeforeRemove(uri: RootClusterUri): void {
-    // Do not wait for this promise to finish as we don't want to block logout
-    // on checking app updates.
-    this.appUpdater.maybeRemoveManagingCluster(uri).catch(error => {
-      this.logger.error('Failed to remove managing cluster', { uri }, error);
-    });
   }
 
   /**
@@ -310,26 +325,21 @@ export class ClusterLifecycleManager {
     // user logged in again via tsh and the auth server has disconnect_expired_cert enabled.
     await client.clearStaleClusterClients({ rootClusterUri: next.uri });
     await this.syncOrUpdateCluster(next);
-
-    if (!hasAccessChanged(previous.loggedInUser, next.loggedInUser)) {
-      this.logger.info('Cluster profile changed without access changes', {
-        uri: next.uri,
-      });
-      return;
-    }
-    await this.sendRendererEvent({
-      op: 'did-change-access',
-      uri: next.uri,
-    });
+    await this.emitClusterChangedEvents(previous, next);
   }
 
   private async handleClusterRemoved(cluster: Cluster): Promise<void> {
+    // When a profile disappears externally (for example by running tsh logout),
+    // keep the workspace as Connect's remembered cluster state.
     await this.sendRendererEvent({
-      op: 'will-logout-and-remove',
+      op: 'will-logout',
       uri: cluster.uri,
     });
-    this.onBeforeRemove(cluster.uri);
-    await this.clusterStore.logoutAndRemove(cluster.uri);
+    // Keep the cluster store in sync with the profile state on disk.
+    // Once the profile is gone, we must remove if from the store too; otherwise Connect
+    // could try to use it before recreating the profile and RPCs would fail with errors such
+    // as "~/.tsh/<proxy-name> no such file or directory".
+    await this.clusterStore.logout(cluster.uri, { removeProfile: true });
   }
 
   private async handleClusterLogout(cluster: Cluster): Promise<void> {
@@ -340,6 +350,25 @@ export class ClusterLifecycleManager {
     const client = await this.getTshdClient();
     await client.logout({ clusterUri: cluster.uri, removeProfile: false });
     await this.syncOrUpdateCluster(cluster);
+  }
+
+  private async emitClusterChangedEvents(
+    previous: Cluster | undefined,
+    next: Cluster
+  ): Promise<void> {
+    if (previous?.proxyHost !== next.proxyHost) {
+      await this.sendRendererEvent({
+        op: 'did-change-proxy-host',
+        uri: next.uri,
+      });
+    }
+
+    if (hasAccessChanged(previous?.loggedInUser, next.loggedInUser)) {
+      await this.sendRendererEvent({
+        op: 'did-change-access',
+        uri: next.uri,
+      });
+    }
   }
 
   private handleWatcherError(watcherError: ProfileWatcherError): void {

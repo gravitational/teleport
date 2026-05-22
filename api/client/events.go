@@ -749,7 +749,7 @@ func EventFromGRPC(in *proto.Event) (*types.Event, error) {
 	} else if r := in.GetCertAuthorityOverride(); r != nil {
 		out.Resource = types.ProtoResource153ToLegacy(r)
 		return &out, nil
-	} else if r := in.GetValidatedMFAChallenge(); r != nil {
+	} else if r := in.GetValidatedMFAChallenge(); r != nil { //nolint:staticcheck // TODO(cthach): Convert to mfav2.ValidatedMFAChallenge.
 		out.Resource = &validatedMFAChallengeResourceWrapper{
 			Resource: types.LegacyMetadataToResource(r),
 			inner:    r,

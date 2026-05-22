@@ -42,14 +42,26 @@ var (
 	apiRBACV1Response string
 	//go:embed data/api_authorization.k8s.io_v1.json
 	apiAuthzV1Response string
+	//go:embed data/api_apps_v1.json
+	apiAppsV1Response string
+	//go:embed data/api_batch_v1.json
+	apiBatchV1Response string
+	//go:embed data/api_networking.k8s.io_v1.json
+	apiNetworkingV1Response string
+	//go:embed data/api_policy_v1.json
+	apiPolicyV1Response string
 )
 
 const (
-	apiEndpoint      = "/api"
-	apiV1Endpoint    = "/api/v1"
-	apisEndpoint     = "/apis"
-	apiRBACEndpoint  = "/apis/rbac.authorization.k8s.io/v1"
-	apiAuthzEndpoint = "/apis/authorization.k8s.io/v1"
+	apiEndpoint       = "/api"
+	apiV1Endpoint     = "/api/v1"
+	apisEndpoint      = "/apis"
+	apiRBACEndpoint   = "/apis/rbac.authorization.k8s.io/v1"
+	apiAuthzEndpoint  = "/apis/authorization.k8s.io/v1"
+	apiAppsEndpoint   = "/apis/apps/v1"
+	apiBatchEndpoint  = "/apis/batch/v1"
+	apiNetEndpoint    = "/apis/networking.k8s.io/v1"
+	apiPolicyEndpoint = "/apis/policy/v1"
 )
 
 func (s *KubeMockServer) discoveryEndpoint(w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
@@ -65,6 +77,18 @@ func (s *KubeMockServer) discoveryEndpoint(w http.ResponseWriter, req *http.Requ
 		return nil, nil
 	case apiAuthzEndpoint:
 		w.Write([]byte(apiAuthzV1Response))
+		return nil, nil
+	case apiAppsEndpoint:
+		w.Write([]byte(apiAppsV1Response))
+		return nil, nil
+	case apiBatchEndpoint:
+		w.Write([]byte(apiBatchV1Response))
+		return nil, nil
+	case apiNetEndpoint:
+		w.Write([]byte(apiNetworkingV1Response))
+		return nil, nil
+	case apiPolicyEndpoint:
+		w.Write([]byte(apiPolicyV1Response))
 		return nil, nil
 	case apisEndpoint:
 		w.Write(apisDiscovery(s.crds))
@@ -103,34 +127,27 @@ func apisDiscovery(crds map[GVP]*CRD) []byte {
 	out := discovery{
 		Kind:       "APIGroupList",
 		APIVersion: "v1",
-		Groups: []group{
-			{
-				Name: "rbac.authorization.k8s.io",
-				PreferredVersion: version{
-					GroupVersion: "rbac.authorization.k8s.io/v1",
-					Version:      "v1",
-				},
-				Versions: []version{
-					{
-						GroupVersion: "rbac.authorization.k8s.io/v1",
-						Version:      "v1",
-					},
-				},
+	}
+
+	for _, name := range []string{
+		"rbac.authorization.k8s.io",
+		"authorization.k8s.io",
+		"apps",
+		"batch",
+		"networking.k8s.io",
+		"policy",
+	} {
+		out.Groups = append(out.Groups, group{
+			Name: name,
+			PreferredVersion: version{
+				GroupVersion: name + "/v1",
+				Version:      "v1",
 			},
-			{
-				Name: "authorization.k8s.io",
-				PreferredVersion: version{
-					GroupVersion: "authorization.k8s.io/v1",
-					Version:      "v1",
-				},
-				Versions: []version{
-					{
-						GroupVersion: "authorization.k8s.io/v1",
-						Version:      "v1",
-					},
-				},
-			},
-		},
+			Versions: []version{{
+				GroupVersion: name + "/v1",
+				Version:      "v1",
+			}},
+		})
 	}
 
 	for groupName, crds := range byGroup {

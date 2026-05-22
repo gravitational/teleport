@@ -17,6 +17,7 @@
 package awsconfigfile
 
 import (
+	"bytes"
 	"io"
 	"os"
 	"path/filepath"
@@ -167,12 +168,7 @@ func writeSSOConfig(configFilePath string, profiles []SSOProfile, sessions []SSO
 		return trace.Wrap(err)
 	}
 
-	// Create the directory if it does not exist.
-	if err := os.MkdirAll(filepath.Dir(configFilePath), 0o700); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(iniFile.SaveTo(configFilePath))
+	return trace.Wrap(writeINIFile(iniFile, configFilePath))
 }
 
 func getOrCreateManagedSection(iniFile *ini.File, sectionName, expectedComment string) (*ini.Section, error) {
@@ -209,7 +205,7 @@ func UpsertProfileCredentialProcess(configFilePath, profileName, credentialProce
 func addCredentialProcessToSection(configFilePath, sectionName, credentialProcessCommand string) error {
 	iniFile, err := ini.LoadSources(ini.LoadOptions{
 		AllowNestedValues: true, // Allow AWS-like nested values. Docs: http://docs.aws.amazon.com/cli/latest/topic/config-vars.html#nested-values
-		Loose:             true, // Allow non-existing files. ini.SaveTo will create the file if it does not exist.
+		Loose:             true, // Allow non-existing files. writeConfigFile will create the file if it does not exist.
 	}, configFilePath)
 	if err != nil {
 		return trace.Wrap(err)
@@ -242,12 +238,28 @@ func addCredentialProcessToSection(configFilePath, sectionName, credentialProces
 		return trace.BadParameter("%s: section %q contains other keys, remove the section and try again", configFilePath, sectionName)
 	}
 
-	// Create the directory if it does not exist, otherwise ini.SaveTo will fail.
-	if err := os.MkdirAll(filepath.Dir(configFilePath), 0o700); err != nil {
+	return trace.Wrap(writeINIFile(iniFile, configFilePath))
+}
+
+// writeINIFile writes the given ini file path with u+rw permissions.
+func writeINIFile(iniFile *ini.File, iniFilePath string) error {
+	// Serialize content first; no point in creating output directories for
+	// a file that will never exist
+	var content bytes.Buffer
+	if _, err := iniFile.WriteTo(&content); err != nil {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(iniFile.SaveTo(configFilePath))
+	// Create the destination directory if it does not exist, os.WriteFile will
+	// fail if the target directory doesn't exist
+	if err := os.MkdirAll(filepath.Dir(iniFilePath), 0o700); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// We're avoiding [*ini.File.SaveTo] here because SaveTo creates the file as
+	// globally read+write (i.e. with FileMode 0o666), and we want tighter
+	// permissions (user-only rw) on it.
+	return trace.Wrap(os.WriteFile(iniFilePath, content.Bytes(), 0o600))
 }
 
 // RemoveTeleportManagedProfile removes the credential_process key on sections that have a specific section comment.
@@ -285,7 +297,7 @@ func RemoveTeleportManagedProfile(configFilePath, profile string) error {
 		return nil
 	}
 
-	return trace.Wrap(iniFile.SaveTo(configFilePath))
+	return trace.Wrap(writeINIFile(iniFile, configFilePath))
 }
 
 // RemoveAllTeleportManagedProfiles removes all the profiles managed by Teleport.
@@ -316,5 +328,5 @@ func RemoveAllTeleportManagedProfiles(configFilePath string) error {
 		return nil
 	}
 
-	return trace.Wrap(iniFile.SaveTo(configFilePath))
+	return trace.Wrap(writeINIFile(iniFile, configFilePath))
 }

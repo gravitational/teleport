@@ -2990,7 +2990,7 @@ func (process *TeleportProcess) initAuthService() error {
 			Cache:             authServer.Cache,
 			StatusReporter:    authServer.Services,
 			Backend:           process.backend,
-			AppServerUpserter: authServer.Services,
+			AppServerUpserter: authServer,
 			HostUUID:          hostUUID,
 		}))
 	})
@@ -5858,15 +5858,16 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		FIPS:   cfg.FIPS,
 		Logger: process.logger.With(teleport.ComponentKey, "transport"),
 		Dialer: proxyRouter,
-		SignerFn: func(authzCtx *authz.ScopedContext, clusterName string) agentless.SignerCreator {
+		SignerFn: func(ctx context.Context, authzCtx *authz.ScopedContext, clusterName string) (agentless.SignerCreator, error) {
+			certGen, err := proxyRouter.GetSiteClient(ctx, clusterName)
+			if err != nil {
+				return nil, trace.Wrap(err, "getting site client for cluster %q", clusterName)
+			}
 			if unscopedCtx, ok := authzCtx.UnscopedContext(); ok {
-				return agentless.SignerFromAuthzContext(unscopedCtx, accessPoint, clusterName)
+				return agentless.SignerFromAuthzContext(unscopedCtx, accessPoint, certGen, clusterName), nil
 			}
 
-			return func(ctx context.Context, localAccessPoint agentless.LocalAccessPoint, certGen agentless.CertGenerator) (ssh.Signer, error) {
-				// TODO(fspamarshall/scopes): implement agentless transport signer for scoped identities
-				return nil, trace.NotImplemented("agentless transport signer is not implemented for scoped identities")
-			}
+			return agentless.SignerFromScopedContext(authzCtx, accessPoint, certGen, clusterName), nil
 		},
 		ConnectionMonitor: connMonitor,
 		LocalAddr:         listeners.sshGRPC.Addr(),

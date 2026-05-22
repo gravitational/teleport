@@ -211,6 +211,9 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 	if f.ScopedAuthz == nil {
 		return trace.BadParameter("missing parameter ScopedAuthz")
 	}
+	if f.LockWatcher == nil {
+		return trace.BadParameter("missing parameter LockWatcher")
+	}
 	if f.Emitter == nil {
 		return trace.BadParameter("missing parameter Emitter")
 	}
@@ -470,6 +473,9 @@ type authContext struct {
 	// It is false if the target cluster is served by another teleport service or a different
 	// Teleport cluster.
 	isLocalKubernetesCluster bool
+
+	// LockingMode determines the kubernetes' behavior when locks are stale
+	LockingMode constants.LockingMode
 }
 
 func (c authContext) String() string {
@@ -639,7 +645,7 @@ func (f *Forwarder) acquireConnectionLockWithIdentity(ctx context.Context, ident
 	)
 	defer span.End()
 	user := identity.Identity.GetIdentity().Username
-	roles, err := getRolesByName(f, identity.Identity.GetIdentity().Groups)
+	roles, err := getRolesByName(ctx, f, identity.Identity.GetIdentity().Groups)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1274,6 +1280,27 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		return trace.Wrap(err)
 	}
 
+	authPref, err := f.cfg.CachingAuthClient.GetAuthPreference(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if actx.checker.Kube().AdjustDisconnectExpiredCert(authPref.GetDisconnectExpiredCert()) {
+		actx.disconnectExpiredCert = actx.ScopedContext.GetDisconnectCertExpiryTime()
+	} else {
+		actx.disconnectExpiredCert = time.Time{}
+	}
+
+	// For scoped roles, check for the locking mode here so that we can verify whether users can connect or not when not
+	// when the lock is stale.
+	if isScoped {
+		actx.LockingMode = actx.checker.Kube().LockingMode(authPref.GetLockingMode())
+		// TODO(williamo/scopes): Potentially delete this in favor of checking locks in lib/authz/scoped.go
+		if err := f.cfg.LockWatcher.CheckLockInForce(actx.LockingMode, actx.LockTargets()...); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	// If the user has active Access requests we need to validate that they allow
 	// the kubeResource.
 	// This is required because CheckAccess does not validate the subresource type.
@@ -1395,14 +1422,16 @@ func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Requ
 		client := &websocketClientStreams{uuid.New(), stream}
 		party := newParty(*ctx, stream.Mode, client)
 
-		err = session.join(party, true /* emitSessionJoinEvent */)
+		err = session.join(req.Context(), party, true /* emitSessionJoinEvent */)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		defer func() {
-			if _, err := session.leave(party.ID); err != nil {
-				f.log.DebugContext(req.Context(), "Participant was unable to leave session",
+			// Detach cancellation so leave's moderation rebalance still runs after the websocket closes.
+			leaveCtx := context.WithoutCancel(req.Context())
+			if _, err := session.leave(leaveCtx, party.ID); err != nil {
+				f.log.DebugContext(leaveCtx, "Participant was unable to leave session",
 					"participant_id", party.ID,
 					"session_id", session.id,
 					"error", err,
@@ -1876,14 +1905,16 @@ func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.
 			}
 
 			f.setSession(session.id, session)
-			if err = session.join(party, true /* emitSessionJoinEvent */); err != nil {
+			if err = session.join(ctx, party, true /* emitSessionJoinEvent */); err != nil {
 				return trace.Wrap(err)
 			}
 
 			err = <-party.closeC
 
-			if _, errLeave := session.leave(party.ID); errLeave != nil {
-				f.log.DebugContext(ctx, "Participant was unable to leave session",
+			// Detach cancellation so leave's moderation rebalance still runs after the client disconnects.
+			leaveCtx := context.WithoutCancel(ctx)
+			if _, errLeave := session.leave(leaveCtx, party.ID); errLeave != nil {
+				f.log.DebugContext(leaveCtx, "Participant was unable to leave session",
 					"participant_id", party.ID,
 					"session_id", session.id,
 					"error", errLeave,
@@ -2611,6 +2642,7 @@ func (s *clusterSession) monitorConn(conn net.Conn, err error, hostID string) (n
 		Emitter:               s.parent.cfg.AuthClient,
 		EmitterContext:        s.parent.ctx,
 		MessageWriter:         formatForwardResponseError(s.sendErrStatus),
+		LockingMode:           s.LockingMode,
 	})
 	if err != nil {
 		tc.CloseWithCause(err)

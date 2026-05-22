@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
+	_ "github.com/gravitational/teleport/lib/fipscheck"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/tbot"

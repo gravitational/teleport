@@ -20,14 +20,23 @@ import { useRef, useState } from 'react';
 import styled, { useTheme } from 'styled-components';
 
 import { Button, ButtonIcon, Card, Flex, H3 } from 'design';
+import { BoxProps } from 'design/Box';
 import { Cross, Warning } from 'design/Icon';
+import { HoverTooltip } from 'design/Tooltip';
 import {
   ToastNotification,
   type ToastNotificationItem,
 } from 'shared/components/ToastNotification';
 import { useClickOutside } from 'shared/hooks/useClickOutside';
+import { pluralize } from 'shared/utils/text';
 
-export function AlertDropdown({ alerts, onRemoveAlert }: Props) {
+export function AlertDropdown(
+  props: {
+    alerts: ToastNotificationItem[];
+    onRemoveAlert: (id: string) => void;
+  } & BoxProps
+) {
+  const { alerts, onRemoveAlert, ...boxProps } = props;
   const [showDropdown, setShowDropdown] = useState(false);
   const ref = useRef(null);
   const theme = useTheme();
@@ -52,22 +61,20 @@ export function AlertDropdown({ alerts, onRemoveAlert }: Props) {
 
   return (
     <>
-      <StyledButton
-        title={'Alerts'}
-        hasAlerts={alerts.length > 0}
-        px={2}
-        onClick={toggleDropdown}
+      <HoverTooltip
+        tipContent={`${alerts.length} ${pluralize(alerts.length, 'alert')}`}
+        placement="top"
       >
-        <Flex
-          alignItems="center"
-          justifyContent="space-between"
-          color={
-            alerts.length ? theme.colors.text.main : theme.colors.text.disabled
-          }
-        >
-          <Warning size={20} mr={2} /> {alerts.length}
-        </Flex>
-      </StyledButton>
+        <StyledButton px={2} onClick={toggleDropdown}>
+          <Flex
+            alignItems="center"
+            justifyContent="space-between"
+            color={theme.colors.text.main}
+          >
+            <Warning size={20} mr={2} /> {alerts.length}
+          </Flex>
+        </StyledButton>
+      </HoverTooltip>
       {showDropdown && (
         <StyledCard
           mt={3}
@@ -75,6 +82,7 @@ export function AlertDropdown({ alerts, onRemoveAlert }: Props) {
           style={{
             maxHeight: window.innerHeight / 3,
           }}
+          {...boxProps}
         >
           <Flex alignItems="center" justifyContent="space-between">
             <H3 px={3} style={{ overflow: 'visible' }}>
@@ -104,25 +112,21 @@ const StyledButton = styled(Button)`
   color: ${({ theme }) => theme.colors.light};
   min-height: 0;
   height: ${({ theme }) => theme.fontSizes[7] + 'px'};
-  background-color: ${props =>
-    props.hasAlerts
-      ? props.theme.colors.warning.main
-      : props.theme.colors.spotBackground[1]};
+  background-color: ${props => props.theme.colors.warning.main};
   &:hover,
   &:focus {
-    background-color: ${props =>
-      props.hasAlerts
-        ? props.theme.colors.warning.hover
-        : props.theme.colors.spotBackground[2]};
+    background-color: ${props => props.theme.colors.warning.hover};
   }
 `;
 
-const StyledCard = styled(Card)`
+const StyledCard = styled(Card).attrs(props => ({
+  right: 0,
+  top: `${props.theme.fontSizes[7]}px`,
+  ...props,
+}))`
   display: flex;
   flex-direction: column;
   position: absolute;
-  right: 0;
-  top: ${({ theme }) => theme.fontSizes[7] + 'px'};
   background-color: ${({ theme }) => theme.colors.levels.elevated};
 `;
 
@@ -137,8 +141,3 @@ const StyledOverflow = styled(Flex)`
   overflow-y: auto;
   overflow-x: hidden;
 `;
-
-type Props = {
-  alerts: ToastNotificationItem[];
-  onRemoveAlert: (id: string) => void;
-};

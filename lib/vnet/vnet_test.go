@@ -196,9 +196,10 @@ func runTestClientApplicationService(t *testing.T, ctx context.Context, cfg test
 	leafClusterCache, err := newLeafClusterCache(cfg.clock)
 	require.NoError(t, err)
 	fqdnResolver := newFQDNResolver(&fqdnResolverConfig{
-		clientApplication:  cfg.fakeClientApp,
-		clusterConfigCache: clusterConfigCache,
-		leafClusterCache:   leafClusterCache,
+		clientApplication:   cfg.fakeClientApp,
+		clusterConfigCache:  clusterConfigCache,
+		leafClusterCache:    leafClusterCache,
+		allowDatabaseAccess: true,
 	})
 	clientApplicationService, err := newClientApplicationService(&clientApplicationServiceConfig{
 		clientApplication: cfg.fakeClientApp,
