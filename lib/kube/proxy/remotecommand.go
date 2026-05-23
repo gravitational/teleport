@@ -447,7 +447,10 @@ func (*v4ProtocolHandler) supportsTerminalResizing() bool { return true }
 func waitStreamReply(ctx context.Context, replySent <-chan struct{}, notify chan<- struct{}) {
 	select {
 	case <-replySent:
-		notify <- struct{}{}
+		select {
+		case notify <- struct{}{}:
+		case <-ctx.Done():
+		}
 	case <-ctx.Done():
 	}
 }
