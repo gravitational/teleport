@@ -17,10 +17,12 @@
  */
 
 import bblpTheme from './themes/bblpTheme';
+import offsitedarkTheme from './themes/offsitedarkTheme';
+import offsitelightTheme from './themes/offsitelightTheme';
 import darkTheme from './themes/darkTheme';
 import lightTheme from './themes/lightTheme';
 
 export * from './themes/types';
 
-export { darkTheme, lightTheme, bblpTheme };
+export { darkTheme, lightTheme, bblpTheme, offsitedarkTheme, offsitelightTheme };
 export { breakpointsPx } from './themes/sharedStyles';
