@@ -17,20 +17,37 @@
  */
 
 import { forwardRef } from 'react';
+import styled from 'styled-components';
 
-import { ButtonProps, ButtonSecondary } from 'design/Button';
+import { ButtonPrimary, ButtonProps, ButtonSecondary } from 'design/Button';
 import * as Icons from 'design/Icon';
 import { ResourceIcon } from 'design/ResourceIcon';
 import { AuthProviderType, SSOType } from 'shared/services';
 
+const DuoButton = styled(ButtonPrimary)`
+  &,
+  &:hover,
+  &:focus-visible,
+  &:active {
+    color: #ffffff;
+  }
+  background-color: #1d69cc;
+  &:hover,
+  &:focus-visible,
+  &:active {
+    background-color: #0d5cbd;
+  }
+`;
+
 const ButtonSso = forwardRef<HTMLButtonElement, Props>((props: Props, ref) => {
   const { ssoType = 'unknown', title, ...rest } = props;
+  const ButtonVariant = ssoType === 'duo' ? DuoButton : ButtonSecondary;
 
   return (
-    <ButtonSecondary gap={3} size="extra-large" block {...rest} ref={ref}>
+    <ButtonVariant gap={3} size="extra-large" block {...rest} ref={ref}>
       <SSOIcon type={ssoType} />
       {title}
-    </ButtonSecondary>
+    </ButtonVariant>
   );
 });
 
@@ -57,6 +74,8 @@ export function SSOIcon({ type }: { type: SSOType }) {
       return <ResourceIcon name="google" {...commonResourceIconProps} />;
     case 'okta':
       return <ResourceIcon name="okta" {...commonResourceIconProps} />;
+    case 'duo':
+      return <ResourceIcon name="duo" width="48px" />;
     default:
       // provide default icon for unknown social providers
       return <Icons.Key data-testid="icon" />;
@@ -87,6 +106,10 @@ export function guessProviderType(
 
   if (name.indexOf('okta') !== -1) {
     return 'okta';
+  }
+
+  if (name.indexOf('duo') !== -1) {
+    return 'duo';
   }
 
   if (providerType === 'oidc') {

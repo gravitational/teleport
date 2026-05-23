@@ -21,12 +21,12 @@ import styled, { useTheme } from 'styled-components';
 import Box from 'design/Box';
 import Image from 'design/Image';
 
-import logoPoweredByDark from './logoPoweredByDark.svg';
-import logoPoweredByLight from './logoPoweredByLight.svg';
+import logoBuiltByDark from 'teleport/TopBar/builtWithTeleportDark.svg';
+import logoBuiltByLight from 'teleport/TopBar/builtWithTeleportLight.svg';
 
 export function PoweredByTeleportLogo() {
   const theme = useTheme();
-  const src = theme.type === 'dark' ? logoPoweredByDark : logoPoweredByLight;
+  const src = theme.type === 'dark' ? logoBuiltByDark : logoBuiltByLight;
   return (
     <StyledBox
       py={3}
@@ -36,7 +36,7 @@ export function PoweredByTeleportLogo() {
         border: none;
       `}
     >
-      <Image src={src} maxWidth="100%" alt="powered by teleport" />
+      <Image src={src} maxWidth="100%" alt="built with teleport" />
     </StyledBox>
   );
 }

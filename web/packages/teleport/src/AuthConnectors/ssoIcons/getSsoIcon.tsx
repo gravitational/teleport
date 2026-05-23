@@ -126,6 +126,13 @@ function guessIconFromName(connectorName: string) {
       </Flex>
     );
   }
+  if (name.includes('duo')) {
+    return () => (
+      <Flex height="61px" alignItems="center" justifyContent="center">
+        <ResourceIcon name="duo" width="61px" />
+      </Flex>
+    );
+  }
 }
 
 const MultiIconContainer = styled(Flex)`

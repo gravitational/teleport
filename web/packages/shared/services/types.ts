@@ -23,6 +23,7 @@ export type SSOType =
   | 'google'
   | 'openid'
   | 'okta'
+  | 'duo'
   | 'unknown';
 
 export type AuthProviderType = 'oidc' | 'saml' | 'github';

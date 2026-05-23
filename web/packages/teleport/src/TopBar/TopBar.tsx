@@ -32,6 +32,8 @@ import { zIndexMap } from 'teleport/Navigation/zIndexMap';
 import { Notifications } from 'teleport/Notifications';
 import useTeleport from 'teleport/useTeleport';
 
+import builtWithTeleportDark from './builtWithTeleportDark.svg';
+
 export function TopBar({
   CustomLogo,
 }: {
@@ -62,6 +64,7 @@ export function TopBar({
       <TeleportLogo CustomLogo={CustomLogo} />
       {!feature?.logoOnlyTopbar && (
         <Flex height="100%" alignItems="center">
+          {cfg.customTheme === 'offsite' && <BuiltWithTeleportBadge />}
           <Notifications iconSize={iconSize} />
           <UserMenuNav username={ctx.storeUser.state.username} />
         </Flex>
@@ -75,7 +78,10 @@ export const TopBarContainer = styled(TopNav)`
   width: 100%;
   display: flex;
   justify-content: space-between;
-  background: ${p => p.theme.colors.levels.surface};
+  background: ${p =>
+    cfg.customTheme === 'offsite'
+      ? 'linear-gradient(90deg, #373c42, #0f1214)'
+      : p.theme.colors.levels.surface};
   overflow-y: initial;
   overflow-x: none;
   flex-shrink: 0;
@@ -143,6 +149,22 @@ const TeleportLogo = ({
         )}
       </Link>
     </HoverTooltip>
+  );
+};
+
+const BuiltWithTeleportBadge = () => {
+  return (
+    <Image
+      src={builtWithTeleportDark}
+      alt="Built with Teleport"
+      css={`
+        height: 18px;
+        margin-right: 12px;
+        @media screen and (min-width: ${p => p.theme.breakpoints.small}) {
+          height: 24px;
+        }
+      `}
+    />
   );
 };
 

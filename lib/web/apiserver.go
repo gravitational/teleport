@@ -2181,7 +2181,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		IsUsageBasedBilling:            clusterFeatures.GetIsUsageBased(),
 		AutomaticUpgrades:              automaticUpgradesEnabled,
 		AutomaticUpgradesTargetVersion: automaticUpgradesTargetVersion,
-		CustomTheme:                    clusterFeatures.GetCustomTheme(),
+		CustomTheme:                    "offsite",
 		Questionnaire:                  clusterFeatures.GetQuestionnaire(),
 		IsStripeManaged:                clusterFeatures.GetIsStripeManaged(),
 		PremiumSupport:                 clusterFeatures.GetSupportType() == proto.SupportType_SUPPORT_TYPE_PREMIUM,
