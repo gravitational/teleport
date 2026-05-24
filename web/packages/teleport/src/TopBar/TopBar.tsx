@@ -32,6 +32,9 @@ import { zIndexMap } from 'teleport/Navigation/zIndexMap';
 import { Notifications } from 'teleport/Notifications';
 import useTeleport from 'teleport/useTeleport';
 
+import builtWithTeleportDark from './builtWithTeleportDark.svg';
+import builtWithTeleportLight from './builtWithTeleportLight.svg';
+
 export function TopBar({
   CustomLogo,
 }: {
@@ -62,6 +65,9 @@ export function TopBar({
       <TeleportLogo CustomLogo={CustomLogo} />
       {!feature?.logoOnlyTopbar && (
         <Flex height="100%" alignItems="center">
+          {cfg.customTheme === 'offsite' && (
+            <BuiltWithTeleportBadge />
+          )}
           <Notifications iconSize={iconSize} />
           <UserMenuNav username={ctx.storeUser.state.username} />
         </Flex>
@@ -143,6 +149,25 @@ const TeleportLogo = ({
         )}
       </Link>
     </HoverTooltip>
+  );
+};
+
+const BuiltWithTeleportBadge = () => {
+  const theme = useTheme();
+  const src =
+    theme.type === 'dark' ? builtWithTeleportDark : builtWithTeleportLight;
+  return (
+    <Image
+      src={src}
+      alt="Built with Teleport"
+      css={`
+        height: 18px;
+        margin-right: 12px;
+        @media screen and (min-width: ${p => p.theme.breakpoints.small}) {
+          height: 24px;
+        }
+      `}
+    />
   );
 };
 
