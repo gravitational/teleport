@@ -53,13 +53,13 @@ const dataVisualisationColors: DataVisualisationColors = {
 const levels = {
   deep: '#000000',
 
-  sunken: '#191919',
+  sunken: '#141414',
 
-  surface: '#232323',
+  surface: '#1C1C1C',
 
-  elevated: '#282828',
+  elevated: '#242424',
 
-  popout: '#373737',
+  popout: '#2C2C2C',
 };
 
 const neutralColors = [
@@ -75,29 +75,29 @@ const colors: ThemeColors = {
 
   spotBackground: neutralColors,
 
-  brand: '#FFA028',
+  brand: '#049FD9',
 
   interactive: {
     solid: {
       primary: {
-        default: '#FFA028',
-        hover: '#FFB04C',
-        active: '#DB8922',
+        default: '#049FD9',
+        hover: '#1AAEE0',
+        active: '#0385B5',
       },
       success: {
         default: '#00A223',
         hover: '#35D655',
-        active: '#00851C',
+        active: '#00961E',
       },
       accent: {
-        default: '#66ABFF',
-        hover: '#99C7FF',
-        active: '#2B8EFF',
+        default: '#5BC8F5',
+        hover: '#7DD5F7',
+        active: '#3AB5E3',
       },
       danger: {
         default: '#E51E3C',
         hover: '#FD2D4A',
-        active: '#C31834',
+        active: '#E52840',
       },
       alert: {
         default: '#FA5A28',
@@ -108,9 +108,9 @@ const colors: ThemeColors = {
 
     tonal: {
       primary: [
-        'rgba(255,160,40, 0.1)',
-        'rgba(255,160,40, 0.18)',
-        'rgba(255,160,40, 0.25)',
+        'rgba(4, 159, 217, 0.1)',
+        'rgba(4, 159, 217, 0.18)',
+        'rgba(4, 159, 217, 0.25)',
       ],
       success: [
         'rgba(0, 162, 35, 0.1)',
@@ -118,19 +118,19 @@ const colors: ThemeColors = {
         'rgba(0, 162, 35, 0.25)',
       ],
       danger: [
-        'rgba(255, 98, 87, 0.1)',
-        'rgba(255, 98, 87, 0.18)',
-        'rgba(255, 98, 87, 0.25)',
+        'rgba(229, 30, 60, 0.1)',
+        'rgba(229, 30, 60, 0.18)',
+        'rgba(229, 30, 60, 0.25)',
       ],
       alert: [
-        'rgba(255, 171, 0, 0.1)',
-        'rgba(255, 171, 0, 0.18)',
-        'rgba(255, 171, 0, 0.25)',
+        'rgba(250, 90, 40, 0.1)',
+        'rgba(250, 90, 40, 0.18)',
+        'rgba(250, 90, 40, 0.25)',
       ],
       informational: [
-        'rgba(0, 158, 255, 0.1)',
-        'rgba(0, 158, 255, 0.18)',
-        'rgba(0, 158, 255, 0.25)',
+        'rgba(91, 200, 245, 0.1)',
+        'rgba(91, 200, 245, 0.18)',
+        'rgba(91, 200, 245, 0.25)',
       ],
       neutral: [neutralColors[0], neutralColors[1], neutralColors[2]],
     },
@@ -138,9 +138,9 @@ const colors: ThemeColors = {
 
   text: {
     main: '#FFFFFF',
-    slightlyMuted: '#BEBEBE',
+    slightlyMuted: '#C8C8C8',
     muted: '#8C8C8C',
-    disabled: '#646464',
+    disabled: '#606060',
     primaryInverse: '#000000',
   },
 
@@ -151,9 +151,9 @@ const colors: ThemeColors = {
 
     primary: {
       text: '#000000',
-      default: '#FFA028',
-      hover: '#FFB04C',
-      active: '#DB8922',
+      default: '#049FD9',
+      hover: '#1AAEE0',
+      active: '#0385B5',
     },
 
     secondary: {
@@ -173,7 +173,7 @@ const colors: ThemeColors = {
       text: '#FFFFFF',
       default: '#E51E3C',
       hover: '#FD2D4A',
-      active: '#C31834',
+      active: '#E52840',
     },
 
     trashButton: {
@@ -182,9 +182,9 @@ const colors: ThemeColors = {
     },
 
     link: {
-      default: '#66ABFF',
-      hover: '#99C7FF',
-      active: '#2B8EFF',
+      default: '#049FD9',
+      hover: '#1AAEE0',
+      active: '#0B8EC2',
     },
   },
 
@@ -194,12 +194,18 @@ const colors: ThemeColors = {
     inverseLinkDefault: '#0073BA',
   },
 
-  progressBarColor: '#00BFA5',
+  progressBarColor: '#049FD9',
+
+  success: {
+    main: '#00A223',
+    hover: '#35D655',
+    active: '#00961E',
+  },
 
   error: {
     main: '#E51E3C',
     hover: '#FD2D4A',
-    active: '#C31834',
+    active: '#E52840',
   },
 
   warning: {
@@ -209,13 +215,13 @@ const colors: ThemeColors = {
   },
 
   accent: {
-    main: 'rgba(0, 158, 255, 1)',
-    hover: 'rgba(51, 177, 255, 1)',
-    active: 'rgba(102, 197, 255, 1)',
+    main: 'rgba(4, 159, 217, 1)',
+    hover: 'rgba(26, 174, 224, 1)',
+    active: 'rgba(3, 133, 181, 1)',
   },
 
   notice: {
-    background: '#282828', // elevated
+    background: '#242424', // elevated
   },
 
   action: {
@@ -230,7 +236,7 @@ const colors: ThemeColors = {
   terminal: {
     foreground: '#FFF',
     background: levels.sunken,
-    selectionBackground: 'rgba(255, 255, 255, 0.18)',
+    selectionBackground: 'rgba(4, 159, 217, 0.25)',
     cursor: '#FFF',
     cursorAccent: levels.sunken,
     red: dataVisualisationColors.primary.abbey,
@@ -249,8 +255,8 @@ const colors: ThemeColors = {
     brightBlue: dataVisualisationColors.tertiary.picton,
     brightMagenta: dataVisualisationColors.tertiary.purple,
     brightCyan: dataVisualisationColors.tertiary.cyan,
-    searchMatch: '#FFD98C',
-    activeSearchMatch: '#FFAB00',
+    searchMatch: '#A3DCF5',
+    activeSearchMatch: '#049FD9',
   },
 
   editor: {
@@ -263,13 +269,13 @@ const colors: ThemeColors = {
   },
 
   sessionRecording: {
-    resource: '#66C5FF',
+    resource: '#5BC8F5',
     user: '#C5B6FF',
     player: {
       progressBar: {
         background: 'rgba(255, 255, 255, 0.2)',
         seeking: 'rgba(255, 255, 255, 0.17)',
-        progress: '#FFA028',
+        progress: '#049FD9',
       },
     },
     riskLevels: {
@@ -286,13 +292,13 @@ const colors: ThemeColors = {
     frameBorder: 'rgba(255, 255, 255, 0.2)',
     progressLine: '#E53E3E',
     border: {
-      default: '#474747',
-      hover: '#757575',
+      default: '#3A4A5A',
+      hover: '#5A7A9A',
     },
     cursor: 'rgba(255, 255, 255, 0.4)',
     events: {
       inactivity: {
-        background: 'rgba(159,133,255, 0.25)',
+        background: 'rgba(4, 159, 217, 0.25)',
         text: 'rgba(255, 255, 255, 0.6)',
       },
       resize: {
@@ -302,7 +308,7 @@ const colors: ThemeColors = {
         text: '#86c4ed',
       },
       join: {
-        background: '#009EFF',
+        background: '#049FD9',
         text: 'rgba(0, 0, 0, 0.87)',
       },
       default: {
@@ -318,15 +324,9 @@ const colors: ThemeColors = {
     },
   },
 
-  link: '#66ABFF',
+  link: '#049FD9',
 
-  highlightedNavigationItem: 'rgba(255, 255, 255, 0.3)',
-
-  success: {
-    main: '#00A223',
-    hover: '#35D655',
-    active: '#00851C',
-  },
+  highlightedNavigationItem: 'rgba(4, 159, 217, 0.2)',
 
   dataVisualisation: dataVisualisationColors,
 };
