@@ -54,7 +54,7 @@ integration tile. Click the tile.
 
 Now follow the steps listed below.
 
-## Step 1/3. Configure workforce pool
+### Step 1/3. Configure workforce pool
 As a first step, provide the following information to the script generator.
 
 ![Test the IdP](../../../../img/access-controls/saml-idp/gcp-workforce/generate-command.png)
@@ -87,7 +87,7 @@ resource ID for workforce pool and workforce pool provider, respectively.
 </Admonition>
 
 
-## Step 2/3. Add workforce pool To Teleport
+### Step 2/3. Add workforce pool To Teleport
 
 Proceed to the next step in the UI by clicking the **Next** button.
 
@@ -99,11 +99,11 @@ Click **Finish** button. The workforce pool will be now added to Teleport as a S
 
 <Admonition type="note" title="Entity ID and ACS URL">
 Entity ID and ACS URL values are generated based on *Pool Name* and *Pool Provider Name*. If you update these
-values or attribute mapping in GCP, you must also updated the respective SAML service provider spec in Teleport.
+values or attribute mapping in GCP, you must also update the respective SAML service provider spec in Teleport.
 </Admonition>
 
 
-## Step 3/3. Create GCP IAM policy
+### Step 3/3. Create GCP IAM policy
 
 Once a pool and pool provider is configured in the GCP, and its respective configuration is added
 to Teleport as a SAML service provider resource, users can sign in into the GCP web console, as
@@ -247,7 +247,7 @@ While the guided integration makes it easy to get started, advance configuration
 should follow a manual integration. Both the Web UI and Teleport `tctl` client can be used for
 manual configuration. The following steps shows configuration with Teleport `tctl` admin client.
 
-## Step 1/3. Create workforce pool and pool provider
+### Step 1/3. Create workforce pool and pool provider
 
 First, create a workforce pool.
 ```
@@ -276,7 +276,7 @@ gcloud iam workforce-pools providers create-saml <pool_provider_name> \
 
 Please refer to the GCP [Workforce Identity Federation docs](https://cloud.google.com/iam/docs/configuring-workforce-identity-federation) as a canonical reference.
 
-## Step 2/3. Add workforce pool to Teleport
+### Step 2/3. Add workforce pool to Teleport
 
 After you create a workforce pool and workforce pool provider, you will need to add workforce
 pool provider configuration as a SAML service provider resource in Teleport.
@@ -305,7 +305,7 @@ Save the spec as **pool_provider_name.yaml** file. And create the saml service p
 $ tctl create pool_provider_name.yaml
 ```
 
-## Step 3/3. Create GCP IAM policy
+### Step 3/3. Create GCP IAM policy
 
 This step is similar to Step 3 in the guided configuration flow.
 You will need to create a GCP IAM policy representing the workforce principal.
