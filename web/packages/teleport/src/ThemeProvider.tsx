@@ -25,13 +25,20 @@ import { Theme as ThemePreference } from 'gen-proto-ts/teleport/userpreferences/
 import cfg from 'teleport/config';
 import { KeysEnum, storageService } from 'teleport/services/storageService';
 
-const customThemes = {
-  bblp: bblpTheme,
-  offsitedark: offsitedarkTheme,
-  offsitelight: offsitelightTheme,
-  // Lock mc to light theme, and flag it as a custom theme to disable the theme switcher.
-  mc: { ...lightTheme, isCustomTheme: true },
-};
+type CustomThemes = Record<
+  string, 
+  { light: Theme; dark?: Theme }
+  | { light?: Theme; dark: Theme }
+>;
+
+// Each entry maps a brand key to its light and/or dark variant.
+// - If both variants are provided, the user's light/dark preference toggle remains enabled.
+// - If only one variant is provided, the toggle is hidden (isCustomTheme is set to true).
+const customThemes: CustomThemes = {
+  bblp: { dark: bblpTheme },
+  offsite: { light: offsitelightTheme, dark: offsitedarkTheme },
+  mc: { light: lightTheme },
+} as const;
 
 export const ThemeProvider = (props: { children?: ReactNode }) => {
   const [themePreference, setThemePreference] = useState<ThemePreference>(
@@ -64,8 +71,15 @@ export const ThemeProvider = (props: { children?: ReactNode }) => {
   }, [themePreference]);
 
   let theme = themePreferenceToTheme(themePreference);
-  if (customThemes[cfg.customTheme]) {
-    theme = customThemes[cfg.customTheme];
+  const lightDarkTheme = customThemes[cfg.customTheme];
+  if (lightDarkTheme) {
+    const prefersDark = getCurrentTheme(themePreference) === ThemePreference.DARK;
+    const selected = prefersDark
+      ? (lightDarkTheme.dark ?? lightDarkTheme.light)
+      : (lightDarkTheme.light ?? lightDarkTheme.dark);
+    const hasBothVariants = !!(lightDarkTheme.light && lightDarkTheme.dark);
+    // Show the light/dark toggle only when the brand provides both variants.
+    theme = { ...selected, isCustomTheme: !hasBothVariants };
   }
 
   return (
