@@ -51,13 +51,34 @@ const (
 type createClientTLSConfigFunc func(t *testing.T, certsDir string) *tls.Config
 type connReadExpectationFunc func(t *testing.T, connReadErr error)
 
+// systemTrustedCA allows us to generate certs that the OS would trust.
+var systemTrustedCA *tlsca.CertAuthority
+
+func init() {
+	caKeyPEM, caCertPEM, err := tlsca.GenerateSelfSignedCA(
+		pkix.Name{CommonName: "Teleport test system root"}, nil, time.Hour)
+	if err != nil {
+		panic(err)
+	}
+	systemTrustedCA, err = tlsca.FromKeys(caCertPEM, caKeyPEM)
+	if err != nil {
+		panic(err)
+	}
+	caCert, err := tlsca.ParseCertificatePEM(caCertPEM)
+	if err != nil {
+		panic(err)
+	}
+
+	pool := x509.NewCertPool()
+	pool.AddCert(caCert)
+	x509.SetFallbackRoots(pool)
+}
+
 func TestStart(t *testing.T) {
 	t.Parallel()
 
 	sockDir := t.TempDir()
 	sockPath := filepath.Join(sockDir, "teleterm.sock")
-
-	systemTrustedClientCert := newSystemTrustedClient(t)
 
 	tests := []struct {
 		name                    string
@@ -108,6 +129,7 @@ func TestStart(t *testing.T) {
 			name: "tcp with system-trusted client cert not saved to disk",
 			addr: "tcp://localhost:0",
 			createClientTLSConfigFunc: func(t *testing.T, certsDir string) *tls.Config {
+				systemTrustedClientCert := newSystemTrustedCert(t)
 				tlsConfig, err := createClientTLSConfig(systemTrustedClientCert, filepath.Join(certsDir, tshdCertFileName))
 				require.NoError(t, err)
 				return withH2(tlsConfig)
@@ -253,26 +275,13 @@ func createValidClientTLSConfig(t *testing.T, certsDir string) *tls.Config {
 	return withH2(tlsConfig)
 }
 
-// newSystemTrustedClient creates a CA, sets it as the process's fallback
-// system root, and returns a client cert signed by it.
-func newSystemTrustedClient(t *testing.T) tls.Certificate {
+// newSystemTrustedCert gets a fresh client cert signed by CA set as the process's fallback system root.
+func newSystemTrustedCert(t *testing.T) tls.Certificate {
 	t.Helper()
-
-	caKeyPEM, caCertPEM, err := tlsca.GenerateSelfSignedCA(
-		pkix.Name{CommonName: "Teleport test system root"}, nil, time.Hour)
-	require.NoError(t, err)
-	ca, err := tlsca.FromKeys(caCertPEM, caKeyPEM)
-	require.NoError(t, err)
-	caCert, err := tlsca.ParseCertificatePEM(caCertPEM)
-	require.NoError(t, err)
-
-	pool := x509.NewCertPool()
-	pool.AddCert(caCert)
-	x509.SetFallbackRoots(pool)
 
 	clientKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	require.NoError(t, err)
-	clientCertPEM, err := ca.GenerateCertificate(tlsca.CertificateRequest{
+	clientCertPEM, err := systemTrustedCA.GenerateCertificate(tlsca.CertificateRequest{
 		PublicKey: clientKey.Public(),
 		Subject:   pkix.Name{CommonName: "Teleport test system-trusted client"},
 		NotAfter:  time.Now().Add(time.Hour),
