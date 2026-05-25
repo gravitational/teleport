@@ -341,38 +341,43 @@ describe('diag notification', () => {
       mockAppContext: appContext => {
         jest
           .spyOn(appContext.vnet, 'runDiagnostics')
-          .mockResolvedValueOnce(
-            new MockedUnaryCall({ report: issuesFoundReport })
-          )
-          .mockResolvedValueOnce(
-            new MockedUnaryCall({ report: noIssuesFoundReport })
-          )
-          .mockResolvedValueOnce(
-            new MockedUnaryCall({ report: issuesFoundReport })
-          )
-          .mockResolvedValue(
-            new MockedUnaryCall({}, new Error('something went wrong'))
-          );
+          .mockReturnValue(new MockedUnaryCall({ report: issuesFoundReport }));
       },
       verify: async ({ notificationsService, vnet }, result) => {
-        // Open the diag report and verify that it removes the notification.
+        // Wait for the first run to create a notification.
         await waitFor(
-          () =>
-            expect(result.current.diagnosticsAttempt.status).toEqual('success'),
+          () => expect(notificationsService.getNotifications()).toHaveLength(1),
           { interval }
         );
+
+        // Open the diag report and verify that it removes the notification.
         await act(async () => {
           result.current.openReport(result.current.diagnosticsAttempt.data);
         });
-        expect(notificationsService.notifyWarning).toHaveBeenCalledTimes(1);
         expect(notificationsService.getNotifications()).toHaveLength(0);
 
         jest.clearAllMocks();
 
-        // Wait for the third report to be processed and verify that it does not result in another
-        // notification being created.
+        // Wait for at least one no-issues run…
+        await act(async () => {
+          jest
+            .spyOn(vnet, 'runDiagnostics')
+            .mockReturnValue(
+              new MockedUnaryCall({ report: noIssuesFoundReport })
+            );
+        });
         await waitFor(
-          () => expect(vnet.runDiagnostics).toHaveBeenCalledTimes(3),
+          () => expect(vnet.runDiagnostics).toHaveBeenCalledTimes(1),
+          { interval }
+        );
+
+        // …then flip back to returning issues and wait for one more run. Verify that the cycle
+        // did not create another notification.
+        jest
+          .spyOn(vnet, 'runDiagnostics')
+          .mockReturnValue(new MockedUnaryCall({ report: issuesFoundReport }));
+        await waitFor(
+          () => expect(vnet.runDiagnostics).toHaveBeenCalledTimes(2),
           { interval }
         );
         expect(notificationsService.notifyWarning).toHaveBeenCalledTimes(0);
@@ -416,10 +421,9 @@ describe('diag notification', () => {
       mockAppContext: appContext => {
         jest
           .spyOn(appContext.vnet, 'runDiagnostics')
-          .mockResolvedValueOnce(
+          .mockReturnValue(
             new MockedUnaryCall({ report: noIssuesFoundReport })
-          )
-          .mockReturnValue(new MockedUnaryCall({ report: issuesFoundReport }));
+          );
       },
       verify: async (
         { vnet, notificationsService },
@@ -431,15 +435,22 @@ describe('diag notification', () => {
             expect(result.current.diagnosticsAttempt.status).toEqual('success'),
           { interval }
         );
-        expect(notificationsService.notifyWarning).not.toHaveBeenCalled();
+        expect(notificationsService.getNotifications()).toHaveLength(0);
 
-        // Close the panel and wait for the next run, verify that the notification was sent.
-        await act(async () => controlConnectionsRef.current.close());
+        // Close the panel and start returning report with issues, then wait for the next run to
+        // produce a notification.
+        await act(async () => {
+          jest
+            .spyOn(vnet, 'runDiagnostics')
+            .mockReturnValue(
+              new MockedUnaryCall({ report: issuesFoundReport })
+            );
+          controlConnectionsRef.current.close();
+        });
         await waitFor(
-          () => expect(vnet.runDiagnostics).toHaveBeenCalledTimes(2),
+          () => expect(notificationsService.getNotifications()).toHaveLength(1),
           { interval }
         );
-        expect(notificationsService.getNotifications().length).toEqual(1);
       },
     },
     {
