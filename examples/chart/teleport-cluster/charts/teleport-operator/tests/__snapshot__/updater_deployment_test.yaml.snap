@@ -31,7 +31,7 @@ sets the affinity:
       env:
       - name: SSL_CERT_FILE
         value: /etc/teleport-tls-ca/helm-lint-existing-tls-secret-key-name
-      image: public.ecr.aws/gravitational/teleport-kube-agent-updater:19.0.0-prealpha.2
+      image: public.ecr.aws/gravitational/teleport-kube-agent-updater:19.0.0-hugoopupd.1
       imagePullPolicy: Always
       livenessProbe:
         failureThreshold: 6
@@ -119,7 +119,7 @@ sets the tolerations:
       env:
       - name: SSL_CERT_FILE
         value: /etc/teleport-tls-ca/helm-lint-existing-tls-secret-key-name
-      image: public.ecr.aws/gravitational/teleport-kube-agent-updater:19.0.0-prealpha.2
+      image: public.ecr.aws/gravitational/teleport-kube-agent-updater:19.0.0-hugoopupd.1
       imagePullPolicy: Always
       livenessProbe:
         failureThreshold: 6
