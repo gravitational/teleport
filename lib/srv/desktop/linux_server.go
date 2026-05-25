@@ -513,19 +513,12 @@ func (sess *linuxSession) run() error {
 		sess.audit.teardown(context.Background())
 	}()
 
-	sess.backend, err = x11.NewBackend(sess.ctx, x11.Config{
-		ClipboardDataReceiver: sess.handleClipboardData,
-		Logger:                sess.log,
-	})
-	if err != nil {
-		sess.sendTDPError("Couldn't create backend.")
-		return trace.Wrap(err)
-	}
-	defer sess.backend.Close()
-
 	defer func() {
 		if sess.cmd != nil {
 			sess.cmd.Close()
+		}
+		if sess.backend != nil {
+			sess.backend.Close()
 		}
 	}()
 
@@ -577,6 +570,18 @@ func (sess *linuxSession) messageLoop() error {
 			*tdpb.SharedDirectoryAnnounce, *tdpb.SharedDirectoryResponse:
 
 			sess.track.UpdateClientActivity()
+		}
+
+		switch msg.(type) {
+		case *tdpb.Ping:
+		case *tdpb.ClientHello:
+			if sess.backend != nil {
+				return trace.BadParameter("received second ClientHello")
+			}
+		default:
+			if sess.backend == nil {
+				return trace.BadParameter("received message %T before ClientHello", msg)
+			}
 		}
 
 		switch m := msg.(type) {
@@ -659,6 +664,16 @@ func (sess *linuxSession) handleClientHello(m *tdpb.ClientHello) error {
 		sess.sendTDPError("Connection authorization failed.")
 		return trace.Wrap(err)
 	}
+
+	backend, err := x11.NewBackend(sess.ctx, x11.Config{
+		ClipboardDataReceiver: sess.handleClipboardData,
+		Logger:                sess.log,
+	})
+	if err != nil {
+		sess.sendTDPError("Couldn't create backend.")
+		return trace.Wrap(err)
+	}
+	sess.backend = backend
 
 	if err := sess.changeAuthorityFileOwnership(m); err != nil {
 		return trace.Wrap(err)
