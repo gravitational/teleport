@@ -18,9 +18,11 @@ package httplib
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"strings"
 	"testing"
+	"testing/iotest"
 	"testing/synctest"
 
 	"github.com/gravitational/teleport/lib/itertools/stream"
@@ -143,21 +145,21 @@ func TestSSEEventsRead(t *testing.T) {
 			},
 		},
 		"single event data exceeds max size": {
-			input: "data: " + strings.Repeat("x", MaxSSEEventSize),
+			input: "data: " + strings.Repeat("x", MaxSSEReadEventSize),
 			expectError: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorIs(tt, err, ErrSSEEventTooLarge, i...)
 			},
 			expectEvents: require.Empty,
 		},
 		"single event field exceeds max size": {
-			input: "event: " + strings.Repeat("x", MaxSSEEventSize),
+			input: "event: " + strings.Repeat("x", MaxSSEReadEventSize),
 			expectError: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorIs(tt, err, ErrSSEEventTooLarge, i...)
 			},
 			expectEvents: require.Empty,
 		},
 		"single event exceeds max size multi lines": {
-			input: "data: " + strings.Repeat("x", MaxSSEEventSize/2) + "\ndata:" + strings.Repeat("y", MaxSSEEventSize/2),
+			input: "data: " + strings.Repeat("x", MaxSSEReadEventSize/2) + "\ndata:" + strings.Repeat("y", MaxSSEReadEventSize/2),
 			expectError: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorIs(tt, err, ErrSSEEventTooLarge, i...)
 			},
@@ -361,6 +363,37 @@ func TestSSEEventsWriteRead(t *testing.T) {
 
 			require.Equal(t, input, buf.String())
 		})
+	}
+}
+
+// TestSSEEventsReadFieldsAreCopied ensures ReadSSEEvents returns events whose
+// fields own their bytes rather than aliasing the scanner's internal buffer.
+// bufio.Scanner compacts its buffer between Scan() calls, so any retained
+// sub-slice of scanner.Bytes() would be overwritten by later reads.
+func TestSSEEventsReadFieldsAreCopied(t *testing.T) {
+	const n = 200
+
+	var buf bytes.Buffer
+	for i := range n {
+		_, err := WriteSSEEvent(&buf, SSEEvent{
+			ID:    fmt.Sprintf("%d", i),
+			Event: fmt.Sprintf("e%d", i),
+			// Multi-line data exercises the append branch of Data
+			// accumulation in addition to the initial allocation.
+			Data: fmt.Appendf(nil, "first-%d\nsecond-%d", i, i),
+		})
+		require.NoError(t, err)
+	}
+
+	// We force multiple Scan calls by using a one byte reader.
+	got, err := stream.Collect(ReadSSEEvents(iotest.OneByteReader(&buf)))
+	require.NoError(t, err)
+	require.Len(t, got, n)
+
+	for i, ev := range got {
+		require.Equal(t, fmt.Sprintf("%d", i), ev.ID)
+		require.Equal(t, fmt.Sprintf("e%d", i), ev.Event)
+		require.Equal(t, fmt.Appendf(nil, "first-%d\nsecond-%d", i, i), ev.Data)
 	}
 }
 
