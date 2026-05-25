@@ -25,9 +25,10 @@ import (
 	"testing/iotest"
 	"testing/synctest"
 
-	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 func TestSSEEventsRead(t *testing.T) {
