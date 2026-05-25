@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSpinner(t *testing.T) {
@@ -32,6 +33,10 @@ func TestSpinner(t *testing.T) {
 		var buf bytes.Buffer
 		s := New(&buf, "creating...")
 		t.Cleanup(s.Stop)
+
+		// Sanity check that the bubbletea spinner model defines enough frames
+		// to produce a visible animation. The threshold is arbitrary.
+		require.Greater(t, len(s.model.Frames), 5)
 
 		time.Sleep(s.model.FPS * time.Duration(len(s.model.Frames)*2))
 		s.Stop()

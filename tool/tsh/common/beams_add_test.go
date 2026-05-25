@@ -19,7 +19,6 @@
 package common
 
 import (
-	"bytes"
 	"io"
 	"testing"
 
@@ -29,7 +28,6 @@ import (
 )
 
 func Test_beamsAddCommand_shouldShowSpinner(t *testing.T) {
-	dummyWriter := &bytes.Buffer{}
 	fakeTTY := func(io.Writer) bool { return true }
 	fakeNonTTY := func(io.Writer) bool { return false }
 
@@ -82,7 +80,7 @@ func Test_beamsAddCommand_shouldShowSpinner(t *testing.T) {
 			cmd := &beamsAddCommand{
 				isTerminalOverwrite: tt.isTerminalOverwrite,
 			}
-			tt.check(t, cmd.shouldShowSpinner(dummyWriter, tt.format))
+			tt.check(t, cmd.shouldShowSpinner(io.Discard, tt.format))
 		})
 	}
 }
