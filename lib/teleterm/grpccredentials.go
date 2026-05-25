@@ -63,6 +63,7 @@ func createServerCredentials(serverKeyPair tls.Certificate, clientCertPaths []st
 	config := &tls.Config{
 		ClientAuth:   tls.RequireAndVerifyClientCert,
 		Certificates: []tls.Certificate{serverKeyPair},
+		ClientCAs:    x509.NewCertPool(),
 	}
 
 	config.GetConfigForClient = func(_ *tls.ClientHelloInfo) (*tls.Config, error) {
