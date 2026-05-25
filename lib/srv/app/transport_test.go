@@ -36,6 +36,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/trace"
 )
 
 func TestNeedsPathRedirect(t *testing.T) {
@@ -197,9 +198,11 @@ func newTestTransport(t *testing.T, dial func(context.Context, string, string) (
 	})
 	require.NoError(t, err)
 	tr, err := newTransport(t.Context(), &transportConfig{
-		app:        app,
-		publicPort: "443",
-		jwt:        "test-jwt",
+		app:                 app,
+		publicPort:          "443",
+		jwt:                 "test-jwt",
+		clusterName:         "example",
+		certAuthorityGetter: &emptyCertAuthorityGetter{},
 	})
 	require.NoError(t, err)
 	tr.tr.(*http.Transport).DialContext = dial
@@ -265,4 +268,11 @@ func (noopAudit) OnDynamoDBRequest(context.Context, *common.SessionContext, *htt
 
 func (noopAudit) EmitEvent(context.Context, apievents.AuditEvent) error {
 	return nil
+}
+
+type emptyCertAuthorityGetter struct{}
+
+// GetCertAuthority returns cert authority by id.
+func (emptyCertAuthorityGetter) GetCertAuthority(context.Context, types.CertAuthID, bool) (types.CertAuthority, error) {
+	return nil, trace.NotFound("certificate authority not found")
 }
