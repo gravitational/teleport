@@ -28,6 +28,7 @@ import (
 )
 
 func Test_beamsAddCommand_shouldShowSpinner(t *testing.T) {
+	t.Parallel()
 	fakeTTY := func(io.Writer) bool { return true }
 	fakeNonTTY := func(io.Writer) bool { return false }
 
