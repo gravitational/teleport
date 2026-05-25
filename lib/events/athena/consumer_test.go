@@ -81,7 +81,7 @@ func Test_consumer_sqsMessagesCollector(t *testing.T) {
 			got := receiveEvents(t, eventsChan, 3)
 			readCancel()
 			requireChannelClosed(t, eventsChan)
-			requireEventsEqualInAnyOrder(t, wantEvents, eventAndAckIDToAuditEvents(got))
+			requireEventsEqualInAnyOrder(t, wantEvents, eventAndAckIDToAuditEvents(t, got))
 		})
 	})
 
@@ -143,7 +143,7 @@ func Test_consumer_sqsMessagesCollector(t *testing.T) {
 			// Then
 			// Make sure that channel is closed.
 			requireChannelClosed(t, eventsChan)
-			requireEventsEqualInAnyOrder(t, wantEvents, eventAndAckIDToAuditEvents(got))
+			requireEventsEqualInAnyOrder(t, wantEvents, eventAndAckIDToAuditEvents(t, got))
 		})
 	})
 	t.Run("verify if collector finishes execution (via closing channel) upon reaching maxUniquePerDayEvents", func(t *testing.T) {
@@ -212,7 +212,7 @@ func Test_consumer_sqsMessagesCollector(t *testing.T) {
 			// Then
 			// Make sure that channel is closed.
 			requireChannelClosed(t, eventsChan)
-			requireEventsEqualInAnyOrder(t, wantEvents, eventAndAckIDToAuditEvents(got))
+			requireEventsEqualInAnyOrder(t, wantEvents, eventAndAckIDToAuditEvents(t, got))
 		})
 	})
 }
@@ -320,11 +320,13 @@ func (f *receiver) GetMsgs() []eventAndAckID {
 	return f.msgs
 }
 
-func eventAndAckIDToAuditEvents(in []eventAndAckID) []apievents.AuditEvent {
-	var out []apievents.AuditEvent
+func eventAndAckIDToAuditEvents(t *testing.T, in []eventAndAckID) []apievents.AuditEvent {
+	rows := make([]eventParquet, 0, len(in))
 	for _, eventAndAckID := range in {
-		out = append(out, eventAndAckID.event)
+		rows = append(rows, *eventAndAckID.event)
 	}
+	out, err := parquetRowsToAuditEvents(rows)
+	require.NoError(t, err)
 	return out
 }
 
@@ -600,8 +602,8 @@ func TestConsumerWriteToS3(t *testing.T) {
 	april1st2023Afternoon, err := time.Parse(time.RFC3339, april1st2023AfternoonStr)
 	require.NoError(t, err)
 
-	makeAppCreateEventWithTime := func(t time.Time, name string) apievents.AuditEvent {
-		return &apievents.AppCreate{Metadata: apievents.Metadata{Type: events.AppCreateEvent, Time: t}, AppMetadata: apievents.AppMetadata{AppName: name}}
+	makeAppCreateEventWithTime := func(eventTime time.Time, name string) apievents.AuditEvent {
+		return &apievents.AppCreate{Metadata: apievents.Metadata{Type: events.AppCreateEvent, Time: eventTime}, AppMetadata: apievents.AppMetadata{AppName: name}}
 	}
 
 	eventR1 := makeAppCreateEventWithTime(april1st2023Afternoon, "app-1")
@@ -609,10 +611,17 @@ func TestConsumerWriteToS3(t *testing.T) {
 	// r3 date is next date, so it should be written as separate file.
 	eventR3 := makeAppCreateEventWithTime(april1st2023Afternoon.Add(18*time.Hour), "app3")
 
+	eventP1, err := auditEventToParquet(eventR1)
+	require.NoError(t, err)
+	eventP2, err := auditEventToParquet(eventR2)
+	require.NoError(t, err)
+	eventP3, err := auditEventToParquet(eventR3)
+	require.NoError(t, err)
+
 	events := []eventAndAckID{
-		{receiptHandle: "r1", event: eventR1},
-		{receiptHandle: "r2", event: eventR2},
-		{receiptHandle: "r3", event: eventR3},
+		{receiptHandle: "r1", event: eventP1},
+		{receiptHandle: "r2", event: eventP2},
+		{receiptHandle: "r3", event: eventP3},
 	}
 
 	eventsC := make(chan eventAndAckID, 100)

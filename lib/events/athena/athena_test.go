@@ -456,7 +456,7 @@ func TestPublisherConsumer(t *testing.T) {
 				return len(r.GetMsgs()) == 1
 			}, 1*time.Second, 10*time.Millisecond, "missing events, got %d", len(r.GetMsgs()))
 
-			tt.assertFn(t, eventAndAckIDToAuditEvents(r.GetMsgs())[0], fS3)
+			tt.assertFn(t, eventAndAckIDToAuditEvents(t, r.GetMsgs())[0], fS3)
 		})
 	}
 }
