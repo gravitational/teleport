@@ -173,6 +173,31 @@ function getSubsectionsForCategory(
 }
 
 /**
+ * getOrderedSections returns the sections in their final visual order for
+ * the side nav. For dashboards, Resources is omitted (it's not rendered).
+ * For regular tenants Resources comes first by default. When Beams lite UI
+ * is enabled, Beams is positioned above Resources as the first nav category.
+ */
+function getOrderedSections(
+  navSections: NavigationSection[],
+  resourcesSection: NavigationSection
+): NavigationSection[] {
+  if (cfg.isDashboard) {
+    return navSections;
+  }
+  if (cfg.beamsUi) {
+    const beams = navSections.find(
+      s => s.category === NavigationCategory.Beams
+    );
+    const rest = navSections.filter(
+      s => s.category !== NavigationCategory.Beams
+    );
+    return [...(beams ? [beams] : []), resourcesSection, ...rest];
+  }
+  return [resourcesSection, ...navSections];
+}
+
+/**
  * getTopMenuSection returns a NavigationSection with the top menu items. This is not used in the sidenav, but will be used to make the top menu items searchable.
  */
 function getTopMenuSection(features: TeleportFeature[]): NavigationSection {
@@ -395,36 +420,18 @@ export function Navigation({
     [debouncedSection]
   );
 
-  const combinedSideNavSections = useMemo(
-    () => [resourcesSection, ...navSections],
-    [resourcesSection, navSections]
+  const orderedSections = useMemo(
+    () => getOrderedSections(navSections, resourcesSection),
+    [navSections, resourcesSection]
   );
 
-  // When Beams lite UI is enabled, render Beams above Resources as the first
-  // nav category. Otherwise leave navSections in its default order.
-  const beamsSection = useMemo(
+  const currentPageSection = useMemo(
     () =>
-      cfg.beamsUi
-        ? navSections.find(
-            section => section.category === NavigationCategory.Beams
-          )
-        : undefined,
-    [navSections]
+      orderedSections.find(
+        section => section.category === currentView?.category
+      ),
+    [orderedSections, currentView]
   );
-  const otherNavSections = useMemo(
-    () =>
-      cfg.beamsUi
-        ? navSections.filter(
-            section => section.category !== NavigationCategory.Beams
-          )
-        : navSections,
-    [navSections]
-  );
-  const currentPageSection = useMemo(() => {
-    return combinedSideNavSections.find(
-      section => section.category === currentView?.category
-    );
-  }, [combinedSideNavSections, currentView]);
 
   const collapseDrawer = useCallback(
     (closeAfterDelay = true) => {
@@ -515,6 +522,24 @@ export function Navigation({
   }
 
   const renderNavSection = (section: NavigationSection) => {
+    // Resources is a "special" section that owns its own panel content
+    // rather than a generic list of subsections, so it gets its own component.
+    if (section.category === NavigationCategory.Resources) {
+      return (
+        <ResourcesSection
+          key="resources"
+          expandedSection={debouncedSection}
+          previousExpandedSection={previousExpandedSection}
+          handleSetExpandedSection={handleSetExpandedSection}
+          currentView={currentView}
+          stickyMode={stickyMode}
+          toggleStickyMode={toggleStickyMode}
+          canToggleStickyMode={!!currentPageSection}
+          showPoweredByLogo={showPoweredByLogo}
+        />
+      );
+    }
+
     if (section.standalone) {
       return (
         <StandaloneSection
@@ -576,31 +601,18 @@ export function Navigation({
       <SideNavContainer>
         <PanelBackground />
         {!cfg.isDashboard && (
-          <>
-            <SearchSection
-              navigationSections={[...combinedSideNavSections, topMenuSection]}
-              expandedSection={debouncedSection}
-              previousExpandedSection={previousExpandedSection}
-              handleSetExpandedSection={handleSetExpandedSection}
-              currentView={currentView}
-              stickyMode={stickyMode}
-              toggleStickyMode={toggleStickyMode}
-              canToggleStickyMode={!!currentPageSection}
-            />
-            {beamsSection && renderNavSection(beamsSection)}
-            <ResourcesSection
-              expandedSection={debouncedSection}
-              previousExpandedSection={previousExpandedSection}
-              handleSetExpandedSection={handleSetExpandedSection}
-              currentView={currentView}
-              stickyMode={stickyMode}
-              toggleStickyMode={toggleStickyMode}
-              canToggleStickyMode={!!currentPageSection}
-              showPoweredByLogo={showPoweredByLogo}
-            />
-          </>
+          <SearchSection
+            navigationSections={[...orderedSections, topMenuSection]}
+            expandedSection={debouncedSection}
+            previousExpandedSection={previousExpandedSection}
+            handleSetExpandedSection={handleSetExpandedSection}
+            currentView={currentView}
+            stickyMode={stickyMode}
+            toggleStickyMode={toggleStickyMode}
+            canToggleStickyMode={!!currentPageSection}
+          />
         )}
-        {otherNavSections.map(renderNavSection)}
+        {orderedSections.map(renderNavSection)}
       </SideNavContainer>
     </Container>
   );
