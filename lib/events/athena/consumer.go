@@ -640,6 +640,13 @@ func (s *sqsMessagesCollector) receiveMessagesAndSendOnChan(ctx context.Context,
 	}
 	var singleReceiveMetadata collectedEventsMetadata
 	for _, msg := range sqsOut.Messages {
+		// size is used to track the total size of events in a batch to prevent creating
+		// batches that are too large, which can cause the parquet file to grow beyond
+		// Athena's recommended file size of 128MB-1GB.
+		// The size is calculated from the protobuf-marshaled event, so it is not the
+		// exact parquet file size. Since parquet compression is enabled, it should be a
+		// better estimate of the final parquet file size than the size of the event
+		// after JSON conversion.
 		event, size, err := s.auditEventFromSQSorS3(ctx, msg)
 		if err != nil {
 			select {
