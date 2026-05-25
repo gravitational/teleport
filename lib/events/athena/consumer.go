@@ -470,7 +470,7 @@ type sqsMessagesCollector struct {
 func newSqsMessagesCollector(cfg sqsCollectConfig) *sqsMessagesCollector {
 	return &sqsMessagesCollector{
 		cfg:        cfg,
-		eventsChan: make(chan eventAndAckID, 1),
+		eventsChan: make(chan eventAndAckID),
 	}
 }
 
