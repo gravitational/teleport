@@ -80,12 +80,26 @@ type AppServer interface {
 	SetComponentFeatures(*componentfeaturesv1.ComponentFeatures)
 }
 
+type appServerOpt func(*AppServerV3)
+
+// AppServerWithScope is an option that sets the scope when building an [AppServerV3].
+func AppServerWithScope(scope string) appServerOpt {
+	return func(s *AppServerV3) {
+		s.Scope = scope
+	}
+}
+
 // NewAppServerV3 creates a new app server instance.
-func NewAppServerV3(meta Metadata, spec AppServerSpecV3) (*AppServerV3, error) {
+func NewAppServerV3(meta Metadata, spec AppServerSpecV3, opts ...appServerOpt) (*AppServerV3, error) {
 	s := &AppServerV3{
 		Metadata: meta,
 		Spec:     spec,
 	}
+
+	for _, opt := range opts {
+		opt(s)
+	}
+
 	if err := s.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}

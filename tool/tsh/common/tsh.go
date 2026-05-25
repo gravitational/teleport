@@ -3565,6 +3565,9 @@ func writeAppTable(w io.Writer, appListings []appListing, config appTableConfig)
 	getTargetPorts := func(app types.Application) string {
 		return app.GetTCPPorts().String()
 	}
+	getScope := func(app types.Application) string {
+		return app.GetScope()
+	}
 
 	const labelsColumn = "Labels"
 	allColumns := []appTableColumn{
@@ -3607,6 +3610,10 @@ func writeAppTable(w io.Writer, appListings []appListing, config appTableConfig)
 		appTableColumn{
 			name: labelsColumn,
 			get:  getLabels,
+		},
+		appTableColumn{
+			name: "Scope",
+			get:  getScope,
 		},
 	}
 	columns := slices.DeleteFunc(allColumns, func(column appTableColumn) bool { return column.hide })

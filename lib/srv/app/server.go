@@ -85,6 +85,9 @@ type Config struct {
 	// ResourceMatchers is a list of app resource matchers.
 	ResourceMatchers []services.ResourceMatcher
 
+	// Scope is the agent's scope.
+	Scope string
+
 	// OnReconcile is called after each app resource reconciliation.
 	OnReconcile func(types.Apps)
 
@@ -198,6 +201,11 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 	err := c.CheckAndSetDefaults()
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// TODO(williamo/scopes): remove this validation once dynamic app registration supports scopes.
+	if c.Scope != "" && len(c.ResourceMatchers) > 0 {
+		return nil, trace.BadParameter("dynamic app registration not supported for scoped app_service, resource matchers must be empty")
 	}
 
 	closeContext, closeFunc := context.WithCancel(ctx)
@@ -363,7 +371,9 @@ func (s *Server) getServerInfo(app types.Application) (*types.AppServerV3, error
 		Rotation: s.getRotationState(),
 		App:      copy,
 		ProxyIDs: s.c.ConnectedProxyGetter.GetProxyIDs(),
-	})
+	},
+		types.AppServerWithScope(s.c.Scope),
+	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

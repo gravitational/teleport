@@ -120,13 +120,28 @@ type Application interface {
 	GetTLSMode() AppTLSMode
 	// IsEqual determines if two application resources are equivalent to one another.
 	IsEqual(Application) bool
+	// GetScope gets the scope of the kube cluster.
+	GetScope() string
+}
+
+type appV3Opt func(*AppV3)
+
+// WithScope is an option that sets the scope when building a [AppV3].
+func WithScope(scope string) appV3Opt {
+	return func(a *AppV3) {
+		a.Scope = scope
+	}
 }
 
 // NewAppV3 creates a new app resource.
-func NewAppV3(meta Metadata, spec AppSpecV3) (*AppV3, error) {
+func NewAppV3(meta Metadata, spec AppSpecV3, opts ...appV3Opt) (*AppV3, error) {
 	app := &AppV3{
 		Metadata: meta,
 		Spec:     spec,
+	}
+
+	for _, opt := range opts {
+		opt(app)
 	}
 	if err := app.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -722,6 +737,15 @@ func (a *AppV3) GetClientCertMode() AppClientCertMode {
 	}
 
 	return a.Spec.TLS.ClientCertMode
+}
+
+// GetScope returns the scope of the app.
+func (a *AppV3) GetScope() string {
+	if a == nil {
+		return ""
+	}
+
+	return a.Scope
 }
 
 // DeduplicateApps deduplicates apps by combination of app name and public address.

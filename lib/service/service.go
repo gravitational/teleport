@@ -6823,7 +6823,7 @@ func (process *TeleportProcess) initApps() {
 				MCP:                   app.MCP,
 				LLM:                   app.LLM,
 				TLS:                   app.TLS,
-			})
+			}, types.WithScope(conn.Scope()))
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -6942,6 +6942,7 @@ func (process *TeleportProcess) initApps() {
 			ConnectionsHandler:          connectionsHandler,
 			InventoryHandle:             process.inventoryHandle,
 			IgnoreAppsWithCommandLabels: runningOnBeams,
+			Scope:                       conn.Scope(),
 		})
 		if err != nil {
 			return trace.Wrap(err)

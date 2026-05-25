@@ -136,7 +136,8 @@ This token will expire in {{.minutes}} minutes.
 Fill out and run this command on a node to make the application available:
 
 > teleport app start \
-   --token={{.token}} \{{range .ca_pins}}
+   --token={{.token}} \{{with .secret}}
+   --token-secret={{.}}\{{end}}{{range .ca_pins}}
    --ca-pin={{.}} \{{end}}
    --auth-server={{.proxy_server}} \
    --name={{printf "%-30v" .app_name}} ` + "`" + `# Change "{{.app_name}}" to the name of your application.` + "`" + ` \
