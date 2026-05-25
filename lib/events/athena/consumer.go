@@ -189,7 +189,7 @@ func newConsumer(cfg Config, cancelFn context.CancelFunc) (*consumer, error) {
 			key := fmt.Sprintf("%s/%s/%s.parquet", cfg.locationS3Prefix, date, id.String())
 			uploaderOpts := []func(*transfermanager.Options){
 				func(u *transfermanager.Options) {
-					u.PartSizeBytes = 5 << 20 // 5MB minimum; reduces per-upload buffer from 25MB (default 5×5MB) to 5MB
+					u.PartSizeBytes = 5 << 20 // 5MB minimum; reduces per-upload buffer from 25MB to 5MB
 					u.Concurrency = 1
 				},
 			}
@@ -470,7 +470,7 @@ type sqsMessagesCollector struct {
 func newSqsMessagesCollector(cfg sqsCollectConfig) *sqsMessagesCollector {
 	return &sqsMessagesCollector{
 		cfg:        cfg,
-		eventsChan: make(chan eventAndAckID, cfg.batchMaxItems),
+		eventsChan: make(chan eventAndAckID, 1),
 	}
 }
 
@@ -648,10 +648,23 @@ func (s *sqsMessagesCollector) receiveMessagesAndSendOnChan(ctx context.Context,
 			}
 			continue
 		}
-		eventsC <- eventAndAckID{
-			event:         event,
-			receiptHandle: aws.ToString(msg.ReceiptHandle),
+		pqtEvent, err := auditEventToParquet(event)
+		if err != nil {
+			select {
+			case errorsC <- trace.Wrap(err, "could not convert event to parquet format"):
+			case <-ctx.Done():
+			}
+			continue
 		}
+		select {
+		case eventsC <- eventAndAckID{
+			event:         pqtEvent,
+			receiptHandle: aws.ToString(msg.ReceiptHandle),
+		}:
+		case <-ctx.Done():
+			return singleReceiveMetadata
+		}
+
 		messageSentTimestamp, err := getMessageSentTimestamp(msg)
 		if err != nil {
 			s.cfg.logger.DebugContext(ctx, "Failed to get sentTimestamp", "error", err)
@@ -730,7 +743,7 @@ func validateSQSMessage(msg sqsTypes.Message) (string, error) {
 }
 
 type eventAndAckID struct {
-	event         apievents.AuditEvent
+	event         *eventParquet
 	receiptHandle string
 }
 
@@ -817,11 +830,7 @@ eventLoop:
 			if !ok {
 				break eventLoop
 			}
-			pqtEvent, err := auditEventToParquet(eventAndAckID.event)
-			if err != nil {
-				c.logger.ErrorContext(ctx, "Could not convert event to parquet format", "error", err)
-				continue
-			}
+			pqtEvent := eventAndAckID.event
 			date := pqtEvent.EventTime.Format(time.DateOnly)
 			pw := perDateWriter[date]
 			if pw == nil {
