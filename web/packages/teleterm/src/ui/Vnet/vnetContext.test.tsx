@@ -359,13 +359,11 @@ describe('diag notification', () => {
         jest.clearAllMocks();
 
         // Wait for at least one no-issues run…
-        await act(async () => {
-          jest
-            .spyOn(vnet, 'runDiagnostics')
-            .mockReturnValue(
-              new MockedUnaryCall({ report: noIssuesFoundReport })
-            );
-        });
+        jest
+          .spyOn(vnet, 'runDiagnostics')
+          .mockReturnValue(
+            new MockedUnaryCall({ report: noIssuesFoundReport })
+          );
         await waitFor(
           () => expect(vnet.runDiagnostics).toHaveBeenCalledTimes(1),
           { interval }
@@ -439,14 +437,10 @@ describe('diag notification', () => {
 
         // Close the panel and start returning report with issues, then wait for the next run to
         // produce a notification.
-        await act(async () => {
-          jest
-            .spyOn(vnet, 'runDiagnostics')
-            .mockReturnValue(
-              new MockedUnaryCall({ report: issuesFoundReport })
-            );
-          controlConnectionsRef.current.close();
-        });
+        await act(async () => controlConnectionsRef.current.close());
+        jest
+          .spyOn(vnet, 'runDiagnostics')
+          .mockReturnValue(new MockedUnaryCall({ report: issuesFoundReport }));
         await waitFor(
           () => expect(notificationsService.getNotifications()).toHaveLength(1),
           { interval }
