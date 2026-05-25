@@ -590,7 +590,7 @@ func (sess *linuxSession) messageLoop() error {
 				return trace.Wrap(err)
 			}
 		case *tdpb.SessionSelection:
-			if err := sess.handleSessionSelection(m); err != nil {
+			if err := sess.handleSessionSelection((*tdpbv1.SessionSelection)(m)); err != nil {
 				return trace.Wrap(err)
 			}
 		case *tdpb.MouseMove:
@@ -782,17 +782,18 @@ func (sess *linuxSession) changeAuthorityFileOwnership(m *tdpb.ClientHello) erro
 	return nil
 }
 
-func (sess *linuxSession) handleSessionSelection(m *tdpb.SessionSelection) error {
+func (sess *linuxSession) handleSessionSelection(m *tdpbv1.SessionSelection) error {
 	if sess.cmd != nil {
 		sess.log.WarnContext(sess.ctx, "session already started")
 		sess.sendTDPWarning("Received session selection message but session is already started")
 		return nil
 	}
-	xsession, ok := sess.xsessions[m.Session.Name]
+	sessionName := m.GetSession().GetName()
+	xsession, ok := sess.xsessions[sessionName]
 	if !ok {
-		sess.log.WarnContext(sess.ctx, "failed to get xsession", "name", m.Session.Name)
-		sess.sendTDPError(fmt.Sprintf("Couldn't find xsession %s.", m.Session.Name))
-		return trace.NotFound("xsession %s not found", m.Session.Name)
+		sess.log.WarnContext(sess.ctx, "failed to get xsession", "name", sessionName)
+		sess.sendTDPError(fmt.Sprintf("Couldn't find xsession %s.", sessionName))
+		return trace.NotFound("xsession %s not found", sessionName)
 	}
 	cmd, err := x11.StartTeleportExecXSession(sess.ctx, &x11.XSessionConfig{
 		Logger:         sess.log,
