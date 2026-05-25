@@ -33,6 +33,36 @@ storage, visualization, and analysis. For more information, read [Exporting
 Teleport Audit Events](
 ../zero-trust-access/export-audit-events/export-audit-events.mdx).
 
+## access_graph.access_path_changed
+
+Access Path Changed
+
+Example:
+
+```json
+{
+  "affected_resources": [
+    {
+      "name": "bob",
+      "source": "TELEPORT",
+      "type": "teleport_node"
+    },
+    {
+      "name": "admins",
+      "source": "Okta",
+      "type": "group"
+    }
+  ],
+  "change_id": "0110b3c4-d0b5-4af9-8585-aa49a064c85d",
+  "cluster_name": "ssh-node",
+  "code": "TAG001I",
+  "ei": 0,
+  "event": "access_graph.access_path_changed",
+  "time": "2024-09-20T19:50:38.194Z",
+  "uid": "5447d050-699a-4009-a901-ab8ed2614bc2"
+}
+```
+
 ## access_graph.crown_jewel.create
 
 Crown Jewel Created
@@ -73,21 +103,6 @@ Example:
 {
   "code": "CJ002I",
   "event": "access_graph.crown_jewel.update",
-  "time": "2020-06-05T16:24:05Z",
-  "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
-}
-```
-
-## access_graph.path.changed
-
-Access Path Changed
-
-Example:
-
-```json
-{
-  "code": "TAG001I",
-  "event": "access_graph.path.changed",
   "time": "2020-06-05T16:24:05Z",
   "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
 }

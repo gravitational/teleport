@@ -26,18 +26,36 @@ option go_package = "github.com/gravitational/teleport/gen/proto/go/accessgraph/
 
 // AccessPathChanged is an event that is emitted when an access path is changed.
 message AccessPathChanged {
-  // metadata is a common event metadata
+  // metadata is common event metadata.
   teleport.header.v1.Metadata metadata = 1;
 
-  // change_id is the id of the change.
+  // change_id is the ID of the access path change.
   string change_id = 2;
 
-  // affected_resource_name is the name of the affected resource.
-  string affected_resource_name = 3;
+  // AffectedResourceName is the name of the affected resource.
+  // Deprecated: use affected_resources instead.
+  string affected_resource_name = 3 [deprecated = true];
 
-  // affected_resource_source is the source of the affected resource, ex: Teleport, AWS, GitLab, etc.
-  string affected_resource_source = 4;
+  // AffectedResourceSource is the source of the affected resource, for example Teleport, AWS, or GitLab.
+  // Deprecated: use affected_resources instead.
+  string affected_resource_source = 4 [deprecated = true];
 
-  // affected_resource_kind is the kind of the affected resource, ex: user, role, etc.
-  string affected_resource_kind = 5;
+  // AffectedResourceType is the type of the affected resource, for example user or role.
+  // Deprecated: use affected_resources instead.
+  string affected_resource_kind = 5 [deprecated = true];
+
+  // affected_resources lists all resources affected by the access path change.
+  repeated AccessPathAffectedResource affected_resources = 6;
+}
+
+// AccessPathAffectedResource describes a resource affected by an access path change.
+message AccessPathAffectedResource {
+  // name is the name of the affected resource.
+  string name = 3;
+
+  // source is the source of the affected resource, for example Teleport, AWS, or GitLab.
+  string source = 4;
+
+  // type is the type of the affected resource, for example user or role.
+  string type = 5;
 }

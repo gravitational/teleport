@@ -93,9 +93,18 @@ Here is what an example audit event looks like:
 
 ```json
 {
-  "affected_resource_name": "bob",
-  "affected_resource_source": "TELEPORT",
-  "affected_resource_type": "teleport_node",
+  "affected_resources": [
+    {
+      "name": "bob",
+      "source": "TELEPORT",
+      "type": "teleport_node"
+    },
+    {
+      "name": "admins",
+      "source": "Okta",
+      "type": "group"
+    }
+  ],
   "change_id": "0110b3c4-d0b5-4af9-8585-aa49a064c85d",
   "cluster_name": "ssh-node",
   "code": "TAG001I",
@@ -105,6 +114,10 @@ Here is what an example audit event looks like:
   "uid": "5447d050-699a-4009-a901-ab8ed2614bc2"
 }
 ```
+
+Use `affected_resources` to inspect all resources involved in the change. The
+older `affected_resource_name`, `affected_resource_source`, and
+`affected_resource_type` fields are deprecated and may be omitted.
 
 You can export the audit event using the event handler.
 The setup is described [here](../../zero-trust-access/export-audit-events/export-audit-events.mdx).
