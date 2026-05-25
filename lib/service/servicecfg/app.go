@@ -114,6 +114,9 @@ type App struct {
 
 	// MCP contains MCP server-related configurations.
 	MCP *types.MCP
+
+	// LLM contains LLM inference endpoint related configurations.
+	LLM *types.LLM
 }
 
 // CORS represents the configuration for Cross-Origin Resource Sharing (CORS)
@@ -157,6 +160,9 @@ type PortRange struct {
 }
 
 // CheckAndSetDefaults validates an application.
+//
+// Note: full app validation happens after conversion to `types.AppV3` so static
+// and dynamic registration share the same validation rules.
 func (a *App) CheckAndSetDefaults() error {
 	if a.Name == "" {
 		return trace.BadParameter("missing application name")
@@ -167,6 +173,8 @@ func (a *App) CheckAndSetDefaults() error {
 			a.URI = fmt.Sprintf("cloud://%v", a.Cloud)
 		case a.MCP != nil && a.MCP.Command != "":
 			a.URI = types.SchemeMCPStdio + "://"
+		case a.LLM != nil:
+			a.URI = types.SchemeLLMEndpoint + "://"
 		default:
 			return trace.BadParameter("missing application %q URI", a.Name)
 		}
