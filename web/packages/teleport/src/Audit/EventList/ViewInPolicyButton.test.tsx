@@ -45,9 +45,13 @@ test('should not render if the event is not in the list of supported events', ()
 
 test('should render a link for access path changes', () => {
   const event: RawEvents['TAG001I'] = {
-    affected_resource_name: '2k6sycjspmhaib',
-    affected_resource_source: 'TELEPORT',
-    affected_resource_kind: 'server',
+    affected_resources: [
+      {
+        name: '2k6sycjspmhaib',
+        source: 'TELEPORT',
+        type: 'server',
+      },
+    ],
     user: '',
     change_id: 'f6be68d1-fa5d-4ff7-ad0b-5c1447e251a0',
     code: 'TAG001I',

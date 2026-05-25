@@ -1842,9 +1842,16 @@ export type RawEvents = {
     typeof eventCodes.ACCESS_GRAPH_PATH_CHANGED,
     {
       change_id: string;
-      affected_resource_name: string;
-      affected_resource_source: string;
-      affected_resource_kind: string;
+      affected_resources?: {
+        name?: string;
+        source?: string;
+        type?: string;
+        kind?: string;
+      }[];
+      affected_resource_name?: string;
+      affected_resource_source?: string;
+      affected_resource_type?: string;
+      affected_resource_kind?: string;
     }
   >;
   [eventCodes.ACCESS_GRAPH_SETTINGS_UPDATE]: RawEvent<

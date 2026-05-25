@@ -64,3 +64,73 @@ describe('formatRawEventForUI', () => {
     expect(event.raw).toBe(input);
   });
 });
+
+describe('Access Graph access path changed formatter', () => {
+  test('renders all affected resources with source, kind, and name', () => {
+    const event = makeEvent({
+      affected_resources: [
+        {
+          name: 'node-a',
+          source: 'TELEPORT',
+          type: 'server',
+        },
+        {
+          name: 'admins',
+          source: 'Okta',
+          kind: 'group',
+        },
+      ],
+      change_id: 'change-id',
+      code: eventCodes.ACCESS_GRAPH_PATH_CHANGED,
+      event: 'access_graph.access_path_changed',
+      time: '2026-01-01T00:00:00.000Z',
+      uid: 'event-id',
+    });
+
+    expect(event.message).toBe(
+      'Access path changed for resources [server/node-a@TELEPORT; group/admins@Okta]'
+    );
+  });
+
+  test('renders legacy flat affected resource fields', () => {
+    const event = makeEvent({
+      affected_resource_name: 'node-a',
+      affected_resource_source: 'TELEPORT',
+      affected_resource_type: 'server',
+      change_id: 'change-id',
+      code: eventCodes.ACCESS_GRAPH_PATH_CHANGED,
+      event: 'access_graph.access_path_changed',
+      time: '2026-01-01T00:00:00.000Z',
+      uid: 'event-id',
+    });
+
+    expect(event.message).toBe(
+      'Access path changed for resources [server/node-a@TELEPORT]'
+    );
+  });
+
+  test('trims long affected resource fields', () => {
+    const longSource = 'source-'.repeat(20);
+    const longKind = 'kind-'.repeat(20);
+    const longName = 'name-'.repeat(20);
+
+    const event = makeEvent({
+      affected_resources: [
+        {
+          name: longName,
+          source: longSource,
+          type: longKind,
+        },
+      ],
+      change_id: 'change-id',
+      code: eventCodes.ACCESS_GRAPH_PATH_CHANGED,
+      event: 'access_graph.access_path_changed',
+      time: '2026-01-01T00:00:00.000Z',
+      uid: 'event-id',
+    });
+
+    expect(event.message).toBe(
+      `Access path changed for resources [${longKind.substring(0, 77)}.../${longName.substring(0, 77)}...@${longSource.substring(0, 77)}...]`
+    );
+  });
+});

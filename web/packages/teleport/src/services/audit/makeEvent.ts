@@ -84,6 +84,12 @@ type PortForwardEvent =
   | RawEvents[typeof eventCodes.PORTFORWARD_STOP]
   | RawEvents[typeof eventCodes.PORTFORWARD_FAILURE];
 
+type AccessGraphAffectedResource = NonNullable<
+  RawEvents[typeof eventCodes.ACCESS_GRAPH_PATH_CHANGED]['affected_resources']
+>[number];
+
+const maxAccessGraphResourceFieldLength = 80;
+
 const getPortForwardEventName = (event: string): string => {
   let ev = event as PortForwardEventType;
   if (!portForwardEventTypes.includes(ev)) {
@@ -131,6 +137,50 @@ const describePortForwardEvent = ({ code, event }: PortForwardEvent) => {
       return `${eventName} Failure`;
   }
 };
+
+function formatAccessGraphAffectedResource({
+  name,
+  source,
+  type,
+  kind,
+}: AccessGraphAffectedResource): string {
+  const renderedKind = truncateStr(
+    type || kind || '',
+    maxAccessGraphResourceFieldLength
+  );
+  const renderedName = truncateStr(
+    name || '',
+    maxAccessGraphResourceFieldLength
+  );
+  const renderedSource = truncateStr(
+    source || '',
+    maxAccessGraphResourceFieldLength
+  );
+
+  return `${renderedKind}/${renderedName}@${renderedSource}`;
+}
+
+function accessGraphAffectedResourcesText({
+  affected_resources,
+  affected_resource_type,
+  affected_resource_kind,
+  affected_resource_name,
+  affected_resource_source,
+}: RawEvents[typeof eventCodes.ACCESS_GRAPH_PATH_CHANGED]): string {
+  const resources =
+    affected_resources && affected_resources.length > 0
+      ? affected_resources
+      : [
+          {
+            name: affected_resource_name,
+            source: affected_resource_source,
+            type: affected_resource_type,
+            kind: affected_resource_kind,
+          },
+        ];
+
+  return resources.map(formatAccessGraphAffectedResource).join('; ');
+}
 
 export const formatters: Formatters = {
   [eventCodes.ACCESS_REQUEST_CREATED]: {
@@ -1929,14 +1979,10 @@ export const formatters: Formatters = {
       `User [${user}] updated the cluster session recording configuration`,
   },
   [eventCodes.ACCESS_GRAPH_PATH_CHANGED]: {
-    type: 'access_graph.path.changed',
+    type: 'access_graph.access_path_changed',
     desc: 'Access Path Changed',
-    format: ({
-      affected_resource_kind,
-      affected_resource_name,
-      affected_resource_source,
-    }) =>
-      `Access path for ${affected_resource_kind || 'Node'} [${affected_resource_name}/${affected_resource_source}] changed`,
+    format: event =>
+      `Access path changed for resources [${accessGraphAffectedResourcesText(event)}]`,
   },
   [eventCodes.ACCESS_GRAPH_SETTINGS_UPDATE]: {
     type: 'access_graph_settings.update',

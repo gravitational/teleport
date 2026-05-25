@@ -2822,6 +2822,27 @@ export const events = [
     event: 'access_graph_settings.update',
   },
   {
+    affected_resources: [
+      {
+        name: 'bob',
+        source: 'TELEPORT',
+        type: 'teleport_node',
+      },
+      {
+        name: 'admins',
+        source: 'Okta',
+        type: 'group',
+      },
+    ],
+    change_id: '0110b3c4-d0b5-4af9-8585-aa49a064c85d',
+    cluster_name: 'ssh-node',
+    code: 'TAG001I',
+    ei: 0,
+    event: 'access_graph.access_path_changed',
+    time: '2024-09-20T19:50:38.194Z',
+    uid: '5447d050-699a-4009-a901-ab8ed2614bc2',
+  },
+  {
     code: 'TEP01I',
     time: '2022-04-13T20:00:05.000Z',
     user: 'alice@example.com',

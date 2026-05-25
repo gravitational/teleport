@@ -42,18 +42,29 @@ const (
 // AccessPathChanged is an event that is emitted when an access path is changed.
 type AccessPathChanged struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
-	// metadata is a common event metadata
+	// metadata is common event metadata.
 	Metadata *v1.Metadata `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	// change_id is the id of the change.
+	// change_id is the ID of the access path change.
 	ChangeId string `protobuf:"bytes,2,opt,name=change_id,json=changeId,proto3" json:"change_id,omitempty"`
-	// affected_resource_name is the name of the affected resource.
+	// AffectedResourceName is the name of the affected resource.
+	// Deprecated: use affected_resources instead.
+	//
+	// Deprecated: Marked as deprecated in accessgraph/v1alpha/events.proto.
 	AffectedResourceName string `protobuf:"bytes,3,opt,name=affected_resource_name,json=affectedResourceName,proto3" json:"affected_resource_name,omitempty"`
-	// affected_resource_source is the source of the affected resource, ex: Teleport, AWS, GitLab, etc.
+	// AffectedResourceSource is the source of the affected resource, for example Teleport, AWS, or GitLab.
+	// Deprecated: use affected_resources instead.
+	//
+	// Deprecated: Marked as deprecated in accessgraph/v1alpha/events.proto.
 	AffectedResourceSource string `protobuf:"bytes,4,opt,name=affected_resource_source,json=affectedResourceSource,proto3" json:"affected_resource_source,omitempty"`
-	// affected_resource_kind is the kind of the affected resource, ex: user, role, etc.
+	// AffectedResourceType is the type of the affected resource, for example user or role.
+	// Deprecated: use affected_resources instead.
+	//
+	// Deprecated: Marked as deprecated in accessgraph/v1alpha/events.proto.
 	AffectedResourceKind string `protobuf:"bytes,5,opt,name=affected_resource_kind,json=affectedResourceKind,proto3" json:"affected_resource_kind,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	// affected_resources lists all resources affected by the access path change.
+	AffectedResources []*AccessPathAffectedResource `protobuf:"bytes,6,rep,name=affected_resources,json=affectedResources,proto3" json:"affected_resources,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *AccessPathChanged) Reset() {
@@ -100,6 +111,7 @@ func (x *AccessPathChanged) GetChangeId() string {
 	return ""
 }
 
+// Deprecated: Marked as deprecated in accessgraph/v1alpha/events.proto.
 func (x *AccessPathChanged) GetAffectedResourceName() string {
 	if x != nil {
 		return x.AffectedResourceName
@@ -107,6 +119,7 @@ func (x *AccessPathChanged) GetAffectedResourceName() string {
 	return ""
 }
 
+// Deprecated: Marked as deprecated in accessgraph/v1alpha/events.proto.
 func (x *AccessPathChanged) GetAffectedResourceSource() string {
 	if x != nil {
 		return x.AffectedResourceSource
@@ -114,9 +127,81 @@ func (x *AccessPathChanged) GetAffectedResourceSource() string {
 	return ""
 }
 
+// Deprecated: Marked as deprecated in accessgraph/v1alpha/events.proto.
 func (x *AccessPathChanged) GetAffectedResourceKind() string {
 	if x != nil {
 		return x.AffectedResourceKind
+	}
+	return ""
+}
+
+func (x *AccessPathChanged) GetAffectedResources() []*AccessPathAffectedResource {
+	if x != nil {
+		return x.AffectedResources
+	}
+	return nil
+}
+
+// AccessPathAffectedResource describes a resource affected by an access path change.
+type AccessPathAffectedResource struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// name is the name of the affected resource.
+	Name string `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	// source is the source of the affected resource, for example Teleport, AWS, or GitLab.
+	Source string `protobuf:"bytes,4,opt,name=source,proto3" json:"source,omitempty"`
+	// type is the type of the affected resource, for example user or role.
+	Type          string `protobuf:"bytes,5,opt,name=type,proto3" json:"type,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AccessPathAffectedResource) Reset() {
+	*x = AccessPathAffectedResource{}
+	mi := &file_accessgraph_v1alpha_events_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AccessPathAffectedResource) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AccessPathAffectedResource) ProtoMessage() {}
+
+func (x *AccessPathAffectedResource) ProtoReflect() protoreflect.Message {
+	mi := &file_accessgraph_v1alpha_events_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AccessPathAffectedResource.ProtoReflect.Descriptor instead.
+func (*AccessPathAffectedResource) Descriptor() ([]byte, []int) {
+	return file_accessgraph_v1alpha_events_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *AccessPathAffectedResource) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *AccessPathAffectedResource) GetSource() string {
+	if x != nil {
+		return x.Source
+	}
+	return ""
+}
+
+func (x *AccessPathAffectedResource) GetType() string {
+	if x != nil {
+		return x.Type
 	}
 	return ""
 }
@@ -125,13 +210,18 @@ var File_accessgraph_v1alpha_events_proto protoreflect.FileDescriptor
 
 const file_accessgraph_v1alpha_events_proto_rawDesc = "" +
 	"\n" +
-	" accessgraph/v1alpha/events.proto\x12\x13accessgraph.v1alpha\x1a!teleport/header/v1/metadata.proto\"\x90\x02\n" +
+	" accessgraph/v1alpha/events.proto\x12\x13accessgraph.v1alpha\x1a!teleport/header/v1/metadata.proto\"\xfc\x02\n" +
 	"\x11AccessPathChanged\x128\n" +
 	"\bmetadata\x18\x01 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12\x1b\n" +
-	"\tchange_id\x18\x02 \x01(\tR\bchangeId\x124\n" +
-	"\x16affected_resource_name\x18\x03 \x01(\tR\x14affectedResourceName\x128\n" +
-	"\x18affected_resource_source\x18\x04 \x01(\tR\x16affectedResourceSource\x124\n" +
-	"\x16affected_resource_kind\x18\x05 \x01(\tR\x14affectedResourceKindBWZUgithub.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alphab\x06proto3"
+	"\tchange_id\x18\x02 \x01(\tR\bchangeId\x128\n" +
+	"\x16affected_resource_name\x18\x03 \x01(\tB\x02\x18\x01R\x14affectedResourceName\x12<\n" +
+	"\x18affected_resource_source\x18\x04 \x01(\tB\x02\x18\x01R\x16affectedResourceSource\x128\n" +
+	"\x16affected_resource_kind\x18\x05 \x01(\tB\x02\x18\x01R\x14affectedResourceKind\x12^\n" +
+	"\x12affected_resources\x18\x06 \x03(\v2/.accessgraph.v1alpha.AccessPathAffectedResourceR\x11affectedResources\"\\\n" +
+	"\x1aAccessPathAffectedResource\x12\x12\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\x12\x16\n" +
+	"\x06source\x18\x04 \x01(\tR\x06source\x12\x12\n" +
+	"\x04type\x18\x05 \x01(\tR\x04typeBWZUgithub.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alphab\x06proto3"
 
 var (
 	file_accessgraph_v1alpha_events_proto_rawDescOnce sync.Once
@@ -145,18 +235,20 @@ func file_accessgraph_v1alpha_events_proto_rawDescGZIP() []byte {
 	return file_accessgraph_v1alpha_events_proto_rawDescData
 }
 
-var file_accessgraph_v1alpha_events_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
+var file_accessgraph_v1alpha_events_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_accessgraph_v1alpha_events_proto_goTypes = []any{
-	(*AccessPathChanged)(nil), // 0: accessgraph.v1alpha.AccessPathChanged
-	(*v1.Metadata)(nil),       // 1: teleport.header.v1.Metadata
+	(*AccessPathChanged)(nil),          // 0: accessgraph.v1alpha.AccessPathChanged
+	(*AccessPathAffectedResource)(nil), // 1: accessgraph.v1alpha.AccessPathAffectedResource
+	(*v1.Metadata)(nil),                // 2: teleport.header.v1.Metadata
 }
 var file_accessgraph_v1alpha_events_proto_depIdxs = []int32{
-	1, // 0: accessgraph.v1alpha.AccessPathChanged.metadata:type_name -> teleport.header.v1.Metadata
-	1, // [1:1] is the sub-list for method output_type
-	1, // [1:1] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	2, // 0: accessgraph.v1alpha.AccessPathChanged.metadata:type_name -> teleport.header.v1.Metadata
+	1, // 1: accessgraph.v1alpha.AccessPathChanged.affected_resources:type_name -> accessgraph.v1alpha.AccessPathAffectedResource
+	2, // [2:2] is the sub-list for method output_type
+	2, // [2:2] is the sub-list for method input_type
+	2, // [2:2] is the sub-list for extension type_name
+	2, // [2:2] is the sub-list for extension extendee
+	0, // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_accessgraph_v1alpha_events_proto_init() }
@@ -170,7 +262,7 @@ func file_accessgraph_v1alpha_events_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_accessgraph_v1alpha_events_proto_rawDesc), len(file_accessgraph_v1alpha_events_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   1,
+			NumMessages:   2,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
