@@ -474,7 +474,16 @@ export function Navigation({
     updatePreferences({
       sideNavDrawerMode: SideNavDrawerMode.STICKY,
     });
-  }, [currentView, preferences.sideNavDrawerMode, updatePreferences]);
+    if (currentPageSection) {
+      handleSetExpandedSection(currentPageSection);
+    }
+  }, [
+    currentView,
+    currentPageSection,
+    preferences.sideNavDrawerMode,
+    updatePreferences,
+    handleSetExpandedSection,
+  ]);
 
   // Handler for clicking nav items.
   const onNavigationItemClick = useCallback(() => {
