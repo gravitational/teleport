@@ -29,6 +29,7 @@ import (
 )
 
 func TestSpinner(t *testing.T) {
+	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		var buf bytes.Buffer
 		s := New(&buf, "creating...")
