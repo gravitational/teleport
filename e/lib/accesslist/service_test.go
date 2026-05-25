@@ -2,6 +2,7 @@ package accesslist
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -520,6 +521,48 @@ func TestService_GetAccessList(t *testing.T) {
 	require.Empty(t, cmp.Diff(a4, mustFromProto(t, get, conv.WithOwnersIneligibleStatusField(get.Spec.Owners)), cmpOpts...))
 }
 
+func TestService_GetInheritedGrants(t *testing.T) {
+	c := initSvc(t)
+
+	a1 := newAccessList(t, "1", c.clock)
+	createAccessListsAndMembers(t, c.userCtx, c.svc, c.emitter, nil, []*accesslist.AccessList{a1}, nil)
+
+	// Admin can get inherited grants for an existing access list.
+	resp, err := c.svc.GetInheritedGrants(c.userCtx, &accesslistv1.GetInheritedGrantsRequest{AccessListId: a1.GetName()})
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+
+	// Non-member, non-owner, non-admin is denied.
+	nonPrivCtx := genUserContext(t.Context(), member3, []string{"mrole1", "mrole2"}, nil)
+	_, err = c.svc.GetInheritedGrants(nonPrivCtx, &accesslistv1.GetInheritedGrantsRequest{AccessListId: a1.GetName()})
+	require.True(t, trace.IsAccessDenied(err))
+
+	// Non-existent access list returns not found.
+	_, err = c.svc.GetInheritedGrants(c.userCtx, &accesslistv1.GetInheritedGrantsRequest{AccessListId: "does-not-exist"})
+	require.True(t, trace.IsNotFound(err))
+
+	// This case covers a regression where the cache returns a non-nil error
+	// which wasn't correctly propagated to the caller.
+	cacheErr := errors.New("cache error")
+	c2 := initSvc(t, withCacheWrap(func(inner Cache) Cache {
+		return &cacheGetErrWrapper{Cache: inner, acl: a1, getErr: cacheErr}
+	}))
+	_, err = c2.svc.GetInheritedGrants(c2.userCtx, &accesslistv1.GetInheritedGrantsRequest{AccessListId: a1.GetName()})
+	require.ErrorIs(t, err, cacheErr)
+}
+
+// cacheGetErrWrapper wraps a Cache and overrides GetAccessList to return a fixed (acl, err) pair,
+// simulating a cache that returns a result together with a non-nil error.
+type cacheGetErrWrapper struct {
+	Cache
+	acl    *accesslist.AccessList
+	getErr error
+}
+
+func (c *cacheGetErrWrapper) GetAccessList(_ context.Context, _ string) (*accesslist.AccessList, error) {
+	return c.acl, c.getErr
+}
+
 func TestService_GetAccessListsToReview(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 	c := initSvc(t, withClock(clock))
@@ -916,6 +959,7 @@ type testSvcComponents struct {
 type testSvcOptions struct {
 	disabledReconcilers bool
 	clock               clockwork.Clock
+	cacheWrapFn         func(Cache) Cache
 }
 
 type svcOpts func(*testSvcOptions)
@@ -929,6 +973,12 @@ func withDisabledReconcilers() svcOpts {
 func withClock(clock clockwork.Clock) svcOpts {
 	return func(o *testSvcOptions) {
 		o.clock = clock
+	}
+}
+
+func withCacheWrap(fn func(Cache) Cache) svcOpts {
+	return func(o *testSvcOptions) {
+		o.cacheWrapFn = fn
 	}
 }
 
@@ -1131,6 +1181,10 @@ func initSvc(t *testing.T, opts ...svcOpts) testSvcComponents {
 
 	usageEvents := &usageEventsClient{}
 	usageReporter := &usageReporter{}
+	var svcCache Cache = &clt
+	if options.cacheWrapFn != nil {
+		svcCache = options.cacheWrapFn(svcCache)
+	}
 	svc, err := NewService(
 		t.Context(),
 		ServiceConfig{
@@ -1143,7 +1197,7 @@ func initSvc(t *testing.T, opts ...svcOpts) testSvcComponents {
 			UsageEvents:        usageEvents,
 			UsageReporter:      usageReporter,
 			Clock:              clock,
-			Cache:              &clt,
+			Cache:              svcCache,
 			AuthServer:         &fakeAuth{},
 			Backend:            backend,
 			disableReconcilers: options.disabledReconcilers,

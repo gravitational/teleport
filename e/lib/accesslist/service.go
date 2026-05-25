@@ -724,7 +724,7 @@ func (s *Service) GetInheritedGrants(ctx context.Context, req *accesslistv1.GetI
 
 	// We've confirmed that the user should have access to this, so now it's okay to return the getErr.
 	if getErr != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(getErr)
 	}
 
 	grants, err := accesslists.GetInheritedGrants(ctx, acl, s.accessLists)
