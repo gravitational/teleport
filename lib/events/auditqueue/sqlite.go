@@ -338,7 +338,9 @@ func (q *sqliteQueue) Enqueue(ctx context.Context, event apievents.AuditEvent) e
 	}
 
 	// Send the event to the write queue. The channel `toBeWritten` will be
-	// drained by the function `writeLoop`.
+	// drained by the function `writeLoop`. We intentionally ignore the caller's
+	// context cancellation. We do not want to drop an audit log event even if
+	// the caller cancels their context.
 	select {
 	case q.toBeWritten <- req:
 	case <-q.ctx.Done():
