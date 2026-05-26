@@ -157,10 +157,6 @@ func newSQLiteQueue(cfg Config) (*sqliteQueue, error) {
 		return nil, trace.BadParameter("Path is required to create an sqlite queue")
 	}
 
-	if err := metrics.RegisterPrometheusCollectors(prometheusCollectors...); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	unlock, err := initQueueDir(cfg.Path)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -191,6 +187,47 @@ func newSQLiteQueue(cfg Config) (*sqliteQueue, error) {
 		softLimit = defaultSoftLimit
 	}
 
+	q, err := newBaseQueue(db, cfg)
+	if err != nil {
+		db.Close()
+		_ = unlock()
+		_ = os.RemoveAll(cfg.Path)
+		return nil, trace.Wrap(err)
+	}
+
+	q.path = cfg.Path
+	q.parentDir = filepath.Dir(cfg.Path)
+	q.selfStat = selfStat
+	q.unlock = unlock
+	q.orphanScanInterval = scanInterval
+	q.softLimit = softLimit
+
+	maxBytes := cfg.MaxBytes
+	if maxBytes <= 0 {
+		maxBytes = defaultMaxBytes
+	}
+	slog.InfoContext(q.ctx, "Audit queue initialized.",
+		"path", cfg.Path,
+		"max_bytes", maxBytes,
+		"soft_limit", softLimit,
+		"max_attempts", q.maxAttempts,
+		"dead_letter_ttl", q.deadLetterTTL,
+	)
+
+	q.wg.Go(q.softLimitLoop)
+	q.wg.Go(q.vacuumLoop)
+
+	return q, nil
+}
+
+// newSqliteBaseQueue creates the common core of a sqliteQueue. It is used so
+// that shared initialization between the `sqliteQueue` and the
+// `sqliteInMemoryQueue` can re-use code.
+func newBaseQueue(db *sql.DB, cfg Config) (*sqliteQueue, error) {
+	if err := metrics.RegisterPrometheusCollectors(prometheusCollectors...); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	maxAttempts := cfg.MaxAttempts
 	if maxAttempts <= 0 {
 		maxAttempts = defaultMaxAttempts
@@ -209,36 +246,16 @@ func newSQLiteQueue(cfg Config) (*sqliteQueue, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	q := &sqliteQueue{
 		db:                      db,
-		path:                    cfg.Path,
 		toBeWritten:             make(chan writeRequest, defaultToBeWrittenBufferLen),
 		maxBatch:                defaultMaxBatch,
 		ctx:                     ctx,
 		cancel:                  cancel,
-		parentDir:               filepath.Dir(cfg.Path),
-		selfStat:                selfStat,
-		unlock:                  unlock,
-		orphanScanInterval:      scanInterval,
-		softLimit:               softLimit,
 		maxAttempts:             maxAttempts,
 		deadLetterSweepInterval: deadLetterSweepInterval,
 		deadLetterTTL:           deadLetterTTL,
 	}
 
-	maxBytes := cfg.MaxBytes
-	if maxBytes <= 0 {
-		maxBytes = defaultMaxBytes
-	}
-	slog.InfoContext(q.ctx, "Audit queue initialized.",
-		"path", cfg.Path,
-		"max_bytes", maxBytes,
-		"soft_limit", softLimit,
-		"max_attempts", maxAttempts,
-		"dead_letter_ttl", deadLetterTTL,
-	)
-
 	q.wg.Go(q.writeLoop)
-	q.wg.Go(q.vacuumLoop)
-	q.wg.Go(q.softLimitLoop)
 
 	return q, nil
 }
@@ -530,12 +547,17 @@ func (q *sqliteQueue) Run(ctx context.Context, handler Handler) error {
 	})
 	defer wg.Wait()
 
+	q.runPollLoop(ctx, handler)
+	return nil
+}
+
+func (q *sqliteQueue) runPollLoop(ctx context.Context, handler Handler) {
 	pollTimer := time.NewTimer(pollInterval)
 	defer pollTimer.Stop()
 
 	for {
 		if ctx.Err() != nil || q.ctx.Err() != nil {
-			return nil
+			return
 		}
 
 		// This queue does not have an explicit "dequeue" method. This is
@@ -583,9 +605,9 @@ func (q *sqliteQueue) Run(ctx context.Context, handler Handler) error {
 			// bit.
 			select {
 			case <-ctx.Done():
-				return nil
+				return
 			case <-q.ctx.Done():
-				return nil
+				return
 			case <-pollTimer.C:
 			}
 			pollTimer.Reset(pollInterval)
