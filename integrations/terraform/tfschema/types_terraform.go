@@ -1173,9 +1173,11 @@ func GenSchemaAppV3(ctx context.Context) (github_com_hashicorp_terraform_plugin_
 							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"region": {
-							Description: "Region is a cloud region for the app. This field is set for apps that integrates with AWS applications/APIs.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Computed:      true,
+							Description:   "Region is a cloud region for the app. This field is set for apps that integrates with AWS applications/APIs.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"roles_anywhere_profile": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
@@ -17625,6 +17627,9 @@ func CopyAppV3ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gr
 										} else {
 											v, ok := tf.Attrs["region"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
+												if tf.Attrs["region"] != nil {
+													diags.Append(attrWriteUnexpectedExistingTypeDiag{"AppV3.Spec.AWS.region", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"AppV3.Spec.AWS.region", err})
@@ -17633,10 +17638,13 @@ func CopyAppV3ToTerraformPreserveUnknown(ctx context.Context, obj *github_com_gr
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"AppV3.Spec.AWS.region", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
-												v.Null = string(obj.Region) == ""
 											}
+
+											v.Null = false
 											v.Value = string(obj.Region)
-											v.Unknown = false
+											if !preserveUnknown {
+												v.Unknown = false
+											}
 											tf.Attrs["region"] = v
 										}
 									}
