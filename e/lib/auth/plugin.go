@@ -76,7 +76,6 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/subca"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -1007,10 +1006,6 @@ func registerSubCAService(
 	server grpc.ServiceRegistrar,
 	authGRPC *auth.GRPCServer,
 ) error {
-	if !subca.Enabled() {
-		return nil
-	}
-
 	authServer := authGRPC.AuthServer
 	subCAService, err := subcav1.New(subcav1.ServiceParams{
 		Clock:                   authServer.GetClock(),
