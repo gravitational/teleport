@@ -203,24 +203,34 @@ func TestHandshakeBoundedTLSListener_NormalClientSucceeds(t *testing.T) {
 	})
 }
 
-// TestHandshakeBoundedTLSListener_BoundWellUnder60s is a sanity guard: even
-// with a generous timeout setting, the listener must not let a stalled
-// handshake hold a goroutine for the legacy 60s implicit bound.
-func TestHandshakeBoundedTLSListener_BoundWellUnder60s(t *testing.T) {
+// TestHandshakeBoundedTLSListener_BadHandshakeDropped asserts a client that
+// sends garbage instead of a valid ClientHello fails the handshake fast and is
+// not delivered via Accept(), without waiting for the timeout.
+func TestHandshakeBoundedTLSListener_BadHandshakeDropped(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		const timeout = 1 * time.Second
-		_, pl := startBoundedListener(t, timeout, nil)
+		const timeout = 30 * time.Second
+		l, pl := startBoundedListener(t, timeout, nil)
 
 		raw := pl.dial(t)
 		t.Cleanup(func() { _ = raw.Close() })
 
-		start := time.Now()
-		buf := make([]byte, 1)
-		_, err := raw.Read(buf)
-		elapsed := time.Since(start)
+		acc := asyncAccept(l)
 
-		require.Error(t, err)
-		assert.Less(t, elapsed, 60*time.Second, "handshake bound must be well under the legacy 60s implicit bound")
+		// Garbage that will never parse as a TLS ClientHello.
+		_, err := raw.Write([]byte("not a tls clienthello\n"))
+		require.NoError(t, err)
+
+		synctest.Wait()
+
+		select {
+		case r := <-acc:
+			t.Fatalf("Accept returned unexpectedly: conn=%v err=%v", r.conn, r.err)
+		default:
+		}
+
+		buf := make([]byte, 1)
+		_, err = raw.Read(buf)
+		require.Error(t, err, "bad-handshake conn should be closed by listener")
 	})
 }
 
