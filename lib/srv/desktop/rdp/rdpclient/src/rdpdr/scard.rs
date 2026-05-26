@@ -328,15 +328,12 @@ impl ScardBackend {
         let context_id = call.context.value;
 
         if timeout != TIMEOUT_INFINITE && timeout != TIMEOUT_IMMEDIATE {
-            // We've never seen one of these, but we log a warning and return an error here
-            // in case we ever come across one and need to debug a related issue.
+            // We've never seen one of these, but we log a warning here in case we ever come
+            // across one and need to debug a related issue.
             warn!(
                 "logic for a non-infinite/non-immediate timeout [{}] is not implemented",
                 timeout
             );
-            return Err(pdu_other_err!(
-                "non-infinite/non-immediate timeout is not supported"
-            ));
         }
 
         let mut reader_states = call.states;
