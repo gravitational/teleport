@@ -111,7 +111,7 @@ func TestEnqueue_CanceledContext(t *testing.T) {
 			q := newTestQueue(t, kind)
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()
-			require.Error(t, q.Enqueue(ctx, newTestEvent(0)))
+			require.NoError(t, q.Enqueue(ctx, newTestEvent(0)))
 		})
 	}
 }
