@@ -50,7 +50,43 @@ func newTestQueue(t *testing.T, kind Kind) Queue {
 
 func newTestEvent(index int64) apievents.AuditEvent {
 	return &apievents.UserLogin{
-		Metadata: apievents.Metadata{Index: index},
+		Metadata: apievents.Metadata{
+			Index:       index,
+			Type:        "user.login",
+			ID:          "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+			Code:        "T1000I",
+			Time:        time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+			ClusterName: "test-cluster.example.teleport.sh",
+		},
+		UserMetadata: apievents.UserMetadata{
+			User:        "alice@example.com",
+			Login:       "alice",
+			Impersonator: "admin@example.com",
+			UserRoles:   []string{"access", "editor", "auditor", "db-access", "k8s-access"},
+			AccessRequests: []string{
+				"a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+				"b2c3d4e5-f6a7-8901-bcde-f12345678901",
+			},
+		},
+		Status: apievents.Status{
+			Success:     true,
+			UserMessage: "Successfully logged in",
+		},
+		Method:      "local",
+		ConnectorID: "local-connector",
+		ConnectionMetadata: apievents.ConnectionMetadata{
+			LocalAddr:  "192.168.1.100:3025",
+			RemoteAddr: "203.0.113.42:54321",
+			Protocol:   "ssh",
+		},
+		ClientMetadata: apievents.ClientMetadata{
+			UserAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+		},
+		AppliedLoginRules: []string{
+			"require-mfa-for-prod",
+			"deny-contractors-after-hours",
+			"allow-admin-from-corp-network",
+		},
 	}
 }
 
