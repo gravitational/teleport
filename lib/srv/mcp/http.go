@@ -223,7 +223,7 @@ func (t *streamableHTTPTransport) handleMCPMessage(r *http.Request) (*http.Respo
 	case baseMessage.IsRequest():
 		mcpRequest := baseMessage.MakeRequest()
 		if errResp := t.sessionHandler.processClientRequest(r.Context(), mcpRequest); errResp != nil {
-			t.emitRequestEvent(r.Context(), mcpRequest, eventWithError(toError(*errResp)))
+			t.emitRequestEvent(t.parentCtx, mcpRequest, eventWithError(toError(*errResp)))
 			return t.handleRequestError(r, *errResp)
 		}
 	case baseMessage.IsNotification():
@@ -251,7 +251,7 @@ func (t *streamableHTTPTransport) handleMCPMessage(r *http.Request) (*http.Respo
 		if mcpRequest.Method == mcputils.MethodInitialize && respErrForAudit == nil {
 			t.appendStartEvent(r.Context(), eventWithHeader(r.Header))
 		}
-		t.emitRequestEvent(r.Context(), mcpRequest, eventWithError(respErrForAudit), eventWithHeader(r.Header))
+		t.emitRequestEvent(t.parentCtx, mcpRequest, eventWithError(respErrForAudit), eventWithHeader(r.Header))
 	case baseMessage.IsNotification():
 		t.emitNotificationEvent(r.Context(), baseMessage.MakeNotification(), eventWithError(respErrForAudit), eventWithHeader(r.Header))
 	}
