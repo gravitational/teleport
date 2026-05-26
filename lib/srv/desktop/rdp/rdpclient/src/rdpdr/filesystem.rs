@@ -160,7 +160,11 @@ impl FilesystemBackend {
                     ))
             ));
         }
-        let total_pending_in_flight_bytes = self.pending_in_flight_bytes + in_flight_bytes;
+        // Use saturating_add to guard against a peer sending a crafted request with a very
+        // large size field that would overflow plain usize addition.
+        let total_pending_in_flight_bytes = self
+            .pending_in_flight_bytes
+            .saturating_add(in_flight_bytes);
         if total_pending_in_flight_bytes > MAX_PENDING_IN_FLIGHT_BYTES {
             return Err(pdu_other_err!(
                     "",
