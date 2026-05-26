@@ -179,6 +179,7 @@ export { NoteAdded } from './Icons/NoteAdded';
 export { Notification } from './Icons/Notification';
 export { NotificationsActive } from './Icons/NotificationsActive';
 export { OpenAIBlossom } from './Icons/OpenAIBlossom';
+export { Package } from './Icons/Package';
 export { PaperPlane } from './Icons/PaperPlane';
 export { Password } from './Icons/Password';
 export { Pause } from './Icons/Pause';
