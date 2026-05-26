@@ -35,14 +35,14 @@ const testDefaultTimeout = 2 * time.Second
 
 var allKinds []Kind = []Kind{KindSQLite}
 
-func newTestQueue(t *testing.T, kind Kind) Queue {
-	t.Helper()
+func newTestQueue(tb testing.TB, kind Kind) Queue {
+	tb.Helper()
 
-	path := filepath.Join(t.TempDir(), queueDir)
+	path := filepath.Join(tb.TempDir(), queueDir)
 	q, err := New(kind, Config{Path: path})
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, q.Close())
+	require.NoError(tb, err)
+	tb.Cleanup(func() {
+		require.NoError(tb, q.Close())
 	})
 
 	return q
@@ -331,6 +331,62 @@ func TestRun_StopsCleanlyOnContextCancel(t *testing.T) {
 				require.NoError(t, err)
 			case <-time.After(time.Second):
 				t.Fatal("Run did not stop after context cancel")
+			}
+		})
+	}
+}
+
+func BenchmarkEnqueue(b *testing.B) {
+	for _, kind := range allKinds {
+		b.Run(string(kind), func(b *testing.B) {
+			ctx := b.Context()
+			q := newTestQueue(b, kind)
+
+			b.ResetTimer()
+			for i := range b.N {
+				event := newTestEvent(int64(i))
+				if err := q.Enqueue(ctx, event); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}
+
+func BenchmarkEnqueueAndDrain(b *testing.B) {
+	for _, kind := range allKinds {
+		b.Run(string(kind), func(b *testing.B) {
+			ctx := b.Context()
+			q := newTestQueue(b, kind)
+
+			runCtx, cancel := context.WithCancel(ctx)
+			defer cancel()
+
+			var delivered atomic.Int64
+			handler := func(_ context.Context, items []Item) []Item {
+				delivered.Add(int64(len(items)))
+				return items
+			}
+
+			runErr := make(chan error, 1)
+			go func() { runErr <- q.Run(runCtx, handler) }()
+
+			b.ResetTimer()
+			for i := range b.N {
+				event := newTestEvent(int64(i))
+				if err := q.Enqueue(ctx, event); err != nil {
+					b.Fatal(err)
+				}
+			}
+
+			// Wait for all enqueued events to be delivered before stopping.
+			for delivered.Load() < int64(b.N) {
+				time.Sleep(time.Millisecond)
+			}
+
+			cancel()
+			if err := <-runErr; err != nil {
+				b.Fatal(err)
 			}
 		})
 	}
