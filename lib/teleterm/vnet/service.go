@@ -283,30 +283,33 @@ func (s *Service) RunDiagnostics(ctx context.Context, req *api.RunDiagnosticsReq
 		nsa.SetNetworkStack(ns)
 	}
 
-	diagChecks, err := s.platformDiagChecks(ctx)
+	var diagChecks []diag.DiagCheck
+
+	//nolint:staticcheck // SA4023. routeConflictDiag may be nil on unsupported platforms (see service_other.go).
+	routeConflictDiag, err := s.platformRouteConflictDiag()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	//nolint:staticcheck // SA4023.
+	if routeConflictDiag != nil {
+		diagChecks = append(diagChecks, routeConflictDiag)
+	}
 
-	// The DNS check is platform-agnostic, so it's added here rather than in
-	// platformDiagChecks. Skip it if NetworkStack is unavailable we need the
+	// Skip the DNS check if NetworkStack is unavailable we need the
 	// IPv6 prefix to derive VNet's DNS server address.
 	if ns := nsa.NetworkStack; ns != nil && ns.Ipv6Prefix != "" {
-		// TODO(tangyatsu): make NetworkStackInfo return DNS server addresses directly.
-		vnetDNSServer, err := diag.DNSServerForIPv6Prefix(ns.Ipv6Prefix)
+		dnsDiag, err := s.dnsDiag(ns)
 		if err != nil {
-			return nil, trace.Wrap(err, "computing VNet DNS server address for DNS diag check")
-		}
-
-		dnsDiag, err := diag.NewDNSDiag(&diag.DNSConfig{
-			DNSZones:      ns.DnsZones,
-			VNetDNSServer: vnetDNSServer,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err, "constructing DNS diag check")
+			return nil, trace.Wrap(err)
 		}
 		diagChecks = append(diagChecks, dnsDiag)
 	}
+
+	sshDiag, err := s.sshDiag()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	diagChecks = append(diagChecks, sshDiag)
 
 	report, err := diag.GenerateReport(ctx, diag.ReportPrerequisites{
 		Clock:               s.cfg.Clock,
@@ -320,6 +323,29 @@ func (s *Service) RunDiagnostics(ctx context.Context, req *api.RunDiagnosticsReq
 	return api.RunDiagnosticsResponse_builder{
 		Report: report,
 	}.Build(), nil
+}
+
+// sshDiag builds the SSH configuration diagnostic check. It is platform-agnostic.
+func (s *Service) sshDiag() (diag.DiagCheck, error) {
+	sshDiag, err := diag.NewSSHDiag(&diag.SSHConfig{
+		ProfilePath: s.cfg.profilePath,
+	})
+	return sshDiag, trace.Wrap(err)
+}
+
+// dnsDiag builds the DNS diagnostic check. It is platform-agnostic.
+func (s *Service) dnsDiag(ns *diagv1.NetworkStack) (diag.DiagCheck, error) {
+	// TODO(tangyatsu): make NetworkStackInfo return DNS server addresses directly.
+	vnetDNSServer, err := diag.DNSServerForIPv6Prefix(ns.Ipv6Prefix)
+	if err != nil {
+		return nil, trace.Wrap(err, "computing VNet DNS server address for DNS diag check")
+	}
+
+	dnsDiag, err := diag.NewDNSDiag(&diag.DNSConfig{
+		DNSZones:      ns.DnsZones,
+		VNetDNSServer: vnetDNSServer,
+	})
+	return dnsDiag, trace.Wrap(err, "constructing DNS diag check")
 }
 
 func (s *Service) getNetworkStack(ctx context.Context) (*diagv1.NetworkStack, error) {
