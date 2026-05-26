@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/trace"
 	"k8s.io/client-go/tools/remotecommand"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -166,6 +167,7 @@ func NewSessionStream(conn *websocket.Conn, handshake any) (*SessionStream, erro
 
 func (s *SessionStream) readTask() {
 	defer s.closeOnce.Do(func() { close(s.done) })
+	s.conn.SetReadLimit(teleport.MaxHTTPRequestSize)
 	for {
 		ty, data, err := s.conn.ReadMessage()
 		if err != nil {

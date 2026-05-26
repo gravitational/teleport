@@ -1563,6 +1563,8 @@ func (f *Forwarder) getSessionHostID(ctx context.Context, authCtx *authContext, 
 // wsProxy proxies a websocket connection between two clusters transparently to allow for
 // remote joins.
 func wsProxy(ctx context.Context, log *slog.Logger, wsSource *gwebsocket.Conn, wsTarget *gwebsocket.Conn) {
+	wsSource.SetReadLimit(teleport.MaxHTTPRequestSize)
+	wsTarget.SetReadLimit(teleport.MaxHTTPRequestSize)
 	errS := make(chan error, 1)
 	errT := make(chan error, 1)
 	wg := &sync.WaitGroup{}

@@ -276,6 +276,7 @@ func (s *recordingPlayback) logWebsocketError(err error) {
 
 // readLoop reads messages from the websocket connection and processes them.
 func (s *recordingPlayback) readLoop() {
+	s.ws.SetReadLimit(teleport.MaxHTTPRequestSize)
 	for {
 		msgType, data, err := s.ws.ReadMessage()
 		if err != nil {
