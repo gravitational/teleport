@@ -20,7 +20,7 @@ import "teleport/header/v1/metadata.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1;beamsv1";
 
-// BeamsConfig holds cluster-wide configuration for Beams.
+// BeamsConfig holds user-provided configuration for Beams.
 message BeamsConfig {
   // Kind is the kind of resource represented. This is always `beams_config`.
   string kind = 1;
@@ -30,11 +30,11 @@ message BeamsConfig {
   string version = 3;
   // Metadata about this resource.
   teleport.header.v1.Metadata metadata = 4;
-  // Spec defines the cluster-wide configuration parameters for Beams.
+  // Spec defines the user-provided configuration parameters for Beams.
   BeamsConfigSpec spec = 5;
 }
 
-// BeamsConfigSpec defines the cluster-wide configuration parameters for Beams.
+// BeamsConfigSpec defines the user-provided configuration parameters for Beams.
 message BeamsConfigSpec {
   // Llm carries LLM inference configurations.
   LLMConfig llm = 1;

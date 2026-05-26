@@ -35,7 +35,7 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// BeamsConfig holds cluster-wide configuration for Beams.
+// BeamsConfig holds user-provided configuration for Beams.
 type BeamsConfig struct {
 	state               protoimpl.MessageState `protogen:"opaque.v1"`
 	xxx_hidden_Kind     string                 `protobuf:"bytes,1,opt,name=kind,proto3"`
@@ -160,7 +160,7 @@ type BeamsConfig_builder struct {
 	Version string
 	// Metadata about this resource.
 	Metadata *v1.Metadata
-	// Spec defines the cluster-wide configuration parameters for Beams.
+	// Spec defines the user-provided configuration parameters for Beams.
 	Spec *BeamsConfigSpec
 }
 
@@ -176,7 +176,7 @@ func (b0 BeamsConfig_builder) Build() *BeamsConfig {
 	return m0
 }
 
-// BeamsConfigSpec defines the cluster-wide configuration parameters for Beams.
+// BeamsConfigSpec defines the user-provided configuration parameters for Beams.
 type BeamsConfigSpec struct {
 	state          protoimpl.MessageState `protogen:"opaque.v1"`
 	xxx_hidden_Llm *LLMConfig             `protobuf:"bytes,1,opt,name=llm,proto3"`
