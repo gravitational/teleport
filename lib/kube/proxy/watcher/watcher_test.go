@@ -19,6 +19,7 @@ package watcher
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -699,4 +700,95 @@ func TestFillEventBuf_DoesNotExceedMaxBufferSize(t *testing.T) {
 		t.Fatalf("expected no remaining events after consuming %d pages, got %s", totalEvents, event.Resource.GetName())
 	default:
 	}
+}
+
+func TestProxyKubeServerWatcher_ConsumesInitEvents(t *testing.T) {
+	srv := newTestKubeServer(t, "foo", "bar")
+
+	w := &ProxyKubeServerWatcher{
+		ProxyKubeServerWatcherConfig: ProxyKubeServerWatcherConfig{
+			Logger: slog.Default(),
+		},
+		ctx:     t.Context(),
+		current: map[serverKey]types.KubeServer{},
+	}
+
+	// readN should consume OpInit events and continue processing subsequent events.
+	fw := newFakeWatcher(4)
+	t.Cleanup(func() { fw.Close() })
+	fw.send(types.Event{Type: types.OpInit})
+	fw.send(types.Event{Type: types.OpPut, Resource: srv})
+
+	err := w.readN(fw, make([]types.Event, 0, eventBufferSize), 2)
+	require.NoError(t, err)
+
+	// Both events were consumed.
+	select {
+	case event := <-fw.Events():
+		t.Fatalf("expected no remaining events, got %v", event.Type)
+	default:
+	}
+
+	// The non-init event was still applied.
+	w.rw.RLock()
+	defer w.rw.RUnlock()
+	got, ok := w.current[kubeServerKey(srv)]
+	require.True(t, ok)
+	require.Equal(t, srv, got)
+}
+
+func testProxyKubeServerWatcher_ParentContextCanceledSynctest(t *testing.T) {
+	parentCtx, cancelParent := context.WithCancel(t.Context())
+	watcherCtx, cancelWatcher := context.WithCancel(t.Context())
+	defer cancelWatcher()
+
+	fetchStarted := make(chan struct{})
+	unblockFetch := make(chan struct{})
+	fetchDone := make(chan struct{})
+
+	fallback := &mockKubeServerWatcherGetter{}
+	fallback.On("GetKubernetesServers", mock.Anything).
+		Run(func(args mock.Arguments) {
+			close(fetchStarted)
+			<-unblockFetch
+			close(fetchDone)
+		}).
+		Return([]types.KubeServer{newTestKubeServer(t, "fallback", "host")}, nil).
+		Once()
+
+	w := &ProxyKubeServerWatcher{
+		ProxyKubeServerWatcherConfig: ProxyKubeServerWatcherConfig{
+			Logger:           slog.Default(),
+			FallbackGetter:   fallback,
+			FallbackInterval: 0,
+		},
+		ctx:     watcherCtx,
+		cancel:  cancelWatcher,
+		current: make(map[serverKey]types.KubeServer),
+	}
+
+	w.hot.Store(false)
+
+	noopFilter := func(k readonly.KubeServer) bool { return true }
+
+	resultCh := make(chan error, 1)
+	go func() {
+		_, err := w.CurrentResourcesWithFilter(parentCtx, noopFilter)
+		resultCh <- err
+	}()
+
+	<-fetchStarted
+	cancelParent()
+
+	err := <-resultCh
+	require.Error(t, err)
+	require.ErrorContains(t, err, "context is closing")
+
+	close(unblockFetch)
+	<-fetchDone
+	fallback.AssertExpectations(t)
+}
+
+func TestProxyKubeServerWatcher_ParentContextCanceled(t *testing.T) {
+	synctest.Test(t, testProxyKubeServerWatcher_ParentContextCanceledSynctest)
 }
