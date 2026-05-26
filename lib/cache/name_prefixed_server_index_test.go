@@ -19,9 +19,10 @@ package cache
 import (
 	"testing"
 
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/backend"
 )
 
 func TestNamePrefixedServerIndexKey(t *testing.T) {
