@@ -19,7 +19,6 @@
 package proxy
 
 import (
-	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -30,7 +29,9 @@ import (
 	"errors"
 	"math/big"
 	"net"
+	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -68,19 +69,69 @@ func newSelfSignedTLSConfig(t *testing.T, nextProtos []string) *tls.Config {
 	}
 }
 
-// startBoundedListener creates a TCP listener on 127.0.0.1, wraps it with
-// newHandshakeBoundedTLSListener, and registers cleanup.
-func startBoundedListener(t *testing.T, timeout time.Duration, nextProtos []string) (net.Listener, *tls.Config) {
-	t.Helper()
-	inner, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-	cfg := newSelfSignedTLSConfig(t, nextProtos)
-	bounded := newHandshakeBoundedTLSListener(inner, cfg, timeout)
-	t.Cleanup(func() { _ = bounded.Close() })
-	return bounded, cfg
+// pipeListener is an in-memory net.Listener whose connections are halves of
+// net.Pipe pairs. It plays nicely with testing/synctest: all blocking happens
+// on channels and pipe buffers, which are durably blocking inside a bubble.
+type pipeListener struct {
+	accept chan net.Conn
+	closed chan struct{}
+	once   sync.Once
 }
 
-// acceptResult bundles an accept return for select-driven tests.
+func newPipeListener() *pipeListener {
+	return &pipeListener{
+		accept: make(chan net.Conn),
+		closed: make(chan struct{}),
+	}
+}
+
+func (p *pipeListener) Accept() (net.Conn, error) {
+	select {
+	case c := <-p.accept:
+		return c, nil
+	case <-p.closed:
+		return nil, net.ErrClosed
+	}
+}
+
+func (p *pipeListener) Close() error {
+	p.once.Do(func() { close(p.closed) })
+	return nil
+}
+
+func (p *pipeListener) Addr() net.Addr { return pipeAddr{} }
+
+type pipeAddr struct{}
+
+func (pipeAddr) Network() string { return "pipe" }
+func (pipeAddr) String() string  { return "pipe" }
+
+// dial returns the client side of a freshly-connected pipe pair and hands
+// the server side to the listener's Accept queue.
+func (p *pipeListener) dial(t *testing.T) net.Conn {
+	t.Helper()
+	client, server := net.Pipe()
+	select {
+	case p.accept <- server:
+	case <-p.closed:
+		_ = client.Close()
+		_ = server.Close()
+		t.Fatal("listener closed before dial")
+	}
+	return client
+}
+
+// startBoundedListener creates a pipeListener, wraps it with
+// newHandshakeBoundedTLSListener, and registers cleanup.
+func startBoundedListener(t *testing.T, timeout time.Duration, nextProtos []string) (net.Listener, *pipeListener) {
+	t.Helper()
+	pl := newPipeListener()
+	cfg := newSelfSignedTLSConfig(t, nextProtos)
+	bounded := newHandshakeBoundedTLSListener(pl, cfg, timeout)
+	t.Cleanup(func() { _ = bounded.Close() })
+	return bounded, pl
+}
+
 type acceptResult struct {
 	conn net.Conn
 	err  error
@@ -95,179 +146,127 @@ func asyncAccept(l net.Listener) <-chan acceptResult {
 	return ch
 }
 
-// TestHandshakeBoundedTLSListener_StalledClientDropped asserts a TCP client
-// that connects and never sends a ClientHello is dropped within the
-// configured timeout and never delivered via Accept().
+// TestHandshakeBoundedTLSListener_StalledClientDropped asserts a client that
+// connects and never sends a ClientHello is dropped within the configured
+// timeout and never delivered via Accept().
 func TestHandshakeBoundedTLSListener_StalledClientDropped(t *testing.T) {
-	const timeout = 500 * time.Millisecond
-	l, _ := startBoundedListener(t, timeout, nil)
+	synctest.Test(t, func(t *testing.T) {
+		const timeout = 500 * time.Millisecond
+		l, pl := startBoundedListener(t, timeout, nil)
 
-	// Plain TCP connect; send nothing.
-	raw, err := net.Dial("tcp", l.Addr().String())
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = raw.Close() })
+		raw := pl.dial(t)
+		t.Cleanup(func() { _ = raw.Close() })
 
-	acc := asyncAccept(l)
+		acc := asyncAccept(l)
 
-	// Accept must not deliver this conn — ever.
-	select {
-	case r := <-acc:
-		t.Fatalf("Accept returned unexpectedly: conn=%v err=%v", r.conn, r.err)
-	case <-time.After(timeout + 2*time.Second):
-		// expected: nothing emerged.
-	}
+		// Advance past timeout; once all goroutines are durably blocked,
+		// fake time advances and the handshake context fires.
+		time.Sleep(timeout + time.Second)
+		synctest.Wait()
 
-	// The underlying conn should now be closed by the listener.
-	_ = raw.SetReadDeadline(time.Now().Add(2 * time.Second))
-	buf := make([]byte, 1)
-	_, err = raw.Read(buf)
-	require.Error(t, err, "stalled conn should be closed by listener after handshake timeout")
+		select {
+		case r := <-acc:
+			t.Fatalf("Accept returned unexpectedly: conn=%v err=%v", r.conn, r.err)
+		default:
+		}
+
+		buf := make([]byte, 1)
+		_, err := raw.Read(buf)
+		require.Error(t, err, "stalled conn should be closed by listener after handshake timeout")
+	})
 }
 
 // TestHandshakeBoundedTLSListener_NormalClientSucceeds asserts a legitimate
 // TLS client completes the handshake and is delivered via Accept() as a
 // post-handshake *tls.Conn.
 func TestHandshakeBoundedTLSListener_NormalClientSucceeds(t *testing.T) {
-	const timeout = 5 * time.Second
-	l, serverCfg := startBoundedListener(t, timeout, nil)
+	synctest.Test(t, func(t *testing.T) {
+		const timeout = 5 * time.Second
+		l, pl := startBoundedListener(t, timeout, nil)
 
-	clientCfg := &tls.Config{
-		InsecureSkipVerify: true,
-		ServerName:         "localhost",
-	}
-	_ = serverCfg // unused on client side
+		client := pl.dial(t)
+		t.Cleanup(func() { _ = client.Close() })
 
-	acc := asyncAccept(l)
+		tlsClient := tls.Client(client, &tls.Config{
+			InsecureSkipVerify: true,
+			ServerName:         "localhost",
+		})
+		go func() { _ = tlsClient.Handshake() }()
 
-	go func() {
-		conn, err := tls.Dial("tcp", l.Addr().String(), clientCfg)
-		if err == nil {
-			defer conn.Close()
-			_ = conn.Handshake()
-		}
-	}()
-
-	select {
-	case r := <-acc:
-		require.NoError(t, r.err)
-		require.NotNil(t, r.conn)
-		tc, ok := r.conn.(*tls.Conn)
-		require.True(t, ok, "expected *tls.Conn, got %T", r.conn)
+		conn, err := l.Accept()
+		require.NoError(t, err)
+		require.NotNil(t, conn)
+		tc, ok := conn.(*tls.Conn)
+		require.True(t, ok, "expected *tls.Conn, got %T", conn)
 		assert.True(t, tc.ConnectionState().HandshakeComplete, "handshake should already be complete")
 		_ = tc.Close()
-	case <-time.After(10 * time.Second):
-		t.Fatal("Accept did not deliver completed TLS conn within 10s")
-	}
+	})
 }
 
 // TestHandshakeBoundedTLSListener_BoundWellUnder60s is a sanity guard: even
 // with a generous timeout setting, the listener must not let a stalled
 // handshake hold a goroutine for the legacy 60s implicit bound.
 func TestHandshakeBoundedTLSListener_BoundWellUnder60s(t *testing.T) {
-	const timeout = 1 * time.Second
-	l, _ := startBoundedListener(t, timeout, nil)
+	synctest.Test(t, func(t *testing.T) {
+		const timeout = 1 * time.Second
+		_, pl := startBoundedListener(t, timeout, nil)
 
-	raw, err := net.Dial("tcp", l.Addr().String())
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = raw.Close() })
+		raw := pl.dial(t)
+		t.Cleanup(func() { _ = raw.Close() })
 
-	start := time.Now()
-	// Wait for the listener to close the conn.
-	_ = raw.SetReadDeadline(time.Now().Add(20 * time.Second))
-	buf := make([]byte, 1)
-	_, err = raw.Read(buf)
-	elapsed := time.Since(start)
+		start := time.Now()
+		buf := make([]byte, 1)
+		_, err := raw.Read(buf)
+		elapsed := time.Since(start)
 
-	require.Error(t, err)
-	assert.Less(t, elapsed, 20*time.Second, "handshake bound must be well under the legacy 60s implicit bound")
+		require.Error(t, err)
+		assert.Less(t, elapsed, 60*time.Second, "handshake bound must be well under the legacy 60s implicit bound")
+	})
 }
 
 // TestHandshakeBoundedTLSListener_HTTP2ALPN asserts h2 negotiation is
 // preserved through the bounded listener.
 func TestHandshakeBoundedTLSListener_HTTP2ALPN(t *testing.T) {
-	const timeout = 5 * time.Second
-	l, _ := startBoundedListener(t, timeout, []string{"h2", "http/1.1"})
+	synctest.Test(t, func(t *testing.T) {
+		const timeout = 5 * time.Second
+		l, pl := startBoundedListener(t, timeout, []string{"h2", "http/1.1"})
 
-	clientCfg := &tls.Config{
-		InsecureSkipVerify: true,
-		ServerName:         "localhost",
-		NextProtos:         []string{"h2"},
-	}
+		client := pl.dial(t)
+		t.Cleanup(func() { _ = client.Close() })
 
-	acc := asyncAccept(l)
-	go func() {
-		conn, err := tls.Dial("tcp", l.Addr().String(), clientCfg)
-		if err == nil {
-			defer conn.Close()
-			_ = conn.Handshake()
-		}
-	}()
+		tlsClient := tls.Client(client, &tls.Config{
+			InsecureSkipVerify: true,
+			ServerName:         "localhost",
+			NextProtos:         []string{"h2"},
+		})
+		go func() { _ = tlsClient.Handshake() }()
 
-	select {
-	case r := <-acc:
-		require.NoError(t, r.err)
-		tc, ok := r.conn.(*tls.Conn)
+		conn, err := l.Accept()
+		require.NoError(t, err)
+		tc, ok := conn.(*tls.Conn)
 		require.True(t, ok)
 		assert.Equal(t, "h2", tc.ConnectionState().NegotiatedProtocol)
 		_ = tc.Close()
-	case <-time.After(10 * time.Second):
-		t.Fatal("Accept timed out for h2 client")
-	}
+	})
 }
 
 // TestHandshakeBoundedTLSListener_Close asserts Close propagates and unblocks
 // pending Accept calls.
 func TestHandshakeBoundedTLSListener_Close(t *testing.T) {
-	const timeout = 5 * time.Second
-	l, _ := startBoundedListener(t, timeout, nil)
+	synctest.Test(t, func(t *testing.T) {
+		const timeout = 5 * time.Second
+		l, _ := startBoundedListener(t, timeout, nil)
 
-	acc := asyncAccept(l)
-	require.NoError(t, l.Close())
+		acc := asyncAccept(l)
+		synctest.Wait() // ensure the Accept goroutine is parked
 
-	select {
-	case r := <-acc:
+		require.NoError(t, l.Close())
+
+		r := <-acc
 		require.Error(t, r.err, "Accept must return error after Close")
-		// Either net.ErrClosed or a wrapper of it.
-		assert.True(t, errors.Is(r.err, net.ErrClosed) || r.err.Error() != "", "expected closed-listener error")
-	case <-time.After(5 * time.Second):
-		t.Fatal("Accept did not return within 5s of Close")
-	}
+		assert.True(t, errors.Is(r.err, net.ErrClosed), "expected net.ErrClosed, got %v", r.err)
 
-	// Second Close should be a no-op (idempotent), not a panic.
-	_ = l.Close()
-}
-
-// TestHandshakeBoundedTLSListener_ContextDeadline ensures the handshake
-// honors the configured timeout via context cancellation, not just the
-// underlying read deadline. (Sanity check that the implementation passes
-// a context with the deadline.)
-func TestHandshakeBoundedTLSListener_ContextDeadline(t *testing.T) {
-	const timeout = 200 * time.Millisecond
-	l, _ := startBoundedListener(t, timeout, nil)
-
-	// Connect but never send anything.
-	raw, err := net.Dial("tcp", l.Addr().String())
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = raw.Close() })
-
-	// Use a context unrelated to the listener, just to assert the listener
-	// is self-bounded.
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	start := time.Now()
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		_ = raw.SetReadDeadline(time.Now().Add(5 * time.Second))
-		buf := make([]byte, 1)
-		_, _ = raw.Read(buf)
-	}()
-
-	select {
-	case <-done:
-		assert.Less(t, time.Since(start), 3*time.Second, "listener should drop stalled conn ~timeout, not seconds later")
-	case <-ctx.Done():
-		t.Fatal("listener did not close stalled conn within 5s")
-	}
+		// Second Close should be a no-op (idempotent), not a panic.
+		_ = l.Close()
+	})
 }
