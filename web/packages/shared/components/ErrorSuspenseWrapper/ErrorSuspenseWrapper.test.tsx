@@ -20,7 +20,7 @@ import { useSuspenseQuery } from '@tanstack/react-query';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
 import { setupServer } from 'msw/node';
-import type { FallbackProps } from 'react-error-boundary';
+import { getErrorMessage, type FallbackProps } from 'react-error-boundary';
 
 import {
   createDeferredResponse,
@@ -43,7 +43,7 @@ afterAll(() => server.close());
 function TestErrorComponent({ error, resetErrorBoundary }: FallbackProps) {
   return (
     <div>
-      <div role="alert">Error: {error.message}</div>
+      <div role="alert">Error: {getErrorMessage(error) ?? 'Unknown error'}</div>
       <button onClick={resetErrorBoundary}>Reset</button>
     </div>
   );
