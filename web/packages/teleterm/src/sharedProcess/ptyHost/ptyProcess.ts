@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { exec } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { readlink } from 'node:fs';
 import { promisify } from 'node:util';
@@ -283,12 +283,20 @@ export enum TermEventEnum {
 async function getWorkingDirectory(pid: number): Promise<string> {
   switch (process.platform) {
     case 'darwin':
-      const asyncExec = promisify(exec);
+      const asyncExec = promisify(execFile);
       // -a: join using AND instead of OR for the -p and -d options
       // -p: PID
       // -d: only include the file descriptor, cwd
       // -F: fields to output (the n character outputs 3 things, the last one is cwd)
-      const { stdout } = await asyncExec(`lsof -a -p ${pid} -d cwd -F n`);
+      const { stdout } = await asyncExec('lsof', [
+        '-a',
+        '-p',
+        String(pid),
+        '-d',
+        'cwd',
+        '-F',
+        'n',
+      ]);
       return stdout.split('\n').filter(Boolean).reverse()[0].substring(1);
     case 'linux':
       const asyncReadlink = promisify(readlink);
