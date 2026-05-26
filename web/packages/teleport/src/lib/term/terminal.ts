@@ -17,7 +17,6 @@
  */
 
 import '@xterm/xterm/css/xterm.css';
-import { CanvasAddon } from '@xterm/addon-canvas';
 import { FitAddon } from '@xterm/addon-fit';
 import { ImageAddon } from '@xterm/addon-image';
 import { WebLinksAddon } from '@xterm/addon-web-links';
@@ -58,8 +57,7 @@ export default class TtyTerminal implements TerminalSearcher {
   _imageAddon: ImageAddon | undefined;
   _searchAddon = new SearchAddon();
   _webLinksAddon = new WebLinksAddon();
-  _webglAddon: WebglAddon;
-  _canvasAddon = new CanvasAddon();
+  _webglAddon: WebglAddon | undefined;
 
   private customKeyEventHandlers = new Set<(event: KeyboardEvent) => boolean>();
 
@@ -118,24 +116,20 @@ export default class TtyTerminal implements TerminalSearcher {
       logger.error('Failed to load image addon:', e.message);
     }
 
-    // handle context loss and load webgl addon
     try {
-      // try to create a new WebglAddon. If webgl is not supported, this
-      // constructor will throw an error and fallback to canvas. We also fallback
-      // to canvas if the webgl context is lost after a timeout.
-      // The "wait for context" timeout for the webgl addon doesn't actually start until the app is
-      // able to have it back. For example, if the OS takes the gpu away from the browser, the timeout
-      // wont start looking for the context again until the OS has given the browser the context again.
-      // When the initial context lost event is fired, the webgl addon consumes the event
-      // and waits for a bit to see if it can get the context back. If it fails repeatedly, it
-      // will propagate the context loss event itself in which case we fall back to canvas
+      // The constructor may throw if WebGL is not supported.
+      // xterm.js can also asynchronously throw an error in Terminal.prototype.open()
+      // (`Uncaught Error: WebGL2 not supported`) that cannot be caught.
       this._webglAddon = new WebglAddon();
+      // Triggered if the addon fails to recover the WebGL context after multiple retries.
       this._webglAddon.onContextLoss(() => {
-        this.fallbackToCanvas();
+        logger.info('WebGL context lost. Using default renderer.');
+        this._webglAddon?.dispose();
       });
       this.term.loadAddon(this._webglAddon);
     } catch {
-      this.fallbackToCanvas();
+      this._webglAddon?.dispose();
+      logger.info('WebGL could not be loaded. Using default renderer.');
     }
 
     this.term.open(this._el);
@@ -172,21 +166,6 @@ export default class TtyTerminal implements TerminalSearcher {
     this.term.focus();
   }
 
-  fallbackToCanvas() {
-    logger.info('WebGL context lost. Falling back to canvas');
-    this._webglAddon?.dispose();
-    this._webglAddon = undefined;
-    try {
-      this.term.loadAddon(this._canvasAddon);
-    } catch {
-      logger.error(
-        'Canvas renderer could not be loaded. Falling back to default'
-      );
-      this._canvasAddon?.dispose();
-      this._canvasAddon = undefined;
-    }
-  }
-
   connect() {
     this.tty.connect(this.term.cols, this.term.rows);
   }
@@ -202,7 +181,6 @@ export default class TtyTerminal implements TerminalSearcher {
     this._imageAddon?.dispose();
     this._searchAddon?.dispose();
     this._webglAddon?.dispose();
-    this._canvasAddon?.dispose();
     this._el.innerHTML = null;
     this.term?.dispose();
 
