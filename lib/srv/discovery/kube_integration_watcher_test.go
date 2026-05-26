@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
+	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
@@ -135,6 +136,12 @@ func TestServer_getKubeFetchers(t *testing.T) {
 		require.ElementsMatch(t, tc.expectedIntegrationFetchers, s.getKubeFetchers(true))
 		require.ElementsMatch(t, tc.expectedNonIntegrationFetchers, s.getKubeFetchers(false))
 	}
+}
+
+func staticKubeAgentVersionGetter(t *testing.T) version.Getter {
+	getter, err := version.NewStaticGetter("1.2.3", nil)
+	require.NoError(t, err)
+	return getter
 }
 
 func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
@@ -422,9 +429,10 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 							AWSConfigProvider: fakeConfigProvider,
 							eksClusters:       eksMockClusters[:2],
 						},
-						ClusterFeatures:  func() proto.Features { return proto.Features{} },
-						KubernetesClient: fake.NewClientset(),
-						AccessPoint:      tc.accessPoint(t, tlsServer.Auth(), authClient),
+						ClusterFeatures:        func() proto.Features { return proto.Features{} },
+						kubeAgentVersionGetter: staticKubeAgentVersionGetter(t),
+						KubernetesClient:       fake.NewClientset(),
+						AccessPoint:            tc.accessPoint(t, tlsServer.Auth(), authClient),
 						Matchers: Matchers{
 							AWS: tc.awsMatchers,
 						},

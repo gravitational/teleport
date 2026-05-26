@@ -423,7 +423,7 @@
      * E2E tests
      */
     {
-      "files": ["e2e/**/*.ts"],
+      "files": ["e2e/**/*.ts", "e/e2e/**/*.ts"],
       "rules": {
         "react-hooks/rules-of-hooks": "off"
       }
@@ -456,6 +456,40 @@
                 "name": "@playwright/test",
                 "importNames": ["test", "expect"],
                 "message": "Import 'test' and 'expect' from '@gravitational/e2e/helpers/connect' instead."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["e/e2e/tests/web/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "@playwright/test",
+                "importNames": ["test", "expect"],
+                "message": "Import 'test' and 'expect' from '@gravitational/e-e2e/helpers/test' instead."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["e/e2e/tests/connect/**/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "@playwright/test",
+                "importNames": ["test", "expect"],
+                "message": "Import 'test' and 'expect' from '@gravitational/e-e2e/helpers/connect' instead."
               }
             ]
           }
