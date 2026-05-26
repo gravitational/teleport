@@ -224,6 +224,7 @@ func (s *sessionHandler) onClientRequest(clientResponseWriter, serverRequestWrit
 	return func(ctx context.Context, request *mcputils.JSONRPCRequest) error {
 		if errMsg := s.processClientRequest(ctx, request); errMsg != nil {
 			// Respond immediately
+			s.emitRequestEvent(ctx, request, eventWithError(toError(*errMsg)))
 			return trace.Wrap(clientResponseWriter.WriteMessage(ctx, *errMsg))
 		}
 		s.emitRequestEvent(ctx, request)
@@ -255,12 +256,9 @@ func (s *sessionHandler) processClientRequest(ctx context.Context, req *mcputils
 	case mcputils.MethodToolsCall:
 		toolName, _ := req.Params.GetName()
 		if toolName == "" {
-			err := errorInvalidRequestMissingName
-			s.emitRequestEvent(ctx, req, eventWithError(err))
-			return makeInvalidRequestResponse(req, err)
+			return makeInvalidRequestResponse(req, errInvalidRequestMissingName)
 		}
 		if authErr := s.checkAccessToTool(ctx, toolName); authErr != nil {
-			s.emitRequestEvent(ctx, req, eventWithError(authErr))
 			return makeToolAccessDeniedResponse(req, authErr)
 		}
 	}
@@ -339,7 +337,7 @@ func (s *sessionHandler) rewriteHTTPRequestHeaders(r *http.Request) error {
 	return nil
 }
 
-var errorInvalidRequestMissingName = trace.Errorf(`"name" parameter missing, note parameter names are case-sensitive`)
+var errInvalidRequestMissingName = trace.Errorf(`"name" parameter missing, note parameter names are case-sensitive`)
 
 func makeInvalidRequestResponse(req *mcputils.JSONRPCRequest, err error) *mcp.JSONRPCError {
 	r := mcp.NewJSONRPCError(
@@ -359,4 +357,16 @@ func makeToolAccessDeniedResponse(req *mcputils.JSONRPCRequest, authErr error) *
 		authErr,
 	)
 	return &r
+}
+
+func toError(e mcp.JSONRPCError) error {
+	// If the data holds an underlying error, replace the message with that, before
+	// constructing the final error. In that case the Message should be a high-level
+	// user-facing error. Otherwise fall back to the original message.
+	if e.Error.Data != nil {
+		if dataErr, ok := e.Error.Data.(error); ok {
+			e.Error.Message = dataErr.Error()
+		}
+	}
+	return e.Error.AsError()
 }

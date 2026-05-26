@@ -318,7 +318,7 @@ func Test_Server_HandleSession_reject_req_missing_name(t *testing.T) {
 		}`)
 	require.Equal(t, http.StatusOK, status)
 	require.Contains(t, body, `"code":`+strconv.Itoa(mcp.INVALID_REQUEST))
-	escaped, err := json.Marshal(errorInvalidRequestMissingName.Error())
+	escaped, err := json.Marshal(errInvalidRequestMissingName.Error())
 	require.NoError(t, err)
 	require.Contains(t, body, string(escaped))
 }
