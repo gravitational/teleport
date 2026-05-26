@@ -28,7 +28,7 @@ import (
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authcatest"
@@ -311,21 +311,21 @@ func TestWatchers(t *testing.T) {
 				_, err = svc.CreateValidatedMFAChallenge(
 					subtestCtx,
 					"leaf.example.com",
-					&mfav1.ValidatedMFAChallenge{
+					mfav2.ValidatedMFAChallenge_builder{
 						Kind:    types.KindValidatedMFAChallenge,
 						Version: types.V1,
-						Metadata: &types.Metadata{
+						Metadata: &headerv1.Metadata{
 							Name: "test-challenge",
 						},
-						Spec: &mfav1.ValidatedMFAChallengeSpec{
-							Payload: &mfav1.SessionIdentifyingPayload{
-								Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{SshSessionId: []byte("session-id")},
-							},
+						Spec: mfav2.ValidatedMFAChallengeSpec_builder{
+							Payload: mfav2.SessionIdentifyingPayload_builder{
+								SshSessionId: []byte("session-id"),
+							}.Build(),
 							SourceCluster: "root.example.com",
 							TargetCluster: "leaf.example.com",
 							Username:      "alice",
-						},
-					},
+						}.Build(),
+					}.Build(),
 				)
 				require.NoError(subtestT, err)
 			},
@@ -333,10 +333,10 @@ func TestWatchers(t *testing.T) {
 				event := fetchEvent(subtestT, watcher, fetchTimeout)
 				require.Equal(subtestT, types.OpPut, event.Type)
 
-				chal, err := types.ConvertResource[*validatedMFAChallengeResourceWrapper](event.Resource)
+				chal, err := types.ConvertResource[*mfav2.ValidatedMFAChallenge](event.Resource)
 				require.NoError(subtestT, err)
-				require.Equal(subtestT, "test-challenge", chal.GetName())
-				require.Equal(subtestT, "leaf.example.com", chal.GetTargetCluster())
+				require.Equal(subtestT, "test-challenge", chal.GetMetadata().GetName())
+				require.Equal(subtestT, "leaf.example.com", chal.GetSpec().GetTargetCluster())
 			},
 		},
 		{
@@ -346,21 +346,21 @@ func TestWatchers(t *testing.T) {
 				svc, err := NewMFAService(bk)
 				require.NoError(subtestT, err)
 
-				_, err = svc.CreateValidatedMFAChallenge(subtestCtx, "leaf.example.com", &mfav1.ValidatedMFAChallenge{
+				_, err = svc.CreateValidatedMFAChallenge(subtestCtx, "leaf.example.com", mfav2.ValidatedMFAChallenge_builder{
 					Kind:    types.KindValidatedMFAChallenge,
 					Version: types.V1,
-					Metadata: &types.Metadata{
+					Metadata: &headerv1.Metadata{
 						Name: "test-challenge",
 					},
-					Spec: &mfav1.ValidatedMFAChallengeSpec{
-						Payload: &mfav1.SessionIdentifyingPayload{
-							Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{SshSessionId: []byte("session-id")},
-						},
+					Spec: mfav2.ValidatedMFAChallengeSpec_builder{
+						Payload: mfav2.SessionIdentifyingPayload_builder{
+							SshSessionId: []byte("session-id"),
+						}.Build(),
 						SourceCluster: "root.example.com",
 						TargetCluster: "leaf.example.com",
 						Username:      "alice",
-					},
-				})
+					}.Build(),
+				}.Build())
 				require.NoError(subtestT, err)
 			},
 			causeEvents: func(subtestCtx context.Context, subtestT *testing.T, bk backend.Backend) {
@@ -371,11 +371,11 @@ func TestWatchers(t *testing.T) {
 				event := fetchEvent(subtestT, watcher, fetchTimeout)
 				require.Equal(subtestT, types.OpDelete, event.Type)
 
-				chal, err := types.ConvertResource[*validatedMFAChallengeResourceWrapper](event.Resource)
+				chal, err := types.ConvertResource[*mfav2.ValidatedMFAChallenge](event.Resource)
 				require.NoError(subtestT, err)
 				require.Equal(subtestT, types.KindValidatedMFAChallenge, chal.GetKind())
-				require.Equal(subtestT, "test-challenge", chal.GetName())
-				require.Equal(subtestT, "leaf.example.com", chal.GetTargetCluster())
+				require.Equal(subtestT, "test-challenge", chal.GetMetadata().GetName())
+				require.Equal(subtestT, "leaf.example.com", chal.GetSpec().GetTargetCluster())
 			},
 		},
 	}
