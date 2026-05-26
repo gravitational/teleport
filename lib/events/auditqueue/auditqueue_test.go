@@ -20,6 +20,7 @@ package auditqueue
 
 import (
 	"context"
+	"log/slog"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
@@ -49,6 +50,13 @@ func newTestQueueWithConfig(tb testing.TB, kind Kind, cfg Config) Queue {
 		require.NoError(tb, q.Close())
 	})
 	return q
+}
+
+func quietLogs(tb testing.TB) {
+	tb.Helper()
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.DiscardHandler))
+	tb.Cleanup(func() { slog.SetDefault(prev) })
 }
 
 func newTestEvent(index int64) apievents.AuditEvent {
@@ -445,6 +453,7 @@ func TestRun_DeadLetter_RedeliversAfterRecovery(t *testing.T) {
 func BenchmarkEnqueue(b *testing.B) {
 	for _, kind := range allKinds {
 		b.Run(string(kind), func(b *testing.B) {
+			quietLogs(b)
 			ctx := b.Context()
 			q := newTestQueue(b, kind)
 
@@ -462,6 +471,7 @@ func BenchmarkEnqueue(b *testing.B) {
 func BenchmarkEnqueueAndDrain(b *testing.B) {
 	for _, kind := range allKinds {
 		b.Run(string(kind), func(b *testing.B) {
+			quietLogs(b)
 			ctx := b.Context()
 			q := newTestQueue(b, kind)
 
