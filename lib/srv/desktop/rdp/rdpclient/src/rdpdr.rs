@@ -17,16 +17,15 @@
 mod filesystem;
 mod flags;
 pub(crate) mod path;
-pub(crate) mod scard;
 pub(crate) mod tdp;
 
 use self::filesystem::FilesystemBackend;
-use self::scard::{ScardBackend, SCARD_DEVICE_ID};
 use self::tdp::{
     SharedDirectoryCreateResponse, SharedDirectoryDeleteResponse, SharedDirectoryInfoResponse,
     SharedDirectoryListResponse,
 };
 use crate::client::ClientHandle;
+use crate::scard::{ScardBackend, SCARD_DEVICE_ID};
 use crate::CgoHandle;
 use ironrdp_core::impl_as_any;
 use ironrdp_pdu::{pdu_other_err, PduResult};
