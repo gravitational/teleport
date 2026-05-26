@@ -291,7 +291,6 @@ func (s *TerraformSuiteOSS) TestBotWithScope() {
 		return trace.NewAggregate(errs...)
 	}
 
-	tokenName := "teleport_provision_token.bot_test_scoped"
 	botName := "teleport_bot.test_scoped"
 	scopedRoleName := "teleport_scoped_role.scoped_operator"
 	assignmentName := "teleport_scoped_role_assignment.bot_assignment"
@@ -305,9 +304,6 @@ func (s *TerraformSuiteOSS) TestBotWithScope() {
 			{
 				Config: s.getFixture("bot_scoped_0_create.tf"),
 				Check: resource.ComposeTestCheckFunc(
-					resource.TestCheckResourceAttr(tokenName, "kind", "token"),
-					resource.TestCheckResourceAttr(tokenName, "metadata.name", "bot-test-scoped"),
-					resource.TestCheckResourceAttr(tokenName, "spec.roles.0", "Bot"),
 					resource.TestCheckResourceAttr(botName, "metadata.name", "test-scoped-bot"),
 					resource.TestCheckResourceAttr(botName, "scope", "/test-scope"),
 					resource.TestCheckResourceAttr(scopedRoleName, "metadata.name", "scoped-operator"),

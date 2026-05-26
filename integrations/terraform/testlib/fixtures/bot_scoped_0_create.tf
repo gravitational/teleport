@@ -19,20 +19,6 @@ resource "teleport_scoped_role" "scoped_operator" {
   }
 }
 
-resource "teleport_provision_token" "bot_test_scoped" {
-  version = "v2"
-  metadata = {
-    expires = "2038-01-01T00:00:00Z"
-    name    = "bot-test-scoped"
-  }
-
-  spec = {
-    roles       = ["Bot"]
-    bot_name    = local.bot_name_scoped
-    join_method = "token"
-  }
-}
-
 resource "teleport_bot" "test_scoped" {
   version = "v1"
 
@@ -45,10 +31,6 @@ resource "teleport_bot" "test_scoped" {
   }
 
   scope = local.scope_path
-
-  depends_on = [
-    teleport_provision_token.bot_test_scoped
-  ]
 }
 
 resource "teleport_scoped_role_assignment" "bot_assignment" {

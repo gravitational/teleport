@@ -387,7 +387,7 @@ func (r resourceTeleportBot) botFromProto(ctx context.Context, bot *machineidv1.
 	// If the plan or state includes the metadata or spec attribute, it means
 	// the user has "opted in" to the new RFD 153-style attributes. Otherwise,
 	// for backward-compatibility we'll populate the old fields.
-	rfd153Style := attrPresent(base.Metadata) || attrPresent(base.Spec)
+	rfd153Style := attrPresent(base.Metadata) || attrPresent(base.Spec) || attrPresent(base.Scope)
 
 	if rfd153Style {
 		result.Name.Null = true
@@ -564,14 +564,16 @@ func (v rfd153OnlyValidator) Validate(ctx context.Context, req tfsdk.ValidateAtt
 	}
 
 	var meta, spec types.Object
+	var scope types.String
 	req.Config.GetAttribute(ctx, path.Root("metadata"), &meta)
 	req.Config.GetAttribute(ctx, path.Root("spec"), &spec)
+	req.Config.GetAttribute(ctx, path.Root("scope"), &scope)
 
-	if attrPresent(meta) || attrPresent(spec) {
+	if attrPresent(meta) || attrPresent(spec) || attrPresent(scope) {
 		rsp.Diagnostics.AddAttributeError(
 			req.AttributePath,
 			"Attribute Validation Error",
-			fmt.Sprintf("The deprecated `%s` attribute cannot be used in combination with `spec` or `metadata`.", req.AttributePath),
+			fmt.Sprintf("The deprecated `%s` attribute cannot be used in combination with `spec`, `metadata`, or `scope`.", req.AttributePath),
 		)
 	}
 }
