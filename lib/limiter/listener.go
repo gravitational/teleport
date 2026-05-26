@@ -32,7 +32,7 @@ type Listener struct {
 	limiter *ConnectionsLimiter
 }
 
-// retryableAcceptError wraps expected per-connection listener errors so the
+// retryableAcceptError wraps expected per-connection listener errors so generic
 // server accept loops keep serving after a single connection is rejected.
 type retryableAcceptError struct {
 	error
@@ -40,6 +40,7 @@ type retryableAcceptError struct {
 
 func (e retryableAcceptError) Unwrap() error   { return e.error }
 func (e retryableAcceptError) Temporary() bool { return true }
+func (e retryableAcceptError) Timeout() bool   { return false }
 
 // NewListener creates a [Listener] that enforces the limits of
 // the provided [ConnectionsLimiter] on the all connections accepted
