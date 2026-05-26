@@ -419,6 +419,7 @@ func (p *AgentPool) waitForLease(ctx context.Context, events <-chan Agent) (*tra
 // 2. There have been no connectivity changes within the configured threshold
 // 3. There have been no tracker topology changes within the configured threshold
 // 4. There are more active agents than the configured connection count.
+// This should be used synchonously within the main agentpool loop.
 func (p *AgentPool) tryDisconnect(ctx context.Context) {
 	disconnectThreshold := p.runtimeConfig.getDisconnectThreshold()
 	if disconnectThreshold <= 0 {
