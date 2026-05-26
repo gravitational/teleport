@@ -62,9 +62,11 @@ func GenSchemaAppAuthConfig(ctx context.Context) (github_com_hashicorp_terraform
 		"metadata": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				"description": {
-					Description: "description is object description.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					Computed:      true,
+					Description:   "description is object description.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:      true,
@@ -74,9 +76,11 @@ func GenSchemaAppAuthConfig(ctx context.Context) (github_com_hashicorp_terraform
 					Validators:    []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
 				}),
 				"labels": {
-					Description: "labels is a set of labels.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+					Computed:      true,
+					Description:   "labels is a set of labels.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
 				"name": {
 					Description:   "name is an object name.",
@@ -107,45 +111,61 @@ func GenSchemaAppAuthConfig(ctx context.Context) (github_com_hashicorp_terraform
 				"app_labels": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"name": {
-							Description: "The name of the label.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Computed:      true,
+							Description:   "The name of the label.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"values": {
-							Description: "The values associated with the label.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							Computed:      true,
+							Description:   "The values associated with the label.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 					}),
-					Description: "AppLabels is used to define the app_labels matcher, which selects applications that can use this authentication conifg. An empty value means no application will use it.",
-					Optional:    true,
+					Computed:      true,
+					Description:   "AppLabels is used to define the app_labels matcher, which selects applications that can use this authentication conifg. An empty value means no application will use it.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 				},
 				"jwt": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"audience": {
-							Description: "Audience is the expected token audience. It will usually be a OAuth client_id issued for Teleport use.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Computed:      true,
+							Description:   "Audience is the expected token audience. It will usually be a OAuth client_id issued for Teleport use.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"issuer": {
-							Description: "Issuer is the JWT token issuer name. This value is used to verify the token.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Computed:      true,
+							Description:   "Issuer is the JWT token issuer name. This value is used to verify the token.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"jwks_url": {
-							Description: "JwksUrl is the JSON Web Key Set (JWKS) URL used to fetch signing keys.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Computed:      true,
+							Description:   "JwksUrl is the JSON Web Key Set (JWKS) URL used to fetch signing keys.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"static_jwks": {
-							Description: "StaticJwks is the JSON Web Key Set (JWKS) formatted public keys of the token issuer in JSON format.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Computed:      true,
+							Description:   "StaticJwks is the JSON Web Key Set (JWKS) formatted public keys of the token issuer in JSON format.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"username_claim": {
-							Description: "UsernameClaim specifies which token claim name's value will be used as the username. Defaults to `email`.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Computed:      true,
+							Description:   "UsernameClaim specifies which token claim name's value will be used as the username. Defaults to `email`.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 					}),
 					Description: "Jwt is the JWT authentication config spec.",
@@ -156,9 +176,11 @@ func GenSchemaAppAuthConfig(ctx context.Context) (github_com_hashicorp_terraform
 			Required:    true,
 		},
 		"sub_kind": {
-			Description: "SubKind is the app auth config subkind.",
-			Optional:    true,
-			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Computed:      true,
+			Description:   "SubKind is the app auth config subkind.",
+			Optional:      true,
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 		"version": {
 			Description: "Version is the app auth config resource version.",
@@ -560,6 +582,9 @@ func CopyAppAuthConfigToTerraform(ctx context.Context, obj *github_com_gravitati
 		} else {
 			v, ok := tf.Attrs["kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
+				if tf.Attrs["kind"] != nil {
+					diags.Append(attrWriteUnexpectedExistingTypeDiag{"AppAuthConfig.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"AppAuthConfig.kind", err})
@@ -568,8 +593,9 @@ func CopyAppAuthConfigToTerraform(ctx context.Context, obj *github_com_gravitati
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"AppAuthConfig.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
-				v.Null = string(obj.Kind) == ""
 			}
+
+			v.Null = false
 			v.Value = string(obj.Kind)
 			v.Unknown = false
 			tf.Attrs["kind"] = v
@@ -582,6 +608,9 @@ func CopyAppAuthConfigToTerraform(ctx context.Context, obj *github_com_gravitati
 		} else {
 			v, ok := tf.Attrs["sub_kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
+				if tf.Attrs["sub_kind"] != nil {
+					diags.Append(attrWriteUnexpectedExistingTypeDiag{"AppAuthConfig.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"AppAuthConfig.sub_kind", err})
@@ -590,8 +619,9 @@ func CopyAppAuthConfigToTerraform(ctx context.Context, obj *github_com_gravitati
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"AppAuthConfig.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
-				v.Null = string(obj.SubKind) == ""
 			}
+
+			v.Null = false
 			v.Value = string(obj.SubKind)
 			v.Unknown = false
 			tf.Attrs["sub_kind"] = v
@@ -604,6 +634,9 @@ func CopyAppAuthConfigToTerraform(ctx context.Context, obj *github_com_gravitati
 		} else {
 			v, ok := tf.Attrs["version"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
+				if tf.Attrs["version"] != nil {
+					diags.Append(attrWriteUnexpectedExistingTypeDiag{"AppAuthConfig.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"AppAuthConfig.version", err})
@@ -612,8 +645,9 @@ func CopyAppAuthConfigToTerraform(ctx context.Context, obj *github_com_gravitati
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"AppAuthConfig.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
-				v.Null = string(obj.Version) == ""
 			}
+
+			v.Null = false
 			v.Value = string(obj.Version)
 			v.Unknown = false
 			tf.Attrs["version"] = v
@@ -643,6 +677,7 @@ func CopyAppAuthConfigToTerraform(ctx context.Context, obj *github_com_gravitati
 				if obj.Metadata == nil {
 					v.Null = true
 				} else {
+					v.Null = false
 					obj := obj.Metadata
 					tf := &v
 					{
@@ -652,6 +687,9 @@ func CopyAppAuthConfigToTerraform(ctx context.Context, obj *github_com_gravitati
 						} else {
 							v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["name"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"AppAuthConfig.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"AppAuthConfig.metadata.name", err})
@@ -660,8 +698,9 @@ func CopyAppAuthConfigToTerraform(ctx context.Context, obj *github_com_gravitati
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"AppAuthConfig.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Name) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Name)
 							v.Unknown = false
 							tf.Attrs["name"] = v
@@ -674,6 +713,9 @@ func CopyAppAuthConfigToTerraform(ctx context.Context, obj *github_com_gravitati
 						} else {
 							v, ok := tf.Attrs["namespace"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["namespace"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"AppAuthConfig.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"AppAuthConfig.metadata.namespace", err})
@@ -682,8 +724,9 @@ func CopyAppAuthConfigToTerraform(ctx context.Context, obj *github_com_gravitati
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"AppAuthConfig.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Namespace) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Namespace)
 							v.Unknown = false
 							tf.Attrs["namespace"] = v
@@ -696,6 +739,9 @@ func CopyAppAuthConfigToTerraform(ctx context.Context, obj *github_com_gravitati
 						} else {
 							v, ok := tf.Attrs["description"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["description"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"AppAuthConfig.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"AppAuthConfig.metadata.description", err})
@@ -704,8 +750,9 @@ func CopyAppAuthConfigToTerraform(ctx context.Context, obj *github_com_gravitati
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"AppAuthConfig.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Description) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Description)
 							v.Unknown = false
 							tf.Attrs["description"] = v
@@ -733,11 +780,14 @@ func CopyAppAuthConfigToTerraform(ctx context.Context, obj *github_com_gravitati
 										c.Elems = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
 									}
 								}
-								if obj.Labels != nil {
+								{
 									t := o.ElemType
 									for k, a := range obj.Labels {
-										v, ok := tf.Attrs["labels"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
 										if !ok {
+											if c.Elems[k] != nil {
+												diags.Append(attrWriteUnexpectedExistingTypeDiag{"AppAuthConfig.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											}
 											i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 											if err != nil {
 												diags.Append(attrWriteGeneralError{"AppAuthConfig.metadata.labels", err})
@@ -746,16 +796,15 @@ func CopyAppAuthConfigToTerraform(ctx context.Context, obj *github_com_gravitati
 											if !ok {
 												diags.Append(attrWriteConversionFailureDiag{"AppAuthConfig.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 											}
-											v.Null = false
 										}
+
+										v.Null = false
 										v.Value = string(a)
 										v.Unknown = false
 										c.Elems[k] = v
 									}
-									if len(obj.Labels) > 0 {
-										c.Null = false
-									}
 								}
+								c.Null = false
 								c.Unknown = false
 								tf.Attrs["labels"] = c
 							}
@@ -777,6 +826,9 @@ func CopyAppAuthConfigToTerraform(ctx context.Context, obj *github_com_gravitati
 						} else {
 							v, ok := tf.Attrs["revision"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["revision"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"AppAuthConfig.metadata.revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"AppAuthConfig.metadata.revision", err})
@@ -785,8 +837,9 @@ func CopyAppAuthConfigToTerraform(ctx context.Context, obj *github_com_gravitati
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"AppAuthConfig.metadata.revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Revision) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Revision)
 							v.Unknown = false
 							tf.Attrs["revision"] = v
@@ -822,6 +875,7 @@ func CopyAppAuthConfigToTerraform(ctx context.Context, obj *github_com_gravitati
 				if obj.Spec == nil {
 					v.Null = true
 				} else {
+					v.Null = false
 					obj := obj.Spec
 					tf := &v
 					{
@@ -846,13 +900,13 @@ func CopyAppAuthConfigToTerraform(ctx context.Context, obj *github_com_gravitati
 										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.AppLabels))
 									}
 								}
-								if obj.AppLabels != nil {
+								{
 									o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 									if len(obj.AppLabels) != len(c.Elems) {
 										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.AppLabels))
 									}
 									for k, a := range obj.AppLabels {
-										v, ok := tf.Attrs["app_labels"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 										if !ok {
 											v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -867,6 +921,7 @@ func CopyAppAuthConfigToTerraform(ctx context.Context, obj *github_com_gravitati
 										if a == nil {
 											v.Null = true
 										} else {
+											v.Null = false
 											obj := a
 											tf := &v
 											{
@@ -876,6 +931,9 @@ func CopyAppAuthConfigToTerraform(ctx context.Context, obj *github_com_gravitati
 												} else {
 													v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 													if !ok {
+														if tf.Attrs["name"] != nil {
+															diags.Append(attrWriteUnexpectedExistingTypeDiag{"AppAuthConfig.spec.app_labels.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+														}
 														i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 														if err != nil {
 															diags.Append(attrWriteGeneralError{"AppAuthConfig.spec.app_labels.name", err})
@@ -884,8 +942,9 @@ func CopyAppAuthConfigToTerraform(ctx context.Context, obj *github_com_gravitati
 														if !ok {
 															diags.Append(attrWriteConversionFailureDiag{"AppAuthConfig.spec.app_labels.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 														}
-														v.Null = string(obj.Name) == ""
 													}
+
+													v.Null = false
 													v.Value = string(obj.Name)
 													v.Unknown = false
 													tf.Attrs["name"] = v
@@ -913,14 +972,17 @@ func CopyAppAuthConfigToTerraform(ctx context.Context, obj *github_com_gravitati
 																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
 															}
 														}
-														if obj.Values != nil {
+														{
 															t := o.ElemType
 															if len(obj.Values) != len(c.Elems) {
 																c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
 															}
 															for k, a := range obj.Values {
-																v, ok := tf.Attrs["values"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																if !ok {
+																	if c.Elems[k] != nil {
+																		diags.Append(attrWriteUnexpectedExistingTypeDiag{"AppAuthConfig.spec.app_labels.values", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																	}
 																	i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																	if err != nil {
 																		diags.Append(attrWriteGeneralError{"AppAuthConfig.spec.app_labels.values", err})
@@ -929,16 +991,15 @@ func CopyAppAuthConfigToTerraform(ctx context.Context, obj *github_com_gravitati
 																	if !ok {
 																		diags.Append(attrWriteConversionFailureDiag{"AppAuthConfig.spec.app_labels.values", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																	}
-																	v.Null = string(a) == ""
 																}
+
+																v.Null = false
 																v.Value = string(a)
 																v.Unknown = false
 																c.Elems[k] = v
 															}
-															if len(obj.Values) > 0 {
-																c.Null = false
-															}
 														}
+														c.Null = false
 														c.Unknown = false
 														tf.Attrs["values"] = c
 													}
@@ -948,10 +1009,8 @@ func CopyAppAuthConfigToTerraform(ctx context.Context, obj *github_com_gravitati
 										v.Unknown = false
 										c.Elems[k] = v
 									}
-									if len(obj.AppLabels) > 0 {
-										c.Null = false
-									}
 								}
+								c.Null = false
 								c.Unknown = false
 								tf.Attrs["app_labels"] = c
 							}
@@ -985,6 +1044,7 @@ func CopyAppAuthConfigToTerraform(ctx context.Context, obj *github_com_gravitati
 								if obj.Jwt == nil {
 									v.Null = true
 								} else {
+									v.Null = false
 									obj := obj.Jwt
 									tf := &v
 									{
@@ -994,6 +1054,9 @@ func CopyAppAuthConfigToTerraform(ctx context.Context, obj *github_com_gravitati
 										} else {
 											v, ok := tf.Attrs["issuer"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
+												if tf.Attrs["issuer"] != nil {
+													diags.Append(attrWriteUnexpectedExistingTypeDiag{"AppAuthConfig.spec.jwt.issuer", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"AppAuthConfig.spec.jwt.issuer", err})
@@ -1002,8 +1065,9 @@ func CopyAppAuthConfigToTerraform(ctx context.Context, obj *github_com_gravitati
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"AppAuthConfig.spec.jwt.issuer", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
-												v.Null = string(obj.Issuer) == ""
 											}
+
+											v.Null = false
 											v.Value = string(obj.Issuer)
 											v.Unknown = false
 											tf.Attrs["issuer"] = v
@@ -1016,6 +1080,9 @@ func CopyAppAuthConfigToTerraform(ctx context.Context, obj *github_com_gravitati
 										} else {
 											v, ok := tf.Attrs["audience"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
+												if tf.Attrs["audience"] != nil {
+													diags.Append(attrWriteUnexpectedExistingTypeDiag{"AppAuthConfig.spec.jwt.audience", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"AppAuthConfig.spec.jwt.audience", err})
@@ -1024,8 +1091,9 @@ func CopyAppAuthConfigToTerraform(ctx context.Context, obj *github_com_gravitati
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"AppAuthConfig.spec.jwt.audience", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
-												v.Null = string(obj.Audience) == ""
 											}
+
+											v.Null = false
 											v.Value = string(obj.Audience)
 											v.Unknown = false
 											tf.Attrs["audience"] = v
@@ -1038,6 +1106,9 @@ func CopyAppAuthConfigToTerraform(ctx context.Context, obj *github_com_gravitati
 										} else {
 											v, ok := tf.Attrs["username_claim"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
+												if tf.Attrs["username_claim"] != nil {
+													diags.Append(attrWriteUnexpectedExistingTypeDiag{"AppAuthConfig.spec.jwt.username_claim", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"AppAuthConfig.spec.jwt.username_claim", err})
@@ -1046,8 +1117,9 @@ func CopyAppAuthConfigToTerraform(ctx context.Context, obj *github_com_gravitati
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"AppAuthConfig.spec.jwt.username_claim", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
-												v.Null = string(obj.UsernameClaim) == ""
 											}
+
+											v.Null = false
 											v.Value = string(obj.UsernameClaim)
 											v.Unknown = false
 											tf.Attrs["username_claim"] = v
@@ -1058,12 +1130,11 @@ func CopyAppAuthConfigToTerraform(ctx context.Context, obj *github_com_gravitati
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"AppAuthConfig.spec.jwt.jwks_url"})
 										} else {
-											obj, ok := obj.KeysSource.(*github_com_gravitational_teleport_api_gen_proto_go_teleport_appauthconfig_v1.AppAuthConfigJWTSpec_JwksUrl)
-											if !ok {
-												obj = &github_com_gravitational_teleport_api_gen_proto_go_teleport_appauthconfig_v1.AppAuthConfigJWTSpec_JwksUrl{}
-											}
 											v, ok := tf.Attrs["jwks_url"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
+												if tf.Attrs["jwks_url"] != nil {
+													diags.Append(attrWriteUnexpectedExistingTypeDiag{"AppAuthConfig.spec.jwt.jwks_url", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"AppAuthConfig.spec.jwt.jwks_url", err})
@@ -1072,9 +1143,16 @@ func CopyAppAuthConfigToTerraform(ctx context.Context, obj *github_com_gravitati
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"AppAuthConfig.spec.jwt.jwks_url", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
-												v.Null = string(obj.JwksUrl) == ""
 											}
-											v.Value = string(obj.JwksUrl)
+											{
+												obj, ok := obj.KeysSource.(*github_com_gravitational_teleport_api_gen_proto_go_teleport_appauthconfig_v1.AppAuthConfigJWTSpec_JwksUrl)
+												if !ok {
+													v.Null = true
+												} else {
+													v.Null = false
+													v.Value = string(obj.JwksUrl)
+												}
+											}
 											v.Unknown = false
 											tf.Attrs["jwks_url"] = v
 										}
@@ -1084,12 +1162,11 @@ func CopyAppAuthConfigToTerraform(ctx context.Context, obj *github_com_gravitati
 										if !ok {
 											diags.Append(attrWriteMissingDiag{"AppAuthConfig.spec.jwt.static_jwks"})
 										} else {
-											obj, ok := obj.KeysSource.(*github_com_gravitational_teleport_api_gen_proto_go_teleport_appauthconfig_v1.AppAuthConfigJWTSpec_StaticJwks)
-											if !ok {
-												obj = &github_com_gravitational_teleport_api_gen_proto_go_teleport_appauthconfig_v1.AppAuthConfigJWTSpec_StaticJwks{}
-											}
 											v, ok := tf.Attrs["static_jwks"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
+												if tf.Attrs["static_jwks"] != nil {
+													diags.Append(attrWriteUnexpectedExistingTypeDiag{"AppAuthConfig.spec.jwt.static_jwks", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"AppAuthConfig.spec.jwt.static_jwks", err})
@@ -1098,9 +1175,16 @@ func CopyAppAuthConfigToTerraform(ctx context.Context, obj *github_com_gravitati
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"AppAuthConfig.spec.jwt.static_jwks", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
-												v.Null = string(obj.StaticJwks) == ""
 											}
-											v.Value = string(obj.StaticJwks)
+											{
+												obj, ok := obj.KeysSource.(*github_com_gravitational_teleport_api_gen_proto_go_teleport_appauthconfig_v1.AppAuthConfigJWTSpec_StaticJwks)
+												if !ok {
+													v.Null = true
+												} else {
+													v.Null = false
+													v.Value = string(obj.StaticJwks)
+												}
+											}
 											v.Unknown = false
 											tf.Attrs["static_jwks"] = v
 										}
@@ -1225,5 +1309,28 @@ func (d attrWriteGeneralError) Detail() string {
 }
 
 func (d attrWriteGeneralError) Equal(o github_com_hashicorp_terraform_plugin_framework_diag.Diagnostic) bool {
+	return (d.Severity() == o.Severity()) && (d.Summary() == o.Summary()) && (d.Detail() == o.Detail())
+}
+
+// attrWriteUnexpectedExistingTypeDiag represents diagnostic message when a field is initialized with a value whose go
+// type does not match what we'd expect.
+type attrWriteUnexpectedExistingTypeDiag struct {
+	Path string
+	Type string
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Severity() github_com_hashicorp_terraform_plugin_framework_diag.Severity {
+	return github_com_hashicorp_terraform_plugin_framework_diag.SeverityError
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Summary() string {
+	return "Error writing to Terraform object"
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Detail() string {
+	return fmt.Sprintf("A value for %v is already initialized and its type is not %v", d.Path, d.Type)
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Equal(o github_com_hashicorp_terraform_plugin_framework_diag.Diagnostic) bool {
 	return (d.Severity() == o.Severity()) && (d.Summary() == o.Summary()) && (d.Detail() == o.Detail())
 }
