@@ -167,6 +167,13 @@ func (a *AsyncEmitter) forward() {
 // event.
 func (a *AsyncEmitter) deliver(ctx context.Context, items []auditqueue.Item) []auditqueue.Item {
 	var successfullyDelivered []auditqueue.Item
+
+	// TODO(kkloberdanz): We plan to update the Emitter interface such that
+	// EmitAuditEvent will take a slice of events rather than a single event at
+	// a time. This will allow us to add batching as a native feature of this
+	// interface. I suspect that having first-class batching will have a greater
+	// improvement on performance over parallelism alone. It will also have less
+	// overhead than parallelism over multiple events.
 	for _, item := range items {
 		if ctx.Err() != nil {
 			return successfullyDelivered
