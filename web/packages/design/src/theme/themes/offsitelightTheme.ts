@@ -22,40 +22,40 @@ import { DataVisualisationColors, Theme, ThemeColors } from './types';
 
 const dataVisualisationColors: DataVisualisationColors = {
   primary: {
-    purple: '#5531D4',
-    wednesdays: '#A70DAF',
-    picton: '#006BB8',
-    sunflower: '#8F5F00',
-    caribbean: '#007562',
-    abbey: '#BF372E',
-    cyan: '#007282',
+    purple: '#864AE0',
+    wednesdays: '#F2638C',
+    picton: '#139BEB',
+    sunflower: '#CC8604',
+    caribbean: '#0B7B46',
+    abbey: '#CC2D37',
+    cyan: '#04A4B0',
   },
   secondary: {
-    purple: '#6F4CED',
-    wednesdays: '#DC37E5',
-    picton: '#0089DE',
-    sunflower: '#B27800',
-    caribbean: '#009681',
-    abbey: '#D4635B',
-    cyan: '#1792A3',
+    purple: '#9B5FF5',
+    wednesdays: '#FF87A9',
+    picton: '#33BBF5',
+    sunflower: '#E0A419',
+    caribbean: '#169855',
+    abbey: '#EB4651',
+    cyan: '#17C2C2',
   },
   tertiary: {
-    purple: '#3D1BB2',
-    wednesdays: '#690274',
-    picton: '#004B89',
-    sunflower: '#704B00',
-    caribbean: '#005742',
-    abbey: '#9D0A00',
-    cyan: '#015C6E',
+    purple: '#6732B8',
+    wednesdays: '#CF3A7A',
+    picton: '#087ABD',
+    sunflower: '#B05F04',
+    caribbean: '#075E39',
+    abbey: '#A01D26',
+    cyan: '#01818C',
   },
 };
 
 const levels = {
-  deep: '#EDEDEE',
+  deep: '#F0F1F2',
 
-  sunken: '#F1F1F2',
+  sunken: '#F7F7F7',
 
-  surface: '#F5F5F5',
+  surface: '#FFFFFF',
 
   elevated: '#FFFFFF',
 
@@ -75,85 +75,85 @@ const colors: ThemeColors = {
 
   spotBackground: neutralColors,
 
-  brand: '#3F6F27',
+  brand: '#52A62B',
 
   interactive: {
     solid: {
       primary: {
-        default: '#4F8233',
-        hover: '#3F6F27',
-        active: '#305C1D',
+        default: '#52A62B',
+        hover: '#45991F',
+        active: '#45991F',
       },
       success: {
-        default: '#007D6B',
-        hover: '#006456',
-        active: '#004B40',
+        default: '#139BEB',
+        hover: '#139BEB',
+        active: '#139BEB',
       },
       accent: {
-        default: '#036EA0',
-        hover: '#037FB0',
-        active: '#025F87',
+        default: '#2774D9',
+        hover: '#0D5CBD',
+        active: '#0D5CBD',
       },
       danger: {
-        default: '#CC372D',
-        hover: '#A32C24',
-        active: '#7A211B',
+        default: '#CC2D37',
+        hover: '#B2242D',
+        active: '#B2242D',
       },
       alert: {
-        default: '#AF6400',
-        hover: '#905100',
-        active: '#703E00',
+        default: '#CC8604',
+        hover: '#CC8604',
+        active: '#CC8604',
       },
     },
 
     tonal: {
       primary: [
-        'rgba(79, 130, 51, 0.1)',
-        'rgba(79, 130, 51, 0.18)',
-        'rgba(79, 130, 51, 0.25)',
+        'rgba(82, 166, 43, 0.1)',
+        'rgba(82, 166, 43, 0.18)',
+        'rgba(82, 166, 43, 0.25)',
       ],
       success: [
-        'rgba(0, 125, 107, 0.1)',
-        'rgba(0, 125, 107, 0.18)',
-        'rgba(0, 125, 107, 0.25)',
+        'rgba(19, 155, 235, 0.1)',
+        'rgba(19, 155, 235, 0.18)',
+        'rgba(19, 155, 235, 0.25)',
       ],
       danger: [
-        'rgba(204, 55, 45, 0.1)',
-        'rgba(204, 55, 45, 0.18)',
-        'rgba(204, 55, 45, 0.25)',
+        'rgba(204, 45, 55, 0.1)',
+        'rgba(204, 45, 55, 0.18)',
+        'rgba(204, 45, 55, 0.25)',
       ],
       alert: [
-        'rgba(175, 100, 0, 0.1)',
-        'rgba(175, 100, 0, 0.18)',
-        'rgba(175, 100, 0, 0.25)',
+        'rgba(204, 134, 4, 0.1)',
+        'rgba(204, 134, 4, 0.18)',
+        'rgba(204, 134, 4, 0.25)',
       ],
       informational: [
-        'rgba(3, 110, 160, 0.1)',
-        'rgba(3, 110, 160, 0.18)',
-        'rgba(3, 110, 160, 0.25)',
+        'rgba(39, 116, 217, 0.1)',
+        'rgba(39, 116, 217, 0.18)',
+        'rgba(39, 116, 217, 0.25)',
       ],
       neutral: [neutralColors[0], neutralColors[1], neutralColors[2]],
     },
   },
 
   text: {
-    main: '#152610',
-    slightlyMuted: 'rgba(21, 38, 16, 0.77)',
-    muted: 'rgba(21, 38, 16, 0.64)',
-    disabled: 'rgba(21, 38, 16, 0.36)',
+    main: '#23282E',
+    slightlyMuted: '#596069',
+    muted: '#889099',
+    disabled: '#C1C6CC',
     primaryInverse: '#FFFFFF',
   },
 
   buttons: {
-    text: '#152610',
-    textDisabled: 'rgba(21, 38, 16, 0.3)',
-    bgDisabled: 'rgba(21, 38, 16, 0.12)',
+    text: '#23282E',
+    textDisabled: '#C1C6CC',
+    bgDisabled: '#F0F1F2',
 
     primary: {
-      text: '#152610',
-      default: '#74BF4B',
-      hover: '#5DA33A',
-      active: '#579937',
+      text: '#FFFFFF',
+      default: '#52A62B',
+      hover: '#45991F',
+      active: '#45991F',
     },
 
     secondary: {
@@ -171,9 +171,9 @@ const colors: ThemeColors = {
 
     warning: {
       text: '#FFFFFF',
-      default: '#CC372D',
-      hover: '#A32C24',
-      active: '#7A211B',
+      default: '#CC2D37',
+      hover: '#B2242D',
+      active: '#B2242D',
     },
 
     trashButton: {
@@ -182,62 +182,62 @@ const colors: ThemeColors = {
     },
 
     link: {
-      default: '#036EA0',
-      hover: '#02608F',
-      active: '#025F87',
+      default: '#1D69CC',
+      hover: '#0D5CBD',
+      active: '#0D5CBD',
     },
   },
 
   tooltip: {
-    background: 'rgba(21, 38, 16, 0.85)',
+    background: '#373C42',
     inverseBackground: 'rgba(255, 255, 255, 0.5)',
-    inverseLinkDefault: '#049FD9',
+    inverseLinkDefault: '#1D69CC',
   },
 
-  progressBarColor: '#3F6F27',
+  progressBarColor: '#52A62B',
 
   success: {
-    main: '#007D6B',
-    hover: '#006456',
-    active: '#004B40',
+    main: '#139BEB',
+    hover: '#139BEB',
+    active: '#139BEB',
   },
 
   error: {
-    main: '#CC372D',
-    hover: '#A32C24',
-    active: '#7A211B',
+    main: '#CC2D37',
+    hover: '#B2242D',
+    active: '#B2242D',
   },
 
   warning: {
-    main: '#E08000',
-    hover: '#B86800',
-    active: '#905000',
+    main: '#CC8604',
+    hover: '#CC8604',
+    active: '#CC8604',
   },
 
   accent: {
-    main: 'rgba(4, 159, 217, 1)',
-    hover: 'rgba(3, 127, 176, 1)',
-    active: 'rgba(2, 95, 135, 1)',
+    main: 'rgba(39, 116, 217, 1)',
+    hover: 'rgba(13, 92, 189, 1)',
+    active: 'rgba(13, 92, 189, 1)',
   },
 
   notice: {
-    background: '#E6F6FC',
+    background: '#F3EBFF',
   },
 
   action: {
-    active: '#FFFFFF',
+    active: '#23282E',
     hover: 'rgba(255, 255, 255, 0.1)',
     hoverOpacity: 0.1,
     selected: 'rgba(255, 255, 255, 0.2)',
-    disabled: 'rgba(255, 255, 255, 0.3)',
-    disabledBackground: 'rgba(255, 255, 255, 0.12)',
+    disabled: '#C1C6CC',
+    disabledBackground: '#F0F1F2',
   },
 
   terminal: {
-    foreground: '#152610',
+    foreground: '#23282E',
     background: levels.sunken,
-    selectionBackground: 'rgba(116, 191, 75, 0.22)',
-    cursor: '#152610',
+    selectionBackground: 'rgba(82, 166, 43, 0.25)',
+    cursor: '#23282E',
     cursorAccent: levels.sunken,
     red: dataVisualisationColors.tertiary.abbey,
     green: dataVisualisationColors.tertiary.caribbean,
@@ -255,8 +255,8 @@ const colors: ThemeColors = {
     brightBlue: dataVisualisationColors.primary.picton,
     brightMagenta: dataVisualisationColors.primary.purple,
     brightCyan: dataVisualisationColors.primary.cyan,
-    searchMatch: '#C8EAAD',
-    activeSearchMatch: '#74BF4B',
+    searchMatch: '#E0F5D5',
+    activeSearchMatch: '#52A62B',
   },
 
   editor: {
@@ -269,20 +269,20 @@ const colors: ThemeColors = {
   },
 
   sessionRecording: {
-    resource: '#049FD9',
-    user: '#47872B',
+    resource: '#2774D9',
+    user: '#52A62B',
     player: {
       progressBar: {
         background: 'rgba(0, 0, 0, 0.1)',
         seeking: 'rgba(0, 0, 0, 0.15)',
-        progress: '#74BF4B',
+        progress: '#52A62B',
       },
     },
     riskLevels: {
-      low: '#007D6B',
-      medium: '#E08000',
-      high: '#CC372D',
-      critical: '#A32C24',
+      low: '#139BEB',
+      medium: '#CC8604',
+      high: '#F26722',
+      critical: '#CC2D37',
     },
   },
 
@@ -298,7 +298,7 @@ const colors: ThemeColors = {
     cursor: 'rgba(0, 0, 0, 0.4)',
     events: {
       inactivity: {
-        background: 'rgba(116, 191, 75, 0.25)',
+        background: 'rgba(82, 166, 43, 0.25)',
         text: 'rgba(0, 0, 0, 0.6)',
       },
       resize: {
@@ -308,7 +308,7 @@ const colors: ThemeColors = {
         text: '#26323c',
       },
       join: {
-        background: '#049FD9',
+        background: '#2774D9',
         text: 'rgba(255, 255, 255, 0.87)',
       },
       default: {
@@ -324,9 +324,9 @@ const colors: ThemeColors = {
     },
   },
 
-  link: '#049FD9',
+  link: '#1D69CC',
 
-  highlightedNavigationItem: '#C8EAAD',
+  highlightedNavigationItem: 'rgba(82, 166, 43, 0.2)',
 
   dataVisualisation: dataVisualisationColors,
 };
