@@ -217,7 +217,7 @@ func TestRun_AcksDeliveredEvents(t *testing.T) {
 	for _, kind := range allKinds {
 		t.Run(string(kind), func(t *testing.T) {
 			t.Parallel()
-			ctx := context.Background()
+			ctx := t.Context()
 			q := newTestQueue(t, kind)
 
 			require.NoError(t, q.Enqueue(ctx, newTestEvent(0)))
@@ -255,7 +255,7 @@ func TestRun_NormalOperation(t *testing.T) {
 	for _, kind := range allKinds {
 		t.Run(string(kind), func(t *testing.T) {
 			t.Parallel()
-			ctx := context.Background()
+			ctx := t.Context()
 			q := newTestQueue(t, kind)
 
 			runCtx, cancel := context.WithCancel(ctx)
@@ -345,7 +345,7 @@ func TestRun_DeadLetter_ExhaustedEventLeavesMainQueue(t *testing.T) {
 	for _, kind := range allKinds {
 		t.Run(string(kind), func(t *testing.T) {
 			t.Parallel()
-			ctx := context.Background()
+			ctx := t.Context()
 
 			const maxAttempts = 2
 			q := newTestQueueWithConfig(t, kind, Config{
@@ -389,7 +389,7 @@ func TestRun_DeadLetter_RedeliversAfterRecovery(t *testing.T) {
 	for _, kind := range allKinds {
 		t.Run(string(kind), func(t *testing.T) {
 			t.Parallel()
-			ctx := context.Background()
+			ctx := t.Context()
 
 			const sweepInterval = 50 * time.Millisecond
 			q := newTestQueueWithConfig(t, kind, Config{
