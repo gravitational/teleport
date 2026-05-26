@@ -71,9 +71,8 @@ your Teleport cluster.
 
 ## Step 2/8. Define a Teleport Jira plugin user
 
-The required permissions for the plugin are configured in the preset
-`access-plugin-update` role. To generate credentials for the plugin, define
-either a Machine ID bot user or a regular Teleport user.
+To generate credentials for the plugin, define either a Machine ID bot user or a
+regular Teleport user.
 
 <Tabs>
 <TabItem label="Machine & Workload Identity">
@@ -97,7 +96,7 @@ spec:
       - resources: ['access_request']
         verbs: ['list', 'read', 'update']
       - resources: ['access_plugin_data']
-        verbs: ['update']
+        verbs: ['list', 'read', 'update']
 ```
 
 Create the role:
