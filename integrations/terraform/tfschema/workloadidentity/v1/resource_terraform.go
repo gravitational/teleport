@@ -62,9 +62,11 @@ func GenSchemaWorkloadIdentity(ctx context.Context) (github_com_hashicorp_terraf
 		"metadata": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				"description": {
-					Description: "description is object description.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					Computed:      true,
+					Description:   "description is object description.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Description: "expires is a global expiry time header can be set on any resource in the system.",
@@ -72,11 +74,14 @@ func GenSchemaWorkloadIdentity(ctx context.Context) (github_com_hashicorp_terraf
 					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
 				}),
 				"labels": {
-					Description: "labels is a set of labels.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+					Computed:      true,
+					Description:   "labels is a set of labels.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
 				"name": {
+					Computed:      true,
 					Description:   "name is an object name.",
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.RequiresReplace()},
@@ -90,9 +95,11 @@ func GenSchemaWorkloadIdentity(ctx context.Context) (github_com_hashicorp_terraf
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"revision": {
-					Description: "revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					Computed:      true,
+					Description:   "revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 			}),
 			Description: "Common metadata that all resources share.",
@@ -106,58 +113,74 @@ func GenSchemaWorkloadIdentity(ctx context.Context) (github_com_hashicorp_terraf
 							"conditions": {
 								Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 									"attribute": {
-										Description: "The name of the attribute to evaluate the condition against.",
-										Optional:    true,
-										Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										Computed:      true,
+										Description:   "The name of the attribute to evaluate the condition against.",
+										Optional:      true,
+										PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+										Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 									},
 									"eq": {
 										Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"value": {
-											Description: "The value to compare the attribute against.",
-											Optional:    true,
-											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+											Computed:      true,
+											Description:   "The value to compare the attribute against.",
+											Optional:      true,
+											PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+											Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 										}}),
 										Description: "The attribute casted to a string must be equal to the value.",
 										Optional:    true,
 									},
 									"in": {
 										Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"values": {
-											Description: "The list of values to compare the attribute against.",
-											Optional:    true,
-											Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+											Computed:      true,
+											Description:   "The list of values to compare the attribute against.",
+											Optional:      true,
+											PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+											Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 										}}),
 										Description: "The attribute casted to a string must be in the list of values.",
 										Optional:    true,
 									},
 									"not_eq": {
 										Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"value": {
-											Description: "The value to compare the attribute against.",
-											Optional:    true,
-											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+											Computed:      true,
+											Description:   "The value to compare the attribute against.",
+											Optional:      true,
+											PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+											Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 										}}),
 										Description: "The attribute casted to a string must not be equal to the value.",
 										Optional:    true,
 									},
 									"not_in": {
 										Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"values": {
-											Description: "The list of values to compare the attribute against.",
-											Optional:    true,
-											Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+											Computed:      true,
+											Description:   "The list of values to compare the attribute against.",
+											Optional:      true,
+											PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+											Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 										}}),
 										Description: "The attribute casted to a string must not be in the list of values.",
 										Optional:    true,
 									},
 								}),
-								Description: "The conditions that must be met for this rule to be considered passed.  Mutually exclusive with expression.",
-								Optional:    true,
+								Computed:      true,
+								Description:   "The conditions that must be met for this rule to be considered passed.  Mutually exclusive with expression.",
+								Optional:      true,
+								PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 							},
 							"expression": {
-								Description: "An expression written in Teleport's predicate language that must evaluate to true for this rule to be considered passed.  Mutually exclusive with conditions.",
-								Optional:    true,
-								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								Computed:      true,
+								Description:   "An expression written in Teleport's predicate language that must evaluate to true for this rule to be considered passed.  Mutually exclusive with conditions.",
+								Optional:      true,
+								PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+								Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 							},
 						}),
-						Description: "A list of rules used to determine if a WorkloadIdentity can be issued. If none are provided, it will be considered a pass. If any are provided, then at least one must pass for the rules to be considered passed.",
-						Optional:    true,
+						Computed:      true,
+						Description:   "A list of rules used to determine if a WorkloadIdentity can be issued. If none are provided, it will be considered a pass. If any are provided, then at least one must pass for the rules to be considered passed.",
+						Optional:      true,
+						PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 					}}),
 					Description: "The rules which are evaluated before the WorkloadIdentity can be issued.",
 					Optional:    true,
@@ -165,14 +188,18 @@ func GenSchemaWorkloadIdentity(ctx context.Context) (github_com_hashicorp_terraf
 				"spiffe": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"hint": {
-							Description: "A freeform text field which is provided to workloads along with a credential produced by this WorkloadIdentity. This can be used to provide additional context that can be used to select between multiple credentials.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Computed:      true,
+							Description:   "A freeform text field which is provided to workloads along with a credential produced by this WorkloadIdentity. This can be used to provide additional context that can be used to select between multiple credentials.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"id": {
-							Description: "The path of the SPIFFE ID that will be issued to the workload.  This should be prefixed with a forward-slash (\"/\").  This field supports templating using attributes.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Computed:      true,
+							Description:   "The path of the SPIFFE ID that will be issued to the workload.  This should be prefixed with a forward-slash (\"/\").  This field supports templating using attributes.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"jwt": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"maximum_ttl": GenSchemaDuration(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
@@ -185,9 +212,11 @@ func GenSchemaWorkloadIdentity(ctx context.Context) (github_com_hashicorp_terraf
 						"x509": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"dns_sans": {
-									Description: "The DNS Subject Alternative Names (SANs) that should be included in an X509-SVID issued using this WorkloadIdentity.  Each entry in this list supports templating using attributes.",
-									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+									Computed:      true,
+									Description:   "The DNS Subject Alternative Names (SANs) that should be included in an X509-SVID issued using this WorkloadIdentity.  Each entry in this list supports templating using attributes.",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+									Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 								},
 								"maximum_ttl": GenSchemaDuration(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 									Description: "Control the maximum TTL of X509-SVIDs issued using this WorkloadIdentity.  If a X509-SVID is requested with a TTL greater than this value, then the returned X509-SVID will have a TTL of this value.  Defaults to 24 hours. The maximum this value can be set to is 14 days.",
@@ -196,19 +225,25 @@ func GenSchemaWorkloadIdentity(ctx context.Context) (github_com_hashicorp_terraf
 								"subject_template": {
 									Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 										"common_name": {
-											Description: "Common Name (CN) - 2.5.4.3 If empty, the RDN will be omitted from the DN.",
-											Optional:    true,
-											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+											Computed:      true,
+											Description:   "Common Name (CN) - 2.5.4.3 If empty, the RDN will be omitted from the DN.",
+											Optional:      true,
+											PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+											Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 										},
 										"organization": {
-											Description: "Organization (O) - 2.5.4.10 If empty, the RDN will be omitted from the DN.",
-											Optional:    true,
-											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+											Computed:      true,
+											Description:   "Organization (O) - 2.5.4.10 If empty, the RDN will be omitted from the DN.",
+											Optional:      true,
+											PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+											Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 										},
 										"organizational_unit": {
-											Description: "Organizational Unit (OU) - 2.5.4.11 If empty, the RDN will be omitted from the DN.",
-											Optional:    true,
-											Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+											Computed:      true,
+											Description:   "Organizational Unit (OU) - 2.5.4.11 If empty, the RDN will be omitted from the DN.",
+											Optional:      true,
+											PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+											Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 										},
 									}),
 									Description: "Used to configure the Subject Distinguished Name (DN) of the X509-SVID.  In most circumstances, it is recommended to prefer relying on the SPIFFE ID encoded in the URI SAN. However, the Subject DN may be needed to support legacy systems designed for X509 and not SPIFFE/WIMSE.  If not provided, the X509-SVID will be issued with an empty Subject DN.",
@@ -227,14 +262,18 @@ func GenSchemaWorkloadIdentity(ctx context.Context) (github_com_hashicorp_terraf
 			Optional:    true,
 		},
 		"sub_kind": {
-			Description: "Differentiates variations of the same kind. All resources should contain one, even if it is never populated.",
-			Optional:    true,
-			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Computed:      true,
+			Description:   "Differentiates variations of the same kind. All resources should contain one, even if it is never populated.",
+			Optional:      true,
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 		"version": {
-			Description: "The version of the resource being represented.",
-			Optional:    true,
-			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Computed:      true,
+			Description:   "The version of the resource being represented.",
+			Optional:      true,
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 	}}, nil
 }
@@ -918,6 +957,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 		} else {
 			v, ok := tf.Attrs["kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
+				if tf.Attrs["kind"] != nil {
+					diags.Append(attrWriteUnexpectedExistingTypeDiag{"WorkloadIdentity.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"WorkloadIdentity.kind", err})
@@ -926,8 +968,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"WorkloadIdentity.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
-				v.Null = string(obj.Kind) == ""
 			}
+
+			v.Null = false
 			v.Value = string(obj.Kind)
 			v.Unknown = false
 			tf.Attrs["kind"] = v
@@ -940,6 +983,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 		} else {
 			v, ok := tf.Attrs["sub_kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
+				if tf.Attrs["sub_kind"] != nil {
+					diags.Append(attrWriteUnexpectedExistingTypeDiag{"WorkloadIdentity.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"WorkloadIdentity.sub_kind", err})
@@ -948,8 +994,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"WorkloadIdentity.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
-				v.Null = string(obj.SubKind) == ""
 			}
+
+			v.Null = false
 			v.Value = string(obj.SubKind)
 			v.Unknown = false
 			tf.Attrs["sub_kind"] = v
@@ -962,6 +1009,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 		} else {
 			v, ok := tf.Attrs["version"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
+				if tf.Attrs["version"] != nil {
+					diags.Append(attrWriteUnexpectedExistingTypeDiag{"WorkloadIdentity.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"WorkloadIdentity.version", err})
@@ -970,8 +1020,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"WorkloadIdentity.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
-				v.Null = string(obj.Version) == ""
 			}
+
+			v.Null = false
 			v.Value = string(obj.Version)
 			v.Unknown = false
 			tf.Attrs["version"] = v
@@ -1001,6 +1052,7 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 				if obj.Metadata == nil {
 					v.Null = true
 				} else {
+					v.Null = false
 					obj := obj.Metadata
 					tf := &v
 					{
@@ -1010,6 +1062,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 						} else {
 							v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["name"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"WorkloadIdentity.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"WorkloadIdentity.metadata.name", err})
@@ -1018,8 +1073,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"WorkloadIdentity.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Name) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Name)
 							v.Unknown = false
 							tf.Attrs["name"] = v
@@ -1032,6 +1088,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 						} else {
 							v, ok := tf.Attrs["namespace"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["namespace"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"WorkloadIdentity.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"WorkloadIdentity.metadata.namespace", err})
@@ -1040,8 +1099,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"WorkloadIdentity.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Namespace) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Namespace)
 							v.Unknown = false
 							tf.Attrs["namespace"] = v
@@ -1054,6 +1114,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 						} else {
 							v, ok := tf.Attrs["description"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["description"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"WorkloadIdentity.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"WorkloadIdentity.metadata.description", err})
@@ -1062,8 +1125,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"WorkloadIdentity.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Description) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Description)
 							v.Unknown = false
 							tf.Attrs["description"] = v
@@ -1091,11 +1155,14 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 										c.Elems = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
 									}
 								}
-								if obj.Labels != nil {
+								{
 									t := o.ElemType
 									for k, a := range obj.Labels {
-										v, ok := tf.Attrs["labels"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
 										if !ok {
+											if c.Elems[k] != nil {
+												diags.Append(attrWriteUnexpectedExistingTypeDiag{"WorkloadIdentity.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											}
 											i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 											if err != nil {
 												diags.Append(attrWriteGeneralError{"WorkloadIdentity.metadata.labels", err})
@@ -1104,16 +1171,15 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 											if !ok {
 												diags.Append(attrWriteConversionFailureDiag{"WorkloadIdentity.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 											}
-											v.Null = false
 										}
+
+										v.Null = false
 										v.Value = string(a)
 										v.Unknown = false
 										c.Elems[k] = v
 									}
-									if len(obj.Labels) > 0 {
-										c.Null = false
-									}
 								}
+								c.Null = false
 								c.Unknown = false
 								tf.Attrs["labels"] = c
 							}
@@ -1135,6 +1201,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 						} else {
 							v, ok := tf.Attrs["revision"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["revision"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"WorkloadIdentity.metadata.revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"WorkloadIdentity.metadata.revision", err})
@@ -1143,8 +1212,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"WorkloadIdentity.metadata.revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Revision) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Revision)
 							v.Unknown = false
 							tf.Attrs["revision"] = v
@@ -1180,6 +1250,7 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 				if obj.Spec == nil {
 					v.Null = true
 				} else {
+					v.Null = false
 					obj := obj.Spec
 					tf := &v
 					{
@@ -1206,6 +1277,7 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 								if obj.Rules == nil {
 									v.Null = true
 								} else {
+									v.Null = false
 									obj := obj.Rules
 									tf := &v
 									{
@@ -1230,13 +1302,13 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow))
 													}
 												}
-												if obj.Allow != nil {
+												{
 													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 													if len(obj.Allow) != len(c.Elems) {
 														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow))
 													}
 													for k, a := range obj.Allow {
-														v, ok := tf.Attrs["allow"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 														if !ok {
 															v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -1251,6 +1323,7 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 														if a == nil {
 															v.Null = true
 														} else {
+															v.Null = false
 															obj := a
 															tf := &v
 															{
@@ -1275,13 +1348,13 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Conditions))
 																			}
 																		}
-																		if obj.Conditions != nil {
+																		{
 																			o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 																			if len(obj.Conditions) != len(c.Elems) {
 																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Conditions))
 																			}
 																			for k, a := range obj.Conditions {
-																				v, ok := tf.Attrs["conditions"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																				v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 																				if !ok {
 																					v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -1296,6 +1369,7 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 																				if a == nil {
 																					v.Null = true
 																				} else {
+																					v.Null = false
 																					obj := a
 																					tf := &v
 																					{
@@ -1305,6 +1379,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 																						} else {
 																							v, ok := tf.Attrs["attribute"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																							if !ok {
+																								if tf.Attrs["attribute"] != nil {
+																									diags.Append(attrWriteUnexpectedExistingTypeDiag{"WorkloadIdentity.spec.rules.allow.conditions.attribute", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																								}
 																								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																								if err != nil {
 																									diags.Append(attrWriteGeneralError{"WorkloadIdentity.spec.rules.allow.conditions.attribute", err})
@@ -1313,8 +1390,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 																								if !ok {
 																									diags.Append(attrWriteConversionFailureDiag{"WorkloadIdentity.spec.rules.allow.conditions.attribute", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																								}
-																								v.Null = string(obj.Attribute) == ""
 																							}
+
+																							v.Null = false
 																							v.Value = string(obj.Attribute)
 																							v.Unknown = false
 																							tf.Attrs["attribute"] = v
@@ -1348,6 +1426,7 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 																								if obj.Eq == nil {
 																									v.Null = true
 																								} else {
+																									v.Null = false
 																									obj := obj.Eq
 																									tf := &v
 																									{
@@ -1357,6 +1436,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 																										} else {
 																											v, ok := tf.Attrs["value"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																											if !ok {
+																												if tf.Attrs["value"] != nil {
+																													diags.Append(attrWriteUnexpectedExistingTypeDiag{"WorkloadIdentity.spec.rules.allow.conditions.eq.value", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																												}
 																												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																												if err != nil {
 																													diags.Append(attrWriteGeneralError{"WorkloadIdentity.spec.rules.allow.conditions.eq.value", err})
@@ -1365,8 +1447,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 																												if !ok {
 																													diags.Append(attrWriteConversionFailureDiag{"WorkloadIdentity.spec.rules.allow.conditions.eq.value", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																												}
-																												v.Null = string(obj.Value) == ""
 																											}
+
+																											v.Null = false
 																											v.Value = string(obj.Value)
 																											v.Unknown = false
 																											tf.Attrs["value"] = v
@@ -1406,6 +1489,7 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 																								if obj.NotEq == nil {
 																									v.Null = true
 																								} else {
+																									v.Null = false
 																									obj := obj.NotEq
 																									tf := &v
 																									{
@@ -1415,6 +1499,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 																										} else {
 																											v, ok := tf.Attrs["value"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																											if !ok {
+																												if tf.Attrs["value"] != nil {
+																													diags.Append(attrWriteUnexpectedExistingTypeDiag{"WorkloadIdentity.spec.rules.allow.conditions.not_eq.value", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																												}
 																												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																												if err != nil {
 																													diags.Append(attrWriteGeneralError{"WorkloadIdentity.spec.rules.allow.conditions.not_eq.value", err})
@@ -1423,8 +1510,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 																												if !ok {
 																													diags.Append(attrWriteConversionFailureDiag{"WorkloadIdentity.spec.rules.allow.conditions.not_eq.value", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																												}
-																												v.Null = string(obj.Value) == ""
 																											}
+
+																											v.Null = false
 																											v.Value = string(obj.Value)
 																											v.Unknown = false
 																											tf.Attrs["value"] = v
@@ -1464,6 +1552,7 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 																								if obj.In == nil {
 																									v.Null = true
 																								} else {
+																									v.Null = false
 																									obj := obj.In
 																									tf := &v
 																									{
@@ -1488,14 +1577,17 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 																														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
 																													}
 																												}
-																												if obj.Values != nil {
+																												{
 																													t := o.ElemType
 																													if len(obj.Values) != len(c.Elems) {
 																														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
 																													}
 																													for k, a := range obj.Values {
-																														v, ok := tf.Attrs["values"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																														if !ok {
+																															if c.Elems[k] != nil {
+																																diags.Append(attrWriteUnexpectedExistingTypeDiag{"WorkloadIdentity.spec.rules.allow.conditions.in.values", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																															}
 																															i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																															if err != nil {
 																																diags.Append(attrWriteGeneralError{"WorkloadIdentity.spec.rules.allow.conditions.in.values", err})
@@ -1504,16 +1596,15 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 																															if !ok {
 																																diags.Append(attrWriteConversionFailureDiag{"WorkloadIdentity.spec.rules.allow.conditions.in.values", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																															}
-																															v.Null = string(a) == ""
 																														}
+
+																														v.Null = false
 																														v.Value = string(a)
 																														v.Unknown = false
 																														c.Elems[k] = v
 																													}
-																													if len(obj.Values) > 0 {
-																														c.Null = false
-																													}
 																												}
+																												c.Null = false
 																												c.Unknown = false
 																												tf.Attrs["values"] = c
 																											}
@@ -1553,6 +1644,7 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 																								if obj.NotIn == nil {
 																									v.Null = true
 																								} else {
+																									v.Null = false
 																									obj := obj.NotIn
 																									tf := &v
 																									{
@@ -1577,14 +1669,17 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 																														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
 																													}
 																												}
-																												if obj.Values != nil {
+																												{
 																													t := o.ElemType
 																													if len(obj.Values) != len(c.Elems) {
 																														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Values))
 																													}
 																													for k, a := range obj.Values {
-																														v, ok := tf.Attrs["values"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																														if !ok {
+																															if c.Elems[k] != nil {
+																																diags.Append(attrWriteUnexpectedExistingTypeDiag{"WorkloadIdentity.spec.rules.allow.conditions.not_in.values", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																															}
 																															i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																															if err != nil {
 																																diags.Append(attrWriteGeneralError{"WorkloadIdentity.spec.rules.allow.conditions.not_in.values", err})
@@ -1593,16 +1688,15 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 																															if !ok {
 																																diags.Append(attrWriteConversionFailureDiag{"WorkloadIdentity.spec.rules.allow.conditions.not_in.values", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																															}
-																															v.Null = string(a) == ""
 																														}
+
+																														v.Null = false
 																														v.Value = string(a)
 																														v.Unknown = false
 																														c.Elems[k] = v
 																													}
-																													if len(obj.Values) > 0 {
-																														c.Null = false
-																													}
 																												}
+																												c.Null = false
 																												c.Unknown = false
 																												tf.Attrs["values"] = c
 																											}
@@ -1618,10 +1712,8 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 																				v.Unknown = false
 																				c.Elems[k] = v
 																			}
-																			if len(obj.Conditions) > 0 {
-																				c.Null = false
-																			}
 																		}
+																		c.Null = false
 																		c.Unknown = false
 																		tf.Attrs["conditions"] = c
 																	}
@@ -1634,6 +1726,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 																} else {
 																	v, ok := tf.Attrs["expression"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
+																		if tf.Attrs["expression"] != nil {
+																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"WorkloadIdentity.spec.rules.allow.expression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"WorkloadIdentity.spec.rules.allow.expression", err})
@@ -1642,8 +1737,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"WorkloadIdentity.spec.rules.allow.expression", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
-																		v.Null = string(obj.Expression) == ""
 																	}
+
+																	v.Null = false
 																	v.Value = string(obj.Expression)
 																	v.Unknown = false
 																	tf.Attrs["expression"] = v
@@ -1653,10 +1749,8 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 														v.Unknown = false
 														c.Elems[k] = v
 													}
-													if len(obj.Allow) > 0 {
-														c.Null = false
-													}
 												}
+												c.Null = false
 												c.Unknown = false
 												tf.Attrs["allow"] = c
 											}
@@ -1692,6 +1786,7 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 								if obj.Spiffe == nil {
 									v.Null = true
 								} else {
+									v.Null = false
 									obj := obj.Spiffe
 									tf := &v
 									{
@@ -1701,6 +1796,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 										} else {
 											v, ok := tf.Attrs["id"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
+												if tf.Attrs["id"] != nil {
+													diags.Append(attrWriteUnexpectedExistingTypeDiag{"WorkloadIdentity.spec.spiffe.id", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"WorkloadIdentity.spec.spiffe.id", err})
@@ -1709,8 +1807,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"WorkloadIdentity.spec.spiffe.id", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
-												v.Null = string(obj.Id) == ""
 											}
+
+											v.Null = false
 											v.Value = string(obj.Id)
 											v.Unknown = false
 											tf.Attrs["id"] = v
@@ -1723,6 +1822,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 										} else {
 											v, ok := tf.Attrs["hint"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
+												if tf.Attrs["hint"] != nil {
+													diags.Append(attrWriteUnexpectedExistingTypeDiag{"WorkloadIdentity.spec.spiffe.hint", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"WorkloadIdentity.spec.spiffe.hint", err})
@@ -1731,8 +1833,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"WorkloadIdentity.spec.spiffe.hint", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
-												v.Null = string(obj.Hint) == ""
 											}
+
+											v.Null = false
 											v.Value = string(obj.Hint)
 											v.Unknown = false
 											tf.Attrs["hint"] = v
@@ -1762,6 +1865,7 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 												if obj.X509 == nil {
 													v.Null = true
 												} else {
+													v.Null = false
 													obj := obj.X509
 													tf := &v
 													{
@@ -1786,14 +1890,17 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 																		c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.DnsSans))
 																	}
 																}
-																if obj.DnsSans != nil {
+																{
 																	t := o.ElemType
 																	if len(obj.DnsSans) != len(c.Elems) {
 																		c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.DnsSans))
 																	}
 																	for k, a := range obj.DnsSans {
-																		v, ok := tf.Attrs["dns_sans"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																		if !ok {
+																			if c.Elems[k] != nil {
+																				diags.Append(attrWriteUnexpectedExistingTypeDiag{"WorkloadIdentity.spec.spiffe.x509.dns_sans", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																			}
 																			i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																			if err != nil {
 																				diags.Append(attrWriteGeneralError{"WorkloadIdentity.spec.spiffe.x509.dns_sans", err})
@@ -1802,16 +1909,15 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 																			if !ok {
 																				diags.Append(attrWriteConversionFailureDiag{"WorkloadIdentity.spec.spiffe.x509.dns_sans", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																			}
-																			v.Null = string(a) == ""
 																		}
+
+																		v.Null = false
 																		v.Value = string(a)
 																		v.Unknown = false
 																		c.Elems[k] = v
 																	}
-																	if len(obj.DnsSans) > 0 {
-																		c.Null = false
-																	}
 																}
+																c.Null = false
 																c.Unknown = false
 																tf.Attrs["dns_sans"] = c
 															}
@@ -1841,6 +1947,7 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 																if obj.SubjectTemplate == nil {
 																	v.Null = true
 																} else {
+																	v.Null = false
 																	obj := obj.SubjectTemplate
 																	tf := &v
 																	{
@@ -1850,6 +1957,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 																		} else {
 																			v, ok := tf.Attrs["common_name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																			if !ok {
+																				if tf.Attrs["common_name"] != nil {
+																					diags.Append(attrWriteUnexpectedExistingTypeDiag{"WorkloadIdentity.spec.spiffe.x509.subject_template.common_name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																				}
 																				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																				if err != nil {
 																					diags.Append(attrWriteGeneralError{"WorkloadIdentity.spec.spiffe.x509.subject_template.common_name", err})
@@ -1858,8 +1968,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 																				if !ok {
 																					diags.Append(attrWriteConversionFailureDiag{"WorkloadIdentity.spec.spiffe.x509.subject_template.common_name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																				}
-																				v.Null = string(obj.CommonName) == ""
 																			}
+
+																			v.Null = false
 																			v.Value = string(obj.CommonName)
 																			v.Unknown = false
 																			tf.Attrs["common_name"] = v
@@ -1872,6 +1983,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 																		} else {
 																			v, ok := tf.Attrs["organization"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																			if !ok {
+																				if tf.Attrs["organization"] != nil {
+																					diags.Append(attrWriteUnexpectedExistingTypeDiag{"WorkloadIdentity.spec.spiffe.x509.subject_template.organization", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																				}
 																				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																				if err != nil {
 																					diags.Append(attrWriteGeneralError{"WorkloadIdentity.spec.spiffe.x509.subject_template.organization", err})
@@ -1880,8 +1994,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 																				if !ok {
 																					diags.Append(attrWriteConversionFailureDiag{"WorkloadIdentity.spec.spiffe.x509.subject_template.organization", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																				}
-																				v.Null = string(obj.Organization) == ""
 																			}
+
+																			v.Null = false
 																			v.Value = string(obj.Organization)
 																			v.Unknown = false
 																			tf.Attrs["organization"] = v
@@ -1894,6 +2009,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 																		} else {
 																			v, ok := tf.Attrs["organizational_unit"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																			if !ok {
+																				if tf.Attrs["organizational_unit"] != nil {
+																					diags.Append(attrWriteUnexpectedExistingTypeDiag{"WorkloadIdentity.spec.spiffe.x509.subject_template.organizational_unit", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																				}
 																				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																				if err != nil {
 																					diags.Append(attrWriteGeneralError{"WorkloadIdentity.spec.spiffe.x509.subject_template.organizational_unit", err})
@@ -1902,8 +2020,9 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 																				if !ok {
 																					diags.Append(attrWriteConversionFailureDiag{"WorkloadIdentity.spec.spiffe.x509.subject_template.organizational_unit", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																				}
-																				v.Null = string(obj.OrganizationalUnit) == ""
 																			}
+
+																			v.Null = false
 																			v.Value = string(obj.OrganizationalUnit)
 																			v.Unknown = false
 																			tf.Attrs["organizational_unit"] = v
@@ -1954,6 +2073,7 @@ func CopyWorkloadIdentityToTerraform(ctx context.Context, obj *github_com_gravit
 												if obj.Jwt == nil {
 													v.Null = true
 												} else {
+													v.Null = false
 													obj := obj.Jwt
 													tf := &v
 													{
@@ -2091,5 +2211,28 @@ func (d attrWriteGeneralError) Detail() string {
 }
 
 func (d attrWriteGeneralError) Equal(o github_com_hashicorp_terraform_plugin_framework_diag.Diagnostic) bool {
+	return (d.Severity() == o.Severity()) && (d.Summary() == o.Summary()) && (d.Detail() == o.Detail())
+}
+
+// attrWriteUnexpectedExistingTypeDiag represents diagnostic message when a field is initialized with a value whose go
+// type does not match what we'd expect.
+type attrWriteUnexpectedExistingTypeDiag struct {
+	Path string
+	Type string
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Severity() github_com_hashicorp_terraform_plugin_framework_diag.Severity {
+	return github_com_hashicorp_terraform_plugin_framework_diag.SeverityError
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Summary() string {
+	return "Error writing to Terraform object"
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Detail() string {
+	return fmt.Sprintf("A value for %v is already initialized and its type is not %v", d.Path, d.Type)
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Equal(o github_com_hashicorp_terraform_plugin_framework_diag.Diagnostic) bool {
 	return (d.Severity() == o.Severity()) && (d.Summary() == o.Summary()) && (d.Detail() == o.Detail())
 }
