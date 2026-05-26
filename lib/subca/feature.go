@@ -16,6 +16,8 @@
 
 package subca
 
+const enabled = true
+
 // Enabled returns true if the Sub CA feature is enabled.
 //
 // Testable components should not depend on this function directly. Instead,
