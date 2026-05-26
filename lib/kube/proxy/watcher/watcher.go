@@ -133,8 +133,9 @@ type ProxyKubeServerWatcher struct {
 	// rw protects below fields
 	rw sync.RWMutex
 
-	// lastFallbackFetchAttempt is the time when we last attempted to fetch kube servers from the fallback getter.
-	lastFallbackFetchAttempt time.Time
+	// nextFallbackFetch is the next point in time when the watcher should attempt to fetch from the fallback getter
+	// if the primary access point is observed to be failing.
+	nextFallbackFetch time.Time
 
 	// current holds a map of the currently known servers.
 	current map[serverKey]types.KubeServer
@@ -374,11 +375,11 @@ func (w *ProxyKubeServerWatcher) maybeFetchFromUpstream(ctx context.Context) err
 
 	now := time.Now()
 	w.rw.Lock()
-	if now.Before(w.lastFallbackFetchAttempt.Add(w.FallbackInterval)) {
+	if now.Before(w.nextFallbackFetch) {
 		w.rw.Unlock()
 		return nil
 	}
-	w.lastFallbackFetchAttempt = now
+	w.nextFallbackFetch = now.Add(retryutils.SeventhJitter(w.FallbackInterval))
 	w.rw.Unlock()
 
 	ch := w.singleFlighter.DoChan("collection", func() (any, error) {
