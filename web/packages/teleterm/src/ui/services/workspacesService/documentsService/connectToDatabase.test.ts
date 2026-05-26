@@ -21,6 +21,7 @@ import {
   makeRootCluster,
 } from 'teleterm/services/tshd/testHelpers';
 import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
+import { makeWorkspace } from 'teleterm/ui/services/workspacesService/testHelpers';
 import { IAppContext } from 'teleterm/ui/types';
 
 import { connectToDatabase } from './connectToDatabase';
@@ -97,6 +98,7 @@ function setTestCluster(
 ): void {
   appContext.workspacesService.setState(d => {
     d.rootClusterUri = cluster.uri;
+    d.workspaces = { [cluster.uri]: makeWorkspace() };
   });
   appContext.clustersService.setState(d => {
     d.clusters.set(cluster.uri, cluster);

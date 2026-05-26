@@ -24,6 +24,7 @@ import (
 	"encoding/binary"
 	"io"
 	"net"
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -220,4 +221,252 @@ func TestSendRecv(t *testing.T) {
 
 	// Should not have received a write error
 	require.NoError(t, writeError)
+}
+
+func TestMessageValidation(t *testing.T) {
+	excessiveClipboardData := make([]byte, tdp.MaxClipboardDataLength+1)
+	excessiveReadWriteData := make([]byte, tdp.MaxFileReadWriteLength+1)
+	excessivePath := strings.Repeat("a", tdp.MaxPathLength+1)
+
+	tests := []struct {
+		name    string
+		message tdp.Message
+		expect  func(t *testing.T, e error)
+	}{
+		{
+			name: "clipboard too large",
+			message: &ClipboardData{
+				Data: excessiveClipboardData,
+			},
+			expect: func(t *testing.T, e error) {
+				require.ErrorIs(t, e, tdp.ClipDataMaxLenErr)
+			},
+		},
+		{
+			name: "create request path too large",
+			message: &SharedDirectoryRequest{
+				Operation: &tdpbv1.SharedDirectoryRequest_Create_{
+					Create: &tdpbv1.SharedDirectoryRequest_Create{
+						Path: excessivePath,
+					},
+				},
+			},
+			expect: func(t *testing.T, e error) {
+				require.ErrorIs(t, e, tdp.StringMaxLenErr)
+			},
+		},
+		{
+			name: "delete request path too large",
+			message: &SharedDirectoryRequest{
+				Operation: &tdpbv1.SharedDirectoryRequest_Delete_{
+					Delete: &tdpbv1.SharedDirectoryRequest_Delete{
+						Path: excessivePath,
+					},
+				},
+			},
+			expect: func(t *testing.T, e error) {
+				require.ErrorIs(t, e, tdp.StringMaxLenErr)
+			},
+		},
+		{
+			name: "truncate request path too large",
+			message: &SharedDirectoryRequest{
+				Operation: &tdpbv1.SharedDirectoryRequest_Truncate_{
+					Truncate: &tdpbv1.SharedDirectoryRequest_Truncate{
+						Path: excessivePath,
+					},
+				},
+			},
+			expect: func(t *testing.T, e error) {
+				require.ErrorIs(t, e, tdp.StringMaxLenErr)
+			},
+		},
+		{
+			name: "write request too large",
+			message: &SharedDirectoryRequest{
+				Operation: &tdpbv1.SharedDirectoryRequest_Write_{
+					Write: &tdpbv1.SharedDirectoryRequest_Write{
+						Data: excessiveReadWriteData,
+					},
+				},
+			},
+			expect: func(t *testing.T, e error) {
+				require.ErrorIs(t, e, tdp.FileReadWriteMaxLenErr)
+			},
+		},
+		{
+			name: "read request too large",
+			message: &SharedDirectoryRequest{
+				Operation: &tdpbv1.SharedDirectoryRequest_Read_{
+					Read: &tdpbv1.SharedDirectoryRequest_Read{
+						Length: tdp.MaxFileReadWriteLength + 1,
+					},
+				},
+			},
+			expect: func(t *testing.T, e error) {
+				require.ErrorIs(t, e, tdp.FileReadWriteMaxLenErr)
+			},
+		},
+		{
+			name: "read request path too large",
+			message: &SharedDirectoryRequest{
+				Operation: &tdpbv1.SharedDirectoryRequest_Read_{
+					Read: &tdpbv1.SharedDirectoryRequest_Read{
+						Length: tdp.MaxFileReadWriteLength,
+						Path:   excessivePath,
+					},
+				},
+			},
+			expect: func(t *testing.T, e error) {
+				require.ErrorIs(t, e, tdp.StringMaxLenErr)
+			},
+		},
+		{
+			name: "write path too large",
+			message: &SharedDirectoryRequest{
+				Operation: &tdpbv1.SharedDirectoryRequest_Write_{
+					Write: &tdpbv1.SharedDirectoryRequest_Write{
+						Path: excessivePath,
+					},
+				},
+			},
+			expect: func(t *testing.T, e error) {
+				require.ErrorIs(t, e, tdp.StringMaxLenErr)
+			},
+		},
+		{
+			name: "info request path too large",
+			message: &SharedDirectoryRequest{
+				Operation: &tdpbv1.SharedDirectoryRequest_Info_{
+					Info: &tdpbv1.SharedDirectoryRequest_Info{
+						Path: excessivePath,
+					},
+				},
+			},
+			expect: func(t *testing.T, e error) {
+				require.ErrorIs(t, e, tdp.StringMaxLenErr)
+			},
+		},
+		{
+			name: "list request path too large",
+			message: &SharedDirectoryRequest{
+				Operation: &tdpbv1.SharedDirectoryRequest_List_{
+					List: &tdpbv1.SharedDirectoryRequest_List{
+						Path: excessivePath,
+					},
+				},
+			},
+			expect: func(t *testing.T, e error) {
+				require.ErrorIs(t, e, tdp.StringMaxLenErr)
+			},
+		},
+		{
+			name: "move original path too large",
+			message: &SharedDirectoryRequest{
+				Operation: &tdpbv1.SharedDirectoryRequest_Move_{
+					Move: &tdpbv1.SharedDirectoryRequest_Move{
+						OriginalPath: excessivePath,
+					},
+				},
+			},
+			expect: func(t *testing.T, e error) {
+				require.ErrorIs(t, e, tdp.StringMaxLenErr)
+			},
+		},
+		{
+			name: "move new path too large",
+			message: &SharedDirectoryRequest{
+				Operation: &tdpbv1.SharedDirectoryRequest_Move_{
+					Move: &tdpbv1.SharedDirectoryRequest_Move{
+						NewPath: excessivePath,
+					},
+				},
+			},
+			expect: func(t *testing.T, e error) {
+				require.ErrorIs(t, e, tdp.StringMaxLenErr)
+			},
+		},
+		{
+			name: "read response too large",
+			message: &SharedDirectoryResponse{
+				Operation: &tdpbv1.SharedDirectoryResponse_Read_{
+					Read: &tdpbv1.SharedDirectoryResponse_Read{
+						Data: excessiveReadWriteData,
+					},
+				},
+			},
+			expect: func(t *testing.T, e error) {
+				require.ErrorIs(t, e, tdp.FileReadWriteMaxLenErr)
+			},
+		},
+		{
+			name: "write response too large",
+			message: &SharedDirectoryResponse{
+				Operation: &tdpbv1.SharedDirectoryResponse_Write_{
+					Write: &tdpbv1.SharedDirectoryResponse_Write{
+						BytesWritten: tdp.MaxFileReadWriteLength + 1,
+					},
+				},
+			},
+			expect: func(t *testing.T, e error) {
+				require.ErrorIs(t, e, tdp.FileReadWriteMaxLenErr)
+			},
+		},
+		{
+			name: "info response path too large",
+			message: &SharedDirectoryResponse{
+				Operation: &tdpbv1.SharedDirectoryResponse_Info_{
+					Info: &tdpbv1.SharedDirectoryResponse_Info{
+						Fso: &tdpbv1.FileSystemObject{
+							Path: excessivePath,
+						},
+					},
+				},
+			},
+			expect: func(t *testing.T, e error) {
+				require.ErrorIs(t, e, tdp.StringMaxLenErr)
+			},
+		},
+		{
+			name: "create response path too large",
+			message: &SharedDirectoryResponse{
+				Operation: &tdpbv1.SharedDirectoryResponse_Create_{
+					Create: &tdpbv1.SharedDirectoryResponse_Create{
+						Fso: &tdpbv1.FileSystemObject{
+							Path: excessivePath,
+						},
+					},
+				},
+			},
+			expect: func(t *testing.T, e error) {
+				require.ErrorIs(t, e, tdp.StringMaxLenErr)
+			},
+		},
+		{
+			name: "list response path too large",
+			message: &SharedDirectoryResponse{
+				Operation: &tdpbv1.SharedDirectoryResponse_List_{
+					List: &tdpbv1.SharedDirectoryResponse_List{
+						FsoList: []*tdpbv1.FileSystemObject{
+							{
+								Path: excessivePath,
+							},
+						},
+					},
+				},
+			},
+			expect: func(t *testing.T, e error) {
+				require.ErrorIs(t, e, tdp.StringMaxLenErr)
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			buf := bytes.NewBuffer(nil)
+			require.NoError(t, tdp.EncodeTo(buf, test.message))
+			_, err := DecodeStrict(buf)
+			test.expect(t, err)
+		})
+	}
 }

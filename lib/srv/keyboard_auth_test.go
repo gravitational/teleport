@@ -30,7 +30,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	sshpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/ssh/v1"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/srv"
@@ -188,7 +188,7 @@ func TestKeyboardInteractiveAuth_EmptyClusterName(t *testing.T) {
 	require.ErrorIs(t, err, trace.BadParameter("identity missing cluster name (this is a bug)"))
 }
 
-func setupKeyboardInteractiveAuthTestWithVerifier(t *testing.T, verifier mfav1.MFAServiceClient) (*srv.AuthHandlers, *sshca.Identity) {
+func setupKeyboardInteractiveAuthTestWithVerifier(t *testing.T, verifier mfav2.MFAServiceClient) (*srv.AuthHandlers, *sshca.Identity) {
 	t.Helper()
 
 	authSvr := &mockServer{}
@@ -225,22 +225,22 @@ func (m *mockServer) GetAccessPoint() srv.AccessPoint {
 }
 
 type mockMFAServiceClient struct {
-	mfav1.MFAServiceClient
+	mfav2.MFAServiceClient
 
-	lastReq   *mfav1.VerifyValidatedMFAChallengeRequest
+	lastReq   *mfav2.VerifyValidatedMFAChallengeRequest
 	verifyErr error
 }
 
-var _ mfav1.MFAServiceClient = (*mockMFAServiceClient)(nil)
+var _ mfav2.MFAServiceClient = (*mockMFAServiceClient)(nil)
 
-func (m *mockMFAServiceClient) VerifyValidatedMFAChallenge(_ context.Context, req *mfav1.VerifyValidatedMFAChallengeRequest, _ ...grpc.CallOption) (*mfav1.VerifyValidatedMFAChallengeResponse, error) {
+func (m *mockMFAServiceClient) VerifyValidatedMFAChallenge(_ context.Context, req *mfav2.VerifyValidatedMFAChallengeRequest, _ ...grpc.CallOption) (*mfav2.VerifyValidatedMFAChallengeResponse, error) {
 	m.lastReq = req
 
 	if m.verifyErr != nil {
 		return nil, m.verifyErr
 	}
 
-	return &mfav1.VerifyValidatedMFAChallengeResponse{}, nil
+	return &mfav2.VerifyValidatedMFAChallengeResponse{}, nil
 }
 
 type mockConnMetadata struct {

@@ -1,0 +1,672 @@
+---
+title: Scoped RBAC
+sidebar_label: Scopes
+description: Organize Teleport resources and permissions into a hierarchy with isolated administrative boundaries.
+tags:
+ - privileged-access
+ - conceptual
+ - zero-trust
+---
+
+**Scopes** are a hierarchical organization system for Teleport resources and
+permissions. A scope is a path-like attribute (for example `/staging/west` or
+`/prod`) attached to resources and permission grants. Permissions assigned at
+a scope apply to resources within that scope and all of its descendant
+scopes, but cannot reach across to orthogonal scopes or up to ancestor
+scopes.
+
+For example, a cluster administrator can assign a scoped admin role to Alice
+at `/staging/west`. Alice can then manage scoped roles, scoped tokens, and
+SSH Services in `/staging/west` and descendant scopes such as
+`/staging/west/team-a`, but she cannot affect `/staging/east`, `/prod`, or
+unscoped cluster resources.
+
+Scopes are designed to enable:
+
+- **Hierarchical isolation.** Permissions granted within a scope cannot
+  affect resources or permissions in parent or sibling scopes.
+- **Delegated administration.** Cluster administrators can grant powerful
+  administrative capabilities to "scope admins" without those admins being
+  able to affect anything outside their scope.
+- **Reduced blast radius.** Users can pin a login session to a specific
+  scope, limiting the privileges of the resulting credentials to that scope
+  and its descendants.
+- **Mixed permissiveness.** Different access controls (such as session
+  recording, port forwarding, or idle timeouts) can apply to the same user
+  in different scopes.
+
+Scopes are an *attribute*, not an object. A scope path does not need to be
+created before resources or permissions are assigned to it.
+
+Scopes complement labels, but they solve a different problem. Labels describe
+individual resources and are used by roles to choose matching resources.
+Scopes define the administrative boundary and the scope of issued
+credentials. Label selectors can further restrict which resources a scoped
+role can access, but they cannot grant access outside the role assignment's
+scope.
+
+<Admonition type="warning" title="Active development">
+
+Scopes are an actively developed feature of Teleport. Not every Teleport
+feature is supported within a scope yet, and breaking changes may still be
+introduced. Scoped resources and credentials created with one Teleport
+version may not work with another.
+
+When operating in a scoped session, commands and APIs that have not yet been
+updated to understand scopes will commonly fail with a `scoped identities
+not supported` error. This is expected for features outside the currently
+supported set listed below.
+
+</Admonition>
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- (!docs/pages/includes/tctl.mdx!)
+- All Teleport instances (Auth Service, Proxy Service, and Agents) must be
+  running the same Teleport version, and must have the
+  `TELEPORT_UNSTABLE_SCOPES=yes` environment variable set.
+
+## Currently supported features
+
+The current implementation provides the following functionality. Treat this as
+the exhaustive list of scoped features; features that are not listed here should
+be assumed unsupported in scoped mode.
+
+- The `scoped_role` resource for describing scoped permissions.
+- The `scoped_role_assignment` resource for assigning scoped roles to users
+  and Bots.
+- The `scoped_token` resource for joining Agents at a specific scope.
+- Scope pinning, allowing a user to log in at a scope and create a session
+  whose privileges are limited to the target scope.
+- Basic scoped SSH access, including joining SSH Services at a
+  scope and assigning scoped SSH access to users.
+- Granting scoped roles to users via Access Lists.
+- Scoped Bots for Machine and Workload Identity (MWI), supporting both
+  identity output and SSH access.
+
+## Basic usage
+
+Scoped and unscoped operations are mutually exclusive. When logged
+in without a scope, scoped roles do not grant any privileges. When logged
+in to a scope, only features that have been explicitly updated for scopes
+are expected to work. The following commands are officially supported in
+scoped mode:
+
+- `tsh login --scope=<scope> ...`
+- `tsh logout` (required to exit a scoped session)
+- `tsh ls` (lists SSH instances available at the current scope)
+- `tsh ssh <login>@<host>` (for SSH instances available at the current scope)
+- `tctl get|create|edit|rm <resource>` (for scoped resources)
+- `tctl scoped tokens add|rm|ls ...` (for managing scoped tokens)
+- `tctl scopes status` (overview of scoped privilege usage in the cluster)
+
+<Admonition type="note">
+
+The admin action MFA prompt does not currently apply to scoped resources.
+Scoped commands that do not prompt for MFA today may begin to do so in
+future releases.
+
+</Admonition>
+
+## Setting up a scoped admin
+
+A new Teleport cluster has no scoped roles defined. The default `editor`
+role includes the ability to create and assign scoped roles, so an unscoped
+administrator can bootstrap the first scoped admin.
+
+While logged in as a user with the `editor` role, create a scoped admin
+role that can manage scoped permissions and SSH into instances
+within `/examples` (replace `ubuntu` with your desired OS login):
+
+```code
+$ tctl create <<EOF
+kind: scoped_role
+metadata:
+  name: example-admin
+scope: /examples
+spec:
+  assignable_scopes:
+    - /examples
+  ssh:
+    logins: [ubuntu]
+    labels:
+      - name: '*'
+        values: ['*']
+    permit_x11_forwarding: true
+    forward_agent: true
+    file_copy: true
+    port_forwarding:
+      local:
+        enabled: true
+      remote:
+        enabled: true
+  rules:
+    - resources: [scoped_role, scoped_role_assignment, bot, bot_instance]
+      verbs: [create, list, readnosecrets, update, delete]
+    - resources: [scoped_token]
+      verbs: [create, list, read, update, delete]
+version: v1
+EOF
+```
+
+Next, create a scoped role assignment to grant `example-admin` to the user
+who will become the scoped admin (replace `alice` with your user):
+
+```code
+$ tctl create <<EOF
+kind: scoped_role_assignment
+sub_kind: dynamic
+scope: /examples
+spec:
+  user: alice
+  assignments:
+    - role: example-admin
+      scope: /examples/basic
+version: v1
+EOF
+```
+
+Although the `example-admin` role is defined at `/examples`, it is assigned
+to `alice` only at the more specific scope `/examples/basic`. Using scope
+hierarchy this way ensures `alice` cannot reach across to other scopes
+under `/examples` and provides a guardrail against `alice` accidentally
+editing her own admin role and locking herself out.
+
+## Joining a scoped SSH Service
+
+Log the scoped admin into the desired scope:
+
+```code
+$ tsh login --user=alice --scope=/examples/basic --proxy=teleport.example.com
+```
+
+Create a scoped token that can be used to join an SSH Service at
+the desired scope:
+
+```code
+$ tctl scoped tokens add --scope=/examples/basic --assign-scope=/examples/basic --ttl=8h --type=node
+```
+
+A scoped token has two distinct scopes:
+
+- `--scope` sets the scope that the token resource itself lives in. This is
+  the administrative scope of the token, and determines who can manage it.
+  A scoped admin can only create tokens within their own scope or a
+  descendant scope.
+- `--assign-scope` sets the scope that will be assigned to any resource
+  (such as an SSH Service) that joins the cluster using this token. The
+  assigned scope must be equal to or a descendant of the token's `--scope`.
+
+In this example, both values are `/examples/basic` because the scoped admin
+is creating a token within their scope and using it to provision an SSH
+Service instance in the same scope. To provision an SSH Service
+into a more specific scope, use a more specific `--assign-scope`. For
+example, with `--scope=/examples/basic --assign-scope=/examples/basic/west`,
+the token is owned at `/examples/basic` but the joined SSH Service
+will live at `/examples/basic/west`.
+
+Follow the printed instructions to join an SSH Service using the
+generated token. Once the instance has joined, the scoped admin can list it:
+
+```code
+$ tsh ls
+Node Name    Address Labels
+------------ ------- -----------
+example-node Tunnel  foo=bar
+```
+
+Finally, SSH into the SSH Service instance using the scoped admin user:
+
+```code
+$ tsh ssh ubuntu@example-node
+```
+
+### Adding immutable labels via a token
+
+A scoped token can carry a set of immutable labels that are automatically
+applied to any SSH instance that joins with the token, and which cannot be
+overridden by the joining instance.
+
+```code
+$ tctl scoped tokens add --scope=/examples/basic --assign-scope=/examples/basic --ttl=8h --type=node --ssh-labels=foo=bar,baz=qux
+
+The invite token: 019ce8f7-f0d5-784d-af3f-075aa79c19cb
+This token will expire in 480 minutes.
+
+Run this on the new node to join the cluster:
+
+> teleport start \
+   --roles=node \
+   --token=019ce8f7-f0d5-784d-af3f-075aa79c19cb \
+   --token-secret=d5038b4ea0a733cccfc3f0f48ee04baf \
+   --auth-server=proxy.example.com:443
+```
+
+Inspect the token to confirm the immutable labels:
+
+```code
+$ tctl get scoped_token/019ce8f7-f0d5-784d-af3f-075aa79c19cb
+kind: scoped_token
+metadata:
+  expires: "2026-03-14T04:51:29.109545Z"
+  name: 019ce8f7-f0d5-784d-af3f-075aa79c19cb
+scope: /examples/basic
+spec:
+  assigned_scope: /examples/basic
+  immutable_labels:
+    ssh:
+      baz: qux
+      foo: bar
+  join_method: token
+  roles:
+  - Node
+  usage_mode: unlimited
+status:
+  secret: '******'
+version: v1
+```
+
+Once the SSH Service instance joins, the immutable labels are merged with
+any labels set on the instance itself and cannot be overridden:
+
+```code
+$ tctl get node/example
+kind: node
+metadata:
+  labels:
+    env: test
+    fruit: pear
+  name: edff1d38-bbcb-4a21-b38d-ac43a2e20f85
+scope: /examples/basic
+spec:
+  hostname: example
+  immutable_labels:
+    baz: qux
+    foo: bar
+  use_tunnel: true
+  version: 18.7.1
+version: v2
+
+$ tsh ls
+Scope           Node Name Address Labels
+-------------------------------------------------------------------------
+/examples/basic example   Tunnel  baz=qux,foo=bar,fruit=pear,env=test
+```
+
+### Single-use tokens
+
+Scoped tokens can be restricted so that they may only be used to join a
+single instance. Set `--mode=single_use` when creating the token:
+
+```code
+$ tctl scoped tokens add --scope=/examples/basic --assign-scope=/examples/basic --ttl=8h --type=node --mode=single_use
+
+The invite token: 019ce90a-3585-75b1-b992-263758a9b843
+This token will expire in 480 minutes.
+```
+
+Use the token as normal to join an instance. After joining completes, the
+token's status reflects that it has been consumed:
+
+```code
+$ tctl get scoped_token/019ce90a-3585-75b1-b992-263758a9b843
+kind: scoped_token
+metadata:
+  expires: "2026-03-14T05:11:26.341373Z"
+  name: 019ce90a-3585-75b1-b992-263758a9b843
+scope: /examples/basic
+spec:
+  assigned_scope: /examples/basic
+  join_method: token
+  roles:
+  - Node
+  usage_mode: single_use
+status:
+  secret: '******'
+  usage:
+    single_use:
+      reusable_until: "2026-03-13T21:44:05.695268Z"
+      used_at: "2026-03-13T21:14:05.695268Z"
+      used_by_fingerprint: +I0OyNhoiP5BSvA8kIE+QLYOZYHQ7ngDh0/MgTRXncc=
+version: v1
+```
+
+Subsequent join attempts using the token fail:
+
+```
+ERROR REPORT:
+Original Error: *interceptors.RemoteError scoped token usage exhausted
+```
+
+## Adding scoped users as a scoped admin
+
+Log the scoped admin into the desired scope:
+
+```code
+$ tsh login --user=alice --scope=/examples/basic --proxy=teleport.example.com
+```
+
+Create a scoped role that grants SSH access to SSH Services at
+the scope (replace `ubuntu` with your desired OS login):
+
+```code
+$ tctl create <<EOF
+kind: scoped_role
+metadata:
+  name: example-user
+scope: /examples/basic
+spec:
+  assignable_scopes:
+  - /examples/basic
+  ssh:
+    logins: [ubuntu]
+    labels:
+      - name: '*'
+        values: ['*']
+    permit_x11_forwarding: true
+    forward_agent: true
+    file_copy: true
+    port_forwarding:
+      local:
+        enabled: true
+      remote:
+        enabled: true
+version: v1
+EOF
+```
+
+Assign the role to the intended user (replace `bob` with your user):
+
+```code
+$ tctl create <<EOF
+kind: scoped_role_assignment
+sub_kind: dynamic
+scope: /examples/basic
+spec:
+  user: bob
+  assignments:
+    - role: example-user
+      scope: /examples/basic
+version: v1
+EOF
+```
+
+Bob can now log in to the scope and SSH into SSH Services within
+it:
+
+```code
+$ tsh login --user=bob --scope=/examples/basic --proxy=teleport.example.com
+$ tsh ls
+Node Name    Address Labels
+------------ ------- -----------
+example-node Tunnel  foo=bar
+$ tsh ssh ubuntu@example-node
+```
+
+## Granting scoped roles with Access Lists
+
+Access Lists can grant scoped roles to groups of users without requiring an
+individual scoped role assignment per user.
+
+Access Lists are currently unscoped resources and must be managed by an
+unscoped cluster administrator. They may only grant scoped roles defined at
+the root scope `/`, but they can assign those roles at any scope listed in
+the role's `assignable_scopes`.
+
+While logged in with the unscoped `editor` role, create a scoped role at
+the root scope:
+
+```code
+$ tctl create <<EOF
+kind: scoped_role
+metadata:
+  name: example-access
+scope: /
+spec:
+  assignable_scopes:
+    - /examples/**
+  ssh:
+    logins: [ubuntu]
+    labels:
+      - name: '*'
+        values: ['*']
+    permit_x11_forwarding: true
+    forward_agent: true
+    file_copy: true
+    port_forwarding:
+      local:
+        enabled: true
+      remote:
+        enabled: true
+version: v1
+EOF
+```
+
+Create an Access List that grants this scoped role to its members:
+
+```code
+$ tctl create <<EOF
+version: v1
+kind: access_list
+metadata:
+  name: example-access-list
+spec:
+  title: "Example scoped Access List"
+  description: "Grants scoped access to SSH Services in /examples/basic"
+  owners:
+    - name: admin
+      membership_kind: MEMBERSHIP_KIND_USER
+  grants:
+    scoped_roles:
+      - role: example-access
+        scope: /examples/basic
+EOF
+```
+
+Add members to the Access List:
+
+```code
+$ tctl acl users add example-access-list alice
+$ tctl acl users add example-access-list bob
+```
+
+Confirm the scoped role has been materialized for each member:
+
+```code
+$ tctl get scoped_role_assignments --format text
+SubKind      Scope Name                                       User  Assigns
+------------ ----- ------------------------------------------ ----- ---------------------------------
+materialized /     acl-lBPn7FNe97FTVpWdlHjKGrm54xE41RWEphlhLg bob   example-access => /examples/basic
+materialized /     acl-wkniExD3WxPtVW7NvlcNMigD-slBSP2fSW0J1Q alice example-access => /examples/basic
+```
+
+Access Lists and members can also be managed via the Web UI under
+**Identity Governance > Access Lists**. Granted scoped roles are visible
+in the UI but cannot yet be edited there.
+
+Nested Access Lists are fully supported. Scoped roles can also be granted
+to Access List owners using the `owner_grants` field. See the
+[Access Lists reference](../../reference/access-controls/access-lists.mdx)
+for details.
+
+## Infrastructure as Code
+
+Scoped roles, scoped role assignments, and scoped tokens can be managed
+with Teleport's IaC tooling.
+
+The Teleport Terraform provider supports these resources:
+
+- [`teleport_scoped_role`](../../reference/infrastructure-as-code/terraform-provider/resources/scoped_role.mdx)
+- [`teleport_scoped_role_assignment`](../../reference/infrastructure-as-code/terraform-provider/resources/scoped_role_assignment.mdx)
+- [`teleport_scoped_token`](../../reference/infrastructure-as-code/terraform-provider/resources/scoped_token.mdx)
+
+The Kubernetes Operator supports these custom resources:
+
+- [`TeleportScopedRoleV1`](../../reference/infrastructure-as-code/operator-resources/resources-teleport-dev-scopedrolesv1.mdx)
+- [`TeleportScopedRoleAssignmentV1`](../../reference/infrastructure-as-code/operator-resources/resources-teleport-dev-scopedroleassignmentsv1.mdx)
+- [`TeleportScopedTokenV1`](../../reference/infrastructure-as-code/operator-resources/resources-teleport-dev-scopedtokensv1.mdx)
+
+When using the Kubernetes Operator, the Helm values used to install the
+operator must set `TELEPORT_UNSTABLE_SCOPES=yes` in the operator's
+environment:
+
+```yaml
+extraEnv:
+  - name: TELEPORT_UNSTABLE_SCOPES
+    value: "yes"
+```
+
+## Scoped Machine and Workload Identity
+
+The standard `bot` resource supports the `scope` field. When set, the Bot
+is considered a scoped Bot. Scoped Bots can be created, read, updated, and
+deleted by scope admins through scoped roles and scoped role assignments.
+
+The relationship between a scoped Bot and its associated resources is
+constrained as follows:
+
+- Scoped Bots produce identities pinned to the scope they exist in. They
+  can only access resources within that scope or descendant scopes, not in
+  ancestor or orthogonal scopes.
+- Scoped Bots may only be granted privileges within their own scope or
+  descendant scopes.
+- Unscoped roles cannot be assigned to a scoped Bot.
+- A scoped Bot must authenticate using a scoped token. Scoped Bots cannot
+  use unscoped join tokens.
+- The scoped token used by a scoped Bot must exist in the same scope as
+  the Bot or in an ancestor scope.
+
+To authenticate as a scoped Bot, `tbot` must be running in scoped mode,
+controlled by either the `scoped: true` configuration value or the
+`--scoped` CLI flag.
+
+### Scoped MWI example
+
+The following example shows the scoped resources required to run a Bot in
+scoped mode. It assumes you already have an unscoped administrator who can
+bootstrap the first scoped admin, and a scoped role named `staging-ssh-access`
+that grants the Bot its intended SSH privileges.
+
+Grant a scope administrator the ability to manage scoped Bots and scoped
+tokens:
+
+```yaml
+kind: scoped_role
+version: v1
+metadata:
+  name: staging-scope-mwi-admin
+scope: /staging
+spec:
+  assignable_scopes:
+    - /staging
+  rules:
+    - resources:
+        - scoped_role
+        - scoped_role_assignment
+        - bot
+        - bot_instance
+      verbs:
+        - list
+        - readnosecrets
+        - create
+        - update
+        - delete
+    - resources:
+        - scoped_token
+      verbs:
+        - list
+        - read
+        - readnosecrets
+        - create
+        - update
+        - delete
+---
+kind: scoped_role_assignment
+version: v1
+metadata:
+  name: 8a3f1c2d-9e47-4b6a-a1d0-5c8e7f3b2a92
+scope: /staging
+sub_kind: dynamic
+spec:
+  user: my-scope-admin
+  assignments:
+    - role: staging-scope-mwi-admin
+      scope: /staging
+```
+
+The scope administrator can now create a scoped Bot. Beyond a name and a
+scope, no further configuration is required:
+
+```yaml
+kind: bot
+version: v1
+metadata:
+  name: my-scoped-bot
+scope: /staging
+spec: {}
+```
+
+Grant the Bot privileges through a scoped role assignment, identifying the
+Bot using `spec.bot_name` and `spec.bot_scope`:
+
+```yaml
+kind: scoped_role_assignment
+version: v1
+metadata:
+  name: 6b72b4dc-655e-4b3b-bae3-515378a296ae
+scope: /staging
+sub_kind: dynamic
+spec:
+  bot_name: my-scoped-bot
+  bot_scope: /staging
+  assignments:
+    - role: staging-ssh-access
+      scope: /staging
+```
+
+Create a scoped token that the Bot will use to authenticate. The example
+below uses the `bound_keypair` join method, but other join methods are
+also supported:
+
+```yaml
+kind: scoped_token
+version: v1
+metadata:
+  name: my-scoped-bot
+scope: /staging
+spec:
+  roles: [Bot]
+  join_method: bound_keypair
+  usage_mode: bot
+  bot_name: my-scoped-bot
+  bot_scope: /staging
+  bound_keypair: {}
+```
+
+Configure `tbot` to run in scoped mode by setting `scoped: true` in the
+configuration file (or by passing `--scoped` on the command line):
+
+```yaml
+version: v2
+proxy_server: example.teleport.sh:443
+onboarding:
+  join_method: bound_keypair
+  token: my-scoped-bot
+  bound_keypair:
+    registration_secret: <secret fetched from "tctl get scoped_token/my-scoped-bot --with-secrets">
+scoped: true
+storage:
+  type: directory
+  path: /var/lib/teleport/bot
+services:
+  - type: identity
+    destination:
+      type: directory
+      path: /opt/machine-id
+```
+
+Once `tbot` is running, the credentials it produces can be used to access
+resources within the scope using `tsh` or `tctl` with the identity file,
+or with `ssh` using the OpenSSH configuration files generated by `tbot`.

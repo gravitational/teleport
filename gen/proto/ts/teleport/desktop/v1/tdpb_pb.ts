@@ -73,6 +73,10 @@ export interface ServerHello {
      * @generated from protobuf field: repeated teleport.desktop.v1.SessionIdentifier sessions = 4;
      */
     sessions: SessionIdentifier[];
+    /**
+     * @generated from protobuf field: bool hidpi_supported = 5;
+     */
+    hidpiSupported: boolean;
 }
 /**
  * Used to identify sessions available to and selected by users
@@ -266,6 +270,12 @@ export interface ClientScreenSpec {
      * @generated from protobuf field: uint32 height = 2;
      */
     height: number;
+    /**
+     * Display scale factor as a percentage (e.g. 100 for 1x, 200 for 2x).
+     *
+     * @generated from protobuf field: uint32 scale = 3;
+     */
+    scale: number;
 }
 /**
  * Represents an Alert to be displayed by the client.
@@ -557,9 +567,9 @@ export interface SharedDirectoryRequest_Truncate {
      */
     path: string;
     /**
-     * @generated from protobuf field: uint32 end_of_file = 2;
+     * @generated from protobuf field: uint64 size = 3;
      */
-    endOfFile: number;
+    size: bigint;
 }
 /**
  * Shared directory operation responses.
@@ -1062,7 +1072,8 @@ class ServerHello$Type extends MessageType<ServerHello> {
             { no: 1, name: "activation_spec", kind: "message", T: () => ConnectionActivated },
             { no: 2, name: "clipboard_enabled", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
             { no: 3, name: "directory_remove_supported", kind: "scalar", T: 8 /*ScalarType.BOOL*/ },
-            { no: 4, name: "sessions", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => SessionIdentifier }
+            { no: 4, name: "sessions", kind: "message", repeat: 1 /*RepeatType.PACKED*/, T: () => SessionIdentifier },
+            { no: 5, name: "hidpi_supported", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
     create(value?: PartialMessage<ServerHello>): ServerHello {
@@ -1070,6 +1081,7 @@ class ServerHello$Type extends MessageType<ServerHello> {
         message.clipboardEnabled = false;
         message.directoryRemoveSupported = false;
         message.sessions = [];
+        message.hidpiSupported = false;
         if (value !== undefined)
             reflectionMergePartial<ServerHello>(this, message, value);
         return message;
@@ -1090,6 +1102,9 @@ class ServerHello$Type extends MessageType<ServerHello> {
                     break;
                 case /* repeated teleport.desktop.v1.SessionIdentifier sessions */ 4:
                     message.sessions.push(SessionIdentifier.internalBinaryRead(reader, reader.uint32(), options));
+                    break;
+                case /* bool hidpi_supported */ 5:
+                    message.hidpiSupported = reader.bool();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1115,6 +1130,9 @@ class ServerHello$Type extends MessageType<ServerHello> {
         /* repeated teleport.desktop.v1.SessionIdentifier sessions = 4; */
         for (let i = 0; i < message.sessions.length; i++)
             SessionIdentifier.internalBinaryWrite(message.sessions[i], writer.tag(4, WireType.LengthDelimited).fork(), options).join();
+        /* bool hidpi_supported = 5; */
+        if (message.hidpiSupported !== false)
+            writer.tag(5, WireType.Varint).bool(message.hidpiSupported);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -1749,13 +1767,15 @@ class ClientScreenSpec$Type extends MessageType<ClientScreenSpec> {
     constructor() {
         super("teleport.desktop.v1.ClientScreenSpec", [
             { no: 1, name: "width", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
-            { no: 2, name: "height", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+            { no: 2, name: "height", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 3, name: "scale", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
         ]);
     }
     create(value?: PartialMessage<ClientScreenSpec>): ClientScreenSpec {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.width = 0;
         message.height = 0;
+        message.scale = 0;
         if (value !== undefined)
             reflectionMergePartial<ClientScreenSpec>(this, message, value);
         return message;
@@ -1770,6 +1790,9 @@ class ClientScreenSpec$Type extends MessageType<ClientScreenSpec> {
                     break;
                 case /* uint32 height */ 2:
                     message.height = reader.uint32();
+                    break;
+                case /* uint32 scale */ 3:
+                    message.scale = reader.uint32();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1789,6 +1812,9 @@ class ClientScreenSpec$Type extends MessageType<ClientScreenSpec> {
         /* uint32 height = 2; */
         if (message.height !== 0)
             writer.tag(2, WireType.Varint).uint32(message.height);
+        /* uint32 scale = 3; */
+        if (message.scale !== 0)
+            writer.tag(3, WireType.Varint).uint32(message.scale);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -2700,13 +2726,13 @@ class SharedDirectoryRequest_Truncate$Type extends MessageType<SharedDirectoryRe
     constructor() {
         super("teleport.desktop.v1.SharedDirectoryRequest.Truncate", [
             { no: 1, name: "path", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 2, name: "end_of_file", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+            { no: 3, name: "size", kind: "scalar", T: 4 /*ScalarType.UINT64*/, L: 0 /*LongType.BIGINT*/ }
         ]);
     }
     create(value?: PartialMessage<SharedDirectoryRequest_Truncate>): SharedDirectoryRequest_Truncate {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.path = "";
-        message.endOfFile = 0;
+        message.size = 0n;
         if (value !== undefined)
             reflectionMergePartial<SharedDirectoryRequest_Truncate>(this, message, value);
         return message;
@@ -2719,8 +2745,8 @@ class SharedDirectoryRequest_Truncate$Type extends MessageType<SharedDirectoryRe
                 case /* string path */ 1:
                     message.path = reader.string();
                     break;
-                case /* uint32 end_of_file */ 2:
-                    message.endOfFile = reader.uint32();
+                case /* uint64 size */ 3:
+                    message.size = reader.uint64().toBigInt();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -2737,9 +2763,9 @@ class SharedDirectoryRequest_Truncate$Type extends MessageType<SharedDirectoryRe
         /* string path = 1; */
         if (message.path !== "")
             writer.tag(1, WireType.LengthDelimited).string(message.path);
-        /* uint32 end_of_file = 2; */
-        if (message.endOfFile !== 0)
-            writer.tag(2, WireType.Varint).uint32(message.endOfFile);
+        /* uint64 size = 3; */
+        if (message.size !== 0n)
+            writer.tag(3, WireType.Varint).uint64(message.size);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

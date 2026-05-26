@@ -58,7 +58,8 @@ export interface UserDefinition {
   loginAs?: boolean;
 }
 
-const e2eDir = join(dirname(fileURLToPath(import.meta.url)), '..');
+const e2eDir =
+  process.env.E2E_DIR ?? join(dirname(fileURLToPath(import.meta.url)), '..');
 const authDir = join(e2eDir, '.auth');
 
 const tryLoadUserMapping =
@@ -230,6 +231,7 @@ export const test = base.extend<E2EFixtures>({
 });
 
 export { expect } from '@playwright/test';
+export type { Locator, Page } from '@playwright/test';
 
 function pickLoginDefinition(
   user: UserDefinition | undefined,

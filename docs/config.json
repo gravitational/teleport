@@ -6,7 +6,7 @@
       "nodeIP": "ip-172-31-35-170"
     },
     "access_graph": {
-      "version": "1.29.7"
+      "version": "1.30.0"
     },
     "ansible": {
       "min_version": "2.9.6"
@@ -69,7 +69,7 @@
       "major_version": "19",
       "version": "19.0.0-dev",
       "url": "teleport.example.com",
-      "golang": "1.25.9",
+      "golang": "1.25.10",
       "plugin": {
         "version": "13.3.7"
       },
@@ -83,6 +83,11 @@
     "terraform": {
       "version": "1.0.0"
     },
+    "terraform_modules": {
+      "teleport_discovery_azure": {
+        "minimum_terraform_version": "1.5.7"
+      }
+    },
     "db_ca": {
       "released_version": "10"
     },
@@ -95,6 +100,11 @@
     }
   },
   "redirects": [
+    {
+      "source": "/enroll-resources/auto-discovery/servers/azure-discovery/",
+      "destination": "/enroll-resources/auto-discovery/servers/azure-vm-discovery/",
+      "permanent": true
+    },
     {
       "source": "/admin-guides/access-controls/guides/moderated-sessions/",
       "destination": "/zero-trust-access/authentication/joining-sessions/",

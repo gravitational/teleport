@@ -33,6 +33,7 @@ import "teleport/linuxdesktop/v1/linux_desktop.proto";
 import "teleport/machineid/v1/bot_instance.proto";
 import "teleport/machineid/v1/federation.proto";
 import "teleport/mfa/v1/validated_challenge.proto";
+import "teleport/mfa/v2/validated_challenge.proto";
 import "teleport/notifications/v1/notifications.proto";
 import "teleport/presence/v1/relay_server.proto";
 import "teleport/provisioning/v1/provisioning.proto";
@@ -247,7 +248,7 @@ message Event {
     // LinuxDesktop is a resource for linux desktop.
     teleport.linuxdesktop.v1.LinuxDesktop LinuxDesktop = 87;
     // ValidatedMFAChallenge is a resource for representing a validated MFA challenge.
-    teleport.mfa.v1.ValidatedMFAChallenge ValidatedMFAChallenge = 89;
+    teleport.mfa.v1.ValidatedMFAChallenge ValidatedMFAChallenge = 89 [deprecated = true];
     // CertAuthorityOverride allows admins to override Teleport CA certificates.
     teleport.subca.v1.CertAuthorityOverride CertAuthorityOverride = 90;
     // InferenceModel is a resource for defining inference models.
@@ -260,5 +261,7 @@ message Event {
     teleport.summarizer.v1.RetrievalModel RetrievalModel = 94;
     // Beam is an ephemeral AI-optimized compute environment.
     teleport.beams.v1.Beam Beam = 95;
+    // ValidatedMFAChallengeV2 is a resource for representing a validated MFA challenge.
+    teleport.mfa.v2.ValidatedMFAChallenge ValidatedMFAChallengeV2 = 96;
   }
 }

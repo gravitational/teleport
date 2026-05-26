@@ -59,6 +59,17 @@ func TestCommand_CreateOverrideCSR(t *testing.T) {
 		wantFiles  map[string]string // filepath to content
 	}{
 		{
+			name: "ok: db-client",
+			flags: []string{
+				"--type", "db-client",
+			},
+			csrPEMs: []string{dbClientCSRPEM},
+			wantReq: &subcav1.CreateCSRRequest{
+				CaType: string(types.DatabaseClientCA),
+			},
+			wantStdout: dbClientCSRPEM + "\n",
+		},
+		{
 			name: "ok: db_client",
 			flags: []string{
 				"--type", string(types.DatabaseClientCA),
@@ -257,6 +268,19 @@ func TestFindMinHashes(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestMakeCATypeNames(t *testing.T) {
+	got := subca.MakeCATypeNames()
+	want := []string{
+		"db-client",
+		"windows",
+	}
+	assert.Equal(t, want, got.Names, ""+
+		"CAType names mismatch. "+
+		"This is likely because a new entry was added to subca.SupportedCATypes(). "+
+		"Verify the newly added name and, if working as intended, add it to want list above.",
+	)
 }
 
 // CSR PEMs for testing.
