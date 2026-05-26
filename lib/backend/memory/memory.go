@@ -169,6 +169,7 @@ func (m *Memory) Create(ctx context.Context, i backend.Item) (*backend.Lease, er
 		Type: types.OpPut,
 		Item: i,
 	}
+	event.Item.Value = bytes.Clone(i.Value)
 	m.processEvent(event)
 	if !m.EventsOff {
 		m.buf.Emit(event)
@@ -188,7 +189,10 @@ func (m *Memory) Get(ctx context.Context, key backend.Key) (*backend.Item, error
 	if !found {
 		return nil, trace.NotFound("key %q is not found", key.String())
 	}
-	return &i.Item, nil
+
+	out := i.Item
+	out.Value = bytes.Clone(i.Value)
+	return &out, nil
 }
 
 // Update updates item if it exists, or returns NotFound error
@@ -209,6 +213,7 @@ func (m *Memory) Update(ctx context.Context, i backend.Item) (*backend.Lease, er
 		Type: types.OpPut,
 		Item: i,
 	}
+	event.Item.Value = bytes.Clone(i.Value)
 	m.processEvent(event)
 	if !m.EventsOff {
 		m.buf.Emit(event)
@@ -232,6 +237,7 @@ func (m *Memory) Put(ctx context.Context, i backend.Item) (*backend.Lease, error
 		Type: types.OpPut,
 		Item: i,
 	}
+	event.Item.Value = bytes.Clone(i.Value)
 	m.processEvent(event)
 	if !m.EventsOff {
 		m.buf.Emit(event)
@@ -282,6 +288,7 @@ func (m *Memory) DeleteRange(ctx context.Context, startKey, endKey backend.Key) 
 			Type: types.OpDelete,
 			Item: item,
 		}
+		event.Item.Value = bytes.Clone(item.Value)
 		m.processEvent(event)
 		if !m.EventsOff {
 			m.buf.Emit(event)
@@ -333,6 +340,7 @@ func (m *Memory) KeepAlive(ctx context.Context, lease backend.Lease, expires tim
 		Type: types.OpPut,
 		Item: item,
 	}
+	event.Item.Value = bytes.Clone(item.Value)
 	m.processEvent(event)
 	if !m.EventsOff {
 		m.buf.Emit(event)
@@ -369,6 +377,7 @@ func (m *Memory) CompareAndSwap(ctx context.Context, expected backend.Item, repl
 		Type: types.OpPut,
 		Item: replaceWith,
 	}
+	event.Item.Value = bytes.Clone(replaceWith.Value)
 	m.processEvent(event)
 	if !m.EventsOff {
 		m.buf.Emit(event)
@@ -424,6 +433,7 @@ func (m *Memory) ConditionalUpdate(ctx context.Context, i backend.Item) (*backen
 		Type: types.OpPut,
 		Item: i,
 	}
+	event.Item.Value = bytes.Clone(i.Value)
 	m.processEvent(event)
 	if !m.EventsOff {
 		m.buf.Emit(event)
@@ -447,7 +457,11 @@ func (m *Memory) getRange(ctx context.Context, startKey, endKey backend.Key, lim
 		if endItem.Less(item) {
 			return false
 		}
-		res.Items = append(res.Items, item.Item)
+
+		out := item.Item
+		out.Value = bytes.Clone(item.Value)
+
+		res.Items = append(res.Items, out)
 		if limit > 0 && len(res.Items) >= limit {
 			return false
 		}
@@ -497,6 +511,7 @@ func (m *Memory) processEvent(event backend.Event) {
 	switch event.Type {
 	case types.OpPut:
 		item := &btreeItem{Item: event.Item, index: -1}
+		item.Value = bytes.Clone(event.Item.Value)
 		treeItem, found := m.tree.Get(item)
 		var existingItem *btreeItem
 		if found {

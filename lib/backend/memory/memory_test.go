@@ -157,3 +157,49 @@ func TestStreamRange(t *testing.T) {
 	require.Len(t, items, 10*N)
 	require.True(t, slices.IsSorted(items))
 }
+
+func TestMemoryItemOwnership(t *testing.T) {
+	mem, err := New(Config{})
+	require.NoError(t, err)
+
+	key := backend.NewKey("testing")
+	value := []byte{0, 1, 2, 3}
+	lease, err := mem.Put(t.Context(), backend.Item{
+		Key:   key,
+		Value: value,
+	})
+	require.NoError(t, err)
+
+	// Mutating the caller-owned write buffer must not mutate the stored item.
+	copy(value, []byte{9, 8, 7, 6})
+
+	got, err := mem.Get(t.Context(), key)
+	require.NoError(t, err)
+	require.Equal(t, lease.Revision, got.Revision)
+	require.Equal(t, []byte{0, 1, 2, 3}, got.Value)
+
+	// Mutating the item returned by Get must not mutate the stored item.
+	got.Revision = "tampered"
+	got.Value[0] = 9
+
+	got, err = mem.Get(t.Context(), key)
+	require.NoError(t, err)
+	require.Equal(t, lease.Revision, got.Revision)
+	require.Equal(t, []byte{0, 1, 2, 3}, got.Value)
+
+	getResult, err := mem.GetRange(t.Context(), key, backend.NewKey("zzzz"), 1)
+	require.NoError(t, err)
+	require.Len(t, getResult.Items, 1)
+	item := getResult.Items[0]
+	require.Equal(t, lease.Revision, item.Revision)
+	require.Equal(t, []byte{0, 1, 2, 3}, item.Value)
+
+	// Mutating the item returned by GetRange must not mutate the stored item.
+	item.Revision = "tampered"
+	item.Value[0] = 8
+
+	got, err = mem.Get(t.Context(), key)
+	require.NoError(t, err)
+	require.Equal(t, lease.Revision, got.Revision)
+	require.Equal(t, []byte{0, 1, 2, 3}, got.Value)
+}
