@@ -356,6 +356,39 @@ func (f *fakeConn) Close() error {
 	return nil
 }
 
+// wrappedListener wraps accepted connections so tests can observe when a
+// rejected connection is closed.
+type wrappedListener struct {
+	net.Listener
+	closed chan struct{}
+}
+
+func (l *wrappedListener) Accept() (net.Conn, error) {
+	conn, err := l.Listener.Accept()
+	if err != nil {
+		return nil, err
+	}
+	return &wrappedListenerConn{
+		Conn:   conn,
+		closed: l.closed,
+	}, nil
+}
+
+// wrappedListenerConn lets the caller know when the connection is closed by sending on a channel.
+type wrappedListenerConn struct {
+	net.Conn
+	closed chan struct{}
+}
+
+func (c *wrappedListenerConn) Close() error {
+	err := c.Conn.Close()
+	select {
+	case c.closed <- struct{}{}:
+	default:
+	}
+	return err
+}
+
 func TestMakeMiddleware(t *testing.T) {
 	t.Parallel()
 
@@ -617,31 +650,88 @@ func TestIndependentLimiters(t *testing.T) {
 	require.Error(t, defaultLimiter.RegisterRequest("127.0.0.1"))
 }
 
-func TestListenerLimitExceededErrorRetryable(t *testing.T) {
-	limiter := NewConnectionsLimiter(1)
-	ln, err := NewListener(&fakeListener{
-		acceptConn: &fakeConn{addr: mockAddr{}},
-	}, limiter)
-	require.NoError(t, err)
+func TestListener_LimitExceededDoesNotTerminateServe(t *testing.T) {
+	tests := []struct {
+		name      string
+		serve     func(t *testing.T, ln net.Listener) (stop func(), done <-chan error)
+		assertErr func(t *testing.T, err error)
+	}{
+		{
+			name: "grpc",
+			serve: func(t *testing.T, ln net.Listener) (func(), <-chan error) {
+				srv := grpc.NewServer()
+				done := make(chan error, 1)
+				go func() { done <- srv.Serve(ln) }()
+				return srv.Stop, done
+			},
+			assertErr: func(t *testing.T, err error) {
+				require.NoError(t, err)
+			},
+		},
+		{
+			name: "http",
+			serve: func(t *testing.T, ln net.Listener) (func(), <-chan error) {
+				srv := &http.Server{
+					Handler: http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						w.WriteHeader(http.StatusNoContent)
+					}),
+				}
+				done := make(chan error, 1)
+				go func() { done <- srv.Serve(ln) }()
+				return func() {
+					require.NoError(t, srv.Close())
+				}, done
+			},
+			assertErr: func(t *testing.T, err error) {
+				require.ErrorIs(t, err, http.ErrServerClosed)
+			},
+		},
+	}
 
-	// First connection is accepted and kept open
-	conn, err := ln.Accept()
-	require.NoError(t, err)
-	require.NotNil(t, conn)
-	defer conn.Close()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			base, err := net.Listen("tcp", "127.0.0.1:0")
+			require.NoError(t, err)
+			defer base.Close()
 
-	// Second connection from the same IP exceeds the limit
-	conn, err = ln.Accept()
-	require.Nil(t, conn)
-	require.Error(t, err)
+			closed := make(chan struct{}, 1)
+			cl := NewConnectionsLimiter(1)
+			ln, err := NewListener(&wrappedListener{
+				Listener: base,
+				closed:   closed,
+			}, cl)
+			require.NoError(t, err)
 
-	require.True(t, trace.IsLimitExceeded(err))
+			// Saturate the limit so the next accepted connection is rejected.
+			require.NoError(t, cl.AcquireConnection("127.0.0.1"))
+			defer cl.ReleaseConnection("127.0.0.1")
 
-	// grpc.Server.Serve uses Temporary() to decide
-	// whether an Accept error should stop the server
-	temporary, ok := err.(interface {
-		Temporary() bool
-	})
-	require.True(t, ok)
-	require.True(t, temporary.Temporary())
+			stop, done := tt.serve(t, ln)
+
+			// Listener.Accept limit exceeds with a tcp connection.
+			c, err := net.Dial("tcp", base.Addr().String())
+			require.NoError(t, err)
+			defer c.Close()
+
+			// Wait until the rejected connection is closed by Listener.Accept.
+			select {
+			case <-closed:
+			case <-time.After(2 * time.Second):
+				t.Fatal("timed out waiting for rejected connection to close")
+			}
+
+			// Check if server is still running after rejecting connection.
+			select {
+			case err := <-done:
+				require.True(t, trace.IsLimitExceeded(err),
+					"expected limit exceeded error, got %v", err)
+				t.Fatalf("%s Server.Serve exited on per-IP limit hit: %v", tt.name, err)
+			case <-time.After(100 * time.Millisecond):
+				// Serve kept running after the rejected connection.
+			}
+
+			stop()
+			tt.assertErr(t, <-done)
+		})
+	}
 }
