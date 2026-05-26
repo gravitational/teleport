@@ -60,9 +60,16 @@ injected_fields:
 exclude_fields:
   # Metadata (we id resources by name on our side)
   - "InferenceModel.metadata.id"
+  - "InferenceModel.metadata.revision"
+
   - "InferenceSecret.metadata.id"
+  - "InferenceSecret.metadata.revision"
+
   - "InferencePolicy.metadata.id"
+  - "InferencePolicy.metadata.revision"
+
   - "RetrievalModel.metadata.id"
+  - "RetrievalModel.metadata.revision"
   # RetrievalModel is a singleton; its name is always "retrieval-model" and is set
   # automatically by the provider, so it must not be exposed as a schema field.
   - "RetrievalModel.metadata.name"
@@ -81,19 +88,15 @@ computed_fields:
   - "InferenceModel.kind"
   - "InferenceModel.metadata.expires"
   - "InferenceModel.metadata.namespace"
-  - "InferenceModel.metadata.revision"
   - "InferenceSecret.kind"
   - "InferenceSecret.metadata.expires"
   - "InferenceSecret.metadata.namespace"
-  - "InferenceSecret.metadata.revision"
   - "InferencePolicy.kind"
   - "InferencePolicy.metadata.expires"
   - "InferencePolicy.metadata.namespace"
-  - "InferencePolicy.metadata.revision"
   - "RetrievalModel.kind"
   - "RetrievalModel.metadata.expires"
   - "RetrievalModel.metadata.namespace"
-  - "RetrievalModel.metadata.revision"
 
 # These fields will be marked as Required: true
 required_fields:

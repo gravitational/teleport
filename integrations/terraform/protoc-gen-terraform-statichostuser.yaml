@@ -34,6 +34,7 @@ injected_fields:
 exclude_fields:
   # Metadata (we id resources by name on our side)
   - "StaticHostUser.metadata.id"
+  - "StaticHostUser.metadata.revision"
 
 # These fields will be marked as Computed: true
 computed_fields:
