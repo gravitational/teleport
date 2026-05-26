@@ -1752,7 +1752,7 @@ func (f *fakeSudoersBackend) RemoveSudoers(name string) error {
 	return f.err
 }
 
-func TestServerContext_emitters(t *testing.T) {
+func TestServerContextEmitters(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
