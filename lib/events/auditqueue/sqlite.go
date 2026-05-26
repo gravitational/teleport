@@ -97,10 +97,6 @@ CREATE TABLE IF NOT EXISTS teleport_info (
 );
 `
 
-var migrationSQL = []string{
-	"ALTER TABLE audit_queue ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0",
-}
-
 // writeRequest is a single Enqueue waiting on a commit result. The writer
 // goroutine reads requests off the input channel, commits a batch in one
 // SQLite transaction, and signals each caller on its resp channel.
@@ -263,33 +259,12 @@ func initializeDb(path string, maxBytes int64) (*sql.DB, error) {
 		db.Close()
 		return nil, trace.Wrap(err)
 	}
-	if err := migrateSchema(db); err != nil {
-		db.Close()
-		return nil, trace.Wrap(err)
-	}
 	if err := recordTeleportVersion(db, teleport.Version); err != nil {
 		db.Close()
 		return nil, trace.Wrap(err)
 	}
 
 	return db, nil
-}
-
-func migrateSchema(db *sql.DB) error {
-	for _, stmt := range migrationSQL {
-		if _, err := db.Exec(stmt); err != nil {
-			var sqliteErr *sqlite.Error
-
-			// If we get a "duplicate column name" error, then this column
-			// already exists, hence this particular migration was unnecessary.
-			// We can continue on and ignore this error.
-			if errors.As(err, &sqliteErr) && strings.Contains(sqliteErr.Error(), "duplicate column name") {
-				continue
-			}
-			return trace.Wrap(err)
-		}
-	}
-	return nil
 }
 
 // initQueueDir creates and initializes the directory where the audit log queue
