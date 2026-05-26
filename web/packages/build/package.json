@@ -23,7 +23,7 @@
     "jest-environment-jsdom": "^30.3.0",
     "jest-fail-on-console": "^3.3.4",
     "jsdom": "^29.1.1",
-    "rollup-plugin-visualizer": "^5.14.0",
+    "rollup-plugin-visualizer": "^7.0.1",
     "vite-plugin-compression2": "^2.5.3",
     "vite-plugin-wasm": "^3.6.0"
   }
