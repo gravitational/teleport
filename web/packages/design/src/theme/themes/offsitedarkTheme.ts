@@ -80,9 +80,9 @@ const colors: ThemeColors = {
   interactive: {
     solid: {
       primary: {
-        default: '#52A62B',
-        hover: '#6BBF41',
-        active: '#398519',
+        default: '#649EF5',
+        hover: '#7CADF7',
+        active: '#7CADF7',
       },
       success: {
         default: '#33BBF5',
@@ -108,9 +108,9 @@ const colors: ThemeColors = {
 
     tonal: {
       primary: [
-        'rgba(82, 166, 43, 0.1)',
-        'rgba(82, 166, 43, 0.18)',
-        'rgba(82, 166, 43, 0.25)',
+        '#23282E',
+        '#373C42',
+        '#373C42',
       ],
       success: [
         'rgba(51, 187, 245, 0.1)',
@@ -151,9 +151,9 @@ const colors: ThemeColors = {
 
     primary: {
       text: '#23282E',
-      default: '#52A62B',
-      hover: '#6BBF41',
-      active: '#398519',
+      default: '#649EF5',
+      hover: '#7CADF7',
+      active: '#7CADF7',
     },
 
     secondary: {

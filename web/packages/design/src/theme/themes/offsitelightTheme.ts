@@ -75,19 +75,19 @@ const colors: ThemeColors = {
 
   spotBackground: neutralColors,
 
-  brand: '#52A62B',
+  brand: '#45991F',
 
   interactive: {
     solid: {
       primary: {
-        default: '#52A62B',
-        hover: '#45991F',
-        active: '#45991F',
+        default: '#1D69CC',
+        hover: '#0D5CBD',
+        active: '#0D5CBD',
       },
       success: {
-        default: '#139BEB',
-        hover: '#139BEB',
-        active: '#139BEB',
+        default: '#0570AD',
+        hover: '#0570AD',
+        active: '#0570AD',
       },
       accent: {
         default: '#2774D9',
@@ -100,17 +100,17 @@ const colors: ThemeColors = {
         active: '#B2242D',
       },
       alert: {
-        default: '#CC8604',
-        hover: '#CC8604',
-        active: '#CC8604',
+        default: '#A65503',
+        hover: '#A65503',
+        active: '#A65503',
       },
     },
 
     tonal: {
       primary: [
-        'rgba(82, 166, 43, 0.1)',
-        'rgba(82, 166, 43, 0.18)',
-        'rgba(82, 166, 43, 0.25)',
+        '#F0F1F2',
+        '#E1E4E8CC',
+        '#E1E4E8CC',
       ],
       success: [
         'rgba(19, 155, 235, 0.1)',
@@ -151,9 +151,9 @@ const colors: ThemeColors = {
 
     primary: {
       text: '#FFFFFF',
-      default: '#52A62B',
-      hover: '#45991F',
-      active: '#45991F',
+      default: '#1D69CC',
+      hover: '#0D5CBD',
+      active: '#0D5CBD',
     },
 
     secondary: {
@@ -197,9 +197,9 @@ const colors: ThemeColors = {
   progressBarColor: '#52A62B',
 
   success: {
-    main: '#139BEB',
-    hover: '#139BEB',
-    active: '#139BEB',
+    main: '#0570AD',
+    hover: '#0570AD',
+    active: '#0570AD',
   },
 
   error: {
@@ -209,9 +209,9 @@ const colors: ThemeColors = {
   },
 
   warning: {
-    main: '#CC8604',
-    hover: '#CC8604',
-    active: '#CC8604',
+    main: '#A65503',
+    hover: '#A65503',
+    active: '#A65503',
   },
 
   accent: {
