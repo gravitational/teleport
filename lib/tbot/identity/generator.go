@@ -469,6 +469,18 @@ func (g *Generator) GenerateScoped(
 	return newIdentity, nil
 }
 
+// GenerateScopedFacade calls GenerateScoped and wraps the resulting Identity
+// in a Facade for easy use in API clients, etc.
+func (g *Generator) GenerateScopedFacade(
+	ctx context.Context, ttl, renewalInterval time.Duration,
+) (*Facade, error) {
+	id, err := g.GenerateScoped(ctx, ttl, renewalInterval)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return NewFacade(g.fips, g.insecure, id), nil
+}
+
 func (g *Generator) generateDelegationCertificates(ctx context.Context, req proto.UserCertsRequest, o *generateOpts) (*proto.Certs, error) {
 	certReq := &delegationv1.GenerateCertsRequest{
 		DelegationSessionId: o.delegationSessionID,
