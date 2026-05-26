@@ -6162,20 +6162,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				MatchFunc: alpnproxy.MatchByProtocol(alpncommon.ProtocolPostgres),
 				Handler:   dbProxyServer.PostgresProxy().HandleConnection,
 			})
-			alpnRouter.Add(alpnproxy.HandlerDecs{
-				// For the following protocols ALPN Proxy will handle the
-				// connection internally (terminate wrapped TLS traffic) and
-				// route extracted connection to ALPN Proxy DB TLS Handler.
-				MatchFunc: alpnproxy.MatchByProtocol(
-					alpncommon.ProtocolMongoDB,
-					alpncommon.ProtocolOracle,
-					alpncommon.ProtocolRedisDB,
-					alpncommon.ProtocolSnowflake,
-					alpncommon.ProtocolSQLServer,
-					alpncommon.ProtocolCassandra,
-					alpncommon.ProtocolSpanner,
-				),
-			})
 		}
 
 		logger := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentDatabase))
