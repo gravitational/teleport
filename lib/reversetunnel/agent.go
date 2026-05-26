@@ -680,8 +680,9 @@ func (a *agent) sendKeepalives() error {
 		rtt := a.clock.Since(now)
 		if a.smoothedRTT == 0 {
 			a.smoothedRTT = rtt
+		} else {
+			a.smoothedRTT = (7*a.smoothedRTT + rtt) / 8
 		}
-		a.smoothedRTT = (7*a.smoothedRTT + rtt) / 8
 		a.logger.DebugContext(a.ctx, "Computed new SRTT", "srtt", a.smoothedRTT.String())
 		a.mu.Unlock()
 
