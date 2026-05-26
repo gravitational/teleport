@@ -425,9 +425,18 @@ func (p *AgentPool) tryDisconnect(ctx context.Context) {
 	if disconnectThreshold <= 0 {
 		return
 	}
+
 	proxyIDs := p.active.proxyIDs()
 	snapshot := p.tracker.Snapshot()
 	if snapshot.ConnectionCount == 0 {
+		return
+	}
+
+	now := p.Clock.Now()
+	if !p.lastConnectivityChange.Add(disconnectThreshold).Before(now) {
+		return
+	}
+	if !snapshot.LastTopologyChange.Add(disconnectThreshold).Before(now) {
 		return
 	}
 
@@ -438,14 +447,6 @@ func (p *AgentPool) tryDisconnect(ctx context.Context) {
 		}
 	}
 	if activeDesiredProxies <= snapshot.ConnectionCount {
-		return
-	}
-
-	now := p.Clock.Now()
-	if !p.lastConnectivityChange.Add(disconnectThreshold).Before(now) {
-		return
-	}
-	if !snapshot.LastTopologyChange.Add(disconnectThreshold).Before(now) {
 		return
 	}
 
