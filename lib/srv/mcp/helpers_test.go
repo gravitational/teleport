@@ -34,6 +34,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	mcpclienttransport "github.com/mark3labs/mcp-go/client/transport"
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
 	"github.com/moby/moby/api/types/container"
@@ -49,7 +50,6 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
-	listenerutils "github.com/gravitational/teleport/lib/utils/listener"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/lib/utils/mcputils"
 )
@@ -432,7 +432,7 @@ func newAllowAllDenyForbiddenToolRole(t *testing.T, forbiddenTool string) types.
 	return role
 }
 
-func newStreamableMCPServer(t *testing.T, upstream *mcpserver.MCPServer, role types.Role) (*eventstest.MockRecorderEmitter, *http.Client) {
+func newStreamableMCPServer(t *testing.T, upstream *mcpserver.MCPServer, role types.Role) (*eventstest.MockRecorderEmitter, *mcpclienttransport.StreamableHTTP) {
 	t.Helper()
 
 	remoteMCPServer := mcpserver.NewStreamableHTTPServer(upstream)
@@ -469,7 +469,8 @@ func newStreamableMCPServer(t *testing.T, upstream *mcpserver.MCPServer, role ty
 
 	var wg sync.WaitGroup
 	t.Cleanup(wg.Wait)
-	listener := listenerutils.NewInMemoryListener()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
 	t.Cleanup(func() { _ = listener.Close() })
 	go func() {
 		for {
@@ -490,7 +491,15 @@ func newStreamableMCPServer(t *testing.T, upstream *mcpserver.MCPServer, role ty
 		}
 	}()
 
-	httpClient := listener.MakeHTTPClient()
+	mcpClientTransport, err := mcpclienttransport.NewStreamableHTTP("http://" + listener.Addr().String())
+	require.NoError(t, err)
 
-	return &emitter, httpClient
+	return &emitter, mcpClientTransport
+}
+
+func testJSONString(t *testing.T, v any) string {
+	t.Helper()
+	data, err := json.Marshal(v)
+	require.NoError(t, err)
+	return string(data)
 }
