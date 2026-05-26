@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package httplib
+package sse
 
 import (
 	"bufio"
@@ -30,17 +30,17 @@ import (
 )
 
 var (
-	// ErrSSEEventTooLarge is the error returned when SSE event is larger than
-	// [MaxSSEReadEventSize].
-	ErrSSEEventTooLarge = errors.New("sse event exceeded max size")
+	// ErrEventTooLarge is the error returned when SSE event is larger than
+	// [MaxReadEventSize].
+	ErrEventTooLarge = errors.New("sse event exceeded max size")
 )
 
-// MaxSSEReadEventSize defines the max size that can be read from an [io.Reader]
+// MaxReadEventSize defines the max size that can be read from an [io.Reader]
 // to complete the event.
-const MaxSSEReadEventSize = teleport.MaxHTTPResponseSize
+const MaxReadEventSize = teleport.MaxHTTPResponseSize
 
-// SSEEvent is a server-sent event.
-type SSEEvent struct {
+// Event is a server-sent event.
+type Event struct {
 	Event string
 	ID    string
 	Data  []byte
@@ -48,22 +48,22 @@ type SSEEvent struct {
 }
 
 // Empty reports whether the event is empty.
-func (e SSEEvent) Empty() bool {
+func (e Event) Empty() bool {
 	return e.len() == 0
 }
 
 // Equal returns `true` if both events have the same contents.
-func (e SSEEvent) Equal(b SSEEvent) bool {
+func (e Event) Equal(b Event) bool {
 	return e.Event == b.Event && e.ID == b.ID &&
 		bytes.Equal(e.Data, b.Data) && e.Retry == b.Retry
 }
 
-func (e SSEEvent) len() int {
+func (e Event) len() int {
 	return len(e.Event) + len(e.ID) + len(e.Data) + len(e.Retry)
 }
 
 // Validates the fields of the SSE event.
-func (e SSEEvent) validate() error {
+func (e Event) validate() error {
 	switch {
 	case strings.ContainsAny(e.Event, "\r\n"):
 		return trace.BadParameter("Event field cannot contain line feed or carriage return")
@@ -78,13 +78,13 @@ func (e SSEEvent) validate() error {
 	return nil
 }
 
-// ReadSSEEvents reads SSE events from the provided reader.
-func ReadSSEEvents(r io.Reader) iter.Seq2[SSEEvent, error] {
-	return func(yield func(SSEEvent, error) bool) {
-		var currentEvent *SSEEvent
+// ReadEvents reads SSE events from the provided reader.
+func ReadEvents(r io.Reader) iter.Seq2[Event, error] {
+	return func(yield func(Event, error) bool) {
+		var currentEvent *Event
 		scanner := bufio.NewScanner(r)
-		scanner.Buffer(nil, MaxSSEReadEventSize)
-		scanner.Split(scanSSELines())
+		scanner.Buffer(nil, MaxReadEventSize)
+		scanner.Split(scanLines())
 
 		yieldEvent := func() bool {
 			// This handles cases where the stream has empty lines, so we
@@ -108,9 +108,9 @@ func ReadSSEEvents(r io.Reader) iter.Seq2[SSEEvent, error] {
 		// This can reject some valid events but reliably bounds memory.
 		ensureRoom := func(addedSize int) bool {
 			if currentEvent == nil {
-				currentEvent = &SSEEvent{}
+				currentEvent = &Event{}
 			}
-			if currentEvent.len()+addedSize > MaxSSEReadEventSize {
+			if currentEvent.len()+addedSize > MaxReadEventSize {
 				return false
 			}
 			return true
@@ -147,26 +147,26 @@ func ReadSSEEvents(r io.Reader) iter.Seq2[SSEEvent, error] {
 			switch {
 			case bytes.Equal(before, sseEventKey):
 				if !ensureRoom(len(after)) {
-					yield(SSEEvent{}, trace.Wrap(ErrSSEEventTooLarge))
+					yield(Event{}, trace.Wrap(ErrEventTooLarge))
 					return
 				}
 				currentEvent.Event = string(after)
 			case bytes.Equal(before, sseIDKey):
 				if !ensureRoom(len(after)) {
-					yield(SSEEvent{}, trace.Wrap(ErrSSEEventTooLarge))
+					yield(Event{}, trace.Wrap(ErrEventTooLarge))
 					return
 				}
 				currentEvent.ID = string(after)
 			case bytes.Equal(before, sseRetryKey):
 				if !ensureRoom(len(after)) {
-					yield(SSEEvent{}, trace.Wrap(ErrSSEEventTooLarge))
+					yield(Event{}, trace.Wrap(ErrEventTooLarge))
 					return
 				}
 				currentEvent.Retry = string(after)
 			case bytes.Equal(before, sseDataKey):
 				// Account for the new line added after the `data` field.
 				if !ensureRoom(len(after) + 1) {
-					yield(SSEEvent{}, trace.Wrap(ErrSSEEventTooLarge))
+					yield(Event{}, trace.Wrap(ErrEventTooLarge))
 					return
 				}
 				// Cases where first data is empty, we cannot rely only on
@@ -187,11 +187,11 @@ func ReadSSEEvents(r io.Reader) iter.Seq2[SSEEvent, error] {
 
 		if err := scanner.Err(); err != nil {
 			if errors.Is(err, bufio.ErrTooLong) {
-				yield(SSEEvent{}, trace.Wrap(ErrSSEEventTooLarge))
+				yield(Event{}, trace.Wrap(ErrEventTooLarge))
 				return
 			}
 
-			yield(SSEEvent{}, trace.Wrap(err))
+			yield(Event{}, trace.Wrap(err))
 			return
 		}
 
@@ -199,12 +199,12 @@ func ReadSSEEvents(r io.Reader) iter.Seq2[SSEEvent, error] {
 	}
 }
 
-// WriteSSEEvent writes an (non-empty) SSE event into the provided Writer.
+// WriteEvent writes an (non-empty) SSE event into the provided Writer.
 //
 // This function does not flush the writer. Callers using HTTP streaming should
 // flush their response after a successful write when events must be delivered
 // promptly.
-func WriteSSEEvent(w io.Writer, event SSEEvent) (int, error) {
+func WriteEvent(w io.Writer, event Event) (int, error) {
 	// Dropping empty events is acceptable as they don't carry values (only
 	// fields).
 	//
@@ -225,7 +225,7 @@ func WriteSSEEvent(w io.Writer, event SSEEvent) (int, error) {
 	if event.ID != "" {
 		writeField(&buf, sseIDKey, event.ID)
 	}
-	for data := range splitSSEDataLines(event.Data) {
+	for data := range splitDataLines(event.Data) {
 		buf.Write(sseDataKey)
 		buf.WriteString(": ")
 		buf.Write(data)
@@ -249,8 +249,8 @@ func writeField(b *bytes.Buffer, fieldName []byte, fieldData string) {
 	b.WriteByte('\n')
 }
 
-// scanSSELines implements a custom scan line for bytes.Scanner that honors the
-// SSE spec in addition to the [MaxSSEReadEventSize].
+// scanLines implements a custom scan line for bytes.Scanner that honors the
+// SSE spec in addition to the [MaxReadEventSize].
 //
 // By the spec, the data can be split using \r (cr) \n (lf) following the end of
 // line definition:
@@ -258,7 +258,7 @@ func writeField(b *bytes.Buffer, fieldName []byte, fieldData string) {
 //	end-of-line   = ( cr lf / cr / lf )
 //
 // https://html.spec.whatwg.org/multipage/server-sent-events.html#parsing-an-event-stream
-func scanSSELines() bufio.SplitFunc {
+func scanLines() bufio.SplitFunc {
 	var skipLF bool
 
 	return func(data []byte, atEOF bool) (advance int, token []byte, err error) {
@@ -275,7 +275,7 @@ func scanSSELines() bufio.SplitFunc {
 		}
 
 		for i, b := range data {
-			if i > MaxSSEReadEventSize {
+			if i > MaxReadEventSize {
 				return 0, nil, bufio.ErrTooLong
 			}
 
@@ -294,7 +294,7 @@ func scanSSELines() bufio.SplitFunc {
 			}
 		}
 
-		if len(data) > MaxSSEReadEventSize {
+		if len(data) > MaxReadEventSize {
 			return 0, nil, bufio.ErrTooLong
 		}
 
@@ -306,7 +306,7 @@ func scanSSELines() bufio.SplitFunc {
 	}
 }
 
-// splitSSEDataLines splits data into multiple event lines.
+// splitDataLines splits data into multiple event lines.
 //
 // By the spec, the data can be split using \r (cr) \n (lf) following the end of
 // line definition:
@@ -314,7 +314,7 @@ func scanSSELines() bufio.SplitFunc {
 //	end-of-line   = ( cr lf / cr / lf )
 //
 // https://html.spec.whatwg.org/multipage/server-sent-events.html#parsing-an-event-stream
-func splitSSEDataLines(data []byte) iter.Seq[[]byte] {
+func splitDataLines(data []byte) iter.Seq[[]byte] {
 	return func(yield func([]byte) bool) {
 		// No data available, return nothing to the caller.
 		if len(data) == 0 {

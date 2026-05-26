@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package httplib
+package sse
 
 import (
 	"bytes"
@@ -31,7 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/itertools/stream"
 )
 
-func TestSSEEventsRead(t *testing.T) {
+func TestEventsRead(t *testing.T) {
 	for name, tc := range map[string]struct {
 		input        string
 		expectError  require.ErrorAssertionFunc
@@ -42,9 +42,9 @@ func TestSSEEventsRead(t *testing.T) {
 			expectError: require.NoError,
 			expectEvents: func(tt require.TestingT, i1 any, i2 ...any) {
 				require.Len(tt, i1, 2, i2...)
-				events := i1.([]SSEEvent)
-				requireEqualEvent(tt, SSEEvent{Data: []byte("some text")}, events[0])
-				requireEqualEvent(tt, SSEEvent{Data: []byte("another message\nwith two lines")}, events[1])
+				events := i1.([]Event)
+				requireEqualEvent(tt, Event{Data: []byte("some text")}, events[0])
+				requireEqualEvent(tt, Event{Data: []byte("another message\nwith two lines")}, events[1])
 			},
 		},
 		"named events": {
@@ -52,11 +52,11 @@ func TestSSEEventsRead(t *testing.T) {
 			expectError: require.NoError,
 			expectEvents: func(tt require.TestingT, i1 any, i2 ...any) {
 				require.Len(tt, i1, 4, i2...)
-				events := i1.([]SSEEvent)
-				requireEqualEvent(tt, SSEEvent{Event: "userconnect", Data: []byte(`{"username": "bobby", "time": "02:33:48"}`)}, events[0])
-				requireEqualEvent(tt, SSEEvent{Event: "usermessage", Data: []byte(`{"username": "bobby", "time": "02:34:11", "text": "Hi everyone."}`)}, events[1])
-				requireEqualEvent(tt, SSEEvent{Event: "userdisconnect", Data: []byte(`{"username": "bobby", "time": "02:34:23"}`)}, events[2])
-				requireEqualEvent(tt, SSEEvent{Event: "usermessage", Data: []byte(`{"username": "sean", "time": "02:34:36", "text": "Bye, bobby."}`)}, events[3])
+				events := i1.([]Event)
+				requireEqualEvent(tt, Event{Event: "userconnect", Data: []byte(`{"username": "bobby", "time": "02:33:48"}`)}, events[0])
+				requireEqualEvent(tt, Event{Event: "usermessage", Data: []byte(`{"username": "bobby", "time": "02:34:11", "text": "Hi everyone."}`)}, events[1])
+				requireEqualEvent(tt, Event{Event: "userdisconnect", Data: []byte(`{"username": "bobby", "time": "02:34:23"}`)}, events[2])
+				requireEqualEvent(tt, Event{Event: "usermessage", Data: []byte(`{"username": "sean", "time": "02:34:36", "text": "Bye, bobby."}`)}, events[3])
 			},
 		},
 		"mixed and matching events": {
@@ -64,10 +64,10 @@ func TestSSEEventsRead(t *testing.T) {
 			expectError: require.NoError,
 			expectEvents: func(tt require.TestingT, i1 any, i2 ...any) {
 				require.Len(tt, i1, 3, i2...)
-				events := i1.([]SSEEvent)
-				requireEqualEvent(tt, SSEEvent{Event: "userconnect", Data: []byte(`{"username": "bobby", "time": "02:33:48"}`)}, events[0])
-				requireEqualEvent(tt, SSEEvent{Data: []byte("Here's a system message of some kind that will get used\nto accomplish some task.")}, events[1])
-				requireEqualEvent(tt, SSEEvent{Event: "usermessage", Data: []byte(`{"username": "bobby", "time": "02:34:11", "text": "Hi everyone."}`)}, events[2])
+				events := i1.([]Event)
+				requireEqualEvent(tt, Event{Event: "userconnect", Data: []byte(`{"username": "bobby", "time": "02:33:48"}`)}, events[0])
+				requireEqualEvent(tt, Event{Data: []byte("Here's a system message of some kind that will get used\nto accomplish some task.")}, events[1])
+				requireEqualEvent(tt, Event{Event: "usermessage", Data: []byte(`{"username": "bobby", "time": "02:34:11", "text": "Hi everyone."}`)}, events[2])
 			},
 		},
 		"field without colon": {
@@ -75,11 +75,11 @@ func TestSSEEventsRead(t *testing.T) {
 			expectError: require.NoError,
 			expectEvents: func(tt require.TestingT, i1 any, i2 ...any) {
 				require.Len(tt, i1, 3, i2...)
-				events := i1.([]SSEEvent)
+				events := i1.([]Event)
 				// ID event with no values.
-				requireEqualEvent(tt, SSEEvent{ID: ""}, events[0])
-				requireEqualEvent(tt, SSEEvent{Event: "", Data: []byte("something")}, events[1])
-				requireEqualEvent(tt, SSEEvent{Event: "another event"}, events[2])
+				requireEqualEvent(tt, Event{ID: ""}, events[0])
+				requireEqualEvent(tt, Event{Event: "", Data: []byte("something")}, events[1])
+				requireEqualEvent(tt, Event{Event: "another event"}, events[2])
 			},
 		},
 		"multiple data fields": {
@@ -87,8 +87,8 @@ func TestSSEEventsRead(t *testing.T) {
 			expectError: require.NoError,
 			expectEvents: func(tt require.TestingT, i1 any, i2 ...any) {
 				require.Len(tt, i1, 1, i2...)
-				events := i1.([]SSEEvent)
-				requireEqualEvent(tt, SSEEvent{ID: "1", Event: "hello", Data: []byte("start of message\nend of message")}, events[0])
+				events := i1.([]Event)
+				requireEqualEvent(tt, Event{ID: "1", Event: "hello", Data: []byte("start of message\nend of message")}, events[0])
 			},
 		},
 		"carriage return line endings": {
@@ -96,8 +96,8 @@ func TestSSEEventsRead(t *testing.T) {
 			expectError: require.NoError,
 			expectEvents: func(tt require.TestingT, i1 any, i2 ...any) {
 				require.Len(tt, i1, 1, i2...)
-				events := i1.([]SSEEvent)
-				requireEqualEvent(tt, SSEEvent{Event: "hello", Data: []byte("start of message\nend of message")}, events[0])
+				events := i1.([]Event)
+				requireEqualEvent(tt, Event{Event: "hello", Data: []byte("start of message\nend of message")}, events[0])
 			},
 		},
 		"carriage return and line feed line endings": {
@@ -105,8 +105,8 @@ func TestSSEEventsRead(t *testing.T) {
 			expectError: require.NoError,
 			expectEvents: func(tt require.TestingT, i1 any, i2 ...any) {
 				require.Len(tt, i1, 1, i2...)
-				events := i1.([]SSEEvent)
-				requireEqualEvent(tt, SSEEvent{Event: "hello", Data: []byte("start of message\nend of message")}, events[0])
+				events := i1.([]Event)
+				requireEqualEvent(tt, Event{Event: "hello", Data: []byte("start of message\nend of message")}, events[0])
 			},
 		},
 		"preserve data whitespace": {
@@ -114,8 +114,8 @@ func TestSSEEventsRead(t *testing.T) {
 			expectError: require.NoError,
 			expectEvents: func(tt require.TestingT, i1 any, i2 ...any) {
 				require.Len(tt, i1, 1, i2...)
-				events := i1.([]SSEEvent)
-				requireEqualEvent(tt, SSEEvent{Data: []byte(" token  \n\ttab\t")}, events[0])
+				events := i1.([]Event)
+				requireEqualEvent(tt, Event{Data: []byte(" token  \n\ttab\t")}, events[0])
 			},
 		},
 		"comment between fields": {
@@ -123,8 +123,8 @@ func TestSSEEventsRead(t *testing.T) {
 			expectError: require.NoError,
 			expectEvents: func(tt require.TestingT, i1 any, i2 ...any) {
 				require.Len(tt, i1, 1, i2...)
-				events := i1.([]SSEEvent)
-				requireEqualEvent(tt, SSEEvent{Event: "message", Data: []byte("body")}, events[0])
+				events := i1.([]Event)
+				requireEqualEvent(tt, Event{Event: "message", Data: []byte("body")}, events[0])
 			},
 		},
 		"leading empty data line": {
@@ -132,8 +132,8 @@ func TestSSEEventsRead(t *testing.T) {
 			expectError: require.NoError,
 			expectEvents: func(tt require.TestingT, i1 any, i2 ...any) {
 				require.Len(tt, i1, 1, i2...)
-				events := i1.([]SSEEvent)
-				requireEqualEvent(tt, SSEEvent{Data: []byte("\nfoo")}, events[0])
+				events := i1.([]Event)
+				requireEqualEvent(tt, Event{Data: []byte("\nfoo")}, events[0])
 			},
 		},
 		"multiple empty data lines": {
@@ -141,28 +141,28 @@ func TestSSEEventsRead(t *testing.T) {
 			expectError: require.NoError,
 			expectEvents: func(tt require.TestingT, i1 any, i2 ...any) {
 				require.Len(tt, i1, 1, i2...)
-				events := i1.([]SSEEvent)
-				requireEqualEvent(tt, SSEEvent{Data: []byte("\n\nfoo")}, events[0])
+				events := i1.([]Event)
+				requireEqualEvent(tt, Event{Data: []byte("\n\nfoo")}, events[0])
 			},
 		},
 		"single event data exceeds max size": {
-			input: "data: " + strings.Repeat("x", MaxSSEReadEventSize),
+			input: "data: " + strings.Repeat("x", MaxReadEventSize),
 			expectError: func(tt require.TestingT, err error, i ...any) {
-				require.ErrorIs(tt, err, ErrSSEEventTooLarge, i...)
+				require.ErrorIs(tt, err, ErrEventTooLarge, i...)
 			},
 			expectEvents: require.Empty,
 		},
 		"single event field exceeds max size": {
-			input: "event: " + strings.Repeat("x", MaxSSEReadEventSize),
+			input: "event: " + strings.Repeat("x", MaxReadEventSize),
 			expectError: func(tt require.TestingT, err error, i ...any) {
-				require.ErrorIs(tt, err, ErrSSEEventTooLarge, i...)
+				require.ErrorIs(tt, err, ErrEventTooLarge, i...)
 			},
 			expectEvents: require.Empty,
 		},
 		"single event exceeds max size multi lines": {
-			input: "data: " + strings.Repeat("x", MaxSSEReadEventSize/2) + "\ndata:" + strings.Repeat("y", MaxSSEReadEventSize/2),
+			input: "data: " + strings.Repeat("x", MaxReadEventSize/2) + "\ndata:" + strings.Repeat("y", MaxReadEventSize/2),
 			expectError: func(tt require.TestingT, err error, i ...any) {
-				require.ErrorIs(tt, err, ErrSSEEventTooLarge, i...)
+				require.ErrorIs(tt, err, ErrEventTooLarge, i...)
 			},
 			expectEvents: require.Empty,
 		},
@@ -171,8 +171,8 @@ func TestSSEEventsRead(t *testing.T) {
 			expectError: require.NoError,
 			expectEvents: func(tt require.TestingT, i1 any, i2 ...any) {
 				require.Len(tt, i1, 1, i2...)
-				events := i1.([]SSEEvent)
-				requireEqualEvent(tt, SSEEvent{Event: "hello", Data: []byte("something")}, events[0])
+				events := i1.([]Event)
+				requireEqualEvent(tt, Event{Event: "hello", Data: []byte("something")}, events[0])
 			},
 		},
 		"empty": {
@@ -182,22 +182,22 @@ func TestSSEEventsRead(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			events, err := stream.Collect(ReadSSEEvents(strings.NewReader(tc.input)))
+			events, err := stream.Collect(ReadEvents(strings.NewReader(tc.input)))
 			tc.expectError(t, err)
 			tc.expectEvents(t, events)
 		})
 	}
 }
 
-func TestSSEEventsReadBareCRLiveStream(t *testing.T) {
+func TestReadBareCRLiveStream(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		chunks := make(chan []byte, 1)
 		reader := &chunkReader{chunks: chunks}
 
-		events := make(chan SSEEvent, 1)
+		events := make(chan Event, 1)
 		errs := make(chan error, 1)
 		go func() {
-			for event, err := range ReadSSEEvents(reader) {
+			for event, err := range ReadEvents(reader) {
 				if err != nil {
 					errs <- err
 					return
@@ -212,22 +212,22 @@ func TestSSEEventsReadBareCRLiveStream(t *testing.T) {
 
 		select {
 		case event := <-events:
-			requireEqualEvent(t, SSEEvent{Data: []byte("ok")}, event)
+			requireEqualEvent(t, Event{Data: []byte("ok")}, event)
 		case err := <-errs:
 			t.Fatalf("expected no errors but got %v", err)
 		}
 	})
 }
 
-func TestSSEEventsReadSplitCRLFLiveStream(t *testing.T) {
+func TestReadSplitCRLFLiveStream(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		chunks := make(chan []byte, 1)
 		reader := &chunkReader{chunks: chunks}
 
-		events := make(chan SSEEvent, 1)
+		events := make(chan Event, 1)
 		errs := make(chan error, 1)
 		go func() {
-			for event, err := range ReadSSEEvents(reader) {
+			for event, err := range ReadEvents(reader) {
 				if err != nil {
 					errs <- err
 					return
@@ -239,25 +239,25 @@ func TestSSEEventsReadSplitCRLFLiveStream(t *testing.T) {
 
 		chunks <- []byte("data: ok\r")
 		synctest.Wait()
-		requireNoSSEEvent(t, events, errs)
+		requireNoEvent(t, events, errs)
 
 		chunks <- []byte("\n")
 		synctest.Wait()
-		requireNoSSEEvent(t, events, errs)
+		requireNoEvent(t, events, errs)
 
 		chunks <- []byte("data: there\r\n\r\n")
 		synctest.Wait()
 
 		select {
 		case event := <-events:
-			requireEqualEvent(t, SSEEvent{Data: []byte("ok\nthere")}, event)
+			requireEqualEvent(t, Event{Data: []byte("ok\nthere")}, event)
 		case err := <-errs:
 			t.Fatalf("expected no errors but got %v", err)
 		}
 	})
 }
 
-func TestSSEEventsWrite(t *testing.T) {
+func TestWrite(t *testing.T) {
 	expectedString := func(str string) require.ValueAssertionFunc {
 		return func(tt require.TestingT, i1 any, i2 ...any) {
 			require.IsType(t, []byte{}, i1, "expected result to be `[]byte` but got %T", i1)
@@ -267,73 +267,73 @@ func TestSSEEventsWrite(t *testing.T) {
 	}
 
 	for name, tc := range map[string]struct {
-		event        SSEEvent
+		event        Event
 		expectError  require.ErrorAssertionFunc
 		expectOutput require.ValueAssertionFunc
 	}{
 		"no data event": {
-			event:        SSEEvent{ID: "1", Event: "hello"},
+			event:        Event{ID: "1", Event: "hello"},
 			expectError:  require.NoError,
 			expectOutput: expectedString("event: hello\nid: 1\n\n"),
 		},
 		"data only": {
-			event:        SSEEvent{Data: []byte("some text")},
+			event:        Event{Data: []byte("some text")},
 			expectError:  require.NoError,
 			expectOutput: expectedString("data: some text\n\n"),
 		},
 		"multiline data": {
-			event:        SSEEvent{Data: []byte("another message\nwith two lines")},
+			event:        Event{Data: []byte("another message\nwith two lines")},
 			expectError:  require.NoError,
 			expectOutput: expectedString("data: another message\ndata: with two lines\n\n"),
 		},
 		"multiline data escaped": {
-			event:        SSEEvent{Data: []byte("{\"response\": \"hello\\nworld\"}\n{\"response\": \"second\"}")},
+			event:        Event{Data: []byte("{\"response\": \"hello\\nworld\"}\n{\"response\": \"second\"}")},
 			expectError:  require.NoError,
 			expectOutput: expectedString("data: {\"response\": \"hello\\nworld\"}\ndata: {\"response\": \"second\"}\n\n"),
 		},
 		"carriage return data": {
-			event:        SSEEvent{Data: []byte("ok\revent: injected")},
+			event:        Event{Data: []byte("ok\revent: injected")},
 			expectError:  require.NoError,
 			expectOutput: expectedString("data: ok\ndata: event: injected\n\n"),
 		},
 		"carriage return newline data": {
-			event:        SSEEvent{Data: []byte("first\r\nsecond")},
+			event:        Event{Data: []byte("first\r\nsecond")},
 			expectError:  require.NoError,
 			expectOutput: expectedString("data: first\ndata: second\n\n"),
 		},
 		"named events": {
-			event:        SSEEvent{Event: "userconnect", Data: []byte(`{"username": "bobby", "time": "02:33:48"}`)},
+			event:        Event{Event: "userconnect", Data: []byte(`{"username": "bobby", "time": "02:33:48"}`)},
 			expectError:  require.NoError,
 			expectOutput: expectedString("event: userconnect\ndata: {\"username\": \"bobby\", \"time\": \"02:33:48\"}\n\n"),
 		},
 		"all fields": {
-			event:        SSEEvent{ID: "1", Event: "hello", Data: []byte("start of message\nend of message"), Retry: "5"},
+			event:        Event{ID: "1", Event: "hello", Data: []byte("start of message\nend of message"), Retry: "5"},
 			expectError:  require.NoError,
 			expectOutput: expectedString("event: hello\nid: 1\ndata: start of message\ndata: end of message\nretry: 5\n\n"),
 		},
 		"invalid fields": {
-			event: SSEEvent{ID: "1\n\r", Event: "hello", Data: []byte("start of message\nend of message"), Retry: "5"},
+			event: Event{ID: "1\n\r", Event: "hello", Data: []byte("start of message\nend of message"), Retry: "5"},
 			expectError: func(tt require.TestingT, err error, i ...any) {
 				require.True(tt, trace.IsBadParameter(err), "expected error %v to be BadParameter", err)
 			},
 			expectOutput: require.Empty,
 		},
 		"invalid retry field": {
-			event: SSEEvent{Event: "hello", Data: []byte("start of message\nend of message"), Retry: "non-digits"},
+			event: Event{Event: "hello", Data: []byte("start of message\nend of message"), Retry: "non-digits"},
 			expectError: func(tt require.TestingT, err error, i ...any) {
 				require.True(tt, trace.IsBadParameter(err), "expected error %v to be BadParameter", err)
 			},
 			expectOutput: require.Empty,
 		},
 		"empty": {
-			event:        SSEEvent{},
+			event:        Event{},
 			expectError:  require.NoError,
 			expectOutput: require.Empty,
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			var buf bytes.Buffer
-			_, err := WriteSSEEvent(&buf, tc.event)
+			_, err := WriteEvent(&buf, tc.event)
 			tc.expectError(t, err)
 			tc.expectOutput(t, buf.Bytes())
 		})
@@ -342,7 +342,7 @@ func TestSSEEventsWrite(t *testing.T) {
 
 // TestSSEEventsWriteRead ensures both write and read SSE events functions
 // produce results that are compatible with each other.
-func TestSSEEventsWriteRead(t *testing.T) {
+func TestWriteRead(t *testing.T) {
 	for name, input := range map[string]string{
 		// We use the version that doesn't include the comment as it is not read
 		// by the reader.
@@ -353,12 +353,12 @@ func TestSSEEventsWriteRead(t *testing.T) {
 		"empty":                     "",
 	} {
 		t.Run(name, func(t *testing.T) {
-			inputEvents, err := stream.Collect(ReadSSEEvents(strings.NewReader(input)))
+			inputEvents, err := stream.Collect(ReadEvents(strings.NewReader(input)))
 			require.NoError(t, err)
 
 			var buf bytes.Buffer
 			for _, event := range inputEvents {
-				_, err := WriteSSEEvent(&buf, event)
+				_, err := WriteEvent(&buf, event)
 				require.NoError(t, err)
 			}
 
@@ -367,16 +367,16 @@ func TestSSEEventsWriteRead(t *testing.T) {
 	}
 }
 
-// TestSSEEventsReadFieldsAreCopied ensures ReadSSEEvents returns events whose
+// TestReadFieldsAreCopied ensures ReadSSEEvents returns events whose
 // fields own their bytes rather than aliasing the scanner's internal buffer.
 // bufio.Scanner compacts its buffer between Scan() calls, so any retained
 // sub-slice of scanner.Bytes() would be overwritten by later reads.
-func TestSSEEventsReadFieldsAreCopied(t *testing.T) {
+func TestReadFieldsAreCopied(t *testing.T) {
 	const n = 200
 
 	var buf bytes.Buffer
 	for i := range n {
-		_, err := WriteSSEEvent(&buf, SSEEvent{
+		_, err := WriteEvent(&buf, Event{
 			ID:    fmt.Sprintf("%d", i),
 			Event: fmt.Sprintf("e%d", i),
 			// Multi-line data exercises the append branch of Data
@@ -387,7 +387,7 @@ func TestSSEEventsReadFieldsAreCopied(t *testing.T) {
 	}
 
 	// We force multiple Scan calls by using a one byte reader.
-	got, err := stream.Collect(ReadSSEEvents(iotest.OneByteReader(&buf)))
+	got, err := stream.Collect(ReadEvents(iotest.OneByteReader(&buf)))
 	require.NoError(t, err)
 	require.Len(t, got, n)
 
@@ -398,7 +398,7 @@ func TestSSEEventsReadFieldsAreCopied(t *testing.T) {
 	}
 }
 
-func FuzzReadSSEEvents(f *testing.F) {
+func FuzzRead(f *testing.F) {
 	f.Add("")
 	f.Add(dataOnlyExample)
 	f.Add(namedEventsExample)
@@ -406,20 +406,20 @@ func FuzzReadSSEEvents(f *testing.F) {
 	f.Fuzz(func(t *testing.T, a string) {
 		reader := strings.NewReader(a)
 		require.NotPanics(t, func() {
-			for range ReadSSEEvents(reader) {
+			for range ReadEvents(reader) {
 			}
 		})
 	})
 }
 
-func requireEqualEvent(t require.TestingT, expected SSEEvent, target SSEEvent) {
+func requireEqualEvent(t require.TestingT, expected Event, target Event) {
 	require.Equal(t, expected.Event, target.Event)
 	require.Equal(t, expected.Data, target.Data)
 	require.Equal(t, expected.ID, target.ID)
 	require.Equal(t, expected.Retry, target.Retry)
 }
 
-func requireNoSSEEvent(t *testing.T, events <-chan SSEEvent, errs <-chan error) {
+func requireNoEvent(t *testing.T, events <-chan Event, errs <-chan error) {
 	t.Helper()
 
 	select {
