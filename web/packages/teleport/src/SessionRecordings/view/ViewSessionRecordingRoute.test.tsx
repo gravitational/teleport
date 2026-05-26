@@ -19,11 +19,15 @@
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { screen } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
-import { setupServer } from 'msw/node';
 import type { ComponentType } from 'react';
 import { MemoryRouter, Route } from 'react-router-dom';
 
-import { render, testQueryClient } from 'design/utils/testing';
+import {
+  enableMswServer,
+  render,
+  server,
+  testQueryClient,
+} from 'design/utils/testing';
 
 import { ContextProvider } from 'teleport';
 import cfg from 'teleport/config';
@@ -46,20 +50,11 @@ jest.mock('teleport/lib/AuthenticatedWebSocket', () => ({
   AuthenticatedWebSocket: MockAuthenticatedWebSocket,
 }));
 
-const server = setupServer();
-
-beforeAll(() => {
-  server.listen();
-});
+enableMswServer();
 
 afterEach(() => {
-  server.resetHandlers();
   testQueryClient.clear();
   jest.clearAllMocks();
-});
-
-afterAll(() => {
-  server.close();
 });
 
 const mockMetadata: SessionRecordingMetadata = {
