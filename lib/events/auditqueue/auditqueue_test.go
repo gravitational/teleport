@@ -35,25 +35,61 @@ const testDefaultTimeout = 2 * time.Second
 
 var allKinds []Kind = []Kind{KindSQLite}
 
-func newTestQueue(t *testing.T, kind Kind) Queue {
-	t.Helper()
-	return newTestQueueWithConfig(t, kind, Config{})
+func newTestQueue(tb testing.TB, kind Kind) Queue {
+	tb.Helper()
+	return newTestQueueWithConfig(tb, kind, Config{})
 }
 
-func newTestQueueWithConfig(t *testing.T, kind Kind, cfg Config) Queue {
-	t.Helper()
-	cfg.Path = filepath.Join(t.TempDir(), queueDir)
+func newTestQueueWithConfig(tb testing.TB, kind Kind, cfg Config) Queue {
+	tb.Helper()
+	cfg.Path = filepath.Join(tb.TempDir(), queueDir)
 	q, err := New(kind, cfg)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		require.NoError(t, q.Close())
+	require.NoError(tb, err)
+	tb.Cleanup(func() {
+		require.NoError(tb, q.Close())
 	})
 	return q
 }
 
 func newTestEvent(index int64) apievents.AuditEvent {
 	return &apievents.UserLogin{
-		Metadata: apievents.Metadata{Index: index},
+		Metadata: apievents.Metadata{
+			Index:       index,
+			Type:        "user.login",
+			ID:          "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+			Code:        "T1000I",
+			Time:        time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+			ClusterName: "test-cluster.example.teleport.sh",
+		},
+		UserMetadata: apievents.UserMetadata{
+			User:         "alice@example.com",
+			Login:        "alice",
+			Impersonator: "admin@example.com",
+			UserRoles:    []string{"access", "editor", "auditor", "db-access", "k8s-access"},
+			AccessRequests: []string{
+				"a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+				"b2c3d4e5-f6a7-8901-bcde-f12345678901",
+			},
+		},
+		Status: apievents.Status{
+			Success:     true,
+			UserMessage: "Successfully logged in",
+		},
+		Method:      "local",
+		ConnectorID: "local-connector",
+		ConnectionMetadata: apievents.ConnectionMetadata{
+			LocalAddr:  "192.168.1.100:3025",
+			RemoteAddr: "203.0.113.42:54321",
+			Protocol:   "ssh",
+		},
+		ClientMetadata: apievents.ClientMetadata{
+			UserAgent: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+		},
+		AppliedLoginRules: []string{
+			"require-mfa-for-prod",
+			"deny-contractors-after-hours",
+			"allow-admin-from-corp-network",
+		},
 	}
 }
 
@@ -114,7 +150,7 @@ func TestEnqueue_CanceledContext(t *testing.T) {
 			q := newTestQueue(t, kind)
 			ctx, cancel := context.WithCancel(context.Background())
 			cancel()
-			require.Error(t, q.Enqueue(ctx, newTestEvent(0)))
+			require.NoError(t, q.Enqueue(ctx, newTestEvent(0)))
 		})
 	}
 }
@@ -140,7 +176,7 @@ func TestRun_DeliversEvents(t *testing.T) {
 	for _, kind := range allKinds {
 		t.Run(string(kind), func(t *testing.T) {
 			t.Parallel()
-			ctx := context.Background()
+			ctx := t.Context()
 			q := newTestQueue(t, kind)
 
 			for i := int64(0); i < 3; i++ {
@@ -402,6 +438,62 @@ func TestRun_DeadLetter_RedeliversAfterRecovery(t *testing.T) {
 
 			cancel()
 			require.NoError(t, <-runErr)
+		})
+	}
+}
+
+func BenchmarkEnqueue(b *testing.B) {
+	for _, kind := range allKinds {
+		b.Run(string(kind), func(b *testing.B) {
+			ctx := b.Context()
+			q := newTestQueue(b, kind)
+
+			b.ResetTimer()
+			for i := range b.N {
+				event := newTestEvent(int64(i))
+				if err := q.Enqueue(ctx, event); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}
+
+func BenchmarkEnqueueAndDrain(b *testing.B) {
+	for _, kind := range allKinds {
+		b.Run(string(kind), func(b *testing.B) {
+			ctx := b.Context()
+			q := newTestQueue(b, kind)
+
+			runCtx, cancel := context.WithCancel(ctx)
+			defer cancel()
+
+			var delivered atomic.Int64
+			handler := func(_ context.Context, items []Item) []Item {
+				delivered.Add(int64(len(items)))
+				return items
+			}
+
+			runErr := make(chan error, 1)
+			go func() { runErr <- q.Run(runCtx, handler) }()
+
+			b.ResetTimer()
+			for i := range b.N {
+				event := newTestEvent(int64(i))
+				if err := q.Enqueue(ctx, event); err != nil {
+					b.Fatal(err)
+				}
+			}
+
+			// Wait for all enqueued events to be delivered before stopping.
+			for delivered.Load() < int64(b.N) {
+				time.Sleep(time.Millisecond)
+			}
+
+			cancel()
+			if err := <-runErr; err != nil {
+				b.Fatal(err)
+			}
 		})
 	}
 }

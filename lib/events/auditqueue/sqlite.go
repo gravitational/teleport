@@ -383,11 +383,11 @@ func (q *sqliteQueue) Enqueue(ctx context.Context, event apievents.AuditEvent) e
 	}
 
 	// Send the event to the write queue. The channel `toBeWritten` will be
-	// drained by the function `writeLoop`.
+	// drained by the function `writeLoop`. We intentionally ignore the caller's
+	// context cancellation. We do not want to drop an audit log event even if
+	// the caller cancels their context.
 	select {
 	case q.toBeWritten <- req:
-	case <-ctx.Done():
-		return trace.Wrap(ctx.Err())
 	case <-q.ctx.Done():
 		return trace.Wrap(ErrClosed)
 	}
@@ -399,8 +399,6 @@ func (q *sqliteQueue) Enqueue(ctx context.Context, event apievents.AuditEvent) e
 	select {
 	case err := <-req.resp:
 		return trace.Wrap(err)
-	case <-ctx.Done():
-		return trace.Wrap(ctx.Err())
 	case <-q.ctx.Done():
 		return trace.Wrap(ErrClosed)
 	}
@@ -443,6 +441,9 @@ func (q *sqliteQueue) writeLoop() {
 		// larger batch sizes up to about 250 leads to noticeable performance
 		// improvements.
 		err := q.commitBatch(batch)
+		if err == nil {
+			eventsEnqueued.Add(float64(len(batch)))
+		}
 		for _, req := range batch {
 			// If we got an error from the transaction, then we will propagate
 			// that error to all callers. Otherwise, all callers receive a `nil`
@@ -1118,7 +1119,13 @@ func (q *sqliteQueue) fetch(limit int) ([]Item, error) {
 }
 
 func (q *sqliteQueue) ack(items []Item) error {
-	return ackDB(q.ctx, q.db, items)
+	err := ackDB(q.ctx, q.db, items)
+	if err != nil {
+		// Once 'ack' succeeds, we have finished the entire end-to-end of
+		// delivering these events.
+		eventsDelivered.Add(float64(len(items)))
+	}
+	return err
 }
 
 func scanItems(rows *sql.Rows) ([]Item, error) {

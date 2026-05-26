@@ -73,6 +73,22 @@ var deadLetterPromotions = prometheus.NewCounter(
 	},
 )
 
+var eventsEnqueued = prometheus.NewCounter(
+	prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Name:      "audit_queue_events_enqueued_total",
+		Help:      "Total number of audit events enqueued.",
+	},
+)
+
+var eventsDelivered = prometheus.NewCounter(
+	prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Name:      "audit_queue_events_delivered_total",
+		Help:      "Total number of audit events successfully delivered.",
+	},
+)
+
 var prometheusCollectors = []prometheus.Collector{
 	batchSize,
 	orphansAdopted,
@@ -80,4 +96,6 @@ var prometheusCollectors = []prometheus.Collector{
 	softLimitWarnings,
 	retryTotal,
 	deadLetterPromotions,
+	eventsEnqueued,
+	eventsDelivered,
 }
