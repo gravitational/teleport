@@ -153,6 +153,7 @@ type serverKey struct {
 }
 
 // NewProxyKubeServerWatcher creates a new instance of [ProxyKubeServerWatcher]
+// ctx is the lifetime of the watcher.
 func NewProxyKubeServerWatcher(ctx context.Context, cfg ProxyKubeServerWatcherConfig) (*ProxyKubeServerWatcher, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err, "checking and setting defaults")
@@ -245,10 +246,11 @@ func (w *ProxyKubeServerWatcher) readN(watcher types.Watcher, buf []types.Event,
 			clear(buf)
 		}
 	}
+
 	return nil
 }
 
-// watch spawns a watcher on [types.KindKubeServer] and if successful, initlizes the local cache nad fetches events.
+// watch spawns a watcher on [types.KindKubeServer] and if successful, initializes the local cache and fetches events.
 func (w *ProxyKubeServerWatcher) watch() error {
 	watcher, err := w.AccessPoint.NewWatcher(w.ctx, types.Watch{
 		Name:            w.Component,
