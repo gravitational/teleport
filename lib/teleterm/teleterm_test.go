@@ -130,6 +130,16 @@ func TestStart(t *testing.T) {
 			addr: "tcp://localhost:0",
 			createClientTLSConfigFunc: func(t *testing.T, certsDir string) *tls.Config {
 				systemTrustedClientCert := newSystemTrustedCert(t)
+				// Confirm the cert is actually trusted by the process default verifier.
+				// Without this check, a broken SetFallbackRoots setup would silently turn
+				// this case into "server rejects an unknown CA", which would no longer
+				// prove that the server avoids the OS trust store.
+				leaf, err := x509.ParseCertificate(systemTrustedClientCert.Certificate[0])
+				require.NoError(t, err)
+				_, err = leaf.Verify(x509.VerifyOptions{
+					KeyUsages: []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+				})
+				require.NoError(t, err, "fake system-trusted CA is not honored by the default verifier; check x509.SetFallbackRoots wiring")
 				tlsConfig, err := createClientTLSConfig(systemTrustedClientCert, filepath.Join(certsDir, tshdCertFileName))
 				require.NoError(t, err)
 				return withH2(tlsConfig)
