@@ -572,6 +572,7 @@
     "goteleport",
     "gotemplate",
     "gots",
+    "govulncheck",
     "goxmldsig",
     "gpupdate",
     "grafana",
