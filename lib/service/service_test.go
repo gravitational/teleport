@@ -2549,7 +2549,6 @@ func TestInitAppsFromConfig(t *testing.T) {
 
 	authDir := t.TempDir()
 	cfg := servicecfg.MakeDefaultConfig()
-	cfg.InsecureMode = true
 	cfg.Version = defaults.TeleportConfigVersionV3
 	cfg.DataDir = authDir
 	cfg.Auth.Enabled = true
