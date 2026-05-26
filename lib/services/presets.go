@@ -180,6 +180,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindDatabaseCertificate, RW()),
 					types.NewRule(types.KindInstaller, RW()),
 					types.NewRule(types.KindDevice, append(RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),
+					types.NewRule(types.KindMobileDevice, []string{types.VerbCreateEnrollToken}),
 					types.NewRule(types.KindDatabaseService, RO()),
 					types.NewRule(types.KindInstance, RO()),
 					types.NewRule(types.KindLoginRule, RW()),
@@ -492,6 +493,7 @@ func NewPresetDeviceAdminRole(buildType string) types.Role {
 			Allow: types.RoleConditions{
 				Rules: []types.Rule{
 					types.NewRule(types.KindDevice, append(RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),
+					types.NewRule(types.KindMobileDevice, []string{types.VerbCreateEnrollToken}),
 				},
 			},
 		},

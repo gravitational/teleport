@@ -507,6 +507,12 @@ const (
 	// KindDevice represents a registered or trusted device.
 	KindDevice = "device"
 
+	// KindMobileDevice is used to gate access to the mobile device enrollment
+	// ceremony. It is not a stored resource, it exists only as the target of RBAC
+	// rules. The verb create_enroll_token permits a user to initiate enrollment
+	// of a mobile device.
+	KindMobileDevice = "mobile_device"
+
 	// KindEnrollPairing is the resource kind for a mobile device enrollment
 	// pairing: a short-lived ceremony that pairs a Web UI session with the
 	// Teleport Verify mobile app via a QR-code-encoded token.
