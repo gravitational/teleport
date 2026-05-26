@@ -22,44 +22,44 @@ import { DataVisualisationColors, Theme, ThemeColors } from './types';
 
 const dataVisualisationColors: DataVisualisationColors = {
   primary: {
-    purple: '#9F85FF',
-    wednesdays: '#F74DFF',
-    picton: '#009EFF',
-    sunflower: '#FFAB00',
-    caribbean: '#00BFA6',
-    abbey: '#FF6257',
-    cyan: '#00D3F0',
+    purple: '#9B5FF5',
+    wednesdays: '#FF87A9',
+    picton: '#9ADFFC',
+    sunflower: '#F0C243',
+    caribbean: '#169855',
+    abbey: '#FA5762',
+    cyan: '#17C2C2',
   },
   secondary: {
-    purple: '#7D59FF',
-    wednesdays: '#D50DE0',
-    picton: '#007CC9',
-    sunflower: '#AC7400',
-    caribbean: '#008775',
-    abbey: '#DB3F34',
-    cyan: '#009CB1',
+    purple: '#753BCC',
+    wednesdays: '#E3447C',
+    picton: '#23A8EB',
+    sunflower: '#D6900D',
+    caribbean: '#087041',
+    abbey: '#CC2D37',
+    cyan: '#028E99',
   },
   tertiary: {
-    purple: '#B9A6FF',
-    wednesdays: '#FA96FF',
-    picton: '#7BCDFF',
-    sunflower: '#FFD98C',
-    caribbean: '#2EFFD5',
-    abbey: '#FF948D',
-    cyan: '#74EEFF',
+    purple: '#D6BAFF',
+    wednesdays: '#FFD4E0',
+    picton: '#D9F4FF',
+    sunflower: '#F5E08E',
+    caribbean: '#75D9A0',
+    abbey: '#FFB2B5',
+    cyan: '#A9EBEB',
   },
 };
 
 const levels = {
-  deep: '#000000',
+  deep: '#0F1214',
 
-  sunken: '#141414',
+  sunken: '#0F1214',
 
-  surface: '#1C1C1C',
+  surface: '#23282E',
 
-  elevated: '#242424',
+  elevated: '#373C42',
 
-  popout: '#2C2C2C',
+  popout: '#464C54',
 };
 
 const neutralColors = [
@@ -75,85 +75,85 @@ const colors: ThemeColors = {
 
   spotBackground: neutralColors,
 
-  brand: '#049FD9',
+  brand: '#52A62B',
 
   interactive: {
     solid: {
       primary: {
-        default: '#049FD9',
-        hover: '#1AAEE0',
-        active: '#0385B5',
+        default: '#52A62B',
+        hover: '#6BBF41',
+        active: '#398519',
       },
       success: {
-        default: '#00A223',
-        hover: '#35D655',
-        active: '#00961E',
+        default: '#33BBF5',
+        hover: '#33BBF5',
+        active: '#33BBF5',
       },
       accent: {
-        default: '#5BC8F5',
-        hover: '#7DD5F7',
-        active: '#3AB5E3',
+        default: '#649EF5',
+        hover: '#7CADF7',
+        active: '#7CADF7',
       },
       danger: {
-        default: '#E51E3C',
-        hover: '#FD2D4A',
-        active: '#E52840',
+        default: '#FA5762',
+        hover: '#FF6E72',
+        active: '#FF6E72',
       },
       alert: {
-        default: '#FA5A28',
-        hover: '#FB754C',
-        active: '#D64D22',
+        default: '#F0C243',
+        hover: '#F0C243',
+        active: '#F0C243',
       },
     },
 
     tonal: {
       primary: [
-        'rgba(4, 159, 217, 0.1)',
-        'rgba(4, 159, 217, 0.18)',
-        'rgba(4, 159, 217, 0.25)',
+        'rgba(82, 166, 43, 0.1)',
+        'rgba(82, 166, 43, 0.18)',
+        'rgba(82, 166, 43, 0.25)',
       ],
       success: [
-        'rgba(0, 162, 35, 0.1)',
-        'rgba(0, 162, 35, 0.18)',
-        'rgba(0, 162, 35, 0.25)',
+        'rgba(51, 187, 245, 0.1)',
+        'rgba(51, 187, 245, 0.18)',
+        'rgba(51, 187, 245, 0.25)',
       ],
       danger: [
-        'rgba(229, 30, 60, 0.1)',
-        'rgba(229, 30, 60, 0.18)',
-        'rgba(229, 30, 60, 0.25)',
+        'rgba(250, 87, 98, 0.1)',
+        'rgba(250, 87, 98, 0.18)',
+        'rgba(250, 87, 98, 0.25)',
       ],
       alert: [
-        'rgba(250, 90, 40, 0.1)',
-        'rgba(250, 90, 40, 0.18)',
-        'rgba(250, 90, 40, 0.25)',
+        'rgba(240, 194, 67, 0.1)',
+        'rgba(240, 194, 67, 0.18)',
+        'rgba(240, 194, 67, 0.25)',
       ],
       informational: [
-        'rgba(91, 200, 245, 0.1)',
-        'rgba(91, 200, 245, 0.18)',
-        'rgba(91, 200, 245, 0.25)',
+        'rgba(100, 158, 245, 0.1)',
+        'rgba(100, 158, 245, 0.18)',
+        'rgba(100, 158, 245, 0.25)',
       ],
       neutral: [neutralColors[0], neutralColors[1], neutralColors[2]],
     },
   },
 
   text: {
-    main: '#FFFFFF',
-    slightlyMuted: '#C8C8C8',
-    muted: '#8C8C8C',
-    disabled: '#606060',
-    primaryInverse: '#000000',
+    main: '#F7F7F7',
+    slightlyMuted: '#D0D4D9',
+    muted: '#889099',
+    disabled: '#6F7680',
+    primaryInverse: '#23282E',
   },
 
   buttons: {
-    text: '#FFFFFF',
-    textDisabled: 'rgba(255, 255, 255, 0.3)',
-    bgDisabled: 'rgba(255, 255, 255, 0.12)',
+    text: '#F7F7F7',
+    textDisabled: '#6F7680',
+    bgDisabled: '#464C54',
 
     primary: {
-      text: '#000000',
-      default: '#049FD9',
-      hover: '#1AAEE0',
-      active: '#0385B5',
+      text: '#23282E',
+      default: '#52A62B',
+      hover: '#6BBF41',
+      active: '#398519',
     },
 
     secondary: {
@@ -170,10 +170,10 @@ const colors: ThemeColors = {
     },
 
     warning: {
-      text: '#FFFFFF',
-      default: '#E51E3C',
-      hover: '#FD2D4A',
-      active: '#E52840',
+      text: '#23282E',
+      default: '#FA5762',
+      hover: '#FF6E72',
+      active: '#FF6E72',
     },
 
     trashButton: {
@@ -182,62 +182,62 @@ const colors: ThemeColors = {
     },
 
     link: {
-      default: '#049FD9',
-      hover: '#1AAEE0',
-      active: '#0B8EC2',
+      default: '#649EF5',
+      hover: '#7CADF7',
+      active: '#7CADF7',
     },
   },
 
   tooltip: {
-    background: 'rgba(255, 255, 255, 0.8)',
+    background: '#464C54',
     inverseBackground: 'rgba(0, 0, 0, 0.5)',
-    inverseLinkDefault: '#0073BA',
+    inverseLinkDefault: '#649EF5',
   },
 
-  progressBarColor: '#049FD9',
+  progressBarColor: '#52A62B',
 
   success: {
-    main: '#00A223',
-    hover: '#35D655',
-    active: '#00961E',
+    main: '#33BBF5',
+    hover: '#33BBF5',
+    active: '#33BBF5',
   },
 
   error: {
-    main: '#E51E3C',
-    hover: '#FD2D4A',
-    active: '#E52840',
+    main: '#FA5762',
+    hover: '#FF6E72',
+    active: '#FF6E72',
   },
 
   warning: {
-    main: '#FA5A28',
-    hover: '#FB754C',
-    active: '#D64D22',
+    main: '#F0C243',
+    hover: '#F0C243',
+    active: '#F0C243',
   },
 
   accent: {
-    main: 'rgba(4, 159, 217, 1)',
-    hover: 'rgba(26, 174, 224, 1)',
-    active: 'rgba(3, 133, 181, 1)',
+    main: 'rgba(100, 158, 245, 1)',
+    hover: 'rgba(124, 173, 247, 1)',
+    active: 'rgba(124, 173, 247, 1)',
   },
 
   notice: {
-    background: '#242424', // elevated
+    background: '#534A6D',
   },
 
   action: {
-    active: '#FFFFFF',
+    active: '#F7F7F7',
     hover: 'rgba(255, 255, 255, 0.1)',
     hoverOpacity: 0.1,
     selected: 'rgba(255, 255, 255, 0.2)',
-    disabled: 'rgba(255, 255, 255, 0.3)',
-    disabledBackground: 'rgba(255, 255, 255, 0.12)',
+    disabled: '#6F7680',
+    disabledBackground: '#464C54',
   },
 
   terminal: {
-    foreground: '#FFF',
+    foreground: '#F7F7F7',
     background: levels.sunken,
-    selectionBackground: 'rgba(4, 159, 217, 0.25)',
-    cursor: '#FFF',
+    selectionBackground: 'rgba(82, 166, 43, 0.25)',
+    cursor: '#F7F7F7',
     cursorAccent: levels.sunken,
     red: dataVisualisationColors.primary.abbey,
     green: dataVisualisationColors.primary.caribbean,
@@ -255,8 +255,8 @@ const colors: ThemeColors = {
     brightBlue: dataVisualisationColors.tertiary.picton,
     brightMagenta: dataVisualisationColors.tertiary.purple,
     brightCyan: dataVisualisationColors.tertiary.cyan,
-    searchMatch: '#A3DCF5',
-    activeSearchMatch: '#049FD9',
+    searchMatch: '#398519',
+    activeSearchMatch: '#52A62B',
   },
 
   editor: {
@@ -269,20 +269,20 @@ const colors: ThemeColors = {
   },
 
   sessionRecording: {
-    resource: '#5BC8F5',
-    user: '#C5B6FF',
+    resource: '#649EF5',
+    user: '#52A62B',
     player: {
       progressBar: {
         background: 'rgba(255, 255, 255, 0.2)',
         seeking: 'rgba(255, 255, 255, 0.17)',
-        progress: '#049FD9',
+        progress: '#52A62B',
       },
     },
     riskLevels: {
-      low: '#00A223',
-      medium: '#FA5A28',
-      high: '#FD2D4A',
-      critical: '#E51E3C',
+      low: '#33BBF5',
+      medium: '#F0C243',
+      high: '#F7782F',
+      critical: '#FA5762',
     },
   },
 
@@ -298,7 +298,7 @@ const colors: ThemeColors = {
     cursor: 'rgba(255, 255, 255, 0.4)',
     events: {
       inactivity: {
-        background: 'rgba(4, 159, 217, 0.25)',
+        background: 'rgba(82, 166, 43, 0.25)',
         text: 'rgba(255, 255, 255, 0.6)',
       },
       resize: {
@@ -308,7 +308,7 @@ const colors: ThemeColors = {
         text: '#86c4ed',
       },
       join: {
-        background: '#049FD9',
+        background: '#649EF5',
         text: 'rgba(0, 0, 0, 0.87)',
       },
       default: {
@@ -324,9 +324,9 @@ const colors: ThemeColors = {
     },
   },
 
-  link: '#049FD9',
+  link: '#649EF5',
 
-  highlightedNavigationItem: 'rgba(4, 159, 217, 0.2)',
+  highlightedNavigationItem: 'rgba(82, 166, 43, 0.2)',
 
   dataVisualisation: dataVisualisationColors,
 };
