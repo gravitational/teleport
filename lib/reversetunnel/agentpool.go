@@ -449,8 +449,8 @@ func (p *AgentPool) tryDisconnect(ctx context.Context) {
 	}
 
 	var (
-		maxRTT     time.Duration
-		disconnect Agent
+		maxRTT              time.Duration
+		disconnectCandidate Agent
 	)
 	for _, proxyID := range proxyIDs {
 		// Only active desired proxies are considered for disconnect.
@@ -476,14 +476,14 @@ func (p *AgentPool) tryDisconnect(ctx context.Context) {
 		}
 		if rtt > maxRTT {
 			maxRTT = rtt
-			disconnect = agent
+			disconnectCandidate = agent
 		}
 	}
 
-	if disconnect != nil {
+	if disconnectCandidate != nil {
 		p.lastConnectivityChange = now
 		go func() {
-			if err := disconnect.Stop(); err != nil {
+			if err := disconnectCandidate.Stop(); err != nil {
 				p.logger.DebugContext(ctx, "Error disconnecting agent", "error", err)
 			}
 		}()
