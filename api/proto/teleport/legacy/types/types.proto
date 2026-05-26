@@ -7857,6 +7857,25 @@ message PluginSCIMSettings {
   // by the SCIM plugin. It enables matching a SAML/OIDC external user
   // with a SCIM-persisted user, allowing the ephemeral user entry to be updated to SCIM user.
   ConnectorInfo connector_info = 3 [(gogoproto.jsontag) = "connector_info"];
+
+  // AutoProvisionAccessLists controls whether the SCIM server automatically
+  // creates a Teleport Access List when a SCIM Group push (POST /Groups)
+  // references a group that does not yet exist in Teleport.
+  //
+  // When false (default), POST /Groups for a non-existent group returns
+  // NotFound and the operator must precreate the Access List via tctl
+  // or the Teleport API. When true, the SCIM server creates a new
+  // Access List with spec.type="scim", title from the SCIM displayName,
+  // and owners from DefaultOwners. The auto-provisioned Access List
+  // grants no roles to its members until an administrator edits it
+  // and adds grants.
+  bool auto_provision_access_lists = 4 [(gogoproto.jsontag) = "auto_provision_access_lists,omitempty"];
+
+  // DefaultOwners is the list of Teleport usernames to set as owners on
+  // Access Lists auto-provisioned via SCIM. At least one owner is required
+  // when AutoProvisionAccessLists is true; the listed users must already
+  // exist in Teleport.
+  repeated string default_owners = 5 [(gogoproto.jsontag) = "default_owners,omitempty"];
 }
 
 // PluginDatadogAccessSettings defines the settings for a Datadog Incident Management plugin

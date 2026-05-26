@@ -796,6 +796,20 @@ func (c *PluginSCIMSettings) CheckAndSetDefaults() error {
 		return trace.BadParameter("connector_info must be set")
 	}
 
+	if c.AutoProvisionAccessLists {
+		if len(c.DefaultOwners) == 0 {
+			return trace.BadParameter(
+				"default_owners must contain at least one Teleport username " +
+					"when auto_provision_access_lists is enabled")
+		}
+		for i, owner := range c.DefaultOwners {
+			if owner == "" {
+				return trace.BadParameter(
+					"default_owners[%d] must be a non-empty Teleport username", i)
+			}
+		}
+	}
+
 	return nil
 }
 
