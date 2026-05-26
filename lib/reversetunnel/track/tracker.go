@@ -222,10 +222,9 @@ func (t *Tracker) TrackExpected(proxies ...Proxy) {
 		return
 	}
 
-	now := time.Now()
-
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	now := time.Now()
 
 	t.cannotLease = false
 	for _, p := range proxies {
@@ -253,9 +252,9 @@ func (t *Tracker) TrackExpected(proxies ...Proxy) {
 // tunnel_strategy; 0 means full connectivity, i.e. "agent mesh" mode, a nonzero
 // value (the connection_count of the tunnel_strategy) is proxy peering mode.
 func (t *Tracker) SetConnectionCount(connectionCount int) {
-	now := time.Now()
 	t.mu.Lock()
 	defer t.mu.Unlock()
+	now := time.Now()
 
 	if t.connectionCount != connectionCount {
 		t.lastTopologyChange = now

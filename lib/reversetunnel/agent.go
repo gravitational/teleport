@@ -676,8 +676,8 @@ func (a *agent) sendKeepalives() error {
 			return trace.Wrap(err, "failed to send keepalive request")
 		}
 
-		rtt := a.clock.Since(now)
 		a.mu.Lock()
+		rtt := a.clock.Since(now)
 		if a.smoothedRTT == 0 {
 			a.smoothedRTT = rtt
 		}
