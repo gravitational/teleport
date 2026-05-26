@@ -23,14 +23,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"time"
 
 	"github.com/gravitational/trace"
 
+	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
 	accessgraph "github.com/gravitational/teleport/lib/accessgraph/apiclient"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -64,12 +67,11 @@ type accessGraphResponse interface {
 // It propagates transport errors and turns any HTTP status >= 400 into
 // a non-nil error with a best-effort message extracted from the response body.
 func doRequest[T accessGraphResponse](resp T, err error) (T, error) {
-	var zero T
 	if err != nil {
-		return zero, trace.Wrap(err, "request failed")
+		return *new(T), trace.Wrap(err, "request failed")
 	}
 	if err := checkResponse(resp.StatusCode(), resp.Bytes()); err != nil {
-		return zero, err
+		return *new(T), err
 	}
 	return resp, nil
 }
@@ -78,7 +80,7 @@ func doRequest[T accessGraphResponse](resp T, err error) (T, error) {
 // a non-nil error if the status code indicates failure. It attempts to extract
 // a best-effort message from the response body.
 func checkResponse(statusCode int, body []byte) error {
-	if statusCode < 400 {
+	if 200 <= statusCode && statusCode < 400 {
 		return nil
 	}
 
@@ -137,14 +139,22 @@ func newAccessGraphHTTPClient(ctx context.Context, proxyAddr string, keyRing *cl
 		return nil, trace.Wrap(err)
 	}
 
+	// SNI follows the resolved proxy host
+	host, _, splitErr := net.SplitHostPort(proxyAddr)
+	if splitErr != nil {
+		host = proxyAddr
+	}
+	baseTLSConfig.ServerName = host
+
+	transport, err := defaults.Transport()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	transport.TLSClientConfig = baseTLSConfig
+
 	httpClient := &http.Client{
-		// Honor HTTPS_PROXY / NO_PROXY, matching the webclient used by
-		// `tsh login` against this address; mTLS is end-to-end via CONNECT.
-		Transport: &http.Transport{
-			TLSClientConfig: baseTLSConfig,
-			Proxy:           http.ProxyFromEnvironment,
-		},
-		Timeout: accessGraphAPITimeout,
+		Transport: tracehttp.NewTransport(transport),
+		Timeout:   accessGraphAPITimeout,
 	}
 
 	slog.DebugContext(ctx, "Created Access Graph HTTP client",

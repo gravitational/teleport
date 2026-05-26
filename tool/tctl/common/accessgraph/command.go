@@ -122,8 +122,8 @@ func (c *AccessGraphCommand) accessGraphCheck(ctx context.Context, clientFunc co
 		return trace.Wrap(err, "failed to list Access Graph alerts")
 	}
 
-	if res.JSON200 == nil || res.JSON200.Data == nil {
-		return trace.BadParameter("unexpected response from Access Graph API: missing data")
+	if res.JSON200 == nil {
+		return trace.BadParameter("unexpected response from Access Graph API: expected HTTP 200 with JSON body")
 	}
 
 	return trace.Wrap(utils.WriteYAMLArray(c.stdout, res.JSON200.Data), "failed to write Access Graph alerts to output")
