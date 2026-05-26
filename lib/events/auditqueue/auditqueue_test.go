@@ -137,7 +137,7 @@ func TestRun_DeliversEvents(t *testing.T) {
 	for _, kind := range allKinds {
 		t.Run(string(kind), func(t *testing.T) {
 			t.Parallel()
-			ctx := context.Background()
+			ctx := t.Context()
 			q := newTestQueue(t, kind)
 
 			for i := int64(0); i < 3; i++ {
