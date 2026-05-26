@@ -394,6 +394,9 @@ func (q *sqliteQueue) writeLoop() {
 		// larger batch sizes up to about 250 leads to noticeable performance
 		// improvements.
 		err := q.commitBatch(batch)
+		if err == nil {
+			eventsEnqueued.Add(float64(len(batch)))
+		}
 		for _, req := range batch {
 			// If we got an error from the transaction, then we will propagate
 			// that error to all callers. Otherwise, all callers receive a `nil`
@@ -763,7 +766,13 @@ func (q *sqliteQueue) fetch(limit int) ([]Item, error) {
 }
 
 func (q *sqliteQueue) ack(items []Item) error {
-	return ackDB(q.ctx, q.db, items)
+	err := ackDB(q.ctx, q.db, items)
+	if err != nil {
+		// Once 'ack' succeeds, we have finished the entire end-to-end of
+		// delivering these events.
+		eventsDelivered.Add(float64(len(items)))
+	}
+	return err
 }
 
 // fetchDB reads up to `limit` oldest items from the table `audit_queue`.

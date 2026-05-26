@@ -57,4 +57,27 @@ var softLimitWarnings = prometheus.NewCounter(
 	},
 )
 
-var prometheusCollectors = []prometheus.Collector{batchSize, orphansAdopted, orphanScanErrors, softLimitWarnings}
+var eventsEnqueued = prometheus.NewCounter(
+	prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Name:      "audit_queue_events_enqueued_total",
+		Help:      "Total number of audit events enqueued.",
+	},
+)
+
+var eventsDelivered = prometheus.NewCounter(
+	prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Name:      "audit_queue_events_delivered_total",
+		Help:      "Total number of audit events successfully delivered.",
+	},
+)
+
+var prometheusCollectors = []prometheus.Collector{
+	batchSize,
+	orphansAdopted,
+	orphanScanErrors,
+	softLimitWarnings,
+	eventsEnqueued,
+	eventsDelivered,
+}
