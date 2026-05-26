@@ -60,9 +60,11 @@ func GenSchemaWorkloadCluster(ctx context.Context) (github_com_hashicorp_terrafo
 		"metadata": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				"description": {
-					Description: "description is object description.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					Computed:      true,
+					Description:   "description is object description.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:      true,
@@ -72,9 +74,11 @@ func GenSchemaWorkloadCluster(ctx context.Context) (github_com_hashicorp_terrafo
 					Validators:    []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
 				}),
 				"labels": {
-					Description: "labels is a set of labels.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+					Computed:      true,
+					Description:   "labels is a set of labels.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
 				"name": {
 					Description:   "name is an object name.",
@@ -104,44 +108,58 @@ func GenSchemaWorkloadCluster(ctx context.Context) (github_com_hashicorp_terrafo
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				"bot": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"name": {
-						Description: "name of the bot, token, and role that will be created",
-						Optional:    true,
-						Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						Computed:      true,
+						Description:   "name of the bot, token, and role that will be created",
+						Optional:      true,
+						PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+						Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 					}}),
 					Description: "",
 					Optional:    true,
 				},
 				"regions": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"name": {
-						Description: "name is the region's name",
-						Optional:    true,
-						Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+						Computed:      true,
+						Description:   "name is the region's name",
+						Optional:      true,
+						PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+						Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 					}}),
-					Description: "",
-					Optional:    true,
+					Computed:      true,
+					Description:   "",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 				},
 				"token": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"allow": {
 							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 								"aws_account": {
-									Description: "",
-									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Computed:      true,
+									Description:   "",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 								"aws_arn": {
-									Description: "",
-									Optional:    true,
-									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+									Computed:      true,
+									Description:   "",
+									Optional:      true,
+									PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+									Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 								},
 							}),
-							Description: "allow defines the AWS Accounts and ARNs to allow joining from",
-							Optional:    true,
+							Computed:      true,
+							Description:   "allow defines the AWS Accounts and ARNs to allow joining from",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 						},
 						"join_method": {
-							Description: "join_method is type of join method to allow for the token",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Computed:      true,
+							Description:   "join_method is type of join method to allow for the token",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 					}),
 					Description: "",
@@ -154,23 +172,29 @@ func GenSchemaWorkloadCluster(ctx context.Context) (github_com_hashicorp_terrafo
 		"status": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				"domain": {
-					Description: "domain is the Teleport Proxy address of the child Teleport Cloud cluster",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					Computed:      true,
+					Description:   "domain is the Teleport Proxy address of the child Teleport Cloud cluster",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"state": {
-					Description: "state is the status of the child cluster running in Teleport Cloud",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					Computed:      true,
+					Description:   "state is the status of the child cluster running in Teleport Cloud",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 			}),
 			Description: "",
 			Optional:    true,
 		},
 		"sub_kind": {
-			Description: "",
-			Optional:    true,
-			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Computed:      true,
+			Description:   "",
+			Optional:      true,
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 		"version": {
 			Description: "",
@@ -621,6 +645,9 @@ func CopyWorkloadClusterToTerraform(ctx context.Context, obj *github_com_gravita
 		} else {
 			v, ok := tf.Attrs["kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
+				if tf.Attrs["kind"] != nil {
+					diags.Append(attrWriteUnexpectedExistingTypeDiag{"WorkloadCluster.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"WorkloadCluster.kind", err})
@@ -629,8 +656,9 @@ func CopyWorkloadClusterToTerraform(ctx context.Context, obj *github_com_gravita
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"WorkloadCluster.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
-				v.Null = string(obj.Kind) == ""
 			}
+
+			v.Null = false
 			v.Value = string(obj.Kind)
 			v.Unknown = false
 			tf.Attrs["kind"] = v
@@ -643,6 +671,9 @@ func CopyWorkloadClusterToTerraform(ctx context.Context, obj *github_com_gravita
 		} else {
 			v, ok := tf.Attrs["sub_kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
+				if tf.Attrs["sub_kind"] != nil {
+					diags.Append(attrWriteUnexpectedExistingTypeDiag{"WorkloadCluster.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"WorkloadCluster.sub_kind", err})
@@ -651,8 +682,9 @@ func CopyWorkloadClusterToTerraform(ctx context.Context, obj *github_com_gravita
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"WorkloadCluster.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
-				v.Null = string(obj.SubKind) == ""
 			}
+
+			v.Null = false
 			v.Value = string(obj.SubKind)
 			v.Unknown = false
 			tf.Attrs["sub_kind"] = v
@@ -665,6 +697,9 @@ func CopyWorkloadClusterToTerraform(ctx context.Context, obj *github_com_gravita
 		} else {
 			v, ok := tf.Attrs["version"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
+				if tf.Attrs["version"] != nil {
+					diags.Append(attrWriteUnexpectedExistingTypeDiag{"WorkloadCluster.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"WorkloadCluster.version", err})
@@ -673,8 +708,9 @@ func CopyWorkloadClusterToTerraform(ctx context.Context, obj *github_com_gravita
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"WorkloadCluster.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
-				v.Null = string(obj.Version) == ""
 			}
+
+			v.Null = false
 			v.Value = string(obj.Version)
 			v.Unknown = false
 			tf.Attrs["version"] = v
@@ -704,6 +740,7 @@ func CopyWorkloadClusterToTerraform(ctx context.Context, obj *github_com_gravita
 				if obj.Metadata == nil {
 					v.Null = true
 				} else {
+					v.Null = false
 					obj := obj.Metadata
 					tf := &v
 					{
@@ -713,6 +750,9 @@ func CopyWorkloadClusterToTerraform(ctx context.Context, obj *github_com_gravita
 						} else {
 							v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["name"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"WorkloadCluster.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"WorkloadCluster.metadata.name", err})
@@ -721,8 +761,9 @@ func CopyWorkloadClusterToTerraform(ctx context.Context, obj *github_com_gravita
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"WorkloadCluster.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Name) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Name)
 							v.Unknown = false
 							tf.Attrs["name"] = v
@@ -735,6 +776,9 @@ func CopyWorkloadClusterToTerraform(ctx context.Context, obj *github_com_gravita
 						} else {
 							v, ok := tf.Attrs["namespace"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["namespace"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"WorkloadCluster.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"WorkloadCluster.metadata.namespace", err})
@@ -743,8 +787,9 @@ func CopyWorkloadClusterToTerraform(ctx context.Context, obj *github_com_gravita
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"WorkloadCluster.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Namespace) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Namespace)
 							v.Unknown = false
 							tf.Attrs["namespace"] = v
@@ -757,6 +802,9 @@ func CopyWorkloadClusterToTerraform(ctx context.Context, obj *github_com_gravita
 						} else {
 							v, ok := tf.Attrs["description"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["description"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"WorkloadCluster.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"WorkloadCluster.metadata.description", err})
@@ -765,8 +813,9 @@ func CopyWorkloadClusterToTerraform(ctx context.Context, obj *github_com_gravita
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"WorkloadCluster.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Description) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Description)
 							v.Unknown = false
 							tf.Attrs["description"] = v
@@ -794,11 +843,14 @@ func CopyWorkloadClusterToTerraform(ctx context.Context, obj *github_com_gravita
 										c.Elems = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
 									}
 								}
-								if obj.Labels != nil {
+								{
 									t := o.ElemType
 									for k, a := range obj.Labels {
-										v, ok := tf.Attrs["labels"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
 										if !ok {
+											if c.Elems[k] != nil {
+												diags.Append(attrWriteUnexpectedExistingTypeDiag{"WorkloadCluster.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											}
 											i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 											if err != nil {
 												diags.Append(attrWriteGeneralError{"WorkloadCluster.metadata.labels", err})
@@ -807,16 +859,15 @@ func CopyWorkloadClusterToTerraform(ctx context.Context, obj *github_com_gravita
 											if !ok {
 												diags.Append(attrWriteConversionFailureDiag{"WorkloadCluster.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 											}
-											v.Null = false
 										}
+
+										v.Null = false
 										v.Value = string(a)
 										v.Unknown = false
 										c.Elems[k] = v
 									}
-									if len(obj.Labels) > 0 {
-										c.Null = false
-									}
 								}
+								c.Null = false
 								c.Unknown = false
 								tf.Attrs["labels"] = c
 							}
@@ -838,6 +889,9 @@ func CopyWorkloadClusterToTerraform(ctx context.Context, obj *github_com_gravita
 						} else {
 							v, ok := tf.Attrs["revision"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["revision"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"WorkloadCluster.metadata.revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"WorkloadCluster.metadata.revision", err})
@@ -846,8 +900,9 @@ func CopyWorkloadClusterToTerraform(ctx context.Context, obj *github_com_gravita
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"WorkloadCluster.metadata.revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Revision) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Revision)
 							v.Unknown = false
 							tf.Attrs["revision"] = v
@@ -883,6 +938,7 @@ func CopyWorkloadClusterToTerraform(ctx context.Context, obj *github_com_gravita
 				if obj.Spec == nil {
 					v.Null = true
 				} else {
+					v.Null = false
 					obj := obj.Spec
 					tf := &v
 					{
@@ -907,13 +963,13 @@ func CopyWorkloadClusterToTerraform(ctx context.Context, obj *github_com_gravita
 										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Regions))
 									}
 								}
-								if obj.Regions != nil {
+								{
 									o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 									if len(obj.Regions) != len(c.Elems) {
 										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Regions))
 									}
 									for k, a := range obj.Regions {
-										v, ok := tf.Attrs["regions"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 										if !ok {
 											v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -928,6 +984,7 @@ func CopyWorkloadClusterToTerraform(ctx context.Context, obj *github_com_gravita
 										if a == nil {
 											v.Null = true
 										} else {
+											v.Null = false
 											obj := a
 											tf := &v
 											{
@@ -937,6 +994,9 @@ func CopyWorkloadClusterToTerraform(ctx context.Context, obj *github_com_gravita
 												} else {
 													v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 													if !ok {
+														if tf.Attrs["name"] != nil {
+															diags.Append(attrWriteUnexpectedExistingTypeDiag{"WorkloadCluster.spec.regions.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+														}
 														i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 														if err != nil {
 															diags.Append(attrWriteGeneralError{"WorkloadCluster.spec.regions.name", err})
@@ -945,8 +1005,9 @@ func CopyWorkloadClusterToTerraform(ctx context.Context, obj *github_com_gravita
 														if !ok {
 															diags.Append(attrWriteConversionFailureDiag{"WorkloadCluster.spec.regions.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 														}
-														v.Null = string(obj.Name) == ""
 													}
+
+													v.Null = false
 													v.Value = string(obj.Name)
 													v.Unknown = false
 													tf.Attrs["name"] = v
@@ -956,10 +1017,8 @@ func CopyWorkloadClusterToTerraform(ctx context.Context, obj *github_com_gravita
 										v.Unknown = false
 										c.Elems[k] = v
 									}
-									if len(obj.Regions) > 0 {
-										c.Null = false
-									}
 								}
+								c.Null = false
 								c.Unknown = false
 								tf.Attrs["regions"] = c
 							}
@@ -989,6 +1048,7 @@ func CopyWorkloadClusterToTerraform(ctx context.Context, obj *github_com_gravita
 								if obj.Bot == nil {
 									v.Null = true
 								} else {
+									v.Null = false
 									obj := obj.Bot
 									tf := &v
 									{
@@ -998,6 +1058,9 @@ func CopyWorkloadClusterToTerraform(ctx context.Context, obj *github_com_gravita
 										} else {
 											v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
+												if tf.Attrs["name"] != nil {
+													diags.Append(attrWriteUnexpectedExistingTypeDiag{"WorkloadCluster.spec.bot.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"WorkloadCluster.spec.bot.name", err})
@@ -1006,8 +1069,9 @@ func CopyWorkloadClusterToTerraform(ctx context.Context, obj *github_com_gravita
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"WorkloadCluster.spec.bot.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
-												v.Null = string(obj.Name) == ""
 											}
+
+											v.Null = false
 											v.Value = string(obj.Name)
 											v.Unknown = false
 											tf.Attrs["name"] = v
@@ -1043,6 +1107,7 @@ func CopyWorkloadClusterToTerraform(ctx context.Context, obj *github_com_gravita
 								if obj.Token == nil {
 									v.Null = true
 								} else {
+									v.Null = false
 									obj := obj.Token
 									tf := &v
 									{
@@ -1052,6 +1117,9 @@ func CopyWorkloadClusterToTerraform(ctx context.Context, obj *github_com_gravita
 										} else {
 											v, ok := tf.Attrs["join_method"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
+												if tf.Attrs["join_method"] != nil {
+													diags.Append(attrWriteUnexpectedExistingTypeDiag{"WorkloadCluster.spec.token.join_method", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"WorkloadCluster.spec.token.join_method", err})
@@ -1060,8 +1128,9 @@ func CopyWorkloadClusterToTerraform(ctx context.Context, obj *github_com_gravita
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"WorkloadCluster.spec.token.join_method", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
-												v.Null = string(obj.JoinMethod) == ""
 											}
+
+											v.Null = false
 											v.Value = string(obj.JoinMethod)
 											v.Unknown = false
 											tf.Attrs["join_method"] = v
@@ -1089,13 +1158,13 @@ func CopyWorkloadClusterToTerraform(ctx context.Context, obj *github_com_gravita
 														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow))
 													}
 												}
-												if obj.Allow != nil {
+												{
 													o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 													if len(obj.Allow) != len(c.Elems) {
 														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Allow))
 													}
 													for k, a := range obj.Allow {
-														v, ok := tf.Attrs["allow"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 														if !ok {
 															v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -1110,6 +1179,7 @@ func CopyWorkloadClusterToTerraform(ctx context.Context, obj *github_com_gravita
 														if a == nil {
 															v.Null = true
 														} else {
+															v.Null = false
 															obj := a
 															tf := &v
 															{
@@ -1119,6 +1189,9 @@ func CopyWorkloadClusterToTerraform(ctx context.Context, obj *github_com_gravita
 																} else {
 																	v, ok := tf.Attrs["aws_account"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
+																		if tf.Attrs["aws_account"] != nil {
+																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"WorkloadCluster.spec.token.allow.aws_account", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"WorkloadCluster.spec.token.allow.aws_account", err})
@@ -1127,8 +1200,9 @@ func CopyWorkloadClusterToTerraform(ctx context.Context, obj *github_com_gravita
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"WorkloadCluster.spec.token.allow.aws_account", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
-																		v.Null = string(obj.AwsAccount) == ""
 																	}
+
+																	v.Null = false
 																	v.Value = string(obj.AwsAccount)
 																	v.Unknown = false
 																	tf.Attrs["aws_account"] = v
@@ -1141,6 +1215,9 @@ func CopyWorkloadClusterToTerraform(ctx context.Context, obj *github_com_gravita
 																} else {
 																	v, ok := tf.Attrs["aws_arn"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
+																		if tf.Attrs["aws_arn"] != nil {
+																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"WorkloadCluster.spec.token.allow.aws_arn", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"WorkloadCluster.spec.token.allow.aws_arn", err})
@@ -1149,8 +1226,9 @@ func CopyWorkloadClusterToTerraform(ctx context.Context, obj *github_com_gravita
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"WorkloadCluster.spec.token.allow.aws_arn", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
-																		v.Null = string(obj.AwsArn) == ""
 																	}
+
+																	v.Null = false
 																	v.Value = string(obj.AwsArn)
 																	v.Unknown = false
 																	tf.Attrs["aws_arn"] = v
@@ -1160,10 +1238,8 @@ func CopyWorkloadClusterToTerraform(ctx context.Context, obj *github_com_gravita
 														v.Unknown = false
 														c.Elems[k] = v
 													}
-													if len(obj.Allow) > 0 {
-														c.Null = false
-													}
 												}
+												c.Null = false
 												c.Unknown = false
 												tf.Attrs["allow"] = c
 											}
@@ -1205,6 +1281,7 @@ func CopyWorkloadClusterToTerraform(ctx context.Context, obj *github_com_gravita
 				if obj.Status == nil {
 					v.Null = true
 				} else {
+					v.Null = false
 					obj := obj.Status
 					tf := &v
 					{
@@ -1214,6 +1291,9 @@ func CopyWorkloadClusterToTerraform(ctx context.Context, obj *github_com_gravita
 						} else {
 							v, ok := tf.Attrs["state"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["state"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"WorkloadCluster.status.state", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"WorkloadCluster.status.state", err})
@@ -1222,8 +1302,9 @@ func CopyWorkloadClusterToTerraform(ctx context.Context, obj *github_com_gravita
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"WorkloadCluster.status.state", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.State) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.State)
 							v.Unknown = false
 							tf.Attrs["state"] = v
@@ -1236,6 +1317,9 @@ func CopyWorkloadClusterToTerraform(ctx context.Context, obj *github_com_gravita
 						} else {
 							v, ok := tf.Attrs["domain"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["domain"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"WorkloadCluster.status.domain", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"WorkloadCluster.status.domain", err})
@@ -1244,8 +1328,9 @@ func CopyWorkloadClusterToTerraform(ctx context.Context, obj *github_com_gravita
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"WorkloadCluster.status.domain", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Domain) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Domain)
 							v.Unknown = false
 							tf.Attrs["domain"] = v
@@ -1365,5 +1450,28 @@ func (d attrWriteGeneralError) Detail() string {
 }
 
 func (d attrWriteGeneralError) Equal(o github_com_hashicorp_terraform_plugin_framework_diag.Diagnostic) bool {
+	return (d.Severity() == o.Severity()) && (d.Summary() == o.Summary()) && (d.Detail() == o.Detail())
+}
+
+// attrWriteUnexpectedExistingTypeDiag represents diagnostic message when a field is initialized with a value whose go
+// type does not match what we'd expect.
+type attrWriteUnexpectedExistingTypeDiag struct {
+	Path string
+	Type string
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Severity() github_com_hashicorp_terraform_plugin_framework_diag.Severity {
+	return github_com_hashicorp_terraform_plugin_framework_diag.SeverityError
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Summary() string {
+	return "Error writing to Terraform object"
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Detail() string {
+	return fmt.Sprintf("A value for %v is already initialized and its type is not %v", d.Path, d.Type)
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Equal(o github_com_hashicorp_terraform_plugin_framework_diag.Diagnostic) bool {
 	return (d.Severity() == o.Severity()) && (d.Summary() == o.Summary()) && (d.Detail() == o.Detail())
 }
