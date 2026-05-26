@@ -813,6 +813,7 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 		PrivateKeyPolicy:  u.Identity.PrivateKeyPolicy,
 		UserType:          u.Identity.UserType,
 		OriginClusterName: u.Identity.TeleportCluster,
+		DeviceExtensions:  u.Identity.DeviceExtensions,
 	}
 	if checker.PinSourceIP() && identity.PinnedIP == "" {
 		return nil, trace.Wrap(ErrIPPinningMissing)

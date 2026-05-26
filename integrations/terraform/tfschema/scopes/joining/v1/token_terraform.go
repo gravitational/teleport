@@ -102,9 +102,10 @@ func GenSchemaScopedToken(ctx context.Context) (github_com_hashicorp_terraform_p
 			Required:    true,
 		},
 		"scope": {
-			Description: "Scope is the scope of the token resource.",
-			Required:    true,
-			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Description:   "Scope is the scope of the token resource.",
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.RequiresReplace()},
+			Required:      true,
+			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 		"spec": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
