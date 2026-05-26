@@ -341,8 +341,6 @@ func (q *sqliteQueue) Enqueue(ctx context.Context, event apievents.AuditEvent) e
 	// drained by the function `writeLoop`.
 	select {
 	case q.toBeWritten <- req:
-	case <-ctx.Done():
-		return trace.Wrap(ctx.Err())
 	case <-q.ctx.Done():
 		return trace.Wrap(ErrClosed)
 	}
@@ -354,8 +352,6 @@ func (q *sqliteQueue) Enqueue(ctx context.Context, event apievents.AuditEvent) e
 	select {
 	case err := <-req.resp:
 		return trace.Wrap(err)
-	case <-ctx.Done():
-		return trace.Wrap(ctx.Err())
 	case <-q.ctx.Done():
 		return trace.Wrap(ErrClosed)
 	}
