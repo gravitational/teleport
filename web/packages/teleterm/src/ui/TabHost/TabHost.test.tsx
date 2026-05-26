@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import 'jest-canvas-mock';
 import { createRef } from 'react';
 
 import { act, fireEvent, render, screen } from 'design/utils/testing';

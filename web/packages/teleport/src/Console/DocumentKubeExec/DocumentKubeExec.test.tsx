@@ -17,7 +17,6 @@
  */
 import { screen } from '@testing-library/react';
 import '@testing-library/jest-dom';
-import 'jest-canvas-mock';
 
 import { act, render } from 'design/utils/testing';
 

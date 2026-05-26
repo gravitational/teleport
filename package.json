@@ -55,7 +55,6 @@
     "eslint-plugin-testing-library": "7.16.2",
     "eslint-plugin-unused-imports": "^4.4.1",
     "jest": "^30.3.0",
-    "jest-canvas-mock": "^2.5.2",
     "jsdom-testing-mocks": "^1.16.0",
     "msw": "2.14.2",
     "msw-storybook-addon": "^2.0.7",

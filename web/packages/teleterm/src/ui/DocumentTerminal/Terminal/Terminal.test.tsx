@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import 'jest-canvas-mock';
 import { EventEmitter } from 'node:events';
 
 import { screen, waitFor } from '@testing-library/react';
