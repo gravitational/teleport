@@ -24,7 +24,6 @@ import (
 	"log/slog"
 	"maps"
 	"slices"
-	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -71,7 +70,7 @@ var SupportedJoinMethods = []types.JoinMethod{
 // BotResourceName returns the default name for resources associated with the
 // given named bot.
 func BotResourceName(botName string) string {
-	return "bot-" + strings.ReplaceAll(botName, " ", "-")
+	return services.BotResourceName(botName)
 }
 
 // Cache is the subset of the cached resources that the Service queries.
