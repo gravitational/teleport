@@ -5095,6 +5095,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 				string(entitlements.AccessLists):                {Enabled: false},
 				string(entitlements.AccessMonitoring):           {Enabled: false},
 				string(entitlements.AccessRequests):             {Enabled: false},
+				string(entitlements.ActivityCenter):             {Enabled: false},
 				string(entitlements.App):                        {Enabled: true},
 				string(entitlements.Beams):                      {Enabled: false},
 				string(entitlements.ClientIPRestrictions):       {Enabled: false},
@@ -5116,6 +5117,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 				string(entitlements.Policy):                     {Enabled: false},
 				string(entitlements.SAML):                       {Enabled: false},
 				string(entitlements.SessionLocks):               {Enabled: false},
+				string(entitlements.SessionSummaries):           {Enabled: false},
 				string(entitlements.UpsellAlert):                {Enabled: false},
 				string(entitlements.UsageReporting):             {Enabled: false},
 				string(entitlements.UnrestrictedManagedUpdates): {Enabled: false},
@@ -9128,15 +9130,12 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		FIPS:   false,
 		Logger: logtest.NewLogger(),
 		Dialer: router,
-		SignerFn: func(authzCtx *authz.ScopedContext, clusterName string) agentless.SignerCreator {
+		SignerFn: func(_ context.Context, authzCtx *authz.ScopedContext, clusterName string) (agentless.SignerCreator, error) {
 			if unscopedCtx, ok := authzCtx.UnscopedContext(); ok {
-				return agentless.SignerFromAuthzContext(unscopedCtx, client, clusterName)
+				return agentless.SignerFromAuthzContext(unscopedCtx, client, client, clusterName), nil
 			}
 
-			return func(ctx context.Context, localAccessPoint agentless.LocalAccessPoint, certGen agentless.CertGenerator) (ssh.Signer, error) {
-				// TODO(fspamarshall/scopes): implement agentless transport signer for scoped identities
-				return nil, trace.NotImplemented("agentless transport signer is not implemented for scoped identities")
-			}
+			return agentless.SignerFromScopedContext(authzCtx, client, client, clusterName), nil
 		},
 		ConnectionMonitor: connMonitor,
 		LocalAddr:         proxyListener.Addr(),

@@ -42,9 +42,11 @@ type fqdnResolver struct {
 }
 
 type fqdnResolverConfig struct {
-	clientApplication   ClientApplication
-	clusterConfigCache  *ClusterConfigCache
-	leafClusterCache    *leafClusterCache
+	clientApplication  ClientApplication
+	clusterConfigCache *ClusterConfigCache
+	leafClusterCache   *leafClusterCache
+	// allowDatabaseAccess gates VNet database FQDN resolution for tsh/Connect.
+	allowDatabaseAccess bool
 	allowAppHTTPSTunnel bool
 }
 
@@ -398,6 +400,10 @@ func (r *fqdnResolver) resolveDBInfoForCluster(
 	candidate clusterResolutionCandidate,
 	fqdn string,
 ) (*vnetv1.ResolveFQDNResponse, error) {
+	if !r.cfg.allowDatabaseAccess {
+		return nil, errNoMatch
+	}
+
 	log := log.With("profile", candidate.profileName, "leaf_cluster", candidate.leafClusterName, "fqdn", fqdn)
 
 	// Try to parse the FQDN as a database FQDN against each possible zone.

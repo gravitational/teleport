@@ -208,6 +208,7 @@ func runTestClientApplicationService(t *testing.T, ctx context.Context, cfg test
 		clientApplication:   cfg.fakeClientApp,
 		clusterConfigCache:  clusterConfigCache,
 		leafClusterCache:    leafClusterCache,
+		allowDatabaseAccess: true,
 		allowAppHTTPSTunnel: cfg.allowAppHTTPSTunnel,
 	})
 	clientApplicationService, err := newClientApplicationService(&clientApplicationServiceConfig{

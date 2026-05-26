@@ -31,8 +31,11 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -131,7 +134,7 @@ func TestRunValidatedMFAChallengeSync_UsesLatestDesiredState(t *testing.T) {
 			leafMFAClient.errByName[stale.GetMetadata().GetName()] = []error{
 				trace.ConnectionProblem(nil, "replication failed"),
 			}
-			leafMFAClient.beforeReply = func(req *mfav1.ReplicateValidatedMFAChallengeRequest) {
+			leafMFAClient.beforeReply = func(req *mfav2.ReplicateValidatedMFAChallengeRequest) {
 				if req.GetName() == stale.GetMetadata().GetName() {
 					<-releaseStaleAttempt
 				}
@@ -157,7 +160,7 @@ func TestRunValidatedMFAChallengeSync_UsesLatestDesiredState(t *testing.T) {
 			// Update the watcher's state to include the fresh challenge before unblocking the stale attempt. The next
 			// retry should then sync the latest desired state instead of retrying the stale one, but it must still wait
 			// for the existing backoff to elapse before syncing.
-			leaf.validatedMFAChallengeWatcher.ResourcesC <- []*mfav1.ValidatedMFAChallenge{fresh}
+			leaf.validatedMFAChallengeWatcher.ResourcesC <- []*mfav2.ValidatedMFAChallenge{fresh}
 			close(releaseStaleAttempt)
 
 			synctest.Wait()
@@ -180,7 +183,7 @@ func TestRunValidatedMFAChallengeSync_DropsExpiredFailedChallenges(t *testing.T)
 		t,
 		func(t *testing.T) {
 			expired := newValidatedMFAChallenge("challenge-for-leaf")
-			expired.GetMetadata().SetExpiry(time.Now().Add(expiredValidatedMFAChallengeGracePeriod + time.Nanosecond))
+			expired.GetMetadata().Expires = timestamppb.New(time.Now().Add(expiredValidatedMFAChallengeGracePeriod + time.Nanosecond))
 
 			leafMFAClient := newMockMFAServiceClient()
 			leafMFAClient.errByName[expired.GetMetadata().GetName()] = []error{
@@ -250,15 +253,15 @@ func TestRunValidatedMFAChallengeSync_CoalescesUpdatesDuringBackoff(t *testing.T
 			synctest.Wait()
 			require.Len(t, leafMFAClient.Requests(), 1)
 
-			leaf.validatedMFAChallengeWatcher.ResourcesC <- []*mfav1.ValidatedMFAChallenge{fresh}
+			leaf.validatedMFAChallengeWatcher.ResourcesC <- []*mfav2.ValidatedMFAChallenge{fresh}
 			synctest.Wait()
 			require.Len(t, leafMFAClient.Requests(), 1)
 
-			leaf.validatedMFAChallengeWatcher.ResourcesC <- []*mfav1.ValidatedMFAChallenge{fresher}
+			leaf.validatedMFAChallengeWatcher.ResourcesC <- []*mfav2.ValidatedMFAChallenge{fresher}
 			synctest.Wait()
 			require.Len(t, leafMFAClient.Requests(), 1)
 
-			leaf.validatedMFAChallengeWatcher.ResourcesC <- []*mfav1.ValidatedMFAChallenge{freshest}
+			leaf.validatedMFAChallengeWatcher.ResourcesC <- []*mfav2.ValidatedMFAChallenge{freshest}
 			synctest.Wait()
 			require.Len(t, leafMFAClient.Requests(), 1)
 
@@ -352,7 +355,7 @@ func TestSyncValidatedMFAChallenges_SkipsExpiredChallenges(t *testing.T) {
 	leaf := newLeafClusterForSyncTest(leafMFAClient)
 
 	expired := newValidatedMFAChallenge("expired")
-	expired.GetMetadata().SetExpiry(time.Now().Add(expiredValidatedMFAChallengeGracePeriod).Add(-time.Nanosecond))
+	expired.GetMetadata().Expires = timestamppb.New(time.Now().Add(expiredValidatedMFAChallengeGracePeriod).Add(-time.Nanosecond))
 
 	failed := leaf.syncValidatedMFAChallenges(
 		t.Context(),
@@ -365,8 +368,8 @@ func TestSyncValidatedMFAChallenges_SkipsExpiredChallenges(t *testing.T) {
 
 func newLeafClusterWithMFAWatcher(
 	t *testing.T,
-	mfaClient mfav1.MFAServiceClient,
-	challenges ...*mfav1.ValidatedMFAChallenge,
+	mfaClient mfav2.MFAServiceClient,
+	challenges ...*mfav2.ValidatedMFAChallenge,
 ) *leafCluster {
 	t.Helper()
 
@@ -376,14 +379,14 @@ func newLeafClusterWithMFAWatcher(
 	events <- types.Event{Type: types.OpInit}
 
 	// Make a copy of the challenges to avoid tests mutating the ones owned by the watcher.
-	copiedChallenges := make([]*mfav1.ValidatedMFAChallenge, 0, len(challenges))
+	copiedChallenges := make([]*mfav2.ValidatedMFAChallenge, 0, len(challenges))
 	for _, challenge := range challenges {
 		copiedChallenges = append(copiedChallenges, apiutils.CloneProtoMsg(challenge))
 	}
 
 	watcher, err := services.NewGenericResourceWatcher(
 		t.Context(),
-		services.GenericWatcherConfig[*mfav1.ValidatedMFAChallenge, *mfav1.ValidatedMFAChallenge]{
+		services.GenericWatcherConfig[*mfav2.ValidatedMFAChallenge, *mfav2.ValidatedMFAChallenge]{
 			ResourceKind: types.KindValidatedMFAChallenge,
 			ResourceWatcherConfig: services.ResourceWatcherConfig{
 				Component: "Watcher on the Wall",
@@ -394,18 +397,18 @@ func newLeafClusterWithMFAWatcher(
 					},
 				},
 			},
-			ResourceGetter: func(context.Context) ([]*mfav1.ValidatedMFAChallenge, error) {
+			ResourceGetter: func(context.Context) ([]*mfav2.ValidatedMFAChallenge, error) {
 				return copiedChallenges, nil
 			},
-			ResourceKey: func(r *mfav1.ValidatedMFAChallenge) string {
+			ResourceKey: func(r *mfav2.ValidatedMFAChallenge) string {
 				return backend.NewKey(
 					r.GetSpec().GetTargetCluster(),
 					r.GetMetadata().GetName(),
 				).String()
 			},
-			CloneFunc:    apiutils.CloneProtoMsg[*mfav1.ValidatedMFAChallenge],
-			ReadOnlyFunc: apiutils.CloneProtoMsg[*mfav1.ValidatedMFAChallenge],
-			ResourcesC:   make(chan []*mfav1.ValidatedMFAChallenge, 1),
+			CloneFunc:    apiutils.CloneProtoMsg[*mfav2.ValidatedMFAChallenge],
+			ReadOnlyFunc: apiutils.CloneProtoMsg[*mfav2.ValidatedMFAChallenge],
+			ResourcesC:   make(chan []*mfav2.ValidatedMFAChallenge, 1),
 		},
 	)
 	require.NoError(t, err)
@@ -421,7 +424,7 @@ func newLeafClusterWithMFAWatcher(
 }
 
 func newLeafClusterForSyncTest(
-	mfaClient mfav1.MFAServiceClient,
+	mfaClient mfav2.MFAServiceClient,
 ) *leafCluster {
 	return &leafCluster{
 		domainName: "leaf.example.com",
@@ -459,53 +462,53 @@ func newRetryConfig(delay time.Duration) retryutils.LinearConfig {
 func assertReplicatedChallenges(
 	t *testing.T,
 	client *mockMFAServiceClient,
-	challenges ...*mfav1.ValidatedMFAChallenge,
+	challenges ...*mfav2.ValidatedMFAChallenge,
 ) {
 	t.Helper()
 
-	wantReqs := make([]*mfav1.ReplicateValidatedMFAChallengeRequest, 0, len(challenges))
+	wantReqs := make([]*mfav2.ReplicateValidatedMFAChallengeRequest, 0, len(challenges))
 	for _, challenge := range challenges {
 		wantReqs = append(wantReqs, replicateValidatedMFAChallengeRequest(challenge))
 	}
 
 	require.Empty(
 		t,
-		cmp.Diff(client.Requests(), wantReqs),
+		cmp.Diff(client.Requests(), wantReqs, protocmp.Transform()),
 		"replicated challenges mismatch (-got +want)",
 	)
 }
 
 func replicateValidatedMFAChallengeRequest(
-	chal *mfav1.ValidatedMFAChallenge,
-) *mfav1.ReplicateValidatedMFAChallengeRequest {
-	return &mfav1.ReplicateValidatedMFAChallengeRequest{
+	chal *mfav2.ValidatedMFAChallenge,
+) *mfav2.ReplicateValidatedMFAChallengeRequest {
+	return mfav2.ReplicateValidatedMFAChallengeRequest_builder{
 		Name:          chal.GetMetadata().GetName(),
 		Payload:       chal.GetSpec().GetPayload(),
 		SourceCluster: chal.GetSpec().GetSourceCluster(),
 		TargetCluster: chal.GetSpec().GetTargetCluster(),
 		Username:      chal.GetSpec().GetUsername(),
-	}
+	}.Build()
 }
 
-func newValidatedMFAChallenge(name string) *mfav1.ValidatedMFAChallenge {
+func newValidatedMFAChallenge(name string) *mfav2.ValidatedMFAChallenge {
 	expires := time.Now().Add(local.ValidatedMFAChallengeExpiry)
 
-	return &mfav1.ValidatedMFAChallenge{
+	return mfav2.ValidatedMFAChallenge_builder{
 		Kind:    types.KindValidatedMFAChallenge,
 		Version: "v1",
-		Metadata: &types.Metadata{
+		Metadata: &headerv1.Metadata{
 			Name:    name,
-			Expires: &expires,
+			Expires: timestamppb.New(expires),
 		},
-		Spec: &mfav1.ValidatedMFAChallengeSpec{
-			Payload: &mfav1.SessionIdentifyingPayload{
-				Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{SshSessionId: []byte("session-id")},
-			},
+		Spec: mfav2.ValidatedMFAChallengeSpec_builder{
+			Payload: mfav2.SessionIdentifyingPayload_builder{
+				SshSessionId: []byte("session-id"),
+			}.Build(),
 			SourceCluster: "root.example.com",
 			TargetCluster: "leaf.example.com",
 			Username:      "alice",
-		},
-	}
+		}.Build(),
+	}.Build()
 }
 
 type mockEvents struct {
@@ -553,34 +556,34 @@ func (*mockMFAWatcher) Error() error {
 type mockLeafClient struct {
 	authclient.ClientI
 
-	mfaClient mfav1.MFAServiceClient
+	mfaClient mfav2.MFAServiceClient
 }
 
-func (m *mockLeafClient) MFAServiceClient() mfav1.MFAServiceClient {
+func (m *mockLeafClient) MFAServiceClientV2() mfav2.MFAServiceClient {
 	return m.mfaClient
 }
 
 type mockMFAServiceClient struct {
-	mfav1.MFAServiceClient
+	mfav2.MFAServiceClient
 
-	requests    []*mfav1.ReplicateValidatedMFAChallengeRequest
+	requests    []*mfav2.ReplicateValidatedMFAChallengeRequest
 	errByName   map[string][]error
-	beforeReply func(*mfav1.ReplicateValidatedMFAChallengeRequest)
+	beforeReply func(*mfav2.ReplicateValidatedMFAChallengeRequest)
 	mu          sync.Mutex
 }
 
 func newMockMFAServiceClient() *mockMFAServiceClient {
 	return &mockMFAServiceClient{
-		requests:  make([]*mfav1.ReplicateValidatedMFAChallengeRequest, 0),
+		requests:  make([]*mfav2.ReplicateValidatedMFAChallengeRequest, 0),
 		errByName: make(map[string][]error),
 	}
 }
 
-func (m *mockMFAServiceClient) Requests() []*mfav1.ReplicateValidatedMFAChallengeRequest {
+func (m *mockMFAServiceClient) Requests() []*mfav2.ReplicateValidatedMFAChallengeRequest {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	out := make([]*mfav1.ReplicateValidatedMFAChallengeRequest, len(m.requests))
+	out := make([]*mfav2.ReplicateValidatedMFAChallengeRequest, len(m.requests))
 	copy(out, m.requests)
 
 	return out
@@ -588,9 +591,9 @@ func (m *mockMFAServiceClient) Requests() []*mfav1.ReplicateValidatedMFAChalleng
 
 func (m *mockMFAServiceClient) ReplicateValidatedMFAChallenge(
 	_ context.Context,
-	req *mfav1.ReplicateValidatedMFAChallengeRequest,
+	req *mfav2.ReplicateValidatedMFAChallengeRequest,
 	_ ...grpc.CallOption,
-) (*mfav1.ReplicateValidatedMFAChallengeResponse, error) {
+) (*mfav2.ReplicateValidatedMFAChallengeResponse, error) {
 	m.mu.Lock()
 
 	// Record request for later inspection by tests.
@@ -615,5 +618,5 @@ func (m *mockMFAServiceClient) ReplicateValidatedMFAChallenge(
 		return nil, err
 	}
 
-	return &mfav1.ReplicateValidatedMFAChallengeResponse{}, nil
+	return &mfav2.ReplicateValidatedMFAChallengeResponse{}, nil
 }

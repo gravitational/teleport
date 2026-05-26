@@ -119,9 +119,13 @@ func RunUserProcess(ctx context.Context, clientApplication ClientApplication) (*
 		log.InfoContext(ctx, "App HTTPS tunnel is enabled")
 	}
 	fqdnResolver := newFQDNResolver(&fqdnResolverConfig{
-		clientApplication:   clientApplication,
-		clusterConfigCache:  clusterConfigCache,
-		leafClusterCache:    leafClusterCache,
+		clientApplication:  clientApplication,
+		clusterConfigCache: clusterConfigCache,
+		leafClusterCache:   leafClusterCache,
+		// DB access via VNet is currently only supported by the tbot beams, but
+		// disabled for tsh/Connect by default. flip to true to enable DB access via VNet
+		// for tsh/Connect to validate locally.
+		allowDatabaseAccess: false,
 		allowAppHTTPSTunnel: allowAppHTTPSTunnel,
 	})
 	unifiedClusterConfigProvider := NewUnifiedClusterConfigProvider(&UnifiedClusterConfigProviderConfig{

@@ -14,7 +14,16 @@ spec:
     singular: teleportscopedtokenv1
   scope: Namespaced
   versions:
-  - name: v1
+  - additionalPrinterColumns:
+    - description: Resource's scope.
+      jsonPath: .scope
+      name: scope
+      type: string
+    - description: The age of this resource
+      jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1
     schema:
       openAPIV3Schema:
         description: ScopedTokenV1 is the Schema for the scopedtokensv1 API
@@ -34,6 +43,10 @@ spec:
           scope:
             description: Scope is the scope of the token resource.
             type: string
+            x-kubernetes-validations:
+            - message: Scope is immutable. To create the resource in a different scope
+                you must delete it first.
+              rule: self == oldSelf
           spec:
             description: ScopedToken resource definition v1 from Teleport
             properties:
@@ -386,6 +399,10 @@ spec:
                 type: integer
             type: object
         type: object
+        x-kubernetes-validations:
+        - message: Scope is immutable. To create the resource in a different scope
+            you must delete it first.
+          rule: has(self.scope) == has(oldSelf.scope)
     served: true
     storage: true
     subresources:

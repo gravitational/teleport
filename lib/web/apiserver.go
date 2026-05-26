@@ -821,7 +821,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		}
 	}
 
-	go h.startFeatureWatcher()
+	go h.startFeatureWatcher(h.cfg.Context)
 
 	return &APIHandler{
 		handler:    h,
@@ -3565,7 +3565,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			// Compute end-to-end feature support for this app: only features that are supported by the AppServer *and*
 			// by all required cluster hops (Auth + Proxy), so clients can hide features that would fail somewhere
 			// along the request path.
-			appComponentFeatures := componentfeatures.Intersect(r.GetComponentFeatures(), clusterAuthProxyServerFeatures)
+			appComponentFeatures := componentfeatures.Intersect(componentfeatures.GetEffectiveServerFeatures(r), clusterAuthProxyServerFeatures)
 
 			app := ui.MakeApp(r.GetApp(), ui.MakeAppsConfig{
 				LocalClusterName:  h.auth.clusterName,

@@ -30,7 +30,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/account"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
@@ -55,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/api/types/usertasks"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 	awsregions "github.com/gravitational/teleport/lib/cloud/aws/regions"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/azure"
@@ -180,6 +180,11 @@ type Config struct {
 	// ClusterFeatures returns flags for supported/unsupported features.
 	// Used as a function because cluster features might change on Auth restarts.
 	ClusterFeatures func() proto.Features
+
+	// kubeAgentVersionGetter overrides the proxy-backed kube agent version getter.
+	// It is used by tests that run discovery watchers under synctest, where real
+	// HTTP/DNS calls are not allowed.
+	kubeAgentVersionGetter version.Getter
 
 	// TriggerFetchC is a list of channels that must be notified when a off-band poll must be performed.
 	// This is used to start a polling iteration when a new DiscoveryConfig change is received.
@@ -1121,9 +1126,12 @@ func genEC2InstancesLogStr(instances []server.EC2Instance) string {
 	})
 }
 
-func genAzureInstancesLogStr(instances []*armcompute.VirtualMachine) string {
-	return genInstancesLogStr(instances, func(i *armcompute.VirtualMachine) string {
-		return aws.ToString(i.Name)
+func genAzureInstancesLogStr(instances []*azure.VirtualMachine) string {
+	return genInstancesLogStr(instances, func(i *azure.VirtualMachine) string {
+		if i.UniformScaleSetName != "" {
+			return "vmss:" + i.UniformScaleSetName + "/" + i.Name
+		}
+		return i.Name
 	})
 }
 
@@ -1488,15 +1496,10 @@ func (e *limitedErrorReporter) report(ctx context.Context, result server.AzureIn
 	instance := result.Instance
 	commandResult := result.CommandResult
 
-	var vmID string
-	if instance.Properties != nil {
-		vmID = azure.StringVal(instance.Properties.VMID)
-	}
-
 	if commandResult != nil {
 		e.logger.WarnContext(ctx, "Teleport installation script failed",
-			"vm_id", vmID,
-			"resource_id", azure.StringVal(instance.ID),
+			"vm_id", instance.VMID,
+			"resource_id", instance.ID,
 			"state", commandResult.ExecutionState,
 			"exit_code", commandResult.ExitCode,
 			"stdout", commandResult.StdOut,
@@ -1504,8 +1507,8 @@ func (e *limitedErrorReporter) report(ctx context.Context, result server.AzureIn
 		)
 	} else {
 		e.logger.WarnContext(ctx, "Failed to execute Teleport installation script",
-			"vm_id", vmID,
-			"resource_id", azure.StringVal(instance.ID),
+			"vm_id", instance.VMID,
+			"resource_id", instance.ID,
 			"api_error", result.APIError,
 		)
 	}
@@ -1703,7 +1706,7 @@ func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *
 		return
 	}
 
-	addFailedEnrollment := func(vm *armcompute.VirtualMachine, issueType string) {
+	addFailedEnrollment := func(vm *azure.VirtualMachine, issueType string) {
 		// Static matchers don't have a discovery config resource, so skip creating user tasks
 		// because validation requires a discovery config name.
 		if instances.DiscoveryConfigName == noDiscoveryConfig {
@@ -1722,9 +1725,9 @@ func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *
 				region:         instances.Region,
 			},
 			&usertasksv1.DiscoverAzureVMInstance{
-				VmId:            azure.StringVal(vm.Properties.VMID),
-				ResourceId:      azure.StringVal(vm.ID),
-				Name:            azure.StringVal(vm.Name),
+				VmId:            vm.VMID,
+				ResourceId:      vm.ID,
+				Name:            vm.Name,
 				DiscoveryConfig: instances.DiscoveryConfigName,
 				DiscoveryGroup:  s.DiscoveryGroup,
 				SyncTime:        timestamppb.New(s.clock.Now()),
