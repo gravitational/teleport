@@ -490,10 +490,18 @@ func (s *Service) UpsertProxyServer(
 	if srv == nil {
 		return nil, trace.BadParameter("server: must be specified")
 	}
-	// nb(noah): This forced overwrite of kind is load-bearing. You will be
-	// surprised to learn that in its current state the Proxy heartbeater will
-	// upsert the Server with Kind=Node.
-	// See https://github.com/gravitational/teleport/issues/66997
+	// Prior to v19, proxy heartbeats sent the resource with Kind=KindNode
+	// (see https://github.com/gravitational/teleport/issues/66997). v19+
+	// proxies send Kind=KindProxy; this override is retained so older proxies
+	// in mixed clusters continue to upsert correctly.
+	if srv.GetKind() != types.KindProxy {
+		s.logger.WarnContext(ctx,
+			"received proxy heartbeat with unexpected kind; overriding to KindProxy",
+			"received_kind", srv.GetKind(),
+			"server_name", srv.GetName(),
+			"server_version", srv.GetTeleportVersion(),
+		)
+	}
 	srv.Kind = types.KindProxy
 	if err := srv.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
