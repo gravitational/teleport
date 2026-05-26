@@ -19,11 +19,9 @@ package cache
 import (
 	"context"
 	"iter"
-	"strings"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
-	"rsc.io/ordered"
 
 	"github.com/gravitational/teleport/api/client"
 	clientproto "github.com/gravitational/teleport/api/client/proto"
@@ -180,7 +178,7 @@ func databaseServerByDatabaseNameKey(s types.DatabaseServer) string {
 	if db == nil {
 		return ""
 	}
-	return string(ordered.Encode(db.GetName(), s.GetHostID(), s.GetName()))
+	return namePrefixedServerIndexKey(db.GetName(), s.GetHostID(), s.GetName())
 }
 
 func newDatabaseServerCollection(p services.Presence, w types.WatchKind) (*collection[types.DatabaseServer, databaseServerIndex], error) {
@@ -194,7 +192,7 @@ func newDatabaseServerCollection(p services.Presence, w types.WatchKind) (*colle
 			types.DatabaseServer.Copy,
 			map[databaseServerIndex]func(types.DatabaseServer) string{
 				databaseServerNameIndex: func(u types.DatabaseServer) string {
-					return u.GetHostID() + "/" + u.GetName()
+					return backend.GetPaginationKey(u)
 				},
 				databaseServerDatabaseNameIndex: databaseServerByDatabaseNameKey,
 			}),
@@ -252,33 +250,16 @@ func (c *Cache) RangeDatabaseServersWithName(ctx context.Context, databaseName s
 		defer span.End()
 
 		upstreamListFn := func(ctx context.Context, pageSize int, startToken string) ([]types.DatabaseServer, string, error) {
-			var tokenDatabaseName string
-			rest, err := ordered.DecodePrefix([]byte(startToken), &tokenDatabaseName)
+			listStartKey, err := namePrefixedServerIndexKeyToListResourcesKey(startToken, databaseName)
 			if err != nil {
 				return nil, "", trace.Wrap(err)
-			}
-
-			// Verify that the token's database name matches the requested database name.
-			// This ensures that if the token is malformed or belongs to a different
-			// database, we don't return incorrect results.
-			if tokenDatabaseName != databaseName {
-				return nil, "", trace.BadParameter("pagination token does not match the requested database name")
-			}
-
-			backendKey := ""
-			if len(rest) > 0 {
-				var hostID, serverName string
-				if err := ordered.Decode(rest, &hostID, &serverName); err != nil {
-					return nil, "", trace.Wrap(err)
-				}
-				backendKey = hostID + "/" + serverName
 			}
 
 			resp, err := c.Config.Presence.ListResources(ctx, clientproto.ListResourcesRequest{
 				ResourceType: types.KindDatabaseServer,
 				Namespace:    defaults.Namespace,
 				Limit:        int32(pageSize),
-				StartKey:     backendKey,
+				StartKey:     listStartKey,
 			})
 			if err != nil {
 				return nil, "", trace.Wrap(err)
@@ -296,13 +277,9 @@ func (c *Cache) RangeDatabaseServersWithName(ctx context.Context, databaseName s
 				}
 			}
 
-			next := ""
-			if resp.NextKey != "" {
-				hostID, serverName, ok := strings.Cut(resp.NextKey, backend.SeparatorString)
-				if !ok {
-					return nil, "", trace.BadParameter("invalid pagination token: %q", resp.NextKey)
-				}
-				next = string(ordered.Encode(databaseName, hostID, serverName))
+			next, err := listResourcesKeyToNamePrefixedServerIndexKey(resp.NextKey, databaseName)
+			if err != nil {
+				return nil, "", trace.Wrap(err)
 			}
 			return page, next, nil
 		}
@@ -316,8 +293,7 @@ func (c *Cache) RangeDatabaseServersWithName(ctx context.Context, databaseName s
 			upstreamList:    upstreamListFn,
 		}
 
-		start := string(ordered.Encode(databaseName))
-		end := string(ordered.Encode(databaseName, ordered.Inf))
+		start, end := namePrefixedServerIndexRange(databaseName)
 		for item, err := range lister.Range(ctx, start, end) {
 			if !yield(item, err) {
 				return
