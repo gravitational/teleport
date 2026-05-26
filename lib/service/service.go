@@ -1065,6 +1065,52 @@ type Process interface {
 // NewProcess is a function that creates new teleport from config
 type NewProcess func(cfg *servicecfg.Config) (Process, error)
 
+const (
+	// TeleportExitCodeBeforeReady is the process exit code used when a startup
+	// failure occurs before the first [TeleportReadyEvent].
+	TeleportExitCodeBeforeReady = 142
+	// TeleportExitCodeAfterReady is the process exit code used when a failure
+	// occurs after Teleport reports readiness.
+	TeleportExitCodeAfterReady = 1
+)
+
+type processExitCodeError struct {
+	err      error
+	exitCode int
+}
+
+func (e *processExitCodeError) Error() string {
+	return e.err.Error()
+}
+
+func (e *processExitCodeError) Unwrap() error {
+	return e.err
+}
+
+func (e *processExitCodeError) ExitCode() int {
+	return e.exitCode
+}
+
+func withProcessExitCode(err error, exitCode int) error {
+	if err == nil {
+		return nil
+	}
+	return &processExitCodeError{
+		err:      err,
+		exitCode: exitCode,
+	}
+}
+
+// ErrorExitCode returns the process exit code embedded in an error if one was
+// attached.
+func ErrorExitCode(err error) (int, bool) {
+	var exitCodeErr *processExitCodeError
+	if errors.As(err, &exitCodeErr) {
+		return exitCodeErr.ExitCode(), true
+	}
+	return 0, false
+}
+
 func newTeleportProcess(cfg *servicecfg.Config) (Process, error) {
 	return NewTeleport(cfg)
 }
@@ -1094,13 +1140,13 @@ func RunWithSignalChannel(ctx context.Context, cfg servicecfg.Config, newTelepor
 	copyCfg := cfg
 	srv, err := newTeleport(&copyCfg)
 	if err != nil {
-		return trace.Wrap(err, "initialization failed")
+		return withProcessExitCode(trace.Wrap(err, "initialization failed"), TeleportExitCodeBeforeReady)
 	}
 	if srv == nil {
 		return trace.BadParameter("process has returned nil server")
 	}
 	if err := srv.Start(); err != nil {
-		return trace.Wrap(err, "startup failed")
+		return withProcessExitCode(trace.Wrap(err, "startup failed"), TeleportExitCodeBeforeReady)
 	}
 	return trace.Wrap(srv.WaitForSignals(ctx, sigC))
 }

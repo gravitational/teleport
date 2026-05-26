@@ -82,9 +82,12 @@ var teleportSignals = []os.Signal{
 // Should not be called twice by the process.
 func (process *TeleportProcess) WaitForSignals(ctx context.Context, sigC <-chan os.Signal) error {
 	serviceErrorsC := make(chan Event, 10)
+	readyC := make(chan Event, 1)
 	eventCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	process.ListenForEvents(eventCtx, ServiceExitedWithErrorEvent, serviceErrorsC)
+	process.ListenForEvents(eventCtx, TeleportReadyEvent, readyC)
+	readySeen := process.hasSeenEvent(TeleportReadyEvent)
 
 	// Block until a signal is received or handler got an error.
 	// Notice how this handler is serialized - it will only receive
@@ -164,6 +167,8 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context, sigC <-chan 
 			}
 			process.logger.InfoContext(process.ExitContext(), "Got request to shutdown, context is closing")
 			return nil
+		case <-readyC:
+			readySeen = true
 		case event := <-serviceErrorsC:
 			se, ok := event.Payload.(ExitEventPayload)
 			if !ok {
@@ -172,14 +177,28 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context, sigC <-chan 
 			}
 			if se.Service.IsCritical() {
 				process.logger.ErrorContext(process.ExitContext(), "Critical service has exited with error, aborting.", "service", se.Service, "error", se.Error)
+				if !readySeen && process.hasSeenEvent(TeleportReadyEvent) {
+					readySeen = true
+				}
 				if err := process.Close(); err != nil {
 					process.logger.ErrorContext(process.ExitContext(), "Error when shutting down teleport.", "error", err)
 				}
-				return trace.Wrap(se.Error)
+				exitCode := TeleportExitCodeBeforeReady
+				if readySeen {
+					exitCode = TeleportExitCodeAfterReady
+				}
+				return withProcessExitCode(trace.Wrap(se.Error), exitCode)
 			}
 			process.logger.WarnContext(process.ExitContext(), "Non-critical service has exited with error , continuing to operate.", "service", se.Service, "error", se.Error)
 		}
 	}
+}
+
+func (process *TeleportProcess) hasSeenEvent(name string) bool {
+	canceledCtx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := process.WaitForEvent(canceledCtx, name)
+	return err == nil
 }
 
 // ErrTeleportExited means that teleport has exited

@@ -912,6 +912,10 @@ Examples:
 		err = onBackendEdit(ctx, conf.Auth.StorageConfig, ccf.BackendKey)
 	}
 	if err != nil {
+		if exitCode, ok := service.ErrorExitCode(err); ok {
+			fmt.Fprint(os.Stderr, utils.UserMessageFromError(err))
+			os.Exit(exitCode)
+		}
 		utils.FatalError(err)
 	}
 
