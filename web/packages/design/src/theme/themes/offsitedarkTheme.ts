@@ -138,9 +138,9 @@ const colors: ThemeColors = {
 
   text: {
     main: '#FFFFFF',
-    slightlyMuted: '#C8C8C8',
-    muted: '#8C8C8C',
-    disabled: '#606060',
+    slightlyMuted: 'rgba(255, 255, 255, 0.72)',
+    muted: 'rgba(255, 255, 255, 0.54)',
+    disabled: 'rgba(255, 255, 255, 0.36)',
     primaryInverse: '#000000',
   },
 
