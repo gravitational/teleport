@@ -2755,7 +2755,14 @@ func TestInsertAccessListCollection(t *testing.T) {
 		err = collection.AddAccessList(list2, []*accesslist.AccessListMember{member2})
 		require.NoError(t, err)
 
-		require.Error(t, service.InsertAccessListCollection(ctx, collection))
+		require.NoError(t, service.InsertAccessListCollection(ctx, collection))
+
+		// Only one of the membership survives filtering.
+		list1Members := collection.MembersByAccessList[list1.GetName()]
+		list2Members := collection.MembersByAccessList[list2.GetName()]
+		require.Equal(t, 1, len(list1Members)+len(list2Members))
+		atLeastOneAclHasMember := len(list1Members) == 1 || len(list2Members) == 1
+		require.True(t, atLeastOneAclHasMember)
 	})
 
 	t.Run("insert large collection with 1k+ members", func(t *testing.T) {
