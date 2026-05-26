@@ -18,6 +18,7 @@ package client
 
 import (
 	"context"
+	"crypto/sha1"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
@@ -26,6 +27,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -166,11 +168,11 @@ func TestALPNConnUpgradeDialer(t *testing.T) {
 	}{
 		{
 			name:          "connection upgrade",
-			serverHandler: mockWebSocketConnUpgradeHandler(t, constants.WebAPIConnUpgradeTypeALPN, []byte("hello")),
+			serverHandler: mockWebSocketConnUpgradeHandler(t, []string{constants.WebAPIConnUpgradeProtocolWebSocketClose, constants.WebAPIConnUpgradeTypeALPN}, []byte("hello")),
 		},
 		{
 			name:          "connection upgrade with ping",
-			serverHandler: mockWebSocketConnUpgradeHandler(t, constants.WebAPIConnUpgradeTypeALPNPing, []byte("hello")),
+			serverHandler: mockWebSocketConnUpgradeHandler(t, []string{constants.WebAPIConnUpgradeProtocolWebSocketClose, constants.WebAPIConnUpgradeTypeALPNPing}, []byte("hello")),
 			withPing:      true,
 		},
 		{
@@ -312,14 +314,14 @@ func mustStartMockALPNServer(t *testing.T, supportedProtos []string) *mockALPNSe
 
 // mockWebSocketConnUpgradeHandler mocks the server side implementation to handle
 // a WebSocket upgrade request and sends back some data inside the tunnel.
-func mockWebSocketConnUpgradeHandler(t *testing.T, upgradeType string, write []byte) http.Handler {
+func mockWebSocketConnUpgradeHandler(t *testing.T, upgradeTypes []string, write []byte) http.Handler {
 	t.Helper()
 
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, constants.WebAPIConnUpgrade, r.URL.Path)
 		require.Contains(t, r.Header.Values(constants.WebAPIConnUpgradeHeader), "websocket")
 		require.Equal(t, constants.WebAPIConnUpgradeConnectionType, r.Header.Get(constants.WebAPIConnUpgradeConnectionHeader))
-		require.Equal(t, upgradeType, r.Header.Get("Sec-Websocket-Protocol"))
+		require.Equal(t, strings.Join(upgradeTypes, ", "), r.Header.Get("Sec-Websocket-Protocol"))
 		require.Equal(t, "13", r.Header.Get("Sec-Websocket-Version"))
 
 		challengeKey := r.Header.Get("Sec-Websocket-Key")
@@ -342,8 +344,11 @@ func mockWebSocketConnUpgradeHandler(t *testing.T, upgradeType string, write []b
 			Header:     make(http.Header),
 		}
 		response.Header.Set("Upgrade", "websocket")
-		response.Header.Set("Sec-WebSocket-Protocol", upgradeType)
+		response.Header.Set("Connection", "Upgrade")
+		response.Header["Sec-WebSocket-Protocol"] = upgradeTypes
 		response.Header.Set("Sec-WebSocket-Accept", computeWebSocketAcceptKey(challengeKey))
+		response.Header.Set("Sec-WebSocket-Version", "13")
+
 		require.NoError(t, response.Write(conn))
 
 		// Upgraded.
@@ -351,6 +356,22 @@ func mockWebSocketConnUpgradeHandler(t *testing.T, upgradeType string, write []b
 		frame.Header.Masked = true
 		require.NoError(t, ws.WriteFrame(conn, frame))
 	})
+}
+
+func computeWebSocketAcceptKey(challengeKey string) string {
+	// websocketAcceptKeyMagicString is the magic string used for computing
+	// the accept key during WebSocket handshake.
+	//
+	// RFC reference:
+	// https://www.rfc-editor.org/rfc/rfc6455
+	//
+	// Server side uses gorilla:
+	// https://github.com/gorilla/websocket/blob/dcea2f088ce10b1b0722c4eb995a4e145b5e9047/util.go#L17-L24
+	const websocketAcceptKeyMagicString = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+	h := sha1.New()
+	h.Write([]byte(challengeKey))
+	h.Write([]byte(websocketAcceptKeyMagicString))
+	return base64.StdEncoding.EncodeToString(h.Sum(nil))
 }
 
 func mustStartForwardProxy(t *testing.T) (*testhelpers.ProxyHandler, *url.URL) {
