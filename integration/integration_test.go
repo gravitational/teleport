@@ -5929,22 +5929,23 @@ func testWindowChange(t *testing.T, suite *integrationTestSuite) {
 	// Open session, the initial size will be 80x24.
 	go openSession()
 
-	// Use the "printf" command to print the terminal size on the screen and
-	// make sure it is 80x25.
+	// Print the terminal size on the screen and make sure it is 80x25.
 	personA.Type("\atput cols; tput lines\n\r\a")
-	err := waitForOutput(personA, "80\r\n25", "80\n\r25", "80\n25")
-	require.NoError(t, err)
+	require.NoError(t, waitForOutput(personA, "80\r\n25", "80\n\r25", "80\n25"))
 
 	// As soon as person B joins the session, the terminal is resized to 160x48.
 	// Have another user join the session. As soon as the second shell is
 	// created, the window is resized to 160x48 (see joinSession implementation).
 	go joinSession()
 
-	// Use the "printf" command to print the window size again and make sure it's
-	// 160x48.
+	// Wait for the second participant to join before asking the server PTY for
+	// its size. Otherwise this probe can run before the resize lands and only
+	// observe the original dimensions.
+	waitForSessionToBeEstablished(t, site, 2)
+
+	// Print the window size again and make sure it's 160x48.
 	personA.Type("\atput cols; tput lines\n\r\a")
-	err = waitForOutput(personA, "160\r\n48", "160\n\r48", "160\n48")
-	require.NoError(t, err)
+	require.NoError(t, waitForOutput(personA, "160\r\n48", "160\n\r48", "160\n48"))
 
 	// Close the session.
 	personA.Type("\aexit\r\n\a")
