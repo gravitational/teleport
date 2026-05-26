@@ -60,9 +60,11 @@ func GenSchemaScopedRoleAssignment(ctx context.Context) (github_com_hashicorp_te
 		"metadata": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				"description": {
-					Description: "description is object description.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					Computed:      true,
+					Description:   "description is object description.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Computed:      true,
@@ -72,9 +74,11 @@ func GenSchemaScopedRoleAssignment(ctx context.Context) (github_com_hashicorp_te
 					Validators:    []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
 				}),
 				"labels": {
-					Description: "labels is a set of labels.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+					Computed:      true,
+					Description:   "labels is a set of labels.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
 				"name": {
 					Description:   "name is an object name.",
@@ -110,33 +114,43 @@ func GenSchemaScopedRoleAssignment(ctx context.Context) (github_com_hashicorp_te
 				"assignments": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"role": {
-							Description: "Roles is the name of the role that is assigned by this assignment.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Computed:      true,
+							Description:   "Roles is the name of the role that is assigned by this assignment.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"scope": {
-							Description: "Scope is the scope to which the role is assigned. This must be a member/child of the scope of the [ScopedRoleAssignment] in which this assignment is contained.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Computed:      true,
+							Description:   "Scope is the scope to which the role is assigned. This must be a member/child of the scope of the [ScopedRoleAssignment] in which this assignment is contained.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 					}),
 					Description: "Assignments is a list of individual role @ scope assignments.",
 					Required:    true,
 				},
 				"bot_name": {
-					Description: "Name of the Bot to whom all contained assignments apply. Mutually exclusive with `user`.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					Computed:      true,
+					Description:   "Name of the Bot to whom all contained assignments apply. Mutually exclusive with `user`.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"bot_scope": {
-					Description: "Scope of the Bot to whom all contained assignments apply. Required if `bot_name` is set. If specified, assignment scopes must be equal or descendent of this scope.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					Computed:      true,
+					Description:   "Scope of the Bot to whom all contained assignments apply. Required if `bot_name` is set. If specified, assignment scopes must be equal or descendent of this scope.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"user": {
-					Description: "User is the user to whom all contained assignments apply. Mutually exclusive with `bot_name`.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					Computed:      true,
+					Description:   "User is the user to whom all contained assignments apply. Mutually exclusive with `bot_name`.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 			}),
 			Description: "Spec is the role assignment specification.",
@@ -496,6 +510,9 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 		} else {
 			v, ok := tf.Attrs["kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
+				if tf.Attrs["kind"] != nil {
+					diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedRoleAssignment.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"ScopedRoleAssignment.kind", err})
@@ -504,8 +521,9 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"ScopedRoleAssignment.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
-				v.Null = string(obj.Kind) == ""
 			}
+
+			v.Null = false
 			v.Value = string(obj.Kind)
 			v.Unknown = false
 			tf.Attrs["kind"] = v
@@ -518,6 +536,9 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 		} else {
 			v, ok := tf.Attrs["sub_kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
+				if tf.Attrs["sub_kind"] != nil {
+					diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedRoleAssignment.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"ScopedRoleAssignment.sub_kind", err})
@@ -526,8 +547,9 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"ScopedRoleAssignment.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
-				v.Null = string(obj.SubKind) == ""
 			}
+
+			v.Null = false
 			v.Value = string(obj.SubKind)
 			v.Unknown = false
 			tf.Attrs["sub_kind"] = v
@@ -540,6 +562,9 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 		} else {
 			v, ok := tf.Attrs["version"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
+				if tf.Attrs["version"] != nil {
+					diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedRoleAssignment.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"ScopedRoleAssignment.version", err})
@@ -548,8 +573,9 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"ScopedRoleAssignment.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
-				v.Null = string(obj.Version) == ""
 			}
+
+			v.Null = false
 			v.Value = string(obj.Version)
 			v.Unknown = false
 			tf.Attrs["version"] = v
@@ -579,6 +605,7 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 				if obj.Metadata == nil {
 					v.Null = true
 				} else {
+					v.Null = false
 					obj := obj.Metadata
 					tf := &v
 					{
@@ -588,6 +615,9 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 						} else {
 							v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["name"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedRoleAssignment.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"ScopedRoleAssignment.metadata.name", err})
@@ -596,8 +626,9 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"ScopedRoleAssignment.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Name) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Name)
 							v.Unknown = false
 							tf.Attrs["name"] = v
@@ -610,6 +641,9 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 						} else {
 							v, ok := tf.Attrs["namespace"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["namespace"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedRoleAssignment.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"ScopedRoleAssignment.metadata.namespace", err})
@@ -618,8 +652,9 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"ScopedRoleAssignment.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Namespace) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Namespace)
 							v.Unknown = false
 							tf.Attrs["namespace"] = v
@@ -632,6 +667,9 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 						} else {
 							v, ok := tf.Attrs["description"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["description"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedRoleAssignment.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"ScopedRoleAssignment.metadata.description", err})
@@ -640,8 +678,9 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"ScopedRoleAssignment.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Description) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Description)
 							v.Unknown = false
 							tf.Attrs["description"] = v
@@ -669,11 +708,14 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 										c.Elems = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
 									}
 								}
-								if obj.Labels != nil {
+								{
 									t := o.ElemType
 									for k, a := range obj.Labels {
-										v, ok := tf.Attrs["labels"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
 										if !ok {
+											if c.Elems[k] != nil {
+												diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedRoleAssignment.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											}
 											i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 											if err != nil {
 												diags.Append(attrWriteGeneralError{"ScopedRoleAssignment.metadata.labels", err})
@@ -682,16 +724,15 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 											if !ok {
 												diags.Append(attrWriteConversionFailureDiag{"ScopedRoleAssignment.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 											}
-											v.Null = false
 										}
+
+										v.Null = false
 										v.Value = string(a)
 										v.Unknown = false
 										c.Elems[k] = v
 									}
-									if len(obj.Labels) > 0 {
-										c.Null = false
-									}
 								}
+								c.Null = false
 								c.Unknown = false
 								tf.Attrs["labels"] = c
 							}
@@ -713,6 +754,9 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 						} else {
 							v, ok := tf.Attrs["revision"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["revision"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedRoleAssignment.metadata.revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"ScopedRoleAssignment.metadata.revision", err})
@@ -721,8 +765,9 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"ScopedRoleAssignment.metadata.revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Revision) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Revision)
 							v.Unknown = false
 							tf.Attrs["revision"] = v
@@ -741,6 +786,9 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 		} else {
 			v, ok := tf.Attrs["scope"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
+				if tf.Attrs["scope"] != nil {
+					diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedRoleAssignment.scope", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"ScopedRoleAssignment.scope", err})
@@ -749,8 +797,9 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"ScopedRoleAssignment.scope", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
-				v.Null = string(obj.Scope) == ""
 			}
+
+			v.Null = false
 			v.Value = string(obj.Scope)
 			v.Unknown = false
 			tf.Attrs["scope"] = v
@@ -780,6 +829,7 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 				if obj.Spec == nil {
 					v.Null = true
 				} else {
+					v.Null = false
 					obj := obj.Spec
 					tf := &v
 					{
@@ -789,6 +839,9 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 						} else {
 							v, ok := tf.Attrs["user"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["user"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedRoleAssignment.spec.user", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"ScopedRoleAssignment.spec.user", err})
@@ -797,8 +850,9 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"ScopedRoleAssignment.spec.user", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.User) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.User)
 							v.Unknown = false
 							tf.Attrs["user"] = v
@@ -826,13 +880,13 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Assignments))
 									}
 								}
-								if obj.Assignments != nil {
+								{
 									o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 									if len(obj.Assignments) != len(c.Elems) {
 										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Assignments))
 									}
 									for k, a := range obj.Assignments {
-										v, ok := tf.Attrs["assignments"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 										if !ok {
 											v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -847,6 +901,7 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 										if a == nil {
 											v.Null = true
 										} else {
+											v.Null = false
 											obj := a
 											tf := &v
 											{
@@ -856,6 +911,9 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 												} else {
 													v, ok := tf.Attrs["role"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 													if !ok {
+														if tf.Attrs["role"] != nil {
+															diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedRoleAssignment.spec.assignments.role", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+														}
 														i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 														if err != nil {
 															diags.Append(attrWriteGeneralError{"ScopedRoleAssignment.spec.assignments.role", err})
@@ -864,8 +922,9 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 														if !ok {
 															diags.Append(attrWriteConversionFailureDiag{"ScopedRoleAssignment.spec.assignments.role", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 														}
-														v.Null = string(obj.Role) == ""
 													}
+
+													v.Null = false
 													v.Value = string(obj.Role)
 													v.Unknown = false
 													tf.Attrs["role"] = v
@@ -878,6 +937,9 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 												} else {
 													v, ok := tf.Attrs["scope"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 													if !ok {
+														if tf.Attrs["scope"] != nil {
+															diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedRoleAssignment.spec.assignments.scope", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+														}
 														i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 														if err != nil {
 															diags.Append(attrWriteGeneralError{"ScopedRoleAssignment.spec.assignments.scope", err})
@@ -886,8 +948,9 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 														if !ok {
 															diags.Append(attrWriteConversionFailureDiag{"ScopedRoleAssignment.spec.assignments.scope", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 														}
-														v.Null = string(obj.Scope) == ""
 													}
+
+													v.Null = false
 													v.Value = string(obj.Scope)
 													v.Unknown = false
 													tf.Attrs["scope"] = v
@@ -897,10 +960,8 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 										v.Unknown = false
 										c.Elems[k] = v
 									}
-									if len(obj.Assignments) > 0 {
-										c.Null = false
-									}
 								}
+								c.Null = false
 								c.Unknown = false
 								tf.Attrs["assignments"] = c
 							}
@@ -913,6 +974,9 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 						} else {
 							v, ok := tf.Attrs["bot_name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["bot_name"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedRoleAssignment.spec.bot_name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"ScopedRoleAssignment.spec.bot_name", err})
@@ -921,8 +985,9 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"ScopedRoleAssignment.spec.bot_name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.BotName) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.BotName)
 							v.Unknown = false
 							tf.Attrs["bot_name"] = v
@@ -935,6 +1000,9 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 						} else {
 							v, ok := tf.Attrs["bot_scope"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["bot_scope"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"ScopedRoleAssignment.spec.bot_scope", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"ScopedRoleAssignment.spec.bot_scope", err})
@@ -943,8 +1011,9 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"ScopedRoleAssignment.spec.bot_scope", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.BotScope) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.BotScope)
 							v.Unknown = false
 							tf.Attrs["bot_scope"] = v
@@ -1064,5 +1133,28 @@ func (d attrWriteGeneralError) Detail() string {
 }
 
 func (d attrWriteGeneralError) Equal(o github_com_hashicorp_terraform_plugin_framework_diag.Diagnostic) bool {
+	return (d.Severity() == o.Severity()) && (d.Summary() == o.Summary()) && (d.Detail() == o.Detail())
+}
+
+// attrWriteUnexpectedExistingTypeDiag represents diagnostic message when a field is initialized with a value whose go
+// type does not match what we'd expect.
+type attrWriteUnexpectedExistingTypeDiag struct {
+	Path string
+	Type string
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Severity() github_com_hashicorp_terraform_plugin_framework_diag.Severity {
+	return github_com_hashicorp_terraform_plugin_framework_diag.SeverityError
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Summary() string {
+	return "Error writing to Terraform object"
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Detail() string {
+	return fmt.Sprintf("A value for %v is already initialized and its type is not %v", d.Path, d.Type)
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Equal(o github_com_hashicorp_terraform_plugin_framework_diag.Diagnostic) bool {
 	return (d.Severity() == o.Severity()) && (d.Summary() == o.Summary()) && (d.Detail() == o.Detail())
 }
