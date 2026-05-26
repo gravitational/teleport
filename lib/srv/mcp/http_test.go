@@ -22,12 +22,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -220,6 +217,8 @@ func Test_handleStreamableHTTP(t *testing.T) {
 func Test_Server_HandleSession_reject_req_missing_name(t *testing.T) {
 	t.Parallel()
 
+	ctx := t.Context()
+
 	const forbiddenTool = "forbidden_tool"
 	const forbiddenToolTextContent = "FORBIDDEN_TOOL_EXECUTED_ON_UPSTREAM"
 
@@ -237,90 +236,63 @@ func Test_Server_HandleSession_reject_req_missing_name(t *testing.T) {
 		},
 	)
 
-	emitter, httpClient := newStreamableMCPServer(t, upstream, role)
+	emitter, mcpClientTransport := newStreamableMCPServer(t, upstream, role)
 
-	// initialize establishes an upstream streamable-HTTP session and returns
-	// the Mcp-Session-Id the upstream expects on follow-up requests.
-	initialize := func(t *testing.T) string {
-		t.Helper()
-
-		req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "http://memory/", strings.NewReader(`{
-			"jsonrpc": "2.0",
-			"id": 1,
-			"method": "initialize",
-			"params": {
-				"protocolVersion": "`+mcp.LATEST_PROTOCOL_VERSION+`",
-				"capabilities": {},
-				"clientInfo": {"name": "raw-test-client", "version": "1.0.0"}
-			}
-		}`))
-		require.NoError(t, err)
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("Accept", "application/json, text/event-stream")
-
-		resp, err := httpClient.Do(req)
-		require.NoError(t, err)
-		resp.Body.Close()
-
-		require.Equal(t, http.StatusOK, resp.StatusCode)
-		sessionID := resp.Header.Get("Mcp-Session-Id")
-		require.NotEmpty(t, sessionID)
-
-		return sessionID
-	}
-
-	postToolsCall := func(t *testing.T, sessionID, body string) (int, string) {
-		t.Helper()
-		req, err := http.NewRequestWithContext(t.Context(), http.MethodPost, "http://memory/", strings.NewReader(body))
-		require.NoError(t, err)
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("Accept", "application/json, text/event-stream")
-		req.Header.Set("Mcp-Session-Id", sessionID)
-
-		resp, err := httpClient.Do(req)
-		require.NoError(t, err)
-		defer resp.Body.Close()
-
-		respBody, err := io.ReadAll(resp.Body)
-		require.NoError(t, err)
-		return resp.StatusCode, string(respBody)
-	}
+	_, err := mcpClientTransport.SendRequest(ctx, mcpclienttransport.JSONRPCRequest{
+		JSONRPC: mcp.JSONRPC_VERSION,
+		ID:      mcp.NewRequestId(1),
+		Method:  string(mcp.MethodInitialize),
+		Params: map[string]any{
+			"protocolVersion": mcp.LATEST_PROTOCOL_VERSION,
+			"clientInfo": map[string]any{
+				"name":    "test-client-transport",
+				"version": "1.0.0",
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, mcpClientTransport.GetSessionId())
 
 	// Verify it works as expected if the canonical lower-case "name" param is provided.
 	emitter.Reset()
-	sessionID := initialize(t)
-	status, body := postToolsCall(t, sessionID, `{
-		"jsonrpc": "2.0",
-		"id": 2,
-		"method": "tools/call",
-		"params": {
-			"name": "`+forbiddenTool+`",
-			"arguments": {}
-		}
-	}`)
-	require.Equal(t, http.StatusOK, status)
-	require.NotContains(t, body, forbiddenToolTextContent)
-	require.Contains(t, body, `"code":`+strconv.Itoa(mcp.INVALID_PARAMS))
-	require.Contains(t, body, "User does not have permissions")
+	resp, err := mcpClientTransport.SendRequest(ctx, mcpclienttransport.JSONRPCRequest{
+		JSONRPC: mcp.JSONRPC_VERSION,
+		ID:      mcp.NewRequestId(2),
+		Method:  string(mcp.MethodToolsCall),
+		Params: map[string]any{
+			"name": forbiddenTool,
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp.Error)
+	require.Equal(t, mcp.INVALID_PARAMS, resp.Error.Code)
+	respJSON, err := json.Marshal(resp)
+	require.NoError(t, err)
+	respBody := string(respJSON)
+	require.NotContains(t, respBody, forbiddenToolTextContent)
+	require.Contains(t, respBody, "User does not have permissions")
 
 	// Verify that when non-canonical capitalized "Name" param is specified the request is
 	// rejected.
 	emitter.Reset()
-	sessionID = initialize(t)
-	status, body = postToolsCall(t, sessionID, `{
-			"jsonrpc": "2.0",
-			"id": 2,
-			"method": "tools/call",
-			"params": {
-				"Name": "`+forbiddenTool+`",
-				"arguments": {}
-			}
-		}`)
-	require.Equal(t, http.StatusOK, status)
-	require.Contains(t, body, `"code":`+strconv.Itoa(mcp.INVALID_REQUEST))
+	resp, err = mcpClientTransport.SendRequest(ctx, mcpclienttransport.JSONRPCRequest{
+		JSONRPC: mcp.JSONRPC_VERSION,
+		ID:      mcp.NewRequestId(3),
+		Method:  string(mcp.MethodToolsCall),
+		Params: map[string]any{
+			"Name": forbiddenTool,
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, resp.Error)
+	require.Equal(t, mcp.INVALID_REQUEST, resp.Error.Code)
+	respJSON, err = json.Marshal(resp)
+	require.NoError(t, err)
+	respBody = string(respJSON)
+	require.NotContains(t, respBody, forbiddenToolTextContent)
 	escaped, err := json.Marshal(errInvalidRequestMissingName.Error())
 	require.NoError(t, err)
-	require.Contains(t, body, string(escaped))
+	require.Contains(t, respBody, string(escaped))
 }
 
 func Test_handleAuthErrHTTP(t *testing.T) {
