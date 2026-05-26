@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/healthcheck"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/inventory"
@@ -443,7 +444,7 @@ func (t *TLSServer) Serve(listener net.Listener, options ...ServeOption) error {
 		}
 	}
 
-	return t.Server.Serve(tls.NewListener(mux.TLS(), t.TLS))
+	return t.Server.Serve(newHandshakeBoundedTLSListener(mux.TLS(), t.TLS, defaults.HandshakeReadDeadline))
 }
 
 // Close closes the server and cleans up all resources.
