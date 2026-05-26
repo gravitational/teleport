@@ -3377,6 +3377,11 @@ func (process *TeleportProcess) proxyPublicAddr() utils.NetAddr {
 	return process.Config.Proxy.PublicAddrs[0]
 }
 
+func isSQLiteQueueEnabled() bool {
+	enabled, _ := strconv.ParseBool(os.Getenv("TELEPORT_UNSTABLE_AUDIT_LOG_RELIABILITY"))
+	return enabled
+}
+
 // NewAsyncEmitter wraps client and returns emitter that never blocks, logs some events and checks values.
 // It is caller's responsibility to call Close on the emitter once done.
 func (process *TeleportProcess) NewAsyncEmitter(clt apievents.Emitter) (*events.CheckingAsyncEmitter, error) {
@@ -3387,8 +3392,9 @@ func (process *TeleportProcess) NewAsyncEmitter(clt apievents.Emitter) (*events.
 			Clock: process.Clock,
 		},
 		events.AsyncEmitterConfig{
-			Inner:   events.NewMultiEmitter(events.NewLoggingEmitter(process.GetClusterFeatures().Cloud), clt),
-			DataDir: process.Config.DataDir,
+			Inner:             events.NewMultiEmitter(events.NewLoggingEmitter(process.GetClusterFeatures().Cloud), clt),
+			DataDir:           process.Config.DataDir,
+			EnableSQLiteQueue: isSQLiteQueueEnabled(),
 		},
 	)
 }

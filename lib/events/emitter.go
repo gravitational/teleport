@@ -24,9 +24,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"os"
 	"path/filepath"
-	"strconv"
 	"sync"
 	"time"
 
@@ -54,6 +52,9 @@ type AsyncEmitterConfig struct {
 	// DataDir is the Teleport data directory. This is required for sqlite
 	// backed queues.
 	DataDir string
+	// EnableSQLiteQueue enables the SQLite-backed audit queue. When false,
+	// the legacy in-memory channel is used.
+	EnableSQLiteQueue bool
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -75,14 +76,17 @@ func NewAsyncEmitter(cfg AsyncEmitterConfig) (*AsyncEmitter, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	queue, err := makeQueue(cfg.DataDir)
-	switch {
-	case errors.Is(err, ErrAuditQueueDisabled):
+	var queue auditqueue.Queue
+	if cfg.EnableSQLiteQueue {
+		var err error
+		queue, err = makeQueue(cfg.DataDir)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	if queue == nil {
 		slog.InfoContext(context.TODO(), "Using default in-memory audit event channel. SQLite-backed audit queue is disabled.")
-		queue = nil
-	case err != nil:
-		return nil, trace.Wrap(err)
-	default:
+	} else {
 		slog.InfoContext(context.TODO(), "SQLite-backed audit queue is enabled.")
 	}
 
@@ -107,18 +111,7 @@ func NewAsyncEmitter(cfg AsyncEmitterConfig) (*AsyncEmitter, error) {
 	return a, nil
 }
 
-// ErrAuditQueueDisabled indicates the SQLite-backed audit queue is disabled.
-// Callers should check for this error and fallback to the legacy in-memory
-// channel if they receive it.
-var ErrAuditQueueDisabled = errors.New(
-	"SQLite-backed audit queue disabled: TELEPORT_UNSTABLE_AUDIT_LOG_RELIABILITY not set to 'true'",
-)
-
 func makeQueue(dataDir string) (auditqueue.Queue, error) {
-	enabled, _ := strconv.ParseBool(os.Getenv("TELEPORT_UNSTABLE_AUDIT_LOG_RELIABILITY"))
-	if !enabled {
-		return nil, trace.Wrap(ErrAuditQueueDisabled)
-	}
 	queuePath := filepath.Join(dataDir, "audit-queue", uuid.NewString())
 	queueCfg := auditqueue.Config{
 		Path: queuePath,

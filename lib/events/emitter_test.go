@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strconv"
 	"testing"
 	"time"
 
@@ -134,9 +133,6 @@ func TestWriterEmitter(t *testing.T) {
 }
 
 func TestAsyncEmitter(t *testing.T) {
-	if enabled, _ := strconv.ParseBool(os.Getenv("TELEPORT_UNSTABLE_AUDIT_LOG_RELIABILITY")); enabled {
-		t.Skip("TestAsyncEmitter assumes in-order delivery. Skipping because SQLite queue is enabled")
-	}
 	ctx := context.Background()
 	evts := eventstest.GenerateTestSession(eventstest.SessionParams{PrintEvents: 20})
 
