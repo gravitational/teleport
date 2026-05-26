@@ -112,6 +112,12 @@ type Application interface {
 	GetMCP() *MCP
 	// GetLLM fetches LLM specific configuration.
 	GetLLM() *LLM
+	// GetTLS fetches TLS configuration.
+	GetTLS() *AppTLS
+	// GetClientCertMode returns the client certificate mode used.
+	GetClientCertMode() AppClientCertMode
+	// GetTLSMode returns the TLS mode.
+	GetTLSMode() AppTLSMode
 	// IsEqual determines if two application resources are equivalent to one another.
 	IsEqual(Application) bool
 }
@@ -316,7 +322,7 @@ func (a *AppV3) IsLLM() bool {
 }
 
 func IsAppTCP(uri string) bool {
-	return strings.HasPrefix(uri, "tcp://")
+	return strings.HasPrefix(uri, "tcp://") || strings.HasPrefix(uri, SchemeTLS+"://")
 }
 
 // IsAppMCP returns true if provided uri is an MCP app.
@@ -642,6 +648,16 @@ func (a *AppV3) checkLLM() error {
 	return nil
 }
 
+// AppSupportsTLSConfig returns if app supports TLS config based on its URI.
+func AppSupportsTLSConfig(uri string) bool {
+	parsed, err := url.Parse(uri)
+	if err != nil {
+		return false
+	}
+
+	return slices.Contains(AppSchemesWithTLSSupport, parsed.Scheme)
+}
+
 // GetIdentityCenter returns the Identity Center information for the app, if any.
 // May be nil.
 func (a *AppV3) GetIdentityCenter() *AppIdentityCenter {
@@ -672,9 +688,40 @@ func (a *AppV3) GetMCP() *MCP {
 	return a.Spec.MCP
 }
 
-// GetMCP returns LLM specific configuration.
+// GetLLM returns LLM specific configuration.
 func (a *AppV3) GetLLM() *LLM {
 	return a.Spec.LLM
+}
+
+// GetTLS returns TLS configuration.
+func (a *AppV3) GetTLS() *AppTLS {
+	return a.Spec.TLS
+}
+
+// GetTLSMode returns the TLS mode.
+func (a *AppV3) GetTLSMode() AppTLSMode {
+	switch {
+	case a.Spec.InsecureSkipVerify:
+		return AppTLSModeInsecure
+	case a.Spec.TLS != nil && a.Spec.TLS.Mode != "":
+		// Rely on specified value when available.
+		return a.Spec.TLS.Mode
+	case AppSupportsTLSConfig(a.Spec.URI):
+		// Defaults to check only server name to keep backwards compatibility.
+		return AppTLSModeVerifyServerName
+	default:
+		// Unsupported app types should not return any valid mode.
+		return ""
+	}
+}
+
+// GetClientCertMode returns the client certificate mode used.
+func (a *AppV3) GetClientCertMode() AppClientCertMode {
+	if a.Spec.TLS == nil || a.Spec.TLS.ClientCertMode == "" {
+		return AppClientCertModeDisabled
+	}
+
+	return a.Spec.TLS.ClientCertMode
 }
 
 // DeduplicateApps deduplicates apps by combination of app name and public address.
@@ -828,4 +875,70 @@ var SupportedLLMProviders = []LLMProvider{
 	LLMProviderOpenAI,
 	LLMProviderAnthropic,
 	LLMProviderAWSBedrock,
+}
+
+// AppSchemesWithTLSSupport list of app schemas that support TLS configurations.
+var AppSchemesWithTLSSupport = []string{
+	"https",
+	SchemeTLS,
+	SchemeMCPHTTPS,
+	SchemeMCPSSEHTTPS,
+}
+
+// AppTLSMode defines TLS verification.
+//
+// Friendly reminder: When adding or modifying TLS mode value, also check the
+// AppTLS protobuf fields comments for updates. This will keep docs and IaC
+// reference up-to-date.
+type AppTLSMode = string
+
+const (
+	// AppTLSModeVerifyFull performs certificate verification with server name
+	// and spiffe ID check.
+	AppTLSModeVerifyFull AppTLSMode = "verify-full"
+	// AppTLSModeVerifyServerName performs certificate verification with server
+	// name check.
+	AppTLSModeVerifyServerName AppTLSMode = "verify-server-name"
+	// AppTLSModeVerifySpiffeID performs certificate verification with spiffe ID
+	// check.
+	AppTLSModeVerifySpiffeID AppTLSMode = "verify-spiffe-id"
+	// AppTLSModeInsecure disables app's TLS certificate verification.
+	AppTLSModeInsecure AppTLSMode = "insecure"
+)
+
+// AppClientCertMode specifies which client certificate mode to use for the
+// upstream connection.
+//
+// Friendly reminder: When adding or modifying a client cert mode, also check the
+// AppTLS protobuf fields comments for updates. This will keep docs and IaC
+// reference up-to-date.
+type AppClientCertMode = string
+
+const (
+	// AppClientCertModeManaged indicates app service will issue client
+	// certificates to use in the app upstream connection, establishing mTLS
+	// connections.
+	AppClientCertModeManaged AppClientCertMode = "managed"
+	// AppClientCertModeDisabled indicates the app upstream connection won't use
+	// client certificates.
+	AppClientCertModeDisabled AppClientCertMode = "disabled"
+)
+
+// AppTLSInternalCA represents a Teleport CA that the app service will accept
+// certificates from when establishing an app upstream connection.
+//
+// Friendly reminder: When adding or modifying a internal CA alias, also check
+// the AppTLS protobuf fields comments for updates. This will keep docs and IaC
+// reference up-to-date.
+type AppTLSInternalCA = string
+
+const (
+	// AppTLSInternalCAWorkloadIdentity represents the Workload Identity CA.
+	AppTLSInternalCAWorkloadIdentity AppTLSInternalCA = "workload_identity"
+)
+
+// AppSupportedInternalCAs returns the list of internal CAs that can be used
+// in the app TLS configuration.
+func AppSupportedInternalCAs() []string {
+	return []string{AppTLSInternalCAWorkloadIdentity}
 }
