@@ -60,9 +60,11 @@ func GenSchemaAccessMonitoringRule(ctx context.Context) (github_com_hashicorp_te
 		"metadata": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 				"description": {
-					Description: "description is object description.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					Computed:      true,
+					Description:   "description is object description.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 					Description: "expires is a global expiry time header can be set on any resource in the system.",
@@ -70,9 +72,11 @@ func GenSchemaAccessMonitoringRule(ctx context.Context) (github_com_hashicorp_te
 					Validators:  []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
 				}),
 				"labels": {
-					Description: "labels is a set of labels.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+					Computed:      true,
+					Description:   "labels is a set of labels.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.MapType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
 				"name": {
 					Description:   "name is an object name.",
@@ -88,9 +92,11 @@ func GenSchemaAccessMonitoringRule(ctx context.Context) (github_com_hashicorp_te
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"revision": {
-					Description: "revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					Computed:      true,
+					Description:   "revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 			}),
 			Description: "metadata is the rules's metadata.",
@@ -101,40 +107,52 @@ func GenSchemaAccessMonitoringRule(ctx context.Context) (github_com_hashicorp_te
 				"automatic_review": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"decision": {
-							Description: "decision specifies the proposed state of the access review. This can be either 'APPROVED' or 'DENIED'.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Computed:      true,
+							Description:   "decision specifies the proposed state of the access review. This can be either 'APPROVED' or 'DENIED'.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"integration": {
-							Description: "integration is the name of the integration that is responsible for monitoring the rule. Set this value to `builtin` to monitor the rule with Teleport.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Computed:      true,
+							Description:   "integration is the name of the integration that is responsible for monitoring the rule. Set this value to `builtin` to monitor the rule with Teleport.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 					}),
 					Description: "automatic_review defines automatic review configurations for Access Requests. Both notification and automatic_review may be set within the same access_monitoring_rule. If both fields are set, the rule will trigger both notifications and automatic reviews for the same set of access events. Separate plugins may be used if both notifications and automatic_reviews is set.",
 					Optional:    true,
 				},
 				"condition": {
-					Description: "condition is a predicate expression that operates on the specified subject resources, and determines whether the subject will be moved into desired state.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					Computed:      true,
+					Description:   "condition is a predicate expression that operates on the specified subject resources, and determines whether the subject will be moved into desired state.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"desired_state": {
-					Description: "desired_state defines the desired state of the subject. For Access Request subjects, the desired_state may be set to `reviewed` to indicate that the Access Request should be automatically reviewed.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+					Computed:      true,
+					Description:   "desired_state defines the desired state of the subject. For Access Request subjects, the desired_state may be set to `reviewed` to indicate that the Access Request should be automatically reviewed.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
 				"notification": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"name": {
-							Description: "name is the name of the plugin to which this configuration should apply.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+							Computed:      true,
+							Description:   "name is the name of the plugin to which this configuration should apply.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 						},
 						"recipients": {
-							Description: "recipients is the list of recipients the plugin should notify.",
-							Optional:    true,
-							Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+							Computed:      true,
+							Description:   "recipients is the list of recipients the plugin should notify.",
+							Optional:      true,
+							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+							Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 						},
 					}),
 					Description: "notification defines the plugin configuration for notifications if rule is triggered. Both notification and automatic_review may be set within the same access_monitoring_rule. If both fields are set, the rule will trigger both notifications and automatic reviews for the same set of access events. Separate plugins may be used if both notifications and automatic_reviews is set.",
@@ -146,40 +164,54 @@ func GenSchemaAccessMonitoringRule(ctx context.Context) (github_com_hashicorp_te
 							"shifts": {
 								Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 									"end": {
-										Description: "End specifies the end time in the format HH:MM, e.g., \"12:30\".",
-										Optional:    true,
-										Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										Computed:      true,
+										Description:   "End specifies the end time in the format HH:MM, e.g., \"12:30\".",
+										Optional:      true,
+										PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+										Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 									},
 									"start": {
-										Description: "Start specifies the start time in the format HH:MM, e.g., \"12:30\".",
-										Optional:    true,
-										Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										Computed:      true,
+										Description:   "Start specifies the start time in the format HH:MM, e.g., \"12:30\".",
+										Optional:      true,
+										PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+										Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 									},
 									"weekday": {
-										Description: "Weekday specifies the day of the week, e.g., \"Sunday\", \"Monday\", \"Tuesday\".",
-										Optional:    true,
-										Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+										Computed:      true,
+										Description:   "Weekday specifies the day of the week, e.g., \"Sunday\", \"Monday\", \"Tuesday\".",
+										Optional:      true,
+										PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+										Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 									},
 								}),
-								Description: "Shifts contains a set of shifts that make up the schedule.",
-								Optional:    true,
+								Computed:      true,
+								Description:   "Shifts contains a set of shifts that make up the schedule.",
+								Optional:      true,
+								PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 							},
 							"timezone": {
-								Description: "Timezone specifies the schedule timezone. This field is optional and defaults to \"UTC\". Accepted values use timezone locations as defined in the IANA Time Zone Database, such as \"America/Los_Angeles\", \"Europe/Lisbon\", or \"Asia/Singapore\".  See https://data.iana.org/time-zones/tzdb/zone1970.tab for a list of supported values.",
-								Optional:    true,
-								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								Computed:      true,
+								Description:   "Timezone specifies the schedule timezone. This field is optional and defaults to \"UTC\". Accepted values use timezone locations as defined in the IANA Time Zone Database, such as \"America/Los_Angeles\", \"Europe/Lisbon\", or \"Asia/Singapore\".  See https://data.iana.org/time-zones/tzdb/zone1970.tab for a list of supported values.",
+								Optional:      true,
+								PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+								Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 							},
 						}),
 						Description: "TimeSchedule specifies an in-line schedule.",
 						Optional:    true,
 					}}),
-					Description: "schedules specifies a map of schedules that can be used to configure the access monitoring rule conditions.",
-					Optional:    true,
+					Computed:      true,
+					Description:   "schedules specifies a map of schedules that can be used to configure the access monitoring rule conditions.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 				},
 				"states": {
-					Description: "states are the desired state which the monitoring rule is attempting to bring the subjects matching the condition to.",
-					Optional:    true,
-					Type:        github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
+					Computed:      true,
+					Description:   "states are the desired state which the monitoring rule is attempting to bring the subjects matching the condition to.",
+					Optional:      true,
+					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+					Type:          github_com_hashicorp_terraform_plugin_framework_types.ListType{ElemType: github_com_hashicorp_terraform_plugin_framework_types.StringType},
 				},
 				"subjects": {
 					Description: "subjects the rule operates on, can be a resource kind or a particular resource property.",
@@ -191,9 +223,11 @@ func GenSchemaAccessMonitoringRule(ctx context.Context) (github_com_hashicorp_te
 			Required:    true,
 		},
 		"sub_kind": {
-			Description: "sub_kind is an optional resource sub kind, used in some resources",
-			Optional:    true,
-			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Computed:      true,
+			Description:   "sub_kind is an optional resource sub kind, used in some resources",
+			Optional:      true,
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
+			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 		"version": {
 			Description: "version is version",
@@ -776,6 +810,7 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 				if obj.Metadata == nil {
 					v.Null = true
 				} else {
+					v.Null = false
 					obj := obj.Metadata
 					tf := &v
 					{
@@ -785,6 +820,9 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 						} else {
 							v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["name"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessMonitoringRule.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"AccessMonitoringRule.metadata.name", err})
@@ -793,8 +831,9 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.metadata.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Name) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Name)
 							v.Unknown = false
 							tf.Attrs["name"] = v
@@ -807,6 +846,9 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 						} else {
 							v, ok := tf.Attrs["namespace"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["namespace"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessMonitoringRule.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"AccessMonitoringRule.metadata.namespace", err})
@@ -815,8 +857,9 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.metadata.namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Namespace) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Namespace)
 							v.Unknown = false
 							tf.Attrs["namespace"] = v
@@ -829,6 +872,9 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 						} else {
 							v, ok := tf.Attrs["description"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["description"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessMonitoringRule.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"AccessMonitoringRule.metadata.description", err})
@@ -837,8 +883,9 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.metadata.description", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Description) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Description)
 							v.Unknown = false
 							tf.Attrs["description"] = v
@@ -866,11 +913,14 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 										c.Elems = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Labels))
 									}
 								}
-								if obj.Labels != nil {
+								{
 									t := o.ElemType
 									for k, a := range obj.Labels {
-										v, ok := tf.Attrs["labels"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
 										if !ok {
+											if c.Elems[k] != nil {
+												diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessMonitoringRule.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											}
 											i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 											if err != nil {
 												diags.Append(attrWriteGeneralError{"AccessMonitoringRule.metadata.labels", err})
@@ -879,16 +929,15 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 											if !ok {
 												diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.metadata.labels", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 											}
-											v.Null = false
 										}
+
+										v.Null = false
 										v.Value = string(a)
 										v.Unknown = false
 										c.Elems[k] = v
 									}
-									if len(obj.Labels) > 0 {
-										c.Null = false
-									}
 								}
+								c.Null = false
 								c.Unknown = false
 								tf.Attrs["labels"] = c
 							}
@@ -910,6 +959,9 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 						} else {
 							v, ok := tf.Attrs["revision"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["revision"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessMonitoringRule.metadata.revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"AccessMonitoringRule.metadata.revision", err})
@@ -918,8 +970,9 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.metadata.revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Revision) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Revision)
 							v.Unknown = false
 							tf.Attrs["revision"] = v
@@ -938,6 +991,9 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 		} else {
 			v, ok := tf.Attrs["kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
+				if tf.Attrs["kind"] != nil {
+					diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessMonitoringRule.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"AccessMonitoringRule.kind", err})
@@ -946,8 +1002,9 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
-				v.Null = string(obj.Kind) == ""
 			}
+
+			v.Null = false
 			v.Value = string(obj.Kind)
 			v.Unknown = false
 			tf.Attrs["kind"] = v
@@ -960,6 +1017,9 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 		} else {
 			v, ok := tf.Attrs["sub_kind"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
+				if tf.Attrs["sub_kind"] != nil {
+					diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessMonitoringRule.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"AccessMonitoringRule.sub_kind", err})
@@ -968,8 +1028,9 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.sub_kind", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
-				v.Null = string(obj.SubKind) == ""
 			}
+
+			v.Null = false
 			v.Value = string(obj.SubKind)
 			v.Unknown = false
 			tf.Attrs["sub_kind"] = v
@@ -982,6 +1043,9 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 		} else {
 			v, ok := tf.Attrs["version"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 			if !ok {
+				if tf.Attrs["version"] != nil {
+					diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessMonitoringRule.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+				}
 				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 				if err != nil {
 					diags.Append(attrWriteGeneralError{"AccessMonitoringRule.version", err})
@@ -990,8 +1054,9 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 				if !ok {
 					diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.version", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 				}
-				v.Null = string(obj.Version) == ""
 			}
+
+			v.Null = false
 			v.Value = string(obj.Version)
 			v.Unknown = false
 			tf.Attrs["version"] = v
@@ -1021,6 +1086,7 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 				if obj.Spec == nil {
 					v.Null = true
 				} else {
+					v.Null = false
 					obj := obj.Spec
 					tf := &v
 					{
@@ -1045,14 +1111,17 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Subjects))
 									}
 								}
-								if obj.Subjects != nil {
+								{
 									t := o.ElemType
 									if len(obj.Subjects) != len(c.Elems) {
 										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Subjects))
 									}
 									for k, a := range obj.Subjects {
-										v, ok := tf.Attrs["subjects"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
 										if !ok {
+											if c.Elems[k] != nil {
+												diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessMonitoringRule.spec.subjects", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											}
 											i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 											if err != nil {
 												diags.Append(attrWriteGeneralError{"AccessMonitoringRule.spec.subjects", err})
@@ -1061,16 +1130,15 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 											if !ok {
 												diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.subjects", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 											}
-											v.Null = string(a) == ""
 										}
+
+										v.Null = false
 										v.Value = string(a)
 										v.Unknown = false
 										c.Elems[k] = v
 									}
-									if len(obj.Subjects) > 0 {
-										c.Null = false
-									}
 								}
+								c.Null = false
 								c.Unknown = false
 								tf.Attrs["subjects"] = c
 							}
@@ -1098,14 +1166,17 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.States))
 									}
 								}
-								if obj.States != nil {
+								{
 									t := o.ElemType
 									if len(obj.States) != len(c.Elems) {
 										c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.States))
 									}
 									for k, a := range obj.States {
-										v, ok := tf.Attrs["states"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
 										if !ok {
+											if c.Elems[k] != nil {
+												diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessMonitoringRule.spec.states", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+											}
 											i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 											if err != nil {
 												diags.Append(attrWriteGeneralError{"AccessMonitoringRule.spec.states", err})
@@ -1114,16 +1185,15 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 											if !ok {
 												diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.states", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 											}
-											v.Null = string(a) == ""
 										}
+
+										v.Null = false
 										v.Value = string(a)
 										v.Unknown = false
 										c.Elems[k] = v
 									}
-									if len(obj.States) > 0 {
-										c.Null = false
-									}
 								}
+								c.Null = false
 								c.Unknown = false
 								tf.Attrs["states"] = c
 							}
@@ -1136,6 +1206,9 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 						} else {
 							v, ok := tf.Attrs["condition"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["condition"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessMonitoringRule.spec.condition", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"AccessMonitoringRule.spec.condition", err})
@@ -1144,8 +1217,9 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.condition", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.Condition) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.Condition)
 							v.Unknown = false
 							tf.Attrs["condition"] = v
@@ -1175,6 +1249,7 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 								if obj.Notification == nil {
 									v.Null = true
 								} else {
+									v.Null = false
 									obj := obj.Notification
 									tf := &v
 									{
@@ -1184,6 +1259,9 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 										} else {
 											v, ok := tf.Attrs["name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
+												if tf.Attrs["name"] != nil {
+													diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessMonitoringRule.spec.notification.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"AccessMonitoringRule.spec.notification.name", err})
@@ -1192,8 +1270,9 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.notification.name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
-												v.Null = string(obj.Name) == ""
 											}
+
+											v.Null = false
 											v.Value = string(obj.Name)
 											v.Unknown = false
 											tf.Attrs["name"] = v
@@ -1221,14 +1300,17 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Recipients))
 													}
 												}
-												if obj.Recipients != nil {
+												{
 													t := o.ElemType
 													if len(obj.Recipients) != len(c.Elems) {
 														c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Recipients))
 													}
 													for k, a := range obj.Recipients {
-														v, ok := tf.Attrs["recipients"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+														v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.String)
 														if !ok {
+															if c.Elems[k] != nil {
+																diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessMonitoringRule.spec.notification.recipients", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+															}
 															i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 															if err != nil {
 																diags.Append(attrWriteGeneralError{"AccessMonitoringRule.spec.notification.recipients", err})
@@ -1237,16 +1319,15 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 															if !ok {
 																diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.notification.recipients", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 															}
-															v.Null = string(a) == ""
 														}
+
+														v.Null = false
 														v.Value = string(a)
 														v.Unknown = false
 														c.Elems[k] = v
 													}
-													if len(obj.Recipients) > 0 {
-														c.Null = false
-													}
 												}
+												c.Null = false
 												c.Unknown = false
 												tf.Attrs["recipients"] = c
 											}
@@ -1282,6 +1363,7 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 								if obj.AutomaticReview == nil {
 									v.Null = true
 								} else {
+									v.Null = false
 									obj := obj.AutomaticReview
 									tf := &v
 									{
@@ -1291,6 +1373,9 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 										} else {
 											v, ok := tf.Attrs["integration"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
+												if tf.Attrs["integration"] != nil {
+													diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessMonitoringRule.spec.automatic_review.integration", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"AccessMonitoringRule.spec.automatic_review.integration", err})
@@ -1299,8 +1384,9 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.automatic_review.integration", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
-												v.Null = string(obj.Integration) == ""
 											}
+
+											v.Null = false
 											v.Value = string(obj.Integration)
 											v.Unknown = false
 											tf.Attrs["integration"] = v
@@ -1313,6 +1399,9 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 										} else {
 											v, ok := tf.Attrs["decision"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 											if !ok {
+												if tf.Attrs["decision"] != nil {
+													diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessMonitoringRule.spec.automatic_review.decision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+												}
 												i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 												if err != nil {
 													diags.Append(attrWriteGeneralError{"AccessMonitoringRule.spec.automatic_review.decision", err})
@@ -1321,8 +1410,9 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 												if !ok {
 													diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.automatic_review.decision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 												}
-												v.Null = string(obj.Decision) == ""
 											}
+
+											v.Null = false
 											v.Value = string(obj.Decision)
 											v.Unknown = false
 											tf.Attrs["decision"] = v
@@ -1341,6 +1431,9 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 						} else {
 							v, ok := tf.Attrs["desired_state"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 							if !ok {
+								if tf.Attrs["desired_state"] != nil {
+									diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessMonitoringRule.spec.desired_state", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+								}
 								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 								if err != nil {
 									diags.Append(attrWriteGeneralError{"AccessMonitoringRule.spec.desired_state", err})
@@ -1349,8 +1442,9 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 								if !ok {
 									diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.desired_state", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 								}
-								v.Null = string(obj.DesiredState) == ""
 							}
+
+							v.Null = false
 							v.Value = string(obj.DesiredState)
 							v.Unknown = false
 							tf.Attrs["desired_state"] = v
@@ -1378,10 +1472,10 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 										c.Elems = make(map[string]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Schedules))
 									}
 								}
-								if obj.Schedules != nil {
+								{
 									o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 									for k, a := range obj.Schedules {
-										v, ok := tf.Attrs["schedules"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+										v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 										if !ok {
 											v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -1396,6 +1490,7 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 										if a == nil {
 											v.Null = true
 										} else {
+											v.Null = false
 											obj := a
 											tf := &v
 											{
@@ -1422,6 +1517,7 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 														if obj.Time == nil {
 															v.Null = true
 														} else {
+															v.Null = false
 															obj := obj.Time
 															tf := &v
 															{
@@ -1446,13 +1542,13 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Shifts))
 																			}
 																		}
-																		if obj.Shifts != nil {
+																		{
 																			o := o.ElemType.(github_com_hashicorp_terraform_plugin_framework_types.ObjectType)
 																			if len(obj.Shifts) != len(c.Elems) {
 																				c.Elems = make([]github_com_hashicorp_terraform_plugin_framework_attr.Value, len(obj.Shifts))
 																			}
 																			for k, a := range obj.Shifts {
-																				v, ok := tf.Attrs["shifts"].(github_com_hashicorp_terraform_plugin_framework_types.Object)
+																				v, ok := c.Elems[k].(github_com_hashicorp_terraform_plugin_framework_types.Object)
 																				if !ok {
 																					v = github_com_hashicorp_terraform_plugin_framework_types.Object{
 
@@ -1467,6 +1563,7 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 																				if a == nil {
 																					v.Null = true
 																				} else {
+																					v.Null = false
 																					obj := a
 																					tf := &v
 																					{
@@ -1476,6 +1573,9 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 																						} else {
 																							v, ok := tf.Attrs["weekday"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																							if !ok {
+																								if tf.Attrs["weekday"] != nil {
+																									diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessMonitoringRule.spec.schedules.time.shifts.weekday", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																								}
 																								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																								if err != nil {
 																									diags.Append(attrWriteGeneralError{"AccessMonitoringRule.spec.schedules.time.shifts.weekday", err})
@@ -1484,8 +1584,9 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 																								if !ok {
 																									diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.schedules.time.shifts.weekday", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																								}
-																								v.Null = string(obj.Weekday) == ""
 																							}
+
+																							v.Null = false
 																							v.Value = string(obj.Weekday)
 																							v.Unknown = false
 																							tf.Attrs["weekday"] = v
@@ -1498,6 +1599,9 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 																						} else {
 																							v, ok := tf.Attrs["start"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																							if !ok {
+																								if tf.Attrs["start"] != nil {
+																									diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessMonitoringRule.spec.schedules.time.shifts.start", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																								}
 																								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																								if err != nil {
 																									diags.Append(attrWriteGeneralError{"AccessMonitoringRule.spec.schedules.time.shifts.start", err})
@@ -1506,8 +1610,9 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 																								if !ok {
 																									diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.schedules.time.shifts.start", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																								}
-																								v.Null = string(obj.Start) == ""
 																							}
+
+																							v.Null = false
 																							v.Value = string(obj.Start)
 																							v.Unknown = false
 																							tf.Attrs["start"] = v
@@ -1520,6 +1625,9 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 																						} else {
 																							v, ok := tf.Attrs["end"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																							if !ok {
+																								if tf.Attrs["end"] != nil {
+																									diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessMonitoringRule.spec.schedules.time.shifts.end", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																								}
 																								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																								if err != nil {
 																									diags.Append(attrWriteGeneralError{"AccessMonitoringRule.spec.schedules.time.shifts.end", err})
@@ -1528,8 +1636,9 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 																								if !ok {
 																									diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.schedules.time.shifts.end", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																								}
-																								v.Null = string(obj.End) == ""
 																							}
+
+																							v.Null = false
 																							v.Value = string(obj.End)
 																							v.Unknown = false
 																							tf.Attrs["end"] = v
@@ -1539,10 +1648,8 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 																				v.Unknown = false
 																				c.Elems[k] = v
 																			}
-																			if len(obj.Shifts) > 0 {
-																				c.Null = false
-																			}
 																		}
+																		c.Null = false
 																		c.Unknown = false
 																		tf.Attrs["shifts"] = c
 																	}
@@ -1555,6 +1662,9 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 																} else {
 																	v, ok := tf.Attrs["timezone"].(github_com_hashicorp_terraform_plugin_framework_types.String)
 																	if !ok {
+																		if tf.Attrs["timezone"] != nil {
+																			diags.Append(attrWriteUnexpectedExistingTypeDiag{"AccessMonitoringRule.spec.schedules.time.timezone", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
 																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
 																		if err != nil {
 																			diags.Append(attrWriteGeneralError{"AccessMonitoringRule.spec.schedules.time.timezone", err})
@@ -1563,8 +1673,9 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 																		if !ok {
 																			diags.Append(attrWriteConversionFailureDiag{"AccessMonitoringRule.spec.schedules.time.timezone", "github.com/hashicorp/terraform-plugin-framework/types.String"})
 																		}
-																		v.Null = string(obj.Timezone) == ""
 																	}
+
+																	v.Null = false
 																	v.Value = string(obj.Timezone)
 																	v.Unknown = false
 																	tf.Attrs["timezone"] = v
@@ -1580,10 +1691,8 @@ func CopyAccessMonitoringRuleToTerraform(ctx context.Context, obj *github_com_gr
 										v.Unknown = false
 										c.Elems[k] = v
 									}
-									if len(obj.Schedules) > 0 {
-										c.Null = false
-									}
 								}
+								c.Null = false
 								c.Unknown = false
 								tf.Attrs["schedules"] = c
 							}
@@ -1703,5 +1812,28 @@ func (d attrWriteGeneralError) Detail() string {
 }
 
 func (d attrWriteGeneralError) Equal(o github_com_hashicorp_terraform_plugin_framework_diag.Diagnostic) bool {
+	return (d.Severity() == o.Severity()) && (d.Summary() == o.Summary()) && (d.Detail() == o.Detail())
+}
+
+// attrWriteUnexpectedExistingTypeDiag represents diagnostic message when a field is initialized with a value whose go
+// type does not match what we'd expect.
+type attrWriteUnexpectedExistingTypeDiag struct {
+	Path string
+	Type string
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Severity() github_com_hashicorp_terraform_plugin_framework_diag.Severity {
+	return github_com_hashicorp_terraform_plugin_framework_diag.SeverityError
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Summary() string {
+	return "Error writing to Terraform object"
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Detail() string {
+	return fmt.Sprintf("A value for %v is already initialized and its type is not %v", d.Path, d.Type)
+}
+
+func (d attrWriteUnexpectedExistingTypeDiag) Equal(o github_com_hashicorp_terraform_plugin_framework_diag.Diagnostic) bool {
 	return (d.Severity() == o.Severity()) && (d.Summary() == o.Summary()) && (d.Detail() == o.Detail())
 }
