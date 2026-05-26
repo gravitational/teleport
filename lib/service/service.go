@@ -1068,7 +1068,7 @@ type NewProcess func(cfg *servicecfg.Config) (Process, error)
 const (
 	// TeleportExitCodeBeforeReady is the process exit code used when a startup
 	// failure occurs before the first [TeleportReadyEvent].
-	TeleportExitCodeBeforeReady = 142
+	TeleportExitCodeBeforeReady = 122
 	// TeleportExitCodeAfterReady is the process exit code used when a failure
 	// occurs after Teleport reports readiness.
 	TeleportExitCodeAfterReady = 1
