@@ -3910,12 +3910,6 @@ func TestGetServerInfoHeartbeat(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, testServer.Close()) })
 
 	hostSigner := newSigner(t, ctx, testServer)
-
-	// newServer constructs a Server via the public constructor using the same
-	// option shape that real Proxies/Nodes use. role determines the identity
-	// of the client used for the AccessPoint, and extraOpts plug in
-	// role-specific behaviour like SetProxyMode. The returned Server has not
-	// been Started — getServerInfo can be called directly on it.
 	newServer := func(t *testing.T, role types.SystemRole, hostname, serverID string, extraOpts ...ServerOption) *Server {
 		t.Helper()
 		client, err := testServer.NewClient(authtest.TestIdentity{
