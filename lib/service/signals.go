@@ -87,7 +87,7 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context, sigC <-chan 
 	defer cancel()
 	process.ListenForEvents(eventCtx, ServiceExitedWithErrorEvent, serviceErrorsC)
 	process.ListenForEvents(eventCtx, TeleportReadyEvent, readyC)
-	readySeen := process.hasSeenEvent(TeleportReadyEvent)
+	var readySeen bool
 
 	// Block until a signal is received or handler got an error.
 	// Notice how this handler is serialized - it will only receive
@@ -177,9 +177,6 @@ func (process *TeleportProcess) WaitForSignals(ctx context.Context, sigC <-chan 
 			}
 			if se.Service.IsCritical() {
 				process.logger.ErrorContext(process.ExitContext(), "Critical service has exited with error, aborting.", "service", se.Service, "error", se.Error)
-				if !readySeen && process.hasSeenEvent(TeleportReadyEvent) {
-					readySeen = true
-				}
 				if err := process.Close(); err != nil {
 					process.logger.ErrorContext(process.ExitContext(), "Error when shutting down teleport.", "error", err)
 				}
