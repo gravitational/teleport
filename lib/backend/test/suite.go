@@ -540,6 +540,10 @@ func testKeepAlive(t *testing.T, newBackend Constructor) {
 	require.Equal(t, bigValue[:], event.Item.Value)
 	require.WithinDuration(t, expiresAt, event.Item.Expires, 2*time.Second)
 
+	storedItem, err := uut.Get(ctx, item.Key)
+	require.NoError(t, err)
+	require.Equal(t, storedItem.Revision, event.Item.Revision)
+
 	// move the current slightly forward, but still *before* the item's
 	// expiry time
 	clock.Advance(2 * time.Second)
@@ -555,6 +559,10 @@ func testKeepAlive(t *testing.T, newBackend Constructor) {
 	event = requireEvent(t, watcher, types.OpPut, prefix("key"), eventTimeout)
 	require.Equal(t, bigValue[:], event.Item.Value)
 	require.WithinDuration(t, updatedAt, event.Item.Expires, 2*time.Second)
+
+	storedItem, err = uut.Get(ctx, item.Key)
+	require.NoError(t, err)
+	require.Equal(t, storedItem.Revision, event.Item.Revision)
 
 	err = uut.Delete(t.Context(), item.Key)
 	require.NoError(t, err)
