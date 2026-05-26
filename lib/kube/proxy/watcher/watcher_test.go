@@ -147,7 +147,7 @@ func testProxyKubeServerWatcherStartsWithFaultyPrimarySynctest(t *testing.T) {
 		FallbackGetter:   fallback,
 		MaxRetryPeriod:   time.Second * 10,
 		PrimaryTimeout:   time.Second,
-		FallbackInterval: time.Second,
+		FallbackInterval: time.Second * 30,
 	}
 
 	w, err := NewProxyKubeServerWatcher(ctx, cfg)
@@ -174,7 +174,7 @@ func testProxyKubeServerWatcherStartsWithFaultyPrimarySynctest(t *testing.T) {
 	require.Len(t, srvs, 1)
 	require.Equal(t, "foo", srvs[0].GetName())
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(cfg.FallbackInterval + time.Second)
 
 	var wg sync.WaitGroup
 
@@ -394,7 +394,7 @@ func TestProxyKubeServerWatcher_RecoversAfterTimeout(t *testing.T) {
 	synctest.Test(t, testProxyKubeServerWatcherRecoversAfterTimeoutSynctest)
 }
 
-func testProxyKubeServerWatcherKeepsStaleServersSynctest(t *testing.T) {
+func testProxyKubeServerWatcherDiscardsStaleOnFallbackFailSynctest(t *testing.T) {
 	ctx := t.Context()
 	noopFilter := func(k readonly.KubeServer) bool { return true }
 	const numberOfEvents = 256
@@ -482,21 +482,21 @@ func testProxyKubeServerWatcherKeepsStaleServersSynctest(t *testing.T) {
 	require.True(t, w.hot.Load(), "Watcher remains hot for grace period")
 	synctest.Wait()
 
-	srvs, err = w.CurrentResourcesWithFilter(ctx, noopFilter)
+	nonstale, err := w.CurrentResourcesWithFilter(ctx, noopFilter)
 	require.NoError(t, err)
-	require.Len(t, srvs, numberOfEvents)
+	require.Len(t, nonstale, numberOfEvents)
 
 	time.Sleep(10 * time.Second) // exceed max staleness.
 	require.False(t, w.hot.Load(), "Watcher is not hot after max staleness is exceeded")
 
 	srvs, err = w.CurrentResourcesWithFilter(ctx, noopFilter)
-	require.NoError(t, err)
-	require.Len(t, srvs, numberOfEvents)
+	require.Error(t, err)
+	require.Empty(t, srvs, "Expected no servers to be returned when watcher is unhealthy and fallback is failing")
 
 	// Simulate recovery of the primary.
 	fw2 := newFakeWatcher(512)
 	primary.On("GetKubernetesServers", mock.Anything).
-		Return(srvs, nil).Once().NotBefore(
+		Return(nonstale, nil).Once().NotBefore(
 		primary.On("NewWatcher", mock.Anything, mock.Anything).Unset(),
 		primary.On("NewWatcher", mock.Anything, mock.Anything).
 			Return(fw2, nil).
@@ -517,8 +517,8 @@ func testProxyKubeServerWatcherKeepsStaleServersSynctest(t *testing.T) {
 	fallback.AssertExpectations(t)
 }
 
-func TestProxyKubeServerWatcher_KeepsStaleServers(t *testing.T) {
-	synctest.Test(t, testProxyKubeServerWatcherKeepsStaleServersSynctest)
+func TestProxyKubeServerWatcherDiscardsStaleOnFallbackFail(t *testing.T) {
+	synctest.Test(t, testProxyKubeServerWatcherDiscardsStaleOnFallbackFailSynctest)
 }
 
 func TestProxyKubeServerWatcher_MaybeFetchFromUpstreamDoesNotOverwriteHotCache(t *testing.T) {
