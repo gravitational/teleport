@@ -34,6 +34,7 @@ use ironrdp_rdpdr::pdu::{
     esc,
 };
 use log::{debug, warn};
+use std::collections::hash_map::Entry;
 use std::convert::TryInto;
 use std::fmt::Debug;
 use std::{
@@ -2049,16 +2050,18 @@ impl<T> PendingOpCache<T> {
     }
 
     fn insert(&mut self, completion_id: CompletionId, op: PendingOp<T>) -> PduResult<()> {
-        if self.cache.insert(completion_id, op).is_none() {
-            Ok(())
-        } else {
-            Err(pdu_other_err!(
+        match self.cache.entry(completion_id) {
+            Entry::Vacant(v) => {
+                v.insert(op);
+                Ok(())
+            }
+            Entry::Occupied(_) => Err(pdu_other_err!(
                 "",
                 source:FilesystemBackendError(format!(
                     "Duplicate completion ID {} detected",
                     completion_id,
                 ))
-            ))
+            )),
         }
     }
 
