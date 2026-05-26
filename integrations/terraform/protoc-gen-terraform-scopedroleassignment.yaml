@@ -33,7 +33,6 @@ exclude_fields:
   # Usage tracking is server-side only
   - "ScopedRoleAssignment.status"
 
-
 # These fields will be marked as Computed: true
 computed_fields:
   - "ScopedRoleAssignment.metadata.expires"
