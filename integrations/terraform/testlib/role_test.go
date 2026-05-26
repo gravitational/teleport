@@ -632,3 +632,50 @@ func (s *TerraformSuiteOSS) TestRoleNoVersion() {
 		},
 	})
 }
+
+func (s *TerraformSuiteOSS) TestRoleWithOptions() {
+	ctx, cancel := context.WithCancel(context.Background())
+	s.T().Cleanup(cancel)
+
+	checkDestroyed := func(state *terraform.State) error {
+		_, err := s.client.GetRole(ctx, "with_options")
+		if trace.IsNotFound(err) {
+			return nil
+		}
+
+		return err
+	}
+
+	name := "teleport_role.with_options"
+
+	resource.Test(s.T(), resource.TestCase{
+		ProtoV6ProviderFactories: s.terraformProviders,
+		CheckDestroy:             checkDestroyed,
+		Steps: []resource.TestStep{
+			{
+				Config: s.getFixture("role_with_options_0.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "spec.options.record_session.default", "best_effort"),
+					resource.TestCheckResourceAttr(name, "spec.options.record_session.desktop", "true"),
+					resource.TestCheckResourceAttr(name, "spec.options.record_session.ssh", ""),
+				),
+			},
+			{
+				Config:   s.getFixture("role_with_options_0.tf"),
+				PlanOnly: true,
+			},
+			{
+				Config: s.getFixture("role_with_options_1.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "spec.options.record_session.default", "strict"),
+					resource.TestCheckResourceAttr(name, "spec.options.record_session.desktop", "false"),
+					resource.TestCheckResourceAttr(name, "spec.options.record_session.ssh", "strict"),
+				),
+			},
+			{
+				Config:   s.getFixture("role_with_options_1.tf"),
+				PlanOnly: true,
+			},
+		},
+	})
+}
