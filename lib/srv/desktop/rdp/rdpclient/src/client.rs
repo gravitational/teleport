@@ -77,8 +77,8 @@ use tokio::task::{self, JoinError};
 // Export this for crate level use.
 use crate::cliprdr::{ClipboardFn, TeleportCliprdrBackend};
 use crate::license::GoLicenseCache;
-use crate::rdpdr::scard::SCARD_DEVICE_ID;
 use crate::rdpdr::TeleportRdpdrBackend;
+use crate::scard::SCARD_DEVICE_ID;
 use crate::ssl::TlsStream;
 #[cfg(feature = "fips")]
 use tokio_boring::HandshakeError;
