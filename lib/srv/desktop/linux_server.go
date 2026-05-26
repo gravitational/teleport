@@ -297,6 +297,7 @@ type linuxSession struct {
 
 	sessionStarted bool
 	username       string
+	allowClipboard bool
 }
 
 func (sess *linuxSession) sendTDPError(message string) {
@@ -312,6 +313,9 @@ func (sess *linuxSession) sendTDPWarning(message string) {
 }
 
 func (sess *linuxSession) handleClipboardData(data []byte) {
+	if !sess.allowClipboard {
+		return
+	}
 	sess.auditedConn.WriteMessage(&tdpb.ClipboardData{
 		Data: data,
 	})
@@ -418,18 +422,19 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 	}
 
 	sess := &linuxSession{
-		service:     s,
-		log:         log,
-		ctx:         ctx,
-		cancel:      cancel,
-		tdpConn:     tdpConn,
-		auditedConn: tdpConn,
-		sessionID:   sessionID,
-		authCtx:     authCtx,
-		identity:    authCtx.Identity.GetIdentity(),
-		desktop:     desktop,
-		netConfig:   netConfig,
-		authPref:    authPref,
+		service:        s,
+		log:            log,
+		ctx:            ctx,
+		cancel:         cancel,
+		tdpConn:        tdpConn,
+		auditedConn:    tdpConn,
+		sessionID:      sessionID,
+		authCtx:        authCtx,
+		identity:       authCtx.Identity.GetIdentity(),
+		desktop:        desktop,
+		netConfig:      netConfig,
+		authPref:       authPref,
+		allowClipboard: authCtx.Checker.DesktopClipboard(),
 	}
 
 	if err := sess.run(); err != nil {
@@ -627,6 +632,10 @@ func (sess *linuxSession) messageLoop() error {
 				return trace.Wrap(err)
 			}
 		case *tdpb.ClipboardData:
+			if !sess.allowClipboard {
+				sess.service.cfg.Logger.DebugContext(context.Background(), "Received clipboard data, but clipboard is disabled")
+				continue
+			}
 			if err := sess.backend.SetClipboardData(m.Data); err != nil {
 				sess.log.ErrorContext(sess.ctx, "failed to set clipboard data", "error", err)
 				sess.sendTDPError("Couldn't set clipboard data.")
