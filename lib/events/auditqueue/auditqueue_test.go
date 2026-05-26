@@ -59,10 +59,10 @@ func newTestEvent(index int64) apievents.AuditEvent {
 			ClusterName: "test-cluster.example.teleport.sh",
 		},
 		UserMetadata: apievents.UserMetadata{
-			User:        "alice@example.com",
-			Login:       "alice",
+			User:         "alice@example.com",
+			Login:        "alice",
 			Impersonator: "admin@example.com",
-			UserRoles:   []string{"access", "editor", "auditor", "db-access", "k8s-access"},
+			UserRoles:    []string{"access", "editor", "auditor", "db-access", "k8s-access"},
 			AccessRequests: []string{
 				"a1b2c3d4-e5f6-7890-abcd-ef1234567890",
 				"b2c3d4e5-f6a7-8901-bcde-f12345678901",
