@@ -26,7 +26,6 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
-	"errors"
 	"math/big"
 	"net"
 	"sync"
@@ -274,7 +273,7 @@ func TestHandshakeBoundedTLSListener_Close(t *testing.T) {
 
 		r := <-acc
 		require.Error(t, r.err, "Accept must return error after Close")
-		assert.True(t, errors.Is(r.err, net.ErrClosed), "expected net.ErrClosed, got %v", r.err)
+		assert.ErrorIs(t, r.err, net.ErrClosed)
 
 		// Second Close should be a no-op (idempotent), not a panic.
 		_ = l.Close()
