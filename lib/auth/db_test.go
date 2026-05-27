@@ -128,7 +128,6 @@ func TestDBCertSigning(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
 
 	authServer := testAuthServer.AuthServer
-	authServer.SetSubCAEnabled(true)
 
 	privateKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.RSA2048)
 	require.NoError(t, err)
