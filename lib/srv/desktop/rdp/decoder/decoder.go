@@ -54,6 +54,8 @@ package decoder
 #cgo noescape rdp_decoder_resize_crop
 #cgo nocallback rdp_decoder_dimensions
 #cgo noescape rdp_decoder_dimensions
+#cgo nocallback rdp_decoder_bytes_per_pixel
+#cgo noescape rdp_decoder_bytes_per_pixel
 #cgo nocallback rdp_decoder_sample_hash
 #cgo noescape rdp_decoder_sample_hash
 
@@ -75,6 +77,7 @@ uint32_t rdp_decoder_updated_regions(RdpDecoder* ptr, uint16_t* out_buf, uint32_
 void rdp_decoder_reset_updated_regions(RdpDecoder* ptr);
 bool rdp_decoder_resize_crop(RdpDecoder* ptr, uint16_t crop_x, uint16_t crop_y, uint16_t crop_w, uint16_t crop_h, uint16_t out_width, uint16_t out_height, uint8_t* out_buf, size_t out_buf_len);
 void rdp_decoder_dimensions(RdpDecoder* ptr, uint16_t* out_width, uint16_t* out_height);
+uint8_t rdp_decoder_bytes_per_pixel(RdpDecoder* ptr);
 uint64_t rdp_decoder_sample_hash(RdpDecoder* ptr, uint16_t sample_count);
 */
 import "C"
@@ -167,8 +170,13 @@ func (d *Decoder) ResizeCrop(cropX, cropY, cropW, cropH, outWidth, outHeight uin
 		return nil, errors.New("invalid resize dimensions")
 	}
 
+	bpp := int(C.rdp_decoder_bytes_per_pixel(d.ptr))
+	if bpp == 0 {
+		return nil, errors.New("decoder has no pixel format")
+	}
+
 	w, h := int(outWidth), int(outHeight)
-	buf := make([]byte, w*h*4)
+	buf := make([]byte, w*h*bpp)
 
 	ok := C.rdp_decoder_resize_crop(
 		d.ptr,
@@ -187,7 +195,7 @@ func (d *Decoder) ResizeCrop(cropX, cropY, cropW, cropH, outWidth, outHeight uin
 
 	return &image.RGBA{
 		Pix:    buf,
-		Stride: w * 4,
+		Stride: w * bpp,
 		Rect:   image.Rect(0, 0, w, h),
 	}, nil
 }
