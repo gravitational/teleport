@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/common"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
@@ -84,13 +85,13 @@ func (c *AccessRequestCommand) Initialize(app *kingpin.Application, _ *tctlcfg.G
 	requests := app.Command("requests", "Manage Access Requests.").Alias("request")
 
 	c.requestList = requests.Command("ls", "Show active Access Requests.")
-	c.requestList.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&c.format)
+	c.requestList.Flag("format", "Output format, 'text', 'json', or 'yaml'").Hidden().Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
 	c.requestList.Flag("sort-index", "Request sort index, 'created' or 'state'").Default("created").StringVar(&c.sortIndex)
 	c.requestList.Flag("sort-order", "Request sort order, 'ascending' or 'descending'").Default("descending").StringVar(&c.sortOrder)
 
 	c.requestGet = requests.Command("get", "Show Access Request by ID.")
 	c.requestGet.Arg("request-id", "ID of target request(s)").Required().StringVar(&c.reqIDs)
-	c.requestGet.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&c.format)
+	c.requestGet.Flag("format", "Output format, 'text', 'json', or 'yaml'").Hidden().Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
 
 	c.requestApprove = requests.Command("approve", "Approve pending Access Request.")
 	c.requestApprove.Arg("request-id", "ID of target request(s)").Required().StringVar(&c.reqIDs)
@@ -119,7 +120,7 @@ func (c *AccessRequestCommand) Initialize(app *kingpin.Application, _ *tctlcfg.G
 
 	c.requestCaps = requests.Command("capabilities", "Check a user's access capabilities.").Alias("caps").Hidden()
 	c.requestCaps.Arg("username", "Name of target user").Required().StringVar(&c.user)
-	c.requestCaps.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&c.format)
+	c.requestCaps.Flag("format", "Output format, 'text', 'json', or 'yaml'").Hidden().Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
 	c.requestReview = requests.Command("review", "Review an Access Request.")
 	c.requestReview.Arg("request-id", "ID of target request").Required().StringVar(&c.reqIDs)
 	c.requestReview.Flag("author", "Username of reviewer").Required().StringVar(&c.user)
@@ -418,8 +419,10 @@ func (c *AccessRequestCommand) Caps(ctx context.Context, client *authclient.Clie
 		return trace.Wrap(err)
 	case teleport.JSON:
 		return printJSON(caps, "capabilities")
+	case teleport.YAML:
+		return trace.Wrap(utils.WriteYAML(os.Stdout, caps), "failed to marshal capabilities")
 	default:
-		return trace.BadParameter("unknown format %q, must be one of [%q, %q]", c.format, teleport.Text, teleport.JSON)
+		return trace.BadParameter("unknown format %q, must be one of [%q, %q, %q]", c.format, teleport.Text, teleport.JSON, teleport.YAML)
 	}
 }
 
@@ -511,8 +514,10 @@ func printRequestsOverview(reqs []types.AccessRequest, format string) error {
 		return trace.Wrap(err)
 	case teleport.JSON:
 		return printJSON(reqs, "requests")
+	case teleport.YAML:
+		return trace.Wrap(utils.WriteYAML(os.Stdout, reqs), "failed to marshal requests")
 	default:
-		return trace.BadParameter("unknown format %q, must be one of [%q, %q]", format, teleport.Text, teleport.JSON)
+		return trace.BadParameter("unknown format %q, must be one of [%q, %q, %q]", format, teleport.Text, teleport.JSON, teleport.YAML)
 	}
 }
 
@@ -547,8 +552,10 @@ func printRequestsDetailed(reqs []types.AccessRequest, format string) error {
 		return nil
 	case teleport.JSON:
 		return printJSON(reqs, "requests")
+	case teleport.YAML:
+		return trace.Wrap(utils.WriteYAML(os.Stdout, reqs), "failed to marshal requests")
 	default:
-		return trace.BadParameter("unknown format %q, must be one of [%q, %q]", format, teleport.Text, teleport.JSON)
+		return trace.BadParameter("unknown format %q, must be one of [%q, %q, %q]", format, teleport.Text, teleport.JSON, teleport.YAML)
 	}
 }
 

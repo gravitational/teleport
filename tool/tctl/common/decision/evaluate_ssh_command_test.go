@@ -31,6 +31,7 @@ import (
 func TestEvaluateSSH(t *testing.T) {
 	tests := []struct {
 		name     string
+		format   string
 		response *decisionpb.EvaluateSSHAccessResponse
 	}{
 		{
@@ -47,7 +48,8 @@ func TestEvaluateSSH(t *testing.T) {
 			},
 		},
 		{
-			name: "permitted",
+			name:   "permitted",
+			format: teleport.YAML,
 			response: &decisionpb.EvaluateSSHAccessResponse{
 				Decision: &decisionpb.EvaluateSSHAccessResponse_Permit{
 					Permit: &decisionpb.SSHAccessPermit{
@@ -72,6 +74,7 @@ func TestEvaluateSSH(t *testing.T) {
 				Username: "alice",
 				ServerID: "server",
 				Login:    "root",
+				Format:   test.format,
 			}
 
 			clt := fakeClient{
@@ -85,7 +88,7 @@ func TestEvaluateSSH(t *testing.T) {
 			require.NoError(t, err, "evaluating SSH access failed")
 
 			var expected bytes.Buffer
-			err = decision.WriteProtoJSON(&expected, test.response)
+			err = decision.WriteProto(&expected, test.format, test.response)
 			require.NoError(t, err, "marshaling expected output failed")
 			require.Equal(t, output.String(), expected.String(), "output did not match")
 		})

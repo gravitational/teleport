@@ -100,11 +100,11 @@ func (c *WorkloadIdentityCommand) Initialize(
 	c.listCmd.
 		Flag(
 			"format",
-			"Output format, 'text' or 'json'",
+			"Output format, 'text', 'json', or 'yaml'",
 		).
 		Hidden().
 		Default(teleport.Text).
-		EnumVar(&c.format, teleport.Text, teleport.JSON)
+		EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
 
 	c.rmCmd = cmd.Command(
 		"rm",
@@ -140,11 +140,11 @@ func (c *WorkloadIdentityCommand) Initialize(
 	c.revocationsLsCmd.
 		Flag(
 			"format",
-			"Output format, 'text' or 'json'",
+			"Output format, 'text', 'json', or 'yaml'",
 		).
 		Hidden().
 		Default(teleport.Text).
-		EnumVar(&c.format, teleport.Text, teleport.JSON)
+		EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
 
 	c.revocationsCrlCmd = revocationsCmd.Command(
 		"crl", "Fetch the signed CRL for existing revocations.",
@@ -189,6 +189,10 @@ func (c *WorkloadIdentityCommand) Initialize(
 	c.overridesCreateCmd.
 		Flag("dry-run", "Print the workload_identity_x509_issuer_override that would have been created, without actually creating it.").
 		BoolVar(&c.overridesCreateDryRun)
+	c.overridesCreateCmd.
+		Flag("format", "Output format for --dry-run, 'yaml' or 'json'.").
+		Default(teleport.YAML).
+		EnumVar(&c.format, teleport.YAML, teleport.JSON)
 	c.overridesCreateCmd.
 		Flag("name", "The name of the override resource to write.").
 		Default("default").
@@ -289,7 +293,8 @@ func (c *WorkloadIdentityCommand) ListWorkloadIdentities(
 		req.PageToken = resp.NextPageToken
 	}
 
-	if c.format == teleport.Text {
+	switch c.format {
+	case teleport.Text:
 		if len(workloadIdentities) == 0 {
 			fmt.Fprintln(c.stdout, "No workload identities configured")
 			return nil
@@ -301,11 +306,18 @@ func (c *WorkloadIdentityCommand) ListWorkloadIdentities(
 			})
 		}
 		fmt.Fprintln(c.stdout, t.AsBuffer().String())
-	} else {
+	case teleport.JSON:
 		err := utils.WriteJSONArray(c.stdout, workloadIdentities)
 		if err != nil {
 			return trace.Wrap(err, "failed to marshal workload identities")
 		}
+	case teleport.YAML:
+		err := utils.WriteYAML(c.stdout, workloadIdentities)
+		if err != nil {
+			return trace.Wrap(err, "failed to marshal workload identities")
+		}
+	default:
+		return trace.BadParameter("unknown format %q, must be one of [%q, %q, %q]", c.format, teleport.Text, teleport.JSON, teleport.YAML)
 	}
 	return nil
 }
@@ -426,7 +438,8 @@ func (c *WorkloadIdentityCommand) ListRevocations(
 		req.PageToken = resp.NextPageToken
 	}
 
-	if c.format == teleport.Text {
+	switch c.format {
+	case teleport.Text:
 		if len(revocations) == 0 {
 			fmt.Fprintln(c.stdout, "No revocations configured")
 			return nil
@@ -447,15 +460,24 @@ func (c *WorkloadIdentityCommand) ListRevocations(
 			})
 		}
 		fmt.Fprintln(c.stdout, t.AsBuffer().String())
-	} else {
+	case teleport.JSON, teleport.YAML:
 		converted := []types.Resource{}
 		for _, resource := range revocations {
 			converted = append(converted, types.ProtoResource153ToLegacy(resource))
 		}
-		err := utils.WriteJSONArray(c.stdout, converted)
-		if err != nil {
-			return trace.Wrap(err, "failed to marshal revocations")
+		if c.format == teleport.JSON {
+			err := utils.WriteJSONArray(c.stdout, converted)
+			if err != nil {
+				return trace.Wrap(err, "failed to marshal revocations")
+			}
+		} else {
+			err := utils.WriteYAML(c.stdout, converted)
+			if err != nil {
+				return trace.Wrap(err, "failed to marshal revocations")
+			}
 		}
+	default:
+		return trace.BadParameter("unknown format %q, must be one of [%q, %q, %q]", c.format, teleport.Text, teleport.JSON, teleport.YAML)
 	}
 	return nil
 }
@@ -611,10 +633,24 @@ func (c *WorkloadIdentityCommand) runOverridesCreate(ctx context.Context, client
 
 	if c.overridesCreateDryRun {
 		fmt.Fprintln(c.stderr, "Dry run mode enabled, the following override would have been created:")
-		if err := utils.WriteYAML(c.stdout, types.ProtoResource153ToLegacy(override)); err != nil {
-			return trace.Wrap(err, "failed to marshal override")
+		resource := types.ProtoResource153ToLegacy(override)
+		switch c.format {
+		case teleport.YAML:
+			if err := utils.WriteYAML(c.stdout, resource); err != nil {
+				return trace.Wrap(err, "failed to marshal override")
+			}
+		case teleport.JSON:
+			if err := utils.WriteJSON(c.stdout, resource); err != nil {
+				return trace.Wrap(err, "failed to marshal override")
+			}
+		default:
+			return trace.BadParameter("unknown format %q, must be one of [%q, %q]", c.format, teleport.YAML, teleport.JSON)
 		}
 		return nil
+	}
+
+	if c.format != teleport.YAML {
+		return trace.BadParameter("--format is only supported with --dry-run")
 	}
 
 	if c.overridesCreateForce {

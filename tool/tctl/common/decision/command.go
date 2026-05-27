@@ -23,10 +23,12 @@ import (
 	"os"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
+	"github.com/gravitational/teleport"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -98,4 +100,33 @@ func WriteProtoJSON(w io.Writer, v proto.Message) error {
 	out = append(out, '\n')
 	_, err = w.Write(out)
 	return trace.Wrap(err)
+}
+
+// WriteProtoYAML outputs the given [proto.Message] in YAML format to the given
+// [io.Writer], preserving the same proto field names as WriteProtoJSON.
+func WriteProtoYAML(w io.Writer, v proto.Message) error {
+	out, err := protojson.MarshalOptions{
+		UseProtoNames: true,
+		Indent:        "    ",
+	}.Marshal(v)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	out, err = yaml.JSONToYAML(out)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	_, err = w.Write(out)
+	return trace.Wrap(err)
+}
+
+func WriteProto(w io.Writer, format string, v proto.Message) error {
+	switch format {
+	case "", teleport.JSON:
+		return trace.Wrap(WriteProtoJSON(w, v))
+	case teleport.YAML:
+		return trace.Wrap(WriteProtoYAML(w, v))
+	default:
+		return trace.BadParameter("unknown format %q, must be one of [%q, %q]", format, teleport.JSON, teleport.YAML)
+	}
 }

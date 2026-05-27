@@ -32,6 +32,7 @@ import (
 type EvaluateDatabaseCommand struct {
 	Output     io.Writer
 	DatabaseID string
+	Format     string
 	command    *kingpin.CmdClause
 }
 
@@ -40,6 +41,7 @@ func (c *EvaluateDatabaseCommand) Initialize(cmd *kingpin.CmdClause, output io.W
 	c.Output = output
 	c.command = cmd.Command("evaluate-db-access", "Evaluate database access for a user.").Hidden()
 	c.command.Flag("database-id", "The id of the target database.").StringVar(&c.DatabaseID)
+	c.command.Flag("format", "Output format.").Hidden().Default(teleport.JSON).EnumVar(&c.Format, teleport.JSON, teleport.YAML)
 }
 
 // FullCommand returns the fully qualified name of
@@ -62,7 +64,7 @@ func (c *EvaluateDatabaseCommand) Run(ctx context.Context, clt Client) error {
 		return trace.Wrap(err)
 	}
 
-	if err := WriteProtoJSON(c.Output, resp); err != nil {
+	if err := WriteProto(c.Output, c.Format, resp); err != nil {
 		return trace.Wrap(err, "failed to marshal result")
 	}
 

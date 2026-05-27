@@ -34,6 +34,7 @@ type EvaluateSSHCommand struct {
 	Username string
 	ServerID string
 	Login    string
+	Format   string
 	command  *kingpin.CmdClause
 }
 
@@ -44,6 +45,7 @@ func (c *EvaluateSSHCommand) Initialize(cmd *kingpin.CmdClause, output io.Writer
 	c.command.Flag("username", "The username to evaluate access for.").StringVar(&c.Username)
 	c.command.Flag("login", "The os login to evaluate access for.").StringVar(&c.Login)
 	c.command.Flag("server-id", "The host id of the target server.").StringVar(&c.ServerID)
+	c.command.Flag("format", "Output format.").Hidden().Default(teleport.JSON).EnumVar(&c.Format, teleport.JSON, teleport.YAML)
 }
 
 // FullCommand returns the fully qualified name of
@@ -87,7 +89,7 @@ func (c *EvaluateSSHCommand) Run(ctx context.Context, clt Client) error {
 		return trace.Wrap(err)
 	}
 
-	if err := WriteProtoJSON(c.Output, resp); err != nil {
+	if err := WriteProto(c.Output, c.Format, resp); err != nil {
 		return trace.Wrap(err, "failed to marshal result")
 	}
 
