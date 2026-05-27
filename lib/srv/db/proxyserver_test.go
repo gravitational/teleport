@@ -20,9 +20,11 @@ package db
 
 import (
 	"context"
+	"io"
 	"testing"
 	"time"
 
+	"github.com/go-mysql-org/go-mysql/mysql"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -57,8 +59,9 @@ func TestProxyConnectionLimiting(t *testing.T) {
 	testCtx.createUserAndRole(ctx, t, user, role, []string{types.Wildcard}, []string{types.Wildcard})
 
 	tests := []struct {
-		name    string
-		connect func() (func(context.Context) error, error)
+		name          string
+		connect       func() (func(context.Context) error, error)
+		expectedError error
 	}{
 		{
 			"postgres",
@@ -66,6 +69,7 @@ func TestProxyConnectionLimiting(t *testing.T) {
 				pgConn, err := testCtx.postgresClient(ctx, user, "postgres", dbUser, postgresDbName)
 				return pgConn.Close, err
 			},
+			io.EOF,
 		},
 		{
 			"mysql",
@@ -75,6 +79,7 @@ func TestProxyConnectionLimiting(t *testing.T) {
 					return mysqlClient.Close()
 				}, err
 			},
+			mysql.ErrBadConn,
 		},
 	}
 
@@ -102,7 +107,7 @@ func TestProxyConnectionLimiting(t *testing.T) {
 				// This connection should go over the limit.
 				_, err = tt.connect()
 				require.Error(t, err)
-				require.Contains(t, err.Error(), "exceeded connection limit")
+				require.ErrorIs(t, err, tt.expectedError)
 			})
 
 			// When a connection is released a new can be established
@@ -124,7 +129,7 @@ func TestProxyConnectionLimiting(t *testing.T) {
 				// Here the limit should be reached again.
 				_, err = tt.connect()
 				require.Error(t, err)
-				require.Contains(t, err.Error(), "exceeded connection limit")
+				require.ErrorIs(t, err, tt.expectedError)
 			})
 		})
 	}
@@ -167,8 +172,9 @@ func TestProxyRateLimiting(t *testing.T) {
 	testCtx.createUserAndRole(ctx, t, user, role, []string{types.Wildcard}, []string{types.Wildcard})
 
 	tests := []struct {
-		name    string
-		connect func() (func(context.Context) error, error)
+		name          string
+		connect       func() (func(context.Context) error, error)
+		expectedError error
 	}{
 		{
 			"postgres",
@@ -176,6 +182,7 @@ func TestProxyRateLimiting(t *testing.T) {
 				pgConn, err := testCtx.postgresClient(ctx, user, "postgres", dbUser, postgresDbName)
 				return pgConn.Close, err
 			},
+			io.EOF,
 		},
 		{
 			"mysql",
@@ -185,6 +192,7 @@ func TestProxyRateLimiting(t *testing.T) {
 					return mysqlClient.Close()
 				}, err
 			},
+			mysql.ErrBadConn,
 		},
 		{
 			"mongodb",
@@ -192,6 +200,7 @@ func TestProxyRateLimiting(t *testing.T) {
 				mongoClient, err := testCtx.mongoClient(ctx, user, "mongodb", dbUser)
 				return mongoClient.Disconnect, err
 			},
+			io.EOF,
 		},
 		{
 			"redis",
@@ -201,6 +210,7 @@ func TestProxyRateLimiting(t *testing.T) {
 					return redisClient.Close()
 				}, err
 			},
+			io.EOF,
 		},
 	}
 
@@ -224,17 +234,8 @@ func TestProxyRateLimiting(t *testing.T) {
 
 					continue
 				}
-
 				require.Error(t, err)
-
-				switch tt.name {
-				case "mongodb", "redis":
-					//TODO(jakule) currently TLS proxy (which is used by mongodb and redis) doesn't know
-					// how to propagate errors, so this check is disabled.
-				default:
-					require.Contains(t, err.Error(), "rate limit exceeded")
-				}
-
+				require.ErrorIs(t, err, tt.expectedError)
 				return
 			}
 
