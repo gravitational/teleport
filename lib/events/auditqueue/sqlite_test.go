@@ -685,7 +685,26 @@ func TestIsSQLiteFullError(t *testing.T) {
 	require.True(t, isSQLiteFullError(fullErr))
 }
 
-func TestIncrementAttempts_ReturnsExhausted(t *testing.T) {
+func TestPlaceholders(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		n    int
+		want string
+	}{
+		{n: -1, want: ""},
+		{n: 0, want: ""},
+		{n: 1, want: "?"},
+		{n: 2, want: "?,?"},
+		{n: 3, want: "?,?,?"},
+		{n: 5, want: "?,?,?,?,?"},
+	}
+	for _, tc := range cases {
+		require.Equal(t, tc.want, placeholders(tc.n), "placeholders(%d)", tc.n)
+	}
+}
+
+func TestProcessFailedDelivery_PromotesExhausted(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 
@@ -703,17 +722,26 @@ func TestIncrementAttempts_ReturnsExhausted(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, items, 2)
 
-	// First two increments should not exhaust either item.
 	for i := 0; i < 2; i++ {
-		exhausted, err := q.incrementAttempts(items)
+		promoted, err := q.processFailedDeliveries(items)
 		require.NoError(t, err)
-		require.Empty(t, exhausted, "should not be exhausted after attempt %d", i+1)
+		require.Equal(t, 0, promoted, "should not be exhausted after attempt %d", i+1)
+		remaining, err := q.fetch(10)
+		require.NoError(t, err)
+		require.Len(t, remaining, 2, "items should still be in audit_queue after attempt %d", i+1)
 	}
 
-	// Third increment reaches max_attempts. Both items should be exhausted.
-	exhausted, err := q.incrementAttempts(items)
+	promoted, err := q.processFailedDeliveries(items)
 	require.NoError(t, err)
-	require.Len(t, exhausted, 2)
+	require.Equal(t, 2, promoted)
+
+	remaining, err := q.fetch(10)
+	require.NoError(t, err)
+	require.Empty(t, remaining, "audit_queue should be empty after promotion")
+
+	dlItems, err := q.fetchDeadLetter(10)
+	require.NoError(t, err)
+	require.Len(t, dlItems, 2)
 }
 
 func TestRetry_ExhaustedMovesToDeadLetter(t *testing.T) {
@@ -809,6 +837,7 @@ func TestDeadLetterTTL_ExpiresOldRows(t *testing.T) {
 	q, err := newSQLiteQueue(Config{
 		Path:          filepath.Join(t.TempDir(), queueDir),
 		DeadLetterTTL: time.Hour,
+		MaxAttempts:   1, // promote on the first failure
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = q.Close() })
@@ -819,7 +848,9 @@ func TestDeadLetterTTL_ExpiresOldRows(t *testing.T) {
 	items, err := q.fetch(1)
 	require.NoError(t, err)
 	require.Len(t, items, 1)
-	require.NoError(t, q.moveToDeadLetter(items))
+	promoted, err := q.processFailedDeliveries(items)
+	require.NoError(t, err)
+	require.Equal(t, 1, promoted)
 
 	// Back-date the row to simulate an entry older than the TTL.
 	pastTimestamp := time.Now().Add(-2 * time.Hour).Unix()
