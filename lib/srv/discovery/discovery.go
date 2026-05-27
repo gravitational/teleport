@@ -2028,11 +2028,12 @@ func (s *Server) startDynamicWatcherUpdater(ctx context.Context, dynamicMatcherW
 
 				if dc.GetDiscoveryGroup() != s.DiscoveryGroup {
 					name := dc.GetName()
-					// If the DiscoveryConfig was never part part of this discovery service because the
+					// If the DiscoveryConfig was never part of this discovery service because the
 					// discovery group never matched, then it must be ignored.
 					s.dynamicDiscoveryConfigMu.RLock()
-					if _, ok := s.dynamicDiscoveryConfig[name]; !ok {
-						s.dynamicDiscoveryConfigMu.RUnlock()
+					_, ok := s.dynamicDiscoveryConfig[name]
+					s.dynamicDiscoveryConfigMu.RUnlock()
+					if !ok {
 						continue
 					}
 					// Let's assume there's a DiscoveryConfig DC1 has DiscoveryGroup DG1, which this process is monitoring.
