@@ -82,6 +82,12 @@ type FnCacheConfig struct {
 	// any method on the same FnCache instance because the cache mutex may
 	// be held when the callback is invoked.
 	OnExpiry func(ctx context.Context, key any, value any)
+
+	// OnRemove is an optional callback that will be invoked when an item
+	// is explicitly purged with [Remove].
+	// It must not call any method on the same FnCache instance because
+	// the cache mutex may be held when the callback is invoked.
+	OnRemove func(ctx context.Context, key any, value any)
 }
 
 // CheckAndSetDefaults validates the FnCacheConfig is populated
@@ -177,6 +183,11 @@ func (c *FnCache) Shutdown(ctx context.Context) {
 func (c *FnCache) Remove(key any) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if c.cfg.OnRemove != nil {
+		if entry, ok := c.entries[key]; ok {
+			c.cfg.OnRemove(context.WithoutCancel(c.cfg.Context), key, entry.v)
+		}
+	}
 	delete(c.entries, key)
 }
 
