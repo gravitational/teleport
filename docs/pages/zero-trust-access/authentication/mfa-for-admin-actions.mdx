@@ -44,16 +44,18 @@ their on-disk Teleport certificates.
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - (!docs/pages/includes/tctl.mdx!)
-- [WebAuthn configured](../management/security/idp-compromise.mdx) on this cluster
-- Multi-factor authentication hardware device, such as YubiKey or SoloKey
-- A Web browser with [WebAuthn support](
-  https://developers.yubico.com/WebAuthn/WebAuthn_Browser_Support/) (if using
-  SSH or desktop sessions from the Teleport Web UI).
+- A second factor that can satisfy admin actions configured on the cluster; either of the following:
+  - [WebAuthn](../management/security/idp-compromise.mdx) with a hardware
+    authenticator (such as YubiKey or SoloKey) and a browser with
+    [WebAuthn support](https://developers.yubico.com/WebAuthn/WebAuthn_Browser_Support/)
+  - [SSO MFA](../sso/sso-for-mfa.mdx), which delegates the MFA check to your
+    OIDC or SAML identity provider.
 
 ## Require MFA for administrative actions
 
-MFA for administrative actions is automatically enforced for clusters where
-WebAuthn is the only form of multi-factor authentication allowed.
+MFA for administrative actions is automatically enforced on clusters whose
+configured second factors all satisfy admin actions — that is, OTP is not
+allowed. WebAuthn and SSO MFA both qualify, individually or together.
 
 <Admonition type="note">
   In a future major version, Teleport may enforce MFA for administrative actions
@@ -68,6 +70,9 @@ $ tctl edit cap
 
 Update the `cluster_auth_preference` definition to include the following content:
 
+<Tabs>
+<TabItem label="WebAuthn">
+
 ```yaml
 kind: cluster_auth_preference
 version: v2
@@ -79,6 +84,39 @@ spec:
   webauthn:
     rp_id: example.com
 ```
+
+</TabItem>
+<TabItem label="SSO MFA">
+
+Requires an OIDC or SAML connector with MFA settings; see
+[Configuring SSO for MFA Checks](../sso/sso-for-mfa.mdx).
+
+```yaml
+kind: cluster_auth_preference
+version: v2
+metadata:
+  name: cluster-auth-preference
+spec:
+  second_factors: ["sso"]
+```
+
+</TabItem>
+<TabItem label="WebAuthn + SSO MFA">
+
+```yaml
+kind: cluster_auth_preference
+version: v2
+metadata:
+  name: cluster-auth-preference
+spec:
+  type: local
+  second_factors: ["webauthn", "sso"]
+  webauthn:
+    rp_id: example.com
+```
+
+</TabItem>
+</Tabs>
 
 Save and exit the file. `tctl` will update the remote definition:
 
