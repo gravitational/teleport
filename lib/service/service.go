@@ -915,7 +915,7 @@ func (process *TeleportProcess) addConnector(connector *Connector) {
 
 // WaitForConnector is a utility function to wait for an identity event and cast
 // the resulting payload as a *Connector. Returns (nil, nil) when the
-// ExitContext is done, so error checking should happen on the connector rather
+// GracefulExitContext is done, so error checking should happen on the connector rather
 // than the error:
 //
 //	conn, err := process.WaitForConnector("FooIdentity", log)
@@ -923,7 +923,7 @@ func (process *TeleportProcess) addConnector(connector *Connector) {
 //		return trace.Wrap(err)
 //	}
 func (process *TeleportProcess) WaitForConnector(identityEvent string, log *slog.Logger) (*Connector, error) {
-	event, err := process.WaitForEvent(process.ExitContext(), identityEvent)
+	event, err := process.WaitForEvent(process.GracefulExitContext(), identityEvent)
 	if err != nil {
 		if log != nil {
 			log.DebugContext(process.ExitContext(), "Process is exiting.")
