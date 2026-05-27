@@ -6,7 +6,6 @@ packages:
 allowBuilds:
   '@swc/core': true
   cbor-extract: true
-  electron: true
   esbuild: true
   msw: true
   node-pty: true
