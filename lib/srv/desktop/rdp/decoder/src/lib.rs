@@ -300,7 +300,7 @@ pub unsafe extern "C" fn rdp_decoder_resize_crop(
     out_height: u16,
     out_buf: *mut u8,
     out_buf_len: usize,
-) {
+) -> bool {
     if ptr.is_null()
         || out_buf.is_null()
         || out_width == 0
@@ -308,12 +308,12 @@ pub unsafe extern "C" fn rdp_decoder_resize_crop(
         || crop_w == 0
         || crop_h == 0
     {
-        return;
+        return false;
     }
 
     let needed = (out_width as usize) * (out_height as usize) * 4;
     if out_buf_len < needed {
-        return;
+        return false;
     }
 
     let opts = ResizeOptions::new()
@@ -326,7 +326,7 @@ pub unsafe extern "C" fn rdp_decoder_resize_crop(
             f64::from(crop_h),
         );
 
-    let _ = catch_unwind(AssertUnwindSafe(move || unsafe {
+    catch_unwind(AssertUnwindSafe(move || unsafe {
         let decoder = &mut *ptr;
         // Reject crops that extend past the frame.
         let src_w = decoder.image.width();
@@ -334,12 +334,15 @@ pub unsafe extern "C" fn rdp_decoder_resize_crop(
         if u32::from(crop_x) + u32::from(crop_w) > u32::from(src_w)
             || u32::from(crop_y) + u32::from(crop_h) > u32::from(src_h)
         {
-            return;
+            return false;
         }
 
         let dst = std::slice::from_raw_parts_mut(out_buf, needed);
-        let _ = decoder.resize_image_into(out_width, out_height, dst, &opts);
-    }));
+        decoder
+            .resize_image_into(out_width, out_height, dst, &opts)
+            .is_ok()
+    }))
+    .unwrap_or(false)
 }
 
 /// Returns the current frame dimensions via out-params. Sets both to 0 on
@@ -540,11 +543,12 @@ mod tests {
         let ptr = make_decoder(100, 100);
         let mut buf = vec![0xAAu8; 10 * 10 * 4];
 
-        unsafe {
-            rdp_decoder_resize_crop(ptr, 90, 0, 20, 10, 10, 10, buf.as_mut_ptr(), buf.len());
-        }
+        let ok = unsafe {
+            rdp_decoder_resize_crop(ptr, 90, 0, 20, 10, 10, 10, buf.as_mut_ptr(), buf.len())
+        };
 
         // Crop extends past right edge → call returns without writing.
+        assert!(!ok);
         assert!(buf.iter().all(|&b| b == 0xAA));
 
         unsafe { rdp_decoder_free(ptr) };
@@ -555,10 +559,11 @@ mod tests {
         let ptr = make_decoder(100, 100);
         let mut buf = vec![0xAAu8; 10 * 10 * 4];
 
-        unsafe {
-            rdp_decoder_resize_crop(ptr, 0, 95, 10, 10, 10, 10, buf.as_mut_ptr(), buf.len());
-        }
+        let ok = unsafe {
+            rdp_decoder_resize_crop(ptr, 0, 95, 10, 10, 10, 10, buf.as_mut_ptr(), buf.len())
+        };
 
+        assert!(!ok);
         assert!(buf.iter().all(|&b| b == 0xAA));
 
         unsafe { rdp_decoder_free(ptr) };
@@ -571,11 +576,13 @@ mod tests {
 
         unsafe {
             // crop_w = 0
-            rdp_decoder_resize_crop(ptr, 0, 0, 0, 10, 10, 10, buf.as_mut_ptr(), buf.len());
+            let ok = rdp_decoder_resize_crop(ptr, 0, 0, 0, 10, 10, 10, buf.as_mut_ptr(), buf.len());
+            assert!(!ok);
             assert!(buf.iter().all(|&b| b == 0xAA));
 
             // crop_h = 0
-            rdp_decoder_resize_crop(ptr, 0, 0, 10, 0, 10, 10, buf.as_mut_ptr(), buf.len());
+            let ok = rdp_decoder_resize_crop(ptr, 0, 0, 10, 0, 10, 10, buf.as_mut_ptr(), buf.len());
+            assert!(!ok);
             assert!(buf.iter().all(|&b| b == 0xAA));
 
             rdp_decoder_free(ptr);
@@ -587,11 +594,12 @@ mod tests {
         let ptr = make_decoder(100, 100);
         let mut buf = vec![0xAAu8; 10 * 10 * 4];
 
-        unsafe {
-            // Exactly fills the right edge: 90 + 10 == 100.
-            rdp_decoder_resize_crop(ptr, 90, 90, 10, 10, 10, 10, buf.as_mut_ptr(), buf.len());
-        }
+        // Exactly fills the right edge: 90 + 10 == 100.
+        let ok = unsafe {
+            rdp_decoder_resize_crop(ptr, 90, 90, 10, 10, 10, 10, buf.as_mut_ptr(), buf.len())
+        };
 
+        assert!(ok);
         // Decoder buffer is zero-initialized, so the resize writes zeros.
         assert!(
             buf.iter().any(|&b| b != 0xAA),

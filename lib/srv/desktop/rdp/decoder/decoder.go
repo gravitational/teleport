@@ -58,6 +58,7 @@ package decoder
 #cgo noescape rdp_decoder_sample_hash
 
 #include <stdint.h>
+#include <stdbool.h>
 
 typedef struct RdpDecoder RdpDecoder;
 
@@ -72,7 +73,7 @@ const uint8_t* rdp_decoder_cursor_bitmap(RdpDecoder* ptr, uint16_t* out_width, u
 uint32_t rdp_decoder_updated_regions_count(RdpDecoder* ptr);
 uint32_t rdp_decoder_updated_regions(RdpDecoder* ptr, uint16_t* out_buf, uint32_t max_count);
 void rdp_decoder_reset_updated_regions(RdpDecoder* ptr);
-void rdp_decoder_resize_crop(RdpDecoder* ptr, uint16_t crop_x, uint16_t crop_y, uint16_t crop_w, uint16_t crop_h, uint16_t out_width, uint16_t out_height, uint8_t* out_buf, size_t out_buf_len);
+bool rdp_decoder_resize_crop(RdpDecoder* ptr, uint16_t crop_x, uint16_t crop_y, uint16_t crop_w, uint16_t crop_h, uint16_t out_width, uint16_t out_height, uint8_t* out_buf, size_t out_buf_len);
 void rdp_decoder_dimensions(RdpDecoder* ptr, uint16_t* out_width, uint16_t* out_height);
 uint64_t rdp_decoder_sample_hash(RdpDecoder* ptr, uint16_t sample_count);
 */
@@ -158,15 +159,18 @@ func (d *Decoder) Image() *image.RGBA {
 
 // ResizeCrop returns the source crop region (cropX, cropY, cropW, cropH) scaled to exactly outWidth x outHeight using
 // high-quality CatmullRom convolution. The crop must lie within the current frame bounds.
-func (d *Decoder) ResizeCrop(cropX, cropY, cropW, cropH, outWidth, outHeight uint16) *image.RGBA {
-	if d == nil || d.ptr == nil || outWidth == 0 || outHeight == 0 || cropW == 0 || cropH == 0 {
-		return nil
+func (d *Decoder) ResizeCrop(cropX, cropY, cropW, cropH, outWidth, outHeight uint16) (*image.RGBA, error) {
+	if d == nil || d.ptr == nil {
+		return nil, errors.New("decoder not initialized")
+	}
+	if outWidth == 0 || outHeight == 0 || cropW == 0 || cropH == 0 {
+		return nil, errors.New("invalid resize dimensions")
 	}
 
 	w, h := int(outWidth), int(outHeight)
 	buf := make([]byte, w*h*4)
 
-	C.rdp_decoder_resize_crop(
+	ok := C.rdp_decoder_resize_crop(
 		d.ptr,
 		C.uint16_t(cropX),
 		C.uint16_t(cropY),
@@ -177,12 +181,15 @@ func (d *Decoder) ResizeCrop(cropX, cropY, cropW, cropH, outWidth, outHeight uin
 		(*C.uint8_t)(unsafe.SliceData(buf)),
 		C.size_t(len(buf)),
 	)
+	if !bool(ok) {
+		return nil, errors.New("failed to resize crop region")
+	}
 
 	return &image.RGBA{
 		Pix:    buf,
 		Stride: w * 4,
 		Rect:   image.Rect(0, 0, w, h),
-	}
+	}, nil
 }
 
 // Dimensions returns the current frame width and height in pixels. Returns (0, 0) if the decoder has not been initialized.

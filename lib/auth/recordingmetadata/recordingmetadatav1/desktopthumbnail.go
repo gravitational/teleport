@@ -125,13 +125,13 @@ func (d *desktopThumbnailGenerator) produceThumbnail(maxDim int) (*pb.SessionRec
 		}
 	}
 
-	thumbImg := d.rdpstate.ResizeCrop(
+	thumbImg, err := d.rdpstate.ResizeCrop(
 		uint16(bounds.Min.X), uint16(bounds.Min.Y),
 		uint16(cropW), uint16(cropH),
 		uint16(thumbW), uint16(thumbH),
 	)
-	if thumbImg == nil {
-		return nil, trace.BadParameter("rdp state has no image")
+	if err != nil {
+		return nil, trace.Wrap(err, "resizing thumbnail crop")
 	}
 
 	d.buf.Reset()

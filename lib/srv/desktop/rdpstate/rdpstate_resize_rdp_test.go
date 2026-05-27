@@ -65,7 +65,9 @@ func TestResizeCrop_BeforeServerHello(t *testing.T) {
 	t.Parallel()
 
 	s := New()
-	require.Nil(t, s.ResizeCrop(0, 0, 100, 100, 50, 50))
+	img, err := s.ResizeCrop(0, 0, 100, 100, 50, 50)
+	require.Error(t, err)
+	require.Nil(t, img)
 }
 
 func TestResizeCrop_ReturnsCorrectDimensions(t *testing.T) {
@@ -90,7 +92,8 @@ func TestResizeCrop_ReturnsCorrectDimensions(t *testing.T) {
 			s := New()
 			require.NoError(t, s.HandleMessage(encodeTDPBServerHello(t, 800, 600)))
 
-			img := s.ResizeCrop(tc.cropX, tc.cropY, tc.cropW, tc.cropH, tc.outW, tc.outH)
+			img, err := s.ResizeCrop(tc.cropX, tc.cropY, tc.cropW, tc.cropH, tc.outW, tc.outH)
+			require.NoError(t, err)
 			require.NotNil(t, img)
 			require.Equal(t, image.Rect(0, 0, int(tc.outW), int(tc.outH)), img.Bounds())
 			require.Len(t, img.Pix, int(tc.outW)*int(tc.outH)*4)
@@ -108,7 +111,8 @@ func TestResizeCrop_PreservesSolidColor(t *testing.T) {
 	sendPDU(t, s, rdpstatetest.BuildBitmapPDU(0, 0, 100, 100, rdpstatetest.RGB565Red))
 
 	// Crop a 10x10 region from the middle and scale up; every output pixel must still be red.
-	img := s.ResizeCrop(45, 45, 10, 10, 50, 50)
+	img, err := s.ResizeCrop(45, 45, 10, 10, 50, 50)
+	require.NoError(t, err)
 	require.NotNil(t, img)
 	require.Equal(t, image.Rect(0, 0, 50, 50), img.Bounds())
 
@@ -144,20 +148,9 @@ func TestResizeCrop_RejectsInvalidInputs(t *testing.T) {
 			s := New()
 			require.NoError(t, s.HandleMessage(encodeTDPBServerHello(t, 100, 100)))
 
-			img := s.ResizeCrop(tc.cropX, tc.cropY, tc.cropW, tc.cropH, tc.outW, tc.outH)
-
-			if tc.outW == 0 || tc.outH == 0 || tc.cropW == 0 || tc.cropH == 0 {
-				// Go layer returns nil for zero-sized inputs.
-				require.Nil(t, img)
-				return
-			}
-
-			// Out-of-bounds crops: Go layer still allocates a buffer; the Rust FFI bails out
-			// without writing, so the buffer stays zero-initialized.
-			require.NotNil(t, img)
-			for i, b := range img.Pix {
-				require.Equal(t, uint8(0), b, "byte %d should be zero (FFI rejected the crop)", i)
-			}
+			img, err := s.ResizeCrop(tc.cropX, tc.cropY, tc.cropW, tc.cropH, tc.outW, tc.outH)
+			require.Error(t, err)
+			require.Nil(t, img)
 		})
 	}
 }
