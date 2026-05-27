@@ -211,7 +211,7 @@ async function setUpPtyProcess(
     // We also have to account for Ctrl+D, as executing it makes the shell exit with the last
     // reported exit code. If we depended on the exit code alone, it'd mean that the terminal tab
     // wouldn't close if Ctrl+D followed a command that failed, say cd to a nonexistent directory.
-    if (event.exitCode === 0 || event.lastInput === /* Ctrl+D */ '\x04') {
+    if (event.exitCode === 0 || event.lastInputWasCtrlD) {
       documentsService.close(doc.uri);
     }
   });
