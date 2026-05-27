@@ -120,6 +120,8 @@ func WriteProtoYAML(w io.Writer, v proto.Message) error {
 	return trace.Wrap(err)
 }
 
+// WriteProto outputs the given [proto.Message] in the requested structured
+// format to the given [io.Writer].
 func WriteProto(w io.Writer, format string, v proto.Message) error {
 	switch format {
 	case "", teleport.JSON:
