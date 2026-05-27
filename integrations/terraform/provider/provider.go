@@ -26,6 +26,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/teleport/integrations/terraform/provider/generic"
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
@@ -556,7 +557,7 @@ func (p *Provider) GetResources(_ context.Context) (map[string]tfsdk.ResourceTyp
 		"teleport_lock":                       resourceTeleportLockType{},
 		"teleport_provision_token":            resourceTeleportProvisionTokenType{},
 		"teleport_oidc_connector":             resourceTeleportOIDCConnectorType{},
-		"teleport_role":                       resourceTeleportRoleType{},
+		"teleport_role":                       generic.NewRoleResourceType(),
 		"teleport_saml_connector":             resourceTeleportSAMLConnectorType{},
 		"teleport_saml_idp_service_provider":  resourceTeleportSAMLIdPServiceProviderType{},
 		"teleport_session_recording_config":   resourceTeleportSessionRecordingConfigType{},
@@ -654,4 +655,8 @@ func (p *Provider) Close() error {
 		p.cancel()
 	}
 	return err
+}
+
+func (p *Provider) GetClient() *client.Client {
+	return p.Client
 }
