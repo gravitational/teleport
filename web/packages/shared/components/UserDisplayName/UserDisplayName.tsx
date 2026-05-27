@@ -144,7 +144,6 @@ const Root = styled.span`
   ${containedContent}
   display: inline-flex;
   flex-direction: column;
-  vertical-align: middle;
 `;
 
 const DisplayLine = styled.span`
