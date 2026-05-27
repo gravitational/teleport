@@ -1,10 +1,13 @@
 ---
 title: Okta User Sync
+sidebar_label: User Sync
 description: Explains how to set up Okta user sync with the guided integration flow.
 sidebar_position: 3
 tags:
  - how-to
  - identity-governance
+ - privileged-access
+enterprise: Identity Governance
 ---
 
 {/* lint disable page-structure remark-lint */}
@@ -95,7 +98,7 @@ resources.
    
    **Application**
    
-   - View application and their details
+   - View an application and its details
    - Edit application's user assignments 
 
 1. And finally click **Save role**.
@@ -153,13 +156,13 @@ section.
 4. Select the custom admin role and the resource set created earlier and click
    **Save changes**.
 
-## Step 2/3.Configure the app to trust Teleport JWTs
+## Step 2/3. Configure the app to trust Teleport JWTs
 
 To allow Teleport access to Okta, the Okta API Services app created in the
 previous step must be able to verify the JWT tokens issued by Teleport. In order
 to do this, you will configure the app with the Teleport public key for Okta.
 
-The procedure varies slightly depending on whether you Teleport cluster is
+The procedure varies slightly depending on whether your Teleport cluster is
 accessible over the public internet:.
 
 <Tabs>
