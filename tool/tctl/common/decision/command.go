@@ -129,6 +129,6 @@ func WriteProto(w io.Writer, format string, v proto.Message) error {
 	case teleport.YAML:
 		return trace.Wrap(WriteProtoYAML(w, v))
 	default:
-		return trace.BadParameter("unknown format %q, must be one of [%q, %q]", format, teleport.JSON, teleport.YAML)
+		return trace.BadParameter("unknown format %q", format)
 	}
 }

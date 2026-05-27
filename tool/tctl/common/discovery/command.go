@@ -129,6 +129,6 @@ func (c *Command) runNodes(ctx context.Context, clt discoveryClient, w io.Writer
 	case teleport.YAML:
 		return trace.Wrap(utils.WriteYAML(w, instances))
 	default:
-		return trace.BadParameter("unknown format %q, must be one of [%q, %q, %q]", c.nodesFormat, teleport.Text, teleport.JSON, teleport.YAML)
+		return trace.BadParameter("unknown format %q", c.nodesFormat)
 	}
 }

@@ -313,7 +313,7 @@ func (c *WorkloadIdentityCommand) ListWorkloadIdentities(
 			return trace.Wrap(err, "failed to marshal workload identities")
 		}
 	default:
-		return trace.BadParameter("unknown format %q, must be one of [%q, %q, %q]", c.format, teleport.Text, teleport.JSON, teleport.YAML)
+		return trace.BadParameter("unknown format %q", c.format)
 	}
 	return nil
 }
@@ -473,7 +473,7 @@ func (c *WorkloadIdentityCommand) ListRevocations(
 			}
 		}
 	default:
-		return trace.BadParameter("unknown format %q, must be one of [%q, %q, %q]", c.format, teleport.Text, teleport.JSON, teleport.YAML)
+		return trace.BadParameter("unknown format %q", c.format)
 	}
 	return nil
 }

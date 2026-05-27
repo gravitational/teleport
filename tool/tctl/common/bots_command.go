@@ -301,7 +301,7 @@ func (c *BotsCommand) ListBots(ctx context.Context, client botsCommandClient) er
 			return trace.Wrap(err, "failed to marshal bots")
 		}
 	default:
-		return trace.BadParameter("unknown format %q, must be one of [%q, %q, %q]", c.format, teleport.Text, teleport.JSON, teleport.YAML)
+		return trace.BadParameter("unknown format %q", c.format)
 	}
 	return nil
 }
@@ -805,7 +805,7 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandCl
 		return nil
 	case teleport.Text:
 	default:
-		return trace.BadParameter("unknown format %q, must be one of [%q, %q, %q]", c.format, teleport.Text, teleport.JSON, teleport.YAML)
+		return trace.BadParameter("unknown format %q", c.format)
 	}
 
 	if len(instances) == 0 {
@@ -1112,7 +1112,7 @@ func (c *BotsCommand) outputToken(
 		return trace.Wrap(utils.WriteYAML(c.stdout, response), "failed to marshal CreateBot response")
 	case teleport.Text:
 	default:
-		return trace.BadParameter("unknown format %q, must be one of [%q, %q, %q]", c.format, teleport.Text, teleport.JSON, teleport.YAML)
+		return trace.BadParameter("unknown format %q", c.format)
 	}
 
 	if c.legacy {

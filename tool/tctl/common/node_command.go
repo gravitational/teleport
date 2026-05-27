@@ -230,7 +230,7 @@ func (c *NodeCommand) Invite(ctx context.Context, client *authclient.Client) err
 			return trace.Wrap(err, "failed to marshal token")
 		}
 	default:
-		return trace.BadParameter("unknown format %q, must be one of [%q, %q, %q]", c.format, teleport.Text, teleport.JSON, teleport.YAML)
+		return trace.BadParameter("unknown format %q", c.format)
 	}
 	return nil
 }
@@ -272,7 +272,7 @@ func (c *NodeCommand) ListActive(ctx context.Context, clt *authclient.Client) er
 			return trace.Wrap(err)
 		}
 	default:
-		return trace.Errorf("Invalid format %s, only text, json and yaml are supported", c.lsFormat)
+		return trace.BadParameter("unknown format %q", c.lsFormat)
 	}
 	return nil
 }

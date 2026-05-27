@@ -156,7 +156,7 @@ func (c *InventoryCommand) Status(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err, "marshaling inventory status to yaml")
 		}
 	default:
-		return trace.BadParameter("unknown format %q, must be one of [%q, %q, %q]", c.format, teleport.Text, teleport.JSON, teleport.YAML)
+		return trace.BadParameter("unknown format %q", c.format)
 	}
 
 	return nil
@@ -292,7 +292,7 @@ func (c *InventoryCommand) List(ctx context.Context, client *authclient.Client) 
 		fmt.Fprintf(os.Stdout, "\n")
 		return nil
 	default:
-		return trace.BadParameter("unknown format %q, must be one of [%q, %q]", c.format, teleport.Text, teleport.JSON)
+		return trace.BadParameter("unknown format %q", c.format)
 	}
 }
 

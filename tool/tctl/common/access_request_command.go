@@ -422,7 +422,7 @@ func (c *AccessRequestCommand) Caps(ctx context.Context, client *authclient.Clie
 	case teleport.YAML:
 		return trace.Wrap(utils.WriteYAML(os.Stdout, caps), "failed to marshal capabilities")
 	default:
-		return trace.BadParameter("unknown format %q, must be one of [%q, %q, %q]", c.format, teleport.Text, teleport.JSON, teleport.YAML)
+		return trace.BadParameter("unknown format %q", c.format)
 	}
 }
 
@@ -517,7 +517,7 @@ func printRequestsOverview(reqs []types.AccessRequest, format string) error {
 	case teleport.YAML:
 		return trace.Wrap(utils.WriteYAML(os.Stdout, reqs), "failed to marshal requests")
 	default:
-		return trace.BadParameter("unknown format %q, must be one of [%q, %q, %q]", format, teleport.Text, teleport.JSON, teleport.YAML)
+		return trace.BadParameter("unknown format %q", format)
 	}
 }
 
@@ -555,7 +555,7 @@ func printRequestsDetailed(reqs []types.AccessRequest, format string) error {
 	case teleport.YAML:
 		return trace.Wrap(utils.WriteYAML(os.Stdout, reqs), "failed to marshal requests")
 	default:
-		return trace.BadParameter("unknown format %q, must be one of [%q, %q, %q]", format, teleport.Text, teleport.JSON, teleport.YAML)
+		return trace.BadParameter("unknown format %q", format)
 	}
 }
 

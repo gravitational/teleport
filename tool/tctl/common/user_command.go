@@ -242,7 +242,7 @@ func (u *UserCommand) printResetPasswordToken(token types.UserToken, messageForm
 	case teleport.Text:
 		err = printTokenAsText(token, messageFormat)
 	default:
-		err = trace.BadParameter("unknown format %q, must be one of [%q, %q, %q]", u.format, teleport.Text, teleport.JSON, teleport.YAML)
+		err = trace.BadParameter("unknown format %q", u.format)
 	}
 
 	if err != nil {
@@ -558,7 +558,7 @@ func (u *UserCommand) List(ctx context.Context, client *authclient.Client) error
 			return trace.Wrap(err, "failed to marshal users")
 		}
 	default:
-		return trace.BadParameter("unknown format %q, must be one of [%q, %q, %q]", u.format, teleport.Text, teleport.JSON, teleport.YAML)
+		return trace.BadParameter("unknown format %q", u.format)
 	}
 	return nil
 }
