@@ -3121,6 +3121,37 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 	})
 }
 
+func TestInstallerScriptRenderedWithTextTemplate(t *testing.T) {
+	t.Parallel()
+	s := newWebSuite(t)
+	wc := s.client(t)
+
+	require.NoError(t, s.server.Auth().SetInstaller(
+		s.ctx,
+		types.MustNewInstallerV1("custom", `{{ .AzureClientID }}`),
+	))
+
+	const azureClientID = `abc&<>'";$(touch /tmp/pwn)`
+
+	re, err := wc.Get(
+		s.ctx,
+		wc.Endpoint("webapi", "scripts", "installer", "custom"),
+		url.Values{"azure-client-id": []string{azureClientID}},
+	)
+	require.NoError(t, err)
+
+	response := string(re.Bytes())
+
+	require.Equal(t, `abc\&\<\>\'\"\;\$\(touch\ /tmp/pwn\)`, response)
+
+	// Assert that HTML escaping did not occur.
+	require.NotContains(t, response, "&amp;")
+	require.NotContains(t, response, "&lt;")
+	require.NotContains(t, response, "&gt;")
+	require.NotContains(t, response, "&#39;")
+	require.NotContains(t, response, "&#34;")
+}
+
 func TestMultipleConnectors(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)
