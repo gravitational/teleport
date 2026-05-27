@@ -34,7 +34,7 @@ import (
 
 const testDefaultTimeout = 2 * time.Second
 
-var allKinds []Kind = []Kind{KindSQLite, KindSQLiteInMemory}
+var allKinds []Kind = []Kind{KindSQLiteDisk, KindSQLiteMemory}
 
 func newTestQueue(tb testing.TB, kind Kind) Queue {
 	tb.Helper()

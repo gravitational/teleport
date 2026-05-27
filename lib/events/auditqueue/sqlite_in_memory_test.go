@@ -28,7 +28,7 @@ import (
 func TestSQLiteInMemoryQueue_IsInMemory(t *testing.T) {
 	t.Parallel()
 
-	q, err := New(KindSQLiteInMemory, Config{})
+	q, err := New(KindSQLiteMemory, Config{})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, q.Close()) })
 
@@ -58,11 +58,11 @@ func TestSQLiteInMemoryQueue_InstancesAreIsolated(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 
-	a, err := New(KindSQLiteInMemory, Config{})
+	a, err := New(KindSQLiteMemory, Config{})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, a.Close()) })
 
-	b, err := New(KindSQLiteInMemory, Config{})
+	b, err := New(KindSQLiteMemory, Config{})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, b.Close()) })
 
@@ -91,7 +91,7 @@ func TestSQLiteInMemoryQueue_MaxBytesEnforced(t *testing.T) {
 	t.Parallel()
 
 	const maxBytes = 1 * 1024 * 1024 // 1 MiB
-	q, err := New(KindSQLiteInMemory, Config{MaxBytes: maxBytes})
+	q, err := New(KindSQLiteMemory, Config{MaxBytes: maxBytes})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, q.Close()) })
 

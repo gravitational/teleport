@@ -233,7 +233,7 @@ func TestNew_ReturnsQueue(t *testing.T) {
 	t.Parallel()
 
 	path := filepath.Join(t.TempDir(), queueDir)
-	q, err := New(KindSQLite, Config{Path: path})
+	q, err := New(KindSQLiteDisk, Config{Path: path})
 	require.NoError(t, err)
 	require.NotNil(t, q)
 	t.Cleanup(func() { require.NoError(t, q.Close()) })
