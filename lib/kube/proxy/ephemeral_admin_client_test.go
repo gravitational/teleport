@@ -40,29 +40,16 @@ import (
 	"github.com/gravitational/teleport/lib/utils/set"
 )
 
-// TestGetPodForEphemeralPatch_UsesImpersonatedIdentity is a regression test
-// for the bug where the moderated ephemeral-container flow at
-// `lib/kube/proxy/ephemeral_containers.go` fetched the target pod with the
-// proxy's static admin kubeconfig (`details.getKubeClient()`) instead of an
-// impersonated client carrying the user's `kubernetes_users` /
-// `kubernetes_groups`. Because the synthesised pod is then encoded back to
-// the caller, this bypassed Kubernetes RBAC on the user's mapped identity
-// and leaked pod spec/env/annotations.
+// TestGetPodForEphemeralPatch_UsesImpersonatedIdentity asserts that the pod GET issued by
+// the moderated ephemeral-container flow carries the user's impersonation headers,
+// so that the Kubernetes API server enforces RBAC on the requester's mapped kubernetes_users/kubernetes_groups
+// rather than on the proxy's admin kubeconfig.
+// The synthesised "patched" pod returned to the user therefore cannot contain spec, env,
+// or annotations that the user's mapped identity is not authorised to read.
 //
-// The fix moves the pod GET into `getPodForEphemeralPatch`, which uses
-// `impersonatedKubeClient` so the Kubernetes API server enforces RBAC on the
-// user's mapped identity. This test stands up a fake Kubernetes API server,
-// drives `getPodForEphemeralPatch` with an authContext mapped to a single
-// `kubernetes_users` entry of `victim-k8s`, and asserts the upstream GET
-// carried `Impersonate-User: victim-k8s`.
-//
-// Revert the fix (have `getPodForEphemeralPatch` call
-// `findKubeDetailsByClusterName(...).getKubeClient()` instead of
-// `impersonatedKubeClient`) and this test fails with an empty captured
-// header value.
-//
-// See workspace/f3-ephemeral-admin-client.md for the full root-cause writeup
-// and end-to-end PoC.
+// The test stands up a fake Kubernetes API server,
+// drives getPodForEphemeralPatch with an authContext mapped to a single kubernetes_users entry,
+// and checks that the upstream GET arrived with the matching Impersonate-User header.
 func TestGetPodForEphemeralPatch_UsesImpersonatedIdentity(t *testing.T) {
 	const (
 		clusterName = "test-cluster"
@@ -71,8 +58,6 @@ func TestGetPodForEphemeralPatch_UsesImpersonatedIdentity(t *testing.T) {
 		kubeUser    = "victim-k8s"
 	)
 
-	// Fake Kubernetes API server. We only need it to answer GET on the target
-	// pod and capture whatever Impersonate-User header arrives on that GET.
 	var (
 		mu                  sync.Mutex
 		capturedImpersonate string
@@ -105,8 +90,6 @@ func TestGetPodForEphemeralPatch_UsesImpersonatedIdentity(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	// Admin REST config and clientset, mirroring how a real kube agent wires
-	// staticKubeCreds.kubeClient.
 	adminRestCfg := &rest.Config{Host: srv.URL}
 	adminClient, err := kubernetes.NewForConfig(adminRestCfg)
 	require.NoError(t, err)
@@ -129,8 +112,8 @@ func TestGetPodForEphemeralPatch_UsesImpersonatedIdentity(t *testing.T) {
 	teleportUser, err := types.NewUser("victim")
 	require.NoError(t, err)
 
-	// authContext with exactly one kubernetes_users entry so
-	// computeAndValidateImpersonatedPrincipals picks it deterministically.
+	// One kubernetes_users entry so computeAndValidateImpersonatedPrincipals
+	// picks it deterministically without consulting request headers.
 	authCtx := &authContext{
 		ScopedContext:   &authz.ScopedContext{User: teleportUser},
 		kubeClusterName: clusterName,
@@ -151,13 +134,5 @@ func TestGetPodForEphemeralPatch_UsesImpersonatedIdentity(t *testing.T) {
 	got := capturedImpersonate
 	mu.Unlock()
 
-	require.Equal(t, kubeUser, got,
-		"GET to upstream Kubernetes during moderated ephemeral-container patch "+
-			"must use the user's impersonated identity (kubernetes_users[0]), not the "+
-			"proxy's admin kubeconfig. lib/kube/proxy/ephemeral_containers.go:204 currently "+
-			"calls details.getKubeClient() which carries no Impersonate-User header. "+
-			"Captured header value: %q", got)
-
-	// Suppress "unused" warnings if a future refactor inlines kubeUser.
-	_ = kubeUser
+	require.Equal(t, kubeUser, got, "upstream GET must carry the user's Impersonate-User header")
 }
