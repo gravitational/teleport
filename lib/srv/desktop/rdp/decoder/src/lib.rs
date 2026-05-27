@@ -85,6 +85,10 @@ impl RdpDecoder {
         self.image.height()
     }
 
+    pub fn bytes_per_pixel(&self) -> u8 {
+        self.image.pixel_format().bytes_per_pixel()
+    }
+
     pub fn process(&mut self, tdp_fast_path_frame: &[u8]) {
         let mut output = WriteBuf::new();
 
@@ -129,29 +133,37 @@ impl RdpDecoder {
             self.image.data(),
             self.image.width(),
             self.image.height(),
+            self.bytes_per_pixel(),
             sample_count,
         )
     }
 }
 
+// FNV-1a Hashing Algorithm
+// https://en.wikipedia.org/wiki/Fowler%E2%80%93Noll%E2%80%93Vo_hash_function
 const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 
-fn sample_hash(data: &[u8], width: u16, height: u16, sample_count: u16) -> u64 {
-    const BYTES_PER_PIXEL: usize = 4;
-
+fn sample_hash(
+    data: &[u8],
+    width: u16,
+    height: u16,
+    bytes_per_pixel: u8,
+    sample_count: u16,
+) -> u64 {
     let w = width as usize;
     let h = height as usize;
-    if w == 0 || h == 0 || sample_count == 0 {
+    let bytes_per_pixel = usize::from(bytes_per_pixel);
+    if w == 0 || h == 0 || bytes_per_pixel == 0 || sample_count == 0 {
         return 0;
     }
 
     let step_x = (w / usize::from(sample_count)).max(1);
     let step_y = (h / usize::from(sample_count)).max(1);
-    let stride = w * BYTES_PER_PIXEL;
+    let stride = w * bytes_per_pixel;
     let row_step = stride * step_y;
-    let col_step = BYTES_PER_PIXEL * step_x;
-    let col_end = w * BYTES_PER_PIXEL;
+    let col_step = bytes_per_pixel * step_x;
+    let col_end = w * bytes_per_pixel;
     let pix_len = data.len();
 
     let mut hash: u64 = FNV_OFFSET_BASIS;
@@ -159,8 +171,8 @@ fn sample_hash(data: &[u8], width: u16, height: u16, sample_count: u16) -> u64 {
     let mut y = 0usize;
     while y < h {
         let mut off = row_off;
-        while off < row_off + col_end && off + BYTES_PER_PIXEL <= pix_len {
-            for b in &data[off..off + BYTES_PER_PIXEL] {
+        while off < row_off + col_end && off + bytes_per_pixel <= pix_len {
+            for b in &data[off..off + bytes_per_pixel] {
                 hash ^= u64::from(*b);
                 hash = hash.wrapping_mul(FNV_PRIME);
             }
@@ -311,11 +323,6 @@ pub unsafe extern "C" fn rdp_decoder_resize_crop(
         return false;
     }
 
-    let needed = (out_width as usize) * (out_height as usize) * 4;
-    if out_buf_len < needed {
-        return false;
-    }
-
     let opts = ResizeOptions::new()
         .resize_alg(ResizeAlg::Convolution(FilterType::CatmullRom))
         .use_alpha(false)
@@ -334,6 +341,12 @@ pub unsafe extern "C" fn rdp_decoder_resize_crop(
         if u32::from(crop_x) + u32::from(crop_w) > u32::from(src_w)
             || u32::from(crop_y) + u32::from(crop_h) > u32::from(src_h)
         {
+            return false;
+        }
+
+        let needed =
+            (out_width as usize) * (out_height as usize) * usize::from(decoder.bytes_per_pixel());
+        if out_buf_len < needed {
             return false;
         }
 
@@ -375,6 +388,25 @@ pub unsafe extern "C" fn rdp_decoder_dimensions(
         *out_width = decoder.width();
         *out_height = decoder.height();
     }));
+}
+
+/// Returns the number of bytes per pixel in the decoded frame buffer, read from
+/// the image's actual pixel format. Returns 0 on null pointer or panic.
+///
+/// # Safety
+///
+/// - `ptr` must be a valid pointer previously returned by `rdp_decoder_new`.
+#[no_mangle]
+pub unsafe extern "C" fn rdp_decoder_bytes_per_pixel(ptr: *mut RdpDecoder) -> u8 {
+    if ptr.is_null() {
+        return 0;
+    }
+
+    catch_unwind(AssertUnwindSafe(move || unsafe {
+        let decoder = &*ptr;
+        decoder.bytes_per_pixel()
+    }))
+    .unwrap_or(0)
 }
 
 /// Returns an FNV-1a 64-bit digest of pixels sampled on a fixed grid from the
@@ -611,10 +643,11 @@ mod tests {
 
     #[test]
     fn sample_hash_empty_inputs_return_zero() {
-        assert_eq!(sample_hash(&[], 0, 0, 64), 0);
-        assert_eq!(sample_hash(&[1, 2, 3, 4], 1, 1, 0), 0);
-        assert_eq!(sample_hash(&[1, 2, 3, 4], 0, 1, 64), 0);
-        assert_eq!(sample_hash(&[1, 2, 3, 4], 1, 0, 64), 0);
+        assert_eq!(sample_hash(&[], 0, 0, 4, 64), 0);
+        assert_eq!(sample_hash(&[1, 2, 3, 4], 1, 1, 4, 0), 0);
+        assert_eq!(sample_hash(&[1, 2, 3, 4], 0, 1, 4, 64), 0);
+        assert_eq!(sample_hash(&[1, 2, 3, 4], 1, 0, 4, 64), 0);
+        assert_eq!(sample_hash(&[1, 2, 3, 4], 1, 1, 0, 64), 0);
     }
 
     #[test]
@@ -624,7 +657,7 @@ mod tests {
             h ^= u64::from(b);
             h = h.wrapping_mul(FNV_PRIME);
         }
-        assert_eq!(sample_hash(&[1, 2, 3, 4], 1, 1, 64), h);
+        assert_eq!(sample_hash(&[1, 2, 3, 4], 1, 1, 4, 64), h);
     }
 
     #[test]
@@ -642,7 +675,7 @@ mod tests {
             h = h.wrapping_mul(FNV_PRIME);
         }
 
-        assert_eq!(sample_hash(&data, 4, 1, 2), h);
+        assert_eq!(sample_hash(&data, 4, 1, 4, 2), h);
     }
 
     #[test]
@@ -651,6 +684,6 @@ mod tests {
         a[0] = 1;
         let mut b = vec![0u8; 4];
         b[0] = 2;
-        assert_ne!(sample_hash(&a, 1, 1, 64), sample_hash(&b, 1, 1, 64));
+        assert_ne!(sample_hash(&a, 1, 1, 4, 64), sample_hash(&b, 1, 1, 4, 64));
     }
 }
