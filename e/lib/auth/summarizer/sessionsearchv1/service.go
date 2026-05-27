@@ -59,6 +59,9 @@ type ServiceConfig struct {
 	BedrockClientFactory bedrock.ClientFactory
 	// AWSConfigCache is used to obtain AWS credentials for Bedrock. Optional.
 	AWSConfigCache *awsconfig.Cache
+	// EnvBedrockRegion, if set to a non-empty value, will override Amazon
+	// Bedrock region where it's set to {{env.bedrock_region}}
+	EnvBedrockRegion string
 	// AccessGraphClientGetter is the pre-built access graph client getter used to search
 	// session summaries and store them.
 	AccessGraphClientGetter func() (accessgraphv1.SessionRecordingServiceClient, error)
@@ -90,6 +93,7 @@ type Service struct {
 	bedrockClientFactory    bedrock.ClientFactory
 	awsConfigCache          *awsconfig.Cache
 	logger                  *slog.Logger
+	envBedrockRegion        string
 }
 
 var _ pb.SessionSearchServiceServer = (*Service)(nil)
@@ -122,6 +126,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		bedrockClientFactory:    cfg.BedrockClientFactory,
 		awsConfigCache:          cfg.AWSConfigCache,
 		logger:                  slog.With(teleport.ComponentKey, "session-search"),
+		envBedrockRegion:        cfg.EnvBedrockRegion,
 	}, nil
 }
 
@@ -633,6 +638,7 @@ func (s *Service) newEmbeddingsProvider(
 			ClientFactory:     s.bedrockClientFactory,
 			ModelResourceName: model.GetMetadata().GetName(),
 			AWSConfigCache:    s.awsConfigCache,
+			EnvBedrockRegion:  s.envBedrockRegion,
 		})
 		return p, trace.Wrap(err)
 

@@ -491,6 +491,7 @@ func (p *Plugin) RegisterAuthServices(ctx context.Context, server any, getClient
 			Authorizer:              p.authServer.Authorizer,
 			Cache:                   p.authServer.AuthServer.Cache,
 			AWSConfigCache:          cfgCache,
+			EnvBedrockRegion:        os.Getenv(envVarNameBedrockRegion),
 			AccessGraphClientGetter: accessGraphClientGetter,
 			AvailabilityCache:       availabilityCache,
 			IsLicensed:              isSessionSummariesLicensed,

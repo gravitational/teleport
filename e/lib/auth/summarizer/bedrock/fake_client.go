@@ -42,10 +42,14 @@ func structuredResponse(value any) (*bedrockruntime.ConverseOutput, error) {
 }
 
 type FakeClientFactory struct {
-	Clock *clockwork.FakeClock
+	Clock            *clockwork.FakeClock
+	configValidation func(cfg aws.Config)
 }
 
 func (m *FakeClientFactory) NewFromConfig(cfg aws.Config) Client {
+	if m.configValidation != nil {
+		m.configValidation(cfg)
+	}
 	return &fakeClient{
 		clock:  m.Clock,
 		region: cfg.Region,

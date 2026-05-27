@@ -3,6 +3,7 @@ package bedrock
 import (
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/smithy-go"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
@@ -123,6 +124,24 @@ func TestNewEmbeddingProviderValidation(t *testing.T) {
 			},
 			wantErr: "AWS config cache is required",
 		},
+		{
+			name: "placeholder region with empty env var",
+			cfg: EmbeddingProviderConfig{
+				Spec:              &summarizerv1pb.BedrockProvider{Region: "{{env.bedrock_region}}"},
+				ModelResourceName: "m",
+				AWSConfigCache:    cache,
+			},
+			wantErr: "TELEPORT_BEDROCK_REGION environment variable is not set",
+		},
+		{
+			name: "placeholder region with surrounding spaces and empty env var",
+			cfg: EmbeddingProviderConfig{
+				Spec:              &summarizerv1pb.BedrockProvider{Region: "{{ env.bedrock_region }}"},
+				ModelResourceName: "m",
+				AWSConfigCache:    cache,
+			},
+			wantErr: "TELEPORT_BEDROCK_REGION environment variable is not set",
+		},
 	}
 
 	for _, tc := range cases {
@@ -131,4 +150,31 @@ func TestNewEmbeddingProviderValidation(t *testing.T) {
 			require.ErrorContains(t, err, tc.wantErr)
 		})
 	}
+}
+
+func TestNewEmbeddingProvider_RegionExpansion(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	cache, err := createCache()
+	require.NoError(t, err)
+
+	clientFactory := &FakeClientFactory{
+		Clock: clockwork.NewFakeClock(),
+		configValidation: func(cfg aws.Config) {
+			assert.Equal(t, "eu-west-1", cfg.Region)
+		},
+	}
+	provider, err := NewEmbeddingProvider(ctx, EmbeddingProviderConfig{
+		Spec: &summarizerv1pb.BedrockProvider{
+			BedrockModelId: "amazon.titan-embed-text-v2:0",
+			Region:         "{{env.bedrock_region}}",
+		},
+		ModelResourceName: "m",
+		AWSConfigCache:    cache,
+		ClientFactory:     clientFactory,
+		EnvBedrockRegion:  "eu-west-1",
+	})
+	require.NoError(t, err)
+	assert.NotNil(t, provider)
 }

@@ -195,12 +195,12 @@ func (s *SessionSummarizer) newEmbeddingProvider(
 		return p, nil
 
 	case *summarizerv1pb.RetrievalModelSpec_Bedrock:
-
 		p, err := bedrock.NewEmbeddingProvider(ctx, bedrock.EmbeddingProviderConfig{
 			Spec:              providerCfg.Bedrock,
 			ClientFactory:     s.bedrockClientFactory,
 			ModelResourceName: model.GetMetadata().GetName(),
 			AWSConfigCache:    s.awsConfigCache,
+			EnvBedrockRegion:  s.envBedrockRegion,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)

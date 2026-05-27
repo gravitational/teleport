@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	summarizerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
+	apisummarizer "github.com/gravitational/teleport/api/types/summarizer"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 )
 
@@ -34,6 +36,9 @@ type EmbeddingProviderConfig struct {
 	// configuration is derived from.
 	ModelResourceName string
 	AWSConfigCache    *awsconfig.Cache
+	// EnvBedrockRegion, if non-empty, replaces the region in Spec when Spec.Region
+	// is set to the {{env.bedrock_region}} placeholder (with optional surrounding spaces).
+	EnvBedrockRegion string
 }
 
 func NewEmbeddingProvider(ctx context.Context, cfg EmbeddingProviderConfig) (*EmbeddingProvider, error) {
@@ -43,7 +48,14 @@ func NewEmbeddingProvider(ctx context.Context, cfg EmbeddingProviderConfig) (*Em
 	if cfg.ModelResourceName == "" {
 		return nil, trace.BadParameter("model resource name is required")
 	}
-	if cfg.Spec.GetRegion() == "" {
+	region := cfg.Spec.GetRegion()
+	if strings.ReplaceAll(region, " ", "") == apisummarizer.BedrockRegionExpansionPlaceholder {
+		if cfg.EnvBedrockRegion == "" {
+			return nil, trace.BadParameter("region is set to the %s placeholder but the TELEPORT_BEDROCK_REGION environment variable is not set; either set TELEPORT_BEDROCK_REGION or specify a region directly in the model spec", apisummarizer.BedrockRegionExpansionPlaceholder)
+		}
+		region = cfg.EnvBedrockRegion
+	}
+	if region == "" {
 		return nil, trace.BadParameter("region is required")
 	}
 	if cfg.AWSConfigCache == nil {
@@ -57,7 +69,7 @@ func NewEmbeddingProvider(ctx context.Context, cfg EmbeddingProviderConfig) (*Em
 
 	awscfg, err := cfg.AWSConfigCache.GetConfig(
 		ctx,
-		cfg.Spec.GetRegion(),
+		region,
 		awsconfig.WithCredentialsMaybeIntegration(
 			awsconfig.IntegrationMetadata{
 				Name: cfg.Spec.GetIntegration(),
