@@ -75,20 +75,27 @@ func (a *Server) generateDatabaseServerCert(ctx context.Context, req *proto.Data
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := a.generateDatabaseCert(ctx, req, dbServerCA)
+	resp, err := a.generateDatabaseCert(ctx, req, dbServerCA, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// databases should be configured to trust the DatabaseClientCA when
 	// clients connect so return DatabaseClientCA in the response.
-	returnedCAID := types.CertAuthID{
+	dbClientCA, err := a.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.DatabaseClientCA,
 		DomainName: clusterName.GetClusterName(),
-	}
-	caCerts, err := a.getDatabaseCACerts(ctx, returnedCAID)
+	}, false)
 	if err != nil {
-		return nil, trace.Wrap(err, "get database CA certs")
+		return nil, trace.Wrap(err)
+	}
+	dbClientOverrideResolver, err := a.loadCAOverrideResolverForCA(ctx, dbClientCA)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	caCerts, err := dbClientOverrideResolver.ApplyOverrides(services.GetTLSCerts(dbClientCA))
+	if err != nil {
+		return nil, trace.Wrap(err, "apply overrides")
 	}
 
 	return &proto.DatabaseCertResponse{
@@ -114,8 +121,12 @@ func (a *Server) generateDatabaseClientCert(ctx context.Context, req *proto.Data
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	dbClientOverrideResolver, err := a.loadCAOverrideResolverForCA(ctx, dbClientCA)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	resp, err := a.generateDatabaseCert(ctx, req, dbClientCA)
+	resp, err := a.generateDatabaseCert(ctx, req, dbClientCA, dbClientOverrideResolver)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -126,17 +137,23 @@ func (a *Server) generateDatabaseClientCert(ctx context.Context, req *proto.Data
 	// The only exception is the SQL Server with PKINIT integration, where the
 	// `kinit` command line needs our client CA to trust the user certificates
 	// we pass.
-	returnedCAType := types.DatabaseCA
+	var caCerts [][]byte
 	if req.CertificateExtensions == proto.DatabaseCertRequest_WINDOWS_SMARTCARD {
-		returnedCAType = types.DatabaseClientCA
-	}
-	returnedCAID := types.CertAuthID{
-		Type:       returnedCAType,
-		DomainName: clusterName.GetClusterName(),
-	}
-	caCerts, err := a.getDatabaseCACerts(ctx, returnedCAID)
-	if err != nil {
-		return nil, trace.Wrap(err, "get database CA certs")
+		var err error
+		caCerts, err = dbClientOverrideResolver.ApplyOverrides(services.GetTLSCerts(dbClientCA))
+		if err != nil {
+			return nil, trace.Wrap(err, "apply overrides")
+		}
+	} else {
+		const loadKeys = false
+		dbCA, err := a.GetCertAuthority(ctx, types.CertAuthID{
+			Type:       types.DatabaseCA,
+			DomainName: clusterName.GetClusterName(),
+		}, loadKeys)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		caCerts = services.GetTLSCerts(dbCA)
 	}
 
 	return &proto.DatabaseCertResponse{
@@ -157,6 +174,7 @@ func (a *Server) generateDatabaseCert(
 	ctx context.Context,
 	req *proto.DatabaseCertRequest,
 	ca types.CertAuthority,
+	caOverrideResolver *subca.CAOverrideResolver,
 ) (*generateDatabaseCertResponse, error) {
 	csr, err := tlsca.ParseCertificateRequestPEM(req.CSR)
 	if err != nil {
@@ -169,28 +187,14 @@ func (a *Server) generateDatabaseCert(
 
 	var trustChain [][]byte
 	var caOverrideDetails *proto.CAOverrideCertificateDetails
-	if ca.GetType() == types.DatabaseClientCA {
-		subCAResolver, err := subca.NewCAOverrideResolver(a.Cache, a.modules.IsEnterpriseBuild())
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		overrideResult, err := subCAResolver.CalculateOverride(ctx, types.CertAuthorityOverrideID{
-			ClusterName: ca.GetClusterName(),
-			CAType:      string(ca.GetType()),
-		}, subca.Certificate{PEM: caCert})
+	if caOverrideResolver != nil {
+		overrideResult, err := caOverrideResolver.CalculateOverride(subca.Certificate{PEM: caCert})
 		if err != nil {
 			return nil, trace.Wrap(err, "calculate CA override")
 		}
-
 		caCert = overrideResult.CACertificate.PEM
 		caOverrideDetails = overrideResult.ToClientOverrideDetailsProto()
-
-		if len(overrideResult.CAChain) > 0 {
-			trustChain = make([][]byte, len(overrideResult.CAChain))
-			for i, cert := range overrideResult.CAChain {
-				trustChain[i] = cert.PEM
-			}
-		}
+		trustChain = overrideResult.CAChain.ToPEMs()
 	}
 
 	tlsCA, err := tlsca.FromCertAndSigner(caCert, signer)
@@ -256,85 +260,6 @@ func (a *Server) generateDatabaseCert(
 		TrustChainPEM:     trustChain,
 		CAOverrideDetails: caOverrideDetails,
 	}, nil
-}
-
-// getDatabaseCACerts returns the client root CAs for the specified CA
-// (ie, `resp.CACerts`).
-//
-// This method is aware of and correctly applies CA overrides.
-func (a *Server) getDatabaseCACerts(ctx context.Context, id types.CertAuthID) (certPEMs [][]byte, _ error) {
-	const loadKeys = false
-	ca, err := a.GetCertAuthority(ctx, id, loadKeys)
-	if err != nil {
-		return nil, trace.Wrap(err, "read CA")
-	}
-
-	if id.Type != types.DatabaseClientCA {
-		return services.GetTLSCerts(ca), nil
-	}
-
-	// DBClientCA may be targeted by overrides. If that's the case we must use the
-	// override certificate (instead of the self-signed) whenever applicable.
-	caOverride, err := a.GetCertAuthorityOverride(ctx, types.CertAuthorityOverrideID{
-		ClusterName: id.DomainName,
-		CAType:      string(id.Type),
-	})
-	if trace.IsNotFound(err) {
-		// OK, overrides are not mandatory.
-		return services.GetTLSCerts(ca), nil
-	}
-	if err != nil {
-		return nil, trace.Wrap(err, "read CA override")
-	}
-
-	// Verify if active overrides exist, otherwise we don't need to bother with
-	// parsing.
-	hasActiveOverrides := false
-	for _, co := range caOverride.GetSpec().GetCertificateOverrides() {
-		if !co.GetDisabled() && len(co.GetCertificate()) > 0 {
-			hasActiveOverrides = true
-			break
-		}
-	}
-	if !hasActiveOverrides {
-		return services.GetTLSCerts(ca), nil
-	}
-
-	// At least one active override exists, so we'll need to parse the certs and
-	// prioritize the overrides over the self-signed.
-	overridePublicKeyToPEM := make(map[string][]byte)
-	parsedCAOverride, err := subca.ParseCAOverride(caOverride)
-	if err != nil {
-		return nil, trace.Wrap(err, "parse CA override")
-	}
-	for _, co := range parsedCAOverride.CertificateOverrides {
-		if co.CertificateOverride.GetDisabled() || co.Certificate == nil {
-			continue
-		}
-		overridePublicKeyToPEM[co.PublicKey] = []byte(co.CertificateOverride.Certificate)
-	}
-
-	trustedKPs := ca.GetTrustedTLSKeyPairs()
-	certPEMs = make([][]byte, 0, len(overridePublicKeyToPEM))
-	for i, kp := range trustedKPs {
-		if len(kp.Cert) == 0 {
-			continue
-		}
-		cert, err := tlsca.ParseCertificatePEM(kp.Cert)
-		if err != nil {
-			return nil, trace.Wrap(err, "parse CA certificate (index %d)", i)
-		}
-		pkh := subca.HashCertificatePublicKey(cert)
-
-		// Use override certificate if applicable, otherwise use the CA.
-		if pem, ok := overridePublicKeyToPEM[pkh]; ok {
-			certPEMs = append(certPEMs, pem)
-			continue
-		}
-		certPEMs = append(certPEMs, kp.Cert)
-	}
-
-	return certPEMs, nil
 }
 
 // getCAandSigner returns correct signer and CA that should be used when generating database certificate.
@@ -440,14 +365,14 @@ func (a *Server) SignDatabaseCSR(ctx context.Context, req *proto.DatabaseCSRRequ
 		return nil, trace.Wrap(err)
 	}
 
-	returnedCAID := types.CertAuthID{
+	hostCA, err := a.GetCertAuthority(ctx, types.CertAuthID{
 		Type:       types.HostCA,
 		DomainName: req.ClusterName,
-	}
-	caCerts, err := a.getDatabaseCACerts(ctx, returnedCAID)
+	}, false)
 	if err != nil {
-		return nil, trace.Wrap(err, "get database CA certs")
+		return nil, trace.Wrap(err)
 	}
+	caCerts := services.GetTLSCerts(hostCA)
 
 	return &proto.DatabaseCSRResponse{
 		Cert:    tlsCert,

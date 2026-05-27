@@ -91,14 +91,11 @@ func (a *Server) GenerateWindowsDesktopCert(ctx context.Context, req *proto.Wind
 	}
 
 	// Calculate CA override.
-	subCAResolver, err := subca.NewCAOverrideResolver(a.Cache, a.modules.IsEnterpriseBuild())
+	subCAResolver, err := a.loadCAOverrideResolverForCA(ctx, ca)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	overrideResult, err := subCAResolver.CalculateOverride(ctx, types.CertAuthorityOverrideID{
-		ClusterName: ca.GetClusterName(),
-		CAType:      string(ca.GetType()),
-	}, subca.Certificate{PEM: caCert})
+	overrideResult, err := subCAResolver.CalculateOverride(subca.Certificate{PEM: caCert})
 	if err != nil {
 		return nil, trace.Wrap(err, "calculate CA override")
 	}
