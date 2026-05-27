@@ -146,6 +146,8 @@ type User interface {
 	SetCreatedBy(CreatedBy)
 	// GetUserType indicates if the User was created by an SSO Provider or locally.
 	GetUserType() UserType
+	// GetDisplay returns display values derived from the user.
+	GetDisplay() UserDisplay
 	// GetTraits gets the trait map for this user used to populate role variables.
 	GetTraits() map[string][]string
 	// SetTraits sets the trait map for this user used to populate role variables.
