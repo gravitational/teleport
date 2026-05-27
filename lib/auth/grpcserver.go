@@ -26,10 +26,9 @@ import (
 	"io"
 	"iter"
 	"log/slog"
+	"math"
 	"net"
-	"os"
 	goslices "slices"
-	"strconv"
 	"strings"
 	"time"
 
@@ -39,6 +38,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	collectortracepb "go.opentelemetry.io/proto/otlp/collector/trace/v1"
+	"golang.org/x/time/rate"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	_ "google.golang.org/grpc/encoding/gzip" // gzip compressor for gRPC.
@@ -232,17 +232,23 @@ type GRPCServer struct {
 	// collect and forward spans
 	collectortracepb.TraceServiceServer
 
-	// createAuditStreamSemaphore, if not nil, is used to limit the amount of
-	// in-flight CreateAuditStream RPCs, by sending a value in at the beginning
-	// of the RPC and pulling one out before returning.
-	createAuditStreamSemaphore chan struct{}
-
 	// createAuthenticateChallengeLimiter is a rate limiter for invocations of
 	// /proto.AuthService/CreateAuthenticateChallenge that don't rely on a user
 	// context and thus warrant additional rate limiting since they are
 	// unauthenticated (either through direct API connections or coming from the
 	// proxy on behalf of a remote unauthenticated user).
 	createAuthenticateChallengeLimiter *limiter.RateLimiter
+
+	// createAuditStreamSemaphore, if not nil, is used to limit the amount of
+	// in-flight CreateAuditStream RPCs, by sending a value in at the beginning
+	// of the RPC and pulling one out before returning.
+	createAuditStreamSemaphore chan struct{}
+
+	// resolveSSHTargetRateLimiter is an optional (server-wide) rate limiter for
+	// calls to ResolveSSHTarget, since those might end up iterating over the
+	// whole inventory of nodes and that can be quite heavy. Calls beyond the
+	// rate limit will block until their execution would be allowed.
+	resolveSSHTargetRateLimiter *rate.Limiter
 }
 
 func (g *GRPCServer) SetServingStatus(service string, servingStatus grpc_health_v1.HealthCheckResponse_ServingStatus) {
@@ -5104,6 +5110,12 @@ func (g *GRPCServer) ResolveSSHTarget(ctx context.Context, req *authpb.ResolveSS
 		return nil, trace.Wrap(err)
 	}
 
+	if l := g.resolveSSHTargetRateLimiter; l != nil {
+		if err := l.Wait(ctx); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	rsp, err := auth.ServerWithRoles.ResolveSSHTarget(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -6386,6 +6398,23 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	var createAuditStreamSemaphore chan struct{}
+	if cfg.CreateAuditStreamInflightLimit != nil {
+		metrics.RegisterPrometheusCollectors(
+			createAuditStreamAcceptedTotalMetric,
+			createAuditStreamRejectedTotalMetric,
+			createAuditStreamLimitMetric,
+		)
+		limit := max(0, *cfg.CreateAuditStreamInflightLimit)
+		createAuditStreamLimitMetric.Set(float64(limit))
+		createAuditStreamSemaphore = make(chan struct{}, limit)
+	}
+
+	var resolveSSHTargetRateLimiter *rate.Limiter
+	if cfg.ResolveSSHTargetRateLimit != nil {
+		resolveSSHTargetRateLimiter = rate.NewLimiter(rate.Limit(*cfg.ResolveSSHTargetRateLimit), int(math.Ceil(*cfg.ResolveSSHTargetRateLimit)))
+	}
+
 	authServer := &GRPCServer{
 		APIConfig:   cfg.APIConfig,
 		logger:      logger,
@@ -6393,26 +6422,8 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		healthcheck: health.NewServer(),
 
 		createAuthenticateChallengeLimiter: createAuthenticateChallengeLimiter,
-	}
-
-	if en := os.Getenv("TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT"); en != "" {
-		inflightLimit, err := strconv.ParseInt(en, 10, 64)
-		if err != nil {
-			logger.ErrorContext(context.Background(), "Failed to parse the TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT envvar, limit will not be enforced")
-			inflightLimit = -1
-		}
-		if inflightLimit == 0 {
-			logger.WarnContext(context.Background(), "TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT is set to 0, no CreateAuditStream RPCs will be allowed")
-		}
-		metrics.RegisterPrometheusCollectors(
-			createAuditStreamAcceptedTotalMetric,
-			createAuditStreamRejectedTotalMetric,
-			createAuditStreamLimitMetric,
-		)
-		createAuditStreamLimitMetric.Set(float64(inflightLimit))
-		if inflightLimit >= 0 {
-			authServer.createAuditStreamSemaphore = make(chan struct{}, inflightLimit)
-		}
+		createAuditStreamSemaphore:         createAuditStreamSemaphore,
+		resolveSSHTargetRateLimiter:        resolveSSHTargetRateLimiter,
 	}
 
 	authpb.RegisterAuthServiceServer(server, authServer)

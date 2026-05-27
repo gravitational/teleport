@@ -59,6 +59,8 @@ plan_modifiers:
   # Force to recreate resource if its name changes
   Metadata.name:
     - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
+  ScopedToken.scope:
+    - "github.com/hashicorp/terraform-plugin-framework/tfsdk.RequiresReplace()"
 
 # This must be defined for the generator to be happy, but in reality all time
 # fields are overridden (because the protobuf timestamps contain locks and the

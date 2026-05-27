@@ -212,7 +212,7 @@ Teleport Connect is a desktop app that can manage database proxies for you.
 Learn more at https://goteleport.com/docs/connect-your-client/teleport-connect/#connecting-to-a-database
 
 Use the following command to connect to the database or to the address above using other database GUI/CLI clients:
-  $ psql postgres://postgres@localhost:65282/my-prod-db
+  $ psql postgres://my-prod-user@localhost:65282/my-prod-db
 MFA is required to access Database "prod-postgres-instance"
 Available MFA methods [WEBAUTHN, BROWSER]. Continuing with WEBAUTHN.
 If you wish to perform MFA with another method, specify with flag --mfa-mode=<webauthn,browser> or environment variable TELEPORT_MFA_MODE=<webauthn,browser>.
@@ -226,7 +226,7 @@ to the database. Jerry can now connect to the database without using MFA on
 every connection:
 
 ```code
-$ psql postgres://postgres@localhost:65282/my-prod-db
+$ psql postgres://my-prod-user@localhost:65282/my-prod-db
 psql (17.5)
 Type "help" for help.
 

@@ -76,15 +76,13 @@ type CAOverrideResolver struct {
 //     services.SubCAServiceGetter implementation.
 //   - isEnterpriseBuild should be set to `modules.Modules.IsEnterpriseBuild()`
 //     by production callers
-//   - featureEnabled should be set to `Enabled` by production callers
 func LoadCAOverrideResolver(
 	ctx context.Context,
 	caGetter CAOverrideGetter,
 	isEnterpriseBuild bool,
-	featureEnabled bool,
 	id types.CertAuthorityOverrideID,
 ) (*CAOverrideResolver, error) {
-	if !isEnterpriseBuild || !featureEnabled {
+	if !isEnterpriseBuild {
 		return &CAOverrideResolver{}, nil
 	}
 
