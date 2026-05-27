@@ -870,7 +870,7 @@ func newSession(ctx context.Context, r *SessionRegistry, scx *ServerContext, ch 
 		login:           scx.Identity.Login,
 		stopC:           make(chan struct{}),
 		startTime:       startTime,
-		emitter:         scx.srv,
+		emitter:         scx.AuditEmitter(),
 		serverCtx:       scx.srv.Context(),
 		access:          &access,
 		scx:             scx,
@@ -886,11 +886,6 @@ func newSession(ctx context.Context, r *SessionRegistry, scx *ServerContext, ch 
 	}
 
 	sess.io.OnWriteError = sess.onWriteErrorCallback(sessionRecordingMode)
-
-	// Nodes discard events in cases when proxies are already recording them.
-	if !sess.shouldHandleRecording() {
-		sess.emitter = events.NewDiscardAuditLog()
-	}
 
 	go func() {
 		if _, open := <-sess.io.TerminateNotifier(); open {
@@ -1468,7 +1463,7 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 	sessionContext := &bpf.SessionContext{
 		Context:               scx.srv.Context(),
 		PID:                   s.term.PID(),
-		Emitter:               s.emitter,
+		Emitter:               scx.BPFEmitter(),
 		Namespace:             scx.srv.GetNamespace(),
 		SessionID:             s.id.String(),
 		ServerID:              scx.srv.ID(),
@@ -1667,7 +1662,7 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 	sessionContext := &bpf.SessionContext{
 		Context:               scx.srv.Context(),
 		PID:                   scx.execRequest.PID(),
-		Emitter:               s.emitter,
+		Emitter:               scx.BPFEmitter(),
 		Namespace:             scx.srv.GetNamespace(),
 		SessionID:             string(s.id),
 		ServerID:              scx.srv.ID(),
