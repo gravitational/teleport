@@ -14,7 +14,16 @@ spec:
     singular: teleportbotv1
   scope: Namespaced
   versions:
-  - name: v1
+  - additionalPrinterColumns:
+    - description: Resource's scope.
+      jsonPath: .scope
+      name: scope
+      type: string
+    - description: The age of this resource
+      jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1
     schema:
       openAPIV3Schema:
         description: BotV1 is the Schema for the botsv1 API
@@ -31,6 +40,16 @@ spec:
             type: string
           metadata:
             type: object
+          scope:
+            description: The scope of the Bot. If unset, the Bot is unscoped (classic
+              behavior) and if set, the Bot is scoped. When the Bot is scoped, the
+              `spec.roles`, `spec.traits` and `spec.max_session_ttl` fields must not
+              be set.
+            type: string
+            x-kubernetes-validations:
+            - message: Scope is immutable. To create the resource in a different scope
+                you must delete it first.
+              rule: self == oldSelf
           spec:
             description: Bot resource definition v1 from Teleport
             properties:
@@ -135,6 +154,10 @@ spec:
                 type: integer
             type: object
         type: object
+        x-kubernetes-validations:
+        - message: Scope is immutable. To create the resource in a different scope
+            you must delete it first.
+          rule: has(self.scope) == has(oldSelf.scope)
     served: true
     storage: true
     subresources:

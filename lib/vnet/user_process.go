@@ -112,6 +112,10 @@ func RunUserProcess(ctx context.Context, clientApplication ClientApplication) (*
 		clientApplication:  clientApplication,
 		clusterConfigCache: clusterConfigCache,
 		leafClusterCache:   leafClusterCache,
+		// DB access via VNet is currently only supported by the tbot beams, but
+		// disabled for tsh/Connect by default. flip to true to enable DB access via VNet
+		// for tsh/Connect to validate locally.
+		allowDatabaseAccess: false,
 	})
 	unifiedClusterConfigProvider := NewUnifiedClusterConfigProvider(&UnifiedClusterConfigProviderConfig{
 		clientApplication:  clientApplication,
