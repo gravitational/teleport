@@ -1549,7 +1549,7 @@ type Event_ValidatedMFAChallengeV2 struct {
 }
 
 type Event_BeamsConfig struct {
-	// BeamsConfig is the cluster-wide configuration for Beams.
+	// BeamsConfig is the user-provided configuration for Beams.
 	BeamsConfig *v125.BeamsConfig `protobuf:"bytes,97,opt,name=BeamsConfig,proto3,oneof"`
 }
 

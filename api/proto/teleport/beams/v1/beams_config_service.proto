@@ -20,7 +20,7 @@ import "teleport/beams/v1/beams_config.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1;beamsv1";
 
-// BeamsConfigService provides methods to manage the cluster-wide Beams
+// BeamsConfigService provides methods to manage the user-provided Beams
 // configuration singleton.
 service BeamsConfigService {
   // GetBeamsConfig returns the current BeamsConfig singleton.

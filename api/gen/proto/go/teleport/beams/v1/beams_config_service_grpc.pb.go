@@ -43,7 +43,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 //
-// BeamsConfigService provides methods to manage the cluster-wide Beams
+// BeamsConfigService provides methods to manage the user-provided Beams
 // configuration singleton.
 type BeamsConfigServiceClient interface {
 	// GetBeamsConfig returns the current BeamsConfig singleton.
@@ -108,7 +108,7 @@ func (c *beamsConfigServiceClient) DeleteBeamsConfig(ctx context.Context, in *De
 // All implementations must embed UnimplementedBeamsConfigServiceServer
 // for forward compatibility.
 //
-// BeamsConfigService provides methods to manage the cluster-wide Beams
+// BeamsConfigService provides methods to manage the user-provided Beams
 // configuration singleton.
 type BeamsConfigServiceServer interface {
 	// GetBeamsConfig returns the current BeamsConfig singleton.

@@ -390,7 +390,8 @@ func (x *LLMEndpointConfig) SetAppName(v string) {
 type LLMEndpointConfig_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	// AppName is the name of the Teleport app that proxies LLM requests.
+	// AppName is the name of the Teleport app that proxies LLM requests. When
+	// empty, defaults to the Cloud-managed LLM app for this endpoint.
 	AppName string
 }
 

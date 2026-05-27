@@ -264,7 +264,7 @@ message Event {
     teleport.beams.v1.Beam Beam = 95;
     // ValidatedMFAChallengeV2 is a resource for representing a validated MFA challenge.
     teleport.mfa.v2.ValidatedMFAChallenge ValidatedMFAChallengeV2 = 96;
-    // BeamsConfig is the cluster-wide configuration for Beams.
+    // BeamsConfig is the user-provided configuration for Beams.
     teleport.beams.v1.BeamsConfig BeamsConfig = 97;
   }
 }

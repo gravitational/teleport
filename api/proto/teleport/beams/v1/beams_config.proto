@@ -51,6 +51,7 @@ message LLMConfig {
 // LLMEndpointConfig defines the configuration for an LLM endpoint backed by a
 // Teleport app.
 message LLMEndpointConfig {
-  // AppName is the name of the Teleport app that proxies LLM requests.
+  // AppName is the name of the Teleport app that proxies LLM requests. When
+  // empty, defaults to the Cloud-managed LLM app for this endpoint.
   string app_name = 1;
 }
