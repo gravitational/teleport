@@ -91,11 +91,7 @@ func displayPrimaryFromTraits(traits map[string][]string, username string) strin
 		return display
 	}
 
-	if display := displayPrimaryFromGenericTraits(traits, username); display != "" {
-		return display
-	}
-
-	return ""
+	return displayPrimaryFromGenericTraits(traits, username)
 }
 
 func displaySecondaryFromTraits(traits map[string][]string, username string) string {
@@ -107,11 +103,7 @@ func displaySecondaryFromTraits(traits map[string][]string, username string) str
 		return display
 	}
 
-	if display := displaySecondaryFromGenericTraits(traits, username); display != "" {
-		return display
-	}
-
-	return ""
+	return displaySecondaryFromGenericTraits(traits, username)
 }
 
 func displayPrimaryFromOktaTraits(traits map[string][]string, username string) string {
