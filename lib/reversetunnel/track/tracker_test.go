@@ -252,7 +252,7 @@ func TestFullRotation(t *testing.T) {
 			t.Fatal("timeout")
 		default:
 			time.Sleep(100 * time.Millisecond)
-			t.Logf("activeCount22 %v", tracker.activeCount())
+			t.Logf("activeCount2 %v", tracker.activeCount())
 		}
 	}
 }
