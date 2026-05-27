@@ -459,25 +459,6 @@ Usage:
 $ tctl audit schema
 ```
 
-## tctl auth create-override-csr
-
-Create a CSR in preparation for CA certificate override
-
-Usage:
-
-```code
-$ tctl auth create-override-csr --type=TYPE [<flags>]
-```
-
-Flags:
-
-|Flag|Default|Description|
-|---|---|---|
-|`--out`|*no default*|If set writes CSRs to files using --out as the path prefix|
-|`--public-key`|*no default*|Public key hash of CA certificate to be targeted|
-|`--subject`|*no default*|Customized certificate subject. Example: "O=MyClusterName,OU=MyOrgUnit,CN=MyCommonName"|
-|`--type`|*no default*|CA type (db-client, windows)|
-
 ## tctl auth crl
 
 Export empty certificate revocation list (CRL) for Teleport certificate
@@ -532,22 +513,6 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`--format`|`yaml`|Output format: 'yaml', 'json' or 'text'|
-
-## tctl auth pub-key-hash
-
-Extract and print the public key hash of a PEM certificate
-
-Usage:
-
-```code
-$ tctl auth pub-key-hash --cert=CERT
-```
-
-Flags:
-
-|Flag|Default|Description|
-|---|---|---|
-|`--cert`|*no default*|Certificate file in PEM format. Use '-' to read from stdin.|
 
 ## tctl auth rotate
 
