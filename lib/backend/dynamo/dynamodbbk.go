@@ -697,7 +697,7 @@ func (b *Backend) batchWriteItem(ctx context.Context, requests []types.WriteRequ
 			RequestItems: requestItems,
 		})
 		if err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(convertError(err))
 		}
 
 		if resp == nil || len(resp.UnprocessedItems) == 0 {
