@@ -7968,18 +7968,13 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		if t.KubernetesCluster == "" {
 			return nil, trace.BadParameter("missing KubernetesCluster field in a kubernetes-only UserCertsRequest")
 		}
-		// Find the target cluster and check whether MFA is required.
-		svcs, err := a.GetKubernetesServers(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 		var cluster types.KubeCluster
-		for _, svc := range svcs {
-			kubeCluster := svc.GetCluster()
-			if kubeCluster.GetName() == t.KubernetesCluster {
-				cluster = kubeCluster
-				break
+		for server, err := range a.RangeKubernetesServersWithName(ctx, t.KubernetesCluster) {
+			if err != nil {
+				return nil, trace.Wrap(err)
 			}
+			cluster = server.GetCluster()
+			break
 		}
 		if cluster == nil {
 			return nil, trace.NotFound("kubernetes cluster %q not found", t.KubernetesCluster)

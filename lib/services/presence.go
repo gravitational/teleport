@@ -216,4 +216,7 @@ type PresenceInternal interface {
 
 	// RangeDatabaseServersWithName returns an iterator over database proxy servers for a given database name.
 	RangeDatabaseServersWithName(ctx context.Context, databaseName string) iter.Seq2[types.DatabaseServer, error]
+
+	// RangeKubernetesServersWithName returns an iterator over kubernetes servers for a given cluster name.
+	RangeKubernetesServersWithName(ctx context.Context, clusterName string) iter.Seq2[types.KubeServer, error]
 }
