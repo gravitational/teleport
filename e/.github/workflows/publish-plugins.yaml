@@ -81,7 +81,7 @@ jobs:
           aws-region: us-west-2
           role-to-assume: ${{ env.ARTIFACT_DOWNLOAD_AWS_ROLE }}
           role-session-name: "tag-publish-plugins-artifact-download-${{ github.run_attempt }}"
-          role-duration-seconds: 900
+          role-duration-seconds: 1800
 
       - name: Download artifacts from S3
         env:
