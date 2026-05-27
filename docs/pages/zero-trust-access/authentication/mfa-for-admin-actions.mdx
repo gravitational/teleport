@@ -44,7 +44,7 @@ their on-disk Teleport certificates.
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - (!docs/pages/includes/tctl.mdx!)
-- A second factor that can satisfy admin actions configured on the cluster; either of the following:
+- The following MFA methods can satisfy admin actions configured on the cluster:
   - [WebAuthn](../management/security/idp-compromise.mdx) with a hardware
     authenticator (such as YubiKey or SoloKey) and a browser with
     [WebAuthn support](https://developers.yubico.com/WebAuthn/WebAuthn_Browser_Support/)
@@ -54,7 +54,7 @@ their on-disk Teleport certificates.
 ## Require MFA for administrative actions
 
 MFA for administrative actions is automatically enforced on clusters whose
-configured second factors all satisfy admin actions — that is, OTP is not
+configured multi-factors all satisfy admin actions — that is, OTP is not
 allowed. WebAuthn and SSO MFA both qualify, individually or together.
 
 <Admonition type="note">
