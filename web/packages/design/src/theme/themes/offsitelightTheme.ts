@@ -75,7 +75,7 @@ const colors: ThemeColors = {
 
   spotBackground: neutralColors,
 
-  brand: '#45991F',
+  brand: '#1D69CC',
 
   interactive: {
     solid: {
@@ -90,9 +90,9 @@ const colors: ThemeColors = {
         active: '#0570AD',
       },
       accent: {
-        default: '#2774D9',
-        hover: '#0D5CBD',
-        active: '#0D5CBD',
+        default: '#864AE0',
+        hover: '#8D4EED',
+        active: '#8D4EED',
       },
       danger: {
         default: '#CC2D37',
@@ -108,9 +108,9 @@ const colors: ThemeColors = {
 
     tonal: {
       primary: [
-        'rgba(225, 228, 232, .1)',
-        'rgba(225, 228, 232, 0.18)',
-        'rgba(225, 228, 232, 0.25)'
+        'rgba(29, 105, 204, .1)',
+        'rgba(29, 105, 204, 0.18)',
+        'rgba(29, 105, 204, 0.25)'
       ],
       success: [
         'rgba(19, 155, 235, 0.1)',
@@ -128,9 +128,9 @@ const colors: ThemeColors = {
         'rgba(204, 134, 4, 0.25)',
       ],
       informational: [
-        'rgba(39, 116, 217, 0.1)',
-        'rgba(39, 116, 217, 0.18)',
-        'rgba(39, 116, 217, 0.25)',
+        'rgba(134, 74, 224, 0.1)',
+        'rgba(134, 74, 224, 0.18)',
+        'rgba(134, 74, 224, 0.25)',
       ],
       neutral: [neutralColors[0], neutralColors[1], neutralColors[2]],
     },
