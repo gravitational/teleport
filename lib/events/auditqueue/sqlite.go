@@ -42,7 +42,6 @@ import (
 )
 
 const (
-	defaultMaxBatch             = 250
 	defaultToBeWrittenBufferLen = 1024
 	pollInterval                = 100 * time.Millisecond
 	dequeueBatchSize            = 256
@@ -54,6 +53,14 @@ const (
 	defaultSoftLimit            = 100 * 1024 * 1024 // 100 MiB
 	softLimitCheckInterval      = time.Minute
 	sqlitePageSize              = 4096 // Bytes
+
+	// We've run benchmarks and found a batch size of 25 to be a good middle
+	// ground between insertion performance and memory overhead of
+	// events-in-flight. We've observed peak performance is achieved with batch
+	// sizes around 250, and we encounter diminishing returns above that.
+	//
+	// See: https://github.com/gravitational/teleport.e/blob/rfd/0254-sqlite-audit-log-event-queue/rfd/0254-sqlite-audit-log-event-queue.md#modernc-synchronousnormal-60-second-duration
+	defaultMaxBatch = 25
 
 	// walJournalSizeLimit is the number of bytes the `-wal` file gets
 	// truncated to in between checkpoints.
