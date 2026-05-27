@@ -67,7 +67,7 @@ const (
 	busyTimeoutMillis = 5000
 
 	// defaultMaxBytes limits the size of the SQLite database file.
-	defaultMaxBytes int64 = 5 * 1024 * 1024 * 1024 // 5 GiB
+	defaultMaxBytes = 5 * 1024 * 1024 * 1024 // 5 GiB
 
 	// staleTmpThreshold is how old an in-progress <uuid>.tmp/ directory
 	// must be before the orphan scanner removes it. Anything younger may
@@ -133,16 +133,21 @@ func bytesToPages(nBytes int64) int64 {
 	return nBytes / sqlitePageSize
 }
 
+// addSharedParams adds the shared parameters between both the in-memory sqlite
+// implementation and the on-disk implementation.
+func addSharedParams(params url.Values, maxBytes int64) {
+	params.Add("_pragma", fmt.Sprintf("busy_timeout(%d)", busyTimeoutMillis))
+	params.Add("_pragma", "temp_store(MEMORY)")
+	params.Add("_pragma", fmt.Sprintf("max_page_count(%d)", bytesToPages(maxBytes)))
+}
+
 func getDSN(dbPath string, maxBytes int64) string {
-	maxPages := bytesToPages(maxBytes)
 	params := url.Values{}
 	params.Add("_pragma", "auto_vacuum(INCREMENTAL)")
 	params.Add("_pragma", "journal_mode(WAL)")
 	params.Add("_pragma", "synchronous(NORMAL)")
 	params.Add("_pragma", fmt.Sprintf("journal_size_limit(%d)", walJournalSizeLimit))
-	params.Add("_pragma", fmt.Sprintf("busy_timeout(%d)", busyTimeoutMillis))
-	params.Add("_pragma", "temp_store(MEMORY)")
-	params.Add("_pragma", fmt.Sprintf("max_page_count(%d)", maxPages))
+	addSharedParams(params, maxBytes)
 	u := url.URL{
 		Scheme:   "file",
 		OmitHost: true,

@@ -22,7 +22,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"net/url"
 	"sync"
 
@@ -33,16 +32,18 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 )
 
+const (
+	defaultInMemoryMaxBytes = 100 * 1024 * 1024 // 100 MiB
+)
+
 func getInMemoryDSN(name string, maxBytes int64) string {
 	if maxBytes <= 0 {
-		maxBytes = defaultMaxBytes
+		maxBytes = defaultInMemoryMaxBytes
 	}
 	params := url.Values{}
 	params.Add("mode", "memory")
 	params.Add("cache", "shared")
-	params.Add("_pragma", fmt.Sprintf("busy_timeout(%d)", busyTimeoutMillis))
-	params.Add("_pragma", "temp_store(MEMORY)")
-	params.Add("_pragma", fmt.Sprintf("max_page_count(%d)", bytesToPages(maxBytes)))
+	addSharedParams(params, maxBytes)
 	u := url.URL{
 		Scheme:   "file",
 		OmitHost: true,
