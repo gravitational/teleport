@@ -41,7 +41,7 @@ func (c *EvaluateDatabaseCommand) Initialize(cmd *kingpin.CmdClause, output io.W
 	c.Output = output
 	c.command = cmd.Command("evaluate-db-access", "Evaluate database access for a user.").Hidden()
 	c.command.Flag("database-id", "The id of the target database.").StringVar(&c.DatabaseID)
-	c.command.Flag("format", "Output format.").Hidden().Default(teleport.JSON).EnumVar(&c.Format, teleport.JSON, teleport.YAML)
+	c.command.Flag("format", "Output format.").Default(teleport.JSON).EnumVar(&c.Format, teleport.JSON, teleport.YAML)
 }
 
 // FullCommand returns the fully qualified name of
