@@ -356,14 +356,20 @@ func (f *fakeConn) Close() error {
 	return nil
 }
 
-// wrappedListener wraps accepted connections so tests can observe when a
-// rejected connection is closed.
+// wrappedListener signals every Accept call so tests can observe that the
+// server's accept loop kept running, and wraps accepted connections so tests
+// can observe when a rejected connection is closed.
 type wrappedListener struct {
 	net.Listener
-	closed chan struct{}
+	closed  chan struct{}
+	accepts chan struct{}
 }
 
 func (l *wrappedListener) Accept() (net.Conn, error) {
+	select {
+	case l.accepts <- struct{}{}:
+	default:
+	}
 	conn, err := l.Listener.Accept()
 	if err != nil {
 		return nil, err
@@ -690,14 +696,17 @@ func TestListener_LimitExceededDoesNotTerminateServe(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			const timeout = 5 * time.Second
 			base, err := net.Listen("tcp", "127.0.0.1:0")
 			require.NoError(t, err)
 			defer base.Close()
 
+			accepts := make(chan struct{}, 1)
 			closed := make(chan struct{}, 1)
 			cl := NewConnectionsLimiter(1)
 			ln, err := NewListener(&wrappedListener{
 				Listener: base,
+				accepts:  accepts,
 				closed:   closed,
 			}, cl)
 			require.NoError(t, err)
@@ -708,7 +717,14 @@ func TestListener_LimitExceededDoesNotTerminateServe(t *testing.T) {
 
 			stop, done := tt.serve(t, ln)
 
-			// Listener.Accept limit exceeds with a tcp connection.
+			// Drain the Accept call Serve makes on startup.
+			select {
+			case <-accepts:
+			case <-time.After(timeout):
+				t.Fatal("timed out waiting for Serve to call Accept")
+			}
+
+			// Force a rejected Accept by dialing into the saturated limiter.
 			c, err := net.Dial("tcp", base.Addr().String())
 			require.NoError(t, err)
 			defer c.Close()
@@ -716,18 +732,20 @@ func TestListener_LimitExceededDoesNotTerminateServe(t *testing.T) {
 			// Wait until the rejected connection is closed by Listener.Accept.
 			select {
 			case <-closed:
-			case <-time.After(2 * time.Second):
+			case <-time.After(timeout):
 				t.Fatal("timed out waiting for rejected connection to close")
 			}
 
 			// Check if server is still running after rejecting connection.
 			select {
+			case <-accepts:
+				// Serve kept running after the rejected connection.
 			case err := <-done:
 				require.True(t, trace.IsLimitExceeded(err),
 					"expected limit exceeded error, got %v", err)
 				t.Fatalf("%s Server.Serve exited on per-IP limit hit: %v", tt.name, err)
-			case <-time.After(100 * time.Millisecond):
-				// Serve kept running after the rejected connection.
+			case <-time.After(timeout):
+				t.Fatal("timed out waiting for Serve to re-Accept after rejected connection")
 			}
 
 			stop()
