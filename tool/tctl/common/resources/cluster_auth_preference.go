@@ -52,8 +52,7 @@ func (c *authPreferenceCollection) WriteText(w io.Writer, verbose bool) error {
 
 	t := asciitable.MakeTable([]string{"Type", "Second Factors"})
 	t.AddRow([]string{c.authPref.GetType(), strings.Join(secondFactorStrings, ", ")})
-	err := t.WriteTo(w)
-	return trace.Wrap(err)
+	return trace.Wrap(t.WriteTo(w))
 }
 
 func authPreferenceHandler() Handler {

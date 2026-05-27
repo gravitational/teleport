@@ -71,8 +71,7 @@ func (c *linuxDesktopCollection) WriteText(w io.Writer, verbose bool) error {
 	} else {
 		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
 	}
-	err := t.WriteTo(w)
-	return trace.Wrap(err)
+	return trace.Wrap(t.WriteTo(w))
 }
 
 func getLinuxDesktops(ctx context.Context, client *authclient.Client, ref services.Ref, opts GetOpts) (Collection, error) {

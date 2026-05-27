@@ -72,8 +72,7 @@ func (c *windowsDesktopCollection) WriteText(w io.Writer, verbose bool) error {
 	} else {
 		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
 	}
-	err := t.WriteTo(w)
-	return trace.Wrap(err)
+	return trace.Wrap(t.WriteTo(w))
 }
 
 func getDesktops(ctx context.Context, client *authclient.Client, ref services.Ref, opts GetOpts) (Collection, error) {
@@ -190,8 +189,7 @@ func (c *windowsDesktopServiceCollection) WriteText(w io.Writer, verbose bool) e
 		}
 		t.AddRow([]string{service.GetName(), addr, service.GetTeleportVersion()})
 	}
-	err := t.WriteTo(w)
-	return trace.Wrap(err)
+	return trace.Wrap(t.WriteTo(w))
 }
 
 func getWindowsDesktopService(ctx context.Context, client *authclient.Client, ref services.Ref, opts GetOpts) (Collection, error) {
@@ -252,8 +250,7 @@ func (c *dynamicWindowsDesktopCollection) WriteText(w io.Writer, verbose bool) e
 	} else {
 		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
 	}
-	err := t.WriteTo(w)
-	return trace.Wrap(err)
+	return trace.Wrap(t.WriteTo(w))
 }
 
 func createDynamicWindowsDesktop(ctx context.Context, client *authclient.Client, raw services.UnknownResource, opts CreateOpts) error {

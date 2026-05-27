@@ -158,7 +158,7 @@ func (t *Table) truncateCell(colIndex int, cell string) (string, bool) {
 	return fmt.Sprintf("%v %v", truncatedCell, footnoteLabel), true
 }
 
-// WriteTo returns the table as a string. Prefer using [WriteTo] when
+// String returns the table as a string. Prefer using [WriteTo] when
 // printing tables to [io.Writer]s like os.Stdout or os.Stderr
 func (t *Table) String() string {
 	var sb strings.Builder

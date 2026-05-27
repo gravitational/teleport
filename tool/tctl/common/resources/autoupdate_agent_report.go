@@ -81,8 +81,7 @@ func (c *autoUpdateAgentReportCollection) WriteText(w io.Writer, verbose bool) e
 		}
 		t.AddRow(make([]string, len(versionNames)+2))
 	}
-	err := t.WriteTo(w)
-	return trace.Wrap(err)
+	return trace.Wrap(t.WriteTo(w))
 }
 
 func autoUpdateAgentReportHandler() Handler {

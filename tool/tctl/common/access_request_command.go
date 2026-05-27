@@ -414,8 +414,7 @@ func (c *AccessRequestCommand) Caps(ctx context.Context, client *authclient.Clie
 		}
 		table.AddRow([]string{"Suggested Reviewers:", sr})
 
-		err := table.WriteTo(os.Stdout)
-		return trace.Wrap(err)
+		return trace.Wrap(table.WriteTo(os.Stdout))
 	case teleport.JSON:
 		return printJSON(caps, "capabilities")
 	default:
@@ -507,8 +506,7 @@ func printRequestsOverview(reqs []types.AccessRequest, format string) error {
 				quoteOrDefault(req.GetResolveReason(), ""),
 			})
 		}
-		err := table.WriteTo(os.Stdout)
-		return trace.Wrap(err)
+		return trace.Wrap(table.WriteTo(os.Stdout))
 	case teleport.JSON:
 		return printJSON(reqs, "requests")
 	default:

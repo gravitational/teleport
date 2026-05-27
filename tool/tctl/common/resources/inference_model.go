@@ -72,8 +72,7 @@ func (c inferenceModelCollection) WriteText(w io.Writer, verbose bool) error {
 		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Description")
 	}
 	t.SortRowsBy([]int{0}, true)
-	err := t.WriteTo(w)
-	return trace.Wrap(err)
+	return trace.Wrap(t.WriteTo(w))
 }
 
 func inferenceModelHandler() Handler {

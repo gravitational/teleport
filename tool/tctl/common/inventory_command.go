@@ -135,8 +135,7 @@ func (c *InventoryCommand) Status(ctx context.Context, client *authclient.Client
 				})
 			}
 
-			err := table.WriteTo(os.Stdout)
-			return trace.Wrap(err)
+			return trace.Wrap(table.WriteTo(os.Stdout))
 		}
 
 		printHierarchicalData(map[string]any{
@@ -279,8 +278,7 @@ func (c *InventoryCommand) List(ctx context.Context, client *authclient.Client) 
 			return trace.Wrap(err)
 		}
 
-		err := table.WriteTo(os.Stdout)
-		return trace.Wrap(err)
+		return trace.Wrap(table.WriteTo(os.Stdout))
 	case teleport.JSON:
 		if err := utils.StreamJSONArray(instances, os.Stdout, true); err != nil {
 			return trace.Wrap(err)

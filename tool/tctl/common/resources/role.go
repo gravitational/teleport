@@ -71,8 +71,7 @@ func (r *roleCollection) WriteText(w io.Writer, verbose bool) error {
 		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Access to resources")
 	}
 
-	err := t.WriteTo(w)
-	return trace.Wrap(err)
+	return trace.Wrap(t.WriteTo(w))
 }
 
 func printActions(rules []types.Rule) string {

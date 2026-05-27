@@ -63,8 +63,7 @@ func (c *accessRequestCollection) WriteText(w io.Writer, verbose bool) error {
 		t = asciitable.MakeTableWithTruncatedColumn([]string{"Name", "User", "Roles", "Annotations"}, rows, "Annotations")
 	}
 
-	err := t.WriteTo(w)
-	return trace.Wrap(err)
+	return trace.Wrap(t.WriteTo(w))
 }
 
 func accessRequestHandler() Handler {

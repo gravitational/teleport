@@ -73,8 +73,7 @@ func (c retrievalModelCollection) WriteText(w io.Writer, verbose bool) error {
 	} else {
 		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Description")
 	}
-	err := t.WriteTo(w)
-	return trace.Wrap(err)
+	return trace.Wrap(t.WriteTo(w))
 }
 
 func retrievalModelHandler() Handler {

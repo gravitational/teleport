@@ -57,8 +57,7 @@ func (u *discoveryConfigCollection) WriteText(w io.Writer, verbose bool) error {
 			discoveryConfig.GetDiscoveryGroup(),
 		})
 	}
-	err := t.WriteTo(w)
-	return trace.Wrap(err)
+	return trace.Wrap(t.WriteTo(w))
 }
 
 func discoveryConfigHandler() Handler {

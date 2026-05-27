@@ -52,8 +52,7 @@ func (c *serverInfoCollection) WriteText(w io.Writer, verbose bool) error {
 		}
 		t.AddRow([]string{si.GetName(), strings.Join(pairs, ",")})
 	}
-	err := t.WriteTo(w)
-	return trace.Wrap(err)
+	return trace.Wrap(t.WriteTo(w))
 }
 
 func serverInfoHandler() Handler {

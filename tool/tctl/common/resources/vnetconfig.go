@@ -90,8 +90,7 @@ func (c *vnetConfigCollection) WriteText(w io.Writer, verbose bool) error {
 		c.vnetConfig.GetSpec().GetIpv4CidrRange(),
 		strings.Join(dnsZoneSuffixes, ", "),
 	})
-	err := t.WriteTo(w)
-	return trace.Wrap(err)
+	return trace.Wrap(t.WriteTo(w))
 }
 
 func vnetConfigHandler() Handler {

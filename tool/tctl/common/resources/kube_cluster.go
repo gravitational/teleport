@@ -72,8 +72,7 @@ func (c *kubeClusterCollection) WriteText(w io.Writer, verbose bool) error {
 	}
 	// stable sort by name.
 	t.SortRowsBy([]int{0}, true)
-	err := t.WriteTo(w)
-	return trace.Wrap(err)
+	return trace.Wrap(t.WriteTo(w))
 }
 
 func kubeClusterHandler() Handler {

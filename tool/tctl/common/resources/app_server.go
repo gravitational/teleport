@@ -68,8 +68,7 @@ func (a *appServerCollection) WriteText(w io.Writer, verbose bool) error {
 		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
 	}
 
-	err := t.WriteTo(w)
-	return trace.Wrap(err)
+	return trace.Wrap(t.WriteTo(w))
 }
 
 func appServerHandler() Handler {

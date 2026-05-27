@@ -46,8 +46,7 @@ func (l *loginRuleCollection) WriteText(w io.Writer, verbose bool) error {
 	for _, rule := range l.rules {
 		t.AddRow([]string{rule.GetMetadata().GetName(), strconv.FormatInt(int64(rule.GetPriority()), 10)})
 	}
-	err := t.WriteTo(w)
-	return trace.Wrap(err)
+	return trace.Wrap(t.WriteTo(w))
 }
 
 func (l *loginRuleCollection) Resources() []types.Resource {

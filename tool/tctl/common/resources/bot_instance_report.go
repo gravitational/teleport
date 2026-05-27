@@ -51,8 +51,7 @@ func (c *autoUpdateBotInstanceReportCollection) WriteText(w io.Writer, _ bool) e
 	}
 	t.SortRowsBy([]int{0, 1}, true)
 
-	err := t.WriteTo(w)
-	return trace.Wrap(err)
+	return trace.Wrap(t.WriteTo(w))
 }
 
 func autoUpdateBotInstanceReportHandler() Handler {

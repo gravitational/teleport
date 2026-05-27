@@ -54,8 +54,7 @@ func (c *botCollection) WriteText(w io.Writer, verbose bool) error {
 			strings.Join(b.Spec.Roles, ", "),
 		})
 	}
-	err := t.WriteTo(w)
-	return trace.Wrap(err)
+	return trace.Wrap(t.WriteTo(w))
 }
 
 func botHandler() Handler {

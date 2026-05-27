@@ -91,8 +91,7 @@ func (c *staticHostUserCollection) WriteText(w io.Writer, verbose bool) error {
 		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Node Expression")
 	}
 	t.SortRowsBy([]int{0}, true)
-	err := t.WriteTo(w)
-	return trace.Wrap(err)
+	return trace.Wrap(t.WriteTo(w))
 }
 
 func printSortedStringSlice(s []string) string {

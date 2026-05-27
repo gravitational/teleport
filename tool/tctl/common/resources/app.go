@@ -65,8 +65,7 @@ func (c *appCollection) WriteText(w io.Writer, verbose bool) error {
 	} else {
 		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
 	}
-	err := t.WriteTo(w)
-	return trace.Wrap(err)
+	return trace.Wrap(t.WriteTo(w))
 }
 
 func appHandler() Handler {
