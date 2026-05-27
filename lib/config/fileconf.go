@@ -461,13 +461,14 @@ func roleMapFromFlags(flags SampleFlags) map[string]bool {
 	return m
 }
 
-// DebugDumpToYAML allows for quick YAML dumping of the config
-func (conf *FileConfig) DebugDumpToYAML() string {
-	bytes, err := yaml.Marshal(&conf)
+// YAMLString returns the YAML representation of the config.
+func (conf *FileConfig) YAMLString() (string, error) {
+	raw, err := yaml.Marshal(&conf)
 	if err != nil {
-		panic(err)
+		return "", err
 	}
-	return string(bytes)
+
+	return string(raw), nil
 }
 
 // CheckAndSetDefaults sets defaults and ensures that the ciphers, kex
