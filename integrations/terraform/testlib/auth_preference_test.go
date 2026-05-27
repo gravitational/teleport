@@ -29,9 +29,6 @@ import (
 )
 
 func (s *TerraformSuiteOSS) TestAuthPreference() {
-	// TODO: `spec.okta` and `spec.idp` should be computed attributes.
-	s.T().Skip("Provider produced inconsistent result after apply")
-
 	name := "teleport_auth_preference.test"
 
 	resource.Test(s.T(), resource.TestCase{
@@ -43,8 +40,23 @@ func (s *TerraformSuiteOSS) TestAuthPreference() {
 				Config: s.getFixture("auth_preference_0_set.tf"),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(name, "kind", "cluster_auth_preference"),
-					resource.TestCheckResourceAttr(name, "metadata.labels.example", "yes"),
-					resource.TestCheckResourceAttr(name, "spec.disconnect_expired_cert", "true"),
+					resource.TestCheckResourceAttr(name, "version", "v2"),
+					resource.TestCheckResourceAttr(name, "metadata.labels.teleport.dev/origin", "dynamic"),
+					resource.TestCheckResourceAttr(name, "metadata.namespace", "default"),
+					resource.TestCheckResourceAttr(name, "spec.allow_headless", "false"),
+					resource.TestCheckResourceAttr(name, "spec.allow_local_auth", "true"),
+					resource.TestCheckResourceAttr(name, "spec.allow_passwordless", "false"),
+					resource.TestCheckResourceAttr(name, "spec.connector_name", ""),
+					resource.TestCheckResourceAttr(name, "spec.default_session_ttl", "12h0m0s"),
+					resource.TestCheckResourceAttr(name, "spec.disconnect_expired_cert", "false"),
+					resource.TestCheckResourceAttr(name, "spec.idp.saml.enabled", "true"),
+					resource.TestCheckResourceAttr(name, "spec.locking_mode", "best_effort"),
+					resource.TestCheckResourceAttr(name, "spec.message_of_the_day", ""),
+					resource.TestCheckResourceAttr(name, "spec.okta.sync_period", "0s"),
+					resource.TestCheckResourceAttr(name, "spec.require_session_mfa", "0"),
+					resource.TestCheckResourceAttr(name, "spec.second_factor", "otp"),
+					resource.TestCheckResourceAttr(name, "spec.signature_algorithm_suite", "0"),
+					resource.TestCheckResourceAttr(name, "spec.type", "local"),
 				),
 			},
 			{
@@ -55,7 +67,8 @@ func (s *TerraformSuiteOSS) TestAuthPreference() {
 				Config: s.getFixture("auth_preference_1_update.tf"),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(name, "kind", "cluster_auth_preference"),
-					resource.TestCheckResourceAttr(name, "spec.disconnect_expired_cert", "false"),
+					resource.TestCheckResourceAttr(name, "metadata.labels.example", "yes"),
+					resource.TestCheckResourceAttr(name, "spec.disconnect_expired_cert", "true"),
 				),
 			},
 			{
@@ -117,9 +130,6 @@ func (s *TerraformSuiteOSS) TestImportAuthPreference() {
 }
 
 func (s *TerraformSuiteOSSWithCache) TestAuthPreferenceAddLabel() {
-	// TODO: `spec.okta` and `spec.idp` should be computed attributes.
-	s.T().Skip("Provider produced inconsistent result after apply")
-
 	name := "teleport_auth_preference.cluster_auth_preference"
 
 	resource.Test(s.T(), resource.TestCase{
