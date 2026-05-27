@@ -287,6 +287,7 @@ func (c *BotsCommand) ListBots(ctx context.Context, client botsCommandClient) er
 			})
 		}
 		t.WriteTo(c.stdout)
+		fmt.Fprintln(c.stdout)
 
 		executableFileName := filepath.Base(os.Args[0])
 		fmt.Fprintf(c.stdout, "\nTo view active instances of a bot, run:\n\n> %s bots instances list [name]\n", executableFileName)
@@ -858,6 +859,7 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandCl
 		})
 	}
 	t.WriteTo(c.stdout)
+	fmt.Fprintln(c.stdout)
 
 	executableFileName := filepath.Base(os.Args[0])
 	fmt.Fprintf(c.stdout, "\nTo view more information on a particular instance, run:\n\n> %s bots instances show [id]\n", executableFileName)

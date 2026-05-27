@@ -347,8 +347,11 @@ func (c *ACLCommand) displayAccessListMembersText(ctx context.Context, client *a
 		})
 	}
 
-	err := table.WriteTo(c.Stdout)
-	return trace.Wrap(err)
+	if err := table.WriteTo(c.Stdout); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Fprintln(c.Stdout)
+	return nil
 }
 
 func formatAccessListMember(ctx context.Context, client *authclient.Client, member *accesslist.AccessListMember) (string, error) {
@@ -457,8 +460,11 @@ func (c *ACLCommand) displayAccessListReviewsText(reviews []*accesslist.Review) 
 			review.Spec.Notes,
 		})
 	}
-	err := table.WriteTo(c.Stdout)
-	return trace.Wrap(err)
+	if err := table.WriteTo(c.Stdout); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Fprintln(c.Stdout)
+	return nil
 }
 
 func (c *ACLCommand) displayAccessLists(accessLists ...*accesslist.AccessList) error {
@@ -493,8 +499,11 @@ func (c *ACLCommand) displayAccessListsText(accessLists ...*accesslist.AccessLis
 			grantedTraits,
 		})
 	}
-	err := table.WriteTo(c.Stdout)
-	return trace.Wrap(err)
+	if err := table.WriteTo(c.Stdout); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Fprintln(c.Stdout)
+	return nil
 }
 
 type accessList struct {

@@ -197,6 +197,7 @@ func (t *testAttributeMapping) run(ctx context.Context, c *authclient.Client) er
 			if err := table.WriteTo(os.Stdout); err != nil {
 				return trace.Wrap(err)
 			}
+			fmt.Fprintln(os.Stdout)
 		}
 	}
 

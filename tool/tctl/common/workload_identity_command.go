@@ -301,6 +301,7 @@ func (c *WorkloadIdentityCommand) ListWorkloadIdentities(
 			})
 		}
 		t.WriteTo(c.stdout)
+		fmt.Fprintln(c.stdout)
 	} else {
 		err := utils.WriteJSONArray(c.stdout, workloadIdentities)
 		if err != nil {
@@ -447,6 +448,7 @@ func (c *WorkloadIdentityCommand) ListRevocations(
 			})
 		}
 		t.WriteTo(c.stdout)
+		fmt.Fprintln(c.stdout)
 	} else {
 		converted := []types.Resource{}
 		for _, resource := range revocations {

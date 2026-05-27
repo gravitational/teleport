@@ -154,6 +154,7 @@ func (c *LsCommand) Run() error {
 	if err := t.WriteTo(os.Stdout); err != nil {
 		return trace.Wrap(err)
 	}
+	fmt.Fprintln(os.Stdout)
 
 	return nil
 }

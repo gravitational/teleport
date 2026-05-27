@@ -163,6 +163,7 @@ func printGitServersAsText(cf *CLIConf, servers []types.Server) error {
 	if err := t.WriteTo(cf.Stdout()); err != nil {
 		return trace.Wrap(err)
 	}
+	fmt.Fprintln(cf.Stdout())
 
 	if showLoginNote {
 		fmt.Fprint(cf.Stdout(), gitLoginNote)

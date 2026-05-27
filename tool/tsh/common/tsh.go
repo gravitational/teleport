@@ -3214,6 +3214,7 @@ func printNodesWithClusters(nodes []nodeListing, verbose bool, output io.Writer)
 	if err := t.WriteTo(output); err != nil {
 		return trace.Wrap(err)
 	}
+	fmt.Fprintln(output)
 	return nil
 }
 
@@ -3482,6 +3483,7 @@ func printNodesAsText[T types.Server](output io.Writer, nodes []T, verbose bool)
 	if err := t.WriteTo(output); err != nil {
 		return trace.Wrap(err)
 	}
+	fmt.Fprintln(output)
 
 	return nil
 }
@@ -3645,8 +3647,11 @@ func writeAppTable(w io.Writer, appListings []appListing, config appTableConfig)
 		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, labelsColumn)
 	}
 
-	err := t.WriteTo(w)
-	return trace.Wrap(err)
+	if err := t.WriteTo(w); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Fprintln(w)
+	return nil
 }
 
 type appTableColumn struct {
@@ -3982,6 +3987,7 @@ func onListClusters(cf *CLIConf) error {
 		if err := t.WriteTo(cf.Stdout()); err != nil {
 			return trace.Wrap(err)
 		}
+		fmt.Fprintln(cf.Stdout())
 	case teleport.JSON, teleport.YAML:
 		rootClusterInfo := clusterInfo{
 			ClusterName: rootClusterName,
