@@ -1606,7 +1606,7 @@ export const events = [
     mfa_device_type: 'U2F',
     mfa_device_uuid: '7a6fbf23-d75c-4c62-8215-e962d0f2a1f3',
     ei: 0,
-    event: 'mfa.delete',
+    event: 'mfa.add',
     time: '2021-03-03T22:58:34.737Z',
     uid: '9be91d9e-79ec-422b-b6ae-ccf7235476d4',
     user: 'awly',
@@ -2986,44 +2986,6 @@ export const events = [
   },
   {
     cluster_name: 'im-a-cluster-name',
-    code: 'TV005I',
-    device: {
-      asset_tag: 'M2CQVQV64R',
-      device_id: '99d39707-efdd-436c-94f3-6a1aeef1fbf2',
-      os_type: 2,
-    },
-    ei: 0,
-    event: 'device', // legacy event
-    status: {
-      success: true,
-    },
-    time: '2023-01-12T19:28:36.842Z',
-    uid: '94d33b77-82cd-4558-8893-0320699bf755',
-    user: {
-      user: 'this user wont render properly',
-    },
-  },
-  {
-    cluster_name: 'im-a-cluster-name',
-    code: 'TV005I',
-    device: {
-      asset_tag: 'M2CQVQV64R',
-      device_id: '99d39707-efdd-436c-94f3-6a1aeef1fbf2',
-      os_type: 2,
-    },
-    ei: 0,
-    event: 'device', // legacy event
-    status: {
-      success: false,
-    },
-    time: '2023-01-12T19:28:36.842Z',
-    uid: '94d33b77-82cd-4558-8893-0320699bf755',
-    user: {
-      user: 'this user wont render properly',
-    },
-  },
-  {
-    cluster_name: 'im-a-cluster-name',
     code: 'TV001I',
     device: {
       asset_tag: 'M2CQVQV64R',
@@ -3363,7 +3325,7 @@ export const events = [
   },
   {
     code: 'TSI004I',
-    event: 'saml.idp.service.provider.delete',
+    event: 'saml.idp.service.provider.delete_all',
     time: '2023-01-25T19:21:36.144Z',
     name: 'saml-idp',
     updated_by: 'mike',
@@ -3524,7 +3486,7 @@ export const events = [
   },
   {
     code: 'TAL005I',
-    event: 'access_list.member.add',
+    event: 'access_list.member.create',
     time: '2023-05-08T19:21:36.144Z',
     access_list_name: 'access-list',
     access_list_title: 'example_title',
@@ -3537,7 +3499,7 @@ export const events = [
   },
   {
     code: 'TAL005E',
-    event: 'access_list.member.add',
+    event: 'access_list.member.create',
     time: '2023-05-08T19:21:36.144Z',
     access_list_name: 'access-list',
     access_list_title: 'example_title',

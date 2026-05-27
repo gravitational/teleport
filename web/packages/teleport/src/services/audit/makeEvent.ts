@@ -1351,72 +1351,72 @@ export const formatters: Formatters = {
   [eventCodes.DEVICE_CREATE]: {
     type: 'device.create',
     desc: 'Device Registered',
-    format: ({ user, status, success }) =>
-      success || (status && status.success)
+    format: ({ user, success }) =>
+      success
         ? `User [${user}] has registered a device`
         : `User [${user}] has failed to register a device`,
   },
   [eventCodes.DEVICE_DELETE]: {
     type: 'device.delete',
     desc: 'Device Deleted',
-    format: ({ user, status, success }) =>
-      success || (status && status.success)
+    format: ({ user, success }) =>
+      success
         ? `User [${user}] has deleted a device`
         : `User [${user}] has failed to delete a device`,
   },
   [eventCodes.DEVICE_AUTHENTICATE]: {
     type: 'device.authenticate',
     desc: 'Device Authenticated',
-    format: ({ user, status, success }) =>
-      success || (status && status.success)
+    format: ({ user, success }) =>
+      success
         ? `User [${user}] has successfully authenticated their device`
         : `User [${user}] has failed to authenticate their device`,
   },
   [eventCodes.DEVICE_ENROLL]: {
     type: 'device.enroll',
     desc: 'Device Enrolled',
-    format: ({ user, status, success }) =>
-      success || (status && status.success)
+    format: ({ user, success }) =>
+      success
         ? `User [${user}] has successfully enrolled their device`
         : `User [${user}] has failed to enroll their device`,
   },
   [eventCodes.DEVICE_ENROLL_TOKEN_CREATE]: {
     type: 'device.token.create',
     desc: 'Device Enroll Token Created',
-    format: ({ user, status, success }) =>
-      success || (status && status.success)
+    format: ({ user, success }) =>
+      success
         ? `User [${user}] created a device enroll token`
         : `User [${user}] has failed to create a device enroll token`,
   },
   [eventCodes.DEVICE_ENROLL_TOKEN_SPENT]: {
     type: 'device.token.spent',
     desc: 'Device Enroll Token Spent',
-    format: ({ user, status, success }) =>
-      success || (status && status.success)
+    format: ({ user, success }) =>
+      success
         ? `User [${user}] has spent a device enroll token`
         : `User [${user}] has failed to spend a device enroll token`,
   },
   [eventCodes.DEVICE_UPDATE]: {
     type: 'device.update',
     desc: 'Device Updated',
-    format: ({ user, status, success }) =>
-      success || (status && status.success)
+    format: ({ user, success }) =>
+      success
         ? `User [${user}] has updated a device`
         : `User [${user}] has failed to update a device`,
   },
   [eventCodes.DEVICE_WEB_TOKEN_CREATE]: {
     type: 'device.webtoken.create',
     desc: 'Device Web Token Created',
-    format: ({ user, status, success }) =>
-      success || (status && status.success)
+    format: ({ user, success }) =>
+      success
         ? `User [${user}] has issued a device web token`
         : `User [${user}] has failed to issue a device web token`,
   },
   [eventCodes.DEVICE_AUTHENTICATE_CONFIRM]: {
     type: 'device.authenticate.confirm',
     desc: 'Device Web Authentication Confirmed',
-    format: ({ user, status, success }) =>
-      success || (status && status.success)
+    format: ({ user, success }) =>
+      success
         ? `User [${user}] has confirmed device web authentication`
         : `User [${user}] has failed to confirm device web authentication`,
   },
@@ -1451,7 +1451,7 @@ export const formatters: Formatters = {
     },
   },
   [eventCodes.UPGRADE_WINDOW_UPDATED]: {
-    type: 'upgradewindow.update',
+    type: 'upgradewindowstart.update',
     desc: 'Upgrade Window Start Updated',
     format: ({ user, upgrade_window_start }) => {
       return `Upgrade Window Start updated to [${upgrade_window_start}] by user [${user}]`;
@@ -1872,7 +1872,7 @@ export const formatters: Formatters = {
       `Access list [${access_list_title || access_list_name}] is invalid and was skipped for member [${user}] because it references non-existent role${missing_roles.length > 1 ? 's' : ''} [${missing_roles}]`,
   },
   [eventCodes.SECURITY_REPORT_AUDIT_QUERY_RUN]: {
-    type: 'secreports.audit.query.run"',
+    type: 'secreports.audit.query.run',
     desc: 'Access Monitoring Query Executed',
     format: ({ user, query }) =>
       `User [${user}] executed Access Monitoring query [${truncateStr(
@@ -1881,7 +1881,7 @@ export const formatters: Formatters = {
       )}]`,
   },
   [eventCodes.SECURITY_REPORT_RUN]: {
-    type: 'secreports.report.run""',
+    type: 'secreports.report.run',
     desc: 'Access Monitoring Report Executed',
     format: ({ user, name }) =>
       `User [${user}] executed [${name}] access monitoring report`,
