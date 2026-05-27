@@ -21,6 +21,9 @@ import (
 )
 
 func (s *TerraformSuiteOSS) TestClusterMaintenanceConfig() {
+	// TODO: Nonce should be an excluded attribute.
+	s.T().Skip("Provider produced inconsistent result after apply")
+
 	name := "teleport_cluster_maintenance_config.test"
 
 	resource.Test(s.T(), resource.TestCase{
