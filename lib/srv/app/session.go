@@ -159,13 +159,16 @@ func (c *ConnectionsHandler) withJWTTokenForwarder(ctx context.Context, sess *se
 	// Create a rewriting transport that will be used to forward requests.
 	transport, err := newTransport(c.closeContext,
 		&transportConfig{
-			app:           app,
-			publicPort:    c.proxyPort,
-			cipherSuites:  c.cfg.CipherSuites,
-			jwt:           jwt,
-			rewriteTraits: rewriteTraits,
-			log:           c.log,
-			hostID:        c.cfg.HostID,
+			app:                 app,
+			publicPort:          c.proxyPort,
+			cipherSuites:        c.cfg.CipherSuites,
+			jwt:                 jwt,
+			rewriteTraits:       rewriteTraits,
+			log:                 c.log,
+			hostID:              c.cfg.HostID,
+			insecureMode:        c.cfg.InsecureMode,
+			clusterName:         c.clusterName,
+			certAuthorityGetter: c.cfg.AccessPoint,
 		})
 	if err != nil {
 		return trace.Wrap(err)
