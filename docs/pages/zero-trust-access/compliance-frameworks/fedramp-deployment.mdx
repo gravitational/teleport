@@ -119,7 +119,7 @@ Session recording encryption is configured separately on the cluster via [`sessi
 
 #### SIEM forwarding via the Event Handler
 
-The [Teleport Event Handler plugin](../export-audit-events/export-audit-events.mdx) reads from Teleport's audit events API, batches events, and forwards them over mTLS to a Fluentd instance (or any HTTP endpoint that accepts JSON). The plugin persists the ID of each successfully sent event locally, so it resumes from the last confirmed event if it crashes or restarts.
+The [Teleport Event Handler plugin](../export-audit-events/export-audit-events.mdx) reads from Teleport's audit events API, batches events, and forwards them over mTLS to a Fluentd instance, which can route onward to your SIEM destinations. The plugin persists the ID of each successfully sent event locally, so it resumes from the last confirmed event if it crashes or restarts.
 
 Teleport provides direct integration guides for the SIEMs most commonly used by FedRAMP customers:
 
