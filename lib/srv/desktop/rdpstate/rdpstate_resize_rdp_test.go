@@ -33,6 +33,7 @@ func TestDimensions_BeforeServerHello(t *testing.T) {
 	t.Parallel()
 
 	s := New()
+	t.Cleanup(s.Release)
 	w, h := s.Dimensions()
 	require.Equal(t, uint16(0), w)
 	require.Equal(t, uint16(0), h)
@@ -42,6 +43,7 @@ func TestDimensions_AfterServerHello(t *testing.T) {
 	t.Parallel()
 
 	s := New()
+	t.Cleanup(s.Release)
 	require.NoError(t, s.HandleMessage(encodeTDPBServerHello(t, 1920, 1080)))
 
 	w, h := s.Dimensions()
@@ -53,6 +55,7 @@ func TestDimensions_AfterResize(t *testing.T) {
 	t.Parallel()
 
 	s := New()
+	t.Cleanup(s.Release)
 	require.NoError(t, s.HandleMessage(encodeTDPBServerHello(t, 800, 600)))
 	require.NoError(t, s.HandleMessage(encodeTDPBServerHello(t, 1920, 1080)))
 
@@ -65,6 +68,7 @@ func TestResizeCrop_BeforeServerHello(t *testing.T) {
 	t.Parallel()
 
 	s := New()
+	t.Cleanup(s.Release)
 	img, err := s.ResizeCrop(0, 0, 100, 100, 50, 50)
 	require.Error(t, err)
 	require.Nil(t, img)
@@ -90,6 +94,7 @@ func TestResizeCrop_ReturnsCorrectDimensions(t *testing.T) {
 			t.Parallel()
 
 			s := New()
+			t.Cleanup(s.Release)
 			require.NoError(t, s.HandleMessage(encodeTDPBServerHello(t, 800, 600)))
 
 			img, err := s.ResizeCrop(tc.cropX, tc.cropY, tc.cropW, tc.cropH, tc.outW, tc.outH)
@@ -105,6 +110,7 @@ func TestResizeCrop_PreservesSolidColor(t *testing.T) {
 	t.Parallel()
 
 	s := New()
+	t.Cleanup(s.Release)
 	require.NoError(t, s.HandleMessage(encodeTDPBServerHello(t, 100, 100)))
 
 	// Fill the whole screen with red.
@@ -146,6 +152,7 @@ func TestResizeCrop_RejectsInvalidInputs(t *testing.T) {
 			t.Parallel()
 
 			s := New()
+			t.Cleanup(s.Release)
 			require.NoError(t, s.HandleMessage(encodeTDPBServerHello(t, 100, 100)))
 
 			img, err := s.ResizeCrop(tc.cropX, tc.cropY, tc.cropW, tc.cropH, tc.outW, tc.outH)
@@ -159,6 +166,7 @@ func TestSampleHash_BeforeServerHello(t *testing.T) {
 	t.Parallel()
 
 	s := New()
+	t.Cleanup(s.Release)
 	require.Equal(t, uint64(0), s.SampleHash(64))
 }
 
@@ -166,6 +174,7 @@ func TestSampleHash_ZeroSampleCount(t *testing.T) {
 	t.Parallel()
 
 	s := New()
+	t.Cleanup(s.Release)
 	require.NoError(t, s.HandleMessage(encodeTDPBServerHello(t, 100, 100)))
 
 	require.Equal(t, uint64(0), s.SampleHash(0))
@@ -175,6 +184,7 @@ func TestSampleHash_DeterministicForSameFrame(t *testing.T) {
 	t.Parallel()
 
 	s := New()
+	t.Cleanup(s.Release)
 	require.NoError(t, s.HandleMessage(encodeTDPBServerHello(t, 100, 100)))
 	sendPDU(t, s, rdpstatetest.BuildBitmapPDU(0, 0, 100, 100, rdpstatetest.RGB565Red))
 
@@ -189,6 +199,7 @@ func TestSampleHash_ChangesWhenFrameChanges(t *testing.T) {
 	t.Parallel()
 
 	s := New()
+	t.Cleanup(s.Release)
 	require.NoError(t, s.HandleMessage(encodeTDPBServerHello(t, 100, 100)))
 
 	sendPDU(t, s, rdpstatetest.BuildBitmapPDU(0, 0, 100, 100, rdpstatetest.RGB565Red))
