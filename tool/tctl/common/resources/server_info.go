@@ -52,7 +52,7 @@ func (c *serverInfoCollection) WriteText(w io.Writer, verbose bool) error {
 		}
 		t.AddRow([]string{si.GetName(), strings.Join(pairs, ",")})
 	}
-	_, err := t.AsBuffer().WriteTo(w)
+	err := t.WriteTo(w)
 	return trace.Wrap(err)
 }
 

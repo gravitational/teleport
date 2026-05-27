@@ -326,7 +326,10 @@ func (c *ScopedTokensCommand) List(ctx context.Context, client *authclient.Clien
 			fmt.Fprintln(c.Stdout, token.GetMetadata().GetName())
 		}
 	default:
-		fmt.Fprint(c.Stdout, resources.ScopedTokenTextHelper(tokens, c.withSecrets).String())
+		t := resources.ScopedTokenTextHelper(tokens, c.withSecrets)
+		if err := t.WriteTo(c.Stdout); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	return nil
 }

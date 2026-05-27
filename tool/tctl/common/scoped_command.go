@@ -154,6 +154,6 @@ func (c *scopedStatusCommand) status(ctx context.Context, client *authclient.Cli
 		})
 	}
 
-	fmt.Fprint(c.stdout, table.AsBuffer().String())
+	table.WriteTo(c.stdout)
 	return nil
 }

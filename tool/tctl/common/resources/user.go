@@ -51,8 +51,7 @@ func (u *userCollection) WriteText(w io.Writer, verbose bool) error {
 	for _, user := range u.users {
 		t.AddRow([]string{user.GetName()})
 	}
-	fmt.Println(t.AsBuffer().String())
-	return nil
+	return trace.Wrap(t.WriteTo(w))
 }
 
 func userHandler() Handler {

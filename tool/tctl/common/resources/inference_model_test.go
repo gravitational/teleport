@@ -48,7 +48,7 @@ func TestInferenceModelCollection_writeText(t *testing.T) {
 		[]string{"model_3", "", "OpenAI", "gpt-4o-3"},
 	)
 
-	formatted := table.AsBuffer().String()
+	formatted := table.String()
 
 	collectionFormatTest(t, inferenceModelCollection(models), formatted, formatted)
 }

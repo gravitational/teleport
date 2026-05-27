@@ -146,6 +146,6 @@ func (c *externalAuditStorageCollection) WriteText(w io.Writer, verbose bool) er
 	}
 	headers := []string{"Name", "IntegrationName", "PolicyName", "Region", "SessionRecordingsURI", "AuditEventsLongTermURI", "AthenaResultsURI", "AthenaWorkgroup", "GlueDatabase", "GlueTable"}
 	t := asciitable.MakeTable(headers, rows...)
-	_, err := t.AsBuffer().WriteTo(w)
+	err := t.WriteTo(w)
 	return trace.Wrap(err)
 }

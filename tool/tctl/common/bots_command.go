@@ -286,7 +286,7 @@ func (c *BotsCommand) ListBots(ctx context.Context, client botsCommandClient) er
 				u.Metadata.Name, u.Status.UserName, strings.Join(u.Spec.GetRoles(), ","),
 			})
 		}
-		fmt.Fprintln(c.stdout, t.AsBuffer().String())
+		t.WriteTo(c.stdout)
 
 		executableFileName := filepath.Base(os.Args[0])
 		fmt.Fprintf(c.stdout, "\nTo view active instances of a bot, run:\n\n> %s bots instances list [name]\n", executableFileName)
@@ -857,7 +857,7 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandCl
 			version, hostname, healthStatus, lastSeen.Format(time.RFC3339),
 		})
 	}
-	fmt.Fprintln(c.stdout, t.AsBuffer().String())
+	t.WriteTo(c.stdout)
 
 	executableFileName := filepath.Base(os.Args[0])
 	fmt.Fprintf(c.stdout, "\nTo view more information on a particular instance, run:\n\n> %s bots instances show [id]\n", executableFileName)
@@ -1137,7 +1137,7 @@ func (c *BotsCommand) outputToken(
 	templateData := map[string]any{
 		"join_method": joinMethod,
 		"join_uri":    uri.String(),
-		"param_table": indentString(paramTable.AsBuffer().String(), "  "),
+		"param_table": indentString(paramTable.String(), "  "),
 	}
 	if !token.Expiry().IsZero() {
 		templateData["minutes"] = int(time.Until(token.Expiry()).Minutes())
@@ -1204,7 +1204,7 @@ func formatBotInstanceAuthentication(record *machineidv1pb.BotInstanceStatusAuth
 	table.AddRow([]string{"Generation:", fmt.Sprint(record.Generation)})
 	table.AddRow([]string{"Public Key:", fmt.Sprintf("<%d bytes>", len(record.PublicKey))})
 
-	return "\n" + indentString(table.AsBuffer().String(), "  ")
+	return "\n" + indentString(table.String(), "  ")
 }
 
 // formatBotInstanceHeartbeat returns a multiline, indented string containing
@@ -1221,7 +1221,7 @@ func formatBotInstanceHeartbeat(record *machineidv1pb.BotInstanceStatusHeartbeat
 	table.AddRow([]string{"Architecture:", record.Architecture})
 	table.AddRow([]string{"OS:", record.Os})
 
-	return "\n" + indentString(table.AsBuffer().String(), "  ")
+	return "\n" + indentString(table.String(), "  ")
 }
 
 // formatServices returns a string containing a tabular representation of a

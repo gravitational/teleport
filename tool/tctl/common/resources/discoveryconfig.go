@@ -57,7 +57,7 @@ func (u *discoveryConfigCollection) WriteText(w io.Writer, verbose bool) error {
 			discoveryConfig.GetDiscoveryGroup(),
 		})
 	}
-	_, err := t.AsBuffer().WriteTo(w)
+	err := t.WriteTo(w)
 	return trace.Wrap(err)
 }
 

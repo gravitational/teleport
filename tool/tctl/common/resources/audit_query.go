@@ -49,7 +49,7 @@ func (c *auditQueryCollection) WriteText(w io.Writer, verbose bool) error {
 	for _, v := range c.auditQueries {
 		t.AddRow([]string{v.GetName(), v.Spec.Title, v.Spec.Query, v.Spec.Description})
 	}
-	_, err := t.AsBuffer().WriteTo(w)
+	err := t.WriteTo(w)
 	return trace.Wrap(err)
 }
 

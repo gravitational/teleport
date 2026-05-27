@@ -55,7 +55,7 @@ func (c *lockCollection) WriteText(w io.Writer, verbose bool) error {
 		}
 		t.AddRow([]string{lock.GetName(), target.String(), lock.Message(), expires})
 	}
-	_, err := t.AsBuffer().WriteTo(w)
+	err := t.WriteTo(w)
 	return trace.Wrap(err)
 }
 

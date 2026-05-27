@@ -46,7 +46,7 @@ func (l *loginRuleCollection) WriteText(w io.Writer, verbose bool) error {
 	for _, rule := range l.rules {
 		t.AddRow([]string{rule.GetMetadata().GetName(), strconv.FormatInt(int64(rule.GetPriority()), 10)})
 	}
-	_, err := t.AsBuffer().WriteTo(w)
+	err := t.WriteTo(w)
 	return trace.Wrap(err)
 }
 

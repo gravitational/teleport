@@ -126,7 +126,7 @@ func printDatabaseTable(cfg printDatabaseTableConfig) {
 	} else {
 		t = asciitable.MakeTableWithTruncatedColumn(printColumns, printRows, "Labels")
 	}
-	fmt.Fprintln(cfg.writer, t.AsBuffer().String())
+	t.WriteTo(cfg.writer)
 }
 
 func formatDatabaseRolesForDB(database types.Database, accessChecker services.AccessChecker) string {

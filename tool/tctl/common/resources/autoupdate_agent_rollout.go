@@ -51,7 +51,7 @@ func (c *autoUpdateAgentRolloutCollection) WriteText(w io.Writer, verbose bool) 
 		fmt.Sprintf("%v", c.rollout.GetSpec().GetSchedule()),
 		fmt.Sprintf("%v", c.rollout.GetSpec().GetStrategy()),
 	})
-	_, err := t.AsBuffer().WriteTo(w)
+	err := t.WriteTo(w)
 	return trace.Wrap(err)
 }
 

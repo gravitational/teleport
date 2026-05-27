@@ -135,7 +135,7 @@ func (c *InventoryCommand) Status(ctx context.Context, client *authclient.Client
 				})
 			}
 
-			_, err := table.AsBuffer().WriteTo(os.Stdout)
+			err := table.WriteTo(os.Stdout)
 			return trace.Wrap(err)
 		}
 
@@ -279,7 +279,7 @@ func (c *InventoryCommand) List(ctx context.Context, client *authclient.Client) 
 			return trace.Wrap(err)
 		}
 
-		_, err := table.AsBuffer().WriteTo(os.Stdout)
+		err := table.WriteTo(os.Stdout)
 		return trace.Wrap(err)
 	case teleport.JSON:
 		if err := utils.StreamJSONArray(instances, os.Stdout, true); err != nil {

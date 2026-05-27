@@ -50,7 +50,7 @@ func (c *githubConnectorCollection) WriteText(w io.Writer, verbose bool) error {
 		t.AddRow([]string{conn.GetName(), formatTeamsToLogins(
 			conn.GetTeamsToLogins())})
 	}
-	_, err := t.AsBuffer().WriteTo(w)
+	err := t.WriteTo(w)
 	return trace.Wrap(err)
 }
 

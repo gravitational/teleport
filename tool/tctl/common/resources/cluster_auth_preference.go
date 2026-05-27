@@ -52,7 +52,7 @@ func (c *authPreferenceCollection) WriteText(w io.Writer, verbose bool) error {
 
 	t := asciitable.MakeTable([]string{"Type", "Second Factors"})
 	t.AddRow([]string{c.authPref.GetType(), strings.Join(secondFactorStrings, ", ")})
-	_, err := t.AsBuffer().WriteTo(w)
+	err := t.WriteTo(w)
 	return trace.Wrap(err)
 }
 

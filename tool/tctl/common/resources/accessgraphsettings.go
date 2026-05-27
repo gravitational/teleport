@@ -46,7 +46,7 @@ func (c *accessGraphSettingsCollection) WriteText(w io.Writer, verbose bool) err
 	t.AddRow([]string{
 		c.accessGraphSettings.Spec.SecretsScanConfig,
 	})
-	_, err := t.AsBuffer().WriteTo(w)
+	err := t.WriteTo(w)
 	return trace.Wrap(err)
 }
 

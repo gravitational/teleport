@@ -65,7 +65,7 @@ func TestDatabaseImportRuleCollection_writeText(t *testing.T) {
 		[]string{"rule_3", "33", "1", "2"},
 	)
 
-	formatted := table.AsBuffer().String()
+	formatted := table.String()
 
 	collectionFormatTest(t, &databaseObjectImportRuleCollection{rules}, formatted, formatted)
 }

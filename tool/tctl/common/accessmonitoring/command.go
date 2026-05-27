@@ -193,7 +193,7 @@ func (c *cmdHandler) onAuditQuerySchema(ctx context.Context, authClient *authcli
 		for _, v := range view.Columns {
 			table.AddRow([]string{v.Name, v.Type, v.Desc})
 		}
-		_, err = table.AsBuffer().WriteTo(os.Stdout)
+		err = table.WriteTo(os.Stdout)
 		if err != nil {
 			return trace.Wrap(err)
 		}

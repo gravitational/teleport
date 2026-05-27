@@ -55,7 +55,7 @@ func (c *workloadClusterCollection) WriteText(w io.Writer, verbose bool) error {
 			cc.GetMetadata().GetName(),
 		})
 	}
-	_, err := t.AsBuffer().WriteTo(w)
+	err := t.WriteTo(w)
 	return trace.Wrap(err)
 }
 

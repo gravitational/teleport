@@ -51,7 +51,7 @@ func (c *oidcConnectorCollection) WriteText(w io.Writer, verbose bool) error {
 			conn.GetName(), conn.GetIssuerURL(), strings.Join(conn.GetScope(), ","),
 		})
 	}
-	_, err := t.AsBuffer().WriteTo(w)
+	err := t.WriteTo(w)
 	return trace.Wrap(err)
 }
 

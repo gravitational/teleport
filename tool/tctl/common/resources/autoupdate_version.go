@@ -53,7 +53,7 @@ func (c *autoUpdateVersionCollection) WriteText(w io.Writer, verbose bool) error
 		c.version.GetMetadata().GetName(),
 		fmt.Sprintf("%v", c.version.GetSpec().GetTools().TargetVersion),
 	})
-	_, err := t.AsBuffer().WriteTo(w)
+	err := t.WriteTo(w)
 	return trace.Wrap(err)
 }
 

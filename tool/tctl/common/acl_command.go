@@ -347,7 +347,7 @@ func (c *ACLCommand) displayAccessListMembersText(ctx context.Context, client *a
 		})
 	}
 
-	_, err := fmt.Fprintln(c.Stdout, table.AsBuffer().String())
+	err := table.WriteTo(c.Stdout)
 	return trace.Wrap(err)
 }
 
@@ -457,7 +457,7 @@ func (c *ACLCommand) displayAccessListReviewsText(reviews []*accesslist.Review) 
 			review.Spec.Notes,
 		})
 	}
-	_, err := fmt.Fprintln(c.Stdout, table.AsBuffer().String())
+	err := table.WriteTo(c.Stdout)
 	return trace.Wrap(err)
 }
 
@@ -493,7 +493,7 @@ func (c *ACLCommand) displayAccessListsText(accessLists ...*accesslist.AccessLis
 			grantedTraits,
 		})
 	}
-	_, err := fmt.Fprintln(c.Stdout, table.AsBuffer().String())
+	err := table.WriteTo(c.Stdout)
 	return trace.Wrap(err)
 }
 

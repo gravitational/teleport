@@ -151,7 +151,7 @@ func (c *AlertCommand) ListAck(ctx context.Context, client *authclient.Client) e
 			table.AddRow([]string{ack.AlertID, fmt.Sprintf("%q", ack.Reason), expires})
 		}
 
-		fmt.Fprintln(c.stdout, table.AsBuffer().String())
+		table.WriteTo(c.stdout)
 	case teleport.JSON:
 		return trace.Wrap(utils.WriteJSONArray(c.stdout, acks), "failed to marshal alert acks")
 	case teleport.YAML:
@@ -270,7 +270,7 @@ func (c *AlertCommand) displayAlertsText(alerts []types.ClusterAlert, verbose bo
 				strings.Join(labelPairs, ", "),
 			})
 		}
-		fmt.Fprintln(c.stdout, table.AsBuffer().String())
+		table.WriteTo(c.stdout)
 	} else {
 		table := asciitable.MakeTable([]string{"ID", "Severity", "Expires In", "Message"})
 		for _, alert := range alerts {
@@ -281,7 +281,7 @@ func (c *AlertCommand) displayAlertsText(alerts []types.ClusterAlert, verbose bo
 				fmt.Sprintf("%q", alert.Spec.Message),
 			})
 		}
-		fmt.Fprintln(c.stdout, table.AsBuffer().String())
+		table.WriteTo(c.stdout)
 	}
 }
 

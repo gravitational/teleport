@@ -414,7 +414,7 @@ func (c *AccessRequestCommand) Caps(ctx context.Context, client *authclient.Clie
 		}
 		table.AddRow([]string{"Suggested Reviewers:", sr})
 
-		_, err := table.AsBuffer().WriteTo(os.Stdout)
+		err := table.WriteTo(os.Stdout)
 		return trace.Wrap(err)
 	case teleport.JSON:
 		return printJSON(caps, "capabilities")
@@ -507,7 +507,7 @@ func printRequestsOverview(reqs []types.AccessRequest, format string) error {
 				quoteOrDefault(req.GetResolveReason(), ""),
 			})
 		}
-		_, err := table.AsBuffer().WriteTo(os.Stdout)
+		err := table.WriteTo(os.Stdout)
 		return trace.Wrap(err)
 	case teleport.JSON:
 		return printJSON(reqs, "requests")
@@ -538,7 +538,7 @@ func printRequestsDetailed(reqs []types.AccessRequest, format string) error {
 			table.AddRow([]string{"Request Reason: ", quoteOrDefault(req.GetRequestReason(), "[none]")})
 			table.AddRow([]string{"Resolve Reason: ", quoteOrDefault(req.GetResolveReason(), "[none]")})
 
-			_, err = table.AsBuffer().WriteTo(os.Stdout)
+			err = table.WriteTo(os.Stdout)
 			if err != nil {
 				return trace.Wrap(err)
 			}

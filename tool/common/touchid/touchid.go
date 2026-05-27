@@ -22,6 +22,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -150,7 +151,9 @@ func (c *LsCommand) Run() error {
 			info.CredentialID,
 		})
 	}
-	fmt.Println(t.AsBuffer().String())
+	if err := t.WriteTo(os.Stdout); err != nil {
+		return trace.Wrap(err)
+	}
 
 	return nil
 }

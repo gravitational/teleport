@@ -48,7 +48,7 @@ func (c *samlConnectorCollection) WriteText(w io.Writer, verbose bool) error {
 	for _, conn := range c.connectors {
 		t.AddRow([]string{conn.GetName(), conn.GetSSO()})
 	}
-	_, err := t.AsBuffer().WriteTo(w)
+	err := t.WriteTo(w)
 	return trace.Wrap(err)
 }
 

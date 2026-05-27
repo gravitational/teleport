@@ -54,7 +54,7 @@ func (c *botCollection) WriteText(w io.Writer, verbose bool) error {
 			strings.Join(b.Spec.Roles, ", "),
 		})
 	}
-	_, err := t.AsBuffer().WriteTo(w)
+	err := t.WriteTo(w)
 	return trace.Wrap(err)
 }
 

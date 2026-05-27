@@ -89,7 +89,7 @@ func addSAMLCommand(cmd *SSOConfigureCommand) *AuthKindCommand {
 	for _, preset := range samlPresets {
 		pTable.AddRow([]string{preset.name, preset.description, preset.display})
 	}
-	presets := tester.Indent(pTable.AsBuffer().String(), 2)
+	presets := tester.Indent(pTable.String(), 2)
 
 	sub := cmd.ConfigureCmd.Command("saml", fmt.Sprintf("Configure SAML auth connector, optionally using a preset. Available presets: %v.", samlPresets.getNames()))
 

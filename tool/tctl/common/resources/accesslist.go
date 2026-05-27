@@ -56,7 +56,7 @@ func (c *accessListCollection) WriteText(w io.Writer, verbose bool) error {
 			al.Spec.Audit.NextAuditDate.Format(time.RFC822),
 		})
 	}
-	_, err := t.AsBuffer().WriteTo(w)
+	err := t.WriteTo(w)
 	return trace.Wrap(err)
 }
 

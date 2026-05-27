@@ -322,7 +322,7 @@ func (c *AutoUpdateCommand) agentsReportCommand(ctx context.Context, client auto
 			t.AddRow(row)
 		}
 
-		_, err = t.AsBuffer().WriteTo(c.stdout)
+		err = t.WriteTo(c.stdout)
 	}
 
 	fmt.Fprint(c.stdout, c.omittedSummary(validReports))
@@ -416,7 +416,7 @@ func rolloutGroupTable(rollout *autoupdatev1pb.AutoUpdateAgentRollout, writer io
 				strconv.FormatUint(groupUpToDate, 10),
 			})
 		}
-		writer.Write(table.AsBuffer().Bytes())
+		table.WriteTo(writer)
 
 	case len(groups) != 0:
 		headers := []string{"Group Name", "State", "Start Time", "State Reason"}
@@ -429,7 +429,7 @@ func rolloutGroupTable(rollout *autoupdatev1pb.AutoUpdateAgentRollout, writer io
 				formatTimeIfNotEmpty(group.GetStartTime().AsTime(), time.DateTime),
 				group.GetLastUpdateReason()})
 		}
-		writer.Write(table.AsBuffer().Bytes())
+		table.WriteTo(writer)
 	default:
 	}
 }

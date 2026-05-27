@@ -323,7 +323,7 @@ func formatAzureIdentities(identities []string) string {
 		t.AddRow([]string{identity})
 	}
 
-	return t.AsBuffer().String()
+	return t.String()
 }
 
 func getAzureIdentityFromFlags(cf *CLIConf, profile *client.ProfileStatus) (string, error) {

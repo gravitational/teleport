@@ -65,7 +65,7 @@ func (c *workloadIdentityX509RevocationCollection) WriteText(w io.Writer, verbos
 
 	// stable sort by name.
 	t.SortRowsBy([]int{0}, true)
-	_, err := t.AsBuffer().WriteTo(w)
+	err := t.WriteTo(w)
 	return trace.Wrap(err)
 }
 

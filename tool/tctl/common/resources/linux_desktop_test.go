@@ -64,7 +64,7 @@ func TestLinuxDesktopCollection_WriteText(t *testing.T) {
 		[]string{"desktop-3", "192.168.1.102:22", "test-host-1", "env=test"},
 	)
 
-	formatted := table.AsBuffer().String()
+	formatted := table.String()
 
 	collectionFormatTest(t, &linuxDesktopCollection{desktops: desktops}, formatted, formatted)
 }

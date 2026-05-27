@@ -215,7 +215,7 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 						{p.rootKubeCluster1, formattedRootLabels, "", ""},
 					},
 					"Labels")
-				return table.AsBuffer().String()
+				return table.String()
 			},
 		},
 		{
@@ -226,7 +226,7 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 					[]string{"Kube Cluster Name", "Labels", "Scope", "Selected"},
 					[]string{p.rootKubeCluster2, formattedRootLabelsVerbose, "", ""},
 					[]string{p.rootKubeCluster1, formattedRootLabelsVerbose, "", ""})
-				return table.AsBuffer().String()
+				return table.String()
 			},
 		},
 		{
@@ -237,7 +237,7 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 				table.AddRow([]string{p.rootKubeCluster2, formattedRootLabels, ""})
 				table.AddRow([]string{p.rootKubeCluster1, formattedRootLabels, ""})
 
-				return table.AsBuffer().String()
+				return table.String()
 			},
 		},
 		{
@@ -257,7 +257,7 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 					},
 					"Labels",
 				)
-				return table.AsBuffer().String()
+				return table.String()
 			},
 		},
 		{
@@ -270,7 +270,7 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 					[]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster2, formattedRootLabelsVerbose, ""},
 					[]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster1, formattedRootLabelsVerbose, ""},
 				)
-				return table.AsBuffer().String()
+				return table.String()
 			},
 		},
 		{
@@ -281,7 +281,7 @@ func (p *kubeTestPack) testListKube(t *testing.T) {
 				table.AddRow([]string{p.root.Config.Proxy.WebAddr.String(), "leaf1", "leaf-cluster", formattedLeafLabels, ""})
 				table.AddRow([]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster2, formattedRootLabels, ""})
 				table.AddRow([]string{p.root.Config.Proxy.WebAddr.String(), "root", p.rootKubeCluster1, formattedRootLabels, ""})
-				return table.AsBuffer().String()
+				return table.String()
 			},
 		},
 	}

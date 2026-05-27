@@ -304,7 +304,7 @@ func formatGCPServiceAccounts(accounts []string) string {
 		t.AddRow([]string{account})
 	}
 
-	return t.AsBuffer().String()
+	return t.String()
 }
 
 func getGCPServiceAccountFromFlags(cf *CLIConf, profile *client.ProfileStatus) (string, error) {

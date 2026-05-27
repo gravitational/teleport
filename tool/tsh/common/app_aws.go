@@ -215,7 +215,7 @@ func printAWSRoles(w io.Writer, roles awsutils.Roles) {
 	}
 
 	fmt.Fprintln(w, "Available AWS roles:")
-	fmt.Fprintln(w, t.AsBuffer().String())
+	t.WriteTo(w)
 }
 
 func getARNFromFlags(cf *CLIConf, app types.Application, logins []string) (string, error) {

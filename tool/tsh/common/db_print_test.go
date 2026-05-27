@@ -77,7 +77,6 @@ func Test_printDatabaseTable(t *testing.T) {
 ---- ------------ ------------- -------- ------------------- 
 db1  describe db1 [*]           Env=dev  tsh db connect d... 
 db2  describe db2 [alice]       Env=prod                     
-
 `,
 		},
 		{
@@ -91,7 +90,6 @@ db2  describe db2 [alice]       Env=prod
 ---- ------------ -------- ----------- -------------- ------------- -------------- -------- ------------------ 
 db1  describe db1 postgres self-hosted localhost:5432 [*]                          Env=dev  tsh db connect db1 
 db2  describe db2 mysql    self-hosted localhost:3306 [alice]       [readonly]     Env=prod                    
-
 `,
 		},
 		{
@@ -105,7 +103,6 @@ db2  describe db2 mysql    self-hosted localhost:3306 [alice]       [readonly]  
 ----- -------- ---- ------------ -------- ----------- -------------- ------------- -------------- -------- ------------------ 
 proxy cluster1 db1  describe db1 postgres self-hosted localhost:5432 [*]                          Env=dev  tsh db connect db1 
 proxy cluster1 db2  describe db2 mysql    self-hosted localhost:3306 [alice]       [readonly]     Env=prod                    
-
 `,
 		},
 		{
@@ -118,7 +115,6 @@ proxy cluster1 db2  describe db2 mysql    self-hosted localhost:3306 [alice]    
 ---- ------------ -------- -------- 
 db1  describe db1 postgres Env=dev  
 db2  describe db2 mysql    Env=prod 
-
 `,
 		},
 	}

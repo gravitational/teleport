@@ -63,7 +63,7 @@ func (r *reverseTunnelCollection) WriteText(w io.Writer, verbose bool) error {
 			tunnel.GetClusterName(), strings.Join(tunnel.GetDialAddrs(), ","),
 		})
 	}
-	_, err := t.AsBuffer().WriteTo(w)
+	err := t.WriteTo(w)
 	return trace.Wrap(err)
 }
 
@@ -92,7 +92,7 @@ func (c *trustedClusterCollection) WriteText(w io.Writer, verbose bool) error {
 			fmt.Sprintf("%v", tc.CombinedMapping()),
 		})
 	}
-	_, err := t.AsBuffer().WriteTo(w)
+	err := t.WriteTo(w)
 	return trace.Wrap(err)
 }
 
@@ -113,7 +113,7 @@ func (c *remoteClusterCollection) WriteText(w io.Writer, verbose bool) error {
 		lastHeartbeat := cluster.GetLastHeartbeat()
 		t.AddRow([]string{cluster.GetName(), cluster.GetConnectionStatus(), formatLastHeartbeat(lastHeartbeat)})
 	}
-	_, err := t.AsBuffer().WriteTo(w)
+	err := t.WriteTo(w)
 	return trace.Wrap(err)
 }
 
@@ -152,7 +152,7 @@ func (c *semaphoreCollection) WriteText(w io.Writer, verbose bool) error {
 			})
 		}
 	}
-	_, err := t.AsBuffer().WriteTo(w)
+	err := t.WriteTo(w)
 	return trace.Wrap(err)
 }
 
@@ -226,7 +226,7 @@ func (c *databaseServerCollection) WriteText(w io.Writer, verbose bool) error {
 	}
 	// stable sort by hostname then by name.
 	t.SortRowsBy([]int{0, 1}, true)
-	_, err := t.AsBuffer().WriteTo(w)
+	err := t.WriteTo(w)
 	return trace.Wrap(err)
 }
 
@@ -267,7 +267,7 @@ func (c *crownJewelCollection) WriteText(w io.Writer, verbose bool) error {
 	}
 	// stable sort by name.
 	t.SortRowsBy([]int{0}, true)
-	_, err := t.AsBuffer().WriteTo(w)
+	err := t.WriteTo(w)
 	return trace.Wrap(err)
 }
 
@@ -298,7 +298,7 @@ func (c *integrationCollection) WriteText(w io.Writer, verbose bool) error {
 	}
 	headers := []string{"Name", "Type", "Spec"}
 	t := asciitable.MakeTable(headers, rows...)
-	_, err := t.AsBuffer().WriteTo(w)
+	err := t.WriteTo(w)
 	return trace.Wrap(err)
 }
 
@@ -351,7 +351,7 @@ func (c *databaseServiceCollection) WriteText(w io.Writer, verbose bool) error {
 		})
 	}
 
-	_, err := t.AsBuffer().WriteTo(w)
+	err := t.WriteTo(w)
 	return trace.Wrap(err)
 }
 
@@ -379,7 +379,7 @@ func (c *deviceCollection) WriteText(w io.Writer, verbose bool) error {
 			device.UpdateTime.AsTime().Format(time.RFC3339),
 		})
 	}
-	_, err := t.AsBuffer().WriteTo(w)
+	err := t.WriteTo(w)
 	return trace.Wrap(err)
 }
 
@@ -400,7 +400,7 @@ func (c *oktaImportRuleCollection) WriteText(w io.Writer, verbose bool) error {
 	for _, importRule := range c.importRules {
 		t.AddRow([]string{importRule.GetName()})
 	}
-	_, err := t.AsBuffer().WriteTo(w)
+	err := t.WriteTo(w)
 	return trace.Wrap(err)
 }
 
@@ -421,7 +421,7 @@ func (c *oktaAssignmentCollection) WriteText(w io.Writer, verbose bool) error {
 	for _, assignment := range c.assignments {
 		t.AddRow([]string{assignment.GetName()})
 	}
-	_, err := t.AsBuffer().WriteTo(w)
+	err := t.WriteTo(w)
 	return trace.Wrap(err)
 }
 
@@ -445,7 +445,7 @@ func (c *userGroupCollection) WriteText(w io.Writer, verbose bool) error {
 			userGroup.Origin(),
 		})
 	}
-	_, err := t.AsBuffer().WriteTo(w)
+	err := t.WriteTo(w)
 	return trace.Wrap(err)
 }
 
@@ -470,7 +470,7 @@ func (c *securityReportCollection) WriteText(w io.Writer, verbose bool) error {
 		}
 		t.AddRow([]string{v.GetName(), v.Spec.Title, strings.Join(auditQueriesNames, ", "), v.Spec.Description})
 	}
-	_, err := t.AsBuffer().WriteTo(w)
+	err := t.WriteTo(w)
 	return trace.Wrap(err)
 }
 
@@ -626,7 +626,7 @@ func (c *pluginCollection) WriteText(w io.Writer, verbose bool) error {
 			plugin.GetStatus().GetCode().String(),
 		})
 	}
-	_, err := t.AsBuffer().WriteTo(w)
+	err := t.WriteTo(w)
 	return trace.Wrap(err)
 }
 
@@ -667,6 +667,6 @@ func (c *healthCheckConfigCollection) WriteText(w io.Writer, verbose bool) error
 
 	// stable sort by name.
 	t.SortRowsBy([]int{0}, true)
-	_, err := t.AsBuffer().WriteTo(w)
+	err := t.WriteTo(w)
 	return trace.Wrap(err)
 }

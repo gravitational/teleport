@@ -207,7 +207,7 @@ func printRequest(cf *CLIConf, req types.AccessRequest) error {
 	}
 	table.AddRow([]string{"Status:", req.GetState().String()})
 
-	_, err = table.AsBuffer().WriteTo(cf.Stdout())
+	err = table.WriteTo(cf.Stdout())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -238,7 +238,7 @@ func printRequest(cf *CLIConf, req types.AccessRequest) error {
 			subTable := asciitable.MakeHeadlessTable(2)
 			subTable.AddRow([]string{"  Reviewer:", rev.Author})
 			subTable.AddRow([]string{"  Reason:", revReason})
-			_, err = subTable.AsBuffer().WriteTo(cf.Stdout())
+			err = subTable.WriteTo(cf.Stdout())
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -382,7 +382,7 @@ func showRequestTable(cf *CLIConf, reqs []types.AccessRequest) error {
 			req.GetState().String(),
 		})
 	}
-	_, err := table.AsBuffer().WriteTo(cf.Stdout())
+	err := table.WriteTo(cf.Stdout())
 
 	fmt.Fprintf(cf.Stdout(), "\nhint: use 'tsh request show <request-id>' for additional details\n")
 	fmt.Fprintf(cf.Stdout(), "      %v\n", requestLoginHint)
@@ -494,7 +494,7 @@ func printRequestableRoles(cf *CLIConf, rows []requestableRoleRow) error {
 			table = asciitable.MakeTableWithTruncatedColumn(columns, rows, "Description")
 		}
 
-		if _, err := table.AsBuffer().WriteTo(cf.Stdout()); err != nil {
+		if err := table.WriteTo(cf.Stdout()); err != nil {
 			return trace.Wrap(err)
 		}
 		return nil
@@ -678,7 +678,7 @@ func printRequestableResources[T resourceRow](cf *CLIConf, rows []T, resourceIDs
 			table = asciitable.MakeTableWithTruncatedColumn(columns, tableRows, "Labels")
 		}
 
-		if _, err := table.AsBuffer().WriteTo(cf.Stdout()); err != nil {
+		if err := table.WriteTo(cf.Stdout()); err != nil {
 			return trace.Wrap(err)
 		}
 

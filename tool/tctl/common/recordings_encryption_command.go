@@ -189,7 +189,7 @@ func (c *recordingsEncryptionCommand) writeStatusText(w io.Writer, keyStates []*
 		fmt.Fprintln(w, "Rotation in progress")
 	}
 
-	_, err := t.AsBuffer().WriteTo(w)
+	err := t.WriteTo(w)
 	return trace.Wrap(err)
 }
 

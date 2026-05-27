@@ -62,7 +62,7 @@ func (c *spiffeFederationCollection) WriteText(w io.Writer, verbose bool) error 
 
 	// stable sort by name.
 	t.SortRowsBy([]int{0}, true)
-	_, err := t.AsBuffer().WriteTo(w)
+	err := t.WriteTo(w)
 	return trace.Wrap(err)
 }
 

@@ -43,7 +43,7 @@ func (c *sessionRecordingConfigCollection) Resources() (r []types.Resource) {
 func (c *sessionRecordingConfigCollection) WriteText(w io.Writer, verbose bool) error {
 	t := asciitable.MakeTable([]string{"Mode", "Proxy Checks Host Keys"})
 	t.AddRow([]string{c.recConfig.GetMode(), strconv.FormatBool(c.recConfig.GetProxyChecksHostKeys())})
-	_, err := t.AsBuffer().WriteTo(w)
+	err := t.WriteTo(w)
 	return trace.Wrap(err)
 }
 

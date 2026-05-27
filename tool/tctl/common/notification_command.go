@@ -296,7 +296,7 @@ func displayNotifications(format string, notifications []*notificationspb.Notifi
 				common.FormatLabels(n.GetMetadata().GetLabels(), false),
 			})
 		}
-		fmt.Fprint(w, table.AsBuffer().String())
+		table.WriteTo(w)
 	case teleport.JSON:
 		utils.WriteJSONArray(w, notifications)
 	case teleport.YAML:

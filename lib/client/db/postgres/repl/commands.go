@@ -107,7 +107,7 @@ func initCommands() map[string]*command {
 				var res strings.Builder
 				for i, cmdType := range slices.Sorted(maps.Keys(typesTable)) {
 					res.WriteString(string(cmdType) + lineBreak)
-					typesTable[cmdType].AsBuffer().WriteTo(&res)
+					typesTable[cmdType].WriteTo(&res)
 					if i < len(typesTable)-1 {
 						res.WriteString(lineBreak)
 					}

@@ -177,7 +177,7 @@ func printMFADevices(devs []*types.MFADevice, verbose bool) {
 				dev.LastUsed.Format(time.RFC1123),
 			})
 		}
-		fmt.Println(t.AsBuffer().String())
+		t.WriteTo(os.Stdout)
 	} else {
 		t := asciitable.MakeTable([]string{"Name", "Type", "Added at", "Last used"})
 		for _, dev := range devs {
@@ -188,7 +188,7 @@ func printMFADevices(devs []*types.MFADevice, verbose bool) {
 				dev.LastUsed.Format(time.RFC1123),
 			})
 		}
-		fmt.Println(t.AsBuffer().String())
+		t.WriteTo(os.Stdout)
 	}
 }
 

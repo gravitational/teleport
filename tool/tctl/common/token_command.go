@@ -414,7 +414,7 @@ func (c *TokensCommand) List(ctx context.Context, client *authclient.Client) err
 				}
 				table.AddRow([]string{nameFunc(t), t.GetRoles().String(), resources.PrintMetadataLabels(t.GetMetadata().Labels), expiry})
 			}
-			return table.AsBuffer().String()
+			return table.String()
 		}
 		fmt.Fprint(c.Stdout, tokensView())
 	}
