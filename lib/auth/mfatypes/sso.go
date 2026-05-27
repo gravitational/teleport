@@ -20,6 +20,7 @@ package mfatypes
 
 import (
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -33,7 +34,7 @@ type BeginSSOMFAChallengeParams struct {
 	SSOClientRedirectURL string
 	ProxyAddress         string
 	Ext                  *mfav1.ChallengeExtensions
-	SIP                  *mfav1.SessionIdentifyingPayload
+	SIP                  *mfav2.SessionIdentifyingPayload
 	SourceCluster        string
 	TargetCluster        string
 }

@@ -314,6 +314,7 @@ type ServerHello struct {
 	ClipboardEnabled         bool                   `protobuf:"varint,2,opt,name=clipboard_enabled,json=clipboardEnabled,proto3" json:"clipboard_enabled,omitempty"`
 	DirectoryRemoveSupported bool                   `protobuf:"varint,3,opt,name=directory_remove_supported,json=directoryRemoveSupported,proto3" json:"directory_remove_supported,omitempty"`
 	Sessions                 []*SessionIdentifier   `protobuf:"bytes,4,rep,name=sessions,proto3" json:"sessions,omitempty"`
+	HidpiSupported           bool                   `protobuf:"varint,5,opt,name=hidpi_supported,json=hidpiSupported,proto3" json:"hidpi_supported,omitempty"`
 	unknownFields            protoimpl.UnknownFields
 	sizeCache                protoimpl.SizeCache
 }
@@ -374,6 +375,13 @@ func (x *ServerHello) GetSessions() []*SessionIdentifier {
 		return x.Sessions
 	}
 	return nil
+}
+
+func (x *ServerHello) GetHidpiSupported() bool {
+	if x != nil {
+		return x.HidpiSupported
+	}
+	return false
 }
 
 // Used to identify sessions available to and selected by users
@@ -982,9 +990,11 @@ func (x *KeyboardButton) GetPressed() bool {
 // These mesasages are captured for session recordings in order to replay
 // resizing events.
 type ClientScreenSpec struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Width         uint32                 `protobuf:"varint,1,opt,name=width,proto3" json:"width,omitempty"`
-	Height        uint32                 `protobuf:"varint,2,opt,name=height,proto3" json:"height,omitempty"`
+	state  protoimpl.MessageState `protogen:"open.v1"`
+	Width  uint32                 `protobuf:"varint,1,opt,name=width,proto3" json:"width,omitempty"`
+	Height uint32                 `protobuf:"varint,2,opt,name=height,proto3" json:"height,omitempty"`
+	// Display scale factor as a percentage (e.g. 100 for 1x, 200 for 2x).
+	Scale         uint32 `protobuf:"varint,3,opt,name=scale,proto3" json:"scale,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1029,6 +1039,13 @@ func (x *ClientScreenSpec) GetWidth() uint32 {
 func (x *ClientScreenSpec) GetHeight() uint32 {
 	if x != nil {
 		return x.Height
+	}
+	return 0
+}
+
+func (x *ClientScreenSpec) GetScale() uint32 {
+	if x != nil {
+		return x.Scale
 	}
 	return 0
 }
@@ -3144,12 +3161,13 @@ const file_teleport_desktop_v1_tdpb_proto_rawDesc = "" +
 	"\busername\x18\x01 \x01(\tR\busername\x12F\n" +
 	"\vscreen_spec\x18\x02 \x01(\v2%.teleport.desktop.v1.ClientScreenSpecR\n" +
 	"screenSpec\x12'\n" +
-	"\x0fkeyboard_layout\x18\x03 \x01(\rR\x0ekeyboardLayout\"\x8f\x02\n" +
+	"\x0fkeyboard_layout\x18\x03 \x01(\rR\x0ekeyboardLayout\"\xb8\x02\n" +
 	"\vServerHello\x12Q\n" +
 	"\x0factivation_spec\x18\x01 \x01(\v2(.teleport.desktop.v1.ConnectionActivatedR\x0eactivationSpec\x12+\n" +
 	"\x11clipboard_enabled\x18\x02 \x01(\bR\x10clipboardEnabled\x12<\n" +
 	"\x1adirectory_remove_supported\x18\x03 \x01(\bR\x18directoryRemoveSupported\x12B\n" +
-	"\bsessions\x18\x04 \x03(\v2&.teleport.desktop.v1.SessionIdentifierR\bsessions\"'\n" +
+	"\bsessions\x18\x04 \x03(\v2&.teleport.desktop.v1.SessionIdentifierR\bsessions\x12'\n" +
+	"\x0fhidpi_supported\x18\x05 \x01(\bR\x0ehidpiSupported\"'\n" +
 	"\x11SessionIdentifier\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"T\n" +
 	"\x10SessionSelection\x12@\n" +
@@ -3184,10 +3202,11 @@ const file_teleport_desktop_v1_tdpb_proto_rawDesc = "" +
 	"\apressed\x18\x02 \x01(\bR\apressed\"E\n" +
 	"\x0eKeyboardButton\x12\x19\n" +
 	"\bkey_code\x18\x01 \x01(\rR\akeyCode\x12\x18\n" +
-	"\apressed\x18\x02 \x01(\bR\apressed\"@\n" +
+	"\apressed\x18\x02 \x01(\bR\apressed\"V\n" +
 	"\x10ClientScreenSpec\x12\x14\n" +
 	"\x05width\x18\x01 \x01(\rR\x05width\x12\x16\n" +
-	"\x06height\x18\x02 \x01(\rR\x06height\"a\n" +
+	"\x06height\x18\x02 \x01(\rR\x06height\x12\x14\n" +
+	"\x05scale\x18\x03 \x01(\rR\x05scale\"a\n" +
 	"\x05Alert\x12\x18\n" +
 	"\amessage\x18\x01 \x01(\tR\amessage\x12>\n" +
 	"\bseverity\x18\x02 \x01(\x0e2\".teleport.desktop.v1.AlertSeverityR\bseverity\"[\n" +

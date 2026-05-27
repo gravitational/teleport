@@ -18,30 +18,31 @@ package cache
 
 import (
 	"testing"
+	"testing/synctest"
 
 	"github.com/gravitational/teleport/api/types"
 )
 
 func TestWebUIConfig(t *testing.T) {
-	t.Parallel()
-
-	p := newTestPack(t, ForProxy)
-	t.Cleanup(p.Close)
-
-	testResources(t, p, testFuncs[types.UIConfig]{
-		newResource: func(name string) (types.UIConfig, error) {
-			return &types.UIConfigV1{
-				ResourceHeader: types.ResourceHeader{
-					Kind: types.KindUIConfig,
-					Metadata: types.Metadata{
-						Name: types.MetaNameUIConfig,
+	synctest.Test(t, func(t *testing.T) {
+		p := newTestPack(t, ForAuth)
+		t.Cleanup(p.Close)
+		testLegacySingleton(t, p, testLegacySingletonFuncs[types.UIConfig]{
+			newResource: func() types.UIConfig {
+				return &types.UIConfigV1{
+					ResourceHeader: types.ResourceHeader{
+						Kind: types.KindUIConfig,
+						Metadata: types.Metadata{
+							Name: types.MetaNameUIConfig,
+						},
 					},
-				},
-			}, nil
-		},
-		create:    p.clusterConfigS.SetUIConfig,
-		list:      singletonListAdapter(p.clusterConfigS.GetUIConfig),
-		cacheList: singletonListAdapter(p.cache.GetUIConfig),
-		deleteAll: p.clusterConfigS.DeleteUIConfig,
-	}, withSkipPaginationTest()) // UIConfig is a singleton resource, so pagination is not applicable.
+				}
+			},
+			create:   p.clusterConfigS.SetUIConfig,
+			update:   p.clusterConfigS.SetUIConfig,
+			get:      p.clusterConfigS.GetUIConfig,
+			cacheGet: p.cache.GetUIConfig,
+			delete:   p.clusterConfigS.DeleteUIConfig,
+		})
+	})
 }

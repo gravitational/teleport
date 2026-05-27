@@ -479,7 +479,7 @@ func (s *localCluster) dialAndForward(params reversetunnelclient.DialParams) (_ 
 		LocalAuthClient:          s.client,
 		TargetClusterAccessPoint: s.accessPoint,
 		UserAgent:                userAgent,
-		AgentlessSigner:          params.AgentlessSigner,
+		AgentlessSignerCreator:   params.AgentlessSignerCreator,
 		TargetConn:               targetConn,
 		SrcAddr:                  params.From,
 		DstAddr:                  params.To,
@@ -887,6 +887,7 @@ func (s *localCluster) removeRemoteConn(rconn *remoteConn) {
 	key := connKey{
 		uuid:     rconn.nodeID,
 		connType: types.TunnelType(rconn.tunnelType),
+		scope:    scopes.NormalizeForEquality(rconn.scope),
 	}
 
 	conns := s.remoteConns[key]

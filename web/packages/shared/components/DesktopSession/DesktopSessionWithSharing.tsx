@@ -67,6 +67,10 @@ export function DesktopSessionWithSharing(
           alerts={controls.alerts}
           onRemoveAlert={controls.onRemoveAlert}
           latency={controls.latencyStats}
+          hiDpiEnabled={controls.hiDpiEnabled}
+          onToggleHiDpi={controls.onToggleHiDpi}
+          screenIsHiDpi={controls.screenIsHiDpi}
+          hiDpiSupported={controls.hiDpiSupported}
         />
       )}
     />

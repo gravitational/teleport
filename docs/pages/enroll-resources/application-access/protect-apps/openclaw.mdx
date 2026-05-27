@@ -27,18 +27,14 @@ Teleport can secure this setup by acting as a secure gateway. It provides:
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-- A server to host OpenClaw (e.g., AWS EC2, Raspberry Pi, or mini PC).
 - An AI model provider account for the agent's backend.
+- A server to host OpenClaw (e.g., AWS EC2, Raspberry Pi, or mini PC). While you
+  can host OpenClaw on local hardware like a Raspberry Pi or Mac mini, this
+  guide uses an **AWS EC2 instance** as an example, running Ubuntu on a
+  `t3.small` instance. Make sure your network allows SSH access to the instance
+  so you can perform the initial installation.
 
-## Step 1/4. Set up the OpenClaw server
-
-While you can host OpenClaw on local hardware like a Raspberry Pi or Mac mini, this guide uses an **AWS EC2 instance** as an example.
-
-1. Log into the AWS Console and launch a new **Ubuntu** instance.
-2. Choose an instance type (e.g., `t3.small` for a balance of performance and free-tier).
-3. Ensure your Security Group allows SSH access so you can perform the initial installation.
-
-## Step 2/4. Install and configure OpenClaw
+## Step 1/3. Install and configure OpenClaw
 
 Once your server is running, connect via SSH to install the agent.
 
@@ -56,7 +52,7 @@ Once your server is running, connect via SSH to install the agent.
    $ source ~/.bashrc # or ~/.zshrc
    ```
 
-## Step 3/4. Enroll the server and application with Teleport
+## Step 2/3. Enroll the server and application with Teleport
 
 1. Generate a new join token that allows both the Node and App roles.
 
@@ -97,7 +93,7 @@ Once your server is running, connect via SSH to install the agent.
 
    ![OpenClaw Application Enrolled](https://website.goteleport.com/_uploads/openclaw_access_application_enrolled_5b7c996790.png)
 
-## Step 4/4. Pair OpenClaw with Teleport
+## Step 3/3. Pair OpenClaw with Teleport
 
 OpenClaw requires that any devices accessing it, outside of localhost, be explicitly paired. Pairing is OpenClaw's owner approval step that dictates which devices are allowed to join the gateway network.
 
@@ -162,4 +158,4 @@ Once Teleport is confirmed working, you can further harden your server by removi
 
 ## Further reading
 
-- Learn about the [Teleport Agentic Identity Framework](../../../agentic-identity-framework.mdx).
+- Learn about the [Teleport Agentic Identity Framework](../../../agentic-identity-framework/agentic-identity-framework.mdx).

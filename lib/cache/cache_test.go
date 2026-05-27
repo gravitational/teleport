@@ -56,6 +56,7 @@ import (
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
 	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	provisioningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1"
@@ -253,20 +254,6 @@ func getAllAdapter[T any](fn func(context.Context) ([]T, error)) func(context.Co
 	return func(ctx context.Context, _ int, _ string) ([]T, string, error) {
 		out, err := fn(ctx)
 		return out, "", trace.Wrap(err)
-	}
-}
-
-// singletonListAdapter adapts a singleton getter to conform to [testFuncs] interface
-func singletonListAdapter[T any](fn func(context.Context) (T, error)) func(context.Context, int, string) ([]T, string, error) {
-	return func(ctx context.Context, _ int, _ string) ([]T, string, error) {
-		out, err := fn(ctx)
-		if err != nil {
-			if trace.IsNotFound(err) {
-				return nil, "", nil
-			}
-			return nil, "", trace.Wrap(err)
-		}
-		return []T{out}, "", nil
 	}
 }
 
@@ -1382,7 +1369,7 @@ func TestRecovery(t *testing.T) {
 	require.Empty(t, cmp.Diff(ca2, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
 
-func mustCreateDatabase(t *testing.T, name, protocol, uri string) *types.DatabaseV3 {
+func mustCreateDatabase(t testing.TB, name, protocol, uri string) *types.DatabaseV3 {
 	database, err := types.NewDatabaseV3(
 		types.Metadata{
 			Name: name,
@@ -2027,7 +2014,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindInferencePolicy:                   types.Resource153ToLegacy(new(summaryv1.InferencePolicy)),
 		types.KindRetrievalModel:                    types.Resource153ToLegacy(new(summaryv1.RetrievalModel)),
 		types.KindCertAuthorityOverride:             types.Resource153ToLegacy(&subcav1.CertAuthorityOverride{}),
-		types.KindValidatedMFAChallenge:             &types.ResourceHeader{Kind: types.KindValidatedMFAChallenge},
+		types.KindValidatedMFAChallenge:             types.Resource153ToLegacy(new(mfav2.ValidatedMFAChallenge)),
 	}
 
 	for name, cfg := range cases {
@@ -2113,9 +2100,10 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*summaryv1.RetrievalModel]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				case types.Resource153UnwrapperT[*subcav1.CertAuthorityOverride]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*subcav1.CertAuthorityOverride]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
-
 				case types.Resource153UnwrapperT[*beamsv1.Beam]:
 					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*beamsv1.Beam]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
+				case types.Resource153UnwrapperT[*mfav2.ValidatedMFAChallenge]:
+					require.Empty(t, cmp.Diff(resource.(types.Resource153UnwrapperT[*mfav2.ValidatedMFAChallenge]).UnwrapT(), uw.UnwrapT(), protocmp.Transform()))
 				default:
 					require.Empty(t, cmp.Diff(resource, event.Resource))
 				}

@@ -76,6 +76,7 @@ type CalculateOverrideResult struct {
 	// on the value of OverrideActive.
 	CACertificate Certificate
 	// CAChain is the certificate override trust chain, sorted leaf-to-root.
+	// Includes the override CA certificate if active.
 	CAChain []Certificate
 }
 
@@ -155,14 +156,14 @@ func calculateOverrides(
 			continue
 		}
 
-		var chain []Certificate
-		if len(co.CertificateOverride.Chain) > 0 {
-			chain = make([]Certificate, len(co.CertificateOverride.Chain))
-			for i, pem := range co.CertificateOverride.Chain {
-				chain[i] = Certificate{
-					PEM: []byte(pem),
-				}
-			}
+		chain := make([]Certificate, 0, len(co.CertificateOverride.Chain)+1)
+		chain = append(chain, Certificate{
+			PEM: []byte(co.CertificateOverride.Certificate),
+		})
+		for _, pem := range co.CertificateOverride.Chain {
+			chain = append(chain, Certificate{
+				PEM: []byte(pem),
+			})
 		}
 
 		*res = CalculateOverrideResult{

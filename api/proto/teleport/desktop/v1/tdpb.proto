@@ -38,6 +38,7 @@ message ServerHello {
   bool clipboard_enabled = 2;
   bool directory_remove_supported = 3;
   repeated SessionIdentifier sessions = 4;
+  bool hidpi_supported = 5;
 }
 
 // Used to identify sessions available to and selected by users
@@ -125,6 +126,8 @@ message KeyboardButton {
 message ClientScreenSpec {
   uint32 width = 1;
   uint32 height = 2;
+  // Display scale factor as a percentage (e.g. 100 for 1x, 200 for 2x).
+  uint32 scale = 3;
 }
 
 // Severity of an alert contained in an Alert message.
