@@ -21,7 +21,6 @@ import (
 	"errors"
 	"slices"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
@@ -35,17 +34,39 @@ import (
 type mockRunCommandClient struct {
 }
 
-func (m *mockRunCommandClient) Run(ctx context.Context, req azure.RunCommandRequest) (*azure.RunCommandResult, error) {
+func (m *mockRunCommandClient) Run(_ context.Context, req azure.RunCommandRequest) (azure.RunCommandResultPoller, error) {
 	if strings.HasPrefix(req.VMName, "bad") {
 		return nil, trace.BadParameter("VM is bad: %v", req.VMName)
 	}
 
-	return &azure.RunCommandResult{
-		ExecutionState: string(armcompute.ExecutionStateSucceeded),
-		ExitCode:       0,
-		StdOut:         "Mock stdout",
-		StdErr:         "Mock stderr",
+	return &fakeRunCommandPoller{
+		result: &azure.RunCommandResult{
+			ExecutionState: string(armcompute.ExecutionStateSucceeded),
+			ExitCode:       0,
+			StdOut:         "Mock stdout",
+			StdErr:         "Mock stderr",
+		},
+		done: true,
 	}, nil
+}
+
+type fakeRunCommandPoller struct {
+	result  *azure.RunCommandResult
+	err     error
+	pollErr error
+	done    bool
+}
+
+func (f *fakeRunCommandPoller) Poll(context.Context) error {
+	return f.pollErr
+}
+
+func (f *fakeRunCommandPoller) Done() bool {
+	return f.done
+}
+
+func (f *fakeRunCommandPoller) Result(context.Context) (*azure.RunCommandResult, error) {
+	return f.result, f.err
 }
 
 func TestAzureInstallRequestRun(t *testing.T) {
@@ -110,7 +131,6 @@ func TestAzureInstallRequestRun(t *testing.T) {
 				}
 			}
 
-			var mu sync.Mutex
 			var failed []string
 			var good []string
 
@@ -123,18 +143,23 @@ func TestAzureInstallRequestRun(t *testing.T) {
 				ProxyAddrGetter: proxyAddrGetter,
 				Region:          "eastus",
 				ResourceGroup:   "test-rg",
-				OnRunCommandFinished: func(result AzureInstallResult) {
-					mu.Lock()
-					defer mu.Unlock()
-					if result.Failure() {
-						failed = append(failed, result.Instance.ID)
-					} else {
-						good = append(good, result.Instance.ID)
-					}
-				},
+			}
+			pollers, err := req.Run(t.Context(), client)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+			} else {
+				require.NoError(t, err)
 			}
 
-			err := req.Run(t.Context(), client)
+			for _, p := range pollers {
+				require.True(t, p.Poll(t.Context()))
+				result := p.Result(t.Context())
+				if result.Failure() {
+					failed = append(failed, result.Instance.ID)
+				} else {
+					good = append(good, result.Instance.ID)
+				}
+			}
 
 			slices.Sort(failed)
 			slices.Sort(good)
@@ -142,11 +167,27 @@ func TestAzureInstallRequestRun(t *testing.T) {
 			require.Equal(t, tt.wantFailed, failed)
 			require.Equal(t, tt.wantOK, good)
 
-			if tt.wantErr != "" {
-				require.ErrorContains(t, err, tt.wantErr)
-			} else {
-				require.NoError(t, err)
-			}
 		})
 	}
+}
+
+func TestAzureInstallResultPollerPollError(t *testing.T) {
+	instance := &azure.VirtualMachine{
+		ID:   "vm-1",
+		Name: "vm-1",
+	}
+	pollErr := trace.AccessDenied("poll failed")
+	poller := &azureInstallResultPoller{
+		instance: instance,
+		poller: &fakeRunCommandPoller{
+			pollErr: pollErr,
+		},
+	}
+
+	require.True(t, poller.Poll(t.Context()))
+
+	result := poller.Result(t.Context())
+	require.Same(t, instance, result.Instance)
+	require.Nil(t, result.CommandResult)
+	require.ErrorContains(t, result.APIError, "poll failed")
 }

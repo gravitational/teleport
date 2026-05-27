@@ -3146,7 +3146,7 @@ type mockAzureRunCommandClient struct {
 	attemptedVMs map[string]struct{}
 }
 
-func (m *mockAzureRunCommandClient) Run(_ context.Context, req azure.RunCommandRequest) (*azure.RunCommandResult, error) {
+func (m *mockAzureRunCommandClient) Run(_ context.Context, req azure.RunCommandRequest) (azure.RunCommandResultPoller, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -3169,19 +3169,23 @@ func (m *mockAzureRunCommandClient) Run(_ context.Context, req azure.RunCommandR
 	}
 
 	if strings.HasPrefix(req.VMName, azureInstallErrorPrefix) {
-		return &azure.RunCommandResult{
-			ExecutionState: string(armcompute.ExecutionStateFailed),
-			StdErr:         "This is failure stderr",
-			StdOut:         "This is failure stdout",
-			ExitCode:       int32(installstatus.InsufficientDiskSpace),
+		return &mockAzureRunCommandPoller{
+			result: &azure.RunCommandResult{
+				ExecutionState: string(armcompute.ExecutionStateFailed),
+				StdErr:         "This is failure stderr",
+				StdOut:         "This is failure stdout",
+				ExitCode:       int32(installstatus.InsufficientDiskSpace),
+			},
 		}, nil
 	}
 
-	return &azure.RunCommandResult{
-		ExecutionState: string(armcompute.ExecutionStateSucceeded),
-		StdErr:         "This is success stderr",
-		StdOut:         "This is success stdout",
-		ExitCode:       0,
+	return &mockAzureRunCommandPoller{
+		result: &azure.RunCommandResult{
+			ExecutionState: string(armcompute.ExecutionStateSucceeded),
+			StdErr:         "This is success stderr",
+			StdOut:         "This is success stdout",
+			ExitCode:       0,
+		},
 	}, nil
 }
 
@@ -3190,6 +3194,23 @@ func (m *mockAzureRunCommandClient) getAttempted() []string {
 	elems := slices.Sorted(maps.Keys(m.attemptedVMs))
 	m.mu.Unlock()
 	return elems
+}
+
+type mockAzureRunCommandPoller struct {
+	result *azure.RunCommandResult
+	err    error
+}
+
+func (m *mockAzureRunCommandPoller) Poll(context.Context) error {
+	return nil
+}
+
+func (m *mockAzureRunCommandPoller) Done() bool {
+	return true
+}
+
+func (m *mockAzureRunCommandPoller) Result(context.Context) (*azure.RunCommandResult, error) {
+	return m.result, m.err
 }
 
 type mockAzureClient struct {
