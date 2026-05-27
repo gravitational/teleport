@@ -189,7 +189,7 @@ const colors: ThemeColors = {
   },
 
   tooltip: {
-    background: '#373C42',
+    background: 'rgba(0, 0, 0, 0.80)',
     inverseBackground: 'rgba(255, 255, 255, 0.5)',
     inverseLinkDefault: '#1D69CC',
   },

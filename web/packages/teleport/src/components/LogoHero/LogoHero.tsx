@@ -32,14 +32,25 @@ export function logoSrc(themeType: 'light' | 'dark'): string {
 
 export const LogoHero = ({
   my = '48px',
+  maxWidth = '200px',
+  height = '',
   customSrc,
 }: {
   my?: string;
+  height?: string;
+  maxWidth?: string;
   customSrc?: string;
 }) => {
   const theme = useTheme();
   const src = customSrc || logoSrc(theme.type);
   return (
-    <Image src={src} maxHeight="120px" maxWidth="200px" my={my} mx="auto" />
+    <Image
+      src={src}
+      maxHeight="120px"
+      height={height}
+      maxWidth={maxWidth}
+      my={my}
+      mx="auto"
+    />
   );
 };
