@@ -190,10 +190,6 @@ func (c *WorkloadIdentityCommand) Initialize(
 		Flag("dry-run", "Print the workload_identity_x509_issuer_override that would have been created, without actually creating it.").
 		BoolVar(&c.overridesCreateDryRun)
 	c.overridesCreateCmd.
-		Flag("format", "Output format for --dry-run, 'yaml' or 'json'.").
-		Default(teleport.YAML).
-		EnumVar(&c.format, teleport.YAML, teleport.JSON)
-	c.overridesCreateCmd.
 		Flag("name", "The name of the override resource to write.").
 		Default("default").
 		StringVar(&c.overridesCreateName)
@@ -633,24 +629,10 @@ func (c *WorkloadIdentityCommand) runOverridesCreate(ctx context.Context, client
 
 	if c.overridesCreateDryRun {
 		fmt.Fprintln(c.stderr, "Dry run mode enabled, the following override would have been created:")
-		resource := types.ProtoResource153ToLegacy(override)
-		switch c.format {
-		case teleport.YAML:
-			if err := utils.WriteYAML(c.stdout, resource); err != nil {
-				return trace.Wrap(err, "failed to marshal override")
-			}
-		case teleport.JSON:
-			if err := utils.WriteJSON(c.stdout, resource); err != nil {
-				return trace.Wrap(err, "failed to marshal override")
-			}
-		default:
-			return trace.BadParameter("unknown format %q, must be one of [%q, %q]", c.format, teleport.YAML, teleport.JSON)
+		if err := utils.WriteYAML(c.stdout, types.ProtoResource153ToLegacy(override)); err != nil {
+			return trace.Wrap(err, "failed to marshal override")
 		}
 		return nil
-	}
-
-	if c.format != teleport.YAML {
-		return trace.BadParameter("--format is only supported with --dry-run")
 	}
 
 	if c.overridesCreateForce {
