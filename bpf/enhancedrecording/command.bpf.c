@@ -52,8 +52,13 @@ const struct data_t *unused __attribute__((unused));
 // this with reliable data from mm->arg_start. On a failed exec, this 
 // is the only argv source.
 struct inflight_exec_t {
+    // valid is true if the filename and argv are set and they have not 
+    // already been added to an event for userland to consume.
     bool valid;
+    // filename is the filename of the executable.
     u8 filename[FILENAMESIZE];
+    // argv is a pointer to the argv array. It will only be used if
+    // fexit/bprm_execve isn't called.
     u64 argv;
 };
 
