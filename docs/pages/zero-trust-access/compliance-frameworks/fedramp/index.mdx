@@ -18,9 +18,9 @@ Upgrade to Teleport 17.7.3+ or 18.0.0+ to move to the FIPS 140-3 validated Borin
 
 <Admonition type="tip" title="On the FedRAMP page set">
 
-- **Deploying Teleport for FedRAMP?** → [Deployment guide](./fedramp-deployment.mdx)
-- **Running a live audit?** → [Audit evidence runbook](./fedramp-evidence.mdx)
-- **Control coverage?** → [Rev 5 control mapping](./fedramp-rev5.mdx) · [20x KSI mapping](./fedramp-20x.mdx)
+- **Deploying Teleport for FedRAMP?** → [Deployment guide](./deployment.mdx)
+- **Running a live audit?** → [Audit evidence runbook](./evidence.mdx)
+- **Control coverage?** → [Rev 5 control mapping](./rev5.mdx) · [20x KSI mapping](./20x.mdx)
 
 </Admonition>
 
@@ -40,7 +40,7 @@ Granting the right people the right access — and being able to prove it on dem
 
 With Teleport: 
 
-* IdP integration means everyone gets [Single sign-on](../sso/sso.mdx) with phishing-resistant MFA that maps directly to your existing group structures.
+* IdP integration means everyone gets [Single sign-on](../../sso/sso.mdx) with phishing-resistant MFA that maps directly to your existing group structures.
 * One source of truth for authentication AND authorization plus no standing accounts to revoke when someone leaves.  You manage your IdP accounts and configuration, Teleport follows your lead automatically.
 * Shared passwords and standing break-glass accounts are eliminated; long-lived SSH keys that sneak into repositories or accumulate in `.ssh` directories are replaced with short-lived, role-scoped access to your internal services.
 
@@ -49,7 +49,7 @@ Workload-to-workload access is often the largest and least-visible part of an AT
 
 With Teleport: 
 
-* Every workload is issued a unique, short-lived, SPIFFE-compatible cryptographic identity through Teleport's [Machine & Workload Identity](../../machine-workload-identity/machine-workload-identity.mdx). Every workload is now named, and their actions can be tracked just like users.
+* Every workload is issued a unique, short-lived, SPIFFE-compatible cryptographic identity through Teleport's [Machine & Workload Identity](../../../machine-workload-identity/machine-workload-identity.mdx). Every workload is now named, and their actions can be tracked just like users.
 * Workloads authenticate to each other and to your databases, services, and cloud APIs over mutual TLS (mTLS) — guaranteeing cryptographic protection over the network.
 * Static API keys and service-account credentials are replaced with auto-rotating identities under the same access and audit controls as your people.
 * Internal access between hosts gains consistent authentication and authorization that's centrally managed.
@@ -59,7 +59,7 @@ Engineering is wiring AI agents into internal systems faster than compliance tea
 
 With Teleport: 
 
-* Agents receive their own identity through Teleport's [Agentic Identity Framework](../../agentic-identity-framework.mdx).  Engineers have a clear approach for agent authentication to replace ad hoc, inconsistent, and insecure access controls.
+* Agents receive their own identity through Teleport's [Agentic Identity Framework](../../../agentic-identity-framework.mdx).  Engineers have a clear approach for agent authentication to replace ad hoc, inconsistent, and insecure access controls.
 * Agentic Identity brings agents under the same RBAC model as your users and workloads. Agent sprawl and unattributed activity become visible and enforceable at the platform layer.
 * Access to MCP servers, databases, and internal APIs is brokered, authorized, and audited by Teleport's identity-aware proxy, adding enhanced logging and additional access control filters.
 
@@ -145,7 +145,7 @@ When Teleport starts in FIPS mode, it:
 - Restricts certificate keys (including host keys when in recording proxy mode) to ECDSA on NIST P-256 or 2048-bit RSA.
 - Removes non-FIPS algorithms from the binary entirely — for example, NaCl is replaced with AES-GCM.
 - Disables local authentication, requiring an SSO connector for all logins.
-- Routes AWS audit storage (S3, DynamoDB) to [FIPS endpoints](../../reference/deployment/backends.mdx#configuring-aws-fips-endpoints). At-rest encryption for the audit bucket and DynamoDB table is configured separately via the backend's SSE / KMS parameters — `--fips` does not enable it automatically.
+- Routes AWS audit storage (S3, DynamoDB) to [FIPS endpoints](../../../reference/deployment/backends.mdx#configuring-aws-fips-endpoints). At-rest encryption for the audit bucket and DynamoDB table is configured separately via the backend's SSE / KMS parameters — `--fips` does not enable it automatically.
 - Forces session recording at the node.
 - Refuses `--insecure` — Teleport will fail to start if both flags are set.
 - Defaults to FIPS-compliant algorithms if no TLS or SSH cryptographic primitives are explicitly configured.
@@ -205,8 +205,8 @@ User Message: only RSA and ECDSA keys supported
 
 To migrate:
 
-1. Set the cluster's [signature algorithm suite](../../reference/deployment/signature-algorithms.mdx) to `fips-v1`.
-2. Run a [CA rotation](../management/security/ca-rotation.mdx) for any CA that holds an Ed25519 key. Use `tctl status` to confirm the signature algorithms in use.
+1. Set the cluster's [signature algorithm suite](../../../reference/deployment/signature-algorithms.mdx) to `fips-v1`.
+2. Run a [CA rotation](../../management/security/ca-rotation.mdx) for any CA that holds an Ed25519 key. Use `tctl status` to confirm the signature algorithms in use.
 3. Once all CAs have rotated to FIPS-compatible algorithms, install the FIPS binary and proceed with the rest of this section.
 
 #### Remote desktop access and TLS 1.2

@@ -11,7 +11,7 @@ enterprise: FedRAMP compliance
 
 When your 3PAO asks "show me how this works," Teleport supports concise, coherent evidence demonstrations. Instead of assembling evidence from a half-dozen tools, screenshots from the previous quarter, and policy documents that describe what *should* be happening, you share your screen with the assessor and walk through each control live. With practice, a single Teleport administrator can demonstrate and present evidence on short notice.
 
-For the broader FedRAMP overview, see the [FedRAMP compliance page](./fedramp.mdx). For deployment guidance, see the [Deployment guide](./fedramp-deployment.mdx). For control-by-control coverage, see the [Rev 5 control mapping](./fedramp-rev5.mdx) or [20x KSI mapping](./fedramp-20x.mdx).
+For the broader FedRAMP overview, see the [FedRAMP compliance page](./index.mdx). For deployment guidance, see the [Deployment guide](./deployment.mdx). For control-by-control coverage, see the [Rev 5 control mapping](./rev5.mdx) or [20x KSI mapping](./20x.mdx).
 
 <Admonition type="tip" title="Help us improve this runbook">
 
@@ -33,11 +33,11 @@ The sections below are a runbook for common assessor asks during a live audit. E
 **What to do:**
 
 1. Share your screen and open the Teleport Web UI sign-in page (or open a terminal and run `tsh login`).
-2. Authenticate. The MFA prompt fires and initiates your IdP's [MFA flow](../sso/sso.mdx).
+2. Authenticate. The MFA prompt fires and initiates your IdP's [MFA flow](../../sso/sso.mdx).
 
 Optional:
 
-- If using [per-session MFA](../authentication/per-session-mfa.mdx): once logged in, run `tsh ssh user@<a-protected-host>` to proceed through the next MFA check.
+- If using [per-session MFA](../../authentication/per-session-mfa.mdx): once logged in, run `tsh ssh user@<a-protected-host>` to proceed through the next MFA check.
 
 **Talking points:**
 
@@ -50,7 +50,7 @@ Optional:
 **What to do:**
 
 1. Have a colleague share their screen, log in, and start an SSH session through Teleport. Leave it open.
-2. In your Web UI, open the [**Locks**](../../identity-governance/locking.mdx) page, or in another terminal run `tctl lock --user=<colleague> --message="Session terminated for FedRAMP demonstration"` — the `--message` text displays in the locked-out user's terminal at session drop.
+2. In your Web UI, open the [**Locks**](../../../identity-governance/locking.mdx) page, or in another terminal run `tctl lock --user=<colleague> --message="Session terminated for FedRAMP demonstration"` — the `--message` text displays in the locked-out user's terminal at session drop.
 3. Apply the lock. The colleague's terminal shows your message and the session terminates instantly.
 4. Have the user attempt to log back in. Authentication fails until the lock is removed.
 5. Remove the lock when the demo is done.
@@ -67,7 +67,7 @@ Optional:
 
 1. Open a terminal on your workstation.
 2. Run `ls ~/.tsh/keys/` and walk through the structure with the assessor — per-proxy subdirectories under your username, no `id_rsa`, no shared secrets. Inside each proxy directory are short-lived TLS and SSH certificates plus the matching private key.
-3. Run [`tsh status`](../../reference/cli/tsh.mdx#tsh-status). Point at the cluster, the proxy URL, the logged-in user, the active roles, and the remaining certificate lifetime (typically hours, not days).
+3. Run [`tsh status`](../../../reference/cli/tsh.mdx#tsh-status). Point at the cluster, the proxy URL, the logged-in user, the active roles, and the remaining certificate lifetime (typically hours, not days).
 4. Print the X.509 certificate in parsed form so the assessor can see and screenshot every field. The file lives at `<your-username>.crt` inside your proxy directory under the `tsh` keys directory (Teleport 17.0+; on earlier versions look for `<your-username>-x509.pem` in the same location). Use a read-only command-line viewer — no copies, no GUI tools that could lock or alter the file mid-session:
 
    <Tabs>
@@ -110,10 +110,10 @@ Optional:
 
 1. In the Web UI, go to **Audit** → **Session Recordings**.
 2. Pick a recent session with a few minutes of activity — the cleanest demo is an SSH or `kubectl exec` session.
-3. Click play. The [recording](../../reference/architecture/session-recording.mdx) plays back in their browser with the terminal output and timing intact.
+3. Click play. The [recording](../../../reference/architecture/session-recording.mdx) plays back in their browser with the terminal output and timing intact.
 4. Explain what gets captured per resource type — they will likely ask, and the answer is not the same for every modality:
 
-   - **SSH and Kubernetes `kubectl exec`** — the entire pseudo-terminal (PTY) output. The replay reproduces what the user saw. For tamper-resistant capture of the actual commands executed, enable [Enhanced Session Recording (BPF)](../../enroll-resources/server-access/guides/bpf-session-recording.mdx) on the host.
+   - **SSH and Kubernetes `kubectl exec`** — the entire pseudo-terminal (PTY) output. The replay reproduces what the user saw. For tamper-resistant capture of the actual commands executed, enable [Enhanced Session Recording (BPF)](../../../enroll-resources/server-access/guides/bpf-session-recording.mdx) on the host.
    - **Windows desktop** — the screen contents and mouse input. Keystrokes are not captured.
    - **Application access** — a stream of `app.session.request` audit events bucketed into 5-minute chunks. No video.
    - **Database access** — the executed queries and a stream of database audit events. No video.
@@ -132,7 +132,7 @@ Optional:
 
 1. In the Web UI, go to **Audit** → **Audit Log**.
 2. Filter for event types: `user.login`, `user.logout`, `session.start`, `session.end`, `lock.created`, `role.created`.
-3. Click into one event to show the structured [JSON event](../../reference/deployment/monitoring/audit.mdx): user, timestamp, source IP, target resource, MFA method.
+3. Click into one event to show the structured [JSON event](../../../reference/deployment/monitoring/audit.mdx): user, timestamp, source IP, target resource, MFA method.
 4. If your SIEM forwarding is configured, switch to the SIEM (Splunk, Panther, Elastic, Datadog) and run an equivalent query against the same events to demonstrate that the audit trail is being exported continuously, not just visible in the Teleport UI.
 
 **Talking points:**
@@ -147,7 +147,7 @@ Optional:
 
 1. In the Web UI, go to **Access** → **Roles** (or run `tctl get role/<role-name>` in a terminal).
 2. Pick a representative role. If you have differentiated populations (admins, contractors, read-only auditors), have a second role ready.
-3. Surface the [`max_session_ttl`](../../reference/access-controls/roles.mdx) field. Read the value aloud.
+3. Surface the [`max_session_ttl`](../../../reference/access-controls/roles.mdx) field. Read the value aloud.
 4. Repeat for the second role to show the difference.
 
 **Talking points:**
@@ -160,7 +160,7 @@ Optional:
 
 **What to do:**
 
-1. On the same role you used above, surface the [`client_idle_timeout`](../../reference/access-controls/roles.mdx) field. Read the value.
+1. On the same role you used above, surface the [`client_idle_timeout`](../../../reference/access-controls/roles.mdx) field. Read the value.
 2. Open a new `tsh ssh` session to a protected host. Type a command, get a response.
 3. Leave the session idle. Keep narrating while you wait.
 4. At the timeout boundary, the session disconnects automatically. Point at the closing message.
@@ -175,10 +175,10 @@ Optional:
 
 **What to do:**
 
-1. In the Web UI, go to **Access** → **[Roles](../../reference/access-controls/roles.mdx)**.
+1. In the Web UI, go to **Access** → **[Roles](../../../reference/access-controls/roles.mdx)**.
 2. Pick a representative role. Walk through the `allow` block: which resources by label, which logins, which Kubernetes groups, which databases.
 3. Open the role YAML (`tctl get role/<name>`) to show the same definition in source form.
-4. Open your [SSO connector](../sso/sso.mdx) (`tctl get saml/<name>` or `tctl get oidc/<name>`) to show which IdP groups map to which Teleport role.
+4. Open your [SSO connector](../../sso/sso.mdx) (`tctl get saml/<name>` or `tctl get oidc/<name>`) to show which IdP groups map to which Teleport role.
 
 **Talking points:**
 

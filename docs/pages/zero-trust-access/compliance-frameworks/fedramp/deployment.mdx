@@ -9,7 +9,7 @@ tags:
 enterprise: FedRAMP compliance
 ---
 
-This page walks through the operational pieces of standing up Teleport inside a FedRAMP authorization boundary. For an overview of why teams pick Teleport for FedRAMP, see the main [FedRAMP compliance page](./fedramp.mdx). For control-by-control coverage, see the [Rev 5 control mapping](./fedramp-rev5.mdx) or [20x KSI mapping](./fedramp-20x.mdx). For the live-audit evidence runbook, see [Audit evidence](./fedramp-evidence.mdx).
+This page walks through the operational pieces of standing up Teleport inside a FedRAMP authorization boundary. For an overview of why teams pick Teleport for FedRAMP, see the main [FedRAMP compliance page](./index.mdx). For control-by-control coverage, see the [Rev 5 control mapping](./rev5.mdx) or [20x KSI mapping](./20x.mdx). For the live-audit evidence runbook, see [Audit evidence](./evidence.mdx).
 
 <Admonition type="note" title="FIPS-validated clients are Linux-only">
 
@@ -40,8 +40,8 @@ If you're deploying with Helm, most of this is handled for you by the FIPS distr
 For FedRAMP authorization, install the Teleport Enterprise FIPS build on your server hosts. The standard Enterprise binary is not FIPS-validated and will not satisfy SC-13 / IA-7. The FedRAMP/FIPS package also contains FIPS variants of `tsh`, `tctl`, and `tbot` — covered in step 5 below.
 
 The FIPS build is available in two forms:
-- **Tarball or package installs** for systemd-based hosts. Available from your [Teleport account](https://teleport.sh) — look for `Linux 64-bit (FedRAMP/FIPS)` — and installed using the standard [Teleport installation instructions](../../installation/installation.mdx).
-- **Container image** for Docker, Kubernetes, and Helm deployments: `public.ecr.aws/gravitational/teleport-ent-fips-distroless`. Install using the standard [container installation instructions](../../installation/single-machine/docker.mdx).
+- **Tarball or package installs** for systemd-based hosts. Available from your [Teleport account](https://teleport.sh) — look for `Linux 64-bit (FedRAMP/FIPS)` — and installed using the standard [Teleport installation instructions](../../../installation/installation.mdx).
+- **Container image** for Docker, Kubernetes, and Helm deployments: `public.ecr.aws/gravitational/teleport-ent-fips-distroless`. Install using the standard [container installation instructions](../../../installation/single-machine/docker.mdx).
 
 
 ### 2. A FIPS-compatible cluster configuration
@@ -65,7 +65,7 @@ auth_service:
   proxy_checks_host_keys: true
 ```
 
-The SSO connector itself (SAML, OIDC, or GitHub) is configured separately. See the [Single sign-on](../sso/sso.mdx) docs for connector setup and be sure that your IdP has the necessary FedRAMP authorization.
+The SSO connector itself (SAML, OIDC, or GitHub) is configured separately. See the [Single sign-on](../../sso/sso.mdx) docs for connector setup and be sure that your IdP has the necessary FedRAMP authorization.
 
 #### Helm values
 
@@ -77,7 +77,7 @@ authentication:
   localAuth: false
 ```
 
-The SSO connector itself is configured through chart values — see the [`teleport-cluster` chart reference](../../reference/helm-reference/teleport-cluster.mdx).
+The SSO connector itself is configured through chart values — see the [`teleport-cluster` chart reference](../../../reference/helm-reference/teleport-cluster.mdx).
 
 
 
@@ -107,37 +107,37 @@ FedRAMP authorization requires that audit events and session recordings are stor
 
 #### Audit storage backend
 
-The Auth Service writes audit events and session recordings to backends declared in `teleport.yaml` under the top-level `teleport.storage` block. Common FedRAMP-suitable choices, all documented in the [Backend reference](../../reference/deployment/backends.mdx):
+The Auth Service writes audit events and session recordings to backends declared in `teleport.yaml` under the top-level `teleport.storage` block. Common FedRAMP-suitable choices, all documented in the [Backend reference](../../../reference/deployment/backends.mdx):
 
-- **AWS** — DynamoDB for events plus S3 for session recordings. Enable S3 object lock for tamper-resistance and configure server-side encryption with a customer-managed KMS key on the audit bucket (`sse_kms_key` on `audit_sessions_uri`). When Teleport is started with `--fips`, it automatically uses [FIPS endpoints](../../reference/deployment/backends.mdx#configuring-aws-fips-endpoints) for both services — no extra flag needed. Note: `--fips` only routes AWS storage to FIPS endpoints. At-rest encryption, retention, Object Lock / WORM behavior, and SIEM forwarding are independent backend settings you must configure explicitly.
+- **AWS** — DynamoDB for events plus S3 for session recordings. Enable S3 object lock for tamper-resistance and configure server-side encryption with a customer-managed KMS key on the audit bucket (`sse_kms_key` on `audit_sessions_uri`). When Teleport is started with `--fips`, it automatically uses [FIPS endpoints](../../../reference/deployment/backends.mdx#configuring-aws-fips-endpoints) for both services — no extra flag needed. Note: `--fips` only routes AWS storage to FIPS endpoints. At-rest encryption, retention, Object Lock / WORM behavior, and SIEM forwarding are independent backend settings you must configure explicitly.
 - **GCP** — Firestore for events plus GCS for session recordings.
 - **PostgreSQL** — a single PostgreSQL deployment for both cluster state and audit events (`audit_events_uri: postgresql://...`).
 
 Multiple destinations can be configured in parallel via the `audit_events_uri` array (for example, DynamoDB plus a local file plus stdout) — useful for resilience and for keeping a local copy alongside the primary store.
 
-Session recording encryption is configured separately on the cluster via [`session_recording_config`](../../reference/infrastructure-as-code/terraform-provider/resources/session_recording_config.mdx) — this governs whether the recording payload itself is encrypted before Teleport writes it. S3 SSE-KMS (`sse_kms_key` above) is bucket-level object-store encryption applied by AWS. The two are independent: enable both for defense in depth.
+Session recording encryption is configured separately on the cluster via [`session_recording_config`](../../../reference/infrastructure-as-code/terraform-provider/resources/session_recording_config.mdx) — this governs whether the recording payload itself is encrypted before Teleport writes it. S3 SSE-KMS (`sse_kms_key` above) is bucket-level object-store encryption applied by AWS. The two are independent: enable both for defense in depth.
 
 #### SIEM forwarding via the Event Handler
 
-The [Teleport Event Handler plugin](../export-audit-events/export-audit-events.mdx) reads from Teleport's audit events API, batches events, and forwards them over mTLS to a Fluentd instance, which can route onward to your SIEM destinations. The plugin persists the ID of each successfully sent event locally, so it resumes from the last confirmed event if it crashes or restarts.
+The [Teleport Event Handler plugin](../../export-audit-events/export-audit-events.mdx) reads from Teleport's audit events API, batches events, and forwards them over mTLS to a Fluentd instance, which can route onward to your SIEM destinations. The plugin persists the ID of each successfully sent event locally, so it resumes from the last confirmed event if it crashes or restarts.
 
 Teleport provides direct integration guides for the SIEMs most commonly used by FedRAMP customers:
 
-- [Splunk](../export-audit-events/splunk.mdx)
-- [Panther](../export-audit-events/panther.mdx)
-- [Elastic Stack](../export-audit-events/elastic-stack.mdx)
-- [Datadog](../export-audit-events/datadog.mdx)
-- [Fluentd](../export-audit-events/fluentd.mdx) (the base integration; useful if your SIEM consumes from a Fluentd forwarder)
+- [Splunk](../../export-audit-events/splunk.mdx)
+- [Panther](../../export-audit-events/panther.mdx)
+- [Elastic Stack](../../export-audit-events/elastic-stack.mdx)
+- [Datadog](../../export-audit-events/datadog.mdx)
+- [Fluentd](../../export-audit-events/fluentd.mdx) (the base integration; useful if your SIEM consumes from a Fluentd forwarder)
 
-Start with [Set up the Event Handler with tctl](../export-audit-events/event-handler-setup.mdx) to provision the plugin's credentials, then configure your SIEM integration of choice. By default the plugin skips `print` and `desktop.recording` payload events (the high-volume session-frame events) — set `--skip-session-types=''` if your SIEM needs the full recording stream.
+Start with [Set up the Event Handler with tctl](../../export-audit-events/event-handler-setup.mdx) to provision the plugin's credentials, then configure your SIEM integration of choice. By default the plugin skips `print` and `desktop.recording` payload events (the high-volume session-frame events) — set `--skip-session-types=''` if your SIEM needs the full recording stream.
 
 #### Retention and SSP language
 
-Whatever backend and forwarding configuration you settle on, document the retention period, encryption posture, and SIEM destination in your SSP under the AU family — assessors will ask. The [Backend reference](../../reference/deployment/backends.mdx) calls out the relevant configuration values for each option.
+Whatever backend and forwarding configuration you settle on, document the retention period, encryption posture, and SIEM destination in your SSP under the AU family — assessors will ask. The [Backend reference](../../../reference/deployment/backends.mdx) calls out the relevant configuration values for each option.
 
 ### 5. FIPS Agents on every target host
 
-Each Linux host you want to access through Teleport runs the same `teleport` binary as the cluster, configured as a [Teleport Agent](../../installation/agents/agents.mdx) instead of as the Auth or Proxy Service. Inside your authorization boundary, every Agent must use the FIPS Teleport build (same as the cluster).
+Each Linux host you want to access through Teleport runs the same `teleport` binary as the cluster, configured as a [Teleport Agent](../../../installation/agents/agents.mdx) instead of as the Auth or Proxy Service. Inside your authorization boundary, every Agent must use the FIPS Teleport build (same as the cluster).
 
 Start the Agent with `--fips`, the same way as the cluster:
 
@@ -146,9 +146,9 @@ Start the Agent with `--fips`, the same way as the cluster:
 $ teleport start --fips
 ```
 
-Agents register with the cluster via a [join method](../../installation/agents/join-token.mdx) — static token, AWS IAM, Kubernetes ServiceAccount, GitHub, and others. The choice of join method does not affect FIPS posture; it only determines how the Agent authenticates itself to the cluster on startup.
+Agents register with the cluster via a [join method](../../../installation/agents/join-token.mdx) — static token, AWS IAM, Kubernetes ServiceAccount, GitHub, and others. The choice of join method does not affect FIPS posture; it only determines how the Agent authenticates itself to the cluster on startup.
 
-For FedRAMP deployments, prefer [delegated join methods](../../reference/deployment/join-methods.mdx) (AWS IAM, Kubernetes ServiceAccount, GitHub OIDC, TPM) — they satisfy [KSI-IAM-SNU](./fedramp-20x.mdx) by binding the Agent's identity to the platform it actually runs on. Static tokens remain available for backward compatibility but should be treated as exceptional rather than the default.
+For FedRAMP deployments, prefer [delegated join methods](../../../reference/deployment/join-methods.mdx) (AWS IAM, Kubernetes ServiceAccount, GitHub OIDC, TPM) — they satisfy [KSI-IAM-SNU](./20x.mdx) by binding the Agent's identity to the platform it actually runs on. Static tokens remain available for backward compatibility but should be treated as exceptional rather than the default.
 
 The same FedRAMP/FIPS Linux package also contains FIPS variants of `tsh`, `tctl`, and `tbot`.
 
