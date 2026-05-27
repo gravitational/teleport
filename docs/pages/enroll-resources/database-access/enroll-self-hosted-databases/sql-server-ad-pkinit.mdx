@@ -246,10 +246,12 @@ database section below as appropriate:
   Teleport needs access to `objectSid`, `sAMAccountName` and `sAMAccountType` attributes.
 </Admonition>
 
+Configure a Teleport configuration file at `/etc/teleport.yaml`:
+
 ```yaml
 version: v3
 teleport:
-  auth_token: abcd123-insecure-do-not-use-this
+  auth_token: /tmp/token
   proxy_server: teleport.example.com:443
 
 auth_service:
@@ -273,7 +275,7 @@ db_service:
           -----BEGIN CERTIFICATE-----
           ...
           -----END CERTIFICATE-----
-        ldap_service_account_name: "DEV\svc-teleport"
+        ldap_service_account_name: 'DEV\svc-teleport'
         ldap_service_account_sid: "S-1-5-21-1111111111-2222222222-3333333333-4444"
 ```
 
