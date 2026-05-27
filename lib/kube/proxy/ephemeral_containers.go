@@ -144,11 +144,8 @@ func (f *Forwarder) ephemeralContainersLocal(authCtx *authContext, sess *cluster
 		return trace.Wrap(err, "failed to create encoder and decoder")
 	}
 
-	// Fetch the target pod using the user's impersonated identity so the
-	// Kubernetes API server enforces RBAC on `kubernetes_users` /
-	// `kubernetes_groups`. Using the proxy's admin kubeconfig here would leak
-	// pod spec/env/annotations the user's mapped identity is not entitled to
-	// see — see lib/kube/proxy/ephemeral_admin_client_test.go.
+	// Fetch the target pod using the user's impersonated identity so
+	// the Kubernetes API server enforces RBAC on `kubernetes_users` / `kubernetes_groups`.
 	pod, err := f.getPodForEphemeralPatch(
 		req.Context(),
 		authCtx,
@@ -198,11 +195,9 @@ type mergeEphemeralPatchWithCurrentPodConfig struct {
 }
 
 // getPodForEphemeralPatch fetches the target pod using a Kubernetes client
-// that impersonates the requesting user's `kubernetes_users` /
-// `kubernetes_groups`. The Kubernetes API server therefore enforces RBAC on
-// the user's mapped identity for this read, even though the surrounding
-// moderated-session flow synthesises the patch response locally without
-// forwarding the PATCH itself.
+// that impersonates the requesting user's `kubernetes_users` / `kubernetes_groups`.
+// The Kubernetes API server therefore enforces RBAC on the user's mapped identity for this read, even though
+// the surrounding moderated-session flow synthesises the patch response locally without forwarding the PATCH itself.
 func (f *Forwarder) getPodForEphemeralPatch(
 	ctx context.Context,
 	authCtx *authContext,
@@ -222,11 +217,10 @@ func (f *Forwarder) getPodForEphemeralPatch(
 	return pod, nil
 }
 
-// mergeEphemeralPatchWithCurrentPod merges the provided patch with the given
-// pod and returns the patched pod. The pod must have been fetched by the
-// caller using a client that respects the requesting user's Kubernetes RBAC
-// — see getPodForEphemeralPatch. The patch is expected to be a strategic
-// merge patch that adds an ephemeral container to the pod.
+// mergeEphemeralPatchWithCurrentPod merges the provided patch with the
+// given pod and returns the patched pod.
+// The pod must have been fetched by the caller using a client that respects the requesting user's Kubernetes RBAC.
+// The patch is expected to be a strategic merge patch that adds an ephemeral container to the pod.
 func (f *Forwarder) mergeEphemeralPatchWithCurrentPod(
 	pod *corev1.Pod,
 	cfg mergeEphemeralPatchWithCurrentPodConfig,
