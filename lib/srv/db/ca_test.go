@@ -19,6 +19,7 @@
 package db
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"crypto/tls"
@@ -26,7 +27,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
-	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -403,7 +403,9 @@ func TestInitAzureCAs(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	supportedHints := []string{filepath.Base(azureCAURLDigiCert)}
+	azureCAFilename, err := caFilenameFromURL(azureCAURLDigiCert)
+	require.NoError(t, err)
+	supportedHints := []string{azureCAFilename}
 	initialCA := generateDatabaseCA(t)
 	caDownloader := &fakeDownloader{
 		cert:    initialCA,
@@ -428,6 +430,73 @@ func TestInitAzureCAs(t *testing.T) {
 	require.Equal(t, string(initialCA), azureDB.GetStatusCA())
 }
 
+// TestInitAWSKeyspacesCAs given an AWS Keyspaces database, init its CAs
+// ensuring the downloaded bundle contains all AWS documented roots.
+func TestInitAWSKeyspacesCAs(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t)
+
+	keyspacesDB, err := types.NewDatabaseV3(types.Metadata{
+		Name: "keyspaces",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolCassandra,
+		URI:      "localhost:9142",
+		AWS: types.AWS{
+			Region: "us-east-1",
+		},
+	})
+	require.NoError(t, err)
+
+	expectedHints := []string{
+		"AmazonRootCA1.pem",
+		"AmazonRootCA2.pem",
+		"AmazonRootCA3.pem",
+		"AmazonRootCA4.pem",
+		"sf-class2-root.crt",
+	}
+	receivedHints := make(map[string]struct{}, len(expectedHints))
+	casByHint := make(map[string][]byte, len(expectedHints))
+	expectedCAs := make([][]byte, 0, len(expectedHints))
+	for _, hint := range expectedHints {
+		ca := generateDatabaseCA(t)
+		casByHint[hint] = ca
+		expectedCAs = append(expectedCAs, ca)
+	}
+	caDownloader := &fakeDownloader{
+		version: []byte("v1"),
+		certFunc: func(hint string) []byte {
+			return casByHint[hint]
+		},
+		assertHintFunc: func(hint string) {
+			require.Contains(
+				t,
+				expectedHints,
+				hint,
+				"CA download hint must be one of: %s. But got %q", strings.Join(expectedHints, ","),
+				hint,
+			)
+			receivedHints[hint] = struct{}{}
+		},
+	}
+	databaseServer := testCtx.setupDatabaseServer(ctx, t, agentParams{
+		Databases:    []types.Database{keyspacesDB},
+		NoStart:      true,
+		CADownloader: caDownloader,
+	})
+
+	require.NoError(t, databaseServer.initCACert(ctx, keyspacesDB))
+
+	receivedUniqueHints := make([]string, 0, len(receivedHints))
+	for hint := range receivedHints {
+		receivedUniqueHints = append(receivedUniqueHints, hint)
+	}
+	require.ElementsMatch(t, expectedHints, receivedUniqueHints)
+	require.Equal(t, int64(len(expectedHints)), atomic.LoadInt64(&caDownloader.count))
+
+	expectedBundle := bytes.Join(expectedCAs, []byte("\n"))
+	require.Equal(t, string(expectedBundle), keyspacesDB.GetStatusCA())
+}
+
 func generateDatabaseCA(t *testing.T) []byte {
 	t.Helper()
 	_, caCert, err := tlsca.GenerateSelfSignedCA(pkix.Name{
@@ -440,6 +509,9 @@ func generateDatabaseCA(t *testing.T) []byte {
 type fakeDownloader struct {
 	// cert is the cert to return as downloaded one.
 	cert []byte
+	// certFunc returns the cert to download for a given hint. If unset, cert is
+	// returned instead.
+	certFunc func(string) []byte
 	// count keeps track of how many times the downloader has been invoked.
 	count int64
 	// version is the CA version returned when GetVersion is called.
@@ -455,6 +527,9 @@ func (d *fakeDownloader) Download(_ context.Context, _ types.Database, hint stri
 	}
 
 	atomic.AddInt64(&d.count, 1)
+	if d.certFunc != nil {
+		return d.certFunc(hint), d.version, nil
+	}
 	return d.cert, d.version, nil
 }
 

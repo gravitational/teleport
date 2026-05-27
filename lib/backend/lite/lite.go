@@ -710,7 +710,7 @@ func (l *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires ti
 		}
 		defer stmt.Close()
 
-		result, err := stmt.ExecContext(ctx, expires.UTC(), id(now), backend.CreateRevision(), lease.Key.String())
+		result, err := stmt.ExecContext(ctx, expires.UTC(), id(now), item.Revision, lease.Key.String())
 		if err != nil {
 			return trace.Wrap(err)
 		}
