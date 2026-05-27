@@ -50,8 +50,6 @@ package decoder
 #cgo noescape rdp_decoder_updated_regions
 #cgo nocallback rdp_decoder_reset_updated_regions
 #cgo noescape rdp_decoder_reset_updated_regions
-#cgo nocallback rdp_decoder_thumbnail
-#cgo noescape rdp_decoder_thumbnail
 #cgo nocallback rdp_decoder_resize_crop
 #cgo noescape rdp_decoder_resize_crop
 #cgo nocallback rdp_decoder_dimensions
@@ -74,7 +72,6 @@ const uint8_t* rdp_decoder_cursor_bitmap(RdpDecoder* ptr, uint16_t* out_width, u
 uint32_t rdp_decoder_updated_regions_count(RdpDecoder* ptr);
 uint32_t rdp_decoder_updated_regions(RdpDecoder* ptr, uint16_t* out_buf, uint32_t max_count);
 void rdp_decoder_reset_updated_regions(RdpDecoder* ptr);
-void rdp_decoder_thumbnail(RdpDecoder* ptr, uint16_t out_width, uint16_t out_height, uint8_t* out_buf, size_t out_buf_len);
 void rdp_decoder_resize_crop(RdpDecoder* ptr, uint16_t crop_x, uint16_t crop_y, uint16_t crop_w, uint16_t crop_h, uint16_t out_width, uint16_t out_height, uint8_t* out_buf, size_t out_buf_len);
 void rdp_decoder_dimensions(RdpDecoder* ptr, uint16_t* out_width, uint16_t* out_height);
 uint64_t rdp_decoder_sample_hash(RdpDecoder* ptr, uint16_t sample_count);
@@ -84,7 +81,6 @@ import "C"
 import (
 	"errors"
 	"image"
-	"math"
 	"unsafe"
 )
 
@@ -158,30 +154,6 @@ func (d *Decoder) Image() *image.RGBA {
 	copy(rgba.Pix, unsafe.Slice((*uint8)(data), int(outWidth)*int(outHeight)*4))
 
 	return rgba
-}
-
-// Thumbnail produces a scaled image of the current state of the screen.
-// It uses a low-quality interpolator so it shouldn't be used for large
-// size images.
-func (d *Decoder) Thumbnail(width, height int) *image.RGBA {
-	if d == nil || d.ptr == nil || width <= 0 || height <= 0 {
-		return nil
-	}
-	if width > math.MaxUint16 || height > math.MaxUint16 {
-		return nil
-	}
-
-	canvas := image.NewRGBA(image.Rect(0, 0, width, height))
-
-	C.rdp_decoder_thumbnail(
-		d.ptr,
-		C.uint16_t(width),
-		C.uint16_t(height),
-		(*C.uint8_t)(unsafe.SliceData(canvas.Pix)),
-		C.size_t(len(canvas.Pix)),
-	)
-
-	return canvas
 }
 
 // ResizeCrop returns the source crop region (cropX, cropY, cropW, cropH) scaled to exactly outWidth x outHeight using

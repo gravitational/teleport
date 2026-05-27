@@ -33,7 +33,7 @@ use ironrdp_session::{
     image::DecodedImage,
 };
 use std::panic::{catch_unwind, AssertUnwindSafe};
-use std::{io::Error, ptr};
+use std::ptr;
 
 pub struct RdpDecoder {
     image: DecodedImage,
@@ -41,7 +41,6 @@ pub struct RdpDecoder {
     cursor_state: CursorState,
     updated_regions: UpdatedRegions,
     resizer: Resizer,
-    thumbnail_scratch: Vec<u8>,
 }
 
 impl RdpDecoder {
@@ -70,7 +69,6 @@ impl RdpDecoder {
             cursor_state: Default::default(),
             updated_regions: Default::default(),
             resizer: Resizer::new(),
-            thumbnail_scratch: Vec::new(),
         }
     }
 
@@ -124,79 +122,6 @@ impl RdpDecoder {
                 }
             }
         }
-    }
-
-    pub fn thumbnail(&mut self, width: u16, height: u16, dst: &mut [u8]) -> Result<(), Error> {
-        let canvas_bytes = (width as usize) * (height as usize) * 4;
-        if dst.len() < canvas_bytes {
-            return Err(Error::other("destination buffer too small"));
-        }
-
-        let (fw, fh) = self.fitted_dimensions(width, height);
-        if fw == 0 || fh == 0 {
-            return Ok(());
-        }
-
-        let opts = ResizeOptions::new()
-            .resize_alg(ResizeAlg::Nearest)
-            .use_alpha(false);
-
-        if fw == width && fh == height {
-            return self.resize_image_into(fw, fh, dst, &opts);
-        }
-
-        let fitted_bytes = (fw as usize) * (fh as usize) * 4;
-        if self.thumbnail_scratch.len() < fitted_bytes {
-            self.thumbnail_scratch.resize(fitted_bytes, 0);
-        }
-
-        let Self {
-            image,
-            resizer,
-            thumbnail_scratch,
-            ..
-        } = self;
-
-        image::resize_into(
-            image,
-            resizer,
-            fw,
-            fh,
-            &mut thumbnail_scratch[..fitted_bytes],
-            &opts,
-        )?;
-
-        let row_bytes = (fw as usize) * 4;
-        let canvas_stride = (width as usize) * 4;
-        let offset_x = ((width - fw) as usize) / 2;
-        let offset_y = ((height - fh) as usize) / 2;
-
-        for row in 0..(fh as usize) {
-            let src_off = row * row_bytes;
-            let dst_off = (offset_y + row) * canvas_stride + offset_x * 4;
-            dst[dst_off..dst_off + row_bytes]
-                .copy_from_slice(&thumbnail_scratch[src_off..src_off + row_bytes]);
-        }
-
-        Ok(())
-    }
-
-    pub fn fitted_dimensions(&self, max_width: u16, max_height: u16) -> (u16, u16) {
-        let src_w = self.image.width();
-        let src_h = self.image.height();
-
-        if src_w <= max_width && src_h <= max_height {
-            return (src_w, src_h);
-        }
-
-        let scale_w = f64::from(max_width) / f64::from(src_w);
-        let scale_h = f64::from(max_height) / f64::from(src_h);
-        let scale = scale_w.min(scale_h);
-
-        let out_w = ((f64::from(src_w) * scale).round() as u16).clamp(1, max_width);
-        let out_h = ((f64::from(src_h) * scale).round() as u16).clamp(1, max_height);
-
-        (out_w, out_h)
     }
 
     /// FNV-1a 64-bit digest of pixels sampled on a fixed grid from the current
@@ -475,39 +400,6 @@ pub unsafe extern "C" fn rdp_decoder_sample_hash(ptr: *mut RdpDecoder, sample_co
     .unwrap_or(0)
 }
 
-/// Writes a fast nearest-neighbor thumbnail of the current frame, fitted
-/// while preserving aspect ratio and centered with transparent padding,
-/// into a `width` x `height` RGBA buffer. The caller must
-/// zero-initialize `out_buf`.
-///
-/// # Safety
-///
-/// - `ptr` must be a valid pointer previously returned by `rdp_decoder_new`.
-/// - `out_buf` must point to `out_buf_len` writable bytes.
-#[no_mangle]
-pub unsafe extern "C" fn rdp_decoder_thumbnail(
-    ptr: *mut RdpDecoder,
-    width: u16,
-    height: u16,
-    out_buf: *mut u8,
-    out_buf_len: usize,
-) {
-    if ptr.is_null() || out_buf.is_null() || width == 0 || height == 0 {
-        return;
-    }
-
-    let needed = (width as usize) * (height as usize) * 4;
-    if out_buf_len < needed {
-        return;
-    }
-
-    let _ = catch_unwind(AssertUnwindSafe(move || unsafe {
-        let decoder = &mut *ptr;
-        let dst = std::slice::from_raw_parts_mut(out_buf, needed);
-        let _ = decoder.thumbnail(width, height, dst);
-    }));
-}
-
 /// Returns the current cursor position and visibility state.
 ///
 /// # Safety
@@ -641,73 +533,6 @@ pub unsafe extern "C" fn rdp_decoder_updated_regions_count(ptr: *mut RdpDecoder)
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn fitted_dimensions_cases() {
-        let cases: &[(u16, u16, u16, u16, u16, u16, &str)] = &[
-            (800, 600, 1024, 768, 800, 600, "no upscale: source fits"),
-            (800, 600, 800, 600, 800, 600, "exact fit"),
-            (
-                1920,
-                1080,
-                960,
-                540,
-                960,
-                540,
-                "landscape proportional downscale",
-            ),
-            (
-                1080,
-                1920,
-                540,
-                960,
-                540,
-                960,
-                "portrait proportional downscale",
-            ),
-            (1920, 1080, 800, 600, 800, 450, "landscape clamped by width"),
-            (1080, 1920, 800, 600, 338, 600, "portrait clamped by height"),
-            (
-                1,
-                10000,
-                100,
-                100,
-                1,
-                100,
-                "extreme aspect ratio scales to 1",
-            ),
-            (
-                10000,
-                1,
-                100,
-                100,
-                100,
-                1,
-                "extreme aspect ratio scales to 1 (other axis)",
-            ),
-            (3, 3, 2, 2, 2, 2, "round-down to fit"),
-        ];
-
-        for &(src_w, src_h, max_w, max_h, want_w, want_h, name) in cases {
-            let decoder = RdpDecoder::new(src_w, src_h, 1003, 1007);
-            let (got_w, got_h) = decoder.fitted_dimensions(max_w, max_h);
-            assert_eq!(
-                (got_w, got_h),
-                (want_w, want_h),
-                "{name}: src=({src_w},{src_h}) max=({max_w},{max_h})",
-            );
-        }
-    }
-
-    #[test]
-    fn fitted_dimensions_minimum_is_one_pixel() {
-        let decoder = RdpDecoder::new(1000, 1, 1003, 1007);
-        let (w, h) = decoder.fitted_dimensions(10, 10);
-        assert!(
-            w >= 1 && h >= 1,
-            "fitted dims must be at least 1x1, got ({w},{h})"
-        );
-    }
 
     fn make_decoder(width: u16, height: u16) -> *mut RdpDecoder {
         let ptr = rdp_decoder_new(width, height, 1003, 1007);
