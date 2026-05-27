@@ -1068,14 +1068,6 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_ScopedTokenDelete{
 			ScopedTokenDelete: e,
 		}
-	case *ScopedTokenUse:
-		out.Event = &OneOf_ScopedTokenUse{
-			ScopedTokenUse: e,
-		}
-	case *ScopedTokenFail:
-		out.Event = &OneOf_ScopedTokenFail{
-			ScopedTokenFail: e,
-		}
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", in.GetType())
 		unknown := &Unknown{}

@@ -401,10 +401,6 @@ const (
 	ScopedTokenUpdateCode = "TST002I"
 	// ScopedTokenDeleteCode is the event code for deleting a scoped token.
 	ScopedTokenDeleteCode = "TST003I"
-	// ScopedTokenUseCode is the event code for using a scoped token to provision a resource.
-	ScopedTokenUseCode = "TST004I"
-	// ScopedTokenFailCode is the event code for failing to provision a resource with a scoped token.
-	ScopedTokenFailCode = "TST004E"
 
 	// GithubConnectorCreatedCode is the Github connector created event code.
 	GithubConnectorCreatedCode = "T8000I"
@@ -438,10 +434,15 @@ const (
 	BotJoinCode = "TJ001I"
 	// BotJoinFailureCode is the 'bot.join' event code for failures.
 	BotJoinFailureCode = "TJ001E"
+	// BotJoinLimitCode is the 'bot.join' event code for failures due to token limits.
+	BotJoinLimitCode = "TJ001L"
 	// InstanceJoinCode is the 'node.join' event code.
 	InstanceJoinCode = "TJ002I"
 	// InstanceJoinFailureCode is the 'node.join' event code for failures.
 	InstanceJoinFailureCode = "TJ002E"
+	// InstanceJoinLimitCode is the 'node.join' event code for failures due to
+	// usage limits.
+	InstanceJoinLimitCode = "TJ002L"
 
 	// BotCreateCode is the `bot.create` event code.
 	BotCreateCode = "TB001I"

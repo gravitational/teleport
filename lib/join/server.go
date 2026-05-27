@@ -280,6 +280,7 @@ func (s *Server) Join(stream messages.ServerStream) (err error) {
 		i.TokenJoinMethod = string(configuredJoinMethod(token))
 		i.TokenExpires = token.Expiry()
 		i.BotName = token.GetBotName()
+		i.AssignedScope = token.GetAssignedScope()
 
 		// It's not worth fetching the true bot scope here (via bot user label)
 		// so we'll just include the one embedded in the token.
@@ -771,10 +772,14 @@ func makeAuditEvent(info diagnostic.Info, attributesStruct *apievents.Struct) ap
 		Error:   errorMessage,
 	}
 	if info.Role == types.RoleBot.String() {
+		code := events.BotJoinFailureCode
+		if errors.Is(info.Error, joining.ErrTokenExhausted) {
+			code = events.BotJoinLimitCode
+		}
 		return &apievents.BotJoin{
 			Metadata: apievents.Metadata{
 				Type: events.BotJoinEvent,
-				Code: events.BotJoinFailureCode,
+				Code: code,
 				Time: time.Now(),
 			},
 			Status: status,
@@ -789,10 +794,14 @@ func makeAuditEvent(info diagnostic.Info, attributesStruct *apievents.Struct) ap
 			Attributes:    attributesStruct,
 		}
 	}
+	code := events.InstanceJoinFailureCode
+	if errors.Is(info.Error, joining.ErrTokenExhausted) {
+		code = events.InstanceJoinLimitCode
+	}
 	return &apievents.InstanceJoin{
 		Metadata: apievents.Metadata{
 			Type: events.InstanceJoinEvent,
-			Code: events.InstanceJoinFailureCode,
+			Code: code,
 			Time: time.Now(),
 		},
 		Status: status,
@@ -805,6 +814,8 @@ func makeAuditEvent(info diagnostic.Info, attributesStruct *apievents.Struct) ap
 		Role:         info.Role,
 		NodeName:     info.NodeName,
 		Attributes:   attributesStruct,
+		Scope:        info.AssignedScope,
+		Roles:        info.SystemRoles,
 	}
 }
 

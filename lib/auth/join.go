@@ -615,6 +615,8 @@ func (a *Server) GenerateHostCertsForJoin(
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: params.RemoteAddr,
 		},
+		Roles: token.GetRoles().StringSlice(),
+		Scope: token.GetAssignedScope(),
 	}
 	joinEvent.Attributes, err = joinutils.RawJoinAttrsToStruct(params.RawJoinClaims)
 	if err != nil {
