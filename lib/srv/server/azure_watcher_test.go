@@ -300,7 +300,9 @@ func TestAzureInstances_FilterExistingNodes(t *testing.T) {
 		{
 			name: "no existing nodes",
 			instances: &AzureInstances{
-				SubscriptionID: "sub-1",
+				AzureInstancesMetadata: AzureInstancesMetadata{
+					SubscriptionID: "sub-1",
+				},
 				Instances: []*azure.VirtualMachine{
 					{
 						ID:   "/subscriptions/sub-1/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/vm1",
@@ -318,7 +320,9 @@ func TestAzureInstances_FilterExistingNodes(t *testing.T) {
 		{
 			name: "filter out matching node",
 			instances: &AzureInstances{
-				SubscriptionID: "sub-1",
+				AzureInstancesMetadata: AzureInstancesMetadata{
+					SubscriptionID: "sub-1",
+				},
 				Instances: []*azure.VirtualMachine{
 					{
 						ID:   "/subscriptions/sub-1/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/vm1",
@@ -338,7 +342,9 @@ func TestAzureInstances_FilterExistingNodes(t *testing.T) {
 		{
 			name: "filter out all matching nodes",
 			instances: &AzureInstances{
-				SubscriptionID: "sub-1",
+				AzureInstancesMetadata: AzureInstancesMetadata{
+					SubscriptionID: "sub-1",
+				},
 				Instances: []*azure.VirtualMachine{
 					{
 						ID:   "/subscriptions/sub-1/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/vm1",
@@ -359,7 +365,9 @@ func TestAzureInstances_FilterExistingNodes(t *testing.T) {
 		{
 			name: "different subscription is not filtered",
 			instances: &AzureInstances{
-				SubscriptionID: "sub-1",
+				AzureInstancesMetadata: AzureInstancesMetadata{
+					SubscriptionID: "sub-1",
+				},
 				Instances: []*azure.VirtualMachine{
 					{
 						ID:   "/subscriptions/sub-1/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/vm1",
@@ -375,7 +383,9 @@ func TestAzureInstances_FilterExistingNodes(t *testing.T) {
 		{
 			name: "node without vm id is not used for filtering",
 			instances: &AzureInstances{
-				SubscriptionID: "sub-1",
+				AzureInstancesMetadata: AzureInstancesMetadata{
+					SubscriptionID: "sub-1",
+				},
 				Instances: []*azure.VirtualMachine{
 					{
 						ID:   "/subscriptions/sub-1/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/vm1",
@@ -391,7 +401,9 @@ func TestAzureInstances_FilterExistingNodes(t *testing.T) {
 		{
 			name: "instance without properties is not filtered",
 			instances: &AzureInstances{
-				SubscriptionID: "sub-1",
+				AzureInstancesMetadata: AzureInstancesMetadata{
+					SubscriptionID: "sub-1",
+				},
 				Instances: []*azure.VirtualMachine{
 					{
 						ID: "/subscriptions/sub-1/resourceGroups/rg1/providers/Microsoft.Compute/virtualMachines/vm1",
@@ -612,9 +624,11 @@ func TestMakeRunEvent(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			instances := &AzureInstances{
-				SubscriptionID: subscriptionID,
-				ResourceGroup:  resourceGroup,
-				Region:         region,
+				AzureInstancesMetadata: AzureInstancesMetadata{
+					SubscriptionID: subscriptionID,
+					ResourceGroup:  resourceGroup,
+					Region:         region,
+				},
 			}
 			evt := instances.MakeRunEvent(tc.result)
 			require.Equal(t, tc.want, evt)
@@ -643,7 +657,9 @@ func TestMakeUsageEvent(t *testing.T) {
 		{
 			name: "node",
 			instances: &AzureInstances{
-				DiscoveryConfigName: discoveryConfig,
+				AzureInstancesMetadata: AzureInstancesMetadata{
+					DiscoveryConfigName: discoveryConfig,
+				},
 			},
 			wantKey: azureEventPrefix + resourceID,
 			want: &usageeventsv1.ResourceCreateEvent{
@@ -656,9 +672,11 @@ func TestMakeUsageEvent(t *testing.T) {
 		{
 			name: "agentless node",
 			instances: &AzureInstances{
-				DiscoveryConfigName: discoveryConfig,
-				InstallerParams: &types.InstallerParams{
-					ScriptName: installers.InstallerScriptNameAgentless,
+				AzureInstancesMetadata: AzureInstancesMetadata{
+					DiscoveryConfigName: discoveryConfig,
+					InstallerParams: &types.InstallerParams{
+						ScriptName: installers.InstallerScriptNameAgentless,
+					},
 				},
 			},
 			wantKey: azureEventPrefix + resourceID,
