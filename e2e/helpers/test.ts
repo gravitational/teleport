@@ -231,6 +231,7 @@ export const test = base.extend<E2EFixtures>({
 });
 
 export { expect } from '@playwright/test';
+export type { Locator, Page } from '@playwright/test';
 
 function pickLoginDefinition(
   user: UserDefinition | undefined,

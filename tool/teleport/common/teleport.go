@@ -1078,7 +1078,12 @@ func onConfigDump(flags dumpFlags) error {
 		return trace.Wrap(err)
 	}
 
-	configPath, err := dumpConfigFile(flags.output, sfc.DebugDumpToYAML(), sampleConfComment)
+	configYAML, err := sfc.YAMLString()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	configPath, err := dumpConfigFile(flags.output, configYAML, sampleConfComment)
 	if err != nil {
 		return trace.Wrap(err)
 	}

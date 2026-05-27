@@ -108,11 +108,16 @@ We do not count automated actions, such as the modification of a user's role by
 an administrator or the automatic creation of a user through an identity
 provider, as user activity.
 
-Note: when configured to perform single-sign-on against an external identity
-provider, Teleport creates temporary user records that are valid for the
-duration of the SSO session. As a result, the _Users_ page in Teleport's web UI
-will only show users who have recently logged in and is not a true
-representation of all active users over the last month.
+When a user authenticates to Teleport through a single sign-on provider (SSO),
+the Teleport Auth Service creates a temporary user for the duration of the
+session. Teleport treats these users the same as local users when determining
+MAU, counting the number of unique usernames with billable activity over each
+billing period. In other words, an SSO user who authenticates multiple times in
+the same billing period counts as a single MAU.
+
+Note that the **Users** page in the Teleport Web UI will only show users who
+have recently logged in and is not a true representation of all active users
+over the last month.
 
 ### Teleport Protected Resources
 
@@ -223,10 +228,14 @@ usage numbers.
 ### SSO users
 
 In Teleport, single sign-on (SSO) users are
-[ephemeral](reference/access-controls/user-types.mdx#temporary-users). Teleport deletes an SSO user
-when its session expires. To count the number of SSO users in your cluster, you
-can examine Teleport audit events for unique SSO users that have authenticated
-to Teleport during a given time period. The Teleport documentation includes
-[how-to guides](zero-trust-access/export-audit-events/export-audit-events.mdx) for
+[ephemeral](reference/access-controls/user-types.mdx#temporary-users). Teleport
+deletes an SSO user when its session expires. To count the number of SSO users
+in your cluster, you can examine Teleport audit events for the unique usernames
+of SSO users that have authenticated to Teleport during a given time period. The
+Teleport documentation includes [how-to
+guides](zero-trust-access/export-audit-events/export-audit-events.mdx) for
 exporting audit events to common log management solutions so you can identify
 users that have authenticated using an SSO provider.
+
+See [Monthly Active Users](#monthly-active-users) for how Teleport calculates
+MAU from SSO users for the purposes of billing.
