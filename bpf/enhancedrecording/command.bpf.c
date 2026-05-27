@@ -73,6 +73,21 @@ BPF_RING_BUF(execve_events, EVENTS_BUF_SIZE);
 
 BPF_COUNTER(lost);
 
+void zero_data(struct data_t *data)
+{
+    data->pid = 0;
+    data->ppid = 0;
+    data->command[0] = '\0';
+    data->filename[0] = '\0';
+    data->args[0] = '\0';
+    data->args_len = 0;
+    data->args_truncated = false;
+    data->failed_to_read_args = false;
+    data->cgroup = 0;
+    data->audit_session_id = 0;
+    data->return_code = 0;
+}
+
 // Read the filename and argv from userspace and stash them in task-local
 // storage for exit_execve to use if necessary. The data from userspace
 // may not be paged into memory yet so it's not reliable and why getting
@@ -160,6 +175,7 @@ int BPF_PROG(bprm_execve_exit, struct linux_binprm *bprm, int ret)
         bpf_printk("execve_events ring buffer full");
         return 0;
     }
+    zero_data(data);
 
     void *arg_start = (void *)BPF_CORE_READ(task, mm, arg_start);
     void *arg_end = (void *)BPF_CORE_READ(task, mm, arg_end);
@@ -228,7 +244,7 @@ static int exit_execve(int retCode)
         bpf_printk("execve_events ring buffer full");
         goto out;
     }
-    data->args_truncated = false;
+    zero_data(data);
 
     u32 offset = 0;
     const char *const *argv = (const char *const *)info->argv;
