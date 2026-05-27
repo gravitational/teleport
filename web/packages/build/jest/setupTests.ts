@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import 'whatwg-fetch';
 import crypto from 'node:crypto';
 import path from 'node:path';
 

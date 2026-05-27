@@ -30,6 +30,7 @@ import {
 } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { HttpResponse, JsonBodyType } from 'msw';
+import { setupServer } from 'msw/node';
 import { PropsWithChildren, ReactNode } from 'react';
 import { MemoryRouter as Router } from 'react-router-dom';
 import '@testing-library/jest-dom';
@@ -128,6 +129,22 @@ export function createDeferredResponse<T extends JsonBodyType>(data: T) {
     },
     resolve: () => resolve(),
   };
+}
+
+export const server = setupServer();
+
+/**
+ * Registers MSW lifecycle hooks for the current test suite. Call this at the
+ * top level of every test file that uses `server.use()`.
+ *
+ * This is intentionally opt-in rather than global (via setupTests.ts) to
+ * avoid the overhead of patching fetch/XHR in the hundreds of test suites
+ * that don't use MSW.
+ */
+export function enableMswServer() {
+  beforeAll(() => server.listen());
+  afterEach(() => server.resetHandlers());
+  afterAll(() => server.close());
 }
 
 export {
