@@ -409,7 +409,7 @@ func (s *SessionRegistry) JoinSession(ctx context.Context, ch ssh.Channel, scx *
 }
 
 // OpenExecSession opens a non-interactive exec session.
-func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Channel, scx *ServerContext) error {
+func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Channel, scx *ServerContext) (err error) {
 	// This logic allows concurrent request to create a new session
 	// to fail, what is ok because we should never have this condition.
 	sess, p, err := newSession(ctx, s, scx, channel, sessionTypeNonInteractive)
@@ -418,9 +418,15 @@ func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Chann
 	}
 	scx.Logger.InfoContext(ctx, "Creating exec session", "session_id", sess.id)
 
+	// Make sure to close the session when returning an error
+	defer func() {
+		if err != nil {
+			sess.Close()
+		}
+	}()
+
 	approved, err := s.isApprovedFileTransfer(scx)
 	if err != nil {
-		sess.Close()
 		return trace.Wrap(err)
 	}
 
@@ -428,14 +434,12 @@ func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Chann
 	canStart, _, err := sess.checkIfStartUnderLock()
 	sess.mu.Unlock()
 	if err != nil {
-		sess.Close()
 		return trace.Wrap(err)
 	}
 
 	// canStart will be true for non-moderated sessions. If canStart is false, check to
 	// see if the request has been approved through a moderated session next.
 	if !canStart && !approved {
-		sess.Close()
 		return errCannotStartUnattendedSession
 	}
 
@@ -445,7 +449,6 @@ func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Chann
 
 	err = sess.startExec(ctx, channel, scx, p)
 	if err != nil {
-		sess.Close()
 		return trace.Wrap(err)
 	}
 
@@ -814,7 +817,7 @@ const (
 )
 
 // newSession creates a new session with a given ID within a given context.
-func newSession(ctx context.Context, r *SessionRegistry, scx *ServerContext, ch ssh.Channel, sessType sessionType) (*session, *party, error) {
+func newSession(ctx context.Context, r *SessionRegistry, scx *ServerContext, ch ssh.Channel, sessType sessionType) (s *session, p *party, err error) {
 	var sessionRecordingMode constants.SessionRecordingMode
 	switch {
 	case scx.Identity.AccessPermit != nil:
@@ -887,6 +890,13 @@ func newSession(ctx context.Context, r *SessionRegistry, scx *ServerContext, ch 
 		serverMeta:                     scx.srv.EventMetadata(),
 	}
 
+	// Make sure to close the session when returning an error
+	defer func() {
+		if err != nil {
+			sess.Close()
+		}
+	}()
+
 	sess.io.OnWriteError = sess.onWriteErrorCallback(sessionRecordingMode)
 
 	// Nodes discard events in cases when proxies are already recording them.
@@ -904,11 +914,9 @@ func newSession(ctx context.Context, r *SessionRegistry, scx *ServerContext, ch 
 	}()
 
 	// create a new "party" (connected client).
-	p := newParty(sess, types.SessionPeerMode, ch, scx)
+	p = newParty(sess, types.SessionPeerMode, ch, scx)
 
-	var err error
 	if err = sess.trackSession(ctx, scx.Identity.TeleportUser, policySets, p, sessType); err != nil {
-		sess.Close()
 		if trace.IsNotImplemented(err) {
 			return nil, nil, trace.NotImplemented("Attempted to use Moderated Sessions with an Auth Server below the minimum version of 9.0.0.")
 		}
@@ -917,7 +925,6 @@ func newSession(ctx context.Context, r *SessionRegistry, scx *ServerContext, ch 
 
 	sess.recorder, err = newRecorder(sess, scx, sessType)
 	if err != nil {
-		sess.Close()
 		return nil, nil, trace.Wrap(err)
 	}
 
