@@ -125,6 +125,11 @@ func (d *desktopThumbnailGenerator) produceThumbnail(maxDim int) (*pb.SessionRec
 		}
 	}
 
+	// The integer division above can floor a dimension to 0 for extreme aspect
+	// ratios; clamp to at least 1px so we still produce a valid thumbnail.
+	thumbW = max(thumbW, 1)
+	thumbH = max(thumbH, 1)
+
 	thumbImg, err := d.rdpstate.ResizeCrop(
 		uint16(bounds.Min.X), uint16(bounds.Min.Y),
 		uint16(cropW), uint16(cropH),
