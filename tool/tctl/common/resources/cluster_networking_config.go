@@ -48,8 +48,7 @@ func (c *networkingConfigCollection) WriteText(w io.Writer, verbose bool) error 
 		strconv.FormatInt(c.netConfig.GetKeepAliveCountMax(), 10),
 		c.netConfig.GetSessionControlTimeout().String(),
 	})
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
+	return trace.Wrap(t.WriteTo(w))
 }
 
 func networkingConfigHandler() Handler {

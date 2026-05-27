@@ -52,7 +52,7 @@ func TestDatabaseObjectCollection_writeText(t *testing.T) {
 		[]string{"object_3", "table", "pg", "postgres"},
 	)
 
-	formatted := table.AsBuffer().String()
+	formatted := table.String()
 
 	collectionFormatTest(t, &databaseObjectCollection{items}, formatted, formatted)
 }

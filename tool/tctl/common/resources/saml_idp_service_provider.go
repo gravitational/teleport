@@ -54,8 +54,7 @@ func (c *samlIdPServiceProviderCollection) WriteText(w io.Writer, verbose bool) 
 	for _, serviceProvider := range c.serviceProviders {
 		t.AddRow([]string{serviceProvider.GetName()})
 	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
+	return trace.Wrap(t.WriteTo(w))
 }
 
 func samlIdPServiceProviderHandler() Handler {

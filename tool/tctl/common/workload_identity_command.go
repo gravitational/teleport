@@ -300,7 +300,8 @@ func (c *WorkloadIdentityCommand) ListWorkloadIdentities(
 				u.GetMetadata().GetName(), u.GetSpec().GetSpiffe().GetId(),
 			})
 		}
-		fmt.Fprintln(c.stdout, t.AsBuffer().String())
+		t.WriteTo(c.stdout)
+		fmt.Fprintln(c.stdout)
 	} else {
 		err := utils.WriteJSONArray(c.stdout, workloadIdentities)
 		if err != nil {
@@ -446,7 +447,8 @@ func (c *WorkloadIdentityCommand) ListRevocations(
 				u.GetSpec().GetReason(),
 			})
 		}
-		fmt.Fprintln(c.stdout, t.AsBuffer().String())
+		t.WriteTo(c.stdout)
+		fmt.Fprintln(c.stdout)
 	} else {
 		converted := []types.Resource{}
 		for _, resource := range revocations {

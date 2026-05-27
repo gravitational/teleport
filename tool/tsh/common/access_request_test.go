@@ -114,7 +114,7 @@ func TestAccessRequestSearch(t *testing.T) {
 						{"test", "default", "", fmt.Sprintf("/%s/kube:ns:pods/%s/default/test", rootClusterName, rootKubeCluster)},
 					},
 					"Labels")
-				return table.AsBuffer().String()
+				return table.String()
 			},
 		},
 		{
@@ -131,7 +131,7 @@ func TestAccessRequestSearch(t *testing.T) {
 						{"nginx-1", "dev", "", fmt.Sprintf("/%s/kube:ns:pods/%s/dev/nginx-1", rootClusterName, rootKubeCluster)},
 					},
 					"Labels")
-				return table.AsBuffer().String()
+				return table.String()
 			},
 		},
 		{
@@ -150,7 +150,7 @@ func TestAccessRequestSearch(t *testing.T) {
 						{"test", "default", "", fmt.Sprintf("/%s/kube:ns:pods/%s/default/test", leafClusterName, leafKubeCluster)},
 					},
 					"Labels")
-				return table.AsBuffer().String()
+				return table.String()
 			},
 		},
 		{
@@ -168,7 +168,7 @@ func TestAccessRequestSearch(t *testing.T) {
 						{"nginx-1", "dev", "", fmt.Sprintf("/%s/kube:ns:pods/%s/dev/nginx-1", leafClusterName, leafKubeCluster)},
 					},
 					"Labels")
-				return table.AsBuffer().String()
+				return table.String()
 			},
 		},
 		{
@@ -184,7 +184,7 @@ func TestAccessRequestSearch(t *testing.T) {
 						{leafKubeCluster, "", "", fmt.Sprintf("/%s/kube_cluster/%s", leafClusterName, leafKubeCluster)},
 					},
 					"Labels")
-				return table.AsBuffer().String()
+				return table.String()
 			},
 		},
 	}
@@ -605,7 +605,7 @@ func TestRequestSearchRequestableRoles(t *testing.T) {
 		table := asciitable.MakeTable([]string{"Role", "Description"})
 		table.AddRow([]string{"access", "base access role"})
 		table.AddRow([]string{"db-admin", "database administrator role"})
-		return table.AsBuffer().String()
+		return table.String()
 	}
 
 	tests := []struct {
@@ -693,7 +693,7 @@ func TestPrintRequestableResources(t *testing.T) {
 				{"pod-2", "dev", "env=dev", "id2"},
 			}...,
 		)
-		expectedTable := table.AsBuffer().String()
+		expectedTable := table.String()
 		out := buf.String()
 
 		require.Contains(t, out, expectedTable)
@@ -769,7 +769,7 @@ func TestPrintRequestableResources(t *testing.T) {
 		table := asciitable.MakeTable(
 			[]string{"Name", "Namespace", "Labels", "Resource ID"},
 		)
-		expectedTable := table.AsBuffer().String()
+		expectedTable := table.String()
 		require.Equal(t, expectedTable, out)
 	})
 
@@ -813,7 +813,7 @@ func TestPrintRequestableRoles(t *testing.T) {
 				{"db-admin", "database administrator role"},
 			}...,
 		)
-		expectedTable := table.AsBuffer().String()
+		expectedTable := table.String()
 		out := buf.String()
 
 		require.Equal(t, expectedTable, out)

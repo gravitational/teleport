@@ -55,8 +55,7 @@ func (c *databaseObjectCollection) WriteText(w io.Writer, verbose bool) error {
 			fmt.Sprintf("%v", b.GetSpec().GetProtocol()),
 		})
 	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
+	return trace.Wrap(t.WriteTo(w))
 }
 
 func databaseObjectHandler() Handler {

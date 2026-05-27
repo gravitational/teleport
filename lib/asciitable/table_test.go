@@ -49,7 +49,7 @@ func TestFullTable(t *testing.T) {
 	table.AddRow([]string{"Joe Forrester", "Trains are much better than cars", "40"})
 	table.AddRow([]string{"Jesus", "Read the bible", "2018"})
 
-	require.Equal(t, fullTable, table.AsBuffer().String())
+	require.Equal(t, fullTable, table.String())
 }
 
 func TestHeadlessTable(t *testing.T) {
@@ -58,7 +58,7 @@ func TestHeadlessTable(t *testing.T) {
 	table.AddRow([]string{"1", "2", "3"})
 
 	// The table shall have no header and also the 3rd column must be chopped off.
-	require.Equal(t, headlessTable, table.AsBuffer().String())
+	require.Equal(t, headlessTable, table.String())
 }
 
 func TestTruncatedTable(t *testing.T) {
@@ -80,7 +80,7 @@ func TestTruncatedTable(t *testing.T) {
 	table.AddRow([]string{"Jesus", "Read the bible", "for ever and ever"})
 	table.AddRow([]string{"X", strings.Repeat("y", 26), ""})
 
-	require.Equal(t, truncatedTable, table.AsBuffer().String())
+	require.Equal(t, truncatedTable, table.String())
 }
 
 func TestMakeTableWithTruncatedColumn(t *testing.T) {
@@ -127,7 +127,7 @@ func TestMakeTableWithTruncatedColumn(t *testing.T) {
 	for _, testCase := range testCases {
 		t.Run(testCase.truncatedColumn, func(t *testing.T) {
 			table := MakeTableWithTruncatedColumn(columns, rows, testCase.truncatedColumn)
-			rows := strings.Split(table.AsBuffer().String(), "\n")
+			rows := strings.Split(table.String(), "\n")
 			require.Len(t, rows, 4)
 			require.Len(t, rows[2], testCase.expectedWidth)
 			require.Equal(t, testCase.expectedOutput, rows)

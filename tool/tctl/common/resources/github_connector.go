@@ -50,8 +50,7 @@ func (c *githubConnectorCollection) WriteText(w io.Writer, verbose bool) error {
 		t.AddRow([]string{conn.GetName(), formatTeamsToLogins(
 			conn.GetTeamsToLogins())})
 	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
+	return trace.Wrap(t.WriteTo(w))
 }
 
 func formatTeamsToLogins(mappings []types.TeamMapping) string {

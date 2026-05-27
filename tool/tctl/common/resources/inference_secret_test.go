@@ -44,7 +44,7 @@ func TestInferenceSecretCollection_writeText(t *testing.T) {
 		[]string{"secret_3", ""},
 	)
 
-	formatted := table.AsBuffer().String()
+	formatted := table.String()
 
 	collectionFormatTest(t, inferenceSecretCollection(secrets), formatted, formatted)
 }

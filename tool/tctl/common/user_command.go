@@ -539,7 +539,10 @@ func (u *UserCommand) List(ctx context.Context, client *authclient.Client) error
 				u.GetName(), strings.Join(u.GetRoles(), ","),
 			})
 		}
-		fmt.Println(t.AsBuffer().String())
+		if err := t.WriteTo(os.Stdout); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Fprintln(os.Stdout)
 	} else {
 		err := utils.WriteJSONArray(os.Stdout, users)
 		if err != nil {

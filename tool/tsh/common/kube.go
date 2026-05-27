@@ -1032,7 +1032,7 @@ func formatKubeClustersAsText(kubeClusters types.KubeClusters, selectedCluster s
 
 	// stable sort by kube cluster name.
 	t.SortRowsBy([]int{0}, true)
-	return t.AsBuffer().String()
+	return t.String()
 }
 
 func isClusterSelected(kubeClusters []types.KubeCluster, cluster types.KubeCluster, selectedCluster string) bool {
@@ -1198,7 +1198,7 @@ func formatKubeListingsAsText(listings kubeListings, quiet, verbose bool) string
 	}
 	// stable sort by proxy, then cluster, then kube cluster name.
 	t.SortRowsBy([]int{0, 1, 2}, true)
-	return t.AsBuffer().String()
+	return t.String()
 }
 
 func serializeKubeListings(kubeListings []kubeListing, format string) (string, error) {

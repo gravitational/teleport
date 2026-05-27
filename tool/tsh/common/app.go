@@ -643,7 +643,7 @@ func formatAppConfig(tc *client.TeleportClient, profile *client.ProfileStatus, r
 			t.AddRow([]string{"GCP Service Account:", routeToApp.GCPServiceAccount})
 		}
 
-		return t.AsBuffer().String(), nil
+		return t.String(), nil
 	default:
 		acceptedFormats := []string{
 			"", "default",

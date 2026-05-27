@@ -136,7 +136,7 @@ func (c *scopesLSCommand) run(cf *CLIConf) error {
 			})
 		}
 
-		fmt.Fprint(cf.Stdout(), table.AsBuffer().String())
+		table.WriteTo(cf.Stdout())
 		return nil
 	}
 

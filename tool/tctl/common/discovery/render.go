@@ -54,6 +54,5 @@ func renderText(w io.Writer, instances []instanceInfo) error {
 		})
 	}
 	t := asciitable.MakeTableWithTruncatedColumn(columns, rows, "Details")
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
+	return trace.Wrap(t.WriteTo(w))
 }

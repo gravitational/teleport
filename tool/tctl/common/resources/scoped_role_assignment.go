@@ -73,8 +73,7 @@ func (c *ScopedRoleAssignmentCollection) WriteText(w io.Writer, verbose bool) er
 
 	t := asciitable.MakeTable(headers, rows...)
 
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
+	return trace.Wrap(t.WriteTo(w))
 }
 
 func scopedRoleAssignmentHandler() Handler {

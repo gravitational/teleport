@@ -53,8 +53,7 @@ func (c *autoUpdateConfigCollection) WriteText(w io.Writer, verbose bool) error 
 		c.config.GetMetadata().GetName(),
 		fmt.Sprintf("%v", c.config.GetSpec().GetTools().GetMode()),
 	})
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
+	return trace.Wrap(t.WriteTo(w))
 }
 
 func autoUpdateConfigHandler() Handler {

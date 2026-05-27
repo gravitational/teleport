@@ -144,7 +144,7 @@ func addOIDCCommand(cmd *SSOConfigureCommand) *AuthKindCommand {
 	for _, preset := range oidcPresets {
 		pTable.AddRow([]string{preset.name, preset.description, preset.display, preset.issuerURL})
 	}
-	presets := tester.Indent(pTable.AsBuffer().String(), 2)
+	presets := tester.Indent(pTable.String(), 2)
 
 	extra := &oidcExtraFlags{}
 

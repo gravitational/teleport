@@ -59,8 +59,7 @@ func (c *workloadIdentityCollection) WriteText(w io.Writer, verbose bool) error 
 
 	// stable sort by name.
 	t.SortRowsBy([]int{0}, true)
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
+	return trace.Wrap(t.WriteTo(w))
 }
 
 func workloadIdentityHandler() Handler {

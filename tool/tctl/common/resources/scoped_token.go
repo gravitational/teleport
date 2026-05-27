@@ -16,7 +16,6 @@
 package resources
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -55,8 +54,8 @@ func (c *scopedTokenCollection) Resources() []types.Resource {
 
 func (c *scopedTokenCollection) WriteText(w io.Writer, verbose bool) error {
 	// when calling the getScopedToken, the secrets would already have been properly hidden or exposed.
-	_, err := ScopedTokenTextHelper(c.tokens, false).WriteTo(w)
-	return trace.Wrap(err)
+	t := ScopedTokenTextHelper(c.tokens, false)
+	return trace.Wrap(t.WriteTo(w))
 }
 
 func scopedTokenHandler() Handler {
@@ -170,7 +169,7 @@ func deleteScopedToken(ctx context.Context, client *authclient.Client, ref servi
 	return nil
 }
 
-func ScopedTokenTextHelper(tokens []*joiningv1.ScopedToken, withSecrets bool) *bytes.Buffer {
+func ScopedTokenTextHelper(tokens []*joiningv1.ScopedToken, withSecrets bool) asciitable.Table {
 	headers := []string{
 		"Token",
 		"Type",
@@ -206,5 +205,5 @@ func ScopedTokenTextHelper(tokens []*joiningv1.ScopedToken, withSecrets bool) *b
 		}
 		table.AddRow(row)
 	}
-	return table.AsBuffer()
+	return table
 }

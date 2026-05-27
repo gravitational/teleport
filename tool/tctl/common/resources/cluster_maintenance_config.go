@@ -61,8 +61,7 @@ func (c *clusterMaintenanceConfigCollection) WriteText(w io.Writer, verbose bool
 
 	t.AddRow([]string{"Agent Upgrades", agentUpgradeParams})
 
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
+	return trace.Wrap(t.WriteTo(w))
 }
 
 func clusterMaintenanceConfigHandler() Handler {

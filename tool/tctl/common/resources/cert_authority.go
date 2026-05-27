@@ -66,8 +66,7 @@ func (a *certAuthorityCollection) WriteText(w io.Writer, verbose bool) error {
 			})
 		}
 	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
+	return trace.Wrap(t.WriteTo(w))
 }
 
 func certAuthorityHandler() Handler {

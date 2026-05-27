@@ -3211,9 +3211,10 @@ func printNodesWithClusters(nodes []nodeListing, verbose bool, output io.Writer)
 			t = asciitable.MakeTableWithTruncatedColumn([]string{"Proxy", "Cluster", "Node Name", "Address", "Labels"}, rows, "Labels")
 		}
 	}
-	if _, err := fmt.Fprintln(output, t.AsBuffer().String()); err != nil {
+	if err := t.WriteTo(output); err != nil {
 		return trace.Wrap(err)
 	}
+	fmt.Fprintln(output)
 	return nil
 }
 
@@ -3479,9 +3480,10 @@ func printNodesAsText[T types.Server](output io.Writer, nodes []T, verbose bool)
 			t = asciitable.MakeTableWithTruncatedColumn([]string{"Node Name", "Address", "Labels"}, rows, "Labels")
 		}
 	}
-	if _, err := fmt.Fprintln(output, t.AsBuffer().String()); err != nil {
+	if err := t.WriteTo(output); err != nil {
 		return trace.Wrap(err)
 	}
+	fmt.Fprintln(output)
 
 	return nil
 }
@@ -3645,8 +3647,11 @@ func writeAppTable(w io.Writer, appListings []appListing, config appTableConfig)
 		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, labelsColumn)
 	}
 
-	_, err := fmt.Fprintln(w, t.AsBuffer().String())
-	return trace.Wrap(err)
+	if err := t.WriteTo(w); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Fprintln(w)
+	return nil
 }
 
 type appTableColumn struct {
@@ -3979,7 +3984,10 @@ func onListClusters(cf *CLIConf) error {
 			t = asciitable.MakeTableWithTruncatedColumn(header, rows, "Labels")
 		}
 
-		fmt.Println(t.AsBuffer().String())
+		if err := t.WriteTo(cf.Stdout()); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Fprintln(cf.Stdout())
 	case teleport.JSON, teleport.YAML:
 		rootClusterInfo := clusterInfo{
 			ClusterName: rootClusterName,
@@ -4091,7 +4099,7 @@ func printSessions(output io.Writer, sessions []types.SessionTracker) {
 		})
 	}
 
-	tableOutput := table.AsBuffer().String()
+	tableOutput := table.String()
 	fmt.Fprintln(output, tableOutput)
 }
 
@@ -4699,7 +4707,7 @@ func onBenchmark(cf *CLIConf, suite benchmark.Suite) error {
 			fmt.Sprintf("%v ms", result.Histogram.ValueAtQuantile(quantile)),
 		})
 	}
-	if _, err := io.Copy(cf.Stdout(), t.AsBuffer()); err != nil {
+	if err := t.WriteTo(cf.Stdout()); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Fprintf(cf.Stdout(), "\n")

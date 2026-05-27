@@ -19,7 +19,7 @@
 package asciitable
 
 import (
-	"fmt"
+	"os"
 )
 
 func ExampleMakeTable() {
@@ -32,7 +32,7 @@ func ExampleMakeTable() {
 	t.AddRow([]string{"9333929146c08928a36466aea12df963", "trusted_cluster", "30 Aug 18 23:33 UTC"})
 
 	// Write the table to stdout.
-	fmt.Println(t.AsBuffer().String())
+	t.WriteTo(os.Stdout)
 }
 
 func ExampleMakeColumnsAndRows() {
@@ -57,5 +57,5 @@ func ExampleMakeColumnsAndRows() {
 	table := MakeTable(cols, data...)
 
 	// Write the table to stdout.
-	fmt.Println(table.AsBuffer().String())
+	table.WriteTo(os.Stdout)
 }

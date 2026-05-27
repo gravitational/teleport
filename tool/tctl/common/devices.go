@@ -310,7 +310,8 @@ func (c *deviceListCommand) Run(ctx context.Context, authClient *authclient.Clie
 				dev.Id,
 			})
 		}
-		fmt.Fprintln(c.stdout, table.AsBuffer().String())
+		table.WriteTo(c.stdout)
+		fmt.Fprintln(c.stdout)
 	case teleport.JSON:
 		return trace.Wrap(utils.WriteJSONArray(c.stdout, devs), "failed to marshal devices list")
 	case teleport.YAML:

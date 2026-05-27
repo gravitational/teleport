@@ -70,8 +70,7 @@ func (s *ServerCollection) WriteText(w io.Writer, verbose bool) error {
 		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
 	}
 
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
+	return trace.Wrap(t.WriteTo(w))
 }
 
 func (s *ServerCollection) WriteYAML(w io.Writer) error {

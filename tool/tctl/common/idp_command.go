@@ -194,7 +194,10 @@ func (t *testAttributeMapping) run(ctx context.Context, c *authclient.Client) er
 					strings.Join(value.Values, ", "),
 				})
 			}
-			fmt.Println(table.AsBuffer().String())
+			if err := table.WriteTo(os.Stdout); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Fprintln(os.Stdout)
 		}
 	}
 

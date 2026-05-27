@@ -116,7 +116,7 @@ func testKubeClusterCollection_writeText(t *testing.T) {
 					{"cluster3", formatTestLabels(staticLabelsFixture, eksDiscoveredNameLabel, false)},
 				},
 				"Labels")
-			return table.AsBuffer().String()
+			return table.String()
 		},
 		wantVerboseTable: func() string {
 			table := asciitable.MakeTable(
@@ -126,7 +126,7 @@ func testKubeClusterCollection_writeText(t *testing.T) {
 				[]string{"cluster2", formatTestLabels(staticLabelsFixture, longLabelFixture, true)},
 				[]string{"cluster3-eks-us-west-1-123456789012", formatTestLabels(staticLabelsFixture, eksDiscoveredNameLabel, true)},
 			)
-			return table.AsBuffer().String()
+			return table.String()
 		},
 	}
 	test.run(t)
@@ -154,7 +154,7 @@ func testKubeServerCollection_writeText(t *testing.T) {
 					{"cluster3", formatTestLabels(staticLabelsFixture, eksDiscoveredNameLabel, false), api.Version},
 				},
 				"Labels")
-			return table.AsBuffer().String()
+			return table.String()
 		},
 		wantVerboseTable: func() string {
 			table := asciitable.MakeTable(
@@ -164,7 +164,7 @@ func testKubeServerCollection_writeText(t *testing.T) {
 				[]string{"cluster2", formatTestLabels(staticLabelsFixture, longLabelFixture, true), api.Version},
 				[]string{"cluster3-eks-us-west-1-123456789012", formatTestLabels(staticLabelsFixture, eksDiscoveredNameLabel, true), api.Version},
 			)
-			return table.AsBuffer().String()
+			return table.String()
 		},
 	}
 	test.run(t)
@@ -195,7 +195,7 @@ func testDatabaseCollection_writeText(t *testing.T) {
 					{"database-B", "postgres", "localhost:5432", formatTestLabels(staticLabelsFixture, longLabelFixture, false)},
 				},
 				"Labels")
-			return table.AsBuffer().String()
+			return table.String()
 		},
 		wantVerboseTable: func() string {
 			table := asciitable.MakeTable(
@@ -205,7 +205,7 @@ func testDatabaseCollection_writeText(t *testing.T) {
 				[]string{"database-B", "postgres", "localhost:5432", formatTestLabels(staticLabelsFixture, longLabelFixture, true)},
 				[]string{"database-rds-us-west-1-123456789012", "postgres", rdsURI, formatTestLabels(staticLabelsFixture, rdsDiscoveredNameLabel, true)},
 			)
-			return table.AsBuffer().String()
+			return table.String()
 		},
 	}
 	test.run(t)
@@ -236,7 +236,7 @@ func testDatabaseServerCollection_writeText(t *testing.T) {
 					{"some-host", "database-B", "postgres", "localhost:5432", formatTestLabels(staticLabelsFixture, longLabelFixture, false), api.Version},
 				},
 				"Labels")
-			return table.AsBuffer().String()
+			return table.String()
 		},
 		wantVerboseTable: func() string {
 			table := asciitable.MakeTable(
@@ -246,7 +246,7 @@ func testDatabaseServerCollection_writeText(t *testing.T) {
 				[]string{"some-host", "database-B", "postgres", "localhost:5432", formatTestLabels(staticLabelsFixture, longLabelFixture, true), api.Version},
 				[]string{"some-host", "database-rds-us-west-1-123456789012", "postgres", rdsURI, formatTestLabels(staticLabelsFixture, rdsDiscoveredNameLabel, true), api.Version},
 			)
-			return table.AsBuffer().String()
+			return table.String()
 		},
 	}
 	test.run(t)

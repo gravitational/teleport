@@ -47,10 +47,10 @@ func TestInferencePolicyCollection_writeText(t *testing.T) {
 	}
 
 	table := asciitable.MakeTableWithTruncatedColumn(headers, rows, "Description")
-	formatted := table.AsBuffer().String()
+	formatted := table.String()
 
 	verboseTable := asciitable.MakeTable(headers, rows...)
-	verboseFormatted := verboseTable.AsBuffer().String()
+	verboseFormatted := verboseTable.String()
 
 	collectionFormatTest(t, inferencePolicyCollection(policies), verboseFormatted, formatted)
 }

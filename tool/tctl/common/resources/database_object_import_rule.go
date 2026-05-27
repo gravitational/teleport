@@ -55,8 +55,7 @@ func (c *databaseObjectImportRuleCollection) WriteText(w io.Writer, _ bool) erro
 			fmt.Sprintf("%v", len(b.GetSpec().GetDatabaseLabels())),
 		})
 	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
+	return trace.Wrap(t.WriteTo(w))
 }
 
 func databaseObjectImportRuleHandler() Handler {

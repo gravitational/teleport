@@ -101,8 +101,7 @@ func (e *SessionsCollection) WriteText(w io.Writer) error {
 
 		t.AddRow([]string{id, typ, participants, target, timestamp})
 	}
-	_, err := t.AsBuffer().WriteTo(w)
-	return trace.Wrap(err)
+	return trace.Wrap(t.WriteTo(w))
 }
 
 // WriteJSON writes the session collection as JSON to the provided io.Writer.

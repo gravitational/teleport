@@ -21,7 +21,6 @@
 package asciitable
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -159,17 +158,8 @@ func (t *Table) truncateCell(colIndex int, cell string) (string, bool) {
 	return fmt.Sprintf("%v %v", truncatedCell, footnoteLabel), true
 }
 
-// AsBuffer returns a *bytes.Buffer with the printed output of the table.
-//
-// TODO(nklaassen): delete this, all calls either immediately copy the buffer to
-// another writer or just call .String() once.
-func (t *Table) AsBuffer() *bytes.Buffer {
-	var buffer bytes.Buffer
-	// Writes to bytes.Buffer never return an error.
-	_ = t.WriteTo(&buffer)
-	return &buffer
-}
-
+// String returns the table as a string. Prefer using [WriteTo] when
+// printing tables to [io.Writer]s like os.Stdout or os.Stderr
 func (t *Table) String() string {
 	var sb strings.Builder
 	// Writes to strings.Builder never return an error.

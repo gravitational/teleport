@@ -491,13 +491,13 @@ uri: https://test-app.example.com:8443
 			name:     "format default",
 			tc:       defaultTc,
 			format:   "default",
-			expected: defaultFormatTable.AsBuffer().String(),
+			expected: defaultFormatTable.String(),
 		},
 		{
 			name:     "empty format means default",
 			tc:       defaultTc,
 			format:   "",
-			expected: defaultFormatTable.AsBuffer().String(),
+			expected: defaultFormatTable.String(),
 		},
 		{
 			name:    "reject invalid format",
@@ -511,7 +511,7 @@ uri: https://test-app.example.com:8443
 			tc:            defaultTc,
 			azureIdentity: "/subscriptions/11111111-1111-1111-1111-111111111111/resourceGroups/my-resource-group/providers/Microsoft.ManagedIdentity/userAssignedIdentities/teleport-azure",
 			format:        "default",
-			expected:      defaultFormatTableAzure.AsBuffer().String(),
+			expected:      defaultFormatTableAzure.String(),
 		},
 		{
 			name:          "azure JSON format",
@@ -553,7 +553,7 @@ uri: https://test-app.example.com:8443
 			tc:                defaultTc,
 			gcpServiceAccount: "dev@example-123456.iam.gserviceaccount.com",
 			format:            "default",
-			expected:          defaultFormatTableGCP.AsBuffer().String(),
+			expected:          defaultFormatTableGCP.String(),
 		},
 		{
 			name:              "gcp JSON format",
