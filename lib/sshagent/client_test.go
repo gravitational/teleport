@@ -195,6 +195,7 @@ func synctestConcurrentServeChannelRequests(t *testing.T) {
 
 	go func() {
 		defer c.Close()
+		//nolint:forbidigo // this client is not speaking to a teleport server
 		conn, newChC, reqC, err := ssh.NewClientConn(c, "localhost:22", &ssh.ClientConfig{
 			User:            "u",
 			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
@@ -202,6 +203,7 @@ func synctestConcurrentServeChannelRequests(t *testing.T) {
 		if !assert.NoError(t, err) {
 			return
 		}
+		//nolint:forbidigo // this client is not speaking to a teleport server
 		clt := ssh.NewClient(conn, newChC, reqC)
 		defer clt.Close()
 		err = sshagent.ServeChannelRequests(t.Context(), clt, func() (sshagent.Client, error) {
