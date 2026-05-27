@@ -194,6 +194,26 @@ type mergeEphemeralPatchWithCurrentPodConfig struct {
 	patchType apimachinerytypes.PatchType
 }
 
+// mergeEphemeralPatchWithCurrentPod merges the provided patch with the
+// given pod and returns the patched pod.
+// The pod must have been fetched by the caller using a client that respects the requesting user's Kubernetes RBAC.
+// The patch is expected to be a strategic merge patch that adds an ephemeral container to the pod.
+func (f *Forwarder) mergeEphemeralPatchWithCurrentPod(
+	pod *corev1.Pod,
+	cfg mergeEphemeralPatchWithCurrentPodConfig,
+) (*corev1.Pod, string, error) {
+	podSerializedBuf := &bytes.Buffer{}
+	if err := cfg.encoder.Encode(pod, podSerializedBuf); err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	patchedPod, ephemeralContName, err := patchPodWithDebugContainer(cfg.decoder, podSerializedBuf.Bytes(), cfg.podPatch, *pod, cfg.patchType)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	return patchedPod, ephemeralContName, nil
+}
+
 // getPodForEphemeralPatch fetches the target pod using a Kubernetes client
 // that impersonates the requesting user's `kubernetes_users` / `kubernetes_groups`.
 // The Kubernetes API server therefore enforces RBAC on the user's mapped identity for this read, even though
@@ -215,26 +235,6 @@ func (f *Forwarder) getPodForEphemeralPatch(
 		return nil, trace.Wrap(err)
 	}
 	return pod, nil
-}
-
-// mergeEphemeralPatchWithCurrentPod merges the provided patch with the
-// given pod and returns the patched pod.
-// The pod must have been fetched by the caller using a client that respects the requesting user's Kubernetes RBAC.
-// The patch is expected to be a strategic merge patch that adds an ephemeral container to the pod.
-func (f *Forwarder) mergeEphemeralPatchWithCurrentPod(
-	pod *corev1.Pod,
-	cfg mergeEphemeralPatchWithCurrentPodConfig,
-) (*corev1.Pod, string, error) {
-	podSerializedBuf := &bytes.Buffer{}
-	if err := cfg.encoder.Encode(pod, podSerializedBuf); err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	patchedPod, ephemeralContName, err := patchPodWithDebugContainer(cfg.decoder, podSerializedBuf.Bytes(), cfg.podPatch, *pod, cfg.patchType)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-	return patchedPod, ephemeralContName, nil
 }
 
 func (f *Forwarder) createWaitingContainer(ctx context.Context, ephemeralContName string, authCtx *authContext, podPatch []byte, patchType apimachinerytypes.PatchType) error {
