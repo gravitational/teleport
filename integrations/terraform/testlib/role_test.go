@@ -73,9 +73,6 @@ func (s *TerraformSuiteOSS) TestRoleDataSource() {
 }
 
 func (s *TerraformSuiteOSS) TestRole() {
-	// TODO: `spec.options.record_session` should be a computed attribute.
-	s.T().Skip("Provider produced invalid plan")
-
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 
