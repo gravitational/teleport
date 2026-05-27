@@ -47,14 +47,13 @@ func NewIDTracker(size int) (*IDTracker, error) {
 
 // PushRequest tracks a request. Returns true if the request has been added to
 // cache.
-func (t *IDTracker) PushRequest(msg *JSONRPCRequest) bool {
+func (t *IDTracker) PushRequest(msg *JSONRPCRequest) {
 	if msg == nil || msg.ID.IsNil() || msg.Method == "" {
-		return false
+		return
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.lruCache.Add(msg.ID, msg.Method)
-	return true
 }
 
 // PopByID retrieves the tracked information and remove it from the tracker.
