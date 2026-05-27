@@ -5180,6 +5180,10 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 		expectedCfg := webclient.WebConfig{
 			Auth: webclient.WebConfigAuthSettings{
 				SecondFactor: constants.SecondFactorOn,
+				SecondFactors: []types.SecondFactorType{
+					types.SecondFactorType_SECOND_FACTOR_TYPE_OTP,
+					types.SecondFactorType_SECOND_FACTOR_TYPE_WEBAUTHN,
+				},
 				Providers: []webclient.WebConfigAuthProvider{{
 					Name:      "test-github",
 					Type:      constants.Github,
