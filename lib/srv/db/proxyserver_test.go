@@ -60,24 +60,50 @@ func TestProxyConnectionLimiting(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		connect       func() (func(context.Context) error, error)
+		connect       func() (func(context.Context) error, func() error, error)
 		expectedError error
 	}{
 		{
 			"postgres",
-			func() (func(context.Context) error, error) {
+			func() (func(context.Context) error, func() error, error) {
 				pgConn, err := testCtx.postgresClient(ctx, user, "postgres", dbUser, postgresDbName)
-				return pgConn.Close, err
+				return pgConn.Close, func() error { return nil }, err
+			},
+			io.EOF,
+		},
+		// This test case targets ServeTLS, which previously registered the connection
+		// twice with the rate/connection limiter.
+		{
+			"postgres with local proxy",
+			func() (func(context.Context) error, func() error, error) {
+				pgConn, localProxy, err := testCtx.postgresClientLocalProxy(ctx, user, "postgres", dbUser, postgresDbName)
+				return pgConn.Close, localProxy.Close, err
 			},
 			io.EOF,
 		},
 		{
 			"mysql",
-			func() (func(context.Context) error, error) {
+			func() (func(context.Context) error, func() error, error) {
 				mysqlClient, err := testCtx.mysqlClient(user, "mysql", dbUser)
 				return func(_ context.Context) error {
-					return mysqlClient.Close()
-				}, err
+						return mysqlClient.Close()
+					},
+					func() error { return nil },
+					err
+			},
+			mysql.ErrBadConn,
+		},
+		// This test case targets ServeTLS, which previously registered the connection
+		// twice with the rate/connection limiter.
+		{
+			"mysql with local proxy",
+			func() (func(context.Context) error, func() error, error) {
+				mysqlClient, localProxy, err := testCtx.mysqlClientLocalProxy(ctx, user, "mysql", dbUser)
+				return func(_ context.Context) error {
+						return mysqlClient.Close()
+					},
+					localProxy.Close,
+					err
 			},
 			mysql.ErrBadConn,
 		},
@@ -86,7 +112,7 @@ func TestProxyConnectionLimiting(t *testing.T) {
 	for _, tt := range tests {
 
 		t.Run(tt.name, func(t *testing.T) {
-			// Keep close functions to all connections. Call and release all active connection at the end of test.
+			// Keep close functions to all connections and local proxies. Close everything at end of test.
 			connsClosers := make([]func(context.Context) error, 0)
 			t.Cleanup(func() {
 				for _, connClose := range connsClosers {
@@ -94,18 +120,26 @@ func TestProxyConnectionLimiting(t *testing.T) {
 					require.NoError(t, err)
 				}
 			})
+			localProxyCloseFuncs := make([]func() error, 0)
+			t.Cleanup(func() {
+				for _, localProxyCloseFunc := range localProxyCloseFuncs {
+					err := localProxyCloseFunc()
+					require.NoError(t, err)
+				}
+			})
 
 			t.Run("limit can be hit", func(t *testing.T) {
 				for range connLimitNumber {
 					// Try to connect to the database.
-					dbConn, err := tt.connect()
+					dbConn, localProxyCloseFunc, err := tt.connect()
 					require.NoError(t, err)
 
 					connsClosers = append(connsClosers, dbConn)
+					localProxyCloseFuncs = append(localProxyCloseFuncs, localProxyCloseFunc)
 				}
 
 				// This connection should go over the limit.
-				_, err = tt.connect()
+				_, _, err = tt.connect()
 				require.Error(t, err)
 				require.ErrorIs(t, err, tt.expectedError)
 			})
@@ -114,20 +148,26 @@ func TestProxyConnectionLimiting(t *testing.T) {
 			t.Run("reconnect one", func(t *testing.T) {
 				// Get one open connection.
 				require.NotEmpty(t, connsClosers)
+				require.NotEmpty(t, localProxyCloseFuncs)
 				oneConn := connsClosers[len(connsClosers)-1]
 				connsClosers = connsClosers[:len(connsClosers)-1]
+				localProxyCloseFunc := localProxyCloseFuncs[len(localProxyCloseFuncs)-1]
+				localProxyCloseFuncs = localProxyCloseFuncs[:len(localProxyCloseFuncs)-1]
 
 				// Close it, this should decrease the connection limit.
 				err = oneConn(ctx)
 				require.NoError(t, err)
+				err = localProxyCloseFunc()
+				require.NoError(t, err)
 
 				// Create a new connection. We do not expect an error here as we have just closed one.
-				dbConn, err := tt.connect()
+				dbConn, localProxyCloseFunc, err := tt.connect()
 				require.NoError(t, err)
 				connsClosers = append(connsClosers, dbConn)
+				localProxyCloseFuncs = append(localProxyCloseFuncs, localProxyCloseFunc)
 
 				// Here the limit should be reached again.
-				_, err = tt.connect()
+				_, _, err = tt.connect()
 				require.Error(t, err)
 				require.ErrorIs(t, err, tt.expectedError)
 			})
