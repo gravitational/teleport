@@ -42,7 +42,6 @@ import (
 )
 
 const (
-	defaultMaxBatch                = 250
 	defaultToBeWrittenBufferLen    = 1024
 	pollInterval                   = 100 * time.Millisecond
 	dequeueBatchSize               = 256
@@ -57,6 +56,14 @@ const (
 	defaultMaxAttempts             = 10
 	defaultDeadLetterSweepInterval = 10 * time.Minute
 	defaultDeadLetterTTL           = 30 * 24 * time.Hour // 30 days
+
+	// We've run benchmarks and found a batch size of 25 to be a good middle
+	// ground between insertion performance and memory overhead of
+	// events-in-flight. We've observed peak performance is achieved with batch
+	// sizes around 250, and we encounter diminishing returns above that.
+	//
+	// See: https://github.com/gravitational/teleport.e/blob/rfd/0254-sqlite-audit-log-event-queue/rfd/0254-sqlite-audit-log-event-queue.md#modernc-synchronousnormal-60-second-duration
+	defaultMaxBatch = 25
 
 	// walJournalSizeLimit is the number of bytes the `-wal` file gets
 	// truncated to in between checkpoints.
@@ -119,7 +126,6 @@ type sqliteQueue struct {
 	selfStat                os.FileInfo
 	unlock                  func() error
 	orphanScanInterval      time.Duration
-	handlerMu               sync.Mutex
 	softLimit               int64
 	maxAttempts             int
 	deadLetterSweepInterval time.Duration
@@ -563,7 +569,7 @@ func (q *sqliteQueue) Run(ctx context.Context, handler Handler) error {
 		if len(items) > 0 {
 			// 2. Forward those events to the inner emitter.
 			// This is done via the handler function.
-			successfullyDelivered := q.forwardBatch(ctx, handler, items)
+			successfullyDelivered := handler(ctx, items)
 			if len(successfullyDelivered) > 0 {
 				// 3. ACK the events that were successfully delivered, thus
 				//    deleting them from the DB.
@@ -591,18 +597,6 @@ func (q *sqliteQueue) Run(ctx context.Context, handler Handler) error {
 			pollTimer.Reset(pollInterval)
 		}
 	}
-}
-
-func (q *sqliteQueue) forwardBatch(ctx context.Context, handler Handler, items []Item) []Item {
-	// The handler function is implemented by the caller of the auditqueue. We
-	// do not wish to impose constraints such as thread safety on the user of
-	// this interface. Therefore we handle thread safety issues via this mutex.
-	q.handlerMu.Lock()
-	defer q.handlerMu.Unlock()
-
-	successfullyDelivered := handler(ctx, items)
-
-	return successfullyDelivered
 }
 
 func (q *sqliteQueue) handleDeliveryFailures(ctx context.Context, items []Item, successfullyDelivered []Item) {
@@ -750,7 +744,7 @@ func (q *sqliteQueue) sweepDeadLetter(ctx context.Context, handler Handler) {
 	if len(items) == 0 {
 		return
 	}
-	delivered := q.forwardBatch(ctx, handler, items)
+	delivered := handler(ctx, items)
 	if len(delivered) == 0 {
 		return
 	}
@@ -990,7 +984,7 @@ func (q *sqliteQueue) drainOrphanDB(db *sql.DB, handler Handler) bool {
 		if len(items) == 0 {
 			break
 		}
-		successfullyDelivered := q.forwardBatch(q.ctx, handler, items)
+		successfullyDelivered := handler(q.ctx, items)
 		if len(successfullyDelivered) == 0 {
 			return false
 		}

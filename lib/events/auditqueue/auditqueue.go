@@ -82,6 +82,9 @@ type Item struct {
 // Handler is the function type that the caller of the auditqueue implements.
 // It will take a batch of items to forward to the inner EmitAuditEvent.
 // It will return the slice of items that were successfully delivered.
+//
+// Handler may be invoked concurrently from multiple goroutines.
+// Implementations are responsible for their own goroutine safety.
 type Handler func(ctx context.Context, items []Item) []Item
 
 // Queue is a queue for audit log events.
