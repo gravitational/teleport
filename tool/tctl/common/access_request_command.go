@@ -20,7 +20,6 @@ package common
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -338,7 +337,7 @@ func (c *AccessRequestCommand) Create(ctx context.Context, client *authclient.Cl
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		return trace.Wrap(printJSON(req, "request"))
+		return trace.Wrap(utils.WriteJSON(os.Stdout, req), "failed to marshal request")
 	}
 	req, err = client.CreateAccessRequestV2(ctx, req)
 	if err != nil {
@@ -418,7 +417,7 @@ func (c *AccessRequestCommand) Caps(ctx context.Context, client *authclient.Clie
 		_, err := table.AsBuffer().WriteTo(os.Stdout)
 		return trace.Wrap(err)
 	case teleport.JSON:
-		return printJSON(caps, "capabilities")
+		return trace.Wrap(utils.WriteJSON(os.Stdout, caps), "failed to marshal capabilities")
 	case teleport.YAML:
 		return trace.Wrap(utils.WriteYAML(os.Stdout, caps), "failed to marshal capabilities")
 	default:
@@ -513,7 +512,7 @@ func printRequestsOverview(reqs []types.AccessRequest, format string) error {
 		_, err := table.AsBuffer().WriteTo(os.Stdout)
 		return trace.Wrap(err)
 	case teleport.JSON:
-		return printJSON(reqs, "requests")
+		return trace.Wrap(utils.WriteJSONArray(os.Stdout, reqs), "failed to marshal requests")
 	case teleport.YAML:
 		return trace.Wrap(utils.WriteYAML(os.Stdout, reqs), "failed to marshal requests")
 	default:
@@ -551,21 +550,12 @@ func printRequestsDetailed(reqs []types.AccessRequest, format string) error {
 		}
 		return nil
 	case teleport.JSON:
-		return printJSON(reqs, "requests")
+		return trace.Wrap(utils.WriteJSONArray(os.Stdout, reqs), "failed to marshal requests")
 	case teleport.YAML:
 		return trace.Wrap(utils.WriteYAML(os.Stdout, reqs), "failed to marshal requests")
 	default:
 		return trace.BadParameter("unknown format %q", format)
 	}
-}
-
-func printJSON(in any, desc string) error {
-	out, err := json.MarshalIndent(in, "", "  ")
-	if err != nil {
-		return trace.Wrap(err, fmt.Sprintf("failed to marshal %v", desc))
-	}
-	fmt.Printf("%s\n", out)
-	return nil
 }
 
 func quoteOrDefault(s, d string) string {
