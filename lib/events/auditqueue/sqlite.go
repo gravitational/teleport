@@ -774,7 +774,7 @@ func (q *sqliteQueue) ack(items []Item) error {
 		// delivering these events.
 		eventsDelivered.Add(float64(len(items)))
 	}
-	return err
+	return trace.Wrap(err)
 }
 
 // fetchDB reads up to `limit` oldest items from the table `audit_queue`.
