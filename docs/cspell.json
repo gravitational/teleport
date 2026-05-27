@@ -597,6 +597,7 @@
     "goteleport",
     "gotemplate",
     "gots",
+    "govulncheck",
     "goxmldsig",
     "gpgkey",
     "gpupdate",
