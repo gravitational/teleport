@@ -114,7 +114,6 @@ type sqliteQueue struct {
 	selfStat           os.FileInfo
 	unlock             func() error
 	orphanScanInterval time.Duration
-	handlerMu          sync.Mutex
 	softLimit          int64
 }
 
@@ -520,7 +519,7 @@ func (q *sqliteQueue) Run(ctx context.Context, handler Handler) error {
 		if len(items) > 0 {
 			// 2. Forward those events to the inner emitter.
 			// This is done via the the handler function.
-			successfullyDelivered := q.forwardBatch(ctx, handler, items)
+			successfullyDelivered := handler(ctx, items)
 			if len(successfullyDelivered) > 0 {
 				// 3. ACK the events that were successfully delivered, thus
 				//    deleting them from the DB.
@@ -545,18 +544,6 @@ func (q *sqliteQueue) Run(ctx context.Context, handler Handler) error {
 			pollTimer.Reset(pollInterval)
 		}
 	}
-}
-
-func (q *sqliteQueue) forwardBatch(ctx context.Context, handler Handler, items []Item) []Item {
-	// The handler function is implemented by the caller of the auditqueue. We
-	// do not wish to impose constraints such as thread safety on the user of
-	// this interface. Therefore we handle thread safety issues via this mutex.
-	q.handlerMu.Lock()
-	defer q.handlerMu.Unlock()
-
-	successfullyDelivered := handler(ctx, items)
-
-	return successfullyDelivered
 }
 
 func (q *sqliteQueue) orphanScanLoop(ctx context.Context, handler Handler) {
@@ -748,7 +735,7 @@ func (q *sqliteQueue) drainOrphanDB(db *sql.DB, handler Handler) bool {
 		if len(items) == 0 {
 			return true
 		}
-		successfullyDelivered := q.forwardBatch(q.ctx, handler, items)
+		successfullyDelivered := handler(q.ctx, items)
 		if len(successfullyDelivered) == 0 {
 			return false
 		}
