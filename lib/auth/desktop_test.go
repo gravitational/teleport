@@ -67,7 +67,6 @@ func TestDesktopAccessCAOverrides(t *testing.T) {
 
 	tlsServer := newTestTLSServer(t)
 	authServer := tlsServer.Auth()
-	authServer.SetSubCAEnabled(true)
 
 	cn, err := authServer.GetClusterName(t.Context())
 	require.NoError(t, err)

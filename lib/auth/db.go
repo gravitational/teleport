@@ -171,7 +171,7 @@ func (a *Server) generateDatabaseCert(
 	var trustChain [][]byte
 	var caOverrideDetails *proto.CAOverrideCertificateDetails
 	if ca.GetType() == types.DatabaseClientCA {
-		subCAResolver, err := subca.NewCAOverrideResolver(a.Cache, modules.GetModules().IsEnterpriseBuild(), a.subCAEnabled)
+		subCAResolver, err := subca.NewCAOverrideResolver(a.Cache, modules.GetModules().IsEnterpriseBuild())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -270,7 +270,7 @@ func (a *Server) getDatabaseCACerts(ctx context.Context, id types.CertAuthID) (c
 		return nil, trace.Wrap(err, "read CA")
 	}
 
-	if !a.subCAEnabled || id.Type != types.DatabaseClientCA {
+	if id.Type != types.DatabaseClientCA {
 		return services.GetTLSCerts(ca), nil
 	}
 

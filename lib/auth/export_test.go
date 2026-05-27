@@ -200,10 +200,6 @@ func (a *Server) CreateGithubUser(ctx context.Context, p *CreateUserParams, dryR
 	return a.createGithubUser(ctx, p, dryRun)
 }
 
-func (a *Server) SetSubCAEnabled(b bool) {
-	a.subCAEnabled = b
-}
-
 func BuildAPIEndpoint(apiEndpointURLStr string) (string, error) {
 	return buildAPIEndpoint(apiEndpointURLStr)
 }

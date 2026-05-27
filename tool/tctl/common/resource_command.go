@@ -80,7 +80,6 @@ import (
 	scopedutils "github.com/gravitational/teleport/lib/scopes/utils"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/subca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
@@ -205,6 +204,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		scopedaccess.KindScopedRoleAssignment:        rc.createScopedRoleAssignment,
 		scopedaccess.KindScopedToken:                 rc.createScopedToken,
 		types.KindWorkloadCluster:                    rc.createWorkloadCluster,
+		types.KindCertAuthorityOverride:              rc.createCAOverride,
 	}
 	rc.UpdateHandlers = map[ResourceKind]ResourceCreateHandler{
 		types.KindUser:                               rc.updateUser,
@@ -238,10 +238,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 		scopedaccess.KindScopedRoleAssignment:        rc.updateScopedRoleAssignment,
 		scopedaccess.KindScopedToken:                 rc.updateScopedToken,
 		types.KindWorkloadCluster:                    rc.updateWorkloadCluster,
-	}
-	if subca.Enabled() {
-		rc.CreateHandlers[types.KindCertAuthorityOverride] = rc.createCAOverride
-		rc.UpdateHandlers[types.KindCertAuthorityOverride] = rc.updateCAOverride
+		types.KindCertAuthorityOverride:              rc.updateCAOverride,
 	}
 	rc.config = config
 
@@ -2545,9 +2542,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 	case types.KindRetrievalModel:
 		return trace.Wrap(rc.deleteRetrievalModel(ctx, client))
 	case types.KindCertAuthorityOverride:
-		if !subca.Enabled() {
-			return errNotSupported()
-		}
 		return trace.Wrap(rc.deleteCAOverride(ctx, client))
 	default:
 		return errNotSupported()
@@ -4018,9 +4012,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 		return &workloadClusterCollection{workloadClusters: clusters}, nil
 	case types.KindCertAuthorityOverride:
-		if !subca.Enabled() {
-			break
-		}
 		return rc.getCAOverrides(ctx, client)
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())

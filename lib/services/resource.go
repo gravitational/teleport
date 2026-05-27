@@ -40,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
-	"github.com/gravitational/teleport/lib/subca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -825,17 +824,6 @@ func init() {
 		}
 		return types.Resource153ToLegacy(wid), nil
 	})
-
-	// Gate these behind the feature flag, as they have an effect on user-visible product surface
-	// (ie, "tctl get all").
-	if subca.Enabled() {
-		initSubCA()
-	}
-}
-
-func initSubCA() {
-	// TODO(codingllama): Remove this method and inline calls on init() once the
-	//  feature flag is no more.
 
 	RegisterResourceMarshaler(types.KindCertAuthorityOverride, func(resource types.Resource, opts ...MarshalOption) ([]byte, error) {
 		unwrapper, ok := resource.(types.Resource153UnwrapperT[*subcav1.CertAuthorityOverride])

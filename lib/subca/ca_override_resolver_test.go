@@ -163,8 +163,7 @@ func TestCAOverrideResolver_CalculateOverride(t *testing.T) {
 
 	t.Run("ok: empty CA override", func(t *testing.T) {
 		const isEnterpriseBuild = true
-		const featureEnabled = true
-		r, err := subca.NewCAOverrideResolver(subCA, isEnterpriseBuild, featureEnabled)
+		r, err := subca.NewCAOverrideResolver(subCA, isEnterpriseBuild)
 		require.NoError(t, err, "NewCAOverrideResolver errored")
 		got, err := r.CalculateOverride(t.Context(), caID, subca.Certificate{PEM: caCert1PEM})
 		require.NoError(t, err, "CalculateCAOverride errored")
@@ -205,7 +204,6 @@ func TestCAOverrideResolver_CalculateOverride(t *testing.T) {
 	tests := []struct {
 		name              string
 		notEntepriseBuild bool // Inverse because most tests want enterprise.
-		featureDisabled   bool // Inverse because most tests want enabled.
 		id                types.CertAuthorityOverrideID
 		caCert            subca.Certificate
 		wantErr           string
@@ -255,16 +253,6 @@ func TestCAOverrideResolver_CalculateOverride(t *testing.T) {
 			notEntepriseBuild: true,
 			id:                caID,
 			caCert:            subca.Certificate{PEM: caCert1PEM},
-			want: &subca.CalculateOverrideResult{
-				// If enabled then o1 would apply, per test above.
-				CACertificate: subca.Certificate{PEM: caCert1PEM},
-			},
-		},
-		{
-			name:            "ok: feature disabled",
-			featureDisabled: true,
-			id:              caID,
-			caCert:          subca.Certificate{PEM: caCert1PEM},
 			want: &subca.CalculateOverrideResult{
 				// If enabled then o1 would apply, per test above.
 				CACertificate: subca.Certificate{PEM: caCert1PEM},
@@ -333,7 +321,7 @@ func TestCAOverrideResolver_CalculateOverride(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			r, err := subca.NewCAOverrideResolver(subCA, !test.notEntepriseBuild, !test.featureDisabled)
+			r, err := subca.NewCAOverrideResolver(subCA, !test.notEntepriseBuild)
 			require.NoError(t, err, "NewCAOverrideResolver errored")
 
 			got, err := r.CalculateOverride(t.Context(), test.id, test.caCert)

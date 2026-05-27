@@ -56,8 +56,6 @@ func TestMarshalCertAuthorityOverrideRoundtrip(t *testing.T) {
 
 	t.Run("dynamic", func(t *testing.T) {
 		t.Parallel()
-		initSubCA()
-		initSubCA() // check that a duplicate call is harmless
 
 		val, err := MarshalResource(types.Resource153ToLegacy(want))
 		require.NoError(t, err)
