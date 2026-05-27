@@ -2060,7 +2060,7 @@ func matchSPIFFESVIDDenyConditions(
 		// of the condition matches
 		isDNSMatch := true
 		for _, dnsSANMatcher := range cond.DNSSANs {
-			isDNSMatch, err := contains(dnsSANs, func(reqDNSSAN string) (bool, error) {
+			isDNSMatch, err = contains(dnsSANs, func(reqDNSSAN string) (bool, error) {
 				return utils.MatchString(reqDNSSAN, dnsSANMatcher)
 			})
 			if err != nil {
@@ -2078,7 +2078,7 @@ func matchSPIFFESVIDDenyConditions(
 		// condition.
 		isIPMatch := true
 		for _, ipSANMatcher := range cond.IPSANs {
-			isIPMatch, err := contains(ipSANs, func(reqIPSAN net.IP) (bool, error) {
+			isIPMatch, err = contains(ipSANs, func(reqIPSAN net.IP) (bool, error) {
 				_, cidr, err := net.ParseCIDR(ipSANMatcher)
 				if err != nil {
 					return false, trace.Wrap(err, "parsing cidr")
