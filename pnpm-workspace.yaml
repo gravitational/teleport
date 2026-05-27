@@ -12,6 +12,9 @@ allowBuilds:
   protobufjs: true
   unrs-resolver: true
   puppeteer: false
+overrides:
+  # Remove once https://github.com/electron/electron/issues/51619 is addressed.
+  yauzl: '^3.3.1'
 # Without this, electron-builder will pull in electron-builder-squirrel-windows (which we don't need)
 # and that dep will in turn pull electron-winstaller (which we also don't need). pnpm will then
 # start complaining that electron-winstaller is not in onlyBuiltDependencies.
