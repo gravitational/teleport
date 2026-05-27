@@ -45,7 +45,7 @@ func (c *EvaluateSSHCommand) Initialize(cmd *kingpin.CmdClause, output io.Writer
 	c.command.Flag("username", "The username to evaluate access for.").StringVar(&c.Username)
 	c.command.Flag("login", "The os login to evaluate access for.").StringVar(&c.Login)
 	c.command.Flag("server-id", "The host id of the target server.").StringVar(&c.ServerID)
-	c.command.Flag("format", "Output format.").Hidden().Default(teleport.JSON).EnumVar(&c.Format, teleport.JSON, teleport.YAML)
+	c.command.Flag("format", "Output format.").Default(teleport.JSON).EnumVar(&c.Format, teleport.JSON, teleport.YAML)
 }
 
 // FullCommand returns the fully qualified name of
