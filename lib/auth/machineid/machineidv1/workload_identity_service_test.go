@@ -67,7 +67,7 @@ func TestWorkloadIdentityService_SignX509SVIDs(t *testing.T) {
 		Deny: types.RoleConditions{
 			SPIFFE: []*types.SPIFFERoleCondition{
 				{
-					Path:    "/alpha/forbidden",
+					Path: "/alpha/forbidden",
 				},
 			},
 		},
