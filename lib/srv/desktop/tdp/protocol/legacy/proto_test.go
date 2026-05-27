@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package tdp
+package legacy
 
 import (
 	"bytes"
@@ -37,14 +37,15 @@ import (
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 )
 
 func TestEncodeDecode(t *testing.T) {
-	for _, m := range []Message{
+	for _, m := range []tdp.Message{
 		MouseMove{X: 1, Y: 2},
 		MouseButton{Button: MiddleMouseButton, State: ButtonPressed},
 		KeyboardButton{KeyCode: 1, State: ButtonPressed},
-		func() Message {
+		func() tdp.Message {
 			img := image.NewNRGBA(image.Rect(5, 5, 10, 10))
 			for x := img.Rect.Min.X; x < img.Rect.Max.X; x++ {
 				for y := img.Rect.Min.Y; y < img.Rect.Max.Y; y++ {
@@ -62,7 +63,7 @@ func TestEncodeDecode(t *testing.T) {
 			buf, err := m.Encode()
 			require.NoError(t, err)
 
-			out, err := Decode(buf)
+			out, err := decode(buf)
 			require.NoError(t, err)
 
 			require.Empty(t, cmp.Diff(m, out, cmpopts.IgnoreUnexported(PNGFrame{})))
@@ -88,7 +89,7 @@ func FuzzDecode(f *testing.F) {
 	f.Fuzz(func(t *testing.T, buf []byte) {
 		require.NotPanics(t, func() {
 			// decode random buffer
-			msg, err := Decode(buf)
+			msg, err := decode(buf)
 			if err != nil {
 				return
 			}
@@ -99,7 +100,7 @@ func FuzzDecode(f *testing.F) {
 			require.NotNil(t, buf2)
 
 			// decode the new buffer. it must be equal to the original msg.
-			msg2, err := Decode(buf2)
+			msg2, err := decode(buf2)
 			require.NoError(t, err)
 			require.Equalf(t, msg, msg2, "mismatch for message %v", buf)
 
@@ -116,14 +117,11 @@ func FuzzDecode(f *testing.F) {
 
 func TestBadDecode(t *testing.T) {
 	// 254 is an unknown message type.
-	_, err := Decode([]byte{254})
+	_, err := decode([]byte{254})
 	require.Error(t, err)
 }
 
 func TestMFA(t *testing.T) {
-	var buff bytes.Buffer
-	c := NewConn(&fakeConn{Buffer: &buff})
-
 	mfaWant := &MFA{
 		Type: defaults.WebsocketMFAChallenge[0],
 		MFAAuthenticateChallenge: &client.MFAAuthenticateChallenge{
@@ -147,14 +145,15 @@ func TestMFA(t *testing.T) {
 			},
 		},
 	}
-	err := c.WriteMessage(mfaWant)
+	data, err := mfaWant.Encode()
 	require.NoError(t, err)
 
+	buff := bytes.NewBuffer(data)
 	mt, err := buff.ReadByte()
 	require.NoError(t, err)
 	require.Equal(t, TypeMFA, MessageType(mt))
 
-	mfaGot, err := DecodeMFAChallenge(&buff)
+	mfaGot, err := DecodeMFAChallenge(buff)
 	require.NoError(t, err)
 	require.Equal(t, mfaWant, mfaGot)
 
@@ -178,18 +177,24 @@ func TestMFA(t *testing.T) {
 			},
 		},
 	}
-	err = c.WriteMessage(respWant)
+
+	data, err = respWant.Encode()
 	require.NoError(t, err)
-	respGot, err := c.ReadMessage()
+
+	buff = bytes.NewBuffer(data)
+	mt, err = buff.ReadByte()
+	require.NoError(t, err)
+	require.Equal(t, TypeMFA, MessageType(mt))
+	respGot, err := DecodeMFA(buff)
 	require.NoError(t, err)
 	require.Equal(t, respWant, respGot)
 }
 
 func TestIsNonFatalErr(t *testing.T) {
 	// Test that nil returns false
-	require.False(t, IsNonFatalErr(nil))
+	require.False(t, tdp.IsNonFatalErr(nil))
 	// Test that any other error returns false
-	require.False(t, IsNonFatalErr(errors.New("some other error")))
+	require.False(t, tdp.IsNonFatalErr(errors.New("some other error")))
 }
 
 // TDP messages must have size limits in order to prevent attacks that
@@ -205,7 +210,7 @@ func TestIsNonFatalErr(t *testing.T) {
 func TestSizeLimitsAreNonFatal(t *testing.T) {
 	for _, test := range []struct {
 		name  string
-		msg   Message
+		msg   tdp.Message
 		fatal bool
 	}{
 		{
@@ -217,20 +222,20 @@ func TestSizeLimitsAreNonFatal(t *testing.T) {
 		},
 		{
 			name:  "rejects long Clipboard",
-			msg:   ClipboardData(bytes.Repeat([]byte("a"), maxClipboardDataLength+1)),
+			msg:   ClipboardData(bytes.Repeat([]byte("a"), tdp.MaxClipboardDataLength+1)),
 			fatal: false,
 		},
 		{
 			name: "rejects long Error",
 			msg: Error{
-				Message: string(bytes.Repeat([]byte("a"), tdpMaxAlertMessageLength+1)),
+				Message: string(bytes.Repeat([]byte("a"), tdp.MaxAlertMessageLength+1)),
 			},
 			fatal: false,
 		},
 		{
 			name: "rejects long Alert",
 			msg: Alert{
-				Message: string(bytes.Repeat([]byte("a"), tdpMaxAlertMessageLength+1)),
+				Message: string(bytes.Repeat([]byte("a"), tdp.MaxAlertMessageLength+1)),
 			},
 			fatal: false,
 		},
@@ -244,56 +249,56 @@ func TestSizeLimitsAreNonFatal(t *testing.T) {
 		{
 			name: "rejects long SharedDirectoryInfoRequest",
 			msg: SharedDirectoryInfoRequest{
-				Path: string(bytes.Repeat([]byte("a"), tdpMaxPathLength+1)),
+				Path: string(bytes.Repeat([]byte("a"), tdp.MaxPathLength+1)),
 			},
 			fatal: false,
 		},
 		{
 			name: "rejects long SharedDirectoryCreateRequest",
 			msg: SharedDirectoryCreateRequest{
-				Path: string(bytes.Repeat([]byte("a"), tdpMaxPathLength+1)),
+				Path: string(bytes.Repeat([]byte("a"), tdp.MaxPathLength+1)),
 			},
 			fatal: false,
 		},
 		{
 			name: "rejects long SharedDirectoryDeleteRequest",
 			msg: SharedDirectoryDeleteRequest{
-				Path: string(bytes.Repeat([]byte("a"), tdpMaxPathLength+1)),
+				Path: string(bytes.Repeat([]byte("a"), tdp.MaxPathLength+1)),
 			},
 			fatal: false,
 		},
 		{
 			name: "rejects long SharedDirectoryListRequest",
 			msg: SharedDirectoryListRequest{
-				Path: string(bytes.Repeat([]byte("a"), tdpMaxPathLength+1)),
+				Path: string(bytes.Repeat([]byte("a"), tdp.MaxPathLength+1)),
 			},
 			fatal: false,
 		},
 		{
 			name: "rejects long SharedDirectoryReadRequest",
 			msg: SharedDirectoryReadRequest{
-				Path: string(bytes.Repeat([]byte("a"), tdpMaxPathLength+1)),
+				Path: string(bytes.Repeat([]byte("a"), tdp.MaxPathLength+1)),
 			},
 			fatal: false,
 		},
 		{
 			name: "rejects long SharedDirectoryReadResponse",
 			msg: SharedDirectoryReadResponse{
-				ReadDataLength: tdpMaxFileReadWriteLength + 1,
+				ReadDataLength: tdp.MaxFileReadWriteLength + 1,
 			},
 			fatal: false,
 		},
 		{
 			name: "rejects long SharedDirectoryWriteRequest",
 			msg: SharedDirectoryWriteRequest{
-				WriteDataLength: tdpMaxFileReadWriteLength + 1,
+				WriteDataLength: tdp.MaxFileReadWriteLength + 1,
 			},
 			fatal: false,
 		},
 		{
 			name: "rejects long SharedDirectoryMoveRequest",
 			msg: SharedDirectoryMoveRequest{
-				OriginalPath: string(bytes.Repeat([]byte("a"), tdpMaxPathLength+1)),
+				OriginalPath: string(bytes.Repeat([]byte("a"), tdp.MaxPathLength+1)),
 			},
 			fatal: false,
 		},
@@ -303,7 +308,7 @@ func TestSizeLimitsAreNonFatal(t *testing.T) {
 				CompletionID: 0,
 				ErrCode:      0,
 				Fso: FileSystemObject{
-					Path: string(bytes.Repeat([]byte("a"), tdpMaxPathLength+1)),
+					Path: string(bytes.Repeat([]byte("a"), tdp.MaxPathLength+1)),
 				},
 			},
 			fatal: false,
@@ -314,7 +319,7 @@ func TestSizeLimitsAreNonFatal(t *testing.T) {
 				CompletionID: 0,
 				ErrCode:      0,
 				Fso: FileSystemObject{
-					Path: string(bytes.Repeat([]byte("a"), tdpMaxPathLength+1)),
+					Path: string(bytes.Repeat([]byte("a"), tdp.MaxPathLength+1)),
 				},
 			},
 			fatal: false,
@@ -325,7 +330,7 @@ func TestSizeLimitsAreNonFatal(t *testing.T) {
 				CompletionID: 0,
 				ErrCode:      0,
 				FsoList: []FileSystemObject{{
-					Path: string(bytes.Repeat([]byte("a"), tdpMaxPathLength+1)),
+					Path: string(bytes.Repeat([]byte("a"), tdp.MaxPathLength+1)),
 				}},
 			},
 			fatal: false,
@@ -334,10 +339,10 @@ func TestSizeLimitsAreNonFatal(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			bytes, err := test.msg.Encode()
 			require.NoError(t, err)
-			_, err = Decode(bytes)
+			_, err = decode(bytes)
 			require.True(t, trace.IsLimitExceeded(err))
-			require.Equal(t, test.fatal, IsFatalErr(err))
-			require.Equal(t, !test.fatal, IsNonFatalErr(err))
+			require.Equal(t, test.fatal, tdp.IsFatalErr(err))
+			require.Equal(t, !test.fatal, tdp.IsNonFatalErr(err))
 		})
 	}
 }
