@@ -30,7 +30,6 @@ func (a *Server) loadCAOverrideResolverForCA(ctx context.Context, ca types.CertA
 		ctx,
 		a.Cache,
 		a.modules.IsEnterpriseBuild(),
-		a.subCAEnabled,
 		types.CertAuthorityOverrideID{
 			ClusterName: ca.GetClusterName(),
 			CAType:      string(ca.GetType()),
