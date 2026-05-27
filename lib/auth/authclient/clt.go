@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/client/externalauditstorage"
 	"github.com/gravitational/teleport/api/client/gitserver"
 	"github.com/gravitational/teleport/api/client/linuxdesktop"
+	pluginclient "github.com/gravitational/teleport/api/client/plugin"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/secreport"
 	"github.com/gravitational/teleport/api/client/usertask"
@@ -598,6 +599,11 @@ func (c *Client) ListReleases(ctx context.Context) ([]*types.Release, error) {
 
 func (c *Client) OktaClient() services.Okta {
 	return c.APIClient.OktaClient()
+}
+
+// PluginClient returns a Plugins client that implements services.Plugins.
+func (c *Client) PluginClient() *pluginclient.Client {
+	return c.APIClient.PluginClient()
 }
 
 func (c *Client) SCIMClient() services.SCIM {
@@ -1801,6 +1807,9 @@ type ClientI interface {
 	// still get a plugins client when calling this method, but all RPCs will return
 	// "not implemented" errors (as per the default gRPC behavior).
 	PluginsClient() pluginspb.PluginServiceClient
+
+	// PluginClient returns a Plugins client that implements services.Plugins.
+	PluginClient() *pluginclient.Client
 
 	// SAMLIdPClient returns a SAML IdP client.
 	// Clients connecting to non-Enterprise clusters, or older Teleport versions,

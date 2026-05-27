@@ -58,6 +58,7 @@ import (
 	kubewaitingcontainerclient "github.com/gravitational/teleport/api/client/kubewaitingcontainer"
 	"github.com/gravitational/teleport/api/client/linuxdesktop"
 	"github.com/gravitational/teleport/api/client/okta"
+	pluginclient "github.com/gravitational/teleport/api/client/plugin"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/scim"
 	scopedaccess "github.com/gravitational/teleport/api/client/scopes/access"
@@ -5448,6 +5449,12 @@ func (c *Client) GenerateAzureOIDCToken(ctx context.Context, integration string)
 // "not implemented" errors (as per the default gRPC behavior).
 func (c *Client) PluginsClient() pluginspb.PluginServiceClient {
 	return pluginspb.NewPluginServiceClient(c.conn)
+}
+
+// PluginClient returns a Plugins client that implements services.Plugins,
+// wrapping the underlying gRPC connection.
+func (c *Client) PluginClient() *pluginclient.Client {
+	return pluginclient.NewClient(pluginspb.NewPluginServiceClient(c.conn))
 }
 
 // GetLoginRule retrieves a login rule described by name.

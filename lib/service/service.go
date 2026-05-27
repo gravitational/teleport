@@ -3213,6 +3213,7 @@ func (process *TeleportProcess) newAccessCacheForClient(cfg accesspoint.Config, 
 	cfg.GitServers = client.GitServerClient()
 	cfg.HealthCheckConfig = client
 	cfg.AppAuthConfig = client
+	cfg.Plugin = client.PluginClient()
 	cfg.SubCAService = client
 
 	return accesspoint.NewCache(cfg)

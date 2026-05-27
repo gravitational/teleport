@@ -1005,6 +1005,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 						builder.String("openai"),
 					).String(),
 				},
+				types.NewRule(types.KindPlugin, []string{types.VerbReadNoSecrets}),
 				// this rule allows local proxy to update the remote cluster's host certificate authorities
 				// during certificates renewal
 				{
