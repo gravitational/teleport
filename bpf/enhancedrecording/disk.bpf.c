@@ -29,7 +29,10 @@ char LICENSE[] SEC("license") = "Dual BSD/GPL";
 // failures like ENOENT — that's fine, do_filp_open falls back
 // to the unresolved path from struct filename in that case.
 struct inflight_disk_t {
+    // valid is true if file_path is set and it has not already been 
+    //added to an event for userland to consume.
     bool valid;
+    // file_path is the resolved path of the file being opened.
     u8 file_path[PATH_MAX];
 };
 
