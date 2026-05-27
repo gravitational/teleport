@@ -479,7 +479,7 @@ func (q *sqliteQueue) drainOrphanDB(db *sql.DB, handler Handler) bool {
 		if len(items) == 0 {
 			break
 		}
-		successfullyDelivered := q.forwardBatch(q.ctx, handler, items)
+		successfullyDelivered := handler(q.ctx, items)
 		if len(successfullyDelivered) == 0 {
 			return false
 		}

@@ -39,7 +39,6 @@ import (
 )
 
 const (
-	defaultMaxBatch                = 250
 	defaultToBeWrittenBufferLen    = 1024
 	pollInterval                   = 100 * time.Millisecond
 	dequeueBatchSize               = 256
@@ -47,6 +46,14 @@ const (
 	defaultMaxAttempts             = 10
 	defaultDeadLetterSweepInterval = 10 * time.Minute
 	defaultDeadLetterTTL           = 30 * 24 * time.Hour // 30 days
+
+	// We've run benchmarks and found a batch size of 25 to be a good middle
+	// ground between insertion performance and memory overhead of
+	// events-in-flight. We've observed peak performance is achieved with batch
+	// sizes around 250, and we encounter diminishing returns above that.
+	//
+	// See: https://github.com/gravitational/teleport.e/blob/rfd/0254-sqlite-audit-log-event-queue/rfd/0254-sqlite-audit-log-event-queue.md#modernc-synchronousnormal-60-second-duration
+	defaultMaxBatch = 25
 
 	// busyTimeoutMillis sets the maximum time we will wait for a SQLite DB
 	// operation.
@@ -97,7 +104,6 @@ type sqliteQueue struct {
 	selfStat                os.FileInfo
 	unlock                  func() error
 	orphanScanInterval      time.Duration
-	handlerMu               sync.Mutex
 	softLimit               int64
 	maxAttempts             int
 	deadLetterSweepInterval time.Duration
@@ -349,7 +355,7 @@ func (q *sqliteQueue) runPollLoop(ctx context.Context, handler Handler) {
 		if len(items) > 0 {
 			// 2. Forward those events to the inner emitter.
 			// This is done via the handler function.
-			successfullyDelivered := q.forwardBatch(ctx, handler, items)
+			successfullyDelivered := handler(ctx, items)
 			if len(successfullyDelivered) > 0 {
 				// 3. ACK the events that were successfully delivered, thus
 				//    deleting them from the DB.
@@ -379,45 +385,28 @@ func (q *sqliteQueue) runPollLoop(ctx context.Context, handler Handler) {
 	}
 }
 
-func (q *sqliteQueue) forwardBatch(ctx context.Context, handler Handler, items []Item) []Item {
-	// The handler function is implemented by the caller of the auditqueue. We
-	// do not wish to impose constraints such as thread safety on the user of
-	// this interface. Therefore we handle thread safety issues via this mutex.
-	q.handlerMu.Lock()
-	defer q.handlerMu.Unlock()
-
-	successfullyDelivered := handler(ctx, items)
-
-	return successfullyDelivered
-}
-
 func (q *sqliteQueue) handleDeliveryFailures(ctx context.Context, items []Item, successfullyDelivered []Item) {
 	failed := itemsNotIn(items, successfullyDelivered)
-	if len(failed) > 0 {
-		exhausted, err := q.incrementAttempts(failed)
-		if err != nil {
-			slog.ErrorContext(q.ctx,
-				"Failed to increment audit event attempt counts.",
-				"error", err,
-			)
-		}
-		if len(exhausted) > 0 {
-			if err := q.moveToDeadLetter(exhausted); err != nil {
-				slog.ErrorContext(q.ctx,
-					"Failed to move exhausted audit events to dead-letter queue.",
-					"error", err,
-				)
-			} else {
-				deadLetterPromotions.Add(float64(len(exhausted)))
-				slog.WarnContext(q.ctx,
-					"Audit events moved to dead-letter queue after exhausting retries.",
-					"count", len(exhausted),
-					"max_attempts", q.maxAttempts,
-				)
-			}
-		}
-		retryTotal.Add(float64(len(failed) - len(exhausted)))
+	if len(failed) == 0 {
+		return
 	}
+	promoted, err := q.processFailedDeliveries(failed)
+	if err != nil {
+		slog.ErrorContext(q.ctx,
+			"Failed to process failed audit event deliveries.",
+			"error", err,
+		)
+		return
+	}
+	if promoted > 0 {
+		deadLetterPromotions.Add(float64(promoted))
+		slog.WarnContext(q.ctx,
+			"Audit events moved to dead-letter queue after exhausting retries.",
+			"count", promoted,
+			"max_attempts", q.maxAttempts,
+		)
+	}
+	retryTotal.Add(float64(len(failed) - promoted))
 }
 
 // itemsNotIn returns the subset of items from `all` that are not found in
@@ -439,74 +428,75 @@ func itemsNotIn(all, delivered []Item) []Item {
 	return failed
 }
 
-// incrementAttempts increments the attempt counter for each item in the DB and
-// returns the subset whose counter has now reached maxAttempts.
-func (q *sqliteQueue) incrementAttempts(items []Item) ([]Item, error) {
+func (q *sqliteQueue) processFailedDeliveries(failed []Item) (int, error) {
+	if len(failed) == 0 {
+		return 0, nil
+	}
+
 	tx, err := q.db.BeginTx(q.ctx, nil)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return 0, trace.Wrap(err)
 	}
 	defer tx.Rollback()
 
-	updateStmt, err := tx.PrepareContext(q.ctx,
-		"UPDATE audit_queue SET attempts = attempts + 1 WHERE id = ? RETURNING attempts")
-	if err != nil {
-		return nil, trace.Wrap(err)
+	ids := make([]any, len(failed))
+	for i, item := range failed {
+		ids[i] = item.ID
 	}
-	defer updateStmt.Close()
 
-	var exhausted []Item
-	for _, item := range items {
+	rows, err := tx.QueryContext(q.ctx,
+		"UPDATE audit_queue SET attempts = attempts + 1 WHERE id IN ("+placeholders(len(ids))+") RETURNING id, attempts",
+		ids...,
+	)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+	defer rows.Close()
+
+	var exhausted []any
+	for rows.Next() {
+		var id int64
 		var attempts int
-		if err := updateStmt.QueryRowContext(q.ctx, item.ID).Scan(&attempts); err != nil {
-			return nil, trace.Wrap(err)
+		if err := rows.Scan(&id, &attempts); err != nil {
+			return 0, trace.Wrap(err)
 		}
 		if attempts >= q.maxAttempts {
-			exhausted = append(exhausted, item)
+			exhausted = append(exhausted, id)
 		}
 	}
-	return exhausted, trace.Wrap(tx.Commit())
-}
-
-// moveToDeadLetter atomically moves items from audit_queue to audit_dead_letter.
-func (q *sqliteQueue) moveToDeadLetter(items []Item) error {
-	now := time.Now().Unix()
-	rows := make([]deadLetterRow, 0, len(items))
-	for _, item := range items {
-		oneOf, err := apievents.ToOneOf(item.Event)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		payload, err := oneOf.Marshal()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		rows = append(rows, deadLetterRow{payload: payload, failedAt: now})
+	if err := rows.Err(); err != nil {
+		return 0, trace.Wrap(err)
 	}
 
-	tx, err := q.db.BeginTx(q.ctx, nil)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer tx.Rollback()
-
-	if err := insertDeadLetterTx(q.ctx, tx, rows); err != nil {
-		return trace.Wrap(err)
+	// If no events have exhausted their attempts, then we can skip the rest of
+	// the function.
+	if len(exhausted) == 0 {
+		return 0, trace.Wrap(tx.Commit())
 	}
 
-	deleteStmt, err := tx.PrepareContext(q.ctx,
-		"DELETE FROM audit_queue WHERE id = ?")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer deleteStmt.Close()
+	// Copy exhausted rows into audit_dead_letter then delete them from
+	// audit_queue.
+	exhaustedPlaceholders := placeholders(len(exhausted))
 
-	for _, item := range items {
-		if _, err := deleteStmt.ExecContext(q.ctx, item.ID); err != nil {
-			return trace.Wrap(err)
-		}
+	insertArgs := make([]any, 0, len(exhausted)+1)
+	insertArgs = append(insertArgs, time.Now().Unix())
+	insertArgs = append(insertArgs, exhausted...)
+	if _, err := tx.ExecContext(q.ctx,
+		"INSERT INTO audit_dead_letter (payload, failed_at) "+
+			"SELECT payload, ? FROM audit_queue WHERE id IN ("+exhaustedPlaceholders+")",
+		insertArgs...,
+	); err != nil {
+		return 0, trace.Wrap(err)
 	}
-	return trace.Wrap(tx.Commit())
+
+	if _, err := tx.ExecContext(q.ctx,
+		"DELETE FROM audit_queue WHERE id IN ("+exhaustedPlaceholders+")",
+		exhausted...,
+	); err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	return len(exhausted), trace.Wrap(tx.Commit())
 }
 
 // deadLetterSweepLoop periodically re-attempts delivery of dead-letter events
@@ -540,7 +530,7 @@ func (q *sqliteQueue) sweepDeadLetter(ctx context.Context, handler Handler) {
 	if len(items) == 0 {
 		return
 	}
-	delivered := q.forwardBatch(ctx, handler, items)
+	delivered := handler(ctx, items)
 	if len(delivered) == 0 {
 		return
 	}
@@ -661,6 +651,13 @@ func fetchDB(ctx context.Context, db *sql.DB, limit int) ([]Item, error) {
 	return scanItems(rows)
 }
 
+func placeholders(n int) string {
+	if n <= 0 {
+		return ""
+	}
+	return strings.Repeat("?,", n-1) + "?"
+}
+
 func deleteIDsFromTable(ctx context.Context, db *sql.DB, table string, ids []int64) error {
 	if len(ids) == 0 {
 		return nil
@@ -670,8 +667,7 @@ func deleteIDsFromTable(ctx context.Context, db *sql.DB, table string, ids []int
 	default:
 		return trace.BadParameter("unknown table %q", table)
 	}
-	placeholders := strings.Repeat("?,", len(ids))
-	query := "DELETE FROM " + table + " WHERE id IN (" + placeholders[:len(placeholders)-1] + ")"
+	query := "DELETE FROM " + table + " WHERE id IN (" + placeholders(len(ids)) + ")"
 	args := make([]any, len(ids))
 	for i, id := range ids {
 		args[i] = id
