@@ -337,13 +337,13 @@ func (s *sessionHandler) rewriteHTTPRequestHeaders(r *http.Request) error {
 	return nil
 }
 
-var errInvalidRequestMissingName = trace.Errorf(`"name" parameter missing, note parameter names are case-sensitive`)
+var errInvalidRequestMissingName = &trace.BadParameterError{Message: `"name" parameter missing`}
 
 func makeInvalidRequestResponse(req *mcputils.JSONRPCRequest, err error) *mcp.JSONRPCError {
 	r := mcp.NewJSONRPCError(
 		req.ID,
 		mcp.INVALID_REQUEST,
-		"Teleport did not forward an invalid Request object. Contact your Teleport Admin for more details.",
+		"Teleport did not forward an invalid Request object.",
 		err,
 	)
 	return &r
