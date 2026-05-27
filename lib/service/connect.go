@@ -120,7 +120,7 @@ func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*
 		case t := <-retry.After():
 			process.logger.DebugContext(process.ExitContext(), "Retrying connection to auth server.", "identity", role, "backoff", t.Sub(startedWait))
 			retry.Inc()
-		case <-process.ExitContext().Done():
+		case <-process.GracefulExitContext().Done():
 			process.logger.InfoContext(process.ExitContext(), "Stopping connection attempts, teleport is shutting down.", "identity", role)
 			return nil, ErrTeleportExited
 		}
