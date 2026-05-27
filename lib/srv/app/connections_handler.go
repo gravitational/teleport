@@ -208,7 +208,8 @@ type ConnectionsHandler struct {
 	// authMiddleware allows wrapping connections with identity information.
 	authMiddleware *authz.Middleware
 
-	proxyPort string
+	proxyPort   string
+	clusterName string
 
 	// getAppByPublicAddress returns a types.Application using the public address as matcher.
 	getAppByPublicAddress func(context.Context, string) (types.Application, error)
@@ -245,6 +246,11 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		return nil, trace.Wrap(err)
 	}
 
+	clusterName, err := cfg.AccessPoint.GetClusterName(closeContext)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	c := &ConnectionsHandler{
 		cfg:          cfg,
 		closeContext: closeContext,
@@ -253,6 +259,7 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		gcpHandler:   gcpHandler,
 		connAuth:     make(map[net.Conn]error),
 		log:          slog.With(teleport.ComponentKey, cfg.ServiceComponent),
+		clusterName:  clusterName.GetClusterName(),
 		getAppByPublicAddress: func(ctx context.Context, s string) (types.Application, error) {
 			return nil, trace.NotFound("no applications are being proxied")
 		},
@@ -270,10 +277,6 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	clustername, err := c.cfg.AccessPoint.GetClusterName(closeContext)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	// Create limiter for connection and rate limiting. Applied to all
 	// app protocols (HTTP, TCP, MCP) in handleConnection.
@@ -283,7 +286,7 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 	}
 
 	// Create and configure HTTP server with authorizing middleware.
-	c.httpServer = c.newHTTPServer(clustername.GetClusterName())
+	c.httpServer = c.newHTTPServer(clusterName.GetClusterName())
 
 	// TCP server will handle TCP applications.
 	tcpServer, err := c.newTCPServer()
@@ -421,9 +424,13 @@ func (c *ConnectionsHandler) sessionStartTime(ctx context.Context) time.Time {
 // newTCPServer creates a server that proxies TCP applications.
 func (c *ConnectionsHandler) newTCPServer() (*tcpServer, error) {
 	return &tcpServer{
-		emitter: c.cfg.Emitter,
-		hostID:  c.cfg.HostID,
-		log:     c.log,
+		emitter:      c.cfg.Emitter,
+		hostID:       c.cfg.HostID,
+		log:          c.log,
+		caGetter:     c.cfg.AccessPoint,
+		clusterName:  c.clusterName,
+		cipherSuites: c.cfg.CipherSuites,
+		insecureMode: c.cfg.InsecureMode,
 	}, nil
 }
 
