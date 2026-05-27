@@ -144,16 +144,29 @@ func (f *Forwarder) ephemeralContainersLocal(authCtx *authContext, sess *cluster
 		return trace.Wrap(err, "failed to create encoder and decoder")
 	}
 
-	patchedPod, ephemeralContName, err := f.mergeEphemeralPatchWithCurrentPod(
+	// Fetch the target pod using the user's impersonated identity so the
+	// Kubernetes API server enforces RBAC on `kubernetes_users` /
+	// `kubernetes_groups`. Using the proxy's admin kubeconfig here would leak
+	// pod spec/env/annotations the user's mapped identity is not entitled to
+	// see — see lib/kube/proxy/ephemeral_admin_client_test.go.
+	pod, err := f.getPodForEphemeralPatch(
 		req.Context(),
+		authCtx,
+		req.Header,
+		authCtx.metaResource.requestedResource.namespace,
+		authCtx.metaResource.requestedResource.resourceName,
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	patchedPod, ephemeralContName, err := f.mergeEphemeralPatchWithCurrentPod(
+		pod,
 		mergeEphemeralPatchWithCurrentPodConfig{
-			kubeCluster:   sess.kubeClusterName,
-			kubeNamespace: authCtx.metaResource.requestedResource.namespace,
-			podName:       authCtx.metaResource.requestedResource.resourceName,
-			decoder:       decoder,
-			encoder:       encoder,
-			podPatch:      podPatch,
-			patchType:     reqPatchType,
+			decoder:   decoder,
+			encoder:   encoder,
+			podPatch:  podPatch,
+			patchType: reqPatchType,
 		},
 	)
 	if err != nil {
@@ -178,36 +191,46 @@ func (f *Forwarder) ephemeralContainersLocal(authCtx *authContext, sess *cluster
 // mergeEphemeralPatchWithCurrentPodConfig is a configuration struct for
 // mergeEphemeralPatchWithCurrentPod.
 type mergeEphemeralPatchWithCurrentPodConfig struct {
-	kubeCluster   string
-	kubeNamespace string
-	podName       string
-	decoder       runtime.Decoder
-	encoder       runtime.Encoder
-	podPatch      []byte
-	patchType     apimachinerytypes.PatchType
+	decoder   runtime.Decoder
+	encoder   runtime.Encoder
+	podPatch  []byte
+	patchType apimachinerytypes.PatchType
 }
 
-// mergeEphemeralPatchWithCurrentPod merges the provided patch with the
-// current pod and returns the patched pod.
-// This function gets the current pod from the Kubernetes API server and
-// merges the provided patch with it. The patch is expected to be a strategic
+// getPodForEphemeralPatch fetches the target pod using a Kubernetes client
+// that impersonates the requesting user's `kubernetes_users` /
+// `kubernetes_groups`. The Kubernetes API server therefore enforces RBAC on
+// the user's mapped identity for this read, even though the surrounding
+// moderated-session flow synthesises the patch response locally without
+// forwarding the PATCH itself.
+func (f *Forwarder) getPodForEphemeralPatch(
+	ctx context.Context,
+	authCtx *authContext,
+	headers http.Header,
+	namespace, podName string,
+) (*corev1.Pod, error) {
+	clientSet, _, err := f.impersonatedKubeClient(authCtx, headers)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	pod, err := clientSet.CoreV1().
+		Pods(namespace).
+		Get(ctx, podName, metav1.GetOptions{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return pod, nil
+}
+
+// mergeEphemeralPatchWithCurrentPod merges the provided patch with the given
+// pod and returns the patched pod. The pod must have been fetched by the
+// caller using a client that respects the requesting user's Kubernetes RBAC
+// — see getPodForEphemeralPatch. The patch is expected to be a strategic
 // merge patch that adds an ephemeral container to the pod.
 func (f *Forwarder) mergeEphemeralPatchWithCurrentPod(
-	ctx context.Context,
+	pod *corev1.Pod,
 	cfg mergeEphemeralPatchWithCurrentPodConfig,
 ) (*corev1.Pod, string, error) {
-	details, err := f.findKubeDetailsByClusterName(cfg.kubeCluster)
-	if err != nil {
-		return nil, "", trace.NotFound("kubernetes cluster %q not found", cfg.kubeCluster)
-	}
-
-	pod, err := details.getKubeClient().CoreV1().
-		Pods(cfg.kubeNamespace).
-		Get(ctx, cfg.podName, metav1.GetOptions{})
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
 	podSerializedBuf := &bytes.Buffer{}
 	if err := cfg.encoder.Encode(pod, podSerializedBuf); err != nil {
 		return nil, "", trace.Wrap(err)
@@ -324,16 +347,24 @@ func (f *Forwarder) getPatchedPodEvent(ctx context.Context, sess *clusterSession
 		return nil, trace.Wrap(err, "failed to create encoder and decoder")
 	}
 
-	patchedPod, _, err := f.mergeEphemeralPatchWithCurrentPod(
+	pod, err := f.getPodForEphemeralPatch(
 		ctx,
+		&sess.authContext,
+		nil,
+		waitingCont.GetSpec().GetNamespace(),
+		waitingCont.GetSpec().GetPodName(),
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	patchedPod, _, err := f.mergeEphemeralPatchWithCurrentPod(
+		pod,
 		mergeEphemeralPatchWithCurrentPodConfig{
-			kubeCluster:   waitingCont.GetSpec().GetCluster(),
-			kubeNamespace: waitingCont.GetSpec().GetNamespace(),
-			podName:       waitingCont.GetSpec().GetPodName(),
-			decoder:       decoder,
-			encoder:       encoder,
-			podPatch:      waitingCont.GetSpec().GetPatch(),
-			patchType:     apimachinerytypes.PatchType(waitingCont.GetSpec().GetPatchType()),
+			decoder:   decoder,
+			encoder:   encoder,
+			podPatch:  waitingCont.GetSpec().GetPatch(),
+			patchType: apimachinerytypes.PatchType(waitingCont.GetSpec().GetPatchType()),
 		},
 	)
 	if err != nil {
