@@ -219,9 +219,6 @@ func setupTestCache(t *testing.T, setupConfig cache.SetupConfigFn) (*testCache, 
 	appAuthConfig, err := local.NewAppAuthConfigService(bkWrapper)
 	require.NoError(t, err)
 
-	workloadClusters, err := local.NewWorkloadClusterService(bkWrapper)
-	require.NoError(t, err)
-
 	summaries, err := local.NewSummarizerService(local.SummarizerServiceConfig{
 		Backend: bkWrapper,
 	})
@@ -285,7 +282,6 @@ func setupTestCache(t *testing.T, setupConfig cache.SetupConfigFn) (*testCache, 
 		StaticScopedToken:       clusterConfig,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 eventsC,
-		WorkloadClusterService:  workloadClusters,
 		Summarizer:              summaries,
 		SubCAService:            subCA,
 	}))

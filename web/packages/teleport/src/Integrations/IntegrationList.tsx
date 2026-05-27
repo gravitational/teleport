@@ -150,6 +150,7 @@ export function IntegrationList(props: Props) {
         row={{
           onClick: handleRowClick,
           getStyle: getRowStyle,
+          getKey: row => `${row.kind}:${row.name}`,
         }}
         columns={[
           {

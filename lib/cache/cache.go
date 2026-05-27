@@ -221,7 +221,6 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindBotInstance},
 		{Kind: types.KindRecordingEncryption},
 		{Kind: types.KindAppAuthConfig},
-		{Kind: types.KindWorkloadCluster},
 		{Kind: types.KindInferenceModel},
 		{Kind: types.KindInferencePolicy},
 		{Kind: types.KindInferenceSecret},
@@ -434,6 +433,7 @@ func ForWindowsDesktop(cfg Config) Config {
 	cfg.target = "windows_desktop"
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindCertAuthority, LoadSecrets: false, Filter: makeAllKnownCAsFilter().IntoMap()},
+		{Kind: types.KindCertAuthorityOverride},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
@@ -836,8 +836,6 @@ type Config struct {
 	Plugin services.Plugins
 	// AppAuthConfig is a app auth config service.
 	AppAuthConfig services.AppAuthConfigReader
-	// WorkloadClusterService is a workload cluster service
-	WorkloadClusterService services.WorkloadClusterService
 	// Summarizer is a summarizer service.
 	Summarizer services.Summarizer
 	// SubCAService reads CertAuthorityOverride resources.

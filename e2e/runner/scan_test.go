@@ -440,7 +440,7 @@ func TestScanUsers(t *testing.T) {
 			tmpFile := filepath.Join(dir, "test.spec.ts")
 			writeFile(t, dir, "test.spec.ts", tt.content)
 
-			got, err := scanFileUsers(tmpFile, 0, "")
+			got, err := scanFileUsers(tmpFile, 0, "test.spec.ts")
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -536,6 +536,126 @@ func TestScanUsersDefaultUser(t *testing.T) {
 	}
 }
 
+func TestScanRecordings(t *testing.T) {
+	tests := []struct {
+		name           string
+		content        string
+		wantUsers      int
+		wantRecordings []string // recordings on the first user
+		wantLoginAs    bool
+	}{
+		{
+			name: "top-level recordings creates default user",
+			content: `test.use({
+  recordings: ['ssh-session-1', 'desktop-session-2'],
+});`,
+			wantUsers:      1,
+			wantRecordings: []string{"ssh-session-1", "desktop-session-2"},
+			wantLoginAs:    true,
+		},
+		{
+			name: "recordings on user definition",
+			content: `test.use({
+  user: { roles: ['access'], recordings: ['ssh-session-1'] },
+});`,
+			wantUsers:      1,
+			wantRecordings: []string{"ssh-session-1"},
+			wantLoginAs:    true,
+		},
+		{
+			name:           "no recordings",
+			content:         `test.use({ user: { roles: ['access'] } });`,
+			wantUsers:      1,
+			wantRecordings: nil,
+			wantLoginAs:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			tmpFile := filepath.Join(dir, "test.spec.ts")
+			writeFile(t, dir, "test.spec.ts", tt.content)
+
+			got, err := scanFileUsers(tmpFile, 0, "test.spec.ts")
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if len(got) != tt.wantUsers {
+				t.Fatalf("got %d users, want %d", len(got), tt.wantUsers)
+			}
+
+			if tt.wantUsers == 0 {
+				return
+			}
+
+			if got[0].loginAs != tt.wantLoginAs {
+				t.Errorf("loginAs = %v, want %v", got[0].loginAs, tt.wantLoginAs)
+			}
+
+			if len(got[0].recordings) != len(tt.wantRecordings) {
+				t.Fatalf("got %d recordings, want %d: %v", len(got[0].recordings), len(tt.wantRecordings), got[0].recordings)
+			}
+
+			for i, r := range got[0].recordings {
+				if r != tt.wantRecordings[i] {
+					t.Errorf("recording[%d] = %q, want %q", i, r, tt.wantRecordings[i])
+				}
+			}
+		})
+	}
+}
+
+func TestScanFileHelperRejectsUserAndRecordings(t *testing.T) {
+	cases := []struct {
+		name    string
+		content string
+	}{
+		{"user", `test.use({ user: { roles: ['access'] } });`},
+		{"users", `test.use({ users: [{ roles: ['access'], loginAs: true }] });`},
+		{"recordings", `test.use({ recordings: ['ssh-1'] });`},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, dir, "helper.ts", tc.content)
+
+			_, err := scanFileUsers(filepath.Join(dir, "helper.ts"), 0, "")
+			if err == nil {
+				t.Fatal("expected error for helper-declared user/users/recordings, got nil")
+			}
+
+			if !strings.Contains(err.Error(), "helper modules cannot declare") {
+				t.Errorf("expected helper-rejection error, got: %v", err)
+			}
+		})
+	}
+}
+
+func TestScanTopLevelRecordingsSynthIsDefault(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "spec.ts", `test.use({ recordings: ['ssh-1'] });`)
+
+	got, err := scanFileUsers(filepath.Join(dir, "spec.ts"), 0, "tests/spec.ts")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(got) != 1 {
+		t.Fatalf("got %d users, want 1", len(got))
+	}
+
+	if !got[0].isDefault {
+		t.Errorf("isDefault = false, want true")
+	}
+
+	if got[0].sourceFile != "" {
+		t.Errorf("sourceFile = %q, want empty", got[0].sourceFile)
+	}
+}
+
 func TestScanUsersMutuallyExclusiveError(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, dir, "test.spec.ts", `test.use({
@@ -543,7 +663,7 @@ func TestScanUsersMutuallyExclusiveError(t *testing.T) {
   users: [{ roles: ['access'] }],
 });`)
 
-	_, err := scanFileUsers(filepath.Join(dir, "test.spec.ts"), 0, "")
+	_, err := scanFileUsers(filepath.Join(dir, "test.spec.ts"), 0, "test.spec.ts")
 	if err == nil {
 		t.Fatal("expected error for user + users in same test.use(), got nil")
 	}
@@ -562,7 +682,7 @@ func TestScanUsersMultipleLoginAsError(t *testing.T) {
   ],
 });`)
 
-	_, err := scanFileUsers(filepath.Join(dir, "test.spec.ts"), 0, "")
+	_, err := scanFileUsers(filepath.Join(dir, "test.spec.ts"), 0, "test.spec.ts")
 	if err == nil {
 		t.Fatal("expected error for multiple loginAs: true, got nil")
 	}
@@ -622,7 +742,7 @@ func TestScanUsersDuplicateRoleWarn(t *testing.T) {
 			dir := t.TempDir()
 			writeFile(t, dir, "test.spec.ts", tt.content)
 
-			if _, err := scanFileUsers(filepath.Join(dir, "test.spec.ts"), 0, ""); err != nil {
+			if _, err := scanFileUsers(filepath.Join(dir, "test.spec.ts"), 0, "test.spec.ts"); err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
@@ -637,6 +757,275 @@ func TestScanUsersDuplicateRoleWarn(t *testing.T) {
 			for _, want := range tt.wantWarns {
 				if !strings.Contains(out, want) {
 					t.Errorf("missing warn substring %q in output:\n%s", want, out)
+				}
+			}
+		})
+	}
+}
+
+func TestScanRecordingsAfterUserBlock(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "test.spec.ts", `test.use({
+  user: { roles: ['access'], recordings: ['nested'] },
+  recordings: ['top-level'],
+});`)
+
+	_, err := scanFileUsers(filepath.Join(dir, "test.spec.ts"), 0, "test.spec.ts")
+	if err == nil {
+		t.Fatal("expected mutual-exclusivity error, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "mutually exclusive") {
+		t.Errorf("expected mutual-exclusivity error mentioning recordings, got: %v", err)
+	}
+}
+
+func TestHasTopLevelRecordingsIgnoresNested(t *testing.T) {
+	cases := []struct {
+		name string
+		body string
+		want bool
+	}{
+		{"top-level only", `test.use({ recordings: ['a'] })`, true},
+		{"nested in user", `test.use({ user: { roles: ['x'], recordings: ['a'] } })`, false},
+		{"nested in arbitrary fixture", `test.use({ traits: { recordings: ['a'] } })`, false},
+		{"sibling top-level wins over nested", `test.use({ traits: { recordings: ['a'] }, recordings: ['b'] })`, true},
+		{"recordings inside string literal is not a key", `test.use({ note: 'recordings: [foo]' })`, false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			calls := findTestUseCalls(tc.body)
+			if len(calls) != 1 {
+				t.Fatalf("findTestUseCalls returned %d calls, want 1", len(calls))
+			}
+
+			body := tc.body[calls[0].start:calls[0].end]
+			if got := hasTopLevelRecordings(body); got != tc.want {
+				t.Errorf("hasTopLevelRecordings = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestScanFileTopLevelRecordingsAcrossSiblingDescribesAllowed(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "test.spec.ts", `test.describe('A', () => {
+  test.use({ user: { roles: ['access'] } });
+});
+
+test.describe('B', () => {
+  test.use({ recordings: ['ssh-1'] });
+});`)
+
+	got, err := scanFileUsers(filepath.Join(dir, "test.spec.ts"), 0, "test.spec.ts")
+	if err != nil {
+		t.Fatalf("unexpected error for sibling-describe scopes: %v", err)
+	}
+
+	if len(got) != 2 {
+		t.Fatalf("got %d users, want 2 (one per describe)", len(got))
+	}
+}
+
+func TestScanFileTopLevelRecordingsAcrossOneLineSiblingDescribesAllowed(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "test.spec.ts", `test.describe('A', () => { test.use({ user: { roles: ['access'] } }); });
+test.describe('B', () => { test.use({ recordings: ['ssh-1'] }); });`)
+
+	got, err := scanFileUsers(filepath.Join(dir, "test.spec.ts"), 0, "test.spec.ts")
+	if err != nil {
+		t.Fatalf("unexpected error for one-line sibling-describe scopes: %v", err)
+	}
+
+	if len(got) != 2 {
+		t.Fatalf("got %d users, want 2 (one per describe)", len(got))
+	}
+}
+
+func TestScanFileTopLevelRecordingsOneLineNestedDescribeRejected(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "test.spec.ts", `test.use({ recordings: ['ssh-1'] });
+test.describe('inner', () => { test.use({ user: { roles: ['access'] } }); });`)
+
+	_, err := scanFileUsers(filepath.Join(dir, "test.spec.ts"), 0, "test.spec.ts")
+	if err == nil {
+		t.Fatal("expected error for file-scope recordings + one-line describe user, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "top-level recordings") {
+		t.Errorf("expected top-level-recordings error, got: %v", err)
+	}
+}
+
+func TestScanFileTopLevelRecordingsNestedDescribeRejected(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "test.spec.ts", `test.use({ recordings: ['ssh-1'] });
+
+test.describe('inner', () => {
+  test.use({ user: { roles: ['access'] } });
+});`)
+
+	_, err := scanFileUsers(filepath.Join(dir, "test.spec.ts"), 0, "test.spec.ts")
+	if err == nil {
+		t.Fatal("expected error for file-scope recordings + describe-scope user, got nil")
+	}
+
+	if !strings.Contains(err.Error(), "top-level recordings") {
+		t.Errorf("expected top-level-recordings error, got: %v", err)
+	}
+}
+
+func TestScanFileTopLevelRecordingsWithExplicitUserError(t *testing.T) {
+	// Playwright merges multiple file-scope test.use() calls; mixing a
+	// top-level recordings call with a user/users call leaves the recordings
+	// orphaned on a synthetic default user. Scanner must reject this.
+	cases := []struct {
+		name    string
+		content string
+	}{
+		{
+			name: "user then top-level recordings",
+			content: `test.use({ user: { roles: ['access'] } });
+test.use({ recordings: ['ssh-1'] });`,
+		},
+		{
+			name: "top-level recordings then users",
+			content: `test.use({ recordings: ['ssh-1'] });
+test.use({ users: [{ roles: ['access'], loginAs: true }] });`,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, dir, "test.spec.ts", tc.content)
+
+			_, err := scanFileUsers(filepath.Join(dir, "test.spec.ts"), 0, "test.spec.ts")
+			if err == nil {
+				t.Fatal("expected error mixing top-level recordings with explicit user/users, got nil")
+			}
+
+			if !strings.Contains(err.Error(), "top-level recordings") {
+				t.Errorf("expected top-level-recordings error, got: %v", err)
+			}
+		})
+	}
+}
+
+func TestScanUsersNestedUserFixturesIgnored(t *testing.T) {
+	tests := []struct {
+		name      string
+		content   string
+		wantUsers int
+	}{
+		{
+			name: "user nested inside another fixture object is not detected",
+			content: `test.use({
+  customFixture: { user: { roles: ['nope'] } },
+  recordings: ['ssh-1'],
+});`,
+			wantUsers: 1,
+		},
+		{
+			name: "users nested inside another fixture is not detected",
+			content: `test.use({
+  customFixture: { users: [{ roles: ['nope'] }] },
+  recordings: ['ssh-1'],
+});`,
+			wantUsers: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, dir, "test.spec.ts", tt.content)
+
+			got, err := scanFileUsers(filepath.Join(dir, "test.spec.ts"), 0, "test.spec.ts")
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if len(got) != tt.wantUsers {
+				t.Fatalf("got %d users, want %d: %+v", len(got), tt.wantUsers, got)
+			}
+		})
+	}
+}
+
+func TestScanUsersUserFieldsAreDepth0Only(t *testing.T) {
+	tests := []struct {
+		name           string
+		content        string
+		wantRecordings []string
+		wantRoleNames  []string
+	}{
+		{
+			name: "nested recordings inside traits ignored when no top-level recordings",
+			content: `test.use({
+  user: {
+    roles: ['access'],
+    traits: { recordings: ['nested-fake'] },
+  },
+});`,
+			wantRoleNames: []string{"access"},
+		},
+		{
+			name: "nested recordings inside traits do not shadow top-level recordings",
+			content: `test.use({
+  user: {
+    roles: ['access'],
+    traits: { recordings: ['nested-fake'] },
+    recordings: ['real-1', 'real-2'],
+  },
+});`,
+			wantRecordings: []string{"real-1", "real-2"},
+			wantRoleNames:  []string{"access"},
+		},
+		{
+			name: "nested roles inside traits do not shadow top-level roles",
+			content: `test.use({
+  user: {
+    traits: { roles: ['nested-fake'] },
+    roles: ['access', 'editor'],
+  },
+});`,
+			wantRoleNames: []string{"access", "editor"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeFile(t, dir, "test.spec.ts", tt.content)
+
+			got, err := scanFileUsers(filepath.Join(dir, "test.spec.ts"), 0, "test.spec.ts")
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if len(got) != 1 {
+				t.Fatalf("got %d users, want 1: %+v", len(got), got)
+			}
+
+			if len(got[0].recordings) != len(tt.wantRecordings) {
+				t.Fatalf("got %d recordings, want %d: %v", len(got[0].recordings), len(tt.wantRecordings), got[0].recordings)
+			}
+
+			for i, r := range got[0].recordings {
+				if r != tt.wantRecordings[i] {
+					t.Errorf("recording[%d] = %q, want %q", i, r, tt.wantRecordings[i])
+				}
+			}
+
+			if len(got[0].roles) != len(tt.wantRoleNames) {
+				t.Fatalf("got %d roles, want %d: %+v", len(got[0].roles), len(tt.wantRoleNames), got[0].roles)
+			}
+
+			for i, r := range got[0].roles {
+				if r.name != tt.wantRoleNames[i] {
+					t.Errorf("role[%d] name = %q, want %q", i, r.name, tt.wantRoleNames[i])
 				}
 			}
 		})
@@ -670,8 +1059,8 @@ func TestScanUsersDelimitersInStringLiterals(t *testing.T) {
 			wantRoles: []string{"access", "editor"},
 		},
 		{
-			name: "backtick template with delimiters does not corrupt parsing",
-			content: "test.use({\n  user: {\n    roles: ['access'],\n    traits: { logins: [`weird}{`] },\n  },\n});",
+			name:      "backtick template with delimiters does not corrupt parsing",
+			content:   "test.use({\n  user: {\n    roles: ['access'],\n    traits: { logins: [`weird}{`] },\n  },\n});",
 			wantRoles: []string{"access"},
 		},
 	}
@@ -681,7 +1070,7 @@ func TestScanUsersDelimitersInStringLiterals(t *testing.T) {
 			dir := t.TempDir()
 			writeFile(t, dir, "test.spec.ts", tt.content)
 
-			got, err := scanFileUsers(filepath.Join(dir, "test.spec.ts"), 0, "")
+			got, err := scanFileUsers(filepath.Join(dir, "test.spec.ts"), 0, "test.spec.ts")
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -789,7 +1178,7 @@ func TestScanUsersIdentifierBoundaries(t *testing.T) {
   myRoles: ['nope'],
 });`)
 
-	got, err := scanFileUsers(filepath.Join(dir, "test.spec.ts"), 0, "")
+	got, err := scanFileUsers(filepath.Join(dir, "test.spec.ts"), 0, "test.spec.ts")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

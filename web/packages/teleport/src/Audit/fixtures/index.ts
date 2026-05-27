@@ -2800,7 +2800,7 @@ export const events = [
     code: 'T1014W',
     cluster_name: 'root.cluster',
     event: 'user.login',
-    method: 'headdless',
+    method: 'headless',
     ei: 0,
     success: false,
     time: '2019-04-22T00:49:03Z',
@@ -2814,6 +2814,19 @@ export const events = [
     user: 'alice@example.com',
     event: 'upgradewindowstart.update',
     upgrade_window_start: '23:00',
+  },
+  {
+    code: 'TCAGC003I',
+    time: '2022-04-13T20:00:05.000Z',
+    user: 'alice@example.com',
+    event: 'access_graph_settings.update',
+  },
+  {
+    code: 'TEP01I',
+    time: '2022-04-13T20:00:05.000Z',
+    user: 'alice@example.com',
+    event: 'environmentprofile.update',
+    environment_profile: 'staging',
   },
   {
     code: 'T2012I',

@@ -250,7 +250,7 @@ func NewForwardServer(cfg *ForwardServerConfig) (*ForwardServer, error) {
 		FIPS:                          cfg.FIPS,
 		Clock:                         cfg.Clock,
 		OnRBACFailure:                 s.onRBACFailure,
-		ValidatedMFAChallengeVerifier: s.cfg.AuthClient.MFAServiceClient(),
+		ValidatedMFAChallengeVerifier: s.cfg.AuthClient.MFAServiceClientV2(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

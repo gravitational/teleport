@@ -148,8 +148,9 @@ test.use({
 test('switch users', async ({ page, loginAs }) => {
   // signed in as users[0] at test start
   // ...
-  const editorName = await loginAs(1);
+  const { name: editorName, recordingIds } = await loginAs(1);
   // now signed in as users[1]; `editorName` is the generated username
+  // and `recordingIds` is the seeded recording map for users[1].
 });
 ```
 
@@ -165,12 +166,59 @@ the same `user`/`users`. Concretely:
 - Two specs that declare identical `test.use({ user: ... })` get distinct accounts (keyed by spec path).
 - Tests in the same spec share one account when their `test.use()` resolves to identical content. To force
   separate accounts, vary traits or use the `users: [...]` array (entries are distinguished by index).
-- Helper-declared `test.use({ user/users })` stays shared across every spec that imports the helper.
 
 **How it works (briefly):** The runner generates credentials server-side, logs each user in over HTTP
 (`/v1/webapi/mfa/login/*`) during setup, and writes the resulting cookies + localStorage to
 `e2e/.auth/<browser>-<username>.json`. Tests pick up that state via Playwright's `storageState`, so they
 start already authenticated without running the UI login flow.
+
+### Session Recordings
+
+The runner automatically seeds session recordings into Teleport's data directory at startup so the Web UI's
+session recordings page has content immediately. Recordings are stored in `e2e/testdata/recordings/` organized
+by session type:
+
+```
+e2e/testdata/recordings/
+├── events.jsonl          # generated - do not edit
+├── ssh/
+│   ├── <session-id>.tar
+│   ├── <session-id>.metadata
+│   └── <session-id>.thumbnail
+├── k8s/
+│   └── ...
+└── desktop/
+    └── ...
+```
+
+Each recording consists of a `.tar` file (required) and optional `.metadata` and `.thumbnail` sidecar files.
+The `events.jsonl` file contains the session end audit events and is auto-generated from the `.tar` files.
+
+**Adding a new recording:**
+
+To add a new recording, place the `.tar` file (and any `.metadata`/`.thumbnail` files) in the appropriate subdirectory
+(`ssh/`, `k8s/`, or `desktop/`).
+
+Recordings are opt-in — only recordings referenced in `test.use()` via `recordings` or `UserDefinition.recordings`
+are seeded. Each recording is associated with the user that declares it, and each `(recording, owner)` pair gets
+a freshly-generated session ID so duplicates across users don't collide.
+
+**`recordingIds` fixture:** Because the runner rewrites session IDs, tests that need to navigate to a specific
+recording should look up the generated ID via the `recordingIds` fixture, which maps the logical ID (the `.tar`
+filename) to the seeded session ID for the currently-active user:
+
+```ts
+test.use({
+  user: { roles: ['access'], recordings: ['ssh-session-1'] },
+});
+
+test('open recording', async ({ page, recordingIds }) => {
+  await page.goto(`/web/recordings/${recordingIds['ssh-session-1']}`);
+});
+```
+
+At runtime, the runner copies recording files into Teleport's records directory and appends the audit events
+to the audit log with adjusted timestamps so that sessions appear recent in the UI.
 
 ### Common Commands
 

@@ -765,6 +765,8 @@ type DatabaseAccessPoint interface {
 type ReadWindowsDesktopAccessPoint interface {
 	// Closer closes all the resources
 	io.Closer
+	// SubCAServiceGetter reads CA override resources.
+	services.SubCAServiceGetter
 
 	// NewWatcher returns a new event watcher.
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
@@ -1306,6 +1308,9 @@ type Cache interface {
 	// GetDatabaseServers returns all registered database proxy servers.
 	GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error)
 
+	// RangeDatabaseServersWithName returns an iterator over database proxy servers for a given database name.
+	RangeDatabaseServersWithName(ctx context.Context, databaseName string) iter.Seq2[types.DatabaseServer, error]
+
 	// GetDatabases returns all database resources.
 	// Deprecated: Prefer paginated variant such as [ListDatabases] or [RangeDatabases]
 	GetDatabases(ctx context.Context) ([]types.Database, error)
@@ -1558,8 +1563,6 @@ type Cache interface {
 	// AppAuthConfigGetter defines methods for fetching app auth configs.
 	services.AppAuthConfigReader
 
-	// WorkloadClusterServiceGetter defines methods for fetching workload clusters.
-	services.WorkloadClusterServiceGetter
 	// SummarizerServiceGetter defines methods for fetching summarizer resources.
 	services.SummarizerServiceGetter
 	// BeamReader defines methods for reading beam resources.

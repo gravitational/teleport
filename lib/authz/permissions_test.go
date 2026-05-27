@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
@@ -544,6 +545,74 @@ func TestAuthorizer_Authorize_deviceTrust(t *testing.T) {
 				"auth.Context.disableDeviceAuthorization not inherited from Authorizer")
 		})
 	}
+}
+
+// TestAuthorizer_Authorize_remoteUserDeviceTrust verifies that device trust
+// extensions are propagated through the authorizeRemoteUser path. A remote user
+// whose original identity carries DeviceExtensions should have DeviceVerified=true
+// in the resulting auth context.
+func TestAuthorizer_Authorize_remoteUserDeviceTrust(t *testing.T) {
+	t.Parallel()
+	client, watcher, _ := newTestResources(t)
+	_, localRole, err := authtest.CreateUserAndRole(client, "local-llama", []string{"local-llama"}, nil)
+	require.NoError(t, err, "CreateUserAndRole")
+
+	remoteClusterName := "remote-cluster"
+	ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+		Type:        types.UserCA,
+		ClusterName: remoteClusterName,
+		ActiveKeys: types.CAKeySet{
+			SSH: []*types.SSHKeyPair{{
+				PrivateKey: []byte(fixtures.SSHCAPrivateKey),
+				PublicKey:  []byte(fixtures.SSHCAPublicKey),
+			}},
+			TLS: []*types.TLSKeyPair{{
+				Cert: []byte(fixtures.TLSCACertPEM),
+				Key:  []byte(fixtures.TLSCAKeyPEM),
+			}},
+		},
+		RoleMap: types.RoleMap{{
+			Remote: localRole.GetName(),
+			Local:  []string{localRole.GetName()},
+		}},
+	})
+	require.NoError(t, err, "NewCertAuthority failed")
+	require.NoError(t, client.UpsertCertAuthority(t.Context(), ca), "UpsertCertAuthority failed")
+
+	deviceExt := tlsca.DeviceExtensions{
+		DeviceID:     "deviceid1",
+		AssetTag:     "assettag1",
+		CredentialID: "credentialid1",
+	}
+
+	remoteUser := authz.RemoteUser{
+		Username:    "llama",
+		ClusterName: remoteClusterName,
+		RemoteRoles: []string{localRole.GetName()},
+		Principals:  []string{"llama"},
+		Identity: tlsca.Identity{
+			Username:         "llama",
+			Groups:           []string{localRole.GetName()},
+			DeviceExtensions: deviceExt,
+		},
+	}
+
+	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
+		ClusterName: clusterName,
+		AccessPoint: client,
+		LockWatcher: watcher,
+	})
+	require.NoError(t, err, "NewAuthorizer failed")
+
+	userCtx := authz.ContextWithUser(t.Context(), remoteUser)
+	authCtx, err := authorizer.Authorize(userCtx)
+	require.NoError(t, err, "Authorize failed")
+
+	authPref, err := client.GetAuthPreference(t.Context())
+	require.NoError(t, err, "GetAuthPreference failed")
+	state := authCtx.GetAccessState(authPref)
+	assert.True(t, state.DeviceVerified,
+		"DeviceVerified should be true for remote user whose identity has device extensions")
 }
 
 // hostFQDN consists of host UUID and cluster name joined via .
@@ -1532,6 +1601,7 @@ func newTestResources(t *testing.T) (*testClient, *services.LockWatcher, authz.A
 		LockGetter: lockSvc,
 	})
 	require.NoError(t, err)
+	t.Cleanup(lockWatcher.Close)
 
 	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName: clusterName,

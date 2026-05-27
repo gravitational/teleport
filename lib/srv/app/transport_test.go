@@ -19,13 +19,23 @@
 package app
 
 import (
+	"bufio"
+	"context"
+	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"testing"
+	"testing/synctest"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/srv/app/common"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 func TestNeedsPathRedirect(t *testing.T) {
@@ -108,4 +118,151 @@ func TestNeedsPathRedirect(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestTransport_LongRunningUpstreamCompletes verifies a 10-minute
+// response-header delay completes under the 1-hour cap.
+func TestTransport_LongRunningUpstreamCompletes(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		clientConn, serverConn := net.Pipe()
+		tr := newTestTransport(t, func(context.Context, string, string) (net.Conn, error) {
+			return clientConn, nil
+		})
+
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		upstreamDone := make(chan struct{})
+		go func() {
+			defer close(upstreamDone)
+			fakeUpstream(ctx, serverConn, 10*time.Minute, "ok")
+		}()
+
+		req := newTestRequest(t)
+		resp, err := tr.RoundTrip(req)
+		require.NoError(t, err)
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.NoError(t, resp.Body.Close())
+		require.Equal(t, "ok", string(body))
+
+		cancel()
+		<-upstreamDone
+	})
+}
+
+// TestTransport_SanityCapFiresDeadlineExceededDiagnostic verifies the
+// 1-hour cap fires and renders the Context Deadline Exceeded diagnostic
+// page for HTTP/1 ResponseHeaderTimeout. HTTP/2 coverage for the
+// net.Error.Timeout() case lives in errors_test.go.
+func TestTransport_SanityCapFiresDeadlineExceededDiagnostic(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		clientConn, serverConn := net.Pipe()
+		tr := newTestTransport(t, func(context.Context, string, string) (net.Conn, error) {
+			return clientConn, nil
+		})
+
+		ctx, cancel := context.WithCancel(t.Context())
+		defer cancel()
+		upstreamDone := make(chan struct{})
+		go func() {
+			defer close(upstreamDone)
+			fakeUpstream(ctx, serverConn, 2*time.Hour, "should-not-be-read")
+		}()
+
+		req := newTestRequest(t)
+		resp, err := tr.RoundTrip(req)
+		require.NoError(t, err)
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		require.NoError(t, resp.Body.Close())
+		require.Contains(t, string(body), "Context Deadline Exceeded")
+
+		cancel()
+		<-upstreamDone
+	})
+}
+
+// newTestTransport builds a transport with the minimum config that
+// transportConfig.Check requires. The dial func is wired as the
+// underlying http.Transport.DialContext so callers can inject a
+// net.Pipe.
+func newTestTransport(t *testing.T, dial func(context.Context, string, string) (net.Conn, error)) *transport {
+	t.Helper()
+	app, err := types.NewAppV3(types.Metadata{Name: "test"}, types.AppSpecV3{
+		URI:        "http://upstream.invalid",
+		PublicAddr: "test.example.com",
+	})
+	require.NoError(t, err)
+	tr, err := newTransport(t.Context(), &transportConfig{
+		app:        app,
+		publicPort: "443",
+		jwt:        "test-jwt",
+	})
+	require.NoError(t, err)
+	tr.tr.(*http.Transport).DialContext = dial
+	return tr
+}
+
+// newTestRequest builds a request with the SessionContext that
+// transport.RoundTrip requires.
+func newTestRequest(t *testing.T) *http.Request {
+	t.Helper()
+	app, err := types.NewAppV3(types.Metadata{Name: "test"}, types.AppSpecV3{
+		URI: "http://upstream.invalid",
+	})
+	require.NoError(t, err)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, "http://upstream.invalid/", nil)
+	require.NoError(t, err)
+	return common.WithSessionContext(req, &common.SessionContext{
+		App:   app,
+		Audit: noopAudit{},
+	})
+}
+
+// fakeUpstream reads one HTTP request, waits delay (or ctx cancel), then
+// writes a minimal 200. The ctx hook lets tests cancel the upstream so
+// synctest does not report a deadlock when delay exceeds the cap.
+func fakeUpstream(ctx context.Context, conn net.Conn, delay time.Duration, body string) {
+	defer conn.Close()
+	_, err := http.ReadRequest(bufio.NewReader(conn))
+	if err != nil {
+		return
+	}
+	select {
+	case <-time.After(delay):
+	case <-ctx.Done():
+		return
+	}
+	_, _ = fmt.Fprintf(conn, "HTTP/1.1 200 OK\r\nContent-Length: %d\r\n\r\n%s", len(body), body)
+}
+
+// noopAudit satisfies common.Audit so RoundTrip's audit emission does
+// not fail in tests.
+type noopAudit struct{}
+
+func (noopAudit) OnSessionStart(context.Context, string, *tlsca.Identity, types.Application) error {
+	return nil
+}
+
+func (noopAudit) OnSessionEnd(context.Context, string, *tlsca.Identity, types.Application) error {
+	return nil
+}
+
+func (noopAudit) OnSessionChunk(context.Context, string, string, *tlsca.Identity, types.Application) error {
+	return nil
+}
+
+func (noopAudit) OnRequest(context.Context, *common.SessionContext, *http.Request, uint32, *common.AWSResolvedEndpoint) error {
+	return nil
+}
+
+func (noopAudit) OnDynamoDBRequest(context.Context, *common.SessionContext, *http.Request, uint32, *common.AWSResolvedEndpoint) error {
+	return nil
+}
+
+func (noopAudit) EmitEvent(context.Context, apievents.AuditEvent) error {
+	return nil
 }

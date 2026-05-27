@@ -2553,21 +2553,6 @@ func (process *TeleportProcess) initAuthService() error {
 		externalAuditStorage.SetGenerateOIDCTokenFn(authServer.GenerateExternalAuditStorageOIDCToken)
 	}
 
-	unifiedResourcesCache, err := services.NewUnifiedResourceCache(process.ExitContext(), services.UnifiedResourceCacheConfig{
-		ResourceWatcherConfig: services.ResourceWatcherConfig{
-			QueueSize:    defaults.UnifiedResourcesQueueSize,
-			Component:    teleport.ComponentUnifiedResource,
-			Logger:       process.logger.With(teleport.ComponentKey, teleport.ComponentUnifiedResource),
-			Client:       authServer,
-			MaxStaleness: time.Minute,
-		},
-		ResourceGetter: authServer,
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	authServer.SetUnifiedResourcesCache(unifiedResourcesCache)
-
 	accessRequestCache, err := services.NewAccessRequestCache(services.AccessRequestCacheConfig{
 		Events: authServer.Services,
 		Getter: authServer.Services,
@@ -2681,6 +2666,34 @@ func (process *TeleportProcess) initAuthService() error {
 			return trace.Wrap(err)
 		}
 	}
+
+	var createAuditStreamInflightLimit *int
+	if en := os.Getenv("TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT"); en != "" {
+		limit, err := strconv.ParseInt(en, 10, 0)
+		if err != nil {
+			logger.ErrorContext(process.ExitContext(), "Failed to parse the TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT envvar, limit will not be enforced", "error", err)
+		} else if limit >= 0 {
+			l := int(limit)
+			createAuditStreamInflightLimit = &l
+			if *createAuditStreamInflightLimit == 0 {
+				logger.WarnContext(process.ExitContext(), "TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT is set to 0, no CreateAuditStream RPCs will be allowed")
+			} else {
+				logger.DebugContext(process.ExitContext(), "TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT is set, enabling in-flight limit for CreateAuditStream", "limit", *createAuditStreamInflightLimit)
+			}
+		}
+	}
+
+	var resolveSSHTargetRateLimit *float64
+	if en := os.Getenv("TELEPORT_UNSTABLE_RESOLVESSHTARGET_RATE_LIMIT"); en != "" {
+		limit, err := strconv.ParseFloat(en, 64)
+		if err != nil {
+			logger.ErrorContext(process.ExitContext(), "Failed to parse the TELEPORT_UNSTABLE_RESOLVESSHTARGET_RATE_LIMIT envvar, limit will not be enforced", "error", err)
+		} else {
+			resolveSSHTargetRateLimit = &limit
+			logger.DebugContext(process.ExitContext(), "TELEPORT_UNSTABLE_RESOLVESSHTARGET_RATE_LIMIT is set, enabling rate limit for ResolveSSHTarget", "limit", *resolveSSHTargetRateLimit)
+		}
+	}
+
 	apiConf := &auth.APIConfig{
 		AuthServer:       authServer,
 		Authorizer:       authorizer,
@@ -2695,6 +2708,8 @@ func (process *TeleportProcess) initAuthService() error {
 			CA:       accessGraphCAData,
 			Insecure: cfg.AccessGraph.Insecure,
 		},
+		CreateAuditStreamInflightLimit: createAuditStreamInflightLimit,
+		ResolveSSHTargetRateLimit:      resolveSSHTargetRateLimit,
 	}
 
 	// Auth initialization is done (including creation/updating of all singleton
@@ -3005,7 +3020,7 @@ func (process *TeleportProcess) initAuthService() error {
 			Cache:             authServer.Cache,
 			StatusReporter:    authServer.Services,
 			Backend:           process.backend,
-			AppServerUpserter: authServer.Services,
+			AppServerUpserter: authServer,
 			HostUUID:          hostUUID,
 		}))
 	})
@@ -3146,7 +3161,6 @@ func (process *TeleportProcess) newAccessCacheForServices(cfg accesspoint.Config
 	cfg.RecordingEncryption = services.RecordingEncryptionManager
 	cfg.Plugin = services.Plugins
 	cfg.AppAuthConfig = services.AppAuthConfig
-	cfg.WorkloadClusterService = services.WorkloadClusterService
 	cfg.Summarizer = services.Summarizer
 	cfg.SubCAService = services.SubCAService
 
@@ -5874,15 +5888,16 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		FIPS:   cfg.FIPS,
 		Logger: process.logger.With(teleport.ComponentKey, "transport"),
 		Dialer: proxyRouter,
-		SignerFn: func(authzCtx *authz.ScopedContext, clusterName string) agentless.SignerCreator {
+		SignerFn: func(ctx context.Context, authzCtx *authz.ScopedContext, clusterName string) (agentless.SignerCreator, error) {
+			certGen, err := proxyRouter.GetSiteClient(ctx, clusterName)
+			if err != nil {
+				return nil, trace.Wrap(err, "getting site client for cluster %q", clusterName)
+			}
 			if unscopedCtx, ok := authzCtx.UnscopedContext(); ok {
-				return agentless.SignerFromAuthzContext(unscopedCtx, accessPoint, clusterName)
+				return agentless.SignerFromAuthzContext(unscopedCtx, accessPoint, certGen, clusterName), nil
 			}
 
-			return func(ctx context.Context, localAccessPoint agentless.LocalAccessPoint, certGen agentless.CertGenerator) (ssh.Signer, error) {
-				// TODO(fspamarshall/scopes): implement agentless transport signer for scoped identities
-				return nil, trace.NotImplemented("agentless transport signer is not implemented for scoped identities")
-			}
+			return agentless.SignerFromScopedContext(authzCtx, accessPoint, certGen, clusterName), nil
 		},
 		ConnectionMonitor: connMonitor,
 		LocalAddr:         listeners.sshGRPC.Addr(),
@@ -6696,11 +6711,10 @@ var appDependEvents = []string{
 }
 
 func (process *TeleportProcess) initApps() {
-	// If no applications are specified, broadcast AppsReady so the
-	// process readiness gate is not blocked, then return. This is due
-	// to the strange behavior in reading file configuration. If the
-	// user does not specify an "app_service" section, that is
-	// considered enabling "app_service".
+	// If app_service is enabled but no apps, debug app, MCP demo
+	// server, or resource matchers are configured, there is nothing
+	// to proxy. Broadcast AppsReady so the process readiness gate is
+	// not blocked, then return.
 	if len(process.Config.Apps.Apps) == 0 &&
 		!process.Config.Apps.DebugApp &&
 		!process.Config.Apps.MCPDemoServer &&
@@ -6936,20 +6950,28 @@ func (process *TeleportProcess) initApps() {
 			return trace.Wrap(err)
 		}
 
+		// When the app_service itself is running on Teleport Cloud, then we reject any app
+		// with dynamic labels, which allow for code execution.
+		// This is primarily for the beams use case, where the only apps we expect
+		// to see are those created by `tsh beams publish`.
+		const teleportBeamsEnvVar = "TELEPORT_BEAMS_RUNTIME"
+		runningOnBeams, _ := apiutils.ParseBool(os.Getenv(teleportBeamsEnvVar))
+
 		appServer, err := app.New(process.ExitContext(), &app.Config{
-			Clock:                process.Config.Clock,
-			AuthClient:           conn.Client,
-			AccessPoint:          accessPoint,
-			HostID:               conn.HostUUID(),
-			Hostname:             process.Config.Hostname,
-			GetRotation:          process.GetRotation,
-			Apps:                 applications,
-			CloudLabels:          process.cloudLabels,
-			ResourceMatchers:     process.Config.Apps.ResourceMatchers,
-			OnHeartbeat:          process.OnHeartbeat(teleport.ComponentApp),
-			ConnectedProxyGetter: proxyGetter,
-			ConnectionsHandler:   connectionsHandler,
-			InventoryHandle:      process.inventoryHandle,
+			Clock:                       process.Config.Clock,
+			AuthClient:                  conn.Client,
+			AccessPoint:                 accessPoint,
+			HostID:                      conn.HostUUID(),
+			Hostname:                    process.Config.Hostname,
+			GetRotation:                 process.GetRotation,
+			Apps:                        applications,
+			CloudLabels:                 process.cloudLabels,
+			ResourceMatchers:            process.Config.Apps.ResourceMatchers,
+			OnHeartbeat:                 process.OnHeartbeat(teleport.ComponentApp),
+			ConnectedProxyGetter:        proxyGetter,
+			ConnectionsHandler:          connectionsHandler,
+			InventoryHandle:             process.inventoryHandle,
+			IgnoreAppsWithCommandLabels: runningOnBeams,
 		})
 		if err != nil {
 			return trace.Wrap(err)

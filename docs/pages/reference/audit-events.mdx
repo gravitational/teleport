@@ -3,7 +3,7 @@ title: "Audit Event Reference"
 description: "Provides a comprehensive list of Teleport audit events and their fields."
 ---
 {/* Generated file. Do not edit. */}
-{/* To regenerate, navigate to docs/gen-event-reference and run pnpm gen-docs */}
+{/* To regenerate, run `make audit-event-reference` */}
 
 {/*cSpell:disable*/}
 
@@ -90,6 +90,21 @@ Example:
   "event": "access_graph.path.changed",
   "time": "2020-06-05T16:24:05Z",
   "uid": "68a83a99-73ce-4bd7-bbf7-99103c2ba6a0"
+}
+```
+
+## access_graph_settings.update
+
+Access Graph Settings Updated
+
+Example:
+
+```json
+{
+  "code": "TCAGC003I",
+  "time": "2022-04-13T20:00:05.000Z",
+  "user": "alice@example.com",
+  "event": "access_graph_settings.update"
 }
 ```
 
@@ -3409,6 +3424,22 @@ Example:
   "time": "2023-05-08T19:21:37.144Z",
   "name": "discovery-config",
   "updated_by": "joe"
+}
+```
+
+## environmentprofile.update
+
+Environment Profile Updated
+
+Example:
+
+```json
+{
+  "code": "TEP01I",
+  "time": "2022-04-13T20:00:05.000Z",
+  "user": "alice@example.com",
+  "event": "environmentprofile.update",
+  "environment_profile": "staging"
 }
 ```
 
@@ -7421,7 +7452,7 @@ Example:
   "code": "T1014W",
   "cluster_name": "root.cluster",
   "event": "user.login",
-  "method": "headdless",
+  "method": "headless",
   "ei": 0,
   "success": false,
   "time": "2019-04-22T00:49:03Z",

@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/constants"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/scopes"
@@ -254,6 +255,46 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 		return trace.BadParameter("scoped role %q has invalid ssh.max_sessions %d: must be non-negative", role.GetMetadata().GetName(), ms)
 	}
 
+	// verify that session_recording_mode fields are recognized values
+	if mode := role.GetSpec().GetSsh().GetSessionRecording().GetMode(); mode != "" {
+		switch constants.SessionRecordingMode(mode) {
+		case constants.SessionRecordingModeStrict, constants.SessionRecordingModeBestEffort:
+		default:
+			return trace.BadParameter("scoped role %q has invalid ssh.session_recording_mode. %q: must be %q or %q",
+				role.GetMetadata().GetName(), mode, constants.SessionRecordingModeStrict, constants.SessionRecordingModeBestEffort)
+		}
+	}
+
+	if mode := role.GetSpec().GetDefaults().GetSessionRecording().GetMode(); mode != "" {
+		switch constants.SessionRecordingMode(mode) {
+		case constants.SessionRecordingModeStrict, constants.SessionRecordingModeBestEffort:
+		default:
+			return trace.BadParameter("scoped role %q has invalid defaults.session_recording_mode %q: must be %q or %q",
+				role.GetMetadata().GetName(), mode, constants.SessionRecordingModeStrict, constants.SessionRecordingModeBestEffort)
+		}
+	}
+
+	// verify that the lock.Mode is a recognized value for Defaults
+	if lock := role.GetSpec().GetDefaults().GetLock(); lock != nil {
+		if err := validateLock(lock); err != nil {
+			return trace.BadParameter("scoped role %q has invalid defaults.lock.mode %q", role.GetMetadata().GetName(), lock.GetMode())
+		}
+	}
+
+	// verify that lock.Mode is a recognized value for SSH
+	if lock := role.GetSpec().GetSsh().GetLock(); lock != nil {
+		if err := validateLock(lock); err != nil {
+			return trace.BadParameter("scoped role %q has invalid ssh.lock.mode %q", role.GetMetadata().GetName(), lock.GetMode())
+		}
+	}
+
+	// verify that lock.Mode is a recognized value for Kube
+	if lock := role.GetSpec().GetKube().GetLock(); lock != nil {
+		if err := validateLock(lock); err != nil {
+			return trace.BadParameter("scoped role %q has invalid kube.lock.mode %q", role.GetMetadata().GetName(), lock.GetMode())
+		}
+	}
+
 	// verify that kube labels are well-formed
 	for _, label := range role.GetSpec().GetKube().GetLabels() {
 		// we currently don't support any form of wildcard/regex/substitution in scoped role
@@ -302,6 +343,19 @@ func validateDoesNotContain(values []string, invalidSet string) string {
 	}
 
 	return ""
+}
+
+func validateLock(lock *scopedaccessv1.Lock) error {
+	mode := lock.GetMode()
+	switch constants.LockingMode(mode) {
+	// Allow for empty string - we will fall back to the cluster defaults - or best_effort if not set.
+	// This matches current behavior for unscoped lock mode checks.
+	case "":
+	case constants.LockingModeBestEffort, constants.LockingModeStrict:
+	default:
+		return trace.Errorf("invalid lock mode")
+	}
+	return nil
 }
 
 func validateRoleName(name string) error {

@@ -29,8 +29,8 @@ func ValidIntegrationName(name string) error {
 	// For OIDC, this creates a new AppServer whose endpoint is <integrationName>.<proxyURL>, which can fail if integrationName is not a valid DNS Label.
 	// For Roles Anywhere, this creates a AppServers for each Roles Anywhere Profile whose endpoint is <profileName>-<integrationName>.<proxyURL>, which can fail if integrationName is not a valid DNS Label.
 	// Instead of failing when the integration is already created, it fails at creation time.
-	if errs := validation.IsDNS1035Label(name); len(errs) > 0 {
-		return trace.BadParameter("integration name %q must be a lower case valid DNS subdomain so that it can be used to allow Web/CLI access", name)
+	if errs := validation.IsDNS1123Label(name); len(errs) > 0 {
+		return trace.BadParameter("integration name %q must be a valid DNS label (lowercase alphanumeric or '-', must start and end with alphanumeric, max 63 chars) so that it can be used to allow Web/CLI access", name)
 	}
 
 	return nil

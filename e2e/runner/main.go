@@ -21,6 +21,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"log/slog"
@@ -29,6 +30,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"syscall"
 	"time"
 
@@ -207,6 +209,7 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 			log:     newBrowserLogger(browser),
 			e2eDir:  e2eDir,
 			dataDir: filepath.Join(e2eDir, "data", browser),
+			tctlBin: flags.tctlBin,
 		}
 		config.instances = append(config.instances, inst)
 	}
@@ -217,6 +220,7 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 			log:     newBrowserLogger("connect"),
 			e2eDir:  e2eDir,
 			dataDir: filepath.Join(e2eDir, "data", "connect"),
+			tctlBin: flags.tctlBin,
 		}
 	}
 
@@ -305,6 +309,12 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 		}
 		slog.Debug("wrote user credentials", "path", credsPath, "users", len(bootstrap.creds))
 
+		recMappingPath := filepath.Join(e2eDir, ".auth", "recording-mapping.json")
+		if err := writeRecordingMapping(recMappingPath, bootstrap.recordingMapping); err != nil {
+			return fmt.Errorf("failed to write recording mapping: %w", err)
+		}
+		slog.Debug("wrote recording mapping", "path", recMappingPath, "users", len(bootstrap.recordingMapping))
+
 		// One shared state file used by all instances.
 		stateFile, err := generateStateFile(config.stateTemplate, bootstrap.state)
 		if err != nil {
@@ -334,11 +344,12 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 		// Create teleport instances (started lazily by the playwright runner so that at most 2 run concurrently).
 		for _, inst := range allInstances {
 			teleport := &teleportInstance{
-				log:         inst.log,
-				teleportBin: config.teleportBin,
-				proxyPort:   inst.proxyPort,
-				configPath:  inst.teleportConfigPath,
-				stateFile:   stateFile,
+				log:             inst.log,
+				teleportBin:     config.teleportBin,
+				proxyPort:       inst.proxyPort,
+				configPath:      inst.teleportConfigPath,
+				stateFile:       stateFile,
+				recordingOwners: bootstrap.recordingOwners,
 			}
 
 			if config.isCI || config.quiet {
@@ -402,4 +413,34 @@ func run(flags *e2eFlags, mode runMode, e2eDir string, isCI bool) error {
 	}
 
 	return pw.run(ctx, mode)
+}
+
+// applyResources applies all YAML resource files from e2eDir/config/resources/ via tctl create.
+// If the directory does not exist, this is a no-op.
+func applyResources(ctx context.Context, e2eDir, tctlBin, teleportConfig string) error {
+	resourcesDir := filepath.Join(e2eDir, "config", "resources")
+	files, err := filepath.Glob(filepath.Join(resourcesDir, "*.yaml"))
+	if err != nil {
+		return fmt.Errorf("globbing resources: %w", err)
+	}
+
+	if len(files) == 0 {
+		return nil
+	}
+
+	sort.Strings(files)
+
+	for _, f := range files {
+		slog.Info("applying resource", "file", filepath.Base(f))
+		cmd := exec.CommandContext(ctx, tctlBin, "create", "-c", teleportConfig, "-f", f)
+
+		var stderr bytes.Buffer
+		cmd.Stderr = &stderr
+
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("tctl create %s: %w\n%s", filepath.Base(f), err, stderr.String())
+		}
+	}
+
+	return nil
 }

@@ -453,11 +453,28 @@ Commit and push this file to your repository.
 
 ### Run the workflow
 
-In your GitHub repository
+Execute the workflow you created:
+
+<Tabs>
+<TabItem label="Web UI">
+
+In your GitHub repository:
 - Go to the `Actions` tab
 - Select the Teleport workflow on the left
 - Click `Run workflow` on the right
 - Make sure the branch is `main` and click the `Run workflow` confirmation button
+
+</TabItem>
+<TabItem label="CLI">
+
+Execute the following command:
+
+```code
+$ gh workflow run teleport.yaml --ref main
+```
+
+</TabItem>
+</Tabs>
 
 After the workflow completes, you should see the job complete successfully, and the output of the command in the logs.
 

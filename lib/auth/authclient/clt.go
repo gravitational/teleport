@@ -53,6 +53,7 @@ import (
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	recordingmetadatav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
@@ -650,9 +651,16 @@ func (c *Client) NotificationServiceClient() notificationsv1.NotificationService
 	return notificationsv1.NewNotificationServiceClient(c.APIClient.GetConnection())
 }
 
-// MFAClient returns a client for the MFA service.
-func (c *Client) MFAClient() mfav1.MFAServiceClient {
+// MFAServiceClient returns a client for the MFA v1 service.
+//
+// Deprecated: Use MFAServiceClientV2 for new code.
+func (c *Client) MFAServiceClient() mfav1.MFAServiceClient { //nolint:staticcheck // TODO(danielashare): Remove once all clients have migrated to MFAServiceClientV2.
 	return mfav1.NewMFAServiceClient(c.APIClient.GetConnection())
+}
+
+// MFAServiceClientV2 returns a client for the MFA v2 service.
+func (c *Client) MFAServiceClientV2() mfav2.MFAServiceClient {
+	return mfav2.NewMFAServiceClient(c.APIClient.GetConnection())
 }
 
 // DatabaseObjectsClient returns a client for managing the DatabaseObject resource.
@@ -1641,7 +1649,6 @@ type ClientI interface {
 	services.AppAuthConfigSessions
 	types.Events
 	services.ScopedAccessClientGetter
-	services.WorkloadClusterService
 	services.SubCAServiceGetter
 
 	// ListUnifiedInstances returns a paginated list of unified instances (teleport instances and bot instances).
@@ -1908,7 +1915,10 @@ type ClientI interface {
 	StableUNIXUsersClient() stableunixusersv1.StableUNIXUsersServiceClient
 
 	// MFAServiceClient returns a client for the MFA service.
-	MFAServiceClient() mfav1.MFAServiceClient
+	MFAServiceClient() mfav1.MFAServiceClient //nolint:staticcheck // TODO(danielashare): Remove once all clients have migrated to MFAServiceClientV2.
+
+	// MFAServiceClientV2 returns a client for the MFA v2 service.
+	MFAServiceClientV2() mfav2.MFAServiceClient
 
 	// CloneHTTPClient creates a new HTTP client with the same configuration.
 	CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error)
@@ -1977,6 +1987,7 @@ type ClientI interface {
 	// DelegationSessionServiceClient returns a client for the delegation
 	// session service.
 	DelegationSessionServiceClient() delegationv1.DelegationSessionServiceClient
+
 	// SessionSearchServiceClient returns a client for the session search
 	// service.
 	SessionSearchServiceClient() sessionsearchv1pb.SessionSearchServiceClient

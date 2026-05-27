@@ -1475,8 +1475,21 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 		}
 	}
 
-	if len(allowedResourceIDs) > 0 || len(allowedResourceAccessIDs) > 0 {
-		id.AllowedResourceAccessIDs = types.CombineAsResourceAccessIDs(allowedResourceIDs, allowedResourceAccessIDs)
+	if len(allowedResourceAccessIDs) > 0 {
+		// Prefer new extension when present.
+		id.AllowedResourceAccessIDs = allowedResourceAccessIDs
+		// Populate AllowedResourceIDs with any present unconstrained resources,
+		// so any path re-encoding this identity (e.g., database proxy CSR signing)
+		// persists the resourceIDs to the legacy extension, instead of adding a
+		// sentinel.
+		//
+		// TODO(kiosion): DELETE in 20.0.0
+		id.AllowedResourceIDs, _ = types.UnwrapResourceAccessIDs(allowedResourceAccessIDs)
+	} else if len(allowedResourceIDs) > 0 {
+		// Fallback for certs from older Auths that don't write the new extension.
+		id.AllowedResourceAccessIDs = types.CombineAsResourceAccessIDs(allowedResourceIDs, nil)
+		//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v20
+		id.AllowedResourceIDs = allowedResourceIDs
 	}
 
 	if err := id.CheckAndSetDefaults(); err != nil {
@@ -1620,13 +1633,6 @@ func (ca *CertAuthority) GenerateCertificate(req CertificateRequest) ([]byte, er
 		"common_name", req.Subject.CommonName,
 		"issuer_skid", base32.HexEncoding.EncodeToString(ca.Cert.SubjectKeyId),
 	)
-
-	// Go deserializes extra names into Names field, but it uses ExtraNames for serialization,
-	// if we have any then we have to copy them over, or they will get lost during another
-	// serialization in x509.CreateCertificate
-	if len(req.Subject.Names) > 0 {
-		req.Subject.ExtraNames = req.Subject.Names
-	}
 
 	template := &x509.Certificate{
 		SerialNumber: serialNumber,

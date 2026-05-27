@@ -33,6 +33,7 @@ import "teleport/linuxdesktop/v1/linux_desktop.proto";
 import "teleport/machineid/v1/bot_instance.proto";
 import "teleport/machineid/v1/federation.proto";
 import "teleport/mfa/v1/validated_challenge.proto";
+import "teleport/mfa/v2/validated_challenge.proto";
 import "teleport/notifications/v1/notifications.proto";
 import "teleport/presence/v1/relay_server.proto";
 import "teleport/provisioning/v1/provisioning.proto";
@@ -45,7 +46,6 @@ import "teleport/summarizer/v1/summarizer.proto";
 import "teleport/userloginstate/v1/userloginstate.proto";
 import "teleport/userprovisioning/v2/statichostuser.proto";
 import "teleport/usertasks/v1/user_tasks.proto";
-import "teleport/workloadcluster/v1/workloadcluster.proto";
 import "teleport/workloadidentity/v1/resource.proto";
 import "teleport/workloadidentity/v1/revocation_resource.proto";
 
@@ -68,9 +68,11 @@ message Event {
   reserved 49;
   reserved 63;
   reserved 68;
+  reserved 88;
   reserved "ExternalCloudAudit";
   reserved "StaticHostUser";
   reserved "AutoUpdateAgentPlan";
+  reserved "WorkloadCluster";
 
   // Operation identifies operation
   Operation Type = 1;
@@ -245,10 +247,8 @@ message Event {
     teleport.appauthconfig.v1.AppAuthConfig AppAuthConfig = 86;
     // LinuxDesktop is a resource for linux desktop.
     teleport.linuxdesktop.v1.LinuxDesktop LinuxDesktop = 87;
-    // WorkloadCluster is a resource for defining workload clusters.
-    teleport.workloadcluster.v1.WorkloadCluster WorkloadCluster = 88;
     // ValidatedMFAChallenge is a resource for representing a validated MFA challenge.
-    teleport.mfa.v1.ValidatedMFAChallenge ValidatedMFAChallenge = 89;
+    teleport.mfa.v1.ValidatedMFAChallenge ValidatedMFAChallenge = 89 [deprecated = true];
     // CertAuthorityOverride allows admins to override Teleport CA certificates.
     teleport.subca.v1.CertAuthorityOverride CertAuthorityOverride = 90;
     // InferenceModel is a resource for defining inference models.
@@ -261,5 +261,7 @@ message Event {
     teleport.summarizer.v1.RetrievalModel RetrievalModel = 94;
     // Beam is an ephemeral AI-optimized compute environment.
     teleport.beams.v1.Beam Beam = 95;
+    // ValidatedMFAChallengeV2 is a resource for representing a validated MFA challenge.
+    teleport.mfa.v2.ValidatedMFAChallenge ValidatedMFAChallengeV2 = 96;
   }
 }

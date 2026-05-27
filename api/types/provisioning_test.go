@@ -657,6 +657,87 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			desc: "kubernetes: valid service_account_name and service_account_namespace",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodKubernetes,
+					Kubernetes: &ProvisionTokenSpecV2Kubernetes{
+						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
+							{
+								ServiceAccountName:      "my-sa",
+								ServiceAccountNamespace: "my-ns",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "kubernetes: valid service_account, service_account_name, and service_account_namespace",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodKubernetes,
+					Kubernetes: &ProvisionTokenSpecV2Kubernetes{
+						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
+							{
+								ServiceAccount:          "my-ns:my-sa",
+								ServiceAccountName:      "my-sa",
+								ServiceAccountNamespace: "my-ns",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "kubernetes: service_account_name without service_account_namespace",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodKubernetes,
+					Kubernetes: &ProvisionTokenSpecV2Kubernetes{
+						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
+							{
+								ServiceAccountName: "my-sa",
+							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			desc: "kubernetes: service_account_namespace without service_account_name",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodKubernetes,
+					Kubernetes: &ProvisionTokenSpecV2Kubernetes{
+						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
+							{
+								ServiceAccountNamespace: "my-ns",
+							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
 			desc: "kubernetes: oidc must have valid issuer",
 			token: &ProvisionTokenV2{
 				Metadata: Metadata{

@@ -30,7 +30,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v6"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/account"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
@@ -55,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/api/types/usertasks"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 	awsregions "github.com/gravitational/teleport/lib/cloud/aws/regions"
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/cloud/azure"
@@ -180,6 +180,11 @@ type Config struct {
 	// ClusterFeatures returns flags for supported/unsupported features.
 	// Used as a function because cluster features might change on Auth restarts.
 	ClusterFeatures func() proto.Features
+
+	// kubeAgentVersionGetter overrides the proxy-backed kube agent version getter.
+	// It is used by tests that run discovery watchers under synctest, where real
+	// HTTP/DNS calls are not allowed.
+	kubeAgentVersionGetter version.Getter
 
 	// TriggerFetchC is a list of channels that must be notified when a off-band poll must be performed.
 	// This is used to start a polling iteration when a new DiscoveryConfig change is received.
@@ -636,6 +641,7 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 
 	s.ec2Watcher = server.NewWatcher(
 		s.ctx,
+		s.Log.With("cloud", "AWS"),
 		server.WithMissedRotation(s.caRotationCh),
 		server.WithPollInterval[*server.EC2Instances](s.PollInterval),
 		server.WithTriggerFetchC[*server.EC2Instances](s.newDiscoveryConfigChangedSub()),
@@ -1008,6 +1014,7 @@ func (s *Server) initGCPServerWatcher(ctx context.Context, vmMatchers []types.GC
 
 	s.gcpWatcher = server.NewWatcher(
 		s.ctx,
+		s.Log.With("cloud", "GCP"),
 		server.WithPreFetchHookFn[*server.GCPInstances](func(fetchers []server.Fetcher[*server.GCPInstances]) {
 			if len(fetchers) > 0 {
 				s.submitFetchEvent(types.CloudGCP, types.GCPMatcherCompute)
@@ -1119,9 +1126,12 @@ func genEC2InstancesLogStr(instances []server.EC2Instance) string {
 	})
 }
 
-func genAzureInstancesLogStr(instances []*armcompute.VirtualMachine) string {
-	return genInstancesLogStr(instances, func(i *armcompute.VirtualMachine) string {
-		return aws.ToString(i.Name)
+func genAzureInstancesLogStr(instances []*azure.VirtualMachine) string {
+	return genInstancesLogStr(instances, func(i *azure.VirtualMachine) string {
+		if i.UniformScaleSetName != "" {
+			return "vmss:" + i.UniformScaleSetName + "/" + i.Name
+		}
+		return i.Name
 	})
 }
 
@@ -1156,6 +1166,9 @@ func genInstancesLogStr[T any](instances []T, getID func(T) string) string {
 }
 
 func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
+	log := s.Log.With("group", instances)
+	log.DebugContext(s.ctx, "Processing instance group")
+
 	serverInfos, err := instances.ServerInfos()
 	if err != nil {
 		return trace.Wrap(err)
@@ -1197,7 +1210,7 @@ func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
 	}
 
 	if err := s.emitUsageEvents(instances.MakeEvents()); err != nil {
-		s.Log.DebugContext(s.ctx, "Error emitting usage event", "error", err)
+		log.DebugContext(s.ctx, "Error emitting usage event", "error", err)
 	}
 
 	return nil
@@ -1293,7 +1306,10 @@ func (s *Server) handleEC2RemoteInstallation(instances *server.EC2Instances) err
 		return trace.Wrap(err)
 	}
 
-	s.Log.DebugContext(s.ctx, "Running Teleport installation on instances", "account_id", instances.AccountID, "instances", genEC2InstancesLogStr(instances.Instances))
+	s.Log.DebugContext(s.ctx, "Running Teleport installation on instances",
+		"group", instances,
+		"instances", genEC2InstancesLogStr(instances.Instances),
+	)
 
 	req := server.SSMRunRequest{
 		DocumentName:        instances.DocumentName,
@@ -1480,15 +1496,10 @@ func (e *limitedErrorReporter) report(ctx context.Context, result server.AzureIn
 	instance := result.Instance
 	commandResult := result.CommandResult
 
-	var vmID string
-	if instance.Properties != nil {
-		vmID = azure.StringVal(instance.Properties.VMID)
-	}
-
 	if commandResult != nil {
 		e.logger.WarnContext(ctx, "Teleport installation script failed",
-			"vm_id", vmID,
-			"resource_id", azure.StringVal(instance.ID),
+			"vm_id", instance.VMID,
+			"resource_id", instance.ID,
 			"state", commandResult.ExecutionState,
 			"exit_code", commandResult.ExitCode,
 			"stdout", commandResult.StdOut,
@@ -1496,8 +1507,8 @@ func (e *limitedErrorReporter) report(ctx context.Context, result server.AzureIn
 		)
 	} else {
 		e.logger.WarnContext(ctx, "Failed to execute Teleport installation script",
-			"vm_id", vmID,
-			"resource_id", azure.StringVal(instance.ID),
+			"vm_id", instance.VMID,
+			"resource_id", instance.ID,
 			"api_error", result.APIError,
 		)
 	}
@@ -1606,8 +1617,8 @@ func (s *Server) startAzureServerDiscovery() {
 
 	azureWatcher = server.NewWatcher(
 		s.ctx,
+		s.Log.With("cloud", "Azure"),
 		server.WithPreFetchHookFn(func(fetchers []server.Fetcher[*server.AzureInstances]) {
-			s.Log.InfoContext(s.ctx, "Azure VM discovery iteration starting")
 			runStart = s.clock.Now()
 
 			if len(fetchers) > 0 {
@@ -1632,13 +1643,11 @@ func (s *Server) startAzureServerDiscovery() {
 			s.updateDiscoveryConfigStatus(sm.discoveryConfigs()...)
 		}),
 		server.WithPerInstanceHookFn(func(instanceGroups []*server.AzureInstances) {
-			s.Log.DebugContext(s.ctx, "Processing instances", "groups", len(instanceGroups))
 			for _, group := range instanceGroups {
 				fgKey := fetcherGroupKey{
 					discoveryConfigName: group.DiscoveryConfigName,
 					integration:         group.Integration,
 				}
-				s.Log.DebugContext(s.ctx, "Processing instance group", "group", fgKey, "instances", len(group.Instances))
 				results := s.installAzureServers(group, vmTasks)
 				sm.add(fgKey, results)
 			}
@@ -1653,8 +1662,6 @@ func (s *Server) startAzureServerDiscovery() {
 			s.updateDiscoveryConfigStatus(sm.discoveryConfigs()...)
 			// upsert user tasks for failed enrollments.
 			vmTasks.upsertAll(s.taskUpdater())
-
-			s.Log.InfoContext(s.ctx, "Azure VM discovery iteration completed", "elapsed", s.clock.Since(runStart))
 		}),
 		server.WithPollInterval[*server.AzureInstances](s.PollInterval),
 		server.WithTriggerFetchC[*server.AzureInstances](s.newDiscoveryConfigChangedSub()),
@@ -1672,13 +1679,8 @@ func (s *Server) startAzureServerDiscovery() {
 func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *azureVMTasks) (results map[statusType]int) {
 	results = make(map[statusType]int)
 
-	log := s.Log.With(
-		"discovery_config", instances.DiscoveryConfigName,
-		"integration", instances.Integration,
-		"subscription_id", instances.SubscriptionID,
-		"region", instances.Region,
-		"resource_group", instances.ResourceGroup,
-	)
+	log := s.Log.With("group", instances)
+	log.DebugContext(s.ctx, "Processing instance group")
 
 	allFound := len(instances.Instances)
 	results[statusFound] = allFound
@@ -1704,7 +1706,7 @@ func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *
 		return
 	}
 
-	addFailedEnrollment := func(vm *armcompute.VirtualMachine, issueType string) {
+	addFailedEnrollment := func(vm *azure.VirtualMachine, issueType string) {
 		// Static matchers don't have a discovery config resource, so skip creating user tasks
 		// because validation requires a discovery config name.
 		if instances.DiscoveryConfigName == noDiscoveryConfig {
@@ -1723,9 +1725,9 @@ func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *
 				region:         instances.Region,
 			},
 			&usertasksv1.DiscoverAzureVMInstance{
-				VmId:            azure.StringVal(vm.Properties.VMID),
-				ResourceId:      azure.StringVal(vm.ID),
-				Name:            azure.StringVal(vm.Name),
+				VmId:            vm.VMID,
+				ResourceId:      vm.ID,
+				Name:            vm.Name,
 				DiscoveryConfig: instances.DiscoveryConfigName,
 				DiscoveryGroup:  s.DiscoveryGroup,
 				SyncTime:        timestamppb.New(s.clock.Now()),
@@ -1733,7 +1735,7 @@ func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *
 		)
 	}
 
-	log.DebugContext(s.ctx, "Running Teleport installation on virtual machines", "vms", genAzureInstancesLogStr(instances.Instances))
+	log.DebugContext(s.ctx, "Running Teleport installation on virtual machines", "group", instances, "vms", genAzureInstancesLogStr(instances.Instances))
 	failures, err := s.enrollAzureVirtualMachines(log, instances)
 	if err != nil {
 		// treat non-nil err as deployment failure affecting all machines.
@@ -1809,6 +1811,9 @@ outer:
 }
 
 func (s *Server) handleGCPInstances(instances *server.GCPInstances) error {
+	log := s.Log.With("group", instances)
+	log.DebugContext(s.ctx, "Processing instance group")
+
 	client, err := s.gcpClients.GetInstancesClient(s.ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1820,7 +1825,9 @@ func (s *Server) handleGCPInstances(instances *server.GCPInstances) error {
 		return trace.Wrap(errNoInstances)
 	}
 
-	s.Log.DebugContext(s.ctx, "Running Teleport installation on virtual machines", "project_id", instances.ProjectID, "vms", genGCPInstancesLogStr(instances.Instances))
+	log.DebugContext(s.ctx, "Running Teleport installation on virtual machines",
+		"vms", genGCPInstancesLogStr(instances.Instances),
+	)
 	sshKeyAlgo, err := cryptosuites.AlgorithmForKey(s.ctx, cryptosuites.GetCurrentSuiteFromPing(s.AccessPoint), cryptosuites.UserSSH)
 	if err != nil {
 		return trace.Wrap(err, "finding algorithm for SSH key from ping response")
@@ -1838,7 +1845,7 @@ func (s *Server) handleGCPInstances(instances *server.GCPInstances) error {
 		return trace.Wrap(err)
 	}
 	if err := s.emitUsageEvents(instances.MakeEvents()); err != nil {
-		s.Log.DebugContext(s.ctx, "Error emitting usage event", "error", err)
+		log.DebugContext(s.ctx, "Error emitting usage event", "error", err)
 	}
 	return nil
 }
@@ -1852,7 +1859,6 @@ func (s *Server) handleGCPDiscovery() {
 	for {
 		select {
 		case instances := <-s.gcpWatcher.InstancesC:
-			s.Log.DebugContext(s.ctx, "GCP instances discovered, starting installation", "project_id", instances.ProjectID, "instances", genGCPInstancesLogStr(instances.Instances))
 			if err := s.handleGCPInstances(instances); err != nil {
 				if errors.Is(err, errNoInstances) {
 					s.Log.DebugContext(s.ctx, "All discovered GCP VMs are already part of the cluster")
@@ -2022,11 +2028,12 @@ func (s *Server) startDynamicWatcherUpdater(ctx context.Context, dynamicMatcherW
 
 				if dc.GetDiscoveryGroup() != s.DiscoveryGroup {
 					name := dc.GetName()
-					// If the DiscoveryConfig was never part part of this discovery service because the
+					// If the DiscoveryConfig was never part of this discovery service because the
 					// discovery group never matched, then it must be ignored.
 					s.dynamicDiscoveryConfigMu.RLock()
-					if _, ok := s.dynamicDiscoveryConfig[name]; !ok {
-						s.dynamicDiscoveryConfigMu.RUnlock()
+					_, ok := s.dynamicDiscoveryConfig[name]
+					s.dynamicDiscoveryConfigMu.RUnlock()
+					if !ok {
 						continue
 					}
 					// Let's assume there's a DiscoveryConfig DC1 has DiscoveryGroup DG1, which this process is monitoring.

@@ -85,8 +85,8 @@ ifneq ("$(FIPS)","")
 FIPS_TAG := fips
 FIPS_MESSAGE := with-FIPS-support
 RELEASE = teleport-$(GITTAG)-$(OS)-$(ARCH)-fips-bin
-GOEXPERIMENT = boringcrypto
-export GOEXPERIMENT
+GOFIPS140 = v1.0.0
+export GOFIPS140
 ifeq ($(BUILDBOX_MODE),cross)
 # We need to set CGO_ENABLED=0 when building rdpclient as the build of
 # boring-sys builds and runs a Go program as part of its integrity testing.
@@ -438,7 +438,7 @@ $(BUILDDIR)/tbot:
 
 .PHONY: $(BUILDDIR)/teleport-update
 $(BUILDDIR)/teleport-update:
-	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=0 go build -tags "grpcnotrace" -o $(BUILDDIR)/teleport-update $(BUILDFLAGS_TELEPORT_UPDATE) $(TOOLS_LDFLAGS) ./tool/teleport-update
+	GOOS=$(OS) GOARCH=$(ARCH) CGO_ENABLED=0 go build -tags "grpcnotrace $(FIPS_TAG)" -o $(BUILDDIR)/teleport-update $(BUILDFLAGS_TELEPORT_UPDATE) $(TOOLS_LDFLAGS) ./tool/teleport-update
 
 TELEPORT_ARGS ?= start
 .PHONY: teleport-hot-reload
@@ -627,6 +627,10 @@ clean-ui:
 	rm -rf web/packages/teleterm/build
 	find . -type d -name node_modules -prune -exec rm -rf {} \;
 
+.PHONY: clean-ent
+clean-ent:
+	$(MAKE) -C e clean
+
 # RELEASE_DIR is where release artifact files are put, such as tarballs, packages, etc.
 $(RELEASE_DIR):
 	mkdir -p $@
@@ -647,9 +651,7 @@ endif
 
 .PHONY: release-ent
 release-ent:
-ifneq (,$(wildcard e/Makefile))
 	$(MAKE) -C e release
-endif
 
 # These are aliases used to make build commands uniform.
 .PHONY: release-amd64
@@ -1850,6 +1852,18 @@ test-compat:
 
 .PHONY: ensure-webassets
 ensure-webassets:
+# Stage the logo SVGs the Vite build will compress and embed. Runs before the
+# sha check so a change in GITHUB_REPOSITORY_OWNER produces a different web/
+# sha and forces a rebuild.
+ifeq ("$(GITHUB_REPOSITORY_OWNER)","gravitational")
+	@echo "copying teleport logo assets (community)";
+	@cp web/packages/design/src/assets/images/community-light.svg web/packages/teleport/public/app/logo-light.svg
+	@cp web/packages/design/src/assets/images/community-dark.svg  web/packages/teleport/public/app/logo-dark.svg
+else
+	@echo "copying teleport logo assets (agpl)";
+	@cp web/packages/design/src/assets/images/agpl-light.svg web/packages/teleport/public/app/logo-light.svg
+	@cp web/packages/design/src/assets/images/agpl-dark.svg  web/packages/teleport/public/app/logo-dark.svg
+endif
 	@if [[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ]]; then mkdir -p webassets/teleport && mkdir -p webassets/teleport/app && cp web/packages/teleport/index.html webassets/teleport/index.html; \
 	else MAKE="$(MAKE)" "$(MAKE_DIR)/build.assets/build-webassets-if-changed.sh" OSS webassets/oss-sha build-ui web; fi
 
@@ -2022,12 +2036,14 @@ dump-preset-roles:
 	GOOS=$(OS) GOARCH=$(ARCH) $(CGOFLAG) go run ./build.assets/dump-preset-roles/main.go
 	pnpm test web/packages/teleport/src/Roles/RoleEditor/StandardEditor/standardmodel.test.ts
 
+cli-docs: cli-docs-tsh cli-docs-tbot cli-docs-teleport cli-docs-tctl
+
 .PHONY: cli-docs-tsh
 cli-docs-tsh:
 # Executing go build instead of go run since we don't want to redirect
 # irrelevant output along with the docs page content.
 	go build -o $(BUILDDIR)/tshdocs -tags docs ./tool/tsh && \
-	$(BUILDDIR)/tshdocs help 2>docs/pages/reference/cli/tsh.mdx && \
+	$(BUILDDIR)/tshdocs help >docs/pages/reference/cli/tsh.mdx && \
 	rm $(BUILDDIR)/tshdocs
 
 .PHONY: cli-docs-tbot
@@ -2035,7 +2051,7 @@ cli-docs-tbot:
 # Executing go build instead of go run since we don't want to redirect
 # irrelevant output along with the docs page content.
 	go build -o $(BUILDDIR)/tbotdocs -tags docs ./tool/tbot && \
-	$(BUILDDIR)/tbotdocs help 2>docs/pages/reference/cli/tbot.mdx && \
+	$(BUILDDIR)/tbotdocs help >docs/pages/reference/cli/tbot.mdx && \
 	rm $(BUILDDIR)/tbotdocs
 
 .PHONY: cli-docs-teleport
@@ -2043,7 +2059,7 @@ cli-docs-teleport:
 # Executing go build instead of go run since we don't want to redirect
 # irrelevant output along with the docs page content.
 	go build -o $(BUILDDIR)/teleportdocs -tags docs ./tool/teleport && \
-	$(BUILDDIR)/teleportdocs help 2>docs/pages/reference/cli/teleport.mdx && \
+	$(BUILDDIR)/teleportdocs help >docs/pages/reference/cli/teleport.mdx && \
 	rm $(BUILDDIR)/teleportdocs
 
 .PHONY: cli-docs-tctl
@@ -2051,8 +2067,20 @@ cli-docs-tctl:
 # Executing go build instead of go run since we don't want to redirect
 # irrelevant output along with the docs page content.
 	go build -o $(BUILDDIR)/tctldocs -tags docs ./tool/tctl && \
-	$(BUILDDIR)/tctldocs help 2>docs/pages/reference/cli/tctl.mdx && \
+	$(BUILDDIR)/tctldocs help >docs/pages/reference/cli/tctl.mdx && \
 	rm $(BUILDDIR)/tctldocs
+
+# cli-docs-up-to-date checks if the generated CLI reference docs are up to date.
+.PHONY: cli-docs-up-to-date
+cli-docs-up-to-date: must-start-clean/host cli-docs
+	@if ! git diff --quiet -- docs/pages/reference/cli/; then \
+		echo ""; \
+		echo "CLI reference documentation is out of date."; \
+		echo "Please run 'make cli-docs' and commit the changes."; \
+		echo ""; \
+		git diff --stat -- docs/pages/reference/cli/; \
+		exit 1; \
+	fi
 
 # audit-event-reference generates audit event reference docs using the Web UI
 # source.

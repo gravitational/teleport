@@ -271,7 +271,21 @@ message DatabaseV3 {
 
 // DatabaseSpecV3 is the database spec.
 message DatabaseSpecV3 {
-  // Protocol is the database protocol: postgres, mysql, mongodb, etc.
+  // Protocol is the database protocol. Valid options are:
+  // "cassandra"
+  // "clickhouse"
+  // "clickhouse-http"
+  // "cockroachdb"
+  // "dynamodb"
+  // "elasticsearch"
+  // "mongodb"
+  // "mysql"
+  // "oracle"
+  // "postgres"
+  // "redis"
+  // "snowflake"
+  // "spanner"
+  // "sqlserver"
   string Protocol = 1 [(gogoproto.jsontag) = "protocol"];
   // URI is the database connection endpoint.
   string URI = 2 [(gogoproto.jsontag) = "uri"];
@@ -1960,10 +1974,26 @@ message ProvisionTokenSpecV2Kubernetes {
   }
   // Rule is a set of properties the Kubernetes-issued token might have to be
   // allowed to use this ProvisionToken
+  //
+  // Either `service_account` or both `service_account_name` and
+  // `service_account_namespace` must be specified.
   message Rule {
     // ServiceAccount is the namespaced name of the Kubernetes service account.
     // Its format is "namespace:service-account".
     string ServiceAccount = 1 [(gogoproto.jsontag) = "service_account,omitempty"];
+    // ServiceAccountName is the name of the Kubernetes service account.
+    //
+    // This field supports "glob-style" matching:
+    // - Use '*' to match zero or more characters.
+    // - Use '?' to match any single character.
+    string ServiceAccountName = 2 [(gogoproto.jsontag) = "service_account_name,omitempty"];
+    // ServiceAccountNamespace is the namespace of the Kubernetes service
+    // account.
+    //
+    // This field supports "glob-style" matching:
+    // - Use '*' to match zero or more characters.
+    // - Use '?' to match any single character.
+    string ServiceAccountNamespace = 3 [(gogoproto.jsontag) = "service_account_namespace,omitempty"];
   }
   // Allow is a list of Rules, nodes using this token must match one
   // allow rule to use this token.
@@ -3170,7 +3200,7 @@ message AccessRequestDryRunEnrichment {
 
 // AccessReview is a review to be applied to an Access Request.
 message AccessReview {
-  // Author is the teleport username of the review author.
+  // Author is the Teleport username of the review author.
   string Author = 1 [(gogoproto.jsontag) = "author"];
   // Roles is a list used for role-subselection (not yet fully supported).
   repeated string Roles = 2 [(gogoproto.jsontag) = "roles,omitempty"];
@@ -3209,6 +3239,11 @@ message AccessReview {
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "assume_start_time,omitempty"
   ];
+
+  // SubmittedBy is the Teleport plugin identity that submitted this review request
+  // to the Auth Service on behalf of the Author.
+  // Author remains the actual Teleport user that performed the review.
+  string SubmittedBy = 11 [(gogoproto.jsontag) = "submitted_by,omitempty"];
 }
 
 // AccessReviewSubmission encodes the necessary parameters for submitting
@@ -4416,6 +4451,12 @@ message AccessReviewConditions {
   // while they are viewing a Resource Access Request for the purposes of
   // viewing details such as the hostname and labels of requested resources.
   repeated string PreviewAsRoles = 4 [(gogoproto.jsontag) = "preview_as_roles,omitempty"];
+
+  // SubmitForUsers is used by Teleport plugins to indicate
+  // they can submit reviews on behalf of other users.
+  // Reviews submitted for a user are evaluated against that user's own RBAC permissions.
+  // Supports wildcard (*).
+  repeated string SubmitForUsers = 5 [(gogoproto.jsontag) = "submit_for_users,omitempty"];
 }
 
 // AccessRequestAllowedPromotion describes an allowed promotion to an Access List.
@@ -6572,6 +6613,8 @@ message WindowsDesktopFilter {
   string HostID = 1 [(gogoproto.jsontag) = "host_id"];
   // Name is the name of the desktop.
   string Name = 2 [(gogoproto.jsontag) = "name"];
+  // Source filters for desktops coming from a particular source.
+  WindowsDesktopSource Source = 3 [(gogoproto.jsontag) = "source"];
 }
 
 // WindowsDesktopV3 represents a Windows host for desktop access.
@@ -6587,6 +6630,18 @@ message WindowsDesktopV3 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "spec"
   ];
+  WindowsDesktopStatus status = 3 [(gogoproto.jsontag) = "status"];
+}
+
+// WindowsDesktopStatus contains state that is managed by Teleport.
+// It should not be set by users, and is not used in IaC flows.
+message WindowsDesktopStatus {
+  WindowsDesktopSource source = 1;
+}
+
+enum WindowsDesktopSource {
+  WINDOWS_DESKTOP_SOURCE_UNSPECIFIED = 0;
+  WINDOWS_DESKTOP_SOURCE_LDAP = 1;
 }
 
 // WindowsDesktopSpecV3 is the Windows host spec.

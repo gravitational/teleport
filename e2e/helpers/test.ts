@@ -24,6 +24,10 @@ import { canonicalUserKey } from './canonicalKey';
 import { test as base } from './fixtures';
 import type { StorageState } from './login';
 import { PlayerPage } from './pages/Player';
+import { RecordingsPage } from './pages/Recordings';
+import { RolesPage } from './pages/Roles';
+import { SideNavPage } from './pages/SideNav';
+import { TrustedClustersPage } from './pages/TrustedClusters';
 import { UnifiedResourcesPage } from './pages/UnifiedResources';
 import { mockWebAuthn } from './webauthn';
 
@@ -50,27 +54,45 @@ export interface UserTraits {
 export interface UserDefinition {
   roles: UserRole[];
   traits?: UserTraits;
+  recordings?: string[];
   loginAs?: boolean;
 }
 
-const e2eDir = join(dirname(fileURLToPath(import.meta.url)), '..');
+const e2eDir =
+  process.env.E2E_DIR ?? join(dirname(fileURLToPath(import.meta.url)), '..');
 const authDir = join(e2eDir, '.auth');
 
 const tryLoadUserMapping =
   cachedJSONLoader<Record<string, string>>('user-mapping.json');
 
+const tryLoadRecordingMapping = cachedJSONLoader<
+  Record<string, Record<string, string>>
+>('recording-mapping.json');
+
 const defaultUser: UserDefinition = { roles: ['access', 'editor'] };
 
 interface E2EFixtures {
+  recordings: string[];
   user: UserDefinition;
   users: UserDefinition[];
   username: string;
-  loginAs: (index: number) => Promise<string>;
+  loginAs: (index: number) => Promise<LoginAsResult>;
+  recordingIds: Record<string, string>;
   unifiedResourcesPage: UnifiedResourcesPage;
   playerPage: PlayerPage;
+  recordingsPage: RecordingsPage;
+  rolesPage: RolesPage;
+  sideNavPage: SideNavPage;
+  trustedClustersPage: TrustedClustersPage;
+}
+
+export interface LoginAsResult {
+  name: string;
+  recordingIds: Record<string, string>;
 }
 
 export const test = base.extend<E2EFixtures>({
+  recordings: [[], { option: true }],
   user: [undefined as unknown as UserDefinition, { option: true }],
   users: [[], { option: true }],
   username: async ({ user, users }, use, testInfo) => {
@@ -106,7 +128,7 @@ export const test = base.extend<E2EFixtures>({
 
     const browser = testInfo.project.name.split(':')[0];
 
-    await use(async (index: number) => {
+    await use(async (index: number): Promise<LoginAsResult> => {
       const definition = users[index];
       if (!definition) {
         throw new Error(
@@ -155,8 +177,19 @@ export const test = base.extend<E2EFixtures>({
 
       await page.reload();
 
-      return name;
+      const recordingMapping = tryLoadRecordingMapping() ?? {};
+      return { name, recordingIds: recordingMapping[name] ?? {} };
     });
+  },
+  recordingIds: async ({ username }, use) => {
+    if (!username) {
+      throw new Error(
+        'recordingIds requested without a logged-in user — declare user/users (or recordings) in test.use()'
+      );
+    }
+
+    const mapping = tryLoadRecordingMapping() ?? {};
+    await use(mapping[username] ?? {});
   },
   page: async ({ page, username }, use) => {
     if (username) {
@@ -183,9 +216,22 @@ export const test = base.extend<E2EFixtures>({
   playerPage: async ({ page }, use) => {
     await use(new PlayerPage(page));
   },
+  recordingsPage: async ({ page }, use) => {
+    await use(new RecordingsPage(page));
+  },
+  rolesPage: async ({ page }, use) => {
+    await use(new RolesPage(page));
+  },
+  sideNavPage: async ({ page }, use) => {
+    await use(new SideNavPage(page));
+  },
+  trustedClustersPage: async ({ page }, use) => {
+    await use(new TrustedClustersPage(page));
+  },
 });
 
 export { expect } from '@playwright/test';
+export type { Locator, Page } from '@playwright/test';
 
 function pickLoginDefinition(
   user: UserDefinition | undefined,

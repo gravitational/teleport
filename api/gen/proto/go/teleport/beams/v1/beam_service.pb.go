@@ -36,6 +36,118 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// BeamSortField specifies the sort field for listing.
+type BeamSortField int32
+
+const (
+	BeamSortField_BEAM_SORT_FIELD_UNSPECIFIED BeamSortField = 0
+	// BEAM_SORT_FIELD_NAME sorts by metadata.name.
+	BeamSortField_BEAM_SORT_FIELD_NAME BeamSortField = 1
+	// BEAM_SORT_FIELD_ALIAS sorts by spec.alias.
+	BeamSortField_BEAM_SORT_FIELD_ALIAS BeamSortField = 2
+	// BEAM_SORT_FIELD_USER sorts by spec.user and metadata.name.
+	BeamSortField_BEAM_SORT_FIELD_USER BeamSortField = 3
+	// BEAM_SORT_FIELD_EXPIRES sorts by spec.expires and metadata.name.
+	BeamSortField_BEAM_SORT_FIELD_EXPIRES BeamSortField = 4
+)
+
+// Enum value maps for BeamSortField.
+var (
+	BeamSortField_name = map[int32]string{
+		0: "BEAM_SORT_FIELD_UNSPECIFIED",
+		1: "BEAM_SORT_FIELD_NAME",
+		2: "BEAM_SORT_FIELD_ALIAS",
+		3: "BEAM_SORT_FIELD_USER",
+		4: "BEAM_SORT_FIELD_EXPIRES",
+	}
+	BeamSortField_value = map[string]int32{
+		"BEAM_SORT_FIELD_UNSPECIFIED": 0,
+		"BEAM_SORT_FIELD_NAME":        1,
+		"BEAM_SORT_FIELD_ALIAS":       2,
+		"BEAM_SORT_FIELD_USER":        3,
+		"BEAM_SORT_FIELD_EXPIRES":     4,
+	}
+)
+
+func (x BeamSortField) Enum() *BeamSortField {
+	p := new(BeamSortField)
+	*p = x
+	return p
+}
+
+func (x BeamSortField) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (BeamSortField) Descriptor() protoreflect.EnumDescriptor {
+	return file_teleport_beams_v1_beam_service_proto_enumTypes[0].Descriptor()
+}
+
+func (BeamSortField) Type() protoreflect.EnumType {
+	return &file_teleport_beams_v1_beam_service_proto_enumTypes[0]
+}
+
+func (x BeamSortField) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use BeamSortField.Descriptor instead.
+func (BeamSortField) EnumDescriptor() ([]byte, []int) {
+	return file_teleport_beams_v1_beam_service_proto_rawDescGZIP(), []int{0}
+}
+
+// BeamSortOrder specifies the sort order for listing.
+type BeamSortOrder int32
+
+const (
+	BeamSortOrder_BEAM_SORT_ORDER_UNSPECIFIED BeamSortOrder = 0
+	// SORT_ORDER_ASCENDING sorts in ascending order.
+	BeamSortOrder_BEAM_SORT_ORDER_ASCENDING BeamSortOrder = 1
+	// SORT_ORDER_DESCENDING sorts in descending order.
+	BeamSortOrder_BEAM_SORT_ORDER_DESCENDING BeamSortOrder = 2
+)
+
+// Enum value maps for BeamSortOrder.
+var (
+	BeamSortOrder_name = map[int32]string{
+		0: "BEAM_SORT_ORDER_UNSPECIFIED",
+		1: "BEAM_SORT_ORDER_ASCENDING",
+		2: "BEAM_SORT_ORDER_DESCENDING",
+	}
+	BeamSortOrder_value = map[string]int32{
+		"BEAM_SORT_ORDER_UNSPECIFIED": 0,
+		"BEAM_SORT_ORDER_ASCENDING":   1,
+		"BEAM_SORT_ORDER_DESCENDING":  2,
+	}
+)
+
+func (x BeamSortOrder) Enum() *BeamSortOrder {
+	p := new(BeamSortOrder)
+	*p = x
+	return p
+}
+
+func (x BeamSortOrder) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (BeamSortOrder) Descriptor() protoreflect.EnumDescriptor {
+	return file_teleport_beams_v1_beam_service_proto_enumTypes[1].Descriptor()
+}
+
+func (BeamSortOrder) Type() protoreflect.EnumType {
+	return &file_teleport_beams_v1_beam_service_proto_enumTypes[1]
+}
+
+func (x BeamSortOrder) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use BeamSortOrder.Descriptor instead.
+func (BeamSortOrder) EnumDescriptor() ([]byte, []int) {
+	return file_teleport_beams_v1_beam_service_proto_rawDescGZIP(), []int{1}
+}
+
 // CreateBeamRequest contains the parameters to the CreateBeam RPC.
 type CreateBeamRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -417,7 +529,13 @@ type ListBeamsRequest struct {
 	// The next_page_token value returned from a previous List request, if any.
 	PageToken string `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
 	// Filters that will be applied to filter the list of results.
-	Filters       *ListBeamsRequest_Filters `protobuf:"bytes,3,opt,name=filters,proto3" json:"filters,omitempty"`
+	Filters *ListBeamsRequest_Filters `protobuf:"bytes,3,opt,name=filters,proto3" json:"filters,omitempty"`
+	// The sort field to use for the results. If unspecified, the default sort
+	// field is used.
+	SortField BeamSortField `protobuf:"varint,4,opt,name=sort_field,json=sortField,proto3,enum=teleport.beams.v1.BeamSortField" json:"sort_field,omitempty"`
+	// The sort order to use for the results. If unspecified, the default sort
+	// order is used.
+	SortOrder     BeamSortOrder `protobuf:"varint,5,opt,name=sort_order,json=sortOrder,proto3,enum=teleport.beams.v1.BeamSortOrder" json:"sort_order,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -471,6 +589,20 @@ func (x *ListBeamsRequest) GetFilters() *ListBeamsRequest_Filters {
 		return x.Filters
 	}
 	return nil
+}
+
+func (x *ListBeamsRequest) GetSortField() BeamSortField {
+	if x != nil {
+		return x.SortField
+	}
+	return BeamSortField_BEAM_SORT_FIELD_UNSPECIFIED
+}
+
+func (x *ListBeamsRequest) GetSortOrder() BeamSortOrder {
+	if x != nil {
+		return x.SortOrder
+	}
+	return BeamSortOrder_BEAM_SORT_ORDER_UNSPECIFIED
 }
 
 // ListBeamsResponse contains the results of the ListBeams RPC.
@@ -598,17 +730,31 @@ const file_teleport_beams_v1_beam_service_proto_rawDesc = "" +
 	"\x05alias\x18\x02 \x01(\tH\x00R\x05aliasB\x04\n" +
 	"\x02id\">\n" +
 	"\x0fGetBeamResponse\x12+\n" +
-	"\x04beam\x18\x01 \x01(\v2\x17.teleport.beams.v1.BeamR\x04beam\"\xb6\x01\n" +
+	"\x04beam\x18\x01 \x01(\v2\x17.teleport.beams.v1.BeamR\x04beam\"\xb8\x02\n" +
 	"\x10ListBeamsRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
 	"page_token\x18\x02 \x01(\tR\tpageToken\x12E\n" +
-	"\afilters\x18\x03 \x01(\v2+.teleport.beams.v1.ListBeamsRequest.FiltersR\afilters\x1a\x1f\n" +
+	"\afilters\x18\x03 \x01(\v2+.teleport.beams.v1.ListBeamsRequest.FiltersR\afilters\x12?\n" +
+	"\n" +
+	"sort_field\x18\x04 \x01(\x0e2 .teleport.beams.v1.BeamSortFieldR\tsortField\x12?\n" +
+	"\n" +
+	"sort_order\x18\x05 \x01(\x0e2 .teleport.beams.v1.BeamSortOrderR\tsortOrder\x1a\x1f\n" +
 	"\aFilters\x12\x14\n" +
 	"\x05users\x18\x01 \x03(\tR\x05users\"j\n" +
 	"\x11ListBeamsResponse\x12-\n" +
 	"\x05beams\x18\x01 \x03(\v2\x17.teleport.beams.v1.BeamR\x05beams\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken2\xb9\x03\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken*\x9c\x01\n" +
+	"\rBeamSortField\x12\x1f\n" +
+	"\x1bBEAM_SORT_FIELD_UNSPECIFIED\x10\x00\x12\x18\n" +
+	"\x14BEAM_SORT_FIELD_NAME\x10\x01\x12\x19\n" +
+	"\x15BEAM_SORT_FIELD_ALIAS\x10\x02\x12\x18\n" +
+	"\x14BEAM_SORT_FIELD_USER\x10\x03\x12\x1b\n" +
+	"\x17BEAM_SORT_FIELD_EXPIRES\x10\x04*o\n" +
+	"\rBeamSortOrder\x12\x1f\n" +
+	"\x1bBEAM_SORT_ORDER_UNSPECIFIED\x10\x00\x12\x1d\n" +
+	"\x19BEAM_SORT_ORDER_ASCENDING\x10\x01\x12\x1e\n" +
+	"\x1aBEAM_SORT_ORDER_DESCENDING\x10\x022\xb9\x03\n" +
 	"\vBeamService\x12Y\n" +
 	"\n" +
 	"CreateBeam\x12$.teleport.beams.v1.CreateBeamRequest\x1a%.teleport.beams.v1.CreateBeamResponse\x12Y\n" +
@@ -631,45 +777,50 @@ func file_teleport_beams_v1_beam_service_proto_rawDescGZIP() []byte {
 	return file_teleport_beams_v1_beam_service_proto_rawDescData
 }
 
+var file_teleport_beams_v1_beam_service_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_teleport_beams_v1_beam_service_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_teleport_beams_v1_beam_service_proto_goTypes = []any{
-	(*CreateBeamRequest)(nil),        // 0: teleport.beams.v1.CreateBeamRequest
-	(*CreateBeamResponse)(nil),       // 1: teleport.beams.v1.CreateBeamResponse
-	(*UpdateBeamRequest)(nil),        // 2: teleport.beams.v1.UpdateBeamRequest
-	(*UpdateBeamResponse)(nil),       // 3: teleport.beams.v1.UpdateBeamResponse
-	(*DeleteBeamRequest)(nil),        // 4: teleport.beams.v1.DeleteBeamRequest
-	(*GetBeamRequest)(nil),           // 5: teleport.beams.v1.GetBeamRequest
-	(*GetBeamResponse)(nil),          // 6: teleport.beams.v1.GetBeamResponse
-	(*ListBeamsRequest)(nil),         // 7: teleport.beams.v1.ListBeamsRequest
-	(*ListBeamsResponse)(nil),        // 8: teleport.beams.v1.ListBeamsResponse
-	(*ListBeamsRequest_Filters)(nil), // 9: teleport.beams.v1.ListBeamsRequest.Filters
-	(EgressMode)(0),                  // 10: teleport.beams.v1.EgressMode
-	(*Beam)(nil),                     // 11: teleport.beams.v1.Beam
-	(*emptypb.Empty)(nil),            // 12: google.protobuf.Empty
+	(BeamSortField)(0),               // 0: teleport.beams.v1.BeamSortField
+	(BeamSortOrder)(0),               // 1: teleport.beams.v1.BeamSortOrder
+	(*CreateBeamRequest)(nil),        // 2: teleport.beams.v1.CreateBeamRequest
+	(*CreateBeamResponse)(nil),       // 3: teleport.beams.v1.CreateBeamResponse
+	(*UpdateBeamRequest)(nil),        // 4: teleport.beams.v1.UpdateBeamRequest
+	(*UpdateBeamResponse)(nil),       // 5: teleport.beams.v1.UpdateBeamResponse
+	(*DeleteBeamRequest)(nil),        // 6: teleport.beams.v1.DeleteBeamRequest
+	(*GetBeamRequest)(nil),           // 7: teleport.beams.v1.GetBeamRequest
+	(*GetBeamResponse)(nil),          // 8: teleport.beams.v1.GetBeamResponse
+	(*ListBeamsRequest)(nil),         // 9: teleport.beams.v1.ListBeamsRequest
+	(*ListBeamsResponse)(nil),        // 10: teleport.beams.v1.ListBeamsResponse
+	(*ListBeamsRequest_Filters)(nil), // 11: teleport.beams.v1.ListBeamsRequest.Filters
+	(EgressMode)(0),                  // 12: teleport.beams.v1.EgressMode
+	(*Beam)(nil),                     // 13: teleport.beams.v1.Beam
+	(*emptypb.Empty)(nil),            // 14: google.protobuf.Empty
 }
 var file_teleport_beams_v1_beam_service_proto_depIdxs = []int32{
-	10, // 0: teleport.beams.v1.CreateBeamRequest.egress:type_name -> teleport.beams.v1.EgressMode
-	11, // 1: teleport.beams.v1.CreateBeamResponse.beam:type_name -> teleport.beams.v1.Beam
-	11, // 2: teleport.beams.v1.UpdateBeamRequest.beam:type_name -> teleport.beams.v1.Beam
-	11, // 3: teleport.beams.v1.UpdateBeamResponse.beam:type_name -> teleport.beams.v1.Beam
-	11, // 4: teleport.beams.v1.GetBeamResponse.beam:type_name -> teleport.beams.v1.Beam
-	9,  // 5: teleport.beams.v1.ListBeamsRequest.filters:type_name -> teleport.beams.v1.ListBeamsRequest.Filters
-	11, // 6: teleport.beams.v1.ListBeamsResponse.beams:type_name -> teleport.beams.v1.Beam
-	0,  // 7: teleport.beams.v1.BeamService.CreateBeam:input_type -> teleport.beams.v1.CreateBeamRequest
-	2,  // 8: teleport.beams.v1.BeamService.UpdateBeam:input_type -> teleport.beams.v1.UpdateBeamRequest
-	4,  // 9: teleport.beams.v1.BeamService.DeleteBeam:input_type -> teleport.beams.v1.DeleteBeamRequest
-	5,  // 10: teleport.beams.v1.BeamService.GetBeam:input_type -> teleport.beams.v1.GetBeamRequest
-	7,  // 11: teleport.beams.v1.BeamService.ListBeams:input_type -> teleport.beams.v1.ListBeamsRequest
-	1,  // 12: teleport.beams.v1.BeamService.CreateBeam:output_type -> teleport.beams.v1.CreateBeamResponse
-	3,  // 13: teleport.beams.v1.BeamService.UpdateBeam:output_type -> teleport.beams.v1.UpdateBeamResponse
-	12, // 14: teleport.beams.v1.BeamService.DeleteBeam:output_type -> google.protobuf.Empty
-	6,  // 15: teleport.beams.v1.BeamService.GetBeam:output_type -> teleport.beams.v1.GetBeamResponse
-	8,  // 16: teleport.beams.v1.BeamService.ListBeams:output_type -> teleport.beams.v1.ListBeamsResponse
-	12, // [12:17] is the sub-list for method output_type
-	7,  // [7:12] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	12, // 0: teleport.beams.v1.CreateBeamRequest.egress:type_name -> teleport.beams.v1.EgressMode
+	13, // 1: teleport.beams.v1.CreateBeamResponse.beam:type_name -> teleport.beams.v1.Beam
+	13, // 2: teleport.beams.v1.UpdateBeamRequest.beam:type_name -> teleport.beams.v1.Beam
+	13, // 3: teleport.beams.v1.UpdateBeamResponse.beam:type_name -> teleport.beams.v1.Beam
+	13, // 4: teleport.beams.v1.GetBeamResponse.beam:type_name -> teleport.beams.v1.Beam
+	11, // 5: teleport.beams.v1.ListBeamsRequest.filters:type_name -> teleport.beams.v1.ListBeamsRequest.Filters
+	0,  // 6: teleport.beams.v1.ListBeamsRequest.sort_field:type_name -> teleport.beams.v1.BeamSortField
+	1,  // 7: teleport.beams.v1.ListBeamsRequest.sort_order:type_name -> teleport.beams.v1.BeamSortOrder
+	13, // 8: teleport.beams.v1.ListBeamsResponse.beams:type_name -> teleport.beams.v1.Beam
+	2,  // 9: teleport.beams.v1.BeamService.CreateBeam:input_type -> teleport.beams.v1.CreateBeamRequest
+	4,  // 10: teleport.beams.v1.BeamService.UpdateBeam:input_type -> teleport.beams.v1.UpdateBeamRequest
+	6,  // 11: teleport.beams.v1.BeamService.DeleteBeam:input_type -> teleport.beams.v1.DeleteBeamRequest
+	7,  // 12: teleport.beams.v1.BeamService.GetBeam:input_type -> teleport.beams.v1.GetBeamRequest
+	9,  // 13: teleport.beams.v1.BeamService.ListBeams:input_type -> teleport.beams.v1.ListBeamsRequest
+	3,  // 14: teleport.beams.v1.BeamService.CreateBeam:output_type -> teleport.beams.v1.CreateBeamResponse
+	5,  // 15: teleport.beams.v1.BeamService.UpdateBeam:output_type -> teleport.beams.v1.UpdateBeamResponse
+	14, // 16: teleport.beams.v1.BeamService.DeleteBeam:output_type -> google.protobuf.Empty
+	8,  // 17: teleport.beams.v1.BeamService.GetBeam:output_type -> teleport.beams.v1.GetBeamResponse
+	10, // 18: teleport.beams.v1.BeamService.ListBeams:output_type -> teleport.beams.v1.ListBeamsResponse
+	14, // [14:19] is the sub-list for method output_type
+	9,  // [9:14] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_teleport_beams_v1_beam_service_proto_init() }
@@ -687,13 +838,14 @@ func file_teleport_beams_v1_beam_service_proto_init() {
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_beams_v1_beam_service_proto_rawDesc), len(file_teleport_beams_v1_beam_service_proto_rawDesc)),
-			NumEnums:      0,
+			NumEnums:      2,
 			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
 		GoTypes:           file_teleport_beams_v1_beam_service_proto_goTypes,
 		DependencyIndexes: file_teleport_beams_v1_beam_service_proto_depIdxs,
+		EnumInfos:         file_teleport_beams_v1_beam_service_proto_enumTypes,
 		MessageInfos:      file_teleport_beams_v1_beam_service_proto_msgTypes,
 	}.Build()
 	File_teleport_beams_v1_beam_service_proto = out.File
