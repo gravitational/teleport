@@ -1651,6 +1651,7 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 		settingsAWSIdentityCenter         = "aws_ic"
 		settingsNetIQ                     = "net_iq"
 		settingsMsteams                   = "msteams"
+		settingsSCIM                      = "scim"
 	)
 	type unknownPluginType struct {
 		Spec struct {
@@ -1737,6 +1738,8 @@ func (p *pluginResourceWrapper) UnmarshalJSON(data []byte) error {
 			p.PluginV1.Status.Details = &types.PluginStatusV1_NetIq{}
 		case settingsMsteams:
 			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Msteams{}
+		case settingsSCIM:
+			p.PluginV1.Spec.Settings = &types.PluginSpecV1_Scim{}
 
 		default:
 			return trace.BadParameter("unsupported plugin type: %v", k)

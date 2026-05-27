@@ -88,6 +88,7 @@ import (
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
+	tctlplugin "github.com/gravitational/teleport/tool/tctl/common/plugin"
 )
 
 // ResourceCreateHandler is the generic implementation of a resource creation handler
@@ -4324,6 +4325,14 @@ func (rc *ResourceCommand) createPlugin(ctx context.Context, client *authclient.
 	if err := utils.FastUnmarshal(raw.Raw, &item); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// SCIM plugins are installed via tctl create: OAuth credentials are
+	// generated on the fly and the SCIM/OAuth connection details are
+	// printed for the IdP-side configuration.
+	if _, ok := item.PluginV1.Spec.Settings.(*types.PluginSpecV1_Scim); ok {
+		return trace.Wrap(tctlplugin.CreateSCIMPluginFromResource(ctx, client, client.PluginsClient(), &item.PluginV1))
+	}
+
 	if !rc.IsForced() {
 		// Plugin needs to be installed before it can be updated.
 		return trace.BadParameter("Only plugin update operation is supported. Please use 'tctl plugins install' instead\n")

@@ -1,0 +1,10 @@
+kind: plugin
+sub_kind: access
+version: v1
+metadata:
+  name: scim
+spec:
+  scim:
+    connector_info:
+      name: duo
+      type: saml

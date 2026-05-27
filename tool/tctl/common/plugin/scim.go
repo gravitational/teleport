@@ -114,6 +114,46 @@ func (p *PluginsCommand) InstallSCIM(ctx context.Context, args pluginServices) e
 	return nil
 }
 
+// CreateSCIMPluginFromResource installs a SCIM plugin from a parsed
+// PluginV1 resource (typically loaded from YAML via `tctl create`).
+// It generates fresh OAuth credentials, sends a CreatePluginRequest
+// with those credentials attached, and prints the Duo/IdP-side
+// connection info (SCIM base URL, OAuth token URL, client id/secret)
+// to stdout on success.
+//
+// Only OAuth credentials are issued. Callers that need a bearer token
+// should use the `tctl plugins install scim` command directly.
+func CreateSCIMPluginFromResource(ctx context.Context, authClient authClient, plugins pluginsClient, plugin *types.PluginV1) error {
+	if plugin.SubKind == "" {
+		plugin.SubKind = types.PluginSubkindAccess
+	}
+	if plugin.Metadata.Name == "" {
+		plugin.Metadata.Name = types.PluginTypeSCIM
+	}
+	if plugin.Metadata.Labels == nil {
+		plugin.Metadata.Labels = map[string]string{}
+	}
+	plugin.Metadata.Labels["teleport.dev/hosted-plugin"] = "true"
+
+	creds, err := generateSCIMCredentials(oauthAuthType)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if _, err := plugins.CreatePlugin(ctx, &pluginspb.CreatePluginRequest{
+		Plugin:                plugin,
+		StaticCredentialsList: []*types.PluginStaticCredentialsV1{creds.PluginStaticCredentialsV1},
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	pingResp, err := authClient.Ping(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("\nSCIM Plugin Installed Successfully\n")
+	return trace.Wrap(printSCIMIntegrationInfo(creds, pingResp, plugin.Metadata.Name))
+}
+
 func printSCIMIntegrationInfo(creds *credsWrapper, pingResp proto.PingResponse, pluginName string) error {
 	scimBaseURL := fmt.Sprintf("https://%s/v1/webapi/scim/%s", pingResp.GetProxyPublicAddr(), pluginName)
 	fmt.Println(" Base URL:              ", scimBaseURL)
