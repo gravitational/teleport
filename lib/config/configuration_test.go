@@ -203,7 +203,9 @@ func TestSampleConfig(t *testing.T) {
 			require.NotNil(t, sfc)
 
 			fn := filepath.Join(t.TempDir(), "default-config.yaml")
-			err = os.WriteFile(fn, []byte(sfc.DebugDumpToYAML()), 0o660)
+			payload, err := sfc.YAMLString()
+			require.NoError(t, err)
+			err = os.WriteFile(fn, []byte(payload), 0o660)
 			require.NoError(t, err)
 
 			// make sure it could be parsed:
@@ -1850,7 +1852,12 @@ func makeConfigFixture() string {
 		},
 	}
 
-	return conf.DebugDumpToYAML()
+	payload, err := conf.YAMLString()
+	if err != nil {
+		panic(err)
+	}
+
+	return payload
 }
 
 func TestPermitUserEnvironment(t *testing.T) {

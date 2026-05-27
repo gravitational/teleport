@@ -535,12 +535,12 @@ func (a *AppV3) checkTCPPorts() error {
 	}
 
 	switch {
-	// The scheme of URI is enforced to be "tcp" on purpose. This way in the future we can add
+	// The scheme of URI is enforced to be "tcp" (or "tls") on purpose. This way in the future we can add
 	// multi-port support to web apps without throwing hard errors when a cluster with a multi-port
 	// web app gets downgraded to a version which supports multi-port only for TCP apps.
 	//
 	// For now, we simply ignore the Ports field set on non-TCP apps.
-	case uri.Scheme != "tcp":
+	case uri.Scheme != "tcp" && uri.Scheme != SchemeTLS:
 		return nil
 	case a.Spec.MCP != nil:
 		return trace.BadParameter("TCP app %q cannot specify 'mcp' configuration", a.GetName())

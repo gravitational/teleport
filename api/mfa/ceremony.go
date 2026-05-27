@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/client/webclient"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 )
 
 // Ceremony is an MFA ceremony.
@@ -65,10 +66,10 @@ type MFACeremonyConstructor func(ctx context.Context) (CallbackCeremony, error)
 type CreateAuthenticateChallengeFunc func(ctx context.Context, req *proto.CreateAuthenticateChallengeRequest) (*proto.MFAAuthenticateChallenge, error)
 
 // CreateSessionChallengeFunc is a function that creates a session-bound MFA challenge.
-type CreateSessionChallengeFunc func(ctx context.Context, req *mfav1.CreateSessionChallengeRequest, opts ...grpc.CallOption) (*mfav1.CreateSessionChallengeResponse, error)
+type CreateSessionChallengeFunc func(ctx context.Context, req *mfav2.CreateSessionChallengeRequest, opts ...grpc.CallOption) (*mfav2.CreateSessionChallengeResponse, error)
 
 // ValidateSessionChallengeFunc is a function that validates a session-bound MFA challenge.
-type ValidateSessionChallengeFunc func(ctx context.Context, req *mfav1.ValidateSessionChallengeRequest, opts ...grpc.CallOption) (*mfav1.ValidateSessionChallengeResponse, error)
+type ValidateSessionChallengeFunc func(ctx context.Context, req *mfav2.ValidateSessionChallengeRequest, opts ...grpc.CallOption) (*mfav2.ValidateSessionChallengeResponse, error)
 
 // CreateRegisterChallengeFunc is a function that creates an MFA device
 // registration challenge.

@@ -21,6 +21,8 @@ import (
 	"fmt"
 
 	"github.com/gravitational/trace"
+
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 )
 
 // String returns text description of this event
@@ -147,10 +149,10 @@ func (kind WatchKind) Matches(e Event) (bool, error) {
 			var filter HeadlessAuthenticationFilter
 			filter.FromMap(kind.Filter)
 			return filter.Match(res), nil
-		case validatedMFAChallengeResource:
+		case Resource153UnwrapperT[*mfav2.ValidatedMFAChallenge]:
 			var filter ValidatedMFAChallengeFilter
 			filter.FromMap(kind.Filter)
-			return filter.Match(res.GetTargetCluster()), nil
+			return filter.Match(res.UnwrapT().GetSpec().GetTargetCluster()), nil
 
 		default:
 			// we don't know about this filter, let the event through
@@ -217,15 +219,4 @@ type Watcher interface {
 
 	// Error returns error associated with watcher
 	Error() error
-}
-
-// validatedMFAChallengeResource is an interface that validated MFA challenges must implement to be filterable by
-// ValidatedMFAChallengeFilter. This is necessary to avoid an import cycle between the types package and the mfav1
-// package.
-// TODO(cthach): Delete when ValidatedMFAChallenge resource is converted to a full Resource153 implementation and in a
-// separate package that can be imported by both types and mfav1 without creating a cycle.
-type validatedMFAChallengeResource interface {
-	Resource
-
-	GetTargetCluster() string
 }

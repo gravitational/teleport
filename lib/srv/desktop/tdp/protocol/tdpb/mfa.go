@@ -31,6 +31,7 @@ import (
 // with a TDPB client.
 func NewTDPBMFAPrompt(rw tdp.MessageReadWriter, withheld *[]tdp.Message, log *slog.Logger) func(string) mfa.PromptFunc {
 	return func(channelID string) mfa.PromptFunc {
+		//nolint:staticcheck // TODO(rhammonds-teleport): Delete when Desktop has migrated to mfav2.
 		convert := func(challenge *proto.MFAAuthenticateChallenge) (tdp.Message, error) {
 			if challenge == nil {
 				return nil, trace.Errorf("empty MFA challenge")
