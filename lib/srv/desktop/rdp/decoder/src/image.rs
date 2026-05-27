@@ -40,7 +40,13 @@ pub(crate) fn resize_into(
     dst: &mut [u8],
     opts: &ResizeOptions,
 ) -> Result<(), Error> {
-    let needed = (out_w as usize) * (out_h as usize) * 4;
+    let bpp = image.pixel_format().bytes_per_pixel();
+    let pixel_type = match bpp {
+        4 => PixelType::U8x4,
+        _ => return Err(Error::other(format!("unsupported bytes per pixel: {bpp}"))),
+    };
+
+    let needed = (out_w as usize) * (out_h as usize) * usize::from(bpp);
     if dst.len() < needed {
         return Err(Error::other("destination buffer too small"));
     }
@@ -49,7 +55,7 @@ pub(crate) fn resize_into(
         u32::from(image.width()),
         u32::from(image.height()),
         image.data(),
-        PixelType::U8x4,
+        pixel_type,
     )
     .map_err(Error::other)?;
 
@@ -57,7 +63,7 @@ pub(crate) fn resize_into(
         u32::from(out_w),
         u32::from(out_h),
         &mut dst[..needed],
-        PixelType::U8x4,
+        pixel_type,
     )
     .map_err(Error::other)?;
 
