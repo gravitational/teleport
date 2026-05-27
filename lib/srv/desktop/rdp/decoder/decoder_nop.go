@@ -34,7 +34,6 @@ func (d *Decoder) Release()                          {}
 func (d *Decoder) Resize(w, h uint16)                {}
 func (d *Decoder) Process([]byte)                    {}
 func (d *Decoder) Image() *image.RGBA                { return nil }
-func (d *Decoder) Thumbnail(w, h int) *image.RGBA    { return nil }
 func (d *Decoder) CursorState() CursorState          { return CursorState{} }
 func (d *Decoder) CursorBitmap() *CursorBitmapData   { return nil }
 func (d *Decoder) UpdatedRegions() []image.Rectangle { return nil }
