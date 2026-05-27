@@ -763,9 +763,8 @@ func validateCAOverrideAgainstSystemState(
 		}
 		if _, isActive := parsedCA.ActiveKeyHashes[co.PublicKey]; isActive {
 			return trace.BadParameter(
-				"Attempt to delete enabled override %q of active certificate denied. Retry with --force if you are certain.",
-				co.PublicKey,
-			)
+				"Attempt to delete enabled override %q of active certificate denied. Disable the override or retry with --force if you are certain.",
+				co.PublicKey)
 		}
 	}
 
