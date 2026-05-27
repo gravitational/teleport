@@ -20,7 +20,6 @@ package mcp
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -268,11 +267,9 @@ func Test_Server_HandleSession_reject_req_missing_name(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, resp.Error)
 	require.Equal(t, mcp.INVALID_PARAMS, resp.Error.Code)
-	respJSON, err := json.Marshal(resp)
-	require.NoError(t, err)
-	respBody := string(respJSON)
-	require.NotContains(t, respBody, forbiddenToolTextContent)
-	require.Contains(t, respBody, "User does not have permissions")
+	respJSON := testJSONString(t, resp)
+	require.NotContains(t, respJSON, forbiddenToolTextContent)
+	require.Contains(t, respJSON, "User does not have permissions")
 
 	// Verify that when non-canonical capitalized "Name" param is specified the request is
 	// rejected.
@@ -288,13 +285,43 @@ func Test_Server_HandleSession_reject_req_missing_name(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, resp.Error)
 	require.Equal(t, mcp.INVALID_REQUEST, resp.Error.Code)
-	respJSON, err = json.Marshal(resp)
+	respJSON = testJSONString(t, resp)
+	require.NotContains(t, respJSON, forbiddenToolTextContent)
+	require.Contains(t, respJSON, testJSONString(t, errInvalidRequestMissingName.Error()))
+
+	// Verify that when an empty "name" param is specified the request is rejected.
+	emitter.Reset()
+	resp, err = mcpClientTransport.SendRequest(ctx, mcpclienttransport.JSONRPCRequest{
+		JSONRPC: mcp.JSONRPC_VERSION,
+		ID:      mcp.NewRequestId(4),
+		Method:  string(mcp.MethodToolsCall),
+		Params: map[string]any{
+			"name": "",
+		},
+	})
 	require.NoError(t, err)
-	respBody = string(respJSON)
-	require.NotContains(t, respBody, forbiddenToolTextContent)
-	escaped, err := json.Marshal(errInvalidRequestMissingName.Error())
+	require.NotNil(t, resp.Error)
+	require.Equal(t, mcp.INVALID_REQUEST, resp.Error.Code)
+	respJSON = testJSONString(t, resp)
+	require.NotContains(t, respJSON, forbiddenToolTextContent)
+	require.Contains(t, respJSON, testJSONString(t, errInvalidRequestMissingName.Error()))
+
+	// Verify that correct request is properly unauthorized.
+	emitter.Reset()
+	resp, err = mcpClientTransport.SendRequest(ctx, mcpclienttransport.JSONRPCRequest{
+		JSONRPC: mcp.JSONRPC_VERSION,
+		ID:      mcp.NewRequestId(5),
+		Method:  string(mcp.MethodToolsCall),
+		Params: map[string]any{
+			"name": forbiddenTool,
+		},
+	})
 	require.NoError(t, err)
-	require.Contains(t, respBody, string(escaped))
+	require.NotNil(t, resp.Error)
+	require.Equal(t, mcp.INVALID_PARAMS, resp.Error.Code)
+	respJSON = testJSONString(t, resp)
+	require.NotContains(t, respJSON, forbiddenToolTextContent)
+	require.Contains(t, respJSON, "User does not have permissions.")
 }
 
 func Test_handleAuthErrHTTP(t *testing.T) {

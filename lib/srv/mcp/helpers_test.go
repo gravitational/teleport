@@ -496,3 +496,10 @@ func newStreamableMCPServer(t *testing.T, upstream *mcpserver.MCPServer, role ty
 
 	return &emitter, mcpClientTransport
 }
+
+func testJSONString(t *testing.T, v any) string {
+	t.Helper()
+	data, err := json.Marshal(v)
+	require.NoError(t, err)
+	return string(data)
+}
