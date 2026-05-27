@@ -23,7 +23,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"net"
 	"net/http"
 	"net/url"
 	"time"
@@ -80,14 +79,14 @@ func doRequest[T accessGraphResponse](resp T, err error) (T, error) {
 // a non-nil error if the status code indicates failure. It attempts to extract
 // a best-effort message from the response body.
 func checkResponse(statusCode int, body []byte) error {
-	if 200 <= statusCode && statusCode < 400 {
+	if http.StatusOK <= statusCode && statusCode < http.StatusBadRequest {
 		return nil
 	}
 
 	var apiErr apiResponseError
 	if err := json.Unmarshal(body, &apiErr); err == nil && apiErr.Message != "" {
 		apiErr.StatusCode = statusCode
-		return &apiErr
+		return trace.Wrap(&apiErr)
 	}
 
 	// Fall back to trace.ReadError, which handles teleport's standard error envelope
@@ -107,7 +106,7 @@ func newAccessGraphClient(ctx context.Context, proxyAddr string, keyRing *client
 		return nil, trace.Wrap(err, "parsing proxy address %q", proxyAddr)
 	}
 
-	httpClient, err := newAccessGraphHTTPClient(ctx, addr.Addr, keyRing)
+	httpClient, err := newAccessGraphHTTPClient(ctx, addr, keyRing)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -128,8 +127,8 @@ func newAccessGraphClient(ctx context.Context, proxyAddr string, keyRing *client
 	return accessGraphClient, nil
 }
 
-// newAccessGraphHTTPClient returns an http.Client whose transpor presents keyRing's AG cert as mTLS to proxyAddr.
-func newAccessGraphHTTPClient(ctx context.Context, proxyAddr string, keyRing *client.KeyRing) (*http.Client, error) {
+// newAccessGraphHTTPClient returns an http.Client whose transport presents keyRing's AG cert as mTLS to proxyAddr.
+func newAccessGraphHTTPClient(ctx context.Context, proxyAddr *utils.NetAddr, keyRing *client.KeyRing) (*http.Client, error) {
 	if keyRing == nil {
 		return nil, trace.BadParameter("missing key ring")
 	}
@@ -139,12 +138,7 @@ func newAccessGraphHTTPClient(ctx context.Context, proxyAddr string, keyRing *cl
 		return nil, trace.Wrap(err)
 	}
 
-	// SNI follows the resolved proxy host
-	host, _, splitErr := net.SplitHostPort(proxyAddr)
-	if splitErr != nil {
-		host = proxyAddr
-	}
-	baseTLSConfig.ServerName = host
+	baseTLSConfig.ServerName = proxyAddr.Host()
 
 	transport, err := defaults.Transport()
 	if err != nil {
@@ -159,7 +153,6 @@ func newAccessGraphHTTPClient(ctx context.Context, proxyAddr string, keyRing *cl
 
 	slog.DebugContext(ctx, "Created Access Graph HTTP client",
 		"proxy_addr", proxyAddr,
-		"server_name", baseTLSConfig.ServerName,
 	)
 	return httpClient, nil
 }

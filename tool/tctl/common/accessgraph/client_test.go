@@ -27,7 +27,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"strings"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -36,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	accessgraph "github.com/gravitational/teleport/lib/accessgraph/apiclient"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/cert"
 )
 
@@ -53,119 +53,112 @@ func newClientTestKeyRing(t *testing.T, proxyHost string) *client.KeyRing {
 	}
 }
 
-// TestCheckResponse_Success covers the no-error paths.
-func TestCheckResponse_Success(t *testing.T) {
-	t.Parallel()
-	require.NoError(t, checkResponse(200, []byte(`{"items":[]}`)))
-	require.NoError(t, checkResponse(399, nil))
-}
+func TestCheckResponse(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		require.NoError(t, checkResponse(200, []byte(`{"items":[]}`)))
+		require.NoError(t, checkResponse(399, nil))
+	})
 
-// TestCheckResponse_AGBadRequest covers the AG-native error envelope —
-// the only branch we own. Anything else is delegated to [trace.ReadError].
-func TestCheckResponse_AGBadRequest(t *testing.T) {
-	t.Parallel()
+	// The AG-native error envelope is the only branch we own; anything
+	// else delegates to [trace.ReadError].
+	t.Run("AG bad request", func(t *testing.T) {
+		tests := []struct {
+			name        string
+			statusCode  int
+			body        string
+			wantStatus  int
+			wantMessage string
+		}{
+			{
+				name:        "400 with AG BadRequest envelope",
+				statusCode:  400,
+				body:        `{"message": "missing required field 'kind'"}`,
+				wantStatus:  400,
+				wantMessage: "missing required field 'kind'",
+			},
+			{
+				// Constructed body that satisfies both shapes; the AG
+				// envelope must take precedence
+				name:        "AG envelope wins over teleport envelope",
+				statusCode:  400,
+				body:        `{"message": "ag-native", "error": {"message": "teleport-envelope"}}`,
+				wantStatus:  400,
+				wantMessage: "ag-native",
+			},
+		}
 
-	tests := []struct {
-		name        string
-		statusCode  int
-		body        string
-		wantStatus  int
-		wantMessage string
-	}{
-		{
-			name:        "400 with AG BadRequest envelope",
-			statusCode:  400,
-			body:        `{"message": "missing required field 'kind'"}`,
-			wantStatus:  400,
-			wantMessage: "missing required field 'kind'",
-		},
-		{
-			// Constructed body that satisfies both shapes; the AG
-			// envelope must take precedence
-			name:        "AG envelope wins over teleport envelope",
-			statusCode:  400,
-			body:        `{"message": "ag-native", "error": {"message": "teleport-envelope"}}`,
-			wantStatus:  400,
-			wantMessage: "ag-native",
-		},
-	}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				err := checkResponse(tt.statusCode, []byte(tt.body))
+				var agErr *apiResponseError
+				require.ErrorAs(t, err, &agErr, "want *apiResponseError, got %T", err)
+				require.Equal(t, tt.wantStatus, agErr.StatusCode)
+				require.Equal(t, tt.wantMessage, agErr.Message)
+			})
+		}
+	})
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			err := checkResponse(tt.statusCode, []byte(tt.body))
-			var agErr *apiResponseError
-			require.ErrorAs(t, err, &agErr, "want *apiResponseError, got %T", err)
-			require.Equal(t, tt.wantStatus, agErr.StatusCode)
-			require.Equal(t, tt.wantMessage, agErr.Message)
-		})
-	}
-}
+	// Bodies the AG envelope can't claim are passed through to [trace.ReadError].
+	t.Run("delegates to trace.ReadError", func(t *testing.T) {
+		tests := []struct {
+			name       string
+			statusCode int
+			body       string
+			wantCheck  func(error) bool
+		}{
+			{
+				name:       "403 → IsAccessDenied",
+				statusCode: 403,
+				body:       `{"error": {"message": "feature not enabled"}}`,
+				wantCheck:  trace.IsAccessDenied,
+			},
+			{
+				name:       "404 → IsNotFound",
+				statusCode: 404,
+				body:       `{"error": {"message": "no such resource"}}`,
+				wantCheck:  trace.IsNotFound,
+			},
+			{
+				name:       "400 → IsBadParameter",
+				statusCode: 400,
+				body:       `{"error": {"message": "bad input"}}`,
+				wantCheck:  trace.IsBadParameter,
+			},
+			{
+				// JSON that parses but matches neither the AG envelope
+				// (top-level "message") nor the Teleport envelope
+				// ("error.message"). Must delegate to trace.ReadError,
+				// not surface as *apiResponseError with an empty message.
+				name:       "JSON without message or error fields",
+				statusCode: 400,
+				body:       `{"foo":"bar"}`,
+				wantCheck:  trace.IsBadParameter,
+			},
+			{
+				name:       "non-JSON body still returns a non-nil error",
+				statusCode: 502,
+				body:       "upstream connection refused",
+				wantCheck:  func(err error) bool { return err != nil },
+			},
+			{
+				name:       "empty body still returns a non-nil error",
+				statusCode: 418,
+				body:       "",
+				wantCheck:  func(err error) bool { return err != nil },
+			},
+		}
 
-// TestCheckResponse_DelegatesToTraceReadError verifies that bodies the
-// AG envelope can't claim are passed through to [trace.ReadError]
-func TestCheckResponse_DelegatesToTraceReadError(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name       string
-		statusCode int
-		body       string
-		wantCheck  func(error) bool
-	}{
-		{
-			name:       "403 → IsAccessDenied",
-			statusCode: 403,
-			body:       `{"error": {"message": "feature not enabled"}}`,
-			wantCheck:  trace.IsAccessDenied,
-		},
-		{
-			name:       "404 → IsNotFound",
-			statusCode: 404,
-			body:       `{"error": {"message": "no such resource"}}`,
-			wantCheck:  trace.IsNotFound,
-		},
-		{
-			name:       "400 → IsBadParameter",
-			statusCode: 400,
-			body:       `{"error": {"message": "bad input"}}`,
-			wantCheck:  trace.IsBadParameter,
-		},
-		{
-			// JSON that parses but matches neither the AG envelope
-			// (top-level "message") nor the Teleport envelope
-			// ("error.message"). Must delegate to trace.ReadError,
-			// not surface as *apiResponseError with an empty message.
-			name:       "JSON without message or error fields",
-			statusCode: 400,
-			body:       `{"foo":"bar"}`,
-			wantCheck:  trace.IsBadParameter,
-		},
-		{
-			name:       "non-JSON body still returns a non-nil error",
-			statusCode: 502,
-			body:       "upstream connection refused",
-			wantCheck:  func(err error) bool { return err != nil },
-		},
-		{
-			name:       "empty body still returns a non-nil error",
-			statusCode: 418,
-			body:       "",
-			wantCheck:  func(err error) bool { return err != nil },
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			err := checkResponse(tt.statusCode, []byte(tt.body))
-			require.True(t, tt.wantCheck(err), "wantCheck failed for err=%v", err)
-			// And specifically NOT *apiResponseError, which is
-			// reserved for the AG-native envelope.
-			var agErr *apiResponseError
-			require.NotErrorAs(t, err, &agErr, "must not be *apiResponseError, got %v", err)
-		})
-	}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				err := checkResponse(tt.statusCode, []byte(tt.body))
+				require.True(t, tt.wantCheck(err), "wantCheck failed for err=%v", err)
+				// And specifically NOT *apiResponseError, which is
+				// reserved for the AG-native envelope.
+				var agErr *apiResponseError
+				require.NotErrorAs(t, err, &agErr, "must not be *apiResponseError, got %v", err)
+			})
+		}
+	})
 }
 
 // fakeResponse is a minimal accessGraphResponse used to drive doRequest
@@ -179,10 +172,7 @@ func (f fakeResponse) StatusCode() int { return f.statusCode }
 func (f fakeResponse) Bytes() []byte   { return f.body }
 
 func TestDoRequest(t *testing.T) {
-	t.Parallel()
-
 	t.Run("transport error is wrapped, response zeroed", func(t *testing.T) {
-		t.Parallel()
 		want := errors.New("dial tcp: connection refused")
 		got, err := doRequest(fakeResponse{statusCode: 200}, want)
 		require.ErrorIs(t, err, want)
@@ -190,7 +180,6 @@ func TestDoRequest(t *testing.T) {
 	})
 
 	t.Run("HTTP error becomes apiResponseError, response zeroed", func(t *testing.T) {
-		t.Parallel()
 		got, err := doRequest(
 			fakeResponse{statusCode: 500, body: []byte(`{"message":"boom"}`)},
 			nil,
@@ -203,7 +192,6 @@ func TestDoRequest(t *testing.T) {
 	})
 
 	t.Run("success returns the original response unchanged", func(t *testing.T) {
-		t.Parallel()
 		in := fakeResponse{statusCode: 200, body: []byte(`{"items":[]}`)}
 		got, err := doRequest(in, nil)
 		require.NoError(t, err)
@@ -211,11 +199,8 @@ func TestDoRequest(t *testing.T) {
 	})
 }
 
-// TestAccessGraphClient_AgainstMockServer exercises client and helpers using
-// an httptest server.
-func TestAccessGraphClient_AgainstMockServer(t *testing.T) {
-	t.Parallel()
-
+// TestAccessGraphClient exercises client and helpers using an httptest server.
+func TestAccessGraphClient(t *testing.T) {
 	// dialHost and keyringProxyHost differ so SNI propagation can be
 	// distinguished from the keyring's ProxyHost.
 	const (
@@ -290,8 +275,6 @@ func TestAccessGraphClient_AgainstMockServer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-
 			var (
 				gotPath string
 				gotSNI  string
@@ -315,7 +298,8 @@ func TestAccessGraphClient_AgainstMockServer(t *testing.T) {
 			// connection to the loopback listener.
 			_, port, err := net.SplitHostPort(srv.Listener.Addr().String())
 			require.NoError(t, err)
-			dialAddr := net.JoinHostPort(dialHost, port)
+			dialAddr, err := utils.ParseAddr(net.JoinHostPort(dialHost, port))
+			require.NoError(t, err)
 
 			httpClient, err := newAccessGraphHTTPClient(context.Background(), dialAddr, keyRing)
 			require.NoError(t, err)
@@ -331,7 +315,7 @@ func TestAccessGraphClient_AgainstMockServer(t *testing.T) {
 			// Construct the client with the test HTTP client, then do a request to verify the full stack,
 			baseURL := (&url.URL{
 				Scheme: "https",
-				Host:   dialAddr,
+				Host:   dialAddr.Addr,
 				Path:   accessGraphAPIPath,
 			}).String()
 			ag, err := accessgraph.NewClientWithResponses(
@@ -348,55 +332,48 @@ func TestAccessGraphClient_AgainstMockServer(t *testing.T) {
 	}
 }
 
-// TestNewAccessGraphClient_InputValidation covers the cheap up-front
-// guards that don't require a real keyring.
-func TestNewAccessGraphClient_InputValidation(t *testing.T) {
-	t.Parallel()
-
-	t.Run("empty proxy address", func(t *testing.T) {
-		t.Parallel()
-		_, err := newAccessGraphClient(context.Background(), "", &client.KeyRing{})
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "proxy address")
-	})
-
-	t.Run("nil keyring", func(t *testing.T) {
-		t.Parallel()
-		_, err := newAccessGraphClient(context.Background(), "proxy.example.com:443", nil)
-		require.Error(t, err)
-		require.True(t, strings.Contains(err.Error(), "key ring"), "got %v", err)
-	})
-}
-
-// TestNewAccessGraphClient_Success covers the constructor happy path
-// and the proxy-address normalization performed by utils.ParseAddr.
-
-func TestNewAccessGraphClient_Success(t *testing.T) {
-	t.Parallel()
-
-	keyRing := newClientTestKeyRing(t, "proxy.example.com")
-
-	tests := []struct {
-		name      string
-		proxyAddr string
-		wantErr   string // empty → success
-	}{
-		{"bare host", "proxy.example.com", ""},
-		{"host:port", "proxy.example.com:443", ""},
-		{"normalizes scheme", "https://proxy.example.com:443", ""},
-		{"strips trailing path", "https://proxy.example.com/anything", ""},
-		{"unsupported scheme", "ftp://proxy.example.com", "unsupported scheme"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			c, err := newAccessGraphClient(context.Background(), tt.proxyAddr, keyRing)
-			if tt.wantErr != "" {
-				require.ErrorContains(t, err, tt.wantErr)
-				return
-			}
-			require.NoError(t, err)
-			require.NotNil(t, c)
+func TestNewAccessGraphClient(t *testing.T) {
+	// Cheap up-front guards that don't require a real keyring.
+	t.Run("input validation", func(t *testing.T) {
+		t.Run("empty proxy address", func(t *testing.T) {
+			_, err := newAccessGraphClient(context.Background(), "", &client.KeyRing{})
+			require.Error(t, err)
+			require.Contains(t, err.Error(), "proxy address")
 		})
-	}
+
+		t.Run("nil keyring", func(t *testing.T) {
+			_, err := newAccessGraphClient(context.Background(), "proxy.example.com:443", nil)
+			require.Error(t, err)
+			require.Contains(t, err.Error(), "key ring", "got %v", err)
+		})
+	})
+
+	// Constructor happy path and the proxy-address normalization
+	// performed by utils.ParseAddr.
+	t.Run("success", func(t *testing.T) {
+		keyRing := newClientTestKeyRing(t, "proxy.example.com")
+
+		tests := []struct {
+			name      string
+			proxyAddr string
+			wantErr   string // empty → success
+		}{
+			{"bare host", "proxy.example.com", ""},
+			{"host:port", "proxy.example.com:443", ""},
+			{"normalizes scheme", "https://proxy.example.com:443", ""},
+			{"strips trailing path", "https://proxy.example.com/anything", ""},
+			{"unsupported scheme", "ftp://proxy.example.com", "unsupported scheme"},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				c, err := newAccessGraphClient(context.Background(), tt.proxyAddr, keyRing)
+				if tt.wantErr != "" {
+					require.ErrorContains(t, err, tt.wantErr)
+					return
+				}
+				require.NoError(t, err)
+				require.NotNil(t, c)
+			})
+		}
+	})
 }
