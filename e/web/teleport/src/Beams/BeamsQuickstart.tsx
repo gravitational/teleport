@@ -184,10 +184,10 @@ Run the install command for your OS:
 
 **macOS**
 
-Download the signed macOS .pkg installer for Teleport, which includes \`tsh\`. In Finder double-click the pkg file to begin installation:
+Download the signed macOS .pkg installer for Teleport CLI Client Tools, which includes \`tsh\`. In Finder double-click the pkg file to begin installation:
 
 \`\`\`
-curl -O https://cdn.teleport.dev/teleport-:cluster_version.pkg
+curl -O https://cdn.teleport.dev/teleport-tools-:cluster_version.pkg
 \`\`\`
 
 **Windows**
