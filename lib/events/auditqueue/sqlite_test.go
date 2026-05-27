@@ -66,7 +66,7 @@ func histogramSampleCount(t *testing.T, h prometheus.Histogram) uint64 {
 
 func TestEnqueueDequeue_FIFO(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	q := newSqliteTestQueue(t)
 
 	for i := int64(0); i < 3; i++ {
@@ -84,7 +84,7 @@ func TestEnqueueDequeue_FIFO(t *testing.T) {
 
 func TestDequeue_RespectsLimit(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	q := newSqliteTestQueue(t)
 
 	for i := int64(0); i < 5; i++ {
@@ -124,7 +124,7 @@ func TestDequeue_QueueClosed(t *testing.T) {
 
 func TestDequeue_WithoutAckRetainsEvents(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	q := newSqliteTestQueue(t)
 
 	require.NoError(t, q.Enqueue(ctx, newTestEvent(42)))
@@ -148,7 +148,7 @@ func TestDequeue_WithoutAckRetainsEvents(t *testing.T) {
 
 func TestRun_DeliversAndAcks(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	q := newSqliteTestQueue(t)
 
 	for i := int64(0); i < 3; i++ {
@@ -188,7 +188,7 @@ func TestRun_DeliversAndAcks(t *testing.T) {
 
 func TestRun_HandlerSubsetIsAcked(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	q := newSqliteTestQueue(t)
 
 	for i := int64(0); i < 3; i++ {
@@ -251,7 +251,7 @@ func TestNewSQLiteQueue_RequiresPath(t *testing.T) {
 
 func TestEnqueue_ConcurrentCallersAllSucceed(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	q := newSqliteTestQueue(t)
 
 	const N = 100
@@ -278,7 +278,7 @@ func TestEnqueue_ConcurrentCallersAllSucceed(t *testing.T) {
 
 func TestEnqueue_FIFOWithinSingleProducer(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	q := newSqliteTestQueue(t)
 
 	const G = 10
@@ -317,7 +317,7 @@ func TestEnqueue_FIFOWithinSingleProducer(t *testing.T) {
 
 func TestEnqueue_VisibleImmediatelyAfterReturn(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	q := newSqliteTestQueue(t)
 
 	require.NoError(t, q.Enqueue(ctx, newTestEvent(42)))
@@ -341,7 +341,7 @@ func TestClose_PendingEnqueuesReturn(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_ = q.Enqueue(context.Background(), newTestEvent(int64(i)))
+			_ = q.Enqueue(t.Context(), newTestEvent(int64(i)))
 		}()
 	}
 
@@ -361,7 +361,7 @@ func TestClose_PendingEnqueuesReturn(t *testing.T) {
 
 func TestBatchSizeMetricRecorded(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	q := newSqliteTestQueue(t)
 
 	before := histogramSampleCount(t, batchSize)
@@ -386,7 +386,7 @@ func TestTeleportInfoTable(t *testing.T) {
 
 func TestAboveSoftLimit_TripsAndUntrips(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	q, err := newSQLiteQueue(Config{
 		Path:      filepath.Join(t.TempDir(), "queue"),
@@ -412,7 +412,7 @@ func TestAboveSoftLimit_TripsAndUntrips(t *testing.T) {
 
 func TestEnqueue_FullReturnsErrQueueFull(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	q, err := newSQLiteQueue(Config{
 		Path:     filepath.Join(t.TempDir(), "queue"),
@@ -436,7 +436,7 @@ func TestEnqueue_FullReturnsErrQueueFull(t *testing.T) {
 func TestOrphanAdoption_DrainsAndDeletes(t *testing.T) {
 	t.Parallel()
 	parent := t.TempDir()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	a := newQueueAt(t, filepath.Join(parent, "a"), time.Hour)
 	for i := int64(0); i < 5; i++ {
@@ -482,7 +482,7 @@ func TestOrphanAdoption_DrainsAndDeletes(t *testing.T) {
 func TestOrphanAdoption_SkipsLockedQueue(t *testing.T) {
 	t.Parallel()
 	parent := t.TempDir()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	a := newQueueAt(t, filepath.Join(parent, "a"), time.Hour)
 	t.Cleanup(func() { _ = a.Close() })
@@ -524,7 +524,7 @@ func TestOrphanAdoption_SkipsTmpSuffix(t *testing.T) {
 	b := newQueueAt(t, filepath.Join(parent, "b"), 50*time.Millisecond)
 	t.Cleanup(func() { _ = b.Close() })
 
-	runCtx, cancel := context.WithCancel(context.Background())
+	runCtx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	handler := func(_ context.Context, items []Item) []Item { return items }
@@ -552,7 +552,7 @@ func TestOrphanAdoption_StaleTmpSwept(t *testing.T) {
 	b := newQueueAt(t, filepath.Join(parent, "b"), 50*time.Millisecond)
 	t.Cleanup(func() { _ = b.Close() })
 
-	runCtx, cancel := context.WithCancel(context.Background())
+	runCtx, cancel := context.WithCancel(t.Context())
 	t.Cleanup(cancel)
 
 	handler := func(_ context.Context, items []Item) []Item { return items }
@@ -570,7 +570,7 @@ func TestOrphanAdoption_StaleTmpSwept(t *testing.T) {
 
 func TestAckDB_DeletesOnlyAckedItems(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	q := newSqliteTestQueue(t)
 
 	for i := int64(0); i < 5; i++ {

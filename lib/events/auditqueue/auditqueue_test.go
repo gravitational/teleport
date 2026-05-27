@@ -106,7 +106,7 @@ func TestRun_RejectsConcurrentRun(t *testing.T) {
 			t.Parallel()
 			q := newTestQueue(t, kind)
 
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			t.Cleanup(cancel)
 
 			require.NoError(t, q.Enqueue(ctx, newTestEvent(0)))
@@ -145,7 +145,7 @@ func TestEnqueue_CanceledContext(t *testing.T) {
 		t.Run(string(kind), func(t *testing.T) {
 			t.Parallel()
 			q := newTestQueue(t, kind)
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			cancel()
 			require.NoError(t, q.Enqueue(ctx, newTestEvent(0)))
 		})
@@ -162,7 +162,7 @@ func TestEnqueue_AfterClose(t *testing.T) {
 			q, err := New(kind, Config{Path: path})
 			require.NoError(t, err)
 			require.NoError(t, q.Close())
-			require.ErrorIs(t, q.Enqueue(context.Background(), newTestEvent(0)), ErrClosed)
+			require.ErrorIs(t, q.Enqueue(t.Context(), newTestEvent(0)), ErrClosed)
 		})
 	}
 }
@@ -214,7 +214,7 @@ func TestRun_AcksDeliveredEvents(t *testing.T) {
 	for _, kind := range allKinds {
 		t.Run(string(kind), func(t *testing.T) {
 			t.Parallel()
-			ctx := context.Background()
+			ctx := t.Context()
 			q := newTestQueue(t, kind)
 
 			require.NoError(t, q.Enqueue(ctx, newTestEvent(0)))
@@ -252,7 +252,7 @@ func TestRun_NormalOperation(t *testing.T) {
 	for _, kind := range allKinds {
 		t.Run(string(kind), func(t *testing.T) {
 			t.Parallel()
-			ctx := context.Background()
+			ctx := t.Context()
 			q := newTestQueue(t, kind)
 
 			runCtx, cancel := context.WithCancel(ctx)
@@ -316,7 +316,7 @@ func TestRun_StopsCleanlyOnContextCancel(t *testing.T) {
 			t.Parallel()
 			q := newTestQueue(t, kind)
 
-			ctx, cancel := context.WithCancel(context.Background())
+			ctx, cancel := context.WithCancel(t.Context())
 			runErr := make(chan error, 1)
 			go func() {
 				runErr <- q.Run(ctx, func(_ context.Context, items []Item) []Item {
