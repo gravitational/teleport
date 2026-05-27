@@ -103,11 +103,11 @@ func (s *RDPState) Image() *image.RGBA {
 }
 
 // ResizeCrop returns the source crop region of the current screen image scaled to exactly outWidth x outHeight using
-// high-quality CatmullRom convolution. The crop must lie within the current frame bounds. Returns nil if the decoder
-// has not been initialized.
-func (s *RDPState) ResizeCrop(cropX, cropY, cropW, cropH, outWidth, outHeight uint16) *image.RGBA {
+// high-quality CatmullRom convolution. The crop must lie within the current frame bounds. Returns an error if the
+// decoder has not been initialized or the resize fails.
+func (s *RDPState) ResizeCrop(cropX, cropY, cropW, cropH, outWidth, outHeight uint16) (*image.RGBA, error) {
 	if s.decoder == nil {
-		return nil
+		return nil, trace.BadParameter("rdp state has no image")
 	}
 
 	return s.decoder.ResizeCrop(cropX, cropY, cropW, cropH, outWidth, outHeight)

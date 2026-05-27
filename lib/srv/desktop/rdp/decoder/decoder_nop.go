@@ -39,8 +39,8 @@ func (d *Decoder) CursorBitmap() *CursorBitmapData   { return nil }
 func (d *Decoder) UpdatedRegions() []image.Rectangle { return nil }
 func (d *Decoder) ResetUpdatedRegions()              {}
 
-func (d *Decoder) ResizeCrop(cropX, cropY, cropW, cropH, outW, outH uint16) *image.RGBA {
-	return nil
+func (d *Decoder) ResizeCrop(cropX, cropY, cropW, cropH, outW, outH uint16) (*image.RGBA, error) {
+	return nil, trace.NotImplemented("the RDP decoder is not included in this build")
 }
-func (d *Decoder) Dimensions() (uint16, uint16)        { return 0, 0 }
+func (d *Decoder) Dimensions() (uint16, uint16)         { return 0, 0 }
 func (d *Decoder) SampleHash(sampleCount uint16) uint64 { return 0 }
