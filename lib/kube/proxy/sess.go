@@ -1577,16 +1577,24 @@ func (s *session) retrieveEphemeralContainerCommand(ctx context.Context, usernam
 			s.log.WithError(err).Warn("Failed to create encoder and decoder")
 			return nil
 		}
-		pod, _, err := s.forwarder.mergeEphemeralPatchWithCurrentPod(
+		currentPod, err := s.forwarder.getPodForEphemeralPatch(
 			ctx,
+			&s.ctx,
+			s.req.Header,
+			s.podNamespace,
+			s.podName,
+		)
+		if err != nil {
+			s.log.WarnContext(ctx, "Failed to get pod for ephemeral patch", "error", err)
+			return nil
+		}
+		pod, _, err := s.forwarder.mergeEphemeralPatchWithCurrentPod(
+			currentPod,
 			mergeEphemeralPatchWithCurrentPodConfig{
-				kubeCluster:   s.ctx.kubeClusterName,
-				kubeNamespace: s.podNamespace,
-				podName:       s.podName,
-				decoder:       decoder,
-				encoder:       encoder,
-				podPatch:      container.GetSpec().Patch,
-				patchType:     apimachinerytypes.PatchType(container.GetSpec().PatchType),
+				decoder:   decoder,
+				encoder:   encoder,
+				podPatch:  container.GetSpec().GetPatch(),
+				patchType: apimachinerytypes.PatchType(container.GetSpec().GetPatchType()),
 			},
 		)
 		if err != nil {
