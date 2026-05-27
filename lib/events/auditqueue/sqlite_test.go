@@ -503,8 +503,6 @@ func TestOrphanAdoption_SkipsLockedQueue(t *testing.T) {
 	runErr := make(chan error, 1)
 	go func() { runErr <- b.Run(runCtx, handler) }()
 
-	time.Sleep(300 * time.Millisecond)
-
 	_, err := os.Stat(filepath.Join(parent, "a"))
 	require.NoError(t, err, "A's directory should still exist while A holds its flock")
 	require.Equal(t, int32(0), atomic.LoadInt32(&got),
@@ -530,8 +528,6 @@ func TestOrphanAdoption_SkipsTmpSuffix(t *testing.T) {
 	handler := func(_ context.Context, items []Item) []Item { return items }
 	runErr := make(chan error, 1)
 	go func() { runErr <- b.Run(runCtx, handler) }()
-
-	time.Sleep(300 * time.Millisecond)
 
 	_, err := os.Stat(garbagePath)
 	require.NoError(t, err, "recent .tmp/ directory should not be adopted or swept")
