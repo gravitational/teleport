@@ -197,6 +197,15 @@ jobs:
           version: ${{ env.GOLANGCI_LINT_VERSION }}
           working-directory: integrations/event-handler
           skip-cache: true
+      - name: golangci-lint (e2e)
+        uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9.2.0
+        with:
+          # Disable verify as it downloads a json schema from an external CDN.
+          # If the config is not valid, golangci-lint will fail.
+          verify: false
+          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          working-directory: e2e
+          skip-cache: true
 
       - name: Run (non-action) linters
         run: make lint-no-actions
