@@ -68,10 +68,6 @@ func TestWorkloadIdentityService_SignX509SVIDs(t *testing.T) {
 			SPIFFE: []*types.SPIFFERoleCondition{
 				{
 					Path:    "/alpha/forbidden",
-					DNSSANs: []string{"*"},
-					IPSANs: []string{
-						"0.0.0.0/0",
-					},
 				},
 			},
 		},
