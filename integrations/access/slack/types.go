@@ -24,6 +24,14 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// Slack API: Socket Mode constants
+
+const (
+	SocketModeEventTypeHello       = "hello"
+	SocketModeEventTypeDisconnect  = "disconnect"
+	SocketModeEventTypeInteractive = "interactive"
+)
+
 // Slack API types
 
 type APIResponse struct {
@@ -70,6 +78,92 @@ type AccessResponse struct {
 	AccessToken      string `json:"access_token"`
 	RefreshToken     string `json:"refresh_token"`
 	ExpiresInSeconds int    `json:"expires_in"`
+}
+
+// Slack API: Socket Mode (interactivity)
+
+type SocketModeAckResponse struct {
+	EnvelopeID string          `json:"envelope_id"`
+	Payload    json.RawMessage `json:"payload,omitempty"`
+}
+
+type SocketModeEvent struct {
+	Type      string          `json:"type"`
+	DebugInfo json.RawMessage `json:"debug_info,omitempty"`
+
+	// `hello` type
+	NumConnections int             `json:"num_connections"`
+	ConnectionInfo json.RawMessage `json:"connection_info"`
+
+	// `disconnect` type
+	Reason string `json:"reason"`
+
+	// `interactive` type
+	EnvelopeID             string          `json:"envelope_id"`
+	AcceptsResponsePayload bool            `json:"accepts_response_payload"`
+	Payload                json.RawMessage `json:"payload"`
+	RetryAttempt           int             `json:"retry_attempt"`
+	RetryReason            string          `json:"retry_reason"`
+}
+
+type InteractionEventType string
+
+type InteractionEvent interface {
+	Type() InteractionEventType
+}
+
+func UnmarshalInteractionEvent(data []byte) (InteractionEvent, error) {
+	var interactionType struct {
+		Type InteractionEventType `json:"type"`
+	}
+	if err := json.Unmarshal(data, &interactionType); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var interaction InteractionEvent
+	var err error
+	switch interactionType.Type {
+	case BlockActionsEvent{}.Type():
+		var val BlockActionsEvent
+		err = trace.Wrap(json.Unmarshal(data, &val))
+		interaction = val
+	default:
+		err = trace.BadParameter("unsupported interaction event type %q", interactionType.Type)
+	}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return interaction, nil
+}
+
+type BlockActionsEvent struct {
+	User          User            `json:"user"`
+	Team          json.RawMessage `json:"team"`
+	TriggerID     string          `json:"trigger_id"`
+	Container     json.RawMessage `json:"container"`
+	APIAppID      string          `json:"api_app_id"`
+	Actions       []Action        `json:"actions"`
+	Interactivity json.RawMessage `json:"interactivity"`
+	Channel       Channel         `json:"channel,omitempty"`
+	Message       Message         `json:"message,omitempty"`
+}
+
+func (p BlockActionsEvent) Type() InteractionEventType {
+	return InteractionEventType("block_actions")
+}
+
+type Action struct {
+	Type      string         `json:"type"`
+	ID        string         `json:"action_id"`
+	Timestamp string         `json:"action_ts"`
+	BlockID   string         `json:"block_id"`
+	Text      TextObjectItem `json:"text"`
+	Value     string         `json:"value"`
+}
+
+type Channel struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
 // Slack API: blocks
