@@ -478,8 +478,8 @@ the cluster name](
 https://github.com/gravitational/teleport/blob/d7b212d617003992fab4420f87fbdb0b63c761cb/lib/tlsca/parsegen.go#L41-L47).
 
 If customization of the O= field is desired then cluster name is recorded using
-OID "1.3.9999.4.1". If any Subject customization is at play then the system
-favors the alternate OID to the O= field.
+OID "1.3.9999.4.1". In other situations "O=" is preferred to carry the cluster
+name, as it's more friendly to downstream systems that reject unknown OIDs.
 
 Managed Subjects may have, at the system's discretion, the certificate serial
 number added to their Subject. Customized Subjects are not changed in this
