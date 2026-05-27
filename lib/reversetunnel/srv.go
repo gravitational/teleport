@@ -1366,7 +1366,7 @@ func newLeafCluster(srv *server, domainName string, sconn ssh.Conn) (*leafCluste
 	validatedMFAChallengeWatcher, err := NewValidatedMFAChallengeWatcher(
 		closeContext,
 		ValidatedMFAChallengeWatcherConfig{
-			ValidatedMFAChallengeLister: leaf.localClient.MFAServiceClient(),
+			ValidatedMFAChallengeLister: leaf.localClient.MFAServiceClientV2(),
 			ClusterName:                 leaf.GetName(),
 			ResourceWatcherConfig: &services.ResourceWatcherConfig{
 				Clock:     srv.Clock,
