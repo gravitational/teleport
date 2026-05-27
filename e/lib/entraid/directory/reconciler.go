@@ -268,10 +268,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, syncMode mdmsync.SyncMode) (
 	if err != nil {
 		return result, trace.Wrap(err)
 	}
+
 	r.logger.DebugContext(ctx,
 		"Finished listing Entra ID users",
 		"sync_mode", syncMode,
 		"took", r.clock.Since(start),
+		"limit", r.graphClient.graphClientLimit,
 	)
 
 	start = r.clock.Now()

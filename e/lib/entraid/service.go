@@ -343,14 +343,37 @@ func (s *Service) runAccessGraphSync(ctx context.Context) error {
 }
 
 // maybeResetSyncSchedule processes reconciler error and may reset
-// the sync schedule based on the known error types.
+// the sync schedule based on the known error types. In case of throttled
+// error, it downgrades Graph client's goroutine limit to reduce parallel API
+// calls to Graph API.
 func (s *Service) maybeResetSyncSchedule(ctx context.Context, err error, syncMode mdmsync.SyncMode) {
 	if err == nil {
 		return
 	}
+	// Delay with DefaultFullSyncInterval as a recovery backoff.
+	// It also resembles older full sync interval.
+	delayInterval := DefaultFullSyncInterval
+
+	retryAfter, isThrottled := directory.IsErrGraphAPIThrottled(err)
+
 	switch {
 	case isErrDeltaSetup(err) || isErrDeltaAPI(err):
 		s.log.DebugContext(ctx, "Failed to complete delta sync, next sync will be a full sync", "sync_mode", syncMode)
+	case isThrottled:
+		// If this was a delta sync (highly unlikely) sync, and
+		// the next sync is also a delta sync, resetting to force full
+		// sync may seem counter productive. But in this case, Teleport
+		// may have partial data which is better corrected with a full sync.
+
+		// RetryAfter is not guaranteed to be populated.
+		// If present, expect it to be greater than DefaultFullSyncInterval
+		// because the graph client already retries five times before
+		// returning this error. DefaultFullSyncInterval as minimum ensures
+		// extra delay cushion.
+		if retryAfter > DefaultFullSyncInterval {
+			delayInterval = retryAfter
+		}
+		s.log.DebugContext(ctx, "Graph API requests are being throttled, next sync will be a full sync", "sync_mode", syncMode)
 	case s.deltaSyncEnabled && syncMode == mdmsync.SyncModeFull:
 		// If delta sync is enabled but the full sync fails, delta
 		// sync can either entirely fail or proceed with incomplete
@@ -360,9 +383,7 @@ func (s *Service) maybeResetSyncSchedule(ctx context.Context, err error, syncMod
 		return
 	}
 
-	// Delay with DefaultFullSyncInterval as a recovery backoff.
-	// It also resembles older full sync interval.
-	delayFn := func() time.Duration { return DefaultFullSyncInterval }
+	delayFn := func() time.Duration { return delayInterval }
 	if err := s.syncIntervals.Reset(delayFn); err != nil {
 		s.log.ErrorContext(ctx, "Failed to reset Entra ID sync schedule", "error", err)
 	}

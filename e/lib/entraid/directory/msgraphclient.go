@@ -73,15 +73,17 @@ func (s *deltaStore) Clear(endpoint string) {
 // graphClient is the graph client used by the directory reconciler.
 type graphClient struct {
 	GraphClient
-	deltaStore msgraph.DeltaStore
-	log        *slog.Logger
+	deltaStore       msgraph.DeltaStore
+	graphClientLimit graphClientLimit
+	log              *slog.Logger
 }
 
 func newGraphClient(client GraphClient, log *slog.Logger, deltaStore msgraph.DeltaStore) *graphClient {
 	return &graphClient{
-		GraphClient: client,
-		deltaStore:  deltaStore,
-		log:         log,
+		GraphClient:      client,
+		deltaStore:       deltaStore,
+		graphClientLimit: limitHigh, // start with full limit.
+		log:              log,
 	}
 }
 
@@ -159,7 +161,38 @@ func (c *graphClient) listEntraGroupOwners(
 	return owners, nil
 }
 
-func (c *graphClient) listEntraGroupsMembers(ctx context.Context, groups groupsByID) (groupMembersByGroupID, error) {
+func (c *graphClient) listEntraGroupsMembers(
+	ctx context.Context,
+	groups groupsByID,
+) (groupMembersByGroupID, error) {
+
+	members, err := fetchGroupMembers(ctx, groups, c)
+	if err != nil {
+		// RetryAfter duration swallowed below, which will
+		// be separately handled by the Entra ID service.
+		if _, throttled := IsErrGraphAPIThrottled(err); throttled {
+			// Next sync will run on limitLow.
+			c.graphClientLimit = limitLow
+		}
+		return nil, trace.Wrap(err)
+	}
+
+	// Upgrade goroutine limit.
+	// There isn't any explicit cooldown period tracked here before upgrading because:
+	// - The next sync happens after x interval (baked-in cooldown period)
+	// - graph client itself does five retries honoring retry-after header.
+	if c.graphClientLimit == limitLow {
+		c.graphClientLimit = limitHigh
+	}
+
+	return members, nil
+}
+
+func fetchGroupMembers(
+	ctx context.Context,
+	groups groupsByID,
+	c *graphClient,
+) (groupMembersByGroupID, error) {
 	// membersPageSize is the maximum number of members to fetch per page.
 	// https://learn.microsoft.com/en-us/graph/api/group-list-members?view=graph-rest-1.0&tabs=http#http-request
 	// We don't want to send 9 requests to fetch 900 members where 999 is max page size supported by API
@@ -170,7 +203,7 @@ func (c *graphClient) listEntraGroupsMembers(ctx context.Context, groups groupsB
 
 	// TODO(smallinsky) move to static goroutine workers to not allocate space for each goroutine.
 	g, ctx := errgroup.WithContext(ctx)
-	g.SetLimit(getParallelReqCount(len(groups)))
+	g.SetLimit(getParallelReqCount(len(groups), c.graphClientLimit))
 	for id, group := range groups {
 		id, gid := id, *group.ID
 		g.Go(func() error {
@@ -196,14 +229,19 @@ func (c *graphClient) listEntraGroupsMembers(ctx context.Context, groups groupsB
 }
 
 // getParallelReqCount returns the number of parallel requests to use based on the number of groups.
-// We want to balance and not run 80 parallel request for 90 groups.
+// We want to balance and not run 30 parallel request for 50 groups.
 // But with large dataset like 10k we want to have enough parallelism to not take hours to fetch all members.
-func getParallelReqCount(numGroups int) int {
-	if numGroups < 1000 {
-		return 10
+func getParallelReqCount(numGroups int, limit graphClientLimit) int {
+	switch limit {
+	case limitHigh:
+		if numGroups < 1000 {
+			return 10
+		}
+		// 30 parallel request takes around 11-12 minutes With 70k groups and 100 to 5k+ group member each.
+		return 30
+	default:
+		return 1
 	}
-	// With 30k groups and 100 members assigned per group it takes around 3-4 minutes to fetch all members with 70 parallel requests.
-	return 70
 }
 
 func validateGroup(in *models.Group) error {
@@ -426,3 +464,12 @@ func (c *graphClient) listEntraGroupsDelta(
 	out.errSkippedGroups = errSkipped
 	return out, nil
 }
+
+// graphClientLimit defines goroutine limit value
+// to be used in the parallel Graph API calls.
+type graphClientLimit int
+
+const (
+	limitHigh graphClientLimit = iota
+	limitLow
+)
