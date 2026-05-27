@@ -107,7 +107,11 @@ const colors: ThemeColors = {
     },
 
     tonal: {
-      primary: ['#F0F1F2', '#E1E4E8CC', '#E1E4E8CC'],
+      primary: [
+        'rgba(225, 228, 232, .1)',
+        'rgba(225, 228, 232, 0.18)',
+        'rgba(225, 228, 232, 0.25)'
+      ],
       success: [
         'rgba(19, 155, 235, 0.1)',
         'rgba(19, 155, 235, 0.18)',
