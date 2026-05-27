@@ -21,6 +21,8 @@ Administrators who must operate tsh from inside the boundary should use the Tele
 
 ## Teleport for FedRAMP Deployments
 
+Teleport Enterprise must be deployed using cloud regions and services covered by the infrastructure provider's FedRAMP authorization and appropriate for the target impact level ([AWS](https://aws.amazon.com/compliance/services-in-scope/FedRAMP/), [Google Cloud](https://cloud.google.com/security/compliance/fedramp), [Microsoft Azure](https://learn.microsoft.com/en-us/azure/compliance/offerings/offering-fedramp)).
+
 A FedRAMP-compliant Teleport deployment has five pieces that must line up:
 
 1. **Teleport Enterprise FIPS build.** Teleport FIPS builds are compiled against the FIPS 140-validated BoringCrypto module. This is what guarantees your platform's cryptographic operations are FIPS-validated.
@@ -107,11 +109,13 @@ FedRAMP authorization requires that audit events and session recordings are stor
 
 The Auth Service writes audit events and session recordings to backends declared in `teleport.yaml` under the top-level `teleport.storage` block. Common FedRAMP-suitable choices, all documented in the [Backend reference](../../reference/deployment/backends.mdx):
 
-- **AWS** — DynamoDB for events plus S3 for session recordings. Enable S3 object lock for tamper-resistance and configure server-side encryption with a customer-managed KMS key on the audit bucket (`sse_kms_key` on `audit_sessions_uri`). When Teleport is started with `--fips`, it automatically uses [FIPS endpoints](../../reference/deployment/backends.mdx#configuring-aws-fips-endpoints) for both services — no extra flag needed.
+- **AWS** — DynamoDB for events plus S3 for session recordings. Enable S3 object lock for tamper-resistance and configure server-side encryption with a customer-managed KMS key on the audit bucket (`sse_kms_key` on `audit_sessions_uri`). When Teleport is started with `--fips`, it automatically uses [FIPS endpoints](../../reference/deployment/backends.mdx#configuring-aws-fips-endpoints) for both services — no extra flag needed. Note: `--fips` only routes AWS storage to FIPS endpoints. At-rest encryption, retention, Object Lock / WORM behavior, and SIEM forwarding are independent backend settings you must configure explicitly.
 - **GCP** — Firestore for events plus GCS for session recordings.
 - **PostgreSQL** — a single PostgreSQL deployment for both cluster state and audit events (`audit_events_uri: postgresql://...`).
 
 Multiple destinations can be configured in parallel via the `audit_events_uri` array (for example, DynamoDB plus a local file plus stdout) — useful for resilience and for keeping a local copy alongside the primary store.
+
+Session recording encryption is configured separately on the cluster via [`session_recording_config`](../../reference/infrastructure-as-code/terraform-provider/resources/session_recording_config.mdx) — this governs whether the recording payload itself is encrypted before Teleport writes it. S3 SSE-KMS (`sse_kms_key` above) is bucket-level object-store encryption applied by AWS. The two are independent: enable both for defense in depth.
 
 #### SIEM forwarding via the Event Handler
 
@@ -143,6 +147,8 @@ $ teleport start --fips
 ```
 
 Agents register with the cluster via a [join method](../../installation/agents/join-token.mdx) — static token, AWS IAM, Kubernetes ServiceAccount, GitHub, and others. The choice of join method does not affect FIPS posture; it only determines how the Agent authenticates itself to the cluster on startup.
+
+For FedRAMP deployments, prefer [delegated join methods](../../reference/deployment/join-methods.mdx) (AWS IAM, Kubernetes ServiceAccount, GitHub OIDC, TPM) — they satisfy [KSI-IAM-SNU](./fedramp-20x.mdx) by binding the Agent's identity to the platform it actually runs on. Static tokens remain available for backward compatibility but should be treated as exceptional rather than the default.
 
 The same FedRAMP/FIPS Linux package also contains FIPS variants of `tsh`, `tctl`, and `tbot`.
 
@@ -179,8 +185,6 @@ troubleshooting connection issues where peers expect different cipher support.
 Outside of regulated environments, using the FIPS binary does not increase
 Teleport's security posture. In fact, it may result in a net negative effect by
 limiting use of modern cryptographic algorithms.
-
-
 
 
 

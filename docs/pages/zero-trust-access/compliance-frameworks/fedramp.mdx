@@ -38,12 +38,16 @@ The Teleport platform manages both human and non-human access to consistently an
 ### People
 Granting the right people the right access — and being able to prove it on demand — is the core of every FedRAMP access-control conversation. Findings (and compromises) come from the difference between what's been granted and what **should** have been granted.
 
+With Teleport: 
+
 * IdP integration means everyone gets [Single sign-on](../sso/sso.mdx) with phishing-resistant MFA that maps directly to your existing group structures.
 * One source of truth for authentication AND authorization plus no standing accounts to revoke when someone leaves.  You manage your IdP accounts and configuration, Teleport follows your lead automatically.
 * Shared passwords and standing break-glass accounts are eliminated; long-lived SSH keys that sneak into repositories or accumulate in `.ssh` directories are replaced with short-lived, role-scoped access to your internal services.
 
 ### Workloads
 Workload-to-workload access is often the largest and least-visible part of an ATO boundary. As internal services, CI/CD, and batch jobs proliferate, keeping authentication consistent — and the credentials accounted for — becomes a steady drag and constant risk.
+
+With Teleport: 
 
 * Every workload is issued a unique, short-lived, SPIFFE-compatible cryptographic identity through Teleport's [Machine & Workload Identity](../../machine-workload-identity/machine-workload-identity.mdx). Every workload is now named, and their actions can be tracked just like users.
 * Workloads authenticate to each other and to your databases, services, and cloud APIs over mutual TLS (mTLS) — guaranteeing cryptographic protection over the network.
@@ -52,6 +56,8 @@ Workload-to-workload access is often the largest and least-visible part of an AT
 
 ### AI
 Engineering is wiring AI agents into internal systems faster than compliance teams can track them. Without an identity attached to each agent, an LLM querying your production database has no attributable record in your audit trail, and represents a growing risk of unauthorized access.
+
+With Teleport: 
 
 * Agents receive their own identity through Teleport's [Agentic Identity Framework](../../agentic-identity-framework.mdx).  Engineers have a clear approach for agent authentication to replace ad hoc, inconsistent, and insecure access controls.
 * Agentic Identity brings agents under the same RBAC model as your users and workloads. Agent sprawl and unattributed activity become visible and enforceable at the platform layer.
@@ -79,9 +85,9 @@ Your team demonstrates consistent, well-considered, compliant security, and your
 
 Teleport Enterprise Cloud is **not FedRAMP authorized**.  Teleport Enterprise must be deployed within your ATO boundary and configured in FIPS mode as described above to meet FedRAMP requirements.
 
-### AWS region requirement
+### Cloud provider region and service scope
 
-Teleport Enterprise must be deployed in a US-based AWS region that holds an appropriate FedRAMP authorization. For Low and Moderate-impact authorizations, deploy in a region within [AWS's FedRAMP Moderate scope](https://aws.amazon.com/compliance/services-in-scope/FedRAMP/) (US East and US West). For High-impact authorizations, deploy in [AWS GovCloud (US)](https://aws.amazon.com/govcloud-us/).
+Teleport Enterprise must be deployed using cloud regions and services covered by the infrastructure provider's FedRAMP authorization and appropriate for the target impact level ([AWS](https://aws.amazon.com/compliance/services-in-scope/FedRAMP/), [Google Cloud](https://cloud.google.com/security/compliance/fedramp), [Microsoft Azure](https://learn.microsoft.com/en-us/azure/compliance/offerings/offering-fedramp)).
 
 ### FedRAMP audit log
 
@@ -223,5 +229,4 @@ A FIPS `tsh` enforces additional runtime constraints:
 - **Refuses `--insecure`** — the flag is removed from the FIPS build entirely; it cannot be passed.
 - **Validates server certificates against FIPS-approved algorithms** — RSA-2048, ECDSA P-256, or ECDSA P-384 only. Non-compliant keys produce a `FIPSError`.
 - **Refuses to connect to non-FIPS clusters** — if the cluster presents non-FIPS material, `tsh` errors out with: *"tsh is running in FIPS mode, but the cluster is not FIPS-compliant. Use a non-FIPS tsh binary to connect to the cluster."*
-
 
