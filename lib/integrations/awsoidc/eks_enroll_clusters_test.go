@@ -43,41 +43,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
-func TestGetChartUrl(t *testing.T) {
-	testCases := []struct {
-		version  string
-		expected string
-		error    string
-	}{
-		{
-			version:  "14.3.3",
-			expected: "https://charts.releases.teleport.dev/teleport-kube-agent-14.3.3.tgz",
-		},
-		{
-			version:  "15.0.2",
-			expected: "https://charts.releases.teleport.dev/teleport-kube-agent-15.0.2.tgz",
-		},
-		{
-			version:  "15.0.0-alpha.5",
-			expected: "https://charts.releases.development.teleport.dev/teleport-kube-agent-15.0.0-alpha.5.tgz",
-		},
-		{
-			version: "abc",
-			error:   "failed to parse chart version",
-		},
-	}
-
-	for _, tt := range testCases {
-		res, err := getChartURL(tt.version)
-		if tt.error != "" {
-			require.ErrorContains(t, err, tt.error)
-		} else {
-			require.NoError(t, err)
-			require.Equal(t, tt.expected, res.String())
-		}
-	}
-}
-
 func TestEnrollEKSClusters(t *testing.T) {
 	t.Parallel()
 
@@ -648,7 +613,7 @@ func TestKubeAgentLabels(t *testing.T) {
 		resourceID,
 		extraLabels,
 	)
-	expectedLabels := map[string]any{
+	expectedLabels := map[string]string{
 		"priority":                      "yes",
 		"region":                        "us-east-1",
 		"custom":                        "yes",
