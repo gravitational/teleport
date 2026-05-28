@@ -46,7 +46,6 @@ resource "teleport_cluster_maintenance_config" "example" {
 ### Optional
 
 - `metadata` (Attributes) Metadata is resource metadata (see [below for nested schema](#nested-schema-for-metadata))
-- `nonce` (Number) Nonce is used to protect against concurrent modification of the maintenance window. Clients should treat nonces as opaque.
 - `spec` (Attributes) (see [below for nested schema](#nested-schema-for-spec))
 - `sub_kind` (String) SubKind is an optional resource sub kind, used in some resources
 
