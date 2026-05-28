@@ -1050,6 +1050,76 @@ func TestUnmarshallCreateDatabaseUserModeYAML(t *testing.T) {
 	}
 }
 
+func TestMarshalWebTerminalClipboardModeJSON(t *testing.T) {
+	for _, tc := range []struct {
+		input    WebTerminalClipboardMode
+		expected string
+	}{
+		{input: WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNSPECIFIED, expected: ""},
+		{input: WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNRESTRICTED, expected: "unrestricted"},
+		{input: WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY, expected: "no-copy"},
+	} {
+		got, err := json.Marshal(&tc.input)
+		require.NoError(t, err)
+		require.Equal(t, fmt.Sprintf("%q", tc.expected), string(got))
+	}
+}
+
+func TestMarshalWebTerminalClipboardModeYAML(t *testing.T) {
+	for _, tc := range []struct {
+		input    WebTerminalClipboardMode
+		expected string
+	}{
+		{input: WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNSPECIFIED, expected: `""`},
+		{input: WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNRESTRICTED, expected: "unrestricted"},
+		{input: WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY, expected: "no-copy"},
+	} {
+		got, err := yaml.Marshal(&tc.input)
+		require.NoError(t, err)
+		require.Equal(t, fmt.Sprintf("%s\n", tc.expected), string(got))
+	}
+}
+
+func TestUnmarshalWebTerminalClipboardModeJSON(t *testing.T) {
+	for _, tc := range []struct {
+		input    any
+		expected WebTerminalClipboardMode
+	}{
+		{input: `""`, expected: WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNSPECIFIED},
+		{input: `"unrestricted"`, expected: WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNRESTRICTED},
+		{input: `"no-copy"`, expected: WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY},
+		{input: 0, expected: WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNSPECIFIED},
+		{input: 1, expected: WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNRESTRICTED},
+		{input: 2, expected: WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY},
+	} {
+		var got WebTerminalClipboardMode
+		err := json.Unmarshal([]byte(fmt.Sprintf("%v", tc.input)), &got)
+		require.NoError(t, err)
+		require.Equalf(t, tc.expected, got, "for input: %v", tc.input)
+	}
+}
+
+func TestUnmarshalWebTerminalClipboardModeYAML(t *testing.T) {
+	for _, tc := range []struct {
+		input    any
+		expected WebTerminalClipboardMode
+	}{
+		{input: `""`, expected: WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNSPECIFIED},
+		{input: `"unrestricted"`, expected: WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNRESTRICTED},
+		{input: "unrestricted", expected: WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNRESTRICTED},
+		{input: `"no-copy"`, expected: WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY},
+		{input: "no-copy", expected: WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY},
+		{input: 0, expected: WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNSPECIFIED},
+		{input: 1, expected: WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNRESTRICTED},
+		{input: 2, expected: WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY},
+	} {
+		var got WebTerminalClipboardMode
+		err := yaml.Unmarshal([]byte(fmt.Sprintf("%v", tc.input)), &got)
+		require.NoError(t, err)
+		require.Equalf(t, tc.expected, got, "for input: %v", tc.input)
+	}
+}
+
 func TestRoleV6_CheckAndSetDefaults(t *testing.T) {
 	t.Parallel()
 	requireBadParameterContains := func(contains string) require.ErrorAssertionFunc {
@@ -1124,6 +1194,15 @@ func TestRoleV6_CheckAndSetDefaults(t *testing.T) {
 				},
 			}),
 			requireError: requireBadParameterContains("validating ip_sans[1]: invalid CIDR address: llama"),
+		},
+		{
+			name: "web terminal clipboard mode: invalid",
+			role: newRole(t, RoleSpecV6{
+				Options: RoleOptions{
+					WebTerminalClipboardMode: WebTerminalClipboardMode(99),
+				},
+			}),
+			requireError: requireBadParameterContains("invalid web terminal clipboard mode"),
 		},
 	}
 
