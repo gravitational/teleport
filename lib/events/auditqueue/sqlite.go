@@ -44,7 +44,6 @@ import (
 const (
 	defaultToBeWrittenBufferLen    = 1024
 	pollInterval                   = 100 * time.Millisecond
-	dequeueBatchSize               = 256
 	incrementalVacuumInterval      = 10 * time.Minute
 	defaultOrphanScanInterval      = 10 * time.Minute
 	queueLockFile                  = "queue.lock"
@@ -63,7 +62,8 @@ const (
 	// sizes around 250, and we encounter diminishing returns above that.
 	//
 	// See: https://github.com/gravitational/teleport.e/blob/rfd/0254-sqlite-audit-log-event-queue/rfd/0254-sqlite-audit-log-event-queue.md#modernc-synchronousnormal-60-second-duration
-	defaultMaxBatch = 25
+	defaultMaxBatch  = 25
+	dequeueBatchSize = 25
 
 	// walJournalSizeLimit is the number of bytes the `-wal` file gets
 	// truncated to in between checkpoints.
