@@ -29,6 +29,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer"
+	utilnet "k8s.io/apimachinery/pkg/util/net"
 
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -189,17 +190,12 @@ func parseResourcePath(p string) apiResource {
 
 // stripProxyNamePortScheme extracts the bare resource name from the [scheme:]name[:port] segment that
 // the Kubernetes API server accepts on pods/{name}/proxy, services/{name}/proxy, and nodes/{name}/proxy.
-//
-//	"svc"            -> "svc"
-//	"svc:8443"       -> "svc"
-//	"https:svc:8443" -> "svc"
-//	"https:svc:"     -> "svc"
 func stripProxyNamePortScheme(segment string) string {
-	parts := strings.Split(segment, ":")
-	if len(parts) == 3 {
-		return parts[1]
+	_, name, _, valid := utilnet.SplitSchemeNamePort(segment)
+	if !valid {
+		return segment
 	}
-	return parts[0]
+	return name
 }
 
 func (r apiResource) populateEvent(e *apievents.KubeRequest) {
