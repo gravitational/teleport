@@ -41,7 +41,6 @@ import (
 const (
 	defaultToBeWrittenBufferLen    = 1024
 	pollInterval                   = 100 * time.Millisecond
-	dequeueBatchSize               = 256
 	sqlitePageSize                 = 4096 // Bytes
 	defaultMaxAttempts             = 10
 	defaultDeadLetterSweepInterval = 10 * time.Minute
@@ -53,7 +52,8 @@ const (
 	// sizes around 250, and we encounter diminishing returns above that.
 	//
 	// See: https://github.com/gravitational/teleport.e/blob/rfd/0254-sqlite-audit-log-event-queue/rfd/0254-sqlite-audit-log-event-queue.md#modernc-synchronousnormal-60-second-duration
-	defaultMaxBatch = 25
+	defaultMaxBatch  = 25
+	dequeueBatchSize = 25
 
 	// busyTimeoutMillis sets the maximum time we will wait for a SQLite DB
 	// operation.
