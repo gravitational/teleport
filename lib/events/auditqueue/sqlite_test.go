@@ -480,7 +480,7 @@ func TestOrphanAdoption_DrainsAndDeletes(t *testing.T) {
 func TestOrphanAdoption_MigratesDeadLetter(t *testing.T) {
 	t.Parallel()
 	parent := t.TempDir()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	aPath := filepath.Join(parent, "a")
 	a, err := newSQLiteQueue(Config{
@@ -702,7 +702,7 @@ func TestPlaceholders(t *testing.T) {
 
 func TestProcessFailedDelivery_PromotesExhausted(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	q, err := newSQLiteQueue(Config{
 		Path:        filepath.Join(t.TempDir(), queueDir),
@@ -742,7 +742,7 @@ func TestProcessFailedDelivery_PromotesExhausted(t *testing.T) {
 
 func TestRetry_ExhaustedMovesToDeadLetter(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	const maxAttempts = 3
 	q, err := newSQLiteQueue(Config{
@@ -781,7 +781,7 @@ func TestRetry_ExhaustedMovesToDeadLetter(t *testing.T) {
 
 func TestDeadLetterSweep_RedeliversOnRecovery(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	sweepInterval := 50 * time.Millisecond
 	q, err := newSQLiteQueue(Config{
@@ -828,7 +828,7 @@ func TestDeadLetterSweep_RedeliversOnRecovery(t *testing.T) {
 
 func TestDeadLetterTTL_ExpiresOldRows(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	q, err := newSQLiteQueue(Config{
 		Path:          filepath.Join(t.TempDir(), queueDir),
