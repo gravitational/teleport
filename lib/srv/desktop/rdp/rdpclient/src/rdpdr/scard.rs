@@ -216,14 +216,14 @@ impl ScardCache {
             // TODO(apri-dh): check why precaching FALSE breaks auth no matter what is precached in "kxc00"
 
             let size = (cert_der.len() as u32).to_le_bytes();
- 
+
             let mut v = CACHE_FILE_HEADER.to_vec();
             v.extend_from_slice(&size);
             v.extend_from_slice(cert_der);
             v
         });
 
-        if let Some(private_key) = RsaPrivateKey::from_pkcs1_der(key_der).ok() {
+        if let Ok(private_key) = RsaPrivateKey::from_pkcs1_der(key_der) {
             let public_key_blob = {
                 // PUBLICKEYSTRUC or BLOBHEADER struct defined here: https://learn.microsoft.com/en-us/windows/win32/api/wincrypt/ns-wincrypt-publickeystruc
                 let blob_type = 0x06_u8; // PUBLICKEYBLOB
