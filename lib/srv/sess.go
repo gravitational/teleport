@@ -718,7 +718,8 @@ type SessionAccessEvaluator interface {
 // session struct describes an active (in progress) SSH session. These sessions
 // are managed by 'SessionRegistry' containers which are attached to SSH servers.
 type session struct {
-	mu sync.RWMutex
+	mu        sync.RWMutex
+	closeOnce sync.Once
 
 	// logger holds the logger for this session.
 	logger *slog.Logger
@@ -988,28 +989,29 @@ func (s *session) haltTerminal() {
 // prematurely can result in missing audit events, session recordings, and other
 // unexpected errors.
 func (s *session) Close() error {
-	s.BroadcastMessage("Closing session...")
-	s.logger.InfoContext(s.serverCtx, "Closing session.")
+	s.closeOnce.Do(func() {
+		s.BroadcastMessage("Closing session...")
+		s.logger.InfoContext(s.serverCtx, "Closing session.")
 
-	// Remove session parties and close client connections. Since terminals
-	// might await for all the parties to be released, we must close them first.
-	// Closing the parties will cause their SSH channel to be closed, meaning
-	// any goroutine reading from it will be released.
-	for _, p := range s.getParties() {
-		p.Close()
-	}
-
-	s.Stop()
-	serverSessions.Dec()
-	s.registry.removeSession(s)
-
-	// Complete the session recording
-	if recorder := s.Recorder(); recorder != nil {
-		if err := recorder.Complete(s.serverCtx); err != nil {
-			s.logger.WarnContext(s.serverCtx, "Failed to close recorder.", "error", err)
+		// Remove session parties and close client connections. Since terminals
+		// might await for all the parties to be released, we must close them first.
+		// Closing the parties will cause their SSH channel to be closed, meaning
+		// any goroutine reading from it will be released.
+		for _, p := range s.getParties() {
+			p.Close()
 		}
-	}
 
+		s.Stop()
+		serverSessions.Dec()
+		s.registry.removeSession(s)
+
+		// Complete the session recording
+		if recorder := s.Recorder(); recorder != nil {
+			if err := recorder.Complete(s.serverCtx); err != nil {
+				s.logger.WarnContext(s.serverCtx, "Failed to close recorder.", "error", err)
+			}
+		}
+	})
 	return nil
 }
 
