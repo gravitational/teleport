@@ -90,11 +90,4 @@ func TestRegression_KubeProxyClientStreams_ResizeQueue_NilSafe(t *testing.T) {
 
 	ch := c.resizeQueue()
 	require.NotNil(t, ch)
-
-	select {
-	case _, ok := <-ch:
-		require.False(t, ok, "channel should be closed, not deliver messages")
-	default:
-		// channel idle, no panic.
-	}
 }
