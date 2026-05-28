@@ -24,7 +24,7 @@ mod regions;
 
 use crate::cursor::CursorState;
 use crate::regions::UpdatedRegions;
-use fast_image_resize::{FilterType, ResizeAlg, ResizeOptions, Resizer};
+use fast_image_resize::Resizer;
 use ironrdp_core::WriteBuf;
 use ironrdp_graphics::image_processing::PixelFormat;
 use ironrdp_session::fast_path::UpdateKind;
@@ -328,27 +328,8 @@ pub unsafe extern "C" fn rdp_decoder_resize_crop(
         return false;
     }
 
-    let opts = ResizeOptions::new()
-        .resize_alg(ResizeAlg::Convolution(FilterType::CatmullRom))
-        .use_alpha(false)
-        .crop(
-            f64::from(crop_x),
-            f64::from(crop_y),
-            f64::from(crop_w),
-            f64::from(crop_h),
-        );
-
     catch_unwind(AssertUnwindSafe(move || unsafe {
         let decoder = &mut *ptr;
-        // Reject crops that extend past the frame.
-        let src_w = decoder.image.width();
-        let src_h = decoder.image.height();
-        if u32::from(crop_x) + u32::from(crop_w) > u32::from(src_w)
-            || u32::from(crop_y) + u32::from(crop_h) > u32::from(src_h)
-        {
-            return false;
-        }
-
         let needed =
             (out_width as usize) * (out_height as usize) * usize::from(decoder.bytes_per_pixel());
         if out_buf_len < needed {
@@ -357,7 +338,12 @@ pub unsafe extern "C" fn rdp_decoder_resize_crop(
 
         let dst = std::slice::from_raw_parts_mut(out_buf, needed);
         decoder
-            .resize_image_into(out_width, out_height, dst, &opts)
+            .resize_crop_into(
+                (crop_x, crop_y),
+                (crop_w, crop_h),
+                (out_width, out_height),
+                dst,
+            )
             .is_ok()
     }))
     .unwrap_or(false)
