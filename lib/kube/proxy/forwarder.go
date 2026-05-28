@@ -360,7 +360,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 
 	router.NotFound = fwd.withAuthStd(fwd.catchAll)
 
-	fwd.router = instrumentHTTPHandler(fwd.cfg.KubeServiceType, router)
+	fwd.router = instrumentHTTPHandler(fwd.component(), router)
 
 	if cfg.ClusterOverride != "" {
 		fwd.log.DebugContext(closeCtx, "Cluster override is set, forwarder will send all requests to remote cluster", "cluster_override", cfg.ClusterOverride)
@@ -421,6 +421,13 @@ type cachedTransportEntry struct {
 // getKubeServersByNameFunc is a function that returns a list of
 // kubernetes servers for a given kube cluster.
 type getKubeServersByNameFunc = func(ctx context.Context, name string) ([]types.KubeServer, error)
+
+// component returns the Teleport service name used for metric labels and
+// tracing spans. Sourced from the upstream resolver so call sites do not need
+// to switch on KubeServiceType.
+func (f *Forwarder) component() string {
+	return f.upstream.component()
+}
 
 // Close signals close to all outstanding or background operations
 // to complete
@@ -564,7 +571,7 @@ func (f *Forwarder) authenticate(req *http.Request) (*authContext, error) {
 		"kube.Forwarder/authenticate",
 		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 		oteltrace.WithAttributes(
-			semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
+			semconv.RPCServiceKey.String(f.component()),
 			semconv.RPCSystemKey.String("kube"),
 		),
 	)
@@ -617,7 +624,7 @@ func (f *Forwarder) withAuthStd(handler handlerWithAuthFuncStd) http.HandlerFunc
 			"kube.Forwarder/withAuthStd",
 			oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 			oteltrace.WithAttributes(
-				semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
+				semconv.RPCServiceKey.String(f.component()),
 				semconv.RPCSystemKey.String("kube"),
 			),
 		)
@@ -643,7 +650,7 @@ func (f *Forwarder) acquireConnectionLockWithIdentity(ctx context.Context, ident
 		"kube.Forwarder/acquireConnectionLockWithIdentity",
 		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 		oteltrace.WithAttributes(
-			semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
+			semconv.RPCServiceKey.String(f.component()),
 			semconv.RPCSystemKey.String("kube"),
 		),
 	)
@@ -690,7 +697,7 @@ func (f *Forwarder) withAuth(handler handlerWithAuthFunc, opts ...authOption) ht
 			"kube.Forwarder/withAuth",
 			oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 			oteltrace.WithAttributes(
-				semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
+				semconv.RPCServiceKey.String(f.component()),
 				semconv.RPCSystemKey.String("kube"),
 			),
 		)
@@ -720,7 +727,7 @@ func (f *Forwarder) withAuthPassthrough(handler handlerWithAuthFunc) httprouter.
 			"kube.Forwarder/withAuthPassthrough",
 			oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 			oteltrace.WithAttributes(
-				semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
+				semconv.RPCServiceKey.String(f.component()),
 				semconv.RPCSystemKey.String("kube"),
 			),
 		)
@@ -828,7 +835,7 @@ func (f *Forwarder) setupContext(
 		"kube.Forwarder/setupContext",
 		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 		oteltrace.WithAttributes(
-			semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
+			semconv.RPCServiceKey.String(f.component()),
 			semconv.RPCSystemKey.String("kube"),
 		),
 	)
@@ -965,7 +972,7 @@ func (f *Forwarder) emitAuditEvent(req *http.Request, sess *clusterSession, stat
 		"kube.Forwarder/emitAuditEvent",
 		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 		oteltrace.WithAttributes(
-			semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
+			semconv.RPCServiceKey.String(f.component()),
 			semconv.RPCSystemKey.String("kube"),
 		),
 	)
@@ -1149,7 +1156,7 @@ func (f *Forwarder) authorize(ctx context.Context, actx *authContext) error {
 		"kube.Forwarder/authorize",
 		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 		oteltrace.WithAttributes(
-			semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
+			semconv.RPCServiceKey.String(f.component()),
 			semconv.RPCSystemKey.String("kube"),
 		),
 	)
@@ -1347,9 +1354,9 @@ func matchKubernetesResource(resource types.KubernetesResource, isClusterWideRes
 // join joins an existing session over a websocket connection
 func (f *Forwarder) join(ctx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp any, err error) {
 	// Increment the request counter and the in-flight gauge.
-	joinSessionsRequestCounter.WithLabelValues(f.cfg.KubeServiceType).Inc()
-	joinSessionsInFlightGauge.WithLabelValues(f.cfg.KubeServiceType).Inc()
-	defer joinSessionsInFlightGauge.WithLabelValues(f.cfg.KubeServiceType).Dec()
+	joinSessionsRequestCounter.WithLabelValues(f.component()).Inc()
+	joinSessionsInFlightGauge.WithLabelValues(f.component()).Inc()
+	defer joinSessionsInFlightGauge.WithLabelValues(f.component()).Dec()
 
 	f.log.DebugContext(req.Context(), "Joining session", "join_url", logutils.StringerAttr(req.URL))
 
@@ -1802,16 +1809,16 @@ func exitCode(err error) (errMsg, code string) {
 // all output from the session
 func (f *Forwarder) exec(authCtx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (resp any, err error) {
 	// Increment the request counter and the in-flight gauge.
-	execSessionsRequestCounter.WithLabelValues(f.cfg.KubeServiceType).Inc()
-	execSessionsInFlightGauge.WithLabelValues(f.cfg.KubeServiceType).Inc()
-	defer execSessionsInFlightGauge.WithLabelValues(f.cfg.KubeServiceType).Dec()
+	execSessionsRequestCounter.WithLabelValues(f.component()).Inc()
+	execSessionsInFlightGauge.WithLabelValues(f.component()).Inc()
+	defer execSessionsInFlightGauge.WithLabelValues(f.component()).Dec()
 
 	ctx, span := f.cfg.tracer.Start(
 		req.Context(),
 		"kube.Forwarder/exec",
 		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 		oteltrace.WithAttributes(
-			semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
+			semconv.RPCServiceKey.String(f.component()),
 			semconv.RPCMethodKey.String("Exec"),
 			semconv.RPCSystemKey.String("kube"),
 		),
@@ -1926,16 +1933,16 @@ func (f *Forwarder) remoteExec(req *http.Request, sess *clusterSession, proxy *r
 // portForward starts port forwarding to the remote cluster
 func (f *Forwarder) portForward(authCtx *authContext, w http.ResponseWriter, req *http.Request, p httprouter.Params) (any, error) {
 	// Increment the request counter and the in-flight gauge.
-	portforwardRequestCounter.WithLabelValues(f.cfg.KubeServiceType).Inc()
-	portforwardSessionsInFlightGauge.WithLabelValues(f.cfg.KubeServiceType).Inc()
-	defer portforwardSessionsInFlightGauge.WithLabelValues(f.cfg.KubeServiceType).Dec()
+	portforwardRequestCounter.WithLabelValues(f.component()).Inc()
+	portforwardSessionsInFlightGauge.WithLabelValues(f.component()).Inc()
+	defer portforwardSessionsInFlightGauge.WithLabelValues(f.component()).Dec()
 
 	ctx, span := f.cfg.tracer.Start(
 		req.Context(),
 		"kube.Forwarder/portForward",
 		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 		oteltrace.WithAttributes(
-			semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
+			semconv.RPCServiceKey.String(f.component()),
 			semconv.RPCMethodKey.String("portForward"),
 			semconv.RPCSystemKey.String("kube"),
 		),
@@ -2279,7 +2286,7 @@ func (f *Forwarder) catchAll(authCtx *authContext, w http.ResponseWriter, req *h
 		"kube.Forwarder/catchAll",
 		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 		oteltrace.WithAttributes(
-			semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
+			semconv.RPCServiceKey.String(f.component()),
 			semconv.RPCMethodKey.String("catchAll"),
 			semconv.RPCSystemKey.String("kube"),
 		),
@@ -2698,7 +2705,7 @@ func (f *Forwarder) newClusterSession(ctx context.Context, authCtx authContext) 
 		"kube.Forwarder/newClusterSession",
 		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 		oteltrace.WithAttributes(
-			semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
+			semconv.RPCServiceKey.String(f.component()),
 			semconv.RPCMethodKey.String("GlobalRequest"),
 			semconv.RPCSystemKey.String("kube"),
 		),
