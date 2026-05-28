@@ -22,11 +22,11 @@ import styled from 'styled-components';
 import { Flex, Text, TopNav } from 'design';
 import { Clipboard } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
-import { SessionSettings } from 'shared/components/DesktopSession/SessionSettings';
 import {
   DirectoryItem,
   SharedDirectoryList,
 } from 'shared/components/DesktopSession/DirectoryList';
+import { SessionSettings } from 'shared/components/DesktopSession/SessionSettings';
 import { LatencyDiagnostic } from 'shared/components/LatencyDiagnostic';
 import type { ToastNotificationItem } from 'shared/components/ToastNotification';
 

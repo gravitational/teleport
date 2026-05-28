@@ -40,7 +40,7 @@ export type DesktopSessionWithSharingProps = {
   customConnectionState?(args: { retry(): void }): React.ReactElement;
   hasAnotherSession(): Promise<boolean>;
   keyboardLayout?: number;
-  maxSharedDirectories: number,
+  maxSharedDirectories: number;
 };
 
 /**
