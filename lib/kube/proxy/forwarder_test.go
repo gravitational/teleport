@@ -180,7 +180,7 @@ func TestAuthenticate(t *testing.T) {
 				TracerProvider:    otel.GetTracerProvider(),
 				tracer:            otel.Tracer(teleport.ComponentKube),
 				ClusterFeatures:   fakeClusterFeatures,
-				KubeServiceType:   ProxyService,
+				Upstream:          NewProxyServiceUpstream(),
 				LockWatcher:       lockWatcher,
 			},
 			getKubernetesServersForKubeCluster: func(ctx context.Context, name string) ([]types.KubeServer, error) {
@@ -1916,10 +1916,10 @@ func newTestForwarder(ctx context.Context, cfg ForwarderConfig) *Forwarder {
 		activeRequests: make(map[string]context.Context),
 		ctx:            ctx,
 	}
-	if upstream, err := newUpstreamResolver(cfg.KubeServiceType); err == nil {
-		f.upstream = upstream
+	if cfg.Upstream != nil {
+		f.upstream = cfg.Upstream
 	} else {
-		f.upstream = proxyServiceResolver{}
+		f.upstream = NewProxyServiceUpstream()
 	}
 	return f
 }
@@ -2320,7 +2320,7 @@ func TestForwarderTLSConfigCAs(t *testing.T) {
 			AuthClient:        cl,
 			TracerProvider:    otel.GetTracerProvider(),
 			tracer:            otel.Tracer(teleport.ComponentKube),
-			KubeServiceType:   ProxyService,
+			Upstream:          NewProxyServiceUpstream(),
 			CachingAuthClient: cl,
 
 			GetConnTLSCertificate: func() (*tls.Certificate, error) {
@@ -2651,7 +2651,7 @@ func TestForwarderConfig(t *testing.T) {
 		DataDir:           t.TempDir(),
 		HostID:            "host-id",
 		ClusterFeatures:   fakeClusterFeatures,
-		KubeServiceType:   KubeService,
+		Upstream:          NewKubeServiceUpstream(),
 	}
 	cases := []struct {
 		name string

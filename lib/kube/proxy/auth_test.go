@@ -329,7 +329,7 @@ current-context: foo
 				upstream: upstream,
 				cfg: ForwarderConfig{
 					ClusterName:                   teleClusterName,
-					KubeServiceType:               tt.serviceType,
+					Upstream:                      upstream,
 					KubeconfigPath:                tt.kubeconfigPath,
 					CheckImpersonationPermissions: tt.impersonationCheck,
 					Clock:                         clockwork.NewFakeClock(),
