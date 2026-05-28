@@ -2281,8 +2281,8 @@ func (e *SessionSummarySearchEvent) Anonymize(a utils.Anonymizer) *prehogv1a.Sub
 type UIInteractionEvent prehogv1a.UIInteractionEvent
 
 // Anonymize anonymizes the event.
-func (e *UIInteractionEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
-	return prehogv1a.SubmitEventRequest{
+func (e *UIInteractionEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEventRequest {
+	return &prehogv1a.SubmitEventRequest{
 		Event: &prehogv1a.SubmitEventRequest_UiInteraction{
 			UiInteraction: &prehogv1a.UIInteractionEvent{
 				UserName: a.AnonymizeString(e.UserName),
