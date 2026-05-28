@@ -14,20 +14,28 @@ locals {
     contains(matcher.subscriptions, "*")
   ])
 
-  token_allow_rules_from_matchers = flatten([
+  wildcard_subscription_allow_rules = local.create_azure_managed_identity ? [
+    for matcher in var.azure_matchers : {
+      subscription    = null
+      resource_groups = contains(matcher.resource_groups, "*") ? null : matcher.resource_groups
+      tenant          = local.azure_tenant_id
+    } if contains(matcher.subscriptions, "*")
+  ] : []
+
+  subscription_allow_rules = flatten([
     for matcher in var.azure_matchers : [
       for sub in matcher.subscriptions : {
         subscription    = sub
         resource_groups = contains(matcher.resource_groups, "*") ? null : matcher.resource_groups
         tenant          = null
       }
-    ]
+    ] if !contains(matcher.subscriptions, "*")
   ])
 
   token_allow_rules = (
     var.teleport_provision_token_allow_rules != null
     ? var.teleport_provision_token_allow_rules
-    : local.token_allow_rules_from_matchers
+    : concat(local.wildcard_subscription_allow_rules, local.subscription_allow_rules)
   )
 }
 
@@ -51,8 +59,8 @@ resource "teleport_provision_token" "azure" {
 
   lifecycle {
     precondition {
-      condition     = !(local.has_wildcard_subscription_matcher && var.teleport_provision_token_allow_rules == null)
-      error_message = "Wildcard ('*') subscription discovery requires teleport_provision_token_allow_rules to be set."
+      condition     = !(local.has_wildcard_subscription_matcher && !local.create_azure_managed_identity && var.teleport_provision_token_allow_rules == null)
+      error_message = "Wildcard ('*') subscription discovery with an external managed identity (create_azure_managed_identity=false) requires teleport_provision_token_allow_rules to be set."
     }
   }
 }

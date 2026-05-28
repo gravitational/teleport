@@ -226,27 +226,9 @@ run "discovery_config_subscription_wildcard_missing_scopes_error" {
       types         = ["vm"]
       subscriptions = ["*"]
     }]
-    teleport_provision_token_allow_rules = [{
-      subscription = "00000000-0000-0000-0000-000000000000"
-    }]
   }
 
   expect_failures = [teleport_discovery_config.azure[0]]
-}
-
-run "discovery_config_subscription_wildcard_missing_allow_rules_error" {
-  command = plan
-
-  variables {
-    azure_matchers = [{
-      types         = ["vm"]
-      subscriptions = ["*"]
-    }]
-    azure_role_assignment_scopes         = ["/providers/Microsoft.Management/managementGroups/my-mg"]
-    teleport_provision_token_allow_rules = null
-  }
-
-  expect_failures = [teleport_provision_token.azure[0]]
 }
 
 run "discovery_config_subscription_wildcard" {
@@ -255,20 +237,78 @@ run "discovery_config_subscription_wildcard" {
       types         = ["vm"]
       subscriptions = ["*"]
     }]
-    azure_role_assignment_scopes = ["/providers/Microsoft.Management/managementGroups/my-mg"]
+    azure_management_group_id = "my-mg"
+  }
+
+  assert {
+    condition     = length(teleport_provision_token.azure[0].spec.azure.allow) == 1
+    error_message = "teleport_provision_token should contain 1 allow rule"
+  }
+  assert {
+    condition     = teleport_provision_token.azure[0].spec.azure.allow[0].tenant == "11111111-1111-1111-1111-111111111111"
+    error_message = "teleport_provision_token allow[0] includes tenant id"
+  }
+  assert {
+    condition     = contains(keys(azurerm_role_assignment.teleport_discovery), "/providers/Microsoft.Management/managementGroups/my-mg")
+    error_message = "azurerm_role_assignment should contain management group scope"
+  }
+}
+
+run "management_group_id_non_wildcard" {
+  variables {
+    azure_matchers = [{
+      types         = ["vm"]
+      subscriptions = ["00000000-0000-0000-0000-000000000000"]
+    }]
+    azure_management_group_id = "my-mg"
+  }
+
+  assert {
+    condition     = contains(keys(azurerm_role_assignment.teleport_discovery), "/providers/Microsoft.Management/managementGroups/my-mg")
+    error_message = "azure_management_group_id should set role scope for non-wildcard subscriptions"
+  }
+}
+
+run "scopes_override_management_group_id" {
+  variables {
+    azure_matchers = [{
+      types         = ["vm"]
+      subscriptions = ["*"]
+    }]
+    azure_management_group_id    = "ignored-mg"
+    azure_role_assignment_scopes = ["/providers/Microsoft.Management/managementGroups/explicit-mg"]
     teleport_provision_token_allow_rules = [{
       subscription = "00000000-0000-0000-0000-000000000000"
     }]
   }
 
   assert {
-    condition     = length(teleport_discovery_config.azure) == 1
-    error_message = "missing discovery config for wildcard"
+    condition     = contains(keys(azurerm_role_assignment.teleport_discovery), "/providers/Microsoft.Management/managementGroups/explicit-mg")
+    error_message = "azure_role_assignment_scopes should take precedence over azure_management_group_id"
   }
   assert {
-    condition     = length(teleport_provision_token.azure) == 1
-    error_message = "missing provision token for wildcard"
+    condition     = !contains(keys(azurerm_role_assignment.teleport_discovery), "/providers/Microsoft.Management/managementGroups/ignored-mg")
+    error_message = "azure_management_group_id should be ignored when azure_role_assignment_scopes is set"
   }
+}
+
+run "discovery_config_subscription_wildcard_external_identity_missing_allow_rules_error" {
+  command = plan
+
+  variables {
+    use_oidc_integration            = false
+    create_azure_managed_identity   = false
+    azure_resource_group_name       = null
+    azure_managed_identity_location = null
+    azure_matchers = [{
+      types         = ["vm"]
+      subscriptions = ["*"]
+    }]
+    azure_management_group_id            = "my-mg"
+    teleport_provision_token_allow_rules = null
+  }
+
+  expect_failures = [teleport_provision_token.azure[0]]
 }
 
 run "discovery_config_resource_group_allow_rules" {
@@ -299,6 +339,41 @@ run "discovery_config_resource_group_allow_rules" {
   assert {
     condition     = contains(teleport_provision_token.azure[0].spec.azure.allow[1].resource_groups, "my-rg")
     error_message = "teleport_provision_token allow rule[1] should contain the resource group"
+  }
+}
+
+run "wildcard_and_subscription_matchers" {
+  variables {
+    azure_matchers = [
+      { types         = ["vm"],
+        subscriptions = ["*"],
+      resource_groups = ["production"] },
+      { types         = ["vm"],
+        subscriptions = ["aaaaaaaa-0000-0000-0000-000000000000"],
+      resource_groups = ["staging"] },
+    ]
+    azure_management_group_id = "my-mg"
+  }
+
+  assert {
+    condition     = length(teleport_provision_token.azure[0].spec.azure.allow) == 2
+    error_message = "teleport_provision_token should contain two rules (one wildcard, one subscription)"
+  }
+  assert {
+    condition     = teleport_provision_token.azure[0].spec.azure.allow[0].tenant == "11111111-1111-1111-1111-111111111111"
+    error_message = "teleport_provision_token allow[0] should scope by tenant"
+  }
+  assert {
+    condition     = contains(teleport_provision_token.azure[0].spec.azure.allow[0].resource_groups, "production")
+    error_message = "teleport_provision_token allow[0] should include resource group 'production'"
+  }
+  assert {
+    condition     = teleport_provision_token.azure[0].spec.azure.allow[1].subscription == "aaaaaaaa-0000-0000-0000-000000000000"
+    error_message = "teleport_provision_token allow[1] should scope by subscription"
+  }
+  assert {
+    condition     = contains(teleport_provision_token.azure[0].spec.azure.allow[1].resource_groups, "staging")
+    error_message = "teleport_provision_token allow[1] should include resource group 'staging'"
   }
 }
 
