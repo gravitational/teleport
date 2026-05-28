@@ -45,6 +45,8 @@ const (
 	emailTrait               = "email"
 	givenNameSnakeCaseTrait  = "given_name"
 	familyNameSnakeCaseTrait = "family_name"
+	firstNameSnakeCaseTrait  = "first_name"
+	lastNameSnakeCaseTrait   = "last_name"
 
 	entraIDDisplayNameTrait = "http://schemas.microsoft.com/identity/claims/displayname"
 	entraIDGivenNameTrait   = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/givenname"
@@ -95,6 +97,7 @@ func (u *UserV2) GetDisplay() UserDisplay {
 				{givenNameTrait, familyNameTrait},
 				{givenNameSnakeCaseTrait, familyNameSnakeCaseTrait},
 				{firstNameTrait, lastNameTrait},
+				{firstNameSnakeCaseTrait, lastNameSnakeCaseTrait},
 			},
 			secondaryCandidates: [][]string{
 				{emailTrait},
