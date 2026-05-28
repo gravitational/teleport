@@ -378,6 +378,40 @@ func TestWatchers(t *testing.T) {
 				require.Equal(subtestT, "leaf.example.com", chal.GetSpec().GetTargetCluster())
 			},
 		},
+		{
+			name: "plugin PUT strips secrets when LoadSecrets is false",
+			kind: types.KindPlugin,
+			causeEvents: func(subtestCtx context.Context, subtestT *testing.T, bk backend.Backend) {
+				svc := NewPluginsService(bk)
+				plugin := &types.PluginV1{
+					Metadata: types.Metadata{Name: "scim-plugin"},
+					Spec: types.PluginSpecV1{
+						Settings: &types.PluginSpecV1_Scim{
+							Scim: &types.PluginSCIMSettings{
+								SamlConnectorName: "example-saml-connector",
+							},
+						},
+					},
+				}
+				creds := &types.PluginCredentialsV1{
+					Credentials: &types.PluginCredentialsV1_StaticCredentialsRef{
+						StaticCredentialsRef: &types.PluginStaticCredentialsRef{
+							Labels: map[string]string{"env": "prod"},
+						},
+					},
+				}
+				plugin.SetCredentials(creds)
+				require.NoError(subtestT, svc.CreatePlugin(subtestCtx, plugin))
+			},
+			validateEvents: func(subtestCtx context.Context, subtestT *testing.T, watcher types.Watcher) {
+				event := fetchEvent(subtestT, watcher, fetchTimeout)
+				require.Equal(subtestT, types.OpPut, event.Type)
+				plugin, ok := event.Resource.(*types.PluginV1)
+				require.True(subtestT, ok)
+				require.Equal(subtestT, "scim-plugin", plugin.GetName())
+				require.Nil(subtestT, plugin.GetCredentials())
+			},
+		},
 	}
 
 	for _, test := range testCases {

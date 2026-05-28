@@ -2296,6 +2296,9 @@ func (p *pluginParser) parse(event backend.Event) (types.Resource, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		if !p.loadSecrets {
+			return plugin.WithoutSecrets(), nil
+		}
 		return plugin, nil
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
