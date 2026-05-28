@@ -1481,10 +1481,21 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 	}
 }
 
-func (s *Server) handleAgentForward(ctx context.Context, ch ssh.Channel, req *ssh.Request, scx *srv.ServerContext) error {
+func (s *Server) handleAgentForward(ctx context.Context, ch ssh.Channel, req *ssh.Request, scx *srv.ServerContext) (err error) {
+	event := scx.GetAgentForwardEvent()
+	defer func() {
+		if err != nil {
+			event.Metadata.Code = events.AgentForwardFailureCode
+			event.Status.Success = false
+			event.Status.Error = err.Error()
+		}
+		if emitErr := s.EmitAuditEvent(ctx, event); emitErr != nil {
+			scx.Logger.WarnContext(ctx, "Failed to emit agent-forward event", "error", emitErr)
+		}
+	}()
+
 	// Check if the user's RBAC role allows agent forwarding.
-	err := s.authHandlers.CheckAgentForward(scx)
-	if err != nil {
+	if err := s.authHandlers.CheckAgentForward(scx); err != nil {
 		return trace.Wrap(err)
 	}
 
