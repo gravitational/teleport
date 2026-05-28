@@ -2212,9 +2212,10 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 	case *usageeventsv1.UsageEventOneOf_UiInteraction:
 		data := e.UiInteraction
 		ret := &UIInteractionEvent{
-			Path:   data.Path,
-			PageId: data.PageId,
-			Params: data.Params,
+			UserName: userMD.Username,
+			Path:     data.Path,
+			PageId:   data.PageId,
+			Params:   data.Params,
 		}
 		return ret, nil
 	default:
