@@ -172,7 +172,8 @@ func TestAuthenticate(t *testing.T) {
 	}
 	newForwarder := func() *Forwarder {
 		return &Forwarder{
-			log: logtest.NewLogger(),
+			log:      logtest.NewLogger(),
+			upstream: proxyServiceResolver{},
 			cfg: ForwarderConfig{
 				ClusterName:       "local",
 				CachingAuthClient: ap,
@@ -1645,8 +1646,9 @@ func newMockForwarder(ctx context.Context, t *testing.T) *Forwarder {
 	require.NoError(t, err)
 
 	return &Forwarder{
-		log:    logtest.NewLogger(),
-		router: httprouter.New(),
+		log:      logtest.NewLogger(),
+		router:   httprouter.New(),
+		upstream: proxyServiceResolver{},
 		cfg: ForwarderConfig{
 			Keygen:            authority,
 			AuthClient:        caClient,
@@ -1903,13 +1905,19 @@ func (m *mockWatcher) Done() <-chan struct{} {
 }
 
 func newTestForwarder(ctx context.Context, cfg ForwarderConfig) *Forwarder {
-	return &Forwarder{
+	f := &Forwarder{
 		log:            logtest.NewLogger(),
 		router:         httprouter.New(),
 		cfg:            cfg,
 		activeRequests: make(map[string]context.Context),
 		ctx:            ctx,
 	}
+	if upstream, err := newUpstreamResolver(cfg.KubeServiceType, f.findKubeDetailsByClusterName); err == nil {
+		f.upstream = upstream
+	} else {
+		f.upstream = proxyServiceResolver{}
+	}
+	return f
 }
 
 type mockSemaphoreClient struct {
@@ -2302,6 +2310,7 @@ func TestForwarderTLSConfigCAs(t *testing.T) {
 
 	var getConnTLSRootsCalled bool
 	f := &Forwarder{
+		upstream: proxyServiceResolver{},
 		cfg: ForwarderConfig{
 			Keygen:            authority,
 			AuthClient:        cl,
