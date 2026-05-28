@@ -34,13 +34,13 @@ injected_fields:
 exclude_fields:
   # Metadata (we id resources by name on our side)
   - "WorkloadCluster.metadata.id"
+  - "WorkloadCluster.metadata.revision"
 
 # These fields will be marked as Computed: true
 computed_fields:
   # Metadata
   - "WorkloadCluster.metadata.expires"
   - "WorkloadCluster.metadata.namespace"
-  - "WorkloadCluster.metadata.revision"
   - "WorkloadCluster.kind"
 
 # These fields will be marked as Required: true
