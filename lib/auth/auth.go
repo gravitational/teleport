@@ -6676,6 +6676,17 @@ func restoreSanitizedHostname(server types.Server) error {
 	return nil
 }
 
+// UpsertProxyServerWithoutReturn exists to satisfy the Announcer interface.
+// It is never called directly by the heartbeater that consumes the Announcer as
+// for proxies this occurs over gRPC/HTTP API client.
+//
+// TODO(noah): DELETE IN v20.0.0 - once the HTTP fallback is removed the
+// Announcer interface can call a returning variant directly.
+func (a *Server) UpsertProxyServerWithoutReturn(ctx context.Context, server types.Server) error {
+	_, err := a.Services.UpsertProxyServer(ctx, server)
+	return trace.Wrap(err)
+}
+
 // UpsertNode implements [services.Presence] by delegating to [Server.Services]
 // and potentially emitting a [usagereporter] event.
 func (a *Server) UpsertNode(ctx context.Context, server types.Server) (*types.KeepAlive, error) {

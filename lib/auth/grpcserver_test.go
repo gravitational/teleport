@@ -3966,7 +3966,7 @@ func TestAppsCRUD(t *testing.T) {
 	}
 	require.Empty(t, iterOut)
 
-	err = srv.Auth().UpsertProxy(ctx, &types.ServerV2{
+	_, err = srv.Auth().UpsertProxyServer(ctx, &types.ServerV2{
 		Kind: types.KindProxy,
 		Metadata: types.Metadata{
 			Name: "proxy",
@@ -4104,7 +4104,7 @@ func TestAppServersCRUD(t *testing.T) {
 	require.Empty(t, resources.Resources)
 
 	t.Run("App server with an app that has a public address matching a proxy address should fail", func(t *testing.T) {
-		err = srv.Auth().UpsertProxy(ctx, &types.ServerV2{
+		_, err = srv.Auth().UpsertProxyServer(ctx, &types.ServerV2{
 			Kind: types.KindProxy,
 			Metadata: types.Metadata{
 				Name: "proxy",

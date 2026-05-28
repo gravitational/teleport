@@ -108,15 +108,11 @@ type Presence interface {
 	// DeleteAuthServer deletes auth server by name
 	DeleteAuthServer(name string) error
 
-	// UpsertProxy registers proxy server presence, permanently if ttl is 0 or
-	// for the specified duration with second resolution if it's >= 1 second
-	UpsertProxy(ctx context.Context, server types.Server) error
-
 	// ProxyGetter gets a list of proxies
 	ProxyGetter
 
-	// DeleteProxy deletes proxy by name
-	DeleteProxy(ctx context.Context, name string) error
+	// DeleteProxyServer deletes proxy by name
+	DeleteProxyServer(ctx context.Context, name string) error
 
 	// UpsertReverseTunnel upserts reverse tunnel entry temporarily or permanently
 	UpsertReverseTunnel(ctx context.Context, tunnel types.ReverseTunnel) (types.ReverseTunnel, error)
@@ -204,6 +200,11 @@ type Presence interface {
 type PresenceInternal interface {
 	Presence
 	InventoryInternal
+
+	// UpsertProxyServer registers proxy server presence, permanently if ttl is
+	// 0 or for the specified duration with second resolution if it's >= 1
+	// second. It returns the upserted server with its revision populated.
+	UpsertProxyServer(ctx context.Context, server types.Server) (types.Server, error)
 
 	UpsertHostUserInteractionTime(ctx context.Context, name string, loginTime time.Time) error
 	GetHostUserInteractionTime(ctx context.Context, name string) (time.Time, error)
