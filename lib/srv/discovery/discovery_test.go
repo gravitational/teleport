@@ -2224,6 +2224,10 @@ func (m *mockFetchersClients) GetAWSSTSPresignClient(aws.Config) fetchers.STSPre
 	return nil
 }
 
+func (m *mockFetchersClients) GetAWSIAMClient(aws.Config) fetchers.IAMClient {
+	return nil
+}
+
 var eksMockClusters = []*ekstypes.Cluster{
 	{
 		Name:   aws.String("eks-cluster1"),

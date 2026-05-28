@@ -32,7 +32,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
@@ -689,20 +688,6 @@ func (cfg *Config) ApplyCAPins(caPins []string) error {
 		cfg.CAPins = filteredPins
 	}
 	return nil
-}
-
-// DebugDumpToYAML is useful for debugging: it dumps the Config structure into
-// a string
-func (cfg *Config) DebugDumpToYAML() string {
-	shallow := *cfg
-	// do not copy sensitive data to stdout
-	shallow.Identities = nil
-	shallow.Auth.Authorities = nil
-	out, err := yaml.Marshal(shallow)
-	if err != nil {
-		return err.Error()
-	}
-	return string(out)
 }
 
 // ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS

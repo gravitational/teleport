@@ -246,9 +246,11 @@ func TestVNetService(t *testing.T) {
 		t.Fatal("timeout waiting for host network to be configured")
 	}
 
-	// Call the HTTP app over VNet.
-	client := &http.Client{Transport: hostNetwork.HTTPTransport()}
-	rsp, err := client.Get("http://intranet.dunder-mifflin.com")
+	// Call the HTTP app over VNet via the HTTPS tunnel.
+	transport := hostNetwork.HTTPTransport()
+	transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+	client := &http.Client{Transport: transport}
+	rsp, err := client.Get("https://intranet.dunder-mifflin.com")
 	require.NoError(t, err)
 	defer rsp.Body.Close()
 

@@ -267,3 +267,88 @@ func (s *TerraformSuiteOSS) TestImportBot() {
 		},
 	})
 }
+
+func (s *TerraformSuiteOSS) TestBotWithScope() {
+	t := s.T()
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+
+	checkResourcesDestroyed := func(state *terraform.State) error {
+		var errs []error
+		if _, err := s.client.GetToken(ctx, "bot-test-scoped"); err != nil {
+			if !trace.IsNotFound(err) {
+				errs = append(errs, err)
+			}
+		}
+
+		if _, err := s.client.GetUser(ctx, "bot-test-scoped-bot", false); err != nil {
+			if !trace.IsNotFound(err) {
+				errs = append(errs, err)
+			}
+		}
+
+		return trace.NewAggregate(errs...)
+	}
+
+	botName := "teleport_bot.test_scoped"
+	scopedRoleName := "teleport_scoped_role.scoped_operator"
+	assignmentName := "teleport_scoped_role_assignment.bot_assignment"
+
+	resource.Test(t, resource.TestCase{
+		ProtoV6ProviderFactories: s.terraformProviders,
+		CheckDestroy:             checkResourcesDestroyed,
+		IsUnitTest:               true,
+		Steps: []resource.TestStep{
+			// Step 1: Create bot with scope
+			{
+				Config: s.getFixture("bot_scoped_0_create.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(botName, "metadata.name", "test-scoped-bot"),
+					resource.TestCheckResourceAttr(botName, "scope", "/test-scope"),
+					resource.TestCheckResourceAttr(scopedRoleName, "metadata.name", "scoped-operator"),
+					resource.TestCheckResourceAttr(scopedRoleName, "scope", "/test-scope"),
+					resource.TestCheckResourceAttr(assignmentName, "metadata.name", "test-bot-assignment"),
+					resource.TestCheckResourceAttr(assignmentName, "scope", "/test-scope"),
+					resource.TestCheckResourceAttr(assignmentName, "spec.bot_name", "test-scoped-bot"),
+					resource.TestCheckResourceAttr(assignmentName, "spec.bot_scope", "/test-scope"),
+					resource.TestCheckResourceAttr(assignmentName, "spec.assignments.0.role", "scoped-operator"),
+					resource.TestCheckResourceAttr(assignmentName, "spec.assignments.0.scope", "/test-scope"),
+				),
+			},
+			{
+				Config:   s.getFixture("bot_scoped_0_create.tf"),
+				PlanOnly: true,
+			},
+			{
+				Config: s.getFixture("bot_scoped_1_update.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(botName, "metadata.name", "test-scoped-bot"),
+					resource.TestCheckResourceAttr(botName, "scope", "/test-scope"),
+					resource.TestCheckResourceAttr(botName, "metadata.labels.env", "production"),
+				),
+			},
+			{
+				Config:   s.getFixture("bot_scoped_1_update.tf"),
+				PlanOnly: true,
+			},
+			// Step 3: Change bot scope (should force replacement)
+			{
+				Config: s.getFixture("bot_scoped_2_change_scope.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(botName, "metadata.name", "test-scoped-bot"),
+					resource.TestCheckResourceAttr(botName, "scope", "/different-scope"),
+					resource.TestCheckResourceAttr(scopedRoleName, "metadata.name", "scoped-operator-different"),
+					resource.TestCheckResourceAttr(scopedRoleName, "scope", "/different-scope"),
+					resource.TestCheckResourceAttr(assignmentName, "metadata.name", "test-bot-assignment-different"),
+					resource.TestCheckResourceAttr(assignmentName, "scope", "/different-scope"),
+					resource.TestCheckResourceAttr(assignmentName, "spec.bot_scope", "/different-scope"),
+				),
+			},
+			{
+				Config:   s.getFixture("bot_scoped_2_change_scope.tf"),
+				PlanOnly: true,
+			},
+		},
+	})
+}

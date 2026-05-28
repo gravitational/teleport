@@ -1823,3 +1823,64 @@ func (f *fakeSudoersBackend) RemoveSudoers(name string) error {
 	delete(f.sudoers, name)
 	return f.err
 }
+
+func TestServerContextEmitters(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		component     string
+		recordingMode string
+		wantDiscard   bool
+	}{
+		{
+			name:          "node component, node recording",
+			component:     teleport.ComponentNode,
+			recordingMode: types.RecordAtNode,
+			wantDiscard:   false,
+		},
+		{
+			name:          "node component, proxy recording",
+			component:     teleport.ComponentNode,
+			recordingMode: types.RecordAtProxy,
+			wantDiscard:   true,
+		},
+		{
+			name:          "node component, proxy-sync recording",
+			component:     teleport.ComponentNode,
+			recordingMode: types.RecordAtProxySync,
+			wantDiscard:   true,
+		},
+		{
+			name:          "forwarding node component, proxy recording",
+			component:     teleport.ComponentForwardingNode,
+			recordingMode: types.RecordAtProxy,
+			wantDiscard:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			recConfig, err := types.NewSessionRecordingConfigFromConfigFile(types.SessionRecordingConfigSpecV2{
+				Mode: tt.recordingMode,
+			})
+			require.NoError(t, err)
+
+			srv := &mockServer{component: tt.component}
+			scx := &ServerContext{
+				SessionRecordingConfig: recConfig,
+				srv:                    srv,
+			}
+
+			// BPFEmitter must always be the underlying server so ESR events
+			// reach the audit log regardless of cluster recording mode.
+			require.Same(t, srv, scx.BPFEmitter())
+
+			if tt.wantDiscard {
+				require.IsType(t, (*events.DiscardAuditLog)(nil), scx.AuditEmitter())
+			} else {
+				require.Same(t, srv, scx.AuditEmitter())
+			}
+		})
+	}
+}

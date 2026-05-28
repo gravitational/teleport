@@ -14,15 +14,25 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package subca
+package auth
 
-const enabled = true
+import (
+	"context"
 
-// Enabled returns true if the Sub CA feature is enabled.
-//
-// Testable components should not depend on this function directly. Instead,
-// they take should take "SubCAEnabled bool" or "SubCAEnabled func() bool" as
-// part of their config.
-func Enabled() bool {
-	return enabled
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/subca"
+)
+
+func (a *Server) loadCAOverrideResolverForCA(ctx context.Context, ca types.CertAuthority) (*subca.CAOverrideResolver, error) {
+	r, err := subca.LoadCAOverrideResolver(
+		ctx,
+		a.Cache,
+		a.modules.IsEnterpriseBuild(),
+		types.CertAuthorityOverrideID{
+			ClusterName: ca.GetClusterName(),
+			CAType:      string(ca.GetType()),
+		})
+	return r, trace.Wrap(err, "load CA override resolver")
 }
