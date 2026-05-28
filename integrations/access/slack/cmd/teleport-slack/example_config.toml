@@ -22,6 +22,21 @@
 # Slack Bot OAuth token
 token = "xoxb-11xx"
 
+[review]
+# Toggles native review feature. Default is false.
+enabled = false
+# Slack App-level token to enable app interactions via Socket Mode.
+# app_token = "xapp-..."
+#
+# Name of the Teleport trait to resolve Slack user to Teleport user.
+# The trait should hold value of Slack user ID.
+# slack_user_id_trait = "slack_uid"
+#
+# Allows exact Slack email to Teleport username match.
+# This should only be true if `slack_user_id_trait` is not configured in Teleport.
+# We recommend configuring a trait for stronger identity binding. Default is false.
+# allow_email_username_match = false
+
 [role_to_recipients]
 # Map roles to recipients.
 #
