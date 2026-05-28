@@ -1,0 +1,141 @@
+---
+title: FedRAMP FAQ
+description: Frequently asked questions about Teleport for FedRAMP compliance.
+sidebar_label: FAQ
+sidebar_position: 5
+tags:
+ - faq
+ - zero-trust
+ - audit
+enterprise: FedRAMP compliance
+---
+
+This page provides answers to frequently asked questions about deploying Teleport for FedRAMP compliance. For broader Teleport FAQ, see [Frequently Asked Questions](../../../faq.mdx).
+
+## Is Teleport Enterprise Cloud FedRAMP authorized?
+
+Teleport Enterprise Cloud is **not FedRAMP authorized**.  Teleport Enterprise must be deployed within your ATO boundary and configured in FIPS mode as described in the [deployment guide](./deployment.mdx) to meet FedRAMP requirements.
+
+## Which cloud regions and services can I deploy Teleport in?
+
+Teleport Enterprise must be deployed using cloud regions and services covered by the infrastructure provider's FedRAMP authorization and appropriate for the target impact level ([AWS](https://aws.amazon.com/compliance/services-in-scope/FedRAMP/), [Google Cloud](https://cloud.google.com/security/compliance/fedramp), [Microsoft Azure](https://learn.microsoft.com/en-us/azure/compliance/offerings/offering-fedramp)).
+
+## What does Teleport's audit log capture?
+
+Teleport's [audit log](../../../reference/deployment/monitoring/audit.mdx) captures every access-plane event — authentications, authorization decisions, session starts and ends, commands executed, file transfers, port-forwards, role and lock changes, MCP tool invocations, and more. The full event catalog with field-by-field detail is in the [Audit Event Reference](../../../reference/audit-events.mdx).
+
+At the close of every Teleport-mediated connection, an audit event is emitted with the total bytes transmitted and received during the session. This is in addition to the session-start, command, and session-end events captured during the connection's lifetime.
+
+## mTLS
+
+### How does Teleport use mTLS?
+
+Teleport implements mTLS for all communications between user clients and Teleport servers, with several exceptions listed below.
+Inside the ATO boundary, mTLS is used for communication between the Teleport proxy and internal hosts running all protocols.
+Following successful authentication to the SSO Identity Provider, Teleport issues the authenticated user x.509 client certificates signed by its own internal x.509 CA. Target Teleport services and clients require valid x.509 certificates and mTLS for all target SSH, Kubernetes, database, and web application connections.
+
+### What are the mTLS exceptions?
+
+- Teleport components provide read-only health check REST endpoints requiring only TLS.
+- Teleport offers optional web UI for Windows Desktop and SSH. For web UI access, Teleport uses TLS + session cookie + bearer token with proxy. Teleport Proxy converts web sessions to mTLS to reach out to Teleport servers.
+- Teleport offers optional SSH compatibility mode. In this mode Teleport dials target OpenSSH services using OpenSSH client certificates issued and signed by Teleport OpenSSH CA.
+- The connection from the Teleport Proxy to Teleport desktop agent is mTLS, but the connection from the Teleport desktop agent to an RDP server is only TLS. The agent authenticates itself to the RDP server via a virtual PIV-compatible smartcard containing a user certificate issued by Teleport's internal CA.
+
+## FIPS
+
+### How do I verify I'm running the FIPS build?
+
+Confirm Teleport is running the FIPS build by checking the version output for the BoringCrypto tag which indicates the library used for cryptographic operations.
+
+```code
+# Binary install
+$ teleport version
+
+# Container install
+$ docker exec <container_name> teleport version
+
+# Kubernetes or Helm install
+$ kubectl exec <teleport_pod> -- teleport version
+```
+
+The output should end with `X:boringcrypto`. This indicates that Google's BoringCrypto module is being used for the platform's cryptographic operations.
+If it doesn't, you have a standard Enterprise build — Teleport will refuse to start with the `--fips` flag and your deployment will not satisfy SC-13 / IA-7.
+
+You can also confirm the running teleport process was started in FIPS mode by inspecting its command line:
+
+```code
+$ ps aux | grep teleport
+```
+The `--fips` flag should appear in the output.
+
+### What does the `--fips` flag enforce?
+
+When Teleport starts in FIPS mode, it:
+
+- Restricts TLS to versions 1.2 and 1.3 with FIPS-approved cipher suites only.
+- Restricts SSH ciphers, key exchange, MAC, and public-key algorithms to the FIPS-approved set.
+- Restricts certificate keys (including host keys when in recording proxy mode) to ECDSA on NIST P-256 or 2048-bit RSA.
+- Removes non-FIPS algorithms from the binary entirely — for example, NaCl is replaced with AES-GCM.
+- Disables local authentication, requiring an SSO connector for all logins.
+- Routes AWS audit storage (S3, DynamoDB) to [FIPS endpoints](../../../reference/deployment/backends.mdx#configuring-aws-fips-endpoints). At-rest encryption for the audit bucket and DynamoDB table is configured separately via the backend's SSE / KMS parameters — `--fips` does not enable it automatically.
+- Forces session recording at the node.
+- Refuses `--insecure` — Teleport will fail to start if both flags are set.
+- Defaults to FIPS-compliant algorithms if no TLS or SSH cryptographic primitives are explicitly configured.
+
+### Which cryptographic algorithms does FIPS mode use?
+
+In FIPS mode, Teleport uses the following cryptographic algorithms by default.
+
+| Category | Algorithms |
+| - | - |
+| **SSH ciphers** | `aes128-gcm@openssh.com`, `aes256-gcm@openssh.com`, `aes128-ctr`, `aes192-ctr`, `aes256-ctr` |
+| **SSH key exchange (KEX)** | `ecdh-sha2-nistp256`, `ecdh-sha2-nistp384` |
+| **SSH message authentication (MAC)** | `hmac-sha2-256-etm@openssh.com`, `hmac-sha2-512-etm@openssh.com`, `hmac-sha2-256`, `hmac-sha2-512` |
+| **SSH public-key authentication** | `ecdsa-sha2-nistp256`, `ecdsa-sha2-nistp384`, `rsa-sha2-256`, `rsa-sha2-512` |
+| **TLS 1.2 cipher suites** | `tls-ecdhe-ecdsa-with-aes-128-gcm-sha256`, `tls-ecdhe-rsa-with-aes-128-gcm-sha256`, `tls-ecdhe-ecdsa-with-aes-256-gcm-sha384`, `tls-ecdhe-rsa-with-aes-256-gcm-sha384` |
+| **TLS 1.3 cipher suites** | `tls-aes-128-gcm-sha256`, `tls-aes-256-gcm-sha384` |
+
+### How do I migrate from a non-FIPS deployment?
+
+Existing Teleport clusters created with v17+ default to Ed25519 certificate keys, which are **not** supported by the FIPS binary. Attempting to start the FIPS binary against an Ed25519-keyed cluster produces:
+
+```
+User Message: only RSA and ECDSA keys supported
+```
+
+To migrate:
+
+1. Set the cluster's [signature algorithm suite](../../../reference/deployment/signature-algorithms.mdx) to `fips-v1`.
+2. Run a [CA rotation](../../management/security/ca-rotation.mdx) for any CA that holds an Ed25519 key. Use `tctl status` to confirm the signature algorithms in use.
+3. Once all CAs have rotated to FIPS-compatible algorithms, install the FIPS binary and proceed with the rest of this section.
+
+### Why is remote desktop access limited to TLS 1.2?
+
+Teleport uses Rust for RDP connections, and thus uses a fork of Cloudflare's [`BoringSSL bindings`](https://github.com/gravitational/boring)
+library under the hood, exposing Google's FIPS-validated TLS cryptographic module to Teleport's Rust code.  The primary notable difference to the specifications listed above is that
+TLS is restricted to TLS 1.2 only (1.3 is not supported).
+
+### What are the common FIPS failure modes?
+
+- **`--fips` on a non-FIPS binary** — Teleport fails to start with: *"binary not compiled in FIPS140 mode, check that Enterprise FIPS release was downloaded from a Teleport account."*
+- **FIPS binary without `--fips`** — Teleport starts and uses BoringCrypto for cryptographic operations, but does **not** enforce FIPS-mode policy. The deployment is cryptographically validated but not operationally compliant.
+- **Non-FIPS cipher suites configured** — if `teleport.yaml` specifies TLS or SSH cryptographic primitives that are not FIPS 140-validated, Teleport will fail to start.
+- `arm64` FIPS builds do not support access to Windows desktops.
+
+### What additional constraints does the FIPS `tsh` enforce?
+
+A FIPS `tsh` enforces additional runtime constraints:
+- **Refuses `--insecure`** — the flag is removed from the FIPS build entirely; it cannot be passed.
+- **Validates server certificates against FIPS-approved algorithms** — RSA-2048, ECDSA P-256, or ECDSA P-384 only. Non-compliant keys produce a `FIPSError`.
+- **Refuses to connect to non-FIPS clusters** — if the cluster presents non-FIPS material, `tsh` errors out with: *"tsh is running in FIPS mode, but the cluster is not FIPS-compliant. Use a non-FIPS tsh binary to connect to the cluster."*
+
+### What are the tradeoffs of running the FIPS binary?
+
+Using Teleport's FIPS binary is designed to meet specific regulatory and compliance requirements (such as FedRAMP in the US). Enabling FIPS mode only impacts which cryptographic module and algorithms are available — but the choice does come with tradeoffs worth understanding.
+
+| Tradeoff | Detail |
+| - | - |
+| **Restricted cipher suite selection** | The FIPS build only permits ciphers, key exchange mechanisms, and signature algorithms that are approved under the FIPS certification program. Due to the rigorous and lengthy certification process, FIPS-approved algorithms often lag behind the state of the art. As a result, the FIPS build lacks support for newer algorithms with improved performance or forward-looking security properties (e.g. ChaCha20-Poly1305, Ed25519). |
+| **Reduced performance** | Cryptographic operations may be up to 2× slower compared to the standard build. This can impact throughput for high-volume clusters. |
+| **Operational complexity** | Running the FIPS build can introduce additional maintenance burden, such as troubleshooting connection issues where peers expect different cipher support. |
+| **No security benefit without compliance need** | Outside of regulated environments, using the FIPS binary does not increase Teleport's security posture. In fact, it may result in a net negative effect by limiting use of modern cryptographic algorithms. |

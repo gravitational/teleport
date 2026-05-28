@@ -9,23 +9,8 @@ tags:
 enterprise: FedRAMP compliance
 ---
 
-<Admonition type="warning" title="FIPS 140-2 module sunsets September 21, 2026">
-
-Teleport releases prior to 17.7.3 use BoringCrypto [CMVP certificate 4407](https://csrc.nist.gov/projects/cryptographic-module-validation-program/certificate/4407), which sunsets September 21, 2026.
-Upgrade to Teleport 17.7.3+ or 18.0.0+ to move to the FIPS 140-3 validated BoringCrypto module ([CMVP certificate 4735](https://csrc.nist.gov/projects/cryptographic-module-validation-program/certificate/4735)).
-
-</Admonition>
-
-<Admonition type="tip" title="On the FedRAMP page set">
-
-- **Deploying Teleport for FedRAMP?** → [Deployment guide](./deployment.mdx)
-- **Running a live audit?** → [Audit evidence runbook](./evidence.mdx)
-- **Control coverage?** → [Rev 5 control mapping](./rev5.mdx) · [20x KSI mapping](./20x.mdx)
-
-</Admonition>
-
 Teleport's on-prem Enterprise deployment provides essential FedRAMP control coverage for the people, workloads, and AI agents operating inside your infrastructure.
-Teleport Enterprise is actively used inside FedRAMP-authorized services today, including environments audited at the High impact level.
+Teleport Enterprise is actively used inside FedRAMP-authorized services today, including environments audited against the High baseline.
 
 ## Why FedRAMP teams choose Teleport
 
@@ -41,8 +26,8 @@ Granting the right people the right access — and being able to prove it on dem
 With Teleport: 
 
 * IdP integration means everyone gets [Single sign-on](../../sso/sso.mdx) with phishing-resistant MFA that maps directly to your existing group structures.
-* One source of truth for authentication AND authorization plus no standing accounts to revoke when someone leaves.  You manage your IdP accounts and configuration, Teleport follows your lead automatically.
-* Shared passwords and standing break-glass accounts are eliminated; long-lived SSH keys that sneak into repositories or accumulate in `.ssh` directories are replaced with short-lived, role-scoped access to your internal services.
+* One source of truth for authentication AND authorization plus no one-off accounts to revoke when someone leaves.  You manage your IdP accounts and configuration, Teleport follows your lead automatically.
+* Shared passwords and break-glass accounts are eliminated; long-lived SSH keys that sneak into repositories or accumulate in `.ssh` directories are replaced with short-lived, role-scoped certificates.
 
 ### Workloads
 Workload-to-workload access is often the largest and least-visible part of an ATO boundary. As internal services, CI/CD, and batch jobs proliferate, keeping authentication consistent — and the credentials accounted for — becomes a steady drag and constant risk.
@@ -50,28 +35,35 @@ Workload-to-workload access is often the largest and least-visible part of an AT
 With Teleport: 
 
 * Every workload is issued a unique, short-lived, SPIFFE-compatible cryptographic identity through Teleport's [Machine & Workload Identity](../../../machine-workload-identity/machine-workload-identity.mdx). Every workload is now named, and their actions can be tracked just like users.
-* Workloads authenticate to each other and to your databases, services, and cloud APIs over mutual TLS (mTLS) — guaranteeing cryptographic protection over the network.
+* Workloads authenticate using short-lived cryptographic credentials in place of static API keys and service-account passwords — mTLS where the destination supports it (other workloads, databases, internal services), and federated short-lived tokens for cloud APIs.
 * Static API keys and service-account credentials are replaced with auto-rotating identities under the same access and audit controls as your people.
 * Internal access between hosts gains consistent authentication and authorization that's centrally managed.
 
-### AI
+### AI Agents
 Engineering is wiring AI agents into internal systems faster than compliance teams can track them. Without an identity attached to each agent, an LLM querying your production database has no attributable record in your audit trail, and represents a growing risk of unauthorized access.
 
 With Teleport: 
 
-* Agents receive their own identity through Teleport's [Agentic Identity Framework](../../../agentic-identity-framework.mdx).  Engineers have a clear approach for agent authentication to replace ad hoc, inconsistent, and insecure access controls.
+* Agents receive their own identity through Teleport's [Agentic Identity Framework](../../../agentic-identity-framework.mdx).  Engineers have a standard approach for agent authentication to replace ad hoc, inconsistent, and insecure access controls.
 * Agentic Identity brings agents under the same RBAC model as your users and workloads. Agent sprawl and unattributed activity become visible and enforceable at the platform layer.
 * Access to MCP servers, databases, and internal APIs is brokered, authorized, and audited by Teleport's identity-aware proxy, adding enhanced logging and additional access control filters.
 
-### FIPS 140-2 & FIPS 140-3 Support
+### FIPS 140-2 & FIPS 140-3 support
+
+<Admonition type="warning" title="FIPS 140-2 module sunsets September 21, 2026">
+
+Teleport releases prior to 17.7.3 use BoringCrypto [CMVP certificate 4407](https://csrc.nist.gov/projects/cryptographic-module-validation-program/certificate/4407), which sunsets September 21, 2026.
+Upgrade to Teleport 17.7.3+ or 18.0.0+ to move to the FIPS 140-3 validated BoringCrypto module ([CMVP certificate 4735](https://csrc.nist.gov/projects/cryptographic-module-validation-program/certificate/4735)).
+
+</Admonition>
 
 Teleport Enterprise's built-in FIPS support enables a FIPS 140-validated cryptographic module on the platform to satisfy the cryptographic requirements of NIST SP 800-53 controls SC-13 (Cryptographic Protection) and IA-7 (Cryptographic Module Authentication).
 
 - **FIPS 140-3**: Teleport releases from 17.7.3+ and 18.0.0+ use BoringCrypto tag `fips-20220613` ([CMVP certificate 4735](https://csrc.nist.gov/projects/cryptographic-module-validation-program/certificate/4735), FIPS 140-3)
 - **FIPS 140-2**: Teleport releases prior to 17.7.3 use BoringCrypto tag `fips-20210429` ([CMVP certificate 4407](https://csrc.nist.gov/projects/cryptographic-module-validation-program/certificate/4407), FIPS 140-2) - sunsets September 21, 2026.
 
-A detailed list of cryptographic algorithms used in FIPS mode is available below in [FIPS Cryptographic algorithms](#fips-cryptographic-algorithms).
-For more information on BoringCrypto's FIPS validation, see Google's [BoringCrypto FIPS Module documentation](https://boringssl.googlesource.com/boringssl/+/HEAD/crypto/fipsmodule/FIPS.md).
+A detailed list of cryptographic algorithms used in FIPS mode is available in the [FAQ](./faq.mdx#which-cryptographic-algorithms-does-fips-mode-use).
+For more information on BoringCrypto's FIPS validation, see Google's [BoringCrypto FIPS module documentation](https://boringssl.googlesource.com/boringssl/+/HEAD/crypto/fipsmodule/FIPS.md).
 
 In practice, a Teleport deployment in your FedRAMP environment standardizes access control across your ATO boundary that would otherwise be a collection of bespoke, ad hoc services, password and secret management, logging and management functions -
 the sort of ad hoc implementations that are almost guaranteed to have security gaps leading to vulnerabilities and control findings.
@@ -79,154 +71,11 @@ the sort of ad hoc implementations that are almost guaranteed to have security g
 With Teleport, you and your 3PAO work through dozens of control implementations in one sitting - presenting evidence, demonstrating capabilities, and offering short, simple, accurate explanations.
 Your team demonstrates consistent, well-considered, compliant security, and your assessors get the information they need in one place — the unified UI, the session-termination locks, and the session recording system are typically the demonstrations assessors find most efficient.
 
-## FAQ
+## Next steps
 
-### Teleport Enterprise Cloud
-
-Teleport Enterprise Cloud is **not FedRAMP authorized**.  Teleport Enterprise must be deployed within your ATO boundary and configured in FIPS mode as described above to meet FedRAMP requirements.
-
-### Cloud provider region and service scope
-
-Teleport Enterprise must be deployed using cloud regions and services covered by the infrastructure provider's FedRAMP authorization and appropriate for the target impact level ([AWS](https://aws.amazon.com/compliance/services-in-scope/FedRAMP/), [Google Cloud](https://cloud.google.com/security/compliance/fedramp), [Microsoft Azure](https://learn.microsoft.com/en-us/azure/compliance/offerings/offering-fedramp)).
-
-### FedRAMP audit log
-
-At the close of every Teleport-mediated connection, an audit event is emitted with the total bytes transmitted and received during the session. This is in addition to the session-start, command, and session-end events captured during the connection's lifetime.
-
-### mTLS
-
-Teleport implements mTLS for all communications between user clients and Teleport servers, with several exceptions listed below.
-Inside the ATO boundary, mTLS is used for communication between the Teleport proxy and internal hosts running all protocols.
-Following successful authentication to the SSO Identity Provider, Teleport issues the authenticated user x.509 client certificates signed by its own internal x.509 CA. Target Teleport services and clients require valid x.509 certificates and mTLS for all target SSH, Kubernetes, database, and web application connections.
-
-#### mTLS exceptions
-
-- Teleport components provide read-only health check REST endpoints requiring only TLS.
-- Teleport offers optional web UI for Windows Desktop and SSH. For web UI access, Teleport uses TLS + session cookie + bearer token with proxy. Teleport Proxy converts web sessions to mTLS to reach out to Teleport servers.
-- Teleport offers optional SSH compatibility mode. In this mode Teleport dials target OpenSSH services using OpenSSH client certificates issued and signed by Teleport OpenSSH CA.
-- The connection from the Teleport Proxy to Teleport desktop agent is mTLS, but the connection from the Teleport desktop agent to an RDP server is only TLS. The agent authenticates itself to the RDP server via a virtual PIV-compatible smartcard containing a user certificate issued by Teleport’s internal CA.
-
-
-
-### FIPS
-
-#### Verify you're running the FIPS build
-
-Confirm Teleport is running the FIPS build by checking the version output for the BoringCrypto tag which indicates the library used for cryptographic operations.
-
-```code
-# Binary install
-$ teleport version
-
-# Container install
-$ docker exec <container_name> teleport version
-
-# Kubernetes or Helm install
-$ kubectl exec <teleport_pod> -- teleport version
-```
-
-The output should end with `X:boringcrypto`. This indicates that Google's BoringCrypto module is being used for the platform's cryptographic operations.
-If it doesn't, you have a standard Enterprise build — Teleport will refuse to start with the `--fips` flag and your deployment will not satisfy SC-13 / IA-7.
-
-You can also confirm the running teleport process was started in FIPS mode by inspecting its command line:
-
-```code
-$ ps aux | grep teleport
-```
-The `--fips` flag should appear in the output.
-
-
-#### What `--fips` enforces
-
-When Teleport starts in FIPS mode, it:
-
-- Restricts TLS to versions 1.2 and 1.3 with FIPS-approved cipher suites only.
-- Restricts SSH ciphers, key exchange, MAC, and public-key algorithms to the FIPS-approved set.
-- Restricts certificate keys (including host keys when in recording proxy mode) to ECDSA on NIST P-256 or 2048-bit RSA.
-- Removes non-FIPS algorithms from the binary entirely — for example, NaCl is replaced with AES-GCM.
-- Disables local authentication, requiring an SSO connector for all logins.
-- Routes AWS audit storage (S3, DynamoDB) to [FIPS endpoints](../../../reference/deployment/backends.mdx#configuring-aws-fips-endpoints). At-rest encryption for the audit bucket and DynamoDB table is configured separately via the backend's SSE / KMS parameters — `--fips` does not enable it automatically.
-- Forces session recording at the node.
-- Refuses `--insecure` — Teleport will fail to start if both flags are set.
-- Defaults to FIPS-compliant algorithms if no TLS or SSH cryptographic primitives are explicitly configured.
-
-
-#### FIPS cryptographic algorithms
-
-In FIPS mode, Teleport will use the following cryptographic algorithms by default.
-
-Default FIPS ciphers for SSH:
-
-- `aes128-gcm@openssh.com`
-- `aes256-gcm@openssh.com`
-- `aes128-ctr`
-- `aes192-ctr`
-- `aes256-ctr`
-
-Default FIPS Key Exchange Algorithms (KEX) for SSH:
-
-- `ecdh-sha2-nistp256`
-- `ecdh-sha2-nistp384`
-
-Default FIPS Message Authentication Codes (MAC) for SSH:
-
-- `hmac-sha2-256-etm@openssh.com`
-- `hmac-sha2-512-etm@openssh.com`
-- `hmac-sha2-256`
-- `hmac-sha2-512`
-
-Default FIPS Public Key Authentication Algorithms for SSH:
-
-- `ecdsa-sha2-nistp256`
-- `ecdsa-sha2-nistp384`
-- `rsa-sha2-256`
-- `rsa-sha2-512`
-
-Default FIPS cipher suites for TLS 1.2:
-
-- `tls-ecdhe-ecdsa-with-aes-128-gcm-sha256`
-- `tls-ecdhe-rsa-with-aes-128-gcm-sha256`
-- `tls-ecdhe-ecdsa-with-aes-256-gcm-sha384`
-- `tls-ecdhe-rsa-with-aes-256-gcm-sha384`
-
-Default FIPS cipher suites for TLS 1.3:
-
-- `tls-aes-128-gcm-sha256`
-- `tls-aes-256-gcm-sha384`
-
-
-#### Migrating from a non-FIPS deployment
-
-Existing Teleport clusters created with v17+ default to Ed25519 certificate keys, which are **not** supported by the FIPS binary. Attempting to start the FIPS binary against an Ed25519-keyed cluster produces:
-
-```
-User Message: only RSA and ECDSA keys supported
-```
-
-To migrate:
-
-1. Set the cluster's [signature algorithm suite](../../../reference/deployment/signature-algorithms.mdx) to `fips-v1`.
-2. Run a [CA rotation](../../management/security/ca-rotation.mdx) for any CA that holds an Ed25519 key. Use `tctl status` to confirm the signature algorithms in use.
-3. Once all CAs have rotated to FIPS-compatible algorithms, install the FIPS binary and proceed with the rest of this section.
-
-#### Remote desktop access and TLS 1.2
-
-Teleport uses Rust for RDP connections, and thus uses a fork of Cloudflare's [`BoringSSL bindings`](https://github.com/gravitational/boring)
-library under the hood, exposing Google's FIPS-validated TLS cryptographic module to Teleport's Rust code.  The primary notable difference to the specifications listed above is that
-TLS is restricted to TLS 1.2 only (1.3 is not supported).
-
-
-#### FIPS Failure modes
-
-- **`--fips` on a non-FIPS binary** — Teleport fails to start with: *"binary not compiled in FIPS140 mode, check that Enterprise FIPS release was downloaded from a Teleport account."*
-- **FIPS binary without `--fips`** — Teleport starts and uses BoringCrypto for cryptographic operations, but does **not** enforce FIPS-mode policy. The deployment is cryptographically validated but not operationally compliant.
-- **Non-FIPS cipher suites configured** — if `teleport.yaml` specifies TLS or SSH cryptographic primitives that are not FIPS 140 compliant, Teleport will fail to start.
-- `arm64` FIPS builds do not support access to Windows desktops.
-
-#### FIPS `tsh` constraints
-
-A FIPS `tsh` enforces additional runtime constraints:
-- **Refuses `--insecure`** — the flag is removed from the FIPS build entirely; it cannot be passed.
-- **Validates server certificates against FIPS-approved algorithms** — RSA-2048, ECDSA P-256, or ECDSA P-384 only. Non-compliant keys produce a `FIPSError`.
-- **Refuses to connect to non-FIPS clusters** — if the cluster presents non-FIPS material, `tsh` errors out with: *"tsh is running in FIPS mode, but the cluster is not FIPS-compliant. Use a non-FIPS tsh binary to connect to the cluster."*
+- [Deployment guide](./deployment.mdx) — FIPS build, cluster configuration, audit logging, agents.
+- [Audit guide](./evidence.mdx) — what to do when a 3PAO asks you to demonstrate a control during a live audit.
+- [Rev 5 control mapping](./rev5.mdx) — NIST SP 800-53 Rev 5 control coverage.
+- [20x KSI mapping](./20x.mdx) — FedRAMP 20x Key Security Indicator coverage.
+- [FedRAMP FAQ](./faq.mdx) — FIPS verification and migration, cloud-provider regions, mTLS details, failure modes.
 

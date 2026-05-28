@@ -1,7 +1,8 @@
 ---
-title: FedRAMP Audit Evidence Runbook
-sidebar_label: FedRAMP Audit Evidence
-description: A live-audit runbook for the most common assessor asks during a FedRAMP authorization — how to demonstrate MFA, locks, certificates, recordings, logs, session controls, and access policy from a Teleport deployment.
+title: FedRAMP Audit Guide
+sidebar_label: FedRAMP Audit Guide
+sidebar_position: 2
+description: A live-audit guide for common assessor asks during a FedRAMP authorization — how to demonstrate MFA, locks, certificates, recordings, logs, session controls, and access policy from a Teleport deployment.
 tags:
  - how-to
  - zero-trust
@@ -11,22 +12,20 @@ enterprise: FedRAMP compliance
 
 When your 3PAO asks "show me how this works," Teleport supports concise, coherent evidence demonstrations. Instead of assembling evidence from a half-dozen tools, screenshots from the previous quarter, and policy documents that describe what *should* be happening, you share your screen with the assessor and walk through each control live. With practice, a single Teleport administrator can demonstrate and present evidence on short notice.
 
-For the broader FedRAMP overview, see the [FedRAMP compliance page](./index.mdx). For deployment guidance, see the [Deployment guide](./deployment.mdx). For control-by-control coverage, see the [Rev 5 control mapping](./rev5.mdx) or [20x KSI mapping](./20x.mdx).
+<Admonition type="tip" title="Share your tips to improve this guide">
 
-<Admonition type="tip" title="Help us improve this runbook">
-
-The demos and runbook entries below are drawn from real-world FedRAMP audits we and our customers have walked through. If you've worked through a different assessor ask — or found a sharper way to demonstrate one of the controls below — we'd like to fold your experience in:
+The asks below are drawn from real-world FedRAMP audits our customers have walked through. If you've worked through a different assessor ask — or found a sharper way to demonstrate one of the controls below — we'd like to fold your experience in:
 
 - **Open a pull request** against this page in the [`gravitational/teleport`](https://github.com/gravitational/teleport) repository, or
-- **Reach out** at [product-management@goteleport.com](mailto:product-management@goteleport.com?subject=FedRAMP%20Evidence%20Runbook) with your scenario.
+- **Reach out** to [product-management@goteleport.com](mailto:product-management@goteleport.com?subject=FedRAMP%20Audit%20Guide) with your scenario.
 
 </Admonition>
 
 ## Common assessor asks
 
-The sections below are a runbook for common assessor asks during a live audit. Each one names why the question comes up, then walks through exactly what to do — written to be scanned, not read.
+The sections below cover the most common assessor asks during a live audit. Each one names why the question comes up, then walks through exactly what to do — written to be scanned, not read.
 
-### "Prove MFA is enabled for login"
+### Ask: "Prove MFA is enabled for login"
 
 **When it comes up.** The AC and IA control families (and the IAM KSI theme) all require demonstrable MFA on every authentication path. Assessors want to see the prompt fire and as much of the MFA ceremony as they can see on a screenshare.
 
@@ -43,7 +42,7 @@ Optional:
 
 - *"Every login uses phishing-resistant MFA, and high-value sessions require an additional MFA tap on the connection itself."*
 
-### "Ban an active user"
+### Ask: "Ban an active user"
 
 **When it comes up.** Session termination and "what happens when someone needs to be cut off *now*" sit in AC-12 and the IAM-06 KSI. Assessors love seeing this work live because it's the control most often claimed and rarely demonstrated.
 
@@ -59,7 +58,7 @@ Optional:
 
 - *"Locks can target a user, role, MFA device, or host, and they take effect immediately across every Teleport-protected resource."*
 
-### "Show me the secrets used to login"
+### Ask: "Show me the secrets used to login"
 
 **When it comes up.** Assessors want to know what authentication material exists on operator workstations — passwords, API tokens, SSH keys. The expected answer in a modern Teleport deployment is *almost nothing* beyond a short-lived TLS certificate.
 
@@ -102,7 +101,7 @@ Optional:
 - *"The certificate carries both the user's identity and their authorization scope — role membership, allowed logins, Kubernetes groups. It's signed by the cluster's internal CA, short-lived, and can be revoked instantly via a lock."*
 - *"Note the private key sitting next to the certificate (`<your-username>.key` on Teleport 17.0+, or part of the legacy `-x509.pem` bundle on older versions) is also short-lived: generated fresh at every `tsh login` and rotated with the certificate. There is no persistent secret on this workstation that an attacker can steal and reuse beyond the certificate's lifetime."*
 
-### "Show me a recorded user session"
+### Ask: "Show me a recorded user session"
 
 **When it comes up.** Session recording is one of the highest-value evidence artifacts on the page — it touches AC-2, AU-10, the MLA KSI theme, and incident response readiness. Assessors usually want to watch a recording back end-to-end.
 
@@ -124,7 +123,7 @@ Optional:
 
 - *"Every modality has the appropriate recording: terminal replays for SSH and Kubernetes, screen capture for Windows desktops, and structured event streams for applications and databases. Everything lands in the same audit log with consistent metadata."*
 
-### "Show me the audit logs"
+### Ask: "Show me the audit logs"
 
 **When it comes up.** The entire AU family of controls and the MLA KSI theme are about whether you can answer "who did what, when, from where, and was it authorized?" Audit logs are the answer.
 
@@ -139,7 +138,7 @@ Optional:
 
 - *"Access-plane events — logins, session starts and stops, role changes, lock events — are in this log, structured, queryable, and forwarded to our SIEM."*
 
-### "Show me the maximum session length"
+### Ask: "Show me the maximum session length"
 
 **When it comes up.** AC-12 and the IAM KSI theme both require that authenticated sessions don't live forever. Assessors will want to see the actual configuration value, not just hear that it exists.
 
@@ -154,7 +153,7 @@ Optional:
 
 - *"Once the session TTL expires, the user has to re-authenticate from scratch — there's no silent renewal."*
 
-### "Show me the inactivity timeout"
+### Ask: "Show me the inactivity timeout"
 
 **When it comes up.** AC-11 (Session Lock) and AC-12 both require active sessions to terminate or lock on inactivity. The cleanest demonstration is to actually let it happen in front of them.
 
@@ -169,7 +168,7 @@ Optional:
 
 - *"The cluster enforces idle timeout on configured access sessions, not just at the application layer."*
 
-### "Show me who can access what"
+### Ask: "Show me who can access what"
 
 **When it comes up.** AC-2, AC-3, and AC-6 (Least Privilege) all hinge on whether your authorization model is documented, enforced, and reviewable. Assessors want to follow a user from IdP group → Teleport role → actual resource access.
 
