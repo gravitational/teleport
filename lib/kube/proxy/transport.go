@@ -184,7 +184,7 @@ func (f *Forwarder) newRemoteClusterTransport(clusterName string) (http.RoundTri
 	}
 
 	return instrumentedRoundtripper(
-		f.cfg.KubeServiceType,
+		f.component(),
 		internal.NewImpersonatorRoundTripper(h2Transport),
 	), tlsConfig.Clone(), nil
 }
@@ -234,7 +234,7 @@ func (f *Forwarder) remoteClusterDialer(clusterName string) dialContextFunc {
 			"kube.Forwarder/remoteClusterDiater",
 			oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 			oteltrace.WithAttributes(
-				semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
+				semconv.RPCServiceKey.String(f.component()),
 				semconv.RPCMethodKey.String("reverse_tunnel.Dial"),
 				semconv.RPCSystemKey.String("kube"),
 			),
@@ -285,7 +285,7 @@ func (f *Forwarder) newLocalClusterTransport(kubeClusterName, scope string) (htt
 	}
 
 	return instrumentedRoundtripper(
-		f.cfg.KubeServiceType,
+		f.component(),
 		internal.NewImpersonatorRoundTripper(h2Transport),
 	), tlsConfig.Clone(), nil
 }
@@ -305,7 +305,7 @@ func (f *Forwarder) localClusterDialer(kubeClusterName, scope string, opts ...co
 			"kube.Forwarder/localClusterDiater",
 			oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 			oteltrace.WithAttributes(
-				semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
+				semconv.RPCServiceKey.String(f.component()),
 				semconv.RPCMethodKey.String("reverse_tunnel.Dial"),
 				semconv.RPCSystemKey.String("kube"),
 			),
