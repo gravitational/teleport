@@ -1342,7 +1342,7 @@ func runCommand(t *testing.T, srv Server, bpfSrv bpf.BPF, command string, expect
 	}
 	scx.execRequest.SetCommand(command)
 
-	clientChan, serverChan := newMockSSHChannel()
+	clientChan, serverChan := newMockSSHChannel(t)
 	clientChan.Drain()
 
 	t.Logf("running %q", command)
