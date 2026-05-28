@@ -199,6 +199,9 @@ exclude_fields:
     # ClusterMaintenanceConfig
     - "ClusterMaintenanceConfigV1.Metadata.Name" # It's a singleton resource
 
+    # Nonce value is opaque and can be hidden from users.
+    - "ClusterMaintenanceConfigV1.Nonce"
+
     # NetworkingConfig
     - "ClusterNetworkingConfigV2.Metadata.Name" # It's a singleton resource
 
