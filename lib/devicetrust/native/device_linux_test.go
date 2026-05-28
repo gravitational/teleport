@@ -204,3 +204,61 @@ func TestCollectDeviceData_linux(t *testing.T) {
 		})
 	}
 }
+
+func TestParseDMIReadOutput(t *testing.T) {
+	const validJSON = `{"ProductName":"21J50013US","ProductSerial":"PF0A0AAA","BoardSerial":"L1AA00A00A0","ChassisAssetTag":"SomeAssetTag"}`
+	dmiFromValidJSON := &linux.DMIInfo{
+		ProductName:     "21J50013US",
+		ProductSerial:   "PF0A0AAA",
+		BoardSerial:     "L1AA00A00A0",
+		ChassisAssetTag: "SomeAssetTag",
+	}
+
+	testCases := []struct {
+		name       string
+		input      []byte
+		checkError require.ErrorAssertionFunc
+		expected   *linux.DMIInfo
+	}{
+		{
+			name:       "clean",
+			input:      []byte(validJSON),
+			checkError: require.NoError,
+			expected:   dmiFromValidJSON,
+		}, {
+			name:       "prefixed",
+			input:      []byte("somerandomgibberish" + validJSON),
+			checkError: require.NoError,
+			expected:   dmiFromValidJSON,
+		}, {
+			name:       "suffixed",
+			input:      []byte(validJSON + "morerandomgibberish"),
+			checkError: require.NoError,
+			expected:   dmiFromValidJSON,
+		}, {
+			name:       "invalid utf8 prefix",
+			input:      []byte("\xe2\x80\x83" + validJSON),
+			checkError: require.NoError,
+			expected:   dmiFromValidJSON,
+		}, {
+			name:       "invalid json",
+			input:      []byte("{" + validJSON),
+			checkError: require.Error,
+		}, {
+			name:       "empty input",
+			input:      []byte{},
+			checkError: require.Error,
+		}, {
+			name:       "nil input",
+			input:      nil,
+			checkError: require.Error,
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			out, err := parseDMIReadOutput(testCase.input)
+			testCase.checkError(t, err)
+			require.Equal(t, testCase.expected, out)
+		})
+	}
+}
