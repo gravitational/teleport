@@ -29,10 +29,13 @@ import { requiredField } from 'shared/components/Validation/rules';
 import { useRefAutoFocus } from 'shared/hooks';
 import { Attempt } from 'shared/hooks/useAttemptNext';
 import { Auth2faType } from 'shared/services';
-import createMfaOptions from 'shared/utils/createMfaOptions';
 
 import { OnboardCard } from 'teleport/components/Onboard';
 import { PasskeyIcons } from 'teleport/components/Passkeys';
+import {
+  getMfaRegisterOptions,
+  MfaRegisterOption,
+} from 'teleport/services/mfa';
 
 export interface NewMfaDeviceFormProps {
   title: string;
@@ -78,9 +81,7 @@ export function NewMfaDeviceForm({
   flowLength,
 }: NewMfaDeviceFormProps) {
   const [otp, setOtp] = useState('');
-  const mfaOptions = createMfaOptions({
-    auth2faType: auth2faType as Auth2faType,
-  });
+  const mfaOptions = getMfaRegisterOptions(auth2faType);
   const [mfaType, setMfaType] = useState(mfaOptions[0]);
   const [deviceName, setDeviceName] = useState(() =>
     getDefaultDeviceName(mfaType.value)
@@ -178,7 +179,7 @@ export function NewMfaDeviceForm({
             flexDirection="column"
             justifyContent="center"
             borderRadius={8}
-            bg={mfaType?.value === 'optional' ? 'levels.elevated' : ''}
+            bg={mfaType?.value === 'none' ? 'levels.elevated' : ''}
             gap={3}
             mb={3}
           >
@@ -196,7 +197,7 @@ export function NewMfaDeviceForm({
                 </Text>
               </Box>
             )}
-            {(mfaType?.value === 'otp' ||
+            {(mfaType?.value === 'totp' ||
               (mfaType?.value === 'webauthn' && !!credential)) && (
               <FieldInput
                 rule={requiredField('MFA method name is required')}
@@ -210,7 +211,7 @@ export function NewMfaDeviceForm({
                 mb={0}
               />
             )}
-            {mfaType?.value === 'otp' && (
+            {mfaType?.value === 'totp' && (
               <Flex
                 border={1}
                 borderColor="interactive.tonal.neutral.2"
@@ -250,7 +251,7 @@ export function NewMfaDeviceForm({
                 </Flex>
               </Flex>
             )}
-            {mfaType?.value === 'optional' && (
+            {mfaType?.value === 'none' && (
               <Text textAlign="center" p={5}>
                 We strongly recommend enrolling a multi-factor authentication
                 method to protect both yourself and your organization.
@@ -273,11 +274,11 @@ export function NewMfaDeviceForm({
   );
 }
 
-export function getDefaultDeviceName(mfaType: Auth2faType) {
+export function getDefaultDeviceName(mfaType: MfaRegisterOption['value']) {
   if (mfaType === 'webauthn') {
     return 'webauthn-device';
   }
-  if (mfaType === 'otp') {
+  if (mfaType === 'totp') {
     return 'otp-device';
   }
   return '';

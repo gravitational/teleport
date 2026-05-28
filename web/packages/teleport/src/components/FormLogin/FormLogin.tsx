@@ -48,11 +48,11 @@ import {
   PreferredMfaType,
   PrimaryAuthType,
 } from 'shared/services';
-import createMfaOptions, { MfaOption } from 'shared/utils/createMfaOptions';
 
 import cfg from 'teleport/config';
 import { UserCredentials } from 'teleport/services/auth';
 import history from 'teleport/services/history';
+import { getMfaRegisterOptions, MfaRegisterOption } from 'teleport/services/mfa';
 
 import { PasskeyIcons } from '../Passkeys';
 import { FormIdentifierFirst, ViewSwitchButton } from './FormIdentifierFirst';
@@ -240,7 +240,8 @@ const LocalForm = ({
   const [token, setToken] = useState('');
 
   const mfaOptions = useMemo(
-    () => createMfaOptions({ auth2faType: auth2faType }),
+    () =>
+      getMfaRegisterOptions(auth2faType).filter(o => o.value !== 'none'),
     []
   );
 
@@ -250,7 +251,7 @@ const LocalForm = ({
 
   const [mfaType, setMfaType] = useState(mfaOptions[0]);
 
-  function onSetMfaOption(option: MfaOption, validator: Validator) {
+  function onSetMfaOption(option: MfaRegisterOption, validator: Validator) {
     setToken('');
     clearAttempt();
     validator.reset();
@@ -339,7 +340,9 @@ const LocalForm = ({
                   }
                   value={mfaType}
                   options={mfaOptions}
-                  onChange={opt => onSetMfaOption(opt as MfaOption, validator)}
+                  onChange={opt =>
+                    onSetMfaOption(opt as MfaRegisterOption, validator)
+                  }
                   mr={3}
                   mb={0}
                   isDisabled={isProcessing}
@@ -347,7 +350,7 @@ const LocalForm = ({
                   // appear.
                   menuPosition="fixed"
                 />
-                {mfaType.value === 'otp' && (
+                {mfaType.value === 'totp' && (
                   <FieldInput
                     width="50%"
                     label="Authenticator Code"

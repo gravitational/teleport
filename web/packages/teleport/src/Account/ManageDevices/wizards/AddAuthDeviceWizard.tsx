@@ -41,7 +41,7 @@ import {
   DeviceType,
   DeviceUsage,
   getMfaRegisterOptions,
-  MfaOption,
+  MfaRegisterOption,
 } from 'teleport/services/mfa';
 import useTeleport from 'teleport/useTeleport';
 
@@ -78,9 +78,11 @@ export function AddAuthDeviceWizard({
 
   // Choose a new device type from the options available for the given 2fa type.
   // irrelevant if usage === 'passkey'.
-  const registerMfaOptions = getMfaRegisterOptions(auth2faType);
+  const registerMfaOptions = getMfaRegisterOptions(auth2faType).filter(
+    o => o.value !== 'none'
+  );
   const [newMfaDeviceType, setNewMfaDeviceType] = useState(
-    registerMfaOptions[0].value
+    registerMfaOptions[0].value as DeviceType
   );
 
   // If the user has no mfa devices registered, they can create a privilege token
@@ -155,7 +157,7 @@ export type AddAuthDeviceWizardStepProps = StepComponentProps &
   SaveKeyStepProps;
 interface CreateDeviceStepProps {
   usage: DeviceUsage;
-  mfaRegisterOptions: MfaOption[];
+  mfaRegisterOptions: MfaRegisterOption[];
   privilegeToken: string;
   newMfaDeviceType: DeviceType;
   onNewMfaDeviceTypeChange(o: DeviceType): void;
@@ -249,13 +251,13 @@ function CreateMfaBox({
   privilegeToken,
   onNewMfaDeviceTypeChange,
 }: {
-  mfaRegisterOptions: MfaOption[];
+  mfaRegisterOptions: MfaRegisterOption[];
   newMfaDeviceType: DeviceType;
   privilegeToken: string;
   onNewMfaDeviceTypeChange(o: DeviceType): void;
 }) {
   // Be more specific about the WebAuthn device type (it's not a passkey).
-  mfaRegisterOptions = mfaRegisterOptions.map((o: MfaOption) =>
+  mfaRegisterOptions = mfaRegisterOptions.map((o: MfaRegisterOption) =>
     o.value === 'webauthn' ? { ...o, label: 'Security Key' } : o
   );
 
