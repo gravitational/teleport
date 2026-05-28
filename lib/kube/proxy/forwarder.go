@@ -365,7 +365,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 	if cfg.ClusterOverride != "" {
 		fwd.log.DebugContext(closeCtx, "Cluster override is set, forwarder will send all requests to remote cluster", "cluster_override", cfg.ClusterOverride)
 	}
-	if len(cfg.KubeClusterName) > 0 || len(cfg.KubeconfigPath) > 0 || cfg.KubeServiceType != KubeService {
+	if len(cfg.KubeClusterName) > 0 || len(cfg.KubeconfigPath) > 0 || fwd.upstream.forwardsToOtherAgents() {
 		if err := fwd.getKubeDetails(cfg.Context); err != nil {
 			return nil, trace.Wrap(err)
 		}
