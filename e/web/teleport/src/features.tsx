@@ -943,14 +943,25 @@ function getBeamsUiFeatures(): TeleportFeature[] {
     new FeatureRoles(),
     new OSS.FeatureJoinTokens(),
     new FeatureAuthConnectors(),
+    new FeatureAccessRequests(),
+    new FeatureNewAccessRequest(),
+    new FeatureAccessAutomations(),
+    new FeatureNewAccessList(),
+    new FeatureAccessListManagement(),
 
     // AddNew
     new FeatureDiscoverE(),
     new FeatureIntegrationEnroll(),
 
+    // Integrations
+    new FeatureIntegrations(),
+    new FeatureIntegrationStatus(),
+    new OSS.FeatureIntegrationOverview(),
+
     // Audit
     new OSS.FeatureAudit(),
     new FeatureRecordings(),
+    new FeatureSessionSummaries(),
 
     // Other
     new FeatureAccount(),
