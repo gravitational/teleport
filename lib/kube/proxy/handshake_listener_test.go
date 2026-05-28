@@ -26,6 +26,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"errors"
 	"math/big"
 	"net"
 	"sync"
@@ -256,6 +257,48 @@ func TestHandshakeBoundedTLSListener_HTTP2ALPN(t *testing.T) {
 		require.True(t, ok)
 		assert.Equal(t, "h2", tc.ConnectionState().NegotiatedProtocol)
 		_ = tc.Close()
+	})
+}
+
+// scriptedListener returns a programmed sequence of errors from Accept, used
+// to exercise the acceptLoop's transient-error handling.
+type scriptedListener struct {
+	errs []error
+	i    int
+}
+
+func (s *scriptedListener) Accept() (net.Conn, error) {
+	if s.i >= len(s.errs) {
+		return nil, net.ErrClosed
+	}
+	err := s.errs[s.i]
+	s.i++
+	return nil, err
+}
+
+func (*scriptedListener) Close() error   { return nil }
+func (*scriptedListener) Addr() net.Addr { return pipeAddr{} }
+
+// TestHandshakeBoundedTLSListener_TransientAcceptError asserts the acceptLoop
+// keeps running after a transient (non-ErrClosed) Accept error, so that
+// http.Server's built-in temporary-error retry still works.
+func TestHandshakeBoundedTLSListener_TransientAcceptError(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		transient := errors.New("transient accept failure")
+		inner := &scriptedListener{errs: []error{transient}}
+		cfg := newSelfSignedTLSConfig(t, nil)
+		l := newHandshakeBoundedTLSListener(inner, cfg, 5*time.Second)
+		t.Cleanup(func() { _ = l.Close() })
+
+		c1, err1 := l.Accept()
+		require.Nil(t, c1)
+		require.ErrorIs(t, err1, transient)
+
+		// acceptLoop must have continued past the transient error; once the
+		// scripted list is exhausted scriptedListener returns net.ErrClosed.
+		c2, err2 := l.Accept()
+		require.Nil(t, c2)
+		assert.ErrorIs(t, err2, net.ErrClosed)
 	})
 }
 

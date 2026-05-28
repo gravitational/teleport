@@ -80,8 +80,12 @@ func (l *handshakeBoundedTLSListener) acceptLoop() {
 			select {
 			case l.out <- acceptItem{err: err}:
 			case <-l.done:
+				return
 			}
-			return
+			if errors.Is(err, net.ErrClosed) {
+				return
+			}
+			continue
 		}
 		go l.handshake(conn)
 	}
