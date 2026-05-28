@@ -33,6 +33,8 @@ injected_fields:
 exclude_fields:
   # Metadata (we id resources by name on our side)
   - 'DiscoveryConfig.header.metadata.id'
+  - 'DiscoveryConfig.header.metadata.revision'
+
   # Read only field
   - 'DiscoveryConfig.status'
 
@@ -41,7 +43,6 @@ computed_fields:
   # Metadata
   - 'DiscoveryConfig.header.metadata.expires'
   - 'DiscoveryConfig.header.metadata.namespace'
-  - 'DiscoveryConfig.header.metadata.revision'
   - 'DiscoveryConfig.header.kind'
   - 'DiscoveryConfig.header.sub_kind'
   - 'DiscoveryConfig.spec.azure.Params'
