@@ -39,20 +39,6 @@ export function getMfaChallengeOptions(mfaChallenge: MfaAuthenticateChallenge) {
   return mfaOptions;
 }
 
-export function getMfaRegisterOptions(auth2faType: Auth2faType) {
-  const mfaOptions: MfaOption[] = [];
-
-  if (auth2faType === 'webauthn' || auth2faType === 'on') {
-    mfaOptions.push(MFA_OPTION_WEBAUTHN);
-  }
-
-  if (auth2faType === 'otp' || auth2faType === 'on') {
-    mfaOptions.push(MFA_OPTION_TOTP);
-  }
-
-  return mfaOptions;
-}
-
 export type MfaOption = {
   value: DeviceType;
   label: string;
@@ -74,6 +60,7 @@ export const MFA_OPTION_SSO_DEFAULT: MfaOption = {
   label: 'SSO',
 };
 
+// MFA option seen in challenges, but not registration.
 const getSsoMfaOption = (ssoChallenge: SsoChallenge): MfaOption => {
   return {
     value: 'sso',
@@ -82,4 +69,47 @@ const getSsoMfaOption = (ssoChallenge: SsoChallenge): MfaOption => {
       ssoChallenge?.device?.connectorId ||
       'SSO',
   };
+};
+
+// Returns the MFA options available for the given auth2faType.
+// 
+// 'none' is included only when auth2faType is 'optional'. Callers that
+// don't want to offer 'none' (e.g. login) should filter it out.
+export function getMfaRegisterOptions(
+  auth2faType: Auth2faType
+): MfaRegisterOption[] {
+  const mfaOptions: MfaRegisterOption[] = [];
+
+  if (auth2faType === 'off' || !auth2faType) {
+    return mfaOptions;
+  }
+
+  const mfaEnabled = auth2faType === 'on' || auth2faType === 'optional';
+
+  if (auth2faType === 'webauthn' || mfaEnabled) {
+    mfaOptions.push(MFA_OPTION_WEBAUTHN);
+  }
+
+  if (auth2faType === 'otp' || mfaEnabled) {
+    mfaOptions.push(MFA_OPTION_TOTP);
+  }
+
+  if (auth2faType === 'optional') {
+    mfaOptions.push(MFA_OPTION_NONE);
+  }
+
+  return mfaOptions;
+}
+
+// Registration adds a 'none' option to skip MFA setup when auth2faType is 'optional'.
+// Callers that don't want to offer 'none' (e.g., login) should filter it out.
+export type MfaRegisterOption = {
+  value: DeviceType | 'none';
+  label: string;
+};
+
+// MFA option can be seen during registration to represent "skip mfa registration".
+export const MFA_OPTION_NONE: MfaRegisterOption = {
+  value: 'none',
+  label: 'None',
 };

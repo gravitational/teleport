@@ -137,6 +137,24 @@ describe('flow without reauthentication', () => {
     expect(onSuccess).toHaveBeenCalled();
   });
 
+  test('excludes the "None" MFA option even when auth is optional', async () => {
+    render(
+      <TestWizard
+        usage="mfa"
+        auth2faType="optional"
+        privilegeToken="privilege-token"
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId('create-step')).toBeInTheDocument();
+    });
+
+    expect(screen.queryByLabelText(/^None$/i)).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Security Key')).toBeInTheDocument();
+    expect(screen.getByLabelText('Authenticator App')).toBeInTheDocument();
+  });
+
   test('adds an authenticator app', async () => {
     render(<TestWizard usage="mfa" privilegeToken="privilege-token" />);
 
