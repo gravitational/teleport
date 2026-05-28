@@ -927,7 +927,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			ResourceType: types.KindDatabaseService,
 		}
 		if resourceName != "" {
-			listReq.PredicateExpression = fmt.Sprintf(`name == "%s"`, resourceName)
+			listReq.PredicateExpression = fmt.Sprintf(`name == %q`, resourceName)
 		}
 
 		getResp, err := apiclient.GetResourcesWithFilters(ctx, client, listReq)
