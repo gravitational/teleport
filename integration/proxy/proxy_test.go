@@ -1279,8 +1279,6 @@ func TestALPNSNIProxyAppAccess(t *testing.T) {
 	proxyWebCert, err := cert.GenerateSelfSignedCert(
 		[]string{"*.example.com", "example.com", "localhost"},
 		[]string{"127.0.0.1"},
-		nil,
-		time.Now,
 	)
 	require.NoError(t, err)
 	tmpDir := t.TempDir()
