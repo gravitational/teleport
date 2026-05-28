@@ -336,24 +336,35 @@ auth_service:
   </TabItem>
 </Tabs>
 
-## Step 3/5. (Re)start Teleport Auth
+## Step 3/5. (Re)start the Teleport Auth Service
 
 Before proceeding, ensure you have configured the cluster to use the
 `hsm-v1` or `fips-v1` signature algorithm. See
 [Signature Algorithm Suites](../../../reference/deployment/signature-algorithms.mdx)
 for more details.
 
-If this is a new Teleport Auth Service which has not been started yet, starting
+If this is a new Teleport Auth Service instance that has not been started yet, starting
 a brand new cluster with an empty backend, HSM keys will be automatically
 generated at startup and no further action is required, skip to step 5.
 Otherwise, continue reading.
 
-If you are connecting an HSM to an existing Teleport cluster, restart the auth
-server for the configuration changes to take effect.
+If you are connecting an HSM to an existing Teleport cluster, restart the Auth
+Service instance for the configuration changes to take effect.
 New CA keys will automatically be generated in the HSM during the next CA
 rotation.
 Until a CA rotation is completed, the Auth Service will continue signing new
 certificates with the existing software keys.
+
+If the Auth Service is already running, execute the following command on each
+Auth Service host to restart the Auth Service:
+
+```code
+$ sudo systemctl reload teleport
+```
+
+Otherwise, start Teleport on each Auth Service host:
+
+(!docs/pages/includes/start-teleport.mdx!)
 
 ## Step 4/5. Certificate Rotation with HSM
 
