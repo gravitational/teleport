@@ -87,20 +87,27 @@ pub struct FilesystemBackend {
 /// A macro for adding a pending operation to the cache to reduce boilerplate.
 /// For use in [`FilesystemBackend`] methods.
 macro_rules! enqueue {
-    ($self:ident, $cache:ident, $completion_id:expr, $response_handler:expr, $in_flight_bytes:expr) => {{
+    ($self:ident, $cache:ident, $completion_id:expr, $response_handler:expr, $in_flight_bytes:expr, $send_tdp_sd_req:expr) => {{
         let op = PendingOp {
             response_handler: $response_handler,
             inserted_at: Instant::now(),
             in_flight_bytes: $in_flight_bytes,
         };
-        match $self.$cache.insert($completion_id, op) {
-            Ok(_) => {
-                $self.pending_ops_count += 1;
-                $self.pending_in_flight_bytes += $in_flight_bytes;
-                Ok(())
-            }
-            Err(e) => Err(e),
-        }
+        $self.$cache.insert(
+            $completion_id,
+            op,
+            &mut $self.pending_ops_count,
+            &mut $self.pending_in_flight_bytes,
+        )?;
+
+        $send_tdp_sd_req.inspect_err(|_err| {
+            // Rollback the cache insert if sending TDP request fails.
+            let _ = $self.$cache.remove(
+                &$completion_id,
+                &mut $self.pending_ops_count,
+                &mut $self.pending_in_flight_bytes,
+            );
+        })
     }};
 }
 
@@ -108,22 +115,13 @@ macro_rules! enqueue {
 /// For use in [`FilesystemBackend`] methods.
 macro_rules! dequeue {
     ($self:ident, $cache:ident, $tdp_resp:expr) => {{
-        match $self.$cache.remove(&$tdp_resp.completion_id) {
-            Some(op) => {
-                $self.pending_ops_count -= 1;
-                $self.pending_in_flight_bytes -= op.in_flight_bytes;
-
-                op.response_handler.call($self, $tdp_resp)
-            }
-            None => Err(pdu_other_err!(
-                "",
-                source:FilesystemBackendError(format!(
-                    "Received invalid completion ID: {}",
-                    $tdp_resp.completion_id
-                ))
-            )),
-        }
-    }}
+        let op = $self.$cache.remove(
+            &$tdp_resp.completion_id,
+            &mut $self.pending_ops_count,
+            &mut $self.pending_in_flight_bytes,
+        )?;
+        op.response_handler.call($self, $tdp_resp)
+    }};
 }
 
 impl FilesystemBackend {
@@ -145,39 +143,6 @@ impl FilesystemBackend {
         }
     }
 
-    /// Returns an error if any of the pending operation limits is reached.
-    /// According to '3.1.5.2 Processing Packet Errors - [\[MS-RDPEFS\]: Remote Desktop Protocol: File System Virtual Channel Extension]',
-    /// most packet errors should terminate the connection.
-    ///
-    /// [\[MS-RDPEFS\]: Remote Desktop Protocol: File System Virtual Channel Extension]: https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/34d9de58-b2b5-40b6-b970-f82d4603bdb5
-    fn check_limits(&self, in_flight_bytes: usize) -> PduResult<()> {
-        if self.pending_ops_count >= MAX_PENDING_OPS {
-            return Err(pdu_other_err!(
-                    "",
-                    source:FilesystemBackendError(format!(
-                        "Reached pending operation count cap ({})",
-                        MAX_PENDING_OPS,
-                    ))
-            ));
-        }
-        // Use saturating_add to guard against a peer sending a crafted request with a very
-        // large size field that would overflow plain usize addition.
-        let total_pending_in_flight_bytes = self
-            .pending_in_flight_bytes
-            .saturating_add(in_flight_bytes);
-        if total_pending_in_flight_bytes > MAX_PENDING_IN_FLIGHT_BYTES {
-            return Err(pdu_other_err!(
-                    "",
-                    source:FilesystemBackendError(format!(
-                        "Exceeded pending in-flight bytes cap ({} vs max {})",
-                        total_pending_in_flight_bytes,
-                        MAX_PENDING_IN_FLIGHT_BYTES,
-                    ))
-            ));
-        }
-        Ok(())
-    }
-
     /// Iterates through all pending operation caches and removes expired operations.
     /// Introducing timeouts deviates from '3.1.5.2 Processing Packet Errors - [\[MS-RDPEFS\]: Remote Desktop Protocol: File System Virtual Channel Extension]',
     /// however, it is a necessary feature to prevent potential DoS attempts.
@@ -189,17 +154,12 @@ impl FilesystemBackend {
     pub fn handle_timeouts(&mut self) -> PduResult<()> {
         macro_rules! sweep_cache {
             ($cache:ident) => {
-                let expired = self.$cache.extract_expired(OP_TIMEOUT);
-                for op in expired {
-                    self.pending_ops_count -= 1;
-                    self.pending_in_flight_bytes -= op.in_flight_bytes;
-                    warn!(
-                        "'{}' op inserted at {:?} with {} in-flight bytes timed out.",
-                        stringify!($cache),
-                        op.inserted_at,
-                        op.in_flight_bytes
-                    );
-                }
+                self.$cache.extract_expired(
+                    OP_TIMEOUT,
+                    &mut self.pending_ops_count,
+                    &mut self.pending_in_flight_bytes,
+                    stringify!($cache),
+                );
             };
         }
 
@@ -301,10 +261,8 @@ impl FilesystemBackend {
         // Technically, this size isn't in-flight, but allowing
         // a very large allocation size might be detrimental as well.
         let in_flight_bytes = rdp_req.allocation_size as usize;
-        self.check_limits(in_flight_bytes)?;
 
-        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L210
-        self.send_tdp_sd_info_request(tdp::SharedDirectoryInfoRequest::from(&rdp_req))?;
+        let tdp_req = tdp::SharedDirectoryInfoRequest::from(&rdp_req);
 
         let completion_id = rdp_req.device_io_request.completion_id;
 
@@ -316,12 +274,14 @@ impl FilesystemBackend {
             },
         );
 
+        // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L210
         enqueue!(
             self,
             pending_sd_info_ops,
             completion_id,
             response_handler,
-            in_flight_bytes
+            in_flight_bytes,
+            self.send_tdp_sd_info_request(tdp_req)
         )?;
 
         Ok(())
@@ -531,8 +491,6 @@ impl FilesystemBackend {
         &mut self,
         rdp_req: efs::ServerDriveQueryDirectoryRequest,
     ) -> PduResult<()> {
-        self.check_limits(0)?;
-
         let file_id = rdp_req.device_io_request.file_id;
         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L610
         match self.file_cache.get(file_id) {
@@ -560,12 +518,11 @@ impl FilesystemBackend {
 
                 let completion_id = rdp_req.device_io_request.completion_id;
 
-                // Ask the client for the list of files in this directory.
-                self.send_tdp_sd_list_request(tdp::SharedDirectoryListRequest {
+                let tdp_req = tdp::SharedDirectoryListRequest {
                     completion_id,
                     directory_id: rdp_req.device_io_request.device_id,
                     path,
-                })?;
+                };
 
                 // When we get the response for that list of files...
                 let response_handler = SharedDirectoryListResponseHandler::new(
@@ -576,12 +533,14 @@ impl FilesystemBackend {
                     },
                 );
 
+                // Ask the client for the list of files in this directory.
                 enqueue!(
                     self,
                     pending_sd_list_ops,
                     completion_id,
                     response_handler,
-                    0
+                    0,
+                    self.send_tdp_sd_list_request(tdp_req)
                 )?;
 
                 // Return nothing yet, an RDP message will be returned when the pending_sd_list_resp_handlers
@@ -838,11 +797,8 @@ impl FilesystemBackend {
         // Technically, this size isn't in-flight, but allowing
         // a very large allocation size might be detrimental as well.
         let in_flight_bytes = rdp_req.allocation_size as usize;
-        self.check_limits(in_flight_bytes)?;
 
-        self.send_tdp_sd_create_request(tdp::SharedDirectoryCreateRequest::from(
-            &rdp_req, file_type,
-        ))?;
+        let tdp_req = tdp::SharedDirectoryCreateRequest::from(&rdp_req, file_type);
 
         let completion_id = rdp_req.device_io_request.completion_id;
 
@@ -870,7 +826,8 @@ impl FilesystemBackend {
             pending_sd_create_ops,
             completion_id,
             response_handler,
-            in_flight_bytes
+            in_flight_bytes,
+            self.send_tdp_sd_create_request(tdp_req)
         )?;
 
         Ok(())
@@ -882,10 +839,8 @@ impl FilesystemBackend {
         // Technically, this size isn't in-flight, but allowing
         // a very large allocation size might be detrimental as well.
         let in_flight_bytes = rdp_req.allocation_size as usize;
-        self.check_limits(in_flight_bytes)?;
 
         let tdp_req = tdp::SharedDirectoryDeleteRequest::from(&rdp_req);
-        self.send_tdp_sd_delete_request(tdp_req)?;
 
         let completion_id = rdp_req.device_io_request.completion_id;
 
@@ -908,7 +863,8 @@ impl FilesystemBackend {
             pending_sd_delete_ops,
             completion_id,
             response_handler,
-            in_flight_bytes
+            in_flight_bytes,
+            self.send_tdp_sd_delete_request(tdp_req)
         )?;
 
         Ok(())
@@ -921,10 +877,7 @@ impl FilesystemBackend {
         rdp_req: efs::DeviceCloseRequest,
         file: FileCacheObject,
     ) -> PduResult<()> {
-        self.check_limits(0)?;
-
         let tdp_req = tdp::SharedDirectoryDeleteRequest::from_fco(&rdp_req, file);
-        self.send_tdp_sd_delete_request(tdp_req)?;
 
         let completion_id = rdp_req.device_io_request.completion_id;
 
@@ -946,7 +899,8 @@ impl FilesystemBackend {
             pending_sd_delete_ops,
             completion_id,
             response_handler,
-            0
+            0,
+            self.send_tdp_sd_delete_request(tdp_req)
         )?;
 
         Ok(())
@@ -956,7 +910,6 @@ impl FilesystemBackend {
     /// and handling the [`tdp::SharedDirectoryReadResponse`] that is received in response.
     fn tdp_sd_read(&mut self, rdp_req: efs::DeviceReadRequest) -> PduResult<()> {
         let in_flight_bytes = rdp_req.length as usize;
-        self.check_limits(in_flight_bytes)?;
 
         match self.file_cache.get(rdp_req.device_io_request.file_id) {
             // File not found in cache
@@ -967,7 +920,6 @@ impl FilesystemBackend {
             ),
             Some(file) => {
                 let tdp_req = tdp::SharedDirectoryReadRequest::from_fco(&rdp_req, file);
-                self.send_tdp_sd_read_request(tdp_req)?;
 
                 let completion_id = rdp_req.device_io_request.completion_id;
 
@@ -984,7 +936,8 @@ impl FilesystemBackend {
                     pending_sd_read_ops,
                     completion_id,
                     response_handler,
-                    in_flight_bytes
+                    in_flight_bytes,
+                    self.send_tdp_sd_read_request(tdp_req)
                 )?;
 
                 Ok(())
@@ -1015,7 +968,6 @@ impl FilesystemBackend {
     /// and handling the [`tdp::SharedDirectoryWriteResponse`] that is received in response.
     fn tdp_sd_write(&mut self, rdp_req: efs::DeviceWriteRequest) -> PduResult<()> {
         let in_flight_bytes = rdp_req.write_data.len();
-        self.check_limits(in_flight_bytes)?;
 
         match self.file_cache.get(rdp_req.device_io_request.file_id) {
             // File not found in cache
@@ -1023,9 +975,7 @@ impl FilesystemBackend {
                 self.send_rdp_write_response(rdp_req.device_io_request, NtStatus::UNSUCCESSFUL, 0)
             }
             Some(file) => {
-                self.send_tdp_sd_write_request(tdp::SharedDirectoryWriteRequest::from_fco(
-                    &rdp_req, file,
-                ))?;
+                let tdp_req = tdp::SharedDirectoryWriteRequest::from_fco(&rdp_req, file);
 
                 let completion_id = rdp_req.device_io_request.completion_id;
 
@@ -1042,7 +992,8 @@ impl FilesystemBackend {
                     pending_sd_write_ops,
                     completion_id,
                     response_handler,
-                    in_flight_bytes
+                    in_flight_bytes,
+                    self.send_tdp_sd_write_request(tdp_req)
                 )?;
 
                 Ok(())
@@ -1073,8 +1024,6 @@ impl FilesystemBackend {
         rename_info: &efs::FileRenameInformation,
         io_status: NtStatus,
     ) -> PduResult<()> {
-        self.check_limits(0)?;
-
         // https://github.com/FreeRDP/FreeRDP/blob/dfa231c0a55b005af775b833f92f6bcd30363d77/channels/drive/client/drive_file.c#L709
         match rename_info.replace_if_exists {
             // If replace_if_exists is true, we can just send a TDP SharedDirectoryMoveRequest,
@@ -1082,11 +1031,11 @@ impl FilesystemBackend {
             efs::Boolean::True => self.tdp_sd_move(rdp_req, rename_info.clone(), io_status),
             efs::Boolean::False => {
                 // If replace_if_exists is false, first check if the new_path exists.
-                self.send_tdp_sd_info_request(tdp::SharedDirectoryInfoRequest {
+                let tdp_req = tdp::SharedDirectoryInfoRequest {
                     completion_id: rdp_req.device_io_request.completion_id,
                     directory_id: rdp_req.device_io_request.device_id,
                     path: UnixPath::from(&rename_info.file_name),
-                })?;
+                };
 
                 let completion_id = rdp_req.device_io_request.completion_id;
 
@@ -1109,7 +1058,8 @@ impl FilesystemBackend {
                     pending_sd_info_ops,
                     completion_id,
                     response_handler,
-                    0
+                    0,
+                    self.send_tdp_sd_info_request(tdp_req)
                 )?;
 
                 Ok(())
@@ -1126,16 +1076,15 @@ impl FilesystemBackend {
         io_status: NtStatus,
     ) -> PduResult<()> {
         let in_flight_bytes = rdp_req.set_buffer.size();
-        self.check_limits(in_flight_bytes)?;
 
         if let Some(file) = self.file_cache.get(rdp_req.device_io_request.file_id) {
             let end_of_file = eof.end_of_file;
-            self.send_tdp_truncate_request(tdp::SharedDirectoryTruncateRequest {
+            let tdp_req = tdp::SharedDirectoryTruncateRequest {
                 completion_id: rdp_req.device_io_request.completion_id,
                 directory_id: rdp_req.device_io_request.device_id,
                 path: file.path.clone(),
                 end_of_file: cast_length("tdp_sd_truncate", "end_of_file", eof.end_of_file)?,
-            })?;
+            };
 
             let completion_id = rdp_req.device_io_request.completion_id;
             let response_handler = SharedDirectoryTruncateResponseHandler::new(
@@ -1167,7 +1116,8 @@ impl FilesystemBackend {
                 pending_sd_truncate_ops,
                 completion_id,
                 response_handler,
-                in_flight_bytes
+                in_flight_bytes,
+                self.send_tdp_truncate_request(tdp_req)
             )?;
 
             return Ok(());
@@ -1187,15 +1137,14 @@ impl FilesystemBackend {
         io_status: NtStatus,
     ) -> PduResult<()> {
         let in_flight_bytes = rdp_req.set_buffer.size();
-        self.check_limits(in_flight_bytes)?;
 
         if let Some(file) = self.file_cache.get(rdp_req.device_io_request.file_id) {
-            self.send_tdp_sd_move_request(tdp::SharedDirectoryMoveRequest {
+            let tdp_req = tdp::SharedDirectoryMoveRequest {
                 completion_id: rdp_req.device_io_request.completion_id,
                 directory_id: rdp_req.device_io_request.device_id,
                 original_path: file.path.clone(),
                 new_path: UnixPath::from(&rename_info.file_name),
-            })?;
+            };
 
             let completion_id = rdp_req.device_io_request.completion_id;
 
@@ -1216,7 +1165,8 @@ impl FilesystemBackend {
                 pending_sd_move_ops,
                 completion_id,
                 response_handler,
-                in_flight_bytes
+                in_flight_bytes,
+                self.send_tdp_sd_move_request(tdp_req)
             )?;
 
             return Ok(());
@@ -2053,10 +2003,25 @@ impl<T> PendingOpCache<T> {
         }
     }
 
-    fn insert(&mut self, completion_id: CompletionId, op: PendingOp<T>) -> PduResult<()> {
+    fn insert(
+        &mut self,
+        completion_id: CompletionId,
+        op: PendingOp<T>,
+        pending_ops_count: &mut usize,
+        pending_in_flight_bytes: &mut usize,
+    ) -> PduResult<()> {
+        Self::check_limits(
+            op.in_flight_bytes,
+            *pending_ops_count,
+            *pending_in_flight_bytes,
+        )?;
+
         match self.cache.entry(completion_id) {
             Entry::Vacant(v) => {
+                let op_in_flight_bytes = op.in_flight_bytes;
                 v.insert(op);
+                *pending_ops_count += 1;
+                *pending_in_flight_bytes += op_in_flight_bytes;
                 Ok(())
             }
             Entry::Occupied(_) => Err(pdu_other_err!(
@@ -2069,32 +2034,82 @@ impl<T> PendingOpCache<T> {
         }
     }
 
-    fn remove(&mut self, completion_id: &CompletionId) -> Option<PendingOp<T>> {
-        self.cache.remove(completion_id)
+    fn remove(
+        &mut self,
+        completion_id: &CompletionId,
+        pending_ops_count: &mut usize,
+        pending_in_flight_bytes: &mut usize,
+    ) -> PduResult<PendingOp<T>> {
+        let pending_op = self.cache.remove(completion_id).ok_or_else(|| {
+            pdu_other_err!(
+                "",
+                source: FilesystemBackendError(format!(
+                    "Received invalid completion ID: {}",
+                    completion_id,
+                ))
+            )
+        })?;
+
+        *pending_ops_count -= 1;
+        *pending_in_flight_bytes -= pending_op.in_flight_bytes;
+
+        Ok(pending_op)
     }
 
     /// Extracts pending operations that have exceeded the given timeout duration.
-    fn extract_expired(&mut self, timeout: Duration) -> Vec<PendingOp<T>> {
-        if self.cache.is_empty() {
-            return Vec::new();
-        }
-
+    fn extract_expired(
+        &mut self,
+        timeout: Duration,
+        pending_ops_count: &mut usize,
+        pending_in_flight_bytes: &mut usize,
+        op_cache_name: &'static str,
+    ) {
         let now = Instant::now();
-        let mut expired_completion_ids = Vec::new();
 
-        for (id, op) in &self.cache {
-            if now.duration_since(op.inserted_at) > timeout {
-                expired_completion_ids.push(*id);
-            }
+        self.cache
+            .extract_if(|_id, op| now.duration_since(op.inserted_at) > timeout)
+            .for_each(|(_id, op)| {
+                *pending_ops_count -= 1;
+                *pending_in_flight_bytes -= op.in_flight_bytes;
+                warn!(
+                    "A '{op_cache_name}' op inserted at {:?} with {} in-flight bytes timed out.",
+                    op.inserted_at, op.in_flight_bytes
+                );
+            });
+    }
+
+    /// Returns an error if any of the pending operation limits is reached.
+    /// According to '3.1.5.2 Processing Packet Errors - [\[MS-RDPEFS\]: Remote Desktop Protocol: File System Virtual Channel Extension]',
+    /// most packet errors should terminate the connection.
+    ///
+    /// [\[MS-RDPEFS\]: Remote Desktop Protocol: File System Virtual Channel Extension]: https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/34d9de58-b2b5-40b6-b970-f82d4603bdb5
+    fn check_limits(
+        in_flight_bytes: usize,
+        pending_ops_count: usize,
+        pending_in_flight_bytes: usize,
+    ) -> PduResult<()> {
+        if pending_ops_count >= MAX_PENDING_OPS {
+            return Err(pdu_other_err!(
+                    "",
+                    source:FilesystemBackendError(format!(
+                        "Reached pending operation count cap ({})",
+                        MAX_PENDING_OPS,
+                    ))
+            ));
         }
-
-        let mut expired_ops = Vec::new();
-        for id in expired_completion_ids {
-            if let Some(op) = self.cache.remove(&id) {
-                expired_ops.push(op);
-            }
+        // Use saturating_add to guard against a peer sending a crafted request with a very
+        // large size field that would overflow plain usize addition.
+        let total_pending_in_flight_bytes = pending_in_flight_bytes.saturating_add(in_flight_bytes);
+        if total_pending_in_flight_bytes > MAX_PENDING_IN_FLIGHT_BYTES {
+            return Err(pdu_other_err!(
+                    "",
+                    source:FilesystemBackendError(format!(
+                        "Exceeded pending in-flight bytes cap ({} vs max {})",
+                        total_pending_in_flight_bytes,
+                        MAX_PENDING_IN_FLIGHT_BYTES,
+                    ))
+            ));
         }
-
-        expired_ops
+        Ok(())
     }
 }
