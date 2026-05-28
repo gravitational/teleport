@@ -41,9 +41,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authtest"
@@ -67,7 +69,7 @@ func TestMiddlewareGetUser(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, s.UpsertClusterName(cn))
 
-	now := time.Date(2020, time.November, 5, 0, 0, 0, 0, time.UTC)
+	now := time.Now().UTC()
 
 	var (
 		localUserIdentity = tlsca.Identity{
@@ -254,7 +256,7 @@ func TestWrapContextWithUser(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, s.UpsertClusterName(cn))
 
-	now := time.Date(2020, time.November, 5, 0, 0, 0, 0, time.UTC)
+	now := time.Now().UTC()
 	localUserIdentity := tlsca.Identity{
 		Username:          "foo",
 		Groups:            []string{"devs"},
@@ -351,7 +353,7 @@ func TestMiddleware_ServeHTTP(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, s.UpsertClusterName(cn))
 
-	now := time.Date(2020, time.November, 5, 0, 0, 0, 0, time.UTC)
+	now := time.Now().UTC()
 	localUserIdentity := tlsca.Identity{
 		Username:          "foo",
 		Groups:            []string{"devs"},
@@ -933,4 +935,49 @@ func TestRejectedClientClusterAlert(t *testing.T) {
 		})
 	}
 
+}
+
+// TestMiddlewareGetUserAgentScopePin verifies that GetUser returns a
+// ScopedBuiltinRole when the TLS certificate carries an agent scope pin.
+func TestMiddlewareGetUserAgentScopePin(t *testing.T) {
+	t.Parallel()
+	const (
+		localClusterName = "local"
+		serverFQDN       = "node-uuid.local"
+	)
+
+	now := time.Now().UTC()
+
+	agentPin := &scopesv1.Pin{
+		Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
+		Scope: "/",
+		SystemRoles: &scopesv1.SystemRoles{
+			Primary: string(types.RoleNode),
+		},
+	}
+
+	identity := tlsca.Identity{
+		Username:          serverFQDN,
+		TeleportCluster:   localClusterName,
+		OriginClusterName: localClusterName,
+		ScopePin:          agentPin,
+		Expires:           now,
+	}
+
+	m := &auth.Middleware{ClusterName: localClusterName}
+	id, err := m.GetUser(tls.ConnectionState{
+		PeerCertificates: []*x509.Certificate{{
+			Subject:  subject(t, identity),
+			NotAfter: now,
+			Issuer:   pkix.Name{Organization: []string{localClusterName}},
+		}},
+	})
+	require.NoError(t, err)
+
+	got, ok := id.(authz.ScopedBuiltinRole)
+	require.True(t, ok, "expected ScopedBuiltinRole, got %T", id)
+	require.Empty(t, cmp.Diff(agentPin, got.ScopePin, protocmp.Transform()))
+	require.Equal(t, serverFQDN, got.ServerFQDN)
+	require.Equal(t, localClusterName, got.ClusterName)
+	require.Empty(t, cmp.Diff(identity, got.Identity, cmpopts.EquateEmpty(), protocmp.Transform()))
 }
