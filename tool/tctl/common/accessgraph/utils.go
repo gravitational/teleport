@@ -139,6 +139,9 @@ func fetchAllLogs(
 		if err != nil {
 			return nil, false, trace.Wrap(err)
 		}
+		if resp.JSON200 == nil {
+			return nil, false, trace.Errorf("received nil json response from Access Graph API")
+		}
 		pages++
 		slog.DebugContext(ctx, "logs page fetched", "page", pages, "page_size", len(resp.JSON200.Data))
 		events = append(events, resp.JSON200.Data...)
