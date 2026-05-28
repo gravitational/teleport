@@ -168,39 +168,67 @@ message RouteConflict {
 // VNet's nameserver. It is the output of DNSDiag.
 //
 // The check uses a probe hostname of the form vnet-diag-<random>.<zone>. VNet's nameserver
-// short-circuits any query with this prefix and answers with an address derived from its IPv6
-// prefix, an address no other resolver can produce. The random label prevents DNS caches.
+// short-circuits any query with this prefix and answers with addresses derived from its IPv4 CIDR
+// range and IPv6 prefix, addresses no other resolver can produce. The random label prevents DNS
+// caches.
 //
-// The check first queries the probe directly against VNet's nameserver IP to confirm VNet's DNS
-// server is reachable and to capture the expected response. If that fails, vnet_dns_reachable is
-// false, vnet_dns_unreachable_error stores the error, and zone_results is empty. Otherwise, the
-// check runs the same probe query per zone through the system resolver and compares each answer to
-// the expected response. A mismatch means the per-zone OS resolver entry does not route to VNet.
+// The check first queries the probe directly against each VNet nameserver IPv4 and IPv6 addresses
+// asking for both A and AAAA records, to confirm VNet's DNS server is reachable and to capture the
+// expected responses per record type. If an IPv4 or IPv6 address is unreachable, the corresponding
+// reachability field still records the failure but the check continues with whatever was captured
+// from successful queries. If neither address produced a response for either record type,
+// zone_results is empty. Otherwise, the check runs the same probe per zone through the system
+// resolver, asking for A and AAAA independently, and compares each answer to the expected response.
+// A mismatch means the per-zone OS resolver entry does not route to VNet.
 message DNSReport {
-  // vnet_dns_reachable is true if a direct DNS query to VNet's nameserver IP succeeded.
-  bool vnet_dns_reachable = 1;
-  // vnet_dns_unreachable_error is set when vnet_dns_reachable is false.
-  string vnet_dns_unreachable_error = 2;
-  // zone_results contains one entry per zone in NetworkStack.dns_zones. Empty if
-  // vnet_dns_reachable is false.
+  // ipv4_reachability is the outcome of probing VNet's IPv4 nameserver directly. Null if VNet is
+  // not serving DNS on IPv4.
+  VNetDNSReachability ipv4_reachability = 1;
+  // ipv6_reachability is the outcome of probing VNet's IPv6 nameserver directly. Null if VNet is
+  // not serving DNS on IPv6.
+  VNetDNSReachability ipv6_reachability = 2;
+  // zone_results contains one entry per zone in NetworkStack.dns_zones. Empty if neither
+  // reachability probe produced a response for either record type.
   repeated DNSZoneResult zone_results = 3;
 }
 
+// VNetDNSReachability describes the outcome of probing one of VNet's DNS servers directly,
+// bypassing the system resolver.
+message VNetDNSReachability {
+  // address is the server that was probed, e.g. "[fdec:1fed:139f::2]:53" or "100.64.0.2:53".
+  string address = 1;
+  // reachable is true if the server returned an answer for at least one record type.
+  bool reachable = 2;
+  // responded_a is true if the server returned an A record for the probe.
+  bool responded_a = 3;
+  // responded_aaaa is true if the server returned an AAAA record for the probe.
+  bool responded_aaaa = 4;
+  // error explains the failure when reachable is false.
+  string error = 5;
+}
+
 // DNSZoneResult describes the outcome of querying a probe hostname under a single VNet-managed
-// DNS zone through the system resolver.
+// DNS zone through the system resolver. The query is made for both A and AAAA records.
 message DNSZoneResult {
   // zone is the DNS zone that was tested, e.g. "company.test".
   string zone = 1;
-  // status describes the outcome of the query.
-  DNSZoneStatus status = 2;
-  // observed_ip is the IP returned by the system resolver for the probe hostname. Empty on
-  // timeout or no answer.
-  string observed_ip = 3;
-  // expected_ip is the IP that VNet's nameserver returned for the same probe hostname when
-  // queried directly.
-  string expected_ip = 4;
+  // a_record is the outcome of the A-record part of the per-zone query. Null if no expected A was
+  // captured.
+  RecordResult a_record = 2;
+  // aaaa_record is the outcome of the AAAA-record part of the per-zone query. Null if no expected
+  // AAAA was captured.
+  RecordResult aaaa_record = 3;
+}
+
+// RecordResult describes the outcome of querying a single record type for a single zone through
+// the system resolver.
+message RecordResult {
+  // status describes the outcome of the query for this record type.
+  DNSZoneStatus status = 1;
+  // observed_ip is the IP returned by the system resolver. Populated for DNS_ZONE_STATUS_HIJACKED.
+  string observed_ip = 2;
   // error is set on DNS_ZONE_STATUS_TIMEOUT and DNS_ZONE_STATUS_RESOLVER_ERROR.
-  string error = 5;
+  string error = 3;
 }
 
 // DNSZoneStatus is the outcome of querying a probe hostname for a single DNS zone.

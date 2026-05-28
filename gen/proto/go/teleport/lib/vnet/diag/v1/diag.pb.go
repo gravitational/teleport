@@ -1254,22 +1254,28 @@ func (b0 RouteConflict_builder) Build() *RouteConflict {
 // VNet's nameserver. It is the output of DNSDiag.
 //
 // The check uses a probe hostname of the form vnet-diag-<random>.<zone>. VNet's nameserver
-// short-circuits any query with this prefix and answers with an address derived from its IPv6
-// prefix, an address no other resolver can produce. The random label prevents DNS caches.
+// short-circuits any query with this prefix and answers with addresses derived from its IPv4 CIDR
+// range and IPv6 prefix, addresses no other resolver can produce. The random label prevents DNS
+// caches.
 //
-// The check first queries the probe directly against VNet's nameserver IP to confirm VNet's DNS
-// server is reachable and to capture the expected response. If that fails, vnet_dns_reachable is
-// false, vnet_dns_unreachable_error stores the error, and zone_results is empty. Otherwise, the
-// check runs the same probe query per zone through the system resolver and compares each answer to
-// the expected response. A mismatch means the per-zone OS resolver entry does not route to VNet.
+// The check first queries the probe directly against each VNet nameserver IPv4 and IPv6 addresses
+// asking for both A and AAAA records, to confirm VNet's DNS server is reachable and to capture the
+// expected responses per record type. If an IPv4 or IPv6 address is unreachable, the corresponding
+// reachability field still records the failure but the check continues with whatever was captured
+// from successful queries. If neither address produced a response for either record type,
+// zone_results is empty. Otherwise, the check runs the same probe per zone through the system
+// resolver, asking for A and AAAA independently, and compares each answer to the expected response.
+// A mismatch means the per-zone OS resolver entry does not route to VNet.
 type DNSReport struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// vnet_dns_reachable is true if a direct DNS query to VNet's nameserver IP succeeded.
-	VnetDnsReachable bool `protobuf:"varint,1,opt,name=vnet_dns_reachable,json=vnetDnsReachable,proto3" json:"vnet_dns_reachable,omitempty"`
-	// vnet_dns_unreachable_error is set when vnet_dns_reachable is false.
-	VnetDnsUnreachableError string `protobuf:"bytes,2,opt,name=vnet_dns_unreachable_error,json=vnetDnsUnreachableError,proto3" json:"vnet_dns_unreachable_error,omitempty"`
-	// zone_results contains one entry per zone in NetworkStack.dns_zones. Empty if
-	// vnet_dns_reachable is false.
+	// ipv4_reachability is the outcome of probing VNet's IPv4 nameserver directly. Null if VNet is
+	// not serving DNS on IPv4.
+	Ipv4Reachability *VNetDNSReachability `protobuf:"bytes,1,opt,name=ipv4_reachability,json=ipv4Reachability,proto3" json:"ipv4_reachability,omitempty"`
+	// ipv6_reachability is the outcome of probing VNet's IPv6 nameserver directly. Null if VNet is
+	// not serving DNS on IPv6.
+	Ipv6Reachability *VNetDNSReachability `protobuf:"bytes,2,opt,name=ipv6_reachability,json=ipv6Reachability,proto3" json:"ipv6_reachability,omitempty"`
+	// zone_results contains one entry per zone in NetworkStack.dns_zones. Empty if neither
+	// reachability probe produced a response for either record type.
 	ZoneResults   []*DNSZoneResult `protobuf:"bytes,3,rep,name=zone_results,json=zoneResults,proto3" json:"zone_results,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1300,18 +1306,18 @@ func (x *DNSReport) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-func (x *DNSReport) GetVnetDnsReachable() bool {
+func (x *DNSReport) GetIpv4Reachability() *VNetDNSReachability {
 	if x != nil {
-		return x.VnetDnsReachable
+		return x.Ipv4Reachability
 	}
-	return false
+	return nil
 }
 
-func (x *DNSReport) GetVnetDnsUnreachableError() string {
+func (x *DNSReport) GetIpv6Reachability() *VNetDNSReachability {
 	if x != nil {
-		return x.VnetDnsUnreachableError
+		return x.Ipv6Reachability
 	}
-	return ""
+	return nil
 }
 
 func (x *DNSReport) GetZoneResults() []*DNSZoneResult {
@@ -1321,27 +1327,51 @@ func (x *DNSReport) GetZoneResults() []*DNSZoneResult {
 	return nil
 }
 
-func (x *DNSReport) SetVnetDnsReachable(v bool) {
-	x.VnetDnsReachable = v
+func (x *DNSReport) SetIpv4Reachability(v *VNetDNSReachability) {
+	x.Ipv4Reachability = v
 }
 
-func (x *DNSReport) SetVnetDnsUnreachableError(v string) {
-	x.VnetDnsUnreachableError = v
+func (x *DNSReport) SetIpv6Reachability(v *VNetDNSReachability) {
+	x.Ipv6Reachability = v
 }
 
 func (x *DNSReport) SetZoneResults(v []*DNSZoneResult) {
 	x.ZoneResults = v
 }
 
+func (x *DNSReport) HasIpv4Reachability() bool {
+	if x == nil {
+		return false
+	}
+	return x.Ipv4Reachability != nil
+}
+
+func (x *DNSReport) HasIpv6Reachability() bool {
+	if x == nil {
+		return false
+	}
+	return x.Ipv6Reachability != nil
+}
+
+func (x *DNSReport) ClearIpv4Reachability() {
+	x.Ipv4Reachability = nil
+}
+
+func (x *DNSReport) ClearIpv6Reachability() {
+	x.Ipv6Reachability = nil
+}
+
 type DNSReport_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	// vnet_dns_reachable is true if a direct DNS query to VNet's nameserver IP succeeded.
-	VnetDnsReachable bool
-	// vnet_dns_unreachable_error is set when vnet_dns_reachable is false.
-	VnetDnsUnreachableError string
-	// zone_results contains one entry per zone in NetworkStack.dns_zones. Empty if
-	// vnet_dns_reachable is false.
+	// ipv4_reachability is the outcome of probing VNet's IPv4 nameserver directly. Null if VNet is
+	// not serving DNS on IPv4.
+	Ipv4Reachability *VNetDNSReachability
+	// ipv6_reachability is the outcome of probing VNet's IPv6 nameserver directly. Null if VNet is
+	// not serving DNS on IPv6.
+	Ipv6Reachability *VNetDNSReachability
+	// zone_results contains one entry per zone in NetworkStack.dns_zones. Empty if neither
+	// reachability probe produced a response for either record type.
 	ZoneResults []*DNSZoneResult
 }
 
@@ -1349,35 +1379,156 @@ func (b0 DNSReport_builder) Build() *DNSReport {
 	m0 := &DNSReport{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.VnetDnsReachable = b.VnetDnsReachable
-	x.VnetDnsUnreachableError = b.VnetDnsUnreachableError
+	x.Ipv4Reachability = b.Ipv4Reachability
+	x.Ipv6Reachability = b.Ipv6Reachability
 	x.ZoneResults = b.ZoneResults
 	return m0
 }
 
+// VNetDNSReachability describes the outcome of probing one of VNet's DNS servers directly,
+// bypassing the system resolver.
+type VNetDNSReachability struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// address is the server that was probed, e.g. "[fdec:1fed:139f::2]:53" or "100.64.0.2:53".
+	Address string `protobuf:"bytes,1,opt,name=address,proto3" json:"address,omitempty"`
+	// reachable is true if the server returned an answer for at least one record type.
+	Reachable bool `protobuf:"varint,2,opt,name=reachable,proto3" json:"reachable,omitempty"`
+	// responded_a is true if the server returned an A record for the probe.
+	RespondedA bool `protobuf:"varint,3,opt,name=responded_a,json=respondedA,proto3" json:"responded_a,omitempty"`
+	// responded_aaaa is true if the server returned an AAAA record for the probe.
+	RespondedAaaa bool `protobuf:"varint,4,opt,name=responded_aaaa,json=respondedAaaa,proto3" json:"responded_aaaa,omitempty"`
+	// error explains the failure when reachable is false.
+	Error         string `protobuf:"bytes,5,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *VNetDNSReachability) Reset() {
+	*x = VNetDNSReachability{}
+	mi := &file_teleport_lib_vnet_diag_v1_diag_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *VNetDNSReachability) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*VNetDNSReachability) ProtoMessage() {}
+
+func (x *VNetDNSReachability) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_vnet_diag_v1_diag_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *VNetDNSReachability) GetAddress() string {
+	if x != nil {
+		return x.Address
+	}
+	return ""
+}
+
+func (x *VNetDNSReachability) GetReachable() bool {
+	if x != nil {
+		return x.Reachable
+	}
+	return false
+}
+
+func (x *VNetDNSReachability) GetRespondedA() bool {
+	if x != nil {
+		return x.RespondedA
+	}
+	return false
+}
+
+func (x *VNetDNSReachability) GetRespondedAaaa() bool {
+	if x != nil {
+		return x.RespondedAaaa
+	}
+	return false
+}
+
+func (x *VNetDNSReachability) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *VNetDNSReachability) SetAddress(v string) {
+	x.Address = v
+}
+
+func (x *VNetDNSReachability) SetReachable(v bool) {
+	x.Reachable = v
+}
+
+func (x *VNetDNSReachability) SetRespondedA(v bool) {
+	x.RespondedA = v
+}
+
+func (x *VNetDNSReachability) SetRespondedAaaa(v bool) {
+	x.RespondedAaaa = v
+}
+
+func (x *VNetDNSReachability) SetError(v string) {
+	x.Error = v
+}
+
+type VNetDNSReachability_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// address is the server that was probed, e.g. "[fdec:1fed:139f::2]:53" or "100.64.0.2:53".
+	Address string
+	// reachable is true if the server returned an answer for at least one record type.
+	Reachable bool
+	// responded_a is true if the server returned an A record for the probe.
+	RespondedA bool
+	// responded_aaaa is true if the server returned an AAAA record for the probe.
+	RespondedAaaa bool
+	// error explains the failure when reachable is false.
+	Error string
+}
+
+func (b0 VNetDNSReachability_builder) Build() *VNetDNSReachability {
+	m0 := &VNetDNSReachability{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Address = b.Address
+	x.Reachable = b.Reachable
+	x.RespondedA = b.RespondedA
+	x.RespondedAaaa = b.RespondedAaaa
+	x.Error = b.Error
+	return m0
+}
+
 // DNSZoneResult describes the outcome of querying a probe hostname under a single VNet-managed
-// DNS zone through the system resolver.
+// DNS zone through the system resolver. The query is made for both A and AAAA records.
 type DNSZoneResult struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// zone is the DNS zone that was tested, e.g. "company.test".
 	Zone string `protobuf:"bytes,1,opt,name=zone,proto3" json:"zone,omitempty"`
-	// status describes the outcome of the query.
-	Status DNSZoneStatus `protobuf:"varint,2,opt,name=status,proto3,enum=teleport.lib.vnet.diag.v1.DNSZoneStatus" json:"status,omitempty"`
-	// observed_ip is the IP returned by the system resolver for the probe hostname. Empty on
-	// timeout or no answer.
-	ObservedIp string `protobuf:"bytes,3,opt,name=observed_ip,json=observedIp,proto3" json:"observed_ip,omitempty"`
-	// expected_ip is the IP that VNet's nameserver returned for the same probe hostname when
-	// queried directly.
-	ExpectedIp string `protobuf:"bytes,4,opt,name=expected_ip,json=expectedIp,proto3" json:"expected_ip,omitempty"`
-	// error is set on DNS_ZONE_STATUS_TIMEOUT and DNS_ZONE_STATUS_RESOLVER_ERROR.
-	Error         string `protobuf:"bytes,5,opt,name=error,proto3" json:"error,omitempty"`
+	// a_record is the outcome of the A-record part of the per-zone query. Null if no expected A was
+	// captured.
+	ARecord *RecordResult `protobuf:"bytes,2,opt,name=a_record,json=aRecord,proto3" json:"a_record,omitempty"`
+	// aaaa_record is the outcome of the AAAA-record part of the per-zone query. Null if no expected
+	// AAAA was captured.
+	AaaaRecord    *RecordResult `protobuf:"bytes,3,opt,name=aaaa_record,json=aaaaRecord,proto3" json:"aaaa_record,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *DNSZoneResult) Reset() {
 	*x = DNSZoneResult{}
-	mi := &file_teleport_lib_vnet_diag_v1_diag_proto_msgTypes[9]
+	mi := &file_teleport_lib_vnet_diag_v1_diag_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1389,7 +1540,7 @@ func (x *DNSZoneResult) String() string {
 func (*DNSZoneResult) ProtoMessage() {}
 
 func (x *DNSZoneResult) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_vnet_diag_v1_diag_proto_msgTypes[9]
+	mi := &file_teleport_lib_vnet_diag_v1_diag_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1407,52 +1558,52 @@ func (x *DNSZoneResult) GetZone() string {
 	return ""
 }
 
-func (x *DNSZoneResult) GetStatus() DNSZoneStatus {
+func (x *DNSZoneResult) GetARecord() *RecordResult {
 	if x != nil {
-		return x.Status
+		return x.ARecord
 	}
-	return DNSZoneStatus_DNS_ZONE_STATUS_UNSPECIFIED
+	return nil
 }
 
-func (x *DNSZoneResult) GetObservedIp() string {
+func (x *DNSZoneResult) GetAaaaRecord() *RecordResult {
 	if x != nil {
-		return x.ObservedIp
+		return x.AaaaRecord
 	}
-	return ""
-}
-
-func (x *DNSZoneResult) GetExpectedIp() string {
-	if x != nil {
-		return x.ExpectedIp
-	}
-	return ""
-}
-
-func (x *DNSZoneResult) GetError() string {
-	if x != nil {
-		return x.Error
-	}
-	return ""
+	return nil
 }
 
 func (x *DNSZoneResult) SetZone(v string) {
 	x.Zone = v
 }
 
-func (x *DNSZoneResult) SetStatus(v DNSZoneStatus) {
-	x.Status = v
+func (x *DNSZoneResult) SetARecord(v *RecordResult) {
+	x.ARecord = v
 }
 
-func (x *DNSZoneResult) SetObservedIp(v string) {
-	x.ObservedIp = v
+func (x *DNSZoneResult) SetAaaaRecord(v *RecordResult) {
+	x.AaaaRecord = v
 }
 
-func (x *DNSZoneResult) SetExpectedIp(v string) {
-	x.ExpectedIp = v
+func (x *DNSZoneResult) HasARecord() bool {
+	if x == nil {
+		return false
+	}
+	return x.ARecord != nil
 }
 
-func (x *DNSZoneResult) SetError(v string) {
-	x.Error = v
+func (x *DNSZoneResult) HasAaaaRecord() bool {
+	if x == nil {
+		return false
+	}
+	return x.AaaaRecord != nil
+}
+
+func (x *DNSZoneResult) ClearARecord() {
+	x.ARecord = nil
+}
+
+func (x *DNSZoneResult) ClearAaaaRecord() {
+	x.AaaaRecord = nil
 }
 
 type DNSZoneResult_builder struct {
@@ -1460,16 +1611,12 @@ type DNSZoneResult_builder struct {
 
 	// zone is the DNS zone that was tested, e.g. "company.test".
 	Zone string
-	// status describes the outcome of the query.
-	Status DNSZoneStatus
-	// observed_ip is the IP returned by the system resolver for the probe hostname. Empty on
-	// timeout or no answer.
-	ObservedIp string
-	// expected_ip is the IP that VNet's nameserver returned for the same probe hostname when
-	// queried directly.
-	ExpectedIp string
-	// error is set on DNS_ZONE_STATUS_TIMEOUT and DNS_ZONE_STATUS_RESOLVER_ERROR.
-	Error string
+	// a_record is the outcome of the A-record part of the per-zone query. Null if no expected A was
+	// captured.
+	ARecord *RecordResult
+	// aaaa_record is the outcome of the AAAA-record part of the per-zone query. Null if no expected
+	// AAAA was captured.
+	AaaaRecord *RecordResult
 }
 
 func (b0 DNSZoneResult_builder) Build() *DNSZoneResult {
@@ -1477,9 +1624,100 @@ func (b0 DNSZoneResult_builder) Build() *DNSZoneResult {
 	b, x := &b0, m0
 	_, _ = b, x
 	x.Zone = b.Zone
+	x.ARecord = b.ARecord
+	x.AaaaRecord = b.AaaaRecord
+	return m0
+}
+
+// RecordResult describes the outcome of querying a single record type for a single zone through
+// the system resolver.
+type RecordResult struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// status describes the outcome of the query for this record type.
+	Status DNSZoneStatus `protobuf:"varint,1,opt,name=status,proto3,enum=teleport.lib.vnet.diag.v1.DNSZoneStatus" json:"status,omitempty"`
+	// observed_ip is the IP returned by the system resolver. Populated for DNS_ZONE_STATUS_HIJACKED.
+	ObservedIp string `protobuf:"bytes,2,opt,name=observed_ip,json=observedIp,proto3" json:"observed_ip,omitempty"`
+	// error is set on DNS_ZONE_STATUS_TIMEOUT and DNS_ZONE_STATUS_RESOLVER_ERROR.
+	Error         string `protobuf:"bytes,3,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RecordResult) Reset() {
+	*x = RecordResult{}
+	mi := &file_teleport_lib_vnet_diag_v1_diag_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RecordResult) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RecordResult) ProtoMessage() {}
+
+func (x *RecordResult) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_lib_vnet_diag_v1_diag_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *RecordResult) GetStatus() DNSZoneStatus {
+	if x != nil {
+		return x.Status
+	}
+	return DNSZoneStatus_DNS_ZONE_STATUS_UNSPECIFIED
+}
+
+func (x *RecordResult) GetObservedIp() string {
+	if x != nil {
+		return x.ObservedIp
+	}
+	return ""
+}
+
+func (x *RecordResult) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *RecordResult) SetStatus(v DNSZoneStatus) {
+	x.Status = v
+}
+
+func (x *RecordResult) SetObservedIp(v string) {
+	x.ObservedIp = v
+}
+
+func (x *RecordResult) SetError(v string) {
+	x.Error = v
+}
+
+type RecordResult_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// status describes the outcome of the query for this record type.
+	Status DNSZoneStatus
+	// observed_ip is the IP returned by the system resolver. Populated for DNS_ZONE_STATUS_HIJACKED.
+	ObservedIp string
+	// error is set on DNS_ZONE_STATUS_TIMEOUT and DNS_ZONE_STATUS_RESOLVER_ERROR.
+	Error string
+}
+
+func (b0 RecordResult_builder) Build() *RecordResult {
+	m0 := &RecordResult{}
+	b, x := &b0, m0
+	_, _ = b, x
 	x.Status = b.Status
 	x.ObservedIp = b.ObservedIp
-	x.ExpectedIp = b.ExpectedIp
 	x.Error = b.Error
 	return m0
 }
@@ -1508,7 +1746,7 @@ type SSHConfigurationReport struct {
 
 func (x *SSHConfigurationReport) Reset() {
 	*x = SSHConfigurationReport{}
-	mi := &file_teleport_lib_vnet_diag_v1_diag_proto_msgTypes[10]
+	mi := &file_teleport_lib_vnet_diag_v1_diag_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1520,7 +1758,7 @@ func (x *SSHConfigurationReport) String() string {
 func (*SSHConfigurationReport) ProtoMessage() {}
 
 func (x *SSHConfigurationReport) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_lib_vnet_diag_v1_diag_proto_msgTypes[10]
+	mi := &file_teleport_lib_vnet_diag_v1_diag_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1661,19 +1899,28 @@ const file_teleport_lib_vnet_diag_v1_diag_proto_rawDesc = "" +
 	"\x04dest\x18\x01 \x01(\tR\x04dest\x12\x1b\n" +
 	"\tvnet_dest\x18\x02 \x01(\tR\bvnetDest\x12%\n" +
 	"\x0einterface_name\x18\x03 \x01(\tR\rinterfaceName\x12#\n" +
-	"\rinterface_app\x18\x04 \x01(\tR\finterfaceApp\"\xc3\x01\n" +
-	"\tDNSReport\x12,\n" +
-	"\x12vnet_dns_reachable\x18\x01 \x01(\bR\x10vnetDnsReachable\x12;\n" +
-	"\x1avnet_dns_unreachable_error\x18\x02 \x01(\tR\x17vnetDnsUnreachableError\x12K\n" +
-	"\fzone_results\x18\x03 \x03(\v2(.teleport.lib.vnet.diag.v1.DNSZoneResultR\vzoneResults\"\xbd\x01\n" +
+	"\rinterface_app\x18\x04 \x01(\tR\finterfaceApp\"\x92\x02\n" +
+	"\tDNSReport\x12[\n" +
+	"\x11ipv4_reachability\x18\x01 \x01(\v2..teleport.lib.vnet.diag.v1.VNetDNSReachabilityR\x10ipv4Reachability\x12[\n" +
+	"\x11ipv6_reachability\x18\x02 \x01(\v2..teleport.lib.vnet.diag.v1.VNetDNSReachabilityR\x10ipv6Reachability\x12K\n" +
+	"\fzone_results\x18\x03 \x03(\v2(.teleport.lib.vnet.diag.v1.DNSZoneResultR\vzoneResults\"\xab\x01\n" +
+	"\x13VNetDNSReachability\x12\x18\n" +
+	"\aaddress\x18\x01 \x01(\tR\aaddress\x12\x1c\n" +
+	"\treachable\x18\x02 \x01(\bR\treachable\x12\x1f\n" +
+	"\vresponded_a\x18\x03 \x01(\bR\n" +
+	"respondedA\x12%\n" +
+	"\x0eresponded_aaaa\x18\x04 \x01(\bR\rrespondedAaaa\x12\x14\n" +
+	"\x05error\x18\x05 \x01(\tR\x05error\"\xb1\x01\n" +
 	"\rDNSZoneResult\x12\x12\n" +
-	"\x04zone\x18\x01 \x01(\tR\x04zone\x12@\n" +
-	"\x06status\x18\x02 \x01(\x0e2(.teleport.lib.vnet.diag.v1.DNSZoneStatusR\x06status\x12\x1f\n" +
-	"\vobserved_ip\x18\x03 \x01(\tR\n" +
-	"observedIp\x12\x1f\n" +
-	"\vexpected_ip\x18\x04 \x01(\tR\n" +
-	"expectedIp\x12\x14\n" +
-	"\x05error\x18\x05 \x01(\tR\x05error\"\xde\x02\n" +
+	"\x04zone\x18\x01 \x01(\tR\x04zone\x12B\n" +
+	"\ba_record\x18\x02 \x01(\v2'.teleport.lib.vnet.diag.v1.RecordResultR\aaRecord\x12H\n" +
+	"\vaaaa_record\x18\x03 \x01(\v2'.teleport.lib.vnet.diag.v1.RecordResultR\n" +
+	"aaaaRecord\"\x87\x01\n" +
+	"\fRecordResult\x12@\n" +
+	"\x06status\x18\x01 \x01(\x0e2(.teleport.lib.vnet.diag.v1.DNSZoneStatusR\x06status\x12\x1f\n" +
+	"\vobserved_ip\x18\x02 \x01(\tR\n" +
+	"observedIp\x12\x14\n" +
+	"\x05error\x18\x03 \x01(\tR\x05error\"\xde\x02\n" +
 	"\x16SSHConfigurationReport\x127\n" +
 	"\x18user_openssh_config_path\x18\x01 \x01(\tR\x15userOpensshConfigPath\x12/\n" +
 	"\x14vnet_ssh_config_path\x18\x02 \x01(\tR\x11vnetSshConfigPath\x12\\\n" +
@@ -1701,7 +1948,7 @@ const file_teleport_lib_vnet_diag_v1_diag_proto_rawDesc = "" +
 	"\x1eDNS_ZONE_STATUS_RESOLVER_ERROR\x10\x05BQZOgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/diag/v1;diagv1b\x06proto3"
 
 var file_teleport_lib_vnet_diag_v1_diag_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_teleport_lib_vnet_diag_v1_diag_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
+var file_teleport_lib_vnet_diag_v1_diag_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_teleport_lib_vnet_diag_v1_diag_proto_goTypes = []any{
 	(CheckAttemptStatus)(0),        // 0: teleport.lib.vnet.diag.v1.CheckAttemptStatus
 	(CheckReportStatus)(0),         // 1: teleport.lib.vnet.diag.v1.CheckReportStatus
@@ -1716,12 +1963,14 @@ var file_teleport_lib_vnet_diag_v1_diag_proto_goTypes = []any{
 	(*RouteConflictReport)(nil),    // 10: teleport.lib.vnet.diag.v1.RouteConflictReport
 	(*RouteConflict)(nil),          // 11: teleport.lib.vnet.diag.v1.RouteConflict
 	(*DNSReport)(nil),              // 12: teleport.lib.vnet.diag.v1.DNSReport
-	(*DNSZoneResult)(nil),          // 13: teleport.lib.vnet.diag.v1.DNSZoneResult
-	(*SSHConfigurationReport)(nil), // 14: teleport.lib.vnet.diag.v1.SSHConfigurationReport
-	(*timestamppb.Timestamp)(nil),  // 15: google.protobuf.Timestamp
+	(*VNetDNSReachability)(nil),    // 13: teleport.lib.vnet.diag.v1.VNetDNSReachability
+	(*DNSZoneResult)(nil),          // 14: teleport.lib.vnet.diag.v1.DNSZoneResult
+	(*RecordResult)(nil),           // 15: teleport.lib.vnet.diag.v1.RecordResult
+	(*SSHConfigurationReport)(nil), // 16: teleport.lib.vnet.diag.v1.SSHConfigurationReport
+	(*timestamppb.Timestamp)(nil),  // 17: google.protobuf.Timestamp
 }
 var file_teleport_lib_vnet_diag_v1_diag_proto_depIdxs = []int32{
-	15, // 0: teleport.lib.vnet.diag.v1.Report.created_at:type_name -> google.protobuf.Timestamp
+	17, // 0: teleport.lib.vnet.diag.v1.Report.created_at:type_name -> google.protobuf.Timestamp
 	5,  // 1: teleport.lib.vnet.diag.v1.Report.network_stack_attempt:type_name -> teleport.lib.vnet.diag.v1.NetworkStackAttempt
 	7,  // 2: teleport.lib.vnet.diag.v1.Report.checks:type_name -> teleport.lib.vnet.diag.v1.CheckAttempt
 	0,  // 3: teleport.lib.vnet.diag.v1.NetworkStackAttempt.status:type_name -> teleport.lib.vnet.diag.v1.CheckAttemptStatus
@@ -1731,17 +1980,21 @@ var file_teleport_lib_vnet_diag_v1_diag_proto_depIdxs = []int32{
 	9,  // 7: teleport.lib.vnet.diag.v1.CheckAttempt.commands:type_name -> teleport.lib.vnet.diag.v1.CommandAttempt
 	1,  // 8: teleport.lib.vnet.diag.v1.CheckReport.status:type_name -> teleport.lib.vnet.diag.v1.CheckReportStatus
 	10, // 9: teleport.lib.vnet.diag.v1.CheckReport.route_conflict_report:type_name -> teleport.lib.vnet.diag.v1.RouteConflictReport
-	14, // 10: teleport.lib.vnet.diag.v1.CheckReport.ssh_configuration_report:type_name -> teleport.lib.vnet.diag.v1.SSHConfigurationReport
+	16, // 10: teleport.lib.vnet.diag.v1.CheckReport.ssh_configuration_report:type_name -> teleport.lib.vnet.diag.v1.SSHConfigurationReport
 	12, // 11: teleport.lib.vnet.diag.v1.CheckReport.dns_report:type_name -> teleport.lib.vnet.diag.v1.DNSReport
 	2,  // 12: teleport.lib.vnet.diag.v1.CommandAttempt.status:type_name -> teleport.lib.vnet.diag.v1.CommandAttemptStatus
 	11, // 13: teleport.lib.vnet.diag.v1.RouteConflictReport.route_conflicts:type_name -> teleport.lib.vnet.diag.v1.RouteConflict
-	13, // 14: teleport.lib.vnet.diag.v1.DNSReport.zone_results:type_name -> teleport.lib.vnet.diag.v1.DNSZoneResult
-	3,  // 15: teleport.lib.vnet.diag.v1.DNSZoneResult.status:type_name -> teleport.lib.vnet.diag.v1.DNSZoneStatus
-	16, // [16:16] is the sub-list for method output_type
-	16, // [16:16] is the sub-list for method input_type
-	16, // [16:16] is the sub-list for extension type_name
-	16, // [16:16] is the sub-list for extension extendee
-	0,  // [0:16] is the sub-list for field type_name
+	13, // 14: teleport.lib.vnet.diag.v1.DNSReport.ipv4_reachability:type_name -> teleport.lib.vnet.diag.v1.VNetDNSReachability
+	13, // 15: teleport.lib.vnet.diag.v1.DNSReport.ipv6_reachability:type_name -> teleport.lib.vnet.diag.v1.VNetDNSReachability
+	14, // 16: teleport.lib.vnet.diag.v1.DNSReport.zone_results:type_name -> teleport.lib.vnet.diag.v1.DNSZoneResult
+	15, // 17: teleport.lib.vnet.diag.v1.DNSZoneResult.a_record:type_name -> teleport.lib.vnet.diag.v1.RecordResult
+	15, // 18: teleport.lib.vnet.diag.v1.DNSZoneResult.aaaa_record:type_name -> teleport.lib.vnet.diag.v1.RecordResult
+	3,  // 19: teleport.lib.vnet.diag.v1.RecordResult.status:type_name -> teleport.lib.vnet.diag.v1.DNSZoneStatus
+	20, // [20:20] is the sub-list for method output_type
+	20, // [20:20] is the sub-list for method input_type
+	20, // [20:20] is the sub-list for extension type_name
+	20, // [20:20] is the sub-list for extension extendee
+	0,  // [0:20] is the sub-list for field type_name
 }
 
 func init() { file_teleport_lib_vnet_diag_v1_diag_proto_init() }
@@ -1760,7 +2013,7 @@ func file_teleport_lib_vnet_diag_v1_diag_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_lib_vnet_diag_v1_diag_proto_rawDesc), len(file_teleport_lib_vnet_diag_v1_diag_proto_rawDesc)),
 			NumEnums:      4,
-			NumMessages:   11,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
