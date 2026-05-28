@@ -5996,9 +5996,9 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		// Register TLS endpoint of the Kube proxy service
 		component := teleport.Component(teleport.ComponentProxy, teleport.ComponentProxyKube)
 
-		kubeServiceType := kubeproxy.ProxyService
+		kubeUpstream := kubeproxy.NewProxyServiceUpstream()
 		if cfg.Proxy.Kube.LegacyKubeProxy {
-			kubeServiceType = kubeproxy.LegacyProxyService
+			kubeUpstream = kubeproxy.NewLegacyProxyUpstream()
 		}
 
 		// kubeServerWatcher is used to watch for changes in the Kubernetes servers
@@ -6047,7 +6047,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				ClusterOverride:               cfg.Proxy.Kube.ClusterOverride,
 				KubeconfigPath:                cfg.Proxy.Kube.KubeconfigPath,
 				Component:                     component,
-				KubeServiceType:               kubeServiceType,
+				Upstream:                      kubeUpstream,
 				LockWatcher:                   lockWatcher,
 				CheckImpersonationPermissions: cfg.Kube.CheckImpersonationPermissions,
 				PROXYSigner:                   proxySigner,

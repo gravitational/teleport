@@ -284,7 +284,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 			Context:                       process.ExitContext(),
 			KubeconfigPath:                cfg.Kube.KubeconfigPath,
 			KubeClusterName:               cfg.Kube.KubeClusterName,
-			KubeServiceType:               kubeproxy.KubeService,
+			Upstream:                      kubeproxy.NewKubeServiceUpstream(),
 			Component:                     teleport.ComponentKube,
 			LockWatcher:                   lockWatcher,
 			CheckImpersonationPermissions: cfg.Kube.CheckImpersonationPermissions,

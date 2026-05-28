@@ -56,7 +56,7 @@ func (f *Forwarder) ephemeralContainers(authCtx *authContext, w http.ResponseWri
 		"kube.Forwarder/ephemeralContainers",
 		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 		oteltrace.WithAttributes(
-			semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
+			semconv.RPCServiceKey.String(f.component()),
 			semconv.RPCMethodKey.String("ephemeralContainers"),
 			semconv.RPCSystemKey.String("kube"),
 		),

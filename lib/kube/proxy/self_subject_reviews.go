@@ -51,7 +51,7 @@ func (f *Forwarder) selfSubjectAccessReviews(authCtx *authContext, w http.Respon
 		"kube.Forwarder/selfSubjectAccessReviews",
 		oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 		oteltrace.WithAttributes(
-			semconv.RPCServiceKey.String(f.cfg.KubeServiceType),
+			semconv.RPCServiceKey.String(f.component()),
 			semconv.RPCMethodKey.String("selfSubjectAccessReviews"),
 			semconv.RPCSystemKey.String("kube"),
 		),

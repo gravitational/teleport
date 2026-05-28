@@ -164,15 +164,15 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	switch c.KubeServiceType {
-	case ProxyService, LegacyProxyService:
+	if c.Upstream == nil {
+		return trace.BadParameter("missing parameter Upstream")
+	}
+	if c.Upstream.forwardsToOtherAgents() {
 		if c.KubernetesServersWatcher == nil {
 			return trace.BadParameter("missing parameter KubernetesServersWatcher")
 		}
-	case KubeService:
-		if c.Scope != "" && c.KubernetesServersWatcher != nil {
-			return trace.BadParameter("KubernetesServersWatcher is not supported for scoped KubeService")
-		}
+	} else if c.Scope != "" && c.KubernetesServersWatcher != nil {
+		return trace.BadParameter("KubernetesServersWatcher is not supported for scoped KubeService")
 	}
 
 	if c.Log == nil {
@@ -251,7 +251,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if len(fwd.kubeClusters()) == 0 && cfg.KubeServiceType == KubeService &&
+	if len(fwd.kubeClusters()) == 0 && !fwd.upstream.forwardsToOtherAgents() &&
 		len(cfg.ResourceMatchers) == 0 {
 		// if fwd has no clusters and the service type is KubeService but no resource watcher is configured
 		// then the kube_service does not need to start since it will not serve any static or dynamic cluster.
@@ -524,7 +524,7 @@ func (t *TLSServer) GetServerInfo(name string) (*types.KubernetesServerV3, error
 	//
 	// Note: we *don't* want to add suffix for kubernetes_service!
 	// This breaks reverse tunnel routing, which uses server.Name.
-	if t.KubeServiceType != KubeService {
+	if t.fwd.upstream.forwardsToOtherAgents() {
 		name += teleport.KubeLegacyProxySuffix
 	}
 
@@ -705,23 +705,19 @@ func (t *TLSServer) getRotationState() types.Rotation {
 }
 
 func (t *TLSServer) startStaticClustersHeartbeat() error {
-	// Start the heartbeat to announce kubernetes_service presence.
-	//
-	// Only announce when running in an actual kube_server, or when
-	// running in proxy_service with local kube credentials. This means that
-	// proxy_service will pretend to also be kube_server.
-	if t.KubeServiceType == KubeService ||
-		t.KubeServiceType == LegacyProxyService {
-		t.log.DebugContext(t.closeContext, "Starting kubernetes_service heartbeats and health checks")
-		for _, kc := range t.fwd.kubeClusters() {
-			if err := t.startHeartbeatAndHealthCheck(kc); err != nil {
-				return trace.Wrap(err)
-			}
-		}
-	} else {
+	// Only announce kubernetes_service presence when this service holds
+	// cluster details locally. A pure proxy never announces; a legacy proxy
+	// pretends to be a kube_server for any locally-held clusters.
+	if !t.fwd.upstream.servesLocalClusters() {
 		t.log.DebugContext(t.closeContext, "No local kube credentials on proxy, will not start kubernetes_service heartbeats and health checks")
+		return nil
 	}
-
+	t.log.DebugContext(t.closeContext, "Starting kubernetes_service heartbeats and health checks")
+	for _, kc := range t.fwd.kubeClusters() {
+		if err := t.startHeartbeatAndHealthCheck(kc); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	return nil
 }
 
@@ -777,49 +773,46 @@ func (t *TLSServer) setServiceLabels(cluster types.KubeCluster) {
 	}
 }
 
-// getKubernetesServersForKubeClusterFunc returns a function that returns the kubernetes servers
-// for a given kube cluster depending on the type of service.
+// getKubernetesServersForKubeClusterFunc returns a function that looks up the
+// kube_server resources for a named kube cluster. The strategy is dictated by
+// the upstream resolver: services that hold clusters locally return a
+// self-server entry; services that forward to other agents query the
+// KubernetesServersWatcher. A legacy proxy does both, preferring local.
 func (t *TLSServer) getKubernetesServersForKubeClusterFunc() (getKubeServersByNameFunc, error) {
-	switch t.KubeServiceType {
-	case KubeService:
+	upstream := t.fwd.upstream
+	fromWatcher := func(ctx context.Context, name string) ([]types.KubeServer, error) {
+		servers, err := t.KubernetesServersWatcher.CurrentResourcesWithFilter(ctx, func(ks readonly.KubeServer) bool {
+			return ks.GetCluster().GetName() == name
+		})
+		return servers, trace.Wrap(err)
+	}
+	fromLocal := func(name string) ([]types.KubeServer, error) {
+		kube, err := t.getKubeClusterWithServiceLabels(name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		srv, err := types.NewKubernetesServerV3FromCluster(kube, "", t.HostID)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return []types.KubeServer{srv}, nil
+	}
+
+	switch {
+	case upstream.servesLocalClusters() && upstream.forwardsToOtherAgents():
+		return func(ctx context.Context, name string) ([]types.KubeServer, error) {
+			if servers, err := fromLocal(name); err == nil {
+				return servers, nil
+			}
+			return fromWatcher(ctx, name)
+		}, nil
+	case upstream.servesLocalClusters():
 		return func(_ context.Context, name string) ([]types.KubeServer, error) {
-			// If this is a kube_service, we can just return the local kube servers.
-			kube, err := t.getKubeClusterWithServiceLabels(name)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			srv, err := types.NewKubernetesServerV3FromCluster(kube, "", t.HostID)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return []types.KubeServer{srv}, nil
+			return fromLocal(name)
 		}, nil
-	case ProxyService:
-		return func(ctx context.Context, name string) ([]types.KubeServer, error) {
-			servers, err := t.KubernetesServersWatcher.CurrentResourcesWithFilter(ctx, func(ks readonly.KubeServer) bool {
-				return ks.GetCluster().GetName() == name
-			})
-			return servers, trace.Wrap(err)
-		}, nil
-	case LegacyProxyService:
-		return func(ctx context.Context, name string) ([]types.KubeServer, error) {
-			// If this is a legacy kube proxy, then we need to return the local kube servers if
-			// the local server is proxying the target cluster, otherwise act like a proxy_service.
-			// and forward the request to the next proxy.
-			kube, err := t.getKubeClusterWithServiceLabels(name)
-			if err != nil {
-				servers, err := t.KubernetesServersWatcher.CurrentResourcesWithFilter(ctx, func(ks readonly.KubeServer) bool {
-					return ks.GetCluster().GetName() == name
-				})
-				return servers, trace.Wrap(err)
-			}
-			srv, err := types.NewKubernetesServerV3FromCluster(kube, "", t.HostID)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return []types.KubeServer{srv}, nil
-		}, nil
+	case upstream.forwardsToOtherAgents():
+		return fromWatcher, nil
 	default:
-		return nil, trace.BadParameter("unknown kubernetes service type %q", t.KubeServiceType)
+		return nil, trace.BadParameter("upstream resolver %q does neither", upstream.component())
 	}
 }
