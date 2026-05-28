@@ -5534,22 +5534,12 @@ func (a *Server) GenerateHostCerts(ctx context.Context, params HostCertsParams) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// generate host SSH certificate
-	hostSSHCert, err := a.generateHostCert(ctx, sshca.HostCertificateRequest{
-		CASigner:      caSigner,
-		PublicHostKey: req.PublicSSHKey,
-		HostID:        req.HostID,
-		NodeName:      req.NodeName,
-		Identity: sshca.Identity{
-			ClusterName:        clusterName.GetClusterName(),
-			SystemRole:         req.Role,
-			Principals:         req.AdditionalPrincipals,
-			AgentScope:         params.AgentScope,
-			ImmutableLabelHash: params.ImmutableLabelHash,
-		},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+
+	var useAgentPin bool
+	if params.AgentScope != "" {
+		// We are in the process of switching over the format of scoped agent certificates. Until the
+		// transition is complete, the new agent pin format is behind a feature flag.
+		useAgentPin = scopes.AgentPinEnabled()
 	}
 
 	if req.Role == types.RoleInstance && len(req.SystemRoles) == 0 {
@@ -5561,15 +5551,71 @@ func (a *Server) GenerateHostCerts(ctx context.Context, params HostCertsParams) 
 		systemRoles = append(systemRoles, string(r))
 	}
 
+	var agentScopePin *scopesv1.Pin
+	if useAgentPin {
+		agentScopePin = &scopesv1.Pin{
+			Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
+			Scope: params.AgentScope,
+			SystemRoles: &scopesv1.SystemRoles{
+				Primary:    req.Role.String(),
+				Additional: systemRoles,
+			},
+		}
+	}
+
+	// Agent scope pins encode role and scope solely via ScopePin; setting the
+	// legacy fields alongside the pin would let old infrastructure treat the cert
+	// as unscoped. Only populate them for the legacy (non-pin) path.
+	var sshRole types.SystemRole
+	var sshAgentScope string
+	if !useAgentPin {
+		sshRole = req.Role
+		sshAgentScope = params.AgentScope
+	}
+
+	// generate host SSH certificate
+	hostSSHCert, err := a.generateHostCert(ctx, sshca.HostCertificateRequest{
+		CASigner:      caSigner,
+		PublicHostKey: req.PublicSSHKey,
+		HostID:        req.HostID,
+		NodeName:      req.NodeName,
+		Identity: sshca.Identity{
+			ClusterName:        clusterName.GetClusterName(),
+			SystemRole:         sshRole,
+			Principals:         req.AdditionalPrincipals,
+			AgentScope:         sshAgentScope,
+			ScopePin:           agentScopePin,
+			ImmutableLabelHash: params.ImmutableLabelHash,
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// generate host TLS certificate
-	identity := tlsca.Identity{
-		Username:           utils.HostFQDN(req.HostID, clusterName.GetClusterName()),
-		Groups:             []string{req.Role.String()},
-		TeleportCluster:    clusterName.GetClusterName(),
-		SystemRoles:        systemRoles,
-		AgentScope:         params.AgentScope,
-		ImmutableLabelHash: params.ImmutableLabelHash,
-		JoinToken:          params.JoinToken,
+	var identity tlsca.Identity
+	if useAgentPin {
+		identity = tlsca.Identity{
+			Username:           utils.HostFQDN(req.HostID, clusterName.GetClusterName()),
+			Groups:             nil, // omitted in agent pin case
+			TeleportCluster:    clusterName.GetClusterName(),
+			SystemRoles:        nil, // omitted in agent pin case
+			AgentScope:         "",  // omitted in agent pin case
+			ScopePin:           agentScopePin,
+			ImmutableLabelHash: params.ImmutableLabelHash,
+			JoinToken:          params.JoinToken,
+		}
+	} else {
+		identity = tlsca.Identity{
+			Username:           utils.HostFQDN(req.HostID, clusterName.GetClusterName()),
+			Groups:             []string{req.Role.String()},
+			TeleportCluster:    clusterName.GetClusterName(),
+			SystemRoles:        systemRoles,
+			AgentScope:         params.AgentScope,
+			ScopePin:           nil, // omitted when not in agent pin case
+			ImmutableLabelHash: params.ImmutableLabelHash,
+			JoinToken:          params.JoinToken,
+		}
 	}
 	subject, err := identity.Subject()
 	if err != nil {

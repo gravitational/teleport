@@ -702,7 +702,7 @@ func (a *ServerWithRoles) GenerateHostCerts(ctx context.Context, req *proto.Host
 	identity := a.context.Identity.GetIdentity()
 	return a.authServer.GenerateHostCerts(ctx, HostCertsParams{
 		Req:                req,
-		AgentScope:         identity.AgentScope,
+		AgentScope:         identity.GetAgentScope(),
 		ImmutableLabelHash: identity.ImmutableLabelHash,
 		JoinToken:          identity.JoinToken,
 	})
@@ -840,7 +840,7 @@ func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInve
 	// If the hello message's scope is non-empty, we can verify that it matches the authenticated
 	// scope in the identity. Otherwise, in order to support agents unaware of scopes, we fall back
 	// to the authenticated identity's scope.
-	agentScope := a.context.Identity.GetIdentity().AgentScope
+	agentScope := a.context.Identity.GetIdentity().GetAgentScope()
 	if hello.Scope != "" && hello.Scope != agentScope {
 		return nil, trace.AccessDenied("provided scope %q does not match agent identity %q", hello.Scope, agentScope)
 	}
@@ -1049,7 +1049,7 @@ func (a *ServerWithRoles) UpsertNode(ctx context.Context, s types.Server) (*type
 		return nil, trace.Wrap(err)
 	}
 
-	agentScope := a.context.Identity.GetIdentity().AgentScope
+	agentScope := a.context.Identity.GetIdentity().GetAgentScope()
 	if nodeScope := s.GetScope(); agentScope != "" {
 		if nodeScope != agentScope {
 			return nil, trace.AccessDenied("node scope %q does not match agent identity scope %q", nodeScope, agentScope)

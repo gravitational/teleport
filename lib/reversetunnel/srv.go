@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
@@ -939,7 +940,7 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (perm *ssh.Pe
 		return nil, trace.Wrap(err)
 	}
 
-	var clusterName, certRole, certType string
+	var clusterName, certRole, certType, certScope string
 	var caType types.CertAuthType
 	switch ident.CertType {
 	case ssh.HostCert:
@@ -948,10 +949,21 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (perm *ssh.Pe
 		}
 		clusterName = ident.ClusterName
 
-		if ident.SystemRole == "" {
+		if ident.SystemRole != "" {
+			// Legacy format: role and scope in separate extensions.
+			certRole = string(ident.SystemRole)
+			certScope = ident.AgentScope
+		} else if ident.ScopePin.GetKind() == scopesv1.PinKind_PIN_KIND_AGENT {
+			// Agent scope pin certs omit the legacy SystemRole and AgentScope extensions;
+			// role and scope are carried inside the pin itself.
+			certRole = ident.ScopePin.GetSystemRoles().GetPrimary()
+			if certRole == "" {
+				return nil, trace.BadParameter("agent scope pin is missing primary system role")
+			}
+			certScope = ident.ScopePin.GetScope()
+		} else {
 			return nil, trace.BadParameter("certificate missing %q extension; this SSH host certificate was not issued by Teleport or issued by an older version of Teleport; try upgrading your Teleport nodes/proxies", utils.CertExtensionRole)
 		}
-		certRole = string(ident.SystemRole)
 		certType = utils.ExtIntCertTypeHost
 		caType = types.HostCA
 	case ssh.UserCert:
@@ -986,7 +998,7 @@ func (s *server) keyAuth(conn ssh.ConnMetadata, key ssh.PublicKey) (perm *ssh.Pe
 			utils.ExtIntCertType: certType,
 			extCertRole:          certRole,
 			extAuthority:         clusterName,
-			extScope:             ident.AgentScope,
+			extScope:             certScope, // TODO(fsparshall/scopes): should agent scoping be propagated pin-encapsulated like we do for users?
 		},
 	}, nil
 }

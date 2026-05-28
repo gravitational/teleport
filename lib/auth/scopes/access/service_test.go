@@ -231,6 +231,7 @@ func TestRoleBasics(t *testing.T) {
 	// set up server pinned to a staging admin identity
 	srv := newServerForIdentity(t, bk, &services.AccessInfo{
 		ScopePin: &scopesv1.Pin{
+			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: "/staging",
 			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 				"/staging": {"/staging": {"staging-admin"}},
@@ -561,6 +562,7 @@ func TestAssignmentBasics(t *testing.T) {
 	// set up server pinned to a staging admin identity
 	srv := newServerForIdentity(t, bk, &services.AccessInfo{
 		ScopePin: &scopesv1.Pin{
+			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: "/staging",
 			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 				"/staging": {"/staging": {"staging-admin"}},
@@ -1157,6 +1159,7 @@ func TestAccessChecksSkipInconsistentAssignments(t *testing.T) {
 	// even after we make staging-admin inconsistent below).
 	aliceAccessInfo := &services.AccessInfo{
 		ScopePin: &scopesv1.Pin{
+			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: "/staging",
 			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 				"/staging": {"/staging": {"staging-reader", "staging-admin"}},

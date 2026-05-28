@@ -374,7 +374,7 @@ func newConnector(clientIdentity, serverIdentity *state.Identity) (*Connector, e
 	c := &Connector{
 		clusterName: clientIdentity.ClusterName,
 		hostID:      clientIdentity.ID.HostUUID,
-		scope:       clientIdentity.AgentScope,
+		scope:       clientIdentity.GetAgentScope(),
 		role:        clientIdentity.ID.Role,
 	}
 	c.clientState.Store(clientState)

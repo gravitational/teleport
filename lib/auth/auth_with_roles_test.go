@@ -8694,9 +8694,9 @@ func TestGenerateHostCert(t *testing.T) {
 }
 
 // newScopedTestServerForHost creates a self-cleaning `ServerWithRoles`, configured
-// for a given host
-func newScopedTestServerForHost(t *testing.T, srv *authtest.AuthServer, hostID, scope string, role types.SystemRole) *auth.ServerWithRoles {
-	authzContext := authz.ContextWithUser(t.Context(), authtest.TestScopedHost(srv.ClusterName, hostID, scope, role).I)
+// for a given host. One or more roles must be provided.
+func newScopedTestServerForHost(t *testing.T, srv *authtest.AuthServer, hostID, scope string, roles ...types.SystemRole) *auth.ServerWithRoles {
+	authzContext := authz.ContextWithUser(t.Context(), authtest.TestScopedHost(srv.ClusterName, hostID, scope, roles...).I)
 	ctxIdentity, err := srv.Authorizer.Authorize(authzContext)
 	require.NoError(t, err)
 
@@ -8829,6 +8829,170 @@ func TestUpsertNode(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+// TestGenerateHostCertsAgentScopePin verifies that GenerateHostCerts handles agent scope pins
+// correctly. As agent scope pins are still in development, this test currently covers the behavior
+// of the associated feature flag and verifies the old format is still the default behavior. This
+// test will be simplified once the agent scope pin feature is complete.
+func TestGenerateHostCertsAgentScopePin(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	ctx := t.Context()
+
+	const scope = "/aa/bb"
+	const hostID = "testhost"
+
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
+
+	type certIdents struct {
+		tls *tlsca.Identity
+		ssh *sshca.Identity
+	}
+
+	parseIdents := func(t *testing.T, certs *proto.Certs) certIdents {
+		t.Helper()
+		tlsCert, err := tlsca.ParseCertificatePEM(certs.TLS)
+		require.NoError(t, err)
+		tlsIdent, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
+		require.NoError(t, err)
+		sshCert, err := sshutils.ParseCertificate(certs.SSH)
+		require.NoError(t, err)
+		sshIdent, err := sshca.DecodeIdentity(sshCert)
+		require.NoError(t, err)
+		return certIdents{tls: tlsIdent, ssh: sshIdent}
+	}
+
+	generateCerts := func(t *testing.T, role types.SystemRole) certIdents {
+		t.Helper()
+		s := newScopedTestServerForHost(t, as, hostID, scope, role)
+
+		_, sshPub, err := testauthority.GenerateKeyPair()
+		require.NoError(t, err)
+		tlsKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+		require.NoError(t, err)
+		tlsPubPEM, err := keys.MarshalPublicKey(tlsKey.Public())
+		require.NoError(t, err)
+
+		certs, err := s.GenerateHostCerts(ctx, &proto.HostCertsRequest{
+			PublicTLSKey: tlsPubPEM,
+			PublicSSHKey: sshPub,
+			HostID:       hostID,
+			Role:         role,
+		})
+		require.NoError(t, err)
+		return parseIdents(t, certs)
+	}
+
+	generateInstanceCerts := func(t *testing.T, systemRoles types.SystemRoles) certIdents {
+		t.Helper()
+		s := newScopedTestServerForHost(t, as, hostID, scope, systemRoles...)
+
+		_, sshPub, err := testauthority.GenerateKeyPair()
+		require.NoError(t, err)
+		tlsKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+		require.NoError(t, err)
+		tlsPubPEM, err := keys.MarshalPublicKey(tlsKey.Public())
+		require.NoError(t, err)
+
+		certs, err := s.GenerateHostCerts(ctx, &proto.HostCertsRequest{
+			PublicTLSKey: tlsPubPEM,
+			PublicSSHKey: sshPub,
+			HostID:       hostID,
+			Role:         types.RoleInstance,
+			SystemRoles:  systemRoles,
+		})
+		require.NoError(t, err)
+		return parseIdents(t, certs)
+	}
+
+	// verify that the legacy scoped agent cert format is still the one generated when
+	// the agent scope pin feature is not enabled
+	t.Run("legacy format", func(t *testing.T) {
+		idents := generateCerts(t, types.RoleNode)
+
+		// Legacy path: Groups contains the role, AgentScope is set, ScopePin is nil.
+		require.Contains(t, idents.tls.Groups, types.RoleNode.String())
+		require.Equal(t, scope, idents.tls.AgentScope)
+		require.Nil(t, idents.tls.ScopePin)
+
+		// SSH cert: legacy AgentScope set, no pin.
+		require.Equal(t, scope, idents.ssh.AgentScope)
+		require.Nil(t, idents.ssh.ScopePin)
+	})
+
+	// verify agent pin created correctly for service certs
+	t.Run("agent pin service cert", func(t *testing.T) {
+		t.Setenv("TELEPORT_UNSTABLE_AGENT_SCOPE_PIN", "yes")
+
+		idents := generateCerts(t, types.RoleNode)
+		require.Empty(t, idents.tls.Groups)
+		require.Empty(t, idents.tls.AgentScope)
+		require.NotNil(t, idents.tls.ScopePin)
+		require.Equal(t, scope, idents.tls.ScopePin.GetScope())
+		require.Equal(t, types.RoleNode.String(), idents.tls.ScopePin.GetSystemRoles().GetPrimary())
+
+		require.NotNil(t, idents.ssh.ScopePin)
+		require.Equal(t, scope, idents.ssh.ScopePin.GetScope())
+		require.Equal(t, types.RoleNode.String(), idents.ssh.ScopePin.GetSystemRoles().GetPrimary())
+	})
+
+	// verify agent pin created correctly for instance certs
+	t.Run("agent pin instance cert", func(t *testing.T) {
+		t.Setenv("TELEPORT_UNSTABLE_AGENT_SCOPE_PIN", "yes")
+
+		systemRoles := types.SystemRoles{types.RoleNode, types.RoleKube}
+		idents := generateInstanceCerts(t, systemRoles)
+
+		require.Empty(t, idents.tls.Groups)
+		require.NotNil(t, idents.tls.ScopePin)
+		require.Equal(t, scope, idents.tls.ScopePin.GetScope())
+		require.Equal(t, types.RoleInstance.String(), idents.tls.ScopePin.GetSystemRoles().GetPrimary())
+		tlsAdditional := idents.tls.ScopePin.GetSystemRoles().GetAdditional()
+		for _, role := range systemRoles {
+			require.Contains(t, tlsAdditional, role.String())
+		}
+
+		require.NotNil(t, idents.ssh.ScopePin)
+		require.Equal(t, scope, idents.ssh.ScopePin.GetScope())
+		require.Equal(t, types.RoleInstance.String(), idents.ssh.ScopePin.GetSystemRoles().GetPrimary())
+		sshAdditional := idents.ssh.ScopePin.GetSystemRoles().GetAdditional()
+		for _, role := range systemRoles {
+			require.Contains(t, sshAdditional, role.String())
+		}
+	})
+
+	// verify that scope pins are not set for unscoped agents
+	t.Run("unscoped agent has no pin", func(t *testing.T) {
+		t.Setenv("TELEPORT_UNSTABLE_AGENT_SCOPE_PIN", "yes")
+
+		_, sshPub, err := testauthority.GenerateKeyPair()
+		require.NoError(t, err)
+		tlsKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+		require.NoError(t, err)
+		tlsPubPEM, err := keys.MarshalPublicKey(tlsKey.Public())
+		require.NoError(t, err)
+
+		certs, err := as.AuthServer.GenerateHostCerts(ctx, auth.HostCertsParams{
+			Req: &proto.HostCertsRequest{
+				PublicTLSKey: tlsPubPEM,
+				PublicSSHKey: sshPub,
+				HostID:       hostID,
+				NodeName:     hostID,
+				Role:         types.RoleNode,
+			},
+		})
+		require.NoError(t, err)
+
+		idents := parseIdents(t, certs)
+		require.Contains(t, idents.tls.Groups, types.RoleNode.String())
+		require.Empty(t, idents.tls.AgentScope)
+		require.Nil(t, idents.tls.ScopePin)
+
+		require.Empty(t, idents.ssh.AgentScope)
+		require.Nil(t, idents.ssh.ScopePin)
+	})
 }
 
 // TestLocalServiceRolesHavePermissionsForUploaderService verifies that all of Teleport's

@@ -30,6 +30,9 @@ import (
 const (
 	// featureVarName is the name of the unstable scopes feature flag.
 	featureVarName = "TELEPORT_UNSTABLE_SCOPES"
+
+	// agentPinVarName is the name of the unstable agent scope pin feature flag.
+	agentPinVarName = "TELEPORT_UNSTABLE_AGENT_SCOPE_PIN"
 )
 
 // FeatureEnabled checks if the scopes feature is enabled.
@@ -46,6 +49,12 @@ func AssertFeatureEnabled() error {
 	}
 
 	return nil
+}
+
+// AgentPinEnabled checks if the agent scope pin feature is enabled.
+func AgentPinEnabled() bool {
+	enabled, err := apiutils.ParseBool(os.Getenv(agentPinVarName))
+	return enabled && err == nil
 }
 
 // ScopesStatusToString returns a user friendly status message based on [proto.ScopesStatus].

@@ -94,6 +94,7 @@ func (c *AssignmentCache) PopulatePinnedAssignmentsForUser(ctx context.Context, 
 				// write the role assignment to the pin's assignment tree. the write function will automatically handle
 				// deduplication and maintain proper tree structure for evaluation ordering.
 				if err := pinning.WriteRoleAssignment(pin, pinning.RoleAssignment{
+					RoleKind:      pinning.RoleKindUser,
 					ScopeOfOrigin: scopeOfOrigin,
 					ScopeOfEffect: scopeOfEffect,
 					RoleName:      subAssignment.GetRole(),
@@ -238,6 +239,7 @@ func (c *AssignmentCache) PopulatePinnedAssignmentsForBot(
 				// write the role assignment to the pin's assignment tree. the write function will automatically handle
 				// deduplication and maintain proper tree structure for evaluation ordering.
 				if err := pinning.WriteRoleAssignment(pin, pinning.RoleAssignment{
+					RoleKind:      pinning.RoleKindUser,
 					ScopeOfOrigin: scopeOfOrigin,
 					ScopeOfEffect: scopeOfEffect,
 					RoleName:      subAssignment.GetRole(),

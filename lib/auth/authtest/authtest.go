@@ -1238,8 +1238,9 @@ func TestUnauthenticated(role types.UnauthenticatedRole) TestIdentity {
 	}
 }
 
-// TestScopedHost returns TestIdentity for a scoped host
-func TestScopedHost(clusterName, hostID, scope string, role types.SystemRole) TestIdentity {
+// TestScopedHost returns TestIdentity for a scoped host. One or more roles may be provided;
+// all are included as AdditionalSystemRoles on an instance cert identity.
+func TestScopedHost(clusterName, hostID, scope string, roles ...types.SystemRole) TestIdentity {
 	username := hostID
 	if clusterName != "" {
 		username = utils.HostFQDN(hostID, clusterName)
@@ -1248,7 +1249,7 @@ func TestScopedHost(clusterName, hostID, scope string, role types.SystemRole) Te
 		I: authz.BuiltinRole{
 			Role:                  types.RoleInstance,
 			Username:              username,
-			AdditionalSystemRoles: types.SystemRoles{role},
+			AdditionalSystemRoles: types.SystemRoles(roles),
 			Identity: tlsca.Identity{
 				AgentScope: scope,
 			},
