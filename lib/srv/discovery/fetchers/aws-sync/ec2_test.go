@@ -45,7 +45,7 @@ func (m *mockEC2Client) DescribeInstances(_ context.Context, _ *ec2.DescribeInst
 }
 
 // iamInstanceProfilesMock embeds mocks.IAMMock (satisfying the full iamClient
-// interface) and overrides ListInstanceProfiles with controlled behaviour.
+// interface) and overrides ListInstanceProfiles with controlled behavior.
 type iamInstanceProfilesMock struct {
 	mocks.IAMMock
 	profiles []iamtypes.InstanceProfile
@@ -101,7 +101,7 @@ func TestFetchAWSEC2InstancesMultipleRegions(t *testing.T) {
 		lastResult: &Resources{},
 	}
 
-	instances, err := a.fetchAWSEC2Instances(context.Background())
+	instances, err := a.fetchAWSEC2Instances(t.Context())
 	require.NoError(t, err)
 	// 3 regions × 2 instances each = 6 total.
 	require.Len(t, instances, 6)
@@ -158,7 +158,7 @@ func TestFetchAWSEC2InstancesClientError(t *testing.T) {
 		},
 	}
 
-	instances, err := a.fetchAWSEC2Instances(context.Background())
+	instances, err := a.fetchAWSEC2Instances(t.Context())
 	// Error is collected but does not prevent partial results.
 	require.Error(t, err)
 	// The failed region falls back to existing instances; the successful region
@@ -175,7 +175,7 @@ func TestFetchAWSEC2InstancesClientError(t *testing.T) {
 
 // TestFetchInstanceProfilesErrorReturnsExisting verifies that on a pager error the
 // function returns the previous sync's profiles unchanged, not a mix of partial
-// new results and old results (pre-fix behaviour was append(profiles, existing...)).
+// new results and old results (pre-fix behavior was append(profiles, existing...)).
 func TestFetchInstanceProfilesErrorReturnsExisting(t *testing.T) {
 	const accountID = "123456789012"
 
@@ -199,7 +199,7 @@ func TestFetchInstanceProfilesErrorReturnsExisting(t *testing.T) {
 		},
 	}
 
-	profiles, err := a.fetchInstanceProfiles(context.Background())
+	profiles, err := a.fetchInstanceProfiles(t.Context())
 	require.Error(t, err)
 	// Must equal existing exactly — no partial new data mixed in.
 	require.Equal(t, existingProfiles, profiles)
@@ -237,7 +237,7 @@ func TestFetchInstanceProfilesSuccess(t *testing.T) {
 		lastResult: &Resources{},
 	}
 
-	profiles, err := a.fetchInstanceProfiles(context.Background())
+	profiles, err := a.fetchInstanceProfiles(t.Context())
 	require.NoError(t, err)
 	require.Len(t, profiles, 2)
 
