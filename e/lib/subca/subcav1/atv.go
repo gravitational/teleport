@@ -23,43 +23,8 @@ import (
 
 	"github.com/gravitational/trace"
 
-	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
-
-func convertDistinguishedNameProto(dn *subcav1.DistinguishedName) (*pkix.Name, error) {
-	switch {
-	case dn == nil:
-		return nil, nil
-	case len(dn.Names) == 0:
-		return nil, trace.BadParameter("empty distinguished name")
-	}
-
-	rdns := make(pkix.RDNSequence, 0, len(dn.Names))
-	for i, atv := range dn.Names {
-		switch {
-		case len(atv.GetOid()) == 0:
-			return nil, trace.BadParameter("names[%d]: empty OID", i)
-		case atv.Value == nil:
-			return nil, trace.BadParameter("names[%d]: empty Value", i)
-		}
-
-		oid := make([]int, len(atv.Oid))
-		for j, x := range atv.Oid {
-			oid[j] = int(x)
-		}
-		rdns = append(rdns, pkix.RelativeDistinguishedNameSET{
-			pkix.AttributeTypeAndValue{
-				Type:  oid,
-				Value: *atv.Value,
-			},
-		})
-	}
-
-	out := &pkix.Name{}
-	out.FillFromRDNSequence(&rdns)
-	return out, nil
-}
 
 func assignClusterNameToATVs(
 	atvs []pkix.AttributeTypeAndValue,

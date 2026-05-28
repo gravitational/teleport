@@ -694,42 +694,6 @@ func TestService_CreateCSR_errors(t *testing.T) {
 			wantErr: "empty distinguished name",
 		},
 		{
-			name: "custom_subject invalid: nil ATV",
-			req: &subcapb.CreateCSRRequest{
-				CaType: string(validCAType),
-				CustomSubject: &subcapb.DistinguishedName{
-					Names: []*subcapb.AttributeTypeAndValue{
-						nil,
-					},
-				},
-			},
-			wantErr: "empty OID",
-		},
-		{
-			name: "custom_subject invalid: empty ATV.Oid",
-			req: &subcapb.CreateCSRRequest{
-				CaType: string(validCAType),
-				CustomSubject: &subcapb.DistinguishedName{
-					Names: []*subcapb.AttributeTypeAndValue{
-						{Value: validATV.Value},
-					},
-				},
-			},
-			wantErr: "empty OID",
-		},
-		{
-			name: "custom_subject invalid: nil ATV.Value",
-			req: &subcapb.CreateCSRRequest{
-				CaType: string(validCAType),
-				CustomSubject: &subcapb.DistinguishedName{
-					Names: []*subcapb.AttributeTypeAndValue{
-						{Oid: validATV.Oid},
-					},
-				},
-			},
-			wantErr: "empty Value",
-		},
-		{
 			name: "custom_subject targets multiple certificates",
 			req: &subcapb.CreateCSRRequest{
 				CaType: string(validCAType),
