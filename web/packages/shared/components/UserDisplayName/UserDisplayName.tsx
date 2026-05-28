@@ -42,22 +42,36 @@ export function UserDisplayName({
   const displaySecondary = normalizeText(secondaryText);
   const primary = displayPrimary || username;
 
+  const primaryValue = <PrimaryValue title={primary}>{primary}</PrimaryValue>;
+
+  const secondaryValue =
+    displaySecondary &&
+    (layout === 'inline' ? (
+      <InlineSecondaryValue title={displaySecondary}>
+        {displaySecondary}
+      </InlineSecondaryValue>
+    ) : (
+      <SecondaryValue title={displaySecondary}>
+        {displaySecondary}
+      </SecondaryValue>
+    ));
+
+  const usernameValue =
+    displayPrimary &&
+    (layout === 'inline' ? (
+      <InlineUsernameValue title={username}>{username}</InlineUsernameValue>
+    ) : (
+      <UsernameValue title={username}>{username}</UsernameValue>
+    ));
+
   switch (layout) {
     case 'inline':
       return (
         <Root className={className}>
           <DisplayLine>
-            <PrimaryValue title={primary}>{primary}</PrimaryValue>
-            {displaySecondary && (
-              <InlineSecondaryValue title={displaySecondary}>
-                {displaySecondary}
-              </InlineSecondaryValue>
-            )}
-            {displayPrimary && (
-              <InlineUsernameValue title={username}>
-                {username}
-              </InlineUsernameValue>
-            )}
+            {primaryValue}
+            {secondaryValue}
+            {usernameValue}
           </DisplayLine>
         </Root>
       );
@@ -65,17 +79,9 @@ export function UserDisplayName({
     case 'stacked':
       return (
         <Root className={className}>
-          <DisplayLine>
-            <PrimaryValue title={primary}>{primary}</PrimaryValue>
-          </DisplayLine>
-          {displaySecondary && (
-            <SecondaryValue title={displaySecondary}>
-              {displaySecondary}
-            </SecondaryValue>
-          )}
-          {displayPrimary && (
-            <UsernameValue title={username}>{username}</UsernameValue>
-          )}
+          <DisplayLine>{primaryValue}</DisplayLine>
+          {secondaryValue}
+          {usernameValue}
         </Root>
       );
 
@@ -91,19 +97,13 @@ export function UserDisplayName({
                   username
                 )}
               >
-                <PrimaryValue title={primary}>{primary}</PrimaryValue>
+                {primaryValue}
               </DisplayLine>
             </HoverTooltip>
           ) : (
-            <DisplayLine>
-              <PrimaryValue title={primary}>{primary}</PrimaryValue>
-            </DisplayLine>
+            <DisplayLine>{primaryValue}</DisplayLine>
           )}
-          {displaySecondary && (
-            <SecondaryValue title={displaySecondary}>
-              {displaySecondary}
-            </SecondaryValue>
-          )}
+          {secondaryValue}
         </Root>
       );
 
