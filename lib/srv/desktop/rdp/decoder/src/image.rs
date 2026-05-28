@@ -16,60 +16,68 @@
 
 use crate::RdpDecoder;
 use fast_image_resize::images::{Image, ImageRef};
-use fast_image_resize::{PixelType, ResizeOptions, Resizer};
-use ironrdp_session::image::DecodedImage;
+use fast_image_resize::{FilterType, PixelType, ResizeAlg, ResizeOptions};
 use std::io::Error;
 
 impl RdpDecoder {
-    pub fn resize_image_into(
+    /// Writes a CatmullRom-resized copy of the source crop region into `dst`, scaled to
+    /// `out_w` x `out_h`. The crop must lie within the current frame bounds.
+    pub fn resize_crop_into(
         &mut self,
-        out_w: u16,
-        out_h: u16,
+        (crop_x, crop_y): (u16, u16),
+        (crop_w, crop_h): (u16, u16),
+        (out_w, out_h): (u16, u16),
         dst: &mut [u8],
-        opts: &ResizeOptions,
     ) -> Result<(), Error> {
-        resize_into(&self.image, &mut self.resizer, out_w, out_h, dst, opts)
-    }
-}
+        let bpp = self.image.pixel_format().bytes_per_pixel();
+        let pixel_type = match bpp {
+            4 => PixelType::U8x4,
+            _ => return Err(Error::other(format!("unsupported bytes per pixel: {bpp}"))),
+        };
 
-pub(crate) fn resize_into(
-    image: &DecodedImage,
-    resizer: &mut Resizer,
-    out_w: u16,
-    out_h: u16,
-    dst: &mut [u8],
-    opts: &ResizeOptions,
-) -> Result<(), Error> {
-    let bpp = image.pixel_format().bytes_per_pixel();
-    let pixel_type = match bpp {
-        4 => PixelType::U8x4,
-        _ => return Err(Error::other(format!("unsupported bytes per pixel: {bpp}"))),
-    };
+        let src_w = self.image.width();
+        let src_h = self.image.height();
+        if u32::from(crop_x) + u32::from(crop_w) > u32::from(src_w)
+            || u32::from(crop_y) + u32::from(crop_h) > u32::from(src_h)
+        {
+            return Err(Error::other("crop extends past frame"));
+        }
 
-    let needed = (out_w as usize) * (out_h as usize) * usize::from(bpp);
-    if dst.len() < needed {
-        return Err(Error::other("destination buffer too small"));
-    }
+        let needed = (out_w as usize) * (out_h as usize) * usize::from(bpp);
+        if dst.len() < needed {
+            return Err(Error::other("destination buffer too small"));
+        }
 
-    let src = ImageRef::new(
-        u32::from(image.width()),
-        u32::from(image.height()),
-        image.data(),
-        pixel_type,
-    )
-    .map_err(Error::other)?;
+        let opts = ResizeOptions::new()
+            .resize_alg(ResizeAlg::Convolution(FilterType::CatmullRom))
+            .use_alpha(false)
+            .crop(
+                f64::from(crop_x),
+                f64::from(crop_y),
+                f64::from(crop_w),
+                f64::from(crop_h),
+            );
 
-    let mut dst_image = Image::from_slice_u8(
-        u32::from(out_w),
-        u32::from(out_h),
-        &mut dst[..needed],
-        pixel_type,
-    )
-    .map_err(Error::other)?;
-
-    resizer
-        .resize(&src, &mut dst_image, opts)
+        let src = ImageRef::new(
+            u32::from(src_w),
+            u32::from(src_h),
+            self.image.data(),
+            pixel_type,
+        )
         .map_err(Error::other)?;
 
-    Ok(())
+        let mut dst_image = Image::from_slice_u8(
+            u32::from(out_w),
+            u32::from(out_h),
+            &mut dst[..needed],
+            pixel_type,
+        )
+        .map_err(Error::other)?;
+
+        self.resizer
+            .resize(&src, &mut dst_image, &opts)
+            .map_err(Error::other)?;
+
+        Ok(())
+    }
 }
