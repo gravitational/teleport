@@ -474,8 +474,7 @@ func TestSessionRegistrySetupFailureCleanup(t *testing.T) {
 				tt.errAssertion(t, err)
 			}
 
-			// +1 because InEpsilon doesn't allow expected=0
-			require.InEpsilon(t, countBefore+1, testutil.ToFloat64(serverSessions)+1, 0)
+			require.InDelta(t, countBefore, testutil.ToFloat64(serverSessions), 0)
 
 			// If we created a tracker before the failure, the tracker should be updated to terminated.
 			if trackingService.CreatedCount() != 0 {
