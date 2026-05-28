@@ -416,7 +416,7 @@ func TestEnqueue_FullReturnsErrQueueFull(t *testing.T) {
 
 	q, err := newSQLiteQueue(Config{
 		Path:     filepath.Join(t.TempDir(), "queue"),
-		MaxBytes: 8 * int64(os.Getpagesize()),
+		MaxBytes: 8 * sqlitePageSize,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = q.Close() })
@@ -597,7 +597,7 @@ func TestIsSQLiteFullError(t *testing.T) {
 	t.Parallel()
 
 	dbPath := filepath.Join(t.TempDir(), "test.db")
-	db, err := sql.Open("sqlite", getDSN(dbPath, 10*int64(os.Getpagesize())))
+	db, err := sql.Open("sqlite", getDSN(dbPath, 10*sqlitePageSize))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
 
