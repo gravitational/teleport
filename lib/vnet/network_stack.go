@@ -24,6 +24,7 @@ import (
 	"net/netip"
 	"os"
 	"sync"
+	"sync/atomic"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
@@ -166,6 +167,12 @@ type networkStack struct {
 	// diagProbeIPv6 is the IPv6 address (ipv6Prefix::2) returned to diagnostic probe queries.
 	// Set once in newNetworkStack.
 	diagProbeIPv6 [16]byte
+
+	// diagProbeIPv4 is the IPv4 address returned to diagnostic probe queries. Set on the
+	// first call of addDNSAddress, which happens after the first call of targetOSConfig
+	// and before DNS addresses are registered with any OS resolver, so ResolveA should
+	// not read nil in practice.
+	diagProbeIPv4 atomic.Pointer[[4]byte]
 
 	// dnsServer is the VNet's local DNS server that can handle UDP DNS
 	// requests.
@@ -636,6 +643,11 @@ func (ns *networkStack) addDNSAddress(ip net.IP) error {
 	if !ok {
 		return trace.Errorf("error parsing IPv4 DNS address %s", ip.String())
 	}
+	if v4 := ip.To4(); v4 != nil && ns.diagProbeIPv4.Load() == nil {
+		var b [4]byte
+		copy(b[:], v4)
+		ns.diagProbeIPv4.CompareAndSwap(nil, &b)
+	}
 	if ns.upstreamFilter != nil {
 		ns.upstreamFilter.AddExclude(dns.AddrWithDNSPort(addr))
 	}
@@ -648,6 +660,9 @@ func (ns *networkStack) ResolveA(ctx context.Context, fqdn string) (dns.Result, 
 	// Diagnostic probes short-circuit here. Without this, each probe's unique random label
 	// would allocate a fresh IPv4 from the CIDR pool, leaking the entry.
 	if dns.HasDiagProbePrefix(fqdn) {
+		if v4 := ns.diagProbeIPv4.Load(); v4 != nil {
+			return dns.Result{A: *v4}, nil
+		}
 		return dns.Result{NoRecord: true}, nil
 	}
 

@@ -29,8 +29,12 @@ var testIPv6Prefix = tcpip.AddrFrom16([16]byte{0xfd, 0xec, 0x1f, 0xed, 0x13, 0x9
 // testProbeIPv6 is the IPv6 probe address returned by ResolveAAAA for diagnostic queries
 var testProbeIPv6 = [16]byte{0xfd, 0xec, 0x1f, 0xed, 0x13, 0x9f, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2}
 
-// TestResolveADiagProbe verifies that A queries for probe names return NODATA
-func TestResolveADiagProbe(t *testing.T) {
+// testProbeIPv4 is the IPv4 probe address returned by ResolveA for diagnostic queries
+var testProbeIPv4 = [4]byte{100, 64, 0, 2}
+
+// TestResolveADiagProbeNoIPv4 verifies that A queries for probe names return NODATA
+// when diagProbeIPv4 has not been set yet.
+func TestResolveADiagProbeNoIPv4(t *testing.T) {
 	ns := &networkStack{
 		state:         newState(),
 		ipv6Prefix:    testIPv6Prefix,
@@ -43,6 +47,26 @@ func TestResolveADiagProbe(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, result.NoRecord, "A query for probe must return NoRecord (NODATA)")
 	require.Equal(t, [4]byte{}, result.A, "probe A query must not return any address")
+	require.Empty(t, ns.state.assignedIPs, "probe query must not mutate assignedIPs")
+	require.Empty(t, ns.state.tcpHandlers, "probe query must not create a TCP handler")
+}
+
+// TestResolveADiagProbeWithIPv4 verifies that A queries for probe names return the
+// stashed diagProbeIPv4 once it has been set.
+func TestResolveADiagProbeWithIPv4(t *testing.T) {
+	ns := &networkStack{
+		state:         newState(),
+		ipv6Prefix:    testIPv6Prefix,
+		diagProbeIPv6: testProbeIPv6,
+	}
+	ns.diagProbeIPv4.Store(&testProbeIPv4)
+
+	const probeFQDN = "vnet-diag-abcdef.company.test."
+
+	result, err := ns.ResolveA(t.Context(), probeFQDN)
+	require.NoError(t, err)
+	require.False(t, result.NoRecord, "A query for probe must return an answer when diagProbeIPv4 is set")
+	require.Equal(t, testProbeIPv4, result.A, "A query for probe must return diagProbeIPv4")
 	require.Empty(t, ns.state.assignedIPs, "probe query must not mutate assignedIPs")
 	require.Empty(t, ns.state.tcpHandlers, "probe query must not create a TCP handler")
 }
