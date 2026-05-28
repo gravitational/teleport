@@ -35,6 +35,7 @@ import {
   CanvasRenderer,
   CanvasRendererRef,
 } from 'shared/components/CanvasRenderer';
+import { DirectoryItem } from 'shared/components/DesktopSession/DirectoryList';
 import { Latency } from 'shared/components/LatencyDiagnostic';
 import type { ToastNotificationItem } from 'shared/components/ToastNotification';
 import {
@@ -58,10 +59,6 @@ import useDesktopSession, {
   directorySharingPossible,
   isSharingClipboard,
 } from './useDesktopSession';
-
-import {
-  DirectoryItem,
-} from 'shared/components/DesktopSession/DirectoryList';
 
 export interface ServerCapabilities {
   canRemoveSharedDirectories: boolean;
