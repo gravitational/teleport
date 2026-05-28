@@ -50,7 +50,7 @@ Owners are not able to add or remove owners from an Access List or control what 
 and traits are granted by the Access List.
 
 Access List owners are also automatically added as suggested reviewers to any
-Access Requests related to the Access List. 
+Access Requests related to the Access List.
 Learn more in the [Reviewing Access Requests](../../identity-governance/access-lists/reviewing-access-requests.mdx)
 and [Access Request Configuration](../../identity-governance/access-requests/access-request-configuration.mdx#access-list-owners-as-suggested-reviewers)
 guides.
@@ -198,10 +198,11 @@ spec:
 
 ## Access Lists and Deny Rules
 
-Use of [deny rules](./roles.mdx) in Access List roles is discouraged.
-Access Lists are not intended to be used as a tool for privilege reduction,
-and Teleport may assume it is safe to ignore Access Lists under certain conditions.
-Roles intended to reduce privileges should be assigned directly to users.
+Avoid using [deny rules](./roles.mdx) in Access Lists' roles to reduce privileges granted
+by other Access Lists or by statically-assigned roles. Access Lists are not intended as a
+tool for privilege reduction. Relying on them for this is fragile, as changes to membership,
+grants, membership requirements, or list structure could silently broaden a user's effective
+permissions. Roles intended to reduce privileges should be assigned directly to users instead.
 
 ## Managing Access Lists from the CLI
 
