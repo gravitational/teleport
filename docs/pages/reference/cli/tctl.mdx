@@ -249,8 +249,14 @@ List acknowledged cluster alerts.
 Usage:
 
 ```code
-$ tctl alerts ack ls
+$ tctl alerts ack ls [<flags>]
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 
 ## tctl alerts create
 
@@ -877,8 +883,14 @@ List all certificate renewal bots registered with the cluster.
 Usage:
 
 ```code
-$ tctl bots ls
+$ tctl bots ls [<flags>]
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 
 ## tctl bots rm
 
@@ -1216,7 +1228,7 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`--exact-version`|*no default*|Filter output by teleport version|
-|`--format`|`text` (one of: `text`, `json`)|Output format, 'text' or 'json'|
+|`--format`|`text` (one of: `text`, `json`)|Output format.|
 |`--newer-than`|*no default*|Filter for newer teleport versions|
 |`--older-than`|*no default*|Filter for older teleport versions|
 |`--services`|*no default*|Filter output by service (node,kube,proxy,etc)|
@@ -1253,7 +1265,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format, 'text', 'json', or 'yaml'|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 |`--[no-]connected`|`false`|Show locally connected instances summary|
 
 ## tctl kube ls
@@ -1364,6 +1376,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 |`--roles`|`node`|Comma-separated list of roles for the new node to assume \[node\]|
 |`--token`|*no default*|Override the default random generated token with a specified value|
 |`--ttl`|`30m0s`|Time to live for a generated token|
@@ -1382,7 +1395,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format, 'text', 'json', or 'yaml'|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 |`--query`|*no default*|Query by predicate language enclosed in single quotes. Supports ==, !=, &&, and \|\| (e.g. --query='labels\["key1"\] == "value1" && labels\["key2"\] != "value2"')|
 |`--search`|*no default*|List of comma separated search keywords or phrases enclosed in quotations (e.g. --search=foo,bar,"some phrase")|
 |`-v`, `--[no-]verbose`|`false`|Verbose table output, shows full label output|
@@ -1903,8 +1916,14 @@ Show Access Request by ID.
 Usage:
 
 ```code
-$ tctl requests get <request-id>
+$ tctl requests get [<flags>] <request-id>
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 
 Arguments:
 
@@ -1926,6 +1945,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 |`--sort-index`|`created`|Request sort index, 'created' or 'state'|
 |`--sort-order`|`descending`|Request sort order, 'ascending' or 'descending'|
 
@@ -2408,6 +2428,7 @@ Flags:
 |`--db-roles`|*no default*|List of database roles for automatic database user provisioning|
 |`--db-users`|*no default*|List of allowed database users for the new user|
 |`--default-relay-addr`|*no default*|Relay address that clients should use by default|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 |`--gcp-service-accounts`|*no default*|List of allowed GCP service accounts for the new user|
 |`--host-user-gid`|*no default*|GID for auto provisioned host users to use|
 |`--host-user-uid`|*no default*|UID for auto provisioned host users to use|
@@ -2432,8 +2453,14 @@ Lists all user accounts.
 Usage:
 
 ```code
-$ tctl users ls
+$ tctl users ls [<flags>]
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 
 ## tctl users reset
 
@@ -2449,6 +2476,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 |`--ttl`|`8h0m0s`|Set expiration time for token, default is 8h0m0s, maximum is 24h0m0s|
 
 Arguments:
@@ -2526,8 +2554,14 @@ List workload identity configurations.
 Usage:
 
 ```code
-$ tctl workload-identity ls
+$ tctl workload-identity ls [<flags>]
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 
 ## tctl workload-identity revocations add
 
@@ -2572,8 +2606,14 @@ List revocations.
 Usage:
 
 ```code
-$ tctl workload-identity revocations ls
+$ tctl workload-identity revocations ls [<flags>]
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 
 ## tctl workload-identity revocations rm
 

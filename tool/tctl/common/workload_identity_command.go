@@ -100,9 +100,8 @@ func (c *WorkloadIdentityCommand) Initialize(
 	c.listCmd.
 		Flag(
 			"format",
-			"Output format, 'text', 'json', or 'yaml'",
+			"Output format.",
 		).
-		Hidden().
 		Default(teleport.Text).
 		EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
 
@@ -140,9 +139,8 @@ func (c *WorkloadIdentityCommand) Initialize(
 	c.revocationsLsCmd.
 		Flag(
 			"format",
-			"Output format, 'text', 'json', or 'yaml'",
+			"Output format.",
 		).
-		Hidden().
 		Default(teleport.Text).
 		EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
 

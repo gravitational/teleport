@@ -115,7 +115,7 @@ func (u *UserCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	u.userAdd.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v, maximum is %v",
 		defaults.SignupTokenTTL, defaults.MaxSignupTokenTTL)).
 		Default(fmt.Sprintf("%v", defaults.SignupTokenTTL)).DurationVar(&u.ttl)
-	u.userAdd.Flag("format", "Output format, 'text', 'json', or 'yaml'").Hidden().Default(teleport.Text).EnumVar(&u.format, teleport.Text, teleport.JSON, teleport.YAML)
+	u.userAdd.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&u.format, teleport.Text, teleport.JSON, teleport.YAML)
 	u.userAdd.Alias(AddUserHelp)
 
 	u.userUpdate = users.Command("update", "Update user account.")
@@ -148,7 +148,7 @@ func (u *UserCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	u.userUpdate.Flag("set-default-relay-addr", "Relay address that clients should use by default. Value can be reset by providing an empty string").IsSetByUser(&u.defaultRelayAddrProvided).StringVar(&u.defaultRelayAddr)
 
 	u.userList = users.Command("ls", "Lists all user accounts.")
-	u.userList.Flag("format", "Output format, 'text', 'json', or 'yaml'").Hidden().Default(teleport.Text).EnumVar(&u.format, teleport.Text, teleport.JSON, teleport.YAML)
+	u.userList.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&u.format, teleport.Text, teleport.JSON, teleport.YAML)
 
 	u.userDelete = users.Command("rm", "Deletes user accounts.").Alias("del")
 	u.userDelete.Arg("logins", "Comma-separated list of user logins to delete").
@@ -159,7 +159,7 @@ func (u *UserCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	u.userResetPassword.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v, maximum is %v",
 		defaults.ChangePasswordTokenTTL, defaults.MaxChangePasswordTokenTTL)).
 		Default(fmt.Sprintf("%v", defaults.ChangePasswordTokenTTL)).DurationVar(&u.ttl)
-	u.userResetPassword.Flag("format", "Output format, 'text', 'json', or 'yaml'").Hidden().Default(teleport.Text).EnumVar(&u.format, teleport.Text, teleport.JSON, teleport.YAML)
+	u.userResetPassword.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&u.format, teleport.Text, teleport.JSON, teleport.YAML)
 }
 
 // TryRun takes the CLI command as an argument (like "users add") and executes it.
