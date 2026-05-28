@@ -1126,6 +1126,11 @@ func Run(ctx context.Context, cfg servicecfg.Config, newTeleport NewProcess) err
 	signal.Notify(sigC, teleportSignals...)
 	defer signal.Stop(sigC)
 
+	logger := slog.Default().With(teleport.ComponentKey, teleport.ComponentProcess)
+	if cfg.Logger != nil {
+		logger = cfg.Logger
+	}
+	logger.InfoContext(ctx, "Signal handler installed, starting Teleport process.")
 	return trace.Wrap(RunWithSignalChannel(ctx, cfg, newTeleport, sigC))
 }
 
