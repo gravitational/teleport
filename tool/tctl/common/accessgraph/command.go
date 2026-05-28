@@ -20,14 +20,15 @@ package accessgraph
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"log/slog"
 	"os"
+	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
+	accessgraph "github.com/gravitational/teleport/lib/accessgraph/apiclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
@@ -49,10 +50,10 @@ type AccessGraphCommand struct {
 	// accessgraph is the parent command grouping AG subcommands.
 	// TODO(ghassan): remove when the real AG subcommands are implemented
 	accessgraph *kingpin.CmdClause
-	// credentials is a hidden diagnostic that exercises the credential
-	// resolve/re-issue path.
+	// check is a hidden diagnostic that exercises the credential
+	// and client issuance and response code paths for diagnostic purposes
 	// TODO(ghassan): remove when the real AG subcommands are implemented
-	credentials *kingpin.CmdClause
+	check *kingpin.CmdClause
 }
 
 // Initialize allows AccessGraphCommand to plug itself into the CLI parser.
@@ -64,7 +65,7 @@ func (c *AccessGraphCommand) Initialize(app *kingpin.Application, cliFlags *tctl
 	}
 
 	c.accessgraph = app.Command("accessgraph", "Manage Access Graph (experimental).").Hidden()
-	c.credentials = c.accessgraph.Command("credentials", "Validate and re-issue the Access Graph credential.").Hidden()
+	c.check = c.accessgraph.Command("check", "Validate Access Graph flows (experimental)").Hidden()
 }
 
 // TryRun takes the CLI command as an argument and executes it.
@@ -77,20 +78,20 @@ func (c *AccessGraphCommand) TryRun(ctx context.Context, cmd string, clientFunc 
 
 	var commandFunc func(context.Context, commonclient.InitFunc) error
 	switch cmd {
-	case c.credentials.FullCommand():
-		commandFunc = c.runCredentialsCheck
+	case c.check.FullCommand():
+		commandFunc = c.accessGraphCheck
 	default:
 		return false, nil
 	}
 	return true, trace.Wrap(commandFunc(ctx, clientFunc))
 }
 
-// runCredentialsCheck resolves the Access Graph credential and re-issues
-// it if missing or stale, then reports the outcome. It does not contact
-// the Access Graph service itself — only the auth path is exercised.
+// accessGraphCheck is a hidden diagnostic command that validates the Access Graph credential
+// loading and client issuance code paths, and exercises a simple AG API call to validate the client works.
+// This is intended for diagnostic and code exercises purposes
 //
 // TODO(ghassan): remove when the real AG subcommands are implemented
-func (c *AccessGraphCommand) runCredentialsCheck(ctx context.Context, clientFunc commonclient.InitFunc) error {
+func (c *AccessGraphCommand) accessGraphCheck(ctx context.Context, clientFunc commonclient.InitFunc) error {
 	creds, err := c.loadAccessGraphCredentials(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -98,6 +99,32 @@ func (c *AccessGraphCommand) runCredentialsCheck(ctx context.Context, clientFunc
 	if err := ensureAccessGraphCert(ctx, creds, clientFunc); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Fprintf(c.stdout, "Access Graph credential is valid (proxy: %s).\n", creds.proxyAddr)
-	return nil
+
+	if creds.proxyAddr == "" {
+		return trace.BadParameter("missing proxy address in Access Graph credential")
+	}
+
+	// Exercise the client issuance code path to validate it works with the
+	client, err := newAccessGraphClient(ctx, creds.proxyAddr, creds.keyRing)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Exercise a client call to validate the client works.
+	end := time.Now()
+	start := end.Add(-time.Hour * 24)
+	res, err := doRequest(client.ListAlertsV1WithResponse(ctx, &accessgraph.ListAlertsV1Params{
+		StartTime: &start,
+		EndTime:   &end,
+	}))
+
+	if err != nil {
+		return trace.Wrap(err, "failed to list Access Graph alerts")
+	}
+
+	if res.JSON200 == nil {
+		return trace.BadParameter("unexpected response from Access Graph API: expected HTTP 200 with JSON body")
+	}
+
+	return trace.Wrap(utils.WriteYAMLArray(c.stdout, res.JSON200.Data), "failed to write Access Graph alerts to output")
 }
