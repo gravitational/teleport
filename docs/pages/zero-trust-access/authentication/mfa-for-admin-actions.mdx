@@ -53,9 +53,10 @@ their on-disk Teleport certificates.
 
 ## Require MFA for administrative actions
 
-MFA for administrative actions is automatically enforced on clusters whose
-configured multi-factors all satisfy admin actions — that is, OTP is not
-allowed. WebAuthn and SSO MFA both qualify, individually or together.
+MFA for administrative actions is automatically enforced on clusters where
+WebAuthn and/or SSO MFA are the only available multi-factors, but not when
+OTP is also available.
+
 
 <Admonition type="note">
   In a future major version, Teleport may enforce MFA for administrative actions
