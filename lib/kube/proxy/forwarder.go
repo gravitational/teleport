@@ -322,6 +322,11 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 		clusterDetails:  make(map[string]*kubeDetails),
 		cachedTransport: transportClients,
 	}
+	upstream, err := newUpstreamResolver(cfg.KubeServiceType, fwd.findKubeDetailsByClusterName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	fwd.upstream = upstream
 
 	router := httprouter.New()
 	router.UseRawPath = true
@@ -378,6 +383,10 @@ type Forwarder struct {
 	log    *slog.Logger
 	router http.Handler
 	cfg    ForwarderConfig
+	// upstream decides how the Forwarder treats a target kube cluster: serve
+	// it locally or forward to the next hop. It replaces per-request branching
+	// on cfg.KubeServiceType.
+	upstream upstreamResolver
 	// activeRequests is a map used to serialize active CSR requests to the auth server
 	activeRequests map[string]context.Context
 	// close is a close function
@@ -942,38 +951,15 @@ func checkAmbiguousClusters(kubeServers []types.KubeServer) error {
 }
 
 func (f *Forwarder) parseResourceFromRequest(req *http.Request, kubeClusterName string) (metaResource, error) {
-	switch f.cfg.KubeServiceType {
-	case LegacyProxyService:
-		if details, err := f.findKubeDetailsByClusterName(kubeClusterName); err == nil {
-			out, err := getResourceFromRequest(req, details)
-			return out, trace.Wrap(err)
-		}
-		// When the cluster is not being served by the local service, the LegacyProxy
-		// is working as a normal proxy and will forward the request to the remote
-		// service. When this happens, proxy won't enforce any Kubernetes RBAC rules
-		// and will forward the request as is to the remote service. The remote
-		// service will enforce RBAC rules and will return an error if the user is
-		// not authorized.
-		fallthrough
-	case ProxyService:
-		// When the service is acting as a proxy (ProxyService or LegacyProxyService
-		// if the local cluster wasn't found), the proxy will forward the request
-		// to the remote service without enforcing any RBAC rules - we send the
-		// details = nil to indicate that we don't want to extract the kube resource
-		// from the request.
-		out, err := getResourceFromRequest(req, nil /*details*/)
-		return out, trace.Wrap(err)
-	case KubeService:
-		details, err := f.findKubeDetailsByClusterName(kubeClusterName)
-		if err != nil {
-			return metaResource{}, trace.Wrap(err)
-		}
-		out, err := getResourceFromRequest(req, details)
-		return out, trace.Wrap(err)
-
-	default:
-		return metaResource{}, trace.BadParameter("unsupported kube service type: %q", f.cfg.KubeServiceType)
+	// Nil details means the resolver wants this request passed through to the
+	// next hop; getResourceFromRequest interprets nil as "do not extract the
+	// kube resource, the next hop enforces RBAC."
+	details, err := f.upstream.resolveDetails(kubeClusterName)
+	if err != nil {
+		return metaResource{}, trace.Wrap(err)
 	}
+	out, err := getResourceFromRequest(req, details)
+	return out, trace.Wrap(err)
 }
 
 // emitAuditEvent emits the audit event for a `kube.request` event if the session
@@ -2893,20 +2879,15 @@ func (f *Forwarder) removeKubeDetails(name string) {
 }
 
 // isLocalKubeCluster reports whether this teleport service serves the target
-// kube cluster directly. KubeService and LegacyProxyService can serve clusters
-// they hold details for; ProxyService never does. Requests for remote (leaf)
-// teleport clusters are always forwarded, never served locally.
+// kube cluster directly. Requests for remote (leaf) teleport clusters are
+// always forwarded, never served locally; otherwise the upstream resolver
+// is the authority.
 func (f *Forwarder) isLocalKubeCluster(isRemoteTeleportCluster bool, kubeClusterName string) bool {
-	switch f.cfg.KubeServiceType {
-	case KubeService, LegacyProxyService:
-		if isRemoteTeleportCluster {
-			return false
-		}
-		_, err := f.findKubeDetailsByClusterName(kubeClusterName)
-		return err == nil
-	default:
+	if isRemoteTeleportCluster {
 		return false
 	}
+	details, _ := f.upstream.resolveDetails(kubeClusterName)
+	return details != nil
 }
 
 // kubeResourceDeniedAccessMsg creates a Kubernetes API like forbidden response.
