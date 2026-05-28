@@ -65,4 +65,20 @@ pub(crate) async fn upgrade(
     ironrdp_tls::upgrade(initial_stream, server_name)
         .await
         .map_err(ClientError::from)
+        .map(|upgraded| {
+            // TODO (rhammonds): This is a temporary workaround to get our RDP client
+            // working against the latest changes from IronRDP. We should consider changing
+            // the return value of this function (and the calling code) to handle
+            // a CertificateInner rather than just the raw public key.
+            (
+                upgraded.0,
+                upgraded
+                    .1
+                    .tbs_certificate
+                    .subject_public_key_info
+                    .subject_public_key
+                    .raw_bytes()
+                    .to_vec(),
+            )
+        })
 }
