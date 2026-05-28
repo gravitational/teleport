@@ -112,6 +112,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_X11Forward{
 			X11Forward: e,
 		}
+	case *AgentForward:
+		out.Event = &OneOf_AgentForward{
+			AgentForward: e,
+		}
 	case *Subsystem:
 		out.Event = &OneOf_Subsystem{
 			Subsystem: e,

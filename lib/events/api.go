@@ -266,6 +266,9 @@ const (
 	X11ForwardSuccess = "success"
 	X11ForwardErr     = "error"
 
+	// Agent forwarding event
+	AgentForwardEvent = "agent-forward"
+
 	// Port forwarding event
 	PortForwardEvent           = "port"
 	PortForwardLocalEvent      = "port.local"
