@@ -2,10 +2,16 @@ package directory
 
 import (
 	"context"
+	"errors"
 	"iter"
+	"net/http"
+	"net/url"
 	"sort"
+	"sync"
 	"testing"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
@@ -27,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/msgraph"
 	"github.com/gravitational/teleport/lib/msgraph/models"
+	"github.com/gravitational/teleport/lib/msgraph/msgraphtest"
 	"github.com/gravitational/teleport/lib/plugins/filter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -1261,10 +1268,66 @@ func TestNestedMembership(t *testing.T) {
 	require.ErrorContains(t, err, "is already included as a Member or Owner in")
 }
 
+func TestRestoreDeltaLink(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	// Setup test env with msgraphtest fake server.
+	graphStorage := msgraphtest.NewStorage()
+	graphStorage.Applications = msgraphtest.NewDefaultStorage().Applications
+	// Create one Entra ID user Alice.
+	graphStorage.Users = make(map[string]*models.User)
+	const aliceUsername = "alice@example.com"
+	alice := entraUser(t, msgraphtest.AliceID, aliceUsername)
+	graphStorage.Users[msgraphtest.AliceID] = alice
+
+	env := newFakeEnv(t, graphStorage)
+	env.cfg.DeltaSyncEnabled = true
+	r, err := New(env.cfg)
+	require.NoError(t, err)
+
+	// Initial full sync, should setup delta sync as well.
+	_, err = r.Reconcile(ctx, mdmsync.SyncModeFull)
+	require.NoError(t, err)
+	user, err := env.identitySvc.GetUser(ctx, aliceUsername, false)
+	require.NoError(t, err)
+	require.Equal(t, aliceUsername, user.GetName())
+
+	// Read current delta link for user and group.
+	oldUserDeltaLink := r.graphClient.deltaStore.Get(usersDeltaEndpoint)
+	require.NotEmpty(t, oldUserDeltaLink)
+	oldGroupDeltaLink := r.graphClient.deltaStore.Get(groupsDeltaEndpoint)
+	require.NotEmpty(t, oldGroupDeltaLink)
+
+	// Create a delta change by deleting Alice.
+	env.fakeGraphServer.DeleteUsers([]string{msgraphtest.AliceID})
+
+	// Fake a transient Teleport issue.
+	errTransientIssue := errors.New("transient Teleport error")
+	r.accessPoint = fakeDeleteUserAccessPoint{
+		accessPoint: r.accessPoint,
+		deleteUser: func(ctx context.Context, user string) error {
+			// Check delta link was updated because delta API was queried successfully.
+			require.NotEqual(t, oldUserDeltaLink, r.graphClient.deltaStore.Get(usersDeltaEndpoint))
+			require.NotEqual(t, oldGroupDeltaLink, r.graphClient.deltaStore.Get(groupsDeltaEndpoint))
+			return errTransientIssue
+		},
+	}
+
+	// Delta sync with transient Teleport error.
+	_, err = r.Reconcile(ctx, mdmsync.SyncModePartial)
+	require.ErrorIs(t, err, errTransientIssue)
+
+	// Old delta link is preserved.
+	require.Equal(t, oldUserDeltaLink, r.graphClient.deltaStore.Get(usersDeltaEndpoint))
+	require.Equal(t, oldGroupDeltaLink, r.graphClient.deltaStore.Get(groupsDeltaEndpoint))
+}
+
 type directoryReconcilerEnv struct {
-	cfg         Config
-	identitySvc *local.IdentityService
-	aclSvc      *local.AccessListService
+	cfg             Config
+	identitySvc     *local.IdentityService
+	aclSvc          *local.AccessListService
+	fakeGraphServer *msgraphtest.Server
 }
 
 const ssoConnectorID = "my-sso-connector"
@@ -1338,6 +1401,76 @@ func NewEnv(t *testing.T, graphClient *fakeGraphClient, connector types.SAMLConn
 		cfg:         cfg,
 		identitySvc: identitySvc,
 		aclSvc:      alSvc,
+	}
+}
+
+// newFakeEnv creates new [directoryReconcilerEnv] based on msgraphtest fake server.
+func newFakeEnv(t *testing.T, storage *msgraphtest.Storage) directoryReconcilerEnv {
+	mem, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	bk := backend.NewSanitizer(mem)
+	identitySvc, err := local.NewIdentityService(bk)
+	require.NoError(t, err)
+	alSvc, err := local.NewAccessListServiceV2(local.AccessListServiceConfig{
+		Backend: bk,
+		Modules: modulestest.EnterpriseModules(),
+	})
+	require.NoError(t, err)
+
+	samlService, err := local.NewIdentityService(bk)
+	require.NoError(t, err)
+
+	connector := newSAMLConnector(t, ssoConnectorID, uuid.NewString(), uuid.NewString())
+	_, err = samlService.CreateSAMLConnector(t.Context(), connector)
+	require.NoError(t, err)
+
+	tenantID := uuid.NewString()
+	defaultOwners := []accesslist.Owner{
+		{Name: "admin", MembershipKind: accesslist.MembershipKindUser, IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE.String()},
+	}
+
+	type ap struct {
+		accessListAccessPoint
+		userAccessPoint
+		connectorAccessPoint
+	}
+
+	// Set up fake graph API server.
+	fakeServer := msgraphtest.NewServer(msgraphtest.WithStorage(storage))
+	t.Cleanup(fakeServer.TLSServer.Close)
+	httpClient := &http.Client{
+		Transport: &msgraphtest.RewriteTransport{
+			Base: fakeServer.TLSServer.Client().Transport,
+			URL:  mustParseURL(t, fakeServer.TLSServer.URL),
+		},
+	}
+	graphClient, err := msgraph.NewClient(msgraph.Config{
+		HTTPClient:    httpClient,
+		TokenProvider: &fakeTokenProvider{},
+	})
+	require.NoError(t, err)
+
+	cfg := Config{
+		Clock:       clockwork.NewRealClock(),
+		Logger:      logtest.NewLogger(),
+		GraphClient: graphClient,
+		AccessPoint: ap{
+			accessListAccessPoint: alSvc,
+			userAccessPoint:       identitySvc,
+			connectorAccessPoint:  samlService,
+		},
+		DefaultOwners:  defaultOwners,
+		SSOConnectorID: connector.GetName(),
+		TenantID:       tenantID,
+		EntraAppID:     msgraphtest.App1ID,
+	}
+	require.NoError(t, cfg.Validate())
+
+	return directoryReconcilerEnv{
+		cfg:             cfg,
+		identitySvc:     identitySvc,
+		aclSvc:          alSvc,
+		fakeGraphServer: fakeServer,
 	}
 }
 
@@ -1424,4 +1557,39 @@ func requireMemberDoesNotExists(t *testing.T, srv services.AccessListsGetter, ac
 	t.Helper()
 	_, err := srv.GetAccessListMember(t.Context(), accessList.GetName(), member)
 	require.True(t, trace.IsNotFound(err))
+}
+
+type fakeDeleteUserAccessPoint struct {
+	accessPoint
+	deleteUser func(context.Context, string) error
+}
+
+func (a fakeDeleteUserAccessPoint) DeleteUser(ctx context.Context, user string) error {
+	return a.deleteUser(ctx, user)
+}
+
+func mustParseURL(t *testing.T, in string) *url.URL {
+	t.Helper()
+	url, err := url.Parse(in)
+	require.NoError(t, err)
+	require.Equal(t, "https", url.Scheme, "expected URL with https scheme")
+	return url
+}
+
+type fakeTokenProvider struct {
+	mu    sync.Mutex
+	token string
+}
+
+func (t *fakeTokenProvider) GetToken(ctx context.Context, opts policy.TokenRequestOptions) (azcore.AccessToken, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if t.token == "" {
+		t.token = uuid.NewString()
+	}
+
+	return azcore.AccessToken{
+		Token: t.token,
+	}, nil
 }

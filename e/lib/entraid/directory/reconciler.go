@@ -202,10 +202,29 @@ type Result struct {
 // Reconcile does a one-time reconciliation of users and access lists
 // from Entra ID to Teleport.
 func (r *Reconciler) Reconcile(ctx context.Context, syncMode mdmsync.SyncMode) (result Result, err error) {
+	restoreDeltaLinkFn := r.graphClient.backupDeltaLinks()
 	defer func() {
 		result.ImportedUsers = r.importedUsers
 		result.ImportedGroups = r.importedGroups
 		result.ErrSkippedResources = r.syncErrors()
+
+		if err != nil && syncMode == mdmsync.SyncModePartial {
+			// A successful delta query results in a new delta link with a delta
+			// token that tracks changes introduced in the Entra ID directory after
+			// the token was issued. If a delta query was successful, but the
+			// service failed to reconcile discovered items to the backend
+			// (e.g. due to a transient backend issue), we risk loosing the
+			// change data forever. To avoid such scenario, old delta link is
+			// restored on any reconciliation error.
+			//
+			// Reusing older link will replay previously discovered items.
+			// While the code path surrounding delta sync and reconciler are
+			// resilient to process duplicate items, continued reconciliation
+			// failure may result in a scenario where delta response becomes large
+			// (due to replayed items), stressing the delta sync processor.
+			r.logger.DebugContext(ctx, "Restoring delta link on error", "sync_mode", syncMode)
+			restoreDeltaLinkFn()
+		}
 
 		metricErr := err
 		if syncMode == mdmsync.SyncModeFull && !r.deltaSyncEnabled {

@@ -101,6 +101,17 @@ func newGraphClient(cfg graphClientConfig) *graphClient {
 	}
 }
 
+// backupDeltaLinks returns a callback function to restore delta links.
+func (c graphClient) backupDeltaLinks() func() {
+	userDeltaLinkBackup := c.deltaStore.Get(usersDeltaEndpoint)
+	groupDeltaLinkBackup := c.deltaStore.Get(groupsDeltaEndpoint)
+
+	return func() {
+		c.deltaStore.Set(usersDeltaEndpoint, userDeltaLinkBackup)
+		c.deltaStore.Set(groupsDeltaEndpoint, groupDeltaLinkBackup)
+	}
+}
+
 type listEntraGroupsResponse struct {
 	groupsMap groupsByID
 	// errSkippedGroups is an error collection of failed group validation.
