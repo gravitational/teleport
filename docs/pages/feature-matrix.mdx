@@ -23,9 +23,9 @@ HTML tag until we can support these requirements some other way.*/}
   table:nth-of-type(1) tbody tr:nth-of-type(1),
   table:nth-of-type(1) tbody tr:nth-of-type(5),
   table:nth-of-type(1) tbody tr:nth-of-type(9),
-  table:nth-of-type(1) tbody tr:nth-of-type(18),
-  table:nth-of-type(1) tbody tr:nth-of-type(22),
-  table:nth-of-type(1) tbody tr:nth-of-type(26),
+  table:nth-of-type(1) tbody tr:nth-of-type(17),
+  table:nth-of-type(1) tbody tr:nth-of-type(21),
+  table:nth-of-type(1) tbody tr:nth-of-type(24),
   table:nth-of-type(2) tbody tr:nth-of-type(1),
   table:nth-of-type(2) tbody tr:nth-of-type(7),
   table:nth-of-type(2) tbody tr:nth-of-type(9),
@@ -71,11 +71,7 @@ include:
 
 ## Teleport Agentic Identity Framework
 
-The **Teleport Agentic Identity Framework** secures AI agents and the AI/ML
-infrastructure they access. It combines cryptographic agent identity, ephemeral
-runtime isolation through [Beams](https://www.beams.run/), Model Context
-Protocol (MCP) server protection, and behavioral monitoring across the Teleport
-platform.
+The **Teleport Agentic Identity Framework** combines Teleport identity, access, governance, and monitoring capabilities to secure AI agents and the infrastructure they access. It includes cryptographic agent identity, ephemeral runtime isolation through [Beams](https://www.beams.run/), Model Context Protocol (MCP) server protection, and behavioral monitoring across the Teleport platform.
 
 |  | **Enterprise (Cloud)** <div style={{ marginTop: 'var(--m-0-5)' }}><Button style={{ padding: '0 var(--m-1-5)', height: '2rem' }} as="link" href="https://goteleport.com/signup" target="_blank">Try for free</Button></div> | **Enterprise (Self-Hosted)** | **Community Edition** |
 |---|:---:|:---:|:---:|
@@ -83,28 +79,26 @@ platform.
 | Per-agent cryptographic certificates | ✔ | ✔ | ✖ |
 | Agent-to-owner identity linkage | ✔ | ✔ | ✖ |
 | Short-lived agent credentials with no standing privileges | ✔ | ✔ | ✖ |
-|**MCP server access.** Treat Model Context Protocol servers as first-class Teleport Protected Resources:||||
+|**MCP server access.** Treat Model Context Protocol servers as first-class protected resources in Teleport:||||
 | [MCP server enrollment and proxying](./enroll-resources/mcp-access/mcp-access.mdx) | ✔ | ✔ | ✔ |
 | Identity-based access control for MCP traffic | ✔ | ✔ | ✔ |
 | Per-tool audit events for MCP requests | ✔ | ✔ | ✔ |
-|**Trusted agent runtimes ([Beams](https://www.beams.run/), beta).** Run each agent session in an isolated Firecracker VM with built-in identity, no static secrets, and a full audit trail:||||
-| Ephemeral Firecracker VM per agent session, ~2-second startup | ✔ | ✖ | ✖ |
-| Short-lived identity certificate injected into the runtime at startup | ✔ | ✖ | ✖ |
-| VNet-tunneled egress with no static secrets in the runtime | ✔ | ✖ | ✖ |
+|**Trusted runtimes ([Beams](https://www.beams.run/), beta).** Run each agent session in an isolated Firecracker VM with built-in identity, no static secrets, and a full audit trail:||||
+| Ephemeral Firecracker per agent session, ~2-second startup | ✔ | ✖ | ✖ |
+| Short-lived identity certificates injected at startup with no static secrets | ✔ | ✖ | ✖ |
 | Ephemeral storage wiped on session end | ✔ | ✖ | ✖ |
-| Built-in inference endpoints (OpenAI, Anthropic) with bring-your-own option | ✔ | ✖ | ✖ |
-| Policy-controlled allowlist for external API egress | ✔ | ✖ | ✖ |
+| Built-in inference endpoints (OpenAI, Anthropic) with support for custom model providers | ✔ | ✖ | ✖ |
+| VNet-tunneled egress and policy-controlled allowlist for external API egress | ✔ | ✖ | ✖ |
 | Per-user caps on beam count and shared inference usage | ✔ | ✖ | ✖ |
-| Session-bound beam lifecycle (expires with user session, ~24 hours) | ✔ | ✖ | ✖ |
+| Beam lifecycle tied to the user session (~24-hour maximum) | ✔ | ✖ | ✖ |
 |**Agent enforcement.** Stop or constrain agent activity inline when policy is violated:||||
 | [Session and identity locks](identity-governance/locking.mdx) | Available in Teleport Identity Governance | Available in Teleport Identity Governance | ✖ |
 | [Device Trust](zero-trust-access/device-trust/guide.mdx) for the human operator behind an agent | ✔ | ✔ | ✖ |
 | [Per-Session MFA](zero-trust-access/authentication/per-session-mfa.mdx) for sensitive agent actions | ✔ | ✔ | ✔ |
 |**Agent behavior monitoring.** Detect anomalies in agent and human-plus-agent activity:||||
 | Identity threat patterns and anomaly surfacing | Available in Teleport Identity Security | Available in Teleport Identity Security | ✖ |
-| [Session recording and replay](./reference/architecture/session-recording.mdx) for agent sessions | ✔ | ✔ | ✔ |
-| [Session Recording Summaries](identity-security/session-summaries.mdx) | Available in Teleport Identity Security | Available in Teleport Identity Security | ✖ |
-|**AI/ML infrastructure protection.** Apply identity-based access control to systems agents and humans use to build, train, and serve models:||||
+| [Session recording](./reference/architecture/session-recording.mdx) for agent sessions | ✔ | ✔ | ✔ |
+|**AI infrastructure protection.** Apply identity-based access control to the systems that agents and humans use to build, train, and serve models:||||
 | Access control for model weights and training data stores ([applications](./enroll-resources/application-access/getting-started.mdx), [databases](./enroll-resources/database-access/getting-started.mdx)) | ✔ | ✔ | ✔ |
 | Access control for GPU clusters ([Linux servers](./enroll-resources/server-access/getting-started.mdx), [Kubernetes](./enroll-resources/kubernetes-access/getting-started.mdx)) | ✔ | ✔ | ✔ |
 | Access control for model registries and inference endpoints (applications, MCP servers) | ✔ | ✔ | ✔ |
