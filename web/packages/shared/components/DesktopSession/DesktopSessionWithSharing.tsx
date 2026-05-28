@@ -74,7 +74,7 @@ export function DesktopSessionWithSharing(
           onRemoveSharedDirectory={controls.onRemoveSharedDirectory}
           canRemoveSharedDirectory={controls.canRemoveSharedDirectory}
           onAddSharedDirectory={controls.onAddSharedDirectory}
-          maxSharedDirectories={controls.maxSharedDirectories}
+          maxSharedDirectories={props.maxSharedDirectories}
         />
       )}
     />
