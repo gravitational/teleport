@@ -501,6 +501,7 @@ func (s *Service) UpdateClusterNetworkingConfig(ctx context.Context, req *cluste
 	}
 
 	newCfg := req.GetClusterNetworkConfig()
+	PreserveCloudClusterNetworkConfig(*authzCtx, s.modules, newCfg, oldCfg)
 
 	if err := ValidateCloudNetworkConfigUpdate(*authzCtx, s.modules, newCfg, oldCfg); err != nil {
 		return nil, trace.Wrap(err)
@@ -566,6 +567,7 @@ func (s *Service) UpsertClusterNetworkingConfig(ctx context.Context, req *cluste
 	}
 
 	newCfg := req.GetClusterNetworkConfig()
+	PreserveCloudClusterNetworkConfig(*authzCtx, s.modules, newCfg, oldCfg)
 
 	if err := ValidateCloudNetworkConfigUpdate(*authzCtx, s.modules, newCfg, oldCfg); err != nil {
 		return nil, trace.Wrap(err)
@@ -716,6 +718,27 @@ func ValidateCloudNetworkConfigUpdate(authzCtx authz.Context, modules modules.Mo
 	}
 
 	return nil
+}
+
+// PreserveCloudClusterNetworkConfig preserves cloud-managed fields when an older
+// supported client attempts to update the cluster network config without knowing
+// a field exists. This should only be used to preserve new fields that must only
+// be configured by cloud.
+func PreserveCloudClusterNetworkConfig(authzCtx authz.Context, modules modules.Modules, newConfig, oldConfig types.ClusterNetworkingConfig) {
+	if authz.HasBuiltinRole(authzCtx, string(types.RoleAdmin)) {
+		return
+	}
+	if !modules.Features().Cloud {
+		return
+	}
+
+	oldts := oldConfig.GetProxyPeeringTunnelStrategy()
+	newts := newConfig.GetProxyPeeringTunnelStrategy()
+	if oldts != nil && newts != nil {
+		if oldts.DisconnectThresholdSeconds != 0 && newts.DisconnectThresholdSeconds == 0 {
+			newts.DisconnectThresholdSeconds = oldts.DisconnectThresholdSeconds
+		}
+	}
 }
 
 // GetSessionRecordingConfig returns the locally cached networking configuration.
