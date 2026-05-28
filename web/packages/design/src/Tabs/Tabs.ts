@@ -46,13 +46,11 @@ export const TabsContainer = styled.div<TabsContainerProps>`
   ${space}
 `;
 
-export const TabContainer = styled.div.attrs<{
+export const TabContainer = styled.div<{
   selected?: boolean;
   size?: 'small';
   disabled?: boolean;
-}>(p => ({
-  onClick: p.disabled ? undefined : p.onClick,
-}))`
+}>`
   padding: ${p => p.theme.space[1] + p.theme.space[2]}px
     ${p => p.theme.space[2]}px;
   position: relative;
@@ -84,6 +82,7 @@ export const TabContainer = styled.div.attrs<{
     p.disabled &&
     `
     cursor: not-allowed;
+    pointer-events: none;
     opacity: 0.3;
     &:hover {
       opacity: 0.3;

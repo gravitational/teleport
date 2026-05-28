@@ -96,7 +96,7 @@ interface FilterPanelProps {
   /**
    * Optional content rendered on the left side of the filter panel.
    */
-  LeftContent?: JSX.Element;
+  LeftContent?: React.ReactNode;
 }
 
 export function FilterPanel({
