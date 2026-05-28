@@ -673,6 +673,18 @@ func (s *TerraformSuiteOSS) TestRoleWithOptions() {
 				Config:   s.getFixture("role_with_options_1.tf"),
 				PlanOnly: true,
 			},
+			{
+				Config: s.getFixture("role_with_options_0.tf"),
+				Check: resource.ComposeTestCheckFunc(
+					resource.TestCheckResourceAttr(name, "spec.options.record_session.default", "best_effort"),
+					resource.TestCheckResourceAttr(name, "spec.options.record_session.desktop", "true"),
+					resource.TestCheckResourceAttr(name, "spec.options.record_session.ssh", ""),
+				),
+			},
+			{
+				Config:   s.getFixture("role_with_options_0.tf"),
+				PlanOnly: true,
+			},
 		},
 	})
 }
