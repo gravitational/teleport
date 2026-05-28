@@ -36,6 +36,17 @@ import "github.com/gravitational/trace"
 type upstreamResolver interface {
 	resolveDetails(kubeClusterName string) (*kubeDetails, error)
 	component() string
+
+	// servesLocalClusters reports whether this service can hold details for
+	// kube clusters directly. KubeService and LegacyProxyService do;
+	// ProxyService does not.
+	servesLocalClusters() bool
+
+	// forwardsToOtherAgents reports whether this service queries the
+	// kube_servers watcher and forwards to another agent when the target
+	// cluster is not served locally. ProxyService always does; LegacyProxyService
+	// does as a fallback; KubeService does not.
+	forwardsToOtherAgents() bool
 }
 
 type kubeServiceResolver struct {
@@ -46,13 +57,17 @@ func (r *kubeServiceResolver) resolveDetails(name string) (*kubeDetails, error) 
 	return r.lookup(name)
 }
 
-func (*kubeServiceResolver) component() string { return KubeService }
+func (*kubeServiceResolver) component() string        { return KubeService }
+func (*kubeServiceResolver) servesLocalClusters() bool { return true }
+func (*kubeServiceResolver) forwardsToOtherAgents() bool { return false }
 
 type proxyServiceResolver struct{}
 
 func (proxyServiceResolver) resolveDetails(string) (*kubeDetails, error) { return nil, nil }
 
-func (proxyServiceResolver) component() string { return ProxyService }
+func (proxyServiceResolver) component() string          { return ProxyService }
+func (proxyServiceResolver) servesLocalClusters() bool  { return false }
+func (proxyServiceResolver) forwardsToOtherAgents() bool { return true }
 
 type legacyProxyResolver struct {
 	lookup func(name string) (*kubeDetails, error)
@@ -68,7 +83,9 @@ func (r *legacyProxyResolver) resolveDetails(name string) (*kubeDetails, error) 
 	return d, nil
 }
 
-func (*legacyProxyResolver) component() string { return LegacyProxyService }
+func (*legacyProxyResolver) component() string          { return LegacyProxyService }
+func (*legacyProxyResolver) servesLocalClusters() bool  { return true }
+func (*legacyProxyResolver) forwardsToOtherAgents() bool { return true }
 
 // newUpstreamResolver builds the resolver matching the given KubeServiceType,
 // wiring it to lookup for credential/details resolution.
