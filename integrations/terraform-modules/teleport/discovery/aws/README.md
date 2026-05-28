@@ -102,14 +102,22 @@ No modules.
 | ---- | ---- |
 | [aws_iam_openid_connect_provider.teleport](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_openid_connect_provider) | resource |
 | [aws_iam_policy.teleport_discovery_service](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_policy) | resource |
+| [aws_iam_policy.teleport_organization_account_enumeration](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_policy) | resource |
+| [aws_iam_policy.teleport_organization_join_validation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_policy) | resource |
 | [aws_iam_role.teleport_discovery_service](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role) | resource |
 | [aws_iam_role_policy_attachment.teleport_discovery_service](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment) | resource |
+| [aws_iam_role_policy_attachment.teleport_organization_account_enumeration](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment) | resource |
+| [aws_iam_role_policy_attachment.teleport_organization_join_validation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment) | resource |
 | teleport_discovery_config.aws | resource |
 | teleport_integration.aws_oidc | resource |
 | teleport_provision_token.aws_iam | resource |
 | [aws_caller_identity.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/caller_identity) | data source |
+| [aws_iam_policy_document.allow_assume_role_for_child_accounts](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
 | [aws_iam_policy_document.teleport_discovery_service_iam_role_trust](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
 | [aws_iam_policy_document.teleport_discovery_service_single_account](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
+| [aws_iam_policy_document.teleport_organization_account_enumeration](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
+| [aws_iam_policy_document.teleport_organization_join_validation](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/iam_policy_document) | data source |
+| [aws_organizations_organization.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/organizations_organization) | data source |
 | [aws_partition.this](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/partition) | data source |
 | [http_http.teleport_ping](https://registry.terraform.io/providers/hashicorp/http/latest/docs/data-sources/http) | data source |
 | [tls_certificate.teleport_proxy](https://registry.terraform.io/providers/hashicorp/tls/latest/docs/data-sources/certificate) | data source |
@@ -120,12 +128,15 @@ No modules.
 | ---- | ----------- | ---- | ------- | :------: |
 | apply\_aws\_tags | Additional AWS tags to apply to all created AWS resources. | `map(string)` | `{}` | no |
 | apply\_teleport\_resource\_labels | Additional Teleport resource labels to apply to all created Teleport resources. | `map(string)` | `{}` | no |
+| aws\_child\_account\_iam\_role\_name | Name for the AWS IAM role to assume in child accounts. This role must be created manually in each child account. Check the module outputs `aws_child_account_iam_role_template` for the trust relationship and permissions required. | `string` | `"teleport-organization-discovery-child-account-role"` | no |
 | aws\_iam\_policy\_document | Override the AWS IAM policy document attached to the AWS IAM role for resource discovery. | `string` | `""` | no |
 | aws\_iam\_policy\_name | Name for the AWS IAM policy for discovery. | `string` | `"teleport-discovery"` | no |
 | aws\_iam\_policy\_use\_name\_prefix | Determines whether the name of the AWS IAM policy (`aws_iam_policy_name`) is used as a prefix. | `bool` | `true` | no |
 | aws\_iam\_role\_name | Name for the AWS IAM role for discovery. | `string` | `"teleport-discovery"` | no |
 | aws\_iam\_role\_use\_name\_prefix | Determines whether the name of the AWS IAM role (`aws_iam_role_name`) is used as a prefix. | `bool` | `true` | no |
 | aws\_matchers | AWS resource discovery matchers. Valid values for aws\_matchers.types are: ec2, eks, rds. | ```list(object({ types = list(string) regions = optional(list(string), ["*"]) tags = optional(map(list(string)), { "*" : ["*"] }) setup_access_for_arn = optional(string, "") kube_app_discovery = optional(bool) }))``` | `[]` | no |
+| aws\_organization\_discovery | Discover resources in accounts under the organization, filtered by Organizational Units (the Organization's Root ID or `*` can be used to include the entire organization). A specific IAM role must be created in each child account, to be assumed by the Discovery Service. Check the module outputs for the trust relationship and permissions required for the role. Limitations: only EC2 is supported. | ```object({ organizational_units = object({ include = list(string) exclude = optional(list(string), []) }) })``` | `null` | no |
+| aws\_organization\_iam\_policies | AWS IAM policy customizations for organization-wide discovery to be created in AWS management account. | ```object({ account_enumeration = optional(object({ name = optional(string, "teleport-organization-enumeration") use_name_prefix = optional(bool, true) document = optional(string, "") }), {}) join_validation = optional(object({ name = optional(string, "teleport-organization-join-validation") use_name_prefix = optional(bool, true) document = optional(string, "") }), {}) })``` | `{}` | no |
 | create | Toggle creation of all resources. | `bool` | `true` | no |
 | create\_aws\_iam\_openid\_connect\_provider | Toggle AWS IAM OIDC provider creation. If false and using OIDC, then the AWS IAM OIDC provider must already exist. | `bool` | `true` | no |
 | discovery\_service\_iam\_credential\_source | Configure the AWS credential source for Teleport Discovery Service instances. The default uses AWS OIDC integration. | ```object({ use_oidc_integration = optional(bool, true) trust_role = optional(object({ role_arn = string external_id = optional(string, "") })) })``` | ```{ "trust_role": null, "use_oidc_integration": true }``` | no |
@@ -146,10 +157,15 @@ No modules.
 
 | Name | Description |
 | ---- | ----------- |
+| aws\_child\_account\_iam\_role\_template | Create this AWS IAM Role in each Organization's child account, so that the Discovery Service can assume it to discover resources in those accounts. |
 | aws\_oidc\_provider\_arn | AWS resource name (ARN) of the AWS OpenID Connect (OIDC) provider that allows Teleport Discovery Service to assume an AWS IAM role using OIDC. |
 | teleport\_discovery\_config\_name | Name of the Teleport dynamic `discovery_config`. Configuration details can be viewed with `tctl get discovery_config/<name>`. Teleport Discovery Service instances will use this `discovery_config` if they are in the same discovery group as the `discovery_config`. |
 | teleport\_discovery\_service\_iam\_policy\_arn | AWS resource name (ARN) of the AWS IAM policy that grants the permissions needed for Teleport to discover resources in AWS. |
 | teleport\_discovery\_service\_iam\_role\_arn | AWS resource name (ARN) of the AWS IAM role that Teleport Discovery Service will assume. |
 | teleport\_integration\_name | Name of the Teleport `integration` resource. The integration resource configures Teleport Discovery Service instances to assume an AWS IAM role for discovery using AWS OIDC federation. Integration details can be viewed with `tctl get integrations/<name>` or by visiting the Teleport web UI under 'Zero Trust Access' > 'Integrations'. |
+| teleport\_organization\_account\_enumeration\_iam\_policy\_arn | AWS resource name (ARN) of the AWS IAM policy that grants the permissions needed for Teleport to enumerate accounts in the AWS organization. Only set when aws\_organization\_discovery is configured. |
+| teleport\_organization\_account\_enumeration\_iam\_role\_template | Create this AWS IAM Role in the management account, then provide credentials that can assume it to the Discovery Service (e.g., via the AWS\_* environment variables). |
+| teleport\_organization\_join\_validation\_iam\_policy\_arn | AWS resource name (ARN) of the AWS IAM policy that grants the permissions needed for the Teleport Auth Service to validate IAM-method join attempts against the organization. Only set when aws\_organization\_discovery is configured. |
+| teleport\_organization\_join\_validation\_iam\_role\_template | Create this AWS IAM Role in the management account, then provide credentials that can assume it to the Auth Service (e.g., via the AWS\_* environment variables). |
 | teleport\_provision\_token\_name | Name of the Teleport provision `token` that allows Teleport nodes to join the Teleport cluster using AWS IAM credentials. Token details can be viewed with `tctl get token/<name>`. |
 <!-- END_TF_DOCS -->

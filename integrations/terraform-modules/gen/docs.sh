@@ -128,12 +128,18 @@ EOF
         info "Rendering module ${module_name} example ${example_name} reference doc"
         example_doc="${module_examples_docs_dir}/${example_name}.mdx"
         # inject header
-        cat <<EOF > "${example_doc}"
----
+        markdown_header="---
 title: Example for discovering ${remote_system} resources in a single account
 sidebar_label: ${example_name}
 description: Configure Teleport to discover resources in a ${remote_system} account.
----
+---"
+        docs_header="${example}/_header.md"
+        if [ -f "${docs_header}" ]; then
+            markdown_header="$(cat "${docs_header}")"
+        fi
+
+        cat <<EOF > "${example_doc}"
+${markdown_header}
 
 {/*
     Auto-generated file.
