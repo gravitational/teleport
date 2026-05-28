@@ -211,7 +211,7 @@ test('directory sharing menu', async () => {
     { mode: 'tdpb' }
   );
   render(
-    <DesktopSession
+    <DesktopSessionWithSharing
       client={tpdClient}
       username="admin"
       desktop="win-lab"
