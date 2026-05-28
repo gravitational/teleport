@@ -40,10 +40,10 @@ import (
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/parse"
 	"github.com/gravitational/teleport/tool/common"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
@@ -125,7 +125,7 @@ func (n *NotificationCommand) TryRun(ctx context.Context, cmd string, clientFunc
 
 // Create creates a new notification.
 func (n *NotificationCommand) Create(ctx context.Context, client *authclient.Client) error {
-	labels, err := libclient.ParseLabelSpec(n.labels)
+	labels, err := parse.LabelSelectorSpec(n.labels)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -242,7 +242,7 @@ func (n *NotificationCommand) Create(ctx context.Context, client *authclient.Cli
 }
 
 func (n *NotificationCommand) List(ctx context.Context, client *authclient.Client) error {
-	labels, err := libclient.ParseLabelSpec(n.labels)
+	labels, err := parse.LabelSelectorSpec(n.labels)
 	if err != nil {
 		return trace.Wrap(err)
 	}

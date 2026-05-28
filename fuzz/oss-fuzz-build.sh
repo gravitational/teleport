@@ -68,8 +68,8 @@ build_teleport_fuzzers() {
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/client \
     FuzzParseProxyHost fuzz_parse_proxy_host
 
-  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/client \
-    FuzzParseLabelSpec fuzz_parse_label_spec
+  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/utils/parse \
+    FuzzLabelSpec fuzz_label_spec
 
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/client \
     FuzzParseSearchKeywords fuzz_parse_search_keywords

@@ -24,9 +24,9 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/services/awsra"
+	"github.com/gravitational/teleport/lib/utils/parse"
 )
 
 // WorkloadIdentityAWSRACommand implements `tbot start workload-identity-aws-ra`
@@ -155,7 +155,7 @@ func (c *WorkloadIdentityAWSRACommand) ApplyConfig(cfg *config.BotConfig, l *slo
 	case c.NameSelector != "":
 		svc.Selector.Name = c.NameSelector
 	case c.LabelSelector != "":
-		labels, err := client.ParseLabelSpec(c.LabelSelector)
+		labels, err := parse.LabelSelectorSpec(c.LabelSelector)
 		if err != nil {
 			return trace.Wrap(err, "parsing --label-selector")
 		}

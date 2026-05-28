@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/workloadidentity"
+	"github.com/gravitational/teleport/lib/utils/parse"
 )
 
 // Based on the default paths listed in
@@ -111,7 +112,7 @@ func (c *issueX509Command) run(cf *CLIConf) error {
 	case c.nameSelector != "":
 		selector.Name = c.nameSelector
 	case c.labelSelector != "":
-		labels, err := client.ParseLabelSpec(c.labelSelector)
+		labels, err := parse.LabelSelectorSpec(c.labelSelector)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -300,7 +301,7 @@ func (c *issueJWTCommand) run(cf *CLIConf) error {
 	case c.nameSelector != "":
 		selector.Name = c.nameSelector
 	case c.labelSelector != "":
-		labels, err := client.ParseLabelSpec(c.labelSelector)
+		labels, err := parse.LabelSelectorSpec(c.labelSelector)
 		if err != nil {
 			return trace.Wrap(err)
 		}
