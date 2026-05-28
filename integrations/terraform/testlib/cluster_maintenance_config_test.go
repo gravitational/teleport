@@ -21,9 +21,6 @@ import (
 )
 
 func (s *TerraformSuiteOSS) TestClusterMaintenanceConfig() {
-	// TODO: Nonce should be an excluded attribute.
-	s.T().Skip("Provider produced inconsistent result after apply")
-
 	name := "teleport_cluster_maintenance_config.test"
 
 	resource.Test(s.T(), resource.TestCase{
@@ -37,6 +34,8 @@ func (s *TerraformSuiteOSS) TestClusterMaintenanceConfig() {
 					resource.TestCheckResourceAttr(name, "kind", "cluster_maintenance_config"),
 					resource.TestCheckResourceAttr(name, "spec.agent_upgrades.utc_start_hour", "1"),
 					resource.TestCheckResourceAttr(name, "spec.agent_upgrades.weekdays.0", "monday"),
+
+					resource.TestCheckNoResourceAttr(name, "nonce"),
 				),
 			},
 			{
@@ -49,6 +48,8 @@ func (s *TerraformSuiteOSS) TestClusterMaintenanceConfig() {
 					resource.TestCheckResourceAttr(name, "kind", "cluster_maintenance_config"),
 					resource.TestCheckResourceAttr(name, "spec.agent_upgrades.utc_start_hour", "12"),
 					resource.TestCheckResourceAttr(name, "spec.agent_upgrades.weekdays.0", "tuesday"),
+
+					resource.TestCheckNoResourceAttr(name, "nonce"),
 				),
 			},
 			{
