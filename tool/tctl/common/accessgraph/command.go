@@ -23,7 +23,6 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
@@ -36,24 +35,12 @@ import (
 )
 
 // AccessGraphCommand implements experimental Access Graph commands.
-//
-// The user-facing surface is currently a single hidden diagnostic
-// (`tctl accessgraph credentials`) that validates / re-issues the
-// Access Graph credential without making any AG calls. It exists
-// primarily so the credential plumbing has a reachable entry point
-// ahead of the real `access`/`detections`/etc. subcommands.
 type AccessGraphCommand struct {
 	ccf    *tctlcfg.GlobalCLIFlags
 	config *servicecfg.Config
 	stdout io.Writer
 
-	// accessgraph is the parent command grouping AG subcommands.
-	// TODO(ghassan): remove when the real AG subcommands are implemented
-	accessgraph *kingpin.CmdClause
-	// check is a hidden diagnostic that exercises the credential
-	// and client issuance and response code paths for diagnostic purposes
-	// TODO(ghassan): remove when the real AG subcommands are implemented
-	check *kingpin.CmdClause
+	detections detectionsArgs
 }
 
 // Initialize allows AccessGraphCommand to plug itself into the CLI parser.
@@ -64,8 +51,8 @@ func (c *AccessGraphCommand) Initialize(app *kingpin.Application, cliFlags *tctl
 		c.stdout = os.Stdout
 	}
 
-	c.accessgraph = app.Command("accessgraph", "Manage Access Graph (experimental).").Hidden()
-	c.check = c.accessgraph.Command("check", "Validate Access Graph flows (experimental)").Hidden()
+	// Initialize AG subcommands.
+	c.initDetections(app)
 }
 
 // TryRun takes the CLI command as an argument and executes it.
@@ -76,55 +63,37 @@ func (c *AccessGraphCommand) TryRun(ctx context.Context, cmd string, clientFunc 
 		utils.InitLogger(utils.LoggingForCLI, slog.LevelDebug)
 	}
 
-	var commandFunc func(context.Context, commonclient.InitFunc) error
+	var commandFunc func(context.Context, *accessgraph.ClientWithResponses) error
+
 	switch cmd {
-	case c.check.FullCommand():
-		commandFunc = c.accessGraphCheck
+	case c.detections.ls.cmd.FullCommand():
+		commandFunc = c.DetectionsList
 	default:
 		return false, nil
 	}
-	return true, trace.Wrap(commandFunc(ctx, clientFunc))
-}
 
-// accessGraphCheck is a hidden diagnostic command that validates the Access Graph credential
-// loading and client issuance code paths, and exercises a simple AG API call to validate the client works.
-// This is intended for diagnostic and code exercises purposes
-//
-// TODO(ghassan): remove when the real AG subcommands are implemented
-func (c *AccessGraphCommand) accessGraphCheck(ctx context.Context, clientFunc commonclient.InitFunc) error {
+	// Load credentials and ensure the AG cert is valid.
 	creds, err := c.loadAccessGraphCredentials(ctx)
 	if err != nil {
-		return trace.Wrap(err)
+		return false, trace.Wrap(err)
 	}
+
+	// If the cert is not present or valid, ensureAccessGraphCert will fetch a new one,
+	// and load it into the keyring.
 	if err := ensureAccessGraphCert(ctx, creds, clientFunc); err != nil {
-		return trace.Wrap(err)
+		return true, trace.Wrap(err)
 	}
 
 	if creds.proxyAddr == "" {
-		return trace.BadParameter("missing proxy address in Access Graph credential")
+		return true, trace.BadParameter("missing proxy address in Access Graph credential")
 	}
 
-	// Exercise the client issuance code path to validate it works with the
-	client, err := newAccessGraphClient(ctx, creds.proxyAddr, creds.keyRing)
+	// Create an AG client using the resolved proxy address and credentials.
+	accessGraphClient, err := newAccessGraphClient(ctx, creds.proxyAddr, creds.keyRing)
 	if err != nil {
-		return trace.Wrap(err)
+		return true, trace.Wrap(err)
 	}
 
-	// Exercise a client call to validate the client works.
-	end := time.Now()
-	start := end.Add(-time.Hour * 24)
-	res, err := doRequest(client.ListAlertsV1WithResponse(ctx, &accessgraph.ListAlertsV1Params{
-		StartTime: &start,
-		EndTime:   &end,
-	}))
-
-	if err != nil {
-		return trace.Wrap(err, "failed to list Access Graph alerts")
-	}
-
-	if res.JSON200 == nil {
-		return trace.BadParameter("unexpected response from Access Graph API: expected HTTP 200 with JSON body")
-	}
-
-	return trace.Wrap(utils.WriteYAMLArray(c.stdout, res.JSON200.Data), "failed to write Access Graph alerts to output")
+	// Run the command.
+	return true, trace.Wrap(commandFunc(ctx, accessGraphClient))
 }
