@@ -3724,7 +3724,7 @@ enum CreateDatabaseUserMode {
   DB_USER_MODE_BEST_EFFORT_DROP = 3;
 }
 
-// WebTerminalClipboardMode determines whether copying from the Web UI terminal is enabled.
+// WebTerminalClipboardMode determines clipboard behavior in the Web UI terminal.
 enum WebTerminalClipboardMode {
   WEB_TERMINAL_CLIPBOARD_MODE_UNSPECIFIED = 0;
   // WEB_TERMINAL_CLIPBOARD_MODE_UNRESTRICTED enables copying from the Web UI terminal.
@@ -3955,7 +3955,7 @@ message RoleOptions {
     (gogoproto.jsontag) = "ssh_port_forwarding,omitempty"
   ];
 
-  // WebTerminalClipboardMode indicates whether copying from the Web UI terminal is enabled.
+  // WebTerminalClipboardMode determines clipboard behavior in the Web UI terminal.
   // Valid values are "unrestricted" and "no-copy".
   // Defaults to "unrestricted" if unspecified.
   WebTerminalClipboardMode WebTerminalClipboardMode = 33 [(gogoproto.jsontag) = "web_terminal_clipboard_mode,omitempty"];

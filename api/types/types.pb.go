@@ -523,7 +523,7 @@ func (CreateDatabaseUserMode) EnumDescriptor() ([]byte, []int) {
 	return fileDescriptor_9198ee693835762e, []int{12}
 }
 
-// WebTerminalClipboardMode determines whether copying from the Web UI terminal is enabled.
+// WebTerminalClipboardMode determines clipboard behavior in the Web UI terminal.
 type WebTerminalClipboardMode int32
 
 const (
@@ -10330,7 +10330,7 @@ type RoleOptions struct {
 	CreateHostUserDefaultShell string `protobuf:"bytes,31,opt,name=CreateHostUserDefaultShell,proto3" json:"create_host_user_default_shell,omitempty"`
 	// SSHPortForwarding configures what types of SSH port forwarding are allowed by a role.
 	SSHPortForwarding *SSHPortForwarding `protobuf:"bytes,32,opt,name=SSHPortForwarding,proto3" json:"ssh_port_forwarding,omitempty"`
-	// WebTerminalClipboardMode indicates whether copying from the Web UI terminal is enabled.
+	// WebTerminalClipboardMode determines clipboard behavior in the Web UI terminal.
 	// Valid values are "unrestricted" and "no-copy".
 	// Defaults to "unrestricted" if unspecified.
 	WebTerminalClipboardMode WebTerminalClipboardMode `protobuf:"varint,33,opt,name=WebTerminalClipboardMode,proto3,enum=types.WebTerminalClipboardMode" json:"web_terminal_clipboard_mode,omitempty"`

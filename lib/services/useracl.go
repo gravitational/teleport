@@ -124,8 +124,8 @@ type UserACL struct {
 	Contact ResourceAccess `json:"contact"`
 	// FileTransferAccess defines the ability to perform remote file operations via SCP or SFTP
 	FileTransferAccess bool `json:"fileTransferAccess"`
-	// WebTerminalClipboardMode defines whether copying from the Web UI terminal is enabled.
-	WebTerminalClipboardMode string `json:"webTerminalClipboardMode,omitempty"`
+	// WebTerminalClipboardMode determines clipboard behavior in the Web UI terminal.
+	WebTerminalClipboardMode types.WebTerminalClipboardMode `json:"webTerminalClipboardMode,omitempty"`
 	// GitServers defines access to Git servers.
 	GitServers ResourceAccess `json:"gitServers"`
 	// WorkloadIdentity defines access to Workload Identity
@@ -244,7 +244,6 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 	userTasksAccess := newAccess(userRoles, ctx, types.KindUserTask)
 	reviewRequests := userRoles.MaybeCanReviewRequests()
 	fileTransferAccess := userRoles.CanCopyFiles()
-	webTerminalClipboardMode := webTerminalClipboardModeValue(userRoles.GetWebTerminalClipboardMode())
 	workloadIdentity := newAccess(userRoles, ctx, types.KindWorkloadIdentity)
 
 	var auditQuery ResourceAccess
@@ -316,7 +315,7 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		AccessGraphSettings:      accessGraphSettings,
 		Contact:                  contact,
 		FileTransferAccess:       fileTransferAccess,
-		WebTerminalClipboardMode: webTerminalClipboardMode,
+		WebTerminalClipboardMode: userRoles.GetWebTerminalClipboardMode(),
 		GitServers:               gitServersAccess,
 		WorkloadIdentity:         workloadIdentity,
 		ClientIPRestriction:      clientIPRestrictions,
@@ -328,16 +327,5 @@ func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, des
 		AutoUpdateAgentRollout:   autoUpdateAgentRollout,
 		AutoUpdateAgentReport:    autoUpdateAgentReport,
 		Beam:                     beam,
-	}
-}
-
-func webTerminalClipboardModeValue(mode types.WebTerminalClipboardMode) string {
-	switch mode {
-	case types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNRESTRICTED:
-		return "unrestricted"
-	case types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY:
-		return "no-copy"
-	default:
-		return ""
 	}
 }

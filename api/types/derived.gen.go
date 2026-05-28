@@ -1175,7 +1175,8 @@ func deriveTeleportEqual_64(this, that *RoleOptions) bool {
 			this.CreateDatabaseUserMode == that.CreateDatabaseUserMode &&
 			this.MFAVerificationInterval == that.MFAVerificationInterval &&
 			this.CreateHostUserDefaultShell == that.CreateHostUserDefaultShell &&
-			deriveTeleportEqual_96(this.SSHPortForwarding, that.SSHPortForwarding)
+			deriveTeleportEqual_96(this.SSHPortForwarding, that.SSHPortForwarding) &&
+			this.WebTerminalClipboardMode == that.WebTerminalClipboardMode
 }
 
 // deriveTeleportEqual_65 returns whether this and that are equal.
