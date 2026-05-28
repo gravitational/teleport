@@ -210,11 +210,7 @@ func TestDirectoryReconciler(t *testing.T) {
 	teamCEntra := newEntraGroup(t, uuid.NewString(), "Team C")
 	graphClient.groups = append(graphClient.groups, teamCEntra)
 
-	aclOwnersCfg := aclOwnersConfig{
-		defaultOwners: env.cfg.DefaultOwners,
-		source:        env.cfg.AccessListOwnersSource,
-	}
-	_, teamCTeleport, err := convertGroup(ctx, teamCEntra, env.cfg.TenantID, aclOwnersCfg)
+	_, teamCTeleport, err := convertGroup(teamCEntra, env.cfg.TenantID, env.cfg.DefaultOwners)
 	teamCTeleport.Spec.Grants.Roles = []string{"access"}
 	require.NoError(t, err)
 

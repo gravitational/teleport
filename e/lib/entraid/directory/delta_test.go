@@ -1,7 +1,6 @@
 package directory
 
 import (
-	"log/slog"
 	"strconv"
 	"testing"
 
@@ -12,6 +11,7 @@ import (
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/lib/msgraph/models"
 	"github.com/gravitational/teleport/lib/plugins/filter"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestProcessUserDelta(t *testing.T) {
@@ -223,6 +223,7 @@ func TestProcessGroupDelta(t *testing.T) {
 		groupDelta                *models.ListGroupsDeltaResponse
 		expectedDisplay           string
 		expectedGroupsCount       int
+		expectedGroupOwnersCount  int
 		expectedGroupMembersCount int
 		isRemoved                 bool
 	}{
@@ -233,6 +234,17 @@ func TestProcessGroupDelta(t *testing.T) {
 					DirectoryObject: models.DirectoryObject{
 						ID:          to.Ptr("7dab05a9-3d2d-4ab1-9e6b-73cea247b7ac"),
 						DisplayName: to.Ptr("group4"),
+					},
+				},
+				Owners: []models.OwnersDelta{
+					{
+						User: &models.User{
+							DirectoryObject: models.DirectoryObject{
+								ID:          to.Ptr("93c1c88d-fb6e-4bb8-93e9-0d53c62e42c7"),
+								DisplayName: to.Ptr("new owner"),
+							},
+						},
+						Type: models.ODataUser,
 					},
 				},
 				Members: []models.MembersDelta{
@@ -247,6 +259,7 @@ func TestProcessGroupDelta(t *testing.T) {
 			},
 			expectedDisplay:           "group4",
 			expectedGroupsCount:       4,
+			expectedGroupOwnersCount:  1,
 			expectedGroupMembersCount: 1,
 		},
 		{
@@ -261,15 +274,29 @@ func TestProcessGroupDelta(t *testing.T) {
 			},
 			expectedDisplay:           "group2 new name",
 			expectedGroupsCount:       3,
+			expectedGroupOwnersCount:  2, // expected owners to be the same.
 			expectedGroupMembersCount: 2, // expect membership to be the same.
 		},
 		{
-			name: "Group members removed",
+			name: "Group members and owners removed",
 			groupDelta: &models.ListGroupsDeltaResponse{
 				Group: &models.Group{
 					DirectoryObject: models.DirectoryObject{
 						ID:          to.Ptr(group1),
 						DisplayName: to.Ptr("group1"), // display name is expected when members updated.
+					},
+				},
+				Owners: []models.OwnersDelta{
+					{
+						User: &models.User{
+							DirectoryObject: models.DirectoryObject{
+								ID: to.Ptr(alice),
+							},
+						},
+						Type: models.ODataUser,
+						Removed: &models.RemovedReason{
+							Reason: to.Ptr("changed"),
+						},
 					},
 				},
 				Members: []models.MembersDelta{
@@ -295,6 +322,7 @@ func TestProcessGroupDelta(t *testing.T) {
 			},
 			expectedDisplay:           "group1",
 			expectedGroupsCount:       3,
+			expectedGroupOwnersCount:  1, // only alice is removed
 			expectedGroupMembersCount: 0,
 		},
 		{
@@ -311,6 +339,7 @@ func TestProcessGroupDelta(t *testing.T) {
 			},
 			expectedDisplay:           "group3",
 			expectedGroupsCount:       2,
+			expectedGroupOwnersCount:  0,
 			expectedGroupMembersCount: 0,
 			isRemoved:                 true,
 		},
@@ -328,11 +357,17 @@ func TestProcessGroupDelta(t *testing.T) {
 				entraUniqueID(bob):   mustTeleportUser("bob", bob),
 				entraUniqueID(carol): mustTeleportUser("carol", carol),
 			}
+			entraGroup1 := newEntraGroup(t, group1, "group1")
+			entraGroup1.Owners = []*models.User{entraUser(t, alice, "alice"), entraUser(t, carol, "carol")}
+			entraGroup2 := newEntraGroup(t, group2, "group2")
+			entraGroup2.Owners = []*models.User{entraUser(t, alice, "alice"), entraUser(t, carol, "carol")}
+			entraGroup3 := newEntraGroup(t, group3, "group3") // has no owners
 			groupsMap := groupsByID{
-				group1: newEntraGroup(t, group1, "group1"),
-				group2: newEntraGroup(t, group2, "group2"),
-				group3: newEntraGroup(t, group3, "group3"),
+				group1: entraGroup1,
+				group2: entraGroup2,
+				group3: entraGroup3,
 			}
+
 			groupMembersMap := groupMembersByGroupID{
 				group1: {entraUser(t, alice, "alice"), newEntraGroup(t, group2, "group2")},
 				group2: {entraUser(t, alice, "alice"), entraUser(t, carol, "carol")},
@@ -344,7 +379,7 @@ func TestProcessGroupDelta(t *testing.T) {
 			}
 			ownerConfig := aclOwnersConfig{
 				defaultOwners: []accesslist.Owner{{Name: "owner"}},
-				source:        types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN,
+				source:        types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_ENTRAID,
 			}
 			// Convert Entra user, group and members to Teleport access list.
 			// This mimics existing Entra resource already synced to Teleport,
@@ -355,13 +390,14 @@ func TestProcessGroupDelta(t *testing.T) {
 				teleportUsers[v.GetName()] = v
 			}
 
-			deltaProcessor := newGroupsDeltaProcessor(
-				ctx,
-				filtermatcher,
-				teleportALMMap,
-				teleportUsers,
-				slog.Default(),
-			)
+			cfg := groupDeltaProcessorConfig{
+				matcher:             filtermatcher,
+				accessListsMap:      teleportALMMap,
+				teleportUsersMap:    teleportUsers,
+				setEntraGroupOwners: true,
+				log:                 logtest.NewLogger(),
+			}
+			deltaProcessor := newGroupsDeltaProcessor(ctx, cfg)
 			err := deltaProcessor.apply(ctx, tc.groupDelta)
 			require.NoError(t, err)
 
@@ -372,7 +408,7 @@ func TestProcessGroupDelta(t *testing.T) {
 			if tc.isRemoved {
 				return
 			}
-
+			require.Len(t, out.groupsMap[entraUniqueID(*tc.groupDelta.ID)].Owners, tc.expectedGroupOwnersCount, "expected groups owners map length to match")
 			require.Equal(t, tc.expectedDisplay, *out.groupsMap[entraUniqueID(*tc.groupDelta.ID)].DisplayName, "expected group display name to match")
 		})
 	}
@@ -387,7 +423,7 @@ func mustTeleportUser(name string, entraUserID string) types.User {
 
 	labels := make(map[string]string)
 	labels[types.EntraUniqueIDLabel] = entraUserID
-	labels[types.EntraUPNLabel] = entraUserID
+	labels[types.EntraUPNLabel] = name
 
 	user.SetStaticLabels(labels)
 	user.SetOrigin(types.OriginEntraID)

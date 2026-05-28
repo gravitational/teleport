@@ -13,6 +13,7 @@ import (
 
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/e/tests/common"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/msgraph/models"
@@ -190,6 +191,96 @@ func TestDeltaSyncWorksOnSoftErrors(t *testing.T) {
 				"aliceN@example.com",
 			})
 		}, 15*time.Second, 30*time.Millisecond)
+	})
+}
+
+func TestGroupOwnersDelta(t *testing.T) {
+	ctx := t.Context()
+
+	defaultStorage := newDefaultStorage()
+	alice := defaultStorage.Users[aliceID]
+	bob := defaultStorage.Users[bobID]
+	carol := defaultStorage.Users[carolID]
+
+	clock := clockwork.NewFakeClock()
+	env := newTestEnv(t, defaultStorage, common.WithClock(clock))
+
+	// Install the plugin, should trigger resource import on first start.
+	plugin := newDefaultPluginSpec(t)
+	settings := plugin.Spec.GetEntraId().SyncSettings
+	settings.SyncIntervals = &types.PluginEntraIDSyncIntervals{
+		Delta: "15s",
+		Full:  "30m",
+	}
+	settings.AccessListOwnersSource = types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_ENTRAID
+	plugin.Spec.Settings = &types.PluginSpecV1_EntraId{
+		EntraId: &types.PluginEntraIDSettings{
+			SyncSettings: settings,
+		},
+	}
+	err := createEntraIDPlugin(ctx, env.authClient, plugin)
+	require.NoError(t, err, "expected Entra ID plugin to be created")
+
+	// First full sync.
+	expectPluginStatusUpdated(t, ctx, env.authClient, plugin.GetName(), clock)
+	expectDefaultPluginStatus(t, env.authClient, plugin.GetName())
+	expectDefaultUserSync(t, env.authClient)
+	expectDefaultGroupSync(t, env.authClient)
+
+	accessListClient := env.authClient.AccessListClient()
+
+	// Names matches with default group payload available in defaultStorage.
+	expectedAccessListTitles := []string{"group1", "group2", "group3"}
+	require.EventuallyWithT(t,
+		func(t *assert.CollectT) {
+			gotAccesslists, err := listEntraIDAccessLists(ctx, accessListClient)
+			require.NoError(t, err)
+			require.ElementsMatch(t, expectedAccessListTitles, slices.Collect(maps.Keys(gotAccesslists)), "expected Entra ID groups to be created")
+
+			// alice and bob are default owners configured in defaultStorage.
+			expectedGroup1Owners := aclOwners(t, []*models.User{alice, bob})
+			compareOwners(t, "group1", expectedGroup1Owners, gotAccesslists["group1"].Spec.Owners)
+
+			// group2 has zero owners, should fallback to default owners.
+			compareOwners(t, "group2", []accesslist.Owner{defaultOwner}, gotAccesslists["group2"].Spec.Owners)
+
+			// bob and carol are default owners configured in defaultStorage.
+			expectedGroup3Owners := aclOwners(t, []*models.User{bob, carol})
+			compareOwners(t, "group3", expectedGroup3Owners, gotAccesslists["group3"].Spec.Owners)
+		},
+		time.Second*10, time.Millisecond*30)
+
+	// First delta sync
+	expectPluginStatusUpdated(t, ctx, env.authClient, plugin.GetName(), clock)
+	expectDefaultUserSync(t, env.authClient)
+	expectDefaultGroupSync(t, env.authClient)
+
+	t.Run("Add and delete group owner", func(t *testing.T) {
+		// Remove carol from group3 ownership
+		env.fakeServer.DeleteGroupOwners(group3ID, []string{carolID})
+		// Add alice to group3 ownership
+		env.fakeServer.SetGroupOwners(group3ID, []*models.User{alice})
+
+		expectPluginStatusUpdated(t, ctx, env.authClient, plugin.GetName(), clock)
+
+		require.EventuallyWithT(t,
+			func(t *assert.CollectT) {
+				gotAccesslists, err := listEntraIDAccessLists(ctx, accessListClient)
+				require.NoError(t, err)
+				require.ElementsMatch(t, expectedAccessListTitles, slices.Collect(maps.Keys(gotAccesslists)), "expected Entra ID groups to be created")
+
+				// Group1 ownership remains unchanged
+				expectedGroup1Owners := aclOwners(t, []*models.User{alice, bob})
+				compareOwners(t, "group1", expectedGroup1Owners, gotAccesslists["group1"].Spec.Owners)
+
+				// group2 has zero owners, should fallback to default owners.
+				compareOwners(t, "group2", []accesslist.Owner{defaultOwner}, gotAccesslists["group2"].Spec.Owners)
+
+				// carol was removed, should contain alice and bob.
+				expectedGroup3Owners := aclOwners(t, []*models.User{alice, bob})
+				compareOwners(t, "group3", expectedGroup3Owners, gotAccesslists["group3"].Spec.Owners)
+			},
+			time.Second*10, time.Millisecond*30)
 	})
 }
 

@@ -73,17 +73,31 @@ func (s *deltaStore) Clear(endpoint string) {
 // graphClient is the graph client used by the directory reconciler.
 type graphClient struct {
 	GraphClient
-	deltaStore       msgraph.DeltaStore
-	graphClientLimit graphClientLimit
-	log              *slog.Logger
+	deltaStore          msgraph.DeltaStore
+	setEntraGroupOwners bool
+	graphClientLimit    graphClientLimit
+	log                 *slog.Logger
 }
 
-func newGraphClient(client GraphClient, log *slog.Logger, deltaStore msgraph.DeltaStore) *graphClient {
+// graphClientConfig is the configuration params to create
+// a new graph client used by the directory reconciler.
+type graphClientConfig struct {
+	GraphClient
+	deltaStore             msgraph.DeltaStore
+	accessListOwnersSource types.EntraIDAccessListOwnersSource
+	log                    *slog.Logger
+}
+
+func newGraphClient(cfg graphClientConfig) *graphClient {
+	setEntraOwners := cfg.accessListOwnersSource == types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_ENTRAID ||
+		cfg.accessListOwnersSource == types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN_AND_ENTRAID
+
 	return &graphClient{
-		GraphClient:      client,
-		deltaStore:       deltaStore,
-		graphClientLimit: limitHigh, // start with full limit.
-		log:              log,
+		GraphClient:         cfg.GraphClient,
+		deltaStore:          cfg.deltaStore,
+		setEntraGroupOwners: setEntraOwners,
+		graphClientLimit:    limitHigh, // start with full limit.
+		log:                 cfg.log,
 	}
 }
 
@@ -365,9 +379,13 @@ func (c *graphClient) setupUserAndGroupDelta(ctx context.Context) error {
 	userOpts := []msgraph.IterateOpt{
 		msgraph.WithSelect("id,displayName,userPrincipalName,mail,onPremisesSamAccountName,givenName,surname"),
 	}
-	// TODO(sshah): include owners property based on opt value.
+
+	groupProperties := "id,displayName,description,onPremisesSamAccountName,onPremisesDomainName,onPremisesNetBiosName,members"
+	if c.setEntraGroupOwners {
+		groupProperties += ",owners"
+	}
 	groupOpts := []msgraph.IterateOpt{
-		msgraph.WithSelect("id,displayName,description,members,onPremisesSamAccountName,onPremisesDomainName,onPremisesNetBiosName"),
+		msgraph.WithSelect(groupProperties),
 	}
 
 	// Only a single page of delta token is expected.
@@ -439,13 +457,14 @@ func (c *graphClient) listEntraGroupsDelta(
 ) (listEntraGroupsAndMembersResponse, error) {
 	var out listEntraGroupsAndMembersResponse
 
-	deltaProcessor := newGroupsDeltaProcessor(
-		ctx,
-		groupMatcher,
-		accessListsMap,
-		teleportUsersMap,
-		c.log,
-	)
+	cfg := groupDeltaProcessorConfig{
+		matcher:             groupMatcher,
+		accessListsMap:      accessListsMap,
+		teleportUsersMap:    teleportUsersMap,
+		setEntraGroupOwners: c.setEntraGroupOwners,
+		log:                 c.log,
+	}
+	deltaProcessor := newGroupsDeltaProcessor(ctx, cfg)
 
 	var errSkipped []error
 	for groupDelta, err := range c.IterateGroupDeltas(ctx, groupsDeltaEndpoint, c.deltaStore) {

@@ -64,7 +64,8 @@ func (g entraGroups) toAccessListsWithMembers(
 	var errGroups, errGroupMembers error
 
 	for _, group := range g.groupsMap {
-		entraUniqueID, al, err := convertGroup(ctx, group, tenantID, aclOwnersCfg)
+		owners := aclOwnersCfg.getOwners(ctx, group, usersByEntraID)
+		entraUniqueID, al, err := convertGroup(group, tenantID, owners)
 		if err != nil {
 			errGroups = errors.Join(errGroups, trace.Wrap(err))
 			continue
@@ -110,19 +111,12 @@ func (g entraGroups) toAccessListsWithMembers(
 	return aclsWithMembersMap, errSkippedResources
 }
 
-func convertGroup(
-	ctx context.Context,
-	in *models.Group,
-	tenantID string,
-	aclOwnersCfg aclOwnersConfig,
-) (entraUniqueID, *accesslist.AccessList, error) {
+func convertGroup(in *models.Group, tenantID string, owners []accesslist.Owner) (entraUniqueID, *accesslist.AccessList, error) {
 	if err := validateGroup(in); err != nil {
 		return "", nil, trace.Wrap(err)
 	}
 	displayName := *in.DisplayName
 	id := *in.ID
-
-	owners := aclOwnersCfg.setupOwners(ctx, id, in.Owners)
 
 	out, err := accesslist.NewAccessList(
 		header.Metadata{
@@ -276,15 +270,15 @@ type aclOwnersConfig struct {
 	source        types.EntraIDAccessListOwnersSource
 }
 
-func (cfg aclOwnersConfig) setupOwners(ctx context.Context, groupID string, entraOwners []*models.User) []accesslist.Owner {
+func (cfg aclOwnersConfig) getOwners(ctx context.Context, group *models.Group, usersByEntraID map[entraUniqueID]types.User) []accesslist.Owner {
 	if cfg.source == types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN {
 		return cfg.defaultOwners
 	}
 
-	out := ToAclOwner(ctx, entraOwners)
+	out := toAclOwner(ctx, group.Owners, usersByEntraID)
 	if len(out) == 0 {
 		slog.DebugContext(ctx, `Empty group owners found when Entra ID is configured as the source of the Access List owner, `+
-			`falling back to default owners`, "group", groupID)
+			`falling back to default owners`, "group", group.GetID())
 		return cfg.defaultOwners
 	}
 
@@ -473,13 +467,38 @@ func groupNameForLog(in *models.Group) string {
 	return ""
 }
 
-// ToAclOwner converts models.User to accesslist.Owner.
-func ToAclOwner(ctx context.Context, in []*models.User) []accesslist.Owner {
+// toAclOwner converts models.User to accesslist.Owner.
+func toAclOwner(ctx context.Context, in []*models.User, usersByEntraID map[entraUniqueID]types.User) []accesslist.Owner {
 	out := make([]accesslist.Owner, 0, len(in))
 	for _, u := range in {
-		username, _, err := processUsername(u)
+		if u == nil || u.GetID() == nil || *u.GetID() == "" {
+			continue
+		}
+
+		// Entra user missing from usersByEntraID should not be added as owners
+		// as it may have been filtered.
+		entraUser, ok := usersByEntraID[entraUniqueID(*u.GetID())]
+		if !ok {
+			slog.DebugContext(ctx,
+				"Teleport user account not found for Entra ID group owner, owner will be skipped",
+				"entra_user_id", *u.GetID(),
+			)
+			continue
+		}
+
+		// In delta sync, incoming owner from group object may only
+		// contain user object ID and will fail processUsername.
+		// But converting to owner from usersByEntraID works for
+		// both full and delta sync as it is a collection
+		// of Teleport user resource derived properly from Entra users.
+		owner := entraOwnerFromTeleportUser(entraUser, *u.GetID())
+		username, _, err := processUsername(owner)
 		if err != nil {
-			slog.WarnContext(ctx, "failed to convert group owner, owner will be skipped", "error", err)
+			slog.WarnContext(ctx,
+				"Failed to convert group owner, owner will be skipped",
+				"entra_user_id", *u.GetID(),
+				"error", err,
+			)
 			continue
 		}
 
@@ -492,6 +511,10 @@ func ToAclOwner(ctx context.Context, in []*models.User) []accesslist.Owner {
 			IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE.String(),
 		})
 	}
+
+	slices.SortFunc(out, func(a, b accesslist.Owner) int {
+		return strings.Compare(a.Name, b.Name)
+	})
 
 	return out
 }

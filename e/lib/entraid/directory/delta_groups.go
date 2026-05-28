@@ -20,32 +20,45 @@ type groupDeltaProcessor struct {
 	matcher              func(g *models.Group) bool
 	entraGroupsMap       groupsByID
 	entraGroupMembersMap membersByGroupID
+	entraGroupOwnersMap  ownersByGroupID
+	setEntraGroupOwners  bool
 	log                  *slog.Logger
+}
+
+type groupDeltaProcessorConfig struct {
+	matcher func(g *models.Group) bool
+	// accessListsMap is a map of Acess List with members where
+	// map key is the resource name of the Access List.
+	accessListsMap map[string]*accessListWithMembers
+	// teleportUsersMap is a map of Teleport users where
+	// map key is the resource name of the user.
+	teleportUsersMap    map[string]types.User
+	setEntraGroupOwners bool
+	log                 *slog.Logger
 }
 
 func newGroupsDeltaProcessor(
 	ctx context.Context,
-	matcher func(g *models.Group) bool,
-	teleportAccessListsWithMembersMap map[string]*accessListWithMembers,
-	teleportUsersMap map[string]types.User,
-	log *slog.Logger,
+	cfg groupDeltaProcessorConfig,
 ) *groupDeltaProcessor {
 
 	// In delta sync, existing Entra ID resources previously synced to Teleport
 	// is taken as the base resource collection to which the delta changes
 	// are applied.
 	baseBuilder := &groupBaseBuilder{
-		accessLists: teleportAccessListsWithMembersMap,
-		users:       maps.Clone(teleportUsersMap),
-		log:         log,
+		accessLists: cfg.accessListsMap,
+		users:       maps.Clone(cfg.teleportUsersMap),
+		log:         cfg.log,
 	}
 	groupBase := baseBuilder.build(ctx)
 
 	return &groupDeltaProcessor{
-		matcher:              matcher,
+		matcher:              cfg.matcher,
 		entraGroupsMap:       groupBase.groupsMap,
 		entraGroupMembersMap: groupBase.groupMembersMap,
-		log:                  log,
+		entraGroupOwnersMap:  groupBase.groupOwnersMap,
+		setEntraGroupOwners:  cfg.setEntraGroupOwners,
+		log:                  cfg.log,
 	}
 }
 
@@ -93,6 +106,7 @@ func (g *groupDeltaProcessor) apply(ctx context.Context, in *models.ListGroupsDe
 	}
 
 	g.put(groupID, in.Group)
+	g.applyOwners(in)
 	g.applyMembers(in)
 
 	return nil
@@ -106,12 +120,13 @@ func (g *groupDeltaProcessor) put(groupID entraUniqueID, group *models.Group) {
 // remove removes the group from group and group members map.
 func (g *groupDeltaProcessor) remove(groupID entraUniqueID) {
 	delete(g.entraGroupsMap, groupID)
+	delete(g.entraGroupOwnersMap, groupID)
 	delete(g.entraGroupMembersMap, groupID)
 }
 
-// applyMembers processes new, updated or deleted groups
-// and applies the changes to the group base created
-// from the Entra ID Access List members.
+// applyMembers processes new, updated or deleted groups members
+// and applies the changes to the group base created from the
+// Entra ID Access List members.
 func (g *groupDeltaProcessor) applyMembers(groupDelta *models.ListGroupsDeltaResponse) {
 	groupID := entraUniqueID(*groupDelta.GetID())
 	for _, m := range groupDelta.Members {
@@ -174,6 +189,51 @@ func memberFromDelta(in models.MembersDelta) (models.GroupMember, bool) {
 	return out, true
 }
 
+// applyOwners processes new, updated or deleted group owners
+// and applies the changes to the group base created from the
+// Entra ID Access List owners.
+func (g *groupDeltaProcessor) applyOwners(groupDelta *models.ListGroupsDeltaResponse) {
+	if !g.setEntraGroupOwners {
+		return
+	}
+	groupID := entraUniqueID(*groupDelta.GetID())
+	for _, o := range groupDelta.Owners {
+		if o.GetID() == nil {
+			continue
+		}
+		ownerID := entraUniqueID(*o.GetID())
+		ownerIn, ok := ownerFromDelta(o)
+		if !ok {
+			continue
+		}
+		if isRemoved(o.Removed) {
+			g.entraGroupOwnersMap.remove(groupID, ownerID)
+		} else {
+			g.entraGroupOwnersMap.put(groupID, ownerID, ownerIn)
+		}
+	}
+}
+
+func ownerFromDelta(in models.OwnersDelta) (*models.User, bool) {
+	// Delta responses only contains owner ID, type and removed delta.
+	if in.Type == models.ODataUser {
+		// A valid msgraph user with ID, UPN and mail is needed to
+		// configure Access List owners. But only ID is available
+		// in the owner delta object. UPN and mail will be configured
+		// later from the Entra ID users map.
+		return &models.User{
+			DirectoryObject: models.DirectoryObject{
+				ID: in.GetID(),
+			},
+		}, true
+	}
+	// Unsupported owners skipped.
+	// Logging is avoided because the list can be
+	// very large. Unsupported members are well documented
+	// in Teleport public docs.
+	return nil, false
+}
+
 // result returns the final state of the Entra ID groups and members
 // after applying delta changes to an existing group base created
 // from the Entra ID Access List and members.
@@ -182,6 +242,12 @@ func (g *groupDeltaProcessor) result() entraGroups {
 		groupsMap:       g.entraGroupsMap,
 		groupMembersMap: make(groupMembersByGroupID),
 	}
+	if g.setEntraGroupOwners {
+		for groupID, group := range g.entraGroupsMap {
+			group.Owners = slices.Collect(maps.Values(g.entraGroupOwnersMap[groupID]))
+			out.groupsMap[groupID] = group
+		}
+	}
 	for groupID, memberMap := range g.entraGroupMembersMap {
 		out.groupMembersMap[groupID] = append(out.groupMembersMap[groupID],
 			slices.Collect(maps.Values(memberMap))...,
@@ -189,6 +255,41 @@ func (g *groupDeltaProcessor) result() entraGroups {
 	}
 
 	return out
+}
+
+// ownersByID is a Entra group owner map with Entra
+// user (owner) ID as the map key.
+type ownersByID map[entraUniqueID]*models.User
+
+// ownersByGroupID is a nested group owner map where
+// the parent map key is the Entra group ID and nested
+// map key is the owner ID.
+type ownersByGroupID map[entraUniqueID]ownersByID
+
+// put adds group owner to the owners map.
+func (o ownersByGroupID) put(groupID, ownerID entraUniqueID, ownerIn *models.User) {
+	groupOwnerMap, ok := o[groupID]
+	if !ok {
+		// First time adding a group owner for this group.
+		groupOwnerMap = make(ownersByID)
+		o[groupID] = groupOwnerMap
+	}
+
+	groupOwnerMap[ownerID] = ownerIn
+}
+
+// remove removes group owner from the owners map.
+func (o ownersByGroupID) remove(groupID, ownerID entraUniqueID) {
+	groupOwnerMap, ok := o[groupID]
+	if !ok {
+		// Likely a removed owner object that was never added
+		// to Teleport or is a replayed delete delta response.
+		return
+	}
+	delete(groupOwnerMap, ownerID)
+	if len(groupOwnerMap) == 0 {
+		delete(o, groupID)
+	}
 }
 
 // membersByID is a Entra group member map with Entra
@@ -228,6 +329,7 @@ func (m membersByGroupID) remove(groupID, memberID entraUniqueID) {
 
 type groupBase struct {
 	groupsMap       groupsByID
+	groupOwnersMap  ownersByGroupID
 	groupMembersMap membersByGroupID
 }
 
@@ -239,11 +341,12 @@ type groupBaseBuilder struct {
 	log   *slog.Logger
 }
 
-// build builds a baseline Entra ID group,
-// group member map from Teleport Access List.
+// build builds a baseline Entra ID group, group member
+// and group owner map from Teleport Access List.
 func (b *groupBaseBuilder) build(ctx context.Context) groupBase {
 	out := groupBase{
 		groupsMap:       make(groupsByID),
+		groupOwnersMap:  make(ownersByGroupID),
 		groupMembersMap: make(membersByGroupID),
 	}
 
@@ -266,6 +369,7 @@ func (b *groupBaseBuilder) build(ctx context.Context) groupBase {
 			membersMap[memberID] = member
 		}
 		out.groupsMap[groupID] = newGroupFromAccessList(id, al.AccessList)
+		out.groupOwnersMap[groupID] = groupOwnersFromAccessList(ctx, al.AccessList, b.users, b.log)
 		out.groupMembersMap[groupID] = membersMap
 	}
 
@@ -323,7 +427,6 @@ func newGroupFromAccessList(id string, accessList *accesslist.AccessList) *model
 			ID:          to.Ptr(id),
 			DisplayName: &accessList.Spec.Title,
 		},
-		// TODO(sshah): preserve ownership when owners source is entra id.
 	}
 	if samAccountName, ok := accessList.GetLabel(onPremisesSamAccountNameLabel); ok && samAccountName != "" {
 		out.OnPremisesSamAccountName = &samAccountName
@@ -336,4 +439,70 @@ func newGroupFromAccessList(id string, accessList *accesslist.AccessList) *model
 	}
 
 	return out
+}
+
+// groupOwnersFromAccessList converts Access List owners to Entra ID group owners.
+//
+// Note: When Entra ID is configured to be the source of the Access List owners
+// but the Entra ID group has zero owners, the service falls back to using default
+// owners for that group. If the next delta sync discovers an actual new group
+// owner, it ideally should remove the previously added default owners.
+// But the service does not store any metadata to distinguish whether the owner
+// is actually a configured owner or a default owner. As a consequence of that,
+// groupOwnersFromAccessList collects all the current Access List owners and does
+// not filter owners used as a fallback. The issue isn't itself very concerning
+// because the default owners are users set up by the admin and only used as a
+// fallback in this case. And they will be reconciled properly by a next full sync.
+//
+// TODO(sshah): Discuss if this issue can be accepted with a limitation laid
+// out in the documentation or investigate a way to identify owners used as a
+// fallback vs. actual owners that can be removed when a new owner is available
+// for a group.
+func groupOwnersFromAccessList(ctx context.Context, accessList *accesslist.AccessList, teleportUsersMap map[string]types.User, logger *slog.Logger) ownersByID {
+	ownerMap := make(ownersByID)
+	for _, o := range accessList.Spec.Owners {
+		if !o.IsMembershipKindUser() {
+			continue
+		}
+		// Only user as acl owner is supported for entra integration.
+
+		user, ok := teleportUsersMap[o.Name]
+		if !ok {
+			logger.DebugContext(ctx,
+				"Teleport user account not found for Entra ID Access List owner",
+				"access_list_owner", o.Name,
+			)
+			continue
+		}
+		id, ok := user.GetLabel(types.EntraUniqueIDLabel)
+		if !ok || id == "" {
+			// This could be a default owner having Teleport local user account
+			// or an SSO user from a different IdP. It's ok to skip such owner
+			// here as they will be re-added as owners in the later stage based
+			// on the Access List owners source config.
+			continue
+		}
+		ownerMap[entraUniqueID(id)] = entraOwnerFromTeleportUser(user, id)
+	}
+	return ownerMap
+}
+
+func entraOwnerFromTeleportUser(in types.User, ownerID string) *models.User {
+	entraUser := &models.User{
+		DirectoryObject: models.DirectoryObject{
+			ID: to.Ptr(ownerID),
+		},
+	}
+	if upn, ok := in.GetLabel(types.EntraUPNLabel); ok && upn != "" {
+		entraUser.UserPrincipalName = to.Ptr(upn)
+	}
+	traits := in.GetTraits()
+	if mail, ok := traits[entraIDSAMLClaimEmail]; ok && len(mail) != 0 {
+		entraUser.Mail = to.Ptr(mail[0])
+	}
+	if display, ok := traits[displayNameClaim]; ok && len(display) != 0 {
+		entraUser.DisplayName = to.Ptr(display[0])
+	}
+
+	return entraUser
 }

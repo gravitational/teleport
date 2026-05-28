@@ -164,11 +164,18 @@ func New(cfg Config) (*Reconciler, error) {
 		// than continuing.
 	}
 
+	graphClient := newGraphClient(graphClientConfig{
+		GraphClient:            cfg.GraphClient,
+		deltaStore:             newDeltaStore(),
+		accessListOwnersSource: cfg.AccessListOwnersSource,
+		log:                    cfg.Logger,
+	})
+
 	return &Reconciler{
 		clock:                  cfg.Clock,
 		logger:                 cfg.Logger,
 		metricsRegistry:        cfg.MetricsRegistry,
-		graphClient:            newGraphClient(cfg.GraphClient, cfg.Logger, newDeltaStore()),
+		graphClient:            graphClient,
 		accessPoint:            cfg.AccessPoint,
 		defaultOwners:          cfg.DefaultOwners,
 		tenantID:               cfg.TenantID,
@@ -331,9 +338,7 @@ func (r *Reconciler) getEntraGroupsAndMembers(
 		return out, trace.Wrap(err)
 	}
 
-	if syncMode == mdmsync.SyncModePartial &&
-		// TODO(sshah): remove owners source check once owners are supported in delta sync.
-		r.accessListOwnersSource == types.EntraIDAccessListOwnersSource_ENTRAID_ACCESS_LIST_OWNERS_SOURCE_PLUGIN {
+	if syncMode == mdmsync.SyncModePartial {
 		resp, err := r.graphClient.listEntraGroupsDelta(
 			ctx,
 			entraGroupMatcher,
