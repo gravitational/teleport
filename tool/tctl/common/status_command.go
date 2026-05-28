@@ -30,11 +30,13 @@ import (
 	"log/slog"
 	"os"
 	"slices"
+	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -50,6 +52,7 @@ import (
 // StatusCommand implements `tctl token` group of commands.
 type StatusCommand struct {
 	config *servicecfg.Config
+	format string
 
 	// CLI clauses (subcommands)
 	status *kingpin.CmdClause
@@ -59,6 +62,7 @@ type StatusCommand struct {
 func (c *StatusCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	c.config = config
 	c.status = app.Command("status", "Report cluster status.")
+	c.status.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
 }
 
 // TryRun takes the CLI command as an argument (like "nodes ls") and executes it.
@@ -91,8 +95,21 @@ func (c *StatusCommand) Status(ctx context.Context, client *authclient.Client) e
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := status.renderText(os.Stdout, c.config.Debug); err != nil {
-		return trace.Wrap(err)
+	switch c.format {
+	case teleport.Text:
+		if err := status.renderText(os.Stdout, c.config.Debug); err != nil {
+			return trace.Wrap(err)
+		}
+	case teleport.JSON:
+		if err := utils.WriteJSON(os.Stdout, status.output(c.config.Debug)); err != nil {
+			return trace.Wrap(err)
+		}
+	case teleport.YAML:
+		if err := utils.WriteYAML(os.Stdout, status.output(c.config.Debug)); err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		return trace.BadParameter("unsupported format %q", c.format)
 	}
 	return nil
 }
@@ -100,6 +117,81 @@ func (c *StatusCommand) Status(ctx context.Context, client *authclient.Client) e
 type statusModel struct {
 	cluster     *clusterStatusModel
 	authorities []*authorityStatusModel
+}
+
+type statusOutput struct {
+	Cluster     clusterStatusOutput     `json:"cluster"`
+	Authorities []authorityStatusOutput `json:"authorities"`
+}
+
+type clusterStatusOutput struct {
+	Name    string   `json:"name"`
+	Version string   `json:"version"`
+	CAPins  []string `json:"ca_pins"`
+}
+
+type authorityStatusOutput struct {
+	ClusterName string               `json:"cluster_name"`
+	Type        types.CertAuthType   `json:"type"`
+	Rotation    rotationOutput       `json:"rotation"`
+	Keys        []authorityKeyOutput `json:"keys"`
+}
+
+type authorityKeyOutput struct {
+	Protocol  string `json:"protocol"`
+	Status    string `json:"status"`
+	Algorithm string `json:"algorithm"`
+	Storage   string `json:"storage"`
+}
+
+// rotationOutput is a stable representation of types.Rotation for structured
+// output. Zero times become nil so consumers can treat absent fields as
+// "never rotated" / "no schedule" without comparing against Go's zero time.
+type rotationOutput struct {
+	State       string                  `json:"state,omitempty"`
+	Phase       string                  `json:"phase,omitempty"`
+	Mode        string                  `json:"mode,omitempty"`
+	CurrentID   string                  `json:"current_id,omitempty"`
+	Started     *time.Time              `json:"started,omitempty"`
+	GracePeriod string                  `json:"grace_period,omitempty"`
+	LastRotated *time.Time              `json:"last_rotated,omitempty"`
+	Schedule    *rotationScheduleOutput `json:"schedule,omitempty"`
+}
+
+type rotationScheduleOutput struct {
+	UpdateClients *time.Time `json:"update_clients,omitempty"`
+	UpdateServers *time.Time `json:"update_servers,omitempty"`
+	Standby       *time.Time `json:"standby,omitempty"`
+}
+
+func newRotationOutput(r types.Rotation) rotationOutput {
+	out := rotationOutput{
+		State:       r.State,
+		Phase:       r.Phase,
+		Mode:        r.Mode,
+		CurrentID:   r.CurrentID,
+		Started:     nonZeroTime(r.Started),
+		LastRotated: nonZeroTime(r.LastRotated),
+	}
+	if d := r.GracePeriod.Duration(); d != 0 {
+		out.GracePeriod = d.String()
+	}
+	sched := rotationScheduleOutput{
+		UpdateClients: nonZeroTime(r.Schedule.UpdateClients),
+		UpdateServers: nonZeroTime(r.Schedule.UpdateServers),
+		Standby:       nonZeroTime(r.Schedule.Standby),
+	}
+	if sched != (rotationScheduleOutput{}) {
+		out.Schedule = &sched
+	}
+	return out
+}
+
+func nonZeroTime(t time.Time) *time.Time {
+	if t.IsZero() {
+		return nil
+	}
+	return &t
 }
 
 func newStatusModel(ctx context.Context, client *authclient.Client, pingResp proto.PingResponse) (*statusModel, error) {
@@ -176,6 +268,46 @@ func (m *statusModel) renderText(w io.Writer, debug bool) error {
 	return trace.Wrap(keysTable.WriteTo(w))
 }
 
+func (m *statusModel) output(debug bool) statusOutput {
+	out := statusOutput{
+		Cluster: clusterStatusOutput{
+			Name:    m.cluster.name,
+			Version: m.cluster.version,
+			CAPins:  m.cluster.caPins,
+		},
+		Authorities: make([]authorityStatusOutput, 0, len(m.authorities)),
+	}
+	for _, authority := range m.authorities {
+		if !debug && authority.clusterName != m.cluster.name {
+			continue
+		}
+
+		keys := make([]authorityKeyOutput, 0, len(authority.activeKeys)+len(authority.additionalTrustedKeys))
+		for _, key := range authority.activeKeys {
+			keys = append(keys, key.output("active"))
+		}
+		for _, key := range authority.additionalTrustedKeys {
+			keys = append(keys, key.output("trusted"))
+		}
+		slices.SortFunc(keys, func(a, b authorityKeyOutput) int {
+			return cmp.Or(
+				cmp.Compare(a.Protocol, b.Protocol),
+				cmp.Compare(a.Status, b.Status),
+				cmp.Compare(a.Algorithm, b.Algorithm),
+				cmp.Compare(a.Storage, b.Storage),
+			)
+		})
+
+		out.Authorities = append(out.Authorities, authorityStatusOutput{
+			ClusterName: authority.clusterName,
+			Type:        authority.authorityType,
+			Rotation:    newRotationOutput(authority.rotationStatus),
+			Keys:        keys,
+		})
+	}
+	return out
+}
+
 // sortRows sorts the rows by each column left to right.
 func sortRows(rows [][]string) {
 	slices.SortFunc(rows, func(a, b []string) int {
@@ -238,6 +370,15 @@ type authorityKeyModel struct {
 	protocol string
 	algo     string
 	storage  string
+}
+
+func (m *authorityKeyModel) output(status string) authorityKeyOutput {
+	return authorityKeyOutput{
+		Protocol:  m.protocol,
+		Status:    status,
+		Algorithm: m.algo,
+		Storage:   m.storage,
+	}
 }
 
 func newAuthorityKeyModels(keySet types.CAKeySet) []*authorityKeyModel {

@@ -32,6 +32,7 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	autoupdatepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -449,7 +450,7 @@ prod (catch-all) Unstarted                        outside_window 789         0
 
 			// Test execution: run command.
 			output := &bytes.Buffer{}
-			cmd := AutoUpdateCommand{stdout: output, now: func() time.Time { return now }}
+			cmd := AutoUpdateCommand{stdout: output, now: func() time.Time { return now }, format: teleport.Text}
 			err := cmd.agentsStatusCommand(ctx, clt)
 			require.NoError(t, err)
 
@@ -640,7 +641,7 @@ Agent Version dev  prod stage
 
 			// Test execution: run command.
 			output := &bytes.Buffer{}
-			cmd := AutoUpdateCommand{stdout: output, now: func() time.Time { return now }}
+			cmd := AutoUpdateCommand{stdout: output, now: func() time.Time { return now }, format: teleport.Text}
 			err := cmd.agentsReportCommand(ctx, clt)
 			tt.expectErr(t, err)
 
@@ -652,4 +653,93 @@ Agent Version dev  prod stage
 		})
 	}
 
+}
+
+func TestAutoUpdateAgentStatusStructuredOutput(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 5, 28, 12, 0, 0, 0, time.UTC)
+	rollout := &autoupdatepb.AutoUpdateAgentRollout{
+		Spec: &autoupdatepb.AutoUpdateAgentRolloutSpec{
+			AutoupdateMode: "enabled",
+			StartVersion:   "1.2.3",
+			TargetVersion:  "1.2.4",
+			Schedule:       "regular",
+			Strategy:       "time-based",
+		},
+		Status: &autoupdatepb.AutoUpdateAgentRolloutStatus{
+			StartTime: timestamppb.New(now),
+			State:     autoupdatepb.AutoUpdateAgentRolloutState_AUTO_UPDATE_AGENT_ROLLOUT_STATE_ACTIVE,
+			Groups: []*autoupdatepb.AutoUpdateAgentRolloutStatusGroup{
+				{
+					Name:          "dev",
+					State:         autoupdatepb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
+					PresentCount:  3,
+					UpToDateCount: 2,
+				},
+			},
+		},
+	}
+
+	for _, format := range []string{"json", "yaml"} {
+		t.Run(format, func(t *testing.T) {
+			clt := &mockAutoUpdateClient{}
+			clt.On("GetAutoUpdateAgentRollout", mock.Anything).Return(rollout, nil).Once()
+
+			output := &bytes.Buffer{}
+			cmd := AutoUpdateCommand{stdout: output, format: format}
+			require.NoError(t, cmd.agentsStatusCommand(ctx, clt))
+
+			var got agentStatusOutput
+			if format == "yaml" {
+				got = mustDecodeJSON[agentStatusOutput](t, bytes.NewReader(mustTranscodeYAMLToJSON(t, output)))
+			} else {
+				got = mustDecodeJSON[agentStatusOutput](t, output)
+			}
+			require.Equal(t, newAgentStatusOutput(rollout), got)
+			clt.AssertExpectations(t)
+		})
+	}
+}
+
+func TestAutoUpdateAgentReportStructuredOutput(t *testing.T) {
+	ctx := context.Background()
+	now := time.Now()
+	reports := []*autoupdatepb.AutoUpdateAgentReport{
+		{
+			Metadata: &headerv1.Metadata{Name: "auth1"},
+			Spec: &autoupdatepb.AutoUpdateAgentReportSpec{
+				Timestamp: timestamppb.New(now),
+				Groups: map[string]*autoupdatepb.AutoUpdateAgentReportSpecGroup{
+					"dev": {
+						Versions: map[string]*autoupdatepb.AutoUpdateAgentReportSpecGroupVersion{
+							"1.2.3": {Count: 2},
+						},
+					},
+				},
+				Omitted: []*autoupdatepb.AutoUpdateAgentReportSpecOmitted{
+					{Reason: "agent is too old", Count: 1},
+				},
+			},
+		},
+	}
+
+	for _, format := range []string{"json", "yaml"} {
+		t.Run(format, func(t *testing.T) {
+			clt := &mockAutoUpdateClient{}
+			clt.On("ListAutoUpdateAgentReports", mock.Anything, mock.Anything, mock.Anything).Return(reports, nil).Once()
+
+			output := &bytes.Buffer{}
+			cmd := AutoUpdateCommand{stdout: output, now: func() time.Time { return now }, format: format}
+			require.NoError(t, cmd.agentsReportCommand(ctx, clt))
+
+			var got agentReportSummary
+			if format == "yaml" {
+				got = mustDecodeJSON[agentReportSummary](t, bytes.NewReader(mustTranscodeYAMLToJSON(t, output)))
+			} else {
+				got = mustDecodeJSON[agentReportSummary](t, output)
+			}
+			require.Equal(t, newAgentReportSummary(reports), got)
+			clt.AssertExpectations(t)
+		})
+	}
 }

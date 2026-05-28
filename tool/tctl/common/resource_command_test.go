@@ -62,11 +62,37 @@ import (
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
+
+func TestListKindsStructuredOutput(t *testing.T) {
+	rows := resourceKindRows()
+	require.NotEmpty(t, rows)
+
+	var jsonBuf bytes.Buffer
+	rc := ResourceCommand{
+		Stdout: &jsonBuf,
+		format: "json",
+	}
+	require.NoError(t, rc.listKinds())
+	gotJSON := mustDecodeJSON[[]resourceKindRow](t, &jsonBuf)
+	require.Equal(t, rows, gotJSON)
+
+	var yamlBuf bytes.Buffer
+	rc = ResourceCommand{
+		Stdout: &yamlBuf,
+		format: "yaml",
+	}
+	require.NoError(t, rc.listKinds())
+	yamlJSON, err := utils.ToJSON(yamlBuf.Bytes())
+	require.NoError(t, err)
+	gotYAML := mustDecodeJSON[[]resourceKindRow](t, bytes.NewReader(yamlJSON))
+	require.Equal(t, rows, gotYAML)
+}
 
 // TestDatabaseServerResource tests tctl db_server rm/get commands.
 func TestDatabaseServerResource(t *testing.T) {

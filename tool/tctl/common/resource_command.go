@@ -163,6 +163,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 
 	rc.listKindsCmd = app.Command("list-kinds", "Lists all resource kinds supported by this tctl version.").Alias("api-resources")
 	rc.listKindsCmd.Flag("wide", "Do not truncate the Description column, even if it exceeds terminal width").BoolVar(&rc.verbose)
+	rc.listKindsCmd.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&rc.format, teleport.Text, teleport.JSON, teleport.YAML)
 
 	if rc.Stdout == nil {
 		rc.Stdout = os.Stdout
@@ -1204,19 +1205,58 @@ func (rc *ResourceCommand) createPlugin(ctx context.Context, client *authclient.
 
 // UpdateFields updates select resource fields: expiry and labels
 func (rc *ResourceCommand) listKinds() error {
-	// We must compute rows before, and cannot add them as we go
-	// because this breaks the "truncated columns behavior"
-	var rows [][]string
+	rows := resourceKindRows()
+
+	switch rc.format {
+	case teleport.Text:
+		return trace.Wrap(rc.writeResourceKindRowsText(rows))
+	case teleport.JSON:
+		return trace.Wrap(utils.WriteJSON(rc.Stdout, rows))
+	case teleport.YAML:
+		return trace.Wrap(utils.WriteYAMLArray(rc.Stdout, rows))
+	default:
+		return trace.BadParameter("unsupported format %q", rc.format)
+	}
+}
+
+type resourceKindRow struct {
+	Kind              string   `json:"kind"`
+	SupportedCommands []string `json:"supported_commands"`
+	Singleton         bool     `json:"singleton"`
+	MFARequired       bool     `json:"mfa_required"`
+	Description       string   `json:"description"`
+}
+
+func resourceKindRows() []resourceKindRow {
+	rows := make([]resourceKindRow, 0, len(resources.Handlers()))
 	for kind, handler := range resources.Handlers() {
-		rows = append(rows, []string{
-			kind,
-			strings.Join(handler.SupportedCommands(), ","),
-			yesOrEmpty(handler.Singleton()),
-			yesOrEmpty(handler.MFARequired()),
-			handler.Description(),
+		rows = append(rows, resourceKindRow{
+			Kind:              kind,
+			SupportedCommands: handler.SupportedCommands(),
+			Singleton:         handler.Singleton(),
+			MFARequired:       handler.MFARequired(),
+			Description:       handler.Description(),
 		})
 	}
+	slices.SortFunc(rows, func(a, b resourceKindRow) int {
+		return strings.Compare(a.Kind, b.Kind)
+	})
+	return rows
+}
 
+func (rc *ResourceCommand) writeResourceKindRowsText(kindRows []resourceKindRow) error {
+	// We must compute rows before, and cannot add them as we go
+	// because this breaks the "truncated columns behavior"
+	rows := make([][]string, 0, len(kindRows))
+	for _, row := range kindRows {
+		rows = append(rows, []string{
+			row.Kind,
+			strings.Join(row.SupportedCommands, ","),
+			yesOrEmpty(row.Singleton),
+			yesOrEmpty(row.MFARequired),
+			row.Description,
+		})
+	}
 	var t asciitable.Table
 	headers := []string{"Kind", "Supported Commands", "Singleton", "MFA", "Description"}
 	if rc.verbose {
@@ -1224,7 +1264,6 @@ func (rc *ResourceCommand) listKinds() error {
 	} else {
 		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Description")
 	}
-	t.SortRowsBy([]int{0}, true)
 	return trace.Wrap(t.WriteTo(rc.Stdout))
 }
 

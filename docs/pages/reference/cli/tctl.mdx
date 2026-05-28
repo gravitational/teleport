@@ -653,8 +653,14 @@ per update group.
 Usage:
 
 ```code
-$ tctl autoupdate agents report
+$ tctl autoupdate agents report [<flags>]
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 
 ## tctl autoupdate agents rollback
 
@@ -701,8 +707,14 @@ Prints agents auto update status.
 Usage:
 
 ```code
-$ tctl autoupdate agents status
+$ tctl autoupdate agents status [<flags>]
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 
 ## tctl autoupdate client-tools disable
 
@@ -1295,6 +1307,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 |`--[no-]wide`|`false`|Do not truncate the Description column, even if it exceeds terminal width|
 
 ## tctl lock
@@ -2235,8 +2248,14 @@ Report cluster status.
 Usage:
 
 ```code
-$ tctl status
+$ tctl status [<flags>]
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 
 ## tctl terraform env
 
@@ -2516,8 +2535,14 @@ Print the version of your tctl binary.
 Usage:
 
 ```code
-$ tctl version
+$ tctl version [<flags>]
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 
 ## tctl workload-identity ls
 
