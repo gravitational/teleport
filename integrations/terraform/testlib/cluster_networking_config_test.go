@@ -47,9 +47,6 @@ func (s *TerraformSuiteOSS) TestClusterNetworkingConfigDataSource() {
 }
 
 func (s *TerraformSuiteOSS) TestClusterNetworkingConfig() {
-	// TODO: `spec.tunnel_strategy` should be a computed attribute.
-	s.T().Skip("Provider produced inconsistent result after apply")
-
 	name := "teleport_cluster_networking_config.test"
 
 	resource.Test(s.T(), resource.TestCase{
