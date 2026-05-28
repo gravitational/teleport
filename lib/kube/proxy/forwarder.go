@@ -319,10 +319,9 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 			ReadBufferSize:  1024,
 			WriteBufferSize: 1024,
 		},
-		clusterDetails:  make(map[string]*kubeDetails),
 		cachedTransport: transportClients,
 	}
-	upstream, err := newUpstreamResolver(cfg.KubeServiceType, fwd.findKubeDetailsByClusterName)
+	upstream, err := newUpstreamResolver(cfg.KubeServiceType)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -393,10 +392,6 @@ type Forwarder struct {
 	close context.CancelFunc
 	// ctx is a global context signaling exit
 	ctx context.Context
-	// clusterDetails contain kubernetes credentials for multiple clusters.
-	// map key is cluster name.
-	clusterDetails map[string]*kubeDetails
-	rwMutexDetails sync.RWMutex
 	// sessions tracks in-flight sessions
 	sessions map[uuid.UUID]*session
 	// upgrades connections to websockets
@@ -2828,54 +2823,41 @@ func (f *Forwarder) makeSessionForwarder(sess *clusterSession) (*reverseproxy.Fo
 	return forwarder, trace.Wrap(err)
 }
 
-// kubeClusters returns the list of available clusters
+// kubeClusters returns the list of clusters served locally by this teleport
+// service. Empty for ProxyService.
 func (f *Forwarder) kubeClusters() types.KubeClusters {
-	f.rwMutexDetails.RLock()
-	defer f.rwMutexDetails.RUnlock()
-	res := make(types.KubeClusters, 0, len(f.clusterDetails))
-	for _, cred := range f.clusterDetails {
-		cluster := cred.kubeCluster.Copy()
-		res = append(res,
-			cluster,
-		)
+	s := f.upstream.store()
+	if s == nil {
+		return types.KubeClusters{}
 	}
-	return res
+	return s.clusters()
 }
 
-// findKubeDetailsByClusterName searches for the cluster details otherwise returns a trace.NotFound error.
+// findKubeDetailsByClusterName searches for the cluster details, returning a
+// trace.NotFound when this service does not serve clusters locally or the
+// cluster is unknown.
 func (f *Forwarder) findKubeDetailsByClusterName(name string) (*kubeDetails, error) {
-	f.rwMutexDetails.RLock()
-	defer f.rwMutexDetails.RUnlock()
-
-	if creds, ok := f.clusterDetails[name]; ok {
-		return creds, nil
+	s := f.upstream.store()
+	if s == nil {
+		return nil, trace.NotFound("cluster %s not found", name)
 	}
-
-	return nil, trace.NotFound("cluster %s not found", name)
+	return s.find(name)
 }
 
-// upsertKubeDetails updates the details in f.ClusterDetails for key if they exist,
-// otherwise inserts them.
+// upsertKubeDetails inserts or replaces the details for key. A no-op for
+// services that do not serve clusters locally.
 func (f *Forwarder) upsertKubeDetails(key string, clusterDetails *kubeDetails) {
-	f.rwMutexDetails.Lock()
-	defer f.rwMutexDetails.Unlock()
-
-	if oldDetails, ok := f.clusterDetails[key]; ok {
-		oldDetails.Close()
+	if s := f.upstream.store(); s != nil {
+		s.upsert(key, clusterDetails)
 	}
-	// replace existing details in map
-	f.clusterDetails[key] = clusterDetails
 }
 
-// removeKubeDetails removes the kubeDetails from map.
+// removeKubeDetails removes the details for name. A no-op for services that
+// do not serve clusters locally.
 func (f *Forwarder) removeKubeDetails(name string) {
-	f.rwMutexDetails.Lock()
-	defer f.rwMutexDetails.Unlock()
-
-	if oldDetails, ok := f.clusterDetails[name]; ok {
-		oldDetails.Close()
+	if s := f.upstream.store(); s != nil {
+		s.remove(name)
 	}
-	delete(f.clusterDetails, name)
 }
 
 // isLocalKubeCluster reports whether this teleport service serves the target
