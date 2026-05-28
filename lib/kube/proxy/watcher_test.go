@@ -188,7 +188,9 @@ func TestWatcher(t *testing.T) {
 			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 		))
 		// make sure credentials were updated as well.
-		require.Equal(t, strings.TrimPrefix(kubeMock.URL, "https://"), testCtx.KubeServer.fwd.clusterDetails["kube2"].kubeCreds.getTargetAddr())
+		kube2Details, err := testCtx.KubeServer.fwd.findKubeDetailsByClusterName("kube2")
+		require.NoError(t, err)
+		require.Equal(t, strings.TrimPrefix(kubeMock.URL, "https://"), kube2Details.kubeCreds.getTargetAddr())
 	case <-time.After(time.Second):
 		t.Fatal("Didn't receive reconcile event after 1s.")
 	}

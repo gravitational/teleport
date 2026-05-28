@@ -323,8 +323,10 @@ current-context: foo
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
+			upstream, err := newUpstreamResolver(tt.serviceType)
+			require.NoError(t, err)
 			fwd := &Forwarder{
-				clusterDetails: map[string]*kubeDetails{},
+				upstream: upstream,
 				cfg: ForwarderConfig{
 					ClusterName:                   teleClusterName,
 					KubeServiceType:               tt.serviceType,
@@ -334,12 +336,16 @@ current-context: foo
 				},
 				log: logtest.NewLogger(),
 			}
-			err := fwd.getKubeDetails(ctx)
+			err = fwd.getKubeDetails(ctx)
 			tt.assertErr(t, err)
 			if err != nil {
 				return
 			}
-			require.Empty(t, cmp.Diff(fwd.clusterDetails, tt.want,
+			got := map[string]*kubeDetails{}
+			if s := fwd.upstream.store(); s != nil {
+				got = s.details
+			}
+			require.Empty(t, cmp.Diff(got, tt.want,
 				cmp.AllowUnexported(staticKubeCreds{}),
 				cmp.AllowUnexported(kubeDetails{}),
 				cmpopts.IgnoreFields(kubeDetails{}, "rwMu", "kubeCodecs", "wg", "cancelFunc", "gvkSupportedResources"),
