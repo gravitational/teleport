@@ -68,6 +68,8 @@ func (c *AccessGraphCommand) TryRun(ctx context.Context, cmd string, clientFunc 
 	switch cmd {
 	case c.detections.ls.cmd.FullCommand():
 		commandFunc = c.DetectionsList
+	case c.detections.get.cmd.FullCommand():
+		commandFunc = c.DetectionsGet
 	default:
 		return false, nil
 	}

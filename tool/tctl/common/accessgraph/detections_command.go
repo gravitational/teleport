@@ -27,10 +27,13 @@ import (
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	accessgraph "github.com/gravitational/teleport/lib/accessgraph/apiclient"
+	logmodels "github.com/gravitational/teleport/lib/accessgraph/apiclient/models/logs"
 	"github.com/gravitational/teleport/lib/asciitable"
 )
 
@@ -41,6 +44,7 @@ const descriptionTextMaxLen = 80
 type detectionsArgs struct {
 	cmd *kingpin.CmdClause
 	ls  detectionsListArgs
+	get detectionsGetArgs
 
 	// Date filters
 	from time.Time
@@ -80,6 +84,7 @@ func (c *AccessGraphCommand) initDetections(app *kingpin.Application) {
 	c.detections.cmd = detectionsCmd
 
 	c.initDetectionsList(c.detections.cmd)
+	c.initDetectionsGet(c.detections.cmd)
 }
 
 func (c *AccessGraphCommand) initDetectionsList(parent *kingpin.CmdClause) {
@@ -140,16 +145,16 @@ func fetchAlerts(
 		if resp.JSON200 == nil {
 			return nil, trace.Errorf("received nil json response from Access Graph API")
 		}
+		// Guard against a backend that returns a non-advancing cursor, which would otherwise spin forever.
+		if cursor != nil && resp.JSON200.NextCursor != nil && *resp.JSON200.NextCursor == *cursor {
+			slog.DebugContext(ctx, "Access Graph cursor did not advance; stopping pagination", "cursor", *cursor)
+			return alerts, nil
+		}
 		alerts = append(alerts, resp.JSON200.Data...)
 		if limit > 0 && len(alerts) >= limit {
 			return alerts[:limit], nil
 		}
 		if resp.JSON200.NextCursor == nil {
-			return alerts, nil
-		}
-		// Guard against a backend that returns a non-advancing cursor, which would otherwise spin forever.
-		if cursor != nil && *resp.JSON200.NextCursor == *cursor {
-			slog.DebugContext(ctx, "Access Graph cursor did not advance; stopping pagination", "cursor", *cursor)
 			return alerts, nil
 		}
 		cursor = resp.JSON200.NextCursor
@@ -280,6 +285,134 @@ func displayDetectionsText(out io.Writer, alerts []accessgraph.SecurityAlert, de
 		rows = append(rows, detectionRow(alert, detailed))
 	}
 	table := asciitable.MakeTable(headers, rows...)
-	_, err := fmt.Fprintln(out, table.AsBuffer().String())
+	_, err := fmt.Fprintln(out, table.String())
 	return trace.Wrap(err)
+}
+
+type detectionsGetArgs struct {
+	cmd *kingpin.CmdClause
+	id  string
+}
+
+func (c *AccessGraphCommand) initDetectionsGet(parent *kingpin.CmdClause) {
+	getCmd := parent.Command("get", "Get Identity Security detection details.")
+	getCmd.Arg("id", "The detection ID to retrieve.").Required().StringVar(&c.detections.get.id)
+	c.detections.get.cmd = getCmd
+}
+
+// detectionGetOutput is the payload for `detections get`.
+type detectionGetOutput struct {
+	Alert       accessgraph.SecurityAlert                  `json:"alert" yaml:"alert"`
+	Events      []logmodels.AccessgraphStorageV1alphaEvent `json:"events" yaml:"events"`
+	EventsError string                                     `json:"events_error,omitempty" yaml:"events_error,omitempty"`
+}
+
+// DetectionsGet executes `tctl detections get <id>`.
+func (c *AccessGraphCommand) DetectionsGet(ctx context.Context, client *accessgraph.ClientWithResponses) error {
+	id, err := uuid.Parse(c.detections.get.id)
+	if err != nil {
+		return trace.BadParameter("invalid detection id %q: %v", c.detections.get.id, err)
+	}
+	resp, err := doRequest(client.GetAlertV1WithResponse(ctx, id))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if resp.JSON200 == nil {
+		return trace.Errorf("received nil json response from Access Graph API")
+	}
+
+	alert := resp.JSON200.Data
+
+	// Non-fatal: alert detail is still useful; error surfaces in Log Entries.
+	events, eventsErr := fetchAlertEvents(ctx, client, alert)
+
+	out := detectionGetOutput{Alert: alert, Events: events}
+	if eventsErr != nil {
+		out.EventsError = eventsErr.Error()
+	}
+	return writeOutput(c.stdout, out, c.detections.format, func(w io.Writer) error {
+		return displayDetectionText(w, alert, events, eventsErr)
+	})
+}
+
+// eventsFetchErrorStyle paints the events-fetch warning yellow + bold.
+var eventsFetchErrorStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("11")).Bold(true)
+
+// fetchAlertEvents fetches the logs referenced by the alert's LogEntries.
+func fetchAlertEvents(ctx context.Context, client *accessgraph.ClientWithResponses, a accessgraph.SecurityAlert) ([]logmodels.AccessgraphStorageV1alphaEvent, error) {
+	if a.LogEntries == nil || len(*a.LogEntries) == 0 {
+		return nil, nil
+	}
+	query := dslClause("uid", *a.LogEntries)
+	order := accessgraph.Asc
+	events, _, err := fetchAllLogs(ctx, client, accessgraph.ExecuteLogsQueryV1Params{
+		Query:     &query,
+		Order:     &order,
+		StartTime: &a.StartTime,
+		EndTime:   &a.EndTime,
+	}, len(*a.LogEntries))
+	return events, trace.Wrap(err)
+}
+
+// displayDetectionText renders the human-readable detail view for one alert.
+func displayDetectionText(out io.Writer, a accessgraph.SecurityAlert, events []logmodels.AccessgraphStorageV1alphaEvent, eventsErr error) error {
+	field := func(label, value string) {
+		fmt.Fprintf(out, "%-19s%s\n", label+":", value)
+	}
+	field("ID", a.Id.String())
+	field("Title", a.Title)
+	field("Severity", string(a.Severity))
+	field("Status", string(a.Status))
+	if a.AffectedEntity != nil && a.AffectedEntity.Name != nil && *a.AffectedEntity.Name != "" {
+		field("Affected Entity", *a.AffectedEntity.Name)
+	}
+	field("Type", a.Type)
+	field("Source", string(a.Source))
+	if a.ReportedBy != nil {
+		field("Reported By", *a.ReportedBy)
+	}
+	if a.Tags != nil && len(*a.Tags) > 0 {
+		field("Tags", strings.Join(*a.Tags, ", "))
+	}
+	field("Period", fmt.Sprintf("%s → %s", a.StartTime.Format(time.RFC3339), a.EndTime.Format(time.RFC3339)))
+	field("Created", a.CreatedAt.Format(time.RFC3339))
+	if a.UpdatedAt != nil {
+		field("Updated", a.UpdatedAt.Format(time.RFC3339))
+	}
+	if a.Description != nil && *a.Description != "" {
+		fmt.Fprintf(out, "\nDescription:\n%s\n", *a.Description)
+	}
+	if a.MitigationSteps != nil && len(*a.MitigationSteps) > 0 {
+		fmt.Fprintln(out, "\nMitigation Steps:")
+		for _, step := range *a.MitigationSteps {
+			fmt.Fprintf(out, "  - %s\n", step)
+		}
+	}
+	if eventsErr != nil || len(events) > 0 || (a.LogEntries != nil && len(*a.LogEntries) > 0) {
+		fmt.Fprintln(out, "\nLog Entries:")
+		switch {
+		case eventsErr != nil:
+			fmt.Fprintln(out, eventsFetchErrorStyle.Render(eventsErr.Error()))
+		case len(events) == 0:
+			fmt.Fprintln(out, "Not found.")
+		default:
+			if err := displayEventsText(out, events); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	}
+	if len(a.StatusChangeLogs) > 0 {
+		fmt.Fprintln(out, "\nStatus Changes:")
+		changes := asciitable.MakeTable([]string{"Time", "Status", "User", "Reason"})
+		for _, log := range a.StatusChangeLogs {
+			reason := ""
+			if log.Reason != nil {
+				reason = *log.Reason
+			}
+			changes.AddRow([]string{log.CreatedAt.Format(time.RFC3339), string(log.Status), log.User, reason})
+		}
+		fmt.Fprintln(out, changes.String())
+	}
+	return nil
 }

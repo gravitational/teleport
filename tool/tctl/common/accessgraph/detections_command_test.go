@@ -31,6 +31,7 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 
@@ -43,6 +44,8 @@ import (
 // fails loudly if the generated client's operation paths drift.
 const (
 	listAlertsPath = accessGraphAPIPath + "graph/alerts/v1"
+	getAlertPath   = accessGraphAPIPath + "graph/alerts/v1/" // + <uuid>
+	logsQueryPath  = accessGraphAPIPath + "graph/logs/v1"
 )
 
 // Fixed values shared across fixtures so handler assertions can pin the
@@ -97,6 +100,20 @@ func alertFixture(t *testing.T) accessgraph.SecurityAlert {
 			Status:    accessgraph.AlertStatus("in_progress"),
 			User:      "system",
 		}},
+	}
+}
+
+// eventFixture builds a minimal event with a deterministic timestamp.
+func eventFixture(uid string, offset time.Duration) logmodels.AccessgraphStorageV1alphaEvent {
+	return logmodels.AccessgraphStorageV1alphaEvent{
+		Uuid:        uid,
+		Time:        fixtureStart.Add(offset),
+		Action:      "LOGIN",
+		EventType:   "authentication",
+		EventSource: logmodels.EventSource("aws"),
+		Status:      "success",
+		Identity:    logmodels.AccessgraphStorageV1alphaIdentity{Name: "alice", Id: "alice@example.com"},
+		Target:      logmodels.AccessgraphStorageV1alphaTarget{Resource: "prod-db"},
 	}
 }
 
@@ -156,6 +173,57 @@ func newPaginatedAlertsHandler(t *testing.T, pages []fetchAlertsPage) http.Handl
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(body)
+	})
+}
+
+// getAlertRequests records the wire-level traffic DetectionsGet drove.
+type getAlertRequests struct {
+	alertPath    string
+	logCalls     atomic.Int64
+	logIterators []string
+	logQuery     string
+	logStart     string
+	logEnd       string
+}
+
+// newGetAlertHandler serves the alert and (paginated) logs routes. Pass
+// nil/empty logPages to assert the logs route is never hit.
+func newGetAlertHandler(t *testing.T, alert accessgraph.SecurityAlert, logPages []fetchAllLogsPage, captured *getAlertRequests, alertStatus int, alertErrBody string) http.Handler {
+	t.Helper()
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.URL.Path == getAlertPath+alert.Id.String():
+			if captured != nil {
+				captured.alertPath = r.URL.Path
+			}
+			if alertStatus != 0 && alertStatus != http.StatusOK {
+				w.WriteHeader(alertStatus)
+				_, _ = w.Write([]byte(alertErrBody))
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(map[string]any{"data": alert})
+		case r.URL.Path == logsQueryPath:
+			idx := int(captured.logCalls.Add(1) - 1)
+			captured.logIterators = append(captured.logIterators, r.URL.Query().Get("iterator"))
+			// Query + window are constant across pages so first-call values are sufficient.
+			if idx == 0 {
+				captured.logQuery = r.URL.Query().Get("query")
+				captured.logStart = r.URL.Query().Get("start_time")
+				captured.logEnd = r.URL.Query().Get("end_time")
+			}
+			require.Less(t, idx, len(logPages), "client requested more log pages than configured")
+			page := logPages[idx]
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"data":        page.data,
+				"next_cursor": page.nextCursor,
+			})
+		default:
+			t.Errorf("unexpected request to %s", r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+		}
 	})
 }
 
@@ -298,7 +366,7 @@ func TestDetectionsList(t *testing.T) {
 		require.Equal(t, "[]", strings.TrimSpace(buf.String()))
 	})
 
-	t.Run("HTTP 500 surfaces as APIResponseError", func(t *testing.T) {
+	t.Run("HTTP 500 surfaces as apiResponseError", func(t *testing.T) {
 		ag := newAccessGraphTestClient(t, newListAlertsHandler(t, nil, nil,
 			http.StatusInternalServerError, `{"message":"alerts backend exploded"}`))
 
@@ -309,6 +377,192 @@ func TestDetectionsList(t *testing.T) {
 		require.Equal(t, http.StatusInternalServerError, agErr.StatusCode)
 		require.Equal(t, "alerts backend exploded", agErr.Message)
 	})
+}
+
+func TestDetectionsGet(t *testing.T) {
+	t.Run("invalid uuid returns BadParameter without hitting the server", func(t *testing.T) {
+		// Handler fails on any request — the uuid guard must trip first.
+		var called atomic.Int64
+		ag := newAccessGraphTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			called.Add(1)
+			t.Errorf("server reached despite invalid uuid: %s", r.URL.Path)
+		}))
+
+		c, _ := newDetectionsCommand(t, teleport.JSON)
+		c.detections.get.id = "not-a-uuid"
+		err := c.DetectionsGet(context.Background(), ag)
+		require.True(t, trace.IsBadParameter(err), "want BadParameter, got %v", err)
+		require.EqualValues(t, 0, called.Load())
+	})
+
+	t.Run("alert with log entries walks the logs cursor across pages", func(t *testing.T) {
+		alert := alertFixture(t)
+		cursor := "page-2"
+		page1 := []logmodels.AccessgraphStorageV1alphaEvent{eventFixture(fixtureLogUIDs[0], time.Minute)}
+		page2 := []logmodels.AccessgraphStorageV1alphaEvent{eventFixture(fixtureLogUIDs[1], 2*time.Minute)}
+		var got getAlertRequests
+		ag := newAccessGraphTestClient(t, newGetAlertHandler(t, alert, []fetchAllLogsPage{
+			{data: eventsAsMaps(t, page1), nextCursor: &cursor},
+			{data: eventsAsMaps(t, page2)},
+		}, &got, 0, ""))
+
+		c, buf := newDetectionsCommand(t, teleport.JSON)
+		c.detections.get.id = alert.Id.String()
+		require.NoError(t, c.DetectionsGet(context.Background(), ag))
+
+		require.Equal(t, getAlertPath+alert.Id.String(), got.alertPath)
+		require.EqualValues(t, 2, got.logCalls.Load(), "should walk both pages")
+		require.Equal(t, []string{"", "page-2"}, got.logIterators, "second call must send the prior next_cursor")
+		require.Equal(t, `uid:("22222222-2222-2222-2222-222222222222" OR "33333333-3333-3333-3333-333333333333")`, got.logQuery)
+		require.Equal(t, fixtureStart.Format(time.RFC3339), got.logStart, "fetchAlertEvents must send the alert's StartTime")
+		require.Equal(t, fixtureEnd.Format(time.RFC3339), got.logEnd, "fetchAlertEvents must send the alert's EndTime")
+
+		var out detectionGetOutput
+		require.NoError(t, json.Unmarshal(buf.Bytes(), &out))
+		require.Len(t, out.Events, 2, "events from both pages should appear in the payload")
+	})
+
+	t.Run("alert without log entries skips the logs fetch", func(t *testing.T) {
+		alert := alertFixture(t)
+		empty := []string{}
+		alert.LogEntries = &empty
+
+		var got getAlertRequests
+		ag := newAccessGraphTestClient(t, newGetAlertHandler(t, alert, nil, &got, 0, ""))
+
+		c, _ := newDetectionsCommand(t, teleport.JSON)
+		c.detections.get.id = alert.Id.String()
+		require.NoError(t, c.DetectionsGet(context.Background(), ag))
+		require.EqualValues(t, 0, got.logCalls.Load(), "logs endpoint must not be called when LogEntries is empty")
+	})
+
+	t.Run("json output contains alert and events", func(t *testing.T) {
+		alert := alertFixture(t)
+		events := []logmodels.AccessgraphStorageV1alphaEvent{
+			eventFixture(fixtureLogUIDs[0], time.Minute),
+			eventFixture(fixtureLogUIDs[1], 2*time.Minute),
+		}
+		ag := newAccessGraphTestClient(t, newGetAlertHandler(t, alert, []fetchAllLogsPage{{
+			data: eventsAsMaps(t, events),
+		}}, &getAlertRequests{}, 0, ""))
+
+		c, buf := newDetectionsCommand(t, teleport.JSON)
+		c.detections.get.id = alert.Id.String()
+		require.NoError(t, c.DetectionsGet(context.Background(), ag))
+
+		var out detectionGetOutput
+		require.NoError(t, json.Unmarshal(buf.Bytes(), &out))
+		require.Equal(t, fixtureAlertID, out.Alert.Id)
+		require.Len(t, out.Events, 2)
+		require.Equal(t, fixtureLogUIDs[0], out.Events[0].Uuid)
+	})
+
+	t.Run("text output renders alert detail and events table", func(t *testing.T) {
+		alert := alertFixture(t)
+		events := []logmodels.AccessgraphStorageV1alphaEvent{
+			eventFixture(fixtureLogUIDs[0], time.Minute),
+		}
+		ag := newAccessGraphTestClient(t, newGetAlertHandler(t, alert, []fetchAllLogsPage{{
+			data: eventsAsMaps(t, events),
+		}}, &getAlertRequests{}, 0, ""))
+
+		c, buf := newDetectionsCommand(t, teleport.Text)
+		c.detections.get.id = alert.Id.String()
+		require.NoError(t, c.DetectionsGet(context.Background(), ag))
+
+		out := buf.String()
+		// Header lines from displayDetectionText.
+		require.Contains(t, out, "ID:                "+fixtureAlertID.String())
+		require.Contains(t, out, "Title:             Unusual privilege escalation")
+		require.Contains(t, out, "Severity:          high")
+		require.Contains(t, out, "Period:            "+fixtureStart.Format(time.RFC3339)+" → "+fixtureEnd.Format(time.RFC3339))
+		require.Contains(t, out, "Affected Entity:   alice@example.com")
+		// Events table.
+		require.Contains(t, out, "Log Entries:")
+		require.Contains(t, out, "alice")
+		require.Contains(t, out, "prod-db")
+		// Status-change table.
+		require.Contains(t, out, "Status Changes:")
+	})
+
+	t.Run("text output omits optional headers when fields are nil", func(t *testing.T) {
+		alert := accessgraph.SecurityAlert{
+			Id:        fixtureAlertID,
+			Title:     "Bare alert",
+			Type:      "anomaly",
+			Severity:  accessgraph.SecurityAlertSeverity("low"),
+			Status:    accessgraph.AlertStatus("open"),
+			Source:    logmodels.EventSource("aws"),
+			StartTime: fixtureStart,
+			EndTime:   fixtureEnd,
+			CreatedAt: fixtureCreated,
+		}
+		ag := newAccessGraphTestClient(t, newGetAlertHandler(t, alert, nil, &getAlertRequests{}, 0, ""))
+
+		c, buf := newDetectionsCommand(t, teleport.Text)
+		c.detections.get.id = alert.Id.String()
+		require.NoError(t, c.DetectionsGet(context.Background(), ag))
+
+		out := buf.String()
+		require.Contains(t, out, "ID:                "+fixtureAlertID.String())
+		require.Contains(t, out, "Title:             Bare alert")
+		for _, header := range []string{
+			"Reported By:", "Updated:", "Affected Entity:", "Tags:",
+			"Description:", "Mitigation Steps:", "Log Entries:", "Status Changes:",
+		} {
+			require.NotContains(t, out, header, "optional section %q must not render for a minimal alert", header)
+		}
+	})
+
+	t.Run("HTTP 404 from get surfaces as apiResponseError", func(t *testing.T) {
+		alert := alertFixture(t)
+		ag := newAccessGraphTestClient(t, newGetAlertHandler(t, alert, nil, &getAlertRequests{},
+			http.StatusNotFound, `{"message":"no such alert"}`))
+
+		c, _ := newDetectionsCommand(t, teleport.JSON)
+		c.detections.get.id = alert.Id.String()
+		err := c.DetectionsGet(context.Background(), ag)
+		var agErr *apiResponseError
+		require.ErrorAs(t, err, &agErr)
+		require.Equal(t, http.StatusNotFound, agErr.StatusCode)
+		require.Equal(t, "no such alert", agErr.Message)
+	})
+}
+
+func TestDisplayDetectionTextAffectedEntity(t *testing.T) {
+	strPtr := func(s string) *string { return &s }
+
+	cases := []struct {
+		name     string
+		entName  *string
+		wantLine string // empty = no Affected line
+	}{
+		{"name set", strPtr("alice@example.com"), "Affected Entity:   alice@example.com"},
+		{"name nil", nil, ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			alert := accessgraph.SecurityAlert{
+				Id: fixtureAlertID, Title: "x", Type: "x",
+				Severity:  accessgraph.SecurityAlertSeverity("low"),
+				Status:    accessgraph.AlertStatus("open"),
+				Source:    logmodels.EventSource("aws"),
+				StartTime: fixtureStart, EndTime: fixtureEnd, CreatedAt: fixtureCreated,
+				AffectedEntity: &struct {
+					Name *string `json:"name,omitempty"`
+					Type *string `json:"type,omitempty"`
+				}{Name: tc.entName},
+			}
+			var buf bytes.Buffer
+			require.NoError(t, displayDetectionText(&buf, alert, nil, nil))
+			out := buf.String()
+			if tc.wantLine == "" {
+				require.NotContains(t, out, "Affected Entity:")
+				return
+			}
+			require.Contains(t, out, tc.wantLine)
+		})
+	}
 }
 
 // TestInitDetectionsFlags exercises the kingpin wiring (defaults, enum
@@ -371,6 +625,17 @@ func TestInitDetectionsFlags(t *testing.T) {
 		require.True(t, got.ls.detailed)
 		require.Equal(t, teleport.JSON, got.format)
 		require.Equal(t, 250, got.ls.limit)
+	})
+
+	t.Run("get requires id argument", func(t *testing.T) {
+		_, err := parse(t, "detections", "get")
+		require.Error(t, err)
+	})
+
+	t.Run("get captures id positional", func(t *testing.T) {
+		got, err := parse(t, "detections", "get", fixtureAlertID.String())
+		require.NoError(t, err)
+		require.Equal(t, fixtureAlertID.String(), got.get.id)
 	})
 }
 
@@ -438,7 +703,23 @@ func TestFetchAlerts(t *testing.T) {
 		ag := newAccessGraphTestClient(t, handler)
 		got, err := fetchAlerts(context.Background(), ag, accessgraph.ListAlertsV1Params{}, 0)
 		require.NoError(t, err)
-		require.Len(t, got, 2, "should return alerts collected before the loop broke")
+		require.Len(t, got, 1, "guard fires before appending the duplicate page")
 		require.EqualValues(t, 2, calls.Load(), "loop must stop on the first non-advancing cursor")
 	})
+}
+
+// eventsAsMaps re-marshals events through JSON so the handler's
+// fetchAllLogsPage (which carries []map[string]any) can serialize them with
+// the exact field shape the AG schema expects.
+func eventsAsMaps(t *testing.T, events []logmodels.AccessgraphStorageV1alphaEvent) []map[string]any {
+	t.Helper()
+	out := make([]map[string]any, 0, len(events))
+	for _, ev := range events {
+		b, err := json.Marshal(ev)
+		require.NoError(t, err)
+		var m map[string]any
+		require.NoError(t, json.Unmarshal(b, &m))
+		out = append(out, m)
+	}
+	return out
 }

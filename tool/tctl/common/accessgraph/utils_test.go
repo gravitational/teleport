@@ -310,15 +310,18 @@ func TestFetchAllLogs(t *testing.T) {
 	})
 
 	t.Run("maxResults limit returns partial results with truncated=true", func(t *testing.T) {
-		stuck := "stuck"
+		// Advancing cursors per page so the non-advancing guard doesn't fire;
+		// the cap must be the thing that stops the loop.
+		cursors := []string{"c1", "c2", "c3", "c4", "c5"}
 		var calls atomic.Int64
 		h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			calls.Add(1)
+			n := calls.Add(1)
+			next := cursors[n-1]
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(200)
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"data":        []map[string]any{{"id": "x"}},
-				"next_cursor": &stuck,
+				"next_cursor": &next,
 			})
 		})
 		c := newAccessGraphTestClient(t, h)
@@ -341,6 +344,29 @@ func TestFetchAllLogs(t *testing.T) {
 		require.True(t, truncated, "single-page overshoot must flag truncated")
 		require.Len(t, got, 3)
 		require.EqualValues(t, 1, calls.Load())
+	})
+
+	t.Run("non-advancing cursor breaks the unbounded loop", func(t *testing.T) {
+		stuck := "stuck"
+		var calls atomic.Int64
+		// Always returns the same non-nil cursor, which without the guard
+		// would loop forever when maxResults is unbounded.
+		h := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			calls.Add(1)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(200)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"data":        []map[string]any{{"id": "x"}},
+				"next_cursor": &stuck,
+			})
+		})
+		c := newAccessGraphTestClient(t, h)
+
+		got, truncated, err := fetchAllLogs(context.Background(), c, accessgraph.ExecuteLogsQueryV1Params{}, 0)
+		require.NoError(t, err)
+		require.True(t, truncated, "non-advancing cursor must signal truncation")
+		require.Len(t, got, 1, "guard fires before appending the duplicate page")
+		require.EqualValues(t, 2, calls.Load(), "loop must stop on the first non-advancing cursor")
 	})
 
 	t.Run("maxResults zero means unbounded", func(t *testing.T) {
