@@ -160,7 +160,7 @@ func (f *Forwarder) getKubeDetails(ctx context.Context) error {
 			)
 			return trace.Wrap(err)
 		}
-		f.clusterDetails[cluster] = details
+		f.upsertKubeDetails(cluster, details)
 	}
 	return nil
 }

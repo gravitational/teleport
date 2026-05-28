@@ -92,14 +92,14 @@ func TestGetPodForEphemeralPatch_UsesImpersonatedIdentity(t *testing.T) {
 		cfg: ForwarderConfig{
 			tracer: otel.Tracer("test"),
 		},
-		clusterDetails: map[string]*kubeDetails{
+		upstream: &kubeServiceResolver{clusters: &clusterStore{details: map[string]*kubeDetails{
 			clusterName: {
 				kubeCreds: &staticKubeCreds{
 					kubeClient:    adminClient,
 					clientRestCfg: adminRestCfg,
 				},
 			},
-		},
+		}}},
 	}
 
 	teleportUser, err := types.NewUser("alice")
@@ -178,14 +178,14 @@ func TestGetPatchedPodEvent_ReplaysStoredImpersonation(t *testing.T) {
 	fwd := &Forwarder{
 		log: logtest.NewLogger(),
 		cfg: ForwarderConfig{tracer: otel.Tracer("test")},
-		clusterDetails: map[string]*kubeDetails{
+		upstream: &kubeServiceResolver{clusters: &clusterStore{details: map[string]*kubeDetails{
 			clusterName: {
 				kubeCreds: &staticKubeCreds{
 					kubeClient:    adminClient,
 					clientRestCfg: adminRestCfg,
 				},
 			},
-		},
+		}}},
 	}
 
 	teleportUser, err := types.NewUser("alice")

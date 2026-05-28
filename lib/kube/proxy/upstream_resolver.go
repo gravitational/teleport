@@ -16,7 +16,63 @@
 
 package proxy
 
-import "github.com/gravitational/trace"
+import (
+	"sync"
+
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
+)
+
+// clusterStore holds the kube clusters served by a teleport service.
+// Safe for concurrent use. Only the resolvers that serve clusters locally
+// (kube_service, legacy proxy_service) embed a store; the proxy_service
+// resolver does not.
+type clusterStore struct {
+	mu      sync.RWMutex
+	details map[string]*kubeDetails
+}
+
+func newClusterStore() *clusterStore {
+	return &clusterStore{details: make(map[string]*kubeDetails)}
+}
+
+func (s *clusterStore) find(name string) (*kubeDetails, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if d, ok := s.details[name]; ok {
+		return d, nil
+	}
+	return nil, trace.NotFound("cluster %s not found", name)
+}
+
+func (s *clusterStore) upsert(name string, details *kubeDetails) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if old, ok := s.details[name]; ok {
+		old.Close()
+	}
+	s.details[name] = details
+}
+
+func (s *clusterStore) remove(name string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if old, ok := s.details[name]; ok {
+		old.Close()
+	}
+	delete(s.details, name)
+}
+
+func (s *clusterStore) clusters() types.KubeClusters {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	res := make(types.KubeClusters, 0, len(s.details))
+	for _, d := range s.details {
+		res = append(res, d.kubeCluster.Copy())
+	}
+	return res
+}
 
 // upstreamResolver decides, per request, how the Forwarder should treat a
 // target kubernetes cluster: serve it locally with the returned details, or
@@ -47,56 +103,63 @@ type upstreamResolver interface {
 	// cluster is not served locally. ProxyService always does; LegacyProxyService
 	// does as a fallback; KubeService does not.
 	forwardsToOtherAgents() bool
+
+	// store returns the cluster store for resolvers that serve clusters
+	// locally, or nil otherwise. Callers must nil-check.
+	store() *clusterStore
 }
 
 type kubeServiceResolver struct {
-	lookup func(name string) (*kubeDetails, error)
+	clusters *clusterStore
 }
 
 func (r *kubeServiceResolver) resolveDetails(name string) (*kubeDetails, error) {
-	return r.lookup(name)
+	return r.clusters.find(name)
 }
 
-func (*kubeServiceResolver) component() string        { return KubeService }
-func (*kubeServiceResolver) servesLocalClusters() bool { return true }
+func (*kubeServiceResolver) component() string          { return KubeService }
+func (*kubeServiceResolver) servesLocalClusters() bool  { return true }
 func (*kubeServiceResolver) forwardsToOtherAgents() bool { return false }
+func (r *kubeServiceResolver) store() *clusterStore     { return r.clusters }
 
 type proxyServiceResolver struct{}
 
 func (proxyServiceResolver) resolveDetails(string) (*kubeDetails, error) { return nil, nil }
 
-func (proxyServiceResolver) component() string          { return ProxyService }
-func (proxyServiceResolver) servesLocalClusters() bool  { return false }
+func (proxyServiceResolver) component() string           { return ProxyService }
+func (proxyServiceResolver) servesLocalClusters() bool   { return false }
 func (proxyServiceResolver) forwardsToOtherAgents() bool { return true }
+func (proxyServiceResolver) store() *clusterStore        { return nil }
 
 type legacyProxyResolver struct {
-	lookup func(name string) (*kubeDetails, error)
+	clusters *clusterStore
 }
 
 func (r *legacyProxyResolver) resolveDetails(name string) (*kubeDetails, error) {
-	d, err := r.lookup(name)
-	if err != nil {
-		// LegacyProxyService falls back to passthrough when the cluster is not
-		// served locally. The next hop will enforce RBAC.
-		return nil, nil
+	if d, err := r.clusters.find(name); err == nil {
+		return d, nil
 	}
-	return d, nil
+	// LegacyProxyService falls back to passthrough when the cluster is not
+	// served locally. The next hop will enforce RBAC.
+	return nil, nil
 }
 
-func (*legacyProxyResolver) component() string          { return LegacyProxyService }
-func (*legacyProxyResolver) servesLocalClusters() bool  { return true }
+func (*legacyProxyResolver) component() string           { return LegacyProxyService }
+func (*legacyProxyResolver) servesLocalClusters() bool   { return true }
 func (*legacyProxyResolver) forwardsToOtherAgents() bool { return true }
+func (r *legacyProxyResolver) store() *clusterStore      { return r.clusters }
 
-// newUpstreamResolver builds the resolver matching the given KubeServiceType,
-// wiring it to lookup for credential/details resolution.
-func newUpstreamResolver(svc KubeServiceType, lookup func(string) (*kubeDetails, error)) (upstreamResolver, error) {
+// newUpstreamResolver builds the resolver matching the given KubeServiceType.
+// Resolvers that serve clusters locally are given a fresh, empty store; the
+// proxy resolver has none.
+func newUpstreamResolver(svc KubeServiceType) (upstreamResolver, error) {
 	switch svc {
 	case KubeService:
-		return &kubeServiceResolver{lookup: lookup}, nil
+		return &kubeServiceResolver{clusters: newClusterStore()}, nil
 	case ProxyService:
 		return proxyServiceResolver{}, nil
 	case LegacyProxyService:
-		return &legacyProxyResolver{lookup: lookup}, nil
+		return &legacyProxyResolver{clusters: newClusterStore()}, nil
 	default:
 		return nil, trace.BadParameter("unknown KubeServiceType %q", svc)
 	}
