@@ -189,12 +189,50 @@ func (b Bot) PostReviewReply(ctx context.Context, channelID, timestamp string, r
 	return trace.Wrap(err)
 }
 
-// LookupDirectChannelByEmail fetches user's id by email.
-func (b Bot) lookupDirectChannelByEmail(ctx context.Context, email string) (string, error) {
-	var result struct {
-		APIResponse
-		User User `json:"user"`
+// GenerateWebSocketURL generates a temporary WebSocket URL to receive Slack access review interactions from.
+func (b Bot) GenerateWebSocketURL(ctx context.Context) (string, error) {
+	var result AppsOpenResponse
+	_, err := b.appClient.NewRequest().
+		SetContext(ctx).
+		SetResult(&result).
+		Post("apps.connections.open")
+	if err != nil {
+		return "", trace.Wrap(err)
 	}
+
+	return result.URL, nil
+}
+
+// LookupEmailByUserID fetches user's email by id.
+func (b Bot) LookupEmailByUserID(ctx context.Context, userID string) (string, error) {
+	var result UsersLookupResponse
+	_, err := b.client.NewRequest().
+		SetContext(ctx).
+		SetQueryParam("user", userID).
+		SetResult(&result).
+		Get("users.info")
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return result.User.Profile.Email, nil
+}
+
+// PostReviewErrorReply posts a review request error as an ephemeral reply specific to the Slack user.
+// Used for native reviews.
+func (b Bot) PostReviewErrorReply(ctx context.Context, channelID, userID string, reviewErr error) error {
+	text := MsgReviewErr(reviewErr)
+
+	_, err := b.client.NewRequest().
+		SetContext(ctx).
+		SetBody(Message{BaseMessage: BaseMessage{Channel: channelID, User: userID}, Text: text}).
+		Post("chat.postEphemeral")
+	return trace.Wrap(err)
+}
+
+// lookupDirectChannelByEmail fetches user's id by email.
+func (b Bot) lookupDirectChannelByEmail(ctx context.Context, email string) (string, error) {
+	var result UsersLookupResponse
 	_, err := b.client.NewRequest().
 		SetContext(ctx).
 		SetQueryParam("email", email).
@@ -229,7 +267,7 @@ func (b Bot) NotifyUser(ctx context.Context, reqID string, reqData pd.AccessRequ
 	return trace.Wrap(err)
 }
 
-// Expire updates request's Slack post with EXPIRED status and removes action buttons.
+// UpdateMessages updates request's Slack post with EXPIRED status and removes action buttons.
 func (b Bot) UpdateMessages(ctx context.Context, reqID string, reqData pd.AccessRequestData, slackData accessrequest.SentMessages, reviews []types.AccessReview) error {
 	var errors []error
 	for _, msg := range slackData {
