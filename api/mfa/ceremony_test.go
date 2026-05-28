@@ -436,7 +436,7 @@ func TestMFACeremony_Registration(t *testing.T) {
 						MFARequired: proto.MFARequired_MFA_REQUIRED_YES,
 					}
 					if len(devicesAdded) > 0 {
-						chal.WebauthnChallenge = newWebauthnChallenge("some-challenge")
+						chal.WebauthnChallenge = &webauthn.CredentialAssertion{}
 					}
 					return chal, nil
 				},
@@ -452,7 +452,7 @@ func TestMFACeremony_Registration(t *testing.T) {
 				},
 			}
 
-			_, err := ceremony.RunWithRegisterRetry(ctx, &proto.CreateAuthenticateChallengeRequest{
+			_, err := ceremony.Run(ctx, &proto.CreateAuthenticateChallengeRequest{
 				ChallengeExtensions: &mfav1.ChallengeExtensions{
 					Scope: tc.scope,
 				},
