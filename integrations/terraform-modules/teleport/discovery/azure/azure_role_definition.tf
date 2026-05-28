@@ -3,8 +3,17 @@
 ################################################################################
 
 locals {
+  azure_management_group_scope = (
+    var.azure_management_group_id != null
+    ? "/providers/Microsoft.Management/managementGroups/${var.azure_management_group_id}"
+    : null
+  )
+
   azure_role_assignment_scopes = coalescelist(
     var.azure_role_assignment_scopes,
+    local.azure_management_group_scope != null
+    ? [local.azure_management_group_scope]
+    : [],
     [for sub in local.azure_matcher_subscriptions : "/subscriptions/${sub}"],
   )
 
@@ -39,11 +48,23 @@ resource "azurerm_role_definition" "teleport_discovery" {
   assignable_scopes = local.azure_role_assignment_scopes
   description       = "Azure role that allows a Teleport Discovery Service to discover VMs."
   name              = local.azure_role_definition_name
-  scope             = local.azure_role_assignment_scopes[0]
+  scope             = coalesce(local.azure_management_group_scope, local.azure_role_assignment_scopes[0])
 
   permissions {
     actions     = local.role_actions
     not_actions = []
+  }
+
+  lifecycle {
+    precondition {
+      condition = !(
+        length([
+          for s in var.azure_role_assignment_scopes :
+          s if startswith(s, "/providers/Microsoft.Management/managementGroups/")
+        ]) > 1
+      ) || var.azure_management_group_id != null
+      error_message = "`azure_management_group_id` is required when `azure_role_assignment_scopes` contains more than one management group scope."
+    }
   }
 }
 
