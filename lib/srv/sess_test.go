@@ -352,8 +352,6 @@ func TestSession_newRecorder(t *testing.T) {
 }
 
 func TestSessionRegistrySetupFailureCleanup(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
-
 	moderatedRole, err := types.NewRole("access", types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			RequireSessionJoin: []*types.SessionRequirePolicy{{
