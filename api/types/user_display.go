@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"cmp"
 	"encoding/json"
 	"strings"
 )
@@ -166,7 +167,7 @@ func displayValueFromTraitCandidates(traits map[string][]string, username string
 	for _, candidate := range candidates {
 		values = append(values, joinNonEmptyValuesForKeys(traits, candidate...))
 	}
-	return firstNonEmptyValueDifferentFromUsername(username, values...)
+	return cmp.Or(valuesDifferentFromUsername(username, values...)...)
 }
 
 func displayValueFromSCIMAttrCandidates(attrs map[string]any, username string, candidates [][][]string) string {
@@ -178,7 +179,7 @@ func displayValueFromSCIMAttrCandidates(attrs map[string]any, username string, c
 		}
 		values = append(values, joinNonEmptyStrings(parts...))
 	}
-	return firstNonEmptyValueDifferentFromUsername(username, values...)
+	return cmp.Or(valuesDifferentFromUsername(username, values...)...)
 }
 
 func displayValueFromSCIMValueCandidates(attrs map[string]any, username string, candidates []scimValueCandidate) string {
@@ -186,33 +187,34 @@ func displayValueFromSCIMValueCandidates(attrs map[string]any, username string, 
 	for _, candidate := range candidates {
 		values = append(values, candidate(attrs))
 	}
-	return firstNonEmptyValueDifferentFromUsername(username, values...)
+	return cmp.Or(valuesDifferentFromUsername(username, values...)...)
 }
 
-func firstNonEmptyValueDifferentFromUsername(username string, values ...string) string {
+func valuesDifferentFromUsername(username string, values ...string) []string {
 	username = strings.TrimSpace(username)
+	candidates := make([]string, 0, len(values))
 	for _, value := range values {
 		value = strings.TrimSpace(value)
-		if value != "" && value != username {
-			return value
+		if value == username {
+			value = ""
 		}
+		candidates = append(candidates, value)
 	}
-	return ""
+	return candidates
 }
 
-func firstNonEmptyValueForKey(valuesByKey map[string][]string, key string) string {
-	for _, value := range valuesByKey[key] {
-		if value = strings.TrimSpace(value); value != "" {
-			return value
-		}
+func trimmedValues(values ...string) []string {
+	candidates := make([]string, 0, len(values))
+	for _, value := range values {
+		candidates = append(candidates, strings.TrimSpace(value))
 	}
-	return ""
+	return candidates
 }
 
 func joinNonEmptyValuesForKeys(valuesByKey map[string][]string, keys ...string) string {
 	values := make([]string, 0, len(keys))
 	for _, key := range keys {
-		values = append(values, firstNonEmptyValueForKey(valuesByKey, key))
+		values = append(values, cmp.Or(trimmedValues(valuesByKey[key]...)...))
 	}
 	return joinNonEmptyStrings(values...)
 }
