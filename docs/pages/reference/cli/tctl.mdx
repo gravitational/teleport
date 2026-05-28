@@ -192,7 +192,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--format`|`text` (one of: `json`, `text`)|Output format.|
+|`--format`|`text` (one of: `json`, `yaml`, `text`)|Output format.|
 
 Arguments:
 
@@ -781,7 +781,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--format`|`text` (one of: `text`, `json`)|Output format.|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 |`--initial-public-key`|*no default*|If set, use the given initial public key in SSH authorized_keys format, instead of generating a registration secret. The value must be quoted. Not compatible with --token or --legacy.|
 |`--logins`|*no default*|List of allowed SSH logins for the bot user|
 |`--max-session-ttl`|*no default*|Set a max session TTL for the bot's internal identity. 12h default, 168h maximum.|
@@ -813,7 +813,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--format`|`text` (one of: `text`, `json`)|Output format.|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 |`--initial-public-key`|*no default*|If set, use the given initial public key in SSH authorized_keys format, instead of generating a registration secret. The value must be quoted. Not compatible with --token or --legacy.|
 |`--[no-]legacy`|`false`|If set, generate a legacy joining token instead of a bound keypair token. No effect if --token is set.|
 |`--recovery-limit`|*no default*|Overrides the recovery limit (default: 1) for the bound keypair token. No effect if --token or --legacy is set, or if --recovery-mode is not standard. Must be greater than 1.|
@@ -842,7 +842,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--format`|`text` (one of: `text`, `json`)|Output format.|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 |`--query`|*no default*|An expression in the Teleport predicate language used to filter bot instances|
 |`--search`|*no default*|Fuzzy search query used to filter bot instances|
 |`--sort-index`|`bot_name`|Request sort index, 'bot_name', 'active_at_latest', 'version_latest' or 'host_name_latest'|
@@ -1123,7 +1123,7 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`--cloud`|``|Comma-separated list of cloud providers to include (allowed: aws, azure). Empty (default) returns all.|
-|`--format`|`text` (one of: `text`, `json`)|Output format.|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 |`--last`|`1h`|Time window to look back for failures in Teleport audit log (e.g. 1h, 24h, 30m).|
 |`--[no-]failures-only`|`false`|Only show instances with enrollment failures.|
 
@@ -1216,7 +1216,7 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`--exact-version`|*no default*|Filter output by teleport version|
-|`--format`|`text`|Output format, 'text' or 'json'|
+|`--format`|`text` (one of: `text`, `json`)|Output format, 'text' or 'json'|
 |`--newer-than`|*no default*|Filter for newer teleport versions|
 |`--older-than`|*no default*|Filter for older teleport versions|
 |`--services`|*no default*|Filter output by service (node,kube,proxy,etc)|
@@ -1253,7 +1253,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--format`|`text`|Output format, 'text' or 'json'|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format, 'text', 'json', or 'yaml'|
 |`--[no-]connected`|`false`|Show locally connected instances summary|
 
 ## tctl kube ls
@@ -1382,7 +1382,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--format`|`text`|Output format, 'text', or 'yaml'|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format, 'text', 'json', or 'yaml'|
 |`--query`|*no default*|Query by predicate language enclosed in single quotes. Supports ==, !=, &&, and \|\| (e.g. --query='labels\["key1"\] == "value1" && labels\["key2"\] != "value2"')|
 |`--search`|*no default*|List of comma separated search keywords or phrases enclosed in quotations (e.g. --search=foo,bar,"some phrase")|
 |`-v`, `--[no-]verbose`|`false`|Verbose table output, shows full label output|
