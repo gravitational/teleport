@@ -597,7 +597,7 @@ func (q *sqliteQueue) fetch(limit int) ([]Item, error) {
 
 func (q *sqliteQueue) ack(items []Item) error {
 	err := ackDB(q.ctx, q.db, items)
-	if err != nil {
+	if err == nil {
 		// Once 'ack' succeeds, we have finished the entire end-to-end of
 		// delivering these events.
 		eventsDelivered.Add(float64(len(items)))
