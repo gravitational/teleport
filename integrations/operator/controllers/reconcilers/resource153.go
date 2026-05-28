@@ -70,16 +70,30 @@ func (a Resource153Adapter[T]) SetResourceLabels(res T, labels map[string]string
 func NewTeleportResource153Reconciler[T types.Resource153, K KubernetesCR[T]](
 	client kclient.Client,
 	resourceClient resourceClient[T],
+	config Config,
 ) (controllers.Reconciler, error) {
+	checkFeatures := controllers.AlwaysEnabled
+	if config.CheckFeatures != nil {
+		checkFeatures = config.CheckFeatures
+	}
+
 	gvk, err := gvkFromScheme[K](controllers.Scheme)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	teleportKind := newKubeResource[K]().ToTeleport().GetKind()
+	if teleportKind == "" {
+		return nil, trace.BadParameter("teleport kind is required, this is a bug")
 	}
 	reconciler := &resourceReconciler[T, K]{
 		kubeClient:     client,
 		resourceClient: resourceClient,
 		gvk:            gvk,
 		adapter:        Resource153Adapter[T]{},
+		scoped:         config.Scoped,
+		teleportKind:   teleportKind,
+		checkFeatures:  checkFeatures,
 	}
 	return reconciler, nil
 }
