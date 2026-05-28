@@ -253,7 +253,12 @@ static int exit_execve(int retCode)
     for (; i < MAXARGS; i++) {
         const char *argp = NULL;
         long ret = bpf_probe_read_user(&argp, sizeof(argp), &argv[i]);
-        if (ret < 0 || !argp) {
+        if (ret < 0) {
+            data->failed_to_read_args = true;
+            break;
+        }
+        // We've reached the end of the arguments if argp is NULL.
+        if (!argp) {
             break;
         }
 
@@ -265,6 +270,7 @@ static int exit_execve(int retCode)
 
         ret = bpf_probe_read_user_str(&data->args[offset], MAXARGLEN, argp);
         if (ret < 0) {
+            data->failed_to_read_args = true;
             break;
         }
 

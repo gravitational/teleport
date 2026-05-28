@@ -456,6 +456,8 @@ func convertArgs(rawArgs []byte, truncated, failedToRead bool) []string {
 
 	if truncated {
 		args = append(args, TruncatedArg)
+	} else if failedToRead {
+		args = append(args, FailedToReadArg)
 	}
 
 	return args
