@@ -300,7 +300,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			HostID:            testCtx.HostID,
 			Context:           testCtx.Context,
 			KubeconfigPath:    kubeConfigLocation,
-			KubeServiceType:   KubeService,
+			Upstream:          NewKubeServiceUpstream(),
 			Component:         teleport.ComponentKube,
 			LockWatcher:       testCtx.lockWatcher,
 			// skip Impersonation validation
@@ -383,7 +383,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			CachingAuthClient: client,
 			HostID:            testCtx.HostID,
 			Context:           testCtx.Context,
-			KubeServiceType:   ProxyService,
+			Upstream:          NewProxyServiceUpstream(),
 			Component:         teleport.ComponentKube,
 			LockWatcher:       testCtx.lockWatcher,
 			Clock:             clockwork.NewRealClock(),

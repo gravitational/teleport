@@ -138,8 +138,10 @@ type ForwarderConfig struct {
 	Context context.Context
 	// KubeconfigPath is a path to kubernetes configuration
 	KubeconfigPath string
-	// KubeServiceType specifies which Teleport service type this forwarder is for
-	KubeServiceType KubeServiceType
+	// Upstream decides per request whether this forwarder serves the target
+	// kube cluster locally or forwards it to another agent. Construct with
+	// NewKubeServiceUpstream, NewProxyServiceUpstream, or NewLegacyProxyUpstream.
+	Upstream UpstreamResolver
 	// KubeClusterName is the name of the kubernetes cluster that this
 	// forwarder handles.
 	KubeClusterName string
@@ -232,7 +234,10 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 	if f.ClusterFeatures == nil {
 		return trace.BadParameter("missing parameter ClusterFeatures")
 	}
-	if f.KubeServiceType != KubeService && f.PROXYSigner == nil {
+	if f.Upstream == nil {
+		return trace.BadParameter("missing parameter Upstream")
+	}
+	if f.Upstream.forwardsToOtherAgents() && f.PROXYSigner == nil {
 		return trace.BadParameter("missing parameter PROXYSigner")
 	}
 	if f.Namespace == "" {
@@ -261,19 +266,16 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 
 	f.tracer = f.TracerProvider.Tracer("kube")
 
-	switch f.KubeServiceType {
-	case KubeService:
-	case ProxyService, LegacyProxyService:
+	if f.Upstream.forwardsToOtherAgents() {
 		if f.GetConnTLSCertificate == nil {
 			return trace.BadParameter("missing parameter GetConnTLSCertificate")
 		}
 		if f.GetConnTLSRoots == nil {
 			return trace.BadParameter("missing parameter GetConnTLSRoots")
 		}
-	default:
-		return trace.BadParameter("unknown value for KubeServiceType")
 	}
-	if f.KubeClusterName == "" && f.KubeconfigPath == "" && f.KubeServiceType == LegacyProxyService {
+	if f.KubeClusterName == "" && f.KubeconfigPath == "" &&
+		f.Upstream.servesLocalClusters() && f.Upstream.forwardsToOtherAgents() {
 		// Running without a kubeconfig and explicit k8s cluster name. Use
 		// teleport cluster name instead, to ask kubeutils.GetKubeConfig to
 		// attempt loading the in-cluster credentials.
@@ -321,11 +323,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 		},
 		cachedTransport: transportClients,
 	}
-	upstream, err := newUpstreamResolver(cfg.KubeServiceType)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	fwd.upstream = upstream
+	fwd.upstream = cfg.Upstream
 
 	router := httprouter.New()
 	router.UseRawPath = true
@@ -382,10 +380,9 @@ type Forwarder struct {
 	log    *slog.Logger
 	router http.Handler
 	cfg    ForwarderConfig
-	// upstream decides how the Forwarder treats a target kube cluster: serve
-	// it locally or forward to the next hop. It replaces per-request branching
-	// on cfg.KubeServiceType.
-	upstream upstreamResolver
+	// upstream is the per-request resolver from cfg.Upstream, hoisted here
+	// for convenience.
+	upstream UpstreamResolver
 	// activeRequests is a map used to serialize active CSR requests to the auth server
 	activeRequests map[string]context.Context
 	// close is a close function

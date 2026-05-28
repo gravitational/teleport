@@ -164,15 +164,15 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	switch c.KubeServiceType {
-	case ProxyService, LegacyProxyService:
+	if c.Upstream == nil {
+		return trace.BadParameter("missing parameter Upstream")
+	}
+	if c.Upstream.forwardsToOtherAgents() {
 		if c.KubernetesServersWatcher == nil {
 			return trace.BadParameter("missing parameter KubernetesServersWatcher")
 		}
-	case KubeService:
-		if c.Scope != "" && c.KubernetesServersWatcher != nil {
-			return trace.BadParameter("KubernetesServersWatcher is not supported for scoped KubeService")
-		}
+	} else if c.Scope != "" && c.KubernetesServersWatcher != nil {
+		return trace.BadParameter("KubernetesServersWatcher is not supported for scoped KubeService")
 	}
 
 	if c.Log == nil {
