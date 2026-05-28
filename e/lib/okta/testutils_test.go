@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -57,7 +58,7 @@ type testAccessPoint struct {
 	services.Identity
 	services.Okta
 	services.Plugins
-	services.Presence
+	services.PresenceInternal
 	services.Trust
 	services.UserGroups
 	services.WindowsDesktops
@@ -82,6 +83,10 @@ func (*testAccessPoint) NewKeepAliver(context.Context) (types.KeepAliver, error)
 
 func (*testAccessPoint) GenerateCertAuthorityCRL(context.Context, types.CertAuthType) ([]byte, error) {
 	return nil, nil
+}
+
+func (t *testAccessPoint) UpsertProxyServerWithoutReturn(ctx context.Context, s types.Server) error {
+	return trace.NotImplemented("UpsertProxyServerWithoutReturn is not implemented in testAccessPoint")
 }
 
 // GetInventoryConnectedServiceCount returns the counts of a particular connected service seen in the inventory.
@@ -168,7 +173,7 @@ func newTestAccessPoint(t testing.TB, clock clockwork.Clock) *testAccessPoint {
 		Identity:                              identity,
 		Okta:                                  okta,
 		Plugins:                               plugins,
-		Presence:                              presence,
+		PresenceInternal:                      presence,
 		Trust:                                 ca,
 		UserGroups:                            userGroups,
 		WindowsDesktops:                       windowsDesktops,
@@ -323,7 +328,8 @@ func newTestService(t *testing.T, ap *testAccessPoint, oktaClient oktaapi.Interf
 
 	proxyServer, err := types.NewServer("proxy", types.KindProxy, types.ServerSpecV2{})
 	require.NoError(t, err)
-	require.NoError(t, ap.UpsertProxy(ctx, proxyServer))
+	_, err = ap.UpsertProxyServer(ctx, proxyServer)
+	require.NoError(t, err)
 
 	return svc, emitter
 }
