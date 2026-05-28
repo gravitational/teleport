@@ -100,13 +100,6 @@ func GenSchemaDatabaseV3(ctx context.Context) (github_com_hashicorp_terraform_pl
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"revision": {
-					Computed:      true,
-					Description:   "Revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
 			}),
 			Computed:      true,
 			Description:   "Metadata is the database metadata.",
@@ -840,13 +833,6 @@ func GenSchemaServerV2(ctx context.Context) (github_com_hashicorp_terraform_plug
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"revision": {
-					Computed:      true,
-					Description:   "Revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
 			}),
 			Computed:      true,
 			Description:   "Metadata is resource metadata",
@@ -1159,13 +1145,6 @@ func GenSchemaAppV3(ctx context.Context) (github_com_hashicorp_terraform_plugin_
 				"namespace": {
 					Computed:      true,
 					Description:   "Namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
-				"revision": {
-					Computed:      true,
-					Description:   "Revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.",
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
@@ -1653,13 +1632,6 @@ func GenSchemaProvisionTokenV2(ctx context.Context) (github_com_hashicorp_terraf
 				"namespace": {
 					Computed:      true,
 					Description:   "Namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
-				"revision": {
-					Computed:      true,
-					Description:   "Revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.",
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
@@ -2927,13 +2899,6 @@ func GenSchemaClusterNetworkingConfigV2(ctx context.Context) (github_com_hashico
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"revision": {
-					Computed:      true,
-					Description:   "Revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
 			}),
 			Computed:      true,
 			Description:   "Metadata is resource metadata",
@@ -3133,13 +3098,6 @@ func GenSchemaSessionRecordingConfigV2(ctx context.Context) (github_com_hashicor
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"revision": {
-					Computed:      true,
-					Description:   "Revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
 			}),
 			Computed:      true,
 			Description:   "Metadata is resource metadata",
@@ -3313,13 +3271,6 @@ func GenSchemaAuthPreferenceV2(ctx context.Context) (github_com_hashicorp_terraf
 				"namespace": {
 					Computed:      true,
 					Description:   "Namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
-				"revision": {
-					Computed:      true,
-					Description:   "Revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.",
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
@@ -3666,13 +3617,6 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 				"namespace": {
 					Computed:      true,
 					Description:   "Namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
-				"revision": {
-					Computed:      true,
-					Description:   "Revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.",
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
@@ -5552,13 +5496,6 @@ func GenSchemaUserV2(ctx context.Context) (github_com_hashicorp_terraform_plugin
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"revision": {
-					Computed:      true,
-					Description:   "Revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
 			}),
 			Computed:      true,
 			Description:   "Metadata is resource metadata",
@@ -5791,13 +5728,6 @@ func GenSchemaKubernetesClusterV3(ctx context.Context) (github_com_hashicorp_ter
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"revision": {
-					Computed:      true,
-					Description:   "Revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
 			}),
 			Computed:      true,
 			Description:   "Metadata is the resource metadata.",
@@ -6014,13 +5944,6 @@ func GenSchemaOIDCConnectorV3(ctx context.Context) (github_com_hashicorp_terrafo
 				"namespace": {
 					Computed:      true,
 					Description:   "Namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
-				"revision": {
-					Computed:      true,
-					Description:   "Revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.",
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
@@ -6359,13 +6282,6 @@ func GenSchemaSAMLConnectorV2(ctx context.Context) (github_com_hashicorp_terrafo
 				"namespace": {
 					Computed:      true,
 					Description:   "Namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
-				"revision": {
-					Computed:      true,
-					Description:   "Revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.",
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
@@ -6761,13 +6677,6 @@ func GenSchemaGithubConnectorV3(ctx context.Context) (github_com_hashicorp_terra
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"revision": {
-					Computed:      true,
-					Description:   "Revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
 			}),
 			Computed:      true,
 			Description:   "Metadata holds resource metadata.",
@@ -6986,13 +6895,6 @@ func GenSchemaTrustedClusterV2(ctx context.Context) (github_com_hashicorp_terraf
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"revision": {
-					Computed:      true,
-					Description:   "Revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
 			}),
 			Computed:      true,
 			Description:   "Metadata holds resource metadata.",
@@ -7127,13 +7029,6 @@ func GenSchemaLockV2(ctx context.Context) (github_com_hashicorp_terraform_plugin
 				"namespace": {
 					Computed:      true,
 					Description:   "Namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
-				"revision": {
-					Computed:      true,
-					Description:   "Revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.",
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
@@ -7329,13 +7224,6 @@ func GenSchemaDynamicWindowsDesktopV1(ctx context.Context) (github_com_hashicorp
 				"namespace": {
 					Computed:      true,
 					Description:   "Namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
-				"revision": {
-					Computed:      true,
-					Description:   "Revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.",
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
@@ -7549,13 +7437,6 @@ func GenSchemaInstallerV1(ctx context.Context) (github_com_hashicorp_terraform_p
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"revision": {
-					Computed:      true,
-					Description:   "Revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
 			}),
 			Computed:      true,
 			Description:   "Metadata is the resource metadata.",
@@ -7635,13 +7516,6 @@ func GenSchemaSAMLIdPServiceProviderV1(ctx context.Context) (github_com_hashicor
 				"namespace": {
 					Computed:      true,
 					Description:   "Namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
-				"revision": {
-					Computed:      true,
-					Description:   "Revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.",
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
@@ -7793,13 +7667,6 @@ func GenSchemaClusterMaintenanceConfigV1(ctx context.Context) (github_com_hashic
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"revision": {
-					Computed:      true,
-					Description:   "Revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
 			}),
 			Computed:      true,
 			Description:   "Metadata is resource metadata",
@@ -7896,13 +7763,6 @@ func GenSchemaOktaImportRuleV1(ctx context.Context) (github_com_hashicorp_terraf
 				"namespace": {
 					Computed:      true,
 					Description:   "Namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
-				"revision": {
-					Computed:      true,
-					Description:   "Revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.",
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
@@ -8041,13 +7901,6 @@ func GenSchemaIntegrationV1(ctx context.Context) (github_com_hashicorp_terraform
 				"namespace": {
 					Computed:      true,
 					Description:   "Namespace is object namespace. The field should be called \"namespace\" when it returns in Teleport 2.4.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
-				},
-				"revision": {
-					Computed:      true,
-					Description:   "Revision is an opaque identifier which tracks the versions of a resource over time. Clients should ignore and not alter its value but must return the revision in any updates of a resource.",
 					Optional:      true,
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
@@ -8337,23 +8190,6 @@ func CopyDatabaseV3FromTerraform(_ context.Context, tf github_com_hashicorp_terr
 									t = &c
 								}
 								obj.Expires = t
-							}
-						}
-					}
-					{
-						a, ok := tf.Attrs["revision"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"DatabaseV3.Metadata.Revision"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"DatabaseV3.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-							} else {
-								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
-								}
-								obj.Revision = t
 							}
 						}
 					}
@@ -10275,32 +10111,6 @@ func CopyDatabaseV3ToTerraform(ctx context.Context, obj *github_com_gravitationa
 							}
 							v.Unknown = false
 							tf.Attrs["expires"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["revision"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"DatabaseV3.Metadata.Revision"})
-						} else {
-							v, ok := tf.Attrs["revision"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								if tf.Attrs["revision"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"DatabaseV3.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"DatabaseV3.Metadata.Revision", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"DatabaseV3.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-							}
-
-							v.Null = false
-							v.Value = string(obj.Revision)
-							v.Unknown = false
-							tf.Attrs["revision"] = v
 						}
 					}
 				}
@@ -13173,23 +12983,6 @@ func CopyServerV2FromTerraform(_ context.Context, tf github_com_hashicorp_terraf
 							}
 						}
 					}
-					{
-						a, ok := tf.Attrs["revision"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"ServerV2.Metadata.Revision"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"ServerV2.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-							} else {
-								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
-								}
-								obj.Revision = t
-							}
-						}
-					}
 				}
 			}
 		}
@@ -14103,32 +13896,6 @@ func CopyServerV2ToTerraform(ctx context.Context, obj *github_com_gravitational_
 							}
 							v.Unknown = false
 							tf.Attrs["expires"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["revision"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"ServerV2.Metadata.Revision"})
-						} else {
-							v, ok := tf.Attrs["revision"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								if tf.Attrs["revision"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"ServerV2.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"ServerV2.Metadata.Revision", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"ServerV2.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-							}
-
-							v.Null = false
-							v.Value = string(obj.Revision)
-							v.Unknown = false
-							tf.Attrs["revision"] = v
 						}
 					}
 				}
@@ -15359,23 +15126,6 @@ func CopyAppV3FromTerraform(_ context.Context, tf github_com_hashicorp_terraform
 									t = &c
 								}
 								obj.Expires = t
-							}
-						}
-					}
-					{
-						a, ok := tf.Attrs["revision"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"AppV3.Metadata.Revision"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"AppV3.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-							} else {
-								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
-								}
-								obj.Revision = t
 							}
 						}
 					}
@@ -16824,32 +16574,6 @@ func CopyAppV3ToTerraform(ctx context.Context, obj *github_com_gravitational_tel
 							}
 							v.Unknown = false
 							tf.Attrs["expires"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["revision"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"AppV3.Metadata.Revision"})
-						} else {
-							v, ok := tf.Attrs["revision"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								if tf.Attrs["revision"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"AppV3.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"AppV3.Metadata.Revision", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"AppV3.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-							}
-
-							v.Null = false
-							v.Value = string(obj.Revision)
-							v.Unknown = false
-							tf.Attrs["revision"] = v
 						}
 					}
 				}
@@ -19056,23 +18780,6 @@ func CopyProvisionTokenV2FromTerraform(_ context.Context, tf github_com_hashicor
 									t = &c
 								}
 								obj.Expires = t
-							}
-						}
-					}
-					{
-						a, ok := tf.Attrs["revision"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"ProvisionTokenV2.Metadata.Revision"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"ProvisionTokenV2.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-							} else {
-								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
-								}
-								obj.Revision = t
 							}
 						}
 					}
@@ -22682,32 +22389,6 @@ func CopyProvisionTokenV2ToTerraform(ctx context.Context, obj *github_com_gravit
 							}
 							v.Unknown = false
 							tf.Attrs["expires"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["revision"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"ProvisionTokenV2.Metadata.Revision"})
-						} else {
-							v, ok := tf.Attrs["revision"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								if tf.Attrs["revision"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"ProvisionTokenV2.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"ProvisionTokenV2.Metadata.Revision", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"ProvisionTokenV2.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-							}
-
-							v.Null = false
-							v.Value = string(obj.Revision)
-							v.Unknown = false
-							tf.Attrs["revision"] = v
 						}
 					}
 				}
@@ -28500,23 +28181,6 @@ func CopyClusterNetworkingConfigV2FromTerraform(_ context.Context, tf github_com
 							}
 						}
 					}
-					{
-						a, ok := tf.Attrs["revision"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"ClusterNetworkingConfigV2.Metadata.Revision"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"ClusterNetworkingConfigV2.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-							} else {
-								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
-								}
-								obj.Revision = t
-							}
-						}
-					}
 				}
 			}
 		}
@@ -29074,32 +28738,6 @@ func CopyClusterNetworkingConfigV2ToTerraform(ctx context.Context, obj *github_c
 							}
 							v.Unknown = false
 							tf.Attrs["expires"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["revision"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"ClusterNetworkingConfigV2.Metadata.Revision"})
-						} else {
-							v, ok := tf.Attrs["revision"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								if tf.Attrs["revision"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"ClusterNetworkingConfigV2.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"ClusterNetworkingConfigV2.Metadata.Revision", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"ClusterNetworkingConfigV2.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-							}
-
-							v.Null = false
-							v.Value = string(obj.Revision)
-							v.Unknown = false
-							tf.Attrs["revision"] = v
 						}
 					}
 				}
@@ -29782,23 +29420,6 @@ func CopySessionRecordingConfigV2FromTerraform(_ context.Context, tf github_com_
 							}
 						}
 					}
-					{
-						a, ok := tf.Attrs["revision"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"SessionRecordingConfigV2.Metadata.Revision"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"SessionRecordingConfigV2.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-							} else {
-								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
-								}
-								obj.Revision = t
-							}
-						}
-					}
 				}
 			}
 		}
@@ -30349,32 +29970,6 @@ func CopySessionRecordingConfigV2ToTerraform(ctx context.Context, obj *github_co
 							}
 							v.Unknown = false
 							tf.Attrs["expires"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["revision"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"SessionRecordingConfigV2.Metadata.Revision"})
-						} else {
-							v, ok := tf.Attrs["revision"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								if tf.Attrs["revision"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"SessionRecordingConfigV2.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"SessionRecordingConfigV2.Metadata.Revision", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"SessionRecordingConfigV2.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-							}
-
-							v.Null = false
-							v.Value = string(obj.Revision)
-							v.Unknown = false
-							tf.Attrs["revision"] = v
 						}
 					}
 				}
@@ -31047,23 +30642,6 @@ func CopyAuthPreferenceV2FromTerraform(_ context.Context, tf github_com_hashicor
 									t = &c
 								}
 								obj.Expires = t
-							}
-						}
-					}
-					{
-						a, ok := tf.Attrs["revision"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"AuthPreferenceV2.Metadata.Revision"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"AuthPreferenceV2.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-							} else {
-								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
-								}
-								obj.Revision = t
 							}
 						}
 					}
@@ -32039,32 +31617,6 @@ func CopyAuthPreferenceV2ToTerraform(ctx context.Context, obj *github_com_gravit
 							}
 							v.Unknown = false
 							tf.Attrs["expires"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["revision"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"AuthPreferenceV2.Metadata.Revision"})
-						} else {
-							v, ok := tf.Attrs["revision"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								if tf.Attrs["revision"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"AuthPreferenceV2.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"AuthPreferenceV2.Metadata.Revision", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"AuthPreferenceV2.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-							}
-
-							v.Null = false
-							v.Value = string(obj.Revision)
-							v.Unknown = false
-							tf.Attrs["revision"] = v
 						}
 					}
 				}
@@ -33468,23 +33020,6 @@ func CopyRoleV6FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 									t = &c
 								}
 								obj.Expires = t
-							}
-						}
-					}
-					{
-						a, ok := tf.Attrs["revision"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"RoleV6.Metadata.Revision"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"RoleV6.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-							} else {
-								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
-								}
-								obj.Revision = t
 							}
 						}
 					}
@@ -38932,32 +38467,6 @@ func CopyRoleV6ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 							}
 							v.Unknown = false
 							tf.Attrs["expires"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["revision"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"RoleV6.Metadata.Revision"})
-						} else {
-							v, ok := tf.Attrs["revision"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								if tf.Attrs["revision"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"RoleV6.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"RoleV6.Metadata.Revision", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"RoleV6.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-							}
-
-							v.Null = false
-							v.Value = string(obj.Revision)
-							v.Unknown = false
-							tf.Attrs["revision"] = v
 						}
 					}
 				}
@@ -48445,23 +47954,6 @@ func CopyUserV2FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 							}
 						}
 					}
-					{
-						a, ok := tf.Attrs["revision"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"UserV2.Metadata.Revision"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"UserV2.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-							} else {
-								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
-								}
-								obj.Revision = t
-							}
-						}
-					}
 				}
 			}
 		}
@@ -49154,32 +48646,6 @@ func CopyUserV2ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 							}
 							v.Unknown = false
 							tf.Attrs["expires"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["revision"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"UserV2.Metadata.Revision"})
-						} else {
-							v, ok := tf.Attrs["revision"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								if tf.Attrs["revision"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"UserV2.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"UserV2.Metadata.Revision", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"UserV2.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-							}
-
-							v.Null = false
-							v.Value = string(obj.Revision)
-							v.Unknown = false
-							tf.Attrs["revision"] = v
 						}
 					}
 				}
@@ -50064,23 +49530,6 @@ func CopyKubernetesClusterV3FromTerraform(_ context.Context, tf github_com_hashi
 							}
 						}
 					}
-					{
-						a, ok := tf.Attrs["revision"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"KubernetesClusterV3.Metadata.Revision"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"KubernetesClusterV3.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-							} else {
-								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
-								}
-								obj.Revision = t
-							}
-						}
-					}
 				}
 			}
 		}
@@ -50717,32 +50166,6 @@ func CopyKubernetesClusterV3ToTerraform(ctx context.Context, obj *github_com_gra
 							}
 							v.Unknown = false
 							tf.Attrs["expires"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["revision"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"KubernetesClusterV3.Metadata.Revision"})
-						} else {
-							v, ok := tf.Attrs["revision"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								if tf.Attrs["revision"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"KubernetesClusterV3.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"KubernetesClusterV3.Metadata.Revision", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"KubernetesClusterV3.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-							}
-
-							v.Null = false
-							v.Value = string(obj.Revision)
-							v.Unknown = false
-							tf.Attrs["revision"] = v
 						}
 					}
 				}
@@ -51509,23 +50932,6 @@ func CopyOIDCConnectorV3FromTerraform(_ context.Context, tf github_com_hashicorp
 									t = &c
 								}
 								obj.Expires = t
-							}
-						}
-					}
-					{
-						a, ok := tf.Attrs["revision"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"OIDCConnectorV3.Metadata.Revision"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"OIDCConnectorV3.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-							} else {
-								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
-								}
-								obj.Revision = t
 							}
 						}
 					}
@@ -52509,32 +51915,6 @@ func CopyOIDCConnectorV3ToTerraform(ctx context.Context, obj *github_com_gravita
 							}
 							v.Unknown = false
 							tf.Attrs["expires"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["revision"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"OIDCConnectorV3.Metadata.Revision"})
-						} else {
-							v, ok := tf.Attrs["revision"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								if tf.Attrs["revision"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"OIDCConnectorV3.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"OIDCConnectorV3.Metadata.Revision", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"OIDCConnectorV3.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-							}
-
-							v.Null = false
-							v.Value = string(obj.Revision)
-							v.Unknown = false
-							tf.Attrs["revision"] = v
 						}
 					}
 				}
@@ -53883,23 +53263,6 @@ func CopySAMLConnectorV2FromTerraform(_ context.Context, tf github_com_hashicorp
 							}
 						}
 					}
-					{
-						a, ok := tf.Attrs["revision"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"SAMLConnectorV2.Metadata.Revision"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"SAMLConnectorV2.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-							} else {
-								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
-								}
-								obj.Revision = t
-							}
-						}
-					}
 				}
 			}
 		}
@@ -55015,32 +54378,6 @@ func CopySAMLConnectorV2ToTerraform(ctx context.Context, obj *github_com_gravita
 							}
 							v.Unknown = false
 							tf.Attrs["expires"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["revision"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"SAMLConnectorV2.Metadata.Revision"})
-						} else {
-							v, ok := tf.Attrs["revision"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								if tf.Attrs["revision"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"SAMLConnectorV2.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"SAMLConnectorV2.Metadata.Revision", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"SAMLConnectorV2.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-							}
-
-							v.Null = false
-							v.Value = string(obj.Revision)
-							v.Unknown = false
-							tf.Attrs["revision"] = v
 						}
 					}
 				}
@@ -56610,23 +55947,6 @@ func CopyGithubConnectorV3FromTerraform(_ context.Context, tf github_com_hashico
 							}
 						}
 					}
-					{
-						a, ok := tf.Attrs["revision"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"GithubConnectorV3.Metadata.Revision"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"GithubConnectorV3.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-							} else {
-								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
-								}
-								obj.Revision = t
-							}
-						}
-					}
 				}
 			}
 		}
@@ -57352,32 +56672,6 @@ func CopyGithubConnectorV3ToTerraform(ctx context.Context, obj *github_com_gravi
 							}
 							v.Unknown = false
 							tf.Attrs["expires"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["revision"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"GithubConnectorV3.Metadata.Revision"})
-						} else {
-							v, ok := tf.Attrs["revision"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								if tf.Attrs["revision"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"GithubConnectorV3.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"GithubConnectorV3.Metadata.Revision", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"GithubConnectorV3.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-							}
-
-							v.Null = false
-							v.Value = string(obj.Revision)
-							v.Unknown = false
-							tf.Attrs["revision"] = v
 						}
 					}
 				}
@@ -58371,23 +57665,6 @@ func CopyTrustedClusterV2FromTerraform(_ context.Context, tf github_com_hashicor
 							}
 						}
 					}
-					{
-						a, ok := tf.Attrs["revision"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"TrustedClusterV2.Metadata.Revision"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"TrustedClusterV2.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-							} else {
-								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
-								}
-								obj.Revision = t
-							}
-						}
-					}
 				}
 			}
 		}
@@ -58847,32 +58124,6 @@ func CopyTrustedClusterV2ToTerraform(ctx context.Context, obj *github_com_gravit
 							}
 							v.Unknown = false
 							tf.Attrs["expires"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["revision"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"TrustedClusterV2.Metadata.Revision"})
-						} else {
-							v, ok := tf.Attrs["revision"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								if tf.Attrs["revision"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"TrustedClusterV2.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"TrustedClusterV2.Metadata.Revision", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"TrustedClusterV2.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-							}
-
-							v.Null = false
-							v.Value = string(obj.Revision)
-							v.Unknown = false
-							tf.Attrs["revision"] = v
 						}
 					}
 				}
@@ -59370,23 +58621,6 @@ func CopyLockV2FromTerraform(_ context.Context, tf github_com_hashicorp_terrafor
 									t = &c
 								}
 								obj.Expires = t
-							}
-						}
-					}
-					{
-						a, ok := tf.Attrs["revision"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"LockV2.Metadata.Revision"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"LockV2.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-							} else {
-								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
-								}
-								obj.Revision = t
 							}
 						}
 					}
@@ -59955,32 +59189,6 @@ func CopyLockV2ToTerraform(ctx context.Context, obj *github_com_gravitational_te
 							}
 							v.Unknown = false
 							tf.Attrs["expires"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["revision"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"LockV2.Metadata.Revision"})
-						} else {
-							v, ok := tf.Attrs["revision"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								if tf.Attrs["revision"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"LockV2.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"LockV2.Metadata.Revision", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"LockV2.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-							}
-
-							v.Null = false
-							v.Value = string(obj.Revision)
-							v.Unknown = false
-							tf.Attrs["revision"] = v
 						}
 					}
 				}
@@ -60610,23 +59818,6 @@ func CopyDynamicWindowsDesktopV1FromTerraform(_ context.Context, tf github_com_h
 							}
 						}
 					}
-					{
-						a, ok := tf.Attrs["revision"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"DynamicWindowsDesktopV1.Metadata.Revision"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"DynamicWindowsDesktopV1.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-							} else {
-								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
-								}
-								obj.Revision = t
-							}
-						}
-					}
 				}
 			}
 		}
@@ -61022,32 +60213,6 @@ func CopyDynamicWindowsDesktopV1ToTerraform(ctx context.Context, obj *github_com
 							}
 							v.Unknown = false
 							tf.Attrs["expires"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["revision"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"DynamicWindowsDesktopV1.Metadata.Revision"})
-						} else {
-							v, ok := tf.Attrs["revision"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								if tf.Attrs["revision"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"DynamicWindowsDesktopV1.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"DynamicWindowsDesktopV1.Metadata.Revision", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"DynamicWindowsDesktopV1.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-							}
-
-							v.Null = false
-							v.Value = string(obj.Revision)
-							v.Unknown = false
-							tf.Attrs["revision"] = v
 						}
 					}
 				}
@@ -61956,23 +61121,6 @@ func CopyInstallerV1FromTerraform(_ context.Context, tf github_com_hashicorp_ter
 							}
 						}
 					}
-					{
-						a, ok := tf.Attrs["revision"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"InstallerV1.Metadata.Revision"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"InstallerV1.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-							} else {
-								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
-								}
-								obj.Revision = t
-							}
-						}
-					}
 				}
 			}
 		}
@@ -62284,32 +61432,6 @@ func CopyInstallerV1ToTerraform(ctx context.Context, obj *github_com_gravitation
 							tf.Attrs["expires"] = v
 						}
 					}
-					{
-						t, ok := tf.AttrTypes["revision"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"InstallerV1.Metadata.Revision"})
-						} else {
-							v, ok := tf.Attrs["revision"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								if tf.Attrs["revision"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"InstallerV1.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"InstallerV1.Metadata.Revision", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"InstallerV1.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-							}
-
-							v.Null = false
-							v.Value = string(obj.Revision)
-							v.Unknown = false
-							tf.Attrs["revision"] = v
-						}
-					}
 				}
 				v.Unknown = false
 				tf.Attrs["metadata"] = v
@@ -62536,23 +61658,6 @@ func CopySAMLIdPServiceProviderV1FromTerraform(_ context.Context, tf github_com_
 									t = &c
 								}
 								obj.Expires = t
-							}
-						}
-					}
-					{
-						a, ok := tf.Attrs["revision"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"SAMLIdPServiceProviderV1.Metadata.Revision"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"SAMLIdPServiceProviderV1.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-							} else {
-								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
-								}
-								obj.Revision = t
 							}
 						}
 					}
@@ -63040,32 +62145,6 @@ func CopySAMLIdPServiceProviderV1ToTerraform(ctx context.Context, obj *github_co
 							}
 							v.Unknown = false
 							tf.Attrs["expires"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["revision"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"SAMLIdPServiceProviderV1.Metadata.Revision"})
-						} else {
-							v, ok := tf.Attrs["revision"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								if tf.Attrs["revision"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"SAMLIdPServiceProviderV1.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"SAMLIdPServiceProviderV1.Metadata.Revision", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"SAMLIdPServiceProviderV1.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-							}
-
-							v.Null = false
-							v.Value = string(obj.Revision)
-							v.Unknown = false
-							tf.Attrs["revision"] = v
 						}
 					}
 				}
@@ -63574,23 +62653,6 @@ func CopyClusterMaintenanceConfigV1FromTerraform(_ context.Context, tf github_co
 							}
 						}
 					}
-					{
-						a, ok := tf.Attrs["revision"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"ClusterMaintenanceConfigV1.Metadata.Revision"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"ClusterMaintenanceConfigV1.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-							} else {
-								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
-								}
-								obj.Revision = t
-							}
-						}
-					}
 				}
 			}
 		}
@@ -63921,32 +62983,6 @@ func CopyClusterMaintenanceConfigV1ToTerraform(ctx context.Context, obj *github_
 							tf.Attrs["expires"] = v
 						}
 					}
-					{
-						t, ok := tf.AttrTypes["revision"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"ClusterMaintenanceConfigV1.Metadata.Revision"})
-						} else {
-							v, ok := tf.Attrs["revision"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								if tf.Attrs["revision"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"ClusterMaintenanceConfigV1.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"ClusterMaintenanceConfigV1.Metadata.Revision", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"ClusterMaintenanceConfigV1.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-							}
-
-							v.Null = false
-							v.Value = string(obj.Revision)
-							v.Unknown = false
-							tf.Attrs["revision"] = v
-						}
-					}
 				}
 				v.Unknown = false
 				tf.Attrs["metadata"] = v
@@ -64261,23 +63297,6 @@ func CopyOktaImportRuleV1FromTerraform(_ context.Context, tf github_com_hashicor
 									t = &c
 								}
 								obj.Expires = t
-							}
-						}
-					}
-					{
-						a, ok := tf.Attrs["revision"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"OktaImportRuleV1.Metadata.Revision"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"OktaImportRuleV1.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-							} else {
-								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
-								}
-								obj.Revision = t
 							}
 						}
 					}
@@ -64783,32 +63802,6 @@ func CopyOktaImportRuleV1ToTerraform(ctx context.Context, obj *github_com_gravit
 							}
 							v.Unknown = false
 							tf.Attrs["expires"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["revision"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"OktaImportRuleV1.Metadata.Revision"})
-						} else {
-							v, ok := tf.Attrs["revision"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								if tf.Attrs["revision"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"OktaImportRuleV1.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"OktaImportRuleV1.Metadata.Revision", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"OktaImportRuleV1.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-							}
-
-							v.Null = false
-							v.Value = string(obj.Revision)
-							v.Unknown = false
-							tf.Attrs["revision"] = v
 						}
 					}
 				}
@@ -65426,23 +64419,6 @@ func CopyIntegrationV1FromTerraform(_ context.Context, tf github_com_hashicorp_t
 							}
 						}
 					}
-					{
-						a, ok := tf.Attrs["revision"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"IntegrationV1.Metadata.Revision"})
-						} else {
-							v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								diags.Append(attrReadConversionFailureDiag{"IntegrationV1.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-							} else {
-								var t string
-								if !v.Null && !v.Unknown {
-									t = string(v.Value)
-								}
-								obj.Revision = t
-							}
-						}
-					}
 				}
 			}
 		}
@@ -66005,32 +64981,6 @@ func CopyIntegrationV1ToTerraform(ctx context.Context, obj *github_com_gravitati
 							}
 							v.Unknown = false
 							tf.Attrs["expires"] = v
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["revision"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"IntegrationV1.Metadata.Revision"})
-						} else {
-							v, ok := tf.Attrs["revision"].(github_com_hashicorp_terraform_plugin_framework_types.String)
-							if !ok {
-								if tf.Attrs["revision"] != nil {
-									diags.Append(attrWriteUnexpectedExistingTypeDiag{"IntegrationV1.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-								i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-								if err != nil {
-									diags.Append(attrWriteGeneralError{"IntegrationV1.Metadata.Revision", err})
-								}
-								v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
-								if !ok {
-									diags.Append(attrWriteConversionFailureDiag{"IntegrationV1.Metadata.Revision", "github.com/hashicorp/terraform-plugin-framework/types.String"})
-								}
-							}
-
-							v.Null = false
-							v.Value = string(obj.Revision)
-							v.Unknown = false
-							tf.Attrs["revision"] = v
 						}
 					}
 				}
