@@ -264,14 +264,16 @@ RUN mkdir -p helm-tarball && \
     curl -fsSL https://get.helm.sh/helm-v3.12.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
     cp helm-tarball/$(go env GOOS)-$(go env GOARCH)/helm /bin/ && \
     rm -r helm-tarball*
-# TODO(hugoShaka): remove this backward compatible hack with teleportv13 buildbox
-RUN helm plugin install https://github.com/quintush/helm-unittest --version 0.2.11 && \
-    mkdir -p /home/ci/.local/share/helm && \
-    cp -r /root/.local/share/helm/plugins /home/ci/.local/share/helm/plugins-new && \
-    chown -R ci /home/ci/.local/share/helm && \
-    helm plugin uninstall unittest && \
-    HELM_PLUGINS=/home/ci/.local/share/helm/plugins-new helm plugin list
-RUN helm plugin install https://github.com/vbehar/helm3-unittest && \
+# Install the helm-unittest plugin for the ci user. Both consumers --
+# `make test-helm` (via build.assets/Makefile) and the unit-tests-helm GitHub
+# workflow -- set HELM_PLUGINS=/home/ci/.local/share/helm/plugins.
+#
+# TODO(adamcarheden): upgrade to the latest helm-unittest (v1.1.1+) and the
+# latest Helm in a fast-follow PR. v1.1.1's plugin.yaml uses platformCommand/
+# platformHooks, which Helm only supports from v3.19 onward, so it cannot be
+# loaded by the helm v3.12.2 pinned above. Bumping the plugin therefore requires
+# bumping Helm in this buildbox first.
+RUN helm plugin install https://github.com/helm-unittest/helm-unittest --version v1.0.3 && \
     mkdir -p /home/ci/.local/share/helm && \
     cp -r /root/.local/share/helm/plugins /home/ci/.local/share/helm && \
     chown -R ci /home/ci/.local/share/helm && \

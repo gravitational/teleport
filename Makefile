@@ -955,12 +955,12 @@ $(TEST_LOG_DIR):
 .PHONY: helmunit/installed
 helmunit/installed:
 	@if ! helm unittest -h >/dev/null; then \
-		echo 'Helm unittest plugin is required to test Helm charts. Run `helm plugin install https://github.com/quintush/helm-unittest --version 0.2.11` to install it'; \
+		echo 'Helm unittest plugin is required to test Helm charts. Run `helm plugin install https://github.com/helm-unittest/helm-unittest --version v1.0.3` to install it'; \
 		exit 1; \
 	fi
 
 # The CI environment is responsible for setting HELM_PLUGINS to a directory where
-# quintish/helm-unittest is installed.
+# helm-unittest/helm-unittest is installed.
 #
 # Github Actions build uses /workspace as homedir and Helm can't pick up plugins by default there,
 # so override the plugin location via environemnt variable when running in CI. Github Actions provide CI=true

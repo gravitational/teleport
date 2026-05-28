@@ -42,8 +42,7 @@ jobs:
     container:
       image: ghcr.io/gravitational/teleport-buildbox:teleport19
       env:
-        # TODO(hugoShaka) remove the '-new' prefix when updating to teleport13 buildbox
-        HELM_PLUGINS: /home/ci/.local/share/helm/plugins-new
+        HELM_PLUGINS: /home/ci/.local/share/helm/plugins
 
     steps:
       - name: Checkout Teleport

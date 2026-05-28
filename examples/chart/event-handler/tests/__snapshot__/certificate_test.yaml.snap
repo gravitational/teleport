@@ -13,8 +13,8 @@ should request certificates when certManager enabled:
       namespace: NAMESPACE
     spec:
       dnsNames:
-      - test.example.com
-      - test2.example.com
+        - test.example.com
+        - test2.example.com
       duration: 87600h
       issuerRef:
         group: cert-manager.io
@@ -26,7 +26,7 @@ should request certificates when certManager enabled:
         size: 256
       secretName: RELEASE-NAME-teleport-plugin-event-handler-server-tls
       usages:
-      - server auth
+        - server auth
   2: |
     apiVersion: cert-manager.io/v1
     kind: Certificate
@@ -52,4 +52,4 @@ should request certificates when certManager enabled:
         size: 256
       secretName: RELEASE-NAME-teleport-plugin-event-handler-client-tls
       usages:
-      - client auth
+        - client auth
