@@ -44,6 +44,11 @@ func (h *Handler) ListRequestableRoles(ctx context.Context, req *api.ListRequest
 		Filter:    req.Filter,
 	})
 	if err != nil {
+		// TODO: Support NotImplemented. tshd will need to somehow pass
+		// NotImplemented from the auth client to the frontend and frontend will
+		// need to rebuild a paginated response, similar to how
+		// fetchRequestableRoles in web/packages/teleport/src/services/resources/resource.ts
+		// does it which is then rendered by e/web/teleport/src/Workflow/NewRequest/Roles.tsx.
 		return nil, trace.Wrap(err)
 	}
 
