@@ -36,7 +36,7 @@ import (
 // startReconciler starts reconciler that registers/unregisters proxied
 // kubernetes clusters according to the up-to-date list of kube_cluster resources.
 func (s *TLSServer) startReconciler(ctx context.Context) (err error) {
-	if len(s.ResourceMatchers) == 0 || s.KubeServiceType != KubeService {
+	if len(s.ResourceMatchers) == 0 || s.fwd.upstream.forwardsToOtherAgents() {
 		s.log.DebugContext(ctx, "Not initializing Kube Cluster resource watcher")
 		return nil
 	}
@@ -93,7 +93,7 @@ func (s *TLSServer) startReconciler(ctx context.Context) (err error) {
 // startKubeClusterResourceWatcher starts watching changes to Kube Clusters resources and
 // registers/unregisters the proxied Kube Cluster accordingly.
 func (s *TLSServer) startKubeClusterResourceWatcher(ctx context.Context) (*services.GenericWatcher[types.KubeCluster, readonly.KubeCluster], error) {
-	if len(s.ResourceMatchers) == 0 || s.KubeServiceType != KubeService || s.Scope != "" {
+	if len(s.ResourceMatchers) == 0 || s.fwd.upstream.forwardsToOtherAgents() || s.Scope != "" {
 		s.log.DebugContext(ctx, "Not initializing Kube Cluster resource watcher")
 		return nil, nil
 	}
@@ -185,7 +185,7 @@ func (s *TLSServer) buildClusterDetailsConfigForCluster(cluster types.KubeCluste
 		checker:          s.CheckImpersonationPermissions,
 		resourceMatchers: s.ResourceMatchers,
 		clock:            s.Clock,
-		component:        s.KubeServiceType,
+		component:        s.fwd.component(),
 	}
 }
 

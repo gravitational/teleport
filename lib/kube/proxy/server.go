@@ -251,7 +251,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if len(fwd.kubeClusters()) == 0 && cfg.KubeServiceType == KubeService &&
+	if len(fwd.kubeClusters()) == 0 && !fwd.upstream.forwardsToOtherAgents() &&
 		len(cfg.ResourceMatchers) == 0 {
 		// if fwd has no clusters and the service type is KubeService but no resource watcher is configured
 		// then the kube_service does not need to start since it will not serve any static or dynamic cluster.
@@ -524,7 +524,7 @@ func (t *TLSServer) GetServerInfo(name string) (*types.KubernetesServerV3, error
 	//
 	// Note: we *don't* want to add suffix for kubernetes_service!
 	// This breaks reverse tunnel routing, which uses server.Name.
-	if t.KubeServiceType != KubeService {
+	if t.fwd.upstream.forwardsToOtherAgents() {
 		name += teleport.KubeLegacyProxySuffix
 	}
 
