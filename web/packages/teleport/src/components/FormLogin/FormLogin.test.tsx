@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { fireEvent, render, screen } from 'design/utils/testing';
+import { fireEvent, render, screen, userEvent } from 'design/utils/testing';
 
 import history from 'teleport/services/history';
 
@@ -72,6 +72,22 @@ test('auth2faType: otp', () => {
   fireEvent.click(screen.getByRole('button', { name: /sign in/i }));
 
   expect(onLogin).toHaveBeenCalledWith('username', '123', '456');
+});
+
+test('login MFA dropdown excludes "None" even when auth is optional', async () => {
+  const user = userEvent.setup();
+  render(<FormLogin {...props} auth2faType="optional" />);
+
+  // Open the FieldSelect menu.
+  await user.click(screen.getByText('Passkey or Security Key'));
+
+  const optionLabels = screen
+    .getAllByRole('option')
+    .map(o => o.textContent);
+  expect(optionLabels).not.toContain('None');
+  expect(optionLabels).toEqual(
+    expect.arrayContaining(['Passkey or Security Key', 'Authenticator App'])
+  );
 });
 
 test('auth2faType: webauthn', async () => {

@@ -19,23 +19,37 @@
 import { SSOChallenge } from 'gen-proto-ts/teleport/lib/teleterm/v1/tshd_events_service_pb';
 import { Auth2faType } from 'shared/services';
 
-import { getMfaChallengeOptions, getMfaRegisterOptions } from './mfaOptions';
+import {
+  getMfaChallengeOptions,
+  getMfaRegisterOptions,
+  MfaRegisterOption,
+} from './mfaOptions';
 import { DeviceType, MfaAuthenticateChallenge } from './types';
 
 describe('test retrieving mfa options from Auth2faType', () => {
   const testCases: {
     name: string;
     type?: Auth2faType;
-    expect: DeviceType[];
+    expect: MfaRegisterOption['value'][];
   }[] = [
     {
       name: 'type undefined',
       expect: [],
     },
     {
+      name: 'type off',
+      type: 'off',
+      expect: [],
+    },
+    {
       name: 'type on',
       type: 'on',
       expect: ['webauthn', 'totp'],
+    },
+    {
+      name: 'type optional',
+      type: 'optional',
+      expect: ['webauthn', 'totp', 'none'],
     },
     {
       name: 'type webauthn only',
