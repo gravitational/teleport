@@ -668,6 +668,12 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 	cfg.AuthConnectionConfig = *authConnectionConfig
 
+	auditQueue, err := fc.AuditQueue.Parse()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	cfg.AuditQueue = auditQueue
+
 	cfg.ShutdownDelay = time.Duration(fc.ShutdownDelay)
 
 	// Apply (TLS) cipher suites and (SSH) ciphers, KEX algorithms, and MAC

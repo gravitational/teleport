@@ -414,7 +414,7 @@ func TestEnqueue_FullReturnsErrQueueFull(t *testing.T) {
 
 	q, err := newSQLiteQueue(Config{
 		Path:     filepath.Join(t.TempDir(), "queue"),
-		MaxBytes: 8 * int64(os.Getpagesize()),
+		MaxBytes: 8 * sqlitePageSize,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = q.Close() })
@@ -429,6 +429,32 @@ func TestEnqueue_FullReturnsErrQueueFull(t *testing.T) {
 	require.Error(t, got, "expected an Enqueue to fail once max_page_count is hit")
 	require.ErrorIs(t, got, ErrQueueFull,
 		"Enqueue should map SQLITE_FULL to ErrQueueFull; got %v", got)
+}
+
+func TestEnqueue_FileSizeStaysWithinMaxBytes(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	const maxBytes = 8 * sqlitePageSize
+	path := filepath.Join(t.TempDir(), "queue")
+	q, err := newSQLiteQueue(Config{
+		Path:     path,
+		MaxBytes: maxBytes,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = q.Close() })
+
+	for i := range 10000 {
+		if err := q.Enqueue(ctx, newTestEvent(int64(i))); err != nil {
+			require.ErrorIs(t, err, ErrQueueFull)
+			break
+		}
+	}
+
+	info, err := os.Stat(filepath.Join(path, queueDBFile))
+	require.NoError(t, err)
+	require.LessOrEqual(t, info.Size(), int64(maxBytes),
+		"queue.db size %d exceeded MaxBytes %d", info.Size(), maxBytes)
 }
 
 func TestOrphanAdoption_DrainsAndDeletes(t *testing.T) {
@@ -480,7 +506,7 @@ func TestOrphanAdoption_DrainsAndDeletes(t *testing.T) {
 func TestOrphanAdoption_MigratesDeadLetter(t *testing.T) {
 	t.Parallel()
 	parent := t.TempDir()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	aPath := filepath.Join(parent, "a")
 	a, err := newSQLiteQueue(Config{
@@ -654,7 +680,7 @@ func TestIsSQLiteFullError(t *testing.T) {
 	t.Parallel()
 
 	dbPath := filepath.Join(t.TempDir(), "test.db")
-	db, err := sql.Open("sqlite", getDSN(dbPath, 10*int64(os.Getpagesize())))
+	db, err := sql.Open("sqlite", getDSN(dbPath, 10*sqlitePageSize, SynchronousNormal))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
 
@@ -702,7 +728,7 @@ func TestPlaceholders(t *testing.T) {
 
 func TestProcessFailedDelivery_PromotesExhausted(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	q, err := newSQLiteQueue(Config{
 		Path:        filepath.Join(t.TempDir(), queueDir),
@@ -742,7 +768,7 @@ func TestProcessFailedDelivery_PromotesExhausted(t *testing.T) {
 
 func TestRetry_ExhaustedMovesToDeadLetter(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	const maxAttempts = 3
 	q, err := newSQLiteQueue(Config{
@@ -781,7 +807,7 @@ func TestRetry_ExhaustedMovesToDeadLetter(t *testing.T) {
 
 func TestDeadLetterSweep_RedeliversOnRecovery(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	sweepInterval := 50 * time.Millisecond
 	q, err := newSQLiteQueue(Config{
@@ -828,7 +854,7 @@ func TestDeadLetterSweep_RedeliversOnRecovery(t *testing.T) {
 
 func TestDeadLetterTTL_ExpiresOldRows(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	q, err := newSQLiteQueue(Config{
 		Path:          filepath.Join(t.TempDir(), queueDir),

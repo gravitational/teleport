@@ -450,6 +450,62 @@ func TestRun_DeadLetter_RedeliversAfterRecovery(t *testing.T) {
 	}
 }
 
+func TestEnqueueDequeue_RoundTrip(t *testing.T) {
+	t.Parallel()
+
+	original := &apievents.UserLogin{
+		Metadata: apievents.Metadata{
+			Type:        "user.login",
+			Code:        "T1000I",
+			Index:       42,
+			ClusterName: "my-cluster",
+		},
+		UserMetadata: apievents.UserMetadata{
+			User:  "alice",
+			Login: "root",
+		},
+		ConnectionMetadata: apievents.ConnectionMetadata{
+			RemoteAddr: "1.2.3.4:5678",
+			Protocol:   "ssh",
+		},
+		Status: apievents.Status{
+			Success: true,
+		},
+		Method: "local",
+	}
+
+	for _, kind := range allKinds {
+		t.Run(string(kind), func(t *testing.T) {
+			t.Parallel()
+			ctx := t.Context()
+			runCtx, cancel := context.WithCancel(ctx)
+			t.Cleanup(cancel)
+
+			q := newTestQueue(t, kind)
+
+			require.NoError(t, q.Enqueue(ctx, original))
+
+			delivered := make(chan apievents.AuditEvent, 1)
+			handler := func(_ context.Context, items []Item) []Item {
+				for _, item := range items {
+					delivered <- item.Event
+				}
+				return items
+			}
+
+			runErr := make(chan error, 1)
+			go func() { runErr <- q.Run(runCtx, handler) }()
+
+			got := <-delivered
+			require.IsType(t, original, got)
+			require.Equal(t, original, got)
+
+			cancel()
+			require.NoError(t, <-runErr)
+		})
+	}
+}
+
 func BenchmarkEnqueue(b *testing.B) {
 	for _, kind := range allKinds {
 		b.Run(string(kind), func(b *testing.B) {

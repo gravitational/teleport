@@ -96,6 +96,9 @@ type Config struct {
 	// the beginning of the shutdown procedures.
 	ShutdownDelay time.Duration
 
+	// AuditQueue configures the audit log event queue.
+	AuditQueue AuditQueueConfig
+
 	// Auth service configuration. Manages cluster state and configuration.
 	Auth AuthConfig
 

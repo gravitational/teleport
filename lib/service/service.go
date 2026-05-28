@@ -129,6 +129,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/athena"
+	"github.com/gravitational/teleport/lib/events/auditqueue"
 	"github.com/gravitational/teleport/lib/events/azsessions"
 	"github.com/gravitational/teleport/lib/events/dynamoevents"
 	"github.com/gravitational/teleport/lib/events/filesessions"
@@ -3385,6 +3386,11 @@ func isSQLiteQueueEnabled() bool {
 // NewAsyncEmitter wraps client and returns emitter that never blocks, logs some events and checks values.
 // It is caller's responsibility to call Close on the emitter once done.
 func (process *TeleportProcess) NewAsyncEmitter(clt apievents.Emitter) (*events.CheckingAsyncEmitter, error) {
+	var backends []auditqueue.Kind
+	for _, backend := range process.Config.AuditQueue.Backends {
+		backends = append(backends, auditqueue.Kind(backend))
+	}
+
 	// Wrap the AsyncEmitter in a CheckingEmitter to ensure event fields are
 	// properly set before inserting events into the queue.
 	return events.NewCheckingAsyncEmitter(
@@ -3395,6 +3401,16 @@ func (process *TeleportProcess) NewAsyncEmitter(clt apievents.Emitter) (*events.
 			Inner:             events.NewMultiEmitter(events.NewLoggingEmitter(process.GetClusterFeatures().Cloud), clt),
 			DataDir:           process.Config.DataDir,
 			EnableSQLiteQueue: isSQLiteQueueEnabled(),
+			AuditQueueCfg: auditqueue.Config{
+				SoftLimit:               process.Config.AuditQueue.SoftLimit,
+				MaxBytes:                process.Config.AuditQueue.MaxBytes,
+				MaxAttempts:             process.Config.AuditQueue.MaxAttempts,
+				DeadLetterTTL:           process.Config.AuditQueue.DeadLetterTTL,
+				DeadLetterSweepInterval: process.Config.AuditQueue.DeadLetterSweepInterval,
+				OrphanScanInterval:      process.Config.AuditQueue.OrphanScanInterval,
+				Synchronous:             process.Config.AuditQueue.Synchronous,
+			},
+			AuditQueueBackends: backends,
 		},
 	)
 }

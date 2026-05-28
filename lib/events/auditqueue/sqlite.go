@@ -108,6 +108,7 @@ type sqliteQueue struct {
 	maxAttempts             int
 	deadLetterSweepInterval time.Duration
 	deadLetterTTL           time.Duration
+	synchronous             SynchronousMode
 }
 
 // Ensure that we implement the interface Queue at compile time.
@@ -158,6 +159,7 @@ func newBaseQueue(db *sql.DB, cfg Config) (*sqliteQueue, error) {
 		maxAttempts:             maxAttempts,
 		deadLetterSweepInterval: deadLetterSweepInterval,
 		deadLetterTTL:           deadLetterTTL,
+		synchronous:             cfg.Synchronous,
 	}
 
 	q.wg.Go(q.writeLoop)

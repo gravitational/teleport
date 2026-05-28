@@ -59,11 +59,14 @@ const (
 	staleTmpThreshold = time.Hour
 )
 
-func getDSN(dbPath string, maxBytes int64) string {
+func getDSN(dbPath string, maxBytes int64, synchronous SynchronousMode) string {
+	if synchronous == "" {
+		synchronous = SynchronousNormal
+	}
 	params := url.Values{}
 	params.Add("_pragma", "auto_vacuum(INCREMENTAL)")
 	params.Add("_pragma", "journal_mode(WAL)")
-	params.Add("_pragma", "synchronous(NORMAL)")
+	params.Add("_pragma", fmt.Sprintf("synchronous(%s)", synchronous))
 	params.Add("_pragma", fmt.Sprintf("journal_size_limit(%d)", walJournalSizeLimit))
 	addSharedParams(params, maxBytes)
 	u := url.URL{
@@ -85,7 +88,7 @@ func newSQLiteQueue(cfg Config) (*sqliteQueue, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	db, err := initializeDb(cfg.Path, cfg.MaxBytes)
+	db, err := initializeDb(cfg.Path, cfg.MaxBytes, cfg.Synchronous)
 	if err != nil {
 		_ = unlock()
 		_ = os.RemoveAll(cfg.Path)
@@ -143,13 +146,13 @@ func newSQLiteQueue(cfg Config) (*sqliteQueue, error) {
 	return q, nil
 }
 
-func initializeDb(path string, maxBytes int64) (*sql.DB, error) {
+func initializeDb(path string, maxBytes int64, synchronous SynchronousMode) (*sql.DB, error) {
 	if maxBytes <= 0 {
 		maxBytes = defaultMaxBytes
 	}
 
 	dbPath := filepath.Join(path, queueDBFile)
-	db, err := sql.Open("sqlite", getDSN(dbPath, maxBytes))
+	db, err := sql.Open("sqlite", getDSN(dbPath, maxBytes, synchronous))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -426,7 +429,7 @@ func (q *sqliteQueue) tryAdoptOrphan(path string, handler Handler) {
 	}()
 
 	dbFilePath := filepath.Join(path, queueDBFile)
-	db, err := sql.Open("sqlite", getDSN(dbFilePath, defaultMaxBytes))
+	db, err := sql.Open("sqlite", getDSN(dbFilePath, defaultMaxBytes, q.synchronous))
 	if err != nil {
 		orphanScanErrors.Inc()
 		slog.ErrorContext(q.ctx, "Failed to open orphan SQLite database.", "path", path, "error", err)
