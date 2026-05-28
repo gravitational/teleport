@@ -109,10 +109,10 @@ func TestMouseMove_Legacy(t *testing.T) {
 	evt, err := rdpstatetest.LegacyMouseMove(123, 456)
 	require.NoError(t, err)
 
+	// Position updates flow into the decoder via SetCursorPosition; this build uses the nop
+	// decoder so we just verify the message parses and dispatches without error. End-to-end
+	// position propagation is covered by the Rust FFI tests.
 	require.NoError(t, s.HandleMessage(evt))
-	require.True(t, s.hasMouse)
-	require.Equal(t, uint16(123), s.mouseX)
-	require.Equal(t, uint16(456), s.mouseY)
 }
 
 func TestMouseMove_LegacyTruncated(t *testing.T) {
