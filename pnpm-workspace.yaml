@@ -2,14 +2,17 @@ packages:
   - web/packages/*
   - e/web/*
   - e2e
-onlyBuiltDependencies:
-  - '@swc/core'
-  - electron
-  - esbuild
-  - msw
-  - node-pty
-  - protobufjs
-  - unrs-resolver
+allowBuilds:
+  '@swc/core': true
+  esbuild: true
+  msw: true
+  node-pty: true
+  protobufjs: true
+  unrs-resolver: true
+overrides:
+  # Remove once https://github.com/electron/electron/issues/51619 is addressed.
+  yauzl: '^3.3.1'
+  '@bundled-es-modules/cookie>cookie': '0.7.1'
 # Without this, electron-builder will pull in electron-builder-squirrel-windows (which we don't need)
 # and that dep will in turn pull electron-winstaller (which we also don't need). pnpm will then
 # start complaining that electron-winstaller is not in onlyBuiltDependencies.
@@ -36,3 +39,5 @@ shellEmulator: true
 packageImportMethod: clone-or-copy
 # Do not install packages released less than 2 days (2880 minutes) ago
 minimumReleaseAge: 2880
+# The pnpm team releases new versions pretty often, and we don't need to stay at the freshest version at all times.
+updateNotifier: false
