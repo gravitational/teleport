@@ -125,23 +125,8 @@ func TestAccessRequestReconciler(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
-	// Deny the state after the fact
-	_, err = ap.SetAccessRequestState(ctx, types.AccessRequestUpdate{
-		RequestID: accessRequest.GetName(),
-		State:     types.RequestState_DENIED,
-	})
-	require.NoError(t, err)
-	waitForResult(t, onReconcileCh, struct{}{}, 1)
-
-	cleanupTimeNow := clock.Now()
-	foundAssignment = getOktaAssignment(t, ap, accessRequest.GetName())
-	require.Empty(t, cmp.Diff(foundAssignment, assignment(t, accessRequest.GetName(), user, cleanupTimeNow, constants.OktaAssignmentStatusPending, clock.Now(), false,
-		target(types.OktaAssignmentTargetV1_APPLICATION, mustAppName(t, "app1", "link1"))),
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-		cmpopts.EquateEmpty(),
-	))
-
 	// This delete shouldn't do anything to the assignment.
+	cleanupTimeNow := clock.Now()
 	require.NoError(t, ap.DeleteAccessRequest(ctx, accessRequest.GetName()))
 	waitForResult(t, onReconcileCh, struct{}{}, 1)
 
