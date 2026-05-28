@@ -7659,13 +7659,6 @@ func GenSchemaClusterMaintenanceConfigV1(ctx context.Context) (github_com_hashic
 			Optional:      true,
 			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 		},
-		"nonce": {
-			Computed:      true,
-			Description:   "Nonce is used to protect against concurrent modification of the maintenance window. Clients should treat nonces as opaque.",
-			Optional:      true,
-			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-			Type:          github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
-		},
 		"spec": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"agent_upgrades": {
 				Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
@@ -62384,23 +62377,6 @@ func CopyClusterMaintenanceConfigV1FromTerraform(_ context.Context, tf github_co
 			}
 		}
 	}
-	{
-		a, ok := tf.Attrs["nonce"]
-		if !ok {
-			diags.Append(attrReadMissingDiag{"ClusterMaintenanceConfigV1.Nonce"})
-		} else {
-			v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
-			if !ok {
-				diags.Append(attrReadConversionFailureDiag{"ClusterMaintenanceConfigV1.Nonce", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
-			} else {
-				var t uint64
-				if !v.Null && !v.Unknown {
-					t = uint64(v.Value)
-				}
-				obj.Nonce = t
-			}
-		}
-	}
 	return diags
 }
 
@@ -62823,32 +62799,6 @@ func CopyClusterMaintenanceConfigV1ToTerraform(ctx context.Context, obj *github_
 				v.Unknown = false
 				tf.Attrs["spec"] = v
 			}
-		}
-	}
-	{
-		t, ok := tf.AttrTypes["nonce"]
-		if !ok {
-			diags.Append(attrWriteMissingDiag{"ClusterMaintenanceConfigV1.Nonce"})
-		} else {
-			v, ok := tf.Attrs["nonce"].(github_com_hashicorp_terraform_plugin_framework_types.Int64)
-			if !ok {
-				if tf.Attrs["nonce"] != nil {
-					diags.Append(attrWriteUnexpectedExistingTypeDiag{"ClusterMaintenanceConfigV1.Nonce", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
-				}
-				i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
-				if err != nil {
-					diags.Append(attrWriteGeneralError{"ClusterMaintenanceConfigV1.Nonce", err})
-				}
-				v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.Int64)
-				if !ok {
-					diags.Append(attrWriteConversionFailureDiag{"ClusterMaintenanceConfigV1.Nonce", "github.com/hashicorp/terraform-plugin-framework/types.Int64"})
-				}
-			}
-
-			v.Null = false
-			v.Value = int64(obj.Nonce)
-			v.Unknown = false
-			tf.Attrs["nonce"] = v
 		}
 	}
 	return diags
