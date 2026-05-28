@@ -64,97 +64,129 @@ func (u *UserV2) GetDisplay() UserDisplay {
 	username := u.GetName()
 	traits := u.GetTraits()
 
-	display := UserDisplay{
-		Primary:   displayPrimaryFromTraits(traits, username),
-		Secondary: displaySecondaryFromTraits(traits, username),
-	}
-	if display.Primary != "" && display.Secondary != "" {
-		return display
+	sources := []displaySource{
+		traitDisplaySource{
+			traits: traits,
+			primaryCandidates: [][]string{
+				{oktaDisplayNameTrait},
+				{oktaGivenNameTrait, oktaFamilyNameTrait},
+				{oktaFirstNameTrait, oktaLastNameTrait},
+			},
+			secondaryCandidates: [][]string{
+				{oktaEmailTrait},
+			},
+		},
+		traitDisplaySource{
+			traits: traits,
+			primaryCandidates: [][]string{
+				{entraIDDisplayNameTrait},
+				{entraIDGivenNameTrait, entraIDSurnameTrait},
+			},
+			secondaryCandidates: [][]string{
+				{entraIDEmailTrait},
+			},
+		},
+		traitDisplaySource{
+			traits: traits,
+			primaryCandidates: [][]string{
+				{displayNameTrait},
+				{nameTrait},
+				{givenNameTrait, familyNameTrait},
+				{givenNameSnakeCaseTrait, familyNameSnakeCaseTrait},
+				{firstNameTrait, lastNameTrait},
+			},
+			secondaryCandidates: [][]string{
+				{emailTrait},
+			},
+		},
+		scimDisplaySource{
+			attrs: u.scimAttrs(),
+			primaryCandidates: [][][]string{
+				{{scimDisplayNameAttr}},
+				{{scimNameAttr, scimGivenNameAttr}, {scimNameAttr, scimFamilyNameAttr}},
+			},
+			secondaryCandidates: []scimValueCandidate{
+				scimEmailValue,
+			},
+		},
 	}
 
-	attrs := u.scimAttrs()
-	if display.Primary == "" {
-		display.Primary = displayPrimaryFromSCIMAttrs(attrs, username)
-	}
-	if display.Secondary == "" {
-		display.Secondary = displaySecondaryFromSCIMAttrs(attrs, username)
+	var display UserDisplay
+	for _, source := range sources {
+		if display.Primary == "" {
+			display.Primary = source.primary(username)
+		}
+		if display.Secondary == "" {
+			display.Secondary = source.secondary(username)
+		}
+		if display.Primary != "" && display.Secondary != "" {
+			break
+		}
 	}
 	return display
 }
 
-func displayPrimaryFromTraits(traits map[string][]string, username string) string {
-	if display := displayPrimaryFromOktaTraits(traits, username); display != "" {
-		return display
+type displaySource interface {
+	primary(username string) string
+	secondary(username string) string
+}
+
+type traitDisplaySource struct {
+	traits              map[string][]string
+	primaryCandidates   [][]string
+	secondaryCandidates [][]string
+}
+
+func (s traitDisplaySource) primary(username string) string {
+	return displayValueFromTraitCandidates(s.traits, username, s.primaryCandidates)
+}
+
+func (s traitDisplaySource) secondary(username string) string {
+	return displayValueFromTraitCandidates(s.traits, username, s.secondaryCandidates)
+}
+
+type scimDisplaySource struct {
+	attrs               map[string]any
+	primaryCandidates   [][][]string
+	secondaryCandidates []scimValueCandidate
+}
+
+func (s scimDisplaySource) primary(username string) string {
+	return displayValueFromSCIMAttrCandidates(s.attrs, username, s.primaryCandidates)
+}
+
+func (s scimDisplaySource) secondary(username string) string {
+	return displayValueFromSCIMValueCandidates(s.attrs, username, s.secondaryCandidates)
+}
+
+type scimValueCandidate func(map[string]any) string
+
+func displayValueFromTraitCandidates(traits map[string][]string, username string, candidates [][]string) string {
+	values := make([]string, 0, len(candidates))
+	for _, candidate := range candidates {
+		values = append(values, joinNonEmptyValuesForKeys(traits, candidate...))
 	}
+	return firstNonEmptyValueDifferentFromUsername(username, values...)
+}
 
-	if display := displayPrimaryFromEntraIDTraits(traits, username); display != "" {
-		return display
+func displayValueFromSCIMAttrCandidates(attrs map[string]any, username string, candidates [][][]string) string {
+	values := make([]string, 0, len(candidates))
+	for _, candidate := range candidates {
+		parts := make([]string, 0, len(candidate))
+		for _, path := range candidate {
+			parts = append(parts, stringAtPath(attrs, path...))
+		}
+		values = append(values, joinNonEmptyStrings(parts...))
 	}
-
-	return displayPrimaryFromGenericTraits(traits, username)
+	return firstNonEmptyValueDifferentFromUsername(username, values...)
 }
 
-func displaySecondaryFromTraits(traits map[string][]string, username string) string {
-	if display := displaySecondaryFromOktaTraits(traits, username); display != "" {
-		return display
+func displayValueFromSCIMValueCandidates(attrs map[string]any, username string, candidates []scimValueCandidate) string {
+	values := make([]string, 0, len(candidates))
+	for _, candidate := range candidates {
+		values = append(values, candidate(attrs))
 	}
-
-	if display := displaySecondaryFromEntraIDTraits(traits, username); display != "" {
-		return display
-	}
-
-	return displaySecondaryFromGenericTraits(traits, username)
-}
-
-func displayPrimaryFromOktaTraits(traits map[string][]string, username string) string {
-	return firstNonEmptyValueDifferentFromUsername(username,
-		firstNonEmptyValueForKey(traits, oktaDisplayNameTrait),
-		joinNonEmptyValuesForKeys(traits, oktaGivenNameTrait, oktaFamilyNameTrait),
-		joinNonEmptyValuesForKeys(traits, oktaFirstNameTrait, oktaLastNameTrait),
-	)
-}
-
-func displaySecondaryFromOktaTraits(traits map[string][]string, username string) string {
-	return firstNonEmptyValueDifferentFromUsername(username, firstNonEmptyValueForKey(traits, oktaEmailTrait))
-}
-
-func displayPrimaryFromSCIMAttrs(attrs map[string]any, username string) string {
-	return firstNonEmptyValueDifferentFromUsername(username,
-		stringAtPath(attrs, scimDisplayNameAttr),
-		joinNonEmptyStrings(
-			stringAtPath(attrs, scimNameAttr, scimGivenNameAttr),
-			stringAtPath(attrs, scimNameAttr, scimFamilyNameAttr),
-		),
-	)
-}
-
-func displaySecondaryFromSCIMAttrs(attrs map[string]any, username string) string {
-	return firstNonEmptyValueDifferentFromUsername(username, scimEmailValue(attrs))
-}
-
-func displayPrimaryFromGenericTraits(traits map[string][]string, username string) string {
-	return firstNonEmptyValueDifferentFromUsername(username,
-		firstNonEmptyValueForKey(traits, displayNameTrait),
-		firstNonEmptyValueForKey(traits, nameTrait),
-		joinNonEmptyValuesForKeys(traits, givenNameTrait, familyNameTrait),
-		joinNonEmptyValuesForKeys(traits, givenNameSnakeCaseTrait, familyNameSnakeCaseTrait),
-		joinNonEmptyValuesForKeys(traits, firstNameTrait, lastNameTrait),
-	)
-}
-
-func displaySecondaryFromGenericTraits(traits map[string][]string, username string) string {
-	return firstNonEmptyValueDifferentFromUsername(username, firstNonEmptyValueForKey(traits, emailTrait))
-}
-
-func displayPrimaryFromEntraIDTraits(traits map[string][]string, username string) string {
-	return firstNonEmptyValueDifferentFromUsername(username,
-		firstNonEmptyValueForKey(traits, entraIDDisplayNameTrait),
-		joinNonEmptyValuesForKeys(traits, entraIDGivenNameTrait, entraIDSurnameTrait),
-	)
-}
-
-func displaySecondaryFromEntraIDTraits(traits map[string][]string, username string) string {
-	return firstNonEmptyValueDifferentFromUsername(username, firstNonEmptyValueForKey(traits, entraIDEmailTrait))
+	return firstNonEmptyValueDifferentFromUsername(username, values...)
 }
 
 func firstNonEmptyValueDifferentFromUsername(username string, values ...string) string {
