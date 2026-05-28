@@ -196,8 +196,8 @@ databases:
   - name: example-clickhouse
     uri: clickhouse.example.com:8443
     protocol: <Var name="protocol" />
-tags:
-  env: dev
+    static_labels:
+      env: dev
 ```
 
 To configure the Teleport Database Service to trust a custom CA:

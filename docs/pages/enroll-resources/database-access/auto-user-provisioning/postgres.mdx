@@ -46,8 +46,7 @@ GRANT rds_iam TO "teleport-admin" WITH ADMIN OPTION;
 
 Note that the RDS database must have IAM authentication enabled.
 
-Refer to the [AWS documentation](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.DBAccounts.html) to make sure you are using the `rds_iam` role correctly.
-for more information.
+Refer to the [AWS documentation](https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/UsingWithRDS.IAMDBAuth.DBAccounts.html) to make sure you are using the `rds_iam` role correctly for more information.
 
 If the admin user needs to grant the `rds_superuser` role to auto-provisioned
 users, the admin user must also be a `rds_superuser`:
