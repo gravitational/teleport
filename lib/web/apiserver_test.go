@@ -9947,6 +9947,17 @@ func startKube(ctx context.Context, t *testing.T, cfg startKubeOptions) net.Addr
 
 type cleanupFunc func() error
 
+func upstreamForServiceType(svc kubeproxy.KubeServiceType) kubeproxy.UpstreamResolver {
+	switch svc {
+	case kubeproxy.KubeService:
+		return kubeproxy.NewKubeServiceUpstream()
+	case kubeproxy.LegacyProxyService:
+		return kubeproxy.NewLegacyProxyUpstream()
+	default:
+		return kubeproxy.NewProxyServiceUpstream()
+	}
+}
+
 func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOptions) (*kubeproxy.TLSServer, cleanupFunc, net.Addr) {
 	role := types.RoleProxy
 	if cfg.serviceType == kubeproxy.KubeService {
@@ -10061,7 +10072,7 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 			HostID:            hostID,
 			Context:           ctx,
 			KubeconfigPath:    kubeConfigLocation,
-			KubeServiceType:   cfg.serviceType,
+			Upstream:          upstreamForServiceType(cfg.serviceType),
 			Component:         component,
 			LockWatcher:       proxyLockWatcher,
 			ReverseTunnelSrv:  cfg.revTunnel,

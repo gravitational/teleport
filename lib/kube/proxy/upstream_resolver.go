@@ -74,39 +74,39 @@ func (s *clusterStore) clusters() types.KubeClusters {
 	return res
 }
 
-// upstreamResolver decides, per request, how the Forwarder should treat a
+// UpstreamResolver decides, per request, how the Forwarder should treat a
 // target kubernetes cluster: serve it locally with the returned details, or
 // forward the request to the next hop without enforcing RBAC.
 //
-// Three return shapes:
-//   - (details, nil)  : this service serves the cluster directly. Use the
-//     details for credentials and enforce kube RBAC at this hop.
-//   - (nil, nil)      : this service is acting as a passthrough; the next hop
-//     is responsible for credentials and RBAC.
-//   - (nil, err)      : this service is supposed to serve the cluster but
-//     does not know about it. Caller should surface the error.
-//
-// Implementations correspond to the three deployment shapes today (kubernetes
-// service, proxy service, legacy proxy service), but the Forwarder no longer
-// needs to switch on the shape — it asks the resolver.
-type upstreamResolver interface {
+// Callers construct one via NewKubeServiceUpstream, NewProxyServiceUpstream,
+// or NewLegacyProxyUpstream and pass it to ForwarderConfig.Upstream. All
+// methods are package-private — the interface exists only so the Forwarder
+// can be configured with one of the three built-in shapes.
+type UpstreamResolver interface {
 	resolveDetails(kubeClusterName string) (*kubeDetails, error)
 	component() string
-
-	// servesLocalClusters reports whether this service can hold details for
-	// kube clusters directly. KubeService and LegacyProxyService do;
-	// ProxyService does not.
 	servesLocalClusters() bool
-
-	// forwardsToOtherAgents reports whether this service queries the
-	// kube_servers watcher and forwards to another agent when the target
-	// cluster is not served locally. ProxyService always does; LegacyProxyService
-	// does as a fallback; KubeService does not.
 	forwardsToOtherAgents() bool
-
-	// store returns the cluster store for resolvers that serve clusters
-	// locally, or nil otherwise. Callers must nil-check.
 	store() *clusterStore
+}
+
+// NewKubeServiceUpstream returns the resolver for a teleport kubernetes_service
+// instance: serves only its own clusters, never forwards.
+func NewKubeServiceUpstream() UpstreamResolver {
+	return &kubeServiceResolver{clusters: newClusterStore()}
+}
+
+// NewProxyServiceUpstream returns the resolver for a proxy_service instance:
+// holds no clusters, always forwards to a kubernetes_service agent.
+func NewProxyServiceUpstream() UpstreamResolver {
+	return proxyServiceResolver{}
+}
+
+// NewLegacyProxyUpstream returns the resolver for the legacy proxy_service
+// shape: serves its own clusters and falls back to forwarding for any cluster
+// it does not serve directly.
+func NewLegacyProxyUpstream() UpstreamResolver {
+	return &legacyProxyResolver{clusters: newClusterStore()}
 }
 
 type kubeServiceResolver struct {
@@ -117,10 +117,10 @@ func (r *kubeServiceResolver) resolveDetails(name string) (*kubeDetails, error) 
 	return r.clusters.find(name)
 }
 
-func (*kubeServiceResolver) component() string          { return KubeService }
-func (*kubeServiceResolver) servesLocalClusters() bool  { return true }
+func (*kubeServiceResolver) component() string           { return KubeService }
+func (*kubeServiceResolver) servesLocalClusters() bool   { return true }
 func (*kubeServiceResolver) forwardsToOtherAgents() bool { return false }
-func (r *kubeServiceResolver) store() *clusterStore     { return r.clusters }
+func (r *kubeServiceResolver) store() *clusterStore      { return r.clusters }
 
 type proxyServiceResolver struct{}
 
@@ -149,17 +149,17 @@ func (*legacyProxyResolver) servesLocalClusters() bool   { return true }
 func (*legacyProxyResolver) forwardsToOtherAgents() bool { return true }
 func (r *legacyProxyResolver) store() *clusterStore      { return r.clusters }
 
-// newUpstreamResolver builds the resolver matching the given KubeServiceType.
-// Resolvers that serve clusters locally are given a fresh, empty store; the
-// proxy resolver has none.
-func newUpstreamResolver(svc KubeServiceType) (upstreamResolver, error) {
+// newUpstreamResolver returns a resolver matching the given service type
+// string. Internal helper used by tests that drive Forwarder behavior off the
+// legacy KubeServiceType string.
+func newUpstreamResolver(svc KubeServiceType) (UpstreamResolver, error) {
 	switch svc {
 	case KubeService:
-		return &kubeServiceResolver{clusters: newClusterStore()}, nil
+		return NewKubeServiceUpstream(), nil
 	case ProxyService:
-		return proxyServiceResolver{}, nil
+		return NewProxyServiceUpstream(), nil
 	case LegacyProxyService:
-		return &legacyProxyResolver{clusters: newClusterStore()}, nil
+		return NewLegacyProxyUpstream(), nil
 	default:
 		return nil, trace.BadParameter("unknown KubeServiceType %q", svc)
 	}
