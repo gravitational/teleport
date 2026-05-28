@@ -23,13 +23,13 @@ import { HoverTooltip } from 'design/Tooltip';
 
 export type UserDisplayNameLayout = 'inline' | 'stacked' | 'tooltip';
 
-export type UserDisplayNameProps = {
+export interface UserDisplayNameProps {
   username: string;
   primaryText?: string;
   secondaryText?: string;
   layout?: UserDisplayNameLayout;
   className?: string;
-};
+}
 
 export function UserDisplayName({
   username,
@@ -44,17 +44,9 @@ export function UserDisplayName({
 
   const primaryValue = <PrimaryValue title={primary}>{primary}</PrimaryValue>;
 
-  const secondaryValue =
-    displaySecondary &&
-    (layout === 'inline' ? (
-      <InlineSecondaryValue title={displaySecondary}>
-        {displaySecondary}
-      </InlineSecondaryValue>
-    ) : (
-      <SecondaryValue title={displaySecondary}>
-        {displaySecondary}
-      </SecondaryValue>
-    ));
+  const secondaryValue = displaySecondary && (
+    <SecondaryValue title={displaySecondary}>{displaySecondary}</SecondaryValue>
+  );
 
   const usernameValue =
     displayPrimary &&
@@ -128,6 +120,11 @@ function getTooltipAriaLabel(
     .join(', ');
 }
 
+// `min-width: 0` lets a flex item shrink below its content size, which is what
+// allows the child text to actually trigger ellipsis instead of forcing the
+// container to grow.
+// `max-width: 100%` then keeps the element from spilling past its parent.
+// Without either, long names will push the layout sideways instead of getting truncated.
 const containedContent = css`
   min-width: 0;
   max-width: 100%;
@@ -138,6 +135,8 @@ const singleLineText = styled(Text).attrs({
 })`
   ${containedContent}
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 `;
 
 const Root = styled.span`
@@ -151,7 +150,6 @@ const DisplayLine = styled.span`
   display: inline-flex;
   align-items: baseline;
   gap: ${props => props.theme.space[1]}px;
-  overflow: hidden;
 `;
 
 const PrimaryValue = styled(singleLineText).attrs({
@@ -168,16 +166,10 @@ const SecondaryValue = styled(singleLineText).attrs({
   typography: 'body3',
 })``;
 
-const InlineSecondaryValue = styled(SecondaryValue)`
-  &::before {
-    content: '<';
-  }
-
-  &::after {
-    content: '>';
-  }
-`;
-
+// The parentheses are decorative wrappers around the inline username — using
+// `::before/::after` keeps them out of the React text content so they don't
+// appear in `textContent`, snapshots, or the accessibility tree, and lets us
+// style them independently from the value itself.
 const InlineUsernameValue = styled(UsernameValue)`
   &::before {
     content: '(';

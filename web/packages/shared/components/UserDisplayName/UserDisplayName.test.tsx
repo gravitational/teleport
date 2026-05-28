@@ -112,7 +112,7 @@ describe('UserDisplayName', () => {
     }
   }
 
-  it('formats inline supporting values with delimiters', () => {
+  it('formats inline username with delimiters', () => {
     render(
       <UserDisplayName
         username={username}
@@ -124,14 +124,8 @@ describe('UserDisplayName', () => {
 
     const primaryLine = screen.getByText('Alice Jones')
       .parentElement as HTMLElement;
-    const secondary = within(primaryLine).getByText('Engineering');
+    expect(within(primaryLine).getByText('Engineering')).toBeInTheDocument();
     const inlineUsername = within(primaryLine).getByText(username);
-    expect(secondary).toHaveStyleRule('content', "'<'", {
-      modifier: '::before',
-    });
-    expect(secondary).toHaveStyleRule('content', "'>'", {
-      modifier: '::after',
-    });
     expect(inlineUsername).toHaveStyleRule('content', "'('", {
       modifier: '::before',
     });

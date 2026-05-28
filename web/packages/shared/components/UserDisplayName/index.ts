@@ -17,7 +17,4 @@
  */
 
 export { UserDisplayName } from './UserDisplayName';
-export type {
-  UserDisplayNameProps,
-  UserDisplayNameLayout,
-} from './UserDisplayName';
+export type { UserDisplayNameLayout } from './UserDisplayName';
