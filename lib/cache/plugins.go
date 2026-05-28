@@ -50,6 +50,9 @@ func newPluginsCollection(service services.Plugins, watch types.WatchKind) (*col
 				return service.ListPlugins(ctx, pageSize, token, loadSecrets)
 			}
 			out, err := stream.Collect(clientutils.Resources(ctx, fn))
+			if trace.IsNotImplemented(err) || trace.IsAccessDenied(err) {
+				return []types.Plugin{}, nil
+			}
 			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) types.Plugin {

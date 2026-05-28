@@ -1,5 +1,5 @@
 // Teleport
-// Copyright (C) 2025 Gravitational, Inc.
+// Copyright (C) 2026 Gravitational, Inc.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
@@ -76,7 +76,7 @@ func (c *Client) DeletePlugin(ctx context.Context, name string) error {
 	return trace.Wrap(err)
 }
 
-// DeleteAllPlugins deletes all plugins. Not supported via gRPC; returns an error.
+// DeleteAllPlugins deletes all plugins. Not supported via gRPC
 func (c *Client) DeleteAllPlugins(ctx context.Context) error {
 	return trace.NotImplemented("DeleteAllPlugins is not supported via gRPC client")
 }
