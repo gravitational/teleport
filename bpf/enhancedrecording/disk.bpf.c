@@ -29,9 +29,9 @@ char LICENSE[] SEC("license") = "Dual BSD/GPL";
 // failures like ENOENT — that's fine, do_filp_open falls back
 // to the unresolved path from struct filename in that case.
 struct inflight_disk_t {
-    // valid is true if file_path is set and it has not already been 
-    //added to an event for userland to consume.
-    bool valid;
+    // valid_unsent is true if file_path is set and it has not already 
+    // beenadded to an event for userland to consume.
+    bool valid_unsent;
     // file_path is the resolved path of the file being opened.
     u8 file_path[PATH_MAX];
 };
@@ -104,11 +104,11 @@ int BPF_PROG(security_file_open, struct file *f)
         return 0;
     }
 
-    info->valid = false;
+    info->valid_unsent = false;
     info->file_path[0] = '\0';
 
     if (bpf_d_path(&f->f_path, (char *)info->file_path, sizeof(info->file_path)) > 0) {
-        info->valid = true;
+        info->valid_unsent = true;
     }
 
     return 0;
@@ -139,7 +139,7 @@ int BPF_PROG(do_filp_open_exit, int dfd, struct filename *pathname, const struct
     zero_data(data);
 
     // Use the resolved path from security_file_open if possible.
-    if (info && info->valid) {
+    if (info && info->valid_unsent) {
         bpf_probe_read_kernel_str(data->file_path, sizeof(data->file_path), info->file_path);
     } else {
         const char *name = BPF_CORE_READ(pathname, name);
@@ -167,7 +167,7 @@ out:
     // Mark consumed so a subsequent open on the same thread doesn't 
     // pick up stale data.
     if (info) {
-        info->valid = false;
+        info->valid_unsent = false;
     }
 
     return 0;
