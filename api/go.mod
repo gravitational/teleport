@@ -5,7 +5,7 @@ go 1.25.10
 require (
 	github.com/charlievieth/strcase v0.0.5
 	github.com/coreos/go-semver v0.3.1
-	github.com/go-piv/piv-go/v2 v2.5.0
+	github.com/go-piv/piv-go/v2 v2.6.0
 	github.com/gobwas/ws v1.4.0
 	github.com/gogo/protobuf v1.3.2
 	github.com/google/go-cmp v0.7.0
@@ -23,12 +23,12 @@ require (
 	go.opentelemetry.io/otel/sdk v1.43.0
 	go.opentelemetry.io/otel/trace v1.43.0
 	go.opentelemetry.io/proto/otlp v1.10.0
-	golang.org/x/crypto v0.51.0
+	golang.org/x/crypto v0.52.0
 	golang.org/x/net v0.55.0
 	golang.org/x/sync v0.20.0
 	golang.org/x/term v0.43.0
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260406210006-6f92a3bedf2d
-	google.golang.org/grpc v1.80.0
+	google.golang.org/grpc v1.81.1
 	google.golang.org/protobuf v1.36.11
 	gopkg.in/yaml.v2 v2.4.0
 )
