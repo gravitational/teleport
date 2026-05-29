@@ -50,9 +50,9 @@ test('verify that a user can sign up with webauthn and login', async ({
       .getByTestId('userpassword')
       .getByRole('button', { name: 'Sign In' })
       .click();
-    await expect(
-      page.getByRole('heading', { name: 'Resources' })
-    ).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByRole('heading', { name: 'Resources' })).toBeVisible({
+      timeout: 5_000,
+    });
   }).toPass({ timeout: 30_000, intervals: [3_000] });
 });
 

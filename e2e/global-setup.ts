@@ -47,6 +47,9 @@ export { globalSetup as default };
 // When executed directly (e.g. `tsx global-setup.ts`) rather than imported as
 // Playwright's configured globalSetup, run immediately. The runner's browse and
 // codegen modes use this to generate auth state without a full test run.
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
   await globalSetup();
 }
