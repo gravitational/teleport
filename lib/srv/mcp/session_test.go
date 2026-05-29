@@ -19,8 +19,10 @@
 package mcp
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"slices"
 	"sync"
 	"testing"
@@ -221,4 +223,65 @@ func Test_sessionHandler(t *testing.T) {
 			})
 		})
 	}
+}
+
+func Test_sessionHandler_StreamingReserializesNonCanonicalIDNotification(t *testing.T) {
+	ctx := t.Context()
+	testCtx := setupTestContext(t, withAdminRole(t), withDenyToolsRole(t))
+	mockEmitter := &eventstest.MockRecorderEmitter{}
+	auditor, err := newSessionAuditor(sessionAuditorConfig{
+		emitter:    mockEmitter,
+		hostID:     "test-host-id",
+		sessionCtx: testCtx.SessionCtx,
+		preparer:   &libevents.NoOpPreparer{},
+	})
+	require.NoError(t, err)
+
+	handler, err := newSessionHandler(sessionHandlerConfig{
+		SessionCtx:     testCtx.SessionCtx,
+		sessionAuth:    &sessionAuth{},
+		sessionAuditor: auditor,
+		accessPoint:    fakeAccessPoint{},
+		parentCtx:      ctx,
+	})
+	require.NoError(t, err)
+
+	readFromClient, writeFromClient := io.Pipe()
+	readFromProxy, writeToServer := io.Pipe()
+	t.Cleanup(func() {
+		readFromClient.Close()
+		writeFromClient.Close()
+		readFromProxy.Close()
+		writeToServer.Close()
+	})
+
+	clientCapture := &captureMessageWriter{}
+	serverWriter := mcputils.NewStdioMessageWriter(writeToServer)
+	reader, err := mcputils.NewMessageReader(mcputils.MessageReaderConfig{
+		Transport:      mcputils.NewStdioReader(readFromClient),
+		OnParseError:   mcputils.ReplyParseError(clientCapture),
+		OnRequest:      handler.onClientRequest(clientCapture, serverWriter),
+		OnNotification: handler.onClientNotification(serverWriter),
+	})
+	require.NoError(t, err)
+
+	const deniedTool = "denied_tool"
+	go reader.Run(ctx)
+	_, err = fmt.Fprintf(writeFromClient, `{"jsonrpc":"2.0","ID":99,"method":"tools/call","params":{"name":%q}}`+"\n", deniedTool)
+	require.NoError(t, err)
+
+	forwardedMessage, err := bufio.NewReader(readFromProxy).ReadString('\n')
+	require.NoError(t, err)
+	require.JSONEq(t,
+		fmt.Sprintf(`{"jsonrpc":"2.0","method":"tools/call","params":{"name":%q}}`, deniedTool),
+		forwardedMessage,
+	)
+	require.Empty(t, clientCapture.messages())
+
+	event := mockEmitter.LastEvent()
+	require.NotNil(t, event)
+	notificationEvent, ok := event.(*apievents.MCPSessionNotification)
+	require.True(t, ok)
+	require.Equal(t, mcputils.MethodToolsCall, notificationEvent.Message.Method)
+	checkParamsHaveNameField(t, notificationEvent.Message.Params, deniedTool)
 }

@@ -225,30 +225,26 @@ func (t *streamableHTTPTransport) handleMCPMessage(r *http.Request) (*http.Respo
 		return nil, trace.BadParameter("invalid request body %v", err)
 	}
 
-	var mcpRequest *mcputils.JSONRPCRequest
+	var msg any
 	switch {
 	case baseMessage.IsRequest():
-		mcpRequest = baseMessage.MakeRequest()
-		if errResp := t.sessionHandler.processClientRequest(r.Context(), mcpRequest); errResp != nil {
-			t.emitRequestEvent(t.parentCtx, mcpRequest, eventWithError(toError(*errResp)), eventWithHeader(r.Header))
+		requestMsg := baseMessage.MakeRequest()
+		msg = requestMsg
+		if errResp := t.sessionHandler.processClientRequest(r.Context(), requestMsg); errResp != nil {
+			t.emitRequestEvent(t.parentCtx, requestMsg, eventWithError(toError(*errResp)), eventWithHeader(r.Header))
 			return t.handleRequestError(r, *errResp)
 		}
 	case baseMessage.IsNotification():
-		t.sessionHandler.processClientNotification(r.Context(), baseMessage.MakeNotification())
+		notificationMsg := baseMessage.MakeNotification()
+		msg = notificationMsg
+		t.sessionHandler.processClientNotification(r.Context(), notificationMsg)
 	default:
 		// Not sending it to the server if we don't understand it.
 		t.emitInvalidHTTPRequest(t.parentCtx, r)
 		return nil, trace.BadParameter("not a MCP request or notification")
 	}
 
-	var resp *http.Response
-	var sendReqErr error
-	switch {
-	case mcpRequest != nil:
-		resp, sendReqErr = t.rewriteAndSendRequestWithBody(r, mcpRequest)
-	default:
-		resp, sendReqErr = t.rewriteAndSendRequest(r)
-	}
+	resp, sendReqErr := t.rewriteAndSendRequestWithBody(r, msg)
 
 	// Prefer session ID from server response if present. For example,
 	// "initialize" request does not have an ID but the server response may have
