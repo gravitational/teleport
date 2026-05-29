@@ -23,21 +23,19 @@ import { HoverTooltip } from 'design/Tooltip';
 
 export type UserDisplayNameLayout = 'inline' | 'stacked' | 'tooltip';
 
-export interface UserDisplayNameProps {
-  username: string;
-  primaryText?: string;
-  secondaryText?: string;
-  layout?: UserDisplayNameLayout;
-  className?: string;
-}
-
 export function UserDisplayName({
   username,
   primaryText,
   secondaryText,
   layout = 'tooltip',
   className,
-}: UserDisplayNameProps) {
+}: {
+  username: string;
+  primaryText?: string;
+  secondaryText?: string;
+  layout?: UserDisplayNameLayout;
+  className?: string;
+}) {
   const displayPrimary = normalizeText(primaryText);
   const displaySecondary = normalizeText(secondaryText);
   const primary = displayPrimary || username;
