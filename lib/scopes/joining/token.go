@@ -137,6 +137,134 @@ func validateKubernetes(kube *joiningv1.Kubernetes) error {
 	return nil
 }
 
+// validates the given AWS EC2 configuration. Also implemented by
+// api/types/provisioning.go:ProvisionTokenV2.CheckAndSetDefaults() for unscoped tokens
+func validateEC2(aws *joiningv1.AWS) error {
+	ttl := aws.GetIidTtl()
+	if _, err := types.ParseDuration(ttl); ttl != "" && err != nil {
+		return trace.BadParameter("invalid IID TTL value %q, must be empty or a valid duration string (e.g. 30m, 12h, 1mo)", ttl)
+	}
+
+	if len(aws.GetAllow()) == 0 {
+		return trace.BadParameter("aws configuration with at least one allow rule must be defined")
+	}
+
+	for i, rule := range aws.GetAllow() {
+		if rule.GetAwsArn() != "" {
+			return trace.BadParameter(`allow[%d]: "aws_arn" parameter not supported`, i)
+		}
+		if rule.GetAwsOrganizationId() != "" {
+			return trace.BadParameter(`allow[%d]: "aws_organization_id" parameter not supported`, i)
+		}
+		if rule.GetAwsAccount() == "" && rule.GetAwsRole() == "" {
+			return trace.BadParameter(`allow[%d]: must set "aws_account" or "aws_role"`, i)
+		}
+	}
+
+	return nil
+}
+
+// validates the given AWS IAM configuration. Also implemented by
+// api/types/provisioning.go:ProvisionTokenV2.CheckAndSetDefaults() for unscoped tokens
+func validateIAM(aws *joiningv1.AWS) error {
+	if len(aws.GetAllow()) == 0 {
+		return trace.BadParameter("aws configuration with at least one allow rule must be defined")
+	}
+
+	for i, rule := range aws.GetAllow() {
+		if rule.GetAwsRole() != "" {
+			return trace.BadParameter(`allow[%d]: "aws_role" parameter not supported`, i)
+		}
+		if len(rule.GetAwsRegions()) != 0 {
+			return trace.BadParameter(`allow[%d]: "aws_regions" parameter not supported`, i)
+		}
+		if rule.GetAwsAccount() == "" && rule.GetAwsArn() == "" && rule.GetAwsOrganizationId() == "" {
+			return trace.BadParameter(`allow[%d]: must set "aws_account", "aws_arn", or "aws_organization"`, i)
+		}
+	}
+
+	return nil
+}
+
+// validates the given GCP configuration. Also implemented by
+// api/types/provisioning.go:ProvisionTokenSpecV2GCP.checkAndSetDefaults() for unscoped tokens
+func validateGCP(gcp *joiningv1.GCP) error {
+	if len(gcp.GetAllow()) == 0 {
+		return trace.BadParameter("gcp configuration with at least one allow rule must be defined")
+	}
+
+	for i, rule := range gcp.GetAllow() {
+		if len(rule.GetProjectIds()) == 0 {
+			return trace.BadParameter("allow[%d]: requires at least one project ID", i)
+		}
+		for j, projectID := range rule.GetProjectIds() {
+			if len(projectID) == 0 {
+				return trace.BadParameter("allow[%d].project_ids[%d]: must not be empty", i, j)
+			}
+		}
+	}
+
+	return nil
+}
+
+// validates the given Azure configuration. Also implemented by
+// api/types/provisioning.go:ProvisionTokenSpecV2Azure.checkAndSetDefaults() for unscoped tokens
+func validateAzure(azure *joiningv1.Azure) error {
+	if len(azure.GetAllow()) == 0 {
+		return trace.BadParameter("azure configuration with at least one allow rule must be defined")
+	}
+
+	for i, rule := range azure.GetAllow() {
+		if rule.GetSubscription() == "" && rule.GetTenant() == "" {
+			return trace.BadParameter(`allow[%d]: must set "subscription" or "tenant"`, i)
+		}
+	}
+
+	return nil
+}
+
+// validates the given Azure DevOps configuration. Also implemented by
+// api/types/provisioning.go:ProvisionTokenSpecV2AzureDevops.checkAndSetDefaults() for unscoped tokens
+func validateAzureDevops(azdo *joiningv1.AzureDevops) error {
+	if len(azdo.GetAllow()) == 0 {
+		return trace.BadParameter("azure_devops configuration with at least one allow rule must be defined")
+	}
+	if azdo.GetOrganizationId() == "" {
+		return trace.BadParameter(`"organization_id" must be set`)
+	}
+
+	for i, rule := range azdo.GetAllow() {
+		if rule.GetSub() == "" && rule.GetProjectName() == "" && rule.GetProjectId() == "" {
+			return trace.BadParameter(
+				`allow[%d]: must set "sub", "project_name", or "project_id"`,
+				i,
+			)
+		}
+	}
+
+	return nil
+}
+
+// validates the given Oracle configuration. Also implemented by
+// api/types/provisioning.go:ProvisionTokenSpecV2Oracle.checkAndSetDefaults() for unscoped tokens
+func validateOracle(oracle *joiningv1.Oracle) error {
+	if len(oracle.GetAllow()) == 0 {
+		return trace.BadParameter("oracle configuration with at least one allow rule must be defined")
+	}
+
+	for i, rule := range oracle.GetAllow() {
+		if rule.GetTenancy() == "" {
+			return trace.BadParameter(`allow[%d]: "tenancy" must be set`, i)
+		}
+		if len(rule.GetInstances()) > 100 {
+			return trace.BadParameter("allow[%d]: maximum 100 instances may be set (found %d)", i, len(rule.GetInstances()))
+		}
+	}
+
+	return nil
+}
+
+// validates per join method token configurations
 func validateJoinMethod(token *joiningv1.ScopedToken) error {
 	switch types.JoinMethod(token.GetSpec().GetJoinMethod()) {
 	case types.JoinMethodToken:
@@ -144,31 +272,17 @@ func validateJoinMethod(token *joiningv1.ScopedToken) error {
 			return trace.BadParameter("secret value must be defined for a scoped token when using the token join method")
 		}
 	case types.JoinMethodEC2:
-		ttl := token.GetSpec().GetAws().GetIidTtl()
-		if _, err := types.ParseDuration(ttl); ttl != "" && err != nil {
-			return trace.BadParameter("invalid IID TTL value %q, must be empty or a valid duration string (e.g. 30m, 12h, 1mo)", ttl)
-		}
-		fallthrough
+		return trace.Wrap(validateEC2(token.GetSpec().GetAws()), "ec2 join method")
 	case types.JoinMethodIAM:
-		if len(token.GetSpec().GetAws().GetAllow()) == 0 {
-			return trace.BadParameter("aws configuration must be defined for a scoped token when using the ec2 or iam join methods")
-		}
+		return trace.Wrap(validateIAM(token.GetSpec().GetAws()), "iam join method")
 	case types.JoinMethodGCP:
-		if len(token.GetSpec().GetGcp().GetAllow()) == 0 {
-			return trace.BadParameter("gcp configuration must be defined for a scoped token when using the gcp join method")
-		}
+		return trace.Wrap(validateGCP(token.GetSpec().GetGcp()), "gcp join method")
 	case types.JoinMethodAzure:
-		if len(token.GetSpec().GetAzure().GetAllow()) == 0 {
-			return trace.BadParameter("azure configuration must be defined for a scoped token when using the azure join method")
-		}
+		return trace.Wrap(validateAzure(token.GetSpec().GetAzure()), "azure join method")
 	case types.JoinMethodAzureDevops:
-		if len(token.GetSpec().GetAzureDevops().GetAllow()) == 0 {
-			return trace.BadParameter("azure_devops configuration must be defined for a scoped token when using the azure_devops join method")
-		}
+		return trace.Wrap(validateAzureDevops(token.GetSpec().GetAzureDevops()), "azure_devops join method")
 	case types.JoinMethodOracle:
-		if len(token.GetSpec().GetOracle().GetAllow()) == 0 {
-			return trace.BadParameter("oracle configuration must be defined for a scoped token when using the oracle join method")
-		}
+		return trace.Wrap(validateOracle(token.GetSpec().GetOracle()), "oracle join method")
 	case types.JoinMethodKubernetes:
 		return trace.Wrap(validateKubernetes(token.GetSpec().GetKubernetes()), "kubernetes join method")
 	case types.JoinMethodBoundKeypair:
@@ -378,7 +492,7 @@ var ErrTokenExhausted = &trace.LimitExceededError{Message: "scoped token usage e
 // ValidateTokenForUse checks if a given scoped token can be used for
 // provisioning. Returns a [*trace.LimitExceededError] if the token is expired
 func ValidateTokenForUse(token *joiningv1.ScopedToken) error {
-	if err := WeakValidateToken(token); err != nil {
+	if err := StrongValidateToken(token); err != nil {
 		return trace.Wrap(err)
 	}
 

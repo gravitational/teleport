@@ -24,10 +24,12 @@
 package parse
 
 import (
+	"fmt"
 	"net/mail"
 	"regexp"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/gravitational/trace"
 
@@ -45,6 +47,50 @@ const (
 	// RegexpReplaceFnName is a name for regexp.replace function.
 	RegexpReplaceFnName = "regexp.replace"
 )
+
+// LabelSelectorSpec parses a string like 'name=value,"long name"="quoted value"` into a map like
+// { "name" -> "value", "long name" -> "quoted value" }.
+func LabelSelectorSpec(spec string) (map[string]string, error) {
+	var tokens []string
+	openQuotes := false
+	var tokenStart, assignCount int
+	specLen := len(spec)
+	// tokenize the label spec:
+	for i, ch := range spec {
+		endOfToken := false
+		// end of line?
+		if i+utf8.RuneLen(ch) == specLen {
+			i += utf8.RuneLen(ch)
+			endOfToken = true
+		}
+		switch ch {
+		case '"':
+			openQuotes = !openQuotes
+		case '=', ',', ';':
+			if !openQuotes {
+				endOfToken = true
+				if ch == '=' {
+					assignCount++
+				}
+			}
+		}
+		if endOfToken && i > tokenStart {
+			tokens = append(tokens, strings.TrimSpace(strings.Trim(spec[tokenStart:i], `"`)))
+			tokenStart = i + 1
+		}
+	}
+	// simple validation of tokenization: must have an even number of tokens (because they're pairs)
+	// and the number of such pairs must be equal the number of assignments
+	if len(tokens)%2 != 0 || assignCount != len(tokens)/2 {
+		return nil, fmt.Errorf("invalid label spec: '%s', should be 'key=value'", spec)
+	}
+	// break tokens in pairs and put into a map:
+	labels := make(map[string]string)
+	for i := 0; i < len(tokens); i += 2 {
+		labels[tokens[i]] = tokens[i+1]
+	}
+	return labels, nil
+}
 
 var (
 	traitsTemplateParser = mustNewTraitsTemplateParser()

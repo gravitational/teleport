@@ -335,6 +335,37 @@ func TestGetClusterAuthProxyServerFeatures(t *testing.T) {
 	}
 }
 
+func TestGetEffectiveServerFeatures(t *testing.T) {
+	t.Parallel()
+	rcv1 := FeatureResourceConstraintsV1
+	otherFeature := FeatureID(9999)
+	makeAppServer := func(t *testing.T, version string, features *componentfeaturesv1.ComponentFeatures) types.AppServer {
+		app, err := types.NewAppV3(types.Metadata{Name: "aws-app"}, types.AppSpecV3{URI: "https://console.aws.amazon.com", Cloud: "AWS"})
+		require.NoError(t, err)
+		srv, err := types.NewAppServerV3FromApp(app, "localhost", "host-1")
+		require.NoError(t, err)
+		srv.Spec.Version = version
+		srv.SetComponentFeatures(features)
+		return srv
+	}
+
+	t.Run("old app server has ResourceConstraintsV1 stripped", func(t *testing.T) {
+		srv := makeAppServer(t, "18.7.5", New(rcv1, otherFeature))
+		result := GetEffectiveServerFeatures(srv)
+		require.ElementsMatch(t, New(otherFeature).GetFeatures(), result.GetFeatures())
+	})
+	t.Run("new app server keeps ResourceConstraintsV1", func(t *testing.T) {
+		srv := makeAppServer(t, "18.7.6", New(rcv1, otherFeature))
+		result := GetEffectiveServerFeatures(srv)
+		require.ElementsMatch(t, New(rcv1, otherFeature).GetFeatures(), result.GetFeatures())
+	})
+	t.Run("nil features on old app server returns empty", func(t *testing.T) {
+		srv := makeAppServer(t, "18.6.4", nil)
+		result := GetEffectiveServerFeatures(srv)
+		require.Empty(t, result.GetFeatures())
+	})
+}
+
 type fakeAuthProxyServersLister struct {
 	proxies       []types.Server
 	auths         []types.Server

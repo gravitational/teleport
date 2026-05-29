@@ -32,7 +32,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
@@ -49,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/plugin"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -63,6 +63,9 @@ type Config struct {
 	Version string
 	// DataDir is the directory where teleport stores its local state, e.g. keys
 	DataDir string
+
+	// ScopesFeatures dictates which scoped components are enabled for this process.
+	ScopesFeatures scopes.Features
 
 	// Hostname is a node host name
 	Hostname string
@@ -689,20 +692,6 @@ func (cfg *Config) ApplyCAPins(caPins []string) error {
 		cfg.CAPins = filteredPins
 	}
 	return nil
-}
-
-// DebugDumpToYAML is useful for debugging: it dumps the Config structure into
-// a string
-func (cfg *Config) DebugDumpToYAML() string {
-	shallow := *cfg
-	// do not copy sensitive data to stdout
-	shallow.Identities = nil
-	shallow.Auth.Authorities = nil
-	out, err := yaml.Marshal(shallow)
-	if err != nil {
-		return err.Error()
-	}
-	return string(out)
 }
 
 // ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS

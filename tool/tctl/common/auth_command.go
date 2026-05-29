@@ -52,7 +52,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	libsubca "github.com/gravitational/teleport/lib/subca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/winpki"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
@@ -179,10 +178,8 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, cliFlags *tctlcfg.Glo
 	a.authCRL.Flag("type", "Certificate authority type.").Required().EnumVar(&a.caType, allowedCRLCertificateTypes...)
 	a.authCRL.Flag("out", "If set, writes exported revocation lists to files with the given path prefix").StringVar(&a.output)
 
-	if libsubca.Enabled() {
-		a.subCACommand = &subcacmd.Command{}
-		a.subCACommand.Initialize(auth, cliFlags, config)
-	}
+	a.subCACommand = &subcacmd.Command{}
+	a.subCACommand.Initialize(auth, cliFlags, config)
 }
 
 // TryRun takes the CLI command as an argument (like "auth gen") and executes it

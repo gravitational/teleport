@@ -195,7 +195,7 @@ func TestServerKeyAuth(t *testing.T) {
 						Username:   con.User(),
 						Principals: []string{con.User()},
 						Roles:      []string{"dev", "admin"},
-						ScopePin:   &scopesv1.Pin{Scope: "test"},
+						ScopePin:   &scopesv1.Pin{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "test"},
 					},
 				})
 				require.NoError(t, err)
@@ -327,6 +327,39 @@ func TestServerKeyAuth(t *testing.T) {
 			}(),
 			// principal mismatch should result in cert validation failure
 			wantErr: require.Error,
+		},
+		{
+			desc: "agent scope pin host cert",
+			key: func() ssh.PublicKey {
+				rawCert, err := ta.GenerateHostCert(sshca.HostCertificateRequest{
+					CASigner:      hostCASigner,
+					PublicHostKey: newPubKey(t),
+					HostID:        "root-host-id",
+					NodeName:      con.User(),
+					Identity: sshca.Identity{
+						ClusterName: "root",
+						ScopePin: &scopesv1.Pin{
+							Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
+							Scope: "test-scope",
+							SystemRoles: &scopesv1.SystemRoles{
+								Primary: string(types.RoleNode),
+							},
+						},
+					},
+				})
+				require.NoError(t, err)
+				key, _, _, _, err := ssh.ParseAuthorizedKey(rawCert)
+				require.NoError(t, err)
+				return key
+			}(),
+			wantExtensions: map[string]string{
+				extHost:              con.User(),
+				utils.ExtIntCertType: utils.ExtIntCertTypeHost,
+				extCertRole:          string(types.RoleNode),
+				extAuthority:         "root",
+				extScope:             "test-scope",
+			},
+			wantErr: require.NoError,
 		},
 		{
 			desc: "not a cert",

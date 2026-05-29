@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"google.golang.org/grpc/peer"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
@@ -48,6 +49,9 @@ type Backend interface {
 	DeleteReverseTunnel(ctx context.Context, tunnelName string) error
 
 	DeleteRelayServer(ctx context.Context, name string) error
+
+	UpsertProxyServer(ctx context.Context, server types.Server) (types.Server, error)
+	DeleteProxyServer(ctx context.Context, name string) error
 }
 
 type Cache interface {
@@ -476,4 +480,70 @@ func (s *Service) DeleteRelayServer(ctx context.Context, req *presencepb.DeleteR
 	}
 
 	return &presencepb.DeleteRelayServerResponse{}, nil
+}
+
+// UpsertProxyServer upserts a proxy server heartbeat.
+func (s *Service) UpsertProxyServer(
+	ctx context.Context, req *presencepb.UpsertProxyServerRequest,
+) (*presencepb.UpsertProxyServerResponse, error) {
+	srv := req.GetServer()
+	if srv == nil {
+		return nil, trace.BadParameter("server: must be specified")
+	}
+	// nb(noah): This forced overwrite of kind is load-bearing. You will be
+	// surprised to learn that in its current state the Proxy heartbeater will
+	// upsert the Server with Kind=Node.
+	// See https://github.com/gravitational/teleport/issues/66997
+	srv.Kind = types.KindProxy
+	if err := srv.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authCtx.CheckAccessToKind(types.KindProxy, types.VerbCreate, types.VerbUpdate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// If the proxy advertised a local/unspecified address, replace the host
+	// component with the peer address observed on the socket.
+	if p, ok := peer.FromContext(ctx); ok {
+		srv.SetAddr(utils.ReplaceLocalhost(srv.GetAddr(), p.Addr.String()))
+	}
+
+	upserted, err := s.backend.UpsertProxyServer(ctx, srv)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	upsertedV2, ok := upserted.(*types.ServerV2)
+	if !ok {
+		return nil, trace.BadParameter("unsupported proxy server type %T", upserted)
+	}
+	return &presencepb.UpsertProxyServerResponse{
+		Server: upsertedV2,
+	}, nil
+}
+
+// DeleteProxyServer deletes a proxy server heartbeat by name.
+func (s *Service) DeleteProxyServer(
+	ctx context.Context, req *presencepb.DeleteProxyServerRequest,
+) (*presencepb.DeleteProxyServerResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authCtx.CheckAccessToKind(types.KindProxy, types.VerbDelete); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.Name == "" {
+		return nil, trace.BadParameter("name: must be specified")
+	}
+
+	if err := s.backend.DeleteProxyServer(ctx, req.GetName()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &presencepb.DeleteProxyServerResponse{}, nil
 }
