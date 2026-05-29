@@ -170,7 +170,11 @@ func (t *streamableHTTPTransport) setExternalSessionID(header http.Header) {
 	}
 }
 
-func (t *streamableHTTPTransport) rewriteRequest(r *http.Request) (*http.Request, error) {
+func (t *streamableHTTPTransport) rewriteAndSendRequest(r *http.Request) (*http.Response, error) {
+	return t.rewriteAndSendRequestWithBody(r, nil)
+}
+
+func (t *streamableHTTPTransport) rewriteAndSendRequestWithBody(r *http.Request, bodyOverwrite any) (*http.Response, error) {
 	r = r.Clone(r.Context())
 	r.URL.Scheme = t.targetURI.Scheme
 	r.URL.Host = t.targetURI.Host
@@ -186,15 +190,17 @@ func (t *streamableHTTPTransport) rewriteRequest(r *http.Request) (*http.Request
 	if err := t.rewriteHTTPRequestHeaders(r); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return r, nil
-}
 
-func (t *streamableHTTPTransport) rewriteAndSendRequest(r *http.Request) (*http.Response, error) {
-	rCopy, err := t.rewriteRequest(r)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if bodyOverwrite != nil {
+		data, err := json.Marshal(bodyOverwrite)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		r.Body = io.NopCloser(bytes.NewReader(data))
+		r.ContentLength = int64(len(data))
 	}
-	return t.targetTransport.RoundTrip(rCopy)
+
+	return t.targetTransport.RoundTrip(r)
 }
 
 func (t *streamableHTTPTransport) handleSessionEndRequest(r *http.Request) (*http.Response, error) {
@@ -219,9 +225,10 @@ func (t *streamableHTTPTransport) handleMCPMessage(r *http.Request) (*http.Respo
 		return nil, trace.BadParameter("invalid request body %v", err)
 	}
 
+	var mcpRequest *mcputils.JSONRPCRequest
 	switch {
 	case baseMessage.IsRequest():
-		mcpRequest := baseMessage.MakeRequest()
+		mcpRequest = baseMessage.MakeRequest()
 		if errResp := t.sessionHandler.processClientRequest(r.Context(), mcpRequest); errResp != nil {
 			t.emitRequestEvent(t.parentCtx, mcpRequest, eventWithError(toError(*errResp)), eventWithHeader(r.Header))
 			return t.handleRequestError(r, *errResp)
@@ -234,7 +241,15 @@ func (t *streamableHTTPTransport) handleMCPMessage(r *http.Request) (*http.Respo
 		return nil, trace.BadParameter("not a MCP request or notification")
 	}
 
-	resp, err := t.rewriteAndSendRequest(r)
+	var resp *http.Response
+	var sendReqErr error
+	switch {
+	case mcpRequest != nil:
+		resp, sendReqErr = t.rewriteAndSendRequestWithBody(r, mcpRequest)
+	default:
+		resp, sendReqErr = t.rewriteAndSendRequest(r)
+	}
+
 	// Prefer session ID from server response if present. For example,
 	// "initialize" request does not have an ID but the server response may have
 	// it.
@@ -243,19 +258,19 @@ func (t *streamableHTTPTransport) handleMCPMessage(r *http.Request) (*http.Respo
 	}
 
 	// Take care of audit events after round trip.
-	respErrForAudit := convertHTTPResponseErrorForAudit(resp, err)
+	auditErr := convertHTTPResponseErrorForAudit(resp, sendReqErr)
 	switch {
 	case baseMessage.IsRequest():
 		mcpRequest := baseMessage.MakeRequest()
 		// Only emit session start if "initialize" succeeded.
-		if mcpRequest.Method == mcputils.MethodInitialize && respErrForAudit == nil {
+		if mcpRequest.Method == mcputils.MethodInitialize && auditErr == nil {
 			t.appendStartEvent(r.Context(), eventWithHeader(r.Header))
 		}
-		t.emitRequestEvent(t.parentCtx, mcpRequest, eventWithError(respErrForAudit), eventWithHeader(r.Header))
+		t.emitRequestEvent(t.parentCtx, mcpRequest, eventWithError(auditErr), eventWithHeader(r.Header))
 	case baseMessage.IsNotification():
-		t.emitNotificationEvent(r.Context(), baseMessage.MakeNotification(), eventWithError(respErrForAudit), eventWithHeader(r.Header))
+		t.emitNotificationEvent(r.Context(), baseMessage.MakeNotification(), eventWithError(auditErr), eventWithHeader(r.Header))
 	}
-	return resp, trace.Wrap(err)
+	return resp, trace.Wrap(sendReqErr)
 }
 
 func (t *streamableHTTPTransport) handleRequestError(r *http.Request, errResp mcp.JSONRPCMessage) (*http.Response, error) {
