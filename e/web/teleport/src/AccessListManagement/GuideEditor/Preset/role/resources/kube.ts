@@ -15,8 +15,8 @@ export type KubeIdentities = Required<
 
 export const emptyKubeIdentities = (): KubeIdentities => ({
   kubernetes_groups: [],
-  kubernetes_resources: [],
   kubernetes_users: [],
+  kubernetes_resources: [],
 });
 
 /**

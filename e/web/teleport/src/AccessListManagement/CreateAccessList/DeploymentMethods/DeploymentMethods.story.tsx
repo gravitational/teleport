@@ -1,13 +1,15 @@
 import { StoryObj } from '@storybook/react-vite';
 import { http, HttpResponse } from 'msw';
-import { MemoryRouter } from 'react-router';
+import { createMemoryRouter, RouterProvider } from 'react-router';
 
 import { Info } from 'design/Alert';
 
 import { AccessListManagementContextProvider } from 'e-teleport/AccessListManagement/AccessListManagementContext';
+import { defaultStandardRoleConditions } from 'e-teleport/AccessListManagement/GuideEditor/Preset/role/conditions';
 import cfg from 'e-teleport/config';
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
 import {
+  AccessListMemberKind,
   ReviewDayOfMonth,
   ReviewFrequency,
 } from 'e-teleport/services/accessmanagement';
@@ -15,7 +17,7 @@ import { ContextProvider } from 'teleport';
 
 import { reviewDayOfMonthOpts, reviewFrequencyOpts } from '../../Shared/Audit';
 import { CreateAccessListContextProvider } from '../CreateAccessListContextProvider';
-import { Spec } from '../types';
+import { Members, Owners, Spec } from '../types';
 import { DeploymentMethods } from './DeploymentMethods';
 import { ErrorCreatingAccessListDialog } from './ErrorCreatingAccessListDialog';
 
@@ -26,6 +28,46 @@ export default {
 const listHandler = http.get(cfg.getAccessManagementListUrlV2({}), () =>
   HttpResponse.json({ accessLists: [] })
 );
+
+const owners: Owners = {
+  selectedRolesRequired: [{ label: 'access', value: 'access' }],
+  eligibleOwners: [],
+  selectedOwners: [
+    {
+      label: 'alice',
+      value: { name: 'alice', membershipKind: AccessListMemberKind.User },
+    },
+    {
+      label: 'bob',
+      value: { name: 'bob', membershipKind: AccessListMemberKind.User },
+    },
+  ],
+  traitLabels: [{ name: 'team', value: 'engineering' }],
+  traitLookup: {},
+};
+
+const members: Members = {
+  selectedRolesRequired: [{ label: 'requester', value: 'requester' }],
+  eligibleMembers: [],
+  selectedMembers: [
+    {
+      label: 'carol',
+      value: { name: 'carol', membershipKind: AccessListMemberKind.User },
+    },
+    {
+      label: 'dave',
+      value: { name: 'dave', membershipKind: AccessListMemberKind.User },
+    },
+  ],
+  traitLabels: [{ name: 'location', value: 'us-west' }],
+  traitLookup: {},
+};
+
+const standardRoleConditions = {
+  ...defaultStandardRoleConditions(),
+  app_labels: { env: ['prod'] },
+  db_labels: { env: ['staging'] },
+};
 
 export const Default: StoryObj = {
   parameters: {
@@ -97,17 +139,30 @@ function Provider({ children }: { children: React.ReactNode }) {
 
   const ctx = createTeleportContextE();
 
-  return (
-    <MemoryRouter
-      initialEntries={[{ pathname: '/', state: { spec, preset: '' } }]}
-    >
-      <ContextProvider ctx={ctx}>
-        <AccessListManagementContextProvider>
-          <CreateAccessListContextProvider>
-            {children}
-          </CreateAccessListContextProvider>
-        </AccessListManagementContextProvider>
-      </ContextProvider>
-    </MemoryRouter>
+  const router = createMemoryRouter(
+    [
+      {
+        path: '*',
+        element: (
+          <ContextProvider ctx={ctx}>
+            <AccessListManagementContextProvider>
+              <CreateAccessListContextProvider>
+                {children}
+              </CreateAccessListContextProvider>
+            </AccessListManagementContextProvider>
+          </ContextProvider>
+        ),
+      },
+    ],
+    {
+      initialEntries: [
+        {
+          pathname: '/',
+          state: { spec, owners, members, standardRoleConditions, preset: '' },
+        },
+      ],
+    }
   );
+
+  return <RouterProvider router={router} />;
 }

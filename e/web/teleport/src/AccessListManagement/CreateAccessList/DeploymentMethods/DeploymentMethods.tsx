@@ -6,19 +6,29 @@ import Validation, { Validator } from 'shared/components/Validation';
 import { useAccessListManagementContext } from 'e-teleport/AccessListManagement/AccessListManagementContext';
 import { useCreateAccessList } from 'e-teleport/AccessListManagement/CreateAccessList/CreateAccessListContextProvider';
 import { Finished } from 'e-teleport/AccessListManagement/CreateAccessList/Finished';
+import { definableResourceAccessFields } from 'e-teleport/AccessListManagement/GuideEditor/Preset/role/listaccess';
 import { StepButtons } from 'e-teleport/AccessListManagement/GuideEditor/Shared';
 import { TerraformDeploymentCreate } from 'e-teleport/AccessListManagement/GuideEditor/Terraform/TerraformDeploymentCreate';
 import { Prompt } from 'teleport/components/Router';
 
+import { Summary } from '../Summary/Summary';
 import { cancelPrompt } from '../types';
 import { ErrorCreatingAccessListDialog } from './ErrorCreatingAccessListDialog';
 
 export function DeploymentMethods() {
-  const { spec, onCreate, createAttempt, setCreateAttempt } =
+  const { spec, onCreate, createAttempt, setCreateAttempt, members, owners } =
     useCreateAccessList();
 
   const { guideEditor } = useAccessListManagementContext();
-  const { terraform, deploymentView, setDeploymentView } = guideEditor;
+  const {
+    terraform,
+    deploymentView,
+    setDeploymentView,
+    preset,
+    standardRoleState,
+    awsIcRoleState,
+    definedAccess,
+  } = guideEditor;
 
   if (deploymentView === 'finished') {
     return <Finished />;
@@ -35,6 +45,10 @@ export function DeploymentMethods() {
       terraform.updateSidePanel(0);
     }
   }
+
+  const definedAccessFields = definableResourceAccessFields.filter(field =>
+    definedAccess(field)
+  );
 
   return (
     <>
@@ -103,6 +117,18 @@ export function DeploymentMethods() {
             </Validation>
           </Flex>
         </Card>
+
+        <Flex flexDirection={'column'} alignItems={'center'} mt={5}>
+          <Summary
+            spec={spec}
+            preset={preset}
+            members={members}
+            owners={owners}
+            awsIcRoleConditions={awsIcRoleState.roleConditions}
+            standardRoleConditions={standardRoleState.roleConditions}
+            definedAccessFields={definedAccessFields}
+          />
+        </Flex>
       </Box>
       <StepButtons hideNextBtn />
       {deploymentView === '' && <Prompt when message={cancelPrompt} />}

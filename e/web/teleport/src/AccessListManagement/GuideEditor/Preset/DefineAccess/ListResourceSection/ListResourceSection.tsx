@@ -213,7 +213,7 @@ export function ListResourceSection({
         }
         onShowStatusInfo={onShowStatusInfo}
         onLabelClick={onLabelClick}
-        showResourcesSelectedIcon={hasDefinedStandardAccess}
+        showResourceSelectedIcon={hasDefinedStandardAccess}
         visibleFilterPanelFields={{
           checkbox: false,
           clusterOpts: false,
