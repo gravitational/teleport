@@ -77,7 +77,7 @@ A functional Teleport Terraform provider by following [the Terraform provider gu
 </TabItem>
 </Tabs>
 
-## Step 1/4. Detect the OIDC provider URL
+## Step 1/3. Detect the OIDC provider URL
 
 In this step we will connect to the cluster and recover the OIDC provider URL.
 If you already have the cluster's OIDC provider URL (e.g. as an output from the
@@ -130,7 +130,7 @@ $ curl <Var name="https://oidc.example.com/path/to/issuer/"/>.well-known/openid-
 }
 ```
 
-## Step 2/4. Create the Join Token
+## Step 2/3. Create the Join Token
 
 In this step we will configure Teleport to trust tokens signed by the Kubernetes OIDC provider.
 This will allow agents running in this Kubernetes cluster to join the Teleport cluster.
@@ -273,60 +273,57 @@ Apply complete! Resources: 1 added, 0 changed, 0 destroyed.
 </TabItem>
 </Tabs>
 
-## Step 3/4. Configure the agent
+## Step 3/3. Configure and deploy the agent
 
 In this step we will write the `teleport-kube-agent` Helm chart configuration
-so that the agent uses the previously created token to join.
+so that the agent uses the previously created token to join, then deploy the
+agent.
 
 You must have the following information:
 - The Teleport cluster address: <Var name="teleport.example.com:443"/>
 - The Teleport cluster name: <Var name="teleport.example.com"/>
 - The name of the kubernetes cluster you are connecting: <Var name="kube-cluster-name"/>
 
-Write the following `values.yaml` YAML manifest.
+1. Write the following `values.yaml` YAML manifest.
 
-```yaml
-roles: "kube"
-proxyAddr: <Var name="teleport.example.com:443"/>
-# If you use Teleport Community Edition or AGPL, set to false
-enterprise: true
-updater:
-  enabled: true
-joinParams:
-  method: "kubernetes"
-  tokenName: <Var name="kube-cluster-name"/>-oidc
-kubeClusterName: <Var name="kube-cluster-name"/>
-teleportClusterName: <Var name="teleport.example.com"/>
-```
+   ```yaml
+   roles: "kube"
+   proxyAddr: <Var name="teleport.example.com:443"/>
+   # If you use Teleport Community Edition or AGPL, set to false
+   enterprise: true
+   updater:
+     enabled: true
+   joinParams:
+     method: "kubernetes"
+     tokenName: <Var name="kube-cluster-name"/>-oidc
+   kubeClusterName: <Var name="kube-cluster-name"/>
+   teleportClusterName: <Var name="teleport.example.com"/>
+   ```
 
-## Step 4/4. Deploy the agent
+1. (!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
 
-In this step we will deploy a release of the `teleport-kube-agent` chart using
-the values we wrote previously.
+1. Deploy the Teleport Kubernetes Agent using the values we previously set in
+   the provision token:
+   - The namespace in which you will deploy the agent: <Var name="teleport"/>
+   - The name of the Teleport Agent release: <Var name="teleport-agent"/>
 
-(!docs/pages/includes/kubernetes-access/helm/helm-repo-add.mdx!)
+   ```code
+   $ helm upgrade --install <Var name="teleport-agent"/> teleport/teleport-kube-agent \
+     --namespace <Var name="teleport"/> --create-namespace \
+     --version (=teleport.version=) \
+     --values values.yaml
+   ```
 
-Finally deploy the Teleport Kubernetes Agent using the values we previously set in the provision token:
-- The namespace in which you will deploy the agent: <Var name="teleport"/>
-- The name of the Teleport agent release: <Var name="teleport-agent"/>
+1. Validate that the agent successfully joined the cluster by checking its pod
+   readiness (this can take a couple of minutes):
 
-```code
-$ helm upgrade --install <Var name="teleport-agent"/> teleport/teleport-kube-agent \
-  --namespace <Var name="teleport"/> --create-namespace \
-  --version (=teleport.version=) \
-  --values values.yaml
-```
-
-Validate that the agent successfully joined the cluster by checking its pod readiness
-(this can take a couple of minutes):
-
-```code
-$ kubectl get pods -n <Var name="teleport"/>
-
-NAME                                     READY   STATUS    RESTARTS   AGE
-<Var name="teleport-agent"/>-0                         1/1     Running   0          9s
-<Var name="teleport-agent"/>-updater-6b8b74996-jz4qg   1/1     Running   0          15s
-```
+   ```code
+   $ kubectl get pods -n <Var name="teleport"/>
+   
+   NAME                                     READY   STATUS    RESTARTS   AGE
+   <Var name="teleport-agent"/>-0                         1/1     Running   0          9s
+   <Var name="teleport-agent"/>-updater-6b8b74996-jz4qg   1/1     Running   0          15s
+   ```
 
 ## Next steps
 

@@ -1306,12 +1306,15 @@ func TestPresets(t *testing.T) {
 			teleport.PresetDeviceEnrollRoleName,
 			teleport.PresetRequireTrustedDeviceRoleName,
 			teleport.SystemOktaRequesterRoleName, // This is treated as a preset
+			teleport.PresetBeamUserRoleName,
+			teleport.PresetBeamAdminRoleName,
 		}, presetRoleNames...)
 
 		enterpriseSystemRoleNames := []string{
 			teleport.SystemAutomaticAccessApprovalRoleName,
 			teleport.SystemOktaAccessRoleName,
 			teleport.SystemIdentityCenterAccessRoleName,
+			teleport.SystemBeamRoleName,
 		}
 
 		enterpriseUsers := []types.User{

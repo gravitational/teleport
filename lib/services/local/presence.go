@@ -228,6 +228,21 @@ func (s *PresenceService) DeleteNode(ctx context.Context, namespace string, name
 	return s.Delete(ctx, key)
 }
 
+// AppendDeleteNodeActions adds conditional actions to an atomic write to
+// delete a node resource.
+func (s *PresenceService) AppendDeleteNodeActions(
+	actions []backend.ConditionalAction,
+	namespace string,
+	name string,
+	condition backend.Condition,
+) ([]backend.ConditionalAction, error) {
+	return append(actions, backend.ConditionalAction{
+		Key:       backend.NewKey(nodesPrefix, namespace, name),
+		Condition: condition,
+		Action:    backend.Delete(),
+	}), nil
+}
+
 // GetNode returns a node by name and namespace.
 func (s *PresenceService) GetNode(ctx context.Context, namespace, name string) (types.Server, error) {
 	if namespace == "" {
@@ -306,6 +321,32 @@ func (s *PresenceService) UpsertNode(ctx context.Context, server types.Server) (
 		Type: types.KeepAlive_NODE,
 		Name: server.GetName(),
 	}, nil
+}
+
+// AppendPutNodeActions adds conditional actions to an atomic write to create
+// or update a node resource.
+func (s *PresenceService) AppendPutNodeActions(
+	actions []backend.ConditionalAction,
+	server types.Server,
+	condition backend.Condition,
+) ([]backend.ConditionalAction, error) {
+	if server.GetNamespace() == "" {
+		server.SetNamespace(apidefaults.Namespace)
+	}
+	if err := types.ValidateNamespaceDefault(server.GetNamespace()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	item, err := itemFromNode(server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return append(actions, backend.ConditionalAction{
+		Key:       item.Key,
+		Condition: condition,
+		Action:    backend.Put(*item),
+	}), nil
 }
 
 func itemFromNode(server types.Server) (*backend.Item, error) {
@@ -974,6 +1015,36 @@ func (s *PresenceService) GetKubernetesServers(ctx context.Context) ([]types.Kub
 	return servers, trace.Wrap(err)
 }
 
+// RangeKubernetesServersWithName returns an iterator over kubernetes servers for a given cluster name.
+func (s *PresenceService) RangeKubernetesServersWithName(ctx context.Context, clusterName string) iter.Seq2[types.KubeServer, error] {
+	if clusterName == "" {
+		return stream.Fail[types.KubeServer](trace.BadParameter("missing kubernetes cluster name"))
+	}
+
+	// TODO(wethreetrees): if Metadata.Name == Spec.Cluster.GetName() becomes a
+	// CheckAndSetDefaults invariant, this filter could check against the backend
+	// key's trailing component before unmarshalling. Currently no such invariant
+	// exists, so we unmarshal every item to read the embedded cluster name.
+	mapFn := func(item backend.Item) (types.KubeServer, bool) {
+		server, err := services.UnmarshalKubeServer(
+			item.Value,
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision),
+		)
+		if err != nil {
+			s.logger.WarnContext(ctx, "Failed to unmarshal kubernetes server", "key", item.Key, "error", err)
+			return nil, false
+		}
+		cluster := server.GetCluster()
+		return server, cluster != nil && cluster.GetName() == clusterName
+	}
+
+	startKey := backend.ExactKey(kubeServersPrefix)
+	endKey := backend.RangeEnd(startKey)
+
+	return stream.FilterMap(s.Backend.Items(ctx, backend.ItemsParams{StartKey: startKey, EndKey: endKey}), mapFn)
+}
+
 func (s *PresenceService) getKubernetesServers(ctx context.Context) ([]types.KubeServer, error) {
 	startKey := backend.ExactKey(kubeServersPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
@@ -1017,6 +1088,35 @@ func (s *PresenceService) GetDatabaseServers(ctx context.Context, namespace stri
 		servers[i] = server
 	}
 	return servers, nil
+}
+
+// RangeDatabaseServersWithName returns an iterator over database proxy servers for a given database name.
+func (s *PresenceService) RangeDatabaseServersWithName(ctx context.Context, databaseName string) iter.Seq2[types.DatabaseServer, error] {
+	if databaseName == "" {
+		return stream.Fail[types.DatabaseServer](trace.BadParameter("missing database name"))
+	}
+
+	// TODO(wethreetrees): if Metadata.Name == Spec.Database.GetName() becomes a
+	// CheckAndSetDefaults invariant, this filter could check against the backend
+	// key's trailing component before unmarshalling. Currently no such invariant
+	// exists, so we unmarshal every item to read the embedded database name.
+	mapFn := func(item backend.Item) (types.DatabaseServer, bool) {
+		server, err := services.UnmarshalDatabaseServer(
+			item.Value,
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision),
+		)
+		if err != nil {
+			s.logger.WarnContext(ctx, "Failed to unmarshal database server", "key", item.Key, "error", err)
+			return nil, false
+		}
+		return server, server.GetDatabase().GetName() == databaseName
+	}
+
+	startKey := backend.ExactKey(dbServersPrefix, apidefaults.Namespace)
+	endKey := backend.RangeEnd(startKey)
+
+	return stream.FilterMap(s.Backend.Items(ctx, backend.ItemsParams{StartKey: startKey, EndKey: endKey}), mapFn)
 }
 
 // UpsertDatabaseServer registers new database proxy server.

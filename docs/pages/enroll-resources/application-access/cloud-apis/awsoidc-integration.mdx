@@ -49,14 +49,16 @@ teleport.dev/integration  <Var name="my-integration"/>
 
 ## Step 1/4. Configure RBAC
 
-To configure the integration you will need the following allow rules in one of your Teleport roles.
-These are available by default in the preset `editor` role:
+To configure the integration you will need the following allow rules in one of
+your Teleport roles. These are available by default in the preset `editor` role.
+You can also define a role in a file called `integration-manager.yaml` with the
+following permissions:
 
 ```yaml
 kind: role
 version: v7
 metadata:
-  name: example
+  name: integration-manager
 spec:
   allow:
     rules:
@@ -71,6 +73,11 @@ spec:
       - use
 ```
 
+Run the following command to create the role:
+
+```code
+$ tctl create -f integration-manager.yaml
+```
 
 ## Step 2/4. Configure the Identity Provider in AWS
 Navigate to [AWS IAM Identity Provider](https://console.aws.amazon.com/iam/home#/identity_providers/create) and configure the Identity Provider:

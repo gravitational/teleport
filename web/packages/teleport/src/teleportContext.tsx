@@ -240,6 +240,8 @@ class TeleportContext implements types.Context {
         userContext.getInferencePolicyAccess().list ||
         userContext.getInferenceModelAccess().list ||
         userContext.getInferenceSecretAccess().list,
+      listBeam: userContext.getBeamAccess().list,
+      readBeam: userContext.getBeamAccess().read,
     };
   }
 }
@@ -293,6 +295,8 @@ export const disabledFeatureFlags: types.FeatureFlags = {
   readAutoUpdateAgentRollout: false,
   listAutoUpdateAgentReport: false,
   sessionSummaries: false,
+  listBeam: false,
+  readBeam: false,
 };
 
 export default TeleportContext;
