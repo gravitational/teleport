@@ -382,9 +382,12 @@ func (c *WorkloadIdentityCommand) AddRevocation(
 		)
 		return nil
 	case teleport.JSON:
-		return trace.Wrap(utils.WriteJSON(c.stdout, created))
+		// Serialize via the legacy resource wrapper so the output matches
+		// `workload-identity revocations ls` and `tctl get` exactly (RFC3339
+		// timestamps), rather than the raw proto's seconds/nanos form.
+		return trace.Wrap(utils.WriteJSON(c.stdout, types.ProtoResource153ToLegacy(created)))
 	case teleport.YAML:
-		return trace.Wrap(utils.WriteYAML(c.stdout, created))
+		return trace.Wrap(utils.WriteYAML(c.stdout, types.ProtoResource153ToLegacy(created)))
 	default:
 		return trace.BadParameter("unknown format %q", c.format)
 	}
