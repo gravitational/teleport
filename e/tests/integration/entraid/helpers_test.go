@@ -5,10 +5,13 @@ import (
 	"net/http"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
@@ -86,6 +89,9 @@ func newDefaultPluginSpec(t *testing.T) *types.PluginV1 {
 						SsoConnectorId:    connectorName,
 						TenantId:          "bar",
 						EntraAppId:        app1ID, // matches app name available in newDefaultStorage()
+						SyncIntervals: &types.PluginEntraIDSyncIntervals{
+							Full: "15s",
+						},
 					},
 				},
 			},
@@ -244,4 +250,31 @@ func newDefaultStorage() *msgraphtest.Storage {
 	storage.Applications[app1ID] = app1
 
 	return storage
+}
+
+// expectPluginStatusUpdated checks for the plugin status to be updated.
+func expectPluginStatusUpdated(t *testing.T, ctx context.Context, authClt authclient.ClientI, name string, clock *clockwork.FakeClock) {
+	t.Helper()
+
+	plugin, err := authClt.PluginsClient().GetPlugin(ctx, &pluginspb.GetPluginRequest{
+		Name: name,
+	})
+	if err != nil {
+		t.Fatalf("failed to get entra id plugin %q", name)
+	}
+
+	waitCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	require.NoError(t, clock.BlockUntilContext(waitCtx, 1))
+	clock.Advance(15 * time.Second)
+
+	before := plugin.GetStatus().GetLastSyncTime()
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		plugin, err := authClt.PluginsClient().GetPlugin(ctx, &pluginspb.GetPluginRequest{
+			Name: name,
+		})
+		require.NoError(t, err)
+		after := plugin.GetStatus().GetLastSyncTime()
+		require.True(t, after.After(before), "expected a new Entra ID sync to complete with new last sync time")
+	}, 15*time.Second, 30*time.Millisecond)
 }

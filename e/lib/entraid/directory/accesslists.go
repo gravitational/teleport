@@ -518,3 +518,45 @@ func toAclOwner(ctx context.Context, in []*models.User, usersByEntraID map[entra
 
 	return out
 }
+
+// deleteNestedAccessLists ranges through [accesslist.MaxAllowedDepth] and retries
+// deletion on each [accesslists.ErrDeniedAccessListDeletion] error returned for
+// the Access List. This is necessary because for nested Access List, deletion is
+// prevented until the parent Access List itslef is deleted or until the nested
+// membership is removed. Looping for [accesslist.MaxAllowedDepth] counter prevents
+// running the deletion loop forever.
+func deleteNestedAccessLists(ctx context.Context, accessPoint accessPoint, aclToDelete []string) error {
+	var errs []error
+	pending := aclToDelete
+
+	for range accesslist.MaxAllowedDepth {
+		idx := 0
+		for _, name := range pending {
+			err := accessPoint.DeleteAccessList(ctx, name)
+			if err == nil || trace.IsNotFound(err) {
+				continue
+			}
+			if errors.Is(err, accesslists.ErrDeniedAccessListDeletion) {
+				pending[idx] = name
+				idx++
+				continue
+			}
+			errs = append(errs, err)
+		}
+		pending = pending[:idx]
+		if len(pending) == 0 {
+			return trace.NewAggregate(errs...)
+		}
+	}
+
+	// Do a last deletion pass before bailing out.
+	for _, name := range pending {
+		if err := accessPoint.DeleteAccessList(ctx, name); err != nil {
+			if !trace.IsNotFound(err) {
+				errs = append(errs, err)
+			}
+		}
+	}
+
+	return trace.NewAggregate(errs...)
+}

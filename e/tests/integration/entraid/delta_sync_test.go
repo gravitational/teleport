@@ -1,7 +1,6 @@
 package entraid
 
 import (
-	"context"
 	"maps"
 	"slices"
 	"testing"
@@ -11,11 +10,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/e/tests/common"
-	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/msgraph/models"
 )
 
@@ -282,31 +279,4 @@ func TestGroupOwnersDelta(t *testing.T) {
 			},
 			time.Second*10, time.Millisecond*30)
 	})
-}
-
-func expectPluginStatusUpdated(t *testing.T, ctx context.Context, authClt authclient.ClientI, name string, clock *clockwork.FakeClock) {
-	t.Helper()
-
-	plugin, err := authClt.PluginsClient().GetPlugin(ctx, &pluginsv1.GetPluginRequest{
-		Name: name,
-	})
-	if err != nil {
-		require.NoError(t, err, "expected to fetch entra plugin")
-	}
-
-	waitCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-	require.NoError(t, clock.BlockUntilContext(waitCtx, 1))
-	clock.Advance(15 * time.Second)
-
-	before := plugin.GetStatus().GetLastSyncTime()
-
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		plugin, err := authClt.PluginsClient().GetPlugin(ctx, &pluginsv1.GetPluginRequest{
-			Name: name,
-		})
-		require.NoError(t, err)
-		after := plugin.GetStatus().GetLastSyncTime()
-		require.True(t, after.After(before), "expected a new Entra ID sync to complete with new last sync time")
-	}, 15*time.Second, 30*time.Millisecond)
 }

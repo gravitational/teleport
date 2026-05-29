@@ -11,12 +11,14 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/e/tests/common"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/msgraph/models"
 )
@@ -117,6 +119,79 @@ func TestResourceImportWithUnsupportedUsers(t *testing.T) {
 			)
 		},
 		time.Second*10, time.Millisecond*30)
+}
+
+func TestDeleteNestedAccessList(t *testing.T) {
+	ctx := t.Context()
+
+	storage := newDefaultStorage()
+	// Add group1, group2 and group3.
+	group1 := storage.Groups[group1ID]
+	group2 := storage.Groups[group2ID]
+	group3 := storage.Groups[group3ID]
+	groups := make(map[string]*models.Group)
+	groups[group1ID] = group1
+	groups[group2ID] = group2
+	groups[group3ID] = group3
+	storage.Groups = groups
+
+	// Add group2 and group3 as group1 members.
+	groupMembership := make(map[string][]models.GroupMember)
+	groupMembership[group1ID] = []models.GroupMember{group2, group3}
+	groupMembership[group2ID] = []models.GroupMember{group3}
+	storage.GroupMembers = groupMembership
+
+	clock := clockwork.NewFakeClock()
+	env := newTestEnv(t, storage, common.WithClock(clock))
+
+	plugin := newDefaultPluginSpec(t)
+	// Install the plugin, should trigger resource import on first start.
+	err := createEntraIDPlugin(ctx, env.authClient, plugin)
+	require.NoError(t, err, "expected Entra ID plugin to be created")
+
+	expectPluginStatusUpdated(t, ctx, env.authClient, plugin.GetName(), clock)
+	// default users alice, bob, carol that comes from newDefaultStorage.
+	expectDefaultUserSync(t, env.authClient)
+	// Wait for all Entra ID groups to synchronize to Teleport.
+	require.EventuallyWithT(t,
+		func(t *assert.CollectT) {
+			expectedAccessListTitles := []string{"group1", "group2", "group3"}
+			gotAccesslists, err := listEntraIDAccessLists(ctx, env.authClient.AccessListClient())
+			require.NoError(t, err)
+			require.NotNil(t, gotAccesslists)
+			require.ElementsMatch(t, expectedAccessListTitles, slices.Collect(maps.Keys(gotAccesslists)), "expected Entra ID groups to be created")
+
+			requireEntraIDAccessListMembers(t, ctx, env.authClient,
+				gotAccesslists["group1"],
+				[]string{gotAccesslists["group2"].GetName(), gotAccesslists["group3"].GetName()},
+			)
+			requireEntraIDAccessListMembers(t, ctx, env.authClient,
+				gotAccesslists["group2"],
+				[]string{gotAccesslists["group3"].GetName()},
+			)
+		},
+		time.Second*15, time.Millisecond*30)
+
+	// Delete group2 and group3 from Entra ID.
+	env.fakeServer.DeleteGroups([]string{group2ID, group3ID})
+	expectPluginStatusUpdated(t, ctx, env.authClient, plugin.GetName(), clock)
+
+	require.EventuallyWithT(t,
+		func(t *assert.CollectT) {
+			// group2 is deleted.
+			expectedAccessListTitles := []string{"group1"}
+			gotAccesslists, err := listEntraIDAccessLists(ctx, env.authClient.AccessListClient())
+			require.NoError(t, err)
+			require.NotNil(t, gotAccesslists)
+			require.ElementsMatch(t, expectedAccessListTitles, slices.Collect(maps.Keys(gotAccesslists)), "expected Entra ID group to be deleted")
+
+			// group2 membership is removed.
+			gotMembers, err := listEntraIDMembers(ctx, gotAccesslists["group1"].GetName(), env.authClient.AccessListClient())
+			require.NoError(t, err, "listing Access List members for Entra ID groups")
+			require.Empty(t, gotMembers)
+
+		},
+		time.Second*15, time.Millisecond*30)
 }
 
 func expectDefaultUserSync(t *testing.T, authClt authclient.ClientI) {
@@ -229,9 +304,9 @@ func requireEntraIDAccessListMembers(t *assert.CollectT, ctx context.Context, au
 
 	gotMembers, err := listEntraIDMembers(ctx, acl.GetName(), authClient.AccessListClient())
 	require.NoError(t, err, "listing Access List members for Entra ID groups")
-	require.NotNil(t, gotMembers)
+	require.NotNil(t, gotMembers, "expected membership to not to be nil")
 
-	require.ElementsMatch(t, expectedMembers, gotMembers, "expected Entra ID group members to be created. acl=%s", acl.Spec.Title)
+	require.ElementsMatch(t, expectedMembers, gotMembers, "expected Entra ID group members to match. acl=%s", acl.Spec.Title)
 }
 
 func requireDefaultEntraIDAccessListOwners(t *assert.CollectT, acls map[string]*accesslist.AccessList) {

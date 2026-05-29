@@ -15,6 +15,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/e/lib/mdmsync"
+	"github.com/gravitational/teleport/lib/accesslists"
 	"github.com/gravitational/teleport/lib/msgraph/models"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/plugins/filter"
@@ -536,6 +537,7 @@ func (r *Reconciler) reconcileAccessLists(ctx context.Context,
 	}
 
 	var alsWithNestedMembers []*accessListWithMembers
+	var nestedAccessListsToDelete []string
 	onUpsert := func(ctx context.Context, a *accessListWithMembers) error {
 		hasNestedMember := slices.ContainsFunc(a.Members, func(m *accesslist.AccessListMember) bool {
 			return m.Spec.MembershipKind == accesslist.MembershipKindList
@@ -569,6 +571,14 @@ func (r *Reconciler) reconcileAccessLists(ctx context.Context,
 		OnDelete: func(ctx context.Context, a *accessListWithMembers) error {
 			// DeleteAccessList will also delete its members.
 			err := r.accessPoint.DeleteAccessList(ctx, a.AccessList.GetName())
+			if errors.Is(err, accesslists.ErrDeniedAccessListDeletion) {
+				// Access denied is returned if the Access List is a member of
+				// another Access List. If that is the case, this Access List
+				// will be retried for deletion at the end to ensure the parent
+				// Access List is deleted first.
+				nestedAccessListsToDelete = append(nestedAccessListsToDelete, a.AccessList.GetName())
+				return nil
+			}
 			return trace.Wrap(err)
 		},
 		Metrics: r.metrics.accessListReconcilerMetrics,
@@ -596,6 +606,10 @@ func (r *Reconciler) reconcileAccessLists(ctx context.Context,
 		}
 		r.metrics.reconciledNestedMemberDuration.Observe(r.clock.Since(start).Seconds())
 		r.metrics.reconciledNestedMemberTotal.WithLabelValues(metricLabelResultFromError(err)).Inc()
+	}
+
+	if err := deleteNestedAccessLists(ctx, r.accessPoint, nestedAccessListsToDelete); err != nil {
+		reconcileErrs = append(reconcileErrs, trace.Wrap(err))
 	}
 
 	if len(reconcileErrs) > 0 {

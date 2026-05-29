@@ -1,6 +1,7 @@
 package directory
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"testing"
@@ -13,6 +14,7 @@ import (
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/lib/accesslists"
 	"github.com/gravitational/teleport/lib/msgraph/models"
 )
 
@@ -344,4 +346,78 @@ func BenchmarkAccessListWithMembersIsEqual(b *testing.B) {
 	for i := 0; i < numAccessLists; i++ {
 		_ = accessLists[i].isEqual(accessLists[i])
 	}
+}
+
+func TestDeleteNestedAccessLists(t *testing.T) {
+	ctx := t.Context()
+	env := NewEnv(t, newFakeGraphClient(), nil)
+
+	// Create base access lists with allowed max depth.
+	acls := make([]*accesslist.AccessList, accesslist.MaxAllowedDepth+1)
+	for i := range acls {
+		al := createAccessListWithMembers(fmt.Sprintf("acl-%d", i), 0).AccessList
+		_, err := env.aclSvc.UpsertAccessList(ctx, al)
+		require.NoError(t, err)
+		acls[i] = al
+	}
+	// Nested relationship:
+	//  acl-0
+	//   -> acl-1
+	//       -> acl-2
+	//          ...
+	//            -> acl-MaxAllowedDepth
+	for i := 0; i < accesslist.MaxAllowedDepth; i++ {
+		parent := acls[i]
+		child := acls[i+1]
+
+		member, err := accesslist.NewAccessListMember(
+			header.Metadata{
+				Name: child.GetName(),
+			},
+			accesslist.AccessListMemberSpec{
+				AccessList:     parent.GetName(),
+				Name:           child.GetName(),
+				Joined:         time.Now().UTC(),
+				AddedBy:        teleport.UserSystem,
+				MembershipKind: accesslistv1.MembershipKind_MEMBERSHIP_KIND_LIST.String(),
+			},
+		)
+		require.NoError(t, err)
+
+		_, err = env.aclSvc.UpsertAccessListMember(ctx, member)
+		require.NoError(t, err)
+	}
+	requireAccessListCount(t, env.aclSvc, len(acls))
+
+	toDelete := make([]string, 0, len(acls))
+	for _, al := range acls {
+		toDelete = append(toDelete, al.GetName())
+	}
+
+	// Manually check first to prove nested access list deletion is blocked.
+	err := env.aclSvc.DeleteAccessList(ctx, acls[accesslist.MaxAllowedDepth].GetName()) // acl guaranteed to be nested member
+	require.ErrorIs(t, err, accesslists.ErrDeniedAccessListDeletion)
+
+	err = deleteNestedAccessLists(ctx, env.cfg.AccessPoint, toDelete)
+	require.NoError(t, err)
+	requireAccessListCount(t, env.aclSvc, 0)
+}
+
+// Prove that deletion does not run forever on failed attempts.
+func TestDeleteNestedAccessLists_ReturnsAfterMaxDepthRetries(t *testing.T) {
+	fakeAccessPoint := &denyAclDeletion{}
+
+	err := deleteNestedAccessLists(t.Context(), fakeAccessPoint, []string{"fake-acl-to-delete"})
+	require.ErrorIs(t, err, accesslists.ErrDeniedAccessListDeletion)
+	require.Equal(t, accesslist.MaxAllowedDepth+1, fakeAccessPoint.calls)
+}
+
+type denyAclDeletion struct {
+	accessPoint
+	calls int
+}
+
+func (d *denyAclDeletion) DeleteAccessList(ctx context.Context, name string) error {
+	d.calls++
+	return accesslists.ErrDeniedAccessListDeletion
 }
