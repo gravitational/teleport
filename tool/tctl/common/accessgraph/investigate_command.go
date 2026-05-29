@@ -127,8 +127,8 @@ func (a *investigateArgs) filterFields() []filterField {
 		// Lucene names match the Athena column names directly so facet responses (which carry the Athena names) line up with our flags
 		{flag: "resource", lucene: "target_resource", help: "Filter by target resource (repeatable).", include: &a.includeResource, exclude: &a.excludeResource},
 		{flag: "resource-kind", lucene: "target_kind", help: "Filter by resource kind, e.g. ssh, kube, session_recording (repeatable).", include: &a.includeResourceKind, exclude: &a.excludeResourceKind},
-		{flag: "source", lucene: "event_source", help: "Filter by event source (repeatable).", include: &a.includeSource, exclude: &a.excludeSource, enumValues: []string{"aws", "github", "okta", "teleport"}},
-		{flag: "status", lucene: "status", help: "Filter by event status (repeatable).", include: &a.includeStatus, exclude: &a.excludeStatus, enumValues: []string{"success", "error"}},
+		{flag: "source", lucene: "event_source", help: "Filter by event source (repeatable).", include: &a.includeSource, exclude: &a.excludeSource},
+		{flag: "status", lucene: "status", help: "Filter by event status (repeatable).", include: &a.includeStatus, exclude: &a.excludeStatus, enumValues: []string{"success", "failure"}},
 		{flag: "teleport-cluster", lucene: "teleport_cluster", help: "Filter by Teleport cluster name (repeatable).", include: &a.includeTeleportCluster, exclude: &a.excludeTeleportCluster},
 		{flag: "token", lucene: "token", help: "Filter by token identifier (repeatable).", include: &a.includeToken, exclude: &a.excludeToken},
 		{flag: "user-agent", lucene: "user_agent", help: "Filter by user agent string (repeatable). Not populated on every Teleport event — use deliberately.", include: &a.includeUserAgent, exclude: &a.excludeUserAgent},

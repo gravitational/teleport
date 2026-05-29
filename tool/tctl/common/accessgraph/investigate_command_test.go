@@ -570,10 +570,4 @@ func TestInitInvestigateFlags(t *testing.T) {
 		require.True(t, got.showUnmatched)
 		require.True(t, got.facetsOnly)
 	})
-
-	t.Run("source enum rejects unknown value", func(t *testing.T) {
-		_, err := parse(t, "investigate", "--source", "datadog")
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "enum value must be one of")
-	})
 }

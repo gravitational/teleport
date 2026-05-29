@@ -1350,8 +1350,8 @@ Flags:
 |`--exclude-region`|*no default*|Exclude region values (repeatable).|
 |`--exclude-resource`|*no default*|Exclude target_resource values (repeatable).|
 |`--exclude-resource-kind`|*no default*|Exclude target_kind values (repeatable).|
-|`--exclude-source`|*no default* (any of (repeatable): `aws`, `github`, `okta`, `teleport`)|Exclude event_source values (repeatable).|
-|`--exclude-status`|*no default* (any of (repeatable): `success`, `error`)|Exclude status values (repeatable).|
+|`--exclude-source`|*no default*|Exclude event_source values (repeatable).|
+|`--exclude-status`|*no default* (any of (repeatable): `success`, `failure`)|Exclude status values (repeatable).|
 |`--exclude-teleport-cluster`|*no default*|Exclude teleport_cluster values (repeatable).|
 |`--exclude-token`|*no default*|Exclude token values (repeatable).|
 |`--exclude-user`|*no default*|Exclude identity_id values (repeatable).|
@@ -1372,8 +1372,8 @@ Flags:
 |`--region`|*no default*|Filter by region (e.g. us-east-1 or a US state code; repeatable).|
 |`--resource`|*no default*|Filter by target resource (repeatable).|
 |`--resource-kind`|*no default*|Filter by resource kind, e.g. ssh, kube, session_recording (repeatable).|
-|`--source`|*no default* (any of (repeatable): `aws`, `github`, `okta`, `teleport`)|Filter by event source (repeatable).|
-|`--status`|*no default* (any of (repeatable): `success`, `error`)|Filter by event status (repeatable).|
+|`--source`|*no default*|Filter by event source (repeatable).|
+|`--status`|*no default* (any of (repeatable): `success`, `failure`)|Filter by event status (repeatable).|
 |`--teleport-cluster`|*no default*|Filter by Teleport cluster name (repeatable).|
 |`--to`|`now`|Include activity at or before this time. (Examples: 2006-01-02T15:04:05Z07:00, 2006-01-02, 24h, 7d; negative durations like -1h are future-relative. Default: now)|
 |`--token`|*no default*|Filter by token identifier (repeatable).|
