@@ -2393,8 +2393,10 @@ func (s *Server) handleTCPIPForwardRequest(ctx context.Context, ccx *sshutils.Co
 	listener, err := s.listenTCPIP(scx, scx.SrcAddr)
 	if err != nil {
 		if serr := scx.Close(); err != nil {
-			s.logger.DebugContext(ctx, "Failed while cleaning "+teleport.TCPIPForwardRequest+" failure.",
-				"scx_cloes_error", serr, "error", err)
+			s.logger.DebugContext(ctx, "Failed while cleaning up request",
+				"request_type", teleport.TCPIPForwardRequest,
+				"server_context_close_error", serr,
+				"error", err)
 		}
 		return trace.Wrap(err)
 	}
@@ -2404,24 +2406,32 @@ func (s *Server) handleTCPIPForwardRequest(ctx context.Context, ccx *sshutils.Co
 	srcHost, _, err := sshutils.SplitHostPort(scx.SrcAddr)
 	if err != nil {
 		if lerr := listener.Close(); err != nil {
-			s.logger.DebugContext(ctx, "Failed while cleaning "+teleport.TCPIPForwardRequest+" failure.",
-				"listener_close_error", lerr, "error", err)
+			s.logger.DebugContext(ctx, "Failed while cleaning up request",
+				"request_type", teleport.TCPIPForwardRequest,
+				"listener_close_error", lerr,
+				"error", err)
 		}
 		if serr := scx.Close(); err != nil {
-			s.logger.DebugContext(ctx, "Failed while cleaning "+teleport.TCPIPForwardRequest+" failure.",
-				"scx_close_error", serr, "error", err)
+			s.logger.DebugContext(ctx, "Failed while cleaning up request",
+				"request_type", teleport.TCPIPForwardRequest,
+				"server_context_close_error", serr,
+				"error", err)
 		}
 		return trace.Wrap(err)
 	}
 	_, listenPort, err := sshutils.SplitHostPort(listener.Addr().String())
 	if err != nil {
 		if lerr := listener.Close(); err != nil {
-			s.logger.DebugContext(ctx, "Failed while cleaning "+teleport.TCPIPForwardRequest+" failure.",
-				"listener_close_error", lerr, "error", err)
+			s.logger.DebugContext(ctx, "Failed while cleaning up request",
+				"request_type", teleport.TCPIPForwardRequest,
+				"listener_close_error", lerr,
+				"error", err)
 		}
 		if serr := scx.Close(); err != nil {
-			s.logger.DebugContext(ctx, "Failed while cleaning "+teleport.TCPIPForwardRequest+" failure.",
-				"scx_close_error", serr, "error", err)
+			s.logger.DebugContext(ctx, "Failed while cleaning up request",
+				"request_type", teleport.TCPIPForwardRequest,
+				"server_context_close_error", serr,
+				"error", err)
 		}
 		return trace.Wrap(err)
 	}
