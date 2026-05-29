@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/decision/v1alpha1/enforcement_feature.proto
 
+//go:build !protoopaque
+
 package decisionpb
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -76,11 +77,6 @@ func (x EnforcementFeature) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use EnforcementFeature.Descriptor instead.
-func (EnforcementFeature) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_decision_v1alpha1_enforcement_feature_proto_rawDescGZIP(), []int{0}
-}
-
 var File_teleport_decision_v1alpha1_enforcement_feature_proto protoreflect.FileDescriptor
 
 const file_teleport_decision_v1alpha1_enforcement_feature_proto_rawDesc = "" +
@@ -88,18 +84,6 @@ const file_teleport_decision_v1alpha1_enforcement_feature_proto_rawDesc = "" +
 	"4teleport/decision/v1alpha1/enforcement_feature.proto\x12\x1ateleport.decision.v1alpha1*9\n" +
 	"\x12EnforcementFeature\x12#\n" +
 	"\x1fENFORCEMENT_FEATURE_UNSPECIFIED\x10\x00BZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1;decisionpbb\x06proto3"
-
-var (
-	file_teleport_decision_v1alpha1_enforcement_feature_proto_rawDescOnce sync.Once
-	file_teleport_decision_v1alpha1_enforcement_feature_proto_rawDescData []byte
-)
-
-func file_teleport_decision_v1alpha1_enforcement_feature_proto_rawDescGZIP() []byte {
-	file_teleport_decision_v1alpha1_enforcement_feature_proto_rawDescOnce.Do(func() {
-		file_teleport_decision_v1alpha1_enforcement_feature_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_decision_v1alpha1_enforcement_feature_proto_rawDesc), len(file_teleport_decision_v1alpha1_enforcement_feature_proto_rawDesc)))
-	})
-	return file_teleport_decision_v1alpha1_enforcement_feature_proto_rawDescData
-}
 
 var file_teleport_decision_v1alpha1_enforcement_feature_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_teleport_decision_v1alpha1_enforcement_feature_proto_goTypes = []any{

@@ -21,6 +21,8 @@
 // 	protoc        (unknown)
 // source: accessgraph/v1/session_search.proto
 
+//go:build !protoopaque
+
 package accessgraphv1
 
 import (
@@ -30,7 +32,6 @@ import (
 	structpb "google.golang.org/protobuf/types/known/structpb"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -104,11 +105,6 @@ func (x SearchMode) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use SearchMode.Descriptor instead.
-func (SearchMode) EnumDescriptor() ([]byte, []int) {
-	return file_accessgraph_v1_session_search_proto_rawDescGZIP(), []int{0}
-}
-
 // SessionSearchAvailability describes the availability state of the session
 // search feature in the access graph.
 type SessionSearchAvailability int32
@@ -173,16 +169,11 @@ func (x SessionSearchAvailability) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use SessionSearchAvailability.Descriptor instead.
-func (SessionSearchAvailability) EnumDescriptor() ([]byte, []int) {
-	return file_accessgraph_v1_session_search_proto_rawDescGZIP(), []int{1}
-}
-
 // SearchSessionSummariesRequest is sent by the client on the SearchSessionSummaries stream.
 // The first message must carry search_params; subsequent messages carry fetch_more
 // to advance to the next batch.
 type SearchSessionSummariesRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Payload:
 	//
 	//	*SearchSessionSummariesRequest_SearchParams
@@ -217,11 +208,6 @@ func (x *SearchSessionSummariesRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SearchSessionSummariesRequest.ProtoReflect.Descriptor instead.
-func (*SearchSessionSummariesRequest) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1_session_search_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *SearchSessionSummariesRequest) GetPayload() isSearchSessionSummariesRequest_Payload {
 	if x != nil {
 		return x.Payload
@@ -247,6 +233,115 @@ func (x *SearchSessionSummariesRequest) GetFetchMore() *SearchSessionSummariesRe
 	return nil
 }
 
+func (x *SearchSessionSummariesRequest) SetSearchParams(v *SearchSessionSummariesParams) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &SearchSessionSummariesRequest_SearchParams{v}
+}
+
+func (x *SearchSessionSummariesRequest) SetFetchMore(v *SearchSessionSummariesRequest_FetchMore) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &SearchSessionSummariesRequest_FetchMore_{v}
+}
+
+func (x *SearchSessionSummariesRequest) HasPayload() bool {
+	if x == nil {
+		return false
+	}
+	return x.Payload != nil
+}
+
+func (x *SearchSessionSummariesRequest) HasSearchParams() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*SearchSessionSummariesRequest_SearchParams)
+	return ok
+}
+
+func (x *SearchSessionSummariesRequest) HasFetchMore() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*SearchSessionSummariesRequest_FetchMore_)
+	return ok
+}
+
+func (x *SearchSessionSummariesRequest) ClearPayload() {
+	x.Payload = nil
+}
+
+func (x *SearchSessionSummariesRequest) ClearSearchParams() {
+	if _, ok := x.Payload.(*SearchSessionSummariesRequest_SearchParams); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *SearchSessionSummariesRequest) ClearFetchMore() {
+	if _, ok := x.Payload.(*SearchSessionSummariesRequest_FetchMore_); ok {
+		x.Payload = nil
+	}
+}
+
+const SearchSessionSummariesRequest_Payload_not_set_case case_SearchSessionSummariesRequest_Payload = 0
+const SearchSessionSummariesRequest_SearchParams_case case_SearchSessionSummariesRequest_Payload = 1
+const SearchSessionSummariesRequest_FetchMore_case case_SearchSessionSummariesRequest_Payload = 2
+
+func (x *SearchSessionSummariesRequest) WhichPayload() case_SearchSessionSummariesRequest_Payload {
+	if x == nil {
+		return SearchSessionSummariesRequest_Payload_not_set_case
+	}
+	switch x.Payload.(type) {
+	case *SearchSessionSummariesRequest_SearchParams:
+		return SearchSessionSummariesRequest_SearchParams_case
+	case *SearchSessionSummariesRequest_FetchMore_:
+		return SearchSessionSummariesRequest_FetchMore_case
+	default:
+		return SearchSessionSummariesRequest_Payload_not_set_case
+	}
+}
+
+type SearchSessionSummariesRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Payload:
+	// search_params initiates a new search with the given filter criteria.
+	// Must be the first message sent on the stream.
+	SearchParams *SearchSessionSummariesParams
+	// fetch_more requests the next batch of results for the current search.
+	// May only be sent after the server has responded with has_more = true.
+	FetchMore *SearchSessionSummariesRequest_FetchMore
+	// -- end of Payload
+}
+
+func (b0 SearchSessionSummariesRequest_builder) Build() *SearchSessionSummariesRequest {
+	m0 := &SearchSessionSummariesRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.SearchParams != nil {
+		x.Payload = &SearchSessionSummariesRequest_SearchParams{b.SearchParams}
+	}
+	if b.FetchMore != nil {
+		x.Payload = &SearchSessionSummariesRequest_FetchMore_{b.FetchMore}
+	}
+	return m0
+}
+
+type case_SearchSessionSummariesRequest_Payload protoreflect.FieldNumber
+
+func (x case_SearchSessionSummariesRequest_Payload) String() string {
+	md := file_accessgraph_v1_session_search_proto_msgTypes[0].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isSearchSessionSummariesRequest_Payload interface {
 	isSearchSessionSummariesRequest_Payload()
 }
@@ -270,7 +365,7 @@ func (*SearchSessionSummariesRequest_FetchMore_) isSearchSessionSummariesRequest
 // SearchSessionSummariesParams defines the filter criteria and batch settings
 // for a session summary search.
 type SearchSessionSummariesParams struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// start_time restricts results to sessions whose session_start is at or after
 	// this timestamp. The interval is [start_time, end_time).
 	// The server returns an error if this field is unset or zero.
@@ -361,11 +456,6 @@ func (x *SearchSessionSummariesParams) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SearchSessionSummariesParams.ProtoReflect.Descriptor instead.
-func (*SearchSessionSummariesParams) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1_session_search_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *SearchSessionSummariesParams) GetStartTime() *timestamppb.Timestamp {
@@ -473,12 +563,228 @@ func (x *SearchSessionSummariesParams) GetSearchMode() SearchMode {
 	return SearchMode_SEARCH_MODE_UNSPECIFIED
 }
 
+func (x *SearchSessionSummariesParams) SetStartTime(v *timestamppb.Timestamp) {
+	x.StartTime = v
+}
+
+func (x *SearchSessionSummariesParams) SetEndTime(v *timestamppb.Timestamp) {
+	x.EndTime = v
+}
+
+func (x *SearchSessionSummariesParams) SetKinds(v []string) {
+	x.Kinds = v
+}
+
+func (x *SearchSessionSummariesParams) SetUsername(v string) {
+	x.Username = &v
+}
+
+func (x *SearchSessionSummariesParams) SetUserRoles(v []string) {
+	x.UserRoles = v
+}
+
+func (x *SearchSessionSummariesParams) SetAccessRequestIds(v []string) {
+	x.AccessRequestIds = v
+}
+
+func (x *SearchSessionSummariesParams) SetResourceKind(v string) {
+	x.ResourceKind = &v
+}
+
+func (x *SearchSessionSummariesParams) SetResourceName(v string) {
+	x.ResourceName = &v
+}
+
+func (x *SearchSessionSummariesParams) SetResourceLabels(v map[string]string) {
+	x.ResourceLabels = v
+}
+
+func (x *SearchSessionSummariesParams) SetResourceProperties(v *ResourceProperties) {
+	x.ResourceProperties = v
+}
+
+func (x *SearchSessionSummariesParams) SetSeverity(v v1.RiskLevel) {
+	x.Severity = v
+}
+
+func (x *SearchSessionSummariesParams) SetSearchQueries(v []*EmbeddedQuery) {
+	x.SearchQueries = v
+}
+
+func (x *SearchSessionSummariesParams) SetMaxSummaries(v uint32) {
+	x.MaxSummaries = v
+}
+
+func (x *SearchSessionSummariesParams) SetResumeToken(v string) {
+	x.ResumeToken = v
+}
+
+func (x *SearchSessionSummariesParams) SetSearchMode(v SearchMode) {
+	x.SearchMode = v
+}
+
+func (x *SearchSessionSummariesParams) HasStartTime() bool {
+	if x == nil {
+		return false
+	}
+	return x.StartTime != nil
+}
+
+func (x *SearchSessionSummariesParams) HasEndTime() bool {
+	if x == nil {
+		return false
+	}
+	return x.EndTime != nil
+}
+
+func (x *SearchSessionSummariesParams) HasUsername() bool {
+	if x == nil {
+		return false
+	}
+	return x.Username != nil
+}
+
+func (x *SearchSessionSummariesParams) HasResourceKind() bool {
+	if x == nil {
+		return false
+	}
+	return x.ResourceKind != nil
+}
+
+func (x *SearchSessionSummariesParams) HasResourceName() bool {
+	if x == nil {
+		return false
+	}
+	return x.ResourceName != nil
+}
+
+func (x *SearchSessionSummariesParams) HasResourceProperties() bool {
+	if x == nil {
+		return false
+	}
+	return x.ResourceProperties != nil
+}
+
+func (x *SearchSessionSummariesParams) ClearStartTime() {
+	x.StartTime = nil
+}
+
+func (x *SearchSessionSummariesParams) ClearEndTime() {
+	x.EndTime = nil
+}
+
+func (x *SearchSessionSummariesParams) ClearUsername() {
+	x.Username = nil
+}
+
+func (x *SearchSessionSummariesParams) ClearResourceKind() {
+	x.ResourceKind = nil
+}
+
+func (x *SearchSessionSummariesParams) ClearResourceName() {
+	x.ResourceName = nil
+}
+
+func (x *SearchSessionSummariesParams) ClearResourceProperties() {
+	x.ResourceProperties = nil
+}
+
+type SearchSessionSummariesParams_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// start_time restricts results to sessions whose session_start is at or after
+	// this timestamp. The interval is [start_time, end_time).
+	// The server returns an error if this field is unset or zero.
+	StartTime *timestamppb.Timestamp
+	// end_time restricts results to sessions whose session_start is before
+	// this timestamp. The interval is [start_time, end_time).
+	// The server returns an error if this field is unset or zero.
+	EndTime *timestamppb.Timestamp
+	// kinds filters results by session kind (e.g. "ssh", "k8s", "db").
+	// A session matches if its kind equals any value in the list (OR semantics).
+	// An empty list disables this filter.
+	Kinds []string
+	// username filters results to sessions initiated by this Teleport user.
+	Username *string
+	// user_roles filters results to sessions where the user held any of the given
+	// roles at session time (OR semantics). An empty list disables this filter.
+	UserRoles []string
+	// access_request_ids filters results to sessions associated with any of
+	// the given access request IDs (OR semantics).
+	// An empty list disables this filter.
+	AccessRequestIds []string
+	// resource_kind filters results by the kind of resource accessed
+	// (e.g. "node", "kube_cluster", "db").
+	ResourceKind *string
+	// resource_name filters results to sessions on the resource with this name.
+	// Applied independently of resource_properties; ANDed with all other filters.
+	ResourceName *string
+	// resource_labels filters results to sessions on resources that carry all
+	// of the given labels. An empty map disables this filter.
+	ResourceLabels map[string]string
+	// resource_properties narrows results using kind-specific properties
+	// (e.g. hostname for SSH, pod name for Kubernetes, database name for DB).
+	// Applied as an AND with resource_kind, resource_name, and all other filters.
+	// The active variant must match the resource_kind if set.
+	ResourceProperties *ResourceProperties
+	// severity filters results by session severity level.
+	// RISK_LEVEL_UNSPECIFIED disables this filter.
+	Severity v1.RiskLevel
+	// search_queries are the caller's free-text queries together with their
+	// pre-computed vector embeddings, produced by the Auth server before
+	// forwarding the request. Each entry is an independent query; a session
+	// matches if any query matches (OR semantics). The access graph uses the text
+	// for keyword-based matching and the embeddings for vector similarity search.
+	// An empty list disables text and semantic search; results are then filtered
+	// by the other criteria only.
+	SearchQueries []*EmbeddedQuery
+	// max_summaries is the maximum number of SessionSummary objects the server
+	// should include in each batch. The server may return fewer.
+	// A value of 0 lets the server choose a default batch size.
+	MaxSummaries uint32
+	// resume_token resumes a previous search from a known per-summary cursor.
+	// Set this to the checkpoint_token from the last successfully processed
+	// SummaryAndCheckpoint to continue the search from exactly that position in a
+	// new stream without re-fetching already-seen summaries.
+	// The token encodes the complete search state of the original request;
+	// all other filter fields in this message are ignored when resume_token is set.
+	// An empty value starts a new search from the beginning of the result set.
+	ResumeToken string
+	// search_mode controls which search strategy to apply when search_queries
+	// are present. SEARCH_MODE_UNSPECIFIED and SEARCH_MODE_HYBRID both execute
+	// the full hybrid pipeline. SEARCH_MODE_KEYWORD_ONLY uses only full-text
+	// matching; SEARCH_MODE_EMBEDDING_ONLY uses only vector similarity.
+	SearchMode SearchMode
+}
+
+func (b0 SearchSessionSummariesParams_builder) Build() *SearchSessionSummariesParams {
+	m0 := &SearchSessionSummariesParams{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.StartTime = b.StartTime
+	x.EndTime = b.EndTime
+	x.Kinds = b.Kinds
+	x.Username = b.Username
+	x.UserRoles = b.UserRoles
+	x.AccessRequestIds = b.AccessRequestIds
+	x.ResourceKind = b.ResourceKind
+	x.ResourceName = b.ResourceName
+	x.ResourceLabels = b.ResourceLabels
+	x.ResourceProperties = b.ResourceProperties
+	x.Severity = b.Severity
+	x.SearchQueries = b.SearchQueries
+	x.MaxSummaries = b.MaxSummaries
+	x.ResumeToken = b.ResumeToken
+	x.SearchMode = b.SearchMode
+	return m0
+}
+
 // EmbeddedQuery pairs a free-text query with its pre-computed vector embedding,
 // produced by the Auth server before forwarding to the access graph.
 // model_name must match EmbeddingChunk.model_name for a meaningful similarity
 // comparison; the access graph skips stored chunks whose model differs.
 type EmbeddedQuery struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// text is the original query string.
 	Text string `protobuf:"bytes,1,opt,name=text,proto3" json:"text,omitempty"`
 	// embeddings is the vector representation of text, typically a
@@ -518,11 +824,6 @@ func (x *EmbeddedQuery) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use EmbeddedQuery.ProtoReflect.Descriptor instead.
-func (*EmbeddedQuery) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1_session_search_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *EmbeddedQuery) GetText() string {
 	if x != nil {
 		return x.Text
@@ -544,6 +845,43 @@ func (x *EmbeddedQuery) GetModelName() string {
 	return ""
 }
 
+func (x *EmbeddedQuery) SetText(v string) {
+	x.Text = v
+}
+
+func (x *EmbeddedQuery) SetEmbeddings(v []float32) {
+	x.Embeddings = v
+}
+
+func (x *EmbeddedQuery) SetModelName(v string) {
+	x.ModelName = v
+}
+
+type EmbeddedQuery_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// text is the original query string.
+	Text string
+	// embeddings is the vector representation of text, typically a
+	// high-dimensional float array produced by an embedding model.
+	Embeddings []float32
+	// model_name identifies the embedding model that produced embeddings
+	// (e.g. "text-embedding-3-small"). The access graph uses this to skip stored
+	// EmbeddingChunks produced by a different model, preventing silent ranking
+	// against incompatible vectors after a retrieval model rotation.
+	ModelName string
+}
+
+func (b0 EmbeddedQuery_builder) Build() *EmbeddedQuery {
+	m0 := &EmbeddedQuery{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Text = b.Text
+	x.Embeddings = b.Embeddings
+	x.ModelName = b.ModelName
+	return m0
+}
+
 // ResourceProperties holds session-kind-specific properties for a session.
 // Used both for filtering in search and for storing kind-specific metadata.
 // Only one variant should be set. When used in StoreSessionSummaryRequest or
@@ -551,7 +889,7 @@ func (x *EmbeddedQuery) GetModelName() string {
 // a search filter in SearchSessionSummariesParams, the variant is evaluated
 // independently of resource_kind.
 type ResourceProperties struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Type:
 	//
 	//	*ResourceProperties_Ssh
@@ -585,11 +923,6 @@ func (x *ResourceProperties) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ResourceProperties.ProtoReflect.Descriptor instead.
-func (*ResourceProperties) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1_session_search_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ResourceProperties) GetType() isResourceProperties_Type {
@@ -626,6 +959,143 @@ func (x *ResourceProperties) GetDatabase() *DatabaseProperties {
 	return nil
 }
 
+func (x *ResourceProperties) SetSsh(v *SSHProperties) {
+	if v == nil {
+		x.Type = nil
+		return
+	}
+	x.Type = &ResourceProperties_Ssh{v}
+}
+
+func (x *ResourceProperties) SetKubernetes(v *KubernetesProperties) {
+	if v == nil {
+		x.Type = nil
+		return
+	}
+	x.Type = &ResourceProperties_Kubernetes{v}
+}
+
+func (x *ResourceProperties) SetDatabase(v *DatabaseProperties) {
+	if v == nil {
+		x.Type = nil
+		return
+	}
+	x.Type = &ResourceProperties_Database{v}
+}
+
+func (x *ResourceProperties) HasType() bool {
+	if x == nil {
+		return false
+	}
+	return x.Type != nil
+}
+
+func (x *ResourceProperties) HasSsh() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Type.(*ResourceProperties_Ssh)
+	return ok
+}
+
+func (x *ResourceProperties) HasKubernetes() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Type.(*ResourceProperties_Kubernetes)
+	return ok
+}
+
+func (x *ResourceProperties) HasDatabase() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Type.(*ResourceProperties_Database)
+	return ok
+}
+
+func (x *ResourceProperties) ClearType() {
+	x.Type = nil
+}
+
+func (x *ResourceProperties) ClearSsh() {
+	if _, ok := x.Type.(*ResourceProperties_Ssh); ok {
+		x.Type = nil
+	}
+}
+
+func (x *ResourceProperties) ClearKubernetes() {
+	if _, ok := x.Type.(*ResourceProperties_Kubernetes); ok {
+		x.Type = nil
+	}
+}
+
+func (x *ResourceProperties) ClearDatabase() {
+	if _, ok := x.Type.(*ResourceProperties_Database); ok {
+		x.Type = nil
+	}
+}
+
+const ResourceProperties_Type_not_set_case case_ResourceProperties_Type = 0
+const ResourceProperties_Ssh_case case_ResourceProperties_Type = 1
+const ResourceProperties_Kubernetes_case case_ResourceProperties_Type = 2
+const ResourceProperties_Database_case case_ResourceProperties_Type = 3
+
+func (x *ResourceProperties) WhichType() case_ResourceProperties_Type {
+	if x == nil {
+		return ResourceProperties_Type_not_set_case
+	}
+	switch x.Type.(type) {
+	case *ResourceProperties_Ssh:
+		return ResourceProperties_Ssh_case
+	case *ResourceProperties_Kubernetes:
+		return ResourceProperties_Kubernetes_case
+	case *ResourceProperties_Database:
+		return ResourceProperties_Database_case
+	default:
+		return ResourceProperties_Type_not_set_case
+	}
+}
+
+type ResourceProperties_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Type:
+	// ssh holds SSH session properties.
+	Ssh *SSHProperties
+	// kubernetes holds Kubernetes session properties.
+	Kubernetes *KubernetesProperties
+	// database holds database session properties.
+	Database *DatabaseProperties
+	// -- end of Type
+}
+
+func (b0 ResourceProperties_builder) Build() *ResourceProperties {
+	m0 := &ResourceProperties{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Ssh != nil {
+		x.Type = &ResourceProperties_Ssh{b.Ssh}
+	}
+	if b.Kubernetes != nil {
+		x.Type = &ResourceProperties_Kubernetes{b.Kubernetes}
+	}
+	if b.Database != nil {
+		x.Type = &ResourceProperties_Database{b.Database}
+	}
+	return m0
+}
+
+type case_ResourceProperties_Type protoreflect.FieldNumber
+
+func (x case_ResourceProperties_Type) String() string {
+	md := file_accessgraph_v1_session_search_proto_msgTypes[3].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isResourceProperties_Type interface {
 	isResourceProperties_Type()
 }
@@ -653,7 +1123,7 @@ func (*ResourceProperties_Database) isResourceProperties_Type() {}
 
 // SSHProperties are the kind-specific properties for SSH sessions.
 type SSHProperties struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// server_hostname is the hostname of the SSH server.
 	ServerHostname *string `protobuf:"bytes,1,opt,name=server_hostname,json=serverHostname,proto3,oneof" json:"server_hostname,omitempty"`
 	// server_addr is the address (host:port) of the SSH server.
@@ -687,11 +1157,6 @@ func (x *SSHProperties) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SSHProperties.ProtoReflect.Descriptor instead.
-func (*SSHProperties) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1_session_search_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *SSHProperties) GetServerHostname() string {
 	if x != nil && x.ServerHostname != nil {
 		return *x.ServerHostname
@@ -706,9 +1171,57 @@ func (x *SSHProperties) GetServerAddr() string {
 	return ""
 }
 
+func (x *SSHProperties) SetServerHostname(v string) {
+	x.ServerHostname = &v
+}
+
+func (x *SSHProperties) SetServerAddr(v string) {
+	x.ServerAddr = &v
+}
+
+func (x *SSHProperties) HasServerHostname() bool {
+	if x == nil {
+		return false
+	}
+	return x.ServerHostname != nil
+}
+
+func (x *SSHProperties) HasServerAddr() bool {
+	if x == nil {
+		return false
+	}
+	return x.ServerAddr != nil
+}
+
+func (x *SSHProperties) ClearServerHostname() {
+	x.ServerHostname = nil
+}
+
+func (x *SSHProperties) ClearServerAddr() {
+	x.ServerAddr = nil
+}
+
+type SSHProperties_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// server_hostname is the hostname of the SSH server.
+	ServerHostname *string
+	// server_addr is the address (host:port) of the SSH server.
+	ServerAddr *string
+}
+
+func (b0 SSHProperties_builder) Build() *SSHProperties {
+	m0 := &SSHProperties{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ServerHostname = b.ServerHostname
+	x.ServerAddr = b.ServerAddr
+	return m0
+}
+
 // KubernetesProperties are the kind-specific properties for Kubernetes sessions.
 type KubernetesProperties struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// pod_namespace is the Kubernetes namespace of the pod.
 	PodNamespace *string `protobuf:"bytes,1,opt,name=pod_namespace,json=podNamespace,proto3,oneof" json:"pod_namespace,omitempty"`
 	// pod_name is the name of the pod.
@@ -742,11 +1255,6 @@ func (x *KubernetesProperties) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use KubernetesProperties.ProtoReflect.Descriptor instead.
-func (*KubernetesProperties) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1_session_search_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *KubernetesProperties) GetPodNamespace() string {
 	if x != nil && x.PodNamespace != nil {
 		return *x.PodNamespace
@@ -761,9 +1269,57 @@ func (x *KubernetesProperties) GetPodName() string {
 	return ""
 }
 
+func (x *KubernetesProperties) SetPodNamespace(v string) {
+	x.PodNamespace = &v
+}
+
+func (x *KubernetesProperties) SetPodName(v string) {
+	x.PodName = &v
+}
+
+func (x *KubernetesProperties) HasPodNamespace() bool {
+	if x == nil {
+		return false
+	}
+	return x.PodNamespace != nil
+}
+
+func (x *KubernetesProperties) HasPodName() bool {
+	if x == nil {
+		return false
+	}
+	return x.PodName != nil
+}
+
+func (x *KubernetesProperties) ClearPodNamespace() {
+	x.PodNamespace = nil
+}
+
+func (x *KubernetesProperties) ClearPodName() {
+	x.PodName = nil
+}
+
+type KubernetesProperties_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// pod_namespace is the Kubernetes namespace of the pod.
+	PodNamespace *string
+	// pod_name is the name of the pod.
+	PodName *string
+}
+
+func (b0 KubernetesProperties_builder) Build() *KubernetesProperties {
+	m0 := &KubernetesProperties{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PodNamespace = b.PodNamespace
+	x.PodName = b.PodName
+	return m0
+}
+
 // DatabaseProperties are the kind-specific properties for database sessions.
 type DatabaseProperties struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// database_name is the name of the database accessed.
 	DatabaseName  *string `protobuf:"bytes,1,opt,name=database_name,json=databaseName,proto3,oneof" json:"database_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -795,16 +1351,41 @@ func (x *DatabaseProperties) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DatabaseProperties.ProtoReflect.Descriptor instead.
-func (*DatabaseProperties) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1_session_search_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *DatabaseProperties) GetDatabaseName() string {
 	if x != nil && x.DatabaseName != nil {
 		return *x.DatabaseName
 	}
 	return ""
+}
+
+func (x *DatabaseProperties) SetDatabaseName(v string) {
+	x.DatabaseName = &v
+}
+
+func (x *DatabaseProperties) HasDatabaseName() bool {
+	if x == nil {
+		return false
+	}
+	return x.DatabaseName != nil
+}
+
+func (x *DatabaseProperties) ClearDatabaseName() {
+	x.DatabaseName = nil
+}
+
+type DatabaseProperties_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// database_name is the name of the database accessed.
+	DatabaseName *string
+}
+
+func (b0 DatabaseProperties_builder) Build() *DatabaseProperties {
+	m0 := &DatabaseProperties{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.DatabaseName = b.DatabaseName
+	return m0
 }
 
 // SearchSessionSummariesResponse is sent by the server on the
@@ -837,7 +1418,7 @@ func (x *DatabaseProperties) GetDatabaseName() string {
 //	  }
 //	}
 type SearchSessionSummariesResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Payload:
 	//
 	//	*SearchSessionSummariesResponse_Summary
@@ -872,11 +1453,6 @@ func (x *SearchSessionSummariesResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SearchSessionSummariesResponse.ProtoReflect.Descriptor instead.
-func (*SearchSessionSummariesResponse) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1_session_search_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *SearchSessionSummariesResponse) GetPayload() isSearchSessionSummariesResponse_Payload {
 	if x != nil {
 		return x.Payload
@@ -900,6 +1476,116 @@ func (x *SearchSessionSummariesResponse) GetBatchComplete() *SearchSessionSummar
 		}
 	}
 	return nil
+}
+
+func (x *SearchSessionSummariesResponse) SetSummary(v *SummaryAndCheckpoint) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &SearchSessionSummariesResponse_Summary{v}
+}
+
+func (x *SearchSessionSummariesResponse) SetBatchComplete(v *SearchSessionSummariesResponse_BatchComplete) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &SearchSessionSummariesResponse_BatchComplete_{v}
+}
+
+func (x *SearchSessionSummariesResponse) HasPayload() bool {
+	if x == nil {
+		return false
+	}
+	return x.Payload != nil
+}
+
+func (x *SearchSessionSummariesResponse) HasSummary() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*SearchSessionSummariesResponse_Summary)
+	return ok
+}
+
+func (x *SearchSessionSummariesResponse) HasBatchComplete() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*SearchSessionSummariesResponse_BatchComplete_)
+	return ok
+}
+
+func (x *SearchSessionSummariesResponse) ClearPayload() {
+	x.Payload = nil
+}
+
+func (x *SearchSessionSummariesResponse) ClearSummary() {
+	if _, ok := x.Payload.(*SearchSessionSummariesResponse_Summary); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *SearchSessionSummariesResponse) ClearBatchComplete() {
+	if _, ok := x.Payload.(*SearchSessionSummariesResponse_BatchComplete_); ok {
+		x.Payload = nil
+	}
+}
+
+const SearchSessionSummariesResponse_Payload_not_set_case case_SearchSessionSummariesResponse_Payload = 0
+const SearchSessionSummariesResponse_Summary_case case_SearchSessionSummariesResponse_Payload = 1
+const SearchSessionSummariesResponse_BatchComplete_case case_SearchSessionSummariesResponse_Payload = 2
+
+func (x *SearchSessionSummariesResponse) WhichPayload() case_SearchSessionSummariesResponse_Payload {
+	if x == nil {
+		return SearchSessionSummariesResponse_Payload_not_set_case
+	}
+	switch x.Payload.(type) {
+	case *SearchSessionSummariesResponse_Summary:
+		return SearchSessionSummariesResponse_Summary_case
+	case *SearchSessionSummariesResponse_BatchComplete_:
+		return SearchSessionSummariesResponse_BatchComplete_case
+	default:
+		return SearchSessionSummariesResponse_Payload_not_set_case
+	}
+}
+
+type SearchSessionSummariesResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Payload:
+	// summary carries one session summary together with a checkpoint cursor.
+	// Zero or more of these messages arrive before each batch_complete.
+	Summary *SummaryAndCheckpoint
+	// batch_complete signals that the server has finished sending all summaries
+	// for the current batch and is waiting for a FetchMore message or for the
+	// client to close the stream.
+	BatchComplete *SearchSessionSummariesResponse_BatchComplete
+	// -- end of Payload
+}
+
+func (b0 SearchSessionSummariesResponse_builder) Build() *SearchSessionSummariesResponse {
+	m0 := &SearchSessionSummariesResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Summary != nil {
+		x.Payload = &SearchSessionSummariesResponse_Summary{b.Summary}
+	}
+	if b.BatchComplete != nil {
+		x.Payload = &SearchSessionSummariesResponse_BatchComplete_{b.BatchComplete}
+	}
+	return m0
+}
+
+type case_SearchSessionSummariesResponse_Payload protoreflect.FieldNumber
+
+func (x case_SearchSessionSummariesResponse_Payload) String() string {
+	md := file_accessgraph_v1_session_search_proto_msgTypes[7].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
 }
 
 type isSearchSessionSummariesResponse_Payload interface {
@@ -929,7 +1615,7 @@ func (*SearchSessionSummariesResponse_BatchComplete_) isSearchSessionSummariesRe
 // message and passing it as resume_token in a new SearchSessionSummariesParams
 // skips all already-processed summaries without re-fetching them.
 type SummaryAndCheckpoint struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// summary is the session summary for this result.
 	Summary *SessionSummary `protobuf:"bytes,1,opt,name=summary,proto3" json:"summary,omitempty"`
 	// checkpoint_token is an opaque cursor pointing to the position immediately
@@ -968,11 +1654,6 @@ func (x *SummaryAndCheckpoint) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SummaryAndCheckpoint.ProtoReflect.Descriptor instead.
-func (*SummaryAndCheckpoint) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1_session_search_proto_rawDescGZIP(), []int{8}
-}
-
 func (x *SummaryAndCheckpoint) GetSummary() *SessionSummary {
 	if x != nil {
 		return x.Summary
@@ -987,10 +1668,52 @@ func (x *SummaryAndCheckpoint) GetCheckpointToken() string {
 	return ""
 }
 
+func (x *SummaryAndCheckpoint) SetSummary(v *SessionSummary) {
+	x.Summary = v
+}
+
+func (x *SummaryAndCheckpoint) SetCheckpointToken(v string) {
+	x.CheckpointToken = v
+}
+
+func (x *SummaryAndCheckpoint) HasSummary() bool {
+	if x == nil {
+		return false
+	}
+	return x.Summary != nil
+}
+
+func (x *SummaryAndCheckpoint) ClearSummary() {
+	x.Summary = nil
+}
+
+type SummaryAndCheckpoint_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// summary is the session summary for this result.
+	Summary *SessionSummary
+	// checkpoint_token is an opaque cursor pointing to the position immediately
+	// after this summary in the overall result set. Pass this value as
+	// resume_token in a future SearchSessionSummariesParams to resume the search
+	// from this point in a new stream. The server maintains cursor state for the
+	// lifetime of the current stream, so this token is only needed for
+	// cross-stream resumption.
+	CheckpointToken string
+}
+
+func (b0 SummaryAndCheckpoint_builder) Build() *SummaryAndCheckpoint {
+	m0 := &SummaryAndCheckpoint{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Summary = b.Summary
+	x.CheckpointToken = b.CheckpointToken
+	return m0
+}
+
 // SessionSummary contains the metadata and raw session-end event for a
 // single recorded session, as stored in the access graph.
 type SessionSummary struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// session_id is the unique identifier of the session.
 	SessionId string `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
 	// kind is the session protocol type (e.g. "ssh", "k8s", "db", "desktop").
@@ -1062,11 +1785,6 @@ func (x *SessionSummary) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SessionSummary.ProtoReflect.Descriptor instead.
-func (*SessionSummary) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1_session_search_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *SessionSummary) GetSessionId() string {
@@ -1188,11 +1906,207 @@ func (x *SessionSummary) GetHostId() string {
 	return ""
 }
 
+func (x *SessionSummary) SetSessionId(v string) {
+	x.SessionId = v
+}
+
+func (x *SessionSummary) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *SessionSummary) SetSessionStart(v *timestamppb.Timestamp) {
+	x.SessionStart = v
+}
+
+func (x *SessionSummary) SetUsername(v string) {
+	x.Username = v
+}
+
+func (x *SessionSummary) SetUserTraits(v *structpb.Struct) {
+	x.UserTraits = v
+}
+
+func (x *SessionSummary) SetUserRoles(v []string) {
+	x.UserRoles = v
+}
+
+func (x *SessionSummary) SetAccessRequestIds(v []string) {
+	x.AccessRequestIds = v
+}
+
+func (x *SessionSummary) SetParticipants(v []string) {
+	x.Participants = v
+}
+
+func (x *SessionSummary) SetResourceKind(v string) {
+	x.ResourceKind = v
+}
+
+func (x *SessionSummary) SetResourceLabels(v map[string]string) {
+	x.ResourceLabels = v
+}
+
+func (x *SessionSummary) SetResourceId(v string) {
+	x.ResourceId = v
+}
+
+func (x *SessionSummary) SetResourceName(v string) {
+	x.ResourceName = v
+}
+
+func (x *SessionSummary) SetResourceProperties(v *ResourceProperties) {
+	x.ResourceProperties = v
+}
+
+func (x *SessionSummary) SetSeverity(v v1.RiskLevel) {
+	x.Severity = v
+}
+
+func (x *SessionSummary) SetSessionEndEvent(v *structpb.Struct) {
+	x.SessionEndEvent = v
+}
+
+func (x *SessionSummary) SetSessionEnd(v *timestamppb.Timestamp) {
+	x.SessionEnd = v
+}
+
+func (x *SessionSummary) SetHostId(v string) {
+	x.HostId = v
+}
+
+func (x *SessionSummary) HasSessionStart() bool {
+	if x == nil {
+		return false
+	}
+	return x.SessionStart != nil
+}
+
+func (x *SessionSummary) HasUserTraits() bool {
+	if x == nil {
+		return false
+	}
+	return x.UserTraits != nil
+}
+
+func (x *SessionSummary) HasResourceProperties() bool {
+	if x == nil {
+		return false
+	}
+	return x.ResourceProperties != nil
+}
+
+func (x *SessionSummary) HasSessionEndEvent() bool {
+	if x == nil {
+		return false
+	}
+	return x.SessionEndEvent != nil
+}
+
+func (x *SessionSummary) HasSessionEnd() bool {
+	if x == nil {
+		return false
+	}
+	return x.SessionEnd != nil
+}
+
+func (x *SessionSummary) ClearSessionStart() {
+	x.SessionStart = nil
+}
+
+func (x *SessionSummary) ClearUserTraits() {
+	x.UserTraits = nil
+}
+
+func (x *SessionSummary) ClearResourceProperties() {
+	x.ResourceProperties = nil
+}
+
+func (x *SessionSummary) ClearSessionEndEvent() {
+	x.SessionEndEvent = nil
+}
+
+func (x *SessionSummary) ClearSessionEnd() {
+	x.SessionEnd = nil
+}
+
+type SessionSummary_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// session_id is the unique identifier of the session.
+	SessionId string
+	// kind is the session protocol type (e.g. "ssh", "k8s", "db", "desktop").
+	// This is distinct from resource_kind, which identifies the Teleport resource
+	// type (e.g. "node", "kube_cluster", "db").
+	Kind string
+	// session_start is the timestamp when the session began.
+	SessionStart *timestamppb.Timestamp
+	// username is the Teleport username that initiated the session.
+	Username string
+	// user_traits contains the traits associated with the user at the time of
+	// the session (e.g. LDAP attributes, SAML assertions).
+	UserTraits *structpb.Struct
+	// user_roles contains the Teleport roles the user held during the session.
+	UserRoles []string
+	// access_request_ids lists any access request IDs that were used to
+	// obtain elevated privileges for this session.
+	AccessRequestIds []string
+	// participants contains the usernames of other users who joined the session.
+	Participants []string
+	// resource_kind is the Teleport resource type that was accessed (e.g. "node",
+	// "kube_cluster", "db"). This is distinct from kind, which is the session
+	// protocol type (e.g. "ssh", "k8s", "db").
+	ResourceKind string
+	// resource_labels contains the labels of the resource at the time of the
+	// session, used for label-based access control evaluation.
+	ResourceLabels map[string]string
+	// resource_id is the unique identifier of the resource accessed.
+	ResourceId string
+	// resource_name is the human-readable name of the resource accessed.
+	// May be empty if not available.
+	ResourceName string
+	// resource_properties contains additional kind-specific properties.
+	ResourceProperties *ResourceProperties
+	// severity is the computed severity level of the session.
+	Severity v1.RiskLevel
+	// session_end_event is the raw JSON payload of the session-end audit event.
+	// The Auth server evaluates this field to determine whether the requesting
+	// user is permitted to see this session before forwarding it downstream.
+	SessionEndEvent *structpb.Struct
+	// session_end is the timestamp when the session ended.
+	SessionEnd *timestamppb.Timestamp
+	// host_id is the unique identifier of the host where the session occurred.
+	HostId string
+}
+
+func (b0 SessionSummary_builder) Build() *SessionSummary {
+	m0 := &SessionSummary{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.SessionId = b.SessionId
+	x.Kind = b.Kind
+	x.SessionStart = b.SessionStart
+	x.Username = b.Username
+	x.UserTraits = b.UserTraits
+	x.UserRoles = b.UserRoles
+	x.AccessRequestIds = b.AccessRequestIds
+	x.Participants = b.Participants
+	x.ResourceKind = b.ResourceKind
+	x.ResourceLabels = b.ResourceLabels
+	x.ResourceId = b.ResourceId
+	x.ResourceName = b.ResourceName
+	x.ResourceProperties = b.ResourceProperties
+	x.Severity = b.Severity
+	x.SessionEndEvent = b.SessionEndEvent
+	x.SessionEnd = b.SessionEnd
+	x.HostId = b.HostId
+	return m0
+}
+
 // StoreSessionSummaryRequest is sent to store a session summary along with
 // its associated metadata and semantic embeddings.
 // Field order mirrors SessionSummary for easy mapping between the two.
 type StoreSessionSummaryRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// session_id is the unique identifier of the session.
 	SessionId string `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
 	// kind is the session protocol type (e.g. "ssh", "k8s", "db", "desktop").
@@ -1264,11 +2178,6 @@ func (x *StoreSessionSummaryRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use StoreSessionSummaryRequest.ProtoReflect.Descriptor instead.
-func (*StoreSessionSummaryRequest) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1_session_search_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *StoreSessionSummaryRequest) GetSessionId() string {
@@ -1397,6 +2306,207 @@ func (x *StoreSessionSummaryRequest) GetEmbeddings() []*EmbeddingChunk {
 	return nil
 }
 
+func (x *StoreSessionSummaryRequest) SetSessionId(v string) {
+	x.SessionId = v
+}
+
+func (x *StoreSessionSummaryRequest) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *StoreSessionSummaryRequest) SetUsername(v string) {
+	x.Username = v
+}
+
+func (x *StoreSessionSummaryRequest) SetSessionStart(v *timestamppb.Timestamp) {
+	x.SessionStart = v
+}
+
+func (x *StoreSessionSummaryRequest) SetSessionEnd(v *timestamppb.Timestamp) {
+	x.SessionEnd = v
+}
+
+func (x *StoreSessionSummaryRequest) SetUserTraits(v *structpb.Struct) {
+	x.UserTraits = v
+}
+
+func (x *StoreSessionSummaryRequest) SetUserRoles(v []string) {
+	x.UserRoles = v
+}
+
+func (x *StoreSessionSummaryRequest) SetAccessRequestIds(v []string) {
+	x.AccessRequestIds = v
+}
+
+func (x *StoreSessionSummaryRequest) SetParticipants(v []string) {
+	x.Participants = v
+}
+
+func (x *StoreSessionSummaryRequest) SetResourceKind(v string) {
+	x.ResourceKind = v
+}
+
+func (x *StoreSessionSummaryRequest) SetResourceLabels(v map[string]string) {
+	x.ResourceLabels = v
+}
+
+func (x *StoreSessionSummaryRequest) SetResourceId(v string) {
+	x.ResourceId = v
+}
+
+func (x *StoreSessionSummaryRequest) SetResourceName(v string) {
+	x.ResourceName = v
+}
+
+func (x *StoreSessionSummaryRequest) SetResourceProperties(v *ResourceProperties) {
+	x.ResourceProperties = v
+}
+
+func (x *StoreSessionSummaryRequest) SetSeverity(v v1.RiskLevel) {
+	x.Severity = v
+}
+
+func (x *StoreSessionSummaryRequest) SetSessionEndEvent(v *structpb.Struct) {
+	x.SessionEndEvent = v
+}
+
+func (x *StoreSessionSummaryRequest) SetHostId(v string) {
+	x.HostId = v
+}
+
+func (x *StoreSessionSummaryRequest) SetEmbeddings(v []*EmbeddingChunk) {
+	x.Embeddings = v
+}
+
+func (x *StoreSessionSummaryRequest) HasSessionStart() bool {
+	if x == nil {
+		return false
+	}
+	return x.SessionStart != nil
+}
+
+func (x *StoreSessionSummaryRequest) HasSessionEnd() bool {
+	if x == nil {
+		return false
+	}
+	return x.SessionEnd != nil
+}
+
+func (x *StoreSessionSummaryRequest) HasUserTraits() bool {
+	if x == nil {
+		return false
+	}
+	return x.UserTraits != nil
+}
+
+func (x *StoreSessionSummaryRequest) HasResourceProperties() bool {
+	if x == nil {
+		return false
+	}
+	return x.ResourceProperties != nil
+}
+
+func (x *StoreSessionSummaryRequest) HasSessionEndEvent() bool {
+	if x == nil {
+		return false
+	}
+	return x.SessionEndEvent != nil
+}
+
+func (x *StoreSessionSummaryRequest) ClearSessionStart() {
+	x.SessionStart = nil
+}
+
+func (x *StoreSessionSummaryRequest) ClearSessionEnd() {
+	x.SessionEnd = nil
+}
+
+func (x *StoreSessionSummaryRequest) ClearUserTraits() {
+	x.UserTraits = nil
+}
+
+func (x *StoreSessionSummaryRequest) ClearResourceProperties() {
+	x.ResourceProperties = nil
+}
+
+func (x *StoreSessionSummaryRequest) ClearSessionEndEvent() {
+	x.SessionEndEvent = nil
+}
+
+type StoreSessionSummaryRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// session_id is the unique identifier of the session.
+	SessionId string
+	// kind is the session protocol type (e.g. "ssh", "k8s", "db", "desktop").
+	// Must match the active variant of resource_properties.
+	Kind string
+	// username is the Teleport user who initiated the session.
+	Username string
+	// session_start is the timestamp when the session began.
+	SessionStart *timestamppb.Timestamp
+	// session_end is the timestamp when the session ended.
+	SessionEnd *timestamppb.Timestamp
+	// user_traits contains the traits associated with the user at the time of
+	// the session (e.g. LDAP attributes, SAML assertions).
+	UserTraits *structpb.Struct
+	// user_roles are the Teleport roles the user held during the session.
+	UserRoles []string
+	// access_request_ids are the IDs of any access requests used to gain
+	// elevated privileges for this session.
+	AccessRequestIds []string
+	// participants contains the usernames of other users who joined the session.
+	Participants []string
+	// resource_kind is the kind of resource accessed (e.g. "node", "kube_cluster", "db").
+	ResourceKind string
+	// resource_labels are the labels attached to the resource at session time,
+	// used for label-based access control and filtering.
+	ResourceLabels map[string]string
+	// resource_id is the unique identifier of the resource accessed.
+	ResourceId string
+	// resource_name is the name of the resource that was accessed.
+	ResourceName string
+	// resource_properties contains kind-specific properties
+	// (e.g. hostname for SSH, pod name for Kubernetes, database name for DB).
+	ResourceProperties *ResourceProperties
+	// severity is the severity level of the session.
+	Severity v1.RiskLevel
+	// session_end_event is the raw JSON payload of the session-end audit event.
+	// Stored as-is and returned in SessionSummary so that the Auth server can
+	// evaluate the requesting user's visibility without querying the audit log.
+	SessionEndEvent *structpb.Struct
+	// host_id is the unique identifier of the host where the session occurred.
+	HostId string
+	// embeddings are the semantic vector embeddings of the session summary,
+	// used for similarity-based search queries.
+	Embeddings []*EmbeddingChunk
+}
+
+func (b0 StoreSessionSummaryRequest_builder) Build() *StoreSessionSummaryRequest {
+	m0 := &StoreSessionSummaryRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.SessionId = b.SessionId
+	x.Kind = b.Kind
+	x.Username = b.Username
+	x.SessionStart = b.SessionStart
+	x.SessionEnd = b.SessionEnd
+	x.UserTraits = b.UserTraits
+	x.UserRoles = b.UserRoles
+	x.AccessRequestIds = b.AccessRequestIds
+	x.Participants = b.Participants
+	x.ResourceKind = b.ResourceKind
+	x.ResourceLabels = b.ResourceLabels
+	x.ResourceId = b.ResourceId
+	x.ResourceName = b.ResourceName
+	x.ResourceProperties = b.ResourceProperties
+	x.Severity = b.Severity
+	x.SessionEndEvent = b.SessionEndEvent
+	x.HostId = b.HostId
+	x.Embeddings = b.Embeddings
+	return m0
+}
+
 // EmbeddingChunk represents a semantic vector embedding for a text chunk from the
 // session summary, along with metadata about the chunk's position and content.
 // Session summaries are split into chunks to generate more precise embeddings
@@ -1409,7 +2519,7 @@ func (x *StoreSessionSummaryRequest) GetEmbeddings() []*EmbeddingChunk {
 // rotation would cause silent ranking against incompatible embeddings for all
 // pre-change sessions.
 type EmbeddingChunk struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// values is the vector representation of the text chunk, typically a
 	// high-dimensional float array produced by an embedding model.
 	Values []float32 `protobuf:"fixed32,1,rep,packed,name=values,proto3" json:"values,omitempty"`
@@ -1451,11 +2561,6 @@ func (x *EmbeddingChunk) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use EmbeddingChunk.ProtoReflect.Descriptor instead.
-func (*EmbeddingChunk) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1_session_search_proto_rawDescGZIP(), []int{11}
-}
-
 func (x *EmbeddingChunk) GetValues() []float32 {
 	if x != nil {
 		return x.Values
@@ -1484,11 +2589,55 @@ func (x *EmbeddingChunk) GetModelName() string {
 	return ""
 }
 
+func (x *EmbeddingChunk) SetValues(v []float32) {
+	x.Values = v
+}
+
+func (x *EmbeddingChunk) SetChunk(v string) {
+	x.Chunk = v
+}
+
+func (x *EmbeddingChunk) SetChunkIndex(v uint32) {
+	x.ChunkIndex = v
+}
+
+func (x *EmbeddingChunk) SetModelName(v string) {
+	x.ModelName = v
+}
+
+type EmbeddingChunk_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// values is the vector representation of the text chunk, typically a
+	// high-dimensional float array produced by an embedding model.
+	Values []float32
+	// chunk is the original text segment that was embedded.
+	Chunk string
+	// chunk_index is the zero-based position of this chunk within the
+	// full session summary.
+	ChunkIndex uint32
+	// model_name identifies the embedding model that produced values
+	// (e.g. "text-embedding-3-small"). Used to detect incompatible stored
+	// embeddings after a retrieval model rotation.
+	ModelName string
+}
+
+func (b0 EmbeddingChunk_builder) Build() *EmbeddingChunk {
+	m0 := &EmbeddingChunk{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Values = b.Values
+	x.Chunk = b.Chunk
+	x.ChunkIndex = b.ChunkIndex
+	x.ModelName = b.ModelName
+	return m0
+}
+
 // StoreSessionSummaryResponse is the response returned after successfully
 // storing a session summary. Re-storing an existing session_id is idempotent;
 // the server overwrites the previous entry.
 type StoreSessionSummaryResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1518,14 +2667,21 @@ func (x *StoreSessionSummaryResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use StoreSessionSummaryResponse.ProtoReflect.Descriptor instead.
-func (*StoreSessionSummaryResponse) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1_session_search_proto_rawDescGZIP(), []int{12}
+type StoreSessionSummaryResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 StoreSessionSummaryResponse_builder) Build() *StoreSessionSummaryResponse {
+	m0 := &StoreSessionSummaryResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // IsSessionSearchEnabledRequest is the request message for IsSessionSearchEnabled.
 type IsSessionSearchEnabledRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1555,15 +2711,22 @@ func (x *IsSessionSearchEnabledRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use IsSessionSearchEnabledRequest.ProtoReflect.Descriptor instead.
-func (*IsSessionSearchEnabledRequest) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1_session_search_proto_rawDescGZIP(), []int{13}
+type IsSessionSearchEnabledRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 IsSessionSearchEnabledRequest_builder) Build() *IsSessionSearchEnabledRequest {
+	m0 := &IsSessionSearchEnabledRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // IsSessionSearchEnabledResponse reports the availability of the session search
 // feature in the access graph.
 type IsSessionSearchEnabledResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// availability is the current availability state of the session search
 	// feature. UNSPECIFIED means the feature is available and ready.
 	Availability  SessionSearchAvailability `protobuf:"varint,1,opt,name=availability,proto3,enum=accessgraph.v1.SessionSearchAvailability" json:"availability,omitempty"`
@@ -1596,11 +2759,6 @@ func (x *IsSessionSearchEnabledResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use IsSessionSearchEnabledResponse.ProtoReflect.Descriptor instead.
-func (*IsSessionSearchEnabledResponse) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1_session_search_proto_rawDescGZIP(), []int{14}
-}
-
 func (x *IsSessionSearchEnabledResponse) GetAvailability() SessionSearchAvailability {
 	if x != nil {
 		return x.Availability
@@ -1608,10 +2766,30 @@ func (x *IsSessionSearchEnabledResponse) GetAvailability() SessionSearchAvailabi
 	return SessionSearchAvailability_SESSION_SEARCH_AVAILABILITY_UNSPECIFIED
 }
 
+func (x *IsSessionSearchEnabledResponse) SetAvailability(v SessionSearchAvailability) {
+	x.Availability = v
+}
+
+type IsSessionSearchEnabledResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// availability is the current availability state of the session search
+	// feature. UNSPECIFIED means the feature is available and ready.
+	Availability SessionSearchAvailability
+}
+
+func (b0 IsSessionSearchEnabledResponse_builder) Build() *IsSessionSearchEnabledResponse {
+	m0 := &IsSessionSearchEnabledResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Availability = b.Availability
+	return m0
+}
+
 // FetchMore is sent by the client to request the next batch of results
 // from an in-progress search.
 type SearchSessionSummariesRequest_FetchMore struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// max_summaries is the maximum number of SessionSummary objects the server
 	// should include in the next batch. The server may return fewer.
 	// A value of 0 lets the server choose a default batch size.
@@ -1645,11 +2823,6 @@ func (x *SearchSessionSummariesRequest_FetchMore) ProtoReflect() protoreflect.Me
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SearchSessionSummariesRequest_FetchMore.ProtoReflect.Descriptor instead.
-func (*SearchSessionSummariesRequest_FetchMore) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1_session_search_proto_rawDescGZIP(), []int{0, 0}
-}
-
 func (x *SearchSessionSummariesRequest_FetchMore) GetMaxSummaries() uint32 {
 	if x != nil {
 		return x.MaxSummaries
@@ -1657,10 +2830,31 @@ func (x *SearchSessionSummariesRequest_FetchMore) GetMaxSummaries() uint32 {
 	return 0
 }
 
+func (x *SearchSessionSummariesRequest_FetchMore) SetMaxSummaries(v uint32) {
+	x.MaxSummaries = v
+}
+
+type SearchSessionSummariesRequest_FetchMore_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// max_summaries is the maximum number of SessionSummary objects the server
+	// should include in the next batch. The server may return fewer.
+	// A value of 0 lets the server choose a default batch size.
+	MaxSummaries uint32
+}
+
+func (b0 SearchSessionSummariesRequest_FetchMore_builder) Build() *SearchSessionSummariesRequest_FetchMore {
+	m0 := &SearchSessionSummariesRequest_FetchMore{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.MaxSummaries = b.MaxSummaries
+	return m0
+}
+
 // BatchComplete signals the end of a batch of results. The client must either
 // send FetchMore to retrieve the next batch or close the stream.
 type SearchSessionSummariesResponse_BatchComplete struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// has_more is true when at least one additional batch is available.
 	// If false, this was the last batch and the client should close the stream.
 	HasMore       bool `protobuf:"varint,1,opt,name=has_more,json=hasMore,proto3" json:"has_more,omitempty"`
@@ -1693,16 +2887,31 @@ func (x *SearchSessionSummariesResponse_BatchComplete) ProtoReflect() protorefle
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SearchSessionSummariesResponse_BatchComplete.ProtoReflect.Descriptor instead.
-func (*SearchSessionSummariesResponse_BatchComplete) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1_session_search_proto_rawDescGZIP(), []int{7, 0}
-}
-
 func (x *SearchSessionSummariesResponse_BatchComplete) GetHasMore() bool {
 	if x != nil {
 		return x.HasMore
 	}
 	return false
+}
+
+func (x *SearchSessionSummariesResponse_BatchComplete) SetHasMore(v bool) {
+	x.HasMore = v
+}
+
+type SearchSessionSummariesResponse_BatchComplete_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// has_more is true when at least one additional batch is available.
+	// If false, this was the last batch and the client should close the stream.
+	HasMore bool
+}
+
+func (b0 SearchSessionSummariesResponse_BatchComplete_builder) Build() *SearchSessionSummariesResponse_BatchComplete {
+	m0 := &SearchSessionSummariesResponse_BatchComplete{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.HasMore = b.HasMore
+	return m0
 }
 
 var File_accessgraph_v1_session_search_proto protoreflect.FileDescriptor
@@ -1864,18 +3073,6 @@ const file_accessgraph_v1_session_search_proto_rawDesc = "" +
 	"\x16SearchSessionSummaries\x12-.accessgraph.v1.SearchSessionSummariesRequest\x1a..accessgraph.v1.SearchSessionSummariesResponse(\x010\x01\x12n\n" +
 	"\x13StoreSessionSummary\x12*.accessgraph.v1.StoreSessionSummaryRequest\x1a+.accessgraph.v1.StoreSessionSummaryResponse\x12w\n" +
 	"\x16IsSessionSearchEnabled\x12-.accessgraph.v1.IsSessionSearchEnabledRequest\x1a..accessgraph.v1.IsSessionSearchEnabledResponseBMZKgithub.com/gravitational/teleport/gen/proto/go/accessgraph/v1;accessgraphv1b\x06proto3"
-
-var (
-	file_accessgraph_v1_session_search_proto_rawDescOnce sync.Once
-	file_accessgraph_v1_session_search_proto_rawDescData []byte
-)
-
-func file_accessgraph_v1_session_search_proto_rawDescGZIP() []byte {
-	file_accessgraph_v1_session_search_proto_rawDescOnce.Do(func() {
-		file_accessgraph_v1_session_search_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_accessgraph_v1_session_search_proto_rawDesc), len(file_accessgraph_v1_session_search_proto_rawDesc)))
-	})
-	return file_accessgraph_v1_session_search_proto_rawDescData
-}
 
 var file_accessgraph_v1_session_search_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_accessgraph_v1_session_search_proto_msgTypes = make([]protoimpl.MessageInfo, 20)

@@ -21,6 +21,8 @@
 // 	protoc        (unknown)
 // source: accessgraph/v1alpha/github.proto
 
+//go:build !protoopaque
+
 package accessgraphv1alpha
 
 import (
@@ -29,7 +31,6 @@ import (
 	structpb "google.golang.org/protobuf/types/known/structpb"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -42,7 +43,7 @@ const (
 
 // GitHubAuditLogV1Cursor holds the necessary state for resuming GitHub audit log collection.
 type GitHubAuditLogV1Cursor struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// token is next cursor to use in subsequent requests.
 	Token string `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
 	// last_event_id is the last event id received from github.
@@ -78,11 +79,6 @@ func (x *GitHubAuditLogV1Cursor) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GitHubAuditLogV1Cursor.ProtoReflect.Descriptor instead.
-func (*GitHubAuditLogV1Cursor) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_github_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *GitHubAuditLogV1Cursor) GetToken() string {
 	if x != nil {
 		return x.Token
@@ -104,9 +100,53 @@ func (x *GitHubAuditLogV1Cursor) GetLastEventTime() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *GitHubAuditLogV1Cursor) SetToken(v string) {
+	x.Token = v
+}
+
+func (x *GitHubAuditLogV1Cursor) SetLastEventId(v string) {
+	x.LastEventId = v
+}
+
+func (x *GitHubAuditLogV1Cursor) SetLastEventTime(v *timestamppb.Timestamp) {
+	x.LastEventTime = v
+}
+
+func (x *GitHubAuditLogV1Cursor) HasLastEventTime() bool {
+	if x == nil {
+		return false
+	}
+	return x.LastEventTime != nil
+}
+
+func (x *GitHubAuditLogV1Cursor) ClearLastEventTime() {
+	x.LastEventTime = nil
+}
+
+type GitHubAuditLogV1Cursor_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// token is next cursor to use in subsequent requests.
+	Token string
+	// last_event_id is the last event id received from github.
+	LastEventId string
+	// last_event_time is the time of the last event seen.
+	LastEventTime *timestamppb.Timestamp
+}
+
+func (b0 GitHubAuditLogV1Cursor_builder) Build() *GitHubAuditLogV1Cursor {
+	m0 := &GitHubAuditLogV1Cursor{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Token = b.Token
+	x.LastEventId = b.LastEventId
+	x.LastEventTime = b.LastEventTime
+	return m0
+}
+
 // GitHubAuditLogV1 bundles a batch of GitHub audit log events and the client's current resume cursor.
 type GitHubAuditLogV1 struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// A list of GitHub audit events, each as a flexible JSON-like structure.
 	Events []*structpb.Struct `protobuf:"bytes,1,rep,name=events,proto3" json:"events,omitempty"`
 	// Client's current GitHubAuditLogV1Cursor state, sent with this batch for resumable collection.
@@ -140,11 +180,6 @@ func (x *GitHubAuditLogV1) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GitHubAuditLogV1.ProtoReflect.Descriptor instead.
-func (*GitHubAuditLogV1) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_github_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *GitHubAuditLogV1) GetEvents() []*structpb.Struct {
 	if x != nil {
 		return x.Events
@@ -159,10 +194,47 @@ func (x *GitHubAuditLogV1) GetCursor() *GitHubAuditLogV1Cursor {
 	return nil
 }
 
+func (x *GitHubAuditLogV1) SetEvents(v []*structpb.Struct) {
+	x.Events = v
+}
+
+func (x *GitHubAuditLogV1) SetCursor(v *GitHubAuditLogV1Cursor) {
+	x.Cursor = v
+}
+
+func (x *GitHubAuditLogV1) HasCursor() bool {
+	if x == nil {
+		return false
+	}
+	return x.Cursor != nil
+}
+
+func (x *GitHubAuditLogV1) ClearCursor() {
+	x.Cursor = nil
+}
+
+type GitHubAuditLogV1_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// A list of GitHub audit events, each as a flexible JSON-like structure.
+	Events []*structpb.Struct
+	// Client's current GitHubAuditLogV1Cursor state, sent with this batch for resumable collection.
+	Cursor *GitHubAuditLogV1Cursor
+}
+
+func (b0 GitHubAuditLogV1_builder) Build() *GitHubAuditLogV1 {
+	m0 := &GitHubAuditLogV1{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Events = b.Events
+	x.Cursor = b.Cursor
+	return m0
+}
+
 // GitHubConfigV1 specifies configuration settings for GitHub audit log exports,
 // including the desired start date for log collection.
 type GitHubConfigV1 struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The desired start date for exporting GitHub audit logs.
 	StartDate *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=start_date,json=startDate,proto3" json:"start_date,omitempty"`
 	// The Github Organization name.
@@ -196,11 +268,6 @@ func (x *GitHubConfigV1) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GitHubConfigV1.ProtoReflect.Descriptor instead.
-func (*GitHubConfigV1) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_github_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *GitHubConfigV1) GetStartDate() *timestamppb.Timestamp {
 	if x != nil {
 		return x.StartDate
@@ -215,10 +282,47 @@ func (x *GitHubConfigV1) GetOrganization() string {
 	return ""
 }
 
+func (x *GitHubConfigV1) SetStartDate(v *timestamppb.Timestamp) {
+	x.StartDate = v
+}
+
+func (x *GitHubConfigV1) SetOrganization(v string) {
+	x.Organization = v
+}
+
+func (x *GitHubConfigV1) HasStartDate() bool {
+	if x == nil {
+		return false
+	}
+	return x.StartDate != nil
+}
+
+func (x *GitHubConfigV1) ClearStartDate() {
+	x.StartDate = nil
+}
+
+type GitHubConfigV1_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The desired start date for exporting GitHub audit logs.
+	StartDate *timestamppb.Timestamp
+	// The Github Organization name.
+	Organization string
+}
+
+func (b0 GitHubConfigV1_builder) Build() *GitHubConfigV1 {
+	m0 := &GitHubConfigV1{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.StartDate = b.StartDate
+	x.Organization = b.Organization
+	return m0
+}
+
 // GithubTokenV1 holds information about a GitHub access token,
 // such as its ID, owner, permissions, and expiration date.
 type GithubTokenV1 struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// id is the token id.
 	Id int64 `protobuf:"varint,1,opt,name=id,proto3" json:"id,omitempty"`
 	// name is the token alias.
@@ -258,11 +362,6 @@ func (x *GithubTokenV1) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GithubTokenV1.ProtoReflect.Descriptor instead.
-func (*GithubTokenV1) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_github_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *GithubTokenV1) GetId() int64 {
@@ -307,10 +406,75 @@ func (x *GithubTokenV1) GetOrganization() string {
 	return ""
 }
 
+func (x *GithubTokenV1) SetId(v int64) {
+	x.Id = v
+}
+
+func (x *GithubTokenV1) SetName(v string) {
+	x.Name = v
+}
+
+func (x *GithubTokenV1) SetOwner(v string) {
+	x.Owner = v
+}
+
+func (x *GithubTokenV1) SetExpires(v *timestamppb.Timestamp) {
+	x.Expires = v
+}
+
+func (x *GithubTokenV1) SetPermissions(v []*GithubTokenV1Permission) {
+	x.Permissions = v
+}
+
+func (x *GithubTokenV1) SetOrganization(v string) {
+	x.Organization = v
+}
+
+func (x *GithubTokenV1) HasExpires() bool {
+	if x == nil {
+		return false
+	}
+	return x.Expires != nil
+}
+
+func (x *GithubTokenV1) ClearExpires() {
+	x.Expires = nil
+}
+
+type GithubTokenV1_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// id is the token id.
+	Id int64
+	// name is the token alias.
+	Name string
+	// owner is the token owner
+	Owner string
+	// expires is the token expiration time.
+	Expires *timestamppb.Timestamp
+	// permissions are the token permissions.
+	Permissions []*GithubTokenV1Permission
+	// The GitHub organization context for this permission, ex.: "gravitational".
+	Organization string
+}
+
+func (b0 GithubTokenV1_builder) Build() *GithubTokenV1 {
+	m0 := &GithubTokenV1{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Id = b.Id
+	x.Name = b.Name
+	x.Owner = b.Owner
+	x.Expires = b.Expires
+	x.Permissions = b.Permissions
+	x.Organization = b.Organization
+	return m0
+}
+
 // GithubTokenV1Permission describes a single permission for a GitHub token,
 // including its domain, verb, object, and organization.
 type GithubTokenV1Permission struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The area or category the permission applies to, ex.: "repo", "issues", "actions_secrets".
 	Domain string `protobuf:"bytes,1,opt,name=domain,proto3" json:"domain,omitempty"`
 	// The action allowed by the permission, ex.: "read", "write", "admin".
@@ -348,11 +512,6 @@ func (x *GithubTokenV1Permission) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GithubTokenV1Permission.ProtoReflect.Descriptor instead.
-func (*GithubTokenV1Permission) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_github_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *GithubTokenV1Permission) GetDomain() string {
 	if x != nil {
 		return x.Domain
@@ -381,9 +540,49 @@ func (x *GithubTokenV1Permission) GetOrganization() string {
 	return ""
 }
 
+func (x *GithubTokenV1Permission) SetDomain(v string) {
+	x.Domain = v
+}
+
+func (x *GithubTokenV1Permission) SetVerb(v string) {
+	x.Verb = v
+}
+
+func (x *GithubTokenV1Permission) SetObject(v string) {
+	x.Object = v
+}
+
+func (x *GithubTokenV1Permission) SetOrganization(v string) {
+	x.Organization = v
+}
+
+type GithubTokenV1Permission_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The area or category the permission applies to, ex.: "repo", "issues", "actions_secrets".
+	Domain string
+	// The action allowed by the permission, ex.: "read", "write", "admin".
+	Verb string
+	// The specific resource or target of the action, ex.: "my-webapp", "*", "dependabot_secrets".
+	Object string
+	// The GitHub organization context for this permission, ex.: "gravitational".
+	Organization string
+}
+
+func (b0 GithubTokenV1Permission_builder) Build() *GithubTokenV1Permission {
+	m0 := &GithubTokenV1Permission{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Domain = b.Domain
+	x.Verb = b.Verb
+	x.Object = b.Object
+	x.Organization = b.Organization
+	return m0
+}
+
 // GithubRoleAssignmentV1 holds information about a user's assignment to a role in a GitHub organization.
 type GithubRoleAssignmentV1 struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The GitHub role ID.
 	RoleId int64 `protobuf:"varint,1,opt,name=role_id,json=roleId,proto3" json:"role_id,omitempty"`
 	// True if the user has the 'owner' (administrator) privileges in the organization.
@@ -421,11 +620,6 @@ func (x *GithubRoleAssignmentV1) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GithubRoleAssignmentV1.ProtoReflect.Descriptor instead.
-func (*GithubRoleAssignmentV1) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_github_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *GithubRoleAssignmentV1) GetRoleId() int64 {
 	if x != nil {
 		return x.RoleId
@@ -454,9 +648,49 @@ func (x *GithubRoleAssignmentV1) GetOrganization() string {
 	return ""
 }
 
+func (x *GithubRoleAssignmentV1) SetRoleId(v int64) {
+	x.RoleId = v
+}
+
+func (x *GithubRoleAssignmentV1) SetOwner(v bool) {
+	x.Owner = v
+}
+
+func (x *GithubRoleAssignmentV1) SetUser(v string) {
+	x.User = v
+}
+
+func (x *GithubRoleAssignmentV1) SetOrganization(v string) {
+	x.Organization = v
+}
+
+type GithubRoleAssignmentV1_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The GitHub role ID.
+	RoleId int64
+	// True if the user has the 'owner' (administrator) privileges in the organization.
+	Owner bool
+	// The GitHub username of the user assigned to the role, ex.: "octocat".
+	User string
+	// The name of the GitHub organization where the role assignment is made, ex.: "gravitational".
+	Organization string
+}
+
+func (b0 GithubRoleAssignmentV1_builder) Build() *GithubRoleAssignmentV1 {
+	m0 := &GithubRoleAssignmentV1{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.RoleId = b.RoleId
+	x.Owner = b.Owner
+	x.User = b.User
+	x.Organization = b.Organization
+	return m0
+}
+
 // GithubRoleV1 represents a custom role defined within a GitHub organization.
 type GithubRoleV1 struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The GitHub role ID.
 	RoleId int64 `protobuf:"varint,1,opt,name=role_id,json=roleId,proto3" json:"role_id,omitempty"`
 	// The human-readable name of the custom role, ex.: "Triage Lead", "Security Auditor".
@@ -492,11 +726,6 @@ func (x *GithubRoleV1) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GithubRoleV1.ProtoReflect.Descriptor instead.
-func (*GithubRoleV1) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_github_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *GithubRoleV1) GetRoleId() int64 {
 	if x != nil {
 		return x.RoleId
@@ -518,10 +747,43 @@ func (x *GithubRoleV1) GetOrganization() string {
 	return ""
 }
 
+func (x *GithubRoleV1) SetRoleId(v int64) {
+	x.RoleId = v
+}
+
+func (x *GithubRoleV1) SetName(v string) {
+	x.Name = v
+}
+
+func (x *GithubRoleV1) SetOrganization(v string) {
+	x.Organization = v
+}
+
+type GithubRoleV1_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The GitHub role ID.
+	RoleId int64
+	// The human-readable name of the custom role, ex.: "Triage Lead", "Security Auditor".
+	Name string
+	// The GitHub organization where this custom role is defined, ex.: "gravitational".
+	Organization string
+}
+
+func (b0 GithubRoleV1_builder) Build() *GithubRoleV1 {
+	m0 := &GithubRoleV1{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.RoleId = b.RoleId
+	x.Name = b.Name
+	x.Organization = b.Organization
+	return m0
+}
+
 // GithubRepositoryV1 represents a GitHub repository, including its name,
 // associated collaborators, and the organization it belongs to.
 type GithubRepositoryV1 struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The name of the repository, ex.: "my-awesome-app", "project-x".
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// A list of GitHub usernames who are collaborators on this repository, ex.: ["octocat", "mona-lisa"].
@@ -557,11 +819,6 @@ func (x *GithubRepositoryV1) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GithubRepositoryV1.ProtoReflect.Descriptor instead.
-func (*GithubRepositoryV1) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_github_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *GithubRepositoryV1) GetName() string {
 	if x != nil {
 		return x.Name
@@ -583,10 +840,43 @@ func (x *GithubRepositoryV1) GetOrganization() string {
 	return ""
 }
 
+func (x *GithubRepositoryV1) SetName(v string) {
+	x.Name = v
+}
+
+func (x *GithubRepositoryV1) SetCollaborators(v []string) {
+	x.Collaborators = v
+}
+
+func (x *GithubRepositoryV1) SetOrganization(v string) {
+	x.Organization = v
+}
+
+type GithubRepositoryV1_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The name of the repository, ex.: "my-awesome-app", "project-x".
+	Name string
+	// A list of GitHub usernames who are collaborators on this repository, ex.: ["octocat", "mona-lisa"].
+	Collaborators []string
+	// The GitHub organization that owns or contains this repository, ex.: "gravitational".
+	Organization string
+}
+
+func (b0 GithubRepositoryV1_builder) Build() *GithubRepositoryV1 {
+	m0 := &GithubRepositoryV1{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Collaborators = b.Collaborators
+	x.Organization = b.Organization
+	return m0
+}
+
 // GithubSync is an empty message that signals a synchronization point,
 // ex.: indicating the end of an initial full data sync from the client.
 type GithubSync struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -616,15 +906,22 @@ func (x *GithubSync) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GithubSync.ProtoReflect.Descriptor instead.
-func (*GithubSync) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_github_proto_rawDescGZIP(), []int{8}
+type GithubSync_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 GithubSync_builder) Build() *GithubSync {
+	m0 := &GithubSync{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // GithubResourceList contains a list of GitHub resources,
 // used for sending multiple resources in a single operation (ex.: batch upsert or delete).
 type GithubResourceList struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Resources     []*GithubResource      `protobuf:"bytes,1,rep,name=resources,proto3" json:"resources,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -655,11 +952,6 @@ func (x *GithubResourceList) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GithubResourceList.ProtoReflect.Descriptor instead.
-func (*GithubResourceList) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_github_proto_rawDescGZIP(), []int{9}
-}
-
 func (x *GithubResourceList) GetResources() []*GithubResource {
 	if x != nil {
 		return x.Resources
@@ -667,10 +959,28 @@ func (x *GithubResourceList) GetResources() []*GithubResource {
 	return nil
 }
 
+func (x *GithubResourceList) SetResources(v []*GithubResource) {
+	x.Resources = v
+}
+
+type GithubResourceList_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Resources []*GithubResource
+}
+
+func (b0 GithubResourceList_builder) Build() *GithubResourceList {
+	m0 := &GithubResourceList{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Resources = b.Resources
+	return m0
+}
+
 // GithubResource acts as a container that holds one specific type of GitHub resource,
 // such as a token, role assignment, role, or repository, using a 'oneof'.
 type GithubResource struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Holds the actual specific GitHub resource data. Only one of these fields can be set.
 	//
 	// Types that are valid to be assigned to Resource:
@@ -707,11 +1017,6 @@ func (x *GithubResource) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GithubResource.ProtoReflect.Descriptor instead.
-func (*GithubResource) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_github_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *GithubResource) GetResource() isGithubResource_Resource {
@@ -755,6 +1060,175 @@ func (x *GithubResource) GetRepository() *GithubRepositoryV1 {
 		}
 	}
 	return nil
+}
+
+func (x *GithubResource) SetToken(v *GithubTokenV1) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &GithubResource_Token{v}
+}
+
+func (x *GithubResource) SetRoleAssignment(v *GithubRoleAssignmentV1) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &GithubResource_RoleAssignment{v}
+}
+
+func (x *GithubResource) SetRole(v *GithubRoleV1) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &GithubResource_Role{v}
+}
+
+func (x *GithubResource) SetRepository(v *GithubRepositoryV1) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &GithubResource_Repository{v}
+}
+
+func (x *GithubResource) HasResource() bool {
+	if x == nil {
+		return false
+	}
+	return x.Resource != nil
+}
+
+func (x *GithubResource) HasToken() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*GithubResource_Token)
+	return ok
+}
+
+func (x *GithubResource) HasRoleAssignment() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*GithubResource_RoleAssignment)
+	return ok
+}
+
+func (x *GithubResource) HasRole() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*GithubResource_Role)
+	return ok
+}
+
+func (x *GithubResource) HasRepository() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*GithubResource_Repository)
+	return ok
+}
+
+func (x *GithubResource) ClearResource() {
+	x.Resource = nil
+}
+
+func (x *GithubResource) ClearToken() {
+	if _, ok := x.Resource.(*GithubResource_Token); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *GithubResource) ClearRoleAssignment() {
+	if _, ok := x.Resource.(*GithubResource_RoleAssignment); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *GithubResource) ClearRole() {
+	if _, ok := x.Resource.(*GithubResource_Role); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *GithubResource) ClearRepository() {
+	if _, ok := x.Resource.(*GithubResource_Repository); ok {
+		x.Resource = nil
+	}
+}
+
+const GithubResource_Resource_not_set_case case_GithubResource_Resource = 0
+const GithubResource_Token_case case_GithubResource_Resource = 1
+const GithubResource_RoleAssignment_case case_GithubResource_Resource = 2
+const GithubResource_Role_case case_GithubResource_Resource = 3
+const GithubResource_Repository_case case_GithubResource_Resource = 4
+
+func (x *GithubResource) WhichResource() case_GithubResource_Resource {
+	if x == nil {
+		return GithubResource_Resource_not_set_case
+	}
+	switch x.Resource.(type) {
+	case *GithubResource_Token:
+		return GithubResource_Token_case
+	case *GithubResource_RoleAssignment:
+		return GithubResource_RoleAssignment_case
+	case *GithubResource_Role:
+		return GithubResource_Role_case
+	case *GithubResource_Repository:
+		return GithubResource_Repository_case
+	default:
+		return GithubResource_Resource_not_set_case
+	}
+}
+
+type GithubResource_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Holds the actual specific GitHub resource data. Only one of these fields can be set.
+
+	// Fields of oneof Resource:
+	// A GitHub authentication token.
+	Token *GithubTokenV1
+	// An assignment of a GitHub role to a user.
+	RoleAssignment *GithubRoleAssignmentV1
+	// A custom-defined GitHub role.
+	Role *GithubRoleV1
+	// A GitHub repository.
+	Repository *GithubRepositoryV1
+	// -- end of Resource
+}
+
+func (b0 GithubResource_builder) Build() *GithubResource {
+	m0 := &GithubResource{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Token != nil {
+		x.Resource = &GithubResource_Token{b.Token}
+	}
+	if b.RoleAssignment != nil {
+		x.Resource = &GithubResource_RoleAssignment{b.RoleAssignment}
+	}
+	if b.Role != nil {
+		x.Resource = &GithubResource_Role{b.Role}
+	}
+	if b.Repository != nil {
+		x.Resource = &GithubResource_Repository{b.Repository}
+	}
+	return m0
+}
+
+type case_GithubResource_Resource protoreflect.FieldNumber
+
+func (x case_GithubResource_Resource) String() string {
+	md := file_accessgraph_v1alpha_github_proto_msgTypes[10].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
 }
 
 type isGithubResource_Resource interface {
@@ -843,18 +1317,6 @@ const file_accessgraph_v1alpha_github_proto_rawDesc = "" +
 	"repositoryB\n" +
 	"\n" +
 	"\bresourceBWZUgithub.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alphab\x06proto3"
-
-var (
-	file_accessgraph_v1alpha_github_proto_rawDescOnce sync.Once
-	file_accessgraph_v1alpha_github_proto_rawDescData []byte
-)
-
-func file_accessgraph_v1alpha_github_proto_rawDescGZIP() []byte {
-	file_accessgraph_v1alpha_github_proto_rawDescOnce.Do(func() {
-		file_accessgraph_v1alpha_github_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_accessgraph_v1alpha_github_proto_rawDesc), len(file_accessgraph_v1alpha_github_proto_rawDesc)))
-	})
-	return file_accessgraph_v1alpha_github_proto_rawDescData
-}
 
 var file_accessgraph_v1alpha_github_proto_msgTypes = make([]protoimpl.MessageInfo, 11)
 var file_accessgraph_v1alpha_github_proto_goTypes = []any{

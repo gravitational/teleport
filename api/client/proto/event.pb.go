@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/legacy/client/proto/event.proto
 
+//go:build !protoopaque
+
 package proto
 
 import (
@@ -53,7 +55,6 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -113,14 +114,9 @@ func (x Operation) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use Operation.Descriptor instead.
-func (Operation) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_legacy_client_proto_event_proto_rawDescGZIP(), []int{0}
-}
-
 // Event returns cluster event
 type Event struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Operation identifies operation
 	Type Operation `protobuf:"varint,1,opt,name=Type,proto3,enum=proto.Operation" json:"Type,omitempty"`
 	// Resource contains the updated resource
@@ -246,11 +242,6 @@ func (x *Event) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Event.ProtoReflect.Descriptor instead.
-func (*Event) Descriptor() ([]byte, []int) {
-	return file_teleport_legacy_client_proto_event_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *Event) GetType() Operation {
@@ -1087,6 +1078,2802 @@ func (x *Event) GetBeamsConfig() *v125.BeamsConfig {
 	return nil
 }
 
+func (x *Event) SetType(v Operation) {
+	x.Type = v
+}
+
+func (x *Event) SetResourceHeader(v *types.ResourceHeader) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_ResourceHeader{v}
+}
+
+func (x *Event) SetCertAuthority(v *types.CertAuthorityV2) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_CertAuthority{v}
+}
+
+func (x *Event) SetStaticTokens(v *types.StaticTokensV2) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_StaticTokens{v}
+}
+
+func (x *Event) SetProvisionToken(v *types.ProvisionTokenV2) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_ProvisionToken{v}
+}
+
+func (x *Event) SetClusterName(v *types.ClusterNameV2) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_ClusterName{v}
+}
+
+func (x *Event) SetUser(v *types.UserV2) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_User{v}
+}
+
+func (x *Event) SetRole(v *types.RoleV6) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_Role{v}
+}
+
+func (x *Event) SetNamespace(v *types.Namespace) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_Namespace{v}
+}
+
+func (x *Event) SetServer(v *types.ServerV2) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_Server{v}
+}
+
+func (x *Event) SetReverseTunnel(v *types.ReverseTunnelV2) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_ReverseTunnel{v}
+}
+
+func (x *Event) SetTunnelConnection(v *types.TunnelConnectionV2) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_TunnelConnection{v}
+}
+
+func (x *Event) SetAccessRequest(v *types.AccessRequestV3) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_AccessRequest{v}
+}
+
+func (x *Event) SetAppSession(v *types.WebSessionV2) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_AppSession{v}
+}
+
+func (x *Event) SetRemoteCluster(v *types.RemoteClusterV3) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_RemoteCluster{v}
+}
+
+func (x *Event) SetDatabaseServer(v *types.DatabaseServerV3) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_DatabaseServer{v}
+}
+
+func (x *Event) SetWebSession(v *types.WebSessionV2) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_WebSession{v}
+}
+
+func (x *Event) SetWebToken(v *types.WebTokenV3) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_WebToken{v}
+}
+
+func (x *Event) SetClusterNetworkingConfig(v *types.ClusterNetworkingConfigV2) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_ClusterNetworkingConfig{v}
+}
+
+func (x *Event) SetSessionRecordingConfig(v *types.SessionRecordingConfigV2) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_SessionRecordingConfig{v}
+}
+
+func (x *Event) SetAuthPreference(v *types.AuthPreferenceV2) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_AuthPreference{v}
+}
+
+func (x *Event) SetClusterAuditConfig(v *types.ClusterAuditConfigV2) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_ClusterAuditConfig{v}
+}
+
+func (x *Event) SetLock(v *types.LockV2) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_Lock{v}
+}
+
+func (x *Event) SetNetworkRestrictions(v *types.NetworkRestrictionsV4) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_NetworkRestrictions{v}
+}
+
+func (x *Event) SetWindowsDesktopService(v *types.WindowsDesktopServiceV3) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_WindowsDesktopService{v}
+}
+
+func (x *Event) SetWindowsDesktop(v *types.WindowsDesktopV3) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_WindowsDesktop{v}
+}
+
+func (x *Event) SetDatabase(v *types.DatabaseV3) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_Database{v}
+}
+
+func (x *Event) SetAppServer(v *types.AppServerV3) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_AppServer{v}
+}
+
+func (x *Event) SetApp(v *types.AppV3) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_App{v}
+}
+
+func (x *Event) SetSnowflakeSession(v *types.WebSessionV2) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_SnowflakeSession{v}
+}
+
+func (x *Event) SetKubernetesServer(v *types.KubernetesServerV3) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_KubernetesServer{v}
+}
+
+func (x *Event) SetKubernetesCluster(v *types.KubernetesClusterV3) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_KubernetesCluster{v}
+}
+
+func (x *Event) SetInstaller(v *types.InstallerV1) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_Installer{v}
+}
+
+func (x *Event) SetDatabaseService(v *types.DatabaseServiceV1) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_DatabaseService{v}
+}
+
+func (x *Event) SetSAMLIdPServiceProvider(v *types.SAMLIdPServiceProviderV1) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_SAMLIdPServiceProvider{v}
+}
+
+func (x *Event) SetSAMLIdPSession(v *types.WebSessionV2) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_SAMLIdPSession{v}
+}
+
+func (x *Event) SetUserGroup(v *types.UserGroupV1) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_UserGroup{v}
+}
+
+func (x *Event) SetUIConfig(v *types.UIConfigV1) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_UIConfig{v}
+}
+
+func (x *Event) SetOktaImportRule(v *types.OktaImportRuleV1) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_OktaImportRule{v}
+}
+
+func (x *Event) SetOktaAssignment(v *types.OktaAssignmentV1) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_OktaAssignment{v}
+}
+
+func (x *Event) SetIntegration(v *types.IntegrationV1) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_Integration{v}
+}
+
+func (x *Event) SetWatchStatus(v *types.WatchStatusV1) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_WatchStatus{v}
+}
+
+func (x *Event) SetHeadlessAuthentication(v *types.HeadlessAuthentication) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_HeadlessAuthentication{v}
+}
+
+func (x *Event) SetAccessList(v *v1.AccessList) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_AccessList{v}
+}
+
+func (x *Event) SetUserLoginState(v *v11.UserLoginState) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_UserLoginState{v}
+}
+
+func (x *Event) SetAccessListMember(v *v1.Member) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_AccessListMember{v}
+}
+
+func (x *Event) SetDiscoveryConfig(v *v12.DiscoveryConfig) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_DiscoveryConfig{v}
+}
+
+func (x *Event) SetAuditQuery(v *v13.AuditQuery) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_AuditQuery{v}
+}
+
+func (x *Event) SetReport(v *v13.Report) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_Report{v}
+}
+
+func (x *Event) SetReportState(v *v13.ReportState) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_ReportState{v}
+}
+
+func (x *Event) SetAccessListReview(v *v1.Review) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_AccessListReview{v}
+}
+
+func (x *Event) SetAccessMonitoringRule(v *v14.AccessMonitoringRule) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_AccessMonitoringRule{v}
+}
+
+func (x *Event) SetKubernetesWaitingContainer(v *v15.KubernetesWaitingContainer) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_KubernetesWaitingContainer{v}
+}
+
+func (x *Event) SetUserNotification(v *v16.Notification) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_UserNotification{v}
+}
+
+func (x *Event) SetGlobalNotification(v *v16.GlobalNotification) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_GlobalNotification{v}
+}
+
+func (x *Event) SetCrownJewel(v *v17.CrownJewel) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_CrownJewel{v}
+}
+
+func (x *Event) SetDatabaseObject(v *v18.DatabaseObject) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_DatabaseObject{v}
+}
+
+func (x *Event) SetBotInstance(v *v19.BotInstance) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_BotInstance{v}
+}
+
+func (x *Event) SetAccessGraphSettings(v *v110.AccessGraphSettings) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_AccessGraphSettings{v}
+}
+
+func (x *Event) SetSPIFFEFederation(v *v19.SPIFFEFederation) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_SPIFFEFederation{v}
+}
+
+func (x *Event) SetAutoUpdateConfig(v *v111.AutoUpdateConfig) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_AutoUpdateConfig{v}
+}
+
+func (x *Event) SetAutoUpdateVersion(v *v111.AutoUpdateVersion) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_AutoUpdateVersion{v}
+}
+
+func (x *Event) SetStaticHostUserV2(v *v2.StaticHostUser) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_StaticHostUserV2{v}
+}
+
+func (x *Event) SetUserTask(v *v112.UserTask) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_UserTask{v}
+}
+
+func (x *Event) SetDynamicWindowsDesktop(v *types.DynamicWindowsDesktopV1) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_DynamicWindowsDesktop{v}
+}
+
+func (x *Event) SetProvisioningPrincipalState(v *v113.PrincipalState) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_ProvisioningPrincipalState{v}
+}
+
+func (x *Event) SetAutoUpdateAgentRollout(v *v111.AutoUpdateAgentRollout) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_AutoUpdateAgentRollout{v}
+}
+
+func (x *Event) SetIdentityCenterAccount(v *v114.Account) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_IdentityCenterAccount{v}
+}
+
+func (x *Event) SetIdentityCenterPrincipalAssignment(v *v114.PrincipalAssignment) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_IdentityCenterPrincipalAssignment{v}
+}
+
+func (x *Event) SetIdentityCenterAccountAssignment(v *v114.AccountAssignment) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_IdentityCenterAccountAssignment{v}
+}
+
+func (x *Event) SetPluginStaticCredentials(v *types.PluginStaticCredentialsV1) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_PluginStaticCredentials{v}
+}
+
+func (x *Event) SetWorkloadIdentity(v *v115.WorkloadIdentity) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_WorkloadIdentity{v}
+}
+
+func (x *Event) SetWorkloadIdentityX509Revocation(v *v115.WorkloadIdentityX509Revocation) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_WorkloadIdentityX509Revocation{v}
+}
+
+func (x *Event) SetHealthCheckConfig(v *v116.HealthCheckConfig) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_HealthCheckConfig{v}
+}
+
+func (x *Event) SetAutoUpdateAgentReport(v *v111.AutoUpdateAgentReport) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_AutoUpdateAgentReport{v}
+}
+
+func (x *Event) SetScopedRole(v *v117.ScopedRole) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_ScopedRole{v}
+}
+
+func (x *Event) SetScopedRoleAssignment(v *v117.ScopedRoleAssignment) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_ScopedRoleAssignment{v}
+}
+
+func (x *Event) SetRelayServer(v *v118.RelayServer) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_RelayServer{v}
+}
+
+func (x *Event) SetRecordingEncryption(v *v119.RecordingEncryption) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_RecordingEncryption{v}
+}
+
+func (x *Event) SetPlugin(v *types.PluginV1) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_Plugin{v}
+}
+
+func (x *Event) SetAutoUpdateBotInstanceReport(v *v111.AutoUpdateBotInstanceReport) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_AutoUpdateBotInstanceReport{v}
+}
+
+func (x *Event) SetAppAuthConfig(v *v120.AppAuthConfig) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_AppAuthConfig{v}
+}
+
+func (x *Event) SetLinuxDesktop(v *v121.LinuxDesktop) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_LinuxDesktop{v}
+}
+
+// Deprecated: Marked as deprecated in teleport/legacy/client/proto/event.proto.
+func (x *Event) SetValidatedMFAChallenge(v *v122.ValidatedMFAChallenge) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_ValidatedMFAChallenge{v}
+}
+
+func (x *Event) SetCertAuthorityOverride(v *v123.CertAuthorityOverride) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_CertAuthorityOverride{v}
+}
+
+func (x *Event) SetInferenceModel(v *v124.InferenceModel) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_InferenceModel{v}
+}
+
+func (x *Event) SetInferenceSecret(v *v124.InferenceSecret) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_InferenceSecret{v}
+}
+
+func (x *Event) SetInferencePolicy(v *v124.InferencePolicy) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_InferencePolicy{v}
+}
+
+func (x *Event) SetRetrievalModel(v *v124.RetrievalModel) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_RetrievalModel{v}
+}
+
+func (x *Event) SetBeam(v *v125.Beam) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_Beam{v}
+}
+
+func (x *Event) SetValidatedMFAChallengeV2(v *v21.ValidatedMFAChallenge) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_ValidatedMFAChallengeV2{v}
+}
+
+func (x *Event) SetBeamsConfig(v *v125.BeamsConfig) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_BeamsConfig{v}
+}
+
+func (x *Event) HasResource() bool {
+	if x == nil {
+		return false
+	}
+	return x.Resource != nil
+}
+
+func (x *Event) HasResourceHeader() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_ResourceHeader)
+	return ok
+}
+
+func (x *Event) HasCertAuthority() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_CertAuthority)
+	return ok
+}
+
+func (x *Event) HasStaticTokens() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_StaticTokens)
+	return ok
+}
+
+func (x *Event) HasProvisionToken() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_ProvisionToken)
+	return ok
+}
+
+func (x *Event) HasClusterName() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_ClusterName)
+	return ok
+}
+
+func (x *Event) HasUser() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_User)
+	return ok
+}
+
+func (x *Event) HasRole() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_Role)
+	return ok
+}
+
+func (x *Event) HasNamespace() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_Namespace)
+	return ok
+}
+
+func (x *Event) HasServer() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_Server)
+	return ok
+}
+
+func (x *Event) HasReverseTunnel() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_ReverseTunnel)
+	return ok
+}
+
+func (x *Event) HasTunnelConnection() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_TunnelConnection)
+	return ok
+}
+
+func (x *Event) HasAccessRequest() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_AccessRequest)
+	return ok
+}
+
+func (x *Event) HasAppSession() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_AppSession)
+	return ok
+}
+
+func (x *Event) HasRemoteCluster() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_RemoteCluster)
+	return ok
+}
+
+func (x *Event) HasDatabaseServer() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_DatabaseServer)
+	return ok
+}
+
+func (x *Event) HasWebSession() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_WebSession)
+	return ok
+}
+
+func (x *Event) HasWebToken() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_WebToken)
+	return ok
+}
+
+func (x *Event) HasClusterNetworkingConfig() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_ClusterNetworkingConfig)
+	return ok
+}
+
+func (x *Event) HasSessionRecordingConfig() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_SessionRecordingConfig)
+	return ok
+}
+
+func (x *Event) HasAuthPreference() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_AuthPreference)
+	return ok
+}
+
+func (x *Event) HasClusterAuditConfig() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_ClusterAuditConfig)
+	return ok
+}
+
+func (x *Event) HasLock() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_Lock)
+	return ok
+}
+
+func (x *Event) HasNetworkRestrictions() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_NetworkRestrictions)
+	return ok
+}
+
+func (x *Event) HasWindowsDesktopService() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_WindowsDesktopService)
+	return ok
+}
+
+func (x *Event) HasWindowsDesktop() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_WindowsDesktop)
+	return ok
+}
+
+func (x *Event) HasDatabase() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_Database)
+	return ok
+}
+
+func (x *Event) HasAppServer() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_AppServer)
+	return ok
+}
+
+func (x *Event) HasApp() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_App)
+	return ok
+}
+
+func (x *Event) HasSnowflakeSession() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_SnowflakeSession)
+	return ok
+}
+
+func (x *Event) HasKubernetesServer() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_KubernetesServer)
+	return ok
+}
+
+func (x *Event) HasKubernetesCluster() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_KubernetesCluster)
+	return ok
+}
+
+func (x *Event) HasInstaller() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_Installer)
+	return ok
+}
+
+func (x *Event) HasDatabaseService() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_DatabaseService)
+	return ok
+}
+
+func (x *Event) HasSAMLIdPServiceProvider() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_SAMLIdPServiceProvider)
+	return ok
+}
+
+func (x *Event) HasSAMLIdPSession() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_SAMLIdPSession)
+	return ok
+}
+
+func (x *Event) HasUserGroup() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_UserGroup)
+	return ok
+}
+
+func (x *Event) HasUIConfig() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_UIConfig)
+	return ok
+}
+
+func (x *Event) HasOktaImportRule() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_OktaImportRule)
+	return ok
+}
+
+func (x *Event) HasOktaAssignment() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_OktaAssignment)
+	return ok
+}
+
+func (x *Event) HasIntegration() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_Integration)
+	return ok
+}
+
+func (x *Event) HasWatchStatus() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_WatchStatus)
+	return ok
+}
+
+func (x *Event) HasHeadlessAuthentication() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_HeadlessAuthentication)
+	return ok
+}
+
+func (x *Event) HasAccessList() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_AccessList)
+	return ok
+}
+
+func (x *Event) HasUserLoginState() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_UserLoginState)
+	return ok
+}
+
+func (x *Event) HasAccessListMember() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_AccessListMember)
+	return ok
+}
+
+func (x *Event) HasDiscoveryConfig() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_DiscoveryConfig)
+	return ok
+}
+
+func (x *Event) HasAuditQuery() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_AuditQuery)
+	return ok
+}
+
+func (x *Event) HasReport() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_Report)
+	return ok
+}
+
+func (x *Event) HasReportState() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_ReportState)
+	return ok
+}
+
+func (x *Event) HasAccessListReview() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_AccessListReview)
+	return ok
+}
+
+func (x *Event) HasAccessMonitoringRule() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_AccessMonitoringRule)
+	return ok
+}
+
+func (x *Event) HasKubernetesWaitingContainer() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_KubernetesWaitingContainer)
+	return ok
+}
+
+func (x *Event) HasUserNotification() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_UserNotification)
+	return ok
+}
+
+func (x *Event) HasGlobalNotification() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_GlobalNotification)
+	return ok
+}
+
+func (x *Event) HasCrownJewel() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_CrownJewel)
+	return ok
+}
+
+func (x *Event) HasDatabaseObject() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_DatabaseObject)
+	return ok
+}
+
+func (x *Event) HasBotInstance() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_BotInstance)
+	return ok
+}
+
+func (x *Event) HasAccessGraphSettings() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_AccessGraphSettings)
+	return ok
+}
+
+func (x *Event) HasSPIFFEFederation() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_SPIFFEFederation)
+	return ok
+}
+
+func (x *Event) HasAutoUpdateConfig() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_AutoUpdateConfig)
+	return ok
+}
+
+func (x *Event) HasAutoUpdateVersion() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_AutoUpdateVersion)
+	return ok
+}
+
+func (x *Event) HasStaticHostUserV2() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_StaticHostUserV2)
+	return ok
+}
+
+func (x *Event) HasUserTask() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_UserTask)
+	return ok
+}
+
+func (x *Event) HasDynamicWindowsDesktop() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_DynamicWindowsDesktop)
+	return ok
+}
+
+func (x *Event) HasProvisioningPrincipalState() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_ProvisioningPrincipalState)
+	return ok
+}
+
+func (x *Event) HasAutoUpdateAgentRollout() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_AutoUpdateAgentRollout)
+	return ok
+}
+
+func (x *Event) HasIdentityCenterAccount() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_IdentityCenterAccount)
+	return ok
+}
+
+func (x *Event) HasIdentityCenterPrincipalAssignment() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_IdentityCenterPrincipalAssignment)
+	return ok
+}
+
+func (x *Event) HasIdentityCenterAccountAssignment() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_IdentityCenterAccountAssignment)
+	return ok
+}
+
+func (x *Event) HasPluginStaticCredentials() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_PluginStaticCredentials)
+	return ok
+}
+
+func (x *Event) HasWorkloadIdentity() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_WorkloadIdentity)
+	return ok
+}
+
+func (x *Event) HasWorkloadIdentityX509Revocation() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_WorkloadIdentityX509Revocation)
+	return ok
+}
+
+func (x *Event) HasHealthCheckConfig() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_HealthCheckConfig)
+	return ok
+}
+
+func (x *Event) HasAutoUpdateAgentReport() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_AutoUpdateAgentReport)
+	return ok
+}
+
+func (x *Event) HasScopedRole() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_ScopedRole)
+	return ok
+}
+
+func (x *Event) HasScopedRoleAssignment() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_ScopedRoleAssignment)
+	return ok
+}
+
+func (x *Event) HasRelayServer() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_RelayServer)
+	return ok
+}
+
+func (x *Event) HasRecordingEncryption() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_RecordingEncryption)
+	return ok
+}
+
+func (x *Event) HasPlugin() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_Plugin)
+	return ok
+}
+
+func (x *Event) HasAutoUpdateBotInstanceReport() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_AutoUpdateBotInstanceReport)
+	return ok
+}
+
+func (x *Event) HasAppAuthConfig() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_AppAuthConfig)
+	return ok
+}
+
+func (x *Event) HasLinuxDesktop() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_LinuxDesktop)
+	return ok
+}
+
+// Deprecated: Marked as deprecated in teleport/legacy/client/proto/event.proto.
+func (x *Event) HasValidatedMFAChallenge() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_ValidatedMFAChallenge)
+	return ok
+}
+
+func (x *Event) HasCertAuthorityOverride() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_CertAuthorityOverride)
+	return ok
+}
+
+func (x *Event) HasInferenceModel() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_InferenceModel)
+	return ok
+}
+
+func (x *Event) HasInferenceSecret() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_InferenceSecret)
+	return ok
+}
+
+func (x *Event) HasInferencePolicy() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_InferencePolicy)
+	return ok
+}
+
+func (x *Event) HasRetrievalModel() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_RetrievalModel)
+	return ok
+}
+
+func (x *Event) HasBeam() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_Beam)
+	return ok
+}
+
+func (x *Event) HasValidatedMFAChallengeV2() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_ValidatedMFAChallengeV2)
+	return ok
+}
+
+func (x *Event) HasBeamsConfig() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_BeamsConfig)
+	return ok
+}
+
+func (x *Event) ClearResource() {
+	x.Resource = nil
+}
+
+func (x *Event) ClearResourceHeader() {
+	if _, ok := x.Resource.(*Event_ResourceHeader); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearCertAuthority() {
+	if _, ok := x.Resource.(*Event_CertAuthority); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearStaticTokens() {
+	if _, ok := x.Resource.(*Event_StaticTokens); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearProvisionToken() {
+	if _, ok := x.Resource.(*Event_ProvisionToken); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearClusterName() {
+	if _, ok := x.Resource.(*Event_ClusterName); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearUser() {
+	if _, ok := x.Resource.(*Event_User); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearRole() {
+	if _, ok := x.Resource.(*Event_Role); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearNamespace() {
+	if _, ok := x.Resource.(*Event_Namespace); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearServer() {
+	if _, ok := x.Resource.(*Event_Server); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearReverseTunnel() {
+	if _, ok := x.Resource.(*Event_ReverseTunnel); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearTunnelConnection() {
+	if _, ok := x.Resource.(*Event_TunnelConnection); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearAccessRequest() {
+	if _, ok := x.Resource.(*Event_AccessRequest); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearAppSession() {
+	if _, ok := x.Resource.(*Event_AppSession); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearRemoteCluster() {
+	if _, ok := x.Resource.(*Event_RemoteCluster); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearDatabaseServer() {
+	if _, ok := x.Resource.(*Event_DatabaseServer); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearWebSession() {
+	if _, ok := x.Resource.(*Event_WebSession); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearWebToken() {
+	if _, ok := x.Resource.(*Event_WebToken); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearClusterNetworkingConfig() {
+	if _, ok := x.Resource.(*Event_ClusterNetworkingConfig); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearSessionRecordingConfig() {
+	if _, ok := x.Resource.(*Event_SessionRecordingConfig); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearAuthPreference() {
+	if _, ok := x.Resource.(*Event_AuthPreference); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearClusterAuditConfig() {
+	if _, ok := x.Resource.(*Event_ClusterAuditConfig); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearLock() {
+	if _, ok := x.Resource.(*Event_Lock); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearNetworkRestrictions() {
+	if _, ok := x.Resource.(*Event_NetworkRestrictions); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearWindowsDesktopService() {
+	if _, ok := x.Resource.(*Event_WindowsDesktopService); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearWindowsDesktop() {
+	if _, ok := x.Resource.(*Event_WindowsDesktop); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearDatabase() {
+	if _, ok := x.Resource.(*Event_Database); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearAppServer() {
+	if _, ok := x.Resource.(*Event_AppServer); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearApp() {
+	if _, ok := x.Resource.(*Event_App); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearSnowflakeSession() {
+	if _, ok := x.Resource.(*Event_SnowflakeSession); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearKubernetesServer() {
+	if _, ok := x.Resource.(*Event_KubernetesServer); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearKubernetesCluster() {
+	if _, ok := x.Resource.(*Event_KubernetesCluster); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearInstaller() {
+	if _, ok := x.Resource.(*Event_Installer); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearDatabaseService() {
+	if _, ok := x.Resource.(*Event_DatabaseService); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearSAMLIdPServiceProvider() {
+	if _, ok := x.Resource.(*Event_SAMLIdPServiceProvider); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearSAMLIdPSession() {
+	if _, ok := x.Resource.(*Event_SAMLIdPSession); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearUserGroup() {
+	if _, ok := x.Resource.(*Event_UserGroup); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearUIConfig() {
+	if _, ok := x.Resource.(*Event_UIConfig); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearOktaImportRule() {
+	if _, ok := x.Resource.(*Event_OktaImportRule); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearOktaAssignment() {
+	if _, ok := x.Resource.(*Event_OktaAssignment); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearIntegration() {
+	if _, ok := x.Resource.(*Event_Integration); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearWatchStatus() {
+	if _, ok := x.Resource.(*Event_WatchStatus); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearHeadlessAuthentication() {
+	if _, ok := x.Resource.(*Event_HeadlessAuthentication); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearAccessList() {
+	if _, ok := x.Resource.(*Event_AccessList); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearUserLoginState() {
+	if _, ok := x.Resource.(*Event_UserLoginState); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearAccessListMember() {
+	if _, ok := x.Resource.(*Event_AccessListMember); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearDiscoveryConfig() {
+	if _, ok := x.Resource.(*Event_DiscoveryConfig); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearAuditQuery() {
+	if _, ok := x.Resource.(*Event_AuditQuery); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearReport() {
+	if _, ok := x.Resource.(*Event_Report); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearReportState() {
+	if _, ok := x.Resource.(*Event_ReportState); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearAccessListReview() {
+	if _, ok := x.Resource.(*Event_AccessListReview); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearAccessMonitoringRule() {
+	if _, ok := x.Resource.(*Event_AccessMonitoringRule); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearKubernetesWaitingContainer() {
+	if _, ok := x.Resource.(*Event_KubernetesWaitingContainer); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearUserNotification() {
+	if _, ok := x.Resource.(*Event_UserNotification); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearGlobalNotification() {
+	if _, ok := x.Resource.(*Event_GlobalNotification); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearCrownJewel() {
+	if _, ok := x.Resource.(*Event_CrownJewel); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearDatabaseObject() {
+	if _, ok := x.Resource.(*Event_DatabaseObject); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearBotInstance() {
+	if _, ok := x.Resource.(*Event_BotInstance); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearAccessGraphSettings() {
+	if _, ok := x.Resource.(*Event_AccessGraphSettings); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearSPIFFEFederation() {
+	if _, ok := x.Resource.(*Event_SPIFFEFederation); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearAutoUpdateConfig() {
+	if _, ok := x.Resource.(*Event_AutoUpdateConfig); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearAutoUpdateVersion() {
+	if _, ok := x.Resource.(*Event_AutoUpdateVersion); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearStaticHostUserV2() {
+	if _, ok := x.Resource.(*Event_StaticHostUserV2); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearUserTask() {
+	if _, ok := x.Resource.(*Event_UserTask); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearDynamicWindowsDesktop() {
+	if _, ok := x.Resource.(*Event_DynamicWindowsDesktop); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearProvisioningPrincipalState() {
+	if _, ok := x.Resource.(*Event_ProvisioningPrincipalState); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearAutoUpdateAgentRollout() {
+	if _, ok := x.Resource.(*Event_AutoUpdateAgentRollout); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearIdentityCenterAccount() {
+	if _, ok := x.Resource.(*Event_IdentityCenterAccount); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearIdentityCenterPrincipalAssignment() {
+	if _, ok := x.Resource.(*Event_IdentityCenterPrincipalAssignment); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearIdentityCenterAccountAssignment() {
+	if _, ok := x.Resource.(*Event_IdentityCenterAccountAssignment); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearPluginStaticCredentials() {
+	if _, ok := x.Resource.(*Event_PluginStaticCredentials); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearWorkloadIdentity() {
+	if _, ok := x.Resource.(*Event_WorkloadIdentity); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearWorkloadIdentityX509Revocation() {
+	if _, ok := x.Resource.(*Event_WorkloadIdentityX509Revocation); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearHealthCheckConfig() {
+	if _, ok := x.Resource.(*Event_HealthCheckConfig); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearAutoUpdateAgentReport() {
+	if _, ok := x.Resource.(*Event_AutoUpdateAgentReport); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearScopedRole() {
+	if _, ok := x.Resource.(*Event_ScopedRole); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearScopedRoleAssignment() {
+	if _, ok := x.Resource.(*Event_ScopedRoleAssignment); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearRelayServer() {
+	if _, ok := x.Resource.(*Event_RelayServer); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearRecordingEncryption() {
+	if _, ok := x.Resource.(*Event_RecordingEncryption); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearPlugin() {
+	if _, ok := x.Resource.(*Event_Plugin); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearAutoUpdateBotInstanceReport() {
+	if _, ok := x.Resource.(*Event_AutoUpdateBotInstanceReport); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearAppAuthConfig() {
+	if _, ok := x.Resource.(*Event_AppAuthConfig); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearLinuxDesktop() {
+	if _, ok := x.Resource.(*Event_LinuxDesktop); ok {
+		x.Resource = nil
+	}
+}
+
+// Deprecated: Marked as deprecated in teleport/legacy/client/proto/event.proto.
+func (x *Event) ClearValidatedMFAChallenge() {
+	if _, ok := x.Resource.(*Event_ValidatedMFAChallenge); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearCertAuthorityOverride() {
+	if _, ok := x.Resource.(*Event_CertAuthorityOverride); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearInferenceModel() {
+	if _, ok := x.Resource.(*Event_InferenceModel); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearInferenceSecret() {
+	if _, ok := x.Resource.(*Event_InferenceSecret); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearInferencePolicy() {
+	if _, ok := x.Resource.(*Event_InferencePolicy); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearRetrievalModel() {
+	if _, ok := x.Resource.(*Event_RetrievalModel); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearBeam() {
+	if _, ok := x.Resource.(*Event_Beam); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearValidatedMFAChallengeV2() {
+	if _, ok := x.Resource.(*Event_ValidatedMFAChallengeV2); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *Event) ClearBeamsConfig() {
+	if _, ok := x.Resource.(*Event_BeamsConfig); ok {
+		x.Resource = nil
+	}
+}
+
+const Event_Resource_not_set_case case_Event_Resource = 0
+const Event_ResourceHeader_case case_Event_Resource = 2
+const Event_CertAuthority_case case_Event_Resource = 3
+const Event_StaticTokens_case case_Event_Resource = 4
+const Event_ProvisionToken_case case_Event_Resource = 5
+const Event_ClusterName_case case_Event_Resource = 6
+const Event_User_case case_Event_Resource = 8
+const Event_Role_case case_Event_Resource = 9
+const Event_Namespace_case case_Event_Resource = 10
+const Event_Server_case case_Event_Resource = 11
+const Event_ReverseTunnel_case case_Event_Resource = 12
+const Event_TunnelConnection_case case_Event_Resource = 13
+const Event_AccessRequest_case case_Event_Resource = 14
+const Event_AppSession_case case_Event_Resource = 15
+const Event_RemoteCluster_case case_Event_Resource = 16
+const Event_DatabaseServer_case case_Event_Resource = 17
+const Event_WebSession_case case_Event_Resource = 18
+const Event_WebToken_case case_Event_Resource = 19
+const Event_ClusterNetworkingConfig_case case_Event_Resource = 20
+const Event_SessionRecordingConfig_case case_Event_Resource = 21
+const Event_AuthPreference_case case_Event_Resource = 22
+const Event_ClusterAuditConfig_case case_Event_Resource = 23
+const Event_Lock_case case_Event_Resource = 24
+const Event_NetworkRestrictions_case case_Event_Resource = 25
+const Event_WindowsDesktopService_case case_Event_Resource = 26
+const Event_WindowsDesktop_case case_Event_Resource = 27
+const Event_Database_case case_Event_Resource = 28
+const Event_AppServer_case case_Event_Resource = 29
+const Event_App_case case_Event_Resource = 30
+const Event_SnowflakeSession_case case_Event_Resource = 31
+const Event_KubernetesServer_case case_Event_Resource = 32
+const Event_KubernetesCluster_case case_Event_Resource = 33
+const Event_Installer_case case_Event_Resource = 34
+const Event_DatabaseService_case case_Event_Resource = 35
+const Event_SAMLIdPServiceProvider_case case_Event_Resource = 36
+const Event_SAMLIdPSession_case case_Event_Resource = 37
+const Event_UserGroup_case case_Event_Resource = 38
+const Event_UIConfig_case case_Event_Resource = 39
+const Event_OktaImportRule_case case_Event_Resource = 40
+const Event_OktaAssignment_case case_Event_Resource = 41
+const Event_Integration_case case_Event_Resource = 42
+const Event_WatchStatus_case case_Event_Resource = 43
+const Event_HeadlessAuthentication_case case_Event_Resource = 44
+const Event_AccessList_case case_Event_Resource = 45
+const Event_UserLoginState_case case_Event_Resource = 46
+const Event_AccessListMember_case case_Event_Resource = 47
+const Event_DiscoveryConfig_case case_Event_Resource = 48
+const Event_AuditQuery_case case_Event_Resource = 50
+const Event_Report_case case_Event_Resource = 51
+const Event_ReportState_case case_Event_Resource = 52
+const Event_AccessListReview_case case_Event_Resource = 53
+const Event_AccessMonitoringRule_case case_Event_Resource = 54
+const Event_KubernetesWaitingContainer_case case_Event_Resource = 55
+const Event_UserNotification_case case_Event_Resource = 56
+const Event_GlobalNotification_case case_Event_Resource = 57
+const Event_CrownJewel_case case_Event_Resource = 58
+const Event_DatabaseObject_case case_Event_Resource = 59
+const Event_BotInstance_case case_Event_Resource = 60
+const Event_AccessGraphSettings_case case_Event_Resource = 61
+const Event_SPIFFEFederation_case case_Event_Resource = 62
+const Event_AutoUpdateConfig_case case_Event_Resource = 64
+const Event_AutoUpdateVersion_case case_Event_Resource = 65
+const Event_StaticHostUserV2_case case_Event_Resource = 66
+const Event_UserTask_case case_Event_Resource = 67
+const Event_DynamicWindowsDesktop_case case_Event_Resource = 69
+const Event_ProvisioningPrincipalState_case case_Event_Resource = 70
+const Event_AutoUpdateAgentRollout_case case_Event_Resource = 71
+const Event_IdentityCenterAccount_case case_Event_Resource = 72
+const Event_IdentityCenterPrincipalAssignment_case case_Event_Resource = 73
+const Event_IdentityCenterAccountAssignment_case case_Event_Resource = 74
+const Event_PluginStaticCredentials_case case_Event_Resource = 75
+const Event_WorkloadIdentity_case case_Event_Resource = 76
+const Event_WorkloadIdentityX509Revocation_case case_Event_Resource = 77
+const Event_HealthCheckConfig_case case_Event_Resource = 78
+const Event_AutoUpdateAgentReport_case case_Event_Resource = 79
+const Event_ScopedRole_case case_Event_Resource = 80
+const Event_ScopedRoleAssignment_case case_Event_Resource = 81
+const Event_RelayServer_case case_Event_Resource = 82
+const Event_RecordingEncryption_case case_Event_Resource = 83
+const Event_Plugin_case case_Event_Resource = 84
+const Event_AutoUpdateBotInstanceReport_case case_Event_Resource = 85
+const Event_AppAuthConfig_case case_Event_Resource = 86
+const Event_LinuxDesktop_case case_Event_Resource = 87
+const Event_ValidatedMFAChallenge_case case_Event_Resource = 89
+const Event_CertAuthorityOverride_case case_Event_Resource = 90
+const Event_InferenceModel_case case_Event_Resource = 91
+const Event_InferenceSecret_case case_Event_Resource = 92
+const Event_InferencePolicy_case case_Event_Resource = 93
+const Event_RetrievalModel_case case_Event_Resource = 94
+const Event_Beam_case case_Event_Resource = 95
+const Event_ValidatedMFAChallengeV2_case case_Event_Resource = 96
+const Event_BeamsConfig_case case_Event_Resource = 97
+
+func (x *Event) WhichResource() case_Event_Resource {
+	if x == nil {
+		return Event_Resource_not_set_case
+	}
+	switch x.Resource.(type) {
+	case *Event_ResourceHeader:
+		return Event_ResourceHeader_case
+	case *Event_CertAuthority:
+		return Event_CertAuthority_case
+	case *Event_StaticTokens:
+		return Event_StaticTokens_case
+	case *Event_ProvisionToken:
+		return Event_ProvisionToken_case
+	case *Event_ClusterName:
+		return Event_ClusterName_case
+	case *Event_User:
+		return Event_User_case
+	case *Event_Role:
+		return Event_Role_case
+	case *Event_Namespace:
+		return Event_Namespace_case
+	case *Event_Server:
+		return Event_Server_case
+	case *Event_ReverseTunnel:
+		return Event_ReverseTunnel_case
+	case *Event_TunnelConnection:
+		return Event_TunnelConnection_case
+	case *Event_AccessRequest:
+		return Event_AccessRequest_case
+	case *Event_AppSession:
+		return Event_AppSession_case
+	case *Event_RemoteCluster:
+		return Event_RemoteCluster_case
+	case *Event_DatabaseServer:
+		return Event_DatabaseServer_case
+	case *Event_WebSession:
+		return Event_WebSession_case
+	case *Event_WebToken:
+		return Event_WebToken_case
+	case *Event_ClusterNetworkingConfig:
+		return Event_ClusterNetworkingConfig_case
+	case *Event_SessionRecordingConfig:
+		return Event_SessionRecordingConfig_case
+	case *Event_AuthPreference:
+		return Event_AuthPreference_case
+	case *Event_ClusterAuditConfig:
+		return Event_ClusterAuditConfig_case
+	case *Event_Lock:
+		return Event_Lock_case
+	case *Event_NetworkRestrictions:
+		return Event_NetworkRestrictions_case
+	case *Event_WindowsDesktopService:
+		return Event_WindowsDesktopService_case
+	case *Event_WindowsDesktop:
+		return Event_WindowsDesktop_case
+	case *Event_Database:
+		return Event_Database_case
+	case *Event_AppServer:
+		return Event_AppServer_case
+	case *Event_App:
+		return Event_App_case
+	case *Event_SnowflakeSession:
+		return Event_SnowflakeSession_case
+	case *Event_KubernetesServer:
+		return Event_KubernetesServer_case
+	case *Event_KubernetesCluster:
+		return Event_KubernetesCluster_case
+	case *Event_Installer:
+		return Event_Installer_case
+	case *Event_DatabaseService:
+		return Event_DatabaseService_case
+	case *Event_SAMLIdPServiceProvider:
+		return Event_SAMLIdPServiceProvider_case
+	case *Event_SAMLIdPSession:
+		return Event_SAMLIdPSession_case
+	case *Event_UserGroup:
+		return Event_UserGroup_case
+	case *Event_UIConfig:
+		return Event_UIConfig_case
+	case *Event_OktaImportRule:
+		return Event_OktaImportRule_case
+	case *Event_OktaAssignment:
+		return Event_OktaAssignment_case
+	case *Event_Integration:
+		return Event_Integration_case
+	case *Event_WatchStatus:
+		return Event_WatchStatus_case
+	case *Event_HeadlessAuthentication:
+		return Event_HeadlessAuthentication_case
+	case *Event_AccessList:
+		return Event_AccessList_case
+	case *Event_UserLoginState:
+		return Event_UserLoginState_case
+	case *Event_AccessListMember:
+		return Event_AccessListMember_case
+	case *Event_DiscoveryConfig:
+		return Event_DiscoveryConfig_case
+	case *Event_AuditQuery:
+		return Event_AuditQuery_case
+	case *Event_Report:
+		return Event_Report_case
+	case *Event_ReportState:
+		return Event_ReportState_case
+	case *Event_AccessListReview:
+		return Event_AccessListReview_case
+	case *Event_AccessMonitoringRule:
+		return Event_AccessMonitoringRule_case
+	case *Event_KubernetesWaitingContainer:
+		return Event_KubernetesWaitingContainer_case
+	case *Event_UserNotification:
+		return Event_UserNotification_case
+	case *Event_GlobalNotification:
+		return Event_GlobalNotification_case
+	case *Event_CrownJewel:
+		return Event_CrownJewel_case
+	case *Event_DatabaseObject:
+		return Event_DatabaseObject_case
+	case *Event_BotInstance:
+		return Event_BotInstance_case
+	case *Event_AccessGraphSettings:
+		return Event_AccessGraphSettings_case
+	case *Event_SPIFFEFederation:
+		return Event_SPIFFEFederation_case
+	case *Event_AutoUpdateConfig:
+		return Event_AutoUpdateConfig_case
+	case *Event_AutoUpdateVersion:
+		return Event_AutoUpdateVersion_case
+	case *Event_StaticHostUserV2:
+		return Event_StaticHostUserV2_case
+	case *Event_UserTask:
+		return Event_UserTask_case
+	case *Event_DynamicWindowsDesktop:
+		return Event_DynamicWindowsDesktop_case
+	case *Event_ProvisioningPrincipalState:
+		return Event_ProvisioningPrincipalState_case
+	case *Event_AutoUpdateAgentRollout:
+		return Event_AutoUpdateAgentRollout_case
+	case *Event_IdentityCenterAccount:
+		return Event_IdentityCenterAccount_case
+	case *Event_IdentityCenterPrincipalAssignment:
+		return Event_IdentityCenterPrincipalAssignment_case
+	case *Event_IdentityCenterAccountAssignment:
+		return Event_IdentityCenterAccountAssignment_case
+	case *Event_PluginStaticCredentials:
+		return Event_PluginStaticCredentials_case
+	case *Event_WorkloadIdentity:
+		return Event_WorkloadIdentity_case
+	case *Event_WorkloadIdentityX509Revocation:
+		return Event_WorkloadIdentityX509Revocation_case
+	case *Event_HealthCheckConfig:
+		return Event_HealthCheckConfig_case
+	case *Event_AutoUpdateAgentReport:
+		return Event_AutoUpdateAgentReport_case
+	case *Event_ScopedRole:
+		return Event_ScopedRole_case
+	case *Event_ScopedRoleAssignment:
+		return Event_ScopedRoleAssignment_case
+	case *Event_RelayServer:
+		return Event_RelayServer_case
+	case *Event_RecordingEncryption:
+		return Event_RecordingEncryption_case
+	case *Event_Plugin:
+		return Event_Plugin_case
+	case *Event_AutoUpdateBotInstanceReport:
+		return Event_AutoUpdateBotInstanceReport_case
+	case *Event_AppAuthConfig:
+		return Event_AppAuthConfig_case
+	case *Event_LinuxDesktop:
+		return Event_LinuxDesktop_case
+	case *Event_ValidatedMFAChallenge:
+		return Event_ValidatedMFAChallenge_case
+	case *Event_CertAuthorityOverride:
+		return Event_CertAuthorityOverride_case
+	case *Event_InferenceModel:
+		return Event_InferenceModel_case
+	case *Event_InferenceSecret:
+		return Event_InferenceSecret_case
+	case *Event_InferencePolicy:
+		return Event_InferencePolicy_case
+	case *Event_RetrievalModel:
+		return Event_RetrievalModel_case
+	case *Event_Beam:
+		return Event_Beam_case
+	case *Event_ValidatedMFAChallengeV2:
+		return Event_ValidatedMFAChallengeV2_case
+	case *Event_BeamsConfig:
+		return Event_BeamsConfig_case
+	default:
+		return Event_Resource_not_set_case
+	}
+}
+
+type Event_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Operation identifies operation
+	Type Operation
+	// Resource contains the updated resource
+
+	// Fields of oneof Resource:
+	// ResourceHeader is specified in delete events,
+	// the full object is not available, so resource
+	// header is used to provide information about object type
+	ResourceHeader *types.ResourceHeader
+	// CertAuthority is filled in certificate-authority related events
+	CertAuthority *types.CertAuthorityV2
+	// StaticTokens is filled in static-tokens related events
+	StaticTokens *types.StaticTokensV2
+	// ProvisionToken is filled in provision-token related events
+	ProvisionToken *types.ProvisionTokenV2
+	// ClusterNameV2 is a cluster name resource
+	ClusterName *types.ClusterNameV2
+	// User is a user resource
+	User *types.UserV2
+	// Role is a role resource
+	Role *types.RoleV6
+	// Namespace is a namespace resource
+	Namespace *types.Namespace
+	// Server is a node or proxy resource
+	Server *types.ServerV2
+	// ReverseTunnel is a resource with reverse tunnel
+	ReverseTunnel *types.ReverseTunnelV2
+	// TunnelConnection is a resource for tunnel connnections
+	TunnelConnection *types.TunnelConnectionV2
+	// AccessRequest is a resource for access requests
+	AccessRequest *types.AccessRequestV3
+	// AppSession is an application web session.
+	AppSession *types.WebSessionV2
+	// RemoteCluster is a resource for remote clusters
+	RemoteCluster *types.RemoteClusterV3
+	// DatabaseServer is a resource for database servers.
+	DatabaseServer *types.DatabaseServerV3
+	// WebSession is a regular web session.
+	WebSession *types.WebSessionV2
+	// WebToken is a web token.
+	WebToken *types.WebTokenV3
+	// ClusterNetworkingConfig is a resource for cluster networking configuration.
+	ClusterNetworkingConfig *types.ClusterNetworkingConfigV2
+	// SessionRecordingConfig is a resource for session recording configuration.
+	SessionRecordingConfig *types.SessionRecordingConfigV2
+	// AuthPreference is cluster auth preference.
+	AuthPreference *types.AuthPreferenceV2
+	// ClusterAuditConfig is a resource for cluster audit configuration.
+	ClusterAuditConfig *types.ClusterAuditConfigV2
+	// Lock is a lock resource.
+	Lock *types.LockV2
+	// NetworkRestrictions is a resource for network restrictions
+	NetworkRestrictions *types.NetworkRestrictionsV4
+	// WindowsDesktopService is a resource for Windows desktop services.
+	WindowsDesktopService *types.WindowsDesktopServiceV3
+	// WindowsDesktop is a resource for Windows desktop host.
+	WindowsDesktop *types.WindowsDesktopV3
+	// Database is a database resource.
+	Database *types.DatabaseV3
+	// AppServer is an application server resource.
+	AppServer *types.AppServerV3
+	// App is an application resource.
+	App *types.AppV3
+	// SnowflakeSession is a Snowflake web session.
+	SnowflakeSession *types.WebSessionV2
+	// KubernetesServer is an Kubernetes server resource.
+	KubernetesServer *types.KubernetesServerV3
+	// KubernetesCluster is an Kubernetes cluster resource.
+	KubernetesCluster *types.KubernetesClusterV3
+	// Installer is an installer resource
+	Installer *types.InstallerV1
+	// DatabaseService is a DatabaseService resource
+	DatabaseService *types.DatabaseServiceV1
+	// SAMLIdPServiceProvider is a SAMLIdPServiceProvider resource
+	SAMLIdPServiceProvider *types.SAMLIdPServiceProviderV1
+	// SAMLIdPSession is a SAML IdP session.
+	SAMLIdPSession *types.WebSessionV2
+	// UserGroup is a UserGroup resource
+	UserGroup *types.UserGroupV1
+	// UIConfig provides a way for users to adjust settings of the UI served by the proxy service.
+	UIConfig *types.UIConfigV1
+	// OktaImportRule is an OktaImportRule resource.
+	OktaImportRule *types.OktaImportRuleV1
+	// OktaAssignment is an OktaAssignment resource.
+	OktaAssignment *types.OktaAssignmentV1
+	// Integration is an Integration resource.
+	Integration *types.IntegrationV1
+	// WatchStatus is an WatchStatus resource.
+	WatchStatus *types.WatchStatusV1
+	// HeadlessAuthentication is a HeadlessAuthentication resource.
+	HeadlessAuthentication *types.HeadlessAuthentication
+	// AccessList is an AccessList resource.
+	AccessList *v1.AccessList
+	// UserLoginState is a UserLoginState resource.
+	UserLoginState *v11.UserLoginState
+	// AccessListMember is an access list member resource.
+	AccessListMember *v1.Member
+	// DiscoveryConfig contains a list of matchers to be loaded dynamically by Discovery Services.
+	DiscoveryConfig *v12.DiscoveryConfig
+	// AuditQuery is an audit query resource.
+	AuditQuery *v13.AuditQuery
+	// SecurityReport is a security report resource.
+	Report *v13.Report
+	// SecurityReportState is a security report state resource.
+	ReportState *v13.ReportState
+	// AccessListReview is an access list review resource.
+	AccessListReview *v1.Review
+	// AccessMonitoringRule is an access monitoring rule resource.
+	AccessMonitoringRule *v14.AccessMonitoringRule
+	// KubernetesWaitingContainer is a Kubernetes ephemeral container
+	// waiting to be created.
+	KubernetesWaitingContainer *v15.KubernetesWaitingContainer
+	// UserNotification is a user notification resource.
+	UserNotification *v16.Notification
+	// GlobalNotification is a global notification resource.
+	GlobalNotification *v16.GlobalNotification
+	// CrownJewel is a Crown Jewel resource.
+	CrownJewel *v17.CrownJewel
+	// DatabaseObject is a database object resource.
+	DatabaseObject *v18.DatabaseObject
+	// BotInstance is a Machine ID bot instance.
+	BotInstance *v19.BotInstance
+	// AccessGraphSettings is a resource for access graph settings.
+	AccessGraphSettings *v110.AccessGraphSettings
+	// SPIFFEFederation is a resource for SPIFFE federation.
+	SPIFFEFederation *v19.SPIFFEFederation
+	// AutoUpdateConfig is a resource for autoupdate config.
+	AutoUpdateConfig *v111.AutoUpdateConfig
+	// AutoUpdateVersion is a resource for autoupdate version.
+	AutoUpdateVersion *v111.AutoUpdateVersion
+	// StaticHostUserV2 is a resource for static host users.
+	StaticHostUserV2 *v2.StaticHostUser
+	// UserTask is a resource for user task.
+	UserTask *v112.UserTask
+	// DynamicWindowsDesktop is a resource for dynamic Windows desktop host.
+	DynamicWindowsDesktop *types.DynamicWindowsDesktopV1
+	// ProvisioningPrincipalState is a resource for tracking the provisioning of
+	// users and groups into downstream systems.
+	ProvisioningPrincipalState *v113.PrincipalState
+	// AutoUpdateAgentRollout is a resource for controlling the autoupdate agent rollout.
+	AutoUpdateAgentRollout *v111.AutoUpdateAgentRollout
+	// IdentityCenterAccount is a resource for tracking Identity Center accounts
+	IdentityCenterAccount *v114.Account
+	// IdentityCenterPrincipalAssignment is a resource for tracking the AWS
+	// Permission Sets assigned to a Teleport user or AAccess List
+	IdentityCenterPrincipalAssignment *v114.PrincipalAssignment
+	// IdentityCenterAccountlAssignment is a resource representing a potential
+	// Permission Set grant on a specific AWS account.
+	IdentityCenterAccountAssignment *v114.AccountAssignment
+	// PluginStaticCredentials is filled in PluginStaticCredentials related events
+	PluginStaticCredentials *types.PluginStaticCredentialsV1
+	// WorkloadIdentity is a resource for workload identity.
+	WorkloadIdentity *v115.WorkloadIdentity
+	// WorkloadIdentityX509Revocation is a resource for workload identity x509 revocation.
+	WorkloadIdentityX509Revocation *v115.WorkloadIdentityX509Revocation
+	// HealthCheckConfig is a resource for configuring health checks.
+	HealthCheckConfig *v116.HealthCheckConfig
+	// AutoUpdateAgentReport is a resource for counting agents connected to an auth instance.
+	AutoUpdateAgentReport *v111.AutoUpdateAgentReport
+	// ScopedRole is a role that descibes scoped privileges.
+	ScopedRole *v117.ScopedRole
+	// ScopedRoleAssignment is an assignment of one or more scoped roles to a user.
+	ScopedRoleAssignment *v117.ScopedRoleAssignment
+	RelayServer          *v118.RelayServer
+	// RecordingEncryption is a resource for controlling session recording encryption.
+	RecordingEncryption *v119.RecordingEncryption
+	// PluginV1 is a resource for Teleport plugins.
+	Plugin *types.PluginV1
+	// AutoUpdateAgentReport is a resource for counting connected bot instances.
+	AutoUpdateBotInstanceReport *v111.AutoUpdateBotInstanceReport
+	// AppAuthConfig is a resource for defining app auth configs.
+	AppAuthConfig *v120.AppAuthConfig
+	// LinuxDesktop is a resource for linux desktop.
+	LinuxDesktop *v121.LinuxDesktop
+	// ValidatedMFAChallenge is a resource for representing a validated MFA challenge.
+	//
+	// Deprecated: Marked as deprecated in teleport/legacy/client/proto/event.proto.
+	ValidatedMFAChallenge *v122.ValidatedMFAChallenge
+	// CertAuthorityOverride allows admins to override Teleport CA certificates.
+	CertAuthorityOverride *v123.CertAuthorityOverride
+	// InferenceModel is a resource for defining inference models.
+	InferenceModel *v124.InferenceModel
+	// InferenceSecret is a resource for defining inference secrets.
+	InferenceSecret *v124.InferenceSecret
+	// InferencePolicy is a resource for defining inference policies.
+	InferencePolicy *v124.InferencePolicy
+	// RetrievalModel is a resource for defining retrieval models.
+	RetrievalModel *v124.RetrievalModel
+	// Beam is an ephemeral AI-optimized compute environment.
+	Beam *v125.Beam
+	// ValidatedMFAChallengeV2 is a resource for representing a validated MFA challenge.
+	ValidatedMFAChallengeV2 *v21.ValidatedMFAChallenge
+	// BeamsConfig is the user-provided configuration for Beams.
+	BeamsConfig *v125.BeamsConfig
+	// -- end of Resource
+}
+
+func (b0 Event_builder) Build() *Event {
+	m0 := &Event{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Type = b.Type
+	if b.ResourceHeader != nil {
+		x.Resource = &Event_ResourceHeader{b.ResourceHeader}
+	}
+	if b.CertAuthority != nil {
+		x.Resource = &Event_CertAuthority{b.CertAuthority}
+	}
+	if b.StaticTokens != nil {
+		x.Resource = &Event_StaticTokens{b.StaticTokens}
+	}
+	if b.ProvisionToken != nil {
+		x.Resource = &Event_ProvisionToken{b.ProvisionToken}
+	}
+	if b.ClusterName != nil {
+		x.Resource = &Event_ClusterName{b.ClusterName}
+	}
+	if b.User != nil {
+		x.Resource = &Event_User{b.User}
+	}
+	if b.Role != nil {
+		x.Resource = &Event_Role{b.Role}
+	}
+	if b.Namespace != nil {
+		x.Resource = &Event_Namespace{b.Namespace}
+	}
+	if b.Server != nil {
+		x.Resource = &Event_Server{b.Server}
+	}
+	if b.ReverseTunnel != nil {
+		x.Resource = &Event_ReverseTunnel{b.ReverseTunnel}
+	}
+	if b.TunnelConnection != nil {
+		x.Resource = &Event_TunnelConnection{b.TunnelConnection}
+	}
+	if b.AccessRequest != nil {
+		x.Resource = &Event_AccessRequest{b.AccessRequest}
+	}
+	if b.AppSession != nil {
+		x.Resource = &Event_AppSession{b.AppSession}
+	}
+	if b.RemoteCluster != nil {
+		x.Resource = &Event_RemoteCluster{b.RemoteCluster}
+	}
+	if b.DatabaseServer != nil {
+		x.Resource = &Event_DatabaseServer{b.DatabaseServer}
+	}
+	if b.WebSession != nil {
+		x.Resource = &Event_WebSession{b.WebSession}
+	}
+	if b.WebToken != nil {
+		x.Resource = &Event_WebToken{b.WebToken}
+	}
+	if b.ClusterNetworkingConfig != nil {
+		x.Resource = &Event_ClusterNetworkingConfig{b.ClusterNetworkingConfig}
+	}
+	if b.SessionRecordingConfig != nil {
+		x.Resource = &Event_SessionRecordingConfig{b.SessionRecordingConfig}
+	}
+	if b.AuthPreference != nil {
+		x.Resource = &Event_AuthPreference{b.AuthPreference}
+	}
+	if b.ClusterAuditConfig != nil {
+		x.Resource = &Event_ClusterAuditConfig{b.ClusterAuditConfig}
+	}
+	if b.Lock != nil {
+		x.Resource = &Event_Lock{b.Lock}
+	}
+	if b.NetworkRestrictions != nil {
+		x.Resource = &Event_NetworkRestrictions{b.NetworkRestrictions}
+	}
+	if b.WindowsDesktopService != nil {
+		x.Resource = &Event_WindowsDesktopService{b.WindowsDesktopService}
+	}
+	if b.WindowsDesktop != nil {
+		x.Resource = &Event_WindowsDesktop{b.WindowsDesktop}
+	}
+	if b.Database != nil {
+		x.Resource = &Event_Database{b.Database}
+	}
+	if b.AppServer != nil {
+		x.Resource = &Event_AppServer{b.AppServer}
+	}
+	if b.App != nil {
+		x.Resource = &Event_App{b.App}
+	}
+	if b.SnowflakeSession != nil {
+		x.Resource = &Event_SnowflakeSession{b.SnowflakeSession}
+	}
+	if b.KubernetesServer != nil {
+		x.Resource = &Event_KubernetesServer{b.KubernetesServer}
+	}
+	if b.KubernetesCluster != nil {
+		x.Resource = &Event_KubernetesCluster{b.KubernetesCluster}
+	}
+	if b.Installer != nil {
+		x.Resource = &Event_Installer{b.Installer}
+	}
+	if b.DatabaseService != nil {
+		x.Resource = &Event_DatabaseService{b.DatabaseService}
+	}
+	if b.SAMLIdPServiceProvider != nil {
+		x.Resource = &Event_SAMLIdPServiceProvider{b.SAMLIdPServiceProvider}
+	}
+	if b.SAMLIdPSession != nil {
+		x.Resource = &Event_SAMLIdPSession{b.SAMLIdPSession}
+	}
+	if b.UserGroup != nil {
+		x.Resource = &Event_UserGroup{b.UserGroup}
+	}
+	if b.UIConfig != nil {
+		x.Resource = &Event_UIConfig{b.UIConfig}
+	}
+	if b.OktaImportRule != nil {
+		x.Resource = &Event_OktaImportRule{b.OktaImportRule}
+	}
+	if b.OktaAssignment != nil {
+		x.Resource = &Event_OktaAssignment{b.OktaAssignment}
+	}
+	if b.Integration != nil {
+		x.Resource = &Event_Integration{b.Integration}
+	}
+	if b.WatchStatus != nil {
+		x.Resource = &Event_WatchStatus{b.WatchStatus}
+	}
+	if b.HeadlessAuthentication != nil {
+		x.Resource = &Event_HeadlessAuthentication{b.HeadlessAuthentication}
+	}
+	if b.AccessList != nil {
+		x.Resource = &Event_AccessList{b.AccessList}
+	}
+	if b.UserLoginState != nil {
+		x.Resource = &Event_UserLoginState{b.UserLoginState}
+	}
+	if b.AccessListMember != nil {
+		x.Resource = &Event_AccessListMember{b.AccessListMember}
+	}
+	if b.DiscoveryConfig != nil {
+		x.Resource = &Event_DiscoveryConfig{b.DiscoveryConfig}
+	}
+	if b.AuditQuery != nil {
+		x.Resource = &Event_AuditQuery{b.AuditQuery}
+	}
+	if b.Report != nil {
+		x.Resource = &Event_Report{b.Report}
+	}
+	if b.ReportState != nil {
+		x.Resource = &Event_ReportState{b.ReportState}
+	}
+	if b.AccessListReview != nil {
+		x.Resource = &Event_AccessListReview{b.AccessListReview}
+	}
+	if b.AccessMonitoringRule != nil {
+		x.Resource = &Event_AccessMonitoringRule{b.AccessMonitoringRule}
+	}
+	if b.KubernetesWaitingContainer != nil {
+		x.Resource = &Event_KubernetesWaitingContainer{b.KubernetesWaitingContainer}
+	}
+	if b.UserNotification != nil {
+		x.Resource = &Event_UserNotification{b.UserNotification}
+	}
+	if b.GlobalNotification != nil {
+		x.Resource = &Event_GlobalNotification{b.GlobalNotification}
+	}
+	if b.CrownJewel != nil {
+		x.Resource = &Event_CrownJewel{b.CrownJewel}
+	}
+	if b.DatabaseObject != nil {
+		x.Resource = &Event_DatabaseObject{b.DatabaseObject}
+	}
+	if b.BotInstance != nil {
+		x.Resource = &Event_BotInstance{b.BotInstance}
+	}
+	if b.AccessGraphSettings != nil {
+		x.Resource = &Event_AccessGraphSettings{b.AccessGraphSettings}
+	}
+	if b.SPIFFEFederation != nil {
+		x.Resource = &Event_SPIFFEFederation{b.SPIFFEFederation}
+	}
+	if b.AutoUpdateConfig != nil {
+		x.Resource = &Event_AutoUpdateConfig{b.AutoUpdateConfig}
+	}
+	if b.AutoUpdateVersion != nil {
+		x.Resource = &Event_AutoUpdateVersion{b.AutoUpdateVersion}
+	}
+	if b.StaticHostUserV2 != nil {
+		x.Resource = &Event_StaticHostUserV2{b.StaticHostUserV2}
+	}
+	if b.UserTask != nil {
+		x.Resource = &Event_UserTask{b.UserTask}
+	}
+	if b.DynamicWindowsDesktop != nil {
+		x.Resource = &Event_DynamicWindowsDesktop{b.DynamicWindowsDesktop}
+	}
+	if b.ProvisioningPrincipalState != nil {
+		x.Resource = &Event_ProvisioningPrincipalState{b.ProvisioningPrincipalState}
+	}
+	if b.AutoUpdateAgentRollout != nil {
+		x.Resource = &Event_AutoUpdateAgentRollout{b.AutoUpdateAgentRollout}
+	}
+	if b.IdentityCenterAccount != nil {
+		x.Resource = &Event_IdentityCenterAccount{b.IdentityCenterAccount}
+	}
+	if b.IdentityCenterPrincipalAssignment != nil {
+		x.Resource = &Event_IdentityCenterPrincipalAssignment{b.IdentityCenterPrincipalAssignment}
+	}
+	if b.IdentityCenterAccountAssignment != nil {
+		x.Resource = &Event_IdentityCenterAccountAssignment{b.IdentityCenterAccountAssignment}
+	}
+	if b.PluginStaticCredentials != nil {
+		x.Resource = &Event_PluginStaticCredentials{b.PluginStaticCredentials}
+	}
+	if b.WorkloadIdentity != nil {
+		x.Resource = &Event_WorkloadIdentity{b.WorkloadIdentity}
+	}
+	if b.WorkloadIdentityX509Revocation != nil {
+		x.Resource = &Event_WorkloadIdentityX509Revocation{b.WorkloadIdentityX509Revocation}
+	}
+	if b.HealthCheckConfig != nil {
+		x.Resource = &Event_HealthCheckConfig{b.HealthCheckConfig}
+	}
+	if b.AutoUpdateAgentReport != nil {
+		x.Resource = &Event_AutoUpdateAgentReport{b.AutoUpdateAgentReport}
+	}
+	if b.ScopedRole != nil {
+		x.Resource = &Event_ScopedRole{b.ScopedRole}
+	}
+	if b.ScopedRoleAssignment != nil {
+		x.Resource = &Event_ScopedRoleAssignment{b.ScopedRoleAssignment}
+	}
+	if b.RelayServer != nil {
+		x.Resource = &Event_RelayServer{b.RelayServer}
+	}
+	if b.RecordingEncryption != nil {
+		x.Resource = &Event_RecordingEncryption{b.RecordingEncryption}
+	}
+	if b.Plugin != nil {
+		x.Resource = &Event_Plugin{b.Plugin}
+	}
+	if b.AutoUpdateBotInstanceReport != nil {
+		x.Resource = &Event_AutoUpdateBotInstanceReport{b.AutoUpdateBotInstanceReport}
+	}
+	if b.AppAuthConfig != nil {
+		x.Resource = &Event_AppAuthConfig{b.AppAuthConfig}
+	}
+	if b.LinuxDesktop != nil {
+		x.Resource = &Event_LinuxDesktop{b.LinuxDesktop}
+	}
+	if b.ValidatedMFAChallenge != nil {
+		x.Resource = &Event_ValidatedMFAChallenge{b.ValidatedMFAChallenge}
+	}
+	if b.CertAuthorityOverride != nil {
+		x.Resource = &Event_CertAuthorityOverride{b.CertAuthorityOverride}
+	}
+	if b.InferenceModel != nil {
+		x.Resource = &Event_InferenceModel{b.InferenceModel}
+	}
+	if b.InferenceSecret != nil {
+		x.Resource = &Event_InferenceSecret{b.InferenceSecret}
+	}
+	if b.InferencePolicy != nil {
+		x.Resource = &Event_InferencePolicy{b.InferencePolicy}
+	}
+	if b.RetrievalModel != nil {
+		x.Resource = &Event_RetrievalModel{b.RetrievalModel}
+	}
+	if b.Beam != nil {
+		x.Resource = &Event_Beam{b.Beam}
+	}
+	if b.ValidatedMFAChallengeV2 != nil {
+		x.Resource = &Event_ValidatedMFAChallengeV2{b.ValidatedMFAChallengeV2}
+	}
+	if b.BeamsConfig != nil {
+		x.Resource = &Event_BeamsConfig{b.BeamsConfig}
+	}
+	return m0
+}
+
+type case_Event_Resource protoreflect.FieldNumber
+
+func (x case_Event_Resource) String() string {
+	md := file_teleport_legacy_client_proto_event_proto_msgTypes[0].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isEvent_Resource interface {
 	isEvent_Resource()
 }
@@ -1853,18 +4640,6 @@ const file_teleport_legacy_client_proto_event_proto_rawDesc = "" +
 	"\x03PUT\x10\x01\x12\n" +
 	"\n" +
 	"\x06DELETE\x10\x02B4Z2github.com/gravitational/teleport/api/client/protob\x06proto3"
-
-var (
-	file_teleport_legacy_client_proto_event_proto_rawDescOnce sync.Once
-	file_teleport_legacy_client_proto_event_proto_rawDescData []byte
-)
-
-func file_teleport_legacy_client_proto_event_proto_rawDescGZIP() []byte {
-	file_teleport_legacy_client_proto_event_proto_rawDescOnce.Do(func() {
-		file_teleport_legacy_client_proto_event_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_legacy_client_proto_event_proto_rawDesc), len(file_teleport_legacy_client_proto_event_proto_rawDesc)))
-	})
-	return file_teleport_legacy_client_proto_event_proto_rawDescData
-}
 
 var file_teleport_legacy_client_proto_event_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_teleport_legacy_client_proto_event_proto_msgTypes = make([]protoimpl.MessageInfo, 1)

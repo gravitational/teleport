@@ -20,6 +20,8 @@
 // 	protoc        (unknown)
 // source: teleport/lib/vnet/v1/client_application_service.proto
 
+//go:build !protoopaque
+
 package vnetv1
 
 import (
@@ -27,7 +29,6 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -88,11 +89,6 @@ func (x Hash) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use Hash.Descriptor instead.
-func (Hash) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{0}
-}
-
 // SessionSSHConfigCredentialMode selects how the client application should build SSH config for a VNet SSH session.
 //
 // The VNet admin side decides whether it is making the first direct attempt or retrying after that attempt failed. The
@@ -145,14 +141,9 @@ func (x SessionSSHConfigCredentialMode) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use SessionSSHConfigCredentialMode.Descriptor instead.
-func (SessionSSHConfigCredentialMode) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{1}
-}
-
 // AuthenticateProcessRequest is a request for AuthenticateProcess.
 type AuthenticateProcessRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Version is the admin process version.
 	Version string `protobuf:"bytes,1,opt,name=version,proto3" json:"version,omitempty"`
 	// PipePath is the path to a named pipe used for process authentication on
@@ -187,11 +178,6 @@ func (x *AuthenticateProcessRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AuthenticateProcessRequest.ProtoReflect.Descriptor instead.
-func (*AuthenticateProcessRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *AuthenticateProcessRequest) GetVersion() string {
 	if x != nil {
 		return x.Version
@@ -206,9 +192,36 @@ func (x *AuthenticateProcessRequest) GetPipePath() string {
 	return ""
 }
 
+func (x *AuthenticateProcessRequest) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *AuthenticateProcessRequest) SetPipePath(v string) {
+	x.PipePath = v
+}
+
+type AuthenticateProcessRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Version is the admin process version.
+	Version string
+	// PipePath is the path to a named pipe used for process authentication on
+	// Windows. The client application must dial the pipe
+	PipePath string
+}
+
+func (b0 AuthenticateProcessRequest_builder) Build() *AuthenticateProcessRequest {
+	m0 := &AuthenticateProcessRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Version = b.Version
+	x.PipePath = b.PipePath
+	return m0
+}
+
 // AuthenticateProcessResponse is a response for AuthenticateProcess.
 type AuthenticateProcessResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Version is the client application version.
 	Version       string `protobuf:"bytes,1,opt,name=version,proto3" json:"version,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -240,11 +253,6 @@ func (x *AuthenticateProcessResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AuthenticateProcessResponse.ProtoReflect.Descriptor instead.
-func (*AuthenticateProcessResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *AuthenticateProcessResponse) GetVersion() string {
 	if x != nil {
 		return x.Version
@@ -252,10 +260,29 @@ func (x *AuthenticateProcessResponse) GetVersion() string {
 	return ""
 }
 
+func (x *AuthenticateProcessResponse) SetVersion(v string) {
+	x.Version = v
+}
+
+type AuthenticateProcessResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Version is the client application version.
+	Version string
+}
+
+func (b0 AuthenticateProcessResponse_builder) Build() *AuthenticateProcessResponse {
+	m0 := &AuthenticateProcessResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Version = b.Version
+	return m0
+}
+
 // ReportNetworkStackInfoRequest is a request to report network stack
 // information to the client application.
 type ReportNetworkStackInfoRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// NetworkStackInfo holds network stack information.
 	NetworkStackInfo *NetworkStackInfo `protobuf:"bytes,1,opt,name=network_stack_info,json=networkStackInfo,proto3" json:"network_stack_info,omitempty"`
 	unknownFields    protoimpl.UnknownFields
@@ -287,11 +314,6 @@ func (x *ReportNetworkStackInfoRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ReportNetworkStackInfoRequest.ProtoReflect.Descriptor instead.
-func (*ReportNetworkStackInfoRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *ReportNetworkStackInfoRequest) GetNetworkStackInfo() *NetworkStackInfo {
 	if x != nil {
 		return x.NetworkStackInfo
@@ -299,9 +321,39 @@ func (x *ReportNetworkStackInfoRequest) GetNetworkStackInfo() *NetworkStackInfo 
 	return nil
 }
 
+func (x *ReportNetworkStackInfoRequest) SetNetworkStackInfo(v *NetworkStackInfo) {
+	x.NetworkStackInfo = v
+}
+
+func (x *ReportNetworkStackInfoRequest) HasNetworkStackInfo() bool {
+	if x == nil {
+		return false
+	}
+	return x.NetworkStackInfo != nil
+}
+
+func (x *ReportNetworkStackInfoRequest) ClearNetworkStackInfo() {
+	x.NetworkStackInfo = nil
+}
+
+type ReportNetworkStackInfoRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// NetworkStackInfo holds network stack information.
+	NetworkStackInfo *NetworkStackInfo
+}
+
+func (b0 ReportNetworkStackInfoRequest_builder) Build() *ReportNetworkStackInfoRequest {
+	m0 := &ReportNetworkStackInfoRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.NetworkStackInfo = b.NetworkStackInfo
+	return m0
+}
+
 // NetworkStackInfo holds static information about the VNet networking stack.
 type NetworkStackInfo struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// InterfaceName is the name of the TUN interface used by VNet.
 	InterfaceName string `protobuf:"bytes,1,opt,name=interface_name,json=interfaceName,proto3" json:"interface_name,omitempty"`
 	// Ipv6Prefix the the IPv5 prefix under which VNet assigns IPv6 addresses.
@@ -335,11 +387,6 @@ func (x *NetworkStackInfo) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use NetworkStackInfo.ProtoReflect.Descriptor instead.
-func (*NetworkStackInfo) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *NetworkStackInfo) GetInterfaceName() string {
 	if x != nil {
 		return x.InterfaceName
@@ -354,9 +401,35 @@ func (x *NetworkStackInfo) GetIpv6Prefix() string {
 	return ""
 }
 
+func (x *NetworkStackInfo) SetInterfaceName(v string) {
+	x.InterfaceName = v
+}
+
+func (x *NetworkStackInfo) SetIpv6Prefix(v string) {
+	x.Ipv6Prefix = v
+}
+
+type NetworkStackInfo_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// InterfaceName is the name of the TUN interface used by VNet.
+	InterfaceName string
+	// Ipv6Prefix the the IPv5 prefix under which VNet assigns IPv6 addresses.
+	Ipv6Prefix string
+}
+
+func (b0 NetworkStackInfo_builder) Build() *NetworkStackInfo {
+	m0 := &NetworkStackInfo{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.InterfaceName = b.InterfaceName
+	x.Ipv6Prefix = b.Ipv6Prefix
+	return m0
+}
+
 // ReportNetworkStackInfoResponse is currently empty.
 type ReportNetworkStackInfoResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -386,14 +459,21 @@ func (x *ReportNetworkStackInfoResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ReportNetworkStackInfoResponse.ProtoReflect.Descriptor instead.
-func (*ReportNetworkStackInfoResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{4}
+type ReportNetworkStackInfoResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 ReportNetworkStackInfoResponse_builder) Build() *ReportNetworkStackInfoResponse {
+	m0 := &ReportNetworkStackInfoResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // PingRequest is a request for the Ping rpc.
 type PingRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -423,14 +503,21 @@ func (x *PingRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PingRequest.ProtoReflect.Descriptor instead.
-func (*PingRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{5}
+type PingRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 PingRequest_builder) Build() *PingRequest {
+	m0 := &PingRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // PingResponse is a response for the Ping rpc.
 type PingResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -460,14 +547,21 @@ func (x *PingResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PingResponse.ProtoReflect.Descriptor instead.
-func (*PingResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{6}
+type PingResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 PingResponse_builder) Build() *PingResponse {
+	m0 := &PingResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // ResolveFQDNRequest is a request for ResolveFQDN.
 type ResolveFQDNRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Fqdn is the fully-qualified domain name queried.
 	Fqdn          string `protobuf:"bytes,1,opt,name=fqdn,proto3" json:"fqdn,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -499,11 +593,6 @@ func (x *ResolveFQDNRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ResolveFQDNRequest.ProtoReflect.Descriptor instead.
-func (*ResolveFQDNRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *ResolveFQDNRequest) GetFqdn() string {
 	if x != nil {
 		return x.Fqdn
@@ -511,9 +600,28 @@ func (x *ResolveFQDNRequest) GetFqdn() string {
 	return ""
 }
 
+func (x *ResolveFQDNRequest) SetFqdn(v string) {
+	x.Fqdn = v
+}
+
+type ResolveFQDNRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fqdn is the fully-qualified domain name queried.
+	Fqdn string
+}
+
+func (b0 ResolveFQDNRequest_builder) Build() *ResolveFQDNRequest {
+	m0 := &ResolveFQDNRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Fqdn = b.Fqdn
+	return m0
+}
+
 // ResolveFQDNReponse is a response for ResolveFQDN.
 type ResolveFQDNResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Match:
 	//
 	//	*ResolveFQDNResponse_MatchedTcpApp
@@ -549,11 +657,6 @@ func (x *ResolveFQDNResponse) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ResolveFQDNResponse.ProtoReflect.Descriptor instead.
-func (*ResolveFQDNResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ResolveFQDNResponse) GetMatch() isResolveFQDNResponse_Match {
@@ -608,6 +711,210 @@ func (x *ResolveFQDNResponse) GetMatchedHttpsTunnelApp() *MatchedHTTPSTunnelApp 
 	return nil
 }
 
+func (x *ResolveFQDNResponse) SetMatchedTcpApp(v *MatchedTCPApp) {
+	if v == nil {
+		x.Match = nil
+		return
+	}
+	x.Match = &ResolveFQDNResponse_MatchedTcpApp{v}
+}
+
+func (x *ResolveFQDNResponse) SetMatchedWebApp(v *MatchedWebApp) {
+	if v == nil {
+		x.Match = nil
+		return
+	}
+	x.Match = &ResolveFQDNResponse_MatchedWebApp{v}
+}
+
+func (x *ResolveFQDNResponse) SetMatchedCluster(v *MatchedCluster) {
+	if v == nil {
+		x.Match = nil
+		return
+	}
+	x.Match = &ResolveFQDNResponse_MatchedCluster{v}
+}
+
+func (x *ResolveFQDNResponse) SetMatchedDatabase(v *MatchedDatabase) {
+	if v == nil {
+		x.Match = nil
+		return
+	}
+	x.Match = &ResolveFQDNResponse_MatchedDatabase{v}
+}
+
+func (x *ResolveFQDNResponse) SetMatchedHttpsTunnelApp(v *MatchedHTTPSTunnelApp) {
+	if v == nil {
+		x.Match = nil
+		return
+	}
+	x.Match = &ResolveFQDNResponse_MatchedHttpsTunnelApp{v}
+}
+
+func (x *ResolveFQDNResponse) HasMatch() bool {
+	if x == nil {
+		return false
+	}
+	return x.Match != nil
+}
+
+func (x *ResolveFQDNResponse) HasMatchedTcpApp() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Match.(*ResolveFQDNResponse_MatchedTcpApp)
+	return ok
+}
+
+func (x *ResolveFQDNResponse) HasMatchedWebApp() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Match.(*ResolveFQDNResponse_MatchedWebApp)
+	return ok
+}
+
+func (x *ResolveFQDNResponse) HasMatchedCluster() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Match.(*ResolveFQDNResponse_MatchedCluster)
+	return ok
+}
+
+func (x *ResolveFQDNResponse) HasMatchedDatabase() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Match.(*ResolveFQDNResponse_MatchedDatabase)
+	return ok
+}
+
+func (x *ResolveFQDNResponse) HasMatchedHttpsTunnelApp() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Match.(*ResolveFQDNResponse_MatchedHttpsTunnelApp)
+	return ok
+}
+
+func (x *ResolveFQDNResponse) ClearMatch() {
+	x.Match = nil
+}
+
+func (x *ResolveFQDNResponse) ClearMatchedTcpApp() {
+	if _, ok := x.Match.(*ResolveFQDNResponse_MatchedTcpApp); ok {
+		x.Match = nil
+	}
+}
+
+func (x *ResolveFQDNResponse) ClearMatchedWebApp() {
+	if _, ok := x.Match.(*ResolveFQDNResponse_MatchedWebApp); ok {
+		x.Match = nil
+	}
+}
+
+func (x *ResolveFQDNResponse) ClearMatchedCluster() {
+	if _, ok := x.Match.(*ResolveFQDNResponse_MatchedCluster); ok {
+		x.Match = nil
+	}
+}
+
+func (x *ResolveFQDNResponse) ClearMatchedDatabase() {
+	if _, ok := x.Match.(*ResolveFQDNResponse_MatchedDatabase); ok {
+		x.Match = nil
+	}
+}
+
+func (x *ResolveFQDNResponse) ClearMatchedHttpsTunnelApp() {
+	if _, ok := x.Match.(*ResolveFQDNResponse_MatchedHttpsTunnelApp); ok {
+		x.Match = nil
+	}
+}
+
+const ResolveFQDNResponse_Match_not_set_case case_ResolveFQDNResponse_Match = 0
+const ResolveFQDNResponse_MatchedTcpApp_case case_ResolveFQDNResponse_Match = 1
+const ResolveFQDNResponse_MatchedWebApp_case case_ResolveFQDNResponse_Match = 2
+const ResolveFQDNResponse_MatchedCluster_case case_ResolveFQDNResponse_Match = 3
+const ResolveFQDNResponse_MatchedDatabase_case case_ResolveFQDNResponse_Match = 4
+const ResolveFQDNResponse_MatchedHttpsTunnelApp_case case_ResolveFQDNResponse_Match = 5
+
+func (x *ResolveFQDNResponse) WhichMatch() case_ResolveFQDNResponse_Match {
+	if x == nil {
+		return ResolveFQDNResponse_Match_not_set_case
+	}
+	switch x.Match.(type) {
+	case *ResolveFQDNResponse_MatchedTcpApp:
+		return ResolveFQDNResponse_MatchedTcpApp_case
+	case *ResolveFQDNResponse_MatchedWebApp:
+		return ResolveFQDNResponse_MatchedWebApp_case
+	case *ResolveFQDNResponse_MatchedCluster:
+		return ResolveFQDNResponse_MatchedCluster_case
+	case *ResolveFQDNResponse_MatchedDatabase:
+		return ResolveFQDNResponse_MatchedDatabase_case
+	case *ResolveFQDNResponse_MatchedHttpsTunnelApp:
+		return ResolveFQDNResponse_MatchedHttpsTunnelApp_case
+	default:
+		return ResolveFQDNResponse_Match_not_set_case
+	}
+}
+
+type ResolveFQDNResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Match:
+	// MatchedTcpApp will be set when the query matched a TCP app.
+	MatchedTcpApp *MatchedTCPApp
+	// MatchedWebApp will be set when the query matched a web app and when app
+	// HTTPS tunnel is not used. MatchedWebApp signifies that the query matched
+	// a web app that VNet should not handle. DNS will be forwarded upstream so
+	// the browser resolves to the proxy's real address and goes through the
+	// normal web app login flow.
+	MatchedWebApp *MatchedWebApp
+	// MatchedCluster will be set when the query did not match any app, but did
+	// match a subdomain of a proxy address. VNet will resolve the DNS query to
+	// a handler that may later resolve the FQDN to an app or SSH server.
+	MatchedCluster *MatchedCluster
+	// MatchedDatabase will be set when the query matched a database resource.
+	MatchedDatabase *MatchedDatabase
+	// MatchedHTTPSTunnelApp will be set when the query matched an app that
+	// should be tunneled via the HTTPS-in-mTLS ALPN protocol.
+	MatchedHttpsTunnelApp *MatchedHTTPSTunnelApp
+	// -- end of Match
+}
+
+func (b0 ResolveFQDNResponse_builder) Build() *ResolveFQDNResponse {
+	m0 := &ResolveFQDNResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.MatchedTcpApp != nil {
+		x.Match = &ResolveFQDNResponse_MatchedTcpApp{b.MatchedTcpApp}
+	}
+	if b.MatchedWebApp != nil {
+		x.Match = &ResolveFQDNResponse_MatchedWebApp{b.MatchedWebApp}
+	}
+	if b.MatchedCluster != nil {
+		x.Match = &ResolveFQDNResponse_MatchedCluster{b.MatchedCluster}
+	}
+	if b.MatchedDatabase != nil {
+		x.Match = &ResolveFQDNResponse_MatchedDatabase{b.MatchedDatabase}
+	}
+	if b.MatchedHttpsTunnelApp != nil {
+		x.Match = &ResolveFQDNResponse_MatchedHttpsTunnelApp{b.MatchedHttpsTunnelApp}
+	}
+	return m0
+}
+
+type case_ResolveFQDNResponse_Match protoreflect.FieldNumber
+
+func (x case_ResolveFQDNResponse_Match) String() string {
+	md := file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes[8].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isResolveFQDNResponse_Match interface {
 	isResolveFQDNResponse_Match()
 }
@@ -656,7 +963,7 @@ func (*ResolveFQDNResponse_MatchedHttpsTunnelApp) isResolveFQDNResponse_Match() 
 
 // MatchedTCPApp holds info about a TCP app that matched a query.
 type MatchedTCPApp struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// AppInfo holds all necessary info for making connections to the resolved app.
 	AppInfo       *AppInfo `protobuf:"bytes,1,opt,name=app_info,json=appInfo,proto3" json:"app_info,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -688,11 +995,6 @@ func (x *MatchedTCPApp) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use MatchedTCPApp.ProtoReflect.Descriptor instead.
-func (*MatchedTCPApp) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{9}
-}
-
 func (x *MatchedTCPApp) GetAppInfo() *AppInfo {
 	if x != nil {
 		return x.AppInfo
@@ -700,9 +1002,39 @@ func (x *MatchedTCPApp) GetAppInfo() *AppInfo {
 	return nil
 }
 
+func (x *MatchedTCPApp) SetAppInfo(v *AppInfo) {
+	x.AppInfo = v
+}
+
+func (x *MatchedTCPApp) HasAppInfo() bool {
+	if x == nil {
+		return false
+	}
+	return x.AppInfo != nil
+}
+
+func (x *MatchedTCPApp) ClearAppInfo() {
+	x.AppInfo = nil
+}
+
+type MatchedTCPApp_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// AppInfo holds all necessary info for making connections to the resolved app.
+	AppInfo *AppInfo
+}
+
+func (b0 MatchedTCPApp_builder) Build() *MatchedTCPApp {
+	m0 := &MatchedTCPApp{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.AppInfo = b.AppInfo
+	return m0
+}
+
 // MatchedTCPApp is a placeholder to signify that the query matched a web app.
 type MatchedWebApp struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -732,15 +1064,22 @@ func (x *MatchedWebApp) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use MatchedWebApp.ProtoReflect.Descriptor instead.
-func (*MatchedWebApp) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{10}
+type MatchedWebApp_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 MatchedWebApp_builder) Build() *MatchedWebApp {
+	m0 := &MatchedWebApp{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // MatchedHTTPSTunnelApp holds info about an app that should be proxied through
 // the HTTPS-in-mTLS tunnel.
 type MatchedHTTPSTunnelApp struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// AppInfo holds all necessary info for making connections to the resolved app.
 	AppInfo       *AppInfo `protobuf:"bytes,1,opt,name=app_info,json=appInfo,proto3" json:"app_info,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -772,11 +1111,6 @@ func (x *MatchedHTTPSTunnelApp) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use MatchedHTTPSTunnelApp.ProtoReflect.Descriptor instead.
-func (*MatchedHTTPSTunnelApp) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{11}
-}
-
 func (x *MatchedHTTPSTunnelApp) GetAppInfo() *AppInfo {
 	if x != nil {
 		return x.AppInfo
@@ -784,9 +1118,39 @@ func (x *MatchedHTTPSTunnelApp) GetAppInfo() *AppInfo {
 	return nil
 }
 
+func (x *MatchedHTTPSTunnelApp) SetAppInfo(v *AppInfo) {
+	x.AppInfo = v
+}
+
+func (x *MatchedHTTPSTunnelApp) HasAppInfo() bool {
+	if x == nil {
+		return false
+	}
+	return x.AppInfo != nil
+}
+
+func (x *MatchedHTTPSTunnelApp) ClearAppInfo() {
+	x.AppInfo = nil
+}
+
+type MatchedHTTPSTunnelApp_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// AppInfo holds all necessary info for making connections to the resolved app.
+	AppInfo *AppInfo
+}
+
+func (b0 MatchedHTTPSTunnelApp_builder) Build() *MatchedHTTPSTunnelApp {
+	m0 := &MatchedHTTPSTunnelApp{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.AppInfo = b.AppInfo
+	return m0
+}
+
 // MatchedCluster holds info about a cluster that a query matched.
 type MatchedCluster struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Ipv4CidrRange is the CIDR range from which an IPv4 address should be assigned
 	// based on this cluster's vnet_config.
 	Ipv4CidrRange string `protobuf:"bytes,1,opt,name=ipv4_cidr_range,json=ipv4CidrRange,proto3" json:"ipv4_cidr_range,omitempty"`
@@ -830,11 +1194,6 @@ func (x *MatchedCluster) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use MatchedCluster.ProtoReflect.Descriptor instead.
-func (*MatchedCluster) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{12}
-}
-
 func (x *MatchedCluster) GetIpv4CidrRange() string {
 	if x != nil {
 		return x.Ipv4CidrRange
@@ -870,9 +1229,60 @@ func (x *MatchedCluster) GetLeafCluster() string {
 	return ""
 }
 
+func (x *MatchedCluster) SetIpv4CidrRange(v string) {
+	x.Ipv4CidrRange = v
+}
+
+func (x *MatchedCluster) SetWebProxyAddr(v string) {
+	x.WebProxyAddr = v
+}
+
+func (x *MatchedCluster) SetProfile(v string) {
+	x.Profile = v
+}
+
+func (x *MatchedCluster) SetRootCluster(v string) {
+	x.RootCluster = v
+}
+
+func (x *MatchedCluster) SetLeafCluster(v string) {
+	x.LeafCluster = v
+}
+
+type MatchedCluster_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Ipv4CidrRange is the CIDR range from which an IPv4 address should be assigned
+	// based on this cluster's vnet_config.
+	Ipv4CidrRange string
+	// WebProxyAddr is the web proxy address of the root cluster that matched the
+	// query.
+	WebProxyAddr string
+	// Profile is the profile the matched cluster was found in.
+	Profile string
+	// RootCluster will always be set to the name of the root cluster that matched
+	// the query.
+	RootCluster string
+	// LeafCluster will be set only when the query matched a leaf cluster of
+	// RootCluster, or else it will be empty.
+	LeafCluster string
+}
+
+func (b0 MatchedCluster_builder) Build() *MatchedCluster {
+	m0 := &MatchedCluster{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Ipv4CidrRange = b.Ipv4CidrRange
+	x.WebProxyAddr = b.WebProxyAddr
+	x.Profile = b.Profile
+	x.RootCluster = b.RootCluster
+	x.LeafCluster = b.LeafCluster
+	return m0
+}
+
 // AppInfo holds all necessary info for making connections to VNet TCP apps.
 type AppInfo struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// AppKey uniquely identifies a TCP app (and optionally a port for multi-port
 	// TCP apps).
 	AppKey *AppKey `protobuf:"bytes,1,opt,name=app_key,json=appKey,proto3" json:"app_key,omitempty"`
@@ -916,11 +1326,6 @@ func (x *AppInfo) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AppInfo.ProtoReflect.Descriptor instead.
-func (*AppInfo) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{13}
-}
-
 func (x *AppInfo) GetAppKey() *AppKey {
 	if x != nil {
 		return x.AppKey
@@ -956,9 +1361,93 @@ func (x *AppInfo) GetDialOptions() *DialOptions {
 	return nil
 }
 
+func (x *AppInfo) SetAppKey(v *AppKey) {
+	x.AppKey = v
+}
+
+func (x *AppInfo) SetCluster(v string) {
+	x.Cluster = v
+}
+
+func (x *AppInfo) SetApp(v *types.AppV3) {
+	x.App = v
+}
+
+func (x *AppInfo) SetIpv4CidrRange(v string) {
+	x.Ipv4CidrRange = v
+}
+
+func (x *AppInfo) SetDialOptions(v *DialOptions) {
+	x.DialOptions = v
+}
+
+func (x *AppInfo) HasAppKey() bool {
+	if x == nil {
+		return false
+	}
+	return x.AppKey != nil
+}
+
+func (x *AppInfo) HasApp() bool {
+	if x == nil {
+		return false
+	}
+	return x.App != nil
+}
+
+func (x *AppInfo) HasDialOptions() bool {
+	if x == nil {
+		return false
+	}
+	return x.DialOptions != nil
+}
+
+func (x *AppInfo) ClearAppKey() {
+	x.AppKey = nil
+}
+
+func (x *AppInfo) ClearApp() {
+	x.App = nil
+}
+
+func (x *AppInfo) ClearDialOptions() {
+	x.DialOptions = nil
+}
+
+type AppInfo_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// AppKey uniquely identifies a TCP app (and optionally a port for multi-port
+	// TCP apps).
+	AppKey *AppKey
+	// Cluster is the name of the cluster in which the app is found.
+	// Iff the app is in a leaf cluster, this will match app_key.leaf_cluster.
+	Cluster string
+	// App is the app spec.
+	App *types.AppV3
+	// Ipv4CidrRange is the CIDR range from which an IPv4 address should be
+	// assigned to the app.
+	Ipv4CidrRange string
+	// DialOptions holds options that should be used when dialing the root cluster
+	// of the app.
+	DialOptions *DialOptions
+}
+
+func (b0 AppInfo_builder) Build() *AppInfo {
+	m0 := &AppInfo{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.AppKey = b.AppKey
+	x.Cluster = b.Cluster
+	x.App = b.App
+	x.Ipv4CidrRange = b.Ipv4CidrRange
+	x.DialOptions = b.DialOptions
+	return m0
+}
+
 // AppKey uniquely identifies a TCP app in a specific profile and cluster.
 type AppKey struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Profile is the profile in which the app is found.
 	Profile string `protobuf:"bytes,1,opt,name=profile,proto3" json:"profile,omitempty"`
 	// LeafCluster is the leaf cluster in which the app is found. If empty, the
@@ -995,11 +1484,6 @@ func (x *AppKey) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AppKey.ProtoReflect.Descriptor instead.
-func (*AppKey) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{14}
-}
-
 func (x *AppKey) GetProfile() string {
 	if x != nil {
 		return x.Profile
@@ -1021,9 +1505,43 @@ func (x *AppKey) GetName() string {
 	return ""
 }
 
+func (x *AppKey) SetProfile(v string) {
+	x.Profile = v
+}
+
+func (x *AppKey) SetLeafCluster(v string) {
+	x.LeafCluster = v
+}
+
+func (x *AppKey) SetName(v string) {
+	x.Name = v
+}
+
+type AppKey_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Profile is the profile in which the app is found.
+	Profile string
+	// LeafCluster is the leaf cluster in which the app is found. If empty, the
+	// app is in the root cluster for the profile.
+	LeafCluster string
+	// Name is the name of the app.
+	Name string
+}
+
+func (b0 AppKey_builder) Build() *AppKey {
+	m0 := &AppKey{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Profile = b.Profile
+	x.LeafCluster = b.LeafCluster
+	x.Name = b.Name
+	return m0
+}
+
 // DialOptions holds ALPN dial options for dialing apps.
 type DialOptions struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// WebProxyAddr is the address to dial.
 	WebProxyAddr string `protobuf:"bytes,1,opt,name=web_proxy_addr,json=webProxyAddr,proto3" json:"web_proxy_addr,omitempty"`
 	// AlpnConnUpgradeRequired specifies if ALPN connection upgrade is required.
@@ -1066,11 +1584,6 @@ func (x *DialOptions) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DialOptions.ProtoReflect.Descriptor instead.
-func (*DialOptions) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{15}
-}
-
 func (x *DialOptions) GetWebProxyAddr() string {
 	if x != nil {
 		return x.WebProxyAddr
@@ -1106,9 +1619,62 @@ func (x *DialOptions) GetRootClusterCaCertPool() []byte {
 	return nil
 }
 
+func (x *DialOptions) SetWebProxyAddr(v string) {
+	x.WebProxyAddr = v
+}
+
+func (x *DialOptions) SetAlpnConnUpgradeRequired(v bool) {
+	x.AlpnConnUpgradeRequired = v
+}
+
+func (x *DialOptions) SetSni(v string) {
+	x.Sni = v
+}
+
+func (x *DialOptions) SetInsecureSkipVerify(v bool) {
+	x.InsecureSkipVerify = v
+}
+
+func (x *DialOptions) SetRootClusterCaCertPool(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.RootClusterCaCertPool = v
+}
+
+type DialOptions_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// WebProxyAddr is the address to dial.
+	WebProxyAddr string
+	// AlpnConnUpgradeRequired specifies if ALPN connection upgrade is required.
+	AlpnConnUpgradeRequired bool
+	// Sni is a ServerName value set for upstream TLS connection.
+	Sni string
+	// InsecureSkipVerify turns off verification for x509 upstream ALPN proxy service certificate.
+	InsecureSkipVerify bool
+	// RootClusterCaCertPool is the host CA TLS certificate pool for the root
+	// cluster. It is a PEM-encoded X509 certificate pool. It should be used when
+	// dialing the proxy and AlpnConnUpgradeRequired is true or when dialing the
+	// transport service.
+	RootClusterCaCertPool []byte
+}
+
+func (b0 DialOptions_builder) Build() *DialOptions {
+	m0 := &DialOptions{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.WebProxyAddr = b.WebProxyAddr
+	x.AlpnConnUpgradeRequired = b.AlpnConnUpgradeRequired
+	x.Sni = b.Sni
+	x.InsecureSkipVerify = b.InsecureSkipVerify
+	x.RootClusterCaCertPool = b.RootClusterCaCertPool
+	return m0
+}
+
 // ReissueAppCertRequest is a request for ReissueAppCert.
 type ReissueAppCertRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// AppInfo contains info about the app, every ReissueAppCertRequest must
 	// include an app_info as returned from ResolveFQDN.
 	AppInfo *AppInfo `protobuf:"bytes,1,opt,name=app_info,json=appInfo,proto3" json:"app_info,omitempty"`
@@ -1143,11 +1709,6 @@ func (x *ReissueAppCertRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ReissueAppCertRequest.ProtoReflect.Descriptor instead.
-func (*ReissueAppCertRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{16}
-}
-
 func (x *ReissueAppCertRequest) GetAppInfo() *AppInfo {
 	if x != nil {
 		return x.AppInfo
@@ -1162,9 +1723,47 @@ func (x *ReissueAppCertRequest) GetTargetPort() uint32 {
 	return 0
 }
 
+func (x *ReissueAppCertRequest) SetAppInfo(v *AppInfo) {
+	x.AppInfo = v
+}
+
+func (x *ReissueAppCertRequest) SetTargetPort(v uint32) {
+	x.TargetPort = v
+}
+
+func (x *ReissueAppCertRequest) HasAppInfo() bool {
+	if x == nil {
+		return false
+	}
+	return x.AppInfo != nil
+}
+
+func (x *ReissueAppCertRequest) ClearAppInfo() {
+	x.AppInfo = nil
+}
+
+type ReissueAppCertRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// AppInfo contains info about the app, every ReissueAppCertRequest must
+	// include an app_info as returned from ResolveFQDN.
+	AppInfo *AppInfo
+	// TargetPort is the TCP port to issue the cert for.
+	TargetPort uint32
+}
+
+func (b0 ReissueAppCertRequest_builder) Build() *ReissueAppCertRequest {
+	m0 := &ReissueAppCertRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.AppInfo = b.AppInfo
+	x.TargetPort = b.TargetPort
+	return m0
+}
+
 // ReissueAppCertResponse is a response for ReissueAppCert.
 type ReissueAppCertResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Cert is the issued app certificate in x509 DER format.
 	Cert          []byte `protobuf:"bytes,1,opt,name=cert,proto3" json:"cert,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1196,16 +1795,33 @@ func (x *ReissueAppCertResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ReissueAppCertResponse.ProtoReflect.Descriptor instead.
-func (*ReissueAppCertResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{17}
-}
-
 func (x *ReissueAppCertResponse) GetCert() []byte {
 	if x != nil {
 		return x.Cert
 	}
 	return nil
+}
+
+func (x *ReissueAppCertResponse) SetCert(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Cert = v
+}
+
+type ReissueAppCertResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Cert is the issued app certificate in x509 DER format.
+	Cert []byte
+}
+
+func (b0 ReissueAppCertResponse_builder) Build() *ReissueAppCertResponse {
+	m0 := &ReissueAppCertResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Cert = b.Cert
+	return m0
 }
 
 // SignForAppRequest is a request to sign data with a private key that the
@@ -1214,7 +1830,7 @@ func (x *ReissueAppCertResponse) GetCert() []byte {
 // ReissueAppCert. The private key used for the signature will match the subject
 // public key of the issued x509 certificate.
 type SignForAppRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// AppKey uniquely identifies a TCP app, it must match the key of an app from
 	// a previous successful call to ReissueAppCert.
 	AppKey *AppKey `protobuf:"bytes,1,opt,name=app_key,json=appKey,proto3" json:"app_key,omitempty"`
@@ -1253,11 +1869,6 @@ func (x *SignForAppRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SignForAppRequest.ProtoReflect.Descriptor instead.
-func (*SignForAppRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{18}
-}
-
 func (x *SignForAppRequest) GetAppKey() *AppKey {
 	if x != nil {
 		return x.AppKey
@@ -1279,9 +1890,67 @@ func (x *SignForAppRequest) GetSign() *SignRequest {
 	return nil
 }
 
+func (x *SignForAppRequest) SetAppKey(v *AppKey) {
+	x.AppKey = v
+}
+
+func (x *SignForAppRequest) SetTargetPort(v uint32) {
+	x.TargetPort = v
+}
+
+func (x *SignForAppRequest) SetSign(v *SignRequest) {
+	x.Sign = v
+}
+
+func (x *SignForAppRequest) HasAppKey() bool {
+	if x == nil {
+		return false
+	}
+	return x.AppKey != nil
+}
+
+func (x *SignForAppRequest) HasSign() bool {
+	if x == nil {
+		return false
+	}
+	return x.Sign != nil
+}
+
+func (x *SignForAppRequest) ClearAppKey() {
+	x.AppKey = nil
+}
+
+func (x *SignForAppRequest) ClearSign() {
+	x.Sign = nil
+}
+
+type SignForAppRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// AppKey uniquely identifies a TCP app, it must match the key of an app from
+	// a previous successful call to ReissueAppCert.
+	AppKey *AppKey
+	// TargetPort identifies the TCP port of the app, it must match the
+	// TargetPort of a previous successful call to ReissueAppCert for an app
+	// matching AppKey.
+	TargetPort uint32
+	// Sign holds signature request details.
+	Sign *SignRequest
+}
+
+func (b0 SignForAppRequest_builder) Build() *SignForAppRequest {
+	m0 := &SignForAppRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.AppKey = b.AppKey
+	x.TargetPort = b.TargetPort
+	x.Sign = b.Sign
+	return m0
+}
+
 // SignRequest holds signature request details.
 type SignRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Digest is the bytes to sign.
 	Digest []byte `protobuf:"bytes,1,opt,name=digest,proto3" json:"digest,omitempty"`
 	// Hash is the hash function used to compute digest.
@@ -1318,11 +1987,6 @@ func (x *SignRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SignRequest.ProtoReflect.Descriptor instead.
-func (*SignRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{19}
-}
-
 func (x *SignRequest) GetDigest() []byte {
 	if x != nil {
 		return x.Digest
@@ -1344,9 +2008,57 @@ func (x *SignRequest) GetPssSaltLength() int32 {
 	return 0
 }
 
+func (x *SignRequest) SetDigest(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Digest = v
+}
+
+func (x *SignRequest) SetHash(v Hash) {
+	x.Hash = v
+}
+
+func (x *SignRequest) SetPssSaltLength(v int32) {
+	x.PssSaltLength = &v
+}
+
+func (x *SignRequest) HasPssSaltLength() bool {
+	if x == nil {
+		return false
+	}
+	return x.PssSaltLength != nil
+}
+
+func (x *SignRequest) ClearPssSaltLength() {
+	x.PssSaltLength = nil
+}
+
+type SignRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Digest is the bytes to sign.
+	Digest []byte
+	// Hash is the hash function used to compute digest.
+	Hash Hash
+	// PssSaltLength specifies the length of the salt added to the digest before a
+	// signature. Only used and required for RSA PSS signatures.
+	PssSaltLength *int32
+}
+
+func (b0 SignRequest_builder) Build() *SignRequest {
+	m0 := &SignRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Digest = b.Digest
+	x.Hash = b.Hash
+	x.PssSaltLength = b.PssSaltLength
+	return m0
+}
+
 // SignForAppResponse is a response for SignForApp.
 type SignForAppResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Signature is the signature.
 	Signature     []byte `protobuf:"bytes,1,opt,name=signature,proto3" json:"signature,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1378,11 +2090,6 @@ func (x *SignForAppResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SignForAppResponse.ProtoReflect.Descriptor instead.
-func (*SignForAppResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{20}
-}
-
 func (x *SignForAppResponse) GetSignature() []byte {
 	if x != nil {
 		return x.Signature
@@ -1390,9 +2097,31 @@ func (x *SignForAppResponse) GetSignature() []byte {
 	return nil
 }
 
+func (x *SignForAppResponse) SetSignature(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Signature = v
+}
+
+type SignForAppResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Signature is the signature.
+	Signature []byte
+}
+
+func (b0 SignForAppResponse_builder) Build() *SignForAppResponse {
+	m0 := &SignForAppResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Signature = b.Signature
+	return m0
+}
+
 // OnNewAppConnectionRequest is a request for OnNewAppConnection.
 type OnNewAppConnectionRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// AppKey identifies the app the connection is being made for.
 	AppKey        *AppKey `protobuf:"bytes,1,opt,name=app_key,json=appKey,proto3" json:"app_key,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1424,11 +2153,6 @@ func (x *OnNewAppConnectionRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use OnNewAppConnectionRequest.ProtoReflect.Descriptor instead.
-func (*OnNewAppConnectionRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{21}
-}
-
 func (x *OnNewAppConnectionRequest) GetAppKey() *AppKey {
 	if x != nil {
 		return x.AppKey
@@ -1436,9 +2160,39 @@ func (x *OnNewAppConnectionRequest) GetAppKey() *AppKey {
 	return nil
 }
 
+func (x *OnNewAppConnectionRequest) SetAppKey(v *AppKey) {
+	x.AppKey = v
+}
+
+func (x *OnNewAppConnectionRequest) HasAppKey() bool {
+	if x == nil {
+		return false
+	}
+	return x.AppKey != nil
+}
+
+func (x *OnNewAppConnectionRequest) ClearAppKey() {
+	x.AppKey = nil
+}
+
+type OnNewAppConnectionRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// AppKey identifies the app the connection is being made for.
+	AppKey *AppKey
+}
+
+func (b0 OnNewAppConnectionRequest_builder) Build() *OnNewAppConnectionRequest {
+	m0 := &OnNewAppConnectionRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.AppKey = b.AppKey
+	return m0
+}
+
 // OnNewAppConnectionResponse is a response for OnNewAppConnection.
 type OnNewAppConnectionResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1468,14 +2222,21 @@ func (x *OnNewAppConnectionResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use OnNewAppConnectionResponse.ProtoReflect.Descriptor instead.
-func (*OnNewAppConnectionResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{22}
+type OnNewAppConnectionResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 OnNewAppConnectionResponse_builder) Build() *OnNewAppConnectionResponse {
+	m0 := &OnNewAppConnectionResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // OnInvalidLocalPortRequest is a request for OnInvalidLocalPort.
 type OnInvalidLocalPortRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// AppInfo identifies the app the request was made for. AppInfo is used
 	// instaed of AppKey so that the application spec is included, which includes
 	// the TCP port ranges allowed for the app, which are ultimately included in
@@ -1512,11 +2273,6 @@ func (x *OnInvalidLocalPortRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use OnInvalidLocalPortRequest.ProtoReflect.Descriptor instead.
-func (*OnInvalidLocalPortRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{23}
-}
-
 func (x *OnInvalidLocalPortRequest) GetAppInfo() *AppInfo {
 	if x != nil {
 		return x.AppInfo
@@ -1531,9 +2287,49 @@ func (x *OnInvalidLocalPortRequest) GetTargetPort() uint32 {
 	return 0
 }
 
+func (x *OnInvalidLocalPortRequest) SetAppInfo(v *AppInfo) {
+	x.AppInfo = v
+}
+
+func (x *OnInvalidLocalPortRequest) SetTargetPort(v uint32) {
+	x.TargetPort = v
+}
+
+func (x *OnInvalidLocalPortRequest) HasAppInfo() bool {
+	if x == nil {
+		return false
+	}
+	return x.AppInfo != nil
+}
+
+func (x *OnInvalidLocalPortRequest) ClearAppInfo() {
+	x.AppInfo = nil
+}
+
+type OnInvalidLocalPortRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// AppInfo identifies the app the request was made for. AppInfo is used
+	// instaed of AppKey so that the application spec is included, which includes
+	// the TCP port ranges allowed for the app, which are ultimately included in
+	// the user error message.
+	AppInfo *AppInfo
+	// TargetPort is the invalid port the request was made for.
+	TargetPort uint32
+}
+
+func (b0 OnInvalidLocalPortRequest_builder) Build() *OnInvalidLocalPortRequest {
+	m0 := &OnInvalidLocalPortRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.AppInfo = b.AppInfo
+	x.TargetPort = b.TargetPort
+	return m0
+}
+
 // OnInvalidLocalPortResponse is a response for OnInvalidLocalPort.
 type OnInvalidLocalPortResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1563,14 +2359,21 @@ func (x *OnInvalidLocalPortResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use OnInvalidLocalPortResponse.ProtoReflect.Descriptor instead.
-func (*OnInvalidLocalPortResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{24}
+type OnInvalidLocalPortResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 OnInvalidLocalPortResponse_builder) Build() *OnInvalidLocalPortResponse {
+	m0 := &OnInvalidLocalPortResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // GetTargetOSConfigurationRequest is a request for the target host OS configuration.
 type GetTargetOSConfigurationRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1600,14 +2403,21 @@ func (x *GetTargetOSConfigurationRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetTargetOSConfigurationRequest.ProtoReflect.Descriptor instead.
-func (*GetTargetOSConfigurationRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{25}
+type GetTargetOSConfigurationRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 GetTargetOSConfigurationRequest_builder) Build() *GetTargetOSConfigurationRequest {
+	m0 := &GetTargetOSConfigurationRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // GetTargetOSConfigurationResponse is a response including the target host OS configuration.
 type GetTargetOSConfigurationResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// TargetOsConfiguration holds target configuration values for the host OS.
 	TargetOsConfiguration *TargetOSConfiguration `protobuf:"bytes,1,opt,name=target_os_configuration,json=targetOsConfiguration,proto3" json:"target_os_configuration,omitempty"`
 	unknownFields         protoimpl.UnknownFields
@@ -1639,11 +2449,6 @@ func (x *GetTargetOSConfigurationResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetTargetOSConfigurationResponse.ProtoReflect.Descriptor instead.
-func (*GetTargetOSConfigurationResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{26}
-}
-
 func (x *GetTargetOSConfigurationResponse) GetTargetOsConfiguration() *TargetOSConfiguration {
 	if x != nil {
 		return x.TargetOsConfiguration
@@ -1651,10 +2456,40 @@ func (x *GetTargetOSConfigurationResponse) GetTargetOsConfiguration() *TargetOSC
 	return nil
 }
 
+func (x *GetTargetOSConfigurationResponse) SetTargetOsConfiguration(v *TargetOSConfiguration) {
+	x.TargetOsConfiguration = v
+}
+
+func (x *GetTargetOSConfigurationResponse) HasTargetOsConfiguration() bool {
+	if x == nil {
+		return false
+	}
+	return x.TargetOsConfiguration != nil
+}
+
+func (x *GetTargetOSConfigurationResponse) ClearTargetOsConfiguration() {
+	x.TargetOsConfiguration = nil
+}
+
+type GetTargetOSConfigurationResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// TargetOsConfiguration holds target configuration values for the host OS.
+	TargetOsConfiguration *TargetOSConfiguration
+}
+
+func (b0 GetTargetOSConfigurationResponse_builder) Build() *GetTargetOSConfigurationResponse {
+	m0 := &GetTargetOSConfigurationResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.TargetOsConfiguration = b.TargetOsConfiguration
+	return m0
+}
+
 // TargetOSConfiguration holds desired OS configuration parameters that need to
 // be fetched from the client application.
 type TargetOSConfiguration struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// DnsZones is a list of all DNS zones that VNet should handle queries for. This
 	// should include the public hostname of every cluster the user is logged in
 	// to, and all configured custom DNS zones from all clusters.
@@ -1694,11 +2529,6 @@ func (x *TargetOSConfiguration) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TargetOSConfiguration.ProtoReflect.Descriptor instead.
-func (*TargetOSConfiguration) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{27}
-}
-
 func (x *TargetOSConfiguration) GetDnsZones() []string {
 	if x != nil {
 		return x.DnsZones
@@ -1713,9 +2543,41 @@ func (x *TargetOSConfiguration) GetIpv4CidrRanges() []string {
 	return nil
 }
 
+func (x *TargetOSConfiguration) SetDnsZones(v []string) {
+	x.DnsZones = v
+}
+
+func (x *TargetOSConfiguration) SetIpv4CidrRanges(v []string) {
+	x.Ipv4CidrRanges = v
+}
+
+type TargetOSConfiguration_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// DnsZones is a list of all DNS zones that VNet should handle queries for. This
+	// should include the public hostname of every cluster the user is logged in
+	// to, and all configured custom DNS zones from all clusters.
+	DnsZones []string
+	// Ipv4CidrRanges is a list of IPv4 CIDR ranges that VNet addresses may be
+	// assigned from, these ranges should all be routed to the VNet TUN interface.
+	// This should include the custom range configured for each cluster the user
+	// is logged in to, and if any cluster does not configure a custom range it
+	// should also include the default range.
+	Ipv4CidrRanges []string
+}
+
+func (b0 TargetOSConfiguration_builder) Build() *TargetOSConfiguration {
+	m0 := &TargetOSConfiguration{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.DnsZones = b.DnsZones
+	x.Ipv4CidrRanges = b.Ipv4CidrRanges
+	return m0
+}
+
 // UserTLSCertRequest is a request for UserTLSCert.
 type UserTLSCertRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Profile is the profile to retrieve the certificate for.
 	Profile       string `protobuf:"bytes,1,opt,name=profile,proto3" json:"profile,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1747,11 +2609,6 @@ func (x *UserTLSCertRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UserTLSCertRequest.ProtoReflect.Descriptor instead.
-func (*UserTLSCertRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{28}
-}
-
 func (x *UserTLSCertRequest) GetProfile() string {
 	if x != nil {
 		return x.Profile
@@ -1759,9 +2616,28 @@ func (x *UserTLSCertRequest) GetProfile() string {
 	return ""
 }
 
+func (x *UserTLSCertRequest) SetProfile(v string) {
+	x.Profile = v
+}
+
+type UserTLSCertRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Profile is the profile to retrieve the certificate for.
+	Profile string
+}
+
+func (b0 UserTLSCertRequest_builder) Build() *UserTLSCertRequest {
+	m0 := &UserTLSCertRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Profile = b.Profile
+	return m0
+}
+
 // UserTLSCertResponse is a response for UserTLSCert.
 type UserTLSCertResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Cert is the user TLS certificate in X.509 ASN.1 DER format.
 	Cert []byte `protobuf:"bytes,1,opt,name=cert,proto3" json:"cert,omitempty"`
 	// DialOptions holds options that should be used when dialing the root cluster
@@ -1796,11 +2672,6 @@ func (x *UserTLSCertResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UserTLSCertResponse.ProtoReflect.Descriptor instead.
-func (*UserTLSCertResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{29}
-}
-
 func (x *UserTLSCertResponse) GetCert() []byte {
 	if x != nil {
 		return x.Cert
@@ -1815,9 +2686,50 @@ func (x *UserTLSCertResponse) GetDialOptions() *DialOptions {
 	return nil
 }
 
+func (x *UserTLSCertResponse) SetCert(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Cert = v
+}
+
+func (x *UserTLSCertResponse) SetDialOptions(v *DialOptions) {
+	x.DialOptions = v
+}
+
+func (x *UserTLSCertResponse) HasDialOptions() bool {
+	if x == nil {
+		return false
+	}
+	return x.DialOptions != nil
+}
+
+func (x *UserTLSCertResponse) ClearDialOptions() {
+	x.DialOptions = nil
+}
+
+type UserTLSCertResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Cert is the user TLS certificate in X.509 ASN.1 DER format.
+	Cert []byte
+	// DialOptions holds options that should be used when dialing the root cluster
+	// proxy.
+	DialOptions *DialOptions
+}
+
+func (b0 UserTLSCertResponse_builder) Build() *UserTLSCertResponse {
+	m0 := &UserTLSCertResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Cert = b.Cert
+	x.DialOptions = b.DialOptions
+	return m0
+}
+
 // SignForUserTLSRequest is a request for SignForUserTLS.
 type SignForUserTLSRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Profile is the user profile to sign for.
 	Profile string `protobuf:"bytes,1,opt,name=profile,proto3" json:"profile,omitempty"`
 	// Sign holds signature request details.
@@ -1851,11 +2763,6 @@ func (x *SignForUserTLSRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SignForUserTLSRequest.ProtoReflect.Descriptor instead.
-func (*SignForUserTLSRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{30}
-}
-
 func (x *SignForUserTLSRequest) GetProfile() string {
 	if x != nil {
 		return x.Profile
@@ -1870,9 +2777,46 @@ func (x *SignForUserTLSRequest) GetSign() *SignRequest {
 	return nil
 }
 
+func (x *SignForUserTLSRequest) SetProfile(v string) {
+	x.Profile = v
+}
+
+func (x *SignForUserTLSRequest) SetSign(v *SignRequest) {
+	x.Sign = v
+}
+
+func (x *SignForUserTLSRequest) HasSign() bool {
+	if x == nil {
+		return false
+	}
+	return x.Sign != nil
+}
+
+func (x *SignForUserTLSRequest) ClearSign() {
+	x.Sign = nil
+}
+
+type SignForUserTLSRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Profile is the user profile to sign for.
+	Profile string
+	// Sign holds signature request details.
+	Sign *SignRequest
+}
+
+func (b0 SignForUserTLSRequest_builder) Build() *SignForUserTLSRequest {
+	m0 := &SignForUserTLSRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Profile = b.Profile
+	x.Sign = b.Sign
+	return m0
+}
+
 // SignForUserTLSResponse is a response for SignForUserTLS.
 type SignForUserTLSResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Signature is the signature.
 	Signature     []byte `protobuf:"bytes,1,opt,name=signature,proto3" json:"signature,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1904,11 +2848,6 @@ func (x *SignForUserTLSResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SignForUserTLSResponse.ProtoReflect.Descriptor instead.
-func (*SignForUserTLSResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{31}
-}
-
 func (x *SignForUserTLSResponse) GetSignature() []byte {
 	if x != nil {
 		return x.Signature
@@ -1916,9 +2855,31 @@ func (x *SignForUserTLSResponse) GetSignature() []byte {
 	return nil
 }
 
+func (x *SignForUserTLSResponse) SetSignature(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Signature = v
+}
+
+type SignForUserTLSResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Signature is the signature.
+	Signature []byte
+}
+
+func (b0 SignForUserTLSResponse_builder) Build() *SignForUserTLSResponse {
+	m0 := &SignForUserTLSResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Signature = b.Signature
+	return m0
+}
+
 // SessionSSHConfigRequest is a request for SessionSSHConfig.
 type SessionSSHConfigRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Profile is the profile in which the SSH server is found.
 	Profile string `protobuf:"bytes,1,opt,name=profile,proto3" json:"profile,omitempty"`
 	// RootCluster is the cluster in which the SSH server is found.
@@ -1959,11 +2920,6 @@ func (x *SessionSSHConfigRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SessionSSHConfigRequest.ProtoReflect.Descriptor instead.
-func (*SessionSSHConfigRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *SessionSSHConfigRequest) GetProfile() string {
@@ -2008,9 +2964,64 @@ func (x *SessionSSHConfigRequest) GetCredentialMode() SessionSSHConfigCredential
 	return SessionSSHConfigCredentialMode_SESSION_SSH_CONFIG_CREDENTIAL_MODE_UNSPECIFIED
 }
 
+func (x *SessionSSHConfigRequest) SetProfile(v string) {
+	x.Profile = v
+}
+
+func (x *SessionSSHConfigRequest) SetRootCluster(v string) {
+	x.RootCluster = v
+}
+
+func (x *SessionSSHConfigRequest) SetLeafCluster(v string) {
+	x.LeafCluster = v
+}
+
+func (x *SessionSSHConfigRequest) SetAddress(v string) {
+	x.Address = v
+}
+
+func (x *SessionSSHConfigRequest) SetUser(v string) {
+	x.User = v
+}
+
+func (x *SessionSSHConfigRequest) SetCredentialMode(v SessionSSHConfigCredentialMode) {
+	x.CredentialMode = v
+}
+
+type SessionSSHConfigRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Profile is the profile in which the SSH server is found.
+	Profile string
+	// RootCluster is the cluster in which the SSH server is found.
+	RootCluster string
+	// LeafCluster is the leaf cluster in which the SSH server is found.
+	// If empty, the SSH server is in the root cluster.
+	LeafCluster string
+	// Address is the address of the SSH server.
+	Address string
+	// User is the SSH user the session is for.
+	User string
+	// Selects the credential path for this request.
+	CredentialMode SessionSSHConfigCredentialMode
+}
+
+func (b0 SessionSSHConfigRequest_builder) Build() *SessionSSHConfigRequest {
+	m0 := &SessionSSHConfigRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Profile = b.Profile
+	x.RootCluster = b.RootCluster
+	x.LeafCluster = b.LeafCluster
+	x.Address = b.Address
+	x.User = b.User
+	x.CredentialMode = b.CredentialMode
+	return m0
+}
+
 // SessionSSHConfigResponse is a response for SessionSSHConfig.
 type SessionSSHConfigResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// SessionId is an opaque identifier for the session, it should be passed to
 	// SignForSSHSession to issue signatures with the private key associated with
 	// the session.
@@ -2049,11 +3060,6 @@ func (x *SessionSSHConfigResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SessionSSHConfigResponse.ProtoReflect.Descriptor instead.
-func (*SessionSSHConfigResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{33}
-}
-
 func (x *SessionSSHConfigResponse) GetSessionId() string {
 	if x != nil {
 		return x.SessionId
@@ -2075,9 +3081,48 @@ func (x *SessionSSHConfigResponse) GetTrustedCas() [][]byte {
 	return nil
 }
 
+func (x *SessionSSHConfigResponse) SetSessionId(v string) {
+	x.SessionId = v
+}
+
+func (x *SessionSSHConfigResponse) SetCert(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Cert = v
+}
+
+func (x *SessionSSHConfigResponse) SetTrustedCas(v [][]byte) {
+	x.TrustedCas = v
+}
+
+type SessionSSHConfigResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// SessionId is an opaque identifier for the session, it should be passed to
+	// SignForSSHSession to issue signatures with the private key associated with
+	// the session.
+	SessionId string
+	// Cert is the session SSH certificate in SSH wire format.
+	Cert []byte
+	// TrustedCas is a list of trusted SSH certificate authorities in SSH wire
+	// format.
+	TrustedCas [][]byte
+}
+
+func (b0 SessionSSHConfigResponse_builder) Build() *SessionSSHConfigResponse {
+	m0 := &SessionSSHConfigResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.SessionId = b.SessionId
+	x.Cert = b.Cert
+	x.TrustedCas = b.TrustedCas
+	return m0
+}
+
 // SignForSSHSessionRequest is a request for SignForSSHSession.
 type SignForSSHSessionRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// SessionId is an opaque identifier for the session returned from a previous
 	// call to SessionSSHConfig.
 	SessionId string `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
@@ -2112,11 +3157,6 @@ func (x *SignForSSHSessionRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SignForSSHSessionRequest.ProtoReflect.Descriptor instead.
-func (*SignForSSHSessionRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{34}
-}
-
 func (x *SignForSSHSessionRequest) GetSessionId() string {
 	if x != nil {
 		return x.SessionId
@@ -2131,9 +3171,47 @@ func (x *SignForSSHSessionRequest) GetSign() *SignRequest {
 	return nil
 }
 
+func (x *SignForSSHSessionRequest) SetSessionId(v string) {
+	x.SessionId = v
+}
+
+func (x *SignForSSHSessionRequest) SetSign(v *SignRequest) {
+	x.Sign = v
+}
+
+func (x *SignForSSHSessionRequest) HasSign() bool {
+	if x == nil {
+		return false
+	}
+	return x.Sign != nil
+}
+
+func (x *SignForSSHSessionRequest) ClearSign() {
+	x.Sign = nil
+}
+
+type SignForSSHSessionRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// SessionId is an opaque identifier for the session returned from a previous
+	// call to SessionSSHConfig.
+	SessionId string
+	// Sign holds signature request details.
+	Sign *SignRequest
+}
+
+func (b0 SignForSSHSessionRequest_builder) Build() *SignForSSHSessionRequest {
+	m0 := &SignForSSHSessionRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.SessionId = b.SessionId
+	x.Sign = b.Sign
+	return m0
+}
+
 // SignForSSHSessionResponse is a response for SignForSSHSession.
 type SignForSSHSessionResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Signature is the signature.
 	Signature     []byte `protobuf:"bytes,1,opt,name=signature,proto3" json:"signature,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -2165,11 +3243,6 @@ func (x *SignForSSHSessionResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SignForSSHSessionResponse.ProtoReflect.Descriptor instead.
-func (*SignForSSHSessionResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{35}
-}
-
 func (x *SignForSSHSessionResponse) GetSignature() []byte {
 	if x != nil {
 		return x.Signature
@@ -2177,9 +3250,31 @@ func (x *SignForSSHSessionResponse) GetSignature() []byte {
 	return nil
 }
 
+func (x *SignForSSHSessionResponse) SetSignature(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Signature = v
+}
+
+type SignForSSHSessionResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Signature is the signature.
+	Signature []byte
+}
+
+func (b0 SignForSSHSessionResponse_builder) Build() *SignForSSHSessionResponse {
+	m0 := &SignForSSHSessionResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Signature = b.Signature
+	return m0
+}
+
 // ExchangeSSHKeysRequest is a request to exchange SSH keys for VNet SSH.
 type ExchangeSSHKeysRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// HostPublicKey is the host key that should be trusted by clients connecting
 	// to VNet SSH addresses. It is encoded in OpenSSH wire format.
 	HostPublicKey []byte `protobuf:"bytes,1,opt,name=host_public_key,json=hostPublicKey,proto3" json:"host_public_key,omitempty"`
@@ -2212,11 +3307,6 @@ func (x *ExchangeSSHKeysRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ExchangeSSHKeysRequest.ProtoReflect.Descriptor instead.
-func (*ExchangeSSHKeysRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{36}
-}
-
 func (x *ExchangeSSHKeysRequest) GetHostPublicKey() []byte {
 	if x != nil {
 		return x.HostPublicKey
@@ -2224,9 +3314,32 @@ func (x *ExchangeSSHKeysRequest) GetHostPublicKey() []byte {
 	return nil
 }
 
+func (x *ExchangeSSHKeysRequest) SetHostPublicKey(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.HostPublicKey = v
+}
+
+type ExchangeSSHKeysRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// HostPublicKey is the host key that should be trusted by clients connecting
+	// to VNet SSH addresses. It is encoded in OpenSSH wire format.
+	HostPublicKey []byte
+}
+
+func (b0 ExchangeSSHKeysRequest_builder) Build() *ExchangeSSHKeysRequest {
+	m0 := &ExchangeSSHKeysRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.HostPublicKey = b.HostPublicKey
+	return m0
+}
+
 // ExchangeSSHKeysResponse is a response for ExchangeSSHKeys.
 type ExchangeSSHKeysResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// UserPublicKey is the user key that should be trusted by VNet for incoming
 	// connections from SSH clients. It is encoded in OpenSSH wire format.
 	UserPublicKey []byte `protobuf:"bytes,1,opt,name=user_public_key,json=userPublicKey,proto3" json:"user_public_key,omitempty"`
@@ -2259,11 +3372,6 @@ func (x *ExchangeSSHKeysResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ExchangeSSHKeysResponse.ProtoReflect.Descriptor instead.
-func (*ExchangeSSHKeysResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{37}
-}
-
 func (x *ExchangeSSHKeysResponse) GetUserPublicKey() []byte {
 	if x != nil {
 		return x.UserPublicKey
@@ -2271,9 +3379,32 @@ func (x *ExchangeSSHKeysResponse) GetUserPublicKey() []byte {
 	return nil
 }
 
+func (x *ExchangeSSHKeysResponse) SetUserPublicKey(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.UserPublicKey = v
+}
+
+type ExchangeSSHKeysResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// UserPublicKey is the user key that should be trusted by VNet for incoming
+	// connections from SSH clients. It is encoded in OpenSSH wire format.
+	UserPublicKey []byte
+}
+
+func (b0 ExchangeSSHKeysResponse_builder) Build() *ExchangeSSHKeysResponse {
+	m0 := &ExchangeSSHKeysResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.UserPublicKey = b.UserPublicKey
+	return m0
+}
+
 // PerformSessionMFACeremonyRequest is a request for PerformSessionMFACeremony.
 type PerformSessionMFACeremonyRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Profile in which the target is found.
 	Profile string `protobuf:"bytes,1,opt,name=profile,proto3" json:"profile,omitempty"`
 	// Leaf cluster in which the target is found. If empty, the target is in the root cluster.
@@ -2309,11 +3440,6 @@ func (x *PerformSessionMFACeremonyRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PerformSessionMFACeremonyRequest.ProtoReflect.Descriptor instead.
-func (*PerformSessionMFACeremonyRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{38}
-}
-
 func (x *PerformSessionMFACeremonyRequest) GetProfile() string {
 	if x != nil {
 		return x.Profile
@@ -2335,9 +3461,45 @@ func (x *PerformSessionMFACeremonyRequest) GetSshSessionId() []byte {
 	return nil
 }
 
+func (x *PerformSessionMFACeremonyRequest) SetProfile(v string) {
+	x.Profile = v
+}
+
+func (x *PerformSessionMFACeremonyRequest) SetLeafCluster(v string) {
+	x.LeafCluster = v
+}
+
+func (x *PerformSessionMFACeremonyRequest) SetSshSessionId(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.SshSessionId = v
+}
+
+type PerformSessionMFACeremonyRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Profile in which the target is found.
+	Profile string
+	// Leaf cluster in which the target is found. If empty, the target is in the root cluster.
+	LeafCluster string
+	// Identifies the SSH session that the MFA ceremony should be bound to.
+	SshSessionId []byte
+}
+
+func (b0 PerformSessionMFACeremonyRequest_builder) Build() *PerformSessionMFACeremonyRequest {
+	m0 := &PerformSessionMFACeremonyRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Profile = b.Profile
+	x.LeafCluster = b.LeafCluster
+	x.SshSessionId = b.SshSessionId
+	return m0
+}
+
 // PerformSessionMFACeremonyResponse is a response for PerformSessionMFACeremony.
 type PerformSessionMFACeremonyResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The name of the completed MFA challenge.
 	ChallengeName string `protobuf:"bytes,1,opt,name=challenge_name,json=challengeName,proto3" json:"challenge_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -2369,11 +3531,6 @@ func (x *PerformSessionMFACeremonyResponse) ProtoReflect() protoreflect.Message 
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PerformSessionMFACeremonyResponse.ProtoReflect.Descriptor instead.
-func (*PerformSessionMFACeremonyResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{39}
-}
-
 func (x *PerformSessionMFACeremonyResponse) GetChallengeName() string {
 	if x != nil {
 		return x.ChallengeName
@@ -2381,9 +3538,28 @@ func (x *PerformSessionMFACeremonyResponse) GetChallengeName() string {
 	return ""
 }
 
+func (x *PerformSessionMFACeremonyResponse) SetChallengeName(v string) {
+	x.ChallengeName = v
+}
+
+type PerformSessionMFACeremonyResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The name of the completed MFA challenge.
+	ChallengeName string
+}
+
+func (b0 PerformSessionMFACeremonyResponse_builder) Build() *PerformSessionMFACeremonyResponse {
+	m0 := &PerformSessionMFACeremonyResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ChallengeName = b.ChallengeName
+	return m0
+}
+
 // MatchedDatabase holds info about a database that matched a query.
 type MatchedDatabase struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// DatabaseInfo holds all necessary info for making connections to the resolved database.
 	DatabaseInfo  *DatabaseInfo `protobuf:"bytes,1,opt,name=database_info,json=databaseInfo,proto3" json:"database_info,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -2415,11 +3591,6 @@ func (x *MatchedDatabase) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use MatchedDatabase.ProtoReflect.Descriptor instead.
-func (*MatchedDatabase) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{40}
-}
-
 func (x *MatchedDatabase) GetDatabaseInfo() *DatabaseInfo {
 	if x != nil {
 		return x.DatabaseInfo
@@ -2427,9 +3598,39 @@ func (x *MatchedDatabase) GetDatabaseInfo() *DatabaseInfo {
 	return nil
 }
 
+func (x *MatchedDatabase) SetDatabaseInfo(v *DatabaseInfo) {
+	x.DatabaseInfo = v
+}
+
+func (x *MatchedDatabase) HasDatabaseInfo() bool {
+	if x == nil {
+		return false
+	}
+	return x.DatabaseInfo != nil
+}
+
+func (x *MatchedDatabase) ClearDatabaseInfo() {
+	x.DatabaseInfo = nil
+}
+
+type MatchedDatabase_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// DatabaseInfo holds all necessary info for making connections to the resolved database.
+	DatabaseInfo *DatabaseInfo
+}
+
+func (b0 MatchedDatabase_builder) Build() *MatchedDatabase {
+	m0 := &MatchedDatabase{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.DatabaseInfo = b.DatabaseInfo
+	return m0
+}
+
 // DatabaseInfo holds all necessary info for making connections to VNet databases.
 type DatabaseInfo struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// DatabaseKey uniquely identifies a database.
 	DatabaseKey *DatabaseKey `protobuf:"bytes,1,opt,name=database_key,json=databaseKey,proto3" json:"database_key,omitempty"`
 	// Cluster is the name of the cluster in which the database is found.
@@ -2472,11 +3673,6 @@ func (x *DatabaseInfo) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DatabaseInfo.ProtoReflect.Descriptor instead.
-func (*DatabaseInfo) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{41}
-}
-
 func (x *DatabaseInfo) GetDatabaseKey() *DatabaseKey {
 	if x != nil {
 		return x.DatabaseKey
@@ -2512,9 +3708,81 @@ func (x *DatabaseInfo) GetDialOptions() *DialOptions {
 	return nil
 }
 
+func (x *DatabaseInfo) SetDatabaseKey(v *DatabaseKey) {
+	x.DatabaseKey = v
+}
+
+func (x *DatabaseInfo) SetCluster(v string) {
+	x.Cluster = v
+}
+
+func (x *DatabaseInfo) SetProtocol(v string) {
+	x.Protocol = v
+}
+
+func (x *DatabaseInfo) SetIpv4CidrRange(v string) {
+	x.Ipv4CidrRange = v
+}
+
+func (x *DatabaseInfo) SetDialOptions(v *DialOptions) {
+	x.DialOptions = v
+}
+
+func (x *DatabaseInfo) HasDatabaseKey() bool {
+	if x == nil {
+		return false
+	}
+	return x.DatabaseKey != nil
+}
+
+func (x *DatabaseInfo) HasDialOptions() bool {
+	if x == nil {
+		return false
+	}
+	return x.DialOptions != nil
+}
+
+func (x *DatabaseInfo) ClearDatabaseKey() {
+	x.DatabaseKey = nil
+}
+
+func (x *DatabaseInfo) ClearDialOptions() {
+	x.DialOptions = nil
+}
+
+type DatabaseInfo_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// DatabaseKey uniquely identifies a database.
+	DatabaseKey *DatabaseKey
+	// Cluster is the name of the cluster in which the database is found.
+	// Iff the database is in a leaf cluster, this will match database_key.leaf_cluster.
+	Cluster string
+	// Protocol is the database wire protocol (e.g. "postgres", "mysql").
+	Protocol string
+	// Ipv4CidrRange is the CIDR range from which an IPv4 address should be
+	// assigned to the database.
+	Ipv4CidrRange string
+	// DialOptions holds options that should be used when dialing the root cluster
+	// of the database.
+	DialOptions *DialOptions
+}
+
+func (b0 DatabaseInfo_builder) Build() *DatabaseInfo {
+	m0 := &DatabaseInfo{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.DatabaseKey = b.DatabaseKey
+	x.Cluster = b.Cluster
+	x.Protocol = b.Protocol
+	x.Ipv4CidrRange = b.Ipv4CidrRange
+	x.DialOptions = b.DialOptions
+	return m0
+}
+
 // DatabaseKey uniquely identifies a database in a specific profile and cluster.
 type DatabaseKey struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Profile is the profile in which the database is found.
 	Profile string `protobuf:"bytes,1,opt,name=profile,proto3" json:"profile,omitempty"`
 	// LeafCluster is the leaf cluster in which the database is found. If empty,
@@ -2551,11 +3819,6 @@ func (x *DatabaseKey) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DatabaseKey.ProtoReflect.Descriptor instead.
-func (*DatabaseKey) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{42}
-}
-
 func (x *DatabaseKey) GetProfile() string {
 	if x != nil {
 		return x.Profile
@@ -2577,9 +3840,43 @@ func (x *DatabaseKey) GetName() string {
 	return ""
 }
 
+func (x *DatabaseKey) SetProfile(v string) {
+	x.Profile = v
+}
+
+func (x *DatabaseKey) SetLeafCluster(v string) {
+	x.LeafCluster = v
+}
+
+func (x *DatabaseKey) SetName(v string) {
+	x.Name = v
+}
+
+type DatabaseKey_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Profile is the profile in which the database is found.
+	Profile string
+	// LeafCluster is the leaf cluster in which the database is found. If empty,
+	// the database is in the root cluster for the profile.
+	LeafCluster string
+	// Name is the name of the database resource.
+	Name string
+}
+
+func (b0 DatabaseKey_builder) Build() *DatabaseKey {
+	m0 := &DatabaseKey{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Profile = b.Profile
+	x.LeafCluster = b.LeafCluster
+	x.Name = b.Name
+	return m0
+}
+
 // ReissueDBCertRequest is a request for ReissueDBCert.
 type ReissueDBCertRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// DatabaseInfo contains info about the database, every ReissueDBCertRequest
 	// must include a database_info as returned from ResolveFQDN.
 	DatabaseInfo  *DatabaseInfo `protobuf:"bytes,1,opt,name=database_info,json=databaseInfo,proto3" json:"database_info,omitempty"`
@@ -2612,11 +3909,6 @@ func (x *ReissueDBCertRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ReissueDBCertRequest.ProtoReflect.Descriptor instead.
-func (*ReissueDBCertRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{43}
-}
-
 func (x *ReissueDBCertRequest) GetDatabaseInfo() *DatabaseInfo {
 	if x != nil {
 		return x.DatabaseInfo
@@ -2624,9 +3916,40 @@ func (x *ReissueDBCertRequest) GetDatabaseInfo() *DatabaseInfo {
 	return nil
 }
 
+func (x *ReissueDBCertRequest) SetDatabaseInfo(v *DatabaseInfo) {
+	x.DatabaseInfo = v
+}
+
+func (x *ReissueDBCertRequest) HasDatabaseInfo() bool {
+	if x == nil {
+		return false
+	}
+	return x.DatabaseInfo != nil
+}
+
+func (x *ReissueDBCertRequest) ClearDatabaseInfo() {
+	x.DatabaseInfo = nil
+}
+
+type ReissueDBCertRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// DatabaseInfo contains info about the database, every ReissueDBCertRequest
+	// must include a database_info as returned from ResolveFQDN.
+	DatabaseInfo *DatabaseInfo
+}
+
+func (b0 ReissueDBCertRequest_builder) Build() *ReissueDBCertRequest {
+	m0 := &ReissueDBCertRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.DatabaseInfo = b.DatabaseInfo
+	return m0
+}
+
 // ReissueDBCertResponse is a response for ReissueDBCert.
 type ReissueDBCertResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Cert is the issued database certificate in x509 DER format.
 	Cert          []byte `protobuf:"bytes,1,opt,name=cert,proto3" json:"cert,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -2658,11 +3981,6 @@ func (x *ReissueDBCertResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ReissueDBCertResponse.ProtoReflect.Descriptor instead.
-func (*ReissueDBCertResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{44}
-}
-
 func (x *ReissueDBCertResponse) GetCert() []byte {
 	if x != nil {
 		return x.Cert
@@ -2670,12 +3988,34 @@ func (x *ReissueDBCertResponse) GetCert() []byte {
 	return nil
 }
 
+func (x *ReissueDBCertResponse) SetCert(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Cert = v
+}
+
+type ReissueDBCertResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Cert is the issued database certificate in x509 DER format.
+	Cert []byte
+}
+
+func (b0 ReissueDBCertResponse_builder) Build() *ReissueDBCertResponse {
+	m0 := &ReissueDBCertResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Cert = b.Cert
+	return m0
+}
+
 // SignForDBRequest is a request to sign data with a private key that the
 // server has cached for the database_key. The database_key must match a
 // previous successful call to ReissueDBCert. The private key used for the
 // signature will match the subject public key of the issued x509 certificate.
 type SignForDBRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// DatabaseKey uniquely identifies a database, it must match the key of a
 	// database from a previous successful call to ReissueDBCert.
 	DatabaseKey *DatabaseKey `protobuf:"bytes,1,opt,name=database_key,json=databaseKey,proto3" json:"database_key,omitempty"`
@@ -2710,11 +4050,6 @@ func (x *SignForDBRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SignForDBRequest.ProtoReflect.Descriptor instead.
-func (*SignForDBRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{45}
-}
-
 func (x *SignForDBRequest) GetDatabaseKey() *DatabaseKey {
 	if x != nil {
 		return x.DatabaseKey
@@ -2729,9 +4064,58 @@ func (x *SignForDBRequest) GetSign() *SignRequest {
 	return nil
 }
 
+func (x *SignForDBRequest) SetDatabaseKey(v *DatabaseKey) {
+	x.DatabaseKey = v
+}
+
+func (x *SignForDBRequest) SetSign(v *SignRequest) {
+	x.Sign = v
+}
+
+func (x *SignForDBRequest) HasDatabaseKey() bool {
+	if x == nil {
+		return false
+	}
+	return x.DatabaseKey != nil
+}
+
+func (x *SignForDBRequest) HasSign() bool {
+	if x == nil {
+		return false
+	}
+	return x.Sign != nil
+}
+
+func (x *SignForDBRequest) ClearDatabaseKey() {
+	x.DatabaseKey = nil
+}
+
+func (x *SignForDBRequest) ClearSign() {
+	x.Sign = nil
+}
+
+type SignForDBRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// DatabaseKey uniquely identifies a database, it must match the key of a
+	// database from a previous successful call to ReissueDBCert.
+	DatabaseKey *DatabaseKey
+	// Sign holds signature request details.
+	Sign *SignRequest
+}
+
+func (b0 SignForDBRequest_builder) Build() *SignForDBRequest {
+	m0 := &SignForDBRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.DatabaseKey = b.DatabaseKey
+	x.Sign = b.Sign
+	return m0
+}
+
 // SignForDBResponse is a response for SignForDB.
 type SignForDBResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Signature is the signature.
 	Signature     []byte `protobuf:"bytes,1,opt,name=signature,proto3" json:"signature,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -2763,11 +4147,6 @@ func (x *SignForDBResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SignForDBResponse.ProtoReflect.Descriptor instead.
-func (*SignForDBResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{46}
-}
-
 func (x *SignForDBResponse) GetSignature() []byte {
 	if x != nil {
 		return x.Signature
@@ -2775,9 +4154,31 @@ func (x *SignForDBResponse) GetSignature() []byte {
 	return nil
 }
 
+func (x *SignForDBResponse) SetSignature(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Signature = v
+}
+
+type SignForDBResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Signature is the signature.
+	Signature []byte
+}
+
+func (b0 SignForDBResponse_builder) Build() *SignForDBResponse {
+	m0 := &SignForDBResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Signature = b.Signature
+	return m0
+}
+
 // OnNewDBConnectionRequest is a request for OnNewDBConnection.
 type OnNewDBConnectionRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// DatabaseKey identifies the database the connection is being made for.
 	DatabaseKey   *DatabaseKey `protobuf:"bytes,1,opt,name=database_key,json=databaseKey,proto3" json:"database_key,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -2809,11 +4210,6 @@ func (x *OnNewDBConnectionRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use OnNewDBConnectionRequest.ProtoReflect.Descriptor instead.
-func (*OnNewDBConnectionRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{47}
-}
-
 func (x *OnNewDBConnectionRequest) GetDatabaseKey() *DatabaseKey {
 	if x != nil {
 		return x.DatabaseKey
@@ -2821,9 +4217,39 @@ func (x *OnNewDBConnectionRequest) GetDatabaseKey() *DatabaseKey {
 	return nil
 }
 
+func (x *OnNewDBConnectionRequest) SetDatabaseKey(v *DatabaseKey) {
+	x.DatabaseKey = v
+}
+
+func (x *OnNewDBConnectionRequest) HasDatabaseKey() bool {
+	if x == nil {
+		return false
+	}
+	return x.DatabaseKey != nil
+}
+
+func (x *OnNewDBConnectionRequest) ClearDatabaseKey() {
+	x.DatabaseKey = nil
+}
+
+type OnNewDBConnectionRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// DatabaseKey identifies the database the connection is being made for.
+	DatabaseKey *DatabaseKey
+}
+
+func (b0 OnNewDBConnectionRequest_builder) Build() *OnNewDBConnectionRequest {
+	m0 := &OnNewDBConnectionRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.DatabaseKey = b.DatabaseKey
+	return m0
+}
+
 // OnNewDBConnectionResponse is a response for OnNewDBConnection.
 type OnNewDBConnectionResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2853,9 +4279,16 @@ func (x *OnNewDBConnectionResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use OnNewDBConnectionResponse.ProtoReflect.Descriptor instead.
-func (*OnNewDBConnectionResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP(), []int{48}
+type OnNewDBConnectionResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 OnNewDBConnectionResponse_builder) Build() *OnNewDBConnectionResponse {
+	m0 := &OnNewDBConnectionResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 var File_teleport_lib_vnet_v1_client_application_service_proto protoreflect.FileDescriptor
@@ -3036,18 +4469,6 @@ const file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc = "" +
 	"\rReissueDBCert\x12*.teleport.lib.vnet.v1.ReissueDBCertRequest\x1a+.teleport.lib.vnet.v1.ReissueDBCertResponse\x12\\\n" +
 	"\tSignForDB\x12&.teleport.lib.vnet.v1.SignForDBRequest\x1a'.teleport.lib.vnet.v1.SignForDBResponse\x12t\n" +
 	"\x11OnNewDBConnection\x12..teleport.lib.vnet.v1.OnNewDBConnectionRequest\x1a/.teleport.lib.vnet.v1.OnNewDBConnectionResponseBLZJgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1;vnetv1b\x06proto3"
-
-var (
-	file_teleport_lib_vnet_v1_client_application_service_proto_rawDescOnce sync.Once
-	file_teleport_lib_vnet_v1_client_application_service_proto_rawDescData []byte
-)
-
-func file_teleport_lib_vnet_v1_client_application_service_proto_rawDescGZIP() []byte {
-	file_teleport_lib_vnet_v1_client_application_service_proto_rawDescOnce.Do(func() {
-		file_teleport_lib_vnet_v1_client_application_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc), len(file_teleport_lib_vnet_v1_client_application_service_proto_rawDesc)))
-	})
-	return file_teleport_lib_vnet_v1_client_application_service_proto_rawDescData
-}
 
 var file_teleport_lib_vnet_v1_client_application_service_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_teleport_lib_vnet_v1_client_application_service_proto_msgTypes = make([]protoimpl.MessageInfo, 49)

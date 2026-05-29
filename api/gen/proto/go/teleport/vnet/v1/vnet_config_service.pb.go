@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/vnet/v1/vnet_config_service.proto
 
+//go:build !protoopaque
+
 package vnet
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -38,7 +39,7 @@ const (
 
 // Request for GetVnetConfig.
 type GetVnetConfigRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -68,14 +69,21 @@ func (x *GetVnetConfigRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetVnetConfigRequest.ProtoReflect.Descriptor instead.
-func (*GetVnetConfigRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_vnet_v1_vnet_config_service_proto_rawDescGZIP(), []int{0}
+type GetVnetConfigRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 GetVnetConfigRequest_builder) Build() *GetVnetConfigRequest {
+	m0 := &GetVnetConfigRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // Request for CreateVnetConfig.
 type CreateVnetConfigRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The VnetConfig resource to create.
 	VnetConfig    *VnetConfig `protobuf:"bytes,1,opt,name=vnet_config,json=vnetConfig,proto3" json:"vnet_config,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -107,11 +115,6 @@ func (x *CreateVnetConfigRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateVnetConfigRequest.ProtoReflect.Descriptor instead.
-func (*CreateVnetConfigRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_vnet_v1_vnet_config_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *CreateVnetConfigRequest) GetVnetConfig() *VnetConfig {
 	if x != nil {
 		return x.VnetConfig
@@ -119,9 +122,39 @@ func (x *CreateVnetConfigRequest) GetVnetConfig() *VnetConfig {
 	return nil
 }
 
+func (x *CreateVnetConfigRequest) SetVnetConfig(v *VnetConfig) {
+	x.VnetConfig = v
+}
+
+func (x *CreateVnetConfigRequest) HasVnetConfig() bool {
+	if x == nil {
+		return false
+	}
+	return x.VnetConfig != nil
+}
+
+func (x *CreateVnetConfigRequest) ClearVnetConfig() {
+	x.VnetConfig = nil
+}
+
+type CreateVnetConfigRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The VnetConfig resource to create.
+	VnetConfig *VnetConfig
+}
+
+func (b0 CreateVnetConfigRequest_builder) Build() *CreateVnetConfigRequest {
+	m0 := &CreateVnetConfigRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.VnetConfig = b.VnetConfig
+	return m0
+}
+
 // Request for UpdateVnetConfig.
 type UpdateVnetConfigRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The VnetConfig resource to create.
 	VnetConfig    *VnetConfig `protobuf:"bytes,1,opt,name=vnet_config,json=vnetConfig,proto3" json:"vnet_config,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -153,11 +186,6 @@ func (x *UpdateVnetConfigRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateVnetConfigRequest.ProtoReflect.Descriptor instead.
-func (*UpdateVnetConfigRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_vnet_v1_vnet_config_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *UpdateVnetConfigRequest) GetVnetConfig() *VnetConfig {
 	if x != nil {
 		return x.VnetConfig
@@ -165,9 +193,39 @@ func (x *UpdateVnetConfigRequest) GetVnetConfig() *VnetConfig {
 	return nil
 }
 
+func (x *UpdateVnetConfigRequest) SetVnetConfig(v *VnetConfig) {
+	x.VnetConfig = v
+}
+
+func (x *UpdateVnetConfigRequest) HasVnetConfig() bool {
+	if x == nil {
+		return false
+	}
+	return x.VnetConfig != nil
+}
+
+func (x *UpdateVnetConfigRequest) ClearVnetConfig() {
+	x.VnetConfig = nil
+}
+
+type UpdateVnetConfigRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The VnetConfig resource to create.
+	VnetConfig *VnetConfig
+}
+
+func (b0 UpdateVnetConfigRequest_builder) Build() *UpdateVnetConfigRequest {
+	m0 := &UpdateVnetConfigRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.VnetConfig = b.VnetConfig
+	return m0
+}
+
 // Request for UpsertVnetConfig.
 type UpsertVnetConfigRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The VnetConfig resource to create.
 	VnetConfig    *VnetConfig `protobuf:"bytes,1,opt,name=vnet_config,json=vnetConfig,proto3" json:"vnet_config,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -199,11 +257,6 @@ func (x *UpsertVnetConfigRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertVnetConfigRequest.ProtoReflect.Descriptor instead.
-func (*UpsertVnetConfigRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_vnet_v1_vnet_config_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *UpsertVnetConfigRequest) GetVnetConfig() *VnetConfig {
 	if x != nil {
 		return x.VnetConfig
@@ -211,9 +264,39 @@ func (x *UpsertVnetConfigRequest) GetVnetConfig() *VnetConfig {
 	return nil
 }
 
+func (x *UpsertVnetConfigRequest) SetVnetConfig(v *VnetConfig) {
+	x.VnetConfig = v
+}
+
+func (x *UpsertVnetConfigRequest) HasVnetConfig() bool {
+	if x == nil {
+		return false
+	}
+	return x.VnetConfig != nil
+}
+
+func (x *UpsertVnetConfigRequest) ClearVnetConfig() {
+	x.VnetConfig = nil
+}
+
+type UpsertVnetConfigRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The VnetConfig resource to create.
+	VnetConfig *VnetConfig
+}
+
+func (b0 UpsertVnetConfigRequest_builder) Build() *UpsertVnetConfigRequest {
+	m0 := &UpsertVnetConfigRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.VnetConfig = b.VnetConfig
+	return m0
+}
+
 // Request for DeleteVnetConfig.
 type DeleteVnetConfigRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -243,9 +326,16 @@ func (x *DeleteVnetConfigRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteVnetConfigRequest.ProtoReflect.Descriptor instead.
-func (*DeleteVnetConfigRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_vnet_v1_vnet_config_service_proto_rawDescGZIP(), []int{4}
+type DeleteVnetConfigRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 DeleteVnetConfigRequest_builder) Build() *DeleteVnetConfigRequest {
+	m0 := &DeleteVnetConfigRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 var File_teleport_vnet_v1_vnet_config_service_proto protoreflect.FileDescriptor
@@ -270,18 +360,6 @@ const file_teleport_vnet_v1_vnet_config_service_proto_rawDesc = "" +
 	"\x10UpdateVnetConfig\x12).teleport.vnet.v1.UpdateVnetConfigRequest\x1a\x1c.teleport.vnet.v1.VnetConfig\x12[\n" +
 	"\x10UpsertVnetConfig\x12).teleport.vnet.v1.UpsertVnetConfigRequest\x1a\x1c.teleport.vnet.v1.VnetConfig\x12U\n" +
 	"\x10DeleteVnetConfig\x12).teleport.vnet.v1.DeleteVnetConfigRequest\x1a\x16.google.protobuf.EmptyBJZHgithub.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1;vnetb\x06proto3"
-
-var (
-	file_teleport_vnet_v1_vnet_config_service_proto_rawDescOnce sync.Once
-	file_teleport_vnet_v1_vnet_config_service_proto_rawDescData []byte
-)
-
-func file_teleport_vnet_v1_vnet_config_service_proto_rawDescGZIP() []byte {
-	file_teleport_vnet_v1_vnet_config_service_proto_rawDescOnce.Do(func() {
-		file_teleport_vnet_v1_vnet_config_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_vnet_v1_vnet_config_service_proto_rawDesc), len(file_teleport_vnet_v1_vnet_config_service_proto_rawDesc)))
-	})
-	return file_teleport_vnet_v1_vnet_config_service_proto_rawDescData
-}
 
 var file_teleport_vnet_v1_vnet_config_service_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_teleport_vnet_v1_vnet_config_service_proto_goTypes = []any{

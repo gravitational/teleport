@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/subca/v1/distinguished_name.proto
 
+//go:build !protoopaque
+
 package subcav1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -38,7 +39,7 @@ const (
 // An X.509 distinguished name.
 // Mimics Go's pkix.Name.
 type DistinguishedName struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Names that compose the DN.
 	Names         []*AttributeTypeAndValue `protobuf:"bytes,1,rep,name=names,proto3" json:"names,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -70,11 +71,6 @@ func (x *DistinguishedName) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DistinguishedName.ProtoReflect.Descriptor instead.
-func (*DistinguishedName) Descriptor() ([]byte, []int) {
-	return file_teleport_subca_v1_distinguished_name_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *DistinguishedName) GetNames() []*AttributeTypeAndValue {
 	if x != nil {
 		return x.Names
@@ -82,9 +78,28 @@ func (x *DistinguishedName) GetNames() []*AttributeTypeAndValue {
 	return nil
 }
 
+func (x *DistinguishedName) SetNames(v []*AttributeTypeAndValue) {
+	x.Names = v
+}
+
+type DistinguishedName_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Names that compose the DN.
+	Names []*AttributeTypeAndValue
+}
+
+func (b0 DistinguishedName_builder) Build() *DistinguishedName {
+	m0 := &DistinguishedName{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Names = b.Names
+	return m0
+}
+
 // AttributeTypeAndValue is a distinguished name (oid,value) pair.
 type AttributeTypeAndValue struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// OID of the ATV.
 	Oid []int32 `protobuf:"varint,1,rep,packed,name=oid,proto3" json:"oid,omitempty"`
 	// Value of the ATV. Only string values are supported.
@@ -118,11 +133,6 @@ func (x *AttributeTypeAndValue) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AttributeTypeAndValue.ProtoReflect.Descriptor instead.
-func (*AttributeTypeAndValue) Descriptor() ([]byte, []int) {
-	return file_teleport_subca_v1_distinguished_name_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *AttributeTypeAndValue) GetOid() []int32 {
 	if x != nil {
 		return x.Oid
@@ -137,6 +147,43 @@ func (x *AttributeTypeAndValue) GetValue() string {
 	return ""
 }
 
+func (x *AttributeTypeAndValue) SetOid(v []int32) {
+	x.Oid = v
+}
+
+func (x *AttributeTypeAndValue) SetValue(v string) {
+	x.Value = &v
+}
+
+func (x *AttributeTypeAndValue) HasValue() bool {
+	if x == nil {
+		return false
+	}
+	return x.Value != nil
+}
+
+func (x *AttributeTypeAndValue) ClearValue() {
+	x.Value = nil
+}
+
+type AttributeTypeAndValue_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// OID of the ATV.
+	Oid []int32
+	// Value of the ATV. Only string values are supported.
+	Value *string
+}
+
+func (b0 AttributeTypeAndValue_builder) Build() *AttributeTypeAndValue {
+	m0 := &AttributeTypeAndValue{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Oid = b.Oid
+	x.Value = b.Value
+	return m0
+}
+
 var File_teleport_subca_v1_distinguished_name_proto protoreflect.FileDescriptor
 
 const file_teleport_subca_v1_distinguished_name_proto_rawDesc = "" +
@@ -148,18 +195,6 @@ const file_teleport_subca_v1_distinguished_name_proto_rawDesc = "" +
 	"\x03oid\x18\x01 \x03(\x05R\x03oid\x12\x19\n" +
 	"\x05value\x18\x02 \x01(\tH\x00R\x05value\x88\x01\x01B\b\n" +
 	"\x06_valueBNZLgithub.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1;subcav1b\x06proto3"
-
-var (
-	file_teleport_subca_v1_distinguished_name_proto_rawDescOnce sync.Once
-	file_teleport_subca_v1_distinguished_name_proto_rawDescData []byte
-)
-
-func file_teleport_subca_v1_distinguished_name_proto_rawDescGZIP() []byte {
-	file_teleport_subca_v1_distinguished_name_proto_rawDescOnce.Do(func() {
-		file_teleport_subca_v1_distinguished_name_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_subca_v1_distinguished_name_proto_rawDesc), len(file_teleport_subca_v1_distinguished_name_proto_rawDesc)))
-	})
-	return file_teleport_subca_v1_distinguished_name_proto_rawDescData
-}
 
 var file_teleport_subca_v1_distinguished_name_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_teleport_subca_v1_distinguished_name_proto_goTypes = []any{

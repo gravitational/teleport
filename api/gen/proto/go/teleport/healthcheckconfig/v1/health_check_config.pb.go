@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/healthcheckconfig/v1/health_check_config.proto
 
+//go:build !protoopaque
+
 package healthcheckconfigv1
 
 import (
@@ -27,7 +29,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	durationpb "google.golang.org/protobuf/types/known/durationpb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -41,7 +42,7 @@ const (
 // HealthCheckConfig is the configuration for network health checks from an
 // agent to its proxied resource.
 type HealthCheckConfig struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Kind is the resource kind. Must be "health_check_config".
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	// SubKind is an optional resource sub kind.
@@ -81,11 +82,6 @@ func (x *HealthCheckConfig) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use HealthCheckConfig.ProtoReflect.Descriptor instead.
-func (*HealthCheckConfig) Descriptor() ([]byte, []int) {
-	return file_teleport_healthcheckconfig_v1_health_check_config_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *HealthCheckConfig) GetKind() string {
 	if x != nil {
 		return x.Kind
@@ -121,9 +117,78 @@ func (x *HealthCheckConfig) GetSpec() *HealthCheckConfigSpec {
 	return nil
 }
 
+func (x *HealthCheckConfig) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *HealthCheckConfig) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *HealthCheckConfig) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *HealthCheckConfig) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *HealthCheckConfig) SetSpec(v *HealthCheckConfigSpec) {
+	x.Spec = v
+}
+
+func (x *HealthCheckConfig) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *HealthCheckConfig) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *HealthCheckConfig) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *HealthCheckConfig) ClearSpec() {
+	x.Spec = nil
+}
+
+type HealthCheckConfig_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Kind is the resource kind. Must be "health_check_config".
+	Kind string
+	// SubKind is an optional resource sub kind.
+	SubKind string
+	// Version is the health check config version.
+	Version string
+	// Metadata is the health check config resource's metadata.
+	Metadata *v1.Metadata
+	// Spec is the health check config specification.
+	Spec *HealthCheckConfigSpec
+}
+
+func (b0 HealthCheckConfig_builder) Build() *HealthCheckConfig {
+	m0 := &HealthCheckConfig{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Spec = b.Spec
+	return m0
+}
+
 // HealthCheckConfigSpec is the health check spec.
 type HealthCheckConfigSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Match is used to select resources that these settings apply to.
 	Match *Matcher `protobuf:"bytes,1,opt,name=match,proto3" json:"match,omitempty"`
 	// Timeout is the health check connection establishment timeout.
@@ -166,11 +231,6 @@ func (x *HealthCheckConfigSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use HealthCheckConfigSpec.ProtoReflect.Descriptor instead.
-func (*HealthCheckConfigSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_healthcheckconfig_v1_health_check_config_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *HealthCheckConfigSpec) GetMatch() *Matcher {
 	if x != nil {
 		return x.Match
@@ -206,9 +266,92 @@ func (x *HealthCheckConfigSpec) GetUnhealthyThreshold() uint32 {
 	return 0
 }
 
+func (x *HealthCheckConfigSpec) SetMatch(v *Matcher) {
+	x.Match = v
+}
+
+func (x *HealthCheckConfigSpec) SetTimeout(v *durationpb.Duration) {
+	x.Timeout = v
+}
+
+func (x *HealthCheckConfigSpec) SetInterval(v *durationpb.Duration) {
+	x.Interval = v
+}
+
+func (x *HealthCheckConfigSpec) SetHealthyThreshold(v uint32) {
+	x.HealthyThreshold = v
+}
+
+func (x *HealthCheckConfigSpec) SetUnhealthyThreshold(v uint32) {
+	x.UnhealthyThreshold = v
+}
+
+func (x *HealthCheckConfigSpec) HasMatch() bool {
+	if x == nil {
+		return false
+	}
+	return x.Match != nil
+}
+
+func (x *HealthCheckConfigSpec) HasTimeout() bool {
+	if x == nil {
+		return false
+	}
+	return x.Timeout != nil
+}
+
+func (x *HealthCheckConfigSpec) HasInterval() bool {
+	if x == nil {
+		return false
+	}
+	return x.Interval != nil
+}
+
+func (x *HealthCheckConfigSpec) ClearMatch() {
+	x.Match = nil
+}
+
+func (x *HealthCheckConfigSpec) ClearTimeout() {
+	x.Timeout = nil
+}
+
+func (x *HealthCheckConfigSpec) ClearInterval() {
+	x.Interval = nil
+}
+
+type HealthCheckConfigSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Match is used to select resources that these settings apply to.
+	Match *Matcher
+	// Timeout is the health check connection establishment timeout.
+	// An attempt that times out is a failed attempt.
+	Timeout *durationpb.Duration
+	// Interval is the time between each health check.
+	Interval *durationpb.Duration
+	// HealthyThreshold is the number of consecutive passing health checks after
+	// which a target's health status becomes "healthy".
+	HealthyThreshold uint32
+	// UnhealthyThreshold is the number of consecutive failing health checks after
+	// which a target's health status becomes "unhealthy".
+	UnhealthyThreshold uint32
+}
+
+func (b0 HealthCheckConfigSpec_builder) Build() *HealthCheckConfigSpec {
+	m0 := &HealthCheckConfigSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Match = b.Match
+	x.Timeout = b.Timeout
+	x.Interval = b.Interval
+	x.HealthyThreshold = b.HealthyThreshold
+	x.UnhealthyThreshold = b.UnhealthyThreshold
+	return m0
+}
+
 // Matcher is a resource matcher for health check config.
 type Matcher struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// DBLabels matches database labels. An empty value is ignored. The match
 	// result is logically ANDed with DBLabelsExpression, if both are non-empty.
 	DbLabels []*v11.Label `protobuf:"bytes,1,rep,name=db_labels,json=dbLabels,proto3" json:"db_labels,omitempty"`
@@ -254,11 +397,6 @@ func (x *Matcher) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Matcher.ProtoReflect.Descriptor instead.
-func (*Matcher) Descriptor() ([]byte, []int) {
-	return file_teleport_healthcheckconfig_v1_health_check_config_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *Matcher) GetDbLabels() []*v11.Label {
 	if x != nil {
 		return x.DbLabels
@@ -294,6 +432,59 @@ func (x *Matcher) GetDisabled() bool {
 	return false
 }
 
+func (x *Matcher) SetDbLabels(v []*v11.Label) {
+	x.DbLabels = v
+}
+
+func (x *Matcher) SetDbLabelsExpression(v string) {
+	x.DbLabelsExpression = v
+}
+
+func (x *Matcher) SetKubernetesLabels(v []*v11.Label) {
+	x.KubernetesLabels = v
+}
+
+func (x *Matcher) SetKubernetesLabelsExpression(v string) {
+	x.KubernetesLabelsExpression = v
+}
+
+func (x *Matcher) SetDisabled(v bool) {
+	x.Disabled = v
+}
+
+type Matcher_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// DBLabels matches database labels. An empty value is ignored. The match
+	// result is logically ANDed with DBLabelsExpression, if both are non-empty.
+	DbLabels []*v11.Label
+	// DBLabelsExpression is a label predicate expression to match databases. An
+	// empty value is ignored. The match result is logically ANDed with DBLabels,
+	// if both are non-empty.
+	DbLabelsExpression string
+	// KubernetesLabels matches Kubernetes labels. An empty value is ignored. The match
+	// result is logically ANDed with KubernetesLabelsExpression, if both are non-empty.
+	KubernetesLabels []*v11.Label
+	// KubernetesLabelsExpression is a label predicate expression to match Kubernetes. An
+	// empty value is ignored. The match result is logically ANDed with KubernetesLabels,
+	// if both are non-empty.
+	KubernetesLabelsExpression string
+	// Disabled disables matches for all labels and expressions.
+	Disabled bool
+}
+
+func (b0 Matcher_builder) Build() *Matcher {
+	m0 := &Matcher{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.DbLabels = b.DbLabels
+	x.DbLabelsExpression = b.DbLabelsExpression
+	x.KubernetesLabels = b.KubernetesLabels
+	x.KubernetesLabelsExpression = b.KubernetesLabelsExpression
+	x.Disabled = b.Disabled
+	return m0
+}
+
 var File_teleport_healthcheckconfig_v1_health_check_config_proto protoreflect.FileDescriptor
 
 const file_teleport_healthcheckconfig_v1_health_check_config_proto_rawDesc = "" +
@@ -317,18 +508,6 @@ const file_teleport_healthcheckconfig_v1_health_check_config_proto_rawDesc = "" 
 	"\x11kubernetes_labels\x18\x03 \x03(\v2\x18.teleport.label.v1.LabelR\x10kubernetesLabels\x12@\n" +
 	"\x1ckubernetes_labels_expression\x18\x04 \x01(\tR\x1akubernetesLabelsExpression\x12\x1a\n" +
 	"\bdisabled\x18\x05 \x01(\bR\bdisabledBfZdgithub.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1;healthcheckconfigv1b\x06proto3"
-
-var (
-	file_teleport_healthcheckconfig_v1_health_check_config_proto_rawDescOnce sync.Once
-	file_teleport_healthcheckconfig_v1_health_check_config_proto_rawDescData []byte
-)
-
-func file_teleport_healthcheckconfig_v1_health_check_config_proto_rawDescGZIP() []byte {
-	file_teleport_healthcheckconfig_v1_health_check_config_proto_rawDescOnce.Do(func() {
-		file_teleport_healthcheckconfig_v1_health_check_config_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_healthcheckconfig_v1_health_check_config_proto_rawDesc), len(file_teleport_healthcheckconfig_v1_health_check_config_proto_rawDesc)))
-	})
-	return file_teleport_healthcheckconfig_v1_health_check_config_proto_rawDescData
-}
 
 var file_teleport_healthcheckconfig_v1_health_check_config_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_teleport_healthcheckconfig_v1_health_check_config_proto_goTypes = []any{

@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/decision/v1alpha1/decision_service.proto
 
+//go:build !protoopaque
+
 package decisionpb
 
 import (

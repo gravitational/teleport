@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/access_graph/v1/secrets_service.proto
 
+//go:build !protoopaque
+
 package accessgraphv1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -85,15 +86,10 @@ func (x OperationType) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use OperationType.Descriptor instead.
-func (OperationType) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_access_graph_v1_secrets_service_proto_rawDescGZIP(), []int{0}
-}
-
 // ReportAuthorizedKeysRequest is used by Teleport nodes to report authorized keys
 // that could be used to bypass Teleport.
 type ReportAuthorizedKeysRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// keys is a list of authorized keys that could be used to bypass Teleport.
 	Keys []*AuthorizedKey `protobuf:"bytes,1,rep,name=keys,proto3" json:"keys,omitempty"`
 	// operation indicates the operation that the client wants to perform.
@@ -127,11 +123,6 @@ func (x *ReportAuthorizedKeysRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ReportAuthorizedKeysRequest.ProtoReflect.Descriptor instead.
-func (*ReportAuthorizedKeysRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_access_graph_v1_secrets_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *ReportAuthorizedKeysRequest) GetKeys() []*AuthorizedKey {
 	if x != nil {
 		return x.Keys
@@ -146,10 +137,36 @@ func (x *ReportAuthorizedKeysRequest) GetOperation() OperationType {
 	return OperationType_OPERATION_TYPE_UNSPECIFIED
 }
 
+func (x *ReportAuthorizedKeysRequest) SetKeys(v []*AuthorizedKey) {
+	x.Keys = v
+}
+
+func (x *ReportAuthorizedKeysRequest) SetOperation(v OperationType) {
+	x.Operation = v
+}
+
+type ReportAuthorizedKeysRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// keys is a list of authorized keys that could be used to bypass Teleport.
+	Keys []*AuthorizedKey
+	// operation indicates the operation that the client wants to perform.
+	Operation OperationType
+}
+
+func (b0 ReportAuthorizedKeysRequest_builder) Build() *ReportAuthorizedKeysRequest {
+	m0 := &ReportAuthorizedKeysRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Keys = b.Keys
+	x.Operation = b.Operation
+	return m0
+}
+
 // ReportAuthorizedKeysResponse is the response from ReportAuthorizedKeys
 // RPC method.
 type ReportAuthorizedKeysResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -179,15 +196,22 @@ func (x *ReportAuthorizedKeysResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ReportAuthorizedKeysResponse.ProtoReflect.Descriptor instead.
-func (*ReportAuthorizedKeysResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_access_graph_v1_secrets_service_proto_rawDescGZIP(), []int{1}
+type ReportAuthorizedKeysResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 ReportAuthorizedKeysResponse_builder) Build() *ReportAuthorizedKeysResponse {
+	m0 := &ReportAuthorizedKeysResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // ReportSecretsRequest is used by trusted devices to report secrets found on the host
 // that could be used to bypass Teleport.
 type ReportSecretsRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Payload:
 	//
 	//	*ReportSecretsRequest_DeviceAssertion
@@ -222,11 +246,6 @@ func (x *ReportSecretsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ReportSecretsRequest.ProtoReflect.Descriptor instead.
-func (*ReportSecretsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_access_graph_v1_secrets_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *ReportSecretsRequest) GetPayload() isReportSecretsRequest_Payload {
 	if x != nil {
 		return x.Payload
@@ -252,6 +271,115 @@ func (x *ReportSecretsRequest) GetPrivateKeys() *ReportPrivateKeys {
 	return nil
 }
 
+func (x *ReportSecretsRequest) SetDeviceAssertion(v *v1.AssertDeviceRequest) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &ReportSecretsRequest_DeviceAssertion{v}
+}
+
+func (x *ReportSecretsRequest) SetPrivateKeys(v *ReportPrivateKeys) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &ReportSecretsRequest_PrivateKeys{v}
+}
+
+func (x *ReportSecretsRequest) HasPayload() bool {
+	if x == nil {
+		return false
+	}
+	return x.Payload != nil
+}
+
+func (x *ReportSecretsRequest) HasDeviceAssertion() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*ReportSecretsRequest_DeviceAssertion)
+	return ok
+}
+
+func (x *ReportSecretsRequest) HasPrivateKeys() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*ReportSecretsRequest_PrivateKeys)
+	return ok
+}
+
+func (x *ReportSecretsRequest) ClearPayload() {
+	x.Payload = nil
+}
+
+func (x *ReportSecretsRequest) ClearDeviceAssertion() {
+	if _, ok := x.Payload.(*ReportSecretsRequest_DeviceAssertion); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *ReportSecretsRequest) ClearPrivateKeys() {
+	if _, ok := x.Payload.(*ReportSecretsRequest_PrivateKeys); ok {
+		x.Payload = nil
+	}
+}
+
+const ReportSecretsRequest_Payload_not_set_case case_ReportSecretsRequest_Payload = 0
+const ReportSecretsRequest_DeviceAssertion_case case_ReportSecretsRequest_Payload = 1
+const ReportSecretsRequest_PrivateKeys_case case_ReportSecretsRequest_Payload = 4
+
+func (x *ReportSecretsRequest) WhichPayload() case_ReportSecretsRequest_Payload {
+	if x == nil {
+		return ReportSecretsRequest_Payload_not_set_case
+	}
+	switch x.Payload.(type) {
+	case *ReportSecretsRequest_DeviceAssertion:
+		return ReportSecretsRequest_DeviceAssertion_case
+	case *ReportSecretsRequest_PrivateKeys:
+		return ReportSecretsRequest_PrivateKeys_case
+	default:
+		return ReportSecretsRequest_Payload_not_set_case
+	}
+}
+
+type ReportSecretsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Payload:
+	// The device should initiate the device assertion ceremony by sending the
+	// AssertDeviceRequest. Please refer to the [teleport.devicetrust.v1.AssertDeviceRequest]
+	// message for more details.
+	DeviceAssertion *v1.AssertDeviceRequest
+	// private_keys is a list of private keys that were found on the device.
+	PrivateKeys *ReportPrivateKeys
+	// -- end of Payload
+}
+
+func (b0 ReportSecretsRequest_builder) Build() *ReportSecretsRequest {
+	m0 := &ReportSecretsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.DeviceAssertion != nil {
+		x.Payload = &ReportSecretsRequest_DeviceAssertion{b.DeviceAssertion}
+	}
+	if b.PrivateKeys != nil {
+		x.Payload = &ReportSecretsRequest_PrivateKeys{b.PrivateKeys}
+	}
+	return m0
+}
+
+type case_ReportSecretsRequest_Payload protoreflect.FieldNumber
+
+func (x case_ReportSecretsRequest_Payload) String() string {
+	md := file_teleport_access_graph_v1_secrets_service_proto_msgTypes[2].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isReportSecretsRequest_Payload interface {
 	isReportSecretsRequest_Payload()
 }
@@ -275,7 +403,7 @@ func (*ReportSecretsRequest_PrivateKeys) isReportSecretsRequest_Payload() {}
 // ReportPrivateKeys is used by trusted devices to report private keys found on the host
 // that could be used to bypass Teleport.
 type ReportPrivateKeys struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// keys is a list of private keys that could be used to bypass Teleport.
 	Keys          []*PrivateKey `protobuf:"bytes,1,rep,name=keys,proto3" json:"keys,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -307,11 +435,6 @@ func (x *ReportPrivateKeys) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ReportPrivateKeys.ProtoReflect.Descriptor instead.
-func (*ReportPrivateKeys) Descriptor() ([]byte, []int) {
-	return file_teleport_access_graph_v1_secrets_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *ReportPrivateKeys) GetKeys() []*PrivateKey {
 	if x != nil {
 		return x.Keys
@@ -319,10 +442,29 @@ func (x *ReportPrivateKeys) GetKeys() []*PrivateKey {
 	return nil
 }
 
+func (x *ReportPrivateKeys) SetKeys(v []*PrivateKey) {
+	x.Keys = v
+}
+
+type ReportPrivateKeys_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// keys is a list of private keys that could be used to bypass Teleport.
+	Keys []*PrivateKey
+}
+
+func (b0 ReportPrivateKeys_builder) Build() *ReportPrivateKeys {
+	m0 := &ReportPrivateKeys{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Keys = b.Keys
+	return m0
+}
+
 // ReportSecretsResponse is the response from the ReportSecrets
 // RPC method.
 type ReportSecretsResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Payload:
 	//
 	//	*ReportSecretsResponse_DeviceAssertion
@@ -356,11 +498,6 @@ func (x *ReportSecretsResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ReportSecretsResponse.ProtoReflect.Descriptor instead.
-func (*ReportSecretsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_access_graph_v1_secrets_service_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *ReportSecretsResponse) GetPayload() isReportSecretsResponse_Payload {
 	if x != nil {
 		return x.Payload
@@ -375,6 +512,85 @@ func (x *ReportSecretsResponse) GetDeviceAssertion() *v1.AssertDeviceResponse {
 		}
 	}
 	return nil
+}
+
+func (x *ReportSecretsResponse) SetDeviceAssertion(v *v1.AssertDeviceResponse) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &ReportSecretsResponse_DeviceAssertion{v}
+}
+
+func (x *ReportSecretsResponse) HasPayload() bool {
+	if x == nil {
+		return false
+	}
+	return x.Payload != nil
+}
+
+func (x *ReportSecretsResponse) HasDeviceAssertion() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*ReportSecretsResponse_DeviceAssertion)
+	return ok
+}
+
+func (x *ReportSecretsResponse) ClearPayload() {
+	x.Payload = nil
+}
+
+func (x *ReportSecretsResponse) ClearDeviceAssertion() {
+	if _, ok := x.Payload.(*ReportSecretsResponse_DeviceAssertion); ok {
+		x.Payload = nil
+	}
+}
+
+const ReportSecretsResponse_Payload_not_set_case case_ReportSecretsResponse_Payload = 0
+const ReportSecretsResponse_DeviceAssertion_case case_ReportSecretsResponse_Payload = 1
+
+func (x *ReportSecretsResponse) WhichPayload() case_ReportSecretsResponse_Payload {
+	if x == nil {
+		return ReportSecretsResponse_Payload_not_set_case
+	}
+	switch x.Payload.(type) {
+	case *ReportSecretsResponse_DeviceAssertion:
+		return ReportSecretsResponse_DeviceAssertion_case
+	default:
+		return ReportSecretsResponse_Payload_not_set_case
+	}
+}
+
+type ReportSecretsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Payload:
+	// device_assertion is the response from the device assertion ceremony.
+	// Please refer to the [teleport.devicetrust.v1.AssertDeviceResponse]
+	// message for more details
+	DeviceAssertion *v1.AssertDeviceResponse
+	// -- end of Payload
+}
+
+func (b0 ReportSecretsResponse_builder) Build() *ReportSecretsResponse {
+	m0 := &ReportSecretsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.DeviceAssertion != nil {
+		x.Payload = &ReportSecretsResponse_DeviceAssertion{b.DeviceAssertion}
+	}
+	return m0
+}
+
+type case_ReportSecretsResponse_Payload protoreflect.FieldNumber
+
+func (x case_ReportSecretsResponse_Payload) String() string {
+	md := file_teleport_access_graph_v1_secrets_service_proto_msgTypes[4].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
 }
 
 type isReportSecretsResponse_Payload interface {
@@ -415,18 +631,6 @@ const file_teleport_access_graph_v1_secrets_service_proto_rawDesc = "" +
 	"\x15SecretsScannerService\x12\x8b\x01\n" +
 	"\x14ReportAuthorizedKeys\x125.teleport.access_graph.v1.ReportAuthorizedKeysRequest\x1a6.teleport.access_graph.v1.ReportAuthorizedKeysResponse\"\x00(\x010\x01\x12v\n" +
 	"\rReportSecrets\x12..teleport.access_graph.v1.ReportSecretsRequest\x1a/.teleport.access_graph.v1.ReportSecretsResponse\"\x00(\x010\x01BZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1;accessgraphv1b\x06proto3"
-
-var (
-	file_teleport_access_graph_v1_secrets_service_proto_rawDescOnce sync.Once
-	file_teleport_access_graph_v1_secrets_service_proto_rawDescData []byte
-)
-
-func file_teleport_access_graph_v1_secrets_service_proto_rawDescGZIP() []byte {
-	file_teleport_access_graph_v1_secrets_service_proto_rawDescOnce.Do(func() {
-		file_teleport_access_graph_v1_secrets_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_access_graph_v1_secrets_service_proto_rawDesc), len(file_teleport_access_graph_v1_secrets_service_proto_rawDesc)))
-	})
-	return file_teleport_access_graph_v1_secrets_service_proto_rawDescData
-}
 
 var file_teleport_access_graph_v1_secrets_service_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_teleport_access_graph_v1_secrets_service_proto_msgTypes = make([]protoimpl.MessageInfo, 5)

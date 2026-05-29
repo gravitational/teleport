@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/workloadidentity/v1/sigstore.proto
 
+//go:build !protoopaque
+
 package workloadidentityv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -38,7 +39,7 @@ const (
 // Sigstore bundle and simple signing envelope discovered by `tbot` and sent to
 // the server for verification.
 type SigstoreVerificationPayload struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Sigstore bundle serialized in the protobuf encoding.
 	Bundle []byte `protobuf:"bytes,1,opt,name=bundle,proto3" json:"bundle,omitempty"`
 	// When the bundle was constructed by `tbot` from the old-style annotations
@@ -86,11 +87,6 @@ func (x *SigstoreVerificationPayload) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SigstoreVerificationPayload.ProtoReflect.Descriptor instead.
-func (*SigstoreVerificationPayload) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_sigstore_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *SigstoreVerificationPayload) GetBundle() []byte {
 	if x != nil {
 		return x.Bundle
@@ -105,6 +101,63 @@ func (x *SigstoreVerificationPayload) GetSimpleSigningEnvelope() []byte {
 	return nil
 }
 
+func (x *SigstoreVerificationPayload) SetBundle(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Bundle = v
+}
+
+func (x *SigstoreVerificationPayload) SetSimpleSigningEnvelope(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.SimpleSigningEnvelope = v
+}
+
+func (x *SigstoreVerificationPayload) HasSimpleSigningEnvelope() bool {
+	if x == nil {
+		return false
+	}
+	return x.SimpleSigningEnvelope != nil
+}
+
+func (x *SigstoreVerificationPayload) ClearSimpleSigningEnvelope() {
+	x.SimpleSigningEnvelope = nil
+}
+
+type SigstoreVerificationPayload_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Sigstore bundle serialized in the protobuf encoding.
+	Bundle []byte
+	// When the bundle was constructed by `tbot` from the old-style annotations
+	// the enclosed signature will be over the simple signing envelope, not the
+	// actual image manifest.
+	//
+	// Signature = Sign(SHA-256(SimpleSigningEnvelope(SHA-256(Image Manifest))))
+	//
+	// In that case, `tbot` will include the simple signing envelope, which the
+	// server will hash with SHA-256 and check the signature. The server will also
+	// compare the `critical.docker-manifest-digest` to the image digest produced
+	// by the Podman, Docker, or Kubernetes attestor.
+	//
+	// When simple_signing_envelope is not provided, the server will assert the
+	// bundle contains an in-toto attestation, enclosed with DSSE, where the
+	// subject matches the image digest from the Podman, Docker, or Kubernetes
+	// attestor.
+	SimpleSigningEnvelope []byte
+}
+
+func (b0 SigstoreVerificationPayload_builder) Build() *SigstoreVerificationPayload {
+	m0 := &SigstoreVerificationPayload{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Bundle = b.Bundle
+	x.SimpleSigningEnvelope = b.SimpleSigningEnvelope
+	return m0
+}
+
 var File_teleport_workloadidentity_v1_sigstore_proto protoreflect.FileDescriptor
 
 const file_teleport_workloadidentity_v1_sigstore_proto_rawDesc = "" +
@@ -114,18 +167,6 @@ const file_teleport_workloadidentity_v1_sigstore_proto_rawDesc = "" +
 	"\x06bundle\x18\x01 \x01(\fR\x06bundle\x12;\n" +
 	"\x17simple_signing_envelope\x18\x02 \x01(\fH\x00R\x15simpleSigningEnvelope\x88\x01\x01B\x1a\n" +
 	"\x18_simple_signing_envelopeBdZbgithub.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1b\x06proto3"
-
-var (
-	file_teleport_workloadidentity_v1_sigstore_proto_rawDescOnce sync.Once
-	file_teleport_workloadidentity_v1_sigstore_proto_rawDescData []byte
-)
-
-func file_teleport_workloadidentity_v1_sigstore_proto_rawDescGZIP() []byte {
-	file_teleport_workloadidentity_v1_sigstore_proto_rawDescOnce.Do(func() {
-		file_teleport_workloadidentity_v1_sigstore_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_workloadidentity_v1_sigstore_proto_rawDesc), len(file_teleport_workloadidentity_v1_sigstore_proto_rawDesc)))
-	})
-	return file_teleport_workloadidentity_v1_sigstore_proto_rawDescData
-}
 
 var file_teleport_workloadidentity_v1_sigstore_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_teleport_workloadidentity_v1_sigstore_proto_goTypes = []any{
