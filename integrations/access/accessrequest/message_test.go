@@ -106,3 +106,64 @@ func ExampleMsgReview() {
 	// Reason: ```
 	// example reason```
 }
+
+func ExampleMsgTitle_roles() {
+	req := plugindata.AccessRequestData{
+		User:  "example@goteleport.com",
+		Roles: []string{"admin", "foo", "bar", "dev"},
+		LoginsByRole: map[string][]string{
+			"admin": {"foo", "bar", "root"},
+			"foo":   {"foo"},
+			"bar":   {"bar"},
+			"dev":   {},
+		},
+		RequestReason: "test",
+	}
+
+	msg := MsgTitle(req)
+	fmt.Println(msg)
+
+	// Output: You have a new Role Request:
+}
+
+func ExampleMsgTitle_resources() {
+	req := plugindata.AccessRequestData{
+		User:  "example@goteleport.com",
+		Roles: []string{"admin", "foo", "bar", "dev"},
+		LoginsByRole: map[string][]string{
+			"admin": {"foo", "bar", "root"},
+			"foo":   {"foo"},
+			"bar":   {"bar"},
+			"dev":   {},
+		},
+		Resources:     []string{"/example.teleport.sh/node/0000"},
+		RequestKind:   "SHORT_TERM",
+		RequestReason: "test",
+	}
+
+	msg := MsgTitle(req)
+	fmt.Println(msg)
+
+	// Output: You have a new Resource Request:
+}
+
+func ExampleMsgTitle_resourcesLongTerm() {
+	req := plugindata.AccessRequestData{
+		User:  "example@goteleport.com",
+		Roles: []string{"admin", "foo", "bar", "dev"},
+		LoginsByRole: map[string][]string{
+			"admin": {"foo", "bar", "root"},
+			"foo":   {"foo"},
+			"bar":   {"bar"},
+			"dev":   {},
+		},
+		Resources:     []string{"/example.teleport.sh/node/0000"},
+		RequestKind:   "LONG_TERM",
+		RequestReason: "test",
+	}
+
+	msg := MsgTitle(req)
+	fmt.Println(msg)
+
+	// Output: You have a new Resource Request (long-term):
+}
