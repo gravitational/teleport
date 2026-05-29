@@ -356,7 +356,30 @@ func TestService_CreateCSR(t *testing.T) {
 		},
 	}
 
-	//
+	// Similar to wantCustomSubject, but the cluster name is represented in "O=".
+	wantCustomSubjectClusterO := pkix.Name{
+		Names: []pkix.AttributeTypeAndValue{
+			{Type: []int{2, 5, 4, 11}, Value: customSubjectOU},
+			{Type: []int{2, 5, 4, 3}, Value: customSubjectCN},
+			{Type: []int{2, 5, 4, 10}, Value: env.ClusterName},
+		},
+	}
+	// "O=$clusterName".
+	customDNClusterInO := &subcapb.DistinguishedName{
+		Names: []*subcapb.AttributeTypeAndValue{
+			{Oid: []int32{2, 5, 4, 11}, Value: &customSubjectOU},
+			{Oid: []int32{2, 5, 4, 3}, Value: &customSubjectCN},
+			{Oid: []int32{2, 5, 4, 10}, Value: &env.ClusterName},
+		},
+	}
+	// No "O=".
+	customDNWithoutO := &subcapb.DistinguishedName{
+		Names: []*subcapb.AttributeTypeAndValue{
+			{Oid: []int32{2, 5, 4, 11}, Value: &customSubjectOU},
+			{Oid: []int32{2, 5, 4, 3}, Value: &customSubjectCN},
+		},
+	}
+
 	tests := []struct {
 		name     string
 		req      *subcapb.CreateCSRRequest
@@ -439,6 +462,66 @@ func TestService_CreateCSR(t *testing.T) {
 			wantCSRs: func(t *testing.T) []*x509.CertificateRequest {
 				return []*x509.CertificateRequest{
 					newExpectedCSR(ca2Cert3, &wantCustomSubject),
+				}
+			},
+		},
+		{
+			name: "custom subject respects O=",
+			req: &subcapb.CreateCSRRequest{
+				CaType: string(caType2),
+				PublicKeyHash: &subcapb.PublicKeyHash{
+					Value: subca.HashCertificatePublicKey(ca2Cert3),
+				},
+				CustomSubject: customDNClusterInO, // O=clusterName
+			},
+			wantCSRs: func(t *testing.T) []*x509.CertificateRequest {
+				return []*x509.CertificateRequest{
+					newExpectedCSR(ca2Cert3, &wantCustomSubjectClusterO),
+				}
+			},
+		},
+		{
+			name: "custom subject favors O=",
+			req: &subcapb.CreateCSRRequest{
+				CaType: string(caType2),
+				PublicKeyHash: &subcapb.PublicKeyHash{
+					Value: subca.HashCertificatePublicKey(ca2Cert3),
+				},
+				CustomSubject: customDNWithoutO, // O= not present, added in the response
+			},
+			wantCSRs: func(t *testing.T) []*x509.CertificateRequest {
+				return []*x509.CertificateRequest{
+					newExpectedCSR(ca2Cert3, &wantCustomSubjectClusterO),
+				}
+			},
+		},
+		{
+			name: "custom subject multiple O=",
+			req: &subcapb.CreateCSRRequest{
+				CaType: string(caType2),
+				PublicKeyHash: &subcapb.PublicKeyHash{
+					Value: subca.HashCertificatePublicKey(ca2Cert3),
+				},
+				CustomSubject: &subcapb.DistinguishedName{
+					Names: []*subcapb.AttributeTypeAndValue{
+						{Oid: []int32{2, 5, 4, 10}, Value: &customSubjectO},
+						// Doesn't count. Cluster name must be the first.
+						{Oid: []int32{2, 5, 4, 10}, Value: &env.ClusterName},
+					},
+				},
+			},
+			wantCSRs: func(t *testing.T) []*x509.CertificateRequest {
+				wantSubj := &pkix.Name{
+					Names: []pkix.AttributeTypeAndValue{
+						// Echoes request.
+						{Type: []int{2, 5, 4, 10}, Value: customSubjectO},
+						{Type: []int{2, 5, 4, 10}, Value: env.ClusterName},
+						// Added.
+						{Type: tlsca.CAClusterNameExtensionOID, Value: env.ClusterName},
+					},
+				}
+				return []*x509.CertificateRequest{
+					newExpectedCSR(ca2Cert3, wantSubj),
 				}
 			},
 		},
@@ -641,6 +724,13 @@ func TestService_CreateCSR_errors(t *testing.T) {
 		Value: &customCN,
 	}
 
+	badClusterName := env.ClusterName + "BAD"
+	// Convert []int to []int32.
+	clusterNameOID := make([]int32, len(tlsca.CAClusterNameExtensionOID))
+	for i, x := range tlsca.CAClusterNameExtensionOID {
+		clusterNameOID[i] = int32(x)
+	}
+
 	tests := []struct {
 		name    string
 		req     *subcapb.CreateCSRRequest
@@ -704,6 +794,19 @@ func TestService_CreateCSR_errors(t *testing.T) {
 				},
 			},
 			wantErr: "cannot match more than one certificate",
+		},
+		{
+			name: "custom_subject invalid cluster name OID",
+			req: &subcapb.CreateCSRRequest{
+				CaType: string(validCAType),
+				CustomSubject: &subcapb.DistinguishedName{
+					Names: []*subcapb.AttributeTypeAndValue{
+						// "clusterNameOID" doesn't match the cluster name.
+						{Oid: clusterNameOID, Value: &badClusterName},
+					},
+				},
+			},
+			wantErr: "cluster name invalid",
 		},
 	}
 	for _, test := range tests {

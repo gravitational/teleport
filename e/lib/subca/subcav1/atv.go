@@ -26,43 +26,51 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
+var organizationNameOIDType = asn1.ObjectIdentifier{2, 5, 4, 10}
+
 func assignClusterNameToATVs(
 	atvs []pkix.AttributeTypeAndValue,
 	clusterName string,
 ) ([]pkix.AttributeTypeAndValue, error) {
-	found := false
+	var hasOrgName, hasClusterName bool
 	for _, atv := range atvs {
-		if !slices.Equal(atv.Type, tlsca.CAClusterNameExtensionOID) {
-			continue
+		switch {
+		case atv.Type.Equal(organizationNameOIDType):
+			if hasOrgName {
+				// Only consider the first O=.
+				// Teleport assumes the cluster name is the first occurrence.
+				continue
+			}
+			hasOrgName = true
+			if atv.Value == clusterName {
+				hasClusterName = true
+			}
+		case atv.Type.Equal(tlsca.CAClusterNameExtensionOID):
+			if atv.Value != clusterName {
+				return nil, trace.BadParameter("OID %v: cluster name invalid or not a string: %v", atv.Type, atv.Value)
+			}
+			hasClusterName = true
 		}
 
-		val, ok := atv.Value.(string)
-		if !ok {
-			return nil, trace.BadParameter(
-				"OID %v is empty or not a string: %T",
-				atv.Type,
-				atv.Value,
-			)
-		}
-		if val != clusterName {
-			return nil, trace.BadParameter(
-				"OID %v: incorrect cluster name: %s",
-				atv.Type,
-				atv.Value,
-			)
-		}
-
-		found = true // Continue looping, we want to inspect all OIDs.
+		// Continue looping, we want to inspect all OIDs.
 	}
 
-	if !found {
-		atvs = append(atvs, pkix.AttributeTypeAndValue{
-			Type:  tlsca.CAClusterNameExtensionOID,
-			Value: clusterName,
-		})
+	if hasClusterName {
+		return atvs, nil
 	}
 
-	return atvs, nil
+	var clusterNameType []int
+	if !hasOrgName {
+		// Favor O= for the cluster name instead of our custom OID.
+		// Some downstream systems don't like custom OIDs (eg, Postgres).
+		clusterNameType = organizationNameOIDType
+	} else {
+		clusterNameType = tlsca.CAClusterNameExtensionOID
+	}
+	return append(atvs, pkix.AttributeTypeAndValue{
+		Type:  clusterNameType,
+		Value: clusterName,
+	}), nil
 }
 
 func removeOID(
