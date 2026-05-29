@@ -20,9 +20,6 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-import { startUrl, users } from './helpers/env';
-import { directLogin } from './helpers/login';
-
 const authDir = join(dirname(fileURLToPath(import.meta.url)), '.auth');
 
 async function globalSetup() {
@@ -30,6 +27,19 @@ async function globalSetup() {
   if (!browser) {
     throw new Error('E2E_BROWSER must be set by the runner');
   }
+
+  // No bootstrapped users — e.g. runs against an existing cluster via
+  // --teleport-url, or unauthenticated/connect-only runs. There's nothing to
+  // set up, and helpers/env throws on the missing E2E_USERS_FILE, so bail
+  // before importing it.
+  if (!process.env.E2E_USERS_FILE) {
+    return;
+  }
+
+  // Imported lazily so reading E2E_USERS_FILE only happens once we know there
+  // are credentials to generate auth state from.
+  const { startUrl, users } = await import('./helpers/env');
+  const { directLogin } = await import('./helpers/login');
 
   mkdirSync(authDir, { recursive: true });
 
