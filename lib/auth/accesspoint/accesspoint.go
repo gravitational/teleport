@@ -73,7 +73,7 @@ type Config struct {
 	AccessLists             services.AccessLists
 	AccessMonitoringRules   services.AccessMonitoringRules
 	AppSession              services.AppSession
-	Apps            		services.Applications
+	Apps                    services.Applications
 	Beams                   services.BeamReader
 	BotInstance             services.BotInstance
 	ClusterConfig           services.ClusterConfiguration

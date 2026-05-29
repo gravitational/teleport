@@ -4172,9 +4172,6 @@ message RoleConditions {
   // MCPPermissions defines MCP servers related permissions.
   MCPPermissions MCP = 46 [(gogoproto.jsontag) = "mcp,omitempty"];
 
-  reserved 47, 48, 49;
-  reserved "LinuxDesktopLogins", "LinuxDesktopLabels", "LinuxDesktopLabelsExpression";
-
   // BeamLabels are used in the RBAC system to allow/deny access to beams.
   wrappers.LabelValues BeamLabels = 50 [
     (gogoproto.nullable) = false,
