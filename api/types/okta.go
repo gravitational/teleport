@@ -420,6 +420,13 @@ type OktaAssignmentTarget interface {
 	GetTargetType() string
 	// GetID returns the ID of the target.
 	GetID() string
+	// GetStatus returns the processing status of the target.
+	GetStatus() *OktaAssignmentTargetStatus
+	// RecordStatus sets the processing outcome, op type, and last processing time.
+	// If an invalid value is provided for op or outcome, then the zero value is used.
+	// In the case of a failed outcome, the failure count is incremented.
+	// In the case of a successful outcome, the failure count is reset.
+	RecordStatus(t time.Time, op constants.OktaAssignmentTargetOp, outcome constants.OktaAssignmentTargetOutcome)
 }
 
 // GetTargetType returns the target type.
@@ -437,6 +444,53 @@ func (o *OktaAssignmentTargetV1) GetTargetType() string {
 // GetID returns the ID of the action target.
 func (o *OktaAssignmentTargetV1) GetID() string {
 	return o.Id
+}
+
+func (o *OktaAssignmentTargetV1) GetStatus() *OktaAssignmentTargetStatus {
+	return o.Status
+}
+
+// RecordStatus sets the processing outcome, op type, and last processing time.
+// If an invalid value is provided for op or outcome, then the zero value is used.
+// In the case of a failed outcome, the failure count is incremented.
+// In the case of a successful outcome, the failure count is reset.
+func (o *OktaAssignmentTargetV1) RecordStatus(
+	t time.Time,
+	op constants.OktaAssignmentTargetOp,
+	outcome constants.OktaAssignmentTargetOutcome,
+) {
+	switch op {
+	case constants.OktaAssignmentTargetOpProvision:
+	case constants.OktaAssignmentTargetOpCleanup:
+	default:
+		op = ""
+	}
+
+	switch outcome {
+	case constants.OktaAssignmentTargetOutcomeSuccessful:
+	case constants.OktaAssignmentTargetOutcomeFailed:
+	default:
+		outcome = ""
+	}
+
+	prevFailureCount := int32(0)
+	if o.Status != nil {
+		prevFailureCount = o.Status.FailureCount
+	}
+
+	o.Status = &OktaAssignmentTargetStatus{
+		Outcome:       string(outcome),
+		Op:            string(op),
+		LastProcessed: t,
+		FailureCount:  prevFailureCount,
+	}
+
+	switch outcome {
+	case constants.OktaAssignmentTargetOutcomeSuccessful:
+		o.Status.FailureCount = 0
+	case constants.OktaAssignmentTargetOutcomeFailed:
+		o.Status.FailureCount++
+	}
 }
 
 // OktaAssignments is a list of OktaAssignment resources.

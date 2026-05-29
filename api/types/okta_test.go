@@ -33,7 +33,6 @@ func TestOktaAssignments_SetStatus(t *testing.T) {
 		nextStatus  string
 		invalid     bool
 	}{
-
 		// PENDING transitions
 		{startStatus: constants.OktaAssignmentStatusPending, nextStatus: constants.OktaAssignmentStatusPending, invalid: true},
 		{startStatus: constants.OktaAssignmentStatusPending, nextStatus: constants.OktaAssignmentStatusProcessing},
@@ -81,6 +80,8 @@ func TestOktaAssignments_SetStatus(t *testing.T) {
 }
 
 func TestOktAssignmentIsEqual(t *testing.T) {
+	now := time.Now()
+
 	newAssignment := func(changeFns ...func(*OktaAssignmentV1)) *OktaAssignmentV1 {
 		assignment := &OktaAssignmentV1{
 			ResourceHeader: ResourceHeader{
@@ -93,8 +94,18 @@ func TestOktAssignmentIsEqual(t *testing.T) {
 			Spec: OktaAssignmentSpecV1{
 				User: "user",
 				Targets: []*OktaAssignmentTargetV1{
-					{Id: "1", Type: OktaAssignmentTargetV1_APPLICATION},
-					{Id: "2", Type: OktaAssignmentTargetV1_GROUP},
+					{Id: "1", Type: OktaAssignmentTargetV1_APPLICATION, Status: &OktaAssignmentTargetStatus{
+						Outcome:       string(constants.OktaAssignmentTargetOutcomeFailed),
+						Op:            string(constants.OktaAssignmentTargetOpProvision),
+						FailureCount:  3,
+						LastProcessed: now,
+					}},
+					{Id: "2", Type: OktaAssignmentTargetV1_GROUP, Status: &OktaAssignmentTargetStatus{
+						Outcome:       string(constants.OktaAssignmentTargetOutcomeSuccessful),
+						Op:            string(constants.OktaAssignmentTargetOpCleanup),
+						FailureCount:  0,
+						LastProcessed: now,
+					}},
 				},
 				CleanupTime:    time.Time{},
 				Status:         OktaAssignmentSpecV1_PENDING,
@@ -246,6 +257,38 @@ func TestOktAssignmentIsEqual(t *testing.T) {
 			}),
 			expected: false,
 		},
+		{
+			name: "status operation is different",
+			o1:   newAssignment(),
+			o2: newAssignment(func(o *OktaAssignmentV1) {
+				o.Spec.Targets[0].Status.Op = string(constants.OktaAssignmentTargetOpCleanup)
+			}),
+			expected: false,
+		},
+		{
+			name: "status outcome is different",
+			o1:   newAssignment(),
+			o2: newAssignment(func(o *OktaAssignmentV1) {
+				o.Spec.Targets[0].Status.Outcome = string(constants.OktaAssignmentTargetOutcomeSuccessful)
+			}),
+			expected: false,
+		},
+		{
+			name: "status last processed is different",
+			o1:   newAssignment(),
+			o2: newAssignment(func(o *OktaAssignmentV1) {
+				o.Spec.Targets[0].Status.LastProcessed = now.Add(time.Minute)
+			}),
+			expected: false,
+		},
+		{
+			name: "status failure count is different",
+			o1:   newAssignment(),
+			o2: newAssignment(func(o *OktaAssignmentV1) {
+				o.Spec.Targets[0].Status.FailureCount = 23
+			}),
+			expected: false,
+		},
 	}
 
 	for _, test := range tests {
@@ -282,7 +325,6 @@ func Test_PluginOktaSyncSettings_SetUserSyncSource(t *testing.T) {
 			syncSettings.SetUserSyncSource(userSyncSource)
 			require.Equal(t, userSyncSource, syncSettings.GetUserSyncSource())
 		}
-
 	})
 
 	t.Run("edge cases", func(t *testing.T) {
@@ -384,4 +426,199 @@ func Test_PluginOktaSyncSettings_SyncEnabledGetters(t *testing.T) {
 		require.True(t, syncSettings.GetEnableSystemLogExport())
 		require.True(t, syncSettings.GetAssignDefaultRoles())
 	})
+}
+
+func TestOktaAssignmentStatusRecordStatus(t *testing.T) {
+	now := time.Now()
+
+	tests := []struct {
+		name           string
+		op             constants.OktaAssignmentTargetOp
+		outcome        constants.OktaAssignmentTargetOutcome
+		initialStatus  *OktaAssignmentTargetStatus
+		expectedStatus *OktaAssignmentTargetStatus
+	}{
+		{
+			name:    "successful initial provision",
+			op:      constants.OktaAssignmentTargetOpProvision,
+			outcome: constants.OktaAssignmentTargetOutcomeSuccessful,
+			expectedStatus: &OktaAssignmentTargetStatus{
+				Op:            string(constants.OktaAssignmentTargetOpProvision),
+				Outcome:       string(constants.OktaAssignmentTargetOutcomeSuccessful),
+				LastProcessed: now,
+				FailureCount:  0,
+			},
+		},
+		{
+			name:    "successful provision from failed",
+			op:      constants.OktaAssignmentTargetOpProvision,
+			outcome: constants.OktaAssignmentTargetOutcomeSuccessful,
+			initialStatus: &OktaAssignmentTargetStatus{
+				Op:            string(constants.OktaAssignmentTargetOpProvision),
+				Outcome:       string(constants.OktaAssignmentTargetOutcomeFailed),
+				LastProcessed: now,
+				FailureCount:  7,
+			},
+			expectedStatus: &OktaAssignmentTargetStatus{
+				Op:            string(constants.OktaAssignmentTargetOpProvision),
+				Outcome:       string(constants.OktaAssignmentTargetOutcomeSuccessful),
+				LastProcessed: now,
+				FailureCount:  0,
+			},
+		},
+		{
+			name:    "failed initial provision",
+			op:      constants.OktaAssignmentTargetOpProvision,
+			outcome: constants.OktaAssignmentTargetOutcomeFailed,
+			expectedStatus: &OktaAssignmentTargetStatus{
+				Op:            string(constants.OktaAssignmentTargetOpProvision),
+				Outcome:       string(constants.OktaAssignmentTargetOutcomeFailed),
+				LastProcessed: now,
+				FailureCount:  1,
+			},
+		},
+		{
+			name:    "failed provision from failed",
+			op:      constants.OktaAssignmentTargetOpProvision,
+			outcome: constants.OktaAssignmentTargetOutcomeFailed,
+			initialStatus: &OktaAssignmentTargetStatus{
+				Op:            string(constants.OktaAssignmentTargetOpProvision),
+				Outcome:       string(constants.OktaAssignmentTargetOutcomeFailed),
+				LastProcessed: now,
+				FailureCount:  7,
+			},
+			expectedStatus: &OktaAssignmentTargetStatus{
+				Op:            string(constants.OktaAssignmentTargetOpProvision),
+				Outcome:       string(constants.OktaAssignmentTargetOutcomeFailed),
+				LastProcessed: now,
+				FailureCount:  8,
+			},
+		},
+		{
+			name:    "successful initial cleanup",
+			op:      constants.OktaAssignmentTargetOpCleanup,
+			outcome: constants.OktaAssignmentTargetOutcomeSuccessful,
+			expectedStatus: &OktaAssignmentTargetStatus{
+				Op:            string(constants.OktaAssignmentTargetOpCleanup),
+				Outcome:       string(constants.OktaAssignmentTargetOutcomeSuccessful),
+				LastProcessed: now,
+				FailureCount:  0,
+			},
+		},
+		{
+			name:    "successful cleanup from failed",
+			op:      constants.OktaAssignmentTargetOpCleanup,
+			outcome: constants.OktaAssignmentTargetOutcomeSuccessful,
+			initialStatus: &OktaAssignmentTargetStatus{
+				Op:            string(constants.OktaAssignmentTargetOpCleanup),
+				Outcome:       string(constants.OktaAssignmentTargetOutcomeFailed),
+				LastProcessed: now,
+				FailureCount:  7,
+			},
+			expectedStatus: &OktaAssignmentTargetStatus{
+				Op:            string(constants.OktaAssignmentTargetOpCleanup),
+				Outcome:       string(constants.OktaAssignmentTargetOutcomeSuccessful),
+				LastProcessed: now,
+				FailureCount:  0,
+			},
+		},
+		{
+			name:    "failed initial cleanup",
+			op:      constants.OktaAssignmentTargetOpCleanup,
+			outcome: constants.OktaAssignmentTargetOutcomeFailed,
+			expectedStatus: &OktaAssignmentTargetStatus{
+				Op:            string(constants.OktaAssignmentTargetOpCleanup),
+				Outcome:       string(constants.OktaAssignmentTargetOutcomeFailed),
+				LastProcessed: now,
+				FailureCount:  1,
+			},
+		},
+		{
+			name:    "failed cleanup from failed",
+			op:      constants.OktaAssignmentTargetOpCleanup,
+			outcome: constants.OktaAssignmentTargetOutcomeFailed,
+			initialStatus: &OktaAssignmentTargetStatus{
+				Op:            string(constants.OktaAssignmentTargetOpCleanup),
+				Outcome:       string(constants.OktaAssignmentTargetOutcomeFailed),
+				LastProcessed: now,
+				FailureCount:  7,
+			},
+			expectedStatus: &OktaAssignmentTargetStatus{
+				Op:            string(constants.OktaAssignmentTargetOpCleanup),
+				Outcome:       string(constants.OktaAssignmentTargetOutcomeFailed),
+				LastProcessed: now,
+				FailureCount:  8,
+			},
+		},
+		{
+			name:    "failed invalid op",
+			op:      "invalid-op",
+			outcome: constants.OktaAssignmentTargetOutcomeFailed,
+			initialStatus: &OktaAssignmentTargetStatus{
+				Op:            string(constants.OktaAssignmentTargetOpCleanup),
+				Outcome:       string(constants.OktaAssignmentTargetOutcomeFailed),
+				LastProcessed: now,
+				FailureCount:  3,
+			},
+			expectedStatus: &OktaAssignmentTargetStatus{
+				Op:            "",
+				Outcome:       string(constants.OktaAssignmentTargetOutcomeFailed),
+				LastProcessed: now,
+				FailureCount:  4,
+			},
+		},
+		{
+			name:    "successful invalid op",
+			op:      "invalid-op",
+			outcome: constants.OktaAssignmentTargetOutcomeSuccessful,
+			initialStatus: &OktaAssignmentTargetStatus{
+				Op:            string(constants.OktaAssignmentTargetOpCleanup),
+				Outcome:       string(constants.OktaAssignmentTargetOutcomeFailed),
+				LastProcessed: now,
+				FailureCount:  3,
+			},
+			expectedStatus: &OktaAssignmentTargetStatus{
+				Op:            "",
+				Outcome:       string(constants.OktaAssignmentTargetOutcomeSuccessful),
+				LastProcessed: now,
+				FailureCount:  0,
+			},
+		},
+		{
+			name:    "cleanup invalid outcome",
+			op:      constants.OktaAssignmentTargetOpCleanup,
+			outcome: "invalid-outcome",
+			initialStatus: &OktaAssignmentTargetStatus{
+				Op:            string(constants.OktaAssignmentTargetOpCleanup),
+				Outcome:       string(constants.OktaAssignmentTargetOutcomeFailed),
+				LastProcessed: now,
+				FailureCount:  3,
+			},
+			expectedStatus: &OktaAssignmentTargetStatus{
+				Op:            string(constants.OktaAssignmentTargetOpCleanup),
+				Outcome:       "",
+				LastProcessed: now,
+				FailureCount:  3,
+			},
+		},
+	}
+
+	for i, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			target := &OktaAssignmentTargetV1{
+				Type:   OktaAssignmentTargetV1_APPLICATION,
+				Id:     fmt.Sprintf("test-id-%d", i),
+				Status: test.initialStatus,
+			}
+
+			target.RecordStatus(now, test.op, test.outcome)
+
+			status := target.GetStatus()
+
+			require.Equal(t, test.expectedStatus.Op, status.Op)
+			require.Equal(t, test.expectedStatus.Outcome, status.Outcome)
+			require.Equal(t, test.expectedStatus.FailureCount, status.FailureCount)
+			require.Equal(t, test.expectedStatus.LastProcessed, status.LastProcessed)
+		})
+	}
 }
