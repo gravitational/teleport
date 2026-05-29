@@ -1119,11 +1119,28 @@ var (
 			Buckets: prometheus.ExponentialBuckets(0.001, 2, 16),
 		},
 	)
-	// UserLoginCount counts user logins
+	// UserLoginCount counts successful user logins.
 	UserLoginCount = prometheus.NewCounter(
 		prometheus.CounterOpts{
 			Name: teleport.MetricUserLoginCount,
 			Help: "Number of times there was a user login",
+		},
+	)
+	// userLoginAttempts counts all user login attempts.
+	userLoginAttempts = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricUserLoginAttempts,
+			Help:      "Total number of user login attempts",
+		},
+	)
+	// userLoginLatencies measures the duration of successful user logins.
+	userLoginLatencies = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricUserLoginLatencies,
+			Help:      "Latency of successful user logins",
+			Buckets:   prometheus.ExponentialBuckets(0.001, 2, 16),
 		},
 	)
 	userLoginCountPerClient = prometheus.NewCounterVec(
@@ -1232,6 +1249,23 @@ var (
 		},
 		[]string{teleport.TagPrivateKeyPolicy},
 	)
+	// userCertificatesRequested counts all user certificate generation attempts.
+	userCertificatesRequested = prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricUserCertificatesRequested,
+			Help:      "Total number of user certificate generation requests",
+		},
+	)
+	// userCertificatesLatencies measures the duration of successful user certificate generation.
+	userCertificatesLatencies = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Namespace: teleport.MetricNamespace,
+			Name:      teleport.MetricUserCertificatesLatencies,
+			Help:      "Latency of successful user certificate generation",
+			Buckets:   prometheus.ExponentialBuckets(0.001, 2, 16),
+		},
+	)
 
 	botInstancesMetric = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -1247,12 +1281,14 @@ var (
 
 	prometheusCollectors = []prometheus.Collector{
 		generateRequestsCount, generateThrottledRequestsCount,
-		generateRequestsCurrent, generateRequestsLatencies, UserLoginCount, userLoginCountPerClient, heartbeatsMissedByAuth,
+		generateRequestsCurrent, generateRequestsLatencies,
+		UserLoginCount, userLoginAttempts, userLoginLatencies, userLoginCountPerClient,
+		heartbeatsMissedByAuth,
 		registeredAgents, migrations,
 		totalInstancesMetric, enrolledInUpgradesMetric, upgraderCountsMetric,
 		accessRequestsCreatedMetric,
 		registeredAgentsInstallMethod,
-		userCertificatesGeneratedMetric,
+		userCertificatesGeneratedMetric, userCertificatesRequested, userCertificatesLatencies,
 		roleCount,
 		botInstancesMetric,
 	}
@@ -3616,6 +3652,9 @@ func (a *Server) generateOpenSSHCert(ctx context.Context, req cert.Request) (*pr
 }
 
 func generateCert(ctx context.Context, a *Server, req cert.Request, caType types.CertAuthType) (*proto.Certs, error) {
+	userCertificatesRequested.Inc()
+	certStart := a.clock.Now()
+
 	err := req.Check()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -4119,6 +4158,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 
 	a.submitCertificateIssuedEvent(&req, attestedKeyPolicy)
 	userCertificatesGeneratedMetric.WithLabelValues(string(attestedKeyPolicy)).Inc()
+	userCertificatesLatencies.Observe(a.clock.Since(certStart).Seconds())
 
 	return certs, nil
 }
