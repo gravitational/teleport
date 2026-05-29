@@ -18,7 +18,11 @@
 
 import { useTheme } from 'styled-components';
 
+import BeamsLogoDark from 'design/assets/images/beams-dark.svg';
+import BeamsLogoLight from 'design/assets/images/beams-light.svg';
 import Image from 'design/Image';
+
+import cfg from 'teleport/config';
 
 // The logo SVG served at this path is selected at build time to match the
 // edition of the binary. See the Makefile and the per-edition public/ dirs.
@@ -30,6 +34,13 @@ export function logoSrc(themeType: 'light' | 'dark'): string {
   return `${base}logo-${themeType}.svg?v=1`;
 }
 
+// Beams branding is a per-cluster runtime feature flag (cfg.beamsUi), not a
+// build-time binary.
+const beamsLogos = {
+  light: BeamsLogoLight,
+  dark: BeamsLogoDark,
+};
+
 export const LogoHero = ({
   my = '48px',
   customSrc,
@@ -38,7 +49,8 @@ export const LogoHero = ({
   customSrc?: string;
 }) => {
   const theme = useTheme();
-  const src = customSrc || logoSrc(theme.type);
+  const defaultSrc = cfg.beamsUi ? beamsLogos[theme.type] : logoSrc(theme.type);
+  const src = customSrc || defaultSrc;
   return (
     <Image src={src} maxHeight="120px" maxWidth="200px" my={my} mx="auto" />
   );
