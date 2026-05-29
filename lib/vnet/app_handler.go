@@ -30,14 +30,15 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/types"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 )
 
-type tcpAppHandler struct {
-	cfg *tcpAppHandlerConfig
+type appHandler struct {
+	cfg *appHandlerConfig
 	log *slog.Logger
 
 	// mu guards access to portToLocalProxy.
@@ -45,8 +46,10 @@ type tcpAppHandler struct {
 	portToLocalProxy map[uint16]*alpnproxy.LocalProxy
 }
 
-type tcpAppHandlerConfig struct {
-	appInfo     *vnetv1.AppInfo
+type appHandlerConfig struct {
+	appInfo  *vnetv1.AppInfo
+	protocol alpncommon.Protocol
+
 	appProvider *appProvider
 	clock       clockwork.Clock
 	// alwaysTrustRootClusterCA can be set in tests so that TLS dials to the
@@ -55,11 +58,11 @@ type tcpAppHandlerConfig struct {
 	alwaysTrustRootClusterCA bool
 }
 
-func newTCPAppHandler(cfg *tcpAppHandlerConfig) *tcpAppHandler {
-	return &tcpAppHandler{
+func newAppHandler(cfg *appHandlerConfig) *appHandler {
+	return &appHandler{
 		cfg: cfg,
 		log: log.With(
-			teleport.ComponentKey, teleport.Component("vnet", "tcp-app-handler"),
+			teleport.ComponentKey, teleport.Component("vnet", "app-handler"),
 			"profile", cfg.appInfo.GetAppKey().GetProfile(),
 			"leaf_cluster", cfg.appInfo.GetAppKey().GetLeafCluster(),
 			"fqdn", cfg.appInfo.GetApp().GetPublicAddr()),
@@ -69,7 +72,7 @@ func newTCPAppHandler(cfg *tcpAppHandlerConfig) *tcpAppHandler {
 
 // getOrInitializeLocalProxy returns a separate local proxy for each port for multi-port apps. For
 // single-port apps, it returns the same local proxy no matter the port.
-func (h *tcpAppHandler) getOrInitializeLocalProxy(ctx context.Context, localPort uint16) (*alpnproxy.LocalProxy, error) {
+func (h *appHandler) getOrInitializeLocalProxy(ctx context.Context, localPort uint16) (*alpnproxy.LocalProxy, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	// Connections to single-port apps need to go through a local proxy that has a cert with TargetPort
@@ -92,35 +95,21 @@ func (h *tcpAppHandler) getOrInitializeLocalProxy(ctx context.Context, localPort
 	certChecker := client.NewCertChecker(appCertIssuer, h.cfg.clock)
 	middleware := &localProxyMiddleware{
 		certChecker: certChecker,
-		appProvider: h.cfg.appProvider,
-		appKey:      h.cfg.appInfo.GetAppKey(),
+		onNewConnection: func(ctx context.Context) error {
+			return h.cfg.appProvider.OnNewAppConnection(ctx, h.cfg.appInfo.GetAppKey())
+		},
 	}
-	dialOptions := h.cfg.appInfo.GetDialOptions()
-	localProxyConfig := alpnproxy.LocalProxyConfig{
-		RemoteProxyAddr:         dialOptions.GetWebProxyAddr(),
-		Protocols:               []alpncommon.Protocol{alpncommon.ProtocolTCP},
-		ParentContext:           ctx,
-		SNI:                     dialOptions.GetSni(),
-		ALPNConnUpgradeRequired: dialOptions.GetAlpnConnUpgradeRequired(),
-		Middleware:              middleware,
-		InsecureSkipVerify:      dialOptions.GetInsecureSkipVerify(),
-		Clock:                   h.cfg.clock,
-	}
-	if dialOptions.GetAlpnConnUpgradeRequired() || h.cfg.alwaysTrustRootClusterCA {
-		certPoolPEM := dialOptions.GetRootClusterCaCertPool()
-		if len(certPoolPEM) == 0 {
-			return nil, trace.BadParameter("ALPN conn upgrade required but no root CA cert pool provided")
-		}
-		caPool := x509.NewCertPool()
-		if !caPool.AppendCertsFromPEM(certPoolPEM) {
-			return nil, trace.Errorf("failed to parse root cluster CA certs")
-		}
-		localProxyConfig.RootCAs = caPool
-	}
-	h.log.DebugContext(ctx, "Creating local proxy", "target_port", localPort)
-	newLP, err := alpnproxy.NewLocalProxy(localProxyConfig)
+	h.log.DebugContext(ctx, "Creating local proxy", "target_port", localPort, "protocol", h.cfg.protocol)
+	newLP, err := newLocalProxy(localProxyConfig{
+		dialOptions:              h.cfg.appInfo.GetDialOptions(),
+		protocols:                []alpncommon.Protocol{h.cfg.protocol},
+		parentContext:            ctx,
+		middleware:               middleware,
+		clock:                    h.cfg.clock,
+		alwaysTrustRootClusterCA: h.cfg.alwaysTrustRootClusterCA,
+	})
 	if err != nil {
-		return nil, trace.Wrap(err, "creating local proxy")
+		return nil, trace.Wrap(err)
 	}
 	h.portToLocalProxy[localPort] = newLP
 	return newLP, nil
@@ -128,7 +117,7 @@ func (h *tcpAppHandler) getOrInitializeLocalProxy(ctx context.Context, localPort
 
 // handleTCPConnector handles an incoming TCP connection from VNet by passing it to the local alpn proxy,
 // which is set up with middleware to automatically handle certificate renewal and re-logins.
-func (h *tcpAppHandler) handleTCPConnector(ctx context.Context, localPort uint16, connector func() (net.Conn, error)) error {
+func (h *appHandler) handleTCPConnector(ctx context.Context, localPort uint16, connector func() (net.Conn, error)) error {
 	app := h.cfg.appInfo.GetApp()
 	if len(app.GetTCPPorts()) > 0 {
 		if !app.GetTCPPorts().Contains(int(localPort)) {
@@ -164,24 +153,10 @@ func (i *appCertIssuer) IssueCert(ctx context.Context) (tls.Certificate, error) 
 	return cert.(tls.Certificate), trace.Wrap(err)
 }
 
-// localProxyMiddleware wraps around [client.CertChecker] and additionally makes it so that its
-// OnNewConnection method calls OnNewAppConnection on [appProvider].
-type localProxyMiddleware struct {
-	appKey      *vnetv1.AppKey
-	certChecker *client.CertChecker
-	appProvider *appProvider
-}
-
-func (m *localProxyMiddleware) OnNewConnection(ctx context.Context, lp *alpnproxy.LocalProxy) error {
-	err := m.certChecker.OnNewConnection(ctx, lp)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	return trace.Wrap(m.appProvider.OnNewAppConnection(ctx, m.appKey))
-}
-
-func (m *localProxyMiddleware) OnStart(ctx context.Context, lp *alpnproxy.LocalProxy) error {
-	return trace.Wrap(m.certChecker.OnStart(ctx, lp))
+// IsHTTPSTunnelApp returns true if the app should be proxied through the
+// HTTPS-in-mTLS tunnel. Currently this includes HTTP and LLM apps.
+func IsHTTPSTunnelApp(app types.Application) bool {
+	return app.IsLLM() || app.GetProtocol() == types.ApplicationProtocolHTTP
 }
 
 // RouteToApp returns a *proto.RouteToApp populated from appInfo and targetPort.

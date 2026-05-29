@@ -193,11 +193,20 @@ func (h *Handler) completeAppAuthExchange(w http.ResponseWriter, r *http.Request
 	}
 	if err := checkSubjectToken(req.SubjectCookieValue, ws); err != nil {
 		h.logger.WarnContext(r.Context(), "Request failed", "error", err)
+		identity, _ := getIdentityFromWebSession(ws)
 		h.emitErrorEventAndDeleteAppSession(r, emitErrorEventFields{
-			sessionID: req.CookieValue,
-			err:       err.Error(),
-			loginName: ws.GetUser(),
+			sessionID:   req.CookieValue,
+			err:         err.Error(),
+			loginName:   ws.GetUser(),
+			appMetadata: appMetadata(identity),
 		})
+		return trace.AccessDenied("access denied")
+	}
+
+	// TODO(greedy52) add browser support by validating the subject token
+	// against the outer mTLS identity
+	if IsHTTPSTunnelConn(r) {
+		h.logger.DebugContext(r.Context(), "Browser access through the HTTPS tunnel is not supported", "user", ws.GetUser())
 		return trace.AccessDenied("access denied")
 	}
 
@@ -308,9 +317,10 @@ func getAuthStateCookieName(cookieID string) string {
 }
 
 type emitErrorEventFields struct {
-	loginName string
-	err       string
-	sessionID string
+	loginName   string
+	err         string
+	sessionID   string
+	appMetadata apievents.AppMetadata
 }
 
 func (h *Handler) emitErrorEventAndDeleteAppSession(r *http.Request, f emitErrorEventFields) {
@@ -323,24 +333,17 @@ func (h *Handler) emitErrorEventAndDeleteAppSession(r *http.Request, f emitError
 		}
 	}
 
-	event := &apievents.AuthAttempt{
+	h.emitAuditEvent(&apievents.AuthAttempt{
 		Metadata: apievents.Metadata{
 			Type: events.AuthAttemptEvent,
 			Code: events.AuthAttemptFailureCode,
 		},
-		UserMetadata: apievents.UserMetadata{
-			User:  "unknown",
-			Login: f.loginName,
-		},
-		ConnectionMetadata: apievents.ConnectionMetadata{
-			LocalAddr:  r.Host,
-			RemoteAddr: r.RemoteAddr,
-		},
+		UserMetadata:       userMetadata(nil, f.loginName),
+		AppMetadata:        f.appMetadata,
+		ConnectionMetadata: connectionMetadataFromRequest(r),
 		Status: apievents.Status{
 			Success: false,
 			Error:   fmt.Sprintf("Failed app access authentication: %s", f.err),
 		},
-	}
-
-	h.c.AuthClient.EmitAuditEvent(h.closeContext, event)
+	})
 }

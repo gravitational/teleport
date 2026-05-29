@@ -586,6 +586,31 @@ Arguments:
 |---|---|---|
 |labels|*no default* (optional)|List of comma separated labels to filter by labels (e.g. key1=value1,key2=value2)|
 
+## tsh delegation create-session
+
+Create a delegation session, allowing a bot or workload to temporarily act on
+your behalf.
+
+Usage:
+
+```code
+$ tsh delegation create-session [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--allow-app`|*no default*|Allow access to an application.|
+|`--allow-db`|*no default*|Allow access to a database.|
+|`--allow-git-server`|*no default*|Allow access to a Git server.|
+|`--allow-kube-cluster`|*no default*|Allow access to a Kubernetes cluster.|
+|`--allow-node`|*no default*|Allow access to an SSH node.|
+|`--allow-windows-desktop`|*no default*|Allow access to a Windows desktop.|
+|`--bot`|*no default*|Name of a bot allowed to use the delegation session. Repeat to allow multiple bots.|
+|`--[no-]allow-all`|`false`|Allow access to all resources, including destructive administrative actions. Mutually exclusive with the other --allow-* flags.|
+|`--session-ttl`|*no default*|How long the delegation session should remain valid.|
+
 ## tsh device enroll
 
 Enroll this device as a trusted device. Requires Teleport Enterprise.

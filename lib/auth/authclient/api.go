@@ -1491,6 +1491,8 @@ type Cache interface {
 
 	// SummarizerServiceGetter defines methods for fetching summarizer resources.
 	services.SummarizerServiceGetter
+	// BeamReader defines methods for reading beam resources.
+	services.BeamReader
 }
 
 type NodeWrapper struct {

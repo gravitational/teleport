@@ -31,6 +31,8 @@ var (
 	vnetNotImplemented = &trace.NotImplementedError{Message: "VNet is not implemented on " + runtime.GOOS}
 )
 
-func platformLoadUpstreamNameservers(ctx context.Context, slog *slog.Logger) ([]string, error) {
-	return nil, trace.Wrap(vnetNotImplemented)
+func platformUpstreamNameserverSource(*slog.Logger) UpstreamNameserverSource {
+	return upstreamNameserverSourceFn(func(context.Context) ([]string, error) {
+		return nil, trace.Wrap(vnetNotImplemented)
+	})
 }
