@@ -160,9 +160,18 @@ describe('Beams nav category', () => {
   });
 });
 
-describe('Beams first-visit auto-expand', () => {
+describe('Beams default sticky drawer', () => {
   const originalIsDashboard = cfg.isDashboard;
   const originalBeamsUi = cfg.beamsUi;
+
+  // The drawer panel has no dedicated open/closed attribute: it slides into
+  // view (translateX(0)) when open and off-screen (translateX(-100%)) when
+  // closed. Assert on that slide transform to verify the expanded state.
+  function expectBeamsDrawerOpen(open: boolean) {
+    expect(document.getElementById('panel-Beams')).toHaveStyle({
+      transform: open ? 'translateX(0)' : 'translateX(-100%)',
+    });
+  }
 
   beforeEach(() => {
     cfg.isDashboard = false;
@@ -176,11 +185,11 @@ describe('Beams first-visit auto-expand', () => {
 
   async function mountNav({
     drawerMode,
-    updatePreferences,
+    updatePreferences = jest.fn(),
     initialPath = '/web/beams/get-started',
   }: {
     drawerMode: SideNavDrawerMode;
-    updatePreferences: jest.Mock;
+    updatePreferences?: jest.Mock;
     initialPath?: string;
   }) {
     const preferences = makeDefaultUserPreferences();
@@ -201,58 +210,40 @@ describe('Beams first-visit auto-expand', () => {
       </MemoryRouter>
     );
     await act(tick);
+    return { updatePreferences };
   }
 
-  test('flips sideNavDrawerMode to STICKY when the user has no prior preference', async () => {
-    const updatePreferences = jest.fn();
-
-    await mountNav({
+  test('defaults to a sticky, expanded drawer when the user has no prior preference', async () => {
+    const { updatePreferences } = await mountNav({
       drawerMode: SideNavDrawerMode.UNSPECIFIED,
-      updatePreferences,
     });
 
-    expect(updatePreferences).toHaveBeenCalledWith({
-      sideNavDrawerMode: SideNavDrawerMode.STICKY,
-    });
-  });
-
-  test('does not run if the user already has a sideNavDrawerMode set', async () => {
-    const collapsedUpdate = jest.fn();
-    await mountNav({
-      drawerMode: SideNavDrawerMode.COLLAPSED,
-      updatePreferences: collapsedUpdate,
-    });
-    expect(collapsedUpdate).not.toHaveBeenCalled();
-
-    const stickyUpdate = jest.fn();
-    await mountNav({
-      drawerMode: SideNavDrawerMode.STICKY,
-      updatePreferences: stickyUpdate,
-    });
-    expect(stickyUpdate).not.toHaveBeenCalled();
-  });
-
-  test('does not fire when cfg.beamsUi is false', async () => {
-    cfg.beamsUi = false;
-    const updatePreferences = jest.fn();
-
-    await mountNav({
-      drawerMode: SideNavDrawerMode.UNSPECIFIED,
-      updatePreferences,
-    });
-
+    expectBeamsDrawerOpen(true);
     expect(updatePreferences).not.toHaveBeenCalled();
   });
 
-  test('does not fire when the user is not on a Beams page', async () => {
-    const updatePreferences = jest.fn();
-
-    await mountNav({
-      drawerMode: SideNavDrawerMode.UNSPECIFIED,
-      updatePreferences,
-      initialPath: '/web/cluster/x/resources',
+  test('honors an explicit COLLAPSED preference', async () => {
+    const { updatePreferences } = await mountNav({
+      drawerMode: SideNavDrawerMode.COLLAPSED,
     });
 
+    expectBeamsDrawerOpen(false);
+    expect(updatePreferences).not.toHaveBeenCalled();
+  });
+
+  test('honors an explicit STICKY preference', async () => {
+    await mountNav({ drawerMode: SideNavDrawerMode.STICKY });
+
+    expectBeamsDrawerOpen(true);
+  });
+
+  test('does not default to sticky when cfg.beamsUi is false', async () => {
+    cfg.beamsUi = false;
+    const { updatePreferences } = await mountNav({
+      drawerMode: SideNavDrawerMode.UNSPECIFIED,
+    });
+
+    expectBeamsDrawerOpen(false);
     expect(updatePreferences).not.toHaveBeenCalled();
   });
 });

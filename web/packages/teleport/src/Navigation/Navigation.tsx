@@ -369,7 +369,12 @@ export function Navigation({
     [features, location]
   );
 
-  const stickyMode = preferences.sideNavDrawerMode === SideNavDrawerMode.STICKY;
+  // For the beams UI, the drawer defaults to sticky for users who haven't set
+  // an explicit preference yet (UNSPECIFIED).
+  const stickyMode =
+    preferences.sideNavDrawerMode === SideNavDrawerMode.UNSPECIFIED
+      ? cfg.beamsUi
+      : preferences.sideNavDrawerMode === SideNavDrawerMode.STICKY;
 
   const toggleStickyMode = () => {
     // Close the drawer right away if they're disabling sticky mode.
@@ -464,33 +469,6 @@ export function Navigation({
       collapseDrawer(false);
     }
   }, [currentPageSection]);
-
-  // The `UNSPECIFIED` check makes this server-side idempotent: once the user
-  // has any explicit preference (STICKY or COLLAPSED), we never override it
-  // again, even across different browsers/devices.
-  useEffect(() => {
-    if (!cfg.beamsUi) {
-      return;
-    }
-    if (currentView?.category !== NavigationCategory.Beams) {
-      return;
-    }
-    if (preferences.sideNavDrawerMode !== SideNavDrawerMode.UNSPECIFIED) {
-      return;
-    }
-    updatePreferences({
-      sideNavDrawerMode: SideNavDrawerMode.STICKY,
-    });
-    if (currentPageSection) {
-      handleSetExpandedSection(currentPageSection);
-    }
-  }, [
-    currentView,
-    currentPageSection,
-    preferences.sideNavDrawerMode,
-    updatePreferences,
-    handleSetExpandedSection,
-  ]);
 
   // Handler for clicking nav items.
   const onNavigationItemClick = useCallback(() => {
