@@ -203,7 +203,7 @@ function makeClusters(versions: ClusterVersionInfo[]): Cluster[] {
   for (const v of versions) {
     if (!v.toolsVersion) {
       throw new Error(
-        `Cluster ${routing.parseClusterName(v.clusterUri)} advertised an empty tools version and is not supported by this version of Teleport Connect.`
+        `Cluster ${routing.parseClusterName(v.clusterUri)} is not supported by this version of Teleport Connect.`
       );
     }
   }
