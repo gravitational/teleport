@@ -20,6 +20,8 @@ import { useTheme } from 'styled-components';
 
 import AGPLLogoDark from 'design/assets/images/agpl-dark.svg';
 import AGPLLogoLight from 'design/assets/images/agpl-light.svg';
+import BeamsLogoDark from 'design/assets/images/beams-dark.svg';
+import BeamsLogoLight from 'design/assets/images/beams-light.svg';
 import CommunityLogoDark from 'design/assets/images/community-dark.svg';
 import CommunityLogoLight from 'design/assets/images/community-light.svg';
 import EnterpriseLogoDark from 'design/assets/images/enterprise-dark.svg';
@@ -48,6 +50,13 @@ export const logos: Record<TeleportEdition, LogoMap> = {
   },
 };
 
+// Beams branding is a per-cluster runtime feature flag (cfg.beamsUi), not a
+// build-time binary.
+const beamsLogos = {
+  light: BeamsLogoLight,
+  dark: BeamsLogoDark,
+};
+
 export const LogoHero = ({
   my = '48px',
   customSrc,
@@ -56,7 +65,7 @@ export const LogoHero = ({
   customSrc?: string;
 }) => {
   const theme = useTheme();
-  const src = customSrc || logos[cfg.edition][theme.type];
+  const src = customSrc || (cfg.beamsUi ? beamsLogos[theme.type] : logos[cfg.edition][theme.type]);
   return (
     <Image src={src} maxHeight="120px" maxWidth="200px" my={my} mx="auto" />
   );
