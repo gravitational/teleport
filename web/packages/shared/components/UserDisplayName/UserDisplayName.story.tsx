@@ -31,7 +31,21 @@ const meta: Meta<typeof UserDisplayName> = {
     username: 'alice@example.com',
     primaryText: 'Alice Jones',
     secondaryText: 'Engineering',
+    layout: 'tooltip',
   },
+  argTypes: {
+    layout: {
+      control: { type: 'radio' },
+      options: ['inline', 'stacked', 'tooltip'],
+    },
+  },
+  decorators: [
+    Story => (
+      <Flex maxWidth="320px">
+        <Story />
+      </Flex>
+    ),
+  ],
 };
 
 export default meta;
@@ -125,6 +139,111 @@ export const LayoutVariantsWithoutSecondary: Story = {
   ),
 };
 
+export const LayoutVariantsWithoutPrimary: Story = {
+  render: () => (
+    <Flex
+      alignItems="flex-start"
+      flexDirection="column"
+      gap={3}
+      maxWidth="320px"
+    >
+      <LayoutExample
+        value="inline"
+        description="Username and secondary stay on one line."
+      >
+        <UserDisplayName
+          username="alice@example.com"
+          secondaryText="Engineering"
+          layout="inline"
+        />
+      </LayoutExample>
+      <LayoutExample
+        value="stacked"
+        description="Username stays first, with secondary below it."
+      >
+        <UserDisplayName
+          username="alice@example.com"
+          secondaryText="Engineering"
+          layout="stacked"
+        />
+      </LayoutExample>
+      <LayoutExample
+        value="tooltip"
+        description="Username stays visible, with secondary below it."
+      >
+        <UserDisplayName
+          username="alice@example.com"
+          secondaryText="Engineering"
+          layout="tooltip"
+        />
+      </LayoutExample>
+    </Flex>
+  ),
+};
+
+export const LayoutVariantsWithoutPrimaryOrSecondary: Story = {
+  render: () => (
+    <Flex
+      alignItems="flex-start"
+      flexDirection="column"
+      gap={3}
+      maxWidth="320px"
+    >
+      <LayoutExample value="inline" description="Username is the only value.">
+        <UserDisplayName username="alice@example.com" layout="inline" />
+      </LayoutExample>
+      <LayoutExample value="stacked" description="Username is the only value.">
+        <UserDisplayName username="alice@example.com" layout="stacked" />
+      </LayoutExample>
+      <LayoutExample value="tooltip" description="Username is the only value.">
+        <UserDisplayName username="alice@example.com" layout="tooltip" />
+      </LayoutExample>
+    </Flex>
+  ),
+};
+
+// LongValues demonstrates that overly long values are truncated with an
+// ellipsis within their container instead of pushing the layout outward.
+export const LongValues: Story = {
+  render: () => (
+    <Flex alignItems="stretch" flexDirection="column" gap={3} width="240px">
+      <LayoutExample
+        value="inline"
+        description="Long values are truncated within a narrow container."
+      >
+        <UserDisplayName
+          username="alice.jones.engineering@very-long-example-domain.com"
+          primaryText="Alice Jones-Anderson-Engineering"
+          secondaryText="Platform Engineering"
+          layout="inline"
+        />
+      </LayoutExample>
+      <LayoutExample
+        value="stacked"
+        description="Each stacked line truncates independently."
+      >
+        <UserDisplayName
+          username="alice.jones.engineering@very-long-example-domain.com"
+          primaryText="Alice Jones-Anderson-Engineering"
+          secondaryText="Platform Engineering"
+          layout="stacked"
+        />
+      </LayoutExample>
+      <LayoutExample
+        value="tooltip"
+        description="Primary truncates inline; full username appears on hover."
+      >
+        <UserDisplayName
+          username="alice.jones.engineering@very-long-example-domain.com"
+          primaryText="Alice Jones-Anderson-Engineering"
+          secondaryText="Platform Engineering"
+          layout="tooltip"
+        />
+      </LayoutExample>
+    </Flex>
+  ),
+};
+
 function LayoutExample({
   children,
   description,
@@ -148,6 +267,8 @@ function LayoutExample({
 }
 
 const StoryNote = styled.div`
+  box-sizing: border-box;
+  max-width: 100%;
   padding: ${props => props.theme.space[1]}px ${props => props.theme.space[2]}px;
   border-left: 2px solid
     ${props => props.theme.colors.interactive.solid.primary.default};
