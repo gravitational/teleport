@@ -140,6 +140,7 @@ import (
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -8789,6 +8790,7 @@ type WebPackOptions struct {
 	enableAuthCache bool
 	modules         *modulestest.Modules
 	insecureMode    bool
+	scopesFeatures  scopes.Features
 }
 
 type webPackOptions func(*WebPackOptions)
@@ -8817,6 +8819,12 @@ func withInsecureMode() webPackOptions {
 	}
 }
 
+func withScopesFeatures(scopesFeatures scopes.Features) webPackOptions {
+	return func(cfg *WebPackOptions) {
+		cfg.scopesFeatures = scopesFeatures
+	}
+}
+
 func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 	options := &WebPackOptions{}
 
@@ -8833,13 +8841,14 @@ func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 
 	server, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			ClusterName:  "localhost",
-			Dir:          t.TempDir(),
-			Clock:        clock,
-			AuditLog:     events.NewDiscardAuditLog(),
-			CacheEnabled: options.enableAuthCache,
-			InsecureMode: options.insecureMode,
-			Modules:      options.modules,
+			ClusterName:    "localhost",
+			Dir:            t.TempDir(),
+			Clock:          clock,
+			AuditLog:       events.NewDiscardAuditLog(),
+			CacheEnabled:   options.enableAuthCache,
+			InsecureMode:   options.insecureMode,
+			Modules:        options.modules,
+			ScopesFeatures: options.scopesFeatures,
 		},
 	})
 	require.NoError(t, err)
@@ -8954,7 +8963,7 @@ func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 	var proxies []*testProxy
 	for p := range numProxies {
 		proxyID := fmt.Sprintf("proxy%v", p)
-		proxies = append(proxies, createProxy(ctx, t, proxyID, node, server.TLS, hostSigners, clock, options.modules, options.insecureMode, options.proxyOptions...))
+		proxies = append(proxies, createProxy(ctx, t, proxyID, node, server.TLS, hostSigners, clock, options.modules, options.insecureMode, options.scopesFeatures, options.proxyOptions...))
 	}
 
 	// Wait for proxies to fully register before starting the test.
@@ -9010,7 +9019,7 @@ func withKubeProxy() proxyOption {
 }
 
 func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regular.Server, authServer *authtest.TLSServer,
-	hostSigners []ssh.Signer, clock *clockwork.FakeClock, m *modulestest.Modules, insecureMode bool, opts ...proxyOption,
+	hostSigners []ssh.Signer, clock *clockwork.FakeClock, m *modulestest.Modules, insecureMode bool, scopesFeatures scopes.Features, opts ...proxyOption,
 ) *testProxy {
 	t.Helper()
 	cfg := proxyConfig{}
@@ -9290,6 +9299,10 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 	proxyClientCert, err := keys.X509KeyPair(proxyIdentity.TLSCertBytes, proxyIdentity.KeyBytes)
 	require.NoError(t, err)
+
+	handlerCfg := servicecfg.MakeDefaultConfig()
+	handlerCfg.ScopesFeatures = scopesFeatures
+
 	handler, err := NewHandler(Config{
 		Proxy:            revTunServer,
 		AuthServers:      utils.FromAddr(authServer.Addr()),
@@ -9301,7 +9314,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		HostUUID:         proxyID,
 		Emitter:          client,
 		ProxySettings: &ProxySettings{
-			ServiceConfig: servicecfg.MakeDefaultConfig(),
+			ServiceConfig: handlerCfg,
 			ProxySSHAddr:  "127.0.0.1",
 			AccessPoint:   client,
 		},

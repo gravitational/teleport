@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/parse"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 	"github.com/gravitational/teleport/tool/tctl/common/resources"
@@ -88,12 +89,12 @@ func (c *NodeCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	c.nodeAdd.Flag("roles", "Comma-separated list of roles for the new node to assume [node]").Default("node").StringVar(&c.roles)
 	c.nodeAdd.Flag("ttl", "Time to live for a generated token").Default(defaults.ProvisioningTokenTTL.String()).DurationVar(&c.ttl)
 	c.nodeAdd.Flag("token", "Override the default random generated token with a specified value").StringVar(&c.token)
-	c.nodeAdd.Flag("format", "Output format, 'text', 'json', or 'yaml'").Hidden().Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
+	c.nodeAdd.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
 	c.nodeAdd.Alias(AddNodeHelp)
 
 	c.nodeList = nodes.Command("ls", "List all active SSH nodes within the cluster.")
 	c.nodeList.Flag("namespace", "Namespace of the nodes").Hidden().Default(apidefaults.Namespace).StringVar(&c.namespace)
-	c.nodeList.Flag("format", "Output format, 'text', 'json', or 'yaml'").Default(teleport.Text).EnumVar(&c.lsFormat, teleport.Text, teleport.JSON, teleport.YAML)
+	c.nodeList.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.lsFormat, teleport.Text, teleport.JSON, teleport.YAML)
 	c.nodeList.Flag("verbose", "Verbose table output, shows full label output").Short('v').BoolVar(&c.verbose)
 	c.nodeList.Alias(ListNodesHelp)
 	c.nodeList.Arg("labels", labelHelp).StringVar(&c.labels)
@@ -238,7 +239,7 @@ func (c *NodeCommand) Invite(ctx context.Context, client *authclient.Client) err
 // ListActive retrieves the list of nodes who recently sent heartbeats to
 // to a cluster and prints it to stdout
 func (c *NodeCommand) ListActive(ctx context.Context, clt *authclient.Client) error {
-	labels, err := libclient.ParseLabelSpec(c.labels)
+	labels, err := parse.LabelSelectorSpec(c.labels)
 	if err != nil {
 		return trace.Wrap(err)
 	}

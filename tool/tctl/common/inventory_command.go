@@ -75,14 +75,14 @@ func (c *InventoryCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 
 	c.inventoryStatus = inventory.Command("status", "Show inventory status summary.")
 	c.inventoryStatus.Flag("connected", "Show locally connected instances summary").BoolVar(&c.getConnected)
-	c.inventoryStatus.Flag("format", "Output format, 'text', 'json', or 'yaml'").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
+	c.inventoryStatus.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
 
 	c.inventoryList = inventory.Command("list", "List Teleport instance inventory.").Alias("ls")
 	c.inventoryList.Flag("older-than", "Filter for older teleport versions").StringVar(&c.olderThan)
 	c.inventoryList.Flag("newer-than", "Filter for newer teleport versions").StringVar(&c.newerThan)
 	c.inventoryList.Flag("exact-version", "Filter output by teleport version").StringVar(&c.version)
 	c.inventoryList.Flag("services", "Filter output by service (node,kube,proxy,etc)").StringVar(&c.services)
-	c.inventoryList.Flag("format", "Output format, 'text' or 'json'").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
+	c.inventoryList.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
 	c.inventoryList.Flag("upgrader", "Filter output by upgrader (kube,unit,none)").StringVar(&c.upgrader)
 	c.inventoryList.Flag("update-group", "Filter output by update group").StringVar(&c.updateGroup)
 

@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/mfatypes"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
@@ -91,6 +92,8 @@ type AuthorizerOpts struct {
 	MFAAuthenticator    MFAAuthenticator
 	LockWatcher         *services.LockWatcher
 	Logger              *slog.Logger
+	// ScopesFeatures dictates which scoped authorization components are enabled.
+	ScopesFeatures scopes.Features
 
 	// DeviceAuthorization holds Device Trust authorization options.
 	//
@@ -143,6 +146,7 @@ func newAuthorizer(opts AuthorizerOpts) (*authorizer, error) {
 		mfaAuthenticator:        opts.MFAAuthenticator,
 		lockWatcher:             opts.LockWatcher,
 		logger:                  logger,
+		scopesFeatures:          opts.ScopesFeatures,
 		disableGlobalDeviceMode: opts.DeviceAuthorization.DisableGlobalMode,
 		disableRoleDeviceMode:   opts.DeviceAuthorization.DisableRoleMode,
 	}, nil
@@ -243,6 +247,8 @@ type authorizer struct {
 	mfaAuthenticator    MFAAuthenticator
 	lockWatcher         *services.LockWatcher
 	logger              *slog.Logger
+	// scopesFeatures dictates whether scoped authorization is enabled.
+	scopesFeatures scopes.Features
 
 	disableGlobalDeviceMode bool
 	disableRoleDeviceMode   bool

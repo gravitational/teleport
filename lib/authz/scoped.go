@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
@@ -90,7 +89,7 @@ func (a *authorizer) authorizeScoped(ctx context.Context) (scopedCtx *ScopedCont
 		}
 	}()
 
-	if !scopes.FeatureEnabled() {
+	if !a.scopesFeatures.Enabled {
 		return nil, trace.AccessDenied("cannot authorize scoped identity, scoping is not enabled for this cluster")
 	}
 
