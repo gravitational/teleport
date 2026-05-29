@@ -101,13 +101,13 @@ func TestInvestigateValidateRawQueryExclusive(t *testing.T) {
 	})
 
 	t.Run("raw query alone is allowed", func(t *testing.T) {
-		a := &investigateArgs{rawQuery: `status:"error"`}
+		a := &investigateArgs{rawQuery: `status:"failure"`}
 		require.NoError(t, a.validateRawQueryExclusive())
 	})
 
 	t.Run("raw query plus include → BadParameter listing offender", func(t *testing.T) {
 		a := &investigateArgs{
-			rawQuery:        `status:"error"`,
+			rawQuery:        `status:"failure"`,
 			includeIdentity: []string{"alice"},
 		}
 		err := a.validateRawQueryExclusive()
@@ -117,7 +117,7 @@ func TestInvestigateValidateRawQueryExclusive(t *testing.T) {
 
 	t.Run("raw query plus exclude → BadParameter listing offender", func(t *testing.T) {
 		a := &investigateArgs{
-			rawQuery:      `status:"error"`,
+			rawQuery:      `status:"failure"`,
 			excludeStatus: []string{"success"},
 		}
 		err := a.validateRawQueryExclusive()
@@ -234,7 +234,7 @@ func TestFetchLogsFacets(t *testing.T) {
 	t.Run("negative counts in event_type don't inflate total", func(t *testing.T) {
 		body := statsResponse(statsColumn{name: "event_type", values: []statsValue{
 			{value: "session.start", count: 4},
-			{value: "session.error", count: -1},
+			{value: "session.end", count: -1},
 		}})
 		ag := newAccessGraphTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")

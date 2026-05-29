@@ -183,7 +183,7 @@ func (c *AccessGraphCommand) initInvestigate(app *kingpin.Application) {
 		}
 	}
 
-	cmd.Flag("query", `Raw Lucene query. Mutually exclusive with structured filter flags. Example: --query 'identity_id:"alice@example.com" AND NOT status:"error"'`).
+	cmd.Flag("query", `Raw Lucene query. Mutually exclusive with structured filter flags. Example: --query 'identity_id:"alice@example.com" AND NOT status:"failure"'`).
 		StringVar(&c.investigate.rawQuery)
 	cmd.Flag("print-query", "Print the constructed query and exit without contacting the backend.").
 		BoolVar(&c.investigate.printQuery)

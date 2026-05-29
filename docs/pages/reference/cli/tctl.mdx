@@ -1368,7 +1368,7 @@ Flags:
 |`--[no-]show-unmatched`|`false`|Include facet values that exist in the time window but did not match the current filter (the backend reports these with count=-1). Useful for discovering filters to broaden.|
 |`--okta-org`|*no default*|Filter by Okta organization (repeatable).|
 |`--order`|`desc` (one of: `asc`, `desc`)|Result order by timestamp. (Values: asc, desc)|
-|`--query`|*no default*|Raw Lucene query. Mutually exclusive with structured filter flags. Example: --query 'identity_id:"alice@example.com" AND NOT status:"error"'|
+|`--query`|*no default*|Raw Lucene query. Mutually exclusive with structured filter flags. Example: --query 'identity_id:"alice@example.com" AND NOT status:"failure"'|
 |`--region`|*no default*|Filter by region (e.g. us-east-1 or a US state code; repeatable).|
 |`--resource`|*no default*|Filter by target resource (repeatable).|
 |`--resource-kind`|*no default*|Filter by resource kind, e.g. ssh, kube, session_recording (repeatable).|
