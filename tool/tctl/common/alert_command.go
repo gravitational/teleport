@@ -101,10 +101,13 @@ func (c *AlertCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLI
 	c.alertAck.Arg("id", "The cluster alert ID.").Required().StringVar(&c.alertID)
 	c.alertAck.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, formats...)
 
-	// We add "ack ls" as a command so kingpin shows it in the help dialog - as there is a space, `tctl ack xyz` will always be
-	// handled by the ack command above
-	// This allows us to be consistent with our other `tctl xyz ls` commands
-	alert.Command("ack ls", "List acknowledged cluster alerts.")
+	// We add "ack ls" as a command so kingpin shows it in the help dialog.
+	// This allows us to be consistent with our other `tctl xyz ls` commands.
+	alertAckList := alert.Command("ack ls", "List acknowledged cluster alerts.")
+	// Keep this in sync with alertAck's format flag. Runtime execution is still
+	// routed through alertAck with alertID == "ls", but generated docs use this
+	// synthetic command model.
+	alertAckList.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, formats...)
 
 	if c.stdout == nil {
 		c.stdout = os.Stdout
