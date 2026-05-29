@@ -642,8 +642,14 @@ Marks one or many groups as done updating.
 Usage:
 
 ```code
-$ tctl autoupdate agents mark-done [<groups>...]
+$ tctl autoupdate agents mark-done [<flags>] [<groups>...]
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 
 Arguments:
 
@@ -675,8 +681,14 @@ Rolls back one or many groups.
 Usage:
 
 ```code
-$ tctl autoupdate agents rollback [<groups>...]
+$ tctl autoupdate agents rollback [<flags>] [<groups>...]
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 
 Arguments:
 
@@ -698,6 +710,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 |`--[no-]force`|`false`|Skips progressive deployment mechanism such as canaries or backpressure.|
 
 Arguments:
@@ -1110,6 +1123,7 @@ Flags:
 |---|---|---|
 |`--asset-tag`|*no default*|Inventory identifier for the device|
 |`--device-id`|*no default*|Device identifier|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 |`--[no-]current-device`|`false`|Enrolls the current device. Overrides --device-id and --asset-tag.|
 |`--ttl`|*no default*|Time duration for the enrollment token|
 
@@ -1130,6 +1144,7 @@ Flags:
 |`--asset-tag`|*no default*|Inventory identifier for the device|
 |`--device-id`|*no default*|Device identifier|
 |`--expires`|*no default*|Time point (RFC3339) when the lock expires|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 |`--message`|*no default*|Message to display to locked-out users|
 |`--[no-]current-device`|`false`|Locks the current device. Overrides --device-id and --asset-tag.|
 |`--ttl`|*no default*|Time duration after which the lock expires|
@@ -1377,6 +1392,7 @@ Flags:
 |`--bot-instance-id`|*no default*|UUID of a bot instance to disable|
 |`--device`|*no default*|UUID of a trusted device to disable.|
 |`--expires`|*no default*|Time point (RFC3339) when the lock expires.|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 |`--join-token`|*no default*|Bot join token name to disable|
 |`--linux-desktop`|*no default*|Name of a Linux desktop to disable.|
 |`--login`|*no default*|Name of a local UNIX user to disable.|
@@ -1471,6 +1487,7 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`--content`|*no default*|Set the notification's content.|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 |`--labels`|*no default*|List of labels to attach to the notification. For example: key1=value1,key2=value2.|
 |`--[no-]require-all-roles`|`false`|Set whether this notification should target users who have all of the provided roles.|
 |`--[no-]warning`|`false`|Set whether this notification is a warning notification.|
@@ -1925,6 +1942,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format, 'text', 'json', or 'yaml'|
 |`--[no-]dry-run`|`false`|Don't actually generate the Access Request|
 |`--reason`|*no default*|Optional reason message|
 |`--resource`|*no default*|Resource ID to be requested|
@@ -2641,6 +2659,7 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`--expires-at`|*no default*|Time that the revocation should expire, usually this should match the expiry time of the credential. This should be specified using RFC3339 e.g '2024-02-05T15:04:00Z'. If unspecified, the time 1 week from now is used.|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format, 'text', 'json', or 'yaml'|
 |`--reason`|*no default*|Reason for revocation.|
 |`--serial`|*no default*|Serial number of the certificate to revoke.|
 |`--type`|*no default* (one of: `x509`)|Type of credential to revoke (x509)|

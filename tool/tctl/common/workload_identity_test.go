@@ -309,4 +309,42 @@ func TestWorkloadIdentityRevocation(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "[]\n", buf.String())
 	})
+
+	// Structured output must serialize the created revocation resource instead
+	// of the "Revocation for the X509 certificate ... created" prose.
+	t.Run("revocations add json", func(t *testing.T) {
+		buf, err := runWorkloadIdentityCommand(
+			t, rootClient, []string{
+				"workload-identity", "revocations", "add",
+				"--type=x509",
+				"--serial=11:22:33:44",
+				"--reason=compromised",
+				"--expires-at=2030-02-24T15:04:00Z",
+				"--format=json",
+			},
+		)
+		require.NoError(t, err)
+		require.NotContains(t, buf.String(), "created")
+
+		got := mustDecodeJSON[*workloadidentityv1pb.WorkloadIdentityX509Revocation](t, buf)
+		require.Equal(t, "11223344", got.GetMetadata().GetName())
+		require.Equal(t, "compromised", got.GetSpec().GetReason())
+	})
+
+	t.Run("revocations add yaml", func(t *testing.T) {
+		buf, err := runWorkloadIdentityCommand(
+			t, rootClient, []string{
+				"workload-identity", "revocations", "add",
+				"--type=x509",
+				"--serial=55:66:77:88",
+				"--reason=compromised",
+				"--expires-at=2030-02-24T15:04:00Z",
+				"--format=yaml",
+			},
+		)
+		require.NoError(t, err)
+		require.NotContains(t, buf.String(), "created")
+		require.Contains(t, buf.String(), "name: \"55667788\"")
+		require.Contains(t, buf.String(), "reason: compromised")
+	})
 }
