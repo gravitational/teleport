@@ -119,11 +119,11 @@ func (s *SPIFFEFederationService) GetSPIFFEFederation(
 		return nil, trace.Wrap(err)
 	}
 
-	if req.Name == "" {
+	if req.GetName() == "" {
 		return nil, trace.BadParameter("name: must be non-empty")
 	}
 
-	federation, err := s.cache.GetSPIFFEFederation(ctx, req.Name)
+	federation, err := s.cache.GetSPIFFEFederation(ctx, req.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -147,17 +147,17 @@ func (s *SPIFFEFederationService) ListSPIFFEFederations(
 
 	federations, nextToken, err := s.cache.ListSPIFFEFederations(
 		ctx,
-		int(req.PageSize),
-		req.PageToken,
+		int(req.GetPageSize()),
+		req.GetPageToken(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &machineidv1.ListSPIFFEFederationsResponse{
+	return machineidv1.ListSPIFFEFederationsResponse_builder{
 		SpiffeFederations: federations,
 		NextPageToken:     nextToken,
-	}, nil
+	}.Build(), nil
 }
 
 // DeleteSPIFFEFederation deletes a SPIFFE Federation by name.
@@ -176,11 +176,11 @@ func (s *SPIFFEFederationService) DeleteSPIFFEFederation(
 		return nil, trace.Wrap(err)
 	}
 
-	if req.Name == "" {
+	if req.GetName() == "" {
 		return nil, trace.BadParameter("name: must be non-empty")
 	}
 
-	if err := s.backend.DeleteSPIFFEFederation(ctx, req.Name); err != nil {
+	if err := s.backend.DeleteSPIFFEFederation(ctx, req.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -192,7 +192,7 @@ func (s *SPIFFEFederationService) DeleteSPIFFEFederation(
 		UserMetadata:       authz.ClientUserMetadata(ctx),
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: req.Name,
+			Name: req.GetName(),
 		},
 	}); err != nil {
 		s.logger.ErrorContext(
@@ -226,7 +226,7 @@ func (s *SPIFFEFederationService) CreateSPIFFEFederation(
 		}
 	}
 
-	created, err := s.backend.CreateSPIFFEFederation(ctx, req.SpiffeFederation)
+	created, err := s.backend.CreateSPIFFEFederation(ctx, req.GetSpiffeFederation())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -239,7 +239,7 @@ func (s *SPIFFEFederationService) CreateSPIFFEFederation(
 		UserMetadata:       authz.ClientUserMetadata(ctx),
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: req.SpiffeFederation.Metadata.Name,
+			Name: req.GetSpiffeFederation().GetMetadata().GetName(),
 		},
 	}); err != nil {
 		s.logger.ErrorContext(

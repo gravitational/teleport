@@ -102,9 +102,9 @@ func (amrh *RuleHandler) InitAccessMonitoringRulesCache(ctx context.Context) err
 		if !amrh.ruleApplies(amr) {
 			continue
 		}
-		amrh.accessMonitoringRules.rules[amr.GetMetadata().Name] = amr
+		amrh.accessMonitoringRules.rules[amr.GetMetadata().GetName()] = amr
 		if amrh.onCacheUpdateCallback != nil {
-			amrh.onCacheUpdateCallback(types.OpPut, amr.GetMetadata().Name, amr)
+			amrh.onCacheUpdateCallback(types.OpPut, amr.GetMetadata().GetName(), amr)
 		}
 	}
 	return nil
@@ -131,9 +131,9 @@ func (amrh *RuleHandler) HandleAccessMonitoringRule(ctx context.Context, event t
 			delete(amrh.accessMonitoringRules.rules, event.Resource.GetName())
 			return nil
 		}
-		amrh.accessMonitoringRules.rules[req.Metadata.Name] = req
+		amrh.accessMonitoringRules.rules[req.GetMetadata().GetName()] = req
 		if amrh.onCacheUpdateCallback != nil {
-			amrh.onCacheUpdateCallback(types.OpPut, req.GetMetadata().Name, req)
+			amrh.onCacheUpdateCallback(types.OpPut, req.GetMetadata().GetName(), req)
 		}
 		return nil
 	case types.OpDelete:
@@ -202,12 +202,12 @@ func (amrh *RuleHandler) getAllAccessMonitoringRules(ctx context.Context) ([]*ac
 	var resources []*accessmonitoringrulesv1.AccessMonitoringRule
 	var nextToken string
 	for {
-		req := &accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest{
+		req := accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest_builder{
 			PageSize:         defaultAccessMonitoringRulePageSize,
 			PageToken:        nextToken,
 			Subjects:         []string{types.KindAccessRequest},
 			NotificationName: amrh.pluginName,
-		}
+		}.Build()
 
 		var page []*accessmonitoringrulesv1.AccessMonitoringRule
 		var err error
@@ -241,7 +241,7 @@ func (amrh *RuleHandler) ruleApplies(amr *accessmonitoringrulesv1.AccessMonitori
 	if amr.GetSpec().GetNotification().GetName() != amrh.pluginName {
 		return false
 	}
-	return slices.ContainsFunc(amr.Spec.Subjects, func(subject string) bool {
+	return slices.ContainsFunc(amr.GetSpec().GetSubjects(), func(subject string) bool {
 		return subject == types.KindAccessRequest
 	})
 }

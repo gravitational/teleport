@@ -37,17 +37,17 @@ import (
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 )
 
-var scopedTokenSpec = &tokenv1.ScopedTokenSpec{
+var scopedTokenSpec = tokenv1.ScopedTokenSpec_builder{
 	AssignedScope: "/staging/foo",
 	Roles:         []string{types.RoleNode.String()},
 	JoinMethod:    string(types.JoinMethodToken),
 	UsageMode:     "unlimited",
-	ImmutableLabels: &tokenv1.ImmutableLabels{
+	ImmutableLabels: tokenv1.ImmutableLabels_builder{
 		Ssh: map[string]string{
 			"env": "prod",
 		},
-	},
-}
+	}.Build(),
+}.Build()
 
 type scopedTokenTestingPrimitives struct {
 	setup *testSetup
@@ -63,18 +63,18 @@ func (g *scopedTokenTestingPrimitives) SetupTeleportFixtures(ctx context.Context
 }
 
 func (g *scopedTokenTestingPrimitives) CreateTeleportResource(ctx context.Context, name string) error {
-	token := &tokenv1.ScopedToken{
+	token := tokenv1.ScopedToken_builder{
 		Kind:    types.KindScopedToken,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: name,
 			Labels: map[string]string{
 				types.OriginLabel: types.OriginKubernetes,
 			},
-		},
+		}.Build(),
 		Scope: "/staging",
 		Spec:  scopedTokenSpec,
-	}
+	}.Build()
 	_, err := g.setup.TeleportClient.CreateScopedToken(ctx, token)
 	return trace.Wrap(err)
 }
@@ -124,9 +124,9 @@ func (g *scopedTokenTestingPrimitives) ModifyKubernetesResource(ctx context.Cont
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	token.Spec.ImmutableLabels.Ssh = map[string]string{
+	token.Spec.ImmutableLabels.SetSsh(map[string]string{
 		"env": "staging",
-	}
+	})
 	return trace.Wrap(g.setup.K8sClient.Update(ctx, token))
 }
 

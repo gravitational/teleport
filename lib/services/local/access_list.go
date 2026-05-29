@@ -200,7 +200,7 @@ func (a *AccessListService) ListAccessLists(ctx context.Context, pageSize int, n
 func (a *AccessListService) ListAccessListsV2(ctx context.Context, req *accesslistv1.ListAccessListsV2Request) ([]*accesslist.AccessList, string, error) {
 	// Currently, the backend only sorts on lexicographical keys and not
 	// based on fields within a resource
-	if req.SortBy != nil && (req.GetSortBy().Field != "name" || req.GetSortBy().IsDesc != false) {
+	if req.HasSortBy() && (req.GetSortBy().Field != "name" || req.GetSortBy().IsDesc != false) {
 		return nil, "", trace.CompareFailed("unsupported sort, only name:asc is supported, but got %q (desc = %t)", req.GetSortBy().Field, req.GetSortBy().IsDesc)
 	}
 

@@ -291,11 +291,11 @@ func TestImmutableLabels(t *testing.T) {
 	}
 
 	const identName = "testname"
-	immutableLabels := &joiningv1.ImmutableLabels{
+	immutableLabels := joiningv1.ImmutableLabels_builder{
 		Ssh: map[string]string{
 			"foo": "bar",
 		},
-	}
+	}.Build()
 
 	ident := genIdentity(t, identName, immutableLabels)
 	ident.ImmutableLabels = immutableLabels
@@ -307,7 +307,7 @@ func TestImmutableLabels(t *testing.T) {
 		ident, err = storage.ReadIdentity(t.Context(), identName, types.RoleNode)
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(immutableLabels, ident.ImmutableLabels, protocmp.Transform()))
-		immutableLabels.Ssh[fmt.Sprintf("label-%d", i)] = fmt.Sprintf("value-%d", i)
+		immutableLabels.GetSsh()[fmt.Sprintf("label-%d", i)] = fmt.Sprintf("value-%d", i)
 		ident.ImmutableLabels = immutableLabels
 	}
 }

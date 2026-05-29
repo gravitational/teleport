@@ -183,9 +183,9 @@ func newValidatedMFAChallengeWithTargetCluster(name, targetCluster string) *mfav
 	return mfav2.ValidatedMFAChallenge_builder{
 		Kind:    types.KindValidatedMFAChallenge,
 		Version: "v1",
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: name,
-		},
+		}.Build(),
 		Spec: mfav2.ValidatedMFAChallengeSpec_builder{
 			Payload: mfav2.SessionIdentifyingPayload_builder{
 				SshSessionId: []byte("session-id"),

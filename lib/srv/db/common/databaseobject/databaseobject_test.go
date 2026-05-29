@@ -39,31 +39,31 @@ func TestNewDatabaseObject(t *testing.T) {
 	}{
 		{
 			name: "valid object",
-			spec: &dbobjectv1.DatabaseObjectSpec{
+			spec: dbobjectv1.DatabaseObjectSpec_builder{
 				Protocol:            "postgres",
 				DatabaseServiceName: "test",
 				ObjectKind:          types.KindDatabaseObject,
 				Database:            "test",
 				Schema:              "test",
 				Name:                "test",
-			},
+			}.Build(),
 			expectedError: nil,
-			expectedObj: &dbobjectv1.DatabaseObject{
+			expectedObj: dbobjectv1.DatabaseObject_builder{
 				Kind:    types.KindDatabaseObject,
 				Version: types.V1,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name:      "valid object",
 					Namespace: defaults.Namespace,
-				},
-				Spec: &dbobjectv1.DatabaseObjectSpec{
+				}.Build(),
+				Spec: dbobjectv1.DatabaseObjectSpec_builder{
 					Protocol:            "postgres",
 					DatabaseServiceName: "test",
 					ObjectKind:          types.KindDatabaseObject,
 					Database:            "test",
 					Schema:              "test",
 					Name:                "test",
-				},
-			},
+				}.Build(),
+			}.Build(),
 		},
 		{
 			name:          "missing name",
@@ -89,11 +89,11 @@ func TestValidateDatabaseObject(t *testing.T) {
 	}{
 		{
 			name: "valid object",
-			databaseObject: &dbobjectv1.DatabaseObject{
+			databaseObject: dbobjectv1.DatabaseObject_builder{
 				Kind:     types.KindDatabaseObject,
-				Metadata: &headerv1.Metadata{Name: "test", Namespace: defaults.Namespace},
-				Spec:     &dbobjectv1.DatabaseObjectSpec{Name: "test", Protocol: "test"},
-			},
+				Metadata: headerv1.Metadata_builder{Name: "test", Namespace: defaults.Namespace}.Build(),
+				Spec:     dbobjectv1.DatabaseObjectSpec_builder{Name: "test", Protocol: "test"}.Build(),
+			}.Build(),
 			expectedError: nil,
 		},
 		{
@@ -103,42 +103,42 @@ func TestValidateDatabaseObject(t *testing.T) {
 		},
 		{
 			name:           "nil metadata",
-			databaseObject: &dbobjectv1.DatabaseObject{Metadata: nil},
+			databaseObject: dbobjectv1.DatabaseObject_builder{Metadata: nil}.Build(),
 			expectedError:  trace.BadParameter("metadata: must be non-nil"),
 		},
 		{
 			name: "invalid kind",
-			databaseObject: &dbobjectv1.DatabaseObject{
+			databaseObject: dbobjectv1.DatabaseObject_builder{
 				Kind:     "InvalidKind",
-				Metadata: &headerv1.Metadata{Name: "test", Namespace: defaults.Namespace},
-				Spec:     &dbobjectv1.DatabaseObjectSpec{Name: "test"},
-			},
+				Metadata: headerv1.Metadata_builder{Name: "test", Namespace: defaults.Namespace}.Build(),
+				Spec:     dbobjectv1.DatabaseObjectSpec_builder{Name: "test"}.Build(),
+			}.Build(),
 			expectedError: trace.BadParameter("invalid kind InvalidKind, expected db_object"),
 		},
 		{
 			name: "missing spec",
-			databaseObject: &dbobjectv1.DatabaseObject{
+			databaseObject: dbobjectv1.DatabaseObject_builder{
 				Kind:     types.KindDatabaseObject,
-				Metadata: &headerv1.Metadata{Name: "test", Namespace: defaults.Namespace},
+				Metadata: headerv1.Metadata_builder{Name: "test", Namespace: defaults.Namespace}.Build(),
 				Spec:     nil,
-			},
+			}.Build(),
 			expectedError: trace.BadParameter("spec: must be non-empty"),
 		},
 		{
 			name: "missing object name",
-			databaseObject: &dbobjectv1.DatabaseObject{
+			databaseObject: dbobjectv1.DatabaseObject_builder{
 				Kind:     types.KindDatabaseObject,
-				Metadata: &headerv1.Metadata{Name: "", Namespace: defaults.Namespace},
-			},
+				Metadata: headerv1.Metadata_builder{Name: "", Namespace: defaults.Namespace}.Build(),
+			}.Build(),
 			expectedError: trace.BadParameter("metadata.name: must be non-empty"),
 		},
 		{
 			name: "missing name",
-			databaseObject: &dbobjectv1.DatabaseObject{
+			databaseObject: dbobjectv1.DatabaseObject_builder{
 				Kind:     types.KindDatabaseObject,
-				Metadata: &headerv1.Metadata{Name: "test", Namespace: defaults.Namespace},
-				Spec:     &dbobjectv1.DatabaseObjectSpec{Name: ""},
-			},
+				Metadata: headerv1.Metadata_builder{Name: "test", Namespace: defaults.Namespace}.Build(),
+				Spec:     dbobjectv1.DatabaseObjectSpec_builder{Name: ""}.Build(),
+			}.Build(),
 			expectedError: trace.BadParameter("spec.name: must be non-empty"),
 		},
 	}

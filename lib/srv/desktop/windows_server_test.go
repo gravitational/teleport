@@ -723,13 +723,13 @@ func TestCRLUpdateSchedule(t *testing.T) {
 		// If targeting the Windows CA, without modifications, this should trigger
 		// a CRL update.
 		caOverride := env.NewOverrideForCA(t, ca, externalCA)
-		caOverride.Status = &subcav1.CertAuthorityOverrideStatus{
+		caOverride.SetStatus(subcav1.CertAuthorityOverrideStatus_builder{
 			PublicKeyHashToCrl: make(map[string]*subcav1.CertificateRevocationList),
-		}
-		for _, co := range caOverride.Spec.CertificateOverrides {
-			caOverride.Status.PublicKeyHashToCrl[co.PublicKey] = &subcav1.CertificateRevocationList{
+		}.Build())
+		for _, co := range caOverride.GetSpec().GetCertificateOverrides() {
+			caOverride.GetStatus().GetPublicKeyHashToCrl()[co.GetPublicKey()] = subcav1.CertificateRevocationList_builder{
 				Pem: "<insert PEM here>",
-			}
+			}.Build()
 		}
 
 		if modifyOverride != nil {
@@ -768,8 +768,8 @@ func TestCRLUpdateSchedule(t *testing.T) {
 		// Create an empty Windows CA override.
 		// It should not trigger a CRL update, as the resource itself lacks CRLs.
 		upsertOverrideForCA(t, caID, func(caOverride *subcav1.CertAuthorityOverride) {
-			caOverride.Spec.CertificateOverrides = nil
-			caOverride.Status = nil
+			caOverride.GetSpec().SetCertificateOverrides(nil)
+			caOverride.ClearStatus()
 		})
 		waitForEvent(t)
 

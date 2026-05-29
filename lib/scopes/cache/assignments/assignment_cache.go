@@ -98,9 +98,9 @@ func (c *AssignmentCache) GetScopedRoleAssignment(ctx context.Context, req *scop
 		return nil, trace.NotFound("scoped role assignment %q not found", req.GetName())
 	}
 
-	return &scopedaccessv1.GetScopedRoleAssignmentResponse{
+	return scopedaccessv1.GetScopedRoleAssignmentResponse_builder{
 		Assignment: assignment,
-	}, nil
+	}.Build(), nil
 }
 
 // ListScopedRoleAssignments returns a paginated list of scoped role assignments.
@@ -129,7 +129,7 @@ func (c *AssignmentCache) ListScopedRoleAssignmentsWithFilter(ctx context.Contex
 		}
 
 		if req.GetRole() != "" {
-			if !slices.ContainsFunc(assignment.GetSpec().Assignments, func(a *scopedaccessv1.Assignment) bool { return a.GetRole() == req.GetRole() }) {
+			if !slices.ContainsFunc(assignment.GetSpec().GetAssignments(), func(a *scopedaccessv1.Assignment) bool { return a.GetRole() == req.GetRole() }) {
 				// if the assignment does not have the requested role, skip it
 				return false
 			}
@@ -205,10 +205,10 @@ Outer:
 		}
 	}
 
-	return &scopedaccessv1.ListScopedRoleAssignmentsResponse{
+	return scopedaccessv1.ListScopedRoleAssignmentsResponse_builder{
 		Assignments:   out,
 		NextPageToken: nextPageToken,
-	}, nil
+	}.Build(), nil
 }
 
 // Put adds a new assignment to the cache. It will overwrite any existing assignment with the same name.

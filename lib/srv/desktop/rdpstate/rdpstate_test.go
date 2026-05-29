@@ -161,9 +161,9 @@ func TestUnknownMessage_Ignored(t *testing.T) {
 	s := New()
 
 	// Encode a SyncKeys message (not handled by RDPState) as a TDPB envelope.
-	body, err := proto.Marshal(&tdpbv1.Envelope{
-		Payload: &tdpbv1.Envelope_SyncKeys{SyncKeys: &tdpbv1.SyncKeys{}},
-	})
+	body, err := proto.Marshal(tdpbv1.Envelope_builder{
+		SyncKeys: &tdpbv1.SyncKeys{},
+	}.Build())
 	require.NoError(t, err)
 	data := make([]byte, 4+len(body))
 	binary.BigEndian.PutUint32(data[:4], uint32(len(body)))

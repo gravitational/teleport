@@ -52,16 +52,16 @@ metadata:
 spec:
   secrets_scan_config: "disabled"
 `,
-			expected: &clusterconfigpb.AccessGraphSettings{
+			expected: clusterconfigpb.AccessGraphSettings_builder{
 				Version: types.V1,
 				Kind:    types.KindAccessGraphSettings,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: types.MetaNameAccessGraphSettings,
-				},
-				Spec: &clusterconfigpb.AccessGraphSettingsSpec{
+				}.Build(),
+				Spec: clusterconfigpb.AccessGraphSettingsSpec_builder{
 					SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED,
-				},
-			},
+				}.Build(),
+			}.Build(),
 		},
 		{
 			desc: "off",
@@ -73,16 +73,16 @@ metadata:
 spec:
   secrets_scan_config: "off"
 `,
-			expected: &clusterconfigpb.AccessGraphSettings{
+			expected: clusterconfigpb.AccessGraphSettings_builder{
 				Version: types.V1,
 				Kind:    types.KindAccessGraphSettings,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: types.MetaNameAccessGraphSettings,
-				},
-				Spec: &clusterconfigpb.AccessGraphSettingsSpec{
+				}.Build(),
+				Spec: clusterconfigpb.AccessGraphSettingsSpec_builder{
 					SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED,
-				},
-			},
+				}.Build(),
+			}.Build(),
 		},
 		{
 			desc: "enabled",
@@ -94,16 +94,16 @@ metadata:
 spec:
   secrets_scan_config: "enabled"
 `,
-			expected: &clusterconfigpb.AccessGraphSettings{
+			expected: clusterconfigpb.AccessGraphSettings_builder{
 				Version: types.V1,
 				Kind:    types.KindAccessGraphSettings,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: types.MetaNameAccessGraphSettings,
-				},
-				Spec: &clusterconfigpb.AccessGraphSettingsSpec{
+				}.Build(),
+				Spec: clusterconfigpb.AccessGraphSettingsSpec_builder{
 					SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED,
-				},
-			},
+				}.Build(),
+			}.Build(),
 		},
 		{
 			desc: "on",
@@ -115,16 +115,16 @@ metadata:
 spec:
   secrets_scan_config: "on"
 `,
-			expected: &clusterconfigpb.AccessGraphSettings{
+			expected: clusterconfigpb.AccessGraphSettings_builder{
 				Version: types.V1,
 				Kind:    types.KindAccessGraphSettings,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: types.MetaNameAccessGraphSettings,
-				},
-				Spec: &clusterconfigpb.AccessGraphSettingsSpec{
+				}.Build(),
+				Spec: clusterconfigpb.AccessGraphSettingsSpec_builder{
 					SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED,
-				},
-			},
+				}.Build(),
+			}.Build(),
 		},
 		{
 			desc: "invalid settings",
@@ -205,16 +205,16 @@ func TestProtoToResource(t *testing.T) {
 					SecretsScanConfig: "disabled",
 				},
 			},
-			input: &clusterconfigpb.AccessGraphSettings{
+			input: clusterconfigpb.AccessGraphSettings_builder{
 				Version: types.V1,
 				Kind:    types.KindAccessGraphSettings,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: types.MetaNameAccessGraphSettings,
-				},
-				Spec: &clusterconfigpb.AccessGraphSettingsSpec{
+				}.Build(),
+				Spec: clusterconfigpb.AccessGraphSettingsSpec_builder{
 					SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED,
-				},
-			},
+				}.Build(),
+			}.Build(),
 		},
 		{
 			desc: "enabled",
@@ -228,30 +228,30 @@ func TestProtoToResource(t *testing.T) {
 					SecretsScanConfig: "enabled",
 				},
 			},
-			input: &clusterconfigpb.AccessGraphSettings{
+			input: clusterconfigpb.AccessGraphSettings_builder{
 				Version: types.V1,
 				Kind:    types.KindAccessGraphSettings,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: types.MetaNameAccessGraphSettings,
-				},
-				Spec: &clusterconfigpb.AccessGraphSettingsSpec{
+				}.Build(),
+				Spec: clusterconfigpb.AccessGraphSettingsSpec_builder{
 					SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED,
-				},
-			},
+				}.Build(),
+			}.Build(),
 		},
 		{
 			desc:          "incorrect data",
 			errorContains: "unexpected secrets scan config",
-			input: &clusterconfigpb.AccessGraphSettings{
+			input: clusterconfigpb.AccessGraphSettings_builder{
 				Version: types.V1,
 				Kind:    types.KindAccessGraphSettings,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: types.MetaNameAccessGraphSettings,
-				},
-				Spec: &clusterconfigpb.AccessGraphSettingsSpec{
+				}.Build(),
+				Spec: clusterconfigpb.AccessGraphSettingsSpec_builder{
 					SecretsScanConfig: 5,
-				},
-			},
+				}.Build(),
+			}.Build(),
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {

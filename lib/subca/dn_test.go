@@ -74,11 +74,11 @@ func TestRDNSequenceToDistinguishedNameProto(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		want := &subcav1.DistinguishedName{
+		want := subcav1.DistinguishedName_builder{
 			Names: []*subcav1.AttributeTypeAndValue{
-				{Oid: []int32{99, 1, 2, int32(math.MaxInt32)}, Value: &val},
+				subcav1.AttributeTypeAndValue_builder{Oid: []int32{99, 1, 2, int32(math.MaxInt32)}, Value: &val}.Build(),
 			},
-		}
+		}.Build()
 		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
 			t.Errorf("DistinguishedName mismatch (-want +got)\n%s", diff)
 		}
@@ -146,38 +146,38 @@ func TestDistinguishedNameProtoToRDNSequence(t *testing.T) {
 		},
 		{
 			name: "ATV nil",
-			dn: &subcav1.DistinguishedName{
+			dn: subcav1.DistinguishedName_builder{
 				Names: []*subcav1.AttributeTypeAndValue{
 					nil,
 				},
-			},
+			}.Build(),
 			wantErr: "empty OID",
 		},
 		{
 			name: "ATV.OID empty",
-			dn: &subcav1.DistinguishedName{
+			dn: subcav1.DistinguishedName_builder{
 				Names: []*subcav1.AttributeTypeAndValue{
-					{Oid: []int32{}, Value: &exampleValue},
+					subcav1.AttributeTypeAndValue_builder{Oid: []int32{}, Value: &exampleValue}.Build(),
 				},
-			},
+			}.Build(),
 			wantErr: "empty OID",
 		},
 		{
 			name: "ATV.OID negative",
-			dn: &subcav1.DistinguishedName{
+			dn: subcav1.DistinguishedName_builder{
 				Names: []*subcav1.AttributeTypeAndValue{
-					{Oid: []int32{1, 2, 3, -1}, Value: &exampleValue},
+					subcav1.AttributeTypeAndValue_builder{Oid: []int32{1, 2, 3, -1}, Value: &exampleValue}.Build(),
 				},
-			},
+			}.Build(),
 			wantErr: "OID component out of bounds",
 		},
 		{
 			name: "ATV.Value nil",
-			dn: &subcav1.DistinguishedName{
+			dn: subcav1.DistinguishedName_builder{
 				Names: []*subcav1.AttributeTypeAndValue{
-					{Oid: []int32{1, 2, 3, 4}},
+					subcav1.AttributeTypeAndValue_builder{Oid: []int32{1, 2, 3, 4}}.Build(),
 				},
-			},
+			}.Build(),
 			wantErr: "nil Value",
 		},
 	}

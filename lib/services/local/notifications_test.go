@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -116,34 +117,32 @@ func TestGlobalNotificationCRUD(t *testing.T) {
 	// Create a couple notifications.
 	globalNotification1 := newGlobalNotification(t, "test-notification-1")
 	globalNotification2 := newGlobalNotification(t, "test-notification-2")
-	globalNotificationNoMatcher := &notificationsv1.GlobalNotification{
-		Spec: &notificationsv1.GlobalNotificationSpec{
-			Notification: &notificationsv1.Notification{
+	globalNotificationNoMatcher := notificationsv1.GlobalNotification_builder{
+		Spec: notificationsv1.GlobalNotificationSpec_builder{
+			Notification: notificationsv1.Notification_builder{
 				SubKind: "test-subkind",
 				Spec:    &notificationsv1.NotificationSpec{},
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Description: "Test Description",
-				},
-			},
-		},
-	}
-	globalNotificationLateExpiry := &notificationsv1.GlobalNotification{
-		Spec: &notificationsv1.GlobalNotificationSpec{
-			Matcher: &notificationsv1.GlobalNotificationSpec_All{
-				All: true,
-			},
-			Notification: &notificationsv1.Notification{
+				}.Build(),
+			}.Build(),
+		}.Build(),
+	}.Build()
+	globalNotificationLateExpiry := notificationsv1.GlobalNotification_builder{
+		Spec: notificationsv1.GlobalNotificationSpec_builder{
+			All: proto.Bool(true),
+			Notification: notificationsv1.Notification_builder{
 				SubKind: "test-subkind",
 				Spec:    &notificationsv1.NotificationSpec{},
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Description: "Test Description",
 					Labels:      map[string]string{"description": "notification-late-expiry"},
 					// Set the expiry to 91 days from now, which is past the 90 day expiry limit.
 					Expires: timestamppb.New(clock.Now().AddDate(0, 0, 91)),
-				},
-			},
-		},
-	}
+				}.Build(),
+			}.Build(),
+		}.Build(),
+	}.Build()
 
 	// Create notifications.
 	notification, err := service.CreateGlobalNotification(ctx, globalNotification1)
@@ -161,7 +160,7 @@ func TestGlobalNotificationCRUD(t *testing.T) {
 	require.True(t, trace.IsBadParameter(err), "got error %T, expected a bad parameter error due to notification-late-expiry having an expiry date more than 90 days later", err)
 
 	// Verify that the Metada.Expires on the global notification wrapper is the same as in the inner notification.
-	require.Equal(t, notification.Metadata.Expires, notification.Spec.Notification.Metadata.Expires)
+	require.Equal(t, notification.GetMetadata().GetExpires(), notification.GetSpec().GetNotification().GetMetadata().GetExpires())
 
 	// Test deleting a notification.
 	err = service.DeleteGlobalNotification(ctx, globalNotification1Id)
@@ -200,33 +199,33 @@ func TestUserNotificationStateCRUD(t *testing.T) {
 	require.NoError(t, err)
 	notification2Id := notification.GetMetadata().GetName()
 
-	userNotificationState1 := &notificationsv1.UserNotificationState{
-		Spec: &notificationsv1.UserNotificationStateSpec{
+	userNotificationState1 := notificationsv1.UserNotificationState_builder{
+		Spec: notificationsv1.UserNotificationStateSpec_builder{
 			NotificationId: notification1Id,
-		},
-		Status: &notificationsv1.UserNotificationStateStatus{
+		}.Build(),
+		Status: notificationsv1.UserNotificationStateStatus_builder{
 			NotificationState: notificationsv1.NotificationState_NOTIFICATION_STATE_CLICKED,
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	// Duplicate of the above but with the state set to dismissed instead of clicked.
-	userNotificationState1Dismissed := &notificationsv1.UserNotificationState{
-		Spec: &notificationsv1.UserNotificationStateSpec{
+	userNotificationState1Dismissed := notificationsv1.UserNotificationState_builder{
+		Spec: notificationsv1.UserNotificationStateSpec_builder{
 			NotificationId: notification1Id,
-		},
-		Status: &notificationsv1.UserNotificationStateStatus{
+		}.Build(),
+		Status: notificationsv1.UserNotificationStateStatus_builder{
 			NotificationState: notificationsv1.NotificationState_NOTIFICATION_STATE_DISMISSED,
-		},
-	}
+		}.Build(),
+	}.Build()
 
-	userNotificationState2 := &notificationsv1.UserNotificationState{
-		Spec: &notificationsv1.UserNotificationStateSpec{
+	userNotificationState2 := notificationsv1.UserNotificationState_builder{
+		Spec: notificationsv1.UserNotificationStateSpec_builder{
 			NotificationId: notification2Id,
-		},
-		Status: &notificationsv1.UserNotificationStateStatus{
+		}.Build(),
+		Status: notificationsv1.UserNotificationStateStatus_builder{
 			NotificationState: notificationsv1.NotificationState_NOTIFICATION_STATE_CLICKED,
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	// Initially we expect no user notification states.
 	out, nextToken, err := service.ListUserNotificationStates(ctx, testUsername, 0, "")
@@ -282,10 +281,10 @@ func TestUserNotificationStateCRUD(t *testing.T) {
 
 	require.Len(t, paginatedOut, 2)
 	// Verify that notification id's and states are correct, userNotificationState1 should now have the dismissed state.
-	require.Equal(t, userNotificationState1.Spec.NotificationId, paginatedOut[0].Spec.NotificationId)
-	require.Equal(t, notificationsv1.NotificationState_NOTIFICATION_STATE_DISMISSED, paginatedOut[0].Status.NotificationState)
-	require.Equal(t, userNotificationState2.Spec.NotificationId, paginatedOut[1].Spec.NotificationId)
-	require.Equal(t, notificationsv1.NotificationState_NOTIFICATION_STATE_CLICKED, paginatedOut[1].Status.NotificationState)
+	require.Equal(t, userNotificationState1.GetSpec().GetNotificationId(), paginatedOut[0].GetSpec().GetNotificationId())
+	require.Equal(t, notificationsv1.NotificationState_NOTIFICATION_STATE_DISMISSED, paginatedOut[0].GetStatus().GetNotificationState())
+	require.Equal(t, userNotificationState2.GetSpec().GetNotificationId(), paginatedOut[1].GetSpec().GetNotificationId())
+	require.Equal(t, notificationsv1.NotificationState_NOTIFICATION_STATE_CLICKED, paginatedOut[1].GetStatus().GetNotificationState())
 
 	// Test deleting a notification state.
 	err = service.DeleteUserNotificationState(ctx, testUsername, notification1Id)
@@ -328,14 +327,14 @@ func TestUserNotificationStateCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a notification state for this notification
-	userNotificationStateGlobal := &notificationsv1.UserNotificationState{
-		Spec: &notificationsv1.UserNotificationStateSpec{
+	userNotificationStateGlobal := notificationsv1.UserNotificationState_builder{
+		Spec: notificationsv1.UserNotificationStateSpec_builder{
 			NotificationId: globalNotification.GetMetadata().GetName(),
-		},
-		Status: &notificationsv1.UserNotificationStateStatus{
+		}.Build(),
+		Status: notificationsv1.UserNotificationStateStatus_builder{
 			NotificationState: notificationsv1.NotificationState_NOTIFICATION_STATE_CLICKED,
-		},
-	}
+		}.Build(),
+	}.Build()
 	// Upsert a notification state for user 1
 	_, err = service.UpsertUserNotificationState(ctx, testUsername, userNotificationStateGlobal)
 	require.NoError(t, err)
@@ -366,11 +365,11 @@ func TestUserLastSeenNotificationCRUD(t *testing.T) {
 	testUsername := "test-username"
 	testTimestamp := timestamppb.New(time.UnixMilli(1708041600000)) // February 16, 2024 12:00:00 AM UTC
 
-	userLastSeenNotification := &notificationsv1.UserLastSeenNotification{
-		Status: &notificationsv1.UserLastSeenNotificationStatus{
+	userLastSeenNotification := notificationsv1.UserLastSeenNotification_builder{
+		Status: notificationsv1.UserLastSeenNotificationStatus_builder{
 			LastSeenTime: testTimestamp,
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	// Initially we expect the user's last seen notification object to not exist.
 	_, err = service.GetUserLastSeenNotification(ctx, testUsername)
@@ -434,40 +433,40 @@ func TestUniqueNotificationIdentifierCRUD(t *testing.T) {
 	// Create unique notification identifiers with the testPrefix1 prefix.
 	identifier, err := service.CreateUniqueNotificationIdentifier(ctx, testPrefix1, "1")
 	require.NoError(t, err)
-	require.Equal(t, "1", identifier.Spec.UniqueIdentifier)
-	require.Equal(t, testPrefix1, identifier.Spec.UniqueIdentifierPrefix)
+	require.Equal(t, "1", identifier.GetSpec().GetUniqueIdentifier())
+	require.Equal(t, testPrefix1, identifier.GetSpec().GetUniqueIdentifierPrefix())
 
 	identifier, err = service.CreateUniqueNotificationIdentifier(ctx, testPrefix1, "2")
 	require.NoError(t, err)
-	require.Equal(t, "2", identifier.Spec.UniqueIdentifier)
-	require.Equal(t, testPrefix1, identifier.Spec.UniqueIdentifierPrefix)
+	require.Equal(t, "2", identifier.GetSpec().GetUniqueIdentifier())
+	require.Equal(t, testPrefix1, identifier.GetSpec().GetUniqueIdentifierPrefix())
 
 	// Create a unique notification identifier with the testPrefix2 prefix.
 	identifier, err = service.CreateUniqueNotificationIdentifier(ctx, testPrefix2, "1")
 	require.NoError(t, err)
-	require.Equal(t, "1", identifier.Spec.UniqueIdentifier)
-	require.Equal(t, testPrefix2, identifier.Spec.UniqueIdentifierPrefix)
+	require.Equal(t, "1", identifier.GetSpec().GetUniqueIdentifier())
+	require.Equal(t, testPrefix2, identifier.GetSpec().GetUniqueIdentifierPrefix())
 
 	// List identifiers with the testPrefix1 prefix.
 	out, _, err = service.ListUniqueNotificationIdentifiersForPrefix(ctx, testPrefix1, 5, "")
 	require.NoError(t, err)
 	// Verify that only the identifiers with testPrefix1 as prefix are returned.
 	require.Len(t, out, 2)
-	require.Equal(t, "1", out[0].Spec.UniqueIdentifier)
-	require.Equal(t, "2", out[1].Spec.UniqueIdentifier)
+	require.Equal(t, "1", out[0].GetSpec().GetUniqueIdentifier())
+	require.Equal(t, "2", out[1].GetSpec().GetUniqueIdentifier())
 
 	// List identifiers with the testPrefix2 prefix.
 	out, _, err = service.ListUniqueNotificationIdentifiersForPrefix(ctx, testPrefix2, 5, "")
 	require.NoError(t, err)
 	// Verify that only the identifier with testPrefix2 as prefix is returned.
 	require.Len(t, out, 1)
-	require.Equal(t, "1", out[0].Spec.UniqueIdentifier)
+	require.Equal(t, "1", out[0].GetSpec().GetUniqueIdentifier())
 
 	// Test that getting a unique notification identifier works.
 	uni, err := service.GetUniqueNotificationIdentifier(ctx, testPrefix1, "1")
 	require.NoError(t, err)
-	require.Equal(t, "1", uni.Spec.UniqueIdentifier)
-	require.Equal(t, testPrefix1, uni.Spec.UniqueIdentifierPrefix)
+	require.Equal(t, "1", uni.GetSpec().GetUniqueIdentifier())
+	require.Equal(t, testPrefix1, uni.GetSpec().GetUniqueIdentifierPrefix())
 
 	// Delete one of the identifiers with testPrefix1 prefix.
 	err = service.DeleteUniqueNotificationIdentifier(ctx, testPrefix1, "1")
@@ -477,8 +476,8 @@ func TestUniqueNotificationIdentifierCRUD(t *testing.T) {
 	out, _, err = service.ListUniqueNotificationIdentifiersForPrefix(ctx, testPrefix1, 5, "")
 	require.NoError(t, err)
 	require.Len(t, out, 1)
-	require.Equal(t, "2", out[0].Spec.UniqueIdentifier)
-	require.Equal(t, testPrefix1, out[0].Spec.UniqueIdentifierPrefix)
+	require.Equal(t, "2", out[0].GetSpec().GetUniqueIdentifier())
+	require.Equal(t, testPrefix1, out[0].GetSpec().GetUniqueIdentifierPrefix())
 
 	// Try to create an identifier with an empty prefix and identifier and verify that there is an error.
 	_, err = service.CreateUniqueNotificationIdentifier(ctx, "", "")
@@ -490,14 +489,14 @@ func newUserNotification(t *testing.T, username string, title string) *notificat
 
 	notification := notificationsv1.Notification{
 		SubKind: "test-subkind",
-		Spec: &notificationsv1.NotificationSpec{
+		Spec: notificationsv1.NotificationSpec_builder{
 			Username: username,
-		},
-		Metadata: &headerv1.Metadata{
+		}.Build(),
+		Metadata: headerv1.Metadata_builder{
 			Labels: map[string]string{
 				types.NotificationTitleLabel: title,
 			},
-		},
+		}.Build(),
 	}
 
 	return &notification
@@ -507,20 +506,18 @@ func newGlobalNotification(t *testing.T, title string) *notificationsv1.GlobalNo
 	t.Helper()
 
 	notification := notificationsv1.GlobalNotification{
-		Spec: &notificationsv1.GlobalNotificationSpec{
-			Matcher: &notificationsv1.GlobalNotificationSpec_All{
-				All: true,
-			},
-			Notification: &notificationsv1.Notification{
+		Spec: notificationsv1.GlobalNotificationSpec_builder{
+			All: proto.Bool(true),
+			Notification: notificationsv1.Notification_builder{
 				SubKind: "test-subkind",
 				Spec:    &notificationsv1.NotificationSpec{},
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Labels: map[string]string{
 						types.NotificationTitleLabel: title,
 					},
-				},
-			},
-		},
+				}.Build(),
+			}.Build(),
+		}.Build(),
 	}
 
 	return &notification

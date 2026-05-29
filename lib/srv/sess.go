@@ -257,12 +257,12 @@ func (s *SessionRegistry) WriteSudoersFile(identityContext IdentityContext) (io.
 		return nil, nil
 	}
 
-	if len(identityContext.AccessPermit.HostSudoers) == 0 {
+	if len(identityContext.AccessPermit.GetHostSudoers()) == 0 {
 		// not an error, sudoers may not be configured.
 		return nil, nil
 	}
 
-	if err := sudoWriter.WriteSudoers(identityContext.Login, identityContext.AccessPermit.HostSudoers); err != nil {
+	if err := sudoWriter.WriteSudoers(identityContext.Login, identityContext.AccessPermit.GetHostSudoers()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -300,12 +300,12 @@ func (s *SessionRegistry) UpsertHostUser(identityContext IdentityContext, obtain
 	}
 
 	log.DebugContext(ctx, "Checking if user provisioning is allowed")
-	ui := identityContext.AccessPermit.HostUsersInfo
+	ui := identityContext.AccessPermit.GetHostUsersInfo()
 	if ui == nil {
 		return false, nil, trace.Wrap(errHostUserCreationNotAuthorized)
 	}
 
-	if obtainFallbackUID != nil && ui.Mode == decisionpb.HostUserMode_HOST_USER_MODE_KEEP && ui.Uid == "" {
+	if obtainFallbackUID != nil && ui.GetMode() == decisionpb.HostUserMode_HOST_USER_MODE_KEEP && ui.GetUid() == "" {
 		if err := s.users.UserExists(identityContext.Login); err != nil {
 			if !trace.IsNotFound(err) {
 				return false, nil, trace.Wrap(err)
@@ -319,9 +319,9 @@ func (s *SessionRegistry) UpsertHostUser(identityContext IdentityContext, obtain
 			}
 			if ok {
 				log.DebugContext(ctx, "Obtained UID from control plane", "uid", fallbackUID)
-				ui.Uid = strconv.Itoa(int(fallbackUID))
-				if ui.Gid == "" {
-					ui.Gid = ui.Uid
+				ui.SetUid(strconv.Itoa(int(fallbackUID)))
+				if ui.GetGid() == "" {
+					ui.SetGid(ui.GetUid())
 				}
 			} else {
 				log.DebugContext(ctx, "No UID configured in the cluster")
@@ -818,7 +818,7 @@ func newSession(ctx context.Context, r *SessionRegistry, scx *ServerContext, ch 
 	var sessionRecordingMode constants.SessionRecordingMode
 	switch {
 	case scx.Identity.AccessPermit != nil:
-		sessionRecordingMode = constants.SessionRecordingMode(scx.Identity.AccessPermit.SessionRecordingMode)
+		sessionRecordingMode = constants.SessionRecordingMode(scx.Identity.AccessPermit.GetSessionRecordingMode())
 	case scx.Identity.ProxyingPermit != nil:
 		sessionRecordingMode = scx.Identity.ProxyingPermit.SessionRecordingMode
 	default:
@@ -1585,7 +1585,7 @@ func newRecorder(s *session, ctx *ServerContext, sessType sessionType) (events.S
 	var sessionRecordingMode constants.SessionRecordingMode
 	switch {
 	case ctx.Identity.AccessPermit != nil:
-		sessionRecordingMode = constants.SessionRecordingMode(ctx.Identity.AccessPermit.SessionRecordingMode)
+		sessionRecordingMode = constants.SessionRecordingMode(ctx.Identity.AccessPermit.GetSessionRecordingMode())
 	case ctx.Identity.ProxyingPermit != nil:
 		sessionRecordingMode = ctx.Identity.ProxyingPermit.SessionRecordingMode
 	default:
@@ -2427,8 +2427,8 @@ func (s *session) onWriteErrorCallback(sessionRecordingMode constants.SessionRec
 }
 
 func eventsMapFromSSHAccessPermit(permit *decisionpb.SSHAccessPermit) map[string]struct{} {
-	eventsMap := make(map[string]struct{}, len(permit.BpfEvents))
-	for _, event := range permit.BpfEvents {
+	eventsMap := make(map[string]struct{}, len(permit.GetBpfEvents()))
+	for _, event := range permit.GetBpfEvents() {
 		eventsMap[event] = struct{}{}
 	}
 

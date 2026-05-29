@@ -329,26 +329,26 @@ func TestJoinAzureDevops(t *testing.T) {
 			require.NoError(t, err)
 			require.NoError(t, auth.UpsertToken(ctx, token))
 
-			scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(tt.tokenSpec, &joiningv1.ScopedToken{
+			scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(tt.tokenSpec, joiningv1.ScopedToken_builder{
 				Scope: "/test",
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "scoped_" + token.GetName(),
-				},
-				Spec: &joiningv1.ScopedTokenSpec{
+				}.Build(),
+				Spec: joiningv1.ScopedTokenSpec_builder{
 					AssignedScope: "/test/one",
 					UsageMode:     string(joining.TokenUsageModeUnlimited),
-				},
-			})
+				}.Build(),
+			}.Build())
 			require.NoError(t, err)
 
-			_, err = auth.CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
+			_, err = auth.CreateScopedToken(t.Context(), joiningv1.CreateScopedTokenRequest_builder{
 				Token: scopedToken,
-			})
+			}.Build())
 			require.NoError(t, err)
 			t.Cleanup(func() {
-				_, err := auth.DeleteScopedToken(ctx, &joiningv1.DeleteScopedTokenRequest{
+				_, err := auth.DeleteScopedToken(ctx, joiningv1.DeleteScopedTokenRequest_builder{
 					Name: scopedToken.GetMetadata().GetName(),
-				})
+				}.Build())
 				require.NoError(t, err)
 			})
 

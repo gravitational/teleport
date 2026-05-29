@@ -35,7 +35,7 @@ func (s *Service) GenerateAzureOIDCToken(ctx context.Context, req *integrationpb
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	_, err = s.cache.GetIntegration(ctx, req.Integration)
+	_, err = s.cache.GetIntegration(ctx, req.GetIntegration())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -45,7 +45,7 @@ func (s *Service) GenerateAzureOIDCToken(ctx context.Context, req *integrationpb
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			return &integrationpb.GenerateAzureOIDCTokenResponse{Token: token}, nil
+			return integrationpb.GenerateAzureOIDCTokenResponse_builder{Token: token}.Build(), nil
 		}
 	}
 	return nil, trace.AccessDenied("token generation is only available to auth, proxy or discovery services")

@@ -237,9 +237,9 @@ func IdentityCenterAccountToAppServer(acct *identitycenterv1.Account) *types.App
 	pss := make([]*types.IdentityCenterPermissionSet, len(srcPSs))
 	for i, ps := range acct.GetSpec().GetPermissionSetInfo() {
 		pss[i] = &types.IdentityCenterPermissionSet{
-			ARN:          ps.Arn,
-			Name:         ps.Name,
-			AssignmentID: ps.AssignmentId,
+			ARN:          ps.GetArn(),
+			Name:         ps.GetName(),
+			AssignmentID: ps.GetAssignmentId(),
 		}
 	}
 
@@ -249,7 +249,7 @@ func IdentityCenterAccountToAppServer(acct *identitycenterv1.Account) *types.App
 	// here. The web Launch button (ResourceActionButton.tsx) builds the
 	// SSO launch URL as `${publicAddr}&role_name=...`, which requires
 	// the full StartUrl - scheme, path, and case preserved.
-	metadata := types.Metadata153ToLegacy(acct.Metadata)
+	metadata := types.Metadata153ToLegacy(acct.GetMetadata())
 	metadata.Description = acct.GetSpec().GetName()
 
 	return &types.AppServerV3{
@@ -331,7 +331,7 @@ func (m *IdentityCenterAccountMatcher) String() string {
 func NewIdentityCenterAccountAssignmentMatcher(assignment IdentityCenterAccountAssignment) *IdentityCenterAccountAssignmentMatcher {
 	return &IdentityCenterAccountAssignmentMatcher{
 		accountID:        assignment.GetSpec().GetAccountId(),
-		permissionSetARN: assignment.GetSpec().GetPermissionSet().Arn,
+		permissionSetARN: assignment.GetSpec().GetPermissionSet().GetArn(),
 	}
 }
 

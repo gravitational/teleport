@@ -110,7 +110,7 @@ func (i *singleDatabaseImporter) scan(ctx context.Context) {
 	}
 
 	objectsNewMap := utils.FromSlice(objectsNew, func(object *dbobjectv1.DatabaseObject) string {
-		return object.GetMetadata().Name
+		return object.GetMetadata().GetName()
 	})
 
 	i.deleteObjects(ctx, calculateDeleted(ctx, i.cfg, i.objects, objectsNewMap))
@@ -199,7 +199,7 @@ func (i *singleDatabaseImporter) updateObjects(ctx context.Context, updated map[
 	for key, objNew := range updated {
 		i.objects[key] = objNew
 		clone := proto.Clone(objNew.obj).(*dbobjectv1.DatabaseObject)
-		clone.Metadata.Expires = timestamppb.New(objNew.expiry)
+		clone.GetMetadata().SetExpires(timestamppb.New(objNew.expiry))
 		_, err := i.cfg.DatabaseObjectClient.UpsertDatabaseObject(ctx, clone)
 		if err != nil {
 			errs = append(errs, err)

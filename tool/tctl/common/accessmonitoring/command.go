@@ -190,8 +190,8 @@ func (c *cmdHandler) onAuditQuerySchema(ctx context.Context, authClient *authcli
 	}
 	for _, view := range resp.GetViews() {
 		table := asciitable.MakeTable([]string{"Name", "Type", "Description"})
-		for _, v := range view.Columns {
-			table.AddRow([]string{v.Name, v.Type, v.Desc})
+		for _, v := range view.GetColumns() {
+			table.AddRow([]string{v.GetName(), v.GetType(), v.GetDesc()})
 		}
 		_, err = table.AsBuffer().WriteTo(os.Stdout)
 		if err != nil {

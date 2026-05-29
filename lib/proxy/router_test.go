@@ -182,45 +182,45 @@ func TestScopePinning(t *testing.T) {
 		{
 			name:      "unscoped node unreachable when pinned",
 			host:      "unscoped.example.com",
-			pin:       &scopesv1.Pin{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "/staging"},
+			pin:       scopesv1.Pin_builder{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "/staging"}.Build(),
 			unmatched: true,
 		},
 		{
 			name: "parent scoped node reachable when pinned to exact scope",
 			host: "unique-parent.example.com",
-			pin:  &scopesv1.Pin{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "/staging"},
+			pin:  scopesv1.Pin_builder{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "/staging"}.Build(),
 		},
 		{
 			name:      "parent scoped node unreachable when pinned to child scope",
 			host:      "unique-parent.example.com",
-			pin:       &scopesv1.Pin{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "/staging/west"},
+			pin:       scopesv1.Pin_builder{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "/staging/west"}.Build(),
 			unmatched: true,
 		},
 		{
 			name: "child scoped node reachable when pinned to child scope",
 			host: "unique-child.example.com",
-			pin:  &scopesv1.Pin{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "/staging/west"},
+			pin:  scopesv1.Pin_builder{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "/staging/west"}.Build(),
 		},
 		{
 			name: "child scoped node reachable when pinned to parent scope",
 			host: "unique-child.example.com",
-			pin:  &scopesv1.Pin{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "/staging"},
+			pin:  scopesv1.Pin_builder{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "/staging"}.Build(),
 		},
 		{
 			name: "no collisions from orthogonal scopes when pinned",
 			host: "orthogonal.example.com",
-			pin:  &scopesv1.Pin{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "/staging"},
+			pin:  scopesv1.Pin_builder{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "/staging"}.Build(),
 		},
 		{
 			name:      "parent/child conflict when pinned to parent",
 			host:      "parent-child.example.com",
-			pin:       &scopesv1.Pin{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "/staging"},
+			pin:       scopesv1.Pin_builder{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "/staging"}.Build(),
 			ambiguous: true,
 		},
 		{
 			name: "parent/child doesn't conflict when pinned to child",
 			host: "parent-child.example.com",
-			pin:  &scopesv1.Pin{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "/staging/west"},
+			pin:  scopesv1.Pin_builder{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "/staging/west"}.Build(),
 		},
 		{
 			name:      "parent/child conflict when unpinned",

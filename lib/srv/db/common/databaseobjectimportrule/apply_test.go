@@ -51,7 +51,7 @@ type option func(db *dbobjectv1.DatabaseObject) error
 
 func mkDatabaseObject(t *testing.T, name string, spec *dbobjectv1.DatabaseObjectSpec, options ...option) *dbobjectv1.DatabaseObject {
 	t.Helper()
-	spec.Name = name
+	spec.SetName(name)
 	out, err := databaseobject.NewDatabaseObject(name, spec)
 	require.NoError(t, err)
 	for _, opt := range options {
@@ -69,15 +69,15 @@ func mkImportRule(t *testing.T, name string, spec *databaseobjectimportrulev1.Da
 }
 
 func mkImportRuleNoValidation(name string, spec *databaseobjectimportrulev1.DatabaseObjectImportRuleSpec) *databaseobjectimportrulev1.DatabaseObjectImportRule {
-	out := &databaseobjectimportrulev1.DatabaseObjectImportRule{
+	out := databaseobjectimportrulev1.DatabaseObjectImportRule_builder{
 		Kind:    types.KindDatabaseObjectImportRule,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name:      name,
 			Namespace: defaults.Namespace,
-		},
+		}.Build(),
 		Spec: spec,
-	}
+	}.Build()
 	return out
 }
 
@@ -100,48 +100,48 @@ func TestApplyDatabaseObjectImportRules(t *testing.T) {
 		{
 			name: "database labels are matched by the rules",
 			rules: []*databaseobjectimportrulev1.DatabaseObjectImportRule{
-				mkImportRule(t, "foo", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
+				mkImportRule(t, "foo", databaseobjectimportrulev1.DatabaseObjectImportRuleSpec_builder{
 					Priority:       10,
 					DatabaseLabels: label.FromMap(map[string][]string{"env": {"dev"}}),
 					Mappings: []*databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
-						{
-							Match: &databaseobjectimportrulev1.DatabaseObjectImportMatch{
+						databaseobjectimportrulev1.DatabaseObjectImportRuleMapping_builder{
+							Match: databaseobjectimportrulev1.DatabaseObjectImportMatch_builder{
 								TableNames: []string{"*"},
-							},
+							}.Build(),
 							AddLabels: map[string]string{
 								"dev_access":    "rw",
 								"flag_from_dev": "dummy",
 							},
-						},
+						}.Build(),
 					},
-				}),
-				mkImportRule(t, "bar", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
+				}.Build()),
+				mkImportRule(t, "bar", databaseobjectimportrulev1.DatabaseObjectImportRuleSpec_builder{
 					Priority:       20,
 					DatabaseLabels: label.FromMap(map[string][]string{"env": {"prod"}}),
 					Mappings: []*databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
-						{
-							Match: &databaseobjectimportrulev1.DatabaseObjectImportMatch{
+						databaseobjectimportrulev1.DatabaseObjectImportRuleMapping_builder{
+							Match: databaseobjectimportrulev1.DatabaseObjectImportMatch_builder{
 								TableNames: []string{"*"},
-							},
+							}.Build(),
 							AddLabels: map[string]string{
 								"dev_access":     "ro",
 								"flag_from_prod": "dummy",
 							},
-						},
+						}.Build(),
 					},
-				}),
+				}.Build()),
 			},
 			database: mkDatabase(t, "dummy", map[string]string{"env": "prod"}),
 			objs: []*dbobjectv1.DatabaseObject{
-				mkDatabaseObject(t, "foo", &dbobjectv1.DatabaseObjectSpec{ObjectKind: ObjectKindTable, Protocol: "postgres"}),
+				mkDatabaseObject(t, "foo", dbobjectv1.DatabaseObjectSpec_builder{ObjectKind: ObjectKindTable, Protocol: "postgres"}.Build()),
 			},
 			want: []*dbobjectv1.DatabaseObject{
-				mkDatabaseObject(t, "foo", &dbobjectv1.DatabaseObjectSpec{ObjectKind: ObjectKindTable, Protocol: "postgres"},
+				mkDatabaseObject(t, "foo", dbobjectv1.DatabaseObjectSpec_builder{ObjectKind: ObjectKindTable, Protocol: "postgres"}.Build(),
 					func(db *dbobjectv1.DatabaseObject) error {
-						db.Metadata.Labels = map[string]string{
+						db.GetMetadata().SetLabels(map[string]string{
 							"dev_access":     "ro",
 							"flag_from_prod": "dummy",
-						}
+						})
 						return nil
 					}),
 			},
@@ -149,49 +149,49 @@ func TestApplyDatabaseObjectImportRules(t *testing.T) {
 		{
 			name: "rule priorities are applied",
 			rules: []*databaseobjectimportrulev1.DatabaseObjectImportRule{
-				mkImportRule(t, "foo", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
+				mkImportRule(t, "foo", databaseobjectimportrulev1.DatabaseObjectImportRuleSpec_builder{
 					Priority:       10,
 					DatabaseLabels: label.FromMap(map[string][]string{"*": {"*"}}),
 					Mappings: []*databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
-						{
-							Match: &databaseobjectimportrulev1.DatabaseObjectImportMatch{
+						databaseobjectimportrulev1.DatabaseObjectImportRuleMapping_builder{
+							Match: databaseobjectimportrulev1.DatabaseObjectImportMatch_builder{
 								TableNames: []string{"*"},
-							},
+							}.Build(),
 							AddLabels: map[string]string{
 								"dev_access":    "rw",
 								"flag_from_dev": "dummy",
 							},
-						},
+						}.Build(),
 					},
-				}),
+				}.Build()),
 
-				mkImportRule(t, "bar", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
+				mkImportRule(t, "bar", databaseobjectimportrulev1.DatabaseObjectImportRuleSpec_builder{
 					Priority:       20,
 					DatabaseLabels: label.FromMap(map[string][]string{"*": {"*"}}),
 					Mappings: []*databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
-						{
-							Match: &databaseobjectimportrulev1.DatabaseObjectImportMatch{
+						databaseobjectimportrulev1.DatabaseObjectImportRuleMapping_builder{
+							Match: databaseobjectimportrulev1.DatabaseObjectImportMatch_builder{
 								TableNames: []string{"*"},
-							},
+							}.Build(),
 							AddLabels: map[string]string{
 								"dev_access":     "ro",
 								"flag_from_prod": "dummy",
 							},
-						},
+						}.Build(),
 					},
-				}),
+				}.Build()),
 			},
 			database: mkDatabase(t, "dummy", map[string]string{}),
 			objs: []*dbobjectv1.DatabaseObject{
-				mkDatabaseObject(t, "foo", &dbobjectv1.DatabaseObjectSpec{ObjectKind: ObjectKindTable, Protocol: "postgres"}),
+				mkDatabaseObject(t, "foo", dbobjectv1.DatabaseObjectSpec_builder{ObjectKind: ObjectKindTable, Protocol: "postgres"}.Build()),
 			},
 			want: []*dbobjectv1.DatabaseObject{
-				mkDatabaseObject(t, "foo", &dbobjectv1.DatabaseObjectSpec{ObjectKind: ObjectKindTable, Protocol: "postgres"}, func(db *dbobjectv1.DatabaseObject) error {
-					db.Metadata.Labels = map[string]string{
+				mkDatabaseObject(t, "foo", dbobjectv1.DatabaseObjectSpec_builder{ObjectKind: ObjectKindTable, Protocol: "postgres"}.Build(), func(db *dbobjectv1.DatabaseObject) error {
+					db.GetMetadata().SetLabels(map[string]string{
 						"dev_access":     "ro",
 						"flag_from_dev":  "dummy",
 						"flag_from_prod": "dummy",
-					}
+					})
 					return nil
 				}),
 			},
@@ -199,55 +199,55 @@ func TestApplyDatabaseObjectImportRules(t *testing.T) {
 		{
 			name: "errors are counted",
 			rules: []*databaseobjectimportrulev1.DatabaseObjectImportRule{
-				mkImportRule(t, "foo", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
+				mkImportRule(t, "foo", databaseobjectimportrulev1.DatabaseObjectImportRuleSpec_builder{
 					Priority:       10,
 					DatabaseLabels: label.FromMap(map[string][]string{"*": {"*"}}),
 					Mappings: []*databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
-						{
-							Match: &databaseobjectimportrulev1.DatabaseObjectImportMatch{
+						databaseobjectimportrulev1.DatabaseObjectImportRuleMapping_builder{
+							Match: databaseobjectimportrulev1.DatabaseObjectImportMatch_builder{
 								TableNames: []string{"*"},
-							},
+							}.Build(),
 							AddLabels: map[string]string{
 								"dev_access":    "rw",
 								"flag_from_dev": "dummy",
 							},
-						},
+						}.Build(),
 					},
-				}),
+				}.Build()),
 
-				mkImportRuleNoValidation("bar", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
+				mkImportRuleNoValidation("bar", databaseobjectimportrulev1.DatabaseObjectImportRuleSpec_builder{
 					Priority:       20,
 					DatabaseLabels: label.FromMap(map[string][]string{"*": {"*"}}),
 					Mappings: []*databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
-						{
-							Match: &databaseobjectimportrulev1.DatabaseObjectImportMatch{
+						databaseobjectimportrulev1.DatabaseObjectImportRuleMapping_builder{
+							Match: databaseobjectimportrulev1.DatabaseObjectImportMatch_builder{
 								TableNames: []string{"*"},
-							},
+							}.Build(),
 							AddLabels: map[string]string{
 								"dev_access":     "ro",
 								"flag_from_prod": "dummy",
 							},
-						},
-						{
-							Match:     &databaseobjectimportrulev1.DatabaseObjectImportMatch{TableNames: []string{"bar", "baz"}},
+						}.Build(),
+						databaseobjectimportrulev1.DatabaseObjectImportRuleMapping_builder{
+							Match:     databaseobjectimportrulev1.DatabaseObjectImportMatch_builder{TableNames: []string{"bar", "baz"}}.Build(),
 							AddLabels: map[string]string{"error label": "{{foo()}}"},
-						},
+						}.Build(),
 					},
-				}),
+				}.Build()),
 			},
 			database: mkDatabase(t, "dummy", map[string]string{}),
 			objs: []*dbobjectv1.DatabaseObject{
-				mkDatabaseObject(t, "foo", &dbobjectv1.DatabaseObjectSpec{ObjectKind: ObjectKindTable, Protocol: "postgres"}),
-				mkDatabaseObject(t, "bar", &dbobjectv1.DatabaseObjectSpec{ObjectKind: ObjectKindTable, Protocol: "postgres"}),
-				mkDatabaseObject(t, "baz", &dbobjectv1.DatabaseObjectSpec{ObjectKind: ObjectKindTable, Protocol: "postgres"}),
+				mkDatabaseObject(t, "foo", dbobjectv1.DatabaseObjectSpec_builder{ObjectKind: ObjectKindTable, Protocol: "postgres"}.Build()),
+				mkDatabaseObject(t, "bar", dbobjectv1.DatabaseObjectSpec_builder{ObjectKind: ObjectKindTable, Protocol: "postgres"}.Build()),
+				mkDatabaseObject(t, "baz", dbobjectv1.DatabaseObjectSpec_builder{ObjectKind: ObjectKindTable, Protocol: "postgres"}.Build()),
 			},
 			want: []*dbobjectv1.DatabaseObject{
-				mkDatabaseObject(t, "foo", &dbobjectv1.DatabaseObjectSpec{ObjectKind: ObjectKindTable, Protocol: "postgres"}, func(db *dbobjectv1.DatabaseObject) error {
-					db.Metadata.Labels = map[string]string{
+				mkDatabaseObject(t, "foo", dbobjectv1.DatabaseObjectSpec_builder{ObjectKind: ObjectKindTable, Protocol: "postgres"}.Build(), func(db *dbobjectv1.DatabaseObject) error {
+					db.GetMetadata().SetLabels(map[string]string{
 						"dev_access":     "ro",
 						"flag_from_dev":  "dummy",
 						"flag_from_prod": "dummy",
-					}
+					})
 					return nil
 				}),
 			},
@@ -329,75 +329,75 @@ func TestDatabaseObjectImportMatch(t *testing.T) {
 		},
 		{
 			name: "match table name",
-			match: &databaseobjectimportrulev1.DatabaseObjectImportMatch{
+			match: databaseobjectimportrulev1.DatabaseObjectImportMatch_builder{
 				TableNames: []string{"object1", "object2"},
-			},
-			spec: &dbobjectv1.DatabaseObjectSpec{
+			}.Build(),
+			spec: dbobjectv1.DatabaseObjectSpec_builder{
 				Database:            "db1",
 				DatabaseServiceName: "service1",
 				Protocol:            "postgres",
 				ObjectKind:          ObjectKindTable,
 				Name:                "object1",
 				Schema:              "schema1",
-			},
+			}.Build(),
 			wantMatch: true,
 		},
 		{
 			name: "glob",
-			match: &databaseobjectimportrulev1.DatabaseObjectImportMatch{
+			match: databaseobjectimportrulev1.DatabaseObjectImportMatch_builder{
 				TableNames: []string{"*"},
-			},
-			spec: &dbobjectv1.DatabaseObjectSpec{
+			}.Build(),
+			spec: dbobjectv1.DatabaseObjectSpec_builder{
 				Database:            "db1",
 				DatabaseServiceName: "service1",
 				Protocol:            "postgres",
 				ObjectKind:          ObjectKindTable,
 				Name:                "object1",
 				Schema:              "schema1",
-			},
+			}.Build(),
 			wantMatch: true,
 		},
 		{
 			name: "mismatch",
-			match: &databaseobjectimportrulev1.DatabaseObjectImportMatch{
+			match: databaseobjectimportrulev1.DatabaseObjectImportMatch_builder{
 				ViewNames: []string{"object1", "object2"},
-			},
-			spec: &dbobjectv1.DatabaseObjectSpec{
+			}.Build(),
+			spec: dbobjectv1.DatabaseObjectSpec_builder{
 				Database:            "db3",
 				DatabaseServiceName: "service3",
 				Protocol:            "postgres",
 				ObjectKind:          ObjectKindView,
 				Name:                "object3",
 				Schema:              "schema3",
-			},
+			}.Build(),
 			wantMatch: false,
 		},
 		{
 			name: "empty name matches no objects",
-			match: &databaseobjectimportrulev1.DatabaseObjectImportMatch{
+			match: databaseobjectimportrulev1.DatabaseObjectImportMatch_builder{
 				TableNames: []string{""},
-			},
-			spec: &dbobjectv1.DatabaseObjectSpec{
+			}.Build(),
+			spec: dbobjectv1.DatabaseObjectSpec_builder{
 				Database:            "db1",
 				DatabaseServiceName: "service1",
 				Protocol:            "postgres",
 				ObjectKind:          ObjectKindTable,
 				Name:                "object1",
 				Schema:              "schema1",
-			},
+			}.Build(),
 			wantMatch: false,
 		},
 		{
 			name:  "empty clause matches no objects",
 			match: &databaseobjectimportrulev1.DatabaseObjectImportMatch{},
-			spec: &dbobjectv1.DatabaseObjectSpec{
+			spec: dbobjectv1.DatabaseObjectSpec_builder{
 				Database:            "db1",
 				DatabaseServiceName: "service1",
 				Protocol:            "postgres",
 				ObjectKind:          ObjectKindTable,
 				Name:                "object1",
 				Schema:              "schema1",
-			},
+			}.Build(),
 			wantMatch: false,
 		},
 	}
@@ -411,7 +411,7 @@ func TestDatabaseObjectImportMatch(t *testing.T) {
 }
 
 func Test_databaseObjectScopeMatch(t *testing.T) {
-	spec := &dbobjectv1.DatabaseObjectSpec{
+	spec := dbobjectv1.DatabaseObjectSpec_builder{
 		Database: "foo",
 		Schema:   "public",
 
@@ -419,7 +419,7 @@ func Test_databaseObjectScopeMatch(t *testing.T) {
 		Protocol:            "postgres",
 		ObjectKind:          ObjectKindTable,
 		Name:                "object1",
-	}
+	}.Build()
 
 	tests := []struct {
 		name  string
@@ -428,54 +428,54 @@ func Test_databaseObjectScopeMatch(t *testing.T) {
 	}{
 		{
 			name: "empty db name and schema",
-			scope: &databaseobjectimportrulev1.DatabaseObjectImportScope{
+			scope: databaseobjectimportrulev1.DatabaseObjectImportScope_builder{
 				DatabaseNames: nil,
 				SchemaNames:   nil,
-			},
+			}.Build(),
 			want: true,
 		},
 		{
 			name: "just db name",
-			scope: &databaseobjectimportrulev1.DatabaseObjectImportScope{
+			scope: databaseobjectimportrulev1.DatabaseObjectImportScope_builder{
 				DatabaseNames: []string{"foo", "bar", "baz"},
-			},
+			}.Build(),
 			want: true,
 		},
 		{
 			name: "db name glob match",
-			scope: &databaseobjectimportrulev1.DatabaseObjectImportScope{
+			scope: databaseobjectimportrulev1.DatabaseObjectImportScope_builder{
 				DatabaseNames: []string{"f*o"},
-			},
+			}.Build(),
 			want: true,
 		},
 		{
 			name: "just schema",
-			scope: &databaseobjectimportrulev1.DatabaseObjectImportScope{
+			scope: databaseobjectimportrulev1.DatabaseObjectImportScope_builder{
 				SchemaNames: []string{"public", "private"},
-			},
+			}.Build(),
 			want: true,
 		},
 		{
 			name: "schema name glob match",
-			scope: &databaseobjectimportrulev1.DatabaseObjectImportScope{
+			scope: databaseobjectimportrulev1.DatabaseObjectImportScope_builder{
 				SchemaNames: []string{"pub*"},
-			},
+			}.Build(),
 			want: true,
 		},
 		{
 			name: "match db name and schema",
-			scope: &databaseobjectimportrulev1.DatabaseObjectImportScope{
+			scope: databaseobjectimportrulev1.DatabaseObjectImportScope_builder{
 				DatabaseNames: []string{"foo", "bar", "baz"},
 				SchemaNames:   []string{"public", "private"},
-			},
+			}.Build(),
 			want: true,
 		},
 		{
 			name: "mismatch db name and schema",
-			scope: &databaseobjectimportrulev1.DatabaseObjectImportScope{
+			scope: databaseobjectimportrulev1.DatabaseObjectImportScope_builder{
 				DatabaseNames: []string{"dummy"},
 				SchemaNames:   []string{"dummy"},
-			},
+			}.Build(),
 			want: false,
 		},
 	}
@@ -487,14 +487,14 @@ func Test_databaseObjectScopeMatch(t *testing.T) {
 }
 
 func Test_applyMappingToObject(t *testing.T) {
-	spec := &dbobjectv1.DatabaseObjectSpec{
+	spec := dbobjectv1.DatabaseObjectSpec_builder{
 		Database:            "db3",
 		DatabaseServiceName: "service3",
 		Protocol:            "postgres",
 		ObjectKind:          ObjectKindTable,
 		Name:                "object3",
 		Schema:              "schema3",
-	}
+	}.Build()
 
 	tests := []struct {
 		name       string
@@ -506,10 +506,10 @@ func Test_applyMappingToObject(t *testing.T) {
 	}{
 		{
 			name: "simple templates",
-			mapping: &databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
-				Match: &databaseobjectimportrulev1.DatabaseObjectImportMatch{
+			mapping: databaseobjectimportrulev1.DatabaseObjectImportRuleMapping_builder{
+				Match: databaseobjectimportrulev1.DatabaseObjectImportMatch_builder{
 					TableNames: []string{"*"},
-				},
+				}.Build(),
 				AddLabels: map[string]string{
 					"plain_label":           "rw",
 					"protocol":              "{{obj.protocol}}",
@@ -519,7 +519,7 @@ func Test_applyMappingToObject(t *testing.T) {
 					"schema":                "{{obj.schema}}",
 					"name":                  "{{obj.name}}",
 				},
-			},
+			}.Build(),
 			labels: map[string]string{},
 			wantLabels: map[string]string{
 				"plain_label":           "rw",
@@ -534,15 +534,15 @@ func Test_applyMappingToObject(t *testing.T) {
 		},
 		{
 			name: "add prefix",
-			mapping: &databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
-				Match: &databaseobjectimportrulev1.DatabaseObjectImportMatch{
+			mapping: databaseobjectimportrulev1.DatabaseObjectImportRuleMapping_builder{
+				Match: databaseobjectimportrulev1.DatabaseObjectImportMatch_builder{
 					TableNames: []string{"*"},
-				},
+				}.Build(),
 				AddLabels: map[string]string{
 					"plain_label": "rw",
 					"tag":         "db-{{obj.object_kind}}",
 				},
-			},
+			}.Build(),
 			labels: map[string]string{},
 			wantLabels: map[string]string{
 				"plain_label": "rw",
@@ -552,15 +552,15 @@ func Test_applyMappingToObject(t *testing.T) {
 		},
 		{
 			name: "spaces are trimmed prefix",
-			mapping: &databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
-				Match: &databaseobjectimportrulev1.DatabaseObjectImportMatch{
+			mapping: databaseobjectimportrulev1.DatabaseObjectImportRuleMapping_builder{
+				Match: databaseobjectimportrulev1.DatabaseObjectImportMatch_builder{
 					TableNames: []string{"*"},
-				},
+				}.Build(),
 				AddLabels: map[string]string{
 					"plain_label": "rw",
 					"tag":         "  db-{{   obj.object_kind }}-bar  ",
 				},
-			},
+			}.Build(),
 			labels: map[string]string{},
 			wantLabels: map[string]string{
 				"plain_label": "rw",
@@ -570,57 +570,57 @@ func Test_applyMappingToObject(t *testing.T) {
 		},
 		{
 			name: "invalid object is rejected",
-			mapping: &databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
-				Match: &databaseobjectimportrulev1.DatabaseObjectImportMatch{
+			mapping: databaseobjectimportrulev1.DatabaseObjectImportRuleMapping_builder{
+				Match: databaseobjectimportrulev1.DatabaseObjectImportMatch_builder{
 					TableNames: []string{"*"},
-				},
+				}.Build(),
 				AddLabels: map[string]string{
 					"plain_label": "rw",
 					"tag":         "db-{{obj.invalid}}",
 				},
-			},
+			}.Build(),
 			labels:    map[string]string{},
 			wantError: true,
 		},
 		{
 			name: "invalid namespace is rejected",
-			mapping: &databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
-				Match: &databaseobjectimportrulev1.DatabaseObjectImportMatch{
+			mapping: databaseobjectimportrulev1.DatabaseObjectImportRuleMapping_builder{
+				Match: databaseobjectimportrulev1.DatabaseObjectImportMatch_builder{
 					TableNames: []string{"*"},
-				},
+				}.Build(),
 				AddLabels: map[string]string{
 					"plain_label": "rw",
 					"tag":         "db-{{wrong.object_kind}}",
 				},
-			},
+			}.Build(),
 			labels:    map[string]string{},
 			wantError: true,
 		},
 		{
 			name: "empty template is rejected",
-			mapping: &databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
-				Match: &databaseobjectimportrulev1.DatabaseObjectImportMatch{
+			mapping: databaseobjectimportrulev1.DatabaseObjectImportRuleMapping_builder{
+				Match: databaseobjectimportrulev1.DatabaseObjectImportMatch_builder{
 					TableNames: []string{"*"},
-				},
+				}.Build(),
 				AddLabels: map[string]string{
 					"plain_label": "rw",
 					"tag":         "db-{{}}",
 				},
-			},
+			}.Build(),
 			labels:    map[string]string{},
 			wantError: true,
 		},
 		{
 			name: "multi template is rejected",
-			mapping: &databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
-				Match: &databaseobjectimportrulev1.DatabaseObjectImportMatch{
+			mapping: databaseobjectimportrulev1.DatabaseObjectImportRuleMapping_builder{
+				Match: databaseobjectimportrulev1.DatabaseObjectImportMatch_builder{
 					TableNames: []string{"*"},
-				},
+				}.Build(),
 				AddLabels: map[string]string{
 					"plain_label": "rw",
 					"tag":         "db-{{obj.object_kind obj.object_kind}}",
 				},
-			},
+			}.Build(),
 			labels:    map[string]string{},
 			wantError: true,
 		},
@@ -719,43 +719,43 @@ func TestFilterRulesForDatabase(t *testing.T) {
 		{
 			name: "all matching",
 			rules: []*databaseobjectimportrulev1.DatabaseObjectImportRule{
-				mkImportRuleNoValidation("rule1", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
+				mkImportRuleNoValidation("rule1", databaseobjectimportrulev1.DatabaseObjectImportRuleSpec_builder{
 					Priority:       10,
 					DatabaseLabels: label.FromMap(map[string][]string{"env": {"prod"}}),
-				}),
-				mkImportRuleNoValidation("rule2", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
+				}.Build()),
+				mkImportRuleNoValidation("rule2", databaseobjectimportrulev1.DatabaseObjectImportRuleSpec_builder{
 					Priority:       20,
 					DatabaseLabels: label.FromMap(map[string][]string{"env": {"prod"}}),
-				}),
+				}.Build()),
 			},
 			want: []*databaseobjectimportrulev1.DatabaseObjectImportRule{
-				mkImportRuleNoValidation("rule1", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
+				mkImportRuleNoValidation("rule1", databaseobjectimportrulev1.DatabaseObjectImportRuleSpec_builder{
 					Priority:       10,
 					DatabaseLabels: label.FromMap(map[string][]string{"env": {"prod"}}),
-				}),
-				mkImportRuleNoValidation("rule2", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
+				}.Build()),
+				mkImportRuleNoValidation("rule2", databaseobjectimportrulev1.DatabaseObjectImportRuleSpec_builder{
 					Priority:       20,
 					DatabaseLabels: label.FromMap(map[string][]string{"env": {"prod"}}),
-				}),
+				}.Build()),
 			},
 		},
 		{
 			name: "one matching",
 			rules: []*databaseobjectimportrulev1.DatabaseObjectImportRule{
-				mkImportRuleNoValidation("rule1", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
+				mkImportRuleNoValidation("rule1", databaseobjectimportrulev1.DatabaseObjectImportRuleSpec_builder{
 					Priority:       10,
 					DatabaseLabels: label.FromMap(map[string][]string{"env": {"prod"}}),
-				}),
-				mkImportRuleNoValidation("rule2", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
+				}.Build()),
+				mkImportRuleNoValidation("rule2", databaseobjectimportrulev1.DatabaseObjectImportRuleSpec_builder{
 					Priority:       20,
 					DatabaseLabels: label.FromMap(map[string][]string{"env": {"dev"}}),
-				}),
+				}.Build()),
 			},
 			want: []*databaseobjectimportrulev1.DatabaseObjectImportRule{
-				mkImportRuleNoValidation("rule1", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
+				mkImportRuleNoValidation("rule1", databaseobjectimportrulev1.DatabaseObjectImportRuleSpec_builder{
 					Priority:       10,
 					DatabaseLabels: label.FromMap(map[string][]string{"env": {"prod"}}),
-				}),
+				}.Build()),
 			},
 		},
 		{
@@ -784,17 +784,17 @@ func TestCalculateDatabaseNameFilter(t *testing.T) {
 		{
 			name: "accept any database",
 			rules: []*databaseobjectimportrulev1.DatabaseObjectImportRule{
-				mkImportRule(t, "rule1", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
+				mkImportRule(t, "rule1", databaseobjectimportrulev1.DatabaseObjectImportRuleSpec_builder{
 					DatabaseLabels: label.FromMap(map[string][]string{"*": {"*"}}),
 					Mappings: []*databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
-						{
-							Scope: &databaseobjectimportrulev1.DatabaseObjectImportScope{
+						databaseobjectimportrulev1.DatabaseObjectImportRuleMapping_builder{
+							Scope: databaseobjectimportrulev1.DatabaseObjectImportScope_builder{
 								// empty list => match any database name.
 								DatabaseNames: []string{},
-							},
-						},
+							}.Build(),
+						}.Build(),
 					},
-				}),
+				}.Build()),
 			},
 			database: mkDatabase(t, "testdb", map[string]string{"env": "prod"}),
 			dbNames:  map[string]bool{"random-name-" + uuid.New().String(): true},
@@ -802,16 +802,16 @@ func TestCalculateDatabaseNameFilter(t *testing.T) {
 		{
 			name: "match specific database name",
 			rules: []*databaseobjectimportrulev1.DatabaseObjectImportRule{
-				mkImportRule(t, "rule1", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
+				mkImportRule(t, "rule1", databaseobjectimportrulev1.DatabaseObjectImportRuleSpec_builder{
 					DatabaseLabels: label.FromMap(map[string][]string{"*": {"*"}}),
 					Mappings: []*databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
-						{
-							Scope: &databaseobjectimportrulev1.DatabaseObjectImportScope{
+						databaseobjectimportrulev1.DatabaseObjectImportRuleMapping_builder{
+							Scope: databaseobjectimportrulev1.DatabaseObjectImportScope_builder{
 								DatabaseNames: []string{"testdb", "devdb"},
-							},
-						},
+							}.Build(),
+						}.Build(),
 					},
-				}),
+				}.Build()),
 			},
 			database: mkDatabase(t, "testdb", map[string]string{"env": "prod"}),
 			dbNames:  map[string]bool{"testdb": true, "devdb": true, "baddb": false},
@@ -819,16 +819,16 @@ func TestCalculateDatabaseNameFilter(t *testing.T) {
 		{
 			name: "no matching rules",
 			rules: []*databaseobjectimportrulev1.DatabaseObjectImportRule{
-				mkImportRule(t, "rule1", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
+				mkImportRule(t, "rule1", databaseobjectimportrulev1.DatabaseObjectImportRuleSpec_builder{
 					DatabaseLabels: label.FromMap(map[string][]string{"env": {"dev"}}), // env:dev does not match env:prod below.
 					Mappings: []*databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
-						{
-							Scope: &databaseobjectimportrulev1.DatabaseObjectImportScope{
+						databaseobjectimportrulev1.DatabaseObjectImportRuleMapping_builder{
+							Scope: databaseobjectimportrulev1.DatabaseObjectImportScope_builder{
 								DatabaseNames: []string{"devdb"},
-							},
-						},
+							}.Build(),
+						}.Build(),
 					},
-				}),
+				}.Build()),
 			},
 			database: mkDatabase(t, "testdb", map[string]string{"env": "prod"}),
 			dbNames:  map[string]bool{"testdb": false},

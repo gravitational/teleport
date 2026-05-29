@@ -1342,13 +1342,13 @@ func (s *Server) handleEC2RemoteInstallation(instances *server.EC2Instances) err
 					ssmDocument:     req.DocumentName,
 					installerScript: req.InstallerScriptName(),
 				},
-				&usertasksv1.DiscoverEC2Instance{
+				usertasksv1.DiscoverEC2Instance_builder{
 					DiscoveryConfig: instances.DiscoveryConfigName,
 					DiscoveryGroup:  s.DiscoveryGroup,
 					InstanceId:      instance.InstanceID,
 					Name:            instance.InstanceName,
 					SyncTime:        timestamppb.New(s.clock.Now()),
-				},
+				}.Build(),
 			)
 		}
 		return trace.Wrap(err)
@@ -1729,14 +1729,14 @@ func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *
 				resourceGroup:  instances.ResourceGroup,
 				region:         instances.Region,
 			},
-			&usertasksv1.DiscoverAzureVMInstance{
+			usertasksv1.DiscoverAzureVMInstance_builder{
 				VmId:            vm.VMID,
 				ResourceId:      vm.ID,
 				Name:            vm.Name,
 				DiscoveryConfig: instances.DiscoveryConfigName,
 				DiscoveryGroup:  s.DiscoveryGroup,
 				SyncTime:        timestamppb.New(s.clock.Now()),
-			},
+			}.Build(),
 		)
 	}
 

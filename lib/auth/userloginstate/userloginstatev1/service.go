@@ -105,9 +105,9 @@ func (s *Service) GetUserLoginStates(ctx context.Context, _ *userloginstatev1.Ge
 		ulsList[i] = conv.ToProto(r)
 	}
 
-	return &userloginstatev1.GetUserLoginStatesResponse{
+	return userloginstatev1.GetUserLoginStatesResponse_builder{
 		UserLoginStates: ulsList,
-	}, nil
+	}.Build(), nil
 }
 
 // GetUserLoginState returns the specified user login state resource.

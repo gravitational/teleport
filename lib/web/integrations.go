@@ -250,10 +250,10 @@ func (h *Handler) integrationsDelete(w http.ResponseWriter, r *http.Request, p h
 	}
 
 	deleteAssociatedResources, _ := apiutils.ParseBool(r.URL.Query().Get("associatedresources"))
-	if _, err := clt.IntegrationsClient().DeleteIntegration(r.Context(), &integrationv1.DeleteIntegrationRequest{
+	if _, err := clt.IntegrationsClient().DeleteIntegration(r.Context(), integrationv1.DeleteIntegrationRequest_builder{
 		Name:                      integrationName,
 		DeleteAssociatedResources: deleteAssociatedResources,
-	}); err != nil {
+	}.Build()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -346,10 +346,10 @@ func collectIntegrationStats(ctx context.Context, req collectIntegrationStatsReq
 		}
 	}
 
-	tasks := allUserTasks(ctx, req.userTasksClient, &usertasksv1.ListUserTasksFilters{
+	tasks := allUserTasks(ctx, req.userTasksClient, usertasksv1.ListUserTasksFilters_builder{
 		Integration: req.integration.GetName(),
 		TaskState:   usertasks.TaskStateOpen,
-	})
+	}.Build())
 	for task, err := range tasks {
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -471,10 +471,10 @@ func buildBriefSummaries(ctx context.Context, igs []types.Integration, uclt user
 	}
 
 	for name := range summaries {
-		tasks := allUserTasks(ctx, uclt, &usertasksv1.ListUserTasksFilters{
+		tasks := allUserTasks(ctx, uclt, usertasksv1.ListUserTasksFilters_builder{
 			Integration: name,
 			TaskState:   usertasks.TaskStateOpen,
-		})
+		}.Build())
 		for task, err := range tasks {
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -509,9 +509,9 @@ func addResourceCounts(rc *ui.ResourcesCount, dr *discoveryconfigv1.ResourcesDis
 	if rc == nil || dr == nil {
 		return
 	}
-	rc.Found += int(dr.Found)
-	rc.Enrolled += int(dr.Enrolled)
-	rc.Failed += int(dr.Failed)
+	rc.Found += int(dr.GetFound())
+	rc.Enrolled += int(dr.GetEnrolled())
+	rc.Failed += int(dr.GetFailed())
 }
 
 func allUserTasks(
@@ -906,10 +906,10 @@ func (h *Handler) integrationsMsTeamsAppZipGet(w http.ResponseWriter, r *http.Re
 		return nil, trace.Wrap(err)
 	}
 
-	plugin, err := clt.PluginsClient().GetPlugin(r.Context(), &pluginspb.GetPluginRequest{
+	plugin, err := clt.PluginsClient().GetPlugin(r.Context(), pluginspb.GetPluginRequest_builder{
 		Name:        p.ByName("plugin"),
 		WithSecrets: false,
-	})
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -942,13 +942,13 @@ func (h *Handler) integrationsExportCA(_ http.ResponseWriter, r *http.Request, p
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := clt.IntegrationsClient().ExportIntegrationCertAuthorities(r.Context(), &integrationv1.ExportIntegrationCertAuthoritiesRequest{
+	resp, err := clt.IntegrationsClient().ExportIntegrationCertAuthorities(r.Context(), integrationv1.ExportIntegrationCertAuthoritiesRequest_builder{
 		Integration: integrationName,
-	})
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	uiCAKeySet, err := ui.MakeCAKeySet(resp.CertAuthorities)
+	uiCAKeySet, err := ui.MakeCAKeySet(resp.GetCertAuthorities())
 	return uiCAKeySet, trace.Wrap(err)
 }

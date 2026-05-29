@@ -43,16 +43,16 @@ func TestBotInstanceCache(t *testing.T) {
 
 	testResources153(t, p, testFuncs[*machineidv1.BotInstance]{
 		newResource: func(key string) (*machineidv1.BotInstance, error) {
-			return &machineidv1.BotInstance{
+			return machineidv1.BotInstance_builder{
 				Kind:     types.KindBotInstance,
 				Version:  types.V1,
 				Metadata: &headerv1.Metadata{},
-				Spec: &machineidv1.BotInstanceSpec{
+				Spec: machineidv1.BotInstanceSpec_builder{
 					BotName:    "bot-1",
 					InstanceId: key,
-				},
+				}.Build(),
 				Status: &machineidv1.BotInstanceStatus{},
-			}, nil
+			}.Build(), nil
 		},
 		cacheGet: func(ctx context.Context, key string) (*machineidv1.BotInstance, error) {
 			return p.cache.GetBotInstance(ctx, "bot-1", key)
@@ -68,7 +68,7 @@ func TestBotInstanceCache(t *testing.T) {
 			return p.botInstanceService.ListBotInstances(ctx, pageSize, pageToken, nil)
 		},
 		update: func(ctx context.Context, bi *machineidv1.BotInstance) error {
-			_, err := p.botInstanceService.PatchBotInstance(ctx, "bot-1", bi.Metadata.GetName(), func(_ *machineidv1.BotInstance) (*machineidv1.BotInstance, error) {
+			_, err := p.botInstanceService.PatchBotInstance(ctx, "bot-1", bi.GetMetadata().GetName(), func(_ *machineidv1.BotInstance) (*machineidv1.BotInstance, error) {
 				return bi, nil
 			})
 			return err
@@ -92,16 +92,16 @@ func TestBotInstanceCachePaging(t *testing.T) {
 	t.Cleanup(p.Close)
 
 	for _, n := range []int{5, 1, 3, 4, 2} {
-		_, err := p.botInstanceService.CreateBotInstance(ctx, &machineidv1.BotInstance{
+		_, err := p.botInstanceService.CreateBotInstance(ctx, machineidv1.BotInstance_builder{
 			Kind:     types.KindBotInstance,
 			Version:  types.V1,
 			Metadata: &headerv1.Metadata{},
-			Spec: &machineidv1.BotInstanceSpec{
+			Spec: machineidv1.BotInstanceSpec_builder{
 				BotName:    "bot-1",
 				InstanceId: "instance-" + strconv.Itoa(n),
-			},
+			}.Build(),
 			Status: &machineidv1.BotInstanceStatus{},
-		})
+		}.Build())
 		require.NoError(t, err)
 	}
 
@@ -151,16 +151,16 @@ func TestBotInstanceCacheBotFilter(t *testing.T) {
 	t.Cleanup(p.Close)
 
 	for n := range 10 {
-		_, err := p.botInstanceService.CreateBotInstance(ctx, &machineidv1.BotInstance{
+		_, err := p.botInstanceService.CreateBotInstance(ctx, machineidv1.BotInstance_builder{
 			Kind:     types.KindBotInstance,
 			Version:  types.V1,
 			Metadata: &headerv1.Metadata{},
-			Spec: &machineidv1.BotInstanceSpec{
+			Spec: machineidv1.BotInstanceSpec_builder{
 				BotName:    "bot-" + strconv.Itoa(n%2),
 				InstanceId: "instance-" + strconv.Itoa(n),
-			},
+			}.Build(),
 			Status: &machineidv1.BotInstanceStatus{},
-		})
+		}.Build())
 		require.NoError(t, err)
 	}
 
@@ -193,22 +193,22 @@ func TestBotInstanceCacheSearchFilter(t *testing.T) {
 	t.Cleanup(p.Close)
 
 	for n := range 10 {
-		instance := &machineidv1.BotInstance{
+		instance := machineidv1.BotInstance_builder{
 			Kind:     types.KindBotInstance,
 			Version:  types.V1,
 			Metadata: &headerv1.Metadata{},
-			Spec: &machineidv1.BotInstanceSpec{
+			Spec: machineidv1.BotInstanceSpec_builder{
 				BotName:    "bot-1",
 				InstanceId: "instance-" + strconv.Itoa(n+1),
-			},
-			Status: &machineidv1.BotInstanceStatus{
+			}.Build(),
+			Status: machineidv1.BotInstanceStatus_builder{
 				LatestHeartbeats: []*machineidv1.BotInstanceStatusHeartbeat{
-					{
+					machineidv1.BotInstanceStatusHeartbeat_builder{
 						Hostname: "host-" + strconv.Itoa(n%2),
-					},
+					}.Build(),
 				},
-			},
-		}
+			}.Build(),
+		}.Build()
 
 		_, err := p.botInstanceService.CreateBotInstance(ctx, instance)
 		require.NoError(t, err)
@@ -238,42 +238,42 @@ func TestBotInstanceCacheQueryFilter(t *testing.T) {
 	t.Cleanup(p.Close)
 
 	{
-		_, err := p.botInstanceService.CreateBotInstance(ctx, &machineidv1.BotInstance{
+		_, err := p.botInstanceService.CreateBotInstance(ctx, machineidv1.BotInstance_builder{
 			Kind:     types.KindBotInstance,
 			Version:  types.V1,
 			Metadata: &headerv1.Metadata{},
-			Spec: &machineidv1.BotInstanceSpec{
+			Spec: machineidv1.BotInstanceSpec_builder{
 				BotName:    "bot-1",
 				InstanceId: "00000000-0000-0000-0000-000000000000",
-			},
-			Status: &machineidv1.BotInstanceStatus{
+			}.Build(),
+			Status: machineidv1.BotInstanceStatus_builder{
 				LatestHeartbeats: []*machineidv1.BotInstanceStatusHeartbeat{
-					{
+					machineidv1.BotInstanceStatusHeartbeat_builder{
 						Hostname: "host-1",
-					},
+					}.Build(),
 				},
-			},
-		})
+			}.Build(),
+		}.Build())
 		require.NoError(t, err)
 	}
 
 	{
-		_, err := p.botInstanceService.CreateBotInstance(ctx, &machineidv1.BotInstance{
+		_, err := p.botInstanceService.CreateBotInstance(ctx, machineidv1.BotInstance_builder{
 			Kind:     types.KindBotInstance,
 			Version:  types.V1,
 			Metadata: &headerv1.Metadata{},
-			Spec: &machineidv1.BotInstanceSpec{
+			Spec: machineidv1.BotInstanceSpec_builder{
 				BotName:    "bot-1",
 				InstanceId: uuid.New().String(),
-			},
-			Status: &machineidv1.BotInstanceStatus{
+			}.Build(),
+			Status: machineidv1.BotInstanceStatus_builder{
 				LatestHeartbeats: []*machineidv1.BotInstanceStatusHeartbeat{
-					{
+					machineidv1.BotInstanceStatusHeartbeat_builder{
 						Hostname: "host-2",
-					},
+					}.Build(),
 				},
-			},
-		})
+			}.Build(),
+		}.Build())
 		require.NoError(t, err)
 	}
 
@@ -289,7 +289,7 @@ func TestBotInstanceCacheQueryFilter(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Len(t, results, 1)
-	require.Equal(t, "00000000-0000-0000-0000-000000000000", results[0].Spec.InstanceId)
+	require.Equal(t, "00000000-0000-0000-0000-000000000000", results[0].GetSpec().GetInstanceId())
 }
 
 // TestBotInstanceCacheSorting tests that cache items are sorted.
@@ -314,26 +314,26 @@ func TestBotInstanceCacheSorting(t *testing.T) {
 	}
 
 	for _, b := range items {
-		instance := &machineidv1.BotInstance{
+		instance := machineidv1.BotInstance_builder{
 			Kind:     types.KindBotInstance,
 			Version:  types.V1,
 			Metadata: &headerv1.Metadata{},
-			Spec: &machineidv1.BotInstanceSpec{
+			Spec: machineidv1.BotInstanceSpec_builder{
 				BotName:    b.botName,
 				InstanceId: b.instanceId,
-			},
-			Status: &machineidv1.BotInstanceStatus{
+			}.Build(),
+			Status: machineidv1.BotInstanceStatus_builder{
 				LatestHeartbeats: []*machineidv1.BotInstanceStatusHeartbeat{
-					{
+					machineidv1.BotInstanceStatusHeartbeat_builder{
 						RecordedAt: &timestamppb.Timestamp{
 							Seconds: b.recordedAtSeconds,
 						},
 						Version:  b.version,
 						Hostname: b.hostname,
-					},
+					}.Build(),
 				},
-			},
-		}
+			}.Build(),
+		}.Build()
 
 		_, err := p.botInstanceService.CreateBotInstance(ctx, instance)
 		require.NoError(t, err)
@@ -461,16 +461,16 @@ func TestBotInstanceCacheFilterFn(t *testing.T) {
 
 	// Create 10 instances across two bots: bot-0 and bot-1.
 	for n := range 10 {
-		_, err := p.botInstanceService.CreateBotInstance(ctx, &machineidv1.BotInstance{
+		_, err := p.botInstanceService.CreateBotInstance(ctx, machineidv1.BotInstance_builder{
 			Kind:     types.KindBotInstance,
 			Version:  types.V1,
 			Metadata: &headerv1.Metadata{},
-			Spec: &machineidv1.BotInstanceSpec{
+			Spec: machineidv1.BotInstanceSpec_builder{
 				BotName:    "bot-" + strconv.Itoa(n%2),
 				InstanceId: "instance-" + strconv.Itoa(n),
-			},
+			}.Build(),
 			Status: &machineidv1.BotInstanceStatus{},
-		})
+		}.Build())
 		require.NoError(t, err)
 	}
 
@@ -545,16 +545,16 @@ func TestBotInstanceCacheFallback(t *testing.T) {
 	})
 	t.Cleanup(p.Close)
 
-	_, err := p.botInstanceService.CreateBotInstance(ctx, &machineidv1.BotInstance{
+	_, err := p.botInstanceService.CreateBotInstance(ctx, machineidv1.BotInstance_builder{
 		Kind:     types.KindBotInstance,
 		Version:  types.V1,
 		Metadata: &headerv1.Metadata{},
-		Spec: &machineidv1.BotInstanceSpec{
+		Spec: machineidv1.BotInstanceSpec_builder{
 			BotName:    "bot-1",
 			InstanceId: "instance-1",
-		},
+		}.Build(),
 		Status: &machineidv1.BotInstanceStatus{},
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	// Let the cache catch up
@@ -605,68 +605,68 @@ func TestKeyForVersionIndex(t *testing.T) {
 		{
 			name: "invalid version",
 			mutatorFn: func(b *machineidv1.BotInstance) {
-				b.Status = &machineidv1.BotInstanceStatus{
-					InitialHeartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+				b.SetStatus(machineidv1.BotInstanceStatus_builder{
+					InitialHeartbeat: machineidv1.BotInstanceStatusHeartbeat_builder{
 						Version: "a.b.c",
-					},
-				}
+					}.Build(),
+				}.Build())
 			},
 			key: "000000.000000.000000-~/bot-instance-1",
 		},
 		{
 			name: "initial heartbeat",
 			mutatorFn: func(b *machineidv1.BotInstance) {
-				b.Status = &machineidv1.BotInstanceStatus{
-					InitialHeartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+				b.SetStatus(machineidv1.BotInstanceStatus_builder{
+					InitialHeartbeat: machineidv1.BotInstanceStatusHeartbeat_builder{
 						Version: "1.0.0",
-					},
-				}
+					}.Build(),
+				}.Build())
 			},
 			key: "000001.000000.000000-~/bot-instance-1",
 		},
 		{
 			name: "latest heartbeat",
 			mutatorFn: func(b *machineidv1.BotInstance) {
-				b.Status = &machineidv1.BotInstanceStatus{
+				b.SetStatus(machineidv1.BotInstanceStatus_builder{
 					LatestHeartbeats: []*machineidv1.BotInstanceStatusHeartbeat{
-						{
+						machineidv1.BotInstanceStatusHeartbeat_builder{
 							Version: "1.0.0",
-						},
+						}.Build(),
 					},
-				}
+				}.Build())
 			},
 			key: "000001.000000.000000-~/bot-instance-1",
 		},
 		{
 			name: "with release",
 			mutatorFn: func(b *machineidv1.BotInstance) {
-				b.Status = &machineidv1.BotInstanceStatus{
-					InitialHeartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+				b.SetStatus(machineidv1.BotInstanceStatus_builder{
+					InitialHeartbeat: machineidv1.BotInstanceStatusHeartbeat_builder{
 						Version: "1.0.0-dev",
-					},
-				}
+					}.Build(),
+				}.Build())
 			},
 			key: "000001.000000.000000-dev/bot-instance-1",
 		},
 		{
 			name: "with build",
 			mutatorFn: func(b *machineidv1.BotInstance) {
-				b.Status = &machineidv1.BotInstanceStatus{
-					InitialHeartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+				b.SetStatus(machineidv1.BotInstanceStatus_builder{
+					InitialHeartbeat: machineidv1.BotInstanceStatusHeartbeat_builder{
 						Version: "1.0.0+build1",
-					},
-				}
+					}.Build(),
+				}.Build())
 			},
 			key: "000001.000000.000000-~/bot-instance-1",
 		},
 		{
 			name: "with release and build",
 			mutatorFn: func(b *machineidv1.BotInstance) {
-				b.Status = &machineidv1.BotInstanceStatus{
-					InitialHeartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+				b.SetStatus(machineidv1.BotInstanceStatus_builder{
+					InitialHeartbeat: machineidv1.BotInstanceStatusHeartbeat_builder{
 						Version: "1.0.0-dev+build1",
-					},
-				}
+					}.Build(),
+				}.Build())
 			},
 			key: "000001.000000.000000-dev/bot-instance-1",
 		},
@@ -674,15 +674,15 @@ func TestKeyForVersionIndex(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			instance := &machineidv1.BotInstance{
+			instance := machineidv1.BotInstance_builder{
 				Kind:    types.KindBotInstance,
 				Version: types.V1,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "bot-instance-1",
-				},
+				}.Build(),
 				Spec:   &machineidv1.BotInstanceSpec{},
 				Status: &machineidv1.BotInstanceStatus{},
-			}
+			}.Build()
 			tc.mutatorFn(instance)
 
 			versionKey := keyForBotInstanceVersionIndex(instance)

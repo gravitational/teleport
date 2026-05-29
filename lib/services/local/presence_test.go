@@ -1722,14 +1722,14 @@ func TestPresenceService_RelayServer(t *testing.T) {
 	_, err = p.UpsertRelayServer(ctx, nil)
 	require.ErrorAs(t, err, new(*trace.BadParameterError))
 
-	relayA := &presencev1.RelayServer{
+	relayA := presencev1.RelayServer_builder{
 		Kind:    types.KindRelayServer,
 		SubKind: "",
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "a",
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	upsertedA, err := p.UpsertRelayServer(ctx, gproto.CloneOf(relayA))
 	require.NoError(t, err)
@@ -1757,14 +1757,14 @@ func TestPresenceService_RelayServer(t *testing.T) {
 	err = p.DeleteRelayServer(ctx, "a")
 	require.ErrorAs(t, err, new(*trace.NotFoundError))
 
-	relayB := &presencev1.RelayServer{
+	relayB := presencev1.RelayServer_builder{
 		Kind:    types.KindRelayServer,
 		SubKind: "",
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "b",
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	_, err = p.UpsertRelayServer(ctx, gproto.CloneOf(relayA))
 	require.NoError(t, err)

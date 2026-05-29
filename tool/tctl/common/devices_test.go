@@ -32,12 +32,12 @@ func TestDeviceSourceToString(t *testing.T) {
 	}{
 		{
 			name:   "default name for origin",
-			source: &devicepb.DeviceSource{Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_INTUNE, Name: "intune"},
+			source: devicepb.DeviceSource_builder{Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_INTUNE, Name: "intune"}.Build(),
 			want:   "Intune",
 		},
 		{
 			name:   "custom name",
-			source: &devicepb.DeviceSource{Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_JAMF, Name: "cool jamf"},
+			source: devicepb.DeviceSource_builder{Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_JAMF, Name: "cool jamf"}.Build(),
 			want:   "cool jamf",
 		},
 		{
@@ -47,7 +47,7 @@ func TestDeviceSourceToString(t *testing.T) {
 		},
 		{
 			name:   "unsupported origin",
-			source: &devicepb.DeviceSource{Origin: 1337, Name: "even cooler jamf"},
+			source: devicepb.DeviceSource_builder{Origin: 1337, Name: "even cooler jamf"}.Build(),
 			// Show the name instead of something like "unknown" as name is required and likely more
 			// informative than displaying "unknown".
 			want: "even cooler jamf",

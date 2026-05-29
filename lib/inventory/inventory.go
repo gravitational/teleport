@@ -231,7 +231,7 @@ func (h *downstreamHandle) autoEmitMetadata() {
 		}
 		return
 	}
-	msg := &proto.UpstreamInventoryAgentMetadata{
+	msg := proto.UpstreamInventoryAgentMetadata_builder{
 		OS:                    md.OS,
 		OSVersion:             md.OSVersion,
 		HostArchitecture:      md.HostArchitecture,
@@ -240,7 +240,7 @@ func (h *downstreamHandle) autoEmitMetadata() {
 		ContainerRuntime:      md.ContainerRuntime,
 		ContainerOrchestrator: md.ContainerOrchestrator,
 		CloudEnvironment:      md.CloudEnvironment,
-	}
+	}.Build()
 	for {
 		// Wait for stream to be opened.
 		var sender DownstreamSender
@@ -374,7 +374,7 @@ func (h *downstreamHandle) handlePing(sender DownstreamSender, msg *proto.Downst
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if len(h.pingHandlers) == 0 {
-		slog.WarnContext(h.closeContext, "Got ping with no handlers registered", "ping_id", msg.ID)
+		slog.WarnContext(h.closeContext, "Got ping with no handlers registered", "ping_id", msg.GetID())
 		return
 	}
 	for _, handler := range h.pingHandlers {
@@ -398,8 +398,8 @@ func (h *downstreamHandle) RegisterPingHandler(handler DownstreamPingHandler) (u
 func (h *downstreamHandle) handleUpdateLabels(msg *proto.DownstreamInventoryUpdateLabels) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	if msg.Kind == proto.LabelUpdateKind_SSHServerCloudLabels {
-		h.upstreamSSHLabels = msg.Labels
+	if msg.GetKind() == proto.LabelUpdateKind_SSHServerCloudLabels {
+		h.upstreamSSHLabels = msg.GetLabels()
 	}
 }
 
@@ -437,7 +437,7 @@ func (h *downstreamHandle) Close() error {
 // SendGoodbye crafts a goodbye message, save it, waits for a working stream and sends it to the auth.
 // If the downstreamHandle were to reconnect later, the h.autoEmitGoodbye routine would re-emit it.
 func (h *downstreamHandle) SetAndSendGoodbye(ctx context.Context, deleteResources bool, softReload bool) error {
-	goodbye := &proto.UpstreamInventoryGoodbye{DeleteResources: deleteResources, SoftReload: softReload}
+	goodbye := proto.UpstreamInventoryGoodbye_builder{DeleteResources: deleteResources, SoftReload: softReload}.Build()
 	h.goodbye.Store(goodbye)
 
 	// Wait for an available stream
@@ -456,11 +456,11 @@ func (h *downstreamHandle) sendGoodbye(ctx context.Context, sender DownstreamSen
 		return trace.BadParameter("trying to send a nil goodbye, this is a bug")
 	}
 
-	capabilities := sender.Hello().Capabilities
+	capabilities := sender.Hello().GetCapabilities()
 	switch {
 	case capabilities == nil:
 		return nil
-	case !capabilities.AppCleanup:
+	case !capabilities.GetAppCleanup():
 		return nil
 	}
 
@@ -650,10 +650,10 @@ func (i *instanceStateTracker) nextHeartbeat(now time.Time, hello *proto.Upstrea
 		services = append(services, types.SystemRole(s))
 	}
 
-	instance, err := types.NewInstance(hello.ServerID, types.InstanceSpecV1{
-		Version:                 vc.Normalize(hello.Version),
+	instance, err := types.NewInstance(hello.GetServerID(), types.InstanceSpecV1{
+		Version:                 vc.Normalize(hello.GetVersion()),
 		Services:                services,
-		Hostname:                hello.Hostname,
+		Hostname:                hello.GetHostname(),
 		AuthID:                  authID,
 		LastSeen:                now.UTC(),
 		ExternalUpgrader:        hello.GetExternalUpgrader(),
@@ -833,7 +833,7 @@ func (h *upstreamHandle) HasService(service types.SystemRole) bool {
 // HasControlPlaneService implements UpstreamHandle and returns true if at
 // least a control plane service is associated with this stream.
 func (h *upstreamHandle) HasControlPlaneService() bool {
-	for _, s := range h.hello.Services {
+	for _, s := range h.hello.GetServices() {
 		if types.SystemRole(s).IsControlPlane() {
 			return true
 		}
@@ -842,9 +842,9 @@ func (h *upstreamHandle) HasControlPlaneService() bool {
 }
 
 func (h *upstreamHandle) UpdateLabels(ctx context.Context, kind proto.LabelUpdateKind, labels map[string]string) error {
-	req := &proto.DownstreamInventoryUpdateLabels{
+	req := proto.DownstreamInventoryUpdateLabels_builder{
 		Kind:   kind,
 		Labels: labels,
-	}
+	}.Build()
 	return trace.Wrap(h.Send(ctx, req))
 }

@@ -42,11 +42,11 @@ func TestServer_updateDiscoveryConfigStatus(t *testing.T) {
 	baseServerStatusFn := func() map[string]*discoveryconfig.DiscoveryStatusServer {
 		return map[string]*discoveryconfig.DiscoveryStatusServer{
 			"server-id": {
-				DiscoveryStatusServer: &discoveryconfigv1.DiscoveryStatusServer{
+				DiscoveryStatusServer: discoveryconfigv1.DiscoveryStatusServer_builder{
 					IntegrationSummaries: map[string]*discoveryconfigv1.DiscoverSummary{},
 					LastUpdate:           timestamppb.New(clock.Now()),
 					PollInterval:         durationpb.New(time.Minute),
-				},
+				}.Build(),
 			},
 		}
 	}

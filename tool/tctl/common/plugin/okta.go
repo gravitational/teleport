@@ -193,7 +193,7 @@ func (p *PluginsCommand) InstallOkta(ctx context.Context, args pluginServices) e
 			EnableSystemLogExport:     oktaSettings.enableAuditLogsExport,
 		},
 	}
-	req := &pluginsv1.CreatePluginRequest{
+	req := pluginsv1.CreatePluginRequest_builder{
 		Plugin: &types.PluginV1{
 			SubKind: types.PluginSubkindAccess,
 			Metadata: types.Metadata{
@@ -208,7 +208,7 @@ func (p *PluginsCommand) InstallOkta(ctx context.Context, args pluginServices) e
 		CredentialLabels: map[string]string{
 			types.OktaOrgURLLabel: oktaSettings.org.String(),
 		},
-	}
+	}.Build()
 
 	if _, err := args.plugins.CreatePlugin(ctx, req); err != nil {
 		return trace.Wrap(err)

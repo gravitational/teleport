@@ -39,26 +39,24 @@ import (
 )
 
 func newInferenceModel(name string) *summarizerv1.InferenceModel {
-	return summarizer.NewInferenceModel(name, &summarizerv1.InferenceModelSpec{
-		Provider: &summarizerv1.InferenceModelSpec_Openai{
-			Openai: &summarizerv1.OpenAIProvider{
-				OpenaiModelId: "gpt-4o",
-			},
-		},
-	})
+	return summarizer.NewInferenceModel(name, summarizerv1.InferenceModelSpec_builder{
+		Openai: summarizerv1.OpenAIProvider_builder{
+			OpenaiModelId: "gpt-4o",
+		}.Build(),
+	}.Build())
 }
 
 func newInferenceSecret(name string) *summarizerv1.InferenceSecret {
-	return summarizer.NewInferenceSecret(name, &summarizerv1.InferenceSecretSpec{
+	return summarizer.NewInferenceSecret(name, summarizerv1.InferenceSecretSpec_builder{
 		Value: "super-secret-value",
-	})
+	}.Build())
 }
 
 func newInferencePolicy(name string) *summarizerv1.InferencePolicy {
-	return summarizer.NewInferencePolicy(name, &summarizerv1.InferencePolicySpec{
+	return summarizer.NewInferencePolicy(name, summarizerv1.InferencePolicySpec_builder{
 		Kinds: []string{string(types.SSHSessionKind)},
 		Model: "dummy-model",
-	})
+	}.Build())
 }
 
 func setupSummarizerTest(
@@ -90,7 +88,7 @@ func TestSummarizerService_CreateInferenceModel(t *testing.T) {
 			proto.Clone(want).(*summarizerv1.InferenceModel),
 		)
 		require.NoError(t, err)
-		assert.NotEmpty(t, got.Metadata.Revision)
+		assert.NotEmpty(t, got.GetMetadata().GetRevision())
 		assert.Empty(t, cmp.Diff(
 			want,
 			got,
@@ -100,7 +98,7 @@ func TestSummarizerService_CreateInferenceModel(t *testing.T) {
 	})
 	t.Run("invalid", func(t *testing.T) {
 		m := newInferenceModel("invalid-model")
-		m.Spec.GetOpenai().OpenaiModelId = ""
+		m.GetSpec().GetOpenai().SetOpenaiModelId("")
 		_, err := service.CreateInferenceModel(
 			ctx,
 			proto.Clone(m).(*summarizerv1.InferenceModel),
@@ -109,14 +107,12 @@ func TestSummarizerService_CreateInferenceModel(t *testing.T) {
 		assert.ErrorIs(t, err, trace.BadParameter("spec.openai.openai_model_id is required"))
 	})
 	t.Run("no Bedrock unless enabled", func(t *testing.T) {
-		m := summarizer.NewInferenceModel("bedrock-model", &summarizerv1.InferenceModelSpec{
-			Provider: &summarizerv1.InferenceModelSpec_Bedrock{
-				Bedrock: &summarizerv1.BedrockProvider{
-					Region:         "us-east-1",
-					BedrockModelId: "amazon.nova-pro-v1:0",
-				},
-			},
-		})
+		m := summarizer.NewInferenceModel("bedrock-model", summarizerv1.InferenceModelSpec_builder{
+			Bedrock: summarizerv1.BedrockProvider_builder{
+				Region:         "us-east-1",
+				BedrockModelId: "amazon.nova-pro-v1:0",
+			}.Build(),
+		}.Build())
 		_, err := service.CreateInferenceModel(ctx, m)
 		require.Error(t, err)
 		assert.ErrorIs(t, err, trace.BadParameter(
@@ -157,14 +153,12 @@ func TestSummarizerService_CreateInferenceModel_BedrockAllowed(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	want := summarizer.NewInferenceModel("bedrock-model", &summarizerv1.InferenceModelSpec{
-		Provider: &summarizerv1.InferenceModelSpec_Bedrock{
-			Bedrock: &summarizerv1.BedrockProvider{
-				Region:         "us-east-1",
-				BedrockModelId: "amazon.nova-pro-v1:0",
-			},
-		},
-	})
+	want := summarizer.NewInferenceModel("bedrock-model", summarizerv1.InferenceModelSpec_builder{
+		Bedrock: summarizerv1.BedrockProvider_builder{
+			Region:         "us-east-1",
+			BedrockModelId: "amazon.nova-pro-v1:0",
+		}.Build(),
+	}.Build())
 
 	got, err := service.CreateInferenceModel(
 		ctx,
@@ -172,7 +166,7 @@ func TestSummarizerService_CreateInferenceModel_BedrockAllowed(t *testing.T) {
 		proto.Clone(want).(*summarizerv1.InferenceModel),
 	)
 	require.NoError(t, err)
-	assert.NotEmpty(t, got.Metadata.Revision)
+	assert.NotEmpty(t, got.GetMetadata().GetRevision())
 	assert.Empty(t, cmp.Diff(
 		want,
 		got,
@@ -191,7 +185,7 @@ func TestSummarizerService_UpsertInferenceModel(t *testing.T) {
 		proto.Clone(want).(*summarizerv1.InferenceModel),
 	)
 	require.NoError(t, err)
-	assert.NotEmpty(t, got.Metadata.Revision)
+	assert.NotEmpty(t, got.GetMetadata().GetRevision())
 	assert.Empty(t, cmp.Diff(
 		want,
 		got,
@@ -273,7 +267,7 @@ func TestSummarizerService_GetInferenceModel(t *testing.T) {
 		require.NoError(t, err)
 		got, err := service.GetInferenceModel(ctx, "dummy-model")
 		require.NoError(t, err)
-		assert.NotEmpty(t, got.Metadata.Revision)
+		assert.NotEmpty(t, got.GetMetadata().GetRevision())
 		assert.Empty(t, cmp.Diff(
 			want,
 			got,
@@ -326,7 +320,7 @@ func TestSummarizerService_UpdateInferenceModel(t *testing.T) {
 		)
 		require.NoError(t, err)
 		want := proto.Clone(created).(*summarizerv1.InferenceModel)
-		want.Spec.GetOpenai().BaseUrl = "https://localhost:4000"
+		want.GetSpec().GetOpenai().SetBaseUrl("https://localhost:4000")
 
 		updated, err := service.UpdateInferenceModel(
 			ctx,
@@ -334,7 +328,7 @@ func TestSummarizerService_UpdateInferenceModel(t *testing.T) {
 			proto.Clone(want).(*summarizerv1.InferenceModel),
 		)
 		require.NoError(t, err)
-		assert.NotEqual(t, created.Metadata.Revision, updated.Metadata.Revision)
+		assert.NotEqual(t, created.GetMetadata().GetRevision(), updated.GetMetadata().GetRevision())
 		assert.Empty(t, cmp.Diff(
 			want,
 			updated,
@@ -350,7 +344,7 @@ func TestSummarizerService_UpdateInferenceModel(t *testing.T) {
 			protocmp.Transform(),
 			protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		))
-		assert.Equal(t, updated.Metadata.Revision, got.Metadata.Revision)
+		assert.Equal(t, updated.GetMetadata().GetRevision(), got.GetMetadata().GetRevision())
 	})
 	t.Run("no create", func(t *testing.T) {
 		_, err := service.UpdateInferenceModel(
@@ -372,7 +366,7 @@ func TestSummarizerService_CreateInferenceSecret(t *testing.T) {
 			proto.Clone(want).(*summarizerv1.InferenceSecret),
 		)
 		require.NoError(t, err)
-		assert.NotEmpty(t, got.Metadata.Revision)
+		assert.NotEmpty(t, got.GetMetadata().GetRevision())
 		assert.Empty(t, cmp.Diff(
 			want,
 			got,
@@ -382,7 +376,7 @@ func TestSummarizerService_CreateInferenceSecret(t *testing.T) {
 	})
 	t.Run("invalid", func(t *testing.T) {
 		s := newInferenceSecret("invalid-secret")
-		s.Spec.Value = ""
+		s.GetSpec().SetValue("")
 		_, err := service.CreateInferenceSecret(
 			ctx,
 			proto.Clone(s).(*summarizerv1.InferenceSecret),
@@ -418,7 +412,7 @@ func TestSummarizerService_UpsertInferenceSecret(t *testing.T) {
 		proto.Clone(want).(*summarizerv1.InferenceSecret),
 	)
 	require.NoError(t, err)
-	assert.NotEmpty(t, got.Metadata.Revision)
+	assert.NotEmpty(t, got.GetMetadata().GetRevision())
 	assert.Empty(t, cmp.Diff(
 		want,
 		got,
@@ -500,7 +494,7 @@ func TestSummarizerService_GetInferenceSecret(t *testing.T) {
 		require.NoError(t, err)
 		got, err := service.GetInferenceSecret(ctx, "dummy-secret")
 		require.NoError(t, err)
-		assert.NotEmpty(t, got.Metadata.Revision)
+		assert.NotEmpty(t, got.GetMetadata().GetRevision())
 		assert.Empty(t, cmp.Diff(
 			want,
 			got,
@@ -553,7 +547,7 @@ func TestSummarizerService_UpdateInferenceSecret(t *testing.T) {
 		)
 		require.NoError(t, err)
 		want := proto.Clone(created).(*summarizerv1.InferenceSecret)
-		want.Spec.Value = "new-secret-value"
+		want.GetSpec().SetValue("new-secret-value")
 
 		updated, err := service.UpdateInferenceSecret(
 			ctx,
@@ -561,7 +555,7 @@ func TestSummarizerService_UpdateInferenceSecret(t *testing.T) {
 			proto.Clone(want).(*summarizerv1.InferenceSecret),
 		)
 		require.NoError(t, err)
-		assert.NotEqual(t, created.Metadata.Revision, updated.Metadata.Revision)
+		assert.NotEqual(t, created.GetMetadata().GetRevision(), updated.GetMetadata().GetRevision())
 		assert.Empty(t, cmp.Diff(
 			want,
 			updated,
@@ -577,7 +571,7 @@ func TestSummarizerService_UpdateInferenceSecret(t *testing.T) {
 			protocmp.Transform(),
 			protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		))
-		assert.Equal(t, updated.Metadata.Revision, got.Metadata.Revision)
+		assert.Equal(t, updated.GetMetadata().GetRevision(), got.GetMetadata().GetRevision())
 	})
 	t.Run("no create", func(t *testing.T) {
 		_, err := service.UpdateInferenceSecret(
@@ -599,7 +593,7 @@ func TestSummarizerService_CreateInferencePolicy(t *testing.T) {
 			proto.Clone(want).(*summarizerv1.InferencePolicy),
 		)
 		require.NoError(t, err)
-		assert.NotEmpty(t, got.Metadata.Revision)
+		assert.NotEmpty(t, got.GetMetadata().GetRevision())
 		assert.Empty(t, cmp.Diff(
 			want,
 			got,
@@ -609,7 +603,7 @@ func TestSummarizerService_CreateInferencePolicy(t *testing.T) {
 	})
 	t.Run("invalid", func(t *testing.T) {
 		p := newInferencePolicy("invalid-policy")
-		p.Spec.Filter = "$%^@$"
+		p.GetSpec().SetFilter("$%^@$")
 		_, err := service.CreateInferencePolicy(
 			ctx,
 			proto.Clone(p).(*summarizerv1.InferencePolicy),
@@ -645,7 +639,7 @@ func TestSummarizerService_UpsertInferencePolicy(t *testing.T) {
 		proto.Clone(want).(*summarizerv1.InferencePolicy),
 	)
 	require.NoError(t, err)
-	assert.NotEmpty(t, got.Metadata.Revision)
+	assert.NotEmpty(t, got.GetMetadata().GetRevision())
 	assert.Empty(t, cmp.Diff(
 		want,
 		got,
@@ -727,7 +721,7 @@ func TestSummarizerService_GetInferencePolicy(t *testing.T) {
 		require.NoError(t, err)
 		got, err := service.GetInferencePolicy(ctx, "dummy-policy")
 		require.NoError(t, err)
-		assert.NotEmpty(t, got.Metadata.Revision)
+		assert.NotEmpty(t, got.GetMetadata().GetRevision())
 		assert.Empty(t, cmp.Diff(
 			want,
 			got,
@@ -780,7 +774,7 @@ func TestSummarizerService_UpdateInferencePolicy(t *testing.T) {
 		)
 		require.NoError(t, err)
 		want := proto.Clone(created).(*summarizerv1.InferencePolicy)
-		want.Spec.Kinds = []string{string(types.SSHSessionKind), string(types.DatabaseSessionKind)}
+		want.GetSpec().SetKinds([]string{string(types.SSHSessionKind), string(types.DatabaseSessionKind)})
 
 		updated, err := service.UpdateInferencePolicy(
 			ctx,
@@ -788,7 +782,7 @@ func TestSummarizerService_UpdateInferencePolicy(t *testing.T) {
 			proto.Clone(want).(*summarizerv1.InferencePolicy),
 		)
 		require.NoError(t, err)
-		assert.NotEqual(t, created.Metadata.Revision, updated.Metadata.Revision)
+		assert.NotEqual(t, created.GetMetadata().GetRevision(), updated.GetMetadata().GetRevision())
 		assert.Empty(t, cmp.Diff(
 			want,
 			updated,
@@ -804,7 +798,7 @@ func TestSummarizerService_UpdateInferencePolicy(t *testing.T) {
 			protocmp.Transform(),
 			protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		))
-		assert.Equal(t, updated.Metadata.Revision, got.Metadata.Revision)
+		assert.Equal(t, updated.GetMetadata().GetRevision(), got.GetMetadata().GetRevision())
 	})
 	t.Run("no create", func(t *testing.T) {
 		_, err := service.UpdateInferencePolicy(
@@ -844,15 +838,13 @@ func TestSummarizerService_AllInferencePolicies(t *testing.T) {
 }
 
 func newRetrievalModel() *summarizerv1.RetrievalModel {
-	return summarizer.NewRetrievalModel(&summarizerv1.RetrievalModelSpec{
-		EmbeddingsProvider: &summarizerv1.RetrievalModelSpec_Openai{
-			Openai: &summarizerv1.OpenAIProvider{
-				OpenaiModelId:   "text-embedding-3-small",
-				ApiKeySecretRef: "something",
-			},
-		},
+	return summarizer.NewRetrievalModel(summarizerv1.RetrievalModelSpec_builder{
+		Openai: summarizerv1.OpenAIProvider_builder{
+			OpenaiModelId:   "text-embedding-3-small",
+			ApiKeySecretRef: "something",
+		}.Build(),
 		InferenceModelName: "gpt-4o",
-	})
+	}.Build())
 }
 
 func TestSummarizerService_CreateRetrievalModel(t *testing.T) {
@@ -865,7 +857,7 @@ func TestSummarizerService_CreateRetrievalModel(t *testing.T) {
 			proto.CloneOf(want),
 		)
 		require.NoError(t, err)
-		assert.NotEmpty(t, got.Metadata.Revision)
+		assert.NotEmpty(t, got.GetMetadata().GetRevision())
 		assert.Empty(t, cmp.Diff(
 			want,
 			got,
@@ -876,7 +868,7 @@ func TestSummarizerService_CreateRetrievalModel(t *testing.T) {
 	t.Run("invalid", func(t *testing.T) {
 		ctx, service := setupSummarizerTest(t)
 		m := newRetrievalModel()
-		m.Spec.GetOpenai().OpenaiModelId = ""
+		m.GetSpec().GetOpenai().SetOpenaiModelId("")
 		_, err := service.CreateRetrievalModel(
 			ctx,
 			proto.CloneOf(m),
@@ -919,15 +911,13 @@ func TestSummarizerService_CreateRetrievalModel_BedrockAllowed(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	want := summarizer.NewRetrievalModel(&summarizerv1.RetrievalModelSpec{
-		EmbeddingsProvider: &summarizerv1.RetrievalModelSpec_Bedrock{
-			Bedrock: &summarizerv1.BedrockProvider{
-				Region:         "us-east-1",
-				BedrockModelId: "amazon.titan-embed-text-v2:0",
-			},
-		},
+	want := summarizer.NewRetrievalModel(summarizerv1.RetrievalModelSpec_builder{
+		Bedrock: summarizerv1.BedrockProvider_builder{
+			Region:         "us-east-1",
+			BedrockModelId: "amazon.titan-embed-text-v2:0",
+		}.Build(),
 		InferenceModelName: "gpt-4o",
-	})
+	}.Build())
 
 	got, err := service.CreateRetrievalModel(
 		ctx,
@@ -935,7 +925,7 @@ func TestSummarizerService_CreateRetrievalModel_BedrockAllowed(t *testing.T) {
 		proto.CloneOf(want),
 	)
 	require.NoError(t, err)
-	assert.NotEmpty(t, got.Metadata.Revision)
+	assert.NotEmpty(t, got.GetMetadata().GetRevision())
 	assert.Empty(t, cmp.Diff(
 		want,
 		got,
@@ -954,7 +944,7 @@ func TestSummarizerService_UpsertRetrievalModel(t *testing.T) {
 		proto.CloneOf(want),
 	)
 	require.NoError(t, err)
-	assert.NotEmpty(t, got.Metadata.Revision)
+	assert.NotEmpty(t, got.GetMetadata().GetRevision())
 	assert.Empty(t, cmp.Diff(
 		want,
 		got,
@@ -983,7 +973,7 @@ func TestSummarizerService_GetRetrievalModel(t *testing.T) {
 		require.NoError(t, err)
 		got, err := service.GetRetrievalModel(ctx)
 		require.NoError(t, err)
-		assert.NotEmpty(t, got.Metadata.Revision)
+		assert.NotEmpty(t, got.GetMetadata().GetRevision())
 		assert.Empty(t, cmp.Diff(
 			want,
 			got,
@@ -1037,7 +1027,7 @@ func TestSummarizerService_UpdateRetrievalModel(t *testing.T) {
 		)
 		require.NoError(t, err)
 		want := proto.CloneOf(created)
-		want.Spec.GetOpenai().BaseUrl = "https://localhost:4000"
+		want.GetSpec().GetOpenai().SetBaseUrl("https://localhost:4000")
 
 		updated, err := service.UpdateRetrievalModel(
 			ctx,
@@ -1045,7 +1035,7 @@ func TestSummarizerService_UpdateRetrievalModel(t *testing.T) {
 			proto.CloneOf(want),
 		)
 		require.NoError(t, err)
-		assert.NotEqual(t, created.Metadata.Revision, updated.Metadata.Revision)
+		assert.NotEqual(t, created.GetMetadata().GetRevision(), updated.GetMetadata().GetRevision())
 		assert.Empty(t, cmp.Diff(
 			want,
 			updated,
@@ -1061,7 +1051,7 @@ func TestSummarizerService_UpdateRetrievalModel(t *testing.T) {
 			protocmp.Transform(),
 			protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		))
-		assert.Equal(t, updated.Metadata.Revision, got.Metadata.Revision)
+		assert.Equal(t, updated.GetMetadata().GetRevision(), got.GetMetadata().GetRevision())
 	})
 	t.Run("no create", func(t *testing.T) {
 		_, err := service.UpdateRetrievalModel(

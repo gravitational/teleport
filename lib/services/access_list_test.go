@@ -392,12 +392,12 @@ func TestMatchAccessList(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			filter := &accesslistv1.AccessListsFilter{
+			filter := accesslistv1.AccessListsFilter_builder{
 				Search: tt.search,
 				Owners: tt.owners,
 				Roles:  tt.roles,
 				Origin: tt.origin,
-			}
+			}.Build()
 			result := MatchAccessList(al, filter)
 			if result != tt.expected {
 				t.Errorf("MatchAccessList(search: %q, owners: %v, roles: %v) = %v, want %v",

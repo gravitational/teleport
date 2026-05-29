@@ -62,14 +62,14 @@ func fetchDatabaseObjects(ctx context.Context, database types.Database, database
 				table,
 			}, "::")
 
-			obj, err := databaseobject.NewDatabaseObject(name, &dbobjectv1.DatabaseObjectSpec{
+			obj, err := databaseobject.NewDatabaseObject(name, dbobjectv1.DatabaseObjectSpec_builder{
 				ObjectKind:          databaseobjectimportrule.ObjectKindTable,
 				DatabaseServiceName: database.GetName(),
 				Protocol:            database.GetProtocol(),
 				Database:            databaseName,
 				Schema:              schemaName,
 				Name:                table,
-			})
+			}.Build())
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

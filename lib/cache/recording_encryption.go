@@ -56,13 +56,13 @@ func newRecordingEncryptionCollection(upstream services.RecordingEncryption, w t
 			return []*recordingencryptionv1.RecordingEncryption{recordingEncryption}, nil
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *recordingencryptionv1.RecordingEncryption {
-			return &recordingencryptionv1.RecordingEncryption{
+			return recordingencryptionv1.RecordingEncryption_builder{
 				Kind:    hdr.Kind,
 				Version: hdr.Version,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: hdr.Metadata.Name,
-				},
-			}
+				}.Build(),
+			}.Build()
 		},
 		watch: w,
 	}, nil

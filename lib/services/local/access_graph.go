@@ -101,7 +101,7 @@ func (k *AccessGraphSecretsService) ListAuthorizedKeysForServer(ctx context.Cont
 
 // UpsertAuthorizedKey upserts a new authorized key.
 func (k *AccessGraphSecretsService) UpsertAuthorizedKey(ctx context.Context, in *accessgraphsecretspb.AuthorizedKey) (*accessgraphsecretspb.AuthorizedKey, error) {
-	svc := k.authorizedKeysSvc.WithPrefix(in.Spec.HostId)
+	svc := k.authorizedKeysSvc.WithPrefix(in.GetSpec().GetHostId())
 	out, err := svc.UpsertResource(ctx, in)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -145,7 +145,7 @@ func (k *AccessGraphSecretsService) ListPrivateKeysForDevice(ctx context.Context
 
 // UpsertPrivateKey upserts a new private key.
 func (k *AccessGraphSecretsService) UpsertPrivateKey(ctx context.Context, in *accessgraphsecretspb.PrivateKey) (*accessgraphsecretspb.PrivateKey, error) {
-	svc := k.privateKeysSvc.WithPrefix(in.Spec.DeviceId)
+	svc := k.privateKeysSvc.WithPrefix(in.GetSpec().GetDeviceId())
 	out, err := svc.UpsertResource(ctx, in)
 	if err != nil {
 		return nil, trace.Wrap(err)

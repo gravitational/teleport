@@ -68,18 +68,18 @@ func ResourceToProto(r *Resource) *databaseobjectv1.DatabaseObject {
 		expires = timestamppb.New(*md.Expires)
 	}
 
-	return &databaseobjectv1.DatabaseObject{
+	return databaseobjectv1.DatabaseObject_builder{
 		Kind:    r.GetKind(),
 		SubKind: r.GetSubKind(),
 		Version: r.GetVersion(),
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name:        md.Name,
 			Description: md.Description,
 			Namespace:   defaults.Namespace,
 			Labels:      md.Labels,
 			Expires:     expires,
 			Revision:    md.Revision,
-		},
+		}.Build(),
 		Spec: r.Spec,
-	}
+	}.Build()
 }

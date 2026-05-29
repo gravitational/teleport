@@ -95,20 +95,20 @@ func (a *Server) augmentSessionForDeviceTrust(
 	// Create the device trust DeviceWebToken.
 	// We only get a token if the server is enabled for Device Trust and the user
 	// has a suitable trusted device.
-	webToken, err := a.createDeviceWebToken(ctx, &devicepb.DeviceWebToken{
+	webToken, err := a.createDeviceWebToken(ctx, devicepb.DeviceWebToken_builder{
 		WebSessionId:          session.GetName(),
 		BrowserMaxTouchPoints: uint32(maxTouchPoints),
 		BrowserUserAgent:      userAgent,
 		BrowserIp:             loginIP,
 		User:                  session.GetUser(),
-	})
+	}.Build())
 	switch {
 	case err != nil:
 		a.logger.WarnContext(ctx, "Failed to create DeviceWebToken for user", "error", err)
 	case webToken != nil: // May be nil even if err==nil.
 		session.SetDeviceWebToken(&types.DeviceWebToken{
-			Id:    webToken.Id,
-			Token: webToken.Token,
+			Id:    webToken.GetId(),
+			Token: webToken.GetToken(),
 		})
 	}
 

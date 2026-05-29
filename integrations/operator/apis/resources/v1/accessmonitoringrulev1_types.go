@@ -59,16 +59,16 @@ type TeleportAccessMonitoringRuleV1List struct {
 
 // ToTeleport returns an AccessMonitoringRule that can be sent to Teleport.
 func (l *TeleportAccessMonitoringRuleV1) ToTeleport() *accessmonitoringrulesv1pb.AccessMonitoringRule {
-	resource := &accessmonitoringrulesv1pb.AccessMonitoringRule{
+	resource := accessmonitoringrulesv1pb.AccessMonitoringRule_builder{
 		Kind:    types.KindAccessMonitoringRule,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name:        l.Name,
 			Description: l.Annotations[teleportcr.DescriptionKey],
 			Labels:      l.Labels,
-		},
+		}.Build(),
 		Spec: (*accessmonitoringrulesv1pb.AccessMonitoringRuleSpec)(l.Spec),
-	}
+	}.Build()
 	return resource
 }
 

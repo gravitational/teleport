@@ -45,7 +45,7 @@ func TestBeamsLSCommand(t *testing.T) {
 			"alice",
 			"alpha-app",
 			time.Date(2026, time.January, 2, 3, 4, 5, 0, time.UTC),
-			&beamsv1.PublishSpec{Protocol: beamsv1.Protocol_PROTOCOL_HTTP, Port: 8080},
+			beamsv1.PublishSpec_builder{Protocol: beamsv1.Protocol_PROTOCOL_HTTP, Port: 8080}.Build(),
 		),
 		makeTestBeam(
 			"bravo",
@@ -61,7 +61,7 @@ func TestBeamsLSCommand(t *testing.T) {
 			"bob",
 			"charlie-app",
 			time.Date(2026, time.January, 2, 5, 6, 7, 0, time.UTC),
-			&beamsv1.PublishSpec{Protocol: beamsv1.Protocol_PROTOCOL_TCP, Port: 5432},
+			beamsv1.PublishSpec_builder{Protocol: beamsv1.Protocol_PROTOCOL_TCP, Port: 5432}.Build(),
 		),
 	}
 
@@ -137,18 +137,18 @@ func TestBeamsLSCommand(t *testing.T) {
 }
 
 func makeTestBeam(alias, name, owner, appName string, expires time.Time, publish *beamsv1.PublishSpec) *beamsv1.Beam {
-	return &beamsv1.Beam{
-		Metadata: &headerv1.Metadata{
+	return beamsv1.Beam_builder{
+		Metadata: headerv1.Metadata_builder{
 			Name: name,
-		},
-		Spec: &beamsv1.BeamSpec{
+		}.Build(),
+		Spec: beamsv1.BeamSpec_builder{
 			Expires: timestamppb.New(expires),
 			Publish: publish,
-		},
-		Status: &beamsv1.BeamStatus{
+		}.Build(),
+		Status: beamsv1.BeamStatus_builder{
 			Alias:   alias,
 			User:    owner,
 			AppName: appName,
-		},
-	}
+		}.Build(),
+	}.Build()
 }

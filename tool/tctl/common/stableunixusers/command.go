@@ -74,10 +74,10 @@ func (c *Command) ls(ctx context.Context, clientFunc client.InitFunc) error {
 
 	var pageToken string
 	for {
-		resp, err := clt.ListStableUNIXUsers(ctx, &stableunixusersv1.ListStableUNIXUsersRequest{
+		resp, err := clt.ListStableUNIXUsers(ctx, stableunixusersv1.ListStableUNIXUsersRequest_builder{
 			PageSize:  0,
 			PageToken: pageToken,
-		})
+		}.Build())
 		if err != nil {
 			return trace.Wrap(err)
 		}

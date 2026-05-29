@@ -260,11 +260,11 @@ func TestValidateInferencePolicy(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			p := apisummarizer.NewInferencePolicy("my-policy", &summarizerv1.InferencePolicySpec{
+			p := apisummarizer.NewInferencePolicy("my-policy", summarizerv1.InferencePolicySpec_builder{
 				Kinds:  tc.kinds,
 				Filter: tc.filter,
 				Model:  "my-model",
-			})
+			}.Build())
 			err := ValidateInferencePolicy(p)
 			if tc.errorMessage == "" {
 				require.NoError(t, err)

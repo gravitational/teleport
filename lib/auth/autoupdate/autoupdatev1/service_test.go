@@ -471,14 +471,14 @@ func TestAutoUpdateConfigEvents(t *testing.T) {
 	service := newService(t, authz.AdminActionAuthMFAVerified, checker, mockEmitter)
 	ctx := context.Background()
 
-	config, err := autoupdate.NewAutoUpdateConfig(&autoupdatev1pb.AutoUpdateConfigSpec{
-		Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
+	config, err := autoupdate.NewAutoUpdateConfig(autoupdatev1pb.AutoUpdateConfigSpec_builder{
+		Tools: autoupdatev1pb.AutoUpdateConfigSpecTools_builder{
 			Mode: autoupdate.ToolsUpdateModeEnabled,
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
-	_, err = service.CreateAutoUpdateConfig(ctx, &autoupdatev1pb.CreateAutoUpdateConfigRequest{Config: config})
+	_, err = service.CreateAutoUpdateConfig(ctx, autoupdatev1pb.CreateAutoUpdateConfigRequest_builder{Config: config}.Build())
 	require.NoError(t, err)
 	require.Len(t, mockEmitter.Events(), 1)
 	require.Equal(t, libevents.AutoUpdateConfigCreateEvent, mockEmitter.LastEvent().GetType())
@@ -486,7 +486,7 @@ func TestAutoUpdateConfigEvents(t *testing.T) {
 	require.Equal(t, types.MetaNameAutoUpdateConfig, mockEmitter.LastEvent().(*apievents.AutoUpdateConfigCreate).Name)
 	mockEmitter.Reset()
 
-	_, err = service.UpdateAutoUpdateConfig(ctx, &autoupdatev1pb.UpdateAutoUpdateConfigRequest{Config: config})
+	_, err = service.UpdateAutoUpdateConfig(ctx, autoupdatev1pb.UpdateAutoUpdateConfigRequest_builder{Config: config}.Build())
 	require.NoError(t, err)
 	require.Len(t, mockEmitter.Events(), 1)
 	require.Equal(t, libevents.AutoUpdateConfigUpdateEvent, mockEmitter.LastEvent().GetType())
@@ -494,7 +494,7 @@ func TestAutoUpdateConfigEvents(t *testing.T) {
 	require.Equal(t, types.MetaNameAutoUpdateConfig, mockEmitter.LastEvent().(*apievents.AutoUpdateConfigUpdate).Name)
 	mockEmitter.Reset()
 
-	_, err = service.UpsertAutoUpdateConfig(ctx, &autoupdatev1pb.UpsertAutoUpdateConfigRequest{Config: config})
+	_, err = service.UpsertAutoUpdateConfig(ctx, autoupdatev1pb.UpsertAutoUpdateConfigRequest_builder{Config: config}.Build())
 	require.NoError(t, err)
 	require.Len(t, mockEmitter.Events(), 1)
 	require.Equal(t, libevents.AutoUpdateConfigUpdateEvent, mockEmitter.LastEvent().GetType())
@@ -518,14 +518,14 @@ func TestAutoUpdateVersionEvents(t *testing.T) {
 	service := newService(t, authz.AdminActionAuthMFAVerified, checker, mockEmitter)
 	ctx := context.Background()
 
-	config, err := autoupdate.NewAutoUpdateVersion(&autoupdatev1pb.AutoUpdateVersionSpec{
-		Tools: &autoupdatev1pb.AutoUpdateVersionSpecTools{
+	config, err := autoupdate.NewAutoUpdateVersion(autoupdatev1pb.AutoUpdateVersionSpec_builder{
+		Tools: autoupdatev1pb.AutoUpdateVersionSpecTools_builder{
 			TargetVersion: "1.2.3",
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
-	_, err = service.CreateAutoUpdateVersion(ctx, &autoupdatev1pb.CreateAutoUpdateVersionRequest{Version: config})
+	_, err = service.CreateAutoUpdateVersion(ctx, autoupdatev1pb.CreateAutoUpdateVersionRequest_builder{Version: config}.Build())
 	require.NoError(t, err)
 	require.Len(t, mockEmitter.Events(), 1)
 	require.Equal(t, libevents.AutoUpdateVersionCreateEvent, mockEmitter.LastEvent().GetType())
@@ -533,7 +533,7 @@ func TestAutoUpdateVersionEvents(t *testing.T) {
 	require.Equal(t, types.MetaNameAutoUpdateVersion, mockEmitter.LastEvent().(*apievents.AutoUpdateVersionCreate).Name)
 	mockEmitter.Reset()
 
-	_, err = service.UpdateAutoUpdateVersion(ctx, &autoupdatev1pb.UpdateAutoUpdateVersionRequest{Version: config})
+	_, err = service.UpdateAutoUpdateVersion(ctx, autoupdatev1pb.UpdateAutoUpdateVersionRequest_builder{Version: config}.Build())
 	require.NoError(t, err)
 	require.Len(t, mockEmitter.Events(), 1)
 	require.Equal(t, libevents.AutoUpdateVersionUpdateEvent, mockEmitter.LastEvent().GetType())
@@ -541,7 +541,7 @@ func TestAutoUpdateVersionEvents(t *testing.T) {
 	require.Equal(t, types.MetaNameAutoUpdateVersion, mockEmitter.LastEvent().(*apievents.AutoUpdateVersionUpdate).Name)
 	mockEmitter.Reset()
 
-	_, err = service.UpsertAutoUpdateVersion(ctx, &autoupdatev1pb.UpsertAutoUpdateVersionRequest{Version: config})
+	_, err = service.UpsertAutoUpdateVersion(ctx, autoupdatev1pb.UpsertAutoUpdateVersionRequest_builder{Version: config}.Build())
 	require.NoError(t, err)
 	require.Len(t, mockEmitter.Events(), 1)
 	require.Equal(t, libevents.AutoUpdateVersionUpdateEvent, mockEmitter.LastEvent().GetType())
@@ -571,51 +571,51 @@ func TestAutoUpdateAgentRolloutEvents(t *testing.T) {
 		mockEmitter)
 	ctx := context.Background()
 
-	rollout, err := autoupdate.NewAutoUpdateAgentRollout(&autoupdatev1pb.AutoUpdateAgentRolloutSpec{
+	rollout, err := autoupdate.NewAutoUpdateAgentRollout(autoupdatev1pb.AutoUpdateAgentRolloutSpec_builder{
 		StartVersion:   "1.2.3",
 		TargetVersion:  "1.2.4",
 		Schedule:       autoupdate.AgentsScheduleRegular,
 		AutoupdateMode: autoupdate.AgentsUpdateModeEnabled,
 		Strategy:       autoupdate.AgentsStrategyHaltOnError,
-	})
+	}.Build())
 	require.NoError(t, err)
-	rollout.Status = &autoupdatev1pb.AutoUpdateAgentRolloutStatus{
+	rollout.SetStatus(autoupdatev1pb.AutoUpdateAgentRolloutStatus_builder{
 		Groups: []*autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup{
-			{
+			autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup_builder{
 				Name:       "blue",
 				State:      autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK,
 				ConfigDays: cloudGroupUpdateDays,
-			},
-			{
+			}.Build(),
+			autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup_builder{
 				Name:       "dev",
 				State:      autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE,
 				ConfigDays: cloudGroupUpdateDays,
-			},
-			{
+			}.Build(),
+			autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup_builder{
 				Name:       "stage",
 				State:      autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 				ConfigDays: cloudGroupUpdateDays,
-			},
-			{
+			}.Build(),
+			autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup_builder{
 				Name:       "prod",
 				State:      autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
 				ConfigDays: cloudGroupUpdateDays,
-			},
-			{
+			}.Build(),
+			autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup_builder{
 				Name:       "backup",
 				State:      autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSPECIFIED,
 				ConfigDays: cloudGroupUpdateDays,
-			},
+			}.Build(),
 		},
-	}
+	}.Build())
 
-	_, err = service.CreateAutoUpdateAgentRollout(ctx, &autoupdatev1pb.CreateAutoUpdateAgentRolloutRequest{Rollout: rollout})
+	_, err = service.CreateAutoUpdateAgentRollout(ctx, autoupdatev1pb.CreateAutoUpdateAgentRolloutRequest_builder{Rollout: rollout}.Build())
 	require.NoError(t, err)
 
 	groups := []string{"prod"}
-	_, err = service.TriggerAutoUpdateAgentGroup(ctx, &autoupdatev1pb.TriggerAutoUpdateAgentGroupRequest{
+	_, err = service.TriggerAutoUpdateAgentGroup(ctx, autoupdatev1pb.TriggerAutoUpdateAgentGroupRequest_builder{
 		Groups: groups,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	require.Len(t, mockEmitter.Events(), 1)
@@ -624,9 +624,9 @@ func TestAutoUpdateAgentRolloutEvents(t *testing.T) {
 	require.Equal(t, groups, mockEmitter.LastEvent().(*apievents.AutoUpdateAgentRolloutTrigger).Groups)
 	mockEmitter.Reset()
 
-	_, err = service.ForceAutoUpdateAgentGroup(ctx, &autoupdatev1pb.ForceAutoUpdateAgentGroupRequest{
+	_, err = service.ForceAutoUpdateAgentGroup(ctx, autoupdatev1pb.ForceAutoUpdateAgentGroupRequest_builder{
 		Groups: []string{"prod"},
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	require.Len(t, mockEmitter.Events(), 1)
@@ -635,9 +635,9 @@ func TestAutoUpdateAgentRolloutEvents(t *testing.T) {
 	require.Equal(t, groups, mockEmitter.LastEvent().(*apievents.AutoUpdateAgentRolloutForceDone).Groups)
 	mockEmitter.Reset()
 
-	_, err = service.RollbackAutoUpdateAgentGroup(ctx, &autoupdatev1pb.RollbackAutoUpdateAgentGroupRequest{
+	_, err = service.RollbackAutoUpdateAgentGroup(ctx, autoupdatev1pb.RollbackAutoUpdateAgentGroupRequest_builder{
 		Groups: []string{"prod"},
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	require.Len(t, mockEmitter.Events(), 1)
@@ -740,23 +740,23 @@ func TestComputeMinRolloutTime(t *testing.T) {
 		{
 			name: "single group",
 			groups: []*autoupdatev1pb.AgentAutoUpdateGroup{
-				{
+				autoupdatev1pb.AgentAutoUpdateGroup_builder{
 					Name: "g1",
-				},
+				}.Build(),
 			},
 			expectedHours: 1,
 		},
 		{
 			name: "two groups, same day, different start hour, no wait time",
 			groups: []*autoupdatev1pb.AgentAutoUpdateGroup{
-				{
+				autoupdatev1pb.AgentAutoUpdateGroup_builder{
 					Name:      "g1",
 					StartHour: 2,
-				},
-				{
+				}.Build(),
+				autoupdatev1pb.AgentAutoUpdateGroup_builder{
 					Name:      "g2",
 					StartHour: 4,
-				},
+				}.Build(),
 			},
 			// g1 updates from 2:00 to 3:00, g2 updates from 4:00 to 5:00, rollout updates from 2:00 to 5:00.
 			expectedHours: 3,
@@ -764,14 +764,14 @@ func TestComputeMinRolloutTime(t *testing.T) {
 		{
 			name: "two groups, same day, same start hour, no wait time",
 			groups: []*autoupdatev1pb.AgentAutoUpdateGroup{
-				{
+				autoupdatev1pb.AgentAutoUpdateGroup_builder{
 					Name:      "g1",
 					StartHour: 2,
-				},
-				{
+				}.Build(),
+				autoupdatev1pb.AgentAutoUpdateGroup_builder{
 					Name:      "g2",
 					StartHour: 2,
-				},
+				}.Build(),
 			},
 			// g1 and g2 can't update at the same time, the g1 updates from 2:00 to 3:00 days one,
 			// and g2 updates from 2:00 to 3:00 the next day. Total update spans from 2:00 day 1, to 3:00 day 2
@@ -780,15 +780,15 @@ func TestComputeMinRolloutTime(t *testing.T) {
 		{
 			name: "two groups, cannot happen on the same day because of wait_hours",
 			groups: []*autoupdatev1pb.AgentAutoUpdateGroup{
-				{
+				autoupdatev1pb.AgentAutoUpdateGroup_builder{
 					Name:      "g1",
 					StartHour: 2,
-				},
-				{
+				}.Build(),
+				autoupdatev1pb.AgentAutoUpdateGroup_builder{
 					Name:      "g2",
 					StartHour: 4,
 					WaitHours: 6,
-				},
+				}.Build(),
 			},
 			// g1 updates from 2:00 to 3:00. At 4:00 g2 can't update yet, so we wait the next day.
 			// On day 2, g2 updates from 4:00 to 5:00. Rollout spans from 2:00 day on to 7:00 day 2.
@@ -797,15 +797,15 @@ func TestComputeMinRolloutTime(t *testing.T) {
 		{
 			name: "two groups, wait hours is several days",
 			groups: []*autoupdatev1pb.AgentAutoUpdateGroup{
-				{
+				autoupdatev1pb.AgentAutoUpdateGroup_builder{
 					Name:      "g1",
 					StartHour: 2,
-				},
-				{
+				}.Build(),
+				autoupdatev1pb.AgentAutoUpdateGroup_builder{
 					Name:      "g2",
 					StartHour: 4,
 					WaitHours: 48,
-				},
+				}.Build(),
 			},
 			// g1 updates from 2:00 to 3:00. At 4:00 g2 can't update yet, so we wait 2 days.
 			// On day 3, g2 updates from 4:00 to 5:00. Rollout spans from 2:00 day on to 7:00 day 3.
@@ -814,83 +814,83 @@ func TestComputeMinRolloutTime(t *testing.T) {
 		{
 			name: "two groups, one wait hour",
 			groups: []*autoupdatev1pb.AgentAutoUpdateGroup{
-				{
+				autoupdatev1pb.AgentAutoUpdateGroup_builder{
 					Name:      "g1",
 					StartHour: 2,
-				},
-				{
+				}.Build(),
+				autoupdatev1pb.AgentAutoUpdateGroup_builder{
 					Name:      "g2",
 					StartHour: 3,
 					WaitHours: 1,
-				},
+				}.Build(),
 			},
 			expectedHours: 2,
 		},
 		{
 			name: "two groups different days",
 			groups: []*autoupdatev1pb.AgentAutoUpdateGroup{
-				{
+				autoupdatev1pb.AgentAutoUpdateGroup_builder{
 					Name:      "g1",
 					StartHour: 23,
-				},
-				{
+				}.Build(),
+				autoupdatev1pb.AgentAutoUpdateGroup_builder{
 					Name:      "g2",
 					StartHour: 1,
-				},
+				}.Build(),
 			},
 			expectedHours: 3,
 		},
 		{
 			name: "two groups different days, hour diff == wait hours == 1 day",
 			groups: []*autoupdatev1pb.AgentAutoUpdateGroup{
-				{
+				autoupdatev1pb.AgentAutoUpdateGroup_builder{
 					Name:      "g1",
 					StartHour: 12,
-				},
-				{
+				}.Build(),
+				autoupdatev1pb.AgentAutoUpdateGroup_builder{
 					Name:      "g2",
 					StartHour: 12,
 					WaitHours: 24,
-				},
+				}.Build(),
 			},
 			expectedHours: 25,
 		},
 		{
 			name: "two groups different days, hour diff == wait hours",
 			groups: []*autoupdatev1pb.AgentAutoUpdateGroup{
-				{
+				autoupdatev1pb.AgentAutoUpdateGroup_builder{
 					Name:      "g1",
 					StartHour: 12,
-				},
-				{
+				}.Build(),
+				autoupdatev1pb.AgentAutoUpdateGroup_builder{
 					Name:      "g2",
 					StartHour: 11,
 					WaitHours: 23,
-				},
+				}.Build(),
 			},
 			expectedHours: 24,
 		},
 		{
 			name: "everything at once",
 			groups: []*autoupdatev1pb.AgentAutoUpdateGroup{
-				{
+				autoupdatev1pb.AgentAutoUpdateGroup_builder{
 					Name:      "g1",
 					StartHour: 23,
-				},
-				{
+				}.Build(),
+				autoupdatev1pb.AgentAutoUpdateGroup_builder{
 					Name:      "g2",
 					StartHour: 1,
 					WaitHours: 4,
-				},
-				{
+				}.Build(),
+				autoupdatev1pb.AgentAutoUpdateGroup_builder{
 					Name:      "g3",
 					StartHour: 1,
-				},
-				{
+				}.Build(),
+				autoupdatev1pb.AgentAutoUpdateGroup_builder{
 					Name:      "g4",
 					StartHour: 10,
 					WaitHours: 6,
-				},
+				}.Build(),
 			},
 			expectedHours: 60,
 		},
@@ -905,11 +905,11 @@ func TestComputeMinRolloutTime(t *testing.T) {
 func generateGroups(n int, days []string) []*autoupdatev1pb.AgentAutoUpdateGroup {
 	groups := make([]*autoupdatev1pb.AgentAutoUpdateGroup, n)
 	for i := range groups {
-		groups[i] = &autoupdatev1pb.AgentAutoUpdateGroup{
+		groups[i] = autoupdatev1pb.AgentAutoUpdateGroup_builder{
 			Name:      strconv.Itoa(i),
 			Days:      days,
 			StartHour: int32(i % 24),
-		}
+		}.Build()
 	}
 	return groups
 }
@@ -949,131 +949,131 @@ func TestValidateServerSideAgentConfig(t *testing.T) {
 		{
 			name:    "over max groups time-based",
 			modules: selfHostedModules,
-			config: &autoupdatev1pb.AutoUpdateConfigSpecAgents{
+			config: autoupdatev1pb.AutoUpdateConfigSpecAgents_builder{
 				Mode:                      autoupdate.AgentsUpdateModeEnabled,
 				Strategy:                  autoupdate.AgentsStrategyTimeBased,
 				MaintenanceWindowDuration: durationpb.New(time.Hour),
-				Schedules: &autoupdatev1pb.AgentAutoUpdateSchedules{
+				Schedules: autoupdatev1pb.AgentAutoUpdateSchedules_builder{
 					Regular: generateGroups(maxGroupsTimeBasedStrategy+1, cloudGroupUpdateDays),
-				},
-			},
+				}.Build(),
+			}.Build(),
 			expectErr: require.Error,
 		},
 		{
 			name:    "over max groups halt-on-error",
 			modules: selfHostedModules,
-			config: &autoupdatev1pb.AutoUpdateConfigSpecAgents{
+			config: autoupdatev1pb.AutoUpdateConfigSpecAgents_builder{
 				Mode:     autoupdate.AgentsUpdateModeEnabled,
 				Strategy: autoupdate.AgentsStrategyHaltOnError,
-				Schedules: &autoupdatev1pb.AgentAutoUpdateSchedules{
+				Schedules: autoupdatev1pb.AgentAutoUpdateSchedules_builder{
 					Regular: generateGroups(maxGroupsHaltOnErrorStrategy+1, cloudGroupUpdateDays),
-				},
-			},
+				}.Build(),
+			}.Build(),
 			expectErr: require.Error,
 		},
 		{
 			name:    "over max groups halt-on-error cloud unlimited",
 			modules: cloudUnlimitedModules,
-			config: &autoupdatev1pb.AutoUpdateConfigSpecAgents{
+			config: autoupdatev1pb.AutoUpdateConfigSpecAgents_builder{
 				Mode:     autoupdate.AgentsUpdateModeEnabled,
 				Strategy: autoupdate.AgentsStrategyHaltOnError,
-				Schedules: &autoupdatev1pb.AgentAutoUpdateSchedules{
+				Schedules: autoupdatev1pb.AgentAutoUpdateSchedules_builder{
 					Regular: generateGroups(maxGroupsHaltOnErrorStrategy+1, cloudGroupUpdateDays),
-				},
-			},
+				}.Build(),
+			}.Build(),
 			expectErr: require.Error,
 		},
 		{
 			name:    "over max groups halt-on-error cloud",
 			modules: cloudModules,
-			config: &autoupdatev1pb.AutoUpdateConfigSpecAgents{
+			config: autoupdatev1pb.AutoUpdateConfigSpecAgents_builder{
 				Mode:     autoupdate.AgentsUpdateModeEnabled,
 				Strategy: autoupdate.AgentsStrategyHaltOnError,
-				Schedules: &autoupdatev1pb.AgentAutoUpdateSchedules{
+				Schedules: autoupdatev1pb.AgentAutoUpdateSchedules_builder{
 					Regular: generateGroups(maxGroupsHaltOnErrorStrategyCloud+1, cloudGroupUpdateDays),
-				},
-			},
+				}.Build(),
+			}.Build(),
 			expectErr: require.Error,
 		},
 		{
 			name:    "cloud should reject custom weekdays",
 			modules: cloudModules,
-			config: &autoupdatev1pb.AutoUpdateConfigSpecAgents{
+			config: autoupdatev1pb.AutoUpdateConfigSpecAgents_builder{
 				Mode:     autoupdate.AgentsUpdateModeEnabled,
 				Strategy: autoupdate.AgentsStrategyHaltOnError,
-				Schedules: &autoupdatev1pb.AgentAutoUpdateSchedules{
+				Schedules: autoupdatev1pb.AgentAutoUpdateSchedules_builder{
 					Regular: generateGroups(maxGroupsHaltOnErrorStrategyCloud, []string{"Mon"}),
-				},
-			},
+				}.Build(),
+			}.Build(),
 			expectErr: require.Error,
 		},
 		{
 			name:    "cloud unlimited should allow custom weekdays",
 			modules: cloudUnlimitedModules,
-			config: &autoupdatev1pb.AutoUpdateConfigSpecAgents{
+			config: autoupdatev1pb.AutoUpdateConfigSpecAgents_builder{
 				Mode:     autoupdate.AgentsUpdateModeEnabled,
 				Strategy: autoupdate.AgentsStrategyHaltOnError,
-				Schedules: &autoupdatev1pb.AgentAutoUpdateSchedules{
+				Schedules: autoupdatev1pb.AgentAutoUpdateSchedules_builder{
 					Regular: generateGroups(maxGroupsHaltOnErrorStrategyCloud, []string{"Mon"}),
-				},
-			},
+				}.Build(),
+			}.Build(),
 			expectErr: require.NoError,
 		},
 		{
 			name:    "self-hosted should allow custom weekdays",
 			modules: selfHostedModules,
-			config: &autoupdatev1pb.AutoUpdateConfigSpecAgents{
+			config: autoupdatev1pb.AutoUpdateConfigSpecAgents_builder{
 				Mode:     autoupdate.AgentsUpdateModeEnabled,
 				Strategy: autoupdate.AgentsStrategyHaltOnError,
-				Schedules: &autoupdatev1pb.AgentAutoUpdateSchedules{
+				Schedules: autoupdatev1pb.AgentAutoUpdateSchedules_builder{
 					Regular: generateGroups(maxGroupsHaltOnErrorStrategyCloud, []string{"Mon"}),
-				},
-			},
+				}.Build(),
+			}.Build(),
 			expectErr: require.NoError,
 		},
 		{
 			name:    "cloud should reject long rollouts",
 			modules: cloudModules,
-			config: &autoupdatev1pb.AutoUpdateConfigSpecAgents{
+			config: autoupdatev1pb.AutoUpdateConfigSpecAgents_builder{
 				Mode:     autoupdate.AgentsUpdateModeEnabled,
 				Strategy: autoupdate.AgentsStrategyHaltOnError,
-				Schedules: &autoupdatev1pb.AgentAutoUpdateSchedules{
+				Schedules: autoupdatev1pb.AgentAutoUpdateSchedules_builder{
 					Regular: []*autoupdatev1pb.AgentAutoUpdateGroup{
-						{Name: "g1", Days: cloudGroupUpdateDays},
-						{Name: "g2", Days: cloudGroupUpdateDays, WaitHours: maxRolloutDurationCloudHours},
+						autoupdatev1pb.AgentAutoUpdateGroup_builder{Name: "g1", Days: cloudGroupUpdateDays}.Build(),
+						autoupdatev1pb.AgentAutoUpdateGroup_builder{Name: "g2", Days: cloudGroupUpdateDays, WaitHours: maxRolloutDurationCloudHours}.Build(),
 					},
-				},
-			},
+				}.Build(),
+			}.Build(),
 			expectErr: require.Error,
 		},
 		{
 			name:    "cloud should allow long rollouts with entitlement",
 			modules: cloudUnlimitedModules,
-			config: &autoupdatev1pb.AutoUpdateConfigSpecAgents{
+			config: autoupdatev1pb.AutoUpdateConfigSpecAgents_builder{
 				Mode:     autoupdate.AgentsUpdateModeEnabled,
 				Strategy: autoupdate.AgentsStrategyHaltOnError,
-				Schedules: &autoupdatev1pb.AgentAutoUpdateSchedules{
+				Schedules: autoupdatev1pb.AgentAutoUpdateSchedules_builder{
 					Regular: []*autoupdatev1pb.AgentAutoUpdateGroup{
-						{Name: "g1", Days: cloudGroupUpdateDays},
-						{Name: "g2", Days: cloudGroupUpdateDays, WaitHours: maxRolloutDurationCloudHours},
+						autoupdatev1pb.AgentAutoUpdateGroup_builder{Name: "g1", Days: cloudGroupUpdateDays}.Build(),
+						autoupdatev1pb.AgentAutoUpdateGroup_builder{Name: "g2", Days: cloudGroupUpdateDays, WaitHours: maxRolloutDurationCloudHours}.Build(),
 					},
-				},
-			},
+				}.Build(),
+			}.Build(),
 			expectErr: require.NoError,
 		},
 		{
 			name:    "self-hosted should allow long rollouts",
 			modules: selfHostedModules,
-			config: &autoupdatev1pb.AutoUpdateConfigSpecAgents{
+			config: autoupdatev1pb.AutoUpdateConfigSpecAgents_builder{
 				Mode:     autoupdate.AgentsUpdateModeEnabled,
 				Strategy: autoupdate.AgentsStrategyHaltOnError,
-				Schedules: &autoupdatev1pb.AgentAutoUpdateSchedules{
+				Schedules: autoupdatev1pb.AgentAutoUpdateSchedules_builder{
 					Regular: []*autoupdatev1pb.AgentAutoUpdateGroup{
-						{Name: "g1", Days: cloudGroupUpdateDays},
-						{Name: "g2", Days: cloudGroupUpdateDays, WaitHours: maxRolloutDurationCloudHours},
+						autoupdatev1pb.AgentAutoUpdateGroup_builder{Name: "g1", Days: cloudGroupUpdateDays}.Build(),
+						autoupdatev1pb.AgentAutoUpdateGroup_builder{Name: "g2", Days: cloudGroupUpdateDays, WaitHours: maxRolloutDurationCloudHours}.Build(),
 					},
-				},
-			},
+				}.Build(),
+			}.Build(),
 			expectErr: require.NoError,
 		},
 	}
@@ -1081,10 +1081,10 @@ func TestValidateServerSideAgentConfig(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Test setup: crafing a config and setting modules
 			config, err := autoupdate.NewAutoUpdateConfig(
-				&autoupdatev1pb.AutoUpdateConfigSpec{
+				autoupdatev1pb.AutoUpdateConfigSpec_builder{
 					Tools:  nil,
 					Agents: tt.config,
-				})
+				}.Build())
 			require.NoError(t, err)
 
 			// Test execution.

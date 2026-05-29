@@ -601,7 +601,7 @@ func TestAccessCheckerHostUsersShell(t *testing.T) {
 
 	// the first value for shell encountered while checking roles should be used, which means
 	// secondaryShell should never be the result here
-	require.Equal(t, expectedShell, hui.Info.Shell)
+	require.Equal(t, expectedShell, hui.Info.GetShell())
 }
 
 func TestAccessCheckerDesktopGroups(t *testing.T) {
@@ -1185,21 +1185,21 @@ func (serverStub) GetKind() string {
 func TestAccessCheckerWorkloadIdentity(t *testing.T) {
 	localCluster := "cluster"
 
-	noLabelsWI := &workloadidentityv1pb.WorkloadIdentity{
+	noLabelsWI := workloadidentityv1pb.WorkloadIdentity_builder{
 		Kind: types.KindWorkloadIdentity,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "no-labels",
-		},
-	}
-	fooLabeledWI := &workloadidentityv1pb.WorkloadIdentity{
+		}.Build(),
+	}.Build()
+	fooLabeledWI := workloadidentityv1pb.WorkloadIdentity_builder{
 		Kind: types.KindWorkloadIdentity,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "foo-labeled",
 			Labels: map[string]string{
 				"foo": "bar",
 			},
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	roleNoLabels := newRole(func(rv *types.RoleV6) {})
 	roleWildcard := newRole(func(rv *types.RoleV6) {

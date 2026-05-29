@@ -95,19 +95,19 @@ func (s *Service) ListStaticHostUsers(ctx context.Context, req *userprovisioning
 		return nil, trace.Wrap(err)
 	}
 
-	users, nextToken, err := s.cache.ListStaticHostUsers(ctx, int(req.PageSize), req.PageToken)
+	users, nextToken, err := s.cache.ListStaticHostUsers(ctx, int(req.GetPageSize()), req.GetPageToken())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &userprovisioningpb.ListStaticHostUsersResponse{
+	return userprovisioningpb.ListStaticHostUsersResponse_builder{
 		Users:         users,
 		NextPageToken: nextToken,
-	}, nil
+	}.Build(), nil
 }
 
 // GetStaticHostUser returns a static host user by name.
 func (s *Service) GetStaticHostUser(ctx context.Context, req *userprovisioningpb.GetStaticHostUserRequest) (*userprovisioningpb.StaticHostUser, error) {
-	if req.Name == "" {
+	if req.GetName() == "" {
 		return nil, trace.BadParameter("missing name")
 	}
 	authCtx, err := s.authorizer.Authorize(ctx)
@@ -121,7 +121,7 @@ func (s *Service) GetStaticHostUser(ctx context.Context, req *userprovisioningpb
 		return nil, trace.Wrap(err)
 	}
 
-	out, err := s.cache.GetStaticHostUser(ctx, req.Name)
+	out, err := s.cache.GetStaticHostUser(ctx, req.GetName())
 	return out, trace.Wrap(err)
 }
 
@@ -151,7 +151,7 @@ func (s *Service) CreateStaticHostUser(ctx context.Context, req *userprovisionin
 		return nil, trace.Wrap(err)
 	}
 
-	out, err := s.backend.CreateStaticHostUser(ctx, req.User)
+	out, err := s.backend.CreateStaticHostUser(ctx, req.GetUser())
 
 	if err := s.emitter.EmitAuditEvent(ctx, &apievents.StaticHostUserCreate{
 		Metadata: apievents.Metadata{
@@ -161,7 +161,7 @@ func (s *Service) CreateStaticHostUser(ctx context.Context, req *userprovisionin
 		UserMetadata:       authCtx.GetUserMetadata(),
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: req.User.Metadata.Name,
+			Name: req.GetUser().GetMetadata().GetName(),
 		},
 		Status: eventStatus(err),
 	}); err != nil {
@@ -184,7 +184,7 @@ func (s *Service) UpdateStaticHostUser(ctx context.Context, req *userprovisionin
 		return nil, trace.Wrap(err)
 	}
 
-	out, err := s.backend.UpdateStaticHostUser(ctx, req.User)
+	out, err := s.backend.UpdateStaticHostUser(ctx, req.GetUser())
 
 	if err := s.emitter.EmitAuditEvent(ctx, &apievents.StaticHostUserUpdate{
 		Metadata: apievents.Metadata{
@@ -195,7 +195,7 @@ func (s *Service) UpdateStaticHostUser(ctx context.Context, req *userprovisionin
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		Status:             eventStatus(err),
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: req.User.Metadata.Name,
+			Name: req.GetUser().GetMetadata().GetName(),
 		},
 	}); err != nil {
 		slog.WarnContext(ctx, "Failed to emit static host user update event.", "error", err)
@@ -217,7 +217,7 @@ func (s *Service) UpsertStaticHostUser(ctx context.Context, req *userprovisionin
 		return nil, trace.Wrap(err)
 	}
 
-	out, err := s.backend.UpsertStaticHostUser(ctx, req.User)
+	out, err := s.backend.UpsertStaticHostUser(ctx, req.GetUser())
 	if err := s.emitter.EmitAuditEvent(ctx, &apievents.StaticHostUserCreate{
 		Metadata: apievents.Metadata{
 			Type: events.StaticHostUserCreateEvent,
@@ -226,7 +226,7 @@ func (s *Service) UpsertStaticHostUser(ctx context.Context, req *userprovisionin
 		UserMetadata:       authCtx.GetUserMetadata(),
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: req.User.Metadata.Name,
+			Name: req.GetUser().GetMetadata().GetName(),
 		},
 		Status: eventStatus(err),
 	}); err != nil {
@@ -239,7 +239,7 @@ func (s *Service) UpsertStaticHostUser(ctx context.Context, req *userprovisionin
 // DeleteStaticHostUser deletes a static host user. Note that this does not
 // remove any host users created on nodes from the resource.
 func (s *Service) DeleteStaticHostUser(ctx context.Context, req *userprovisioningpb.DeleteStaticHostUserRequest) (*emptypb.Empty, error) {
-	if req.Name == "" {
+	if req.GetName() == "" {
 		return nil, trace.BadParameter("missing name")
 	}
 	authCtx, err := s.authorizer.Authorize(ctx)
@@ -253,7 +253,7 @@ func (s *Service) DeleteStaticHostUser(ctx context.Context, req *userprovisionin
 		return nil, trace.Wrap(err)
 	}
 
-	err = s.backend.DeleteStaticHostUser(ctx, req.Name)
+	err = s.backend.DeleteStaticHostUser(ctx, req.GetName())
 
 	if err := s.emitter.EmitAuditEvent(ctx, &apievents.StaticHostUserDelete{
 		Metadata: apievents.Metadata{
@@ -263,7 +263,7 @@ func (s *Service) DeleteStaticHostUser(ctx context.Context, req *userprovisionin
 		UserMetadata:       authCtx.GetUserMetadata(),
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: req.Name,
+			Name: req.GetName(),
 		},
 		Status: eventStatus(err),
 	}); err != nil {

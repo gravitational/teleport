@@ -349,7 +349,7 @@ func SetupDatabaseTest(t *testing.T, options ...TestOptionFunc) *DatabasePack {
 
 	// disable health checks to reduce log noise during tests
 	defaultHCC := services.VirtualDefaultHealthCheckConfigDB()
-	defaultHCC.GetSpec().GetMatch().Disabled = true
+	defaultHCC.GetSpec().GetMatch().SetDisabled(true)
 	_, err = p.Root.Cluster.Process.GetAuthServer().UpsertHealthCheckConfig(ctx, defaultHCC)
 	require.NoError(t, err)
 	_, err = p.Leaf.Cluster.Process.GetAuthServer().UpsertHealthCheckConfig(ctx, defaultHCC)

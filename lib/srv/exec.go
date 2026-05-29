@@ -204,7 +204,7 @@ func (e *localExec) Start(ctx context.Context, channel ssh.Channel) error {
 		defer stderrR.Close()
 
 		childErr, err := reexecutils.ReadChildErrorWithContext(stderrR, &reexecutils.ErrorContext{
-			DecisionContext: e.Ctx.Identity.AccessPermit.DecisionContext,
+			DecisionContext: e.Ctx.Identity.AccessPermit.GetDecisionContext(),
 			Login:           e.Ctx.Identity.Login,
 		})
 		if err != nil {

@@ -36,16 +36,16 @@ func NewDatabaseObjectImportRule(name string, spec *dbobjectimportrulev1.Databas
 
 // NewDatabaseObjectImportRuleWithLabels creates a new dbobjectimportrulev1.DatabaseObjectImportRule with specified labels.
 func NewDatabaseObjectImportRuleWithLabels(name string, labels map[string]string, spec *dbobjectimportrulev1.DatabaseObjectImportRuleSpec) (*dbobjectimportrulev1.DatabaseObjectImportRule, error) {
-	out := &dbobjectimportrulev1.DatabaseObjectImportRule{
+	out := dbobjectimportrulev1.DatabaseObjectImportRule_builder{
 		Kind:    types.KindDatabaseObjectImportRule,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name:      name,
 			Namespace: defaults.Namespace,
 			Labels:    labels,
-		},
+		}.Build(),
 		Spec: spec,
-	}
+	}.Build()
 
 	err := ValidateDatabaseObjectImportRule(out)
 	if err != nil {
@@ -59,26 +59,26 @@ func ValidateDatabaseObjectImportRule(rule *dbobjectimportrulev1.DatabaseObjectI
 	if rule == nil {
 		return trace.BadParameter("database object import rule must be non-nil")
 	}
-	if rule.Metadata == nil {
+	if !rule.HasMetadata() {
 		return trace.BadParameter("metadata: must be non-nil")
 	}
-	if rule.Metadata.Name == "" {
+	if rule.GetMetadata().GetName() == "" {
 		return trace.BadParameter("metadata.name: must be non-empty")
 	}
-	if rule.Kind != types.KindDatabaseObjectImportRule {
-		return trace.BadParameter("invalid kind %v, expected %v", rule.Kind, types.KindDatabaseObjectImportRule)
+	if rule.GetKind() != types.KindDatabaseObjectImportRule {
+		return trace.BadParameter("invalid kind %v, expected %v", rule.GetKind(), types.KindDatabaseObjectImportRule)
 	}
-	if rule.Spec == nil {
+	if !rule.HasSpec() {
 		return trace.BadParameter("missing spec")
 	}
-	if len(rule.Spec.DatabaseLabels) == 0 {
+	if len(rule.GetSpec().GetDatabaseLabels()) == 0 {
 		return trace.BadParameter("missing database_labels")
 	}
-	if len(rule.Spec.Mappings) == 0 {
+	if len(rule.GetSpec().GetMappings()) == 0 {
 		return trace.BadParameter("missing mappings")
 	}
-	for _, mapping := range rule.Spec.Mappings {
-		for key, template := range mapping.AddLabels {
+	for _, mapping := range rule.GetSpec().GetMappings() {
+		for key, template := range mapping.GetAddLabels() {
 			if strings.TrimSpace(key) == "" {
 				return trace.BadParameter("invalid mapping: label name is empty or whitespace")
 			}

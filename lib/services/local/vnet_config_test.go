@@ -41,12 +41,12 @@ func TestVnetConfigService(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	vnetConfig := &vnet.VnetConfig{
+	vnetConfig := vnet.VnetConfig_builder{
 		Kind:     types.KindVnetConfig,
 		Version:  types.V1,
-		Metadata: &headerv1.Metadata{Name: types.MetaNameVnetConfig},
-		Spec:     &vnet.VnetConfigSpec{Ipv4CidrRange: "192.168.1.0/24"},
-	}
+		Metadata: headerv1.Metadata_builder{Name: types.MetaNameVnetConfig}.Build(),
+		Spec:     vnet.VnetConfigSpec_builder{Ipv4CidrRange: "192.168.1.0/24"}.Build(),
+	}.Build()
 
 	// The following are not subtests because they depend on each other.
 
@@ -71,7 +71,7 @@ func TestVnetConfigService(t *testing.T) {
 	require.Equal(t, created.GetMetadata().GetRevision(), got.GetMetadata().GetRevision())
 
 	// Update
-	vnetConfig.Spec.CustomDnsZones = append(vnetConfig.Spec.CustomDnsZones, &vnet.CustomDNSZone{Suffix: "example.com"})
+	vnetConfig.GetSpec().SetCustomDnsZones(append(vnetConfig.GetSpec().GetCustomDnsZones(), vnet.CustomDNSZone_builder{Suffix: "example.com"}.Build()))
 	updated, err := service.UpdateVnetConfig(ctx, vnetConfig)
 	require.NoError(t, err)
 	require.NotEqual(t, got.GetSpec().GetCustomDnsZones(), updated.GetSpec().GetCustomDnsZones())
@@ -113,93 +113,93 @@ func TestVnetConfigValidation(t *testing.T) {
 	}{
 		{
 			name: "invalid kind",
-			config: &vnet.VnetConfig{
+			config: vnet.VnetConfig_builder{
 				Kind:     "invalidKind",
 				Version:  types.V1,
-				Metadata: &headerv1.Metadata{Name: types.MetaNameVnetConfig},
-				Spec:     &vnet.VnetConfigSpec{Ipv4CidrRange: "192.168.1.0/24"},
-			},
+				Metadata: headerv1.Metadata_builder{Name: types.MetaNameVnetConfig}.Build(),
+				Spec:     vnet.VnetConfigSpec_builder{Ipv4CidrRange: "192.168.1.0/24"}.Build(),
+			}.Build(),
 			wantErr: true,
 		},
 		{
 			name: "invalid version",
-			config: &vnet.VnetConfig{
+			config: vnet.VnetConfig_builder{
 				Kind:     types.KindVnetConfig,
 				Version:  "v2",
-				Metadata: &headerv1.Metadata{Name: types.MetaNameVnetConfig},
-				Spec:     &vnet.VnetConfigSpec{Ipv4CidrRange: "192.168.1.0/24"},
-			},
+				Metadata: headerv1.Metadata_builder{Name: types.MetaNameVnetConfig}.Build(),
+				Spec:     vnet.VnetConfigSpec_builder{Ipv4CidrRange: "192.168.1.0/24"}.Build(),
+			}.Build(),
 			wantErr: true,
 		},
 		{
 			name: "invalid name",
-			config: &vnet.VnetConfig{
+			config: vnet.VnetConfig_builder{
 				Kind:     types.KindVnetConfig,
 				Version:  types.V1,
-				Metadata: &headerv1.Metadata{Name: "wrong-name"},
-				Spec:     &vnet.VnetConfigSpec{Ipv4CidrRange: "192.168.1.0/24"},
-			},
+				Metadata: headerv1.Metadata_builder{Name: "wrong-name"}.Build(),
+				Spec:     vnet.VnetConfigSpec_builder{Ipv4CidrRange: "192.168.1.0/24"}.Build(),
+			}.Build(),
 			wantErr: true,
 		},
 		{
 			name: "invalid CIDR",
-			config: &vnet.VnetConfig{
+			config: vnet.VnetConfig_builder{
 				Kind:     types.KindVnetConfig,
 				Version:  types.V1,
-				Metadata: &headerv1.Metadata{Name: types.MetaNameVnetConfig},
-				Spec:     &vnet.VnetConfigSpec{Ipv4CidrRange: "192.168.300.0/24"},
-			},
+				Metadata: headerv1.Metadata_builder{Name: types.MetaNameVnetConfig}.Build(),
+				Spec:     vnet.VnetConfigSpec_builder{Ipv4CidrRange: "192.168.300.0/24"}.Build(),
+			}.Build(),
 			wantErr: true,
 		},
 		{
 			name: "empty zone suffix",
-			config: &vnet.VnetConfig{
+			config: vnet.VnetConfig_builder{
 				Kind:     types.KindVnetConfig,
 				Version:  types.V1,
-				Metadata: &headerv1.Metadata{Name: types.MetaNameVnetConfig},
-				Spec: &vnet.VnetConfigSpec{
+				Metadata: headerv1.Metadata_builder{Name: types.MetaNameVnetConfig}.Build(),
+				Spec: vnet.VnetConfigSpec_builder{
 					Ipv4CidrRange: "192.168.1.0/24",
 					CustomDnsZones: []*vnet.CustomDNSZone{
-						&vnet.CustomDNSZone{
+						vnet.CustomDNSZone_builder{
 							Suffix: "",
-						},
+						}.Build(),
 					},
-				},
-			},
+				}.Build(),
+			}.Build(),
 			wantErr: true,
 		},
 		{
 			name: "invalid zone suffix",
-			config: &vnet.VnetConfig{
+			config: vnet.VnetConfig_builder{
 				Kind:     types.KindVnetConfig,
 				Version:  types.V1,
-				Metadata: &headerv1.Metadata{Name: types.MetaNameVnetConfig},
-				Spec: &vnet.VnetConfigSpec{
+				Metadata: headerv1.Metadata_builder{Name: types.MetaNameVnetConfig}.Build(),
+				Spec: vnet.VnetConfigSpec_builder{
 					Ipv4CidrRange: "192.168.1.0/24",
 					CustomDnsZones: []*vnet.CustomDNSZone{
-						&vnet.CustomDNSZone{
+						vnet.CustomDNSZone_builder{
 							Suffix: "invalid.character$",
-						},
+						}.Build(),
 					},
-				},
-			},
+				}.Build(),
+			}.Build(),
 			wantErr: true,
 		},
 		{
 			name: "valid",
-			config: &vnet.VnetConfig{
+			config: vnet.VnetConfig_builder{
 				Kind:     types.KindVnetConfig,
 				Version:  types.V1,
-				Metadata: &headerv1.Metadata{Name: types.MetaNameVnetConfig},
-				Spec: &vnet.VnetConfigSpec{
+				Metadata: headerv1.Metadata_builder{Name: types.MetaNameVnetConfig}.Build(),
+				Spec: vnet.VnetConfigSpec_builder{
 					Ipv4CidrRange: "192.168.1.0/24",
 					CustomDnsZones: []*vnet.CustomDNSZone{
-						&vnet.CustomDNSZone{
+						vnet.CustomDNSZone_builder{
 							Suffix: "teleport.example.com",
-						},
+						}.Build(),
 					},
-				},
-			},
+				}.Build(),
+			}.Build(),
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

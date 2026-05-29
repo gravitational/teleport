@@ -182,9 +182,9 @@ func (s *EventsSuite) EventExport(t *testing.T) {
 	baseTime := time.Now().UTC()
 
 	// initial state should contain no chunks
-	chunks := s.Log.GetEventExportChunks(ctx, &auditlogpb.GetEventExportChunksRequest{
+	chunks := s.Log.GetEventExportChunks(ctx, auditlogpb.GetEventExportChunksRequest_builder{
 		Date: timestamppb.New(baseTime),
-	})
+	}.Build())
 
 	require.False(t, chunks.Next())
 	require.NoError(t, chunks.Done())
@@ -208,19 +208,19 @@ func (s *EventsSuite) EventExport(t *testing.T) {
 
 	// wait for the events to be processed
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		chunks := s.Log.GetEventExportChunks(ctx, &auditlogpb.GetEventExportChunksRequest{
+		chunks := s.Log.GetEventExportChunks(ctx, auditlogpb.GetEventExportChunksRequest_builder{
 			Date: timestamppb.New(baseTime),
-		})
+		}.Build())
 
 		var chunkCount, eventCount int
 
 		for chunks.Next() {
 			chunkCount++
 
-			events := s.Log.ExportUnstructuredEvents(ctx, &auditlogpb.ExportUnstructuredEventsRequest{
+			events := s.Log.ExportUnstructuredEvents(ctx, auditlogpb.ExportUnstructuredEventsRequest_builder{
 				Date:  timestamppb.New(baseTime),
-				Chunk: chunks.Item().Chunk,
-			})
+				Chunk: chunks.Item().GetChunk(),
+			}.Build())
 
 			for events.Next() {
 				eventCount++
@@ -251,19 +251,19 @@ func (s *EventsSuite) EventExport(t *testing.T) {
 
 	// wait for the events to be processed
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		chunks := s.Log.GetEventExportChunks(ctx, &auditlogpb.GetEventExportChunksRequest{
+		chunks := s.Log.GetEventExportChunks(ctx, auditlogpb.GetEventExportChunksRequest_builder{
 			Date: timestamppb.New(baseTime),
-		})
+		}.Build())
 
 		var chunkCount, eventCount int
 
 		for chunks.Next() {
 			chunkCount++
 
-			events := s.Log.ExportUnstructuredEvents(ctx, &auditlogpb.ExportUnstructuredEventsRequest{
+			events := s.Log.ExportUnstructuredEvents(ctx, auditlogpb.ExportUnstructuredEventsRequest_builder{
 				Date:  timestamppb.New(baseTime),
-				Chunk: chunks.Item().Chunk,
-			})
+				Chunk: chunks.Item().GetChunk(),
+			}.Build())
 
 			for events.Next() {
 				eventCount++
@@ -278,18 +278,18 @@ func (s *EventsSuite) EventExport(t *testing.T) {
 	}, 30*time.Second, 500*time.Millisecond)
 
 	// generate a random chunk and verify that it is not found
-	events := s.Log.ExportUnstructuredEvents(ctx, &auditlogpb.ExportUnstructuredEventsRequest{
+	events := s.Log.ExportUnstructuredEvents(ctx, auditlogpb.ExportUnstructuredEventsRequest_builder{
 		Date:  timestamppb.New(baseTime),
 		Chunk: uuid.New().String(),
-	})
+	}.Build())
 
 	require.False(t, events.Next())
 	require.True(t, trace.IsNotFound(events.Done()))
 
 	// try a different day and verify that no chunks are found
-	chunks = s.Log.GetEventExportChunks(ctx, &auditlogpb.GetEventExportChunksRequest{
+	chunks = s.Log.GetEventExportChunks(ctx, auditlogpb.GetEventExportChunksRequest_builder{
 		Date: timestamppb.New(baseTime.AddDate(0, 0, 1)),
-	})
+	}.Build())
 
 	require.False(t, chunks.Next())
 

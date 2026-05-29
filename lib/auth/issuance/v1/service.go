@@ -122,12 +122,12 @@ func (s *Service) IssueScopedBotCerts(
 		)
 	}
 	// Ensure at least one key is provided
-	if len(req.TlsPublicKey) == 0 && len(req.SshPublicKey) == 0 {
+	if len(req.GetTlsPublicKey()) == 0 && len(req.GetSshPublicKey()) == 0 {
 		return nil, trace.BadParameter("at least one of ssh_public_key or tls_public_key is required")
 	}
 
-	switch req.GetUsage().(type) {
-	case *issuancev1pb.IssueScopedBotCertsRequest_Identity:
+	switch req.WhichUsage() {
+	case issuancev1pb.IssueScopedBotCertsRequest_Identity_case:
 	// no special handling.
 	default:
 		return nil, trace.BadParameter(
@@ -149,7 +149,7 @@ func (s *Service) IssueScopedBotCerts(
 		)
 	case currentIdentity.DisallowReissue:
 		return nil, trace.AccessDenied("reissuance is prohibited")
-	case currentIdentity.ScopePin == nil || currentIdentity.ScopePin.Scope == "":
+	case currentIdentity.ScopePin == nil || currentIdentity.ScopePin.GetScope() == "":
 		return nil, trace.AccessDenied(
 			"scope pin missing, rpc can only be invoked by scoped identities",
 		)
@@ -178,7 +178,7 @@ func (s *Service) IssueScopedBotCerts(
 	// resource itself. In the future, we will allow "sub-pinning" where the
 	// resulting certs may be a descendant scope of the current scope and
 	// bot scope.
-	requestedScope := currentIdentity.ScopePin.Scope
+	requestedScope := currentIdentity.ScopePin.GetScope()
 	// Sanity check that the requested scope is still descendant or equiv to
 	// botScope - in case bot scope has changed.
 	if !scopes.ScopeOfOrigin(botScope).IsAssignableToScopeOfEffect(requestedScope) {
@@ -199,8 +199,8 @@ func (s *Service) IssueScopedBotCerts(
 		User:           user,
 		CheckerContext: checker,
 		TTL:            ttl,
-		SSHPublicKey:   req.SshPublicKey,
-		TLSPublicKey:   req.TlsPublicKey,
+		SSHPublicKey:   req.GetSshPublicKey(),
+		TLSPublicKey:   req.GetTlsPublicKey(),
 
 		// Explicitly set BotInternal to false as these certs are intended for
 		// outputs/services and not use by the bot internally. This prevents
@@ -233,10 +233,10 @@ func (s *Service) IssueScopedBotCerts(
 	// We do not return any CAs. The Bot already has an internal identity and
 	// the ability to fetch/watch CAs. Returning CAs here would create confusion
 	// around where to correctly source CAs.
-	return &issuancev1pb.IssueScopedBotCertsResponse{
-		Certs: &issuancev1pb.Certs{
+	return issuancev1pb.IssueScopedBotCertsResponse_builder{
+		Certs: issuancev1pb.Certs_builder{
 			Tls: certs.TLS,
 			Ssh: certs.SSH,
-		},
-	}, nil
+		}.Build(),
+	}.Build(), nil
 }
