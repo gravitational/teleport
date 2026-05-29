@@ -50,8 +50,7 @@ type spiffeFederationReadWriter interface {
 type SPIFFEFederationServiceConfig struct {
 	// Authorizer is the authorizer service which checks access to resources.
 	Authorizer authz.Authorizer
-	// ScopedAuthorizer is the scoped equivalent of Authorizer, used by the
-	// read RPCs so that scoped identities (in addition to unscoped ones) may
+	// ScopedAuthorizer authorizes the read RPCs, allowing scoped identities to
 	// read SPIFFE federations.
 	ScopedAuthorizer authz.ScopedAuthorizer
 	// Backend will be used reading and writing the SPIFFE Federation resources.
@@ -124,9 +123,7 @@ func (s *SPIFFEFederationService) GetSPIFFEFederation(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// SPIFFE federations are cluster-global config with no scope of their own,
-	// so reads are authorized as an unpinned root read. This is equivalent to
-	// CheckAccessToKind(KindSPIFFEFederation, VerbRead) for unscoped callers.
+	// SPIFFE federations are cluster-global, so reads are an unpinned root read.
 	ruleCtx := authCtx.RuleContext()
 	if err := authCtx.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadSPIFFEFederation, &ruleCtx); err != nil {
 		return nil, trace.Wrap(err)
@@ -154,10 +151,7 @@ func (s *SPIFFEFederationService) ListSPIFFEFederations(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// SPIFFE federations are cluster-global config with no scope of their own,
-	// so reads are authorized as an unpinned root read. This is equivalent to
-	// CheckAccessToKind(KindSPIFFEFederation, VerbRead, VerbList) for unscoped
-	// callers.
+	// SPIFFE federations are cluster-global, so reads are an unpinned root read.
 	ruleCtx := authCtx.RuleContext()
 	if err := authCtx.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadSPIFFEFederations, &ruleCtx); err != nil {
 		return nil, trace.Wrap(err)

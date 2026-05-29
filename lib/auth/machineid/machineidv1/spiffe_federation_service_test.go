@@ -587,7 +587,7 @@ func TestSPIFFEFederationService_ListSPIFFEFederations(t *testing.T) {
 func TestSPIFFEFederationService_ScopedIdentity(t *testing.T) {
 	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 	srv, _ := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	adminClient, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
