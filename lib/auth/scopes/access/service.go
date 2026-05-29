@@ -40,6 +40,8 @@ type Config struct {
 	Writer           services.ScopedAccessWriter
 	BackendReader    services.ScopedAccessReader
 	Logger           *slog.Logger
+	// ScopesFeatures dictates whether scoped access control RPCs are enabled.
+	ScopesFeatures scopes.Features
 }
 
 // CheckAndSetDefaults checks the config for missing parameters and sets default values.
@@ -87,7 +89,7 @@ func New(cfg Config) (*Server, error) {
 
 // CreateScopedRole implements [scopedaccessv1.ScopedRoleServiceServer].
 func (s *Server) CreateScopedRole(ctx context.Context, req *scopedaccessv1.CreateScopedRoleRequest) (*scopedaccessv1.CreateScopedRoleResponse, error) {
-	if err := scopes.AssertFeatureEnabled(); err != nil {
+	if err := s.cfg.ScopesFeatures.AssertEnabled(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -114,7 +116,7 @@ func (s *Server) CreateScopedRole(ctx context.Context, req *scopedaccessv1.Creat
 
 // CreateScopedRoleAssignment implements [scopedaccessv1.ScopedRoleServiceServer].
 func (s *Server) CreateScopedRoleAssignment(ctx context.Context, req *scopedaccessv1.CreateScopedRoleAssignmentRequest) (*scopedaccessv1.CreateScopedRoleAssignmentResponse, error) {
-	if err := scopes.AssertFeatureEnabled(); err != nil {
+	if err := s.cfg.ScopesFeatures.AssertEnabled(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -433,7 +435,7 @@ func (s *Server) ListScopedRoles(ctx context.Context, req *scopedaccessv1.ListSc
 
 // UpdateScopedRole implements [scopedaccessv1.ScopedRoleServiceServer].
 func (s *Server) UpdateScopedRole(ctx context.Context, req *scopedaccessv1.UpdateScopedRoleRequest) (*scopedaccessv1.UpdateScopedRoleResponse, error) {
-	if err := scopes.AssertFeatureEnabled(); err != nil {
+	if err := s.cfg.ScopesFeatures.AssertEnabled(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -462,7 +464,7 @@ func (s *Server) UpdateScopedRole(ctx context.Context, req *scopedaccessv1.Updat
 
 // UpdateScopedRoleAssignment implements [scopedaccessv1.ScopedAccessServiceServer].
 func (s *Server) UpdateScopedRoleAssignment(ctx context.Context, req *scopedaccessv1.UpdateScopedRoleAssignmentRequest) (*scopedaccessv1.UpdateScopedRoleAssignmentResponse, error) {
-	if err := scopes.AssertFeatureEnabled(); err != nil {
+	if err := s.cfg.ScopesFeatures.AssertEnabled(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -498,7 +500,7 @@ func (s *Server) UpdateScopedRoleAssignment(ctx context.Context, req *scopedacce
 
 // UpsertScopedRole implements [scopedaccessv1.ScopedAccessServiceServer].
 func (s *Server) UpsertScopedRole(ctx context.Context, req *scopedaccessv1.UpsertScopedRoleRequest) (*scopedaccessv1.UpsertScopedRoleResponse, error) {
-	if err := scopes.AssertFeatureEnabled(); err != nil {
+	if err := s.cfg.ScopesFeatures.AssertEnabled(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -523,7 +525,7 @@ func (s *Server) UpsertScopedRole(ctx context.Context, req *scopedaccessv1.Upser
 
 // UpsertScopedRoleAssignment implements [scopedaccessv1.ScopedAccessServiceServer].
 func (s *Server) UpsertScopedRoleAssignment(ctx context.Context, req *scopedaccessv1.UpsertScopedRoleAssignmentRequest) (*scopedaccessv1.UpsertScopedRoleAssignmentResponse, error) {
-	if err := scopes.AssertFeatureEnabled(); err != nil {
+	if err := s.cfg.ScopesFeatures.AssertEnabled(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

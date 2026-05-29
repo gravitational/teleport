@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -80,7 +81,7 @@ func ValidRandomResourceName(prefix string) string {
 	return prefix + string(b)
 }
 
-func defaultTeleportServiceConfig(t *testing.T, insecureMode bool) (*helpers.TeleInstance, string) {
+func defaultTeleportServiceConfig(t *testing.T, insecureMode bool, scopesFeatures scopes.Features) (*helpers.TeleInstance, string) {
 	testModules := &modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
@@ -101,6 +102,7 @@ func defaultTeleportServiceConfig(t *testing.T, insecureMode bool) (*helpers.Tel
 
 	rcConf := servicecfg.MakeDefaultConfig()
 	rcConf.Modules = testModules
+	rcConf.ScopesFeatures = scopesFeatures
 	rcConf.DataDir = t.TempDir()
 	rcConf.Auth.Enabled = true
 	rcConf.Proxy.Enabled = true
@@ -195,6 +197,7 @@ type TestSetup struct {
 	ResourceName             string
 	Context                  context.Context
 	InsecureMode             bool
+	ScopesFeatures           scopes.Features
 }
 
 // StartKubernetesOperator creates and start a new operator
@@ -266,7 +269,7 @@ func setupTeleportClient(t *testing.T, setup *TestSetup) {
 
 	// Start a Teleport server for the test and set up a client connected to
 	// that server.
-	teleportServer, operatorName := defaultTeleportServiceConfig(t, setup.InsecureMode)
+	teleportServer, operatorName := defaultTeleportServiceConfig(t, setup.InsecureMode, setup.ScopesFeatures)
 	setup.TeleportServer = teleportServer
 	require.NoError(t, teleportServer.Start())
 	setup.TeleportClient = clientForTeleport(t, teleportServer, operatorName)
@@ -293,6 +296,12 @@ func WithTeleportClient(clt *client.Client) TestOption {
 func WithInsecureMode() TestOption {
 	return func(setup *TestSetup) {
 		setup.InsecureMode = true
+	}
+}
+
+func WithScopesFeatures(features scopes.Features) TestOption {
+	return func(setup *TestSetup) {
+		setup.ScopesFeatures = features
 	}
 }
 
