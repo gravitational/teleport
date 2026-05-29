@@ -79,6 +79,7 @@ import (
 	mfav1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	mfav2pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	notificationsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
+	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	presencev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	recordingencryptionv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1"
 	recordingmetadatav1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
@@ -130,6 +131,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/mfa/mfav1" //nolint:staticcheck // SA1019: mfav1 is required for Browser MFA backward compatibility.
 	"github.com/gravitational/teleport/lib/auth/mfa/mfav2"
 	"github.com/gravitational/teleport/lib/auth/notifications/notificationsv1"
+	"github.com/gravitational/teleport/lib/auth/plugin/pluginv1"
 	"github.com/gravitational/teleport/lib/auth/presence/presencev1"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption/recordingencryptionv1"
 	"github.com/gravitational/teleport/lib/auth/recordingmetadata/recordingmetadatav1"
@@ -6703,6 +6705,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	if cfg.PluginRegistry == nil || !cfg.PluginRegistry.IsRegistered("auth.enterprise") {
 		loginrulev1pb.RegisterLoginRuleServiceServer(server, loginrulev1.NotImplementedService{})
 		secreportsv1pb.RegisterSecReportsServiceServer(server, secreportsv1.NotImplementedService{})
+		pluginspb.RegisterPluginServiceServer(server, pluginv1.NotImplementedService{})
 
 		srv, err := workloadidentityv1.NewX509OverridesService(workloadidentityv1.X509OverridesServiceConfig{
 			Authorizer: cfg.Authorizer,

@@ -50,7 +50,10 @@ func newPluginsCollection(service services.Plugins, watch types.WatchKind) (*col
 				return service.ListPlugins(ctx, pageSize, token, loadSecrets)
 			}
 			out, err := stream.Collect(clientutils.Resources(ctx, fn))
-			if trace.IsNotImplemented(err) || trace.IsAccessDenied(err) {
+			// During rolling update it can happen that new proxy is trying to connect to old auth
+			// that don't support proxy plugin permissions. In that case the flow should proceed without plugin cache
+			// wherewith cache.GetPlugin will fallback to direct calls to the auth server which will work as expected.
+			if trace.IsAccessDenied(err) {
 				return []types.Plugin{}, nil
 			}
 			return out, trace.Wrap(err)
