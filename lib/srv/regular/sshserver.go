@@ -2390,7 +2390,7 @@ func (s *Server) handleTCPIPForwardRequest(ctx context.Context, ccx *sshutils.Co
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	listener, err := s.listenTCPIP(scx, scx.SrcAddr)
+	listener, err := s.listenTCPIP(ctx, scx, scx.SrcAddr)
 	if err != nil {
 		if serr := scx.Close(); err != nil {
 			s.logger.DebugContext(ctx, "Failed while cleaning up request",

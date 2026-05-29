@@ -1473,9 +1473,6 @@ func TestAgentForward(t *testing.T) {
 	_, err = clientAgent.List()
 	require.NoError(t, err)
 
-	signers, err := clientAgent.Signers()
-	require.NoError(t, err)
-
 	sshConfig := apissh.ClientConfig{
 		User: f.user,
 		PublicKeyAuth: apissh.PublicKeyAuthConfig{
