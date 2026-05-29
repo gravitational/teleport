@@ -656,7 +656,7 @@ Agent Version dev  prod stage
 }
 
 func TestAutoUpdateAgentStatusStructuredOutput(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	now := time.Date(2026, 5, 28, 12, 0, 0, 0, time.UTC)
 	rollout := &autoupdatepb.AutoUpdateAgentRollout{
 		Spec: &autoupdatepb.AutoUpdateAgentRolloutSpec{
@@ -702,7 +702,7 @@ func TestAutoUpdateAgentStatusStructuredOutput(t *testing.T) {
 }
 
 func TestAutoUpdateAgentReportStructuredOutput(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 	now := time.Now()
 	reports := []*autoupdatepb.AutoUpdateAgentReport{
 		{
