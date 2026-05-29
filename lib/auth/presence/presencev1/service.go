@@ -494,14 +494,6 @@ func (s *Service) UpsertProxyServer(
 	// (see https://github.com/gravitational/teleport/issues/66997). v19+
 	// proxies send Kind=KindProxy; this override is retained so older proxies
 	// in mixed clusters continue to upsert correctly.
-	if srv.GetKind() != types.KindProxy {
-		s.logger.WarnContext(ctx,
-			"received proxy heartbeat with unexpected kind; overriding to KindProxy",
-			"received_kind", srv.GetKind(),
-			"server_name", srv.GetName(),
-			"server_version", srv.GetTeleportVersion(),
-		)
-	}
 	srv.Kind = types.KindProxy
 	if err := srv.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
