@@ -19,6 +19,7 @@
 package common
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -60,7 +61,7 @@ func TestLocks(t *testing.T) {
 	t.Cleanup(func() { _ = clt.Close() })
 
 	t.Run("create", func(t *testing.T) {
-		err := runLockCommand(t, clt, []string{"--user=bad@actor", "--message=Come see me"})
+		_, err := runLockCommand(t, clt, []string{"--user=bad@actor", "--message=Come see me"})
 		require.NoError(t, err)
 
 		buf, err := runResourceCommand(t, clt, []string{"get", types.KindLock, "--format=json"})
@@ -81,5 +82,32 @@ func TestLocks(t *testing.T) {
 
 		require.Empty(t, cmp.Diff([]*types.LockV2{expected.(*types.LockV2)}, out,
 			cmpopts.IgnoreFields(types.LockV2{}, "Metadata")))
+	})
+
+	t.Run("create with structured output", func(t *testing.T) {
+		for _, format := range []string{"json", "yaml"} {
+			t.Run(format, func(t *testing.T) {
+				buf, err := runLockCommand(t, clt, []string{
+					"--role=editor",
+					"--message=structured " + format,
+					"--format=" + format,
+				})
+				require.NoError(t, err)
+
+				var got *types.LockV2
+				if format == "yaml" {
+					got = mustDecodeJSON[*types.LockV2](t, bytes.NewReader(mustTranscodeYAMLToJSON(t, buf)))
+				} else {
+					got = mustDecodeJSON[*types.LockV2](t, buf)
+				}
+
+				// Structured output must serialize the created lock resource,
+				// not the human-readable "Created a lock" prose.
+				require.NotContains(t, buf.String(), "Created a lock with name")
+				require.NotEmpty(t, got.GetName())
+				require.Equal(t, "editor", got.Spec.Target.Role)
+				require.Equal(t, "structured "+format, got.Spec.Message)
+			})
+		}
 	})
 }
