@@ -20,19 +20,26 @@ package apiserver
 
 import (
 	"context"
-	"log/slog"
+	"io"
 	"testing"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
 
+func discardLogger() *logrus.Logger {
+	log := logrus.New()
+	log.SetOutput(io.Discard)
+	return log
+}
+
 func TestWithUnaryErrorHandling(t *testing.T) {
 	info := &grpc.UnaryServerInfo{FullMethod: "/test.Service/Method"}
-	interceptor := withUnaryErrorHandling(slog.New(slog.DiscardHandler))
+	interceptor := withUnaryErrorHandling(discardLogger())
 
 	t.Run("passes through successful response", func(t *testing.T) {
 		handler := func(ctx context.Context, req any) (any, error) {
@@ -57,7 +64,7 @@ func TestWithUnaryErrorHandling(t *testing.T) {
 
 func TestWithStreamErrorHandling(t *testing.T) {
 	info := &grpc.StreamServerInfo{FullMethod: "/test.Service/Method"}
-	interceptor := withStreamErrorHandling(slog.New(slog.DiscardHandler))
+	interceptor := withStreamErrorHandling(discardLogger())
 
 	t.Run("passes through successful response", func(t *testing.T) {
 		handler := func(srv any, stream grpc.ServerStream) error {
@@ -80,7 +87,7 @@ func TestWithStreamErrorHandling(t *testing.T) {
 
 func TestWithUnaryPanicRecovery(t *testing.T) {
 	info := &grpc.UnaryServerInfo{FullMethod: "/test.Service/Method"}
-	interceptor := withUnaryPanicRecovery(slog.New(slog.DiscardHandler))
+	interceptor := withUnaryPanicRecovery(discardLogger())
 
 	handler := func(ctx context.Context, req any) (any, error) {
 		panic("oh no")
@@ -94,7 +101,7 @@ func TestWithUnaryPanicRecovery(t *testing.T) {
 
 func TestWithStreamPanicRecovery(t *testing.T) {
 	info := &grpc.StreamServerInfo{FullMethod: "/test.Service/Method"}
-	interceptor := withStreamPanicRecovery(slog.New(slog.DiscardHandler))
+	interceptor := withStreamPanicRecovery(discardLogger())
 
 	handler := func(srv any, stream grpc.ServerStream) error {
 		panic("oh no")
