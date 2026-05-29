@@ -24,6 +24,13 @@ const textToCopy = 'text-to-copy';
 const preCopiedText = 'pre-copied-text';
 
 test.describe('web terminal clipboard mode', () => {
+  // The clipboard-read/clipboard-write permissions and readText() method
+  // needed for this test only work on Chromium, so only run this test for Chromium.
+  test.skip(
+    ({ browserName }) => browserName !== 'chromium',
+    'clipboard permissions and readText() are Chromium-only in Playwright'
+  );
+
   test.use({
     fixtures: ['ssh-node'],
     permissions: ['clipboard-read', 'clipboard-write'],
@@ -45,7 +52,10 @@ test.describe('web terminal clipboard mode', () => {
     }) => {
       await unifiedResourcesPage.goto();
 
-      const terminal = await unifiedResourcesPage.connect('docker-node', 'root');
+      const terminal = await unifiedResourcesPage.connect(
+        'docker-node',
+        'root'
+      );
       await terminal.waitForReady();
 
       await terminal.exec(`echo ${textToCopy}`);
@@ -74,7 +84,10 @@ test.describe('web terminal clipboard mode', () => {
     }) => {
       await unifiedResourcesPage.goto();
 
-      const terminal = await unifiedResourcesPage.connect('docker-node', 'root');
+      const terminal = await unifiedResourcesPage.connect(
+        'docker-node',
+        'root'
+      );
       await terminal.waitForReady();
 
       await terminal.exec(`echo ${textToCopy}`);
