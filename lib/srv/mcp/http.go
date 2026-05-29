@@ -76,7 +76,7 @@ func (s *Server) handleStreamableHTTP(ctx context.Context, sessionCtx *SessionCt
 	}
 	defer session.sessionAuditor.flush(s.cfg.ParentContext)
 
-	transport, err := s.makeStreamableHTTPTransport(session)
+	transport, err := s.makeStreamableHTTPTransport(ctx, session)
 	if err != nil {
 		return trace.Wrap(err, "setting up streamable http transport")
 	}
@@ -108,14 +108,14 @@ func (s *Server) handleStreamableHTTP(ctx context.Context, sessionCtx *SessionCt
 	return trace.Wrap(s.serveHTTPConn(ctx, sessionCtx.ClientConn, reverseProxy))
 }
 
-func (s *Server) makeStreamableHTTPTransport(session *sessionHandler) (http.RoundTripper, error) {
+func (s *Server) makeStreamableHTTPTransport(ctx context.Context, session *sessionHandler) (http.RoundTripper, error) {
 	targetURI, err := url.Parse(session.App.GetURI())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	targetURI.Scheme = strings.TrimPrefix(targetURI.Scheme, "mcp+")
 
-	targetTransport, err := s.makeBasicHTTPTransport(session.App)
+	targetTransport, err := s.makeBasicHTTPTransport(ctx, session.App)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -222,8 +222,9 @@ func (t *streamableHTTPTransport) handleMCPMessage(r *http.Request) (*http.Respo
 	switch {
 	case baseMessage.IsRequest():
 		mcpRequest := baseMessage.MakeRequest()
-		if errResp, authErr := t.sessionHandler.processClientRequest(r.Context(), mcpRequest); authErr != nil {
-			return t.handleRequestAuthError(r, mcpRequest, errResp, authErr)
+		if errResp := t.sessionHandler.processClientRequest(r.Context(), mcpRequest); errResp != nil {
+			t.emitRequestEvent(t.parentCtx, mcpRequest, eventWithError(toError(*errResp)), eventWithHeader(r.Header))
+			return t.handleRequestError(r, *errResp)
 		}
 	case baseMessage.IsNotification():
 		t.sessionHandler.processClientNotification(r.Context(), baseMessage.MakeNotification())
@@ -250,16 +251,14 @@ func (t *streamableHTTPTransport) handleMCPMessage(r *http.Request) (*http.Respo
 		if mcpRequest.Method == mcputils.MethodInitialize && respErrForAudit == nil {
 			t.appendStartEvent(r.Context(), eventWithHeader(r.Header))
 		}
-		t.emitRequestEvent(r.Context(), mcpRequest, eventWithError(respErrForAudit), eventWithHeader(r.Header))
+		t.emitRequestEvent(t.parentCtx, mcpRequest, eventWithError(respErrForAudit), eventWithHeader(r.Header))
 	case baseMessage.IsNotification():
 		t.emitNotificationEvent(r.Context(), baseMessage.MakeNotification(), eventWithError(respErrForAudit), eventWithHeader(r.Header))
 	}
 	return resp, trace.Wrap(err)
 }
 
-func (t *streamableHTTPTransport) handleRequestAuthError(r *http.Request, mcpRequest *mcputils.JSONRPCRequest, errResp mcp.JSONRPCMessage, authErr error) (*http.Response, error) {
-	t.emitRequestEvent(t.parentCtx, mcpRequest, eventWithError(authErr), eventWithHeader(r.Header))
-
+func (t *streamableHTTPTransport) handleRequestError(r *http.Request, errResp mcp.JSONRPCMessage) (*http.Response, error) {
 	errRespAsBody, err := json.Marshal(errResp)
 	if err != nil {
 		// Should not happen. If it does, we are failing the request either way.

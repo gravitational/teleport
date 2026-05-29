@@ -6206,6 +6206,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Emitter:          cfg.Emitter,
 		Clock:            cfg.AuthServer.GetClock(),
 		Logger:           cfg.AuthServer.logger.With(teleport.ComponentKey, "bot.service"),
+		ScopesFeatures:   cfg.AuthServer.scopesFeatures,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating bot service")
@@ -6365,6 +6366,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		Writer:           cfg.AuthServer.scopedAccessBackend,
 		BackendReader:    cfg.AuthServer.scopedAccessBackend,
 		Logger:           logger,
+		ScopesFeatures:   cfg.AuthServer.scopesFeatures,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating scoped access control service")
@@ -6803,6 +6805,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	issuanceSvc, err := issuancev1.NewService(&issuancev1.ServiceConfig{
 		ScopedAuthorizer: cfg.ScopedAuthorizer,
 		AuthServer:       cfg.AuthServer,
+		ScopesFeatures:   cfg.AuthServer.scopesFeatures,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "instantiating issuancev1 service")

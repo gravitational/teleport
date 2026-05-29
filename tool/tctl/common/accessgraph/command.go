@@ -20,7 +20,6 @@ package accessgraph
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"log/slog"
 	"os"
@@ -28,6 +27,7 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
+	accessgraph "github.com/gravitational/teleport/lib/accessgraph/apiclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
@@ -35,24 +35,12 @@ import (
 )
 
 // AccessGraphCommand implements experimental Access Graph commands.
-//
-// The user-facing surface is currently a single hidden diagnostic
-// (`tctl accessgraph credentials`) that validates / re-issues the
-// Access Graph credential without making any AG calls. It exists
-// primarily so the credential plumbing has a reachable entry point
-// ahead of the real `access`/`detections`/etc. subcommands.
 type AccessGraphCommand struct {
 	ccf    *tctlcfg.GlobalCLIFlags
 	config *servicecfg.Config
 	stdout io.Writer
 
-	// accessgraph is the parent command grouping AG subcommands.
-	// TODO(ghassan): remove when the real AG subcommands are implemented
-	accessgraph *kingpin.CmdClause
-	// credentials is a hidden diagnostic that exercises the credential
-	// resolve/re-issue path.
-	// TODO(ghassan): remove when the real AG subcommands are implemented
-	credentials *kingpin.CmdClause
+	detections detectionsArgs
 }
 
 // Initialize allows AccessGraphCommand to plug itself into the CLI parser.
@@ -63,8 +51,8 @@ func (c *AccessGraphCommand) Initialize(app *kingpin.Application, cliFlags *tctl
 		c.stdout = os.Stdout
 	}
 
-	c.accessgraph = app.Command("accessgraph", "Manage Access Graph (experimental).").Hidden()
-	c.credentials = c.accessgraph.Command("credentials", "Validate and re-issue the Access Graph credential.").Hidden()
+	// Initialize AG subcommands.
+	c.initDetections(app)
 }
 
 // TryRun takes the CLI command as an argument and executes it.
@@ -75,29 +63,39 @@ func (c *AccessGraphCommand) TryRun(ctx context.Context, cmd string, clientFunc 
 		utils.InitLogger(utils.LoggingForCLI, slog.LevelDebug)
 	}
 
-	var commandFunc func(context.Context, commonclient.InitFunc) error
+	var commandFunc func(context.Context, *accessgraph.ClientWithResponses) error
+
 	switch cmd {
-	case c.credentials.FullCommand():
-		commandFunc = c.runCredentialsCheck
+	case c.detections.ls.cmd.FullCommand():
+		commandFunc = c.DetectionsList
+	case c.detections.get.cmd.FullCommand():
+		commandFunc = c.DetectionsGet
 	default:
 		return false, nil
 	}
-	return true, trace.Wrap(commandFunc(ctx, clientFunc))
-}
 
-// runCredentialsCheck resolves the Access Graph credential and re-issues
-// it if missing or stale, then reports the outcome. It does not contact
-// the Access Graph service itself — only the auth path is exercised.
-//
-// TODO(ghassan): remove when the real AG subcommands are implemented
-func (c *AccessGraphCommand) runCredentialsCheck(ctx context.Context, clientFunc commonclient.InitFunc) error {
+	// Load credentials and ensure the AG cert is valid.
 	creds, err := c.loadAccessGraphCredentials(ctx)
 	if err != nil {
-		return trace.Wrap(err)
+		return false, trace.Wrap(err)
 	}
+
+	// If the cert is not present or valid, ensureAccessGraphCert will fetch a new one,
+	// and load it into the keyring.
 	if err := ensureAccessGraphCert(ctx, creds, clientFunc); err != nil {
-		return trace.Wrap(err)
+		return true, trace.Wrap(err)
 	}
-	fmt.Fprintf(c.stdout, "Access Graph credential is valid (proxy: %s).\n", creds.proxyAddr)
-	return nil
+
+	if creds.proxyAddr == "" {
+		return true, trace.BadParameter("missing proxy address in Access Graph credential")
+	}
+
+	// Create an AG client using the resolved proxy address and credentials.
+	accessGraphClient, err := newAccessGraphClient(ctx, creds.proxyAddr, creds.keyRing)
+	if err != nil {
+		return true, trace.Wrap(err)
+	}
+
+	// Run the command.
+	return true, trace.Wrap(commandFunc(ctx, accessGraphClient))
 }

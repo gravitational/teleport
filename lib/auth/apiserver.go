@@ -133,9 +133,11 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	// Servers and presence heartbeat
 	// TODO(kiosion) DELETE IN 21.0.0
 	srv.GET("/:version/authservers", srv.WithScopedAuth(srv.getAuthServers))
+	// TODO(noah): DELETE IN 20.0.0 - move to httpMigratedHandler
 	srv.POST("/:version/proxies", srv.WithAuth(srv.upsertProxy))
 	// TODO(kiosion) DELETE IN 21.0.0
 	srv.GET("/:version/proxies", srv.WithScopedAuth(srv.getProxies))
+	// TODO(noah): DELETE IN 20.0.0 - move to httpMigratedHandler
 	srv.DELETE("/:version/proxies/:name", srv.WithAuth(srv.deleteProxy))
 	srv.POST("/:version/tunnelconnections", srv.WithAuth(srv.upsertTunnelConnection))
 	srv.GET("/:version/tunnelconnections/:cluster", srv.WithAuth(srv.getTunnelConnections))
@@ -245,7 +247,7 @@ type upsertServerRawReq struct {
 // presenceForAPIServer is a subset of [services.Presence].
 type presenceForAPIServer interface {
 	UpsertNode(ctx context.Context, s types.Server) (*types.KeepAlive, error)
-	UpsertProxy(ctx context.Context, s types.Server) error
+	UpsertProxyServer(ctx context.Context, s types.Server) (types.Server, error)
 }
 
 // upsertServer is a common utility function
@@ -286,7 +288,7 @@ func (s *APIServer) upsertServer(auth presenceForAPIServer, role types.SystemRol
 		}
 		return handle, nil
 	case types.RoleProxy:
-		if err := auth.UpsertProxy(r.Context(), server); err != nil {
+		if _, err := auth.UpsertProxyServer(r.Context(), server); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	default:
@@ -296,6 +298,8 @@ func (s *APIServer) upsertServer(auth presenceForAPIServer, role types.SystemRol
 }
 
 // upsertProxy is called by remote SSH nodes when they ping back into the auth service
+//
+// TODO(noah): move to httpMigratedHandler in v20.0.0
 func (s *APIServer) upsertProxy(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
 	return s.upsertServer(auth, types.RoleProxy, r, p)
 }
@@ -313,12 +317,14 @@ func (s *APIServer) getProxies(auth *ServerWithRoles, w http.ResponseWriter, r *
 }
 
 // deleteProxy deletes proxy
+//
+// TODO(noah): move to httpMigratedHandler in v20.0.0
 func (s *APIServer) deleteProxy(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
 	name := p.ByName("name")
 	if name == "" {
 		return nil, trace.BadParameter("missing proxy name")
 	}
-	err := auth.DeleteProxy(r.Context(), name)
+	err := auth.DeleteProxyServer(r.Context(), name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

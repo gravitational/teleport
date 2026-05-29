@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/integrations/operator/controllers/reconcilers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/access"
 )
 
@@ -151,19 +152,19 @@ func (g *scopedRoleTestingPrimitives) CompareTeleportAndKubernetesResource(
 }
 
 func TestScopedRoleCreation(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	t.Parallel()
 	test := &scopedRoleTestingPrimitives{}
-	testlib.ResourceCreationSynchronousTest(t, resources.NewScopedRoleV1Reconciler, test)
+	testlib.ResourceCreationSynchronousTest(t, resources.NewScopedRoleV1Reconciler, test, testlib.WithScopesFeatures(scopes.Features{Enabled: true}))
 }
 
 func TestScopedRoleDeletionDrift(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	t.Parallel()
 	test := &scopedRoleTestingPrimitives{}
-	testlib.ResourceDeletionDriftSynchronousTest(t, resources.NewScopedRoleV1Reconciler, test)
+	testlib.ResourceDeletionDriftSynchronousTest(t, resources.NewScopedRoleV1Reconciler, test, testlib.WithScopesFeatures(scopes.Features{Enabled: true}))
 }
 
 func TestScopedRoleUpdate(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	t.Parallel()
 	test := &scopedRoleTestingPrimitives{}
-	testlib.ResourceUpdateTestSynchronous(t, resources.NewScopedRoleV1Reconciler, test)
+	testlib.ResourceUpdateTestSynchronous(t, resources.NewScopedRoleV1Reconciler, test, testlib.WithScopesFeatures(scopes.Features{Enabled: true}))
 }

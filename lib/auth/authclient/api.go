@@ -59,9 +59,14 @@ type Announcer interface {
 	// for the specified duration with second resolution if it's >= 1 second
 	UpsertNode(ctx context.Context, s types.Server) (*types.KeepAlive, error)
 
-	// UpsertProxy registers proxy presence, permanently if ttl is 0 or
-	// for the specified duration with second resolution if it's >= 1 second
-	UpsertProxy(ctx context.Context, s types.Server) error
+	// UpsertProxyServerWithoutReturn registers proxy presence, permanently if
+	// ttl is 0 or for the specified duration with second resolution if it's
+	// >= 1 second. The upserted server is not returned because the HTTP
+	// fallback path cannot provide it.
+	//
+	// TODO(noah): DELETE IN v20.0.0 — replace with a returning variant once the
+	// HTTP fallback is removed.
+	UpsertProxyServerWithoutReturn(ctx context.Context, s types.Server) error
 
 	// UpsertAuthServer registers auth server presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second
@@ -1294,6 +1299,9 @@ type Cache interface {
 
 	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
+
+	// RangeKubernetesServersWithName returns an iterator over kubernetes servers for a given cluster name.
+	RangeKubernetesServersWithName(ctx context.Context, clusterName string) iter.Seq2[types.KubeServer, error]
 
 	// ListKubernetesWaitingContainers lists Kubernetes ephemeral
 	// containers that are waiting to be created until moderated

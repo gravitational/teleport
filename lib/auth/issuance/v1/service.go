@@ -60,12 +60,16 @@ type Service struct {
 	issuancev1pb.UnimplementedIssuanceServiceServer
 	scopedAuthorizer authz.ScopedAuthorizer
 	authServer       authServer
+	// scopesFeatures dictates whether scoped certificate issuance is enabled.
+	scopesFeatures scopes.Features
 }
 
 // ServiceConfig is the config for instantiating a [Service].
 type ServiceConfig struct {
 	ScopedAuthorizer authz.ScopedAuthorizer
 	AuthServer       authServer
+	// ScopesFeatures dictates which scoped issuance components are enabled.
+	ScopesFeatures scopes.Features
 }
 
 // NewService returns a new [Service].
@@ -80,6 +84,7 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 	return &Service{
 		scopedAuthorizer: cfg.ScopedAuthorizer,
 		authServer:       cfg.AuthServer,
+		scopesFeatures:   cfg.ScopesFeatures,
 	}, nil
 }
 
@@ -95,7 +100,7 @@ func (s *Service) IssueScopedBotCerts(
 ) (*issuancev1pb.IssueScopedBotCertsResponse, error) {
 	// Temporarily, we need to check that Scopes is enabled to derisk
 	// introduction of this RPC.
-	if err := scopes.AssertFeatureEnabled(); err != nil {
+	if err := s.scopesFeatures.AssertEnabled(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
