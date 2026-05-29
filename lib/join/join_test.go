@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/join/joinv1"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
@@ -68,7 +69,7 @@ import (
 // Finally, it tests various scenarios where a node attempts to join by
 // connecting to the proxy's gRPC join service.
 func TestJoinToken(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	t.Parallel()
 
 	token1, err := types.NewProvisionTokenFromSpec("token1", time.Now().Add(time.Minute), types.ProvisionTokenSpecV2{
 		Roles: []types.SystemRole{
@@ -89,7 +90,17 @@ func TestJoinToken(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	authService := newFakeAuthService(t)
+	testServer, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			Dir:            t.TempDir(),
+			ClusterName:    "testcluster",
+			ScopesFeatures: scopes.Features{Enabled: true},
+		},
+	})
+	require.NoError(t, err)
+	authService := &fakeAuthService{
+		Server: testServer,
+	}
 	require.NoError(t, authService.Auth().UpsertToken(t.Context(), token1))
 	require.NoError(t, authService.Auth().UpsertToken(t.Context(), token2))
 

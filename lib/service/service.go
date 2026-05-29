@@ -160,6 +160,7 @@ import (
 	"github.com/gravitational/teleport/lib/resumption"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/scopes"
 	secretsscannerproxy "github.com/gravitational/teleport/lib/secretsscanner/proxy"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -705,6 +706,9 @@ type TeleportProcess struct {
 
 	// clusterFeatures contain flags for supported and unsupported features.
 	clusterFeatures proto.Features
+
+	// scopesFeatures dictates which scoped components are enabled for this process.
+	scopesFeatures scopes.Features
 
 	// authSubjectiveAddr is the peer address of this process as seen by the auth
 	// server during the most recent ping (may be empty).
@@ -1318,6 +1322,8 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		}
 	}
 
+	scopesFeatures := cfg.ScopesFeatures
+
 	process := &TeleportProcess{
 		PluginRegistry:         cfg.PluginRegistry,
 		Clock:                  cfg.Clock,
@@ -1333,6 +1339,7 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		id:                     processID,
 		logger:                 cfg.Logger,
 		cloudLabels:            cloudLabels,
+		scopesFeatures:         scopesFeatures,
 		TracingProvider:        tracing.NoopProvider(),
 		metricsRegistry:        metricsRegistry,
 		SyncGatherers: metrics.NewSyncGatherers(
@@ -2422,6 +2429,7 @@ func (process *TeleportProcess) initAuthService() error {
 		process.ExitContext(),
 		auth.InitConfig{
 			Backend:                   b,
+			ScopesFeatures:            process.scopesFeatures,
 			VersionStorage:            process.storage,
 			SkipVersionCheck:          cfg.SkipVersionCheck || skipVersionCheckFromEnv,
 			Authority:                 cfg.Keygen,
@@ -2642,6 +2650,7 @@ func (process *TeleportProcess) initAuthService() error {
 		MFAAuthenticator:    authServer,
 		LockWatcher:         lockWatcher,
 		Logger:              process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentAuth, process.id)),
+		ScopesFeatures:      process.scopesFeatures,
 		// Auth Server does explicit device authorization.
 		// Various Auth APIs must allow access to unauthorized devices, otherwise it
 		// is not possible to acquire device-aware certificates in the first place.
@@ -5507,11 +5516,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 
 		authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-			ClusterName:   cn.GetClusterName(),
-			AccessPoint:   accessPoint,
-			LockWatcher:   lockWatcher,
-			Logger:        process.logger,
-			PermitCaching: process.Config.CachePolicy.Enabled,
+			ClusterName:    cn.GetClusterName(),
+			AccessPoint:    accessPoint,
+			LockWatcher:    lockWatcher,
+			Logger:         process.logger,
+			PermitCaching:  process.Config.CachePolicy.Enabled,
+			ScopesFeatures: process.scopesFeatures,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -5824,6 +5834,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		LockWatcher:      lockWatcher,
 		Logger:           process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
 		PermitCaching:    process.Config.CachePolicy.Enabled,
+		ScopesFeatures:   process.scopesFeatures,
 	}
 
 	authorizer, err := authz.NewAuthorizer(authorizerOpts)
@@ -6001,6 +6012,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ScopedRoleReader: accessPoint.ScopedRoleReader(),
 			LockWatcher:      lockWatcher,
 			Logger:           process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
+			ScopesFeatures:   process.scopesFeatures,
 			PermitCaching:    process.Config.CachePolicy.Enabled,
 		})
 		if err != nil {
@@ -6118,11 +6130,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	// framework.
 	if (!listeners.db.Empty() || alpnRouter != nil) && !process.Config.Proxy.DisableReverseTunnel {
 		authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-			ClusterName:   clusterName,
-			AccessPoint:   accessPoint,
-			LockWatcher:   lockWatcher,
-			Logger:        process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
-			PermitCaching: process.Config.CachePolicy.Enabled,
+			ClusterName:    clusterName,
+			AccessPoint:    accessPoint,
+			LockWatcher:    lockWatcher,
+			Logger:         process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
+			PermitCaching:  process.Config.CachePolicy.Enabled,
+			ScopesFeatures: process.scopesFeatures,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -6895,10 +6908,11 @@ func (process *TeleportProcess) initApps() {
 			return trace.Wrap(err)
 		}
 		authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-			ClusterName: clusterName,
-			AccessPoint: accessPoint,
-			LockWatcher: lockWatcher,
-			Logger:      process.logger.With(teleport.ComponentKey, component),
+			ClusterName:    clusterName,
+			AccessPoint:    accessPoint,
+			LockWatcher:    lockWatcher,
+			Logger:         process.logger.With(teleport.ComponentKey, component),
+			ScopesFeatures: process.scopesFeatures,
 			DeviceAuthorization: authz.DeviceAuthorizationOpts{
 				// Ignore the global device_trust.mode toggle, but allow role-based
 				// settings to be applied.
@@ -7469,11 +7483,12 @@ func (process *TeleportProcess) initSecureGRPCServer(cfg initSecureGRPCServerCfg
 	}
 
 	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-		ClusterName:   clusterName,
-		AccessPoint:   cfg.accessPoint,
-		LockWatcher:   cfg.lockWatcher,
-		Logger:        process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentProxySecureGRPC, process.id)),
-		PermitCaching: process.Config.CachePolicy.Enabled,
+		ClusterName:    clusterName,
+		AccessPoint:    cfg.accessPoint,
+		LockWatcher:    cfg.lockWatcher,
+		Logger:         process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentProxySecureGRPC, process.id)),
+		PermitCaching:  process.Config.CachePolicy.Enabled,
+		ScopesFeatures: process.scopesFeatures,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

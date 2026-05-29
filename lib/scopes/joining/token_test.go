@@ -30,6 +30,7 @@ import (
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/join/jointest"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 )
 
@@ -1467,9 +1468,7 @@ func TestValidateTokenUpdate(t *testing.T) {
 }
 
 func TestValidateTokenForUse(t *testing.T) {
-	// TODO (eriktate): remove env var manipulation in this test once we've
-	// backported the [scopes.Features] work from #67073
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	t.Parallel()
 	token := &joiningv1.ScopedToken{
 		Scope: "/test",
 		Spec: &joiningv1.ScopedTokenSpec{
@@ -1482,13 +1481,14 @@ func TestValidateTokenForUse(t *testing.T) {
 			Secret: "secret",
 		},
 	}
+	features := scopes.Features{Enabled: true}
 	// we want to ensure that token validation before use is always the strongest
 	// available, so we confirm that the test token passes weak validation and then
 	// assert that StrongValidateToken and ValidateTokenForUse fail with the same error
 	assert.NoError(t, joining.WeakValidateToken(token))
 	strongValidateErr := joining.StrongValidateToken(token)
 	assert.Error(t, strongValidateErr)
-	assert.ErrorIs(t, strongValidateErr, joining.ValidateTokenForUse(token))
+	assert.ErrorIs(t, strongValidateErr, joining.ValidateTokenForUse(token, features))
 
 	// fix token so StrongValidate succeeds
 	token.Kind = types.KindScopedToken
@@ -1498,20 +1498,20 @@ func TestValidateTokenForUse(t *testing.T) {
 	}
 
 	// validation should succeed for node role if scopes are enabled
-	require.NoError(t, joining.ValidateTokenForUse(token))
+	require.NoError(t, joining.ValidateTokenForUse(token, features))
 
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "no")
+	features.Enabled = false
 	// validation should fail if scopes are disabled
-	require.ErrorContains(t, joining.ValidateTokenForUse(token), "scoping features are not enabled")
+	require.ErrorContains(t, joining.ValidateTokenForUse(token, features), "scoping features are not enabled")
 
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	features.Enabled = true
 	// validation should fail for kube role if agent pinning is disabled
 	token.Spec.Roles = append(token.Spec.Roles, string(types.RoleKube))
-	require.ErrorContains(t, joining.ValidateTokenForUse(token), "scoped token cannot be used to join [Node, Kube] role(s) without TELEPORT_UNSTABLE_AGENT_SCOPE_PIN=yes")
+	require.ErrorContains(t, joining.ValidateTokenForUse(token, features), "scoped token cannot be used to join [Node, Kube] role(s) without TELEPORT_UNSTABLE_AGENT_SCOPE_PIN=yes")
 
-	t.Setenv("TELEPORT_UNSTABLE_AGENT_SCOPE_PIN", "yes")
+	features.AgentPinEnabled = true
 	// validation should succeed for kube role if agent pinning is enabled
-	require.NoError(t, joining.ValidateTokenForUse(token))
+	require.NoError(t, joining.ValidateTokenForUse(token, features))
 
 	// validation should succeed for bot role even if agent scope pins are disabled
 	token.Spec.BotName = "bot-name"
@@ -1520,5 +1520,5 @@ func TestValidateTokenForUse(t *testing.T) {
 	token.Spec.JoinMethod = string(types.JoinMethodBoundKeypair)
 	token.Spec.UsageMode = string(joining.TokenUsageModeBot)
 	token.Spec.Roles = []string{string(types.RoleBot)}
-	require.NoError(t, joining.ValidateTokenForUse(token))
+	require.NoError(t, joining.ValidateTokenForUse(token, features))
 }

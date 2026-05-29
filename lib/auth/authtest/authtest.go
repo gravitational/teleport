@@ -66,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -119,6 +120,8 @@ type AuthServerConfig struct {
 	FIPS bool
 	// KeystoreConfig is configuration for the CA keystore.
 	KeystoreConfig servicecfg.KeystoreConfig
+	// ScopesFeatures dictates which scoped components are enabled for the test auth server.
+	ScopesFeatures scopes.Features
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -383,6 +386,7 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 		AWSOrganizationsClientGetter: cfg.AWSOrganizationsClientGetter,
 		FakePasswordHash:             []byte(FakePasswordHash),
 		FakeRecoveryCodeHash:         []byte(FakeRecoveryCodeHash),
+		ScopesFeatures:               cfg.ScopesFeatures,
 	},
 		WithClock(cfg.Clock),
 		// Reduce auth.Server bcrypt costs when testing.
@@ -533,6 +537,7 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 		ReadOnlyAccessPoint: srv.AuthServer.ReadOnlyCache,
 		ScopedRoleReader:    srv.AuthServer.ScopedAccessCache,
 		LockWatcher:         srv.LockWatcher,
+		ScopesFeatures:      cfg.ScopesFeatures,
 		// AuthServer does explicit device authorization checks.
 		DeviceAuthorization: authz.DeviceAuthorizationOpts{
 			DisableGlobalMode: true,

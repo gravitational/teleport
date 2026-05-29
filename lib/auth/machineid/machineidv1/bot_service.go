@@ -123,6 +123,8 @@ type BotServiceConfig struct {
 	Emitter          apievents.Emitter
 	Reporter         usagereporter.UsageReporter
 	Clock            clockwork.Clock
+	// ScopesFeatures dictates whether scoped bot functionality is enabled.
+	ScopesFeatures scopes.Features
 }
 
 // NewBotService returns a new instance of the BotService.
@@ -154,6 +156,7 @@ func NewBotService(cfg BotServiceConfig) (*BotService, error) {
 		emitter:          cfg.Emitter,
 		reporter:         cfg.Reporter,
 		clock:            cfg.Clock,
+		scopesFeatures:   cfg.ScopesFeatures,
 	}, nil
 }
 
@@ -168,6 +171,8 @@ type BotService struct {
 	emitter          apievents.Emitter
 	reporter         usagereporter.UsageReporter
 	clock            clockwork.Clock
+	// scopesFeatures dictates whether scoped bot functionality is enabled.
+	scopesFeatures scopes.Features
 }
 
 // GetBot gets a bot by name. It will throw an error if the bot does not exist.
@@ -407,7 +412,7 @@ func (bs *BotService) createScopedBot(
 	authCtx *authz.ScopedContext,
 	bot *pb.Bot,
 ) (*pb.Bot, error) {
-	if err := scopes.AssertFeatureEnabled(); err != nil {
+	if err := bs.scopesFeatures.AssertEnabled(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -470,9 +475,10 @@ func UpsertBot(
 	bot *pb.Bot,
 	now time.Time,
 	createdBy string,
+	scopesFeatures scopes.Features,
 ) (*pb.Bot, error) {
 	if bot.Scope != "" {
-		if err := scopes.AssertFeatureEnabled(); err != nil {
+		if err := scopesFeatures.AssertEnabled(); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -597,7 +603,7 @@ func (bs *BotService) UpsertBot(ctx context.Context, req *pb.UpsertBotRequest) (
 	}
 
 	bot, err := UpsertBot(
-		ctx, bs.backend, req.Bot, bs.clock.Now(), authCtx.User.GetName(),
+		ctx, bs.backend, req.Bot, bs.clock.Now(), authCtx.User.GetName(), bs.scopesFeatures,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
