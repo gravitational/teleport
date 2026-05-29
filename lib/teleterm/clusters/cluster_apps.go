@@ -62,7 +62,7 @@ func GetApp(ctx context.Context, authClient authclient.ClientI, appName string) 
 		apps, err := apiclient.GetAllResources[types.AppServer](ctx, authClient, &proto.ListResourcesRequest{
 			Namespace:           apidefaults.Namespace,
 			ResourceType:        types.KindAppServer,
-			PredicateExpression: fmt.Sprintf(`name == "%s"`, appName),
+			PredicateExpression: fmt.Sprintf(`name == %q`, appName),
 		})
 		if err != nil {
 			return trace.Wrap(err)

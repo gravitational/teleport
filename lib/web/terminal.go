@@ -938,7 +938,7 @@ func (t *sshBaseHandler) connectToNode(ctx context.Context, ws terminal.WSConn, 
 				SortBy:              types.SortBy{Field: types.ResourceKind},
 				Kinds:               []string{types.KindNode},
 				Limit:               1,
-				PredicateExpression: fmt.Sprintf(`resource.metadata.name == "%s"`, t.sessionData.ServerID),
+				PredicateExpression: fmt.Sprintf(`resource.metadata.name == %q`, t.sessionData.ServerID),
 			}); err == nil && len(resp.Resources) > 0 {
 				return nil, trace.AccessDenied("access denied to %q connecting to %v", sshConfig.User, resp.Resources[0].GetNode().GetHostname())
 			}

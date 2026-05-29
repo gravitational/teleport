@@ -63,7 +63,7 @@ func getDatabase(ctx context.Context, tc *client.TeleportClient, serviceName str
 	databases, err := tc.ListDatabases(ctx, &proto.ListResourcesRequest{
 		Namespace:           tc.Namespace,
 		ResourceType:        types.KindDatabaseServer,
-		PredicateExpression: fmt.Sprintf(`name == "%s" && resource.spec.protocol == "%s"`, serviceName, protocol),
+		PredicateExpression: fmt.Sprintf(`name == %q && resource.spec.protocol == %q`, serviceName, protocol),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
