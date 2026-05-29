@@ -50,8 +50,8 @@ pub mod client;
 mod cliprdr;
 mod license;
 mod network_client;
-mod piv;
 mod rdpdr;
+mod scard;
 mod ssl;
 mod util;
 

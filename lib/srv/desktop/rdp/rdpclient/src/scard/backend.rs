@@ -15,22 +15,21 @@
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::client::ClientHandle;
-use crate::{piv, util};
-use ironrdp_pdu::pdu_other_err;
+use crate::scard::context::Contexts;
+use crate::scard::TRANSMIT_DATA_LIMIT;
+use crate::util;
 use ironrdp_pdu::utils::CharacterSet;
-use ironrdp_pdu::PduResult;
+use ironrdp_pdu::{pdu_other_err, PduResult};
 use ironrdp_rdpdr::pdu::efs::{DeviceControlRequest, DeviceControlResponse, NtStatus};
 use ironrdp_rdpdr::pdu::esc::{
     rpce, CardProtocol, CardState, CardStateFlags, ConnectCall, ConnectReturn, ContextCall,
     EstablishContextReturn, GetDeviceTypeIdCall, GetDeviceTypeIdReturn, GetReaderIconReturn,
     GetStatusChangeCall, GetStatusChangeReturn, HCardAndDispositionCall, ListReadersReturn,
     LongReturn, ReadCacheCall, ReadCacheReturn, ReaderStateCommonCall, ReturnCode, ScardCall,
-    ScardContext, ScardHandle, ScardIoCtlCode, StatusReturn, TransmitCall, TransmitReturn,
-    WriteCacheCall,
+    ScardIoCtlCode, StatusReturn, TransmitCall, TransmitReturn, WriteCacheCall,
 };
 use iso7816::Command as CardCommand;
 use log::{debug, warn};
-use std::collections::HashMap;
 use uuid::Uuid;
 
 /// `ScardBackend` implements the smartcard device redirection backend as described in [\[MS-RDPESC\]: Remote Desktop Protocol: Smart Card Virtual Channel Extension]
@@ -534,161 +533,6 @@ impl ScardBackend {
     }
 }
 
-#[derive(Debug)]
-struct Contexts {
-    contexts: HashMap<u32, ContextInternal>,
-    next_id: u32,
-}
-
-impl Contexts {
-    fn new() -> Self {
-        Self {
-            next_id: 1,
-            contexts: HashMap::new(),
-        }
-    }
-
-    fn establish(&mut self) -> ScardContext {
-        let ctx_internal = ContextInternal::new();
-        let id = self.next_id;
-        self.next_id += 1;
-        let ctx = ScardContext::new(id);
-        self.contexts.insert(id, ctx_internal);
-        ctx
-    }
-
-    fn connect(
-        &mut self,
-        ctx: ScardContext,
-        id: u32,
-        uuid: Uuid,
-        cert_der: &[u8],
-        key_der: &[u8],
-        pin: String,
-    ) -> PduResult<ScardHandle> {
-        let ctx_internal = self.get_internal_mut(id)?;
-        let handle = ctx_internal.connect(ctx, uuid, cert_der, key_der, pin)?;
-        Ok(handle)
-    }
-
-    fn disconnect(&mut self, handle: ScardHandle) -> PduResult<()> {
-        self.get_internal_mut(handle.context.value)?
-            .disconnect(handle.value);
-        Ok(())
-    }
-
-    fn set_scard_cancel_response(&mut self, id: u32, resp: DeviceControlResponse) -> PduResult<()> {
-        debug!("setting SCARD_IOCTL_CANCEL response for context [{}]", id);
-        self.get_internal_mut(id)?.set_scard_cancel_response(resp)
-    }
-
-    fn take_scard_cancel_response(&mut self, id: u32) -> PduResult<Option<DeviceControlResponse>> {
-        Ok(self.get_internal_mut(id)?.take_scard_cancel_response())
-    }
-
-    fn get_card(&mut self, handle: &ScardHandle) -> PduResult<&mut piv::Card<TRANSMIT_DATA_LIMIT>> {
-        self.get_internal_mut(handle.context.value)?
-            .get(handle.value)
-            .ok_or_else(|| pdu_other_err!("unknown ScardHandle"))
-    }
-
-    fn exists(&self, id: u32) -> bool {
-        self.contexts.contains_key(&id)
-    }
-
-    fn read_cache(&mut self, call: ReadCacheCall) -> PduResult<Option<Vec<u8>>> {
-        Ok(self
-            .get_internal_mut(call.common.context.value)?
-            .cache_read(&call.lookup_name))
-    }
-
-    fn write_cache(&mut self, call: WriteCacheCall) -> PduResult<()> {
-        self.get_internal_mut(call.common.context.value)?
-            .cache_write(call.lookup_name, call.common.data);
-        Ok(())
-    }
-
-    fn get_internal_mut(&mut self, id: u32) -> PduResult<&mut ContextInternal> {
-        self.contexts
-            .get_mut(&id)
-            .ok_or_else(|| pdu_other_err!("unknown context id"))
-    }
-
-    fn release(&mut self, id: u32) {
-        self.contexts.remove(&id);
-    }
-}
-
-#[derive(Debug)]
-struct ContextInternal {
-    handles: HashMap<u32, piv::Card<TRANSMIT_DATA_LIMIT>>,
-    next_id: u32,
-    cache: HashMap<String, Vec<u8>>,
-    // If we receive a SCARD_IOCTL_GETSTATUSCHANGE with an infinite timeout, we need to
-    // return a GetStatusChange_Return (embedded in a DeviceControlResponse) with
-    // its return code set to SCARD_E_CANCELLED in the case that we receive a
-    // SCARD_IOCTL_CANCEL.
-    //
-    // This value will be set during the handling of the SCARD_IOCTL_GETSTATUSCHANGE, so that
-    // it can be fetched and returned in response to a SCARD_IOCTL_CANCEL.
-    scard_cancel_response: Option<DeviceControlResponse>,
-}
-
-impl ContextInternal {
-    fn new() -> Self {
-        Self {
-            next_id: 1,
-            handles: HashMap::new(),
-            cache: HashMap::new(),
-            scard_cancel_response: None,
-        }
-    }
-
-    fn set_scard_cancel_response(&mut self, resp: DeviceControlResponse) -> PduResult<()> {
-        if self.scard_cancel_response.is_some() {
-            return Err(pdu_other_err!("SCARD_IOCTL_CANCEL already received",));
-        }
-        self.scard_cancel_response = Some(resp);
-        Ok(())
-    }
-
-    fn take_scard_cancel_response(&mut self) -> Option<DeviceControlResponse> {
-        self.scard_cancel_response.take()
-    }
-
-    fn connect(
-        &mut self,
-        ctx: ScardContext,
-        uuid: Uuid,
-        cert_der: &[u8],
-        key_der: &[u8],
-        pin: String,
-    ) -> PduResult<ScardHandle> {
-        let card = piv::Card::new(uuid, cert_der, key_der, pin)?;
-        let id = self.next_id;
-        self.next_id += 1;
-        let handle = ScardHandle::new(ctx, id);
-        self.handles.insert(id, card);
-        Ok(handle)
-    }
-
-    fn get(&mut self, id: u32) -> Option<&mut piv::Card<TRANSMIT_DATA_LIMIT>> {
-        self.handles.get_mut(&id)
-    }
-
-    fn disconnect(&mut self, id: u32) {
-        self.handles.remove(&id);
-    }
-
-    fn cache_read(&self, key: &str) -> Option<Vec<u8>> {
-        self.cache.get(key).cloned()
-    }
-
-    fn cache_write(&mut self, key: String, val: Vec<u8>) {
-        self.cache.insert(key, val);
-    }
-}
-
 // ATR value taken from
 // http://ludovic.rousseau.free.fr/softwares/pcsc-tools/smartcard_list.txt
 // (from vsmartcard project).
@@ -710,21 +554,17 @@ fn padded_atr<const SIZE: usize>() -> (u32, [u8; SIZE]) {
     (len as u32, atr)
 }
 
-pub const SCARD_DEVICE_ID: u32 = 1;
 const TELEPORT_READER_NAME: &str = "Teleport";
-// TRANSMIT_DATA_LIMIT is the maximum size of transmit request/response short data, in bytes.
-const TRANSMIT_DATA_LIMIT: usize = 1024;
 const TIMEOUT_INFINITE: u32 = 0xffffffff;
 const TIMEOUT_IMMEDIATE: u32 = 0;
 
 /// A generic error type for the SmartcardBackend that can contain any arbitrary error message.
 #[derive(Debug)]
-#[allow(dead_code)] // The internal `String` is "dead code" according to the compiler, but we want it for debugging purposes.
-struct SmartcardBackendError(pub String);
+struct SmartcardBackendError(String);
 
 impl std::fmt::Display for SmartcardBackendError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:#?}", self)
+        write!(f, "SmartcardBackendError({})", self.0)
     }
 }
 
