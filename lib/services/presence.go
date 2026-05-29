@@ -20,6 +20,7 @@ package services
 
 import (
 	"context"
+	"iter"
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -212,4 +213,7 @@ type PresenceInternal interface {
 
 	// UpsertRelayServer creates or updates a relay server heartbeat, unconditionally.
 	UpsertRelayServer(ctx context.Context, relayServer *presencev1.RelayServer) (*presencev1.RelayServer, error)
+
+	// RangeDatabaseServersWithName returns an iterator over database proxy servers for a given database name.
+	RangeDatabaseServersWithName(ctx context.Context, databaseName string) iter.Seq2[types.DatabaseServer, error]
 }

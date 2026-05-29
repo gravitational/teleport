@@ -1,7 +1,7 @@
 ---
 title: Database Access with Azure SQL Server
 sidebar_label: SQL Server
-description: How to configure Teleport database access with Azure SQL Server using Microsoft Entra authentication.
+description: How to configure Teleport database access with Azure SQL Server using Microsoft Entra ID authentication.
 tags:
  - how-to
  - zero-trust
@@ -22,10 +22,10 @@ forwards user traffic to the database.
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-![Access Azure SQL Server Microsoft Entra Self-Hosted](../../../../../img/database-access/guides/sqlserver/sql-aad.png)
+![Access Azure SQL Server Microsoft Entra ID Self-Hosted](../../../../../img/database-access/guides/sqlserver/sql-aad.png)
 </TabItem>
 <TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
-![Access Azure SQL Server Microsoft Entra Cloud](../../../../../img/database-access/guides/sqlserver/cloud-sql-aad.png)
+![Access Azure SQL Server Microsoft Entra ID Cloud](../../../../../img/database-access/guides/sqlserver/cloud-sql-aad.png)
 </TabItem>
 
 </Tabs>
@@ -44,12 +44,12 @@ forwards user traffic to the database.
 
 (!docs/pages/includes/database-access/create-user.mdx!)
 
-## Step 2/8. Enable the Microsoft Entra authentication
+## Step 2/8. Enable the Microsoft Entra ID authentication
 
 If you have it enabled, you can go to the next step.
 
 Go to the [Azure Portal](https://portal.azure.com/), select **Database
-servers**, and select the database you wish to enable the Microsoft Entra
+servers**, and select the database you wish to enable the Microsoft Entra ID
 authentication.
 
 Select **Microsoft Entra ID** under "Settings" in the left-hand column.
@@ -57,7 +57,7 @@ Select **Microsoft Entra ID** under "Settings" in the left-hand column.
 Select **Set Admin**, and choose an account that will be added as an admin
 login to SQL Server.
 
-![Azure SQL Server Microsoft Entra admin page](../../../../../img/database-access/guides/sqlserver/azure-set-ad-admin.png)
+![Azure SQL Server Microsoft Entra ID admin page](../../../../../img/database-access/guides/sqlserver/azure-set-ad-admin.png)
 
 ## Step 3/8. Configure IAM permissions for Teleport
 
@@ -167,7 +167,7 @@ The Microsoft Entra ID SQL Server integration uses database-level authentication
 database we want to access.
 
 To create contained users for the identities, connect to your SQL server using
-its Activity Directory Admin and execute the query:
+its Active Directory Admin and execute the query:
 
 ```sql
 USE MyDatabase;
@@ -288,4 +288,4 @@ To check if the VM has access, you can do the following on the VM:
 (!docs/pages/includes/database-access/guides-next-steps.mdx!)
 
 ## Further reading
-- [Microsoft Entra authentication for Azure SQL](https://learn.microsoft.com/en-us/azure/azure-sql/database/authentication-aad-overview?view=azuresql)
+- [Microsoft Entra ID authentication for Azure SQL](https://learn.microsoft.com/en-us/azure/azure-sql/database/authentication-aad-overview?view=azuresql)
