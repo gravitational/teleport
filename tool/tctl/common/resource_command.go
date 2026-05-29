@@ -49,13 +49,13 @@ import (
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/parse"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 	"github.com/gravitational/teleport/tool/tctl/common/resources"
@@ -761,7 +761,7 @@ func (rc *ResourceCommand) UpdateFields(ctx context.Context, clt *authclient.Cli
 	var err error
 	var labels map[string]string
 	if rc.labels != "" {
-		labels, err = client.ParseLabelSpec(rc.labels)
+		labels, err = parse.LabelSelectorSpec(rc.labels)
 		if err != nil {
 			return trace.Wrap(err)
 		}

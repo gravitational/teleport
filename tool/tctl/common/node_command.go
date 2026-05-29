@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/parse"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 	"github.com/gravitational/teleport/tool/tctl/common/resources"
@@ -238,7 +239,7 @@ func (c *NodeCommand) Invite(ctx context.Context, client *authclient.Client) err
 // ListActive retrieves the list of nodes who recently sent heartbeats to
 // to a cluster and prints it to stdout
 func (c *NodeCommand) ListActive(ctx context.Context, clt *authclient.Client) error {
-	labels, err := libclient.ParseLabelSpec(c.labels)
+	labels, err := parse.LabelSelectorSpec(c.labels)
 	if err != nil {
 		return trace.Wrap(err)
 	}
