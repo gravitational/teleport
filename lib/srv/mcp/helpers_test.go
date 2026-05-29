@@ -23,11 +23,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -414,28 +416,7 @@ func checkSessionStartHasExternalSessionID() func(*testing.T, *apievents.MCPSess
 	}
 }
 
-func newAllowAllDenyForbiddenToolRole(t *testing.T, forbiddenTool string) types.Role {
-	t.Helper()
-	role, err := types.NewRole("allow-all-deny-forbidden", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			AppLabels: map[string]apiutils.Strings{
-				types.Wildcard: {types.Wildcard},
-			},
-			MCP: &types.MCPPermissions{
-				Tools: []string{types.Wildcard},
-			},
-		},
-		Deny: types.RoleConditions{
-			MCP: &types.MCPPermissions{
-				Tools: []string{forbiddenTool},
-			},
-		},
-	})
-	require.NoError(t, err)
-	return role
-}
-
-func newStreamableMCPServer(t *testing.T, upstream *mcpserver.MCPServer, role types.Role) (*eventstest.MockRecorderEmitter, *mcpclienttransport.StreamableHTTP) {
+func newStreamableMCPServer(t *testing.T, upstream *mcpserver.MCPServer, role types.Role) (_ *eventstest.MockRecorderEmitter, _ *mcpclienttransport.StreamableHTTP, proxyURL string) {
 	t.Helper()
 
 	remoteMCPServer := mcpserver.NewStreamableHTTPServer(upstream)
@@ -494,10 +475,11 @@ func newStreamableMCPServer(t *testing.T, upstream *mcpserver.MCPServer, role ty
 		}
 	}()
 
-	mcpClientTransport, err := mcpclienttransport.NewStreamableHTTP("http://" + listener.Addr().String())
+	proxyURL = "http://" + listener.Addr().String()
+	mcpClientTransport, err := mcpclienttransport.NewStreamableHTTP(proxyURL)
 	require.NoError(t, err)
 
-	return &emitter, mcpClientTransport
+	return &emitter, mcpClientTransport, proxyURL
 }
 
 func testJSONString(t *testing.T, v any) string {
@@ -505,4 +487,25 @@ func testJSONString(t *testing.T, v any) string {
 	data, err := json.Marshal(v)
 	require.NoError(t, err)
 	return string(data)
+}
+
+func testSendRAWRequest(t *testing.T, method, url, sessionID string, body string) (response []byte) {
+	t.Helper()
+	ctx := t.Context()
+
+	req, err := http.NewRequestWithContext(ctx, method, url, strings.NewReader(body))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json, text/event-stream")
+	req.Header.Set(mcpclienttransport.HeaderKeySessionID, sessionID)
+
+	resp, err := (&http.Client{Timeout: 5 * time.Second}).Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	respBody, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, resp.StatusCode, "body: %s", respBody)
+
+	return respBody
 }

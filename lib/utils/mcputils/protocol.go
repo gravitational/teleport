@@ -28,6 +28,10 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 )
 
+const (
+	ParamName = "name"
+)
+
 // Type definitions from both mcp-go/client/transport or mcp-go are not suitable
 // for our reverse proxy use, thus this file redefines them.
 //
@@ -53,7 +57,7 @@ func (p JSONRPCParams) GetName() (string, bool) {
 	if p == nil {
 		return "", false
 	}
-	name, ok := p["name"].(string)
+	name, ok := p[ParamName].(string)
 	return name, ok
 }
 

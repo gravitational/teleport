@@ -24,6 +24,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -38,6 +39,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/utils"
@@ -218,26 +220,40 @@ func Test_Server_HandleSession_reject_req_missing_name(t *testing.T) {
 
 	ctx := t.Context()
 
-	const forbiddenTool = "forbidden_tool"
-	const forbiddenToolTextContent = "FORBIDDEN_TOOL_EXECUTED_ON_UPSTREAM"
+	const allowedTool = "allowed_tool"
+	const allowedToolContext = "allowed_tool_executed_on_upstream"
+	const deniedTool = "denied_tool"
+	const deniedToolTextContent = "DENIED_TOOL_EXECUTED_ON_UPSTREAM"
 
-	role := newAllowAllDenyForbiddenToolRole(t, forbiddenTool)
+	role, err := types.NewRole("allowed_tool_access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			AppLabels: map[string]apiutils.Strings{
+				types.Wildcard: {types.Wildcard},
+			},
+			MCP: &types.MCPPermissions{
+				Tools: []string{allowedTool},
+			},
+		},
+	})
+	require.NoError(t, err)
 
 	upstream := mcpserver.NewMCPServer("test-server", "1.0.0")
 	upstream.AddTool(
-		mcp.Tool{
-			Name: forbiddenTool,
-		},
+		mcp.Tool{Name: allowedTool},
 		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			return &mcp.CallToolResult{
-				Content: []mcp.Content{mcp.NewTextContent(forbiddenToolTextContent)},
-			}, nil
+			return &mcp.CallToolResult{Content: []mcp.Content{mcp.NewTextContent(allowedToolContext)}}, nil
+		},
+	)
+	upstream.AddTool(
+		mcp.Tool{Name: deniedTool},
+		func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			return &mcp.CallToolResult{Content: []mcp.Content{mcp.NewTextContent(deniedToolTextContent)}}, nil
 		},
 	)
 
-	emitter, mcpClientTransport := newStreamableMCPServer(t, upstream, role)
+	emitter, mcpClientTransport, proxyURL := newStreamableMCPServer(t, upstream, role)
 
-	_, err := mcpClientTransport.SendRequest(ctx, mcpclienttransport.JSONRPCRequest{
+	_, err = mcpClientTransport.SendRequest(ctx, mcpclienttransport.JSONRPCRequest{
 		JSONRPC: mcp.JSONRPC_VERSION,
 		ID:      mcp.NewRequestId(1),
 		Method:  string(mcp.MethodInitialize),
@@ -259,14 +275,14 @@ func Test_Server_HandleSession_reject_req_missing_name(t *testing.T) {
 		ID:      mcp.NewRequestId(2),
 		Method:  string(mcp.MethodToolsCall),
 		Params: map[string]any{
-			"name": forbiddenTool,
+			"name": deniedTool,
 		},
 	})
 	require.NoError(t, err)
 	require.NotNil(t, resp.Error)
 	require.Equal(t, mcp.INVALID_PARAMS, resp.Error.Code)
 	respJSON := testJSONString(t, resp)
-	require.NotContains(t, respJSON, forbiddenToolTextContent)
+	require.NotContains(t, respJSON, deniedToolTextContent)
 	require.Contains(t, respJSON, "User does not have permissions")
 
 	// Verify that when non-canonical capitalized "Name" param is specified the request is
@@ -277,14 +293,14 @@ func Test_Server_HandleSession_reject_req_missing_name(t *testing.T) {
 		ID:      mcp.NewRequestId(3),
 		Method:  string(mcp.MethodToolsCall),
 		Params: map[string]any{
-			"Name": forbiddenTool,
+			"Name": deniedTool,
 		},
 	})
 	require.NoError(t, err)
 	require.NotNil(t, resp.Error)
 	require.Equal(t, mcp.INVALID_REQUEST, resp.Error.Code)
 	respJSON = testJSONString(t, resp)
-	require.NotContains(t, respJSON, forbiddenToolTextContent)
+	require.NotContains(t, respJSON, deniedToolTextContent)
 	require.Contains(t, respJSON, testJSONString(t, errInvalidRequestMissingName.Error()))
 
 	// Verify that when an empty "name" param is specified the request is rejected.
@@ -301,7 +317,7 @@ func Test_Server_HandleSession_reject_req_missing_name(t *testing.T) {
 	require.NotNil(t, resp.Error)
 	require.Equal(t, mcp.INVALID_REQUEST, resp.Error.Code)
 	respJSON = testJSONString(t, resp)
-	require.NotContains(t, respJSON, forbiddenToolTextContent)
+	require.NotContains(t, respJSON, deniedToolTextContent)
 	require.Contains(t, respJSON, testJSONString(t, errInvalidRequestMissingName.Error()))
 
 	// Verify that correct request is properly unauthorized.
@@ -311,15 +327,56 @@ func Test_Server_HandleSession_reject_req_missing_name(t *testing.T) {
 		ID:      mcp.NewRequestId(5),
 		Method:  string(mcp.MethodToolsCall),
 		Params: map[string]any{
-			"name": forbiddenTool,
+			"name": deniedTool,
 		},
 	})
 	require.NoError(t, err)
 	require.NotNil(t, resp.Error)
 	require.Equal(t, mcp.INVALID_PARAMS, resp.Error.Code)
 	respJSON = testJSONString(t, resp)
-	require.NotContains(t, respJSON, forbiddenToolTextContent)
+	require.NotContains(t, respJSON, deniedToolTextContent)
 	require.Contains(t, respJSON, "User does not have permissions.")
+
+	// Verify that when non-canonical non-lower-case "name" params are specified in the request
+	// along side the canonical lower-case one, they are pruned from the request before
+	// forwarding.
+	emitter.Reset()
+	respBytes := testSendRAWRequest(t, http.MethodPost, proxyURL, mcpClientTransport.GetSessionId(), fmt.Sprintf(
+		`{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{%q:%q,%q:%q,%q:%q,%q:%q}}`,
+		"Name", allowedTool,
+		"NaMe", allowedTool,
+		"name", deniedTool,
+		"NAME", allowedTool,
+	))
+	respJSON = string(respBytes)
+	require.Contains(t, respJSON, strconv.Itoa(mcp.INVALID_PARAMS))
+	require.NotContains(t, respJSON, allowedToolContext)
+	require.NotContains(t, respJSON, deniedToolTextContent)
+	require.Contains(t, respJSON, "User does not have permissions.")
+	require.Len(t, emitter.Events(), 1)
+	event, ok := emitter.LastEvent().(*apievents.MCPSessionRequest)
+	require.True(t, ok)
+	// Verify there was 1 param sent and it was the lowercase "name".
+	require.Len(t, event.Message.Params.Fields, 1)
+	require.Equal(t, deniedTool, event.Message.Params.Fields["name"].GetStringValue())
+
+	emitter.Reset()
+	respBytes = testSendRAWRequest(t, http.MethodPost, proxyURL, mcpClientTransport.GetSessionId(), fmt.Sprintf(
+		`{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{%q:%q,%q:%q,%q:%q,%q:%q}}`,
+		"Name", deniedTool,
+		"NaMe", deniedTool,
+		"name", allowedTool,
+		"NAME", deniedTool,
+	))
+	respJSON = string(respBytes)
+	require.NotContains(t, respJSON, deniedToolTextContent)
+	require.Contains(t, respJSON, allowedToolContext)
+	require.Len(t, emitter.Events(), 1)
+	event, ok = emitter.LastEvent().(*apievents.MCPSessionRequest)
+	require.True(t, ok)
+	// Verify there was 1 param sent and it was the lowercase "name".
+	require.Len(t, event.Message.Params.Fields, 1)
+	require.Equal(t, allowedTool, event.Message.Params.Fields["name"].GetStringValue())
 }
 
 func Test_handleAuthErrHTTP(t *testing.T) {

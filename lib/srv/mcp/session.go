@@ -23,6 +23,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -254,6 +255,12 @@ func (s *sessionHandler) processClientRequest(ctx context.Context, req *mcputils
 
 	switch req.Method {
 	case mcputils.MethodToolsCall:
+		// Remove all non-canonical name params, like "Name" or "NaMe", trying to prevent
+		// malicious clients to bypass RBAC for vulnerable upstream MCP servers. E.g. it
+		// may happen that a MCP server using case-insensitive Go "json" package decodes
+		// "Name" while the RBAC was performed on "name" if both are present in the
+		// request.
+		sanitizeParamsName(req.Params)
 		toolName, _ := req.Params.GetName()
 		if toolName == "" {
 			return makeInvalidRequestResponse(req, errInvalidRequestMissingName)
@@ -270,7 +277,7 @@ func (s *sessionHandler) processClientRequest(ctx context.Context, req *mcputils
 	return nil
 }
 
-func (s *sessionHandler) processClientNotification(ctx context.Context, notification *mcputils.JSONRPCNotification) {
+func (s *sessionHandler) processClientNotification(_ context.Context, notification *mcputils.JSONRPCNotification) {
 	messagesFromClient.WithLabelValues(s.transport, "notification", reportNotificationMethod(notification.Method)).Inc()
 }
 
@@ -369,4 +376,12 @@ func toError(e mcp.JSONRPCError) error {
 		}
 	}
 	return e.Error.AsError()
+}
+
+func sanitizeParamsName(p mcputils.JSONRPCParams) {
+	for k := range p {
+		if k != mcputils.ParamName && strings.ToLower(k) == mcputils.ParamName {
+			delete(p, k)
+		}
+	}
 }
