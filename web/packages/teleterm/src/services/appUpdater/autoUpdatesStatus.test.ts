@@ -549,7 +549,7 @@ test('throws when a reachable cluster does not advertise a tools version', async
       }),
     })
   ).rejects.toThrow(
-    `Cluster old-cluster advertised an empty tools version and is not supported by this version of Teleport Connect.`
+    `Cluster old-cluster is not supported by this version of Teleport Connect.`
   );
 });
 
