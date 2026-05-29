@@ -8,6 +8,7 @@ ARG DEVTOOLSET
 # devtoolset-12 is only in CentOS buildlogs. The rpms are unsigned since they never were
 # published to the official CentOS SCL repos.
 RUN if [ "${BUILDARCH}" = "arm64" ]; then export BUILDARCH="aarch64"; fi && \
+    if [ "${BUILDARCH}" = "amd64" ]; then export BUILDARCH="x86_64"; fi && \
     printf '%s\n' \
     "[${DEVTOOLSET}-build]" \
     "name=${DEVTOOLSET} - Build" \

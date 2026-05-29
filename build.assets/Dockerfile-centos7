@@ -16,6 +16,7 @@ ENV BUILDARCH=${BUILDARCH} \
     DEVTOOLSET=${DEVTOOLSET}
 
 RUN if [ "${BUILDARCH}" = "arm64" ]; then export BUILDARCH="aarch64"; fi && \
+    if [ "${BUILDARCH}" = "amd64" ]; then export BUILDARCH="x86_64"; fi && \
     printf '%s\n' \
       "[${DEVTOOLSET}-build]" \
       "name=${DEVTOOLSET} - Build" \
