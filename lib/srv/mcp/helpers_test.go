@@ -19,6 +19,7 @@
 package mcp
 
 import (
+	"bytes"
 	"cmp"
 	"context"
 	"encoding/json"
@@ -35,6 +36,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	mcpclienttransport "github.com/mark3labs/mcp-go/client/transport"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -416,7 +418,20 @@ func checkSessionStartHasExternalSessionID() func(*testing.T, *apievents.MCPSess
 	}
 }
 
-func newStreamableMCPServer(t *testing.T, upstream *mcpserver.MCPServer, role types.Role) (_ *eventstest.MockRecorderEmitter, _ *mcpclienttransport.StreamableHTTP, proxyURL string) {
+func newStreamableMCPServer(t *testing.T, upstream *mcpserver.MCPServer, role types.Role) (
+	_ *eventstest.MockRecorderEmitter,
+	_ *mcpclienttransport.StreamableHTTP,
+	proxyURL string,
+) {
+	t.Helper()
+	return newStreamableMCPServerWithUpstreamRequestRecorder(t, upstream, role, nil)
+}
+
+func newStreamableMCPServerWithUpstreamRequestRecorder(t *testing.T, upstream *mcpserver.MCPServer, role types.Role, upstreamRequestRecorder *testRequestsRecorder) (
+	_ *eventstest.MockRecorderEmitter,
+	_ *mcpclienttransport.StreamableHTTP,
+	proxyURL string,
+) {
 	t.Helper()
 
 	remoteMCPServer := mcpserver.NewStreamableHTTPServer(upstream)
@@ -424,6 +439,9 @@ func newStreamableMCPServer(t *testing.T, upstream *mcpserver.MCPServer, role ty
 		if r.URL.Path != "/mcp" {
 			w.WriteHeader(http.StatusNotFound)
 			return
+		}
+		if upstreamRequestRecorder != nil {
+			upstreamRequestRecorder.record(r)
 		}
 		remoteMCPServer.ServeHTTP(w, r)
 	}))
@@ -482,6 +500,40 @@ func newStreamableMCPServer(t *testing.T, upstream *mcpserver.MCPServer, role ty
 	return &emitter, mcpClientTransport, proxyURL
 }
 
+type testRequestsRecorder struct {
+	mu       sync.RWMutex
+	contents [][]byte
+}
+
+func (r *testRequestsRecorder) record(req *http.Request) {
+	body, err := io.ReadAll(req.Body)
+	if err != nil {
+		panic(err.Error())
+	}
+	req.Body = io.NopCloser(bytes.NewReader(body))
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.contents = append(r.contents, body)
+}
+
+func (r *testRequestsRecorder) Contents() [][]byte {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	copy := make([][]byte, len(r.contents))
+	for i, c := range r.contents {
+		copy[i] = bytes.Clone(c)
+	}
+	return copy
+}
+
+func (r *testRequestsRecorder) Reset() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.contents = r.contents[:0]
+}
+
 func testJSONString(t *testing.T, v any) string {
 	t.Helper()
 	data, err := json.Marshal(v)
@@ -505,7 +557,31 @@ func testSendRAWRequest(t *testing.T, method, url, sessionID string, body string
 
 	respBody, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, resp.StatusCode, "body: %s", respBody)
+	require.GreaterOrEqual(t, resp.StatusCode, 200, "body: %s", respBody)
+	require.Less(t, resp.StatusCode, 300, "body: %s", respBody)
 
 	return respBody
+}
+
+func testMCPInit(t *testing.T, transport *mcpclienttransport.StreamableHTTP) (sessionID string) {
+	t.Helper()
+	ctx := t.Context()
+
+	_, err := transport.SendRequest(ctx, mcpclienttransport.JSONRPCRequest{
+		JSONRPC: mcp.JSONRPC_VERSION,
+		ID:      mcp.NewRequestId(uuid.NewString()),
+		Method:  string(mcp.MethodInitialize),
+		Params: map[string]any{
+			"protocolVersion": mcp.LATEST_PROTOCOL_VERSION,
+			"clientInfo": map[string]any{
+				"name":    "test-client-transport",
+				"version": "1.0.0",
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	sessionID = transport.GetSessionId()
+	require.NotEmpty(t, sessionID)
+	return sessionID
 }
