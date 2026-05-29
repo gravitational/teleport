@@ -52,6 +52,8 @@ export default meta;
 
 type Story = StoryObj<typeof UserDisplayName>;
 
+export const Playground: Story = {};
+
 export const LayoutVariants: Story = {
   render: () => (
     <Flex
