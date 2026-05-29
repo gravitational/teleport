@@ -5113,6 +5113,27 @@ func TestWatchEvents_ScopedIdentity(t *testing.T) {
 		}
 	})
 
+	t.Run("spiffe_federation", func(t *testing.T) {
+		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+		defer cancel()
+
+		watcher, err := scopedClient.NewWatcher(ctx, types.Watch{
+			Name: "spiffe-federation-watch",
+			Kinds: []types.WatchKind{{
+				Kind: types.KindSPIFFEFederation,
+			}},
+		})
+		require.NoError(t, err)
+		defer watcher.Close()
+
+		select {
+		case e := <-watcher.Events():
+			require.Equal(t, types.OpInit, e.Type)
+		case <-watcher.Done():
+			t.Fatalf("watcher closed unexpectedly: %v", watcher.Error())
+		}
+	})
+
 	t.Run("ca with secrets", func(t *testing.T) {
 		ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 		defer cancel()

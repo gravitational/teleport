@@ -6165,11 +6165,12 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	machineidv1pb.RegisterWorkloadIdentityServiceServer(server, workloadIdentityService)
 
 	spiffeFederationService, err := machineidv1.NewSPIFFEFederationService(machineidv1.SPIFFEFederationServiceConfig{
-		Authorizer: cfg.Authorizer,
-		Backend:    cfg.AuthServer.Services.SPIFFEFederations,
-		Cache:      cfg.AuthServer.Cache,
-		Clock:      cfg.AuthServer.GetClock(),
-		Emitter:    cfg.Emitter,
+		Authorizer:       cfg.Authorizer,
+		ScopedAuthorizer: cfg.ScopedAuthorizer,
+		Backend:          cfg.AuthServer.Services.SPIFFEFederations,
+		Cache:            cfg.AuthServer.Cache,
+		Clock:            cfg.AuthServer.GetClock(),
+		Emitter:          cfg.Emitter,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating SPIFFE federation service")

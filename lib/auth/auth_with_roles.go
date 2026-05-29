@@ -1354,16 +1354,21 @@ func (a *ServerWithRoles) hasWatchPermissionForKind(
 }
 
 // hasWatchPermissionForKind is the scoped equivalent of [ServerWithRoles.hasWatchPermissionForKind].
-// Currently only cert_authority with load_secrets=false is permitted for scoped identities.
+// Currently only cert_authority (with load_secrets=false) and spiffe_federation are permitted for
+// scoped identities. Both are cluster-global config and are authorized as unpinned root reads.
 func (a *ScopedServerWithRoles) hasWatchPermissionForKind(ctx context.Context, kind types.WatchKind) error {
-	if kind.Kind != types.KindCertAuthority {
+	ruleCtx := a.scopedContext.RuleContext()
+	switch kind.Kind {
+	case types.KindCertAuthority:
+		if kind.LoadSecrets {
+			return trace.AccessDenied("scoped identities are not permitted to watch cert_authority with load_secrets=true")
+		}
+		return a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadCertAuthority, &ruleCtx)
+	case types.KindSPIFFEFederation:
+		return a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadSPIFFEFederation, &ruleCtx)
+	default:
 		return trace.AccessDenied("scoped identities are not permitted to watch kind %q", kind.Kind)
 	}
-	if kind.LoadSecrets {
-		return trace.AccessDenied("scoped identities are not permitted to watch cert_authority with load_secrets=true")
-	}
-	ruleCtx := a.scopedContext.RuleContext()
-	return a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadCertAuthority, &ruleCtx)
 }
 
 // DeleteAllNodes deletes all nodes in a given namespace
