@@ -559,6 +559,36 @@ test.each<{
   expect(result).toEqual(expected);
 });
 
+// Pre-v17 clusters may return empty toolsVersion.
+test('throws when a reachable cluster does not advertise a tools version', async () => {
+  await expect(
+    resolveAutoUpdatesStatus({
+      cdnBaseUrl,
+      configToolsVersion: '',
+      managingClusterUri: '',
+      getClusterVersions: async () => ({
+        reachableClusters: [
+          {
+            clusterUri: '/clusters/cluster-a',
+            toolsAutoUpdate: true,
+            toolsVersion: '16.0.0',
+            minToolsVersion: '15.0.0-aa',
+          },
+          {
+            clusterUri: '/clusters/old-cluster',
+            toolsAutoUpdate: false,
+            toolsVersion: '',
+            minToolsVersion: '15.0.0-aa',
+          },
+        ],
+        unreachableClusters: [],
+      }),
+    })
+  ).rejects.toThrow(
+    `Cluster old-cluster advertised an empty tools version and is not supported by this version of Teleport Connect.`
+  );
+});
+
 test('should not auto download when there is unreachable cluster in highest-compatible resolution', () => {
   const result = shouldAutoDownload({
     enabled: true,
