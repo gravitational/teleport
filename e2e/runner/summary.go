@@ -44,6 +44,7 @@ func printTestSummary(e2eDir, resultsPath string) {
 	}
 
 	failed := collectTests(report.Suites, "unexpected")
+	flaky := collectTests(report.Suites, "flaky")
 
 	// rewrite the paths relative to the caller directory
 	pathPrefix := ""
@@ -55,6 +56,9 @@ func printTestSummary(e2eDir, resultsPath string) {
 
 	for i := range failed {
 		failed[i].file = pathPrefix + "tests/" + failed[i].file
+	}
+	for i := range flaky {
+		flaky[i].file = pathPrefix + "tests/" + flaky[i].file
 	}
 
 	w := os.Stderr
@@ -86,8 +90,17 @@ func printTestSummary(e2eDir, resultsPath string) {
 		fmt.Fprintln(w, red(fmt.Sprintf("  %d %s not associated with any test", len(report.Errors), pluralErrors(len(report.Errors)))))
 	}
 
-	if report.Stats.Flaky > 0 {
-		fmt.Fprintln(w, yellow(fmt.Sprintf("  %d flaky", report.Stats.Flaky)))
+	// Flaky tests (failed then passed on retry) are easy to miss as a bare
+	// count, so print each one's initial failure — this is usually where an
+	// intermittent timeout/failure actually shows up.
+	if len(flaky) > 0 {
+		for _, f := range flaky {
+			fmt.Fprintln(w, yellow(formatTestHeader(f, "  ")))
+
+			printFailureErrors(w, f, e2eDir, pathPrefix)
+		}
+
+		fmt.Fprintln(w, yellow(fmt.Sprintf("  %d flaky", len(flaky))))
 	}
 
 	if report.Stats.Skipped > 0 {
@@ -114,7 +127,8 @@ func printTestSummary(e2eDir, resultsPath string) {
 
 	fmt.Fprintf(w, "\n  To open last HTML report run:\n\n    %s\n\n", cyan(showReportCmd))
 
-	traces := collectTraces(failed, e2eDir)
+	traceTests := append(append([]pwFailure(nil), failed...), flaky...)
+	traces := collectTraces(traceTests, e2eDir)
 	if len(traces) > 0 {
 		fmt.Fprintln(w, "  Traces:")
 		for _, t := range traces {

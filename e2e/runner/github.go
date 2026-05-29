@@ -131,7 +131,7 @@ func firstErrorMsg(results []pwResult) string {
 func emitAnnotations(failures, flaky []mergedFailure, errors []pwError) {
 	for _, f := range failures {
 		browsers := strings.Join(f.projects, ", ")
-		msg := fmt.Sprintf("[%s] %s", browsers, firstErrorLine(f))
+		msg := fmt.Sprintf("[%s] %s — %s", browsers, f.title, firstErrorLine(f))
 		fmt.Printf("::error file=%s,line=%d,col=%d::%s\n",
 			escapeProp(f.file), f.line, f.column, escapeData(msg))
 	}
