@@ -18,7 +18,7 @@
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { startUrl, users } from './helpers/env';
 import { directLogin } from './helpers/login';
@@ -43,3 +43,10 @@ async function globalSetup() {
 }
 
 export { globalSetup as default };
+
+// When executed directly (e.g. `tsx global-setup.ts`) rather than imported as
+// Playwright's configured globalSetup, run immediately. The runner's browse and
+// codegen modes use this to generate auth state without a full test run.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  await globalSetup();
+}

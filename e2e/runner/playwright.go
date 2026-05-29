@@ -229,7 +229,7 @@ func (p *playwrightRunner) codegen(ctx context.Context) error {
 	return p.openWebAuthenticated(ctx, "codegen")
 }
 
-// openWebAuthenticated runs the setup project to generate auth state, then opens
+// openWebAuthenticated runs the global setup to generate auth state, then opens
 // a Chromium browser with a virtual WebAuthn authenticator pre-loaded so that
 // MFA challenges resolve automatically.
 func (p *playwrightRunner) openWebAuthenticated(ctx context.Context, playwrightCmd string) error {
@@ -248,8 +248,8 @@ func (p *playwrightRunner) openWebAuthenticated(ctx context.Context, playwrightC
 		return err
 	}
 
-	slog.Debug("running setup project to generate auth state")
-	if err := p.pnpm(ctx, []string{"exec", "playwright", "test", p.configFlag(), "--project=" + inst.browser + ":setup"}, env); err != nil {
+	slog.Debug("running global setup to generate auth state")
+	if err := p.pnpm(ctx, []string{"exec", "tsx", filepath.Join(p.config.sharedDir, "global-setup.ts")}, env); err != nil {
 		return err
 	}
 
