@@ -1,0 +1,287 @@
+---
+title: Syncing Access Lists from an External System
+sidebar_label: Sync from External System
+description: Learn how to programmatically populate Teleport Access Lists and their members from an external identity system.
+tags:
+ - how-to
+ - identity-governance
+ - privileged-access
+enterprise: Identity Governance
+---
+
+This guide explains how to write Go code that fetches groups and their members
+from an upstream source and reconciles them into Teleport Access Lists.
+
+## How it works
+
+The sync follows three linear steps:
+
+1. **Fetch** — query the upstream source for groups and their memberships.
+2. **Convert** — turn that data into `accesslist.AccessList` and `accesslist.AccessListMember` objects.
+3. **Reconcile** — diff new state against Teleport's current state and apply creates, updates, and deletes.
+
+```go
+func syncFromUpstream(ctx context.Context, client UpstreamClient, accessListSvc services.AccessLists) error {
+    existingLists, err := listAccessListsFromTeleport(ctx, accessListSvc)
+    if err != nil {
+        return trace.Wrap(err)
+    }
+    newLists, err := accessListsFromUpstream(ctx, client)
+    if err != nil {
+        return trace.Wrap(err)
+    }
+
+    existingMembers, err := accessListMembersFromTeleport(ctx, accessListNames(existingLists), accessListSvc)
+    if err != nil {
+        return trace.Wrap(err)
+    }
+    newMembers, err := accessListMembersFromUpstream(ctx, client)
+    if err != nil {
+        return trace.Wrap(err)
+    }
+
+    alReconciler, err := newAccessListReconciler(accessListSvc, existingLists, newLists)
+    if err != nil {
+        return trace.Wrap(err)
+    }
+    memberReconciler, err := newAccessListMemberReconciler(accessListSvc, existingMembers, newMembers)
+    if err != nil {
+        return trace.Wrap(err)
+    }
+
+    return trace.NewAggregate(
+        alReconciler.Reconcile(ctx),
+        memberReconciler.Reconcile(ctx),
+    )
+}
+```
+
+## Prerequisites
+
+- Teleport Enterprise with Identity Governance enabled.
+- A Go module that imports `github.com/gravitational/teleport`.
+- A `services.AccessLists` handle — for example from `authclient.NewClient`.
+
+## Step 1. Fetch groups and build the Access List map
+
+Query the upstream source for groups and convert each one into an
+`accesslist.AccessList`. Collect results into a `map[string]*accesslist.AccessList`
+keyed by the group's stable ID.
+
+```go
+func accessListsFromUpstream(ctx context.Context, client UpstreamClient, defaultOwners []accesslist.Owner) (map[string]*accesslist.AccessList, error) {
+    groups, err := client.ListGroups(ctx)
+    if err != nil {
+        return nil, trace.Wrap(err)
+    }
+
+    out := map[string]*accesslist.AccessList{}
+    for _, g := range groups {
+        acl, err := accesslist.NewAccessList(
+            header.Metadata{
+                Name: g.ID, // stable unique ID from the upstream source
+            },
+            accesslist.Spec{
+                Title:  g.DisplayName,
+                Owners: defaultOwners,
+            },
+        )
+        if err != nil {
+            return nil, trace.Wrap(err)
+        }
+        out[acl.GetName()] = acl
+    }
+
+    return out, nil
+}
+```
+
+Owners are set to eligible by default:
+
+```go
+func toOwners(usernames []string) []accesslist.Owner {
+    out := make([]accesslist.Owner, 0, len(usernames))
+    for _, name := range usernames {
+        out = append(out, accesslist.Owner{
+            Name:             name,
+            MembershipKind:   accesslistv1.MembershipKind_MEMBERSHIP_KIND_USER.String(),
+            IneligibleStatus: accesslistv1.IneligibleStatus_name[int32(accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE)],
+        })
+    }
+    return out
+}
+```
+
+## Step 2. Fetch members and build the member map
+
+For each group, fetch its members and create one `accesslist.AccessListMember`
+per user. Collect everything into a `map[string]*accesslist.AccessListMember`
+keyed by `"<access-list-name>/<username>"`.
+
+```go
+func accessListMembersFromUpstream(ctx context.Context, client UpstreamClient) (map[string]*accesslist.AccessListMember, error) {
+    groups, err := client.ListGroupsWithMembers(ctx)
+    if err != nil {
+        return nil, trace.Wrap(err)
+    }
+
+    out := map[string]*accesslist.AccessListMember{}
+    for _, g := range groups {
+        for _, m := range g.Members {
+            alm, err := accesslist.NewAccessListMember(
+                header.Metadata{
+                    Name: m.UserName,
+                },
+                accesslist.AccessListMemberSpec{
+                    AccessList:     g.ID,
+                    Name:           m.UserName,
+                    Joined:         time.Now().UTC(),
+                    AddedBy:        teleport.UserSystem,
+                    MembershipKind: accesslistv1.MembershipKind_MEMBERSHIP_KIND_USER.String(),
+                },
+            )
+            if err != nil {
+                return nil, trace.Wrap(err)
+            }
+            out[memberMapKey(alm)] = alm
+        }
+    }
+
+    return out, nil
+}
+
+func memberMapKey(m *accesslist.AccessListMember) string {
+    return m.Spec.AccessList + "/" + m.Spec.Name
+}
+```
+
+Key fields on `AccessListMemberSpec`:
+
+| Field | Purpose |
+|-------|---------|
+| `AccessList` | Name of the owning Access List — must match the group's stable ID. |
+| `Name` | Teleport username of the member. |
+| `Joined` | Timestamp when the member was added. |
+| `AddedBy` | String identifying the system that created the record. |
+| `MembershipKind` | `MEMBERSHIP_KIND_USER` for individual users; `MEMBERSHIP_KIND_LIST` for nested lists. |
+
+## Step 3. Load existing resources from Teleport
+
+Use `clientutils.Resources` with `stream.Collect` to page through existing
+Access Lists and members without writing manual pagination loops.
+
+```go
+import (
+    "github.com/gravitational/teleport/api/utils/clientutils"
+    "github.com/gravitational/teleport/lib/itertools/stream"
+)
+
+func listAccessListsFromTeleport(ctx context.Context, service services.AccessLists) (map[string]*accesslist.AccessList, error) {
+    all, err := stream.Collect(clientutils.Resources(ctx, service.ListAccessLists))
+    if err != nil {
+        return nil, trace.Wrap(err)
+    }
+    out := map[string]*accesslist.AccessList{}
+    for _, al := range all {
+        out[al.GetName()] = al
+    }
+    return out, nil
+}
+
+func accessListMembersFromTeleport(ctx context.Context, names []string, service services.AccessLists) (map[string]*accesslist.AccessListMember, error) {
+    out := map[string]*accesslist.AccessListMember{}
+    for _, name := range names {
+        listMembers := func(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
+            return service.ListAccessListMembers(ctx, name, pageSize, pageToken)
+        }
+        members, err := stream.Collect(clientutils.Resources(ctx, listMembers))
+        if err != nil {
+            return nil, trace.Wrap(err)
+        }
+        for _, m := range members {
+            out[memberMapKey(m)] = m
+        }
+    }
+    return out, nil
+}
+
+func accessListNames(in map[string]*accesslist.AccessList) []string {
+    out := make([]string, 0, len(in))
+    for _, al := range in {
+        out = append(out, al.GetName())
+    }
+    return out
+}
+```
+
+## Step 4. Create and run the reconcilers
+
+Pass the new and existing maps as inline closures. The reconciler calls each
+closure at reconcile time to compute the diff.
+
+### Access List reconciler
+
+```go
+func newAccessListReconciler(service services.AccessLists, existing, incoming map[string]*accesslist.AccessList) (*services.Reconciler[*accesslist.AccessList], error) {
+    return services.NewReconciler(services.ReconcilerConfig[*accesslist.AccessList]{
+        Matcher: func(_ *accesslist.AccessList) bool { return true },
+        CompareResources: func(a, b *accesslist.AccessList) int {
+            return services.EqualFromBool(accesslist.EqualAccessLists(a, b, accesslist.WithIgnoreEphemeralFields()))
+        },
+        GetCurrentResources: func() map[string]*accesslist.AccessList { return existing },
+        GetNewResources:     func() map[string]*accesslist.AccessList { return incoming },
+        OnCreate: func(ctx context.Context, al *accesslist.AccessList) error {
+            _, err := service.UpsertAccessList(ctx, al)
+            return trace.Wrap(err)
+        },
+        OnUpdate: func(ctx context.Context, incoming, _ *accesslist.AccessList) error {
+            _, err := service.UpsertAccessList(ctx, incoming)
+            return trace.Wrap(err)
+        },
+        OnDelete: func(ctx context.Context, al *accesslist.AccessList) error {
+            return trace.Wrap(service.DeleteAccessList(ctx, al.GetName()))
+        },
+    })
+}
+```
+
+### Member reconciler
+
+```go
+func newAccessListMemberReconciler(service services.AccessLists, existing, incoming map[string]*accesslist.AccessListMember) (*services.Reconciler[*accesslist.AccessListMember], error) {
+    return services.NewReconciler(services.ReconcilerConfig[*accesslist.AccessListMember]{
+        Matcher: func(_ *accesslist.AccessListMember) bool { return true },
+        CompareResources: func(a, b *accesslist.AccessListMember) int {
+            if a.Spec.Name == b.Spec.Name && a.Spec.AccessList == b.Spec.AccessList {
+                return services.Equal
+            }
+            return services.Different
+        },
+        GetCurrentResources: func() map[string]*accesslist.AccessListMember { return existing },
+        GetNewResources:     func() map[string]*accesslist.AccessListMember { return incoming },
+        OnCreate: func(ctx context.Context, m *accesslist.AccessListMember) error {
+            _, err := service.UpsertAccessListMember(ctx, m)
+            return trace.Wrap(err)
+        },
+        OnUpdate: func(ctx context.Context, incoming, _ *accesslist.AccessListMember) error {
+            _, err := service.UpsertAccessListMember(ctx, incoming)
+            return trace.Wrap(err)
+        },
+        OnDelete: func(ctx context.Context, m *accesslist.AccessListMember) error {
+            err := service.DeleteAccessListMember(ctx, m.Spec.AccessList, m.Spec.Name)
+            if trace.IsNotFound(err) {
+                return nil
+            }
+            return trace.Wrap(err)
+        },
+    })
+}
+```
+
+`OnDelete` ignores `NotFound` errors because the enclosing Access List may
+have already been deleted before its members are processed.
+
+## Next steps
+
+- Read [Getting Started with Access Lists](./guide.mdx) to understand Access List concepts.
+- See [Nested Access Lists](./nested-access-lists.mdx) if your groups contain sub-groups.
