@@ -326,7 +326,10 @@ func TestWorkloadIdentityRevocation(t *testing.T) {
 		require.NoError(t, err)
 		require.NotContains(t, buf.String(), "created")
 
-		got := mustDecodeJSON[*workloadidentityv1pb.WorkloadIdentityX509Revocation](t, buf)
+		// Output is the legacy-wrapped resource (RFC3339 timestamps), matching
+		// `revocations ls`/`tctl get`, so decode with protojson like those do.
+		got := &workloadidentityv1pb.WorkloadIdentityX509Revocation{}
+		require.NoError(t, protojson.Unmarshal(buf.Bytes(), got))
 		require.Equal(t, "11223344", got.GetMetadata().GetName())
 		require.Equal(t, "compromised", got.GetSpec().GetReason())
 	})
