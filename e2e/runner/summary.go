@@ -139,7 +139,9 @@ func printTestSummary(e2eDir, resultsPath string) {
 					traceCmd += " --sha " + sha
 				}
 			} else {
-				traceCmd = fmt.Sprintf("pnpm exec playwright show-trace %s", pathPrefix+t.relPath)
+				// relPath is relative to test-results (matching the CI
+				// --test-results flow); the local path needs that segment back.
+				traceCmd = fmt.Sprintf("pnpm exec playwright show-trace %s", pathPrefix+"test-results/"+t.relPath)
 			}
 			fmt.Fprintf(w, "    %s\n      %s\n", dim(t.title), cyan(traceCmd))
 		}

@@ -85,7 +85,12 @@ func (p *playwrightRunner) run(ctx context.Context, mode runMode) error {
 }
 
 func (p *playwrightRunner) test(ctx context.Context, debug bool) error {
-	blobBaseDir := filepath.Join(p.config.e2eDir, "blob-reports")
+	// Keep blobs (and the attachments Playwright extracts into
+	// blob-reports/resources during merge) under test-results, so they're part
+	// of the uploaded test-results artifact and the --test-results trace flow
+	// can resolve them. Outside test-results the merged report references a
+	// transient sibling dir that's deleted next run and never uploaded.
+	blobBaseDir := filepath.Join(p.config.e2eDir, "test-results", "blob-reports")
 	if err := os.RemoveAll(blobBaseDir); err != nil {
 		return fmt.Errorf("cleaning blob-reports directory: %w", err)
 	}
@@ -193,6 +198,15 @@ func (p *playwrightRunner) test(ctx context.Context, debug bool) error {
 		slog.Warn("failed to merge reports", "error", err)
 		if testErr == nil {
 			return err
+		}
+	} else {
+		// Merge consumed the per-browser blobs; drop them so the test-results
+		// artifact carries only the extracted resources/, not the (redundant,
+		// larger) raw blob archives with every attachment embedded twice.
+		if blobs, err := filepath.Glob(filepath.Join(blobBaseDir, "*.zip")); err == nil {
+			for _, b := range blobs {
+				_ = os.Remove(b)
+			}
 		}
 	}
 
