@@ -330,6 +330,7 @@ computed_fields:
     - "RoleV6.Spec.Options.CreateDesktopUser"
     - "RoleV6.Spec.Options.DesktopClipboard"
     - "RoleV6.Spec.Options.DesktopDirectorySharing"
+    - "RoleV6.Spec.Options.RecordSession"
 
     # SAML connector
     - "SAMLConnectorV2.Spec.Audience"
