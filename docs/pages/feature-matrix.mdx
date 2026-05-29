@@ -84,12 +84,12 @@ The **Teleport Agentic Identity Framework** combines Teleport identity, access, 
 | Identity-based access control for MCP traffic | ✔ | ✔ | ✔ |
 | Per-tool audit events for MCP requests | ✔ | ✔ | ✔ |
 |**Trusted runtimes ([Beams](https://www.beams.run/), beta).** Run agent sessions in isolated, ephemeral runtimes with built-in identity, controlled egress, and full audit:||||
-| Sandboxed agent runtime with ephemeral storage and short-lived injected identity | ✔ | ✖ | ✖ |
+| Sandboxed agent runtime (Firecracker microVM) with ephemeral storage and short-lived injected identity | ✔ | ✖ | ✖ |
 | Launch and manage beams via `tsh` and an MCP server | ✔ | ✖ | ✖ |
 | Built-in inference proxy with bundled providers (OpenAI, Anthropic) and bring-your-own option | ✔ | ✖ | ✖ |
 | Policy-controlled allowlist for external API egress | ✔ | ✖ | ✖ |
 | Per-user limits on concurrent beams and shared inference usage | ✔ | ✖ | ✖ |
-| Session-bound beam lifecycle with full audit trail | ✔ | ✖ | ✖ |
+| Session-bound beam lifecycle (~24-hour maximum) with full audit trail | ✔ | ✖ | ✖ |
 |**Agent enforcement.** Stop or constrain agent activity inline when policy is violated:||||
 | [Session and identity locks](identity-governance/locking.mdx) | Available in Teleport Identity Governance | Available in Teleport Identity Governance | ✖ |
 | [Device Trust](zero-trust-access/device-trust/guide.mdx) for the human operator behind an agent | ✔ | ✔ | ✖ |
