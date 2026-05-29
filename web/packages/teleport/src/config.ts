@@ -640,6 +640,10 @@ const cfg = {
     return cfg.playable_db_protocols;
   },
 
+  getBeamsUi() {
+    return cfg.beamsUi;
+  },
+
   getClusterInfoPath(clusterId: string) {
     return generatePath(cfg.api.clusterInfoPath, {
       clusterId,
