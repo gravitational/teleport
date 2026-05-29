@@ -4461,7 +4461,7 @@ func onResolve(cf *CLIConf) error {
 	// on the hostname of the server. Otherwise, this would end up listing
 	// the first two servers that the user has access to and yield unexpected results.
 	if len(tc.Labels) == 0 && len(tc.SearchKeywords) == 0 && tc.PredicateExpression == "" {
-		req.PredicateExpression = fmt.Sprintf(`name == "%s"`, tc.Host)
+		req.PredicateExpression = fmt.Sprintf(`name == %q`, tc.Host)
 	}
 
 	// Only enable the re-authentication behavior if not invoked with `-q`. When

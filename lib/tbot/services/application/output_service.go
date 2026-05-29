@@ -251,7 +251,7 @@ func getApp(ctx context.Context, clt *apiclient.Client, appName string) (types.A
 	servers, err := apiclient.GetAllResources[types.AppServer](ctx, clt, &proto.ListResourcesRequest{
 		Namespace:           defaults.Namespace,
 		ResourceType:        types.KindAppServer,
-		PredicateExpression: fmt.Sprintf(`name == "%s"`, appName),
+		PredicateExpression: fmt.Sprintf(`name == %q`, appName),
 		Limit:               1,
 	})
 	if err != nil {
