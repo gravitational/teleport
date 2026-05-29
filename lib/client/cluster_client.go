@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	proxyclient "github.com/gravitational/teleport/api/client/proxy"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	"github.com/gravitational/teleport/api/mfa"
 	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -111,7 +112,7 @@ func (c *ClusterClient) PerformSessionMFACeremony(ctx context.Context, sessionID
 	}
 	defer rootClient.Close()
 
-	mfaClient := rootClient.MFAServiceClient()
+	mfaClient := rootClient.MFAServiceClientV2()
 	if mfaClient == nil {
 		return "", trace.BadParameter("MFA service client is not initialized (this is a bug)")
 	}
@@ -131,11 +132,9 @@ func (c *ClusterClient) PerformSessionMFACeremony(ctx context.Context, sessionID
 
 	name, err := ceremony.Run(
 		ctx,
-		&mfav1.SessionIdentifyingPayload{
-			Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{
-				SshSessionId: sessionID,
-			},
-		},
+		mfav2.SessionIdentifyingPayload_builder{
+			SshSessionId: sessionID,
+		}.Build(),
 	)
 	if err != nil {
 		return "", trace.Wrap(err)
