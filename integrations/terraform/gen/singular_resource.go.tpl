@@ -634,3 +634,77 @@ func (r resourceTeleport{{.Name}}) ImportState(ctx context.Context, req tfsdk.Im
 		return
 	}
 }
+
+{{- if not .WithoutModifyPlan }}
+
+// ModifyPlan modifies the planned value, normalizing null values.
+func (r resourceTeleport{{.Name}}) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+	// If the entire plan is null, the resource is planned for destruction.
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	// If the state is null, the resource is being created. No need to modify plan.
+	if req.State.Raw.IsNull() {
+		return
+	}
+
+	var config types.Object
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	{{.VarName}} := &{{.ProtoPackage}}.{{.TypeName}}{}
+	resp.Diagnostics.Append({{.SchemaPackage}}.Copy{{.TypeName}}FromTerraform(ctx, config, {{.VarName}})...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+{{- if .ConvertPackagePath }}
+
+	{{.VarName}}Resource, err := convert.{{ if .ConvertFromProtoFunc }}{{.ConvertFromProtoFunc}}{{ else }}FromProto{{ end }}({{.VarName}})
+	if err != nil {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Errorf("Can not convert %T to {{.TypeName}}: %s", {{.VarName}}Resource, err), "{{.Kind}}"))
+		return
+	}
+{{- else }}
+
+	{{.VarName}}Resource := {{.VarName}}
+{{- end }}
+
+{{- if .ForceSetKind }}
+	{{.VarName}}Resource.Kind = {{.ForceSetKind}}
+{{- end}}
+
+{{- if .HasCheckAndSetDefaults }}
+
+	if err := {{.VarName}}Resource.CheckAndSetDefaults(); err != nil {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error setting {{.Name}} defaults", trace.Wrap(err), "{{.Kind}}"))
+		return
+	}
+{{- end }}
+
+{{- if .ConvertPackagePath}}
+
+	{{.VarName}} = convert.{{ if .ConvertToProtoFunc }}{{.ConvertToProtoFunc}}{{ else }}ToProto{{ end }}({{.VarName}}Resource)
+{{- else}}
+
+	{{.VarName}} = {{.VarName}}Resource
+{{- end }}
+
+	resp.Diagnostics.Append({{.SchemaPackage}}.Copy{{.TypeName}}ToTerraform(ctx, {{.VarName}}, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var plan types.Object
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.Attrs["spec"] = config.Attrs["spec"]
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
+}
+{{- end}}
