@@ -23,6 +23,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -254,4 +255,97 @@ func TestFormatResourceAccessIDs(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "[\"/cluster/kube:ns:pods/my-kube-cluster/default/nginx\"]", out)
 	})
+}
+
+// The four output forms with realistic values.
+func TestFormatUserDisplay_CanonicalForms(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, "Jane Garcia <jane.garcia@example.com> (123456)",
+		FormatUserDisplay("Jane Garcia", "jane.garcia@example.com", "123456"))
+	require.Equal(t, "Jane Garcia (123456)",
+		FormatUserDisplay("Jane Garcia", "", "123456"))
+	require.Equal(t, "123456 <jane.garcia@example.com>",
+		FormatUserDisplay("", "jane.garcia@example.com", "123456"))
+	require.Equal(t, "123456",
+		FormatUserDisplay("", "", "123456"))
+}
+
+// Control-byte stripping (one per class) and whitespace handling.
+func TestFormatUserDisplay_Sanitization(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		primary   string
+		secondary string
+		username  string
+		want      string
+	}{
+		{
+			// Only the ESC byte is a control rune, so "[31m" stays — but
+			// without the ESC the terminal won't read it as a color escape.
+			name:     "ansi CSI escape introducer stripped from primary",
+			primary:  "Jane\x1b[31m",
+			username: "jgarcia",
+			want:     "Jane[31m (jgarcia)",
+		},
+		{
+			name:     "newline stripped from primary",
+			primary:  "Jane\nAdmin",
+			username: "jgarcia",
+			want:     "JaneAdmin (jgarcia)",
+		},
+		{
+			name:      "carriage return stripped from secondary",
+			secondary: "real\rfake",
+			username:  "jgarcia",
+			want:      "jgarcia <realfake>",
+		},
+		{
+			name:     "backspace stripped from username",
+			username: "real\bX",
+			want:     "realX",
+		},
+		{
+			name:     "NUL stripped from username",
+			username: "a\x00b",
+			want:     "ab",
+		},
+		{
+			name:     "tab stripped from primary",
+			primary:  "Jane\tGarcia",
+			username: "jgarcia",
+			want:     "JaneGarcia (jgarcia)",
+		},
+		{
+			name:     "surrounding whitespace trimmed",
+			primary:  "  Jane  ",
+			username: "  jgarcia  ",
+			want:     "Jane (jgarcia)",
+		},
+		{
+			name:     "whitespace-only primary treated as absent",
+			primary:  "   ",
+			username: "jgarcia",
+			want:     "jgarcia",
+		},
+		{
+			name:      "primary of only control bytes treated as absent",
+			primary:   "\x1b\x00",
+			secondary: "team",
+			username:  "jgarcia",
+			want:      "jgarcia <team>",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := FormatUserDisplay(tt.primary, tt.secondary, tt.username)
+			require.Equal(t, tt.want, got)
+			require.Equal(t, strings.TrimSpace(got), got,
+				"output must have no leading/trailing whitespace: %q", got)
+		})
+	}
 }
