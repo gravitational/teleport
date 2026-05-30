@@ -27,6 +27,7 @@ import (
 	"log/slog"
 	"sort"
 	"strings"
+	"unicode"
 
 	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
@@ -322,4 +323,40 @@ func PrintYAML(w io.Writer, v any) error {
 	}
 	_, err = fmt.Fprintln(w, string(out))
 	return trace.Wrap(err)
+}
+
+// FormatUserDisplay renders a user identity from display values plus username:
+//
+//	"Primary <Secondary> (username)" — all three present
+//	"Primary (username)"             — primary + username
+//	"username <Secondary>"           — secondary + username
+//	"username"                       — username only
+func FormatUserDisplay(primary, secondary, username string) string {
+	primary = sanitizeDisplayValue(primary)
+	secondary = sanitizeDisplayValue(secondary)
+	username = sanitizeDisplayValue(username)
+
+	switch {
+	case primary != "" && secondary != "":
+		return fmt.Sprintf("%s <%s> (%s)", primary, secondary, username)
+	case primary != "":
+		return fmt.Sprintf("%s (%s)", primary, username)
+	case secondary != "":
+		return fmt.Sprintf("%s <%s>", username, secondary)
+	default:
+		return username
+	}
+}
+
+// sanitizeDisplayValue drops control characters and trims whitespace so the
+// result is safe to print in a single-line terminal cell.
+func sanitizeDisplayValue(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		if !unicode.IsControl(r) {
+			b.WriteRune(r)
+		}
+	}
+	return strings.TrimSpace(b.String())
 }
