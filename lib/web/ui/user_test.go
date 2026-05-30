@@ -84,6 +84,32 @@ func TestNewUserListEntry(t *testing.T) {
 				AuthType: unknownSSOAuthType,
 			},
 		},
+		{
+			name: "display values populated from traits",
+			user: &types.UserV2{
+				Metadata: types.Metadata{
+					Name: "alice",
+				},
+				Spec: types.UserSpecV2{
+					Roles: []string{"access"},
+					Traits: map[string][]string{
+						"displayName": {"Alice Anderson"},
+						"email":       {"alice@example.com"},
+					},
+				},
+			},
+			want: &UserListEntry{
+				Name:     "alice",
+				Roles:    []string{"access"},
+				AuthType: "local",
+				AllTraits: map[string][]string{
+					"displayName": {"Alice Anderson"},
+					"email":       {"alice@example.com"},
+				},
+				DisplayPrimary:   "Alice Anderson",
+				DisplaySecondary: "alice@example.com",
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -96,4 +122,42 @@ func TestNewUserListEntry(t *testing.T) {
 		})
 	}
 
+}
+
+// ui.User embeds UserListEntry, so the detail response carries display values too.
+func TestNewUserDisplayValues(t *testing.T) {
+	t.Run("populated", func(t *testing.T) {
+		teleUser := &types.UserV2{
+			Metadata: types.Metadata{Name: "alice"},
+			Spec: types.UserSpecV2{
+				Traits: map[string][]string{
+					"displayName": {"Alice Anderson"},
+					"email":       {"alice@example.com"},
+				},
+			},
+		}
+
+		got, err := NewUser(teleUser)
+		require.NoError(t, err)
+		require.Equal(t, "alice", got.Name)
+		require.Equal(t, "Alice Anderson", got.DisplayPrimary)
+		require.Equal(t, "alice@example.com", got.DisplaySecondary)
+	})
+
+	t.Run("empty when no display traits", func(t *testing.T) {
+		teleUser := &types.UserV2{
+			Metadata: types.Metadata{Name: "bob"},
+			Spec: types.UserSpecV2{
+				Traits: map[string][]string{
+					"logins": {"bob"},
+				},
+			},
+		}
+
+		got, err := NewUser(teleUser)
+		require.NoError(t, err)
+		require.Equal(t, "bob", got.Name)
+		require.Empty(t, got.DisplayPrimary)
+		require.Empty(t, got.DisplaySecondary)
+	})
 }
