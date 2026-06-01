@@ -441,12 +441,14 @@ func TestServer_ChangePassword_Fails(t *testing.T) {
 func TestChangeUserAuthentication(t *testing.T) {
 	t.Parallel()
 
-	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	ts, err := authtest.NewTestServer(authtest.ServerConfig{Auth: authtest.AuthServerConfig{Dir: t.TempDir()}})
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, as.Close()) })
-	authServer := as.AuthServer
-	clock := as.Clock()
+	t.Cleanup(func() { require.NoError(t, ts.Close()) })
+	authServer := ts.Auth()
+	clock := authServer.GetClock()
 	ctx := context.Background()
+	clt, err := ts.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
 
 	tests := []struct {
 		name              string
@@ -664,7 +666,7 @@ func TestChangeUserAuthentication(t *testing.T) {
 
 			c.setAuthPreference(t)
 
-			resetToken, err := authServer.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
+			resetToken, err := clt.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 				Name: username,
 			})
 			require.NoError(t, err)
@@ -718,10 +720,12 @@ func TestChangeUserAuthentication_AccessListRolesApplied(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 
-	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	ts, err := authtest.NewTestServer(authtest.ServerConfig{Auth: authtest.AuthServerConfig{Dir: t.TempDir()}})
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, as.Close()) })
-	authServer := as.AuthServer
+	t.Cleanup(func() { require.NoError(t, ts.Close()) })
+	authServer := ts.Auth()
+	clt, err := ts.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
 
 	// Disable second factor so the reset request only needs a password.
 	authPref, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -781,7 +785,7 @@ func TestChangeUserAuthentication_AccessListRolesApplied(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a reset password token and call ChangeUserAuthentication.
-	resetToken, err := authServer.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
+	resetToken, err := clt.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 		Name: username,
 	})
 	require.NoError(t, err)
@@ -809,20 +813,23 @@ func TestChangeUserAuthenticationWithErrors(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+	ts, err := authtest.NewTestServer(authtest.ServerConfig{Auth: authtest.AuthServerConfig{
 		Dir:                t.TempDir(),
 		AuthPreferenceSpec: &authPreference.(*types.AuthPreferenceV2).Spec,
-	})
+	}})
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, as.Close()) })
+	t.Cleanup(func() { require.NoError(t, ts.Close()) })
 
 	ctx := context.Background()
-
-	username := "joe@example.com"
-	_, _, err = authtest.CreateUserAndRole(as.AuthServer, username, []string{username}, nil)
+	authServer := ts.Auth()
+	clt, err := ts.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
-	token, err := as.AuthServer.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
+	username := "joe@example.com"
+	_, _, err = authtest.CreateUserAndRole(authServer, username, []string{username}, nil)
+	require.NoError(t, err)
+
+	token, err := clt.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 		Name: username,
 	})
 	require.NoError(t, err)
@@ -877,25 +884,25 @@ func TestChangeUserAuthenticationWithErrors(t *testing.T) {
 	for _, tc := range testCases {
 		// set new auth preference settings
 		authPreference.SetSecondFactor(tc.secondFactor)
-		authPreference, err = as.AuthServer.UpsertAuthPreference(ctx, authPreference)
+		authPreference, err = authServer.UpsertAuthPreference(ctx, authPreference)
 		require.NoError(t, err)
 
-		_, err = auth.ChangeUserAuthentication(ctx, as.AuthServer, tc.req)
+		_, err = auth.ChangeUserAuthentication(ctx, authServer, tc.req)
 		require.Error(t, err, "test case %q", tc.desc)
 	}
 
 	authPreference.SetSecondFactor(constants.SecondFactorOff)
-	_, err = as.AuthServer.UpsertAuthPreference(ctx, authPreference)
+	_, err = authServer.UpsertAuthPreference(ctx, authPreference)
 	require.NoError(t, err)
 
-	_, err = auth.ChangeUserAuthentication(ctx, as.AuthServer, &proto.ChangeUserAuthenticationRequest{
+	_, err = auth.ChangeUserAuthentication(ctx, authServer, &proto.ChangeUserAuthenticationRequest{
 		TokenID:     validTokenID,
 		NewPassword: validPassword,
 	})
 	require.NoError(t, err)
 
 	// invite token cannot be reused
-	_, err = auth.ChangeUserAuthentication(ctx, as.AuthServer, &proto.ChangeUserAuthenticationRequest{
+	_, err = auth.ChangeUserAuthentication(ctx, authServer, &proto.ChangeUserAuthenticationRequest{
 		TokenID:     validTokenID,
 		NewPassword: validPassword,
 	})

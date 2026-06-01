@@ -52,66 +52,6 @@ const (
 	userTokenTypePrivilegeOTP = "privilege_otp"
 )
 
-// CreateResetPasswordToken creates a reset password token
-func (a *Server) CreateResetPasswordToken(ctx context.Context, req authclient.CreateUserTokenRequest) (types.UserToken, error) {
-	err := req.CheckAndSetDefaults()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if req.Type != authclient.UserTokenTypeResetPassword && req.Type != authclient.UserTokenTypeResetPasswordInvite {
-		return nil, trace.BadParameter("invalid reset password token request type")
-	}
-
-	switch user, err := a.GetUser(ctx, req.Name, false /* withSecrets */); {
-	case err != nil:
-		return nil, trace.Wrap(err)
-	case user.GetUserType() != types.UserTypeLocal:
-		return nil, trace.AccessDenied("only local users may be reset")
-	}
-
-	if err := a.resetPassword(ctx, req.Name); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := a.resetMFA(ctx, req.Name); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	token, err := a.NewUserToken(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// remove any other existing tokens for this user
-	err = a.DeleteUserTokens(ctx, req.Name)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	_, err = a.CreateUserToken(ctx, token)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := a.emitter.EmitAuditEvent(ctx, &apievents.UserTokenCreate{
-		Metadata: apievents.Metadata{
-			Type: events.ResetPasswordTokenCreateEvent,
-			Code: events.ResetPasswordTokenCreateCode,
-		},
-		UserMetadata: authz.ClientUserMetadata(ctx),
-		ResourceMetadata: apievents.ResourceMetadata{
-			Name:    req.Name,
-			TTL:     req.TTL.String(),
-			Expires: a.GetClock().Now().UTC().Add(req.TTL),
-		},
-	}); err != nil {
-		a.logger.WarnContext(ctx, "Failed to emit create reset password token event", "error", err)
-	}
-
-	return a.GetUserToken(ctx, token.GetName())
-}
-
 func (a *Server) resetMFA(ctx context.Context, user string) error {
 	devs, err := a.Services.GetMFADevices(ctx, user, false)
 	if err != nil {

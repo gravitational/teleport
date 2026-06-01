@@ -1298,8 +1298,13 @@ func createUserWithSecondFactors(testServer *authtest.TLSServer) (*userAuthCreds
 		return nil, trace.Wrap(err)
 	}
 
+	clt, err := testServer.NewClient(authtest.TestAdmin())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Reset password and register a Webauthn device.
-	resetToken, err := authServer.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
+	resetToken, err := clt.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 		Name: username,
 	})
 	if err != nil {

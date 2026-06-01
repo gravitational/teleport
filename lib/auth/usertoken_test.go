@@ -32,7 +32,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/durationpb"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
@@ -67,7 +66,20 @@ func TestCreateResetPasswordToken(t *testing.T) {
 		TTL:  time.Hour,
 	}
 
-	token, err := srv.Auth().CreateResetPasswordToken(ctx, req)
+	_, _, err := authtest.CreateUserAndRole(
+		srv.Auth(),
+		"admin",
+		[]string{"admin"},
+		[]types.Rule{{
+			Resources: []string{types.KindUser},
+			Verbs:     []string{types.VerbUpdate},
+		}},
+	)
+	require.NoError(t, err)
+	clt, err := srv.NewClient(authtest.TestUser("admin"))
+	require.NoError(t, err)
+
+	token, err := clt.CreateResetPasswordToken(ctx, req)
 	require.NoError(t, err)
 	require.Equal(t, token.GetUser(), username)
 	require.Equal(t, token.GetURL(), "https://<proxyhost>:3080/web/reset/"+token.GetName())
@@ -75,7 +87,7 @@ func TestCreateResetPasswordToken(t *testing.T) {
 	event := mockEmitter.LastEvent()
 	require.Equal(t, events.ResetPasswordTokenCreateEvent, event.GetType())
 	require.Equal(t, username, event.(*apievents.UserTokenCreate).Name)
-	require.Equal(t, teleport.UserSystem, event.(*apievents.UserTokenCreate).User)
+	require.Equal(t, "admin", event.(*apievents.UserTokenCreate).User)
 
 	// verify that user has no MFA devices
 	devs, err := srv.Auth().Services.GetMFADevices(ctx, username, false)
@@ -87,7 +99,7 @@ func TestCreateResetPasswordToken(t *testing.T) {
 	require.Error(t, err)
 
 	// create another reset token for the same user
-	token, err = srv.Auth().CreateResetPasswordToken(ctx, req)
+	token, err = clt.CreateResetPasswordToken(ctx, req)
 	require.NoError(t, err)
 
 	// previous token must be deleted
@@ -99,13 +111,24 @@ func TestCreateResetPasswordToken(t *testing.T) {
 
 func TestCreateResetPasswordTokenErrors(t *testing.T) {
 	t.Parallel()
-	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, as.Close()) })
-	ctx := context.Background()
+	srv := newTestTLSServer(t)
+	ctx := t.Context()
 
 	username := "joe@example.com"
-	_, _, err = authtest.CreateUserAndRole(as.AuthServer, username, []string{username}, nil)
+	_, _, err := authtest.CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
+	require.NoError(t, err)
+
+	_, _, err = authtest.CreateUserAndRole(
+		srv.Auth(),
+		"admin",
+		[]string{"admin"},
+		[]types.Rule{{
+			Resources: []string{types.KindUser},
+			Verbs:     []string{types.VerbUpdate},
+		}},
+	)
+	require.NoError(t, err)
+	clt, err := srv.NewClient(authtest.TestUser("admin"))
 	require.NoError(t, err)
 
 	type testCase struct {
@@ -153,7 +176,7 @@ func TestCreateResetPasswordTokenErrors(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			_, err := as.AuthServer.CreateResetPasswordToken(ctx, tc.req)
+			_, err := clt.CreateResetPasswordToken(ctx, tc.req)
 			require.Error(t, err)
 		})
 	}
@@ -213,7 +236,7 @@ func TestResetUser(t *testing.T) {
 	require.Error(t, err)
 
 	// create another reset token for the same user
-	token, err := srv.Auth().CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
+	token, err := clt.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 		Name: username,
 		TTL:  time.Hour,
 	})
@@ -378,12 +401,23 @@ func TestFormatAccountName(t *testing.T) {
 
 func TestUserTokenSecretsCreationSettings(t *testing.T) {
 	t.Parallel()
-	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
-	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, as.Close()) })
+	srv := newTestTLSServer(t)
 
 	username := "joe@example.com"
-	_, _, err = authtest.CreateUserAndRole(as.AuthServer, username, []string{username}, nil)
+	_, _, err := authtest.CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
+	require.NoError(t, err)
+
+	_, _, err = authtest.CreateUserAndRole(
+		srv.Auth(),
+		"admin",
+		[]string{"admin"},
+		[]types.Rule{{
+			Resources: []string{types.KindUser},
+			Verbs:     []string{types.VerbUpdate},
+		}},
+	)
+	require.NoError(t, err)
+	clt, err := srv.NewClient(authtest.TestUser("admin"))
 	require.NoError(t, err)
 
 	ctx := context.Background()
@@ -393,16 +427,16 @@ func TestUserTokenSecretsCreationSettings(t *testing.T) {
 		TTL:  time.Hour,
 	}
 
-	token, err := as.AuthServer.CreateResetPasswordToken(ctx, req)
+	token, err := clt.CreateResetPasswordToken(ctx, req)
 	require.NoError(t, err)
 
-	_, err = as.AuthServer.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+	_, err = srv.Auth().CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
 		TokenID:    token.GetName(),
 		DeviceType: proto.DeviceType_DEVICE_TYPE_TOTP,
 	})
 	require.NoError(t, err)
 
-	secrets, err := as.AuthServer.GetUserTokenSecrets(ctx, token.GetName())
+	secrets, err := srv.Auth().GetUserTokenSecrets(ctx, token.GetName())
 	require.NoError(t, err)
 
 	require.NoError(t, err)

@@ -37,6 +37,7 @@ import (
 	"github.com/gravitational/trace"
 	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
 	otlpcommonv1 "go.opentelemetry.io/proto/otlp/common/v1"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
@@ -48,6 +49,7 @@ import (
 	identitycenterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1"
 	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
@@ -63,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/join/oracle"
 	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/auth/okta"
+	"github.com/gravitational/teleport/lib/auth/users/usersv1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -94,6 +97,8 @@ type ServerWithRoles struct {
 	// context field above. Only one of the two can be set at a time, so care must be taken to ensure
 	// that the correct one is used for a given method.
 	scopedContext *authz.ScopedContext
+
+	usersService *usersv1.Service
 }
 
 // CloseContext is closed when the auth server shuts down
@@ -4256,20 +4261,32 @@ func (a *ServerWithRoles) verifyUserDeviceForCertIssuance(ctx context.Context, u
 }
 
 func (a *ServerWithRoles) CreateResetPasswordToken(ctx context.Context, req authclient.CreateUserTokenRequest) (types.UserToken, error) {
-	if err := a.authorizeAction(types.KindUser, types.VerbUpdate); err != nil {
+	us, err := usersv1.NewService(usersv1.ServiceConfig{
+		Authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+			return &a.context, nil
+		}),
+		Cache:    a.authServer.Cache,
+		Backend:  a.authServer.Services,
+		Auth:     a.authServer,
+		Logger:   a.authServer.logger,
+		Emitter:  a.authServer.emitter,
+		Reporter: a.authServer.UsageReporter,
+		Clock:    a.authServer.clock,
+	})
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if a.hasBuiltinRole(types.RoleOkta) {
-		return nil, trace.AccessDenied("access denied")
-	}
-
-	// Allow reused MFA responses to allow creating a reset token after creating a user.
-	if err := a.context.AuthorizeAdminActionAllowReusedMFA(); err != nil {
+	res, err := us.ResetUser(ctx, &userspb.ResetUserRequest{
+		Name: req.Name,
+		Type: req.Type,
+		Ttl:  durationpb.New(req.TTL),
+	})
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return a.authServer.CreateResetPasswordToken(ctx, req)
+	return res.GetPasswordResetToken(), nil
 }
 
 func (a *ServerWithRoles) GetResetPasswordToken(ctx context.Context, tokenID string) (types.UserToken, error) {
@@ -8701,4 +8718,8 @@ func (a *ServerWithRoles) getUser() types.User {
 		return a.scopedContext.User
 	}
 	return a.context.User
+}
+
+func (a *ServerWithRoles) SetUsersService(s *usersv1.Service) {
+	a.usersService = s
 }

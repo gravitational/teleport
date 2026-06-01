@@ -4599,12 +4599,16 @@ func TestInstallerCRUD(t *testing.T) {
 
 func TestGetTokens(t *testing.T) {
 	t.Parallel()
-	s := newAuthSuite(t)
+	tlsServer := newTestTLSServer(t)
 	ctx := context.Background()
 
-	_, _, err := authtest.CreateUserAndRole(s.a, "username", []string{"username"}, nil)
+	_, _, err := authtest.CreateUserAndRole(tlsServer.Auth(), "username", []string{"username"}, nil)
 	require.NoError(t, err)
-	_, err = s.a.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
+
+	clt, err := tlsServer.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+
+	_, err = clt.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 		Name: "username",
 		TTL:  time.Minute,
 		Type: authclient.UserTokenTypeResetPasswordInvite,
@@ -4612,10 +4616,10 @@ func TestGetTokens(t *testing.T) {
 	require.NoError(t, err)
 
 	for _, role := range types.LocalServiceMappings() {
-		generateTestToken(ctx, t, types.SystemRoles{role}, s.a.GetClock().Now().Add(time.Minute*30), s.a)
+		generateTestToken(ctx, t, types.SystemRoles{role}, tlsServer.Auth().GetClock().Now().Add(time.Minute*30), tlsServer.Auth())
 	}
 
-	_, err = s.a.GetTokens(ctx)
+	_, err = tlsServer.Auth().GetTokens(ctx)
 	require.NoError(t, err)
 }
 
