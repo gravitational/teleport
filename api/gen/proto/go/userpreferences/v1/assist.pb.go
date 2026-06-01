@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/userpreferences/v1/assist.proto
 
+//go:build !protoopaque
+
 package userpreferencesv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -90,14 +91,9 @@ func (x AssistViewMode) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use AssistViewMode.Descriptor instead.
-func (AssistViewMode) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_userpreferences_v1_assist_proto_rawDescGZIP(), []int{0}
-}
-
 // AssistUserPreferences is the user preferences for Assist.
 type AssistUserPreferences struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// preferredLogins is an array of the logins a user would prefer to use when running a command, ordered by preference.
 	PreferredLogins []string `protobuf:"bytes,1,rep,name=preferred_logins,json=preferredLogins,proto3" json:"preferred_logins,omitempty"`
 	// viewMode is the way the assistant is displayed.
@@ -131,11 +127,6 @@ func (x *AssistUserPreferences) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AssistUserPreferences.ProtoReflect.Descriptor instead.
-func (*AssistUserPreferences) Descriptor() ([]byte, []int) {
-	return file_teleport_userpreferences_v1_assist_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *AssistUserPreferences) GetPreferredLogins() []string {
 	if x != nil {
 		return x.PreferredLogins
@@ -148,6 +139,32 @@ func (x *AssistUserPreferences) GetViewMode() AssistViewMode {
 		return x.ViewMode
 	}
 	return AssistViewMode_ASSIST_VIEW_MODE_UNSPECIFIED
+}
+
+func (x *AssistUserPreferences) SetPreferredLogins(v []string) {
+	x.PreferredLogins = v
+}
+
+func (x *AssistUserPreferences) SetViewMode(v AssistViewMode) {
+	x.ViewMode = v
+}
+
+type AssistUserPreferences_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// preferredLogins is an array of the logins a user would prefer to use when running a command, ordered by preference.
+	PreferredLogins []string
+	// viewMode is the way the assistant is displayed.
+	ViewMode AssistViewMode
+}
+
+func (b0 AssistUserPreferences_builder) Build() *AssistUserPreferences {
+	m0 := &AssistUserPreferences{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PreferredLogins = b.PreferredLogins
+	x.ViewMode = b.ViewMode
+	return m0
 }
 
 var File_teleport_userpreferences_v1_assist_proto protoreflect.FileDescriptor
@@ -164,18 +181,6 @@ const file_teleport_userpreferences_v1_assist_proto_rawDesc = "" +
 	"\x16ASSIST_VIEW_MODE_POPUP\x10\x02\x12#\n" +
 	"\x1fASSIST_VIEW_MODE_POPUP_EXPANDED\x10\x03\x123\n" +
 	"/ASSIST_VIEW_MODE_POPUP_EXPANDED_SIDEBAR_VISIBLE\x10\x04BYZWgithub.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1;userpreferencesv1b\x06proto3"
-
-var (
-	file_teleport_userpreferences_v1_assist_proto_rawDescOnce sync.Once
-	file_teleport_userpreferences_v1_assist_proto_rawDescData []byte
-)
-
-func file_teleport_userpreferences_v1_assist_proto_rawDescGZIP() []byte {
-	file_teleport_userpreferences_v1_assist_proto_rawDescOnce.Do(func() {
-		file_teleport_userpreferences_v1_assist_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_userpreferences_v1_assist_proto_rawDesc), len(file_teleport_userpreferences_v1_assist_proto_rawDesc)))
-	})
-	return file_teleport_userpreferences_v1_assist_proto_rawDescData
-}
 
 var file_teleport_userpreferences_v1_assist_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_teleport_userpreferences_v1_assist_proto_msgTypes = make([]protoimpl.MessageInfo, 1)

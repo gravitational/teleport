@@ -21,13 +21,14 @@
 // 	protoc        (unknown)
 // source: teleport/lib/teleterm/v1/auth_settings.proto
 
+//go:build !protoopaque
+
 package teletermv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -96,14 +97,9 @@ func (x ClientVersionStatus) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use ClientVersionStatus.Descriptor instead.
-func (ClientVersionStatus) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_auth_settings_proto_rawDescGZIP(), []int{0}
-}
-
 // AuthSettings contains the form of authentication the auth server supports.
 type AuthSettings struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// local_auth_enabled is a flag that enables local authentication
 	LocalAuthEnabled bool `protobuf:"varint,1,opt,name=local_auth_enabled,json=localAuthEnabled,proto3" json:"local_auth_enabled,omitempty"`
 	// auth_providers contains a list of auth providers
@@ -147,11 +143,6 @@ func (x *AuthSettings) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AuthSettings.ProtoReflect.Descriptor instead.
-func (*AuthSettings) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_auth_settings_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *AuthSettings) GetLocalAuthEnabled() bool {
@@ -210,10 +201,89 @@ func (x *AuthSettings) GetMessageOfTheDay() string {
 	return ""
 }
 
+func (x *AuthSettings) SetLocalAuthEnabled(v bool) {
+	x.LocalAuthEnabled = v
+}
+
+func (x *AuthSettings) SetAuthProviders(v []*AuthProvider) {
+	x.AuthProviders = v
+}
+
+func (x *AuthSettings) SetAuthType(v string) {
+	x.AuthType = v
+}
+
+func (x *AuthSettings) SetAllowPasswordless(v bool) {
+	x.AllowPasswordless = v
+}
+
+func (x *AuthSettings) SetLocalConnectorName(v string) {
+	x.LocalConnectorName = v
+}
+
+func (x *AuthSettings) SetClientVersionStatus(v ClientVersionStatus) {
+	x.ClientVersionStatus = v
+}
+
+func (x *AuthSettings) SetVersions(v *Versions) {
+	x.Versions = v
+}
+
+func (x *AuthSettings) SetMessageOfTheDay(v string) {
+	x.MessageOfTheDay = v
+}
+
+func (x *AuthSettings) HasVersions() bool {
+	if x == nil {
+		return false
+	}
+	return x.Versions != nil
+}
+
+func (x *AuthSettings) ClearVersions() {
+	x.Versions = nil
+}
+
+type AuthSettings_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// local_auth_enabled is a flag that enables local authentication
+	LocalAuthEnabled bool
+	// auth_providers contains a list of auth providers
+	AuthProviders []*AuthProvider
+	// auth_type is the authentication type e.g. "local", "github", "saml", "oidc"
+	AuthType string
+	// allow_passwordless is true if passwordless logins are allowed.
+	AllowPasswordless bool
+	// local_connector_name is the name of the local connector.
+	LocalConnectorName string
+	// client_version_status describes the compatibility status of the client version when compared
+	// against the version of the server.
+	ClientVersionStatus ClientVersionStatus
+	Versions            *Versions
+	// message_of_the_day is a message shown before login that the user must acknowledge.
+	MessageOfTheDay string
+}
+
+func (b0 AuthSettings_builder) Build() *AuthSettings {
+	m0 := &AuthSettings{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.LocalAuthEnabled = b.LocalAuthEnabled
+	x.AuthProviders = b.AuthProviders
+	x.AuthType = b.AuthType
+	x.AllowPasswordless = b.AllowPasswordless
+	x.LocalConnectorName = b.LocalConnectorName
+	x.ClientVersionStatus = b.ClientVersionStatus
+	x.Versions = b.Versions
+	x.MessageOfTheDay = b.MessageOfTheDay
+	return m0
+}
+
 // AuthProvider describes a way of authentication that is supported by the server. Auth provider is
 // referred to as "auth connector" on the backend.
 type AuthProvider struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Type is the auth provider type (github|oidc|etc)
 	Type string `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
 	// Name is the internal name of the connector.
@@ -249,11 +319,6 @@ func (x *AuthProvider) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AuthProvider.ProtoReflect.Descriptor instead.
-func (*AuthProvider) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_auth_settings_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *AuthProvider) GetType() string {
 	if x != nil {
 		return x.Type
@@ -275,11 +340,44 @@ func (x *AuthProvider) GetDisplayName() string {
 	return ""
 }
 
+func (x *AuthProvider) SetType(v string) {
+	x.Type = v
+}
+
+func (x *AuthProvider) SetName(v string) {
+	x.Name = v
+}
+
+func (x *AuthProvider) SetDisplayName(v string) {
+	x.DisplayName = v
+}
+
+type AuthProvider_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Type is the auth provider type (github|oidc|etc)
+	Type string
+	// Name is the internal name of the connector.
+	Name string
+	// Display is the display name for the connector.
+	DisplayName string
+}
+
+func (b0 AuthProvider_builder) Build() *AuthProvider {
+	m0 := &AuthProvider{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Type = b.Type
+	x.Name = b.Name
+	x.DisplayName = b.DisplayName
+	return m0
+}
+
 // Versions contains versions of different components that can be used to show the client
 // incompatibility warning. This way Connect can show the warning before the cluster is added to the
 // app.
 type Versions struct {
-	state     protoimpl.MessageState `protogen:"open.v1"`
+	state     protoimpl.MessageState `protogen:"hybrid.v1"`
 	MinClient string                 `protobuf:"bytes,1,opt,name=min_client,json=minClient,proto3" json:"min_client,omitempty"`
 	// client is the version of tsh. Included for convenience, in theory the Electron app knows this
 	// without asking tsh.
@@ -314,11 +412,6 @@ func (x *Versions) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Versions.ProtoReflect.Descriptor instead.
-func (*Versions) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_auth_settings_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *Versions) GetMinClient() string {
 	if x != nil {
 		return x.MinClient
@@ -338,6 +431,38 @@ func (x *Versions) GetServer() string {
 		return x.Server
 	}
 	return ""
+}
+
+func (x *Versions) SetMinClient(v string) {
+	x.MinClient = v
+}
+
+func (x *Versions) SetClient(v string) {
+	x.Client = v
+}
+
+func (x *Versions) SetServer(v string) {
+	x.Server = v
+}
+
+type Versions_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	MinClient string
+	// client is the version of tsh. Included for convenience, in theory the Electron app knows this
+	// without asking tsh.
+	Client string
+	Server string
+}
+
+func (b0 Versions_builder) Build() *Versions {
+	m0 := &Versions{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.MinClient = b.MinClient
+	x.Client = b.Client
+	x.Server = b.Server
+	return m0
 }
 
 var File_teleport_lib_teleterm_v1_auth_settings_proto protoreflect.FileDescriptor
@@ -369,18 +494,6 @@ const file_teleport_lib_teleterm_v1_auth_settings_proto_rawDesc = "" +
 	"\x18CLIENT_VERSION_STATUS_OK\x10\x01\x12!\n" +
 	"\x1dCLIENT_VERSION_STATUS_TOO_OLD\x10\x02\x12!\n" +
 	"\x1dCLIENT_VERSION_STATUS_TOO_NEW\x10\x03BTZRgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1b\x06proto3"
-
-var (
-	file_teleport_lib_teleterm_v1_auth_settings_proto_rawDescOnce sync.Once
-	file_teleport_lib_teleterm_v1_auth_settings_proto_rawDescData []byte
-)
-
-func file_teleport_lib_teleterm_v1_auth_settings_proto_rawDescGZIP() []byte {
-	file_teleport_lib_teleterm_v1_auth_settings_proto_rawDescOnce.Do(func() {
-		file_teleport_lib_teleterm_v1_auth_settings_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_lib_teleterm_v1_auth_settings_proto_rawDesc), len(file_teleport_lib_teleterm_v1_auth_settings_proto_rawDesc)))
-	})
-	return file_teleport_lib_teleterm_v1_auth_settings_proto_rawDescData
-}
 
 var file_teleport_lib_teleterm_v1_auth_settings_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_teleport_lib_teleterm_v1_auth_settings_proto_msgTypes = make([]protoimpl.MessageInfo, 3)

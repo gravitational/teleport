@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/machineid/v1/bot_instance.proto
 
+//go:build !protoopaque
+
 package machineidv1
 
 import (
@@ -30,7 +32,6 @@ import (
 	structpb "google.golang.org/protobuf/types/known/structpb"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -98,11 +99,6 @@ func (x BotKind) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use BotKind.Descriptor instead.
-func (BotKind) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_bot_instance_proto_rawDescGZIP(), []int{0}
-}
-
 // BotInstanceHealthStatus describes the healthiness of a `tbot` service.
 type BotInstanceHealthStatus int32
 
@@ -156,14 +152,9 @@ func (x BotInstanceHealthStatus) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use BotInstanceHealthStatus.Descriptor instead.
-func (BotInstanceHealthStatus) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_bot_instance_proto_rawDescGZIP(), []int{1}
-}
-
 // A BotInstance
 type BotInstance struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The kind of resource represented.
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	// Differentiates variations of the same kind. All resources should
@@ -209,11 +200,6 @@ func (x *BotInstance) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use BotInstance.ProtoReflect.Descriptor instead.
-func (*BotInstance) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_bot_instance_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *BotInstance) GetKind() string {
@@ -265,9 +251,107 @@ func (x *BotInstance) GetScope() string {
 	return ""
 }
 
+func (x *BotInstance) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *BotInstance) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *BotInstance) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *BotInstance) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *BotInstance) SetSpec(v *BotInstanceSpec) {
+	x.Spec = v
+}
+
+func (x *BotInstance) SetStatus(v *BotInstanceStatus) {
+	x.Status = v
+}
+
+func (x *BotInstance) SetScope(v string) {
+	x.Scope = v
+}
+
+func (x *BotInstance) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *BotInstance) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *BotInstance) HasStatus() bool {
+	if x == nil {
+		return false
+	}
+	return x.Status != nil
+}
+
+func (x *BotInstance) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *BotInstance) ClearSpec() {
+	x.Spec = nil
+}
+
+func (x *BotInstance) ClearStatus() {
+	x.Status = nil
+}
+
+type BotInstance_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The kind of resource represented.
+	Kind string
+	// Differentiates variations of the same kind. All resources should
+	// contain one, even if it is never populated.
+	SubKind string
+	// The version of the resource being represented.
+	Version string
+	// Common metadata that all resources share.
+	Metadata *v1.Metadata
+	// The configured properties of a BotInstance.
+	Spec *BotInstanceSpec
+	// Fields that are set by the server as results of operations. These should
+	// not be modified by users.
+	Status *BotInstanceStatus
+	// Scope of the BotInstance. This is determined based on the scope of the Bot
+	// associated with this instance, and may be used for scoped RBAC on the
+	// BotInstance resource.
+	Scope string
+}
+
+func (b0 BotInstance_builder) Build() *BotInstance {
+	m0 := &BotInstance{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Spec = b.Spec
+	x.Status = b.Status
+	x.Scope = b.Scope
+	return m0
+}
+
 // BotInstanceSpec contains fields
 type BotInstanceSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The name of the bot associated with this instance.
 	BotName string `protobuf:"bytes,1,opt,name=bot_name,json=botName,proto3" json:"bot_name,omitempty"`
 	// The unique identifier for this instance.
@@ -305,11 +389,6 @@ func (x *BotInstanceSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use BotInstanceSpec.ProtoReflect.Descriptor instead.
-func (*BotInstanceSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_bot_instance_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *BotInstanceSpec) GetBotName() string {
 	if x != nil {
 		return x.BotName
@@ -331,11 +410,46 @@ func (x *BotInstanceSpec) GetPreviousInstanceId() string {
 	return ""
 }
 
+func (x *BotInstanceSpec) SetBotName(v string) {
+	x.BotName = v
+}
+
+func (x *BotInstanceSpec) SetInstanceId(v string) {
+	x.InstanceId = v
+}
+
+func (x *BotInstanceSpec) SetPreviousInstanceId(v string) {
+	x.PreviousInstanceId = v
+}
+
+type BotInstanceSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The name of the bot associated with this instance.
+	BotName string
+	// The unique identifier for this instance.
+	InstanceId string
+	// The previous instance ID, if any, set when a bot reauthenticates after the
+	// previous identity has expired. Currently only set during bound-keypair
+	// rejoining.
+	PreviousInstanceId string
+}
+
+func (b0 BotInstanceSpec_builder) Build() *BotInstanceSpec {
+	m0 := &BotInstanceSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.BotName = b.BotName
+	x.InstanceId = b.InstanceId
+	x.PreviousInstanceId = b.PreviousInstanceId
+	return m0
+}
+
 // BotInstanceStatusHeartbeat contains information self-reported by an instance
 // of a Bot. This information is not verified by the server and should not be
 // trusted.
 type BotInstanceStatusHeartbeat struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The timestamp that the heartbeat was recorded by the Teleport Auth Service.
 	// Any value submitted by `tbot` for this field will be ignored.
 	RecordedAt *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=recorded_at,json=recordedAt,proto3" json:"recorded_at,omitempty"`
@@ -394,11 +508,6 @@ func (x *BotInstanceStatusHeartbeat) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use BotInstanceStatusHeartbeat.ProtoReflect.Descriptor instead.
-func (*BotInstanceStatusHeartbeat) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_bot_instance_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *BotInstanceStatusHeartbeat) GetRecordedAt() *timestamppb.Timestamp {
@@ -492,11 +601,152 @@ func (x *BotInstanceStatusHeartbeat) GetKind() BotKind {
 	return BotKind_BOT_KIND_UNSPECIFIED
 }
 
+func (x *BotInstanceStatusHeartbeat) SetRecordedAt(v *timestamppb.Timestamp) {
+	x.RecordedAt = v
+}
+
+func (x *BotInstanceStatusHeartbeat) SetIsStartup(v bool) {
+	x.IsStartup = v
+}
+
+func (x *BotInstanceStatusHeartbeat) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *BotInstanceStatusHeartbeat) SetHostname(v string) {
+	x.Hostname = v
+}
+
+func (x *BotInstanceStatusHeartbeat) SetUptime(v *durationpb.Duration) {
+	x.Uptime = v
+}
+
+func (x *BotInstanceStatusHeartbeat) SetJoinMethod(v string) {
+	x.JoinMethod = v
+}
+
+func (x *BotInstanceStatusHeartbeat) SetOneShot(v bool) {
+	x.OneShot = v
+}
+
+func (x *BotInstanceStatusHeartbeat) SetArchitecture(v string) {
+	x.Architecture = v
+}
+
+func (x *BotInstanceStatusHeartbeat) SetOs(v string) {
+	x.Os = v
+}
+
+func (x *BotInstanceStatusHeartbeat) SetExternalUpdater(v string) {
+	x.ExternalUpdater = v
+}
+
+func (x *BotInstanceStatusHeartbeat) SetExternalUpdaterVersion(v string) {
+	x.ExternalUpdaterVersion = v
+}
+
+func (x *BotInstanceStatusHeartbeat) SetUpdaterInfo(v *types.UpdaterV2Info) {
+	x.UpdaterInfo = v
+}
+
+func (x *BotInstanceStatusHeartbeat) SetKind(v BotKind) {
+	x.Kind = v
+}
+
+func (x *BotInstanceStatusHeartbeat) HasRecordedAt() bool {
+	if x == nil {
+		return false
+	}
+	return x.RecordedAt != nil
+}
+
+func (x *BotInstanceStatusHeartbeat) HasUptime() bool {
+	if x == nil {
+		return false
+	}
+	return x.Uptime != nil
+}
+
+func (x *BotInstanceStatusHeartbeat) HasUpdaterInfo() bool {
+	if x == nil {
+		return false
+	}
+	return x.UpdaterInfo != nil
+}
+
+func (x *BotInstanceStatusHeartbeat) ClearRecordedAt() {
+	x.RecordedAt = nil
+}
+
+func (x *BotInstanceStatusHeartbeat) ClearUptime() {
+	x.Uptime = nil
+}
+
+func (x *BotInstanceStatusHeartbeat) ClearUpdaterInfo() {
+	x.UpdaterInfo = nil
+}
+
+type BotInstanceStatusHeartbeat_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The timestamp that the heartbeat was recorded by the Teleport Auth Service.
+	// Any value submitted by `tbot` for this field will be ignored.
+	RecordedAt *timestamppb.Timestamp
+	// Indicates whether this is the heartbeat submitted by `tbot` on startup.
+	IsStartup bool
+	// The version of `tbot` that submitted this heartbeat.
+	Version string
+	// The hostname of the host that `tbot` is running on.
+	Hostname string
+	// The duration that `tbot` has been running for when it submitted this
+	// heartbeat.
+	Uptime *durationpb.Duration
+	// The currently configured join_method.
+	JoinMethod string
+	// Indicates whether `tbot` is running in one-shot mode.
+	OneShot bool
+	// The architecture of the host that `tbot` is running on, determined by
+	// runtime.GOARCH.
+	Architecture string
+	// The OS of the host that `tbot` is running on, determined by runtime.GOOS.
+	Os string
+	// Identifies the external updater process.
+	ExternalUpdater string
+	// Identifies the external updated version. Empty if no updater is configured.
+	ExternalUpdaterVersion string
+	// Information provided by the external updater, including the update group
+	// and updater status.
+	UpdaterInfo *types.UpdaterV2Info
+	// Identifies whether the bot is running in the tbot binary or embedded in
+	// another component.
+	Kind BotKind
+}
+
+func (b0 BotInstanceStatusHeartbeat_builder) Build() *BotInstanceStatusHeartbeat {
+	m0 := &BotInstanceStatusHeartbeat{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.RecordedAt = b.RecordedAt
+	x.IsStartup = b.IsStartup
+	x.Version = b.Version
+	x.Hostname = b.Hostname
+	x.Uptime = b.Uptime
+	x.JoinMethod = b.JoinMethod
+	x.OneShot = b.OneShot
+	x.Architecture = b.Architecture
+	x.Os = b.Os
+	x.ExternalUpdater = b.ExternalUpdater
+	x.ExternalUpdaterVersion = b.ExternalUpdaterVersion
+	x.UpdaterInfo = b.UpdaterInfo
+	x.Kind = b.Kind
+	return m0
+}
+
 // BotInstanceStatusAuthentication contains information about a join or renewal.
 // Ths information is entirely sourced by the Teleport Auth Service and can be
 // trusted.
 type BotInstanceStatusAuthentication struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The timestamp that the join or renewal was authenticated by the Teleport
 	// Auth Service.
 	AuthenticatedAt *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=authenticated_at,json=authenticatedAt,proto3" json:"authenticated_at,omitempty"`
@@ -553,11 +803,6 @@ func (x *BotInstanceStatusAuthentication) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use BotInstanceStatusAuthentication.ProtoReflect.Descriptor instead.
-func (*BotInstanceStatusAuthentication) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_bot_instance_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *BotInstanceStatusAuthentication) GetAuthenticatedAt() *timestamppb.Timestamp {
 	if x != nil {
 		return x.AuthenticatedAt
@@ -607,9 +852,119 @@ func (x *BotInstanceStatusAuthentication) GetJoinAttrs() *v11.JoinAttrs {
 	return nil
 }
 
+func (x *BotInstanceStatusAuthentication) SetAuthenticatedAt(v *timestamppb.Timestamp) {
+	x.AuthenticatedAt = v
+}
+
+func (x *BotInstanceStatusAuthentication) SetJoinMethod(v string) {
+	x.JoinMethod = v
+}
+
+func (x *BotInstanceStatusAuthentication) SetJoinToken(v string) {
+	x.JoinToken = v
+}
+
+func (x *BotInstanceStatusAuthentication) SetMetadata(v *structpb.Struct) {
+	x.Metadata = v
+}
+
+func (x *BotInstanceStatusAuthentication) SetGeneration(v int32) {
+	x.Generation = v
+}
+
+func (x *BotInstanceStatusAuthentication) SetPublicKey(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.PublicKey = v
+}
+
+func (x *BotInstanceStatusAuthentication) SetJoinAttrs(v *v11.JoinAttrs) {
+	x.JoinAttrs = v
+}
+
+func (x *BotInstanceStatusAuthentication) HasAuthenticatedAt() bool {
+	if x == nil {
+		return false
+	}
+	return x.AuthenticatedAt != nil
+}
+
+func (x *BotInstanceStatusAuthentication) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *BotInstanceStatusAuthentication) HasJoinAttrs() bool {
+	if x == nil {
+		return false
+	}
+	return x.JoinAttrs != nil
+}
+
+func (x *BotInstanceStatusAuthentication) ClearAuthenticatedAt() {
+	x.AuthenticatedAt = nil
+}
+
+func (x *BotInstanceStatusAuthentication) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *BotInstanceStatusAuthentication) ClearJoinAttrs() {
+	x.JoinAttrs = nil
+}
+
+type BotInstanceStatusAuthentication_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The timestamp that the join or renewal was authenticated by the Teleport
+	// Auth Service.
+	AuthenticatedAt *timestamppb.Timestamp
+	// The join method used for this join or renewal.
+	// Deprecated: prefer using join_attrs.meta.join_method
+	JoinMethod string
+	// The join token used for this join or renewal. This is only populated for
+	// delegated join methods as the value for `token` join methods is sensitive.
+	// Deprecated: prefer using join_attrs.meta.join_token_name
+	JoinToken string
+	// The metadata sourced from the join method.
+	// Deprecated: prefer using join_attrs.
+	Metadata *structpb.Struct
+	// On each renewal, this generation is incremented. For delegated join
+	// methods, this counter is not checked during renewal. For the `token` join
+	// method, this counter is checked during renewal and the Bot is locked out if
+	// the counter in the certificate does not match the counter of the last
+	// authentication.
+	Generation int32
+	// The public key of the Bot instance. This must be a PEM wrapped, PKIX DER
+	// encoded public key. This provides consistency and supports multiple types
+	// of public key algorithm.
+	PublicKey []byte
+	// The attributes generated during the join process. Typically, this is
+	// information from the join attestation process itself. This field will
+	// eventually replace the `metadata` field, which is structureless.
+	JoinAttrs *v11.JoinAttrs
+}
+
+func (b0 BotInstanceStatusAuthentication_builder) Build() *BotInstanceStatusAuthentication {
+	m0 := &BotInstanceStatusAuthentication{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.AuthenticatedAt = b.AuthenticatedAt
+	x.JoinMethod = b.JoinMethod
+	x.JoinToken = b.JoinToken
+	x.Metadata = b.Metadata
+	x.Generation = b.Generation
+	x.PublicKey = b.PublicKey
+	x.JoinAttrs = b.JoinAttrs
+	return m0
+}
+
 // BotInstanceStatus holds the status of a BotInstance.
 type BotInstanceStatus struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The initial authentication status for this bot instance.
 	InitialAuthentication *BotInstanceStatusAuthentication `protobuf:"bytes,1,opt,name=initial_authentication,json=initialAuthentication,proto3" json:"initial_authentication,omitempty"`
 	// The N most recent authentication status records for this bot instance.
@@ -649,11 +1004,6 @@ func (x *BotInstanceStatus) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use BotInstanceStatus.ProtoReflect.Descriptor instead.
-func (*BotInstanceStatus) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_bot_instance_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *BotInstanceStatus) GetInitialAuthentication() *BotInstanceStatusAuthentication {
 	if x != nil {
 		return x.InitialAuthentication
@@ -689,9 +1039,78 @@ func (x *BotInstanceStatus) GetServiceHealth() []*BotInstanceServiceHealth {
 	return nil
 }
 
+func (x *BotInstanceStatus) SetInitialAuthentication(v *BotInstanceStatusAuthentication) {
+	x.InitialAuthentication = v
+}
+
+func (x *BotInstanceStatus) SetLatestAuthentications(v []*BotInstanceStatusAuthentication) {
+	x.LatestAuthentications = v
+}
+
+func (x *BotInstanceStatus) SetInitialHeartbeat(v *BotInstanceStatusHeartbeat) {
+	x.InitialHeartbeat = v
+}
+
+func (x *BotInstanceStatus) SetLatestHeartbeats(v []*BotInstanceStatusHeartbeat) {
+	x.LatestHeartbeats = v
+}
+
+func (x *BotInstanceStatus) SetServiceHealth(v []*BotInstanceServiceHealth) {
+	x.ServiceHealth = v
+}
+
+func (x *BotInstanceStatus) HasInitialAuthentication() bool {
+	if x == nil {
+		return false
+	}
+	return x.InitialAuthentication != nil
+}
+
+func (x *BotInstanceStatus) HasInitialHeartbeat() bool {
+	if x == nil {
+		return false
+	}
+	return x.InitialHeartbeat != nil
+}
+
+func (x *BotInstanceStatus) ClearInitialAuthentication() {
+	x.InitialAuthentication = nil
+}
+
+func (x *BotInstanceStatus) ClearInitialHeartbeat() {
+	x.InitialHeartbeat = nil
+}
+
+type BotInstanceStatus_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The initial authentication status for this bot instance.
+	InitialAuthentication *BotInstanceStatusAuthentication
+	// The N most recent authentication status records for this bot instance.
+	LatestAuthentications []*BotInstanceStatusAuthentication
+	// The initial heartbeat status for this bot instance.
+	InitialHeartbeat *BotInstanceStatusHeartbeat
+	// The N most recent heartbeats for this bot instance.
+	LatestHeartbeats []*BotInstanceStatusHeartbeat
+	// The health of the services/output `tbot` is running.
+	ServiceHealth []*BotInstanceServiceHealth
+}
+
+func (b0 BotInstanceStatus_builder) Build() *BotInstanceStatus {
+	m0 := &BotInstanceStatus{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.InitialAuthentication = b.InitialAuthentication
+	x.LatestAuthentications = b.LatestAuthentications
+	x.InitialHeartbeat = b.InitialHeartbeat
+	x.LatestHeartbeats = b.LatestHeartbeats
+	x.ServiceHealth = b.ServiceHealth
+	return m0
+}
+
 // BotInstanceServiceHealth is a snapshot of a `tbot` service's health.
 type BotInstanceServiceHealth struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Service identifies the service.
 	Service *BotInstanceServiceIdentifier `protobuf:"bytes,1,opt,name=service,proto3" json:"service,omitempty"`
 	// Status describes the service's healthiness.
@@ -730,11 +1149,6 @@ func (x *BotInstanceServiceHealth) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use BotInstanceServiceHealth.ProtoReflect.Descriptor instead.
-func (*BotInstanceServiceHealth) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_bot_instance_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *BotInstanceServiceHealth) GetService() *BotInstanceServiceIdentifier {
 	if x != nil {
 		return x.Service
@@ -763,9 +1177,83 @@ func (x *BotInstanceServiceHealth) GetUpdatedAt() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *BotInstanceServiceHealth) SetService(v *BotInstanceServiceIdentifier) {
+	x.Service = v
+}
+
+func (x *BotInstanceServiceHealth) SetStatus(v BotInstanceHealthStatus) {
+	x.Status = v
+}
+
+func (x *BotInstanceServiceHealth) SetReason(v string) {
+	x.Reason = &v
+}
+
+func (x *BotInstanceServiceHealth) SetUpdatedAt(v *timestamppb.Timestamp) {
+	x.UpdatedAt = v
+}
+
+func (x *BotInstanceServiceHealth) HasService() bool {
+	if x == nil {
+		return false
+	}
+	return x.Service != nil
+}
+
+func (x *BotInstanceServiceHealth) HasReason() bool {
+	if x == nil {
+		return false
+	}
+	return x.Reason != nil
+}
+
+func (x *BotInstanceServiceHealth) HasUpdatedAt() bool {
+	if x == nil {
+		return false
+	}
+	return x.UpdatedAt != nil
+}
+
+func (x *BotInstanceServiceHealth) ClearService() {
+	x.Service = nil
+}
+
+func (x *BotInstanceServiceHealth) ClearReason() {
+	x.Reason = nil
+}
+
+func (x *BotInstanceServiceHealth) ClearUpdatedAt() {
+	x.UpdatedAt = nil
+}
+
+type BotInstanceServiceHealth_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Service identifies the service.
+	Service *BotInstanceServiceIdentifier
+	// Status describes the service's healthiness.
+	Status BotInstanceHealthStatus
+	// Reason is a human-readable explanation for the service's status. It might
+	// include an error message.
+	Reason *string
+	// UpdatedAt is the time at which the service's health last changed.
+	UpdatedAt *timestamppb.Timestamp
+}
+
+func (b0 BotInstanceServiceHealth_builder) Build() *BotInstanceServiceHealth {
+	m0 := &BotInstanceServiceHealth{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Service = b.Service
+	x.Status = b.Status
+	x.Reason = b.Reason
+	x.UpdatedAt = b.UpdatedAt
+	return m0
+}
+
 // BotInstanceServiceIdentifier uniquely identifies a `tbot` service.
 type BotInstanceServiceIdentifier struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Type of service (e.g. database-tunnel, ssh-multiplexer).
 	Type string `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
 	// Name of the service, either given by the user or auto-generated.
@@ -799,11 +1287,6 @@ func (x *BotInstanceServiceIdentifier) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use BotInstanceServiceIdentifier.ProtoReflect.Descriptor instead.
-func (*BotInstanceServiceIdentifier) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_bot_instance_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *BotInstanceServiceIdentifier) GetType() string {
 	if x != nil {
 		return x.Type
@@ -816,6 +1299,32 @@ func (x *BotInstanceServiceIdentifier) GetName() string {
 		return x.Name
 	}
 	return ""
+}
+
+func (x *BotInstanceServiceIdentifier) SetType(v string) {
+	x.Type = v
+}
+
+func (x *BotInstanceServiceIdentifier) SetName(v string) {
+	x.Name = v
+}
+
+type BotInstanceServiceIdentifier_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Type of service (e.g. database-tunnel, ssh-multiplexer).
+	Type string
+	// Name of the service, either given by the user or auto-generated.
+	Name string
+}
+
+func (b0 BotInstanceServiceIdentifier_builder) Build() *BotInstanceServiceIdentifier {
+	m0 := &BotInstanceServiceIdentifier{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Type = b.Type
+	x.Name = b.Name
+	return m0
 }
 
 var File_teleport_machineid_v1_bot_instance_proto protoreflect.FileDescriptor
@@ -895,18 +1404,6 @@ const file_teleport_machineid_v1_bot_instance_proto_rawDesc = "" +
 	"'BOT_INSTANCE_HEALTH_STATUS_INITIALIZING\x10\x01\x12&\n" +
 	"\"BOT_INSTANCE_HEALTH_STATUS_HEALTHY\x10\x02\x12(\n" +
 	"$BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY\x10\x03BVZTgithub.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1;machineidv1b\x06proto3"
-
-var (
-	file_teleport_machineid_v1_bot_instance_proto_rawDescOnce sync.Once
-	file_teleport_machineid_v1_bot_instance_proto_rawDescData []byte
-)
-
-func file_teleport_machineid_v1_bot_instance_proto_rawDescGZIP() []byte {
-	file_teleport_machineid_v1_bot_instance_proto_rawDescOnce.Do(func() {
-		file_teleport_machineid_v1_bot_instance_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_machineid_v1_bot_instance_proto_rawDesc), len(file_teleport_machineid_v1_bot_instance_proto_rawDesc)))
-	})
-	return file_teleport_machineid_v1_bot_instance_proto_rawDescData
-}
 
 var file_teleport_machineid_v1_bot_instance_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_teleport_machineid_v1_bot_instance_proto_msgTypes = make([]protoimpl.MessageInfo, 7)

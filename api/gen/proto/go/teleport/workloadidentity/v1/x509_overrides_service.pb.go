@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/workloadidentity/v1/x509_overrides_service.proto
 
+//go:build !protoopaque
+
 package workloadidentityv1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -83,14 +84,9 @@ func (x CSRCreationMode) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use CSRCreationMode.Descriptor instead.
-func (CSRCreationMode) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_x509_overrides_service_proto_rawDescGZIP(), []int{0}
-}
-
 // Request message for SignX509IssuerCSR.
 type SignX509IssuerCSRRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ASN.1 DER certificate, the X.509 certificate in the spiffe cert_authority
 	// whose key we want to use for the CSR.
 	Issuer []byte `protobuf:"bytes,1,opt,name=issuer,proto3" json:"issuer,omitempty"`
@@ -126,11 +122,6 @@ func (x *SignX509IssuerCSRRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SignX509IssuerCSRRequest.ProtoReflect.Descriptor instead.
-func (*SignX509IssuerCSRRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_x509_overrides_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *SignX509IssuerCSRRequest) GetIssuer() []byte {
 	if x != nil {
 		return x.Issuer
@@ -145,9 +136,40 @@ func (x *SignX509IssuerCSRRequest) GetCsrCreationMode() CSRCreationMode {
 	return CSRCreationMode_CSR_CREATION_MODE_UNSPECIFIED
 }
 
+func (x *SignX509IssuerCSRRequest) SetIssuer(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Issuer = v
+}
+
+func (x *SignX509IssuerCSRRequest) SetCsrCreationMode(v CSRCreationMode) {
+	x.CsrCreationMode = v
+}
+
+type SignX509IssuerCSRRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ASN.1 DER certificate, the X.509 certificate in the spiffe cert_authority
+	// whose key we want to use for the CSR.
+	Issuer []byte
+	// The request mode defines how the CSR should be filled in based on the
+	// content of the original issuer.
+	CsrCreationMode CSRCreationMode
+}
+
+func (b0 SignX509IssuerCSRRequest_builder) Build() *SignX509IssuerCSRRequest {
+	m0 := &SignX509IssuerCSRRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Issuer = b.Issuer
+	x.CsrCreationMode = b.CsrCreationMode
+	return m0
+}
+
 // Response message for SignX509IssuerCSR.
 type SignX509IssuerCSRResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ASN.1 DER certificate request.
 	Csr           []byte `protobuf:"bytes,1,opt,name=csr,proto3" json:"csr,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -179,11 +201,6 @@ func (x *SignX509IssuerCSRResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SignX509IssuerCSRResponse.ProtoReflect.Descriptor instead.
-func (*SignX509IssuerCSRResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_x509_overrides_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *SignX509IssuerCSRResponse) GetCsr() []byte {
 	if x != nil {
 		return x.Csr
@@ -191,9 +208,31 @@ func (x *SignX509IssuerCSRResponse) GetCsr() []byte {
 	return nil
 }
 
+func (x *SignX509IssuerCSRResponse) SetCsr(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Csr = v
+}
+
+type SignX509IssuerCSRResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ASN.1 DER certificate request.
+	Csr []byte
+}
+
+func (b0 SignX509IssuerCSRResponse_builder) Build() *SignX509IssuerCSRResponse {
+	m0 := &SignX509IssuerCSRResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Csr = b.Csr
+	return m0
+}
+
 // Request message for GetX509IssuerOverride.
 type GetX509IssuerOverrideRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -224,11 +263,6 @@ func (x *GetX509IssuerOverrideRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetX509IssuerOverrideRequest.ProtoReflect.Descriptor instead.
-func (*GetX509IssuerOverrideRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_x509_overrides_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *GetX509IssuerOverrideRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -236,9 +270,27 @@ func (x *GetX509IssuerOverrideRequest) GetName() string {
 	return ""
 }
 
+func (x *GetX509IssuerOverrideRequest) SetName(v string) {
+	x.Name = v
+}
+
+type GetX509IssuerOverrideRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Name string
+}
+
+func (b0 GetX509IssuerOverrideRequest_builder) Build() *GetX509IssuerOverrideRequest {
+	m0 := &GetX509IssuerOverrideRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // Response message for GetX509IssuerOverride.
 type ListX509IssuerOverridesRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	PageSize      int32                  `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	PageToken     string                 `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -270,11 +322,6 @@ func (x *ListX509IssuerOverridesRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListX509IssuerOverridesRequest.ProtoReflect.Descriptor instead.
-func (*ListX509IssuerOverridesRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_x509_overrides_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *ListX509IssuerOverridesRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -289,9 +336,33 @@ func (x *ListX509IssuerOverridesRequest) GetPageToken() string {
 	return ""
 }
 
+func (x *ListX509IssuerOverridesRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListX509IssuerOverridesRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+type ListX509IssuerOverridesRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	PageSize  int32
+	PageToken string
+}
+
+func (b0 ListX509IssuerOverridesRequest_builder) Build() *ListX509IssuerOverridesRequest {
+	m0 := &ListX509IssuerOverridesRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	return m0
+}
+
 // Request message for ListX509IssuerOverrides.
 type ListX509IssuerOverridesResponse struct {
-	state               protoimpl.MessageState `protogen:"open.v1"`
+	state               protoimpl.MessageState `protogen:"hybrid.v1"`
 	X509IssuerOverrides []*X509IssuerOverride  `protobuf:"bytes,1,rep,name=x509_issuer_overrides,json=x509IssuerOverrides,proto3" json:"x509_issuer_overrides,omitempty"`
 	NextPageToken       string                 `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
 	unknownFields       protoimpl.UnknownFields
@@ -323,11 +394,6 @@ func (x *ListX509IssuerOverridesResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListX509IssuerOverridesResponse.ProtoReflect.Descriptor instead.
-func (*ListX509IssuerOverridesResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_x509_overrides_service_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *ListX509IssuerOverridesResponse) GetX509IssuerOverrides() []*X509IssuerOverride {
 	if x != nil {
 		return x.X509IssuerOverrides
@@ -342,9 +408,33 @@ func (x *ListX509IssuerOverridesResponse) GetNextPageToken() string {
 	return ""
 }
 
+func (x *ListX509IssuerOverridesResponse) SetX509IssuerOverrides(v []*X509IssuerOverride) {
+	x.X509IssuerOverrides = v
+}
+
+func (x *ListX509IssuerOverridesResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListX509IssuerOverridesResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	X509IssuerOverrides []*X509IssuerOverride
+	NextPageToken       string
+}
+
+func (b0 ListX509IssuerOverridesResponse_builder) Build() *ListX509IssuerOverridesResponse {
+	m0 := &ListX509IssuerOverridesResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.X509IssuerOverrides = b.X509IssuerOverrides
+	x.NextPageToken = b.NextPageToken
+	return m0
+}
+
 // Request message for CreateX509IssuerOverride.
 type CreateX509IssuerOverrideRequest struct {
-	state              protoimpl.MessageState `protogen:"open.v1"`
+	state              protoimpl.MessageState `protogen:"hybrid.v1"`
 	X509IssuerOverride *X509IssuerOverride    `protobuf:"bytes,1,opt,name=x509_issuer_override,json=x509IssuerOverride,proto3" json:"x509_issuer_override,omitempty"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
@@ -375,11 +465,6 @@ func (x *CreateX509IssuerOverrideRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateX509IssuerOverrideRequest.ProtoReflect.Descriptor instead.
-func (*CreateX509IssuerOverrideRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_x509_overrides_service_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *CreateX509IssuerOverrideRequest) GetX509IssuerOverride() *X509IssuerOverride {
 	if x != nil {
 		return x.X509IssuerOverride
@@ -387,9 +472,38 @@ func (x *CreateX509IssuerOverrideRequest) GetX509IssuerOverride() *X509IssuerOve
 	return nil
 }
 
+func (x *CreateX509IssuerOverrideRequest) SetX509IssuerOverride(v *X509IssuerOverride) {
+	x.X509IssuerOverride = v
+}
+
+func (x *CreateX509IssuerOverrideRequest) HasX509IssuerOverride() bool {
+	if x == nil {
+		return false
+	}
+	return x.X509IssuerOverride != nil
+}
+
+func (x *CreateX509IssuerOverrideRequest) ClearX509IssuerOverride() {
+	x.X509IssuerOverride = nil
+}
+
+type CreateX509IssuerOverrideRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	X509IssuerOverride *X509IssuerOverride
+}
+
+func (b0 CreateX509IssuerOverrideRequest_builder) Build() *CreateX509IssuerOverrideRequest {
+	m0 := &CreateX509IssuerOverrideRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.X509IssuerOverride = b.X509IssuerOverride
+	return m0
+}
+
 // Request message for UpdateX509IssuerOverride.
 type UpdateX509IssuerOverrideRequest struct {
-	state              protoimpl.MessageState `protogen:"open.v1"`
+	state              protoimpl.MessageState `protogen:"hybrid.v1"`
 	X509IssuerOverride *X509IssuerOverride    `protobuf:"bytes,1,opt,name=x509_issuer_override,json=x509IssuerOverride,proto3" json:"x509_issuer_override,omitempty"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
@@ -420,11 +534,6 @@ func (x *UpdateX509IssuerOverrideRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateX509IssuerOverrideRequest.ProtoReflect.Descriptor instead.
-func (*UpdateX509IssuerOverrideRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_x509_overrides_service_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *UpdateX509IssuerOverrideRequest) GetX509IssuerOverride() *X509IssuerOverride {
 	if x != nil {
 		return x.X509IssuerOverride
@@ -432,9 +541,38 @@ func (x *UpdateX509IssuerOverrideRequest) GetX509IssuerOverride() *X509IssuerOve
 	return nil
 }
 
+func (x *UpdateX509IssuerOverrideRequest) SetX509IssuerOverride(v *X509IssuerOverride) {
+	x.X509IssuerOverride = v
+}
+
+func (x *UpdateX509IssuerOverrideRequest) HasX509IssuerOverride() bool {
+	if x == nil {
+		return false
+	}
+	return x.X509IssuerOverride != nil
+}
+
+func (x *UpdateX509IssuerOverrideRequest) ClearX509IssuerOverride() {
+	x.X509IssuerOverride = nil
+}
+
+type UpdateX509IssuerOverrideRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	X509IssuerOverride *X509IssuerOverride
+}
+
+func (b0 UpdateX509IssuerOverrideRequest_builder) Build() *UpdateX509IssuerOverrideRequest {
+	m0 := &UpdateX509IssuerOverrideRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.X509IssuerOverride = b.X509IssuerOverride
+	return m0
+}
+
 // Request message for UpsertX509IssuerOverride.
 type UpsertX509IssuerOverrideRequest struct {
-	state              protoimpl.MessageState `protogen:"open.v1"`
+	state              protoimpl.MessageState `protogen:"hybrid.v1"`
 	X509IssuerOverride *X509IssuerOverride    `protobuf:"bytes,1,opt,name=x509_issuer_override,json=x509IssuerOverride,proto3" json:"x509_issuer_override,omitempty"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
@@ -465,11 +603,6 @@ func (x *UpsertX509IssuerOverrideRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertX509IssuerOverrideRequest.ProtoReflect.Descriptor instead.
-func (*UpsertX509IssuerOverrideRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_x509_overrides_service_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *UpsertX509IssuerOverrideRequest) GetX509IssuerOverride() *X509IssuerOverride {
 	if x != nil {
 		return x.X509IssuerOverride
@@ -477,9 +610,38 @@ func (x *UpsertX509IssuerOverrideRequest) GetX509IssuerOverride() *X509IssuerOve
 	return nil
 }
 
+func (x *UpsertX509IssuerOverrideRequest) SetX509IssuerOverride(v *X509IssuerOverride) {
+	x.X509IssuerOverride = v
+}
+
+func (x *UpsertX509IssuerOverrideRequest) HasX509IssuerOverride() bool {
+	if x == nil {
+		return false
+	}
+	return x.X509IssuerOverride != nil
+}
+
+func (x *UpsertX509IssuerOverrideRequest) ClearX509IssuerOverride() {
+	x.X509IssuerOverride = nil
+}
+
+type UpsertX509IssuerOverrideRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	X509IssuerOverride *X509IssuerOverride
+}
+
+func (b0 UpsertX509IssuerOverrideRequest_builder) Build() *UpsertX509IssuerOverrideRequest {
+	m0 := &UpsertX509IssuerOverrideRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.X509IssuerOverride = b.X509IssuerOverride
+	return m0
+}
+
 // Request message for DeleteX509IssuerOverride.
 type DeleteX509IssuerOverrideRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -510,16 +672,29 @@ func (x *DeleteX509IssuerOverrideRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteX509IssuerOverrideRequest.ProtoReflect.Descriptor instead.
-func (*DeleteX509IssuerOverrideRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_x509_overrides_service_proto_rawDescGZIP(), []int{8}
-}
-
 func (x *DeleteX509IssuerOverrideRequest) GetName() string {
 	if x != nil {
 		return x.Name
 	}
 	return ""
+}
+
+func (x *DeleteX509IssuerOverrideRequest) SetName(v string) {
+	x.Name = v
+}
+
+type DeleteX509IssuerOverrideRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Name string
+}
+
+func (b0 DeleteX509IssuerOverrideRequest_builder) Build() *DeleteX509IssuerOverrideRequest {
+	m0 := &DeleteX509IssuerOverrideRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
 }
 
 var File_teleport_workloadidentity_v1_x509_overrides_service_proto protoreflect.FileDescriptor
@@ -561,18 +736,6 @@ const file_teleport_workloadidentity_v1_x509_overrides_service_proto_rawDesc = "
 	"\x18UpdateX509IssuerOverride\x12=.teleport.workloadidentity.v1.UpdateX509IssuerOverrideRequest\x1a0.teleport.workloadidentity.v1.X509IssuerOverride\x12\x90\x01\n" +
 	"\x18UpsertX509IssuerOverride\x12=.teleport.workloadidentity.v1.UpsertX509IssuerOverrideRequest\x1a0.teleport.workloadidentity.v1.X509IssuerOverride\"\x03\x90\x02\x02\x12q\n" +
 	"\x18DeleteX509IssuerOverride\x12=.teleport.workloadidentity.v1.DeleteX509IssuerOverrideRequest\x1a\x16.google.protobuf.EmptyBdZbgithub.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1b\x06proto3"
-
-var (
-	file_teleport_workloadidentity_v1_x509_overrides_service_proto_rawDescOnce sync.Once
-	file_teleport_workloadidentity_v1_x509_overrides_service_proto_rawDescData []byte
-)
-
-func file_teleport_workloadidentity_v1_x509_overrides_service_proto_rawDescGZIP() []byte {
-	file_teleport_workloadidentity_v1_x509_overrides_service_proto_rawDescOnce.Do(func() {
-		file_teleport_workloadidentity_v1_x509_overrides_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_workloadidentity_v1_x509_overrides_service_proto_rawDesc), len(file_teleport_workloadidentity_v1_x509_overrides_service_proto_rawDesc)))
-	})
-	return file_teleport_workloadidentity_v1_x509_overrides_service_proto_rawDescData
-}
 
 var file_teleport_workloadidentity_v1_x509_overrides_service_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_teleport_workloadidentity_v1_x509_overrides_service_proto_msgTypes = make([]protoimpl.MessageInfo, 9)

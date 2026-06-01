@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/userprovisioning/v2/statichostuser_service.proto
 
+//go:build !protoopaque
+
 package userprovisioningv2
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -38,7 +39,7 @@ const (
 
 // Request for GetStaticHostUser.
 type GetStaticHostUserRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name of the user to retrieve, this take priority over current_user.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -70,11 +71,6 @@ func (x *GetStaticHostUserRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetStaticHostUserRequest.ProtoReflect.Descriptor instead.
-func (*GetStaticHostUserRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_userprovisioning_v2_statichostuser_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *GetStaticHostUserRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -82,12 +78,31 @@ func (x *GetStaticHostUserRequest) GetName() string {
 	return ""
 }
 
+func (x *GetStaticHostUserRequest) SetName(v string) {
+	x.Name = v
+}
+
+type GetStaticHostUserRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name of the user to retrieve, this take priority over current_user.
+	Name string
+}
+
+func (b0 GetStaticHostUserRequest_builder) Build() *GetStaticHostUserRequest {
+	m0 := &GetStaticHostUserRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // Request for ListStaticHostUsers.
 //
 // Follows the pagination semantics of
 // https://cloud.google.com/apis/design/standard_methods#list.
 type ListStaticHostUsersRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The maximum number of items to return.
 	// The server may impose a different page size at its discretion.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
@@ -122,11 +137,6 @@ func (x *ListStaticHostUsersRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListStaticHostUsersRequest.ProtoReflect.Descriptor instead.
-func (*ListStaticHostUsersRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_userprovisioning_v2_statichostuser_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *ListStaticHostUsersRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -141,9 +151,36 @@ func (x *ListStaticHostUsersRequest) GetPageToken() string {
 	return ""
 }
 
+func (x *ListStaticHostUsersRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListStaticHostUsersRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+type ListStaticHostUsersRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The maximum number of items to return.
+	// The server may impose a different page size at its discretion.
+	PageSize int32
+	// The next_page_token value returned from a previous List request, if any.
+	PageToken string
+}
+
+func (b0 ListStaticHostUsersRequest_builder) Build() *ListStaticHostUsersRequest {
+	m0 := &ListStaticHostUsersRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	return m0
+}
+
 // Response for ListStaticHostUsers.
 type ListStaticHostUsersResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Static host users that matched the search.
 	Users []*StaticHostUser `protobuf:"bytes,1,rep,name=users,proto3" json:"users,omitempty"`
 	// Token to retrieve the next page of results, or empty if there are no
@@ -178,11 +215,6 @@ func (x *ListStaticHostUsersResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListStaticHostUsersResponse.ProtoReflect.Descriptor instead.
-func (*ListStaticHostUsersResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_userprovisioning_v2_statichostuser_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *ListStaticHostUsersResponse) GetUsers() []*StaticHostUser {
 	if x != nil {
 		return x.Users
@@ -197,9 +229,36 @@ func (x *ListStaticHostUsersResponse) GetNextPageToken() string {
 	return ""
 }
 
+func (x *ListStaticHostUsersResponse) SetUsers(v []*StaticHostUser) {
+	x.Users = v
+}
+
+func (x *ListStaticHostUsersResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListStaticHostUsersResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Static host users that matched the search.
+	Users []*StaticHostUser
+	// Token to retrieve the next page of results, or empty if there are no
+	// more results in the list.
+	NextPageToken string
+}
+
+func (b0 ListStaticHostUsersResponse_builder) Build() *ListStaticHostUsersResponse {
+	m0 := &ListStaticHostUsersResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Users = b.Users
+	x.NextPageToken = b.NextPageToken
+	return m0
+}
+
 // Request for CreateStaticHostUser.
 type CreateStaticHostUserRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The static host user resource to create.
 	User          *StaticHostUser `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -231,11 +290,6 @@ func (x *CreateStaticHostUserRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateStaticHostUserRequest.ProtoReflect.Descriptor instead.
-func (*CreateStaticHostUserRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_userprovisioning_v2_statichostuser_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *CreateStaticHostUserRequest) GetUser() *StaticHostUser {
 	if x != nil {
 		return x.User
@@ -243,9 +297,39 @@ func (x *CreateStaticHostUserRequest) GetUser() *StaticHostUser {
 	return nil
 }
 
+func (x *CreateStaticHostUserRequest) SetUser(v *StaticHostUser) {
+	x.User = v
+}
+
+func (x *CreateStaticHostUserRequest) HasUser() bool {
+	if x == nil {
+		return false
+	}
+	return x.User != nil
+}
+
+func (x *CreateStaticHostUserRequest) ClearUser() {
+	x.User = nil
+}
+
+type CreateStaticHostUserRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The static host user resource to create.
+	User *StaticHostUser
+}
+
+func (b0 CreateStaticHostUserRequest_builder) Build() *CreateStaticHostUserRequest {
+	m0 := &CreateStaticHostUserRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.User = b.User
+	return m0
+}
+
 // Request for UpdateStaticHostUser.
 type UpdateStaticHostUserRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The static host user resource to update.
 	User          *StaticHostUser `protobuf:"bytes,2,opt,name=user,proto3" json:"user,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -277,11 +361,6 @@ func (x *UpdateStaticHostUserRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateStaticHostUserRequest.ProtoReflect.Descriptor instead.
-func (*UpdateStaticHostUserRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_userprovisioning_v2_statichostuser_service_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *UpdateStaticHostUserRequest) GetUser() *StaticHostUser {
 	if x != nil {
 		return x.User
@@ -289,9 +368,39 @@ func (x *UpdateStaticHostUserRequest) GetUser() *StaticHostUser {
 	return nil
 }
 
+func (x *UpdateStaticHostUserRequest) SetUser(v *StaticHostUser) {
+	x.User = v
+}
+
+func (x *UpdateStaticHostUserRequest) HasUser() bool {
+	if x == nil {
+		return false
+	}
+	return x.User != nil
+}
+
+func (x *UpdateStaticHostUserRequest) ClearUser() {
+	x.User = nil
+}
+
+type UpdateStaticHostUserRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The static host user resource to update.
+	User *StaticHostUser
+}
+
+func (b0 UpdateStaticHostUserRequest_builder) Build() *UpdateStaticHostUserRequest {
+	m0 := &UpdateStaticHostUserRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.User = b.User
+	return m0
+}
+
 // Request for UpsertStaticHostUser.
 type UpsertStaticHostUserRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The static host user resource to upsert.
 	User          *StaticHostUser `protobuf:"bytes,2,opt,name=user,proto3" json:"user,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -323,11 +432,6 @@ func (x *UpsertStaticHostUserRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertStaticHostUserRequest.ProtoReflect.Descriptor instead.
-func (*UpsertStaticHostUserRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_userprovisioning_v2_statichostuser_service_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *UpsertStaticHostUserRequest) GetUser() *StaticHostUser {
 	if x != nil {
 		return x.User
@@ -335,9 +439,39 @@ func (x *UpsertStaticHostUserRequest) GetUser() *StaticHostUser {
 	return nil
 }
 
+func (x *UpsertStaticHostUserRequest) SetUser(v *StaticHostUser) {
+	x.User = v
+}
+
+func (x *UpsertStaticHostUserRequest) HasUser() bool {
+	if x == nil {
+		return false
+	}
+	return x.User != nil
+}
+
+func (x *UpsertStaticHostUserRequest) ClearUser() {
+	x.User = nil
+}
+
+type UpsertStaticHostUserRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The static host user resource to upsert.
+	User *StaticHostUser
+}
+
+func (b0 UpsertStaticHostUserRequest_builder) Build() *UpsertStaticHostUserRequest {
+	m0 := &UpsertStaticHostUserRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.User = b.User
+	return m0
+}
+
 // Request for DeleteStaticHostUser.
 type DeleteStaticHostUserRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name of the user resource to remove.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -369,16 +503,30 @@ func (x *DeleteStaticHostUserRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteStaticHostUserRequest.ProtoReflect.Descriptor instead.
-func (*DeleteStaticHostUserRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_userprovisioning_v2_statichostuser_service_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *DeleteStaticHostUserRequest) GetName() string {
 	if x != nil {
 		return x.Name
 	}
 	return ""
+}
+
+func (x *DeleteStaticHostUserRequest) SetName(v string) {
+	x.Name = v
+}
+
+type DeleteStaticHostUserRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name of the user resource to remove.
+	Name string
+}
+
+func (b0 DeleteStaticHostUserRequest_builder) Build() *DeleteStaticHostUserRequest {
+	m0 := &DeleteStaticHostUserRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
 }
 
 var File_teleport_userprovisioning_v2_statichostuser_service_proto protoreflect.FileDescriptor
@@ -410,18 +558,6 @@ const file_teleport_userprovisioning_v2_statichostuser_service_proto_rawDesc = "
 	"\x14UpdateStaticHostUser\x129.teleport.userprovisioning.v2.UpdateStaticHostUserRequest\x1a,.teleport.userprovisioning.v2.StaticHostUser\x12\x7f\n" +
 	"\x14UpsertStaticHostUser\x129.teleport.userprovisioning.v2.UpsertStaticHostUserRequest\x1a,.teleport.userprovisioning.v2.StaticHostUser\x12i\n" +
 	"\x14DeleteStaticHostUser\x129.teleport.userprovisioning.v2.DeleteStaticHostUserRequest\x1a\x16.google.protobuf.EmptyBdZbgithub.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2;userprovisioningv2b\x06proto3"
-
-var (
-	file_teleport_userprovisioning_v2_statichostuser_service_proto_rawDescOnce sync.Once
-	file_teleport_userprovisioning_v2_statichostuser_service_proto_rawDescData []byte
-)
-
-func file_teleport_userprovisioning_v2_statichostuser_service_proto_rawDescGZIP() []byte {
-	file_teleport_userprovisioning_v2_statichostuser_service_proto_rawDescOnce.Do(func() {
-		file_teleport_userprovisioning_v2_statichostuser_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_userprovisioning_v2_statichostuser_service_proto_rawDesc), len(file_teleport_userprovisioning_v2_statichostuser_service_proto_rawDesc)))
-	})
-	return file_teleport_userprovisioning_v2_statichostuser_service_proto_rawDescData
-}
 
 var file_teleport_userprovisioning_v2_statichostuser_service_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_teleport_userprovisioning_v2_statichostuser_service_proto_goTypes = []any{

@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/stableunixusers/v1/stableunixusers.proto
 
+//go:build !protoopaque
+
 package stableunixusersv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -37,7 +38,7 @@ const (
 
 // request message for ObtainUIDForUsername
 type ObtainUIDForUsernameRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Username      string                 `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -68,11 +69,6 @@ func (x *ObtainUIDForUsernameRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ObtainUIDForUsernameRequest.ProtoReflect.Descriptor instead.
-func (*ObtainUIDForUsernameRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_stableunixusers_v1_stableunixusers_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *ObtainUIDForUsernameRequest) GetUsername() string {
 	if x != nil {
 		return x.Username
@@ -80,9 +76,27 @@ func (x *ObtainUIDForUsernameRequest) GetUsername() string {
 	return ""
 }
 
+func (x *ObtainUIDForUsernameRequest) SetUsername(v string) {
+	x.Username = v
+}
+
+type ObtainUIDForUsernameRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Username string
+}
+
+func (b0 ObtainUIDForUsernameRequest_builder) Build() *ObtainUIDForUsernameRequest {
+	m0 := &ObtainUIDForUsernameRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Username = b.Username
+	return m0
+}
+
 // response message for ObtainUIDForUsername
 type ObtainUIDForUsernameResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Uid           int32                  `protobuf:"varint,1,opt,name=uid,proto3" json:"uid,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -113,11 +127,6 @@ func (x *ObtainUIDForUsernameResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ObtainUIDForUsernameResponse.ProtoReflect.Descriptor instead.
-func (*ObtainUIDForUsernameResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_stableunixusers_v1_stableunixusers_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *ObtainUIDForUsernameResponse) GetUid() int32 {
 	if x != nil {
 		return x.Uid
@@ -125,9 +134,27 @@ func (x *ObtainUIDForUsernameResponse) GetUid() int32 {
 	return 0
 }
 
+func (x *ObtainUIDForUsernameResponse) SetUid(v int32) {
+	x.Uid = v
+}
+
+type ObtainUIDForUsernameResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Uid int32
+}
+
+func (b0 ObtainUIDForUsernameResponse_builder) Build() *ObtainUIDForUsernameResponse {
+	m0 := &ObtainUIDForUsernameResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Uid = b.Uid
+	return m0
+}
+
 // request message for ListStableUNIXUsers
 type ListStableUNIXUsersRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// if left unset, the page size will default to a reasonable value chosen by
 	// the server
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
@@ -162,11 +189,6 @@ func (x *ListStableUNIXUsersRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListStableUNIXUsersRequest.ProtoReflect.Descriptor instead.
-func (*ListStableUNIXUsersRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_stableunixusers_v1_stableunixusers_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *ListStableUNIXUsersRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -181,9 +203,36 @@ func (x *ListStableUNIXUsersRequest) GetPageToken() string {
 	return ""
 }
 
+func (x *ListStableUNIXUsersRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListStableUNIXUsersRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+type ListStableUNIXUsersRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// if left unset, the page size will default to a reasonable value chosen by
+	// the server
+	PageSize int32
+	// if unset or blank, the rpc will return the first page
+	PageToken string
+}
+
+func (b0 ListStableUNIXUsersRequest_builder) Build() *ListStableUNIXUsersRequest {
+	m0 := &ListStableUNIXUsersRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	return m0
+}
+
 // a pair of stable UNIX username and UID
 type StableUNIXUser struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Username      string                 `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
 	Uid           int32                  `protobuf:"varint,2,opt,name=uid,proto3" json:"uid,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -215,11 +264,6 @@ func (x *StableUNIXUser) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use StableUNIXUser.ProtoReflect.Descriptor instead.
-func (*StableUNIXUser) Descriptor() ([]byte, []int) {
-	return file_teleport_stableunixusers_v1_stableunixusers_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *StableUNIXUser) GetUsername() string {
 	if x != nil {
 		return x.Username
@@ -234,9 +278,33 @@ func (x *StableUNIXUser) GetUid() int32 {
 	return 0
 }
 
+func (x *StableUNIXUser) SetUsername(v string) {
+	x.Username = v
+}
+
+func (x *StableUNIXUser) SetUid(v int32) {
+	x.Uid = v
+}
+
+type StableUNIXUser_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Username string
+	Uid      int32
+}
+
+func (b0 StableUNIXUser_builder) Build() *StableUNIXUser {
+	m0 := &StableUNIXUser{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Username = b.Username
+	x.Uid = b.Uid
+	return m0
+}
+
 // response message for ListStableUNIXUsers
 type ListStableUNIXUsersResponse struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
+	state           protoimpl.MessageState `protogen:"hybrid.v1"`
 	StableUnixUsers []*StableUNIXUser      `protobuf:"bytes,1,rep,name=stable_unix_users,json=stableUnixUsers,proto3" json:"stable_unix_users,omitempty"`
 	// if empty, the listing has reached the end; otherwise, ListStableUNIXUsers
 	// can be called again with the new page_token to get more data
@@ -270,11 +338,6 @@ func (x *ListStableUNIXUsersResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListStableUNIXUsersResponse.ProtoReflect.Descriptor instead.
-func (*ListStableUNIXUsersResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_stableunixusers_v1_stableunixusers_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *ListStableUNIXUsersResponse) GetStableUnixUsers() []*StableUNIXUser {
 	if x != nil {
 		return x.StableUnixUsers
@@ -287,6 +350,32 @@ func (x *ListStableUNIXUsersResponse) GetNextPageToken() string {
 		return x.NextPageToken
 	}
 	return ""
+}
+
+func (x *ListStableUNIXUsersResponse) SetStableUnixUsers(v []*StableUNIXUser) {
+	x.StableUnixUsers = v
+}
+
+func (x *ListStableUNIXUsersResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListStableUNIXUsersResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	StableUnixUsers []*StableUNIXUser
+	// if empty, the listing has reached the end; otherwise, ListStableUNIXUsers
+	// can be called again with the new page_token to get more data
+	NextPageToken string
+}
+
+func (b0 ListStableUNIXUsersResponse_builder) Build() *ListStableUNIXUsersResponse {
+	m0 := &ListStableUNIXUsersResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.StableUnixUsers = b.StableUnixUsers
+	x.NextPageToken = b.NextPageToken
+	return m0
 }
 
 var File_teleport_stableunixusers_v1_stableunixusers_proto protoreflect.FileDescriptor
@@ -311,18 +400,6 @@ const file_teleport_stableunixusers_v1_stableunixusers_proto_rawDesc = "" +
 	"\x16StableUNIXUsersService\x12\x90\x01\n" +
 	"\x14ObtainUIDForUsername\x128.teleport.stableunixusers.v1.ObtainUIDForUsernameRequest\x1a9.teleport.stableunixusers.v1.ObtainUIDForUsernameResponse\"\x03\x90\x02\x02\x12\x8d\x01\n" +
 	"\x13ListStableUNIXUsers\x127.teleport.stableunixusers.v1.ListStableUNIXUsersRequest\x1a8.teleport.stableunixusers.v1.ListStableUNIXUsersResponse\"\x03\x90\x02\x01BbZ`github.com/gravitational/teleport/api/gen/proto/go/teleport/stableunixusers/v1;stableunixusersv1b\x06proto3"
-
-var (
-	file_teleport_stableunixusers_v1_stableunixusers_proto_rawDescOnce sync.Once
-	file_teleport_stableunixusers_v1_stableunixusers_proto_rawDescData []byte
-)
-
-func file_teleport_stableunixusers_v1_stableunixusers_proto_rawDescGZIP() []byte {
-	file_teleport_stableunixusers_v1_stableunixusers_proto_rawDescOnce.Do(func() {
-		file_teleport_stableunixusers_v1_stableunixusers_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_stableunixusers_v1_stableunixusers_proto_rawDesc), len(file_teleport_stableunixusers_v1_stableunixusers_proto_rawDesc)))
-	})
-	return file_teleport_stableunixusers_v1_stableunixusers_proto_rawDescData
-}
 
 var file_teleport_stableunixusers_v1_stableunixusers_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_teleport_stableunixusers_v1_stableunixusers_proto_goTypes = []any{

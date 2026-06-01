@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/resourceusage/v1/account_usage_type.proto
 
+//go:build !protoopaque
+
 package resourceusagev1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -81,11 +82,6 @@ func (x AccountUsageType) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use AccountUsageType.Descriptor instead.
-func (AccountUsageType) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_resourceusage_v1_account_usage_type_proto_rawDescGZIP(), []int{0}
-}
-
 var File_teleport_resourceusage_v1_account_usage_type_proto protoreflect.FileDescriptor
 
 const file_teleport_resourceusage_v1_account_usage_type_proto_rawDesc = "" +
@@ -95,18 +91,6 @@ const file_teleport_resourceusage_v1_account_usage_type_proto_rawDesc = "" +
 	"\x1eACCOUNT_USAGE_TYPE_UNSPECIFIED\x10\x00\x12 \n" +
 	"\x1cACCOUNT_USAGE_TYPE_UNLIMITED\x10\x01\x12\"\n" +
 	"\x1eACCOUNT_USAGE_TYPE_USAGE_BASED\x10\x02B^Z\\github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1;resourceusagev1b\x06proto3"
-
-var (
-	file_teleport_resourceusage_v1_account_usage_type_proto_rawDescOnce sync.Once
-	file_teleport_resourceusage_v1_account_usage_type_proto_rawDescData []byte
-)
-
-func file_teleport_resourceusage_v1_account_usage_type_proto_rawDescGZIP() []byte {
-	file_teleport_resourceusage_v1_account_usage_type_proto_rawDescOnce.Do(func() {
-		file_teleport_resourceusage_v1_account_usage_type_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_resourceusage_v1_account_usage_type_proto_rawDesc), len(file_teleport_resourceusage_v1_account_usage_type_proto_rawDesc)))
-	})
-	return file_teleport_resourceusage_v1_account_usage_type_proto_rawDescData
-}
 
 var file_teleport_resourceusage_v1_account_usage_type_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_teleport_resourceusage_v1_account_usage_type_proto_goTypes = []any{
