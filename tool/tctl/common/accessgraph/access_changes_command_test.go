@@ -35,29 +35,19 @@ import (
 
 	"github.com/gravitational/teleport"
 	accessgraph "github.com/gravitational/teleport/lib/accessgraph/apiclient"
-	graphmodels "github.com/gravitational/teleport/lib/accessgraph/apiclient/models/graph"
-	diffmodels "github.com/gravitational/teleport/lib/accessgraph/apiclient/models/jsondiff"
 )
 
 // AG-mounted paths the access-changes commands hit — kept as constants so
 // the test fails loudly if the generated client's operation paths drift.
 const (
 	listAccessChangesPath = accessGraphAPIPath + "graph/crown-jewel/access-paths"
-	getAccessChangePath   = accessGraphAPIPath + "graph/crown-jewel/access-paths/" // + <id>
 )
 
 var (
-	fixtureChangeID    = "ch-1111"
-	fixtureChangeUUID  = uuid.MustParse("11111111-2222-3333-4444-555555555555")
-	fixtureAffectedID  = uuid.MustParse("66666666-7777-8888-9999-000000000000")
-	fixtureChangeTime  = time.Date(2026, 5, 1, 9, 30, 0, 0, time.UTC)
-	fixtureBaseNodeID1 = "aaaaaaaa-1111-1111-1111-111111111111"
-	fixtureBaseNodeID2 = "bbbbbbbb-2222-2222-2222-222222222222"
-	fixtureBaseEdgeID  = uuid.MustParse("cccccccc-3333-3333-3333-333333333333")
+	fixtureChangeID   = "ch-1111"
+	fixtureAffectedID = uuid.MustParse("66666666-7777-8888-9999-000000000000")
+	fixtureChangeTime = time.Date(2026, 5, 1, 9, 30, 0, 0, time.UTC)
 )
-
-func strRef(s string) *string { return &s }
-func anyRef(v any) *any       { return &v }
 
 func accessPathSummaryItemFixture() accessgraph.AccessPathSummaryItem {
 	return accessgraph.AccessPathSummaryItem{
@@ -70,53 +60,6 @@ func accessPathSummaryItemFixture() accessgraph.AccessPathSummaryItem {
 			Source:     "Teleport",
 			OriginType: "teleport_database",
 			Alias:      "prod-db-alias",
-		},
-	}
-}
-
-// accessPathDiffFixture returns a diff that exercises both the typed-value
-// branch (add ops carry a payload) and the base-lookup branch (remove ops
-// have no payload — labels come from change.Base).
-func accessPathDiffFixture() *accessgraph.AccessPathDiff {
-	nodes := []accessgraph.GenericNode{
-		{Id: fixtureBaseNodeID1, Kind: "identity", Name: "alice", OriginType: "teleport_user"},
-		{Id: fixtureBaseNodeID2, Kind: "resource", Name: "prod-db", Alias: "prod-db-alias", OriginType: "teleport_database"},
-	}
-	edges := []graphmodels.Edge{
-		{Id: fixtureBaseEdgeID, EdgeType: "has_access", From: uuid.MustParse(fixtureBaseNodeID1), To: uuid.MustParse(fixtureBaseNodeID2)},
-	}
-
-	newNodeID := "dddddddd-4444-4444-4444-444444444444"
-	addNode := map[string]any{
-		"id":          newNodeID,
-		"kind":        "identity",
-		"name":        "bob",
-		"origin_type": "teleport_user",
-	}
-	newEdgeID := "eeeeeeee-5555-5555-5555-555555555555"
-	addEdge := map[string]any{
-		"id":        newEdgeID,
-		"edge_type": "owns",
-		"from":      fixtureBaseNodeID1,
-		"to":        fixtureBaseNodeID2,
-	}
-
-	return &accessgraph.AccessPathDiff{
-		ChangeId: fixtureChangeUUID,
-		AffectedNode: accessgraph.AccessPathSummaryItemNode{
-			Id:         fixtureAffectedID,
-			Kind:       "resource",
-			Name:       "prod-db",
-			Source:     "Teleport",
-			OriginType: "teleport_database",
-			Alias:      "prod-db-alias",
-		},
-		Base: accessgraph.GenericNodesList{Nodes: &nodes, Edges: &edges},
-		Diff: []diffmodels.Operation{
-			{Op: diffmodels.OperationOpAdd, Path: strRef("/nodes/" + newNodeID), Value: anyRef(addNode)},
-			{Op: diffmodels.OperationOpAdd, Path: strRef("/edges/" + newEdgeID), Value: anyRef(addEdge)},
-			{Op: diffmodels.OperationOpRemove, Path: strRef("/nodes/" + fixtureBaseNodeID1)},
-			{Op: diffmodels.OperationOpRemove, Path: strRef("/edges/" + fixtureBaseEdgeID.String())},
 		},
 	}
 }

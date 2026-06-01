@@ -29,10 +29,11 @@ import (
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport"
 	accessgraph "github.com/gravitational/teleport/lib/accessgraph/apiclient"
 	"github.com/gravitational/teleport/lib/asciitable"
-	"github.com/gravitational/trace"
 )
 
 type accessChangesArgs struct {

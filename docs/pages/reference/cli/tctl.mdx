@@ -59,7 +59,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--filter`|*no default*|Filter by comma-separated key=value pairs (keys: origin_type, kind, source). Pairs within one --filter are AND'd; repeat --filter to OR. Example: --filter kind=resource,source=AWS --filter origin_type=teleport_user.|
+|`--filter`|*no default*|Filter by comma-separated key=value pairs (keys: type, kind, source). Pairs within one --filter are AND'd; repeat --filter to OR. Example: --filter kind=resource,source=AWS --filter type=teleport_user.|
 |`--kind`|*no default* (any of (repeatable): `identity`, `resource`)|Filter by change kind (repeatable; each is OR'd). Combine axes with --filter.|
 |`--limit`|`100`|Maximum number of changes to return (0 for unlimited).|
 |`--search`|*no default*|Search term to filter access changes.|
@@ -1075,7 +1075,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--limit`|`100`|Maximum number of detections to return (0 for unlimited).|
+|`--limit`|`100`|Maximum number of detections to return.|
 |`--[no-]detailed`|`false`|Include extra columns (Reported By, Type, Affected Entity, Tags, Description, Start Time, End Time, Updated) in text output.|
 |`--severity`|*no default* (any of (repeatable): `low`, `medium`, `high`, `critical`)|Filter detections by severity (Values: low, medium, high, critical).|
 |`--source`|*no default*|Filter detections by source.|
