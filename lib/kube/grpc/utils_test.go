@@ -67,6 +67,7 @@ import (
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	sessPkg "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -110,6 +111,7 @@ type TestConfig struct {
 	OnEvent              func(apievents.AuditEvent)
 	ClusterFeatures      func() proto.Features
 	CreateAuditStreamErr error
+	ScopesFeatures       scopes.Features
 }
 
 // SetupTestContext creates a kube service with clusters configured.
@@ -191,6 +193,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		AccessPoint:      proxyAuthClient,
 		ScopedRoleReader: proxyAuthClient.ScopedRoleReader(),
 		LockWatcher:      testCtx.lockWatcher,
+		ScopesFeatures:   cfg.ScopesFeatures,
 	}
 
 	testCtx.Authz, err = authz.NewAuthorizer(authOpts)

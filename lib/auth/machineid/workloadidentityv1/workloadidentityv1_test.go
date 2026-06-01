@@ -144,7 +144,7 @@ func newIssuanceTestPack(t *testing.T, ctx context.Context) *issuanceTestPack {
 		PublicAddrs: []string{"teleport.example.com"},
 	})
 	require.NoError(t, err)
-	err = srv.Auth().UpsertProxy(ctx, proxy)
+	_, err = srv.Auth().UpsertProxyServer(ctx, proxy)
 	require.NoError(t, err)
 	wantIssuer := "https://teleport.example.com/workload-identity"
 

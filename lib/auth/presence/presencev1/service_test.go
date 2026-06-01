@@ -40,7 +40,9 @@ import (
 	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 )
 
@@ -873,6 +875,204 @@ func TestDeleteReverseTunnel(t *testing.T) {
 			if tt.checkResourcesDeleted {
 				_, err := srv.Auth().GetReverseTunnel(ctx, tt.req.Name)
 				require.True(t, trace.IsNotFound(err), "rt should be deleted")
+			}
+		})
+	}
+}
+
+// TestDeleteProxyServer is an integration test that uses a real gRPC client/server.
+func TestDeleteProxyServer(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	ctx := t.Context()
+
+	user, _, err := authtest.CreateUserAndRole(
+		srv.Auth(),
+		"proxy-deleter",
+		[]string{},
+		[]types.Rule{
+			{
+				Resources: []string{types.KindProxy},
+				Verbs:     []string{types.VerbDelete},
+			},
+		})
+	require.NoError(t, err)
+	unprivilegedUser, _, err := authtest.CreateUserAndRole(
+		srv.Auth(),
+		"proxy-no-perms",
+		[]string{},
+		[]types.Rule{},
+	)
+	require.NoError(t, err)
+
+	proxy, err := types.NewServer("proxy-1", types.KindProxy, types.ServerSpecV2{})
+	require.NoError(t, err)
+	_, err = srv.Auth().UpsertProxyServer(ctx, proxy)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name                  string
+		user                  string
+		req                   *presencev1pb.DeleteProxyServerRequest
+		assertError           require.ErrorAssertionFunc
+		checkResourcesDeleted bool
+	}{
+		{
+			name: "success",
+			user: user.GetName(),
+			req: &presencev1pb.DeleteProxyServerRequest{
+				Name: proxy.GetName(),
+			},
+			assertError:           require.NoError,
+			checkResourcesDeleted: true,
+		},
+		{
+			name: "no permissions",
+			user: unprivilegedUser.GetName(),
+			req: &presencev1pb.DeleteProxyServerRequest{
+				Name: proxy.GetName(),
+			},
+			assertError: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
+			},
+		},
+		{
+			name: "non existent",
+			user: user.GetName(),
+			req: &presencev1pb.DeleteProxyServerRequest{
+				Name: proxy.GetName(),
+			},
+			assertError: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsNotFound(err), "error should be not found")
+			},
+		},
+		{
+			name: "missing name",
+			user: user.GetName(),
+			req:  &presencev1pb.DeleteProxyServerRequest{},
+			assertError: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, err := srv.NewClient(authtest.TestUser(tt.user))
+			require.NoError(t, err)
+
+			_, err = client.PresenceServiceClient().DeleteProxyServer(ctx, tt.req)
+			tt.assertError(t, err)
+			if tt.checkResourcesDeleted {
+				proxies, err := stream.Collect(clientutils.Resources(ctx, srv.Auth().ListProxyServers))
+				require.NoError(t, err)
+				for _, p := range proxies {
+					require.NotEqual(t, tt.req.Name, p.GetName(), "proxy should be deleted")
+				}
+			}
+		})
+	}
+}
+
+// TestUpsertProxyServer is an integration test that uses a real gRPC client/server.
+func TestUpsertProxyServer(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+	ctx := t.Context()
+
+	user, _, err := authtest.CreateUserAndRole(
+		srv.Auth(),
+		"proxy-upserter",
+		[]string{},
+		[]types.Rule{
+			{
+				Resources: []string{types.KindProxy},
+				Verbs:     []string{types.VerbCreate, types.VerbUpdate},
+			},
+		})
+	require.NoError(t, err)
+	unprivilegedUser, _, err := authtest.CreateUserAndRole(
+		srv.Auth(),
+		"proxy-upsert-no-perms",
+		[]string{},
+		[]types.Rule{},
+	)
+	require.NoError(t, err)
+
+	proxy, err := types.NewServer("proxy-1", types.KindProxy, types.ServerSpecV2{
+		Addr:     "127.0.0.1:2023",
+		Hostname: "proxy.llama",
+	})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name                  string
+		user                  string
+		req                   *presencev1pb.UpsertProxyServerRequest
+		assertError           require.ErrorAssertionFunc
+		checkResourceUpserted bool
+	}{
+		{
+			name: "success",
+			user: user.GetName(),
+			req: &presencev1pb.UpsertProxyServerRequest{
+				Server: proxy.(*types.ServerV2),
+			},
+			assertError:           require.NoError,
+			checkResourceUpserted: true,
+		},
+		{
+			name: "no permissions",
+			user: unprivilegedUser.GetName(),
+			req: &presencev1pb.UpsertProxyServerRequest{
+				Server: proxy.(*types.ServerV2),
+			},
+			assertError: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsAccessDenied(err), "error should be access denied")
+			},
+		},
+		{
+			name: "missing server",
+			user: user.GetName(),
+			req:  &presencev1pb.UpsertProxyServerRequest{},
+			assertError: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
+			},
+		},
+		{
+			name: "validation failure - blank name",
+			user: user.GetName(),
+			req: &presencev1pb.UpsertProxyServerRequest{
+				Server: &types.ServerV2{
+					Kind:    types.KindProxy,
+					Version: types.V2,
+					Metadata: types.Metadata{
+						Name: "",
+					},
+				},
+			},
+			assertError: func(t require.TestingT, err error, i ...any) {
+				require.True(t, trace.IsBadParameter(err), "error should be bad parameter")
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, err := srv.NewClient(authtest.TestUser(tt.user))
+			require.NoError(t, err)
+
+			_, err = client.PresenceServiceClient().UpsertProxyServer(ctx, tt.req)
+			tt.assertError(t, err)
+			if tt.checkResourceUpserted {
+				proxies, err := stream.Collect(clientutils.Resources(ctx, srv.Auth().ListProxyServers))
+				require.NoError(t, err)
+				var found bool
+				for _, p := range proxies {
+					if p.GetName() == tt.req.Server.GetName() {
+						found = true
+						break
+					}
+				}
+				require.True(t, found, "proxy should have been upserted")
 			}
 		})
 	}

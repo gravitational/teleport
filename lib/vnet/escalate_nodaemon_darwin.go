@@ -21,7 +21,6 @@ package vnet
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"os/exec"
 	"strings"
@@ -40,25 +39,32 @@ func execAdminProcess(ctx context.Context, config daemon.Config) error {
 		return trace.Wrap(err, "getting executable path")
 	}
 
-	appleScript := fmt.Sprintf(`
-set executableName to "%s"
-set addr to "%s"
-set credPath to "%s"
-do shell script quoted form of executableName & `+
-		`" %s -d --addr " & quoted form of addr & `+
-		`" --cred-path " & quoted form of credPath & `+
-		`" >/var/log/vnet.log 2>&1" `+
-		`with prompt "Teleport VNet wants to set up a virtual network device." with administrator privileges`,
-		executableName,
-		config.ClientApplicationServiceAddr,
-		config.ServiceCredentialPath,
-		teleport.VnetAdminSetupSubCommand,
-	)
+	const appleScript = `
+on run argv
+  set executableName to item 1 of argv
+  set subCommand to item 2 of argv
+  set addr to item 3 of argv
+  set credPath to item 4 of argv
+  do shell script quoted form of executableName & ` +
+		`" " & quoted form of subCommand & ` +
+		`" -d --addr " & quoted form of addr & ` +
+		`" --cred-path " & quoted form of credPath & ` +
+		`" >/var/log/vnet.log 2>&1" ` +
+		`with prompt "Teleport VNet wants to set up a virtual network device." ` +
+		`with administrator privileges
+end run
+`
 
 	// The context we pass here has effect only on the password prompt being shown. Once osascript spawns the
 	// privileged process, canceling the context (and thus killing osascript) has no effect on the privileged
 	// process.
-	cmd := exec.CommandContext(ctx, "osascript", "-e", appleScript)
+	cmd := exec.CommandContext(ctx, "osascript",
+		"-e", appleScript,
+		executableName,
+		teleport.VnetAdminSetupSubCommand,
+		config.ClientApplicationServiceAddr,
+		config.ServiceCredentialPath,
+	)
 	var stderr strings.Builder
 	cmd.Stderr = &stderr
 

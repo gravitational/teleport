@@ -60,7 +60,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
 	"github.com/gravitational/teleport/lib/auth/internal/cert"
 	sessionreq "github.com/gravitational/teleport/lib/auth/internal/session"
-	"github.com/gravitational/teleport/lib/auth/join/oracle"
 	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/authz"
@@ -703,7 +702,7 @@ func (a *ServerWithRoles) GenerateHostCerts(ctx context.Context, req *proto.Host
 	identity := a.context.Identity.GetIdentity()
 	return a.authServer.GenerateHostCerts(ctx, HostCertsParams{
 		Req:                req,
-		AgentScope:         identity.AgentScope,
+		AgentScope:         identity.GetAgentScope(),
 		ImmutableLabelHash: identity.ImmutableLabelHash,
 		JoinToken:          identity.JoinToken,
 	})
@@ -841,7 +840,7 @@ func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInve
 	// If the hello message's scope is non-empty, we can verify that it matches the authenticated
 	// scope in the identity. Otherwise, in order to support agents unaware of scopes, we fall back
 	// to the authenticated identity's scope.
-	agentScope := a.context.Identity.GetIdentity().AgentScope
+	agentScope := a.context.Identity.GetIdentity().GetAgentScope()
 	if hello.Scope != "" && hello.Scope != agentScope {
 		return nil, trace.AccessDenied("provided scope %q does not match agent identity %q", hello.Scope, agentScope)
 	}
@@ -1050,7 +1049,7 @@ func (a *ServerWithRoles) UpsertNode(ctx context.Context, s types.Server) (*type
 		return nil, trace.Wrap(err)
 	}
 
-	agentScope := a.context.Identity.GetIdentity().AgentScope
+	agentScope := a.context.Identity.GetIdentity().GetAgentScope()
 	if nodeScope := s.GetScope(); agentScope != "" {
 		if nodeScope != agentScope {
 			return nil, trace.AccessDenied("node scope %q does not match agent identity scope %q", nodeScope, agentScope)
@@ -1899,6 +1898,14 @@ var disableUnqualifiedLookups = os.Getenv("TELEPORT_UNSTABLE_DISABLE_UNQUALIFIED
 // which is what we want when handling things like ambiguous host errors and resource-based access requests,
 // but may result in confusing behavior if it is used outside of those contexts.
 func (a *ServerWithRoles) GetSSHTargets(ctx context.Context, req *proto.GetSSHTargetsRequest) (*proto.GetSSHTargetsResponse, error) {
+	servers, err := iterstream.Collect(a.sshTargets(ctx, req.GetHost(), req.GetPort()))
+	if err != nil {
+		return nil, err
+	}
+	return &proto.GetSSHTargetsResponse{Servers: servers}, nil
+}
+
+func (a *ServerWithRoles) sshTargets(ctx context.Context, host, port string) iterstream.Stream[*types.ServerV2] {
 	// try to detect case-insensitive routing setting, but default to false if we can't load
 	// networking config (equivalent to proxy routing behavior).
 	var caseInsensitiveRouting bool
@@ -1907,63 +1914,68 @@ func (a *ServerWithRoles) GetSSHTargets(ctx context.Context, req *proto.GetSSHTa
 	}
 
 	matcher, err := apiutils.NewSSHRouteMatcherFromConfig(apiutils.SSHRouteMatcherConfig{
-		Host:                      req.Host,
-		Port:                      req.Port,
+		Host:                      host,
+		Port:                      port,
 		CaseInsensitive:           caseInsensitiveRouting,
 		DisableUnqualifiedLookups: disableUnqualifiedLookups,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	lreq := &proto.ListUnifiedResourcesRequest{
-		Kinds:            []string{types.KindNode},
-		SortBy:           types.SortBy{Field: types.ResourceMetadataName},
-		UseSearchAsRoles: a.scopedContext == nil, // TODO(fspmarshall/scopes): switch this to always be true once we support search_as_roles with scoped identities
+		return iterstream.Fail[*types.ServerV2](trace.Wrap(err))
 	}
 
 	// note that we're using a ServerWithRoles level method here rather than some internal method. We are
 	// delegating all RBAC filtering to the lister and then performing additional filtering on top of that.
 	// Until we unify scoped/unscoped resource listing this bifurcation is necessary to ensure that search_as_roles
 	// results are available for unscoped identities.
-	lister := a.ListUnifiedResources
-	if a.scopedContext != nil {
-		lister = a.scopedListUnifiedResources
+	var pageFunc func(ctx context.Context, pageSize int, pageToken string) ([]*proto.PaginatedResource, string, error)
+	if a.scopedContext == nil {
+		pageFunc = func(ctx context.Context, pageSize int, pageToken string) ([]*proto.PaginatedResource, string, error) {
+			resp, err := a.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+				Kinds:            []string{types.KindNode},
+				SortBy:           types.SortBy{Field: types.ResourceMetadataName},
+				UseSearchAsRoles: true,
+
+				StartKey: pageToken,
+				Limit:    int32(pageSize),
+			})
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+			return resp.GetResources(), resp.GetNextKey(), nil
+		}
+	} else {
+		pageFunc = func(ctx context.Context, pageSize int, pageToken string) ([]*proto.PaginatedResource, string, error) {
+			resp, err := a.scopedListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+				Kinds:            []string{types.KindNode},
+				SortBy:           types.SortBy{Field: types.ResourceMetadataName},
+				UseSearchAsRoles: false, // TODO(fspmarshall/scopes): switch this to true once we support search_as_roles with scoped identities
+
+				StartKey: pageToken,
+				Limit:    int32(pageSize),
+			})
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+			return resp.GetResources(), resp.GetNextKey(), nil
+		}
 	}
 
-	var servers []*types.ServerV2
-	for {
-		lrsp, err := lister(ctx, lreq)
-		if err != nil {
-			return nil, trace.Wrap(err)
+	resources := clientutils.Resources(ctx, pageFunc)
+	servers := iterstream.FilterMap(resources, func(rsc *proto.PaginatedResource) (*types.ServerV2, bool) {
+		srv := rsc.GetNode()
+		if srv == nil {
+			a.authServer.logger.WarnContext(ctx, "Skipping unexpected resource type, expected *types.ServerV2",
+				"resource_type", logutils.TypeAttr(rsc.GetResource()),
+			)
+			return nil, false
 		}
-
-		for _, rsc := range lrsp.Resources {
-			srv := rsc.GetNode()
-			if srv == nil {
-				a.authServer.logger.WarnContext(ctx, "Skipping unexpected resource type, expected *types.ServerV2",
-					"resource_type", logutils.TypeAttr(rsc),
-				)
-				continue
-			}
-
-			if !matcher.RouteToServer(srv) {
-				continue
-			}
-
-			servers = append(servers, srv)
+		if !matcher.RouteToServer(srv) {
+			return nil, false
 		}
+		return srv, true
+	})
 
-		if lrsp.NextKey == "" || len(lrsp.Resources) == 0 {
-			break
-		}
-
-		lreq.StartKey = lrsp.NextKey
-	}
-
-	return &proto.GetSSHTargetsResponse{
-		Servers: servers,
-	}, nil
+	return servers
 }
 
 // ResolveSSHTarget gets a server that would match an equivalent ssh dial request.
@@ -1975,83 +1987,88 @@ func (a *ServerWithRoles) ResolveSSHTarget(ctx context.Context, req *proto.Resol
 		routeToMostRecent = cfg.GetRoutingStrategy() == types.RoutingStrategy_MOST_RECENT
 	}
 
-	var servers []*types.ServerV2
+	var servers iterstream.Stream[*types.ServerV2]
 	switch {
 	case req.Host != "":
 		if len(req.Labels) > 0 || req.PredicateExpression != "" || len(req.SearchKeywords) > 0 {
 			a.authServer.logger.WarnContext(ctx, "ssh target resolution request contained both host and a resource matcher - ignoring resource matcher")
 		}
 
-		resp, err := a.GetSSHTargets(ctx, &proto.GetSSHTargetsRequest{
-			Host: req.Host,
-			Port: req.Port,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
+		servers = a.sshTargets(ctx, req.GetHost(), req.GetPort())
 
-		servers = resp.Servers
 	case len(req.Labels) > 0 || req.PredicateExpression != "" || len(req.SearchKeywords) > 0:
-		lreq := &proto.ListUnifiedResourcesRequest{
-			Kinds:               []string{types.KindNode},
-			SortBy:              types.SortBy{Field: types.ResourceMetadataName},
-			Labels:              req.Labels,
-			PredicateExpression: req.PredicateExpression,
-			SearchKeywords:      req.SearchKeywords,
-		}
-		for {
-			// note that we're calling ServerWithRoles.ListUnifiedResources here rather than some internal method. This method
-			// delegates all RBAC filtering to ListResources, and then performs additional filtering on top of that.
-			lrsp, err := a.ListUnifiedResources(ctx, lreq)
+		resources := clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageToken string) ([]*proto.PaginatedResource, string, error) {
+			// Note that we're calling [ServerWithRoles.ListUnifiedResources]
+			// here rather than some internal method. This method delegates all
+			// RBAC filtering to ListResources, and then performs additional
+			// filtering on top of that.
+			resp, err := a.ListUnifiedResources(ctx, &proto.ListUnifiedResourcesRequest{
+				Kinds:               []string{types.KindNode},
+				SortBy:              types.SortBy{Field: types.ResourceMetadataName},
+				Labels:              req.Labels,
+				PredicateExpression: req.PredicateExpression,
+				SearchKeywords:      req.SearchKeywords,
+
+				StartKey: pageToken,
+				Limit:    int32(pageSize),
+			})
 			if err != nil {
-				return nil, trace.Wrap(err)
+				return nil, "", trace.Wrap(err)
 			}
+			return resp.GetResources(), resp.GetNextKey(), nil
+		})
 
-			for _, rsc := range lrsp.Resources {
-				srv := rsc.GetNode()
-				if srv == nil {
-					a.authServer.logger.WarnContext(ctx, "Skipping unexpected resource type, expected *types.ServerV2",
-						"resource_type", logutils.TypeAttr(rsc),
-					)
-					continue
-				}
-
-				servers = append(servers, srv)
+		servers = iterstream.FilterMap(resources, func(rsc *proto.PaginatedResource) (*types.ServerV2, bool) {
+			srv := rsc.GetNode()
+			if srv == nil {
+				a.authServer.logger.WarnContext(ctx, "Skipping unexpected resource type, expected *types.ServerV2",
+					"resource_type", logutils.TypeAttr(rsc),
+				)
+				return nil, false
 			}
+			return srv, true
+		})
 
-			// If the routing strategy doesn't permit ambiguous matches, then abort
-			// early if more than one server has been found already
-			if !routeToMostRecent && len(servers) > 1 {
-				break
-			}
-
-			if lrsp.NextKey == "" || len(lrsp.Resources) == 0 {
-				break
-			}
-
-			lreq.StartKey = lrsp.NextKey
-
-		}
 	default:
 		return nil, trace.BadParameter("request did not contain any host information or resource matcher")
 	}
 
-	switch len(servers) {
-	case 1:
-		return &proto.ResolveSSHTargetResponse{Server: servers[0]}, nil
-	case 0:
-		return nil, trace.NotFound("no matching hosts")
-	default:
+	var bestServer *types.ServerV2
+	for server, err := range servers {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if bestServer == nil {
+			bestServer = server
+			continue
+		}
+
 		if !routeToMostRecent {
+			// there's at least two matching servers and the matching strategy
+			// is not MOST_RECENT
 			return nil, trace.Wrap(teleport.ErrNodeIsAmbiguous)
 		}
 
-		// Return the most recent version of the resource.
-		server := slices.MaxFunc(servers, func(a, b *types.ServerV2) int {
-			return a.Expiry().Compare(b.Expiry())
-		})
-		return &proto.ResolveSSHTargetResponse{Server: server}, nil
+		if server.Expiry().Compare(bestServer.Expiry()) > 0 {
+			// We're using the expiry as a proxy for the last heartbeat time,
+			// which is itself a proxy for the last proof of life received from
+			// the server. If two matching servers are both alive this is not
+			// particularly meaningful, but it's a somewhat pseudorandom
+			// selection that prevents us from getting stuck on one particular
+			// server that might be heartbeating but not responding; we are
+			// however treating all servers with infinite expiry as if they were
+			// at the zero [time.Time] (i.e. January 1st, year 1) so any
+			// heartbeating server will (likely) take priority.
+			bestServer = server
+		}
 	}
+
+	if bestServer == nil {
+		return nil, trace.NotFound("no matching hosts")
+	}
+
+	return &proto.ResolveSSHTargetResponse{Server: bestServer}, nil
 }
 
 func (a *ServerWithRoles) scopedListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
@@ -2684,11 +2701,12 @@ func (a *ServerWithRoles) DeleteAuthServer(name string) error {
 	return a.authServer.DeleteAuthServer(name)
 }
 
-func (a *ServerWithRoles) UpsertProxy(ctx context.Context, s types.Server) error {
+// UpsertProxyServer registers proxy server presence.
+func (a *ServerWithRoles) UpsertProxyServer(ctx context.Context, s types.Server) (types.Server, error) {
 	if err := a.authorizeAction(types.KindProxy, types.VerbCreate, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	return a.authServer.UpsertProxy(ctx, s)
+	return a.authServer.UpsertProxyServer(ctx, s)
 }
 
 // Deprecated: Prefer paginated variant [ListProxyServers].
@@ -2738,12 +2756,16 @@ func (a *ServerWithRoles) ListProxyServers(ctx context.Context, pageSize int, pa
 	return a.authServer.ListProxyServers(ctx, pageSize, pageToken)
 }
 
-// DeleteProxy deletes proxy by name
-func (a *ServerWithRoles) DeleteProxy(ctx context.Context, name string) error {
+// DeleteProxyServer deletes proxy by name
+//
+// Deprecated: Use PresenceService.DeleteProxyServer instead.
+//
+// TODO(noah): DELETE IN v20.0.0
+func (a *ServerWithRoles) DeleteProxyServer(ctx context.Context, name string) error {
 	if err := a.authorizeAction(types.KindProxy, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.DeleteProxy(ctx, name)
+	return a.authServer.DeleteProxyServer(ctx, name)
 }
 
 func (a *ServerWithRoles) DeleteToken(ctx context.Context, token string) error {
@@ -2846,45 +2868,6 @@ func enforceEnterpriseJoinMethodCreation(buildType string, token types.Provision
 	return nil
 }
 
-// validateOracleJoinToken validates the fields in a token using the Oracle
-// join method. It's done here instead of in the client so the client doesn't
-// have to import the Oracle SDK.
-func validateOracleJoinToken(token types.ProvisionToken) error {
-	if token.GetJoinMethod() != types.JoinMethodOracle {
-		return nil
-	}
-
-	tokenV2, ok := token.(*types.ProvisionTokenV2)
-	if !ok {
-		return trace.BadParameter("%v join method requires ProvisionTokenV2", types.JoinMethodOracle)
-	}
-	oracleSpec := tokenV2.Spec.Oracle
-	if oracleSpec == nil {
-		return trace.BadParameter("missing spec")
-	}
-	for _, allow := range oracleSpec.Allow {
-		if _, err := oracle.ParseRegionFromOCID(allow.Tenancy); err != nil {
-			return trace.BadParameter("invalid tenant: %v", allow.Tenancy)
-		}
-		for _, compartment := range allow.ParentCompartments {
-			if _, err := oracle.ParseRegionFromOCID(compartment); err != nil {
-				return trace.BadParameter("invalid compartment: %v", compartment)
-			}
-		}
-		for _, region := range allow.Regions {
-			if canonicalRegion, _ := oracle.ParseRegion(region); canonicalRegion == "" {
-				return trace.BadParameter("invalid region: %v", region)
-			}
-		}
-		for _, instanceID := range allow.Instances {
-			if _, err := oracle.ParseRegionFromOCID(instanceID); err != nil {
-				return trace.BadParameter("invalid instance OCID: %s", instanceID)
-			}
-		}
-	}
-	return nil
-}
-
 // emitTokenEvent is called by Create/Upsert Token in order to emit any relevant
 // events.
 func emitTokenEvent(ctx context.Context, e apievents.Emitter, token types.ProvisionToken,
@@ -2922,10 +2905,6 @@ func (a *ServerWithRoles) UpsertToken(ctx context.Context, token types.Provision
 		return trace.Wrap(err)
 	}
 
-	if err := validateOracleJoinToken(token); err != nil {
-		return trace.Wrap(err)
-	}
-
 	// bound_keypair tokens have special creation/update logic and are handled
 	// separately
 	if token.GetJoinMethod() == types.JoinMethodBoundKeypair {
@@ -2950,10 +2929,6 @@ func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.Provision
 	}
 
 	if err := enforceEnterpriseJoinMethodCreation(a.authServer.modules.BuildType(), token); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := validateOracleJoinToken(token); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -6939,6 +6914,15 @@ func sessionTypeFromStartEvent(sessionStart apievents.AuditEvent) types.SessionK
 	}
 }
 
+func hasInternalBeamsLabel(labels map[string]string) bool {
+	for key := range maps.Keys(labels) {
+		if strings.HasPrefix(key, types.BeamsInternalLabelPrefix) {
+			return true
+		}
+	}
+	return false
+}
+
 // CreateApp creates a new application resource.
 func (a *ServerWithRoles) CreateApp(ctx context.Context, app types.Application) error {
 	if err := a.authorizeAction(types.KindApp, types.VerbCreate); err != nil {
@@ -6955,6 +6939,13 @@ func (a *ServerWithRoles) CreateApp(ctx context.Context, app types.Application) 
 	if err := a.checkAccessToApp(app); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Users are not allowed to create apps that would be picked up
+	// by the beams app_service.
+	if hasInternalBeamsLabel(app.GetAllLabels()) {
+		return trace.AccessDenied("access denied")
+	}
+
 	return trace.Wrap(a.authServer.CreateApp(ctx, app))
 }
 
@@ -6980,6 +6971,13 @@ func (a *ServerWithRoles) UpdateApp(ctx context.Context, app types.Application) 
 	if err := a.checkAccessToApp(app); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Users are not allowed to create apps that would be picked up
+	// by the beams app_service.
+	if hasInternalBeamsLabel(app.GetAllLabels()) {
+		return trace.AccessDenied("access denied")
+	}
+
 	return trace.Wrap(a.authServer.UpdateApp(ctx, app))
 }
 

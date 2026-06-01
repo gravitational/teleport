@@ -1,0 +1,71 @@
+// Copyright 2026 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.beams.v1;
+
+import "teleport/beams/v1/beams_config.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1;beamsv1";
+
+// BeamsConfigService provides methods to manage the user-provided Beams
+// configuration singleton.
+service BeamsConfigService {
+  // GetBeamsConfig returns the current BeamsConfig singleton.
+  rpc GetBeamsConfig(GetBeamsConfigRequest) returns (GetBeamsConfigResponse);
+
+  // CreateBeamsConfig creates a new BeamsConfig singleton.
+  rpc CreateBeamsConfig(CreateBeamsConfigRequest) returns (CreateBeamsConfigResponse);
+
+  // UpdateBeamsConfig updates an existing BeamsConfig singleton.
+  rpc UpdateBeamsConfig(UpdateBeamsConfigRequest) returns (UpdateBeamsConfigResponse);
+
+  // DeleteBeamsConfig deletes the BeamsConfig singleton.
+  rpc DeleteBeamsConfig(DeleteBeamsConfigRequest) returns (DeleteBeamsConfigResponse);
+}
+
+// Request for GetBeamsConfig.
+message GetBeamsConfigRequest {}
+
+// Response for GetBeamsConfig.
+message GetBeamsConfigResponse {
+  BeamsConfig beams_config = 1;
+}
+
+// Request for CreateBeamsConfig.
+message CreateBeamsConfigRequest {
+  BeamsConfig beams_config = 1;
+}
+
+// Response for CreateBeamsConfig.
+message CreateBeamsConfigResponse {
+  BeamsConfig beams_config = 1;
+}
+
+// Request for UpdateBeamsConfig.
+message UpdateBeamsConfigRequest {
+  BeamsConfig beams_config = 1;
+}
+
+// Response for UpdateBeamsConfig.
+message UpdateBeamsConfigResponse {
+  BeamsConfig beams_config = 1;
+}
+
+// Request for DeleteBeamsConfig.
+message DeleteBeamsConfigRequest {}
+
+// Response for DeleteBeamsConfig.
+message DeleteBeamsConfigResponse {}

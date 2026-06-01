@@ -218,13 +218,16 @@ func TestLeaseBucketing(t *testing.T) {
 	require.NoError(t, err)
 	defer bk.Close()
 
+	// Stagger expiry times so items land in different lease buckets.
+	baseExpiry := time.Now().Add(time.Minute)
+
 	buckets := make(map[int64]struct{})
 	for i := range count {
 		key := backend.NewKey(pfx, strconv.Itoa(i))
 		_, err := bk.Put(ctx, backend.Item{
 			Key:     key,
 			Value:   fmt.Appendf(nil, "val-%d", i),
-			Expires: time.Now().Add(time.Minute),
+			Expires: baseExpiry.Add(time.Duration(i) * 200 * time.Millisecond),
 		})
 		require.NoError(t, err)
 
@@ -232,7 +235,6 @@ func TestLeaseBucketing(t *testing.T) {
 		require.NoError(t, err)
 
 		buckets[item.Expires.Unix()] = struct{}{}
-		time.Sleep(time.Millisecond * 200)
 	}
 
 	start := backend.NewKey(pfx, "")

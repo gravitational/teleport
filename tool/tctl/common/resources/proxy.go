@@ -74,7 +74,7 @@ func getProxy(ctx context.Context, client *authclient.Client, ref services.Ref, 
 }
 
 func deleteProxy(ctx context.Context, client *authclient.Client, ref services.Ref) error {
-	if err := client.DeleteProxy(ctx, ref.Name); err != nil {
+	if err := client.DeleteProxyServer(ctx, ref.Name); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("Proxy %q has been deleted\n", ref.Name)

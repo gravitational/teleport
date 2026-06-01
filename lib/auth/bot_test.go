@@ -68,6 +68,7 @@ import (
 	"github.com/gravitational/teleport/lib/kube/token"
 	"github.com/gravitational/teleport/lib/oidc/fakeissuer"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -685,7 +686,7 @@ func TestRegisterBot_RemoteAddr(t *testing.T) {
 		Spec: &machineidv1pb.BotSpec{
 			Roles: []string{roleName},
 		},
-	}, a.GetClock().Now(), "")
+	}, a.GetClock().Now(), "", scopes.Features{})
 	require.NoError(t, err)
 
 	remoteAddr := "42.42.42.42:42"
@@ -943,7 +944,7 @@ func TestRegisterBot_BotInstanceRejoin(t *testing.T) {
 		Spec: &machineidv1pb.BotSpec{
 			Roles: []string{roleName},
 		},
-	}, a.GetClock().Now(), "")
+	}, a.GetClock().Now(), "", scopes.Features{})
 	require.NoError(t, err)
 
 	// Create k8s and IAM join tokens
@@ -1099,7 +1100,7 @@ func TestRegisterBotWithInvalidInstanceID(t *testing.T) {
 		Spec: &machineidv1pb.BotSpec{
 			Roles: []string{roleName},
 		},
-	}, a.GetClock().Now(), "")
+	}, a.GetClock().Now(), "", scopes.Features{})
 	require.NoError(t, err)
 
 	client, err := srv.NewClient(authtest.TestAdmin())
@@ -1326,11 +1327,10 @@ func createScopedBot(t *testing.T, srv *authtest.TLSServer, adminClient *authcli
 }
 
 func TestRegisterBotWithScopedKubernetesToken(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
-
+	t.Parallel()
 	ctx := t.Context()
 
-	srv := newTestTLSServer(t)
+	srv := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true}))
 	addr := utils.MustParseAddr(srv.Addr().String())
 
 	// Initial setup, create a bot and join token.

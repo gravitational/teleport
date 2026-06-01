@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 	"github.com/gravitational/teleport/lib/oidc/fakeissuer"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	scopedjoining "github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -206,13 +207,12 @@ func createBotUser(
 }
 
 func TestScopedBotJoinAuth(t *testing.T) {
+	t.Parallel()
+
 	// Test setup: Configure and start Teleport server
 	clusterName := "root.example.com"
 	logger := logtest.NewLogger()
 	ctx := t.Context()
-
-	// We lose test parallelism, but there's currently no other way to enable scope support.
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 
 	teleportServer := helpers.NewInstance(t, helpers.InstanceConfig{
 		ClusterName: clusterName,
@@ -241,6 +241,7 @@ func TestScopedBotJoinAuth(t *testing.T) {
 	// Test setup: starting the Teleport instance
 	rcConf := servicecfg.MakeDefaultConfig()
 	rcConf.DataDir = t.TempDir()
+	rcConf.ScopesFeatures = scopes.Features{Enabled: true}
 	rcConf.Auth.Enabled = true
 	rcConf.Proxy.Enabled = true
 	rcConf.Proxy.DisableWebInterface = true

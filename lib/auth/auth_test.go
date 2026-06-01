@@ -89,6 +89,7 @@ import (
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -108,10 +109,11 @@ type testPack struct {
 }
 
 type testPackOptions struct {
-	DataDir    string
-	Clock      clockwork.Clock
-	Modules    *modulestest.Modules
-	MutateAuth func(server *auth.Server) error
+	DataDir        string
+	Clock          clockwork.Clock
+	Modules        *modulestest.Modules
+	MutateAuth     func(server *auth.Server) error
+	ScopesFeatures scopes.Features
 }
 
 func newTestPack(ctx context.Context, opts testPackOptions) (p testPack, err error) {
@@ -157,6 +159,7 @@ func newTestPack(ctx context.Context, opts testPackOptions) (p testPack, err err
 		SkipPeriodicOperations: true,
 		HostUUID:               uuid.NewString(),
 		Clock:                  clock,
+		ScopesFeatures:         opts.ScopesFeatures,
 	}
 	p.a, err = auth.NewServer(authConfig)
 	if err != nil {
@@ -2996,10 +2999,14 @@ func TestGenerateOpenSSHCert(t *testing.T) {
 }
 
 func TestGenerateOpenSSHCertScoped(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
-
+	t.Parallel()
 	ctx := t.Context()
-	p := newAuthSuite(t)
+	p, err := newTestPack(t.Context(), testPackOptions{
+		DataDir:        t.TempDir(),
+		ScopesFeatures: scopes.Features{Enabled: true},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { p.bk.Close() })
 
 	normalRoleLogins := []string{"login1", "login2"}
 	u, r, err := authtest.CreateUserAndRole(p.a, "scoped-user", normalRoleLogins, nil)
@@ -3058,7 +3065,7 @@ func TestGenerateOpenSSHCertScoped(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	pin := &scopesv1pb.Pin{Scope: "/staging"}
+	pin := &scopesv1pb.Pin{Kind: scopesv1pb.PinKind_PIN_KIND_USER, Scope: "/staging"}
 
 	// Wait for scoped access cache to see the assignment.
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
@@ -5207,28 +5214,32 @@ func testCreateAccessListReminderNotifications(t *testing.T) {
 }
 
 func TestPing(t *testing.T) {
+	t.Parallel()
 	type fixture struct {
-		name         string
-		envVar       string
-		scopesStatus proto.ScopesStatus
+		name           string
+		scopesFeatures scopes.Features
+		scopesStatus   proto.ScopesStatus
 	}
 	fixtures := []fixture{
 		{
 			name:         "scopes disabled",
-			envVar:       "",
 			scopesStatus: proto.ScopesStatus_SCOPES_STATUS_DISABLED,
 		},
 		{
-			name:         "scopes enabled",
-			envVar:       "yes",
-			scopesStatus: proto.ScopesStatus_SCOPES_STATUS_ENABLED,
+			name:           "scopes enabled",
+			scopesFeatures: scopes.Features{Enabled: true},
+			scopesStatus:   proto.ScopesStatus_SCOPES_STATUS_ENABLED,
 		},
 	}
 
 	for _, f := range fixtures {
 		t.Run(f.name, func(t *testing.T) {
-			t.Setenv("TELEPORT_UNSTABLE_SCOPES", f.envVar)
-			s := newAuthSuite(t)
+			s, err := newTestPack(t.Context(), testPackOptions{
+				DataDir:        t.TempDir(),
+				ScopesFeatures: f.scopesFeatures,
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() { s.bk.Close() })
 			resp, err := s.a.Ping(t.Context())
 			require.NoError(t, err)
 			assert.Equal(t, "test.localhost", resp.ClusterName)

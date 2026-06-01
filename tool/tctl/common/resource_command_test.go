@@ -59,6 +59,7 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -332,6 +333,8 @@ func TestDatabaseServiceResource(t *testing.T) {
 }
 
 func TestScopedRoleAndAssignmentResource(t *testing.T) {
+	t.Parallel()
+
 	const scopedRoleYAML = `kind: scoped_role
 metadata:
   name: some-role
@@ -350,8 +353,6 @@ spec:
       scope: /foo
 version: v1
 `
-
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 
 	dynAddr := helpers.NewDynamicServiceAddr(t)
 
@@ -374,7 +375,7 @@ version: v1
 		},
 	}
 
-	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors), withScopesFeatures(scopes.Features{Enabled: true}))
 	clt, err := testenv.NewDefaultAuthClient(auth)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = clt.Close() })
@@ -562,6 +563,8 @@ version: v1
 }
 
 func TestScopedToken(t *testing.T) {
+	t.Parallel()
+
 	const scopedTokenYAML = `kind: scoped_token
 version: v1
 metadata:
@@ -596,8 +599,6 @@ spec:
           - 123456789-compute@developer.gserviceaccount.com
 `
 
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
-
 	dynAddr := helpers.NewDynamicServiceAddr(t)
 
 	fileConfig := &config.FileConfig{
@@ -619,7 +620,7 @@ spec:
 		},
 	}
 
-	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors), withScopesFeatures(scopes.Features{Enabled: true}))
 	clt, err := testenv.NewDefaultAuthClient(auth)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = clt.Close() })

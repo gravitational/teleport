@@ -31,10 +31,10 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apicommon "github.com/gravitational/teleport/api/types/common"
 	icfilters "github.com/gravitational/teleport/lib/aws/identitycenter/filters"
-	"github.com/gravitational/teleport/lib/client"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	icutils "github.com/gravitational/teleport/lib/utils/aws/identitycenterutils"
 	awsregion "github.com/gravitational/teleport/lib/utils/aws/region"
+	"github.com/gravitational/teleport/lib/utils/parse"
 )
 
 const (
@@ -190,7 +190,7 @@ func (a *awsICInstallArgs) parseUserFilters() ([]*types.AWSICUserSyncFilter, err
 	if len(a.userLabels) > 0 {
 		result = slices.Grow(result, len(a.userLabels))
 		for _, labelSpec := range a.userLabels {
-			labels, err := client.ParseLabelSpec(labelSpec)
+			labels, err := parse.LabelSelectorSpec(labelSpec)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}

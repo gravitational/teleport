@@ -328,7 +328,8 @@ func TestAuthGetTLSConfig_caOverrides(t *testing.T) {
 		trustChain: [][]byte{
 			// Leaf-to-root.
 			ca1.CertPEM,
-			ca0.CertPEM,
+			// Throw in some leading/trailing spaces for good measure.
+			[]byte("  " + string(ca0.CertPEM) + "  "),
 		},
 		// Take a defensive copy.
 		caOverride: &proto.CAOverrideCertificateDetails{

@@ -48,13 +48,13 @@ import (
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/otelhttp"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/parse"
 	"github.com/gravitational/teleport/lib/utils/teleportassets"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
@@ -255,7 +255,7 @@ func (c *TokensCommand) Add(ctx context.Context, client *authclient.Client) erro
 	}
 
 	if c.labels != "" {
-		labels, err := libclient.ParseLabelSpec(c.labels)
+		labels, err := parse.LabelSelectorSpec(c.labels)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -345,7 +345,7 @@ func (c *TokensCommand) Del(ctx context.Context, client *authclient.Client) erro
 
 // List is called to execute "tokens ls" command.
 func (c *TokensCommand) List(ctx context.Context, client *authclient.Client) error {
-	labels, err := libclient.ParseLabelSpec(c.labels)
+	labels, err := parse.LabelSelectorSpec(c.labels)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -178,6 +178,18 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 		return nil, trace.BadParameter("cannot encode ssh identity missing required field CertType")
 	}
 
+	// Agent scope pins encode role and scope exclusively via the ScopePin field.
+	// Mixing in the legacy SystemRole or AgentScope fields would allow outdated
+	// infrastructure to misinterpret a scoped-agent cert as an unscoped one.
+	if i.ScopePin.GetKind() == scopesv1.PinKind_PIN_KIND_AGENT {
+		if i.SystemRole != "" {
+			return nil, trace.BadParameter("cannot encode ssh certificate for agent scope pin with SystemRole set; encode roles via ScopePin.SystemRoles")
+		}
+		if i.AgentScope != "" {
+			return nil, trace.BadParameter("cannot encode ssh certificate for agent scope pin with AgentScope set; encode scope via ScopePin.Scope")
+		}
+	}
+
 	cert := &ssh.Certificate{
 		// we have to use key id to identify teleport user
 		KeyId:           i.Username,
@@ -214,11 +226,20 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 	// --- user extensions ---
 
 	if i.ScopePin != nil {
-		pin, err := pinning.Encode(i.ScopePin)
+		encoded, err := pinning.Encode(i.ScopePin)
 		if err != nil {
-			return nil, trace.Errorf("failed to marshal scope pin for ssh cert encoding: %w", err)
+			return nil, trace.Errorf("failed to encode scope pin for ssh cert: %w", err)
 		}
-		cert.Permissions.Extensions[teleport.CertExtensionScopePin] = pin
+		var ext string
+		switch i.ScopePin.GetKind() {
+		case scopesv1.PinKind_PIN_KIND_USER:
+			ext = teleport.CertExtensionScopePin
+		case scopesv1.PinKind_PIN_KIND_AGENT:
+			ext = teleport.CertExtensionAgentScopePin
+		default:
+			return nil, trace.BadParameter("cannot encode scope pin with unknown or unspecified kind %v", i.ScopePin.GetKind())
+		}
+		cert.Permissions.Extensions[ext] = encoded
 	}
 
 	if i.PermitX11Forwarding {
@@ -463,6 +484,19 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 		pin, err := pinning.Decode(v)
 		if err != nil {
 			return nil, trace.BadParameter("failed to decode value %q for extension %q as scope pin: %v", v, teleport.CertExtensionScopePin, err)
+		}
+		// Certs issued before PinKind was introduced will have UNSPECIFIED here.
+		// Pins decoded from the user OID are always user pins.
+		if pin.Kind == scopesv1.PinKind_PIN_KIND_UNSPECIFIED {
+			pin.Kind = scopesv1.PinKind_PIN_KIND_USER
+		}
+		ident.ScopePin = pin
+	}
+
+	if v, ok := takeExtension(teleport.CertExtensionAgentScopePin); ok {
+		pin, err := pinning.Decode(v)
+		if err != nil {
+			return nil, trace.BadParameter("failed to decode value %q for extension %q as agent scope pin: %v", v, teleport.CertExtensionAgentScopePin, err)
 		}
 		ident.ScopePin = pin
 	}
