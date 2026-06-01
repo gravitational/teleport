@@ -56,7 +56,7 @@ func MsgTitle(reqData pd.AccessRequestData) string {
 	}
 	titleText := fmt.Sprintf("You have a new %s Request", requestBase)
 	if reqData.RequestKind == types.AccessRequestKind_LONG_TERM.String() {
-		titleText += " (long-term)"
+		titleText += " (long-term access)"
 	}
 	titleText += ":\n"
 

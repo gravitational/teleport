@@ -165,5 +165,5 @@ func ExampleMsgTitle_resourcesLongTerm() {
 	msg := MsgTitle(req)
 	fmt.Println(msg)
 
-	// Output: You have a new Resource Request (long-term):
+	// Output: You have a new Resource Request (long-term access):
 }
