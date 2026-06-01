@@ -1064,30 +1064,6 @@ impl Client {
             .map_err(|err| reason_err!(function!(), "PoisonError: {:?}", err))
     }
 
-    /// Returns an immutable reference to the [`SvcProcessor`] of type `S`.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// let mut x224_processor = Self::x224_lock(&x224_processor)?;
-    /// let cliprdr = Self::get_svc_processor::<Cliprdr>(&mut x224_processor)?;
-    /// // Now we can call methods on the Cliprdr processor.
-    /// ```
-    #[allow(dead_code)]
-    fn get_svc_processor<'a, S>(
-        x224_processor: &'a mut MutexGuard<'_, x224::Processor>,
-    ) -> Result<&'a S, ClientError>
-    where
-        S: SvcProcessor + 'static,
-    {
-        x224_processor
-            .get_svc_processor::<S>()
-            .ok_or(ClientError::InternalError(format!(
-                "get_svc_processor::<{}>() returned None",
-                std::any::type_name::<S>(),
-            )))
-    }
-
     /// Returns a mutable reference to the [`SvcProcessor`] of type `S`.
     ///
     /// # Example
