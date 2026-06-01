@@ -299,6 +299,9 @@ func (f *ForwarderConfig) CheckAndSetDefaults() error {
 			return trace.Wrap(err)
 		}
 	}
+	if f.ScopePin.GetScope() != "" && f.Scope != "" {
+		return trace.BadParameter("either a scope pin or a bare scope must be set for a scoped kube forwarder, not both")
+	}
 	return nil
 }
 
