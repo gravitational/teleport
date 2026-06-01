@@ -29,6 +29,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"k8s.io/client-go/tools/remotecommand"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/utils"
@@ -131,6 +132,11 @@ func TestReadTaskDoubleForceTerminatePanics(t *testing.T) {
 	forceFrame, err := utils.FastMarshal(metaMessage{ForceTerminate: true})
 	require.NoError(t, err)
 
+	resizeFrame, err := utils.FastMarshal(metaMessage{
+		Resize: &remotecommand.TerminalSize{Width: 80, Height: 24},
+	})
+	require.NoError(t, err)
+
 	clientHandshakeFrame, err := utils.FastMarshal(metaMessage{
 		ClientHandshake: &ClientHandshake{Mode: types.SessionObserverMode},
 	})
@@ -160,10 +166,14 @@ func TestReadTaskDoubleForceTerminatePanics(t *testing.T) {
 			return
 		}
 
-		// Give the readTask goroutine time to process the second
-		// force_terminate frame. On unpatched code this is where the
-		// runtime panic fires and brings the binary down.
-		time.Sleep(200 * time.Millisecond)
+		// readTask handles frames in order, so observing the trailing resize proves the second force_terminate was already processed.
+		select {
+		case <-server.ResizeQueue():
+		case <-time.After(2 * time.Second):
+			serverDone <- trace.Errorf("server timed out waiting for resize after second force_terminate")
+			return
+		}
+
 		serverDone <- nil
 	}))
 	t.Cleanup(httpSrv.Close)
@@ -191,6 +201,10 @@ func TestReadTaskDoubleForceTerminatePanics(t *testing.T) {
 	// Second force_terminate — on unpatched code this triggers
 	// "close of closed channel" panic in readTask.
 	require.NoError(t, ws.WriteMessage(websocket.TextMessage, forceFrame))
+
+	// Trailing resize — because readTask processes frames in order, the
+	// server observing this proves the second force_terminate was handled.
+	require.NoError(t, ws.WriteMessage(websocket.TextMessage, resizeFrame))
 
 	select {
 	case err := <-serverDone:
