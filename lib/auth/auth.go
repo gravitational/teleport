@@ -151,7 +151,6 @@ import (
 	dbvnet "github.com/gravitational/teleport/lib/srv/db/vnet"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/subca"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/tpm"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
@@ -436,6 +435,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 			Backend:                     cfg.Backend,
 			Modules:                     cfg.Modules,
 			RunWhileLockedRetryInterval: cfg.RunWhileLockedRetryInterval,
+			ScopesFeatures:              cfg.ScopesFeatures,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -606,7 +606,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 			return organizations.NewFromConfig(c)
 		}
 
-		cfg.AWSOrganizationsClientGetter, err = awsOrganizationsClientGetter(closeCtx, cfg.Clock, cfg.Modules, organizationsClientFromSDK)
+		cfg.AWSOrganizationsClientGetter, err = awsOrganizationsClientGetterWithCache(closeCtx, cfg.Clock, cfg.Modules, organizationsClientFromSDK)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -761,6 +761,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	as = &Server{
 		bk:                           cfg.Backend,
 		clock:                        cfg.Clock,
+		scopesFeatures:               cfg.ScopesFeatures,
 		fakePasswordHash:             cfg.FakePasswordHash,
 		fakeRecoveryCodeHash:         cfg.FakeRecoveryCodeHash,
 		modules:                      cfg.Modules,
@@ -789,7 +790,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		insecureMode:                 cfg.InsecureMode,
 		remoteClusterRefreshLimit:    cmp.Or(cfg.RemoteClusterRefreshLimit, defaultRemoteClusterRefreshLimit),
 		remoteClusterRefreshBuckets:  cmp.Or(cfg.RemoteClusterRefreshBuckets, defaultRemoteClusterRefreshBuckets),
-		subCAEnabled:                 subca.Enabled(),
 	}
 	as.inventory = inventory.NewController(as, services,
 		inventory.WithAuthServerID(cfg.HostUUID),
@@ -981,8 +981,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	return as, nil
 }
 
-// awsOrganizationsClientGetter returns an AWS Organizations client getter.
-func awsOrganizationsClientGetter(ctx context.Context, clock clockwork.Clock, modules modules.Modules, organizationsClientFromConfig func(aws.Config) iamjoin.OrganizationsAPI) (*organizationsClientGetter, error) {
+// awsOrganizationsClientGetterWithCache returns an AWS Organizations client getter with caching.
+func awsOrganizationsClientGetterWithCache(ctx context.Context, clock clockwork.Clock, modules modules.Modules, organizationsClientFromConfig func(aws.Config) iamjoin.OrganizationsAPI) (*organizationsClientGetter, error) {
 	awsConfigProvider, err := awsconfig.NewCache()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1046,18 +1046,28 @@ func (o *organizationsClientGetter) Get(ctx context.Context, integration string,
 	}
 
 	return &organizationsClient{
+		integration:             integration,
 		describeAccountAPICache: o.describeAccountAPICache,
 		remoteAPI:               o.organizationsClientFromConfig(awsConfig),
 	}, nil
 }
 
 type organizationsClient struct {
+	integration             string
 	describeAccountAPICache *utils.FnCache
 	remoteAPI               iamjoin.OrganizationsAPI
 }
 
 func (o *organizationsClient) DescribeAccount(ctx context.Context, params *organizations.DescribeAccountInput, optFns ...func(*organizations.Options)) (*organizations.DescribeAccountOutput, error) {
-	describeAccountOutput, err := utils.FnCacheGet(ctx, o.describeAccountAPICache, aws.ToString(params.AccountId), func(ctx context.Context) (*organizations.DescribeAccountOutput, error) {
+	cacheKey := struct {
+		AccountID   string
+		Integration string
+	}{
+		AccountID:   aws.ToString(params.AccountId),
+		Integration: o.integration,
+	}
+
+	describeAccountOutput, err := utils.FnCacheGet(ctx, o.describeAccountAPICache, cacheKey, func(ctx context.Context) (*organizations.DescribeAccountOutput, error) {
 		remoteDescribeAccountOutput, err := o.remoteAPI.DescribeAccount(ctx, params, optFns...)
 		return remoteDescribeAccountOutput, trace.Wrap(err)
 	})
@@ -1282,6 +1292,8 @@ type Server struct {
 	clock   clockwork.Clock
 	bk      backend.Backend
 	modules modules.Modules
+	// scopesFeatures dictates which scoped components are enabled for this auth server.
+	scopesFeatures scopes.Features
 
 	insecureMode bool
 	closeCtx     context.Context
@@ -1560,10 +1572,6 @@ type Server struct {
 	// RemoteClusterRefreshBuckets is the maximum number of refresh cycles that should guarantee the status update
 	// of all remote clusters if their number exceeds RemoteClusterRefreshLimit × RemoteClusterRefreshBuckets.
 	remoteClusterRefreshBuckets int
-
-	// subCAEnabled records the value of subca.Enabled()
-	// Used by tests to enable the feature.
-	subCAEnabled bool
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -3616,7 +3624,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 	_, isScoped := req.CheckerContext.ScopePin()
 	if isScoped {
 		// require that the scope feature is enabled for scoped certificate creation
-		if err := scopes.AssertFeatureEnabled(); err != nil {
+		if err := a.scopesFeatures.AssertEnabled(); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -5530,22 +5538,12 @@ func (a *Server) GenerateHostCerts(ctx context.Context, params HostCertsParams) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// generate host SSH certificate
-	hostSSHCert, err := a.generateHostCert(ctx, sshca.HostCertificateRequest{
-		CASigner:      caSigner,
-		PublicHostKey: req.PublicSSHKey,
-		HostID:        req.HostID,
-		NodeName:      req.NodeName,
-		Identity: sshca.Identity{
-			ClusterName:        clusterName.GetClusterName(),
-			SystemRole:         req.Role,
-			Principals:         req.AdditionalPrincipals,
-			AgentScope:         params.AgentScope,
-			ImmutableLabelHash: params.ImmutableLabelHash,
-		},
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+
+	var useAgentPin bool
+	if params.AgentScope != "" {
+		// We are in the process of switching over the format of scoped agent certificates. Until the
+		// transition is complete, the new agent pin format is behind a feature flag.
+		useAgentPin = a.scopesFeatures.AgentPinEnabled
 	}
 
 	if req.Role == types.RoleInstance && len(req.SystemRoles) == 0 {
@@ -5557,15 +5555,71 @@ func (a *Server) GenerateHostCerts(ctx context.Context, params HostCertsParams) 
 		systemRoles = append(systemRoles, string(r))
 	}
 
+	var agentScopePin *scopesv1.Pin
+	if useAgentPin {
+		agentScopePin = &scopesv1.Pin{
+			Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
+			Scope: params.AgentScope,
+			SystemRoles: &scopesv1.SystemRoles{
+				Primary:    req.Role.String(),
+				Additional: systemRoles,
+			},
+		}
+	}
+
+	// Agent scope pins encode role and scope solely via ScopePin; setting the
+	// legacy fields alongside the pin would let old infrastructure treat the cert
+	// as unscoped. Only populate them for the legacy (non-pin) path.
+	var sshRole types.SystemRole
+	var sshAgentScope string
+	if !useAgentPin {
+		sshRole = req.Role
+		sshAgentScope = params.AgentScope
+	}
+
+	// generate host SSH certificate
+	hostSSHCert, err := a.generateHostCert(ctx, sshca.HostCertificateRequest{
+		CASigner:      caSigner,
+		PublicHostKey: req.PublicSSHKey,
+		HostID:        req.HostID,
+		NodeName:      req.NodeName,
+		Identity: sshca.Identity{
+			ClusterName:        clusterName.GetClusterName(),
+			SystemRole:         sshRole,
+			Principals:         req.AdditionalPrincipals,
+			AgentScope:         sshAgentScope,
+			ScopePin:           agentScopePin,
+			ImmutableLabelHash: params.ImmutableLabelHash,
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// generate host TLS certificate
-	identity := tlsca.Identity{
-		Username:           utils.HostFQDN(req.HostID, clusterName.GetClusterName()),
-		Groups:             []string{req.Role.String()},
-		TeleportCluster:    clusterName.GetClusterName(),
-		SystemRoles:        systemRoles,
-		AgentScope:         params.AgentScope,
-		ImmutableLabelHash: params.ImmutableLabelHash,
-		JoinToken:          params.JoinToken,
+	var identity tlsca.Identity
+	if useAgentPin {
+		identity = tlsca.Identity{
+			Username:           utils.HostFQDN(req.HostID, clusterName.GetClusterName()),
+			Groups:             nil, // omitted in agent pin case
+			TeleportCluster:    clusterName.GetClusterName(),
+			SystemRoles:        nil, // omitted in agent pin case
+			AgentScope:         "",  // omitted in agent pin case
+			ScopePin:           agentScopePin,
+			ImmutableLabelHash: params.ImmutableLabelHash,
+			JoinToken:          params.JoinToken,
+		}
+	} else {
+		identity = tlsca.Identity{
+			Username:           utils.HostFQDN(req.HostID, clusterName.GetClusterName()),
+			Groups:             []string{req.Role.String()},
+			TeleportCluster:    clusterName.GetClusterName(),
+			SystemRoles:        systemRoles,
+			AgentScope:         params.AgentScope,
+			ScopePin:           nil, // omitted when not in agent pin case
+			ImmutableLabelHash: params.ImmutableLabelHash,
+			JoinToken:          params.JoinToken,
+		}
 	}
 	subject, err := identity.Subject()
 	if err != nil {
@@ -6682,6 +6736,17 @@ func restoreSanitizedHostname(server types.Server) error {
 	return nil
 }
 
+// UpsertProxyServerWithoutReturn exists to satisfy the Announcer interface.
+// It is never called directly by the heartbeater that consumes the Announcer as
+// for proxies this occurs over gRPC/HTTP API client.
+//
+// TODO(noah): DELETE IN v20.0.0 - once the HTTP fallback is removed the
+// Announcer interface can call a returning variant directly.
+func (a *Server) UpsertProxyServerWithoutReturn(ctx context.Context, server types.Server) error {
+	_, err := a.Services.UpsertProxyServer(ctx, server)
+	return trace.Wrap(err)
+}
+
 // UpsertNode implements [services.Presence] by delegating to [Server.Services]
 // and potentially emitting a [usagereporter] event.
 func (a *Server) UpsertNode(ctx context.Context, server types.Server) (*types.KeepAlive, error) {
@@ -7786,12 +7851,12 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 		LoadAllCAs:              a.loadAllCAs,
 		SignatureAlgorithmSuite: authPref.GetSignatureAlgorithmSuite(),
 		LicenseExpiry:           &licenseExpiry,
-		ScopesStatus:            scopesStatusFromFeatureFlag(),
+		ScopesStatus:            a.scopesStatusFromFeatureFlag(),
 	}, nil
 }
 
-func scopesStatusFromFeatureFlag() proto.ScopesStatus {
-	if scopes.FeatureEnabled() {
+func (a *Server) scopesStatusFromFeatureFlag() proto.ScopesStatus {
+	if a.scopesFeatures.Enabled {
 		return proto.ScopesStatus_SCOPES_STATUS_ENABLED
 	}
 	return proto.ScopesStatus_SCOPES_STATUS_DISABLED
@@ -8022,18 +8087,13 @@ func (a *Server) isMFARequired(ctx context.Context, scopedCtx *authz.ScopedConte
 		if t.KubernetesCluster == "" {
 			return nil, trace.BadParameter("missing KubernetesCluster field in a kubernetes-only UserCertsRequest")
 		}
-		// Find the target cluster and check whether MFA is required.
-		svcs, err := a.GetKubernetesServers(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 		var cluster types.KubeCluster
-		for _, svc := range svcs {
-			kubeCluster := svc.GetCluster()
-			if kubeCluster.GetName() == t.KubernetesCluster {
-				cluster = kubeCluster
-				break
+		for server, err := range a.RangeKubernetesServersWithName(ctx, t.KubernetesCluster) {
+			if err != nil {
+				return nil, trace.Wrap(err)
 			}
+			cluster = server.GetCluster()
+			break
 		}
 		if cluster == nil {
 			return nil, trace.NotFound("kubernetes cluster %q not found", t.KubernetesCluster)

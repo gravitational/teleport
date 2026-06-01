@@ -156,19 +156,19 @@ You can use `tctl` to view target health information in `db_server.status.target
 $ tctl get db_server/example-postgres-db | yq -y .status
 target_health:
   # address is the database address.
-  address: "localhost:5432",
+  address: "localhost:5432"
   # message is additional information meant for a user.
   message: "1 health check failed"
   # protocol is the health check connection protocol, such as "TCP".
-  protocol: "TCP",
+  protocol: "TCP"
   # status is the health status, one of "unknown", "healthy", or "unhealthy".
-  status: "unhealthy",
+  status: "unhealthy"
   # transition_reason is a unique reason for the last transition: one of "initialized", "disabled", "threshold_reached", or "internal_error".
-  transition_reason: "threshold_reached",
+  transition_reason: "threshold_reached"
   # transition_timestamp is the time that the last status transition occurred.
-  transition_timestamp: "2025-06-09T22:40:24.147753Z",
+  transition_timestamp: "2025-06-09T22:40:24.147753Z"
   # transition_error shows the health check error observed when the transition to "unhealthy" happened.
-  transition_error: "dial tcp 127.0.0.1:5432: connect: connection refused",
+  transition_error: "dial tcp 127.0.0.1:5432: connect: connection refused"
 ```
 
 ## Troubleshooting

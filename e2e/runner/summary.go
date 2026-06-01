@@ -44,6 +44,7 @@ func printTestSummary(e2eDir, resultsPath string) {
 	}
 
 	failed := collectTests(report.Suites, "unexpected")
+	flaky := collectTests(report.Suites, "flaky")
 
 	// rewrite the paths relative to the caller directory
 	pathPrefix := ""
@@ -55,6 +56,9 @@ func printTestSummary(e2eDir, resultsPath string) {
 
 	for i := range failed {
 		failed[i].file = pathPrefix + "tests/" + failed[i].file
+	}
+	for i := range flaky {
+		flaky[i].file = pathPrefix + "tests/" + flaky[i].file
 	}
 
 	w := os.Stderr
@@ -75,8 +79,28 @@ func printTestSummary(e2eDir, resultsPath string) {
 		}
 	}
 
-	if report.Stats.Flaky > 0 {
-		fmt.Fprintln(w, yellow(fmt.Sprintf("  %d flaky", report.Stats.Flaky)))
+	// Errors not associated with any test (worker crashes, teardown failures,
+	// unhandled rejections). These are why Playwright can exit non-zero while
+	// every spec in the report passes, so always surface them.
+	if len(report.Errors) > 0 {
+		for _, e := range report.Errors {
+			printPwError(w, e)
+		}
+
+		fmt.Fprintln(w, red(fmt.Sprintf("  %d %s not associated with any test", len(report.Errors), pluralErrors(len(report.Errors)))))
+	}
+
+	// Flaky tests (failed then passed on retry) are easy to miss as a bare
+	// count, so print each one's initial failure — this is usually where an
+	// intermittent timeout/failure actually shows up.
+	if len(flaky) > 0 {
+		for _, f := range flaky {
+			fmt.Fprintln(w, yellow(formatTestHeader(f, "  ")))
+
+			printFailureErrors(w, f, e2eDir, pathPrefix)
+		}
+
+		fmt.Fprintln(w, yellow(fmt.Sprintf("  %d flaky", len(flaky))))
 	}
 
 	if report.Stats.Skipped > 0 {
@@ -103,7 +127,8 @@ func printTestSummary(e2eDir, resultsPath string) {
 
 	fmt.Fprintf(w, "\n  To open last HTML report run:\n\n    %s\n\n", cyan(showReportCmd))
 
-	traces := collectTraces(failed, e2eDir)
+	traceTests := append(append([]pwFailure(nil), failed...), flaky...)
+	traces := collectTraces(traceTests, e2eDir)
 	if len(traces) > 0 {
 		fmt.Fprintln(w, "  Traces:")
 		for _, t := range traces {
@@ -114,11 +139,40 @@ func printTestSummary(e2eDir, resultsPath string) {
 					traceCmd += " --sha " + sha
 				}
 			} else {
-				traceCmd = fmt.Sprintf("pnpm exec playwright show-trace %s", pathPrefix+t.relPath)
+				// relPath is relative to test-results (matching the CI
+				// --test-results flow); the local path needs that segment back.
+				traceCmd = fmt.Sprintf("pnpm exec playwright show-trace %s", pathPrefix+"test-results/"+t.relPath)
 			}
 			fmt.Fprintf(w, "    %s\n      %s\n", dim(t.title), cyan(traceCmd))
 		}
 		fmt.Fprintln(w)
+	}
+}
+
+// printPwError renders a single Playwright error (message, snippet, stack) with
+// the indentation used in the test summary. Shared by per-test failures and by
+// top-level errors not associated with any test.
+func printPwError(w io.Writer, e pwError) {
+	fmt.Fprintln(w)
+
+	if e.Message != "" {
+		for _, line := range strings.Split(e.Message, "\n") {
+			fmt.Fprintf(w, "    %s\n", line)
+		}
+	}
+
+	if e.Snippet != "" {
+		fmt.Fprintln(w)
+		for _, line := range strings.Split(e.Snippet, "\n") {
+			fmt.Fprintf(w, "    %s\n", line)
+		}
+	}
+
+	if e.Stack != "" {
+		fmt.Fprintln(w)
+		for _, line := range strings.Split(e.Stack, "\n") {
+			fmt.Fprintf(w, "    %s\n", dim(line))
+		}
 	}
 }
 
@@ -130,27 +184,7 @@ func printFailureErrors(w io.Writer, f pwFailure, e2eDir, pathPrefix string) {
 		}
 
 		for _, e := range result.Errors {
-			fmt.Fprintln(w)
-
-			if e.Message != "" {
-				for _, line := range strings.Split(e.Message, "\n") {
-					fmt.Fprintf(w, "    %s\n", line)
-				}
-			}
-
-			if e.Snippet != "" {
-				fmt.Fprintln(w)
-				for _, line := range strings.Split(e.Snippet, "\n") {
-					fmt.Fprintf(w, "    %s\n", line)
-				}
-			}
-
-			if e.Stack != "" {
-				fmt.Fprintln(w)
-				for _, line := range strings.Split(e.Stack, "\n") {
-					fmt.Fprintf(w, "    %s\n", dim(line))
-				}
-			}
+			printPwError(w, e)
 		}
 
 		attachNum := 0
@@ -197,6 +231,11 @@ func printFailureErrors(w io.Writer, f pwFailure, e2eDir, pathPrefix string) {
 
 type pwReport struct {
 	Suites []pwSuite `json:"suites"`
+	// Errors holds failures that happened outside of test execution (global
+	// setup/teardown, worker crashes, unhandled rejections). Playwright records
+	// these separately from suites/stats and exits non-zero for them, so they
+	// must be surfaced explicitly or a run looks green while having failed.
+	Errors []pwError `json:"errors"`
 	Stats  pwStats   `json:"stats"`
 }
 

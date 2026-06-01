@@ -547,6 +547,18 @@ func (g *Generator) GenerateScoped(
 	return newIdentity, nil
 }
 
+// GenerateScopedFacade calls GenerateScoped and wraps the resulting Identity
+// in a Facade for easy use in API clients, etc.
+func (g *Generator) GenerateScopedFacade(
+	ctx context.Context, ttl, renewalInterval time.Duration,
+) (*Facade, error) {
+	id, err := g.GenerateScoped(ctx, ttl, renewalInterval)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return NewFacade(g.fips, g.insecure, id), nil
+}
+
 // warnOnEarlyExpiration logs a warning if the given identity is likely to
 // expire problematically early. This can happen if either the configured TTL is
 // less than the renewal interval, or if the server returns certs valid for a

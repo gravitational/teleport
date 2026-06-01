@@ -153,6 +153,9 @@ type DeployServiceRequest struct {
 	// TeleportConfigString is the `teleport.yaml` configuration for the service to be deployed.
 	// It should be base64 encoded as is expected by the `--config-string` param of `teleport start`.
 	TeleportConfigString string
+
+	// TeleportBuildType specifies the type of teleport build in use.
+	TeleportBuildType string
 }
 
 // normalizeECSResourceName converts a name into a valid ECS Resource Name.
@@ -221,6 +224,10 @@ func (r *DeployServiceRequest) CheckAndSetDefaults() error {
 
 	if len(r.SubnetIDs) == 0 {
 		return trace.BadParameter("at least one subnet id is required")
+	}
+
+	if r.TeleportBuildType == "" {
+		return trace.BadParameter("build type is required")
 	}
 
 	if r.TaskRoleARN == "" {
@@ -424,6 +431,7 @@ func DeployService(ctx context.Context, clt DeployServiceClient, req DeployServi
 		ResourceCreationTags: req.ResourceCreationTags,
 		Region:               req.Region,
 		TeleportConfigB64:    req.TeleportConfigString,
+		TeleportBuildType:    req.TeleportBuildType,
 	}
 	taskDefinition, err := upsertTask(ctx, clt, upsertTaskReq)
 	if err != nil {
@@ -475,11 +483,12 @@ type upsertTaskRequest struct {
 	ResourceCreationTags tags.AWSTags
 	Region               string
 	TeleportConfigB64    string
+	TeleportBuildType    string
 }
 
 // upsertTask ensures a TaskDefinition with TaskName exists
 func upsertTask(ctx context.Context, clt DeployServiceClient, req upsertTaskRequest) (*ecsTypes.TaskDefinition, error) {
-	taskAgentContainerImage, err := getDistrolessTeleportImage(req.TeleportVersionTag)
+	taskAgentContainerImage, err := getDistrolessTeleportImage(req.TeleportVersionTag, req.TeleportBuildType)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -770,11 +779,11 @@ func upsertService(ctx context.Context, clt DeployServiceClient, req upsertServi
 }
 
 // getDistrolessTeleportImage returns the distroless teleport image string
-func getDistrolessTeleportImage(version string) (string, error) {
+func getDistrolessTeleportImage(version string, buildType string) (string, error) {
 	semVer, err := semver.NewVersion(version)
 	if err != nil {
 		return "", trace.BadParameter("invalid version tag %s", version)
 	}
 
-	return teleportassets.DistrolessImage(*semVer), nil
+	return teleportassets.DistrolessImage(*semVer, buildType), nil
 }

@@ -202,19 +202,23 @@ func (s *PresenceService) getServers(ctx context.Context, kind, prefix string) (
 	return servers, nil
 }
 
-func (s *PresenceService) upsertServer(ctx context.Context, prefix string, server types.Server) error {
+func (s *PresenceService) upsertServer(ctx context.Context, prefix string, server types.Server) (types.Server, error) {
 	rev := server.GetRevision()
 	value, err := services.MarshalServer(server)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	_, err = s.Put(ctx, backend.Item{
+	lease, err := s.Put(ctx, backend.Item{
 		Key:      backend.NewKey(prefix, server.GetName()),
 		Value:    value,
 		Expires:  server.Expiry(),
 		Revision: rev,
 	})
-	return trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	server.SetRevision(lease.Revision)
+	return server, nil
 }
 
 // DeleteAllNodes deletes all nodes in a namespace
@@ -446,7 +450,8 @@ func (s *PresenceService) ListAuthServers(ctx context.Context, pageSize int, pag
 // UpsertAuthServer registers auth server presence, permanently if ttl is 0 or
 // for the specified duration with second resolution if it's >= 1 second
 func (s *PresenceService) UpsertAuthServer(ctx context.Context, server types.Server) error {
-	return s.upsertServer(ctx, authServersPrefix, server)
+	_, err := s.upsertServer(ctx, authServersPrefix, server)
+	return trace.Wrap(err)
 }
 
 // DeleteAllAuthServers deletes all auth servers
@@ -461,9 +466,9 @@ func (s *PresenceService) DeleteAuthServer(name string) error {
 	return s.Delete(context.TODO(), key)
 }
 
-// UpsertProxy registers proxy server presence, permanently if ttl is 0 or
-// for the specified duration with second resolution if it's >= 1 second
-func (s *PresenceService) UpsertProxy(ctx context.Context, server types.Server) error {
+// UpsertProxyServer registers proxy server presence, permanently if ttl is 0
+// or for the specified duration with second resolution if it's >= 1 second.
+func (s *PresenceService) UpsertProxyServer(ctx context.Context, server types.Server) (types.Server, error) {
 	return s.upsertServer(ctx, proxiesPrefix, server)
 }
 
@@ -481,8 +486,8 @@ func (s *PresenceService) ListProxyServers(ctx context.Context, pageSize int, pa
 	return generic.CollectPageAndCursor(s.rangeProxyServers(ctx, pageToken, ""), pageSize, serverToPaginationKey)
 }
 
-// DeleteProxy deletes proxy
-func (s *PresenceService) DeleteProxy(ctx context.Context, name string) error {
+// DeleteProxyServer deletes proxy
+func (s *PresenceService) DeleteProxyServer(ctx context.Context, name string) error {
 	key := backend.NewKey(proxiesPrefix, name)
 	return s.Delete(ctx, key)
 }
@@ -1008,6 +1013,36 @@ func (s *PresenceService) DeleteAllKubernetesServers(ctx context.Context) error 
 func (s *PresenceService) GetKubernetesServers(ctx context.Context) ([]types.KubeServer, error) {
 	servers, err := s.getKubernetesServers(ctx)
 	return servers, trace.Wrap(err)
+}
+
+// RangeKubernetesServersWithName returns an iterator over kubernetes servers for a given cluster name.
+func (s *PresenceService) RangeKubernetesServersWithName(ctx context.Context, clusterName string) iter.Seq2[types.KubeServer, error] {
+	if clusterName == "" {
+		return stream.Fail[types.KubeServer](trace.BadParameter("missing kubernetes cluster name"))
+	}
+
+	// TODO(wethreetrees): if Metadata.Name == Spec.Cluster.GetName() becomes a
+	// CheckAndSetDefaults invariant, this filter could check against the backend
+	// key's trailing component before unmarshalling. Currently no such invariant
+	// exists, so we unmarshal every item to read the embedded cluster name.
+	mapFn := func(item backend.Item) (types.KubeServer, bool) {
+		server, err := services.UnmarshalKubeServer(
+			item.Value,
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision),
+		)
+		if err != nil {
+			s.logger.WarnContext(ctx, "Failed to unmarshal kubernetes server", "key", item.Key, "error", err)
+			return nil, false
+		}
+		cluster := server.GetCluster()
+		return server, cluster != nil && cluster.GetName() == clusterName
+	}
+
+	startKey := backend.ExactKey(kubeServersPrefix)
+	endKey := backend.RangeEnd(startKey)
+
+	return stream.FilterMap(s.Backend.Items(ctx, backend.ItemsParams{StartKey: startKey, EndKey: endKey}), mapFn)
 }
 
 func (s *PresenceService) getKubernetesServers(ctx context.Context) ([]types.KubeServer, error) {

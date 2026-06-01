@@ -17,17 +17,17 @@
 package local
 
 import (
-	"bytes"
 	"context"
 	"log/slog"
 	"time"
 
-	"github.com/gogo/protobuf/jsonpb" //nolint:depguard // needed because mfav1.ValidatedMFAChallenge uses gogoproto
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
@@ -42,13 +42,13 @@ const ValidatedMFAChallengeExpiry = 5 * time.Minute
 // MFAService implements the storage layer for MFA resources.
 type MFAService struct {
 	logger  *slog.Logger
-	service *generic.ServiceWrapper[*validatedMFAChallenge]
+	service *generic.ServiceWrapper[*mfav2.ValidatedMFAChallenge]
 }
 
 // NewMFAService returns a new MFA storage service.
 func NewMFAService(b backend.Backend) (*MFAService, error) {
 	svc, err := generic.NewServiceWrapper(
-		generic.ServiceConfig[*validatedMFAChallenge]{
+		generic.ServiceConfig[*mfav2.ValidatedMFAChallenge]{
 			Backend:       b,
 			ResourceKind:  types.KindValidatedMFAChallenge,
 			BackendPrefix: backend.NewKey(types.KindValidatedMFAChallenge),
@@ -70,8 +70,8 @@ func NewMFAService(b backend.Backend) (*MFAService, error) {
 func (s *MFAService) CreateValidatedMFAChallenge(
 	ctx context.Context,
 	targetCluster string,
-	chal *mfav1.ValidatedMFAChallenge,
-) (*mfav1.ValidatedMFAChallenge, error) {
+	chal *mfav2.ValidatedMFAChallenge,
+) (*mfav2.ValidatedMFAChallenge, error) {
 	switch {
 	case targetCluster == "":
 		return nil, trace.BadParameter("param targetCluster must not be empty")
@@ -79,13 +79,11 @@ func (s *MFAService) CreateValidatedMFAChallenge(
 		return nil, trace.BadParameter("param chal must not be nil")
 	}
 
-	challenge := (*validatedMFAChallenge)(chal)
-
-	if err := checkValidatedMFAChallenge(challenge); err != nil {
+	if err := checkValidatedMFAChallenge(chal); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if challenge.Spec.GetTargetCluster() != targetCluster {
+	if chal.GetSpec().GetTargetCluster() != targetCluster {
 		return nil, trace.BadParameter("param targetCluster does not match challenge target cluster")
 	}
 
@@ -93,14 +91,14 @@ func (s *MFAService) CreateValidatedMFAChallenge(
 	svc := s.service.WithPrefix(targetCluster)
 
 	// All validated MFA challenges must expire after 5 minutes.
-	chal.Metadata.SetExpiry(time.Now().Add(ValidatedMFAChallengeExpiry))
+	chal.GetMetadata().Expires = timestamppb.New(time.Now().Add(ValidatedMFAChallengeExpiry))
 
-	res, err := svc.CreateResource(ctx, challenge)
+	res, err := svc.CreateResource(ctx, chal)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return (*mfav1.ValidatedMFAChallenge)(res), nil
+	return res, nil
 }
 
 // GetValidatedMFAChallenge retrieves a ValidatedMFAChallenge resource.
@@ -108,7 +106,7 @@ func (s *MFAService) GetValidatedMFAChallenge(
 	ctx context.Context,
 	targetCluster string,
 	chalName string,
-) (*mfav1.ValidatedMFAChallenge, error) {
+) (*mfav2.ValidatedMFAChallenge, error) {
 	switch {
 	case targetCluster == "":
 		return nil, trace.BadParameter("param targetCluster must not be empty")
@@ -124,7 +122,7 @@ func (s *MFAService) GetValidatedMFAChallenge(
 		return nil, trace.Wrap(err)
 	}
 
-	return (*mfav1.ValidatedMFAChallenge)(res), nil
+	return res, nil
 }
 
 // ListValidatedMFAChallenges lists all ValidatedMFAChallenge resources.
@@ -133,7 +131,7 @@ func (s *MFAService) ListValidatedMFAChallenges(
 	pageSize int32,
 	pageToken string,
 	targetCluster string,
-) ([]*mfav1.ValidatedMFAChallenge, string, error) {
+) ([]*mfav2.ValidatedMFAChallenge, string, error) {
 	svc := s.service
 
 	if targetCluster != "" {
@@ -146,85 +144,80 @@ func (s *MFAService) ListValidatedMFAChallenges(
 		return nil, "", trace.Wrap(err)
 	}
 
-	challenges := make([]*mfav1.ValidatedMFAChallenge, 0, len(internalChallenges))
-
-	for _, chal := range internalChallenges {
-		challenges = append(challenges, (*mfav1.ValidatedMFAChallenge)(chal))
-	}
-
-	return challenges, nextPageToken, nil
+	return internalChallenges, nextPageToken, nil
 }
 
-// validatedMFAChallenge wraps mfav1.ValidatedMFAChallenge in order to implement the generic.ResourceMetadata interface.
-// It should not be exported outside of this package to avoid confusion.
-type validatedMFAChallenge mfav1.ValidatedMFAChallenge
-
-func (r *validatedMFAChallenge) GetMetadata() *headerv1.Metadata {
-	if r == nil || r.Metadata == nil {
-		return &headerv1.Metadata{}
+// MarshalValidatedMFAChallenge marshals a ValidatedMFAChallenge resource into JSON.
+func MarshalValidatedMFAChallenge(chal *mfav2.ValidatedMFAChallenge, _ ...services.MarshalOption) ([]byte, error) {
+	marshaler := &protojson.MarshalOptions{
+		EmitUnpopulated: false,
+		UseProtoNames:   true,
 	}
 
-	return types.LegacyTo153Metadata(*r.Metadata)
+	return marshaler.Marshal(chal)
 }
 
-// MarshalValidatedMFAChallenge marshals a ValidatedMFAChallenge resource into JSON. Marshal options are currently
-// unsupported.
-func MarshalValidatedMFAChallenge(chal *validatedMFAChallenge, _ ...services.MarshalOption) ([]byte, error) {
-	marshaler := &jsonpb.Marshaler{
-		EnumsAsInts: true,
+// UnmarshalValidatedMFAChallenge unmarshals a ValidatedMFAChallenge resource from JSON.
+func UnmarshalValidatedMFAChallenge(b []byte, opts ...services.MarshalOption) (*mfav2.ValidatedMFAChallenge, error) {
+	unmarshaler := &protojson.UnmarshalOptions{
+		AllowPartial:   false,
+		DiscardUnknown: true,
 	}
 
-	buf := &bytes.Buffer{}
+	challenge := &mfav2.ValidatedMFAChallenge{}
 
-	challenge := (*mfav1.ValidatedMFAChallenge)(chal)
-
-	if err := marshaler.Marshal(buf, challenge); err != nil {
+	if err := unmarshaler.Unmarshal(b, challenge); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return buf.Bytes(), nil
-}
-
-// UnmarshalValidatedMFAChallenge unmarshals a ValidatedMFAChallenge resource from JSON. Unmarshal options are currently
-// unsupported.
-func UnmarshalValidatedMFAChallenge(b []byte, _ ...services.MarshalOption) (*validatedMFAChallenge, error) {
-	unmarshaler := &jsonpb.Unmarshaler{
-		AllowUnknownFields: true,
-	}
-
-	challenge := &mfav1.ValidatedMFAChallenge{}
-
-	if err := unmarshaler.Unmarshal(bytes.NewReader(b), challenge); err != nil {
+	cfg, err := services.CollectOptions(opts)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return (*validatedMFAChallenge)(challenge), nil
+	if cfg.Revision != "" || !cfg.Expires.IsZero() {
+		metadata := challenge.GetMetadata()
+		if metadata == nil {
+			metadata = &headerv1.Metadata{}
+			challenge.SetMetadata(metadata)
+		}
+
+		if cfg.Revision != "" {
+			metadata.Revision = cfg.Revision
+		}
+
+		if !cfg.Expires.IsZero() {
+			metadata.Expires = timestamppb.New(cfg.Expires)
+		}
+	}
+
+	return challenge, nil
 }
 
 // checkValidatedMFAChallenge checks that a ValidatedMFAChallenge resource is valid.
-func checkValidatedMFAChallenge(chal *validatedMFAChallenge) error {
+func checkValidatedMFAChallenge(chal *mfav2.ValidatedMFAChallenge) error {
 	switch {
 	case chal == nil:
 		return trace.BadParameter("chal must not be nil")
-	case chal.Kind != "validated_mfa_challenge":
-		return trace.BadParameter("invalid kind: %q", chal.Kind)
-	case chal.Version != "v1":
-		return trace.BadParameter("invalid version: %q", chal.Version)
-	case chal.Metadata == nil:
+	case chal.GetKind() != "validated_mfa_challenge":
+		return trace.BadParameter("invalid kind: %q", chal.GetKind())
+	case chal.GetVersion() != types.V1:
+		return trace.BadParameter("invalid version: %q", chal.GetVersion())
+	case chal.GetMetadata() == nil:
 		return trace.BadParameter("metadata must be set")
-	case chal.Metadata.Name == "":
+	case chal.GetMetadata().GetName() == "":
 		return trace.BadParameter("name must be set")
-	case chal.Spec == nil:
+	case chal.GetSpec() == nil:
 		return trace.BadParameter("spec must be set")
-	case chal.Spec.Payload == nil:
+	case chal.GetSpec().GetPayload() == nil:
 		return trace.BadParameter("payload must be set")
-	case len(chal.Spec.Payload.GetSshSessionId()) == 0:
+	case len(chal.GetSpec().GetPayload().GetSshSessionId()) == 0:
 		return trace.BadParameter("ssh_session_id must be set")
-	case chal.Spec.SourceCluster == "":
+	case chal.GetSpec().GetSourceCluster() == "":
 		return trace.BadParameter("source_cluster must be set")
-	case chal.Spec.TargetCluster == "":
+	case chal.GetSpec().GetTargetCluster() == "":
 		return trace.BadParameter("target_cluster must be set")
-	case chal.Spec.Username == "":
+	case chal.GetSpec().GetUsername() == "":
 		return trace.BadParameter("username must be set")
 	default:
 		return nil
@@ -242,7 +235,7 @@ func newValidatedMFAChallengeParser() *validatedMFAChallengeParser {
 }
 
 func (p *validatedMFAChallengeParser) parse(event backend.Event) (types.Resource, error) {
-	var chal *mfav1.ValidatedMFAChallenge
+	var chal *mfav2.ValidatedMFAChallenge
 
 	switch event.Type {
 	case types.OpDelete:
@@ -255,19 +248,20 @@ func (p *validatedMFAChallengeParser) parse(event backend.Event) (types.Resource
 			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
 		}
 
-		chal = &mfav1.ValidatedMFAChallenge{
+		chal = mfav2.ValidatedMFAChallenge_builder{
 			Kind:    types.KindValidatedMFAChallenge,
 			Version: types.V1,
-			Metadata: &types.Metadata{
+			Metadata: &headerv1.Metadata{
 				Name: keyComponents[len(keyComponents)-1], // The challenge name is the last component of the key.
 			},
-			Spec: &mfav1.ValidatedMFAChallengeSpec{
+			Spec: mfav2.ValidatedMFAChallengeSpec_builder{
 				TargetCluster: keyComponents[0], // The target cluster is the first component of the key.
-			},
-		}
+			}.Build(),
+		}.Build()
 
 	case types.OpPut:
-		resource, err := UnmarshalValidatedMFAChallenge(
+		var err error
+		chal, err = UnmarshalValidatedMFAChallenge(
 			event.Item.Value,
 			services.WithExpires(event.Item.Expires),
 			services.WithRevision(event.Item.Revision),
@@ -276,37 +270,9 @@ func (p *validatedMFAChallengeParser) parse(event backend.Event) (types.Resource
 			return nil, trace.Wrap(err)
 		}
 
-		chal = (*mfav1.ValidatedMFAChallenge)(resource)
-
 	default:
 		return nil, trace.BadParameter("event %v is not supported", event.Type)
 	}
 
-	return &validatedMFAChallengeResourceWrapper{
-		Resource: types.LegacyMetadataToResource(chal),
-		inner:    chal,
-	}, nil
-}
-
-// TODO(cthach): Delete when ValidatedMFAChallenge resource is converted to a full Resource153 implementation.
-type validatedMFAChallengeResourceWrapper struct {
-	types.Resource
-
-	inner *mfav1.ValidatedMFAChallenge
-}
-
-func (r *validatedMFAChallengeResourceWrapper) GetTargetCluster() string {
-	if r.inner == nil || r.inner.GetSpec() == nil {
-		return ""
-	}
-
-	return r.inner.GetSpec().GetTargetCluster()
-}
-
-func (r *validatedMFAChallengeResourceWrapper) UnwrapT() *mfav1.ValidatedMFAChallenge {
-	if r == nil {
-		return nil
-	}
-
-	return r.inner
+	return types.ProtoResource153ToLegacy(chal), nil
 }

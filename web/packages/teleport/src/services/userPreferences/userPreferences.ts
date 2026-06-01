@@ -118,7 +118,7 @@ export function makeDefaultUserPreferences(): UserPreferences {
       availableResourceMode: AvailableResourceMode.ALL,
     },
     clusterPreferences: makeDefaultUserClusterPreferences(),
-    sideNavDrawerMode: SideNavDrawerMode.COLLAPSED,
+    sideNavDrawerMode: SideNavDrawerMode.UNSPECIFIED,
     discoverResourcePreferences: {},
     keyboardLayout: 0,
   };

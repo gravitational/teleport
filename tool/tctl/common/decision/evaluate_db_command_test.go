@@ -31,6 +31,7 @@ import (
 func TestEvaluateDB(t *testing.T) {
 	tests := []struct {
 		name     string
+		format   string
 		response *decisionpb.EvaluateDatabaseAccessResponse
 	}{
 		{
@@ -47,7 +48,8 @@ func TestEvaluateDB(t *testing.T) {
 			},
 		},
 		{
-			name: "permitted",
+			name:   "permitted",
+			format: teleport.YAML,
 			response: &decisionpb.EvaluateDatabaseAccessResponse{
 				Result: &decisionpb.EvaluateDatabaseAccessResponse_Permit{
 					Permit: &decisionpb.DatabaseAccessPermit{
@@ -67,6 +69,7 @@ func TestEvaluateDB(t *testing.T) {
 			cmd := decision.EvaluateDatabaseCommand{
 				Output:     &output,
 				DatabaseID: "database",
+				Format:     test.format,
 			}
 
 			clt := fakeClient{
@@ -80,7 +83,7 @@ func TestEvaluateDB(t *testing.T) {
 			require.NoError(t, err, "evaluating database access failed")
 
 			var expected bytes.Buffer
-			err = decision.WriteProtoJSON(&expected, test.response)
+			err = decision.WriteProto(&expected, test.format, test.response)
 			require.NoError(t, err, "marshaling expected output failed")
 			require.Equal(t, output.String(), expected.String(), "output did not match")
 		})

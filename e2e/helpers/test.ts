@@ -199,9 +199,14 @@ export const test = base.extend<E2EFixtures>({
     await use(page);
   },
   storageState: async ({ username }, use, testInfo) => {
-    // Connect tests drive login through the Electron app and don't have a
-    // setup project that writes shared storage state files, so leave it unset.
-    if (!username || testInfo.project.name === 'connect') {
+    // Connect tests drive login through the Electron app, and unauthenticated
+    // tests intentionally start without a session, so neither has a storage
+    // state file to load even when the test declares a user.
+    if (
+      !username ||
+      testInfo.project.name === 'connect' ||
+      testInfo.project.name.endsWith(':unauthenticated')
+    ) {
       await use(undefined as unknown as string);
       return;
     }
@@ -231,6 +236,7 @@ export const test = base.extend<E2EFixtures>({
 });
 
 export { expect } from '@playwright/test';
+export type { Locator, Page } from '@playwright/test';
 
 function pickLoginDefinition(
   user: UserDefinition | undefined,

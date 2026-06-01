@@ -226,10 +226,12 @@ func TestPopulatePinnedAssignmentsForUser(t *testing.T) {
 			name: "descendant",
 			user: "bob",
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/aa/bb",
 			},
 			ok: true,
 			expect: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/aa/bb",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/":   {"/aa": {"role-01"}},
@@ -241,10 +243,12 @@ func TestPopulatePinnedAssignmentsForUser(t *testing.T) {
 			name: "ancestral",
 			user: "alice",
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/",
 			},
 			ok: true,
 			expect: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/":      {"/aa": {"role-01"}, "/bb": {"role-02"}},
@@ -257,6 +261,7 @@ func TestPopulatePinnedAssignmentsForUser(t *testing.T) {
 			name: "orthogonal",
 			user: "carol",
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/xx",
 			},
 			ok: false,
@@ -345,6 +350,7 @@ func TestAssignmentTreePruning(t *testing.T) {
 	}
 
 	pin := &scopesv1.Pin{
+		Kind:  scopesv1.PinKind_PIN_KIND_USER,
 		Scope: "/staging/west",
 	}
 	err := cache.PopulatePinnedAssignmentsForUser(t.Context(), "alice", pin)
@@ -530,9 +536,11 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 			botName:  "bernard",
 			botScope: bernardScope,
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: bernardScope,
 			},
 			expect: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: bernardScope,
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/":          {bernardScope: {"role-03"}, bernardScope + "/child": {"role-04"}},
@@ -545,9 +553,11 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 			botName:  "bernard",
 			botScope: bernardScope,
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: bernardScope + "/child",
 			},
 			expect: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: bernardScope + "/child",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/":          {bernardScope: {"role-03"}, bernardScope + "/child": {"role-04"}},
@@ -560,6 +570,7 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 			botName:  "bernard",
 			botScope: bernardScope,
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/bb",
 			},
 			errContains: "is not subject to bot scope",
@@ -569,6 +580,7 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 			botName:  "no-such-bot",
 			botScope: "/aa",
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/aa",
 			},
 			errContains: "no scoped role assignments found",
@@ -577,6 +589,7 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 			name:     "empty bot name",
 			botScope: "/aa",
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/aa",
 			},
 			errContains: "missing bot name",
@@ -585,6 +598,7 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 			name:    "empty bot scope",
 			botName: "bernard",
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/aa",
 			},
 			errContains: "missing bot scope",
@@ -594,6 +608,7 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 			botName:  "bernard",
 			botScope: bernardScope,
 			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: bernardScope,
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/": {bernardScope: {"role-03"}},

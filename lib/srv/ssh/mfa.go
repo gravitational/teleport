@@ -25,14 +25,14 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/encoding/protojson"
 
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	sshpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/ssh/v1"
 )
 
 // ValidatedMFAChallengeVerifier verifies that a validated MFA challenge exists in order to determine if the user has
 // completed MFA.
 type ValidatedMFAChallengeVerifier interface {
-	VerifyValidatedMFAChallenge(ctx context.Context, req *mfav1.VerifyValidatedMFAChallengeRequest, opts ...grpc.CallOption) (*mfav1.VerifyValidatedMFAChallengeResponse, error)
+	VerifyValidatedMFAChallenge(ctx context.Context, req *mfav2.VerifyValidatedMFAChallengeRequest, opts ...grpc.CallOption) (*mfav2.VerifyValidatedMFAChallengeResponse, error)
 }
 
 // MFAPromptVerifier is a PromptVerifier that marshals and verifies MFA prompts and responses.
@@ -110,16 +110,14 @@ func (pv *MFAPromptVerifier) VerifyAnswer(ctx context.Context, answer string) er
 			return trace.BadParameter("missing ChallengeName in MFAPromptResponseReference")
 		}
 
-		req := &mfav1.VerifyValidatedMFAChallengeRequest{
+		req := mfav2.VerifyValidatedMFAChallengeRequest_builder{
 			Name: challengeName,
-			Payload: &mfav1.SessionIdentifyingPayload{
-				Payload: &mfav1.SessionIdentifyingPayload_SshSessionId{
-					SshSessionId: pv.sessionID,
-				},
-			},
+			Payload: mfav2.SessionIdentifyingPayload_builder{
+				SshSessionId: pv.sessionID,
+			}.Build(),
 			SourceCluster: pv.sourceCluster,
 			Username:      pv.username,
-		}
+		}.Build()
 
 		_, err := pv.verifier.VerifyValidatedMFAChallenge(ctx, req)
 		return trace.Wrap(err)
