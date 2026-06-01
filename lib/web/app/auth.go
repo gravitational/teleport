@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -233,6 +234,12 @@ func (h *Handler) completeAppAuthExchange(w http.ResponseWriter, r *http.Request
 		SameSite: http.SameSiteNoneMode,
 	})
 
+	// Set DBSC registration header to trigger device-bound session credentials.
+	// The browser will generate a key pair and POST to the registration endpoint.
+	if err := h.setDBSCRegistrationHeader(r.Context(), w, req.CookieValue); err != nil {
+		h.logger.DebugContext(r.Context(), "Failed to set DBSC registration header", "error", err)
+	}
+
 	requiredApps := strings.Split(req.RequiredApps, ",")
 	if len(requiredApps) <= 1 {
 		return nil
@@ -346,4 +353,24 @@ func (h *Handler) emitErrorEventAndDeleteAppSession(r *http.Request, f emitError
 			Error:   fmt.Sprintf("Failed app access authentication: %s", f.err),
 		},
 	})
+}
+
+func setAppSessionCookies(w http.ResponseWriter, ws types.WebSession, maxAge time.Duration) {
+	setCookie := func(name, value string) {
+		cookie := &http.Cookie{
+			Name:     name,
+			Value:    value,
+			Path:     "/",
+			HttpOnly: true,
+			Secure:   true,
+			SameSite: http.SameSiteNoneMode,
+		}
+		if maxAge > 0 {
+			cookie.MaxAge = int(maxAge.Seconds())
+		}
+		http.SetCookie(w, cookie)
+	}
+
+	setCookie(CookieName, ws.GetName())
+	setCookie(SubjectCookieName, ws.GetBearerToken())
 }

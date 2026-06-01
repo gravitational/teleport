@@ -603,6 +603,11 @@ func (a *Server) CreateAppSessionFromReq(ctx context.Context, req NewAppSessionR
 	return session, nil
 }
 
+// UpdateAppSession updates an existing application web session.
+func (a *Server) UpdateAppSession(ctx context.Context, session types.WebSession) error {
+	return trace.Wrap(a.Services.IdentityInternal.UpdateAppSession(ctx, session))
+}
+
 // generateAppToken generates an JWT token that will be passed along with every
 // application request.
 func (a *Server) generateAppToken(ctx context.Context, req types.GenerateAppTokenRequest) (string, error) {
