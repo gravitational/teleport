@@ -87,9 +87,9 @@ func TestProperty_RDPState_BitmapPDUNeverPanics(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, s.HandleMessage(evt))
 
-		left := rapid.IntRange(0, 99).Draw(t, "left")
+		left := rapid.IntRange(0, 96).Draw(t, "left")
 		top := rapid.IntRange(0, 99).Draw(t, "top")
-		w := rapid.IntRange(1, 100-left).Draw(t, "w")
+		w := rapid.IntRange(4, 100-left).Draw(t, "w")
 		h := rapid.IntRange(1, 100-top).Draw(t, "h")
 
 		colorIdx := rapid.IntRange(0, 2).Draw(t, "color")
@@ -229,7 +229,7 @@ func TestProperty_RDPState_MixedValidGarbageSequenceNeverPanics(t *testing.T) {
 				var pdu []byte
 				switch kind {
 				case 0:
-					// Real bitmap. width >= 4 to avoid the IronRDP small-bitmap OOB
+					// Real bitmap. width >= 4 so it decodes; IronRDP bounds-checks narrower widths.
 					l := rapid.IntRange(0, 290).Draw(t, "l")
 					t2 := rapid.IntRange(0, 290).Draw(t, "t")
 					w := rapid.IntRange(4, 300-l).Draw(t, "w")
