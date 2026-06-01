@@ -19,6 +19,7 @@
 package db
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"iter"
@@ -88,19 +89,17 @@ func (cfg *awsFetcherConfig) CheckAndSetDefaults(component string) error {
 	if cfg.Region == "" {
 		return trace.BadParameter("missing parameter Region")
 	}
-	if cfg.Logger == nil {
-		credentialsSource := "environment"
-		if cfg.Integration != "" {
-			credentialsSource = fmt.Sprintf("integration:%s", cfg.Integration)
-		}
-		cfg.Logger = slog.With(
-			teleport.ComponentKey, "watch:"+component,
-			"labels", cfg.Labels,
-			"region", cfg.Region,
-			"role", cfg.AssumeRole,
-			"credentials", credentialsSource,
-		)
+	credentialsSource := "environment"
+	if cfg.Integration != "" {
+		credentialsSource = fmt.Sprintf("integration:%s", cfg.Integration)
 	}
+	cfg.Logger = cmp.Or(cfg.Logger, slog.Default()).With(
+		teleport.ComponentKey, "watch:"+component,
+		"labels", cfg.Labels,
+		"region", cfg.Region,
+		"role", cfg.AssumeRole,
+		"credentials", credentialsSource,
+	)
 
 	if cfg.awsClients == nil {
 		cfg.awsClients = defaultAWSClients{}
