@@ -26,6 +26,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/organizations"
 	organizationstypes "github.com/aws/aws-sdk-go-v2/service/organizations/types"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
@@ -44,8 +45,7 @@ func TestAWSOrganizationsClientGetter(t *testing.T) {
 				Cloud: true,
 			},
 		})
-
-		clientGetter, err := awsOrganizationsClientGetter(t.Context(), clockwork.NewFakeClock(), nil)
+		clientGetter, err := awsOrganizationsClientGetterWithCache(t.Context(), clockwork.NewFakeClock(), nil)
 		require.NoError(t, err)
 
 		const noIntegration = ""
@@ -79,7 +79,7 @@ func TestAWSOrganizationsClientGetter(t *testing.T) {
 
 		fakeClock := clockwork.NewFakeClock()
 		mockOrganizationsAPI := &mockOrganizationsAPI{}
-		clientGetter, err := awsOrganizationsClientGetter(t.Context(), fakeClock, func(c aws.Config) iamjoin.OrganizationsAPI {
+		clientGetter, err := awsOrganizationsClientGetterWithCache(t.Context(), fakeClock, func(c aws.Config) iamjoin.OrganizationsAPI {
 			return mockOrganizationsAPI
 		})
 		require.NoError(t, err)
@@ -127,7 +127,7 @@ func TestAWSOrganizationsClientGetter(t *testing.T) {
 		fakeClock := clockwork.NewFakeClock()
 		mockOrganizationsAPI := &mockOrganizationsAPI{}
 
-		clientGetter, err := awsOrganizationsClientGetter(t.Context(), fakeClock, func(c aws.Config) iamjoin.OrganizationsAPI {
+		clientGetter, err := awsOrganizationsClientGetterWithCache(t.Context(), fakeClock, func(c aws.Config) iamjoin.OrganizationsAPI {
 			return mockOrganizationsAPI
 		})
 		require.NoError(t, err)
@@ -154,6 +154,90 @@ func TestAWSOrganizationsClientGetter(t *testing.T) {
 		// However, after the cache expiration time, a new call should be made.
 		fakeClock.Advance(5 * time.Minute)
 		describeAccountAPIOutput, err = organizationsAPI.DescribeAccount(t.Context(), &organizations.DescribeAccountInput{
+			AccountId: aws.String("123456789012"),
+		})
+		require.NoError(t, err)
+		require.Equal(t, aws.String("123456789012"), describeAccountAPIOutput.Account.Id)
+		require.Equal(t, 2, mockOrganizationsAPI.numberOfRemoteAPICalls, "expected a new remote API call after cache expiration")
+	})
+
+	t.Run("getter is cached by integration", func(t *testing.T) {
+		modulestest.SetTestModules(t, modulestest.Modules{
+			TestFeatures: modules.Features{
+				Cloud: true,
+			},
+		})
+
+		const integrationAName = "my-integration"
+		integrationA, err := types.NewIntegrationAWSOIDC(
+			types.Metadata{Name: integrationAName},
+			&types.AWSOIDCIntegrationSpecV1{
+				RoleARN: "arn:aws:sts::123456789012:role/TestRole",
+			},
+		)
+		require.NoError(t, err)
+
+		const integrationBName = "integrationB"
+		integrationB, err := types.NewIntegrationAWSOIDC(
+			types.Metadata{Name: integrationBName},
+			&types.AWSOIDCIntegrationSpecV1{
+				RoleARN: "arn:aws:sts::123456789012:role/TestRole",
+			},
+		)
+		require.NoError(t, err)
+
+		mockIntegrationClt := &fakeOIDCIntegrationClient{
+			getIntegrationFn: func(ctx context.Context, integrationName string) (types.Integration, error) {
+				switch integrationName {
+				case integrationAName:
+					return integrationA, nil
+				case integrationBName:
+					return integrationB, nil
+				default:
+					return nil, trace.NotFound("integration not found")
+				}
+			},
+			getTokenFn: func(context.Context, string) (string, error) {
+				return "oidc-token", nil
+			},
+		}
+
+		fakeClock := clockwork.NewFakeClock()
+		mockOrganizationsAPI := &mockOrganizationsAPI{}
+
+		clientGetter, err := awsOrganizationsClientGetterWithCache(t.Context(), fakeClock, func(c aws.Config) iamjoin.OrganizationsAPI {
+			return mockOrganizationsAPI
+		})
+		require.NoError(t, err)
+
+		// Mock the STS client to prevent real AWS calls during tests.
+		clientGetter.stsClientFromConfig = func(_ aws.Config) awsconfig.STSClient {
+			return &mocks.STSClient{}
+		}
+
+		organizationsAPI, err := clientGetter.Get(t.Context(), integrationAName, mockIntegrationClt)
+		require.NoError(t, err)
+
+		describeAccountAPIOutput, err := organizationsAPI.DescribeAccount(t.Context(), &organizations.DescribeAccountInput{
+			AccountId: aws.String("123456789012"),
+		})
+		require.NoError(t, err)
+		require.Equal(t, aws.String("123456789012"), describeAccountAPIOutput.Account.Id)
+		require.Equal(t, 1, mockOrganizationsAPI.numberOfRemoteAPICalls, "expected one remote API call")
+
+		// Call again to verify caching works.
+		describeAccountAPIOutput, err = organizationsAPI.DescribeAccount(t.Context(), &organizations.DescribeAccountInput{
+			AccountId: aws.String("123456789012"),
+		})
+		require.NoError(t, err)
+		require.Equal(t, aws.String("123456789012"), describeAccountAPIOutput.Account.Id)
+		require.Equal(t, 1, mockOrganizationsAPI.numberOfRemoteAPICalls, "expected no additional remote API calls due to caching")
+
+		// However, using a different integration should result in a different client and thus a new remote API call.
+		organizationsAPIB, err := clientGetter.Get(t.Context(), integrationBName, mockIntegrationClt)
+		require.NoError(t, err)
+
+		describeAccountAPIOutput, err = organizationsAPIB.DescribeAccount(t.Context(), &organizations.DescribeAccountInput{
 			AccountId: aws.String("123456789012"),
 		})
 		require.NoError(t, err)

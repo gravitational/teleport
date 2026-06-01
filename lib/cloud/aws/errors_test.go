@@ -118,6 +118,19 @@ func TestConvertRequestFailureError(t *testing.T) {
 			},
 			wantIsError: trace.IsNotFound,
 		},
+		{
+			name: "v2 sdk error for organizations AccountNotFoundException",
+			inputError: &awshttp.ResponseError{
+				RequestID: fakeRequestID,
+				ResponseError: &smithyhttp.ResponseError{
+					Response: &smithyhttp.Response{Response: &http.Response{
+						StatusCode: http.StatusBadRequest,
+					}},
+					Err: trace.Errorf("AccountNotFoundException"),
+				},
+			},
+			wantIsError: trace.IsNotFound,
+		},
 	}
 
 	for _, test := range tests {

@@ -57,7 +57,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/clusterconfig/clusterconfigv1"
 	"github.com/gravitational/teleport/lib/auth/internal/cert"
 	sessionreq "github.com/gravitational/teleport/lib/auth/internal/session"
-	"github.com/gravitational/teleport/lib/auth/join/oracle"
 	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/authz"
@@ -2706,45 +2705,6 @@ func enforceEnterpriseJoinMethodCreation(token types.ProvisionToken) error {
 	return nil
 }
 
-// validateOracleJoinToken validates the fields in a token using the Oracle
-// join method. It's done here instead of in the client so the client doesn't
-// have to import the Oracle SDK.
-func validateOracleJoinToken(token types.ProvisionToken) error {
-	if token.GetJoinMethod() != types.JoinMethodOracle {
-		return nil
-	}
-
-	tokenV2, ok := token.(*types.ProvisionTokenV2)
-	if !ok {
-		return trace.BadParameter("%v join method requires ProvisionTokenV2", types.JoinMethodOracle)
-	}
-	oracleSpec := tokenV2.Spec.Oracle
-	if oracleSpec == nil {
-		return trace.BadParameter("missing spec")
-	}
-	for _, allow := range oracleSpec.Allow {
-		if _, err := oracle.ParseRegionFromOCID(allow.Tenancy); err != nil {
-			return trace.BadParameter("invalid tenant: %v", allow.Tenancy)
-		}
-		for _, compartment := range allow.ParentCompartments {
-			if _, err := oracle.ParseRegionFromOCID(compartment); err != nil {
-				return trace.BadParameter("invalid compartment: %v", compartment)
-			}
-		}
-		for _, region := range allow.Regions {
-			if canonicalRegion, _ := oracle.ParseRegion(region); canonicalRegion == "" {
-				return trace.BadParameter("invalid region: %v", region)
-			}
-		}
-		for _, instanceID := range allow.Instances {
-			if _, err := oracle.ParseRegionFromOCID(instanceID); err != nil {
-				return trace.BadParameter("invalid instance OCID: %s", instanceID)
-			}
-		}
-	}
-	return nil
-}
-
 // emitTokenEvent is called by Create/Upsert Token in order to emit any relevant
 // events.
 func emitTokenEvent(ctx context.Context, e apievents.Emitter, token types.ProvisionToken,
@@ -2782,10 +2742,6 @@ func (a *ServerWithRoles) UpsertToken(ctx context.Context, token types.Provision
 		return trace.Wrap(err)
 	}
 
-	if err := validateOracleJoinToken(token); err != nil {
-		return trace.Wrap(err)
-	}
-
 	// bound_keypair tokens have special creation/update logic and are handled
 	// separately
 	if token.GetJoinMethod() == types.JoinMethodBoundKeypair {
@@ -2810,10 +2766,6 @@ func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.Provision
 	}
 
 	if err := enforceEnterpriseJoinMethodCreation(token); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := validateOracleJoinToken(token); err != nil {
 		return trace.Wrap(err)
 	}
 

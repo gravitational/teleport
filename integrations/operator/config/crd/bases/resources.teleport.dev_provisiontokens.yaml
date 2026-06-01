@@ -64,6 +64,33 @@ spec:
                       description: AWSOrganizationID is used for the IAM join method,
                         the AWS identity of joining nodes must belong to this organization.
                       type: string
+                    aws_organizational_units:
+                      description: AWSOrganizationalUnits contains rules for matching
+                        AWS accounts based on their Organizational Units. Requires
+                        AWS Organization ID to be specified. The account's root ID
+                        is considered an Organizational Unit when validating the rule.
+                      nullable: true
+                      properties:
+                        exclude:
+                          description: Exclude is a list of AWS Organizational Unit
+                            IDs and children OUs to exclude. Accounts that belong
+                            to these OUs, and their children, will be excluded, even
+                            if they were included. Only exact matches are supported.
+                            Optional. If empty, no OUs are excluded.
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                        include:
+                          description: Include is a list of AWS Organizational Unit
+                            IDs and children OUs to include. Accounts that belong
+                            to these OUs, and their children, will be included. Only
+                            exact matches or wildcard (*) are supported. Required.
+                          items:
+                            type: string
+                          nullable: true
+                          type: array
+                      type: object
                     aws_regions:
                       description: AWSRegions is used for the EC2 join method and
                         is a list of AWS regions a node is allowed to join from.
