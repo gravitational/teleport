@@ -2723,6 +2723,7 @@ func maybeCheckLoginManagedUpdate(cf *CLIConf, reExecArgs []string) error {
 		return trace.Wrap(err)
 	}
 
+	// NOTE: checking for updates for an active profile is already handled elsewhere
 	if profile != nil && !profile.IsExpired(time.Now()) {
 		return nil
 	}
