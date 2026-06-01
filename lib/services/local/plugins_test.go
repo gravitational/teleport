@@ -289,6 +289,13 @@ func TestPlugins_validate_okta(t *testing.T) {
 			},
 			requireErrFn: require.NoError,
 		},
+		{
+			desc: "time_between_assignment_process_loops_below_threshold",
+			syncSettings: &types.PluginOktaSyncSettings{
+				TimeBetweenAssignmentProcessLoops: "300ms",
+			},
+			requireErrFn: require.Error,
+		},
 	} {
 		t.Run(tt.desc, func(t *testing.T) {
 			svc := setupServiceFn()

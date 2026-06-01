@@ -17,6 +17,8 @@
 package plugin
 
 import (
+	"time"
+
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -52,6 +54,20 @@ func validateOkta(plugin *types.PluginV1) error {
 		return trace.BadParameter("plugin %q does not have Okta settings", plugin.GetName())
 	}
 
-	_, err := OktaParseTimeBetweenImports(oktaSettings.GetSyncSettings())
-	return trace.Wrap(err)
+	if _, err := OktaParseTimeBetweenImports(oktaSettings.GetSyncSettings()); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if v := oktaSettings.GetSyncSettings(); v != nil && v.TimeBetweenAssignmentProcessLoops != "" {
+		d, err := time.ParseDuration(v.TimeBetweenAssignmentProcessLoops)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		threshold := time.Millisecond * 500
+		if d < time.Millisecond*500 {
+			return trace.BadParameter("okta sync settings time must be at least %v", threshold)
+		}
+	}
+
+	return nil
 }
