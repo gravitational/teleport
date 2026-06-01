@@ -5193,7 +5193,9 @@ message OneOf {
     events.LinuxDesktopSessionStart LinuxDesktopSessionStart = 254;
     events.LinuxDesktopSessionEnd LinuxDesktopSessionEnd = 255;
     events.EnvironmentProfileUpdate EnvironmentProfileUpdate = 256;
-    events.BeamsConfigUpdate BeamsConfigUpdate = 257;
+    events.BeamsConfigCreate BeamsConfigCreate = 257;
+    events.BeamsConfigUpdate BeamsConfigUpdate = 258;
+    events.BeamsConfigDelete BeamsConfigDelete = 259;
   }
 }
 
@@ -10635,6 +10637,37 @@ message X509OverrideMetadata {
   string public_key_hash = 4 [(gogoproto.jsontag) = "public_key_hash,omitempty"];
 }
 
+// BeamsConfigCreate is emitted when a BeamsConfig is created.
+message BeamsConfigCreate {
+  // Metadata is a common event metadata.
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the creation was successful.
+  Status status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata.
+  UserMetadata user = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Connection holds information about the connection.
+  ConnectionMetadata connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
 // BeamsConfigUpdate is emitted when a BeamsConfig is updated.
 message BeamsConfigUpdate {
   // Metadata is a common event metadata.
@@ -10664,16 +10697,35 @@ message BeamsConfigUpdate {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
-
-  // BeamsConfigMetadata holds metadata about the BeamsConfig change.
-  BeamsConfigMetadata beams_config = 5 [(gogoproto.jsontag) = "beams_config,omitempty"];
 }
 
-// BeamsConfigMetadata holds metadata about a BeamsConfig change in audit events.
-message BeamsConfigMetadata {
-  // AnthropicConfigUpdated indicates the Anthropic LLM endpoint configuration was modified.
-  bool anthropic_config_updated = 1 [(gogoproto.jsontag) = "anthropic_config_updated,omitempty"];
+// BeamsConfigDelete is emitted when a BeamsConfig is deleted.
+message BeamsConfigDelete {
+  // Metadata is a common event metadata.
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 
-  // OpenaiConfigUpdated indicates the OpenAI LLM endpoint configuration was modified.
-  bool openai_config_updated = 2 [(gogoproto.jsontag) = "openai_config_updated,omitempty"];
+  // Status indicates whether the deletion was successful.
+  Status status = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // User is a common user event metadata.
+  UserMetadata user = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Connection holds information about the connection.
+  ConnectionMetadata connection = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }

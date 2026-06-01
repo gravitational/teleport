@@ -976,10 +976,6 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_VnetConfigDelete{
 			VnetConfigDelete: e,
 		}
-	case *BeamsConfigUpdate:
-		out.Event = &OneOf_BeamsConfigUpdate{
-			BeamsConfigUpdate: e,
-		}
 	case *WorkloadClusterCreate:
 		out.Event = &OneOf_WorkloadClusterCreate{
 			WorkloadClusterCreate: e,
@@ -1047,6 +1043,18 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 	case *CertAuthorityOverrideEvent:
 		out.Event = &OneOf_CertAuthorityOverrideEvent{
 			CertAuthorityOverrideEvent: e,
+		}
+	case *BeamsConfigCreate:
+		out.Event = &OneOf_BeamsConfigCreate{
+			BeamsConfigCreate: e,
+		}
+	case *BeamsConfigUpdate:
+		out.Event = &OneOf_BeamsConfigUpdate{
+			BeamsConfigUpdate: e,
+		}
+	case *BeamsConfigDelete:
+		out.Event = &OneOf_BeamsConfigDelete{
+			BeamsConfigDelete: e,
 		}
 
 	default:

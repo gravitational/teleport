@@ -374,7 +374,9 @@ export const eventCodes = {
   VNET_CONFIG_CREATE: 'TVNET001I',
   VNET_CONFIG_UPDATE: 'TVNET002I',
   VNET_CONFIG_DELETE: 'TVNET003I',
-  BEAMS_CONFIG_UPDATE: 'TBEAM001I',
+  BEAMS_CONFIG_CREATE: 'TBEAM001I',
+  BEAMS_CONFIG_UPDATE: 'TBEAM002I',
+  BEAMS_CONFIG_DELETE: 'TBEAM003I',
   WORKLOAD_CLUSTER_CREATE: 'WC001I',
   WORKLOAD_CLUSTER_CREATE_FAILURE: 'WC001E',
   WORKLOAD_CLUSTER_UPDATE: 'WC002I',
@@ -2248,14 +2250,17 @@ export type RawEvents = {
     typeof eventCodes.VNET_CONFIG_DELETE,
     HasName
   >;
+  [eventCodes.BEAMS_CONFIG_CREATE]: RawEvent<
+    typeof eventCodes.BEAMS_CONFIG_CREATE,
+    HasName
+  >;
   [eventCodes.BEAMS_CONFIG_UPDATE]: RawEvent<
     typeof eventCodes.BEAMS_CONFIG_UPDATE,
-    {
-      beams_config?: {
-        anthropic_config_updated?: boolean;
-        openai_config_updated?: boolean;
-      };
-    }
+    HasName
+  >;
+  [eventCodes.BEAMS_CONFIG_DELETE]: RawEvent<
+    typeof eventCodes.BEAMS_CONFIG_DELETE,
+    HasName
   >;
   [eventCodes.WORKLOAD_CLUSTER_CREATE]: RawEvent<
     typeof eventCodes.WORKLOAD_CLUSTER_CREATE,

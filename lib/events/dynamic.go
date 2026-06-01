@@ -600,9 +600,6 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 	case VnetConfigDeleteEvent:
 		e = &events.VnetConfigDelete{}
 
-	case BeamsConfigUpdateEvent:
-		e = &events.BeamsConfigUpdate{}
-
 	case WorkloadClusterCreateEvent:
 		e = &events.WorkloadClusterCreate{}
 	case WorkloadClusterUpdateEvent:
@@ -645,6 +642,13 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		CertAuthOverrideUpsertEvent,
 		CertAuthOverrideDeleteEvent:
 		e = &events.CertAuthorityOverrideEvent{}
+
+	case BeamsConfigCreateEvent:
+		e = &events.BeamsConfigCreate{}
+	case BeamsConfigUpdateEvent:
+		e = &events.BeamsConfigUpdate{}
+	case BeamsConfigDeleteEvent:
+		e = &events.BeamsConfigDelete{}
 
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", eventType)

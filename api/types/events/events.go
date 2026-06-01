@@ -2904,10 +2904,6 @@ func (m *VnetConfigDelete) TrimToMaxSize(int) AuditEvent {
 	return m
 }
 
-func (m *BeamsConfigUpdate) TrimToMaxSize(int) AuditEvent {
-	return m
-}
-
 func (m *WorkloadClusterCreate) TrimToMaxSize(maxSize int) AuditEvent {
 	size := m.Size()
 	if size <= maxSize {
@@ -3029,4 +3025,16 @@ func (m *AppSessionLLMRequest) TrimToMaxSize(maxSize int) AuditEvent {
 			newStrTrimmer(m.RequestedModel, &out.RequestedModel),
 		}
 	})
+}
+
+func (m *BeamsConfigCreate) TrimToMaxSize(int) AuditEvent {
+	return m
+}
+
+func (m *BeamsConfigUpdate) TrimToMaxSize(int) AuditEvent {
+	return m
+}
+
+func (m *BeamsConfigDelete) TrimToMaxSize(int) AuditEvent {
+	return m
 }

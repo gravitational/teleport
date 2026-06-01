@@ -852,9 +852,6 @@ const (
 	// VnetConfigDeleteCode is the Vnet config delete event code.
 	VnetConfigDeleteCode = "TVNET003I"
 
-	// BeamsConfigUpdateCode is the Beams config update event code.
-	BeamsConfigUpdateCode = "TBEAM001I"
-
 	// WorkloadClusterCreateCode is the workload cluster create event code.
 	WorkloadClusterCreateCode = "WC001I"
 	// WorkloadClusterCreateFailureCode is the workload cluster create failure event code.
@@ -918,6 +915,13 @@ const (
 	// CertAuthOverrideCertificatesRemoveCode is the event code for specialized
 	// RemoveCertificateOverride operation.
 	CertAuthOverrideCertificatesRemoveCode = "TCO07I"
+
+	// BeamsConfigCreateCode is the Beams config create event code.
+	BeamsConfigCreateCode = "TBEAM001I"
+	// BeamsConfigUpdateCode is the Beams config update event code.
+	BeamsConfigUpdateCode = "TBEAM002I"
+	// BeamsConfigDeleteCode is the Beams config delete event code.
+	BeamsConfigDeleteCode = "TBEAM003I"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode

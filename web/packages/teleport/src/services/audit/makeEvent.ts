@@ -2518,17 +2518,25 @@ export const formatters: Formatters = {
       return `User [${user}] deleted the VNet config`;
     },
   },
+  [eventCodes.BEAMS_CONFIG_CREATE]: {
+    type: 'beams.config.create',
+    desc: 'Beams Config Created',
+    format: ({ user }) => {
+      return `User [${user}] created the Beams config`;
+    },
+  },
   [eventCodes.BEAMS_CONFIG_UPDATE]: {
     type: 'beams.config.update',
     desc: 'Beams Config Updated',
-    format: ({ user, beams_config }) => {
-      const updates = [
-        beams_config?.anthropic_config_updated && 'Anthropic inference config',
-        beams_config?.openai_config_updated && 'OpenAI inference config',
-      ].filter(Boolean);
-      const detail =
-        updates.length > 0 ? `: ${updates.join(', ')}` : '';
-      return `User [${user}] updated the Beams config${detail}`;
+    format: ({ user }) => {
+      return `User [${user}] updated the Beams config`;
+    },
+  },
+  [eventCodes.BEAMS_CONFIG_DELETE]: {
+    type: 'beams.config.delete',
+    desc: 'Beams Config Deleted',
+    format: ({ user }) => {
+      return `User [${user}] deleted the Beams config`;
     },
   },
   [eventCodes.WORKLOAD_CLUSTER_CREATE]: {
