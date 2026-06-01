@@ -223,10 +223,6 @@ func ChangeUserAuthentication(ctx context.Context, a *Server, req *proto.ChangeU
 	return a.changeUserAuthentication(ctx, req)
 }
 
-func ValidateOracleJoinToken(token types.ProvisionToken) error {
-	return validateOracleJoinToken(token)
-}
-
 func CreatePresetUsers(ctx context.Context, buildType string, um PresetUsers) error {
 	return createPresetUsers(ctx, buildType, um)
 }
