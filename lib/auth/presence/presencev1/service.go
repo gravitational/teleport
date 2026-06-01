@@ -494,7 +494,7 @@ func (s *Service) UpsertProxyServer(
 	// (see https://github.com/gravitational/teleport/issues/66997). v19+
 	// proxies send Kind=KindProxy; this override is retained so older proxies
 	// in mixed clusters continue to upsert correctly.
-	// TODO(strideynet): In V21.0.0, we should consider changing the behaviour
+	// TODO(strideynet): In V21.0.0, we should consider changing the behavior
 	// to reject or warn on incorrect Kind.
 	srv.Kind = types.KindProxy
 	if err := srv.CheckAndSetDefaults(); err != nil {
