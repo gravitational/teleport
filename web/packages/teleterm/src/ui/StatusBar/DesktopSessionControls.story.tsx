@@ -30,10 +30,8 @@ export default {
 
 const controls: DesktopSessionControlsRenderProps = {
   canShareDirectory: true,
-  isSharingDirectory: false,
   isSharingClipboard: false,
   clipboardSharingMessage: 'Clipboard sharing inactive.',
-  onShareDirectory: () => {},
   onCtrlAltDel: () => {},
   onDisconnect: () => {},
   onRemoveAlert: () => {},
@@ -44,6 +42,11 @@ const controls: DesktopSessionControlsRenderProps = {
   onToggleHiDpi: () => {},
   screenIsHiDpi: false,
   hiDpiSupported: false,
+  onAddSharedDirectory: () => {},
+  sharedDirectories: [],
+  onRemoveSharedDirectory: () => {},
+  canRemoveSharedDirectory: false,
+  maxSharedDirectories: 10,
 };
 
 export function NoAlerts() {

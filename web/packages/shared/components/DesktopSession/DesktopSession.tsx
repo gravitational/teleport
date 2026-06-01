@@ -50,6 +50,7 @@ import {
   ScrollAxis,
   TdpClient,
   useListener,
+  MAX_SHARED_DIRECTORIES,
 } from 'shared/libs/tdp';
 import { TdpError } from 'shared/libs/tdp/client';
 
@@ -105,8 +106,9 @@ export interface DesktopSessionControlsRenderProps {
   hiDpiSupported: boolean;
   onAddSharedDirectory: VoidFunction;
   sharedDirectories: DirectoryItem[];
-  onRemoveSharedDirectory(directoryId: number);
+  onRemoveSharedDirectory: (id: number) => void;
   canRemoveSharedDirectory: boolean;
+  maxSharedDirectories: number;
 }
 
 export function DesktopSession({
@@ -469,6 +471,7 @@ export function DesktopSession({
     onAddSharedDirectory: addSharedDirectory,
     onRemoveSharedDirectory: removeSharedDirectory,
     canRemoveSharedDirectory: serverCapabilities.canRemoveSharedDirectories,
+    maxSharedDirectories: MAX_SHARED_DIRECTORIES,
   };
   return (
     <Flex

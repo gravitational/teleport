@@ -81,7 +81,7 @@ export default function TopBar(props: Props) {
             onRemoveSharedDirectory={onRemoveSharedDirectory}
             onAddSharedDirectory={onAddSharedDirectory}
             canRemoveSharedDirectory={canRemoveSharedDirectory}
-            canSharedDirectories={canShareDirectory}
+            canShareDirectories={canShareDirectory}
             maxSharedDirectories={maxSharedDirectories}
           />
           <HoverTooltip tipContent={clipboardSharingMessage} placement="bottom">
@@ -98,7 +98,10 @@ export default function TopBar(props: Props) {
             hiDpiSupported={hiDpiSupported}
           />
           <ActionMenu
-            showShareDirectory={canShareDirectory}
+            showShareDirectory={
+              canShareDirectory &&
+              sharedDirectories.length < maxSharedDirectories
+            }
             onShareDirectory={onAddSharedDirectory}
             onDisconnect={onDisconnect}
             onCtrlAltDel={onCtrlAltDel}
