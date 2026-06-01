@@ -1018,6 +1018,7 @@
     "storageclasses",
     "storageenabled",
     "streamable",
+    "streamablehttp",
     "strslice",
     "structs",
     "subca",
