@@ -62,6 +62,7 @@ func TestMain(m *testing.M) {
 }
 
 type setupTestContextOptions struct {
+	user       types.User
 	roleSet    services.RoleSet
 	app        types.Application
 	clientConn net.Conn
@@ -72,6 +73,12 @@ type setupTestContextOptionFunc func(*setupTestContextOptions)
 func withApp(app types.Application) setupTestContextOptionFunc {
 	return func(o *setupTestContextOptions) {
 		o.app = app
+	}
+}
+
+func withUser(user types.User) setupTestContextOptionFunc {
+	return func(opts *setupTestContextOptions) {
+		opts.user = user
 	}
 }
 
@@ -187,7 +194,7 @@ func setupTestContext(t *testing.T, applyOpts ...setupTestContextOptionFunc) tes
 	sessionCtx := &SessionCtx{
 		ClientConn: clientDestConn,
 		App:        opts.app,
-		AuthCtx:    makeTestAuthContext(t, opts.roleSet, opts.app),
+		AuthCtx:    makeTestAuthContext(t, opts.user, opts.roleSet, opts.app),
 	}
 	require.NoError(t, sessionCtx.checkAndSetDefaults())
 
@@ -197,11 +204,14 @@ func setupTestContext(t *testing.T, applyOpts ...setupTestContextOptionFunc) tes
 	}
 }
 
-func makeTestAuthContext(t *testing.T, roleSet services.RoleSet, app types.Application) *authz.Context {
+func makeTestAuthContext(t *testing.T, user types.User, roleSet services.RoleSet, app types.Application) *authz.Context {
 	t.Helper()
+	var err error
 
-	user, err := types.NewUser("ai")
-	require.NoError(t, err)
+	if user == nil {
+		user, err = types.NewUser("ai")
+		require.NoError(t, err)
+	}
 	user.SetRoles(slices.Collect(types.ResourceNames(roleSet)))
 
 	identity := authz.LocalUser{
