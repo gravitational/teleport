@@ -165,7 +165,7 @@ type RemoveResourceAccessAction = {
 type AddAdminRuleAction = { type: ActionType.AddAdminRule; payload?: never };
 type SetAdminRuleResourcesAction = {
   type: ActionType.SetAdminRuleResources;
-  payload: { id: string; resources: readonly ResourceKindOption[] };
+  payload: { id: string; resources: ResourceKindOption[] };
 };
 type SetAdminRuleVerbAction = {
   type: ActionType.SetAdminRuleVerb;
