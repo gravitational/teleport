@@ -25,8 +25,9 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/arm"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/resourcegraph/armresourcegraph"
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport"
 )
 
 // ResourceGraphClient is a client for Azure Resource Graph (ARG) VM discovery.
@@ -53,7 +54,7 @@ func NewResourceGraphClient(cred azcore.TokenCredential, options *arm.ClientOpti
 	}
 
 	return &resourceGraphClient{
-		logger:       slog.Default().With(teleport.ComponentKey, "azure_resource_graph_client"),
+		logger:       slog.With(teleport.ComponentKey, "azure_resource_graph_client"),
 		resourcesAPI: client,
 	}, nil
 }
