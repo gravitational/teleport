@@ -328,9 +328,9 @@ func PrintYAML(w io.Writer, v any) error {
 
 // FormatUserDisplay renders a user identity from display values plus username:
 //
-//	"Primary <Secondary> (username)" — all three present
-//	"Primary (username)"             — primary + username
-//	"username <Secondary>"           — secondary + username
+//	"username (Primary) <Secondary>" — all three present
+//	"username (Primary)"             — username + primary
+//	"username <Secondary>"           — username + secondary
 //	"username"                       — username only
 func FormatUserDisplay(primary, secondary, username string) string {
 	primary = sanitizeDisplayValue(primary)
@@ -339,9 +339,9 @@ func FormatUserDisplay(primary, secondary, username string) string {
 
 	switch {
 	case primary != "" && secondary != "":
-		return fmt.Sprintf("%s <%s> (%s)", primary, secondary, username)
+		return fmt.Sprintf("%s (%s) <%s>", username, primary, secondary)
 	case primary != "":
-		return fmt.Sprintf("%s (%s)", primary, username)
+		return fmt.Sprintf("%s (%s)", username, primary)
 	case secondary != "":
 		return fmt.Sprintf("%s <%s>", username, secondary)
 	default:
