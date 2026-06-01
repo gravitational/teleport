@@ -106,6 +106,18 @@ func MsgFields(reqID string, reqData pd.AccessRequestData, clusterName string, w
 	if reqData.RequestReason != "" {
 		msgFieldToBuilder(&builder, "Reason", lib.MarkdownEscape(reqData.RequestReason, requestReasonLimit))
 	}
+	if reqData.RequestTTL != "" {
+		msgFieldToBuilder(&builder, "Request TTL", lib.MarkdownEscapeInLine(reqData.RequestTTL, requestInlineLimit))
+	}
+	if reqData.RequestExpiry != nil && !reqData.RequestExpiry.IsZero() {
+		msgFieldToBuilder(&builder, "Request Expires (UTC)", reqData.RequestExpiry.UTC().Format(time.RFC3339))
+	}
+	if reqData.AccessTTL != "" {
+		msgFieldToBuilder(&builder, "Access TTL", lib.MarkdownEscapeInLine(reqData.AccessTTL, requestInlineLimit))
+	}
+	if reqData.AccessExpiry != nil && !reqData.AccessExpiry.IsZero() {
+		msgFieldToBuilder(&builder, "Access Expires (UTC)", reqData.AccessExpiry.UTC().Format(time.RFC3339))
+	}
 	if webProxyURL != nil {
 		reqURL := *webProxyURL
 		reqURL.Path = lib.BuildURLPath("web", "requests", reqID)

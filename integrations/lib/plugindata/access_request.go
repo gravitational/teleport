@@ -51,6 +51,10 @@ type AccessRequestData struct {
 	SuggestedReviewers []string
 	LoginsByRole       map[string][]string
 	MaxDuration        *time.Time
+	RequestTTL         string
+	RequestExpiry      *time.Time
+	AccessTTL          string
+	AccessExpiry       *time.Time
 }
 
 // DecodeAccessRequestData deserializes a string map to PluginData struct.
@@ -73,6 +77,26 @@ func DecodeAccessRequestData(dataMap map[string]string) (data AccessRequestData,
 			return
 		}
 		data.MaxDuration = &maxDuration
+	}
+	data.RequestTTL = dataMap["request_ttl"]
+	if str := dataMap["request_expiry"]; str != "" {
+		var requestExpiry time.Time
+		requestExpiry, err = time.Parse(time.RFC3339, str)
+		if err != nil {
+			err = trace.Wrap(err)
+			return
+		}
+		data.RequestExpiry = &requestExpiry
+	}
+	data.AccessTTL = dataMap["access_ttl"]
+	if str := dataMap["access_expiry"]; str != "" {
+		var accessExpiry time.Time
+		accessExpiry, err = time.Parse(time.RFC3339, str)
+		if err != nil {
+			err = trace.Wrap(err)
+			return
+		}
+		data.AccessExpiry = &accessExpiry
 	}
 
 	if str, ok := dataMap["resources"]; ok {
@@ -144,6 +168,18 @@ func EncodeAccessRequestData(data AccessRequestData) (map[string]string, error) 
 	result["resolve_reason"] = data.ResolutionReason
 	if data.MaxDuration != nil {
 		result["max_duration"] = data.MaxDuration.Format(time.RFC3339)
+	}
+	if data.RequestTTL != "" {
+		result["request_ttl"] = data.RequestTTL
+	}
+	if data.RequestExpiry != nil {
+		result["request_expiry"] = data.RequestExpiry.Format(time.RFC3339)
+	}
+	if data.AccessTTL != "" {
+		result["access_ttl"] = data.AccessTTL
+	}
+	if data.AccessExpiry != nil {
+		result["access_expiry"] = data.AccessExpiry.Format(time.RFC3339)
 	}
 
 	if len(data.SystemAnnotations) != 0 {

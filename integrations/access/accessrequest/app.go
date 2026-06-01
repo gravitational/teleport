@@ -266,6 +266,7 @@ func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) err
 		Resources:         resourceNames,
 		LoginsByRole:      loginsByRole,
 	}
+	a.populateRequestTimeFields(req, time.Now().UTC(), &reqData)
 
 	_, err = a.pluginData.Create(ctx, reqID, PluginData{AccessRequestData: reqData})
 	switch {
@@ -303,6 +304,21 @@ func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) err
 	}
 
 	return nil
+}
+
+func (a *App) populateRequestTimeFields(req types.AccessRequest, now time.Time, reqData *pd.AccessRequestData) {
+	if requestExpiry := req.Expiry(); !requestExpiry.IsZero() {
+		reqData.RequestExpiry = &requestExpiry
+		if requestExpiry.After(now) {
+			reqData.RequestTTL = requestExpiry.Sub(now).Round(time.Minute).String()
+		}
+	}
+	if accessExpiry := req.GetAccessExpiry(); !accessExpiry.IsZero() {
+		reqData.AccessExpiry = &accessExpiry
+		if accessExpiry.After(now) {
+			reqData.AccessTTL = accessExpiry.Sub(now).Round(time.Minute).String()
+		}
+	}
 }
 
 func (a *App) onResolvedRequest(ctx context.Context, req types.AccessRequest) error {
