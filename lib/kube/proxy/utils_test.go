@@ -284,8 +284,8 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	}
 
 	var accessPoint authclient.ClientI = client
-	if cfg.WrapAccessPoint != nil {
-		accessPoint = cfg.WrapAccessPoint(client)
+	if cfg.WrapAuthClient != nil {
+		accessPoint = cfg.WrapAuthClient(client)
 	}
 
 	// Create kubernetes service server.

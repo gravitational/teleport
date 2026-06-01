@@ -358,7 +358,7 @@ func TestExecKubeServiceWithFaultyPrimary(t *testing.T) {
 	// creates a Kubernetes service with a configured cluster pointing to mock api server
 	testCtx := SetupTestContext(t.Context(), t, TestConfig{
 		Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
-		WrapAccessPoint: func(client authclient.ClientI) authclient.ClientI {
+		WrapAuthClient: func(client authclient.ClientI) authclient.ClientI {
 			failingAccessPoint.ClientI = client
 			return failingAccessPoint
 		},
