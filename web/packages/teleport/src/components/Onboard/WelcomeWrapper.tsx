@@ -49,12 +49,7 @@ const OnboardWrapper = styled.div`
   top: 0;
   left: 0;
   overflow: hidden;
-  z-index: -2;
-
-  background: ${props =>
-    props.theme.type === 'dark'
-      ? props.theme.colors.levels.sunken
-      : props.theme.colors.levels.deep};
+  background: ${props => props.theme.colors.levels.sunken};
 `;
 
 const WelcomeHeader = styled(Box)`
