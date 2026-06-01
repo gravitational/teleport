@@ -295,9 +295,9 @@ func (s *Service) RunDiagnostics(ctx context.Context, req *api.RunDiagnosticsReq
 		diagChecks = append(diagChecks, routeConflictDiag)
 	}
 
-	// Skip the DNS check if NetworkStack is unavailable we need the
-	// IPv6 prefix to derive VNet's DNS server address.
-	if ns := nsa.NetworkStack; ns != nil && ns.Ipv6Prefix != "" {
+	// Skip the DNS check if NetworkStack is unavailable we need at least one
+	// of Ipv6Prefix, Ipv4CidrRanges to derive a VNet DNS server address.
+	if ns := nsa.NetworkStack; ns != nil && (ns.Ipv6Prefix != "" || len(ns.Ipv4CidrRanges) > 0) {
 		dnsDiag, err := s.dnsDiag(ns)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -336,15 +336,22 @@ func (s *Service) sshDiag() (diag.DiagCheck, error) {
 // dnsDiag builds the DNS diagnostic check. It is platform-agnostic.
 func (s *Service) dnsDiag(ns *diagv1.NetworkStack) (diag.DiagCheck, error) {
 	// TODO(tangyatsu): make NetworkStackInfo return DNS server addresses directly.
-	vnetDNSServer, err := diag.DNSServerForIPv6Prefix(ns.Ipv6Prefix)
-	if err != nil {
-		return nil, trace.Wrap(err, "computing VNet DNS server address for DNS diag check")
+	cfg := &diag.DNSConfig{DNSZones: ns.DnsZones}
+	if ns.Ipv6Prefix != "" {
+		s, err := diag.DNSServerForIPv6Prefix(ns.Ipv6Prefix)
+		if err != nil {
+			return nil, trace.Wrap(err, "computing VNet IPv6 DNS server address for DNS diag check")
+		}
+		cfg.VNetDNSIPv6 = s
 	}
-
-	dnsDiag, err := diag.NewDNSDiag(&diag.DNSConfig{
-		DNSZones:      ns.DnsZones,
-		VNetDNSServer: vnetDNSServer,
-	})
+	if len(ns.Ipv4CidrRanges) > 0 {
+		s, err := diag.DNSServerForIPv4CIDRRange(ns.Ipv4CidrRanges[0])
+		if err != nil {
+			return nil, trace.Wrap(err, "computing VNet IPv4 DNS server address for DNS diag check")
+		}
+		cfg.VNetDNSIPv4 = s
+	}
+	dnsDiag, err := diag.NewDNSDiag(cfg)
 	return dnsDiag, trace.Wrap(err, "constructing DNS diag check")
 }
 

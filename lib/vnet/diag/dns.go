@@ -25,6 +25,7 @@ import (
 	"net"
 	"net/netip"
 	"os/exec"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -52,8 +53,12 @@ type DNSConfig struct {
 	// check sends one query per zone through the OS resolver and verifies it
 	// reached VNet's nameserver.
 	DNSZones []string
-	// VNetDNSServer is the address of VNet's DNS server
-	VNetDNSServer netip.AddrPort
+	// VNetDNSIPv4 is the address of VNet's IPv4 DNS server. Zero if VNet is not
+	// serving DNS on IPv4.
+	VNetDNSIPv4 netip.AddrPort
+	// VNetDNSIPv6 is the address of VNet's IPv6 DNS server. Zero if VNet is not
+	// serving DNS on IPv6.
+	VNetDNSIPv6 netip.AddrPort
 	// Resolver does name resolution through the OS resolver.
 	Resolver Resolver
 	// DirectQuerier sends DNS queries directly to a specific nameserver, bypassing the OS resolver.
@@ -70,35 +75,45 @@ type DNSConfig struct {
 }
 
 // Resolver does name resolution through the OS resolver the same path real
-// applications use, so per-zone OS resolver routing is honored.
+// applications use, so per-zone OS resolver routing is honored. The network
+// argument is "ip4" or "ip6" so the caller can ask each record type
+// independently.
 type Resolver interface {
-	Lookup(ctx context.Context, host string) ([]netip.Addr, error)
+	Lookup(ctx context.Context, network, host string) ([]netip.Addr, error)
 }
 
 // DirectQuerier sends a DNS query directly to a specific server, bypassing the
 // OS resolver. Used by the reachability check to verify VNet's DNS process is
-// reachable independent of OS resolver configuration.
+// reachable independent of OS resolver configuration. The network argument is
+// "ip4" or "ip6" so the caller can ask each record type independently.
 type DirectQuerier interface {
-	LookupDirect(ctx context.Context, host string, server netip.AddrPort) ([]netip.Addr, error)
+	LookupDirect(ctx context.Context, network, host string, server netip.AddrPort) ([]netip.Addr, error)
+}
+
+// recordResult is the result of probing one server for one record type.
+type recordResult struct {
+	addr netip.Addr
+	err  error
 }
 
 // DNSDiag is the diagnostic check that verifies the OS resolver routes queries
 // for each VNet-managed DNS zone to VNet's nameserver. It runs two steps:
 //
-//  1. Reachability check: a direct DNS query to VNet's nameserver. If this
-//     fails, VNet's DNS is unreachable and the per-zone check is skipped.
-//  2. Per-zone check: one query per zone through the OS resolver. Each
-//     response is compared to the reachability response to determine whether
+//  1. Reachability check: direct DNS queries to VNet's IPv4 and IPv6 nameservers
+//     asking for both A and AAAA records. If neither nameserver returns a
+//     response for either record type, the per-zone check is skipped.
+//  2. Per-zone check: for each zone, A and AAAA queries through the OS resolver.
+//     Each response is compared to the reachability response to determine whether
 //     the OS resolver routed the query to VNet (OK), to some other resolver
-//     (HIJACKED), or not at all (NOT_REGISTERED / TIMEOUT).
+//     (HIJACKED), or not at all (NOT_REGISTERED / TIMEOUT / RESOLVER_ERROR).
 type DNSDiag struct {
 	cfg *DNSConfig
 }
 
 // NewDNSDiag returns a new DNSDiag.
 func NewDNSDiag(cfg *DNSConfig) (*DNSDiag, error) {
-	if !cfg.VNetDNSServer.IsValid() {
-		return nil, trace.BadParameter("missing VNet DNS server address")
+	if !cfg.VNetDNSIPv4.IsValid() && !cfg.VNetDNSIPv6.IsValid() {
+		return nil, trace.BadParameter("at least one of VNetDNSIPv4 or VNetDNSIPv6 must be set")
 	}
 	if cfg.Resolver == nil {
 		cfg.Resolver = NetResolver{}
@@ -134,88 +149,182 @@ func (d *DNSDiag) Commands(ctx context.Context) []*exec.Cmd {
 func (d *DNSDiag) Run(ctx context.Context) (*diagv1.CheckReport, error) {
 	report := &diagv1.DNSReport{}
 
-	// Reachability check
-	expectedIP, err := d.runReachabilityCheck(ctx)
-	if err != nil {
-		report.VnetDnsReachable = false
-		report.VnetDnsUnreachableError = err.Error()
-		return &diagv1.CheckReport{
-			Status: diagv1.CheckReportStatus_CHECK_REPORT_STATUS_ISSUES_FOUND,
-			Report: &diagv1.CheckReport_DnsReport{DnsReport: report},
-		}, nil
-	}
-	report.VnetDnsReachable = true
+	v4, v6 := d.runReachabilityCheck(ctx)
+	report.Ipv4Reachability = toReachabilityProto(v4)
+	report.Ipv6Reachability = toReachabilityProto(v6)
 
-	// Per-zone check
-	report.ZoneResults = d.runPerZoneCheck(ctx, expectedIP)
+	expectedA, expectedAAAA := mergeExpected(ctx, v6, v4)
 
-	status := diagv1.CheckReportStatus_CHECK_REPORT_STATUS_OK
-	for _, zr := range report.ZoneResults {
-		if zr.Status != diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK {
-			status = diagv1.CheckReportStatus_CHECK_REPORT_STATUS_ISSUES_FOUND
-			break
-		}
+	if expectedA.IsValid() || expectedAAAA.IsValid() {
+		report.ZoneResults = d.runPerZoneCheck(ctx, expectedA, expectedAAAA)
 	}
+
 	return &diagv1.CheckReport{
-		Status: status,
+		Status: computeReportStatus(report),
 		Report: &diagv1.CheckReport_DnsReport{DnsReport: report},
 	}, nil
 }
 
-// runReachabilityCheck queries VNet's nameserver directly and returns the response
-// IP, which becomes the expected_ip for every per-zone result.
-func (d *DNSDiag) runReachabilityCheck(ctx context.Context) (netip.Addr, error) {
+// reachabilityCheckResult captures the result of probing one VNet nameserver for both A and AAAA.
+type reachabilityCheckResult struct {
+	server netip.AddrPort
+	a      recordResult
+	aaaa   recordResult
+}
+
+// runReachabilityCheck probes each configured VNet nameserver for both A and AAAA records
+func (d *DNSDiag) runReachabilityCheck(ctx context.Context) (v4, v6 reachabilityCheckResult) {
+	v6.server = d.cfg.VNetDNSIPv6
+	v4.server = d.cfg.VNetDNSIPv4
+
+	var wg sync.WaitGroup
+	if v6.server.IsValid() {
+		wg.Go(func() { v6.a = d.queryServer(ctx, "ip4", v6.server) })
+		wg.Go(func() { v6.aaaa = d.queryServer(ctx, "ip6", v6.server) })
+	}
+	if v4.server.IsValid() {
+		wg.Go(func() { v4.a = d.queryServer(ctx, "ip4", v4.server) })
+		wg.Go(func() { v4.aaaa = d.queryServer(ctx, "ip6", v4.server) })
+	}
+	wg.Wait()
+	return
+}
+
+func (d *DNSDiag) queryServer(ctx context.Context, network string, server netip.AddrPort) recordResult {
 	var lastErr error
 	// Retries to skip the startup window where VNet's DNS isn't responding yet.
 	for attempt := 0; attempt < d.cfg.ReachabilityMaxAttempts; attempt++ {
 		if attempt > 0 {
 			select {
 			case <-ctx.Done():
-				return netip.Addr{}, trace.Wrap(ctx.Err(), "querying VNet DNS server at %s", d.cfg.VNetDNSServer)
+				return recordResult{err: trace.Wrap(ctx.Err(), "querying VNet DNS server at %s for %s", server, network)}
 			case <-time.After(d.cfg.ReachabilityRetryDelay):
 			}
 		}
-		addr, err := d.queryReachabilityOnce(ctx)
+		addr, err := d.queryServerOnce(ctx, network, server)
 		if err == nil {
-			return addr, nil
+			return recordResult{addr: addr}
 		}
 		lastErr = err
 	}
-	return netip.Addr{}, lastErr
+	return recordResult{err: lastErr}
 }
 
-func (d *DNSDiag) queryReachabilityOnce(ctx context.Context) (netip.Addr, error) {
+// queryServerOnce fires a single direct DNS query for one record type.
+func (d *DNSDiag) queryServerOnce(ctx context.Context, network string, server netip.AddrPort) (netip.Addr, error) {
 	ctx, cancel := context.WithTimeout(ctx, d.cfg.QueryTimeout)
 	defer cancel()
 
-	addrs, err := d.cfg.DirectQuerier.LookupDirect(ctx, probeFQDN(reachabilityProbeZone), d.cfg.VNetDNSServer)
+	addrs, err := d.cfg.DirectQuerier.LookupDirect(ctx, network, probeFQDN(reachabilityProbeZone), server)
 	if err != nil {
-		return netip.Addr{}, trace.Wrap(err, "querying VNet DNS server at %s", d.cfg.VNetDNSServer)
+		var dnsErr *net.DNSError
+		if errors.As(err, &dnsErr) && dnsErr.IsNotFound {
+			return netip.Addr{}, nil
+		}
+		return netip.Addr{}, trace.Wrap(err, "querying VNet DNS server at %s for %s", server, network)
 	}
 	if len(addrs) == 0 {
-		return netip.Addr{}, trace.Errorf("VNet DNS server at %s returned no answer", d.cfg.VNetDNSServer)
+		return netip.Addr{}, nil
 	}
 	return addrs[0], nil
 }
 
+func toReachabilityProto(o reachabilityCheckResult) *diagv1.VNetDNSReachability {
+	// At this point server may be either empty or valid. An empty server means
+	// VNet does not serve DNS on the address family this check was performed for
+	if !o.server.IsValid() {
+		return nil
+	}
+	m := &diagv1.VNetDNSReachability{
+		Address:       o.server.String(),
+		RespondedA:    o.a.addr.IsValid(),
+		RespondedAaaa: o.aaaa.addr.IsValid(),
+	}
+	m.Reachable = m.RespondedA || m.RespondedAaaa
+	if !m.Reachable {
+		var errs []string
+		if o.a.err != nil {
+			errs = append(errs, fmt.Sprintf("A: %s", o.a.err))
+		}
+		if o.aaaa.err != nil {
+			errs = append(errs, fmt.Sprintf("AAAA: %s", o.aaaa.err))
+		}
+		m.Error = strings.Join(errs, "; ")
+		if m.Error == "" {
+			m.Error = "server returned no records"
+		}
+	}
+	return m
+}
+
+// mergeExpected picks the expected A and AAAA from the reachability results.
+// Prefers IPv6 to match the order in which the OS resolver is most likely to
+// query.
+//
+// On macOS and Windows the OS prefers IPv6 over IPv4 per RFC 6724, on Linux
+// with systemd-resolved we register the IPv6 nameserver first and
+// systemd-resolved respects configuration order.
+func mergeExpected(ctx context.Context, v6, v4 reachabilityCheckResult) (expectedA, expectedAAAA netip.Addr) {
+	if v6.a.addr.IsValid() {
+		expectedA = v6.a.addr
+	} else {
+		expectedA = v4.a.addr
+	}
+	if v6.aaaa.addr.IsValid() {
+		expectedAAAA = v6.aaaa.addr
+	} else {
+		expectedAAAA = v4.aaaa.addr
+	}
+
+	// Log a warning when both nameservers returned a value for the same record and
+	// they disagree that should never happen and indicates a bug IN VNet
+	if v6.a.addr.IsValid() && v4.a.addr.IsValid() && v6.a.addr != v4.a.addr {
+		log.WarnContext(ctx, "VNet DNS returned different A records from IPv6 vs IPv4 nameservers",
+			"v6_response", v6.a.addr, "v4_response", v4.a.addr)
+	}
+	if v6.aaaa.addr.IsValid() && v4.aaaa.addr.IsValid() && v6.aaaa.addr != v4.aaaa.addr {
+		log.WarnContext(ctx, "VNet DNS returned different AAAA records from IPv6 vs IPv4 nameservers",
+			"v6_response", v6.aaaa.addr, "v4_response", v4.aaaa.addr)
+	}
+	return
+}
+
 // runPerZoneCheck queries the probe for each configured zone through the OS
-// resolver in parallel and returns a per-zone result.
-func (d *DNSDiag) runPerZoneCheck(ctx context.Context, expectedIP netip.Addr) []*diagv1.DNSZoneResult {
+// resolver in parallel, asking for each record type for which an expected IP
+// was captured.
+func (d *DNSDiag) runPerZoneCheck(ctx context.Context, expectedA, expectedAAAA netip.Addr) []*diagv1.DNSZoneResult {
 	results := make([]*diagv1.DNSZoneResult, len(d.cfg.DNSZones))
 	var wg sync.WaitGroup
 	for i, zone := range d.cfg.DNSZones {
 		wg.Go(func() {
-			results[i] = d.queryZone(ctx, zone, expectedIP)
+			results[i] = d.queryZone(ctx, zone, expectedA, expectedAAAA)
 		})
 	}
 	wg.Wait()
 	return results
 }
 
-// queryZone runs a single zone query with one retry on NOT_REGISTERED, to
-// skip a possible gap where the OS resolver hasn't yet picked up VNet's per-zone entry.
-func (d *DNSDiag) queryZone(ctx context.Context, zone string, expectedIP netip.Addr) *diagv1.DNSZoneResult {
-	result := d.queryZoneOnce(ctx, zone, expectedIP)
+// queryZone runs A and AAAA queries for a single zone in parallel.
+func (d *DNSDiag) queryZone(ctx context.Context, zone string, expectedA, expectedAAAA netip.Addr) *diagv1.DNSZoneResult {
+	result := &diagv1.DNSZoneResult{Zone: zone}
+	var wg sync.WaitGroup
+	if expectedA.IsValid() {
+		wg.Go(func() {
+			result.ARecord = d.queryZoneRecord(ctx, zone, "ip4", expectedA)
+		})
+	}
+	if expectedAAAA.IsValid() {
+		wg.Go(func() {
+			result.AaaaRecord = d.queryZoneRecord(ctx, zone, "ip6", expectedAAAA)
+		})
+	}
+	wg.Wait()
+	return result
+}
+
+// queryZoneRecord runs a single record-type query.
+func (d *DNSDiag) queryZoneRecord(ctx context.Context, zone, network string, expected netip.Addr) *diagv1.RecordResult {
+	result := d.queryZoneRecordOnce(ctx, zone, network, expected)
 	if result.Status != diagv1.DNSZoneStatus_DNS_ZONE_STATUS_NOT_REGISTERED {
 		return result
 	}
@@ -227,64 +336,73 @@ func (d *DNSDiag) queryZone(ctx context.Context, zone string, expectedIP netip.A
 		return result
 	case <-time.After(d.cfg.NotRegisteredRetryDelay):
 	}
-	return d.queryZoneOnce(ctx, zone, expectedIP)
+	return d.queryZoneRecordOnce(ctx, zone, network, expected)
 }
 
-func (d *DNSDiag) queryZoneOnce(ctx context.Context, zone string, expectedIP netip.Addr) *diagv1.DNSZoneResult {
+func (d *DNSDiag) queryZoneRecordOnce(ctx context.Context, zone, network string, expected netip.Addr) *diagv1.RecordResult {
 	ctx, cancel := context.WithTimeout(ctx, d.cfg.QueryTimeout)
 	defer cancel()
 
-	addrs, err := d.cfg.Resolver.Lookup(ctx, probeFQDN(zone))
-	status, observed, errStr := classifyDNSResult(addrs, err, expectedIP)
-
-	result := &diagv1.DNSZoneResult{
-		Zone:       zone,
-		Status:     status,
-		ExpectedIp: expectedIP.String(),
-		Error:      errStr,
-	}
-	if observed.IsValid() {
-		result.ObservedIp = observed.String()
-	}
-	return result
+	addrs, err := d.cfg.Resolver.Lookup(ctx, network, probeFQDN(zone))
+	return classifyRecordResult(addrs, err, expected)
 }
 
-// classifyDNSResult maps a resolver outcome to a [diagv1.DNSZoneStatus].
-func classifyDNSResult(addrs []netip.Addr, err error, expectedIP netip.Addr) (diagv1.DNSZoneStatus, netip.Addr, string) {
+// classifyRecordResult maps a resolver outcome for a single record type to a
+// [diagv1.RecordResult].
+func classifyRecordResult(addrs []netip.Addr, err error, expected netip.Addr) *diagv1.RecordResult {
 	if err != nil {
 		var dnsErr *net.DNSError
 		if errors.As(err, &dnsErr) {
 			switch {
 			case dnsErr.IsNotFound:
-				return diagv1.DNSZoneStatus_DNS_ZONE_STATUS_NOT_REGISTERED, netip.Addr{}, ""
+				return &diagv1.RecordResult{Status: diagv1.DNSZoneStatus_DNS_ZONE_STATUS_NOT_REGISTERED}
 			case dnsErr.IsTimeout:
-				return diagv1.DNSZoneStatus_DNS_ZONE_STATUS_TIMEOUT, netip.Addr{}, err.Error()
+				return &diagv1.RecordResult{
+					Status: diagv1.DNSZoneStatus_DNS_ZONE_STATUS_TIMEOUT,
+					Error:  err.Error(),
+				}
 			}
 		}
 		if errors.Is(err, context.DeadlineExceeded) {
-			return diagv1.DNSZoneStatus_DNS_ZONE_STATUS_TIMEOUT, netip.Addr{}, err.Error()
+			return &diagv1.RecordResult{
+				Status: diagv1.DNSZoneStatus_DNS_ZONE_STATUS_TIMEOUT,
+				Error:  err.Error(),
+			}
 		}
-		return diagv1.DNSZoneStatus_DNS_ZONE_STATUS_RESOLVER_ERROR, netip.Addr{}, err.Error()
+		return &diagv1.RecordResult{
+			Status: diagv1.DNSZoneStatus_DNS_ZONE_STATUS_RESOLVER_ERROR,
+			Error:  err.Error(),
+		}
 	}
-	// NOERROR with no answer is also classified as NOT_REGISTERED.
 	if len(addrs) == 0 {
-		return diagv1.DNSZoneStatus_DNS_ZONE_STATUS_NOT_REGISTERED, netip.Addr{}, ""
+		return &diagv1.RecordResult{Status: diagv1.DNSZoneStatus_DNS_ZONE_STATUS_NOT_REGISTERED}
 	}
-	if len(addrs) == 1 && addrs[0] == expectedIP {
-		return diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, addrs[0], ""
+	if slices.Contains(addrs, expected) {
+		return &diagv1.RecordResult{Status: diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK}
 	}
-	// HIJACKED: surface the IPv6 if present, probes get AAAA only from VNet
-	// so a non-VNet IPv6 is the most direct evidence of interception.
-	//
-	// TODO(tangyatsu): proto carries a single observed_ip today. Consider
-	// widening to a repeated field so the UI can show multiple addresses for
-	// dual-stack hijackers or round-robin pools.
-	for _, a := range addrs {
-		if a.Is6() {
-			return diagv1.DNSZoneStatus_DNS_ZONE_STATUS_HIJACKED, a, ""
+	return &diagv1.RecordResult{
+		Status:     diagv1.DNSZoneStatus_DNS_ZONE_STATUS_HIJACKED,
+		ObservedIp: addrs[0].String(),
+	}
+}
+
+// computeReportStatus returns ISSUES_FOUND if any configured reachability check
+// failed, or if any per-zone record result is not OK; otherwise OK.
+func computeReportStatus(report *diagv1.DNSReport) diagv1.CheckReportStatus {
+	for _, r := range []*diagv1.VNetDNSReachability{report.Ipv4Reachability, report.Ipv6Reachability} {
+		if r != nil && !r.Reachable {
+			return diagv1.CheckReportStatus_CHECK_REPORT_STATUS_ISSUES_FOUND
 		}
 	}
-	return diagv1.DNSZoneStatus_DNS_ZONE_STATUS_HIJACKED, addrs[0], ""
+	for _, zr := range report.ZoneResults {
+		if rr := zr.ARecord; rr != nil && rr.Status != diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK {
+			return diagv1.CheckReportStatus_CHECK_REPORT_STATUS_ISSUES_FOUND
+		}
+		if rr := zr.AaaaRecord; rr != nil && rr.Status != diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK {
+			return diagv1.CheckReportStatus_CHECK_REPORT_STATUS_ISSUES_FOUND
+		}
+	}
+	return diagv1.CheckReportStatus_CHECK_REPORT_STATUS_OK
 }
 
 // probeFQDN builds a probe hostname for a given zone with a fresh
@@ -318,12 +436,25 @@ func DNSServerForIPv6Prefix(prefix string) (netip.AddrPort, error) {
 	return netip.AddrPortFrom(netip.AddrFrom16(b), vnetdns.DNSServerPort), nil
 }
 
+// DNSServerForIPv4CIDRRange returns the address of VNet's IPv4 DNS server for a given IPv4
+// CIDR range (e.g., 100.64.0.0/24 → 100.64.0.2:53). Matches lib/vnet/osconfig_provider.go.
+func DNSServerForIPv4CIDRRange(cidr string) (netip.AddrPort, error) {
+	_, ipNet, err := net.ParseCIDR(cidr)
+	if err != nil {
+		return netip.AddrPort{}, trace.Wrap(err, "parsing IPv4 CIDR %q", cidr)
+	}
+	ip := slices.Clone(ipNet.IP)
+	ip[len(ip)-1] += 2
+	addr, _ := netip.AddrFromSlice(ip)
+	return netip.AddrPortFrom(addr, vnetdns.DNSServerPort), nil
+}
+
 // NetResolver is the default [Resolver] implementation that uses [net.DefaultResolver].
 type NetResolver struct{}
 
 // Lookup implements [Resolver].
-func (NetResolver) Lookup(ctx context.Context, host string) ([]netip.Addr, error) {
-	addrs, err := net.DefaultResolver.LookupNetIP(ctx, "ip", host)
+func (NetResolver) Lookup(ctx context.Context, network, host string) ([]netip.Addr, error) {
+	addrs, err := net.DefaultResolver.LookupNetIP(ctx, network, host)
 	return addrs, trace.Wrap(err)
 }
 
@@ -333,14 +464,13 @@ func (NetResolver) Lookup(ctx context.Context, host string) ([]netip.Addr, error
 type NetDirectQuerier struct{}
 
 // LookupDirect implements [DirectQuerier].
-func (NetDirectQuerier) LookupDirect(ctx context.Context, host string, server netip.AddrPort) ([]netip.Addr, error) {
+func (NetDirectQuerier) LookupDirect(ctx context.Context, network, host string, server netip.AddrPort) ([]netip.Addr, error) {
 	r := &net.Resolver{
 		PreferGo: true,
-		Dial: func(ctx context.Context, network, _ string) (net.Conn, error) {
-			d := net.Dialer{}
-			return d.DialContext(ctx, network, server.String())
+		Dial: func(ctx context.Context, _, _ string) (net.Conn, error) {
+			return new(net.Dialer).DialContext(ctx, "udp", server.String())
 		},
 	}
-	addrs, err := r.LookupNetIP(ctx, "ip", host)
+	addrs, err := r.LookupNetIP(ctx, network, host)
 	return addrs, trace.Wrap(err)
 }

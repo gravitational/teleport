@@ -35,32 +35,35 @@ import (
 
 // fakeResolver and fakeDirectQuerier inject lookup behavior per test.
 type fakeResolver struct {
-	lookup func(ctx context.Context, host string) ([]netip.Addr, error)
+	lookup func(ctx context.Context, network, host string) ([]netip.Addr, error)
 }
 
-func (f fakeResolver) Lookup(ctx context.Context, host string) ([]netip.Addr, error) {
-	return f.lookup(ctx, host)
+func (f fakeResolver) Lookup(ctx context.Context, network, host string) ([]netip.Addr, error) {
+	return f.lookup(ctx, network, host)
 }
 
 type fakeDirectQuerier struct {
-	lookup func(ctx context.Context, host string, server netip.AddrPort) ([]netip.Addr, error)
+	lookup func(ctx context.Context, network, host string, server netip.AddrPort) ([]netip.Addr, error)
 }
 
-func (f fakeDirectQuerier) LookupDirect(ctx context.Context, host string, server netip.AddrPort) ([]netip.Addr, error) {
-	return f.lookup(ctx, host, server)
+func (f fakeDirectQuerier) LookupDirect(ctx context.Context, network, host string, server netip.AddrPort) ([]netip.Addr, error) {
+	return f.lookup(ctx, network, host, server)
 }
 
 var (
-	testVNetDNS    = netip.MustParseAddrPort("[fdec:1fed:139f::2]:53")
-	testExpectedIP = netip.MustParseAddr("fdec:1fed:139f::2")
-	testOtherIP    = netip.MustParseAddr("2001:db8::1234")
-	testIPv4Hijack = netip.MustParseAddr("192.0.2.42")
+	testVNetDNSv6    = netip.MustParseAddrPort("[fdec:1fed:139f::2]:53")
+	testVNetDNSv4    = netip.MustParseAddrPort("100.64.0.2:53")
+	testExpectedAAAA = netip.MustParseAddr("fdec:1fed:139f::2")
+	testExpectedA    = netip.MustParseAddr("100.64.0.2")
+	testHijackAAAA   = netip.MustParseAddr("2001:db8::1234")
+	testHijackA      = netip.MustParseAddr("192.0.2.42")
 )
 
 func newTestDNSDiag(t *testing.T, cfg DNSConfig) *DNSDiag {
 	t.Helper()
-	if !cfg.VNetDNSServer.IsValid() {
-		cfg.VNetDNSServer = testVNetDNS
+	if !cfg.VNetDNSIPv4.IsValid() && !cfg.VNetDNSIPv6.IsValid() {
+		cfg.VNetDNSIPv4 = testVNetDNSv4
+		cfg.VNetDNSIPv6 = testVNetDNSv6
 	}
 	if cfg.QueryTimeout == 0 {
 		cfg.QueryTimeout = 100 * time.Millisecond
@@ -74,6 +77,56 @@ func newTestDNSDiag(t *testing.T, cfg DNSConfig) *DNSDiag {
 	d, err := NewDNSDiag(&cfg)
 	require.NoError(t, err)
 	return d
+}
+
+// goodDirectQuerier is a fakeDirectQuerier that returns the expected A and AAAA
+// for any server.
+var goodDirectQuerier = constantDirectQuerier(testExpectedA, testExpectedAAAA)
+
+// constantDirectQuerier returns a, aaaa for every query regardless of server.
+// Either argument may be a zero addr to fake a server that doesn't support
+// this record type.
+func constantDirectQuerier(a, aaaa netip.Addr) fakeDirectQuerier {
+	return fakeDirectQuerier{
+		lookup: func(_ context.Context, network, _ string, _ netip.AddrPort) ([]netip.Addr, error) {
+			switch network {
+			case "ip4":
+				if a.IsValid() {
+					return []netip.Addr{a}, nil
+				}
+			case "ip6":
+				if aaaa.IsValid() {
+					return []netip.Addr{aaaa}, nil
+				}
+			}
+			return nil, nil
+		},
+	}
+}
+
+// goodResolver is a fakeResolver that returns the expected A and AAAA for any
+// host.
+var goodResolver = constantResolver(testExpectedA, testExpectedAAAA)
+
+// constantResolver returns a, aaaa for every query regardless of host. Either
+// argument may be a zero addr to fake a resolver that doesn't return this
+// record type.
+func constantResolver(a, aaaa netip.Addr) fakeResolver {
+	return fakeResolver{
+		lookup: func(_ context.Context, network, _ string) ([]netip.Addr, error) {
+			switch network {
+			case "ip4":
+				if a.IsValid() {
+					return []netip.Addr{a}, nil
+				}
+			case "ip6":
+				if aaaa.IsValid() {
+					return []netip.Addr{aaaa}, nil
+				}
+			}
+			return nil, nil
+		},
+	}
 }
 
 // zoneOf extracts the zone from a probe FQDN
@@ -91,19 +144,47 @@ func zoneOf(fqdn string) string {
 	return strings.TrimSuffix(zone, ".")
 }
 
-func TestDNSDiagReachabilityFailureSkipsPerZone(t *testing.T) {
+func TestDNSDiagAllZonesOK(t *testing.T) {
+	d := newTestDNSDiag(t, DNSConfig{
+		DNSZones:      []string{"company.test", "example.test"},
+		DirectQuerier: goodDirectQuerier,
+		Resolver:      goodResolver,
+	})
+
+	report, err := d.Run(t.Context())
+	require.NoError(t, err)
+	require.Equal(t, diagv1.CheckReportStatus_CHECK_REPORT_STATUS_OK, report.Status)
+	dnsReport := report.GetDnsReport()
+	require.NotNil(t, dnsReport.Ipv4Reachability)
+	require.True(t, dnsReport.Ipv4Reachability.Reachable)
+	require.True(t, dnsReport.Ipv4Reachability.RespondedA)
+	require.True(t, dnsReport.Ipv4Reachability.RespondedAaaa)
+	require.NotNil(t, dnsReport.Ipv6Reachability)
+	require.True(t, dnsReport.Ipv6Reachability.Reachable)
+	require.True(t, dnsReport.Ipv6Reachability.RespondedA)
+	require.True(t, dnsReport.Ipv6Reachability.RespondedAaaa)
+	require.Len(t, dnsReport.ZoneResults, 2)
+	for _, zr := range dnsReport.ZoneResults {
+		require.NotNil(t, zr.ARecord, zr.Zone)
+		require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, zr.ARecord.Status, zr.Zone)
+		require.NotNil(t, zr.AaaaRecord, zr.Zone)
+		require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, zr.AaaaRecord.Status, zr.Zone)
+	}
+}
+
+func TestDNSDiagBothReachabilityFailureSkipsPerZone(t *testing.T) {
 	resolverCalled := false
 	d := newTestDNSDiag(t, DNSConfig{
 		DNSZones: []string{"company.test"},
 		DirectQuerier: fakeDirectQuerier{
-			lookup: func(context.Context, string, netip.AddrPort) ([]netip.Addr, error) {
+			lookup: func(context.Context, string, string, netip.AddrPort) ([]netip.Addr, error) {
 				return nil, errors.New("connection refused")
 			},
 		},
 		Resolver: fakeResolver{
-			lookup: func(context.Context, string) ([]netip.Addr, error) {
+			lookup: func(context.Context, string, string) ([]netip.Addr, error) {
 				resolverCalled = true
-				return []netip.Addr{testExpectedIP}, nil
+				return []netip.Addr{testExpectedAAAA}, nil
 			},
 		},
 	})
@@ -112,71 +193,116 @@ func TestDNSDiagReachabilityFailureSkipsPerZone(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, diagv1.CheckReportStatus_CHECK_REPORT_STATUS_ISSUES_FOUND, report.Status)
 	dnsReport := report.GetDnsReport()
-	require.False(t, dnsReport.VnetDnsReachable)
-	require.Contains(t, dnsReport.VnetDnsUnreachableError, "connection refused")
-	require.Empty(t, dnsReport.ZoneResults, "per-zone check must be skipped on reachability check failure")
-	require.False(t, resolverCalled, "OS resolver must not be called when VNet DNS is unreachable")
+	require.False(t, dnsReport.Ipv4Reachability.Reachable)
+	require.Contains(t, dnsReport.Ipv4Reachability.Error, "connection refused")
+	require.False(t, dnsReport.Ipv6Reachability.Reachable)
+	require.Contains(t, dnsReport.Ipv6Reachability.Error, "connection refused")
+	require.Empty(t, dnsReport.ZoneResults, "per-zone check must be skipped when no nameserver returned expected IPs")
+	require.False(t, resolverCalled, "OS resolver must not be called when both VNet DNS nameservers are unreachable")
 }
 
-func TestDNSDiagAllZonesOK(t *testing.T) {
+func TestDNSDiagOnlyIPv6Reachable(t *testing.T) {
+	// IPv4 server is unreachable; IPv6 server returns both records. Per-zone
+	// check should still run for both record types using IPv6's response.
 	d := newTestDNSDiag(t, DNSConfig{
-		DNSZones: []string{"company.test", "leaf.mirrors.link"},
+		DNSZones: []string{"company.test"},
 		DirectQuerier: fakeDirectQuerier{
-			lookup: func(context.Context, string, netip.AddrPort) ([]netip.Addr, error) {
-				return []netip.Addr{testExpectedIP}, nil
+			lookup: func(ctx context.Context, network, host string, server netip.AddrPort) ([]netip.Addr, error) {
+				if server != testVNetDNSv6 {
+					return nil, errors.New("network unreachable")
+				}
+				return goodDirectQuerier.lookup(ctx, network, host, server)
 			},
 		},
+		Resolver: goodResolver,
+	})
+
+	report, err := d.Run(t.Context())
+	require.NoError(t, err)
+	dnsReport := report.GetDnsReport()
+	require.False(t, dnsReport.Ipv4Reachability.Reachable)
+	require.True(t, dnsReport.Ipv6Reachability.Reachable)
+	require.Len(t, dnsReport.ZoneResults, 1)
+	zr := dnsReport.ZoneResults[0]
+	require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, zr.ARecord.Status,
+		"A still verified because the IPv6 nameserver returned an expected A")
+	require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, zr.AaaaRecord.Status)
+	// Overall ISSUES_FOUND because IPv4 nameserver was unreachable.
+	require.Equal(t, diagv1.CheckReportStatus_CHECK_REPORT_STATUS_ISSUES_FOUND, report.Status)
+}
+
+func TestDNSDiagOnlyIPv6ServerNoAAnswer(t *testing.T) {
+	// Only the IPv6 nameserver is configured, and it returns AAAA only.
+	d := newTestDNSDiag(t, DNSConfig{
+		VNetDNSIPv6:   testVNetDNSv6,
+		DNSZones:      []string{"company.test"},
+		DirectQuerier: constantDirectQuerier(netip.Addr{}, testExpectedAAAA),
 		Resolver: fakeResolver{
-			lookup: func(_ context.Context, host string) ([]netip.Addr, error) {
-				return []netip.Addr{testExpectedIP}, nil
+			lookup: func(_ context.Context, network, _ string) ([]netip.Addr, error) {
+				if network == "ip4" {
+					t.Fatalf("A lookup must not happen when no expected A was captured")
+				}
+				return []netip.Addr{testExpectedAAAA}, nil
 			},
 		},
 	})
 
 	report, err := d.Run(t.Context())
 	require.NoError(t, err)
-	require.Equal(t, diagv1.CheckReportStatus_CHECK_REPORT_STATUS_OK, report.Status)
 	dnsReport := report.GetDnsReport()
-	require.True(t, dnsReport.VnetDnsReachable)
-	require.Len(t, dnsReport.ZoneResults, 2)
-	for _, zr := range dnsReport.ZoneResults {
-		require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, zr.Status, zr.Zone)
-		require.Equal(t, testExpectedIP.String(), zr.ObservedIp)
-		require.Equal(t, testExpectedIP.String(), zr.ExpectedIp)
-	}
+	require.Nil(t, dnsReport.Ipv4Reachability, "IPv4 reachability must be unset when IPv4 server is not configured")
+	require.NotNil(t, dnsReport.Ipv6Reachability)
+	require.True(t, dnsReport.Ipv6Reachability.Reachable)
+	require.True(t, dnsReport.Ipv6Reachability.RespondedAaaa)
+	require.False(t, dnsReport.Ipv6Reachability.RespondedA, "expected no A response")
+	require.Len(t, dnsReport.ZoneResults, 1)
+	zr := dnsReport.ZoneResults[0]
+	require.Nil(t, zr.ARecord, "A record result must be nil when no expected A was captured")
+	require.NotNil(t, zr.AaaaRecord)
+	require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, zr.AaaaRecord.Status)
 }
 
-func TestDNSDiagPerZoneClassification(t *testing.T) {
+func TestDNSDiagPerRecordTypeClassification(t *testing.T) {
 	notFoundErr := &net.DNSError{Name: "x", IsNotFound: true}
 	timeoutErr := &net.DNSError{Name: "x", IsTimeout: true, Err: "i/o timeout"}
 	unexpectedErr := errors.New("upstream SERVFAIL")
 
+	zones := []string{
+		"ok.test",
+		"a-hijacked.test",
+		"aaaa-hijacked.test",
+		"mixed.test", // A TIMEOUT, AAAA HIJACKED
+		"missing.test",
+		"slow.test",
+		"borked.test",
+	}
+
 	d := newTestDNSDiag(t, DNSConfig{
-		DNSZones: []string{
-			"ok.test", "hijacked.test", "missing.test", "slow.test", "borked.test",
-			"hijacked-ipv4-only.test", "hijacked-extra-addr.test", "hijacked-mixed.test",
-		},
-		DirectQuerier: fakeDirectQuerier{
-			lookup: func(context.Context, string, netip.AddrPort) ([]netip.Addr, error) {
-				return []netip.Addr{testExpectedIP}, nil
-			},
-		},
+		DNSZones:      zones,
+		DirectQuerier: goodDirectQuerier,
 		Resolver: fakeResolver{
-			lookup: func(_ context.Context, host string) ([]netip.Addr, error) {
+			lookup: func(_ context.Context, network, host string) ([]netip.Addr, error) {
 				switch zoneOf(host) {
 				case "ok.test":
-					return []netip.Addr{testExpectedIP}, nil
-				case "hijacked.test":
-					return []netip.Addr{testOtherIP}, nil
-				case "hijacked-ipv4-only.test":
-					// VNet answers AAAA only, so any IPv4 came from a non-VNet resolver.
-					return []netip.Addr{testIPv4Hijack}, nil
-				case "hijacked-extra-addr.test":
-					// VNet returns exactly one address; an extra one means another resolver also answered.
-					return []netip.Addr{testExpectedIP, testOtherIP}, nil
-				case "hijacked-mixed.test":
-					// Exercises the IPv6-preferred surfacing path in the HIJACKED branch.
-					return []netip.Addr{testIPv4Hijack, testOtherIP}, nil
+					if network == "ip4" {
+						return []netip.Addr{testExpectedA}, nil
+					}
+					return []netip.Addr{testExpectedAAAA}, nil
+				case "a-hijacked.test":
+					if network == "ip4" {
+						return []netip.Addr{testHijackA}, nil
+					}
+					return []netip.Addr{testExpectedAAAA}, nil
+				case "aaaa-hijacked.test":
+					if network == "ip4" {
+						return []netip.Addr{testExpectedA}, nil
+					}
+					return []netip.Addr{testHijackAAAA}, nil
+				case "mixed.test":
+					if network == "ip4" {
+						return nil, timeoutErr
+					}
+					return []netip.Addr{testHijackAAAA}, nil
 				case "missing.test":
 					return nil, notFoundErr
 				case "slow.test":
@@ -199,42 +325,36 @@ func TestDNSDiagPerZoneClassification(t *testing.T) {
 		byZone[zr.Zone] = zr
 	}
 
-	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, byZone["ok.test"].Status)
-	assert.Equal(t, testExpectedIP.String(), byZone["ok.test"].ObservedIp)
+	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, byZone["ok.test"].ARecord.Status)
+	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, byZone["ok.test"].AaaaRecord.Status)
 
-	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_HIJACKED, byZone["hijacked.test"].Status)
-	assert.Equal(t, testOtherIP.String(), byZone["hijacked.test"].ObservedIp)
+	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_HIJACKED, byZone["a-hijacked.test"].ARecord.Status)
+	assert.Equal(t, testHijackA.String(), byZone["a-hijacked.test"].ARecord.ObservedIp)
+	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, byZone["a-hijacked.test"].AaaaRecord.Status)
 
-	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_HIJACKED, byZone["hijacked-ipv4-only.test"].Status)
-	assert.Equal(t, testIPv4Hijack.String(), byZone["hijacked-ipv4-only.test"].ObservedIp,
-		"IPv4-only hijack must surface the IPv4 as observed evidence")
+	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, byZone["aaaa-hijacked.test"].ARecord.Status)
+	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_HIJACKED, byZone["aaaa-hijacked.test"].AaaaRecord.Status)
+	assert.Equal(t, testHijackAAAA.String(), byZone["aaaa-hijacked.test"].AaaaRecord.ObservedIp)
 
-	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_HIJACKED, byZone["hijacked-extra-addr.test"].Status,
-		"probe present but with extra addresses must classify as HIJACKED — VNet only ever returns one")
+	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_TIMEOUT, byZone["mixed.test"].ARecord.Status)
+	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_HIJACKED, byZone["mixed.test"].AaaaRecord.Status)
+	assert.Equal(t, testHijackAAAA.String(), byZone["mixed.test"].AaaaRecord.ObservedIp)
 
-	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_HIJACKED, byZone["hijacked-mixed.test"].Status)
-	assert.Equal(t, testOtherIP.String(), byZone["hijacked-mixed.test"].ObservedIp,
-		"with both IPv4 and IPv6 in a HIJACKED response, the IPv6 must be surfaced as it is the more direct evidence")
+	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_NOT_REGISTERED, byZone["missing.test"].ARecord.Status)
+	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_NOT_REGISTERED, byZone["missing.test"].AaaaRecord.Status)
 
-	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_NOT_REGISTERED, byZone["missing.test"].Status)
-	assert.Empty(t, byZone["missing.test"].ObservedIp)
+	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_TIMEOUT, byZone["slow.test"].ARecord.Status)
+	assert.NotEmpty(t, byZone["slow.test"].ARecord.Error)
 
-	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_TIMEOUT, byZone["slow.test"].Status)
-	assert.NotEmpty(t, byZone["slow.test"].Error)
-
-	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_RESOLVER_ERROR, byZone["borked.test"].Status)
-	assert.Contains(t, byZone["borked.test"].Error, "SERVFAIL")
+	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_RESOLVER_ERROR, byZone["borked.test"].ARecord.Status)
+	assert.Contains(t, byZone["borked.test"].ARecord.Error, "SERVFAIL")
 }
 
 func TestDNSDiagEmptyZonesOnlyReachability(t *testing.T) {
 	d := newTestDNSDiag(t, DNSConfig{
-		DirectQuerier: fakeDirectQuerier{
-			lookup: func(context.Context, string, netip.AddrPort) ([]netip.Addr, error) {
-				return []netip.Addr{testExpectedIP}, nil
-			},
-		},
+		DirectQuerier: goodDirectQuerier,
 		Resolver: fakeResolver{
-			lookup: func(context.Context, string) ([]netip.Addr, error) {
+			lookup: func(context.Context, string, string) ([]netip.Addr, error) {
 				t.Fatal("resolver should not be called when there are no zones")
 				return nil, nil
 			},
@@ -244,23 +364,19 @@ func TestDNSDiagEmptyZonesOnlyReachability(t *testing.T) {
 	report, err := d.Run(t.Context())
 	require.NoError(t, err)
 	require.Equal(t, diagv1.CheckReportStatus_CHECK_REPORT_STATUS_OK, report.Status)
-	require.True(t, report.GetDnsReport().VnetDnsReachable)
+	require.True(t, report.GetDnsReport().Ipv4Reachability.Reachable)
+	require.True(t, report.GetDnsReport().Ipv6Reachability.Reachable)
 	require.Empty(t, report.GetDnsReport().ZoneResults)
 }
 
 func TestDNSDiagReachabilityNoAnswer(t *testing.T) {
-	// VNet's DNS server responded but returned no records treated as
-	// unreachable, since per-zone has nothing to compare against.
+	// VNet's DNS server responded but returned no records.
 	d := newTestDNSDiag(t, DNSConfig{
-		DNSZones: []string{"company.test"},
-		DirectQuerier: fakeDirectQuerier{
-			lookup: func(context.Context, string, netip.AddrPort) ([]netip.Addr, error) {
-				return nil, nil
-			},
-		},
+		DNSZones:      []string{"company.test"},
+		DirectQuerier: constantDirectQuerier(netip.Addr{}, netip.Addr{}),
 		Resolver: fakeResolver{
-			lookup: func(context.Context, string) ([]netip.Addr, error) {
-				t.Fatal("per-zone check should be skipped when reachability check returns no answer")
+			lookup: func(context.Context, string, string) ([]netip.Addr, error) {
+				t.Fatal("per-zone check should be skipped when no expected IPs were captured")
 				return nil, nil
 			},
 		},
@@ -269,7 +385,52 @@ func TestDNSDiagReachabilityNoAnswer(t *testing.T) {
 	report, err := d.Run(t.Context())
 	require.NoError(t, err)
 	require.Equal(t, diagv1.CheckReportStatus_CHECK_REPORT_STATUS_ISSUES_FOUND, report.Status)
-	require.False(t, report.GetDnsReport().VnetDnsReachable)
+	require.False(t, report.GetDnsReport().Ipv4Reachability.Reachable)
+	require.Contains(t, report.GetDnsReport().Ipv4Reachability.Error, "server returned no records")
+	require.False(t, report.GetDnsReport().Ipv6Reachability.Reachable)
+	require.Contains(t, report.GetDnsReport().Ipv6Reachability.Error, "server returned no records")
+}
+
+func TestDNSDiagCrossTransportFallback(t *testing.T) {
+	d := newTestDNSDiag(t, DNSConfig{
+		DNSZones: []string{"company.test"},
+		DirectQuerier: fakeDirectQuerier{
+			lookup: func(_ context.Context, network, _ string, server netip.AddrPort) ([]netip.Addr, error) {
+				// IPv6 nameserver returns AAAA only, IPv4 nameserver returns both.
+				if server == testVNetDNSv6 && network == "ip4" {
+					return nil, nil
+				}
+				switch network {
+				case "ip4":
+					return []netip.Addr{testExpectedA}, nil
+				case "ip6":
+					return []netip.Addr{testExpectedAAAA}, nil
+				}
+				return nil, nil
+			},
+		},
+		Resolver: fakeResolver{
+			lookup: func(_ context.Context, network, _ string) ([]netip.Addr, error) {
+				if network == "ip4" {
+					return []netip.Addr{testExpectedA}, nil
+				}
+				return []netip.Addr{testExpectedAAAA}, nil
+			},
+		},
+	})
+
+	report, err := d.Run(t.Context())
+	require.NoError(t, err)
+	dnsReport := report.GetDnsReport()
+	require.True(t, dnsReport.Ipv6Reachability.RespondedAaaa)
+	require.False(t, dnsReport.Ipv6Reachability.RespondedA)
+	require.True(t, dnsReport.Ipv4Reachability.RespondedA)
+	require.True(t, dnsReport.Ipv4Reachability.RespondedAaaa)
+	require.Len(t, dnsReport.ZoneResults, 1)
+	zr := dnsReport.ZoneResults[0]
+	require.NotNil(t, zr.ARecord, "A check must still run using A captured from the IPv4 nameserver")
+	require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, zr.ARecord.Status)
+	require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, zr.AaaaRecord.Status)
 }
 
 func TestDNSDiagProbeFormat(t *testing.T) {
@@ -282,14 +443,14 @@ func TestDNSDiagProbeFormat(t *testing.T) {
 }
 
 func TestDNSDiagEmptyCheckReport(t *testing.T) {
-	d, err := NewDNSDiag(&DNSConfig{VNetDNSServer: testVNetDNS})
+	d, err := NewDNSDiag(&DNSConfig{VNetDNSIPv6: testVNetDNSv6})
 	require.NoError(t, err)
 	r := d.EmptyCheckReport()
 	_, ok := r.Report.(*diagv1.CheckReport_DnsReport)
 	require.True(t, ok, "EmptyCheckReport must return a DnsReport")
 }
 
-func TestNewDNSDiagRequiresVNetDNSServer(t *testing.T) {
+func TestNewDNSDiagRequiresAtLeastOneServer(t *testing.T) {
 	_, err := NewDNSDiag(&DNSConfig{})
 	require.Error(t, err)
 }
@@ -297,24 +458,24 @@ func TestNewDNSDiagRequiresVNetDNSServer(t *testing.T) {
 func TestDNSDiagNotRegisteredRetryRecovers(t *testing.T) {
 	notFoundErr := &net.DNSError{Name: "x", IsNotFound: true}
 
-	var callsPerZone sync.Map
+	type key struct{ zone, network string }
+	var callsPerKey sync.Map
 	d := newTestDNSDiag(t, DNSConfig{
-		DNSZones: []string{"company.test"},
-		DirectQuerier: fakeDirectQuerier{
-			lookup: func(context.Context, string, netip.AddrPort) ([]netip.Addr, error) {
-				return []netip.Addr{testExpectedIP}, nil
-			},
-		},
+		DNSZones:      []string{"company.test"},
+		DirectQuerier: goodDirectQuerier,
 		Resolver: fakeResolver{
-			lookup: func(_ context.Context, host string) ([]netip.Addr, error) {
-				zone := zoneOf(host)
-				n, _ := callsPerZone.LoadOrStore(zone, 0)
+			lookup: func(_ context.Context, network, host string) ([]netip.Addr, error) {
+				k := key{zoneOf(host), network}
+				n, _ := callsPerKey.LoadOrStore(k, 0)
 				count := n.(int) + 1
-				callsPerZone.Store(zone, count)
+				callsPerKey.Store(k, count)
 				if count == 1 {
 					return nil, notFoundErr
 				}
-				return []netip.Addr{testExpectedIP}, nil
+				if network == "ip4" {
+					return []netip.Addr{testExpectedA}, nil
+				}
+				return []netip.Addr{testExpectedAAAA}, nil
 			},
 		},
 	})
@@ -324,10 +485,13 @@ func TestDNSDiagNotRegisteredRetryRecovers(t *testing.T) {
 	require.Equal(t, diagv1.CheckReportStatus_CHECK_REPORT_STATUS_OK, report.Status,
 		"transient NOT_REGISTERED followed by OK on retry must result in overall OK")
 	zr := report.GetDnsReport().ZoneResults[0]
-	require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, zr.Status)
+	require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, zr.ARecord.Status)
+	require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, zr.AaaaRecord.Status)
 
-	calls, _ := callsPerZone.Load("company.test")
-	require.Equal(t, 2, calls, "resolver must be called twice — once for the failed initial lookup and once for the retry")
+	for _, network := range []string{"ip4", "ip6"} {
+		calls, _ := callsPerKey.Load(key{"company.test", network})
+		require.Equal(t, 2, calls, "resolver must be called twice for %s, once for the failed initial lookup and once for the retry", network)
+	}
 }
 
 func TestDNSDiagNotRegisteredRetryPersistentFailure(t *testing.T) {
@@ -335,14 +499,10 @@ func TestDNSDiagNotRegisteredRetryPersistentFailure(t *testing.T) {
 
 	var calls atomic.Int32
 	d := newTestDNSDiag(t, DNSConfig{
-		DNSZones: []string{"company.test"},
-		DirectQuerier: fakeDirectQuerier{
-			lookup: func(context.Context, string, netip.AddrPort) ([]netip.Addr, error) {
-				return []netip.Addr{testExpectedIP}, nil
-			},
-		},
+		DNSZones:      []string{"company.test"},
+		DirectQuerier: goodDirectQuerier,
 		Resolver: fakeResolver{
-			lookup: func(context.Context, string) ([]netip.Addr, error) {
+			lookup: func(context.Context, string, string) ([]netip.Addr, error) {
 				calls.Add(1)
 				return nil, notFoundErr
 			},
@@ -352,49 +512,57 @@ func TestDNSDiagNotRegisteredRetryPersistentFailure(t *testing.T) {
 	report, err := d.Run(t.Context())
 	require.NoError(t, err)
 	zr := report.GetDnsReport().ZoneResults[0]
-	require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_NOT_REGISTERED, zr.Status,
+	require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_NOT_REGISTERED, zr.ARecord.Status,
 		"persistent NOT_REGISTERED must still report NOT_REGISTERED after the retry")
-	require.Equal(t, int32(2), calls.Load(), "resolver must be called exactly twice (initial + one retry)")
+	require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_NOT_REGISTERED, zr.AaaaRecord.Status)
+	require.Equal(t, int32(4), calls.Load(), "resolver must be called exactly 4 times (2 record types × 2 attempts each)")
 }
 
 func TestDNSDiagReachabilityRetryRecoversFromStartupGap(t *testing.T) {
-	var reachabilityCalls atomic.Int32
+	var attempts atomic.Int32
 	d := newTestDNSDiag(t, DNSConfig{
-		DNSZones: []string{"company.test"},
+		VNetDNSIPv6: testVNetDNSv6,
+		DNSZones:    []string{"company.test"},
 		DirectQuerier: fakeDirectQuerier{
-			lookup: func(context.Context, string, netip.AddrPort) ([]netip.Addr, error) {
-				if reachabilityCalls.Add(1) < 3 {
+			lookup: func(_ context.Context, network, _ string, _ netip.AddrPort) ([]netip.Addr, error) {
+				if network != "ip6" {
+					return nil, nil
+				}
+				if attempts.Add(1) < 3 {
 					return nil, &net.DNSError{Name: "x", IsTimeout: true, Err: "i/o timeout"}
 				}
-				return []netip.Addr{testExpectedIP}, nil
+				return []netip.Addr{testExpectedAAAA}, nil
 			},
 		},
 		Resolver: fakeResolver{
-			lookup: func(context.Context, string) ([]netip.Addr, error) {
-				return []netip.Addr{testExpectedIP}, nil
+			lookup: func(context.Context, string, string) ([]netip.Addr, error) {
+				return []netip.Addr{testExpectedAAAA}, nil
 			},
 		},
 	})
 
 	report, err := d.Run(t.Context())
 	require.NoError(t, err)
-	require.True(t, report.GetDnsReport().VnetDnsReachable,
+	require.True(t, report.GetDnsReport().Ipv6Reachability.Reachable,
 		"reachability check must succeed on the third attempt once VNet's DNS comes up")
-	require.Equal(t, int32(3), reachabilityCalls.Load(), "reachability check must be called 3 times (2 failures + 1 success)")
+	require.Equal(t, int32(3), attempts.Load(), "reachability check must be attempted 3 times (2 failures + 1 success)")
 }
 
 func TestDNSDiagReachabilityRetryPersistentFailure(t *testing.T) {
-	var reachabilityCalls atomic.Int32
+	var attempts atomic.Int32
 	d := newTestDNSDiag(t, DNSConfig{
-		DNSZones: []string{"company.test"},
+		VNetDNSIPv6: testVNetDNSv6,
+		DNSZones:    []string{"company.test"},
 		DirectQuerier: fakeDirectQuerier{
-			lookup: func(context.Context, string, netip.AddrPort) ([]netip.Addr, error) {
-				reachabilityCalls.Add(1)
+			lookup: func(_ context.Context, network, _ string, _ netip.AddrPort) ([]netip.Addr, error) {
+				if network == "ip6" {
+					attempts.Add(1)
+				}
 				return nil, &net.DNSError{Name: "x", IsTimeout: true, Err: "i/o timeout"}
 			},
 		},
 		Resolver: fakeResolver{
-			lookup: func(context.Context, string) ([]netip.Addr, error) {
+			lookup: func(context.Context, string, string) ([]netip.Addr, error) {
 				t.Fatal("per-zone check must be skipped when reachability check fails after all retries")
 				return nil, nil
 			},
@@ -404,9 +572,9 @@ func TestDNSDiagReachabilityRetryPersistentFailure(t *testing.T) {
 	report, err := d.Run(t.Context())
 	require.NoError(t, err)
 	dnsReport := report.GetDnsReport()
-	require.False(t, dnsReport.VnetDnsReachable)
-	require.Contains(t, dnsReport.VnetDnsUnreachableError, "i/o timeout")
-	require.Equal(t, int32(defaultReachabilityMaxAttempts), reachabilityCalls.Load(),
+	require.False(t, dnsReport.Ipv6Reachability.Reachable)
+	require.Contains(t, dnsReport.Ipv6Reachability.Error, "i/o timeout")
+	require.Equal(t, int32(defaultReachabilityMaxAttempts), attempts.Load(),
 		"reachability check must be retried up to ReachabilityMaxAttempts before giving up")
 }
 
@@ -416,7 +584,7 @@ func TestDNSDiagNotRegisteredRetryOnlyForNotRegistered(t *testing.T) {
 		respond func() ([]netip.Addr, error)
 	}{
 		{"HIJACKED", func() ([]netip.Addr, error) {
-			return []netip.Addr{testOtherIP}, nil
+			return []netip.Addr{testHijackAAAA}, nil
 		}},
 		{"TIMEOUT", func() ([]netip.Addr, error) {
 			return nil, &net.DNSError{Name: "x", IsTimeout: true}
@@ -425,21 +593,18 @@ func TestDNSDiagNotRegisteredRetryOnlyForNotRegistered(t *testing.T) {
 			return nil, errors.New("upstream SERVFAIL")
 		}},
 		{"OK", func() ([]netip.Addr, error) {
-			return []netip.Addr{testExpectedIP}, nil
+			return []netip.Addr{testExpectedAAAA}, nil
 		}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			var calls atomic.Int32
 			d := newTestDNSDiag(t, DNSConfig{
-				DNSZones: []string{"company.test"},
-				DirectQuerier: fakeDirectQuerier{
-					lookup: func(context.Context, string, netip.AddrPort) ([]netip.Addr, error) {
-						return []netip.Addr{testExpectedIP}, nil
-					},
-				},
+				VNetDNSIPv6:   testVNetDNSv6,
+				DNSZones:      []string{"company.test"},
+				DirectQuerier: constantDirectQuerier(netip.Addr{}, testExpectedAAAA),
 				Resolver: fakeResolver{
-					lookup: func(context.Context, string) ([]netip.Addr, error) {
+					lookup: func(context.Context, string, string) ([]netip.Addr, error) {
 						calls.Add(1)
 						return tc.respond()
 					},
@@ -467,6 +632,30 @@ func TestDNSServerForIPv6Prefix(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.prefix, func(t *testing.T) {
 			got, err := DNSServerForIPv6Prefix(tc.prefix)
+			if tc.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tc.want, got.String())
+		})
+	}
+}
+
+func TestDNSServerForIPv4CIDRRange(t *testing.T) {
+	cases := []struct {
+		cidr    string
+		want    string
+		wantErr bool
+	}{
+		{cidr: "100.64.0.0/24", want: "100.64.0.2:53"},
+		{cidr: "172.16.0.0/16", want: "172.16.0.2:53"},
+		{cidr: "10.0.0.0/8", want: "10.0.0.2:53"},
+		{cidr: "not a cidr", wantErr: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.cidr, func(t *testing.T) {
+			got, err := DNSServerForIPv4CIDRRange(tc.cidr)
 			if tc.wantErr {
 				require.Error(t, err)
 				return
