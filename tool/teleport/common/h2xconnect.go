@@ -51,8 +51,9 @@ import (
 // syscall.Exec does not return; on failure the original process
 // continues without the feature.
 //
-// Track https://github.com/golang/go/issues/71128 for the public API
-// that will replace this shim.
+// Track https://github.com/golang/go/issues/53208 for the public API
+// (net/http HTTP2Config.EnableConnectProtocol) that will replace this
+// shim.
 func init() {
 	const settingKey = "http2xconnect"
 	const defaultValue = settingKey + "=1"
