@@ -271,7 +271,7 @@ func TestFormatUserDisplay_CanonicalForms(t *testing.T) {
 		FormatUserDisplay("", "", "123456"))
 }
 
-// Control-byte stripping (one per class) and whitespace handling.
+// Whitespace handling after terminal controls are stripped.
 func TestFormatUserDisplay_Sanitization(t *testing.T) {
 	t.Parallel()
 
@@ -283,40 +283,16 @@ func TestFormatUserDisplay_Sanitization(t *testing.T) {
 		want      string
 	}{
 		{
-			// Only the ESC byte is a control rune, so "[31m" stays — but
-			// without the ESC the terminal won't read it as a color escape.
-			name:     "ansi CSI escape introducer stripped from primary",
-			primary:  "Jane\x1b[31m",
+			name:     "newline and tab collapsed in primary",
+			primary:  "Jane\n\tAdmin",
 			username: "jgarcia",
-			want:     "Jane[31m (jgarcia)",
+			want:     "Jane Admin (jgarcia)",
 		},
 		{
-			name:     "newline stripped from primary",
-			primary:  "Jane\nAdmin",
-			username: "jgarcia",
-			want:     "JaneAdmin (jgarcia)",
-		},
-		{
-			name:      "carriage return stripped from secondary",
-			secondary: "real\rfake",
+			name:      "newline and tab collapsed in secondary",
+			secondary: "team\n\tlead",
 			username:  "jgarcia",
-			want:      "jgarcia <realfake>",
-		},
-		{
-			name:     "backspace stripped from username",
-			username: "real\bX",
-			want:     "realX",
-		},
-		{
-			name:     "NUL stripped from username",
-			username: "a\x00b",
-			want:     "ab",
-		},
-		{
-			name:     "tab stripped from primary",
-			primary:  "Jane\tGarcia",
-			username: "jgarcia",
-			want:     "JaneGarcia (jgarcia)",
+			want:      "jgarcia <team lead>",
 		},
 		{
 			name:     "surrounding whitespace trimmed",
@@ -330,13 +306,6 @@ func TestFormatUserDisplay_Sanitization(t *testing.T) {
 			username: "jgarcia",
 			want:     "jgarcia",
 		},
-		{
-			name:      "primary of only control bytes treated as absent",
-			primary:   "\x1b\x00",
-			secondary: "team",
-			username:  "jgarcia",
-			want:      "jgarcia <team>",
-		},
 	}
 
 	for _, tt := range tests {
@@ -346,6 +315,51 @@ func TestFormatUserDisplay_Sanitization(t *testing.T) {
 			require.Equal(t, tt.want, got)
 			require.Equal(t, strings.TrimSpace(got), got,
 				"output must have no leading/trailing whitespace: %q", got)
+		})
+	}
+}
+
+func TestStripTerminalControlSequences(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		in   string
+		want string
+	}{
+		{
+			name: "csi",
+			in:   "safe\x1b[31mred\x1b[0m text",
+			want: "safered text",
+		},
+		{
+			name: "osc_bel",
+			in:   "safe\x1b]0;owned title\a text",
+			want: "safe text",
+		},
+		{
+			name: "osc_st",
+			in:   "safe\x1b]8;;https://example.com\x1b\\link\x1b]8;;\x1b\\ text",
+			want: "safelink text",
+		},
+		{
+			name: "unterminated_osc",
+			in:   "safe\x1b]0;owned title",
+			want: "safe",
+		},
+		{
+			name: "raw_c1_csi",
+			in:   "safe\x9b31mred text",
+			want: "safered text",
+		},
+		{
+			name: "utf8_preserved",
+			in:   "safe caf\xc3\xa9\n\ttext",
+			want: "safe caf\xc3\xa9\n\ttext",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := StripTerminalControlSequences(tt.in); got != tt.want {
+				t.Fatalf("StripTerminalControlSequences(%q) = %q, want %q", tt.in, got, tt.want)
+			}
 		})
 	}
 }
