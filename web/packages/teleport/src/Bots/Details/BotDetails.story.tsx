@@ -18,7 +18,7 @@
 
 import { Meta, StoryObj } from '@storybook/react-vite';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter, Route, Routes } from 'react-router';
+import { Route, Routes } from 'react-router';
 
 import Box from 'design/Box';
 
@@ -621,20 +621,21 @@ function Wrapper(props?: {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={['/web/bot/ansible-worker']}>
-        <TeleportProviderBasic teleportCtx={ctx}>
-          <Routes>
-            <Route
-              path={cfg.routes.bot}
-              element={
-                <Box height={820} overflow={'auto'}>
-                  <BotDetails />
-                </Box>
-              }
-            />
-          </Routes>
-        </TeleportProviderBasic>
-      </MemoryRouter>
+      <TeleportProviderBasic
+        teleportCtx={ctx}
+        initialEntries={['/web/bot/ansible-worker']}
+      >
+        <Routes>
+          <Route
+            path={cfg.routes.bot}
+            element={
+              <Box height={820} overflow={'auto'}>
+                <BotDetails />
+              </Box>
+            }
+          />
+        </Routes>
+      </TeleportProviderBasic>
     </QueryClientProvider>
   );
 }

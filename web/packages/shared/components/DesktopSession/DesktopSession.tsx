@@ -43,6 +43,7 @@ import {
   makeSuccessAttempt,
   useAsync,
 } from 'shared/hooks/useAsync';
+import { useLocalStorage } from 'shared/hooks/useLocalStorage';
 import {
   ButtonState,
   ScrollAxis,
@@ -96,6 +97,10 @@ export interface DesktopSessionControlsRenderProps {
   onRemoveAlert(id: string): void;
   isConnected: boolean;
   latencyStats: Latency;
+  hiDpiEnabled: boolean;
+  onToggleHiDpi: VoidFunction;
+  screenIsHiDpi: boolean;
+  hiDpiSupported: boolean;
 }
 
 export function DesktopSession({
@@ -111,7 +116,7 @@ export function DesktopSession({
   const {
     directorySharingState,
     onClipboardData,
-    sendLocalClipboardToRemote,
+    onTransientUserActivation,
     clipboardSharingState,
     clearSharing,
     onShareDirectory,
@@ -121,6 +126,32 @@ export function DesktopSession({
   } = useDesktopSession(client, aclAttempt, browserSupportsSharing);
   const [tdpConnectionStatus, setTdpConnectionStatus] =
     useState<TdpConnectionStatus>({ status: '' });
+  const [hiDpiSettings, setHiDpiSettings] = useLocalStorage<
+    Record<string, boolean>
+  >(
+    'grv_teleport_desktop_hidpi', // manually written here as we cannot import from teleport
+    {}
+  );
+  const isHiDpi = hiDpiSettings[desktop] ?? false;
+  const setIsHiDpi = useCallback(
+    (value: boolean) => {
+      setHiDpiSettings(prev => ({ ...prev, [desktop]: value }));
+    },
+    [desktop, setHiDpiSettings]
+  );
+
+  // Track devicePixelRatio so the HiDPI screen indicator updates
+  // when the window is dragged between displays with different DPRs.
+  const [devicePixelRatio, setDevicePixelRatio] = useState(
+    window.devicePixelRatio
+  );
+  useEffect(() => {
+    const mql = window.matchMedia(`(resolution: ${devicePixelRatio}dppx)`);
+    const onChange = () => setDevicePixelRatio(window.devicePixelRatio);
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, [devicePixelRatio]);
+  const screenIsHiDpi = devicePixelRatio > 1;
 
   const inputHandler = useRef(new InputHandler());
   useEffect(() => {
@@ -257,6 +288,22 @@ export function DesktopSession({
     };
   }, [client, shouldConnect, keyboardLayout]);
 
+  // When the HiDPI toggle changes, send the updated scale to the server.
+  const prevIsHiDpi = useRef(isHiDpi);
+  useEffect(() => {
+    if (prevIsHiDpi.current === isHiDpi) {
+      return;
+    }
+
+    prevIsHiDpi.current = isHiDpi;
+
+    const size = canvasRendererRef.current?.getSize();
+
+    if (size) {
+      client.resize(size);
+    }
+  }, [isHiDpi, client]);
+
   function handleKeyDown(e: React.KeyboardEvent) {
     inputHandler.current.handleInputEvent({
       cli: client,
@@ -272,7 +319,7 @@ export function DesktopSession({
       // Opportunistically sync local clipboard to remote while
       // transient user activation is in effect.
       // https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/readText#security
-      sendLocalClipboardToRemote();
+      onTransientUserActivation();
     }
   }
 
@@ -336,7 +383,7 @@ export function DesktopSession({
     // Opportunistically sync local clipboard to remote while
     // transient user activation is in effect.
     // https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/readText#security
-    sendLocalClipboardToRemote();
+    onTransientUserActivation();
   }
 
   function handleMouseUp(e: React.MouseEvent<HTMLCanvasElement>) {
@@ -400,6 +447,10 @@ export function DesktopSession({
     onRemoveAlert,
     isConnected: screenState.state === 'canvas-visible',
     latencyStats,
+    hiDpiEnabled: isHiDpi,
+    onToggleHiDpi: () => setIsHiDpi(!isHiDpi),
+    screenIsHiDpi,
+    hiDpiSupported: client.hidpiSupported,
   };
   return (
     <Flex
@@ -446,6 +497,7 @@ export function DesktopSession({
         onMouseWheel={handleMouseWheel}
         onContextMenu={handleContextMenu}
         onResize={client.resize}
+        isHiDpi={isHiDpi}
       />
     </Flex>
   );

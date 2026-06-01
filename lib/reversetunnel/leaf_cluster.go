@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -98,7 +98,7 @@ type leafCluster struct {
 	databaseServerWatcher *services.GenericWatcher[types.DatabaseServer, readonly.DatabaseServer]
 
 	// validatedMFAChallengeWatcher is a ValidatedMFAChallenge resource watcher.
-	validatedMFAChallengeWatcher *services.GenericWatcher[*mfav1.ValidatedMFAChallenge, *mfav1.ValidatedMFAChallenge]
+	validatedMFAChallengeWatcher *services.GenericWatcher[*mfav2.ValidatedMFAChallenge, *mfav2.ValidatedMFAChallenge]
 
 	// remoteCA is the last remote certificate authority recorded by the client.
 	// It is used to detect CA rotation status changes. If the rotation
@@ -902,7 +902,7 @@ func (s *leafCluster) dialAndForward(params reversetunnelclient.DialParams) (_ n
 		LocalAuthClient:          s.localClient,
 		TargetClusterAccessPoint: s.leafCache,
 		UserAgent:                userAgent,
-		AgentlessSigner:          params.AgentlessSigner,
+		AgentlessSignerCreator:   params.AgentlessSignerCreator,
 		TargetConn:               targetConn,
 		SrcAddr:                  params.From,
 		DstAddr:                  params.To,
@@ -1182,12 +1182,12 @@ func (s *leafCluster) syncValidatedMFAChallenges(
 		// that have already expired in the root cluster for a certain grace period. This is to prevent potential auth
 		// bypass in the case where a challenge expires while we're attempting to sync it to the leaf cluster, as well
 		// as to account for potential clock skew between the root and leaf clusters.
-		if challenge.GetMetadata().Expiry().Sub(s.clock.Now()) < expiredValidatedMFAChallengeGracePeriod {
+		if challenge.GetMetadata().GetExpires().AsTime().Sub(s.clock.Now()) < expiredValidatedMFAChallengeGracePeriod {
 			log.WarnContext(
 				ctx,
 				"Skipping sync of expired ValidatedMFAChallenge to leaf cluster",
 				"challenge_name", challenge.GetMetadata().GetName(),
-				"expiry_time", challenge.GetMetadata().Expiry(),
+				"expiry_time", challenge.GetMetadata().GetExpires().AsTime(),
 			)
 
 			continue
@@ -1195,15 +1195,15 @@ func (s *leafCluster) syncValidatedMFAChallenges(
 
 		rpcCtx, cancel := context.WithTimeout(ctx, replicateValidatedMFAChallengeTimeout)
 
-		if _, err := s.leafClient.MFAServiceClient().ReplicateValidatedMFAChallenge(
+		if _, err := s.leafClient.MFAServiceClientV2().ReplicateValidatedMFAChallenge(
 			rpcCtx,
-			&mfav1.ReplicateValidatedMFAChallengeRequest{
+			mfav2.ReplicateValidatedMFAChallengeRequest_builder{
 				Name:          challenge.GetMetadata().GetName(),
 				Payload:       challenge.GetSpec().GetPayload(),
 				SourceCluster: challenge.GetSpec().GetSourceCluster(),
 				TargetCluster: challenge.GetSpec().GetTargetCluster(),
 				Username:      challenge.GetSpec().GetUsername(),
-			},
+			}.Build(),
 		); err != nil && !trace.IsAlreadyExists(err) {
 			log.ErrorContext(
 				ctx,
@@ -1227,9 +1227,9 @@ func (s *leafCluster) syncValidatedMFAChallenges(
 	return failed
 }
 
-type validatedMFAChallengeSet map[string]*mfav1.ValidatedMFAChallenge
+type validatedMFAChallengeSet map[string]*mfav2.ValidatedMFAChallenge
 
-func newValidatedMFAChallengeSet(challenges ...*mfav1.ValidatedMFAChallenge) validatedMFAChallengeSet {
+func newValidatedMFAChallengeSet(challenges ...*mfav2.ValidatedMFAChallenge) validatedMFAChallengeSet {
 	set := make(validatedMFAChallengeSet, len(challenges))
 
 	set.add(challenges...)
@@ -1237,7 +1237,7 @@ func newValidatedMFAChallengeSet(challenges ...*mfav1.ValidatedMFAChallenge) val
 	return set
 }
 
-func (s validatedMFAChallengeSet) add(challenges ...*mfav1.ValidatedMFAChallenge) {
+func (s validatedMFAChallengeSet) add(challenges ...*mfav2.ValidatedMFAChallenge) {
 	for _, chal := range challenges {
 		s[chal.GetMetadata().GetName()] = chal
 	}

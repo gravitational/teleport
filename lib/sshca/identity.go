@@ -179,6 +179,18 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 		return nil, trace.BadParameter("cannot encode ssh identity missing required field CertType")
 	}
 
+	// Agent scope pins encode role and scope exclusively via the ScopePin field.
+	// Mixing in the legacy SystemRole or AgentScope fields would allow outdated
+	// infrastructure to misinterpret a scoped-agent cert as an unscoped one.
+	if i.ScopePin.GetKind() == scopesv1.PinKind_PIN_KIND_AGENT {
+		if i.SystemRole != "" {
+			return nil, trace.BadParameter("cannot encode ssh certificate for agent scope pin with SystemRole set; encode roles via ScopePin.SystemRoles")
+		}
+		if i.AgentScope != "" {
+			return nil, trace.BadParameter("cannot encode ssh certificate for agent scope pin with AgentScope set; encode scope via ScopePin.Scope")
+		}
+	}
+
 	cert := &ssh.Certificate{
 		// we have to use key id to identify teleport user
 		KeyId:           i.Username,
@@ -215,11 +227,20 @@ func (i *Identity) Encode(certFormat string) (*ssh.Certificate, error) {
 	// --- user extensions ---
 
 	if i.ScopePin != nil {
-		pin, err := pinning.Encode(i.ScopePin)
+		encoded, err := pinning.Encode(i.ScopePin)
 		if err != nil {
-			return nil, trace.Errorf("failed to marshal scope pin for ssh cert encoding: %w", err)
+			return nil, trace.Errorf("failed to encode scope pin for ssh cert: %w", err)
 		}
-		cert.Permissions.Extensions[teleport.CertExtensionScopePin] = pin
+		var ext string
+		switch i.ScopePin.GetKind() {
+		case scopesv1.PinKind_PIN_KIND_USER:
+			ext = teleport.CertExtensionScopePin
+		case scopesv1.PinKind_PIN_KIND_AGENT:
+			ext = teleport.CertExtensionAgentScopePin
+		default:
+			return nil, trace.BadParameter("cannot encode scope pin with unknown or unspecified kind %v", i.ScopePin.GetKind())
+		}
+		cert.Permissions.Extensions[ext] = encoded
 	}
 
 	if i.PermitX11Forwarding {
@@ -465,6 +486,19 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 		if err != nil {
 			return nil, trace.BadParameter("failed to decode value %q for extension %q as scope pin: %v", v, teleport.CertExtensionScopePin, err)
 		}
+		// Certs issued before PinKind was introduced will have UNSPECIFIED here.
+		// Pins decoded from the user OID are always user pins.
+		if pin.Kind == scopesv1.PinKind_PIN_KIND_UNSPECIFIED {
+			pin.Kind = scopesv1.PinKind_PIN_KIND_USER
+		}
+		ident.ScopePin = pin
+	}
+
+	if v, ok := takeExtension(teleport.CertExtensionAgentScopePin); ok {
+		pin, err := pinning.Decode(v)
+		if err != nil {
+			return nil, trace.BadParameter("failed to decode value %q for extension %q as agent scope pin: %v", v, teleport.CertExtensionAgentScopePin, err)
+		}
 		ident.ScopePin = pin
 	}
 
@@ -531,12 +565,19 @@ func DecodeIdentity(cert *ssh.Certificate) (*Identity, error) {
 		allowedResourceAccessIDs = resourceAccessIDs
 	}
 	if len(allowedResourceAccessIDs) > 0 {
-		// Prefer new extension when present, old extension is redundant
-		// (exists for backward-compat with older agents/proxies).
+		// Prefer new extension when present.
 		ident.AllowedResourceAccessIDs = allowedResourceAccessIDs
+		// Populate AllowedResourceIDs with any present unconstrained resources,
+		// so any path re-encoding this identity persists the resourceIDs
+		// to the legacy extension instead of adding a sentinel.
+		//
+		// TODO(kiosion): DELETE in 20.0.0
+		ident.AllowedResourceIDs, _ = types.UnwrapResourceAccessIDs(allowedResourceAccessIDs)
 	} else if len(allowedResourceIDs) > 0 {
-		// Fallback for certs from older auth servers that don't write the new extension.
+		// Fallback for certs from older Auths that don't write the new extension.
 		ident.AllowedResourceAccessIDs = types.CombineAsResourceAccessIDs(allowedResourceIDs, nil)
+		//nolint:staticcheck // TODO(kiosion): deprecated, to be removed in v20
+		ident.AllowedResourceIDs = allowedResourceIDs
 	}
 
 	ident.ConnectionDiagnosticID = takeValue(teleport.CertExtensionConnectionDiagnosticID)

@@ -233,6 +233,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 		ScopedRoleReader: accessPoint.ScopedRoleReader(),
 		LockWatcher:      lockWatcher,
 		Logger:           process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentKube, process.id)),
+		ScopesFeatures:   process.scopesFeatures,
 	})
 	if err != nil {
 		return trace.Wrap(err)

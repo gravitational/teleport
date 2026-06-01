@@ -222,12 +222,13 @@ func (s *sessionHandler) onClientNotification(serverRequestWriter mcputils.Messa
 
 func (s *sessionHandler) onClientRequest(clientResponseWriter, serverRequestWriter mcputils.MessageWriter) mcputils.HandleRequestFunc {
 	return func(ctx context.Context, request *mcputils.JSONRPCRequest) error {
-		msg, authErr := s.processClientRequest(ctx, request)
-		s.emitRequestEvent(ctx, request, eventWithError(authErr))
-		if authErr != nil {
-			return trace.Wrap(clientResponseWriter.WriteMessage(ctx, msg))
+		if errMsg := s.processClientRequest(ctx, request); errMsg != nil {
+			// Respond immediately
+			s.emitRequestEvent(ctx, request, eventWithError(toError(*errMsg)))
+			return trace.Wrap(clientResponseWriter.WriteMessage(ctx, *errMsg))
 		}
-		return trace.Wrap(serverRequestWriter.WriteMessage(ctx, msg))
+		s.emitRequestEvent(ctx, request)
+		return trace.Wrap(serverRequestWriter.WriteMessage(ctx, request))
 	}
 }
 
@@ -248,20 +249,25 @@ func (s *sessionHandler) onServerResponse(clientResponseWriter mcputils.MessageW
 	}
 }
 
-func (s *sessionHandler) processClientRequest(ctx context.Context, req *mcputils.JSONRPCRequest) (mcp.JSONRPCMessage, error) {
+func (s *sessionHandler) processClientRequest(ctx context.Context, req *mcputils.JSONRPCRequest) *mcp.JSONRPCError {
 	messagesFromClient.WithLabelValues(s.transport, "request", reportRequestMethod(req.Method)).Inc()
+
+	switch req.Method {
+	case mcputils.MethodToolsCall:
+		toolName, _ := req.Params.GetName()
+		if toolName == "" {
+			return makeInvalidRequestResponse(req, errInvalidRequestMissingName)
+		}
+		if authErr := s.checkAccessToTool(ctx, toolName); authErr != nil {
+			return makeToolAccessDeniedResponse(req, authErr)
+		}
+	}
 
 	// TODO(greedy52) add checks to ensure that the initialize request is the
 	// first request coming in (with the exception of the ping).
 	s.idTracker.PushRequest(req)
-	switch req.Method {
-	case mcputils.MethodToolsCall:
-		methodName, _ := req.Params.GetName()
-		if authErr := s.checkAccessToTool(ctx, methodName); authErr != nil {
-			return makeToolAccessDeniedResponse(req, authErr), trace.Wrap(authErr)
-		}
-	}
-	return req, nil
+
+	return nil
 }
 
 func (s *sessionHandler) processClientNotification(ctx context.Context, notification *mcputils.JSONRPCNotification) {
@@ -331,11 +337,36 @@ func (s *sessionHandler) rewriteHTTPRequestHeaders(r *http.Request) error {
 	return nil
 }
 
-func makeToolAccessDeniedResponse(msg *mcputils.JSONRPCRequest, authErr error) mcp.JSONRPCMessage {
-	return mcp.NewJSONRPCError(
-		msg.ID,
+var errInvalidRequestMissingName = &trace.BadParameterError{Message: `"name" parameter missing`}
+
+func makeInvalidRequestResponse(req *mcputils.JSONRPCRequest, err error) *mcp.JSONRPCError {
+	r := mcp.NewJSONRPCError(
+		req.ID,
+		mcp.INVALID_REQUEST,
+		"Teleport did not forward an invalid Request object.",
+		err,
+	)
+	return &r
+}
+
+func makeToolAccessDeniedResponse(req *mcputils.JSONRPCRequest, authErr error) *mcp.JSONRPCError {
+	r := mcp.NewJSONRPCError(
+		req.ID,
 		mcp.INVALID_PARAMS,
 		"RBAC is enforced by your Teleport roles. Contact your Teleport Admin for more details.",
 		authErr,
 	)
+	return &r
+}
+
+func toError(e mcp.JSONRPCError) error {
+	// If the data holds an underlying error, replace the message with that, before
+	// constructing the final error. In that case the Message should be a high-level
+	// user-facing error. Otherwise fall back to the original message.
+	if e.Error.Data != nil {
+		if dataErr, ok := e.Error.Data.(error); ok {
+			e.Error.Message = dataErr.Error()
+		}
+	}
+	return e.Error.AsError()
 }

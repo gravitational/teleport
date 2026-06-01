@@ -894,6 +894,9 @@ func (c *UnifiedResourceCache) processEventsAndUpdateCurrent(ctx context.Context
 		case types.OpDelete:
 			switch event.Resource.GetKind() {
 			case types.KindIdentityCenterAccount:
+				// IdentityCenterAccountToAppServer stores the entry under
+				// KindAppServer with the IC account's name; rebuild that
+				// header so the delete matches the cache key.
 				c.deleteLocked(&types.ResourceHeader{
 					Kind: types.KindAppServer,
 					Metadata: types.Metadata{

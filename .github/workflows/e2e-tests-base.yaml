@@ -274,15 +274,6 @@ jobs:
         env:
           E2E_DIR: ${{ github.workspace }}/${{ inputs.e2e-dir }}
 
-      - name: Upload PR comment
-        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: pr-comment
-          path: ${{ inputs.e2e-dir }}/test-results/pr-comment.md
-          if-no-files-found: ignore
-          retention-days: 1
-
       - name: Upload Playwright report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7

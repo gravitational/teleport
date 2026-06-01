@@ -24,7 +24,7 @@ EOF
 RUN cat <<EOF > /tmp/fix-yum-repo-list.sh
 #!/bin/sh
 sed -e 's/mirror.centos.org/vault.centos.org/g' \
-    -e 's/^#.*baseurl=http/baseurl=http/g' \
+    -e 's/^#.*baseurl=http/baseurl=https/g' \
     -e 's/^mirrorlist=http/#mirrorlist=http/g' \
     -i /etc/yum.repos.d/*.repo
 if [ "$(uname -m)" = 'aarch64' ]; then

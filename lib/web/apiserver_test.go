@@ -140,6 +140,7 @@ import (
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -1379,7 +1380,7 @@ func TestUnifiedResourcesGet_AppComponentFeatures(t *testing.T) {
 	{
 		for srv := range clientutils.Resources(ctx, env.server.Auth().ListProxyServers) {
 			srv.SetComponentFeatures(componentfeatures.New(feature1))
-			err := env.server.Auth().UpsertProxy(ctx, srv)
+			_, err := env.server.Auth().UpsertProxyServer(ctx, srv)
 			require.NoError(t, err)
 		}
 	}
@@ -1735,6 +1736,83 @@ func TestUnifiedResourcesGet(t *testing.T) {
 
 		require.ElementsMatch(t, appRes.Items, expected)
 	})
+}
+
+// TestUnifiedResourcesGet_DesktopLoginFiltering verifies that the logins
+// returned for Windows/Linux Desktop resources in the unified resources endpoint
+// only include logins from the user's currently-granted roles, not logins
+// from roles reachable via search_as_roles when includedResourceMode=all.
+func TestUnifiedResourcesGet_DesktopLoginFiltering(t *testing.T) {
+	t.Parallel()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+
+	const username = "desktop-login-test@example.com"
+
+	// requestableRole has desktop logins the user can only get via access request.
+	requestableRole, err := types.NewRole("emg-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			WindowsDesktopLabels: types.Labels{types.Wildcard: {types.Wildcard}},
+			WindowsDesktopLogins: []string{"requestable-login"},
+		},
+	})
+	require.NoError(t, err)
+
+	// assignedRole is the user's default role with search_as_roles pointing
+	// at requestableRole so the user can discover resources for access requests.
+	assignedRole, err := types.NewRole("assigned-role", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			// Give wildcard node/desktop access so the resource is visible.
+			NodeLabels:           types.Labels{types.Wildcard: {types.Wildcard}},
+			WindowsDesktopLabels: types.Labels{types.Wildcard: {types.Wildcard}},
+			WindowsDesktopLogins: []string{"granted-login"},
+			Logins:               []string{"granted-login"},
+			Request: &types.AccessRequestConditions{
+				Roles:         []string{requestableRole.GetName()},
+				SearchAsRoles: []string{requestableRole.GetName()},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = env.server.Auth().UpsertRole(context.Background(), requestableRole)
+	require.NoError(t, err)
+
+	pack := proxy.authPack(t, username, []types.Role{assignedRole})
+
+	// Create a Windows Desktop resource.
+	desktop, err := types.NewWindowsDesktopV3("test-desktop", nil, types.WindowsDesktopSpecV3{
+		Addr:   "1.2.3.4:3389",
+		HostID: "host-1",
+	})
+	require.NoError(t, err)
+	require.NoError(t, env.server.Auth().UpsertWindowsDesktop(context.Background(), desktop))
+
+	clusterName := env.server.ClusterName()
+	endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "resources")
+
+	type desktopResponse struct {
+		Items []webui.Desktop `json:"items"`
+	}
+
+	// Fetch with includedResourceMode=all, which enables IncludeRequestable on
+	// the backend and causes the auth layer to use search_as_roles when
+	// computing logins.
+	query := url.Values{
+		"kinds":                []string{types.KindWindowsDesktop},
+		"includedResourceMode": []string{"all"},
+	}
+	re, err := pack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+
+	var resp desktopResponse
+	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+	require.Len(t, resp.Items, 1, "expected exactly one desktop")
+
+	// The logins present should only be ones the user currently can access,
+	// not ones from requestable roles.
+	require.ElementsMatch(t, []string{"granted-login"}, resp.Items[0].Logins,
+		"desktop logins should only contain granted logins, not requestable ones")
 }
 
 type clusterAlertsGetResponse struct {
@@ -3421,6 +3499,37 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 	})
 }
 
+func TestInstallerScriptRenderedWithTextTemplate(t *testing.T) {
+	t.Parallel()
+	s := newWebSuite(t)
+	wc := s.client(t)
+
+	require.NoError(t, s.server.Auth().SetInstaller(
+		s.ctx,
+		types.MustNewInstallerV1("custom", `{{ .AzureClientID }}`),
+	))
+
+	const azureClientID = `abc&<>'";$(touch /tmp/pwn)`
+
+	re, err := wc.Get(
+		s.ctx,
+		wc.Endpoint("webapi", "scripts", "installer", "custom"),
+		url.Values{"azure-client-id": []string{azureClientID}},
+	)
+	require.NoError(t, err)
+
+	response := string(re.Bytes())
+
+	require.Equal(t, `abc\&\<\>\'\"\;\$\(touch\ /tmp/pwn\)`, response)
+
+	// Assert that HTML escaping did not occur.
+	require.NotContains(t, response, "&amp;")
+	require.NotContains(t, response, "&lt;")
+	require.NotContains(t, response, "&gt;")
+	require.NotContains(t, response, "&#39;")
+	require.NotContains(t, response, "&#34;")
+}
+
 func TestMultipleConnectors(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)
@@ -5095,6 +5204,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 				string(entitlements.AccessLists):                {Enabled: false},
 				string(entitlements.AccessMonitoring):           {Enabled: false},
 				string(entitlements.AccessRequests):             {Enabled: false},
+				string(entitlements.ActivityCenter):             {Enabled: false},
 				string(entitlements.App):                        {Enabled: true},
 				string(entitlements.Beams):                      {Enabled: false},
 				string(entitlements.ClientIPRestrictions):       {Enabled: false},
@@ -5116,6 +5226,7 @@ func TestGetWebConfig_WithEntitlements(t *testing.T) {
 				string(entitlements.Policy):                     {Enabled: false},
 				string(entitlements.SAML):                       {Enabled: false},
 				string(entitlements.SessionLocks):               {Enabled: false},
+				string(entitlements.SessionSummaries):           {Enabled: false},
 				string(entitlements.UpsellAlert):                {Enabled: false},
 				string(entitlements.UsageReporting):             {Enabled: false},
 				string(entitlements.UnrestrictedManagedUpdates): {Enabled: false},
@@ -8679,6 +8790,7 @@ type WebPackOptions struct {
 	enableAuthCache bool
 	modules         *modulestest.Modules
 	insecureMode    bool
+	scopesFeatures  scopes.Features
 }
 
 type webPackOptions func(*WebPackOptions)
@@ -8707,6 +8819,12 @@ func withInsecureMode() webPackOptions {
 	}
 }
 
+func withScopesFeatures(scopesFeatures scopes.Features) webPackOptions {
+	return func(cfg *WebPackOptions) {
+		cfg.scopesFeatures = scopesFeatures
+	}
+}
+
 func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 	options := &WebPackOptions{}
 
@@ -8723,13 +8841,14 @@ func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 
 	server, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			ClusterName:  "localhost",
-			Dir:          t.TempDir(),
-			Clock:        clock,
-			AuditLog:     events.NewDiscardAuditLog(),
-			CacheEnabled: options.enableAuthCache,
-			InsecureMode: options.insecureMode,
-			Modules:      options.modules,
+			ClusterName:    "localhost",
+			Dir:            t.TempDir(),
+			Clock:          clock,
+			AuditLog:       events.NewDiscardAuditLog(),
+			CacheEnabled:   options.enableAuthCache,
+			InsecureMode:   options.insecureMode,
+			Modules:        options.modules,
+			ScopesFeatures: options.scopesFeatures,
 		},
 	})
 	require.NoError(t, err)
@@ -8844,7 +8963,7 @@ func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 	var proxies []*testProxy
 	for p := range numProxies {
 		proxyID := fmt.Sprintf("proxy%v", p)
-		proxies = append(proxies, createProxy(ctx, t, proxyID, node, server.TLS, hostSigners, clock, options.modules, options.insecureMode, options.proxyOptions...))
+		proxies = append(proxies, createProxy(ctx, t, proxyID, node, server.TLS, hostSigners, clock, options.modules, options.insecureMode, options.scopesFeatures, options.proxyOptions...))
 	}
 
 	// Wait for proxies to fully register before starting the test.
@@ -8900,7 +9019,7 @@ func withKubeProxy() proxyOption {
 }
 
 func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regular.Server, authServer *authtest.TLSServer,
-	hostSigners []ssh.Signer, clock *clockwork.FakeClock, m *modulestest.Modules, insecureMode bool, opts ...proxyOption,
+	hostSigners []ssh.Signer, clock *clockwork.FakeClock, m *modulestest.Modules, insecureMode bool, scopesFeatures scopes.Features, opts ...proxyOption,
 ) *testProxy {
 	t.Helper()
 	cfg := proxyConfig{}
@@ -9128,15 +9247,12 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		FIPS:   false,
 		Logger: logtest.NewLogger(),
 		Dialer: router,
-		SignerFn: func(authzCtx *authz.ScopedContext, clusterName string) agentless.SignerCreator {
+		SignerFn: func(_ context.Context, authzCtx *authz.ScopedContext, clusterName string) (agentless.SignerCreator, error) {
 			if unscopedCtx, ok := authzCtx.UnscopedContext(); ok {
-				return agentless.SignerFromAuthzContext(unscopedCtx, client, clusterName)
+				return agentless.SignerFromAuthzContext(unscopedCtx, client, client, clusterName), nil
 			}
 
-			return func(ctx context.Context, localAccessPoint agentless.LocalAccessPoint, certGen agentless.CertGenerator) (ssh.Signer, error) {
-				// TODO(fspamarshall/scopes): implement agentless transport signer for scoped identities
-				return nil, trace.NotImplemented("agentless transport signer is not implemented for scoped identities")
-			}
+			return agentless.SignerFromScopedContext(authzCtx, client, client, clusterName), nil
 		},
 		ConnectionMonitor: connMonitor,
 		LocalAddr:         proxyListener.Addr(),
@@ -9183,6 +9299,10 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 	proxyClientCert, err := keys.X509KeyPair(proxyIdentity.TLSCertBytes, proxyIdentity.KeyBytes)
 	require.NoError(t, err)
+
+	handlerCfg := servicecfg.MakeDefaultConfig()
+	handlerCfg.ScopesFeatures = scopesFeatures
+
 	handler, err := NewHandler(Config{
 		Proxy:            revTunServer,
 		AuthServers:      utils.FromAddr(authServer.Addr()),
@@ -9194,7 +9314,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		HostUUID:         proxyID,
 		Emitter:          client,
 		ProxySettings: &ProxySettings{
-			ServiceConfig: servicecfg.MakeDefaultConfig(),
+			ServiceConfig: handlerCfg,
 			ProxySSHAddr:  "127.0.0.1",
 			AccessPoint:   client,
 		},

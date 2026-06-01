@@ -104,6 +104,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils/diagnostics/latency"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/mlock"
+	"github.com/gravitational/teleport/lib/utils/parse"
 	stacksignal "github.com/gravitational/teleport/lib/utils/signal"
 	"github.com/gravitational/teleport/session/networking/x11"
 	"github.com/gravitational/teleport/session/shell"
@@ -1989,6 +1990,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onHeadlessApprove(&cf)
 	case workloadIdentityCmd.issueX509.FullCommand():
 		err = workloadIdentityCmd.issueX509.run(&cf)
+	case workloadIdentityCmd.issueJWT.FullCommand():
+		err = workloadIdentityCmd.issueJWT.run(&cf)
 	case vnetCommand.FullCommand():
 		err = vnetCommand.run(&cf)
 	case vnetSSHAutoConfigCommand.FullCommand():
@@ -4459,7 +4462,7 @@ func onResolve(cf *CLIConf) error {
 	// on the hostname of the server. Otherwise, this would end up listing
 	// the first two servers that the user has access to and yield unexpected results.
 	if len(tc.Labels) == 0 && len(tc.SearchKeywords) == 0 && tc.PredicateExpression == "" {
-		req.PredicateExpression = fmt.Sprintf(`name == "%s"`, tc.Host)
+		req.PredicateExpression = fmt.Sprintf(`name == %q`, tc.Host)
 	}
 
 	// Only enable the re-authentication behavior if not invoked with `-q`. When
@@ -4890,7 +4893,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		}
 		// see if remote host is specified as a set of labels
 		if strings.Contains(hostUser, "=") {
-			labels, err = client.ParseLabelSpec(hostUser)
+			labels, err = parse.LabelSelectorSpec(hostUser)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -4917,7 +4920,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 
 	// explicitly passed --labels overrides user@labels positional arg form.
 	if cf.Labels != "" {
-		labels, err = client.ParseLabelSpec(cf.Labels)
+		labels, err = parse.LabelSelectorSpec(cf.Labels)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

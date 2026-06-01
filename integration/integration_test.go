@@ -2280,7 +2280,7 @@ func testInvalidLogins(t *testing.T, suite *integrationTestSuite) {
 	require.NoError(t, err)
 
 	err = tc.SSH(t.Context(), cmd)
-	require.ErrorContains(t, err, "failed connecting to host localhost: looking up remote cluster \"wrong-site\"\n\tnot found")
+	require.ErrorContains(t, err, "failed connecting to host localhost: setting up SSH credentials for cluster \"wrong-site\"")
 }
 
 // TestTwoClustersTunnel creates two teleport clusters: "a" and "b" and creates a
@@ -8962,16 +8962,37 @@ func TestConnectivityDuringAuthRestart(t *testing.T) {
 	ctx := t.Context()
 
 	errChan := make(chan error, 1)
+	waitForOutput := func(t *testing.T, pattern string) {
+		t.Helper()
+
+		outputErr := make(chan error, 1)
+		go func() {
+			outputErr <- waitForTerminalOutput(t.Context(), term, regexp.QuoteMeta(pattern))
+		}()
+
+		select {
+		case err := <-outputErr:
+			require.NoError(t, err)
+		case err := <-errChan:
+			t.Fatalf("Session ended while waiting for output matching %q; err: %v", pattern, err)
+		}
+	}
 	go func() {
-		errChan <- cli.SSH(ctx, nil)
+		// Print a ready marker before switching to a simple stdin/stdout loop so
+		// the test waits for an established session instead of racing shell startup.
+		errChan <- cli.SSH(ctx, []string{
+			`sh -c 'echo __READY__;
+			 while IFS= read -r line; do
+			   printf "%s\n" "$line";
+				 [ "$line" = "__EXIT__" ] && exit 0;
+			 done'`,
+		})
 	}()
+	waitForOutput(t, "__READY__")
 
 	// validate that the session is active
-	term.Type("echo txlxport100 | sed 's/x/e/g'\n\r")
-	require.Eventually(t, func() bool {
-		idx := strings.Index(term.AllOutput(), "teleport100")
-		return idx != -1
-	}, 3*time.Second, 100*time.Millisecond, "session output never received")
+	term.Type("teleport100\n\r")
+	waitForOutput(t, "teleport100")
 
 	// restart the auth service a few times
 	authRestartChan := make(chan error, 3)
@@ -8987,11 +9008,9 @@ func TestConnectivityDuringAuthRestart(t *testing.T) {
 		restartCount int
 	)
 	for i := 0; !terminate; i++ {
-		term.Type(fmt.Sprintf("echo txlxport%d | sed 's/x/e/g'\n\r", i+10))
-		require.Eventually(t, func() bool {
-			idx := strings.Index(term.AllOutput(), fmt.Sprintf("teleport%d", i+10))
-			return idx != -1
-		}, 3*time.Second, 100*time.Millisecond, "session output never received")
+		val := "teleport" + strconv.Itoa(i+10)
+		term.Type(val + "\n\r")
+		waitForOutput(t, val)
 
 		select {
 		case err := <-authRestartChan:
@@ -9005,7 +9024,7 @@ func TestConnectivityDuringAuthRestart(t *testing.T) {
 	}
 
 	// terminate the session
-	term.Type("exit\n\r")
+	term.Type("__EXIT__\n\r")
 	require.NoError(t, <-errChan)
 }
 

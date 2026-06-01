@@ -835,7 +835,7 @@ func TestDiscoveryServer(t *testing.T) {
 				t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
 
 				if tc.requiresProxy {
-					err = testAuthServer.AuthServer.UpsertProxy(ctx, &types.ServerV2{
+					_, err = testAuthServer.AuthServer.UpsertProxyServer(ctx, &types.ServerV2{
 						Kind: types.KindProxy,
 						Metadata: types.Metadata{
 							Name: "proxy",
@@ -1147,6 +1147,72 @@ func TestDiscoveryServer_dynamicMatcherRestart(t *testing.T) {
 
 		server.dynamicDiscoveryConfigMu.RLock()
 		require.Len(t, server.dynamicDiscoveryConfig, 2)
+		server.dynamicDiscoveryConfigMu.RUnlock()
+	})
+}
+
+// TestDiscoveryServer_dynamicMatcherGroupReassign covers the OpPut branch
+// where a tracked DiscoveryConfig is reassigned to a non-matching group.
+func TestDiscoveryServer_dynamicMatcherGroupReassign(t *testing.T) {
+	const localGroup = "dg-local"
+	const otherGroup = "dg-other"
+
+	synctest.Test(t, func(t *testing.T) {
+		backend, err := memory.New(memory.Config{})
+		require.NoError(t, err)
+
+		mockAuthServer := &mockAuthServer{events: local.NewEventsService(backend)}
+		mockAccessPoint := &fakeAccessPointWithWatcher{mockAuthServer: mockAuthServer}
+
+		server, err := New(t.Context(), &Config{
+			ClusterFeatures: func() proto.Features { return proto.Features{} },
+			AccessPoint:     mockAccessPoint,
+			Matchers:        Matchers{},
+			Emitter:         &mockEmitter{},
+			Log:             logtest.NewLogger(),
+			DiscoveryGroup:  localGroup,
+		})
+		require.NoError(t, err)
+		err = server.Start()
+		require.NoError(t, err)
+		t.Cleanup(server.Stop)
+
+		synctest.Wait()
+
+		dc, err := discoveryconfig.NewDiscoveryConfig(
+			header.Metadata{Name: "dc-reassign"},
+			discoveryconfig.Spec{DiscoveryGroup: localGroup},
+		)
+		require.NoError(t, err)
+		go mockAccessPoint.createDiscoveryConfig(dc)
+		synctest.Wait()
+
+		server.dynamicDiscoveryConfigMu.RLock()
+		require.Len(t, server.dynamicDiscoveryConfig, 1)
+		server.dynamicDiscoveryConfigMu.RUnlock()
+
+		reassigned, err := discoveryconfig.NewDiscoveryConfig(
+			header.Metadata{Name: "dc-reassign"},
+			discoveryconfig.Spec{DiscoveryGroup: otherGroup},
+		)
+		require.NoError(t, err)
+		go mockAccessPoint.createDiscoveryConfig(reassigned)
+		synctest.Wait()
+
+		server.dynamicDiscoveryConfigMu.RLock()
+		require.Empty(t, server.dynamicDiscoveryConfig)
+		server.dynamicDiscoveryConfigMu.RUnlock()
+
+		next, err := discoveryconfig.NewDiscoveryConfig(
+			header.Metadata{Name: "dc-next"},
+			discoveryconfig.Spec{DiscoveryGroup: localGroup},
+		)
+		require.NoError(t, err)
+		go mockAccessPoint.createDiscoveryConfig(next)
+		synctest.Wait()
+
+		server.dynamicDiscoveryConfigMu.RLock()
+		require.Contains(t, server.dynamicDiscoveryConfig, "dc-next")
 		server.dynamicDiscoveryConfigMu.RUnlock()
 	})
 }
@@ -2158,6 +2224,10 @@ func (m *mockFetchersClients) GetAWSSTSPresignClient(aws.Config) fetchers.STSPre
 	return nil
 }
 
+func (m *mockFetchersClients) GetAWSIAMClient(aws.Config) fetchers.IAMClient {
+	return nil
+}
+
 var eksMockClusters = []*ekstypes.Cluster{
 	{
 		Name:   aws.String("eks-cluster1"),
@@ -2768,7 +2838,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 					PublicAddrs: []string{"teleport.example.com"},
 				})
 				require.NoError(t, err)
-				err = tlsServer.Auth().UpsertProxy(ctx, proxy)
+				_, err = tlsServer.Auth().UpsertProxyServer(ctx, proxy)
 				require.NoError(t, err)
 
 				_, err = tlsServer.Auth().CreateIntegration(ctx, awsOIDCIntegration)
@@ -2829,6 +2899,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 							return azureClients, nil
 						},
 						ClusterFeatures:           func() proto.Features { return proto.Features{} },
+						kubeAgentVersionGetter:    staticKubeAgentVersionGetter(t),
 						KubernetesClient:          fake.NewClientset(),
 						AccessPoint:               getDiscoveryAccessPointWithEKSEnroller(tlsServer.Auth(), authClient, noopEKSEnroller),
 						AWSDatabaseFetcherFactory: dbFetcherFactory,
@@ -3207,8 +3278,29 @@ func (m *mockAzureClient) GetByVMID(_ context.Context, _ string) (*azure.Virtual
 	return nil, nil
 }
 
-func (m *mockAzureClient) ListVirtualMachines(_ context.Context, _ string) ([]*armcompute.VirtualMachine, error) {
-	return m.vms, nil
+func (m *mockAzureClient) ListVirtualMachines(_ context.Context, _ string) ([]*azure.VirtualMachine, error) {
+	discoveredVMs := make([]*azure.VirtualMachine, 0, len(m.vms))
+	for _, vm := range m.vms {
+		var vmID string
+		if vm.Properties != nil {
+			vmID = azure.StringVal(vm.Properties.VMID)
+		}
+		resourceMetadata, err := arm.ParseResourceID(azure.StringVal(vm.ID))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		discoveredVMs = append(discoveredVMs, &azure.VirtualMachine{
+			ID:            azure.StringVal(vm.ID),
+			Name:          azure.StringVal(vm.Name),
+			VMID:          vmID,
+			Location:      azure.StringVal(vm.Location),
+			Tags:          azure.ConvertTags(vm.Tags),
+			ResourceGroup: resourceMetadata.ResourceGroupName,
+		})
+	}
+
+	return discoveredVMs, nil
 }
 
 func TestAzureVMDiscovery(t *testing.T) {
@@ -3270,12 +3362,9 @@ func TestAzureVMDiscovery(t *testing.T) {
 		if integration {
 			label = integrationLabel
 		}
+		resourceID := "/subscriptions/testsub/resourceGroups/testrg/providers/Microsoft.Compute/virtualMachines/" + name
 		return &armcompute.VirtualMachine{
-			ID: aws.String((&arm.ResourceID{
-				SubscriptionID:    "testsub",
-				ResourceGroupName: "rg",
-				Name:              name,
-			}).String()),
+			ID:       aws.String(resourceID),
 			Name:     aws.String(name),
 			Location: aws.String("westcentralus"),
 			Tags: map[string]*string{
@@ -3336,12 +3425,12 @@ func TestAzureVMDiscovery(t *testing.T) {
 		userTasksCheck           func(*testing.T, UserTaskLister)
 	}{
 		{
-			name:           "no nodes present, 1 found",
+			name:           "no nodes present, 2 found",
 			presentVMs:     []types.Server{},
 			staticMatchers: vmMatcherFn(),
 			foundVMS:       foundAzureVMs(),
 			wantInstances:  []string{testVMName, testVMNameIntegration},
-			wantResources:  1,
+			wantResources:  2,
 		},
 		{
 			name:           "nodes present, instance filtered",
@@ -3357,7 +3446,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 			staticMatchers: vmMatcherFn(),
 			foundVMS:       foundAzureVMs(),
 			wantInstances:  []string{testVMName, testVMNameIntegration},
-			wantResources:  1,
+			wantResources:  2,
 		},
 		{
 			name:            "no nodes present, 1 found using dynamic matchers",
@@ -3366,7 +3455,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 			staticMatchers:  Matchers{},
 			foundVMS:        foundAzureVMs(),
 			wantInstances:   []string{testVMName, testVMNameIntegration},
-			wantResources:   1,
+			wantResources:   2,
 		},
 		{
 			name:            "multiple failures",
@@ -3412,6 +3501,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 						DiscoverAzureVm: &usertasksv1.DiscoverAzureVM{
 							Instances: map[string]*usertasksv1.DiscoverAzureVMInstance{
 								"bad-api0-vmid": {
+									ResourceId:      "/subscriptions/testsub/resourceGroups/testrg/providers/Microsoft.Compute/virtualMachines/bad-api0",
 									VmId:            "bad-api0-vmid",
 									Name:            "bad-api0",
 									DiscoveryConfig: defaultDiscoveryConfig().GetName(),
@@ -3472,7 +3562,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 				require.NoError(t, err)
 				t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
 
-				err = testAuthServer.AuthServer.UpsertProxy(t.Context(), &types.ServerV2{
+				_, err = testAuthServer.AuthServer.UpsertProxyServer(t.Context(), &types.ServerV2{
 					Kind: types.KindProxy,
 					Metadata: types.Metadata{
 						Name: "proxy",

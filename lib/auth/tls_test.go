@@ -24,6 +24,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base32"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -53,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
@@ -80,6 +82,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/jwt"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -1006,7 +1009,7 @@ func TestOIDCIdPTokenRotation(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = clt.UpsertProxy(ctx, proxyServer)
+	err = clt.UpsertProxyServerWithoutReturn(ctx, proxyServer)
 	require.NoError(t, err)
 
 	integrationName := "my-integration"
@@ -1539,9 +1542,8 @@ func TestAuthPreferenceSettings(t *testing.T) {
 }
 
 func TestAuthPreferenceSettings_ScopedIdentity(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
-
-	srv := newTestTLSServer(t)
+	t.Parallel()
+	srv := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true}))
 	ctx := t.Context()
 
 	adminClient, err := srv.NewClient(authtest.TestAdmin())
@@ -1735,7 +1737,7 @@ func TestServersCRUD(t *testing.T) {
 
 	proxy := NewServer(types.KindProxy, "proxy1", "127.0.0.1:2023", apidefaults.Namespace)
 	proxy.Spec.Hostname = "proxy.llama"
-	require.NoError(t, clt.UpsertProxy(ctx, proxy))
+	require.NoError(t, clt.UpsertProxyServerWithoutReturn(ctx, proxy))
 
 	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	out, err = clt.GetProxies()
@@ -1743,7 +1745,7 @@ func TestServersCRUD(t *testing.T) {
 	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff(out, []types.Server{proxy}, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-	err = clt.DeleteProxy(ctx, proxy.GetName())
+	err = clt.DeleteProxyServer(ctx, proxy.GetName())
 	require.NoError(t, err)
 
 	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
@@ -1766,6 +1768,153 @@ func TestServersCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff(out, []types.Server{auth}, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+}
+
+// TestDeleteProxy exercises both wire paths that coexist during the
+// HTTP-to-gRPC migration window: the direct gRPC RPC on *APIClient and the
+// legacy HTTP endpoint invoked via the raw HTTP client.
+//
+// TODO(noah): DELETE IN v20.0.0 - once the legacy HTTP endpoint is removed,
+// the DeleteProxy call in TestServersCRUD is sufficient.
+func TestDeleteProxy(t *testing.T) {
+	t.Parallel()
+
+	testSrv := newTestTLSServer(t)
+
+	clt, err := testSrv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+
+	ctx := t.Context()
+
+	newProxy := func(name string) types.Server {
+		return &types.ServerV2{
+			Kind:    types.KindProxy,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name:      name,
+				Namespace: apidefaults.Namespace,
+			},
+			Spec: types.ServerSpecV2{
+				Addr:     "127.0.0.1:2023",
+				Hostname: "proxy.llama",
+			},
+		}
+	}
+
+	proxyNames := func(t *testing.T) []string {
+		proxies, _, err := testSrv.Auth().ListProxyServers(ctx, 0, "")
+		require.NoError(t, err)
+		names := make([]string, 0, len(proxies))
+		for _, p := range proxies {
+			names = append(names, p.GetName())
+		}
+		return names
+	}
+
+	t.Run("direct gRPC RPC", func(t *testing.T) {
+		proxy := newProxy("proxy-grpc")
+		require.NoError(t, clt.UpsertProxyServerWithoutReturn(ctx, proxy))
+
+		_, err := clt.APIClient.PresenceServiceClient().DeleteProxyServer(
+			ctx, &presencev1.DeleteProxyServerRequest{
+				Name: proxy.GetName(),
+			},
+		)
+		require.NoError(t, err)
+
+		require.NotContains(t, proxyNames(t), proxy.GetName())
+	})
+
+	t.Run("through fallback abstraction", func(t *testing.T) {
+		proxy := newProxy("proxy-through-fallback-grpc")
+		require.NoError(t, clt.UpsertProxyServerWithoutReturn(ctx, proxy))
+
+		require.NoError(t, clt.DeleteProxyServer(ctx, proxy.GetName()))
+
+		require.NotContains(t, proxyNames(t), proxy.GetName())
+	})
+
+	t.Run("legacy HTTP endpoint", func(t *testing.T) {
+		proxy := newProxy("proxy-http")
+		require.NoError(t, clt.UpsertProxyServerWithoutReturn(ctx, proxy))
+
+		_, err := clt.HTTPClient.Delete(ctx, clt.HTTPClient.Endpoint("proxies", proxy.GetName()))
+		require.NoError(t, err)
+
+		require.NotContains(t, proxyNames(t), proxy.GetName())
+	})
+}
+
+// TestUpsertProxy exercises both wire paths that coexist during the
+// HTTP-to-gRPC migration window: the direct gRPC RPC on *APIClient and the
+// legacy HTTP endpoint invoked via the raw HTTP client.
+//
+// TODO(noah): DELETE IN v20.0.0 - once the legacy HTTP endpoint is removed,
+// the UpsertProxy call in TestServersCRUD is sufficient.
+func TestUpsertProxy(t *testing.T) {
+	t.Parallel()
+
+	testSrv := newTestTLSServer(t)
+
+	clt, err := testSrv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+
+	ctx := t.Context()
+
+	newProxy := func(name string) types.Server {
+		return &types.ServerV2{
+			Kind:    types.KindProxy,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name:      name,
+				Namespace: apidefaults.Namespace,
+			},
+			Spec: types.ServerSpecV2{
+				Addr:     "127.0.0.1:2023",
+				Hostname: "proxy.llama",
+			},
+		}
+	}
+
+	proxyNames := func(t *testing.T) []string {
+		proxies, _, err := testSrv.Auth().ListProxyServers(ctx, 0, "")
+		require.NoError(t, err)
+		names := make([]string, 0, len(proxies))
+		for _, p := range proxies {
+			names = append(names, p.GetName())
+		}
+		return names
+	}
+
+	t.Run("direct gRPC RPC", func(t *testing.T) {
+		proxy := newProxy("proxy-grpc").(*types.ServerV2)
+		_, err := clt.APIClient.PresenceServiceClient().UpsertProxyServer(
+			ctx, &presencev1.UpsertProxyServerRequest{
+				Server: proxy,
+			},
+		)
+		require.NoError(t, err)
+
+		require.Contains(t, proxyNames(t), proxy.GetName())
+	})
+
+	t.Run("through fallback abstraction", func(t *testing.T) {
+		proxy := newProxy("proxy-through-fallback-grpc")
+		require.NoError(t, clt.UpsertProxyServerWithoutReturn(ctx, proxy))
+
+		require.Contains(t, proxyNames(t), proxy.GetName())
+	})
+
+	t.Run("legacy HTTP endpoint", func(t *testing.T) {
+		proxy := newProxy("proxy-http")
+		data, err := services.MarshalServer(proxy)
+		require.NoError(t, err)
+		body := map[string]any{"server": json.RawMessage(data)}
+		_, err = clt.HTTPClient.PostJSON(ctx, clt.HTTPClient.Endpoint("proxies"), body)
+		require.NoError(t, err)
+
+		require.Contains(t, proxyNames(t), proxy.GetName())
+	})
 }
 
 // TestAppServerCRUD tests CRUD functionality for services.App using an auth client.
@@ -2630,9 +2779,8 @@ func TestGetCertAuthority(t *testing.T) {
 }
 
 func TestGetCertAuthority_ScopedIdentity(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
-
-	srv := newTestTLSServer(t)
+	t.Parallel()
+	srv := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true}))
 	ctx := t.Context()
 
 	adminClient, err := srv.NewClient(authtest.TestAdmin())
@@ -3333,7 +3481,7 @@ func TestGenerateAppToken(t *testing.T) {
 		PublicAddrs: []string{"https://teleport.example.com"},
 	})
 	require.NoError(t, err)
-	require.NoError(t, authClient.UpsertProxy(ctx, proxyServer))
+	require.NoError(t, authClient.UpsertProxyServerWithoutReturn(ctx, proxyServer))
 
 	tests := []struct {
 		inMachineRole   types.SystemRole
@@ -4822,7 +4970,7 @@ func TestEvents(t *testing.T) {
 					},
 				}
 
-				err := testSrv.Auth().UpsertProxy(ctx, srv)
+				_, err := testSrv.Auth().UpsertProxyServer(ctx, srv)
 				require.NoError(t, err)
 
 				//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
@@ -4830,7 +4978,7 @@ func TestEvents(t *testing.T) {
 				require.NoError(t, err)
 
 				for _, p := range out {
-					require.NoError(t, testSrv.Auth().DeleteProxy(ctx, p.GetName()))
+					require.NoError(t, testSrv.Auth().DeleteProxyServer(ctx, p.GetName()))
 				}
 
 				return out[0]
@@ -5029,9 +5177,8 @@ func eventsTestKinds(tests []eventTest) []types.WatchKind {
 // WatchEvents RPC to watch CertAuthorities without secrets (implicit permission),
 // and that watching with secrets is correctly denied.
 func TestWatchEvents_ScopedIdentity(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
-
-	srv := newTestTLSServer(t)
+	t.Parallel()
+	srv := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true}))
 	ctx := t.Context()
 
 	adminClient, err := srv.NewClient(authtest.TestAdmin())
@@ -6036,6 +6183,7 @@ type testTLSServerOptions struct {
 	clock           clockwork.Clock
 	bufconnListener bool
 	modules         *modulestest.Modules
+	scopesFeatures  scopes.Features
 }
 
 type testTLSServerOption func(*testTLSServerOptions)
@@ -6070,6 +6218,12 @@ func withModules(mod *modulestest.Modules) testTLSServerOption {
 	}
 }
 
+func withScopesFeatures(scopesFeatures scopes.Features) testTLSServerOption {
+	return func(options *testTLSServerOptions) {
+		options.scopesFeatures = scopesFeatures
+	}
+}
+
 // newTestTLSServer is a helper that returns a *authtest.TLSServer with sensible
 // defaults for most tests that are exercising Auth Service RPCs. For more advanced
 // use-cases, NewTestTLSServer to provide a more detailed configuration.
@@ -6087,10 +6241,11 @@ func newTestTLSServer(t testing.TB, opts ...testTLSServerOption) *authtest.TLSSe
 		options.modules = modulestest.OSSModules()
 	}
 	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
-		Dir:          t.TempDir(),
-		Clock:        options.clock,
-		CacheEnabled: options.cacheEnabled,
-		Modules:      options.modules,
+		Dir:            t.TempDir(),
+		Clock:          options.clock,
+		CacheEnabled:   options.cacheEnabled,
+		Modules:        options.modules,
+		ScopesFeatures: options.scopesFeatures,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, as.Close()) })

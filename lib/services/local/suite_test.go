@@ -63,7 +63,7 @@ type ServicesTestSuite struct {
 	Access         services.Access
 	TrustS         services.Trust
 	TrustInternalS services.TrustInternal
-	PresenceS      services.Presence
+	PresenceS      services.PresenceInternal
 	ProvisioningS  services.Provisioner
 	WebS           services.Identity
 	ConfigS        services.ClusterConfiguration
@@ -395,7 +395,8 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 
 	proxy := NewServer(types.KindProxy, "proxy1", "127.0.0.1:2023", apidefaults.Namespace)
 	proxy.Spec.Hostname = "proxy.llama"
-	require.NoError(t, s.PresenceS.UpsertProxy(ctx, proxy))
+	_, err = s.PresenceS.UpsertProxyServer(ctx, proxy)
+	require.NoError(t, err)
 
 	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	out, err = s.PresenceS.GetProxies()
@@ -403,7 +404,7 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff(out, []types.Server{proxy}, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-	err = s.PresenceS.DeleteProxy(ctx, proxy.GetName())
+	err = s.PresenceS.DeleteProxyServer(ctx, proxy.GetName())
 	require.NoError(t, err)
 
 	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
@@ -2220,7 +2221,7 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 			crud: func(context.Context) types.Resource {
 				srv := NewServer(types.KindProxy, "srv1", "127.0.0.1:2022", apidefaults.Namespace)
 
-				err := s.PresenceS.UpsertProxy(ctx, srv)
+				_, err := s.PresenceS.UpsertProxyServer(ctx, srv)
 				require.NoError(t, err)
 
 				//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
@@ -2228,7 +2229,7 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 				require.NoError(t, err)
 
 				for _, p := range out {
-					require.NoError(t, s.PresenceS.DeleteProxy(ctx, p.GetName()))
+					require.NoError(t, s.PresenceS.DeleteProxyServer(ctx, p.GetName()))
 				}
 
 				return out[0]

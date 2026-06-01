@@ -27,7 +27,6 @@ import (
 	"encoding/pem"
 	"fmt"
 	"net/url"
-	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -93,6 +92,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/okta/oktatest"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/services"
@@ -1099,10 +1099,9 @@ func TestSSODiagnosticInfo(t *testing.T) {
 }
 
 func TestGenerateUserCertsForHeadlessKube(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
-
+	t.Parallel()
 	ctx := context.Background()
-	srv := newTestTLSServer(t)
+	srv := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true}))
 
 	const kubeClusterName = "kube-cluster-1"
 	kubeCluster, err := types.NewKubernetesClusterV3(
@@ -2642,7 +2641,7 @@ func TestGetAndList_Nodes(t *testing.T) {
 
 	// Test expression match.
 	withExpression := baseRequest
-	withExpression.PredicateExpression = fmt.Sprintf(`labels.name == "%s"`, testResources[0].GetName())
+	withExpression.PredicateExpression = fmt.Sprintf(`labels.name == %q`, testResources[0].GetName())
 	resp, err = clt.ListResources(ctx, withExpression)
 	require.NoError(t, err)
 	require.Len(t, resp.Resources, 1)
@@ -3748,7 +3747,7 @@ func TestGetAndList_DatabaseServers(t *testing.T) {
 
 	// Test expression match.
 	withExpression := baseRequest
-	withExpression.PredicateExpression = fmt.Sprintf(`labels.name == "%s"`, testServers[0].GetName())
+	withExpression.PredicateExpression = fmt.Sprintf(`labels.name == %q`, testServers[0].GetName())
 	resp, err = clt.ListResources(ctx, withExpression)
 	require.NoError(t, err)
 	require.Len(t, resp.Resources, 1)
@@ -3875,7 +3874,7 @@ func TestGetAndList_ApplicationServers(t *testing.T) {
 
 	// Test expression match.
 	withExpression := baseRequest
-	withExpression.PredicateExpression = fmt.Sprintf(`labels.name == "%s"`, testServers[0].GetName())
+	withExpression.PredicateExpression = fmt.Sprintf(`labels.name == %q`, testServers[0].GetName())
 	resp, err = clt.ListResources(ctx, withExpression)
 	require.NoError(t, err)
 	require.Len(t, resp.Resources, 1)
@@ -4051,7 +4050,7 @@ func TestListSAMLIdPServiceProviderAndListResources(t *testing.T) {
 
 	// Test expression match.
 	withExpression := baseRequest
-	withExpression.PredicateExpression = fmt.Sprintf(`labels.name == "%s"`, testServiceProviders[0].GetName())
+	withExpression.PredicateExpression = fmt.Sprintf(`labels.name == %q`, testServiceProviders[0].GetName())
 	resp, err = clt.ListResources(ctx, withExpression)
 	require.NoError(t, err)
 	require.Len(t, resp.Resources, 1)
@@ -4085,7 +4084,7 @@ func TestListSAMLIdPServiceProviderAndListResources(t *testing.T) {
 // TestApps verifies RBAC is applied to app resources.
 func TestApps(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 	srv := newTestTLSServer(t)
 
 	// Setup a couple of users:
@@ -4093,19 +4092,25 @@ func TestApps(t *testing.T) {
 	// - "admin" has access to all apps
 	dev, devRole, err := authtest.CreateUserAndRole(srv.Auth(), "dev", nil, nil)
 	require.NoError(t, err)
+
 	devRole.SetAppLabels(types.Allow, types.Labels{"env": {"dev"}})
 	_, err = srv.Auth().UpsertRole(ctx, devRole)
 	require.NoError(t, err)
+
 	devClt, err := srv.NewClient(authtest.TestUser(dev.GetName()))
 	require.NoError(t, err)
+	t.Cleanup(func() { devClt.Close() })
 
 	admin, adminRole, err := authtest.CreateUserAndRole(srv.Auth(), "admin", nil, nil)
 	require.NoError(t, err)
+
 	adminRole.SetAppLabels(types.Allow, types.Labels{types.Wildcard: {types.Wildcard}})
 	_, err = srv.Auth().UpsertRole(ctx, adminRole)
 	require.NoError(t, err)
+
 	adminClt, err := srv.NewClient(authtest.TestUser(admin.GetName()))
 	require.NoError(t, err)
+	t.Cleanup(func() { adminClt.Close() })
 
 	// Prepare a couple of app resources.
 	devApp, err := types.NewAppV3(types.Metadata{
@@ -4115,6 +4120,7 @@ func TestApps(t *testing.T) {
 		URI: "localhost1",
 	})
 	require.NoError(t, err)
+
 	adminApp, err := types.NewAppV3(types.Metadata{
 		Name:   "admin",
 		Labels: map[string]string{"env": "prod", types.OriginLabel: types.OriginDynamic},
@@ -4171,6 +4177,17 @@ func TestApps(t *testing.T) {
 	require.Empty(t, cmp.Diff(devApp, app,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
+
+	// Clients can't create/update apps for the beams service.
+	adminApp.GetMetadata().Labels["teleport.internal/beams/app-type"] = "llm"
+	err = adminClt.UpdateApp(ctx, adminApp)
+	require.True(t, trace.IsAccessDenied(err))
+	delete(adminApp.GetMetadata().Labels, "teleport.internal/beams/app-type")
+
+	beamApp := devApp.Copy()
+	beamApp.GetMetadata().Labels["teleport.internal/beams/app-type"] = "llm"
+	err = devClt.CreateApp(ctx, beamApp)
+	require.True(t, trace.IsAccessDenied(err))
 
 	// When listing apps, dev should only see one.
 	apps, err := devClt.GetApps(ctx)
@@ -4673,7 +4690,7 @@ func TestGetAndList_KubernetesServers(t *testing.T) {
 
 	// Test expression match.
 	withExpression := baseRequest
-	withExpression.PredicateExpression = fmt.Sprintf(`labels.name == "%s"`, testServers[0].GetName())
+	withExpression.PredicateExpression = fmt.Sprintf(`labels.name == %q`, testServers[0].GetName())
 	resp, err = clt.ListResources(ctx, withExpression)
 	require.NoError(t, err)
 	require.Len(t, resp.Resources, 1)
@@ -5306,7 +5323,7 @@ func TestGetAndList_WindowsDesktops(t *testing.T) {
 
 	// Test predicate match.
 	withExpression := listRequest
-	withExpression.PredicateExpression = fmt.Sprintf(`labels.name == "%s"`, testDesktops[0].GetName())
+	withExpression.PredicateExpression = fmt.Sprintf(`labels.name == %q`, testDesktops[0].GetName())
 	resp, err = clt.ListResources(ctx, withExpression)
 	require.NoError(t, err)
 	require.Len(t, resp.Resources, 1)
@@ -5454,9 +5471,9 @@ func TestIsLocalOrRemoteServerAction(t *testing.T) {
 }
 
 func TestListResources_KindKubernetesCluster(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	t.Parallel()
 	ctx := t.Context()
-	srv := newTestTLSServer(t)
+	srv := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true}))
 
 	scopedAccess := srv.Auth().ScopedAccess()
 	scopes := []string{"/test", "/other"}
@@ -5717,9 +5734,9 @@ func createKubeServer(t *testing.T, s *auth.Server, clusterNames []string, hostI
 }
 
 func TestListResourcesScopedPagination(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	t.Parallel()
 	ctx := t.Context()
-	srv := newTestTLSServer(t)
+	srv := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true}))
 
 	client, err := srv.NewClient(authtest.TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
@@ -5852,9 +5869,9 @@ func TestListResourcesScopedPagination(t *testing.T) {
 // TestListResourcesScopedPaginateKubeClusters tests that scoped kube clusters can be paginated properly even when
 // there are resources that will be deduplicated.
 func TestListResourcesPaginateKubeClusters(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	t.Parallel()
 	ctx := t.Context()
-	srv := newTestTLSServer(t)
+	srv := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true}))
 
 	client, err := srv.NewClient(authtest.TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
@@ -7308,14 +7325,14 @@ func TestListUnifiedResources_search_as_roles_oktaReadOnly(t *testing.T) {
 	// 1. Create app resources
 
 	searchableGenericApp := createTestAppServerV3(t, srv.Auth(),
-		"test_generic_app",
+		"test-generic-app",
 		map[string]string{
 			"find_me": "please",
 		},
 	)
 
 	searchableOktaApp := createTestAppServerV3(t, srv.Auth(),
-		"test_searchable_okta_app",
+		"test-searchable-okta-app",
 		map[string]string{
 			"find_me":         "please",
 			types.OriginLabel: types.OriginOkta,
@@ -7323,7 +7340,7 @@ func TestListUnifiedResources_search_as_roles_oktaReadOnly(t *testing.T) {
 	)
 
 	assignedOktaApp := createTestAppServerV3(t, srv.Auth(),
-		"test_assigned_okta_app",
+		"test-assigned-okta-app",
 		map[string]string{
 			"owner":           "alice",
 			types.OriginLabel: types.OriginOkta,
@@ -8676,9 +8693,9 @@ func TestGenerateHostCert(t *testing.T) {
 }
 
 // newScopedTestServerForHost creates a self-cleaning `ServerWithRoles`, configured
-// for a given host
-func newScopedTestServerForHost(t *testing.T, srv *authtest.AuthServer, hostID, scope string, role types.SystemRole) *auth.ServerWithRoles {
-	authzContext := authz.ContextWithUser(t.Context(), authtest.TestScopedHost(srv.ClusterName, hostID, scope, role).I)
+// for a given host. One or more roles must be provided.
+func newScopedTestServerForHost(t *testing.T, srv *authtest.AuthServer, hostID, scope string, roles ...types.SystemRole) *auth.ServerWithRoles {
+	authzContext := authz.ContextWithUser(t.Context(), authtest.TestScopedHost(srv.ClusterName, hostID, scope, roles...).I)
 	ctxIdentity, err := srv.Authorizer.Authorize(authzContext)
 	require.NoError(t, err)
 
@@ -8736,6 +8753,246 @@ func TestGenerateHostCertsScoped(t *testing.T) {
 	sshIdent, err := sshca.DecodeIdentity(sshCert)
 	require.NoError(t, err)
 	require.Equal(t, scope, sshIdent.AgentScope)
+}
+
+func TestUpsertNode(t *testing.T) {
+	t.Parallel()
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, as.Close()) })
+
+	const nodeName = "test1"
+	const otherID = "test2"
+
+	makeNode := func(t *testing.T, name, scope string) types.Server {
+		node := &types.ServerV2{
+			Kind:    types.KindNode,
+			SubKind: types.SubKindOpenSSHNode,
+			Metadata: types.Metadata{
+				Name: name,
+			},
+			Spec: types.ServerSpecV2{
+				Addr:     "someaddr.com:443",
+				Hostname: name,
+			},
+			Scope: scope,
+		}
+		require.NoError(t, node.CheckAndSetDefaults())
+		return node
+	}
+
+	tests := []struct {
+		name        string
+		callerScope string
+		nodeName    string
+		nodeScope   string
+		shouldErr   bool
+	}{
+		{
+			name:        "unscoped - bypasses node ID check",
+			callerScope: "",
+			nodeName:    otherID,
+			nodeScope:   "",
+		},
+		{
+			name:        "scoped - matching ID and scope allowed",
+			callerScope: "/staging",
+			nodeName:    nodeName,
+			nodeScope:   "/staging",
+		},
+		{
+			name:        "scoped - matching ID but mismatched scope denied",
+			callerScope: "/staging",
+			nodeName:    nodeName,
+			nodeScope:   "/prod",
+			shouldErr:   true,
+		},
+		{
+			name:        "scoped - matching scope but mismatched ID denied",
+			callerScope: "/staging",
+			nodeName:    otherID,
+			nodeScope:   "/staging",
+			shouldErr:   true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			srv := newScopedTestServerForHost(t, as, nodeName, tt.callerScope, types.RoleNode)
+			_, err := srv.UpsertNode(t.Context(), makeNode(t, tt.nodeName, tt.nodeScope))
+			if tt.shouldErr {
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err))
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
+// TestGenerateHostCertsAgentScopePin verifies that GenerateHostCerts handles agent scope pins
+// correctly. As agent scope pins are still in development, this test currently covers the behavior
+// of the associated feature flag and verifies the old format is still the default behavior. This
+// test will be simplified once the agent scope pin feature is complete.
+func TestGenerateHostCertsAgentScopePin(t *testing.T) {
+	t.Parallel()
+
+	const scope = "/aa/bb"
+	const hostID = "testhost"
+
+	type certIdents struct {
+		tls *tlsca.Identity
+		ssh *sshca.Identity
+	}
+
+	parseIdents := func(t *testing.T, certs *proto.Certs) certIdents {
+		t.Helper()
+		tlsCert, err := tlsca.ParseCertificatePEM(certs.TLS)
+		require.NoError(t, err)
+		tlsIdent, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
+		require.NoError(t, err)
+		sshCert, err := sshutils.ParseCertificate(certs.SSH)
+		require.NoError(t, err)
+		sshIdent, err := sshca.DecodeIdentity(sshCert)
+		require.NoError(t, err)
+		return certIdents{tls: tlsIdent, ssh: sshIdent}
+	}
+
+	generateCerts := func(t *testing.T, as *authtest.AuthServer, role types.SystemRole) certIdents {
+		t.Helper()
+		s := newScopedTestServerForHost(t, as, hostID, scope, role)
+
+		_, sshPub, err := testauthority.GenerateKeyPair()
+		require.NoError(t, err)
+		tlsKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+		require.NoError(t, err)
+		tlsPubPEM, err := keys.MarshalPublicKey(tlsKey.Public())
+		require.NoError(t, err)
+
+		certs, err := s.GenerateHostCerts(t.Context(), &proto.HostCertsRequest{
+			PublicTLSKey: tlsPubPEM,
+			PublicSSHKey: sshPub,
+			HostID:       hostID,
+			Role:         role,
+		})
+		require.NoError(t, err)
+		return parseIdents(t, certs)
+	}
+
+	generateInstanceCerts := func(t *testing.T, as *authtest.AuthServer, systemRoles types.SystemRoles) certIdents {
+		t.Helper()
+		s := newScopedTestServerForHost(t, as, hostID, scope, systemRoles...)
+
+		_, sshPub, err := testauthority.GenerateKeyPair()
+		require.NoError(t, err)
+		tlsKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+		require.NoError(t, err)
+		tlsPubPEM, err := keys.MarshalPublicKey(tlsKey.Public())
+		require.NoError(t, err)
+
+		certs, err := s.GenerateHostCerts(t.Context(), &proto.HostCertsRequest{
+			PublicTLSKey: tlsPubPEM,
+			PublicSSHKey: sshPub,
+			HostID:       hostID,
+			Role:         types.RoleInstance,
+			SystemRoles:  systemRoles,
+		})
+		require.NoError(t, err)
+		return parseIdents(t, certs)
+	}
+
+	// verify that the legacy scoped agent cert format is still the one generated when
+	// the agent scope pin feature is not enabled
+	t.Run("legacy format", func(t *testing.T) {
+		t.Parallel()
+		as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir(), ScopesFeatures: scopes.Features{Enabled: true}})
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, as.Close()) })
+		idents := generateCerts(t, as, types.RoleNode)
+
+		// Legacy path: Groups contains the role, AgentScope is set, ScopePin is nil.
+		require.Contains(t, idents.tls.Groups, types.RoleNode.String())
+		require.Equal(t, scope, idents.tls.AgentScope)
+		require.Nil(t, idents.tls.ScopePin)
+
+		// SSH cert: legacy AgentScope set, no pin.
+		require.Equal(t, scope, idents.ssh.AgentScope)
+		require.Nil(t, idents.ssh.ScopePin)
+	})
+
+	t.Run("agent pin enabled", func(t *testing.T) {
+		t.Parallel()
+		as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir(), ScopesFeatures: scopes.Features{Enabled: true, AgentPinEnabled: true}})
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, as.Close()) })
+
+		// verify agent pin created correctly for service certs
+		t.Run("agent pin service cert", func(t *testing.T) {
+
+			idents := generateCerts(t, as, types.RoleNode)
+			require.Empty(t, idents.tls.Groups)
+			require.Empty(t, idents.tls.AgentScope)
+			require.NotNil(t, idents.tls.ScopePin)
+			require.Equal(t, scope, idents.tls.ScopePin.GetScope())
+			require.Equal(t, types.RoleNode.String(), idents.tls.ScopePin.GetSystemRoles().GetPrimary())
+
+			require.NotNil(t, idents.ssh.ScopePin)
+			require.Equal(t, scope, idents.ssh.ScopePin.GetScope())
+			require.Equal(t, types.RoleNode.String(), idents.ssh.ScopePin.GetSystemRoles().GetPrimary())
+		})
+
+		// verify agent pin created correctly for instance certs
+		t.Run("agent pin instance cert", func(t *testing.T) {
+			systemRoles := types.SystemRoles{types.RoleNode, types.RoleKube}
+			idents := generateInstanceCerts(t, as, systemRoles)
+
+			require.Empty(t, idents.tls.Groups)
+			require.NotNil(t, idents.tls.ScopePin)
+			require.Equal(t, scope, idents.tls.ScopePin.GetScope())
+			require.Equal(t, types.RoleInstance.String(), idents.tls.ScopePin.GetSystemRoles().GetPrimary())
+			tlsAdditional := idents.tls.ScopePin.GetSystemRoles().GetAdditional()
+			for _, role := range systemRoles {
+				require.Contains(t, tlsAdditional, role.String())
+			}
+
+			require.NotNil(t, idents.ssh.ScopePin)
+			require.Equal(t, scope, idents.ssh.ScopePin.GetScope())
+			require.Equal(t, types.RoleInstance.String(), idents.ssh.ScopePin.GetSystemRoles().GetPrimary())
+			sshAdditional := idents.ssh.ScopePin.GetSystemRoles().GetAdditional()
+			for _, role := range systemRoles {
+				require.Contains(t, sshAdditional, role.String())
+			}
+		})
+
+		// verify that scope pins are not set for unscoped agents
+		t.Run("unscoped agent has no pin", func(t *testing.T) {
+			_, sshPub, err := testauthority.GenerateKeyPair()
+			require.NoError(t, err)
+			tlsKey, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+			require.NoError(t, err)
+			tlsPubPEM, err := keys.MarshalPublicKey(tlsKey.Public())
+			require.NoError(t, err)
+
+			certs, err := as.AuthServer.GenerateHostCerts(t.Context(), auth.HostCertsParams{
+				Req: &proto.HostCertsRequest{
+					PublicTLSKey: tlsPubPEM,
+					PublicSSHKey: sshPub,
+					HostID:       hostID,
+					NodeName:     hostID,
+					Role:         types.RoleNode,
+				},
+			})
+			require.NoError(t, err)
+
+			idents := parseIdents(t, certs)
+			require.Contains(t, idents.tls.Groups, types.RoleNode.String())
+			require.Empty(t, idents.tls.AgentScope)
+			require.Nil(t, idents.tls.ScopePin)
+
+			require.Empty(t, idents.ssh.AgentScope)
+			require.Nil(t, idents.ssh.ScopePin)
+		})
+	})
 }
 
 // TestLocalServiceRolesHavePermissionsForUploaderService verifies that all of Teleport's
@@ -11609,7 +11866,7 @@ func TestWatchAllCacheKinds(t *testing.T) {
 	t.Parallel()
 
 	ctx := t.Context()
-	srv := newTestTLSServer(t)
+	srv := newTestTLSServer(t, withModules(modulestest.EnterpriseModules()))
 
 	for role, watchKinds := range map[types.SystemRole][]types.WatchKind{
 		types.RoleProxy:          cache.ForProxy(cache.Config{}).Watches,
@@ -12276,91 +12533,6 @@ func paginatedAppPermissionSet(src *identitycenterv1.PermissionSetInfo) *types.I
 	}
 }
 
-func TestValidateOracleJoinToken(t *testing.T) {
-	t.Parallel()
-	makeToken := func(spec types.ProvisionTokenSpecV2) types.ProvisionToken {
-		spec.JoinMethod = types.JoinMethodOracle
-		spec.Roles = []types.SystemRole{types.RoleNode}
-		token, err := types.NewProvisionTokenFromSpec("foo", time.Now().Add(time.Hour), spec)
-		require.NoError(t, err)
-		return token
-	}
-
-	t.Run("oracle", func(t *testing.T) {
-		tests := []struct {
-			name   string
-			token  types.ProvisionToken
-			assert require.ErrorAssertionFunc
-		}{
-			{
-				name: "ok",
-				token: makeToken(types.ProvisionTokenSpecV2{
-					Oracle: &types.ProvisionTokenSpecV2Oracle{
-						Allow: []*types.ProvisionTokenSpecV2Oracle_Rule{
-							{
-								Tenancy:            makeTenancyID("foo"),
-								ParentCompartments: []string{makeCompartmentID("foo"), makeCompartmentID("bar")},
-								Regions:            []string{"us-phoenix-1", "iad"},
-							},
-						},
-					},
-				}),
-				assert: require.NoError,
-			},
-			{
-				name: "invalid tenant",
-				token: makeToken(types.ProvisionTokenSpecV2{
-					Oracle: &types.ProvisionTokenSpecV2Oracle{
-						Allow: []*types.ProvisionTokenSpecV2Oracle_Rule{
-							{
-								Tenancy:            "foo",
-								ParentCompartments: []string{makeCompartmentID("foo"), makeCompartmentID("bar")},
-								Regions:            []string{"us-phoenix-1", "iad"},
-							},
-						},
-					},
-				}),
-				assert: require.Error,
-			},
-			{
-				name: "invalid compartment",
-				token: makeToken(types.ProvisionTokenSpecV2{
-					Oracle: &types.ProvisionTokenSpecV2Oracle{
-						Allow: []*types.ProvisionTokenSpecV2Oracle_Rule{
-							{
-								Tenancy:            makeTenancyID("foo"),
-								ParentCompartments: []string{"foo", makeCompartmentID("bar")},
-								Regions:            []string{"us-phoenix-1", "iad"},
-							},
-						},
-					},
-				}),
-				assert: require.Error,
-			},
-			{
-				name: "invalid region",
-				token: makeToken(types.ProvisionTokenSpecV2{
-					Oracle: &types.ProvisionTokenSpecV2Oracle{
-						Allow: []*types.ProvisionTokenSpecV2Oracle_Rule{
-							{
-								Tenancy:            makeTenancyID("foo"),
-								ParentCompartments: []string{makeCompartmentID("foo"), makeCompartmentID("bar")},
-								Regions:            []string{"invalid", "iad"},
-							},
-						},
-					},
-				}),
-				assert: require.Error,
-			},
-		}
-		for _, tc := range tests {
-			t.Run(tc.name, func(t *testing.T) {
-				tc.assert(t, auth.ValidateOracleJoinToken(tc.token))
-			})
-		}
-	})
-}
-
 func createTestAppServerV3(t *testing.T, auth *auth.Server, name string, labels map[string]string) *types.AppServerV3 {
 	t.Helper()
 	app, err := types.NewAppV3(
@@ -12821,9 +12993,9 @@ func TestRegisterInventoryControlStreamImmutableLabels(t *testing.T) {
 
 // assert that common user cert generation cases are properly handled for scoped identities
 func TestScopedUserCertGeneration(t *testing.T) {
-	os.Setenv("TELEPORT_UNSTABLE_SCOPES", "true")
+	t.Parallel()
 	clock := clockwork.NewFakeClock()
-	srv := newTestTLSServer(t, withModules(&modulestest.Modules{
+	srv := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true}), withModules(&modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise,
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{

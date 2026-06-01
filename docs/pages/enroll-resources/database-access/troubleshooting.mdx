@@ -125,7 +125,7 @@ We can update a user's roles from the command-line by using either `tctl users u
   $ tctl users update alice@example.com --set-roles=access
   ```
   </TabItem>
-  <TabItem label="tctl create">
+  <TabItem label="tctl edit">
 
     Open Alice's user resource in your text editor:
 
@@ -159,7 +159,7 @@ access see the [RBAC](../database-access/rbac.mdx) documentation.
 
 ### Connection to MySQL database results in "Unknown system variable 'query_cache_size'" error
 
-When TLS Routing is disable by default, the Teleport Proxy Service returns `8.0.0-Teleport` as the MySQL server version. In some cases, like connecting with a GUI Client, this can result in obtaining an `Unknown system variable 'query_cache_size'` error that indicates that MySQL capabilities were not properly negotiated between the MySQL client and server.
+When TLS Routing is disabled by default, the Teleport Proxy Service returns `8.0.0-Teleport` as the MySQL server version. In some cases, like connecting with a GUI Client, this can result in obtaining an `Unknown system variable 'query_cache_size'` error that indicates that MySQL capabilities were not properly negotiated between the MySQL client and server.
 
 One way to solve this issue is to [use the TLS Routing
 feature](../../zero-trust-access/management/tls-routing.mdx), where the Teleport Proxy

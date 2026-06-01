@@ -33,10 +33,10 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
-	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
+	"github.com/gravitational/teleport/lib/utils/parse"
 )
 
 // hostUser is the name of the host user used for tests.
@@ -107,7 +107,7 @@ func mustGetEnv(t *testing.T, key string) string {
 func mustGetDiscoveryMatcherLabels(t *testing.T) types.Labels {
 	t.Helper()
 	labelSpec := mustGetEnv(t, discoveryMatcherLabelsEnv)
-	labels, err := client.ParseLabelSpec(labelSpec)
+	labels, err := parse.LabelSelectorSpec(labelSpec)
 	require.NoError(t, err)
 	out := make(types.Labels)
 	for k, v := range labels {

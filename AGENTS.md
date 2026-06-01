@@ -13,7 +13,7 @@
 - Privilege escalation or sandbox escapes
 - Data corruption, durability failures, or irreversible loss scenarios
 - Concurrency hazards that can cause outages or data races
-- Reliability regressions: crash loops, panics, deadlocks, unbounded retries
+- Reliability regressions: crash loops, panics, deadlocks, unbounded retries, nil pointer dereferences
 
 ### Documentation
 

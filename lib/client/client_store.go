@@ -278,7 +278,7 @@ func (s *Store) ReadProfileStatus(proxyAddressOrProfile string) (*ProfileStatus,
 
 	var scopePin *scopesv1.Pin
 	if profile.Scope != "" {
-		scopePin = &scopesv1.Pin{Scope: profile.Scope}
+		scopePin = &scopesv1.Pin{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: profile.Scope}
 	}
 
 	// If we can't find a keyRing to match the profile, connect to the keyRing (hardware key),

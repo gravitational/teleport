@@ -46,10 +46,15 @@ func TestSSHIdentityConversion(t *testing.T) {
 		SystemRole:  types.RoleNode,
 		Username:    "user",
 		ScopePin: &scopesv1.Pin{
+			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: "/foo",
 			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 				"/": {"/": {"role1", "role2"}},
 			}),
+			SystemRoles: &scopesv1.SystemRoles{
+				Primary:    string(types.RoleNode),
+				Additional: []string{string(types.RoleProxy)},
+			},
 		},
 		Impersonator:            "impersonator",
 		Principals:              []string{"login1", "login2"},
@@ -140,6 +145,9 @@ func TestSSHIdentityConversion(t *testing.T) {
 		"Pin.XXX_unrecognized",
 		"Pin.XXX_sizecache",
 		"Pin.Assignments", // TODO(fspamrshall/scopes): deprecate & remove assignments field
+		"SystemRoles.XXX_NoUnkeyedLiteral",
+		"SystemRoles.XXX_unrecognized",
+		"SystemRoles.XXX_sizecache",
 		"PinnedAssignments.XXX_NoUnkeyedLiteral",
 		"PinnedAssignments.XXX_unrecognized",
 		"PinnedAssignments.XXX_sizecache",

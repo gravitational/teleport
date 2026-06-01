@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -98,6 +99,79 @@ func (c *HTTPClient) GetAuthServers() ([]types.Server, error) {
 		re[i] = server
 	}
 	return re, nil
+}
+
+// UpsertProxyServerWithoutReturn registers a proxy server heartbeat. It calls
+// the gRPC PresenceService and falls back to the legacy HTTP endpoint if the
+// server does not yet implement the gRPC RPC. The upserted proxy server is not
+// returned because the HTTP fallback path cannot provide it; once the fallback
+// is removed in v20 this can be replaced with a method that returns the
+// upserted server.
+//
+// TODO(noah): DELETE IN v20.0.0
+func (c *Client) UpsertProxyServerWithoutReturn(ctx context.Context, s types.Server) error {
+	serverV2, ok := s.(*types.ServerV2)
+	if !ok {
+		return trace.BadParameter("unsupported proxy server type %T", s)
+	}
+	_, err := c.APIClient.PresenceServiceClient().UpsertProxyServer(ctx, &presencev1.UpsertProxyServerRequest{
+		Server: serverV2,
+	})
+	if err == nil {
+		return nil
+	}
+	if !trace.IsNotImplemented(err) {
+		return trace.Wrap(err)
+	}
+	return c.HTTPClient.upsertProxyServerLegacy(ctx, s)
+}
+
+// upsertProxyServerLegacy registers a proxy server heartbeat via the legacy
+// HTTP endpoint.
+//
+// TODO(noah): DELETE IN v20.0.0
+func (c *HTTPClient) upsertProxyServerLegacy(ctx context.Context, s types.Server) error {
+	data, err := services.MarshalServer(s)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	args := &upsertServerRawReq{
+		Server: data,
+	}
+	_, err = c.PostJSON(ctx, c.Endpoint("proxies"), args)
+	return trace.Wrap(err)
+}
+
+// DeleteProxyServer deletes a proxy server heartbeat by name. It calls the
+// gRPC PresenceService and falls back to the legacy HTTP endpoint if the
+// server does not yet implement the gRPC RPC.
+//
+// TODO(noah): DELETE IN v20.0.0
+func (c *Client) DeleteProxyServer(ctx context.Context, name string) error {
+	_, err := c.APIClient.PresenceServiceClient().DeleteProxyServer(ctx, &presencev1.DeleteProxyServerRequest{
+		Name: name,
+	})
+	if err == nil {
+		return nil
+	}
+	if !trace.IsNotImplemented(err) {
+		return trace.Wrap(err)
+	}
+	return c.HTTPClient.deleteProxyServerLegacy(ctx, name)
+}
+
+// deleteProxyServerLegacy deletes proxy by name via the legacy HTTP endpoint.
+//
+// TODO(noah): DELETE IN v20.0.0
+func (c *HTTPClient) deleteProxyServerLegacy(ctx context.Context, name string) error {
+	if name == "" {
+		return trace.BadParameter("missing parameter name")
+	}
+	_, err := c.Delete(ctx, c.Endpoint("proxies", name))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 // GetProxies returns the list of auth servers registered in the cluster.

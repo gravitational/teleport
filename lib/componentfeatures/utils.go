@@ -21,6 +21,9 @@ package componentfeatures
 import (
 	"context"
 	"log/slog"
+	"slices"
+
+	"github.com/coreos/go-semver/semver"
 
 	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -172,7 +175,7 @@ func GetClusterAuthProxyServerFeatures(ctx context.Context, clt AuthProxyServers
 		features = append(features, nil)
 	} else {
 		for _, srv := range allProxies {
-			features = append(features, srv.GetComponentFeatures())
+			features = append(features, GetEffectiveServerFeatures(srv))
 		}
 	}
 
@@ -189,9 +192,43 @@ func GetClusterAuthProxyServerFeatures(ctx context.Context, clt AuthProxyServers
 		features = append(features, nil)
 	} else {
 		for _, srv := range allAuthServers {
-			features = append(features, srv.GetComponentFeatures())
+			features = append(features, GetEffectiveServerFeatures(srv))
 		}
 	}
 
 	return Intersect(features...)
+}
+
+// versionedComponent is implemented by any server type that advertises a
+// version and a set of component features.
+//
+// TODO(kiosion): DELETE in 20.0.0
+type versionedComponent interface {
+	GetTeleportVersion() string
+	GetComponentFeatures() *componentfeaturesv1.ComponentFeatures
+}
+
+// GetEffectiveServerFeatures computes a server's effective feature support.
+// Servers between v18.6.4 and v18.7.5 advertise FeatureResourceConstraintsV1
+// but predate the constraint parsing implementation; for those versions, the
+// advertisement should be stripped prior to intersection so clients don't show
+// constraints UI flows.
+//
+// TODO(kiosion): DELETE in 20.0.0
+func GetEffectiveServerFeatures(component versionedComponent) *componentfeaturesv1.ComponentFeatures {
+	f := component.GetComponentFeatures()
+	if f == nil {
+		return f
+	}
+	ver, err := semver.NewVersion(component.GetTeleportVersion())
+	if err != nil {
+		return f
+	}
+	if ver.LessThan(semver.Version{Major: 18, Minor: 7, Patch: 6}) {
+		features := slices.DeleteFunc(slices.Clone(f.GetFeatures()), func(id componentfeaturesv1.ComponentFeatureID) bool {
+			return id == FeatureResourceConstraintsV1.ToProto()
+		})
+		return &componentfeaturesv1.ComponentFeatures{Features: features}
+	}
+	return f
 }
