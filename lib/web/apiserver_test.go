@@ -8696,13 +8696,13 @@ func waitForOutputWithDuration(ctx context.Context, r io.Reader, substr string, 
 	timeoutCh := time.After(timeout)
 	errC := make(chan error, 1)
 	go func() {
-		var allOut strings.Builder
-		out := make([]byte, int64(len(substr)*2))
+		var out strings.Builder
+		chunk := make([]byte, int64(len(substr)*2))
 		for {
-			n, err := r.Read(out)
-			allOut.Write(out[:n])
+			n, err := r.Read(chunk)
+			out.Write(chunk[:n])
 
-			normalized := removeSpace(allOut.String())
+			normalized := removeSpace(out.String())
 			slog.DebugContext(ctx, "waitForOutput read", "output", normalized, "expected", substr)
 
 			// Check for [substr] before checking the error,
@@ -8711,7 +8711,8 @@ func waitForOutputWithDuration(ctx context.Context, r io.Reader, substr string, 
 			// output to account for scenarios where the [substr] is split
 			// across 2+ reads. While we try to prevent this by reading
 			// twice the length of [substr] there are no guarantees the
-			// whole thing will arrive in a single read.
+			// whole thing will arrive in a single read since there is no
+			// minimum chunk length.
 			if n > 0 && strings.Contains(normalized, substr) {
 				errC <- nil
 				return
