@@ -45,6 +45,27 @@ Global environment variables:
 |`TELEPORT_IDENTITY_FILE`|*no default*|Path to an identity file. Must be provided to make remote connections to auth. An identity file can be exported with 'tctl auth sign'|
 |`TELEPORT_MFA_MODE`|`auto` (one of: `auto`, `cross-platform`, `platform`, `sso`, `browser`)|Preferred mode for MFA assertions.|
 
+## tctl access-changes ls
+
+List access path changes for your crown jewels
+
+Usage:
+
+```code
+$ tctl access-changes ls [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--filter`|*no default*|Filter by comma-separated key=value pairs (keys: origin_type, kind, source). Pairs within one --filter are AND'd; repeat --filter to OR. Example: --filter kind=resource,source=AWS --filter origin_type=teleport_user.|
+|`--kind`|*no default* (any of (repeatable): `identity`, `resource`)|Filter by change kind (repeatable; each is OR'd). Combine axes with --filter.|
+|`--limit`|`100`|Maximum number of changes to return (0 for unlimited).|
+|`--search`|*no default*|Search term to filter access changes.|
+|`--source`|*no default* (any of (repeatable): `AWS`, `Entra`, `Gitlab`, `Okta`, `TELEPORT`)|Filter by source (repeatable; each is OR'd). Combine axes with --filter.|
+|`--type`|*no default* (any of (repeatable): `aws_ec2`, `aws_eks`, `aws_rds`, `aws_s3`, `aws_user`, `entra_user`, `gitlab_project`, `gitlab_user`, `okta_application`, `okta_user`, `teleport_application`, `teleport_bot`, `teleport_database`, `teleport_desktop`, `teleport_kubernetes`, `teleport_node`, `teleport_user`)|Filter by origin type (repeatable; each is OR'd). Combine axes with --filter.|
+
 ## tctl acl get
 
 Get detailed information for an Access List.
@@ -1054,7 +1075,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--limit`|`100`|Maximum number of detections to return.|
+|`--limit`|`100`|Maximum number of detections to return (0 for unlimited).|
 |`--[no-]detailed`|`false`|Include extra columns (Reported By, Type, Affected Entity, Tags, Description, Start Time, End Time, Updated) in text output.|
 |`--severity`|*no default* (any of (repeatable): `low`, `medium`, `high`, `critical`)|Filter detections by severity (Values: low, medium, high, critical).|
 |`--source`|*no default*|Filter detections by source.|
