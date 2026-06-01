@@ -55,7 +55,7 @@ type targetStatus struct {
 	Op            string    `json:"op"`
 	Outcome       string    `json:"outcome"`
 	LastProcessed time.Time `json:"last_processed"`
-	FailureCount  int       `json:"failure_count"`
+	FailureCount  int32     `json:"failure_count"`
 }
 
 // ToResource converts an OktaAssignment into a *Resource which
@@ -76,7 +76,7 @@ func ToResource(assignment types.OktaAssignment) *Resource {
 				Op:            status.Op,
 				Outcome:       status.Outcome,
 				LastProcessed: status.LastProcessed,
-				FailureCount:  int(status.FailureCount),
+				FailureCount:  status.FailureCount,
 			}
 		}
 	}

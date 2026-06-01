@@ -429,7 +429,8 @@ func Test_PluginOktaSyncSettings_SyncEnabledGetters(t *testing.T) {
 }
 
 func TestOktaAssignmentStatusRecordStatus(t *testing.T) {
-	now := time.Now()
+	now := time.Now().UTC()
+	next := now.Add(time.Minute).UTC()
 
 	tests := []struct {
 		name           string
@@ -446,7 +447,7 @@ func TestOktaAssignmentStatusRecordStatus(t *testing.T) {
 			expectedStatus: &OktaAssignmentTargetStatus{
 				Op:            string(constants.OktaAssignmentTargetOpProvision),
 				Outcome:       string(constants.OktaAssignmentTargetOutcomeSuccessful),
-				LastProcessed: now,
+				LastProcessed: next,
 				FailureCount:  0,
 			},
 			assertErr: require.NoError,
@@ -464,7 +465,7 @@ func TestOktaAssignmentStatusRecordStatus(t *testing.T) {
 			expectedStatus: &OktaAssignmentTargetStatus{
 				Op:            string(constants.OktaAssignmentTargetOpProvision),
 				Outcome:       string(constants.OktaAssignmentTargetOutcomeSuccessful),
-				LastProcessed: now,
+				LastProcessed: next,
 				FailureCount:  0,
 			},
 			assertErr: require.NoError,
@@ -476,7 +477,7 @@ func TestOktaAssignmentStatusRecordStatus(t *testing.T) {
 			expectedStatus: &OktaAssignmentTargetStatus{
 				Op:            string(constants.OktaAssignmentTargetOpProvision),
 				Outcome:       string(constants.OktaAssignmentTargetOutcomeFailed),
-				LastProcessed: now,
+				LastProcessed: next,
 				FailureCount:  1,
 			},
 			assertErr: require.NoError,
@@ -494,7 +495,7 @@ func TestOktaAssignmentStatusRecordStatus(t *testing.T) {
 			expectedStatus: &OktaAssignmentTargetStatus{
 				Op:            string(constants.OktaAssignmentTargetOpProvision),
 				Outcome:       string(constants.OktaAssignmentTargetOutcomeFailed),
-				LastProcessed: now,
+				LastProcessed: next,
 				FailureCount:  8,
 			},
 			assertErr: require.NoError,
@@ -506,7 +507,7 @@ func TestOktaAssignmentStatusRecordStatus(t *testing.T) {
 			expectedStatus: &OktaAssignmentTargetStatus{
 				Op:            string(constants.OktaAssignmentTargetOpCleanup),
 				Outcome:       string(constants.OktaAssignmentTargetOutcomeSuccessful),
-				LastProcessed: now,
+				LastProcessed: next,
 				FailureCount:  0,
 			},
 			assertErr: require.NoError,
@@ -524,7 +525,7 @@ func TestOktaAssignmentStatusRecordStatus(t *testing.T) {
 			expectedStatus: &OktaAssignmentTargetStatus{
 				Op:            string(constants.OktaAssignmentTargetOpCleanup),
 				Outcome:       string(constants.OktaAssignmentTargetOutcomeSuccessful),
-				LastProcessed: now,
+				LastProcessed: next,
 				FailureCount:  0,
 			},
 			assertErr: require.NoError,
@@ -536,7 +537,7 @@ func TestOktaAssignmentStatusRecordStatus(t *testing.T) {
 			expectedStatus: &OktaAssignmentTargetStatus{
 				Op:            string(constants.OktaAssignmentTargetOpCleanup),
 				Outcome:       string(constants.OktaAssignmentTargetOutcomeFailed),
-				LastProcessed: now,
+				LastProcessed: next,
 				FailureCount:  1,
 			},
 			assertErr: require.NoError,
@@ -554,7 +555,7 @@ func TestOktaAssignmentStatusRecordStatus(t *testing.T) {
 			expectedStatus: &OktaAssignmentTargetStatus{
 				Op:            string(constants.OktaAssignmentTargetOpCleanup),
 				Outcome:       string(constants.OktaAssignmentTargetOutcomeFailed),
-				LastProcessed: now,
+				LastProcessed: next,
 				FailureCount:  8,
 			},
 			assertErr: require.NoError,
@@ -605,15 +606,11 @@ func TestOktaAssignmentStatusRecordStatus(t *testing.T) {
 				Status: test.initialStatus,
 			}
 
-			err := target.RecordStatus(now, test.op, test.outcome)
+			err := target.RecordStatus(next, test.op, test.outcome)
 			test.assertErr(t, err)
 
 			status := target.GetStatus()
-
-			require.Equal(t, test.expectedStatus.Op, status.Op)
-			require.Equal(t, test.expectedStatus.Outcome, status.Outcome)
-			require.Equal(t, test.expectedStatus.FailureCount, status.FailureCount)
-			require.Equal(t, test.expectedStatus.LastProcessed, status.LastProcessed)
+			require.Equal(t, test.expectedStatus, status)
 		})
 	}
 }

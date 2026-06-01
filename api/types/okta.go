@@ -423,7 +423,9 @@ type OktaAssignmentTarget interface {
 	// GetStatus returns the processing status of the target.
 	GetStatus() *OktaAssignmentTargetStatus
 	// RecordStatus sets the processing outcome, op type, and last processing time.
-	// In the case of an invalid op or outcome then an error is returned.
+	// In the case of a failed outcome, the failure count is incremented.
+	// In the case of a successful outcome, the failure count is reset.
+	// If an invalid value is provided for op or outcome, then an error is returned.
 	RecordStatus(t time.Time, op constants.OktaAssignmentTargetOp, outcome constants.OktaAssignmentTargetOutcome) error
 }
 
@@ -444,6 +446,7 @@ func (o *OktaAssignmentTargetV1) GetID() string {
 	return o.Id
 }
 
+// GetStatus returns the processing status of the target.
 func (o *OktaAssignmentTargetV1) GetStatus() *OktaAssignmentTargetStatus {
 	return o.Status
 }
@@ -481,7 +484,7 @@ func (o *OktaAssignmentTargetV1) RecordStatus(
 	o.Status = &OktaAssignmentTargetStatus{
 		Outcome:       string(outcome),
 		Op:            string(op),
-		LastProcessed: t,
+		LastProcessed: t.UTC(),
 		FailureCount:  failureCount,
 	}
 
