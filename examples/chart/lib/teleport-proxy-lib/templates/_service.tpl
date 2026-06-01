@@ -1,7 +1,8 @@
 {{- define "teleport-proxy-lib.internal.service" }}
-{{- $backendProtocol := ternary "ssl" "tcp" (hasKey .Values.annotations.service "service.beta.kubernetes.io/aws-load-balancer-ssl-cert") -}}
+{{- $proxy := .Values -}}{{/* Minimizes diff for refactoring. Remove unneeded variable in next PR. */}}
+{{- $backendProtocol := ternary "ssl" "tcp" (hasKey $proxy.annotations.service "service.beta.kubernetes.io/aws-load-balancer-ssl-cert") -}}
 {{- /* Fail early if proxy service type is set to LoadBalancer when ingress.enabled=true */ -}}
-{{- if and .Values.ingress.enabled (eq .Values.service.type "LoadBalancer") -}}
+{{- if and $proxy.ingress.enabled (eq $proxy.service.type "LoadBalancer") -}}
   {{- fail "proxy.service.type must not be LoadBalancer when using an ingress - any load balancer should be provisioned by your ingress controller. Set proxy.service.type=ClusterIP instead" -}}
 {{- end -}}
 apiVersion: v1
@@ -11,29 +12,29 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "teleport-proxy-lib.internal.labels" . | nindent 4 }}
-    {{- if .Values.extraLabels.service }}
-    {{- toYaml .Values.extraLabels.service | nindent 4 }}
+    {{- if $proxy.extraLabels.service }}
+    {{- toYaml $proxy.extraLabels.service | nindent 4 }}
     {{- end }}
-  {{- if (or (.Values.annotations.service) (eq .Values.chartMode "aws")) }}
+  {{- if (or ($proxy.annotations.service) (eq $proxy.chartMode "aws")) }}
   annotations:
-    {{- if and (eq .Values.chartMode "aws") (not .Values.ingress.enabled) }}
-      {{- if not (hasKey .Values.annotations.service "service.beta.kubernetes.io/aws-load-balancer-backend-protocol")}}
+    {{- if and (eq $proxy.chartMode "aws") (not $proxy.ingress.enabled) }}
+      {{- if not (hasKey $proxy.annotations.service "service.beta.kubernetes.io/aws-load-balancer-backend-protocol")}}
     service.beta.kubernetes.io/aws-load-balancer-backend-protocol: {{ $backendProtocol }}
       {{- end }}
-      {{- if not (or (hasKey .Values.annotations.service "service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled") (hasKey .Values.annotations.service "service.beta.kubernetes.io/aws-load-balancer-attributes"))}}
+      {{- if not (or (hasKey $proxy.annotations.service "service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled") (hasKey $proxy.annotations.service "service.beta.kubernetes.io/aws-load-balancer-attributes"))}}
     service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
       {{- end }}
-      {{- if not (hasKey .Values.annotations.service "service.beta.kubernetes.io/aws-load-balancer-type")}}
+      {{- if not (hasKey $proxy.annotations.service "service.beta.kubernetes.io/aws-load-balancer-type")}}
     service.beta.kubernetes.io/aws-load-balancer-type: nlb
       {{- end }}
     {{- end }}
-    {{- if .Values.annotations.service }}
-      {{- toYaml .Values.annotations.service | nindent 4 }}
+    {{- if $proxy.annotations.service }}
+      {{- toYaml $proxy.annotations.service | nindent 4 }}
     {{- end }}
   {{- end }}
 spec:
-  type: {{ default "LoadBalancer" .Values.service.type }}
-{{- with .Values.service.spec }}
+  type: {{ default "LoadBalancer" $proxy.service.type }}
+{{- with $proxy.service.spec }}
   {{- toYaml . | nindent 2 }}
 {{- end }}
   ports:
@@ -41,7 +42,7 @@ spec:
     port: 443
     targetPort: 3080
     protocol: TCP
-{{- if ne .Values.proxyListenerMode "multiplex" }}
+{{- if ne $proxy.proxyListenerMode "multiplex" }}
   - name: sshproxy
     port: 3023
     targetPort: 3023
@@ -58,13 +59,13 @@ spec:
     port: 3036
     targetPort: 3036
     protocol: TCP
-  {{- if .Values.separatePostgresListener }}
+  {{- if $proxy.separatePostgresListener }}
   - name: postgres
     port: 5432
     targetPort: 5432
     protocol: TCP
   {{- end }}
-  {{- if .Values.separateMongoListener }}
+  {{- if $proxy.separateMongoListener }}
   - name: mongo
     port: 27017
     targetPort: 27017

@@ -1,12 +1,13 @@
 {{- define "teleport-proxy-lib.internal.certificate" }}
-{{- if .Values.highAvailability.certManager.enabled -}}
+{{- $proxy := .Values -}}{{/* Minimizes diff for refactoring. Remove unneeded variable in next PR. */}}
+{{- if $proxy.highAvailability.certManager.enabled -}}
   {{- /* Append clusterName and wildcard version to list of dnsNames on certificate request (original functionality) */ -}}
-  {{- $domainList := list (required "clusterName is required in chartValues when certManager is enabled" .Values.clusterName) -}}
-  {{- $domainList := append $domainList (printf "*.%s" (required "clusterName is required in chartValues when certManager is enabled" .Values.clusterName)) -}}
+  {{- $domainList := list (required "clusterName is required in chartValues when certManager is enabled" $proxy.clusterName) -}}
+  {{- $domainList := append $domainList (printf "*.%s" (required "clusterName is required in chartValues when certManager is enabled" $proxy.clusterName)) -}}
   {{- /* If the config option is enabled and at least one publicAddr is set, append all public addresses to the list of dnsNames */ -}}
-  {{- if and .Values.highAvailability.certManager.addPublicAddrs (gt (len .Values.publicAddr) 0) -}}
+  {{- if and $proxy.highAvailability.certManager.addPublicAddrs (gt (len $proxy.publicAddr) 0) -}}
     {{- /* Trim ports from all public addresses if present */ -}}
-    {{- range .Values.publicAddr -}}
+    {{- range $proxy.publicAddr -}}
       {{- $address := . -}}
       {{- if (contains ":" $address) -}}
         {{- $split := split ":" $address -}}
@@ -26,23 +27,23 @@ metadata:
     {{- include "teleport-proxy-lib.internal.labels" . | nindent 4 }}
 spec:
   secretName: teleport-tls
-  {{- if .Values.highAvailability.certManager.addCommonName }}
-  commonName: {{ quote .Values.clusterName }}
+  {{- if $proxy.highAvailability.certManager.addCommonName }}
+  commonName: {{ quote $proxy.clusterName }}
   {{- end }}
   dnsNames:
   {{- range $domainList }}
   - {{ quote . }}
   {{- end }}
   issuerRef:
-    name: {{ required "highAvailability.certManager.issuerName is required in chart values" .Values.highAvailability.certManager.issuerName }}
-    kind: {{ required "highAvailability.certManager.issuerKind is required in chart values" .Values.highAvailability.certManager.issuerKind }}
-    group: {{ required "highAvailability.certManager.issuerGroup is required in chart values" .Values.highAvailability.certManager.issuerGroup }}
-  {{- if or .Values.annotations.certSecret .Values.extraLabels.certSecret }}
+    name: {{ required "highAvailability.certManager.issuerName is required in chart values" $proxy.highAvailability.certManager.issuerName }}
+    kind: {{ required "highAvailability.certManager.issuerKind is required in chart values" $proxy.highAvailability.certManager.issuerKind }}
+    group: {{ required "highAvailability.certManager.issuerGroup is required in chart values" $proxy.highAvailability.certManager.issuerGroup }}
+  {{- if or $proxy.annotations.certSecret $proxy.extraLabels.certSecret }}
   secretTemplate:
-    {{- with .Values.annotations.certSecret }}
+    {{- with $proxy.annotations.certSecret }}
     annotations: {{- toYaml . | nindent 6 }}
     {{- end }}
-    {{- with .Values.extraLabels.certSecret }}
+    {{- with $proxy.extraLabels.certSecret }}
     labels: {{- toYaml . | nindent 6 }}
     {{- end }}
   {{- end }}

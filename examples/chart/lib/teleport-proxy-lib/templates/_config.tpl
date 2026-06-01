@@ -1,6 +1,7 @@
 {{- define "teleport-proxy-lib.internal.config" }}
-{{- $configTemplate := printf "teleport-proxy-lib.internal.config.%s" .Values.chartMode -}}
-{{- if (contains ":" .Values.clusterName) -}}
+{{- $proxy := .Values -}}{{/* Minimizes diff for refactoring. Remove unneeded variable in next PR. */}}
+{{- $configTemplate := printf "teleport-proxy-lib.internal.config.%s" $proxy.chartMode -}}
+{{- if (contains ":" $proxy.clusterName) -}}
   {{- fail "clusterName must not contain a colon, you can override the cluster's public address with publicAddr" -}}
 {{- end -}}
 apiVersion: v1
@@ -10,13 +11,13 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "teleport-proxy-lib.internal.labels" . | nindent 4 }}
-    {{- if .Values.extraLabels.config }}
-    {{- toYaml .Values.extraLabels.config | nindent 4 }}
+    {{- if $proxy.extraLabels.config }}
+    {{- toYaml $proxy.extraLabels.config | nindent 4 }}
     {{- end }}
-{{- if .Values.annotations.config }}
-  annotations: {{- toYaml .Values.annotations.config | nindent 4 }}
+{{- if $proxy.annotations.config }}
+  annotations: {{- toYaml $proxy.annotations.config | nindent 4 }}
 {{- end }}
 data:
   teleport.yaml: |2
-    {{- mustMergeOverwrite (include $configTemplate . | fromYaml) .Values.teleportConfig | toYaml | nindent 4 -}}
+    {{- mustMergeOverwrite (include $configTemplate . | fromYaml) $proxy.teleportConfig | toYaml | nindent 4 -}}
 {{- end }}{{/* config */}}

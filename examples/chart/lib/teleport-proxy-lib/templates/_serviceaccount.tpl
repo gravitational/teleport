@@ -1,6 +1,7 @@
 {{- define "teleport-proxy-lib.internal.serviceaccount" }}
+{{- $proxy := .Values -}}{{/* Minimizes diff for refactoring. Remove unneeded variable in next PR. */}}
 {{- $projectedServiceAccountToken := semverCompare ">=1.20.0-0" .Capabilities.KubeVersion.Version }}
-{{- if .Values.serviceAccount.create -}}
+{{- if $proxy.serviceAccount.create -}}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
@@ -8,11 +9,11 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "teleport-proxy-lib.internal.labels" . | nindent 4 }}
-    {{- if .Values.extraLabels.serviceAccount }}
-    {{- toYaml .Values.extraLabels.serviceAccount | nindent 4 }}
+    {{- if $proxy.extraLabels.serviceAccount }}
+    {{- toYaml $proxy.extraLabels.serviceAccount | nindent 4 }}
     {{- end }}
-{{- if .Values.annotations.serviceAccount }}
-  annotations: {{- toYaml .Values.annotations.serviceAccount | nindent 4 }}
+{{- if $proxy.annotations.serviceAccount }}
+  annotations: {{- toYaml $proxy.annotations.serviceAccount | nindent 4 }}
 {{- end -}}
 {{- if $projectedServiceAccountToken }}
 automountServiceAccountToken: false

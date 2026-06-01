@@ -1,5 +1,6 @@
 {{- define "teleport-proxy-lib.internal.predeploy_job" }}
-{{- if .Values.validateConfigOnDeploy }}
+{{- $proxy := .Values -}}{{/* Minimizes diff for refactoring. Remove unneeded variable in next PR. */}}
+{{- if $proxy.validateConfigOnDeploy }}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -7,8 +8,8 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "teleport-proxy-lib.internal.labels" . | nindent 4 }}
-    {{- if .Values.extraLabels.job }}
-    {{- toYaml .Values.extraLabels.job | nindent 4 }}
+    {{- if $proxy.extraLabels.job }}
+    {{- toYaml $proxy.extraLabels.job | nindent 4 }}
     {{- end }}
   annotations:
     "helm.sh/hook": pre-install,pre-upgrade
@@ -20,37 +21,37 @@ spec:
     metadata:
       labels:
         {{- include "teleport-proxy-lib.internal.labels" . | nindent 8 }}
-        {{- if .Values.extraLabels.jobPod }}
-        {{- toYaml .Values.extraLabels.jobPod | nindent 8 }}
+        {{- if $proxy.extraLabels.jobPod }}
+        {{- toYaml $proxy.extraLabels.jobPod | nindent 8 }}
         {{- end }}
     spec:
-{{- if .Values.affinity }}
-      affinity: {{- toYaml .Values.affinity | nindent 8 }}
+{{- if $proxy.affinity }}
+      affinity: {{- toYaml $proxy.affinity | nindent 8 }}
 {{- end }}
-{{- if .Values.tolerations }}
-      tolerations: {{- toYaml .Values.tolerations | nindent 6 }}
+{{- if $proxy.tolerations }}
+      tolerations: {{- toYaml $proxy.tolerations | nindent 6 }}
 {{- end }}
-{{- if .Values.imagePullSecrets }}
+{{- if $proxy.imagePullSecrets }}
       imagePullSecrets:
-  {{- toYaml .Values.imagePullSecrets | nindent 6 }}
+  {{- toYaml $proxy.imagePullSecrets | nindent 6 }}
 {{- end }}
       restartPolicy: Never
       containers:
       - name: "teleport"
-        image: '{{ if .Values.enterprise }}{{ .Values.enterpriseImage }}{{ else }}{{ .Values.image }}{{ end }}:{{ include "teleport-proxy-lib.internal.version" . }}'
-        imagePullPolicy: {{ .Values.imagePullPolicy }}
-{{- if .Values.jobResources }}
+        image: '{{ if $proxy.enterprise }}{{ $proxy.enterpriseImage }}{{ else }}{{ $proxy.image }}{{ end }}:{{ include "teleport-proxy-lib.internal.version" . }}'
+        imagePullPolicy: {{ $proxy.imagePullPolicy }}
+{{- if $proxy.jobResources }}
         resources:
-  {{- toYaml .Values.jobResources | nindent 10 }}
+  {{- toYaml $proxy.jobResources | nindent 10 }}
 {{- end }}
-{{- if or .Values.extraEnv .Values.tls.existingCASecretName }}
+{{- if or $proxy.extraEnv $proxy.tls.existingCASecretName }}
         env:
-  {{- if (gt (len .Values.extraEnv) 0) }}
-    {{- toYaml .Values.extraEnv | nindent 8 }}
+  {{- if (gt (len $proxy.extraEnv) 0) }}
+    {{- toYaml $proxy.extraEnv | nindent 8 }}
   {{- end }}
-  {{- if .Values.tls.existingCASecretName }}
+  {{- if $proxy.tls.existingCASecretName }}
         - name: SSL_CERT_FILE
-          value: "/etc/teleport-tls-ca/{{ required "tls.existingCASecretKeyName must be set if tls.existingCASecretName is set in chart values" .Values.tls.existingCASecretKeyName }}"
+          value: "/etc/teleport-tls-ca/{{ required "tls.existingCASecretKeyName must be set if tls.existingCASecretName is set in chart values" $proxy.tls.existingCASecretKeyName }}"
   {{- end }}
 {{- end }}
         command:
@@ -59,16 +60,16 @@ spec:
         args:
           - "--test"
           - "/etc/teleport/teleport.yaml"
-{{- if .Values.securityContext }}
-        securityContext: {{- toYaml .Values.securityContext | nindent 10 }}
+{{- if $proxy.securityContext }}
+        securityContext: {{- toYaml $proxy.securityContext | nindent 10 }}
 {{- end }}
         volumeMounts:
-{{- if or .Values.highAvailability.certManager.enabled .Values.tls.existingSecretName }}
+{{- if or $proxy.highAvailability.certManager.enabled $proxy.tls.existingSecretName }}
         - mountPath: /etc/teleport-tls
           name: "teleport-tls"
           readOnly: true
 {{- end }}
-{{- if .Values.tls.existingCASecretName }}
+{{- if $proxy.tls.existingCASecretName }}
         - mountPath: /etc/teleport-tls-ca
           name: "teleport-tls-ca"
           readOnly: true
@@ -78,33 +79,33 @@ spec:
           readOnly: true
         - mountPath: /var/lib/teleport
           name: "data"
-{{- if .Values.extraVolumeMounts }}
-  {{- toYaml .Values.extraVolumeMounts | nindent 8 }}
+{{- if $proxy.extraVolumeMounts }}
+  {{- toYaml $proxy.extraVolumeMounts | nindent 8 }}
 {{- end }}
       volumes:
-{{- if .Values.highAvailability.certManager.enabled }}
+{{- if $proxy.highAvailability.certManager.enabled }}
       - name: teleport-tls
         secret:
           secretName: teleport-tls
           # this avoids deadlock during initial setup
           optional: true
-{{- else if .Values.tls.existingSecretName }}
+{{- else if $proxy.tls.existingSecretName }}
       - name: teleport-tls
         secret:
-          secretName: {{ .Values.tls.existingSecretName }}
+          secretName: {{ $proxy.tls.existingSecretName }}
 {{- end }}
-{{- if .Values.tls.existingCASecretName }}
+{{- if $proxy.tls.existingCASecretName }}
       - name: teleport-tls-ca
         secret:
-          secretName: {{ .Values.tls.existingCASecretName }}
+          secretName: {{ $proxy.tls.existingCASecretName }}
 {{- end }}
       - name: "config"
         configMap:
           name: {{ .Release.Name }}-proxy-test
       - name: "data"
         emptyDir: {}
-{{- if .Values.extraVolumes }}
-  {{- toYaml .Values.extraVolumes | nindent 6 }}
+{{- if $proxy.extraVolumes }}
+  {{- toYaml $proxy.extraVolumes | nindent 6 }}
 {{- end }}
       serviceAccountName: {{ include "teleport-proxy-lib.internal.hookServiceAccountName" . }}
 {{- end }}

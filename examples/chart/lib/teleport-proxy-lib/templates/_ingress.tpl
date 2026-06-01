@@ -1,10 +1,11 @@
 {{- define "teleport-proxy-lib.internal.ingress" }}
-{{- if .Values.ingress.enabled -}}
-  {{- if (not (eq .Values.proxyListenerMode "multiplex")) -}}
+{{- $proxy := .Values -}}{{/* Minimizes diff for refactoring. Remove unneeded variable in next PR. */}}
+{{- if $proxy.ingress.enabled -}}
+  {{- if (not (eq $proxy.proxyListenerMode "multiplex")) -}}
     {{- fail "Use of an ingress requires TLS multiplexing to be enabled, so you must also set proxyListenerMode=multiplex - see https://goteleport.com/docs/architecture/tls-routing/" -}}
   {{- end -}}
-  {{- if not .Values.ingress.useExisting }}
-    {{- $publicAddr := coalesce .Values.publicAddr (list .Values.clusterName) -}}
+  {{- if not $proxy.ingress.useExisting }}
+    {{- $publicAddr := coalesce $proxy.publicAddr (list $proxy.clusterName) -}}
     {{- /* Trim ports from all public addresses if present */ -}}
     {{- range $publicAddr -}}
       {{- $address := . -}}
@@ -26,14 +27,14 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "teleport-proxy-lib.internal.labels" . | nindent 4 }}
-    {{- if .Values.extraLabels.ingress }}
-    {{- toYaml .Values.extraLabels.ingress | nindent 4 }}
+    {{- if $proxy.extraLabels.ingress }}
+    {{- toYaml $proxy.extraLabels.ingress | nindent 4 }}
     {{- end }}
-  {{- if .Values.annotations.ingress }}
-  annotations: {{- toYaml .Values.annotations.ingress | nindent 4 }}
+  {{- if $proxy.annotations.ingress }}
+  annotations: {{- toYaml $proxy.annotations.ingress | nindent 4 }}
   {{- end }}
 spec:
-  {{- with .Values.ingress.spec }}
+  {{- with $proxy.ingress.spec }}
     {{- toYaml . | nindent 2 }}
   {{- end }}
   tls:
@@ -41,10 +42,10 @@ spec:
   {{- range $publicAddr }}
     - {{ quote . }}
   {{- end }}
-  {{- if .Values.highAvailability.certManager.enabled }}
+  {{- if $proxy.highAvailability.certManager.enabled }}
     secretName: teleport-tls
-  {{- else if .Values.tls.existingSecretName }}
-    secretName: {{ .Values.tls.existingSecretName }}
+  {{- else if $proxy.tls.existingSecretName }}
+    secretName: {{ $proxy.tls.existingSecretName }}
   {{- end }}
   rules:
    {{- range $publicAddr }}
