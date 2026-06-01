@@ -1,11 +1,11 @@
 {{- define "teleport-proxy-lib.internal.ingress" }}
 {{- $proxy := .Values -}}{{/* Minimizes diff for refactoring. Remove unneeded variable in next PR. */}}
-{{- if $proxy.ingress.enabled -}}
-  {{- if (not (eq $proxy.proxyListenerMode "multiplex")) -}}
+{{- if .Values.ingress.enabled -}}
+  {{- if (not (eq .Values.proxyListenerMode "multiplex")) -}}
     {{- fail "Use of an ingress requires TLS multiplexing to be enabled, so you must also set proxyListenerMode=multiplex - see https://goteleport.com/docs/architecture/tls-routing/" -}}
   {{- end -}}
-  {{- if not $proxy.ingress.useExisting }}
-    {{- $publicAddr := coalesce $proxy.publicAddr (list $proxy.clusterName) -}}
+  {{- if not .Values.ingress.useExisting }}
+    {{- $publicAddr := coalesce .Values.publicAddr (list .Values.clusterName) -}}
     {{- /* Trim ports from all public addresses if present */ -}}
     {{- range $publicAddr -}}
       {{- $address := . -}}
@@ -62,4 +62,4 @@ spec:
     {{- end }}
   {{- end }}
 {{- end }}
-{{- end }}{{/* ingress */}}
+{{- end }}
