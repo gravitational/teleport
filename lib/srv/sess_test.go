@@ -464,12 +464,13 @@ func TestSessionRegistrySetupFailureCleanup(t *testing.T) {
 
 			tt.configure(t, srv, scx, trackingService)
 
-			channel := newMockSSHChannel()
-			t.Cleanup(func() { require.NoError(t, channel.Close()) })
+			// Open a new session
+			clientChan, serverChan := newMockSSHChannel(t)
+			clientChan.Drain()
 
 			countBefore := testutil.ToFloat64(serverSessions)
 
-			err = tt.openSession(t.Context(), reg, channel, scx)
+			err = tt.openSession(t.Context(), reg, serverChan, scx)
 			require.Error(t, err)
 			require.Nil(t, scx.session)
 
@@ -1141,13 +1142,10 @@ func TestStopSessionWithoutClientDisconnect(t *testing.T) {
 			// Unlike real SSH clients, the mock SSH channel does not automatically close
 			// when the session ends, which is the misbehavior this test is meant to ensure
 			// is handled.
-			sshChanOpen := newMockSSHChannel()
-			t.Cleanup(func() { require.NoError(t, sshChanOpen.Close()) })
-			go func() {
-				_, _ = io.ReadAll(sshChanOpen)
-			}()
+			clientChan, serverChan := newMockSSHChannel(t)
+			clientChan.Drain()
 
-			require.NoError(t, reg.OpenSession(t.Context(), sshChanOpen, scx))
+			require.NoError(t, reg.OpenSession(t.Context(), serverChan, scx))
 			require.NotNil(t, scx.session)
 
 			stopDone := make(chan struct{})
