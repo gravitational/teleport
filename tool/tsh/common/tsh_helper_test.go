@@ -20,9 +20,9 @@ package common
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"io/fs"
+	"net"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
@@ -185,7 +186,7 @@ func (s *suite) setupLeafCluster(t *testing.T, options testSuiteOptions) {
 		Auth: config.Auth{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: localListenerAddr(),
+				ListenAddress: localListenerAddr(t).String(),
 			},
 			ClusterName:       "leaf1",
 			ProxyListenerMode: types.ProxyListenerMode_Multiplex,
@@ -367,8 +368,17 @@ func runTeleport(t *testing.T, cfg *servicecfg.Config) *service.TeleportProcess 
 	return process
 }
 
-func localListenerAddr() string {
-	return fmt.Sprintf("localhost:%d", ports.PopInt())
+func localListenerAddr(t *testing.T) *utils.NetAddr {
+	t.Helper()
+
+	// Acquire a free port by listening on :0 and closing the listener. There is a small race between closing the
+	// listener and the process binding to the port, but it's unlikely to cause issues in practice. The port is
+	// immediately reusable since closing a listening socket that never accepted connections should not enter TIME_WAIT.
+	l, err := (&net.ListenConfig{}).Listen(t.Context(), "tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	require.NoError(t, l.Close())
+
+	return &utils.NetAddr{AddrNetwork: "tcp", Addr: l.Addr().String()}
 }
 
 func waitForEvents(t *testing.T, svc service.Supervisor, events ...string) {

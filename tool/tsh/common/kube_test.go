@@ -29,6 +29,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -140,11 +141,11 @@ func setupKubeTestPack(t *testing.T, withMultiplexMode bool) *kubeTestPack {
 			}
 			cfg.InsecureMode = true
 			cfg.Kube.Enabled = true
-			cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
+			cfg.Kube.ListenAddr = localListenerAddr(t)
 			cfg.Kube.KubeconfigPath = newKubeConfigFile(t, rootKubeCluster1, rootKubeCluster2)
 			cfg.Kube.StaticLabels = rootLabels
 			cfg.Proxy.Kube.Enabled = true
-			cfg.Proxy.Kube.ListenAddr = *utils.MustParseAddr(localListenerAddr())
+			cfg.Proxy.Kube.ListenAddr = *localListenerAddr(t)
 			cfg.SSH.Enabled = false
 		}),
 		withLeafCluster(),
@@ -155,7 +156,7 @@ func setupKubeTestPack(t *testing.T, withMultiplexMode bool) *kubeTestPack {
 				}
 				cfg.InsecureMode = true
 				cfg.Kube.Enabled = true
-				cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
+				cfg.Kube.ListenAddr = localListenerAddr(t)
 				cfg.Kube.KubeconfigPath = newKubeConfigFile(t, leafKubeCluster)
 				cfg.Kube.StaticLabels = leafLabels
 				cfg.SSH.Enabled = false
@@ -364,7 +365,7 @@ func TestKubeSelection(t *testing.T) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			cfg.SSH.Enabled = false
 			cfg.Kube.Enabled = true
-			cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
+			cfg.Kube.ListenAddr = localListenerAddr(t)
 			cfg.Kube.ResourceMatchers = []services.ResourceMatcher{{
 				Labels: map[string]apiutils.Strings{"*": {"*"}},
 			}}
@@ -565,7 +566,7 @@ func TestKubeSelection(t *testing.T) {
 						return nil
 					}
 				}
-				err := Run(ctx, append([]string{"proxy", "kube", "--insecure", "--port", ports.Pop()}, test.args...),
+				err := Run(ctx, append([]string{"proxy", "kube", "--insecure", "--port", strconv.Itoa(localListenerAddr(t).Port(0))}, test.args...),
 					setCmdRunner(cmdRunner),
 					setHomePath(tshHome),
 					setKubeConfigPath(kubeConfigPath),

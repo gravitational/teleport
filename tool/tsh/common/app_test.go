@@ -28,6 +28,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os/user"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -315,7 +316,7 @@ func TestAppCommands(t *testing.T) {
 
 							// Test connecting to the app through a local proxy.
 							t.Run("tsh proxy app", func(t *testing.T) {
-								localProxyPort := ports.Pop()
+								localProxyPort := strconv.Itoa(localListenerAddr(t).Port(0))
 								proxyCtx, proxyCancel := context.WithTimeout(ctx, 10*time.Second)
 								defer proxyCancel()
 

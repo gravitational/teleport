@@ -151,9 +151,9 @@ func testDatabaseLogin(t *testing.T) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			// separate MySQL port with TLS routing.
 			// set the public address to be sure even on v2+, tsh clients will see the separate port.
-			mySQLAddr := localListenerAddr()
-			cfg.Proxy.MySQLAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: mySQLAddr}
-			cfg.Proxy.MySQLPublicAddrs = []utils.NetAddr{{AddrNetwork: "tcp", Addr: mySQLAddr}}
+			mySQLAddr := localListenerAddr(t)
+			cfg.Proxy.MySQLAddr = *mySQLAddr
+			cfg.Proxy.MySQLPublicAddrs = []utils.NetAddr{*mySQLAddr}
 			cfg.Databases.Enabled = true
 			cfg.Databases.Databases = []servicecfg.Database{
 				{
@@ -2243,9 +2243,9 @@ func TestMongoDBSeparatePortCommandError(t *testing.T) {
 		testserver.WithClusterName("root"),
 		testserver.WithBootstrap(connector, alice),
 		testserver.WithConfig(func(cfg *servicecfg.Config) {
-			mongoPublicAddr := localListenerAddr()
-			cfg.Proxy.MongoAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: mongoPublicAddr}
-			cfg.Proxy.MongoPublicAddrs = []utils.NetAddr{{AddrNetwork: "tcp", Addr: mongoPublicAddr}}
+			mongoPublicAddr := localListenerAddr(t)
+			cfg.Proxy.MongoAddr = *mongoPublicAddr
+			cfg.Proxy.MongoPublicAddrs = []utils.NetAddr{*mongoPublicAddr}
 			cfg.Databases.Enabled = true
 			cfg.Databases.Databases = []servicecfg.Database{
 				{

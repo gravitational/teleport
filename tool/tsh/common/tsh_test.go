@@ -120,19 +120,11 @@ const (
 	tshBinMockHeadlessAddrEnv = "TSH_BIN_MOCK_HEADLESS_ADDR"
 )
 
-var ports utils.PortList
-
 const initTestSentinel = "init_test"
 
 func TestMain(m *testing.M) {
 	reexec.MaybeReexec()
 	handleReexec()
-
-	var err error
-	ports, err = utils.GetFreeTCPPorts(5000, utils.PortStartingNumber)
-	if err != nil {
-		panic(fmt.Sprintf("failed to allocate tcp ports for tests: %v", err))
-	}
 
 	modules.SetModules(&cliModules{})
 	modules.SetInsecureTestMode(true)
@@ -4462,14 +4454,14 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 		opt(&options)
 	}
 
-	authAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
+	authAddr := localListenerAddr(t)
 	var err error
 	// Set up a test auth server.
 	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	cfg.Hostname = "localhost"
 	cfg.DataDir = t.TempDir()
-	cfg.SetAuthServerAddress(authAddr)
+	cfg.SetAuthServerAddress(*authAddr)
 	cfg.Auth.BootstrapResources = options.bootstrap
 	cfg.Auth.StorageConfig.Params = backend.Params{defaults.BackendPath: filepath.Join(cfg.DataDir, defaults.BackendDir)}
 	cfg.Auth.StaticTokens, err = types.NewStaticTokens(types.StaticTokensSpecV2{
@@ -4483,12 +4475,12 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	cfg.SetToken(staticToken)
 	cfg.SSH.Enabled = false
 	cfg.Auth.Enabled = true
-	cfg.Auth.ListenAddr = authAddr
+	cfg.Auth.ListenAddr = *authAddr
 	cfg.Auth.Preference.SetSignatureAlgorithmSuite(types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1)
 	cfg.Proxy.Enabled = true
-	cfg.Proxy.WebAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
-	cfg.Proxy.SSHAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
-	cfg.Proxy.ReverseTunnelListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
+	cfg.Proxy.WebAddr = *localListenerAddr(t)
+	cfg.Proxy.SSHAddr = *localListenerAddr(t)
+	cfg.Proxy.ReverseTunnelListenAddr = *localListenerAddr(t)
 	cfg.Proxy.DisableWebInterface = true
 	cfg.Logger = logtest.NewLogger()
 	// Disabling debug service for tests so that it doesn't break if the data
@@ -7464,10 +7456,7 @@ func TestInteractiveCompatibilityFlags(t *testing.T) {
 		withConfig(func(cfg *servicecfg.Config) {
 			cfg.Hostname = hostname
 			cfg.SSH.Enabled = true
-			cfg.SSH.Addr = utils.NetAddr{
-				AddrNetwork: "tcp",
-				Addr:        net.JoinHostPort("127.0.0.1", ports.Pop()),
-			}
+			cfg.SSH.Addr = *localListenerAddr(t)
 		}))
 
 	// Extract Auth Service and Proxy Service address.

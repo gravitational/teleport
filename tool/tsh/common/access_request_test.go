@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestAccessRequestSearch(t *testing.T) {
@@ -51,7 +50,7 @@ func TestAccessRequestSearch(t *testing.T) {
 			cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 			cfg.Kube.Enabled = true
 			cfg.SSH.Enabled = false
-			cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
+			cfg.Kube.ListenAddr = localListenerAddr(t)
 			cfg.Kube.KubeconfigPath = newKubeConfigFile(t, rootKubeCluster)
 		}),
 		withLeafCluster(),
@@ -63,7 +62,7 @@ func TestAccessRequestSearch(t *testing.T) {
 				cfg.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 				cfg.Kube.Enabled = true
 				cfg.SSH.Enabled = false
-				cfg.Kube.ListenAddr = utils.MustParseAddr(localListenerAddr())
+				cfg.Kube.ListenAddr = localListenerAddr(t)
 				cfg.Kube.KubeconfigPath = newKubeConfigFile(t, leafKubeCluster)
 			},
 		),

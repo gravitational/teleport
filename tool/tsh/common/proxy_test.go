@@ -1560,7 +1560,7 @@ func TestProxyAppWithIdentity(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	port := ports.Pop()
+	port := strconv.Itoa(localListenerAddr(t).Port(0))
 	tshArgs := []string{
 		"--debug",
 		"--insecure",
@@ -1642,7 +1642,7 @@ func TestProxyAppMultiPort(t *testing.T) {
 	// tsh proxy app seems to not handle multiple concurrent invocations well. Because of that, the
 	// test needs to first set up a local proxy, verify it and only then set up another one.
 
-	fooProxyPort := ports.Pop()
+	fooProxyPort := strconv.Itoa(localListenerAddr(t).Port(0))
 	fooTshArgs := []string{
 		"--debug",
 		"--insecure",
@@ -1658,7 +1658,7 @@ func TestProxyAppMultiPort(t *testing.T) {
 	})
 	mustDialLocalAppProxy(t, fooProxyPort, "foo")
 
-	fooNoTargetPortProxyPort := ports.Pop()
+	fooNoTargetPortProxyPort := strconv.Itoa(localListenerAddr(t).Port(0))
 	fooNoTargetPortTshArgs := []string{
 		"--debug",
 		"--insecure",
@@ -1675,7 +1675,7 @@ func TestProxyAppMultiPort(t *testing.T) {
 	// If there's no target port, the connections should still be routed to the first TCP port.
 	mustDialLocalAppProxy(t, fooNoTargetPortProxyPort, "foo")
 
-	barProxyPort := ports.Pop()
+	barProxyPort := strconv.Itoa(localListenerAddr(t).Port(0))
 	barTshArgs := []string{
 		"--debug",
 		"--insecure",
