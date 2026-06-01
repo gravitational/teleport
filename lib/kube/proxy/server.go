@@ -283,20 +283,33 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	// force client auth if given
 	cfg.TLS.ClientAuth = tls.VerifyClientCertIfGiven
 
+	// WriteTimeout is set so net/http uses it as the TLS handshake deadline
+	// (min of ReadHeaderTimeout, ReadTimeout, WriteTimeout).
+	// This bounds the pre-authentication goroutine hold time.
+	// The outer handler clears the per-request write deadline so
+	// long-running watch / exec / portforward streams aren't terminated by the same WriteTimeout.
+	tracingHandler := httplib.MakeTracingHandler(limiter, teleport.ComponentKube)
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := http.NewResponseController(w).SetWriteDeadline(time.Time{}); err != nil {
+			log.ErrorContext(r.Context(), "failed to reset response write deadline", "error", err)
+			panic(http.ErrAbortHandler)
+		}
+		tracingHandler.ServeHTTP(w, r)
+	})
+
 	server := &TLSServer{
 		fwd:             fwd,
 		TLSServerConfig: cfg,
 		Server: &http.Server{
-			Handler:           httplib.MakeTracingHandler(limiter, teleport.ComponentKube),
+			Handler:           handler,
 			ReadHeaderTimeout: apidefaults.DefaultIOTimeout * 2,
-			// Setting ReadTimeout and WriteTimeout will cause the server to
-			// terminate long running requests. This will cause issues with
-			// long running watch streams. The server will close the connection
-			// and the client will receive incomplete data and will fail to
-			// parse it.
-			IdleTimeout: apidefaults.DefaultIdleTimeout,
-			TLSConfig:   cfg.TLS,
-			ConnState:   ingress.HTTPConnStateReporter(ingress.Kube, cfg.IngressReporter),
+			// ReadTimeout is deliberately unset so long-running watch streams aren't terminated.
+			// WriteTimeout is set only to drive the TLS handshake deadline above.
+			// The outer handler resets the per-request write deadline.
+			WriteTimeout: defaults.HandshakeReadDeadline,
+			IdleTimeout:  apidefaults.DefaultIdleTimeout,
+			TLSConfig:    cfg.TLS,
+			ConnState:    ingress.HTTPConnStateReporter(ingress.Kube, cfg.IngressReporter),
 			ConnContext: func(ctx context.Context, c net.Conn) context.Context {
 				return authz.ContextWithClientAddrs(ctx, c.RemoteAddr(), c.LocalAddr())
 			},
@@ -444,7 +457,7 @@ func (t *TLSServer) Serve(listener net.Listener, options ...ServeOption) error {
 		}
 	}
 
-	return t.Server.Serve(newHandshakeBoundedTLSListener(mux.TLS(), t.TLS, defaults.HandshakeReadDeadline))
+	return t.Server.Serve(tls.NewListener(mux.TLS(), t.TLS))
 }
 
 // Close closes the server and cleans up all resources.
