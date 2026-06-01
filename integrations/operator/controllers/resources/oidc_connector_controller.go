@@ -66,9 +66,18 @@ func (r oidcConnectorClient) Mutate(ctx context.Context, new, _ types.OIDCConnec
 	if secretlookup.IsNeeded(secret) {
 		resolvedSecret, err := secretlookup.Try(ctx, r.kubeClient, crKey.Name, crKey.Namespace, secret)
 		if err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "resolving client secret")
 		}
 		new.SetClientSecret(resolvedSecret)
+	}
+
+	gcpSA := new.GetGoogleServiceAccount()
+	if secretlookup.IsNeeded(gcpSA) {
+		resolvedSecret, err := secretlookup.Try(ctx, r.kubeClient, crKey.Name, crKey.Namespace, gcpSA)
+		if err != nil {
+			return trace.Wrap(err, "resolving google service account secret")
+		}
+		new.SetGoogleServiceAccount(resolvedSecret)
 	}
 	return nil
 }
