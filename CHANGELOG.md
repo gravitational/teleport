@@ -1,5 +1,30 @@
 # Changelog
 
+## 17.7.24 (06/01/26)
+
+* Fixed an issue where generated installer scripts could incorrectly escape special characters in some values. [#67192](https://github.com/gravitational/teleport/pull/67192)
+* Fixed a bug in Teleport Connect where the last terminal input could be logged to `renderer.log` if the terminal closed on its own — for example, when a `tsh ssh` session is dropped by the remote side (idle timeout, network disconnection) after the user pasted content but before they pressed Enter. [#67173](https://github.com/gravitational/teleport/pull/67173)
+* Fixes an issue preventing joins using the azure join method in regions where the trust chain has been updated with an additional intermediate. [#67140](https://github.com/gravitational/teleport/pull/67140)
+* Fix device trust for remote users connecting to a trusted cluster. [#67032](https://github.com/gravitational/teleport/pull/67032)
+* Fixed a TLS certificate error that prevented users from connecting to Amazon Keyspaces databases through Teleport. [#66975](https://github.com/gravitational/teleport/pull/66975)
+* Fixed an issue where Windows desktop LDAP discovery could conflict with dynamic registration causing desktops to be removed from the cluster. [#66802](https://github.com/gravitational/teleport/pull/66802)
+* Improved the error message on login in tsh and Teleport Connect when `/webapi/ping` returns a non-200 response. [#66713](https://github.com/gravitational/teleport/pull/66713)
+* Raise the app access upstream response-header cap from 5 minutes to 1 hour so long-running HTTP requests complete. [#66686](https://github.com/gravitational/teleport/pull/66686)
+* Updated Go to 1.25.10. [#66570](https://github.com/gravitational/teleport/pull/66570)
+* Improved the performance of VNet on macOS by eliminating unnecessary reconnects. [#66561](https://github.com/gravitational/teleport/pull/66561)
+* Reduced unnecessary S3 uploads for Athena audit log deployments that publish directly to SQS by applying the correct SQS message size limit when the client has `sqs:GetQueueAttributes` permission, instead of always using the 256 KB SNS limit. [#66533](https://github.com/gravitational/teleport/pull/66533)
+* Improved Teleport Connect startup reliability on Windows. [#66510](https://github.com/gravitational/teleport/pull/66510)
+* Hardened event handler so it recovers in case of malformed session ID or corrupted data directory. [#66472](https://github.com/gravitational/teleport/pull/66472)
+* Fixed app access dropping URL fragments through the auth redirect flow. [#66461](https://github.com/gravitational/teleport/pull/66461)
+* Fixed an issue preventing host sudoers entries from being written on newer Linux distributions (i.e. Ubuntu 25.10) using sudo-rs. [#66434](https://github.com/gravitational/teleport/pull/66434)
+* Fixed an issue that could cause LDAP discovery to fail when a single desktop service discovers large numbers of hosts. [#66400](https://github.com/gravitational/teleport/pull/66400)
+* Fixed a rare input swallowing bug when resuming a moderated Node session. [#66369](https://github.com/gravitational/teleport/pull/66369)
+* Fixed possible unavailability of Proxy service instances as a result of some API errors. [#66313](https://github.com/gravitational/teleport/pull/66313)
+
+Enterprise:
+* Enterprise licenses with a devices limit for device trust can now enroll unlimited devices.
+* Fixed a bug that could cause panics in Teleport's SAML IdP during failure scenarios.
+
 ## 17.7.23 (04/29/26)
 ### Security fixes
 
