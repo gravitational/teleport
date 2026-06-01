@@ -535,9 +535,6 @@ export class TdpClient extends EventEmitter<EventMap> {
 
   handleServerHello(hello: ServerHello) {
     this.hidpiSupported = hello.hidpiSupported;
-    // In the future, we may add new server capability advertisements
-    // that will affect client configuration.
-    // For now we'll just activate the the connection.
     this.emit(TdpClientEvent.SERVER_CAPABILITIES, {
       directoryRemoval: hello.directoryRemovalSupport,
     });
