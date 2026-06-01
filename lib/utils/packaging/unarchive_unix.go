@@ -30,6 +30,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"slices"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -87,6 +88,11 @@ func replaceTarGz(archivePath string, extractDir string, execNames []string) (ma
 
 		if err = func(header *tar.Header) error {
 			dest := filepath.Join(extractDir, header.Name)
+			// Ensure the entry resolves inside extractDir, otherwise a crafted
+			// archive could escape it with a name like "../../foo".
+			if !strings.HasPrefix(dest, filepath.Clean(extractDir)+string(os.PathSeparator)) {
+				return trace.BadParameter("%s: illegal file path", header.Name)
+			}
 			// Preserve the archive directory structure.
 			if err := os.MkdirAll(filepath.Dir(dest), directoryPerm); err != nil {
 				return trace.Wrap(err)
