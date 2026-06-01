@@ -91,6 +91,8 @@ function encodeServerHello(canRemoveDirectory: boolean): ArrayBuffer {
           },
           clipboardEnabled: true,
           directoryRemoveSupported: canRemoveDirectory,
+          hidpiSupported: false,
+          sessions: [],
         },
       },
     })
