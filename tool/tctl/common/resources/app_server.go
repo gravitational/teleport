@@ -68,6 +68,8 @@ func (a *appServerCollection) WriteText(w io.Writer, verbose bool) error {
 		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Labels")
 	}
 
+	// stable sort by app name.
+	t.SortRowsBy([]int{1}, true)
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)
 }
