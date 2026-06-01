@@ -261,9 +261,9 @@ func TestFormatResourceAccessIDs(t *testing.T) {
 func TestFormatUserDisplay_CanonicalForms(t *testing.T) {
 	t.Parallel()
 
-	require.Equal(t, "Jane Garcia <jane.garcia@example.com> (123456)",
+	require.Equal(t, "123456 (Jane Garcia) <jane.garcia@example.com>",
 		FormatUserDisplay("Jane Garcia", "jane.garcia@example.com", "123456"))
-	require.Equal(t, "Jane Garcia (123456)",
+	require.Equal(t, "123456 (Jane Garcia)",
 		FormatUserDisplay("Jane Garcia", "", "123456"))
 	require.Equal(t, "123456 <jane.garcia@example.com>",
 		FormatUserDisplay("", "jane.garcia@example.com", "123456"))
@@ -286,7 +286,7 @@ func TestFormatUserDisplay_Sanitization(t *testing.T) {
 			name:     "newline and tab collapsed in primary",
 			primary:  "Jane\n\tAdmin",
 			username: "jgarcia",
-			want:     "Jane Admin (jgarcia)",
+			want:     "jgarcia (Jane Admin)",
 		},
 		{
 			name:      "newline and tab collapsed in secondary",
@@ -298,7 +298,7 @@ func TestFormatUserDisplay_Sanitization(t *testing.T) {
 			name:     "surrounding whitespace trimmed",
 			primary:  "  Jane  ",
 			username: "  jgarcia  ",
-			want:     "Jane (jgarcia)",
+			want:     "jgarcia (Jane)",
 		},
 		{
 			name:     "whitespace-only primary treated as absent",
