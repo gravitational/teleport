@@ -1,0 +1,20 @@
+version: v3
+teleport:
+  nodename: teleport-node
+  data_dir: /var/lib/teleport
+  auth_server: teleport-auth:3025
+  log:
+    output: stderr
+    severity: INFO
+  join_params:
+    method: token
+    token_name: regression-test-token-9b3f
+auth_service:
+  enabled: no
+proxy_service:
+  enabled: no
+ssh_service:
+  enabled: yes
+  labels:
+    env: test
+    purpose: regression

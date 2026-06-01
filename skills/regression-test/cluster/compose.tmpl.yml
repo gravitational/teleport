@@ -1,0 +1,63 @@
+services:
+  teleport-auth:
+    image: public.ecr.aws/gravitational/teleport-ent-distroless:${AUTH_VERSION}
+    container_name: ${COMPOSE_PROJECT_NAME}-auth
+    hostname: teleport-auth
+    # Image entrypoint already runs `teleport start -c /etc/teleport/teleport.yaml`
+    volumes:
+      - ./configs/auth.yaml:/etc/teleport/teleport.yaml:ro
+      - ./license-eub.pem:/var/lib/teleport/license.pem:ro
+    networks:
+      - teleport
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/tctl", "status"]
+      interval: 2s
+      timeout: 5s
+      retries: 60
+      start_period: 5s
+
+  teleport-proxy:
+    image: public.ecr.aws/gravitational/teleport-ent-distroless:${PROXY_VERSION}
+    container_name: ${COMPOSE_PROJECT_NAME}-proxy
+    hostname: teleport-proxy
+    volumes:
+      - ./configs/proxy.yaml:/etc/teleport/teleport.yaml:ro
+    networks:
+      - teleport
+    depends_on:
+      teleport-auth:
+        condition: service_healthy
+
+  teleport-node:
+    # Debug variant has busybox/sh, so SSH sessions can fork a real shell
+    # for the test user (regular distroless has no shell binary).
+    image: public.ecr.aws/gravitational/teleport-ent-distroless-debug:${NODE_VERSION}
+    container_name: ${COMPOSE_PROJECT_NAME}-node
+    hostname: teleport-node
+    volumes:
+      - ./configs/node.yaml:/etc/teleport/teleport.yaml:ro
+      # Override /etc/passwd so root's login shell is /busybox/sh instead of nologin.
+      - ./configs/passwd:/etc/passwd:ro
+    networks:
+      - teleport
+    depends_on:
+      teleport-auth:
+        condition: service_healthy
+
+  mock-oidc:
+    image: regression-mock-oidc:latest
+    container_name: ${COMPOSE_PROJECT_NAME}-mock-oidc
+    hostname: mock-oidc
+    environment:
+      EXTERNAL_HOST: mock-oidc:8080
+    volumes:
+      - ${OIDC_USERS_FILE:-./mock-oidc-users.json}:/etc/mock-oidc/users.json:ro
+    networks:
+      - teleport
+
+networks:
+  teleport:
+    name: ${COMPOSE_PROJECT_NAME}-net
+    ipam:
+      config:
+        - subnet: ${CLUSTER_SUBNET:-10.99.0.0/24}

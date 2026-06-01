@@ -1,0 +1,22 @@
+version: v3
+teleport:
+  nodename: teleport-auth
+  data_dir: /var/lib/teleport
+  log:
+    output: stderr
+    severity: INFO
+auth_service:
+  enabled: yes
+  cluster_name: regression.local
+  proxy_listener_mode: multiplex
+  listen_addr: 0.0.0.0:3025
+  authentication:
+    type: local
+    second_factor: otp
+  license_file: /var/lib/teleport/license.pem
+  tokens:
+    - "proxy,node:regression-test-token-9b3f"
+proxy_service:
+  enabled: no
+ssh_service:
+  enabled: no

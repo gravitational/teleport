@@ -1,0 +1,19 @@
+version: v3
+teleport:
+  nodename: teleport-proxy
+  data_dir: /var/lib/teleport
+  auth_server: teleport-auth:3025
+  log:
+    output: stderr
+    severity: INFO
+  join_params:
+    method: token
+    token_name: regression-test-token-9b3f
+auth_service:
+  enabled: no
+ssh_service:
+  enabled: no
+proxy_service:
+  enabled: yes
+  web_listen_addr: 0.0.0.0:3080
+  public_addr: ["teleport-proxy:3080"]
