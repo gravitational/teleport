@@ -568,10 +568,12 @@ func (s *recordingPlayback) resizeTerminal(size string) error {
 		return trace.Wrap(err)
 	}
 
+	w, h := session.ClampTTYSize(params.W, params.H)
+
 	s.terminal.Lock()
 	defer s.terminal.Unlock()
 
-	s.terminal.vt.Resize(params.W, params.H)
+	s.terminal.vt.Resize(w, h)
 
 	return nil
 }

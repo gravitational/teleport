@@ -282,3 +282,26 @@ const (
 	minSize = 1
 	maxSize = 4096
 )
+
+// vt10x upper bounds for terminal dimensions.
+const (
+	MaxTTYCols = 1024
+	MaxTTYRows = 512
+)
+
+// ClampTTYSize bounds w, h into [1, MaxTTYCols] x [1, MaxTTYRows].
+func ClampTTYSize(w, h int) (int, int) {
+	if w < 1 {
+		w = 1
+	}
+	if w > MaxTTYCols {
+		w = MaxTTYCols
+	}
+	if h < 1 {
+		h = 1
+	}
+	if h > MaxTTYRows {
+		h = MaxTTYRows
+	}
+	return w, h
+}

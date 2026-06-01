@@ -77,7 +77,8 @@ func (t *ttyThumbnailGenerator) handleTerminalResize(terminalSize string) error 
 		return trace.Wrap(err, "parsing terminal size %q", terminalSize)
 	}
 
-	t.vt.Resize(size.W, size.H)
+	w, h := session.ClampTTYSize(size.W, size.H)
+	t.vt.Resize(w, h)
 
 	return nil
 }

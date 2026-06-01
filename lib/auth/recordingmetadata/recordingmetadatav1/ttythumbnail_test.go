@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/session"
 )
 
 func TestTtyThumbnailGenerator_HandleEvent(t *testing.T) {
@@ -94,6 +95,46 @@ func TestTtyThumbnailGenerator_HandleEvent(t *testing.T) {
 
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "parsing terminal size")
+	})
+
+	t.Run("oversized terminal size is clamped to MaxTTYCols x MaxTTYRows", func(t *testing.T) {
+		gen := newTTYThumbnailGenerator()
+		require.NoError(t, gen.handleEvent(sessionStartEvent(startTime, "99999:99999")))
+
+		thumb, err := gen.produceThumbnail(thumbnailMaxDimensions)
+		require.NoError(t, err)
+
+		require.Equal(t, int32(session.MaxTTYCols), thumb.Cols)
+		require.Equal(t, int32(session.MaxTTYRows), thumb.Rows)
+	})
+
+	t.Run("negative terminal size is clamped to a sane minimum", func(t *testing.T) {
+		gen := newTTYThumbnailGenerator()
+		require.NoError(t, gen.handleEvent(sessionStartEvent(startTime, "-1:-1")))
+
+		thumb, err := gen.produceThumbnail(thumbnailMaxDimensions)
+		require.NoError(t, err)
+
+		require.Equal(t, int32(1), thumb.Cols)
+		require.Equal(t, int32(1), thumb.Rows)
+	})
+
+	t.Run("out-of-bounds cursor moves stay within terminal bounds", func(t *testing.T) {
+		gen := newTTYThumbnailGenerator()
+		require.NoError(t, gen.handleEvent(sessionStartEvent(startTime, "99999:99999")))
+
+		oob := "\x1b[5000;5000H" + "X" +
+			"\x1b[99999;99999H" + "Y" +
+			"\x1b[1;1H" + "Z"
+		require.NoError(t, gen.handleEvent(sessionPrintEvent(startTime.Add(time.Second), oob)))
+
+		thumb, err := gen.produceThumbnail(thumbnailMaxDimensions)
+		require.NoError(t, err)
+
+		require.GreaterOrEqual(t, int(thumb.CursorX), 0)
+		require.GreaterOrEqual(t, int(thumb.CursorY), 0)
+		require.LessOrEqual(t, int(thumb.CursorX), int(thumb.Cols)-1)
+		require.LessOrEqual(t, int(thumb.CursorY), int(thumb.Rows)-1)
 	})
 }
 

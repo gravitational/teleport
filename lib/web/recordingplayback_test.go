@@ -106,6 +106,20 @@ func TestResizeTerminalEvent(t *testing.T) {
 	}
 }
 
+func TestResizeTerminalClampsOversizedDimensions(t *testing.T) {
+	s := &recordingPlayback{
+		ctx:    t.Context(),
+		logger: slog.Default(),
+	}
+	s.terminal.vt = vt10x.New()
+
+	require.NoError(t, s.resizeTerminal("99999:99999"))
+
+	cols, rows := s.terminal.vt.Size()
+	require.Equal(t, session.MaxTTYCols, cols)
+	require.Equal(t, session.MaxTTYRows, rows)
+}
+
 func TestCreateTaskContext(t *testing.T) {
 	s := &recordingPlayback{
 		ctx:    t.Context(),
