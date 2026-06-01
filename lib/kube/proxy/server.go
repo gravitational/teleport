@@ -292,7 +292,6 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if err := http.NewResponseController(w).SetWriteDeadline(time.Time{}); err != nil {
 			log.ErrorContext(r.Context(), "failed to reset response write deadline", "error", err)
-			panic(http.ErrAbortHandler)
 		}
 		tracingHandler.ServeHTTP(w, r)
 	})
