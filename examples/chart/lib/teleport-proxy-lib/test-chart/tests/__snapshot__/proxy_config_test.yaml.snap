@@ -13,7 +13,7 @@ generates a config WITHOUT proxy_service.trust_x_forwarded_for=true when version
       ssh_service:
         enabled: false
       teleport:
-        auth_server: ""
+        auth_server: teleport.example.com
         join_params:
           method: kubernetes
           token_name: RELEASE-NAME-proxy
@@ -39,7 +39,7 @@ generates a config WITHOUT proxy_service.trust_x_forwarded_for=true when version
       ssh_service:
         enabled: false
       teleport:
-        auth_server: ""
+        auth_server: teleport.example.com
         join_params:
           method: kubernetes
           token_name: RELEASE-NAME-proxy
@@ -69,7 +69,7 @@ generates a config WITHOUT proxy_service.trust_x_forwarded_for=true when version
       ssh_service:
         enabled: false
       teleport:
-        auth_server: ""
+        auth_server: teleport.example.com
         join_params:
           method: kubernetes
           token_name: RELEASE-NAME-proxy
@@ -99,7 +99,7 @@ generates a config with a clusterName containing a regular string:
       ssh_service:
         enabled: false
       teleport:
-        auth_server: ""
+        auth_server: teleport.example.com
         join_params:
           method: kubernetes
           token_name: RELEASE-NAME-proxy
@@ -126,7 +126,7 @@ generates a config with proxy_service.trust_x_forwarded_for=true when version = 
       ssh_service:
         enabled: false
       teleport:
-        auth_server: ""
+        auth_server: teleport.example.com
         join_params:
           method: kubernetes
           token_name: RELEASE-NAME-proxy
@@ -153,7 +153,7 @@ generates a config with proxy_service.trust_x_forwarded_for=true when version >=
       ssh_service:
         enabled: false
       teleport:
-        auth_server: ""
+        auth_server: teleport.example.com
         join_params:
           method: kubernetes
           token_name: RELEASE-NAME-proxy
@@ -186,7 +186,7 @@ matches snapshot for acme-on.yaml:
       ssh_service:
         enabled: false
       teleport:
-        auth_server: ""
+        auth_server: teleport.example.com
         join_params:
           method: kubernetes
           token_name: RELEASE-NAME-proxy
@@ -220,7 +220,7 @@ matches snapshot for acme-uri-staging.yaml:
       ssh_service:
         enabled: false
       teleport:
-        auth_server: ""
+        auth_server: teleport.example.com
         join_params:
           method: kubernetes
           token_name: RELEASE-NAME-proxy
@@ -254,7 +254,7 @@ matches snapshot for aws-ha-acme.yaml:
       ssh_service:
         enabled: false
       teleport:
-        auth_server: ""
+        auth_server: teleport.example.com
         join_params:
           method: kubernetes
           token_name: RELEASE-NAME-proxy
@@ -288,7 +288,7 @@ matches snapshot for existing-tls-secret.yaml:
       ssh_service:
         enabled: false
       teleport:
-        auth_server: ""
+        auth_server: teleport.example.com
         join_params:
           method: kubernetes
           token_name: RELEASE-NAME-proxy
@@ -318,7 +318,7 @@ matches snapshot for log-basic.yaml:
       ssh_service:
         enabled: false
       teleport:
-        auth_server: ""
+        auth_server: teleport.example.com
         join_params:
           method: kubernetes
           token_name: RELEASE-NAME-proxy
@@ -348,7 +348,7 @@ matches snapshot for log-extra.yaml:
       ssh_service:
         enabled: false
       teleport:
-        auth_server: ""
+        auth_server: teleport.example.com
         join_params:
           method: kubernetes
           token_name: RELEASE-NAME-proxy
@@ -374,7 +374,7 @@ matches snapshot for proxy-listener-mode-multiplex.yaml:
       ssh_service:
         enabled: false
       teleport:
-        auth_server: ""
+        auth_server: teleport.example.com
         join_params:
           method: kubernetes
           token_name: RELEASE-NAME-proxy
@@ -404,7 +404,7 @@ matches snapshot for proxy-listener-mode-separate.yaml:
       ssh_service:
         enabled: false
       teleport:
-        auth_server: ""
+        auth_server: teleport.example.com
         join_params:
           method: kubernetes
           token_name: RELEASE-NAME-proxy
@@ -449,7 +449,7 @@ matches snapshot for public-addresses.yaml:
       ssh_service:
         enabled: false
       teleport:
-        auth_server: ""
+        auth_server: teleport.example.com
         join_params:
           method: kubernetes
           token_name: RELEASE-NAME-proxy
@@ -481,7 +481,7 @@ matches snapshot for separate-mongo-listener.yaml:
       ssh_service:
         enabled: false
       teleport:
-        auth_server: ""
+        auth_server: teleport.example.com
         join_params:
           method: kubernetes
           token_name: RELEASE-NAME-proxy
@@ -513,7 +513,7 @@ matches snapshot for separate-postgres-listener.yaml:
       ssh_service:
         enabled: false
       teleport:
-        auth_server: ""
+        auth_server: teleport.example.com
         join_params:
           method: kubernetes
           token_name: RELEASE-NAME-proxy

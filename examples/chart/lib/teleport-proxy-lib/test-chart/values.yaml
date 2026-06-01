@@ -3,6 +3,7 @@
 # documentation of the teleport-proxy-lib interface.
 
 clusterName: ""
+teleportAuthService: teleport.example.com
 
 teleportVersionOverride: ""
 forceHAReplicas: false
