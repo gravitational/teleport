@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-package common
+package accesslist
 
 import (
 	"context"
@@ -45,8 +45,8 @@ import (
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
 
-// ACLCommand implements the `tctl acl` family of commands.
-type ACLCommand struct {
+// Command implements the `tctl acl` family of commands.
+type Command struct {
 	format string
 
 	ls            *kingpin.CmdClause
@@ -84,8 +84,8 @@ const (
 	memberKindList = "list"
 )
 
-// Initialize allows ACLCommand to plug itself into the CLI parser
-func (c *ACLCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, _ *servicecfg.Config) {
+// Initialize allows Command to plug itself into the CLI parser
+func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, _ *servicecfg.Config) {
 	acl := app.Command("acl", "Manage Access Lists.").Alias("access-lists")
 
 	c.ls = acl.Command("ls", "List cluster Access Lists.")
@@ -137,7 +137,7 @@ func (c *ACLCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFl
 }
 
 // TryRun takes the CLI command as an argument (like "acl ls") and executes it.
-func (c *ACLCommand) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
+func (c *Command) TryRun(ctx context.Context, cmd string, clientFunc commonclient.InitFunc) (match bool, err error) {
 	var commandFunc func(ctx context.Context, client *authclient.Client) error
 	switch cmd {
 	case c.ls.FullCommand():
@@ -170,7 +170,7 @@ func (c *ACLCommand) TryRun(ctx context.Context, cmd string, clientFunc commoncl
 }
 
 // List will list access lists visible to the user.
-func (c *ACLCommand) List(ctx context.Context, client *authclient.Client) error {
+func (c *Command) List(ctx context.Context, client *authclient.Client) error {
 	var accessLists []*accesslist.AccessList
 	var err error
 
@@ -195,7 +195,7 @@ func (c *ACLCommand) List(ctx context.Context, client *authclient.Client) error 
 }
 
 // Get will display information about an access list visible to the user.
-func (c *ACLCommand) Get(ctx context.Context, client *authclient.Client) error {
+func (c *Command) Get(ctx context.Context, client *authclient.Client) error {
 	accessList, err := client.AccessListClient().GetAccessList(ctx, c.accessListName)
 	if err != nil {
 		return trace.Wrap(err)
@@ -212,7 +212,7 @@ func (c *ACLCommand) Get(ctx context.Context, client *authclient.Client) error {
 //
 // This is useful for agentic workflows to get all high signal information about
 // access lists without having to call multiple commands.
-func (c *ACLCommand) Summary(ctx context.Context, client *authclient.Client) error {
+func (c *Command) Summary(ctx context.Context, client *authclient.Client) error {
 	var accessLists []*accesslist.AccessList
 
 	if c.accessListName != "" {
@@ -253,7 +253,7 @@ func (c *ACLCommand) Summary(ctx context.Context, client *authclient.Client) err
 }
 
 // UsersAdd will add a user to an access list.
-func (c *ACLCommand) UsersAdd(ctx context.Context, client *authclient.Client) error {
+func (c *Command) UsersAdd(ctx context.Context, client *authclient.Client) error {
 	var expires time.Time
 	if c.expires != "" {
 		var err error
@@ -299,7 +299,7 @@ func (c *ACLCommand) UsersAdd(ctx context.Context, client *authclient.Client) er
 }
 
 // UsersRemove will remove a user to an access list.
-func (c *ACLCommand) UsersRemove(ctx context.Context, client *authclient.Client) error {
+func (c *Command) UsersRemove(ctx context.Context, client *authclient.Client) error {
 	err := client.AccessListClient().DeleteAccessListMember(ctx, c.accessListName, c.userName)
 	if err != nil {
 		return trace.Wrap(err)
@@ -311,7 +311,7 @@ func (c *ACLCommand) UsersRemove(ctx context.Context, client *authclient.Client)
 }
 
 // UsersList will list the users in an access list.
-func (c *ACLCommand) UsersList(ctx context.Context, client *authclient.Client) error {
+func (c *Command) UsersList(ctx context.Context, client *authclient.Client) error {
 	allMembers, err := c.collectAllMembers(ctx, client, c.accessListName)
 	if err != nil {
 		return trace.Wrap(err)
@@ -333,7 +333,7 @@ func (c *ACLCommand) UsersList(ctx context.Context, client *authclient.Client) e
 	}
 }
 
-func (c *ACLCommand) displayAccessListMembersText(ctx context.Context, client *authclient.Client, members []*accesslist.AccessListMember) error {
+func (c *Command) displayAccessListMembersText(ctx context.Context, client *authclient.Client, members []*accesslist.AccessListMember) error {
 	table := asciitable.MakeTable([]string{"Member", "Type", "Date Added", "Reason Added", "Expires"})
 	for _, member := range members {
 		formattedMember, err := formatAccessListMember(ctx, client, member)
@@ -386,7 +386,7 @@ func formatAccessListMemberExpiry(expires time.Time) string {
 	return expires.Format(time.DateTime)
 }
 
-func (c *ACLCommand) ReviewsCreate(ctx context.Context, client *authclient.Client) error {
+func (c *Command) ReviewsCreate(ctx context.Context, client *authclient.Client) error {
 	review, err := c.makeReview()
 	if err != nil {
 		return trace.Wrap(err)
@@ -402,7 +402,7 @@ func (c *ACLCommand) ReviewsCreate(ctx context.Context, client *authclient.Clien
 	return nil
 }
 
-func (c *ACLCommand) makeReview() (*accesslist.Review, error) {
+func (c *Command) makeReview() (*accesslist.Review, error) {
 	var removeMembers []string
 	for _, member := range strings.Split(c.removeMembers, ",") {
 		member = strings.TrimSpace(member)
@@ -425,7 +425,7 @@ func (c *ACLCommand) makeReview() (*accesslist.Review, error) {
 		})
 }
 
-func (c *ACLCommand) ReviewsList(ctx context.Context, client *authclient.Client) error {
+func (c *Command) ReviewsList(ctx context.Context, client *authclient.Client) error {
 	reviews, err := c.collectAllReviews(ctx, client, c.accessListName)
 	if err != nil {
 		return trace.Wrap(err)
@@ -436,7 +436,7 @@ func (c *ACLCommand) ReviewsList(ctx context.Context, client *authclient.Client)
 	return trace.Wrap(c.displayAccessListReviews(reviews))
 }
 
-func (c *ACLCommand) displayAccessListReviews(reviews []*accesslist.Review) error {
+func (c *Command) displayAccessListReviews(reviews []*accesslist.Review) error {
 	switch c.format {
 	case teleport.YAML:
 		return trace.Wrap(utils.WriteYAML(c.Stdout, reviews))
@@ -448,7 +448,7 @@ func (c *ACLCommand) displayAccessListReviews(reviews []*accesslist.Review) erro
 	return trace.BadParameter("invalid format %q", c.format)
 }
 
-func (c *ACLCommand) displayAccessListReviewsText(reviews []*accesslist.Review) error {
+func (c *Command) displayAccessListReviewsText(reviews []*accesslist.Review) error {
 	table := asciitable.MakeTable([]string{"ID", "Reviewer", "Review Date", "Removed Members", "Notes"})
 	for _, review := range reviews {
 		table.AddRow([]string{
@@ -463,7 +463,7 @@ func (c *ACLCommand) displayAccessListReviewsText(reviews []*accesslist.Review) 
 	return trace.Wrap(err)
 }
 
-func (c *ACLCommand) displayAccessLists(accessLists ...*accesslist.AccessList) error {
+func (c *Command) displayAccessLists(accessLists ...*accesslist.AccessList) error {
 	switch c.format {
 	case teleport.YAML:
 		return trace.Wrap(utils.WriteYAML(c.Stdout, accessLists))
@@ -477,7 +477,7 @@ func (c *ACLCommand) displayAccessLists(accessLists ...*accesslist.AccessList) e
 	return trace.BadParameter("invalid format %q", c.format)
 }
 
-func (c *ACLCommand) displayAccessListsText(accessLists ...*accesslist.AccessList) error {
+func (c *Command) displayAccessListsText(accessLists ...*accesslist.AccessList) error {
 	table := asciitable.MakeTable([]string{"ID", "Title", "Next Audit", "Granted Roles", "Granted Traits"})
 	for _, accessList := range accessLists {
 		grantedRoles := strings.Join(accessList.GetGrants().Roles, ",")
@@ -533,7 +533,7 @@ type accessListReview struct {
 
 // buildAccessListSummary constructs an accessList summary entry for the given
 // access list, including its owners, members, and most recent review.
-func (c *ACLCommand) buildAccessListSummary(ctx context.Context, client *authclient.Client, al *accesslist.AccessList) (accessList, error) {
+func (c *Command) buildAccessListSummary(ctx context.Context, client *authclient.Client, al *accesslist.AccessList) (accessList, error) {
 	entry := accessList{
 		Name:          al.GetName(),
 		Title:         al.Spec.Title,
@@ -591,19 +591,19 @@ func (c *ACLCommand) buildAccessListSummary(ctx context.Context, client *authcli
 	return entry, nil
 }
 
-func (c *ACLCommand) collectAllLists(ctx context.Context, client *authclient.Client) ([]*accesslist.AccessList, error) {
+func (c *Command) collectAllLists(ctx context.Context, client *authclient.Client) ([]*accesslist.AccessList, error) {
 	return stream.Collect(clientutils.Resources(ctx,
 		client.AccessListClient().ListAccessLists))
 }
 
-func (c *ACLCommand) collectAllMembers(ctx context.Context, client *authclient.Client, aclName string) ([]*accesslist.AccessListMember, error) {
+func (c *Command) collectAllMembers(ctx context.Context, client *authclient.Client, aclName string) ([]*accesslist.AccessListMember, error) {
 	return stream.Collect(clientutils.Resources(ctx,
 		func(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.AccessListMember, string, error) {
 			return client.AccessListClient().ListAccessListMembers(ctx, aclName, pageSize, pageToken)
 		}))
 }
 
-func (c *ACLCommand) collectAllReviews(ctx context.Context, client *authclient.Client, aclName string) ([]*accesslist.Review, error) {
+func (c *Command) collectAllReviews(ctx context.Context, client *authclient.Client, aclName string) ([]*accesslist.Review, error) {
 	return stream.Collect(clientutils.Resources(ctx,
 		func(ctx context.Context, pageSize int, pageToken string) ([]*accesslist.Review, string, error) {
 			return client.AccessListClient().ListAccessListReviews(ctx, aclName, pageSize, pageToken)
