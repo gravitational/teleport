@@ -437,6 +437,7 @@ func TestOktaAssignmentStatusRecordStatus(t *testing.T) {
 		outcome        constants.OktaAssignmentTargetOutcome
 		initialStatus  *OktaAssignmentTargetStatus
 		expectedStatus *OktaAssignmentTargetStatus
+		assertErr      require.ErrorAssertionFunc
 	}{
 		{
 			name:    "successful initial provision",
@@ -448,6 +449,7 @@ func TestOktaAssignmentStatusRecordStatus(t *testing.T) {
 				LastProcessed: now,
 				FailureCount:  0,
 			},
+			assertErr: require.NoError,
 		},
 		{
 			name:    "successful provision from failed",
@@ -465,6 +467,7 @@ func TestOktaAssignmentStatusRecordStatus(t *testing.T) {
 				LastProcessed: now,
 				FailureCount:  0,
 			},
+			assertErr: require.NoError,
 		},
 		{
 			name:    "failed initial provision",
@@ -476,6 +479,7 @@ func TestOktaAssignmentStatusRecordStatus(t *testing.T) {
 				LastProcessed: now,
 				FailureCount:  1,
 			},
+			assertErr: require.NoError,
 		},
 		{
 			name:    "failed provision from failed",
@@ -493,6 +497,7 @@ func TestOktaAssignmentStatusRecordStatus(t *testing.T) {
 				LastProcessed: now,
 				FailureCount:  8,
 			},
+			assertErr: require.NoError,
 		},
 		{
 			name:    "successful initial cleanup",
@@ -504,6 +509,7 @@ func TestOktaAssignmentStatusRecordStatus(t *testing.T) {
 				LastProcessed: now,
 				FailureCount:  0,
 			},
+			assertErr: require.NoError,
 		},
 		{
 			name:    "successful cleanup from failed",
@@ -521,6 +527,7 @@ func TestOktaAssignmentStatusRecordStatus(t *testing.T) {
 				LastProcessed: now,
 				FailureCount:  0,
 			},
+			assertErr: require.NoError,
 		},
 		{
 			name:    "failed initial cleanup",
@@ -532,6 +539,7 @@ func TestOktaAssignmentStatusRecordStatus(t *testing.T) {
 				LastProcessed: now,
 				FailureCount:  1,
 			},
+			assertErr: require.NoError,
 		},
 		{
 			name:    "failed cleanup from failed",
@@ -549,26 +557,10 @@ func TestOktaAssignmentStatusRecordStatus(t *testing.T) {
 				LastProcessed: now,
 				FailureCount:  8,
 			},
+			assertErr: require.NoError,
 		},
 		{
-			name:    "failed invalid op",
-			op:      "invalid-op",
-			outcome: constants.OktaAssignmentTargetOutcomeFailed,
-			initialStatus: &OktaAssignmentTargetStatus{
-				Op:            string(constants.OktaAssignmentTargetOpCleanup),
-				Outcome:       string(constants.OktaAssignmentTargetOutcomeFailed),
-				LastProcessed: now,
-				FailureCount:  3,
-			},
-			expectedStatus: &OktaAssignmentTargetStatus{
-				Op:            "",
-				Outcome:       string(constants.OktaAssignmentTargetOutcomeFailed),
-				LastProcessed: now,
-				FailureCount:  4,
-			},
-		},
-		{
-			name:    "successful invalid op",
+			name:    "invalid op",
 			op:      "invalid-op",
 			outcome: constants.OktaAssignmentTargetOutcomeSuccessful,
 			initialStatus: &OktaAssignmentTargetStatus{
@@ -578,14 +570,15 @@ func TestOktaAssignmentStatusRecordStatus(t *testing.T) {
 				FailureCount:  3,
 			},
 			expectedStatus: &OktaAssignmentTargetStatus{
-				Op:            "",
-				Outcome:       string(constants.OktaAssignmentTargetOutcomeSuccessful),
+				Op:            string(constants.OktaAssignmentTargetOpCleanup),
+				Outcome:       string(constants.OktaAssignmentTargetOutcomeFailed),
 				LastProcessed: now,
-				FailureCount:  0,
+				FailureCount:  3,
 			},
+			assertErr: require.Error,
 		},
 		{
-			name:    "cleanup invalid outcome",
+			name:    "invalid outcome",
 			op:      constants.OktaAssignmentTargetOpCleanup,
 			outcome: "invalid-outcome",
 			initialStatus: &OktaAssignmentTargetStatus{
@@ -596,10 +589,11 @@ func TestOktaAssignmentStatusRecordStatus(t *testing.T) {
 			},
 			expectedStatus: &OktaAssignmentTargetStatus{
 				Op:            string(constants.OktaAssignmentTargetOpCleanup),
-				Outcome:       "",
+				Outcome:       string(constants.OktaAssignmentTargetOutcomeFailed),
 				LastProcessed: now,
 				FailureCount:  3,
 			},
+			assertErr: require.Error,
 		},
 	}
 
@@ -611,7 +605,8 @@ func TestOktaAssignmentStatusRecordStatus(t *testing.T) {
 				Status: test.initialStatus,
 			}
 
-			target.RecordStatus(now, test.op, test.outcome)
+			err := target.RecordStatus(now, test.op, test.outcome)
+			test.assertErr(t, err)
 
 			status := target.GetStatus()
 
