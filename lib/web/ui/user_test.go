@@ -110,6 +110,76 @@ func TestNewUserListEntry(t *testing.T) {
 				DisplaySecondary: "alice@example.com",
 			},
 		},
+		{
+			name: "empty display traits yield no display values",
+			user: &types.UserV2{
+				Metadata: types.Metadata{
+					Name: "alice",
+				},
+				Spec: types.UserSpecV2{
+					Roles: []string{"access"},
+					Traits: map[string][]string{
+						"displayName": {},
+						"email":       {},
+					},
+				},
+			},
+			want: &UserListEntry{
+				Name:     "alice",
+				Roles:    []string{"access"},
+				AuthType: "local",
+				AllTraits: map[string][]string{
+					"displayName": {},
+					"email":       {},
+				},
+			},
+		},
+		{
+			name: "only displayName populates primary",
+			user: &types.UserV2{
+				Metadata: types.Metadata{
+					Name: "alice",
+				},
+				Spec: types.UserSpecV2{
+					Roles: []string{"access"},
+					Traits: map[string][]string{
+						"displayName": {"Alice Anderson"},
+					},
+				},
+			},
+			want: &UserListEntry{
+				Name:     "alice",
+				Roles:    []string{"access"},
+				AuthType: "local",
+				AllTraits: map[string][]string{
+					"displayName": {"Alice Anderson"},
+				},
+				DisplayPrimary: "Alice Anderson",
+			},
+		},
+		{
+			name: "only email populates secondary",
+			user: &types.UserV2{
+				Metadata: types.Metadata{
+					Name: "alice",
+				},
+				Spec: types.UserSpecV2{
+					Roles: []string{"access"},
+					Traits: map[string][]string{
+						"email": {"alice@example.com"},
+					},
+				},
+			},
+			want: &UserListEntry{
+				Name:     "alice",
+				Roles:    []string{"access"},
+				AuthType: "local",
+				AllTraits: map[string][]string{
+					"email": {"alice@example.com"},
+				},
+				DisplaySecondary: "alice@example.com",
+			},
+		},
 	}
 
 	for _, tt := range tests {
