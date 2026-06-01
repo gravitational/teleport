@@ -8,13 +8,24 @@ tags:
  - infrastructure-identity
 ---
 
-Teleport's SSH Service can be configured to automatically create local Unix users
-upon login.
+Teleport's SSH Service can automatically create local Unix users on a server,
+and can grant those users temporary sudo permissions. These are two distinct
+capabilities:
 
-This saves you from having to manually create users for each member of an
-organization and provides more fine-grained control of permissions on a given
-host. Host users created by Teleport are transient and will be deleted at the
-end of an SSH session.
+- **Host user creation** creates a local Unix user when a Teleport user opens an
+  SSH session (or, for static host users, independently of any session), based
+  on the user's Teleport roles.
+- **Host sudoers** writes a temporary entry to `/etc/sudoers.d` granting the
+  created user specific sudo permissions.
+
+Host user creation saves you from manually managing a Unix account for each
+member of your organization and gives you fine-grained, per-host control of
+permissions. Host users created by Teleport are transient and will be deleted at
+the end of an SSH session unless you configure Teleport to keep them.
+
+Host sudoers entries only take effect on servers where host user creation is
+enabled, since Teleport writes the sudoers file for the user it creates at
+login.
 
 ## Prerequisites
 
@@ -64,10 +75,10 @@ To enable host user creation, you will:
 
 1. Make the following change to the configuration file:
 
-   ```diff
+```diff
      labels:
    +   app: "nginx"
-   ```
+```
 
 1. Restart Teleport on the server.
 
@@ -83,14 +94,15 @@ metadata:
   name: auto-users
 spec:
   options:
-    # Allow automatic creation of users.
+    # Host user creation: "keep" enables creation and retains the user after the
+    # session ends.
     create_host_user_mode: keep
     create_host_user_default_shell: /bin/bash
   allow:
     logins: [ "nginxrestarter" ]
-    # List of host groups the created user will be added to. Any that don't already exist are created.
+    # Host user creation: groups the created user joins. Any that don't already exist are created.
     host_groups: [ubuntu, nginx, other]
-    # List of entries to include in a temporary sudoers file created in /etc/sudoers.d
+    # Host sudoers: entries written to a temporary file in /etc/sudoers.d. These only apply when host user creation is enabled (above).
     host_sudoers: [
        # This line will allow the `nginxrestarter` user to run
        # `systemctl restart nginx.service` as
@@ -181,9 +193,9 @@ $ tctl create -f auto-users.yaml
 1. Run the following command to create a Teleport user with the `auto-users`
    role:
 
-   ```code
+```code
    $ tctl users add demo-user --roles=auto-users --logins=nginxrestarter
-   ```
+```
 
 1. Follow the instructions in your terminal to visit the Teleport Web UI and
    create the user.
@@ -317,10 +329,10 @@ servers, SSH services, and `tctl`.
 
 1. Make the following change to the configuration file:
 
-   ```diff
+```diff
      labels:
    +   app: "nginx"
-   ```
+```
 
 1. Restart Teleport on the server.
 
@@ -353,9 +365,9 @@ $ tctl create -f auto-users.yaml
 1. Run the following command to create a Teleport user with the `auto-users`
    role:
 
-   ```code
+```code
    $ tctl users add demo-user --roles=auto-users --logins=nginxrestarter
-   ```
+```
 
 1. Follow the instructions in your terminal to visit the Teleport Web UI and
    create the user.
