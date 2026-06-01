@@ -52,6 +52,32 @@ func TestProperty_RDPState_ServerHelloMatchesDimensions(t *testing.T) {
 	})
 }
 
+func TestRDPState_ServerHelloAtMaxDimension(t *testing.T) {
+	cases := []struct {
+		name string
+		w, h uint32
+	}{
+		{"max width", types.MaxRDPScreenWidth, 16},
+		{"max height", 16, types.MaxRDPScreenHeight},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s := New()
+			defer s.Release()
+
+			evt, err := rdpstatetest.EncodeTDPBServerHello(tc.w, tc.h)
+			require.NoError(t, err)
+			require.NoError(t, s.HandleMessage(evt))
+
+			img := s.Image()
+			require.NotNil(t, img)
+			require.Equal(t, int(tc.w), img.Bounds().Dx())
+			require.Equal(t, int(tc.h), img.Bounds().Dy())
+		})
+	}
+}
+
 func TestProperty_RDPState_BitmapPDUNeverPanics(t *testing.T) {
 	rapid.Check(t, func(t *rapid.T) {
 		s := New()
@@ -264,6 +290,5 @@ func genScreenDim(t *rapid.T, label string) uint32 {
 		rapid.Just(1),
 		rapid.Just(2),
 		rapid.IntRange(64, 1920),
-		rapid.Just(int(types.MaxRDPScreenWidth)),
 	).Draw(t, label))
 }
