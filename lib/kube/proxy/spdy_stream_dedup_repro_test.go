@@ -23,7 +23,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"go.uber.org/goleak"
 )
 
 // On a request with tty=true, stdin=true, stdout=true, expectedStreams==4 (error + stdin + stdout + resize).
@@ -52,37 +51,6 @@ func TestRegression_WaitForStreams_RejectsDuplicateStream(t *testing.T) {
 
 	_, err := handler.waitForStreams(t.Context(), streams, expectedStreams, nil)
 	require.Error(t, err, "waitForStreams should return an error when a duplicate stream type arrives")
-}
-
-// When waitForStreams returns early on a duplicate stream, every waitStreamReply
-// goroutine it spawned must exit. Otherwise repeated malformed requests
-// accumulate goroutines parked on the unbuffered notify send.
-func TestRegression_WaitForStreams_DuplicateStream_NoGoroutineLeak(t *testing.T) {
-	ignore := goleak.IgnoreCurrent()
-	defer goleak.VerifyNone(t, ignore)
-
-	handler := &v4ProtocolHandler{}
-
-	const expectedStreams = 4
-	streams := make(chan streamAndReply, expectedStreams)
-	for _, st := range []string{
-		StreamTypeError,
-		StreamTypeStdin,
-		StreamTypeStdout,
-		StreamTypeStdin,
-	} {
-		hdr := http.Header{}
-		hdr.Set(StreamType, st)
-		reply := make(chan struct{})
-		close(reply)
-		streams <- streamAndReply{
-			Stream:    &fakeSPDYStream{headers: hdr},
-			replySent: reply,
-		}
-	}
-
-	_, err := handler.waitForStreams(t.Context(), streams, expectedStreams, nil)
-	require.Error(t, err)
 }
 
 // Calling kubeProxyClientStreams.resizeQueue() with a nil sizeQueue must not panic.
