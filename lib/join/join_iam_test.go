@@ -1019,6 +1019,7 @@ func testIAMJoin(t *testing.T, tc *iamJoinTestCase) {
 					Method:    "iam",
 					NodeName:  "test-node",
 					TokenName: "scoped_test-token",
+					Scope:     "/test/one",
 				},
 				evt,
 				protocmp.Transform(),

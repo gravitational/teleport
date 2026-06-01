@@ -19,6 +19,7 @@ package join_test
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
 	"slices"
 	"testing"
@@ -265,7 +266,7 @@ func TestJoinToken(t *testing.T) {
 					return key == "Time" || key == "ID"
 				}),
 			))
-		}, 5*time.Second, 5*time.Millisecond, "expected instance.join failed event not found")
+		}, 5*time.Second, 5*time.Millisecond, "expected instance.join success event not found")
 
 		// Build an auth client with the new identity.
 		tlsConfig, err := identity.TLSConfig(nil /*cipherSuites*/)
@@ -373,12 +374,24 @@ func TestJoinToken(t *testing.T) {
 					ConnectionMetadata: apievents.ConnectionMetadata{
 						RemoteAddr: "127.0.0.1",
 					},
-					Role: "Instance",
+					HostID: identity.ID.HostID(),
+					Role:   "Instance",
+					Roles:  slices.DeleteFunc(token1.GetRoles().StringSlice(), func(role string) bool { return role == types.RoleInstance.String() }),
 				},
 				evt,
 				protocmp.Transform(),
 				cmpopts.IgnoreMapEntries(func(key string, val any) bool {
 					return key == "Time" || key == "ID"
+				}),
+				// sort roles so the diff is deterministic
+				cmpopts.SortSlices(func(a, b string) int {
+					if a < b {
+						return -1
+					}
+					if a > b {
+						return 1
+					}
+					return 0
 				}),
 			))
 		}, 5*time.Second, 5*time.Millisecond, "expected instance.join failed event not found")
@@ -393,6 +406,7 @@ func TestJoinToken(t *testing.T) {
 			proxyListener.Addr(),
 		)
 		require.NoError(t, err)
+
 		// Make sure the result contains a host ID and expected certificate roles.
 		require.NotEmpty(t, identity.ID.HostUUID)
 		require.Equal(t, types.RoleInstance, identity.ID.Role)
@@ -414,7 +428,7 @@ func TestJoinToken(t *testing.T) {
 
 		// Make sure the instance.join limit audit event is emitted
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			evt, err := authService.lastEvent(ctx, "instance.join")
+			evt, err := authService.lastEvent(ctx, events.InstanceJoinEvent)
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(
 				&apievents.InstanceJoin{
@@ -432,14 +446,14 @@ func TestJoinToken(t *testing.T) {
 					Method:    string(types.JoinMethodToken),
 					NodeName:  "node",
 					Role:      "Instance",
+					Roles:     singleUseToken.GetSpec().GetRoles(),
 					TokenName: singleUseToken.GetMetadata().GetName(),
 					Scope:     singleUseToken.GetSpec().GetAssignedScope(),
-					Roles:     singleUseToken.GetSpec().GetRoles(),
 				},
 				evt,
 				protocmp.Transform(),
 				cmpopts.IgnoreMapEntries(func(key string, val any) bool {
-					return key == "Time" || key == "ID"
+					return key == "Time" || key == "ID" || key == "HostID"
 				}),
 			))
 		}, 5*time.Second, 5*time.Millisecond, "expected instance.join failed event not found")
@@ -668,22 +682,18 @@ func TestJoinError(t *testing.T) {
 
 type fakeAuthService struct {
 	*authtest.Server
-	clock *clockwork.FakeClock
 }
 
 func newFakeAuthService(t *testing.T) *fakeAuthService {
-	clock := clockwork.NewFakeClock()
 	testServer, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
 			Dir:         t.TempDir(),
 			ClusterName: "testcluster",
-			Clock:       clock,
 		},
 	})
 	require.NoError(t, err)
 	return &fakeAuthService{
 		Server: testServer,
-		clock:  clock,
 	}
 }
 
@@ -696,7 +706,7 @@ func lastEvent(ctx context.Context, auditLog events.AuditLogger, clock clockwork
 		From:       clock.Now().Add(-time.Hour),
 		To:         clock.Now().Add(time.Hour),
 		EventTypes: []string{eventType},
-		Limit:      5,
+		Limit:      3,
 		Order:      types.EventOrderDescending,
 	})
 	if err != nil {
@@ -705,6 +715,29 @@ func lastEvent(ctx context.Context, auditLog events.AuditLogger, clock clockwork
 	if len(events) == 0 {
 		return nil, trace.NotFound("no matching events")
 	}
+	eventMeta := make([]struct {
+		evType    string
+		code      string
+		time      string
+		tokenName string
+		nodeName  string
+		index     int64
+	}, len(events))
+	for i := range events {
+
+		ev, ok := events[i].(*apievents.InstanceJoin)
+		if !ok {
+			panic("unexpected event type")
+		}
+
+		eventMeta[i].evType = ev.GetType()
+		eventMeta[i].code = ev.GetCode()
+		eventMeta[i].time = ev.GetTime().String()
+		eventMeta[i].tokenName = ev.TokenName
+		eventMeta[i].nodeName = ev.NodeName
+		eventMeta[i].index = ev.GetIndex()
+	}
+	slog.Error("last events", "events", eventMeta)
 	return events[0], nil
 }
 
@@ -734,8 +767,6 @@ func (p *fakeProxy) join(t *testing.T) {
 		AdditionalPrincipals: []string{"127.0.0.1"},
 	})
 	require.NoError(t, err)
-	// ensure join events are separated by at least one second
-	p.auth.clock.Advance(time.Second)
 	privateKeyPEM, err := keys.MarshalPrivateKey(joinResult.PrivateKey)
 	require.NoError(t, err)
 	p.identity, err = state.ReadIdentityFromKeyPair(privateKeyPEM, joinResult.Certs)

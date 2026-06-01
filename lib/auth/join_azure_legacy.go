@@ -105,7 +105,11 @@ func (a *Server) RegisterUsingAzureMethod(
 	}
 	params := makeHostCertsParams(req.RegisterUsingTokenRequest, nil /*rawClaims*/)
 	certs, err = a.GenerateHostCertsForJoin(ctx, provisionToken, params)
-	return certs, trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	a.emitJoinEvent(ctx, provisionToken, params)
+	return certs, nil
 }
 
 // GetAzureJoinConfig gets configuration options for azure joining.

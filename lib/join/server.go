@@ -243,6 +243,8 @@ func (s *Server) Join(stream messages.ServerStream) (err error) {
 		if err != nil {
 			diag.Set(func(i *diagnostic.Info) { i.Error = err })
 			handleJoinFailure(ctx, s.cfg.AuthService, diag)
+		} else {
+			handleJoinSuccess(ctx, s.cfg.AuthService, diag)
 		}
 	}()
 
@@ -281,6 +283,7 @@ func (s *Server) Join(stream messages.ServerStream) (err error) {
 		i.TokenExpires = token.Expiry()
 		i.BotName = token.GetBotName()
 		i.AssignedScope = token.GetAssignedScope()
+		i.SystemRoles = token.GetRoles().StringSlice()
 
 		// It's not worth fetching the true bot scope here (via bot user label)
 		// so we'll just include the one embedded in the token.
@@ -423,10 +426,18 @@ func (s *Server) authenticate(ctx context.Context, diag *diagnostic.Diagnostic, 
 
 	id := authCtx.Identity.GetIdentity()
 
-	isInstance := slices.Equal(id.Groups, []string{types.RoleInstance.String()})
+	var isInstance bool
 	var systemRoles types.SystemRoles
-	if isInstance {
+	if slices.Equal(id.Groups, []string{types.RoleInstance.String()}) {
+		isInstance = true
 		systemRoles, err = types.NewTeleportRoles(id.SystemRoles)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	if id.ScopePin.GetSystemRoles().GetPrimary() == types.RoleInstance.String() {
+		isInstance = true
+		systemRoles, err = types.NewTeleportRoles(id.ScopePin.GetSystemRoles().GetAdditional())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -542,6 +553,9 @@ func (s *Server) makeHostResult(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	diag.Set(func(i *diagnostic.Info) {
+		i.HostID = certsParams.HostID
+	})
 	return &messages.HostResult{
 		Certificates:    *certificates,
 		HostID:          certsParams.HostID,
@@ -762,19 +776,41 @@ func handleJoinFailure(ctx context.Context, emitter apievents.Emitter, diag *dia
 	}
 }
 
+func handleJoinSuccess(ctx context.Context, emitter apievents.Emitter, diag *diagnostic.Diagnostic) {
+	diagInfo := diag.Get()
+
+	// Fetch and encode RawJoinAttrs if they are available.
+	attributesStruct, err := joinutils.RawJoinAttrsToStruct(diagInfo.RawJoinAttrs)
+	if err != nil {
+		log.WarnContext(ctx, "Unable to fetch join attributes from join method", "error", err)
+	}
+
+	if err := emitter.EmitAuditEvent(context.WithoutCancel(ctx), makeAuditEvent(diagInfo, attributesStruct)); err != nil {
+		log.WarnContext(ctx, "Failed to emit join event", "error", err)
+	}
+}
+
 func makeAuditEvent(info diagnostic.Info, attributesStruct *apievents.Struct) apievents.AuditEvent {
-	errorMessage := info.Error.Error()
-	if errors.Is(info.Error, context.Canceled) || status.Code(info.Error) == codes.Canceled {
+	var errorMessage string
+	switch {
+	case errors.Is(info.Error, context.Canceled), status.Code(info.Error) == codes.Canceled:
 		errorMessage = "join attempt timed out or was aborted"
+	case info.Error != nil:
+		errorMessage = info.Error.Error()
 	}
 	status := apievents.Status{
-		Success: false,
+		Success: info.Error == nil,
 		Error:   errorMessage,
 	}
+	var code string
 	if info.Role == types.RoleBot.String() {
-		code := events.BotJoinFailureCode
-		if errors.Is(info.Error, joining.ErrTokenExhausted) {
+		switch {
+		case errors.Is(info.Error, joining.ErrTokenExhausted):
 			code = events.BotJoinLimitCode
+		case info.Error != nil:
+			code = events.BotJoinFailureCode
+		default:
+			code = events.BotJoinCode
 		}
 		return &apievents.BotJoin{
 			Metadata: apievents.Metadata{
@@ -794,9 +830,13 @@ func makeAuditEvent(info diagnostic.Info, attributesStruct *apievents.Struct) ap
 			Attributes:    attributesStruct,
 		}
 	}
-	code := events.InstanceJoinFailureCode
-	if errors.Is(info.Error, joining.ErrTokenExhausted) {
+	switch {
+	case errors.Is(info.Error, joining.ErrTokenExhausted):
 		code = events.InstanceJoinLimitCode
+	case info.Error != nil:
+		code = events.InstanceJoinFailureCode
+	default:
+		code = events.InstanceJoinCode
 	}
 	return &apievents.InstanceJoin{
 		Metadata: apievents.Metadata{
@@ -808,6 +848,7 @@ func makeAuditEvent(info diagnostic.Info, attributesStruct *apievents.Struct) ap
 		ConnectionMetadata: apievents.ConnectionMetadata{
 			RemoteAddr: info.RemoteAddr,
 		},
+		HostID:       info.HostID,
 		Method:       cmp.Or(info.TokenJoinMethod, info.RequestedJoinMethod),
 		TokenName:    info.SafeTokenName,
 		TokenExpires: info.TokenExpires,

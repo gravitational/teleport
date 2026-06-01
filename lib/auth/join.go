@@ -320,7 +320,12 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 	if req.Role == types.RoleBot {
 		certs, _, err = a.GenerateBotCertsForJoin(ctx, provisionToken, makeBotCertsParams(req, rawClaims, attrs))
 	} else {
-		certs, err = a.GenerateHostCertsForJoin(ctx, provisionToken, makeHostCertsParams(req, rawClaims))
+		params := makeHostCertsParams(req, rawClaims)
+		certs, err = a.GenerateHostCertsForJoin(ctx, provisionToken, params)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		a.emitJoinEvent(ctx, provisionToken, params)
 	}
 	return certs, trace.Wrap(err)
 }
@@ -583,7 +588,28 @@ func (a *Server) GenerateHostCertsForJoin(
 		return nil, trace.Wrap(err)
 	}
 
-	// Emit audit event
+	return certs, nil
+}
+
+func (a *Server) emitJoinEvent(ctx context.Context, token provision.Token, params *join.HostCertsParams) {
+	// instance certs include an additional field that specifies the list of
+	// all services authorized by the token.
+	var systemRoles types.SystemRoles
+	if params.SystemRole == types.RoleInstance {
+		systemRolesSet := make(map[types.SystemRole]struct{})
+		for _, r := range token.GetRoles() {
+			if r.IsLocalService() {
+				systemRolesSet[r] = struct{}{}
+			}
+		}
+		for _, r := range params.AuthenticatedSystemRoles {
+			if r.IsLocalService() {
+				systemRolesSet[r] = struct{}{}
+			}
+		}
+		systemRoles = types.SystemRoles(slices.Collect(maps.Keys(systemRolesSet)))
+	}
+
 	if params.SystemRole == types.RoleInstance {
 		a.logger.InfoContext(ctx, "Instance has joined the cluster",
 			"node_name", params.HostName,
@@ -618,6 +644,8 @@ func (a *Server) GenerateHostCertsForJoin(
 		Roles: token.GetRoles().StringSlice(),
 		Scope: token.GetAssignedScope(),
 	}
+
+	var err error
 	joinEvent.Attributes, err = joinutils.RawJoinAttrsToStruct(params.RawJoinClaims)
 	if err != nil {
 		a.logger.WarnContext(ctx, "Unable to fetch join attributes from join method", "error", err)
@@ -625,7 +653,6 @@ func (a *Server) GenerateHostCertsForJoin(
 	if err := a.emitter.EmitAuditEvent(ctx, joinEvent); err != nil {
 		a.logger.WarnContext(ctx, "Failed to emit instance join event", "error", err)
 	}
-	return certs, nil
 }
 
 func rawJoinAttrsToGoogleStruct(in any) (*structpb.Struct, error) {

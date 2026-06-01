@@ -100,7 +100,11 @@ func (a *Server) registerUsingOracleMethod(
 	}
 	params := makeHostCertsParams(tokenReq, claims)
 	certs, err = a.GenerateHostCertsForJoin(ctx, provisionToken, params)
-	return certs, trace.Wrap(err, "generating certs")
+	if err != nil {
+		return nil, trace.Wrap(err, "generating certs")
+	}
+	a.emitJoinEvent(ctx, provisionToken, params)
+	return certs, nil
 }
 
 func generateOracleChallenge() (string, error) {

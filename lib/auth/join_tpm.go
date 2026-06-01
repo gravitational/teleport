@@ -101,7 +101,11 @@ func (a *Server) RegisterUsingTPMMethod(
 	}
 	params := makeHostCertsParams(initReq.JoinRequest, validatedEK)
 	certs, err := a.GenerateHostCertsForJoin(ctx, ptv2, params)
-	return certs, trace.Wrap(err, "generating certs for host")
+	if err != nil {
+		return nil, trace.Wrap(err, "generating certs for host")
+	}
+	a.emitJoinEvent(ctx, ptv2, params)
+	return certs, nil
 }
 
 // GetTPMValidator returns the server's TPM validator.
