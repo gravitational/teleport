@@ -223,39 +223,43 @@ func TestProperty_RDPState_MixedValidGarbageSequenceNeverPanics(t *testing.T) {
 		require.NoError(t, s.HandleMessage(mustServerHello(t, 300, 300)))
 
 		count := rapid.IntRange(0, 15).Draw(t, "count")
+		events := make([]*apievents.DesktopRecording, 0, count)
+		for i := 0; i < count; i++ {
+			kind := rapid.IntRange(0, 3).Draw(t, "kind")
+			var pdu []byte
+			switch kind {
+			case 0:
+				// Real bitmap. width >= 4 so it decodes; IronRDP bounds-checks narrower widths.
+				l := rapid.IntRange(0, 290).Draw(t, "l")
+				t2 := rapid.IntRange(0, 290).Draw(t, "t")
+				w := rapid.IntRange(4, 300-l).Draw(t, "w")
+				h := rapid.IntRange(1, 300-t2).Draw(t, "h")
+				pdu = rdpstatetest.BuildBitmapPDU(l, t2, w, h, rdpstatetest.RGB565White)
+
+			case 1:
+				// Real pointer position.
+				pdu = rdpstatetest.BuildPointerPositionPDU(
+					rapid.IntRange(0, 299).Draw(t, "px"),
+					rapid.IntRange(0, 299).Draw(t, "py"),
+				)
+
+			case 2:
+				// Garbage with valid framing.
+				payload := rapid.SliceOfN(rapid.Byte(), 0, 256).Draw(t, "garbage")
+				pdu = rdpstatetest.WrapFastPathUpdate(0x99, payload)
+
+			case 3:
+				// Pure random bytes (no valid framing).
+				pdu = rapid.SliceOfN(rapid.Byte(), 0, 256).Draw(t, "raw")
+			}
+
+			evt, err := rdpstatetest.EncodeTDPBFastPathPDU(pdu)
+			require.NoError(t, err)
+			events = append(events, evt)
+		}
+
 		testutils.RunWithTimeout(t, 2*time.Second, func() {
-			for i := 0; i < count; i++ {
-				kind := rapid.IntRange(0, 3).Draw(t, "kind")
-				var pdu []byte
-				switch kind {
-				case 0:
-					// Real bitmap. width >= 4 so it decodes; IronRDP bounds-checks narrower widths.
-					l := rapid.IntRange(0, 290).Draw(t, "l")
-					t2 := rapid.IntRange(0, 290).Draw(t, "t")
-					w := rapid.IntRange(4, 300-l).Draw(t, "w")
-					h := rapid.IntRange(1, 300-t2).Draw(t, "h")
-					pdu = rdpstatetest.BuildBitmapPDU(l, t2, w, h, rdpstatetest.RGB565White)
-
-				case 1:
-					// Real pointer position.
-					pdu = rdpstatetest.BuildPointerPositionPDU(
-						rapid.IntRange(0, 299).Draw(t, "px"),
-						rapid.IntRange(0, 299).Draw(t, "py"),
-					)
-
-				case 2:
-					// Garbage with valid framing.
-					payload := rapid.SliceOfN(rapid.Byte(), 0, 256).Draw(t, "garbage")
-					pdu = rdpstatetest.WrapFastPathUpdate(0x99, payload)
-
-				case 3:
-					// Pure random bytes (no valid framing).
-					pdu = rapid.SliceOfN(rapid.Byte(), 0, 256).Draw(t, "raw")
-				}
-
-				evt, err := rdpstatetest.EncodeTDPBFastPathPDU(pdu)
-				require.NoError(t, err)
-
+			for _, evt := range events {
 				_ = s.HandleMessage(evt)
 			}
 
