@@ -54,7 +54,8 @@ spec:
     # is not 'off'.
     host_groups: [ubuntu, nginx, other]
 
-    # Assign the user to the sudoers group
+    # Host sudoers: entries written to a temporary sudoers file for the created
+    # user. Only applies when create_host_user_mode is not 'off' (set below).
     host_sudoers:
     - 'ALL=(ALL) NOPASSWD: ALL'
 
@@ -71,6 +72,19 @@ spec:
   Deny rules will match greedily. In the example above, a server session
   attempting to use the "root" server user  account will be rejected.
 </Admonition>
+
+Several of the fields above relate to the SSH Service provisioning a host user,
+which involves two distinct capabilities:
+
+- **Host user creation** — `host_groups` (above), together with
+  `create_host_user_mode` (see [Server role options](#server-role-options)),
+  control whether and how Teleport creates a local Unix user at login.
+- **Host sudoers** — `host_sudoers` grants the created user temporary sudo
+  permissions. These entries only apply on servers where host user creation is
+  enabled.
+
+For a full walkthrough of both, see
+[Configure Teleport to Create Host Users](guides/host-user-creation.mdx).
 
 ## Template variables
 
