@@ -2440,7 +2440,7 @@ func TestForwarderConfig(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(lockWatcher.Close)
 
-	// baseCfg contains all required fields for a successfull call to CheckAndSetDefaults.
+	// baseCfg contains all required fields for a successful call to CheckAndSetDefaults.
 	// The mutateFn for each case should introduce the specific changes that
 	// lead to expected end states.
 	baseCfg := ForwarderConfig{
