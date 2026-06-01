@@ -2,6 +2,7 @@ suite: Proxy Service
 templates:
   - proxy.yaml
 tests:
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: uses a LoadBalancer by default
     set:
       clusterName: teleport.example.com
@@ -57,7 +58,8 @@ tests:
           path: spec.type
           value: ClusterIP
 
-  - it: fails to deploy when ingress.enabled=true and proxy.service.type is set to LoadBalancer (default)
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
+  - it: fails to deploy when ingress.enabled=true and service.type is set to LoadBalancer (default)
     set:
       clusterName: teleport.example.com
       proxyListenerMode: multiplex
@@ -65,7 +67,20 @@ tests:
         enabled: true
     asserts:
       - failedTemplate:
-          errorMessage: "proxy.service.type must not be LoadBalancer when using an ingress - any load balancer should be provisioned by your ingress controller. Set proxy.service.type=ClusterIP instead"
+          errorMessage: "service.type must not be LoadBalancer when using an ingress - any load balancer should be provisioned by your ingress controller. Set service.type=ClusterIP instead"
+
+  - it: fails to deploy when ingress.enabled=true and proxy.service.type is set to LoadBalancer (default)
+    set:
+      clusterName: teleport.example.com
+      proxyListenerMode: multiplex
+      ingress:
+        enabled: true
+      proxy:
+        service:
+          type: LoadBalancer
+    asserts:
+      - failedTemplate:
+          errorMessage: "service.type must not be LoadBalancer when using an ingress - any load balancer should be provisioned by your ingress controller. Set service.type=ClusterIP instead"
 
   - it: uses a ClusterIP when ingress.enabled=true and service.type=ClusterIP
     set:

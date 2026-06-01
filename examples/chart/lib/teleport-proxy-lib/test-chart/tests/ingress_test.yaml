@@ -546,3 +546,19 @@ tests:
           value: helm-lint-tls-secret
       - matchSnapshot:
           path: spec.tls
+
+  - it: sets extraLabels on Ingress
+    values:
+      - ../.lint/ingress.yaml
+    set:
+      extraLabels:
+        ingress:
+          foo: bar
+          baz: override-me
+    asserts:
+      - equal:
+          path: metadata.labels.foo
+          value: bar
+      - equal:
+          path: metadata.labels.baz
+          value: override-me

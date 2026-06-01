@@ -684,6 +684,7 @@ tests:
       - matchSnapshot:
           path: spec.template.spec.imagePullSecrets
 
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: should provision initContainer correctly when set in values
     template: proxy.yaml
     values:

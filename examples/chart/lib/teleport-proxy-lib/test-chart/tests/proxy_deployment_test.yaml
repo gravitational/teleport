@@ -211,6 +211,46 @@ tests:
       - isNull:
           path: spec.template.spec.containers[0].securityContext
 
+  - it: should set securityContext for initContainers when set in values
+    template: deployment.yaml
+    set:
+      initContainers:
+      - name: test-init-container
+        image: test-image
+        securityContext:
+          allowPrivilegeEscalation: false
+          privileged: false
+          readOnlyRootFilesystem: false
+          runAsGroup: 99
+          runAsNonRoot: true
+          runAsUser: 99
+    values:
+      - ../.lint/security-context.yaml
+    asserts:
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.privileged
+          value: false
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.readOnlyRootFilesystem
+          value: false
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.runAsGroup
+          value: 99
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.initContainers[0].securityContext.runAsUser
+          value: 99
+      - matchSnapshot:
+          path: spec.template.spec
+
   # we can't use the dynamic chart version or appVersion as a variable in the tests,
   # so we override it manually and check that gets set instead
   # this saves us having to update the test every time we cut a new release
@@ -235,6 +275,43 @@ tests:
           path: spec.template.spec.containers[0].image
           value: public.ecr.aws/gravitational/teleport-distroless:12.2.1
 
+
+  - it: should mount TLS certs when cert-manager is enabled
+    template: deployment.yaml
+    values:
+      - ../.lint/gcp-ha-acme.yaml
+      - ../.lint/initcontainers.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: teleport-tls
+            secret:
+              secretName: teleport-tls
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-tls
+            name: "teleport-tls"
+            readOnly: true
+      - contains:
+          path: spec.template.spec.initContainers[0].volumeMounts
+          content:
+            mountPath: /etc/teleport-tls
+            name: "teleport-tls"
+            readOnly: true
+      - contains:
+          path: spec.template.spec.initContainers[1].volumeMounts
+          content:
+            mountPath: /etc/teleport-tls
+            name: "teleport-tls"
+            readOnly: true
+
   - it: should mount ConfigMap containing Teleport config
     template: deployment.yaml
     set:
@@ -252,6 +329,34 @@ tests:
             name: config
             configMap:
               name: RELEASE-NAME-proxy
+
+  - it: should mount extraVolumes and extraVolumeMounts on container and initContainers
+    template: deployment.yaml
+    values:
+      - ../.lint/volumes.yaml
+      - ../.lint/initcontainers.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
+      - contains:
+          path: spec.template.spec.initContainers[0].volumeMounts
+          content:
+            mountPath: /path/to/mount
+            name: my-mount
+      - contains:
+          path: spec.template.spec.initContainers[1].volumeMounts
+          content:
+            mountPath: /path/to/mount
+            name: my-mount
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: my-mount
+            secret:
+              secretName: mySecret
 
   - it: should set imagePullPolicy when set in values
     template: deployment.yaml
@@ -314,6 +419,63 @@ tests:
           value: myRegistryKeySecretName
       - matchSnapshot:
           path: spec.template.spec.imagePullSecrets
+
+  - it: should provision initContainer correctly when set in values
+    template: deployment.yaml
+    values:
+      - ../.lint/initcontainers.yaml
+      - ../.lint/resources.yaml
+      - ../.lint/extra-env.yaml
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
+      - contains:
+          path: spec.template.spec.initContainers[0].args
+          content: "echo test"
+      - equal:
+          path: spec.template.spec.initContainers[0].name
+          value: "teleport-init"
+      - equal:
+          path: spec.template.spec.initContainers[0].image
+          value: "alpine"
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.limits.cpu
+          value: 2
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.limits.memory
+          value: 4Gi
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.requests.cpu
+          value: 1
+      - equal:
+          path: spec.template.spec.initContainers[0].resources.requests.memory
+          value: 2Gi
+      - contains:
+          path: spec.template.spec.initContainers[1].args
+          content: "echo test2"
+      - equal:
+          path: spec.template.spec.initContainers[1].name
+          value: "teleport-init2"
+      - equal:
+          path: spec.template.spec.initContainers[1].image
+          value: "alpine"
+      - equal:
+          path: spec.template.spec.initContainers[1].resources.limits.cpu
+          value: 2
+      - equal:
+          path: spec.template.spec.initContainers[1].resources.limits.memory
+          value: 4Gi
+      - equal:
+          path: spec.template.spec.initContainers[1].resources.requests.cpu
+          value: 1
+      - equal:
+          path: spec.template.spec.initContainers[1].resources.requests.memory
+          value: 2Gi
+      - matchSnapshot:
+          path: spec.template.spec.initContainers
 
   - it: should add insecureSkipProxyTLSVerify to args when set in values
     template: deployment.yaml
@@ -807,6 +969,63 @@ tests:
             name: proxy-serviceaccount-token
             readOnly: true
 
+  - it: sets extraLabels on Deployment
+    template: deployment.yaml
+    values:
+      - ../.lint/annotations.yaml
+    set:
+      extraLabels:
+        deployment:
+          foo: bar
+          baz: override-me
+    asserts:
+      - equal:
+          path: metadata.labels.foo
+          value: bar
+      - equal:
+          path: metadata.labels.baz
+          value: override-me
+
+  - it: sets extraLabels on Deployment Pods
+    template: deployment.yaml
+    values:
+      - ../.lint/annotations.yaml
+    set:
+      extraLabels:
+        pod:
+          foo: bar
+          baz: override-me
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels.foo
+          value: bar
+      - equal:
+          path: spec.template.metadata.labels.baz
+          value: override-me
+
+  - it: sets readinessProbe values on Deployment Pods
+    template: deployment.yaml
+    set:
+      clusterName: helm-lint
+      readinessProbe:
+        initialDelaySeconds: 13
+        periodSeconds: 10
+        failureThreshold: 11
+        successThreshold: 12
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.periodSeconds
+          value: 10
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.failureThreshold
+          value: 11
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.successThreshold
+          value: 12
+      - equal:
+          path: spec.template.spec.containers[0].readinessProbe.initialDelaySeconds
+          value: 13
+
   - it: sets topology spread constraints by default
     template: deployment.yaml
     set:
@@ -938,6 +1157,26 @@ tests:
           content:
             name: "GOMEMLIMIT"
             value: "5GB"
+
+  - it: does not set GOMEMLIMIT if ratio is 0
+    template: deployment.yaml
+    set:
+      clusterName: helm-lint
+      # we set an extra env so contrainers[0].env always exists
+      # this makes testing easier
+      extraEnv:
+        - name: FOO
+          value: bar
+      resources:
+        limits:
+          memory: "10.5G"
+      goMemLimitRatio: 0
+    asserts:
+      - notContains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: "GOMEMLIMIT"
+            value: "9450000000"
 
   - it: does not set GOMEMLIMIT if resources are not set
     template: deployment.yaml

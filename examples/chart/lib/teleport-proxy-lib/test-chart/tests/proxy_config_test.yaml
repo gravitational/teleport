@@ -259,3 +259,24 @@ tests:
       - notMatchRegex:
           path: data.teleport\.yaml
           pattern: 'proxy_protocol:'
+
+  - it: sets extraLabels on Configmap
+    values:
+      - ../.lint/annotations.yaml
+    set:
+      extraLabels:
+        config:
+          foo: bar
+          baz: override-me
+    asserts:
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
+      - equal:
+          path: metadata.labels.foo
+          value: bar
+      - equal:
+          path: metadata.labels.baz
+          value: override-me

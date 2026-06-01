@@ -3,7 +3,7 @@
 {{- $backendProtocol := ternary "ssl" "tcp" (hasKey $proxy.annotations.service "service.beta.kubernetes.io/aws-load-balancer-ssl-cert") -}}
 {{- /* Fail early if proxy service type is set to LoadBalancer when ingress.enabled=true */ -}}
 {{- if and $proxy.ingress.enabled (eq $proxy.service.type "LoadBalancer") -}}
-  {{- fail "proxy.service.type must not be LoadBalancer when using an ingress - any load balancer should be provisioned by your ingress controller. Set proxy.service.type=ClusterIP instead" -}}
+  {{- fail "service.type must not be LoadBalancer when using an ingress - any load balancer should be provisioned by your ingress controller. Set service.type=ClusterIP instead" -}}
 {{- end -}}
 apiVersion: v1
 kind: Service

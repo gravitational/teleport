@@ -2,7 +2,7 @@ suite: Proxy PodDisruptionBudget
 templates:
   - proxy.yaml
 tests:
-  - it: not should create a PDB when disabled in values
+  - it: should not create a PDB when disabled in values
     set:
       clusterName: helm-lint.example.com
       highAvailability:

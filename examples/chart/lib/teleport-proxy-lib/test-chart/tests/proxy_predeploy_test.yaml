@@ -56,6 +56,38 @@ tests:
       - matchSnapshot:
           path: spec.template.spec.imagePullSecrets
 
+  - it: should set extraLabels on proxy predeploy job when set in values
+    template: predeploy_job.yaml
+    set:
+      clusterName: helm-lint
+      extraLabels:
+        job:
+          foo: bar
+          baz: override-me
+    asserts:
+      - equal:
+          path: metadata.labels.foo
+          value: bar
+      - equal:
+          path: metadata.labels.baz
+          value: override-me
+
+  - it: should set extraLabels.jobPod on proxy predeploy job when set in values
+    template: predeploy_job.yaml
+    set:
+      clusterName: helm-lint
+      extraLabels:
+        jobPod:
+          foo: bar
+          baz: override-me
+    asserts:
+      - equal:
+          path: spec.template.metadata.labels.foo
+          value: bar
+      - equal:
+          path: spec.template.metadata.labels.baz
+          value: override-me
+
   - it: should use default serviceAccount name suffixed with -hook for proxy predeploy job SA when not set in values and we're creating SAs
     template: predeploy_job.yaml
     set:
@@ -64,3 +96,19 @@ tests:
       - equal:
           path: spec.template.spec.serviceAccountName
           value: RELEASE-NAME-proxy-hook
+
+  - it: should use serviceAccount.name suffixed with -hook for proxy predeploy job SA when set in values and we're creating SAs
+    template: predeploy_job.yaml
+    set:
+      clusterName: helm-lint
+      serviceAccount:
+        name: helm-test-sa
+    asserts:
+      - isKind:
+          of: Job
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy-test
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: helm-test-sa-hook
