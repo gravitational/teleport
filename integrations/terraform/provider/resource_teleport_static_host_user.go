@@ -273,6 +273,8 @@ func (r resourceTeleportStaticHostUser) Update(ctx context.Context, req tfsdk.Up
 
 	staticHostUserResource = staticHostUserI
 	
+	staticHostUser = staticHostUserResource
+
 	diags = schemav1.CopyStaticHostUserToTerraform(ctx, staticHostUser, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

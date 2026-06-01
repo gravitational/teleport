@@ -273,6 +273,8 @@ func (r resourceTeleportHealthCheckConfig) Update(ctx context.Context, req tfsdk
 
 	healthCheckConfigResource = healthCheckConfigI
 	
+	healthCheckConfig = healthCheckConfigResource
+
 	diags = schemav1.CopyHealthCheckConfigToTerraform(ctx, healthCheckConfig, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

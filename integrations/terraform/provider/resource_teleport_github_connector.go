@@ -289,6 +289,8 @@ func (r resourceTeleportGithubConnector) Update(ctx context.Context, req tfsdk.U
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading GithubConnector", trace.Errorf("Can not convert %T to GithubConnectorV3", githubConnectorI), "github"))
 		return
 	}
+	githubConnector = githubConnectorResource
+
 	diags = tfschema.CopyGithubConnectorV3ToTerraform(ctx, githubConnector, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

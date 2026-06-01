@@ -289,6 +289,8 @@ func (r resourceTeleportSAMLIdPServiceProvider) Update(ctx context.Context, req 
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading SAMLIdPServiceProvider", trace.Errorf("Can not convert %T to SAMLIdPServiceProviderV1", samlIdPServiceProviderI), "saml_idp_service_provider"))
 		return
 	}
+	samlIdPServiceProvider = samlIdPServiceProviderResource
+
 	diags = tfschema.CopySAMLIdPServiceProviderV1ToTerraform(ctx, samlIdPServiceProvider, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

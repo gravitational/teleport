@@ -289,6 +289,8 @@ func (r resourceTeleportTrustedCluster) Update(ctx context.Context, req tfsdk.Up
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading TrustedCluster", trace.Errorf("Can not convert %T to TrustedClusterV2", trustedClusterI), "trusted_cluster"))
 		return
 	}
+	trustedCluster = trustedClusterResource
+
 	diags = tfschema.CopyTrustedClusterV2ToTerraform(ctx, trustedCluster, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

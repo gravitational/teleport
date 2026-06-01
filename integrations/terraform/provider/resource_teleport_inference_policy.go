@@ -273,6 +273,8 @@ func (r resourceTeleportInferencePolicy) Update(ctx context.Context, req tfsdk.U
 
 	inferencePolicyResource = inferencePolicyI
 	
+	inferencePolicy = inferencePolicyResource
+
 	diags = schemav1.CopyInferencePolicyToTerraform(ctx, inferencePolicy, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

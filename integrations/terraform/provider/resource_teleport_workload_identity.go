@@ -272,6 +272,8 @@ func (r resourceTeleportWorkloadIdentity) Update(ctx context.Context, req tfsdk.
 
 	workloadIdentityResource = workloadIdentityI
 	
+	workloadIdentity = workloadIdentityResource
+
 	diags = schemav1.CopyWorkloadIdentityToTerraform(ctx, workloadIdentity, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

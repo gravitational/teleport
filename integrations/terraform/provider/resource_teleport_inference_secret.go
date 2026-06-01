@@ -281,6 +281,8 @@ func (r resourceTeleportInferenceSecret) Update(ctx context.Context, req tfsdk.U
 
 	inferenceSecretResource = inferenceSecretI
 	
+	inferenceSecret = inferenceSecretResource
+
 	diags = schemav1.CopyInferenceSecretToTerraform(ctx, inferenceSecret, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
