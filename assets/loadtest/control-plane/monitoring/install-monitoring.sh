@@ -23,6 +23,7 @@ prometheus:
       volumeClaimTemplate:
         spec:
           accessModes: ["ReadWriteOnce"]
+          storageClassName: gp2
           resources:
             requests:
               storage: 50Gi
