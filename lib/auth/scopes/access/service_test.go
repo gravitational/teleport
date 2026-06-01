@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	scopedaccesscache "github.com/gravitational/teleport/lib/scopes/cache/access"
 	"github.com/gravitational/teleport/lib/scopes/pinning"
@@ -112,6 +113,7 @@ func newServerForIdentity(t *testing.T, bk *backendPack, accessInfo *services.Ac
 		Reader:           bk.cache,
 		Writer:           bk.service,
 		BackendReader:    bk.service,
+		ScopesFeatures:   scopes.Features{Enabled: true},
 	})
 	require.NoError(t, err)
 
@@ -172,7 +174,7 @@ func newBackendPack(t *testing.T) *backendPack {
 // TestRoleBasics verifies that basic CRUD operations on scoped roles work as expected, with a focus on ensuring that
 // pinned scopes and role permissions are being properly enforced.
 func TestRoleBasics(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	t.Parallel()
 
 	ctx := t.Context()
 	bk := newBackendPack(t)
@@ -231,6 +233,7 @@ func TestRoleBasics(t *testing.T) {
 	// set up server pinned to a staging admin identity
 	srv := newServerForIdentity(t, bk, &services.AccessInfo{
 		ScopePin: &scopesv1.Pin{
+			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: "/staging",
 			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 				"/staging": {"/staging": {"staging-admin"}},
@@ -475,7 +478,7 @@ func TestRoleBasics(t *testing.T) {
 // TestAssignmentBasics verifies that basic CRUD operations on scoped role assignments work as expected, with a focus on ensuring that
 // pinned scopes and role permissions are being properly enforced.
 func TestAssignmentBasics(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	t.Parallel()
 
 	ctx := t.Context()
 	newForgedStatus := func() *scopedaccessv1.ScopedRoleAssignmentStatus {
@@ -561,6 +564,7 @@ func TestAssignmentBasics(t *testing.T) {
 	// set up server pinned to a staging admin identity
 	srv := newServerForIdentity(t, bk, &services.AccessInfo{
 		ScopePin: &scopesv1.Pin{
+			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: "/staging",
 			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 				"/staging": {"/staging": {"staging-admin"}},
@@ -802,7 +806,7 @@ func newScopedRoleAssignmentAtScope(roleName string, scope string) *scopedaccess
 
 // TestUnscopedBasics verifies that unscoped access control works as expected.
 func TestUnscopedBasics(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	t.Parallel()
 
 	ctx := t.Context()
 	bk := newBackendPack(t)
@@ -1096,7 +1100,7 @@ func TestUnscopedBasics(t *testing.T) {
 // Earlier iterations of scoped APIs used transactional logic to prevent malformed assignments, but that
 // presented usability and maintainability issues.
 func TestAccessChecksSkipInconsistentAssignments(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	t.Parallel()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -1157,6 +1161,7 @@ func TestAccessChecksSkipInconsistentAssignments(t *testing.T) {
 	// even after we make staging-admin inconsistent below).
 	aliceAccessInfo := &services.AccessInfo{
 		ScopePin: &scopesv1.Pin{
+			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: "/staging",
 			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 				"/staging": {"/staging": {"staging-reader", "staging-admin"}},

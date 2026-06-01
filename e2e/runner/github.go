@@ -24,7 +24,6 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 )
@@ -55,14 +54,10 @@ func writeGitHubReport(resultsPath string) error {
 	mergedFailures := mergeFailures(failures)
 	mergedFlaky := mergeFailures(flaky)
 
-	emitAnnotations(mergedFailures, mergedFlaky)
+	emitAnnotations(mergedFailures, mergedFlaky, report.Errors)
 
 	if err := writeJobSummary(report, mergedFailures, mergedFlaky); err != nil {
 		slog.Warn("could not write job summary", "error", err)
-	}
-
-	if err := writePRCommentFile(resultsPath, report, mergedFailures, mergedFlaky); err != nil {
-		slog.Warn("could not write PR comment file", "error", err)
 	}
 
 	return nil
@@ -128,10 +123,10 @@ func firstErrorMsg(results []pwResult) string {
 	return ""
 }
 
-func emitAnnotations(failures, flaky []mergedFailure) {
+func emitAnnotations(failures, flaky []mergedFailure, errors []pwError) {
 	for _, f := range failures {
 		browsers := strings.Join(f.projects, ", ")
-		msg := fmt.Sprintf("[%s] %s", browsers, firstErrorLine(f))
+		msg := fmt.Sprintf("[%s] %s — %s", browsers, f.title, firstErrorLine(f))
 		fmt.Printf("::error file=%s,line=%d,col=%d::%s\n",
 			escapeProp(f.file), f.line, f.column, escapeData(msg))
 	}
@@ -141,6 +136,16 @@ func emitAnnotations(failures, flaky []mergedFailure) {
 		msg := fmt.Sprintf("[%s] Flaky: %s", browsers, f.title)
 		fmt.Printf("::warning file=%s,line=%d,col=%d::%s\n",
 			escapeProp(f.file), f.line, f.column, escapeData(msg))
+	}
+
+	// Errors not associated with any test have no file/line; emit them as plain
+	// error annotations so they aren't lost (Playwright still exits non-zero).
+	for _, e := range errors {
+		msg := stripANSI(e.Message)
+		if line, _, ok := strings.Cut(msg, "\n"); ok {
+			msg = line
+		}
+		fmt.Printf("::error::%s\n", escapeData(msg))
 	}
 }
 
@@ -170,20 +175,25 @@ func writeJobSummary(report pwReport, failures, flaky []mergedFailure) error {
 }
 
 func renderMarkdownReport(w io.Writer, report pwReport, failures, flaky []mergedFailure) {
+	stats := report.Stats
+
 	fmt.Fprint(w, "### E2E Test Results\n\n")
 
 	fmt.Fprint(w, "```diff\n")
-	fmt.Fprintf(w, "+ %d passed\n", report.Stats.Expected)
-	if report.Stats.Unexpected > 0 {
-		fmt.Fprintf(w, "- %d failed\n", report.Stats.Unexpected)
+	fmt.Fprintf(w, "+ %d passed\n", stats.Expected)
+	if stats.Unexpected > 0 {
+		fmt.Fprintf(w, "- %d failed\n", stats.Unexpected)
 	}
-	if report.Stats.Flaky > 0 {
-		fmt.Fprintf(w, "! %d flaky\n", report.Stats.Flaky)
+	if stats.Flaky > 0 {
+		fmt.Fprintf(w, "! %d flaky\n", stats.Flaky)
 	}
-	if report.Stats.Skipped > 0 {
-		fmt.Fprintf(w, "# %d skipped\n", report.Stats.Skipped)
+	if stats.Skipped > 0 {
+		fmt.Fprintf(w, "# %d skipped\n", stats.Skipped)
 	}
-	fmt.Fprintf(w, "# %s\n", formatDuration(report.Stats.Duration))
+	if len(report.Errors) > 0 {
+		fmt.Fprintf(w, "- %d %s not associated with any test\n", len(report.Errors), pluralErrors(len(report.Errors)))
+	}
+	fmt.Fprintf(w, "# %s\n", formatDuration(stats.Duration))
 	fmt.Fprint(w, "```\n")
 
 	if len(failures) > 0 {
@@ -197,6 +207,19 @@ func renderMarkdownReport(w io.Writer, report pwReport, failures, flaky []merged
 			writeFailureErrors(w, f.results)
 
 			fmt.Fprint(w, "</details>\n\n")
+		}
+	}
+
+	if len(report.Errors) > 0 {
+		fmt.Fprint(w, "\n#### Errors (not associated with any test)\n\n")
+
+		for _, e := range report.Errors {
+			if e.Message != "" {
+				writeCodeFence(w, e.Message)
+			}
+			if e.Snippet != "" {
+				writeCodeFence(w, e.Snippet)
+			}
 		}
 	}
 
@@ -227,37 +250,6 @@ func renderMarkdownReport(w io.Writer, report pwReport, failures, flaky []merged
 		fmt.Fprint(w, "---\n\n")
 		fmt.Fprintf(w, "##### View full report\n```\n./%s\n```\n", ciReportCmd(pr))
 	}
-}
-
-// writePRCommentFile writes the PR comment body to a file next to the results
-// JSON so that a trusted workflow step can post it via `gh` without passing
-// a write-scoped token to this (PR-built) binary.
-func writePRCommentFile(resultsPath string, report pwReport, failures, flaky []mergedFailure) error {
-	commentPath := filepath.Join(filepath.Dir(resultsPath), "pr-comment.md")
-
-	hasIssues := len(failures) > 0 || len(flaky) > 0
-	if !hasIssues {
-		// Write an empty file to signal that the comment should be deleted.
-		if err := os.WriteFile(commentPath, nil, 0o644); err != nil {
-			return fmt.Errorf("writing empty PR comment file: %w", err)
-		}
-
-		slog.Info("wrote empty PR comment file (no issues)", "path", commentPath)
-
-		return nil
-	}
-
-	var body strings.Builder
-	body.WriteString(commentMarker + "\n")
-	renderMarkdownReport(&body, report, failures, flaky)
-
-	if err := os.WriteFile(commentPath, []byte(body.String()), 0o644); err != nil {
-		return fmt.Errorf("writing PR comment file: %w", err)
-	}
-
-	slog.Info("wrote PR comment file", "path", commentPath)
-
-	return nil
 }
 
 func escapeProp(s string) string {
@@ -371,6 +363,14 @@ func writeFailureErrors(w io.Writer, results []pwResult) {
 	} else {
 		fmt.Fprintf(w, "*Retried %d times and failed with the same error.*\n\n", retries)
 	}
+}
+
+func pluralErrors(n int) string {
+	if n == 1 {
+		return "error"
+	}
+
+	return "errors"
 }
 
 func firstErrorLine(f mergedFailure) string {

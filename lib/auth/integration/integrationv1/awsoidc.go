@@ -602,6 +602,7 @@ func (s *AWSOIDCService) DeployDatabaseService(ctx context.Context, req *integra
 		Deployments:             deployments,
 		TeleportClusterName:     clusterName.GetClusterName(),
 		IntegrationName:         req.Integration,
+		TeleportBuildType:       s.modules.BuildType(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -764,6 +765,7 @@ func (s *AWSOIDCService) DeployService(ctx context.Context, req *integrationpb.D
 		TaskRoleARN:             req.TaskRoleArn,
 		TeleportClusterName:     clusterName.GetClusterName(),
 		TeleportVersionTag:      req.TeleportVersion,
+		TeleportBuildType:       s.modules.BuildType(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -55,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -79,8 +80,8 @@ func TestBotResourceName(t *testing.T) {
 
 // TestCreateBot is an integration test that uses a real gRPC client/server.
 func TestCreateBot(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
-	srv, _ := newTestTLSServer(t)
+	t.Parallel()
+	srv, _ := newTestTLSServerWithScopesFeatures(t, scopes.Features{Enabled: true})
 	ctx := context.Background()
 
 	botCreator, _, err := authtest.CreateUserAndRole(
@@ -1185,8 +1186,8 @@ func TestUpdateBot(t *testing.T) {
 
 // TestUpsertBot is an integration test that uses a real gRPC client/server.
 func TestUpsertBot(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
-	srv, _ := newTestTLSServer(t)
+	t.Parallel()
+	srv, _ := newTestTLSServerWithScopesFeatures(t, scopes.Features{Enabled: true})
 	ctx := context.Background()
 
 	botCreator, _, err := authtest.CreateUserAndRole(srv.Auth(), "bot-creator", []string{}, []types.Rule{
@@ -1954,8 +1955,8 @@ func TestUpsertBot(t *testing.T) {
 
 // TestGetBot is an integration test that uses a real gRPC client/server.
 func TestGetBot(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
-	srv, _ := newTestTLSServer(t)
+	t.Parallel()
+	srv, _ := newTestTLSServerWithScopesFeatures(t, scopes.Features{Enabled: true})
 	ctx := context.Background()
 
 	botGetterUser, _, err := authtest.CreateUserAndRole(
@@ -2227,8 +2228,8 @@ func TestGetBot(t *testing.T) {
 
 // TestListBots is an integration test that uses a real gRPC client/server.
 func TestListBots(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
-	srv, _ := newTestTLSServer(t)
+	t.Parallel()
+	srv, _ := newTestTLSServerWithScopesFeatures(t, scopes.Features{Enabled: true})
 	ctx := context.Background()
 
 	botListerUser, _, err := authtest.CreateUserAndRole(
@@ -2485,8 +2486,8 @@ func TestListBots(t *testing.T) {
 
 // TestDeleteBot is an integration test that uses a real gRPC client/server.
 func TestDeleteBot(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
-	srv, _ := newTestTLSServer(t)
+	t.Parallel()
+	srv, _ := newTestTLSServerWithScopesFeatures(t, scopes.Features{Enabled: true})
 	ctx := context.Background()
 
 	botDeleterUser, _, err := authtest.CreateUserAndRole(
@@ -3116,8 +3117,8 @@ func createBotInstance(
 }
 
 func TestBotInstanceService_DeleteBotInstance(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
-	srv, _ := newTestTLSServer(t)
+	t.Parallel()
+	srv, _ := newTestTLSServerWithScopesFeatures(t, scopes.Features{Enabled: true})
 	ctx := t.Context()
 
 	unscopedUser, _, err := authtest.CreateUserAndRole(
@@ -3243,8 +3244,8 @@ func TestBotInstanceService_DeleteBotInstance(t *testing.T) {
 }
 
 func TestBotInstanceService_GetBotInstance(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
-	srv, _ := newTestTLSServer(t)
+	t.Parallel()
+	srv, _ := newTestTLSServerWithScopesFeatures(t, scopes.Features{Enabled: true})
 	ctx := t.Context()
 
 	unscopedUser, _, err := authtest.CreateUserAndRole(
@@ -3370,8 +3371,8 @@ func TestBotInstanceService_GetBotInstance(t *testing.T) {
 }
 
 func TestBotInstanceService_ListBotInstancesV2(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
-	srv, _ := newTestTLSServer(t)
+	t.Parallel()
+	srv, _ := newTestTLSServerWithScopesFeatures(t, scopes.Features{Enabled: true})
 	ctx := t.Context()
 
 	unscopedUser, _, err := authtest.CreateUserAndRole(
@@ -3529,8 +3530,8 @@ func TestBotInstanceService_ListBotInstancesV2(t *testing.T) {
 }
 
 func TestBotInstanceService_SubmitHeartbeat(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
-	srv, _ := newTestTLSServer(t)
+	t.Parallel()
+	srv, _ := newTestTLSServerWithScopesFeatures(t, scopes.Features{Enabled: true})
 	ctx := t.Context()
 
 	adminClient, err := srv.NewClient(authtest.TestAdmin())
@@ -3654,9 +3655,14 @@ func TestBotInstanceService_SubmitHeartbeat(t *testing.T) {
 }
 
 func newTestTLSServer(t testing.TB) (*authtest.TLSServer, *eventstest.MockRecorderEmitter) {
+	return newTestTLSServerWithScopesFeatures(t, scopes.Features{})
+}
+
+func newTestTLSServerWithScopesFeatures(t testing.TB, scopesFeatures scopes.Features) (*authtest.TLSServer, *eventstest.MockRecorderEmitter) {
 	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
-		Dir:   t.TempDir(),
-		Clock: clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC()),
+		Dir:            t.TempDir(),
+		Clock:          clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC()),
+		ScopesFeatures: scopesFeatures,
 	})
 	require.NoError(t, err)
 

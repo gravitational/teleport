@@ -41,6 +41,13 @@ func New() ([]byte, error) {
 // Verify verifies that [sig] is a signature over [chal] by the private key
 // corresponding to [pubKey].
 func Verify(chal, sig []byte, pubKey crypto.PublicKey) error {
+	if len(chal) == 0 {
+		return trace.BadParameter("zero-length challenge")
+	}
+	if len(sig) == 0 {
+		return trace.BadParameter("zero-length signature")
+	}
+
 	switch pub := pubKey.(type) {
 	case *ecdsa.PublicKey:
 		digest, err := hash(crypto.SHA256, chal)
@@ -75,6 +82,9 @@ func Verify(chal, sig []byte, pubKey crypto.PublicKey) error {
 // Sign returns a signature over [challenge] by [signer]. A SHA256 hash is used
 // for ECDSA and RSA, no pre-hash is used for Ed25519.
 func Sign(challenge []byte, signer crypto.Signer) ([]byte, error) {
+	if len(challenge) == 0 {
+		return nil, trace.BadParameter("zero-length challenge")
+	}
 	switch pub := signer.Public().(type) {
 	case *ecdsa.PublicKey, *rsa.PublicKey:
 		digest, err := hash(crypto.SHA256, challenge)

@@ -134,6 +134,7 @@ func TestScopePin(t *testing.T) {
 	identity := Identity{
 		Username: "alice@example.com",
 		ScopePin: &scopesv1.Pin{
+			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: "/foo",
 			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 				"/": {"/": {"r1"}, "/foo": {"r2"}},

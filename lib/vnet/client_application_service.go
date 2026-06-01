@@ -323,6 +323,22 @@ func (s *clientApplicationService) SessionSSHConfig(ctx context.Context, req *vn
 		Addr:    req.GetAddress(),
 		Cluster: targetCluster,
 	}
+
+	switch req.GetCredentialMode() {
+	case vnetv1.SessionSSHConfigCredentialMode_SESSION_SSH_CONFIG_CREDENTIAL_MODE_DIRECT:
+		// Direct mode disables the pre-auth MFA check so the target can request in-band MFA during SSH auth.
+		target.MFACheck = &proto.IsMFARequiredResponse{
+			Required:    false,
+			MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+		}
+
+	case vnetv1.SessionSSHConfigCredentialMode_SESSION_SSH_CONFIG_CREDENTIAL_MODE_MFA_CERT:
+		// Leave MFACheck unset so SessionSSHKeyRing performs the legacy pre-auth MFA flow if required.
+
+	default:
+		return nil, trace.BadParameter("unsupported credential mode %v", req.GetCredentialMode())
+	}
+
 	keyRing, completedMFA, err := clusterClient.SessionSSHKeyRing(ctx, req.GetUser(), target)
 	if err != nil {
 		return nil, trace.Wrap(err, "getting KeyRing for SSH session")
@@ -379,8 +395,12 @@ func (s *clientApplicationService) SessionSSHConfig(ctx context.Context, req *vn
 	}
 	sessionID := s.setSignerForSSHSession(keyRing.SSHPrivateKey)
 
-	// Submit usage event.
-	s.cfg.clientApplication.OnNewSSHSession(ctx, req.GetProfile(), req.GetRootCluster())
+	// Submit usage event. The fallback MFA cert mode is still part of the same
+	// logical SSH connection already reported by the direct attempt and should
+	// not be reported as a separate connection.
+	if req.GetCredentialMode() == vnetv1.SessionSSHConfigCredentialMode_SESSION_SSH_CONFIG_CREDENTIAL_MODE_DIRECT {
+		s.cfg.clientApplication.OnNewSSHSession(ctx, req.GetProfile(), req.GetRootCluster())
+	}
 
 	return &vnetv1.SessionSSHConfigResponse{
 		SessionId:  sessionID,
@@ -437,15 +457,33 @@ func (s *clientApplicationService) ExchangeSSHKeys(ctx context.Context, req *vne
 	}, nil
 }
 
-// PerformSessionMFACeremony is defined to satisfy [vnetv1.ClientApplicationServiceServer].
-//
-// TODO(cthach): Implement PerformSessionMFACeremony to allow the admin process to trigger an MFA ceremony in the user
-// process and get the result.
+// PerformSessionMFACeremony implements [vnetv1.ClientApplicationServiceServer.PerformSessionMFACeremony]. It performs
+// a session-bound MFA ceremony for a SSH session and returns the challenge name.
 func (s *clientApplicationService) PerformSessionMFACeremony(
-	_ context.Context,
-	_ *vnetv1.PerformSessionMFACeremonyRequest,
+	ctx context.Context,
+	req *vnetv1.PerformSessionMFACeremonyRequest,
 ) (*vnetv1.PerformSessionMFACeremonyResponse, error) {
-	return nil, trace.NotImplemented("PerformSessionMFACeremony is not implemented")
+	switch {
+	case req.GetProfile() == "":
+		return nil, trace.BadParameter("profile must not be empty")
+
+	case len(req.GetSshSessionId()) == 0:
+		return nil, trace.BadParameter("SSH session ID must not be empty")
+	}
+
+	clusterClient, err := s.cfg.clientApplication.GetCachedClient(ctx, req.GetProfile(), req.GetLeafCluster())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	challengeName, err := clusterClient.PerformSessionMFACeremony(ctx, req.GetSshSessionId())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &vnetv1.PerformSessionMFACeremonyResponse{
+		ChallengeName: challengeName,
+	}, nil
 }
 
 // checkAppKey checks that at least the app profile and name are set, which are

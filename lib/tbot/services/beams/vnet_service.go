@@ -383,44 +383,7 @@ func (v *vnetApplicationService) ResolveFQDN(ctx context.Context, fqdn string) (
 	if !ok {
 		return nil, trace.BadParameter("expected *types.AppV3, got %T", rsp.Resources[0].GetApp())
 	}
-	if !vnet.IsVNetApp(app) {
-		v.logger.DebugContext(ctx, "Application protocol not supported by VNet",
-			"fqdn", fqdn,
-			"app_name", app.GetName(),
-			"app_uri", app.GetURI(),
-			"app_protocol", app.GetProtocol(),
-		)
-		return &vnetv1.ResolveFQDNResponse{}, nil
-	}
 
-	// VNet intentionally doesn't support HTTP apps for a number of reasons.
-	//
-	// One such reason is the security risk of untrusted code (e.g. JavaScript
-	// in a web browser) being able to access arbitrary local services. Browsers
-	// help to some extent here via the same-origin policy, but cannot reliably
-	// prevent DNS rebinding attacks for plain HTTP apps.
-	//
-	// While the underlying issue remains in the beam sandbox, the risk is more
-	// acceptable because (1) you can restrict the beam's access to a subset of
-	// your application via Delegation Sessions, and (2) allowing untrusted code
-	// and agents to access your Teleport-protected resources is the entire point
-	// of Beams! by using them you're already accepting a larger security trade-
-	// off than the browser sandbox normally would.
-	//
-	// We make it work by pretending they're actually plain TCP apps:
-	//
-	// 	- The local ALPN proxy will advertise support for the "teleport-tcp"
-	// 	  protocol in the TLS handshake.
-	//
-	// 	- On the Teleport proxy-side, this protocol is routed to the web server's
-	// 	  HandleConnection method.
-	//
-	// 	- From there, the connection is handed off to the app handler, which
-	// 	  determines the protocol from the application *resource* not the ALPN
-	// 	  protocol.
-	//
-	// TODO(boxofrad): Replace this with HTTPS-in-mTLS once RFD 0035e is approved
-	// and implemented.
 	ca, err := v.clusterAccess(osConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -436,13 +399,35 @@ func (v *vnetApplicationService) ResolveFQDN(ctx context.Context, fqdn string) (
 		DialOptions:   ca.dialOptions,
 	}
 
-	return &vnetv1.ResolveFQDNResponse{
-		Match: &vnetv1.ResolveFQDNResponse_MatchedTcpApp{
-			MatchedTcpApp: &vnetv1.MatchedTCPApp{
-				AppInfo: appInfo,
+	switch {
+	case app.IsTCP():
+		return &vnetv1.ResolveFQDNResponse{
+			Match: &vnetv1.ResolveFQDNResponse_MatchedTcpApp{
+				MatchedTcpApp: &vnetv1.MatchedTCPApp{
+					AppInfo: appInfo,
+				},
 			},
-		},
-	}, nil
+		}, nil
+	case vnet.IsHTTPSTunnelApp(app):
+		// HTTP and LLM apps are tunneled via the HTTPS-in-mTLS ALPN protocol.
+		// Browser access via this tunnel is currently disabled on the web app
+		// handler, which should be fine for common use cases inside beams.
+		return &vnetv1.ResolveFQDNResponse{
+			Match: &vnetv1.ResolveFQDNResponse_MatchedHttpsTunnelApp{
+				MatchedHttpsTunnelApp: &vnetv1.MatchedHTTPSTunnelApp{
+					AppInfo: appInfo,
+				},
+			},
+		}, nil
+	default:
+		v.logger.DebugContext(ctx, "Application protocol not supported by VNet",
+			"fqdn", fqdn,
+			"app_name", app.GetName(),
+			"app_uri", app.GetURI(),
+			"app_protocol", app.GetProtocol(),
+		)
+		return &vnetv1.ResolveFQDNResponse{}, nil
+	}
 }
 
 // GetAppCert issues a TLS certificate for the given application.

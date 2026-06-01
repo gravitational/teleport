@@ -1,5 +1,3 @@
-//go:build subca
-
 // Teleport
 // Copyright (C) 2026 Gravitational, Inc.
 //
@@ -16,6 +14,25 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-package subca
+package auth
 
-const enabled = true
+import (
+	"context"
+
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/subca"
+)
+
+func (a *Server) loadCAOverrideResolverForCA(ctx context.Context, ca types.CertAuthority) (*subca.CAOverrideResolver, error) {
+	r, err := subca.LoadCAOverrideResolver(
+		ctx,
+		a.Cache,
+		a.modules.IsEnterpriseBuild(),
+		types.CertAuthorityOverrideID{
+			ClusterName: ca.GetClusterName(),
+			CAType:      string(ca.GetType()),
+		})
+	return r, trace.Wrap(err, "load CA override resolver")
+}

@@ -232,7 +232,7 @@ func (s *DatabaseConnectionTester) runALPNTunnel(ctx context.Context, req TestCo
 func (s *DatabaseConnectionTester) getDatabaseServers(ctx context.Context, databaseName string) ([]types.DatabaseServer, error) {
 	// Lookup the Database Server that's proxying the requested Database.
 	page, err := apiclient.GetResourcePage[types.DatabaseServer](ctx, s.cfg.UserClient, &proto.ListResourcesRequest{
-		PredicateExpression: fmt.Sprintf(`name == "%s"`, databaseName),
+		PredicateExpression: fmt.Sprintf(`name == %q`, databaseName),
 		ResourceType:        types.KindDatabaseServer,
 		Limit:               defaults.MaxIterationLimit,
 	})

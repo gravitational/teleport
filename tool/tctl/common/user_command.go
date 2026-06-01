@@ -75,7 +75,7 @@ type UserCommand struct {
 
 	ttl time.Duration
 
-	// format is the output format, e.g. text or json
+	// format is the output format, e.g. text, json, or yaml.
 	format string
 
 	userAdd           *kingpin.CmdClause
@@ -115,7 +115,7 @@ func (u *UserCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	u.userAdd.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v, maximum is %v",
 		defaults.SignupTokenTTL, defaults.MaxSignupTokenTTL)).
 		Default(fmt.Sprintf("%v", defaults.SignupTokenTTL)).DurationVar(&u.ttl)
-	u.userAdd.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&u.format)
+	u.userAdd.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&u.format, teleport.Text, teleport.JSON, teleport.YAML)
 	u.userAdd.Alias(AddUserHelp)
 
 	u.userUpdate = users.Command("update", "Update user account.")
@@ -148,7 +148,7 @@ func (u *UserCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	u.userUpdate.Flag("set-default-relay-addr", "Relay address that clients should use by default. Value can be reset by providing an empty string").IsSetByUser(&u.defaultRelayAddrProvided).StringVar(&u.defaultRelayAddr)
 
 	u.userList = users.Command("ls", "Lists all user accounts.")
-	u.userList.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&u.format)
+	u.userList.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&u.format, teleport.Text, teleport.JSON, teleport.YAML)
 
 	u.userDelete = users.Command("rm", "Deletes user accounts.").Alias("del")
 	u.userDelete.Arg("logins", "Comma-separated list of user logins to delete").
@@ -159,7 +159,7 @@ func (u *UserCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	u.userResetPassword.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v, maximum is %v",
 		defaults.ChangePasswordTokenTTL, defaults.MaxChangePasswordTokenTTL)).
 		Default(fmt.Sprintf("%v", defaults.ChangePasswordTokenTTL)).DurationVar(&u.ttl)
-	u.userResetPassword.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&u.format)
+	u.userResetPassword.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&u.format, teleport.Text, teleport.JSON, teleport.YAML)
 }
 
 // TryRun takes the CLI command as an argument (like "users add") and executes it.
@@ -237,10 +237,12 @@ func (u *UserCommand) printResetPasswordToken(token types.UserToken, messageForm
 	switch strings.ToLower(u.format) {
 	case teleport.JSON:
 		err = printTokenAsJSON(token)
+	case teleport.YAML:
+		err = printTokenAsYAML(token)
 	case teleport.Text:
 		err = printTokenAsText(token, messageFormat)
 	default:
-		err = printTokenAsText(token, messageFormat)
+		err = trace.BadParameter("unknown format %q", u.format)
 	}
 
 	if err != nil {
@@ -372,6 +374,10 @@ func printTokenAsJSON(token types.UserToken) error {
 	}
 	fmt.Print(string(out))
 	return nil
+}
+
+func printTokenAsYAML(token types.UserToken) error {
+	return trace.Wrap(utils.WriteYAML(os.Stdout, token), "failed to marshal reset password token")
 }
 
 func printTokenAsText(token types.UserToken, messageFormat string) error {
@@ -528,7 +534,8 @@ func (u *UserCommand) List(ctx context.Context, client *authclient.Client) error
 		return trace.Wrap(err)
 	}
 
-	if u.format == teleport.Text {
+	switch u.format {
+	case teleport.Text:
 		if len(users) == 0 {
 			fmt.Println("No users found")
 			return nil
@@ -540,11 +547,18 @@ func (u *UserCommand) List(ctx context.Context, client *authclient.Client) error
 			})
 		}
 		fmt.Println(t.AsBuffer().String())
-	} else {
+	case teleport.JSON:
 		err := utils.WriteJSONArray(os.Stdout, users)
 		if err != nil {
 			return trace.Wrap(err, "failed to marshal users")
 		}
+	case teleport.YAML:
+		err := utils.WriteYAML(os.Stdout, users)
+		if err != nil {
+			return trace.Wrap(err, "failed to marshal users")
+		}
+	default:
+		return trace.BadParameter("unknown format %q", u.format)
 	}
 	return nil
 }

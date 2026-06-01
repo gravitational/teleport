@@ -291,12 +291,10 @@ func (r *AccessRequestV3) GetState() RequestState {
 
 // SetState sets State
 func (r *AccessRequestV3) SetState(state RequestState) error {
-	if r.Spec.State.IsDenied() {
-		if state.IsDenied() {
-			return nil
-		}
-		return trace.BadParameter("cannot set request-state %q (already denied)", state.String())
+	if r.GetState() != state && r.GetState().IsResolved() {
+		return trace.BadParameter("cannot set request-state %q (already %s)", state.String(), r.GetState().String())
 	}
+
 	r.Spec.State = state
 	return nil
 }

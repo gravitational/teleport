@@ -85,7 +85,12 @@ func (p *playwrightRunner) run(ctx context.Context, mode runMode) error {
 }
 
 func (p *playwrightRunner) test(ctx context.Context, debug bool) error {
-	blobBaseDir := filepath.Join(p.config.e2eDir, "blob-reports")
+	// Keep blobs (and the attachments Playwright extracts into
+	// blob-reports/resources during merge) under test-results, so they're part
+	// of the uploaded test-results artifact and the --test-results trace flow
+	// can resolve them. Outside test-results the merged report references a
+	// transient sibling dir that's deleted next run and never uploaded.
+	blobBaseDir := filepath.Join(p.config.e2eDir, "test-results", "blob-reports")
 	if err := os.RemoveAll(blobBaseDir); err != nil {
 		return fmt.Errorf("cleaning blob-reports directory: %w", err)
 	}
@@ -121,6 +126,8 @@ func (p *playwrightRunner) test(ctx context.Context, debug bool) error {
 			args := []string{"exec", "playwright", "test", p.configFlag()}
 			args = append(args, extraArgs...)
 			args = append(args, "--reporter=blob,"+filepath.Join(p.config.sharedDir, "scripts", "dot-progress-reporter.ts"))
+			// Avoid `.playwright-artifacts-<n>` collisions across parallel pnpm runs.
+			args = append(args, "--output=test-results/"+inst.browser)
 
 			for _, proj := range baseProjects {
 				args = append(args, "--project="+inst.browser+":"+proj)
@@ -162,7 +169,7 @@ func (p *playwrightRunner) test(ctx context.Context, debug bool) error {
 
 			args := []string{"exec", "playwright", "test", p.configFlag()}
 			args = append(args, extraArgs...)
-			args = append(args, "--reporter=blob,"+filepath.Join(p.config.sharedDir, "scripts", "dot-progress-reporter.ts"), "--project=connect")
+			args = append(args, "--reporter=blob,"+filepath.Join(p.config.sharedDir, "scripts", "dot-progress-reporter.ts"), "--project=connect", "--output=test-results/connect")
 
 			if len(p.config.testFiles) > 0 {
 				args = append(args, p.config.testFiles...)
@@ -191,6 +198,15 @@ func (p *playwrightRunner) test(ctx context.Context, debug bool) error {
 		slog.Warn("failed to merge reports", "error", err)
 		if testErr == nil {
 			return err
+		}
+	} else {
+		// Merge consumed the per-browser blobs; drop them so the test-results
+		// artifact carries only the extracted resources/, not the (redundant,
+		// larger) raw blob archives with every attachment embedded twice.
+		if blobs, err := filepath.Glob(filepath.Join(blobBaseDir, "*.zip")); err == nil {
+			for _, b := range blobs {
+				_ = os.Remove(b)
+			}
 		}
 	}
 
@@ -227,7 +243,7 @@ func (p *playwrightRunner) codegen(ctx context.Context) error {
 	return p.openWebAuthenticated(ctx, "codegen")
 }
 
-// openWebAuthenticated runs the setup project to generate auth state, then opens
+// openWebAuthenticated runs the global setup to generate auth state, then opens
 // a Chromium browser with a virtual WebAuthn authenticator pre-loaded so that
 // MFA challenges resolve automatically.
 func (p *playwrightRunner) openWebAuthenticated(ctx context.Context, playwrightCmd string) error {
@@ -246,8 +262,8 @@ func (p *playwrightRunner) openWebAuthenticated(ctx context.Context, playwrightC
 		return err
 	}
 
-	slog.Debug("running setup project to generate auth state")
-	if err := p.pnpm(ctx, []string{"exec", "playwright", "test", p.configFlag(), "--project=" + inst.browser + ":setup"}, env); err != nil {
+	slog.Debug("running global setup to generate auth state")
+	if err := p.pnpm(ctx, []string{"exec", "tsx", filepath.Join(p.config.sharedDir, "global-setup.ts")}, env); err != nil {
 		return err
 	}
 
@@ -301,6 +317,7 @@ func (p *playwrightRunner) startEnv(inst *testInstance) ([]string, error) {
 	env = append(env, "E2E_TCTL_BIN="+p.config.tctlBin)
 	env = append(env, "E2E_TELEPORT_CONFIG="+inst.teleportConfigPath)
 	env = append(env, "E2E_BROWSERS="+strings.Join(p.config.browsers, ","))
+	env = append(env, "E2E_BROWSER="+inst.browser)
 
 	env = append(env, "E2E_CONNECT_TSH_BIN="+p.config.connectTshBinPath)
 	env = append(env, "E2E_CONNECT_APP_DIR="+p.config.connectAppDir)

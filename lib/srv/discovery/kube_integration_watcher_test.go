@@ -174,7 +174,7 @@ func TestDiscoveryKubeIntegrationEKS(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = testAuthServer.AuthServer.UpsertProxy(t.Context(), proxy)
+	_, err = testAuthServer.AuthServer.UpsertProxyServer(t.Context(), proxy)
 	require.NoError(t, err)
 
 	testAuthServer.AuthServer.IntegrationsTokenGenerator = &mockIntegrationsTokenGenerator{

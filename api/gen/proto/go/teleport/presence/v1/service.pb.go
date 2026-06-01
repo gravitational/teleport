@@ -1012,6 +1012,181 @@ func (x *ListProxyServersResponse) GetNextPageToken() string {
 	return ""
 }
 
+// Request message for the PresenceService.UpsertProxyServer rpc.
+type UpsertProxyServerRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Server is the Proxy server heartbeat to upsert.
+	Server        *types.ServerV2 `protobuf:"bytes,1,opt,name=server,proto3" json:"server,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpsertProxyServerRequest) Reset() {
+	*x = UpsertProxyServerRequest{}
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpsertProxyServerRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpsertProxyServerRequest) ProtoMessage() {}
+
+func (x *UpsertProxyServerRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpsertProxyServerRequest.ProtoReflect.Descriptor instead.
+func (*UpsertProxyServerRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_presence_v1_service_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *UpsertProxyServerRequest) GetServer() *types.ServerV2 {
+	if x != nil {
+		return x.Server
+	}
+	return nil
+}
+
+// Response message for the PresenceService.UpsertProxyServer rpc.
+type UpsertProxyServerResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Server is the upserted Proxy server.
+	Server        *types.ServerV2 `protobuf:"bytes,1,opt,name=server,proto3" json:"server,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpsertProxyServerResponse) Reset() {
+	*x = UpsertProxyServerResponse{}
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpsertProxyServerResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpsertProxyServerResponse) ProtoMessage() {}
+
+func (x *UpsertProxyServerResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UpsertProxyServerResponse.ProtoReflect.Descriptor instead.
+func (*UpsertProxyServerResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_presence_v1_service_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *UpsertProxyServerResponse) GetServer() *types.ServerV2 {
+	if x != nil {
+		return x.Server
+	}
+	return nil
+}
+
+// Request message for the PresenceService.DeleteProxyServer rpc.
+type DeleteProxyServerRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Name is the name (host UUID) of the Proxy server to delete.
+	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteProxyServerRequest) Reset() {
+	*x = DeleteProxyServerRequest{}
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteProxyServerRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteProxyServerRequest) ProtoMessage() {}
+
+func (x *DeleteProxyServerRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteProxyServerRequest.ProtoReflect.Descriptor instead.
+func (*DeleteProxyServerRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_presence_v1_service_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *DeleteProxyServerRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+// Response message for the PresenceService.DeleteProxyServer rpc.
+type DeleteProxyServerResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteProxyServerResponse) Reset() {
+	*x = DeleteProxyServerResponse{}
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteProxyServerResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteProxyServerResponse) ProtoMessage() {}
+
+func (x *DeleteProxyServerResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteProxyServerResponse.ProtoReflect.Descriptor instead.
+func (*DeleteProxyServerResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_presence_v1_service_proto_rawDescGZIP(), []int{22}
+}
+
 var File_teleport_presence_v1_service_proto protoreflect.FileDescriptor
 
 const file_teleport_presence_v1_service_proto_rawDesc = "" +
@@ -1070,8 +1245,14 @@ const file_teleport_presence_v1_service_proto_rawDesc = "" +
 	"page_token\x18\x02 \x01(\tR\tpageToken\"m\n" +
 	"\x18ListProxyServersResponse\x12)\n" +
 	"\aservers\x18\x01 \x03(\v2\x0f.types.ServerV2R\aservers\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken2\x9b\n" +
-	"\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"C\n" +
+	"\x18UpsertProxyServerRequest\x12'\n" +
+	"\x06server\x18\x01 \x01(\v2\x0f.types.ServerV2R\x06server\"D\n" +
+	"\x19UpsertProxyServerResponse\x12'\n" +
+	"\x06server\x18\x01 \x01(\v2\x0f.types.ServerV2R\x06server\".\n" +
+	"\x18DeleteProxyServerRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"\x1b\n" +
+	"\x19DeleteProxyServerResponse2\x87\f\n" +
 	"\x0fPresenceService\x12Y\n" +
 	"\x10GetRemoteCluster\x12-.teleport.presence.v1.GetRemoteClusterRequest\x1a\x16.types.RemoteClusterV3\x12w\n" +
 	"\x12ListRemoteClusters\x12/.teleport.presence.v1.ListRemoteClustersRequest\x1a0.teleport.presence.v1.ListRemoteClustersResponse\x12_\n" +
@@ -1084,7 +1265,9 @@ const file_teleport_presence_v1_service_proto_rawDesc = "" +
 	"\x10ListRelayServers\x12-.teleport.presence.v1.ListRelayServersRequest\x1a..teleport.presence.v1.ListRelayServersResponse\x12t\n" +
 	"\x11DeleteRelayServer\x12..teleport.presence.v1.DeleteRelayServerRequest\x1a/.teleport.presence.v1.DeleteRelayServerResponse\x12n\n" +
 	"\x0fListAuthServers\x12,.teleport.presence.v1.ListAuthServersRequest\x1a-.teleport.presence.v1.ListAuthServersResponse\x12q\n" +
-	"\x10ListProxyServers\x12-.teleport.presence.v1.ListProxyServersRequest\x1a..teleport.presence.v1.ListProxyServersResponseBTZRgithub.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1;presencev1b\x06proto3"
+	"\x10ListProxyServers\x12-.teleport.presence.v1.ListProxyServersRequest\x1a..teleport.presence.v1.ListProxyServersResponse\x12t\n" +
+	"\x11UpsertProxyServer\x12..teleport.presence.v1.UpsertProxyServerRequest\x1a/.teleport.presence.v1.UpsertProxyServerResponse\x12t\n" +
+	"\x11DeleteProxyServer\x12..teleport.presence.v1.DeleteProxyServerRequest\x1a/.teleport.presence.v1.DeleteProxyServerResponseBTZRgithub.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1;presencev1b\x06proto3"
 
 var (
 	file_teleport_presence_v1_service_proto_rawDescOnce sync.Once
@@ -1098,7 +1281,7 @@ func file_teleport_presence_v1_service_proto_rawDescGZIP() []byte {
 	return file_teleport_presence_v1_service_proto_rawDescData
 }
 
-var file_teleport_presence_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
+var file_teleport_presence_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
 var file_teleport_presence_v1_service_proto_goTypes = []any{
 	(*GetRemoteClusterRequest)(nil),    // 0: teleport.presence.v1.GetRemoteClusterRequest
 	(*ListRemoteClustersRequest)(nil),  // 1: teleport.presence.v1.ListRemoteClustersRequest
@@ -1119,52 +1302,62 @@ var file_teleport_presence_v1_service_proto_goTypes = []any{
 	(*ListAuthServersResponse)(nil),    // 16: teleport.presence.v1.ListAuthServersResponse
 	(*ListProxyServersRequest)(nil),    // 17: teleport.presence.v1.ListProxyServersRequest
 	(*ListProxyServersResponse)(nil),   // 18: teleport.presence.v1.ListProxyServersResponse
-	(*types.RemoteClusterV3)(nil),      // 19: types.RemoteClusterV3
-	(*fieldmaskpb.FieldMask)(nil),      // 20: google.protobuf.FieldMask
-	(*types.ReverseTunnelV2)(nil),      // 21: types.ReverseTunnelV2
-	(*RelayServer)(nil),                // 22: teleport.presence.v1.RelayServer
-	(*types.ServerV2)(nil),             // 23: types.ServerV2
-	(*emptypb.Empty)(nil),              // 24: google.protobuf.Empty
+	(*UpsertProxyServerRequest)(nil),   // 19: teleport.presence.v1.UpsertProxyServerRequest
+	(*UpsertProxyServerResponse)(nil),  // 20: teleport.presence.v1.UpsertProxyServerResponse
+	(*DeleteProxyServerRequest)(nil),   // 21: teleport.presence.v1.DeleteProxyServerRequest
+	(*DeleteProxyServerResponse)(nil),  // 22: teleport.presence.v1.DeleteProxyServerResponse
+	(*types.RemoteClusterV3)(nil),      // 23: types.RemoteClusterV3
+	(*fieldmaskpb.FieldMask)(nil),      // 24: google.protobuf.FieldMask
+	(*types.ReverseTunnelV2)(nil),      // 25: types.ReverseTunnelV2
+	(*RelayServer)(nil),                // 26: teleport.presence.v1.RelayServer
+	(*types.ServerV2)(nil),             // 27: types.ServerV2
+	(*emptypb.Empty)(nil),              // 28: google.protobuf.Empty
 }
 var file_teleport_presence_v1_service_proto_depIdxs = []int32{
-	19, // 0: teleport.presence.v1.ListRemoteClustersResponse.remote_clusters:type_name -> types.RemoteClusterV3
-	19, // 1: teleport.presence.v1.UpdateRemoteClusterRequest.remote_cluster:type_name -> types.RemoteClusterV3
-	20, // 2: teleport.presence.v1.UpdateRemoteClusterRequest.update_mask:type_name -> google.protobuf.FieldMask
-	21, // 3: teleport.presence.v1.ListReverseTunnelsResponse.reverse_tunnels:type_name -> types.ReverseTunnelV2
-	21, // 4: teleport.presence.v1.UpsertReverseTunnelRequest.reverse_tunnel:type_name -> types.ReverseTunnelV2
-	22, // 5: teleport.presence.v1.GetRelayServerResponse.relay_server:type_name -> teleport.presence.v1.RelayServer
-	22, // 6: teleport.presence.v1.ListRelayServersResponse.relays:type_name -> teleport.presence.v1.RelayServer
-	23, // 7: teleport.presence.v1.ListAuthServersResponse.servers:type_name -> types.ServerV2
-	23, // 8: teleport.presence.v1.ListProxyServersResponse.servers:type_name -> types.ServerV2
-	0,  // 9: teleport.presence.v1.PresenceService.GetRemoteCluster:input_type -> teleport.presence.v1.GetRemoteClusterRequest
-	1,  // 10: teleport.presence.v1.PresenceService.ListRemoteClusters:input_type -> teleport.presence.v1.ListRemoteClustersRequest
-	3,  // 11: teleport.presence.v1.PresenceService.UpdateRemoteCluster:input_type -> teleport.presence.v1.UpdateRemoteClusterRequest
-	4,  // 12: teleport.presence.v1.PresenceService.DeleteRemoteCluster:input_type -> teleport.presence.v1.DeleteRemoteClusterRequest
-	5,  // 13: teleport.presence.v1.PresenceService.ListReverseTunnels:input_type -> teleport.presence.v1.ListReverseTunnelsRequest
-	7,  // 14: teleport.presence.v1.PresenceService.UpsertReverseTunnel:input_type -> teleport.presence.v1.UpsertReverseTunnelRequest
-	8,  // 15: teleport.presence.v1.PresenceService.DeleteReverseTunnel:input_type -> teleport.presence.v1.DeleteReverseTunnelRequest
-	9,  // 16: teleport.presence.v1.PresenceService.GetRelayServer:input_type -> teleport.presence.v1.GetRelayServerRequest
-	11, // 17: teleport.presence.v1.PresenceService.ListRelayServers:input_type -> teleport.presence.v1.ListRelayServersRequest
-	13, // 18: teleport.presence.v1.PresenceService.DeleteRelayServer:input_type -> teleport.presence.v1.DeleteRelayServerRequest
-	15, // 19: teleport.presence.v1.PresenceService.ListAuthServers:input_type -> teleport.presence.v1.ListAuthServersRequest
-	17, // 20: teleport.presence.v1.PresenceService.ListProxyServers:input_type -> teleport.presence.v1.ListProxyServersRequest
-	19, // 21: teleport.presence.v1.PresenceService.GetRemoteCluster:output_type -> types.RemoteClusterV3
-	2,  // 22: teleport.presence.v1.PresenceService.ListRemoteClusters:output_type -> teleport.presence.v1.ListRemoteClustersResponse
-	19, // 23: teleport.presence.v1.PresenceService.UpdateRemoteCluster:output_type -> types.RemoteClusterV3
-	24, // 24: teleport.presence.v1.PresenceService.DeleteRemoteCluster:output_type -> google.protobuf.Empty
-	6,  // 25: teleport.presence.v1.PresenceService.ListReverseTunnels:output_type -> teleport.presence.v1.ListReverseTunnelsResponse
-	21, // 26: teleport.presence.v1.PresenceService.UpsertReverseTunnel:output_type -> types.ReverseTunnelV2
-	24, // 27: teleport.presence.v1.PresenceService.DeleteReverseTunnel:output_type -> google.protobuf.Empty
-	10, // 28: teleport.presence.v1.PresenceService.GetRelayServer:output_type -> teleport.presence.v1.GetRelayServerResponse
-	12, // 29: teleport.presence.v1.PresenceService.ListRelayServers:output_type -> teleport.presence.v1.ListRelayServersResponse
-	14, // 30: teleport.presence.v1.PresenceService.DeleteRelayServer:output_type -> teleport.presence.v1.DeleteRelayServerResponse
-	16, // 31: teleport.presence.v1.PresenceService.ListAuthServers:output_type -> teleport.presence.v1.ListAuthServersResponse
-	18, // 32: teleport.presence.v1.PresenceService.ListProxyServers:output_type -> teleport.presence.v1.ListProxyServersResponse
-	21, // [21:33] is the sub-list for method output_type
-	9,  // [9:21] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	23, // 0: teleport.presence.v1.ListRemoteClustersResponse.remote_clusters:type_name -> types.RemoteClusterV3
+	23, // 1: teleport.presence.v1.UpdateRemoteClusterRequest.remote_cluster:type_name -> types.RemoteClusterV3
+	24, // 2: teleport.presence.v1.UpdateRemoteClusterRequest.update_mask:type_name -> google.protobuf.FieldMask
+	25, // 3: teleport.presence.v1.ListReverseTunnelsResponse.reverse_tunnels:type_name -> types.ReverseTunnelV2
+	25, // 4: teleport.presence.v1.UpsertReverseTunnelRequest.reverse_tunnel:type_name -> types.ReverseTunnelV2
+	26, // 5: teleport.presence.v1.GetRelayServerResponse.relay_server:type_name -> teleport.presence.v1.RelayServer
+	26, // 6: teleport.presence.v1.ListRelayServersResponse.relays:type_name -> teleport.presence.v1.RelayServer
+	27, // 7: teleport.presence.v1.ListAuthServersResponse.servers:type_name -> types.ServerV2
+	27, // 8: teleport.presence.v1.ListProxyServersResponse.servers:type_name -> types.ServerV2
+	27, // 9: teleport.presence.v1.UpsertProxyServerRequest.server:type_name -> types.ServerV2
+	27, // 10: teleport.presence.v1.UpsertProxyServerResponse.server:type_name -> types.ServerV2
+	0,  // 11: teleport.presence.v1.PresenceService.GetRemoteCluster:input_type -> teleport.presence.v1.GetRemoteClusterRequest
+	1,  // 12: teleport.presence.v1.PresenceService.ListRemoteClusters:input_type -> teleport.presence.v1.ListRemoteClustersRequest
+	3,  // 13: teleport.presence.v1.PresenceService.UpdateRemoteCluster:input_type -> teleport.presence.v1.UpdateRemoteClusterRequest
+	4,  // 14: teleport.presence.v1.PresenceService.DeleteRemoteCluster:input_type -> teleport.presence.v1.DeleteRemoteClusterRequest
+	5,  // 15: teleport.presence.v1.PresenceService.ListReverseTunnels:input_type -> teleport.presence.v1.ListReverseTunnelsRequest
+	7,  // 16: teleport.presence.v1.PresenceService.UpsertReverseTunnel:input_type -> teleport.presence.v1.UpsertReverseTunnelRequest
+	8,  // 17: teleport.presence.v1.PresenceService.DeleteReverseTunnel:input_type -> teleport.presence.v1.DeleteReverseTunnelRequest
+	9,  // 18: teleport.presence.v1.PresenceService.GetRelayServer:input_type -> teleport.presence.v1.GetRelayServerRequest
+	11, // 19: teleport.presence.v1.PresenceService.ListRelayServers:input_type -> teleport.presence.v1.ListRelayServersRequest
+	13, // 20: teleport.presence.v1.PresenceService.DeleteRelayServer:input_type -> teleport.presence.v1.DeleteRelayServerRequest
+	15, // 21: teleport.presence.v1.PresenceService.ListAuthServers:input_type -> teleport.presence.v1.ListAuthServersRequest
+	17, // 22: teleport.presence.v1.PresenceService.ListProxyServers:input_type -> teleport.presence.v1.ListProxyServersRequest
+	19, // 23: teleport.presence.v1.PresenceService.UpsertProxyServer:input_type -> teleport.presence.v1.UpsertProxyServerRequest
+	21, // 24: teleport.presence.v1.PresenceService.DeleteProxyServer:input_type -> teleport.presence.v1.DeleteProxyServerRequest
+	23, // 25: teleport.presence.v1.PresenceService.GetRemoteCluster:output_type -> types.RemoteClusterV3
+	2,  // 26: teleport.presence.v1.PresenceService.ListRemoteClusters:output_type -> teleport.presence.v1.ListRemoteClustersResponse
+	23, // 27: teleport.presence.v1.PresenceService.UpdateRemoteCluster:output_type -> types.RemoteClusterV3
+	28, // 28: teleport.presence.v1.PresenceService.DeleteRemoteCluster:output_type -> google.protobuf.Empty
+	6,  // 29: teleport.presence.v1.PresenceService.ListReverseTunnels:output_type -> teleport.presence.v1.ListReverseTunnelsResponse
+	25, // 30: teleport.presence.v1.PresenceService.UpsertReverseTunnel:output_type -> types.ReverseTunnelV2
+	28, // 31: teleport.presence.v1.PresenceService.DeleteReverseTunnel:output_type -> google.protobuf.Empty
+	10, // 32: teleport.presence.v1.PresenceService.GetRelayServer:output_type -> teleport.presence.v1.GetRelayServerResponse
+	12, // 33: teleport.presence.v1.PresenceService.ListRelayServers:output_type -> teleport.presence.v1.ListRelayServersResponse
+	14, // 34: teleport.presence.v1.PresenceService.DeleteRelayServer:output_type -> teleport.presence.v1.DeleteRelayServerResponse
+	16, // 35: teleport.presence.v1.PresenceService.ListAuthServers:output_type -> teleport.presence.v1.ListAuthServersResponse
+	18, // 36: teleport.presence.v1.PresenceService.ListProxyServers:output_type -> teleport.presence.v1.ListProxyServersResponse
+	20, // 37: teleport.presence.v1.PresenceService.UpsertProxyServer:output_type -> teleport.presence.v1.UpsertProxyServerResponse
+	22, // 38: teleport.presence.v1.PresenceService.DeleteProxyServer:output_type -> teleport.presence.v1.DeleteProxyServerResponse
+	25, // [25:39] is the sub-list for method output_type
+	11, // [11:25] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_teleport_presence_v1_service_proto_init() }
@@ -1179,7 +1372,7 @@ func file_teleport_presence_v1_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_presence_v1_service_proto_rawDesc), len(file_teleport_presence_v1_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   19,
+			NumMessages:   23,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

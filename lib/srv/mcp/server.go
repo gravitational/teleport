@@ -43,6 +43,9 @@ import (
 type AccessPoint interface {
 	services.AuthPreferenceGetter
 	services.ClusterNameGetter
+
+	// GetCertAuthority returns cert authority by id.
+	GetCertAuthority(context.Context, types.CertAuthID, bool) (types.CertAuthority, error)
 }
 
 // AuthClient defines functions that the MCP server requires from the auth

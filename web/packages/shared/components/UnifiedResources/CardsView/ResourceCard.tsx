@@ -193,6 +193,7 @@ export function ResourceCard({
         showHoverState={visibleInputFields.hoverState}
       >
         <CardInnerContainer
+          showAllLabels={showAllLabels}
           showHoverState={visibleInputFields.hoverState}
           ref={innerContainer}
           p={3}
@@ -259,7 +260,9 @@ export function ResourceCard({
               <ResourceActionButtonWrapper requiresRequest={requiresRequest}>
                 {ActionButton}
               </ResourceActionButtonWrapper>
-              {showResourceSelectedIcon && <ResourceSelectedIcon />}
+              {(typeof showResourceSelectedIcon === 'function'
+                ? showResourceSelectedIcon(labels)
+                : showResourceSelectedIcon) && <ResourceSelectedIcon />}
             </Flex>
             <Flex flexDirection="row" alignItems="center">
               <ResTypeIconBox>
@@ -423,7 +426,7 @@ const CardOuterContainer = styled(Box)<{
   transition: all 150ms;
 
   ${p =>
-    p.showHoverState &&
+    (p.showHoverState || p.showAllLabels) &&
     css`
       // Using double ampersand because of https://github.com/styled-components/styled-components/issues/3678.
       ${CardContainer}:hover && {
@@ -456,7 +459,7 @@ const CardOuterContainer = styled(Box)<{
  * outer container.
  */
 const CardInnerContainer = styled(Flex)<
-  BackgroundColorProps & { showHoverState: boolean }
+  BackgroundColorProps & { showHoverState: boolean; showAllLabels?: boolean }
 >`
   border: ${props => props.theme.borders[2]}
     ${props => props.theme.colors.spotBackground[0]};
@@ -485,7 +488,7 @@ const CardInnerContainer = styled(Flex)<
   &:hover {
     // Make the border invisible instead of removing it, this is to prevent things from shifting due to the size change.
     ${p =>
-      p.showHoverState &&
+      (p.showHoverState || p.showAllLabels) &&
       css`
         border: ${props => props.theme.borders[2]} rgba(0, 0, 0, 0);
       `}
