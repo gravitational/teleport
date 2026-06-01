@@ -47,6 +47,9 @@ type DeployDatabaseServiceRequest struct {
 	// Used to create names for Cluster and TaskDefinitions, and AWS resource tags.
 	TeleportClusterName string
 
+	// TeleportBuildType specifies the type of teleport build in use.
+	TeleportBuildType string
+
 	// IntegrationName is the integration name.
 	// Used for resource tagging when creating resources in AWS.
 	IntegrationName string
@@ -77,6 +80,10 @@ type DeployDatabaseServiceRequest struct {
 func (r *DeployDatabaseServiceRequest) CheckAndSetDefaults() error {
 	if r.Region == "" {
 		return trace.BadParameter("region is required")
+	}
+
+	if r.TeleportBuildType == "" {
+		return trace.BadParameter("build type is required")
 	}
 
 	if len(r.Deployments) == 0 {
@@ -239,6 +246,7 @@ func DeployDatabaseService(ctx context.Context, clt DeployServiceClient, req Dep
 			ResourceCreationTags: req.ResourceCreationTags,
 			Region:               req.Region,
 			TeleportConfigB64:    deployment.DeployServiceConfig,
+			TeleportBuildType:    req.TeleportBuildType,
 		}
 		logDeployment.DebugContext(ctx, "Upsert ECS TaskDefinition.")
 		taskDefinition, err := upsertTask(ctx, clt, upsertTaskReq)

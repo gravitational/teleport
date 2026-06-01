@@ -1392,7 +1392,8 @@ Where applicable nodes used should be configured as follows:
 ### Ansible-like Test
 
 Run the [ansible-like](https://github.com/gravitational/teleport/tree/4fd411add0c6fa7d4d0d19b1cf0c5c13c541498e/assets/loadtest/ansible-like)
-test against a Cloud tenant with 60k nodes dispersed geographically in multiple regions.
+test against a Cloud tenant with at least 120k nodes dispersed geographically in multiple regions. During the test, the cluster should be manually
+tested to confirm that the ansible-like load does not slow down the control plane beyond the point of usability.
 
  - [ ] DynamoDB
  - [ ] CRDB

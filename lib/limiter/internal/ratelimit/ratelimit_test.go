@@ -126,3 +126,13 @@ func TestRateSetLenNilReceiver(t *testing.T) {
 	var rs *RateSet
 	require.Equal(t, 0, rs.Len())
 }
+
+func TestRateSetAdd_RejectsRatesBelowNanosecond(t *testing.T) {
+	rates := NewRateSet()
+
+	require.Error(t, rates.Add(100*time.Nanosecond, 101, 1))
+	require.Error(t, rates.Add(100*time.Nanosecond, 200, 1))
+
+	require.NoError(t, rates.Add(100*time.Nanosecond, 100, 1))
+	require.NoError(t, rates.Add(100*time.Nanosecond, 99, 1))
+}

@@ -24,6 +24,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func FuzzLabelSpec(f *testing.F) {
+	f.Add("XXXX=YYYY")
+	f.Add(`type="database";" role"=master,ver="mongoDB v1,2"`)
+
+	f.Fuzz(func(t *testing.T, spec string) {
+		require.NotPanics(t, func() {
+			_, _ = LabelSelectorSpec(spec)
+		})
+	})
+}
+
 func FuzzNewExpression(f *testing.F) {
 	f.Add("")
 	f.Add("foo")

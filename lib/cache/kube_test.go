@@ -27,6 +27,7 @@ import (
 	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/kubewaitingcontainer"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // TestKubernetes tests that CRUD operations on kubernetes clusters resources are
@@ -134,6 +135,40 @@ func TestKubernetesServers(t *testing.T) {
 		})
 	})
 
+}
+
+func mustCreateKubeServer(t testing.TB, hostID, clusterName string) types.KubeServer {
+	t.Helper()
+
+	cluster, err := types.NewKubernetesClusterV3(types.Metadata{
+		Name: clusterName,
+	}, types.KubernetesClusterSpecV3{})
+	require.NoError(t, err)
+
+	kubeServer, err := types.NewKubernetesServerV3FromCluster(cluster, "localhost", hostID)
+	require.NoError(t, err)
+	return kubeServer
+}
+
+var kubeServerRangeFuncs = rangeServersWithTargetNameFuncs[types.KubeServer]{
+	newResource: mustCreateKubeServer,
+	create: func(ctx context.Context, presence services.Presence, s types.KubeServer) error {
+		_, err := presence.UpsertKubernetesServer(ctx, s)
+		return err
+	},
+	delete: func(ctx context.Context, presence services.Presence, s types.KubeServer) error {
+		return presence.DeleteKubernetesServer(ctx, s.GetHostID(), s.GetName())
+	},
+	rangeByName: (*Cache).RangeKubernetesServersWithName,
+}
+
+func TestRangeKubernetesServersWithName(t *testing.T) {
+	t.Parallel()
+	testRangeServersWithTargetName(t, kubeServerRangeFuncs)
+}
+
+func BenchmarkRangeKubernetesServersWithName(b *testing.B) {
+	benchmarkRangeServersWithTargetName(b, kubeServerRangeFuncs)
 }
 
 func TestKubernetesWaitingContainers(t *testing.T) {

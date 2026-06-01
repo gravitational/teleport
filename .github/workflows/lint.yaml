@@ -23,7 +23,7 @@ jobs:
       - name: Checkout
         if: ${{ github.event_name == 'merge_group' }}
         uses: actions/checkout@v6
-      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
         id: changes
         with:
           base: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
@@ -97,10 +97,10 @@ jobs:
               - 'lib/bpf/*'
             has_cli:
               - '.github/workflows/lint.yaml'
-              - 'tool/tsh/**.go'
-              - 'tool/tctl/**.go'
-              - 'tool/tbot/**.go'
-              - 'tool/teleport/**.go'
+              - 'tool/tsh/**'
+              - 'tool/tctl/**'
+              - 'tool/tbot/**'
+              - 'tool/teleport/**'
               - 'lib/utils/usage_docs.go'
               - 'lib/utils/usage_docs_test.go'
               - 'lib/utils/docs-usage.md.tmpl'

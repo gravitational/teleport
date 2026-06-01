@@ -34,6 +34,7 @@ import (
 	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/parse"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
@@ -91,7 +92,7 @@ func (c *DBCommand) TryRun(ctx context.Context, cmd string, clientFunc commoncli
 // ListDatabases prints the list of database proxies that have recently sent
 // heartbeats to the cluster.
 func (c *DBCommand) ListDatabases(ctx context.Context, clt *authclient.Client) error {
-	labels, err := libclient.ParseLabelSpec(c.labels)
+	labels, err := parse.LabelSelectorSpec(c.labels)
 	if err != nil {
 		return trace.Wrap(err)
 	}

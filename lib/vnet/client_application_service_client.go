@@ -192,14 +192,23 @@ func (c *clientApplicationServiceClient) SignForUserTLS(ctx context.Context, req
 }
 
 // SessionSSHConfig returns user SSH configuration values for an SSH session.
-func (c *clientApplicationServiceClient) SessionSSHConfig(ctx context.Context, target dialTarget, user string) (*vnetv1.SessionSSHConfigResponse, error) {
-	resp, err := c.clt.SessionSSHConfig(ctx, &vnetv1.SessionSSHConfigRequest{
-		Profile:     target.profile,
-		RootCluster: target.rootCluster,
-		LeafCluster: target.leafCluster,
-		Address:     target.addr,
-		User:        user,
-	})
+func (c *clientApplicationServiceClient) SessionSSHConfig(
+	ctx context.Context,
+	target dialTarget,
+	user string,
+	mode vnetv1.SessionSSHConfigCredentialMode,
+) (*vnetv1.SessionSSHConfigResponse, error) {
+	resp, err := c.clt.SessionSSHConfig(
+		ctx,
+		&vnetv1.SessionSSHConfigRequest{
+			Profile:        target.profile,
+			RootCluster:    target.rootCluster,
+			LeafCluster:    target.leafCluster,
+			Address:        target.addr,
+			User:           user,
+			CredentialMode: mode,
+		},
+	)
 	return resp, trace.Wrap(err, "calling SessionSSHConfig rpc")
 }
 
@@ -234,15 +243,26 @@ func (c *clientApplicationServiceClient) ExchangeSSHKeys(ctx context.Context, ho
 	return userPublicKey, nil
 }
 
-// PerformSessionMFACeremony is defined to satisfy [vnetv1.ClientApplicationServiceClient].
-//
-// TODO(cthach): Implement PerformSessionMFACeremony to allow the admin process to trigger an MFA ceremony in the user
-// process and get the result.
+// PerformSessionMFACeremony performs a session-bound MFA ceremony for a SSH session and returns the challenge name.
 func (c *clientApplicationServiceClient) PerformSessionMFACeremony(
-	_ context.Context,
-	_ *vnetv1.PerformSessionMFACeremonyRequest,
-) (*vnetv1.PerformSessionMFACeremonyResponse, error) {
-	return nil, trace.NotImplemented("PerformSessionMFACeremony is not implemented")
+	ctx context.Context,
+	profile string,
+	leafCluster string,
+	sessionID []byte,
+) (string, error) {
+	resp, err := c.clt.PerformSessionMFACeremony(
+		ctx,
+		&vnetv1.PerformSessionMFACeremonyRequest{
+			Profile:      profile,
+			LeafCluster:  leafCluster,
+			SshSessionId: sessionID,
+		},
+	)
+	if err != nil {
+		return "", trace.Wrap(err, "calling PerformSessionMFACeremony rpc")
+	}
+
+	return resp.GetChallengeName(), nil
 }
 
 // ReissueDBCert issues a new certificate for the requested database.

@@ -390,7 +390,7 @@ func New(c ServerConfig) (*Server, error) {
 		TargetServer:                  c.TargetServer,
 		FIPS:                          c.FIPS,
 		Clock:                         c.Clock,
-		ValidatedMFAChallengeVerifier: s.authClient.MFAServiceClient(),
+		ValidatedMFAChallengeVerifier: s.authClient.MFAServiceClientV2(),
 	}
 
 	s.authHandlers, err = srv.NewAuthHandlers(&authHandlerConfig)
