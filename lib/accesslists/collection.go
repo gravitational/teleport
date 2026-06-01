@@ -20,8 +20,6 @@ package accesslists
 
 import (
 	"context"
-	"errors"
-	"log/slog"
 	"slices"
 	"strconv"
 
@@ -47,9 +45,6 @@ type Collection struct {
 }
 
 // Validate validates all access lists and members in the batch.
-// It skips ErrCyclicMembership and ErrMaxNestedMembershipDepth errors,
-// and is intended to be used in integrations that creates Access
-// Lists from external group e.g. Teleport Entra ID integration.
 func (b *Collection) Validate(ctx context.Context) error {
 	for _, accessList := range b.AccessListsByName {
 		if err := accessList.CheckAndSetDefaults(); err != nil {
@@ -65,33 +60,9 @@ func (b *Collection) Validate(ctx context.Context) error {
 	}
 	for _, accessList := range b.AccessListsByName {
 		members := b.MembersByAccessList[accessList.GetName()]
-		// Below is a copied [ValidateAccessListWithMembers] in order to
-		// skip cyclic or max depth membership errors.
-		if err := validateAccessList(accessList); err != nil {
+		if err := ValidateAccessListWithMembers(ctx, nil, accessList, members, b); err != nil {
 			return trace.Wrap(err)
 		}
-		if err := validateAccessListUpdate(nil, accessList); err != nil {
-			return trace.Wrap(err)
-		}
-		for _, owner := range accessList.Spec.Owners {
-			if err := validateAccessListOwner(ctx, accessList, owner, b); err != nil {
-				return trace.Wrap(err)
-			}
-		}
-		newMembers := make([]*accesslist.AccessListMember, 0, len(members))
-		for _, member := range members {
-			if err := ValidateAccessListMember(ctx, accessList, member, b); err != nil {
-				if errors.Is(err, ErrCyclicMembership) || errors.Is(err, ErrMaxNestedMembershipDepth) {
-					slog.DebugContext(ctx, "Access List member validation failed, member will be skipped", "error", err)
-					continue
-				}
-				return trace.Wrap(err)
-			} else {
-				newMembers = append(newMembers, member)
-			}
-		}
-
-		b.MembersByAccessList[accessList.GetName()] = newMembers
 	}
 	if err := b.RefUpdates(); err != nil {
 		return trace.Wrap(err)
