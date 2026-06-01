@@ -18,8 +18,6 @@ tests:
   - it: should create a PDB when enabled in values (pdb.yaml)
     values:
       - ../.lint/pdb.yaml
-    # expected: PodDisruptionBudget/RELEASE-NAME-proxy
-    # 2 - PodDisruptionBudget/RELEASE-NAME-proxy
     documentIndex: 2
     asserts:
       - hasDocuments:
@@ -45,8 +43,6 @@ tests:
         extraLabels:
           podDisruptionBudget:
             baz: overridden
-    # expected: PodDisruptionBudget/RELEASE-NAME-proxy
-    # 2 - PodDisruptionBudget/RELEASE-NAME-proxy
     documentIndex: 2
     asserts:
       - isKind:

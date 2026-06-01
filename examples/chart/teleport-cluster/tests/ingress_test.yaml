@@ -17,8 +17,6 @@ tests:
   - it: creates an Ingress when ingress.enabled=true and proxyListenerMode=multiplex
     values:
       - ../.lint/ingress.yaml
-    # expected: Ingress/RELEASE-NAME-proxy
-    # 2 - Ingress/RELEASE-NAME-proxy
     documentIndex: 2
     asserts:
       - isKind:
@@ -70,8 +68,6 @@ tests:
         ingress:
           test-annotation: test-annotation-value
           another-annotation: some-other-value
-    # expected: Ingress/RELEASE-NAME-proxy
-    # 2 - Ingress/RELEASE-NAME-proxy
     documentIndex: 2
     asserts:
       - isKind:
@@ -90,8 +86,6 @@ tests:
   - it: sets the clusterName and wildcard of clusterName as hostnames when Ingress is enabled
     values:
       - ../.lint/ingress.yaml
-    # expected: Ingress/RELEASE-NAME-proxy
-    # 2 - Ingress/RELEASE-NAME-proxy
     documentIndex: 2
     asserts:
       - isKind:
@@ -150,8 +144,6 @@ tests:
     set:
       ingress:
         suppressAutomaticWildcards: true
-    # expected: Ingress/RELEASE-NAME-proxy
-    # 2 - Ingress/RELEASE-NAME-proxy
     documentIndex: 2
     asserts:
       - isKind:
@@ -205,8 +197,6 @@ tests:
       - ../.lint/ingress.yaml
     set:
       publicAddr: ["helm-lint.example.com"]
-    # expected: Ingress/RELEASE-NAME-proxy
-    # 2 - Ingress/RELEASE-NAME-proxy
     documentIndex: 2
     asserts:
       - isKind:
@@ -266,8 +256,6 @@ tests:
       publicAddr: ["helm-lint.example.com"]
       ingress:
         suppressAutomaticWildcards: true
-    # expected: Ingress/RELEASE-NAME-proxy
-    # 2 - Ingress/RELEASE-NAME-proxy
     documentIndex: 2
     asserts:
       - isKind:
@@ -321,8 +309,6 @@ tests:
       - ../.lint/ingress.yaml
     set:
       publicAddr: ["helm-lint.example.com:443"]
-    # expected: Ingress/RELEASE-NAME-proxy
-    # 2 - Ingress/RELEASE-NAME-proxy
     documentIndex: 2
     asserts:
       - isKind:
@@ -380,8 +366,6 @@ tests:
       - ../.lint/ingress.yaml
     set:
       publicAddr: ["helm-lint.example.com", "helm-lint-second-domain.example.com"]
-    # expected: Ingress/RELEASE-NAME-proxy
-    # 2 - Ingress/RELEASE-NAME-proxy
     documentIndex: 2
     asserts:
       - isKind:
@@ -478,8 +462,6 @@ tests:
       - ../.lint/ingress.yaml
     set:
       publicAddr: ["helm-lint.example.com", "*.helm-lint.example.com", "helm-lint-second-domain.example.com:443"]
-    # expected: Ingress/RELEASE-NAME-proxy
-    # 2 - Ingress/RELEASE-NAME-proxy
     documentIndex: 2
     asserts:
       - isKind:
@@ -583,8 +565,6 @@ tests:
         spec:
           ingressClassName: nginx
           otherSpecStuff: lint
-    # expected: Ingress/RELEASE-NAME-proxy
-    # 2 - Ingress/RELEASE-NAME-proxy
     documentIndex: 2
     asserts:
       - isKind:
@@ -603,8 +583,6 @@ tests:
   - it: does not set tls.secretName by default
     values:
       - ../.lint/ingress.yaml
-    # expected: Ingress/RELEASE-NAME-proxy
-    # 2 - Ingress/RELEASE-NAME-proxy
     documentIndex: 2
     asserts:
       - isKind:
@@ -626,8 +604,6 @@ tests:
         certManager:
           enabled: true
           issuerName: helm-lint
-    # expected: Ingress/RELEASE-NAME-proxy
-    # 3 - Ingress/RELEASE-NAME-proxy
     documentIndex: 3
     asserts:
       - isKind:
@@ -648,8 +624,6 @@ tests:
     set:
       tls:
         existingSecretName: helm-lint-tls-secret
-    # expected: Ingress/RELEASE-NAME-proxy
-    # 2 - Ingress/RELEASE-NAME-proxy
     documentIndex: 2
     asserts:
       - isKind:
@@ -675,8 +649,6 @@ tests:
         extraLabels:
           ingress:
             baz: overridden
-    # expected: Ingress/RELEASE-NAME-proxy
-    # 2 - Ingress/RELEASE-NAME-proxy
     documentIndex: 2
     asserts:
       - isKind:

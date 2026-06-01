@@ -5,8 +5,6 @@ tests:
   - it: should request a certificate for cluster name when cert-manager is enabled (cert-manager.yaml)
     values:
       - ../.lint/cert-manager.yaml
-    # expected: Certificate/RELEASE-NAME
-    # 0 - Certificate/RELEASE-NAME
     documentIndex: 0
     asserts:
       - hasDocuments:
@@ -27,8 +25,6 @@ tests:
   - it: should request a certificate for cluster name when cert-manager is enabled (cert-secret.yaml)
     values:
       - ../.lint/cert-secret.yaml
-    # expected: Certificate/RELEASE-NAME
-    # 0 - Certificate/RELEASE-NAME
     documentIndex: 0
     asserts:
       - hasDocuments:
@@ -51,8 +47,6 @@ tests:
       highAvailability:
         certManager:
           addPublicAddrs: true
-    # expected: Certificate/RELEASE-NAME
-    # 0 - Certificate/RELEASE-NAME
     documentIndex: 0
     asserts:
       - hasDocuments:
@@ -90,8 +84,6 @@ tests:
       highAvailability:
         certManager:
           addPublicAddrs: false
-    # expected: Certificate/RELEASE-NAME
-    # 0 - Certificate/RELEASE-NAME
     documentIndex: 0
     asserts:
       - hasDocuments:
@@ -129,8 +121,6 @@ tests:
       highAvailability:
         certManager:
           addPublicAddrs: true
-    # expected: Certificate/RELEASE-NAME
-    # 0 - Certificate/RELEASE-NAME
     documentIndex: 0
     asserts:
       - hasDocuments:
@@ -162,8 +152,6 @@ tests:
       - ../.lint/cert-secret.yaml
     set:
       publicAddr: ['teleport.test.com:443', 'teleport.shared-services.old-domain.com:443']
-    # expected: Certificate/RELEASE-NAME
-    # 0 - Certificate/RELEASE-NAME
     documentIndex: 0
     asserts:
       - hasDocuments:
@@ -195,8 +183,6 @@ tests:
       highAvailability:
         certManager:
           addPublicAddrs: true
-    # expected: Certificate/RELEASE-NAME
-    # 0 - Certificate/RELEASE-NAME
     documentIndex: 0
     asserts:
       - hasDocuments:
@@ -241,8 +227,6 @@ tests:
         extraLabels:
           certSecret:
             baz: overridden
-    # expected: Certificate/RELEASE-NAME
-    # 0 - Certificate/RELEASE-NAME
     documentIndex: 0
     asserts:
       - isKind:

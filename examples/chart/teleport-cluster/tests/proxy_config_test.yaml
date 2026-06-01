@@ -6,8 +6,6 @@ tests:
   - it: matches snapshot for log-basic.yaml
     values:
       - ../.lint/log-basic.yaml
-    # expected: ConfigMap/RELEASE-NAME-proxy
-    # 0 - ConfigMap/RELEASE-NAME-proxy
     documentIndex: 0
     asserts:
       - isKind:
@@ -22,8 +20,6 @@ tests:
   - it: matches snapshot for log-extra.yaml
     values:
       - ../.lint/log-extra.yaml
-    # expected: ConfigMap/RELEASE-NAME-proxy
-    # 0 - ConfigMap/RELEASE-NAME-proxy
     documentIndex: 0
     asserts:
       - isKind:
@@ -38,8 +34,6 @@ tests:
   - it: matches snapshot for public-addresses.yaml
     values:
       - ../.lint/public-addresses.yaml
-    # expected: ConfigMap/RELEASE-NAME-proxy
-    # 0 - ConfigMap/RELEASE-NAME-proxy
     documentIndex: 0
     asserts:
       - isKind:
@@ -54,8 +48,6 @@ tests:
   - it: wears annotations (annotations.yaml)
     values:
       - ../.lint/annotations.yaml
-    # expected: ConfigMap/RELEASE-NAME-proxy
-    # 0 - ConfigMap/RELEASE-NAME-proxy
     documentIndex: 0
     asserts:
       - isKind:
@@ -74,8 +66,6 @@ tests:
   - it: matches snapshot for proxy-listener-mode-multiplex.yaml
     values:
       - ../.lint/proxy-listener-mode-multiplex.yaml
-    # expected: ConfigMap/RELEASE-NAME-proxy
-    # 0 - ConfigMap/RELEASE-NAME-proxy
     documentIndex: 0
     asserts:
       - isKind:
@@ -90,8 +80,6 @@ tests:
   - it: matches snapshot for proxy-listener-mode-separate.yaml
     values:
       - ../.lint/proxy-listener-mode-separate.yaml
-    # expected: ConfigMap/RELEASE-NAME-proxy
-    # 0 - ConfigMap/RELEASE-NAME-proxy
     documentIndex: 0
     asserts:
       - isKind:
@@ -106,8 +94,6 @@ tests:
   - it: matches snapshot for separate-mongo-listener.yaml
     values:
       - ../.lint/separate-mongo-listener.yaml
-    # expected: ConfigMap/RELEASE-NAME-proxy
-    # 0 - ConfigMap/RELEASE-NAME-proxy
     documentIndex: 0
     asserts:
       - isKind:
@@ -122,8 +108,6 @@ tests:
   - it: matches snapshot for separate-postgres-listener.yaml
     values:
       - ../.lint/separate-postgres-listener.yaml
-    # expected: ConfigMap/RELEASE-NAME-proxy
-    # 0 - ConfigMap/RELEASE-NAME-proxy
     documentIndex: 0
     asserts:
       - isKind:
@@ -138,8 +122,6 @@ tests:
   - it: matches snapshot for aws-ha-acme.yaml
     values:
       - ../.lint/aws-ha-acme.yaml
-    # expected: ConfigMap/RELEASE-NAME-proxy
-    # 1 - ConfigMap/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -154,8 +136,6 @@ tests:
   - it: matches snapshot for existing-tls-secret.yaml
     values:
       - ../.lint/existing-tls-secret.yaml
-    # expected: ConfigMap/RELEASE-NAME-proxy
-    # 0 - ConfigMap/RELEASE-NAME-proxy
     documentIndex: 0
     asserts:
       - isKind:
@@ -170,8 +150,6 @@ tests:
   - it: matches snapshot for acme-on.yaml
     values:
       - ../.lint/acme-on.yaml
-    # expected: ConfigMap/RELEASE-NAME-proxy
-    # 0 - ConfigMap/RELEASE-NAME-proxy
     documentIndex: 0
     asserts:
       - isKind:
@@ -186,8 +164,6 @@ tests:
   - it: matches snapshot for acme-uri-staging.yaml
     values:
       - ../.lint/acme-uri-staging.yaml
-    # expected: ConfigMap/RELEASE-NAME-proxy
-    # 0 - ConfigMap/RELEASE-NAME-proxy
     documentIndex: 0
     asserts:
       - isKind:
@@ -202,8 +178,6 @@ tests:
   - it: generates a config with a clusterName containing a regular string
     set:
       clusterName: "helm-test.example.com"
-    # expected: ConfigMap/RELEASE-NAME-proxy
-    # 0 - ConfigMap/RELEASE-NAME-proxy
     documentIndex: 0
     asserts:
       - isKind:
@@ -238,8 +212,6 @@ tests:
       - ../.lint/ingress.yaml
     set:
       clusterName: "helm-test.example.com"
-    # expected: ConfigMap/RELEASE-NAME-proxy
-    # 0 - ConfigMap/RELEASE-NAME-proxy
     documentIndex: 0
     asserts:
       - isKind:
@@ -258,8 +230,6 @@ tests:
       - ../.lint/ingress.yaml
     set:
       clusterName: "helm-test.example.com"
-    # expected: ConfigMap/RELEASE-NAME-proxy
-    # 0 - ConfigMap/RELEASE-NAME-proxy
     documentIndex: 0
     asserts:
       - isKind:
@@ -276,8 +246,6 @@ tests:
       version: 14.0.0
     set:
       clusterName: "helm-test.example.com"
-    # expected: ConfigMap/RELEASE-NAME-proxy
-    # 0 - ConfigMap/RELEASE-NAME-proxy
     documentIndex: 0
     asserts:
       - isKind:
@@ -296,8 +264,6 @@ tests:
       - ../.lint/ingress.yaml
     set:
       clusterName: "helm-test.example.com"
-    # expected: ConfigMap/RELEASE-NAME-proxy
-    # 0 - ConfigMap/RELEASE-NAME-proxy
     documentIndex: 0
     asserts:
       - isKind:
@@ -314,8 +280,6 @@ tests:
       version: 14.0.0
     set:
       clusterName: "helm-test.example.com"
-    # expected: ConfigMap/RELEASE-NAME-proxy
-    # 0 - ConfigMap/RELEASE-NAME-proxy
     documentIndex: 0
     asserts:
       - isKind:
@@ -331,8 +295,6 @@ tests:
     set:
       proxyProtocol: "on"
       clusterName: teleport.example.com
-    # expected: ConfigMap/RELEASE-NAME-proxy
-    # 0 - ConfigMap/RELEASE-NAME-proxy
     documentIndex: 0
     asserts:
       - isKind:
@@ -349,8 +311,6 @@ tests:
     set:
       proxyProtocol: "off"
       clusterName: teleport.example.com
-    # expected: ConfigMap/RELEASE-NAME-proxy
-    # 0 - ConfigMap/RELEASE-NAME-proxy
     documentIndex: 0
     asserts:
       - isKind:
@@ -366,8 +326,6 @@ tests:
   - it: does not set "proxy_protocol"
     set:
       clusterName: teleport.example.com
-    # expected: ConfigMap/RELEASE-NAME-proxy
-    # 0 - ConfigMap/RELEASE-NAME-proxy
     documentIndex: 0
     asserts:
       - isKind:
@@ -391,8 +349,6 @@ tests:
         extraLabels:
           config:
             baz: overridden
-    # expected: ConfigMap/RELEASE-NAME-proxy
-    # 0 - ConfigMap/RELEASE-NAME-proxy
     documentIndex: 0
     asserts:
       - isKind:
@@ -412,8 +368,6 @@ tests:
       clusterName: teleport.example.com
       global:
         clusterDomain: test.com
-    # expected: ConfigMap/RELEASE-NAME-proxy
-    # 0 - ConfigMap/RELEASE-NAME-proxy
     documentIndex: 0
     asserts:
       - isKind:

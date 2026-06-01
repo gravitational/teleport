@@ -6,8 +6,6 @@ tests:
   - it: sets Deployment annotations when specified
     values:
       - ../.lint/annotations.yaml
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -25,8 +23,6 @@ tests:
   - it: sets Pod annotations when specified
     values:
       - ../.lint/annotations.yaml
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -45,8 +41,6 @@ tests:
   - it: should not have more than one replica if no certificate is passed
     set:
       clusterName: helm-lint.example.com
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -66,8 +60,6 @@ tests:
         replicaCount: 0
       tls:
         existingSecretName: my-certs
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -88,8 +80,6 @@ tests:
         certManager:
           enabled: true
           issuerName: helm-lint
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 2 - Deployment/RELEASE-NAME-proxy
     documentIndex: 2
     asserts:
       - isKind:
@@ -110,8 +100,6 @@ tests:
         certManager:
           enabled: true
           issuerName: helm-lint
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 2 - Deployment/RELEASE-NAME-proxy
     documentIndex: 2
     asserts:
       - isKind:
@@ -134,8 +122,6 @@ tests:
       proxy:
         highAvailability:
           replicaCount: 1
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 2 - Deployment/RELEASE-NAME-proxy
     documentIndex: 2
     asserts:
       - isKind:
@@ -158,8 +144,6 @@ tests:
         replicaCount: 0
       ingress:
         enabled: true
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -186,8 +170,6 @@ tests:
                     operator: In
                     values:
                       - teleport
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -204,8 +186,6 @@ tests:
   - it: should set required affinity when highAvailability.requireAntiAffinity is set
     values:
       - ../.lint/aws-ha-antiaffinity.yaml
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -226,8 +206,6 @@ tests:
   - it: should set tolerations when set in values
     values:
       - ../.lint/tolerations.yaml
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -244,8 +222,6 @@ tests:
   - it: should set resources when set in values
     values:
       - ../.lint/resources.yaml
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -272,8 +248,6 @@ tests:
   - it: should set podSecurityContext when set in values
     values:
       - ../.lint/pod-security-context.yaml
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -301,8 +275,6 @@ tests:
   - it: should not set podSecurityContext when is empty object (default value)
     values:
       - ../.lint/pod-security-context-empty.yaml
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -317,8 +289,6 @@ tests:
   - it: should set securityContext when set in values
     values:
       - ../.lint/security-context.yaml
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -351,8 +321,6 @@ tests:
   - it: should not set securityContext when is empty object (default value)
     values:
       - ../.lint/security-context-empty.yaml
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -367,8 +335,6 @@ tests:
     template: proxy.yaml
     values:
       - ../.lint/security-context.yaml
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -401,8 +367,6 @@ tests:
     template: proxy.yaml
     values:
       - ../.lint/resources.yaml
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -429,8 +393,6 @@ tests:
     template: proxy.yaml
     values:
       - ../.lint/security-context-empty.yaml
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -450,8 +412,6 @@ tests:
       clusterName: helm-lint.example.com
       enterprise: true
       teleportVersionOverride: 12.2.1
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -468,8 +428,6 @@ tests:
     set:
       clusterName: helm-lint
       teleportVersionOverride: 12.2.1
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -486,8 +444,6 @@ tests:
     values:
       - ../.lint/gcp-ha-acme.yaml
       - ../.lint/initcontainers.yaml
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 2 - Deployment/RELEASE-NAME-proxy
     documentIndex: 2
     asserts:
       - isKind:
@@ -524,8 +480,6 @@ tests:
   - it: should mount ConfigMap containing Teleport config
     set:
       clusterName: helm-lint.example.com
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -551,8 +505,6 @@ tests:
     values:
       - ../.lint/volumes.yaml
       - ../.lint/initcontainers.yaml
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -587,8 +539,6 @@ tests:
     set:
       clusterName: helm-lint.example.com
       imagePullPolicy: Always
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -605,8 +555,6 @@ tests:
     set:
       extraContainers: []
       clusterName: helm-lint.example.com
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -623,8 +571,6 @@ tests:
   - it: should add one more container when `extraContainers` is set in values
     values:
       - ../.lint/extra-containers.yaml
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -650,8 +596,6 @@ tests:
   - it: should set environment when extraEnv set in values
     values:
       - ../.lint/extra-env.yaml
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -669,8 +613,6 @@ tests:
   - it: should set imagePullSecrets when set in values
     values:
       - ../.lint/imagepullsecrets.yaml
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -691,8 +633,6 @@ tests:
       - ../.lint/initcontainers.yaml
       - ../.lint/resources.yaml
       - ../.lint/extra-env.yaml
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -750,8 +690,6 @@ tests:
     set:
       clusterName: helm-lint.example.com
       insecureSkipProxyTLSVerify: true
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -767,8 +705,6 @@ tests:
   - it: should expose diag port
     set:
       clusterName: helm-lint.example.com
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -787,8 +723,6 @@ tests:
   - it: should expose tls port
     set:
       clusterName: helm-lint.example.com
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -808,8 +742,6 @@ tests:
     set:
       clusterName: helm-lint.example.com
       proxyListenerMode: multiplex
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -828,8 +760,6 @@ tests:
   - it: should not expose proxy peering port by default
     set:
       clusterName: helm-lint.example.com
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -849,8 +779,6 @@ tests:
     set:
       clusterName: helm-lint.example.com
       enterprise: true
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -869,8 +797,6 @@ tests:
   - it: should expose sshproxy port by default
     set:
       clusterName: helm-lint.example.com
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -890,8 +816,6 @@ tests:
     set:
       clusterName: helm-lint.example.com
       proxyListenerMode: multiplex
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -910,8 +834,6 @@ tests:
   - it: should expose sshtun port by default
     set:
       clusterName: helm-lint.example.com
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -931,8 +853,6 @@ tests:
     set:
       clusterName: helm-lint.example.com
       proxyListenerMode: multiplex
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -951,8 +871,6 @@ tests:
   - it: should expose k8s port by default
     set:
       clusterName: helm-lint.example.com
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -972,8 +890,6 @@ tests:
     set:
       clusterName: helm-lint.example.com
       proxyListenerMode: multiplex
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -992,8 +908,6 @@ tests:
   - it: should expose mysql port by default
     set:
       clusterName: helm-lint.example.com
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -1013,8 +927,6 @@ tests:
     set:
       clusterName: helm-lint.example.com
       proxyListenerMode: multiplex
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -1034,8 +946,6 @@ tests:
     set:
       clusterName: helm-lint.example.com
       separatePostgresListener: true
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -1056,8 +966,6 @@ tests:
       clusterName: helm-lint.example.com
       proxyListenerMode: multiplex
       separatePostgresListener: true
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -1077,8 +985,6 @@ tests:
     set:
       clusterName: helm-lint.example.com
       separateMongoListener: true
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -1099,8 +1005,6 @@ tests:
       clusterName: helm-lint.example.com
       proxyListenerMode: multiplex
       separateMongoListener: true
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -1121,8 +1025,6 @@ tests:
       clusterName: helm-lint.example.com
       postStart:
         command: ["/bin/echo", "test"]
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -1138,8 +1040,6 @@ tests:
   - it: should add and mount emptyDir for data
     set:
       clusterName: helm-lint.example.com
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -1162,8 +1062,6 @@ tests:
   - it: should set priorityClassName when set in values
     values:
       - ../.lint/priority-class-name.yaml
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -1179,8 +1077,6 @@ tests:
   - it: should set probeTimeoutSeconds when set in values
     values:
       - ../.lint/probe-timeout-seconds.yaml
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -1199,8 +1095,6 @@ tests:
   - it: should not mount TLS secrets when when highAvailability.certManager.enabled is false and tls.existingSecretName is not set
     set:
       clusterName: helm-lint-test-cluster
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -1225,8 +1119,6 @@ tests:
   - it: should mount cert-manager TLS secret when highAvailability.certManager.enabled is true
     values:
       - ../.lint/cert-manager.yaml
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 2 - Deployment/RELEASE-NAME-proxy
     documentIndex: 2
     asserts:
       - isKind:
@@ -1251,8 +1143,6 @@ tests:
   - it: should mount tls.existingSecretName when set in values
     values:
       - ../.lint/existing-tls-secret.yaml
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -1277,8 +1167,6 @@ tests:
   - it: should mount tls.existingCASecretName and set environment when set in values
     values:
       - ../.lint/existing-tls-secret-with-ca.yaml
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -1309,8 +1197,6 @@ tests:
     values:
       - ../.lint/existing-tls-secret-with-ca.yaml
       - ../.lint/extra-env.yaml
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -1351,8 +1237,6 @@ tests:
           issuerName: helm-lint
         replicaCount: 3
         minReadySeconds: 60
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 2 - Deployment/RELEASE-NAME-proxy
     documentIndex: 2
     asserts:
       - isKind:
@@ -1371,8 +1255,6 @@ tests:
       highAvailability:
         minReadySeconds: 60
         replicaCount: 1
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -1392,8 +1274,6 @@ tests:
       nodeSelector:
         role: bastion
         environment: security
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -1413,8 +1293,6 @@ tests:
     capabilities:
       majorVersion: 1
       minorVersion: 18
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -1457,8 +1335,6 @@ tests:
     capabilities:
       majorVersion: 1
       minorVersion: 21
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -1507,8 +1383,6 @@ tests:
         extraLabels:
           deployment:
             baz: overridden
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -1536,8 +1410,6 @@ tests:
         extraLabels:
           pod:
             baz: overridden
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -1559,8 +1431,6 @@ tests:
     set:
       global:
         clusterDomain: test.com
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -1586,8 +1456,6 @@ tests:
         # we test an auth-specific override
         readinessProbe:
           initialDelaySeconds: 13
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -1612,8 +1480,6 @@ tests:
   - it: sets topology spread constraints by default
     set:
       clusterName: helm-lint
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -1646,8 +1512,6 @@ tests:
     set:
       clusterName: helm-lint
       disableTopologySpreadConstraints: true
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -1665,8 +1529,6 @@ tests:
     capabilities:
       majorVersion: 1
       minorVersion: 17
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -1692,8 +1554,6 @@ tests:
     capabilities:
       majorVersion: 1
       minorVersion: 18
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -1718,8 +1578,6 @@ tests:
       resources:
         limits:
           memory: "10.5G"
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -1740,8 +1598,6 @@ tests:
       resources:
         limits:
           memory: "10.5Gi"
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -1762,8 +1618,6 @@ tests:
       resources:
         limits:
           memory: "10.5e9"
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -1789,8 +1643,6 @@ tests:
           value: bar
         - name: GOMEMLIMIT
           value: "5GB"
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -1819,8 +1671,6 @@ tests:
       # we nest under proxy to check if merge works properly
       proxy:
         goMemLimitRatio: 0
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:
@@ -1843,8 +1693,6 @@ tests:
       extraEnv:
         - name: FOO
           value: bar
-    # expected: Deployment/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
     documentIndex: 1
     asserts:
       - isKind:

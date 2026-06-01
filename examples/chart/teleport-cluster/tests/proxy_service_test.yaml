@@ -7,12 +7,6 @@ tests:
     set:
       clusterName: teleport.example.com
     documentIndex: 5
-    # expected: Service/RELEASE-NAME
-    # 0 - ConfigMap/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
-    # 2 - ConfigMap/RELEASE-NAME-proxy-test
-    # 3 - Job/RELEASE-NAME-proxy-test
-    # 4 - ServiceAccount/RELEASE-NAME-proxy-hook
     asserts:
       - isKind:
           of: Service
@@ -91,13 +85,6 @@ tests:
       service:
         type: ClusterIP
     documentIndex: 6
-    # expected: Service/RELEASE-NAME
-    # 0 - ConfigMap/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
-    # 2 - Ingress/RELEASE-NAME-proxy
-    # 3 - ConfigMap/RELEASE-NAME-proxy-test
-    # 4 - Job/RELEASE-NAME-proxy-test
-    # 5 - ServiceAccount/RELEASE-NAME-proxy-hook
     asserts:
       - isKind:
           of: Service
@@ -118,13 +105,6 @@ tests:
         service:
           type: ClusterIP
     documentIndex: 6
-    # expected: Service/RELEASE-NAME
-    # 0 - ConfigMap/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
-    # 2 - Ingress/RELEASE-NAME-proxy
-    # 3 - ConfigMap/RELEASE-NAME-proxy-test
-    # 4 - Job/RELEASE-NAME-proxy-test
-    # 5 - ServiceAccount/RELEASE-NAME-proxy-hook
     asserts:
       - isKind:
           of: Service
@@ -145,13 +125,6 @@ tests:
         service:
           type: NodePort
     documentIndex: 6
-    # expected: Service/RELEASE-NAME
-    # 0 - ConfigMap/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
-    # 2 - Ingress/RELEASE-NAME-proxy
-    # 3 - ConfigMap/RELEASE-NAME-proxy-test
-    # 4 - Job/RELEASE-NAME-proxy-test
-    # 5 - ServiceAccount/RELEASE-NAME-proxy-hook
     asserts:
       - isKind:
           of: Service
@@ -171,13 +144,6 @@ tests:
       service:
         type: NodePort
     documentIndex: 6
-    # expected: Service/RELEASE-NAME
-    # 0 - ConfigMap/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
-    # 2 - Ingress/RELEASE-NAME-proxy
-    # 3 - ConfigMap/RELEASE-NAME-proxy-test
-    # 4 - Job/RELEASE-NAME-proxy-test
-    # 5 - ServiceAccount/RELEASE-NAME-proxy-hook
     asserts:
       - isKind:
           of: Service
@@ -198,13 +164,6 @@ tests:
         service:
           type: NodePort
     documentIndex: 6
-    # expected: Service/RELEASE-NAME
-    # 0 - ConfigMap/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
-    # 2 - Ingress/RELEASE-NAME-proxy
-    # 3 - ConfigMap/RELEASE-NAME-proxy-test
-    # 4 - Job/RELEASE-NAME-proxy-test
-    # 5 - ServiceAccount/RELEASE-NAME-proxy-hook
     asserts:
       - isKind:
           of: Service
@@ -284,13 +243,6 @@ tests:
       service:
         type: ClusterIP
     documentIndex: 6
-    # expected: Service/RELEASE-NAME
-    # 0 - ConfigMap/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
-    # 2 - Ingress/RELEASE-NAME-proxy
-    # 3 - ConfigMap/RELEASE-NAME-proxy-test
-    # 4 - Job/RELEASE-NAME-proxy-test
-    # 5 - ServiceAccount/RELEASE-NAME-proxy-hook
     asserts:
       - isKind:
           of: Service
@@ -333,13 +285,6 @@ tests:
       service:
         type: ClusterIP
     documentIndex: 6
-    # expected: Service/RELEASE-NAME
-    # 0 - ConfigMap/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
-    # 2 - Ingress/RELEASE-NAME-proxy
-    # 3 - ConfigMap/RELEASE-NAME-proxy-test
-    # 4 - Job/RELEASE-NAME-proxy-test
-    # 5 - ServiceAccount/RELEASE-NAME-proxy-hook
     asserts:
       - isKind:
           of: Service
@@ -387,13 +332,6 @@ tests:
           service.beta.kubernetes.io/aws-load-balancer-ssl-cert: arn:aws:acm:us-east-1:1234567890:certificate/a857a76c-51d0-4d3d-8000-465bb3e9829b
           service.beta.kubernetes.io/aws-load-balancer-ssl-ports: 443
     documentIndex: 6
-    # expected: Service/RELEASE-NAME
-    # 0 - ConfigMap/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
-    # 2 - Ingress/RELEASE-NAME-proxy
-    # 3 - ConfigMap/RELEASE-NAME-proxy-test
-    # 4 - Job/RELEASE-NAME-proxy-test
-    # 5 - ServiceAccount/RELEASE-NAME-proxy-hook
     asserts:
       - isKind:
           of: Service
@@ -431,13 +369,6 @@ tests:
           # required so at least one service annotation exists, to avoid non map type error
           service.beta.kubernetes.io/random-annotation: helm-lint
     documentIndex: 6
-    # expected: Service/RELEASE-NAME
-    # 0 - ConfigMap/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
-    # 2 - Ingress/RELEASE-NAME-proxy
-    # 3 - ConfigMap/RELEASE-NAME-proxy-test
-    # 4 - Job/RELEASE-NAME-proxy-test
-    # 5 - ServiceAccount/RELEASE-NAME-proxy-hook
     asserts:
       - isKind:
           of: Service
@@ -451,12 +382,6 @@ tests:
     values:
       - ../.lint/example-minimal-standalone.yaml
     documentIndex: 5
-    # expected: Service/RELEASE-NAME
-    # 0 - ConfigMap/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
-    # 2 - ConfigMap/RELEASE-NAME-proxy-test
-    # 3 - Job/RELEASE-NAME-proxy-test
-    # 4 - ServiceAccount/RELEASE-NAME-proxy-hook
     asserts:
       - isKind:
           of: Service
@@ -476,13 +401,6 @@ tests:
       service:
         type: ClusterIP
     documentIndex: 6
-    # expected: Service/RELEASE-NAME
-    # 0 - ConfigMap/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
-    # 2 - Ingress/RELEASE-NAME-proxy
-    # 3 - ConfigMap/RELEASE-NAME-proxy-test
-    # 4 - Job/RELEASE-NAME-proxy-test
-    # 5 - ServiceAccount/RELEASE-NAME-proxy-hook
     asserts:
       - isKind:
           of: Service
@@ -515,12 +433,6 @@ tests:
     values:
       - ../.lint/proxy-listener-mode-separate.yaml
     documentIndex: 5
-    # expected: Service/RELEASE-NAME
-    # 0 - ConfigMap/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
-    # 2 - ConfigMap/RELEASE-NAME-proxy-test
-    # 3 - Job/RELEASE-NAME-proxy-test
-    # 4 - ServiceAccount/RELEASE-NAME-proxy-hook
     asserts:
       - isKind:
           of: Service
@@ -540,13 +452,6 @@ tests:
       service:
         type: ClusterIP
     documentIndex: 6
-    # expected: Service/RELEASE-NAME
-    # 0 - ConfigMap/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
-    # 2 - Ingress/RELEASE-NAME-proxy
-    # 3 - ConfigMap/RELEASE-NAME-proxy-test
-    # 4 - Job/RELEASE-NAME-proxy-test
-    # 5 - ServiceAccount/RELEASE-NAME-proxy-hook
     asserts:
       - isKind:
           of: Service
@@ -579,12 +484,6 @@ tests:
     values:
       - ../.lint/proxy-listener-mode-multiplex.yaml
     documentIndex: 5
-    # expected: Service/RELEASE-NAME
-    # 0 - ConfigMap/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
-    # 2 - ConfigMap/RELEASE-NAME-proxy-test
-    # 3 - Job/RELEASE-NAME-proxy-test
-    # 4 - ServiceAccount/RELEASE-NAME-proxy-hook
     asserts:
       - isKind:
           of: Service
@@ -603,13 +502,6 @@ tests:
       service:
         type: ClusterIP
     documentIndex: 6
-    # expected: Service/RELEASE-NAME
-    # 0 - ConfigMap/RELEASE-NAME-proxy
-    # 1 - Deployment/RELEASE-NAME-proxy
-    # 2 - Ingress/RELEASE-NAME-proxy
-    # 3 - ConfigMap/RELEASE-NAME-proxy-test
-    # 4 - Job/RELEASE-NAME-proxy-test
-    # 5 - ServiceAccount/RELEASE-NAME-proxy-hook
     asserts:
       - isKind:
           of: Service

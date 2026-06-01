@@ -20,8 +20,6 @@ tests:
     template: proxy.yaml
     set:
       clusterName: helm-lint
-    # expected: ConfigMap/RELEASE-NAME-proxy-test
-    # 2 - ConfigMap/RELEASE-NAME-proxy-test
     documentIndex: 2
     asserts:
       - isKind:
@@ -50,10 +48,6 @@ tests:
     template: proxy.yaml
     set:
       clusterName: helm-lint
-    # expected:
-    # 2 - ConfigMap/RELEASE-NAME-proxy-test
-    # 3 - Job/RELEASE-NAME-proxy-test
-    # 4 - ServiceAccount/RELEASE-NAME-proxy-hook
     asserts:
       - isKind:
           of: ConfigMap
@@ -123,8 +117,6 @@ tests:
     template: proxy.yaml
     values:
       - ../.lint/resources.yaml
-    # expected: Job/RELEASE-NAME-proxy-test
-    # 3 - Job/RELEASE-NAME-proxy-test
     documentIndex: 3
     asserts:
       - isKind:
@@ -168,8 +160,6 @@ tests:
         requests:
           memory: 512Mi
           cpu: 1
-    # expected: Job/RELEASE-NAME-proxy-test
-    # 3 - Job/RELEASE-NAME-proxy-test
     documentIndex: 3
     asserts:
       - isKind:
@@ -191,8 +181,6 @@ tests:
     template: proxy.yaml
     values:
       - ../.lint/imagepullsecrets.yaml
-    # expected: Job/RELEASE-NAME-proxy-test
-    # 3 - Job/RELEASE-NAME-proxy-test
     documentIndex: 3
     asserts:
       - isKind:
@@ -289,8 +277,6 @@ tests:
         extraLabels:
           job:
             baz: overridden
-    # expected: Job/RELEASE-NAME-proxy-test
-    # 3 - Job/RELEASE-NAME-proxy-test
     documentIndex: 3
     asserts:
       - isKind:
@@ -317,8 +303,6 @@ tests:
         extraLabels:
           jobPod:
             baz: overridden
-    # expected: Job/RELEASE-NAME-proxy-test
-    # 3 - Job/RELEASE-NAME-proxy-test
     documentIndex: 3
     asserts:
       - isKind:
@@ -345,8 +329,6 @@ tests:
         extraLabels:
           config:
             baz: overridden
-    # expected: ConfigMap/RELEASE-NAME-proxy-test
-    # 2 - ConfigMap/RELEASE-NAME-proxy-test
     documentIndex: 2
     asserts:
       - isKind:
@@ -397,8 +379,6 @@ tests:
     template: proxy.yaml
     set:
       clusterName: helm-lint
-    # expected: Job/RELEASE-NAME-proxy-test
-    # 3 - Job/RELEASE-NAME-proxy-test
     documentIndex: 3
     asserts:
       - isKind:
@@ -416,8 +396,6 @@ tests:
       clusterName: helm-lint
       serviceAccount:
         name: helm-test-sa
-    # expected: Job/RELEASE-NAME-proxy-test
-    # 3 - Job/RELEASE-NAME-proxy-test
     documentIndex: 3
     asserts:
       - isKind:
@@ -436,8 +414,6 @@ tests:
       serviceAccount:
         name: helm-test-sa
         create: false
-    # expected: Job/RELEASE-NAME-proxy-test
-    # 3 - Job/RELEASE-NAME-proxy-test
     documentIndex: 3
     asserts:
       - isKind:
