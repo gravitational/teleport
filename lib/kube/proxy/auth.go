@@ -34,6 +34,7 @@ import (
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/client-go/kubernetes"
 	authztypes "k8s.io/client-go/kubernetes/typed/authorization/v1"
+
 	// Load kubeconfig auth plugins for gcp and azure.
 	// Without this, users can't provide a kubeconfig using those.
 	//
@@ -134,7 +135,7 @@ func (f *Forwarder) getKubeDetails(ctx context.Context) error {
 			types.Metadata{
 				Name: cluster,
 			}, types.KubernetesClusterSpecV3{},
-			types.KubeClusterWithScope(f.cfg.Scope),
+			types.KubeClusterWithScope(f.cfg.ScopePin.GetScope()),
 		)
 		if err != nil {
 			f.log.WarnContext(ctx, "failed to create KubernetesClusterV3 from credentials for cluster",

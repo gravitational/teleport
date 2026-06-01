@@ -462,7 +462,7 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 
 	q := req.URL.Query()
 	accessEvaluator := moderation.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind, ctx.User.GetName())
-	if accessEvaluator.IsModerated() && forwarder.cfg.Scope != "" {
+	if accessEvaluator.IsModerated() && forwarder.cfg.ScopePin.GetScope() != "" {
 		// If the kube forwarder is scoped then moderated sessions are not supported and access to
 		// KindKubernetesWaitingContainer will be denied. We need to return an explicit error for unscoped,
 		// moderated sessions in order to prevent any sort of bypass interacting with kube waiting containers.
@@ -1158,7 +1158,7 @@ func (s *session) createEphemeralContainer() (*corev1.ContainerStatus, error) {
 	podName := s.params.ByName("podName")
 	container := s.req.URL.Query().Get("container")
 
-	if s.forwarder.cfg.Scope != "" {
+	if s.forwarder.cfg.ScopePin.GetScope() != "" {
 		// If the kube forwarder is scoped then moderated sessions are not supported and access to
 		// KindKubernetesWaitingContainer will be denied. We need to return without error to prevent
 		// interactive exec from failing
