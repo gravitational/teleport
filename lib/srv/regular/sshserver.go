@@ -1195,8 +1195,12 @@ func (s *Server) getBasicInfo() *types.ServerV2 {
 		// protobuf message
 		relayGroup, relayIDs = s.relayInfoGetter()
 	}
+	kind := types.KindNode
+	if s.proxyMode {
+		kind = types.KindProxy
+	}
 	srv := &types.ServerV2{
-		Kind:    types.KindNode,
+		Kind:    kind,
 		Version: types.V2,
 		Scope:   s.scope,
 		Metadata: types.Metadata{

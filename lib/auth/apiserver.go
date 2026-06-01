@@ -265,6 +265,12 @@ func (s *APIServer) upsertServer(auth presenceForAPIServer, role types.SystemRol
 	default:
 		return nil, trace.BadParameter("upsertServer with unknown role: %q", role)
 	}
+	// UnmarshalServer forces s.Kind = kind, ignoring the Kind in the payload.
+	// This is retained for backwards compatibility: prior to v19, proxy
+	// heartbeats sent the resource with Kind=KindNode over the wire (see
+	// https://github.com/gravitational/teleport/issues/66997). v19+ proxies
+	// send the correct kind; the override remains so older proxies in mixed
+	// clusters continue to work.
 	server, err := services.UnmarshalServer(req.Server, kind)
 	if err != nil {
 		return nil, trace.Wrap(err)
