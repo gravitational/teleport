@@ -20,6 +20,8 @@
 // 	protoc        (unknown)
 // source: teleport/relaytunnel/v1alpha/control.proto
 
+//go:build !protoopaque
+
 package relaytunnelv1alpha
 
 import (
@@ -27,7 +29,6 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -41,7 +42,7 @@ const (
 // sent by the client at the beginning of the control stream, the first and only
 // stream opened by the client at the beginning of the connection
 type ClientHello struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// a value from the api/types.TunnelType go enum, describing which tunnel the
 	// client wants to open
 	TunnelType    string `protobuf:"bytes,1,opt,name=tunnel_type,json=tunnelType,proto3" json:"tunnel_type,omitempty"`
@@ -74,11 +75,6 @@ func (x *ClientHello) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ClientHello.ProtoReflect.Descriptor instead.
-func (*ClientHello) Descriptor() ([]byte, []int) {
-	return file_teleport_relaytunnel_v1alpha_control_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *ClientHello) GetTunnelType() string {
 	if x != nil {
 		return x.TunnelType
@@ -86,11 +82,31 @@ func (x *ClientHello) GetTunnelType() string {
 	return ""
 }
 
+func (x *ClientHello) SetTunnelType(v string) {
+	x.TunnelType = v
+}
+
+type ClientHello_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// a value from the api/types.TunnelType go enum, describing which tunnel the
+	// client wants to open
+	TunnelType string
+}
+
+func (b0 ClientHello_builder) Build() *ClientHello {
+	m0 := &ClientHello{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.TunnelType = b.TunnelType
+	return m0
+}
+
 // sent by the server in the control stream, as a response to the ClientHello
 // message; if the status is not "ok" (or missing) the stream and connection are
 // going to be terminated
 type ServerHello struct {
-	state  protoimpl.MessageState `protogen:"open.v1"`
+	state  protoimpl.MessageState `protogen:"hybrid.v1"`
 	Status *status.Status         `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
 	// these are the same values that would be returned by
 	// DiscoveryService.Discover
@@ -125,11 +141,6 @@ func (x *ServerHello) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ServerHello.ProtoReflect.Descriptor instead.
-func (*ServerHello) Descriptor() ([]byte, []int) {
-	return file_teleport_relaytunnel_v1alpha_control_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *ServerHello) GetStatus() *status.Status {
 	if x != nil {
 		return x.Status
@@ -151,9 +162,52 @@ func (x *ServerHello) GetTargetConnectionCount() int32 {
 	return 0
 }
 
+func (x *ServerHello) SetStatus(v *status.Status) {
+	x.Status = v
+}
+
+func (x *ServerHello) SetRelayGroup(v string) {
+	x.RelayGroup = v
+}
+
+func (x *ServerHello) SetTargetConnectionCount(v int32) {
+	x.TargetConnectionCount = v
+}
+
+func (x *ServerHello) HasStatus() bool {
+	if x == nil {
+		return false
+	}
+	return x.Status != nil
+}
+
+func (x *ServerHello) ClearStatus() {
+	x.Status = nil
+}
+
+type ServerHello_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Status *status.Status
+	// these are the same values that would be returned by
+	// DiscoveryService.Discover
+	RelayGroup            string
+	TargetConnectionCount int32
+}
+
+func (b0 ServerHello_builder) Build() *ServerHello {
+	m0 := &ServerHello{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Status = b.Status
+	x.RelayGroup = b.RelayGroup
+	x.TargetConnectionCount = b.TargetConnectionCount
+	return m0
+}
+
 // sent by the client in the control stream
 type ClientControl struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -183,14 +237,21 @@ func (x *ClientControl) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ClientControl.ProtoReflect.Descriptor instead.
-func (*ClientControl) Descriptor() ([]byte, []int) {
-	return file_teleport_relaytunnel_v1alpha_control_proto_rawDescGZIP(), []int{2}
+type ClientControl_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 ClientControl_builder) Build() *ClientControl {
+	m0 := &ClientControl{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // sent by the server in the control stream
 type ServerControl struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// the relay server is going to shut down soon, so the client should consider
 	// opening a new connection to maintain its tunnel connection count
 	Terminating   bool `protobuf:"varint,2,opt,name=terminating,proto3" json:"terminating,omitempty"`
@@ -223,16 +284,31 @@ func (x *ServerControl) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ServerControl.ProtoReflect.Descriptor instead.
-func (*ServerControl) Descriptor() ([]byte, []int) {
-	return file_teleport_relaytunnel_v1alpha_control_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *ServerControl) GetTerminating() bool {
 	if x != nil {
 		return x.Terminating
 	}
 	return false
+}
+
+func (x *ServerControl) SetTerminating(v bool) {
+	x.Terminating = v
+}
+
+type ServerControl_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// the relay server is going to shut down soon, so the client should consider
+	// opening a new connection to maintain its tunnel connection count
+	Terminating bool
+}
+
+func (b0 ServerControl_builder) Build() *ServerControl {
+	m0 := &ServerControl{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Terminating = b.Terminating
+	return m0
 }
 
 var File_teleport_relaytunnel_v1alpha_control_proto protoreflect.FileDescriptor
@@ -251,18 +327,6 @@ const file_teleport_relaytunnel_v1alpha_control_proto_rawDesc = "" +
 	"\rClientControl\"E\n" +
 	"\rServerControl\x12 \n" +
 	"\vterminating\x18\x02 \x01(\bR\vterminatingJ\x04\b\x01\x10\x02R\fknown_relaysB`Z^github.com/gravitational/teleport/gen/proto/go/teleport/relaytunnel/v1alpha;relaytunnelv1alphab\x06proto3"
-
-var (
-	file_teleport_relaytunnel_v1alpha_control_proto_rawDescOnce sync.Once
-	file_teleport_relaytunnel_v1alpha_control_proto_rawDescData []byte
-)
-
-func file_teleport_relaytunnel_v1alpha_control_proto_rawDescGZIP() []byte {
-	file_teleport_relaytunnel_v1alpha_control_proto_rawDescOnce.Do(func() {
-		file_teleport_relaytunnel_v1alpha_control_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_relaytunnel_v1alpha_control_proto_rawDesc), len(file_teleport_relaytunnel_v1alpha_control_proto_rawDesc)))
-	})
-	return file_teleport_relaytunnel_v1alpha_control_proto_rawDescData
-}
 
 var file_teleport_relaytunnel_v1alpha_control_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_teleport_relaytunnel_v1alpha_control_proto_goTypes = []any{

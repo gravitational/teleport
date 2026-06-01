@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/machineid/v1/federation.proto
 
+//go:build !protoopaque
+
 package machineidv1
 
 import (
@@ -26,7 +28,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -40,7 +41,7 @@ const (
 // SPIFFEFederation is a resource that represents the configuration of a trust
 // domain federation.
 type SPIFFEFederation struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The kind of resource represented.
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	// Differentiates variations of the same kind. All resources should
@@ -86,11 +87,6 @@ func (x *SPIFFEFederation) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SPIFFEFederation.ProtoReflect.Descriptor instead.
-func (*SPIFFEFederation) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_federation_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *SPIFFEFederation) GetKind() string {
 	if x != nil {
 		return x.Kind
@@ -133,10 +129,101 @@ func (x *SPIFFEFederation) GetStatus() *SPIFFEFederationStatus {
 	return nil
 }
 
+func (x *SPIFFEFederation) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *SPIFFEFederation) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *SPIFFEFederation) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *SPIFFEFederation) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *SPIFFEFederation) SetSpec(v *SPIFFEFederationSpec) {
+	x.Spec = v
+}
+
+func (x *SPIFFEFederation) SetStatus(v *SPIFFEFederationStatus) {
+	x.Status = v
+}
+
+func (x *SPIFFEFederation) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *SPIFFEFederation) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *SPIFFEFederation) HasStatus() bool {
+	if x == nil {
+		return false
+	}
+	return x.Status != nil
+}
+
+func (x *SPIFFEFederation) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *SPIFFEFederation) ClearSpec() {
+	x.Spec = nil
+}
+
+func (x *SPIFFEFederation) ClearStatus() {
+	x.Status = nil
+}
+
+type SPIFFEFederation_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The kind of resource represented.
+	Kind string
+	// Differentiates variations of the same kind. All resources should
+	// contain one, even if it is never populated.
+	SubKind string
+	// The version of the resource being represented.
+	Version string
+	// Common metadata that all resources share.
+	// Importantly, the name MUST match the name of the trust domain you federate
+	// with.
+	Metadata *v1.Metadata
+	// The configured properties of the trust domain federation
+	Spec *SPIFFEFederationSpec
+	// Fields that are set by the server as results of operations. These should
+	// not be modified by users.
+	Status *SPIFFEFederationStatus
+}
+
+func (b0 SPIFFEFederation_builder) Build() *SPIFFEFederation {
+	m0 := &SPIFFEFederation{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Spec = b.Spec
+	x.Status = b.Status
+	return m0
+}
+
 // SPIFFEFederationBundleSourceStatic is a static bundle source. It should be an
 // option of last resort, as it requires manual updates.
 type SPIFFEFederationBundleSourceStatic struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The SPIFFE JWKS bundle.
 	Bundle        string `protobuf:"bytes,1,opt,name=bundle,proto3" json:"bundle,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -168,11 +255,6 @@ func (x *SPIFFEFederationBundleSourceStatic) ProtoReflect() protoreflect.Message
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SPIFFEFederationBundleSourceStatic.ProtoReflect.Descriptor instead.
-func (*SPIFFEFederationBundleSourceStatic) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_federation_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *SPIFFEFederationBundleSourceStatic) GetBundle() string {
 	if x != nil {
 		return x.Bundle
@@ -180,10 +262,29 @@ func (x *SPIFFEFederationBundleSourceStatic) GetBundle() string {
 	return ""
 }
 
+func (x *SPIFFEFederationBundleSourceStatic) SetBundle(v string) {
+	x.Bundle = v
+}
+
+type SPIFFEFederationBundleSourceStatic_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The SPIFFE JWKS bundle.
+	Bundle string
+}
+
+func (b0 SPIFFEFederationBundleSourceStatic_builder) Build() *SPIFFEFederationBundleSourceStatic {
+	m0 := &SPIFFEFederationBundleSourceStatic{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Bundle = b.Bundle
+	return m0
+}
+
 // SPIFFEFederationBundleSourceHTTPSWeb is a bundle source that fetches the bundle
 // from a HTTPS endpoint that is protected by a Web PKI certificate.
 type SPIFFEFederationBundleSourceHTTPSWeb struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The URL of the SPIFFE Bundle Endpoint.
 	BundleEndpointUrl string `protobuf:"bytes,1,opt,name=bundle_endpoint_url,json=bundleEndpointUrl,proto3" json:"bundle_endpoint_url,omitempty"`
 	unknownFields     protoimpl.UnknownFields
@@ -215,11 +316,6 @@ func (x *SPIFFEFederationBundleSourceHTTPSWeb) ProtoReflect() protoreflect.Messa
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SPIFFEFederationBundleSourceHTTPSWeb.ProtoReflect.Descriptor instead.
-func (*SPIFFEFederationBundleSourceHTTPSWeb) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_federation_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *SPIFFEFederationBundleSourceHTTPSWeb) GetBundleEndpointUrl() string {
 	if x != nil {
 		return x.BundleEndpointUrl
@@ -227,10 +323,29 @@ func (x *SPIFFEFederationBundleSourceHTTPSWeb) GetBundleEndpointUrl() string {
 	return ""
 }
 
+func (x *SPIFFEFederationBundleSourceHTTPSWeb) SetBundleEndpointUrl(v string) {
+	x.BundleEndpointUrl = v
+}
+
+type SPIFFEFederationBundleSourceHTTPSWeb_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The URL of the SPIFFE Bundle Endpoint.
+	BundleEndpointUrl string
+}
+
+func (b0 SPIFFEFederationBundleSourceHTTPSWeb_builder) Build() *SPIFFEFederationBundleSourceHTTPSWeb {
+	m0 := &SPIFFEFederationBundleSourceHTTPSWeb{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.BundleEndpointUrl = b.BundleEndpointUrl
+	return m0
+}
+
 // SPIFFEFederationBundleSource configures how the federation bundle is sourced.
 // Only one field can be set.
 type SPIFFEFederationBundleSource struct {
-	state         protoimpl.MessageState                `protogen:"open.v1"`
+	state         protoimpl.MessageState                `protogen:"hybrid.v1"`
 	Static        *SPIFFEFederationBundleSourceStatic   `protobuf:"bytes,1,opt,name=static,proto3" json:"static,omitempty"`
 	HttpsWeb      *SPIFFEFederationBundleSourceHTTPSWeb `protobuf:"bytes,2,opt,name=https_web,json=httpsWeb,proto3" json:"https_web,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -262,11 +377,6 @@ func (x *SPIFFEFederationBundleSource) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SPIFFEFederationBundleSource.ProtoReflect.Descriptor instead.
-func (*SPIFFEFederationBundleSource) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_federation_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *SPIFFEFederationBundleSource) GetStatic() *SPIFFEFederationBundleSourceStatic {
 	if x != nil {
 		return x.Static
@@ -281,9 +391,55 @@ func (x *SPIFFEFederationBundleSource) GetHttpsWeb() *SPIFFEFederationBundleSour
 	return nil
 }
 
+func (x *SPIFFEFederationBundleSource) SetStatic(v *SPIFFEFederationBundleSourceStatic) {
+	x.Static = v
+}
+
+func (x *SPIFFEFederationBundleSource) SetHttpsWeb(v *SPIFFEFederationBundleSourceHTTPSWeb) {
+	x.HttpsWeb = v
+}
+
+func (x *SPIFFEFederationBundleSource) HasStatic() bool {
+	if x == nil {
+		return false
+	}
+	return x.Static != nil
+}
+
+func (x *SPIFFEFederationBundleSource) HasHttpsWeb() bool {
+	if x == nil {
+		return false
+	}
+	return x.HttpsWeb != nil
+}
+
+func (x *SPIFFEFederationBundleSource) ClearStatic() {
+	x.Static = nil
+}
+
+func (x *SPIFFEFederationBundleSource) ClearHttpsWeb() {
+	x.HttpsWeb = nil
+}
+
+type SPIFFEFederationBundleSource_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Static   *SPIFFEFederationBundleSourceStatic
+	HttpsWeb *SPIFFEFederationBundleSourceHTTPSWeb
+}
+
+func (b0 SPIFFEFederationBundleSource_builder) Build() *SPIFFEFederationBundleSource {
+	m0 := &SPIFFEFederationBundleSource{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Static = b.Static
+	x.HttpsWeb = b.HttpsWeb
+	return m0
+}
+
 // SPIFFEFederationSpec is the configuration of a trust domain federation.
 type SPIFFEFederationSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The source of the federation bundle.
 	BundleSource  *SPIFFEFederationBundleSource `protobuf:"bytes,1,opt,name=bundle_source,json=bundleSource,proto3" json:"bundle_source,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -315,11 +471,6 @@ func (x *SPIFFEFederationSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SPIFFEFederationSpec.ProtoReflect.Descriptor instead.
-func (*SPIFFEFederationSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_federation_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *SPIFFEFederationSpec) GetBundleSource() *SPIFFEFederationBundleSource {
 	if x != nil {
 		return x.BundleSource
@@ -327,9 +478,39 @@ func (x *SPIFFEFederationSpec) GetBundleSource() *SPIFFEFederationBundleSource {
 	return nil
 }
 
+func (x *SPIFFEFederationSpec) SetBundleSource(v *SPIFFEFederationBundleSource) {
+	x.BundleSource = v
+}
+
+func (x *SPIFFEFederationSpec) HasBundleSource() bool {
+	if x == nil {
+		return false
+	}
+	return x.BundleSource != nil
+}
+
+func (x *SPIFFEFederationSpec) ClearBundleSource() {
+	x.BundleSource = nil
+}
+
+type SPIFFEFederationSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The source of the federation bundle.
+	BundleSource *SPIFFEFederationBundleSource
+}
+
+func (b0 SPIFFEFederationSpec_builder) Build() *SPIFFEFederationSpec {
+	m0 := &SPIFFEFederationSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.BundleSource = b.BundleSource
+	return m0
+}
+
 // FederationStatus is the status of a trust domain federation.
 type SPIFFEFederationStatus struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The most recently fetched bundle from the federated trust domain.
 	CurrentBundle string `protobuf:"bytes,1,opt,name=current_bundle,json=currentBundle,proto3" json:"current_bundle,omitempty"`
 	// The time that the most recently fetched bundle was obtained.
@@ -374,11 +555,6 @@ func (x *SPIFFEFederationStatus) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SPIFFEFederationStatus.ProtoReflect.Descriptor instead.
-func (*SPIFFEFederationStatus) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_federation_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *SPIFFEFederationStatus) GetCurrentBundle() string {
 	if x != nil {
 		return x.CurrentBundle
@@ -405,6 +581,86 @@ func (x *SPIFFEFederationStatus) GetCurrentBundleSyncedFrom() *SPIFFEFederationB
 		return x.CurrentBundleSyncedFrom
 	}
 	return nil
+}
+
+func (x *SPIFFEFederationStatus) SetCurrentBundle(v string) {
+	x.CurrentBundle = v
+}
+
+func (x *SPIFFEFederationStatus) SetCurrentBundleSyncedAt(v *timestamppb.Timestamp) {
+	x.CurrentBundleSyncedAt = v
+}
+
+func (x *SPIFFEFederationStatus) SetNextSyncAt(v *timestamppb.Timestamp) {
+	x.NextSyncAt = v
+}
+
+func (x *SPIFFEFederationStatus) SetCurrentBundleSyncedFrom(v *SPIFFEFederationBundleSource) {
+	x.CurrentBundleSyncedFrom = v
+}
+
+func (x *SPIFFEFederationStatus) HasCurrentBundleSyncedAt() bool {
+	if x == nil {
+		return false
+	}
+	return x.CurrentBundleSyncedAt != nil
+}
+
+func (x *SPIFFEFederationStatus) HasNextSyncAt() bool {
+	if x == nil {
+		return false
+	}
+	return x.NextSyncAt != nil
+}
+
+func (x *SPIFFEFederationStatus) HasCurrentBundleSyncedFrom() bool {
+	if x == nil {
+		return false
+	}
+	return x.CurrentBundleSyncedFrom != nil
+}
+
+func (x *SPIFFEFederationStatus) ClearCurrentBundleSyncedAt() {
+	x.CurrentBundleSyncedAt = nil
+}
+
+func (x *SPIFFEFederationStatus) ClearNextSyncAt() {
+	x.NextSyncAt = nil
+}
+
+func (x *SPIFFEFederationStatus) ClearCurrentBundleSyncedFrom() {
+	x.CurrentBundleSyncedFrom = nil
+}
+
+type SPIFFEFederationStatus_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The most recently fetched bundle from the federated trust domain.
+	CurrentBundle string
+	// The time that the most recently fetched bundle was obtained.
+	CurrentBundleSyncedAt *timestamppb.Timestamp
+	// The time that this SPIFFE federation should be synced again. This is
+	// usually determined by the refresh hint provided within the current bundle
+	// but this can be overridden by the server where the provided refresh hint
+	// is not appropriate.
+	//
+	// A value of zero indicates that an automatic sync is not scheduled (e.g.
+	// because the bundle source is static).
+	NextSyncAt *timestamppb.Timestamp
+	// The SPIFFEFederationBundleSource that was used for the currently synced
+	// bundle. This allows the bundle to be resynced if the source changes.
+	CurrentBundleSyncedFrom *SPIFFEFederationBundleSource
+}
+
+func (b0 SPIFFEFederationStatus_builder) Build() *SPIFFEFederationStatus {
+	m0 := &SPIFFEFederationStatus{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.CurrentBundle = b.CurrentBundle
+	x.CurrentBundleSyncedAt = b.CurrentBundleSyncedAt
+	x.NextSyncAt = b.NextSyncAt
+	x.CurrentBundleSyncedFrom = b.CurrentBundleSyncedFrom
+	return m0
 }
 
 var File_teleport_machineid_v1_federation_proto protoreflect.FileDescriptor
@@ -434,18 +690,6 @@ const file_teleport_machineid_v1_federation_proto_rawDesc = "" +
 	"\fnext_sync_at\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"nextSyncAt\x12p\n" +
 	"\x1acurrent_bundle_synced_from\x18\x05 \x01(\v23.teleport.machineid.v1.SPIFFEFederationBundleSourceR\x17currentBundleSyncedFromJ\x04\b\x03\x10\x04R\x1bcurrent_bundle_refresh_hintBVZTgithub.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1;machineidv1b\x06proto3"
-
-var (
-	file_teleport_machineid_v1_federation_proto_rawDescOnce sync.Once
-	file_teleport_machineid_v1_federation_proto_rawDescData []byte
-)
-
-func file_teleport_machineid_v1_federation_proto_rawDescGZIP() []byte {
-	file_teleport_machineid_v1_federation_proto_rawDescOnce.Do(func() {
-		file_teleport_machineid_v1_federation_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_machineid_v1_federation_proto_rawDesc), len(file_teleport_machineid_v1_federation_proto_rawDesc)))
-	})
-	return file_teleport_machineid_v1_federation_proto_rawDescData
-}
 
 var file_teleport_machineid_v1_federation_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_teleport_machineid_v1_federation_proto_goTypes = []any{

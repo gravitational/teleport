@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/devicetrust/v1/authenticate_challenge.proto
 
+//go:build !protoopaque
+
 package devicetrustv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -37,7 +38,7 @@ const (
 
 // AuthenticateDeviceChallenge carries the authentication challenge.
 type AuthenticateDeviceChallenge struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Randomly-generated, opaque challenge to be signed using the device key.
 	Challenge     []byte `protobuf:"bytes,1,opt,name=challenge,proto3" json:"challenge,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -69,11 +70,6 @@ func (x *AuthenticateDeviceChallenge) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AuthenticateDeviceChallenge.ProtoReflect.Descriptor instead.
-func (*AuthenticateDeviceChallenge) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_authenticate_challenge_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *AuthenticateDeviceChallenge) GetChallenge() []byte {
 	if x != nil {
 		return x.Challenge
@@ -81,10 +77,32 @@ func (x *AuthenticateDeviceChallenge) GetChallenge() []byte {
 	return nil
 }
 
+func (x *AuthenticateDeviceChallenge) SetChallenge(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Challenge = v
+}
+
+type AuthenticateDeviceChallenge_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Randomly-generated, opaque challenge to be signed using the device key.
+	Challenge []byte
+}
+
+func (b0 AuthenticateDeviceChallenge_builder) Build() *AuthenticateDeviceChallenge {
+	m0 := &AuthenticateDeviceChallenge{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Challenge = b.Challenge
+	return m0
+}
+
 // AuthenticateDeviceChallengeResponse carries the authentication challenge
 // response.
 type AuthenticateDeviceChallengeResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Signature over the challenge, using the device key.
 	Signature []byte `protobuf:"bytes,1,opt,name=signature,proto3" json:"signature,omitempty"`
 	// Signature over the challenge, using the SSH key. This is required when the
@@ -120,11 +138,6 @@ func (x *AuthenticateDeviceChallengeResponse) ProtoReflect() protoreflect.Messag
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AuthenticateDeviceChallengeResponse.ProtoReflect.Descriptor instead.
-func (*AuthenticateDeviceChallengeResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_authenticate_challenge_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *AuthenticateDeviceChallengeResponse) GetSignature() []byte {
 	if x != nil {
 		return x.Signature
@@ -139,10 +152,44 @@ func (x *AuthenticateDeviceChallengeResponse) GetSshSignature() []byte {
 	return nil
 }
 
+func (x *AuthenticateDeviceChallengeResponse) SetSignature(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Signature = v
+}
+
+func (x *AuthenticateDeviceChallengeResponse) SetSshSignature(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.SshSignature = v
+}
+
+type AuthenticateDeviceChallengeResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Signature over the challenge, using the device key.
+	Signature []byte
+	// Signature over the challenge, using the SSH key. This is required when the
+	// SSH and TLS public keys do not match, to prove ownership of the private key
+	// associated with the SSH certificate being augmented.
+	SshSignature []byte
+}
+
+func (b0 AuthenticateDeviceChallengeResponse_builder) Build() *AuthenticateDeviceChallengeResponse {
+	m0 := &AuthenticateDeviceChallengeResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Signature = b.Signature
+	x.SshSignature = b.SshSignature
+	return m0
+}
+
 // TPMAuthenticateDeviceChallenge carries the authentication challenge
 // specific to TPMs.
 type TPMAuthenticateDeviceChallenge struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Randomly-generated nonce to be used during platform attestation by the
 	// TPM.
 	AttestationNonce []byte `protobuf:"bytes,1,opt,name=attestation_nonce,json=attestationNonce,proto3" json:"attestation_nonce,omitempty"`
@@ -175,11 +222,6 @@ func (x *TPMAuthenticateDeviceChallenge) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TPMAuthenticateDeviceChallenge.ProtoReflect.Descriptor instead.
-func (*TPMAuthenticateDeviceChallenge) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_authenticate_challenge_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *TPMAuthenticateDeviceChallenge) GetAttestationNonce() []byte {
 	if x != nil {
 		return x.AttestationNonce
@@ -187,10 +229,33 @@ func (x *TPMAuthenticateDeviceChallenge) GetAttestationNonce() []byte {
 	return nil
 }
 
+func (x *TPMAuthenticateDeviceChallenge) SetAttestationNonce(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.AttestationNonce = v
+}
+
+type TPMAuthenticateDeviceChallenge_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Randomly-generated nonce to be used during platform attestation by the
+	// TPM.
+	AttestationNonce []byte
+}
+
+func (b0 TPMAuthenticateDeviceChallenge_builder) Build() *TPMAuthenticateDeviceChallenge {
+	m0 := &TPMAuthenticateDeviceChallenge{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.AttestationNonce = b.AttestationNonce
+	return m0
+}
+
 // TPMAuthenticateDeviceChallengeResponse carries the authentication challenge
 // response specific to TPMs.
 type TPMAuthenticateDeviceChallengeResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The result of the client's platform attestation with the nonce provided
 	// in `TPMAuthenticateDeviceChallenge`.
 	PlatformParameters *TPMPlatformParameters `protobuf:"bytes,1,opt,name=platform_parameters,json=platformParameters,proto3" json:"platform_parameters,omitempty"`
@@ -227,11 +292,6 @@ func (x *TPMAuthenticateDeviceChallengeResponse) ProtoReflect() protoreflect.Mes
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TPMAuthenticateDeviceChallengeResponse.ProtoReflect.Descriptor instead.
-func (*TPMAuthenticateDeviceChallengeResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_authenticate_challenge_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *TPMAuthenticateDeviceChallengeResponse) GetPlatformParameters() *TPMPlatformParameters {
 	if x != nil {
 		return x.PlatformParameters
@@ -244,6 +304,49 @@ func (x *TPMAuthenticateDeviceChallengeResponse) GetSshSignature() []byte {
 		return x.SshSignature
 	}
 	return nil
+}
+
+func (x *TPMAuthenticateDeviceChallengeResponse) SetPlatformParameters(v *TPMPlatformParameters) {
+	x.PlatformParameters = v
+}
+
+func (x *TPMAuthenticateDeviceChallengeResponse) SetSshSignature(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.SshSignature = v
+}
+
+func (x *TPMAuthenticateDeviceChallengeResponse) HasPlatformParameters() bool {
+	if x == nil {
+		return false
+	}
+	return x.PlatformParameters != nil
+}
+
+func (x *TPMAuthenticateDeviceChallengeResponse) ClearPlatformParameters() {
+	x.PlatformParameters = nil
+}
+
+type TPMAuthenticateDeviceChallengeResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The result of the client's platform attestation with the nonce provided
+	// in `TPMAuthenticateDeviceChallenge`.
+	PlatformParameters *TPMPlatformParameters
+	// Signature over the attestation_nonce, using the SSH key. This is required
+	// when the SSH and TLS public keys do not match, to prove ownership of the
+	// private key associated with the SSH certificate being augmented.
+	SshSignature []byte
+}
+
+func (b0 TPMAuthenticateDeviceChallengeResponse_builder) Build() *TPMAuthenticateDeviceChallengeResponse {
+	m0 := &TPMAuthenticateDeviceChallengeResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PlatformParameters = b.PlatformParameters
+	x.SshSignature = b.SshSignature
+	return m0
 }
 
 var File_teleport_devicetrust_v1_authenticate_challenge_proto protoreflect.FileDescriptor
@@ -261,18 +364,6 @@ const file_teleport_devicetrust_v1_authenticate_challenge_proto_rawDesc = "" +
 	"&TPMAuthenticateDeviceChallengeResponse\x12_\n" +
 	"\x13platform_parameters\x18\x01 \x01(\v2..teleport.devicetrust.v1.TPMPlatformParametersR\x12platformParameters\x12#\n" +
 	"\rssh_signature\x18\x02 \x01(\fR\fsshSignatureBZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1;devicetrustv1b\x06proto3"
-
-var (
-	file_teleport_devicetrust_v1_authenticate_challenge_proto_rawDescOnce sync.Once
-	file_teleport_devicetrust_v1_authenticate_challenge_proto_rawDescData []byte
-)
-
-func file_teleport_devicetrust_v1_authenticate_challenge_proto_rawDescGZIP() []byte {
-	file_teleport_devicetrust_v1_authenticate_challenge_proto_rawDescOnce.Do(func() {
-		file_teleport_devicetrust_v1_authenticate_challenge_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_devicetrust_v1_authenticate_challenge_proto_rawDesc), len(file_teleport_devicetrust_v1_authenticate_challenge_proto_rawDesc)))
-	})
-	return file_teleport_devicetrust_v1_authenticate_challenge_proto_rawDescData
-}
 
 var file_teleport_devicetrust_v1_authenticate_challenge_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_teleport_devicetrust_v1_authenticate_challenge_proto_goTypes = []any{

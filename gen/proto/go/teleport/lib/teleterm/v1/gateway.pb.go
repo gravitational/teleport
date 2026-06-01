@@ -21,13 +21,14 @@
 // 	protoc        (unknown)
 // source: teleport/lib/teleterm/v1/gateway.proto
 
+//go:build !protoopaque
+
 package teletermv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -47,7 +48,7 @@ const (
 //
 // See RFD 39 for more info on ALPN.
 type Gateway struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// uri is the gateway uri
 	Uri string `protobuf:"bytes,1,opt,name=uri,proto3" json:"uri,omitempty"`
 	// target_name is the target resource name
@@ -100,11 +101,6 @@ func (x *Gateway) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Gateway.ProtoReflect.Descriptor instead.
-func (*Gateway) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_gateway_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *Gateway) GetUri() string {
@@ -170,11 +166,104 @@ func (x *Gateway) GetGatewayCliCommand() *GatewayCLICommand {
 	return nil
 }
 
+func (x *Gateway) SetUri(v string) {
+	x.Uri = v
+}
+
+func (x *Gateway) SetTargetName(v string) {
+	x.TargetName = v
+}
+
+func (x *Gateway) SetTargetUri(v string) {
+	x.TargetUri = v
+}
+
+func (x *Gateway) SetTargetUser(v string) {
+	x.TargetUser = v
+}
+
+func (x *Gateway) SetLocalAddress(v string) {
+	x.LocalAddress = v
+}
+
+func (x *Gateway) SetLocalPort(v string) {
+	x.LocalPort = v
+}
+
+func (x *Gateway) SetProtocol(v string) {
+	x.Protocol = v
+}
+
+func (x *Gateway) SetTargetSubresourceName(v string) {
+	x.TargetSubresourceName = v
+}
+
+func (x *Gateway) SetGatewayCliCommand(v *GatewayCLICommand) {
+	x.GatewayCliCommand = v
+}
+
+func (x *Gateway) HasGatewayCliCommand() bool {
+	if x == nil {
+		return false
+	}
+	return x.GatewayCliCommand != nil
+}
+
+func (x *Gateway) ClearGatewayCliCommand() {
+	x.GatewayCliCommand = nil
+}
+
+type Gateway_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// uri is the gateway uri
+	Uri string
+	// target_name is the target resource name
+	TargetName string
+	// target_uri is the target uri
+	TargetUri string
+	// target_user is the target user
+	TargetUser string
+	// local_address is the gateway address on localhost
+	LocalAddress string
+	// local_port is the gateway address on localhost
+	LocalPort string
+	// protocol is the protocol used by the gateway. For databases, it matches the type of the
+	// database that the gateway targets. For apps, it's either "HTTP" or "TCP".
+	Protocol string
+	// target_subresource_name points at a subresource of the remote resource, for example a
+	// database name on a database server or a target port of a multi-port TCP app.
+	TargetSubresourceName string
+	// gateway_cli_client represents a command that the user can execute to connect to the resource
+	// through the gateway.
+	//
+	// Instead of generating those commands in in the frontend code, they are returned from the tsh
+	// daemon. This means that the Database Access team can add support for a new protocol and
+	// Connect will support it right away with no extra changes.
+	GatewayCliCommand *GatewayCLICommand
+}
+
+func (b0 Gateway_builder) Build() *Gateway {
+	m0 := &Gateway{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Uri = b.Uri
+	x.TargetName = b.TargetName
+	x.TargetUri = b.TargetUri
+	x.TargetUser = b.TargetUser
+	x.LocalAddress = b.LocalAddress
+	x.LocalPort = b.LocalPort
+	x.Protocol = b.Protocol
+	x.TargetSubresourceName = b.TargetSubresourceName
+	x.GatewayCliCommand = b.GatewayCliCommand
+	return m0
+}
+
 // GatewayCLICommand represents a command that the user can execute to connect to a gateway
 // resource. It is a combination of two different os/exec.Cmd structs, where path, args and env are
 // directly taken from one Cmd and the preview field is constructed from another Cmd.
 type GatewayCLICommand struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// path is the absolute path to the CLI client of a gateway if the client is
 	// in PATH. Otherwise, the name of the program we were trying to find.
 	Path string `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
@@ -225,11 +314,6 @@ func (x *GatewayCLICommand) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GatewayCLICommand.ProtoReflect.Descriptor instead.
-func (*GatewayCLICommand) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_gateway_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *GatewayCLICommand) GetPath() string {
 	if x != nil {
 		return x.Path
@@ -258,6 +342,59 @@ func (x *GatewayCLICommand) GetPreview() string {
 	return ""
 }
 
+func (x *GatewayCLICommand) SetPath(v string) {
+	x.Path = v
+}
+
+func (x *GatewayCLICommand) SetArgs(v []string) {
+	x.Args = v
+}
+
+func (x *GatewayCLICommand) SetEnv(v []string) {
+	x.Env = v
+}
+
+func (x *GatewayCLICommand) SetPreview(v string) {
+	x.Preview = v
+}
+
+type GatewayCLICommand_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// path is the absolute path to the CLI client of a gateway if the client is
+	// in PATH. Otherwise, the name of the program we were trying to find.
+	Path string
+	// args is a list containing the name of the program as the first element
+	// and the actual args as the other elements
+	Args []string
+	// env is a list of env vars that need to be set for the command
+	// invocation. The elements of the list are in the format of NAME=value.
+	Env []string
+	// preview is used to show the user what command will be executed before they decide to run it.
+	// It can also be copied and then pasted into a terminal.
+	// It's like os/exec.Cmd.String with two exceptions:
+	//
+	// 1) It is prepended with Cmd.Env.
+	// 2) The command name is relative and not absolute.
+	// 3) It is taken from a different Cmd than the other fields in this message. This Cmd uses a
+	// special print format which makes the args suitable to be entered into a terminal, but not to
+	// directly spawn a process.
+	//
+	// Should not be used to execute the command in the shell. Instead, use path, args, and env.
+	Preview string
+}
+
+func (b0 GatewayCLICommand_builder) Build() *GatewayCLICommand {
+	m0 := &GatewayCLICommand{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Path = b.Path
+	x.Args = b.Args
+	x.Env = b.Env
+	x.Preview = b.Preview
+	return m0
+}
+
 var File_teleport_lib_teleterm_v1_gateway_proto protoreflect.FileDescriptor
 
 const file_teleport_lib_teleterm_v1_gateway_proto_rawDesc = "" +
@@ -283,18 +420,6 @@ const file_teleport_lib_teleterm_v1_gateway_proto_rawDesc = "" +
 	"\x04args\x18\x02 \x03(\tR\x04args\x12\x10\n" +
 	"\x03env\x18\x03 \x03(\tR\x03env\x12\x18\n" +
 	"\apreview\x18\x04 \x01(\tR\apreviewBTZRgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1b\x06proto3"
-
-var (
-	file_teleport_lib_teleterm_v1_gateway_proto_rawDescOnce sync.Once
-	file_teleport_lib_teleterm_v1_gateway_proto_rawDescData []byte
-)
-
-func file_teleport_lib_teleterm_v1_gateway_proto_rawDescGZIP() []byte {
-	file_teleport_lib_teleterm_v1_gateway_proto_rawDescOnce.Do(func() {
-		file_teleport_lib_teleterm_v1_gateway_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_lib_teleterm_v1_gateway_proto_rawDesc), len(file_teleport_lib_teleterm_v1_gateway_proto_rawDesc)))
-	})
-	return file_teleport_lib_teleterm_v1_gateway_proto_rawDescData
-}
 
 var file_teleport_lib_teleterm_v1_gateway_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_teleport_lib_teleterm_v1_gateway_proto_goTypes = []any{

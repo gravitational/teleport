@@ -21,13 +21,14 @@
 // 	protoc        (unknown)
 // source: teleport/lib/teleterm/v1/database.proto
 
+//go:build !protoopaque
+
 package teletermv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -40,7 +41,7 @@ const (
 
 // Database describes a database (resource kind "db")
 type Database struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// uri is the cluster resource URI
 	Uri string `protobuf:"bytes,1,opt,name=uri,proto3" json:"uri,omitempty"`
 	// name is the name of the database
@@ -88,11 +89,6 @@ func (x *Database) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Database.ProtoReflect.Descriptor instead.
-func (*Database) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_database_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *Database) GetUri() string {
@@ -165,11 +161,104 @@ func (x *Database) GetGcpProjectId() string {
 	return ""
 }
 
+func (x *Database) SetUri(v string) {
+	x.Uri = v
+}
+
+func (x *Database) SetName(v string) {
+	x.Name = v
+}
+
+func (x *Database) SetDesc(v string) {
+	x.Desc = v
+}
+
+func (x *Database) SetProtocol(v string) {
+	x.Protocol = v
+}
+
+func (x *Database) SetType(v string) {
+	x.Type = v
+}
+
+func (x *Database) SetHostname(v string) {
+	x.Hostname = v
+}
+
+func (x *Database) SetAddr(v string) {
+	x.Addr = v
+}
+
+func (x *Database) SetLabels(v []*Label) {
+	x.Labels = v
+}
+
+func (x *Database) SetTargetHealth(v *TargetHealth) {
+	x.TargetHealth = v
+}
+
+func (x *Database) SetGcpProjectId(v string) {
+	x.GcpProjectId = v
+}
+
+func (x *Database) HasTargetHealth() bool {
+	if x == nil {
+		return false
+	}
+	return x.TargetHealth != nil
+}
+
+func (x *Database) ClearTargetHealth() {
+	x.TargetHealth = nil
+}
+
+type Database_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// uri is the cluster resource URI
+	Uri string
+	// name is the name of the database
+	Name string
+	// desc is the database description
+	Desc string
+	// protocol is the protocol used by the database
+	Protocol string
+	// type is the database type, self-hosted or cloud-hosted.
+	Type string
+	// hostname is this database hostname
+	Hostname string
+	// addr is this database ip address
+	Addr string
+	// labels is a list of labels for this database
+	Labels []*Label
+	// target_health of the "db_server" that is serving this database.
+	TargetHealth *TargetHealth
+	// gcp_project_id is optional project ID set for GCP Project databases.
+	GcpProjectId string
+}
+
+func (b0 Database_builder) Build() *Database {
+	m0 := &Database{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Uri = b.Uri
+	x.Name = b.Name
+	x.Desc = b.Desc
+	x.Protocol = b.Protocol
+	x.Type = b.Type
+	x.Hostname = b.Hostname
+	x.Addr = b.Addr
+	x.Labels = b.Labels
+	x.TargetHealth = b.TargetHealth
+	x.GcpProjectId = b.GcpProjectId
+	return m0
+}
+
 // DatabaseServer (db_server) describes a database heartbeat signal
 // reported from an agent (db_service) that is proxying
 // the database.
 type DatabaseServer struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Uri           string                 `protobuf:"bytes,1,opt,name=uri,proto3" json:"uri,omitempty"`
 	Hostname      string                 `protobuf:"bytes,2,opt,name=hostname,proto3" json:"hostname,omitempty"`
 	HostId        string                 `protobuf:"bytes,3,opt,name=host_id,json=hostId,proto3" json:"host_id,omitempty"`
@@ -203,11 +292,6 @@ func (x *DatabaseServer) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DatabaseServer.ProtoReflect.Descriptor instead.
-func (*DatabaseServer) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_database_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *DatabaseServer) GetUri() string {
 	if x != nil {
 		return x.Uri
@@ -236,6 +320,53 @@ func (x *DatabaseServer) GetTargetHealth() *TargetHealth {
 	return nil
 }
 
+func (x *DatabaseServer) SetUri(v string) {
+	x.Uri = v
+}
+
+func (x *DatabaseServer) SetHostname(v string) {
+	x.Hostname = v
+}
+
+func (x *DatabaseServer) SetHostId(v string) {
+	x.HostId = v
+}
+
+func (x *DatabaseServer) SetTargetHealth(v *TargetHealth) {
+	x.TargetHealth = v
+}
+
+func (x *DatabaseServer) HasTargetHealth() bool {
+	if x == nil {
+		return false
+	}
+	return x.TargetHealth != nil
+}
+
+func (x *DatabaseServer) ClearTargetHealth() {
+	x.TargetHealth = nil
+}
+
+type DatabaseServer_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Uri          string
+	Hostname     string
+	HostId       string
+	TargetHealth *TargetHealth
+}
+
+func (b0 DatabaseServer_builder) Build() *DatabaseServer {
+	m0 := &DatabaseServer{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Uri = b.Uri
+	x.Hostname = b.Hostname
+	x.HostId = b.HostId
+	x.TargetHealth = b.TargetHealth
+	return m0
+}
+
 var File_teleport_lib_teleterm_v1_database_proto protoreflect.FileDescriptor
 
 const file_teleport_lib_teleterm_v1_database_proto_rawDesc = "" +
@@ -258,18 +389,6 @@ const file_teleport_lib_teleterm_v1_database_proto_rawDesc = "" +
 	"\bhostname\x18\x02 \x01(\tR\bhostname\x12\x17\n" +
 	"\ahost_id\x18\x03 \x01(\tR\x06hostId\x12K\n" +
 	"\rtarget_health\x18\x04 \x01(\v2&.teleport.lib.teleterm.v1.TargetHealthR\ftargetHealthBTZRgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1b\x06proto3"
-
-var (
-	file_teleport_lib_teleterm_v1_database_proto_rawDescOnce sync.Once
-	file_teleport_lib_teleterm_v1_database_proto_rawDescData []byte
-)
-
-func file_teleport_lib_teleterm_v1_database_proto_rawDescGZIP() []byte {
-	file_teleport_lib_teleterm_v1_database_proto_rawDescOnce.Do(func() {
-		file_teleport_lib_teleterm_v1_database_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_lib_teleterm_v1_database_proto_rawDesc), len(file_teleport_lib_teleterm_v1_database_proto_rawDesc)))
-	})
-	return file_teleport_lib_teleterm_v1_database_proto_rawDescData
-}
 
 var file_teleport_lib_teleterm_v1_database_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_teleport_lib_teleterm_v1_database_proto_goTypes = []any{

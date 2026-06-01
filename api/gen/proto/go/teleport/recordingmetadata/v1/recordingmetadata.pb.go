@@ -19,6 +19,8 @@
 // 	protoc        (unknown)
 // source: teleport/recordingmetadata/v1/recordingmetadata.proto
 
+//go:build !protoopaque
+
 package recordingmetadatav1
 
 import (
@@ -27,7 +29,6 @@ import (
 	durationpb "google.golang.org/protobuf/types/known/durationpb"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -86,14 +87,9 @@ func (x SessionRecordingType) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use SessionRecordingType.Descriptor instead.
-func (SessionRecordingType) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDescGZIP(), []int{0}
-}
-
 // SessionRecordingEvent represents an event that occurred during a session recording.
 type SessionRecordingEvent struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// StartOffset is the start time of the event, relative to the start of the session.
 	StartOffset *durationpb.Duration `protobuf:"bytes,1,opt,name=start_offset,json=startOffset,proto3" json:"start_offset,omitempty"`
 	// EndOffset is the end time of the event, relative to the start of the session.
@@ -131,11 +127,6 @@ func (x *SessionRecordingEvent) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SessionRecordingEvent.ProtoReflect.Descriptor instead.
-func (*SessionRecordingEvent) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *SessionRecordingEvent) GetStartOffset() *durationpb.Duration {
@@ -186,6 +177,179 @@ func (x *SessionRecordingEvent) GetResize() *SessionRecordingResizeEvent {
 	return nil
 }
 
+func (x *SessionRecordingEvent) SetStartOffset(v *durationpb.Duration) {
+	x.StartOffset = v
+}
+
+func (x *SessionRecordingEvent) SetEndOffset(v *durationpb.Duration) {
+	x.EndOffset = v
+}
+
+func (x *SessionRecordingEvent) SetInactivity(v *SessionRecordingInactivityEvent) {
+	if v == nil {
+		x.Event = nil
+		return
+	}
+	x.Event = &SessionRecordingEvent_Inactivity{v}
+}
+
+func (x *SessionRecordingEvent) SetJoin(v *SessionRecordingJoinEvent) {
+	if v == nil {
+		x.Event = nil
+		return
+	}
+	x.Event = &SessionRecordingEvent_Join{v}
+}
+
+func (x *SessionRecordingEvent) SetResize(v *SessionRecordingResizeEvent) {
+	if v == nil {
+		x.Event = nil
+		return
+	}
+	x.Event = &SessionRecordingEvent_Resize{v}
+}
+
+func (x *SessionRecordingEvent) HasStartOffset() bool {
+	if x == nil {
+		return false
+	}
+	return x.StartOffset != nil
+}
+
+func (x *SessionRecordingEvent) HasEndOffset() bool {
+	if x == nil {
+		return false
+	}
+	return x.EndOffset != nil
+}
+
+func (x *SessionRecordingEvent) HasEvent() bool {
+	if x == nil {
+		return false
+	}
+	return x.Event != nil
+}
+
+func (x *SessionRecordingEvent) HasInactivity() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Event.(*SessionRecordingEvent_Inactivity)
+	return ok
+}
+
+func (x *SessionRecordingEvent) HasJoin() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Event.(*SessionRecordingEvent_Join)
+	return ok
+}
+
+func (x *SessionRecordingEvent) HasResize() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Event.(*SessionRecordingEvent_Resize)
+	return ok
+}
+
+func (x *SessionRecordingEvent) ClearStartOffset() {
+	x.StartOffset = nil
+}
+
+func (x *SessionRecordingEvent) ClearEndOffset() {
+	x.EndOffset = nil
+}
+
+func (x *SessionRecordingEvent) ClearEvent() {
+	x.Event = nil
+}
+
+func (x *SessionRecordingEvent) ClearInactivity() {
+	if _, ok := x.Event.(*SessionRecordingEvent_Inactivity); ok {
+		x.Event = nil
+	}
+}
+
+func (x *SessionRecordingEvent) ClearJoin() {
+	if _, ok := x.Event.(*SessionRecordingEvent_Join); ok {
+		x.Event = nil
+	}
+}
+
+func (x *SessionRecordingEvent) ClearResize() {
+	if _, ok := x.Event.(*SessionRecordingEvent_Resize); ok {
+		x.Event = nil
+	}
+}
+
+const SessionRecordingEvent_Event_not_set_case case_SessionRecordingEvent_Event = 0
+const SessionRecordingEvent_Inactivity_case case_SessionRecordingEvent_Event = 3
+const SessionRecordingEvent_Join_case case_SessionRecordingEvent_Event = 4
+const SessionRecordingEvent_Resize_case case_SessionRecordingEvent_Event = 5
+
+func (x *SessionRecordingEvent) WhichEvent() case_SessionRecordingEvent_Event {
+	if x == nil {
+		return SessionRecordingEvent_Event_not_set_case
+	}
+	switch x.Event.(type) {
+	case *SessionRecordingEvent_Inactivity:
+		return SessionRecordingEvent_Inactivity_case
+	case *SessionRecordingEvent_Join:
+		return SessionRecordingEvent_Join_case
+	case *SessionRecordingEvent_Resize:
+		return SessionRecordingEvent_Resize_case
+	default:
+		return SessionRecordingEvent_Event_not_set_case
+	}
+}
+
+type SessionRecordingEvent_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// StartOffset is the start time of the event, relative to the start of the session.
+	StartOffset *durationpb.Duration
+	// EndOffset is the end time of the event, relative to the start of the session.
+	EndOffset *durationpb.Duration
+	// Fields of oneof Event:
+	// Inactivity is an event that indicates inactivity during the session.
+	Inactivity *SessionRecordingInactivityEvent
+	// Join is an event that indicates a user joined the session.
+	Join *SessionRecordingJoinEvent
+	// Resize is an event that indicates the terminal was resized.
+	Resize *SessionRecordingResizeEvent
+	// -- end of Event
+}
+
+func (b0 SessionRecordingEvent_builder) Build() *SessionRecordingEvent {
+	m0 := &SessionRecordingEvent{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.StartOffset = b.StartOffset
+	x.EndOffset = b.EndOffset
+	if b.Inactivity != nil {
+		x.Event = &SessionRecordingEvent_Inactivity{b.Inactivity}
+	}
+	if b.Join != nil {
+		x.Event = &SessionRecordingEvent_Join{b.Join}
+	}
+	if b.Resize != nil {
+		x.Event = &SessionRecordingEvent_Resize{b.Resize}
+	}
+	return m0
+}
+
+type case_SessionRecordingEvent_Event protoreflect.FieldNumber
+
+func (x case_SessionRecordingEvent_Event) String() string {
+	md := file_teleport_recordingmetadata_v1_recordingmetadata_proto_msgTypes[0].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isSessionRecordingEvent_Event interface {
 	isSessionRecordingEvent_Event()
 }
@@ -213,7 +377,7 @@ func (*SessionRecordingEvent_Resize) isSessionRecordingEvent_Event() {}
 
 // SessionRecordingInactivityEvent is an event that indicates inactivity during the session.
 type SessionRecordingInactivityEvent struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -243,14 +407,21 @@ func (x *SessionRecordingInactivityEvent) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SessionRecordingInactivityEvent.ProtoReflect.Descriptor instead.
-func (*SessionRecordingInactivityEvent) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDescGZIP(), []int{1}
+type SessionRecordingInactivityEvent_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 SessionRecordingInactivityEvent_builder) Build() *SessionRecordingInactivityEvent {
+	m0 := &SessionRecordingInactivityEvent{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // SessionRecordingJoinEvent is an event that indicates a user joined the session.
 type SessionRecordingJoinEvent struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// User is the name of the user who joined the session.
 	User          string `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -282,11 +453,6 @@ func (x *SessionRecordingJoinEvent) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SessionRecordingJoinEvent.ProtoReflect.Descriptor instead.
-func (*SessionRecordingJoinEvent) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *SessionRecordingJoinEvent) GetUser() string {
 	if x != nil {
 		return x.User
@@ -294,9 +460,28 @@ func (x *SessionRecordingJoinEvent) GetUser() string {
 	return ""
 }
 
+func (x *SessionRecordingJoinEvent) SetUser(v string) {
+	x.User = v
+}
+
+type SessionRecordingJoinEvent_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// User is the name of the user who joined the session.
+	User string
+}
+
+func (b0 SessionRecordingJoinEvent_builder) Build() *SessionRecordingJoinEvent {
+	m0 := &SessionRecordingJoinEvent{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.User = b.User
+	return m0
+}
+
 // SessionRecordingResizeEvent is an event that indicates the terminal was resized.
 type SessionRecordingResizeEvent struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Cols is the number of columns in the terminal.
 	Cols int32 `protobuf:"varint,1,opt,name=cols,proto3" json:"cols,omitempty"`
 	// Rows is the number of rows in the terminal.
@@ -330,11 +515,6 @@ func (x *SessionRecordingResizeEvent) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SessionRecordingResizeEvent.ProtoReflect.Descriptor instead.
-func (*SessionRecordingResizeEvent) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *SessionRecordingResizeEvent) GetCols() int32 {
 	if x != nil {
 		return x.Cols
@@ -349,9 +529,35 @@ func (x *SessionRecordingResizeEvent) GetRows() int32 {
 	return 0
 }
 
+func (x *SessionRecordingResizeEvent) SetCols(v int32) {
+	x.Cols = v
+}
+
+func (x *SessionRecordingResizeEvent) SetRows(v int32) {
+	x.Rows = v
+}
+
+type SessionRecordingResizeEvent_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Cols is the number of columns in the terminal.
+	Cols int32
+	// Rows is the number of rows in the terminal.
+	Rows int32
+}
+
+func (b0 SessionRecordingResizeEvent_builder) Build() *SessionRecordingResizeEvent {
+	m0 := &SessionRecordingResizeEvent{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Cols = b.Cols
+	x.Rows = b.Rows
+	return m0
+}
+
 // SessionRecordingMetadata contains metadata for a session recording.
 type SessionRecordingMetadata struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Duration is the duration of the session recording.
 	Duration *durationpb.Duration `protobuf:"bytes,1,opt,name=duration,proto3" json:"duration,omitempty"`
 	// Events is the events that occurred during the session.
@@ -399,11 +605,6 @@ func (x *SessionRecordingMetadata) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SessionRecordingMetadata.ProtoReflect.Descriptor instead.
-func (*SessionRecordingMetadata) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *SessionRecordingMetadata) GetDuration() *durationpb.Duration {
@@ -476,9 +677,124 @@ func (x *SessionRecordingMetadata) GetType() SessionRecordingType {
 	return SessionRecordingType_SESSION_RECORDING_TYPE_UNSPECIFIED
 }
 
+func (x *SessionRecordingMetadata) SetDuration(v *durationpb.Duration) {
+	x.Duration = v
+}
+
+func (x *SessionRecordingMetadata) SetEvents(v []*SessionRecordingEvent) {
+	x.Events = v
+}
+
+func (x *SessionRecordingMetadata) SetStartCols(v int32) {
+	x.StartCols = v
+}
+
+func (x *SessionRecordingMetadata) SetStartRows(v int32) {
+	x.StartRows = v
+}
+
+func (x *SessionRecordingMetadata) SetStartTime(v *timestamppb.Timestamp) {
+	x.StartTime = v
+}
+
+func (x *SessionRecordingMetadata) SetEndTime(v *timestamppb.Timestamp) {
+	x.EndTime = v
+}
+
+func (x *SessionRecordingMetadata) SetClusterName(v string) {
+	x.ClusterName = v
+}
+
+func (x *SessionRecordingMetadata) SetUser(v string) {
+	x.User = v
+}
+
+func (x *SessionRecordingMetadata) SetResourceName(v string) {
+	x.ResourceName = v
+}
+
+func (x *SessionRecordingMetadata) SetType(v SessionRecordingType) {
+	x.Type = v
+}
+
+func (x *SessionRecordingMetadata) HasDuration() bool {
+	if x == nil {
+		return false
+	}
+	return x.Duration != nil
+}
+
+func (x *SessionRecordingMetadata) HasStartTime() bool {
+	if x == nil {
+		return false
+	}
+	return x.StartTime != nil
+}
+
+func (x *SessionRecordingMetadata) HasEndTime() bool {
+	if x == nil {
+		return false
+	}
+	return x.EndTime != nil
+}
+
+func (x *SessionRecordingMetadata) ClearDuration() {
+	x.Duration = nil
+}
+
+func (x *SessionRecordingMetadata) ClearStartTime() {
+	x.StartTime = nil
+}
+
+func (x *SessionRecordingMetadata) ClearEndTime() {
+	x.EndTime = nil
+}
+
+type SessionRecordingMetadata_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Duration is the duration of the session recording.
+	Duration *durationpb.Duration
+	// Events is the events that occurred during the session.
+	Events []*SessionRecordingEvent
+	// StartCols is the number of columns in the terminal at the start of the session.
+	StartCols int32
+	// StartRows is the number of rows in the terminal at the start of the session.
+	StartRows int32
+	// StartTime is the start time of the session recording.
+	StartTime *timestamppb.Timestamp
+	// EndTime is the end time of the session recording.
+	EndTime *timestamppb.Timestamp
+	// ClusterName is the name of the cluster where the session recording took place.
+	ClusterName string
+	// User is the user whose session is being recorded.
+	User string
+	// ResourceName is the name of the resource that was connected to.
+	ResourceName string
+	// Type is the type of session recording.
+	Type SessionRecordingType
+}
+
+func (b0 SessionRecordingMetadata_builder) Build() *SessionRecordingMetadata {
+	m0 := &SessionRecordingMetadata{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Duration = b.Duration
+	x.Events = b.Events
+	x.StartCols = b.StartCols
+	x.StartRows = b.StartRows
+	x.StartTime = b.StartTime
+	x.EndTime = b.EndTime
+	x.ClusterName = b.ClusterName
+	x.User = b.User
+	x.ResourceName = b.ResourceName
+	x.Type = b.Type
+	return m0
+}
+
 // SessionRecordingThumbnail is a thumbnail of a session recording.
 type SessionRecordingThumbnail struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// SVG is the SVG image of the thumbnail.
 	Svg []byte `protobuf:"bytes,1,opt,name=svg,proto3" json:"svg,omitempty"`
 	// Cols is the number of columns in the terminal.
@@ -522,11 +838,6 @@ func (x *SessionRecordingThumbnail) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SessionRecordingThumbnail.ProtoReflect.Descriptor instead.
-func (*SessionRecordingThumbnail) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *SessionRecordingThumbnail) GetSvg() []byte {
@@ -585,6 +896,99 @@ func (x *SessionRecordingThumbnail) GetCursorVisible() bool {
 	return false
 }
 
+func (x *SessionRecordingThumbnail) SetSvg(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Svg = v
+}
+
+func (x *SessionRecordingThumbnail) SetCols(v int32) {
+	x.Cols = v
+}
+
+func (x *SessionRecordingThumbnail) SetRows(v int32) {
+	x.Rows = v
+}
+
+func (x *SessionRecordingThumbnail) SetCursorX(v int32) {
+	x.CursorX = v
+}
+
+func (x *SessionRecordingThumbnail) SetCursorY(v int32) {
+	x.CursorY = v
+}
+
+func (x *SessionRecordingThumbnail) SetStartOffset(v *durationpb.Duration) {
+	x.StartOffset = v
+}
+
+func (x *SessionRecordingThumbnail) SetEndOffset(v *durationpb.Duration) {
+	x.EndOffset = v
+}
+
+func (x *SessionRecordingThumbnail) SetCursorVisible(v bool) {
+	x.CursorVisible = v
+}
+
+func (x *SessionRecordingThumbnail) HasStartOffset() bool {
+	if x == nil {
+		return false
+	}
+	return x.StartOffset != nil
+}
+
+func (x *SessionRecordingThumbnail) HasEndOffset() bool {
+	if x == nil {
+		return false
+	}
+	return x.EndOffset != nil
+}
+
+func (x *SessionRecordingThumbnail) ClearStartOffset() {
+	x.StartOffset = nil
+}
+
+func (x *SessionRecordingThumbnail) ClearEndOffset() {
+	x.EndOffset = nil
+}
+
+type SessionRecordingThumbnail_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// SVG is the SVG image of the thumbnail.
+	Svg []byte
+	// Cols is the number of columns in the terminal.
+	Cols int32
+	// Rows is the number of rows in the terminal.
+	Rows int32
+	// CursorX is the X coordinate of the cursor.
+	CursorX int32
+	// CursorY is the Y coordinate of the cursor.
+	CursorY int32
+	// StartOffset is the start time of the thumbnail, relative to the start of the session.
+	StartOffset *durationpb.Duration
+	// EndOffset is the end time of the thumbnail, relative to the start of the session.
+	EndOffset *durationpb.Duration
+	// CursorVisible indicates whether the cursor is visible.
+	CursorVisible bool
+}
+
+func (b0 SessionRecordingThumbnail_builder) Build() *SessionRecordingThumbnail {
+	m0 := &SessionRecordingThumbnail{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Svg = b.Svg
+	x.Cols = b.Cols
+	x.Rows = b.Rows
+	x.CursorX = b.CursorX
+	x.CursorY = b.CursorY
+	x.StartOffset = b.StartOffset
+	x.EndOffset = b.EndOffset
+	x.CursorVisible = b.CursorVisible
+	return m0
+}
+
 var File_teleport_recordingmetadata_v1_recordingmetadata_proto protoreflect.FileDescriptor
 
 const file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDesc = "" +
@@ -635,18 +1039,6 @@ const file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDesc = "" +
 	"\"SESSION_RECORDING_TYPE_UNSPECIFIED\x10\x00\x12\x1e\n" +
 	"\x1aSESSION_RECORDING_TYPE_SSH\x10\x01\x12%\n" +
 	"!SESSION_RECORDING_TYPE_KUBERNETES\x10\x02BfZdgithub.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1;recordingmetadatav1b\x06proto3"
-
-var (
-	file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDescOnce sync.Once
-	file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDescData []byte
-)
-
-func file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDescGZIP() []byte {
-	file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDescOnce.Do(func() {
-		file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDesc), len(file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDesc)))
-	})
-	return file_teleport_recordingmetadata_v1_recordingmetadata_proto_rawDescData
-}
 
 var file_teleport_recordingmetadata_v1_recordingmetadata_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_teleport_recordingmetadata_v1_recordingmetadata_proto_msgTypes = make([]protoimpl.MessageInfo, 6)

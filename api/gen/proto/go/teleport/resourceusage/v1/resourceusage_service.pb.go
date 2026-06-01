@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/resourceusage/v1/resourceusage_service.proto
 
+//go:build !protoopaque
+
 package resourceusagev1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -37,7 +38,7 @@ const (
 
 // GetUsageRequest is the request for GetUsage.
 type GetUsageRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -67,14 +68,21 @@ func (x *GetUsageRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetUsageRequest.ProtoReflect.Descriptor instead.
-func (*GetUsageRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_resourceusage_v1_resourceusage_service_proto_rawDescGZIP(), []int{0}
+type GetUsageRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 GetUsageRequest_builder) Build() *GetUsageRequest {
+	m0 := &GetUsageRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // GetUsageResponse is the response for GetUsage.
 type GetUsageResponse struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
+	state          protoimpl.MessageState `protogen:"hybrid.v1"`
 	AccessRequests *AccessRequestsUsage   `protobuf:"bytes,1,opt,name=access_requests,json=accessRequests,proto3" json:"access_requests,omitempty"`
 	// Usage type of the underlying account.
 	// UNLIMITED accounts have no usage limits, therefore any numbers should be
@@ -109,11 +117,6 @@ func (x *GetUsageResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetUsageResponse.ProtoReflect.Descriptor instead.
-func (*GetUsageResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_resourceusage_v1_resourceusage_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *GetUsageResponse) GetAccessRequests() *AccessRequestsUsage {
 	if x != nil {
 		return x.AccessRequests
@@ -128,6 +131,44 @@ func (x *GetUsageResponse) GetAccountUsageType() AccountUsageType {
 	return AccountUsageType_ACCOUNT_USAGE_TYPE_UNSPECIFIED
 }
 
+func (x *GetUsageResponse) SetAccessRequests(v *AccessRequestsUsage) {
+	x.AccessRequests = v
+}
+
+func (x *GetUsageResponse) SetAccountUsageType(v AccountUsageType) {
+	x.AccountUsageType = v
+}
+
+func (x *GetUsageResponse) HasAccessRequests() bool {
+	if x == nil {
+		return false
+	}
+	return x.AccessRequests != nil
+}
+
+func (x *GetUsageResponse) ClearAccessRequests() {
+	x.AccessRequests = nil
+}
+
+type GetUsageResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	AccessRequests *AccessRequestsUsage
+	// Usage type of the underlying account.
+	// UNLIMITED accounts have no usage limits, therefore any numbers should be
+	// disconsidered for those accounts.
+	AccountUsageType AccountUsageType
+}
+
+func (b0 GetUsageResponse_builder) Build() *GetUsageResponse {
+	m0 := &GetUsageResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.AccessRequests = b.AccessRequests
+	x.AccountUsageType = b.AccountUsageType
+	return m0
+}
+
 var File_teleport_resourceusage_v1_resourceusage_service_proto protoreflect.FileDescriptor
 
 const file_teleport_resourceusage_v1_resourceusage_service_proto_rawDesc = "" +
@@ -139,18 +180,6 @@ const file_teleport_resourceusage_v1_resourceusage_service_proto_rawDesc = "" +
 	"\x12account_usage_type\x18\x02 \x01(\x0e2+.teleport.resourceusage.v1.AccountUsageTypeR\x10accountUsageTypeJ\x04\b\x03\x10\x04R\rdevices_usage2{\n" +
 	"\x14ResourceUsageService\x12c\n" +
 	"\bGetUsage\x12*.teleport.resourceusage.v1.GetUsageRequest\x1a+.teleport.resourceusage.v1.GetUsageResponseB^Z\\github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1;resourceusagev1b\x06proto3"
-
-var (
-	file_teleport_resourceusage_v1_resourceusage_service_proto_rawDescOnce sync.Once
-	file_teleport_resourceusage_v1_resourceusage_service_proto_rawDescData []byte
-)
-
-func file_teleport_resourceusage_v1_resourceusage_service_proto_rawDescGZIP() []byte {
-	file_teleport_resourceusage_v1_resourceusage_service_proto_rawDescOnce.Do(func() {
-		file_teleport_resourceusage_v1_resourceusage_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_resourceusage_v1_resourceusage_service_proto_rawDesc), len(file_teleport_resourceusage_v1_resourceusage_service_proto_rawDesc)))
-	})
-	return file_teleport_resourceusage_v1_resourceusage_service_proto_rawDescData
-}
 
 var file_teleport_resourceusage_v1_resourceusage_service_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_teleport_resourceusage_v1_resourceusage_service_proto_goTypes = []any{

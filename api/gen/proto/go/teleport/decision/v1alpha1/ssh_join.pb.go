@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/decision/v1alpha1/ssh_join.proto
 
+//go:build !protoopaque
+
 package decisionpb
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -38,7 +39,7 @@ const (
 // EvaluateSSHJoinRequest describes a request to evaluate whether or not a
 // given ssh session-joining attempt should be permitted.
 type EvaluateSSHJoinRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Metadata holds common authorization decision request fields.
 	Metadata *RequestMetadata `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	// SshAuthority identifies the authority that issued the below identity.
@@ -78,11 +79,6 @@ func (x *EvaluateSSHJoinRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use EvaluateSSHJoinRequest.ProtoReflect.Descriptor instead.
-func (*EvaluateSSHJoinRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_decision_v1alpha1_ssh_join_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *EvaluateSSHJoinRequest) GetMetadata() *RequestMetadata {
 	if x != nil {
 		return x.Metadata
@@ -118,9 +114,100 @@ func (x *EvaluateSSHJoinRequest) GetSessionId() string {
 	return ""
 }
 
+func (x *EvaluateSSHJoinRequest) SetMetadata(v *RequestMetadata) {
+	x.Metadata = v
+}
+
+func (x *EvaluateSSHJoinRequest) SetSshAuthority(v *SSHAuthority) {
+	x.SshAuthority = v
+}
+
+func (x *EvaluateSSHJoinRequest) SetSshIdentity(v *SSHIdentity) {
+	x.SshIdentity = v
+}
+
+func (x *EvaluateSSHJoinRequest) SetNode(v *Resource) {
+	x.Node = v
+}
+
+func (x *EvaluateSSHJoinRequest) SetSessionId(v string) {
+	x.SessionId = v
+}
+
+func (x *EvaluateSSHJoinRequest) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *EvaluateSSHJoinRequest) HasSshAuthority() bool {
+	if x == nil {
+		return false
+	}
+	return x.SshAuthority != nil
+}
+
+func (x *EvaluateSSHJoinRequest) HasSshIdentity() bool {
+	if x == nil {
+		return false
+	}
+	return x.SshIdentity != nil
+}
+
+func (x *EvaluateSSHJoinRequest) HasNode() bool {
+	if x == nil {
+		return false
+	}
+	return x.Node != nil
+}
+
+func (x *EvaluateSSHJoinRequest) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *EvaluateSSHJoinRequest) ClearSshAuthority() {
+	x.SshAuthority = nil
+}
+
+func (x *EvaluateSSHJoinRequest) ClearSshIdentity() {
+	x.SshIdentity = nil
+}
+
+func (x *EvaluateSSHJoinRequest) ClearNode() {
+	x.Node = nil
+}
+
+type EvaluateSSHJoinRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Metadata holds common authorization decision request fields.
+	Metadata *RequestMetadata
+	// SshAuthority identifies the authority that issued the below identity.
+	SshAuthority *SSHAuthority
+	// SshIdentity describes the teleport user requesting access.
+	SshIdentity *SSHIdentity
+	// Node references the target node the user is attempting to access.
+	Node *Resource
+	// SessionId is the ID of the session the user is attempting to join.
+	SessionId string
+}
+
+func (b0 EvaluateSSHJoinRequest_builder) Build() *EvaluateSSHJoinRequest {
+	m0 := &EvaluateSSHJoinRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Metadata = b.Metadata
+	x.SshAuthority = b.SshAuthority
+	x.SshIdentity = b.SshIdentity
+	x.Node = b.Node
+	x.SessionId = b.SessionId
+	return m0
+}
+
 // EvaluateSSHJoinResponse describes the result of an SSH session-joining evaluation.
 type EvaluateSSHJoinResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Decision:
 	//
 	//	*EvaluateSSHJoinResponse_Permit
@@ -155,11 +242,6 @@ func (x *EvaluateSSHJoinResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use EvaluateSSHJoinResponse.ProtoReflect.Descriptor instead.
-func (*EvaluateSSHJoinResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_decision_v1alpha1_ssh_join_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *EvaluateSSHJoinResponse) GetDecision() isEvaluateSSHJoinResponse_Decision {
 	if x != nil {
 		return x.Decision
@@ -185,6 +267,111 @@ func (x *EvaluateSSHJoinResponse) GetDenial() *SSHJoinDenial {
 	return nil
 }
 
+func (x *EvaluateSSHJoinResponse) SetPermit(v *SSHJoinPermit) {
+	if v == nil {
+		x.Decision = nil
+		return
+	}
+	x.Decision = &EvaluateSSHJoinResponse_Permit{v}
+}
+
+func (x *EvaluateSSHJoinResponse) SetDenial(v *SSHJoinDenial) {
+	if v == nil {
+		x.Decision = nil
+		return
+	}
+	x.Decision = &EvaluateSSHJoinResponse_Denial{v}
+}
+
+func (x *EvaluateSSHJoinResponse) HasDecision() bool {
+	if x == nil {
+		return false
+	}
+	return x.Decision != nil
+}
+
+func (x *EvaluateSSHJoinResponse) HasPermit() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Decision.(*EvaluateSSHJoinResponse_Permit)
+	return ok
+}
+
+func (x *EvaluateSSHJoinResponse) HasDenial() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Decision.(*EvaluateSSHJoinResponse_Denial)
+	return ok
+}
+
+func (x *EvaluateSSHJoinResponse) ClearDecision() {
+	x.Decision = nil
+}
+
+func (x *EvaluateSSHJoinResponse) ClearPermit() {
+	if _, ok := x.Decision.(*EvaluateSSHJoinResponse_Permit); ok {
+		x.Decision = nil
+	}
+}
+
+func (x *EvaluateSSHJoinResponse) ClearDenial() {
+	if _, ok := x.Decision.(*EvaluateSSHJoinResponse_Denial); ok {
+		x.Decision = nil
+	}
+}
+
+const EvaluateSSHJoinResponse_Decision_not_set_case case_EvaluateSSHJoinResponse_Decision = 0
+const EvaluateSSHJoinResponse_Permit_case case_EvaluateSSHJoinResponse_Decision = 1
+const EvaluateSSHJoinResponse_Denial_case case_EvaluateSSHJoinResponse_Decision = 2
+
+func (x *EvaluateSSHJoinResponse) WhichDecision() case_EvaluateSSHJoinResponse_Decision {
+	if x == nil {
+		return EvaluateSSHJoinResponse_Decision_not_set_case
+	}
+	switch x.Decision.(type) {
+	case *EvaluateSSHJoinResponse_Permit:
+		return EvaluateSSHJoinResponse_Permit_case
+	case *EvaluateSSHJoinResponse_Denial:
+		return EvaluateSSHJoinResponse_Denial_case
+	default:
+		return EvaluateSSHJoinResponse_Decision_not_set_case
+	}
+}
+
+type EvaluateSSHJoinResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Decision:
+	Permit *SSHJoinPermit
+	Denial *SSHJoinDenial
+	// -- end of Decision
+}
+
+func (b0 EvaluateSSHJoinResponse_builder) Build() *EvaluateSSHJoinResponse {
+	m0 := &EvaluateSSHJoinResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Permit != nil {
+		x.Decision = &EvaluateSSHJoinResponse_Permit{b.Permit}
+	}
+	if b.Denial != nil {
+		x.Decision = &EvaluateSSHJoinResponse_Denial{b.Denial}
+	}
+	return m0
+}
+
+type case_EvaluateSSHJoinResponse_Decision protoreflect.FieldNumber
+
+func (x case_EvaluateSSHJoinResponse_Decision) String() string {
+	md := file_teleport_decision_v1alpha1_ssh_join_proto_msgTypes[1].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isEvaluateSSHJoinResponse_Decision interface {
 	isEvaluateSSHJoinResponse_Decision()
 }
@@ -204,7 +391,7 @@ func (*EvaluateSSHJoinResponse_Denial) isEvaluateSSHJoinResponse_Decision() {}
 // SSHJoinPermit describes the parameters/constraints of a permissible SSH
 // access attempt.
 type SSHJoinPermit struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Metadata      *PermitMetadata        `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"` // TODO
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -235,11 +422,6 @@ func (x *SSHJoinPermit) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SSHJoinPermit.ProtoReflect.Descriptor instead.
-func (*SSHJoinPermit) Descriptor() ([]byte, []int) {
-	return file_teleport_decision_v1alpha1_ssh_join_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *SSHJoinPermit) GetMetadata() *PermitMetadata {
 	if x != nil {
 		return x.Metadata
@@ -247,9 +429,38 @@ func (x *SSHJoinPermit) GetMetadata() *PermitMetadata {
 	return nil
 }
 
+func (x *SSHJoinPermit) SetMetadata(v *PermitMetadata) {
+	x.Metadata = v
+}
+
+func (x *SSHJoinPermit) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *SSHJoinPermit) ClearMetadata() {
+	x.Metadata = nil
+}
+
+type SSHJoinPermit_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Metadata *PermitMetadata
+}
+
+func (b0 SSHJoinPermit_builder) Build() *SSHJoinPermit {
+	m0 := &SSHJoinPermit{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Metadata = b.Metadata
+	return m0
+}
+
 // SSHJoinDenial describes an SSH session-joining denial.
 type SSHJoinDenial struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Metadata      *DenialMetadata        `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -280,16 +491,40 @@ func (x *SSHJoinDenial) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SSHJoinDenial.ProtoReflect.Descriptor instead.
-func (*SSHJoinDenial) Descriptor() ([]byte, []int) {
-	return file_teleport_decision_v1alpha1_ssh_join_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *SSHJoinDenial) GetMetadata() *DenialMetadata {
 	if x != nil {
 		return x.Metadata
 	}
 	return nil
+}
+
+func (x *SSHJoinDenial) SetMetadata(v *DenialMetadata) {
+	x.Metadata = v
+}
+
+func (x *SSHJoinDenial) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *SSHJoinDenial) ClearMetadata() {
+	x.Metadata = nil
+}
+
+type SSHJoinDenial_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Metadata *DenialMetadata
+}
+
+func (b0 SSHJoinDenial_builder) Build() *SSHJoinDenial {
+	m0 := &SSHJoinDenial{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Metadata = b.Metadata
+	return m0
 }
 
 var File_teleport_decision_v1alpha1_ssh_join_proto protoreflect.FileDescriptor
@@ -313,18 +548,6 @@ const file_teleport_decision_v1alpha1_ssh_join_proto_rawDesc = "" +
 	"\bmetadata\x18\x01 \x01(\v2*.teleport.decision.v1alpha1.PermitMetadataR\bmetadata\"W\n" +
 	"\rSSHJoinDenial\x12F\n" +
 	"\bmetadata\x18\x01 \x01(\v2*.teleport.decision.v1alpha1.DenialMetadataR\bmetadataBZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1;decisionpbb\x06proto3"
-
-var (
-	file_teleport_decision_v1alpha1_ssh_join_proto_rawDescOnce sync.Once
-	file_teleport_decision_v1alpha1_ssh_join_proto_rawDescData []byte
-)
-
-func file_teleport_decision_v1alpha1_ssh_join_proto_rawDescGZIP() []byte {
-	file_teleport_decision_v1alpha1_ssh_join_proto_rawDescOnce.Do(func() {
-		file_teleport_decision_v1alpha1_ssh_join_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_decision_v1alpha1_ssh_join_proto_rawDesc), len(file_teleport_decision_v1alpha1_ssh_join_proto_rawDesc)))
-	})
-	return file_teleport_decision_v1alpha1_ssh_join_proto_rawDescData
-}
 
 var file_teleport_decision_v1alpha1_ssh_join_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_teleport_decision_v1alpha1_ssh_join_proto_goTypes = []any{

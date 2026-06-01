@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/decision/v1alpha1/ssh_access.proto
 
+//go:build !protoopaque
+
 package decisionpb
 
 import (
@@ -26,7 +28,6 @@ import (
 	durationpb "google.golang.org/protobuf/types/known/durationpb"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -88,11 +89,6 @@ func (x SSHPortForwardMode) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use SSHPortForwardMode.Descriptor instead.
-func (SSHPortForwardMode) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_decision_v1alpha1_ssh_access_proto_rawDescGZIP(), []int{0}
-}
-
 // HostUserMode determines how host users should be created.
 type HostUserMode int32
 
@@ -148,11 +144,6 @@ func (x HostUserMode) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use HostUserMode.Descriptor instead.
-func (HostUserMode) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_decision_v1alpha1_ssh_access_proto_rawDescGZIP(), []int{1}
-}
-
 // PreconditionKind defines the types of preconditions that can be specified.
 type PreconditionKind int32
 
@@ -203,15 +194,10 @@ func (x PreconditionKind) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use PreconditionKind.Descriptor instead.
-func (PreconditionKind) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_decision_v1alpha1_ssh_access_proto_rawDescGZIP(), []int{2}
-}
-
 // EvaluateSSHAccessRequest describes a request to evaluate whether or not a
 // given ssh access attempt should be permitted.
 type EvaluateSSHAccessRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Metadata holds common authorization decision request fields.
 	Metadata *RequestMetadata `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	// SshAuthority identifies the authority that issued the below identity.
@@ -251,11 +237,6 @@ func (x *EvaluateSSHAccessRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use EvaluateSSHAccessRequest.ProtoReflect.Descriptor instead.
-func (*EvaluateSSHAccessRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_decision_v1alpha1_ssh_access_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *EvaluateSSHAccessRequest) GetMetadata() *RequestMetadata {
 	if x != nil {
 		return x.Metadata
@@ -291,9 +272,100 @@ func (x *EvaluateSSHAccessRequest) GetOsUser() string {
 	return ""
 }
 
+func (x *EvaluateSSHAccessRequest) SetMetadata(v *RequestMetadata) {
+	x.Metadata = v
+}
+
+func (x *EvaluateSSHAccessRequest) SetSshAuthority(v *SSHAuthority) {
+	x.SshAuthority = v
+}
+
+func (x *EvaluateSSHAccessRequest) SetSshIdentity(v *SSHIdentity) {
+	x.SshIdentity = v
+}
+
+func (x *EvaluateSSHAccessRequest) SetNode(v *Resource) {
+	x.Node = v
+}
+
+func (x *EvaluateSSHAccessRequest) SetOsUser(v string) {
+	x.OsUser = v
+}
+
+func (x *EvaluateSSHAccessRequest) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *EvaluateSSHAccessRequest) HasSshAuthority() bool {
+	if x == nil {
+		return false
+	}
+	return x.SshAuthority != nil
+}
+
+func (x *EvaluateSSHAccessRequest) HasSshIdentity() bool {
+	if x == nil {
+		return false
+	}
+	return x.SshIdentity != nil
+}
+
+func (x *EvaluateSSHAccessRequest) HasNode() bool {
+	if x == nil {
+		return false
+	}
+	return x.Node != nil
+}
+
+func (x *EvaluateSSHAccessRequest) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *EvaluateSSHAccessRequest) ClearSshAuthority() {
+	x.SshAuthority = nil
+}
+
+func (x *EvaluateSSHAccessRequest) ClearSshIdentity() {
+	x.SshIdentity = nil
+}
+
+func (x *EvaluateSSHAccessRequest) ClearNode() {
+	x.Node = nil
+}
+
+type EvaluateSSHAccessRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Metadata holds common authorization decision request fields.
+	Metadata *RequestMetadata
+	// SshAuthority identifies the authority that issued the below identity.
+	SshAuthority *SSHAuthority
+	// SshIdentity describes the teleport user requesting access.
+	SshIdentity *SSHIdentity
+	// Node references the target node the user is attempting to access.
+	Node *Resource
+	// OSUser is the user on the target node the user is attempting to access.
+	OsUser string
+}
+
+func (b0 EvaluateSSHAccessRequest_builder) Build() *EvaluateSSHAccessRequest {
+	m0 := &EvaluateSSHAccessRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Metadata = b.Metadata
+	x.SshAuthority = b.SshAuthority
+	x.SshIdentity = b.SshIdentity
+	x.Node = b.Node
+	x.OsUser = b.OsUser
+	return m0
+}
+
 // EvaluateSSHAccessResponse describes the result of an SSH access evaluation.
 type EvaluateSSHAccessResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Decision:
 	//
 	//	*EvaluateSSHAccessResponse_Permit
@@ -328,11 +400,6 @@ func (x *EvaluateSSHAccessResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use EvaluateSSHAccessResponse.ProtoReflect.Descriptor instead.
-func (*EvaluateSSHAccessResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_decision_v1alpha1_ssh_access_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *EvaluateSSHAccessResponse) GetDecision() isEvaluateSSHAccessResponse_Decision {
 	if x != nil {
 		return x.Decision
@@ -358,6 +425,111 @@ func (x *EvaluateSSHAccessResponse) GetDenial() *SSHAccessDenial {
 	return nil
 }
 
+func (x *EvaluateSSHAccessResponse) SetPermit(v *SSHAccessPermit) {
+	if v == nil {
+		x.Decision = nil
+		return
+	}
+	x.Decision = &EvaluateSSHAccessResponse_Permit{v}
+}
+
+func (x *EvaluateSSHAccessResponse) SetDenial(v *SSHAccessDenial) {
+	if v == nil {
+		x.Decision = nil
+		return
+	}
+	x.Decision = &EvaluateSSHAccessResponse_Denial{v}
+}
+
+func (x *EvaluateSSHAccessResponse) HasDecision() bool {
+	if x == nil {
+		return false
+	}
+	return x.Decision != nil
+}
+
+func (x *EvaluateSSHAccessResponse) HasPermit() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Decision.(*EvaluateSSHAccessResponse_Permit)
+	return ok
+}
+
+func (x *EvaluateSSHAccessResponse) HasDenial() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Decision.(*EvaluateSSHAccessResponse_Denial)
+	return ok
+}
+
+func (x *EvaluateSSHAccessResponse) ClearDecision() {
+	x.Decision = nil
+}
+
+func (x *EvaluateSSHAccessResponse) ClearPermit() {
+	if _, ok := x.Decision.(*EvaluateSSHAccessResponse_Permit); ok {
+		x.Decision = nil
+	}
+}
+
+func (x *EvaluateSSHAccessResponse) ClearDenial() {
+	if _, ok := x.Decision.(*EvaluateSSHAccessResponse_Denial); ok {
+		x.Decision = nil
+	}
+}
+
+const EvaluateSSHAccessResponse_Decision_not_set_case case_EvaluateSSHAccessResponse_Decision = 0
+const EvaluateSSHAccessResponse_Permit_case case_EvaluateSSHAccessResponse_Decision = 1
+const EvaluateSSHAccessResponse_Denial_case case_EvaluateSSHAccessResponse_Decision = 2
+
+func (x *EvaluateSSHAccessResponse) WhichDecision() case_EvaluateSSHAccessResponse_Decision {
+	if x == nil {
+		return EvaluateSSHAccessResponse_Decision_not_set_case
+	}
+	switch x.Decision.(type) {
+	case *EvaluateSSHAccessResponse_Permit:
+		return EvaluateSSHAccessResponse_Permit_case
+	case *EvaluateSSHAccessResponse_Denial:
+		return EvaluateSSHAccessResponse_Denial_case
+	default:
+		return EvaluateSSHAccessResponse_Decision_not_set_case
+	}
+}
+
+type EvaluateSSHAccessResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Decision:
+	Permit *SSHAccessPermit
+	Denial *SSHAccessDenial
+	// -- end of Decision
+}
+
+func (b0 EvaluateSSHAccessResponse_builder) Build() *EvaluateSSHAccessResponse {
+	m0 := &EvaluateSSHAccessResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Permit != nil {
+		x.Decision = &EvaluateSSHAccessResponse_Permit{b.Permit}
+	}
+	if b.Denial != nil {
+		x.Decision = &EvaluateSSHAccessResponse_Denial{b.Denial}
+	}
+	return m0
+}
+
+type case_EvaluateSSHAccessResponse_Decision protoreflect.FieldNumber
+
+func (x case_EvaluateSSHAccessResponse_Decision) String() string {
+	md := file_teleport_decision_v1alpha1_ssh_access_proto_msgTypes[1].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isEvaluateSSHAccessResponse_Decision interface {
 	isEvaluateSSHAccessResponse_Decision()
 }
@@ -377,7 +549,7 @@ func (*EvaluateSSHAccessResponse_Denial) isEvaluateSSHAccessResponse_Decision() 
 // SSHAccessPermit describes the parameters/constraints of a permissible SSH
 // access attempt.
 type SSHAccessPermit struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Metadata holds common authorization decision response fields.
 	Metadata *PermitMetadata `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	// ForwardAgent indicates whether or not the user is permitted to use SSH agent forwarding.
@@ -449,11 +621,6 @@ func (x *SSHAccessPermit) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SSHAccessPermit.ProtoReflect.Descriptor instead.
-func (*SSHAccessPermit) Descriptor() ([]byte, []int) {
-	return file_teleport_decision_v1alpha1_ssh_access_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *SSHAccessPermit) GetMetadata() *PermitMetadata {
@@ -582,9 +749,199 @@ func (x *SSHAccessPermit) GetPreconditions() []*Precondition {
 	return nil
 }
 
+func (x *SSHAccessPermit) SetMetadata(v *PermitMetadata) {
+	x.Metadata = v
+}
+
+func (x *SSHAccessPermit) SetForwardAgent(v bool) {
+	x.ForwardAgent = v
+}
+
+func (x *SSHAccessPermit) SetPortForwardMode(v SSHPortForwardMode) {
+	x.PortForwardMode = v
+}
+
+func (x *SSHAccessPermit) SetClientIdleTimeout(v *durationpb.Duration) {
+	x.ClientIdleTimeout = v
+}
+
+func (x *SSHAccessPermit) SetDisconnectExpiredCert(v *timestamppb.Timestamp) {
+	x.DisconnectExpiredCert = v
+}
+
+func (x *SSHAccessPermit) SetBpfEvents(v []string) {
+	x.BpfEvents = v
+}
+
+func (x *SSHAccessPermit) SetX11Forwarding(v bool) {
+	x.X11Forwarding = v
+}
+
+func (x *SSHAccessPermit) SetMaxConnections(v int64) {
+	x.MaxConnections = v
+}
+
+func (x *SSHAccessPermit) SetMaxSessions(v int64) {
+	x.MaxSessions = v
+}
+
+func (x *SSHAccessPermit) SetSshFileCopy(v bool) {
+	x.SshFileCopy = v
+}
+
+func (x *SSHAccessPermit) SetHostSudoers(v []string) {
+	x.HostSudoers = v
+}
+
+func (x *SSHAccessPermit) SetSessionRecordingMode(v string) {
+	x.SessionRecordingMode = v
+}
+
+func (x *SSHAccessPermit) SetLockingMode(v string) {
+	x.LockingMode = v
+}
+
+func (x *SSHAccessPermit) SetPrivateKeyPolicy(v string) {
+	x.PrivateKeyPolicy = v
+}
+
+func (x *SSHAccessPermit) SetLockTargets(v []*LockTarget) {
+	x.LockTargets = v
+}
+
+func (x *SSHAccessPermit) SetMappedRoles(v []string) {
+	x.MappedRoles = v
+}
+
+func (x *SSHAccessPermit) SetHostUsersInfo(v *HostUsersInfo) {
+	x.HostUsersInfo = v
+}
+
+func (x *SSHAccessPermit) SetPreconditions(v []*Precondition) {
+	x.Preconditions = v
+}
+
+func (x *SSHAccessPermit) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *SSHAccessPermit) HasClientIdleTimeout() bool {
+	if x == nil {
+		return false
+	}
+	return x.ClientIdleTimeout != nil
+}
+
+func (x *SSHAccessPermit) HasDisconnectExpiredCert() bool {
+	if x == nil {
+		return false
+	}
+	return x.DisconnectExpiredCert != nil
+}
+
+func (x *SSHAccessPermit) HasHostUsersInfo() bool {
+	if x == nil {
+		return false
+	}
+	return x.HostUsersInfo != nil
+}
+
+func (x *SSHAccessPermit) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *SSHAccessPermit) ClearClientIdleTimeout() {
+	x.ClientIdleTimeout = nil
+}
+
+func (x *SSHAccessPermit) ClearDisconnectExpiredCert() {
+	x.DisconnectExpiredCert = nil
+}
+
+func (x *SSHAccessPermit) ClearHostUsersInfo() {
+	x.HostUsersInfo = nil
+}
+
+type SSHAccessPermit_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Metadata holds common authorization decision response fields.
+	Metadata *PermitMetadata
+	// ForwardAgent indicates whether or not the user is permitted to use SSH agent forwarding.
+	ForwardAgent bool
+	// PortForwardMode describes the kind of port forwarding permitted during this access attempt.
+	PortForwardMode SSHPortForwardMode
+	// ClientIdleTimeout is the time after which the server should disconnect the user for inactivity
+	// (if unspecified, the server should not disconnect the user).
+	ClientIdleTimeout *durationpb.Duration
+	// DisconnectExpiredCert is the time after which the server should disconnect the user (if
+	// unspecified, the server should not disconnect the user).
+	DisconnectExpiredCert *timestamppb.Timestamp
+	// BpfEvents is the list of BPF events that should be recorded for this SSH access attempt.
+	BpfEvents []string
+	// X11Forwarding indicates whether or not the user is permitted to use X11 forwarding.
+	X11Forwarding bool
+	// MaxConnections is the maximum number of concurrent connections to be enforced during access.
+	MaxConnections int64
+	// MaxSessions is the maximum number of ssh session channels to be permitted within the ssh
+	// connection.
+	MaxSessions int64
+	// SshFileCopy indicates whether or not the user is permitted to perform file copying.
+	SshFileCopy bool
+	// HostSudoers is the list of entries that should be included in the temporary sudoers file
+	// for this ssh access attempt.
+	HostSudoers []string
+	// SessionRecordingMode indicates the kind of session recording strategy to be used during this access attempt.
+	SessionRecordingMode string
+	// LockingMode indicates the kind of locking strategy to be used during this access attempt.
+	LockingMode string
+	// PrivateKeyPolicy indicates the private key policy to be enforced for the user.
+	PrivateKeyPolicy string
+	// LockTargets is the list of locks that must be obeyed in order for access to be permissible.
+	LockTargets []*LockTarget
+	// MappedRoles is the list of cluster-local roles that the users identity maps to (NOTE: use of
+	// this field should be avoided where possible, we would like to remove dependency on it in the
+	// future).
+	MappedRoles []string
+	// HostUserInfo encodes relevant information for host user creation. Omitted if
+	// host user creation  is not permitted.
+	HostUsersInfo *HostUsersInfo
+	// Preconditions is a list of conditions that must be satisfied before access is granted.
+	// If any precondition is not satisfied, access must be denied.
+	Preconditions []*Precondition
+}
+
+func (b0 SSHAccessPermit_builder) Build() *SSHAccessPermit {
+	m0 := &SSHAccessPermit{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Metadata = b.Metadata
+	x.ForwardAgent = b.ForwardAgent
+	x.PortForwardMode = b.PortForwardMode
+	x.ClientIdleTimeout = b.ClientIdleTimeout
+	x.DisconnectExpiredCert = b.DisconnectExpiredCert
+	x.BpfEvents = b.BpfEvents
+	x.X11Forwarding = b.X11Forwarding
+	x.MaxConnections = b.MaxConnections
+	x.MaxSessions = b.MaxSessions
+	x.SshFileCopy = b.SshFileCopy
+	x.HostSudoers = b.HostSudoers
+	x.SessionRecordingMode = b.SessionRecordingMode
+	x.LockingMode = b.LockingMode
+	x.PrivateKeyPolicy = b.PrivateKeyPolicy
+	x.LockTargets = b.LockTargets
+	x.MappedRoles = b.MappedRoles
+	x.HostUsersInfo = b.HostUsersInfo
+	x.Preconditions = b.Preconditions
+	return m0
+}
+
 // SSHAccessDenial describes an SSH access denial.
 type SSHAccessDenial struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Metadata      *DenialMetadata        `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -615,11 +972,6 @@ func (x *SSHAccessDenial) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SSHAccessDenial.ProtoReflect.Descriptor instead.
-func (*SSHAccessDenial) Descriptor() ([]byte, []int) {
-	return file_teleport_decision_v1alpha1_ssh_access_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *SSHAccessDenial) GetMetadata() *DenialMetadata {
 	if x != nil {
 		return x.Metadata
@@ -627,10 +979,39 @@ func (x *SSHAccessDenial) GetMetadata() *DenialMetadata {
 	return nil
 }
 
+func (x *SSHAccessDenial) SetMetadata(v *DenialMetadata) {
+	x.Metadata = v
+}
+
+func (x *SSHAccessDenial) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *SSHAccessDenial) ClearMetadata() {
+	x.Metadata = nil
+}
+
+type SSHAccessDenial_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Metadata *DenialMetadata
+}
+
+func (b0 SSHAccessDenial_builder) Build() *SSHAccessDenial {
+	m0 := &SSHAccessDenial{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Metadata = b.Metadata
+	return m0
+}
+
 // LockTarget lists the attributes used to lock a resource. This type must
 // be kept in sync with types.LockTarget.
 type LockTarget struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// User specifies the name of a Teleport user.
 	User string `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
 	// Role specifies the name of an RBAC role known to the root cluster.
@@ -682,11 +1063,6 @@ func (x *LockTarget) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use LockTarget.ProtoReflect.Descriptor instead.
-func (*LockTarget) Descriptor() ([]byte, []int) {
-	return file_teleport_decision_v1alpha1_ssh_access_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *LockTarget) GetUser() string {
@@ -759,10 +1135,96 @@ func (x *LockTarget) GetJoinToken() string {
 	return ""
 }
 
+func (x *LockTarget) SetUser(v string) {
+	x.User = v
+}
+
+func (x *LockTarget) SetRole(v string) {
+	x.Role = v
+}
+
+func (x *LockTarget) SetLogin(v string) {
+	x.Login = v
+}
+
+func (x *LockTarget) SetMfaDevice(v string) {
+	x.MfaDevice = v
+}
+
+func (x *LockTarget) SetWindowsDesktop(v string) {
+	x.WindowsDesktop = v
+}
+
+func (x *LockTarget) SetAccessRequest(v string) {
+	x.AccessRequest = v
+}
+
+func (x *LockTarget) SetDevice(v string) {
+	x.Device = v
+}
+
+func (x *LockTarget) SetServerId(v string) {
+	x.ServerId = v
+}
+
+func (x *LockTarget) SetBotInstanceId(v string) {
+	x.BotInstanceId = v
+}
+
+func (x *LockTarget) SetJoinToken(v string) {
+	x.JoinToken = v
+}
+
+type LockTarget_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// User specifies the name of a Teleport user.
+	User string
+	// Role specifies the name of an RBAC role known to the root cluster.
+	// In remote clusters, this constraint is evaluated before translating to local roles.
+	Role string
+	// Login specifies the name of a local UNIX user.
+	Login string
+	// MFADevice specifies the UUID of a user MFA device.
+	MfaDevice string
+	// WindowsDesktop specifies the name of a Windows desktop.
+	WindowsDesktop string
+	// AccessRequest specifies the UUID of an access request.
+	AccessRequest string
+	// Device is the device ID of a trusted device.
+	// Requires Teleport Enterprise.
+	Device string
+	// ServerID is the host id of the Teleport instance.
+	ServerId string
+	// BotInstanceID is the bot instance ID if this is a bot identity.
+	BotInstanceId string
+	// JoinToken is the name of the join token used when this identity originally
+	// joined. This only applies to bot identities, and cannot be used to target
+	// bots that joined via the `token` join method.
+	JoinToken string
+}
+
+func (b0 LockTarget_builder) Build() *LockTarget {
+	m0 := &LockTarget{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.User = b.User
+	x.Role = b.Role
+	x.Login = b.Login
+	x.MfaDevice = b.MfaDevice
+	x.WindowsDesktop = b.WindowsDesktop
+	x.AccessRequest = b.AccessRequest
+	x.Device = b.Device
+	x.ServerId = b.ServerId
+	x.BotInstanceId = b.BotInstanceId
+	x.JoinToken = b.JoinToken
+	return m0
+}
+
 // HostUsersInfo keeps information about groups and sudoers entries
 // for a particular host user
 type HostUsersInfo struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Groups is the list of groups to include host users in
 	Groups []string `protobuf:"bytes,1,rep,name=groups,proto3" json:"groups,omitempty"`
 	// Mode determines if a host user should be deleted after a session
@@ -802,11 +1264,6 @@ func (x *HostUsersInfo) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use HostUsersInfo.ProtoReflect.Descriptor instead.
-func (*HostUsersInfo) Descriptor() ([]byte, []int) {
-	return file_teleport_decision_v1alpha1_ssh_access_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *HostUsersInfo) GetGroups() []string {
 	if x != nil {
 		return x.Groups
@@ -842,9 +1299,56 @@ func (x *HostUsersInfo) GetShell() string {
 	return ""
 }
 
+func (x *HostUsersInfo) SetGroups(v []string) {
+	x.Groups = v
+}
+
+func (x *HostUsersInfo) SetMode(v HostUserMode) {
+	x.Mode = v
+}
+
+func (x *HostUsersInfo) SetUid(v string) {
+	x.Uid = v
+}
+
+func (x *HostUsersInfo) SetGid(v string) {
+	x.Gid = v
+}
+
+func (x *HostUsersInfo) SetShell(v string) {
+	x.Shell = v
+}
+
+type HostUsersInfo_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Groups is the list of groups to include host users in
+	Groups []string
+	// Mode determines if a host user should be deleted after a session
+	Mode HostUserMode
+	// Uid is the UID that the host user will be created with
+	Uid string
+	// Gid is the GID that the host user will be created with
+	Gid string
+	// Shell is the default login shell for a host user
+	Shell string
+}
+
+func (b0 HostUsersInfo_builder) Build() *HostUsersInfo {
+	m0 := &HostUsersInfo{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Groups = b.Groups
+	x.Mode = b.Mode
+	x.Uid = b.Uid
+	x.Gid = b.Gid
+	x.Shell = b.Shell
+	return m0
+}
+
 // Precondition represents a condition that must be satisfied before access is granted.
 type Precondition struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Kind specifies the type of precondition.
 	Kind          PreconditionKind `protobuf:"varint,1,opt,name=kind,proto3,enum=teleport.decision.v1alpha1.PreconditionKind" json:"kind,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -876,16 +1380,30 @@ func (x *Precondition) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Precondition.ProtoReflect.Descriptor instead.
-func (*Precondition) Descriptor() ([]byte, []int) {
-	return file_teleport_decision_v1alpha1_ssh_access_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *Precondition) GetKind() PreconditionKind {
 	if x != nil {
 		return x.Kind
 	}
 	return PreconditionKind_PRECONDITION_KIND_UNSPECIFIED
+}
+
+func (x *Precondition) SetKind(v PreconditionKind) {
+	x.Kind = v
+}
+
+type Precondition_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Kind specifies the type of precondition.
+	Kind PreconditionKind
+}
+
+func (b0 Precondition_builder) Build() *Precondition {
+	m0 := &Precondition{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	return m0
 }
 
 var File_teleport_decision_v1alpha1_ssh_access_proto protoreflect.FileDescriptor
@@ -965,18 +1483,6 @@ const file_teleport_decision_v1alpha1_ssh_access_proto_rawDesc = "" +
 	"\x1dPRECONDITION_KIND_UNSPECIFIED\x10\x00\x12!\n" +
 	"\x1dPRECONDITION_KIND_IN_BAND_MFA\x10\x01\x12#\n" +
 	"\x1fPRECONDITION_KIND_PIN_SOURCE_IP\x10\x02BZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1;decisionpbb\x06proto3"
-
-var (
-	file_teleport_decision_v1alpha1_ssh_access_proto_rawDescOnce sync.Once
-	file_teleport_decision_v1alpha1_ssh_access_proto_rawDescData []byte
-)
-
-func file_teleport_decision_v1alpha1_ssh_access_proto_rawDescGZIP() []byte {
-	file_teleport_decision_v1alpha1_ssh_access_proto_rawDescOnce.Do(func() {
-		file_teleport_decision_v1alpha1_ssh_access_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_decision_v1alpha1_ssh_access_proto_rawDesc), len(file_teleport_decision_v1alpha1_ssh_access_proto_rawDesc)))
-	})
-	return file_teleport_decision_v1alpha1_ssh_access_proto_rawDescData
-}
 
 var file_teleport_decision_v1alpha1_ssh_access_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
 var file_teleport_decision_v1alpha1_ssh_access_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
