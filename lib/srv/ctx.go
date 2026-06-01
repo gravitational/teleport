@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -50,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/decision"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -1140,6 +1142,14 @@ func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
 		userKind = apievents.UserKind_USER_KIND_BOT
 	}
 
+	// Extract scoped info from the scope pin if it's present. Since scopes do
+	// not support trusted clusters, the scope pin should always be available
+	// on the unmapped identity for all scoped identities.
+	var scopePin *scopesv1.Pin
+	if id.UnmappedIdentity != nil {
+		scopePin = id.UnmappedIdentity.ScopePin
+	}
+
 	return apievents.UserMetadata{
 		Login:           id.Login,
 		User:            id.TeleportUser,
@@ -1152,6 +1162,7 @@ func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
 		UserClusterName: id.OriginClusterName,
 		UserRoles:       slices.Clone(id.MappedRoles),
 		UserTraits:      id.Traits.Clone(),
+		ScopePin:        pinning.ToEventsPin(scopePin),
 	}
 }
 
