@@ -71,6 +71,7 @@ func CopyToBoolOption(diags diag.Diagnostics, o *apitypes.BoolOption, t attr.Typ
 	if !ok {
 		value = types.Bool{}
 	}
+	value.Unknown = false
 
 	if o == nil {
 		value.Null = true
@@ -78,7 +79,6 @@ func CopyToBoolOption(diags diag.Diagnostics, o *apitypes.BoolOption, t attr.Typ
 	}
 
 	value.Null = false
-	value.Unknown = false
 	value.Value = o.Value
 
 	return value
@@ -121,9 +121,8 @@ func CopyToLabels(diags diag.Diagnostics, o apitypes.Labels, t attr.Type, v attr
 		value = types.Map{ElemType: typ.ElemType}
 	}
 
-	if value.Elems == nil {
-		value.Elems = make(map[string]attr.Value, len(o))
-	}
+	value.ElemType = typ.ElemType
+	value.Elems = make(map[string]attr.Value, len(o))
 
 	for k, l := range o {
 		row := types.List{
@@ -138,6 +137,8 @@ func CopyToLabels(diags diag.Diagnostics, o apitypes.Labels, t attr.Type, v attr
 		value.Elems[k] = row
 	}
 
+	value.Null = false
+	value.Unknown = false
 	return value
 }
 
@@ -178,9 +179,8 @@ func CopyToTraits(diags diag.Diagnostics, o wrappers.Traits, t attr.Type, v attr
 		value = types.Map{ElemType: typ.ElemType}
 	}
 
-	if value.Elems == nil {
-		value.Elems = make(map[string]attr.Value, len(o))
-	}
+	value.ElemType = typ.ElemType
+	value.Elems = make(map[string]attr.Value, len(o))
 
 	for k, l := range o {
 		row := types.List{
@@ -195,6 +195,8 @@ func CopyToTraits(diags diag.Diagnostics, o wrappers.Traits, t attr.Type, v attr
 		value.Elems[k] = row
 	}
 
+	value.Null = false
+	value.Unknown = false
 	return value
 }
 
@@ -237,9 +239,8 @@ func CopyToStrings(diags diag.Diagnostics, o wrappers.Strings, t attr.Type, v at
 		value = types.List{ElemType: typ.ElemType}
 	}
 
-	if value.Elems == nil {
-		value.Elems = make([]attr.Value, len(o))
-	}
+	value.ElemType = typ.ElemType
+	value.Elems = make([]attr.Value, len(o))
 
 	for k, l := range o {
 		value.Elems[k] = types.String{
@@ -247,5 +248,7 @@ func CopyToStrings(diags diag.Diagnostics, o wrappers.Strings, t attr.Type, v at
 		}
 	}
 
+	value.Null = false
+	value.Unknown = false
 	return value
 }

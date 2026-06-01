@@ -57,6 +57,7 @@ func CopyToTimestamp(diags diag.Diagnostics, o *timestamppb.Timestamp, t attr.Ty
 	if !ok {
 		value = tfschema.TimeValue{}
 	}
+	value.Unknown = false
 
 	if o == nil {
 		value.Null = true
@@ -66,6 +67,7 @@ func CopyToTimestamp(diags diag.Diagnostics, o *timestamppb.Timestamp, t attr.Ty
 	value.Value = (*o).AsTime()
 	value.Format = time.RFC3339
 
+	value.Null = false
 	return value
 }
 
@@ -90,6 +92,7 @@ func CopyToDuration(diags diag.Diagnostics, o *durationpb.Duration, t attr.Type,
 	if !ok {
 		value = tfschema.DurationValue{}
 	}
+	value.Unknown = false
 
 	if o == nil {
 		value.Null = true
@@ -98,6 +101,7 @@ func CopyToDuration(diags diag.Diagnostics, o *durationpb.Duration, t attr.Type,
 
 	value.Value = (*o).AsDuration()
 
+	value.Null = false
 	return value
 }
 
