@@ -24,7 +24,6 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"path/filepath"
 	"slices"
 	"strings"
 )
@@ -59,10 +58,6 @@ func writeGitHubReport(resultsPath string) error {
 
 	if err := writeJobSummary(report, mergedFailures, mergedFlaky); err != nil {
 		slog.Warn("could not write job summary", "error", err)
-	}
-
-	if err := writePRCommentFile(resultsPath, report, mergedFailures, mergedFlaky); err != nil {
-		slog.Warn("could not write PR comment file", "error", err)
 	}
 
 	return nil
@@ -255,37 +250,6 @@ func renderMarkdownReport(w io.Writer, report pwReport, failures, flaky []merged
 		fmt.Fprint(w, "---\n\n")
 		fmt.Fprintf(w, "##### View full report\n```\n./%s\n```\n", ciReportCmd(pr))
 	}
-}
-
-// writePRCommentFile writes the PR comment body to a file next to the results
-// JSON so that a trusted workflow step can post it via `gh` without passing
-// a write-scoped token to this (PR-built) binary.
-func writePRCommentFile(resultsPath string, report pwReport, failures, flaky []mergedFailure) error {
-	commentPath := filepath.Join(filepath.Dir(resultsPath), "pr-comment.md")
-
-	hasIssues := len(failures) > 0 || len(flaky) > 0 || len(report.Errors) > 0
-	if !hasIssues {
-		// Write an empty file to signal that the comment should be deleted.
-		if err := os.WriteFile(commentPath, nil, 0o644); err != nil {
-			return fmt.Errorf("writing empty PR comment file: %w", err)
-		}
-
-		slog.Info("wrote empty PR comment file (no issues)", "path", commentPath)
-
-		return nil
-	}
-
-	var body strings.Builder
-	body.WriteString(commentMarker + "\n")
-	renderMarkdownReport(&body, report, failures, flaky)
-
-	if err := os.WriteFile(commentPath, []byte(body.String()), 0o644); err != nil {
-		return fmt.Errorf("writing PR comment file: %w", err)
-	}
-
-	slog.Info("wrote PR comment file", "path", commentPath)
-
-	return nil
 }
 
 func escapeProp(s string) string {

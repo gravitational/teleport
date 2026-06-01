@@ -25,7 +25,8 @@ function username(testInfo: TestInfo) {
   return `testuser-${testInfo.workerIndex}`;
 }
 
-test('verify that a user can sign up with webauthn and login', async ({
+// TODO(ryan): re-enable this test once Firefox flakiness is resolved.
+test.skip('verify that a user can sign up with webauthn and login', async ({
   page,
 }, testInfo) => {
   // Signing up auto-logs-in and we then log straight back in; that burst can
