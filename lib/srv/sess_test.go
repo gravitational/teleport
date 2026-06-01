@@ -89,7 +89,6 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 	approvers := make(map[string]*party)
 	clientChan, serverChan := newMockSSHChannel(t)
 	clientChan.Drain()
-	serverChan.Drain()
 
 	approvers["mod"] = newParty(auditSess, types.SessionModeratorMode, serverChan, auditScx)
 
@@ -1014,15 +1013,6 @@ func TestParties(t *testing.T) {
 	require.Eventually(t, sess.isStopped, time.Second*5, time.Millisecond*500)
 }
 
-func testJoinSession(t *testing.T, reg *SessionRegistry, sid string) {
-	scx := newTestServerContext(t, reg.Srv, nil, &decisionpb.SSHAccessPermit{})
-	clientChan, serverChan := newMockSSHChannel(t)
-	clientChan.Drain()
-
-	err := reg.JoinSession(t.Context(), serverChan, scx, sid, types.SessionPeerMode)
-	require.NoError(t, err)
-}
-
 func TestSessionRecordingModes(t *testing.T) {
 	t.Parallel()
 
@@ -1166,7 +1156,6 @@ func TestStopSessionWithoutClientDisconnect(t *testing.T) {
 func testOpenSession(t *testing.T, reg *SessionRegistry, sessionJoiningRoleSet services.RoleSet, accessPermit *decisionpb.SSHAccessPermit) (*session, ssh.Channel) {
 	scx := newTestServerContext(t, reg.Srv, sessionJoiningRoleSet, accessPermit)
 
-	// Open a new session
 	clientChan, serverChan := newMockSSHChannel(t)
 	clientChan.Drain()
 
@@ -1174,7 +1163,17 @@ func testOpenSession(t *testing.T, reg *SessionRegistry, sessionJoiningRoleSet s
 	require.NoError(t, err)
 
 	require.NotNil(t, scx.session)
-	return scx.session, serverChan
+	return scx.session, clientChan
+}
+
+func testJoinSession(t *testing.T, reg *SessionRegistry, sid string) {
+	scx := newTestServerContext(t, reg.Srv, nil, &decisionpb.SSHAccessPermit{})
+
+	clientChan, serverChan := newMockSSHChannel(t)
+	clientChan.Drain()
+
+	err := reg.JoinSession(t.Context(), serverChan, scx, sid, types.SessionPeerMode)
+	require.NoError(t, err)
 }
 
 type mockRecorder struct {

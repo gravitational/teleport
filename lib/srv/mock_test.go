@@ -396,6 +396,8 @@ type mockSSHChannel struct {
 }
 
 // newMockSSHChannel creates a mock ssh channel and returns both the client and server side.
+// When the server side is handed to a running session, the client side must be drained
+// so the session's stdout writes don't block on the unread pipe.
 func newMockSSHChannel(t *testing.T) (client *mockSSHChannel, server *mockSSHChannel) {
 	stdinReader, stdinWriter := io.Pipe()
 	stdoutReader, stdoutWriter := io.Pipe()
