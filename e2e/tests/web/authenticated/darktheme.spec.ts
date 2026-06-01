@@ -17,24 +17,18 @@
  */
 
 import { login, logout } from '@gravitational/e2e/helpers/login';
-import { defaultPassword, signup } from '@gravitational/e2e/helpers/signup';
-import { deleteUserIfExists } from '@gravitational/e2e/helpers/tctl';
 import { expect, test } from '@gravitational/e2e/helpers/test';
-import { TestInfo } from '@playwright/test';
 
 const lightBody = 'rgb(241, 242, 244)';
 const darkBody = 'rgb(12, 20, 61)';
 
-function username(testInfo: TestInfo) {
-  return `testuser-${testInfo.workerIndex}`;
-}
+// Don't retry: a retry could have a user with the theme preference flipped and cause flakiness.
+test.describe.configure({ retries: 0 });
 
-test('switching between dark and light theme', async ({ page }, testInfo) => {
-  // The re-login below can trip Teleport's challenge-generation rate limiter,
-  // so allow extra time to retry it.
-  test.slow();
+test.use({ user: { roles: ['access', 'editor'] } });
 
-  await signup(page, username(testInfo), defaultPassword);
+test('switching between dark and light theme', async ({ page, username }) => {
+  await page.goto('/');
   await expect(page.locator('body')).toHaveCSS('background-color', lightBody);
 
   // Switch to dark theme. Make sure that the change gets persisted in user
@@ -57,28 +51,13 @@ test('switching between dark and light theme', async ({ page }, testInfo) => {
   // signing in on a fresh browser.
   await page.context().clearCookies();
   await page.evaluate(() => localStorage.clear());
-  // Logging back in right after signup can trip Teleport's challenge-generation
-  // rate limiter ("rate limit exceeded, try again in Ns"); retry until it lets
-  // us through.
-  await expect(async () => {
-    await login(page, username(testInfo), defaultPassword);
-  }).toPass({ timeout: 30_000, intervals: [3_000] });
+
+  await login(page, username);
+
   await expect(page.locator('body')).toHaveCSS('background-color', darkBody);
 
   // Switch to light theme.
   await page.getByRole('button', { name: 'User Menu' }).click();
   await page.getByText('Switch to Light Theme').click();
   await expect(page.locator('body')).toHaveCSS('background-color', lightBody);
-});
-
-// Clean the user before each attempt (and after) so retries start clean rather
-// than failing on an already-registered user / consumed invite.
-// oxlint-disable-next-line no-empty-pattern
-test.beforeEach(({}, testInfo) => {
-  deleteUserIfExists(username(testInfo));
-});
-
-// oxlint-disable-next-line no-empty-pattern
-test.afterEach(({}, testInfo) => {
-  deleteUserIfExists(username(testInfo));
 });
