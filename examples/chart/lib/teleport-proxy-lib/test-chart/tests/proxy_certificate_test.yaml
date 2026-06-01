@@ -2,7 +2,6 @@ suite: Proxy Certificate
 templates:
   - certificate.yaml
 tests:
-  # Move to lib: pure lib rendering; snapshots will need regeneration in lib
   - it: should request a certificate for cluster name when cert-manager is enabled (cert-manager.yaml)
     values:
       - ../.lint/cert-manager.yaml
@@ -19,7 +18,6 @@ tests:
           path: spec.commonName
           value: test-cluster
 
-  # Move to lib: pure lib rendering; snapshots will need regeneration in lib
   - it: should request a certificate for cluster name when cert-manager is enabled (cert-secret.yaml)
     values:
       - ../.lint/cert-secret.yaml
@@ -33,7 +31,6 @@ tests:
       - matchSnapshot:
           path: spec.issuerRef
 
-  # Move to lib: pure lib rendering; snapshots will need regeneration in lib
   - it: should request a certificate for cluster name and publicAddrs when cert-manager is enabled and proxy.highAvailability.certManager.addPublicAddrs is set (cert-manager.yaml)
     values:
       - ../.lint/cert-manager.yaml
@@ -67,7 +64,6 @@ tests:
           path: spec.dnsNames[3]
           value: "teleport.shared-services.old-domain.com"
 
-  # Move to lib: pure lib rendering; snapshots will need regeneration in lib
   - it: should not request a certificate for cluster name and publicAddrs when cert-manager is enabled and proxy.highAvailability.certManager.addPublicAddrs is not set (cert-manager.yaml)
     values:
       - ../.lint/cert-manager.yaml
@@ -101,7 +97,6 @@ tests:
           path: spec.dnsNames[3]
           value: "teleport.shared-services.old-domain.com"
 
-  # Move to lib: pure lib rendering; snapshots will need regeneration in lib
   - it: should request a certificate for cluster name and publicAddrs when cert-manager is enabled and proxy.highAvailability.certManager.addPublicAddrs is set (cert-secret.yaml)
     values:
       - ../.lint/cert-secret.yaml
@@ -132,7 +127,6 @@ tests:
           path: spec.dnsNames[3]
           value: "teleport.shared-services.old-domain.com"
 
-  # Move to lib: pure lib rendering; snapshots will need regeneration in lib
   - it: should not request a certificate for cluster name and publicAddrs when cert-manager is enabled and proxy.highAvailability.certManager.addPublicAddrs is not set (cert-secret.yaml)
     values:
       - ../.lint/cert-secret.yaml
@@ -163,7 +157,6 @@ tests:
           path: spec.dnsNames[3]
           value: "teleport.shared-services.old-domain.com"
 
-  # Move to lib: pure lib rendering; snapshots will need regeneration in lib
   - it: should request a certificate for cluster name and publicAddrs when cert-manager is enabled and proxy.highAvailability.certManager.addPublicAddrs is set, removing duplicates
     values:
       - ../.lint/cert-manager.yaml

@@ -1,8 +1,11 @@
 {{- $proxy := mustDeepCopy . -}}
 
-{{/* Merge .Values.proxy up into the top level so teleport-proxy-lib templates
+{{/* Merge .Values.proxy into .Values because teleport-proxy-lib templates
      read everything from .Values.* (see examples/chart/lib/README.md) */}}
 {{- $_ := set $proxy "Values" (mustMergeOverwrite (mustDeepCopy .Values) .Values.proxy) -}}
+
+{{/* We use the proxy SA name to provision join access, so we have to ensure the
+value we use in this chart matches the value used by the lib chart. */}}
 {{- $_ := set $proxy.Values.serviceAccount "name" (include "teleport-cluster.proxy.serviceAccountName" .) -}}
 
 {{/* Prepend an initContainer to wait for auth server upgrades */}}
@@ -30,7 +33,7 @@
 {{- $_ := set $proxy.Values "initContainers" (prepend (default (list) $proxy.Values.initContainers) $waitAuthUpdate) -}}
 
 {{/* Set the auth server URL to the internal k8s cluster service */}}
-{{- $_ := set $proxy.Values "teleportAuthServiceFQDN" (printf "%s:3025" (include "teleport-cluster.auth.serviceFQDN" .)) -}}
+{{- $_ := set $proxy.Values "teleportAuthService" (printf "%s:3025" (include "teleport-cluster.auth.serviceFQDN" .)) -}}
 {{- $_ := set $proxy.Values "forceHAReplicas" (hasKey (default (dict) .Values.proxy.highAvailability) "replicaCount") -}}
 
 {{/* Render all proxy charts */}}

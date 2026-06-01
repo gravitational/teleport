@@ -5,7 +5,7 @@ teleport:
   join_params:
     method: kubernetes
     token_name: "{{.Release.Name}}-proxy"
-  auth_server: {{ default "" .Values.teleportAuthServiceFQDN | quote }}
+  auth_server: {{ default "" .Values.teleportAuthService | quote }}
   log:
     severity: {{ $logLevel }}
     output: {{ .Values.log.output }}

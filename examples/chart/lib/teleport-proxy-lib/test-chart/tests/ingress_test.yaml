@@ -2,7 +2,6 @@ suite: Proxy Ingress
 templates:
   - ingress.yaml
 tests:
-  # Move to lib: pure lib rendering; hasDocuments: count: 0 needs documentSelector: kind: Ingress
   - it: does not create an Ingress by default
     set:
       clusterName: teleport.example.com
@@ -10,7 +9,6 @@ tests:
       - hasDocuments:
           count: 0
 
-  # Move to lib: pure lib rendering; needs documentSelector: kind: Ingress
   - it: creates an Ingress when ingress.enabled=true and proxyListenerMode=multiplex
     values:
       - ../.lint/ingress.yaml
@@ -20,7 +18,6 @@ tests:
       - isKind:
           of: Ingress
 
-  # Move to lib: pure lib rendering; needs documentSelector: kind: Ingress
   - it: does not create an Ingress when ingress.enabled=true, proxyListenerMode=multiplex but ingress.useExisting is true
     values:
       - ../.lint/ingress.yaml
@@ -31,7 +28,6 @@ tests:
       - hasDocuments:
           count: 0
 
-  # Move to lib: pure lib validation
   - it: fails to deploy an Ingress when ingress.enabled=true and proxyListenerMode is not set
     values:
       - ../.lint/ingress.yaml
@@ -41,7 +37,6 @@ tests:
       - failedTemplate:
           errorMessage: "Use of an ingress requires TLS multiplexing to be enabled, so you must also set proxyListenerMode=multiplex - see https://goteleport.com/docs/architecture/tls-routing/"
 
-  # Move to lib: pure lib validation
   - it: fails to deploy an Ingress when ingress.enabled=true and proxyListenerMode=separate
     values:
       - ../.lint/ingress.yaml
@@ -51,7 +46,6 @@ tests:
       - failedTemplate:
           errorMessage: "Use of an ingress requires TLS multiplexing to be enabled, so you must also set proxyListenerMode=multiplex - see https://goteleport.com/docs/architecture/tls-routing/"
 
-  # Move to lib: pure lib rendering; needs documentSelector: kind: Ingress
   - it: wears annotations when set
     values:
       - ../.lint/ingress.yaml
@@ -72,7 +66,6 @@ tests:
           path: metadata.annotations.another-annotation
           value: some-other-value
 
-  # Move to lib: pure lib rendering; needs documentSelector: kind: Ingress + snapshot regeneration
   - it: sets the clusterName and wildcard of clusterName as hostnames when Ingress is enabled
     values:
       - ../.lint/ingress.yaml
@@ -121,7 +114,6 @@ tests:
       - matchSnapshot:
           path: spec.tls
 
-  # Move to lib: pure lib rendering; needs documentSelector: kind: Ingress + snapshot regeneration
   - it: does not set a wildcard of clusterName as a hostname when Ingress is enabled and ingress.suppressAutomaticWildcards is true
     values:
       - ../.lint/ingress.yaml
@@ -169,7 +161,6 @@ tests:
       - matchSnapshot:
           path: spec.tls
 
-  # Move to lib: pure lib rendering; needs documentSelector: kind: Ingress + snapshot regeneration
   - it: sets the publicAddr and wildcard of publicAddr as hostnames when Ingress is enabled and publicAddr is set
     values:
       - ../.lint/ingress.yaml
@@ -220,7 +211,6 @@ tests:
       - matchSnapshot:
           path: spec.tls
 
-  # Move to lib: pure lib rendering; needs documentSelector: kind: Ingress + snapshot regeneration
   - it: does not set a wildcard of publicAddr as a hostname when Ingress is enabled, publicAddr is set and ingress.suppressAutomaticWildcards is true
     values:
       - ../.lint/ingress.yaml
@@ -269,7 +259,6 @@ tests:
       - matchSnapshot:
           path: spec.tls
 
-  # Move to lib: pure lib rendering; needs documentSelector: kind: Ingress + snapshot regeneration
   - it: trims ports from publicAddr and uses it as the hostname when Ingress is enabled and publicAddr is set
     values:
       - ../.lint/ingress.yaml
@@ -320,7 +309,6 @@ tests:
       - matchSnapshot:
           path: spec.tls
 
-  # Move to lib: pure lib rendering; needs documentSelector: kind: Ingress + snapshot regeneration
   - it: exposes all publicAddrs and wildcard publicAddrs as hostnames when Ingress is enabled and multiple publicAddrs are set
     values:
       - ../.lint/ingress.yaml
@@ -410,7 +398,6 @@ tests:
 
   # this is a very contrived example which wouldn't even work in reality
   # it's just to test the logic in the hostname generation code
-  # Move to lib: pure lib rendering; needs documentSelector: kind: Ingress + snapshot regeneration
   - it: does not add additional wildcard publicAddrs when Ingress is enabled and a publicAddr already contains a wildcard
     values:
       - ../.lint/ingress.yaml
@@ -504,7 +491,6 @@ tests:
       - matchSnapshot:
           path: spec.tls
 
-  # Move to lib: pure lib rendering; needs documentSelector: kind: Ingress
   - it: sets spec when passed
     values:
       - ../.lint/ingress.yaml
@@ -525,7 +511,6 @@ tests:
           path: spec.otherSpecStuff
           value: lint
 
-  # Move to lib: pure lib rendering; needs documentSelector: kind: Ingress + snapshot regeneration
   - it: does not set tls.secretName by default
     values:
       - ../.lint/ingress.yaml
@@ -535,7 +520,6 @@ tests:
       - matchSnapshot:
           path: spec.tls
 
-  # Move to lib: pure lib rendering; needs documentSelector: kind: Ingress + snapshot regeneration
   - it: sets tls.secretName when cert-manager is enabled
     values:
       - ../.lint/ingress.yaml
@@ -550,7 +534,6 @@ tests:
       - matchSnapshot:
           path: spec.tls
 
-  # Move to lib: pure lib rendering; needs documentSelector: kind: Ingress + snapshot regeneration
   - it: sets tls.secretName the value of tls.existingSecretName when set
     values:
       - ../.lint/ingress.yaml

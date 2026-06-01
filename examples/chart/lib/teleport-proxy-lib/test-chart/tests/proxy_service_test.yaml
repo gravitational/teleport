@@ -2,7 +2,6 @@ suite: Proxy Service
 templates:
   - service.yaml
 tests:
-  # Move to lib: pure lib rendering, no TC-specific values
   - it: uses a ClusterIP when service.type=ClusterIP
     set:
       clusterName: teleport.example.com
@@ -17,7 +16,6 @@ tests:
           path: spec.type
           value: ClusterIP
 
-  # Move to lib: pure lib validation logic
   - it: fails to deploy when ingress.enabled=true and proxy.service.type is set to LoadBalancer (default)
     set:
       clusterName: teleport.example.com
@@ -27,7 +25,6 @@ tests:
       - failedTemplate:
           errorMessage: "proxy.service.type must not be LoadBalancer when using an ingress - any load balancer should be provisioned by your ingress controller. Set proxy.service.type=ClusterIP instead"
 
-  # Move to lib: pure lib rendering
   - it: uses a ClusterIP when ingress.enabled=true and service.type=ClusterIP
     set:
       clusterName: teleport.example.com
@@ -44,7 +41,6 @@ tests:
           path: spec.type
           value: ClusterIP
 
-  # Move to lib: pure lib rendering
   - it: uses a NodePort when ingress.enabled=true and service.type=NodePort
     set:
       clusterName: teleport.example.com
@@ -61,7 +57,6 @@ tests:
           path: spec.type
           value: NodePort
 
-  # Move to lib: pure lib rendering
   - it: sets service annotations when specified
     values:
       - ../.lint/annotations.yaml
@@ -73,7 +68,6 @@ tests:
           path: metadata.annotations.kubernetes\.io/service-different
           value: 5
 
-  # Move to lib: pure lib rendering
   - it: adds a separate Postgres listener port when separatePostgresListener is true
     values:
       - ../.lint/separate-postgres-listener.yaml
@@ -86,7 +80,6 @@ tests:
             targetPort: 5432
             protocol: TCP
 
-  # Move to lib: pure lib rendering
   - it: does not add a separate Postgres listener port when separatePostgresListener is true and ingress.enabled=true
     values:
       - ../.lint/separate-postgres-listener.yaml
@@ -105,7 +98,6 @@ tests:
             targetPort: 5432
             protocol: TCP
 
-  # Move to lib: pure lib rendering
   - it: adds a separate Mongo listener port when separateMongoListener is true
     values:
       - ../.lint/separate-mongo-listener.yaml
@@ -118,7 +110,6 @@ tests:
             targetPort: 27017
             protocol: TCP
 
-  # Move to lib: pure lib rendering
   - it: does not add a separate Mongo listener port when separateMongoListener is true and ingress.enabled=true
     values:
       - ../.lint/separate-mongo-listener.yaml
@@ -137,7 +128,6 @@ tests:
             targetPort: 27017
             protocol: TCP
 
-  # Move to lib: pure lib rendering
   - it: exposes separate listener ports by default
     values:
       - ../.lint/example-minimal-standalone.yaml
@@ -145,7 +135,6 @@ tests:
       - matchSnapshot:
           path: spec.ports
 
-  # Move to lib: pure lib rendering
   - it: does not expose separate listener ports by default when ingress.enabled=true
     values:
       - ../.lint/example-minimal-standalone.yaml
@@ -178,7 +167,6 @@ tests:
       - matchSnapshot:
           path: spec.ports
 
-  # Move to lib: pure lib rendering
   - it: exposes separate listener ports when running in separate mode
     values:
       - ../.lint/proxy-listener-mode-separate.yaml
@@ -186,7 +174,6 @@ tests:
       - matchSnapshot:
           path: spec.ports
 
-  # Move to lib: pure lib rendering
   - it: does not expose separate listener ports when running in separate mode and ingress.enabled=true
     values:
       - ../.lint/proxy-listener-mode-separate.yaml
@@ -219,7 +206,6 @@ tests:
       - matchSnapshot:
           path: spec.ports
 
-  # Move to lib: pure lib rendering
   - it: exposes a single port when running in multiplex mode
     values:
       - ../.lint/proxy-listener-mode-multiplex.yaml
@@ -227,7 +213,6 @@ tests:
       - matchSnapshot:
           path: spec.ports
 
-  # Move to lib: pure lib rendering
   - it: exposes a single port when running in multiplex mode and ingress.enabled=true
     values:
       - ../.lint/proxy-listener-mode-multiplex.yaml

@@ -2,7 +2,6 @@ suite: ConfigMap
 templates:
   - config.yaml
 tests:
-  # Move to lib: pure lib rendering; snapshots need regeneration in lib
   - it: matches snapshot for log-basic.yaml
     values:
       - ../.lint/log-basic.yaml
@@ -14,7 +13,6 @@ tests:
       - matchSnapshot:
           path: data.teleport\.yaml
 
-  # Move to lib: pure lib rendering; snapshots need regeneration in lib
   - it: matches snapshot for log-extra.yaml
     values:
       - ../.lint/log-extra.yaml
@@ -26,7 +24,6 @@ tests:
       - matchSnapshot:
           path: data.teleport\.yaml
 
-  # Move to lib: pure lib rendering; snapshots need regeneration in lib
   - it: matches snapshot for public-addresses.yaml
     values:
       - ../.lint/public-addresses.yaml
@@ -38,7 +35,6 @@ tests:
       - matchSnapshot:
           path: data.teleport\.yaml
 
-  # Move to lib: pure lib rendering
   - it: wears annotations (annotations.yaml)
     values:
       - ../.lint/annotations.yaml
@@ -54,7 +50,6 @@ tests:
           path: metadata.annotations.kubernetes\.io/config-different
           value: 2
 
-  # Move to lib: pure lib rendering; snapshots need regeneration in lib
   - it: matches snapshot for proxy-listener-mode-multiplex.yaml
     values:
       - ../.lint/proxy-listener-mode-multiplex.yaml
@@ -66,7 +61,6 @@ tests:
       - matchSnapshot:
           path: data.teleport\.yaml
 
-  # Move to lib: pure lib rendering; snapshots need regeneration in lib
   - it: matches snapshot for proxy-listener-mode-separate.yaml
     values:
       - ../.lint/proxy-listener-mode-separate.yaml
@@ -78,7 +72,6 @@ tests:
       - matchSnapshot:
           path: data.teleport\.yaml
 
-  # Move to lib: pure lib rendering; snapshots need regeneration in lib
   - it: matches snapshot for separate-mongo-listener.yaml
     values:
       - ../.lint/separate-mongo-listener.yaml
@@ -90,7 +83,6 @@ tests:
       - matchSnapshot:
           path: data.teleport\.yaml
 
-  # Move to lib: pure lib rendering; snapshots need regeneration in lib
   - it: matches snapshot for separate-postgres-listener.yaml
     values:
       - ../.lint/separate-postgres-listener.yaml
@@ -102,7 +94,6 @@ tests:
       - matchSnapshot:
           path: data.teleport\.yaml
 
-  # Move to lib: pure lib rendering; snapshots need regeneration in lib
   - it: matches snapshot for aws-ha-acme.yaml
     values:
       - ../.lint/aws-ha-acme.yaml
@@ -114,7 +105,6 @@ tests:
       - matchSnapshot:
           path: data.teleport\.yaml
 
-  # Move to lib: pure lib rendering; snapshots need regeneration in lib
   - it: matches snapshot for existing-tls-secret.yaml
     values:
       - ../.lint/existing-tls-secret.yaml
@@ -126,7 +116,6 @@ tests:
       - matchSnapshot:
           path: data.teleport\.yaml
 
-  # Move to lib: pure lib rendering; snapshots need regeneration in lib
   - it: matches snapshot for acme-on.yaml
     values:
       - ../.lint/acme-on.yaml
@@ -138,7 +127,6 @@ tests:
       - matchSnapshot:
           path: data.teleport\.yaml
 
-  # Move to lib: pure lib rendering; snapshots need regeneration in lib
   - it: matches snapshot for acme-uri-staging.yaml
     values:
       - ../.lint/acme-uri-staging.yaml
@@ -150,7 +138,6 @@ tests:
       - matchSnapshot:
           path: data.teleport\.yaml
 
-  # Move to lib: pure lib rendering; snapshots need regeneration in lib
   - it: generates a config with a clusterName containing a regular string
     set:
       clusterName: "helm-test.example.com"
@@ -162,7 +149,6 @@ tests:
       - matchSnapshot:
           path: data.teleport\.yaml
 
-  # Move to lib: pure lib validation
   - it: fails when clusterName contains a regular string and a colon
     set:
       clusterName: "helm-test:cluster-1"
@@ -170,7 +156,6 @@ tests:
       - failedTemplate:
           errorMessage: "clusterName must not contain a colon, you can override the cluster's public address with publicAddr"
 
-  # Move to lib: pure lib validation
   - it: fails when clusterName contains a port
     set:
       clusterName: "helm-test.example.com:443"
@@ -178,7 +163,6 @@ tests:
       - failedTemplate:
           errorMessage: "clusterName must not contain a colon, you can override the cluster's public address with publicAddr"
 
-  # Move to lib: pure lib rendering (chart version gating); snapshots need regeneration in lib
   - it: generates a config with proxy_service.trust_x_forwarded_for=true when version >=14.0.0 and ingress.enabled=true
     chart:
       version: 14.0.0
@@ -194,7 +178,6 @@ tests:
       - matchSnapshot:
           path: data.teleport\.yaml
 
-  # Move to lib: pure lib rendering (chart version gating); snapshots need regeneration in lib
   - it: generates a config with proxy_service.trust_x_forwarded_for=true when version = 14.0.0-rc.1 and ingress.enabled=true
     chart:
       version: "14.0.0-rc.1"
@@ -210,7 +193,6 @@ tests:
       - matchSnapshot:
           path: data.teleport\.yaml
 
-  # Move to lib: pure lib rendering; snapshots need regeneration in lib
   - it: generates a config WITHOUT proxy_service.trust_x_forwarded_for=true when version >=14.0.0 and ingress.enabled is not set
     chart:
       version: 14.0.0
@@ -224,7 +206,6 @@ tests:
       - matchSnapshot:
           path: data.teleport\.yaml
 
-  # Move to lib: pure lib rendering; snapshots need regeneration in lib
   - it: generates a config WITHOUT proxy_service.trust_x_forwarded_for=true when version < 14.0.0 and ingress.enabled=true
     chart:
       version: 13.1.5
@@ -240,7 +221,6 @@ tests:
       - matchSnapshot:
           path: data.teleport\.yaml
 
-  # Move to lib: pure lib rendering; snapshots need regeneration in lib
   - it: generates a config WITHOUT proxy_service.trust_x_forwarded_for=true when version < 14.0.0 and ingress.enabled is not set
     chart:
       version: 14.0.0
@@ -254,7 +234,6 @@ tests:
       - matchSnapshot:
           path: data.teleport\.yaml
 
-  # Move to lib: pure lib rendering
   - it: sets "proxy_protocol" to "on"
     set:
       proxyProtocol: "on"
@@ -264,7 +243,6 @@ tests:
           path: data.teleport\.yaml
           pattern: 'proxy_protocol: "on"'
 
-  # Move to lib: pure lib rendering
   - it: sets "proxy_protocol" to "off"
     set:
       proxyProtocol: "off"
@@ -274,7 +252,6 @@ tests:
           path: data.teleport\.yaml
           pattern: 'proxy_protocol: "off"'
 
-  # Move to lib: pure lib rendering
   - it: does not set "proxy_protocol"
     set:
       clusterName: teleport.example.com
@@ -282,15 +259,3 @@ tests:
       - notMatchRegex:
           path: data.teleport\.yaml
           pattern: 'proxy_protocol:'
-
-  # Stay: requires TC-injected teleportAuthServiceFQDN (derived from teleport-cluster.auth.serviceFQDN + clusterDomain); needs proxy.yaml + documentSelector in TC
-#   - it: sets clusterDomain on Configmap
-#     set:
-#       clusterName: teleport.example.com
-#       global:
-#         clusterDomain: test.com
-#     asserts:
-#       - matchSnapshot: {}
-#       - matchRegex:
-#           path: data.teleport\.yaml
-#           pattern: 'svc.test.com:3025'

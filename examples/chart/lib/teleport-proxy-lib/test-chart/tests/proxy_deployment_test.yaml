@@ -2,7 +2,6 @@ suite: Proxy Deployment
 templates:
   - deployment.yaml
 tests:
-  # Move to lib: pure lib rendering
   - it: sets Deployment annotations when specified
     template: deployment.yaml
     values:
@@ -15,7 +14,6 @@ tests:
           path: metadata.annotations.kubernetes\.io/deployment-different
           value: 3
 
-  # Move to lib: pure lib rendering
   - it: sets Pod annotations when specified
     template: deployment.yaml
     values:
@@ -28,7 +26,6 @@ tests:
           path: spec.template.metadata.annotations.kubernetes\.io/pod-different
           value: 4
 
-  # Move to lib: pure lib rendering
   - it: should not have more than one replica if no certificate is passed
     template: deployment.yaml
     set:
@@ -38,7 +35,6 @@ tests:
           path: spec.replicas
           value: 1
 
-  # Move to lib: pure lib rendering
   - it: should have multiple replicas by default when a certificate is passed through a secret
     template: deployment.yaml
     set:
@@ -50,7 +46,6 @@ tests:
           path: spec.replicas
           value: 2
 
-  # Move to lib: pure lib rendering
   - it: should have multiple replicas by default when certManager is configured
     template: deployment.yaml
     set:
@@ -63,7 +58,6 @@ tests:
           path: spec.replicas
           value: 2
 
-  # Move to lib: pure lib rendering
   - it: should have multiple replicas when global replicaCount is set and a certificate is passed
     template: deployment.yaml
     set:
@@ -77,7 +71,6 @@ tests:
           path: spec.replicas
           value: 3
 
-  # Move to lib: pure lib rendering
   - it: should have multiple replicas by default when an ingress is terminating TLS
     template: deployment.yaml
     set:
@@ -90,7 +83,6 @@ tests:
           path: spec.replicas
           value: 2
 
-  # Move to lib: pure lib rendering
   - it: should set affinity when set in values
     template: deployment.yaml
     set:
@@ -112,7 +104,6 @@ tests:
       - matchSnapshot:
           path: spec.template.spec.affinity
 
-  # Move to lib: pure lib rendering
   - it: should set required affinity when highAvailability.requireAntiAffinity is set
     template: deployment.yaml
     values:
@@ -127,7 +118,6 @@ tests:
       - matchSnapshot:
           path: spec.template.spec.affinity
 
-  # Move to lib: pure lib rendering
   - it: should set tolerations when set in values
     template: deployment.yaml
     values:
@@ -138,7 +128,6 @@ tests:
       - matchSnapshot:
           path: spec.template.spec.tolerations
 
-  # Move to lib: pure lib rendering
   - it: should set resources when set in values
     template: deployment.yaml
     values:
@@ -159,7 +148,6 @@ tests:
       - matchSnapshot:
           path: spec.template.spec
 
-  # Move to lib: pure lib rendering
   - it: should set podSecurityContext when set in values
     template: deployment.yaml
     values:
@@ -181,7 +169,6 @@ tests:
           path: spec.template.spec.securityContext.runAsUser
           value: 99
 
-  # Move to lib: pure lib rendering
   - it: should not set podSecurityContext when is empty object (default value)
     template: deployment.yaml
     values:
@@ -190,7 +177,6 @@ tests:
       - isNull:
           path: spec.template.spec.securityContext
 
-  # Move to lib: pure lib rendering
   - it: should set securityContext when set in values
     template: deployment.yaml
     values:
@@ -217,7 +203,6 @@ tests:
       - matchSnapshot:
           path: spec.template.spec
 
-  # Move to lib: pure lib rendering
   - it: should not set securityContext when is empty object (default value)
     template: deployment.yaml
     values:
@@ -229,7 +214,6 @@ tests:
   # we can't use the dynamic chart version or appVersion as a variable in the tests,
   # so we override it manually and check that gets set instead
   # this saves us having to update the test every time we cut a new release
-  # Move to lib: pure lib rendering (image selection uses .enterprise from merged context)
   - it: should use enterprise image when enterprise is set in values
     template: deployment.yaml
     set:
@@ -241,7 +225,6 @@ tests:
           path: spec.template.spec.containers[0].image
           value: public.ecr.aws/gravitational/teleport-ent-distroless:12.2.1
 
-  # Move to lib: pure lib rendering
   - it: should use OSS image when enterprise is not set in values
     template: deployment.yaml
     set:
@@ -252,7 +235,6 @@ tests:
           path: spec.template.spec.containers[0].image
           value: public.ecr.aws/gravitational/teleport-distroless:12.2.1
 
-  # Move to lib: pure lib rendering
   - it: should mount ConfigMap containing Teleport config
     template: deployment.yaml
     set:
@@ -271,7 +253,6 @@ tests:
             configMap:
               name: RELEASE-NAME-proxy
 
-  # Move to lib: pure lib rendering
   - it: should set imagePullPolicy when set in values
     template: deployment.yaml
     set:
@@ -282,7 +263,6 @@ tests:
           path: spec.template.spec.containers[0].imagePullPolicy
           value: Always
 
-  # Move to lib: pure lib rendering
   - it: should have only one container when no `extraContainers` is set in values
     template: deployment.yaml
     set:
@@ -294,7 +274,6 @@ tests:
       - isNull:
           path: spec.template.spec.containers[1]
 
-  # Move to lib: pure lib rendering
   - it: should add one more container when `extraContainers` is set in values
     template: deployment.yaml
     values:
@@ -314,7 +293,6 @@ tests:
               privileged: true
               runAsNonRoot: false
 
-  # Move to lib: pure lib rendering
   - it: should set environment when extraEnv set in values
     template: deployment.yaml
     values:
@@ -326,7 +304,6 @@ tests:
             name: SOME_ENVIRONMENT_VARIABLE
             value: "some-value"
 
-  # Move to lib: pure lib rendering
   - it: should set imagePullSecrets when set in values
     template: deployment.yaml
     values:
@@ -338,7 +315,6 @@ tests:
       - matchSnapshot:
           path: spec.template.spec.imagePullSecrets
 
-  # Move to lib: pure lib rendering
   - it: should add insecureSkipProxyTLSVerify to args when set in values
     template: deployment.yaml
     set:
@@ -349,7 +325,6 @@ tests:
           path: spec.template.spec.containers[0].args
           content: "--insecure"
 
-  # Move to lib: pure lib rendering
   - it: should expose diag port
     template: deployment.yaml
     set:
@@ -362,7 +337,6 @@ tests:
             containerPort: 3000
             protocol: TCP
 
-  # Move to lib: pure lib rendering
   - it: should expose tls port
     template: deployment.yaml
     set:
@@ -375,7 +349,6 @@ tests:
             containerPort: 3080
             protocol: TCP
 
-  # Move to lib: pure lib rendering
   - it: should expose tls port when proxyListenerMode is multiplex
     template: deployment.yaml
     set:
@@ -389,7 +362,6 @@ tests:
             containerPort: 3080
             protocol: TCP
 
-  # Move to lib: pure lib rendering
   - it: should not expose proxy peering port by default
     template: deployment.yaml
     set:
@@ -402,7 +374,6 @@ tests:
             containerPort: 3021
             protocol: TCP
 
-  # Move to lib: pure lib rendering
   - it: should expose proxy peering port when enterprise is true
     template: deployment.yaml
     set:
@@ -416,7 +387,6 @@ tests:
             containerPort: 3021
             protocol: TCP
 
-  # Move to lib: pure lib rendering
   - it: should expose sshproxy port by default
     template: deployment.yaml
     set:
@@ -429,7 +399,6 @@ tests:
             containerPort: 3023
             protocol: TCP
 
-  # Move to lib: pure lib rendering
   - it: should not expose sshproxy port when proxyListenerMode is multiplex
     template: deployment.yaml
     set:
@@ -443,7 +412,6 @@ tests:
             containerPort: 3023
             protocol: TCP
 
-  # Move to lib: pure lib rendering
   - it: should expose sshtun port by default
     template: deployment.yaml
     set:
@@ -456,7 +424,6 @@ tests:
             containerPort: 3024
             protocol: TCP
 
-  # Move to lib: pure lib rendering
   - it: should not expose sshtun port when proxyListenerMode is multiplex
     template: deployment.yaml
     set:
@@ -470,7 +437,6 @@ tests:
             containerPort: 3024
             protocol: TCP
 
-  # Move to lib: pure lib rendering
   - it: should expose k8s port by default
     template: deployment.yaml
     set:
@@ -483,7 +449,6 @@ tests:
             containerPort: 3026
             protocol: TCP
 
-  # Move to lib: pure lib rendering
   - it: should not expose k8s port when proxyListenerMode is multiplex
     template: deployment.yaml
     set:
@@ -497,7 +462,6 @@ tests:
             containerPort: 3026
             protocol: TCP
 
-  # Move to lib: pure lib rendering
   - it: should expose mysql port by default
     template: deployment.yaml
     set:
@@ -510,7 +474,6 @@ tests:
             containerPort: 3036
             protocol: TCP
 
-  # Move to lib: pure lib rendering
   - it: should not expose mysql port when proxyListenerMode is multiplex
     template: deployment.yaml
     set:
@@ -524,7 +487,6 @@ tests:
             containerPort: 3036
             protocol: TCP
 
-  # Move to lib: pure lib rendering
   - it: should expose postgres port when separate postgres listener is enabled
     template: deployment.yaml
     set:
@@ -538,7 +500,6 @@ tests:
             containerPort: 5432
             protocol: TCP
 
-  # Move to lib: pure lib rendering
   - it: should not expose postgres port when proxyListenerMode is multiplex and separate postgres listener is enabled
     template: deployment.yaml
     set:
@@ -553,7 +514,6 @@ tests:
             containerPort: 5432
             protocol: TCP
 
-  # Move to lib: pure lib rendering
   - it: should expose mongo port when separate mongo listener is enabled
     template: deployment.yaml
     set:
@@ -567,7 +527,6 @@ tests:
             containerPort: 27017
             protocol: TCP
 
-  # Move to lib: pure lib rendering
   - it: should not expose mongo port when when proxyListenerMode is multiplex and separate mongo listener is enabled
     template: deployment.yaml
     set:
@@ -582,7 +541,6 @@ tests:
             containerPort: 27017
             protocol: TCP
 
-  # Move to lib: pure lib rendering
   - it: should set postStart command if set in values
     template: deployment.yaml
     set:
@@ -594,7 +552,6 @@ tests:
           path: spec.template.spec.containers[0].lifecycle.postStart.exec.command
           value: ["/bin/echo", "test"]
 
-  # Move to lib: pure lib rendering
   - it: should add and mount emptyDir for data
     template: deployment.yaml
     set:
@@ -611,7 +568,6 @@ tests:
             name: data
             emptyDir: {}
 
-  # Move to lib: pure lib rendering
   - it: should set priorityClassName when set in values
     template: deployment.yaml
     values:
@@ -621,7 +577,6 @@ tests:
           path: spec.template.spec.priorityClassName
           value: system-cluster-critical
 
-  # Move to lib: pure lib rendering
   - it: should set probeTimeoutSeconds when set in values
     template: deployment.yaml
     values:
@@ -634,7 +589,6 @@ tests:
           path: spec.template.spec.containers[0].readinessProbe.timeoutSeconds
           value: 5
 
-  # Move to lib: pure lib rendering
   - it: should not mount TLS secrets when when highAvailability.certManager.enabled is false and tls.existingSecretName is not set
     template: deployment.yaml
     set:
@@ -653,7 +607,6 @@ tests:
             name: teleport-tls
             readOnly: true
 
-  # Move to lib: pure lib rendering
   - it: should mount cert-manager TLS secret when highAvailability.certManager.enabled is true
     template: deployment.yaml
     values:
@@ -672,7 +625,6 @@ tests:
             name: teleport-tls
             readOnly: true
 
-  # Move to lib: pure lib rendering
   - it: should mount tls.existingSecretName when set in values
     template: deployment.yaml
     values:
@@ -691,7 +643,6 @@ tests:
             name: teleport-tls
             readOnly: true
 
-  # Move to lib: pure lib rendering
   - it: should mount tls.existingCASecretName and set environment when set in values
     template: deployment.yaml
     values:
@@ -715,7 +666,6 @@ tests:
             name: SSL_CERT_FILE
             value: /etc/teleport-tls-ca/helm-lint-existing-tls-secret-key-name
 
-  # Move to lib: pure lib rendering
   - it: should mount tls.existingCASecretName and set extra environment when set in values
     template: deployment.yaml
     values:
@@ -745,7 +695,6 @@ tests:
             name: SOME_ENVIRONMENT_VARIABLE
             value: some-value
 
-  # Move to lib: pure lib rendering
   - it: should set minReadySeconds when replicaCount > 1
     template: deployment.yaml
     set:
@@ -760,7 +709,6 @@ tests:
           path: spec.minReadySeconds
           value: 60
 
-  # Move to lib: pure lib rendering
   - it: should not set minReadySeconds when replicaCount = 1
     template: deployment.yaml
     set:
@@ -773,7 +721,6 @@ tests:
           path: spec.minReadySeconds
           value: null
 
-  # Move to lib: pure lib rendering
   - it: should set nodeSelector when set in values
     template: deployment.yaml
     set:
@@ -788,7 +735,6 @@ tests:
       - matchSnapshot:
           path: spec.template.spec
 
-  # Move to lib: pure lib rendering
   - it: mounts regular tokens on older Kubernetes versions
     template: deployment.yaml
     set:
@@ -825,7 +771,6 @@ tests:
             name: proxy-serviceaccount-token
             readOnly: true
 
-  # Move to lib: pure lib rendering
   - it: mounts tokens through projected volumes on newer Kubernetes versions
     template: deployment.yaml
     set:
@@ -862,7 +807,6 @@ tests:
             name: proxy-serviceaccount-token
             readOnly: true
 
-  # Move to lib: pure lib rendering
   - it: sets topology spread constraints by default
     template: deployment.yaml
     set:
@@ -888,7 +832,6 @@ tests:
                   app.kubernetes.io/instance: RELEASE-NAME
                   app.kubernetes.io/name: teleport-proxy-lib-test
 
-  # Move to lib: pure lib rendering
   - it: removes topology spread constraints when disabled
     template: deployment.yaml
     set:
@@ -898,7 +841,6 @@ tests:
       - isEmpty:
           path: spec.template.spec.topologySpreadConstraints
 
-  # Move to lib: pure lib rendering
   - it: removes topology spread constraints when running on antique kubernetes
     template: deployment.yaml
     set:
@@ -910,7 +852,6 @@ tests:
       - isEmpty:
           path: spec.template.spec.topologySpreadConstraints
 
-  # Move to lib: pure lib rendering
   - it: uses custom topology spread constraints when set
     template: deployment.yaml
     set:
@@ -937,7 +878,6 @@ tests:
                 matchLabels:
                   app: baz
 
-  # Move to lib: pure lib rendering (util-lib function already tested in teleport-util-lib)
   - it: sets GOMEMLIMIT by default (SI unit)
     template: deployment.yaml
     set:
@@ -952,7 +892,6 @@ tests:
             name: "GOMEMLIMIT"
             value: "9450000000"
 
-  # Move to lib: pure lib rendering
   - it: sets GOMEMLIMIT by default (IEC unit)
     template: deployment.yaml
     set:
@@ -967,7 +906,6 @@ tests:
             name: "GOMEMLIMIT"
             value: "10146860237"
 
-  # Move to lib: pure lib rendering
   - it: sets GOMEMLIMIT by default (scientific notation)
     template: deployment.yaml
     set:
@@ -982,7 +920,6 @@ tests:
             name: "GOMEMLIMIT"
             value: "9450000000"
 
-  # Move to lib: pure lib rendering
   - it: honours existing GOMEMLIMIT
     template: deployment.yaml
     set:
@@ -1002,7 +939,6 @@ tests:
             name: "GOMEMLIMIT"
             value: "5GB"
 
-  # Move to lib: pure lib rendering
   - it: does not set GOMEMLIMIT if resources are not set
     template: deployment.yaml
     set:

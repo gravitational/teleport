@@ -2,8 +2,8 @@
 {{- if not (and (hasKey .Values "clusterName") (kindIs "string" .Values.clusterName)) -}}
 {{- fail "clusterName must be a string in teleport-proxy-lib values" -}}
 {{- end -}}
-{{- if not (and (hasKey .Values "teleportAuthServiceFQDN") (kindIs "string" .Values.teleportAuthServiceFQDN) (ne .Values.teleportAuthServiceFQDN "")) -}}
-{{- fail "teleportAuthServiceFQDN must be a non-empty string in teleport-proxy-lib values" -}}
+{{- if not (and (hasKey .Values "teleportAuthService") (kindIs "string" .Values.teleportAuthService) (ne .Values.teleportAuthService "")) -}}
+{{- fail "teleportAuthService must be a non-empty string in teleport-proxy-lib values" -}}
 {{- end -}}
 {{- /* Boolean inputs: must be a bool when set. */ -}}
 {{- range $k := (list

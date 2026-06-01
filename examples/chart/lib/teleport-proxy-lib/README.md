@@ -72,7 +72,9 @@ Inputs are read from top-level `.Values.*` (plus `.Release`, `.Chart`,
   `useExisting`, `suppressAutomaticWildcards`, `spec`.
 - `initContainers` — extra
   [init containers](https://kubernetes.io/docs/concepts/workloads/pods/init-containers/)
-  (they get the default teleport volume mounts unless `skipDefaultVolumeMounts`).
+  (Default teleport volume mounts are added unless `skipDefaultVolumeMounts` key
+  is set. This non-k8s key is revmoed. All other keys are standard k8s
+  init-container YAML.)
 - `insecureSkipProxyTLSVerify` — adds `--insecure` to the `teleport` args; skips
   proxy TLS certificate verification (dev only).
 - `jobResources` —
@@ -117,10 +119,10 @@ Inputs are read from top-level `.Values.*` (plus `.Release`, `.Chart`,
   (also the default for `initContainers`).
 - `separateMongoListener` — expose a dedicated Mongo listener
   ([`proxy_service.mongo_listen_addr`](https://goteleport.com/docs/reference/deployment/config/#proxy-service)
-  + port 27017) instead of multiplexing.
+  - port 27017) instead of multiplexing.
 - `separatePostgresListener` — expose a dedicated Postgres listener
   ([`proxy_service.postgres_listen_addr`](https://goteleport.com/docs/reference/deployment/config/#proxy-service)
-  + Service/Deployment port 5432) instead of multiplexing.
+  - Service/Deployment port 5432) instead of multiplexing.
 - `service`, `service.type` — the
   [Service](https://kubernetes.io/docs/concepts/services-networking/service/)
   that exposes the proxy (default `LoadBalancer`); `service.spec` is merged in.
@@ -130,7 +132,7 @@ Inputs are read from top-level `.Values.*` (plus `.Release`, `.Chart`,
   and its `name` (used verbatim — no suffix appended).
 - `sshPublicAddr` —
   [`proxy_service.ssh_public_addr`](https://goteleport.com/docs/reference/deployment/config/#proxy-service).
-- `teleportAuthServiceFQDN` — sets
+- `teleportAuthService` — sets
   [`teleport.auth_server`](https://goteleport.com/docs/reference/deployment/config/#instance-wide-settings).
 - `teleportConfig` — raw
   [`teleport.yaml`](https://goteleport.com/docs/reference/deployment/config/)
