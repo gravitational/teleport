@@ -24,11 +24,7 @@ import {
   DesktopSessionWithSharing as SharedDesktopSession,
 } from 'shared/components/DesktopSession';
 import { useAsync } from 'shared/hooks/useAsync';
-import {
-  selectDirectoryInBrowser,
-  TdpClient,
-  MAX_SHARED_DIRECTORIES,
-} from 'shared/libs/tdp';
+import { selectDirectoryInBrowser, TdpClient } from 'shared/libs/tdp';
 
 import { useTeleport } from 'teleport';
 import AuthnDialog from 'teleport/components/AuthnDialog';
@@ -139,7 +135,6 @@ export function DesktopSession() {
       browserSupportsSharing={navigator.userAgent.includes('Chrome')}
       hasAnotherSession={hasAnotherSession}
       keyboardLayout={preferences.keyboardLayout}
-      maxSharedDirectories={MAX_SHARED_DIRECTORIES}
     />
   );
 }
