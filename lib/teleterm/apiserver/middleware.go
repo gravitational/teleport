@@ -21,14 +21,19 @@ package apiserver
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+	"github.com/grpc-ecosystem/go-grpc-middleware/v2/interceptors/recovery"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/gravitational/teleport/api/trail"
 )
 
-// withErrorHandling is gRPC middleware that maps internal errors to proper gRPC error codes
-func withErrorHandling(log logrus.FieldLogger) grpc.UnaryServerInterceptor {
+// withUnaryErrorHandling is gRPC middleware that maps internal errors from unary
+// handlers to proper gRPC error codes.
+func withUnaryErrorHandling(log logrus.FieldLogger) grpc.UnaryServerInterceptor {
 	return func(
 		ctx context.Context,
 		req interface{},
@@ -37,10 +42,49 @@ func withErrorHandling(log logrus.FieldLogger) grpc.UnaryServerInterceptor {
 	) (interface{}, error) {
 		resp, err := handler(ctx, req)
 		if err != nil {
-			log.WithError(err).Error("Request failed.")
+			log.WithError(err).Error("Request failed")
 			return resp, trail.ToGRPC(err)
 		}
 
 		return resp, nil
 	}
+}
+
+// withStreamErrorHandling is gRPC middleware that maps internal errors from streaming
+// handlers to proper gRPC error codes.
+func withStreamErrorHandling(log logrus.FieldLogger) grpc.StreamServerInterceptor {
+	return func(
+		srv any,
+		stream grpc.ServerStream,
+		info *grpc.StreamServerInfo,
+		handler grpc.StreamHandler,
+	) error {
+		err := handler(srv, stream)
+		if err != nil {
+			log.WithError(err).Error("Stream request failed")
+			return trail.ToGRPC(err)
+		}
+
+		return nil
+	}
+}
+
+// withUnaryPanicRecovery is gRPC middleware that recovers from panics in unary handlers.
+func withUnaryPanicRecovery(log logrus.FieldLogger) grpc.UnaryServerInterceptor {
+	return recovery.UnaryServerInterceptor(panicRecoveryOption(log))
+}
+
+// withStreamPanicRecovery is gRPC middleware that recovers from panics in streaming handlers.
+func withStreamPanicRecovery(log logrus.FieldLogger) grpc.StreamServerInterceptor {
+	return recovery.StreamServerInterceptor(panicRecoveryOption(log))
+}
+
+func panicRecoveryOption(log logrus.FieldLogger) recovery.Option {
+	return recovery.WithRecoveryHandlerContext(func(ctx context.Context, p any) error {
+		// trace captures the stack trace.
+		// p is not logged as it may contain sensitive data.
+		err := trace.Errorf("handler panic")
+		log.WithError(err).Error("Recovered from panic in gRPC handler")
+		return status.Errorf(codes.Internal, "handler panic")
+	})
 }
