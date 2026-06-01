@@ -1115,10 +1115,25 @@ func TestDiscoveryServer_dynamicMatcherRestart(t *testing.T) {
 			},
 		)
 		require.NoError(t, err)
+
+		// Exercise the TAG fetcher read paths while the DiscoveryConfig watcher
+		// upserts dynamic fetchers. The race detector catches any map reads in
+		// getAll*Fetchers that are not protected by the dynamic fetcher locks.
+		var wg sync.WaitGroup
+		for range 4 {
+			wg.Go(func() {
+				for range 1000 {
+					_ = server.getAllAWSSyncFetchers()
+					_ = server.getAllTAGSyncAzureFetchers()
+				}
+			})
+		}
+
 		go mockAccessPoint.createDiscoveryConfig(discoveryConfigA)
 
 		// Wait until the event is processed.
 		synctest.Wait()
+		wg.Wait()
 
 		server.dynamicDiscoveryConfigMu.RLock()
 		require.Len(t, server.dynamicDiscoveryConfig, 1)

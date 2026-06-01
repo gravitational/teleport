@@ -200,9 +200,8 @@ func azurePush(
 
 // getAllTAGSyncAzureFetchers returns both static and dynamic TAG Azure fetchers
 func (s *Server) getAllTAGSyncAzureFetchers() []*azuresync.Fetcher {
-	allFetchers := make([]*azuresync.Fetcher, 0, len(s.dynamicTAGAzureFetchers))
-
 	s.muDynamicTAGAzureFetchers.RLock()
+	allFetchers := make([]*azuresync.Fetcher, 0, len(s.dynamicTAGAzureFetchers))
 	for _, fetcherSet := range s.dynamicTAGAzureFetchers {
 		allFetchers = append(allFetchers, fetcherSet...)
 	}
