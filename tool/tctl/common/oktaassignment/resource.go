@@ -46,16 +46,8 @@ type spec struct {
 
 // target holds an Okta assignment target.
 type target struct {
-	ID         string       `json:"id"`
-	TargetType string       `json:"type"`
-	Status     targetStatus `json:"status,omitzero"`
-}
-
-type targetStatus struct {
-	Op            string    `json:"op"`
-	Outcome       string    `json:"outcome"`
-	LastProcessed time.Time `json:"last_processed"`
-	FailureCount  int32     `json:"failure_count"`
+	ID         string `json:"id"`
+	TargetType string `json:"type"`
 }
 
 // ToResource converts an OktaAssignment into a *Resource which
@@ -69,15 +61,6 @@ func ToResource(assignment types.OktaAssignment) *Resource {
 		resourceTargets[i] = target{
 			ID:         sourceTarget.GetID(),
 			TargetType: sourceTarget.GetTargetType(),
-		}
-		status := sourceTarget.GetStatus()
-		if status != nil {
-			resourceTargets[i].Status = targetStatus{
-				Op:            status.Op,
-				Outcome:       status.Outcome,
-				LastProcessed: status.LastProcessed,
-				FailureCount:  status.FailureCount,
-			}
 		}
 	}
 
