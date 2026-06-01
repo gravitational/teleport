@@ -17,30 +17,25 @@
  */
 
 import { signup } from '@gravitational/e2e/helpers/signup';
-import { deleteUserIfExists } from '@gravitational/e2e/helpers/tctl';
 import { expect, test } from '@gravitational/e2e/helpers/test';
-import { TestInfo } from '@playwright/test';
 
-function username(testInfo: TestInfo) {
-  return `testuser-${testInfo.workerIndex}`;
-}
+test.describe.configure({ retries: 0 });
 
-// TODO(ryan): re-enable this test once Firefox flakiness is resolved.
-test.skip('verify that a user can sign up with webauthn and login', async ({
+test('verify that a user can sign up with webauthn and login', async ({
   page,
 }, testInfo) => {
   // Signing up auto-logs-in and we then log straight back in; that burst can
   // trip Teleport's challenge-generation rate limiter, so allow time to retry.
   test.slow();
 
-  await signup(page, username(testInfo));
+  const username = 'testuser-signup';
+
+  await signup(page, username);
 
   await page.getByRole('button', { name: 'User Menu' }).click();
   await page.getByText('Logout').click();
-  await page
-    .getByRole('textbox', { name: 'Username' })
-    .fill(username(testInfo));
-  await page.getByRole('textbox', { name: 'Username' }).press('Tab');
+
+  await page.getByRole('textbox', { name: 'Username' }).fill(username);
   await page.getByRole('textbox', { name: 'Password' }).fill('passwordtest123');
 
   // The web login challenge endpoint is rate limited; signing up then logging
@@ -55,16 +50,4 @@ test.skip('verify that a user can sign up with webauthn and login', async ({
       timeout: 5_000,
     });
   }).toPass({ timeout: 30_000, intervals: [3_000] });
-});
-
-// Clean the user before each attempt (and after) so retries start clean rather
-// than failing on an already-registered user / consumed invite.
-// oxlint-disable-next-line no-empty-pattern
-test.beforeEach(({}, testInfo) => {
-  deleteUserIfExists(username(testInfo));
-});
-
-// oxlint-disable-next-line no-empty-pattern
-test.afterEach(({}, testInfo) => {
-  deleteUserIfExists(username(testInfo));
 });
