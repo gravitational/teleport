@@ -42,6 +42,7 @@ const (
 type AccessRequestData struct {
 	User               string
 	Roles              []string
+	RequestKind        string
 	RequestReason      string
 	ReviewsCount       int
 	ResolutionTag      ResolutionTag
@@ -59,6 +60,7 @@ func DecodeAccessRequestData(dataMap map[string]string) (data AccessRequestData,
 	if str := dataMap["roles"]; str != "" {
 		data.Roles = strings.Split(str, ",")
 	}
+	data.RequestKind = dataMap["request_kind"]
 	data.RequestReason = dataMap["request_reason"]
 	if str := dataMap["reviews_count"]; str != "" {
 		fmt.Sscanf(str, "%d", &data.ReviewsCount)
@@ -118,13 +120,14 @@ func DecodeAccessRequestData(dataMap map[string]string) (data AccessRequestData,
 	return
 }
 
-// EncodeAccessRequestData deserializes a string map to PluginData struct.
+// EncodeAccessRequestData serializes a PluginData struct into a string map.
 func EncodeAccessRequestData(data AccessRequestData) (map[string]string, error) {
 	result := make(map[string]string)
 
 	result["user"] = data.User
 	result["roles"] = strings.Join(data.Roles, ",")
 	result["resources"] = strings.Join(data.Resources, ",")
+	result["request_kind"] = data.RequestKind
 	result["request_reason"] = data.RequestReason
 
 	if len(data.Resources) != 0 {
