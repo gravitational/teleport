@@ -170,7 +170,7 @@ func (c *TLSServerConfig) CheckAndSetDefaults() error {
 			return trace.BadParameter("missing parameter KubernetesServersWatcher")
 		}
 	case KubeService:
-		if c.ScopePin.GetScope() != "" && c.KubernetesServersWatcher != nil {
+		if c.GetScope() != "" && c.KubernetesServersWatcher != nil {
 			return trace.BadParameter("KubernetesServersWatcher is not supported for scoped KubeService")
 		}
 	}
@@ -242,7 +242,7 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	}
 
 	// TODO(eriktate/scopes): remove this validation once dynamic cluster registration supports scopes
-	if cfg.ScopePin.GetScope() != "" && len(cfg.ResourceMatchers) > 0 {
+	if cfg.GetScope() != "" && len(cfg.ResourceMatchers) > 0 {
 		return nil, trace.BadParameter("dynamic cluster registration not supported for scoped kube_service, resource matchers must be empty")
 	}
 	cfg.ForwarderConfig.log = log
@@ -656,8 +656,8 @@ func (t *TLSServer) getKubeClusterWithServiceLabels(name string) (*types.Kuberne
 
 	// The Proxy Service forwarder will always be unscoped and needs to be able to forward
 	// to scoped clusters as well.
-	if t.ScopePin.GetScope() != "" {
-		if scopes.Compare(t.ScopePin.GetScope(), details.kubeCluster.GetScope()) != scopes.Equivalent {
+	if t.GetScope() != "" {
+		if scopes.Compare(t.GetScope(), details.kubeCluster.GetScope()) != scopes.Equivalent {
 			// This should only happen if there's a bug in scoped access checking for KubernetesCluster resources.
 			// The kube proxy should never have access to clusters from orthogonal scopes. We also block access
 			// to clusters in child scopes but this may be relaxed in the future.

@@ -292,6 +292,7 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 			PublicAddr:                    publicAddr,
 			ClusterFeatures:               process.GetClusterFeatures,
 			ScopePin:                      conn.ScopePin(),
+			Scope:                         conn.Scope(),
 		},
 		TLS:                  tlsConfig,
 		AccessPoint:          accessPoint,
