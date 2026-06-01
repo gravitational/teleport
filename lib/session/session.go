@@ -126,7 +126,8 @@ type FileTransferRequestParams struct {
 	Download bool `json:"direction"`
 	// Location is location of file to download, or where to put an upload
 	Location string `json:"location"`
-	// Filename is the name of the file to be uploaded
+	// Filename is the name of the file to be uploaded, should not be considered
+	// when deciding if a file transfer should be approved
 	Filename string `json:"filename"`
 	// Requester is the authenticated Teleport user who requested the file transfer
 	Requester string `json:"requester"`

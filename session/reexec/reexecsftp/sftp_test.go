@@ -32,7 +32,10 @@ import (
 
 func TestEnsureReqIsAllowed(t *testing.T) {
 	t.Parallel()
-	const filePath = "/foo/bar/baz.txt"
+
+	dir := t.TempDir()
+	filePath := filepath.Join(dir, "baz.txt")
+
 	passTests := []struct {
 		name    string
 		allowed *allowedOps
@@ -113,7 +116,11 @@ func TestEnsureReqIsAllowed(t *testing.T) {
 		})
 	}
 
-	const convolutedPath = "/foo/bar/../bar/baz.txt"
+	sep := string(filepath.Separator)
+	// the path is built manually to avoid filepath.Join calling
+	// filepath.Clean which would remove the relative part of the path
+	convolutedPath := dir + sep + ".." + sep + filepath.Base(dir) + sep + "baz.txt"
+
 	failTests := []struct {
 		name    string
 		allowed *allowedOps
@@ -157,6 +164,14 @@ func TestEnsureReqIsAllowed(t *testing.T) {
 			req: &sftp.Request{
 				Filepath: filePath,
 				Method:   sftputils.MethodRename,
+			},
+		},
+		{
+			name:    "dir filepath",
+			allowed: &allowedOps{path: dir},
+			req: &sftp.Request{
+				Filepath: dir,
+				Method:   sftputils.MethodGet,
 			},
 		},
 	}

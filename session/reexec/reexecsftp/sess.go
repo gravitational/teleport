@@ -25,8 +25,6 @@ type FileTransferRequest struct {
 	Requester string
 	// Download is true if the request is a download, false if its an upload
 	Download bool
-	// Filename is the name of the file to upload.
-	Filename string
 	// Location of the requested download or where a file will be uploaded
 	Location string
 }
