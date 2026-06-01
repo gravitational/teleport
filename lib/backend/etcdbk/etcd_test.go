@@ -201,7 +201,7 @@ func TestCompareAndSwapOversizedValue(t *testing.T) {
 
 func TestLeaseBucketing(t *testing.T) {
 	const pfx = "lease-bucket-test"
-	const count = 15
+	const count = 40
 
 	if !etcdTestEnabled() {
 		t.Skip("This test requires etcd, run `make run-etcd` and set TELEPORT_ETCD_TEST=yes in your environment")
@@ -211,7 +211,7 @@ func TestLeaseBucketing(t *testing.T) {
 
 	var opts []Option
 	opts = append(opts, commonEtcdOptions...)
-	opts = append(opts, LeaseBucket(time.Second))
+	opts = append(opts, LeaseBucket(time.Second*2))
 
 	bk, err := New(ctx, commonEtcdParams, opts...)
 	require.NoError(t, err)
