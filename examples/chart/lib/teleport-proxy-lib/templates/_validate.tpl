@@ -1,3 +1,10 @@
+{{/*
+Library chart schemas are validated at .Values.<lib chart name or alias>, but
+named templates are global rather than namespaced. This chart defines templates
+designed to work on .Values, so schema validation at .Values.teleport-proxy-lib
+would not be useful. We therefore have this chart's public named templates
+validate their expected inputs at render time instead.
+*/}}
 {{- define "teleport-proxy-lib.internal.validate" -}}
 {{- if not (and (hasKey .Values "clusterName") (kindIs "string" .Values.clusterName)) -}}
 {{- fail "clusterName must be a string in teleport-proxy-lib values" -}}
