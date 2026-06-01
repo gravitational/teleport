@@ -103,7 +103,10 @@ func (b *Backend) AtomicWrite(ctx context.Context, condacts []backend.Conditiona
 	}
 
 	var attempts int
-	err = pgcommon.RetryTx(ctx, b.log, b.pool, pgx.TxOptions{}, false, func(tx pgx.Tx) error {
+	err = pgcommon.RetryTx(ctx, b.log, b.pool, pgx.TxOptions{
+            IsoLevel: pgx.Serializable,
+            AccessMode: pgx.ReadWrite,
+        }, false, func(tx pgx.Tx) error {
 		attempts++
 
 		var condBatch, actBatch pgx.Batch
