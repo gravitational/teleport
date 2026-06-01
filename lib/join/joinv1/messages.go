@@ -18,6 +18,7 @@ package joinv1
 
 import (
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 
 	joinv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/join/v1"
@@ -60,91 +61,73 @@ func requestToMessage(req *joinv1.JoinRequest) (messages.Request, error) {
 func requestFromMessage(msg messages.Request) (*joinv1.JoinRequest, error) {
 	switch typedMsg := msg.(type) {
 	case *messages.ClientInit:
-		return &joinv1.JoinRequest{
-			Payload: &joinv1.JoinRequest_ClientInit{
-				ClientInit: clientInitFromMessage(typedMsg),
-			},
-		}, nil
+		return joinv1.JoinRequest_builder{
+			ClientInit: proto.ValueOrDefault(clientInitFromMessage(typedMsg)),
+		}.Build(), nil
 	case *messages.TokenInit:
 		tokenInit, err := tokenInitFromMessage(typedMsg)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &joinv1.JoinRequest{
-			Payload: &joinv1.JoinRequest_TokenInit{
-				TokenInit: tokenInit,
-			},
-		}, nil
+		return joinv1.JoinRequest_builder{
+			TokenInit: proto.ValueOrDefault(tokenInit),
+		}.Build(), nil
 	case *messages.BoundKeypairInit:
 		boundKeypairInit, err := boundKeypairInitFromMessage(typedMsg)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &joinv1.JoinRequest{
-			Payload: &joinv1.JoinRequest_BoundKeypairInit{
-				BoundKeypairInit: boundKeypairInit,
-			},
-		}, nil
+		return joinv1.JoinRequest_builder{
+			BoundKeypairInit: proto.ValueOrDefault(boundKeypairInit),
+		}.Build(), nil
 	case *messages.IAMInit:
 		iamInit, err := iamInitFromMessage(typedMsg)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &joinv1.JoinRequest{
-			Payload: &joinv1.JoinRequest_IamInit{
-				IamInit: iamInit,
-			},
-		}, nil
+		return joinv1.JoinRequest_builder{
+			IamInit: proto.ValueOrDefault(iamInit),
+		}.Build(), nil
 	case *messages.EC2Init:
 		ec2Init, err := ec2InitFromMessage(typedMsg)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &joinv1.JoinRequest{
-			Payload: &joinv1.JoinRequest_Ec2Init{
-				Ec2Init: ec2Init,
-			},
-		}, nil
+		return joinv1.JoinRequest_builder{
+			Ec2Init: proto.ValueOrDefault(ec2Init),
+		}.Build(), nil
 	case *messages.OIDCInit:
 		oidcInit, err := oidcInitFromMessage(typedMsg)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &joinv1.JoinRequest{
-			Payload: &joinv1.JoinRequest_OidcInit{
-				OidcInit: oidcInit,
-			},
-		}, nil
+		return joinv1.JoinRequest_builder{
+			OidcInit: proto.ValueOrDefault(oidcInit),
+		}.Build(), nil
 	case *messages.OracleInit:
 		oracleInit, err := oracleInitFromMessage(typedMsg)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &joinv1.JoinRequest{
-			Payload: &joinv1.JoinRequest_OracleInit{
-				OracleInit: oracleInit,
-			},
-		}, nil
+		return joinv1.JoinRequest_builder{
+			OracleInit: proto.ValueOrDefault(oracleInit),
+		}.Build(), nil
 	case *messages.TPMInit:
 		tpmInit, err := tpmInitFromMessage(typedMsg)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &joinv1.JoinRequest{
-			Payload: &joinv1.JoinRequest_TpmInit{
-				TpmInit: tpmInit,
-			},
-		}, nil
+		return joinv1.JoinRequest_builder{
+			TpmInit: proto.ValueOrDefault(tpmInit),
+		}.Build(), nil
 	case *messages.AzureInit:
 		azureInit, err := azureInitFromMessage(typedMsg)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &joinv1.JoinRequest{
-			Payload: &joinv1.JoinRequest_AzureInit{
-				AzureInit: azureInit,
-			},
-		}, nil
+		return joinv1.JoinRequest_builder{
+			AzureInit: proto.ValueOrDefault(azureInit),
+		}.Build(), nil
 	case *messages.BoundKeypairChallengeSolution,
 		*messages.BoundKeypairRotationResponse,
 		*messages.IAMChallengeSolution,
@@ -155,17 +138,13 @@ func requestFromMessage(msg messages.Request) (*joinv1.JoinRequest, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &joinv1.JoinRequest{
-			Payload: &joinv1.JoinRequest_Solution{
-				Solution: solution,
-			},
-		}, nil
+		return joinv1.JoinRequest_builder{
+			Solution: proto.ValueOrDefault(solution),
+		}.Build(), nil
 	case *messages.GivingUp:
-		return &joinv1.JoinRequest{
-			Payload: &joinv1.JoinRequest_GivingUp{
-				GivingUp: givingUpFromMessage(typedMsg),
-			},
-		}, nil
+		return joinv1.JoinRequest_builder{
+			GivingUp: proto.ValueOrDefault(givingUpFromMessage(typedMsg)),
+		}.Build(), nil
 	default:
 		return nil, trace.BadParameter("unrecognized join request message type %T", msg)
 	}
@@ -244,13 +223,9 @@ func clientParamsFromMessage(msg messages.ClientParams) (*joinv1.ClientParams, e
 	req := &joinv1.ClientParams{}
 	switch {
 	case msg.HostParams != nil:
-		req.Payload = &joinv1.ClientParams_HostParams{
-			HostParams: hostParamsFromMessage(msg.HostParams),
-		}
+		req.SetHostParams(proto.ValueOrDefault(hostParamsFromMessage(msg.HostParams)))
 	case msg.BotParams != nil:
-		req.Payload = &joinv1.ClientParams_BotParams{
-			BotParams: botParamsFromMessage(msg.BotParams),
-		}
+		req.SetBotParams(proto.ValueOrDefault(botParamsFromMessage(msg.BotParams)))
 	default:
 		return nil, trace.BadParameter("ClientParams has no payload")
 	}
@@ -332,41 +307,29 @@ func challengeSolutionToMessage(req *joinv1.ChallengeSolution) (messages.Request
 func challengeSolutionFromMessage(msg messages.Request) (*joinv1.ChallengeSolution, error) {
 	switch typedMsg := msg.(type) {
 	case *messages.BoundKeypairChallengeSolution:
-		return &joinv1.ChallengeSolution{
-			Payload: &joinv1.ChallengeSolution_BoundKeypairChallengeSolution{
-				BoundKeypairChallengeSolution: boundKeypairChallengeSolutionFromMessage(typedMsg),
-			},
-		}, nil
+		return joinv1.ChallengeSolution_builder{
+			BoundKeypairChallengeSolution: proto.ValueOrDefault(boundKeypairChallengeSolutionFromMessage(typedMsg)),
+		}.Build(), nil
 	case *messages.BoundKeypairRotationResponse:
-		return &joinv1.ChallengeSolution{
-			Payload: &joinv1.ChallengeSolution_BoundKeypairRotationResponse{
-				BoundKeypairRotationResponse: boundKeypairRotationResponseFromMessage(typedMsg),
-			},
-		}, nil
+		return joinv1.ChallengeSolution_builder{
+			BoundKeypairRotationResponse: proto.ValueOrDefault(boundKeypairRotationResponseFromMessage(typedMsg)),
+		}.Build(), nil
 	case *messages.IAMChallengeSolution:
-		return &joinv1.ChallengeSolution{
-			Payload: &joinv1.ChallengeSolution_IamChallengeSolution{
-				IamChallengeSolution: iamChallengeSolutionFromMessage(typedMsg),
-			},
-		}, nil
+		return joinv1.ChallengeSolution_builder{
+			IamChallengeSolution: proto.ValueOrDefault(iamChallengeSolutionFromMessage(typedMsg)),
+		}.Build(), nil
 	case *messages.OracleChallengeSolution:
-		return &joinv1.ChallengeSolution{
-			Payload: &joinv1.ChallengeSolution_OracleChallengeSolution{
-				OracleChallengeSolution: oracleChallengeSolutionFromMessage(typedMsg),
-			},
-		}, nil
+		return joinv1.ChallengeSolution_builder{
+			OracleChallengeSolution: proto.ValueOrDefault(oracleChallengeSolutionFromMessage(typedMsg)),
+		}.Build(), nil
 	case *messages.TPMSolution:
-		return &joinv1.ChallengeSolution{
-			Payload: &joinv1.ChallengeSolution_TpmSolution{
-				TpmSolution: tpmSolutionFromMessage(typedMsg),
-			},
-		}, nil
+		return joinv1.ChallengeSolution_builder{
+			TpmSolution: proto.ValueOrDefault(tpmSolutionFromMessage(typedMsg)),
+		}.Build(), nil
 	case *messages.AzureChallengeSolution:
-		return &joinv1.ChallengeSolution{
-			Payload: &joinv1.ChallengeSolution_AzureChallengeSolution{
-				AzureChallengeSolution: azureChallengeSolutionFromMessage(typedMsg),
-			},
-		}, nil
+		return joinv1.ChallengeSolution_builder{
+			AzureChallengeSolution: proto.ValueOrDefault(azureChallengeSolutionFromMessage(typedMsg)),
+		}.Build(), nil
 	default:
 		return nil, trace.BadParameter("unrecognized challenge solution message type %T", msg)
 	}
@@ -391,11 +354,9 @@ func responseToMessage(resp *joinv1.JoinResponse) (messages.Response, error) {
 func responseFromMessage(msg messages.Response) (*joinv1.JoinResponse, error) {
 	switch typedMsg := msg.(type) {
 	case *messages.ServerInit:
-		return &joinv1.JoinResponse{
-			Payload: &joinv1.JoinResponse_Init{
-				Init: serverInitFromMessage(typedMsg),
-			},
-		}, nil
+		return joinv1.JoinResponse_builder{
+			Init: proto.ValueOrDefault(serverInitFromMessage(typedMsg)),
+		}.Build(), nil
 	case *messages.BoundKeypairChallenge,
 		*messages.BoundKeypairRotationRequest,
 		*messages.IAMChallenge,
@@ -406,26 +367,20 @@ func responseFromMessage(msg messages.Response) (*joinv1.JoinResponse, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &joinv1.JoinResponse{
-			Payload: &joinv1.JoinResponse_Challenge{
-				Challenge: challenge,
-			},
-		}, nil
+		return joinv1.JoinResponse_builder{
+			Challenge: proto.ValueOrDefault(challenge),
+		}.Build(), nil
 	case *messages.HostResult:
 		return joinv1.JoinResponse_builder{
-			Result: &joinv1.Result{
-				Payload: &joinv1.Result_HostResult{
-					HostResult: hostResultFromMessage(typedMsg),
-				},
-			},
+			Result: joinv1.Result_builder{
+				HostResult: proto.ValueOrDefault(hostResultFromMessage(typedMsg)),
+			}.Build(),
 		}.Build(), nil
 	case *messages.BotResult:
 		return joinv1.JoinResponse_builder{
-			Result: &joinv1.Result{
-				Payload: &joinv1.Result_BotResult{
-					BotResult: botResultFromMessage(typedMsg),
-				},
-			},
+			Result: joinv1.Result_builder{
+				BotResult: proto.ValueOrDefault(botResultFromMessage(typedMsg)),
+			}.Build(),
 		}.Build(), nil
 	default:
 		return nil, trace.BadParameter("unrecognized join response message type %T", msg)
@@ -472,41 +427,29 @@ func challengeToMessage(resp *joinv1.Challenge) (messages.Response, error) {
 func challengeFromMessage(resp messages.Response) (*joinv1.Challenge, error) {
 	switch msg := resp.(type) {
 	case *messages.BoundKeypairChallenge:
-		return &joinv1.Challenge{
-			Payload: &joinv1.Challenge_BoundKeypairChallenge{
-				BoundKeypairChallenge: boundKeypairChallengeFromMessage(msg),
-			},
-		}, nil
+		return joinv1.Challenge_builder{
+			BoundKeypairChallenge: proto.ValueOrDefault(boundKeypairChallengeFromMessage(msg)),
+		}.Build(), nil
 	case *messages.BoundKeypairRotationRequest:
-		return &joinv1.Challenge{
-			Payload: &joinv1.Challenge_BoundKeypairRotationRequest{
-				BoundKeypairRotationRequest: boundKeypairRotationRequestFromMessage(msg),
-			},
-		}, nil
+		return joinv1.Challenge_builder{
+			BoundKeypairRotationRequest: proto.ValueOrDefault(boundKeypairRotationRequestFromMessage(msg)),
+		}.Build(), nil
 	case *messages.IAMChallenge:
-		return &joinv1.Challenge{
-			Payload: &joinv1.Challenge_IamChallenge{
-				IamChallenge: iamChallengeFromMessage(msg),
-			},
-		}, nil
+		return joinv1.Challenge_builder{
+			IamChallenge: proto.ValueOrDefault(iamChallengeFromMessage(msg)),
+		}.Build(), nil
 	case *messages.OracleChallenge:
-		return &joinv1.Challenge{
-			Payload: &joinv1.Challenge_OracleChallenge{
-				OracleChallenge: oracleChallengeFromMessage(msg),
-			},
-		}, nil
+		return joinv1.Challenge_builder{
+			OracleChallenge: proto.ValueOrDefault(oracleChallengeFromMessage(msg)),
+		}.Build(), nil
 	case *messages.TPMEncryptedCredential:
-		return &joinv1.Challenge{
-			Payload: &joinv1.Challenge_TpmEncryptedCredential{
-				TpmEncryptedCredential: tpmEncryptedCredentialFromMessage(msg),
-			},
-		}, nil
+		return joinv1.Challenge_builder{
+			TpmEncryptedCredential: proto.ValueOrDefault(tpmEncryptedCredentialFromMessage(msg)),
+		}.Build(), nil
 	case *messages.AzureChallenge:
-		return &joinv1.Challenge{
-			Payload: &joinv1.Challenge_AzureChallenge{
-				AzureChallenge: azureChallengeFromMessage(msg),
-			},
-		}, nil
+		return joinv1.Challenge_builder{
+			AzureChallenge: proto.ValueOrDefault(azureChallengeFromMessage(msg)),
+		}.Build(), nil
 	default:
 		return nil, trace.BadParameter("unrecognized challenge message type %T", msg)
 	}

@@ -143,9 +143,9 @@ func (c *RouteConflictDiag) Run(ctx context.Context) (*diagv1.CheckReport, error
 }
 
 func (c *RouteConflictDiag) EmptyCheckReport() *diagv1.CheckReport {
-	return &diagv1.CheckReport{
-		Report: &diagv1.CheckReport_RouteConflictReport{},
-	}
+	return diagv1.CheckReport_builder{
+		RouteConflictReport: &diagv1.RouteConflictReport{},
+	}.Build()
 }
 
 func (c *RouteConflictDiag) run(ctx context.Context) ([]*diagv1.RouteConflict, error) {

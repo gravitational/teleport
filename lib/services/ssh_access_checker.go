@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport/api/constants"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
@@ -74,7 +75,7 @@ func (c *SSHAccessChecker) AdjustDisconnectExpiredCert(disconnect bool) bool {
 	ssh := c.checker.role.GetSpec().GetSsh()
 	var disconnectExpiredCert *bool
 	if ssh != nil {
-		disconnectExpiredCert = ssh.DisconnectExpiredCert
+		disconnectExpiredCert = proto.ValueOrNil(ssh.HasDisconnectExpiredCert(), ssh.GetDisconnectExpiredCert)
 	}
 	return c.checker.adjustScopedDisconnectExpiredCert(disconnectExpiredCert, disconnect)
 }

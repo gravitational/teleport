@@ -625,11 +625,9 @@ func maybeInitBoundKeypair(token *joiningv1.ScopedToken) error {
 	status := token.GetStatus().GetUsage().GetBoundKeypair()
 	if status == nil {
 		status = &joiningv1.BoundKeypairStatus{}
-		token.GetStatus().SetUsage(&joiningv1.UsageStatus{
-			Status: &joiningv1.UsageStatus_BoundKeypair{
-				BoundKeypair: status,
-			},
-		})
+		token.GetStatus().SetUsage(joiningv1.UsageStatus_builder{
+			BoundKeypair: proto.ValueOrDefault(status),
+		}.Build())
 	}
 
 	// If necessary, generate a registration secret.

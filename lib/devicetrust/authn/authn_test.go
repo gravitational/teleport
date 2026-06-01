@@ -25,6 +25,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/devicetrust/authn"
@@ -208,11 +209,9 @@ func enrollDevice(ctx context.Context, devices devicepb.DeviceTrustServiceClient
 		return nil, fmt.Errorf("enroll device init: %w", err)
 	}
 	enrollDeviceInit.SetToken(testenv.FakeEnrollmentToken)
-	if err := stream.Send(&devicepb.EnrollDeviceRequest{
-		Payload: &devicepb.EnrollDeviceRequest_Init{
-			Init: enrollDeviceInit,
-		},
-	}); err != nil {
+	if err := stream.Send(devicepb.EnrollDeviceRequest_builder{
+		Init: proto.ValueOrDefault(enrollDeviceInit),
+	}.Build()); err != nil {
 		return nil, err
 	}
 
@@ -239,11 +238,9 @@ func enrollDevice(ctx context.Context, devices devicepb.DeviceTrustServiceClient
 		if err != nil {
 			return nil, err
 		}
-		if err := stream.Send(&devicepb.EnrollDeviceRequest{
-			Payload: &devicepb.EnrollDeviceRequest_TpmChallengeResponse{
-				TpmChallengeResponse: solution,
-			},
-		}); err != nil {
+		if err := stream.Send(devicepb.EnrollDeviceRequest_builder{
+			TpmChallengeResponse: proto.ValueOrDefault(solution),
+		}.Build()); err != nil {
 			return nil, err
 		}
 	default:

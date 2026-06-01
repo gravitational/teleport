@@ -464,10 +464,10 @@ func (g *Generator) generateDelegationCertificates(ctx context.Context, req prot
 func (g *Generator) GenerateScoped(
 	ctx context.Context, ttl, renewalInterval time.Duration,
 ) (*Identity, error) {
-	req := &issuancev1pb.IssueScopedBotCertsRequest{
-		Ttl:   durationpb.New(ttl),
-		Usage: &issuancev1pb.IssueScopedBotCertsRequest_Identity{},
-	}
+	req := issuancev1pb.IssueScopedBotCertsRequest_builder{
+		Ttl:      durationpb.New(ttl),
+		Identity: &issuancev1pb.UsageIdentity{},
+	}.Build()
 
 	keyPurpose := cryptosuites.BotImpersonatedIdentity
 	key, err := cryptosuites.GenerateKey(ctx,

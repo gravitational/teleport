@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
@@ -46,39 +47,27 @@ func TestReconcileResults(t *testing.T) {
 	upsert, delete := ReconcileResults(&oldResults, &newResults)
 
 	wantDelete := []*accessgraphv1alpha.AWSResource{
-		{
-			Resource: &accessgraphv1alpha.AWSResource_Role{
-				Role: oldRoles[0],
-			},
-		},
+		accessgraphv1alpha.AWSResource_builder{
+			Role: proto.ValueOrDefault(oldRoles[0]),
+		}.Build(),
 	}
 
 	wantUpsert := []*accessgraphv1alpha.AWSResource{
-		{
-			Resource: &accessgraphv1alpha.AWSResource_Role{
-				Role: newRoles[0],
-			},
-		},
-		{
-			Resource: &accessgraphv1alpha.AWSResource_Role{
-				Role: newRoles[1],
-			},
-		},
-		{
-			Resource: &accessgraphv1alpha.AWSResource_User{
-				User: newUsers[1],
-			},
-		},
-		{
-			Resource: &accessgraphv1alpha.AWSResource_User{
-				User: newUsers[2],
-			},
-		},
-		{
-			Resource: &accessgraphv1alpha.AWSResource_Instance{
-				Instance: newEC2[2],
-			},
-		},
+		accessgraphv1alpha.AWSResource_builder{
+			Role: proto.ValueOrDefault(newRoles[0]),
+		}.Build(),
+		accessgraphv1alpha.AWSResource_builder{
+			Role: proto.ValueOrDefault(newRoles[1]),
+		}.Build(),
+		accessgraphv1alpha.AWSResource_builder{
+			User: proto.ValueOrDefault(newUsers[1]),
+		}.Build(),
+		accessgraphv1alpha.AWSResource_builder{
+			User: proto.ValueOrDefault(newUsers[2]),
+		}.Build(),
+		accessgraphv1alpha.AWSResource_builder{
+			Instance: proto.ValueOrDefault(newEC2[2]),
+		}.Build(),
 	}
 
 	require.ElementsMatch(t, wantDelete, delete.GetResources())

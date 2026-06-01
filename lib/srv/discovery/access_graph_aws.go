@@ -296,9 +296,9 @@ func push(
 		return trace.Wrap(err)
 	}
 	err = client.Send(
-		&accessgraphv1alpha.AWSEventsStreamRequest{
-			Operation: &accessgraphv1alpha.AWSEventsStreamRequest_Sync{},
-		},
+		accessgraphv1alpha.AWSEventsStreamRequest_builder{
+			Sync: &accessgraphv1alpha.AWSSyncOperation{},
+		}.Build(),
 	)
 	return trace.Wrap(err)
 }

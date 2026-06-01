@@ -25,6 +25,7 @@ import (
 	"log/slog"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -170,11 +171,9 @@ type reportToAssertStreamAdapter struct {
 func (s reportToAssertStreamAdapter) Send(request *devicepb.AssertDeviceRequest) error {
 	return trace.Wrap(
 		s.stream.Send(
-			&accessgraphsecretsv1pb.ReportSecretsRequest{
-				Payload: &accessgraphsecretsv1pb.ReportSecretsRequest_DeviceAssertion{
-					DeviceAssertion: request,
-				},
-			},
+			accessgraphsecretsv1pb.ReportSecretsRequest_builder{
+				DeviceAssertion: proto.ValueOrDefault(request),
+			}.Build(),
 		),
 	)
 }
