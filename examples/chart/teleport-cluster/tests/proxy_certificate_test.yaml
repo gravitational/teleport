@@ -174,6 +174,12 @@ tests:
       - equal:
           path: spec.dnsNames[1]
           value: "*.test-cluster"
+      - notEqual:
+          path: spec.dnsNames[2]
+          value: "teleport.test.com"
+      - notEqual:
+          path: spec.dnsNames[3]
+          value: "teleport.shared-services.old-domain.com"
 
   - it: should request a certificate for cluster name and publicAddrs when cert-manager is enabled and proxy.highAvailability.certManager.addPublicAddrs is set, removing duplicates
     values:
