@@ -101,7 +101,7 @@ test('shared directory management', async () => {
   // Must connect before shared directory functions can be called.
   let transportOpen = new Promise<void>(client.onTransportOpen);
   client.connect({
-    screenSpec: { width: 1920, height: 1080 },
+    screenSpec: { width: 1920, height: 1080, scale: 100 },
     keyboardLayout: 1,
   });
   await transportOpen;
@@ -119,7 +119,7 @@ test('shared directory management', async () => {
   client.shutdown();
   transportOpen = new Promise<void>(client.onTransportOpen);
   client.connect({
-    screenSpec: { width: 1920, height: 1080 },
+    screenSpec: { width: 1920, height: 1080, scale: 100 },
     keyboardLayout: 1,
   });
   await transportOpen;
