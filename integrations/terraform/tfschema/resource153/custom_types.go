@@ -33,11 +33,9 @@ import (
 )
 
 func GenSchemaTimestamp(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
-	return tfsdk.Attribute{
-		Optional:    true,
-		Type:        tfschema.UseRFC3339Time(),
-		Description: attr.Description,
-	}
+	attr.Optional = true
+	attr.Type = tfschema.UseRFC3339Time()
+	return attr
 }
 
 func CopyFromTimestamp(diags diag.Diagnostics, v attr.Value, o **timestamppb.Timestamp) {
@@ -72,11 +70,9 @@ func CopyToTimestamp(diags diag.Diagnostics, o *timestamppb.Timestamp, t attr.Ty
 }
 
 func GenSchemaDuration(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
-	return tfsdk.Attribute{
-		Optional:    true,
-		Type:        tfschema.DurationType{},
-		Description: attr.Description,
-	}
+	attr.Optional = true
+	attr.Type = tfschema.DurationType{}
+	return attr
 }
 
 func CopyFromDuration(diags diag.Diagnostics, v attr.Value, o **durationpb.Duration) {

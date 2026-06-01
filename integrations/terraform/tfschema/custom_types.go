@@ -32,28 +32,20 @@ import (
 
 // GenSchemaBoolOptions returns Terraform schema for BoolOption type
 func GenSchemaBoolOption(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
-	return tfsdk.Attribute{
-		Optional:      true,
-		Type:          types.BoolType,
-		Description:   attr.Description,
-		Computed:      attr.Computed,
-		PlanModifiers: attr.PlanModifiers,
-	}
+	attr.Optional = true
+	attr.Type = types.BoolType
+	return attr
 }
 
 // GenSchemaTraits returns Terraform schema for Traits type
 func GenSchemaTraits(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
-	return tfsdk.Attribute{
-		Optional: true,
-		Type: types.MapType{
-			ElemType: types.ListType{
-				ElemType: types.StringType,
-			},
+	attr.Optional = true
+	attr.Type = types.MapType{
+		ElemType: types.ListType{
+			ElemType: types.StringType,
 		},
-		Description:        attr.Description,
-		DeprecationMessage: attr.DeprecationMessage,
-		Validators:         attr.Validators,
 	}
+	return attr
 }
 
 // GenSchemaBoolOptions returns Terraform schema for Labels type
@@ -208,13 +200,11 @@ func CopyToTraits(diags diag.Diagnostics, o wrappers.Traits, t attr.Type, v attr
 
 // GenSchemaStrings returns Terraform schema for Strings type
 func GenSchemaStrings(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
-	return tfsdk.Attribute{
-		Optional: true,
-		Type: types.ListType{
-			ElemType: types.StringType,
-		},
-		Description: attr.Description,
+	attr.Optional = true
+	attr.Type = types.ListType{
+		ElemType: types.StringType,
 	}
+	return attr
 }
 
 // CopyFromStrings converts from a Terraform value into a Teleport wrappers.Strings
