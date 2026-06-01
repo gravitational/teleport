@@ -30,6 +30,7 @@ import (
 	"slices"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -270,6 +271,7 @@ func (t *tracker) UpdateClientActivity() {
 
 // linuxSession encapsulates all state for a single Linux desktop session.
 type linuxSession struct {
+	closing     atomic.Bool
 	service     *LinuxService
 	log         *slog.Logger
 	ctx         context.Context
@@ -301,13 +303,13 @@ type linuxSession struct {
 }
 
 func (sess *linuxSession) sendTDPError(message string) {
-	if err := sess.auditedConn.WriteMessage(&tdpb.Alert{Message: message, Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR}); err != nil {
+	if err := sess.writeMessage(&tdpb.Alert{Message: message, Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR}); err != nil {
 		sess.log.ErrorContext(sess.ctx, "Failed to send TDPB error message", "error", err, "message", message)
 	}
 }
 
 func (sess *linuxSession) sendTDPWarning(message string) {
-	if err := sess.auditedConn.WriteMessage(&tdpb.Alert{Message: message, Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_WARNING}); err != nil {
+	if err := sess.writeMessage(&tdpb.Alert{Message: message, Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_WARNING}); err != nil {
 		sess.log.ErrorContext(sess.ctx, "Failed to send TDPB error message", "error", err, "message", message)
 	}
 }
@@ -316,7 +318,7 @@ func (sess *linuxSession) handleClipboardData(data []byte) {
 	if !sess.allowClipboard {
 		return
 	}
-	sess.auditedConn.WriteMessage(&tdpb.ClipboardData{
+	sess.writeMessage(&tdpb.ClipboardData{
 		Data: data,
 	})
 }
@@ -519,6 +521,7 @@ func (sess *linuxSession) run() error {
 	}()
 
 	defer func() {
+		sess.closing.Store(true)
 		if sess.cmd != nil {
 			sess.cmd.Close()
 		}
@@ -627,7 +630,7 @@ func (sess *linuxSession) messageLoop() error {
 				return trace.Wrap(err)
 			}
 		case *tdpb.Ping:
-			if err := sess.auditedConn.WriteMessage(m); err != nil {
+			if err := sess.writeMessage(m); err != nil {
 				sess.log.ErrorContext(sess.ctx, "failed to send ping message", "error", err)
 				return trace.Wrap(err)
 			}
@@ -727,7 +730,7 @@ func (sess *linuxSession) handleClientHello(m *tdpb.ClientHello) error {
 			Name: s,
 		})
 	}
-	if err := sess.auditedConn.WriteMessage(&tdpb.ServerHello{
+	if err := sess.writeMessage(&tdpb.ServerHello{
 		ActivationSpec: &tdpbv1.ConnectionActivated{
 			IoChannelId:   0,
 			UserChannelId: 0,
@@ -821,7 +824,8 @@ func (sess *linuxSession) handleSessionSelection(m *tdpbv1.SessionSelection) err
 	sess.cmd = cmd
 	go func() {
 		err := cmd.Wait()
-		if sess.ctx.Err() != nil {
+		if sess.closing.Load() {
+			// ignore errors when killing Xsession due to session ending
 			return
 		}
 		if err == nil {
@@ -852,7 +856,7 @@ func (sess *linuxSession) handleClientScreenSpec(m *tdpb.ClientScreenSpec) error
 		sess.sendTDPError("Couldn't resize backend.")
 		return trace.Wrap(err)
 	}
-	if err := sess.auditedConn.WriteMessage(&tdpb.ServerHello{
+	if err := sess.writeMessage(&tdpb.ServerHello{
 		ActivationSpec: &tdpbv1.ConnectionActivated{
 			ScreenWidth:  m.Width,
 			ScreenHeight: m.Height,
@@ -925,7 +929,7 @@ func (sess *linuxSession) innerProcessScreenChanges() (int, error) {
 			return 0, err
 		}
 		for _, frame := range frames {
-			if err := sess.auditedConn.WriteMessage(frame); err != nil {
+			if err := sess.writeMessage(frame); err != nil {
 				sess.log.ErrorContext(sess.ctx, "failed to send frame", "error", err)
 				return 0, err
 			}
@@ -933,6 +937,13 @@ func (sess *linuxSession) innerProcessScreenChanges() (int, error) {
 	}
 	sess.sendFullScreen = false
 	return size, nil
+}
+
+func (sess *linuxSession) writeMessage(message tdp.Message) error {
+	if err := sess.auditedConn.WriteMessage(message); !utils.IsOKNetworkError(err) && !trace.IsConnectionProblem(err) {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
 func (s *LinuxService) newSessionRecorder(recConfig types.SessionRecordingConfig, sessionID string) (libevents.SessionPreparerRecorder, error) {
