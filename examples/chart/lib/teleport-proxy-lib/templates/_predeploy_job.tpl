@@ -1,5 +1,5 @@
 {{- define "teleport-proxy-lib.internal.predeploy_job" }}
-{{- $proxy := .Values -}}{{/* Minimizes diff for refactoring. Remove unneeded variable in next PR. */}}
+{{- $proxy := (mustDeepCopy .Values) -}}
 {{- if $proxy.validateConfigOnDeploy }}
 apiVersion: batch/v1
 kind: Job

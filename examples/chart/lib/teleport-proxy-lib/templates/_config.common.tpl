@@ -1,5 +1,5 @@
 {{- define "teleport-proxy-lib.internal.config.common" -}}
-{{- $proxy := .Values -}}{{/* Minimizes diff for refactoring. Remove unneeded variable in next PR. */}}
+{{- $proxy := (mustDeepCopy .Values) -}}
 {{- $logLevel := (coalesce $proxy.logLevel $proxy.log.level "INFO") -}}
 version: v3
 teleport:

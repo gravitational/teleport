@@ -1,5 +1,5 @@
 {{- define "teleport-proxy-lib.internal.certificate" }}
-{{- $proxy := .Values -}}{{/* Minimizes diff for refactoring. Remove unneeded variable in next PR. */}}
+{{- $proxy := (mustDeepCopy .Values) -}}
 {{- if $proxy.highAvailability.certManager.enabled -}}
   {{- /* Append clusterName and wildcard version to list of dnsNames on certificate request (original functionality) */ -}}
   {{- $domainList := list (required "clusterName is required in chartValues when certManager is enabled" $proxy.clusterName) -}}

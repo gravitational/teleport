@@ -1,5 +1,5 @@
 {{- define "teleport-proxy-lib.internal.predeploy_serviceaccount" }}
-{{- $proxy := .Values -}}{{/* Minimizes diff for refactoring. Remove unneeded variable in next PR. */}}
+{{- $proxy := (mustDeepCopy .Values) -}}
 # this is a carbon copy of the regular serviceAccount object which is only used to run pre-deploy jobs
 # upon first install of the chart. it will be deleted by Helm after the pre-deploy hooks run, then the
 # regular serviceAccount is created with the same name and exists for the lifetime of the release.

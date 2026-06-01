@@ -1,5 +1,5 @@
 {{- define "teleport-proxy-lib.internal.service" }}
-{{- $proxy := .Values -}}{{/* Minimizes diff for refactoring. Remove unneeded variable in next PR. */}}
+{{- $proxy := (mustDeepCopy .Values) -}}
 {{- $backendProtocol := ternary "ssl" "tcp" (hasKey $proxy.annotations.service "service.beta.kubernetes.io/aws-load-balancer-ssl-cert") -}}
 {{- /* Fail early if proxy service type is set to LoadBalancer when ingress.enabled=true */ -}}
 {{- if and $proxy.ingress.enabled (eq $proxy.service.type "LoadBalancer") -}}

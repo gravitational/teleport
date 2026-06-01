@@ -1,5 +1,5 @@
 {{- define "teleport-proxy-lib.internal.config" }}
-{{- $proxy := .Values -}}{{/* Minimizes diff for refactoring. Remove unneeded variable in next PR. */}}
+{{- $proxy := (mustDeepCopy .Values) -}}
 {{- $configTemplate := printf "teleport-proxy-lib.internal.config.%s" $proxy.chartMode -}}
 {{- if (contains ":" $proxy.clusterName) -}}
   {{- fail "clusterName must not contain a colon, you can override the cluster's public address with publicAddr" -}}

@@ -1,5 +1,5 @@
 {{- define "teleport-proxy-lib.internal.deployment" }}
-{{- $proxy := .Values -}}{{/* Minimizes diff for refactoring. Remove unneeded variable in next PR. */}}
+{{- $proxy := (mustDeepCopy .Values) -}}
 {{- $replicable := or $proxy.highAvailability.certManager.enabled $proxy.tls.existingSecretName $proxy.ingress.enabled -}}
 {{- $projectedServiceAccountToken := semverCompare ">=1.20.0-0" .Capabilities.KubeVersion.Version }}
 {{- $topologySpreadConstraints := and (semverCompare ">=1.18.0-0" .Capabilities.KubeVersion.Version) (not $proxy.disableTopologySpreadConstraints) }}

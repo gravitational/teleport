@@ -1,5 +1,5 @@
 {{- define "teleport-proxy-lib.internal.ingress" }}
-{{- $proxy := .Values -}}{{/* Minimizes diff for refactoring. Remove unneeded variable in next PR. */}}
+{{- $proxy := (mustDeepCopy .Values) -}}
 {{- if .Values.ingress.enabled -}}
   {{- if (not (eq .Values.proxyListenerMode "multiplex")) -}}
     {{- fail "Use of an ingress requires TLS multiplexing to be enabled, so you must also set proxyListenerMode=multiplex - see https://goteleport.com/docs/architecture/tls-routing/" -}}

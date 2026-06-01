@@ -1,5 +1,5 @@
 {{- define "teleport-proxy-lib.internal.pdb" }}
-{{- $proxy := .Values -}}{{/* Minimizes diff for refactoring. Remove unneeded variable in next PR. */}}
+{{- $proxy := (mustDeepCopy .Values) -}}
 {{- if $proxy.highAvailability.podDisruptionBudget.enabled }}
 {{- if .Capabilities.APIVersions.Has "policy/v1" }}
 apiVersion: policy/v1

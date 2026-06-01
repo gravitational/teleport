@@ -1,5 +1,5 @@
 {{- define "teleport-proxy-lib.internal.serviceaccount" }}
-{{- $proxy := .Values -}}{{/* Minimizes diff for refactoring. Remove unneeded variable in next PR. */}}
+{{- $proxy := (mustDeepCopy .Values) -}}
 {{- $projectedServiceAccountToken := semverCompare ">=1.20.0-0" .Capabilities.KubeVersion.Version }}
 {{- if $proxy.serviceAccount.create -}}
 apiVersion: v1

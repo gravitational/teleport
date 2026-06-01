@@ -1,5 +1,5 @@
 {{- define "teleport-proxy-lib.internal.predeploy_config" }}
-{{- $proxy := .Values -}}{{/* Minimizes diff for refactoring. Remove unneeded variable in next PR. */}}
+{{- $proxy := (mustDeepCopy .Values) -}}
 {{- if $proxy.validateConfigOnDeploy }}
 {{- $configTemplate := printf "teleport-proxy-lib.internal.config.%s" $proxy.chartMode -}}
 apiVersion: v1
