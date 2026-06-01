@@ -98,6 +98,9 @@ var (
 					// the "security-team" login.
 					`ifelse(user.spec.traits.groups.contains("security"), "security-team", set())`,
 				},
+				"withprefix": {
+					`user.spec.traits.groups.withprefix("de")`,
+				},
 			},
 			inputTraits: baseInputTraits,
 			expectedTraits: map[string][]string{
@@ -106,6 +109,7 @@ var (
 				"nogroups":               {},
 				"groups-by-another-name": baseInputTraits["groups"],
 				"logins":                 {"alice", "security-team"},
+				"withprefix":             {"devs"},
 			},
 		},
 		{
