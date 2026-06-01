@@ -248,7 +248,6 @@ tctl auth rotate --type=db_client --phase=init
 # 2. Create the CSR.
 tctl auth create-override-csr \
   --type=db_client \
-  --subject='OU=Llama Unit,CN=Llama Teleport DB client CA' \
   --out='reqs/'
 > (Writes CSR files for OLD and NEW keys.)
 
