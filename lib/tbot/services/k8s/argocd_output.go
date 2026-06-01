@@ -421,7 +421,7 @@ func (s *ArgoCDOutput) writeSecret(ctx context.Context, secret *corev1.Secret) e
 	}
 
 	// Secret exists, update it.
-	secret.SetResourceVersion(secret.ResourceVersion)
+	secret.SetResourceVersion(existing.ResourceVersion)
 
 	annotations := make(map[string]string)
 	maps.Copy(annotations, existing.Annotations)
