@@ -58,7 +58,8 @@ func TestRegression_WaitForStreams_RejectsDuplicateStream(t *testing.T) {
 // goroutine it spawned must exit. Otherwise repeated malformed requests
 // accumulate goroutines parked on the unbuffered notify send.
 func TestRegression_WaitForStreams_DuplicateStream_NoGoroutineLeak(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	ignore := goleak.IgnoreCurrent()
+	defer goleak.VerifyNone(t, ignore)
 
 	handler := &v4ProtocolHandler{}
 
