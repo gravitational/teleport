@@ -29,11 +29,9 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
-	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
@@ -772,11 +770,6 @@ func (s *ForwardServer) ChildLogConfig() srv.ChildLogConfig {
 		ExecLogConfig: reexec.ExecLogConfig{},
 		Writer:        io.Discard,
 	}
-}
-
-// TracerProvider returns the configured tracer provider.
-func (s *ForwardServer) TracerProvider() oteltrace.TracerProvider {
-	return tracing.DefaultProvider()
 }
 
 type serverContextKey struct{}

@@ -378,11 +378,6 @@ func (s *Server) ChildLogConfig() srv.ChildLogConfig {
 	}
 }
 
-// TracerProvider returns the configured tracer provider.
-func (s *Server) TracerProvider() oteltrace.TracerProvider {
-	return s.tracerProvider
-}
-
 // ServerOption is a functional option passed to the server
 type ServerOption func(s *Server) error
 

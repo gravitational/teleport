@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"log/slog"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -368,11 +369,11 @@ func (c *Client) serveSessionRequests(ctx context.Context, in <-chan *ssh.Reques
 
 // HandleChannelOpen starts a goroutine to handle any incoming [ssh.NewChannel] requests matching
 // the provided type using the provided handler. If the type already is being handled,
-// an error is returned.
+// an error is returned. Any error returned by the handler is recorded on the channel's trace span.
 //
 // This should be called before NewSession to ensure new channels of this type are
 // not rejected before the handler is registered.
-func (c *Client) HandleChannelOpen(ctx context.Context, channelType string, handleFn func(ctx context.Context, ch ssh.NewChannel)) error {
+func (c *Client) HandleChannelOpen(ctx context.Context, channelType string, handleFn func(ctx context.Context, ch ssh.NewChannel) error) error {
 	tracer := tracing.NewConfig(c.opts).TracerProvider.Tracer(instrumentationName)
 	ch := c.Client.HandleChannelOpen(channelType)
 	if ch == nil {
@@ -390,7 +391,7 @@ func (c *Client) HandleChannelOpen(ctx context.Context, channelType string, hand
 			}
 			handlerCtx, span := tracer.Start(
 				parentCtx,
-				"ssh.HandleChannelOpen/" + channelType,
+				"ssh.HandleChannelOpen/"+channelType,
 				oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 				oteltrace.WithAttributes(
 					append(
@@ -403,8 +404,11 @@ func (c *Client) HandleChannelOpen(ctx context.Context, channelType string, hand
 			)
 
 			go func() {
-				defer span.End()
-				handleFn(handlerCtx, newCh)
+				err := handleFn(handlerCtx, newCh)
+				if err != nil {
+					slog.DebugContext(ctx, "error handling ssh channel open", "channel_type", channelType, "err", err)
+				}
+				tracing.EndSpan(span, err)
 			}()
 		}
 	}()

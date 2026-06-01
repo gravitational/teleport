@@ -106,10 +106,10 @@ const channelType = "auth-agent@openssh.com"
 //
 // The agent getter must be safe to call concurrently.
 func ServeChannelRequests(ctx context.Context, client *tracessh.Client, getForwardAgent ClientGetter) error {
-	err := client.HandleChannelOpen(ctx, channelType, func(ctx context.Context, ch ssh.NewChannel) {
+	err := client.HandleChannelOpen(ctx, channelType, func(ctx context.Context, ch ssh.NewChannel) error {
 		channel, reqs, err := ch.Accept()
 		if err != nil {
-			return
+			return trace.Wrap(err)
 		}
 
 		go ssh.DiscardRequests(reqs)
@@ -117,8 +117,7 @@ func ServeChannelRequests(ctx context.Context, client *tracessh.Client, getForwa
 		forwardAgent, err := getForwardAgent()
 		if err != nil {
 			_ = channel.Close()
-			slog.ErrorContext(ctx, "failed to connect to forwarded agent", "err", err)
-			return
+			return trace.Wrap(err, "failed to connect to forwarded agent")
 		}
 
 		go func() {
@@ -128,6 +127,8 @@ func ServeChannelRequests(ctx context.Context, client *tracessh.Client, getForwa
 				slog.ErrorContext(ctx, "unexpected error serving forwarded agent", "err", err)
 			}
 		}()
+
+		return nil
 	})
 	return trace.Wrap(err)
 }

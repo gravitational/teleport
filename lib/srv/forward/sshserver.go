@@ -577,11 +577,6 @@ func (s *Server) ChildLogConfig() srv.ChildLogConfig {
 	}
 }
 
-// TracerProvider returns the configured tracer provider.
-func (s *Server) TracerProvider() oteltrace.TracerProvider {
-	return s.tracerProvider
-}
-
 func (s *Server) Serve() {
 	var (
 		succeeded bool
@@ -731,11 +726,14 @@ func (s *Server) Serve() {
 	succeeded = true
 
 	// Add channel handlers immediately to avoid rejecting a channel.
-	s.remoteClient.HandleChannelOpen(ctx, teleport.ChanForwardedTCPIP, func(ctx context.Context, ch ssh.NewChannel) {
+	if err := s.remoteClient.HandleChannelOpen(ctx, teleport.ChanForwardedTCPIP, func(ctx context.Context, ch ssh.NewChannel) error {
 		if err := s.handleForwardedTCPIPRequest(ctx, ch); err != nil && !utils.IsOKNetworkError(err) {
-			s.logger.ErrorContext(ctx, "Error handling forwarded-tcpip request", "error", err)
+			return trace.Wrap(err)
 		}
-	})
+		return nil
+	}); err != nil {
+		s.logger.ErrorContext(ctx, "Unable to handle forwarded-tcpip channel requests", "error", err)
+	}
 
 	// The keep-alive loop will keep pinging the remote server and after it has
 	// missed a certain number of keep-alive requests it will cancel the
@@ -1474,7 +1472,7 @@ func (s *Server) handleAgentForward(ctx context.Context, ch ssh.Channel, req *ss
 // handleX11ChannelRequest accepts an X11 channel and forwards it back to the client.
 // Servers which support X11 forwarding request a separate channel for serving each
 // inbound connection on the X11 socket of the remote session.
-func (s *Server) handleX11ChannelRequest(ctx context.Context, nch ssh.NewChannel) {
+func (s *Server) handleX11ChannelRequest(ctx context.Context, nch ssh.NewChannel) error {
 	// According to RFC 4254, client "implementations MUST reject any X11 channel
 	// open requests if they have not requested X11 forwarding". However, since this
 	// is a forwarding client implementation, we should simply accept and forward,
@@ -1483,16 +1481,14 @@ func (s *Server) handleX11ChannelRequest(ctx context.Context, nch ssh.NewChannel
 	// accept inbound X11 channel from remote server
 	sch, sin, err := nch.Accept()
 	if err != nil {
-		s.logger.ErrorContext(ctx, "X11 channel fwd failed", "error", err)
-		return
+		return trace.Wrap(err, "X11 channel fwd failed")
 	}
 	defer sch.Close()
 
 	// setup outbound X11 channel to client
 	cch, cin, err := tracessh.OpenChannelToClient(ctx, s.sconn, x11.ChannelRequest, nch.ExtraData(), tracing.WithTracerProvider(s.tracerProvider))
 	if err != nil {
-		s.logger.ErrorContext(ctx, "X11 channel fwd failed", "error", err)
-		return
+		return trace.Wrap(err, "X11 channel fwd failed")
 	}
 	defer cch.Close()
 
@@ -1515,8 +1511,10 @@ func (s *Server) handleX11ChannelRequest(ctx context.Context, nch ssh.NewChannel
 	}()
 
 	if err := utils.ProxyConn(ctx, cch, sch); err != nil {
-		s.logger.DebugContext(ctx, "Encountered error during x11 forwarding", "error", err)
+		return trace.Wrap(err, "encountered error during x11 forwarding")
 	}
+
+	return nil
 }
 
 // handleX11Forward handles an X11 forwarding request from the client.

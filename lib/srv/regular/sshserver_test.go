@@ -1576,7 +1576,7 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 
 	// Handle any x11 channel requests received from the server
 	// and start x11 forwarding to the client display.
-	err = clt.HandleChannelOpen(ctx, x11.ChannelRequest, func(ctx context.Context, ch ssh.NewChannel) {
+	err = clt.HandleChannelOpen(ctx, x11.ChannelRequest, func(ctx context.Context, ch ssh.NewChannel) error {
 		sch, sin, err := ch.Accept()
 		assert.NoError(t, err)
 		defer sch.Close()
@@ -1597,6 +1597,8 @@ func x11EchoSession(ctx context.Context, t *testing.T, clt *tracessh.Client) x11
 		if !errors.Is(err, context.Canceled) {
 			assert.NoError(t, err)
 		}
+
+		return nil
 	})
 	require.NoError(t, err)
 

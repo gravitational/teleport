@@ -155,25 +155,23 @@ func (ns *NodeSession) setXAuthData(ctx context.Context, display x11.Display) er
 
 // serveX11Channels serves incoming X11 channels by starting X11 forwarding with the session.
 func (ns *NodeSession) serveX11Channels(ctx context.Context, sess *tracessh.Session) error {
-	err := ns.nodeClient.Client.HandleChannelOpen(ctx, x11.ChannelRequest, func(ctx context.Context, ch ssh.NewChannel) {
+	err := ns.nodeClient.Client.HandleChannelOpen(ctx, x11.ChannelRequest, func(ctx context.Context, ch ssh.NewChannel) error {
 		if !ns.x11RefuseTime.IsZero() && time.Now().After(ns.x11RefuseTime) {
 			ch.Reject(ssh.Prohibited, "rejected X11 channel request after ForwardX11Timeout")
 			slog.WarnContext(ctx, "rejected X11 forwarding attempt after the ForwardX11Timeout")
-			return
+			return nil
 		}
 
 		var req x11.ChannelRequestPayload
 		if err := ssh.Unmarshal(ch.ExtraData(), &req); err != nil {
 			ch.Reject(ssh.Prohibited, "invalid payload")
-			slog.DebugContext(ctx, "rejected X11 channel request with invalid payload", "err", err)
-			return
+			return trace.Wrap(err, "rejected X11 channel request with invalid payload")
 		}
 
 		slog.DebugContext(ctx, "received X11 channel request from %s:%d", req.OriginatorAddress, req.OriginatorPort)
 		xchan, sin, err := ch.Accept()
 		if err != nil {
-			slog.DebugContext(ctx, "failed to accept X11 channel request", "err", err)
-			return
+			return trace.Wrap(err, "failed to accept X11 channel request")
 		}
 		defer xchan.Close()
 
@@ -182,25 +180,21 @@ func (ns *NodeSession) serveX11Channels(ctx context.Context, sess *tracessh.Sess
 		// client's xauth cookie. Otherwise, the request will be denied.
 		authPacket, err := x11.ReadAndRewriteXAuthPacket(xchan, ns.spoofedXAuthEntry, ns.clientXAuthEntry)
 		if trace.IsAccessDenied(err) {
-			slog.ErrorContext(ctx, "X11 connection rejected due to wrong authentication", "err", err)
-			return
+			return trace.Wrap(err, "X11 connection rejected due to wrong authentication")
 		} else if err != nil {
-			slog.DebugContext(ctx, "Failed to read xauth packet from X11 channel request", "err", err)
-			return
+			return trace.Wrap(err, "failed to read xauth packet from X11 channel request")
 		}
 
 		// Dial a connection to the client's XServer.
 		xconn, err := ns.clientXAuthEntry.Display.Dial()
 		if err != nil {
-			slog.DebugContext(ctx, "Failed to connect to client's display", "err", err)
-			return
+			return trace.Wrap(err, "failed to connect to client's display")
 		}
 		defer xconn.Close()
 
 		// Send the processed X11 auth packet to the client's XServer connection.
 		if _, err := xconn.Write(authPacket); err != nil {
-			slog.DebugContext(ctx, "Failed to write xauth packet", "err", err)
-			return
+			return trace.Wrap(err, "failed to write xauth packet")
 		}
 
 		// Forward ssh requests on the X11 channels until X11 forwarding is complete
@@ -216,20 +210,22 @@ func (ns *NodeSession) serveX11Channels(ctx context.Context, sess *tracessh.Sess
 
 		// Proxy the connection until the connection is closed or the request is canceled.
 		if err := utils.ProxyConn(ctx, xconn, xchan); err != nil && !errors.Is(err, context.Canceled) {
-			slog.DebugContext(ctx, "Encountered error during X11 forwarding", "err", err)
+			return trace.Wrap(err, "encountered error during X11 forwarding")
 		}
+
+		return nil
 	})
 	return trace.Wrap(err)
 }
 
 // rejectX11Channels rejects any incomign X11 channels for this node session.
 func (ns *NodeSession) rejectX11Channels(ctx context.Context) error {
-	err := ns.nodeClient.Client.HandleChannelOpen(ctx, x11.ChannelRequest, func(_ context.Context, ch ssh.NewChannel) {
+	err := ns.nodeClient.Client.HandleChannelOpen(ctx, x11.ChannelRequest, func(_ context.Context, ch ssh.NewChannel) error {
 		// According to RFC 4254, client "implementations MUST reject any X11 channel
 		// open requests if they have not requested X11 forwarding". Following openssh's
 		// example, we treat such a request as a break in attempt and warn the user.
 		slog.WarnContext(ctx, "server tried X11 forwarding without client requesting it, this is likely a break-in attempt by a malicious user")
-		ch.Reject(ssh.Prohibited, "")
+		return trace.Wrap(ch.Reject(ssh.Prohibited, ""))
 	})
 	return trace.Wrap(err)
 }

@@ -438,13 +438,14 @@ func TestHandleChannelOpenTraceContext(t *testing.T) {
 	require.NoError(t, err)
 
 	client := NewClient(sshConn, chans, reqs, opts...)
-	require.NoError(t, client.HandleChannelOpen(ctx, testChannelType, func(ctx context.Context, ch ssh.NewChannel) {
+	require.NoError(t, client.HandleChannelOpen(ctx, testChannelType, func(ctx context.Context, ch ssh.NewChannel) error {
 		handlerTraceID <- oteltrace.SpanFromContext(ctx).SpanContext().TraceID()
 		handlerPayload <- ch.ExtraData()
 		channel, reqs, err := ch.Accept()
 		require.NoError(t, err)
 		defer channel.Close()
 		go ssh.DiscardRequests(reqs)
+		return nil
 	}))
 	close(ready)
 

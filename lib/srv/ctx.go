@@ -36,13 +36,11 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
-	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
-	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -206,9 +204,6 @@ type Server interface {
 	// ChildLogConfig returns the log configuration for handling logs from
 	// child processes.
 	ChildLogConfig() ChildLogConfig
-
-	// TracerProvider returns the configured tracer provider.
-	TracerProvider() oteltrace.TracerProvider
 }
 
 // ChildLogConfig is the log configuration for handling logs from child processes.
@@ -811,7 +806,7 @@ func (c *ServerContext) HandleX11Listener(ctx context.Context, l net.Listener, s
 			go func() {
 				defer xconn.Close()
 
-				xchan, sin, err := tracessh.OpenChannelToClient(ctx, c.ServerConn, x11.ChannelRequest, x11ChannelReqPayload, tracing.WithTracerProvider(c.srv.TracerProvider()))
+				xchan, sin, err := tracessh.OpenChannelToClient(ctx, c.ServerConn, x11.ChannelRequest, x11ChannelReqPayload)
 				if err != nil {
 					c.Logger.DebugContext(ctx, "Failed to open a new X11 channel", "error", err)
 					return
