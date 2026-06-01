@@ -320,6 +320,28 @@
           {
             "patterns": [
               { "group": ["teleport/**", "e-teleport/**", "teleterm/**"] }
+            ],
+            "paths": [
+              {
+                "name": "shared/hooks/useAsync",
+                "importNames": ["useAsync"],
+                "message": "useAsync is deprecated; use TanStack Query (useQuery/useMutation) instead. See RFD 197."
+              },
+              {
+                "name": "shared/hooks/useAttempt",
+                "importNames": ["default"],
+                "message": "useAttempt is deprecated; use TanStack Query (useQuery/useMutation) instead. See RFD 197."
+              },
+              {
+                "name": "shared/hooks/useAttemptNext",
+                "importNames": ["default"],
+                "message": "useAttemptNext is deprecated; use TanStack Query (useQuery/useMutation) instead. See RFD 197."
+              },
+              {
+                "name": "shared/hooks",
+                "importNames": ["useAttempt", "useAttemptNext"],
+                "message": "useAttempt/useAttemptNext are deprecated; use TanStack Query (useQuery/useMutation) instead. See RFD 197."
+              }
             ]
           }
         ]
@@ -342,6 +364,26 @@
                 "name": "usehooks-ts",
                 "importNames": ["useCopyToClipboard"],
                 "message": "Use 'copyToClipboard' from 'design/utils/copyToClipboard' instead."
+              },
+              {
+                "name": "shared/hooks/useAsync",
+                "importNames": ["useAsync"],
+                "message": "useAsync is deprecated; use TanStack Query (useQuery/useMutation) instead. See RFD 197."
+              },
+              {
+                "name": "shared/hooks/useAttempt",
+                "importNames": ["default"],
+                "message": "useAttempt is deprecated; use TanStack Query (useQuery/useMutation) instead. See RFD 197."
+              },
+              {
+                "name": "shared/hooks/useAttemptNext",
+                "importNames": ["default"],
+                "message": "useAttemptNext is deprecated; use TanStack Query (useQuery/useMutation) instead. See RFD 197."
+              },
+              {
+                "name": "shared/hooks",
+                "importNames": ["useAttempt", "useAttemptNext"],
+                "message": "useAttempt/useAttemptNext are deprecated; use TanStack Query (useQuery/useMutation) instead. See RFD 197."
               }
             ]
           }
@@ -365,6 +407,26 @@
                 "name": "usehooks-ts",
                 "importNames": ["useCopyToClipboard"],
                 "message": "Use 'copyToClipboard' from 'design/utils/copyToClipboard' instead."
+              },
+              {
+                "name": "shared/hooks/useAsync",
+                "importNames": ["useAsync"],
+                "message": "useAsync is deprecated; use TanStack Query (useQuery/useMutation) instead. See RFD 197."
+              },
+              {
+                "name": "shared/hooks/useAttempt",
+                "importNames": ["default"],
+                "message": "useAttempt is deprecated; use TanStack Query (useQuery/useMutation) instead. See RFD 197."
+              },
+              {
+                "name": "shared/hooks/useAttemptNext",
+                "importNames": ["default"],
+                "message": "useAttemptNext is deprecated; use TanStack Query (useQuery/useMutation) instead. See RFD 197."
+              },
+              {
+                "name": "shared/hooks",
+                "importNames": ["useAttempt", "useAttemptNext"],
+                "message": "useAttempt/useAttemptNext are deprecated; use TanStack Query (useQuery/useMutation) instead. See RFD 197."
               }
             ]
           }
@@ -388,6 +450,26 @@
                 "name": "usehooks-ts",
                 "importNames": ["useCopyToClipboard"],
                 "message": "Use 'copyToClipboard' from 'design/utils/copyToClipboard' instead."
+              },
+              {
+                "name": "shared/hooks/useAsync",
+                "importNames": ["useAsync"],
+                "message": "useAsync is deprecated; use TanStack Query (useQuery/useMutation) instead. See RFD 197."
+              },
+              {
+                "name": "shared/hooks/useAttempt",
+                "importNames": ["default"],
+                "message": "useAttempt is deprecated; use TanStack Query (useQuery/useMutation) instead. See RFD 197."
+              },
+              {
+                "name": "shared/hooks/useAttemptNext",
+                "importNames": ["default"],
+                "message": "useAttemptNext is deprecated; use TanStack Query (useQuery/useMutation) instead. See RFD 197."
+              },
+              {
+                "name": "shared/hooks",
+                "importNames": ["useAttempt", "useAttemptNext"],
+                "message": "useAttempt/useAttemptNext are deprecated; use TanStack Query (useQuery/useMutation) instead. See RFD 197."
               }
             ]
           }
@@ -413,6 +495,26 @@
                 "name": "usehooks-ts",
                 "importNames": ["useCopyToClipboard"],
                 "message": "Use 'copyToClipboard' from 'design/utils/copyToClipboard' instead."
+              },
+              {
+                "name": "shared/hooks/useAsync",
+                "importNames": ["useAsync"],
+                "message": "useAsync is deprecated; use TanStack Query (useQuery/useMutation) instead. See RFD 197."
+              },
+              {
+                "name": "shared/hooks/useAttempt",
+                "importNames": ["default"],
+                "message": "useAttempt is deprecated; use TanStack Query (useQuery/useMutation) instead. See RFD 197."
+              },
+              {
+                "name": "shared/hooks/useAttemptNext",
+                "importNames": ["default"],
+                "message": "useAttemptNext is deprecated; use TanStack Query (useQuery/useMutation) instead. See RFD 197."
+              },
+              {
+                "name": "shared/hooks",
+                "importNames": ["useAttempt", "useAttemptNext"],
+                "message": "useAttempt/useAttemptNext are deprecated; use TanStack Query (useQuery/useMutation) instead. See RFD 197."
               }
             ]
           }
