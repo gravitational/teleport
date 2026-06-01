@@ -27,8 +27,10 @@ import {
   DNSReport,
   DNSZoneResult,
   DNSZoneStatus,
+  RecordResult,
   Report,
   RouteConflict,
+  VNetDNSReachability,
 } from 'gen-proto-ts/teleport/lib/vnet/diag/v1/diag_pb';
 
 export const makeReport = (props: Partial<Report> = {}): Report => ({
@@ -95,9 +97,31 @@ export const makeRouteConflict = (
 });
 
 export const makeDNSReport = (props: Partial<DNSReport> = {}): DNSReport => ({
-  vnetDnsReachable: true,
-  vnetDnsUnreachableError: '',
+  ipv4Reachability: makeVNetDNSReachability({ address: '100.64.0.2:53' }),
+  ipv6Reachability: makeVNetDNSReachability({
+    address: '[fdff:fd74:46c0::2]:53',
+  }),
   zoneResults: [],
+  ...props,
+});
+
+export const makeVNetDNSReachability = (
+  props: Partial<VNetDNSReachability> = {}
+): VNetDNSReachability => ({
+  address: '[fdff:fd74:46c0::2]:53',
+  reachable: true,
+  respondedA: true,
+  respondedAaaa: true,
+  error: '',
+  ...props,
+});
+
+export const makeRecordResult = (
+  props: Partial<RecordResult> = {}
+): RecordResult => ({
+  status: DNSZoneStatus.DNS_ZONE_STATUS_OK,
+  observedIp: '',
+  error: '',
   ...props,
 });
 
@@ -105,10 +129,8 @@ export const makeDNSZoneResult = (
   props: Partial<DNSZoneResult> = {}
 ): DNSZoneResult => ({
   zone: 'company.test',
-  status: DNSZoneStatus.DNS_ZONE_STATUS_OK,
-  observedIp: 'fdff:fd74:46c0::2',
-  expectedIp: 'fdff:fd74:46c0::2',
-  error: '',
+  aRecord: makeRecordResult(),
+  aaaaRecord: makeRecordResult(),
   ...props,
 });
 
