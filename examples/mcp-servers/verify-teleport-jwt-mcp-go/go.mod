@@ -1,6 +1,6 @@
 module verify-teleport-jwt-mcp-go
 
-go 1.25.10
+go 1.26.3
 
 require (
 	github.com/auth0/go-jwt-middleware/v2 v2.3.0
