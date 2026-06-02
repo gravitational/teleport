@@ -1705,3 +1705,40 @@ tests:
           content:
             name: "GOMEMLIMIT"
           any: true
+
+  - it: should default to multiple replicas when proxy-specific replicaCount is not set
+    template: proxy.yaml
+    set:
+      clusterName: helm-lint.example.com
+      tls:
+        existingSecretName: my-certs
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
+      - equal:
+          path: spec.replicas
+          value: 2
+
+  - it: should default to multiple replicas when proxy-specific replicaCount is zero
+    template: proxy.yaml
+    set:
+      clusterName: helm-lint.example.com
+      tls:
+        existingSecretName: my-certs
+      proxy:
+        highAvailability:
+          replicaCount: 0
+    documentIndex: 1
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-proxy
+      - equal:
+          path: spec.replicas
+          value: 2

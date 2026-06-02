@@ -1193,3 +1193,57 @@ tests:
           content:
             name: "GOMEMLIMIT"
           any: true
+
+  - it: should default to multiple replicas when forceHAReplicas is false
+    template: deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+      forceHAReplicas: false
+      highAvailability:
+        replicaCount: 1
+      tls:
+        existingSecretName: my-certs
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 2
+
+  - it: should force a single replica when forceHAReplicas is true
+    template: deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+      forceHAReplicas: true
+      highAvailability:
+        replicaCount: 1
+      tls:
+        existingSecretName: my-certs
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
+
+  - it: should force zero replicas when forceHAReplicas is true
+    template: deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+      forceHAReplicas: true
+      highAvailability:
+        replicaCount: 0
+      tls:
+        existingSecretName: my-certs
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 0
+
+  - it: should ignore forceHAReplicas when proxy is not replicable
+    template: deployment.yaml
+    set:
+      clusterName: helm-lint.example.com
+      forceHAReplicas: true
+      highAvailability:
+        replicaCount: 3
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 1
