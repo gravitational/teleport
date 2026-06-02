@@ -38,6 +38,12 @@ message WorkloadIdentity {
   teleport.header.v1.Metadata metadata = 4;
   // The configured properties of the WorkloadIdentity
   WorkloadIdentitySpec spec = 5;
+  // The scope of the WorkloadIdentity. If unset, the WorkloadIdentity is
+  // unscoped (classic behavior). If set, the WorkloadIdentity is scoped and the
+  // SPIFFE ID defined in spec.spiffe.id must be a scoped SPIFFE ID prefixed
+  // with this scope (see RFD 0229c). The scope of a WorkloadIdentity cannot be
+  // changed after creation.
+  string scope = 6;
 }
 
 // The attribute casted to a string must be equal to the value.
