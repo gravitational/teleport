@@ -263,11 +263,11 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 			// The writes to the channels are intentionally not selecting
 			// on `ctx.Done()` to ensure that all data is flushed to the
 			// clients.
-			switch frame := req.Frame.(type) {
-			case *transportv1pb.ProxySSHRequest_Ssh:
-				sshStream.incomingC <- frame.Ssh.GetPayload()
-			case *transportv1pb.ProxySSHRequest_Agent:
-				agentStream.incomingC <- frame.Agent.GetPayload()
+			switch req.WhichFrame() {
+			case transportv1pb.ProxySSHRequest_Ssh_case:
+				sshStream.incomingC <- req.GetSsh().GetPayload()
+			case transportv1pb.ProxySSHRequest_Agent_case:
+				agentStream.incomingC <- req.GetAgent().GetPayload()
 			default:
 				s.cfg.Logger.ErrorContext(ctx, "received unexpected ssh frame", "frame", logutils.TypeAttr(frame))
 				continue

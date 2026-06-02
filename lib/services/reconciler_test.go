@@ -26,9 +26,9 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -260,7 +260,7 @@ func TestReconciler(t *testing.T) {
 						return test.comparator(tr1, tr2)
 					}
 
-					return EqualFromBool(cmp.Equal(tr1, tr2, cmpopts.IgnoreUnexported(headerv1.Metadata{})))
+					return EqualFromBool(cmp.Equal(tr1, tr2, protocmp.Transform()))
 				},
 				OnCreate: func(ctx context.Context, tr testResource) error {
 					onCreateCalls = append(onCreateCalls, tr)
@@ -331,7 +331,7 @@ func TestGenericReconciler(t *testing.T) {
 			return MatchResourceLabels(selectors, tr.GetMetadata().GetLabels())
 		},
 		CompareResources: func(tr1, tr2 testResource) int {
-			return EqualFromBool(cmp.Equal(tr1, tr2, cmpopts.IgnoreUnexported(headerv1.Metadata{})))
+			return EqualFromBool(cmp.Equal(tr1, tr2, protocmp.Transform()))
 		},
 		GetCurrentResources: func() map[resourceID]testResource {
 			return registeredResources
@@ -417,7 +417,7 @@ func TestGenericReconcilerConcurrent(t *testing.T) {
 	r, err := NewGenericReconciler(GenericReconcilerConfig[int, testResource]{
 		Matcher: func(tr testResource) bool { return true },
 		CompareResources: func(tr1, tr2 testResource) int {
-			return EqualFromBool(cmp.Equal(tr1, tr2, cmpopts.IgnoreUnexported(headerv1.Metadata{})))
+			return EqualFromBool(cmp.Equal(tr1, tr2, protocmp.Transform()))
 		},
 		GetCurrentResources: func() map[int]testResource { return currentResources },
 		GetNewResources:     func() map[int]testResource { return newResources },

@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -64,7 +63,7 @@ func TestAutoUpdateServiceConfigCRUD(t *testing.T) {
 	created, err := service.CreateAutoUpdateConfig(ctx, config)
 	require.NoError(t, err)
 	diff := cmp.Diff(config, created,
-		cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "Revision"),
 		protocmp.Transform(),
 	)
 	require.Empty(t, diff)
@@ -73,7 +72,7 @@ func TestAutoUpdateServiceConfigCRUD(t *testing.T) {
 	got, err := service.GetAutoUpdateConfig(ctx)
 	require.NoError(t, err)
 	diff = cmp.Diff(config, got,
-		cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "Revision"),
 		protocmp.Transform(),
 	)
 	require.Empty(t, diff)
@@ -129,7 +128,7 @@ func TestAutoUpdateServiceVersionCRUD(t *testing.T) {
 	created, err := service.CreateAutoUpdateVersion(ctx, version)
 	require.NoError(t, err)
 	diff := cmp.Diff(version, created,
-		cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "Revision"),
 		protocmp.Transform(),
 	)
 	require.Empty(t, diff)
@@ -138,7 +137,7 @@ func TestAutoUpdateServiceVersionCRUD(t *testing.T) {
 	got, err := service.GetAutoUpdateVersion(ctx)
 	require.NoError(t, err)
 	diff = cmp.Diff(version, got,
-		cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "Revision"),
 		protocmp.Transform(),
 	)
 	require.Empty(t, diff)
@@ -209,7 +208,7 @@ func TestAutoUpdateServiceAgentReportCRUD(t *testing.T) {
 	created, err := service.CreateAutoUpdateAgentReport(ctx, report)
 	require.NoError(t, err)
 	diff := cmp.Diff(report, created,
-		cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "Revision"),
 		protocmp.Transform(),
 	)
 	require.Empty(t, diff)
@@ -218,7 +217,7 @@ func TestAutoUpdateServiceAgentReportCRUD(t *testing.T) {
 	got, err := service.GetAutoUpdateAgentReport(ctx, authID.String())
 	require.NoError(t, err)
 	diff = cmp.Diff(report, got,
-		cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "Revision"),
 		protocmp.Transform(),
 	)
 	require.Empty(t, diff)

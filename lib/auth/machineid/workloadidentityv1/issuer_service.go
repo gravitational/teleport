@@ -447,9 +447,9 @@ func (s *IssuanceService) IssueTeleportWorkloadIdentity(
 		if !authz.HasBuiltinRole(*authCtx, string(types.RoleApp)) {
 			return nil, trace.AccessDenied("only app services can issue workload identity for app access")
 		}
-		switch credParams := req.Credential.(type) {
-		case *workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_X509SvidParams:
-			return s.issueAppAccessX509Identity(ctx, builtin.GetServerID(), req, req.GetAppAccess(), credParams)
+		switch req.WhichCredential() {
+		case workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_X509SvidParams_case:
+			return s.issueAppAccessX509Identity(ctx, builtin.GetServerID(), req, req.GetAppAccess(), req.GetX509SvidParams())
 		default:
 			return nil, trace.BadParameter("app access usage only supports issuing x509 credentials")
 		}
@@ -463,7 +463,7 @@ func (s *IssuanceService) issueAppAccessX509Identity(
 	hostID string,
 	req *workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest,
 	appUsage *workloadidentityv1pb.AppAccessUsage,
-	credParams *workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_X509SvidParams,
+	credParams *workloadidentityv1pb.X509SVIDParams,
 ) (_ *workloadidentityv1pb.IssueTeleportWorkloadIdentityResponse, err error) {
 	ctx, span := tracer.Start(ctx, "IssuanceService/issueAppAccessX509Identity")
 	defer func() { tracing.EndSpan(span, err) }()
@@ -482,7 +482,7 @@ func (s *IssuanceService) issueAppAccessX509Identity(
 		return nil, trace.Wrap(err, "unable to locate app")
 	}
 
-	pubKey, err := x509.ParsePKIXPublicKey(credParams.X509SvidParams.GetPublicKey())
+	pubKey, err := x509.ParsePKIXPublicKey(credParams.GetPublicKey())
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing public key")
 	}

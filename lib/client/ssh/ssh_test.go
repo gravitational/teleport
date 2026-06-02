@@ -117,9 +117,9 @@ func TestKeyboardInteractive_InvalidAuthPrompt_NilPromptField(t *testing.T) {
 	)
 	require.NotNil(t, authMethod)
 
-	mfaPrompt := &sshpb.AuthPrompt{
+	mfaPrompt := sshpb.AuthPrompt_builder{
 		Prompt: nil,
-	}
+	}.Build()
 	mfaPromptJSON, err := protojson.Marshal(mfaPrompt)
 	require.NoError(t, err)
 
