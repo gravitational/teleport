@@ -58,7 +58,6 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage/easconfig"
 	"github.com/gravitational/teleport/lib/integrations/samlidp/samlidpconfig"
@@ -70,6 +69,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	awsregion "github.com/gravitational/teleport/lib/utils/aws/region"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/lib/utils/parse"
 	libslices "github.com/gravitational/teleport/lib/utils/slices"
 )
 
@@ -2192,6 +2192,17 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.Apps.Apps = append(cfg.Apps.Apps, app)
 	}
 
+	// Reject literal duplicates: at registration two entries with the
+	// same name would write to the same backend key (host_id + name)
+	// and the second would silently overwrite the first.
+	seenNames := make(map[string]struct{}, len(cfg.Apps.Apps))
+	for _, app := range cfg.Apps.Apps {
+		if _, ok := seenNames[app.Name]; ok {
+			return trace.BadParameter("duplicate application name %q in static config", app.Name)
+		}
+		seenNames[app.Name] = struct{}{}
+	}
+
 	return nil
 }
 
@@ -2670,7 +2681,7 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 		var sessionTags map[string]string
 		if clf.DatabaseAWSSessionTags != "" {
 			var err error
-			sessionTags, err = client.ParseLabelSpec(clf.DatabaseAWSSessionTags)
+			sessionTags, err = parse.LabelSelectorSpec(clf.DatabaseAWSSessionTags)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -3017,7 +3028,7 @@ func ConfigureOpenSSH(clf *CommandLineFlags, cfg *servicecfg.Config) error {
 		}
 		cfg.OpenSSH.AdditionalPrincipals = append(cfg.OpenSSH.AdditionalPrincipals, principal)
 	}
-	cfg.OpenSSH.Labels, err = client.ParseLabelSpec(clf.Labels)
+	cfg.OpenSSH.Labels, err = parse.LabelSelectorSpec(clf.Labels)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3040,7 +3051,7 @@ func ConfigureOpenSSH(clf *CommandLineFlags, cfg *servicecfg.Config) error {
 // dynamic labels.
 func parseLabels(spec string) (map[string]string, services.CommandLabels, error) {
 	// Base syntax parsing, the spec must be in the form of 'key=value,more="better"'.
-	lmap, err := client.ParseLabelSpec(spec)
+	lmap, err := parse.LabelSelectorSpec(spec)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}

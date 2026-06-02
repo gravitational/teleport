@@ -58,7 +58,7 @@ export function useClusterLogin(props: Props) {
   const cluster = clustersService.findCluster(clusterUri);
   const refAbortCtrl = useRef<AbortController>(null);
   const loggedInUserName =
-    props.prefill.username || cluster.loggedInUser?.name || null;
+    props.prefill.username || cluster?.loggedInUser?.name || null;
   const [ssoPrompt, setSsoPrompt] = useState<SsoPrompt>('no-prompt');
   const [passwordlessLoginState, setPasswordlessLoginState] =
     useState<PasswordlessLoginState>();

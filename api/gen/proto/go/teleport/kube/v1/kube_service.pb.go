@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/kube/v1/kube_service.proto
 
+//go:build !protoopaque
+
 package kubev1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -39,7 +40,7 @@ const (
 // ListKubernetesResourcesRequest defines a request to retrieve resources paginated. Only
 // one type of resource can be retrieved per request.
 type ListKubernetesResourcesRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ResourceType is the Kubernetes resource that is going to be retrieved.
 	ResourceType string `protobuf:"bytes,1,opt,name=resource_type,json=resourceType,proto3" json:"resource_type,omitempty"`
 	// Limit is the maximum amount of resources to retrieve.
@@ -99,11 +100,6 @@ func (x *ListKubernetesResourcesRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ListKubernetesResourcesRequest.ProtoReflect.Descriptor instead.
-func (*ListKubernetesResourcesRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_kube_v1_kube_service_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *ListKubernetesResourcesRequest) GetResourceType() string {
@@ -197,9 +193,129 @@ func (x *ListKubernetesResourcesRequest) GetKubernetesNamespace() string {
 	return ""
 }
 
+func (x *ListKubernetesResourcesRequest) SetResourceType(v string) {
+	x.ResourceType = v
+}
+
+func (x *ListKubernetesResourcesRequest) SetLimit(v int32) {
+	x.Limit = v
+}
+
+func (x *ListKubernetesResourcesRequest) SetStartKey(v string) {
+	x.StartKey = v
+}
+
+func (x *ListKubernetesResourcesRequest) SetLabels(v map[string]string) {
+	x.Labels = v
+}
+
+func (x *ListKubernetesResourcesRequest) SetPredicateExpression(v string) {
+	x.PredicateExpression = v
+}
+
+func (x *ListKubernetesResourcesRequest) SetSearchKeywords(v []string) {
+	x.SearchKeywords = v
+}
+
+func (x *ListKubernetesResourcesRequest) SetSortBy(v *types.SortBy) {
+	x.SortBy = v
+}
+
+func (x *ListKubernetesResourcesRequest) SetNeedTotalCount(v bool) {
+	x.NeedTotalCount = v
+}
+
+func (x *ListKubernetesResourcesRequest) SetUseSearchAsRoles(v bool) {
+	x.UseSearchAsRoles = v
+}
+
+func (x *ListKubernetesResourcesRequest) SetUsePreviewAsRoles(v bool) {
+	x.UsePreviewAsRoles = v
+}
+
+func (x *ListKubernetesResourcesRequest) SetTeleportCluster(v string) {
+	x.TeleportCluster = v
+}
+
+func (x *ListKubernetesResourcesRequest) SetKubernetesCluster(v string) {
+	x.KubernetesCluster = v
+}
+
+func (x *ListKubernetesResourcesRequest) SetKubernetesNamespace(v string) {
+	x.KubernetesNamespace = v
+}
+
+func (x *ListKubernetesResourcesRequest) HasSortBy() bool {
+	if x == nil {
+		return false
+	}
+	return x.SortBy != nil
+}
+
+func (x *ListKubernetesResourcesRequest) ClearSortBy() {
+	x.SortBy = nil
+}
+
+type ListKubernetesResourcesRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ResourceType is the Kubernetes resource that is going to be retrieved.
+	ResourceType string
+	// Limit is the maximum amount of resources to retrieve.
+	Limit int32
+	// StartKey is used to start listing resources from a specific spot. It
+	// should be set to the previous NextKey value if using pagination, or
+	// left empty.
+	StartKey string
+	// Labels is a label-based matcher if non-empty.
+	Labels map[string]string
+	// PredicateExpression defines boolean conditions that will be matched against the resource.
+	PredicateExpression string
+	// SearchKeywords is a list of search keywords to match against resource field values.
+	SearchKeywords []string
+	// SortBy describes which resource field and which direction to sort by.
+	SortBy *types.SortBy
+	// NeedTotalCount indicates whether or not the caller also wants the total number of resources
+	// after filtering.
+	NeedTotalCount bool
+	// UseSearchAsRoles indicates that the response should include all resources
+	// the caller is able to request access to using search_as_roles
+	UseSearchAsRoles bool
+	// UsePreviewAsRoles indicates that the response should include all resources
+	// the caller would be able to access with their preview_as_roles
+	UsePreviewAsRoles bool
+	// TeleportCluster is the Teleport Cluster name to route the request to.
+	TeleportCluster string
+	// Cluster is the Kubernetes Cluster to request the resources.
+	KubernetesCluster string
+	// Namespace is the Kubernetes namespace where the resources must be located.
+	// To search on every Kubernetes Namespace, do not define the value.
+	KubernetesNamespace string
+}
+
+func (b0 ListKubernetesResourcesRequest_builder) Build() *ListKubernetesResourcesRequest {
+	m0 := &ListKubernetesResourcesRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ResourceType = b.ResourceType
+	x.Limit = b.Limit
+	x.StartKey = b.StartKey
+	x.Labels = b.Labels
+	x.PredicateExpression = b.PredicateExpression
+	x.SearchKeywords = b.SearchKeywords
+	x.SortBy = b.SortBy
+	x.NeedTotalCount = b.NeedTotalCount
+	x.UseSearchAsRoles = b.UseSearchAsRoles
+	x.UsePreviewAsRoles = b.UsePreviewAsRoles
+	x.TeleportCluster = b.TeleportCluster
+	x.KubernetesCluster = b.KubernetesCluster
+	x.KubernetesNamespace = b.KubernetesNamespace
+	return m0
+}
+
 // ListKubernetesResourcesResponse is the response of ListKubernetesResources method.
 type ListKubernetesResourcesResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Resources is a list of resource.
 	Resources []*types.KubernetesResourceV1 `protobuf:"bytes,1,rep,name=resources,proto3" json:"resources,omitempty"`
 	// NextKey is the next Key to use as StartKey in a ListResourcesRequest to
@@ -237,11 +353,6 @@ func (x *ListKubernetesResourcesResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListKubernetesResourcesResponse.ProtoReflect.Descriptor instead.
-func (*ListKubernetesResourcesResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_kube_v1_kube_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *ListKubernetesResourcesResponse) GetResources() []*types.KubernetesResourceV1 {
 	if x != nil {
 		return x.Resources
@@ -261,6 +372,41 @@ func (x *ListKubernetesResourcesResponse) GetTotalCount() int32 {
 		return x.TotalCount
 	}
 	return 0
+}
+
+func (x *ListKubernetesResourcesResponse) SetResources(v []*types.KubernetesResourceV1) {
+	x.Resources = v
+}
+
+func (x *ListKubernetesResourcesResponse) SetNextKey(v string) {
+	x.NextKey = v
+}
+
+func (x *ListKubernetesResourcesResponse) SetTotalCount(v int32) {
+	x.TotalCount = v
+}
+
+type ListKubernetesResourcesResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Resources is a list of resource.
+	Resources []*types.KubernetesResourceV1
+	// NextKey is the next Key to use as StartKey in a ListResourcesRequest to
+	// continue retrieving pages of resource. If NextKey is empty, there are no
+	// more pages.
+	NextKey string
+	// TotalCount is the total number of resources available after filter, if any.
+	TotalCount int32
+}
+
+func (b0 ListKubernetesResourcesResponse_builder) Build() *ListKubernetesResourcesResponse {
+	m0 := &ListKubernetesResourcesResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Resources = b.Resources
+	x.NextKey = b.NextKey
+	x.TotalCount = b.TotalCount
+	return m0
 }
 
 var File_teleport_kube_v1_kube_service_proto protoreflect.FileDescriptor
@@ -292,18 +438,6 @@ const file_teleport_kube_v1_kube_service_proto_rawDesc = "" +
 	"totalCount2\x8d\x01\n" +
 	"\vKubeService\x12~\n" +
 	"\x17ListKubernetesResources\x120.teleport.kube.v1.ListKubernetesResourcesRequest\x1a1.teleport.kube.v1.ListKubernetesResourcesResponseBLZJgithub.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1;kubev1b\x06proto3"
-
-var (
-	file_teleport_kube_v1_kube_service_proto_rawDescOnce sync.Once
-	file_teleport_kube_v1_kube_service_proto_rawDescData []byte
-)
-
-func file_teleport_kube_v1_kube_service_proto_rawDescGZIP() []byte {
-	file_teleport_kube_v1_kube_service_proto_rawDescOnce.Do(func() {
-		file_teleport_kube_v1_kube_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_kube_v1_kube_service_proto_rawDesc), len(file_teleport_kube_v1_kube_service_proto_rawDesc)))
-	})
-	return file_teleport_kube_v1_kube_service_proto_rawDescData
-}
 
 var file_teleport_kube_v1_kube_service_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_teleport_kube_v1_kube_service_proto_goTypes = []any{

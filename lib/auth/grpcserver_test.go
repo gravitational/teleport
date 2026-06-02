@@ -91,6 +91,7 @@ import (
 	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
@@ -3966,7 +3967,7 @@ func TestAppsCRUD(t *testing.T) {
 	}
 	require.Empty(t, iterOut)
 
-	err = srv.Auth().UpsertProxy(ctx, &types.ServerV2{
+	_, err = srv.Auth().UpsertProxyServer(ctx, &types.ServerV2{
 		Kind: types.KindProxy,
 		Metadata: types.Metadata{
 			Name: "proxy",
@@ -4104,7 +4105,7 @@ func TestAppServersCRUD(t *testing.T) {
 	require.Empty(t, resources.Resources)
 
 	t.Run("App server with an app that has a public address matching a proxy address should fail", func(t *testing.T) {
-		err = srv.Auth().UpsertProxy(ctx, &types.ServerV2{
+		_, err = srv.Auth().UpsertProxyServer(ctx, &types.ServerV2{
 			Kind: types.KindProxy,
 			Metadata: types.Metadata{
 				Name: "proxy",
@@ -4810,6 +4811,10 @@ func TestCustomRateLimiting(t *testing.T) {
 	t.Run("unauthenticated CreateAuthenticateChallenge", func(t *testing.T) {
 		synctest.Test(t, synctestCustomRateLimitingUnauthenticatedCreateAuthenticateChallenge)
 	})
+
+	t.Run("ResolveSSHTarget", func(t *testing.T) {
+		synctest.Test(t, synctestCustomRateLimitingResolveSSHTarget)
+	})
 }
 
 func synctestCustomRateLimitingUnauthenticatedCreateAuthenticateChallenge(t *testing.T) {
@@ -4873,6 +4878,68 @@ func synctestCustomRateLimitingUnauthenticatedCreateAuthenticateChallenge(t *tes
 		_, err := clt.CreateAuthenticateChallenge(ctx, contextUserRequest)
 		require.NotErrorAs(t, err, new(*trace.LimitExceededError))
 	}
+}
+
+func synctestCustomRateLimitingResolveSSHTarget(t *testing.T) {
+	ctx := t.Context()
+
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir: t.TempDir(),
+	})
+	require.NoError(t, err)
+	defer as.Close()
+
+	unlimitedSrv, err := as.NewTestTLSServer(
+		authtest.WithBufconnListener(),
+	)
+	require.NoError(t, err)
+	defer unlimitedSrv.Close()
+
+	unlimitedClt, err := unlimitedSrv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+	defer unlimitedClt.Close()
+
+	_, err = unlimitedClt.ResolveSSHTarget(ctx, new(proto.ResolveSSHTargetRequest))
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
+	_, err = unlimitedClt.ResolveSSHTarget(ctx, new(proto.ResolveSSHTargetRequest))
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
+	_, err = unlimitedClt.ResolveSSHTarget(ctx, new(proto.ResolveSSHTargetRequest))
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
+	_, err = unlimitedClt.ResolveSSHTarget(ctx, new(proto.ResolveSSHTargetRequest))
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
+
+	limitedSrv, err := as.NewTestTLSServer(
+		authtest.WithBufconnListener(),
+		func(c *authtest.TLSServerConfig) {
+			l := 2.0
+			c.APIConfig.ResolveSSHTargetRateLimit = &l
+		},
+	)
+	require.NoError(t, err)
+	defer limitedSrv.Close()
+
+	limitedClt, err := limitedSrv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+	defer limitedClt.Close()
+
+	_, err = limitedClt.ResolveSSHTarget(ctx, new(proto.ResolveSSHTargetRequest))
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
+	_, err = limitedClt.ResolveSSHTarget(ctx, new(proto.ResolveSSHTargetRequest))
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
+	errC := make(chan error, 1)
+	go func() {
+		_, err := limitedClt.ResolveSSHTarget(ctx, new(proto.ResolveSSHTargetRequest))
+		errC <- err
+	}()
+
+	synctest.Wait()
+
+	require.Empty(t, errC)
+
+	time.Sleep(time.Second)
+	synctest.Wait()
+
+	require.ErrorAs(t, <-errC, new(*trace.BadParameterError))
 }
 
 type mockAuthorizer struct {
@@ -5762,6 +5829,107 @@ func TestUpsertApplicationServerOrigin(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestApplicationServerHeartbeatLowercase asserts the gRPC handler
+// plumbs NormalizeAppServerForHeartbeat through to the backend write
+// for a legacy agent's mixed-case heartbeat.
+func TestApplicationServerHeartbeatLowercase(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	server := newTestTLSServer(t)
+	agent := authtest.TestBuiltin(types.RoleApp)
+	client, err := server.NewClient(agent)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, client.Close()) })
+
+	app, err := types.NewAppV3(types.Metadata{Name: "MixedCaseApp"}, types.AppSpecV3{
+		URI: "http://localhost:8080",
+	})
+	require.NoError(t, err)
+	appServer, err := types.NewAppServerV3FromApp(app, "localhost", "host-id")
+	require.NoError(t, err)
+
+	_, err = client.UpsertApplicationServer(ctx, appServer)
+	require.NoError(t, err)
+
+	stored, err := client.GetApplicationServers(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Len(t, stored, 1)
+	require.Equal(t, "mixedcaseapp", stored[0].GetApp().GetName())
+	require.Equal(t, "mixedcaseapp", stored[0].GetName())
+}
+
+// TestServerUpsertApplicationServerValidates asserts
+// (*Server).UpsertApplicationServer validates rather than relying on
+// the gRPC handler. Moving validation up would re-open the
+// inventory-stream bypass.
+func TestServerUpsertApplicationServerValidates(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	srv := newTestTLSServer(t)
+
+	bad, err := types.NewAppV3(types.Metadata{Name: "MixedCase"}, types.AppSpecV3{
+		URI: "http://localhost:8080",
+	})
+	require.NoError(t, err)
+	badServer, err := types.NewAppServerV3FromApp(bad, "localhost", "host-id-direct")
+	require.NoError(t, err)
+
+	_, err = srv.Auth().UpsertApplicationServer(ctx, badServer)
+	require.ErrorContains(t, err, "must be a valid DNS name")
+}
+
+// TestApplicationAdminPathsRejectMixedCase asserts CreateApp,
+// UpdateApp, and UpsertApplicationServer all reject mixed-case names
+// for admin callers (the heartbeat-role normalize gate does not
+// apply).
+func TestApplicationAdminPathsRejectMixedCase(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	server := newTestTLSServer(t)
+	admin := authtest.TestAdmin()
+	client, err := server.NewClient(admin)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, client.Close()) })
+
+	t.Run("CreateApp", func(t *testing.T) {
+		app, err := types.NewAppV3(types.Metadata{Name: "MyApp"}, types.AppSpecV3{
+			URI: "http://localhost:8080",
+		})
+		require.NoError(t, err)
+		err = client.CreateApp(ctx, app)
+		require.ErrorContains(t, err, "must be a valid DNS name")
+	})
+
+	t.Run("UpdateApp", func(t *testing.T) {
+		seeded, err := types.NewAppV3(types.Metadata{Name: "myapp"}, types.AppSpecV3{
+			URI: "http://localhost:8080",
+		})
+		require.NoError(t, err)
+		require.NoError(t, client.CreateApp(ctx, seeded))
+
+		bad, err := types.NewAppV3(types.Metadata{Name: "MyApp"}, types.AppSpecV3{
+			URI: "http://localhost:8080",
+		})
+		require.NoError(t, err)
+		err = client.UpdateApp(ctx, bad)
+		require.ErrorContains(t, err, "must be a valid DNS name")
+	})
+
+	t.Run("UpsertApplicationServer", func(t *testing.T) {
+		app, err := types.NewAppV3(types.Metadata{Name: "MyApp"}, types.AppSpecV3{
+			URI: "http://localhost:8080",
+		})
+		require.NoError(t, err)
+		appServer, err := types.NewAppServerV3FromApp(app, "localhost", "host-id-admin")
+		require.NoError(t, err)
+		_, err = client.UpsertApplicationServer(ctx, appServer)
+		require.ErrorContains(t, err, "must be a valid DNS name")
+	})
+}
+
 func TestGetAccessGraphConfig(t *testing.T) {
 	t.Parallel()
 
@@ -5861,17 +6029,35 @@ func TestGetVnetConfig(t *testing.T) {
 }
 
 func TestCreateAuditStreamLimit(t *testing.T) {
-	const N = 5
-	t.Setenv("TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT", fmt.Sprintf("%d", N))
+	synctest.Test(t, synctestCreateAuditStreamLimit)
+}
+func synctestCreateAuditStreamLimit(t *testing.T) {
+	const inflightLimit = 5
 
 	ctx := t.Context()
 
-	server := newTestTLSServer(t)
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir: t.TempDir(),
+	})
+	require.NoError(t, err)
+	defer as.Close()
+
+	server, err := as.NewTestTLSServer(
+		authtest.WithBufconnListener(),
+		func(c *authtest.TLSServerConfig) {
+			n := inflightLimit
+			c.APIConfig.CreateAuditStreamInflightLimit = &n
+		},
+	)
+	require.NoError(t, err)
+	defer server.Close()
+
 	clt, err := server.NewClient(authtest.TestServerID(types.RoleNode, uuid.NewString()))
 	require.NoError(t, err)
+	defer clt.Close()
 
 	// HACK(espadolini): we're piggybacking on the prometheus counter which
-	// can't change while this test is running (we set an envvar, so we can't be
+	// can't change while this test is running (this is a synctest test that's not
 	// running in parallel with other tests) but it's still pretty awful, and
 	// it'd be much better to actually check that the streams were accepted by
 	// the server; unfortunately, the CreateAuditStream stream doesn't actually
@@ -5884,15 +6070,14 @@ func TestCreateAuditStreamLimit(t *testing.T) {
 	}
 	currentAcceptedTotal := getAcceptedTotal()
 
-	for range N {
+	for range inflightLimit {
 		stream, err := clt.CreateAuditStream(ctx, session.NewID())
 		require.NoError(t, err)
-		t.Cleanup(func() { stream.Close(ctx) })
+		defer stream.Close(ctx)
 	}
 
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		require.EqualValues(t, currentAcceptedTotal+N, getAcceptedTotal())
-	}, time.Second, 100*time.Millisecond)
+	synctest.Wait()
+	require.EqualValues(t, currentAcceptedTotal+inflightLimit, getAcceptedTotal())
 
 	ac := proto.NewAuthServiceClient(clt.APIClient.GetConnection())
 	stream, err := ac.CreateAuditStream(ctx)
@@ -6834,8 +7019,8 @@ func TestGenerateUserCerts_accessGraphUsage(t *testing.T) {
 }
 
 func TestGenerateUserCertsScopedBot(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
-	testServer := newTestTLSServer(t, withModules(&modulestest.Modules{
+	t.Parallel()
+	testServer := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true}), withModules(&modulestest.Modules{
 		TestBuildType: modules.BuildEnterprise, // required for Device Trust.
 		TestFeatures: modules.Features{
 			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{

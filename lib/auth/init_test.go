@@ -965,6 +965,7 @@ func TestPresets(t *testing.T) {
 		teleport.PresetTerraformProviderRoleName,
 		teleport.PresetWildcardWorkloadIdentityIssuerRoleName,
 		teleport.PresetAccessPluginRoleName,
+		teleport.PresetAccessPluginWithReviewRoleName,
 		teleport.PresetListAccessRequestResourcesRoleName,
 		teleport.PresetMCPUserRoleName,
 	}
@@ -1293,12 +1294,15 @@ func TestPresets(t *testing.T) {
 			teleport.PresetDeviceEnrollRoleName,
 			teleport.PresetRequireTrustedDeviceRoleName,
 			teleport.SystemOktaRequesterRoleName, // This is treated as a preset
+			teleport.PresetBeamUserRoleName,
+			teleport.PresetBeamAdminRoleName,
 		}, presetRoleNames...)
 
 		enterpriseSystemRoleNames := []string{
 			teleport.SystemAutomaticAccessApprovalRoleName,
 			teleport.SystemOktaAccessRoleName,
 			teleport.SystemIdentityCenterAccessRoleName,
+			teleport.SystemBeamRoleName,
 		}
 
 		enterpriseUsers := []types.User{
@@ -1902,6 +1906,18 @@ spec:
   github:
     allow:
       - repository: gravitational/example`
+	badTokenYAML = `kind: token
+version: v2
+metadata:
+  name: iam-token-without-orgid-but-ous
+  expires: "3000-01-01T00:00:00Z"
+spec:
+  roles: [Node]
+  join_method: iam
+  allow:
+   - aws_account: "123456789012"
+     aws_organizational_units:
+       include: [r-rootid]`
 	roleYAML = `kind: role
 version: v7
 metadata:
@@ -1968,6 +1984,7 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 
 	user := resourceFromYAML(t, userYAML).(types.User)
 	token := resourceFromYAML(t, tokenYAML).(types.ProvisionToken)
+	badToken := resourceFromYAML(t, badTokenYAML).(types.ProvisionToken)
 	role := resourceFromYAML(t, roleYAML).(types.Role)
 	lock := resourceFromYAML(t, lockYAML).(types.Lock)
 	clusterNetworkingConfig := resourceFromYAML(t, clusterNetworkingConfYAML).(types.ClusterNetworkingConfig)
@@ -1987,6 +2004,13 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, user)
 				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, role)
 				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, token)
+			},
+			assertError: require.Error,
+		},
+		{
+			name: "Apply invalid provision token",
+			modifyConfig: func(cfg *auth.InitConfig) {
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, badToken)
 			},
 			assertError: require.Error,
 		},

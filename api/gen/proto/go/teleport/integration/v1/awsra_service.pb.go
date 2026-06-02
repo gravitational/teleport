@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/integration/v1/awsra_service.proto
 
+//go:build !protoopaque
+
 package integrationv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -37,7 +38,7 @@ const (
 
 // AWSRolesAnywherePingRequest is a request for doing an health check against the configured integration.
 type AWSRolesAnywherePingRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Mode:
 	//
 	//	*AWSRolesAnywherePingRequest_Integration
@@ -72,11 +73,6 @@ func (x *AWSRolesAnywherePingRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AWSRolesAnywherePingRequest.ProtoReflect.Descriptor instead.
-func (*AWSRolesAnywherePingRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsra_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *AWSRolesAnywherePingRequest) GetMode() isAWSRolesAnywherePingRequest_Mode {
 	if x != nil {
 		return x.Mode
@@ -102,6 +98,110 @@ func (x *AWSRolesAnywherePingRequest) GetCustom() *AWSRolesAnywherePingRequestWi
 	return nil
 }
 
+func (x *AWSRolesAnywherePingRequest) SetIntegration(v string) {
+	x.Mode = &AWSRolesAnywherePingRequest_Integration{v}
+}
+
+func (x *AWSRolesAnywherePingRequest) SetCustom(v *AWSRolesAnywherePingRequestWithoutIntegration) {
+	if v == nil {
+		x.Mode = nil
+		return
+	}
+	x.Mode = &AWSRolesAnywherePingRequest_Custom{v}
+}
+
+func (x *AWSRolesAnywherePingRequest) HasMode() bool {
+	if x == nil {
+		return false
+	}
+	return x.Mode != nil
+}
+
+func (x *AWSRolesAnywherePingRequest) HasIntegration() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Mode.(*AWSRolesAnywherePingRequest_Integration)
+	return ok
+}
+
+func (x *AWSRolesAnywherePingRequest) HasCustom() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Mode.(*AWSRolesAnywherePingRequest_Custom)
+	return ok
+}
+
+func (x *AWSRolesAnywherePingRequest) ClearMode() {
+	x.Mode = nil
+}
+
+func (x *AWSRolesAnywherePingRequest) ClearIntegration() {
+	if _, ok := x.Mode.(*AWSRolesAnywherePingRequest_Integration); ok {
+		x.Mode = nil
+	}
+}
+
+func (x *AWSRolesAnywherePingRequest) ClearCustom() {
+	if _, ok := x.Mode.(*AWSRolesAnywherePingRequest_Custom); ok {
+		x.Mode = nil
+	}
+}
+
+const AWSRolesAnywherePingRequest_Mode_not_set_case case_AWSRolesAnywherePingRequest_Mode = 0
+const AWSRolesAnywherePingRequest_Integration_case case_AWSRolesAnywherePingRequest_Mode = 1
+const AWSRolesAnywherePingRequest_Custom_case case_AWSRolesAnywherePingRequest_Mode = 2
+
+func (x *AWSRolesAnywherePingRequest) WhichMode() case_AWSRolesAnywherePingRequest_Mode {
+	if x == nil {
+		return AWSRolesAnywherePingRequest_Mode_not_set_case
+	}
+	switch x.Mode.(type) {
+	case *AWSRolesAnywherePingRequest_Integration:
+		return AWSRolesAnywherePingRequest_Integration_case
+	case *AWSRolesAnywherePingRequest_Custom:
+		return AWSRolesAnywherePingRequest_Custom_case
+	default:
+		return AWSRolesAnywherePingRequest_Mode_not_set_case
+	}
+}
+
+type AWSRolesAnywherePingRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Mode:
+	// Use an integration to perform the Ping operation.
+	Integration *string
+	// Use a Trust Anchor, Profile and Role to perform the Ping operation.
+	// This is useful when the integration is not configured.
+	Custom *AWSRolesAnywherePingRequestWithoutIntegration
+	// -- end of Mode
+}
+
+func (b0 AWSRolesAnywherePingRequest_builder) Build() *AWSRolesAnywherePingRequest {
+	m0 := &AWSRolesAnywherePingRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Integration != nil {
+		x.Mode = &AWSRolesAnywherePingRequest_Integration{*b.Integration}
+	}
+	if b.Custom != nil {
+		x.Mode = &AWSRolesAnywherePingRequest_Custom{b.Custom}
+	}
+	return m0
+}
+
+type case_AWSRolesAnywherePingRequest_Mode protoreflect.FieldNumber
+
+func (x case_AWSRolesAnywherePingRequest_Mode) String() string {
+	md := file_teleport_integration_v1_awsra_service_proto_msgTypes[0].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isAWSRolesAnywherePingRequest_Mode interface {
 	isAWSRolesAnywherePingRequest_Mode()
 }
@@ -123,7 +223,7 @@ func (*AWSRolesAnywherePingRequest_Custom) isAWSRolesAnywherePingRequest_Mode() 
 
 // Identifies the Trust Anchor, Profile and Role to use for the Ping operation.
 type AWSRolesAnywherePingRequestWithoutIntegration struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The AWS Roles Anywhere Trust Anchor ARN to be used when generating the token.
 	TrustAnchorArn string `protobuf:"bytes,1,opt,name=trust_anchor_arn,json=trustAnchorArn,proto3" json:"trust_anchor_arn,omitempty"`
 	// The AWS Roles Anywhere Profile ARN to be used when generating the token.
@@ -159,11 +259,6 @@ func (x *AWSRolesAnywherePingRequestWithoutIntegration) ProtoReflect() protorefl
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AWSRolesAnywherePingRequestWithoutIntegration.ProtoReflect.Descriptor instead.
-func (*AWSRolesAnywherePingRequestWithoutIntegration) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsra_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *AWSRolesAnywherePingRequestWithoutIntegration) GetTrustAnchorArn() string {
 	if x != nil {
 		return x.TrustAnchorArn
@@ -185,9 +280,42 @@ func (x *AWSRolesAnywherePingRequestWithoutIntegration) GetRoleArn() string {
 	return ""
 }
 
+func (x *AWSRolesAnywherePingRequestWithoutIntegration) SetTrustAnchorArn(v string) {
+	x.TrustAnchorArn = v
+}
+
+func (x *AWSRolesAnywherePingRequestWithoutIntegration) SetProfileArn(v string) {
+	x.ProfileArn = v
+}
+
+func (x *AWSRolesAnywherePingRequestWithoutIntegration) SetRoleArn(v string) {
+	x.RoleArn = v
+}
+
+type AWSRolesAnywherePingRequestWithoutIntegration_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The AWS Roles Anywhere Trust Anchor ARN to be used when generating the token.
+	TrustAnchorArn string
+	// The AWS Roles Anywhere Profile ARN to be used when generating the token.
+	ProfileArn string
+	// The AWS Role ARN to be used when generating the token.
+	RoleArn string
+}
+
+func (b0 AWSRolesAnywherePingRequestWithoutIntegration_builder) Build() *AWSRolesAnywherePingRequestWithoutIntegration {
+	m0 := &AWSRolesAnywherePingRequestWithoutIntegration{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.TrustAnchorArn = b.TrustAnchorArn
+	x.ProfileArn = b.ProfileArn
+	x.RoleArn = b.RoleArn
+	return m0
+}
+
 // AWSRolesAnywherePingResponse contains the response for the Ping operation.
 type AWSRolesAnywherePingResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The AWS account ID number of the account that owns or contains the calling entity.
 	AccountId string `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
 	// The AWS ARN associated with the calling entity.
@@ -225,11 +353,6 @@ func (x *AWSRolesAnywherePingResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AWSRolesAnywherePingResponse.ProtoReflect.Descriptor instead.
-func (*AWSRolesAnywherePingResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsra_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *AWSRolesAnywherePingResponse) GetAccountId() string {
 	if x != nil {
 		return x.AccountId
@@ -258,9 +381,49 @@ func (x *AWSRolesAnywherePingResponse) GetProfileCount() int32 {
 	return 0
 }
 
+func (x *AWSRolesAnywherePingResponse) SetAccountId(v string) {
+	x.AccountId = v
+}
+
+func (x *AWSRolesAnywherePingResponse) SetArn(v string) {
+	x.Arn = v
+}
+
+func (x *AWSRolesAnywherePingResponse) SetUserId(v string) {
+	x.UserId = v
+}
+
+func (x *AWSRolesAnywherePingResponse) SetProfileCount(v int32) {
+	x.ProfileCount = v
+}
+
+type AWSRolesAnywherePingResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The AWS account ID number of the account that owns or contains the calling entity.
+	AccountId string
+	// The AWS ARN associated with the calling entity.
+	Arn string
+	// The unique identifier of the calling entity.
+	UserId string
+	// The number of AWS Roles Anywhere Profiles that are active and have at least one associated Role.
+	ProfileCount int32
+}
+
+func (b0 AWSRolesAnywherePingResponse_builder) Build() *AWSRolesAnywherePingResponse {
+	m0 := &AWSRolesAnywherePingResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.AccountId = b.AccountId
+	x.Arn = b.Arn
+	x.UserId = b.UserId
+	x.ProfileCount = b.ProfileCount
+	return m0
+}
+
 // ListRolesAnywhereProfilesRequest is a request to list AWS Roles Anywhere Profiles.
 type ListRolesAnywhereProfilesRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Integration is the AWS Roles Anywhere Integration name.
 	Integration string `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
 	// page_size is the max size of the page to request.
@@ -311,11 +474,6 @@ func (x *ListRolesAnywhereProfilesRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListRolesAnywhereProfilesRequest.ProtoReflect.Descriptor instead.
-func (*ListRolesAnywhereProfilesRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsra_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *ListRolesAnywhereProfilesRequest) GetIntegration() string {
 	if x != nil {
 		return x.Integration
@@ -344,9 +502,62 @@ func (x *ListRolesAnywhereProfilesRequest) GetProfileNameFilters() []string {
 	return nil
 }
 
+func (x *ListRolesAnywhereProfilesRequest) SetIntegration(v string) {
+	x.Integration = v
+}
+
+func (x *ListRolesAnywhereProfilesRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListRolesAnywhereProfilesRequest) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+func (x *ListRolesAnywhereProfilesRequest) SetProfileNameFilters(v []string) {
+	x.ProfileNameFilters = v
+}
+
+type ListRolesAnywhereProfilesRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Integration is the AWS Roles Anywhere Integration name.
+	Integration string
+	// page_size is the max size of the page to request.
+	// Depending on the filters, the actual number of profiles returned may be less than this value.
+	PageSize int32
+	// next_page_token is the page token.
+	NextPageToken string
+	// ProfileNameFilters is a list of filters applied to the profile name.
+	// Only matching profiles will be returned.
+	// If empty, no filtering is applied.
+	//
+	// Filters can be globs, for example:
+	//
+	//	profile*
+	//	*name*
+	//
+	// Or regexes if they're prefixed and suffixed with ^ and $, for example:
+	//
+	//	^profile.*$
+	//	^.*name.*$
+	ProfileNameFilters []string
+}
+
+func (b0 ListRolesAnywhereProfilesRequest_builder) Build() *ListRolesAnywhereProfilesRequest {
+	m0 := &ListRolesAnywhereProfilesRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Integration = b.Integration
+	x.PageSize = b.PageSize
+	x.NextPageToken = b.NextPageToken
+	x.ProfileNameFilters = b.ProfileNameFilters
+	return m0
+}
+
 // ListRolesAnywhereProfilesResponse contains the response for the ListRolesAnywhereProfiles operation.
 type ListRolesAnywhereProfilesResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Profiles is a list of AWS Roles Anywhere Profiles.
 	Profiles []*RolesAnywhereProfile `protobuf:"bytes,1,rep,name=profiles,proto3" json:"profiles,omitempty"`
 	// NextPageToken is used to paginate the results.
@@ -380,11 +591,6 @@ func (x *ListRolesAnywhereProfilesResponse) ProtoReflect() protoreflect.Message 
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListRolesAnywhereProfilesResponse.ProtoReflect.Descriptor instead.
-func (*ListRolesAnywhereProfilesResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsra_service_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *ListRolesAnywhereProfilesResponse) GetProfiles() []*RolesAnywhereProfile {
 	if x != nil {
 		return x.Profiles
@@ -399,9 +605,35 @@ func (x *ListRolesAnywhereProfilesResponse) GetNextPageToken() string {
 	return ""
 }
 
+func (x *ListRolesAnywhereProfilesResponse) SetProfiles(v []*RolesAnywhereProfile) {
+	x.Profiles = v
+}
+
+func (x *ListRolesAnywhereProfilesResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListRolesAnywhereProfilesResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Profiles is a list of AWS Roles Anywhere Profiles.
+	Profiles []*RolesAnywhereProfile
+	// NextPageToken is used to paginate the results.
+	NextPageToken string
+}
+
+func (b0 ListRolesAnywhereProfilesResponse_builder) Build() *ListRolesAnywhereProfilesResponse {
+	m0 := &ListRolesAnywhereProfilesResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Profiles = b.Profiles
+	x.NextPageToken = b.NextPageToken
+	return m0
+}
+
 // RolesAnywhereProfile represents an AWS Roles Anywhere Profile.
 type RolesAnywhereProfile struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The AWS Roles Anywhere Profile ARN.
 	Arn string `protobuf:"bytes,1,opt,name=arn,proto3" json:"arn,omitempty"`
 	// Whether the AWS Roles Anywhere Profile is enabled.
@@ -441,11 +673,6 @@ func (x *RolesAnywhereProfile) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RolesAnywhereProfile.ProtoReflect.Descriptor instead.
-func (*RolesAnywhereProfile) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_awsra_service_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *RolesAnywhereProfile) GetArn() string {
@@ -490,6 +717,60 @@ func (x *RolesAnywhereProfile) GetRoles() []string {
 	return nil
 }
 
+func (x *RolesAnywhereProfile) SetArn(v string) {
+	x.Arn = v
+}
+
+func (x *RolesAnywhereProfile) SetEnabled(v bool) {
+	x.Enabled = v
+}
+
+func (x *RolesAnywhereProfile) SetName(v string) {
+	x.Name = v
+}
+
+func (x *RolesAnywhereProfile) SetAcceptRoleSessionName(v bool) {
+	x.AcceptRoleSessionName = v
+}
+
+func (x *RolesAnywhereProfile) SetTags(v map[string]string) {
+	x.Tags = v
+}
+
+func (x *RolesAnywhereProfile) SetRoles(v []string) {
+	x.Roles = v
+}
+
+type RolesAnywhereProfile_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The AWS Roles Anywhere Profile ARN.
+	Arn string
+	// Whether the AWS Roles Anywhere Profile is enabled.
+	Enabled bool
+	// The name of the AWS Roles Anywhere Profile.
+	Name string
+	// Whether the profile accepts role session names.
+	AcceptRoleSessionName bool
+	// The tags associated with the AWS Roles Anywhere Profile.
+	Tags map[string]string
+	// The roles accessible from this AWS Roles Anywhere Profile.
+	Roles []string
+}
+
+func (b0 RolesAnywhereProfile_builder) Build() *RolesAnywhereProfile {
+	m0 := &RolesAnywhereProfile{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Arn = b.Arn
+	x.Enabled = b.Enabled
+	x.Name = b.Name
+	x.AcceptRoleSessionName = b.AcceptRoleSessionName
+	x.Tags = b.Tags
+	x.Roles = b.Roles
+	return m0
+}
+
 var File_teleport_integration_v1_awsra_service_proto protoreflect.FileDescriptor
 
 const file_teleport_integration_v1_awsra_service_proto_rawDesc = "" +
@@ -531,18 +812,6 @@ const file_teleport_integration_v1_awsra_service_proto_rawDesc = "" +
 	"\x17AWSRolesAnywhereService\x12\x83\x01\n" +
 	"\x14AWSRolesAnywherePing\x124.teleport.integration.v1.AWSRolesAnywherePingRequest\x1a5.teleport.integration.v1.AWSRolesAnywherePingResponse\x12\x92\x01\n" +
 	"\x19ListRolesAnywhereProfiles\x129.teleport.integration.v1.ListRolesAnywhereProfilesRequest\x1a:.teleport.integration.v1.ListRolesAnywhereProfilesResponseBZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1;integrationv1b\x06proto3"
-
-var (
-	file_teleport_integration_v1_awsra_service_proto_rawDescOnce sync.Once
-	file_teleport_integration_v1_awsra_service_proto_rawDescData []byte
-)
-
-func file_teleport_integration_v1_awsra_service_proto_rawDescGZIP() []byte {
-	file_teleport_integration_v1_awsra_service_proto_rawDescOnce.Do(func() {
-		file_teleport_integration_v1_awsra_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_integration_v1_awsra_service_proto_rawDesc), len(file_teleport_integration_v1_awsra_service_proto_rawDesc)))
-	})
-	return file_teleport_integration_v1_awsra_service_proto_rawDescData
-}
 
 var file_teleport_integration_v1_awsra_service_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_teleport_integration_v1_awsra_service_proto_goTypes = []any{

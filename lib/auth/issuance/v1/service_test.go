@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -54,9 +55,14 @@ func TestMain(m *testing.M) {
 }
 
 func newTestTLSServer(t testing.TB) *authtest.TLSServer {
+	return newTestTLSServerWithScopesFeatures(t, scopes.Features{})
+}
+
+func newTestTLSServerWithScopesFeatures(t testing.TB, scopesFeatures scopes.Features) *authtest.TLSServer {
 	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
-		Dir:   t.TempDir(),
-		Clock: clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC()),
+		Dir:            t.TempDir(),
+		Clock:          clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC()),
+		ScopesFeatures: scopesFeatures,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, as.Close()) })
@@ -75,10 +81,10 @@ func newTestTLSServer(t testing.TB) *authtest.TLSServer {
 }
 
 func TestIssueScopedBotCerts(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	t.Parallel()
 
 	ctx := t.Context()
-	srv := newTestTLSServer(t)
+	srv := newTestTLSServerWithScopesFeatures(t, scopes.Features{Enabled: true})
 
 	const botScope = "/test-scope"
 
@@ -272,7 +278,7 @@ func TestIssueScopedBotCerts(t *testing.T) {
 }
 
 func TestIssueScopedBotCerts_FeatureFlagRequired(t *testing.T) {
-	// Do NOT set the feature flag env vars.
+	t.Parallel()
 	ctx := t.Context()
 	srv := newTestTLSServer(t)
 
@@ -299,10 +305,10 @@ func TestIssueScopedBotCerts_FeatureFlagRequired(t *testing.T) {
 }
 
 func TestIssueScopedBotCerts_Unauthorized(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	t.Parallel()
 
 	ctx := t.Context()
-	srv := newTestTLSServer(t)
+	srv := newTestTLSServerWithScopesFeatures(t, scopes.Features{Enabled: true})
 
 	const testScope = "/test-scope"
 

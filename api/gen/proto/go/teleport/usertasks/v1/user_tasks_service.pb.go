@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/usertasks/v1/user_tasks_service.proto
 
+//go:build !protoopaque
+
 package usertasksv1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -38,7 +39,7 @@ const (
 
 // CreateUserTaskRequest is a request to create a User Task.
 type CreateUserTaskRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	UserTask      *UserTask              `protobuf:"bytes,1,opt,name=user_task,json=userTask,proto3" json:"user_task,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -69,11 +70,6 @@ func (x *CreateUserTaskRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateUserTaskRequest.ProtoReflect.Descriptor instead.
-func (*CreateUserTaskRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_usertasks_v1_user_tasks_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *CreateUserTaskRequest) GetUserTask() *UserTask {
 	if x != nil {
 		return x.UserTask
@@ -81,9 +77,38 @@ func (x *CreateUserTaskRequest) GetUserTask() *UserTask {
 	return nil
 }
 
+func (x *CreateUserTaskRequest) SetUserTask(v *UserTask) {
+	x.UserTask = v
+}
+
+func (x *CreateUserTaskRequest) HasUserTask() bool {
+	if x == nil {
+		return false
+	}
+	return x.UserTask != nil
+}
+
+func (x *CreateUserTaskRequest) ClearUserTask() {
+	x.UserTask = nil
+}
+
+type CreateUserTaskRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	UserTask *UserTask
+}
+
+func (b0 CreateUserTaskRequest_builder) Build() *CreateUserTaskRequest {
+	m0 := &CreateUserTaskRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.UserTask = b.UserTask
+	return m0
+}
+
 // UpsertUserTaskRequest is a request to create or update a User Task.
 type UpsertUserTaskRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	UserTask      *UserTask              `protobuf:"bytes,1,opt,name=user_task,json=userTask,proto3" json:"user_task,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -114,11 +139,6 @@ func (x *UpsertUserTaskRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertUserTaskRequest.ProtoReflect.Descriptor instead.
-func (*UpsertUserTaskRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_usertasks_v1_user_tasks_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *UpsertUserTaskRequest) GetUserTask() *UserTask {
 	if x != nil {
 		return x.UserTask
@@ -126,9 +146,38 @@ func (x *UpsertUserTaskRequest) GetUserTask() *UserTask {
 	return nil
 }
 
+func (x *UpsertUserTaskRequest) SetUserTask(v *UserTask) {
+	x.UserTask = v
+}
+
+func (x *UpsertUserTaskRequest) HasUserTask() bool {
+	if x == nil {
+		return false
+	}
+	return x.UserTask != nil
+}
+
+func (x *UpsertUserTaskRequest) ClearUserTask() {
+	x.UserTask = nil
+}
+
+type UpsertUserTaskRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	UserTask *UserTask
+}
+
+func (b0 UpsertUserTaskRequest_builder) Build() *UpsertUserTaskRequest {
+	m0 := &UpsertUserTaskRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.UserTask = b.UserTask
+	return m0
+}
+
 // GetUserTaskRequest is a request to get a User Task by name.
 type GetUserTaskRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the name of the UserTask to get.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -160,11 +209,6 @@ func (x *GetUserTaskRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetUserTaskRequest.ProtoReflect.Descriptor instead.
-func (*GetUserTaskRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_usertasks_v1_user_tasks_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *GetUserTaskRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -172,9 +216,28 @@ func (x *GetUserTaskRequest) GetName() string {
 	return ""
 }
 
+func (x *GetUserTaskRequest) SetName(v string) {
+	x.Name = v
+}
+
+type GetUserTaskRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the name of the UserTask to get.
+	Name string
+}
+
+func (b0 GetUserTaskRequest_builder) Build() *GetUserTaskRequest {
+	m0 := &GetUserTaskRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // ListUserTasksRequest is a request to get a list of User Tasks.
 type ListUserTasksRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// page_size is the maximum number of items to return.
 	// The server may impose a different page size at its discretion.
 	PageSize int64 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
@@ -211,11 +274,6 @@ func (x *ListUserTasksRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListUserTasksRequest.ProtoReflect.Descriptor instead.
-func (*ListUserTasksRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_usertasks_v1_user_tasks_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *ListUserTasksRequest) GetPageSize() int64 {
 	if x != nil {
 		return x.PageSize
@@ -237,10 +295,55 @@ func (x *ListUserTasksRequest) GetFilters() *ListUserTasksFilters {
 	return nil
 }
 
+func (x *ListUserTasksRequest) SetPageSize(v int64) {
+	x.PageSize = v
+}
+
+func (x *ListUserTasksRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+func (x *ListUserTasksRequest) SetFilters(v *ListUserTasksFilters) {
+	x.Filters = v
+}
+
+func (x *ListUserTasksRequest) HasFilters() bool {
+	if x == nil {
+		return false
+	}
+	return x.Filters != nil
+}
+
+func (x *ListUserTasksRequest) ClearFilters() {
+	x.Filters = nil
+}
+
+type ListUserTasksRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// page_size is the maximum number of items to return.
+	// The server may impose a different page size at its discretion.
+	PageSize int64
+	// page_token is the next_page_token value returned from a previous List request, if any.
+	PageToken string
+	// filters is the set of filters to apply when listing User Tasks.
+	Filters *ListUserTasksFilters
+}
+
+func (b0 ListUserTasksRequest_builder) Build() *ListUserTasksRequest {
+	m0 := &ListUserTasksRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	x.Filters = b.Filters
+	return m0
+}
+
 // ListUserTasksFilters is a set of filters to apply when listing User Tasks.
 // All fields must match for a User Task to be included in the list.
 type ListUserTasksFilters struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// integration is the integration name that will be used to filter the returned list.
 	// If empty, this filter is not applied.
 	Integration string `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
@@ -276,11 +379,6 @@ func (x *ListUserTasksFilters) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListUserTasksFilters.ProtoReflect.Descriptor instead.
-func (*ListUserTasksFilters) Descriptor() ([]byte, []int) {
-	return file_teleport_usertasks_v1_user_tasks_service_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *ListUserTasksFilters) GetIntegration() string {
 	if x != nil {
 		return x.Integration
@@ -295,9 +393,37 @@ func (x *ListUserTasksFilters) GetTaskState() string {
 	return ""
 }
 
+func (x *ListUserTasksFilters) SetIntegration(v string) {
+	x.Integration = v
+}
+
+func (x *ListUserTasksFilters) SetTaskState(v string) {
+	x.TaskState = v
+}
+
+type ListUserTasksFilters_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// integration is the integration name that will be used to filter the returned list.
+	// If empty, this filter is not applied.
+	Integration string
+	// task_state filters the returned tasks by their state.
+	// If empty, this filter is not applied.
+	TaskState string
+}
+
+func (b0 ListUserTasksFilters_builder) Build() *ListUserTasksFilters {
+	m0 := &ListUserTasksFilters{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Integration = b.Integration
+	x.TaskState = b.TaskState
+	return m0
+}
+
 // ListUserTasksByIntegrationRequest is a request to get a list of User Tasks filtered by an Integration.
 type ListUserTasksByIntegrationRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// page_size is the maximum number of items to return.
 	// The server may impose a different page size at its discretion.
 	PageSize int64 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
@@ -334,11 +460,6 @@ func (x *ListUserTasksByIntegrationRequest) ProtoReflect() protoreflect.Message 
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListUserTasksByIntegrationRequest.ProtoReflect.Descriptor instead.
-func (*ListUserTasksByIntegrationRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_usertasks_v1_user_tasks_service_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *ListUserTasksByIntegrationRequest) GetPageSize() int64 {
 	if x != nil {
 		return x.PageSize
@@ -360,9 +481,43 @@ func (x *ListUserTasksByIntegrationRequest) GetIntegration() string {
 	return ""
 }
 
+func (x *ListUserTasksByIntegrationRequest) SetPageSize(v int64) {
+	x.PageSize = v
+}
+
+func (x *ListUserTasksByIntegrationRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+func (x *ListUserTasksByIntegrationRequest) SetIntegration(v string) {
+	x.Integration = v
+}
+
+type ListUserTasksByIntegrationRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// page_size is the maximum number of items to return.
+	// The server may impose a different page size at its discretion.
+	PageSize int64
+	// page_token is the next_page_token value returned from a previous List request, if any.
+	PageToken string
+	// integration is the integration name that will be used to filter the returned list.
+	Integration string
+}
+
+func (b0 ListUserTasksByIntegrationRequest_builder) Build() *ListUserTasksByIntegrationRequest {
+	m0 := &ListUserTasksByIntegrationRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	x.Integration = b.Integration
+	return m0
+}
+
 // ListUserTasksResponse is a response to ListUserTasks.
 type ListUserTasksResponse struct {
-	state     protoimpl.MessageState `protogen:"open.v1"`
+	state     protoimpl.MessageState `protogen:"hybrid.v1"`
 	UserTasks []*UserTask            `protobuf:"bytes,1,rep,name=user_tasks,json=userTasks,proto3" json:"user_tasks,omitempty"`
 	// Token to retrieve the next page of results, or empty if there are no
 	// more results in the list.
@@ -396,11 +551,6 @@ func (x *ListUserTasksResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListUserTasksResponse.ProtoReflect.Descriptor instead.
-func (*ListUserTasksResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_usertasks_v1_user_tasks_service_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *ListUserTasksResponse) GetUserTasks() []*UserTask {
 	if x != nil {
 		return x.UserTasks
@@ -415,9 +565,35 @@ func (x *ListUserTasksResponse) GetNextPageToken() string {
 	return ""
 }
 
+func (x *ListUserTasksResponse) SetUserTasks(v []*UserTask) {
+	x.UserTasks = v
+}
+
+func (x *ListUserTasksResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListUserTasksResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	UserTasks []*UserTask
+	// Token to retrieve the next page of results, or empty if there are no
+	// more results in the list.
+	NextPageToken string
+}
+
+func (b0 ListUserTasksResponse_builder) Build() *ListUserTasksResponse {
+	m0 := &ListUserTasksResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.UserTasks = b.UserTasks
+	x.NextPageToken = b.NextPageToken
+	return m0
+}
+
 // UpdateUserTaskRequest is a request to update an existing User Task.
 type UpdateUserTaskRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	UserTask      *UserTask              `protobuf:"bytes,1,opt,name=user_task,json=userTask,proto3" json:"user_task,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -448,11 +624,6 @@ func (x *UpdateUserTaskRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateUserTaskRequest.ProtoReflect.Descriptor instead.
-func (*UpdateUserTaskRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_usertasks_v1_user_tasks_service_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *UpdateUserTaskRequest) GetUserTask() *UserTask {
 	if x != nil {
 		return x.UserTask
@@ -460,9 +631,38 @@ func (x *UpdateUserTaskRequest) GetUserTask() *UserTask {
 	return nil
 }
 
+func (x *UpdateUserTaskRequest) SetUserTask(v *UserTask) {
+	x.UserTask = v
+}
+
+func (x *UpdateUserTaskRequest) HasUserTask() bool {
+	if x == nil {
+		return false
+	}
+	return x.UserTask != nil
+}
+
+func (x *UpdateUserTaskRequest) ClearUserTask() {
+	x.UserTask = nil
+}
+
+type UpdateUserTaskRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	UserTask *UserTask
+}
+
+func (b0 UpdateUserTaskRequest_builder) Build() *UpdateUserTaskRequest {
+	m0 := &UpdateUserTaskRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.UserTask = b.UserTask
+	return m0
+}
+
 // DeleteUserTaskRequest is a request to delete a User Task.
 type DeleteUserTaskRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the name of the User Task to delete.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -494,16 +694,30 @@ func (x *DeleteUserTaskRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteUserTaskRequest.ProtoReflect.Descriptor instead.
-func (*DeleteUserTaskRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_usertasks_v1_user_tasks_service_proto_rawDescGZIP(), []int{8}
-}
-
 func (x *DeleteUserTaskRequest) GetName() string {
 	if x != nil {
 		return x.Name
 	}
 	return ""
+}
+
+func (x *DeleteUserTaskRequest) SetName(v string) {
+	x.Name = v
+}
+
+type DeleteUserTaskRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the name of the User Task to delete.
+	Name string
+}
+
+func (b0 DeleteUserTaskRequest_builder) Build() *DeleteUserTaskRequest {
+	m0 := &DeleteUserTaskRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
 }
 
 var File_teleport_usertasks_v1_user_tasks_service_proto protoreflect.FileDescriptor
@@ -547,18 +761,6 @@ const file_teleport_usertasks_v1_user_tasks_service_proto_rawDesc = "" +
 	"\x1aListUserTasksByIntegration\x128.teleport.usertasks.v1.ListUserTasksByIntegrationRequest\x1a,.teleport.usertasks.v1.ListUserTasksResponse\"\x03\x88\x02\x01\x12_\n" +
 	"\x0eUpdateUserTask\x12,.teleport.usertasks.v1.UpdateUserTaskRequest\x1a\x1f.teleport.usertasks.v1.UserTask\x12V\n" +
 	"\x0eDeleteUserTask\x12,.teleport.usertasks.v1.DeleteUserTaskRequest\x1a\x16.google.protobuf.EmptyBVZTgithub.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1;usertasksv1b\x06proto3"
-
-var (
-	file_teleport_usertasks_v1_user_tasks_service_proto_rawDescOnce sync.Once
-	file_teleport_usertasks_v1_user_tasks_service_proto_rawDescData []byte
-)
-
-func file_teleport_usertasks_v1_user_tasks_service_proto_rawDescGZIP() []byte {
-	file_teleport_usertasks_v1_user_tasks_service_proto_rawDescOnce.Do(func() {
-		file_teleport_usertasks_v1_user_tasks_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_usertasks_v1_user_tasks_service_proto_rawDesc), len(file_teleport_usertasks_v1_user_tasks_service_proto_rawDesc)))
-	})
-	return file_teleport_usertasks_v1_user_tasks_service_proto_rawDescData
-}
 
 var file_teleport_usertasks_v1_user_tasks_service_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_teleport_usertasks_v1_user_tasks_service_proto_goTypes = []any{

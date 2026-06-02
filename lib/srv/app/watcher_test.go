@@ -58,7 +58,7 @@ func TestCloudHostedAppServiceRejectsDynamicLabels(t *testing.T) {
 	}
 
 	// Create app with label group=a and dynamic labels.
-	app, err := makeDynamicApp("app_with_dynamic_labels", map[string]string{"group": "a"})
+	app, err := makeDynamicApp("app-with-dynamic-labels", map[string]string{"group": "a"})
 	require.NoError(t, err)
 	app.SetDynamicLabels(map[string]types.CommandLabel{
 		"foo": &types.CommandLabelV2{
@@ -121,7 +121,7 @@ func TestWatcher(t *testing.T) {
 	// Create a single Proxy with a PublicAddr to exercise that
 	// apps without a PublicAddr automatically get one specified
 	// by the watcher.
-	require.NoError(t, s.authServer.AuthServer.UpsertProxy(t.Context(), &types.ServerV2{
+	_, err = s.authServer.AuthServer.UpsertProxyServer(t.Context(), &types.ServerV2{
 		Kind:    types.KindProxy,
 		Version: types.V2,
 		Metadata: types.Metadata{
@@ -130,7 +130,8 @@ func TestWatcher(t *testing.T) {
 		Spec: types.ServerSpecV2{
 			PublicAddrs: []string{"test.example.com"},
 		},
-	}))
+	})
+	require.NoError(t, err)
 
 	// Only app0 should be registered initially.
 	select {

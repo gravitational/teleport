@@ -26,6 +26,7 @@ import (
 	"maps"
 	"net"
 	"net/netip"
+	"slices"
 	"strings"
 	"time"
 
@@ -87,25 +88,41 @@ const (
 	readOnlyDomainControllerGroupID = "521"
 )
 
-// currentDesktops returns the set of desktops that exist in the backend which were both:
+// currentLDAPDesktops returns the set of desktops that exist in the backend which were both:
 // 1. Registered by this agent.
-// 2. Registered with a dynamic origin (either via LDAP discovery or dynamic registration)
-func (s *WindowsService) currentDesktops(ctx context.Context) map[string]types.WindowsDesktop {
+// 2. Discovered via LDAP.
+func (s *WindowsService) currentLDAPDesktops(ctx context.Context) map[string]types.WindowsDesktop {
 	result := make(map[string]types.WindowsDesktop)
 
 	for desktop, err := range clientutils.Resources(
 		ctx,
 		func(ctx context.Context, pageSize int, pageToken string) ([]types.WindowsDesktop, string, error) {
 			resp, err := s.cfg.AccessPoint.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{
-				WindowsDesktopFilter: types.WindowsDesktopFilter{HostID: s.cfg.Heartbeat.HostUUID},
-				Labels:               map[string]string{types.OriginLabel: types.OriginDynamic},
-				Limit:                pageSize,
-				StartKey:             pageToken,
+				WindowsDesktopFilter: types.WindowsDesktopFilter{
+					HostID: s.cfg.Heartbeat.HostUUID,
+					Source: types.WindowsDesktopSource_WINDOWS_DESKTOP_SOURCE_LDAP,
+				},
+				Labels:   map[string]string{types.OriginLabel: types.OriginDynamic},
+				Limit:    pageSize,
+				StartKey: pageToken,
 			})
 			if err != nil {
 				return nil, "", trace.Wrap(err)
 			}
-			return resp.Desktops, resp.NextKey, nil
+
+			// The ability to filter by source was added in a v18 release.
+			// We do an extra client-side filter here in case we hit an old auth server
+			// that doesn't respect the new filter.
+			// TODO(zmb3): DELETE IN v20, at which point auth is guaranteed to support the new filter
+			filtered := slices.DeleteFunc(resp.Desktops, func(d types.WindowsDesktop) bool {
+				v3, ok := d.(*types.WindowsDesktopV3)
+				if !ok {
+					return true
+				}
+				return v3.Status == nil || v3.Status.Source != types.WindowsDesktopSource_WINDOWS_DESKTOP_SOURCE_LDAP
+			})
+
+			return filtered, resp.NextKey, nil
 		}) {
 		if err != nil {
 			return result
@@ -129,7 +146,7 @@ func (s *WindowsService) startDesktopDiscovery() error {
 		CompareResources: func(wd1, wd2 types.WindowsDesktop) int {
 			return services.EqualFromBool(wd1.IsEqual(wd2))
 		},
-		GetCurrentResources: func() map[string]types.WindowsDesktop { return s.currentDesktops(s.closeCtx) },
+		GetCurrentResources: func() map[string]types.WindowsDesktop { return s.currentLDAPDesktops(s.closeCtx) },
 		GetNewResources:     s.getDesktopsFromLDAP,
 		OnCreate:            s.upsertDesktop,
 		OnUpdate:            s.updateDesktop,
@@ -435,6 +452,10 @@ func (s *WindowsService) ldapEntryToWindowsDesktop(
 
 	description := entry.GetAttributeValue(attrDescription)
 	desktop.Metadata.Description = description[:min(len(description), attrDescriptionMaxLength)]
+
+	desktop.Status = &types.WindowsDesktopStatus{
+		Source: types.WindowsDesktopSource_WINDOWS_DESKTOP_SOURCE_LDAP,
+	}
 
 	return desktop, nil
 }

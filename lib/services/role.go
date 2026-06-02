@@ -3214,6 +3214,21 @@ func (set RoleSet) CanCopyFiles() bool {
 	return true
 }
 
+// GetWebTerminalClipboardMode returns the Web UI terminal clipboard mode from the role set.
+func (set RoleSet) GetWebTerminalClipboardMode() types.WebTerminalClipboardMode {
+	var mode types.WebTerminalClipboardMode
+	for _, r := range set {
+		switch r.GetOptions().WebTerminalClipboardMode {
+		// Return immediately if any role has explicitly set the clipboard mode to no-copy, as that should take precedence over any unrestricted's.
+		case types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY:
+			return types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY
+		case types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNRESTRICTED:
+			mode = types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNRESTRICTED
+		}
+	}
+	return mode
+}
+
 // CanJoinSessions returns true if at least one role in the role set
 // allows the user to join active sessions.
 func (set RoleSet) CanJoinSessions() bool {

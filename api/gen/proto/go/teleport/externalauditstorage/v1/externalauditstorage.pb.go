@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/externalauditstorage/v1/externalauditstorage.proto
 
+//go:build !protoopaque
+
 package externalauditstoragev1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -40,7 +41,7 @@ const (
 // It contains configuration that allows users to store audit events and session
 // recordings on customer-owned infra instead of in Teleport Cloud.
 type ExternalAuditStorage struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Header is the header for the resource.
 	Header *v1.ResourceHeader `protobuf:"bytes,1,opt,name=header,proto3" json:"header,omitempty"`
 	// Spec is the specification for external audit storage.
@@ -74,11 +75,6 @@ func (x *ExternalAuditStorage) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ExternalAuditStorage.ProtoReflect.Descriptor instead.
-func (*ExternalAuditStorage) Descriptor() ([]byte, []int) {
-	return file_teleport_externalauditstorage_v1_externalauditstorage_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *ExternalAuditStorage) GetHeader() *v1.ResourceHeader {
 	if x != nil {
 		return x.Header
@@ -93,9 +89,57 @@ func (x *ExternalAuditStorage) GetSpec() *ExternalAuditStorageSpec {
 	return nil
 }
 
+func (x *ExternalAuditStorage) SetHeader(v *v1.ResourceHeader) {
+	x.Header = v
+}
+
+func (x *ExternalAuditStorage) SetSpec(v *ExternalAuditStorageSpec) {
+	x.Spec = v
+}
+
+func (x *ExternalAuditStorage) HasHeader() bool {
+	if x == nil {
+		return false
+	}
+	return x.Header != nil
+}
+
+func (x *ExternalAuditStorage) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *ExternalAuditStorage) ClearHeader() {
+	x.Header = nil
+}
+
+func (x *ExternalAuditStorage) ClearSpec() {
+	x.Spec = nil
+}
+
+type ExternalAuditStorage_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Header is the header for the resource.
+	Header *v1.ResourceHeader
+	// Spec is the specification for external audit storage.
+	Spec *ExternalAuditStorageSpec
+}
+
+func (b0 ExternalAuditStorage_builder) Build() *ExternalAuditStorage {
+	m0 := &ExternalAuditStorage{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Header = b.Header
+	x.Spec = b.Spec
+	return m0
+}
+
 // ExternalAuditStorageConfigSpec is the specification of external audit storage.
 type ExternalAuditStorageSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// IntegrationName is name of an existing AWS OIDC integration used to
 	// authenticate to the external AWS account.
 	IntegrationName string `protobuf:"bytes,1,opt,name=integration_name,json=integrationName,proto3" json:"integration_name,omitempty"`
@@ -145,11 +189,6 @@ func (x *ExternalAuditStorageSpec) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ExternalAuditStorageSpec.ProtoReflect.Descriptor instead.
-func (*ExternalAuditStorageSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_externalauditstorage_v1_externalauditstorage_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *ExternalAuditStorageSpec) GetIntegrationName() string {
@@ -215,6 +254,85 @@ func (x *ExternalAuditStorageSpec) GetPolicyName() string {
 	return ""
 }
 
+func (x *ExternalAuditStorageSpec) SetIntegrationName(v string) {
+	x.IntegrationName = v
+}
+
+func (x *ExternalAuditStorageSpec) SetRegion(v string) {
+	x.Region = v
+}
+
+func (x *ExternalAuditStorageSpec) SetSessionRecordingsUri(v string) {
+	x.SessionRecordingsUri = v
+}
+
+func (x *ExternalAuditStorageSpec) SetAuditEventsLongTermUri(v string) {
+	x.AuditEventsLongTermUri = v
+}
+
+func (x *ExternalAuditStorageSpec) SetAthenaResultsUri(v string) {
+	x.AthenaResultsUri = v
+}
+
+func (x *ExternalAuditStorageSpec) SetAthenaWorkgroup(v string) {
+	x.AthenaWorkgroup = v
+}
+
+func (x *ExternalAuditStorageSpec) SetGlueDatabase(v string) {
+	x.GlueDatabase = v
+}
+
+func (x *ExternalAuditStorageSpec) SetGlueTable(v string) {
+	x.GlueTable = v
+}
+
+func (x *ExternalAuditStorageSpec) SetPolicyName(v string) {
+	x.PolicyName = v
+}
+
+type ExternalAuditStorageSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// IntegrationName is name of an existing AWS OIDC integration used to
+	// authenticate to the external AWS account.
+	IntegrationName string
+	// Region is the AWS region where the infrastructure is hosted.
+	Region string
+	// SessionRecordingsURI is the S3 path used to store session recordings.
+	SessionRecordingsUri string
+	// AuditEventsLongTermURI is the S3 path used to store batched parquet files
+	// with audit events.
+	AuditEventsLongTermUri string
+	// AthenaResultsURI is the S3 path used to store temporary results of Athena
+	// queries.
+	AthenaResultsUri string
+	// AthenaWorkgroup is the workgroup used for Athena audit log queries.
+	AthenaWorkgroup string
+	// GlueDatabase is the database used for Athena audit log queries.
+	GlueDatabase string
+	// GlueTable is the table used for Athena audit log queries.
+	GlueTable string
+	// PolicyName is the name of the IAM policy attached to the OIDC integration
+	// role.
+	PolicyName string
+}
+
+func (b0 ExternalAuditStorageSpec_builder) Build() *ExternalAuditStorageSpec {
+	m0 := &ExternalAuditStorageSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.IntegrationName = b.IntegrationName
+	x.Region = b.Region
+	x.SessionRecordingsUri = b.SessionRecordingsUri
+	x.AuditEventsLongTermUri = b.AuditEventsLongTermUri
+	x.AthenaResultsUri = b.AthenaResultsUri
+	x.AthenaWorkgroup = b.AthenaWorkgroup
+	x.GlueDatabase = b.GlueDatabase
+	x.GlueTable = b.GlueTable
+	x.PolicyName = b.PolicyName
+	return m0
+}
+
 var File_teleport_externalauditstorage_v1_externalauditstorage_proto protoreflect.FileDescriptor
 
 const file_teleport_externalauditstorage_v1_externalauditstorage_proto_rawDesc = "" +
@@ -235,18 +353,6 @@ const file_teleport_externalauditstorage_v1_externalauditstorage_proto_rawDesc =
 	"glue_table\x18\b \x01(\tR\tglueTable\x12\x1f\n" +
 	"\vpolicy_name\x18\t \x01(\tR\n" +
 	"policyNameBlZjgithub.com/gravitational/teleport/api/gen/proto/go/teleport/externalauditstorage/v1;externalauditstoragev1b\x06proto3"
-
-var (
-	file_teleport_externalauditstorage_v1_externalauditstorage_proto_rawDescOnce sync.Once
-	file_teleport_externalauditstorage_v1_externalauditstorage_proto_rawDescData []byte
-)
-
-func file_teleport_externalauditstorage_v1_externalauditstorage_proto_rawDescGZIP() []byte {
-	file_teleport_externalauditstorage_v1_externalauditstorage_proto_rawDescOnce.Do(func() {
-		file_teleport_externalauditstorage_v1_externalauditstorage_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_externalauditstorage_v1_externalauditstorage_proto_rawDesc), len(file_teleport_externalauditstorage_v1_externalauditstorage_proto_rawDesc)))
-	})
-	return file_teleport_externalauditstorage_v1_externalauditstorage_proto_rawDescData
-}
 
 var file_teleport_externalauditstorage_v1_externalauditstorage_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_teleport_externalauditstorage_v1_externalauditstorage_proto_goTypes = []any{

@@ -102,9 +102,10 @@ func GenSchemaScopedToken(ctx context.Context) (github_com_hashicorp_terraform_p
 			Required:    true,
 		},
 		"scope": {
-			Description: "Scope is the scope of the token resource.",
-			Required:    true,
-			Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+			Description:   "Scope is the scope of the token resource.",
+			PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.RequiresReplace()},
+			Required:      true,
+			Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 		},
 		"spec": {
 			Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
@@ -341,11 +342,23 @@ func GenSchemaScopedToken(ctx context.Context) (github_com_hashicorp_terraform_p
 				"kubernetes": {
 					Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.SingleNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
 						"allow": {
-							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{"service_account": {
-								Description: "The namespaced name of the Kubernetes service account. Its format is \"namespace:service-account\".",
-								Optional:    true,
-								Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
-							}}),
+							Attributes: github_com_hashicorp_terraform_plugin_framework_tfsdk.ListNestedAttributes(map[string]github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
+								"service_account": {
+									Description: "The namespaced name of the Kubernetes service account. Its format is \"namespace:service-account\".",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"service_account_name": {
+									Description: "The name of the Kubernetes service account.  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+								"service_account_namespace": {
+									Description: "The namespace of the Kubernetes service account.  This field supports \"glob-style\" matching: - Use '*' to match zero or more characters. - Use '?' to match any single character.",
+									Optional:    true,
+									Type:        github_com_hashicorp_terraform_plugin_framework_types.StringType,
+								},
+							}),
 							Description: "A list of Rules for allowing use of this token. A node must match at least one allow rule in order to use this token.",
 							Optional:    true,
 						},
@@ -1574,6 +1587,40 @@ func CopyScopedTokenFromTerraform(_ context.Context, tf github_com_hashicorp_ter
 																				t = string(v.Value)
 																			}
 																			obj.ServiceAccount = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attrs["service_account_name"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"ScopedToken.spec.kubernetes.allow.service_account_name"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.kubernetes.allow.service_account_name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.ServiceAccountName = t
+																		}
+																	}
+																}
+																{
+																	a, ok := tf.Attrs["service_account_namespace"]
+																	if !ok {
+																		diags.Append(attrReadMissingDiag{"ScopedToken.spec.kubernetes.allow.service_account_namespace"})
+																	} else {
+																		v, ok := a.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrReadConversionFailureDiag{"ScopedToken.spec.kubernetes.allow.service_account_namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		} else {
+																			var t string
+																			if !v.Null && !v.Unknown {
+																				t = string(v.Value)
+																			}
+																			obj.ServiceAccountNamespace = t
 																		}
 																	}
 																}
@@ -3733,6 +3780,50 @@ func CopyScopedTokenToTerraform(ctx context.Context, obj *github_com_gravitation
 																	v.Value = string(obj.ServiceAccount)
 																	v.Unknown = false
 																	tf.Attrs["service_account"] = v
+																}
+															}
+															{
+																t, ok := tf.AttrTypes["service_account_name"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"ScopedToken.spec.kubernetes.allow.service_account_name"})
+																} else {
+																	v, ok := tf.Attrs["service_account_name"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"ScopedToken.spec.kubernetes.allow.service_account_name", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.kubernetes.allow.service_account_name", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																		v.Null = string(obj.ServiceAccountName) == ""
+																	}
+																	v.Value = string(obj.ServiceAccountName)
+																	v.Unknown = false
+																	tf.Attrs["service_account_name"] = v
+																}
+															}
+															{
+																t, ok := tf.AttrTypes["service_account_namespace"]
+																if !ok {
+																	diags.Append(attrWriteMissingDiag{"ScopedToken.spec.kubernetes.allow.service_account_namespace"})
+																} else {
+																	v, ok := tf.Attrs["service_account_namespace"].(github_com_hashicorp_terraform_plugin_framework_types.String)
+																	if !ok {
+																		i, err := t.ValueFromTerraform(ctx, github_com_hashicorp_terraform_plugin_go_tftypes.NewValue(t.TerraformType(ctx), nil))
+																		if err != nil {
+																			diags.Append(attrWriteGeneralError{"ScopedToken.spec.kubernetes.allow.service_account_namespace", err})
+																		}
+																		v, ok = i.(github_com_hashicorp_terraform_plugin_framework_types.String)
+																		if !ok {
+																			diags.Append(attrWriteConversionFailureDiag{"ScopedToken.spec.kubernetes.allow.service_account_namespace", "github.com/hashicorp/terraform-plugin-framework/types.String"})
+																		}
+																		v.Null = string(obj.ServiceAccountNamespace) == ""
+																	}
+																	v.Value = string(obj.ServiceAccountNamespace)
+																	v.Unknown = false
+																	tf.Attrs["service_account_namespace"] = v
 																}
 															}
 														}

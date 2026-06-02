@@ -21,6 +21,8 @@
 // 	protoc        (unknown)
 // source: teleport/notifications/v1/notifications_service.proto
 
+//go:build !protoopaque
+
 package notificationsv1
 
 import (
@@ -29,7 +31,6 @@ import (
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -42,7 +43,7 @@ const (
 
 // CreateUserNotificationRequest is the request for creating a user-specific notification.
 type CreateUserNotificationRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// username is the username of the user the notification to create is for.
 	Username string `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
 	// notification is the notification to create.
@@ -76,11 +77,6 @@ func (x *CreateUserNotificationRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateUserNotificationRequest.ProtoReflect.Descriptor instead.
-func (*CreateUserNotificationRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_notifications_v1_notifications_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *CreateUserNotificationRequest) GetUsername() string {
 	if x != nil {
 		return x.Username
@@ -95,9 +91,46 @@ func (x *CreateUserNotificationRequest) GetNotification() *Notification {
 	return nil
 }
 
+func (x *CreateUserNotificationRequest) SetUsername(v string) {
+	x.Username = v
+}
+
+func (x *CreateUserNotificationRequest) SetNotification(v *Notification) {
+	x.Notification = v
+}
+
+func (x *CreateUserNotificationRequest) HasNotification() bool {
+	if x == nil {
+		return false
+	}
+	return x.Notification != nil
+}
+
+func (x *CreateUserNotificationRequest) ClearNotification() {
+	x.Notification = nil
+}
+
+type CreateUserNotificationRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// username is the username of the user the notification to create is for.
+	Username string
+	// notification is the notification to create.
+	Notification *Notification
+}
+
+func (b0 CreateUserNotificationRequest_builder) Build() *CreateUserNotificationRequest {
+	m0 := &CreateUserNotificationRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Username = b.Username
+	x.Notification = b.Notification
+	return m0
+}
+
 // DeleteUserNotificationRequest is the request for deleting a user-specific notification.
 type DeleteUserNotificationRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// username is the username of the user the notification to delete is for.
 	Username string `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
 	// notification_id is the ID of the notification to delete.
@@ -131,11 +164,6 @@ func (x *DeleteUserNotificationRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteUserNotificationRequest.ProtoReflect.Descriptor instead.
-func (*DeleteUserNotificationRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_notifications_v1_notifications_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *DeleteUserNotificationRequest) GetUsername() string {
 	if x != nil {
 		return x.Username
@@ -150,9 +178,35 @@ func (x *DeleteUserNotificationRequest) GetNotificationId() string {
 	return ""
 }
 
+func (x *DeleteUserNotificationRequest) SetUsername(v string) {
+	x.Username = v
+}
+
+func (x *DeleteUserNotificationRequest) SetNotificationId(v string) {
+	x.NotificationId = v
+}
+
+type DeleteUserNotificationRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// username is the username of the user the notification to delete is for.
+	Username string
+	// notification_id is the ID of the notification to delete.
+	NotificationId string
+}
+
+func (b0 DeleteUserNotificationRequest_builder) Build() *DeleteUserNotificationRequest {
+	m0 := &DeleteUserNotificationRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Username = b.Username
+	x.NotificationId = b.NotificationId
+	return m0
+}
+
 // ListNotificationsRequest is the request for listing a user's notifications.
 type ListNotificationsRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// page_size is the size of the page to return.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	// page_token is the next_page_token value returned from a previous ListUserNotifications request, if any.
@@ -188,11 +242,6 @@ func (x *ListNotificationsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListNotificationsRequest.ProtoReflect.Descriptor instead.
-func (*ListNotificationsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_notifications_v1_notifications_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *ListNotificationsRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -214,9 +263,53 @@ func (x *ListNotificationsRequest) GetFilters() *NotificationFilters {
 	return nil
 }
 
+func (x *ListNotificationsRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListNotificationsRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+func (x *ListNotificationsRequest) SetFilters(v *NotificationFilters) {
+	x.Filters = v
+}
+
+func (x *ListNotificationsRequest) HasFilters() bool {
+	if x == nil {
+		return false
+	}
+	return x.Filters != nil
+}
+
+func (x *ListNotificationsRequest) ClearFilters() {
+	x.Filters = nil
+}
+
+type ListNotificationsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// page_size is the size of the page to return.
+	PageSize int32
+	// page_token is the next_page_token value returned from a previous ListUserNotifications request, if any.
+	PageToken string
+	// filters specify search criteria to limit which notifications should be returned. If omitted, the default behavior will be to list all notifications.
+	Filters *NotificationFilters
+}
+
+func (b0 ListNotificationsRequest_builder) Build() *ListNotificationsRequest {
+	m0 := &ListNotificationsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	x.Filters = b.Filters
+	return m0
+}
+
 // NotificationFilters provide a mechanism to refine ListNotification results.
 type NotificationFilters struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// username is the username of the user the notifications being listed are for.
 	Username string `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
 	// global_only is whether to only list global notifications (notifications capable of targetting multiple users).
@@ -254,11 +347,6 @@ func (x *NotificationFilters) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use NotificationFilters.ProtoReflect.Descriptor instead.
-func (*NotificationFilters) Descriptor() ([]byte, []int) {
-	return file_teleport_notifications_v1_notifications_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *NotificationFilters) GetUsername() string {
 	if x != nil {
 		return x.Username
@@ -287,9 +375,49 @@ func (x *NotificationFilters) GetLabels() map[string]string {
 	return nil
 }
 
+func (x *NotificationFilters) SetUsername(v string) {
+	x.Username = v
+}
+
+func (x *NotificationFilters) SetGlobalOnly(v bool) {
+	x.GlobalOnly = v
+}
+
+func (x *NotificationFilters) SetUserCreatedOnly(v bool) {
+	x.UserCreatedOnly = v
+}
+
+func (x *NotificationFilters) SetLabels(v map[string]string) {
+	x.Labels = v
+}
+
+type NotificationFilters_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// username is the username of the user the notifications being listed are for.
+	Username string
+	// global_only is whether to only list global notifications (notifications capable of targetting multiple users).
+	GlobalOnly bool
+	// user_created_only is whether to only list user-created notifications (ie. notifications created by an admin via the tctl interface).
+	UserCreatedOnly bool
+	// labels is used to request only notifications with specific labels.
+	Labels map[string]string
+}
+
+func (b0 NotificationFilters_builder) Build() *NotificationFilters {
+	m0 := &NotificationFilters{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Username = b.Username
+	x.GlobalOnly = b.GlobalOnly
+	x.UserCreatedOnly = b.UserCreatedOnly
+	x.Labels = b.Labels
+	return m0
+}
+
 // ListNotificationsResponse is the response from listing a user's notifications.
 type ListNotificationsResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// notifications is the notifications returned.
 	Notifications []*Notification `protobuf:"bytes,1,rep,name=notifications,proto3" json:"notifications,omitempty"`
 	// next_page_token contains the next page token to use as the start key for the next page of notifications.
@@ -325,11 +453,6 @@ func (x *ListNotificationsResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListNotificationsResponse.ProtoReflect.Descriptor instead.
-func (*ListNotificationsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_notifications_v1_notifications_service_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *ListNotificationsResponse) GetNotifications() []*Notification {
 	if x != nil {
 		return x.Notifications
@@ -351,9 +474,53 @@ func (x *ListNotificationsResponse) GetUserLastSeenNotificationTimestamp() *time
 	return nil
 }
 
+func (x *ListNotificationsResponse) SetNotifications(v []*Notification) {
+	x.Notifications = v
+}
+
+func (x *ListNotificationsResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+func (x *ListNotificationsResponse) SetUserLastSeenNotificationTimestamp(v *timestamppb.Timestamp) {
+	x.UserLastSeenNotificationTimestamp = v
+}
+
+func (x *ListNotificationsResponse) HasUserLastSeenNotificationTimestamp() bool {
+	if x == nil {
+		return false
+	}
+	return x.UserLastSeenNotificationTimestamp != nil
+}
+
+func (x *ListNotificationsResponse) ClearUserLastSeenNotificationTimestamp() {
+	x.UserLastSeenNotificationTimestamp = nil
+}
+
+type ListNotificationsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// notifications is the notifications returned.
+	Notifications []*Notification
+	// next_page_token contains the next page token to use as the start key for the next page of notifications.
+	NextPageToken string
+	// user_last_seen_notification_timestamp is the timestamp of the last notification the user has seen.
+	UserLastSeenNotificationTimestamp *timestamppb.Timestamp
+}
+
+func (b0 ListNotificationsResponse_builder) Build() *ListNotificationsResponse {
+	m0 := &ListNotificationsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Notifications = b.Notifications
+	x.NextPageToken = b.NextPageToken
+	x.UserLastSeenNotificationTimestamp = b.UserLastSeenNotificationTimestamp
+	return m0
+}
+
 // CreateGlobalNotificationRequest is the request for creating a global notification.
 type CreateGlobalNotificationRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// global_notification is the global notification to create.
 	GlobalNotification *GlobalNotification `protobuf:"bytes,1,opt,name=global_notification,json=globalNotification,proto3" json:"global_notification,omitempty"`
 	unknownFields      protoimpl.UnknownFields
@@ -385,11 +552,6 @@ func (x *CreateGlobalNotificationRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateGlobalNotificationRequest.ProtoReflect.Descriptor instead.
-func (*CreateGlobalNotificationRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_notifications_v1_notifications_service_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *CreateGlobalNotificationRequest) GetGlobalNotification() *GlobalNotification {
 	if x != nil {
 		return x.GlobalNotification
@@ -397,9 +559,39 @@ func (x *CreateGlobalNotificationRequest) GetGlobalNotification() *GlobalNotific
 	return nil
 }
 
+func (x *CreateGlobalNotificationRequest) SetGlobalNotification(v *GlobalNotification) {
+	x.GlobalNotification = v
+}
+
+func (x *CreateGlobalNotificationRequest) HasGlobalNotification() bool {
+	if x == nil {
+		return false
+	}
+	return x.GlobalNotification != nil
+}
+
+func (x *CreateGlobalNotificationRequest) ClearGlobalNotification() {
+	x.GlobalNotification = nil
+}
+
+type CreateGlobalNotificationRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// global_notification is the global notification to create.
+	GlobalNotification *GlobalNotification
+}
+
+func (b0 CreateGlobalNotificationRequest_builder) Build() *CreateGlobalNotificationRequest {
+	m0 := &CreateGlobalNotificationRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.GlobalNotification = b.GlobalNotification
+	return m0
+}
+
 // DeleteGlobalNotificationRequest is the request for deleting a global notification.
 type DeleteGlobalNotificationRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// notification_id is the ID of the notification to delete.
 	NotificationId string `protobuf:"bytes,1,opt,name=notification_id,json=notificationId,proto3" json:"notification_id,omitempty"`
 	unknownFields  protoimpl.UnknownFields
@@ -431,11 +623,6 @@ func (x *DeleteGlobalNotificationRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteGlobalNotificationRequest.ProtoReflect.Descriptor instead.
-func (*DeleteGlobalNotificationRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_notifications_v1_notifications_service_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *DeleteGlobalNotificationRequest) GetNotificationId() string {
 	if x != nil {
 		return x.NotificationId
@@ -443,9 +630,28 @@ func (x *DeleteGlobalNotificationRequest) GetNotificationId() string {
 	return ""
 }
 
+func (x *DeleteGlobalNotificationRequest) SetNotificationId(v string) {
+	x.NotificationId = v
+}
+
+type DeleteGlobalNotificationRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// notification_id is the ID of the notification to delete.
+	NotificationId string
+}
+
+func (b0 DeleteGlobalNotificationRequest_builder) Build() *DeleteGlobalNotificationRequest {
+	m0 := &DeleteGlobalNotificationRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.NotificationId = b.NotificationId
+	return m0
+}
+
 // UpsertUserNotificationStateRequest is the request for creating or updating a user notification state.
 type UpsertUserNotificationStateRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// username is the username of the user.
 	Username string `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
 	// user_notification_state is the user notification state to create.
@@ -479,11 +685,6 @@ func (x *UpsertUserNotificationStateRequest) ProtoReflect() protoreflect.Message
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertUserNotificationStateRequest.ProtoReflect.Descriptor instead.
-func (*UpsertUserNotificationStateRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_notifications_v1_notifications_service_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *UpsertUserNotificationStateRequest) GetUsername() string {
 	if x != nil {
 		return x.Username
@@ -498,9 +699,46 @@ func (x *UpsertUserNotificationStateRequest) GetUserNotificationState() *UserNot
 	return nil
 }
 
+func (x *UpsertUserNotificationStateRequest) SetUsername(v string) {
+	x.Username = v
+}
+
+func (x *UpsertUserNotificationStateRequest) SetUserNotificationState(v *UserNotificationState) {
+	x.UserNotificationState = v
+}
+
+func (x *UpsertUserNotificationStateRequest) HasUserNotificationState() bool {
+	if x == nil {
+		return false
+	}
+	return x.UserNotificationState != nil
+}
+
+func (x *UpsertUserNotificationStateRequest) ClearUserNotificationState() {
+	x.UserNotificationState = nil
+}
+
+type UpsertUserNotificationStateRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// username is the username of the user.
+	Username string
+	// user_notification_state is the user notification state to create.
+	UserNotificationState *UserNotificationState
+}
+
+func (b0 UpsertUserNotificationStateRequest_builder) Build() *UpsertUserNotificationStateRequest {
+	m0 := &UpsertUserNotificationStateRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Username = b.Username
+	x.UserNotificationState = b.UserNotificationState
+	return m0
+}
+
 // UpsertUserLastSeenNotificationRequest is the request for creating or updating a user's last seen notification.
 type UpsertUserLastSeenNotificationRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// username is the username of the user.
 	Username string `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
 	// user_notification_state is the updated user last seen notification item.
@@ -534,11 +772,6 @@ func (x *UpsertUserLastSeenNotificationRequest) ProtoReflect() protoreflect.Mess
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertUserLastSeenNotificationRequest.ProtoReflect.Descriptor instead.
-func (*UpsertUserLastSeenNotificationRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_notifications_v1_notifications_service_proto_rawDescGZIP(), []int{8}
-}
-
 func (x *UpsertUserLastSeenNotificationRequest) GetUsername() string {
 	if x != nil {
 		return x.Username
@@ -551,6 +784,43 @@ func (x *UpsertUserLastSeenNotificationRequest) GetUserLastSeenNotification() *U
 		return x.UserLastSeenNotification
 	}
 	return nil
+}
+
+func (x *UpsertUserLastSeenNotificationRequest) SetUsername(v string) {
+	x.Username = v
+}
+
+func (x *UpsertUserLastSeenNotificationRequest) SetUserLastSeenNotification(v *UserLastSeenNotification) {
+	x.UserLastSeenNotification = v
+}
+
+func (x *UpsertUserLastSeenNotificationRequest) HasUserLastSeenNotification() bool {
+	if x == nil {
+		return false
+	}
+	return x.UserLastSeenNotification != nil
+}
+
+func (x *UpsertUserLastSeenNotificationRequest) ClearUserLastSeenNotification() {
+	x.UserLastSeenNotification = nil
+}
+
+type UpsertUserLastSeenNotificationRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// username is the username of the user.
+	Username string
+	// user_notification_state is the updated user last seen notification item.
+	UserLastSeenNotification *UserLastSeenNotification
+}
+
+func (b0 UpsertUserLastSeenNotificationRequest_builder) Build() *UpsertUserLastSeenNotificationRequest {
+	m0 := &UpsertUserLastSeenNotificationRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Username = b.Username
+	x.UserLastSeenNotification = b.UserLastSeenNotification
+	return m0
 }
 
 var File_teleport_notifications_v1_notifications_service_proto protoreflect.FileDescriptor
@@ -600,18 +870,6 @@ const file_teleport_notifications_v1_notifications_service_proto_rawDesc = "" +
 	"\x11ListNotifications\x123.teleport.notifications.v1.ListNotificationsRequest\x1a4.teleport.notifications.v1.ListNotificationsResponse\x12\x8e\x01\n" +
 	"\x1bUpsertUserNotificationState\x12=.teleport.notifications.v1.UpsertUserNotificationStateRequest\x1a0.teleport.notifications.v1.UserNotificationState\x12\x97\x01\n" +
 	"\x1eUpsertUserLastSeenNotification\x12@.teleport.notifications.v1.UpsertUserLastSeenNotificationRequest\x1a3.teleport.notifications.v1.UserLastSeenNotificationB^Z\\github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1;notificationsv1b\x06proto3"
-
-var (
-	file_teleport_notifications_v1_notifications_service_proto_rawDescOnce sync.Once
-	file_teleport_notifications_v1_notifications_service_proto_rawDescData []byte
-)
-
-func file_teleport_notifications_v1_notifications_service_proto_rawDescGZIP() []byte {
-	file_teleport_notifications_v1_notifications_service_proto_rawDescOnce.Do(func() {
-		file_teleport_notifications_v1_notifications_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_notifications_v1_notifications_service_proto_rawDesc), len(file_teleport_notifications_v1_notifications_service_proto_rawDesc)))
-	})
-	return file_teleport_notifications_v1_notifications_service_proto_rawDescData
-}
 
 var file_teleport_notifications_v1_notifications_service_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_teleport_notifications_v1_notifications_service_proto_goTypes = []any{

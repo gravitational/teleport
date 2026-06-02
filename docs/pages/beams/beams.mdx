@@ -9,31 +9,27 @@ tags:
 ---
 
 <Admonition type="tip" title="CLI Tools">
-Beams require the `tsh` CLI version 18.8.0 or newer.
-
-Download `tsh` for your platform using the following links:
-- [Linux (amd64)](https://cdn.cloud.gravitational.io/teleport-ent-v18.8.0-dev.beams.1-linux-amd64-bin.tar.gz)
-- [macOS (universal)](https://cdn.cloud.gravitational.io/teleport-ent-v18.8.0-dev.beams.1-darwin-universal-bin.tar.gz)
-- [Windows (amd64)](https://cdn.cloud.gravitational.io/teleport-v18.8.0-dev.beams.1-windows-amd64-bin.zip)
+Beams require `tsh` version 18.8.0 or newer. To install `tsh`, visit [Download
+Client Tools](https://goteleport.com/download/client-tools/), select your
+platform, and choose "CLI Client Tools" in the **Download Type** menu.
 </Admonition>
 
 [Beams](https://beams.run) are ephemeral, isolated runtimes for AI agents. Each
-beam is a short-lived [Firecracker](https://firecracker-microvm.github.io/)
-micro-VM provisioned with a Teleport-issued identity and connected to your
-infrastructure and inference services — with no secrets, no static API keys, and
-full audit coverage.
+beam is a short-lived microVM provisioned with a Teleport-issued identity and
+connected to your infrastructure and inference services — with no secrets, no
+static API keys, and full audit coverage.
 
 Beams are part of the [Teleport Agentic Identity
-Framework](../agentic-identity-framework.mdx) and are designed to solve the core
-adoption blockers for running agents in production: security, IAM, and
-operational overhead.
+Framework](../agentic-identity-framework/agentic-identity-framework.mdx) and are
+designed to solve the core adoption blockers for running agents in production:
+security, IAM, and operational overhead.
 
 ## How Beams work
 
 When you run `tsh beams add`, Teleport's orchestrator provisions an isolated
-Firecracker micro-VM, injects a short-lived identity certificate, starts an SSH
-server, and configures virtual networking — all before your agent executes its
-first line of code.
+microVM, injects a short-lived identity certificate, starts an SSH server, and
+configures virtual networking — all before your agent executes its first line of
+code.
 
 Each beam runs a Debian-based environment that comes with Teleport's `tsh`
 command line and an assortment of common tooling.
@@ -130,7 +126,7 @@ All beam operations are performed through the `tsh beams` subcommand.
 
 ### Creating a beam
 
-Create a new beam with `tsh beams add`. This provisions a Firecracker micro-VM
+Create a new beam with `tsh beams add`. This provisions a microVM
 and returns when the beam is ready (typically under 5 seconds).
 
 ```code
@@ -239,7 +235,7 @@ application instead of a web application, add the `--tcp` flag.
 Beams are single-user by design. Only the user who created a beam can access it.
 
 Access control is enforced using owner labels on the beam's node and application
-resources (`teleport.internal/beam/owner: <username>`) and a `beam-user` role
+resources (`teleport.internal/beams/owner: <username>`) and a `beam-user` role
 that restricts access to matching resources:
 
 ```yaml
@@ -252,15 +248,15 @@ spec:
     logins:
       - beams
     node_labels:
-      teleport.internal/beam/owner: '{{internal.username}}'
+      teleport.internal/beams/owner: '{{internal.username}}'
     app_labels_expression: |
       labels["teleport.internal/beams/app-type"] == "llm" ||
-      contains(user.spec.traits.username, labels["teleport.internal/beam/owner"])
+      contains(user.spec.traits.username, labels["teleport.internal/beams/owner"])
     rules:
       - resources: [beam]
         verbs: ["*"]
     beam_labels:
-      teleport.internal/beam/owner: '{{internal.username}}'
+      teleport.internal/beams/owner: '{{internal.username}}'
 ```
 
 This role is automatically assigned to users on Beams-enabled clusters.
@@ -268,7 +264,7 @@ This role is automatically assigned to users on Beams-enabled clusters.
 ## Security model
 
 Beams run on the Teleport Cloud platform. Each beam runs in a restricted
-containerized environment inside of a dedicated Firecracker microVM.
+containerized environment inside of a dedicated microVM.
 
 A beam can only access your Teleport resources (like apps and databases) if it
 is granted the appropriate permissions. For now, beams run with a delegated
@@ -285,6 +281,10 @@ or via Teleport application tunnels (for published apps).
 Egress traffic to inference APIs is proxied by Teleport VNet. Credentials are
 injected after traffic leaves the beam, ensuring that sensitive API keys do not
 reside on the beam.
+
+For an explanation of the architectural principles behind Teleport Beams, see
+[Secure Agent
+Environment](../agentic-identity-framework/secure-agent-environment.mdx).
 
 ## Resource limits
 

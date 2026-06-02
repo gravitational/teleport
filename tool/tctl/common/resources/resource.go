@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
-	"github.com/gravitational/teleport/lib/subca"
 )
 
 // Handlers returns a map of Handler per kind.
@@ -35,12 +34,16 @@ import (
 // to the Handler format.
 func Handlers() map[string]Handler {
 	// When adding resources, please keep the map alphabetically ordered.
-	m := map[string]Handler{
+	return map[string]Handler{
+		scopedaccess.KindScopedRole:                  scopedRoleHandler(),
+		scopedaccess.KindScopedRoleAssignment:        scopedRoleAssignmentHandler(),
+		scopedaccess.KindScopedToken:                 scopedTokenHandler(),
 		types.KindAccessGraphSettings:                accessGraphSettingsHandler(),
 		types.KindAccessList:                         accessListHandler(),
 		types.KindAccessMonitoringRule:               accessMonitoringRuleHandler(),
 		types.KindAccessRequest:                      accessRequestHandler(),
 		types.KindApp:                                appHandler(),
+		types.KindAppAuthConfig:                      appAuthConfigHandler(),
 		types.KindAppServer:                          appServerHandler(),
 		types.KindAuditQuery:                         auditQueryHandler(),
 		types.KindAuthServer:                         authHandler(),
@@ -52,6 +55,7 @@ func Handlers() map[string]Handler {
 		types.KindBot:                                botHandler(),
 		types.KindBotInstance:                        botInstanceHandler(),
 		types.KindCertAuthority:                      certAuthorityHandler(),
+		types.KindCertAuthorityOverride:              certAuthorityOverrideHandler(),
 		types.KindClusterAuthPreference:              authPreferenceHandler(),
 		types.KindClusterMaintenanceConfig:           clusterMaintenanceConfigHandler(),
 		types.KindClusterNetworkingConfig:            networkingConfigHandler(),
@@ -62,28 +66,29 @@ func Handlers() map[string]Handler {
 		types.KindDiscoveryConfig:                    discoveryConfigHandler(),
 		types.KindDynamicWindowsDesktop:              dynamicWindowsDesktopHandler(),
 		types.KindExternalAuditStorage:               externalAuditStorageHandler(),
-		types.KindGithubConnector:                    githubConnectorHandler(),
 		types.KindGitServer:                          gitServerHandler(),
+		types.KindGithubConnector:                    githubConnectorHandler(),
 		types.KindInferenceModel:                     inferenceModelHandler(),
-		types.KindInferenceSecret:                    inferenceSecretHandler(),
 		types.KindInferencePolicy:                    inferencePolicyHandler(),
-		types.KindRetrievalModel:                     retrievalModelHandler(),
+		types.KindInferenceSecret:                    inferenceSecretHandler(),
 		types.KindInstaller:                          installerHandler(),
 		types.KindKubeServer:                         kubeServerHandler(),
 		types.KindKubernetesCluster:                  kubeClusterHandler(),
 		types.KindLinuxDesktop:                       linuxDesktopHandler(),
 		types.KindLock:                               lockHandler(),
+		types.KindLoginRule:                          loginRuleHandler(),
 		types.KindNode:                               serverHandler(),
 		types.KindOIDCConnector:                      oidcConnectorHandler(),
 		types.KindProxy:                              proxyHandler(),
 		types.KindRelayServer:                        relayServerHandler(),
+		types.KindRetrievalModel:                     retrievalModelHandler(),
 		types.KindRole:                               roleHandler(),
 		types.KindSAMLConnector:                      samlConnectorHandler(),
 		types.KindSAMLIdPServiceProvider:             samlIdPServiceProviderHandler(),
+		types.KindSPIFFEFederation:                   spiffeFederationHandler(),
 		types.KindServerInfo:                         serverInfoHandler(),
 		types.KindSessionRecordingConfig:             sessionRecordingConfigHandler(),
 		types.KindSigstorePolicy:                     sigstorePolicyHandler(),
-		types.KindSPIFFEFederation:                   spiffeFederationHandler(),
 		types.KindStaticHostUser:                     staticHostUserHandler(),
 		types.KindToken:                              tokenHandler(),
 		types.KindUIConfig:                           uiConfigHandler(),
@@ -92,21 +97,11 @@ func Handlers() map[string]Handler {
 		types.KindVnetConfig:                         vnetConfigHandler(),
 		types.KindWindowsDesktop:                     windowsDesktopHandler(),
 		types.KindWindowsDesktopService:              windowsDesktopServiceHandler(),
+		types.KindWorkloadCluster:                    workloadClusterHandler(),
 		types.KindWorkloadIdentity:                   workloadIdentityHandler(),
 		types.KindWorkloadIdentityX509IssuerOverride: workloadIdentityX509IssuerOverrideHandler(),
 		types.KindWorkloadIdentityX509Revocation:     workloadIdentityX509RevocationHandler(),
-		types.KindAppAuthConfig:                      appAuthConfigHandler(),
-		scopedaccess.KindScopedRole:                  scopedRoleHandler(),
-		scopedaccess.KindScopedRoleAssignment:        scopedRoleAssignmentHandler(),
-		types.KindWorkloadCluster:                    workloadClusterHandler(),
-		scopedaccess.KindScopedToken:                 scopedTokenHandler(),
 	}
-
-	if subca.Enabled() {
-		m[types.KindCertAuthorityOverride] = certAuthorityOverrideHandler()
-	}
-
-	return m
 }
 
 // Handler represents a resource supported by the tctl resource command.

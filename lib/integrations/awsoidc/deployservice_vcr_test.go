@@ -29,6 +29,7 @@ import (
 	"gopkg.in/dnaeon/go-vcr.v3/recorder"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 func TestDeployDBService(t *testing.T) {
@@ -78,8 +79,9 @@ func TestDeployDBService(t *testing.T) {
 
 	deployServiceReqFunc := func(clusterName string) DeployServiceRequest {
 		return DeployServiceRequest{
-			Region:    awsRegion,
-			AccountID: awsAccountID,
+			Region:            awsRegion,
+			TeleportBuildType: modules.BuildOSS,
+			AccountID:         awsAccountID,
 			SubnetIDs: []string{
 				"subnet-0b7ab67161173748b",
 				"subnet-0dda93c8621eb2e99",

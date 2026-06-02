@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/discoveryconfig/v1/discoveryconfig.proto
 
+//go:build !protoopaque
+
 package discoveryconfigv1
 
 import (
@@ -28,7 +30,6 @@ import (
 	durationpb "google.golang.org/protobuf/types/known/durationpb"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -92,16 +93,11 @@ func (x DiscoveryConfigState) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use DiscoveryConfigState.Descriptor instead.
-func (DiscoveryConfigState) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_discoveryconfig_v1_discoveryconfig_proto_rawDescGZIP(), []int{0}
-}
-
 // DiscoveryConfig is a resource that has Discovery Resource Matchers and a Discovery Group.
 //
 // Teleport Discovery Services will load the dynamic DiscoveryConfigs whose Discovery Group matches the discovery_group defined in their configuration.
 type DiscoveryConfig struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Header is the resource header.
 	Header *v1.ResourceHeader `protobuf:"bytes,1,opt,name=header,proto3" json:"header,omitempty"`
 	// Spec is an DiscoveryConfig specification.
@@ -137,11 +133,6 @@ func (x *DiscoveryConfig) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DiscoveryConfig.ProtoReflect.Descriptor instead.
-func (*DiscoveryConfig) Descriptor() ([]byte, []int) {
-	return file_teleport_discoveryconfig_v1_discoveryconfig_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *DiscoveryConfig) GetHeader() *v1.ResourceHeader {
 	if x != nil {
 		return x.Header
@@ -163,10 +154,76 @@ func (x *DiscoveryConfig) GetStatus() *DiscoveryConfigStatus {
 	return nil
 }
 
+func (x *DiscoveryConfig) SetHeader(v *v1.ResourceHeader) {
+	x.Header = v
+}
+
+func (x *DiscoveryConfig) SetSpec(v *DiscoveryConfigSpec) {
+	x.Spec = v
+}
+
+func (x *DiscoveryConfig) SetStatus(v *DiscoveryConfigStatus) {
+	x.Status = v
+}
+
+func (x *DiscoveryConfig) HasHeader() bool {
+	if x == nil {
+		return false
+	}
+	return x.Header != nil
+}
+
+func (x *DiscoveryConfig) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *DiscoveryConfig) HasStatus() bool {
+	if x == nil {
+		return false
+	}
+	return x.Status != nil
+}
+
+func (x *DiscoveryConfig) ClearHeader() {
+	x.Header = nil
+}
+
+func (x *DiscoveryConfig) ClearSpec() {
+	x.Spec = nil
+}
+
+func (x *DiscoveryConfig) ClearStatus() {
+	x.Status = nil
+}
+
+type DiscoveryConfig_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Header is the resource header.
+	Header *v1.ResourceHeader
+	// Spec is an DiscoveryConfig specification.
+	Spec *DiscoveryConfigSpec
+	// Status is the resource Status
+	Status *DiscoveryConfigStatus
+}
+
+func (b0 DiscoveryConfig_builder) Build() *DiscoveryConfig {
+	m0 := &DiscoveryConfig{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Header = b.Header
+	x.Spec = b.Spec
+	x.Status = b.Status
+	return m0
+}
+
 // DiscoveryConfigSpec contains properties required to create matchers to be used by discovery_service.
 // Those matchers are used by discovery_service to watch for cloud resources and create them in Teleport.
 type DiscoveryConfigSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// DiscoveryGroup is used by discovery_service to add extra matchers.
 	// All the discovery_services that have the same discovery_group, will load the matchers of this resource.
 	DiscoveryGroup string `protobuf:"bytes,1,opt,name=discovery_group,json=discoveryGroup,proto3" json:"discovery_group,omitempty"`
@@ -207,11 +264,6 @@ func (x *DiscoveryConfigSpec) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use DiscoveryConfigSpec.ProtoReflect.Descriptor instead.
-func (*DiscoveryConfigSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_discoveryconfig_v1_discoveryconfig_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *DiscoveryConfigSpec) GetDiscoveryGroup() string {
@@ -256,10 +308,76 @@ func (x *DiscoveryConfigSpec) GetAccessGraph() *types.AccessGraphSync {
 	return nil
 }
 
+func (x *DiscoveryConfigSpec) SetDiscoveryGroup(v string) {
+	x.DiscoveryGroup = v
+}
+
+func (x *DiscoveryConfigSpec) SetAws(v []*types.AWSMatcher) {
+	x.Aws = v
+}
+
+func (x *DiscoveryConfigSpec) SetAzure(v []*types.AzureMatcher) {
+	x.Azure = v
+}
+
+func (x *DiscoveryConfigSpec) SetGcp(v []*types.GCPMatcher) {
+	x.Gcp = v
+}
+
+func (x *DiscoveryConfigSpec) SetKube(v []*types.KubernetesMatcher) {
+	x.Kube = v
+}
+
+func (x *DiscoveryConfigSpec) SetAccessGraph(v *types.AccessGraphSync) {
+	x.AccessGraph = v
+}
+
+func (x *DiscoveryConfigSpec) HasAccessGraph() bool {
+	if x == nil {
+		return false
+	}
+	return x.AccessGraph != nil
+}
+
+func (x *DiscoveryConfigSpec) ClearAccessGraph() {
+	x.AccessGraph = nil
+}
+
+type DiscoveryConfigSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// DiscoveryGroup is used by discovery_service to add extra matchers.
+	// All the discovery_services that have the same discovery_group, will load the matchers of this resource.
+	DiscoveryGroup string
+	// AWS is a list of AWS Matchers.
+	Aws []*types.AWSMatcher
+	// Azure is a list of Azure Matchers.
+	Azure []*types.AzureMatcher
+	// GCP is a list of GCP Matchers.
+	Gcp []*types.GCPMatcher
+	// Kube is a list of Kubernetes Matchers.
+	Kube []*types.KubernetesMatcher
+	// AccessGraph is the configurations for syncing Cloud accounts into Access Graph.
+	AccessGraph *types.AccessGraphSync
+}
+
+func (b0 DiscoveryConfigSpec_builder) Build() *DiscoveryConfigSpec {
+	m0 := &DiscoveryConfigSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.DiscoveryGroup = b.DiscoveryGroup
+	x.Aws = b.Aws
+	x.Azure = b.Azure
+	x.Gcp = b.Gcp
+	x.Kube = b.Kube
+	x.AccessGraph = b.AccessGraph
+	return m0
+}
+
 // DiscoveryConfigStatus holds dynamic information about the discovery configuration
 // running status such as errors, state and count of the resources.
 type DiscoveryConfigStatus struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// State reports the Discovery config state.
 	State DiscoveryConfigState `protobuf:"varint,1,opt,name=state,proto3,enum=teleport.discoveryconfig.v1.DiscoveryConfigState" json:"state,omitempty"`
 	// error_message holds the error message when state is DISCOVERY_CONFIG_STATE_ERROR.
@@ -299,11 +417,6 @@ func (x *DiscoveryConfigStatus) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use DiscoveryConfigStatus.ProtoReflect.Descriptor instead.
-func (*DiscoveryConfigStatus) Descriptor() ([]byte, []int) {
-	return file_teleport_discoveryconfig_v1_discoveryconfig_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *DiscoveryConfigStatus) GetState() DiscoveryConfigState {
@@ -348,9 +461,85 @@ func (x *DiscoveryConfigStatus) GetServerStatus() map[string]*DiscoveryStatusSer
 	return nil
 }
 
+func (x *DiscoveryConfigStatus) SetState(v DiscoveryConfigState) {
+	x.State = v
+}
+
+func (x *DiscoveryConfigStatus) SetErrorMessage(v string) {
+	x.ErrorMessage = &v
+}
+
+func (x *DiscoveryConfigStatus) SetDiscoveredResources(v uint64) {
+	x.DiscoveredResources = v
+}
+
+func (x *DiscoveryConfigStatus) SetLastSyncTime(v *timestamppb.Timestamp) {
+	x.LastSyncTime = v
+}
+
+func (x *DiscoveryConfigStatus) SetIntegrationDiscoveredResources(v map[string]*IntegrationDiscoveredSummary) {
+	x.IntegrationDiscoveredResources = v
+}
+
+func (x *DiscoveryConfigStatus) SetServerStatus(v map[string]*DiscoveryStatusServer) {
+	x.ServerStatus = v
+}
+
+func (x *DiscoveryConfigStatus) HasErrorMessage() bool {
+	if x == nil {
+		return false
+	}
+	return x.ErrorMessage != nil
+}
+
+func (x *DiscoveryConfigStatus) HasLastSyncTime() bool {
+	if x == nil {
+		return false
+	}
+	return x.LastSyncTime != nil
+}
+
+func (x *DiscoveryConfigStatus) ClearErrorMessage() {
+	x.ErrorMessage = nil
+}
+
+func (x *DiscoveryConfigStatus) ClearLastSyncTime() {
+	x.LastSyncTime = nil
+}
+
+type DiscoveryConfigStatus_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// State reports the Discovery config state.
+	State DiscoveryConfigState
+	// error_message holds the error message when state is DISCOVERY_CONFIG_STATE_ERROR.
+	ErrorMessage *string
+	// discovered_resources holds the count of the discovered resources in the previous iteration.
+	DiscoveredResources uint64
+	// last_sync_time is the timestamp when the Discovery Config was last sync.
+	LastSyncTime *timestamppb.Timestamp
+	// IntegrationDiscoveredResources maps an integration to discovered resources summary.
+	IntegrationDiscoveredResources map[string]*IntegrationDiscoveredSummary
+	// ServerStatus contains the status from each Discovery Service that is watching this Discovery Config.
+	ServerStatus map[string]*DiscoveryStatusServer
+}
+
+func (b0 DiscoveryConfigStatus_builder) Build() *DiscoveryConfigStatus {
+	m0 := &DiscoveryConfigStatus{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.State = b.State
+	x.ErrorMessage = b.ErrorMessage
+	x.DiscoveredResources = b.DiscoveredResources
+	x.LastSyncTime = b.LastSyncTime
+	x.IntegrationDiscoveredResources = b.IntegrationDiscoveredResources
+	x.ServerStatus = b.ServerStatus
+	return m0
+}
+
 // DiscoveryStatusServer contains the status last reported by a server.
 type DiscoveryStatusServer struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// LastUpdate is the timestamp when the server last updated the status.
 	LastUpdate *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=last_update,json=lastUpdate,proto3" json:"last_update,omitempty"`
 	// PollInterval is the interval at which the server polls for new resources.
@@ -387,11 +576,6 @@ func (x *DiscoveryStatusServer) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DiscoveryStatusServer.ProtoReflect.Descriptor instead.
-func (*DiscoveryStatusServer) Descriptor() ([]byte, []int) {
-	return file_teleport_discoveryconfig_v1_discoveryconfig_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *DiscoveryStatusServer) GetLastUpdate() *timestamppb.Timestamp {
 	if x != nil {
 		return x.LastUpdate
@@ -413,9 +597,65 @@ func (x *DiscoveryStatusServer) GetIntegrationSummaries() map[string]*DiscoverSu
 	return nil
 }
 
+func (x *DiscoveryStatusServer) SetLastUpdate(v *timestamppb.Timestamp) {
+	x.LastUpdate = v
+}
+
+func (x *DiscoveryStatusServer) SetPollInterval(v *durationpb.Duration) {
+	x.PollInterval = v
+}
+
+func (x *DiscoveryStatusServer) SetIntegrationSummaries(v map[string]*DiscoverSummary) {
+	x.IntegrationSummaries = v
+}
+
+func (x *DiscoveryStatusServer) HasLastUpdate() bool {
+	if x == nil {
+		return false
+	}
+	return x.LastUpdate != nil
+}
+
+func (x *DiscoveryStatusServer) HasPollInterval() bool {
+	if x == nil {
+		return false
+	}
+	return x.PollInterval != nil
+}
+
+func (x *DiscoveryStatusServer) ClearLastUpdate() {
+	x.LastUpdate = nil
+}
+
+func (x *DiscoveryStatusServer) ClearPollInterval() {
+	x.PollInterval = nil
+}
+
+type DiscoveryStatusServer_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// LastUpdate is the timestamp when the server last updated the status.
+	LastUpdate *timestamppb.Timestamp
+	// PollInterval is the interval at which the server polls for new resources.
+	PollInterval *durationpb.Duration
+	// IntegrationSummaries maps an integration to a summary of the discovered resources.
+	// An empty integration means that ambient credentials were used to discover the resources.
+	IntegrationSummaries map[string]*DiscoverSummary
+}
+
+func (b0 DiscoveryStatusServer_builder) Build() *DiscoveryStatusServer {
+	m0 := &DiscoveryStatusServer{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.LastUpdate = b.LastUpdate
+	x.PollInterval = b.PollInterval
+	x.IntegrationSummaries = b.IntegrationSummaries
+	return m0
+}
+
 // DiscoverSummary contains the per-resource-type discovery summary with current and previous iteration tracking.
 type DiscoverSummary struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// AWSEC2 contains the summary for the AWS EC2 discovered instances.
 	AwsEc2 *ResourceSummary `protobuf:"bytes,1,opt,name=aws_ec2,json=awsEc2,proto3" json:"aws_ec2,omitempty"`
 	// AWSRDS contains the summary for the AWS RDS discovered databases.
@@ -453,11 +693,6 @@ func (x *DiscoverSummary) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DiscoverSummary.ProtoReflect.Descriptor instead.
-func (*DiscoverSummary) Descriptor() ([]byte, []int) {
-	return file_teleport_discoveryconfig_v1_discoveryconfig_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *DiscoverSummary) GetAwsEc2() *ResourceSummary {
 	if x != nil {
 		return x.AwsEc2
@@ -486,9 +721,93 @@ func (x *DiscoverSummary) GetAzureVms() *ResourceSummary {
 	return nil
 }
 
+func (x *DiscoverSummary) SetAwsEc2(v *ResourceSummary) {
+	x.AwsEc2 = v
+}
+
+func (x *DiscoverSummary) SetAwsRds(v *ResourceSummary) {
+	x.AwsRds = v
+}
+
+func (x *DiscoverSummary) SetAwsEks(v *ResourceSummary) {
+	x.AwsEks = v
+}
+
+func (x *DiscoverSummary) SetAzureVms(v *ResourceSummary) {
+	x.AzureVms = v
+}
+
+func (x *DiscoverSummary) HasAwsEc2() bool {
+	if x == nil {
+		return false
+	}
+	return x.AwsEc2 != nil
+}
+
+func (x *DiscoverSummary) HasAwsRds() bool {
+	if x == nil {
+		return false
+	}
+	return x.AwsRds != nil
+}
+
+func (x *DiscoverSummary) HasAwsEks() bool {
+	if x == nil {
+		return false
+	}
+	return x.AwsEks != nil
+}
+
+func (x *DiscoverSummary) HasAzureVms() bool {
+	if x == nil {
+		return false
+	}
+	return x.AzureVms != nil
+}
+
+func (x *DiscoverSummary) ClearAwsEc2() {
+	x.AwsEc2 = nil
+}
+
+func (x *DiscoverSummary) ClearAwsRds() {
+	x.AwsRds = nil
+}
+
+func (x *DiscoverSummary) ClearAwsEks() {
+	x.AwsEks = nil
+}
+
+func (x *DiscoverSummary) ClearAzureVms() {
+	x.AzureVms = nil
+}
+
+type DiscoverSummary_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// AWSEC2 contains the summary for the AWS EC2 discovered instances.
+	AwsEc2 *ResourceSummary
+	// AWSRDS contains the summary for the AWS RDS discovered databases.
+	AwsRds *ResourceSummary
+	// AWSEKS contains the summary for the AWS EKS discovered clusters.
+	AwsEks *ResourceSummary
+	// The summary for the Azure VM discovered instances.
+	AzureVms *ResourceSummary
+}
+
+func (b0 DiscoverSummary_builder) Build() *DiscoverSummary {
+	m0 := &DiscoverSummary{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.AwsEc2 = b.AwsEc2
+	x.AwsRds = b.AwsRds
+	x.AwsEks = b.AwsEks
+	x.AzureVms = b.AzureVms
+	return m0
+}
+
 // ResourceSummary represents the summary of the discovered resources.
 type ResourceSummary struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Current holds the in-progress summary for the ongoing discovery iteration.
 	// Populated while sync is running, cleared when the iteration completes.
 	Current *ResourcesDiscoveredSummary `protobuf:"bytes,1,opt,name=current,proto3" json:"current,omitempty"`
@@ -523,11 +842,6 @@ func (x *ResourceSummary) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ResourceSummary.ProtoReflect.Descriptor instead.
-func (*ResourceSummary) Descriptor() ([]byte, []int) {
-	return file_teleport_discoveryconfig_v1_discoveryconfig_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *ResourceSummary) GetCurrent() *ResourcesDiscoveredSummary {
 	if x != nil {
 		return x.Current
@@ -542,9 +856,58 @@ func (x *ResourceSummary) GetPrevious() *ResourcesDiscoveredSummary {
 	return nil
 }
 
+func (x *ResourceSummary) SetCurrent(v *ResourcesDiscoveredSummary) {
+	x.Current = v
+}
+
+func (x *ResourceSummary) SetPrevious(v *ResourcesDiscoveredSummary) {
+	x.Previous = v
+}
+
+func (x *ResourceSummary) HasCurrent() bool {
+	if x == nil {
+		return false
+	}
+	return x.Current != nil
+}
+
+func (x *ResourceSummary) HasPrevious() bool {
+	if x == nil {
+		return false
+	}
+	return x.Previous != nil
+}
+
+func (x *ResourceSummary) ClearCurrent() {
+	x.Current = nil
+}
+
+func (x *ResourceSummary) ClearPrevious() {
+	x.Previous = nil
+}
+
+type ResourceSummary_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Current holds the in-progress summary for the ongoing discovery iteration.
+	// Populated while sync is running, cleared when the iteration completes.
+	Current *ResourcesDiscoveredSummary
+	// Previous holds the final summary from the last completed discovery iteration.
+	Previous *ResourcesDiscoveredSummary
+}
+
+func (b0 ResourceSummary_builder) Build() *ResourceSummary {
+	m0 := &ResourceSummary{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Current = b.Current
+	x.Previous = b.Previous
+	return m0
+}
+
 // IntegrationDiscoveredSummary contains the a summary for each resource type that was discovered.
 type IntegrationDiscoveredSummary struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// AWSEC2 contains the summary for the AWS EC2 discovered instances.
 	AwsEc2 *ResourcesDiscoveredSummary `protobuf:"bytes,1,opt,name=aws_ec2,json=awsEc2,proto3" json:"aws_ec2,omitempty"`
 	// AWSRDS contains the summary for the AWS RDS discovered databases.
@@ -582,11 +945,6 @@ func (x *IntegrationDiscoveredSummary) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use IntegrationDiscoveredSummary.ProtoReflect.Descriptor instead.
-func (*IntegrationDiscoveredSummary) Descriptor() ([]byte, []int) {
-	return file_teleport_discoveryconfig_v1_discoveryconfig_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *IntegrationDiscoveredSummary) GetAwsEc2() *ResourcesDiscoveredSummary {
 	if x != nil {
 		return x.AwsEc2
@@ -615,9 +973,93 @@ func (x *IntegrationDiscoveredSummary) GetAzureVms() *ResourcesDiscoveredSummary
 	return nil
 }
 
+func (x *IntegrationDiscoveredSummary) SetAwsEc2(v *ResourcesDiscoveredSummary) {
+	x.AwsEc2 = v
+}
+
+func (x *IntegrationDiscoveredSummary) SetAwsRds(v *ResourcesDiscoveredSummary) {
+	x.AwsRds = v
+}
+
+func (x *IntegrationDiscoveredSummary) SetAwsEks(v *ResourcesDiscoveredSummary) {
+	x.AwsEks = v
+}
+
+func (x *IntegrationDiscoveredSummary) SetAzureVms(v *ResourcesDiscoveredSummary) {
+	x.AzureVms = v
+}
+
+func (x *IntegrationDiscoveredSummary) HasAwsEc2() bool {
+	if x == nil {
+		return false
+	}
+	return x.AwsEc2 != nil
+}
+
+func (x *IntegrationDiscoveredSummary) HasAwsRds() bool {
+	if x == nil {
+		return false
+	}
+	return x.AwsRds != nil
+}
+
+func (x *IntegrationDiscoveredSummary) HasAwsEks() bool {
+	if x == nil {
+		return false
+	}
+	return x.AwsEks != nil
+}
+
+func (x *IntegrationDiscoveredSummary) HasAzureVms() bool {
+	if x == nil {
+		return false
+	}
+	return x.AzureVms != nil
+}
+
+func (x *IntegrationDiscoveredSummary) ClearAwsEc2() {
+	x.AwsEc2 = nil
+}
+
+func (x *IntegrationDiscoveredSummary) ClearAwsRds() {
+	x.AwsRds = nil
+}
+
+func (x *IntegrationDiscoveredSummary) ClearAwsEks() {
+	x.AwsEks = nil
+}
+
+func (x *IntegrationDiscoveredSummary) ClearAzureVms() {
+	x.AzureVms = nil
+}
+
+type IntegrationDiscoveredSummary_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// AWSEC2 contains the summary for the AWS EC2 discovered instances.
+	AwsEc2 *ResourcesDiscoveredSummary
+	// AWSRDS contains the summary for the AWS RDS discovered databases.
+	AwsRds *ResourcesDiscoveredSummary
+	// AWSEKS contains the summary for the AWS EKS discovered clusters.
+	AwsEks *ResourcesDiscoveredSummary
+	// The summary for the Azure VM discovered instances.
+	AzureVms *ResourcesDiscoveredSummary
+}
+
+func (b0 IntegrationDiscoveredSummary_builder) Build() *IntegrationDiscoveredSummary {
+	m0 := &IntegrationDiscoveredSummary{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.AwsEc2 = b.AwsEc2
+	x.AwsRds = b.AwsRds
+	x.AwsEks = b.AwsEks
+	x.AzureVms = b.AzureVms
+	return m0
+}
+
 // ResourcesDiscoveredSummary represents the AWS resources that were discovered.
 type ResourcesDiscoveredSummary struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Found holds the count of resources found.
 	// After a resource is found, it starts the sync process and ends in either an enrolled or a failed resource.
 	Found uint64 `protobuf:"varint,1,opt,name=found,proto3" json:"found,omitempty"`
@@ -658,11 +1100,6 @@ func (x *ResourcesDiscoveredSummary) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ResourcesDiscoveredSummary.ProtoReflect.Descriptor instead.
-func (*ResourcesDiscoveredSummary) Descriptor() ([]byte, []int) {
-	return file_teleport_discoveryconfig_v1_discoveryconfig_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *ResourcesDiscoveredSummary) GetFound() uint64 {
 	if x != nil {
 		return x.Found
@@ -696,6 +1133,76 @@ func (x *ResourcesDiscoveredSummary) GetSyncEnd() *timestamppb.Timestamp {
 		return x.SyncEnd
 	}
 	return nil
+}
+
+func (x *ResourcesDiscoveredSummary) SetFound(v uint64) {
+	x.Found = v
+}
+
+func (x *ResourcesDiscoveredSummary) SetEnrolled(v uint64) {
+	x.Enrolled = v
+}
+
+func (x *ResourcesDiscoveredSummary) SetFailed(v uint64) {
+	x.Failed = v
+}
+
+func (x *ResourcesDiscoveredSummary) SetSyncStart(v *timestamppb.Timestamp) {
+	x.SyncStart = v
+}
+
+func (x *ResourcesDiscoveredSummary) SetSyncEnd(v *timestamppb.Timestamp) {
+	x.SyncEnd = v
+}
+
+func (x *ResourcesDiscoveredSummary) HasSyncStart() bool {
+	if x == nil {
+		return false
+	}
+	return x.SyncStart != nil
+}
+
+func (x *ResourcesDiscoveredSummary) HasSyncEnd() bool {
+	if x == nil {
+		return false
+	}
+	return x.SyncEnd != nil
+}
+
+func (x *ResourcesDiscoveredSummary) ClearSyncStart() {
+	x.SyncStart = nil
+}
+
+func (x *ResourcesDiscoveredSummary) ClearSyncEnd() {
+	x.SyncEnd = nil
+}
+
+type ResourcesDiscoveredSummary_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Found holds the count of resources found.
+	// After a resource is found, it starts the sync process and ends in either an enrolled or a failed resource.
+	Found uint64
+	// Enrolled holds the count of the resources that were successfully enrolled.
+	Enrolled uint64
+	// Failed holds the count of the resources that failed to enroll.
+	Failed uint64
+	// Timestamp of when discovering the resources started.
+	SyncStart *timestamppb.Timestamp
+	// Timestamp of when discovering the resources ended.
+	SyncEnd *timestamppb.Timestamp
+}
+
+func (b0 ResourcesDiscoveredSummary_builder) Build() *ResourcesDiscoveredSummary {
+	m0 := &ResourcesDiscoveredSummary{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Found = b.Found
+	x.Enrolled = b.Enrolled
+	x.Failed = b.Failed
+	x.SyncStart = b.SyncStart
+	x.SyncEnd = b.SyncEnd
+	return m0
 }
 
 var File_teleport_discoveryconfig_v1_discoveryconfig_proto protoreflect.FileDescriptor
@@ -761,18 +1268,6 @@ const file_teleport_discoveryconfig_v1_discoveryconfig_proto_rawDesc = "" +
 	"\x1eDISCOVERY_CONFIG_STATE_RUNNING\x10\x01\x12 \n" +
 	"\x1cDISCOVERY_CONFIG_STATE_ERROR\x10\x02\x12\"\n" +
 	"\x1eDISCOVERY_CONFIG_STATE_SYNCING\x10\x03BbZ`github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1;discoveryconfigv1b\x06proto3"
-
-var (
-	file_teleport_discoveryconfig_v1_discoveryconfig_proto_rawDescOnce sync.Once
-	file_teleport_discoveryconfig_v1_discoveryconfig_proto_rawDescData []byte
-)
-
-func file_teleport_discoveryconfig_v1_discoveryconfig_proto_rawDescGZIP() []byte {
-	file_teleport_discoveryconfig_v1_discoveryconfig_proto_rawDescOnce.Do(func() {
-		file_teleport_discoveryconfig_v1_discoveryconfig_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_discoveryconfig_v1_discoveryconfig_proto_rawDesc), len(file_teleport_discoveryconfig_v1_discoveryconfig_proto_rawDesc)))
-	})
-	return file_teleport_discoveryconfig_v1_discoveryconfig_proto_rawDescData
-}
 
 var file_teleport_discoveryconfig_v1_discoveryconfig_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_teleport_discoveryconfig_v1_discoveryconfig_proto_msgTypes = make([]protoimpl.MessageInfo, 11)

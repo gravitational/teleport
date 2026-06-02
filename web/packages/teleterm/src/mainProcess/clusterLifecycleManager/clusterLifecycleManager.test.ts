@@ -113,7 +113,7 @@ const tests: {
         removeProfile: true,
       });
       expect(rendererHandler.send).toHaveBeenCalledWith({
-        op: 'will-logout-and-remove',
+        op: 'will-logout',
         uri: cluster.uri,
       });
     },
@@ -233,6 +233,36 @@ const tests: {
         rootClusterUri: cluster.uri,
       });
       expect(rendererHandler.send).not.toHaveBeenCalled();
+    },
+  },
+  {
+    name: 'when cluster proxy host changes, it updates state and notifies renderer',
+    setup: async ({ tshdClient }) => {
+      const next = makeRootCluster({
+        connected: false,
+        proxyHost: 'new.example.com:443',
+      });
+      jest
+        .spyOn(tshdClient, 'listRootClusters')
+        .mockResolvedValue(new MockedUnaryCall({ clusters: [cluster] }));
+      jest.spyOn(tshdClient, 'clearStaleClusterClients');
+      return {
+        profileWatcher: makeWatcher([
+          { op: 'changed', next, previous: cluster },
+        ]),
+      };
+    },
+    expect: ({ clusterStore, tshdClient, rendererHandler }) => {
+      expect(clusterStore.getState().get(cluster.uri).proxyHost).toBe(
+        'new.example.com:443'
+      );
+      expect(tshdClient.clearStaleClusterClients).toHaveBeenCalledWith({
+        rootClusterUri: cluster.uri,
+      });
+      expect(rendererHandler.send).toHaveBeenCalledWith({
+        op: 'did-change-proxy-host',
+        uri: cluster.uri,
+      });
     },
   },
   {

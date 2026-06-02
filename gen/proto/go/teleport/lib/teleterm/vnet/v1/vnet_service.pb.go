@@ -20,6 +20,8 @@
 // 	protoc        (unknown)
 // source: teleport/lib/teleterm/vnet/v1/vnet_service.proto
 
+//go:build !protoopaque
+
 package vnetv1
 
 import (
@@ -27,7 +29,6 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -95,11 +96,6 @@ func (x BackgroundItemStatus) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use BackgroundItemStatus.Descriptor instead.
-func (BackgroundItemStatus) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDescGZIP(), []int{0}
-}
-
 // WindowsServiceStatus maps to service-related errors in golang.org/x/sys/windows/zerrors_windows.go.
 type WindowsServiceStatus int32
 
@@ -149,14 +145,9 @@ func (x WindowsServiceStatus) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use WindowsServiceStatus.Descriptor instead.
-func (WindowsServiceStatus) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDescGZIP(), []int{1}
-}
-
 // Request for Start.
 type StartRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -186,14 +177,21 @@ func (x *StartRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use StartRequest.ProtoReflect.Descriptor instead.
-func (*StartRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDescGZIP(), []int{0}
+type StartRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 StartRequest_builder) Build() *StartRequest {
+	m0 := &StartRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // Response for Start.
 type StartResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -223,14 +221,21 @@ func (x *StartResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use StartResponse.ProtoReflect.Descriptor instead.
-func (*StartResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDescGZIP(), []int{1}
+type StartResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 StartResponse_builder) Build() *StartResponse {
+	m0 := &StartResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // Request for Stop.
 type StopRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -260,14 +265,21 @@ func (x *StopRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use StopRequest.ProtoReflect.Descriptor instead.
-func (*StopRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDescGZIP(), []int{2}
+type StopRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 StopRequest_builder) Build() *StopRequest {
+	m0 := &StopRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // Response for Stop.
 type StopResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -297,14 +309,21 @@ func (x *StopResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use StopResponse.ProtoReflect.Descriptor instead.
-func (*StopResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDescGZIP(), []int{3}
+type StopResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 StopResponse_builder) Build() *StopResponse {
+	m0 := &StopResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // Request for GetServiceInfo.
 type GetServiceInfoRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -334,14 +353,21 @@ func (x *GetServiceInfoRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetServiceInfoRequest.ProtoReflect.Descriptor instead.
-func (*GetServiceInfoRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDescGZIP(), []int{4}
+type GetServiceInfoRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 GetServiceInfoRequest_builder) Build() *GetServiceInfoRequest {
+	m0 := &GetServiceInfoRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // GetServiceInfoResponse contains the status of the running VNet service.
 type GetServiceInfoResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// app_dns_zones is a deduplicated list of all DNS zones valid as DNS
 	// suffixes for connections to TCP apps.
 	AppDnsZones []string `protobuf:"bytes,1,rep,name=app_dns_zones,json=appDnsZones,proto3" json:"app_dns_zones,omitempty"`
@@ -382,11 +408,6 @@ func (x *GetServiceInfoResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetServiceInfoResponse.ProtoReflect.Descriptor instead.
-func (*GetServiceInfoResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *GetServiceInfoResponse) GetAppDnsZones() []string {
 	if x != nil {
 		return x.AppDnsZones
@@ -415,9 +436,52 @@ func (x *GetServiceInfoResponse) GetVnetSshConfigPath() string {
 	return ""
 }
 
+func (x *GetServiceInfoResponse) SetAppDnsZones(v []string) {
+	x.AppDnsZones = v
+}
+
+func (x *GetServiceInfoResponse) SetClusters(v []string) {
+	x.Clusters = v
+}
+
+func (x *GetServiceInfoResponse) SetSshConfigured(v bool) {
+	x.SshConfigured = v
+}
+
+func (x *GetServiceInfoResponse) SetVnetSshConfigPath(v string) {
+	x.VnetSshConfigPath = v
+}
+
+type GetServiceInfoResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// app_dns_zones is a deduplicated list of all DNS zones valid as DNS
+	// suffixes for connections to TCP apps.
+	AppDnsZones []string
+	// clusters is a list of cluster names valid as DNS suffixes for SSH hosts.
+	Clusters []string
+	// ssh_configured is true if the user's SSH config file includes VNet's
+	// generated SSH config necessary for SSH access.
+	SshConfigured bool
+	// vnet_ssh_config_path is the path of VNet's generated OpenSSH-compatible
+	// config file.
+	VnetSshConfigPath string
+}
+
+func (b0 GetServiceInfoResponse_builder) Build() *GetServiceInfoResponse {
+	m0 := &GetServiceInfoResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.AppDnsZones = b.AppDnsZones
+	x.Clusters = b.Clusters
+	x.SshConfigured = b.SshConfigured
+	x.VnetSshConfigPath = b.VnetSshConfigPath
+	return m0
+}
+
 // Request for GetBackgroundItemStatus.
 type GetBackgroundItemStatusRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -447,14 +511,21 @@ func (x *GetBackgroundItemStatusRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetBackgroundItemStatusRequest.ProtoReflect.Descriptor instead.
-func (*GetBackgroundItemStatusRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDescGZIP(), []int{6}
+type GetBackgroundItemStatusRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 GetBackgroundItemStatusRequest_builder) Build() *GetBackgroundItemStatusRequest {
+	m0 := &GetBackgroundItemStatusRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // Response for GetBackgroundItemStatus.
 type GetBackgroundItemStatusResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Status        BackgroundItemStatus   `protobuf:"varint,1,opt,name=status,proto3,enum=teleport.lib.teleterm.vnet.v1.BackgroundItemStatus" json:"status,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -485,11 +556,6 @@ func (x *GetBackgroundItemStatusResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetBackgroundItemStatusResponse.ProtoReflect.Descriptor instead.
-func (*GetBackgroundItemStatusResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *GetBackgroundItemStatusResponse) GetStatus() BackgroundItemStatus {
 	if x != nil {
 		return x.Status
@@ -497,9 +563,27 @@ func (x *GetBackgroundItemStatusResponse) GetStatus() BackgroundItemStatus {
 	return BackgroundItemStatus_BACKGROUND_ITEM_STATUS_UNSPECIFIED
 }
 
+func (x *GetBackgroundItemStatusResponse) SetStatus(v BackgroundItemStatus) {
+	x.Status = v
+}
+
+type GetBackgroundItemStatusResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Status BackgroundItemStatus
+}
+
+func (b0 GetBackgroundItemStatusResponse_builder) Build() *GetBackgroundItemStatusResponse {
+	m0 := &GetBackgroundItemStatusResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Status = b.Status
+	return m0
+}
+
 // Request for CheckInstallTimeRequirementsRequest.
 type CheckInstallTimeRequirementsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -529,14 +613,21 @@ func (x *CheckInstallTimeRequirementsRequest) ProtoReflect() protoreflect.Messag
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CheckInstallTimeRequirementsRequest.ProtoReflect.Descriptor instead.
-func (*CheckInstallTimeRequirementsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDescGZIP(), []int{8}
+type CheckInstallTimeRequirementsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 CheckInstallTimeRequirementsRequest_builder) Build() *CheckInstallTimeRequirementsRequest {
+	m0 := &CheckInstallTimeRequirementsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // Response for CheckInstallTimeRequirementsResponse.
 type CheckInstallTimeRequirementsResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Status:
 	//
 	//	*CheckInstallTimeRequirementsResponse_WindowsServiceStatus
@@ -570,11 +661,6 @@ func (x *CheckInstallTimeRequirementsResponse) ProtoReflect() protoreflect.Messa
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CheckInstallTimeRequirementsResponse.ProtoReflect.Descriptor instead.
-func (*CheckInstallTimeRequirementsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDescGZIP(), []int{9}
-}
-
 func (x *CheckInstallTimeRequirementsResponse) GetStatus() isCheckInstallTimeRequirementsResponse_Status {
 	if x != nil {
 		return x.Status
@@ -591,6 +677,78 @@ func (x *CheckInstallTimeRequirementsResponse) GetWindowsServiceStatus() Windows
 	return WindowsServiceStatus_WINDOWS_SERVICE_STATUS_UNSPECIFIED
 }
 
+func (x *CheckInstallTimeRequirementsResponse) SetWindowsServiceStatus(v WindowsServiceStatus) {
+	x.Status = &CheckInstallTimeRequirementsResponse_WindowsServiceStatus{v}
+}
+
+func (x *CheckInstallTimeRequirementsResponse) HasStatus() bool {
+	if x == nil {
+		return false
+	}
+	return x.Status != nil
+}
+
+func (x *CheckInstallTimeRequirementsResponse) HasWindowsServiceStatus() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Status.(*CheckInstallTimeRequirementsResponse_WindowsServiceStatus)
+	return ok
+}
+
+func (x *CheckInstallTimeRequirementsResponse) ClearStatus() {
+	x.Status = nil
+}
+
+func (x *CheckInstallTimeRequirementsResponse) ClearWindowsServiceStatus() {
+	if _, ok := x.Status.(*CheckInstallTimeRequirementsResponse_WindowsServiceStatus); ok {
+		x.Status = nil
+	}
+}
+
+const CheckInstallTimeRequirementsResponse_Status_not_set_case case_CheckInstallTimeRequirementsResponse_Status = 0
+const CheckInstallTimeRequirementsResponse_WindowsServiceStatus_case case_CheckInstallTimeRequirementsResponse_Status = 1
+
+func (x *CheckInstallTimeRequirementsResponse) WhichStatus() case_CheckInstallTimeRequirementsResponse_Status {
+	if x == nil {
+		return CheckInstallTimeRequirementsResponse_Status_not_set_case
+	}
+	switch x.Status.(type) {
+	case *CheckInstallTimeRequirementsResponse_WindowsServiceStatus:
+		return CheckInstallTimeRequirementsResponse_WindowsServiceStatus_case
+	default:
+		return CheckInstallTimeRequirementsResponse_Status_not_set_case
+	}
+}
+
+type CheckInstallTimeRequirementsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Status:
+	WindowsServiceStatus *WindowsServiceStatus
+	// -- end of Status
+}
+
+func (b0 CheckInstallTimeRequirementsResponse_builder) Build() *CheckInstallTimeRequirementsResponse {
+	m0 := &CheckInstallTimeRequirementsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.WindowsServiceStatus != nil {
+		x.Status = &CheckInstallTimeRequirementsResponse_WindowsServiceStatus{*b.WindowsServiceStatus}
+	}
+	return m0
+}
+
+type case_CheckInstallTimeRequirementsResponse_Status protoreflect.FieldNumber
+
+func (x case_CheckInstallTimeRequirementsResponse_Status) String() string {
+	md := file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_msgTypes[9].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isCheckInstallTimeRequirementsResponse_Status interface {
 	isCheckInstallTimeRequirementsResponse_Status()
 }
@@ -604,7 +762,7 @@ func (*CheckInstallTimeRequirementsResponse_WindowsServiceStatus) isCheckInstall
 
 // Request for RunDiagnostics.
 type RunDiagnosticsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -634,14 +792,21 @@ func (x *RunDiagnosticsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RunDiagnosticsRequest.ProtoReflect.Descriptor instead.
-func (*RunDiagnosticsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDescGZIP(), []int{10}
+type RunDiagnosticsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 RunDiagnosticsRequest_builder) Build() *RunDiagnosticsRequest {
+	m0 := &RunDiagnosticsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // Response for RunDiagnostics.
 type RunDiagnosticsResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Report        *v1.Report             `protobuf:"bytes,1,opt,name=report,proto3" json:"report,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -672,11 +837,6 @@ func (x *RunDiagnosticsResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RunDiagnosticsResponse.ProtoReflect.Descriptor instead.
-func (*RunDiagnosticsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDescGZIP(), []int{11}
-}
-
 func (x *RunDiagnosticsResponse) GetReport() *v1.Report {
 	if x != nil {
 		return x.Report
@@ -684,9 +844,38 @@ func (x *RunDiagnosticsResponse) GetReport() *v1.Report {
 	return nil
 }
 
+func (x *RunDiagnosticsResponse) SetReport(v *v1.Report) {
+	x.Report = v
+}
+
+func (x *RunDiagnosticsResponse) HasReport() bool {
+	if x == nil {
+		return false
+	}
+	return x.Report != nil
+}
+
+func (x *RunDiagnosticsResponse) ClearReport() {
+	x.Report = nil
+}
+
+type RunDiagnosticsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Report *v1.Report
+}
+
+func (b0 RunDiagnosticsResponse_builder) Build() *RunDiagnosticsResponse {
+	m0 := &RunDiagnosticsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Report = b.Report
+	return m0
+}
+
 // Request for AutoConfigureSSH.
 type AutoConfigureSSHRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -716,14 +905,21 @@ func (x *AutoConfigureSSHRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AutoConfigureSSHRequest.ProtoReflect.Descriptor instead.
-func (*AutoConfigureSSHRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDescGZIP(), []int{12}
+type AutoConfigureSSHRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 AutoConfigureSSHRequest_builder) Build() *AutoConfigureSSHRequest {
+	m0 := &AutoConfigureSSHRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // Response for AutoConfigureSSH.
 type AutoConfigureSSHResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -753,9 +949,16 @@ func (x *AutoConfigureSSHResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AutoConfigureSSHResponse.ProtoReflect.Descriptor instead.
-func (*AutoConfigureSSHResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDescGZIP(), []int{13}
+type AutoConfigureSSHResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 AutoConfigureSSHResponse_builder) Build() *AutoConfigureSSHResponse {
+	m0 := &AutoConfigureSSHResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 var File_teleport_lib_teleterm_vnet_v1_vnet_service_proto protoreflect.FileDescriptor
@@ -805,18 +1008,6 @@ const file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDesc = "" +
 	"\x1cCheckInstallTimeRequirements\x12B.teleport.lib.teleterm.vnet.v1.CheckInstallTimeRequirementsRequest\x1aC.teleport.lib.teleterm.vnet.v1.CheckInstallTimeRequirementsResponse\x12}\n" +
 	"\x0eRunDiagnostics\x124.teleport.lib.teleterm.vnet.v1.RunDiagnosticsRequest\x1a5.teleport.lib.teleterm.vnet.v1.RunDiagnosticsResponse\x12\x83\x01\n" +
 	"\x10AutoConfigureSSH\x126.teleport.lib.teleterm.vnet.v1.AutoConfigureSSHRequest\x1a7.teleport.lib.teleterm.vnet.v1.AutoConfigureSSHResponseBUZSgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/vnet/v1;vnetv1b\x06proto3"
-
-var (
-	file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDescOnce sync.Once
-	file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDescData []byte
-)
-
-func file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDescGZIP() []byte {
-	file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDescOnce.Do(func() {
-		file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDesc), len(file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDesc)))
-	})
-	return file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_rawDescData
-}
 
 var file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_teleport_lib_teleterm_vnet_v1_vnet_service_proto_msgTypes = make([]protoimpl.MessageInfo, 14)

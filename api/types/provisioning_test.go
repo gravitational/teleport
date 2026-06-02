@@ -279,6 +279,27 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			desc: "iam method with aws_organization_id and organizational unit matchers",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: "iam",
+					Allow: []*TokenRule{
+						{
+							AWSOrganizationID: "o-123abcd",
+							AWSOrganizationalUnits: &AWSOrganizationUnitsMatcher{
+								Include: []string{"*"},
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
 			desc: "github valid",
 			token: &ProvisionTokenV2{
 				Metadata: Metadata{
@@ -650,6 +671,87 @@ func TestProvisionTokenV2_CheckAndSetDefaults(t *testing.T) {
 					Kubernetes: &ProvisionTokenSpecV2Kubernetes{
 						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
 							{},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			desc: "kubernetes: valid service_account_name and service_account_namespace",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodKubernetes,
+					Kubernetes: &ProvisionTokenSpecV2Kubernetes{
+						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
+							{
+								ServiceAccountName:      "my-sa",
+								ServiceAccountNamespace: "my-ns",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "kubernetes: valid service_account, service_account_name, and service_account_namespace",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodKubernetes,
+					Kubernetes: &ProvisionTokenSpecV2Kubernetes{
+						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
+							{
+								ServiceAccount:          "my-ns:my-sa",
+								ServiceAccountName:      "my-sa",
+								ServiceAccountNamespace: "my-ns",
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			desc: "kubernetes: service_account_name without service_account_namespace",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodKubernetes,
+					Kubernetes: &ProvisionTokenSpecV2Kubernetes{
+						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
+							{
+								ServiceAccountName: "my-sa",
+							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			desc: "kubernetes: service_account_namespace without service_account_name",
+			token: &ProvisionTokenV2{
+				Metadata: Metadata{
+					Name: "test",
+				},
+				Spec: ProvisionTokenSpecV2{
+					Roles:      []SystemRole{RoleNode},
+					JoinMethod: JoinMethodKubernetes,
+					Kubernetes: &ProvisionTokenSpecV2Kubernetes{
+						Allow: []*ProvisionTokenSpecV2Kubernetes_Rule{
+							{
+								ServiceAccountNamespace: "my-ns",
+							},
 						},
 					},
 				},

@@ -162,6 +162,7 @@ import (
 	"github.com/gravitational/teleport/lib/resumption"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/scopes"
 	secretsscannerproxy "github.com/gravitational/teleport/lib/secretsscanner/proxy"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -374,7 +375,7 @@ func newConnector(clientIdentity, serverIdentity *state.Identity) (*Connector, e
 	c := &Connector{
 		clusterName: clientIdentity.ClusterName,
 		hostID:      clientIdentity.ID.HostUUID,
-		scope:       clientIdentity.AgentScope,
+		scope:       clientIdentity.GetAgentScope(),
 		role:        clientIdentity.ID.Role,
 	}
 	c.clientState.Store(clientState)
@@ -712,6 +713,9 @@ type TeleportProcess struct {
 	// clusterFeatures contain flags for supported and unsupported features.
 	clusterFeatures proto.Features
 
+	// scopesFeatures dictates which scoped components are enabled for this process.
+	scopesFeatures scopes.Features
+
 	// authSubjectiveAddr is the peer address of this process as seen by the auth
 	// server during the most recent ping (may be empty).
 	authSubjectiveAddr string
@@ -915,7 +919,7 @@ func (process *TeleportProcess) addConnector(connector *Connector) {
 
 // WaitForConnector is a utility function to wait for an identity event and cast
 // the resulting payload as a *Connector. Returns (nil, nil) when the
-// ExitContext is done, so error checking should happen on the connector rather
+// GracefulExitContext is done, so error checking should happen on the connector rather
 // than the error:
 //
 //	conn, err := process.WaitForConnector("FooIdentity", log)
@@ -923,7 +927,7 @@ func (process *TeleportProcess) addConnector(connector *Connector) {
 //		return trace.Wrap(err)
 //	}
 func (process *TeleportProcess) WaitForConnector(identityEvent string, log *slog.Logger) (*Connector, error) {
-	event, err := process.WaitForEvent(process.ExitContext(), identityEvent)
+	event, err := process.WaitForEvent(process.GracefulExitContext(), identityEvent)
 	if err != nil {
 		if log != nil {
 			log.DebugContext(process.ExitContext(), "Process is exiting.")
@@ -1319,6 +1323,8 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		}
 	}
 
+	scopesFeatures := cfg.ScopesFeatures
+
 	process := &TeleportProcess{
 		PluginRegistry:         cfg.PluginRegistry,
 		Clock:                  cfg.Clock,
@@ -1334,6 +1340,7 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		id:                     processID,
 		logger:                 cfg.Logger,
 		cloudLabels:            cloudLabels,
+		scopesFeatures:         scopesFeatures,
 		TracingProvider:        tracing.NoopProvider(),
 		metricsRegistry:        metricsRegistry,
 		SyncGatherers: metrics.NewSyncGatherers(
@@ -2436,6 +2443,7 @@ func (process *TeleportProcess) initAuthService() error {
 		auth.InitConfig{
 			Backend:                     b,
 			Modules:                     cfg.Modules,
+			ScopesFeatures:              process.scopesFeatures,
 			VersionStorage:              process.storage,
 			SkipVersionCheck:            cfg.SkipVersionCheck || skipVersionCheckFromEnv,
 			Authority:                   cfg.Keygen,
@@ -2641,6 +2649,7 @@ func (process *TeleportProcess) initAuthService() error {
 		MFAAuthenticator:    authServer,
 		LockWatcher:         lockWatcher,
 		Logger:              process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentAuth, process.id)),
+		ScopesFeatures:      process.scopesFeatures,
 		// Auth Server does explicit device authorization.
 		// Various Auth APIs must allow access to unauthorized devices, otherwise it
 		// is not possible to acquire device-aware certificates in the first place.
@@ -2666,6 +2675,34 @@ func (process *TeleportProcess) initAuthService() error {
 			return trace.Wrap(err)
 		}
 	}
+
+	var createAuditStreamInflightLimit *int
+	if en := os.Getenv("TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT"); en != "" {
+		limit, err := strconv.ParseInt(en, 10, 0)
+		if err != nil {
+			logger.ErrorContext(process.ExitContext(), "Failed to parse the TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT envvar, limit will not be enforced", "error", err)
+		} else if limit >= 0 {
+			l := int(limit)
+			createAuditStreamInflightLimit = &l
+			if *createAuditStreamInflightLimit == 0 {
+				logger.WarnContext(process.ExitContext(), "TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT is set to 0, no CreateAuditStream RPCs will be allowed")
+			} else {
+				logger.DebugContext(process.ExitContext(), "TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT is set, enabling in-flight limit for CreateAuditStream", "limit", *createAuditStreamInflightLimit)
+			}
+		}
+	}
+
+	var resolveSSHTargetRateLimit *float64
+	if en := os.Getenv("TELEPORT_UNSTABLE_RESOLVESSHTARGET_RATE_LIMIT"); en != "" {
+		limit, err := strconv.ParseFloat(en, 64)
+		if err != nil {
+			logger.ErrorContext(process.ExitContext(), "Failed to parse the TELEPORT_UNSTABLE_RESOLVESSHTARGET_RATE_LIMIT envvar, limit will not be enforced", "error", err)
+		} else {
+			resolveSSHTargetRateLimit = &limit
+			logger.DebugContext(process.ExitContext(), "TELEPORT_UNSTABLE_RESOLVESSHTARGET_RATE_LIMIT is set, enabling rate limit for ResolveSSHTarget", "limit", *resolveSSHTargetRateLimit)
+		}
+	}
+
 	apiConf := &auth.APIConfig{
 		AuthServer:       authServer,
 		Authorizer:       authorizer,
@@ -2680,6 +2717,8 @@ func (process *TeleportProcess) initAuthService() error {
 			CA:       accessGraphCAData,
 			Insecure: cfg.AccessGraph.Insecure,
 		},
+		CreateAuditStreamInflightLimit: createAuditStreamInflightLimit,
+		ResolveSSHTargetRateLimit:      resolveSSHTargetRateLimit,
 	}
 
 	// Auth initialization is done (including creation/updating of all singleton
@@ -2990,7 +3029,7 @@ func (process *TeleportProcess) initAuthService() error {
 			Cache:             authServer.Cache,
 			StatusReporter:    authServer.Services,
 			Backend:           process.backend,
-			AppServerUpserter: authServer.Services,
+			AppServerUpserter: authServer,
 			HostUUID:          hostUUID,
 		}))
 	})
@@ -5219,7 +5258,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			// reverse tunnel agents during rollouts, as otherwise they'll keep
 			// trying to reach proxies until the heartbeats expire.
 			if services.ShouldDeleteServerHeartbeatsOnShutdown(ctx) {
-				if err := conn.Client.DeleteProxy(ctx, conn.HostUUID()); err != nil {
+				if err := conn.Client.DeleteProxyServer(ctx, conn.HostUUID()); err != nil {
 					if !trace.IsNotFound(err) {
 						logger.WarnContext(ctx, "Failed to delete heartbeat", "error", err)
 					} else {
@@ -5453,11 +5492,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		}
 
 		authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-			ClusterName:   cn.GetClusterName(),
-			AccessPoint:   accessPoint,
-			LockWatcher:   lockWatcher,
-			Logger:        process.logger,
-			PermitCaching: process.Config.CachePolicy.Enabled,
+			ClusterName:    cn.GetClusterName(),
+			AccessPoint:    accessPoint,
+			LockWatcher:    lockWatcher,
+			Logger:         process.logger,
+			PermitCaching:  process.Config.CachePolicy.Enabled,
+			ScopesFeatures: process.scopesFeatures,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -5775,6 +5815,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		LockWatcher:      lockWatcher,
 		Logger:           process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
 		PermitCaching:    process.Config.CachePolicy.Enabled,
+		ScopesFeatures:   process.scopesFeatures,
 	}
 
 	authorizer, err := authz.NewAuthorizer(authorizerOpts)
@@ -5858,15 +5899,16 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		FIPS:   cfg.FIPS,
 		Logger: process.logger.With(teleport.ComponentKey, "transport"),
 		Dialer: proxyRouter,
-		SignerFn: func(authzCtx *authz.ScopedContext, clusterName string) agentless.SignerCreator {
+		SignerFn: func(ctx context.Context, authzCtx *authz.ScopedContext, clusterName string) (agentless.SignerCreator, error) {
+			certGen, err := proxyRouter.GetSiteClient(ctx, clusterName)
+			if err != nil {
+				return nil, trace.Wrap(err, "getting site client for cluster %q", clusterName)
+			}
 			if unscopedCtx, ok := authzCtx.UnscopedContext(); ok {
-				return agentless.SignerFromAuthzContext(unscopedCtx, accessPoint, clusterName)
+				return agentless.SignerFromAuthzContext(unscopedCtx, accessPoint, certGen, clusterName), nil
 			}
 
-			return func(ctx context.Context, localAccessPoint agentless.LocalAccessPoint, certGen agentless.CertGenerator) (ssh.Signer, error) {
-				// TODO(fspamarshall/scopes): implement agentless transport signer for scoped identities
-				return nil, trace.NotImplemented("agentless transport signer is not implemented for scoped identities")
-			}
+			return agentless.SignerFromScopedContext(authzCtx, accessPoint, certGen, clusterName), nil
 		},
 		ConnectionMonitor: connMonitor,
 		LocalAddr:         listeners.sshGRPC.Addr(),
@@ -5956,6 +5998,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ScopedRoleReader: accessPoint.ScopedRoleReader(),
 			LockWatcher:      lockWatcher,
 			Logger:           process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
+			ScopesFeatures:   process.scopesFeatures,
 			PermitCaching:    process.Config.CachePolicy.Enabled,
 		})
 		if err != nil {
@@ -6075,11 +6118,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	// framework.
 	if (!listeners.db.Empty() || alpnRouter != nil) && !process.Config.Proxy.DisableReverseTunnel {
 		authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-			ClusterName:   clusterName,
-			AccessPoint:   accessPoint,
-			LockWatcher:   lockWatcher,
-			Logger:        process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
-			PermitCaching: process.Config.CachePolicy.Enabled,
+			ClusterName:    clusterName,
+			AccessPoint:    accessPoint,
+			LockWatcher:    lockWatcher,
+			Logger:         process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id)),
+			PermitCaching:  process.Config.CachePolicy.Enabled,
+			ScopesFeatures: process.scopesFeatures,
 		})
 		if err != nil {
 			return trace.Wrap(err)
@@ -6853,10 +6897,11 @@ func (process *TeleportProcess) initApps() {
 			return trace.Wrap(err)
 		}
 		authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-			ClusterName: clusterName,
-			AccessPoint: accessPoint,
-			LockWatcher: lockWatcher,
-			Logger:      process.logger.With(teleport.ComponentKey, component),
+			ClusterName:    clusterName,
+			AccessPoint:    accessPoint,
+			LockWatcher:    lockWatcher,
+			Logger:         process.logger.With(teleport.ComponentKey, component),
+			ScopesFeatures: process.scopesFeatures,
 			DeviceAuthorization: authz.DeviceAuthorizationOpts{
 				// Ignore the global device_trust.mode toggle, but allow role-based
 				// settings to be applied.
@@ -7437,11 +7482,12 @@ func (process *TeleportProcess) initSecureGRPCServer(cfg initSecureGRPCServerCfg
 	}
 
 	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-		ClusterName:   clusterName,
-		AccessPoint:   cfg.accessPoint,
-		LockWatcher:   cfg.lockWatcher,
-		Logger:        process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentProxySecureGRPC, process.id)),
-		PermitCaching: process.Config.CachePolicy.Enabled,
+		ClusterName:    clusterName,
+		AccessPoint:    cfg.accessPoint,
+		LockWatcher:    cfg.lockWatcher,
+		Logger:         process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentProxySecureGRPC, process.id)),
+		PermitCaching:  process.Config.CachePolicy.Enabled,
+		ScopesFeatures: process.scopesFeatures,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

@@ -6,7 +6,7 @@
       "nodeIP": "ip-172-31-35-170"
     },
     "access_graph": {
-      "version": "1.29.7"
+      "version": "1.30.0"
     },
     "ansible": {
       "min_version": "2.9.6"
@@ -17,7 +17,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "18.7.4",
+      "version": "18.8.2",
       "major_version": "18",
       "sla": {
         "monthly_percentage": "99.9%",

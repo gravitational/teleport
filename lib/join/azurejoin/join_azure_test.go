@@ -54,6 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/azurejoin"
 	"github.com/gravitational/teleport/lib/join/joinclient"
 	"github.com/gravitational/teleport/lib/join/jointest"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -169,15 +170,18 @@ func TestJoinAzure(t *testing.T) {
 
 	nopClient, err := server.NewClient(authtest.TestNop())
 	require.NoError(t, err)
-
+	const intermediateIssuerURL = "http://www.microsoft.com/pkiops/certs/testcert.crt"
 	caChain := newFakeAzureCAChain(t)
-	httpClient := newFakeAzureIssuerHTTPClient(caChain.intermediateCertDER)
+	httpClient := newFakeAzureIssuerHTTPClientForURLs(map[string][]byte{
+		rootIssuerURL:         caChain.rootCert.Raw,
+		intermediateIssuerURL: caChain.intermediates[0].cert.Raw,
+	})
 	instanceKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 	instanceCert := caChain.issueLeafCert(t,
 		instanceKey.Public(),
 		"instance.metadata.azure.com",
-		"http://www.microsoft.com/pkiops/certs/testcert.crt")
+		intermediateIssuerURL)
 
 	isAccessDenied := func(t require.TestingT, err error, _ ...any) {
 		require.True(t, trace.IsAccessDenied(err), "expected Access Denied error, actual error: %v", err)
@@ -668,13 +672,17 @@ func TestJoinAzureClaims(t *testing.T) {
 	require.NoError(t, err)
 
 	caChain := newFakeAzureCAChain(t)
-	httpClient := newFakeAzureIssuerHTTPClient(caChain.intermediateCertDER)
+	const intermediateIssuerURL = "http://www.microsoft.com/pkiops/certs/testcert.crt"
+	httpClient := newFakeAzureIssuerHTTPClientForURLs(map[string][]byte{
+		rootIssuerURL:         caChain.rootCert.Raw,
+		intermediateIssuerURL: caChain.intermediates[0].cert.Raw,
+	})
 	instanceKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 	instanceCert := caChain.issueLeafCert(t,
 		instanceKey.Public(),
 		"instance.metadata.azure.com",
-		"http://www.microsoft.com/pkiops/certs/testcert.crt")
+		intermediateIssuerURL)
 
 	isAccessDenied := func(t require.TestingT, err error, _ ...any) {
 		require.True(t, trace.IsAccessDenied(err), "expected Access Denied error, actual error: %v", err)
@@ -694,7 +702,7 @@ func TestJoinAzureClaims(t *testing.T) {
 			Name: botName,
 		},
 		Spec: &machineidv1pb.BotSpec{},
-	}, a.GetClock().Now(), "")
+	}, a.GetClock().Now(), "", scopes.Features{})
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -1291,7 +1299,7 @@ func TestAzureIssuerCert(t *testing.T) {
 			}
 
 			// Fake the HTTP client used to fetch the issuer CA.
-			httpClient := newFakeAzureIssuerHTTPClient(caChain.intermediateCertDER)
+			httpClient := newFakeAzureIssuerHTTPClient(caChain.intermediates[0].cert.Raw)
 			a.SetAzureJoinConfig(&azurejoin.AzureJoinConfig{
 				CertificateAuthorities: []*x509.Certificate{caChain.rootCert},
 				Verify:                 mockVerifyToken(nil),
@@ -1322,6 +1330,117 @@ func TestAzureIssuerCert(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAzureJoinFetchesCompleteIntermediateChain(t *testing.T) {
+	server, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			Dir: t.TempDir(),
+		}})
+	require.NoError(t, err)
+	a := server.Auth()
+
+	nopClient, err := server.NewClient(authtest.TestNop())
+	require.NoError(t, err)
+
+	token, err := types.NewProvisionTokenFromSpec("testtoken", time.Now().Add(time.Minute), types.ProvisionTokenSpecV2{
+		JoinMethod: types.JoinMethodAzure,
+		Roles:      types.SystemRoles{types.RoleNode},
+		Azure: &types.ProvisionTokenSpecV2Azure{
+			Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{
+					Subscription: "testsubscription",
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, a.UpsertToken(t.Context(), token))
+
+	const (
+		leafIssuerURL         = "http://www.microsoft.com/pkiops/certs/test-intermediate-1.crt"
+		intermediateIssuerURL = "http://www.microsoft.com/pkiops/certs/test-intermediate-2.crt"
+		instanceID            = "/subscriptions/testsubscription/resourceGroups/testgroup/providers/Microsoft.Compute/virtualMachines/testid"
+		tenantID              = "test-tenant-id"
+		issuer                = tenantID
+	)
+	caChain := newFakeAzureCAChain(t, intermediateIssuerURL)
+	instanceKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	instanceCert := caChain.issueLeafCert(
+		t,
+		instanceKey.Public(),
+		"instance.metadata.azure.com",
+		leafIssuerURL,
+	)
+
+	accessToken, err := makeToken(issuer, tenantID, instanceID, instanceID, a.GetClock().Now())
+	require.NoError(t, err)
+	imdsClient := &fakeIMDSClient{
+		accessToken:  accessToken,
+		signingCert:  instanceCert,
+		signingKey:   instanceKey,
+		subscription: "testsubscription",
+		vmID:         instanceID,
+	}
+
+	t.Run("full chain", func(t *testing.T) {
+		httpClient := newFakeAzureIssuerHTTPClientForURLs(map[string][]byte{
+			leafIssuerURL:         caChain.intermediates[0].cert.Raw,
+			intermediateIssuerURL: caChain.intermediates[1].cert.Raw,
+			rootIssuerURL:         caChain.rootCert.Raw,
+		})
+		a.SetAzureJoinConfig(&azurejoin.AzureJoinConfig{
+			CertificateAuthorities: []*x509.Certificate{caChain.rootCert},
+			Verify:                 mockVerifyToken(nil),
+			IssuerHTTPClient:       httpClient,
+		})
+
+		_, err = joinclient.Join(t.Context(), joinclient.JoinParams{
+			Token: "testtoken",
+			ID: state.IdentityID{
+				Role: types.RoleInstance,
+			},
+			AuthClient: nopClient,
+			AzureParams: joinclient.AzureParams{
+				ClientID:         instanceID,
+				IMDSClient:       imdsClient,
+				IssuerHTTPClient: httpClient,
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, []string{leafIssuerURL, intermediateIssuerURL, rootIssuerURL}, httpClient.requestedURLs)
+	})
+
+	t.Run("failure to fetch root does not automatically fail join attempt", func(t *testing.T) {
+		// we omit the root cert URL from the fake httpClient so that it returns an error,
+		// but since the root cert would be dropped anyway (because it's already trusted by
+		// the azure join config) we expect the join attempt to succeed
+		httpClient := newFakeAzureIssuerHTTPClientForURLs(map[string][]byte{
+			leafIssuerURL:         caChain.intermediates[0].cert.Raw,
+			intermediateIssuerURL: caChain.intermediates[1].cert.Raw,
+		})
+		a.SetAzureJoinConfig(&azurejoin.AzureJoinConfig{
+			CertificateAuthorities: []*x509.Certificate{caChain.rootCert},
+			Verify:                 mockVerifyToken(nil),
+			IssuerHTTPClient:       httpClient,
+		})
+
+		_, err = joinclient.Join(t.Context(), joinclient.JoinParams{
+			Token: "testtoken",
+			ID: state.IdentityID{
+				Role: types.RoleInstance,
+			},
+			AuthClient: nopClient,
+			AzureParams: joinclient.AzureParams{
+				ClientID:         instanceID,
+				IMDSClient:       imdsClient,
+				IssuerHTTPClient: httpClient,
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, []string{leafIssuerURL, intermediateIssuerURL, rootIssuerURL}, httpClient.requestedURLs)
+	})
 }
 
 type fakeIMDSClient struct {
@@ -1379,14 +1498,19 @@ func (c *fakeIMDSClient) GetAccessToken(_ context.Context, clientID string) (str
 	return c.accessToken, trace.Wrap(c.accessTokenErr)
 }
 
-type fakeAzureCAChain struct {
-	intermediateKey     crypto.Signer
-	intermediateCert    *x509.Certificate
-	intermediateCertDER []byte
-	rootCert            *x509.Certificate
+type keypair struct {
+	key  crypto.Signer
+	cert *x509.Certificate
 }
 
-func newFakeAzureCAChain(t *testing.T) *fakeAzureCAChain {
+type fakeAzureCAChain struct {
+	intermediates []keypair
+	rootCert      *x509.Certificate
+}
+
+const rootIssuerURL = "http://www.microsoft.com/pkiops/certs/root.crt"
+
+func newFakeAzureCAChain(t *testing.T, issuerURLs ...string) *fakeAzureCAChain {
 	rootKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 	rootCertTemplate := &x509.Certificate{
@@ -1404,28 +1528,38 @@ func newFakeAzureCAChain(t *testing.T) *fakeAzureCAChain {
 	rootCert, err := x509.ParseCertificate(rootCertDER)
 	require.NoError(t, err)
 
-	intermediateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err)
-	intermediateCertTemplate := &x509.Certificate{
-		Subject: pkix.Name{
-			CommonName: "test intermediate CA",
-		},
-		NotBefore:             time.Now(),
-		NotAfter:              time.Now().Add(time.Hour),
-		KeyUsage:              x509.KeyUsageCertSign,
-		IsCA:                  true,
-		BasicConstraintsValid: true,
+	numIntermediates := len(issuerURLs) + 1
+	intermediates := make([]keypair, numIntermediates)
+	parentCert := rootCert
+	parentKey := crypto.Signer(rootKey)
+	// append the root issuer URL so that the chain is always fully constructed
+	issuerURLs = append(issuerURLs, rootIssuerURL)
+	for i := numIntermediates - 1; i >= 0; i-- {
+		intermediateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		require.NoError(t, err)
+		intermediateCertTemplate := &x509.Certificate{
+			Subject: pkix.Name{
+				CommonName: fmt.Sprintf("test intermediate CA %d", i),
+			},
+			NotBefore:             time.Now(),
+			NotAfter:              time.Now().Add(time.Hour),
+			KeyUsage:              x509.KeyUsageCertSign,
+			IsCA:                  true,
+			BasicConstraintsValid: true,
+		}
+		intermediateCertTemplate.IssuingCertificateURL = []string{issuerURLs[i]}
+		intermediateCertDER, err := x509.CreateCertificate(rand.Reader, intermediateCertTemplate, parentCert, intermediateKey.Public(), parentKey)
+		require.NoError(t, err)
+		intermediateCert, err := x509.ParseCertificate(intermediateCertDER)
+		require.NoError(t, err)
+		intermediates[i] = keypair{key: intermediateKey, cert: intermediateCert}
+		parentCert = intermediateCert
+		parentKey = intermediateKey
 	}
-	intermediateCertDER, err := x509.CreateCertificate(rand.Reader, intermediateCertTemplate, rootCert, intermediateKey.Public(), rootKey)
-	require.NoError(t, err)
-	intermediateCert, err := x509.ParseCertificate(intermediateCertDER)
-	require.NoError(t, err)
 
 	return &fakeAzureCAChain{
-		intermediateKey:     intermediateKey,
-		intermediateCert:    intermediateCert,
-		intermediateCertDER: intermediateCertDER,
-		rootCert:            rootCert,
+		intermediates: intermediates,
+		rootCert:      rootCert,
 	}
 }
 
@@ -1440,7 +1574,7 @@ func (c *fakeAzureCAChain) issueLeafCert(t *testing.T, pub crypto.PublicKey, com
 		KeyUsage:              x509.KeyUsageDigitalSignature,
 		BasicConstraintsValid: true,
 	}
-	leafCertDER, err := x509.CreateCertificate(rand.Reader, leafCertTemplate, c.intermediateCert, pub, c.intermediateKey)
+	leafCertDER, err := x509.CreateCertificate(rand.Reader, leafCertTemplate, c.intermediates[0].cert, pub, c.intermediates[0].key)
 	require.NoError(t, err)
 	leafCert, err := x509.ParseCertificate(leafCertDER)
 	require.NoError(t, err)
@@ -1448,8 +1582,10 @@ func (c *fakeAzureCAChain) issueLeafCert(t *testing.T, pub crypto.PublicKey, com
 }
 
 type fakeAzureIssuerHTTPClient struct {
-	issuerCertDER []byte
-	called        int
+	issuerCertDER       []byte
+	issuerCertsDERByURL map[string][]byte
+	called              int
+	requestedURLs       []string
 }
 
 func newFakeAzureIssuerHTTPClient(issuerCertDER []byte) *fakeAzureIssuerHTTPClient {
@@ -1457,10 +1593,29 @@ func newFakeAzureIssuerHTTPClient(issuerCertDER []byte) *fakeAzureIssuerHTTPClie
 		issuerCertDER: issuerCertDER,
 	}
 }
+
+func newFakeAzureIssuerHTTPClientForURLs(issuerCertsDERByURL map[string][]byte) *fakeAzureIssuerHTTPClient {
+	return &fakeAzureIssuerHTTPClient{
+		issuerCertsDERByURL: issuerCertsDERByURL,
+	}
+}
+
 func (c *fakeAzureIssuerHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	c.called++
+	c.requestedURLs = append(c.requestedURLs, req.URL.String())
+	issuerCertDER := c.issuerCertDER
+	if c.issuerCertsDERByURL != nil {
+		var ok bool
+		issuerCertDER, ok = c.issuerCertsDERByURL[req.URL.String()]
+		if !ok {
+			return &http.Response{
+				StatusCode: http.StatusNotFound,
+				Body:       io.NopCloser(bytes.NewReader(nil)),
+			}, nil
+		}
+	}
 	return &http.Response{
 		StatusCode: http.StatusOK,
-		Body:       io.NopCloser(bytes.NewReader(c.issuerCertDER)),
+		Body:       io.NopCloser(bytes.NewReader(issuerCertDER)),
 	}, nil
 }

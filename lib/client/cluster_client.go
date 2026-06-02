@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	proxyclient "github.com/gravitational/teleport/api/client/proxy"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	"github.com/gravitational/teleport/api/mfa"
 	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -101,6 +102,45 @@ func (c *ClusterClient) ConnectToCluster(ctx context.Context, clusterName string
 
 	authClient, err := authclient.NewClient(clientConfig)
 	return authClient, trace.Wrap(err)
+}
+
+// PerformSessionMFACeremony performs a session-bound MFA ceremony for a SSH session and returns the challenge name.
+func (c *ClusterClient) PerformSessionMFACeremony(ctx context.Context, sessionID []byte) (string, error) {
+	rootClient, err := c.ConnectToRootCluster(ctx)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	defer rootClient.Close()
+
+	mfaClient := rootClient.MFAServiceClientV2()
+	if mfaClient == nil {
+		return "", trace.BadParameter("MFA service client is not initialized (this is a bug)")
+	}
+
+	ceremony, err := mfa.NewSessionBoundCeremony(
+		mfa.SessionBoundCeremonyConfig{
+			CreateSessionChallenge:      mfaClient.CreateSessionChallenge,
+			ValidateSessionChallenge:    mfaClient.ValidateSessionChallenge,
+			PromptConstructor:           c.tc.NewMFAPrompt,
+			CallbackCeremonyConstructor: c.tc.NewRedirectorMFACeremony,
+			TargetCluster:               c.cluster,
+		},
+	)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	name, err := ceremony.Run(
+		ctx,
+		mfav2.SessionIdentifyingPayload_builder{
+			SshSessionId: sessionID,
+		}.Build(),
+	)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return name, nil
 }
 
 // Close terminates the connections to Auth and Proxy.
@@ -495,25 +535,31 @@ func (c *ClusterClient) performSessionMFACeremony(ctx context.Context, rootClien
 		return nil, trace.Wrap(err)
 	}
 
+	mfaAgainstRoot := c.cluster == rootClient.cluster
+	var leafClusterName string
+	if !mfaAgainstRoot {
+		leafClusterName = c.cluster
+	}
+
 	var promptOpts []mfa.PromptOpt
 	switch {
 	case params.NodeName != "":
-		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Node", params.NodeName))
+		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("node", params.NodeName, leafClusterName))
 	case params.KubernetesCluster != "":
-		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Kubernetes cluster", params.KubernetesCluster))
+		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Kubernetes cluster", params.KubernetesCluster, leafClusterName))
 	case params.RouteToDatabase.ServiceName != "":
-		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Database", params.RouteToDatabase.ServiceName))
+		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("database", params.RouteToDatabase.ServiceName, leafClusterName))
 	case params.RouteToApp.Name != "":
-		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Application", params.RouteToApp.Name))
+		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("application", params.RouteToApp.Name, leafClusterName))
 	case params.RouteToWindowsDesktop.WindowsDesktop != "":
-		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Windows desktop", params.RouteToWindowsDesktop.WindowsDesktop))
+		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Windows desktop", params.RouteToWindowsDesktop.WindowsDesktop, leafClusterName))
 	}
 
 	result, err := PerformSessionMFACeremony(ctx, PerformSessionMFACeremonyParams{
 		CurrentAuthClient: c.AuthClient,
 		RootAuthClient:    rootClient.AuthClient,
 		MFACeremony:       c.tc.NewMFACeremony(),
-		MFAAgainstRoot:    c.cluster == rootClient.cluster,
+		MFAAgainstRoot:    mfaAgainstRoot,
 		MFARequiredReq:    mfaRequiredReq,
 		CertsReq:          certsReq,
 		KeyRing:           keyRing,

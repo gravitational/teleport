@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/workloadidentity/v1/revocation_resource.proto
 
+//go:build !protoopaque
+
 package workloadidentityv1
 
 import (
@@ -26,7 +28,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -45,7 +46,7 @@ const (
 // encoded serial number of the revoked X509 certificate. Therefore, only a
 // single revocation entry can exist for a given certificate.
 type WorkloadIdentityX509Revocation struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The kind of resource represented. For WorkloadIdentityX509Revocation
 	// resources, this is always `workload_identity_x509_revocation`.
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
@@ -87,11 +88,6 @@ func (x *WorkloadIdentityX509Revocation) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkloadIdentityX509Revocation.ProtoReflect.Descriptor instead.
-func (*WorkloadIdentityX509Revocation) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_revocation_resource_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *WorkloadIdentityX509Revocation) GetKind() string {
 	if x != nil {
 		return x.Kind
@@ -127,9 +123,80 @@ func (x *WorkloadIdentityX509Revocation) GetSpec() *WorkloadIdentityX509Revocati
 	return nil
 }
 
+func (x *WorkloadIdentityX509Revocation) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *WorkloadIdentityX509Revocation) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *WorkloadIdentityX509Revocation) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *WorkloadIdentityX509Revocation) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *WorkloadIdentityX509Revocation) SetSpec(v *WorkloadIdentityX509RevocationSpec) {
+	x.Spec = v
+}
+
+func (x *WorkloadIdentityX509Revocation) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *WorkloadIdentityX509Revocation) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *WorkloadIdentityX509Revocation) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *WorkloadIdentityX509Revocation) ClearSpec() {
+	x.Spec = nil
+}
+
+type WorkloadIdentityX509Revocation_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The kind of resource represented. For WorkloadIdentityX509Revocation
+	// resources, this is always `workload_identity_x509_revocation`.
+	Kind string
+	// Differentiates variations of the same kind. All resources should
+	// contain one, even if it is never populated.
+	SubKind string
+	// The version of the resource being represented.
+	Version string
+	// Common metadata that all resources share.
+	Metadata *v1.Metadata
+	// The configured properties of the WorkloadIdentityX509Revocation
+	Spec *WorkloadIdentityX509RevocationSpec
+}
+
+func (b0 WorkloadIdentityX509Revocation_builder) Build() *WorkloadIdentityX509Revocation {
+	m0 := &WorkloadIdentityX509Revocation{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Spec = b.Spec
+	return m0
+}
+
 // Configuration specific to WorkloadIdentityX509Revocation.
 type WorkloadIdentityX509RevocationSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Describes why this revocation entry was created.
 	// Required.
 	Reason string `protobuf:"bytes,1,opt,name=reason,proto3" json:"reason,omitempty"`
@@ -165,11 +232,6 @@ func (x *WorkloadIdentityX509RevocationSpec) ProtoReflect() protoreflect.Message
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkloadIdentityX509RevocationSpec.ProtoReflect.Descriptor instead.
-func (*WorkloadIdentityX509RevocationSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_revocation_resource_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *WorkloadIdentityX509RevocationSpec) GetReason() string {
 	if x != nil {
 		return x.Reason
@@ -182,6 +244,45 @@ func (x *WorkloadIdentityX509RevocationSpec) GetRevokedAt() *timestamppb.Timesta
 		return x.RevokedAt
 	}
 	return nil
+}
+
+func (x *WorkloadIdentityX509RevocationSpec) SetReason(v string) {
+	x.Reason = v
+}
+
+func (x *WorkloadIdentityX509RevocationSpec) SetRevokedAt(v *timestamppb.Timestamp) {
+	x.RevokedAt = v
+}
+
+func (x *WorkloadIdentityX509RevocationSpec) HasRevokedAt() bool {
+	if x == nil {
+		return false
+	}
+	return x.RevokedAt != nil
+}
+
+func (x *WorkloadIdentityX509RevocationSpec) ClearRevokedAt() {
+	x.RevokedAt = nil
+}
+
+type WorkloadIdentityX509RevocationSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Describes why this revocation entry was created.
+	// Required.
+	Reason string
+	// The time at which the revocation entry was created.
+	// Required.
+	RevokedAt *timestamppb.Timestamp
+}
+
+func (b0 WorkloadIdentityX509RevocationSpec_builder) Build() *WorkloadIdentityX509RevocationSpec {
+	m0 := &WorkloadIdentityX509RevocationSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Reason = b.Reason
+	x.RevokedAt = b.RevokedAt
+	return m0
 }
 
 var File_teleport_workloadidentity_v1_revocation_resource_proto protoreflect.FileDescriptor
@@ -199,18 +300,6 @@ const file_teleport_workloadidentity_v1_revocation_resource_proto_rawDesc = "" +
 	"\x06reason\x18\x01 \x01(\tR\x06reason\x129\n" +
 	"\n" +
 	"revoked_at\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\trevokedAtBdZbgithub.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1b\x06proto3"
-
-var (
-	file_teleport_workloadidentity_v1_revocation_resource_proto_rawDescOnce sync.Once
-	file_teleport_workloadidentity_v1_revocation_resource_proto_rawDescData []byte
-)
-
-func file_teleport_workloadidentity_v1_revocation_resource_proto_rawDescGZIP() []byte {
-	file_teleport_workloadidentity_v1_revocation_resource_proto_rawDescOnce.Do(func() {
-		file_teleport_workloadidentity_v1_revocation_resource_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_workloadidentity_v1_revocation_resource_proto_rawDesc), len(file_teleport_workloadidentity_v1_revocation_resource_proto_rawDesc)))
-	})
-	return file_teleport_workloadidentity_v1_revocation_resource_proto_rawDescData
-}
 
 var file_teleport_workloadidentity_v1_revocation_resource_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_teleport_workloadidentity_v1_revocation_resource_proto_goTypes = []any{

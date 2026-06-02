@@ -26,7 +26,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 )
@@ -89,7 +89,7 @@ func (a *authorizer) authorizeScoped(ctx context.Context) (scopedCtx *ScopedCont
 		}
 	}()
 
-	if !scopes.FeatureEnabled() {
+	if !a.scopesFeatures.Enabled {
 		return nil, trace.AccessDenied("cannot authorize scoped identity, scoping is not enabled for this cluster")
 	}
 
@@ -102,28 +102,79 @@ func (a *authorizer) authorizeScoped(ctx context.Context) (scopedCtx *ScopedCont
 		return nil, trace.Wrap(err)
 	}
 
-	user, ok := userI.(LocalUser)
-	if !ok {
-		return nil, trace.AccessDenied("scoped authorization is only supported for local users, got %T", userI)
+	switch user := userI.(type) {
+	case LocalUser:
+		if user.Identity.ScopePin == nil {
+			return nil, trace.AccessDenied("scoped authorization is not supported for unscoped identities")
+		}
+		if a.scopedRoleReader == nil {
+			return nil, trace.AccessDenied("authorizer not configured for scoped authorization")
+		}
+		scopedCtx, err = scopedContextForLocalUser(ctx, user, a.accessPoint, a.scopedRoleReader, a.clusterName)
+	case ScopedBuiltinRole:
+		scopedCtx, err = a.scopedContextForBuiltinRole(ctx, user)
+	default:
+		return nil, trace.AccessDenied("scoped authorization is not supported for identity of type %T", userI)
 	}
-
-	if user.Identity.ScopePin == nil {
-		return nil, trace.AccessDenied("scoped authorization is not supported for unscoped identities")
-	}
-
-	if a.scopedRoleReader == nil {
-		return nil, trace.AccessDenied("authorizer not configured for scoped authorization")
-	}
-
-	scopedCtx, err = scopedContextForLocalUser(ctx, user, a.accessPoint, a.scopedRoleReader, a.clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO(fspmarshall/scopes): include controls like locks/device enforcement here or (better), refactor to
+	// Enforce applicable locks. Scoped identities do not have a means of expressing identity-level locking
+	// mode (though they *can* express locking modes specific to resource access decisions). Since this logic
+	// is dealing with global locks and not specific to any resource access decision, we always use the global
+	// locking mode here.
+	authPref, err := a.readOnlyAccessPoint.GetReadOnlyAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if lockErr := a.lockWatcher.CheckLockInForce(authPref.GetLockingMode(), scopedCtx.LockTargets()...); lockErr != nil {
+		return nil, trace.Wrap(lockErr)
+	}
+
+	// TODO(fspmarshall/scopes): add device enforcement and other controls here or (better), refactor to
 	// have enforcement use a common implementation across scoped/unscoped authorize variants.
 
 	return scopedCtx, nil
+}
+
+// scopedContextForBuiltinRole builds a ScopedContext for a scoped agent identity.
+func (a *authorizer) scopedContextForBuiltinRole(ctx context.Context, role ScopedBuiltinRole) (*ScopedContext, error) {
+	recConfig, err := a.readOnlyAccessPoint.GetReadOnlySessionRecordingConfig(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// scoped agent authorization mirrors scoped user authorization in that it treats each role as an individual
+	// checker. building a scoped access checker context for a scoped agent requires providing per-role checkers
+	// organized by system role name, as they appear in the pin.
+	checkersByRole := make(map[string]*services.ScopedAccessChecker)
+	for sr := range pinning.SystemRoles(role.ScopePin) {
+		// TODO(fspmarshall/scopes): investigate the possibility of initializing checkers lazily.
+		roleSet, err := RoleSetForBuiltinRoles(role.ClusterName, recConfig, true /* isScoped */, sr)
+		if err != nil {
+			// skip system roles we cannot build a checker for. in theory this aught to only happen for unrecognized
+			// roles (e.g. due to the certificate having been issued by a teleport version which supports a system role
+			// that we do not).
+			a.logger.WarnContext(ctx, "skipping system role in scoped agent pin, role will confer no privileges",
+				"role", sr, "error", err)
+			continue
+		}
+		checker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{
+			Roles: []string{string(sr)},
+		}, role.ClusterName, roleSet)
+		checkersByRole[string(sr)] = services.NewScopedAccessCheckerForSystemRole(string(sr), checker)
+	}
+
+	checkerContext, err := services.NewScopedAccessCheckerContextForAgentPin(role.ScopePin, checkersByRole)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &ScopedContext{
+		Identity:       role,
+		CheckerContext: checkerContext,
+	}, nil
 }
 
 func scopedContextForLocalUser(ctx context.Context, u LocalUser, accessPoint AuthorizerAccessPoint, reader services.ScopedRoleReader, clusterName string) (*ScopedContext, error) {
@@ -171,7 +222,8 @@ func (s *ScopedContext) UnscopedContext() (*Context, bool) {
 }
 
 // RuleContext returns the standard services.Context used for resource-independent rule
-// evaluation.
+// evaluation. For agent pin identities, User is nil and rule evaluation will rely on
+// system-role permissions which do not use user traits in their where-clauses.
 func (s *ScopedContext) RuleContext() services.Context {
 	return services.Context{
 		User: s.User,
@@ -184,26 +236,28 @@ func (s *ScopedContext) GetDisconnectCertExpiry(authPref readonly.AuthPreference
 	if s.unscopedContext != nil {
 		return s.unscopedContext.GetDisconnectCertExpiry(authPref)
 	}
-
 	if !authPref.GetDisconnectExpiredCert() {
 		return time.Time{}
 	}
+	return s.GetDisconnectCertExpiryTime()
+}
 
+// GetDisconnectCertExpiryTime returns the timestamp for when the identity expires.
+// It takes in a bool parameter to specify whether to return the expiry time or not.
+func (s *ScopedContext) GetDisconnectCertExpiryTime() time.Time {
 	identity := s.Identity.GetIdentity()
 	if !identity.PreviousIdentityExpires.IsZero() {
 		// If this is a short-lived mfa verified cert, return the certificate extension
 		// that holds its issuing certificates expiry value.
 		return identity.PreviousIdentityExpires
 	}
-
-	// Otherwise, return the current certificates expiration
 	return identity.Expires
 }
 
 // LockTargets returns a list of [types.LockTarget] for scoped and unscoped identities.
 // For unscoped identities, the result is unchanged from [AuthContext.LockTargets()] and relies on
 // assigned roles in addition to identity attributes.
-// For scoped identities, the result is nearly identical to [services.LockTargetsFromTLSIdentity].
+// For scoped user identities, the result is nearly identical to [services.LockTargetsFromTLSIdentity].
 // The only difference is that the Groups and AccessRequests are not considered
 // when generating the lock targets.
 func (s *ScopedContext) LockTargets() []types.LockTarget {
@@ -211,8 +265,17 @@ func (s *ScopedContext) LockTargets() []types.LockTarget {
 		return unscopedCtx.LockTargets()
 	}
 	id := s.Identity.GetIdentity()
-	lockTargets := []types.LockTarget{
-		{User: id.Username},
+
+	var lockTargets []types.LockTarget
+	if r, ok := s.Identity.(ScopedBuiltinRole); ok {
+		// Scoped agents are locked via ServerID, not User. This mirrors Context.LockTargets()
+		// for BuiltinRole. Two targets are added for compatibility: the bare UUID and the FQDN.
+		lockTargets = append(lockTargets,
+			types.LockTarget{ServerID: r.GetServerID()},
+			types.LockTarget{ServerID: id.Username},
+		)
+	} else {
+		lockTargets = append(lockTargets, types.LockTarget{User: id.Username})
 	}
 
 	if id.MFAVerified != "" {
