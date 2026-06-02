@@ -34,7 +34,7 @@ value we use in this chart matches the value used by the lib chart. */}}
 
 {{/* Set the auth server URL to the internal k8s cluster service */}}
 {{- $_ := set $proxy.Values "teleportAuthService" (printf "%s:3025" (include "teleport-cluster.auth.serviceFQDN" .)) -}}
-{{- $_ := set $proxy.Values "forceHAReplicas" (hasKey (default (dict) .Values.proxy.highAvailability) "replicaCount") -}}
+{{- $_ := set $proxy.Values "forceHAReplicas" (not (empty (get (default (dict) .Values.proxy.highAvailability) "replicaCount"))) -}}
 
 {{/* Render all proxy charts */}}
 {{- include "teleport-proxy-lib.all" $proxy -}}
