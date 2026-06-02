@@ -20,6 +20,7 @@ package local
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -31,6 +32,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 )
 
@@ -439,6 +441,92 @@ func TestOktaAssignmentCRUD(t *testing.T) {
 	require.Empty(t, out)
 }
 
+type namedBackend struct {
+	backend.Backend
+	name string
+}
+
+func (b namedBackend) GetName() string {
+	return b.name
+}
+
+func TestOktaAssignmentTargetStatusStripping(t *testing.T) {
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+
+	tests := []struct {
+		backend           string
+		targetsUnderLimit int
+		targetsOverLimit  int
+	}{
+		{
+			backend:           "dynamodb",
+			targetsUnderLimit: 3000,
+			targetsOverLimit:  3500,
+		},
+		{
+			backend:           "etcd",
+			targetsUnderLimit: 12500,
+			targetsOverLimit:  13000,
+		},
+		{
+			backend:           "firestore",
+			targetsUnderLimit: 8500,
+			targetsOverLimit:  9000,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("backend %s", test.backend), func(t *testing.T) {
+			var backend backend.Backend
+			backend, err := memory.New(memory.Config{
+				Context: ctx,
+				Clock:   clock,
+			})
+			require.NoError(t, err)
+			backend = namedBackend{Backend: backend, name: test.backend}
+
+			service, err := NewOktaService(backend, clock)
+			require.NoError(t, err)
+
+			// Create assignment within limit.
+			targetsUnder := make([]*types.OktaAssignmentTargetV1, test.targetsUnderLimit)
+			for i := range targetsUnder {
+				targetsUnder[i] = oktaTarget(t, types.OktaAssignmentTargetV1_APPLICATION, fmt.Sprintf("target-%d", i), withStatus(successfulProvisionStatus()))
+			}
+			assignmentUnder := oktaAssignment(t, "assignment-under", "test-user@test.user", constants.OktaAssignmentStatusPending, clock.Now(), targetsUnder...)
+
+			// Create assignment exceeding limit.
+			targetsOver := make([]*types.OktaAssignmentTargetV1, test.targetsOverLimit)
+			for i := range targetsOver {
+				targetsOver[i] = oktaTarget(t, types.OktaAssignmentTargetV1_APPLICATION, fmt.Sprintf("target-%d", i), withStatus(successfulProvisionStatus()))
+			}
+			assignmentOver := oktaAssignment(t, "assignment2", "test-user@test.user", constants.OktaAssignmentStatusPending, clock.Now(), targetsOver...)
+
+			// Create both assignments.
+			_, err = service.CreateOktaAssignment(ctx, assignmentUnder)
+			require.NoError(t, err)
+			_, err = service.CreateOktaAssignment(ctx, assignmentOver)
+			require.NoError(t, err)
+
+			// Fetch assignment under.
+			savedAssignmentUnder, err := service.GetOktaAssignment(ctx, assignmentUnder.GetName())
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(assignmentUnder, savedAssignmentUnder, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+
+			// Fetch assignment over.
+			savedAssignmentOver, err := service.GetOktaAssignment(ctx, assignmentOver.GetName())
+			require.NoError(t, err)
+			require.Len(t, savedAssignmentOver.GetTargets(), test.targetsOverLimit)
+			for _, target := range savedAssignmentOver.GetTargets() {
+				targetV1, ok := target.(*types.OktaAssignmentTargetV1)
+				require.True(t, ok)
+				require.Nil(t, targetV1.Status)
+			}
+		})
+	}
+}
+
 func oktaAssignment(t *testing.T, name, username, status string, lastTransition time.Time, targets ...*types.OktaAssignmentTargetV1) types.OktaAssignment {
 	assignment, err := types.NewOktaAssignment(
 		types.Metadata{
@@ -456,13 +544,36 @@ func oktaAssignment(t *testing.T, name, username, status string, lastTransition 
 	return assignment
 }
 
-func oktaTarget(t *testing.T, targetType types.OktaAssignmentTargetV1_OktaAssignmentTargetType,
-	id string) *types.OktaAssignmentTargetV1 {
+type targetOpt func(*types.OktaAssignmentTargetV1)
 
+func withStatus(status *types.OktaAssignmentTargetStatus) targetOpt {
+	return func(t *types.OktaAssignmentTargetV1) {
+		t.Status = status
+	}
+}
+
+func oktaTarget(
+	t *testing.T,
+	targetType types.OktaAssignmentTargetV1_OktaAssignmentTargetType,
+	id string,
+	opts ...targetOpt,
+) *types.OktaAssignmentTargetV1 {
 	target := &types.OktaAssignmentTargetV1{
 		Type: targetType,
 		Id:   id,
 	}
+	for _, opt := range opts {
+		opt(target)
+	}
 
 	return target
+}
+
+func successfulProvisionStatus() *types.OktaAssignmentTargetStatus {
+	return &types.OktaAssignmentTargetStatus{
+		Op:            string(constants.OktaAssignmentTargetOpProvision),
+		Outcome:       string(constants.OktaAssignmentTargetOutcomeSuccessful),
+		LastProcessed: time.Time{},
+		FailureCount:  0,
+	}
 }
