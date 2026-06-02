@@ -3,8 +3,8 @@ module github.com/gravitational/teleport/integrations/event-handler
 go 1.25.10
 
 require (
-	github.com/DataDog/datadog-agent/pkg/template v0.77.2
-	github.com/alecthomas/kong v1.14.0
+	github.com/DataDog/datadog-agent/pkg/template v0.79.1
+	github.com/alecthomas/kong v1.15.0
 	github.com/google/uuid v1.6.0
 	github.com/gravitational/teleport v0.0.0-00010101000000-000000000000
 	github.com/gravitational/teleport/api v0.0.0-00010101000000-000000000000
