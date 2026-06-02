@@ -215,7 +215,7 @@ func (d *DNSDiag) queryServerOnce(ctx context.Context, network string, server ne
 	ctx, cancel := context.WithTimeout(ctx, d.cfg.QueryTimeout)
 	defer cancel()
 
-	addrs, err := d.cfg.DirectQuerier.LookupDirect(ctx, network, probeFQDN(reachabilityProbeZone), server)
+	addrs, err := d.cfg.DirectQuerier.LookupDirect(ctx, network, probeName(reachabilityProbeZone), server)
 	if err != nil {
 		var dnsErr *net.DNSError
 		if errors.As(err, &dnsErr) && dnsErr.IsNotFound {
@@ -343,7 +343,7 @@ func (d *DNSDiag) queryZoneRecordOnce(ctx context.Context, zone, network string,
 	ctx, cancel := context.WithTimeout(ctx, d.cfg.QueryTimeout)
 	defer cancel()
 
-	addrs, err := d.cfg.Resolver.Lookup(ctx, network, probeFQDN(zone))
+	addrs, err := d.cfg.Resolver.Lookup(ctx, network, probeName(zone))
 	return classifyRecordResult(addrs, err, expected)
 }
 
@@ -405,19 +405,19 @@ func computeReportStatus(report *diagv1.DNSReport) diagv1.CheckReportStatus {
 	return diagv1.CheckReportStatus_CHECK_REPORT_STATUS_OK
 }
 
-// probeFQDN builds a probe hostname for a given zone with a fresh
+// probeName builds a probe hostname for a given zone with a fresh
 // random label, defeating any intermediate DNS caches. Format:
 //
-//	vnet-diag-<hex>.<zone>.
-func probeFQDN(zone string) string {
+//	vnet-diag-<hex>.<zone>
+func probeName(zone string) string {
 	const probeRandomBytes = 8
 	var b [probeRandomBytes]byte
 	if _, err := rand.Read(b[:]); err != nil {
 		// crypto/rand should never fail; if it does, return a deterministic
 		// fallback so the diag check at least produces a result.
-		return fmt.Sprintf("%sfallback.%s.", vnetdns.DiagProbePrefix, strings.TrimSuffix(zone, "."))
+		return fmt.Sprintf("%sfallback.%s", vnetdns.DiagProbePrefix, strings.TrimSuffix(zone, "."))
 	}
-	return fmt.Sprintf("%s%s.%s.", vnetdns.DiagProbePrefix, hex.EncodeToString(b[:]), strings.TrimSuffix(zone, "."))
+	return fmt.Sprintf("%s%s.%s", vnetdns.DiagProbePrefix, hex.EncodeToString(b[:]), strings.TrimSuffix(zone, "."))
 }
 
 // DNSServerForIPv6Prefix returns the address of VNet's IPv6 DNS server for a

@@ -434,11 +434,12 @@ func TestDNSDiagCrossTransportFallback(t *testing.T) {
 }
 
 func TestDNSDiagProbeFormat(t *testing.T) {
-	a := probeFQDN("company.test")
-	b := probeFQDN("company.test")
+	a := probeName("company.test")
+	b := probeName("company.test")
 	require.NotEqual(t, a, b, "probe labels must be unique per call to defeat caches")
 	require.True(t, strings.HasPrefix(a, "vnet-diag-"), a)
-	require.True(t, strings.HasSuffix(a, ".company.test."), a)
+	require.True(t, strings.HasSuffix(a, ".company.test"), a)
+	require.False(t, strings.HasSuffix(a, "."), "probe name must not be FQDN")
 	require.Equal(t, "company.test", zoneOf(a))
 }
 
