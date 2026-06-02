@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport/integrations/terraform-mwi
 
-go 1.25.10
+go 1.26.3
 
 require (
 	github.com/gravitational/teleport v0.0.0 // replaced

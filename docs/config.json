@@ -69,7 +69,7 @@
       "major_version": "17",
       "version": "17.7.24",
       "url": "teleport.example.com",
-      "golang": "1.25.10",
+      "golang": "1.26.3",
       "plugin": {
         "version": "17.7.24"
       },
