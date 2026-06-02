@@ -60,12 +60,10 @@ type dialContextFunc func(context.Context, string, string) (net.Conn, error)
 // The transport is cached in the forwarder so that it can be reused for future
 // requests. If the transport is not cached, a new one is created and cached.
 func (f *Forwarder) transportForRequestWithImpersonation(sess *clusterSession) (http.RoundTripper, *tls.Config, error) {
-	// If the session has a kube API credentials, it means that the next hop is
-	// a Kubernetes API server. In this case, we can use the provided credentials
-	// to dial the next hop directly and never cache the transport.
-	if sess.kubeAPICreds != nil {
-		// If agent is running in agent mode, get the transport from the configured cluster
-		// credentials.
+	// If this teleport service serves the target kube cluster directly, the next
+	// hop is the Kubernetes API server itself. Use the configured cluster
+	// credentials to dial it directly and never cache the transport.
+	if sess.isLocalKubernetesCluster {
 		return sess.kubeAPICreds.getTransport(), sess.kubeAPICreds.getTLSConfig(), nil
 	}
 
@@ -401,7 +399,7 @@ func newH2Transport(tlsConfig *tls.Config, dial dialContextFunc) (*http.Transpor
 // The boolean returned indicates whether the upstream server supports
 // impersonation.
 func (f *Forwarder) getTLSConfig(sess *clusterSession) (*tls.Config, bool, error) {
-	if sess.kubeAPICreds != nil {
+	if sess.isLocalKubernetesCluster {
 		return sess.kubeAPICreds.getTLSConfig(), false, nil
 	}
 
@@ -418,9 +416,9 @@ func (f *Forwarder) getTLSConfig(sess *clusterSession) (*tls.Config, bool, error
 // If the next hop is a local cluster, it returns a dialer that directly dials
 // to the next hop.
 func (f *Forwarder) getContextDialerFunc(s *clusterSession, opts ...contextDialerOption) dialContextFunc {
-	if s.kubeAPICreds != nil {
-		// If this is a kubernetes service, we need to connect to the kubernetes
-		// API server using a direct dialer.
+	if s.isLocalKubernetesCluster {
+		// This teleport service serves the target kube cluster directly, so we
+		// dial the kubernetes API server using a direct dialer.
 		return new(net.Dialer).DialContext
 	} else if s.teleportCluster.isRemote {
 		// If this is a remote cluster, we need to connect to the local proxy
