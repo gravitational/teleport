@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
@@ -213,7 +212,7 @@ func TestGenericWrapperCRUD(t *testing.T) {
 	r, err = service.GetResource(ctx, r1.GetMetadata().GetName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(r1, r,
-		cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		protocmp.Transform(),
 	))
 
@@ -247,7 +246,7 @@ func TestGenericWrapperCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, cmp.Diff([]*testResource153{r1, r2}, out,
-		cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		protocmp.Transform(),
 	))
 
@@ -259,7 +258,7 @@ func TestGenericWrapperCRUD(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, nextToken)
 	require.Empty(t, cmp.Diff([]*testResource153{r1, r2}, out,
-		cmpopts.IgnoreFields(headerv1.Metadata{}, "Revision"),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		protocmp.Transform(),
 	))
 

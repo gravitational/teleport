@@ -5461,7 +5461,7 @@ func TestServer_GetAnonymizationKey(t *testing.T) {
 func newUserNotificationWithExpiry(t *testing.T, username string, title string, expires *timestamppb.Timestamp) *notificationsv1.Notification {
 	t.Helper()
 
-	notification := notificationsv1.Notification{
+	notification := notificationsv1.Notification_builder{
 		SubKind: "test-subkind",
 		Spec: notificationsv1.NotificationSpec_builder{
 			Username: username,
@@ -5472,15 +5472,15 @@ func newUserNotificationWithExpiry(t *testing.T, username string, title string, 
 				types.NotificationTitleLabel: title,
 			},
 		}.Build(),
-	}
+	}.Build()
 
-	return &notification
+	return notification
 }
 
 func newGlobalNotificationWithExpiry(t *testing.T, title string, expires *timestamppb.Timestamp) *notificationsv1.GlobalNotification {
 	t.Helper()
 
-	notification := notificationsv1.GlobalNotification{
+	notification := notificationsv1.GlobalNotification_builder{
 		Spec: notificationsv1.GlobalNotificationSpec_builder{
 			All: proto.Bool(true),
 			Notification: notificationsv1.Notification_builder{
@@ -5494,9 +5494,9 @@ func newGlobalNotificationWithExpiry(t *testing.T, title string, expires *timest
 				}.Build(),
 			}.Build(),
 		}.Build(),
-	}
+	}.Build()
 
-	return &notification
+	return notification
 }
 
 // TestServerHostnameSanitization tests that persisting servers with

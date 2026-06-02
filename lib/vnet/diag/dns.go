@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 
 	diagv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/diag/v1"
 	vnetdns "github.com/gravitational/teleport/lib/vnet/dns"
@@ -137,7 +138,7 @@ func NewDNSDiag(cfg *DNSConfig) (*DNSDiag, error) {
 }
 
 func (d *DNSDiag) EmptyCheckReport() *diagv1.CheckReport {
-	return &diagv1.CheckReport{Report: &diagv1.CheckReport_DnsReport{}}
+	return diagv1.CheckReport_builder{DnsReport: &diagv1.DNSReport{}}.Build()
 }
 
 // Commands returns platform-specific commands that capture additional DNS configuration state.
@@ -150,19 +151,19 @@ func (d *DNSDiag) Run(ctx context.Context) (*diagv1.CheckReport, error) {
 	report := &diagv1.DNSReport{}
 
 	v4, v6 := d.runReachabilityCheck(ctx)
-	report.Ipv4Reachability = toReachabilityProto(v4)
-	report.Ipv6Reachability = toReachabilityProto(v6)
+	report.SetIpv4Reachability(toReachabilityProto(v4))
+	report.SetIpv6Reachability(toReachabilityProto(v6))
 
 	expectedA, expectedAAAA := mergeExpected(ctx, v6, v4)
 
 	if expectedA.IsValid() || expectedAAAA.IsValid() {
-		report.ZoneResults = d.runPerZoneCheck(ctx, expectedA, expectedAAAA)
+		report.SetZoneResults(d.runPerZoneCheck(ctx, expectedA, expectedAAAA))
 	}
 
-	return &diagv1.CheckReport{
-		Status: computeReportStatus(report),
-		Report: &diagv1.CheckReport_DnsReport{DnsReport: report},
-	}, nil
+	return diagv1.CheckReport_builder{
+		Status:    computeReportStatus(report),
+		DnsReport: proto.ValueOrDefault(report),
+	}.Build(), nil
 }
 
 // reachabilityCheckResult captures the result of probing one VNet nameserver for both A and AAAA.
@@ -246,13 +247,13 @@ func toReachabilityProto(o reachabilityCheckResult) *diagv1.VNetDNSReachability 
 	if !o.server.IsValid() {
 		return nil
 	}
-	m := &diagv1.VNetDNSReachability{
+	m := diagv1.VNetDNSReachability_builder{
 		Address:       o.server.String(),
 		RespondedA:    o.a.addr.IsValid(),
 		RespondedAaaa: o.aaaa.addr.IsValid(),
-	}
-	m.Reachable = m.RespondedA || m.RespondedAaaa
-	if !m.Reachable {
+	}.Build()
+	m.SetReachable(m.GetRespondedA() || m.GetRespondedAaaa())
+	if !m.GetReachable() {
 		var errs []string
 		if o.a.err != nil {
 			errs = append(errs, o.a.err.Error())
@@ -260,9 +261,9 @@ func toReachabilityProto(o reachabilityCheckResult) *diagv1.VNetDNSReachability 
 		if o.aaaa.err != nil {
 			errs = append(errs, o.aaaa.err.Error())
 		}
-		m.Error = strings.Join(errs, "\n")
-		if m.Error == "" {
-			m.Error = "server returned no records"
+		m.SetError(strings.Join(errs, "\n"))
+		if m.GetError() == "" {
+			m.SetError("server returned no records")
 		}
 	}
 	return m
@@ -317,16 +318,16 @@ func (d *DNSDiag) runPerZoneCheck(ctx context.Context, expectedA, expectedAAAA n
 
 // queryZone runs A and AAAA queries for a single zone in parallel.
 func (d *DNSDiag) queryZone(ctx context.Context, zone string, expectedA, expectedAAAA netip.Addr) *diagv1.DNSZoneResult {
-	result := &diagv1.DNSZoneResult{Zone: zone}
+	result := diagv1.DNSZoneResult_builder{Zone: zone}.Build()
 	var wg sync.WaitGroup
 	if expectedA.IsValid() {
 		wg.Go(func() {
-			result.ARecord = d.queryZoneRecord(ctx, zone, "ip4", expectedA)
+			result.SetARecord(d.queryZoneRecord(ctx, zone, "ip4", expectedA))
 		})
 	}
 	if expectedAAAA.IsValid() {
 		wg.Go(func() {
-			result.AaaaRecord = d.queryZoneRecord(ctx, zone, "ip6", expectedAAAA)
+			result.SetAaaaRecord(d.queryZoneRecord(ctx, zone, "ip6", expectedAAAA))
 		})
 	}
 	wg.Wait()
@@ -336,7 +337,7 @@ func (d *DNSDiag) queryZone(ctx context.Context, zone string, expectedA, expecte
 // queryZoneRecord runs a single record-type query.
 func (d *DNSDiag) queryZoneRecord(ctx context.Context, zone, network string, expected netip.Addr) *diagv1.RecordResult {
 	result := d.queryZoneRecordOnce(ctx, zone, network, expected)
-	if result.Status != diagv1.DNSZoneStatus_DNS_ZONE_STATUS_NOT_REGISTERED {
+	if result.GetStatus() != diagv1.DNSZoneStatus_DNS_ZONE_STATUS_NOT_REGISTERED {
 		return result
 	}
 	if d.cfg.NotRegisteredRetryDelay <= 0 {
@@ -366,35 +367,35 @@ func classifyRecordResult(addrs []netip.Addr, err error, expected netip.Addr) *d
 		if errors.As(err, &dnsErr) {
 			switch {
 			case dnsErr.IsNotFound:
-				return &diagv1.RecordResult{Status: diagv1.DNSZoneStatus_DNS_ZONE_STATUS_NOT_REGISTERED}
+				return diagv1.RecordResult_builder{Status: diagv1.DNSZoneStatus_DNS_ZONE_STATUS_NOT_REGISTERED}.Build()
 			case dnsErr.IsTimeout:
-				return &diagv1.RecordResult{
+				return diagv1.RecordResult_builder{
 					Status: diagv1.DNSZoneStatus_DNS_ZONE_STATUS_TIMEOUT,
 					Error:  err.Error(),
-				}
+				}.Build()
 			}
 		}
 		if errors.Is(err, context.DeadlineExceeded) {
-			return &diagv1.RecordResult{
+			return diagv1.RecordResult_builder{
 				Status: diagv1.DNSZoneStatus_DNS_ZONE_STATUS_TIMEOUT,
 				Error:  err.Error(),
-			}
+			}.Build()
 		}
-		return &diagv1.RecordResult{
+		return diagv1.RecordResult_builder{
 			Status: diagv1.DNSZoneStatus_DNS_ZONE_STATUS_RESOLVER_ERROR,
 			Error:  err.Error(),
-		}
+		}.Build()
 	}
 	if len(addrs) == 0 {
-		return &diagv1.RecordResult{Status: diagv1.DNSZoneStatus_DNS_ZONE_STATUS_NOT_REGISTERED}
+		return diagv1.RecordResult_builder{Status: diagv1.DNSZoneStatus_DNS_ZONE_STATUS_NOT_REGISTERED}.Build()
 	}
 	if slices.Contains(addrs, expected) {
-		return &diagv1.RecordResult{Status: diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK}
+		return diagv1.RecordResult_builder{Status: diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK}.Build()
 	}
-	return &diagv1.RecordResult{
+	return diagv1.RecordResult_builder{
 		Status:     diagv1.DNSZoneStatus_DNS_ZONE_STATUS_HIJACKED,
 		ObservedIp: addrs[0].String(),
-	}
+	}.Build()
 }
 
 // computeReportStatus returns ISSUES_FOUND if every configured nameserver is
@@ -404,11 +405,11 @@ func computeReportStatus(report *diagv1.DNSReport) diagv1.CheckReportStatus {
 		!report.GetIpv6Reachability().GetReachable() {
 		return diagv1.CheckReportStatus_CHECK_REPORT_STATUS_ISSUES_FOUND
 	}
-	for _, zr := range report.ZoneResults {
-		if rr := zr.ARecord; rr != nil && rr.Status != diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK {
+	for _, zr := range report.GetZoneResults() {
+		if rr := zr.GetARecord(); rr != nil && rr.GetStatus() != diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK {
 			return diagv1.CheckReportStatus_CHECK_REPORT_STATUS_ISSUES_FOUND
 		}
-		if rr := zr.AaaaRecord; rr != nil && rr.Status != diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK {
+		if rr := zr.GetAaaaRecord(); rr != nil && rr.GetStatus() != diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK {
 			return diagv1.CheckReportStatus_CHECK_REPORT_STATUS_ISSUES_FOUND
 		}
 	}

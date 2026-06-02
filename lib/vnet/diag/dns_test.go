@@ -153,22 +153,22 @@ func TestDNSDiagAllZonesOK(t *testing.T) {
 
 	report, err := d.Run(t.Context())
 	require.NoError(t, err)
-	require.Equal(t, diagv1.CheckReportStatus_CHECK_REPORT_STATUS_OK, report.Status)
+	require.Equal(t, diagv1.CheckReportStatus_CHECK_REPORT_STATUS_OK, report.GetStatus())
 	dnsReport := report.GetDnsReport()
-	require.NotNil(t, dnsReport.Ipv4Reachability)
-	require.True(t, dnsReport.Ipv4Reachability.Reachable)
-	require.True(t, dnsReport.Ipv4Reachability.RespondedA)
-	require.True(t, dnsReport.Ipv4Reachability.RespondedAaaa)
-	require.NotNil(t, dnsReport.Ipv6Reachability)
-	require.True(t, dnsReport.Ipv6Reachability.Reachable)
-	require.True(t, dnsReport.Ipv6Reachability.RespondedA)
-	require.True(t, dnsReport.Ipv6Reachability.RespondedAaaa)
-	require.Len(t, dnsReport.ZoneResults, 2)
-	for _, zr := range dnsReport.ZoneResults {
-		require.NotNil(t, zr.ARecord, zr.Zone)
-		require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, zr.ARecord.Status, zr.Zone)
-		require.NotNil(t, zr.AaaaRecord, zr.Zone)
-		require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, zr.AaaaRecord.Status, zr.Zone)
+	require.NotNil(t, dnsReport.GetIpv4Reachability())
+	require.True(t, dnsReport.GetIpv4Reachability().GetReachable())
+	require.True(t, dnsReport.GetIpv4Reachability().GetRespondedA())
+	require.True(t, dnsReport.GetIpv4Reachability().GetRespondedAaaa())
+	require.NotNil(t, dnsReport.GetIpv6Reachability())
+	require.True(t, dnsReport.GetIpv6Reachability().GetReachable())
+	require.True(t, dnsReport.GetIpv6Reachability().GetRespondedA())
+	require.True(t, dnsReport.GetIpv6Reachability().GetRespondedAaaa())
+	require.Len(t, dnsReport.GetZoneResults(), 2)
+	for _, zr := range dnsReport.GetZoneResults() {
+		require.NotNil(t, zr.GetARecord(), zr.GetZone())
+		require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, zr.GetARecord().GetStatus(), zr.GetZone())
+		require.NotNil(t, zr.GetAaaaRecord(), zr.GetZone())
+		require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, zr.GetAaaaRecord().GetStatus(), zr.GetZone())
 	}
 }
 
@@ -191,13 +191,13 @@ func TestDNSDiagBothReachabilityFailureSkipsPerZone(t *testing.T) {
 
 	report, err := d.Run(t.Context())
 	require.NoError(t, err)
-	require.Equal(t, diagv1.CheckReportStatus_CHECK_REPORT_STATUS_ISSUES_FOUND, report.Status)
+	require.Equal(t, diagv1.CheckReportStatus_CHECK_REPORT_STATUS_ISSUES_FOUND, report.GetStatus())
 	dnsReport := report.GetDnsReport()
-	require.False(t, dnsReport.Ipv4Reachability.Reachable)
-	require.Contains(t, dnsReport.Ipv4Reachability.Error, "connection refused")
-	require.False(t, dnsReport.Ipv6Reachability.Reachable)
-	require.Contains(t, dnsReport.Ipv6Reachability.Error, "connection refused")
-	require.Empty(t, dnsReport.ZoneResults, "per-zone check must be skipped when no nameserver returned expected IPs")
+	require.False(t, dnsReport.GetIpv4Reachability().GetReachable())
+	require.Contains(t, dnsReport.GetIpv4Reachability().GetError(), "connection refused")
+	require.False(t, dnsReport.GetIpv6Reachability().GetReachable())
+	require.Contains(t, dnsReport.GetIpv6Reachability().GetError(), "connection refused")
+	require.Empty(t, dnsReport.GetZoneResults(), "per-zone check must be skipped when no nameserver returned expected IPs")
 	require.False(t, resolverCalled, "OS resolver must not be called when both VNet DNS nameservers are unreachable")
 }
 
@@ -220,15 +220,15 @@ func TestDNSDiagOnlyIPv6Reachable(t *testing.T) {
 	report, err := d.Run(t.Context())
 	require.NoError(t, err)
 	dnsReport := report.GetDnsReport()
-	require.False(t, dnsReport.Ipv4Reachability.Reachable)
-	require.True(t, dnsReport.Ipv6Reachability.Reachable)
-	require.Len(t, dnsReport.ZoneResults, 1)
-	zr := dnsReport.ZoneResults[0]
-	require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, zr.ARecord.Status,
+	require.False(t, dnsReport.GetIpv4Reachability().GetReachable())
+	require.True(t, dnsReport.GetIpv6Reachability().GetReachable())
+	require.Len(t, dnsReport.GetZoneResults(), 1)
+	zr := dnsReport.GetZoneResults()[0]
+	require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, zr.GetARecord().GetStatus(),
 		"A still verified because the IPv6 nameserver returned an expected A")
-	require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, zr.AaaaRecord.Status)
+	require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, zr.GetAaaaRecord().GetStatus())
 	// One unreachable nameserver does not fail the overall check
-	require.Equal(t, diagv1.CheckReportStatus_CHECK_REPORT_STATUS_OK, report.Status)
+	require.Equal(t, diagv1.CheckReportStatus_CHECK_REPORT_STATUS_OK, report.GetStatus())
 }
 
 func TestDNSDiagOnlyIPv6ServerNoAAnswer(t *testing.T) {
@@ -250,16 +250,16 @@ func TestDNSDiagOnlyIPv6ServerNoAAnswer(t *testing.T) {
 	report, err := d.Run(t.Context())
 	require.NoError(t, err)
 	dnsReport := report.GetDnsReport()
-	require.Nil(t, dnsReport.Ipv4Reachability, "IPv4 reachability must be unset when IPv4 server is not configured")
-	require.NotNil(t, dnsReport.Ipv6Reachability)
-	require.True(t, dnsReport.Ipv6Reachability.Reachable)
-	require.True(t, dnsReport.Ipv6Reachability.RespondedAaaa)
-	require.False(t, dnsReport.Ipv6Reachability.RespondedA, "expected no A response")
-	require.Len(t, dnsReport.ZoneResults, 1)
-	zr := dnsReport.ZoneResults[0]
-	require.Nil(t, zr.ARecord, "A record result must be nil when no expected A was captured")
-	require.NotNil(t, zr.AaaaRecord)
-	require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, zr.AaaaRecord.Status)
+	require.Nil(t, dnsReport.GetIpv4Reachability(), "IPv4 reachability must be unset when IPv4 server is not configured")
+	require.NotNil(t, dnsReport.GetIpv6Reachability())
+	require.True(t, dnsReport.GetIpv6Reachability().GetReachable())
+	require.True(t, dnsReport.GetIpv6Reachability().GetRespondedAaaa())
+	require.False(t, dnsReport.GetIpv6Reachability().GetRespondedA(), "expected no A response")
+	require.Len(t, dnsReport.GetZoneResults(), 1)
+	zr := dnsReport.GetZoneResults()[0]
+	require.Nil(t, zr.GetARecord(), "A record result must be nil when no expected A was captured")
+	require.NotNil(t, zr.GetAaaaRecord())
+	require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, zr.GetAaaaRecord().GetStatus())
 }
 
 func TestDNSDiagPerRecordTypeClassification(t *testing.T) {
@@ -318,36 +318,36 @@ func TestDNSDiagPerRecordTypeClassification(t *testing.T) {
 
 	report, err := d.Run(t.Context())
 	require.NoError(t, err)
-	require.Equal(t, diagv1.CheckReportStatus_CHECK_REPORT_STATUS_ISSUES_FOUND, report.Status)
+	require.Equal(t, diagv1.CheckReportStatus_CHECK_REPORT_STATUS_ISSUES_FOUND, report.GetStatus())
 
 	byZone := map[string]*diagv1.DNSZoneResult{}
-	for _, zr := range report.GetDnsReport().ZoneResults {
-		byZone[zr.Zone] = zr
+	for _, zr := range report.GetDnsReport().GetZoneResults() {
+		byZone[zr.GetZone()] = zr
 	}
 
-	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, byZone["ok.test"].ARecord.Status)
-	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, byZone["ok.test"].AaaaRecord.Status)
+	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, byZone["ok.test"].GetARecord().GetStatus())
+	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, byZone["ok.test"].GetAaaaRecord().GetStatus())
 
-	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_HIJACKED, byZone["a-hijacked.test"].ARecord.Status)
-	assert.Equal(t, testHijackA.String(), byZone["a-hijacked.test"].ARecord.ObservedIp)
-	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, byZone["a-hijacked.test"].AaaaRecord.Status)
+	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_HIJACKED, byZone["a-hijacked.test"].GetARecord().GetStatus())
+	assert.Equal(t, testHijackA.String(), byZone["a-hijacked.test"].GetARecord().GetObservedIp())
+	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, byZone["a-hijacked.test"].GetAaaaRecord().GetStatus())
 
-	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, byZone["aaaa-hijacked.test"].ARecord.Status)
-	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_HIJACKED, byZone["aaaa-hijacked.test"].AaaaRecord.Status)
-	assert.Equal(t, testHijackAAAA.String(), byZone["aaaa-hijacked.test"].AaaaRecord.ObservedIp)
+	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, byZone["aaaa-hijacked.test"].GetARecord().GetStatus())
+	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_HIJACKED, byZone["aaaa-hijacked.test"].GetAaaaRecord().GetStatus())
+	assert.Equal(t, testHijackAAAA.String(), byZone["aaaa-hijacked.test"].GetAaaaRecord().GetObservedIp())
 
-	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_TIMEOUT, byZone["mixed.test"].ARecord.Status)
-	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_HIJACKED, byZone["mixed.test"].AaaaRecord.Status)
-	assert.Equal(t, testHijackAAAA.String(), byZone["mixed.test"].AaaaRecord.ObservedIp)
+	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_TIMEOUT, byZone["mixed.test"].GetARecord().GetStatus())
+	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_HIJACKED, byZone["mixed.test"].GetAaaaRecord().GetStatus())
+	assert.Equal(t, testHijackAAAA.String(), byZone["mixed.test"].GetAaaaRecord().GetObservedIp())
 
-	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_NOT_REGISTERED, byZone["missing.test"].ARecord.Status)
-	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_NOT_REGISTERED, byZone["missing.test"].AaaaRecord.Status)
+	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_NOT_REGISTERED, byZone["missing.test"].GetARecord().GetStatus())
+	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_NOT_REGISTERED, byZone["missing.test"].GetAaaaRecord().GetStatus())
 
-	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_TIMEOUT, byZone["slow.test"].ARecord.Status)
-	assert.NotEmpty(t, byZone["slow.test"].ARecord.Error)
+	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_TIMEOUT, byZone["slow.test"].GetARecord().GetStatus())
+	assert.NotEmpty(t, byZone["slow.test"].GetARecord().GetError())
 
-	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_RESOLVER_ERROR, byZone["borked.test"].ARecord.Status)
-	assert.Contains(t, byZone["borked.test"].ARecord.Error, "SERVFAIL")
+	assert.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_RESOLVER_ERROR, byZone["borked.test"].GetARecord().GetStatus())
+	assert.Contains(t, byZone["borked.test"].GetARecord().GetError(), "SERVFAIL")
 }
 
 func TestDNSDiagEmptyZonesOnlyReachability(t *testing.T) {
@@ -363,10 +363,10 @@ func TestDNSDiagEmptyZonesOnlyReachability(t *testing.T) {
 
 	report, err := d.Run(t.Context())
 	require.NoError(t, err)
-	require.Equal(t, diagv1.CheckReportStatus_CHECK_REPORT_STATUS_OK, report.Status)
-	require.True(t, report.GetDnsReport().Ipv4Reachability.Reachable)
-	require.True(t, report.GetDnsReport().Ipv6Reachability.Reachable)
-	require.Empty(t, report.GetDnsReport().ZoneResults)
+	require.Equal(t, diagv1.CheckReportStatus_CHECK_REPORT_STATUS_OK, report.GetStatus())
+	require.True(t, report.GetDnsReport().GetIpv4Reachability().GetReachable())
+	require.True(t, report.GetDnsReport().GetIpv6Reachability().GetReachable())
+	require.Empty(t, report.GetDnsReport().GetZoneResults())
 }
 
 func TestDNSDiagReachabilityNoAnswer(t *testing.T) {
@@ -384,11 +384,11 @@ func TestDNSDiagReachabilityNoAnswer(t *testing.T) {
 
 	report, err := d.Run(t.Context())
 	require.NoError(t, err)
-	require.Equal(t, diagv1.CheckReportStatus_CHECK_REPORT_STATUS_ISSUES_FOUND, report.Status)
-	require.False(t, report.GetDnsReport().Ipv4Reachability.Reachable)
-	require.Contains(t, report.GetDnsReport().Ipv4Reachability.Error, "server returned no records")
-	require.False(t, report.GetDnsReport().Ipv6Reachability.Reachable)
-	require.Contains(t, report.GetDnsReport().Ipv6Reachability.Error, "server returned no records")
+	require.Equal(t, diagv1.CheckReportStatus_CHECK_REPORT_STATUS_ISSUES_FOUND, report.GetStatus())
+	require.False(t, report.GetDnsReport().GetIpv4Reachability().GetReachable())
+	require.Contains(t, report.GetDnsReport().GetIpv4Reachability().GetError(), "server returned no records")
+	require.False(t, report.GetDnsReport().GetIpv6Reachability().GetReachable())
+	require.Contains(t, report.GetDnsReport().GetIpv6Reachability().GetError(), "server returned no records")
 }
 
 func TestDNSDiagCrossTransportFallback(t *testing.T) {
@@ -422,15 +422,15 @@ func TestDNSDiagCrossTransportFallback(t *testing.T) {
 	report, err := d.Run(t.Context())
 	require.NoError(t, err)
 	dnsReport := report.GetDnsReport()
-	require.True(t, dnsReport.Ipv6Reachability.RespondedAaaa)
-	require.False(t, dnsReport.Ipv6Reachability.RespondedA)
-	require.True(t, dnsReport.Ipv4Reachability.RespondedA)
-	require.True(t, dnsReport.Ipv4Reachability.RespondedAaaa)
-	require.Len(t, dnsReport.ZoneResults, 1)
-	zr := dnsReport.ZoneResults[0]
-	require.NotNil(t, zr.ARecord, "A check must still run using A captured from the IPv4 nameserver")
-	require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, zr.ARecord.Status)
-	require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, zr.AaaaRecord.Status)
+	require.True(t, dnsReport.GetIpv6Reachability().GetRespondedAaaa())
+	require.False(t, dnsReport.GetIpv6Reachability().GetRespondedA())
+	require.True(t, dnsReport.GetIpv4Reachability().GetRespondedA())
+	require.True(t, dnsReport.GetIpv4Reachability().GetRespondedAaaa())
+	require.Len(t, dnsReport.GetZoneResults(), 1)
+	zr := dnsReport.GetZoneResults()[0]
+	require.NotNil(t, zr.GetARecord(), "A check must still run using A captured from the IPv4 nameserver")
+	require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, zr.GetARecord().GetStatus())
+	require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, zr.GetAaaaRecord().GetStatus())
 }
 
 func TestDNSDiagProbeFormat(t *testing.T) {
@@ -483,11 +483,11 @@ func TestDNSDiagNotRegisteredRetryRecovers(t *testing.T) {
 
 	report, err := d.Run(t.Context())
 	require.NoError(t, err)
-	require.Equal(t, diagv1.CheckReportStatus_CHECK_REPORT_STATUS_OK, report.Status,
+	require.Equal(t, diagv1.CheckReportStatus_CHECK_REPORT_STATUS_OK, report.GetStatus(),
 		"transient NOT_REGISTERED followed by OK on retry must result in overall OK")
-	zr := report.GetDnsReport().ZoneResults[0]
-	require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, zr.ARecord.Status)
-	require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, zr.AaaaRecord.Status)
+	zr := report.GetDnsReport().GetZoneResults()[0]
+	require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, zr.GetARecord().GetStatus())
+	require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, zr.GetAaaaRecord().GetStatus())
 
 	for _, network := range []string{"ip4", "ip6"} {
 		calls, _ := callsPerKey.Load(key{"company.test", network})
@@ -512,10 +512,10 @@ func TestDNSDiagNotRegisteredRetryPersistentFailure(t *testing.T) {
 
 	report, err := d.Run(t.Context())
 	require.NoError(t, err)
-	zr := report.GetDnsReport().ZoneResults[0]
-	require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_NOT_REGISTERED, zr.ARecord.Status,
+	zr := report.GetDnsReport().GetZoneResults()[0]
+	require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_NOT_REGISTERED, zr.GetARecord().GetStatus(),
 		"persistent NOT_REGISTERED must still report NOT_REGISTERED after the retry")
-	require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_NOT_REGISTERED, zr.AaaaRecord.Status)
+	require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_NOT_REGISTERED, zr.GetAaaaRecord().GetStatus())
 	require.Equal(t, int32(4), calls.Load(), "resolver must be called exactly 4 times (2 record types × 2 attempts each)")
 }
 
@@ -544,7 +544,7 @@ func TestDNSDiagReachabilityRetryRecoversFromStartupGap(t *testing.T) {
 
 	report, err := d.Run(t.Context())
 	require.NoError(t, err)
-	require.True(t, report.GetDnsReport().Ipv6Reachability.Reachable,
+	require.True(t, report.GetDnsReport().GetIpv6Reachability().GetReachable(),
 		"reachability check must succeed on the third attempt once VNet's DNS comes up")
 	require.Equal(t, int32(3), attempts.Load(), "reachability check must be attempted 3 times (2 failures + 1 success)")
 }
@@ -573,8 +573,8 @@ func TestDNSDiagReachabilityRetryPersistentFailure(t *testing.T) {
 	report, err := d.Run(t.Context())
 	require.NoError(t, err)
 	dnsReport := report.GetDnsReport()
-	require.False(t, dnsReport.Ipv6Reachability.Reachable)
-	require.Contains(t, dnsReport.Ipv6Reachability.Error, "i/o timeout")
+	require.False(t, dnsReport.GetIpv6Reachability().GetReachable())
+	require.Contains(t, dnsReport.GetIpv6Reachability().GetError(), "i/o timeout")
 	require.Equal(t, int32(defaultReachabilityMaxAttempts), attempts.Load(),
 		"reachability check must be retried up to ReachabilityMaxAttempts before giving up")
 }

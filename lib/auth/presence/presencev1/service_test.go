@@ -762,7 +762,7 @@ func TestListAuthServers(t *testing.T) {
 				require.Empty(
 					t, cmp.Diff(
 						tt.want,
-						res.Servers,
+						res.GetServers(),
 						cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 					),
 				)
@@ -892,7 +892,7 @@ func TestListProxyServers(t *testing.T) {
 				require.Empty(
 					t, cmp.Diff(
 						tt.want,
-						res.Servers,
+						res.GetServers(),
 						cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 					),
 				)

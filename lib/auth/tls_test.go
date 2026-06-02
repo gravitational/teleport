@@ -1690,15 +1690,15 @@ func TestTunnelConnectionsCRUD(t *testing.T) {
 		require.NoError(t, clt.UpsertTunnelConnection(ctx, c))
 	}
 
-	resp, err := clt.TrustClient().ListTunnelConnections(ctx, &trustpb.ListTunnelConnectionsRequest{
-		Filter: &trustpb.ListTunnelConnectionsFilter{ClusterName: clusterName},
-	})
+	resp, err := clt.TrustClient().ListTunnelConnections(ctx, trustpb.ListTunnelConnectionsRequest_builder{
+		Filter: trustpb.ListTunnelConnectionsFilter_builder{ClusterName: clusterName}.Build(),
+	}.Build())
 	require.NoError(t, err)
 	require.Len(t, resp.GetTunnelConnections(), 3)
 
-	resp, err = clt.TrustClient().ListTunnelConnections(ctx, &trustpb.ListTunnelConnectionsRequest{
-		Filter: &trustpb.ListTunnelConnectionsFilter{ClusterName: "other.example.com"},
-	})
+	resp, err = clt.TrustClient().ListTunnelConnections(ctx, trustpb.ListTunnelConnectionsRequest_builder{
+		Filter: trustpb.ListTunnelConnectionsFilter_builder{ClusterName: "other.example.com"}.Build(),
+	}.Build())
 	require.NoError(t, err)
 	require.Empty(t, resp.GetTunnelConnections())
 }

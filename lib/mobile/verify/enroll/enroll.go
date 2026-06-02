@@ -89,9 +89,9 @@ func (c *Client) CreateMobileEnrollToken(pairingToken string, deviceData *Device
 	// TODO(ravicious): Replace this with a call to the public gRPC service.
 	client := devicepb.NewDeviceTrustServiceClient(grpcConn)
 	resp, err := client.CreateDeviceEnrollToken(ctx,
-		&devicepb.CreateDeviceEnrollTokenRequest{
+		devicepb.CreateDeviceEnrollTokenRequest_builder{
 			DeviceData: toPBDeviceData(deviceData),
-		})
+		}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -107,12 +107,12 @@ func toPBDeviceData(d *DeviceCollectedData) *devicepb.DeviceCollectedData {
 	if d == nil {
 		d = &DeviceCollectedData{}
 	}
-	return &devicepb.DeviceCollectedData{
+	return devicepb.DeviceCollectedData_builder{
 		CollectTime:        timestamppb.Now(),
 		SerialNumber:       d.SerialNumber,
 		ModelIdentifier:    d.ModelIdentifier,
 		OsVersion:          d.VersionOS,
 		OsBuild:            d.BuildOS,
 		SystemSerialNumber: d.SystemSerialNumber,
-	}
+	}.Build()
 }

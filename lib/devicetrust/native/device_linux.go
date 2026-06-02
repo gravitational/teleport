@@ -180,7 +180,7 @@ func collectDeviceData(mode CollectDataMode) (*devicepb.DeviceCollectedData, err
 		displayName = displayName[:maxUsernameLen]
 	}
 
-	return &devicepb.DeviceCollectedData{
+	return devicepb.DeviceCollectedData_builder{
 		CollectTime:           timestamppb.Now(),
 		OsType:                devicepb.OSType_OS_TYPE_LINUX,
 		SerialNumber:          firstValidAssetTag(reportedAssetTag, systemSerialNumber, baseBoardSerialNumber),
@@ -193,7 +193,7 @@ func collectDeviceData(mode CollectDataMode) (*devicepb.DeviceCollectedData, err
 		ReportedAssetTag:      reportedAssetTag,
 		SystemSerialNumber:    systemSerialNumber,
 		BaseBoardSerialNumber: baseBoardSerialNumber,
-	}, nil
+	}.Build(), nil
 }
 
 func readDMIInfoAccordingToMode(mode CollectDataMode) (*linux.DMIInfo, error) {
