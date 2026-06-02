@@ -30,8 +30,10 @@ import (
 )
 
 // Compile time checks for the Okta client.
-var _ OktaImportRules = (*okta.Client)(nil)
-var _ OktaAssignments = (*okta.Client)(nil)
+var (
+	_ OktaImportRules = (*okta.Client)(nil)
+	_ OktaAssignments = (*okta.Client)(nil)
+)
 
 // Okta is an Okta interface for both the rules and assignments.
 type Okta interface {

@@ -60,12 +60,14 @@ func NewOktaService(b backend.Backend, clock clockwork.Clock) (*OktaService, err
 		return nil, trace.Wrap(err)
 	}
 
+	backendStorageLimit := 1024 * 1024
+
 	assignmentSvc, err := generic.NewService(&generic.ServiceConfig[types.OktaAssignment]{
 		Backend:       b,
 		PageLimit:     oktaAssignmentMaxPageSize,
 		ResourceKind:  types.KindOktaAssignment,
 		BackendPrefix: backend.NewKey(oktaAssignmentPrefix),
-		MarshalFunc:   services.MarshalOktaAssignment,
+		MarshalFunc:   marshalOktaAssignmentWithTargetStatusLimit(backendStorageLimit, services.MarshalOktaAssignment),
 		UnmarshalFunc: services.UnmarshalOktaAssignment,
 	})
 	if err != nil {
@@ -209,4 +211,44 @@ func (o *OktaService) DeleteOktaAssignment(ctx context.Context, name string) err
 // DeleteAllOktaAssignments removes all Okta assignments.
 func (o *OktaService) DeleteAllOktaAssignments(ctx context.Context) error {
 	return o.assignmentSvc.DeleteAllResources(ctx)
+}
+
+// marshalOktaAssignmentWithTargetStatusLimit returns a MarshalFunc that marshals the Okta assignment.
+// If the marshaled assignment exceeds the given size, then the assignment targets' statuses are stripped and it's remarshaled.
+// This is done to prevent attempting to save an assignment with so many target statuses that it exceeds the object storage size
+// of the backend, e.g. 400KB for DynamoDB or 1.5MB for etcd.
+// Note: The returned MarshalFunc mutates the assignment in-place when stripping the targets' statuses.
+//
+// TODO(nixpig): Review observability metrics in production to determine how often users exceed maximum assignment size and
+// whether this is something that needs to be addressed
+// (see: https://github.com/gravitational/rfd/blob/main/rfd/0307-okta-assignment-per-target-backoff.md#storage-limitations).
+func marshalOktaAssignmentWithTargetStatusLimit(
+	size int,
+	fn generic.MarshalFunc[types.OktaAssignment],
+) generic.MarshalFunc[types.OktaAssignment] {
+	return func(assignment types.OktaAssignment, opts ...services.MarshalOption) ([]byte, error) {
+		b, err := fn(assignment, opts...)
+		if err != nil {
+			return nil, err
+		}
+		if len(b) <= size {
+			return b, nil
+		}
+
+		// TODO(nixpig): Add observability metric for target status stripping.
+		stripOktaAssignmentTargetStatuses(assignment)
+		return fn(assignment, opts...)
+	}
+}
+
+// stripOktaAssignmentTargetStatuses takes an Okta assignment and makes a best-effort
+// attempt to nil out all targets' statuses.
+func stripOktaAssignmentTargetStatuses(assignment types.OktaAssignment) {
+	for _, target := range assignment.GetTargets() {
+		t, ok := target.(*types.OktaAssignmentTargetV1)
+		if !ok {
+			continue
+		}
+		t.Status = nil
+	}
 }
