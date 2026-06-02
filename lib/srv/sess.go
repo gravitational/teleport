@@ -360,9 +360,12 @@ func (s *SessionRegistry) OpenSession(ctx context.Context, ch ssh.Channel, scx *
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	scx.setSession(ctx, sess)
 	s.addSession(sess)
 	scx.Logger.InfoContext(ctx, "Creating interactive session", "session_id", sess.id)
+
+	if err := p.ctx.setParty(p); err != nil {
+		return trace.Wrap(err)
+	}
 
 	// Start an interactive session (TTY attached). Close the session if an error
 	// occurs, otherwise it will be closed by the callee.
@@ -393,8 +396,6 @@ func (s *SessionRegistry) JoinSession(ctx context.Context, ch ssh.Channel, scx *
 	default:
 		return trace.BadParameter("Unrecognized session participant mode: %q", mode)
 	}
-
-	scx.setSession(ctx, session)
 
 	// Update the in-memory data structure that a party member has joined.
 	if err := session.join(ch, scx, mode); err != nil {
@@ -439,9 +440,9 @@ func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Chann
 		return errCannotStartUnattendedSession
 	}
 
-	// Start a non-interactive session (TTY attached). Close the session if an error
-	// occurs, otherwise it will be closed by the callee.
-	scx.setSession(ctx, sess)
+	if err := p.ctx.setParty(p); err != nil {
+		return trace.Wrap(err)
+	}
 
 	err = sess.startExec(ctx, channel, scx, p)
 	if err != nil {
@@ -474,7 +475,7 @@ func (s *SessionRegistry) GetTerminalSize(sessionID string) (*term.Winsize, erro
 
 	sess := s.sessions[rsession.ID(sessionID)]
 	if sess == nil {
-		return nil, trace.NotFound("No session found in context.")
+		return nil, trace.NotFound("session not found")
 	}
 
 	return sess.term.GetWinSize()
@@ -783,6 +784,7 @@ type session struct {
 
 	initiator sessionInitiatorInfo
 
+	// scx is the host context for the session.
 	scx *ServerContext
 
 	presenceEnabled bool
@@ -2100,7 +2102,6 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 	// Adds participant to in-memory map of party members.
 	s.parties[p.id] = p
 	s.participants[p.id] = p
-	p.ctx.AddCloser(p)
 
 	// Write last chunk (so the newly joined parties won't stare at a blank screen).
 	if _, err := p.Write(s.io.GetRecentHistory()); err != nil {
@@ -2196,6 +2197,10 @@ func (s *session) join(ch ssh.Channel, scx *ServerContext, mode types.SessionPar
 
 	// create a new "party" (connected client) and launch/join the session.
 	p := newParty(s, mode, ch, scx)
+	if err := p.ctx.setParty(p); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if err := s.addParty(p, mode); err != nil {
 		return trace.Wrap(err)
 	}
@@ -2249,7 +2254,7 @@ type party struct {
 
 func newParty(s *session, mode types.SessionParticipantMode, ch ssh.Channel, ctx *ServerContext) *party {
 	pid := rsession.NewID()
-	return &party{
+	party := &party{
 		log: slog.With(
 			teleport.ComponentKey, teleport.Component(teleport.ComponentSession, ctx.srv.Component()),
 			"party_id", pid,
@@ -2266,6 +2271,7 @@ func newParty(s *session, mode types.SessionParticipantMode, ch ssh.Channel, ctx
 		sconn:         ctx.ServerConn,
 		mode:          mode,
 	}
+	return party
 }
 
 func (p *party) updateActivity() {

@@ -472,7 +472,7 @@ func TestSessionRegistrySetupFailureCleanup(t *testing.T) {
 
 			err = tt.openSession(t.Context(), reg, serverChan, scx)
 			require.Error(t, err)
-			require.Nil(t, scx.session)
+			require.Nil(t, scx.party)
 
 			if tt.errAssertion != nil {
 				tt.errAssertion(t, err)
@@ -572,18 +572,18 @@ func TestInteractiveSession(t *testing.T) {
 	clientChan.Drain()
 
 	require.NoError(t, reg.OpenSession(ctx, serverChan, scx))
-	require.NotNil(t, scx.session)
+	require.NotNil(t, scx.party)
 
 	// Simulate changing window size to capture an additional event.
 	require.NoError(t, reg.NotifyWinChange(ctx, rsession.TerminalParams{W: 100, H: 100}, scx))
 
 	// Stopping the session should trigger the session
 	// to end and cleanup in the background
-	scx.session.Stop()
+	scx.party.s.Stop()
 
 	// Wait for the session to be removed from the registry.
 	require.Eventually(t, func() bool {
-		_, found := reg.findSession(scx.session.id)
+		_, found := reg.findSession(scx.party.s.id)
 		return !found
 	}, time.Second*15, time.Millisecond*500)
 
@@ -657,11 +657,11 @@ func TestNonInteractiveSession(t *testing.T) {
 		clientChan.Drain()
 
 		require.NoError(t, reg.OpenExecSession(ctx, serverChan, scx))
-		require.NotNil(t, scx.session)
+		require.NotNil(t, scx.party)
 
 		// Wait for the command execution to complete and the session to be terminated.
 		require.Eventually(t, func() bool {
-			_, found := reg.findSession(scx.session.id)
+			_, found := reg.findSession(scx.party.s.id)
 			return !found
 		}, time.Second*15, time.Millisecond*500)
 
@@ -720,11 +720,11 @@ func TestNonInteractiveSession(t *testing.T) {
 		clientChan.Drain()
 
 		require.NoError(t, reg.OpenExecSession(ctx, serverChan, scx))
-		require.NotNil(t, scx.session)
+		require.NotNil(t, scx.party)
 
 		// Wait for the command execution to complete and the session to be terminated.
 		require.Eventually(t, func() bool {
-			_, found := reg.findSession(scx.session.id)
+			_, found := reg.findSession(scx.party.s.id)
 			return !found
 		}, time.Second*15, time.Millisecond*500)
 
@@ -868,8 +868,8 @@ func TestModeratedSessionPresence(t *testing.T) {
 	hostClientChan.Drain()
 
 	require.NoError(t, reg.OpenSession(ctx, hostServerChan, hostCtx))
-	require.NotNil(t, hostCtx.session)
-	sess := hostCtx.session
+	require.NotNil(t, hostCtx.party)
+	sess := hostCtx.party.s
 	t.Cleanup(sess.Stop)
 
 	tracker, err := srv.auth.GetSessionTracker(t.Context(), sess.id.String())
@@ -1177,11 +1177,11 @@ func TestStopSessionWithoutClientDisconnect(t *testing.T) {
 			clientChan.Drain()
 
 			require.NoError(t, reg.OpenSession(t.Context(), serverChan, scx))
-			require.NotNil(t, scx.session)
+			require.NotNil(t, scx.party)
 
 			stopDone := make(chan struct{})
 			go func() {
-				scx.session.Stop()
+				scx.party.s.Stop()
 				close(stopDone)
 			}()
 
@@ -1203,8 +1203,8 @@ func testOpenSession(t *testing.T, reg *SessionRegistry, sessionJoiningRoleSet s
 	err := reg.OpenSession(t.Context(), serverChan, scx)
 	require.NoError(t, err)
 
-	require.NotNil(t, scx.session)
-	return scx.session, clientChan
+	require.NotNil(t, scx.party)
+	return scx.party.s, clientChan
 }
 
 func testJoinSession(t *testing.T, reg *SessionRegistry, sid string) {
@@ -1601,13 +1601,13 @@ func TestCloseProxySession(t *testing.T) {
 	clientChan.Drain()
 	err = reg.OpenSession(ctx, serverChan, scx)
 	require.NoError(t, err)
-	require.NotNil(t, scx.session)
+	require.NotNil(t, scx.party)
 
 	// After the session is open, we force a close coming from the server. Do
 	// this inside a goroutine to avoid being blocked.
 	closeChan := make(chan error)
 	go func() {
-		closeChan <- scx.session.Close()
+		closeChan <- scx.party.s.Close()
 	}()
 
 	select {
@@ -1644,13 +1644,13 @@ func TestCloseRemoteSession(t *testing.T) {
 
 	err := reg.OpenSession(ctx, serverChan, scx)
 	require.NoError(t, err)
-	require.NotNil(t, scx.session)
+	require.NotNil(t, scx.party)
 
 	// After the session is open, we force a close coming from the server. Do
 	// this inside a goroutine to avoid being blocked.
 	closeChan := make(chan error)
 	go func() {
-		closeChan <- scx.session.Close()
+		closeChan <- scx.party.s.Close()
 	}()
 
 	select {

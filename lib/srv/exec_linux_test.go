@@ -83,7 +83,7 @@ func TestOSCommandPrep(t *testing.T) {
 		"SSH_CLIENT=10.0.0.5 4817 3022",
 		"SSH_CONNECTION=10.0.0.5 4817 127.0.0.1 3022",
 		"TERM=xterm",
-		fmt.Sprintf("SSH_TTY=%v", scx.session.term.TTYName()),
+		fmt.Sprintf("SSH_TTY=%v", scx.party.s.term.TTYName()),
 		"SSH_SESSION_ID=xxx",
 		"TELEPORT_SESSION=xxx",
 		"SSH_TELEPORT_HOST_UUID=testID",
