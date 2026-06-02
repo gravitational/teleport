@@ -27,6 +27,7 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/machineid/workloadidentityv1/expression"
+	"github.com/gravitational/teleport/lib/backend"
 )
 
 // WorkloadIdentities is an interface over the WorkloadIdentities service. This
@@ -62,6 +63,22 @@ type WorkloadIdentities interface {
 	UpsertWorkloadIdentity(
 		ctx context.Context, workloadIdentity *workloadidentityv1pb.WorkloadIdentity,
 	) (*workloadidentityv1pb.WorkloadIdentity, error)
+
+	// AppendPutWorkloadIdentityActions adds conditional actions to an atomic
+	// write to create or update a WorkloadIdentity.
+	AppendPutWorkloadIdentityActions(
+		actions []backend.ConditionalAction,
+		resource *workloadidentityv1pb.WorkloadIdentity,
+		condition backend.Condition,
+	) ([]backend.ConditionalAction, error)
+
+	// AppendDeleteWorkloadIdentityActions adds conditional actions to an atomic
+	// write to delete a WorkloadIdentity.
+	AppendDeleteWorkloadIdentityActions(
+		actions []backend.ConditionalAction,
+		name string,
+		condition backend.Condition,
+	) ([]backend.ConditionalAction, error)
 }
 
 // MarshalWorkloadIdentity marshals the WorkloadIdentity object into a JSON byte

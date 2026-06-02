@@ -840,6 +840,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 				"acme-tls/1",
 				"teleport-tcp-ping",
 				"teleport-mcp-ping",
+				"teleport-app-https-ping",
 				"teleport-postgres-ping",
 				"teleport-mysql-ping",
 				"teleport-mongodb-ping",
@@ -882,6 +883,7 @@ func TestSetupProxyTLSConfig(t *testing.T) {
 			wantNextProtos: []string{
 				"teleport-tcp-ping",
 				"teleport-mcp-ping",
+				"teleport-app-https-ping",
 				"teleport-postgres-ping",
 				"teleport-mysql-ping",
 				"teleport-mongodb-ping",

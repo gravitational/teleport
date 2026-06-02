@@ -718,6 +718,9 @@ const (
 	// access to a bot or workload, such as an AI Agent.
 	KindDelegationSession = "delegation_session"
 
+	// KindBeam is an ephemeral AI-optimized compute environment.
+	KindBeam = "beam"
+
 	// V8 is the eighth version of resources.
 	V8 = "v8"
 
@@ -1852,6 +1855,12 @@ const (
 	ApplicationProtocolHTTP = "HTTP"
 	// ApplicationProtocolTCP is the TCP apps protocol.
 	ApplicationProtocolTCP = "TCP"
+	// ApplicationProtocolMCP is the protocol for MCP (Model Context Protocol)
+	// server applications.
+	ApplicationProtocolMCP = "MCP"
+	// ApplicationProtocolLLM is the protocol for applications that expose an
+	// LLM inference endpoint.
+	ApplicationProtocolLLM = "LLM"
 )
 
 const (
@@ -1930,3 +1939,6 @@ const (
 // BuiltInAutomaticReview is used within access monitoring rules and indicates
 // that the automatic_review rule should be monitored by Teleport.
 const BuiltInAutomaticReview = "builtin"
+
+// BeamsLogin is the login that should be used when SSHing into beams.
+const BeamsLogin = "beams"

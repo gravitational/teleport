@@ -111,7 +111,7 @@ export function DesktopSession({
   const {
     directorySharingState,
     onClipboardData,
-    sendLocalClipboardToRemote,
+    onTransientUserActivation,
     clipboardSharingState,
     clearSharing,
     onShareDirectory,
@@ -272,7 +272,7 @@ export function DesktopSession({
       // Opportunistically sync local clipboard to remote while
       // transient user activation is in effect.
       // https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/readText#security
-      sendLocalClipboardToRemote();
+      onTransientUserActivation();
     }
   }
 
@@ -336,7 +336,7 @@ export function DesktopSession({
     // Opportunistically sync local clipboard to remote while
     // transient user activation is in effect.
     // https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/readText#security
-    sendLocalClipboardToRemote();
+    onTransientUserActivation();
   }
 
   function handleMouseUp(e: React.MouseEvent<HTMLCanvasElement>) {
