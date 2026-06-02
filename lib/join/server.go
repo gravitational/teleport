@@ -243,8 +243,6 @@ func (s *Server) Join(stream messages.ServerStream) (err error) {
 		if err != nil {
 			diag.Set(func(i *diagnostic.Info) { i.Error = err })
 			handleJoinFailure(ctx, s.cfg.AuthService, diag)
-		} else {
-			handleJoinSuccess(ctx, s.cfg.AuthService, diag)
 		}
 	}()
 
@@ -328,6 +326,7 @@ func (s *Server) Join(stream messages.ServerStream) (err error) {
 		return trace.Wrap(err)
 	}
 
+	handleJoinSuccess(ctx, s.cfg.AuthService, diag)
 	// Finally, send the result back to the client.
 	return trace.Wrap(stream.Send(result))
 }
