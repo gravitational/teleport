@@ -41,6 +41,9 @@ const (
 	reconnectBackoffBase = time.Millisecond
 	// reconnectBackoffMax is a backoff threshold.
 	reconnectBackoffMax = 5 * time.Second
+	// reconnectAutoResetMultiplier is the multiplier applied to reconnectBackoffMax that determines
+	// when the retry attempt counter should be reset.
+	reconnectAutoResetMultiplier = 2
 	// pingInterval is the interval to ping the Socket Mode server.
 	pingInterval = 5 * time.Second
 	// pingWriteWait is the write deadline for pings to the Socket Mode server.
@@ -85,10 +88,11 @@ func (smc *SocketModeClient) Run(ctx context.Context) error {
 	log := logger.Get(ctx)
 
 	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
-		Driver: retryutils.NewExponentialDriver(reconnectBackoffBase),
-		First:  reconnectBackoffBase,
-		Max:    reconnectBackoffMax,
-		Jitter: retryutils.DefaultJitter,
+		Driver:    retryutils.NewExponentialDriver(reconnectBackoffBase),
+		First:     reconnectBackoffBase,
+		Max:       reconnectBackoffMax,
+		Jitter:    retryutils.DefaultJitter,
+		AutoReset: reconnectAutoResetMultiplier,
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -268,7 +272,7 @@ func (smc *SocketModeClient) parseEvents(ctx context.Context, rawCh <-chan json.
 		case raw := <-rawCh:
 			var e SocketModeEvent
 			if err := json.Unmarshal(raw, &e); err != nil {
-				log.WarnContext(ctx, "Error unmarshaling slack event, skipping...", "error", err, "raw_event", raw)
+				log.WarnContext(ctx, "Error unmarshaling socket mode event, skipping...", "error", err, "raw_event", raw)
 				continue
 			}
 
@@ -297,9 +301,7 @@ func (smc *SocketModeClient) parseEvents(ctx context.Context, rawCh <-chan json.
 
 				interaction, err := UnmarshalInteractionEvent(e.Payload)
 				if err != nil {
-					log.WarnContext(ctx, "Error unmarshaling interaction event, skipping...",
-						"error", err,
-						"raw_interaction_payload", e.Payload)
+					log.WarnContext(ctx, "Unsupported interaction event, skipping...", "error", err)
 					continue
 				}
 
@@ -317,7 +319,7 @@ func (smc *SocketModeClient) parseEvents(ctx context.Context, rawCh <-chan json.
 // isFatalSocketModeError returns true if the error is fatal for the Socket Mode client, eg. invalid app-level token.
 func isFatalSocketModeError(err error) bool {
 	switch err.Error() {
-	case "token_expired", "not_authed", "invalid_auth", "account_inactive", "token_revoked", "no_permission", "not_allowed_token_type":
+	case "token_expired", "not_authed", "invalid_auth", "account_inactive", "token_revoked", "no_permission", "not_allowed_token_type", "team_access_not_granted", "missing_scope":
 		return true
 	default:
 		return false
