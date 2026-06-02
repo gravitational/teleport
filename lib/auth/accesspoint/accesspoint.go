@@ -152,9 +152,10 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 	}
 
 	reporter, err := backend.NewReporter(backend.ReporterConfig{
-		Component: teleport.ComponentCache,
-		Backend:   mem,
-		Tracer:    tracer,
+		Component:  teleport.ComponentCache,
+		Backend:    mem,
+		Tracer:     tracer,
+		Registerer: cfg.Registerer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
