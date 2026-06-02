@@ -293,13 +293,13 @@ spec:
     - match:
         object_kind: table
       permissions:
-	    - SELECT
-	    - INSERT
-	    - UPDATE
-	    - DELETE
-	    - TRUNCATE
-	    - REFERENCES
-	    - TRIGGER
+        - SELECT
+        - INSERT
+        - UPDATE
+        - DELETE
+        - TRUNCATE
+        - REFERENCES
+        - TRIGGER
 
     # app_labels: a user with this role will be allowed to connect to
     # applications with labels matching below.
@@ -463,7 +463,7 @@ spec:
       - name: Auditor oversight
         # Specifies an RBAC predicate that is used to define
         # which users count against the required user count of the policy.
-        filter: 'contains(user.spec.roles, 'auditor')'
+        filter: 'contains(user.spec.roles, "auditor")'
         # The different session kinds this policy applies to.
         kinds: ['k8s', 'ssh']
         # A list of session participant modes that a participant must have
@@ -482,7 +482,7 @@ spec:
       # identifier in logs and for organisation/categorisation.
       - name: Auditor oversight
         # Allows one to join sessions created by other users with these roles
-        roles : ['prod-access']
+        roles: ['prod-access']
         # The different session kinds this policy applies to.
         kinds: ['k8s', 'ssh']
         # The list of session participant modes the role may join the session as.
