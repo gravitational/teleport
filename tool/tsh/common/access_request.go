@@ -47,8 +47,6 @@ import (
 	"github.com/gravitational/teleport/tool/common"
 )
 
-var requestLoginHint = "use 'tsh login --request-id=<request-id>' to login with an approved request"
-
 func onRequestList(cf *CLIConf) error {
 	tc, err := makeClient(cf)
 	if err != nil {
@@ -258,7 +256,7 @@ func printRequest(cf *CLIConf, req types.AccessRequest) error {
 		}
 	}
 
-	fmt.Fprintf(cf.Stdout(), "\nhint: %v\n", requestLoginHint)
+	fmt.Fprintf(cf.Stdout(), "\nhint: use 'tsh login --request-id=%s' to log in once the request is approved\n", req.GetName())
 	return nil
 }
 
@@ -385,7 +383,7 @@ func showRequestTable(cf *CLIConf, reqs []types.AccessRequest) error {
 	_, err := table.AsBuffer().WriteTo(cf.Stdout())
 
 	fmt.Fprintf(cf.Stdout(), "\nhint: use 'tsh request show <request-id>' for additional details\n")
-	fmt.Fprintf(cf.Stdout(), "      %v\n", requestLoginHint)
+	fmt.Fprintf(cf.Stdout(), "      use 'tsh login --request-id=<request-id>' to log in with an approved request\n")
 	return trace.Wrap(err)
 }
 

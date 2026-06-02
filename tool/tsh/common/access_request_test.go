@@ -382,8 +382,12 @@ func TestPrintRequest(t *testing.T) {
 				"testuser",
 				"Roles:",
 				"admin, developer",
+				"tsh login --request-id=basic-request",
 			},
-			wantAbsent: []string{"Resources:"},
+			wantAbsent: []string{
+				"Resources:",
+				"<request-id>",
+			},
 		},
 		{
 			name: "request with constrained AWS console resources",
