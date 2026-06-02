@@ -2215,3 +2215,56 @@ func TestServerContextEmitters(t *testing.T) {
 		})
 	}
 }
+
+func TestHandleForceTerminate(t *testing.T) {
+	t.Parallel()
+
+	srv := newMockServer(t)
+	reg, err := NewSessionRegistry(SessionRegistryConfig{
+		Srv:                   srv,
+		SessionTrackerService: srv.auth,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { reg.Close() })
+
+	tests := []struct {
+		name         string
+		joinMode     types.SessionParticipantMode
+		accessDenied bool
+	}{
+		{
+			name:         "empty join mode denied",
+			accessDenied: true,
+		},
+		{
+			name:         "peer denied",
+			joinMode:     types.SessionPeerMode,
+			accessDenied: true,
+		},
+		{
+			name:         "observer denied",
+			joinMode:     types.SessionObserverMode,
+			accessDenied: true,
+		},
+		{
+			name:     "moderator allowed",
+			joinMode: types.SessionModeratorMode,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			scx := newTestServerContext(t, srv, nil, &decisionpb.SSHAccessPermit{})
+			scx.env[teleport.EnvSSHJoinMode] = string(tt.joinMode)
+
+			err := reg.ForceTerminate(scx)
+			if tt.accessDenied {
+				require.True(t, trace.IsAccessDenied(err), "expected AccessDenied, got %v", err)
+				return
+			}
+			// No session is attached to scx, so an authorized call falls
+			// through to ForceTerminate and returns nil after logging.
+			require.NoError(t, err)
+		})
+	}
+}

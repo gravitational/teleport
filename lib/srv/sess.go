@@ -453,17 +453,21 @@ func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Chann
 }
 
 func (s *SessionRegistry) ForceTerminate(ctx *ServerContext) error {
-	sess := ctx.getSession()
-	if sess == nil {
-		s.logger.DebugContext(s.Srv.Context(), "Unable to terminate session, no session found in context.")
+	p := ctx.getParty()
+	if p == nil {
+		s.logger.DebugContext(s.Srv.Context(), "Unable to terminate session, not party to a session.")
 		return nil
 	}
 
-	sess.BroadcastMessage("Forcefully terminating session...")
+	if p.mode != types.SessionModeratorMode {
+		return trace.AccessDenied("only moderators can force terminate a session")
+	}
+
+	p.s.BroadcastMessage("Forcefully terminating session...")
 
 	// Stop session, it will be cleaned up in the background to ensure
 	// the session recording is uploaded.
-	sess.Stop()
+	p.s.Stop()
 
 	return nil
 }
