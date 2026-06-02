@@ -407,3 +407,12 @@ const (
 	// MetricAthenaConsumerCollectFailed is a count of number of errors received from sqs collect.
 	MetricParquetlogConsumerCollectFailed = "audit_parquetlog_errors_from_collect_count"
 )
+
+const (
+	// MetricOktaAssignmentTargetStatusesStripped is the total number of Okta assignments that have had
+	// their targets' statuses stripped due to backend storage item size limits.
+	MetricOktaAssignmentTargetStatusesStrippedCount = "okta_assignment_target_statuses_stripped_count"
+	// MetricOktaAssignmentTargetStatusesStrippedSize is the sizes of Okta assignments that needed to have
+	// their targets' statuses stripped due to backend storage item size limits before stripping statuses.
+	MetricOktaAssignmentTargetStatusesStrippedSize = "okta_assignment_target_statuses_stripped_size"
+)

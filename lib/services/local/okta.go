@@ -23,8 +23,10 @@ import (
 	"math"
 	"time"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
@@ -48,6 +50,20 @@ const (
 	dynamodbBackendName = "dynamodb"
 	// etcdBackendName is the name of the etcd backend.
 	etcdBackendName = "etcd"
+)
+
+var (
+	targetStatusesStrippedCount = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name:      teleport.MetricOktaAssignmentTargetStatusesStrippedCount,
+		Help:      "Number of Okta assignments that have had their targets' statuses stripped due to backend storage item size constraints.",
+		Namespace: teleport.MetricNamespace,
+	}, []string{"backend"})
+
+	targetStatusesStrippedSize = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Name:      teleport.MetricOktaAssignmentTargetStatusesStrippedSize,
+		Help:      "Size in bytes of Okta assignments that exceeded backend storage item size constraints before stripping statuses.",
+		Namespace: teleport.MetricNamespace,
+	}, []string{"backend"})
 )
 
 // OktaService manages Okta resources in the Backend.
@@ -86,7 +102,7 @@ func NewOktaService(b backend.Backend, clock clockwork.Clock) (*OktaService, err
 		PageLimit:     oktaAssignmentMaxPageSize,
 		ResourceKind:  types.KindOktaAssignment,
 		BackendPrefix: backend.NewKey(oktaAssignmentPrefix),
-		MarshalFunc:   marshalOktaAssignmentWithTargetStatusLimit(maxItemSize, services.MarshalOktaAssignment),
+		MarshalFunc:   marshalOktaAssignmentWithTargetStatusLimit(maxItemSize, b.GetName(), services.MarshalOktaAssignment),
 		UnmarshalFunc: services.UnmarshalOktaAssignment,
 	})
 	if err != nil {
@@ -243,6 +259,7 @@ func (o *OktaService) DeleteAllOktaAssignments(ctx context.Context) error {
 // (see: https://github.com/gravitational/rfd/blob/main/rfd/0307-okta-assignment-per-target-backoff.md#storage-limitations).
 func marshalOktaAssignmentWithTargetStatusLimit(
 	size int,
+	backendName string,
 	fn generic.MarshalFunc[types.OktaAssignment],
 ) generic.MarshalFunc[types.OktaAssignment] {
 	return func(assignment types.OktaAssignment, opts ...services.MarshalOption) ([]byte, error) {
@@ -254,7 +271,9 @@ func marshalOktaAssignmentWithTargetStatusLimit(
 			return b, nil
 		}
 
-		// TODO(nixpig): Add observability metric for target status stripping.
+		targetStatusesStrippedCount.WithLabelValues(backendName).Inc()
+		targetStatusesStrippedSize.WithLabelValues(backendName).Observe(float64(len(b)))
+
 		stripOktaAssignmentTargetStatuses(assignment)
 		return fn(assignment, opts...)
 	}
