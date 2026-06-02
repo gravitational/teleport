@@ -408,6 +408,7 @@ const (
 	MetricParquetlogConsumerCollectFailed = "audit_parquetlog_errors_from_collect_count"
 )
 
+// Okta plugin metrics.
 const (
 	// MetricOktaAssignmentTargetStatusesStripped is the total number of Okta assignments that have had
 	// their targets' statuses stripped due to backend storage item size limits.

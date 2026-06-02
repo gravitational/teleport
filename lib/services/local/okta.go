@@ -44,25 +44,30 @@ const (
 	// dynamodbMaxItemSize is the maximum size for a single item that can be stored in DynamoDB. See: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Constraints.html#limits-items-size.
 	dynamodbMaxItemSize = 1024 * 400
 	// etcdMaxItemSize is the maximum size for a single item that can be stored in etcd. See: https://etcd.io/docs/v3.6/dev-guide/limit/.
-	etcdMaxItemSize = 1024 * 1500
+	etcdMaxItemSize = 1024 * 1024 * 1.5
+	// firestoreMaxItemSize is the maximum size for a single item that can be stored in Firestore. See: https://firebase.google.com/docs/firestore/quotas#collections_documents_and_fields.
+	firestoreMaxItemSize = 1024 * 1024
 
 	// dynamodbBackendName is the name of the DynamoDB backend.
 	dynamodbBackendName = "dynamodb"
 	// etcdBackendName is the name of the etcd backend.
 	etcdBackendName = "etcd"
+	// firestoreBackendName is the name of the Firestore backend.
+	firestoreBackendName = "firestore"
 )
 
 var (
 	targetStatusesStrippedCount = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name:      teleport.MetricOktaAssignmentTargetStatusesStrippedCount,
-		Help:      "Number of Okta assignments that have had their targets' statuses stripped due to backend storage item size constraints.",
+		Help:      "Number of Okta assignments that have had their targets' statuses stripped due to backend storage item size limits.",
 		Namespace: teleport.MetricNamespace,
 	}, []string{"backend"})
 
 	targetStatusesStrippedSize = prometheus.NewHistogramVec(prometheus.HistogramOpts{
 		Name:      teleport.MetricOktaAssignmentTargetStatusesStrippedSize,
-		Help:      "Size in bytes of Okta assignments that exceeded backend storage item size constraints before stripping statuses.",
+		Help:      "Size in bytes of Okta assignments that exceeded backend storage item size limits before stripping statuses.",
 		Namespace: teleport.MetricNamespace,
+		Buckets:   prometheus.ExponentialBuckets(256*1024, 2, 4),
 	}, []string{"backend"})
 )
 
@@ -95,6 +100,8 @@ func NewOktaService(b backend.Backend, clock clockwork.Clock) (*OktaService, err
 		maxItemSize = dynamodbMaxItemSize
 	case etcdBackendName:
 		maxItemSize = etcdMaxItemSize
+	case firestoreBackendName:
+		maxItemSize = firestoreMaxItemSize
 	}
 
 	assignmentSvc, err := generic.NewService(&generic.ServiceConfig[types.OktaAssignment]{
@@ -252,7 +259,7 @@ func (o *OktaService) DeleteAllOktaAssignments(ctx context.Context) error {
 // If the marshaled assignment exceeds the given size, then the assignment targets' statuses are stripped and it's remarshaled.
 // This is done to prevent attempting to save an assignment with so many target statuses that it exceeds the object storage size
 // of the backend, e.g. 400KB for DynamoDB or 1.5MB for etcd.
-// Note: The returned MarshalFunc mutates the assignment in-place when stripping the targets' statuses.
+// Note: The assignment is cloned before stripping statuses to avoid mutating in place.
 //
 // TODO(nixpig): Review observability metrics in production to determine how often users exceed maximum assignment size and
 // whether this is something that needs to be addressed
@@ -274,8 +281,9 @@ func marshalOktaAssignmentWithTargetStatusLimit(
 		targetStatusesStrippedCount.WithLabelValues(backendName).Inc()
 		targetStatusesStrippedSize.WithLabelValues(backendName).Observe(float64(len(b)))
 
-		stripOktaAssignmentTargetStatuses(assignment)
-		return fn(assignment, opts...)
+		assignmentClone := assignment.Copy()
+		stripOktaAssignmentTargetStatuses(assignmentClone)
+		return fn(assignmentClone, opts...)
 	}
 }
 
