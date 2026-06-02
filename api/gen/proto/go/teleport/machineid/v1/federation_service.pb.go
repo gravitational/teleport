@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/machineid/v1/federation_service.proto
 
+//go:build !protoopaque
+
 package machineidv1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -38,7 +39,7 @@ const (
 
 // GetSPIFFEFederationRequest is the request message for GetSPIFFEFederation.
 type GetSPIFFEFederationRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The name of the SPIFFEFederation resource to fetch.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -70,11 +71,6 @@ func (x *GetSPIFFEFederationRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetSPIFFEFederationRequest.ProtoReflect.Descriptor instead.
-func (*GetSPIFFEFederationRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_federation_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *GetSPIFFEFederationRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -82,12 +78,31 @@ func (x *GetSPIFFEFederationRequest) GetName() string {
 	return ""
 }
 
+func (x *GetSPIFFEFederationRequest) SetName(v string) {
+	x.Name = v
+}
+
+type GetSPIFFEFederationRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The name of the SPIFFEFederation resource to fetch.
+	Name string
+}
+
+func (b0 GetSPIFFEFederationRequest_builder) Build() *GetSPIFFEFederationRequest {
+	m0 := &GetSPIFFEFederationRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // Request for ListSPIFFEFederations.
 //
 // Follows the pagination semantics of
 // https://cloud.google.com/apis/design/standard_methods#list
 type ListSPIFFEFederationsRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The maximum number of items to return.
 	// The server may impose a different page size at its discretion.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
@@ -123,11 +138,6 @@ func (x *ListSPIFFEFederationsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListSPIFFEFederationsRequest.ProtoReflect.Descriptor instead.
-func (*ListSPIFFEFederationsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_federation_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *ListSPIFFEFederationsRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -142,9 +152,37 @@ func (x *ListSPIFFEFederationsRequest) GetPageToken() string {
 	return ""
 }
 
+func (x *ListSPIFFEFederationsRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListSPIFFEFederationsRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+type ListSPIFFEFederationsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The maximum number of items to return.
+	// The server may impose a different page size at its discretion.
+	PageSize int32
+	// The page_token value returned from a previous ListSPIFFEFederations
+	// request, if any.
+	PageToken string
+}
+
+func (b0 ListSPIFFEFederationsRequest_builder) Build() *ListSPIFFEFederationsRequest {
+	m0 := &ListSPIFFEFederationsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	return m0
+}
+
 // ListSPIFFEFederationsResponse is the response message for ListSPIFFEFederations.
 type ListSPIFFEFederationsResponse struct {
-	state             protoimpl.MessageState `protogen:"open.v1"`
+	state             protoimpl.MessageState `protogen:"hybrid.v1"`
 	SpiffeFederations []*SPIFFEFederation    `protobuf:"bytes,1,rep,name=spiffe_federations,json=spiffeFederations,proto3" json:"spiffe_federations,omitempty"`
 	// Token to retrieve the next page of results, or empty if there are no
 	// more results exist.
@@ -178,11 +216,6 @@ func (x *ListSPIFFEFederationsResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListSPIFFEFederationsResponse.ProtoReflect.Descriptor instead.
-func (*ListSPIFFEFederationsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_federation_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *ListSPIFFEFederationsResponse) GetSpiffeFederations() []*SPIFFEFederation {
 	if x != nil {
 		return x.SpiffeFederations
@@ -197,9 +230,35 @@ func (x *ListSPIFFEFederationsResponse) GetNextPageToken() string {
 	return ""
 }
 
+func (x *ListSPIFFEFederationsResponse) SetSpiffeFederations(v []*SPIFFEFederation) {
+	x.SpiffeFederations = v
+}
+
+func (x *ListSPIFFEFederationsResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListSPIFFEFederationsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	SpiffeFederations []*SPIFFEFederation
+	// Token to retrieve the next page of results, or empty if there are no
+	// more results exist.
+	NextPageToken string
+}
+
+func (b0 ListSPIFFEFederationsResponse_builder) Build() *ListSPIFFEFederationsResponse {
+	m0 := &ListSPIFFEFederationsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.SpiffeFederations = b.SpiffeFederations
+	x.NextPageToken = b.NextPageToken
+	return m0
+}
+
 // DeleteSPIFFEFederationRequest is the request message for DeleteSPIFFEFederation.
 type DeleteSPIFFEFederationRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The name of the SPIFFEFederation resource to delete.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -231,11 +290,6 @@ func (x *DeleteSPIFFEFederationRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteSPIFFEFederationRequest.ProtoReflect.Descriptor instead.
-func (*DeleteSPIFFEFederationRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_federation_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *DeleteSPIFFEFederationRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -243,9 +297,28 @@ func (x *DeleteSPIFFEFederationRequest) GetName() string {
 	return ""
 }
 
+func (x *DeleteSPIFFEFederationRequest) SetName(v string) {
+	x.Name = v
+}
+
+type DeleteSPIFFEFederationRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The name of the SPIFFEFederation resource to delete.
+	Name string
+}
+
+func (b0 DeleteSPIFFEFederationRequest_builder) Build() *DeleteSPIFFEFederationRequest {
+	m0 := &DeleteSPIFFEFederationRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // CreateSPIFFEFederationRequest is the request message for CreateSPIFFEFederation.
 type CreateSPIFFEFederationRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The SPIFFEFederation resource to create.
 	SpiffeFederation *SPIFFEFederation `protobuf:"bytes,1,opt,name=spiffe_federation,json=spiffeFederation,proto3" json:"spiffe_federation,omitempty"`
 	unknownFields    protoimpl.UnknownFields
@@ -277,16 +350,41 @@ func (x *CreateSPIFFEFederationRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateSPIFFEFederationRequest.ProtoReflect.Descriptor instead.
-func (*CreateSPIFFEFederationRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_federation_service_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *CreateSPIFFEFederationRequest) GetSpiffeFederation() *SPIFFEFederation {
 	if x != nil {
 		return x.SpiffeFederation
 	}
 	return nil
+}
+
+func (x *CreateSPIFFEFederationRequest) SetSpiffeFederation(v *SPIFFEFederation) {
+	x.SpiffeFederation = v
+}
+
+func (x *CreateSPIFFEFederationRequest) HasSpiffeFederation() bool {
+	if x == nil {
+		return false
+	}
+	return x.SpiffeFederation != nil
+}
+
+func (x *CreateSPIFFEFederationRequest) ClearSpiffeFederation() {
+	x.SpiffeFederation = nil
+}
+
+type CreateSPIFFEFederationRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The SPIFFEFederation resource to create.
+	SpiffeFederation *SPIFFEFederation
+}
+
+func (b0 CreateSPIFFEFederationRequest_builder) Build() *CreateSPIFFEFederationRequest {
+	m0 := &CreateSPIFFEFederationRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.SpiffeFederation = b.SpiffeFederation
+	return m0
 }
 
 var File_teleport_machineid_v1_federation_service_proto protoreflect.FileDescriptor
@@ -312,18 +410,6 @@ const file_teleport_machineid_v1_federation_service_proto_rawDesc = "" +
 	"\x15ListSPIFFEFederations\x123.teleport.machineid.v1.ListSPIFFEFederationsRequest\x1a4.teleport.machineid.v1.ListSPIFFEFederationsResponse\x12f\n" +
 	"\x16DeleteSPIFFEFederation\x124.teleport.machineid.v1.DeleteSPIFFEFederationRequest\x1a\x16.google.protobuf.Empty\x12w\n" +
 	"\x16CreateSPIFFEFederation\x124.teleport.machineid.v1.CreateSPIFFEFederationRequest\x1a'.teleport.machineid.v1.SPIFFEFederationBVZTgithub.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1;machineidv1b\x06proto3"
-
-var (
-	file_teleport_machineid_v1_federation_service_proto_rawDescOnce sync.Once
-	file_teleport_machineid_v1_federation_service_proto_rawDescData []byte
-)
-
-func file_teleport_machineid_v1_federation_service_proto_rawDescGZIP() []byte {
-	file_teleport_machineid_v1_federation_service_proto_rawDescOnce.Do(func() {
-		file_teleport_machineid_v1_federation_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_machineid_v1_federation_service_proto_rawDesc), len(file_teleport_machineid_v1_federation_service_proto_rawDesc)))
-	})
-	return file_teleport_machineid_v1_federation_service_proto_rawDescData
-}
 
 var file_teleport_machineid_v1_federation_service_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_teleport_machineid_v1_federation_service_proto_goTypes = []any{

@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/secreports/v1/secreports.proto
 
+//go:build !protoopaque
+
 package secreportsv1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -38,7 +39,7 @@ const (
 
 // AuditQuery is audit query resource.
 type AuditQuery struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// header is the header for //the resource.
 	Header *v1.ResourceHeader `protobuf:"bytes,1,opt,name=header,proto3" json:"header,omitempty"`
 	// spec is audit query spec.
@@ -72,11 +73,6 @@ func (x *AuditQuery) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AuditQuery.ProtoReflect.Descriptor instead.
-func (*AuditQuery) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *AuditQuery) GetHeader() *v1.ResourceHeader {
 	if x != nil {
 		return x.Header
@@ -91,9 +87,57 @@ func (x *AuditQuery) GetSpec() *AuditQuerySpec {
 	return nil
 }
 
+func (x *AuditQuery) SetHeader(v *v1.ResourceHeader) {
+	x.Header = v
+}
+
+func (x *AuditQuery) SetSpec(v *AuditQuerySpec) {
+	x.Spec = v
+}
+
+func (x *AuditQuery) HasHeader() bool {
+	if x == nil {
+		return false
+	}
+	return x.Header != nil
+}
+
+func (x *AuditQuery) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *AuditQuery) ClearHeader() {
+	x.Header = nil
+}
+
+func (x *AuditQuery) ClearSpec() {
+	x.Spec = nil
+}
+
+type AuditQuery_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// header is the header for //the resource.
+	Header *v1.ResourceHeader
+	// spec is audit query spec.
+	Spec *AuditQuerySpec
+}
+
+func (b0 AuditQuery_builder) Build() *AuditQuery {
+	m0 := &AuditQuery{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Header = b.Header
+	x.Spec = b.Spec
+	return m0
+}
+
 // AuditQuerySpec is audit query spec.
 type AuditQuerySpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// name is the name of the audit query.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// title is the title of the audit query.
@@ -131,11 +175,6 @@ func (x *AuditQuerySpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AuditQuerySpec.ProtoReflect.Descriptor instead.
-func (*AuditQuerySpec) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *AuditQuerySpec) GetName() string {
 	if x != nil {
 		return x.Name
@@ -164,9 +203,49 @@ func (x *AuditQuerySpec) GetDescription() string {
 	return ""
 }
 
+func (x *AuditQuerySpec) SetName(v string) {
+	x.Name = v
+}
+
+func (x *AuditQuerySpec) SetTitle(v string) {
+	x.Title = v
+}
+
+func (x *AuditQuerySpec) SetQuery(v string) {
+	x.Query = v
+}
+
+func (x *AuditQuerySpec) SetDescription(v string) {
+	x.Description = v
+}
+
+type AuditQuerySpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// name is the name of the audit query.
+	Name string
+	// title is the title of the audit query.
+	Title string
+	// query is the SQL Query for the audit query.
+	Query string
+	// description is the description of the audit query.
+	Description string
+}
+
+func (b0 AuditQuerySpec_builder) Build() *AuditQuerySpec {
+	m0 := &AuditQuerySpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Title = b.Title
+	x.Query = b.Query
+	x.Description = b.Description
+	return m0
+}
+
 // Report is security report resource.
 type Report struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// header is the header for the resource.
 	Header *v1.ResourceHeader `protobuf:"bytes,1,opt,name=header,proto3" json:"header,omitempty"`
 	// spec is the security report spec.
@@ -200,11 +279,6 @@ func (x *Report) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Report.ProtoReflect.Descriptor instead.
-func (*Report) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *Report) GetHeader() *v1.ResourceHeader {
 	if x != nil {
 		return x.Header
@@ -219,9 +293,57 @@ func (x *Report) GetSpec() *ReportSpec {
 	return nil
 }
 
+func (x *Report) SetHeader(v *v1.ResourceHeader) {
+	x.Header = v
+}
+
+func (x *Report) SetSpec(v *ReportSpec) {
+	x.Spec = v
+}
+
+func (x *Report) HasHeader() bool {
+	if x == nil {
+		return false
+	}
+	return x.Header != nil
+}
+
+func (x *Report) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *Report) ClearHeader() {
+	x.Header = nil
+}
+
+func (x *Report) ClearSpec() {
+	x.Spec = nil
+}
+
+type Report_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// header is the header for the resource.
+	Header *v1.ResourceHeader
+	// spec is the security report spec.
+	Spec *ReportSpec
+}
+
+func (b0 Report_builder) Build() *Report {
+	m0 := &Report{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Header = b.Header
+	x.Spec = b.Spec
+	return m0
+}
+
 // ReportSpec is security report spec.
 type ReportSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// name is the name of the security report.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// title is the title of the security report.
@@ -261,11 +383,6 @@ func (x *ReportSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ReportSpec.ProtoReflect.Descriptor instead.
-func (*ReportSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *ReportSpec) GetName() string {
 	if x != nil {
 		return x.Name
@@ -301,9 +418,56 @@ func (x *ReportSpec) GetVersion() string {
 	return ""
 }
 
+func (x *ReportSpec) SetName(v string) {
+	x.Name = v
+}
+
+func (x *ReportSpec) SetDescription(v string) {
+	x.Description = v
+}
+
+func (x *ReportSpec) SetAuditQueries(v []*AuditQuerySpec) {
+	x.AuditQueries = v
+}
+
+func (x *ReportSpec) SetTitle(v string) {
+	x.Title = v
+}
+
+func (x *ReportSpec) SetVersion(v string) {
+	x.Version = v
+}
+
+type ReportSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// name is the name of the security report.
+	Name string
+	// title is the title of the security report.
+	Description string
+	// description is the description of the security report
+	AuditQueries []*AuditQuerySpec
+	// title is the title of the security report.
+	Title string
+	// version is the version of the security report.
+	Version string
+}
+
+func (b0 ReportSpec_builder) Build() *ReportSpec {
+	m0 := &ReportSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Description = b.Description
+	x.AuditQueries = b.AuditQueries
+	x.Title = b.Title
+	x.Version = b.Version
+	return m0
+}
+
 // ReportState is security report state resource.
 type ReportState struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// header is the header for the resource.
 	Header *v1.ResourceHeader `protobuf:"bytes,1,opt,name=header,proto3" json:"header,omitempty"`
 	// spec is the security report state spec.
@@ -337,11 +501,6 @@ func (x *ReportState) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ReportState.ProtoReflect.Descriptor instead.
-func (*ReportState) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *ReportState) GetHeader() *v1.ResourceHeader {
 	if x != nil {
 		return x.Header
@@ -356,9 +515,57 @@ func (x *ReportState) GetSpec() *ReportStateSpec {
 	return nil
 }
 
+func (x *ReportState) SetHeader(v *v1.ResourceHeader) {
+	x.Header = v
+}
+
+func (x *ReportState) SetSpec(v *ReportStateSpec) {
+	x.Spec = v
+}
+
+func (x *ReportState) HasHeader() bool {
+	if x == nil {
+		return false
+	}
+	return x.Header != nil
+}
+
+func (x *ReportState) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *ReportState) ClearHeader() {
+	x.Header = nil
+}
+
+func (x *ReportState) ClearSpec() {
+	x.Spec = nil
+}
+
+type ReportState_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// header is the header for the resource.
+	Header *v1.ResourceHeader
+	// spec is the security report state spec.
+	Spec *ReportStateSpec
+}
+
+func (b0 ReportState_builder) Build() *ReportState {
+	m0 := &ReportState{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Header = b.Header
+	x.Spec = b.Spec
+	return m0
+}
+
 // ReportStateSpec is security report state spec.
 type ReportStateSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// state is the state of the security report.
 	State string `protobuf:"bytes,1,opt,name=state,proto3" json:"state,omitempty"`
 	// updated_at is the time when the security report state was updated.
@@ -392,11 +599,6 @@ func (x *ReportStateSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ReportStateSpec.ProtoReflect.Descriptor instead.
-func (*ReportStateSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *ReportStateSpec) GetState() string {
 	if x != nil {
 		return x.State
@@ -409,6 +611,32 @@ func (x *ReportStateSpec) GetUpdatedAt() string {
 		return x.UpdatedAt
 	}
 	return ""
+}
+
+func (x *ReportStateSpec) SetState(v string) {
+	x.State = v
+}
+
+func (x *ReportStateSpec) SetUpdatedAt(v string) {
+	x.UpdatedAt = v
+}
+
+type ReportStateSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// state is the state of the security report.
+	State string
+	// updated_at is the time when the security report state was updated.
+	UpdatedAt string
+}
+
+func (b0 ReportStateSpec_builder) Build() *ReportStateSpec {
+	m0 := &ReportStateSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.State = b.State
+	x.UpdatedAt = b.UpdatedAt
+	return m0
 }
 
 var File_teleport_secreports_v1_secreports_proto protoreflect.FileDescriptor
@@ -442,18 +670,6 @@ const file_teleport_secreports_v1_secreports_proto_rawDesc = "" +
 	"\x05state\x18\x01 \x01(\tR\x05state\x12\x1d\n" +
 	"\n" +
 	"updated_at\x18\x02 \x01(\tR\tupdatedAtBXZVgithub.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1;secreportsv1b\x06proto3"
-
-var (
-	file_teleport_secreports_v1_secreports_proto_rawDescOnce sync.Once
-	file_teleport_secreports_v1_secreports_proto_rawDescData []byte
-)
-
-func file_teleport_secreports_v1_secreports_proto_rawDescGZIP() []byte {
-	file_teleport_secreports_v1_secreports_proto_rawDescOnce.Do(func() {
-		file_teleport_secreports_v1_secreports_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_secreports_v1_secreports_proto_rawDesc), len(file_teleport_secreports_v1_secreports_proto_rawDesc)))
-	})
-	return file_teleport_secreports_v1_secreports_proto_rawDescData
-}
 
 var file_teleport_secreports_v1_secreports_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_teleport_secreports_v1_secreports_proto_goTypes = []any{

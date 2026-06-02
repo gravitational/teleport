@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/workloadidentity/v1/attrs.proto
 
+//go:build !protoopaque
+
 package workloadidentityv1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -38,7 +39,7 @@ const (
 
 // Attributes sourced from the Kubernetes workload attestor.
 type WorkloadAttrsKubernetes struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Whether the workload passed Kubernetes attestation.
 	Attested bool `protobuf:"varint,1,opt,name=attested,proto3" json:"attested,omitempty"`
 	// The namespace of the workload pod.
@@ -80,11 +81,6 @@ func (x *WorkloadAttrsKubernetes) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use WorkloadAttrsKubernetes.ProtoReflect.Descriptor instead.
-func (*WorkloadAttrsKubernetes) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_attrs_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *WorkloadAttrsKubernetes) GetAttested() bool {
@@ -136,9 +132,81 @@ func (x *WorkloadAttrsKubernetes) GetContainer() *WorkloadAttrsKubernetesContain
 	return nil
 }
 
+func (x *WorkloadAttrsKubernetes) SetAttested(v bool) {
+	x.Attested = v
+}
+
+func (x *WorkloadAttrsKubernetes) SetNamespace(v string) {
+	x.Namespace = v
+}
+
+func (x *WorkloadAttrsKubernetes) SetPodName(v string) {
+	x.PodName = v
+}
+
+func (x *WorkloadAttrsKubernetes) SetServiceAccount(v string) {
+	x.ServiceAccount = v
+}
+
+func (x *WorkloadAttrsKubernetes) SetPodUid(v string) {
+	x.PodUid = v
+}
+
+func (x *WorkloadAttrsKubernetes) SetLabels(v map[string]string) {
+	x.Labels = v
+}
+
+func (x *WorkloadAttrsKubernetes) SetContainer(v *WorkloadAttrsKubernetesContainer) {
+	x.Container = v
+}
+
+func (x *WorkloadAttrsKubernetes) HasContainer() bool {
+	if x == nil {
+		return false
+	}
+	return x.Container != nil
+}
+
+func (x *WorkloadAttrsKubernetes) ClearContainer() {
+	x.Container = nil
+}
+
+type WorkloadAttrsKubernetes_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Whether the workload passed Kubernetes attestation.
+	Attested bool
+	// The namespace of the workload pod.
+	Namespace string
+	// The name of the workload pod.
+	PodName string
+	// The service account of the workload pod.
+	ServiceAccount string
+	// The UID of the workload pod.
+	PodUid string
+	// The labels of the workload pod.
+	Labels map[string]string
+	// Details of the workload container.
+	Container *WorkloadAttrsKubernetesContainer
+}
+
+func (b0 WorkloadAttrsKubernetes_builder) Build() *WorkloadAttrsKubernetes {
+	m0 := &WorkloadAttrsKubernetes{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Attested = b.Attested
+	x.Namespace = b.Namespace
+	x.PodName = b.PodName
+	x.ServiceAccount = b.ServiceAccount
+	x.PodUid = b.PodUid
+	x.Labels = b.Labels
+	x.Container = b.Container
+	return m0
+}
+
 // Attributes of the container sourced from the Kubernetes workload attestation.
 type WorkloadAttrsKubernetesContainer struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The name of the container.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// The name of the image the container is running.
@@ -174,11 +242,6 @@ func (x *WorkloadAttrsKubernetesContainer) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkloadAttrsKubernetesContainer.ProtoReflect.Descriptor instead.
-func (*WorkloadAttrsKubernetesContainer) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_attrs_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *WorkloadAttrsKubernetesContainer) GetName() string {
 	if x != nil {
 		return x.Name
@@ -200,9 +263,42 @@ func (x *WorkloadAttrsKubernetesContainer) GetImageDigest() string {
 	return ""
 }
 
+func (x *WorkloadAttrsKubernetesContainer) SetName(v string) {
+	x.Name = v
+}
+
+func (x *WorkloadAttrsKubernetesContainer) SetImage(v string) {
+	x.Image = v
+}
+
+func (x *WorkloadAttrsKubernetesContainer) SetImageDigest(v string) {
+	x.ImageDigest = v
+}
+
+type WorkloadAttrsKubernetesContainer_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The name of the container.
+	Name string
+	// The name of the image the container is running.
+	Image string
+	// The exact image digest the container is running.
+	ImageDigest string
+}
+
+func (b0 WorkloadAttrsKubernetesContainer_builder) Build() *WorkloadAttrsKubernetesContainer {
+	m0 := &WorkloadAttrsKubernetesContainer{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Image = b.Image
+	x.ImageDigest = b.ImageDigest
+	return m0
+}
+
 // Attributes sourced from the Unix workload attestor.
 type WorkloadAttrsUnix struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Whether the workload passed Unix attestation.
 	Attested bool `protobuf:"varint,1,opt,name=attested,proto3" json:"attested,omitempty"`
 	// The PID of the workload process.
@@ -242,11 +338,6 @@ func (x *WorkloadAttrsUnix) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use WorkloadAttrsUnix.ProtoReflect.Descriptor instead.
-func (*WorkloadAttrsUnix) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_attrs_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *WorkloadAttrsUnix) GetAttested() bool {
@@ -291,9 +382,85 @@ func (x *WorkloadAttrsUnix) GetBinaryHash() string {
 	return ""
 }
 
+func (x *WorkloadAttrsUnix) SetAttested(v bool) {
+	x.Attested = v
+}
+
+func (x *WorkloadAttrsUnix) SetPid(v int32) {
+	x.Pid = v
+}
+
+func (x *WorkloadAttrsUnix) SetGid(v uint32) {
+	x.Gid = v
+}
+
+func (x *WorkloadAttrsUnix) SetUid(v uint32) {
+	x.Uid = v
+}
+
+func (x *WorkloadAttrsUnix) SetBinaryPath(v string) {
+	x.BinaryPath = &v
+}
+
+func (x *WorkloadAttrsUnix) SetBinaryHash(v string) {
+	x.BinaryHash = &v
+}
+
+func (x *WorkloadAttrsUnix) HasBinaryPath() bool {
+	if x == nil {
+		return false
+	}
+	return x.BinaryPath != nil
+}
+
+func (x *WorkloadAttrsUnix) HasBinaryHash() bool {
+	if x == nil {
+		return false
+	}
+	return x.BinaryHash != nil
+}
+
+func (x *WorkloadAttrsUnix) ClearBinaryPath() {
+	x.BinaryPath = nil
+}
+
+func (x *WorkloadAttrsUnix) ClearBinaryHash() {
+	x.BinaryHash = nil
+}
+
+type WorkloadAttrsUnix_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Whether the workload passed Unix attestation.
+	Attested bool
+	// The PID of the workload process.
+	Pid int32
+	// The primary user ID of the workload process.
+	Gid uint32
+	// The primary group ID of the workload process.
+	Uid uint32
+	// The path to the workload process binary.
+	BinaryPath *string
+	// The hex-encoded SHA256 hash of the workload process binary.
+	BinaryHash *string
+}
+
+func (b0 WorkloadAttrsUnix_builder) Build() *WorkloadAttrsUnix {
+	m0 := &WorkloadAttrsUnix{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Attested = b.Attested
+	x.Pid = b.Pid
+	x.Gid = b.Gid
+	x.Uid = b.Uid
+	x.BinaryPath = b.BinaryPath
+	x.BinaryHash = b.BinaryHash
+	return m0
+}
+
 // Attributes sourced from the Podman workload attestor.
 type WorkloadAttrsPodman struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Whether the workload passed Podman attestation.
 	Attested bool `protobuf:"varint,1,opt,name=attested,proto3" json:"attested,omitempty"`
 	// Attributes of the container.
@@ -329,11 +496,6 @@ func (x *WorkloadAttrsPodman) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkloadAttrsPodman.ProtoReflect.Descriptor instead.
-func (*WorkloadAttrsPodman) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_attrs_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *WorkloadAttrsPodman) GetAttested() bool {
 	if x != nil {
 		return x.Attested
@@ -355,9 +517,64 @@ func (x *WorkloadAttrsPodman) GetPod() *WorkloadAttrsPodmanPod {
 	return nil
 }
 
+func (x *WorkloadAttrsPodman) SetAttested(v bool) {
+	x.Attested = v
+}
+
+func (x *WorkloadAttrsPodman) SetContainer(v *WorkloadAttrsPodmanContainer) {
+	x.Container = v
+}
+
+func (x *WorkloadAttrsPodman) SetPod(v *WorkloadAttrsPodmanPod) {
+	x.Pod = v
+}
+
+func (x *WorkloadAttrsPodman) HasContainer() bool {
+	if x == nil {
+		return false
+	}
+	return x.Container != nil
+}
+
+func (x *WorkloadAttrsPodman) HasPod() bool {
+	if x == nil {
+		return false
+	}
+	return x.Pod != nil
+}
+
+func (x *WorkloadAttrsPodman) ClearContainer() {
+	x.Container = nil
+}
+
+func (x *WorkloadAttrsPodman) ClearPod() {
+	x.Pod = nil
+}
+
+type WorkloadAttrsPodman_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Whether the workload passed Podman attestation.
+	Attested bool
+	// Attributes of the container.
+	Container *WorkloadAttrsPodmanContainer
+	// Attributes of the pod, if the container is in one.
+	Pod *WorkloadAttrsPodmanPod
+}
+
+func (b0 WorkloadAttrsPodman_builder) Build() *WorkloadAttrsPodman {
+	m0 := &WorkloadAttrsPodman{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Attested = b.Attested
+	x.Container = b.Container
+	x.Pod = b.Pod
+	return m0
+}
+
 // Attributes of the container sourced from the Podman workload attestation.
 type WorkloadAttrsPodmanContainer struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The name of the container.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// The image the container is running.
@@ -395,11 +612,6 @@ func (x *WorkloadAttrsPodmanContainer) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkloadAttrsPodmanContainer.ProtoReflect.Descriptor instead.
-func (*WorkloadAttrsPodmanContainer) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_attrs_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *WorkloadAttrsPodmanContainer) GetName() string {
 	if x != nil {
 		return x.Name
@@ -428,9 +640,49 @@ func (x *WorkloadAttrsPodmanContainer) GetImageDigest() string {
 	return ""
 }
 
+func (x *WorkloadAttrsPodmanContainer) SetName(v string) {
+	x.Name = v
+}
+
+func (x *WorkloadAttrsPodmanContainer) SetImage(v string) {
+	x.Image = v
+}
+
+func (x *WorkloadAttrsPodmanContainer) SetLabels(v map[string]string) {
+	x.Labels = v
+}
+
+func (x *WorkloadAttrsPodmanContainer) SetImageDigest(v string) {
+	x.ImageDigest = v
+}
+
+type WorkloadAttrsPodmanContainer_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The name of the container.
+	Name string
+	// The image the container is running.
+	Image string
+	// The labels attached to the container.
+	Labels map[string]string
+	// The exact image digest the container is running.
+	ImageDigest string
+}
+
+func (b0 WorkloadAttrsPodmanContainer_builder) Build() *WorkloadAttrsPodmanContainer {
+	m0 := &WorkloadAttrsPodmanContainer{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Image = b.Image
+	x.Labels = b.Labels
+	x.ImageDigest = b.ImageDigest
+	return m0
+}
+
 // Attributes of the pod sourced from the Podman workload attestation.
 type WorkloadAttrsPodmanPod struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The name of the pod.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// The labels attached to the pod.
@@ -464,11 +716,6 @@ func (x *WorkloadAttrsPodmanPod) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkloadAttrsPodmanPod.ProtoReflect.Descriptor instead.
-func (*WorkloadAttrsPodmanPod) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_attrs_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *WorkloadAttrsPodmanPod) GetName() string {
 	if x != nil {
 		return x.Name
@@ -483,9 +730,35 @@ func (x *WorkloadAttrsPodmanPod) GetLabels() map[string]string {
 	return nil
 }
 
+func (x *WorkloadAttrsPodmanPod) SetName(v string) {
+	x.Name = v
+}
+
+func (x *WorkloadAttrsPodmanPod) SetLabels(v map[string]string) {
+	x.Labels = v
+}
+
+type WorkloadAttrsPodmanPod_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The name of the pod.
+	Name string
+	// The labels attached to the pod.
+	Labels map[string]string
+}
+
+func (b0 WorkloadAttrsPodmanPod_builder) Build() *WorkloadAttrsPodmanPod {
+	m0 := &WorkloadAttrsPodmanPod{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Labels = b.Labels
+	return m0
+}
+
 // Attributes sourced from the Docker workload attestor.
 type WorkloadAttrsDocker struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Whether the workload passed Docker attestation.
 	Attested bool `protobuf:"varint,1,opt,name=attested,proto3" json:"attested,omitempty"`
 	// Attributes of the container.
@@ -519,11 +792,6 @@ func (x *WorkloadAttrsDocker) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkloadAttrsDocker.ProtoReflect.Descriptor instead.
-func (*WorkloadAttrsDocker) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_attrs_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *WorkloadAttrsDocker) GetAttested() bool {
 	if x != nil {
 		return x.Attested
@@ -538,9 +806,46 @@ func (x *WorkloadAttrsDocker) GetContainer() *WorkloadAttrsDockerContainer {
 	return nil
 }
 
+func (x *WorkloadAttrsDocker) SetAttested(v bool) {
+	x.Attested = v
+}
+
+func (x *WorkloadAttrsDocker) SetContainer(v *WorkloadAttrsDockerContainer) {
+	x.Container = v
+}
+
+func (x *WorkloadAttrsDocker) HasContainer() bool {
+	if x == nil {
+		return false
+	}
+	return x.Container != nil
+}
+
+func (x *WorkloadAttrsDocker) ClearContainer() {
+	x.Container = nil
+}
+
+type WorkloadAttrsDocker_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Whether the workload passed Docker attestation.
+	Attested bool
+	// Attributes of the container.
+	Container *WorkloadAttrsDockerContainer
+}
+
+func (b0 WorkloadAttrsDocker_builder) Build() *WorkloadAttrsDocker {
+	m0 := &WorkloadAttrsDocker{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Attested = b.Attested
+	x.Container = b.Container
+	return m0
+}
+
 // Attributes of the container sourced from the Docker workload attestation.
 type WorkloadAttrsDockerContainer struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The name of the container.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// The image the container is running.
@@ -578,11 +883,6 @@ func (x *WorkloadAttrsDockerContainer) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkloadAttrsDockerContainer.ProtoReflect.Descriptor instead.
-func (*WorkloadAttrsDockerContainer) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_attrs_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *WorkloadAttrsDockerContainer) GetName() string {
 	if x != nil {
 		return x.Name
@@ -611,9 +911,49 @@ func (x *WorkloadAttrsDockerContainer) GetImageDigest() string {
 	return ""
 }
 
+func (x *WorkloadAttrsDockerContainer) SetName(v string) {
+	x.Name = v
+}
+
+func (x *WorkloadAttrsDockerContainer) SetImage(v string) {
+	x.Image = v
+}
+
+func (x *WorkloadAttrsDockerContainer) SetLabels(v map[string]string) {
+	x.Labels = v
+}
+
+func (x *WorkloadAttrsDockerContainer) SetImageDigest(v string) {
+	x.ImageDigest = v
+}
+
+type WorkloadAttrsDockerContainer_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The name of the container.
+	Name string
+	// The image the container is running.
+	Image string
+	// The labels attached to the container.
+	Labels map[string]string
+	// The exact image digest the container is running.
+	ImageDigest string
+}
+
+func (b0 WorkloadAttrsDockerContainer_builder) Build() *WorkloadAttrsDockerContainer {
+	m0 := &WorkloadAttrsDockerContainer{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Image = b.Image
+	x.Labels = b.Labels
+	x.ImageDigest = b.ImageDigest
+	return m0
+}
+
 // Attributes sourced from the Systemd workload attestor.
 type WorkloadAttrsSystemd struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Whether the workload passed Systemd attestation.
 	Attested bool `protobuf:"varint,1,opt,name=attested,proto3" json:"attested,omitempty"`
 	// The systemd service name.
@@ -647,11 +987,6 @@ func (x *WorkloadAttrsSystemd) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkloadAttrsSystemd.ProtoReflect.Descriptor instead.
-func (*WorkloadAttrsSystemd) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_attrs_proto_rawDescGZIP(), []int{8}
-}
-
 func (x *WorkloadAttrsSystemd) GetAttested() bool {
 	if x != nil {
 		return x.Attested
@@ -666,9 +1001,35 @@ func (x *WorkloadAttrsSystemd) GetService() string {
 	return ""
 }
 
+func (x *WorkloadAttrsSystemd) SetAttested(v bool) {
+	x.Attested = v
+}
+
+func (x *WorkloadAttrsSystemd) SetService(v string) {
+	x.Service = v
+}
+
+type WorkloadAttrsSystemd_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Whether the workload passed Systemd attestation.
+	Attested bool
+	// The systemd service name.
+	Service string
+}
+
+func (b0 WorkloadAttrsSystemd_builder) Build() *WorkloadAttrsSystemd {
+	m0 := &WorkloadAttrsSystemd{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Attested = b.Attested
+	x.Service = b.Service
+	return m0
+}
+
 // Attributes sourced from the Sigstore workload attestor.
 type WorkloadAttrsSigstore struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Verificiation payloads.
 	Payloads      []*SigstoreVerificationPayload `protobuf:"bytes,1,rep,name=payloads,proto3" json:"payloads,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -700,11 +1061,6 @@ func (x *WorkloadAttrsSigstore) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkloadAttrsSigstore.ProtoReflect.Descriptor instead.
-func (*WorkloadAttrsSigstore) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_attrs_proto_rawDescGZIP(), []int{9}
-}
-
 func (x *WorkloadAttrsSigstore) GetPayloads() []*SigstoreVerificationPayload {
 	if x != nil {
 		return x.Payloads
@@ -712,11 +1068,30 @@ func (x *WorkloadAttrsSigstore) GetPayloads() []*SigstoreVerificationPayload {
 	return nil
 }
 
+func (x *WorkloadAttrsSigstore) SetPayloads(v []*SigstoreVerificationPayload) {
+	x.Payloads = v
+}
+
+type WorkloadAttrsSigstore_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Verificiation payloads.
+	Payloads []*SigstoreVerificationPayload
+}
+
+func (b0 WorkloadAttrsSigstore_builder) Build() *WorkloadAttrsSigstore {
+	m0 := &WorkloadAttrsSigstore{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Payloads = b.Payloads
+	return m0
+}
+
 // The attributes provided by `tbot` regarding the workload's attestation.
 // This will be mostly unset if the workload has not requested credentials via
 // the SPIFFE Workload API.
 type WorkloadAttrs struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The Unix-specific attributes.
 	Unix *WorkloadAttrsUnix `protobuf:"bytes,1,opt,name=unix,proto3" json:"unix,omitempty"`
 	// The Kubernetes-specific attributes.
@@ -756,11 +1131,6 @@ func (x *WorkloadAttrs) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use WorkloadAttrs.ProtoReflect.Descriptor instead.
-func (*WorkloadAttrs) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_attrs_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *WorkloadAttrs) GetUnix() *WorkloadAttrsUnix {
@@ -805,10 +1175,130 @@ func (x *WorkloadAttrs) GetSigstore() *WorkloadAttrsSigstore {
 	return nil
 }
 
+func (x *WorkloadAttrs) SetUnix(v *WorkloadAttrsUnix) {
+	x.Unix = v
+}
+
+func (x *WorkloadAttrs) SetKubernetes(v *WorkloadAttrsKubernetes) {
+	x.Kubernetes = v
+}
+
+func (x *WorkloadAttrs) SetPodman(v *WorkloadAttrsPodman) {
+	x.Podman = v
+}
+
+func (x *WorkloadAttrs) SetDocker(v *WorkloadAttrsDocker) {
+	x.Docker = v
+}
+
+func (x *WorkloadAttrs) SetSystemd(v *WorkloadAttrsSystemd) {
+	x.Systemd = v
+}
+
+func (x *WorkloadAttrs) SetSigstore(v *WorkloadAttrsSigstore) {
+	x.Sigstore = v
+}
+
+func (x *WorkloadAttrs) HasUnix() bool {
+	if x == nil {
+		return false
+	}
+	return x.Unix != nil
+}
+
+func (x *WorkloadAttrs) HasKubernetes() bool {
+	if x == nil {
+		return false
+	}
+	return x.Kubernetes != nil
+}
+
+func (x *WorkloadAttrs) HasPodman() bool {
+	if x == nil {
+		return false
+	}
+	return x.Podman != nil
+}
+
+func (x *WorkloadAttrs) HasDocker() bool {
+	if x == nil {
+		return false
+	}
+	return x.Docker != nil
+}
+
+func (x *WorkloadAttrs) HasSystemd() bool {
+	if x == nil {
+		return false
+	}
+	return x.Systemd != nil
+}
+
+func (x *WorkloadAttrs) HasSigstore() bool {
+	if x == nil {
+		return false
+	}
+	return x.Sigstore != nil
+}
+
+func (x *WorkloadAttrs) ClearUnix() {
+	x.Unix = nil
+}
+
+func (x *WorkloadAttrs) ClearKubernetes() {
+	x.Kubernetes = nil
+}
+
+func (x *WorkloadAttrs) ClearPodman() {
+	x.Podman = nil
+}
+
+func (x *WorkloadAttrs) ClearDocker() {
+	x.Docker = nil
+}
+
+func (x *WorkloadAttrs) ClearSystemd() {
+	x.Systemd = nil
+}
+
+func (x *WorkloadAttrs) ClearSigstore() {
+	x.Sigstore = nil
+}
+
+type WorkloadAttrs_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The Unix-specific attributes.
+	Unix *WorkloadAttrsUnix
+	// The Kubernetes-specific attributes.
+	Kubernetes *WorkloadAttrsKubernetes
+	// The Podman-specific attributes.
+	Podman *WorkloadAttrsPodman
+	// The Docker-specific attributes.
+	Docker *WorkloadAttrsDocker
+	// The Systemd-specific attributes.
+	Systemd *WorkloadAttrsSystemd
+	// The Sigstore-specific attributes.
+	Sigstore *WorkloadAttrsSigstore
+}
+
+func (b0 WorkloadAttrs_builder) Build() *WorkloadAttrs {
+	m0 := &WorkloadAttrs{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Unix = b.Unix
+	x.Kubernetes = b.Kubernetes
+	x.Podman = b.Podman
+	x.Docker = b.Docker
+	x.Systemd = b.Systemd
+	x.Sigstore = b.Sigstore
+	return m0
+}
+
 // Attributes related to the user/bot making the request for a workload
 // identity.
 type UserAttrs struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The name of the user.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// Whether the user is a bot.
@@ -848,11 +1338,6 @@ func (x *UserAttrs) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use UserAttrs.ProtoReflect.Descriptor instead.
-func (*UserAttrs) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_attrs_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *UserAttrs) GetName() string {
@@ -897,11 +1382,65 @@ func (x *UserAttrs) GetTraits() []*v1.Trait {
 	return nil
 }
 
+func (x *UserAttrs) SetName(v string) {
+	x.Name = v
+}
+
+func (x *UserAttrs) SetIsBot(v bool) {
+	x.IsBot = v
+}
+
+func (x *UserAttrs) SetBotName(v string) {
+	x.BotName = v
+}
+
+func (x *UserAttrs) SetBotInstanceId(v string) {
+	x.BotInstanceId = v
+}
+
+func (x *UserAttrs) SetLabels(v map[string]string) {
+	x.Labels = v
+}
+
+func (x *UserAttrs) SetTraits(v []*v1.Trait) {
+	x.Traits = v
+}
+
+type UserAttrs_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The name of the user.
+	Name string
+	// Whether the user is a bot.
+	IsBot bool
+	// If the user is a bot, the name of the bot.
+	BotName string
+	// If the user is a bot, the instance ID of the bot.
+	BotInstanceId string
+	// Labels of the user.
+	Labels map[string]string
+	// Traits of the user.
+	Traits []*v1.Trait
+}
+
+func (b0 UserAttrs_builder) Build() *UserAttrs {
+	m0 := &UserAttrs{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.IsBot = b.IsBot
+	x.BotName = b.BotName
+	x.BotInstanceId = b.BotInstanceId
+	x.Labels = b.Labels
+	x.Traits = b.Traits
+	return m0
+}
+
 // The attributes of a principal requesting a workload identity. These
 // attributes can be leveraged in rules, expressions and templating within the
 // WorkloadIdentity resource.
 type Attrs struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Attributes sourced by workload attestation performed by `tbot`.
 	Workload *WorkloadAttrs `protobuf:"bytes,1,opt,name=workload,proto3" json:"workload,omitempty"`
 	// Attributes sourced from the user/bot making the request for a workload
@@ -939,11 +1478,6 @@ func (x *Attrs) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Attrs.ProtoReflect.Descriptor instead.
-func (*Attrs) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_attrs_proto_rawDescGZIP(), []int{12}
-}
-
 func (x *Attrs) GetWorkload() *WorkloadAttrs {
 	if x != nil {
 		return x.Workload
@@ -963,6 +1497,74 @@ func (x *Attrs) GetJoin() *JoinAttrs {
 		return x.Join
 	}
 	return nil
+}
+
+func (x *Attrs) SetWorkload(v *WorkloadAttrs) {
+	x.Workload = v
+}
+
+func (x *Attrs) SetUser(v *UserAttrs) {
+	x.User = v
+}
+
+func (x *Attrs) SetJoin(v *JoinAttrs) {
+	x.Join = v
+}
+
+func (x *Attrs) HasWorkload() bool {
+	if x == nil {
+		return false
+	}
+	return x.Workload != nil
+}
+
+func (x *Attrs) HasUser() bool {
+	if x == nil {
+		return false
+	}
+	return x.User != nil
+}
+
+func (x *Attrs) HasJoin() bool {
+	if x == nil {
+		return false
+	}
+	return x.Join != nil
+}
+
+func (x *Attrs) ClearWorkload() {
+	x.Workload = nil
+}
+
+func (x *Attrs) ClearUser() {
+	x.User = nil
+}
+
+func (x *Attrs) ClearJoin() {
+	x.Join = nil
+}
+
+type Attrs_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Attributes sourced by workload attestation performed by `tbot`.
+	Workload *WorkloadAttrs
+	// Attributes sourced from the user/bot making the request for a workload
+	// identity credential.
+	User *UserAttrs
+	// Attributes sourced from the join process that the Bot underwent. This will
+	// be unset if the principal making the request is not a Bot.
+	Join *JoinAttrs
+}
+
+func (b0 Attrs_builder) Build() *Attrs {
+	m0 := &Attrs{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Workload = b.Workload
+	x.User = b.User
+	x.Join = b.Join
+	return m0
 }
 
 var File_teleport_workloadidentity_v1_attrs_proto protoreflect.FileDescriptor
@@ -1056,18 +1658,6 @@ const file_teleport_workloadidentity_v1_attrs_proto_rawDesc = "" +
 	"\bworkload\x18\x01 \x01(\v2+.teleport.workloadidentity.v1.WorkloadAttrsR\bworkload\x12;\n" +
 	"\x04user\x18\x02 \x01(\v2'.teleport.workloadidentity.v1.UserAttrsR\x04user\x12;\n" +
 	"\x04join\x18\x03 \x01(\v2'.teleport.workloadidentity.v1.JoinAttrsR\x04joinBdZbgithub.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1b\x06proto3"
-
-var (
-	file_teleport_workloadidentity_v1_attrs_proto_rawDescOnce sync.Once
-	file_teleport_workloadidentity_v1_attrs_proto_rawDescData []byte
-)
-
-func file_teleport_workloadidentity_v1_attrs_proto_rawDescGZIP() []byte {
-	file_teleport_workloadidentity_v1_attrs_proto_rawDescOnce.Do(func() {
-		file_teleport_workloadidentity_v1_attrs_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_workloadidentity_v1_attrs_proto_rawDesc), len(file_teleport_workloadidentity_v1_attrs_proto_rawDesc)))
-	})
-	return file_teleport_workloadidentity_v1_attrs_proto_rawDescData
-}
 
 var file_teleport_workloadidentity_v1_attrs_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
 var file_teleport_workloadidentity_v1_attrs_proto_goTypes = []any{

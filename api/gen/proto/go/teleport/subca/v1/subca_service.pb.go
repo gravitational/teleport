@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/subca/v1/subca_service.proto
 
+//go:build !protoopaque
+
 package subcav1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -37,7 +38,7 @@ const (
 
 // Request for CreateCSR.
 type CreateCSRRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// CA type per api/types.CertAuthType.
 	// Required.
 	CaType string `protobuf:"bytes,1,opt,name=ca_type,json=caType,proto3" json:"ca_type,omitempty"`
@@ -81,11 +82,6 @@ func (x *CreateCSRRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateCSRRequest.ProtoReflect.Descriptor instead.
-func (*CreateCSRRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *CreateCSRRequest) GetCaType() string {
 	if x != nil {
 		return x.CaType
@@ -107,9 +103,72 @@ func (x *CreateCSRRequest) GetCustomSubject() *DistinguishedName {
 	return nil
 }
 
+func (x *CreateCSRRequest) SetCaType(v string) {
+	x.CaType = v
+}
+
+func (x *CreateCSRRequest) SetPublicKeyHash(v *PublicKeyHash) {
+	x.PublicKeyHash = v
+}
+
+func (x *CreateCSRRequest) SetCustomSubject(v *DistinguishedName) {
+	x.CustomSubject = v
+}
+
+func (x *CreateCSRRequest) HasPublicKeyHash() bool {
+	if x == nil {
+		return false
+	}
+	return x.PublicKeyHash != nil
+}
+
+func (x *CreateCSRRequest) HasCustomSubject() bool {
+	if x == nil {
+		return false
+	}
+	return x.CustomSubject != nil
+}
+
+func (x *CreateCSRRequest) ClearPublicKeyHash() {
+	x.PublicKeyHash = nil
+}
+
+func (x *CreateCSRRequest) ClearCustomSubject() {
+	x.CustomSubject = nil
+}
+
+type CreateCSRRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// CA type per api/types.CertAuthType.
+	// Required.
+	CaType string
+	// Targets a CA certificate by its public key.
+	// Optional.
+	PublicKeyHash *PublicKeyHash
+	// Customized certificate Subject.
+	// Eg: `O=mycluster,OU=Llama Unit,CN=Llama Teleport DB client CA`.
+	//
+	// Teleport CA Subject restrictions still apply. The system may modify the
+	// Subject or reject the request if restrictions cannot be fulfilled.
+	//
+	// Optional. If present the request must target a single certificate.
+	CustomSubject *DistinguishedName
+}
+
+func (b0 CreateCSRRequest_builder) Build() *CreateCSRRequest {
+	m0 := &CreateCSRRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.CaType = b.CaType
+	x.PublicKeyHash = b.PublicKeyHash
+	x.CustomSubject = b.CustomSubject
+	return m0
+}
+
 // Response for CreateCSR.
 type CreateCSRResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Created CSRs.
 	Csrs          []*CertificateSigningRequest `protobuf:"bytes,1,rep,name=csrs,proto3" json:"csrs,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -141,11 +200,6 @@ func (x *CreateCSRResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateCSRResponse.ProtoReflect.Descriptor instead.
-func (*CreateCSRResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *CreateCSRResponse) GetCsrs() []*CertificateSigningRequest {
 	if x != nil {
 		return x.Csrs
@@ -153,9 +207,28 @@ func (x *CreateCSRResponse) GetCsrs() []*CertificateSigningRequest {
 	return nil
 }
 
+func (x *CreateCSRResponse) SetCsrs(v []*CertificateSigningRequest) {
+	x.Csrs = v
+}
+
+type CreateCSRResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Created CSRs.
+	Csrs []*CertificateSigningRequest
+}
+
+func (b0 CreateCSRResponse_builder) Build() *CreateCSRResponse {
+	m0 := &CreateCSRResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Csrs = b.Csrs
+	return m0
+}
+
 // Request for CreateCertAuthorityOverride.
 type CreateCertAuthorityOverrideRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// CA override to create.
 	// Required.
 	CaOverride    *CertAuthorityOverride `protobuf:"bytes,1,opt,name=ca_override,json=caOverride,proto3" json:"ca_override,omitempty"`
@@ -188,11 +261,6 @@ func (x *CreateCertAuthorityOverrideRequest) ProtoReflect() protoreflect.Message
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateCertAuthorityOverrideRequest.ProtoReflect.Descriptor instead.
-func (*CreateCertAuthorityOverrideRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *CreateCertAuthorityOverrideRequest) GetCaOverride() *CertAuthorityOverride {
 	if x != nil {
 		return x.CaOverride
@@ -200,9 +268,40 @@ func (x *CreateCertAuthorityOverrideRequest) GetCaOverride() *CertAuthorityOverr
 	return nil
 }
 
+func (x *CreateCertAuthorityOverrideRequest) SetCaOverride(v *CertAuthorityOverride) {
+	x.CaOverride = v
+}
+
+func (x *CreateCertAuthorityOverrideRequest) HasCaOverride() bool {
+	if x == nil {
+		return false
+	}
+	return x.CaOverride != nil
+}
+
+func (x *CreateCertAuthorityOverrideRequest) ClearCaOverride() {
+	x.CaOverride = nil
+}
+
+type CreateCertAuthorityOverrideRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// CA override to create.
+	// Required.
+	CaOverride *CertAuthorityOverride
+}
+
+func (b0 CreateCertAuthorityOverrideRequest_builder) Build() *CreateCertAuthorityOverrideRequest {
+	m0 := &CreateCertAuthorityOverrideRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.CaOverride = b.CaOverride
+	return m0
+}
+
 // Response for CreateCertAuthorityOverride.
 type CreateCertAuthorityOverrideResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Created CA override.
 	CaOverride    *CertAuthorityOverride `protobuf:"bytes,1,opt,name=ca_override,json=caOverride,proto3" json:"ca_override,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -234,11 +333,6 @@ func (x *CreateCertAuthorityOverrideResponse) ProtoReflect() protoreflect.Messag
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateCertAuthorityOverrideResponse.ProtoReflect.Descriptor instead.
-func (*CreateCertAuthorityOverrideResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *CreateCertAuthorityOverrideResponse) GetCaOverride() *CertAuthorityOverride {
 	if x != nil {
 		return x.CaOverride
@@ -246,9 +340,39 @@ func (x *CreateCertAuthorityOverrideResponse) GetCaOverride() *CertAuthorityOver
 	return nil
 }
 
+func (x *CreateCertAuthorityOverrideResponse) SetCaOverride(v *CertAuthorityOverride) {
+	x.CaOverride = v
+}
+
+func (x *CreateCertAuthorityOverrideResponse) HasCaOverride() bool {
+	if x == nil {
+		return false
+	}
+	return x.CaOverride != nil
+}
+
+func (x *CreateCertAuthorityOverrideResponse) ClearCaOverride() {
+	x.CaOverride = nil
+}
+
+type CreateCertAuthorityOverrideResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Created CA override.
+	CaOverride *CertAuthorityOverride
+}
+
+func (b0 CreateCertAuthorityOverrideResponse_builder) Build() *CreateCertAuthorityOverrideResponse {
+	m0 := &CreateCertAuthorityOverrideResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.CaOverride = b.CaOverride
+	return m0
+}
+
 // Request for UpdateCertAuthorityOverride.
 type UpdateCertAuthorityOverrideRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// CA override to update.
 	// Required.
 	CaOverride *CertAuthorityOverride `protobuf:"bytes,1,opt,name=ca_override,json=caOverride,proto3" json:"ca_override,omitempty"`
@@ -286,11 +410,6 @@ func (x *UpdateCertAuthorityOverrideRequest) ProtoReflect() protoreflect.Message
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateCertAuthorityOverrideRequest.ProtoReflect.Descriptor instead.
-func (*UpdateCertAuthorityOverrideRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *UpdateCertAuthorityOverrideRequest) GetCaOverride() *CertAuthorityOverride {
 	if x != nil {
 		return x.CaOverride
@@ -305,9 +424,50 @@ func (x *UpdateCertAuthorityOverrideRequest) GetForceImmediateDisable() bool {
 	return false
 }
 
+func (x *UpdateCertAuthorityOverrideRequest) SetCaOverride(v *CertAuthorityOverride) {
+	x.CaOverride = v
+}
+
+func (x *UpdateCertAuthorityOverrideRequest) SetForceImmediateDisable(v bool) {
+	x.ForceImmediateDisable = v
+}
+
+func (x *UpdateCertAuthorityOverrideRequest) HasCaOverride() bool {
+	if x == nil {
+		return false
+	}
+	return x.CaOverride != nil
+}
+
+func (x *UpdateCertAuthorityOverrideRequest) ClearCaOverride() {
+	x.CaOverride = nil
+}
+
+type UpdateCertAuthorityOverrideRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// CA override to update.
+	// Required.
+	CaOverride *CertAuthorityOverride
+	// If true the server will allow disable of an active override.
+	// Active overrides are defined as overrides of certificates that are used to
+	// mint certificate (see CertAuthoritySpecV2.ActiveKeys and
+	// CertAuthoritySpecV2.AdditionalTrustedKeys).
+	ForceImmediateDisable bool
+}
+
+func (b0 UpdateCertAuthorityOverrideRequest_builder) Build() *UpdateCertAuthorityOverrideRequest {
+	m0 := &UpdateCertAuthorityOverrideRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.CaOverride = b.CaOverride
+	x.ForceImmediateDisable = b.ForceImmediateDisable
+	return m0
+}
+
 // Response for UpdateCertAuthorityOverride.
 type UpdateCertAuthorityOverrideResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Updated CA override.
 	CaOverride    *CertAuthorityOverride `protobuf:"bytes,1,opt,name=ca_override,json=caOverride,proto3" json:"ca_override,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -339,11 +499,6 @@ func (x *UpdateCertAuthorityOverrideResponse) ProtoReflect() protoreflect.Messag
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateCertAuthorityOverrideResponse.ProtoReflect.Descriptor instead.
-func (*UpdateCertAuthorityOverrideResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *UpdateCertAuthorityOverrideResponse) GetCaOverride() *CertAuthorityOverride {
 	if x != nil {
 		return x.CaOverride
@@ -351,9 +506,39 @@ func (x *UpdateCertAuthorityOverrideResponse) GetCaOverride() *CertAuthorityOver
 	return nil
 }
 
+func (x *UpdateCertAuthorityOverrideResponse) SetCaOverride(v *CertAuthorityOverride) {
+	x.CaOverride = v
+}
+
+func (x *UpdateCertAuthorityOverrideResponse) HasCaOverride() bool {
+	if x == nil {
+		return false
+	}
+	return x.CaOverride != nil
+}
+
+func (x *UpdateCertAuthorityOverrideResponse) ClearCaOverride() {
+	x.CaOverride = nil
+}
+
+type UpdateCertAuthorityOverrideResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Updated CA override.
+	CaOverride *CertAuthorityOverride
+}
+
+func (b0 UpdateCertAuthorityOverrideResponse_builder) Build() *UpdateCertAuthorityOverrideResponse {
+	m0 := &UpdateCertAuthorityOverrideResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.CaOverride = b.CaOverride
+	return m0
+}
+
 // Request for UpsertCertAuthorityOverride.
 type UpsertCertAuthorityOverrideRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// CA override to upsert.
 	// Required.
 	CaOverride *CertAuthorityOverride `protobuf:"bytes,1,opt,name=ca_override,json=caOverride,proto3" json:"ca_override,omitempty"`
@@ -391,11 +576,6 @@ func (x *UpsertCertAuthorityOverrideRequest) ProtoReflect() protoreflect.Message
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertCertAuthorityOverrideRequest.ProtoReflect.Descriptor instead.
-func (*UpsertCertAuthorityOverrideRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *UpsertCertAuthorityOverrideRequest) GetCaOverride() *CertAuthorityOverride {
 	if x != nil {
 		return x.CaOverride
@@ -410,9 +590,50 @@ func (x *UpsertCertAuthorityOverrideRequest) GetForceImmediateDisable() bool {
 	return false
 }
 
+func (x *UpsertCertAuthorityOverrideRequest) SetCaOverride(v *CertAuthorityOverride) {
+	x.CaOverride = v
+}
+
+func (x *UpsertCertAuthorityOverrideRequest) SetForceImmediateDisable(v bool) {
+	x.ForceImmediateDisable = v
+}
+
+func (x *UpsertCertAuthorityOverrideRequest) HasCaOverride() bool {
+	if x == nil {
+		return false
+	}
+	return x.CaOverride != nil
+}
+
+func (x *UpsertCertAuthorityOverrideRequest) ClearCaOverride() {
+	x.CaOverride = nil
+}
+
+type UpsertCertAuthorityOverrideRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// CA override to upsert.
+	// Required.
+	CaOverride *CertAuthorityOverride
+	// If true the server will allow disable of an active override.
+	// Active overrides are defined as overrides of certificates that are used to
+	// mint certificate (see CertAuthoritySpecV2.ActiveKeys and
+	// CertAuthoritySpecV2.AdditionalTrustedKeys).
+	ForceImmediateDisable bool
+}
+
+func (b0 UpsertCertAuthorityOverrideRequest_builder) Build() *UpsertCertAuthorityOverrideRequest {
+	m0 := &UpsertCertAuthorityOverrideRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.CaOverride = b.CaOverride
+	x.ForceImmediateDisable = b.ForceImmediateDisable
+	return m0
+}
+
 // Response for UpsertCertAuthorityOverride.
 type UpsertCertAuthorityOverrideResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Created or updated CA override.
 	CaOverride    *CertAuthorityOverride `protobuf:"bytes,1,opt,name=ca_override,json=caOverride,proto3" json:"ca_override,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -444,11 +665,6 @@ func (x *UpsertCertAuthorityOverrideResponse) ProtoReflect() protoreflect.Messag
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertCertAuthorityOverrideResponse.ProtoReflect.Descriptor instead.
-func (*UpsertCertAuthorityOverrideResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *UpsertCertAuthorityOverrideResponse) GetCaOverride() *CertAuthorityOverride {
 	if x != nil {
 		return x.CaOverride
@@ -456,9 +672,39 @@ func (x *UpsertCertAuthorityOverrideResponse) GetCaOverride() *CertAuthorityOver
 	return nil
 }
 
+func (x *UpsertCertAuthorityOverrideResponse) SetCaOverride(v *CertAuthorityOverride) {
+	x.CaOverride = v
+}
+
+func (x *UpsertCertAuthorityOverrideResponse) HasCaOverride() bool {
+	if x == nil {
+		return false
+	}
+	return x.CaOverride != nil
+}
+
+func (x *UpsertCertAuthorityOverrideResponse) ClearCaOverride() {
+	x.CaOverride = nil
+}
+
+type UpsertCertAuthorityOverrideResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Created or updated CA override.
+	CaOverride *CertAuthorityOverride
+}
+
+func (b0 UpsertCertAuthorityOverrideResponse_builder) Build() *UpsertCertAuthorityOverrideResponse {
+	m0 := &UpsertCertAuthorityOverrideResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.CaOverride = b.CaOverride
+	return m0
+}
+
 // Request for AddCertificateOverride.
 type AddCertificateOverrideRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// CA override to target.
 	CaId *CertAuthorityOverrideID `protobuf:"bytes,1,opt,name=ca_id,json=caId,proto3" json:"ca_id,omitempty"`
 	// Certificate override to add.
@@ -497,11 +743,6 @@ func (x *AddCertificateOverrideRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AddCertificateOverrideRequest.ProtoReflect.Descriptor instead.
-func (*AddCertificateOverrideRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{8}
-}
-
 func (x *AddCertificateOverrideRequest) GetCaId() *CertAuthorityOverrideID {
 	if x != nil {
 		return x.CaId
@@ -523,9 +764,67 @@ func (x *AddCertificateOverrideRequest) GetForceImmediateDisable() bool {
 	return false
 }
 
+func (x *AddCertificateOverrideRequest) SetCaId(v *CertAuthorityOverrideID) {
+	x.CaId = v
+}
+
+func (x *AddCertificateOverrideRequest) SetCertificateOverride(v *CertificateOverride) {
+	x.CertificateOverride = v
+}
+
+func (x *AddCertificateOverrideRequest) SetForceImmediateDisable(v bool) {
+	x.ForceImmediateDisable = v
+}
+
+func (x *AddCertificateOverrideRequest) HasCaId() bool {
+	if x == nil {
+		return false
+	}
+	return x.CaId != nil
+}
+
+func (x *AddCertificateOverrideRequest) HasCertificateOverride() bool {
+	if x == nil {
+		return false
+	}
+	return x.CertificateOverride != nil
+}
+
+func (x *AddCertificateOverrideRequest) ClearCaId() {
+	x.CaId = nil
+}
+
+func (x *AddCertificateOverrideRequest) ClearCertificateOverride() {
+	x.CertificateOverride = nil
+}
+
+type AddCertificateOverrideRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// CA override to target.
+	CaId *CertAuthorityOverrideID
+	// Certificate override to add.
+	CertificateOverride *CertificateOverride
+	// If true the server will allow disable of an active override.
+	// Active overrides are defined as overrides of certificates that are used to
+	// mint certificate (see CertAuthoritySpecV2.ActiveKeys and
+	// CertAuthoritySpecV2.AdditionalTrustedKeys).
+	ForceImmediateDisable bool
+}
+
+func (b0 AddCertificateOverrideRequest_builder) Build() *AddCertificateOverrideRequest {
+	m0 := &AddCertificateOverrideRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.CaId = b.CaId
+	x.CertificateOverride = b.CertificateOverride
+	x.ForceImmediateDisable = b.ForceImmediateDisable
+	return m0
+}
+
 // Response for AddCertificateOverride.
 type AddCertificateOverrideResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Added certificate override.
 	CertificateOverride *CertificateOverride `protobuf:"bytes,1,opt,name=certificate_override,json=certificateOverride,proto3" json:"certificate_override,omitempty"`
 	unknownFields       protoimpl.UnknownFields
@@ -557,11 +856,6 @@ func (x *AddCertificateOverrideResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AddCertificateOverrideResponse.ProtoReflect.Descriptor instead.
-func (*AddCertificateOverrideResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{9}
-}
-
 func (x *AddCertificateOverrideResponse) GetCertificateOverride() *CertificateOverride {
 	if x != nil {
 		return x.CertificateOverride
@@ -569,9 +863,39 @@ func (x *AddCertificateOverrideResponse) GetCertificateOverride() *CertificateOv
 	return nil
 }
 
+func (x *AddCertificateOverrideResponse) SetCertificateOverride(v *CertificateOverride) {
+	x.CertificateOverride = v
+}
+
+func (x *AddCertificateOverrideResponse) HasCertificateOverride() bool {
+	if x == nil {
+		return false
+	}
+	return x.CertificateOverride != nil
+}
+
+func (x *AddCertificateOverrideResponse) ClearCertificateOverride() {
+	x.CertificateOverride = nil
+}
+
+type AddCertificateOverrideResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Added certificate override.
+	CertificateOverride *CertificateOverride
+}
+
+func (b0 AddCertificateOverrideResponse_builder) Build() *AddCertificateOverrideResponse {
+	m0 := &AddCertificateOverrideResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.CertificateOverride = b.CertificateOverride
+	return m0
+}
+
 // Request for UpdateCertificateOverride.
 type UpdateCertificateOverrideRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// CA override to target.
 	CaId *CertAuthorityOverrideID `protobuf:"bytes,1,opt,name=ca_id,json=caId,proto3" json:"ca_id,omitempty"`
 	// Certificate override to update.
@@ -610,11 +934,6 @@ func (x *UpdateCertificateOverrideRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateCertificateOverrideRequest.ProtoReflect.Descriptor instead.
-func (*UpdateCertificateOverrideRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{10}
-}
-
 func (x *UpdateCertificateOverrideRequest) GetCaId() *CertAuthorityOverrideID {
 	if x != nil {
 		return x.CaId
@@ -636,9 +955,67 @@ func (x *UpdateCertificateOverrideRequest) GetForceImmediateDisable() bool {
 	return false
 }
 
+func (x *UpdateCertificateOverrideRequest) SetCaId(v *CertAuthorityOverrideID) {
+	x.CaId = v
+}
+
+func (x *UpdateCertificateOverrideRequest) SetCertificateOverride(v *CertificateOverride) {
+	x.CertificateOverride = v
+}
+
+func (x *UpdateCertificateOverrideRequest) SetForceImmediateDisable(v bool) {
+	x.ForceImmediateDisable = v
+}
+
+func (x *UpdateCertificateOverrideRequest) HasCaId() bool {
+	if x == nil {
+		return false
+	}
+	return x.CaId != nil
+}
+
+func (x *UpdateCertificateOverrideRequest) HasCertificateOverride() bool {
+	if x == nil {
+		return false
+	}
+	return x.CertificateOverride != nil
+}
+
+func (x *UpdateCertificateOverrideRequest) ClearCaId() {
+	x.CaId = nil
+}
+
+func (x *UpdateCertificateOverrideRequest) ClearCertificateOverride() {
+	x.CertificateOverride = nil
+}
+
+type UpdateCertificateOverrideRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// CA override to target.
+	CaId *CertAuthorityOverrideID
+	// Certificate override to update.
+	CertificateOverride *CertificateOverride
+	// If true the server will allow disable of an active override.
+	// Active overrides are defined as overrides of certificates that are used to
+	// mint certificate (see CertAuthoritySpecV2.ActiveKeys and
+	// CertAuthoritySpecV2.AdditionalTrustedKeys).
+	ForceImmediateDisable bool
+}
+
+func (b0 UpdateCertificateOverrideRequest_builder) Build() *UpdateCertificateOverrideRequest {
+	m0 := &UpdateCertificateOverrideRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.CaId = b.CaId
+	x.CertificateOverride = b.CertificateOverride
+	x.ForceImmediateDisable = b.ForceImmediateDisable
+	return m0
+}
+
 // Response for UpdateCertificateOverride.
 type UpdateCertificateOverrideResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Updated certificate override.
 	CertificateOverride *CertificateOverride `protobuf:"bytes,1,opt,name=certificate_override,json=certificateOverride,proto3" json:"certificate_override,omitempty"`
 	unknownFields       protoimpl.UnknownFields
@@ -670,11 +1047,6 @@ func (x *UpdateCertificateOverrideResponse) ProtoReflect() protoreflect.Message 
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateCertificateOverrideResponse.ProtoReflect.Descriptor instead.
-func (*UpdateCertificateOverrideResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{11}
-}
-
 func (x *UpdateCertificateOverrideResponse) GetCertificateOverride() *CertificateOverride {
 	if x != nil {
 		return x.CertificateOverride
@@ -682,9 +1054,39 @@ func (x *UpdateCertificateOverrideResponse) GetCertificateOverride() *Certificat
 	return nil
 }
 
+func (x *UpdateCertificateOverrideResponse) SetCertificateOverride(v *CertificateOverride) {
+	x.CertificateOverride = v
+}
+
+func (x *UpdateCertificateOverrideResponse) HasCertificateOverride() bool {
+	if x == nil {
+		return false
+	}
+	return x.CertificateOverride != nil
+}
+
+func (x *UpdateCertificateOverrideResponse) ClearCertificateOverride() {
+	x.CertificateOverride = nil
+}
+
+type UpdateCertificateOverrideResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Updated certificate override.
+	CertificateOverride *CertificateOverride
+}
+
+func (b0 UpdateCertificateOverrideResponse_builder) Build() *UpdateCertificateOverrideResponse {
+	m0 := &UpdateCertificateOverrideResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.CertificateOverride = b.CertificateOverride
+	return m0
+}
+
 // Request for RemoveCertificateOverride.
 type RemoveCertificateOverrideRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Certificate override to target.
 	CertificateOverrideId *CertificateOverrideID `protobuf:"bytes,1,opt,name=certificate_override_id,json=certificateOverrideId,proto3" json:"certificate_override_id,omitempty"`
 	// If true the server will allow deletion of an active override
@@ -721,11 +1123,6 @@ func (x *RemoveCertificateOverrideRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RemoveCertificateOverrideRequest.ProtoReflect.Descriptor instead.
-func (*RemoveCertificateOverrideRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{12}
-}
-
 func (x *RemoveCertificateOverrideRequest) GetCertificateOverrideId() *CertificateOverrideID {
 	if x != nil {
 		return x.CertificateOverrideId
@@ -740,9 +1137,49 @@ func (x *RemoveCertificateOverrideRequest) GetForceImmediateDelete() bool {
 	return false
 }
 
+func (x *RemoveCertificateOverrideRequest) SetCertificateOverrideId(v *CertificateOverrideID) {
+	x.CertificateOverrideId = v
+}
+
+func (x *RemoveCertificateOverrideRequest) SetForceImmediateDelete(v bool) {
+	x.ForceImmediateDelete = v
+}
+
+func (x *RemoveCertificateOverrideRequest) HasCertificateOverrideId() bool {
+	if x == nil {
+		return false
+	}
+	return x.CertificateOverrideId != nil
+}
+
+func (x *RemoveCertificateOverrideRequest) ClearCertificateOverrideId() {
+	x.CertificateOverrideId = nil
+}
+
+type RemoveCertificateOverrideRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Certificate override to target.
+	CertificateOverrideId *CertificateOverrideID
+	// If true the server will allow deletion of an active override
+	// Active overrides are defined as overrides of certificates that are used to
+	// mint certificate (see CertAuthoritySpecV2.ActiveKeys and
+	// CertAuthoritySpecV2.AdditionalTrustedKeys).
+	ForceImmediateDelete bool
+}
+
+func (b0 RemoveCertificateOverrideRequest_builder) Build() *RemoveCertificateOverrideRequest {
+	m0 := &RemoveCertificateOverrideRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.CertificateOverrideId = b.CertificateOverrideId
+	x.ForceImmediateDelete = b.ForceImmediateDelete
+	return m0
+}
+
 // Response for RemoveCertificateOverride.
 type RemoveCertificateOverrideResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -772,14 +1209,21 @@ func (x *RemoveCertificateOverrideResponse) ProtoReflect() protoreflect.Message 
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RemoveCertificateOverrideResponse.ProtoReflect.Descriptor instead.
-func (*RemoveCertificateOverrideResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{13}
+type RemoveCertificateOverrideResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 RemoveCertificateOverrideResponse_builder) Build() *RemoveCertificateOverrideResponse {
+	m0 := &RemoveCertificateOverrideResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // Request for GetCertAuthorityOverride.
 type GetCertAuthorityOverrideRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// CA override to target.
 	CaId          *CertAuthorityOverrideID `protobuf:"bytes,1,opt,name=ca_id,json=caId,proto3" json:"ca_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -811,11 +1255,6 @@ func (x *GetCertAuthorityOverrideRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetCertAuthorityOverrideRequest.ProtoReflect.Descriptor instead.
-func (*GetCertAuthorityOverrideRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{14}
-}
-
 func (x *GetCertAuthorityOverrideRequest) GetCaId() *CertAuthorityOverrideID {
 	if x != nil {
 		return x.CaId
@@ -823,9 +1262,39 @@ func (x *GetCertAuthorityOverrideRequest) GetCaId() *CertAuthorityOverrideID {
 	return nil
 }
 
+func (x *GetCertAuthorityOverrideRequest) SetCaId(v *CertAuthorityOverrideID) {
+	x.CaId = v
+}
+
+func (x *GetCertAuthorityOverrideRequest) HasCaId() bool {
+	if x == nil {
+		return false
+	}
+	return x.CaId != nil
+}
+
+func (x *GetCertAuthorityOverrideRequest) ClearCaId() {
+	x.CaId = nil
+}
+
+type GetCertAuthorityOverrideRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// CA override to target.
+	CaId *CertAuthorityOverrideID
+}
+
+func (b0 GetCertAuthorityOverrideRequest_builder) Build() *GetCertAuthorityOverrideRequest {
+	m0 := &GetCertAuthorityOverrideRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.CaId = b.CaId
+	return m0
+}
+
 // Response for GetCertAuthorityOverride.
 type GetCertAuthorityOverrideResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The CA override.
 	CaOverride    *CertAuthorityOverride `protobuf:"bytes,1,opt,name=ca_override,json=caOverride,proto3" json:"ca_override,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -857,11 +1326,6 @@ func (x *GetCertAuthorityOverrideResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetCertAuthorityOverrideResponse.ProtoReflect.Descriptor instead.
-func (*GetCertAuthorityOverrideResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{15}
-}
-
 func (x *GetCertAuthorityOverrideResponse) GetCaOverride() *CertAuthorityOverride {
 	if x != nil {
 		return x.CaOverride
@@ -869,9 +1333,39 @@ func (x *GetCertAuthorityOverrideResponse) GetCaOverride() *CertAuthorityOverrid
 	return nil
 }
 
+func (x *GetCertAuthorityOverrideResponse) SetCaOverride(v *CertAuthorityOverride) {
+	x.CaOverride = v
+}
+
+func (x *GetCertAuthorityOverrideResponse) HasCaOverride() bool {
+	if x == nil {
+		return false
+	}
+	return x.CaOverride != nil
+}
+
+func (x *GetCertAuthorityOverrideResponse) ClearCaOverride() {
+	x.CaOverride = nil
+}
+
+type GetCertAuthorityOverrideResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The CA override.
+	CaOverride *CertAuthorityOverride
+}
+
+func (b0 GetCertAuthorityOverrideResponse_builder) Build() *GetCertAuthorityOverrideResponse {
+	m0 := &GetCertAuthorityOverrideResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.CaOverride = b.CaOverride
+	return m0
+}
+
 // Request for ListCertAuthorityOverride.
 type ListCertAuthorityOverrideRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The maximum number of items to return.
 	// The server may impose a different page size at its discretion.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
@@ -906,11 +1400,6 @@ func (x *ListCertAuthorityOverrideRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListCertAuthorityOverrideRequest.ProtoReflect.Descriptor instead.
-func (*ListCertAuthorityOverrideRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{16}
-}
-
 func (x *ListCertAuthorityOverrideRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -925,9 +1414,36 @@ func (x *ListCertAuthorityOverrideRequest) GetPageToken() string {
 	return ""
 }
 
+func (x *ListCertAuthorityOverrideRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListCertAuthorityOverrideRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+type ListCertAuthorityOverrideRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The maximum number of items to return.
+	// The server may impose a different page size at its discretion.
+	PageSize int32
+	// The next_page_token value returned from a previous List request, if any.
+	PageToken string
+}
+
+func (b0 ListCertAuthorityOverrideRequest_builder) Build() *ListCertAuthorityOverrideRequest {
+	m0 := &ListCertAuthorityOverrideRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	return m0
+}
+
 // Response for ListCertAuthorityOverride.
 type ListCertAuthorityOverrideResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The CA overrides.
 	CaOverrides []*CertAuthorityOverride `protobuf:"bytes,1,rep,name=ca_overrides,json=caOverrides,proto3" json:"ca_overrides,omitempty"`
 	// Token to retrieve the next page of results, or empty if there are no more
@@ -962,11 +1478,6 @@ func (x *ListCertAuthorityOverrideResponse) ProtoReflect() protoreflect.Message 
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListCertAuthorityOverrideResponse.ProtoReflect.Descriptor instead.
-func (*ListCertAuthorityOverrideResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{17}
-}
-
 func (x *ListCertAuthorityOverrideResponse) GetCaOverrides() []*CertAuthorityOverride {
 	if x != nil {
 		return x.CaOverrides
@@ -981,9 +1492,36 @@ func (x *ListCertAuthorityOverrideResponse) GetNextPageToken() string {
 	return ""
 }
 
+func (x *ListCertAuthorityOverrideResponse) SetCaOverrides(v []*CertAuthorityOverride) {
+	x.CaOverrides = v
+}
+
+func (x *ListCertAuthorityOverrideResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListCertAuthorityOverrideResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The CA overrides.
+	CaOverrides []*CertAuthorityOverride
+	// Token to retrieve the next page of results, or empty if there are no more
+	// results in the list.
+	NextPageToken string
+}
+
+func (b0 ListCertAuthorityOverrideResponse_builder) Build() *ListCertAuthorityOverrideResponse {
+	m0 := &ListCertAuthorityOverrideResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.CaOverrides = b.CaOverrides
+	x.NextPageToken = b.NextPageToken
+	return m0
+}
+
 // Request for DeleteCertAuthorityOverride.
 type DeleteCertAuthorityOverrideRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// CA override to target.
 	CaId *CertAuthorityOverrideID `protobuf:"bytes,1,opt,name=ca_id,json=caId,proto3" json:"ca_id,omitempty"`
 	// If true the server will allow deletion of a CertAuthorityOverride that
@@ -1021,11 +1559,6 @@ func (x *DeleteCertAuthorityOverrideRequest) ProtoReflect() protoreflect.Message
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteCertAuthorityOverrideRequest.ProtoReflect.Descriptor instead.
-func (*DeleteCertAuthorityOverrideRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{18}
-}
-
 func (x *DeleteCertAuthorityOverrideRequest) GetCaId() *CertAuthorityOverrideID {
 	if x != nil {
 		return x.CaId
@@ -1040,9 +1573,50 @@ func (x *DeleteCertAuthorityOverrideRequest) GetForceImmediateDelete() bool {
 	return false
 }
 
+func (x *DeleteCertAuthorityOverrideRequest) SetCaId(v *CertAuthorityOverrideID) {
+	x.CaId = v
+}
+
+func (x *DeleteCertAuthorityOverrideRequest) SetForceImmediateDelete(v bool) {
+	x.ForceImmediateDelete = v
+}
+
+func (x *DeleteCertAuthorityOverrideRequest) HasCaId() bool {
+	if x == nil {
+		return false
+	}
+	return x.CaId != nil
+}
+
+func (x *DeleteCertAuthorityOverrideRequest) ClearCaId() {
+	x.CaId = nil
+}
+
+type DeleteCertAuthorityOverrideRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// CA override to target.
+	CaId *CertAuthorityOverrideID
+	// If true the server will allow deletion of a CertAuthorityOverride that
+	// contains active overrides.
+	// Active overrides are defined as overrides of certificates that are used to
+	// mint certificate (see CertAuthoritySpecV2.ActiveKeys and
+	// CertAuthoritySpecV2.AdditionalTrustedKeys).
+	ForceImmediateDelete bool
+}
+
+func (b0 DeleteCertAuthorityOverrideRequest_builder) Build() *DeleteCertAuthorityOverrideRequest {
+	m0 := &DeleteCertAuthorityOverrideRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.CaId = b.CaId
+	x.ForceImmediateDelete = b.ForceImmediateDelete
+	return m0
+}
+
 // Response for DeleteCertAuthorityOverride.
 type DeleteCertAuthorityOverrideResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1072,9 +1646,16 @@ func (x *DeleteCertAuthorityOverrideResponse) ProtoReflect() protoreflect.Messag
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteCertAuthorityOverrideResponse.ProtoReflect.Descriptor instead.
-func (*DeleteCertAuthorityOverrideResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_subca_v1_subca_service_proto_rawDescGZIP(), []int{19}
+type DeleteCertAuthorityOverrideResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 DeleteCertAuthorityOverrideResponse_builder) Build() *DeleteCertAuthorityOverrideResponse {
+	m0 := &DeleteCertAuthorityOverrideResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 var File_teleport_subca_v1_subca_service_proto protoreflect.FileDescriptor
@@ -1152,18 +1733,6 @@ const file_teleport_subca_v1_subca_service_proto_rawDesc = "" +
 	"\x18GetCertAuthorityOverride\x122.teleport.subca.v1.GetCertAuthorityOverrideRequest\x1a3.teleport.subca.v1.GetCertAuthorityOverrideResponse\x12\x86\x01\n" +
 	"\x19ListCertAuthorityOverride\x123.teleport.subca.v1.ListCertAuthorityOverrideRequest\x1a4.teleport.subca.v1.ListCertAuthorityOverrideResponse\x12\x8c\x01\n" +
 	"\x1bDeleteCertAuthorityOverride\x125.teleport.subca.v1.DeleteCertAuthorityOverrideRequest\x1a6.teleport.subca.v1.DeleteCertAuthorityOverrideResponseBNZLgithub.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1;subcav1b\x06proto3"
-
-var (
-	file_teleport_subca_v1_subca_service_proto_rawDescOnce sync.Once
-	file_teleport_subca_v1_subca_service_proto_rawDescData []byte
-)
-
-func file_teleport_subca_v1_subca_service_proto_rawDescGZIP() []byte {
-	file_teleport_subca_v1_subca_service_proto_rawDescOnce.Do(func() {
-		file_teleport_subca_v1_subca_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_subca_v1_subca_service_proto_rawDesc), len(file_teleport_subca_v1_subca_service_proto_rawDesc)))
-	})
-	return file_teleport_subca_v1_subca_service_proto_rawDescData
-}
 
 var file_teleport_subca_v1_subca_service_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
 var file_teleport_subca_v1_subca_service_proto_goTypes = []any{

@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/userpreferences/v1/unified_resource_preferences.proto
 
+//go:build !protoopaque
+
 package userpreferencesv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -82,11 +83,6 @@ func (x DefaultTab) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use DefaultTab.Descriptor instead.
-func (DefaultTab) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_userpreferences_v1_unified_resource_preferences_proto_rawDescGZIP(), []int{0}
-}
-
 // ViewMode is the view mode selected in the unified resource Web UI
 type ViewMode int32
 
@@ -134,11 +130,6 @@ func (x ViewMode) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use ViewMode.Descriptor instead.
-func (ViewMode) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_userpreferences_v1_unified_resource_preferences_proto_rawDescGZIP(), []int{1}
-}
-
 // * LabelsViewMode is whether the labels for resources should all be collapsed or expanded. This only applies to the list view.
 type LabelsViewMode int32
 
@@ -184,11 +175,6 @@ func (LabelsViewMode) Type() protoreflect.EnumType {
 
 func (x LabelsViewMode) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use LabelsViewMode.Descriptor instead.
-func (LabelsViewMode) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_userpreferences_v1_unified_resource_preferences_proto_rawDescGZIP(), []int{2}
 }
 
 // * AvailableResourceMode specifies which option in the availability filter menu the user has selected, if any
@@ -242,14 +228,9 @@ func (x AvailableResourceMode) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use AvailableResourceMode.Descriptor instead.
-func (AvailableResourceMode) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_userpreferences_v1_unified_resource_preferences_proto_rawDescGZIP(), []int{3}
-}
-
 // UnifiedResourcePreferences are preferences used in the Unified Resource web UI
 type UnifiedResourcePreferences struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// default_tab is the default tab selected in the unified resource web UI
 	DefaultTab DefaultTab `protobuf:"varint,1,opt,name=default_tab,json=defaultTab,proto3,enum=teleport.userpreferences.v1.DefaultTab" json:"default_tab,omitempty"`
 	// view_mode is the view mode selected in the unified resource Web UI
@@ -287,11 +268,6 @@ func (x *UnifiedResourcePreferences) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UnifiedResourcePreferences.ProtoReflect.Descriptor instead.
-func (*UnifiedResourcePreferences) Descriptor() ([]byte, []int) {
-	return file_teleport_userpreferences_v1_unified_resource_preferences_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *UnifiedResourcePreferences) GetDefaultTab() DefaultTab {
 	if x != nil {
 		return x.DefaultTab
@@ -318,6 +294,46 @@ func (x *UnifiedResourcePreferences) GetAvailableResourceMode() AvailableResourc
 		return x.AvailableResourceMode
 	}
 	return AvailableResourceMode_AVAILABLE_RESOURCE_MODE_UNSPECIFIED
+}
+
+func (x *UnifiedResourcePreferences) SetDefaultTab(v DefaultTab) {
+	x.DefaultTab = v
+}
+
+func (x *UnifiedResourcePreferences) SetViewMode(v ViewMode) {
+	x.ViewMode = v
+}
+
+func (x *UnifiedResourcePreferences) SetLabelsViewMode(v LabelsViewMode) {
+	x.LabelsViewMode = v
+}
+
+func (x *UnifiedResourcePreferences) SetAvailableResourceMode(v AvailableResourceMode) {
+	x.AvailableResourceMode = v
+}
+
+type UnifiedResourcePreferences_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// default_tab is the default tab selected in the unified resource web UI
+	DefaultTab DefaultTab
+	// view_mode is the view mode selected in the unified resource Web UI
+	ViewMode ViewMode
+	// labels_view_mode is whether the labels for resources should all be collapsed or expanded in the unified resource Web UI list view.
+	LabelsViewMode LabelsViewMode
+	// available_resource_mode specifies which option in the availability filter menu the user has selected, if any
+	AvailableResourceMode AvailableResourceMode
+}
+
+func (b0 UnifiedResourcePreferences_builder) Build() *UnifiedResourcePreferences {
+	m0 := &UnifiedResourcePreferences{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.DefaultTab = b.DefaultTab
+	x.ViewMode = b.ViewMode
+	x.LabelsViewMode = b.LabelsViewMode
+	x.AvailableResourceMode = b.AvailableResourceMode
+	return m0
 }
 
 var File_teleport_userpreferences_v1_unified_resource_preferences_proto protoreflect.FileDescriptor
@@ -350,18 +366,6 @@ const file_teleport_userpreferences_v1_unified_resource_preferences_proto_rawDes
 	"\"AVAILABLE_RESOURCE_MODE_ACCESSIBLE\x10\x02\x12'\n" +
 	"#AVAILABLE_RESOURCE_MODE_REQUESTABLE\x10\x03\x12 \n" +
 	"\x1cAVAILABLE_RESOURCE_MODE_NONE\x10\x04BYZWgithub.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1;userpreferencesv1b\x06proto3"
-
-var (
-	file_teleport_userpreferences_v1_unified_resource_preferences_proto_rawDescOnce sync.Once
-	file_teleport_userpreferences_v1_unified_resource_preferences_proto_rawDescData []byte
-)
-
-func file_teleport_userpreferences_v1_unified_resource_preferences_proto_rawDescGZIP() []byte {
-	file_teleport_userpreferences_v1_unified_resource_preferences_proto_rawDescOnce.Do(func() {
-		file_teleport_userpreferences_v1_unified_resource_preferences_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_userpreferences_v1_unified_resource_preferences_proto_rawDesc), len(file_teleport_userpreferences_v1_unified_resource_preferences_proto_rawDesc)))
-	})
-	return file_teleport_userpreferences_v1_unified_resource_preferences_proto_rawDescData
-}
 
 var file_teleport_userpreferences_v1_unified_resource_preferences_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
 var file_teleport_userpreferences_v1_unified_resource_preferences_proto_msgTypes = make([]protoimpl.MessageInfo, 1)

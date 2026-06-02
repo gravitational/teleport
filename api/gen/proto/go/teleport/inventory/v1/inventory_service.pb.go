@@ -20,6 +20,8 @@
 // 	protoc        (unknown)
 // source: teleport/inventory/v1/inventory_service.proto
 
+//go:build !protoopaque
+
 package inventoryv1
 
 import (
@@ -28,7 +30,6 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -86,11 +87,6 @@ func (x InstanceType) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use InstanceType.Descriptor instead.
-func (InstanceType) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_inventory_v1_inventory_service_proto_rawDescGZIP(), []int{0}
-}
-
 // UnifiedInstanceSort specifies the sort mode for listing unified instances.
 // If a sorting criteria for multiple instances are equal (eg. 2 instances are the same version), the secondary
 // sorting will always be by name.
@@ -144,11 +140,6 @@ func (x UnifiedInstanceSort) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use UnifiedInstanceSort.Descriptor instead.
-func (UnifiedInstanceSort) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_inventory_v1_inventory_service_proto_rawDescGZIP(), []int{1}
-}
-
 // SortOrder specifies the sort order for listing unified instances.
 type SortOrder int32
 
@@ -196,14 +187,9 @@ func (x SortOrder) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use SortOrder.Descriptor instead.
-func (SortOrder) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_inventory_v1_inventory_service_proto_rawDescGZIP(), []int{2}
-}
-
 // ListUnifiedInstancesRequest is the request for listing instances.
 type ListUnifiedInstancesRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// page_size is the size of the page to return.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	// page_token is the next_page_token value returned from a previous ListUnifiedInstances request, if any.
@@ -243,11 +229,6 @@ func (x *ListUnifiedInstancesRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListUnifiedInstancesRequest.ProtoReflect.Descriptor instead.
-func (*ListUnifiedInstancesRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_inventory_v1_inventory_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *ListUnifiedInstancesRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -283,9 +264,67 @@ func (x *ListUnifiedInstancesRequest) GetOrder() SortOrder {
 	return SortOrder_SORT_ORDER_UNSPECIFIED
 }
 
+func (x *ListUnifiedInstancesRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListUnifiedInstancesRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+func (x *ListUnifiedInstancesRequest) SetFilter(v *ListUnifiedInstancesFilter) {
+	x.Filter = v
+}
+
+func (x *ListUnifiedInstancesRequest) SetSort(v UnifiedInstanceSort) {
+	x.Sort = v
+}
+
+func (x *ListUnifiedInstancesRequest) SetOrder(v SortOrder) {
+	x.Order = v
+}
+
+func (x *ListUnifiedInstancesRequest) HasFilter() bool {
+	if x == nil {
+		return false
+	}
+	return x.Filter != nil
+}
+
+func (x *ListUnifiedInstancesRequest) ClearFilter() {
+	x.Filter = nil
+}
+
+type ListUnifiedInstancesRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// page_size is the size of the page to return.
+	PageSize int32
+	// page_token is the next_page_token value returned from a previous ListUnifiedInstances request, if any.
+	PageToken string
+	// filter specifies optional search criteria to limit which instances should be returned.
+	Filter *ListUnifiedInstancesFilter
+	// sort specifies the sort mode for the results. Defaults to UNIFIED_INSTANCE_SORT_NAME.
+	Sort UnifiedInstanceSort
+	// order specifies the sort order for the results. Defaults to SORT_ORDER_ASCENDING.
+	Order SortOrder
+}
+
+func (b0 ListUnifiedInstancesRequest_builder) Build() *ListUnifiedInstancesRequest {
+	m0 := &ListUnifiedInstancesRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	x.Filter = b.Filter
+	x.Sort = b.Sort
+	x.Order = b.Order
+	return m0
+}
+
 // ListUnifiedInstancesResponse is the response from listing instances.
 type ListUnifiedInstancesResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// items is the list of instances (instances or bot instances) returned.
 	Items []*UnifiedInstanceItem `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
 	// next_page_token contains the next page token to use as the start key for the next page of instances.
@@ -319,11 +358,6 @@ func (x *ListUnifiedInstancesResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListUnifiedInstancesResponse.ProtoReflect.Descriptor instead.
-func (*ListUnifiedInstancesResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_inventory_v1_inventory_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *ListUnifiedInstancesResponse) GetItems() []*UnifiedInstanceItem {
 	if x != nil {
 		return x.Items
@@ -338,9 +372,35 @@ func (x *ListUnifiedInstancesResponse) GetNextPageToken() string {
 	return ""
 }
 
+func (x *ListUnifiedInstancesResponse) SetItems(v []*UnifiedInstanceItem) {
+	x.Items = v
+}
+
+func (x *ListUnifiedInstancesResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListUnifiedInstancesResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// items is the list of instances (instances or bot instances) returned.
+	Items []*UnifiedInstanceItem
+	// next_page_token contains the next page token to use as the start key for the next page of instances.
+	NextPageToken string
+}
+
+func (b0 ListUnifiedInstancesResponse_builder) Build() *ListUnifiedInstancesResponse {
+	m0 := &ListUnifiedInstancesResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Items = b.Items
+	x.NextPageToken = b.NextPageToken
+	return m0
+}
+
 // ListUnifiedInstancesFilter provides a mechanism to refine ListUnifiedInstances results.
 type ListUnifiedInstancesFilter struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// search is a basic string search query which will filter results by name (hostname for instances, bot name for bot instances).
 	Search string `protobuf:"bytes,1,opt,name=search,proto3" json:"search,omitempty"`
 	// predicate_expression is a predicate expression used to match against resource field values.
@@ -381,11 +441,6 @@ func (x *ListUnifiedInstancesFilter) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ListUnifiedInstancesFilter.ProtoReflect.Descriptor instead.
-func (*ListUnifiedInstancesFilter) Descriptor() ([]byte, []int) {
-	return file_teleport_inventory_v1_inventory_service_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *ListUnifiedInstancesFilter) GetSearch() string {
@@ -430,9 +485,64 @@ func (x *ListUnifiedInstancesFilter) GetUpgraders() []string {
 	return nil
 }
 
+func (x *ListUnifiedInstancesFilter) SetSearch(v string) {
+	x.Search = v
+}
+
+func (x *ListUnifiedInstancesFilter) SetPredicateExpression(v string) {
+	x.PredicateExpression = v
+}
+
+func (x *ListUnifiedInstancesFilter) SetInstanceTypes(v []InstanceType) {
+	x.InstanceTypes = v
+}
+
+func (x *ListUnifiedInstancesFilter) SetServices(v []string) {
+	x.Services = v
+}
+
+func (x *ListUnifiedInstancesFilter) SetUpdaterGroups(v []string) {
+	x.UpdaterGroups = v
+}
+
+func (x *ListUnifiedInstancesFilter) SetUpgraders(v []string) {
+	x.Upgraders = v
+}
+
+type ListUnifiedInstancesFilter_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// search is a basic string search query which will filter results by name (hostname for instances, bot name for bot instances).
+	Search string
+	// predicate_expression is a predicate expression used to match against resource field values.
+	PredicateExpression string
+	// instance_types is the types of instances to return. If omitted, both instances and bot instances will be returned.
+	InstanceTypes []InstanceType
+	// services is the list of services (system roles) to filter instances by. An instance must have one or more of the services here to be returned.
+	// The services filter is ignored for bot instances.
+	Services []string
+	// updater_groups is the list of updater groups to filter instances by.
+	UpdaterGroups []string
+	// upgraders is the list of upgraders to filter instances by.
+	Upgraders []string
+}
+
+func (b0 ListUnifiedInstancesFilter_builder) Build() *ListUnifiedInstancesFilter {
+	m0 := &ListUnifiedInstancesFilter{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Search = b.Search
+	x.PredicateExpression = b.PredicateExpression
+	x.InstanceTypes = b.InstanceTypes
+	x.Services = b.Services
+	x.UpdaterGroups = b.UpdaterGroups
+	x.Upgraders = b.Upgraders
+	return m0
+}
+
 // UnifiedInstanceItem represents either a teleport or bot instance.
 type UnifiedInstanceItem struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Item:
 	//
 	//	*UnifiedInstanceItem_Instance
@@ -467,11 +577,6 @@ func (x *UnifiedInstanceItem) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UnifiedInstanceItem.ProtoReflect.Descriptor instead.
-func (*UnifiedInstanceItem) Descriptor() ([]byte, []int) {
-	return file_teleport_inventory_v1_inventory_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *UnifiedInstanceItem) GetItem() isUnifiedInstanceItem_Item {
 	if x != nil {
 		return x.Item
@@ -495,6 +600,113 @@ func (x *UnifiedInstanceItem) GetBotInstance() *v1.BotInstance {
 		}
 	}
 	return nil
+}
+
+func (x *UnifiedInstanceItem) SetInstance(v *types.InstanceV1) {
+	if v == nil {
+		x.Item = nil
+		return
+	}
+	x.Item = &UnifiedInstanceItem_Instance{v}
+}
+
+func (x *UnifiedInstanceItem) SetBotInstance(v *v1.BotInstance) {
+	if v == nil {
+		x.Item = nil
+		return
+	}
+	x.Item = &UnifiedInstanceItem_BotInstance{v}
+}
+
+func (x *UnifiedInstanceItem) HasItem() bool {
+	if x == nil {
+		return false
+	}
+	return x.Item != nil
+}
+
+func (x *UnifiedInstanceItem) HasInstance() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Item.(*UnifiedInstanceItem_Instance)
+	return ok
+}
+
+func (x *UnifiedInstanceItem) HasBotInstance() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Item.(*UnifiedInstanceItem_BotInstance)
+	return ok
+}
+
+func (x *UnifiedInstanceItem) ClearItem() {
+	x.Item = nil
+}
+
+func (x *UnifiedInstanceItem) ClearInstance() {
+	if _, ok := x.Item.(*UnifiedInstanceItem_Instance); ok {
+		x.Item = nil
+	}
+}
+
+func (x *UnifiedInstanceItem) ClearBotInstance() {
+	if _, ok := x.Item.(*UnifiedInstanceItem_BotInstance); ok {
+		x.Item = nil
+	}
+}
+
+const UnifiedInstanceItem_Item_not_set_case case_UnifiedInstanceItem_Item = 0
+const UnifiedInstanceItem_Instance_case case_UnifiedInstanceItem_Item = 1
+const UnifiedInstanceItem_BotInstance_case case_UnifiedInstanceItem_Item = 2
+
+func (x *UnifiedInstanceItem) WhichItem() case_UnifiedInstanceItem_Item {
+	if x == nil {
+		return UnifiedInstanceItem_Item_not_set_case
+	}
+	switch x.Item.(type) {
+	case *UnifiedInstanceItem_Instance:
+		return UnifiedInstanceItem_Instance_case
+	case *UnifiedInstanceItem_BotInstance:
+		return UnifiedInstanceItem_BotInstance_case
+	default:
+		return UnifiedInstanceItem_Item_not_set_case
+	}
+}
+
+type UnifiedInstanceItem_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Item:
+	// instance is the canonical instance type from the Instance heartbeat system.
+	Instance *types.InstanceV1
+	// bot_instance is the canonical bot instance type.
+	BotInstance *v1.BotInstance
+	// -- end of Item
+}
+
+func (b0 UnifiedInstanceItem_builder) Build() *UnifiedInstanceItem {
+	m0 := &UnifiedInstanceItem{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Instance != nil {
+		x.Item = &UnifiedInstanceItem_Instance{b.Instance}
+	}
+	if b.BotInstance != nil {
+		x.Item = &UnifiedInstanceItem_BotInstance{b.BotInstance}
+	}
+	return m0
+}
+
+type case_UnifiedInstanceItem_Item protoreflect.FieldNumber
+
+func (x case_UnifiedInstanceItem_Item) String() string {
+	md := file_teleport_inventory_v1_inventory_service_proto_msgTypes[3].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
 }
 
 type isUnifiedInstanceItem_Item interface {
@@ -556,18 +768,6 @@ const file_teleport_inventory_v1_inventory_service_proto_rawDesc = "" +
 	"\x15SORT_ORDER_DESCENDING\x10\x022\x93\x01\n" +
 	"\x10InventoryService\x12\x7f\n" +
 	"\x14ListUnifiedInstances\x122.teleport.inventory.v1.ListUnifiedInstancesRequest\x1a3.teleport.inventory.v1.ListUnifiedInstancesResponseBVZTgithub.com/gravitational/teleport/api/gen/proto/go/teleport/inventory/v1;inventoryv1b\x06proto3"
-
-var (
-	file_teleport_inventory_v1_inventory_service_proto_rawDescOnce sync.Once
-	file_teleport_inventory_v1_inventory_service_proto_rawDescData []byte
-)
-
-func file_teleport_inventory_v1_inventory_service_proto_rawDescGZIP() []byte {
-	file_teleport_inventory_v1_inventory_service_proto_rawDescOnce.Do(func() {
-		file_teleport_inventory_v1_inventory_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_inventory_v1_inventory_service_proto_rawDesc), len(file_teleport_inventory_v1_inventory_service_proto_rawDesc)))
-	})
-	return file_teleport_inventory_v1_inventory_service_proto_rawDescData
-}
 
 var file_teleport_inventory_v1_inventory_service_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
 var file_teleport_inventory_v1_inventory_service_proto_msgTypes = make([]protoimpl.MessageInfo, 4)

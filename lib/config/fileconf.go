@@ -3166,7 +3166,8 @@ type JamfService struct {
 // entry.
 // Corresponds to [types.JamfInventoryEntry].
 type JamfInventoryEntry struct {
-	// FilterRSQL is a Jamf Pro API RSQL filter string.
+	// FilterRSQL is a Jamf Pro API RSQL filter string. The set of filterable
+	// fields depends on DeviceType. Empty means no filter.
 	FilterRSQL string `yaml:"filter_rsql,omitempty"`
 	// SyncPeriodPartial is the period for PARTIAL syncs.
 	// Zero means "server default", negative means "disabled".
@@ -3180,6 +3181,10 @@ type JamfInventoryEntry struct {
 	// Custom page size for inventory queries.
 	// A server default is used if zeroed or negative.
 	PageSize int32 `yaml:"page_size,omitempty"`
+	// DeviceType is the Jamf device type to sync.
+	// Valid values are "computers" and "mobile_devices".
+	// If empty, defaults to "computers" for backwards compatibility.
+	DeviceType string `yaml:"device_type,omitempty"`
 }
 
 func (j *JamfService) toJamfSpecV1() (*types.JamfSpecV1, error) {
@@ -3199,6 +3204,7 @@ func (j *JamfService) toJamfSpecV1() (*types.JamfSpecV1, error) {
 			SyncPeriodFull:    types.DurationStringForJamfSpecV1(e.SyncPeriodFull),
 			OnMissing:         e.OnMissing,
 			PageSize:          e.PageSize,
+			DeviceType:        e.DeviceType,
 		}
 	}
 	spec := &types.JamfSpecV1{

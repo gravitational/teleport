@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/userpreferences/v1/access_graph.proto
 
+//go:build !protoopaque
+
 package userpreferencesv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -37,7 +38,7 @@ const (
 
 // AccessGraphUserPreferences is the user preferences for Access Graph.
 type AccessGraphUserPreferences struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// has_been_redirected is true if the user has already been redirected to the Access Graph
 	// on login, after having signed up for a trial from the Teleport Policy page.
 	HasBeenRedirected bool `protobuf:"varint,1,opt,name=has_been_redirected,json=hasBeenRedirected,proto3" json:"has_been_redirected,omitempty"`
@@ -70,16 +71,31 @@ func (x *AccessGraphUserPreferences) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AccessGraphUserPreferences.ProtoReflect.Descriptor instead.
-func (*AccessGraphUserPreferences) Descriptor() ([]byte, []int) {
-	return file_teleport_userpreferences_v1_access_graph_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *AccessGraphUserPreferences) GetHasBeenRedirected() bool {
 	if x != nil {
 		return x.HasBeenRedirected
 	}
 	return false
+}
+
+func (x *AccessGraphUserPreferences) SetHasBeenRedirected(v bool) {
+	x.HasBeenRedirected = v
+}
+
+type AccessGraphUserPreferences_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// has_been_redirected is true if the user has already been redirected to the Access Graph
+	// on login, after having signed up for a trial from the Teleport Policy page.
+	HasBeenRedirected bool
+}
+
+func (b0 AccessGraphUserPreferences_builder) Build() *AccessGraphUserPreferences {
+	m0 := &AccessGraphUserPreferences{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.HasBeenRedirected = b.HasBeenRedirected
+	return m0
 }
 
 var File_teleport_userpreferences_v1_access_graph_proto protoreflect.FileDescriptor
@@ -89,18 +105,6 @@ const file_teleport_userpreferences_v1_access_graph_proto_rawDesc = "" +
 	".teleport/userpreferences/v1/access_graph.proto\x12\x1bteleport.userpreferences.v1\"L\n" +
 	"\x1aAccessGraphUserPreferences\x12.\n" +
 	"\x13has_been_redirected\x18\x01 \x01(\bR\x11hasBeenRedirectedBYZWgithub.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1;userpreferencesv1b\x06proto3"
-
-var (
-	file_teleport_userpreferences_v1_access_graph_proto_rawDescOnce sync.Once
-	file_teleport_userpreferences_v1_access_graph_proto_rawDescData []byte
-)
-
-func file_teleport_userpreferences_v1_access_graph_proto_rawDescGZIP() []byte {
-	file_teleport_userpreferences_v1_access_graph_proto_rawDescOnce.Do(func() {
-		file_teleport_userpreferences_v1_access_graph_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_userpreferences_v1_access_graph_proto_rawDesc), len(file_teleport_userpreferences_v1_access_graph_proto_rawDesc)))
-	})
-	return file_teleport_userpreferences_v1_access_graph_proto_rawDescData
-}
 
 var file_teleport_userpreferences_v1_access_graph_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_teleport_userpreferences_v1_access_graph_proto_goTypes = []any{
