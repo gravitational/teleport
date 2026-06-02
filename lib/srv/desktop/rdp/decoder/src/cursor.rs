@@ -79,53 +79,43 @@ const DEFAULT_CURSOR_WIDTH: usize = 12;
 const DEFAULT_CURSOR_HEIGHT: usize = 17;
 
 #[rustfmt::skip]
-const DEFAULT_CURSOR_SHAPE: [[u8; DEFAULT_CURSOR_WIDTH]; DEFAULT_CURSOR_HEIGHT] = [
-    [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [1, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [1, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0],
-    [1, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0],
-    [1, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0],
-    [1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0],
-    [1, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0],
-    [1, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0],
-    [1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0],
-    [1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0],
-    [1, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1],
-    [1, 2, 2, 2, 1, 2, 2, 1, 0, 0, 0, 0],
-    [1, 2, 2, 1, 0, 1, 2, 2, 1, 0, 0, 0],
-    [1, 2, 1, 0, 0, 1, 2, 2, 1, 0, 0, 0],
-    [1, 1, 0, 0, 0, 0, 1, 2, 1, 0, 0, 0],
-    [1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0],
+const DEFAULT_CURSOR_SHAPE: [u8; DEFAULT_CURSOR_WIDTH*DEFAULT_CURSOR_HEIGHT] = [
+    1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    1, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    1, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0,
+    1, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0,
+    1, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0,
+    1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0,
+    1, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0,
+    1, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0,
+    1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0,
+    1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0,
+    1, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1,
+    1, 2, 2, 2, 1, 2, 2, 1, 0, 0, 0, 0,
+    1, 2, 2, 1, 0, 1, 2, 2, 1, 0, 0, 0,
+    1, 2, 1, 0, 0, 1, 2, 2, 1, 0, 0, 0,
+    1, 1, 0, 0, 0, 0, 1, 2, 1, 0, 0, 0,
+    1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0,
 ];
 
 const DEFAULT_CURSOR_RGBA: [u8; DEFAULT_CURSOR_WIDTH * DEFAULT_CURSOR_HEIGHT * 4] = {
-    let mut data = [0u8; DEFAULT_CURSOR_WIDTH * DEFAULT_CURSOR_HEIGHT * 4];
-    let mut row = 0;
+    let mut data = [0; DEFAULT_CURSOR_WIDTH * DEFAULT_CURSOR_HEIGHT * 4];
+    let mut i = 0;
+    while i < DEFAULT_CURSOR_WIDTH * DEFAULT_CURSOR_HEIGHT {
+        let p = match DEFAULT_CURSOR_SHAPE[i] {
+            // black outline
+            1 => [0, 0, 0, 255],
+            // white body
+            2 => [255, 255, 255, 255],
+            _ => [0, 0, 0, 0],
+        };
 
-    while row < DEFAULT_CURSOR_HEIGHT {
-        let mut col = 0;
-
-        while col < DEFAULT_CURSOR_WIDTH {
-            let val = DEFAULT_CURSOR_SHAPE[row][col];
-
-            if val != 0 {
-                let idx = (row * DEFAULT_CURSOR_WIDTH + col) * 4;
-
-                if val == 1 {
-                    // black outline
-                    data[idx + 3] = 255;
-                } else {
-                    // white body
-                    data[idx] = 255;
-                    data[idx + 1] = 255;
-                    data[idx + 2] = 255;
-                    data[idx + 3] = 255;
-                }
-            }
-            col += 1;
-        }
-        row += 1;
+        data[4 * i] = p[0];
+        data[4 * i + 1] = p[1];
+        data[4 * i + 2] = p[2];
+        data[4 * i + 3] = p[3];
+        i += 1;
     }
 
     data
