@@ -3058,13 +3058,33 @@ app_service:
       uri: "http://127.0.0.1:3000"
     - name: other
       uri: "http://127.0.0.1:3001"
-      public_addr: "app.cluster.example.com"
+      public_addr: "app.10.0.0.5"
 `,
-			name: "IP-only proxy public_addr falls back to cluster_name and detects collision",
+			name: "IP proxy public_addr collision rejected",
 			outErr: func(t require.TestingT, err error, _ ...any) {
 				require.ErrorContains(t, err, "route to the same FQDN")
-				require.ErrorContains(t, err, "app.cluster.example.com")
+				require.ErrorContains(t, err, "app.10.0.0.5")
 			},
+		},
+		{
+			inConfigString: `
+auth_service:
+  enabled: true
+  cluster_name: cluster.example.com
+proxy_service:
+  enabled: true
+  public_addr: 10.0.0.5
+app_service:
+  enabled: true
+  apps:
+    - name: app
+      uri: "http://127.0.0.1:3000"
+    - name: other
+      uri: "http://127.0.0.1:3001"
+      public_addr: "app.cluster.example.com"
+`,
+			name:   "IP proxy public_addr does not fall back to cluster_name",
+			outErr: require.NoError,
 		},
 		{
 			inConfigString: `
@@ -3085,10 +3105,83 @@ app_service:
       uri: "http://127.0.0.1:3001"
       public_addr: "app.teleport.test"
 `,
-			name: "mixed IP and hostname proxy public_addr uses only the hostname",
+			name: "collision on hostname among mixed IP and hostname proxy public_addr rejected",
 			outErr: func(t require.TestingT, err error, _ ...any) {
 				require.ErrorContains(t, err, "route to the same FQDN")
 				require.ErrorContains(t, err, "app.teleport.test")
+			},
+		},
+		{
+			inConfigString: `
+auth_service:
+  enabled: true
+  cluster_name: cluster.example.com
+proxy_service:
+  enabled: true
+  public_addr:
+    - 10.0.0.5
+    - teleport.test
+app_service:
+  enabled: true
+  apps:
+    - name: app
+      uri: "http://127.0.0.1:3000"
+    - name: other
+      uri: "http://127.0.0.1:3001"
+      public_addr: "app.10.0.0.5"
+`,
+			name: "collision on IP among mixed IP and hostname proxy public_addr rejected",
+			outErr: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorContains(t, err, "route to the same FQDN")
+				require.ErrorContains(t, err, "app.10.0.0.5")
+			},
+		},
+		{
+			inConfigString: `
+proxy_service:
+  enabled: false
+  public_addr: teleport.test
+app_service:
+  enabled: true
+  apps:
+    - name: app
+      uri: "http://127.0.0.1:3000"
+    - name: other
+      uri: "http://127.0.0.1:3001"
+      public_addr: "app.teleport.test"
+`,
+			name:   "disabled local proxy_service public_addr is ignored",
+			outErr: require.NoError,
+		},
+		{
+			inConfigString: `
+proxy_service:
+  enabled: true
+  public_addr:
+    - proxy1.test
+    - proxy2.test
+app_service:
+  enabled: true
+  apps:
+    - name: app1
+      uri: "http://127.0.0.1:3000"
+      public_addr: "beta.proxy1.test"
+    - name: app2
+      uri: "http://127.0.0.1:3001"
+      public_addr: "beta.proxy2.test"
+    - name: beta
+      uri: "http://127.0.0.1:3002"
+`,
+			name: "multi-proxy collision reports the lower-sorted FQDN deterministically",
+			outErr: func(t require.TestingT, err error, _ ...any) {
+				// beta resolves to both beta.proxy1.test and
+				// beta.proxy2.test; both collide. The error must
+				// reference the lower-sorted one so the message is
+				// stable across runs (Go map iteration is random).
+				require.ErrorContains(t, err, "route to the same FQDN")
+				require.ErrorContains(t, err, "beta.proxy1.test")
+				require.ErrorContains(t, err, "app1")
+				require.ErrorContains(t, err, "beta")
 			},
 		},
 	}
