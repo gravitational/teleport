@@ -16,7 +16,7 @@
     "@babel/preset-typescript": "^7.28.5",
     "@swc/core": "^1.15.33",
     "@swc/plugin-styled-components": "^12.9.0",
-    "@types/jsdom": "^27.0.0",
+    "@types/jsdom": "^28.0.3",
     "@vitejs/plugin-react-swc": "^4.3.0",
     "babel-plugin-styled-components": "^2.1.4",
     "globals": "^17.6.0",
