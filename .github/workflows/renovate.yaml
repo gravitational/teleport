@@ -33,6 +33,7 @@ jobs:
         env:
           RENOVATE_REPOSITORIES: ${{ github.repository }}
           RENOVATE_PLATFORM_COMMIT: 'true'
+          LOG_LEVEL: 'debug'
         with:
           configurationFile: .github/renovate.json
           token: ${{ steps.generate_token.outputs.token }}
