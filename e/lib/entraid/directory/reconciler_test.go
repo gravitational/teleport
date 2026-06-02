@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"sort"
+	"strconv"
 	"sync"
 	"testing"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -879,6 +881,145 @@ func TestUserSync(t *testing.T) {
 	})
 }
 
+func TestUserResourceEqualsInDeltaAndFullSync(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	const bobUsername = "bob@example.com"
+	bob := &models.User{
+		DirectoryObject: models.DirectoryObject{
+			ID:          to.Ptr(msgraphtest.BobID),
+			DisplayName: to.Ptr("Bob Builder"),
+		},
+		UserPrincipalName:        to.Ptr(bobUsername),
+		Mail:                     to.Ptr(bobUsername),
+		OnPremisesSAMAccountName: to.Ptr("Bob the Builder"),
+		GivenName:                to.Ptr("Bob"),
+		Surname:                  to.Ptr("Builder"),
+	}
+
+	assertBasicUserAttributes := func(t *testing.T, u types.User) {
+		t.Helper()
+
+		// Check traits matches.
+		// First item expected to match from traits values.
+		traits := u.GetTraits()
+		require.Equal(t, bobUsername, traits[entraIDSAMLClaimName][0], "username")
+		require.Equal(t, tenantID, traits[tenantIDClaim][0], "tenant ID")
+		require.Equal(t, *bob.GetID(), traits[objectIdentifierClaim][0], "user object ID")
+		require.Equal(t, *bob.DisplayName, traits[displayNameClaim][0], "display name")
+		require.Equal(t, *bob.GivenName, traits[entraIDSAMLGivenName][0], "given name")
+		require.Equal(t, *bob.Surname, traits[entraIDSAMLSurname][0], "surname")
+
+		// Check labels matches.
+		require.Equal(t, types.OriginEntraID, u.Origin(), "user origin")
+		labels := u.GetAllLabels()
+		require.Equal(t, *bob.GetID(), labels[types.EntraUniqueIDLabel], "Entra unique ID")
+		require.Equal(t, tenantID, labels[types.EntraTenantIDLabel], "Entra tenant ID")
+		require.Equal(t, *bob.UserPrincipalName, labels[types.EntraUPNLabel], "Entra UPN")
+		require.Equal(t, *bob.OnPremisesSAMAccountName, labels[types.EntraSAMAccountNameLabel], "Entra SAM account name")
+
+		isExternal, err := strconv.ParseBool(labels[types.TeleportInternalLabelPrefix+"entra-is-external"])
+		require.NoError(t, err)
+		require.False(t, isExternal, "entra-is-external label")
+
+		// Check CreatedBy matches.
+		require.Equal(t, constants.SAML, u.GetCreatedBy().Connector.Type, "user CreatedBy connector type")
+		require.Equal(t, ssoConnectorID, u.GetCreatedBy().Connector.ID, "user CreatedBy connector ID")
+		require.Equal(t, *bob.UserPrincipalName, u.GetCreatedBy().Connector.Identity, "user CreatedBy identity")
+	}
+
+	cmpIgnore := cmpopts.IgnoreFields(types.Metadata{}, "Revision")
+	t.Run("with group memberships", func(t *testing.T) {
+		// Setup test env with msgraphtest fake server.
+		defaultStorage := msgraphtest.NewDefaultStorage()
+		graphStorage := msgraphtest.NewStorage()
+		graphStorage.Applications = defaultStorage.Applications
+		// Create one Entra ID user Alice.
+		graphStorage.Users = make(map[string]*models.User)
+		graphStorage.Users[msgraphtest.BobID] = bob
+
+		graphStorage.Groups = make(map[string]*models.Group)
+		graphStorage.Groups[msgraphtest.Group1ID] = defaultStorage.Groups[msgraphtest.Group1ID]
+		graphStorage.Groups[msgraphtest.Group2ID] = defaultStorage.Groups[msgraphtest.Group2ID]
+
+		graphStorage.GroupMembers = make(map[string][]models.GroupMember)
+		graphStorage.GroupMembers[msgraphtest.Group1ID] = []models.GroupMember{bob}
+		graphStorage.GroupMembers[msgraphtest.Group2ID] = []models.GroupMember{bob}
+
+		env := newFakeEnv(t, graphStorage)
+		env.cfg.DeltaSyncEnabled = true
+		r, err := New(env.cfg)
+		require.NoError(t, err)
+
+		// Initial full sync
+		_, err = r.Reconcile(ctx, mdmsync.SyncModeFull)
+		require.NoError(t, err)
+
+		bobResourceAfterFullSync, err := env.identitySvc.GetUser(ctx, bobUsername, false)
+		require.NoError(t, err)
+
+		// Sanity check basic user attributes.
+		assertBasicUserAttributes(t, bobResourceAfterFullSync)
+
+		// Check role and traits.
+		// Bob is member of Group1ID and Group1ID.
+		expectedTraits := []string{msgraphtest.Group1ID, msgraphtest.Group2ID}
+		require.ElementsMatch(t, expectedTraits, bobResourceAfterFullSync.GetTraits()[entraIDSAMLClaimGroups], "group traits")
+
+		// access and editor role grant is baked in newSAMLConnector that matches with
+		// msgraphtest Group1ID and Group2ID.
+		expectedRoles := []string{"access", "editor"}
+		require.ElementsMatch(t, expectedRoles, bobResourceAfterFullSync.GetRoles(), "roles differ")
+
+		// Run reconciler mimicking delta sync.
+		_, err = r.Reconcile(ctx, mdmsync.SyncModePartial)
+		require.NoError(t, err)
+		bobResourceAfterDeltaSync, err := env.identitySvc.GetUser(ctx, bobUsername, false)
+		require.NoError(t, err, "expected Bob account in Teleport backend")
+
+		require.Empty(t, cmp.Diff(bobResourceAfterFullSync, bobResourceAfterDeltaSync, cmpIgnore))
+	})
+
+	t.Run("without group memberships", func(t *testing.T) {
+		// Setup test env with msgraphtest fake server.
+		graphStorage := msgraphtest.NewStorage()
+		graphStorage.Applications = msgraphtest.NewDefaultStorage().Applications
+		// Create one Entra ID user Alice.
+		graphStorage.Users = make(map[string]*models.User)
+
+		graphStorage.Users[msgraphtest.BobID] = bob
+
+		env := newFakeEnv(t, graphStorage)
+		env.cfg.DeltaSyncEnabled = true
+		r, err := New(env.cfg)
+		require.NoError(t, err)
+
+		// Initial full sync
+		_, err = r.Reconcile(ctx, mdmsync.SyncModeFull)
+		require.NoError(t, err)
+
+		bobResourceAfterFullSync, err := env.identitySvc.GetUser(ctx, bobUsername, false)
+		require.NoError(t, err, "expected Bob account in Teleport backend")
+
+		// Sanity check basic user attributes.
+		assertBasicUserAttributes(t, bobResourceAfterFullSync)
+
+		// entraIDSAMLClaimGroups should be nil because user has zero group membership.
+		require.Nil(t, bobResourceAfterFullSync.GetTraits()[entraIDSAMLClaimGroups], "group traits")
+		// No role grants because user has zero group membership.
+		require.Empty(t, bobResourceAfterFullSync.GetRoles(), "role grants")
+
+		// Run reconciler mimicking delta sync.
+		_, err = r.Reconcile(ctx, mdmsync.SyncModePartial)
+		require.NoError(t, err)
+		bobResourceAfterDeltaSync, err := env.identitySvc.GetUser(ctx, bobUsername, false)
+		require.NoError(t, err, "expected Bob account in Teleport backend")
+
+		require.Empty(t, cmp.Diff(bobResourceAfterFullSync, bobResourceAfterDeltaSync, cmpIgnore))
+	})
+}
+
 func TestGroupFilters(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
@@ -1420,11 +1561,10 @@ func newFakeEnv(t *testing.T, storage *msgraphtest.Storage) directoryReconcilerE
 	samlService, err := local.NewIdentityService(bk)
 	require.NoError(t, err)
 
-	connector := newSAMLConnector(t, ssoConnectorID, uuid.NewString(), uuid.NewString())
+	connector := newSAMLConnector(t, ssoConnectorID, msgraphtest.Group1ID, msgraphtest.Group2ID)
 	_, err = samlService.CreateSAMLConnector(t.Context(), connector)
 	require.NoError(t, err)
 
-	tenantID := uuid.NewString()
 	defaultOwners := []accesslist.Owner{
 		{Name: "admin", MembershipKind: accesslist.MembershipKindUser, IneligibleStatus: accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_ELIGIBLE.String()},
 	}

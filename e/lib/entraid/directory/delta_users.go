@@ -56,11 +56,12 @@ func (u *userDeltaProcessor) user(id entraUniqueID, user types.User) types.User 
 	}
 	delete(newTraits, entraIDSAMLClaimRoles)
 	delete(newTraits, entraIDSAMLClaimGroups)
-	groups := userGroupNames(string(id), u.entraUserGroupMemberships)
-	if u.userConfig.emitAsRoles {
-		newTraits[entraIDSAMLClaimRoles] = groups
-	} else {
-		newTraits[entraIDSAMLClaimGroups] = groups
+	if groups := userGroupNames(string(id), u.entraUserGroupMemberships); len(groups) > 0 {
+		if u.userConfig.emitAsRoles {
+			newTraits[entraIDSAMLClaimRoles] = groups
+		} else {
+			newTraits[entraIDSAMLClaimGroups] = groups
+		}
 	}
 
 	out.SetTraits(newTraits)
