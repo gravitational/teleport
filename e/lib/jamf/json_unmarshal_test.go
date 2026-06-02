@@ -1687,6 +1687,64 @@ const (
 }`
 )
 
+// getMobileDevicesDetailResponseExample is based on a real API response from
+// GET /v2/mobile-devices/detail?section=GENERAL&section=HARDWARE.
+// Not a full response, but includes the fields we care about.
+const getMobileDevicesDetailResponseExample = `{
+  "totalCount": 1,
+  "results": [{
+    "mobileDeviceId": "1",
+    "deviceType": "iOS",
+    "hardware": {
+      "serialNumber": "CXXXXXXXXXX1",
+      "model": "iPad (A16)",
+      "modelIdentifier": "iPad15,7",
+      "modelNumber": "MD3Y4KN"
+    },
+    "general": {
+      "udid": "00008120-001C1D8136500032",
+      "displayName": "iPad",
+      "osVersion": "26.3.1",
+      "osBuild": "23D8133",
+      "osSupplementalBuildVersion": "23D771330a",
+      "osRapidSecurityResponse": "(a)",
+      "managed": true,
+      "supervised": false,
+      "lastInventoryUpdateDate": "2026-04-09T13:25:05.789Z",
+      "lastEnrolledDate": "2026-04-09T13:24:32.434Z"
+    }
+  }]
+}`
+
+// getMobileDeviceByIDResponseExample is based on a real API response from
+// GET /v2/mobile-devices/{id}/detail.
+// Not a full response, but includes the fields we care about.
+const getMobileDeviceByIDResponseExample = `{
+  "id": "1",
+  "name": "iPad",
+  "serialNumber": "CXXXXXXXXXX1",
+  "udid": "00008120-001C1D8136500032",
+  "type": "ios",
+  "managed": true,
+  "osVersion": "26.3.1",
+  "osBuild": "23D8133",
+  "osSupplementalBuildVersion": "23D771330a",
+  "osRapidSecurityResponse": "(a)",
+  "lastInventoryUpdateTimestamp": "2026-04-09T13:25:05.789Z",
+  "lastEnrollmentTimestamp": "2026-04-09T13:24:32.434Z",
+  "softwareUpdateDeviceId": "iPad15,7",
+  "managementId": "95b84463-1df1-432a-8517-8c931bf8bff0",
+  "ios": {
+    "model": "iPad (A16)",
+    "modelIdentifier": "iPad15,7",
+    "modelNumber": "MD3Y4KN",
+    "supervised": false
+  },
+  "tvos": null,
+  "watchos": null,
+  "visionos": null
+}`
+
 func TestJSONUnmarshal(t *testing.T) {
 	wantGetComputersAPIExample := &jamf.GetComputersInventoryResponse{
 		TotalCount: 3,
@@ -1776,6 +1834,44 @@ func TestJSONUnmarshal(t *testing.T) {
 			example: computerInventoryV2Example,
 			message: &jamf.ComputerInventory{},
 			want:    wantGetComputersAPIExample.Results[0],
+		},
+		{
+			name:    "GetMobileDevicesDetailResponse example",
+			example: getMobileDevicesDetailResponseExample,
+			message: &jamf.GetMobileDevicesDetailResponse{},
+			want: &jamf.GetMobileDevicesDetailResponse{
+				TotalCount: 1,
+				Results: []*jamf.MobileDevice{
+					{
+						MobileDeviceID: "1",
+						DeviceType:     "iOS",
+						General: &jamf.MobileDeviceGeneralSection{
+							OSVersion:                  "26.3.1",
+							OSBuild:                    "23D8133",
+							OSSupplementalBuildVersion: "23D771330a",
+							LastInventoryUpdateDate:    time.Date(2026, 4, 9, 13, 25, 5, 789000000, time.UTC),
+							LastEnrolledDate:           time.Date(2026, 4, 9, 13, 24, 32, 434000000, time.UTC),
+						},
+						Hardware: &jamf.MobileDeviceHardwareSection{
+							SerialNumber:    "CXXXXXXXXXX1",
+							ModelIdentifier: "iPad15,7",
+						},
+					},
+				},
+			},
+		},
+		{
+			name:    "MobileDeviceDetails example",
+			example: getMobileDeviceByIDResponseExample,
+			message: &jamf.MobileDeviceDetails{},
+			want: &jamf.MobileDeviceDetails{
+				ID:           "1",
+				SerialNumber: "CXXXXXXXXXX1",
+				Type:         "ios",
+				IOS: &jamf.MobileDeviceDetailsIOS{
+					ModelIdentifier: "iPad15,7",
+				},
+			},
 		},
 		{
 			name:    "GetComputersInventoryResponse real example",

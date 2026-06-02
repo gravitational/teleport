@@ -1,7 +1,6 @@
 package jamf_test
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"testing"
@@ -22,7 +21,6 @@ func TestClient_GetComputersInventory(t *testing.T) {
 
 	api := env.API
 	client := env.Client
-	ctx := context.Background()
 
 	dev1 := &jamf.ComputerInventory{
 		ID:   "1",
@@ -172,7 +170,7 @@ func TestClient_GetComputersInventory(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got, err := client.GetComputersInventory(ctx, test.req)
+			got, err := client.GetComputersInventory(t.Context(), test.req)
 			if err != nil {
 				t.Fatalf("GetComputersInventory failed: %v", err)
 			}
@@ -189,7 +187,6 @@ func TestClient_GetComputersInventoryID(t *testing.T) {
 
 	api := env.API
 	client := env.Client
-	ctx := t.Context()
 
 	t.Run("invalid ID", func(t *testing.T) {
 		for _, id := range []string{
@@ -198,11 +195,10 @@ func TestClient_GetComputersInventoryID(t *testing.T) {
 			"foo/bar",
 			"with space",
 		} {
-			_, err := client.GetComputersInventoryByID(ctx, &jamf.GetComputersInventoryByIDRequest{ID: id})
+			_, err := client.GetComputersInventoryByID(t.Context(), &jamf.GetComputersInventoryByIDRequest{ID: id})
 			require.Error(t, err, "ID %q", id)
 			require.True(t, trace.IsBadParameter(err), "ID %q", id)
 		}
-
 	})
 
 	inv := []*jamf.ComputerInventory{
@@ -270,7 +266,7 @@ func TestClient_GetComputersInventoryID(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got, err := client.GetComputersInventoryByID(ctx, test.req)
+			got, err := client.GetComputersInventoryByID(t.Context(), test.req)
 			if test.wantStatus > 0 {
 				apiErr := &jamf.APIError{}
 				if !errors.As(err, &apiErr) || apiErr.StatusCode != test.wantStatus {
@@ -294,7 +290,7 @@ func TestClient_ComputersInventoryV1(t *testing.T) {
 
 	api := env.API
 	client := env.Client
-	ctx := context.Background()
+	ctx := t.Context()
 
 	verifyNotFound := func(t *testing.T, err error, endpoint string) {
 		t.Helper()
@@ -369,4 +365,219 @@ func TestClient_ComputersInventoryV1(t *testing.T) {
 			t.Errorf("client.GetComputersInventoryByID() mismatch (-want +got)\n%s", diff)
 		}
 	})
+}
+
+func TestClient_GetMobileDevicesDetail(t *testing.T) {
+	env := testenv.MustNew(nil /* opts */)
+	defer env.Close()
+
+	api := env.API
+	client := env.Client
+
+	dev1 := &jamf.MobileDevice{
+		MobileDeviceID: "1",
+		DeviceType:     "iOS",
+		General: &jamf.MobileDeviceGeneralSection{
+			OSVersion:               "26.3.1",
+			OSBuild:                 "23D8133",
+			LastInventoryUpdateDate: time.Unix(1685468902, 0), // 2023-05-30T17:48:02+00:00
+			LastEnrolledDate:        time.Unix(1685468902, 0),
+		},
+		Hardware: &jamf.MobileDeviceHardwareSection{
+			ModelIdentifier: "iPad15,7",
+			SerialNumber:    "CXXXXXXXXXX3",
+		},
+	}
+	dev2 := &jamf.MobileDevice{
+		MobileDeviceID: "2",
+		DeviceType:     "iOS",
+		General: &jamf.MobileDeviceGeneralSection{
+			OSVersion:               "26.4",
+			OSBuild:                 "24C2234",
+			LastInventoryUpdateDate: time.Unix(1685469902, 0), // 2023-05-30T18:05:02+00:00
+			LastEnrolledDate:        time.Unix(1685469902, 0),
+		},
+		Hardware: &jamf.MobileDeviceHardwareSection{
+			ModelIdentifier: "iPhone15,2",
+			SerialNumber:    "CXXXXXXXXXX4",
+		},
+	}
+
+	api.SetMobileDeviceInventory([]*jamf.MobileDevice{dev2, dev1})
+
+	const totalCount = 2
+	allSections := []string{
+		jamf.MobileDeviceSectionGeneral,
+		jamf.MobileDeviceSectionHardware,
+	}
+
+	wantAllDefault := &jamf.GetMobileDevicesDetailResponse{
+		TotalCount: totalCount,
+		Results: []*jamf.MobileDevice{
+			// Default sort in the fake API is by mobileDeviceId:asc.
+			// Default section is GENERAL only.
+			{
+				MobileDeviceID: dev1.MobileDeviceID,
+				DeviceType:     dev1.DeviceType,
+				General:        dev1.General,
+			},
+			{
+				MobileDeviceID: dev2.MobileDeviceID,
+				DeviceType:     dev2.DeviceType,
+				General:        dev2.General,
+			},
+		},
+	}
+
+	wantAllFull := &jamf.GetMobileDevicesDetailResponse{
+		TotalCount: totalCount,
+		Results:    []*jamf.MobileDevice{dev1, dev2},
+	}
+
+	wantEmpty := &jamf.GetMobileDevicesDetailResponse{
+		TotalCount: totalCount,
+	}
+
+	tests := []struct {
+		name string
+		req  *jamf.GetMobileDevicesDetailRequest
+		want *jamf.GetMobileDevicesDetailResponse
+	}{
+		{
+			name: "default query",
+			req:  &jamf.GetMobileDevicesDetailRequest{},
+			want: wantAllDefault,
+		},
+		{
+			name: "sections",
+			req: &jamf.GetMobileDevicesDetailRequest{
+				Section: allSections,
+			},
+			want: wantAllFull,
+		},
+		{
+			name: "sort by lastInventoryUpdateDate desc",
+			req: &jamf.GetMobileDevicesDetailRequest{
+				Section: allSections,
+				Sort:    []string{"lastInventoryUpdateDate:desc"},
+			},
+			want: &jamf.GetMobileDevicesDetailResponse{
+				TotalCount: totalCount,
+				Results:    []*jamf.MobileDevice{dev2, dev1},
+			},
+		},
+		{
+			name: "page out of range",
+			req: &jamf.GetMobileDevicesDetailRequest{
+				Page: 2, // there's no page 2
+			},
+			want: wantEmpty,
+		},
+		{
+			name: "pagination 1/2",
+			req: &jamf.GetMobileDevicesDetailRequest{
+				Section:  allSections,
+				Page:     0,
+				PageSize: 1,
+			},
+			want: &jamf.GetMobileDevicesDetailResponse{
+				TotalCount: totalCount,
+				Results:    []*jamf.MobileDevice{dev1},
+			},
+		},
+		{
+			name: "pagination 2/2",
+			req: &jamf.GetMobileDevicesDetailRequest{
+				Section:  allSections,
+				Page:     1,
+				PageSize: 1,
+			},
+			want: &jamf.GetMobileDevicesDetailResponse{
+				TotalCount: totalCount,
+				Results:    []*jamf.MobileDevice{dev2},
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := client.GetMobileDevicesDetail(t.Context(), test.req)
+			if err != nil {
+				t.Fatalf("GetMobileDevicesDetail failed: %v", err)
+			}
+			if diff := cmp.Diff(test.want, got, cmpopts.EquateEmpty()); diff != "" {
+				t.Errorf("GetMobileDevicesDetail mismatch (-want +got)\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestClient_GetMobileDeviceByID(t *testing.T) {
+	env := testenv.MustNew(nil /* opts */)
+	defer env.Close()
+
+	api := env.API
+	client := env.Client
+
+	inv := []*jamf.MobileDevice{
+		{
+			MobileDeviceID: "1",
+			DeviceType:     "iOS",
+			Hardware: &jamf.MobileDeviceHardwareSection{
+				ModelIdentifier: "iPad15,7",
+				SerialNumber:    "CXXXXXXXXXX3",
+			},
+		},
+		{
+			MobileDeviceID: "2",
+			DeviceType:     "iOS",
+			Hardware: &jamf.MobileDeviceHardwareSection{
+				ModelIdentifier: "iPhone15,2",
+				SerialNumber:    "CXXXXXXXXXX4",
+			},
+		},
+	}
+	dev2 := inv[1]
+	api.SetMobileDeviceInventory(inv)
+
+	tests := []struct {
+		name       string
+		req        *jamf.GetMobileDeviceByIDRequest
+		wantStatus int
+		want       *jamf.MobileDeviceDetails
+	}{
+		{
+			name: "ok",
+			req:  &jamf.GetMobileDeviceByIDRequest{ID: dev2.MobileDeviceID},
+			want: &jamf.MobileDeviceDetails{
+				ID:           dev2.MobileDeviceID,
+				SerialNumber: dev2.Hardware.SerialNumber,
+				Type:         "ios",
+				IOS: &jamf.MobileDeviceDetailsIOS{
+					ModelIdentifier: dev2.Hardware.ModelIdentifier,
+				},
+			},
+		},
+		{
+			name:       "not found",
+			req:        &jamf.GetMobileDeviceByIDRequest{ID: "404"},
+			wantStatus: 404,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := client.GetMobileDeviceByID(t.Context(), test.req)
+			if test.wantStatus > 0 {
+				apiErr := &jamf.APIError{}
+				if !errors.As(err, &apiErr) || apiErr.StatusCode != test.wantStatus {
+					t.Errorf("GetMobileDeviceByID returned err=%q, want error with status=%v", err, test.wantStatus)
+				}
+				return
+			}
+
+			require.NoError(t, err)
+			if diff := cmp.Diff(test.want, got); diff != "" {
+				t.Errorf("GetMobileDeviceByID mismatch (-want +got)\n%s", diff)
+			}
+		})
+	}
 }

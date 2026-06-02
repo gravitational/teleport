@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"hash/fnv"
 	"log/slog"
 	"math"
 	"net/http"
@@ -53,12 +54,13 @@ type API struct {
 	disableComputersInventoryV2 atomic.Bool
 
 	// mu guards all fields below it
-	mu                 sync.Mutex
-	users              []*User
-	apiClients         []*APIClient
-	inventory          []*jamf.ComputerInventory
-	issuedTokens       map[string]*authToken // key is authToken.Token
-	simulatePagingGaps bool
+	mu                    sync.Mutex
+	users                 []*User
+	apiClients            []*APIClient
+	inventory             []*jamf.ComputerInventory
+	mobileDeviceInventory []*jamf.MobileDevice
+	issuedTokens          map[string]*authToken // key is authToken.Token
+	simulatePagingGaps    bool
 }
 
 // Opts are the creation options for [API].
@@ -107,6 +109,12 @@ func (a *API) SetInventory(inv []*jamf.ComputerInventory) {
 	a.mu.Unlock()
 }
 
+func (a *API) SetMobileDeviceInventory(inv []*jamf.MobileDevice) {
+	a.mu.Lock()
+	a.mobileDeviceInventory = inv
+	a.mu.Unlock()
+}
+
 func (a *API) SetDisableComputersInventoryV2(v bool) {
 	a.disableComputersInventoryV2.Store(v)
 }
@@ -136,6 +144,10 @@ func (a *API) Handler(prefix string) http.Handler {
 		root.authorized(root.getComputersInventory))
 	mux.HandleFunc("GET "+prefix+"/v1/computers-inventory/{id}",
 		root.authorized(root.getComputersInventoryByID))
+	mux.HandleFunc("GET "+prefix+"/v2/mobile-devices/detail",
+		root.authorized(a.getMobileDevicesDetail))
+	mux.HandleFunc("GET "+prefix+"/v2/mobile-devices/{id}/detail",
+		root.authorized(a.getMobileDeviceByID))
 	mux.HandleFunc("POST "+prefix+"/v1/auth/keep-alive",
 		root.authorized(a.postAuthKeepAlive))
 
@@ -625,6 +637,292 @@ func (a *API) getComputersInventoryByID(w http.ResponseWriter, req *http.Request
 	})
 }
 
+func (a *API) getMobileDevicesDetail(w http.ResponseWriter, req *http.Request) {
+	q := req.URL.Query()
+
+	// page.
+	var page int
+	if val := q.Get("page"); val != "" {
+		n, err := strconv.Atoi(val)
+		if err == nil && n > 0 {
+			page = n
+		}
+	}
+
+	// page-size.
+	pageSize := 100 // default
+	if val := q.Get("page-size"); val != "" {
+		n, err := strconv.Atoi(val)
+		if err == nil && n > 0 {
+			pageSize = n
+		}
+	}
+
+	// section.
+	sections := q["section"]
+	if _, err := copyMobileDeviceSections(&jamf.MobileDevice{}, sections); err != nil {
+		a.replyError(w, errorResponse{
+			HTTPStatus: 400,
+			Errors: []*apiError{
+				{
+					Code:        "INVALID_REQUEST_PARAMETER_VALUE",
+					Description: err.Error(),
+					ID:          "0",
+				},
+			},
+		})
+		return
+	}
+
+	// sort.
+	// The real API defaults to displayName:asc, but we don't read that field.
+	// Default to a deterministic shuffle instead, so production code can't
+	// piggy-back on the fake's default order.
+	sorter := byShuffle
+	switch val, ok := q["sort"]; {
+	case !ok || len(val) == 0:
+		// No sort.
+	case len(val) == 1:
+		tmp := strings.Split(val[0], ":")
+		if len(tmp) != 2 {
+			a.replyError(w, errorResponse{
+				HTTPStatus: 400,
+				Errors: []*apiError{
+					{
+						Code:        "INVALID_FIELD",
+						Description: "Wrong format of sort argument",
+						ID:          "0",
+					},
+				},
+			})
+			return
+		}
+
+		field := tmp[0]
+		dir := tmp[1]
+
+		if dir != "desc" && dir != "asc" {
+			a.replyError(w, errorResponse{
+				HTTPStatus: 400,
+				Errors: []*apiError{
+					{
+						Code:        "INVALID_FIELD",
+						Description: "Sort direction must be desc or asc",
+						ID:          "0",
+					},
+				},
+			})
+			return
+		}
+
+		switch field {
+		case "mobileDeviceId":
+			sorter = byMobileDeviceID
+		case "lastInventoryUpdateDate":
+			sorter = byLastInventoryUpdateDate
+		default:
+			a.replyError(w, errorResponse{
+				HTTPStatus: 400,
+				Errors: []*apiError{
+					{
+						Code:        "INVALID_FIELD",
+						Description: fmt.Sprintf("sorting by %q not implemented by fake", field),
+						ID:          "0",
+					},
+				},
+			})
+			return
+		}
+
+		if dir == "desc" {
+			prev := sorter
+			sorter = func(a []*jamf.MobileDevice) sort.Interface {
+				return sort.Reverse(prev(a))
+			}
+		}
+	default:
+		a.replyError(w, errorResponse{
+			HTTPStatus: 500,
+			Errors: []*apiError{
+				{Description: "multiple sort values not supported by the fake API"},
+			},
+		})
+		return
+	}
+
+	// Lock inventory, then:
+	// - Sort underlying inventory
+	// - Paginate
+	// - Copy devices applying section filters
+	a.mu.Lock()
+	totalCount := len(a.mobileDeviceInventory)
+
+	sort.Sort(sorter(a.mobileDeviceInventory))
+
+	start := min(page*pageSize, totalCount)
+	end := min(start+pageSize, totalCount)
+	inv := a.mobileDeviceInventory[start:end]
+
+	if a.simulatePagingGaps && len(inv) > 0 {
+		inv = inv[1:]
+	}
+
+	resp := make([]*jamf.MobileDevice, 0, pageSize)
+	for _, d := range inv {
+		if d == nil {
+			resp = append(resp, nil)
+			continue
+		}
+		// err safe to swallow, sections are validated above.
+		cp, _ := copyMobileDeviceSections(d, sections)
+		resp = append(resp, cp)
+	}
+	a.mu.Unlock()
+
+	a.replyJSON(w, 200, &jamf.GetMobileDevicesDetailResponse{
+		TotalCount: totalCount,
+		Results:    resp,
+	})
+}
+
+func (a *API) getMobileDeviceByID(w http.ResponseWriter, req *http.Request) {
+	id := req.PathValue("id")
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	for _, d := range a.mobileDeviceInventory {
+		if d != nil && d.MobileDeviceID == id {
+			// Convert from the list shape to the single-device shape.
+			details := &jamf.MobileDeviceDetails{
+				ID:           d.MobileDeviceID,
+				SerialNumber: "",
+				Type:         strings.ToLower(d.DeviceType),
+			}
+			if d.Hardware != nil {
+				details.SerialNumber = d.Hardware.SerialNumber
+				if strings.EqualFold(d.DeviceType, "iOS") {
+					details.IOS = &jamf.MobileDeviceDetailsIOS{
+						ModelIdentifier: d.Hardware.ModelIdentifier,
+					}
+				}
+			}
+			a.replyJSON(w, 200, details)
+			return
+		}
+	}
+
+	a.replyError(w, errorResponse{
+		HTTPStatus: 404,
+		Errors: []*apiError{
+			{
+				Code:        "INVALID_ID",
+				Description: "mobile device with given id does not exist",
+				ID:          id,
+			},
+		},
+	})
+}
+
+func copyMobileDeviceSections(d *jamf.MobileDevice, sections []string) (*jamf.MobileDevice, error) {
+	cp := &jamf.MobileDevice{
+		MobileDeviceID: d.MobileDeviceID,
+		DeviceType:     d.DeviceType,
+	}
+	if len(sections) == 0 {
+		sections = []string{jamf.MobileDeviceSectionGeneral} // default
+	}
+
+	for _, s := range sections {
+		switch s {
+		case jamf.MobileDeviceSectionGeneral:
+			cp.General = d.General
+		case jamf.MobileDeviceSectionHardware:
+			cp.Hardware = d.Hardware
+		default:
+			allSections := []string{
+				jamf.MobileDeviceSectionGeneral,
+				jamf.MobileDeviceSectionHardware,
+			}
+			return nil, fmt.Errorf(
+				"invalid value of request parameter: %v, possible values: %v",
+				s, strings.Join(allSections, ","))
+		}
+	}
+
+	return cp, nil
+}
+
+func byShuffle(a []*jamf.MobileDevice) sort.Interface {
+	return mobileDeviceSorter{
+		elems: a,
+		less: func(d1, d2 *jamf.MobileDevice) bool {
+			var id1, id2 string
+			if d1 != nil {
+				id1 = d1.MobileDeviceID
+			}
+			if d2 != nil {
+				id2 = d2.MobileDeviceID
+			}
+			h := fnv.New64a()
+			h.Write([]byte(id1))
+			k1 := h.Sum64()
+			h.Reset()
+			h.Write([]byte(id2))
+			k2 := h.Sum64()
+			return k1 < k2
+		},
+	}
+}
+
+func byMobileDeviceID(a []*jamf.MobileDevice) sort.Interface {
+	return mobileDeviceSorter{
+		elems: a,
+		less: func(d1, d2 *jamf.MobileDevice) bool {
+			var id1, id2 string
+			if d1 != nil {
+				id1 = d1.MobileDeviceID
+			}
+			if d2 != nil {
+				id2 = d2.MobileDeviceID
+			}
+			return id1 < id2
+		},
+	}
+}
+
+func byLastInventoryUpdateDate(a []*jamf.MobileDevice) sort.Interface {
+	return mobileDeviceSorter{
+		elems: a,
+		less: func(d1, d2 *jamf.MobileDevice) bool {
+			var t1, t2 time.Time
+			if d1 != nil && d1.General != nil {
+				t1 = d1.General.LastInventoryUpdateDate
+			}
+			if d2 != nil && d2.General != nil {
+				t2 = d2.General.LastInventoryUpdateDate
+			}
+			return t1.Before(t2)
+		},
+	}
+}
+
+type mobileDeviceSorter struct {
+	elems []*jamf.MobileDevice
+	less  func(d1, d2 *jamf.MobileDevice) bool
+}
+
+func (s mobileDeviceSorter) Len() int {
+	return len(s.elems)
+}
+
+func (s mobileDeviceSorter) Less(i int, j int) bool {
+	return s.less(s.elems[i], s.elems[j])
+}
+
+func (s mobileDeviceSorter) Swap(i int, j int) {
+	s.elems[i], s.elems[j] = s.elems[j], s.elems[i]
+}
+
 func copySections(c *jamf.ComputerInventory, sections []string) (*jamf.ComputerInventory, error) {
 	cp := &jamf.ComputerInventory{
 		ID:   c.ID,
@@ -649,7 +947,7 @@ func copySections(c *jamf.ComputerInventory, sections []string) (*jamf.ComputerI
 			allSections := []string{jamf.SectionGeneral, jamf.SectionHardware, jamf.SectionLocalUserAccounts, jamf.SectionOperatingSystem}
 			// Error message copied from actual API.
 			return nil, fmt.Errorf(
-				"invalid value of request parameter: %v, Possible values: %v",
+				"invalid value of request parameter: %v, possible values: %v",
 				s, strings.Join(allSections, ","))
 		}
 	}

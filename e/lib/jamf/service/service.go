@@ -725,6 +725,59 @@ func platformToOSType(platform string) devicepb.OSType {
 	return devicepb.OSType_OS_TYPE_UNSPECIFIED
 }
 
+func mobileDeviceToDevice(d *jamf.MobileDevice) (*devicepb.Device, error) {
+	if d == nil {
+		return nil, trace.BadParameter("mobile device is nil")
+	}
+
+	// Hardware has the SerialNumber and ModelIdentifier.
+	// DeviceType + ModelIdentifier determine the OS type.
+	// That's the bare minimum we need, everything else is DeviceProfile info.
+	if d.Hardware == nil {
+		return nil, trace.BadParameter("mobile device has no hardware section")
+	}
+
+	osType := mobileDeviceToOSType(d.DeviceType, d.Hardware.ModelIdentifier)
+	if osType == devicepb.OSType_OS_TYPE_UNSPECIFIED {
+		return nil, trace.BadParameter("unexpected deviceType=%q, hardware.modelIdentifier=%q", d.DeviceType, d.Hardware.ModelIdentifier)
+	}
+
+	profile := &devicepb.DeviceProfile{
+		ModelIdentifier: d.Hardware.ModelIdentifier,
+		ExternalId:      d.MobileDeviceID,
+	}
+	if d.General != nil {
+		profile.OsVersion = d.General.OSVersion
+		profile.OsBuild = d.General.OSBuild
+		profile.OsBuildSupplemental = d.General.OSSupplementalBuildVersion
+	}
+
+	return &devicepb.Device{
+		OsType:   osType,
+		AssetTag: d.Hardware.SerialNumber,
+		Profile:  profile,
+	}, nil
+}
+
+// mobileDeviceToOSType maps a Jamf mobile device's deviceType and
+// modelIdentifier to a Teleport OSType. The API reports "iOS" for both iPhones
+// and iPads, so we use the modelIdentifier prefix to distinguish them.
+func mobileDeviceToOSType(deviceType, modelIdentifier string) devicepb.OSType {
+	if !strings.EqualFold("iOS", deviceType) {
+		return devicepb.OSType_OS_TYPE_UNSPECIFIED
+	}
+
+	modelIDLower := strings.ToLower(modelIdentifier)
+	switch {
+	case strings.HasPrefix(modelIDLower, "iphone"):
+		return devicepb.OSType_OS_TYPE_IOS
+	case strings.HasPrefix(modelIDLower, "ipad"):
+		return devicepb.OSType_OS_TYPE_IPADOS
+	default:
+		return devicepb.OSType_OS_TYPE_UNSPECIFIED
+	}
+}
+
 type syncState struct {
 	jamfDevices  []*jamf.ComputerInventory
 	page         int

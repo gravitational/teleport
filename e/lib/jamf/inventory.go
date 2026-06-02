@@ -247,12 +247,10 @@ func (c *Client) getComputersInventoryByID(
 		// Don't query without an ID, the response is the same as
 		// listing/GetComputersInventory.
 		return nil, trace.BadParameter("id required")
+	}
 
-	// Prevent malicious request IDs from making requests to other APIs.
-	case url.PathEscape(req.ID) != req.ID:
-		return nil, trace.BadParameter("invalid device ID %q", req.ID)
-	case req.ID == ".." || strings.Contains(req.ID, "../"):
-		return nil, trace.BadParameter("invalid device ID %q", req.ID)
+	if err := validateDeviceID(req.ID); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	q := make(url.Values)
@@ -269,4 +267,84 @@ func (c *Client) getComputersInventoryByID(
 
 	resp := &ComputerInventory{}
 	return resp, trace.Wrap(c.doAuthnJSONRequest(getReq, resp))
+}
+
+// GetMobileDevicesDetail returns paginated mobile device inventory records.
+// The endpoint was added in Jamf Pro 10.48.0. https://developer.jamf.com/jamf-pro/changelog/10480-additions
+//
+// https://developer.jamf.com/jamf-pro/reference/get_v2-mobile-devices-detail
+func (c *Client) GetMobileDevicesDetail(
+	ctx context.Context, req *GetMobileDevicesDetailRequest) (*GetMobileDevicesDetailResponse, error) {
+	if req == nil {
+		return nil, trace.BadParameter("req required")
+	}
+
+	q := make(url.Values)
+	if req.Page > 0 {
+		q.Set("page", strconv.Itoa(req.Page))
+	}
+	if req.PageSize > 0 {
+		q.Set("page-size", strconv.Itoa(req.PageSize))
+	}
+	for _, s := range req.Section {
+		if s != "" {
+			q.Add("section", s)
+		}
+	}
+	for _, s := range req.Sort {
+		if s != "" {
+			q.Add("sort", s)
+		}
+	}
+	if req.Filter != "" {
+		q.Set("filter", req.Filter)
+	}
+
+	url := c.endpoint("/v2/mobile-devices/detail")
+	getReq, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil /* body */)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	getReq.URL.RawQuery = q.Encode()
+
+	resp := &GetMobileDevicesDetailResponse{}
+	return resp, trace.Wrap(c.doAuthnJSONRequest(getReq, resp))
+}
+
+// GetMobileDeviceByID returns a single mobile device.
+//
+// https://developer.jamf.com/jamf-pro/reference/get_v2-mobile-devices-id-detail
+func (c *Client) GetMobileDeviceByID(
+	ctx context.Context, req *GetMobileDeviceByIDRequest) (*MobileDeviceDetails, error) {
+	switch {
+	case req == nil:
+		return nil, trace.BadParameter("req required")
+	case req.ID == "":
+		return nil, trace.BadParameter("id required")
+	}
+
+	if err := validateDeviceID(req.ID); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	url := c.endpoint(fmt.Sprintf("/v2/mobile-devices/%s/detail", req.ID))
+	getReq, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil /* body */)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp := &MobileDeviceDetails{}
+	return resp, trace.Wrap(c.doAuthnJSONRequest(getReq, resp))
+}
+
+// validateDeviceID prevents malicious request IDs from making requests to other APIs.
+func validateDeviceID(deviceID string) error {
+	switch {
+	case url.PathEscape(deviceID) != deviceID:
+		return trace.BadParameter("invalid device ID %q", deviceID)
+	case deviceID == ".." || strings.Contains(deviceID, "../"):
+		return trace.BadParameter("invalid device ID %q", deviceID)
+	default:
+		return nil
+	}
 }
