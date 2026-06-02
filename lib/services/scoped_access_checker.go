@@ -28,6 +28,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -259,6 +260,22 @@ func (c *ScopedAccessChecker) CheckAccessToRules(ctx RuleContext, resource strin
 	// scopedCompatChecker for resource permission checks. Any revisiting of this strategy must take
 	// our scoped system role strategy into account.
 	return checkAccessToRulesImpl(c.scopedCompatChecker, ctx, resource, verbs...)
+}
+
+// CheckAccessToWorkloadIdentity checks whether the identity is granted access to issue the given
+// WorkloadIdentity by virtue of a matching workload_identity label selector. This mirrors the other
+// resource-specific access-check methods (e.g. [ScopedAccessChecker.CheckAccessToRemoteCluster] and
+// the SSH/Kube checkers) by deferring label matching to the underlying checker rather than exposing
+// a generic CheckAccess.
+func (c *ScopedAccessChecker) CheckAccessToWorkloadIdentity(wi *workloadidentityv1pb.WorkloadIdentity) error {
+	r := types.Resource153ToResourceWithLabels(wi)
+	if !c.isScoped() {
+		return c.unscopedChecker.CheckAccess(r, AccessState{})
+	}
+	// XXX: the sanity of [NewScopedAccessCheckerForSystemRole] depends upon us continuing to defer to
+	// scopedCompatChecker for resource access checks. Any revisiting of this strategy must take
+	// our scoped system role strategy into account.
+	return c.scopedCompatChecker.CheckAccess(r, AccessState{})
 }
 
 // CheckAccessToRemoteCluster checks access to a remote cluster.

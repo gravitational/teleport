@@ -579,7 +579,7 @@ func TestValidateScopedSPIFFEID(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tt.assertErr(t, validateScopedSPIFFEID(tt.scope, tt.id))
+			tt.assertErr(t, ValidateScopedSPIFFEID(tt.scope, tt.id))
 		})
 	}
 }
