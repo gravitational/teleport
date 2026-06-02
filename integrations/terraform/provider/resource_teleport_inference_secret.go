@@ -219,6 +219,12 @@ func (r resourceTeleportInferenceSecret) Update(ctx context.Context, req tfsdk.U
 		return
 	}
 
+	specFromPlan, ok := plan.Attrs["spec"]
+	if !ok {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading InferenceSecret", trace.Wrap(trace.Errorf("spec not found in the plan")), "inference_secret"))
+		return
+	}
+
 	inferenceSecret := &summarizerv1.InferenceSecret{}
 	diags = schemav1.CopyInferenceSecretFromTerraform(ctx, plan, inferenceSecret)
 	resp.Diagnostics.Append(diags...)
@@ -288,6 +294,8 @@ func (r resourceTeleportInferenceSecret) Update(ctx context.Context, req tfsdk.U
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	plan.Attrs["spec"] = specFromPlan
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
