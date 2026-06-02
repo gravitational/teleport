@@ -24,7 +24,7 @@ func managedDeviceToDevice(md *msgraph.ManagedDevice) (*devicepb.Device, error) 
 		return nil, trace.BadParameter("device has no serial number")
 	}
 
-	osType := operatingSystemToOSType(md.OperatingSystem)
+	osType := operatingSystemToOSType(md.OperatingSystem, md.Model)
 	if osType == devicepb.OSType_OS_TYPE_UNSPECIFIED {
 		return &devicepb.Device{}, nil
 	}
@@ -47,12 +47,26 @@ func managedDeviceToDevice(md *msgraph.ManagedDevice) (*devicepb.Device, error) 
 	}, nil
 }
 
-func operatingSystemToOSType(os string) devicepb.OSType {
+func operatingSystemToOSType(os string, model string) devicepb.OSType {
+	os = strings.ToLower(os)
+
 	switch os {
-	case "macOS":
+	case "macos":
 		return devicepb.OSType_OS_TYPE_MACOS
-	case "Windows":
+	case "windows":
 		return devicepb.OSType_OS_TYPE_WINDOWS
+	case "ios":
+		model = strings.ToLower(model)
+		// Intune reports a single "iOS" operatingSystem for both iPhones and iPads. The only way to
+		// distinguish between them is to look at the model field which has values like "iPad (10th
+		// generation)", "iPhone 14", "iPad mini (A17 Pro)", "iPad Air (5th generation)".
+		if strings.HasPrefix(model, "iphone") {
+			return devicepb.OSType_OS_TYPE_IOS
+		}
+		if strings.HasPrefix(model, "ipad") {
+			return devicepb.OSType_OS_TYPE_IPADOS
+		}
+		return devicepb.OSType_OS_TYPE_UNSPECIFIED
 	}
 	// Intune reports Linux machines as e.g. "Linux (ubuntu)".
 	// TODO(ravicious): Use the part in parentheses as OsId in [devicepb.DeviceProfile]. If OsId is
@@ -60,7 +74,7 @@ func operatingSystemToOSType(os string) devicepb.OSType {
 	// and what's reported by tsh (see lib/devicetrust/storage.validateDataLikeDrift). However, at the
 	// moment the Jamf integration doesn't populate this field too. Before populating it, we'd need to
 	// make sure that both Jamf and Intune report the same value as tsh on different Linux OSes.
-	if strings.HasPrefix(os, "Linux") {
+	if strings.HasPrefix(os, "linux") {
 		return devicepb.OSType_OS_TYPE_LINUX
 	}
 	return devicepb.OSType_OS_TYPE_UNSPECIFIED

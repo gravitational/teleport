@@ -2,6 +2,7 @@ package intune
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -14,38 +15,52 @@ import (
 
 func TestOperatingSystemToOSType(t *testing.T) {
 	tests := []struct {
-		in  string
-		out devicepb.OSType
+		os    string
+		model string
+		want  devicepb.OSType
 	}{
 		{
-			in:  "macOS",
-			out: devicepb.OSType_OS_TYPE_MACOS,
+			os:   "macOS",
+			want: devicepb.OSType_OS_TYPE_MACOS,
 		},
 		{
-			in:  "macos",
-			out: devicepb.OSType_OS_TYPE_UNSPECIFIED,
+			os:   "Windows",
+			want: devicepb.OSType_OS_TYPE_WINDOWS,
 		},
 		{
-			in:  "Windows",
-			out: devicepb.OSType_OS_TYPE_WINDOWS,
+			os:   "Linux (ubuntu)",
+			want: devicepb.OSType_OS_TYPE_LINUX,
 		},
 		{
-			in:  "Linux (ubuntu)",
-			out: devicepb.OSType_OS_TYPE_LINUX,
+			os:    "iOS",
+			model: "unknown model",
+			want:  devicepb.OSType_OS_TYPE_UNSPECIFIED,
 		},
 		{
-			in:  "iOS",
-			out: devicepb.OSType_OS_TYPE_UNSPECIFIED,
+			os:    "iOS",
+			model: "iPhone 14",
+			want:  devicepb.OSType_OS_TYPE_IOS,
 		},
 		{
-			in:  "Android",
-			out: devicepb.OSType_OS_TYPE_UNSPECIFIED,
+			// Verify case-insensitive compare.
+			os:    "ios",
+			model: "iphone 14",
+			want:  devicepb.OSType_OS_TYPE_IOS,
+		},
+		{
+			os:    "iOS",
+			model: "iPad (A16)",
+			want:  devicepb.OSType_OS_TYPE_IPADOS,
+		},
+		{
+			os:   "Android",
+			want: devicepb.OSType_OS_TYPE_UNSPECIFIED,
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.in, func(t *testing.T) {
-			require.Equal(t, tt.out.String(), operatingSystemToOSType(tt.in).String())
+		t.Run(strings.TrimSpace(fmt.Sprintf("%s %s", tt.os, tt.model)), func(t *testing.T) {
+			require.Equal(t, tt.want.String(), operatingSystemToOSType(tt.os, tt.model).String())
 		})
 	}
 }
@@ -111,6 +126,8 @@ func TestOSVersionToVersionAndBuild(t *testing.T) {
 }
 
 func TestManagedDeviceToDevice(t *testing.T) {
+	genericLastSyncDateTime := time.Unix(1685468902, 0) // 2023-05-30T17:48:02+00:00
+
 	tests := []struct {
 		name     string
 		md       *msgraph.ManagedDevice
@@ -121,18 +138,90 @@ func TestManagedDeviceToDevice(t *testing.T) {
 			name: "valid device",
 			md: &msgraph.ManagedDevice{
 				ID:                      "id-1234",
-				LastSyncDateTime:        time.Unix(1685468902, 0), // 2023-05-30T17:48:02+00:00
+				LastSyncDateTime:        genericLastSyncDateTime,
 				DeviceRegistrationState: "registered",
 				SerialNumber:            "sn-1234",
 				OperatingSystem:         "macOS",
+				Model:                   "MacBookPro9,2",
 				OSVersion:               "15.5 (24F74)",
 			},
 			check: func(t *testing.T, md *msgraph.ManagedDevice, d *devicepb.Device) {
-				assert.Equal(t, md.ID, d.Profile.ExternalId)
-				assert.Equal(t, devicepb.OSType_OS_TYPE_MACOS, d.OsType)
-				assert.Equal(t, md.SerialNumber, d.AssetTag)
-				assert.Equal(t, "15.5", d.Profile.OsVersion)
-				assert.Equal(t, "24F74", d.Profile.OsBuild)
+				want := &devicepb.Device{
+					AssetTag: md.SerialNumber,
+					OsType:   devicepb.OSType_OS_TYPE_MACOS,
+					Profile: &devicepb.DeviceProfile{
+						ExternalId:      md.ID,
+						OsVersion:       "15.5",
+						OsBuild:         "24F74",
+						ModelIdentifier: "",
+					},
+				}
+				require.Equal(t, want, d)
+			},
+		},
+		{
+			name: "iPhone",
+			md: &msgraph.ManagedDevice{
+				ID:                      "id-1234",
+				LastSyncDateTime:        genericLastSyncDateTime,
+				DeviceRegistrationState: "registered",
+				SerialNumber:            "sn-1234",
+				OperatingSystem:         "iOS",
+				Model:                   "iPhone 16e",
+				OSVersion:               "26.3.1",
+			},
+			check: func(t *testing.T, md *msgraph.ManagedDevice, d *devicepb.Device) {
+				want := &devicepb.Device{
+					AssetTag: md.SerialNumber,
+					OsType:   devicepb.OSType_OS_TYPE_IOS,
+					Profile: &devicepb.DeviceProfile{
+						ExternalId:      md.ID,
+						OsVersion:       "26.3.1",
+						OsBuild:         "",
+						ModelIdentifier: "",
+					},
+				}
+				require.Equal(t, want, d)
+			},
+		},
+		{
+			name: "iPad",
+			md: &msgraph.ManagedDevice{
+				ID:                      "id-1234",
+				LastSyncDateTime:        genericLastSyncDateTime,
+				DeviceRegistrationState: "registered",
+				SerialNumber:            "sn-1234",
+				OperatingSystem:         "iOS",
+				Model:                   "iPad (10th generation)",
+				OSVersion:               "18.6",
+			},
+			check: func(t *testing.T, md *msgraph.ManagedDevice, d *devicepb.Device) {
+				want := &devicepb.Device{
+					AssetTag: md.SerialNumber,
+					OsType:   devicepb.OSType_OS_TYPE_IPADOS,
+					Profile: &devicepb.DeviceProfile{
+						ExternalId:      md.ID,
+						OsVersion:       "18.6",
+						OsBuild:         "",
+						ModelIdentifier: "",
+					},
+				}
+				require.Equal(t, want, d)
+			},
+		},
+		{
+			name: "iOS-like with unknown model",
+			md: &msgraph.ManagedDevice{
+				ID:                      "id-1234",
+				LastSyncDateTime:        genericLastSyncDateTime,
+				DeviceRegistrationState: "registered",
+				SerialNumber:            "sn-1234",
+				OperatingSystem:         "iOS",
+				Model:                   "Apple Phone 2",
+				OSVersion:               "18.6",
+			},
+			check: func(t *testing.T, md *msgraph.ManagedDevice, d *devicepb.Device) {
+				require.Equal(t, &devicepb.Device{}, d)
 			},
 		},
 		{

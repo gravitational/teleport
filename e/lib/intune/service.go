@@ -459,7 +459,10 @@ func (s *Service) processDevicesPage(ctx context.Context, intuneDevices []*msgra
 			// inventory that we don't support, e.g., Android devices. Intune API offers no way to filter
 			// by the OS.
 			s.cfg.Logger.DebugContext(ctx, "Skipping device due to unsupported operating system",
-				logGroup, slog.String("operating_system", intuneDevice.OperatingSystem))
+				logGroup,
+				slog.String("operating_system", intuneDevice.OperatingSystem),
+				slog.String("model", intuneDevice.Model),
+			)
 			continue
 		}
 
@@ -475,6 +478,7 @@ func (s *Service) processDevicesPage(ctx context.Context, intuneDevices []*msgra
 			logGroup,
 			slog.Time("last_sync_date_time", intuneDevice.LastSyncDateTime),
 			slog.String("operating_system", intuneDevice.OperatingSystem),
+			slog.String("model", intuneDevice.Model),
 			slog.String("os_version", intuneDevice.OSVersion),
 			slog.Any("profile", device.Profile),
 		)
@@ -537,7 +541,7 @@ func (s *Service) confirmMissingDevices(ctx context.Context, missingDevices []*d
 				s.cfg.Logger.DebugContext(ctx, "Skipping removal of device, query failed",
 					"error", err, "device", missingDevice)
 
-			case operatingSystemToOSType(intuneDevice.OperatingSystem) == missingDevice.OsType &&
+			case operatingSystemToOSType(intuneDevice.OperatingSystem, intuneDevice.Model) == missingDevice.OsType &&
 				intuneDevice.SerialNumber == missingDevice.AssetTag:
 				s.cfg.Logger.DebugContext(ctx, "Skipping removal, device found in Intune", "device", missingDevice)
 
@@ -570,13 +574,14 @@ func (s *Service) logSyncResult(ctx context.Context, result *devicepb.SyncInvent
 			failures++
 
 			syncType := "remove"
-			var operatingSystem, serialNumber, intuneID string
+			var operatingSystem, model, serialNumber, intuneID string
 			if page != nil {
 				syncType = "upsert"
 				if intuneIdx, found := page.teleportToIntuneIdx[teleportIdx]; found && intuneIdx < len(page.intuneDevices) {
 					intuneDevice := page.intuneDevices[intuneIdx]
 					intuneID = intuneDevice.ID
 					operatingSystem = intuneDevice.OperatingSystem
+					model = intuneDevice.Model
 					serialNumber = intuneDevice.SerialNumber
 				}
 			}
@@ -588,6 +593,7 @@ func (s *Service) logSyncResult(ctx context.Context, result *devicepb.SyncInvent
 				"device_id", status.GetId(),
 				"intune_id", intuneID,
 				"operating_system", operatingSystem,
+				"model", model,
 				"serial_number", serialNumber,
 			)
 		case status.GetDeleted():

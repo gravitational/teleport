@@ -419,9 +419,10 @@ func TestRun_deviceConfirmation(t *testing.T) {
 				EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
 				Source:       source,
 				Profile: &devicepb.DeviceProfile{
-					OsVersion:  "13.4.1",
-					OsBuild:    "22F82",
-					ExternalId: intuneDevices[0].ID,
+					OsVersion:       "13.4.1",
+					OsBuild:         "22F82",
+					ExternalId:      intuneDevices[0].ID,
+					ModelIdentifier: "",
 				},
 			},
 			{

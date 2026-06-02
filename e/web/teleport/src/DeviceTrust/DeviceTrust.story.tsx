@@ -205,4 +205,18 @@ const devices: TrustedDevice[] = [
       name: 'contoso MDM',
     },
   },
+  {
+    id: '40facab6-8b54-404b-9345-324afa164c33',
+    assetTag: 'ISXXXXXXXXX',
+    osType: 'iOS',
+    enrollStatus: 'not enrolled',
+    owner: '',
+  },
+  {
+    id: 'cff93878-dbb1-4436-8e3b-50cce3db59b9',
+    assetTag: 'JRXXXXXXXXX',
+    osType: 'iPadOS',
+    enrollStatus: 'enrolled',
+    owner: 'alice',
+  },
 ];

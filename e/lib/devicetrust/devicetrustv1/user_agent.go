@@ -38,8 +38,17 @@ func getOSFromUserAgent(ua string, maxTouchPoints uint32) devicepb.OSType {
 
 	switch {
 	case strings.Contains(ua, "iphone"):
-		// TODO(ravicious): Change to iOS once Device Trust for iOS is available.
-		return devicepb.OSType_OS_TYPE_UNSPECIFIED
+		return devicepb.OSType_OS_TYPE_IOS
+
+	case strings.Contains(ua, "mac os x"):
+		// Since iPadOS 13, iPadOS uses the same user agent as macOS. To differentiate between the two,
+		// we check whether the device supports touch controls by looking at navigator.maxTouchPoints
+		// forwarded from the browser. "> 1" is an arbitrary check, most iPads report 5 but there's no
+		// definitive answer for this.
+		if maxTouchPoints > 1 {
+			return devicepb.OSType_OS_TYPE_IPADOS
+		}
+		return devicepb.OSType_OS_TYPE_MACOS
 
 	case strings.Contains(ua, "mobile"), strings.Contains(ua, "android"):
 		// Ignore other mobile user agents.
@@ -48,17 +57,6 @@ func getOSFromUserAgent(ua string, maxTouchPoints uint32) devicepb.OSType {
 	case strings.Contains(ua, "xbox"):
 		// Looks remarkably like Windows otherwise.
 		return devicepb.OSType_OS_TYPE_UNSPECIFIED
-
-	case strings.Contains(ua, "mac os x"):
-		// Since iPadOS 13, iPadOS uses the same user agent as macOS. To differentiate between the two,
-		// we check whether the device supports touch controls by looking at navigator.maxTouchPoints
-		// forwarded from the browser. "> 1" is an arbitrary check, most iPads report 5 but there's no
-		// definitive answer for this.
-		if maxTouchPoints > 1 {
-			// TODO(ravicious): Change to iPadOS once Device Trust for iPadOS is available.
-			return devicepb.OSType_OS_TYPE_UNSPECIFIED
-		}
-		return devicepb.OSType_OS_TYPE_MACOS
 
 	case strings.Contains(ua, "windows"):
 		return devicepb.OSType_OS_TYPE_WINDOWS

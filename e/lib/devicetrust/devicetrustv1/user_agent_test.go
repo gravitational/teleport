@@ -89,17 +89,16 @@ func TestGetOSFromUserAgent(t *testing.T) {
 				"Mozilla/5.0 (iPhone; CPU iPhone OS 17_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/122.0.6261.62 Mobile/15E148 Safari/604.1",                   // iPhone, Chrome
 				"Mozilla/5.0 (iPhone; CPU iPhone OS 14_3_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) FxiOS/123.0 Mobile/15E148 Safari/605.1.15",                      // iPhone, Firefox
 			},
-			// TODO(ravicious): Change to iOS once Device Trust for iOS is available.
-			want: devicepb.OSType_OS_TYPE_UNSPECIFIED,
+			want: devicepb.OSType_OS_TYPE_IOS,
 		},
 		{
 			name:           "iPadOS",
 			maxTouchPoints: 5,
 			uas: []string{
 				"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.6 Safari/605.1.15",
+				"Mozilla/5.0 (iPad; CPU OS 18_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.4 Mobile/15E148 Safari/604.1", // Request Mobile Website
 			},
-			// TODO(ravicious): Change to iPadOS once Device Trust for iPadOS is available.
-			want: devicepb.OSType_OS_TYPE_UNSPECIFIED,
+			want: devicepb.OSType_OS_TYPE_IPADOS,
 		},
 	}
 	for _, test := range tests {
