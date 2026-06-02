@@ -109,6 +109,35 @@ func TestMatch(t *testing.T) {
 	}
 }
 
+// TestValidCaptureName covers the capture-identifier rules directly,
+// independent of the Compile patterns that exercise them in context.
+func TestValidCaptureName(t *testing.T) {
+	valid := []string{"x", "abc", "a1", "user_id", "_", "_x", "A", "fooBar123"}
+	for _, name := range valid {
+		t.Run("valid/"+name, func(t *testing.T) {
+			require.True(t, validCaptureName(name))
+		})
+	}
+
+	invalid := []struct {
+		name  string
+		input string
+	}{
+		{"empty", ""},
+		{"leading digit", "1bad"},
+		{"all digits", "123"},
+		{"hyphen", "a-b"},
+		{"dot", "a.b"},
+		{"space", "a b"},
+		{"non-ascii", "café"},
+	}
+	for _, tc := range invalid {
+		t.Run("invalid/"+tc.name, func(t *testing.T) {
+			require.False(t, validCaptureName(tc.input))
+		})
+	}
+}
+
 // TestCompile covers the patterns Compile must accept and reject.
 func TestCompile(t *testing.T) {
 	valid := []string{
