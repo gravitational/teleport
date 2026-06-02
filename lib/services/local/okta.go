@@ -20,6 +20,7 @@ package local
 
 import (
 	"context"
+	"math"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -37,6 +38,16 @@ const (
 	oktaImportRuleMaxPageSize = 200
 	oktaAssignmentPrefix      = "okta_assignment"
 	oktaAssignmentMaxPageSize = 200
+
+	// dynamodbMaxItemSize is the maximum size for a single item that can be stored in DynamoDB. See: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Constraints.html#limits-items-size.
+	dynamodbMaxItemSize = 1024 * 400
+	// etcdMaxItemSize is the maximum size for a single item that can be stored in etcd. See: https://etcd.io/docs/v3.6/dev-guide/limit/.
+	etcdMaxItemSize = 1024 * 1500
+
+	// dynamodbBackendName is the name of the DynamoDB backend.
+	dynamodbBackendName = "dynamodb"
+	// etcdBackendName is the name of the etcd backend.
+	etcdBackendName = "etcd"
 )
 
 // OktaService manages Okta resources in the Backend.
@@ -60,14 +71,22 @@ func NewOktaService(b backend.Backend, clock clockwork.Clock) (*OktaService, err
 		return nil, trace.Wrap(err)
 	}
 
-	backendStorageLimit := 1024 * 1024
+	// maxItemSize is used to determine whether to strip assignment targets' statuses
+	// to prevent an assignment exceeding the maximum item size supported by the backend.
+	maxItemSize := math.MaxInt
+	switch b.GetName() {
+	case dynamodbBackendName:
+		maxItemSize = dynamodbMaxItemSize
+	case etcdBackendName:
+		maxItemSize = etcdMaxItemSize
+	}
 
 	assignmentSvc, err := generic.NewService(&generic.ServiceConfig[types.OktaAssignment]{
 		Backend:       b,
 		PageLimit:     oktaAssignmentMaxPageSize,
 		ResourceKind:  types.KindOktaAssignment,
 		BackendPrefix: backend.NewKey(oktaAssignmentPrefix),
-		MarshalFunc:   marshalOktaAssignmentWithTargetStatusLimit(backendStorageLimit, services.MarshalOktaAssignment),
+		MarshalFunc:   marshalOktaAssignmentWithTargetStatusLimit(maxItemSize, services.MarshalOktaAssignment),
 		UnmarshalFunc: services.UnmarshalOktaAssignment,
 	})
 	if err != nil {
