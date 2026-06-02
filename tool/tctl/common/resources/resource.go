@@ -94,6 +94,7 @@ func Handlers() map[string]Handler {
 		types.KindUIConfig:                           uiConfigHandler(),
 		types.KindUser:                               userHandler(),
 		types.KindUserTask:                           userTasksHandler(),
+		types.KindBeamsConfig:                        beamsConfigHandler(),
 		types.KindVnetConfig:                         vnetConfigHandler(),
 		types.KindWindowsDesktop:                     windowsDesktopHandler(),
 		types.KindWindowsDesktopService:              windowsDesktopServiceHandler(),
