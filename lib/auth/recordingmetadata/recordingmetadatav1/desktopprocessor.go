@@ -31,14 +31,20 @@ import (
 
 type desktopProcessor struct {
 	baseRecordingProcessor
+	gen               *desktopThumbnailGenerator
 	thumbnailInterval time.Duration
+
+	lastCursorX, lastCursorY uint16
+	cursorInitialized        bool
 }
 
 func newDesktopProcessor(base baseRecordingProcessor, duration time.Duration) *desktopProcessor {
-	base.thumbnailGenerator = newDesktopThumbnailGenerator()
+	gen := newDesktopThumbnailGenerator()
+	base.thumbnailGenerator = gen
 
 	return &desktopProcessor{
 		baseRecordingProcessor: base,
+		gen:                    gen,
 		thumbnailInterval:      calculateThumbnailInterval(duration, maxThumbnails, desktopMinThumbnailInterval),
 	}
 }
@@ -62,6 +68,7 @@ func (d *desktopProcessor) handleEvent(evt apievents.AuditEvent) error {
 
 func (d *desktopProcessor) handleWindowsDesktopSessionStart(evt *apievents.WindowsDesktopSessionStart) error {
 	d.startTime = evt.GetTime()
+	d.lastActivityTime = evt.GetTime()
 
 	d.metadata.SetClusterName(evt.ClusterName)
 	d.metadata.SetUser(evt.User)
@@ -76,9 +83,41 @@ func (d *desktopProcessor) handleDesktopRecording(evt *apievents.DesktopRecordin
 		return trace.Wrap(err)
 	}
 
+	d.trackActivity(evt.GetTime())
 	d.captureThumbnailIfNeeded(evt.GetTime(), d.thumbnailInterval)
 
 	return nil
+}
+
+// trackActivity classifies the frame just handled as activity or incidental noise and, when it is activity,
+// closes out any preceding inactivity gap and advances lastActivityTime.
+func (d *desktopProcessor) trackActivity(eventTime time.Time) {
+	fa := d.gen.consumeFrameActivity()
+	if fa.screenW == 0 || fa.screenH == 0 {
+		// Decoder not initialized yet (or disabled in nop builds): we can't measure activity, so skip.
+		return
+	}
+
+	cursorMoved := d.cursorInitialized && (fa.cursorX != d.lastCursorX || fa.cursorY != d.lastCursorY)
+	d.lastCursorX, d.lastCursorY = fa.cursorX, fa.cursorY
+	d.cursorInitialized = true
+
+	if fa.changedPixels < desktopActivityMinPixels(fa.screenW, fa.screenH) && !cursorMoved {
+		// Incidental change (clock tick, blinking caret) with a static cursor — not activity.
+		return
+	}
+
+	if !d.lastActivityTime.IsZero() && eventTime.Sub(d.lastActivityTime) > inactivityThreshold {
+		d.addInactivityEvent(d.lastActivityTime, eventTime)
+	}
+	d.lastActivityTime = eventTime
+}
+
+// desktopActivityMinPixels is the minimum changed-pixel area for a frame to count as activity on a screen of
+// the given size, derived from desktopActivityAreaFraction. Clamped to at least 1px so tiny screens still have
+// a positive threshold.
+func desktopActivityMinPixels(screenW, screenH uint16) int {
+	return max(1, int(float64(int(screenW)*int(screenH))*desktopActivityAreaFraction))
 }
 
 func (d *desktopProcessor) handleWindowsDesktopSessionEnd(evt *apievents.WindowsDesktopSessionEnd) error {
@@ -87,6 +126,10 @@ func (d *desktopProcessor) handleWindowsDesktopSessionEnd(evt *apievents.Windows
 		d.metadata.SetUser(evt.User)
 		d.metadata.SetResourceName(evt.DesktopName)
 		d.metadata.SetType(pb.SessionRecordingType_SESSION_RECORDING_TYPE_WINDOWS_DESKTOP)
+	}
+
+	if !d.lastActivityTime.IsZero() && evt.GetTime().Sub(d.lastActivityTime) > inactivityThreshold {
+		d.addInactivityEvent(d.lastActivityTime, evt.GetTime())
 	}
 
 	d.captureThumbnailIfNeeded(evt.GetTime(), d.thumbnailInterval)
