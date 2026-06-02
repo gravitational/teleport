@@ -624,6 +624,7 @@ func tabView(selectedTab int) string {
 		Underline(true).
 		Render("")
 
+	var outputSb627 strings.Builder
 	for i, tab := range tabs {
 		lastItem := i == len(tabs)-1
 		selected := i == selectedTab
@@ -633,15 +634,16 @@ func tabView(selectedTab int) string {
 			color = selectedColor
 		}
 
-		output += lipgloss.NewStyle().
+		outputSb627.WriteString(lipgloss.NewStyle().
 			Foreground(color).
 			Faint(!selected).
-			Render(tab)
+			Render(tab))
 
 		if !lastItem {
-			output += separator
+			outputSb627.WriteString(separator)
 		}
 	}
+	output += outputSb627.String()
 
 	return output
 }

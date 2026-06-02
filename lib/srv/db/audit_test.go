@@ -352,7 +352,7 @@ func TestAuditClickHouseHTTP(t *testing.T) {
 		defer proxy.Close()
 
 		r := bytes.NewBufferString("SELECT 1")
-		req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("http://%s", proxy.GetAddr()), r)
+		req, err := http.NewRequest(http.MethodGet, "http://"+proxy.GetAddr(), r)
 		require.NoError(t, err)
 
 		resp, err := http.DefaultClient.Do(req)

@@ -19,7 +19,6 @@
 package servicecfg
 
 import (
-	"fmt"
 	"net"
 	"net/url"
 	"strconv"
@@ -207,7 +206,7 @@ func (c ProxyConfig) KubeAddr() (string, error) {
 		return "", trace.NotFound("kubernetes support not enabled on this proxy")
 	}
 	if len(c.Kube.PublicAddrs) > 0 {
-		return fmt.Sprintf("https://%s", c.Kube.PublicAddrs[0].Addr), nil
+		return "https://" + c.Kube.PublicAddrs[0].Addr, nil
 	}
 
 	return c.getDefaultAddr(c.Kube.ListenAddr.Port(defaults.KubeListenPort)), nil

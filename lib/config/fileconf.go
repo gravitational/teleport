@@ -33,6 +33,7 @@ import (
 	"net/url"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -383,8 +384,8 @@ func makeSampleProxyConfig(conf *servicecfg.Config, flags SampleFlags, enabled b
 			p.ACME.Email = flags.ACMEEmail
 			// ACME uses TLS-ALPN-01 challenge that requires port 443
 			// https://letsencrypt.org/docs/challenge-types/#tls-alpn-01
-			p.PublicAddr = apiutils.Strings{net.JoinHostPort(flags.ClusterName, fmt.Sprintf("%d", teleport.StandardHTTPSPort))}
-			p.WebAddr = net.JoinHostPort(defaults.BindIP, fmt.Sprintf("%d", teleport.StandardHTTPSPort))
+			p.PublicAddr = apiutils.Strings{net.JoinHostPort(flags.ClusterName, strconv.Itoa(teleport.StandardHTTPSPort))}
+			p.WebAddr = net.JoinHostPort(defaults.BindIP, strconv.Itoa(teleport.StandardHTTPSPort))
 		}
 		if flags.PublicAddr != "" {
 			// default to 443 if port is not specified
@@ -396,7 +397,7 @@ func makeSampleProxyConfig(conf *servicecfg.Config, flags SampleFlags, enabled b
 
 			// use same port for web addr
 			webPort := publicAddr.Port(teleport.StandardHTTPSPort)
-			p.WebAddr = net.JoinHostPort(defaults.BindIP, fmt.Sprintf("%d", webPort))
+			p.WebAddr = net.JoinHostPort(defaults.BindIP, strconv.Itoa(webPort))
 		}
 		if flags.KeyFile != "" && flags.CertFile != "" {
 			if _, err := tls.LoadX509KeyPair(flags.CertFile, flags.KeyFile); err != nil {

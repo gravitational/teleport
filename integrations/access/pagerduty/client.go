@@ -168,7 +168,7 @@ func (p Pagerduty) CreateIncident(ctx context.Context, serviceID, reqID string, 
 		return PagerdutyData{}, trace.Wrap(err)
 	}
 	body := IncidentBody{
-		Title:       fmt.Sprintf("Access request from %s", reqData.User),
+		Title:       "Access request from " + reqData.User,
 		IncidentKey: fmt.Sprintf("%s/%s", PdIncidentKeyPrefix, reqID),
 		Service: Reference{
 			Type: "service_reference",

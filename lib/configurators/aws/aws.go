@@ -965,15 +965,15 @@ func getProxyAddrFromConfig(cfg *servicecfg.Config, flags configurators.Bootstra
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
-		return fmt.Sprintf("https://%s", addr.String()), nil
+		return "https://" + addr.String(), nil
 	}
 
 	if len(cfg.Proxy.PublicAddrs) != 0 {
-		return fmt.Sprintf("https://%s", cfg.Proxy.PublicAddrs[0].String()), nil
+		return "https://" + cfg.Proxy.PublicAddrs[0].String(), nil
 	}
 
 	if !cfg.ProxyServer.IsEmpty() {
-		return fmt.Sprintf("https://%s", cfg.ProxyServer.String()), nil
+		return "https://" + cfg.ProxyServer.String(), nil
 	}
 
 	return "", trace.NotFound("proxy address not found, please provide --proxy, or set either teleport.proxy_server or proxy_service.public_addr in the teleport config")

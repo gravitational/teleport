@@ -20,7 +20,7 @@ package github
 
 import (
 	_ "embed"
-	"fmt"
+	"errors"
 	"os"
 	"testing"
 
@@ -176,7 +176,7 @@ func TestCachedReleases(t *testing.T) {
 			desc:          "empty case",
 		},
 		{
-			err:  fmt.Errorf("failure"),
+			err:  errors.New("failure"),
 			desc: "error case",
 		},
 	}

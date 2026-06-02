@@ -1649,7 +1649,7 @@ func formatDatabaseConnectArgs(clusterFlag string, active tlsca.RouteToDatabase)
 	needDatabase := isDatabaseNameRequired(active.Protocol)
 
 	if clusterFlag != "" {
-		flags = append(flags, fmt.Sprintf("--cluster=%s", clusterFlag))
+		flags = append(flags, "--cluster="+clusterFlag)
 	}
 	if active.Username == "" && needUser {
 		flags = append(flags, "--db-user=<user>")

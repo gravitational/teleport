@@ -24,6 +24,7 @@ import (
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -99,7 +100,7 @@ func getPublicKey(url string, insecureSkipVerify bool) (crypto.PublicKey, error)
 		return nil, err
 	}
 	if len(response.Keys) == 0 {
-		return nil, fmt.Errorf("no keys found")
+		return nil, errors.New("no keys found")
 	}
 
 	// Construct a crypto.PublicKey from the response.

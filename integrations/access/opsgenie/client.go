@@ -160,7 +160,7 @@ func (og Client) CreateAlert(ctx context.Context, reqID string, reqData RequestD
 	}
 
 	body := AlertBody{
-		Message:     fmt.Sprintf("Access request from %s", reqData.User),
+		Message:     "Access request from " + reqData.User,
 		Alias:       fmt.Sprintf("%s/%s", alertKeyPrefix, reqID),
 		Description: bodyDetails,
 		Responders:  og.getResponders(reqData),

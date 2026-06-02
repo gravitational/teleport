@@ -377,7 +377,7 @@ func (c *CLICommandBuilder) getMySQLOracleCommand() (*exec.Cmd, error) {
 
 	// override the ssl-mode from a config file is --insecure flag is provided to 'tsh db connect'.
 	if c.tc.InsecureSkipVerify {
-		args = append(args, fmt.Sprintf("--ssl-mode=%s", mysql.MySQLSSLModeVerifyCA))
+		args = append(args, "--ssl-mode="+mysql.MySQLSSLModeVerifyCA)
 	}
 
 	return exec.Command(mysqlBin, args...), nil
@@ -591,7 +591,7 @@ func (c *CLICommandBuilder) getMongoAddress() string {
 		Scheme:   connstring.SchemeMongoDB,
 		Host:     net.JoinHostPort(c.host, strconv.Itoa(c.port)),
 		RawQuery: query.Encode(),
-		Path:     fmt.Sprintf("/%s", c.db.Database),
+		Path:     "/" + c.db.Database,
 	}
 
 	// Quote the address for printing as the address contains "?".
@@ -680,7 +680,7 @@ func (c *CLICommandBuilder) getSnowflakeCommand() *exec.Cmd {
 	}
 
 	cmd := exec.Command(snowsqlBin, args...)
-	cmd.Env = append(cmd.Env, fmt.Sprintf("SNOWSQL_PWD=%s", c.uid.New()))
+	cmd.Env = append(cmd.Env, "SNOWSQL_PWD="+c.uid.New())
 
 	return cmd
 }

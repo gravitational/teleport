@@ -1375,7 +1375,7 @@ spec:
 			tt.expectError(t, err)
 
 			if tt.expectEntityID != nil {
-				buf, err := runResourceCommand(t, clt, []string{"get", fmt.Sprintf("saml_sp/%s", tt.name), "--format=json"})
+				buf, err := runResourceCommand(t, clt, []string{"get", "saml_sp/" + tt.name, "--format=json"})
 				require.NoError(t, err)
 				sps := mustDecodeJSON[[]*types.SAMLIdPServiceProviderV1](t, buf)
 				tt.expectEntityID(t, sps[0].GetEntityID())

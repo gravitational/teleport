@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os/exec"
+	"strconv"
 	"strings"
 
 	systemddbus "github.com/coreos/go-systemd/v22/dbus"
@@ -233,7 +234,7 @@ func (c *Client) InvocationID(ctx context.Context, unit string) (string, error) 
 func buildJournalctlArgs(unit, invocationID string, lines int) []string {
 	args := []string{"--unit", unit, "--no-pager"}
 	if lines > 0 {
-		args = append(args, "--lines", fmt.Sprintf("%d", lines))
+		args = append(args, "--lines", strconv.Itoa(lines))
 	}
 	if invocationID != "" {
 		// journalctl accepts field matches as positional arguments in addition to flags.

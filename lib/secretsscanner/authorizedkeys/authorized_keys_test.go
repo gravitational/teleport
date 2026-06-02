@@ -136,7 +136,7 @@ func exampleUsers(dir string) ([]user.User, error) {
 			Username: "root",
 			Uid:      "0",
 			Gid:      "0",
-			HomeDir:  fmt.Sprintf("%s/root", dir),
+			HomeDir:  dir + "/root",
 		},
 		{
 			Name:     "bin",
@@ -150,7 +150,7 @@ func exampleUsers(dir string) ([]user.User, error) {
 			Username: "user",
 			Uid:      "1000",
 			Gid:      "1000",
-			HomeDir:  fmt.Sprintf("%s/user", dir),
+			HomeDir:  dir + "/user",
 		},
 	}, nil
 

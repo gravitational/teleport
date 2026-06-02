@@ -138,6 +138,6 @@ func makeSQLServer(t *testing.T, name, group string) *armsql.Server {
 
 	return &armsql.Server{
 		ID:   to.Ptr(fmt.Sprintf("/subscriptions/sub-id/resourceGroups/%v/providers/Microsoft.Sql/servers/%v", group, name)),
-		Name: to.Ptr(fmt.Sprintf("%s.database.windows.net", name)),
+		Name: to.Ptr(name + ".database.windows.net"),
 	}
 }

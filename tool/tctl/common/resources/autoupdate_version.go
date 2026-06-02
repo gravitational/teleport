@@ -51,7 +51,7 @@ func (c *autoUpdateVersionCollection) WriteText(w io.Writer, verbose bool) error
 	t := asciitable.MakeTable([]string{"Name", "Tools AutoUpdate Version"})
 	t.AddRow([]string{
 		c.version.GetMetadata().GetName(),
-		fmt.Sprintf("%v", c.version.GetSpec().GetTools().TargetVersion),
+		c.version.GetSpec().GetTools().TargetVersion,
 	})
 	_, err := t.AsBuffer().WriteTo(w)
 	return trace.Wrap(err)

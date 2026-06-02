@@ -62,7 +62,7 @@ func (c *connector) getConnectConfig(ctx context.Context) (*pgconn.Config, error
 	// The driver requires the config to be built by parsing the connection
 	// string so parse the basic template and then fill in the rest of
 	// parameters such as TLS configuration.
-	dbConfig := fmt.Sprintf("postgres://%s", c.database.GetURI())
+	dbConfig := "postgres://" + c.database.GetURI()
 
 	// AlloyDB URI is not parseable by pgconn.ParseConfig. Construct a minimal config for parsing purposes.
 	// We will replace it with real hostname later.

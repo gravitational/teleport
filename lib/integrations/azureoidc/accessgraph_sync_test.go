@@ -21,7 +21,7 @@ package azureoidc
 import (
 	"bytes"
 	"context"
-	"fmt"
+	"errors"
 	"maps"
 	"slices"
 	"testing"
@@ -83,7 +83,7 @@ func (c *mockAzureConfigClient) GetServicePrincipalByAppID(ctx context.Context, 
 
 func (c *mockAzureConfigClient) GrantAppRoleToServicePrincipal(ctx context.Context, roleAssignment models.AppRoleAssignment) error {
 	if c.cfg.grantAppRoleErr {
-		return fmt.Errorf("failed to grant app role")
+		return errors.New("failed to grant app role")
 	}
 	return nil
 }

@@ -99,7 +99,7 @@ func (p *pkcs11KeyStore) name() string {
 // keyTypeDescription returns a human-readable description of the types of keys
 // this backend uses.
 func (p *pkcs11KeyStore) keyTypeDescription() string {
-	return fmt.Sprintf("PKCS#11 HSM keys created by %s", p.hostUUID)
+	return "PKCS#11 HSM keys created by " + p.hostUUID
 }
 
 func (p *pkcs11KeyStore) findUnusedID(ctx context.Context) (keyID, error) {

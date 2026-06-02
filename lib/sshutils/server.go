@@ -23,7 +23,6 @@ package sshutils
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
 	"net"
@@ -646,7 +645,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 			reqCtx := tracessh.ContextFromRequest(req)
 			ctx, span := s.tracerProvider.Tracer("ssh").Start(
 				oteltrace.ContextWithRemoteSpanContext(ctx, oteltrace.SpanContextFromContext(reqCtx)),
-				fmt.Sprintf("ssh.GlobalRequest/%s", req.Type),
+				"ssh.GlobalRequest/"+req.Type,
 				oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 				oteltrace.WithAttributes(
 					semconv.RPCServiceKey.String("ssh.Server"),
@@ -673,7 +672,7 @@ func (s *Server) HandleConnection(conn net.Conn) {
 			chanCtx, nch := tracessh.ContextFromNewChannel(nch)
 			ctx, span := s.tracerProvider.Tracer("ssh").Start(
 				oteltrace.ContextWithRemoteSpanContext(ctx, oteltrace.SpanContextFromContext(chanCtx)),
-				fmt.Sprintf("ssh.OpenChannel/%s", nch.ChannelType()),
+				"ssh.OpenChannel/"+nch.ChannelType(),
 				oteltrace.WithSpanKind(oteltrace.SpanKindServer),
 				oteltrace.WithAttributes(
 					semconv.RPCServiceKey.String("ssh.Server"),

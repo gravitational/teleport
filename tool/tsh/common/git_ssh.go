@@ -19,7 +19,6 @@
 package common
 
 import (
-	"fmt"
 	"os"
 	"strings"
 
@@ -83,7 +82,7 @@ func (c *gitSSHCommand) run(cf *CLIConf) (err error) {
 
 	cf.RemoteCommand = c.command
 	cf.Options = c.options
-	cf.UserHost = fmt.Sprintf("git@%s", types.MakeGitHubOrgServerDomain(c.gitHubOrg))
+	cf.UserHost = "git@" + types.MakeGitHubOrgServerDomain(c.gitHubOrg)
 
 	tc, err := makeClient(cf)
 	if err != nil {

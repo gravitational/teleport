@@ -2501,7 +2501,7 @@ func benchmarkListNodes(
 ) {
 	var roles []types.Role
 	for _, id := range ids {
-		role, err := types.NewRole(fmt.Sprintf("role-%s", id), types.RoleSpecV6{})
+		role, err := types.NewRole("role-"+id, types.RoleSpecV6{})
 		require.NoError(b, err)
 		editRole(role, id)
 		roles = append(roles, role)
@@ -8494,7 +8494,7 @@ func benchmarkListUnifiedResources(
 ) {
 	var roles []types.Role
 	for _, id := range ids {
-		role, err := types.NewRole(fmt.Sprintf("role-%s", id), types.RoleSpecV6{})
+		role, err := types.NewRole("role-"+id, types.RoleSpecV6{})
 		require.NoError(b, err)
 		editRole(role, id)
 		roles = append(roles, role)

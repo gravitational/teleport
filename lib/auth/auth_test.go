@@ -5290,7 +5290,7 @@ func createAccessList(t *testing.T, authServer *auth.Server, name string, opts .
 		Name: name,
 	}, accesslist.Spec{
 		Type:        options.typ,
-		Title:       fmt.Sprintf("Test Access List %s", name),
+		Title:       "Test Access List " + name,
 		Description: fmt.Sprintf("Test Access List %s description", name),
 		Owners:      options.owners,
 		Audit: accesslist.Audit{

@@ -22,7 +22,6 @@ import (
 	"bytes"
 	"cmp"
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -144,14 +143,14 @@ func TestInstallSystemdCmd(t *testing.T) {
 			if tt.wantStdout {
 				// Ensure that in dry run, no actual output is written!
 				_, err = os.ReadFile(
-					filepath.Join(dirPath, fmt.Sprintf("%s.service", cmp.Or(tt.wantUnitName, "tbot"))),
+					filepath.Join(dirPath, cmp.Or(tt.wantUnitName, "tbot")+".service"),
 				)
 				require.ErrorIs(t, err, os.ErrNotExist)
 				data = stdout.Bytes()
 				data = bytes.ReplaceAll(data, []byte(dirPath), []byte("/test/dir"))
 			} else {
 				data, err = os.ReadFile(
-					filepath.Join(dirPath, fmt.Sprintf("%s.service", cmp.Or(tt.wantUnitName, "tbot"))),
+					filepath.Join(dirPath, cmp.Or(tt.wantUnitName, "tbot")+".service"),
 				)
 				require.NoError(t, err)
 			}

@@ -248,12 +248,12 @@ func (s *FakeSlack) StoreMessage(msg slack.Message) slack.Message {
 		uniq := atomic.AddUint64(&s.messageCounter, 1)  // generate uniq int to prevent races
 		msg.Timestamp = fmt.Sprintf("%d.%d", now.UnixNano(), uniq)
 	}
-	s.objects.Store(fmt.Sprintf("msg-%s", msg.Timestamp), msg)
+	s.objects.Store("msg-"+msg.Timestamp, msg)
 	return msg
 }
 
 func (s *FakeSlack) GetMessage(id string) (slack.Message, bool) {
-	if obj, ok := s.objects.Load(fmt.Sprintf("msg-%s", id)); ok {
+	if obj, ok := s.objects.Load("msg-" + id); ok {
 		msg, ok := obj.(slack.Message)
 		return msg, ok
 	}
@@ -264,13 +264,13 @@ func (s *FakeSlack) StoreUser(user slack.User) slack.User {
 	if user.ID == "" {
 		user.ID = fmt.Sprintf("U%d", atomic.AddUint64(&s.userIDCounter, 1))
 	}
-	s.objects.Store(fmt.Sprintf("user-%s", user.ID), user)
-	s.objects.Store(fmt.Sprintf("userByEmail-%s", user.Profile.Email), user)
+	s.objects.Store("user-"+user.ID, user)
+	s.objects.Store("userByEmail-"+user.Profile.Email, user)
 	return user
 }
 
 func (s *FakeSlack) GetUser(id string) (slack.User, bool) {
-	if obj, ok := s.objects.Load(fmt.Sprintf("user-%s", id)); ok {
+	if obj, ok := s.objects.Load("user-" + id); ok {
 		user, ok := obj.(slack.User)
 		return user, ok
 	}
@@ -278,7 +278,7 @@ func (s *FakeSlack) GetUser(id string) (slack.User, bool) {
 }
 
 func (s *FakeSlack) GetUserByEmail(email string) (slack.User, bool) {
-	if obj, ok := s.objects.Load(fmt.Sprintf("userByEmail-%s", email)); ok {
+	if obj, ok := s.objects.Load("userByEmail-" + email); ok {
 		user, ok := obj.(slack.User)
 		return user, ok
 	}

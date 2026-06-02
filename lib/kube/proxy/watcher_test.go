@@ -20,7 +20,7 @@ package proxy
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"maps"
 	"sort"
 	"strings"
@@ -54,7 +54,7 @@ func (m *mockAuthClient) DeleteKubernetesServer(ctx context.Context, hostID, nam
 	select {
 	case m.deleteCh <- name:
 	case <-time.After(5 * time.Second):
-		return fmt.Errorf("failed to signal kube server deletion")
+		return errors.New("failed to signal kube server deletion")
 	}
 	return m.ClientI.DeleteKubernetesServer(ctx, hostID, name)
 }

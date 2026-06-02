@@ -100,11 +100,12 @@ type GenerationError struct {
 func (g GenerationError) Error() string {
 	// Begin with a newline to format the first list item below the outer
 	// error.
-	final := "\n"
+	var final strings.Builder
+	final.WriteString("\n")
 	for _, e := range g.messages {
-		final += fmt.Sprintf("- %v\n", e)
+		fmt.Fprintf(&final, "- %v\n", e)
 	}
-	return final
+	return final.String()
 }
 
 // Generate uses the provided user-facing configuration to write the resource

@@ -8635,7 +8635,7 @@ func TestUpdateDatabase_NonErrors(t *testing.T) {
 			require.Equal(t, database.GetCA(), fakeValidTLSCert) // should not have changed
 			require.Equal(t, database.GetType(), tt.expectedFields.Type)
 			require.Equal(t, database.GetProtocol(), tt.expectedFields.Protocol)
-			require.Equal(t, database.GetURI(), fmt.Sprintf("%s:3306", tt.expectedFields.Hostname))
+			require.Equal(t, database.GetURI(), tt.expectedFields.Hostname+":3306")
 
 			require.Equal(t, database.GetAWS().AccountID, tt.expectedAWSRDS.AccountID)
 			require.Equal(t, database.GetAWS().RDS.ResourceID, tt.expectedAWSRDS.ResourceID)

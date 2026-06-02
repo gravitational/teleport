@@ -540,7 +540,7 @@ func TestDeleteToken(t *testing.T) {
 	// delete
 	req, err := http.NewRequest("DELETE", endpoint, nil)
 	require.NoError(t, err)
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", pack.session.Token))
+	req.Header.Set("Authorization", "Bearer "+pack.session.Token)
 	req.Header.Set(HeaderTokenName, userToken.GetName())
 	_, err = pack.clt.RoundTrip(func() (*http.Response, error) {
 		return pack.clt.HTTPClient().Do(req)
@@ -839,7 +839,7 @@ func TestCreateTokenForDiscovery(t *testing.T) {
 	}
 
 	for _, tc := range tt {
-		t.Run(fmt.Sprintf("v1 %s", tc.name), func(t *testing.T) {
+		t.Run("v1 "+tc.name, func(t *testing.T) {
 			endpointV1 := pack.clt.Endpoint("v1", "webapi", "token")
 			re, err := pack.clt.PostJSON(ctx, endpointV1, tc.req)
 			require.NoError(t, err)
@@ -849,7 +849,7 @@ func TestCreateTokenForDiscovery(t *testing.T) {
 			match(resp, tc.req.SuggestedLabels)
 		})
 
-		t.Run(fmt.Sprintf("v2 %s", tc.name), func(t *testing.T) {
+		t.Run("v2 "+tc.name, func(t *testing.T) {
 			endpointV2 := pack.clt.Endpoint("v2", "webapi", "token")
 			re, err := pack.clt.PostJSON(ctx, endpointV2, tc.req)
 			require.NoError(t, err)

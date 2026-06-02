@@ -201,7 +201,7 @@ func onBackendDelete(ctx context.Context, config backend.Config, key string) err
 		return trace.Wrap(err, "creating backend")
 	}
 
-	ok, err := prompt.Confirmation(ctx, os.Stdout, prompt.Stdin(), fmt.Sprintf("Are you sure you want to delete %s", key))
+	ok, err := prompt.Confirmation(ctx, os.Stdout, prompt.Stdin(), "Are you sure you want to delete "+key)
 	if err != nil {
 		return trace.Wrap(err)
 	} else if !ok {

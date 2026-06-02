@@ -8556,7 +8556,7 @@ func emitHeadlessLoginEvent(ctx context.Context, code string, emitter apievents.
 		// For events.UserHeadlessLoginRequestedCode remote.addr will be the IP of requester.
 		// For other events that IP will be different because user will be approving the request from another machine,
 		// so we mentioned requester IP in the message.
-		message = fmt.Sprintf("Headless login was requested from the address %s", headlessAuthn.ClientIpAddress)
+		message = "Headless login was requested from the address " + headlessAuthn.ClientIpAddress
 	}
 	errorMessage := ""
 	if err != nil {

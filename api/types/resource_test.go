@@ -849,7 +849,7 @@ func newAppServer(t *testing.T, name string) AppServer {
 		HostID: "hostid",
 		App: &AppV3{
 			Metadata: Metadata{
-				Name:        fmt.Sprintf("%s-app", name),
+				Name:        name + "-app",
 				Description: "app description",
 			},
 			Spec: AppSpecV3{

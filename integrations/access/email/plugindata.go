@@ -97,7 +97,7 @@ func EncodePluginData(data PluginData) map[string]string {
 	result["request_reason"] = data.RequestReason
 	var reviewsCountStr string
 	if data.ReviewsCount > 0 {
-		reviewsCountStr = fmt.Sprintf("%d", data.ReviewsCount)
+		reviewsCountStr = strconv.Itoa(data.ReviewsCount)
 	}
 	result["reviews_count"] = reviewsCountStr
 	result["resolution"] = string(data.Resolution.Tag)

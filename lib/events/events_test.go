@@ -1212,7 +1212,7 @@ func TestEvents(t *testing.T) {
 	t.Parallel()
 
 	for eventName, eventType := range eventsMap {
-		t.Run(fmt.Sprintf("%s OneOf", eventName), func(t *testing.T) {
+		t.Run(eventName+" OneOf", func(t *testing.T) {
 			converted, err := apievents.ToOneOf(eventType)
 			require.NoError(t, err, "failed to convert event type to OneOf, is the event type added to api/types/events/oneof.go?")
 			auditEvent, err := apievents.FromOneOf(*converted)
@@ -1220,7 +1220,7 @@ func TestEvents(t *testing.T) {
 			require.IsType(t, eventType, auditEvent, "FromOneOf did not convert the event type correctly")
 		})
 
-		t.Run(fmt.Sprintf("%s EventFields", eventName), func(t *testing.T) {
+		t.Run(eventName+" EventFields", func(t *testing.T) {
 			auditEvent, err := FromEventFields(EventFields{EventType: eventName})
 			require.NoError(t, err, "failed to convert EventFields to an Audit event, is the event type added to lib/events/dynamic.go?")
 			require.IsType(t, eventType, auditEvent, "FromEventFields did not convert the event type correctly")

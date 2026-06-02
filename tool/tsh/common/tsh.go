@@ -3555,7 +3555,7 @@ func writeAppTable(w io.Writer, appListings []appListing, config appTableConfig)
 		})
 
 		if isActive {
-			return fmt.Sprintf("> %s", app.GetName())
+			return "> " + app.GetName()
 		}
 
 		return app.GetName()
@@ -3893,10 +3893,10 @@ func formatActiveDB(active tlsca.RouteToDatabase, displayName string) string {
 
 	var details []string
 	if active.Username != "" {
-		details = append(details, fmt.Sprintf("user: %s", active.Username))
+		details = append(details, "user: "+active.Username)
 	}
 	if active.Database != "" {
-		details = append(details, fmt.Sprintf("db: %s", active.Database))
+		details = append(details, "db: "+active.Database)
 	}
 	if len(active.Roles) > 0 {
 		details = append(details, fmt.Sprintf("roles: %v", active.Roles))
@@ -5561,11 +5561,7 @@ func humanFriendlyValidUntilDuration(validUntil time.Time, clock clockwork.Clock
 	case duration < time.Minute:
 		return "valid for <1m"
 	default:
-		return fmt.Sprintf("valid for %s",
-			// Since duration is truncated to minute, duration.String() always
-			// ends with 0s.
-			strings.TrimRight(duration.Truncate(time.Minute).String(), "0s"),
-		)
+		return "valid for " + strings.TrimRight(duration.Truncate(time.Minute).String(), "0s")
 	}
 }
 

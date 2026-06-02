@@ -229,8 +229,8 @@ func Test_renderSSHConfig(t *testing.T) {
 				require.NoError(t, err)
 				clusterSSHConfigBytes = replaceTestDir(clusterSSHConfigBytes)
 
-				configGolden := fmt.Sprintf("%s_cluster_ssh_config", clusterType)
-				knownHostsGolden := fmt.Sprintf("%s_cluster_known_hosts", clusterType)
+				configGolden := clusterType + "_cluster_ssh_config"
+				knownHostsGolden := clusterType + "_cluster_known_hosts"
 				if golden.ShouldSet() {
 					golden.SetNamed(t, knownHostsGolden, clusterKnownHostBytes)
 					golden.SetNamed(t, configGolden, clusterSSHConfigBytes)

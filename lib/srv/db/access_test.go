@@ -1043,7 +1043,7 @@ func TestAccessMongoDB(t *testing.T) {
 	// Execute each scenario on both modern and legacy Mongo servers
 	// to make sure legacy messages are also subject to RBAC.
 	for _, test := range tests {
-		t.Run(fmt.Sprintf("%v", test.desc), func(t *testing.T) {
+		t.Run(test.desc, func(t *testing.T) {
 			t.Parallel()
 
 			for _, serverOpt := range serverOpts {
@@ -3253,7 +3253,7 @@ func withSelfHostedRedis(name string, opts ...redis.TestServerOption) withDataba
 			Name: name,
 		}, types.DatabaseSpecV3{
 			Protocol:      defaults.ProtocolRedis,
-			URI:           fmt.Sprintf("rediss://%s", net.JoinHostPort("localhost", redisServer.Port())),
+			URI:           "rediss://" + net.JoinHostPort("localhost", redisServer.Port()),
 			DynamicLabels: dynamicLabels,
 		})
 		require.NoError(t, err)
@@ -3304,7 +3304,7 @@ func withClickhouseNative(name string) withDatabaseOption {
 			Name: name,
 		}, types.DatabaseSpecV3{
 			Protocol: defaults.ProtocolClickHouse,
-			URI:      fmt.Sprintf("clickhouse://%s", net.JoinHostPort("localhost", server.Port())),
+			URI:      "clickhouse://" + net.JoinHostPort("localhost", server.Port()),
 		})
 		require.NoError(t, err)
 		testCtx.clickHouse[name] = testClickHouse{
@@ -3328,7 +3328,7 @@ func withClickhouseHTTP(name string) withDatabaseOption {
 			Name: name,
 		}, types.DatabaseSpecV3{
 			Protocol: defaults.ProtocolClickHouseHTTP,
-			URI:      fmt.Sprintf("https://%s", net.JoinHostPort("localhost", server.Port())),
+			URI:      "https://" + net.JoinHostPort("localhost", server.Port()),
 		})
 		require.NoError(t, err)
 		testCtx.clickHouse[name] = testClickHouse{
@@ -3357,7 +3357,7 @@ func withElastiCacheRedis(name string, token, engineVersion string) withDatabase
 			},
 		}, types.DatabaseSpecV3{
 			Protocol:      defaults.ProtocolRedis,
-			URI:           fmt.Sprintf("rediss://%s", net.JoinHostPort("localhost", redisServer.Port())),
+			URI:           "rediss://" + net.JoinHostPort("localhost", redisServer.Port()),
 			DynamicLabels: dynamicLabels,
 			AWS: types.AWS{
 				Region: "us-west-1",
@@ -3397,7 +3397,7 @@ func withElastiCacheServerlessRedis(name string, token, engineVersion string) wi
 			},
 		}, types.DatabaseSpecV3{
 			Protocol:      defaults.ProtocolRedis,
-			URI:           fmt.Sprintf("rediss://%s", net.JoinHostPort("localhost", redisServer.Port())),
+			URI:           "rediss://" + net.JoinHostPort("localhost", redisServer.Port()),
 			DynamicLabels: dynamicLabels,
 			AWS: types.AWS{
 				Region: "us-west-1",
@@ -3437,7 +3437,7 @@ func withMemoryDBRedis(name string, token, engineVersion string) withDatabaseOpt
 			},
 		}, types.DatabaseSpecV3{
 			Protocol:      defaults.ProtocolRedis,
-			URI:           fmt.Sprintf("rediss://%s", net.JoinHostPort("localhost", redisServer.Port())),
+			URI:           "rediss://" + net.JoinHostPort("localhost", redisServer.Port()),
 			DynamicLabels: dynamicLabels,
 			AWS: types.AWS{
 				Region: "us-west-1",
@@ -3474,7 +3474,7 @@ func withAzureRedis(name string, token string) withDatabaseOption {
 			Name: name,
 		}, types.DatabaseSpecV3{
 			Protocol:      defaults.ProtocolRedis,
-			URI:           fmt.Sprintf("rediss://%s", net.JoinHostPort("localhost", redisServer.Port())),
+			URI:           "rediss://" + net.JoinHostPort("localhost", redisServer.Port()),
 			DynamicLabels: dynamicLabels,
 			Azure: types.Azure{
 				Name:       name,

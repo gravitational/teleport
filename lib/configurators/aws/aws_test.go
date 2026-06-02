@@ -20,6 +20,7 @@ package aws
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"regexp"
@@ -572,7 +573,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 						{
 							Name:     "redshift-serverless-1",
 							Protocol: "postgres",
-							URI:      fmt.Sprintf("%s:5439", aws.ToString(mocks.RedshiftServerlessWorkgroup("redshift-serverless-1", "us-west-2").Endpoint.Address)),
+							URI:      aws.ToString(mocks.RedshiftServerlessWorkgroup("redshift-serverless-1", "us-west-2").Endpoint.Address) + ":5439",
 						},
 					},
 				},
@@ -2258,7 +2259,7 @@ func Test_getFallbackRegion(t *testing.T) {
 		{
 			name: "fallback to us-east",
 			localRegionGetter: mockLocalRegionGetter{
-				err: fmt.Errorf("failed to get local region"),
+				err: errors.New("failed to get local region"),
 			},
 			wantRegion: "us-east-1",
 		},

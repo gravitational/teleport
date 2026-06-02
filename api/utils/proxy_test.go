@@ -263,7 +263,7 @@ func TestHttpRoundTripperDowngrade(t *testing.T) {
 				require.NoError(t, err)
 
 				// Set HTTP_PROXY to "http://localhost:*".
-				t.Setenv("HTTP_PROXY", fmt.Sprintf("http://localhost:%s", port))
+				t.Setenv("HTTP_PROXY", "http://localhost:"+port)
 			}
 
 			clt := newClient(t, nil)
@@ -398,7 +398,7 @@ func TestParse(t *testing.T) {
 		{name: "host/path", addr: "example.com/path/to/somewhere", scheme: "", host: "example.com", path: "/path/to/somewhere"},
 	}
 	for _, tc := range successTests {
-		t.Run(fmt.Sprintf("should parse: %s", tc.name), func(t *testing.T) {
+		t.Run("should parse: "+tc.name, func(t *testing.T) {
 			u, err := ParseURL(tc.addr)
 			require.NoError(t, err)
 			errMsg := fmt.Sprintf("(%v, %v, %v)", u.Scheme, u.Host, u.Path)
@@ -414,7 +414,7 @@ func TestParse(t *testing.T) {
 		{name: "invalid char in host without scheme", addr: "bad addr"},
 	}
 	for _, tc := range failTests {
-		t.Run(fmt.Sprintf("should not parse: %s", tc.name), func(t *testing.T) {
+		t.Run("should not parse: "+tc.name, func(t *testing.T) {
 			u, err := ParseURL(tc.addr)
 			require.Error(t, err, u)
 		})

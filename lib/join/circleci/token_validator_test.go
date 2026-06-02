@@ -105,13 +105,10 @@ func newFakeIDP(t *testing.T, organizationID string) *fakeIDP {
 			},
 			"id_token_signing_alg_values_supported": []string{"RS256"},
 			"issuer":                                srv.URL + orgURL,
-			"jwks_uri": fmt.Sprintf(
-				"%s/.well-known/jwks-pub.json",
-				srv.URL+orgURL,
-			),
-			"response_types_supported": []string{"id_token"},
-			"scopes_supported":         []string{"openid"},
-			"subject_types_supported":  []string{"public", "pairwise"},
+			"jwks_uri":                              srv.URL + orgURL + "/.well-known/jwks-pub.json",
+			"response_types_supported":              []string{"id_token"},
+			"scopes_supported":                      []string{"openid"},
+			"subject_types_supported":               []string{"public", "pairwise"},
 		}
 		responseBytes, err := json.Marshal(response)
 		require.NoError(t, err)

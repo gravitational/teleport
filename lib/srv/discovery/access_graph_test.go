@@ -21,7 +21,6 @@ package discovery
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 	"time"
 
@@ -214,11 +213,11 @@ func TestServer_updateDiscoveryConfigStatus(t *testing.T) {
 				fetchers: []*fakeFetcher{
 					{
 						discoveryConfigName: "test1",
-						err:                 fmt.Errorf("error in fetcher 1"),
+						err:                 errors.New("error in fetcher 1"),
 					},
 					{
 						discoveryConfigName: "test1",
-						err:                 fmt.Errorf("error in fetcher 2"),
+						err:                 errors.New("error in fetcher 2"),
 					},
 				},
 			},
@@ -240,7 +239,7 @@ func TestServer_updateDiscoveryConfigStatus(t *testing.T) {
 				fetchers: []*fakeFetcher{
 					{
 						discoveryConfigName: "test1",
-						err:                 fmt.Errorf("error in fetcher 1"),
+						err:                 errors.New("error in fetcher 1"),
 					},
 					{
 						discoveryConfigName: "test1",

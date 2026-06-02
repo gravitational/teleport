@@ -219,10 +219,9 @@ const (
 
 // exportSSHUserCAs generates SSH CAs.
 func exportSSHUserCAs(cas []types.CertAuthority, localAuthName string) (string, error) {
-	var exported string
+	var sb strings.Builder
 
 	for _, ca := range cas {
-		// Don't export trusted CAs.
 		if ca.GetClusterName() != localAuthName {
 			continue
 		}
@@ -233,12 +232,9 @@ func exportSSHUserCAs(cas []types.CertAuthority, localAuthName string) (string, 
 				return "", trace.Wrap(err)
 			}
 
-			// remove "cert-authority "
-			s = strings.TrimPrefix(s, sshHostTrimPrefix)
-
-			exported += s
+			sb.WriteString(strings.TrimPrefix(s, sshHostTrimPrefix))
 		}
 	}
 
-	return exported, nil
+	return sb.String(), nil
 }

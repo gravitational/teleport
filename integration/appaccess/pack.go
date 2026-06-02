@@ -486,7 +486,7 @@ func (p *Pack) makeWebapiRequest(method, endpoint string, payload []byte) (int, 
 	u := url.URL{
 		Scheme: "https",
 		Host:   p.rootCluster.Web,
-		Path:   fmt.Sprintf("/v1/webapi/%s", endpoint),
+		Path:   "/v1/webapi/" + endpoint,
 	}
 
 	req, err := http.NewRequest(method, u.String(), bytes.NewBuffer(payload))

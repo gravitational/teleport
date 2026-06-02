@@ -25,6 +25,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -126,7 +127,7 @@ func runPortForwardingWebSocket(req portForwardRequest) error {
 			// Although users can connect via Websocket, Teleport connection between
 			// its components or Kubernetes API server is done using SPDY client
 			// which requires request_id.
-			requestID: fmt.Sprintf("%d", port),
+			requestID: strconv.FormatUint(uint64(port), 10),
 			podName:   req.podName,
 		}
 
@@ -249,7 +250,7 @@ func (h *websocketPortforwardHandler) forwardStreamPair(p *websocketChannelPair)
 	// create error stream
 	headers := http.Header{}
 	headers.Set(StreamType, StreamTypeError)
-	headers.Set(PortHeader, fmt.Sprint(p.port))
+	headers.Set(PortHeader, strconv.FormatUint(uint64(p.port), 10))
 	headers.Set(PortForwardRequestIDHeader, p.requestID)
 
 	// read and write from the error stream

@@ -166,8 +166,8 @@ func generateClockWarningNotificationMessage(messages []string, total int) (stri
 // and converts nanoseconds to a formatted text with hours, minutes and seconds.
 func durationText(duration time.Duration) string {
 	if duration > 0 {
-		return fmt.Sprintf("%s ahead", duration.String())
+		return duration.String() + " ahead"
 	} else {
-		return fmt.Sprintf("%s behind", (-duration).String())
+		return (-duration).String() + " behind"
 	}
 }

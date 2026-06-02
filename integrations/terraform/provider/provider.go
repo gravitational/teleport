@@ -439,7 +439,7 @@ func (p *Provider) checkTeleportVersion(ctx context.Context, client *client.Clie
 		if trace.IsNotImplemented(err) {
 			resp.Diagnostics.AddError(
 				"Teleport version is too old!",
-				fmt.Sprintf("Server version must be at least %s", minServerVersion),
+				"Server version must be at least "+minServerVersion,
 			)
 			return false
 		}

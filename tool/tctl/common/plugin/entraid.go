@@ -435,8 +435,8 @@ func buildScript(proxyPublicAddr string, entraCfg entraArgs) (string, error) {
 	// The script must execute the following command:
 	argsList := []string{
 		"integration", "configure", "azure-oidc",
-		fmt.Sprintf("--proxy-public-addr=%s", shsprintf.EscapeDefaultContext(proxyPublicAddr)),
-		fmt.Sprintf("--auth-connector-name=%s", shsprintf.EscapeDefaultContext(entraCfg.authConnectorName)),
+		"--proxy-public-addr=" + shsprintf.EscapeDefaultContext(proxyPublicAddr),
+		"--auth-connector-name=" + shsprintf.EscapeDefaultContext(entraCfg.authConnectorName),
 	}
 
 	if entraCfg.accessGraph {

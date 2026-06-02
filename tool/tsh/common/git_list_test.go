@@ -20,7 +20,7 @@ package common
 
 import (
 	"bytes"
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -57,7 +57,7 @@ func TestGitListCommand(t *testing.T) {
 		{
 			name: "fetch error",
 			fetchFn: func(c *CLIConf, client *client.TeleportClient) ([]types.Server, error) {
-				return nil, trace.ConnectionProblem(fmt.Errorf("bad connection"), "bad connection")
+				return nil, trace.ConnectionProblem(errors.New("bad connection"), "bad connection")
 			},
 			wantError: true,
 		},

@@ -260,11 +260,8 @@ func (y yamlSequence) formatForTable(opts kindTableFormatOptions) string {
 }
 
 func (y yamlSequence) formatForExampleYAML(indents int) string {
-	var leading string
 	indents++
-	for i := 0; i < indents; i++ {
-		leading += "  "
-	}
+	leading := strings.Repeat("  ", indents)
 	el := y.elementKind.formatForExampleYAML(indents)
 	// Trim leading indentation since each element is already indented.
 	el = strings.TrimLeft(el, " ")
@@ -290,12 +287,9 @@ type yamlMapping struct {
 }
 
 func (y yamlMapping) formatForExampleYAML(indents int) string {
-	var leading string
 	// Add an extra indent for mappings
 	indents = indents + 1
-	for i := 0; i < indents; i++ {
-		leading += "  "
-	}
+	leading := strings.Repeat("  ", indents)
 
 	val := y.valueKind.formatForExampleYAML(indents)
 	// Remove leading indentation on the first line of the value since the
@@ -388,10 +382,7 @@ func (y yamlCustomType) customFieldData() []PackageInfo {
 }
 
 func (y yamlCustomType) formatForExampleYAML(indents int) string {
-	var leading string
-	for i := 0; i < indents; i++ {
-		leading += "  "
-	}
+	leading := strings.Repeat("  ", indents)
 
 	return leading + "# [...]"
 }

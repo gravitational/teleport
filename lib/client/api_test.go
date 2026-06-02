@@ -23,7 +23,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
-	"fmt"
 	"io"
 	"math"
 	"net"
@@ -599,7 +598,7 @@ func (s *mockSigner) PublicKey() ssh.PublicKey {
 }
 
 func (s *mockSigner) Sign(rand io.Reader, b []byte) (*ssh.Signature, error) {
-	return nil, fmt.Errorf("mockSigner does not implement Sign")
+	return nil, errors.New("mockSigner does not implement Sign")
 }
 
 // Signers implements agent.Agent.Signers.
@@ -887,12 +886,12 @@ func TestFormatConnectToProxyErr(t *testing.T) {
 		},
 		{
 			name:      "unrelated error passes through",
-			err:       fmt.Errorf("flux capacitor undercharged"),
+			err:       errors.New("flux capacitor undercharged"),
 			wantError: "flux capacitor undercharged",
 		},
 		{
 			name:            "principals mismatch user message injected",
-			err:             trace.Wrap(fmt.Errorf(`ssh: handshake failed: ssh: principal "" not in the set of valid principals for given certificate`)),
+			err:             trace.Wrap(errors.New(`ssh: handshake failed: ssh: principal "" not in the set of valid principals for given certificate`)),
 			wantError:       `ssh: handshake failed: ssh: principal "" not in the set of valid principals for given certificate`,
 			wantUserMessage: unconfiguredPublicAddrMsg,
 		},
@@ -1826,7 +1825,7 @@ func TestGenerateClientConfig(t *testing.T) {
 		ca := newTestAuthority(t)
 		tc := &TeleportClient{
 			Config: Config{
-				SSHProxyAddr: fmt.Sprintf("%s:3023", proxyHost),
+				SSHProxyAddr: proxyHost + ":3023",
 				SiteName:     leafCluster,
 				HostLogin:    username,
 				Tracer:       tracing.NoopTracer("i-have-no-purpose"),
@@ -1851,7 +1850,7 @@ func TestGenerateClientConfig(t *testing.T) {
 
 		cfg, err := tc.generateClientConfig(t.Context())
 		require.NoError(t, err)
-		require.Equal(t, fmt.Sprintf("%s:3023", proxyHost), cfg.proxyAddress)
+		require.Equal(t, proxyHost+":3023", cfg.proxyAddress)
 		require.Equal(t, leafCluster, cfg.clusterName())
 
 		signers, err := cfg.PublicKeyAuth.Signers()

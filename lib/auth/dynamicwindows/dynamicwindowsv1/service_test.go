@@ -59,7 +59,7 @@ func TestFailedAccessCheck(t *testing.T) {
 		"GetDynamicWindowsDesktop",
 	}
 	for _, tt := range testCases {
-		t.Run(fmt.Sprintf("%s failed access check", tt), func(t *testing.T) {
+		t.Run(tt+" failed access check", func(t *testing.T) {
 			err := callMethod(s, tt)
 			require.True(t, trace.IsAccessDenied(err))
 		})

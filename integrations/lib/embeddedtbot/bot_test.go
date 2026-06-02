@@ -19,7 +19,6 @@
 package embeddedtbot
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -174,7 +173,7 @@ func createBotRole(botName string, resourceName string, roleRequests []string) (
 	}
 
 	meta := role.GetMetadata()
-	meta.Description = fmt.Sprintf("Role for bot %s", botName)
+	meta.Description = "Role for bot " + botName
 	if meta.Labels == nil {
 		meta.Labels = map[string]string{}
 	}

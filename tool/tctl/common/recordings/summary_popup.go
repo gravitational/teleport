@@ -127,7 +127,7 @@ func (m *summaryPopupModel) View() string {
 		BorderForeground(m.palette.accent).
 		Padding(0, 1)
 
-	header := titleStyle.Render(fmt.Sprintf("Summary  %s", sanitize(m.session.GetSessionId())))
+	header := titleStyle.Render("Summary  " + sanitize(m.session.GetSessionId()))
 	footer := lipgloss.NewStyle().
 		Faint(true).
 		Render("j/k or arrows: scroll  q/esc: close")

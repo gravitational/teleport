@@ -20,7 +20,7 @@ package internal
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -86,7 +86,7 @@ func Test_RunOnInterval_failureExit(t *testing.T) {
 	callCount := atomic.Int64{}
 
 	log := logtest.NewLogger()
-	testErr := fmt.Errorf("test error")
+	testErr := errors.New("test error")
 	cfg := RunOnIntervalConfig{
 		Name:  "test",
 		Clock: clockwork.NewRealClock(),

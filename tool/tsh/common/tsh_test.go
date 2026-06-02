@@ -463,7 +463,7 @@ func TestNoEnvVars(t *testing.T) {
 	// Execute an actual command and not just `tsh help` which goes through a different code path.
 	cmd := exec.CommandContext(ctx, testExecutable, "version", "--client")
 	// Run the command with no env vars except tshBinMainTestEnv, otherwise the test would hang.
-	cmd.Env = []string{fmt.Sprintf("%s=1", tshBinMainTestEnv)}
+	cmd.Env = []string{tshBinMainTestEnv + "=1"}
 
 	t.Logf("running command %v", cmd)
 	output, err := cmd.CombinedOutput()
@@ -485,13 +485,13 @@ func TestDefaultPrintUsage(t *testing.T) {
 	ctx := context.Background()
 
 	cmd := exec.CommandContext(ctx, testExecutable, "version", "--help")
-	cmd.Env = []string{fmt.Sprintf("%s=1", tshBinMainTestEnv), "TELEPORT_TOOLS_VERSION=off"}
+	cmd.Env = []string{tshBinMainTestEnv + "=1", "TELEPORT_TOOLS_VERSION=off"}
 	flagOutput, err := cmd.CombinedOutput()
 	require.NoError(t, err)
 	require.Contains(t, string(flagOutput), "Print the tsh client and Proxy server versions for the current context")
 
 	cmd = exec.CommandContext(ctx, testExecutable, "help", "version")
-	cmd.Env = []string{fmt.Sprintf("%s=1", tshBinMainTestEnv), "TELEPORT_TOOLS_VERSION=off"}
+	cmd.Env = []string{tshBinMainTestEnv + "=1", "TELEPORT_TOOLS_VERSION=off"}
 	commandOutput, err := cmd.CombinedOutput()
 	require.NoError(t, err)
 	require.Equal(t, string(flagOutput), string(commandOutput))
@@ -1467,7 +1467,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 	ctx := t.Context()
 
 	origin := func(cluster string) string {
-		return fmt.Sprintf("https://%s", cluster)
+		return "https://" + cluster
 	}
 	connector := mockConnector(t)
 
@@ -2472,7 +2472,7 @@ func TestSSHAccessRequest(t *testing.T) {
 	err = Run(ctx, []string{
 		"ssh",
 		"--insecure",
-		fmt.Sprintf("%s@unknown", user.Username),
+		user.Username + "@unknown",
 		"echo", "test",
 	}, setHomePath(tmpHomePath))
 	require.Error(t, err)

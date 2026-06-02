@@ -18,7 +18,7 @@ package dns
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"io"
 	"log/slog"
 	"net"
@@ -316,7 +316,7 @@ func (s *Server) forward(ctx context.Context, slog *slog.Logger, buf []byte, res
 				return nil
 			}
 			if n == len(responseBuf) {
-				errs <- fmt.Errorf("DNS response too large")
+				errs <- errors.New("DNS response too large")
 				return nil
 			}
 			// Cancel all other goroutines

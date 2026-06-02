@@ -294,6 +294,6 @@ func regionToShortRegion(region string) string {
 	case "cn-northwest-1":
 		return "cnnw1"
 	default:
-		panic(fmt.Sprintf("unknown region %s", region))
+		panic("unknown region " + region)
 	}
 }

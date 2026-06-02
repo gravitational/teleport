@@ -156,7 +156,7 @@ func generateResource(
 ) error {
 	resourceType := opts.resourceType
 	if resourceType == "" {
-		resourceType = fmt.Sprintf("teleport_%s", resource.GetKind())
+		resourceType = "teleport_" + resource.GetKind()
 	}
 
 	resourceName := opts.resourceName

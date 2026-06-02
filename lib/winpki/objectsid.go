@@ -29,6 +29,7 @@ package winpki
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
@@ -45,11 +46,12 @@ type adSID struct {
 
 // String value is: S-Revision-Authority-SubAuthority[n]...
 func (sid adSID) String() string {
-	s := fmt.Sprintf("S-%d-%d", sid.RevisionLevel, sid.Authority)
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "S-%d-%d", sid.RevisionLevel, sid.Authority)
 	for _, v := range sid.SubAuthorities {
-		s += fmt.Sprintf("-%d", v)
+		fmt.Fprintf(&sb, "-%d", v)
 	}
-	return s
+	return sb.String()
 }
 
 // The binary data is in the form:

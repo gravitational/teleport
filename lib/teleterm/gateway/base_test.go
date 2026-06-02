@@ -19,7 +19,6 @@
 package gateway
 
 import (
-	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -118,7 +117,7 @@ func TestNewWithLocalPortReturnsErrorIfNewPortEqualsOldPort(t *testing.T) {
 	tcpPortAllocator := gatewaytest.MockTCPPortAllocator{}
 	gateway := createAndServeGateway(t, &tcpPortAllocator)
 	port := gateway.LocalPort()
-	expectedErrMessage := fmt.Sprintf("port is already set to %s", port)
+	expectedErrMessage := "port is already set to " + port
 
 	_, err := NewWithLocalPort(gateway, port)
 	require.True(t, trace.IsBadParameter(err), "Expected err to be a BadParameter error")

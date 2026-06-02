@@ -256,7 +256,7 @@ func (k *kinitProvider) CreateClient(ctx context.Context, username string) (*cli
 	output, err := k.runner.runCommand(ctx,
 		env,
 		kinitBinary,
-		"-X", fmt.Sprintf("X509_anchors=FILE:%s", userCAPath),
+		"-X", "X509_anchors=FILE:"+userCAPath,
 		"-X", fmt.Sprintf("X509_user_identity=FILE:%s,%s", certPath, keyPath),
 		"-c", cachePath,
 		"--",

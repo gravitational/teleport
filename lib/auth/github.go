@@ -27,6 +27,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -1060,7 +1061,7 @@ type GithubUserResponse struct {
 }
 
 func (r GithubUserResponse) getIDStr() string {
-	return fmt.Sprintf("%v", r.ID)
+	return strconv.FormatInt(r.ID, 10)
 }
 
 func (r GithubUserResponse) makeExternalIdentity(connectorID string) types.ExternalIdentity {

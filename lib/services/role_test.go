@@ -10474,7 +10474,7 @@ func TestMatchRequestKubernetesResource(t *testing.T) {
 	}
 
 	for i, test := range tests {
-		t.Run(fmt.Sprint(i), func(t *testing.T) {
+		t.Run(strconv.Itoa(i), func(t *testing.T) {
 			if result := matchRequestKubernetesResources(test.input, test.reference, test.cond); result != test.expected {
 				checkType := "allow"
 				if test.cond == types.Deny {

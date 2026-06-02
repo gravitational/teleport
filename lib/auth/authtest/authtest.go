@@ -22,7 +22,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"fmt"
 	"net"
 	"strings"
 	"testing"
@@ -1138,7 +1137,7 @@ func TestScopedUser(username string, scope string) TestIdentity {
 
 // TestBot returns a TestIdentity for an unscoped bot user
 func TestBot(botName string, botInternal bool) TestIdentity {
-	userName := fmt.Sprintf("bot-%s", botName)
+	userName := "bot-" + botName
 	return TestIdentity{
 		I: authz.LocalUser{
 			Username: userName,
@@ -1154,7 +1153,7 @@ func TestBot(botName string, botInternal bool) TestIdentity {
 
 // TestScopedBot returns a TestIdentity for a scoped bot user
 func TestScopedBot(botName string, scope string, botInternal bool) TestIdentity {
-	userName := fmt.Sprintf("bot-%s", botName)
+	userName := "bot-" + botName
 	return TestIdentity{
 		I: authz.LocalUser{
 			Username: userName,

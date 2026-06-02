@@ -20,7 +20,6 @@ package datadog
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -177,7 +176,7 @@ func (d *Datadog) CreateIncident(ctx context.Context, summary string, recipients
 				Type: "incidents",
 			},
 			Attributes: IncidentsAttributes{
-				Title: fmt.Sprintf("Access request from %s", reqData.User),
+				Title: "Access request from " + reqData.User,
 				Fields: IncidentsFields{
 					Summary: &StringField{
 						Type:  "textbox",

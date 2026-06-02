@@ -197,7 +197,7 @@ func (b DiscordBot) discordEmbeds(reviews []types.AccessReview) []DiscordEmbed {
 
 		var description string
 		if review.Reason != "" {
-			description = fmt.Sprintf("Reason: %s", review.Reason)
+			description = "Reason: " + review.Reason
 		}
 
 		reviewEmbeds[i] = DiscordEmbed{

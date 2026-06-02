@@ -19,6 +19,7 @@ package storage
 import (
 	"context"
 	"crypto/x509/pkix"
+	"errors"
 	"fmt"
 	"log/slog"
 	"testing"
@@ -137,7 +138,7 @@ func Test_readOrGenerateHostID(t *testing.T) {
 			args: args{
 				kubeBackend: &fakeKubeBackend{
 					getData: nil,
-					getErr:  fmt.Errorf("key not found"),
+					getErr:  errors.New("key not found"),
 				},
 			},
 			wantFunc: func(receivedID string) bool {
@@ -165,7 +166,7 @@ func Test_readOrGenerateHostID(t *testing.T) {
 			args: args{
 				kubeBackend: &fakeKubeBackend{
 					getData: nil,
-					getErr:  fmt.Errorf("key not found"),
+					getErr:  errors.New("key not found"),
 				},
 
 				identity: []*state.Identity{

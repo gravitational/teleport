@@ -18,6 +18,7 @@ package types
 
 import (
 	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -69,7 +70,7 @@ func TestAlertSorting(t *testing.T) {
 			"uh-oh!",
 			WithAlertCreated(a.t),
 			WithAlertSeverity(a.s),
-			WithAlertLabel("p", fmt.Sprintf("%d", a.p)),
+			WithAlertLabel("p", strconv.Itoa(a.p)),
 		)
 		require.NoError(t, err)
 		alerts = append(alerts, alert)
@@ -80,7 +81,7 @@ func TestAlertSorting(t *testing.T) {
 
 	// verify that post-sort labels now match order
 	for i, a := range alerts {
-		require.Equal(t, fmt.Sprintf("%d", i), a.Metadata.Labels["p"])
+		require.Equal(t, strconv.Itoa(i), a.Metadata.Labels["p"])
 	}
 }
 

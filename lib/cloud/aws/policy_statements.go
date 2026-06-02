@@ -193,7 +193,7 @@ func StatementForEKSAccess() *Statement {
 // set up during the AWS OIDC Onboarding to assume this Role.
 func StatementForAWSOIDCRoleTrustRelationship(accountID, providerURL string, audiences []string) *Statement {
 	federatedARN := fmt.Sprintf("arn:aws:iam::%s:oidc-provider/%s", accountID, providerURL)
-	federatedAudience := fmt.Sprintf("%s:aud", providerURL)
+	federatedAudience := providerURL + ":aud"
 
 	return &Statement{
 		Effect:  EffectAllow,

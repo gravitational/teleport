@@ -1539,7 +1539,7 @@ func (tc *TeleportClient) GetTargetNodes(ctx context.Context, clt client.ListUni
 			// always dial nodes by UUID
 			retval = append(retval, TargetNode{
 				Hostname: server.GetHostname(),
-				Addr:     fmt.Sprintf("%s:0", resource.GetName()),
+				Addr:     resource.GetName() + ":0",
 			})
 		}
 

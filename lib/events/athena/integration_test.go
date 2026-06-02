@@ -707,7 +707,7 @@ func TestIntegration_sqsMaxDirectMessageSize(t *testing.T) {
 
 	sqsClient := sqs.NewFromConfig(awsCfg)
 
-	queueName := fmt.Sprintf("sqsMaxDirectMessageSize-test-%s", uuid.New().String())
+	queueName := "sqsMaxDirectMessageSize-test-" + uuid.New().String()
 	created, err := sqsClient.CreateQueue(ctx, &sqs.CreateQueueInput{
 		QueueName: aws.String(queueName),
 	})

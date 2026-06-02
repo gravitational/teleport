@@ -20,6 +20,7 @@ package jira
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -91,7 +92,7 @@ func EncodePluginData(data PluginData) map[string]string {
 
 	var createdStr string
 	if !data.Created.IsZero() {
-		createdStr = fmt.Sprintf("%d", data.Created.Unix())
+		createdStr = strconv.FormatInt(data.Created.Unix(), 10)
 	}
 	result["created"] = createdStr
 
@@ -99,7 +100,7 @@ func EncodePluginData(data PluginData) map[string]string {
 
 	var reviewsCountStr string
 	if data.ReviewsCount != 0 {
-		reviewsCountStr = fmt.Sprintf("%d", data.ReviewsCount)
+		reviewsCountStr = strconv.Itoa(data.ReviewsCount)
 	}
 	result["reviews_count"] = reviewsCountStr
 

@@ -22,7 +22,6 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/pem"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -290,7 +289,7 @@ func TestSPIFFEFederationSyncer_syncFederation(t *testing.T) {
 		require.Empty(t, cmp.Diff(fourthSync, thirdSync, protocmp.Transform()))
 
 		// Check that modifying the bundle source triggers a sync.
-		fourthSync.Spec.BundleSource.HttpsWeb.BundleEndpointUrl = fmt.Sprintf("%s/modified", testSrv.URL)
+		fourthSync.Spec.BundleSource.HttpsWeb.BundleEndpointUrl = testSrv.URL + "/modified"
 		updated, err := store.UpdateSPIFFEFederation(ctx, fourthSync)
 		require.NoError(t, err)
 		fifthSync, err := syncer.syncTrustDomain(ctx, "example.com")

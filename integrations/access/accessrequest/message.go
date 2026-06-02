@@ -80,7 +80,7 @@ func MsgStatusText(tag pd.ResolutionTag, reason string) string {
 
 	statusText := fmt.Sprintf("*Status*: %s %s", statusEmoji, status)
 	if reason != "" {
-		statusText += fmt.Sprintf("\n*Resolution reason*: %s", lib.MarkdownEscape(reason, resolutionReasonLimit))
+		statusText += "\n*Resolution reason*: " + lib.MarkdownEscape(reason, resolutionReasonLimit)
 	}
 
 	return statusText

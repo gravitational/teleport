@@ -21,7 +21,6 @@ package vnet
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"os/exec"
 	"strings"
@@ -46,12 +45,12 @@ on run argv
   set subCommand to item 2 of argv
   set addr to item 3 of argv
   set credPath to item 4 of argv
-  do shell script quoted form of executableName & `+
-		`" " & quoted form of subCommand & `+
-		`" -d --addr " & quoted form of addr & `+
-		`" --cred-path " & quoted form of credPath & `+
-		`" >/var/log/vnet.log 2>&1" `+
-		`with prompt "Teleport VNet wants to set up a virtual network device." `+
+  do shell script quoted form of executableName & ` +
+		`" " & quoted form of subCommand & ` +
+		`" -d --addr " & quoted form of addr & ` +
+		`" --cred-path " & quoted form of credPath & ` +
+		`" >/var/log/vnet.log 2>&1" ` +
+		`with prompt "Teleport VNet wants to set up a virtual network device." ` +
 		`with administrator privileges
 end run
 `
@@ -87,7 +86,7 @@ end run
 
 			stderrDesc := ""
 			if stderr != "" {
-				stderrDesc = fmt.Sprintf(", stderr: %s", stderr)
+				stderrDesc = ", stderr: " + stderr
 			}
 			return trace.Wrap(exitError, "osascript exited%s", stderrDesc)
 		}

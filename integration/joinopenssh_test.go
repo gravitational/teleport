@@ -111,7 +111,7 @@ func TestJoinOpenSSH(t *testing.T) {
 
 	sshdConf, err := os.ReadFile(opensshConfigPath)
 	require.NoError(t, err)
-	require.Contains(t, string(sshdConf), fmt.Sprintf("Include %s", filepath.Join(teleportDataDir, "sshd.conf")))
+	require.Contains(t, string(sshdConf), "Include "+filepath.Join(teleportDataDir, "sshd.conf"))
 
 	// check a node with the flags specified exists
 	require.Eventually(t, helpers.FindNodeWithLabel(t, ctx, client, "hello", "true"), time.Second*2, time.Millisecond*50)

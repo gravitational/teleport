@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"testing"
 	"testing/iotest"
@@ -377,7 +378,7 @@ func TestReadFieldsAreCopied(t *testing.T) {
 	var buf bytes.Buffer
 	for i := range n {
 		_, err := WriteEvent(&buf, Event{
-			ID:    fmt.Sprintf("%d", i),
+			ID:    strconv.Itoa(i),
 			Event: fmt.Sprintf("e%d", i),
 			// Multi-line data exercises the append branch of Data
 			// accumulation in addition to the initial allocation.
@@ -392,7 +393,7 @@ func TestReadFieldsAreCopied(t *testing.T) {
 	require.Len(t, got, n)
 
 	for i, ev := range got {
-		require.Equal(t, fmt.Sprintf("%d", i), ev.ID)
+		require.Equal(t, strconv.Itoa(i), ev.ID)
 		require.Equal(t, fmt.Sprintf("e%d", i), ev.Event)
 		require.Equal(t, fmt.Appendf(nil, "first-%d\nsecond-%d", i, i), ev.Data)
 	}

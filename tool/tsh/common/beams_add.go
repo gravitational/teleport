@@ -133,7 +133,7 @@ func (c *beamsAddCommand) run(cf *CLIConf) error {
 
 func (c *beamsAddCommand) printReconnectMessage(w io.Writer, alias string) error {
 	gray := lipgloss.NewStyle().Foreground(lipgloss.Color("8"))
-	_, err := fmt.Fprintln(w, gray.Render(fmt.Sprintf("\nTo reconnect to this beam, run:\n    tsh beams ssh %s", alias)))
+	_, err := fmt.Fprintln(w, gray.Render("\nTo reconnect to this beam, run:\n    tsh beams ssh "+alias))
 	return trace.Wrap(err)
 }
 

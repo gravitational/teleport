@@ -20,7 +20,6 @@ package integration
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"os"
 	"testing"
@@ -412,7 +411,7 @@ func TestEC2Labels(t *testing.T) {
 		require.Len(t, kubes, 1)
 	}, 10*time.Second, time.Second)
 
-	tagName := fmt.Sprintf("%s/Name", labels.AWSLabelNamespace)
+	tagName := labels.AWSLabelNamespace + "/Name"
 
 	// Check that EC2 labels were applied.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {

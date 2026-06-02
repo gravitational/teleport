@@ -147,7 +147,7 @@ func newMetrics(reg prometheus.Registerer) (*metrics, error) {
 			Namespace: teleport.MetricNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "version_mode",
-			Help:      fmt.Sprintf("Metric describing the agent update mode from the autoupdate_version resource. %s", valuesHelpString(codeToAgentMode)),
+			Help:      "Metric describing the agent update mode from the autoupdate_version resource. " + valuesHelpString(codeToAgentMode),
 		}),
 
 		clientVersionTargetMajor: prometheus.NewGauge(prometheus.GaugeOpts{
@@ -167,7 +167,7 @@ func newMetrics(reg prometheus.Registerer) (*metrics, error) {
 			Namespace: teleport.MetricNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "config_mode",
-			Help:      fmt.Sprintf("Metric describing the agent update mode from the autoupdate_agent_config resource. %s", valuesHelpString(codeToAgentMode)),
+			Help:      "Metric describing the agent update mode from the autoupdate_agent_config resource. " + valuesHelpString(codeToAgentMode),
 		}),
 
 		rolloutPresent: prometheus.NewGauge(prometheus.GaugeOpts{
@@ -204,7 +204,7 @@ func newMetrics(reg prometheus.Registerer) (*metrics, error) {
 			Namespace: teleport.MetricNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "rollout_mode",
-			Help:      fmt.Sprintf("Metric describing the agent update mode from the autoupdate_agent_rollout resource. %s", valuesHelpString(codeToAgentMode)),
+			Help:      "Metric describing the agent update mode from the autoupdate_agent_rollout resource. " + valuesHelpString(codeToAgentMode),
 		}),
 		rolloutStrategy: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: teleport.MetricNamespace,
@@ -222,13 +222,13 @@ func newMetrics(reg prometheus.Registerer) (*metrics, error) {
 			Namespace: teleport.MetricNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "rollout_state",
-			Help:      fmt.Sprintf("Describes the autoupdate_agent_rollout state. %s", valuesHelpString(autoupdatepb.AutoUpdateAgentRolloutState_name)),
+			Help:      "Describes the autoupdate_agent_rollout state. " + valuesHelpString(autoupdatepb.AutoUpdateAgentRolloutState_name),
 		}),
 		rolloutGroupState: prometheus.NewGaugeVec(prometheus.GaugeOpts{
 			Namespace: teleport.MetricNamespace,
 			Subsystem: metricsSubsystem,
 			Name:      "rollout_group_state",
-			Help:      fmt.Sprintf("Describes the autoupdate_agent_rollout state for each group. Groups are identified by their position in the schedule. %s", valuesHelpString(autoupdatepb.AutoUpdateAgentGroupState_name)),
+			Help:      "Describes the autoupdate_agent_rollout state for each group. Groups are identified by their position in the schedule. " + valuesHelpString(autoupdatepb.AutoUpdateAgentGroupState_name),
 		}, []string{metricsGroupNumberLabelName}),
 	}
 

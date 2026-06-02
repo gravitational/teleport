@@ -21,9 +21,9 @@ package alpnproxy
 import (
 	"crypto"
 	"encoding/json"
-	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -158,7 +158,7 @@ func (m *AzureTokenMiddleware) handleEndpoint(rw http.ResponseWriter, req *http.
 	m.Log.InfoContext(req.Context(), "Returning token for identity", "identity", m.Identity)
 
 	rw.Header().Add("Content-Type", "application/json; charset=utf-8")
-	rw.Header().Add("Content-Length", fmt.Sprintf("%v", len(respBody)))
+	rw.Header().Add("Content-Length", strconv.Itoa(len(respBody)))
 	rw.WriteHeader(200)
 	_, _ = rw.Write(respBody)
 	return nil

@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strconv"
 
 	"github.com/gravitational/trace"
 
@@ -50,9 +51,9 @@ func (c *databaseObjectImportRuleCollection) WriteText(w io.Writer, _ bool) erro
 	for _, b := range c.rules {
 		t.AddRow([]string{
 			b.GetMetadata().GetName(),
-			fmt.Sprintf("%v", b.GetSpec().GetPriority()),
-			fmt.Sprintf("%v", len(b.GetSpec().GetMappings())),
-			fmt.Sprintf("%v", len(b.GetSpec().GetDatabaseLabels())),
+			strconv.Itoa(int(b.GetSpec().GetPriority())),
+			strconv.Itoa(len(b.GetSpec().GetMappings())),
+			strconv.Itoa(len(b.GetSpec().GetDatabaseLabels())),
 		})
 	}
 	_, err := t.AsBuffer().WriteTo(w)

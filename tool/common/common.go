@@ -235,7 +235,7 @@ func FormatResourceAccessID(rid types.ResourceAccessID) string {
 			if d.AwsConsole == nil {
 				break
 			}
-			constraintsString = fmt.Sprintf("role_arns=%s", strings.Join(d.AwsConsole.RoleArns, ","))
+			constraintsString = "role_arns=" + strings.Join(d.AwsConsole.RoleArns, ",")
 		}
 	}
 

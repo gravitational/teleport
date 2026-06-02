@@ -74,7 +74,7 @@ func TestLookupSecret(t *testing.T) {
 		},
 		{
 			name:    "uri does not contain secret name",
-			input:   fmt.Sprintf("secret:///%s", keyName),
+			input:   "secret:///" + keyName,
 			secrets: v1.SecretList{Items: []v1.Secret{okSecret}},
 			assertErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "missing secret name")
@@ -82,7 +82,7 @@ func TestLookupSecret(t *testing.T) {
 		},
 		{
 			name:    "uri does not contain secret key",
-			input:   fmt.Sprintf("secret://%s", secretName),
+			input:   "secret://" + secretName,
 			secrets: v1.SecretList{Items: []v1.Secret{okSecret}},
 			assertErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "missing secret key")

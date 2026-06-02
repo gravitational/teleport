@@ -81,7 +81,7 @@ func NewClient(addr string) (*Client, error) {
 //
 // https://docs.podman.io/en/latest/_static/api.html#tag/containers/operation/ContainerInspectLibpod
 func (c *Client) InspectContainer(ctx context.Context, id string) (*Container, error) {
-	rsp, err := c.get(ctx, fmt.Sprintf("containers/%s", id))
+	rsp, err := c.get(ctx, "containers/"+id)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +98,7 @@ func (c *Client) InspectContainer(ctx context.Context, id string) (*Container, e
 //
 // https://docs.podman.io/en/latest/_static/api.html#tag/pods/operation/PodInspectLibpod
 func (c *Client) InspectPod(ctx context.Context, id string) (*Pod, error) {
-	rsp, err := c.get(ctx, fmt.Sprintf("pods/%s", id))
+	rsp, err := c.get(ctx, "pods/"+id)
 	if err != nil {
 		return nil, err
 	}

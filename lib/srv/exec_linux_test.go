@@ -77,8 +77,8 @@ func TestOSCommandPrep(t *testing.T) {
 	expectedEnv := []string{
 		"LANG=en_US.UTF-8",
 		reexec.GetDefaultEnvPath(usr.Uid),
-		fmt.Sprintf("HOME=%s", usr.HomeDir),
-		fmt.Sprintf("USER=%s", username),
+		"HOME=" + usr.HomeDir,
+		"USER=" + username,
 		"SHELL=/bin/sh",
 		"SSH_CLIENT=10.0.0.5 4817 3022",
 		"SSH_CONNECTION=10.0.0.5 4817 127.0.0.1 3022",

@@ -20,6 +20,7 @@ package utils
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"sync"
@@ -395,7 +396,7 @@ func TestFnCacheReloadOnErr(t *testing.T) {
 
 		FnCacheGet(ctx, cache, "sad", func(ctx context.Context) (string, error) {
 			sad.Add(1)
-			return "", fmt.Errorf("uh-oh")
+			return "", errors.New("uh-oh")
 		})
 	}
 	require.Equal(t, int64(1), happy.Load())
@@ -417,7 +418,7 @@ func TestFnCacheReloadOnErr(t *testing.T) {
 			defer wg.Done()
 			FnCacheGet(ctx, cache, "sad", func(ctx context.Context) (string, error) {
 				sad.Add(1)
-				return "", fmt.Errorf("uh-oh")
+				return "", errors.New("uh-oh")
 			})
 		}()
 	}
@@ -812,7 +813,7 @@ func TestGetIfExists(t *testing.T) {
 
 		// Load an entry that results in an error
 		_, err = FnCacheGet(ctx, cache, "error-key", func(ctx context.Context) (string, error) {
-			return "", fmt.Errorf("load error")
+			return "", errors.New("load error")
 		})
 		require.Error(t, err)
 

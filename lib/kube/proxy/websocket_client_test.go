@@ -172,7 +172,7 @@ func (e *wsStreamClient) GetPorts() ([]portforward.ForwardedPort, error) {
 //	CLOSE
 func (e *wsStreamClient) Stream(options clientremotecommand.StreamOptions) error {
 	if options.TerminalSizeQueue != nil || options.Tty {
-		return fmt.Errorf("client does not support resizes or Tty shells")
+		return errors.New("client does not support resizes or Tty shells")
 	}
 	err := e.connectViaWebsocket()
 	if err != nil {
@@ -317,7 +317,7 @@ func (e *wsStreamClient) stream(conn *gwebsocket.Conn, options clientremotecomma
 					// The server also stops the execution and closes the connection.
 					return
 				case streamResize:
-					errChan <- fmt.Errorf("stream resize is not supported")
+					errChan <- errors.New("stream resize is not supported")
 					return
 				}
 				if w == nil {

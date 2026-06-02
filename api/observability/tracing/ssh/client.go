@@ -17,7 +17,6 @@ package ssh
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -137,7 +136,7 @@ func (c *Client) SendRequest(
 
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("ssh.GlobalRequest/%s", name),
+		"ssh.GlobalRequest/"+name,
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 		oteltrace.WithAttributes(
 			append(
@@ -166,7 +165,7 @@ func (c *Client) OpenChannel(
 	tracer := config.TracerProvider.Tracer(instrumentationName)
 	ctx, span := tracer.Start(
 		ctx,
-		fmt.Sprintf("ssh.OpenChannel/%s", name),
+		"ssh.OpenChannel/"+name,
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 		oteltrace.WithAttributes(
 			append(
@@ -338,7 +337,7 @@ func (c *Client) serveSessionRequests(ctx context.Context, in <-chan *ssh.Reques
 		for req := range in {
 			ctx, span := tracer.Start(
 				ctx,
-				fmt.Sprintf("ssh.HandleRequests/%s", req.Type),
+				"ssh.HandleRequests/"+req.Type,
 				oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 				oteltrace.WithAttributes(
 					append(
@@ -468,7 +467,7 @@ func (c *clientWrapper) OpenChannel(name string, data []byte) (_ ssh.Channel, _ 
 	tracer := config.TracerProvider.Tracer(instrumentationName)
 	ctx, span := tracer.Start(
 		c.ctx,
-		fmt.Sprintf("ssh.OpenChannel/%s", name),
+		"ssh.OpenChannel/"+name,
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 		oteltrace.WithAttributes(
 			append(
@@ -506,7 +505,7 @@ func (c channelWrapper) SendRequest(name string, wantReply bool, payload []byte)
 	config := tracing.NewConfig(c.manager.opts)
 	ctx, span := config.TracerProvider.Tracer(instrumentationName).Start(
 		c.manager.nextContext(name),
-		fmt.Sprintf("ssh.ChannelRequest/%s", name),
+		"ssh.ChannelRequest/"+name,
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 		oteltrace.WithAttributes(
 			attribute.Bool("want_reply", wantReply),

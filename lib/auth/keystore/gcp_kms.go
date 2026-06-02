@@ -109,7 +109,7 @@ func (a *gcpKMSKeyStore) name() string {
 // keyTypeDescription returns a human-readable description of the types of keys
 // this backend uses.
 func (g *gcpKMSKeyStore) keyTypeDescription() string {
-	return fmt.Sprintf("GCP KMS keys in keyring %s", g.keyRing)
+	return "GCP KMS keys in keyring " + g.keyRing
 }
 
 func (g *gcpKMSKeyStore) generateKey(ctx context.Context, algorithm cryptosuites.Algorithm, usage keyUsage) (gcpKMSKeyID, error) {

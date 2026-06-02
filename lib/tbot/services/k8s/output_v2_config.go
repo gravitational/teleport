@@ -188,7 +188,7 @@ type KubernetesSelector struct {
 func (s *KubernetesSelector) String() string {
 	switch {
 	case s.Name != "":
-		return fmt.Sprintf("name=%s", s.Name)
+		return "name=" + s.Name
 	case len(s.Labels) != 0:
 		labels := make([]string, 0, len(s.Labels))
 		for k, v := range s.Labels {

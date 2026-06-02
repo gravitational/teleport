@@ -573,15 +573,15 @@ func (ani *AutoDiscoverNodeInstaller) configureTeleportNode(ctx context.Context,
 	teleportYamlConfigurationPathNew := teleportYamlConfigurationPath + teleportYamlConfigNewExtension
 
 	teleportNodeConfigureArgs := []string{"node", "configure", "--output=file://" + teleportYamlConfigurationPathNew,
-		fmt.Sprintf(`--data-dir=%s`, shsprintf.EscapeDefaultContext(dataDirForNode)),
-		fmt.Sprintf(`--proxy=%s`, shsprintf.EscapeDefaultContext(ani.ProxyPublicAddr)),
-		fmt.Sprintf(`--join-method=%s`, shsprintf.EscapeDefaultContext(string(joinMethod))),
-		fmt.Sprintf(`--token=%s`, shsprintf.EscapeDefaultContext(ani.TokenName)),
-		fmt.Sprintf(`--labels=%s`, shsprintf.EscapeDefaultContext(nodeLabelsCommaSeperated)),
+		"--data-dir=" + shsprintf.EscapeDefaultContext(dataDirForNode),
+		"--proxy=" + shsprintf.EscapeDefaultContext(ani.ProxyPublicAddr),
+		"--join-method=" + shsprintf.EscapeDefaultContext(string(joinMethod)),
+		"--token=" + shsprintf.EscapeDefaultContext(ani.TokenName),
+		"--labels=" + shsprintf.EscapeDefaultContext(nodeLabelsCommaSeperated),
 	}
 	if ani.AzureClientID != "" {
 		teleportNodeConfigureArgs = append(teleportNodeConfigureArgs,
-			fmt.Sprintf(`--azure-client-id=%s`, shsprintf.EscapeDefaultContext(ani.AzureClientID)))
+			"--azure-client-id="+shsprintf.EscapeDefaultContext(ani.AzureClientID))
 	}
 
 	ani.Logger.InfoContext(ctx,

@@ -98,14 +98,14 @@ func (s CredentialSources) BuildClient(ctx context.Context, clientCfg client.Con
 		logFields := map[string]interface{}{
 			"source": source.Name(),
 		}
-		tflog.Info(ctx, fmt.Sprintf("trying to build a client %s", source.Name()), logFields)
+		tflog.Info(ctx, "trying to build a client "+source.Name(), logFields)
 		creds, err := source.Credentials(ctx, providerCfg)
 		if err != nil {
 			logFields["error"] = err.Error()
 			tflog.Error(ctx, "failed to obtain credential", logFields)
 			_, reason := source.IsActive(providerCfg)
 			diags.AddError(
-				fmt.Sprintf("Failed to obtain Teleport credentials %s", source.Name()),
+				"Failed to obtain Teleport credentials "+source.Name(),
 				brokenCredentialErrorSummary(source.Name(), reason, err),
 			)
 			return nil, diags
@@ -120,7 +120,7 @@ func (s CredentialSources) BuildClient(ctx context.Context, clientCfg client.Con
 			tflog.Error(ctx, "failed to get a TLSConfig from the credential", logFields)
 			_, reason := source.IsActive(providerCfg)
 			diags.AddError(
-				fmt.Sprintf("Invalid Teleport credentials %s", source.Name()),
+				"Invalid Teleport credentials "+source.Name(),
 				brokenCredentialErrorSummary(source.Name(), reason, err),
 			)
 
@@ -144,7 +144,7 @@ func (s CredentialSources) BuildClient(ctx context.Context, clientCfg client.Con
 			logFields["error"] = err.Error()
 			tflog.Error(ctx, "failed to connect with the credential", logFields)
 			diags.AddWarning(
-				fmt.Sprintf("Failed to connect with credentials %s", source.Name()),
+				"Failed to connect with credentials "+source.Name(),
 				fmt.Sprintf("The client built from the credentials %s failed to connect to %q with the error: %s.",
 					source.Name(), clientCfg.Addrs[0], err,
 				))

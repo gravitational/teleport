@@ -51,7 +51,7 @@ type REPL struct {
 }
 
 func New(_ context.Context, cfg *dbrepl.NewREPLConfig) (dbrepl.REPLInstance, error) {
-	config, err := pgconn.ParseConfig(fmt.Sprintf("postgres://%s", hostnamePlaceholder))
+	config, err := pgconn.ParseConfig("postgres://" + hostnamePlaceholder)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -305,7 +305,7 @@ func streamResult(rr *pgconn.ResultReader, writer bufferedWriter) error {
 }
 
 func lineLeading(route clientproto.RouteToDatabase) string {
-	return fmt.Sprintf("%s=> ", route.Database)
+	return route.Database + "=> "
 }
 
 func rowsText(count int) string {

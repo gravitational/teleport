@@ -256,25 +256,25 @@ func (s *FakeTeams) StoreUser(user msapi.User) msapi.User {
 		user.ID = fmt.Sprintf("U%d", atomic.AddUint64(&s.userIDCounter, 1))
 	}
 
-	s.objects.Store(fmt.Sprintf("user-%s", user.ID), user)
-	s.objects.Store(fmt.Sprintf("userByEmail-%s", user.Mail), user)
+	s.objects.Store("user-"+user.ID, user)
+	s.objects.Store("userByEmail-"+user.Mail, user)
 
 	return user
 }
 
 func (s *FakeTeams) StoreApp(a msapi.InstalledApp) msapi.InstalledApp {
 	a.TeamsApp = s.teamsApp
-	s.objects.Store(fmt.Sprintf("app-%s", a.ID), a)
+	s.objects.Store("app-"+a.ID, a)
 	return a
 }
 
 func (s *FakeTeams) StoreChat(c msapi.Chat) msapi.Chat {
-	s.objects.Store(fmt.Sprintf("chat-%s", c.ID), c)
+	s.objects.Store("chat-"+c.ID, c)
 	return c
 }
 
 func (s *FakeTeams) GetUser(id string) (msapi.User, bool) {
-	if obj, ok := s.objects.Load(fmt.Sprintf("user-%s", id)); ok {
+	if obj, ok := s.objects.Load("user-" + id); ok {
 		user, ok := obj.(msapi.User)
 		return user, ok
 	}
@@ -282,7 +282,7 @@ func (s *FakeTeams) GetUser(id string) (msapi.User, bool) {
 }
 
 func (s *FakeTeams) GetUserByEmail(email string) (msapi.User, bool) {
-	if obj, ok := s.objects.Load(fmt.Sprintf("userByEmail-%s", email)); ok {
+	if obj, ok := s.objects.Load("userByEmail-" + email); ok {
 		user, ok := obj.(msapi.User)
 		return user, ok
 	}
@@ -290,7 +290,7 @@ func (s *FakeTeams) GetUserByEmail(email string) (msapi.User, bool) {
 }
 
 func (s *FakeTeams) GetApp(id string) (msapi.InstalledApp, bool) {
-	if obj, ok := s.objects.Load(fmt.Sprintf("app-%s", id)); ok {
+	if obj, ok := s.objects.Load("app-" + id); ok {
 		user, ok := obj.(msapi.InstalledApp)
 		return user, ok
 	}
@@ -298,7 +298,7 @@ func (s *FakeTeams) GetApp(id string) (msapi.InstalledApp, bool) {
 }
 
 func (s *FakeTeams) GetChat(id string) (msapi.Chat, bool) {
-	if obj, ok := s.objects.Load(fmt.Sprintf("chat-%s", id)); ok {
+	if obj, ok := s.objects.Load("chat-" + id); ok {
 		user, ok := obj.(msapi.Chat)
 		return user, ok
 	}

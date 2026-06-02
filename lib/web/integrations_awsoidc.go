@@ -21,7 +21,6 @@ package web
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"maps"
 	"net/http"
@@ -598,12 +597,12 @@ func (h *Handler) awsOIDCConfigureDeployServiceIAM(w http.ResponseWriter, r *htt
 	// teleport integration configure deployservice-iam
 	argsList := []string{
 		"integration", "configure", "deployservice-iam",
-		fmt.Sprintf("--cluster=%s", shsprintf.EscapeDefaultContext(clusterName)),
-		fmt.Sprintf("--name=%s", shsprintf.EscapeDefaultContext(integrationName)),
-		fmt.Sprintf("--aws-region=%s", shsprintf.EscapeDefaultContext(awsRegion)),
-		fmt.Sprintf("--role=%s", shsprintf.EscapeDefaultContext(role)),
-		fmt.Sprintf("--task-role=%s", shsprintf.EscapeDefaultContext(taskRole)),
-		fmt.Sprintf("--aws-account-id=%s", shsprintf.EscapeDefaultContext(awsAccountID)),
+		"--cluster=" + shsprintf.EscapeDefaultContext(clusterName),
+		"--name=" + shsprintf.EscapeDefaultContext(integrationName),
+		"--aws-region=" + shsprintf.EscapeDefaultContext(awsRegion),
+		"--role=" + shsprintf.EscapeDefaultContext(role),
+		"--task-role=" + shsprintf.EscapeDefaultContext(taskRole),
+		"--aws-account-id=" + shsprintf.EscapeDefaultContext(awsAccountID),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		EntrypointArgs: strings.Join(argsList, " "),
@@ -636,7 +635,7 @@ func (h *Handler) awsOIDCConfigureAWSAppAccessIAM(w http.ResponseWriter, r *http
 	// teleport integration configure aws-app-access
 	argsList := []string{
 		"integration", "configure", "aws-app-access-iam",
-		fmt.Sprintf("--role=%s", shsprintf.EscapeDefaultContext(role)),
+		"--role=" + shsprintf.EscapeDefaultContext(role),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		EntrypointArgs: strings.Join(argsList, " "),
@@ -700,13 +699,13 @@ func (h *Handler) awsOIDCConfigureEC2SSMIAM(w http.ResponseWriter, r *http.Reque
 	// teleport integration configure ec2-ssm-iam
 	argsList := []string{
 		"integration", "configure", "ec2-ssm-iam",
-		fmt.Sprintf("--role=%s", shsprintf.EscapeDefaultContext(role)),
-		fmt.Sprintf("--aws-region=%s", shsprintf.EscapeDefaultContext(region)),
-		fmt.Sprintf("--ssm-document-name=%s", shsprintf.EscapeDefaultContext(ssmDocumentName)),
-		fmt.Sprintf("--proxy-public-url=%s", shsprintf.EscapeDefaultContext(proxyPublicURL)),
-		fmt.Sprintf("--cluster=%s", shsprintf.EscapeDefaultContext(clusterName)),
-		fmt.Sprintf("--name=%s", shsprintf.EscapeDefaultContext(integrationName)),
-		fmt.Sprintf("--aws-account-id=%s", shsprintf.EscapeDefaultContext(awsAccountID)),
+		"--role=" + shsprintf.EscapeDefaultContext(role),
+		"--aws-region=" + shsprintf.EscapeDefaultContext(region),
+		"--ssm-document-name=" + shsprintf.EscapeDefaultContext(ssmDocumentName),
+		"--proxy-public-url=" + shsprintf.EscapeDefaultContext(proxyPublicURL),
+		"--cluster=" + shsprintf.EscapeDefaultContext(clusterName),
+		"--name=" + shsprintf.EscapeDefaultContext(integrationName),
+		"--aws-account-id=" + shsprintf.EscapeDefaultContext(awsAccountID),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		EntrypointArgs: strings.Join(argsList, " "),
@@ -745,9 +744,9 @@ func (h *Handler) awsOIDCConfigureEKSIAM(w http.ResponseWriter, r *http.Request,
 	// "teleport integration configure eks-iam"
 	argsList := []string{
 		"integration", "configure", "eks-iam",
-		fmt.Sprintf("--aws-region=%s", shsprintf.EscapeDefaultContext(awsRegion)),
-		fmt.Sprintf("--role=%s", shsprintf.EscapeDefaultContext(role)),
-		fmt.Sprintf("--aws-account-id=%s", shsprintf.EscapeDefaultContext(awsAccountID)),
+		"--aws-region=" + shsprintf.EscapeDefaultContext(awsRegion),
+		"--role=" + shsprintf.EscapeDefaultContext(role),
+		"--aws-account-id=" + shsprintf.EscapeDefaultContext(awsAccountID),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		EntrypointArgs: strings.Join(argsList, " "),
@@ -1265,10 +1264,10 @@ func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p 
 	// teleport integration configure awsoidc-idp
 	argsList := []string{
 		"integration", "configure", "awsoidc-idp",
-		fmt.Sprintf("--cluster=%s", shsprintf.EscapeDefaultContext(clusterName)),
-		fmt.Sprintf("--name=%s", shsprintf.EscapeDefaultContext(integrationName)),
-		fmt.Sprintf("--role=%s", shsprintf.EscapeDefaultContext(role)),
-		fmt.Sprintf("--proxy-public-url=%s", shsprintf.EscapeDefaultContext(proxyAddr)),
+		"--cluster=" + shsprintf.EscapeDefaultContext(clusterName),
+		"--name=" + shsprintf.EscapeDefaultContext(integrationName),
+		"--role=" + shsprintf.EscapeDefaultContext(role),
+		"--proxy-public-url=" + shsprintf.EscapeDefaultContext(proxyAddr),
 	}
 
 	policyPreset := queryParams.Get("policyPreset")
@@ -1276,7 +1275,7 @@ func (h *Handler) awsOIDCConfigureIdP(w http.ResponseWriter, r *http.Request, p 
 		return nil, trace.Wrap(err)
 	}
 	if policyPreset != "" {
-		argsList = append(argsList, fmt.Sprintf("--policy-preset=%s", shsprintf.EscapeDefaultContext(policyPreset)))
+		argsList = append(argsList, "--policy-preset="+shsprintf.EscapeDefaultContext(policyPreset))
 	}
 
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
@@ -1316,9 +1315,9 @@ func (h *Handler) awsOIDCConfigureListDatabasesIAM(w http.ResponseWriter, r *htt
 	// teleport integration configure listdatabases-iam
 	argsList := []string{
 		"integration", "configure", "listdatabases-iam",
-		fmt.Sprintf("--aws-region=%s", shsprintf.EscapeDefaultContext(awsRegion)),
-		fmt.Sprintf("--role=%s", shsprintf.EscapeDefaultContext(role)),
-		fmt.Sprintf("--aws-account-id=%s", shsprintf.EscapeDefaultContext(awsAccountID)),
+		"--aws-region=" + shsprintf.EscapeDefaultContext(awsRegion),
+		"--role=" + shsprintf.EscapeDefaultContext(role),
+		"--aws-account-id=" + shsprintf.EscapeDefaultContext(awsAccountID),
 	}
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
 		EntrypointArgs: strings.Join(argsList, " "),
@@ -1358,11 +1357,11 @@ func (h *Handler) awsBedrockSummarizerOIDC(w http.ResponseWriter, r *http.Reques
 	// "teleport integration configure session-summaries bedrock"
 	argsList := []string{
 		"integration", "configure", "session-summaries", "bedrock",
-		fmt.Sprintf("--role=%s", shsprintf.EscapeDefaultContext(role)),
-		fmt.Sprintf("--resource=%s", shsprintf.EscapeDefaultContext(queryParams.Get("resource"))),
+		"--role=" + shsprintf.EscapeDefaultContext(role),
+		"--resource=" + shsprintf.EscapeDefaultContext(queryParams.Get("resource")),
 	}
 	if awsAccountID != "" {
-		argsList = append(argsList, fmt.Sprintf("--aws-account-id=%s", shsprintf.EscapeDefaultContext(awsAccountID)))
+		argsList = append(argsList, "--aws-account-id="+shsprintf.EscapeDefaultContext(awsAccountID))
 	}
 
 	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
@@ -1395,15 +1394,15 @@ func (h *Handler) awsAccessGraphOIDCSync(w http.ResponseWriter, r *http.Request,
 	// "teleport integration configure access-graph aws-iam"
 	argsList := []string{
 		"integration", "configure", "access-graph", "aws-iam",
-		fmt.Sprintf("--role=%s", shsprintf.EscapeDefaultContext(role)),
-		fmt.Sprintf("--aws-account-id=%s", shsprintf.EscapeDefaultContext(awsAccountID)),
+		"--role=" + shsprintf.EscapeDefaultContext(role),
+		"--aws-account-id=" + shsprintf.EscapeDefaultContext(awsAccountID),
 	}
 
 	if sqsURL := queryParams.Get("sqsUrl"); sqsURL != "" {
 		if !awsoidc.IsValidSQSURL(sqsURL) {
 			return nil, trace.BadParameter("invalid sqsUrl %q", sqsURL)
 		}
-		argsList = append(argsList, fmt.Sprintf("--sqs-queue-url=%s", shsprintf.EscapeDefaultContext(sqsURL)))
+		argsList = append(argsList, "--sqs-queue-url="+shsprintf.EscapeDefaultContext(sqsURL))
 	}
 
 	if s3Bucket := queryParams.Get("cloudTrailS3Bucket"); s3Bucket != "" {
@@ -1411,7 +1410,7 @@ func (h *Handler) awsAccessGraphOIDCSync(w http.ResponseWriter, r *http.Request,
 			return nil, trace.BadParameter("invalid cloudTrailS3Bucket %q", s3Bucket)
 		}
 
-		argsList = append(argsList, fmt.Sprintf("--cloud-trail-bucket=%s", shsprintf.EscapeDefaultContext(s3Bucket)))
+		argsList = append(argsList, "--cloud-trail-bucket="+shsprintf.EscapeDefaultContext(s3Bucket))
 	}
 
 	if kmsKeysARNs := queryParams["kmsKeysARNs"]; len(kmsKeysARNs) > 0 {
@@ -1419,7 +1418,7 @@ func (h *Handler) awsAccessGraphOIDCSync(w http.ResponseWriter, r *http.Request,
 			if _, err := arn.Parse(keyARN); err != nil {
 				return nil, trace.BadParameter("invalid kmsKeysARNs %q", keyARN)
 			}
-			argsList = append(argsList, fmt.Sprintf("--kms-key=%s", shsprintf.EscapeDefaultContext(keyARN)))
+			argsList = append(argsList, "--kms-key="+shsprintf.EscapeDefaultContext(keyARN))
 		}
 	}
 

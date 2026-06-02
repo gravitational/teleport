@@ -26,6 +26,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -114,7 +115,7 @@ func newGCPApp(tc *client.TeleportClient, cf *CLIConf, appInfo *appInfo) (*gcpAp
 
 	h := fnv.New32a()
 	_, _ = h.Write([]byte(secret))
-	prefix := fmt.Sprintf("%x", h.Sum32())
+	prefix := strconv.FormatUint(uint64(h.Sum32()), 16)
 	localProxyApp, err := newLocalProxyApp(tc, appInfo.profile, appInfo.RouteToApp, cf.LocalProxyPort, cf.InsecureSkipVerify)
 	if err != nil {
 		return nil, trace.Wrap(err)

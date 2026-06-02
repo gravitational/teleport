@@ -504,7 +504,7 @@ func (o *OutputV2Service) generateKubeConfigV2WithPlugin(ks *kubernetesStatusV2,
 
 	// Configure primary user/AuthInfo.
 	execArgs := []string{"kube", "credentials",
-		fmt.Sprintf("--destination-dir=%s", absDestPath),
+		"--destination-dir=" + absDestPath,
 	}
 	config.AuthInfos[ks.teleportClusterName] = &clientcmdapi.AuthInfo{
 		Exec: &clientcmdapi.ExecConfig{

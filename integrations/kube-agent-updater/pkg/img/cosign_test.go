@@ -269,7 +269,7 @@ func (auth registryAuthMiddleware) ServeHTTP(resp http.ResponseWriter, req *http
 
 // authorizationHeader returns the content of the Authorization header to authenticate a request.
 func (auth registryAuthMiddleware) authorizationHeader() string {
-	return fmt.Sprintf("Bearer %s", auth.bearerToken)
+	return "Bearer " + auth.bearerToken
 }
 
 // newRegistryAuthMiddleware takes the http.Handler of a docker registry and wraps it to provide
@@ -316,7 +316,7 @@ func Test_cosignKeyValidator_ValidateAndResolveDigestAuthenticated(t *testing.T)
 	// protection in go-containerregistry which prohibits the client from
 	// connecting to realms which are 127.0.0.1. See:
 	// https://github.com/google/go-containerregistry/pull/2243
-	regURL.Host = fmt.Sprintf("localhost:%s", regURL.Port())
+	regURL.Host = "localhost:" + regURL.Port()
 
 	// Build a special test case: an image with a tag that must be resolved
 	namedImage, err := reference.ParseNamed(regURL.Host + "/testrepo")

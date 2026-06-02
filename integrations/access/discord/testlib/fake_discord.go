@@ -146,12 +146,12 @@ func (s *FakeDiscord) StoreMessage(msg discord.DiscordMsg) discord.DiscordMsg {
 	if msg.DiscordID == "" {
 		msg.DiscordID = strconv.FormatUint(atomic.AddUint64(&s.messageCounter, 1), 10)
 	}
-	s.objects.Store(fmt.Sprintf("msg-%s", msg.DiscordID), msg)
+	s.objects.Store("msg-"+msg.DiscordID, msg)
 	return msg
 }
 
 func (s *FakeDiscord) GetMessage(id string) (discord.DiscordMsg, bool) {
-	if obj, ok := s.objects.Load(fmt.Sprintf("msg-%s", id)); ok {
+	if obj, ok := s.objects.Load("msg-" + id); ok {
 		msg, ok := obj.(discord.DiscordMsg)
 		return msg, ok
 	}

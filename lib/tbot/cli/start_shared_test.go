@@ -19,7 +19,6 @@
 package cli
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -88,7 +87,7 @@ func TestSharedDestinationArgs(t *testing.T) {
 	args := newSharedDestinationArgs(subcommand)
 	_, err := app.Parse([]string{
 		"test",
-		fmt.Sprintf("--destination=file://%s", dir),
+		"--destination=file://" + dir,
 		"--reader-user=123",
 		"--reader-user=456",
 		"--reader-group=789",

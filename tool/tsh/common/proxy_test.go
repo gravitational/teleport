@@ -480,7 +480,7 @@ func TestWithRsync(t *testing.T) {
 			if errors.As(err, &exitErr) {
 				msg += fmt.Sprintf("exit code: %d\n", exitErr.ExitCode())
 			}
-			msg += fmt.Sprintf("stderr: %s", stderr.String())
+			msg += "stderr: " + stderr.String()
 			require.NoError(t, err, msg)
 
 			// verify that dst exists and that its contents match src
@@ -820,7 +820,7 @@ func TestTSHConfigConnectWithOpenSSHClient(t *testing.T) {
 
 			// Try to run ssh command using the OpenSSH client with invalid node login username.
 			// Command should fail because nodeLogin 'invalidUser' is not in valid principals.
-			sshConn = fmt.Sprintf("invalidUser@%s", sshConn)
+			sshConn = "invalidUser@" + sshConn
 			mustFailToRunOpenSSHCommand(t, sshConfigFile, sshConn, nodePort, bashCmd...)
 
 			// Check if failed login attempt event has proper nodeLogin.
@@ -1076,9 +1076,9 @@ func runOpenSSHCommand(t *testing.T, configFile string, sshConnString string, po
 	_, agentPath := createAgent(t)
 	cmd := exec.Command(sshPath, ss...)
 	cmd.Env = []string{
-		fmt.Sprintf("%s=1", tshBinMainTestEnv),
-		fmt.Sprintf("SSH_AUTH_SOCK=%s", agentPath),
-		fmt.Sprintf("PATH=%s", filepath.Dir(sshPath)),
+		tshBinMainTestEnv + "=1",
+		"SSH_AUTH_SOCK=" + agentPath,
+		"PATH=" + filepath.Dir(sshPath),
 		fmt.Sprintf("%s=%s", types.HomeEnvVar, os.Getenv(types.HomeEnvVar)),
 	}
 	cmd.Stdout = os.Stdout
@@ -1577,7 +1577,7 @@ func TestProxyAppWithIdentity(t *testing.T) {
 	})
 
 	err = retryutils.RetryStaticFor(5*time.Second, 50*time.Millisecond, func() error {
-		r, err := http.Get(fmt.Sprintf("http://localhost:%s", port))
+		r, err := http.Get("http://localhost:" + port)
 		if err != nil {
 			return err
 		}
@@ -1729,7 +1729,7 @@ func mustLogin(t *testing.T, s *service.TeleportProcess, user types.User, connec
 func mustDialLocalAppProxy(t *testing.T, port string, expectedName string) {
 	t.Helper()
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		r, err := http.Get(fmt.Sprintf("http://localhost:%s", port))
+		r, err := http.Get("http://localhost:" + port)
 		require.NoError(t, err)
 		defer r.Body.Close()
 

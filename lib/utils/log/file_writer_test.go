@@ -20,7 +20,6 @@ package log
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -66,7 +65,7 @@ func TestFileSharedWriterNotify(t *testing.T) {
 	require.Equal(t, firstPhrase, string(data), "first written phrase does not match")
 
 	// Move the original file to a new location to simulate the logrotate operation.
-	err = os.Rename(logFileName, fmt.Sprintf("%s.1", logFileName))
+	err = os.Rename(logFileName, logFileName+".1")
 	require.NoError(t, err, "can't rename log file")
 
 	select {
@@ -134,7 +133,7 @@ func TestFileSharedWriterFinalizer(t *testing.T) {
 	runtime.GC()
 
 	// Move the original file to a new location to simulate the logrotate operation.
-	err = os.Rename(logFileName, fmt.Sprintf("%s.1", logFileName))
+	err = os.Rename(logFileName, logFileName+".1")
 	require.NoError(t, err, "can't rename log file")
 
 	select {

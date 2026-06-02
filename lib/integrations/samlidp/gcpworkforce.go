@@ -78,14 +78,14 @@ func (s *GCPWorkforceService) CreateWorkforcePoolAndProvider(ctx context.Context
 	workforceService := iam.NewLocationsWorkforcePoolsService(iamService)
 
 	slog.With("pool_name", s.APIParams.PoolName).InfoContext(ctx, "Creating workforce pool.")
-	poolFullName := fmt.Sprintf("locations/global/workforcePools/%s", s.APIParams.PoolName)
+	poolFullName := "locations/global/workforcePools/" + s.APIParams.PoolName
 	createPool := workforceService.Create(
 		"locations/global",
 		&iam.WorkforcePool{
 			Name:        poolFullName,
 			DisplayName: s.APIParams.PoolName,
 			Description: "Workforce pool created by Teleport",
-			Parent:      fmt.Sprintf("organizations/%s", s.APIParams.OrganizationID),
+			Parent:      "organizations/" + s.APIParams.OrganizationID,
 		})
 	createPool.WorkforcePoolId(s.APIParams.PoolName)
 	resp, err := createPool.Do()
@@ -163,7 +163,7 @@ func waitForPoolStatus(ctx context.Context, workforceService *iam.LocationsWorkf
 	for {
 		select {
 		case <-ctx.Done():
-			return fmt.Errorf(`timeout while waiting for pool to be available. If you can confirm that the pool is already created, rerun the command again`)
+			return errors.New(`timeout while waiting for pool to be available. If you can confirm that the pool is already created, rerun the command again`)
 		case <-ticker.C:
 			result, err := workforceService.Get(poolName).Do()
 			if err != nil {

@@ -956,7 +956,7 @@ func TestMarshallCreateHostUserModeYAML(t *testing.T) {
 	} {
 		got, err := yaml.Marshal(&tc.input)
 		require.NoError(t, err)
-		require.Equal(t, fmt.Sprintf("%s\n", tc.expected), string(got))
+		require.Equal(t, tc.expected+"\n", string(got))
 	}
 }
 
@@ -1083,7 +1083,7 @@ func TestMarshalWebTerminalClipboardModeYAML(t *testing.T) {
 	} {
 		got, err := yaml.Marshal(&tc.input)
 		require.NoError(t, err)
-		require.Equal(t, fmt.Sprintf("%s\n", tc.expected), string(got))
+		require.Equal(t, tc.expected+"\n", string(got))
 	}
 }
 

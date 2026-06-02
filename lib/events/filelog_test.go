@@ -23,6 +23,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -495,7 +496,7 @@ func TestLargeEvent(t *testing.T) {
 func makeLargeMongoQuery() (string, error) {
 	record := map[string]string{"_id": `{"$oid":"63a0dd6da68baaeb828581fe"}`}
 	for i := range 100 {
-		t := fmt.Sprintf("%v", i)
+		t := strconv.Itoa(i)
 		record[t] = t
 	}
 

@@ -20,7 +20,6 @@ package app
 
 import (
 	"context"
-	"fmt"
 	"math/rand/v2"
 	"strings"
 
@@ -86,7 +85,7 @@ func ResolveFQDN(ctx context.Context, clusterGetter reversetunnelclient.ClusterG
 	if !strings.HasSuffix(fqdn, proxyPublicAddr) {
 		return nil, "", trace.BadParameter("FQDN %q is not a subdomain of the proxy", fqdn)
 	}
-	appName := strings.TrimSuffix(fqdn, fmt.Sprintf(".%s", proxyPublicAddr))
+	appName := strings.TrimSuffix(fqdn, "."+proxyPublicAddr)
 
 	// Loop over all clusters and try and match application name to an
 	// application within the cluster. This also includes the local cluster.

@@ -21,7 +21,6 @@ package aws
 import (
 	"context"
 	"errors"
-	"fmt"
 	"regexp"
 	"strings"
 
@@ -131,7 +130,7 @@ func (client *InstanceMetadataClient) getTagKeys(ctx context.Context) ([]string,
 
 // getTagValue gets the value for a specified tag key.
 func (client *InstanceMetadataClient) getTagValue(ctx context.Context, key string) (string, error) {
-	body, err := client.getMetadata(ctx, fmt.Sprintf("tags/instance/%s", key))
+	body, err := client.getMetadata(ctx, "tags/instance/"+key)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

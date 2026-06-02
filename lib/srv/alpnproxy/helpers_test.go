@@ -23,7 +23,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -265,7 +264,7 @@ func mustSuccessfullyCallHTTPSServer(t *testing.T, addr string, client http.Clie
 
 func mustCallHTTPSServerAndReceiveCode(t *testing.T, addr string, client http.Client, expectStatusCode int) {
 	t.Helper()
-	resp, err := client.Get(fmt.Sprintf("https://%s", addr))
+	resp, err := client.Get("https://" + addr)
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	require.Equal(t, expectStatusCode, resp.StatusCode)

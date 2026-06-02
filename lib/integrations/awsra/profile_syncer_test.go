@@ -20,7 +20,6 @@ package awsra
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 	"testing"
 	"testing/synctest"
@@ -806,7 +805,7 @@ func (m *mockRolesAnywhereClient) ListProfiles(ctx context.Context, params *role
 	}
 	var nextToken *string
 	if idx+1 < len(m.pages) {
-		nextToken = aws.String(fmt.Sprintf("%d", idx+1))
+		nextToken = aws.String(strconv.Itoa(idx + 1))
 	}
 	return &rolesanywhere.ListProfilesOutput{
 		Profiles:  m.pages[idx],

@@ -18,8 +18,8 @@ package local
 
 import (
 	"context"
-	"fmt"
 	"slices"
+	"strconv"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -154,7 +154,7 @@ func TestWorkloadIdentityService_ListWorkloadIdentities(t *testing.T) {
 	for i := range 49 {
 		created, err := service.CreateWorkloadIdentity(
 			ctx,
-			newValidWorkloadIdentity(fmt.Sprintf("%d", i)),
+			newValidWorkloadIdentity(strconv.Itoa(i)),
 		)
 		require.NoError(t, err)
 		createdObjects = append(createdObjects, created)

@@ -21,7 +21,6 @@ package srv
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -145,7 +144,7 @@ func newFakeHeartbeatDriver(t *testing.T) *fakeHeartbeatDriver {
 		// test need to run longer.
 		select {
 		case <-ctx.Done():
-			return nil, fmt.Errorf("context canceled while waiting for next control stream")
+			return nil, errors.New("context canceled while waiting for next control stream")
 		case stream := <-streamC:
 			return stream, nil
 		}

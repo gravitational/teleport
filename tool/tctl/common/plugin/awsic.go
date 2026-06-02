@@ -499,7 +499,7 @@ func (args *awsICRotateCredsArgs) validateToken(ctx context.Context, awsicSettin
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", args.payload))
+	req.Header.Set("Authorization", "Bearer "+args.payload)
 	req.Header.Set("Accept", "application/scim+json")
 
 	resp, err := env.httpProvider.RoundTrip(req)

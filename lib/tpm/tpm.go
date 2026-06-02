@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"crypto/x509"
+	"encoding/hex"
 	"encoding/pem"
 	"fmt"
 	"io"
@@ -64,7 +65,7 @@ func SerialString(serial *big.Int) string {
 // and returned as a hexadecimal string.
 func HashEKPub(pkixPublicKey []byte) string {
 	hashed := sha256.Sum256(pkixPublicKey)
-	return fmt.Sprintf("%x", hashed)
+	return hex.EncodeToString(hashed[:])
 }
 
 // QueryRes is the result of the TPM query performed by Query.

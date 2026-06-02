@@ -21,7 +21,6 @@ package azuredevops
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/url"
 
@@ -87,7 +86,7 @@ func (its *IDTokenSource) exchangeToken(
 	if err != nil {
 		return "", trace.Wrap(err, "creating request for token")
 	}
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", accessToken))
+	req.Header.Set("Authorization", "Bearer "+accessToken)
 	req.Header.Set("Content-Type", "application/json")
 
 	res, err := its.httpClient.Do(req)

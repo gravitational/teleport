@@ -1408,7 +1408,7 @@ func clientConfig(srv *httptest.Server) *tls.Config {
 	certpool.AddCert(cert)
 	return &tls.Config{
 		RootCAs:    certpool,
-		ServerName: fmt.Sprintf("%v", cert.IPAddresses[0].String()),
+		ServerName: cert.IPAddresses[0].String(),
 	}
 }
 

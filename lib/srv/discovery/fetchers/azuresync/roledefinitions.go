@@ -20,7 +20,6 @@ package azuresync
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/authorization/armauthorization/v2"
 	"github.com/gravitational/trace"
@@ -36,7 +35,7 @@ type RoleDefinitionsClient interface {
 
 func fetchRoleDefinitions(ctx context.Context, subscriptionID string, cli RoleDefinitionsClient) ([]*accessgraphv1alpha.AzureRoleDefinition, error) { //nolint:unused // used in a dependent PR
 	// List the role definitions
-	roleDefs, err := cli.ListRoleDefinitions(ctx, fmt.Sprintf("/subscriptions/%s", subscriptionID))
+	roleDefs, err := cli.ListRoleDefinitions(ctx, "/subscriptions/"+subscriptionID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

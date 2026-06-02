@@ -21,7 +21,6 @@ package servicenow
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/url"
 	"strings"
@@ -167,7 +166,7 @@ func (snc *Client) CreateIncident(ctx context.Context, reqID string, reqData Req
 	}
 
 	body := Incident{
-		ShortDescription: fmt.Sprintf("Teleport access request from user %s", reqData.User),
+		ShortDescription: "Teleport access request from user " + reqData.User,
 		Description:      bodyDetails,
 		Caller:           reqData.User,
 	}

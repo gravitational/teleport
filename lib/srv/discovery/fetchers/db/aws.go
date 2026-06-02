@@ -91,7 +91,7 @@ func (cfg *awsFetcherConfig) CheckAndSetDefaults(component string) error {
 	if cfg.Logger == nil {
 		credentialsSource := "environment"
 		if cfg.Integration != "" {
-			credentialsSource = fmt.Sprintf("integration:%s", cfg.Integration)
+			credentialsSource = "integration:" + cfg.Integration
 		}
 		cfg.Logger = slog.With(
 			teleport.ComponentKey, "watch:"+component,

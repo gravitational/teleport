@@ -50,9 +50,9 @@ func (c *databaseObjectCollection) WriteText(w io.Writer, verbose bool) error {
 	for _, b := range c.objects {
 		t.AddRow([]string{
 			b.GetMetadata().GetName(),
-			fmt.Sprintf("%v", b.GetSpec().GetObjectKind()),
-			fmt.Sprintf("%v", b.GetSpec().GetDatabaseServiceName()),
-			fmt.Sprintf("%v", b.GetSpec().GetProtocol()),
+			b.GetSpec().GetObjectKind(),
+			b.GetSpec().GetDatabaseServiceName(),
+			b.GetSpec().GetProtocol(),
 		})
 	}
 	_, err := t.AsBuffer().WriteTo(w)

@@ -168,7 +168,7 @@ func (q *queryRequest) paramsToSlice() []string {
 	args = append(args, queryParametersToSlice(q.Parameters)...)
 
 	if q.BindStage != "" {
-		args = append(args, fmt.Sprintf("bindStage:%s", q.BindStage))
+		args = append(args, "bindStage:"+q.BindStage)
 	}
 
 	return args

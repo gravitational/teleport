@@ -190,9 +190,9 @@ func preFlightInstallerChecks(proxyAddr string) map[installstatus.ExitCode]strin
 
 	return map[installstatus.ExitCode]string{
 		// Basic command checks for bash, sudo and curl.
-		installstatus.BashNotFound: fmt.Sprintf(`command -v bash > /dev/null 2>&1 %s`, orExitWithMessageScriptSnippet(installstatus.BashNotFound, "bash is missing")),
-		installstatus.SudoNotFound: fmt.Sprintf(`command -v sudo > /dev/null 2>&1 %s`, orExitWithMessageScriptSnippet(installstatus.SudoNotFound, "sudo is missing")),
-		installstatus.CurlNotFound: fmt.Sprintf(`command -v curl > /dev/null 2>&1 %s`, orExitWithMessageScriptSnippet(installstatus.CurlNotFound, "curl is missing")),
+		installstatus.BashNotFound: "command -v bash > /dev/null 2>&1 " + orExitWithMessageScriptSnippet(installstatus.BashNotFound, "bash is missing"),
+		installstatus.SudoNotFound: "command -v sudo > /dev/null 2>&1 " + orExitWithMessageScriptSnippet(installstatus.SudoNotFound, "sudo is missing"),
+		installstatus.CurlNotFound: "command -v curl > /dev/null 2>&1 " + orExitWithMessageScriptSnippet(installstatus.CurlNotFound, "curl is missing"),
 
 		// check if there's enough disk space for the installation
 		// df -Pm outputs disk usage in megabytes; awk selects the data row (NR==2) and

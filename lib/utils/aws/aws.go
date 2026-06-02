@@ -435,7 +435,7 @@ func BuildRoleARN(username, region, accountID string) (string, error) {
 	}
 	resource := username
 	if !IsPartialRoleARN(resource) {
-		resource = fmt.Sprintf("role/%s", username)
+		resource = "role/" + username
 	}
 	roleARN := arn.ARN{
 		Partition: partition,

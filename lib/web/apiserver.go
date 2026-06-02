@@ -444,7 +444,7 @@ func (h *APIHandler) handlePreflight(w http.ResponseWriter, r *http.Request) {
 
 	// This will allow preflight responses to be cached for the specified duration
 	if corsPolicy.MaxAge > 0 {
-		w.Header().Set("Access-Control-Max-Age", fmt.Sprintf("%d", corsPolicy.MaxAge))
+		w.Header().Set("Access-Control-Max-Age", strconv.FormatUint(uint64(corsPolicy.MaxAge), 10))
 	}
 
 	w.WriteHeader(http.StatusOK)

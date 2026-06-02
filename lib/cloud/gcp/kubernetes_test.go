@@ -21,7 +21,7 @@ package gcp
 import (
 	"context"
 	"encoding/base64"
-	"fmt"
+	"errors"
 	"sort"
 	"strings"
 	"testing"
@@ -189,7 +189,7 @@ func (f *fakeGKEClient) ListClusters(ctx context.Context, req *containerpb.ListC
 		}
 	}
 	if len(clusters.Clusters) == 0 {
-		return nil, fmt.Errorf("no clusters found")
+		return nil, errors.New("no clusters found")
 	}
 	return clusters, nil
 }
@@ -198,7 +198,7 @@ func (f *fakeGKEClient) GetCluster(ctx context.Context, req *containerpb.GetClus
 	if c, ok := f.clusters[req.Name]; ok {
 		return c, nil
 	}
-	return nil, fmt.Errorf("cluster not found")
+	return nil, errors.New("cluster not found")
 }
 
 type fakeTokenSource struct {

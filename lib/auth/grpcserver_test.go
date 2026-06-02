@@ -6031,6 +6031,7 @@ func TestGetVnetConfig(t *testing.T) {
 func TestCreateAuditStreamLimit(t *testing.T) {
 	synctest.Test(t, synctestCreateAuditStreamLimit)
 }
+
 func synctestCreateAuditStreamLimit(t *testing.T) {
 	const inflightLimit = 5
 

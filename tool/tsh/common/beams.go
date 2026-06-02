@@ -85,7 +85,7 @@ func beamPublishURL(beam *beamsv1.Beam, proxyAddr string) string {
 	hostname := utils.DefaultAppPublicAddr(beam.GetStatus().GetAppName(), proxyHost)
 	switch publish.GetProtocol() {
 	case beamsv1.Protocol_PROTOCOL_HTTP:
-		return fmt.Sprintf("https://%s", hostname)
+		return "https://" + hostname
 	case beamsv1.Protocol_PROTOCOL_TCP:
 		return fmt.Sprintf("tcp://%s:%d", hostname, publish.GetPort())
 	default:

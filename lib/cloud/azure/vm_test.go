@@ -20,7 +20,7 @@ package azure
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/to"
@@ -141,7 +141,7 @@ func TestGetVirtualMachine(t *testing.T) {
 			desc:       "client error",
 			resourceID: validResourceID,
 			client: &ARMComputeMock{
-				GetErr: fmt.Errorf("client error"),
+				GetErr: errors.New("client error"),
 			},
 			assertError: require.Error,
 			assertVM:    require.Nil,
@@ -252,7 +252,7 @@ func TestGetScaleSetVirtualMachine(t *testing.T) {
 			desc:       "client error",
 			resourceID: validResourceID,
 			client: &ARMScaleSetVMsMock{
-				GetErr: fmt.Errorf("client error"),
+				GetErr: errors.New("client error"),
 			},
 			assertError: require.Error,
 			assertVM:    require.Nil,
