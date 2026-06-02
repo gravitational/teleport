@@ -73,10 +73,17 @@ func WrapFastPathUpdate(updateCode byte, innerData []byte) []byte {
 	fpUpdate[0] = updateCode | SingleFragmentFlag
 	binary.LittleEndian.PutUint16(fpUpdate[1:], uint16(len(innerData)))
 
-	// FastPathHeader
 	body := slices.Concat(fpUpdate, innerData)
-	totalLen := 2 + len(body)
-	header := []byte{ActionFastPath, byte(totalLen)}
+
+	if oneByteLen := 1 + 1 + len(body); oneByteLen <= 0x7f {
+		header := []byte{ActionFastPath, byte(oneByteLen)}
+		return slices.Concat(header, body)
+	}
+
+	twoByteLen := 1 + 2 + len(body)
+	header := make([]byte, 3)
+	header[0] = ActionFastPath
+	binary.BigEndian.PutUint16(header[1:], uint16(twoByteLen)|0x8000)
 
 	return slices.Concat(header, body)
 }
