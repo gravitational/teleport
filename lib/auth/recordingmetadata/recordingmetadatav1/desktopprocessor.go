@@ -94,7 +94,6 @@ func (d *desktopProcessor) handleDesktopRecording(evt *apievents.DesktopRecordin
 func (d *desktopProcessor) trackActivity(eventTime time.Time) {
 	fa := d.gen.consumeFrameActivity()
 	if fa.screenW == 0 || fa.screenH == 0 {
-		// Decoder not initialized yet (or disabled in nop builds): we can't measure activity, so skip.
 		return
 	}
 

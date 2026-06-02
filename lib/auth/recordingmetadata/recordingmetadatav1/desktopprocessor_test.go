@@ -158,6 +158,139 @@ func TestDesktopRecordingProcessor_ThumbnailsWrittenToWriter(t *testing.T) {
 	require.NotEmpty(t, buf.Bytes(), "thumbnails should have been written to the writer")
 }
 
+
+func TestDesktopRecordingProcessor_InactivityEvents(t *testing.T) {
+	startTime := time.Now()
+
+	// bigFrame paints a 64x64 region (~4096px), far above the 256x256 activity threshold (~65px).
+	bigFrame := func(at time.Time, color uint16) *apievents.DesktopRecording {
+		return desktopFastPathEvent(t, at, rdpstatetest.BuildBitmapPDU(0, 0, 64, 64, color))
+	}
+	// smallFrame paints a 2x2 region (~4px), far below the threshold — clock/caret-scale noise.
+	smallFrame := func(at time.Time) *apievents.DesktopRecording {
+		return desktopFastPathEvent(t, at, rdpstatetest.BuildBitmapPDU(0, 0, 2, 2, rdpstatetest.RGB565Red))
+	}
+
+	type offsets struct{ start, end time.Duration }
+
+	tests := []struct {
+		name     string
+		events   []apievents.AuditEvent
+		expected []offsets
+	}{
+		{
+			name: "idle gap between activity frames produces one inactivity event",
+			events: []apievents.AuditEvent{
+				desktopSessionStartEvent(startTime),
+				desktopServerHelloEvent(t, startTime.Add(100*time.Millisecond), 256, 256),
+				bigFrame(startTime.Add(1*time.Second), rdpstatetest.RGB565White),
+				bigFrame(startTime.Add(15*time.Second), rdpstatetest.RGB565Red),
+				desktopSessionEndEvent(startTime.Add(16 * time.Second)),
+			},
+			expected: []offsets{{start: 1 * time.Second, end: 15 * time.Second}},
+		},
+		{
+			name: "incidental small changes do not interrupt inactivity",
+			events: []apievents.AuditEvent{
+				desktopSessionStartEvent(startTime),
+				desktopServerHelloEvent(t, startTime.Add(100*time.Millisecond), 256, 256),
+				bigFrame(startTime.Add(1*time.Second), rdpstatetest.RGB565White),
+				smallFrame(startTime.Add(5 * time.Second)),
+				smallFrame(startTime.Add(9 * time.Second)),
+				smallFrame(startTime.Add(13 * time.Second)),
+				desktopSessionEndEvent(startTime.Add(20 * time.Second)),
+			},
+			expected: []offsets{{start: 1 * time.Second, end: 20 * time.Second}},
+		},
+		{
+			name: "consecutive activity frames produce no inactivity events",
+			events: []apievents.AuditEvent{
+				desktopSessionStartEvent(startTime),
+				desktopServerHelloEvent(t, startTime.Add(100*time.Millisecond), 256, 256),
+				bigFrame(startTime.Add(1*time.Second), rdpstatetest.RGB565White),
+				bigFrame(startTime.Add(5*time.Second), rdpstatetest.RGB565Red),
+				bigFrame(startTime.Add(8*time.Second), rdpstatetest.RGB565White),
+				desktopSessionEndEvent(startTime.Add(9 * time.Second)),
+			},
+			expected: nil,
+		},
+		{
+			name: "cursor movement counts as activity; a no-op move does not",
+			events: []apievents.AuditEvent{
+				desktopSessionStartEvent(startTime),
+				desktopServerHelloEvent(t, startTime.Add(100*time.Millisecond), 256, 256),
+				bigFrame(startTime.Add(1*time.Second), rdpstatetest.RGB565White),
+				desktopMouseMoveEvent(t, startTime.Add(15*time.Second), 100, 100),
+				desktopMouseMoveEvent(t, startTime.Add(30*time.Second), 100, 100),
+				desktopSessionEndEvent(startTime.Add(40 * time.Second)),
+			},
+			expected: []offsets{
+				{start: 1 * time.Second, end: 15 * time.Second},
+				{start: 15 * time.Second, end: 40 * time.Second},
+			},
+		},
+		{
+			name: "session with no activity is fully inactive",
+			events: []apievents.AuditEvent{
+				desktopSessionStartEvent(startTime),
+				desktopServerHelloEvent(t, startTime.Add(100*time.Millisecond), 256, 256),
+				smallFrame(startTime.Add(5 * time.Second)),
+				smallFrame(startTime.Add(11 * time.Second)),
+				desktopSessionEndEvent(startTime.Add(20 * time.Second)),
+			},
+			expected: []offsets{{start: 0, end: 20 * time.Second}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lastEventTime := tt.events[len(tt.events)-1].GetTime()
+			processor := newTestDesktopProcessor(startTime, lastEventTime.Sub(startTime))
+			defer processor.release()
+
+			for _, evt := range tt.events {
+				require.NoError(t, processor.handleEvent(evt))
+			}
+
+			metadata, _ := processor.collect()
+			require.NotNil(t, metadata)
+
+			got := inactivityEvents(metadata)
+			require.Len(t, got, len(tt.expected))
+			for i, want := range tt.expected {
+				require.Equal(t, want.start, got[i].StartOffset.AsDuration(), "event %d start", i)
+				require.Equal(t, want.end, got[i].EndOffset.AsDuration(), "event %d end", i)
+			}
+		})
+	}
+}
+
+func TestDesktopThumbnailGenerator_ConsumeFrameActivity(t *testing.T) {
+	startTime := time.Now()
+
+	gen := newDesktopThumbnailGenerator()
+	defer gen.release()
+
+	// ServerHello initializes the decoder: dimensions are set, nothing has changed yet.
+	require.NoError(t, gen.handleEvent(desktopServerHelloEvent(t, startTime, 256, 256)))
+
+	fa := gen.consumeFrameActivity()
+	require.Equal(t, uint16(256), fa.screenW)
+	require.Equal(t, uint16(256), fa.screenH)
+	require.Zero(t, fa.changedPixels)
+
+	// A 32x32 bitmap update marks a changed region well above zero.
+	require.NoError(t, gen.handleEvent(desktopFastPathEvent(t, startTime.Add(time.Second),
+		rdpstatetest.BuildBitmapPDU(0, 0, 32, 32, rdpstatetest.RGB565White))))
+
+	fa = gen.consumeFrameActivity()
+	require.Positive(t, fa.changedPixels)
+
+	// consumeFrameActivity reset the accumulator, so a subsequent call with no new frame reports zero.
+	fa = gen.consumeFrameActivity()
+	require.Zero(t, fa.changedPixels)
+}
+
 func newTestDesktopProcessor(startTime time.Time, duration time.Duration) recordingProcessor {
 	return newRecordingProcessor(&nopCloser{io.Discard}, slog.Default(), recordingmetadata.SessionTypeDesktop, startTime, duration)
 }
@@ -238,125 +371,4 @@ func desktopMouseMoveEvent(t *testing.T, eventTime time.Time, x, y uint32) *apie
 	evt.Metadata.Time = eventTime
 
 	return evt
-}
-
-func TestDesktopRecordingProcessor_InactivityEvents(t *testing.T) {
-	startTime := time.Now()
-
-	// bigFrame paints a 64x64 region (~4096px), far above the 256x256 activity threshold (~65px).
-	bigFrame := func(at time.Time, color uint16) *apievents.DesktopRecording {
-		return desktopFastPathEvent(t, at, rdpstatetest.BuildBitmapPDU(0, 0, 64, 64, color))
-	}
-	// smallFrame paints a 2x2 region (~4px), far below the threshold — clock/caret-scale noise.
-	smallFrame := func(at time.Time) *apievents.DesktopRecording {
-		return desktopFastPathEvent(t, at, rdpstatetest.BuildBitmapPDU(0, 0, 2, 2, rdpstatetest.RGB565Red))
-	}
-
-	type offsets struct{ start, end time.Duration }
-
-	tests := []struct {
-		name     string
-		events   []apievents.AuditEvent
-		expected []offsets
-	}{
-		{
-			name: "idle gap between activity frames produces one inactivity event",
-			events: []apievents.AuditEvent{
-				desktopSessionStartEvent(startTime),
-				desktopServerHelloEvent(t, startTime.Add(100*time.Millisecond), 256, 256),
-				bigFrame(startTime.Add(1*time.Second), rdpstatetest.RGB565White),
-				bigFrame(startTime.Add(15*time.Second), rdpstatetest.RGB565Red),
-				desktopSessionEndEvent(startTime.Add(16 * time.Second)),
-			},
-			expected: []offsets{{start: 1 * time.Second, end: 15 * time.Second}},
-		},
-		{
-			name: "incidental small changes do not interrupt inactivity",
-			events: []apievents.AuditEvent{
-				desktopSessionStartEvent(startTime),
-				desktopServerHelloEvent(t, startTime.Add(100*time.Millisecond), 256, 256),
-				bigFrame(startTime.Add(1*time.Second), rdpstatetest.RGB565White),
-				smallFrame(startTime.Add(5 * time.Second)),
-				smallFrame(startTime.Add(9 * time.Second)),
-				smallFrame(startTime.Add(13 * time.Second)),
-				desktopSessionEndEvent(startTime.Add(20 * time.Second)),
-			},
-			expected: []offsets{{start: 1 * time.Second, end: 20 * time.Second}},
-		},
-		{
-			name: "consecutive activity frames produce no inactivity events",
-			events: []apievents.AuditEvent{
-				desktopSessionStartEvent(startTime),
-				desktopServerHelloEvent(t, startTime.Add(100*time.Millisecond), 256, 256),
-				bigFrame(startTime.Add(1*time.Second), rdpstatetest.RGB565White),
-				bigFrame(startTime.Add(5*time.Second), rdpstatetest.RGB565Red),
-				bigFrame(startTime.Add(8*time.Second), rdpstatetest.RGB565White),
-				desktopSessionEndEvent(startTime.Add(9 * time.Second)),
-			},
-			expected: nil,
-		},
-		{
-			name: "cursor movement counts as activity; a no-op move does not",
-			events: []apievents.AuditEvent{
-				desktopSessionStartEvent(startTime),
-				desktopServerHelloEvent(t, startTime.Add(100*time.Millisecond), 256, 256),
-				bigFrame(startTime.Add(1*time.Second), rdpstatetest.RGB565White),
-				desktopMouseMoveEvent(t, startTime.Add(15*time.Second), 100, 100),
-				desktopMouseMoveEvent(t, startTime.Add(30*time.Second), 100, 100),
-				desktopSessionEndEvent(startTime.Add(40 * time.Second)),
-			},
-			expected: []offsets{
-				{start: 1 * time.Second, end: 15 * time.Second},
-				{start: 15 * time.Second, end: 40 * time.Second},
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			lastEventTime := tt.events[len(tt.events)-1].GetTime()
-			processor := newTestDesktopProcessor(startTime, lastEventTime.Sub(startTime))
-			defer processor.release()
-
-			for _, evt := range tt.events {
-				require.NoError(t, processor.handleEvent(evt))
-			}
-
-			metadata, _ := processor.collect()
-			require.NotNil(t, metadata)
-
-			got := inactivityEvents(metadata)
-			require.Len(t, got, len(tt.expected))
-			for i, want := range tt.expected {
-				require.Equal(t, want.start, got[i].StartOffset.AsDuration(), "event %d start", i)
-				require.Equal(t, want.end, got[i].EndOffset.AsDuration(), "event %d end", i)
-			}
-		})
-	}
-}
-
-func TestDesktopThumbnailGenerator_ConsumeFrameActivity(t *testing.T) {
-	startTime := time.Now()
-
-	gen := newDesktopThumbnailGenerator()
-	defer gen.release()
-
-	// ServerHello initializes the decoder: dimensions are set, nothing has changed yet.
-	require.NoError(t, gen.handleEvent(desktopServerHelloEvent(t, startTime, 256, 256)))
-
-	fa := gen.consumeFrameActivity()
-	require.Equal(t, uint16(256), fa.screenW)
-	require.Equal(t, uint16(256), fa.screenH)
-	require.Zero(t, fa.changedPixels)
-
-	// A 32x32 bitmap update marks a changed region well above zero.
-	require.NoError(t, gen.handleEvent(desktopFastPathEvent(t, startTime.Add(time.Second),
-		rdpstatetest.BuildBitmapPDU(0, 0, 32, 32, rdpstatetest.RGB565White))))
-
-	fa = gen.consumeFrameActivity()
-	require.Positive(t, fa.changedPixels)
-
-	// consumeFrameActivity reset the accumulator, so a subsequent call with no new frame reports zero.
-	fa = gen.consumeFrameActivity()
-	require.Zero(t, fa.changedPixels)
 }

@@ -160,18 +160,17 @@ func (d *desktopThumbnailGenerator) release() {
 	d.rdpstate.Release()
 }
 
-// frameActivity captures the per-frame signals the desktop processor uses to decide whether a frame
-// represents real user activity: how much of the screen changed, where the cursor is, and the screen size.
+// frameActivity captures the per-frame signals the desktop processor uses to decide whether a frame represents real user
+// activity: how much of the screen changed, where the cursor is, and the screen size.
 type frameActivity struct {
 	changedPixels    int
 	cursorX, cursorY uint16
 	screenW, screenH uint16
 }
 
-// consumeFrameActivity returns the activity signals for the frame just handled and resets the decoder's
-// updated-region accumulator so the next call reflects only the next frame. It returns the zero value when
-// the generator is disabled (e.g. nop builds without the RDP decoder), in which case screenW/screenH are 0
-// and the caller skips activity tracking.
+// consumeFrameActivity returns the activity signals for the frame just handled and resets the decoder's updated-region
+// accumulator so the next call reflects only the next frame.
+// It returns the zero value when the generator is disabled.
 func (d *desktopThumbnailGenerator) consumeFrameActivity() frameActivity {
 	if d.disabled {
 		return frameActivity{}
