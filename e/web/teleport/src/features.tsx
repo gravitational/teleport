@@ -883,6 +883,7 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
     new FeatureIntegrations(),
     new FeatureIntegrationStatus(),
     new OSS.FeatureIntegrationOverview(),
+    new OSS.FeatureIntegrationOverviewSettings(),
 
     // - Permissions
     new OSS.FeatureClusters(),
