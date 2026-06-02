@@ -61,7 +61,7 @@ use ironrdp_session::SessionErrorKind::Reason;
 use ironrdp_session::{reason_err, SessionError, SessionResult};
 use ironrdp_svc::{SvcMessage, SvcProcessor, SvcProcessorMessages};
 use ironrdp_tokio::{single_sequence_step_read, Framed, FramedWrite, TokioStream};
-use log::{debug, error, info, warn};
+use log::{debug, error, warn};
 use rand::{Rng, TryRngCore};
 use std::error::Error;
 use std::fmt::{Debug, Display, Formatter};
@@ -748,42 +748,27 @@ impl Client {
             debug!("Adjusted screen resize to [{:?}x{:?}]", width, height);
         }
 
-        // Determine whether to withhold the resize or perform it immediately.
-        let action = {
-            let x224_processor = Self::x224_lock(&x224_processor)?;
+        // Our DisplayControlClient is lazily initialized and added as a svc_processor
+        // once the dynamic channel for display control is opened and server capabilities are
+        // received. Failure to acquire the DVC is normal until this point in the connection setup.
+        // Ensure that the DVC is both accessible and open.
+        let dvc_is_ready = {
+            Self::x224_lock(&x224_processor)?
+                .get_dvc::<DisplayControlClient>()
+                .is_some_and(|dvc| dvc.is_open())
+        };
 
-            // Our DisplayControlClient is lazily initialized and added as a svc_processor
-            // once the dynamic channel for display control is opened and server capabilities are
-            // received. Failure to acquire the DVC is normal until this point in the connection setup.
-            let Some(dvc) = x224_processor.get_dvc::<DisplayControlClient>() else {
-                info!("DisplayControlClient is not yet available");
-                return Ok(());
-            };
-
-            if dvc.is_open() {
-                // Resize channel is open, perform the resize immediately.
-                Some((width, height, scale))
-            } else {
-                // The client requested a resize but the DisplayControl channel has not been opened yet.
-                // Sending the resize now would cause an RDP error and end the session; instead we withhold
-                // it until the DisplayControl channel is ready.
-                debug!("DisplayControl channel not ready, withholding resize");
-                let mut pending_resize = Self::resize_manager_lock(&pending_resize)?;
-                pending_resize.pending_resize = Some((width, height, scale));
-                None // No immediate action required.
-            }
-        }; // Drop the x224 lock here to avoid holding it over the await below.
-
-        if let Some((width, height, scale)) = action {
-            return Client::write_screen_resize(
-                write_stream,
-                x224_processor.clone(),
-                width,
-                height,
-                scale,
-            )
-            .await;
+        if dvc_is_ready {
+            return Client::write_screen_resize(write_stream, x224_processor, width, height, scale)
+                .await;
         }
+
+        // The client requested a resize but the DisplayControl channel has not been opened yet.
+        // Sending the resize now would cause an RDP error and end the session; instead we withhold
+        // it until the DisplayControl channel is ready.
+        debug!("DisplayControl channel not ready, withholding resize");
+        let mut pending_resize = Self::resize_manager_lock(&pending_resize)?;
+        pending_resize.pending_resize = Some((width, height, scale));
 
         Ok(())
     }
