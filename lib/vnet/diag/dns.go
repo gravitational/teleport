@@ -386,13 +386,12 @@ func classifyRecordResult(addrs []netip.Addr, err error, expected netip.Addr) *d
 	}
 }
 
-// computeReportStatus returns ISSUES_FOUND if any configured reachability check
-// failed, or if any per-zone record result is not OK; otherwise OK.
+// computeReportStatus returns ISSUES_FOUND if every configured nameserver is
+// unreachable, or if any per-zone record result is not OK, otherwise OK.
 func computeReportStatus(report *diagv1.DNSReport) diagv1.CheckReportStatus {
-	for _, r := range []*diagv1.VNetDNSReachability{report.Ipv4Reachability, report.Ipv6Reachability} {
-		if r != nil && !r.Reachable {
-			return diagv1.CheckReportStatus_CHECK_REPORT_STATUS_ISSUES_FOUND
-		}
+	if !report.GetIpv4Reachability().GetReachable() &&
+		!report.GetIpv6Reachability().GetReachable() {
+		return diagv1.CheckReportStatus_CHECK_REPORT_STATUS_ISSUES_FOUND
 	}
 	for _, zr := range report.ZoneResults {
 		if rr := zr.ARecord; rr != nil && rr.Status != diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK {

@@ -227,8 +227,8 @@ func TestDNSDiagOnlyIPv6Reachable(t *testing.T) {
 	require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, zr.ARecord.Status,
 		"A still verified because the IPv6 nameserver returned an expected A")
 	require.Equal(t, diagv1.DNSZoneStatus_DNS_ZONE_STATUS_OK, zr.AaaaRecord.Status)
-	// Overall ISSUES_FOUND because IPv4 nameserver was unreachable.
-	require.Equal(t, diagv1.CheckReportStatus_CHECK_REPORT_STATUS_ISSUES_FOUND, report.Status)
+	// One unreachable nameserver does not fail the overall check
+	require.Equal(t, diagv1.CheckReportStatus_CHECK_REPORT_STATUS_OK, report.Status)
 }
 
 func TestDNSDiagOnlyIPv6ServerNoAAnswer(t *testing.T) {
