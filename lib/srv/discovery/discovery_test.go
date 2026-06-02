@@ -1076,7 +1076,8 @@ func (f *fakeAccessPointWithWatcher) NewWatcher(ctx context.Context, watch types
 }
 
 // This test exercises the dynamic matcher watcher and ensures that if there's a failure in the watcher,
-// it restarts and continues to pick up new Discovery Configs matchers.
+// it restarts and continues to pick up new Discovery Configs matchers. It also reads the TAG fetchers
+// concurrently with the watcher's upserts to catch unsynchronized map access under -race.
 func TestDiscoveryServer_dynamicMatcherRestart(t *testing.T) {
 	const discoveryGroup = "discovery-group"
 
@@ -1116,15 +1117,25 @@ func TestDiscoveryServer_dynamicMatcherRestart(t *testing.T) {
 		)
 		require.NoError(t, err)
 
-		// Exercise the TAG fetcher read paths while the DiscoveryConfig watcher
-		// upserts dynamic fetchers. The race detector catches any map reads in
-		// getAll*Fetchers that are not protected by the dynamic fetcher locks.
+		// Readers read the TAG fetcher maps in a loop until dc-a is processed,
+		// which upsertDynamicMatchers records after writing those maps; this
+		// makes the reads overlap the write.
+		// Note: dc-a has no AccessGraph matchers, so the fetchers stay empty but
+		// there's still a race on the map access itself.
+		// Waiting for a non-empty result would just loop forever.
 		var wg sync.WaitGroup
 		for range 4 {
 			wg.Go(func() {
-				for range 1000 {
+				for {
 					_ = server.getAllAWSSyncFetchers()
 					_ = server.getAllTAGSyncAzureFetchers()
+
+					server.dynamicDiscoveryConfigMu.RLock()
+					processed := len(server.dynamicDiscoveryConfig) > 0
+					server.dynamicDiscoveryConfigMu.RUnlock()
+					if processed {
+						return
+					}
 				}
 			})
 		}
