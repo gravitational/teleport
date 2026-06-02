@@ -187,12 +187,59 @@ func NewBlockItem(block Block) BlockItem {
 // Slack API: actions blocks
 
 type ActionsBlock struct {
-	Elements []json.RawMessage `json:"elements"`
-	BlockID  string            `json:"block_id,omitempty"`
+	ElementItems []ActionElementItem `json:"elements"`
+	BlockID      string              `json:"block_id,omitempty"`
 }
 
 func (b ActionsBlock) BlockType() BlockType {
 	return BlockType("actions")
+}
+
+type ActionElementType string
+
+type ActionElement interface {
+	ActionElementType() ActionElementType
+}
+
+type ActionElementItem struct{ ActionElement }
+
+func NewActionElementItem(element ActionElement) ActionElementItem {
+	return ActionElementItem{element}
+}
+
+func (p *ActionElementItem) UnmarshalJSON(data []byte) error {
+	var itemType struct {
+		Type ActionElementType `json:"type"`
+	}
+	if err := json.Unmarshal(data, &itemType); err != nil {
+		return trace.Wrap(err)
+	}
+	var element ActionElement
+	var err error
+	switch itemType.Type {
+	case ButtonElement{}.ActionElementType():
+		var val ButtonElement
+		err = trace.Wrap(json.Unmarshal(data, &val))
+		element = val
+	}
+	if err != nil {
+		return err
+	}
+	p.ActionElement = element
+	return nil
+}
+
+func (p ActionElementItem) MarshalJSON() ([]byte, error) {
+	typeVal := string(p.ActionElementType())
+	switch val := p.ActionElement.(type) {
+	case ButtonElement:
+		return json.Marshal(struct {
+			Type string `json:"type"`
+			ButtonElement
+		}{typeVal, val})
+	default:
+		return json.Marshal(val)
+	}
 }
 
 // Slack API: context blocks
@@ -430,4 +477,71 @@ func (t MarkdownObject) ContextElementType() ContextElementType {
 
 func (t MarkdownObject) GetText() string {
 	return t.Text
+}
+
+// Slack API: block elements
+
+type BlockElementType string
+
+type BlockElement interface {
+	BlockElementType() BlockElementType
+}
+
+type BlockElementItem struct{ BlockElement }
+
+func NewBlockElementItem(element BlockElement) BlockElementItem {
+	return BlockElementItem{element}
+}
+
+func (p *BlockElementItem) UnmarshalJSON(data []byte) error {
+	var itemType struct {
+		Type BlockElementType `json:"type"`
+	}
+	if err := json.Unmarshal(data, &itemType); err != nil {
+		return trace.Wrap(err)
+	}
+	var element BlockElement
+	var err error
+	switch itemType.Type {
+	case ButtonElement{}.BlockElementType():
+		var val ButtonElement
+		err = trace.Wrap(json.Unmarshal(data, &val))
+		element = val
+	}
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	p.BlockElement = element
+	return nil
+}
+
+func (p BlockElementItem) MarshalJSON() ([]byte, error) {
+	typeVal := string(p.BlockElementType())
+	switch val := p.BlockElement.(type) {
+	case ButtonElement:
+		return json.Marshal(struct {
+			Type string `json:"type"`
+			ButtonElement
+		}{typeVal, val})
+	default:
+		return json.Marshal(val)
+	}
+}
+
+type ButtonElement struct {
+	Text               TextObjectItem  `json:"text"`
+	ActionID           string          `json:"action_id,omitempty"`
+	URL                string          `json:"url,omitempty"`
+	Value              string          `json:"value,omitempty"`
+	Style              string          `json:"style,omitempty"`
+	Confirm            json.RawMessage `json:"confirm,omitempty"`
+	AccessibilityLabel string          `json:"accessibility_label,omitempty"`
+}
+
+func (b ButtonElement) BlockElementType() BlockElementType {
+	return BlockElementType("button")
+}
+
+func (b ButtonElement) ActionElementType() ActionElementType {
+	return ActionElementType("button")
 }

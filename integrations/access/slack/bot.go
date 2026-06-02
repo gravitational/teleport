@@ -387,6 +387,36 @@ func (b Bot) slackAccessRequestMsgSections(reqID string, reqData pd.AccessReques
 	return sections
 }
 
+// slackAccessReviewMsgSection builds an access review Slack message section.
+// This should only be returned when native review is enabled.
+func (b Bot) slackAccessReviewMsgSection(reqID string) []BlockItem {
+	return []BlockItem{
+		NewBlockItem(ActionsBlock{
+			ElementItems: []ActionElementItem{
+				NewActionElementItem(ButtonElement{
+					Text: NewTextObjectItem(PlainTextObject{
+						Text: "Approve",
+					}),
+					ActionID:           approveButtonID,
+					Value:              reqID,
+					Style:              "primary",
+					AccessibilityLabel: "Approve access request button",
+				}),
+				NewActionElementItem(ButtonElement{
+					Text: NewTextObjectItem(PlainTextObject{
+						Text: "Deny",
+					}),
+					ActionID:           denyButtonID,
+					Value:              reqID,
+					Style:              "danger",
+					AccessibilityLabel: "Deny access request button",
+				}),
+			},
+			BlockID: actionsBlockID,
+		}),
+	}
+}
+
 func truncateTextObjectString(s string) string {
 	truncateMsg := " (truncated)"
 	if len(s) <= textObjectMaxCharLimit {
