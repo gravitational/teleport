@@ -120,7 +120,8 @@
         "go"
       ],
       "matchUpdateTypes": [
-        "patch"
+        "patch",
+        "minor"
       ],
       "enabled": true,
       "groupName": "Go version",
