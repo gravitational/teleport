@@ -101,12 +101,7 @@ func BuildBitmapPDU(left, top, w, h int, rgb565 uint16) []byte {
 	binary.LittleEndian.PutUint16(bitmapData[12:], 16) // bitsPerPixel
 	binary.LittleEndian.PutUint16(bitmapData[14:], 0)  // flags (uncompressed)
 
-	rowBytes := w * 2 // 2 bytes per pixel at 16bpp
-	if rowBytes%4 != 0 {
-		// rows must be 4-byte aligned
-		rowBytes += 4 - (rowBytes % 4)
-	}
-
+	rowBytes := w * 2 // 2 bytes per pixel at 16bpp, no scanline padding
 	pixelDataLen := rowBytes * h
 	binary.LittleEndian.PutUint16(bitmapData[16:], uint16(pixelDataLen))
 

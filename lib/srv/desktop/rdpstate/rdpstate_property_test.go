@@ -135,6 +135,7 @@ func TestProperty_RDPState_RandomEventSequenceNeverPanics(t *testing.T) {
 			if useTDPB {
 				evt.TDPBMessage = data
 			} else {
+				boundLegacyScreenDims(t, data)
 				evt.Message = data
 			}
 
@@ -187,5 +188,19 @@ func genLegacyMessage(t *rapid.T) []byte {
 		rapid.Byte(),
 	).Draw(t, "first")
 
-	return append([]byte{first}, body...)
+	msg := append([]byte{first}, body...)
+	boundLegacyScreenDims(t, msg)
+
+	return msg
+}
+
+// maxFuzzScreenDim bounds fuzzed screen dimensions to avoid huge framebuffer allocations.
+const maxFuzzScreenDim = 512
+
+// boundLegacyScreenDims bounds the dimensions of a randomly-formed legacy ConnectionActivated.
+func boundLegacyScreenDims(t *rapid.T, data []byte) {
+	if len(data) >= 9 && data[0] == legacyTypeConnectionActivated {
+		binary.BigEndian.PutUint16(data[5:7], uint16(rapid.IntRange(0, maxFuzzScreenDim).Draw(t, "screen_w")))
+		binary.BigEndian.PutUint16(data[7:9], uint16(rapid.IntRange(0, maxFuzzScreenDim).Draw(t, "screen_h")))
+	}
 }
