@@ -80,10 +80,8 @@ type GetUsageResponse struct {
 	// UNLIMITED accounts have no usage limits, therefore any numbers should be
 	// disconsidered for those accounts.
 	AccountUsageType AccountUsageType `protobuf:"varint,2,opt,name=account_usage_type,json=accountUsageType,proto3,enum=teleport.resourceusage.v1.AccountUsageType" json:"account_usage_type,omitempty"`
-	// DevicesUsage contains limits for trusted devices / Device Trust.
-	DevicesUsage  *DevicesUsage `protobuf:"bytes,3,opt,name=devices_usage,json=devicesUsage,proto3" json:"devices_usage,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *GetUsageResponse) Reset() {
@@ -130,23 +128,15 @@ func (x *GetUsageResponse) GetAccountUsageType() AccountUsageType {
 	return AccountUsageType_ACCOUNT_USAGE_TYPE_UNSPECIFIED
 }
 
-func (x *GetUsageResponse) GetDevicesUsage() *DevicesUsage {
-	if x != nil {
-		return x.DevicesUsage
-	}
-	return nil
-}
-
 var File_teleport_resourceusage_v1_resourceusage_service_proto protoreflect.FileDescriptor
 
 const file_teleport_resourceusage_v1_resourceusage_service_proto_rawDesc = "" +
 	"\n" +
-	"5teleport/resourceusage/v1/resourceusage_service.proto\x12\x19teleport.resourceusage.v1\x1a/teleport/resourceusage/v1/access_requests.proto\x1a2teleport/resourceusage/v1/account_usage_type.proto\x1a,teleport/resourceusage/v1/device_trust.proto\"\x11\n" +
-	"\x0fGetUsageRequest\"\x94\x02\n" +
+	"5teleport/resourceusage/v1/resourceusage_service.proto\x12\x19teleport.resourceusage.v1\x1a/teleport/resourceusage/v1/access_requests.proto\x1a2teleport/resourceusage/v1/account_usage_type.proto\"\x11\n" +
+	"\x0fGetUsageRequest\"\xdb\x01\n" +
 	"\x10GetUsageResponse\x12W\n" +
 	"\x0faccess_requests\x18\x01 \x01(\v2..teleport.resourceusage.v1.AccessRequestsUsageR\x0eaccessRequests\x12Y\n" +
-	"\x12account_usage_type\x18\x02 \x01(\x0e2+.teleport.resourceusage.v1.AccountUsageTypeR\x10accountUsageType\x12L\n" +
-	"\rdevices_usage\x18\x03 \x01(\v2'.teleport.resourceusage.v1.DevicesUsageR\fdevicesUsage2{\n" +
+	"\x12account_usage_type\x18\x02 \x01(\x0e2+.teleport.resourceusage.v1.AccountUsageTypeR\x10accountUsageTypeJ\x04\b\x03\x10\x04R\rdevices_usage2{\n" +
 	"\x14ResourceUsageService\x12c\n" +
 	"\bGetUsage\x12*.teleport.resourceusage.v1.GetUsageRequest\x1a+.teleport.resourceusage.v1.GetUsageResponseB^Z\\github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1;resourceusagev1b\x06proto3"
 
@@ -168,19 +158,17 @@ var file_teleport_resourceusage_v1_resourceusage_service_proto_goTypes = []any{
 	(*GetUsageResponse)(nil),    // 1: teleport.resourceusage.v1.GetUsageResponse
 	(*AccessRequestsUsage)(nil), // 2: teleport.resourceusage.v1.AccessRequestsUsage
 	(AccountUsageType)(0),       // 3: teleport.resourceusage.v1.AccountUsageType
-	(*DevicesUsage)(nil),        // 4: teleport.resourceusage.v1.DevicesUsage
 }
 var file_teleport_resourceusage_v1_resourceusage_service_proto_depIdxs = []int32{
 	2, // 0: teleport.resourceusage.v1.GetUsageResponse.access_requests:type_name -> teleport.resourceusage.v1.AccessRequestsUsage
 	3, // 1: teleport.resourceusage.v1.GetUsageResponse.account_usage_type:type_name -> teleport.resourceusage.v1.AccountUsageType
-	4, // 2: teleport.resourceusage.v1.GetUsageResponse.devices_usage:type_name -> teleport.resourceusage.v1.DevicesUsage
-	0, // 3: teleport.resourceusage.v1.ResourceUsageService.GetUsage:input_type -> teleport.resourceusage.v1.GetUsageRequest
-	1, // 4: teleport.resourceusage.v1.ResourceUsageService.GetUsage:output_type -> teleport.resourceusage.v1.GetUsageResponse
-	4, // [4:5] is the sub-list for method output_type
-	3, // [3:4] is the sub-list for method input_type
-	3, // [3:3] is the sub-list for extension type_name
-	3, // [3:3] is the sub-list for extension extendee
-	0, // [0:3] is the sub-list for field type_name
+	0, // 2: teleport.resourceusage.v1.ResourceUsageService.GetUsage:input_type -> teleport.resourceusage.v1.GetUsageRequest
+	1, // 3: teleport.resourceusage.v1.ResourceUsageService.GetUsage:output_type -> teleport.resourceusage.v1.GetUsageResponse
+	3, // [3:4] is the sub-list for method output_type
+	2, // [2:3] is the sub-list for method input_type
+	2, // [2:2] is the sub-list for extension type_name
+	2, // [2:2] is the sub-list for extension extendee
+	0, // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_teleport_resourceusage_v1_resourceusage_service_proto_init() }
@@ -190,7 +178,6 @@ func file_teleport_resourceusage_v1_resourceusage_service_proto_init() {
 	}
 	file_teleport_resourceusage_v1_access_requests_proto_init()
 	file_teleport_resourceusage_v1_account_usage_type_proto_init()
-	file_teleport_resourceusage_v1_device_trust_proto_init()
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
