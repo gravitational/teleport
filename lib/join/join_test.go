@@ -19,7 +19,6 @@ package join_test
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"net"
 	"slices"
 	"testing"
@@ -715,29 +714,6 @@ func lastEvent(ctx context.Context, auditLog events.AuditLogger, clock clockwork
 	if len(events) == 0 {
 		return nil, trace.NotFound("no matching events")
 	}
-	eventMeta := make([]struct {
-		evType    string
-		code      string
-		time      string
-		tokenName string
-		nodeName  string
-		index     int64
-	}, len(events))
-	for i := range events {
-
-		ev, ok := events[i].(*apievents.InstanceJoin)
-		if !ok {
-			panic("unexpected event type")
-		}
-
-		eventMeta[i].evType = ev.GetType()
-		eventMeta[i].code = ev.GetCode()
-		eventMeta[i].time = ev.GetTime().String()
-		eventMeta[i].tokenName = ev.TokenName
-		eventMeta[i].nodeName = ev.NodeName
-		eventMeta[i].index = ev.GetIndex()
-	}
-	slog.Error("last events", "events", eventMeta)
 	return events[0], nil
 }
 

@@ -232,6 +232,7 @@ export const EventIconMap: Record<EventCode, any> = {
   [eventCodes.BOT_JOIN_FAILURE]: Icons.Warning,
   [eventCodes.INSTANCE_JOIN]: Icons.Info,
   [eventCodes.INSTANCE_JOIN_FAILURE]: Icons.Warning,
+  [eventCodes.INSTANCE_JOIN_LIMIT]: Icons.Warning,
   [eventCodes.LOGIN_RULE_CREATE]: Icons.Info,
   [eventCodes.LOGIN_RULE_DELETE]: Icons.Info,
   [eventCodes.SAML_IDP_AUTH_ATTEMPT]: Icons.Info,
@@ -386,8 +387,6 @@ export const EventIconMap: Record<EventCode, any> = {
   [eventCodes.SCOPED_TOKEN_UPSERT]: Icons.Info,
   [eventCodes.SCOPED_TOKEN_UPDATE]: Icons.Info,
   [eventCodes.SCOPED_TOKEN_DELETE]: Icons.Info,
-  [eventCodes.SCOPED_TOKEN_USE]: Icons.Info,
-  [eventCodes.SCOPED_TOKEN_FAILURE]: Icons.Warning,
 };
 
 export default function renderTypeCell(event: Event) {

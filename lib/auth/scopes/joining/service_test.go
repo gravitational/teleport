@@ -502,7 +502,7 @@ func TestScopedJoiningService(t *testing.T) {
 		token, err := createToken(ctx, service, baseToken)
 		require.NoError(t, err)
 		require.Equal(t, events.ScopedTokenCreateEvent, pack.emitter.LastEvent().GetType())
-		require.Equal(t, pack.emitter.LastEvent().GetCode(), events.ScopedTokenCreateCode)
+		require.Equal(t, events.ScopedTokenCreateCode, pack.emitter.LastEvent().GetCode())
 		require.Len(t, pack.emitter.Events(), 1)
 
 		token.Metadata.Labels = map[string]string{"env": "test"}
