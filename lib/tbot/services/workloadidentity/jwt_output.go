@@ -56,6 +56,7 @@ func JWTOutputServiceBuilder(
 			trustBundleCache:          trustBundleCache,
 			log:                       deps.Logger,
 			statusReporter:            deps.GetStatusReporter(),
+			scoped:                    deps.Scoped,
 		}
 		return svc, nil
 	}
@@ -76,6 +77,10 @@ type JWTOutputService struct {
 	trustBundleCache  TrustBundleGetter
 	identityGenerator *identity.Generator
 	clientBuilder     *client.Builder
+	// scoped indicates whether the bot is running in scoped mode. When set, the
+	// service uses the bot's internal scoped identity rather than a role-
+	// impersonated identity to issue SVIDs.
+	scoped bool
 }
 
 // String returns a human-readable description of the service.
@@ -167,6 +172,22 @@ func (s *JWTOutputService) Run(ctx context.Context) error {
 	}
 }
 
+// generateIdentity returns the identity facade used to issue SVIDs. In scoped
+// mode this is the bot's internal scoped identity; otherwise it is a role-
+// impersonated identity.
+func (s *JWTOutputService) generateIdentity(ctx context.Context) (*identity.Facade, error) {
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
+	if s.scoped {
+		return s.identityGenerator.GenerateScopedFacade(
+			ctx, effectiveLifetime.TTL, effectiveLifetime.RenewalInterval,
+		)
+	}
+	return s.identityGenerator.GenerateFacade(ctx,
+		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
+		identity.WithLogger(s.log),
+	)
+}
+
 func (s *JWTOutputService) requestJWTSVID(
 	ctx context.Context,
 ) (
@@ -180,25 +201,22 @@ func (s *JWTOutputService) requestJWTSVID(
 	defer span.End()
 
 	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
-	id, err := s.identityGenerator.GenerateFacade(ctx,
-		identity.WithLifetime(effectiveLifetime.TTL, effectiveLifetime.RenewalInterval),
-		identity.WithLogger(s.log),
-	)
+	id, err := s.generateIdentity(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err, "generating identity")
 	}
-	// create a client that uses the impersonated identity, so that when we
-	// fetch information, we can ensure access rights are enforced.
-	impersonatedClient, err := s.clientBuilder.Build(ctx, id)
+	// create a client that uses the issuing identity, so that when we fetch
+	// information, we can ensure access rights are enforced.
+	issuingClient, err := s.clientBuilder.Build(ctx, id)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	defer impersonatedClient.Close()
+	defer issuingClient.Close()
 
 	credentials, err := workloadidentity.IssueJWTWorkloadIdentity(
 		ctx,
 		s.log,
-		impersonatedClient,
+		issuingClient,
 		s.cfg.Selector,
 		s.cfg.Audiences,
 		effectiveLifetime.TTL,
