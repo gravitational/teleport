@@ -41,8 +41,6 @@ const (
 	denyButtonID    = "deny_button"
 	// cacheTTL is the cache TTL for resolving Slack user ID to Teleport username.
 	cacheTTL = 10 * time.Minute
-	// interactionsBufferSize is the number of interaction events to buffer between Socket Mode client and review app.
-	interactionsBufferSize = 10
 )
 
 // ReviewBot is the bot interface defining the methods required to support Slack native review.
@@ -87,7 +85,7 @@ func (a *ReviewApp) Init(baseApp *common.BaseApp) error {
 	if !ok {
 		return trace.BadParameter("bot does not support native review")
 	}
-	a.socketModeClient = NewSocketModeClient(a.bot, interactionsBufferSize)
+	a.socketModeClient = NewSocketModeClient(a.bot)
 
 	return nil
 }
@@ -152,7 +150,7 @@ func (a *ReviewApp) run(ctx context.Context) error {
 				case BlockActionsEvent{}.Type():
 					blockActionsEvent, ok := interaction.(BlockActionsEvent)
 					if !ok {
-						log.ErrorContext(ctx, "error unmarshaling `block_actions` interaction event, this is a bug")
+						log.ErrorContext(ctx, "Error unmarshaling `block_actions` interaction event, this is a bug")
 						continue
 					}
 					a.handleBlockActionsEvent(ctx, blockActionsEvent)
@@ -163,7 +161,7 @@ func (a *ReviewApp) run(ctx context.Context) error {
 		}
 	}()
 
-	return a.socketModeClient.Start(ctx)
+	return a.socketModeClient.Run(ctx)
 }
 
 // handleBlockActionsEvent extracts information from the event payload to prepare the review request.
@@ -207,7 +205,7 @@ func (a *ReviewApp) handleBlockActionsEvent(ctx context.Context, blockActionsEve
 	if err := a.resolveReview(ctx, reqID, slackUserID, proposedState); err != nil {
 		replyErr := a.bot.PostReviewErrorReply(ctx, blockActionsEvent.Channel.ID, slackUserID, err)
 		if replyErr != nil {
-			log.ErrorContext(ctx, "error posting review error reply", "error", replyErr.Error())
+			log.ErrorContext(ctx, "Error posting review error reply", "error", replyErr.Error())
 		}
 	}
 }
@@ -223,7 +221,7 @@ func (a *ReviewApp) resolveReview(ctx context.Context, reqID, slackUserID string
 		return a.resolveTeleportUser(ctx, slackUserID)
 	})
 	if err != nil {
-		log.DebugContext(ctx, "failed to resolve Slack user to Teleport user", "error", err)
+		log.DebugContext(ctx, "Failed to resolve Slack user to Teleport user", "error", err)
 		return trace.Wrap(err)
 	}
 
@@ -239,7 +237,7 @@ func (a *ReviewApp) resolveReview(ctx context.Context, reqID, slackUserID string
 			Created:             time.Now(),
 		},
 	}); err != nil {
-		log.DebugContext(ctx, "error submitting access review", "error", err.Error())
+		log.DebugContext(ctx, "Error submitting access review", "error", err.Error())
 
 		if strings.Contains(err.Error(), "the access request has been already") {
 			// Convert error to NotFound to simplify user-facing error replies.
@@ -275,13 +273,13 @@ func (a *ReviewApp) resolveTeleportUser(ctx context.Context, slackUserID string)
 		if a.conf.AllowEmailUsernameMatch {
 			slackEmail, err := a.bot.LookupEmailByUserID(ctx, slackUserID)
 			if err != nil {
-				log.DebugContext(ctx, "failed to lookup Slack email by Slack user ID", "error", err)
+				log.DebugContext(ctx, "Failed to lookup Slack email by Slack user ID", "error", err)
 				return "", trace.Wrap(err)
 			}
 
 			user, err := a.apiClient.GetUser(ctx, slackEmail, false)
 			if err != nil {
-				log.DebugContext(ctx, "failed to fetch user from local store", "error", err)
+				log.DebugContext(ctx, "Failed to fetch user from local store", "error", err)
 				return "", trace.Wrap(err)
 			}
 
