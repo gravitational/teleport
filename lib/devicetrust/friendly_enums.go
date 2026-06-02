@@ -30,6 +30,10 @@ func FriendlyOSType(osType devicepb.OSType) string {
 		return "macOS"
 	case devicepb.OSType_OS_TYPE_WINDOWS:
 		return "Windows"
+	case devicepb.OSType_OS_TYPE_IOS:
+		return "iOS"
+	case devicepb.OSType_OS_TYPE_IPADOS:
+		return "iPadOS"
 	default:
 		return osType.String()
 	}
