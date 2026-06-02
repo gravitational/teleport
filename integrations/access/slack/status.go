@@ -35,7 +35,7 @@ func statusFromResponse(resp *APIResponse) types.PluginStatus {
 	switch resp.Error {
 	case "channel_not_found", "not_in_channel":
 		code = types.PluginStatusCode_SLACK_NOT_IN_CHANNEL
-	case "token_expired", "not_authed", "invalid_auth", "account_inactive", "token_revoked", "no_permission", "org_login_required":
+	case "token_expired", "not_authed", "invalid_auth", "account_inactive", "token_revoked", "no_permission", "org_login_required", "not_allowed_token_type":
 		code = types.PluginStatusCode_UNAUTHORIZED
 	}
 	return &types.PluginStatusV1{Code: code}

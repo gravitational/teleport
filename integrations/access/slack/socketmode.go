@@ -35,6 +35,8 @@ import (
 )
 
 const (
+	// interactionsBufferSize is the number of interaction events to buffer between Socket Mode client and consumer app.
+	interactionsBufferSize = 10
 	// reconnectBackoffBase is an initial (minimum) backoff value.
 	reconnectBackoffBase = time.Millisecond
 	// reconnectBackoffMax is a backoff threshold.
@@ -42,37 +44,44 @@ const (
 	// pingInterval is the interval to ping the Socket Mode server.
 	pingInterval = 5 * time.Second
 	// pingWriteWait is the write deadline for pings to the Socket Mode server.
-	pingWriteWait = 2 * time.Second
+	pingWriteWait = 3 * time.Second
 	// pongWait is how long to wait for server pongs.
 	pongWait = 4 * pingInterval
 )
 
+// ErrSocketModeDisconnect indicates that Slack Socket Mode server requests a disconnect
+// and the WebSocket connection should be rebuilt.
 var ErrSocketModeDisconnect = errors.New("slack requested disconnect")
 
+// WebSocketURLGenerator provides a method to generate a WebSocket URL for Slack Socket Mode.
 type WebSocketURLGenerator interface {
 	GenerateWebSocketURL(ctx context.Context) (string, error)
 }
 
+// SocketModeClient is the client that receives app interaction events from the Slack Socket Mode server.
 type SocketModeClient struct {
 	interactionsCh chan InteractionEvent
 	urlGenerator   WebSocketURLGenerator
 }
 
 // NewSocketModeClient creates a client to connect to Slack Socket Mode.
-func NewSocketModeClient(urlGenerator WebSocketURLGenerator, bufferSize int) *SocketModeClient {
+func NewSocketModeClient(urlGenerator WebSocketURLGenerator) *SocketModeClient {
 	return &SocketModeClient{
-		interactionsCh: make(chan InteractionEvent, bufferSize),
+		interactionsCh: make(chan InteractionEvent, interactionsBufferSize),
 		urlGenerator:   urlGenerator,
 	}
 }
 
-// Interactions returns the interaction events channel.
+// Interactions returns the interaction events channel. Consumer apps should read from
+// this channel and process Slack interactions for downstream logic.
 func (smc *SocketModeClient) Interactions() <-chan InteractionEvent {
 	return smc.interactionsCh
 }
 
-// Start begins the Socket Mode client. It handles automatic reconnects to the Socket Mode server.
-func (smc *SocketModeClient) Start(ctx context.Context) error {
+// Run starts the Socket Mode client to receive interaction events into the Interactions() channel.
+// It handles automatic reconnects to the Socket Mode server.
+// This is a blocking function that exits on fatal errors or if context is canceled.
+func (smc *SocketModeClient) Run(ctx context.Context) error {
 	log := logger.Get(ctx)
 
 	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
@@ -113,21 +122,21 @@ func (smc *SocketModeClient) Start(ctx context.Context) error {
 }
 
 // run creates a WebSocket connection with the Socket Mode server and
-// receives incoming interaction events.
+// processes incoming Socket Mode events.
 func (smc *SocketModeClient) run(ctx context.Context) error {
 	log := logger.Get(ctx)
 
 	ws, err := smc.connect(ctx)
 	if err != nil {
-		log.ErrorContext(ctx, "failed to connect to Socket Mode server", "error", err)
+		log.ErrorContext(ctx, "Failed to connect to Socket Mode server", "error", err)
 		return trace.Wrap(err)
 	}
 	defer ws.Close()
 
 	log.InfoContext(ctx, "Receiving Socket Mode events...")
 
-	rawCh := make(chan json.RawMessage, 1)
-	ackCh := make(chan string, 1)
+	rawCh := make(chan json.RawMessage)
+	ackCh := make(chan string)
 
 	g, gctx := errgroup.WithContext(ctx)
 
@@ -162,7 +171,7 @@ func (smc *SocketModeClient) connect(ctx context.Context) (*websocket.Conn, erro
 
 	socketModeURL, err := smc.urlGenerator.GenerateWebSocketURL(ctx)
 	if err != nil {
-		log.ErrorContext(ctx, "failed to open a WebSocket URL for Socket Mode", "error", err)
+		log.ErrorContext(ctx, "Failed to open a WebSocket URL for Socket Mode", "error", err)
 		return nil, trace.Wrap(err)
 	}
 
@@ -216,7 +225,7 @@ func (smc *SocketModeClient) readPump(ctx context.Context, ws *websocket.Conn, r
 		err := ws.ReadJSON(&raw)
 		if err != nil {
 			// Only log unexpected network errors to avoid cluttering the logs.
-			if websocket.IsUnexpectedCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) &&
+			if !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) &&
 				!utils.IsOKNetworkError(err) {
 				log.WarnContext(ctx, "websocket ReadJSON error", "error", err)
 			}
@@ -248,7 +257,7 @@ func (smc *SocketModeClient) writePump(ctx context.Context, ws *websocket.Conn, 
 	}
 }
 
-// parseEvents parses events from the raw events channel to the client channel.
+// parseEvents parses events from the raw events channel and sends to the client Interactions() channel.
 // It sends ack responses to the write pump.
 func (smc *SocketModeClient) parseEvents(ctx context.Context, rawCh <-chan json.RawMessage, ackCh chan<- string) error {
 	log := logger.Get(ctx)
@@ -259,20 +268,24 @@ func (smc *SocketModeClient) parseEvents(ctx context.Context, rawCh <-chan json.
 		case raw := <-rawCh:
 			var e SocketModeEvent
 			if err := json.Unmarshal(raw, &e); err != nil {
-				log.WarnContext(ctx, "error unmarshaling slack event, skipping...", "error", err)
+				log.WarnContext(ctx, "Error unmarshaling slack event, skipping...", "error", err, "raw_event", raw)
 				continue
 			}
 
 			switch e.Type {
 			case SocketModeEventTypeHello:
-				log.DebugContext(ctx, "received hello")
+				log.DebugContext(ctx, "Received hello",
+					"connection_info", e.ConnectionInfo,
+					"num_connections", e.NumConnections,
+					"debug_info", e.DebugInfo,
+				)
 			case SocketModeEventTypeDisconnect:
-				log.DebugContext(ctx, "received disconnect", "reason", e.Reason, "debug_info", e.DebugInfo)
+				log.DebugContext(ctx, "Received disconnect", "reason", e.Reason, "debug_info", e.DebugInfo)
 
 				// Socket Mode server wants to rebuild WebSocket connection.
 				return trace.Wrap(ErrSocketModeDisconnect)
 			case SocketModeEventTypeInteractive:
-				log.DebugContext(ctx, "received interaction event")
+				log.DebugContext(ctx, "Received interaction event")
 
 				// Send an ack to the write goroutine immediately.
 				// Slack expects an ack within 3 seconds of interaction receipt.
@@ -284,7 +297,9 @@ func (smc *SocketModeClient) parseEvents(ctx context.Context, rawCh <-chan json.
 
 				interaction, err := UnmarshalInteractionEvent(e.Payload)
 				if err != nil {
-					log.WarnContext(ctx, "error unmarshaling interaction event, skipping...")
+					log.WarnContext(ctx, "Error unmarshaling interaction event, skipping...",
+						"error", err,
+						"raw_interaction_payload", e.Payload)
 					continue
 				}
 
@@ -302,7 +317,7 @@ func (smc *SocketModeClient) parseEvents(ctx context.Context, rawCh <-chan json.
 // isFatalSocketModeError returns true if the error is fatal for the Socket Mode client, eg. invalid app-level token.
 func isFatalSocketModeError(err error) bool {
 	switch err.Error() {
-	case "token_expired", "not_authed", "invalid_auth", "account_inactive", "token_revoked", "no_permission", "not_allowed_token_type", "missing_args":
+	case "token_expired", "not_authed", "invalid_auth", "account_inactive", "token_revoked", "no_permission", "not_allowed_token_type":
 		return true
 	default:
 		return false
