@@ -2712,7 +2712,7 @@ func TestTerminalNoHistoryShell(t *testing.T) {
 
 	_, err = io.WriteString(term, `echo "histfile=[$HISTFILE]"`+"\r\n")
 	require.NoError(t, err)
-	waitForOutput(term, "histfile=[]")
+	waitForOutput(t, term, "histfile=[]")
 }
 
 type windowsDesktopServiceMock struct {
@@ -8714,22 +8714,24 @@ func waitForOutputWithDuration(ctx context.Context, r io.Reader, substr string, 
 	timeoutCh := time.After(timeout)
 	errC := make(chan error, 1)
 	go func() {
-		var prev string
-		out := make([]byte, int64(len(substr)*3))
+		var out strings.Builder
+		chunk := make([]byte, int64(len(substr)*2))
 		for {
-			n, err := r.Read(out)
-			outStr := removeSpace(string(out[:n]))
+			n, err := r.Read(chunk)
+			out.Write(chunk[:n])
 
-			slog.DebugContext(ctx, "waitForOutput read", "output", outStr, "expected", substr)
+			normalized := removeSpace(out.String())
+			slog.DebugContext(ctx, "waitForOutput read", "output", normalized, "expected", substr)
 
 			// Check for [substr] before checking the error,
 			// as it's valid for n > 0 even when there is an error.
 			// The [substr] is checked against the current and previous
 			// output to account for scenarios where the [substr] is split
-			// across two reads. While we try to prevent this by reading
+			// across 2+ reads. While we try to prevent this by reading
 			// twice the length of [substr] there are no guarantees the
-			// whole thing will arrive in a single read.
-			if n > 0 && strings.Contains(prev+outStr, substr) {
+			// whole thing will arrive in a single read since there is no
+			// minimum chunk length.
+			if n > 0 && strings.Contains(normalized, substr) {
 				errC <- nil
 				return
 			}
@@ -8737,7 +8739,6 @@ func waitForOutputWithDuration(ctx context.Context, r io.Reader, substr string, 
 				errC <- err
 				return
 			}
-			prev = outStr
 		}
 	}()
 
