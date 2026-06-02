@@ -45,7 +45,7 @@ func CopyFromTimestamp(diags diag.Diagnostics, v attr.Value, o **timestamppb.Tim
 		return
 	}
 
-	if value.IsNull() {
+	if value.IsNull() || value.IsUnknown() {
 		*o = nil
 	} else {
 		*o = timestamppb.New(value.Value)
@@ -81,6 +81,11 @@ func CopyFromDuration(diags diag.Diagnostics, v attr.Value, o **durationpb.Durat
 	value, ok := v.(tfschema.DurationValue)
 	if !ok {
 		diags.AddError("Error reading from Terraform object", fmt.Sprintf("Can not convert %T to String", v))
+		return
+	}
+
+	if value.IsNull() || value.IsUnknown() {
+		*o = nil
 		return
 	}
 

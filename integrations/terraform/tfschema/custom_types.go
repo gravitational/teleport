@@ -60,10 +60,13 @@ func CopyFromBoolOption(diags diag.Diagnostics, tf attr.Value, o **apitypes.Bool
 		return
 	}
 
-	if !v.Null && !v.Unknown {
-		value := apitypes.BoolOption{Value: v.Value}
-		*o = &value
+	if v.IsNull() || v.IsUnknown() {
+		*o = nil
+		return
 	}
+
+	value := apitypes.BoolOption{Value: v.Value}
+	*o = &value
 }
 
 func CopyToBoolOption(diags diag.Diagnostics, o *apitypes.BoolOption, t attr.Type, v attr.Value) attr.Value {
@@ -88,6 +91,11 @@ func CopyFromLabels(diags diag.Diagnostics, v attr.Value, o *apitypes.Labels) {
 	value, ok := v.(types.Map)
 	if !ok {
 		diags.AddError("Error reading from Terraform object", fmt.Sprintf("Can not convert %T to types.Map", v))
+		return
+	}
+
+	if value.IsNull() || value.IsUnknown() {
+		*o = nil
 		return
 	}
 
@@ -146,6 +154,11 @@ func CopyFromTraits(diags diag.Diagnostics, v attr.Value, o *wrappers.Traits) {
 	value, ok := v.(types.Map)
 	if !ok {
 		diags.AddError("Error reading from Terraform object", fmt.Sprintf("Can not convert %T to types.Map", v))
+		return
+	}
+
+	if value.IsNull() || value.IsUnknown() {
+		*o = nil
 		return
 	}
 
@@ -215,6 +228,11 @@ func CopyFromStrings(diags diag.Diagnostics, v attr.Value, o *wrappers.Strings) 
 	value, ok := v.(types.List)
 	if !ok {
 		diags.AddError("Error reading from Terraform object", fmt.Sprintf("Can not convert %T to types.List", v))
+		return
+	}
+
+	if value.IsNull() || value.IsUnknown() {
+		*o = nil
 		return
 	}
 
