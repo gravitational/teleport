@@ -34,7 +34,7 @@ jobs:
           RENOVATE_REPOSITORIES: ${{ github.repository }}
           RENOVATE_PLATFORM_COMMIT: 'true'
           LOG_LEVEL: 'debug'
-          RENOVATE_FORCE: '{"packageRules":[{"matchManagers":["custom.regex"],"matchDepNames":["go"],"matchUpdateTypes":["minor"],"enabled":true,"groupName":"Go version","groupSlug":"go-version"}]}'
+          RENOVATE_FORCE: '{"packageRules":[{"matchManagers":["custom.regex"],"matchDepNames":["go"],"matchUpdateTypes":["minor"],"enabled":true,"groupName":"Go version","groupSlug":"go-version","prBodyNotes":["Changelog: Updated Go to {{{newValue}}}."],"commitMessageTopic":"Go toolchain version"},{"matchManagers":["custom.regex"],"matchDepNames":["go"],"prHourlyLimit":0}]}'
         with:
           configurationFile: .github/renovate.json
           token: ${{ steps.generate_token.outputs.token }}
