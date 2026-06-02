@@ -74,8 +74,11 @@ func Compile(pattern string) (*Matcher, error) {
 	if !strings.HasPrefix(pattern, "/") {
 		return nil, trace.BadParameter("path pattern %q must start with '/'", pattern)
 	}
+	if strings.Contains(pattern, "//") {
+		return nil, trace.BadParameter("path pattern %q contains an empty segment ('//')", pattern)
+	}
 
-	parts := strings.Split(pattern, "/")
+	parts := pathSegments(pattern)
 	segments := make([]segment, 0, len(parts))
 	seen := map[string]struct{}{}
 	for i, p := range parts {
@@ -101,9 +104,6 @@ func Compile(pattern string) (*Matcher, error) {
 			if strings.ContainsAny(p, "*{}") {
 				return nil, trace.BadParameter("a metacharacter in path pattern %q must occupy a whole segment", pattern)
 			}
-			if p == "" && i != 0 && i != len(parts)-1 {
-				return nil, trace.BadParameter("path pattern %q contains an empty segment ('//')", pattern)
-			}
 			segments = append(segments, segment{kind: segLiteral, literal: p})
 		}
 	}
@@ -116,7 +116,7 @@ func Compile(pattern string) (*Matcher, error) {
 // a trailing "/" is significant. The caller is responsible for passing a
 // wire-form path that has already cleared ValidateWireform.
 func (m *Matcher) Match(path string) (map[string]string, bool) {
-	parts := strings.Split(path, "/")
+	parts := pathSegments(path)
 
 	var captures map[string]string
 	for i, seg := range m.segments {
@@ -154,6 +154,15 @@ func (m *Matcher) Match(path string) (map[string]string, bool) {
 		return nil, false
 	}
 	return captures, true
+}
+
+// pathSegments splits a wire-form path or a path pattern into its
+// slash-delimited segments. Compile, Match, and ValidateWireform share
+// this so the segmentation the policy compiles against, the
+// segmentation the matcher evaluates, and the segmentation the
+// validator checks never diverge.
+func pathSegments(s string) []string {
+	return strings.Split(s, "/")
 }
 
 // validCaptureName reports whether name is a usable capture identifier:

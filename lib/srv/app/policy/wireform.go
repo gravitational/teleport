@@ -58,6 +58,9 @@ const strictEncodedReserved = true
 //   - contains a backslash, raw or percent-encoded, which a
 //     backslash-normalizing upstream resolves to "/" and so to a path
 //     the policy never evaluated;
+//   - contains a ";", raw or percent-encoded, which an upstream that
+//     strips matrix or path parameters (such as Servlet, Spring, or
+//     Tomcat) could resolve to a path the policy never evaluated;
 //   - contains a control byte (0x00-0x1F or 0x7F), raw or
 //     percent-encoded;
 //   - contains an invalid percent-escape (not two hex digits);
@@ -88,13 +91,15 @@ func ValidateWireform(path string) error {
 			return trace.BadParameter("request path contains a control byte")
 		case b == '\\':
 			return trace.BadParameter("request path contains a backslash")
+		case b == ';':
+			return trace.BadParameter("request path contains a ';'")
 		}
 	}
 	if !utf8.Valid(decoded) {
 		return trace.BadParameter("request path is not valid UTF-8")
 	}
 
-	parts := strings.Split(path, "/")
+	parts := pathSegments(path)
 	for i, seg := range parts {
 		switch {
 		case seg == "." || seg == "..":
