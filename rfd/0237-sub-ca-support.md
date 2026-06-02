@@ -142,7 +142,7 @@ disable may be forced via the `--force` flag.
 Deleting an override removes it completely, making Teleport use its self-signed
 certificate. Deletes take effect immediately.
 
-`tctl auth delete-override --type=db_client --public-key='AB:CD:EF:...'`
+`tctl auth delete-override --type=db_client --public-key='abcdef...'`
 
 Deletes are only allowed for keys absent from the CA key sets, as a fallback. A
 delete may be forced with the `--force` flag.
@@ -158,19 +158,19 @@ delete may be forced with the `--force` flag.
     > There are active overrides for CA "db_client". You must either supply an
     > override for public key "AB:CD:EF:..." or disable the override.
     >
-    > tctl auth create-override-csr --type=db_client --public-key='AB:CD:EF:...'
+    > tctl auth create-override-csr --type=db_client --public-key='abcdef...'
     > tctl auth create-override --type=db_client cert.pem
     > or
-    > tctl auth create-override --set-disabled=true --type=db_client --public-key='AB:CD:EF:...'
+    > tctl auth create-override --set-disabled=true --type=db_client --public-key='abcdef...'
 
     $ tctl auth rotate --manual --type=db_client --phase=update_clients
     > ERROR: Found CA overrides for authority "db_client". You must either
     > supply an override for public key "AB:CD:EF:..." or disable the override.
     >
-    > tctl auth create-override-csr --type=db_client --public-key='AB:CD:EF:...'
+    > tctl auth create-override-csr --type=db_client --public-key='abcdef...'
     > tctl auth create-override --type=db_client cert.pem
     > or
-    > tctl auth create-override --set-disabled=true --type=db_client --public-key='AB:CD:EF:...'
+    > tctl auth create-override --set-disabled=true --type=db_client --public-key='abcdef...'
     ```
 
     Note: the interactive rotation wizard will print similar messages to above.
@@ -180,7 +180,7 @@ delete may be forced with the `--force` flag.
 1. Alice updates the CA override for "db_client":
 
     ```shell
-    $ tctl auth create-override-csr --type=db_client --public-key='AB:CD:EF:...'
+    $ tctl auth create-override-csr --type=db_client --public-key='abcdef...'
     > -----BEGIN CERTIFICATE REQUEST-----
     > (...)
     > -----END CERTIFICATE REQUEST-----
@@ -265,7 +265,7 @@ tctl auth create-override \
 # 5. Enable the override.
 tctl auth update-override
   --type=db_client \
-  --public-key='2B:CD:EF:...' \
+  --public-key='2bcdef...' \
   --set-disabled=false
 
 # 6. Advance rotation.
