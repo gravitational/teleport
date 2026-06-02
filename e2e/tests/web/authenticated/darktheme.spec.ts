@@ -17,13 +17,17 @@
  */
 
 import { login, logout } from '@gravitational/e2e/helpers/login';
-import { expect, test } from '@gravitational/e2e/helpers/test';
+import {
+  configureNoRetries,
+  expect,
+  test,
+} from '@gravitational/e2e/helpers/test';
 
 const lightBody = 'rgb(241, 242, 244)';
 const darkBody = 'rgb(12, 20, 61)';
 
 // Don't retry: a retry could have a user with the theme preference flipped and cause flakiness.
-test.describe.configure({ retries: 0 });
+configureNoRetries();
 
 test.use({ user: { roles: ['access', 'editor'] } });
 

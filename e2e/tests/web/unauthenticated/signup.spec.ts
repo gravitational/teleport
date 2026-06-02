@@ -17,9 +17,13 @@
  */
 
 import { signup } from '@gravitational/e2e/helpers/signup';
-import { expect, test } from '@gravitational/e2e/helpers/test';
+import {
+  configureNoRetries,
+  expect,
+  test,
+} from '@gravitational/e2e/helpers/test';
 
-test.describe.configure({ retries: 0 });
+configureNoRetries();
 
 test('verify that a user can sign up with webauthn and login', async ({
   page,
