@@ -474,6 +474,11 @@ func TestOktaAssignmentTargetStatusStripping(t *testing.T) {
 			targetsUnderLimit: 8500,
 			targetsOverLimit:  9000,
 		},
+		{
+			backend:           "unnamed",
+			targetsUnderLimit: 100000, // Theoretically math.MaxInt, but let's be reasonable.
+			targetsOverLimit:  0,      // No limit for unknown backend.
+		},
 	}
 
 	for _, test := range tests {
