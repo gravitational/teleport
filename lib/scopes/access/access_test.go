@@ -1554,6 +1554,11 @@ func TestStrongValidateRoleSpecAllFieldsValidated(t *testing.T) {
 				Mode: "strict",
 			},
 		},
+		WorkloadIdentity: &scopedaccessv1.ScopedRoleWorkloadIdentity{
+			Labels: []*labelv1.Label{
+				{Name: "env", Values: []string{"prod"}},
+			},
+		},
 	}
 
 	require.True(t, testutils.ExhaustiveNonEmpty(spec),

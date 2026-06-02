@@ -86,7 +86,7 @@ func (OSSSigstorePolicyEvaluator) Evaluate(_ context.Context, policyNames []stri
 }
 
 type issuerCache interface {
-	workloadIdentityReader
+	workloadIdentityCache
 	// Deprecated: Prefer paginated variant [ListProxyServers].
 	//
 	// TODO(kiosion): DELETE IN 21.0.0
@@ -99,6 +99,7 @@ type issuerCache interface {
 // IssuanceServiceConfig holds configuration options for the IssuanceService.
 type IssuanceServiceConfig struct {
 	Authorizer                 authz.Authorizer
+	ScopedAuthorizer           authz.ScopedAuthorizer
 	Cache                      issuerCache
 	Clock                      clockwork.Clock
 	Emitter                    apievents.Emitter
@@ -116,6 +117,7 @@ type IssuanceService struct {
 	workloadidentityv1pb.UnimplementedWorkloadIdentityIssuanceServiceServer
 
 	authorizer                 authz.Authorizer
+	scopedAuthorizer           authz.ScopedAuthorizer
 	cache                      issuerCache
 	clock                      clockwork.Clock
 	emitter                    apievents.Emitter
@@ -134,6 +136,8 @@ func NewIssuanceService(cfg *IssuanceServiceConfig) (*IssuanceService, error) {
 		return nil, trace.BadParameter("cache service is required")
 	case cfg.Authorizer == nil:
 		return nil, trace.BadParameter("authorizer is required")
+	case cfg.ScopedAuthorizer == nil:
+		return nil, trace.BadParameter("scoped authorizer is required")
 	case cfg.Emitter == nil:
 		return nil, trace.BadParameter("emitter is required")
 	case cfg.KeyStore == nil:
@@ -154,6 +158,7 @@ func NewIssuanceService(cfg *IssuanceServiceConfig) (*IssuanceService, error) {
 	}
 	return &IssuanceService{
 		authorizer:                 cfg.Authorizer,
+		scopedAuthorizer:           cfg.ScopedAuthorizer,
 		cache:                      cfg.Cache,
 		clock:                      cfg.Clock,
 		emitter:                    cfg.Emitter,
@@ -167,21 +172,22 @@ func NewIssuanceService(cfg *IssuanceServiceConfig) (*IssuanceService, error) {
 }
 
 func (s *IssuanceService) deriveAttrs(
-	authzCtx *authz.Context,
+	identity authz.IdentityGetter,
+	user types.User,
 	workloadAttrs *workloadidentityv1pb.WorkloadAttrs,
 ) (*workloadidentityv1pb.Attrs, error) {
 	attrs := &workloadidentityv1pb.Attrs{
 		Workload: workloadAttrs,
 		User: &workloadidentityv1pb.UserAttrs{
-			Name:    authzCtx.Identity.GetIdentity().Username,
-			IsBot:   authzCtx.Identity.GetIdentity().BotName != "",
-			BotName: authzCtx.Identity.GetIdentity().BotName,
-			Labels:  authzCtx.User.GetAllLabels(),
+			Name:    identity.GetIdentity().Username,
+			IsBot:   identity.GetIdentity().BotName != "",
+			BotName: identity.GetIdentity().BotName,
+			Labels:  user.GetAllLabels(),
 		},
-		Join: authzCtx.Identity.GetIdentity().JoinAttributes,
+		Join: identity.GetIdentity().JoinAttributes,
 	}
 
-	for key, values := range authzCtx.Identity.GetIdentity().Traits {
+	for key, values := range identity.GetIdentity().Traits {
 		attrs.User.Traits = append(attrs.User.Traits, &traitv1.Trait{
 			Key:    key,
 			Values: values,
@@ -211,14 +217,11 @@ func (s *IssuanceService) IssueWorkloadIdentity(
 		return nil, trace.BadParameter("at least one credential type must be requested")
 	}
 
-	authCtx, err := s.authorizer.Authorize(ctx)
+	authCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authCtx.CheckAccessToKind(types.KindWorkloadIdentity, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	attrs, err := s.deriveAttrs(authCtx, req.GetWorkloadAttrs())
+	attrs, err := s.deriveAttrs(authCtx.Identity, authCtx.User, req.GetWorkloadAttrs())
 	if err != nil {
 		return nil, trace.Wrap(err, "deriving attributes")
 	}
@@ -227,18 +230,21 @@ func (s *IssuanceService) IssueWorkloadIdentity(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	// Check the principal has access to the workload identity resource by
-	// virtue of WorkloadIdentityLabels on a role.
-	if err := authCtx.Checker.CheckAccess(
-		types.Resource153ToResourceWithLabels(wi),
-		services.AccessState{},
-	); err != nil {
+	// Check the caller is authorized to issue using this WorkloadIdentity: in the
+	// resource's scope they must hold the read rule for the workload_identity kind
+	// AND match it via a workload_identity label selector.
+	if err := s.authorizeIssuance(ctx, authCtx, wi, types.VerbReadNoSecrets); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	decision := decide(ctx, wi, attrs, s.getSigstorePolicyEvaluator())
 	if !decision.shouldIssue {
 		return nil, trace.Wrap(decision.reason, "workload identity failed evaluation")
+	}
+	// Defense-in-depth: ensure templating did not produce a SPIFFE ID that
+	// escapes the WorkloadIdentity's scope.
+	if err := validateRenderedSpiffeIDScope(decision.templatedWorkloadIdentity); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	var cred *workloadidentityv1pb.Credential
@@ -311,37 +317,61 @@ func (s *IssuanceService) IssueWorkloadIdentities(
 		return nil, trace.BadParameter("at least one credential type must be requested")
 	}
 
-	authCtx, err := s.authorizer.Authorize(ctx)
+	authCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authCtx.CheckAccessToKind(types.KindWorkloadIdentity, types.VerbRead, types.VerbList); err != nil {
+	// Cheap feasibility check before iterating cluster state: can the caller list
+	// WorkloadIdentities at all (in any scope)?
+	ruleCtx := authCtx.RuleContext()
+	if err := authCtx.CheckerContext.CheckMaybeHasAccessToRules(
+		&ruleCtx, types.KindWorkloadIdentity, types.VerbList,
+	); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	attrs, err := s.deriveAttrs(authCtx, req.GetWorkloadAttrs())
+	attrs, err := s.deriveAttrs(authCtx.Identity, authCtx.User, req.GetWorkloadAttrs())
 	if err != nil {
 		return nil, trace.Wrap(err, "deriving attributes")
 	}
 
-	// Fetch all workload identities that match the label selectors AND the
-	// principal can access.
-	workloadIdentities, err := s.matchingAndAuthorizedWorkloadIdentities(
-		ctx,
-		authCtx,
-		convertLabels(req.LabelSelectors),
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// Evaluate rules/templating for each worklaod identity, filtering out those
-	// that should not be issued.
+	// Iterate all WorkloadIdentities, keeping those that (a) match the requested
+	// label selectors, (b) the caller is authorized to issue using (read+list
+	// rules AND a label-selector grant, scoped to the resource's scope), and (c)
+	// pass rule/template evaluation.
+	labels := convertLabels(req.LabelSelectors)
 	shouldIssue := []*workloadidentityv1pb.WorkloadIdentity{}
-	for _, wi := range workloadIdentities {
-		decision := decide(ctx, wi, attrs, s.getSigstorePolicyEvaluator())
-		if decision.shouldIssue {
-			shouldIssue = append(shouldIssue, decision.templatedWorkloadIdentity)
+	for wi, err := range s.cache.RangeWorkloadIdentities(ctx, "", "", "", false) {
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
+
+		// Filter to the caller's requested label selectors.
+		match, _, err := services.MatchLabelGetter(
+			labels, types.Resource153ToResourceWithLabels(wi),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if !match {
+			continue
+		}
+
+		// Silently skip WorkloadIdentities the caller is not authorized to issue
+		// using.
+		if err := s.authorizeIssuance(ctx, authCtx, wi, types.VerbReadNoSecrets, types.VerbList); err != nil {
+			continue
+		}
+
+		decision := decide(ctx, wi, attrs, s.getSigstorePolicyEvaluator())
+		if !decision.shouldIssue {
+			continue
+		}
+		// Defense-in-depth: ensure templating did not produce a SPIFFE ID that
+		// escapes the WorkloadIdentity's scope.
+		if err := validateRenderedSpiffeIDScope(decision.templatedWorkloadIdentity); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		shouldIssue = append(shouldIssue, decision.templatedWorkloadIdentity)
 		if len(shouldIssue) > maxWorkloadIdentitiesIssued {
 			// If we're now above the limit, then we want to exit out...
 			return nil, trace.BadParameter(
@@ -1151,63 +1181,58 @@ func (s *IssuanceService) issueJWTSVID(ctx context.Context, params issueJWTSVIDP
 	}, nil
 }
 
-func (s *IssuanceService) getAllWorkloadIdentities(
+// authorizeIssuance verifies that the caller may issue an SVID using the given
+// WorkloadIdentity. Mirroring the unscoped issuance checks while being
+// scope-aware, the caller must, within the WorkloadIdentity's scope, hold the
+// given rule verbs (read_no_secrets, plus list for the multi-issue RPC) for the
+// workload_identity kind AND match the resource via a workload_identity label
+// selector. read_no_secrets is used rather than read because it is the strongest
+// read verb scoped roles can grant for workload_identity, and a read_no_secrets
+// rule check is satisfied by an unscoped role granting read — preserving the
+// behavior of the classic authorizer for unscoped identities.
+func (s *IssuanceService) authorizeIssuance(
 	ctx context.Context,
-) ([]*workloadidentityv1pb.WorkloadIdentity, error) {
-	workloadIdentities := []*workloadidentityv1pb.WorkloadIdentity{}
-	page := ""
-	for {
-		pageItems, nextPage, err := s.cache.ListWorkloadIdentities(ctx, 0, page, nil)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		workloadIdentities = append(workloadIdentities, pageItems...)
-		if nextPage == "" {
-			break
-		}
-		page = nextPage
+	authCtx *authz.ScopedContext,
+	wi *workloadidentityv1pb.WorkloadIdentity,
+	verbs ...string,
+) error {
+	ruleCtx := authCtx.RuleContext()
+	ruleCtx.Resource153 = wi
+	// Rule-based access: the caller must hold the read/list verbs in the scope.
+	if err := authCtx.CheckerContext.Decision(
+		ctx, wi.GetScope(), func(checker *services.ScopedAccessChecker) error {
+			return checker.CheckAccessToRules(&ruleCtx, types.KindWorkloadIdentity, verbs...)
+		},
+	); err != nil {
+		return trace.Wrap(err)
 	}
-	return workloadIdentities, nil
+	// Label-based issuance grant: the caller must match the resource by virtue of
+	// a workload_identity label selector in the scope.
+	if err := authCtx.CheckerContext.Decision(
+		ctx, wi.GetScope(), func(checker *services.ScopedAccessChecker) error {
+			return checker.CheckAccessToWorkloadIdentity(wi)
+		},
+	); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }
 
-// matchingAndAuthorizedWorkloadIdentities returns the workload identities that
-// match the provided labels and the principal has access to.
-func (s *IssuanceService) matchingAndAuthorizedWorkloadIdentities(
-	ctx context.Context,
-	authCtx *authz.Context,
-	labels types.Labels,
-) ([]*workloadidentityv1pb.WorkloadIdentity, error) {
-	allWorkloadIdentities, err := s.getAllWorkloadIdentities(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
+// validateRenderedSpiffeIDScope re-validates that a scoped WorkloadIdentity's
+// rendered (post-templating) SPIFFE ID still conforms to its scope. This is a
+// defense-in-depth measure ensuring templating cannot be used to escape the
+// scope-based SPIFFE ID restrictions enforced at create/update time. It is a
+// no-op for unscoped WorkloadIdentities.
+func validateRenderedSpiffeIDScope(wi *workloadidentityv1pb.WorkloadIdentity) error {
+	if wi.GetScope() == "" {
+		return nil
 	}
-
-	canAccess := []*workloadidentityv1pb.WorkloadIdentity{}
-	// Filter out identities user cannot access.
-	for _, wid := range allWorkloadIdentities {
-		if err := authCtx.Checker.CheckAccess(
-			types.Resource153ToResourceWithLabels(wid),
-			services.AccessState{},
-		); err == nil {
-			canAccess = append(canAccess, wid)
-		}
+	if err := services.ValidateScopedSPIFFEID(
+		wi.GetScope(), wi.GetSpec().GetSpiffe().GetId(),
+	); err != nil {
+		return trace.Wrap(err, "validating rendered SPIFFE ID against scope")
 	}
-
-	canAccessAndInSearch := []*workloadidentityv1pb.WorkloadIdentity{}
-	for _, wid := range canAccess {
-		match, _, err := services.MatchLabelGetter(
-			labels, types.Resource153ToResourceWithLabels(wid),
-		)
-		if err != nil {
-			// Maybe log and skip rather than returning an error?
-			return nil, trace.Wrap(err)
-		}
-		if match {
-			canAccessAndInSearch = append(canAccessAndInSearch, wid)
-		}
-	}
-
-	return canAccessAndInSearch, nil
+	return nil
 }
 
 func convertLabels(selectors []*workloadidentityv1pb.LabelSelector) types.Labels {

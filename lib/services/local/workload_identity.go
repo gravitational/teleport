@@ -18,6 +18,7 @@ package local
 
 import (
 	"context"
+	"iter"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -104,6 +105,28 @@ func (b *WorkloadIdentityService) ListWorkloadIdentities(
 		},
 	)
 	return r, nextToken, trace.Wrap(err)
+}
+
+// RangeWorkloadIdentities returns WorkloadIdentity resources within the range
+// [start, end), ordered by name. If end is empty, iteration continues to the
+// end of the range.
+//
+// The backend only indexes WorkloadIdentities by name; sorting by any other
+// field is unsupported here (it is served from the cache's secondary indexes).
+func (b *WorkloadIdentityService) RangeWorkloadIdentities(
+	ctx context.Context, start, end, sortField string, desc bool,
+) iter.Seq2[*workloadidentityv1pb.WorkloadIdentity, error] {
+	if sortField != "" && sortField != "name" {
+		return func(yield func(*workloadidentityv1pb.WorkloadIdentity, error) bool) {
+			yield(nil, trace.CompareFailed("unsupported sort, only name field is supported, but got %q", sortField))
+		}
+	}
+	if desc {
+		return func(yield func(*workloadidentityv1pb.WorkloadIdentity, error) bool) {
+			yield(nil, trace.CompareFailed("unsupported sort, only ascending order is supported"))
+		}
+	}
+	return b.service.Resources(ctx, start, end)
 }
 
 // DeleteWorkloadIdentity deletes a specific WorkloadIdentity.
