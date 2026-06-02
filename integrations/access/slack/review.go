@@ -45,6 +45,7 @@ const (
 	interactionsBufferSize = 10
 )
 
+// ReviewBot is the bot interface defining the methods required to support Slack native review.
 type ReviewBot interface {
 	common.MessagingBot
 
@@ -226,6 +227,7 @@ func (a *ReviewApp) resolveReview(ctx context.Context, reqID, slackUserID string
 		return trace.Wrap(err)
 	}
 
+	log = log.With("teleport_username", username)
 	log.DebugContext(ctx, "Submitting access review")
 
 	if _, err := a.apiClient.SubmitAccessReview(ctx, types.AccessReviewSubmission{
