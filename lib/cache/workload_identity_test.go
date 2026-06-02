@@ -178,6 +178,104 @@ func TestWorkloadIdentityCacheSorting(t *testing.T) {
 	})
 }
 
+func TestWorkloadIdentityCacheRange(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	rs := []struct {
+		name     string
+		spiffeID string
+	}{
+		{"wi-1", "/spiffe/c"},
+		{"wi-2", "/spiffe/a"},
+		{"wi-3", "/spiffe/b"},
+	}
+	for _, r := range rs {
+		_, err := p.workloadIdentity.CreateWorkloadIdentity(ctx, &workloadidentityv1pb.WorkloadIdentity{
+			Kind:    types.KindWorkloadIdentity,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: r.name,
+			},
+			Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+				Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+					Id: r.spiffeID,
+				},
+			},
+		})
+		require.NoError(t, err)
+	}
+
+	// Let the cache catch up.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		results, _, err := p.cache.ListWorkloadIdentities(ctx, 0, "", nil)
+		require.NoError(t, err)
+		require.Len(t, results, 3)
+	}, 10*time.Second, 100*time.Millisecond)
+
+	collect := func(t *testing.T, sortField string, desc bool) []*workloadidentityv1pb.WorkloadIdentity {
+		t.Helper()
+		var out []*workloadidentityv1pb.WorkloadIdentity
+		for wi, err := range p.cache.RangeWorkloadIdentities(ctx, "", "", sortField, desc) {
+			require.NoError(t, err)
+			out = append(out, wi)
+		}
+		return out
+	}
+
+	t.Run("range by name ascending", func(t *testing.T) {
+		got := collect(t, "name", false)
+		require.Len(t, got, 3)
+		assert.Equal(t, "wi-1", got[0].GetMetadata().GetName())
+		assert.Equal(t, "wi-2", got[1].GetMetadata().GetName())
+		assert.Equal(t, "wi-3", got[2].GetMetadata().GetName())
+	})
+
+	t.Run("range by name descending", func(t *testing.T) {
+		got := collect(t, "name", true)
+		require.Len(t, got, 3)
+		assert.Equal(t, "wi-3", got[0].GetMetadata().GetName())
+		assert.Equal(t, "wi-2", got[1].GetMetadata().GetName())
+		assert.Equal(t, "wi-1", got[2].GetMetadata().GetName())
+	})
+
+	t.Run("range by spiffe_id ascending", func(t *testing.T) {
+		got := collect(t, "spiffe_id", false)
+		require.Len(t, got, 3)
+		assert.Equal(t, "/spiffe/a", got[0].GetSpec().GetSpiffe().GetId())
+		assert.Equal(t, "/spiffe/b", got[1].GetSpec().GetSpiffe().GetId())
+		assert.Equal(t, "/spiffe/c", got[2].GetSpec().GetSpiffe().GetId())
+	})
+
+	t.Run("range with a start token resumes mid-range", func(t *testing.T) {
+		// Starting from the second name yields the tail of the range.
+		start, err := services.WorkloadIdentitySortKey(&workloadidentityv1pb.WorkloadIdentity{
+			Metadata: &headerv1.Metadata{Name: "wi-2"},
+		}, "name")
+		require.NoError(t, err)
+
+		var got []string
+		for wi, err := range p.cache.RangeWorkloadIdentities(ctx, start, "", "name", false) {
+			require.NoError(t, err)
+			got = append(got, wi.GetMetadata().GetName())
+		}
+		assert.Equal(t, []string{"wi-2", "wi-3"}, got)
+	})
+
+	t.Run("range with an unsupported sort field errors", func(t *testing.T) {
+		var err error
+		for _, iterErr := range p.cache.RangeWorkloadIdentities(ctx, "", "", "bogus", false) {
+			err = iterErr
+			break
+		}
+		require.ErrorContains(t, err, "unsupported sort")
+	})
+}
+
 // TestWorkloadIdentityCacheFallback tests that requests fallback to the upstream when the cache is unhealthy.
 func TestWorkloadIdentityCacheFallback(t *testing.T) {
 	t.Parallel()

@@ -243,6 +243,52 @@ func TestWorkloadIdentityService_ListWorkloadIdentities(t *testing.T) {
 	})
 }
 
+func TestWorkloadIdentityService_RangeWorkloadIdentities(t *testing.T) {
+	ctx, service := setupWorkloadIdentityServiceTest(t)
+
+	for _, name := range []string{"a", "b", "c"} {
+		_, err := service.CreateWorkloadIdentity(ctx, newValidWorkloadIdentity(name))
+		require.NoError(t, err)
+	}
+
+	t.Run("ranges in name order", func(t *testing.T) {
+		var got []string
+		for wi, err := range service.RangeWorkloadIdentities(ctx, "", "", "", false) {
+			require.NoError(t, err)
+			got = append(got, wi.GetMetadata().GetName())
+		}
+		require.Equal(t, []string{"a", "b", "c"}, got)
+	})
+
+	t.Run("honours start and end bounds", func(t *testing.T) {
+		var got []string
+		for wi, err := range service.RangeWorkloadIdentities(ctx, "b", "c", "", false) {
+			require.NoError(t, err)
+			got = append(got, wi.GetMetadata().GetName())
+		}
+		// [start, end) is inclusive of start and exclusive of end.
+		require.Equal(t, []string{"b"}, got)
+	})
+
+	t.Run("rejects non-name sort field", func(t *testing.T) {
+		var err error
+		for _, iterErr := range service.RangeWorkloadIdentities(ctx, "", "", "spiffe_id", false) {
+			err = iterErr
+			break
+		}
+		require.True(t, trace.IsCompareFailed(err), "expected CompareFailed, got %v", err)
+	})
+
+	t.Run("rejects descending order", func(t *testing.T) {
+		var err error
+		for _, iterErr := range service.RangeWorkloadIdentities(ctx, "", "", "name", true) {
+			err = iterErr
+			break
+		}
+		require.True(t, trace.IsCompareFailed(err), "expected CompareFailed, got %v", err)
+	})
+}
+
 func TestWorkloadIdentityService_GetWorkloadIdentity(t *testing.T) {
 	ctx, service := setupWorkloadIdentityServiceTest(t)
 

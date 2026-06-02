@@ -6178,7 +6178,6 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	machineidv1pb.RegisterSPIFFEFederationServiceServer(server, spiffeFederationService)
 
 	workloadIdentityResourceService, err := workloadidentityv1.NewResourceService(&workloadidentityv1.ResourceServiceConfig{
-		Authorizer:       cfg.Authorizer,
 		ScopedAuthorizer: cfg.ScopedAuthorizer,
 		Backend:          cfg.AuthServer.Services.WorkloadIdentities,
 		Cache:            cfg.AuthServer.Cache,

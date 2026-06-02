@@ -18,6 +18,7 @@ package workloadidentityv1
 
 import (
 	"context"
+	"iter"
 	"log/slog"
 
 	"github.com/gravitational/trace"
@@ -26,6 +27,7 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -49,12 +51,19 @@ type workloadIdentityReadWriter interface {
 	UpsertWorkloadIdentity(ctx context.Context, identity *workloadidentityv1pb.WorkloadIdentity) (*workloadidentityv1pb.WorkloadIdentity, error)
 }
 
+// workloadIdentityCache is the read interface used for listing. In addition to
+// single-resource reads it exposes ranged iteration (used to build scoped,
+// per-resource authorized listing) and the matching pagination cursor helper.
+type workloadIdentityCache interface {
+	GetWorkloadIdentity(ctx context.Context, name string) (*workloadidentityv1pb.WorkloadIdentity, error)
+	RangeWorkloadIdentities(ctx context.Context, start, end, sortField string, desc bool) iter.Seq2[*workloadidentityv1pb.WorkloadIdentity, error]
+}
+
 // ResourceServiceConfig holds configuration options for the ResourceService.
 type ResourceServiceConfig struct {
-	Authorizer       authz.Authorizer
 	ScopedAuthorizer authz.ScopedAuthorizer
 	Backend          workloadIdentityReadWriter
-	Cache            workloadIdentityReader
+	Cache            workloadIdentityCache
 	Clock            clockwork.Clock
 	Emitter          apievents.Emitter
 	Logger           *slog.Logger
@@ -65,10 +74,9 @@ type ResourceServiceConfig struct {
 type ResourceService struct {
 	workloadidentityv1pb.UnimplementedWorkloadIdentityResourceServiceServer
 
-	authorizer       authz.Authorizer
 	scopedAuthorizer authz.ScopedAuthorizer
 	backend          workloadIdentityReadWriter
-	cache            workloadIdentityReader
+	cache            workloadIdentityCache
 	clock            clockwork.Clock
 	emitter          apievents.Emitter
 	logger           *slog.Logger
@@ -81,8 +89,6 @@ func NewResourceService(cfg *ResourceServiceConfig) (*ResourceService, error) {
 		return nil, trace.BadParameter("backend service is required")
 	case cfg.Cache == nil:
 		return nil, trace.BadParameter("cache service is required")
-	case cfg.Authorizer == nil:
-		return nil, trace.BadParameter("authorizer is required")
 	case cfg.ScopedAuthorizer == nil:
 		return nil, trace.BadParameter("scoped authorizer is required")
 	case cfg.Emitter == nil:
@@ -96,7 +102,6 @@ func NewResourceService(cfg *ResourceServiceConfig) (*ResourceService, error) {
 		cfg.Clock = clockwork.NewRealClock()
 	}
 	return &ResourceService{
-		authorizer:       cfg.Authorizer,
 		scopedAuthorizer: cfg.ScopedAuthorizer,
 		backend:          cfg.Backend,
 		cache:            cfg.Cache,
@@ -167,35 +172,68 @@ func (s *ResourceService) ListWorkloadIdentities(
 func (s *ResourceService) ListWorkloadIdentitiesV2(
 	ctx context.Context, req *workloadidentityv1pb.ListWorkloadIdentitiesV2Request,
 ) (*workloadidentityv1pb.ListWorkloadIdentitiesResponse, error) {
-	// TODO(strideynet): Add scoped support to List (RFD 0229c, Phase 2 step 4).
-	// This requires a RangeWorkloadIdentities method to authorize and filter by
-	// scope prior to pagination. Until then, List uses the unscoped authorizer:
-	// scoped identities are rejected by Authorize with ErrScopedIdentity, so no
-	// scoped WorkloadIdentities are leaked.
-	authCtx, err := s.authorizer.Authorize(ctx)
+	authCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := authCtx.CheckAccessToKind(types.KindWorkloadIdentity, types.VerbRead, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	resources, nextToken, err := s.cache.ListWorkloadIdentities(
-		ctx,
-		int(req.PageSize),
-		req.PageToken,
-		&services.ListWorkloadIdentitiesRequestOptions{
-			SortField:        req.GetSortField(),
-			SortDesc:         req.GetSortDesc(),
-			FilterSearchTerm: req.GetFilterSearchTerm(),
-		},
-	)
-	if err != nil {
+	// Check generally whether the caller may list WorkloadIdentities at all
+	// (ignoring per-resource where conditions) before iterating cluster state.
+	ruleCtx := authCtx.RuleContext()
+	if err := authCtx.CheckerContext.CheckMaybeHasAccessToRules(
+		&ruleCtx, types.KindWorkloadIdentity, types.VerbList,
+	); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	pageSize := int(req.GetPageSize())
+	if pageSize <= 0 || pageSize > apidefaults.DefaultChunkSize {
+		pageSize = apidefaults.DefaultChunkSize
+	}
+
+	var (
+		out       []*workloadidentityv1pb.WorkloadIdentity
+		nextToken string
+	)
+	
+	for wi, err := range s.cache.RangeWorkloadIdentities(
+		ctx, req.GetPageToken(), "", req.GetSortField(), req.GetSortDesc(),
+	) {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Apply the request's search-term filter.
+		if !services.MatchWorkloadIdentity(wi, req.GetFilterSearchTerm()) {
+			continue
+		}
+
+		// Filter by the caller's access to this specific resource's scope.
+		ruleCtx := authCtx.RuleContext()
+		ruleCtx.Resource153 = wi
+		if err := authCtx.CheckerContext.Decision(
+			ctx, wi.GetScope(), func(checker *services.ScopedAccessChecker) error {
+				return checker.CheckAccessToRules(&ruleCtx, types.KindWorkloadIdentity, types.VerbList)
+			},
+		); err != nil {
+			// Silently omit resources the caller cannot access.
+			continue
+		}
+
+		// The page is full: this item begins the next page, so emit its key as
+		// the continuation token and stop.
+		if len(out) == pageSize {
+			nextToken, err = services.WorkloadIdentitySortKey(wi, req.GetSortField())
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			break
+		}
+		out = append(out, wi)
 	}
 
 	return &workloadidentityv1pb.ListWorkloadIdentitiesResponse{
-		WorkloadIdentities: resources,
+		WorkloadIdentities: out,
 		NextPageToken:      nextToken,
 	}, nil
 }

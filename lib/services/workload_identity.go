@@ -18,11 +18,14 @@ package services
 
 import (
 	"context"
+	"encoding/base32"
+	"iter"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/text/cases"
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -47,6 +50,14 @@ type WorkloadIdentities interface {
 		lastToken string,
 		options *ListWorkloadIdentitiesRequestOptions,
 	) ([]*workloadidentityv1pb.WorkloadIdentity, string, error)
+	// RangeWorkloadIdentities returns WorkloadIdentity resources within the
+	// range [start, end), ordered by the given sort field (defaulting to name).
+	// The start and end tokens must be in the keyspace of the selected sort
+	// field (see [WorkloadIdentitySortKey]). If end is empty, iteration
+	// continues to the end of the range.
+	RangeWorkloadIdentities(
+		ctx context.Context, start, end, sortField string, desc bool,
+	) iter.Seq2[*workloadidentityv1pb.WorkloadIdentity, error]
 	// CreateWorkloadIdentity creates a new WorkloadIdentity.
 	CreateWorkloadIdentity(
 		ctx context.Context, workloadIdentity *workloadidentityv1pb.WorkloadIdentity,
@@ -282,6 +293,40 @@ func (o *ListWorkloadIdentitiesRequestOptions) GetFilterSearchTerm() string {
 		return ""
 	}
 	return o.FilterSearchTerm
+}
+
+// WorkloadIdentitySortKey returns the pagination cursor key for the given
+// WorkloadIdentity under the given sort field. The returned value is suitable
+// for use as the start token of a subsequent RangeWorkloadIdentities call and
+// matches the next-page-token format returned by ListWorkloadIdentities.
+func WorkloadIdentitySortKey(item *workloadidentityv1pb.WorkloadIdentity, sortField string) (string, error) {
+	switch sortField {
+	case "", "name":
+		return WorkloadIdentityNameSortKey(item), nil
+	case "spiffe_id":
+		return WorkloadIdentitySpiffeIDSortKey(item), nil
+	default:
+		return "", trace.BadParameter("unsupported sort %q but expected name or spiffe_id", sortField)
+	}
+}
+
+// WorkloadIdentityNameSortKey returns the name-ordered cursor key for a
+// WorkloadIdentity.
+func WorkloadIdentityNameSortKey(item *workloadidentityv1pb.WorkloadIdentity) string {
+	return item.GetMetadata().GetName()
+}
+
+// WorkloadIdentitySpiffeIDSortKey returns the spiffe-id-ordered cursor key for a
+// WorkloadIdentity.
+func WorkloadIdentitySpiffeIDSortKey(item *workloadidentityv1pb.WorkloadIdentity) string {
+	name := WorkloadIdentityNameSortKey(item)
+	// Sort case-insensitively to keep /spiffe-1 and /Spiffe-1 together.
+	spiffeID := cases.Fold().String(item.GetSpec().GetSpiffe().GetId())
+	// Encode the id to avoid ambiguity; "a/b" + "/" + "c" vs. "a" + "/" + "b/c".
+	// Base32 hex maintains the original ordering.
+	spiffeID = base32.HexEncoding.WithPadding(base32.NoPadding).EncodeToString([]byte(spiffeID))
+	// SPIFFE IDs may not be unique, so append the resource name.
+	return spiffeID + "/" + name
 }
 
 func MatchWorkloadIdentity(item *workloadidentityv1pb.WorkloadIdentity, filterSearchTerm string) bool {

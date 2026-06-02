@@ -281,6 +281,68 @@ func TestResourceService_ScopedWorkloadIdentity(t *testing.T) {
 		require.ErrorContains(t, err, "scope of a workload_identity cannot be changed")
 	})
 
+	t.Run("list is filtered by scope", func(t *testing.T) {
+		for _, name := range []string{"list-granted-1", "list-granted-2"} {
+			_, err := grantedSvc.CreateWorkloadIdentity(ctx, &workloadidentityv1pb.CreateWorkloadIdentityRequest{
+				WorkloadIdentity: newScopedWorkloadIdentity(name, grantedScope, grantedScope+"/_/"+name),
+			})
+			require.NoError(t, err)
+		}
+		_, err := otherSvc.CreateWorkloadIdentity(ctx, &workloadidentityv1pb.CreateWorkloadIdentityRequest{
+			WorkloadIdentity: newScopedWorkloadIdentity("list-other-1", otherScope, otherScope+"/_/list-other-1"),
+		})
+		require.NoError(t, err)
+
+		// The granted user sees only resources in its own scope: its own
+		// resources are present, the other scope's resource is absent, and no
+		// resource from outside its scope (including unscoped ones) leaks.
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			resp, err := grantedSvc.ListWorkloadIdentitiesV2(ctx, &workloadidentityv1pb.ListWorkloadIdentitiesV2Request{
+				PageSize: 100,
+			})
+			require.NoError(t, err)
+
+			names := map[string]struct{}{}
+			for _, wi := range resp.GetWorkloadIdentities() {
+				names[wi.GetMetadata().GetName()] = struct{}{}
+				require.Equal(t, grantedScope, wi.GetScope())
+			}
+			require.Contains(t, names, "list-granted-1")
+			require.Contains(t, names, "list-granted-2")
+			require.NotContains(t, names, "list-other-1")
+		}, 10*time.Second, 100*time.Millisecond)
+
+		// The other user symmetrically sees only its own scope's resource.
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			resp, err := otherSvc.ListWorkloadIdentitiesV2(ctx, &workloadidentityv1pb.ListWorkloadIdentitiesV2Request{
+				PageSize: 100,
+			})
+			require.NoError(t, err)
+
+			names := map[string]struct{}{}
+			for _, wi := range resp.GetWorkloadIdentities() {
+				names[wi.GetMetadata().GetName()] = struct{}{}
+				require.Equal(t, otherScope, wi.GetScope())
+			}
+			require.Contains(t, names, "list-other-1")
+			require.NotContains(t, names, "list-granted-1")
+		}, 10*time.Second, 100*time.Millisecond)
+	})
+
+	t.Run("list search filter respects scope", func(t *testing.T) {
+		// Searching for the other scope's resource by name returns nothing for
+		// the granted user: the search filter and the scope authorization both
+		// apply, so a match in an inaccessible scope is never revealed.
+		require.EventuallyWithT(t, func(t *assert.CollectT) {
+			resp, err := grantedSvc.ListWorkloadIdentitiesV2(ctx, &workloadidentityv1pb.ListWorkloadIdentitiesV2Request{
+				PageSize:         100,
+				FilterSearchTerm: "list-other-1",
+			})
+			require.NoError(t, err)
+			require.Empty(t, resp.GetWorkloadIdentities())
+		}, 10*time.Second, 100*time.Millisecond)
+	})
+
 	t.Run("delete success", func(t *testing.T) {
 		_, err := grantedSvc.CreateWorkloadIdentity(ctx, &workloadidentityv1pb.CreateWorkloadIdentityRequest{
 			WorkloadIdentity: newScopedWorkloadIdentity("delete-ok", grantedScope, grantedScope+"/_/d-svc"),
