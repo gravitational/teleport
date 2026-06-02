@@ -215,3 +215,29 @@ func desktopRecoveredSessionEndEvent(sessionStart, eventTime time.Time) *apieven
 		StartTime:   sessionStart,
 	}
 }
+
+func TestDesktopThumbnailGenerator_ConsumeFrameActivity(t *testing.T) {
+	startTime := time.Now()
+
+	gen := newDesktopThumbnailGenerator()
+	defer gen.release()
+
+	// ServerHello initializes the decoder: dimensions are set, nothing has changed yet.
+	require.NoError(t, gen.handleEvent(desktopServerHelloEvent(t, startTime, 256, 256)))
+
+	fa := gen.consumeFrameActivity()
+	require.Equal(t, uint16(256), fa.screenW)
+	require.Equal(t, uint16(256), fa.screenH)
+	require.Zero(t, fa.changedPixels)
+
+	// A 32x32 bitmap update marks a changed region well above zero.
+	require.NoError(t, gen.handleEvent(desktopFastPathEvent(t, startTime.Add(time.Second),
+		rdpstatetest.BuildBitmapPDU(0, 0, 32, 32, rdpstatetest.RGB565White))))
+
+	fa = gen.consumeFrameActivity()
+	require.Positive(t, fa.changedPixels)
+
+	// consumeFrameActivity reset the accumulator, so a subsequent call with no new frame reports zero.
+	fa = gen.consumeFrameActivity()
+	require.Zero(t, fa.changedPixels)
+}
