@@ -173,6 +173,22 @@ describe('UserDisplayName', () => {
     expect(within(tooltip).getByText(username)).toBeInTheDocument();
   });
 
+  it('anchors tooltip layout to the primary text', () => {
+    render(
+      <UserDisplayName
+        username={username}
+        primaryText="Alice Jones"
+        secondaryText="Engineering"
+        layout="tooltip"
+      />
+    );
+
+    const tooltipTrigger = screen.getByLabelText(
+      'Alice Jones, Engineering, username alice@example.com'
+    );
+    expect(tooltipTrigger).toBe(screen.getByText('Alice Jones'));
+  });
+
   function getTooltipAriaLabel(
     primary: string,
     secondary: string | null | undefined,

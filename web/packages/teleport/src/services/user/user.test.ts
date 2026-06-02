@@ -19,7 +19,7 @@
 import cfg from 'teleport/config';
 import api from 'teleport/services/api';
 
-import { makeTraits } from './makeUser';
+import makeUser, { makeTraits } from './makeUser';
 import { Acl, ExcludeUserField, PasswordState, User } from './types';
 import user from './user';
 
@@ -428,6 +428,8 @@ test('fetch users, null response values gives empty array', async () => {
   expect(response).toStrictEqual([
     {
       authType: '',
+      displayPrimary: undefined,
+      displaySecondary: undefined,
       isBot: undefined,
       isLocal: false,
       name: '',
@@ -445,6 +447,26 @@ test('fetch users, null response values gives empty array', async () => {
       },
     },
   ]);
+});
+
+test('makeUser maps display name fields when present', () => {
+  expect(
+    makeUser({
+      name: 'alice',
+      roles: ['access'],
+      displayPrimary: 'Alice Jones',
+      displaySecondary: 'alice@example.com',
+    })
+  ).toMatchObject({
+    name: 'alice',
+    displayPrimary: 'Alice Jones',
+    displaySecondary: 'alice@example.com',
+  });
+
+  expect(makeUser({ name: 'bob', roles: [] })).toMatchObject({
+    displayPrimary: undefined,
+    displaySecondary: undefined,
+  });
 });
 
 test('createResetPasswordToken', async () => {

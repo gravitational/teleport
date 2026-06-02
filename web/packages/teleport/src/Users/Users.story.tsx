@@ -19,6 +19,7 @@
 import type { StoryObj } from '@storybook/react-vite';
 import { delay } from 'msw';
 
+import { ContentMinWidth } from 'teleport/Main/Main';
 import { TeleportProviderBasic } from 'teleport/mocks/providers';
 import {
   errorGetUsers,
@@ -35,12 +36,15 @@ export default {
 const users = [
   {
     name: 'cikar@egaposci.me',
+    displayPrimary: 'Cikar Egaposci',
+    displaySecondary: 'cikar@egaposci.me',
     roles: ['admin'],
     authType: 'teleport local user',
     isLocal: true,
   },
   {
     name: 'hi@nen.pa',
+    displaySecondary: 'hi@nen.pa',
     roles: ['ruhh', 'admin'],
     authType: 'teleport local user',
     isLocal: true,
@@ -85,11 +89,7 @@ export const Loaded: StoryObj = {
     },
   },
   render() {
-    return (
-      <TeleportProviderBasic>
-        <Users {...sample} />
-      </TeleportProviderBasic>
-    );
+    return renderUsers(sample);
   },
 };
 
@@ -100,11 +100,7 @@ export const UsersNotEqualMauNotice: StoryObj = {
     },
   },
   render() {
-    return (
-      <TeleportProviderBasic>
-        <Users {...sample} showMauInfo={true} />
-      </TeleportProviderBasic>
-    );
+    return renderUsers({ ...sample, showMauInfo: true });
   },
 };
 
@@ -115,11 +111,7 @@ export const Processing: StoryObj = {
     },
   },
   render() {
-    return (
-      <TeleportProviderBasic>
-        <Users {...sample} />
-      </TeleportProviderBasic>
-    );
+    return renderUsers(sample);
   },
 };
 
@@ -130,13 +122,19 @@ export const Failed: StoryObj = {
     },
   },
   render() {
-    return (
-      <TeleportProviderBasic>
-        <Users {...sample} />
-      </TeleportProviderBasic>
-    );
+    return renderUsers(sample);
   },
 };
+
+function renderUsers(props) {
+  return (
+    <TeleportProviderBasic>
+      <ContentMinWidth>
+        <Users {...props} />
+      </ContentMinWidth>
+    </TeleportProviderBasic>
+  );
+}
 
 const sample = {
   attempt: {

@@ -21,6 +21,7 @@ import { useTheme } from 'styled-components';
 import Table, { Cell, LabelCell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import { SearchPanel } from 'shared/components/Search';
+import { UserDisplayName } from 'shared/components/UserDisplayName';
 
 import { SeversidePagination } from 'teleport/components/hooks/useServersidePagination';
 import { Access, User, UserOrigin } from 'teleport/services/user';
@@ -77,6 +78,16 @@ export default function UserList({
         {
           key: 'name',
           headerText: 'Name',
+          render: (user: User) => (
+            <Cell>
+              <UserDisplayName
+                username={user.name}
+                primaryText={user.displayPrimary}
+                secondaryText={user.displaySecondary}
+                layout="stacked"
+              />
+            </Cell>
+          ),
         },
         {
           key: 'roles',

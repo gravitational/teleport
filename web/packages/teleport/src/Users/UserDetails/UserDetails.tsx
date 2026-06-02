@@ -28,6 +28,7 @@ import {
   InfoParagraph,
   InfoTitle,
 } from 'shared/components/SlidingSidePanel/InfoGuide';
+import { UserDisplayName } from 'shared/components/UserDisplayName';
 
 import cfg from 'teleport/config';
 import { useResourceLock } from 'teleport/lib/locks/useResourceLock';
@@ -83,12 +84,6 @@ export function UserDetails({
             <UserDetailField>
               <Text fontWeight="medium">Username</Text>
               <Text color="text.muted">{user.name}</Text>
-            </UserDetailField>
-            <UserDetailField>
-              <Text fontWeight="medium">Auth Type</Text>
-              <Text color="text.muted" style={{ textTransform: 'capitalize' }}>
-                {renderAuthType(user).text}
-              </Text>
             </UserDetailField>
             <UserDetailField>
               <Text fontWeight="medium">Status</Text>
@@ -215,9 +210,11 @@ export function UserDetailsTitle({
           <Icons.User size={userIconSize} />
         )}
         <Box maxWidth={containerWidth - 96}>
-          <Text fontSize={3} fontWeight="bold" title={user.name}>
-            {user.name}
-          </Text>
+          <UserDisplayName
+            username={user.name}
+            primaryText={user.displayPrimary}
+            secondaryText={user.displaySecondary}
+          />
           <Flex alignItems="center" gap={2}>
             <ResourceIcon name={icon} width="16px" height="16px" />
             <Text

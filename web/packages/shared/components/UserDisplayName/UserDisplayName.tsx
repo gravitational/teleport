@@ -39,8 +39,13 @@ export function UserDisplayName({
   const displayPrimary = normalizeText(primaryText);
   const displaySecondary = normalizeText(secondaryText);
   const primary = displayPrimary || username;
+  const tooltipLabel = getTooltipAriaLabel(primary, displaySecondary, username);
 
-  const primaryValue = <PrimaryValue title={primary}>{primary}</PrimaryValue>;
+  const primaryValue = (ariaLabel?: string) => (
+    <PrimaryValue title={primary} aria-label={ariaLabel}>
+      {primary}
+    </PrimaryValue>
+  );
 
   const secondaryValue = displaySecondary && (
     <SecondaryValue title={displaySecondary}>{displaySecondary}</SecondaryValue>
@@ -59,7 +64,7 @@ export function UserDisplayName({
       return (
         <Root className={className}>
           <DisplayLine>
-            {primaryValue}
+            {primaryValue()}
             {secondaryValue}
             {usernameValue}
           </DisplayLine>
@@ -69,7 +74,7 @@ export function UserDisplayName({
     case 'stacked':
       return (
         <Root className={className}>
-          <DisplayLine>{primaryValue}</DisplayLine>
+          <DisplayLine>{primaryValue()}</DisplayLine>
           {secondaryValue}
           {usernameValue}
         </Root>
@@ -79,19 +84,13 @@ export function UserDisplayName({
       return (
         <Root className={className}>
           {displayPrimary ? (
-            <HoverTooltip tipContent={username}>
-              <DisplayLine
-                aria-label={getTooltipAriaLabel(
-                  primary,
-                  displaySecondary,
-                  username
-                )}
-              >
-                {primaryValue}
-              </DisplayLine>
-            </HoverTooltip>
+            <DisplayLine>
+              <HoverTooltip tipContent={username}>
+                {primaryValue(tooltipLabel)}
+              </HoverTooltip>
+            </DisplayLine>
           ) : (
-            <DisplayLine>{primaryValue}</DisplayLine>
+            <DisplayLine>{primaryValue()}</DisplayLine>
           )}
           {secondaryValue}
         </Root>
