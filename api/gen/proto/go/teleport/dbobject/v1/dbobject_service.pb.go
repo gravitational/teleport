@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/dbobject/v1/dbobject_service.proto
 
+//go:build !protoopaque
+
 package dbobjectv1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -38,7 +39,7 @@ const (
 
 // The request for CreateDatabaseObject.
 type CreateDatabaseObjectRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The database object to create.
 	Object        *DatabaseObject `protobuf:"bytes,1,opt,name=object,proto3" json:"object,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -70,11 +71,6 @@ func (x *CreateDatabaseObjectRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateDatabaseObjectRequest.ProtoReflect.Descriptor instead.
-func (*CreateDatabaseObjectRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_dbobject_v1_dbobject_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *CreateDatabaseObjectRequest) GetObject() *DatabaseObject {
 	if x != nil {
 		return x.Object
@@ -82,9 +78,39 @@ func (x *CreateDatabaseObjectRequest) GetObject() *DatabaseObject {
 	return nil
 }
 
+func (x *CreateDatabaseObjectRequest) SetObject(v *DatabaseObject) {
+	x.Object = v
+}
+
+func (x *CreateDatabaseObjectRequest) HasObject() bool {
+	if x == nil {
+		return false
+	}
+	return x.Object != nil
+}
+
+func (x *CreateDatabaseObjectRequest) ClearObject() {
+	x.Object = nil
+}
+
+type CreateDatabaseObjectRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The database object to create.
+	Object *DatabaseObject
+}
+
+func (b0 CreateDatabaseObjectRequest_builder) Build() *CreateDatabaseObjectRequest {
+	m0 := &CreateDatabaseObjectRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Object = b.Object
+	return m0
+}
+
 // The request for GetDatabaseObject.
 type GetDatabaseObjectRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The name of the database object to fetch.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -116,11 +142,6 @@ func (x *GetDatabaseObjectRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetDatabaseObjectRequest.ProtoReflect.Descriptor instead.
-func (*GetDatabaseObjectRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_dbobject_v1_dbobject_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *GetDatabaseObjectRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -128,9 +149,28 @@ func (x *GetDatabaseObjectRequest) GetName() string {
 	return ""
 }
 
+func (x *GetDatabaseObjectRequest) SetName(v string) {
+	x.Name = v
+}
+
+type GetDatabaseObjectRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The name of the database object to fetch.
+	Name string
+}
+
+func (b0 GetDatabaseObjectRequest_builder) Build() *GetDatabaseObjectRequest {
+	m0 := &GetDatabaseObjectRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // The request for ListDatabaseObjects.
 type ListDatabaseObjectsRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The maximum number of items to return.
 	// The server may impose a different page size at its discretion.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
@@ -165,11 +205,6 @@ func (x *ListDatabaseObjectsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListDatabaseObjectsRequest.ProtoReflect.Descriptor instead.
-func (*ListDatabaseObjectsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_dbobject_v1_dbobject_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *ListDatabaseObjectsRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -184,9 +219,36 @@ func (x *ListDatabaseObjectsRequest) GetPageToken() string {
 	return ""
 }
 
+func (x *ListDatabaseObjectsRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListDatabaseObjectsRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+type ListDatabaseObjectsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The maximum number of items to return.
+	// The server may impose a different page size at its discretion.
+	PageSize int32
+	// The page_token is the next_page_token value returned from a previous List request, if any.
+	PageToken string
+}
+
+func (b0 ListDatabaseObjectsRequest_builder) Build() *ListDatabaseObjectsRequest {
+	m0 := &ListDatabaseObjectsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	return m0
+}
+
 // The response for ListDatabaseObjects.
 type ListDatabaseObjectsResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The page of database objects that matched the request.
 	Objects []*DatabaseObject `protobuf:"bytes,1,rep,name=objects,proto3" json:"objects,omitempty"`
 	// Token to retrieve the next page of results, or empty if there are no
@@ -221,11 +283,6 @@ func (x *ListDatabaseObjectsResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListDatabaseObjectsResponse.ProtoReflect.Descriptor instead.
-func (*ListDatabaseObjectsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_dbobject_v1_dbobject_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *ListDatabaseObjectsResponse) GetObjects() []*DatabaseObject {
 	if x != nil {
 		return x.Objects
@@ -240,9 +297,36 @@ func (x *ListDatabaseObjectsResponse) GetNextPageToken() string {
 	return ""
 }
 
+func (x *ListDatabaseObjectsResponse) SetObjects(v []*DatabaseObject) {
+	x.Objects = v
+}
+
+func (x *ListDatabaseObjectsResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListDatabaseObjectsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The page of database objects that matched the request.
+	Objects []*DatabaseObject
+	// Token to retrieve the next page of results, or empty if there are no
+	// more results in the list.
+	NextPageToken string
+}
+
+func (b0 ListDatabaseObjectsResponse_builder) Build() *ListDatabaseObjectsResponse {
+	m0 := &ListDatabaseObjectsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Objects = b.Objects
+	x.NextPageToken = b.NextPageToken
+	return m0
+}
+
 // The request for UpdateDatabaseObject.
 type UpdateDatabaseObjectRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The database object to replace.
 	Object        *DatabaseObject `protobuf:"bytes,1,opt,name=object,proto3" json:"object,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -274,11 +358,6 @@ func (x *UpdateDatabaseObjectRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateDatabaseObjectRequest.ProtoReflect.Descriptor instead.
-func (*UpdateDatabaseObjectRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_dbobject_v1_dbobject_service_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *UpdateDatabaseObjectRequest) GetObject() *DatabaseObject {
 	if x != nil {
 		return x.Object
@@ -286,9 +365,39 @@ func (x *UpdateDatabaseObjectRequest) GetObject() *DatabaseObject {
 	return nil
 }
 
+func (x *UpdateDatabaseObjectRequest) SetObject(v *DatabaseObject) {
+	x.Object = v
+}
+
+func (x *UpdateDatabaseObjectRequest) HasObject() bool {
+	if x == nil {
+		return false
+	}
+	return x.Object != nil
+}
+
+func (x *UpdateDatabaseObjectRequest) ClearObject() {
+	x.Object = nil
+}
+
+type UpdateDatabaseObjectRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The database object to replace.
+	Object *DatabaseObject
+}
+
+func (b0 UpdateDatabaseObjectRequest_builder) Build() *UpdateDatabaseObjectRequest {
+	m0 := &UpdateDatabaseObjectRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Object = b.Object
+	return m0
+}
+
 // The request for UpsertDatabaseObject.
 type UpsertDatabaseObjectRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The database object to create or replace.
 	Object        *DatabaseObject `protobuf:"bytes,1,opt,name=object,proto3" json:"object,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -320,11 +429,6 @@ func (x *UpsertDatabaseObjectRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertDatabaseObjectRequest.ProtoReflect.Descriptor instead.
-func (*UpsertDatabaseObjectRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_dbobject_v1_dbobject_service_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *UpsertDatabaseObjectRequest) GetObject() *DatabaseObject {
 	if x != nil {
 		return x.Object
@@ -332,9 +436,39 @@ func (x *UpsertDatabaseObjectRequest) GetObject() *DatabaseObject {
 	return nil
 }
 
+func (x *UpsertDatabaseObjectRequest) SetObject(v *DatabaseObject) {
+	x.Object = v
+}
+
+func (x *UpsertDatabaseObjectRequest) HasObject() bool {
+	if x == nil {
+		return false
+	}
+	return x.Object != nil
+}
+
+func (x *UpsertDatabaseObjectRequest) ClearObject() {
+	x.Object = nil
+}
+
+type UpsertDatabaseObjectRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The database object to create or replace.
+	Object *DatabaseObject
+}
+
+func (b0 UpsertDatabaseObjectRequest_builder) Build() *UpsertDatabaseObjectRequest {
+	m0 := &UpsertDatabaseObjectRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Object = b.Object
+	return m0
+}
+
 // The request for DeleteDatabaseObject.
 type DeleteDatabaseObjectRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The name of the database object to delete.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -366,16 +500,30 @@ func (x *DeleteDatabaseObjectRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteDatabaseObjectRequest.ProtoReflect.Descriptor instead.
-func (*DeleteDatabaseObjectRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_dbobject_v1_dbobject_service_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *DeleteDatabaseObjectRequest) GetName() string {
 	if x != nil {
 		return x.Name
 	}
 	return ""
+}
+
+func (x *DeleteDatabaseObjectRequest) SetName(v string) {
+	x.Name = v
+}
+
+type DeleteDatabaseObjectRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The name of the database object to delete.
+	Name string
+}
+
+func (b0 DeleteDatabaseObjectRequest_builder) Build() *DeleteDatabaseObjectRequest {
+	m0 := &DeleteDatabaseObjectRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
 }
 
 var File_teleport_dbobject_v1_dbobject_service_proto protoreflect.FileDescriptor
@@ -407,18 +555,6 @@ const file_teleport_dbobject_v1_dbobject_service_proto_rawDesc = "" +
 	"\x14UpdateDatabaseObject\x121.teleport.dbobject.v1.UpdateDatabaseObjectRequest\x1a$.teleport.dbobject.v1.DatabaseObject\x12o\n" +
 	"\x14UpsertDatabaseObject\x121.teleport.dbobject.v1.UpsertDatabaseObjectRequest\x1a$.teleport.dbobject.v1.DatabaseObject\x12a\n" +
 	"\x14DeleteDatabaseObject\x121.teleport.dbobject.v1.DeleteDatabaseObjectRequest\x1a\x16.google.protobuf.EmptyBTZRgithub.com/gravitational/teleport/api/gen/proto/go/teleport/dbobject/v1;dbobjectv1b\x06proto3"
-
-var (
-	file_teleport_dbobject_v1_dbobject_service_proto_rawDescOnce sync.Once
-	file_teleport_dbobject_v1_dbobject_service_proto_rawDescData []byte
-)
-
-func file_teleport_dbobject_v1_dbobject_service_proto_rawDescGZIP() []byte {
-	file_teleport_dbobject_v1_dbobject_service_proto_rawDescOnce.Do(func() {
-		file_teleport_dbobject_v1_dbobject_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_dbobject_v1_dbobject_service_proto_rawDesc), len(file_teleport_dbobject_v1_dbobject_service_proto_rawDesc)))
-	})
-	return file_teleport_dbobject_v1_dbobject_service_proto_rawDescData
-}
 
 var file_teleport_dbobject_v1_dbobject_service_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_teleport_dbobject_v1_dbobject_service_proto_goTypes = []any{

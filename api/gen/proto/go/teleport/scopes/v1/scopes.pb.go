@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/scopes/v1/scopes.proto
 
+//go:build !protoopaque
+
 package scopesv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -85,11 +86,6 @@ func (x PinKind) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use PinKind.Descriptor instead.
-func (PinKind) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_scopes_v1_scopes_proto_rawDescGZIP(), []int{0}
-}
-
 // Mode determines the mode of scoping when a query specifies a scope. When a query specifies a scope,
 // one of two questions is typically trying to be answered.  Either, what resources are "in" and/or "subject to"
 // a given scope, or what policies are "applicable to" a given scope.
@@ -146,15 +142,10 @@ func (x Mode) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use Mode.Descriptor instead.
-func (Mode) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_scopes_v1_scopes_proto_rawDescGZIP(), []int{1}
-}
-
 // Pin is a marker that identifies a certificate/identity as being "pinned" to a target scope, and encodes relevant
 // information for access-control evaluation at that scope.
 type Pin struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// scope is the target scope that this pin is associated with. This is the scope that the certificate/identity is
 	// pinned to. Any resources in parent/orthogonal scopes are not necessarily subject to the privileges/policies
 	// conveyed by this pin.
@@ -197,11 +188,6 @@ func (x *Pin) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Pin.ProtoReflect.Descriptor instead.
-func (*Pin) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_v1_scopes_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *Pin) GetScope() string {
 	if x != nil {
 		return x.Scope
@@ -230,11 +216,78 @@ func (x *Pin) GetSystemRoles() *SystemRoles {
 	return nil
 }
 
+func (x *Pin) SetScope(v string) {
+	x.Scope = v
+}
+
+func (x *Pin) SetKind(v PinKind) {
+	x.Kind = v
+}
+
+func (x *Pin) SetAssignmentTree(v *AssignmentNode) {
+	x.AssignmentTree = v
+}
+
+func (x *Pin) SetSystemRoles(v *SystemRoles) {
+	x.SystemRoles = v
+}
+
+func (x *Pin) HasAssignmentTree() bool {
+	if x == nil {
+		return false
+	}
+	return x.AssignmentTree != nil
+}
+
+func (x *Pin) HasSystemRoles() bool {
+	if x == nil {
+		return false
+	}
+	return x.SystemRoles != nil
+}
+
+func (x *Pin) ClearAssignmentTree() {
+	x.AssignmentTree = nil
+}
+
+func (x *Pin) ClearSystemRoles() {
+	x.SystemRoles = nil
+}
+
+type Pin_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// scope is the target scope that this pin is associated with. This is the scope that the certificate/identity is
+	// pinned to. Any resources in parent/orthogonal scopes are not necessarily subject to the privileges/policies
+	// conveyed by this pin.
+	Scope string
+	// kind indicates the pin kind (USER or AGENT). Pin kind determines whether this identity's privileges are conveyed
+	// via scoped user roles or system roles (note: bots use USER kind pins, rather than a separate BOT kind).
+	Kind PinKind
+	// assignment_tree encodes the full tree of scoped privilege assignments, organized by *Scope of Origin*. Policies/privileges
+	// assigned from higher scopes of origin take precedence over those assigned from lower scopes of origin. Only specified
+	// for USER kind pins.
+	AssignmentTree *AssignmentNode
+	// system_roles encodes the system roles held by the pinned identity. Only specified for AGENT kind pins.
+	SystemRoles *SystemRoles
+}
+
+func (b0 Pin_builder) Build() *Pin {
+	m0 := &Pin{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Scope = b.Scope
+	x.Kind = b.Kind
+	x.AssignmentTree = b.AssignmentTree
+	x.SystemRoles = b.SystemRoles
+	return m0
+}
+
 // AssignmentNode represents a node in the assignment tree. In addition to containing its own children as is standard for tree nodes,
 // each assignment node may also contain a role subtree. The assignment tree is organized by *Scope of Origin* (the scope from which
 // the assignment originates), while the role subtree is organized by *Scope of Effect* (i.e. the scope at which the roles apply).
 type AssignmentNode struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// children are the child assignment nodes, keyed by scope segment.
 	Children map[string]*AssignmentNode `protobuf:"bytes,1,rep,name=children,proto3" json:"children,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	// role_tree is the subtree of roles assigned from this scope of origin, organized by *Scope of Effect*.
@@ -268,11 +321,6 @@ func (x *AssignmentNode) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AssignmentNode.ProtoReflect.Descriptor instead.
-func (*AssignmentNode) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_v1_scopes_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *AssignmentNode) GetChildren() map[string]*AssignmentNode {
 	if x != nil {
 		return x.Children
@@ -287,10 +335,47 @@ func (x *AssignmentNode) GetRoleTree() *RoleNode {
 	return nil
 }
 
+func (x *AssignmentNode) SetChildren(v map[string]*AssignmentNode) {
+	x.Children = v
+}
+
+func (x *AssignmentNode) SetRoleTree(v *RoleNode) {
+	x.RoleTree = v
+}
+
+func (x *AssignmentNode) HasRoleTree() bool {
+	if x == nil {
+		return false
+	}
+	return x.RoleTree != nil
+}
+
+func (x *AssignmentNode) ClearRoleTree() {
+	x.RoleTree = nil
+}
+
+type AssignmentNode_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// children are the child assignment nodes, keyed by scope segment.
+	Children map[string]*AssignmentNode
+	// role_tree is the subtree of roles assigned from this scope of origin, organized by *Scope of Effect*.
+	RoleTree *RoleNode
+}
+
+func (b0 AssignmentNode_builder) Build() *AssignmentNode {
+	m0 := &AssignmentNode{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Children = b.Children
+	x.RoleTree = b.RoleTree
+	return m0
+}
+
 // RoleNode represents a node in the role tree. It encodes any roles assigned at the given scope level, as well as any child scopes
 // that have further role assignments. The role tree is organized by *Scope of Effect* (i.e. the scope at which the roles apply).
 type RoleNode struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// children are the child role nodes, keyed by scope segment.
 	Children map[string]*RoleNode `protobuf:"bytes,1,rep,name=children,proto3" json:"children,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	// roles are the roles assigned at this scope level.
@@ -324,11 +409,6 @@ func (x *RoleNode) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RoleNode.ProtoReflect.Descriptor instead.
-func (*RoleNode) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_v1_scopes_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *RoleNode) GetChildren() map[string]*RoleNode {
 	if x != nil {
 		return x.Children
@@ -343,9 +423,35 @@ func (x *RoleNode) GetRoles() []string {
 	return nil
 }
 
+func (x *RoleNode) SetChildren(v map[string]*RoleNode) {
+	x.Children = v
+}
+
+func (x *RoleNode) SetRoles(v []string) {
+	x.Roles = v
+}
+
+type RoleNode_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// children are the child role nodes, keyed by scope segment.
+	Children map[string]*RoleNode
+	// roles are the roles assigned at this scope level.
+	Roles []string
+}
+
+func (b0 RoleNode_builder) Build() *RoleNode {
+	m0 := &RoleNode{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Children = b.Children
+	x.Roles = b.Roles
+	return m0
+}
+
 // PinnedAssignments is a collection of scoped role assignments that are relevant to the pinned identity at the target scope.
 type PinnedAssignments struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// roles is a list of scoped roles that are assigned to the pinned identity at the target scope.
 	Roles         []string `protobuf:"bytes,1,rep,name=roles,proto3" json:"roles,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -377,11 +483,6 @@ func (x *PinnedAssignments) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PinnedAssignments.ProtoReflect.Descriptor instead.
-func (*PinnedAssignments) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_v1_scopes_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *PinnedAssignments) GetRoles() []string {
 	if x != nil {
 		return x.Roles
@@ -389,9 +490,28 @@ func (x *PinnedAssignments) GetRoles() []string {
 	return nil
 }
 
+func (x *PinnedAssignments) SetRoles(v []string) {
+	x.Roles = v
+}
+
+type PinnedAssignments_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// roles is a list of scoped roles that are assigned to the pinned identity at the target scope.
+	Roles []string
+}
+
+func (b0 PinnedAssignments_builder) Build() *PinnedAssignments {
+	m0 := &PinnedAssignments{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Roles = b.Roles
+	return m0
+}
+
 // SystemRoles is a collection of system roles held by an agent identity.
 type SystemRoles struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// primary is the primary system role associated with the certificate. For per-service agent certificates, this will
 	// be an ordinary system role (e.g. "Node") and the additional system roles will be empty. If the primary is "Instance"
 	// then the additional system roles will contain all system roles held by the agent.
@@ -427,11 +547,6 @@ func (x *SystemRoles) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SystemRoles.ProtoReflect.Descriptor instead.
-func (*SystemRoles) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_v1_scopes_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *SystemRoles) GetPrimary() string {
 	if x != nil {
 		return x.Primary
@@ -446,10 +561,38 @@ func (x *SystemRoles) GetAdditional() []string {
 	return nil
 }
 
+func (x *SystemRoles) SetPrimary(v string) {
+	x.Primary = v
+}
+
+func (x *SystemRoles) SetAdditional(v []string) {
+	x.Additional = v
+}
+
+type SystemRoles_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// primary is the primary system role associated with the certificate. For per-service agent certificates, this will
+	// be an ordinary system role (e.g. "Node") and the additional system roles will be empty. If the primary is "Instance"
+	// then the additional system roles will contain all system roles held by the agent.
+	Primary string
+	// additional is the list of all system roles held by the agent identity. Only populated for "Instance" certificates.
+	Additional []string
+}
+
+func (b0 SystemRoles_builder) Build() *SystemRoles {
+	m0 := &SystemRoles{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Primary = b.Primary
+	x.Additional = b.Additional
+	return m0
+}
+
 // Filter is a query parameter that matches other scopes based on a specified scope and mode. Used for
 // filtering resources that are subject to or policies that apply to a given scope.
 type Filter struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Scope is the scope value to match against.
 	Scope string `protobuf:"bytes,1,opt,name=scope,proto3" json:"scope,omitempty"`
 	// Mode determines the mode of matching.
@@ -483,11 +626,6 @@ func (x *Filter) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Filter.ProtoReflect.Descriptor instead.
-func (*Filter) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_v1_scopes_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *Filter) GetScope() string {
 	if x != nil {
 		return x.Scope
@@ -500,6 +638,32 @@ func (x *Filter) GetMode() Mode {
 		return x.Mode
 	}
 	return Mode_MODE_UNSPECIFIED
+}
+
+func (x *Filter) SetScope(v string) {
+	x.Scope = v
+}
+
+func (x *Filter) SetMode(v Mode) {
+	x.Mode = v
+}
+
+type Filter_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Scope is the scope value to match against.
+	Scope string
+	// Mode determines the mode of matching.
+	Mode Mode
+}
+
+func (b0 Filter_builder) Build() *Filter {
+	m0 := &Filter{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Scope = b.Scope
+	x.Mode = b.Mode
+	return m0
 }
 
 var File_teleport_scopes_v1_scopes_proto protoreflect.FileDescriptor
@@ -542,18 +706,6 @@ const file_teleport_scopes_v1_scopes_proto_rawDesc = "" +
 	"\x10MODE_UNSPECIFIED\x10\x00\x12#\n" +
 	"\x1fMODE_RESOURCES_SUBJECT_TO_SCOPE\x10\x01\x12%\n" +
 	"!MODE_POLICIES_APPLICABLE_TO_SCOPE\x10\x02BPZNgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1;scopesv1b\x06proto3"
-
-var (
-	file_teleport_scopes_v1_scopes_proto_rawDescOnce sync.Once
-	file_teleport_scopes_v1_scopes_proto_rawDescData []byte
-)
-
-func file_teleport_scopes_v1_scopes_proto_rawDescGZIP() []byte {
-	file_teleport_scopes_v1_scopes_proto_rawDescOnce.Do(func() {
-		file_teleport_scopes_v1_scopes_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_scopes_v1_scopes_proto_rawDesc), len(file_teleport_scopes_v1_scopes_proto_rawDesc)))
-	})
-	return file_teleport_scopes_v1_scopes_proto_rawDescData
-}
 
 var file_teleport_scopes_v1_scopes_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_teleport_scopes_v1_scopes_proto_msgTypes = make([]protoimpl.MessageInfo, 8)

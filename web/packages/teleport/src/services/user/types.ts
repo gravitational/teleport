@@ -21,6 +21,8 @@ import { MfaChallengeResponse } from 'teleport/services/mfa';
 
 export type AuthType = 'local' | 'sso' | 'passwordless';
 
+export type WebTerminalClipboardMode = '' | 'unrestricted' | 'no-copy';
+
 export interface AccessStrategy {
   type: 'optional' | 'always' | 'reason';
   prompt: string;
@@ -110,6 +112,10 @@ export interface Acl {
   accessMonitoringRule: Access;
   contacts: Access;
   fileTransferAccess: boolean;
+  /**
+   * webTerminalClipboardMode determines clipboard behavior in the Web UI terminal.
+   */
+  webTerminalClipboardMode: WebTerminalClipboardMode;
   gitServers: Access;
   accessGraphSettings: Access;
   botInstances: Access;

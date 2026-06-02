@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/vnet/v1/vnet_config.proto
 
+//go:build !protoopaque
+
 package vnet
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -38,7 +39,7 @@ const (
 
 // VnetConfig is a resource that holds configuration parameters for Teleport VNet.
 type VnetConfig struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Kind          string                 `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	SubKind       string                 `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
 	Version       string                 `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
@@ -71,11 +72,6 @@ func (x *VnetConfig) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use VnetConfig.ProtoReflect.Descriptor instead.
-func (*VnetConfig) Descriptor() ([]byte, []int) {
-	return file_teleport_vnet_v1_vnet_config_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *VnetConfig) GetKind() string {
@@ -113,9 +109,73 @@ func (x *VnetConfig) GetSpec() *VnetConfigSpec {
 	return nil
 }
 
+func (x *VnetConfig) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *VnetConfig) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *VnetConfig) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *VnetConfig) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *VnetConfig) SetSpec(v *VnetConfigSpec) {
+	x.Spec = v
+}
+
+func (x *VnetConfig) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *VnetConfig) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *VnetConfig) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *VnetConfig) ClearSpec() {
+	x.Spec = nil
+}
+
+type VnetConfig_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Kind     string
+	SubKind  string
+	Version  string
+	Metadata *v1.Metadata
+	Spec     *VnetConfigSpec
+}
+
+func (b0 VnetConfig_builder) Build() *VnetConfig {
+	m0 := &VnetConfig{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Spec = b.Spec
+	return m0
+}
+
 // VnetConfigSpec defines configuration parameters for VNet.
 type VnetConfigSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Ipv4CidrRange defines the IPv4 CIDR range that all IPv4 addresses for VNet
 	// apps in this cluster will be assigned from. The default is "100.64.0.0/10".
 	Ipv4CidrRange string `protobuf:"bytes,1,opt,name=ipv4_cidr_range,json=ipv4CidrRange,proto3" json:"ipv4_cidr_range,omitempty"`
@@ -151,11 +211,6 @@ func (x *VnetConfigSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use VnetConfigSpec.ProtoReflect.Descriptor instead.
-func (*VnetConfigSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_vnet_v1_vnet_config_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *VnetConfigSpec) GetIpv4CidrRange() string {
 	if x != nil {
 		return x.Ipv4CidrRange
@@ -170,9 +225,37 @@ func (x *VnetConfigSpec) GetCustomDnsZones() []*CustomDNSZone {
 	return nil
 }
 
+func (x *VnetConfigSpec) SetIpv4CidrRange(v string) {
+	x.Ipv4CidrRange = v
+}
+
+func (x *VnetConfigSpec) SetCustomDnsZones(v []*CustomDNSZone) {
+	x.CustomDnsZones = v
+}
+
+type VnetConfigSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Ipv4CidrRange defines the IPv4 CIDR range that all IPv4 addresses for VNet
+	// apps in this cluster will be assigned from. The default is "100.64.0.0/10".
+	Ipv4CidrRange string
+	// CustomDnsZones defines a list of DNS zones that VNet should resolve requests for in addition to the
+	// cluster's public proxy address.
+	CustomDnsZones []*CustomDNSZone
+}
+
+func (b0 VnetConfigSpec_builder) Build() *VnetConfigSpec {
+	m0 := &VnetConfigSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Ipv4CidrRange = b.Ipv4CidrRange
+	x.CustomDnsZones = b.CustomDnsZones
+	return m0
+}
+
 // CustomDNSZone defines parameters for custom DNS zones.
 type CustomDNSZone struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Suffix is the hostname suffix that defines this zone.
 	Suffix        string `protobuf:"bytes,1,opt,name=suffix,proto3" json:"suffix,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -204,16 +287,30 @@ func (x *CustomDNSZone) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CustomDNSZone.ProtoReflect.Descriptor instead.
-func (*CustomDNSZone) Descriptor() ([]byte, []int) {
-	return file_teleport_vnet_v1_vnet_config_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *CustomDNSZone) GetSuffix() string {
 	if x != nil {
 		return x.Suffix
 	}
 	return ""
+}
+
+func (x *CustomDNSZone) SetSuffix(v string) {
+	x.Suffix = v
+}
+
+type CustomDNSZone_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Suffix is the hostname suffix that defines this zone.
+	Suffix string
+}
+
+func (b0 CustomDNSZone_builder) Build() *CustomDNSZone {
+	m0 := &CustomDNSZone{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Suffix = b.Suffix
+	return m0
 }
 
 var File_teleport_vnet_v1_vnet_config_proto protoreflect.FileDescriptor
@@ -233,18 +330,6 @@ const file_teleport_vnet_v1_vnet_config_proto_rawDesc = "" +
 	"\x10custom_dns_zones\x18\x02 \x03(\v2\x1f.teleport.vnet.v1.CustomDNSZoneR\x0ecustomDnsZones\"'\n" +
 	"\rCustomDNSZone\x12\x16\n" +
 	"\x06suffix\x18\x01 \x01(\tR\x06suffixBJZHgithub.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1;vnetb\x06proto3"
-
-var (
-	file_teleport_vnet_v1_vnet_config_proto_rawDescOnce sync.Once
-	file_teleport_vnet_v1_vnet_config_proto_rawDescData []byte
-)
-
-func file_teleport_vnet_v1_vnet_config_proto_rawDescGZIP() []byte {
-	file_teleport_vnet_v1_vnet_config_proto_rawDescOnce.Do(func() {
-		file_teleport_vnet_v1_vnet_config_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_vnet_v1_vnet_config_proto_rawDesc), len(file_teleport_vnet_v1_vnet_config_proto_rawDesc)))
-	})
-	return file_teleport_vnet_v1_vnet_config_proto_rawDescData
-}
 
 var file_teleport_vnet_v1_vnet_config_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_teleport_vnet_v1_vnet_config_proto_goTypes = []any{

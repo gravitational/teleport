@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/appauthconfig/v1/appauthconfig.proto
 
+//go:build !protoopaque
+
 package appauthconfigv1
 
 import (
@@ -26,7 +28,6 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -39,7 +40,7 @@ const (
 
 // AppAuthConfig is the definition of apps authentication config.
 type AppAuthConfig struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Kind is the resource kind. Must be "app_auth_config".
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	// SubKind is the app auth config subkind.
@@ -79,11 +80,6 @@ func (x *AppAuthConfig) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AppAuthConfig.ProtoReflect.Descriptor instead.
-func (*AppAuthConfig) Descriptor() ([]byte, []int) {
-	return file_teleport_appauthconfig_v1_appauthconfig_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *AppAuthConfig) GetKind() string {
 	if x != nil {
 		return x.Kind
@@ -119,9 +115,78 @@ func (x *AppAuthConfig) GetSpec() *AppAuthConfigSpec {
 	return nil
 }
 
+func (x *AppAuthConfig) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *AppAuthConfig) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *AppAuthConfig) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *AppAuthConfig) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *AppAuthConfig) SetSpec(v *AppAuthConfigSpec) {
+	x.Spec = v
+}
+
+func (x *AppAuthConfig) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *AppAuthConfig) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *AppAuthConfig) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *AppAuthConfig) ClearSpec() {
+	x.Spec = nil
+}
+
+type AppAuthConfig_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Kind is the resource kind. Must be "app_auth_config".
+	Kind string
+	// SubKind is the app auth config subkind.
+	SubKind string
+	// Version is the app auth config resource version.
+	Version string
+	// Metadata is the app auth config resource's metadata.
+	Metadata *v1.Metadata
+	// Spec is the app auth config specification.
+	Spec *AppAuthConfigSpec
+}
+
+func (b0 AppAuthConfig_builder) Build() *AppAuthConfig {
+	m0 := &AppAuthConfig{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Spec = b.Spec
+	return m0
+}
+
 // AppAuthConfigSpec contains spec for all supported app auth configs.
 type AppAuthConfigSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// AppLabels is used to define the app_labels matcher, which selects
 	// applications that can use this authentication conifg. An empty value means
 	// no application will use it.
@@ -159,11 +224,6 @@ func (x *AppAuthConfigSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AppAuthConfigSpec.ProtoReflect.Descriptor instead.
-func (*AppAuthConfigSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_appauthconfig_v1_appauthconfig_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *AppAuthConfigSpec) GetAppLabels() []*v11.Label {
 	if x != nil {
 		return x.AppLabels
@@ -187,6 +247,92 @@ func (x *AppAuthConfigSpec) GetJwt() *AppAuthConfigJWTSpec {
 	return nil
 }
 
+func (x *AppAuthConfigSpec) SetAppLabels(v []*v11.Label) {
+	x.AppLabels = v
+}
+
+func (x *AppAuthConfigSpec) SetJwt(v *AppAuthConfigJWTSpec) {
+	if v == nil {
+		x.SubKindSpec = nil
+		return
+	}
+	x.SubKindSpec = &AppAuthConfigSpec_Jwt{v}
+}
+
+func (x *AppAuthConfigSpec) HasSubKindSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.SubKindSpec != nil
+}
+
+func (x *AppAuthConfigSpec) HasJwt() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.SubKindSpec.(*AppAuthConfigSpec_Jwt)
+	return ok
+}
+
+func (x *AppAuthConfigSpec) ClearSubKindSpec() {
+	x.SubKindSpec = nil
+}
+
+func (x *AppAuthConfigSpec) ClearJwt() {
+	if _, ok := x.SubKindSpec.(*AppAuthConfigSpec_Jwt); ok {
+		x.SubKindSpec = nil
+	}
+}
+
+const AppAuthConfigSpec_SubKindSpec_not_set_case case_AppAuthConfigSpec_SubKindSpec = 0
+const AppAuthConfigSpec_Jwt_case case_AppAuthConfigSpec_SubKindSpec = 2
+
+func (x *AppAuthConfigSpec) WhichSubKindSpec() case_AppAuthConfigSpec_SubKindSpec {
+	if x == nil {
+		return AppAuthConfigSpec_SubKindSpec_not_set_case
+	}
+	switch x.SubKindSpec.(type) {
+	case *AppAuthConfigSpec_Jwt:
+		return AppAuthConfigSpec_Jwt_case
+	default:
+		return AppAuthConfigSpec_SubKindSpec_not_set_case
+	}
+}
+
+type AppAuthConfigSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// AppLabels is used to define the app_labels matcher, which selects
+	// applications that can use this authentication conifg. An empty value means
+	// no application will use it.
+	AppLabels []*v11.Label
+	// Fields of oneof SubKindSpec:
+	// Jwt is the JWT authentication config spec.
+	Jwt *AppAuthConfigJWTSpec
+	// -- end of SubKindSpec
+}
+
+func (b0 AppAuthConfigSpec_builder) Build() *AppAuthConfigSpec {
+	m0 := &AppAuthConfigSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.AppLabels = b.AppLabels
+	if b.Jwt != nil {
+		x.SubKindSpec = &AppAuthConfigSpec_Jwt{b.Jwt}
+	}
+	return m0
+}
+
+type case_AppAuthConfigSpec_SubKindSpec protoreflect.FieldNumber
+
+func (x case_AppAuthConfigSpec_SubKindSpec) String() string {
+	md := file_teleport_appauthconfig_v1_appauthconfig_proto_msgTypes[1].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isAppAuthConfigSpec_SubKindSpec interface {
 	isAppAuthConfigSpec_SubKindSpec()
 }
@@ -200,7 +346,7 @@ func (*AppAuthConfigSpec_Jwt) isAppAuthConfigSpec_SubKindSpec() {}
 
 // AppAuthConfigJWTSpec contains the spec for JWT authentication config.
 type AppAuthConfigJWTSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Issuer is the JWT token issuer name. This value is used to verify the token.
 	Issuer string `protobuf:"bytes,1,opt,name=issuer,proto3" json:"issuer,omitempty"`
 	// Audience is the expected token audience. It will usually be a OAuth
@@ -241,11 +387,6 @@ func (x *AppAuthConfigJWTSpec) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AppAuthConfigJWTSpec.ProtoReflect.Descriptor instead.
-func (*AppAuthConfigJWTSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_appauthconfig_v1_appauthconfig_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *AppAuthConfigJWTSpec) GetIssuer() string {
@@ -294,6 +435,129 @@ func (x *AppAuthConfigJWTSpec) GetStaticJwks() string {
 	return ""
 }
 
+func (x *AppAuthConfigJWTSpec) SetIssuer(v string) {
+	x.Issuer = v
+}
+
+func (x *AppAuthConfigJWTSpec) SetAudience(v string) {
+	x.Audience = v
+}
+
+func (x *AppAuthConfigJWTSpec) SetUsernameClaim(v string) {
+	x.UsernameClaim = v
+}
+
+func (x *AppAuthConfigJWTSpec) SetJwksUrl(v string) {
+	x.KeysSource = &AppAuthConfigJWTSpec_JwksUrl{v}
+}
+
+func (x *AppAuthConfigJWTSpec) SetStaticJwks(v string) {
+	x.KeysSource = &AppAuthConfigJWTSpec_StaticJwks{v}
+}
+
+func (x *AppAuthConfigJWTSpec) HasKeysSource() bool {
+	if x == nil {
+		return false
+	}
+	return x.KeysSource != nil
+}
+
+func (x *AppAuthConfigJWTSpec) HasJwksUrl() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.KeysSource.(*AppAuthConfigJWTSpec_JwksUrl)
+	return ok
+}
+
+func (x *AppAuthConfigJWTSpec) HasStaticJwks() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.KeysSource.(*AppAuthConfigJWTSpec_StaticJwks)
+	return ok
+}
+
+func (x *AppAuthConfigJWTSpec) ClearKeysSource() {
+	x.KeysSource = nil
+}
+
+func (x *AppAuthConfigJWTSpec) ClearJwksUrl() {
+	if _, ok := x.KeysSource.(*AppAuthConfigJWTSpec_JwksUrl); ok {
+		x.KeysSource = nil
+	}
+}
+
+func (x *AppAuthConfigJWTSpec) ClearStaticJwks() {
+	if _, ok := x.KeysSource.(*AppAuthConfigJWTSpec_StaticJwks); ok {
+		x.KeysSource = nil
+	}
+}
+
+const AppAuthConfigJWTSpec_KeysSource_not_set_case case_AppAuthConfigJWTSpec_KeysSource = 0
+const AppAuthConfigJWTSpec_JwksUrl_case case_AppAuthConfigJWTSpec_KeysSource = 5
+const AppAuthConfigJWTSpec_StaticJwks_case case_AppAuthConfigJWTSpec_KeysSource = 6
+
+func (x *AppAuthConfigJWTSpec) WhichKeysSource() case_AppAuthConfigJWTSpec_KeysSource {
+	if x == nil {
+		return AppAuthConfigJWTSpec_KeysSource_not_set_case
+	}
+	switch x.KeysSource.(type) {
+	case *AppAuthConfigJWTSpec_JwksUrl:
+		return AppAuthConfigJWTSpec_JwksUrl_case
+	case *AppAuthConfigJWTSpec_StaticJwks:
+		return AppAuthConfigJWTSpec_StaticJwks_case
+	default:
+		return AppAuthConfigJWTSpec_KeysSource_not_set_case
+	}
+}
+
+type AppAuthConfigJWTSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Issuer is the JWT token issuer name. This value is used to verify the token.
+	Issuer string
+	// Audience is the expected token audience. It will usually be a OAuth
+	// client_id issued for Teleport use.
+	Audience string
+	// UsernameClaim specifies which token claim name's value will be used as the
+	// username. Defaults to `email`.
+	UsernameClaim string
+	// Fields of oneof KeysSource:
+	// JwksUrl is the JSON Web Key Set (JWKS) URL used to fetch signing keys.
+	JwksUrl *string
+	// StaticJwks is the JSON Web Key Set (JWKS) formatted public keys of the
+	// token issuer in JSON format.
+	StaticJwks *string
+	// -- end of KeysSource
+}
+
+func (b0 AppAuthConfigJWTSpec_builder) Build() *AppAuthConfigJWTSpec {
+	m0 := &AppAuthConfigJWTSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Issuer = b.Issuer
+	x.Audience = b.Audience
+	x.UsernameClaim = b.UsernameClaim
+	if b.JwksUrl != nil {
+		x.KeysSource = &AppAuthConfigJWTSpec_JwksUrl{*b.JwksUrl}
+	}
+	if b.StaticJwks != nil {
+		x.KeysSource = &AppAuthConfigJWTSpec_StaticJwks{*b.StaticJwks}
+	}
+	return m0
+}
+
+type case_AppAuthConfigJWTSpec_KeysSource protoreflect.FieldNumber
+
+func (x case_AppAuthConfigJWTSpec_KeysSource) String() string {
+	md := file_teleport_appauthconfig_v1_appauthconfig_proto_msgTypes[2].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isAppAuthConfigJWTSpec_KeysSource interface {
 	isAppAuthConfigJWTSpec_KeysSource()
 }
@@ -337,18 +601,6 @@ const file_teleport_appauthconfig_v1_appauthconfig_proto_rawDesc = "" +
 	"\vstatic_jwks\x18\x06 \x01(\tH\x00R\n" +
 	"staticJwksB\r\n" +
 	"\vkeys_sourceJ\x04\b\x04\x10\x05R\x14authorization_headerB^Z\\github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1;appauthconfigv1b\x06proto3"
-
-var (
-	file_teleport_appauthconfig_v1_appauthconfig_proto_rawDescOnce sync.Once
-	file_teleport_appauthconfig_v1_appauthconfig_proto_rawDescData []byte
-)
-
-func file_teleport_appauthconfig_v1_appauthconfig_proto_rawDescGZIP() []byte {
-	file_teleport_appauthconfig_v1_appauthconfig_proto_rawDescOnce.Do(func() {
-		file_teleport_appauthconfig_v1_appauthconfig_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_appauthconfig_v1_appauthconfig_proto_rawDesc), len(file_teleport_appauthconfig_v1_appauthconfig_proto_rawDesc)))
-	})
-	return file_teleport_appauthconfig_v1_appauthconfig_proto_rawDescData
-}
 
 var file_teleport_appauthconfig_v1_appauthconfig_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_teleport_appauthconfig_v1_appauthconfig_proto_goTypes = []any{

@@ -45,6 +45,8 @@ export interface TerminalProps {
   terminalAddons?: (terminalRef: XTermCtrl) => React.JSX.Element;
   disableCtrlC?: boolean;
   disableAutoFocus?: boolean;
+  // disableCopy blocks copying terminal text to clipboard.
+  disableCopy?: boolean;
 }
 
 export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
@@ -69,6 +71,7 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
       fontSize,
       theme: props.theme,
       convertEol: props.convertEol,
+      disableCopy: props.disableCopy,
     });
     termCtrlRef.current = termCtrl;
 

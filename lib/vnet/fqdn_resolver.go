@@ -257,7 +257,7 @@ func (r *fqdnResolver) resolveAppInfoForCluster(
 	log := log.With("profile", candidate.profileName, "leaf_cluster", candidate.leafClusterName, "fqdn", fqdn)
 
 	// An app public_addr could technically be fully-qualified or not, match either way.
-	expr := fmt.Sprintf(`resource.spec.public_addr == "%s" || resource.spec.public_addr == "%s"`,
+	expr := fmt.Sprintf(`resource.spec.public_addr == %q || resource.spec.public_addr == %q`,
 		strings.TrimSuffix(fqdn, "."), fqdn)
 
 	// If candidate is a leaf cluster and fqdn possibly points to a leaf
@@ -271,7 +271,7 @@ func (r *fqdnResolver) resolveAppInfoForCluster(
 	var potentialAppName string
 	if candidate.leafClusterName != "" && isDirectSubdomain(fqdn, candidate.profileName) {
 		potentialAppName = strings.TrimSuffix(fqdn, "."+dns.FullyQualify(candidate.profileName))
-		expr += fmt.Sprintf(` || name == "%s"`, potentialAppName)
+		expr += fmt.Sprintf(` || name == %q`, potentialAppName)
 	}
 
 	resp, err := apiclient.GetResourcePage[types.AppServer](ctx, candidate.client.CurrentCluster(), &proto.ListResourcesRequest{

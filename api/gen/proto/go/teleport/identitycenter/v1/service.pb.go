@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/identitycenter/v1/service.proto
 
+//go:build !protoopaque
+
 package identitycenterv1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -40,7 +41,7 @@ const (
 // provisioning and account assignment info.
 // buf:lint:ignore PAGINATION_REQUIRED
 type PrincipalSummary struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// PrincipalName holds the principal's name in Teleport
 	PrincipalName string `protobuf:"bytes,1,opt,name=principal_name,json=principalName,proto3" json:"principal_name,omitempty"`
 	// PrincipalType indicates the principal's type, either user or group
@@ -83,11 +84,6 @@ func (x *PrincipalSummary) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PrincipalSummary.ProtoReflect.Descriptor instead.
-func (*PrincipalSummary) Descriptor() ([]byte, []int) {
-	return file_teleport_identitycenter_v1_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *PrincipalSummary) GetPrincipalName() string {
 	if x != nil {
 		return x.PrincipalName
@@ -123,10 +119,82 @@ func (x *PrincipalSummary) GetAccountAssignments() []*AccountAssignmentRef {
 	return nil
 }
 
+func (x *PrincipalSummary) SetPrincipalName(v string) {
+	x.PrincipalName = v
+}
+
+func (x *PrincipalSummary) SetPrincipalType(v PrincipalType) {
+	x.PrincipalType = v
+}
+
+func (x *PrincipalSummary) SetAssignment(v *PrincipalSummary_AssignmentSummary) {
+	x.Assignment = v
+}
+
+func (x *PrincipalSummary) SetProvisioning(v *PrincipalSummary_ProvisioningSummary) {
+	x.Provisioning = v
+}
+
+func (x *PrincipalSummary) SetAccountAssignments(v []*AccountAssignmentRef) {
+	x.AccountAssignments = v
+}
+
+func (x *PrincipalSummary) HasAssignment() bool {
+	if x == nil {
+		return false
+	}
+	return x.Assignment != nil
+}
+
+func (x *PrincipalSummary) HasProvisioning() bool {
+	if x == nil {
+		return false
+	}
+	return x.Provisioning != nil
+}
+
+func (x *PrincipalSummary) ClearAssignment() {
+	x.Assignment = nil
+}
+
+func (x *PrincipalSummary) ClearProvisioning() {
+	x.Provisioning = nil
+}
+
+type PrincipalSummary_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// PrincipalName holds the principal's name in Teleport
+	PrincipalName string
+	// PrincipalType indicates the principal's type, either user or group
+	PrincipalType PrincipalType
+	// Assignment holds summary details for the principal's account assignment
+	// state
+	Assignment *PrincipalSummary_AssignmentSummary
+	// Provisioning holds summary details about the principal's SCIM provisioning
+	// state
+	Provisioning *PrincipalSummary_ProvisioningSummary
+	// AccountAssignments lists the teleport-calculated account assignments for
+	// this principal. This will not be populated in a user listing.
+	AccountAssignments []*AccountAssignmentRef
+}
+
+func (b0 PrincipalSummary_builder) Build() *PrincipalSummary {
+	m0 := &PrincipalSummary{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PrincipalName = b.PrincipalName
+	x.PrincipalType = b.PrincipalType
+	x.Assignment = b.Assignment
+	x.Provisioning = b.Provisioning
+	x.AccountAssignments = b.AccountAssignments
+	return m0
+}
+
 // DescribePrincipalRequest holds the arguments for fetching a principal summary.
 // buf:lint:ignore PAGINATION_REQUIRED
 type DescribePrincipalRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// PrincipalName is the Teleport name of the principal to describe
 	PrincipalName string `protobuf:"bytes,1,opt,name=principal_name,json=principalName,proto3" json:"principal_name,omitempty"`
 	// PrincipalType is the type of the principal to describe.
@@ -160,11 +228,6 @@ func (x *DescribePrincipalRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DescribePrincipalRequest.ProtoReflect.Descriptor instead.
-func (*DescribePrincipalRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_identitycenter_v1_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *DescribePrincipalRequest) GetPrincipalName() string {
 	if x != nil {
 		return x.PrincipalName
@@ -179,9 +242,35 @@ func (x *DescribePrincipalRequest) GetPrincipalType() PrincipalType {
 	return PrincipalType_PRINCIPAL_TYPE_UNSPECIFIED
 }
 
+func (x *DescribePrincipalRequest) SetPrincipalName(v string) {
+	x.PrincipalName = v
+}
+
+func (x *DescribePrincipalRequest) SetPrincipalType(v PrincipalType) {
+	x.PrincipalType = v
+}
+
+type DescribePrincipalRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// PrincipalName is the Teleport name of the principal to describe
+	PrincipalName string
+	// PrincipalType is the type of the principal to describe.
+	PrincipalType PrincipalType
+}
+
+func (b0 DescribePrincipalRequest_builder) Build() *DescribePrincipalRequest {
+	m0 := &DescribePrincipalRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PrincipalName = b.PrincipalName
+	x.PrincipalType = b.PrincipalType
+	return m0
+}
+
 // ListPrincipalsRequest holds the arguments for a list principals response
 type ListPrincipalsRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// PageSize is the requested maximum page size
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	// PageToken if the page-start token for paged results.
@@ -224,11 +313,6 @@ func (x *ListPrincipalsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListPrincipalsRequest.ProtoReflect.Descriptor instead.
-func (*ListPrincipalsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_identitycenter_v1_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *ListPrincipalsRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -264,9 +348,59 @@ func (x *ListPrincipalsRequest) GetPattern() string {
 	return ""
 }
 
+func (x *ListPrincipalsRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListPrincipalsRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+func (x *ListPrincipalsRequest) SetListUsers(v bool) {
+	x.ListUsers = v
+}
+
+func (x *ListPrincipalsRequest) SetListAccessLists(v bool) {
+	x.ListAccessLists = v
+}
+
+func (x *ListPrincipalsRequest) SetPattern(v string) {
+	x.Pattern = v
+}
+
+type ListPrincipalsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// PageSize is the requested maximum page size
+	PageSize int32
+	// PageToken if the page-start token for paged results.
+	PageToken string
+	// ListUsers indicates that the client wants to include user principals in the
+	// returned list.
+	ListUsers bool
+	// ListAccessLists indicates that the client wants to include Access List/
+	// Group principals in the returned list.
+	ListAccessLists bool
+	// Pattern is a glob or regex filter for filtering the returned list by the
+	// principal's Teleport name
+	Pattern string
+}
+
+func (b0 ListPrincipalsRequest_builder) Build() *ListPrincipalsRequest {
+	m0 := &ListPrincipalsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	x.ListUsers = b.ListUsers
+	x.ListAccessLists = b.ListAccessLists
+	x.Pattern = b.Pattern
+	return m0
+}
+
 // ListPrincipalsResponse holds a page of principal status objects
 type ListPrincipalsResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// NextPageToken is the next page token. If there are no more results, it will be empty.
 	NextPageToken string `protobuf:"bytes,1,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
 	// Principals is the page of principal statuses returned by the service.
@@ -300,11 +434,6 @@ func (x *ListPrincipalsResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListPrincipalsResponse.ProtoReflect.Descriptor instead.
-func (*ListPrincipalsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_identitycenter_v1_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *ListPrincipalsResponse) GetNextPageToken() string {
 	if x != nil {
 		return x.NextPageToken
@@ -319,9 +448,35 @@ func (x *ListPrincipalsResponse) GetPrincipals() []*PrincipalSummary {
 	return nil
 }
 
+func (x *ListPrincipalsResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+func (x *ListPrincipalsResponse) SetPrincipals(v []*PrincipalSummary) {
+	x.Principals = v
+}
+
+type ListPrincipalsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// NextPageToken is the next page token. If there are no more results, it will be empty.
+	NextPageToken string
+	// Principals is the page of principal statuses returned by the service.
+	Principals []*PrincipalSummary
+}
+
+func (b0 ListPrincipalsResponse_builder) Build() *ListPrincipalsResponse {
+	m0 := &ListPrincipalsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.NextPageToken = b.NextPageToken
+	x.Principals = b.Principals
+	return m0
+}
+
 // ResetPrincipalRequest holds the arguments for a Principal reset
 type ResetPrincipalRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// PrincipalName is the Teleport name of the principal to reset.
 	PrincipalName string `protobuf:"bytes,1,opt,name=principal_name,json=principalName,proto3" json:"principal_name,omitempty"`
 	// PrincipalType is the type of the principal to reset, either [PRINCIPAL_TYPE_USER]
@@ -356,11 +511,6 @@ func (x *ResetPrincipalRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ResetPrincipalRequest.ProtoReflect.Descriptor instead.
-func (*ResetPrincipalRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_identitycenter_v1_service_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *ResetPrincipalRequest) GetPrincipalName() string {
 	if x != nil {
 		return x.PrincipalName
@@ -375,10 +525,37 @@ func (x *ResetPrincipalRequest) GetPrincipalType() PrincipalType {
 	return PrincipalType_PRINCIPAL_TYPE_UNSPECIFIED
 }
 
+func (x *ResetPrincipalRequest) SetPrincipalName(v string) {
+	x.PrincipalName = v
+}
+
+func (x *ResetPrincipalRequest) SetPrincipalType(v PrincipalType) {
+	x.PrincipalType = v
+}
+
+type ResetPrincipalRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// PrincipalName is the Teleport name of the principal to reset.
+	PrincipalName string
+	// PrincipalType is the type of the principal to reset, either [PRINCIPAL_TYPE_USER]
+	// or [PRINCIPAL_TYPE_ACCESS_LIST]
+	PrincipalType PrincipalType
+}
+
+func (b0 ResetPrincipalRequest_builder) Build() *ResetPrincipalRequest {
+	m0 := &ResetPrincipalRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PrincipalName = b.PrincipalName
+	x.PrincipalType = b.PrincipalType
+	return m0
+}
+
 // ResetPrincipalResponse is the empty response returned by a successful
 // principal reset.
 type ResetPrincipalResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -408,16 +585,23 @@ func (x *ResetPrincipalResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ResetPrincipalResponse.ProtoReflect.Descriptor instead.
-func (*ResetPrincipalResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_identitycenter_v1_service_proto_rawDescGZIP(), []int{5}
+type ResetPrincipalResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 ResetPrincipalResponse_builder) Build() *ResetPrincipalResponse {
+	m0 := &ResetPrincipalResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // ProvisioningSummary holds summary details about a principal's SCIM
 // provisioning state. SCIM provisioning tracks principal creation and group
 // membership in AWS.
 type PrincipalSummary_ProvisioningSummary struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Status        v1.ProvisioningState   `protobuf:"varint,1,opt,name=status,proto3,enum=teleport.provisioning.v1.ProvisioningState" json:"status,omitempty"`
 	ExternalId    string                 `protobuf:"bytes,2,opt,name=external_id,json=externalId,proto3" json:"external_id,omitempty"`
 	Error         string                 `protobuf:"bytes,3,opt,name=error,proto3" json:"error,omitempty"`
@@ -450,11 +634,6 @@ func (x *PrincipalSummary_ProvisioningSummary) ProtoReflect() protoreflect.Messa
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PrincipalSummary_ProvisioningSummary.ProtoReflect.Descriptor instead.
-func (*PrincipalSummary_ProvisioningSummary) Descriptor() ([]byte, []int) {
-	return file_teleport_identitycenter_v1_service_proto_rawDescGZIP(), []int{0, 0}
-}
-
 func (x *PrincipalSummary_ProvisioningSummary) GetStatus() v1.ProvisioningState {
 	if x != nil {
 		return x.Status
@@ -476,11 +655,41 @@ func (x *PrincipalSummary_ProvisioningSummary) GetError() string {
 	return ""
 }
 
+func (x *PrincipalSummary_ProvisioningSummary) SetStatus(v v1.ProvisioningState) {
+	x.Status = v
+}
+
+func (x *PrincipalSummary_ProvisioningSummary) SetExternalId(v string) {
+	x.ExternalId = v
+}
+
+func (x *PrincipalSummary_ProvisioningSummary) SetError(v string) {
+	x.Error = v
+}
+
+type PrincipalSummary_ProvisioningSummary_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Status     v1.ProvisioningState
+	ExternalId string
+	Error      string
+}
+
+func (b0 PrincipalSummary_ProvisioningSummary_builder) Build() *PrincipalSummary_ProvisioningSummary {
+	m0 := &PrincipalSummary_ProvisioningSummary{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Status = b.Status
+	x.ExternalId = b.ExternalId
+	x.Error = b.Error
+	return m0
+}
+
 // AssignmentSummary holds summary details about a principal's account assignment
 // state, tracking whether the Teleport-calculated account assignments have been
 // propagated to AWS.
 type PrincipalSummary_AssignmentSummary struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Status        ProvisioningState      `protobuf:"varint,1,opt,name=status,proto3,enum=teleport.identitycenter.v1.ProvisioningState" json:"status,omitempty"`
 	ExternalId    string                 `protobuf:"bytes,2,opt,name=external_id,json=externalId,proto3" json:"external_id,omitempty"`
 	Error         string                 `protobuf:"bytes,3,opt,name=error,proto3" json:"error,omitempty"`
@@ -513,11 +722,6 @@ func (x *PrincipalSummary_AssignmentSummary) ProtoReflect() protoreflect.Message
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PrincipalSummary_AssignmentSummary.ProtoReflect.Descriptor instead.
-func (*PrincipalSummary_AssignmentSummary) Descriptor() ([]byte, []int) {
-	return file_teleport_identitycenter_v1_service_proto_rawDescGZIP(), []int{0, 1}
-}
-
 func (x *PrincipalSummary_AssignmentSummary) GetStatus() ProvisioningState {
 	if x != nil {
 		return x.Status
@@ -537,6 +741,36 @@ func (x *PrincipalSummary_AssignmentSummary) GetError() string {
 		return x.Error
 	}
 	return ""
+}
+
+func (x *PrincipalSummary_AssignmentSummary) SetStatus(v ProvisioningState) {
+	x.Status = v
+}
+
+func (x *PrincipalSummary_AssignmentSummary) SetExternalId(v string) {
+	x.ExternalId = v
+}
+
+func (x *PrincipalSummary_AssignmentSummary) SetError(v string) {
+	x.Error = v
+}
+
+type PrincipalSummary_AssignmentSummary_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Status     ProvisioningState
+	ExternalId string
+	Error      string
+}
+
+func (b0 PrincipalSummary_AssignmentSummary_builder) Build() *PrincipalSummary_AssignmentSummary {
+	m0 := &PrincipalSummary_AssignmentSummary{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Status = b.Status
+	x.ExternalId = b.ExternalId
+	x.Error = b.Error
+	return m0
 }
 
 var File_teleport_identitycenter_v1_service_proto protoreflect.FileDescriptor
@@ -586,18 +820,6 @@ const file_teleport_identitycenter_v1_service_proto_rawDesc = "" +
 	"\x11DescribePrincipal\x124.teleport.identitycenter.v1.DescribePrincipalRequest\x1a,.teleport.identitycenter.v1.PrincipalSummary\x12w\n" +
 	"\x0eListPrincipals\x121.teleport.identitycenter.v1.ListPrincipalsRequest\x1a2.teleport.identitycenter.v1.ListPrincipalsResponse\x12w\n" +
 	"\x0eResetPrincipal\x121.teleport.identitycenter.v1.ResetPrincipalRequest\x1a2.teleport.identitycenter.v1.ResetPrincipalResponseB`Z^github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1;identitycenterv1b\x06proto3"
-
-var (
-	file_teleport_identitycenter_v1_service_proto_rawDescOnce sync.Once
-	file_teleport_identitycenter_v1_service_proto_rawDescData []byte
-)
-
-func file_teleport_identitycenter_v1_service_proto_rawDescGZIP() []byte {
-	file_teleport_identitycenter_v1_service_proto_rawDescOnce.Do(func() {
-		file_teleport_identitycenter_v1_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_identitycenter_v1_service_proto_rawDesc), len(file_teleport_identitycenter_v1_service_proto_rawDesc)))
-	})
-	return file_teleport_identitycenter_v1_service_proto_rawDescData
-}
 
 var file_teleport_identitycenter_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_teleport_identitycenter_v1_service_proto_goTypes = []any{

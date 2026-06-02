@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/discoveryconfig/v1/discoveryconfig_service.proto
 
+//go:build !protoopaque
+
 package discoveryconfigv1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -38,7 +39,7 @@ const (
 
 // ListDiscoveryConfigsRequest is a request for a paginated list of DiscoveryConfigs.
 type ListDiscoveryConfigsRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// page_size is the size of the page to request.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	// next_token is the page token.
@@ -72,11 +73,6 @@ func (x *ListDiscoveryConfigsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListDiscoveryConfigsRequest.ProtoReflect.Descriptor instead.
-func (*ListDiscoveryConfigsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *ListDiscoveryConfigsRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -91,9 +87,35 @@ func (x *ListDiscoveryConfigsRequest) GetNextToken() string {
 	return ""
 }
 
+func (x *ListDiscoveryConfigsRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListDiscoveryConfigsRequest) SetNextToken(v string) {
+	x.NextToken = v
+}
+
+type ListDiscoveryConfigsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// page_size is the size of the page to request.
+	PageSize int32
+	// next_token is the page token.
+	NextToken string
+}
+
+func (b0 ListDiscoveryConfigsRequest_builder) Build() *ListDiscoveryConfigsRequest {
+	m0 := &ListDiscoveryConfigsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.NextToken = b.NextToken
+	return m0
+}
+
 // ListDiscoveryConfigsResponse is the response for ListDiscoveryConfigsRequest.
 type ListDiscoveryConfigsResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// DiscoveryConfigs is a list of DiscoveryConfigs.
 	DiscoveryConfigs []*DiscoveryConfig `protobuf:"bytes,1,rep,name=discovery_configs,json=discoveryConfigs,proto3" json:"discovery_configs,omitempty"`
 	// NextKey is the key for the next page of DiscoveryConfigs.
@@ -129,11 +151,6 @@ func (x *ListDiscoveryConfigsResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListDiscoveryConfigsResponse.ProtoReflect.Descriptor instead.
-func (*ListDiscoveryConfigsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *ListDiscoveryConfigsResponse) GetDiscoveryConfigs() []*DiscoveryConfig {
 	if x != nil {
 		return x.DiscoveryConfigs
@@ -155,9 +172,42 @@ func (x *ListDiscoveryConfigsResponse) GetTotalCount() int32 {
 	return 0
 }
 
+func (x *ListDiscoveryConfigsResponse) SetDiscoveryConfigs(v []*DiscoveryConfig) {
+	x.DiscoveryConfigs = v
+}
+
+func (x *ListDiscoveryConfigsResponse) SetNextKey(v string) {
+	x.NextKey = v
+}
+
+func (x *ListDiscoveryConfigsResponse) SetTotalCount(v int32) {
+	x.TotalCount = v
+}
+
+type ListDiscoveryConfigsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// DiscoveryConfigs is a list of DiscoveryConfigs.
+	DiscoveryConfigs []*DiscoveryConfig
+	// NextKey is the key for the next page of DiscoveryConfigs.
+	NextKey string
+	// TotalCount is the total number of discovery_config in all pages.
+	TotalCount int32
+}
+
+func (b0 ListDiscoveryConfigsResponse_builder) Build() *ListDiscoveryConfigsResponse {
+	m0 := &ListDiscoveryConfigsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.DiscoveryConfigs = b.DiscoveryConfigs
+	x.NextKey = b.NextKey
+	x.TotalCount = b.TotalCount
+	return m0
+}
+
 // GetDiscoveryConfigRequest is a request for a specific DiscoveryConfig resource.
 type GetDiscoveryConfigRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the name of the DiscoveryConfig to be requested.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -189,11 +239,6 @@ func (x *GetDiscoveryConfigRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetDiscoveryConfigRequest.ProtoReflect.Descriptor instead.
-func (*GetDiscoveryConfigRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *GetDiscoveryConfigRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -201,9 +246,28 @@ func (x *GetDiscoveryConfigRequest) GetName() string {
 	return ""
 }
 
+func (x *GetDiscoveryConfigRequest) SetName(v string) {
+	x.Name = v
+}
+
+type GetDiscoveryConfigRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the name of the DiscoveryConfig to be requested.
+	Name string
+}
+
+func (b0 GetDiscoveryConfigRequest_builder) Build() *GetDiscoveryConfigRequest {
+	m0 := &GetDiscoveryConfigRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // CreateDiscoveryConfigRequest is the request to create the provided DiscoveryConfig.
 type CreateDiscoveryConfigRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// DiscoveryConfig is the DiscoveryConfig to be created.
 	DiscoveryConfig *DiscoveryConfig `protobuf:"bytes,1,opt,name=discovery_config,json=discoveryConfig,proto3" json:"discovery_config,omitempty"`
 	unknownFields   protoimpl.UnknownFields
@@ -235,11 +299,6 @@ func (x *CreateDiscoveryConfigRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateDiscoveryConfigRequest.ProtoReflect.Descriptor instead.
-func (*CreateDiscoveryConfigRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *CreateDiscoveryConfigRequest) GetDiscoveryConfig() *DiscoveryConfig {
 	if x != nil {
 		return x.DiscoveryConfig
@@ -247,9 +306,39 @@ func (x *CreateDiscoveryConfigRequest) GetDiscoveryConfig() *DiscoveryConfig {
 	return nil
 }
 
+func (x *CreateDiscoveryConfigRequest) SetDiscoveryConfig(v *DiscoveryConfig) {
+	x.DiscoveryConfig = v
+}
+
+func (x *CreateDiscoveryConfigRequest) HasDiscoveryConfig() bool {
+	if x == nil {
+		return false
+	}
+	return x.DiscoveryConfig != nil
+}
+
+func (x *CreateDiscoveryConfigRequest) ClearDiscoveryConfig() {
+	x.DiscoveryConfig = nil
+}
+
+type CreateDiscoveryConfigRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// DiscoveryConfig is the DiscoveryConfig to be created.
+	DiscoveryConfig *DiscoveryConfig
+}
+
+func (b0 CreateDiscoveryConfigRequest_builder) Build() *CreateDiscoveryConfigRequest {
+	m0 := &CreateDiscoveryConfigRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.DiscoveryConfig = b.DiscoveryConfig
+	return m0
+}
+
 // UpdateDiscoveryConfigRequest is the request to update the provided DiscoveryConfig.
 type UpdateDiscoveryConfigRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// DiscoveryConfig is the DiscoveryConfig to be updated.
 	DiscoveryConfig *DiscoveryConfig `protobuf:"bytes,1,opt,name=discovery_config,json=discoveryConfig,proto3" json:"discovery_config,omitempty"`
 	unknownFields   protoimpl.UnknownFields
@@ -281,11 +370,6 @@ func (x *UpdateDiscoveryConfigRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateDiscoveryConfigRequest.ProtoReflect.Descriptor instead.
-func (*UpdateDiscoveryConfigRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *UpdateDiscoveryConfigRequest) GetDiscoveryConfig() *DiscoveryConfig {
 	if x != nil {
 		return x.DiscoveryConfig
@@ -293,9 +377,39 @@ func (x *UpdateDiscoveryConfigRequest) GetDiscoveryConfig() *DiscoveryConfig {
 	return nil
 }
 
+func (x *UpdateDiscoveryConfigRequest) SetDiscoveryConfig(v *DiscoveryConfig) {
+	x.DiscoveryConfig = v
+}
+
+func (x *UpdateDiscoveryConfigRequest) HasDiscoveryConfig() bool {
+	if x == nil {
+		return false
+	}
+	return x.DiscoveryConfig != nil
+}
+
+func (x *UpdateDiscoveryConfigRequest) ClearDiscoveryConfig() {
+	x.DiscoveryConfig = nil
+}
+
+type UpdateDiscoveryConfigRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// DiscoveryConfig is the DiscoveryConfig to be updated.
+	DiscoveryConfig *DiscoveryConfig
+}
+
+func (b0 UpdateDiscoveryConfigRequest_builder) Build() *UpdateDiscoveryConfigRequest {
+	m0 := &UpdateDiscoveryConfigRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.DiscoveryConfig = b.DiscoveryConfig
+	return m0
+}
+
 // UpsertDiscoveryConfigRequest is the request to upsert the provided DiscoveryConfig.
 type UpsertDiscoveryConfigRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// DiscoveryConfig is the DiscoveryConfig to be upserted.
 	DiscoveryConfig *DiscoveryConfig `protobuf:"bytes,1,opt,name=discovery_config,json=discoveryConfig,proto3" json:"discovery_config,omitempty"`
 	unknownFields   protoimpl.UnknownFields
@@ -327,11 +441,6 @@ func (x *UpsertDiscoveryConfigRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertDiscoveryConfigRequest.ProtoReflect.Descriptor instead.
-func (*UpsertDiscoveryConfigRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *UpsertDiscoveryConfigRequest) GetDiscoveryConfig() *DiscoveryConfig {
 	if x != nil {
 		return x.DiscoveryConfig
@@ -339,9 +448,39 @@ func (x *UpsertDiscoveryConfigRequest) GetDiscoveryConfig() *DiscoveryConfig {
 	return nil
 }
 
+func (x *UpsertDiscoveryConfigRequest) SetDiscoveryConfig(v *DiscoveryConfig) {
+	x.DiscoveryConfig = v
+}
+
+func (x *UpsertDiscoveryConfigRequest) HasDiscoveryConfig() bool {
+	if x == nil {
+		return false
+	}
+	return x.DiscoveryConfig != nil
+}
+
+func (x *UpsertDiscoveryConfigRequest) ClearDiscoveryConfig() {
+	x.DiscoveryConfig = nil
+}
+
+type UpsertDiscoveryConfigRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// DiscoveryConfig is the DiscoveryConfig to be upserted.
+	DiscoveryConfig *DiscoveryConfig
+}
+
+func (b0 UpsertDiscoveryConfigRequest_builder) Build() *UpsertDiscoveryConfigRequest {
+	m0 := &UpsertDiscoveryConfigRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.DiscoveryConfig = b.DiscoveryConfig
+	return m0
+}
+
 // DeleteDiscoveryConfigRequest is a request for deleting a specific DiscoveryConfig resource.
 type DeleteDiscoveryConfigRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the name of the DiscoveryConfig to be deleted.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -373,11 +512,6 @@ func (x *DeleteDiscoveryConfigRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteDiscoveryConfigRequest.ProtoReflect.Descriptor instead.
-func (*DeleteDiscoveryConfigRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *DeleteDiscoveryConfigRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -385,9 +519,28 @@ func (x *DeleteDiscoveryConfigRequest) GetName() string {
 	return ""
 }
 
+func (x *DeleteDiscoveryConfigRequest) SetName(v string) {
+	x.Name = v
+}
+
+type DeleteDiscoveryConfigRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the name of the DiscoveryConfig to be deleted.
+	Name string
+}
+
+func (b0 DeleteDiscoveryConfigRequest_builder) Build() *DeleteDiscoveryConfigRequest {
+	m0 := &DeleteDiscoveryConfigRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // DeleteAllDiscoveryConfigsRequest is the request for deleting all DiscoveryConfigs.
 type DeleteAllDiscoveryConfigsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -417,15 +570,22 @@ func (x *DeleteAllDiscoveryConfigsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteAllDiscoveryConfigsRequest.ProtoReflect.Descriptor instead.
-func (*DeleteAllDiscoveryConfigsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_rawDescGZIP(), []int{7}
+type DeleteAllDiscoveryConfigsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 DeleteAllDiscoveryConfigsRequest_builder) Build() *DeleteAllDiscoveryConfigsRequest {
+	m0 := &DeleteAllDiscoveryConfigsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // UpdateDiscoveryConfigStatusRequest is the request to update the status field of the provided
 // Discovery Config.
 type UpdateDiscoveryConfigStatusRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the name of the DiscoveryConfig to receive the status update.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// status is the status payload to be persisted.
@@ -459,11 +619,6 @@ func (x *UpdateDiscoveryConfigStatusRequest) ProtoReflect() protoreflect.Message
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateDiscoveryConfigStatusRequest.ProtoReflect.Descriptor instead.
-func (*UpdateDiscoveryConfigStatusRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_rawDescGZIP(), []int{8}
-}
-
 func (x *UpdateDiscoveryConfigStatusRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -476,6 +631,43 @@ func (x *UpdateDiscoveryConfigStatusRequest) GetStatus() *DiscoveryConfigStatus 
 		return x.Status
 	}
 	return nil
+}
+
+func (x *UpdateDiscoveryConfigStatusRequest) SetName(v string) {
+	x.Name = v
+}
+
+func (x *UpdateDiscoveryConfigStatusRequest) SetStatus(v *DiscoveryConfigStatus) {
+	x.Status = v
+}
+
+func (x *UpdateDiscoveryConfigStatusRequest) HasStatus() bool {
+	if x == nil {
+		return false
+	}
+	return x.Status != nil
+}
+
+func (x *UpdateDiscoveryConfigStatusRequest) ClearStatus() {
+	x.Status = nil
+}
+
+type UpdateDiscoveryConfigStatusRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the name of the DiscoveryConfig to receive the status update.
+	Name string
+	// status is the status payload to be persisted.
+	Status *DiscoveryConfigStatus
+}
+
+func (b0 UpdateDiscoveryConfigStatusRequest_builder) Build() *UpdateDiscoveryConfigStatusRequest {
+	m0 := &UpdateDiscoveryConfigStatusRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Status = b.Status
+	return m0
 }
 
 var File_teleport_discoveryconfig_v1_discoveryconfig_service_proto protoreflect.FileDescriptor
@@ -515,18 +707,6 @@ const file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_rawDesc = "
 	"\x15DeleteDiscoveryConfig\x129.teleport.discoveryconfig.v1.DeleteDiscoveryConfigRequest\x1a\x16.google.protobuf.Empty\x12r\n" +
 	"\x19DeleteAllDiscoveryConfigs\x12=.teleport.discoveryconfig.v1.DeleteAllDiscoveryConfigsRequest\x1a\x16.google.protobuf.Empty\x12\x8c\x01\n" +
 	"\x1bUpdateDiscoveryConfigStatus\x12?.teleport.discoveryconfig.v1.UpdateDiscoveryConfigStatusRequest\x1a,.teleport.discoveryconfig.v1.DiscoveryConfigBbZ`github.com/gravitational/teleport/api/gen/proto/go/teleport/discoveryconfig/v1;discoveryconfigv1b\x06proto3"
-
-var (
-	file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_rawDescOnce sync.Once
-	file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_rawDescData []byte
-)
-
-func file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_rawDescGZIP() []byte {
-	file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_rawDescOnce.Do(func() {
-		file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_rawDesc), len(file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_rawDesc)))
-	})
-	return file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_rawDescData
-}
 
 var file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_msgTypes = make([]protoimpl.MessageInfo, 9)
 var file_teleport_discoveryconfig_v1_discoveryconfig_service_proto_goTypes = []any{
