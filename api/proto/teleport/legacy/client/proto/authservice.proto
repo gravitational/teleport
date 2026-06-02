@@ -1196,7 +1196,9 @@ message DatabaseCertResponse {
   // Cert and TrustChain are the certificates the client should present
   // (tls.Config.Certificates). Pseudocode:
   //
-  // 	tlsConfig.Certificates = append([]*tls.Certificate{resp.Cert}, resp.TrustChain...)
+  // 	tlsConfig.Certificates = []tls.Certificate{{
+  // 		Certificate: append([][]byte{resp.Cert}, resp.TrustChain...),
+  // 	}}
   repeated bytes TrustChain = 3 [(gogoproto.jsontag) = "trust_chain"];
   // CA override details. Optional.
   // If present then a CA override was active during certificate issuance.
