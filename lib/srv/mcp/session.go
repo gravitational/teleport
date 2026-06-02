@@ -223,7 +223,8 @@ func (s *sessionHandler) onClientNotification(serverRequestWriter mcputils.Messa
 
 func (s *sessionHandler) onClientRequest(clientResponseWriter, serverRequestWriter mcputils.MessageWriter) mcputils.HandleRequestFunc {
 	return func(ctx context.Context, request *mcputils.JSONRPCRequest) error {
-		if errMsg := s.processClientRequest(ctx, request); errMsg != nil {
+		request, errMsg := s.processClientRequest(ctx, request)
+		if errMsg != nil {
 			// Respond immediately
 			s.emitRequestEvent(ctx, request, eventWithError(toError(*errMsg)))
 			return trace.Wrap(clientResponseWriter.WriteMessage(ctx, *errMsg))
@@ -250,7 +251,7 @@ func (s *sessionHandler) onServerResponse(clientResponseWriter mcputils.MessageW
 	}
 }
 
-func (s *sessionHandler) processClientRequest(ctx context.Context, req *mcputils.JSONRPCRequest) *mcp.JSONRPCError {
+func (s *sessionHandler) processClientRequest(ctx context.Context, req *mcputils.JSONRPCRequest) (*mcputils.JSONRPCRequest, *mcp.JSONRPCError) {
 	messagesFromClient.WithLabelValues(s.transport, "request", reportRequestMethod(req.Method)).Inc()
 
 	switch req.Method {
@@ -263,10 +264,10 @@ func (s *sessionHandler) processClientRequest(ctx context.Context, req *mcputils
 		sanitizeParamsName(req.Params)
 		toolName, _ := req.Params.GetName()
 		if toolName == "" {
-			return makeInvalidRequestResponse(req, errInvalidRequestMissingName)
+			return req, makeInvalidRequestResponse(req, errInvalidRequestMissingName)
 		}
 		if authErr := s.checkAccessToTool(ctx, toolName); authErr != nil {
-			return makeToolAccessDeniedResponse(req, authErr)
+			return req, makeToolAccessDeniedResponse(req, authErr)
 		}
 	}
 
@@ -274,7 +275,7 @@ func (s *sessionHandler) processClientRequest(ctx context.Context, req *mcputils
 	// first request coming in (with the exception of the ping).
 	s.idTracker.PushRequest(req)
 
-	return nil
+	return req, nil
 }
 
 func (s *sessionHandler) processClientNotification(_ context.Context, notification *mcputils.JSONRPCNotification) {

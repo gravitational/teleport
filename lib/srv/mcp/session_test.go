@@ -202,7 +202,7 @@ func Test_sessionHandler(t *testing.T) {
 
 				// First make a request so the handler can track the method by ID.
 				clientReq := requestBuilder.makeToolsListRequest()
-				respErr := handler.processClientRequest(ctx, clientReq)
+				clientReq, respErr := handler.processClientRequest(ctx, clientReq)
 				require.Nil(t, respErr)
 
 				// tools/list does not trigger audit event.
