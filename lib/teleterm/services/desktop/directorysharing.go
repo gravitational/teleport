@@ -194,9 +194,6 @@ func (d *DirectoryAccess) Create(relativePath string, fileType FileType) error {
 	case FileTypeFile:
 		file, err := d.root.Create(path)
 		if err != nil {
-			if errors.Is(err, fs.ErrExist) {
-				return nil // Ignore if file already exists
-			}
 			return trace.ConvertSystemError(err)
 		}
 		return trace.ConvertSystemError(file.Close())
