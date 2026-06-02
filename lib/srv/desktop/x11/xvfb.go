@@ -65,7 +65,11 @@ func init() {
 type Config struct {
 	// ClipboardDataReceiver is consumer for clipboard data received from X11.
 	ClipboardDataReceiver func([]byte)
-	Logger                *slog.Logger
+	// CursorReceiver consumes cursor sprite updates from the X server on every
+	// display-cursor change. bgra is width*height*4 bytes, BGRA top-down
+	// (little-endian ARGB uint32 layout).
+	CursorReceiver func(width, height, hotspotX, hotspotY uint16, bgra []byte)
+	Logger         *slog.Logger
 }
 
 // Backend is responsible for communication with selected X11 backend.
@@ -166,6 +170,10 @@ func getBackendCommand(ctx context.Context, authorityFile string) (*exec.Cmd, er
 	}
 }
 
+// pixelsToMm converts a pixel count to the physical mm the X server advertises.
+// We always report a fixed 96 DPI: mutter watches the X-reported DPI and
+// autonomously enables HiDPI at >= ~192, which fatally disconnects on Xvfb.
+// HiDPI is instead driven via per-DE XSETTINGS (and ApplyMonitorsConfig for GNOME).
 func pixelsToMm(pixels uint16) uint32 {
 	return uint32(float64(pixels) / dpi * 25.4)
 }
@@ -304,6 +312,9 @@ func NewBackend(ctx context.Context, config Config) (*Backend, error) {
 	if err := xfixes.SelectSelectionInputChecked(conn, root, clipboardAtom, xfixes.SelectionEventMaskSetSelectionOwner).Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if err := xfixes.SelectCursorInputChecked(conn, root, xfixes.CursorNotifyMaskDisplayCursor).Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	clipWindow, err := xproto.NewWindowId(conn)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -433,10 +444,41 @@ func (x *Backend) processEvents() {
 			x.config.ClipboardDataReceiver(prop.Value)
 		case xfixes.SelectionNotifyEvent:
 			xproto.ConvertSelection(x.conn, x.clipboardWindow, x.clipboardAtom, x.utf8Atom, x.selectionAtom, 0)
+		case xfixes.CursorNotifyEvent:
+			x.SendCurrentCursor()
 		default:
 			x.config.Logger.WarnContext(x.ctx, "Unrecognized event", "event", event)
 		}
 	}
+}
+
+// SendCurrentCursor fetches the X server's current cursor and passes the sprite
+// (BGRA top-down) to CursorReceiver; no-op if none is configured. Call only
+// after ServerHello: the sprite ships as a FastPath PDU, which the web client
+// can't process until its FastPathProcessor is initialized.
+func (x *Backend) SendCurrentCursor() {
+	if x.config.CursorReceiver == nil {
+		return
+	}
+	reply, err := xfixes.GetCursorImage(x.conn).Reply()
+	if err != nil {
+		x.config.Logger.ErrorContext(x.ctx, "failed to fetch X cursor image", "error", err)
+		return
+	}
+	if reply == nil || reply.Width == 0 || reply.Height == 0 {
+		return
+	}
+	// XFixes returns the sprite as a stream of 32-bit ARGB pixels. xgb reads each
+	// u32 little-endian, so the in-memory byte order of each pixel is B, G, R, A,
+	// which is the byte order the RDP NewPointer PDU expects.
+	bgra := make([]byte, int(reply.Width)*int(reply.Height)*4)
+	for i, pix := range reply.CursorImage {
+		bgra[i*4+0] = byte(pix)
+		bgra[i*4+1] = byte(pix >> 8)
+		bgra[i*4+2] = byte(pix >> 16)
+		bgra[i*4+3] = byte(pix >> 24)
+	}
+	x.config.CursorReceiver(reply.Width, reply.Height, reply.Xhot, reply.Yhot, bgra)
 }
 
 func (x *Backend) root() xproto.Window {
@@ -453,6 +495,8 @@ func (x *Backend) Close() error {
 	var e *exec.ExitError
 
 	err := x.cmd.Wait()
+	x.config.Logger.DebugContext(x.ctx, "Xvfb process exited",
+		"error", err, "exit_code", x.cmd.ProcessState.ExitCode())
 	if errors.As(err, &e) {
 		return nil
 	}
@@ -626,8 +670,15 @@ func (x *Backend) SendNoOpEvent() error {
 	return trace.Wrap(err)
 }
 
-// Resize changes the virtual screen size.
-func (x *Backend) Resize(width, height uint16) error {
+// EnsureMode ensures the primary output has a RandR mode of the given size,
+// creating one only if no same-dimension mode exists. The dedup matters because
+// Resize runs once per ScreenChangeNotify during the gnome-shell startup stomp
+// loop; without it the mode list stacks duplicates and setScreenSize's
+// slices.IndexFunc picks a stale entry, leaving a black framebuffer.
+//
+// The mode is not activated; callers hand the mode_id to mutter via
+// DisplayConfig.ApplyMonitorsConfig.
+func (x *Backend) EnsureMode(width, height uint16) error {
 	if width > types.MaxRDPScreenWidth || height > types.MaxRDPScreenHeight {
 		return trace.BadParameter("invalid size %dx%d, maximum size is %dx%d", width, height, types.MaxRDPScreenWidth, types.MaxRDPScreenHeight)
 	}
@@ -635,52 +686,62 @@ func (x *Backend) Resize(width, height uint16) error {
 	conn := x.conn
 	root := x.root()
 
-	resources, err := randr.GetScreenResources(conn, x.root()).Reply()
+	resources, err := randr.GetScreenResources(conn, root).Reply()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	if len(resources.Outputs) == 0 {
 		return trace.BadParameter("no outputs available")
 	}
 
-	found := false
 	for _, m := range resources.Modes {
 		if m.Width == width && m.Height == height {
-			found = true
-			break
+			return nil
 		}
 	}
 
-	if !found {
-		modeName := fmt.Sprintf("m%d", modeCount.Add(1))
-
-		id, err := conn.NewId()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		m, err := randr.CreateMode(conn, root, randr.ModeInfo{
-			Id:      id,
-			Width:   width,
-			Height:  height,
-			NameLen: uint16(len(modeName)),
-		}, modeName).Reply()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		mode := m.Mode
-		if err := randr.AddOutputModeChecked(conn, resources.Outputs[0], mode).Check(); err != nil {
-			return trace.Wrap(err)
-		}
+	modeName := fmt.Sprintf("m%d", modeCount.Add(1))
+	id, err := conn.NewId()
+	if err != nil {
+		return trace.Wrap(err)
 	}
+	m, err := randr.CreateMode(conn, root, randr.ModeInfo{
+		Id:      id,
+		Width:   width,
+		Height:  height,
+		NameLen: uint16(len(modeName)),
+	}, modeName).Reply()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := randr.AddOutputModeChecked(conn, resources.Outputs[0], m.Mode).Check(); err != nil {
+		return trace.Wrap(err)
+	}
+	x.config.Logger.DebugContext(x.ctx, "EnsureMode: created mode",
+		"name", modeName, "mode_id", uint32(m.Mode), "width", width, "height", height)
+	return nil
+}
 
+// SetDesired records the size the screen should settle at, used by the restore
+// guard in processEvents to ignore stomps. Call after handing the resize to
+// mutter via ApplyMonitorsConfig so the guard doesn't fight mutter's own switch.
+func (x *Backend) SetDesired(width, height uint16) {
+	x.mu.Lock()
+	x.width = width
+	x.height = height
+	x.mu.Unlock()
+}
+
+// Resize changes the virtual screen size.
+func (x *Backend) Resize(width, height uint16) error {
+	if err := x.EnsureMode(width, height); err != nil {
+		return trace.Wrap(err)
+	}
 	x.mu.Lock()
 	defer x.mu.Unlock()
-
 	if err := x.setScreenSizeLocked(width, height); err != nil {
 		return trace.Wrap(err)
 	}
-
 	return nil
 }
 
@@ -747,7 +808,6 @@ func (x *Backend) setScreenSizeLocked(width, height uint16) error {
 		return trace.Wrap(err)
 	}
 
-	// Recalculate physical dimensions to preserve DPI
 	widthMm := pixelsToMm(width)
 	heightMm := pixelsToMm(height)
 	if err := randr.SetScreenSizeChecked(conn, root, width, height, widthMm, heightMm).Check(); err != nil {

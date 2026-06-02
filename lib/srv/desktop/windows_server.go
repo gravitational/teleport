@@ -1156,10 +1156,17 @@ func (s *WindowsService) nameForStaticHost(addr string) (string, error) {
 
 // timer returns a closure that on each call returns the
 // number of milliseconds that have elapsed since the first call.
-// it returns 0 on the very first call.
+// it returns 0 on the very first call. The closure is safe for
+// concurrent use: send and receive auditors share one timer and
+// call it from different goroutines.
 func timer() func() int64 {
-	var first time.Time
+	var (
+		mu    sync.Mutex
+		first time.Time
+	)
 	return func() int64 {
+		mu.Lock()
+		defer mu.Unlock()
 		if first.IsZero() {
 			first = time.Now()
 			return 0

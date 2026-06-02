@@ -46,6 +46,13 @@ const (
 
 	// maxMessageLength is the maximum allowed TDPB message body size (16 MiB - 1).
 	maxMessageLength = (1 << 24) - 1
+
+	// Linux desktop sessions don't run MCS, so they record ServerHello with
+	// zero channel IDs. ironrdp-session's FastPath processor rejects zero
+	// values and silently drops every surface update, so we substitute the
+	// conventional RDP defaults when initializing the decoder.
+	defaultIoChannelID   = 1003
+	defaultUserChannelID = 1007
 )
 
 // RDPState reconstructs the screen state of a desktop session by processing a sequence of DesktopRecording events.
@@ -274,6 +281,10 @@ func (s *RDPState) handleServerHello(msg *tdpbv1.ServerHello) error {
 		ioChan, userChan := spec.GetIoChannelId(), spec.GetUserChannelId()
 		if ioChan > math.MaxUint16 || userChan > math.MaxUint16 {
 			return trace.BadParameter("channel IDs out of range: io=%d, user=%d", ioChan, userChan)
+		}
+		if ioChan == 0 && userChan == 0 {
+			ioChan = defaultIoChannelID
+			userChan = defaultUserChannelID
 		}
 		ioChannelID := uint16(ioChan)
 		userChannelID := uint16(userChan)

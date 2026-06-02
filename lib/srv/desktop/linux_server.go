@@ -297,9 +297,54 @@ type linuxSession struct {
 	screenSize     xproto.Rectangle
 	sendFullScreen bool
 
+	// requestedScale is the client display scale factor as a percentage
+	// (e.g. 100 for 1x, 200 for 2x). Defaults to 100 when the client
+	// doesn't request a higher scale.
+	requestedScale uint16
+
+	// desktopEnvironment is detected in handleSessionSelection and used
+	// by both startup and mid-session scaling-factor updates.
+	desktopEnvironment x11.DesktopEnvironment
+
 	sessionStarted bool
 	username       string
 	allowClipboard bool
+
+	// serverHelloSent gates cursor sends: the client only initializes its
+	// FastPath processor on ServerHello, so cursor PDUs sent earlier are rejected.
+	serverHelloSent atomic.Bool
+}
+
+// maxScalePercent caps the client scale so it fits in a uint16 and can't
+// overflow the applyDesktopScale multiply.
+const maxScalePercent = 1000
+
+// clampScalePercent narrows the uint32 proto scale to a uint16, leaving 0 as
+// "unset" for callers to default.
+func clampScalePercent(scale uint32) uint16 {
+	if scale > maxScalePercent {
+		return maxScalePercent
+	}
+	return uint16(scale)
+}
+
+// applyDesktopScale scales CSS pixel dimensions by a percentage (200 -> 2x);
+// <=100 is a no-op. It saturates at uint32 max so an oversized request can't
+// wrap past the caller's MaxRDPScreen bounds check.
+func applyDesktopScale(width, height uint32, scale uint16) (uint32, uint32) {
+	if scale <= 100 {
+		return width, height
+	}
+	return scaleDimension(width, scale), scaleDimension(height, scale)
+}
+
+func scaleDimension(dimension uint32, scale uint16) uint32 {
+	const maxUint32 = uint64(1)<<32 - 1
+	scaled := uint64(dimension) * uint64(scale) / 100
+	if scaled > maxUint32 {
+		return uint32(maxUint32)
+	}
+	return uint32(scaled)
 }
 
 func (sess *linuxSession) sendTDPError(message string) {
@@ -321,6 +366,32 @@ func (sess *linuxSession) handleClipboardData(data []byte) {
 	sess.writeMessage(&tdpb.ClipboardData{
 		Data: data,
 	})
+}
+
+// handleCursorChange forwards an X server cursor sprite to the client as an RDP
+// FastPath NewPointer PDU, wrapped in a TDPB FastPathPDU so it's captured in
+// session recordings alongside framebuffer updates.
+func (sess *linuxSession) handleCursorChange(width, height, hotspotX, hotspotY uint16, bgra []byte) {
+	// processEvents can deliver cursor changes before ServerHello; drop them
+	// until the client's FastPath processor exists.
+	if !sess.serverHelloSent.Load() {
+		return
+	}
+	pdu, err := rdpclient.EncodePointerBitmap(bgra, width, height, hotspotX, hotspotY)
+	if err != nil {
+		// Sprites too large for a FastPath PDU (e.g. large accessibility cursors)
+		// fall back to the client's default cursor instead of a stale one.
+		sess.log.DebugContext(sess.ctx, "cursor sprite too large to encode, using default pointer",
+			"error", err, "width", width, "height", height)
+		if pdu, err = rdpclient.EncodePointerDefault(); err != nil {
+			sess.log.WarnContext(sess.ctx, "failed to encode default pointer", "error", err)
+			return
+		}
+	}
+	// writeMessage swallows benign disconnect errors during teardown.
+	if err := sess.writeMessage(pdu); err != nil {
+		sess.log.WarnContext(sess.ctx, "failed to send cursor update", "error", err)
+	}
 }
 
 // Serve starts serving TLS connections for plainLis. plainLis should be a TCP
@@ -679,6 +750,7 @@ func (sess *linuxSession) handleClientHello(m *tdpb.ClientHello) error {
 
 	backend, err := x11.NewBackend(sess.ctx, x11.Config{
 		ClipboardDataReceiver: sess.handleClipboardData,
+		CursorReceiver:        sess.handleCursorChange,
 		Logger:                sess.log,
 	})
 	if err != nil {
@@ -709,14 +781,20 @@ func (sess *linuxSession) handleClientHello(m *tdpb.ClientHello) error {
 		return trace.BadParameter("missing screen spec")
 	}
 
-	if m.ScreenSpec.Width > types.MaxRDPScreenWidth || m.ScreenSpec.Height > types.MaxRDPScreenHeight {
-		sess.log.ErrorContext(sess.ctx, "invalid screen size", "width", m.ScreenSpec.Width, "height", m.ScreenSpec.Height)
+	sess.requestedScale = clampScalePercent(m.ScreenSpec.GetScale())
+	if sess.requestedScale == 0 {
+		sess.requestedScale = 100
+	}
+
+	scaledWidth, scaledHeight := applyDesktopScale(m.ScreenSpec.Width, m.ScreenSpec.Height, sess.requestedScale)
+	if scaledWidth > types.MaxRDPScreenWidth || scaledHeight > types.MaxRDPScreenHeight {
+		sess.log.ErrorContext(sess.ctx, "invalid screen size", "width", scaledWidth, "height", scaledHeight, "scale", sess.requestedScale)
 		sess.sendTDPError(fmt.Sprintf("Screen is too large. Maximum is %dx%d", types.MaxRDPScreenWidth, types.MaxRDPScreenHeight))
 		return trace.BadParameter("invalid screen size")
 	}
 
-	width := uint16(m.ScreenSpec.Width)
-	height := uint16(m.ScreenSpec.Height)
+	width := uint16(scaledWidth)
+	height := uint16(scaledHeight)
 	sess.screenSize.Width = width
 	sess.screenSize.Height = height
 	if err := sess.backend.Resize(width, height); err != nil {
@@ -734,15 +812,20 @@ func (sess *linuxSession) handleClientHello(m *tdpb.ClientHello) error {
 		ActivationSpec: &tdpbv1.ConnectionActivated{
 			IoChannelId:   0,
 			UserChannelId: 0,
-			ScreenWidth:   m.ScreenSpec.Width,
-			ScreenHeight:  m.ScreenSpec.Height,
+			ScreenWidth:   scaledWidth,
+			ScreenHeight:  scaledHeight,
 		},
 		ClipboardEnabled: true,
 		Sessions:         sessions,
+		HidpiSupported:   true,
 	}); err != nil {
 		sess.log.WarnContext(sess.ctx, "failed to send server hello", "error", err)
 		return trace.Wrap(err)
 	}
+	// FastPath processor is up now; let cursor PDUs through.
+	sess.serverHelloSent.Store(true)
+	// Send the current cursor sprite to the client.
+	sess.backend.SendCurrentCursor()
 	go sess.processScreenChanges()
 	go func() {
 		// Simulate activity to prevent lock screen from activating
@@ -807,14 +890,17 @@ func (sess *linuxSession) handleSessionSelection(m *tdpbv1.SessionSelection) err
 		sess.sendTDPError(fmt.Sprintf("Couldn't find xsession %s.", sessionName))
 		return trace.NotFound("xsession %s not found", sessionName)
 	}
+	sess.desktopEnvironment = x11.DetectDesktopEnvironment(xsession)
 	cmd, err := x11.StartTeleportExecXSession(sess.ctx, &x11.XSessionConfig{
-		Logger:         sess.log,
-		Command:        xsession,
-		Username:       sess.identity.Username,
-		Login:          sess.username,
-		ChildLogConfig: sess.service.cfg.ChildLogConfig,
-		Display:        sess.backend.Display,
-		AuthorityFile:  sess.backend.AuthorityFile,
+		Logger:             sess.log,
+		Command:            xsession,
+		Username:           sess.identity.Username,
+		Login:              sess.username,
+		ChildLogConfig:     sess.service.cfg.ChildLogConfig,
+		Display:            sess.backend.Display,
+		AuthorityFile:      sess.backend.AuthorityFile,
+		ScalePercent:       sess.requestedScale,
+		DesktopEnvironment: sess.desktopEnvironment,
 	})
 	if err != nil {
 		sess.log.ErrorContext(sess.ctx, "failed to start Xsession", "error", err)
@@ -839,29 +925,119 @@ func (sess *linuxSession) handleSessionSelection(m *tdpbv1.SessionSelection) err
 }
 
 func (sess *linuxSession) handleClientScreenSpec(m *tdpb.ClientScreenSpec) error {
-	if m.Width > types.MaxRDPScreenWidth || m.Height > types.MaxRDPScreenHeight {
-		sess.log.ErrorContext(sess.ctx, "invalid screen size", "width", m.Width, "height", m.Height)
+	previousScale := sess.requestedScale
+	newScale := sess.requestedScale
+	if m.Scale > 0 {
+		newScale = clampScalePercent(m.Scale)
+	}
+	if newScale == 0 {
+		newScale = 100
+	}
+
+	scaledWidth, scaledHeight := applyDesktopScale(m.Width, m.Height, newScale)
+	if scaledWidth > types.MaxRDPScreenWidth || scaledHeight > types.MaxRDPScreenHeight {
+		sess.log.ErrorContext(sess.ctx, "invalid screen size", "width", scaledWidth, "height", scaledHeight, "scale", newScale)
 		sess.sendTDPError(fmt.Sprintf("Screen is too large. Maximum is %dx%d", types.MaxRDPScreenWidth, types.MaxRDPScreenHeight))
 		return trace.BadParameter("invalid screen size")
 	}
+	// Commit only after the bounds check: a rejected oversized request must not
+	// leave a stale scale that makes the next resize see scaleChanged=false and
+	// skip the DE rescale.
+	sess.requestedScale = newScale
+	// Held across the whole resize, including the GNOME rescale's blocking
+	// subprocess/D-Bus calls below. This pauses the frame loop
+	// (innerProcessScreenChanges takes the same lock): once screenSize is advanced
+	// the X root briefly disagrees, so capturing mid-rescale would GetImage a
+	// mismatched size.
 	sess.resizeMu.Lock()
 	defer sess.resizeMu.Unlock()
-	width := uint16(m.Width)
-	height := uint16(m.Height)
+	width, height := uint16(scaledWidth), uint16(scaledHeight)
 	sess.screenSize.Width = width
 	sess.screenSize.Height = height
 	sess.sendFullScreen = true
-	if err := sess.backend.Resize(width, height); err != nil {
-		sess.log.ErrorContext(sess.ctx, "failed to resize screen", "error", err)
-		sess.sendTDPError("Couldn't resize backend.")
-		return trace.Wrap(err)
+
+	scaleChanged := sess.cmd != nil && x11.IntegerScale(previousScale) != x11.IntegerScale(sess.requestedScale)
+
+	// On GNOME, drive scale toggles through mutter (ApplyMonitorsConfig), not our
+	// own backend.Resize: our RandR SetScreenConfig makes mutter autonomously
+	// activate HiDPI on the screen-change event, which on Xvfb severs gnome-shell
+	// during 1x to 2x. We pre-stage the mode via EnsureMode and let mutter switch.
+	// Dimension-only changes (resize without a scale toggle) keep the local Resize
+	// path, since mutter doesn't autonomously rescale on those.
+	if scaleChanged && sess.desktopEnvironment == x11.DesktopEnvironmentGNOME {
+		if err := sess.backend.EnsureMode(width, height); err != nil {
+			sess.log.ErrorContext(sess.ctx, "failed to pre-create RandR mode", "error", err)
+			sess.sendTDPError("Couldn't pre-create RandR mode.")
+			return trace.Wrap(err)
+		}
+		// Update the dconf scaling-factor before the live rescale and wait for it
+		// to land: otherwise gsd-xsettings keeps re-asserting the old value
+		// (written at xsession startup) and mutter treats ApplyMonitorsConfig's
+		// new scale as a no-op.
+		updateCmd, err := x11.UpdateXSessionScale(sess.ctx, &x11.XSessionConfig{
+			Logger:             sess.log,
+			Username:           sess.identity.Username,
+			Login:              sess.username,
+			ChildLogConfig:     sess.service.cfg.ChildLogConfig,
+			Display:            sess.backend.Display,
+			AuthorityFile:      sess.backend.AuthorityFile,
+			ScalePercent:       sess.requestedScale,
+			DesktopEnvironment: sess.desktopEnvironment,
+		})
+		if err != nil {
+			sess.log.WarnContext(sess.ctx, "failed to update GNOME scaling-factor", "error", err)
+		} else if updateCmd != nil {
+			if err := updateCmd.Wait(); err != nil {
+				sess.log.WarnContext(sess.ctx, "GNOME scaling-factor update finished with error", "error", err)
+			}
+			updateCmd.Close()
+		}
+		scale := float64(x11.IntegerScale(sess.requestedScale))
+		if err := x11.ApplyGNOMEDisplayScale(sess.ctx, sess.log, sess.username, width, height, scale); err != nil {
+			// Rescale failed: the X root still holds the old size while screenSize
+			// advertises the new one. Fail rather than stream a mismatched
+			// framebuffer under a success ServerHello.
+			sess.log.ErrorContext(sess.ctx, "failed to apply GNOME display scale", "error", err)
+			sess.sendTDPError("Couldn't apply display scale.")
+			return trace.Wrap(err)
+		}
+		sess.backend.SetDesired(width, height)
+	} else {
+		if err := sess.backend.Resize(width, height); err != nil {
+			sess.log.ErrorContext(sess.ctx, "failed to resize screen", "error", err)
+			sess.sendTDPError("Couldn't resize backend.")
+			return trace.Wrap(err)
+		}
+		if scaleChanged {
+			updateCmd, err := x11.UpdateXSessionScale(sess.ctx, &x11.XSessionConfig{
+				Logger:             sess.log,
+				Username:           sess.identity.Username,
+				Login:              sess.username,
+				ChildLogConfig:     sess.service.cfg.ChildLogConfig,
+				Display:            sess.backend.Display,
+				AuthorityFile:      sess.backend.AuthorityFile,
+				ScalePercent:       sess.requestedScale,
+				DesktopEnvironment: sess.desktopEnvironment,
+			})
+			if err != nil {
+				sess.log.WarnContext(sess.ctx, "failed to update xsession scale", "error", err)
+			} else if updateCmd != nil {
+				go func() {
+					if err := updateCmd.Wait(); err != nil {
+						sess.log.WarnContext(sess.ctx, "xsession scale update finished with error", "error", err)
+					}
+					updateCmd.Close()
+				}()
+			}
+		}
 	}
 	if err := sess.writeMessage(&tdpb.ServerHello{
 		ActivationSpec: &tdpbv1.ConnectionActivated{
-			ScreenWidth:  m.Width,
-			ScreenHeight: m.Height,
+			ScreenWidth:  scaledWidth,
+			ScreenHeight: scaledHeight,
 		},
 		ClipboardEnabled: true,
+		HidpiSupported:   true,
 	}); err != nil {
 		sess.log.ErrorContext(sess.ctx, "failed to send server-hello message", "error", err)
 		return trace.Wrap(err)

@@ -12,4 +12,4 @@ crate-type = ["staticlib", "lib"]
 ironrdp-core.workspace = true
 ironrdp-graphics.workspace = true
 ironrdp-pdu.workspace = true
-ironrdp-session.workspace = true
+ironrdp-session = { workspace = true, features = ["qoiz"] }

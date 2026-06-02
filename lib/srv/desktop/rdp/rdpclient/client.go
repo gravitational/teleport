@@ -1348,3 +1348,35 @@ func EncodeQOIZ(frame []byte, x, y, width, height uint16) ([]*tdpb.FastPathPDU, 
 	}
 	return messages, nil
 }
+
+// EncodePointerBitmap encodes a cursor sprite as a FastPath NewPointer PDU.
+// data must be width*height*4 bytes in BGRA byte order, top-down. It returns an
+// error for sprites too large to fit a FastPath PDU; callers can fall back to
+// EncodePointerDefault.
+func EncodePointerBitmap(data []byte, width, height, hotspotX, hotspotY uint16) (*tdpb.FastPathPDU, error) {
+	return encodeSinglePduResult(C.encode_pointer_bitmap(
+		(*C.uint8_t)(unsafe.SliceData(data)),
+		C.uint16_t(width), C.uint16_t(height),
+		C.uint16_t(hotspotX), C.uint16_t(hotspotY),
+	))
+}
+
+// EncodePointerDefault encodes a FastPath DefaultPointer PDU, telling the client
+// to show its platform-default cursor.
+func EncodePointerDefault() (*tdpb.FastPathPDU, error) {
+	return encodeSinglePduResult(C.encode_pointer_default())
+}
+
+func encodeSinglePduResult(encodingResult C.struct_EncodingResult) (*tdpb.FastPathPDU, error) {
+	defer C.free_encoding_result(encodingResult)
+	if encodingResult.error_code != C.ErrCodeSuccess {
+		buf := unsafe.Slice((*uint8)(encodingResult.error_msg), encodingResult.length)
+		return nil, trace.Errorf("Couldn't encode pointer PDU: %s", string(slices.Clone(buf)))
+	}
+	if encodingResult.length != 1 {
+		return nil, trace.Errorf("expected exactly one pointer PDU, got %d", encodingResult.length)
+	}
+	pdus := unsafe.Slice((*C.Pdu)(encodingResult.pdus), encodingResult.length)
+	buf := unsafe.Slice((*uint8)(pdus[0].data), pdus[0].length)
+	return &tdpb.FastPathPDU{Pdu: slices.Clone(buf)}, nil
+}

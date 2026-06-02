@@ -20,6 +20,9 @@ use ironrdp_pdu::fast_path::{
     EncryptionFlags, FastPathHeader, FastPathUpdate, FastPathUpdatePdu, Fragmentation, UpdateCode,
 };
 use ironrdp_pdu::geometry::ExclusiveRectangle;
+use ironrdp_pdu::pointer::{
+    ColorPointerAttribute, Point16, PointerAttribute, PointerUpdateData,
+};
 use ironrdp_pdu::surface_commands::{ExtendedBitmapDataPdu, SurfaceBitsPdu, SurfaceCommand};
 use std::fmt::Display;
 use std::{ptr, slice};
@@ -160,6 +163,131 @@ fn inner_encode_qoiz(
         .collect()
 }
 
+/// encode_pointer_bitmap builds a single FastPath NewPointer PDU containing a
+/// 32bpp ARGB cursor sprite. `data` is `width * height * 4` bytes in BGRA byte
+/// order, top-to-bottom (the byte layout of a little-endian ARGB u32). The PDU
+/// reverses scanlines because RDP cursor bitmaps are stored bottom-up.
+///
+/// # Safety
+///
+/// `data` must point to a buffer of at least `width * height * 4` bytes.
+#[no_mangle]
+pub unsafe extern "C" fn encode_pointer_bitmap(
+    data: *const u8,
+    width: u16,
+    height: u16,
+    hotspot_x: u16,
+    hotspot_y: u16,
+) -> EncodingResult {
+    let w = width as usize;
+    let h = height as usize;
+    let input = slice::from_raw_parts(data, w * h * 4);
+
+    match inner_encode_pointer_bitmap(input, width, height, hotspot_x, hotspot_y) {
+        Ok(buf) => single_pdu_result(buf),
+        Err(e) => encoding_error(e),
+    }
+}
+
+/// encode_pointer_default builds a single FastPath DefaultPointer PDU, telling
+/// the client to fall back to its platform-default cursor. Used when a sprite is
+/// too large to encode as a NewPointer PDU.
+#[no_mangle]
+pub unsafe extern "C" fn encode_pointer_default() -> EncodingResult {
+    match inner_encode_fast_path_update(FastPathUpdate::Pointer(PointerUpdateData::SetDefault)) {
+        Ok(buf) => single_pdu_result(buf),
+        Err(e) => encoding_error(e),
+    }
+}
+
+fn inner_encode_pointer_bitmap(
+    bgra_top_down: &[u8],
+    width: u16,
+    height: u16,
+    hotspot_x: u16,
+    hotspot_y: u16,
+) -> Result<Vec<u8>, EncodeError> {
+    let w = width as usize;
+    let h = height as usize;
+    let stride = w * 4;
+
+    // RDP wants bottom-up scanlines; XFixes (and our framebuffer convention) is
+    // top-down. Reverse the rows once into a contiguous buffer.
+    let mut xor_mask = Vec::with_capacity(stride * h);
+    for row in (0..h).rev() {
+        let start = row * stride;
+        xor_mask.extend_from_slice(&bgra_top_down[start..start + stride]);
+    }
+
+    // 32bpp cursors with an alpha channel don't need a real and-mask, but RDP
+    // still requires one with scanlines padded to a 16-bit boundary. Allocate
+    // a zero buffer of the right size.
+    let and_scanline = ((w + 15) / 16) * 2;
+    let and_mask = vec![0u8; and_scanline * h];
+
+    // A sprite whose encoded FastPath PDU would exceed the ~32KB FastPath length
+    // limit can't be sent as a single NewPointer PDU (encode below returns an
+    // error) and callers fall back to a default pointer. Real cursors are well
+    // under that (XCURSOR_SIZE tops out at 72px).
+    let attribute = PointerAttribute {
+        xor_bpp: 32,
+        color_pointer: ColorPointerAttribute {
+            cache_index: 0,
+            hot_spot: Point16 {
+                x: hotspot_x,
+                y: hotspot_y,
+            },
+            width,
+            height,
+            xor_mask: &xor_mask,
+            and_mask: &and_mask,
+        },
+    };
+    inner_encode_fast_path_update(FastPathUpdate::Pointer(PointerUpdateData::New(attribute)))
+}
+
+fn inner_encode_fast_path_update(update: FastPathUpdate<'_>) -> Result<Vec<u8>, EncodeError> {
+    let update_code = UpdateCode::from(&update);
+    let data = encode_vec(&update)?;
+    let pdu = FastPathUpdatePdu {
+        fragmentation: Fragmentation::Single,
+        update_code,
+        compression_flags: None,
+        compression_type: None,
+        data: &data,
+    };
+    let header = FastPathHeader::new(EncryptionFlags::empty(), pdu.size());
+    let mut buf = vec![0; header.size() + pdu.size()];
+    let mut cursor = WriteCursor::new(&mut buf);
+    header.encode(&mut cursor)?;
+    pdu.encode(&mut cursor)?;
+    Ok(buf)
+}
+
+fn single_pdu_result(buf: Vec<u8>) -> EncodingResult {
+    let frames = vec![Pdu {
+        length: buf.len(),
+        data: Box::into_raw(buf.into_boxed_slice()) as _,
+    }];
+    EncodingResult {
+        length: frames.len(),
+        pdus: Box::into_raw(frames.into_boxed_slice()) as _,
+        error_code: CGOErrCode::ErrCodeSuccess,
+        error_msg: ptr::null_mut(),
+    }
+}
+
+fn encoding_error(e: EncodeError) -> EncodingResult {
+    let msg = format!("{}", e);
+    let b = msg.into_bytes().into_boxed_slice();
+    EncodingResult {
+        length: b.len(),
+        pdus: ptr::null_mut(),
+        error_msg: Box::into_raw(b) as _,
+        error_code: CGOErrCode::ErrCodeFailure,
+    }
+}
+
 #[derive(Debug)]
 enum EncodeError {
     Zstd(std::io::Error),
@@ -197,9 +325,13 @@ impl Display for EncodeError {
 
 #[cfg(test)]
 mod tests {
-    use crate::linux_desktop_encoder::inner_encode_qoiz;
+    use crate::linux_desktop_encoder::{
+        inner_encode_fast_path_update, inner_encode_pointer_bitmap, inner_encode_qoiz,
+    };
     use ironrdp_core::WriteBuf;
-    use ironrdp_session::fast_path::ProcessorBuilder;
+    use ironrdp_pdu::fast_path::FastPathUpdate;
+    use ironrdp_pdu::pointer::PointerUpdateData;
+    use ironrdp_session::fast_path::{ProcessorBuilder, UpdateKind};
     use ironrdp_session::image::DecodedImage;
     use rand::random_iter;
 
@@ -255,5 +387,94 @@ mod tests {
             .enumerate()
             .find(|(_, (a, b))| a != b);
         assert_eq!(res, None)
+    }
+
+    #[test]
+    pub fn encode_pointer_bitmap_round_trip() {
+        // 4x2 cursor: row 0 is solid blue (top), row 1 is solid red
+        // (bottom). The encoder takes BGRA top-down on the wire; the decoder
+        // outputs RGBA top-down for direct rendering on a canvas. Both row
+        // order and colour-channel order should round-trip correctly.
+        let blue_bgra = [0xFFu8, 0x00, 0x00, 0xFF];
+        let red_bgra = [0x00u8, 0x00, 0xFF, 0xFF];
+        let mut bgra = Vec::with_capacity(4 * 2 * 4);
+        for _ in 0..4 {
+            bgra.extend_from_slice(&blue_bgra);
+        }
+        for _ in 0..4 {
+            bgra.extend_from_slice(&red_bgra);
+        }
+
+        let encoded = inner_encode_pointer_bitmap(&bgra, 4, 2, 1, 1).unwrap();
+        let mut processor = ProcessorBuilder {
+            io_channel_id: 0,
+            user_channel_id: 0,
+            enable_server_pointer: true,
+            pointer_software_rendering: false,
+        }
+        .build();
+        let mut image = DecodedImage::new(
+            ironrdp_graphics::image_processing::PixelFormat::RgbA32,
+            16,
+            16,
+        );
+        let mut buf = WriteBuf::new();
+        let updates = processor.process(&mut image, &encoded, &mut buf).unwrap();
+
+        let pointer = updates
+            .into_iter()
+            .find_map(|u| match u {
+                UpdateKind::PointerBitmap(p) => Some(p),
+                _ => None,
+            })
+            .expect("decoder should emit PointerBitmap");
+        assert_eq!(pointer.width, 4);
+        assert_eq!(pointer.height, 2);
+        assert_eq!(pointer.hotspot_x, 1);
+        assert_eq!(pointer.hotspot_y, 1);
+
+        let blue_rgba = [0x00u8, 0x00, 0xFF, 0xFF];
+        let red_rgba = [0xFFu8, 0x00, 0x00, 0xFF];
+        let mut expected = Vec::with_capacity(4 * 2 * 4);
+        for _ in 0..4 {
+            expected.extend_from_slice(&blue_rgba);
+        }
+        for _ in 0..4 {
+            expected.extend_from_slice(&red_rgba);
+        }
+        assert_eq!(pointer.bitmap_data, expected);
+    }
+
+    #[test]
+    pub fn oversized_pointer_bitmap_is_rejected() {
+        // A 128x128 32bpp sprite encodes to ~67KB, past the ~32KB FastPath PDU
+        // length limit, so encoding must fail rather than emit a corrupt PDU.
+        // handleCursorChange relies on this to fall back to a default pointer.
+        let bgra = vec![0xFFu8; 128 * 128 * 4];
+        assert!(inner_encode_pointer_bitmap(&bgra, 128, 128, 0, 0).is_err());
+    }
+
+    #[test]
+    pub fn encode_pointer_default_round_trip() {
+        let encoded =
+            inner_encode_fast_path_update(FastPathUpdate::Pointer(PointerUpdateData::SetDefault))
+                .unwrap();
+        let mut processor = ProcessorBuilder {
+            io_channel_id: 0,
+            user_channel_id: 0,
+            enable_server_pointer: true,
+            pointer_software_rendering: false,
+        }
+        .build();
+        let mut image = DecodedImage::new(
+            ironrdp_graphics::image_processing::PixelFormat::RgbA32,
+            16,
+            16,
+        );
+        let mut buf = WriteBuf::new();
+        let updates = processor.process(&mut image, &encoded, &mut buf).unwrap();
+        assert!(updates
+            .iter()
+            .any(|u| matches!(u, UpdateKind::PointerDefault)));
     }
 }

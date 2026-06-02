@@ -78,3 +78,13 @@ func (c *Client) DisableNLA() {}
 func EncodeQOIZ(frame []byte, x, y, width, height uint16) ([]*tdpb.FastPathPDU, error) {
 	return nil, errors.New("the real rdpclient implementation was not included in this build")
 }
+
+// EncodePointerBitmap encodes a cursor sprite as a FastPath NewPointer PDU.
+func EncodePointerBitmap(data []byte, width, height, hotspotX, hotspotY uint16) (*tdpb.FastPathPDU, error) {
+	return nil, errors.New("the real rdpclient implementation was not included in this build")
+}
+
+// EncodePointerDefault encodes a FastPath DefaultPointer PDU.
+func EncodePointerDefault() (*tdpb.FastPathPDU, error) {
+	return nil, errors.New("the real rdpclient implementation was not included in this build")
+}
