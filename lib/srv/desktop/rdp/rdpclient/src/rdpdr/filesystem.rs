@@ -258,10 +258,6 @@ impl FilesystemBackend {
 
     /// Handles an RDP [`efs::DeviceCreateRequest`] received from the RDP server.
     fn handle_rdp_device_create_req(&mut self, rdp_req: efs::DeviceCreateRequest) -> PduResult<()> {
-        // Technically, this size isn't in-flight, but allowing
-        // a very large allocation size might be detrimental as well.
-        let in_flight_bytes = rdp_req.allocation_size as usize;
-
         let tdp_req = tdp::SharedDirectoryInfoRequest::from(&rdp_req);
 
         let completion_id = rdp_req.device_io_request.completion_id;
@@ -280,7 +276,7 @@ impl FilesystemBackend {
             pending_sd_info_ops,
             completion_id,
             response_handler,
-            in_flight_bytes,
+            0,
             self.send_tdp_sd_info_request(tdp_req)
         )?;
 
@@ -794,10 +790,6 @@ impl FilesystemBackend {
         rdp_req: efs::DeviceCreateRequest,
         file_type: tdp::FileType,
     ) -> PduResult<()> {
-        // Technically, this size isn't in-flight, but allowing
-        // a very large allocation size might be detrimental as well.
-        let in_flight_bytes = rdp_req.allocation_size as usize;
-
         let tdp_req = tdp::SharedDirectoryCreateRequest::from(&rdp_req, file_type);
 
         let completion_id = rdp_req.device_io_request.completion_id;
@@ -826,7 +818,7 @@ impl FilesystemBackend {
             pending_sd_create_ops,
             completion_id,
             response_handler,
-            in_flight_bytes,
+            0,
             self.send_tdp_sd_create_request(tdp_req)
         )?;
 
@@ -836,10 +828,6 @@ impl FilesystemBackend {
     /// Helper function for combining a [`tdp::SharedDirectoryDeleteRequest`]
     /// with a [`tdp::SharedDirectoryCreateRequest`] to overwrite a file.
     fn tdp_sd_overwrite(&mut self, rdp_req: efs::DeviceCreateRequest) -> PduResult<()> {
-        // Technically, this size isn't in-flight, but allowing
-        // a very large allocation size might be detrimental as well.
-        let in_flight_bytes = rdp_req.allocation_size as usize;
-
         let tdp_req = tdp::SharedDirectoryDeleteRequest::from(&rdp_req);
 
         let completion_id = rdp_req.device_io_request.completion_id;
@@ -863,7 +851,7 @@ impl FilesystemBackend {
             pending_sd_delete_ops,
             completion_id,
             response_handler,
-            in_flight_bytes,
+            0,
             self.send_tdp_sd_delete_request(tdp_req)
         )?;
 
