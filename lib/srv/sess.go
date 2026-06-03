@@ -349,7 +349,7 @@ func (s *SessionRegistry) UpsertHostUser(identityContext IdentityContext, obtain
 }
 
 // OpenSession either starts a new session.
-func (s *SessionRegistry) OpenSession(ctx context.Context, ch ssh.Channel, scx *ServerContext) error {
+func (s *SessionRegistry) OpenSession(ctx context.Context, ch ssh.Channel, scx *ServerContext) (err error) {
 	if scx.JoinOnly {
 		return trace.AccessDenied("join-only mode was used to create this connection but attempted to create a new session.")
 	}
@@ -360,6 +360,14 @@ func (s *SessionRegistry) OpenSession(ctx context.Context, ch ssh.Channel, scx *
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Make sure to close the session when returning an error
+	defer func() {
+		if err != nil {
+			sess.Close()
+		}
+	}()
+
 	s.addSession(sess)
 	scx.Logger.InfoContext(ctx, "Creating interactive session", "session_id", sess.id)
 
@@ -370,7 +378,6 @@ func (s *SessionRegistry) OpenSession(ctx context.Context, ch ssh.Channel, scx *
 	// Start an interactive session (TTY attached). Close the session if an error
 	// occurs, otherwise it will be closed by the callee.
 	if err := sess.startInteractive(ctx, scx, p); err != nil {
-		sess.Close()
 		return trace.Wrap(err)
 	}
 	return nil
