@@ -352,6 +352,33 @@ Example:
   
 Click Connect to connect.
 
+## Redshift DBeaver
+
+<Admonition type="note">
+  You can also use the [PostgreSQL DBeaver](./gui-clients.mdx#postgresql-dbeaver) setup
+  to connect to Redshift, but using the native Redshift driver additionally provides
+  support for Redshift-specific datatypes and external schemas.
+</Admonition>
+
+To connect to your Redshift instance, use the authenticated proxy address.
+This is `127.0.0.1:62652` in the example above (see the "Authenticated Proxy"
+section in [Get connection information](./gui-clients.mdx#how-gui-clients-access-teleport-protected-databases)
+for more information).
+
+Use the "Username/password" authentication. Set the username to match the database
+user passed to `--db-user` and leave the password empty:
+
+![DBeaver Redshift Configure
+Server](https://website.goteleport.com/_uploads/dbeaver_redshift_new_connection_1476289fec.png)
+
+Go to **Driver Properties** and set `ssl=false`. This disables encryption on the
+local connection only — the connection to Redshift is encrypted by Teleport.
+
+![DBeaver Redshift Driver Properties](https://website.goteleport.com/_uploads/dbeaver_redshift_new_connection_ssl_b3e0c732ee.png)
+
+Clicking on "Test connection" should return a connection success message. Then,
+click on "Finish" to save the configuration.
+
 ## Redis Insight
 
 <Admonition type="note">
