@@ -74,17 +74,19 @@ Examples:
   $ tctl discovery windows_desktops --last=30m
 `)
 
-	c.nodesCmd.Flag("last", "Time window to look back for failures in Teleport audit log (e.g. 1h, 24h, 30m).").
-		Default("1h").
-		DurationVar(&c.nodesLast)
-	c.nodesCmd.Flag("format", "Output format.").
-		Default(teleport.Text).
-		EnumVar(&c.nodesFormat, teleport.Text, teleport.JSON)
-	c.nodesCmd.Flag("failures-only", "Only show instances with enrollment failures.").
-		BoolVar(&c.nodesFailuresOnly)
-	c.nodesCmd.Flag("cloud", "Comma-separated list of cloud providers to include (allowed: aws, azure). Empty (default) returns all.").
-		Default("").
-		StringVar(&c.nodesCloudFilter)
+	for _, sub := range []*kingpin.CmdClause{c.nodesCmd, c.windowsDesktopsCmd} {
+		sub.Flag("last", "Time window to look back for failures in Teleport audit log (e.g. 1h, 24h, 30m).").
+			Default("1h").
+			DurationVar(&c.nodesLast)
+		sub.Flag("format", "Output format.").
+			Default(teleport.Text).
+			EnumVar(&c.nodesFormat, teleport.Text, teleport.JSON)
+		sub.Flag("failures-only", "Only show instances with enrollment failures.").
+			BoolVar(&c.nodesFailuresOnly)
+		sub.Flag("cloud", "Comma-separated list of cloud providers to include (allowed: aws, azure). Empty (default) returns all.").
+			Default("").
+			StringVar(&c.nodesCloudFilter)
+	}
 }
 
 // TryRun attempts to run the matched subcommand.
@@ -157,6 +159,9 @@ func (c *Command) runWindowsDesktops(ctx context.Context, clt discoveryClient, w
 	instances, err := buildWindowsDesktops(ctx, clt, dateFrom, dateTo, cfg)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+	if c.nodesFailuresOnly {
+		instances = filterFailures(instances)
 	}
 
 	switch c.nodesFormat {

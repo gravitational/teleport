@@ -115,6 +115,8 @@ message DiscoverSummary {
 
   // The summary for the Azure VM discovered instances.
   ResourceSummary azure_vms = 4;
+
+  ResourceSummary azure_windows_vms = 5;
 }
 
 // ResourceSummary represents the summary of the discovered resources.
