@@ -46,7 +46,7 @@ message ClientIPRestriction {
 message ClientIPRestrictionSpec {
   // allowed_cidrs is the list of CIDR blocks permitted to connect to the cluster.
   // An empty list disables restrictions and allows all traffic.
-  repeated string allowed_cidrs = 1 [json_name = "allowedCidrs"];
+  repeated string allowed_cidrs = 1;
 }
 
 // ClientIPRestrictionStatus contains dynamic properties of a ClientIPRestriction. These properties are
