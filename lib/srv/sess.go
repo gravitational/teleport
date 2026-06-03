@@ -1330,6 +1330,7 @@ func (s *session) launchUnderLock() {
 	// If the identity is verified with an MFA device, we enabled MFA-based presence for the session.
 	if s.presenceEnabled {
 		go func() {
+			// Check presence 4 times per max duration to provide ample opportunity to complete MFA.
 			checkPresenceInterval := s.scx.srv.GetPresenceMaxDuration() / 4
 			ticker := s.registry.clock.NewTicker(checkPresenceInterval)
 			defer ticker.Stop()
