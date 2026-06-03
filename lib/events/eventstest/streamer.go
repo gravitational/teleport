@@ -29,26 +29,26 @@ import (
 // NewFakeStreamer returns a session streamer that streams the provided events, sending one
 // event per interval. An interval of 0 sends the events immediately, throttled only by the
 // ability of the receiver to keep up.
-func NewFakeStreamer(events []apievents.AuditEvent, interval time.Duration) *fakeStreamer {
-	return &fakeStreamer{
+func NewFakeStreamer(events []apievents.AuditEvent, interval time.Duration) *FakeStreamer {
+	return &FakeStreamer{
 		events:   events,
 		interval: interval,
 		errCh:    make(chan error),
 	}
 }
 
-func (e *fakeStreamer) WithErrors(errCh chan error) *fakeStreamer {
+func (e *FakeStreamer) WithErrors(errCh chan error) *FakeStreamer {
 	e.errCh = errCh
 	return e
 }
 
-type fakeStreamer struct {
+type FakeStreamer struct {
 	events   []apievents.AuditEvent
 	interval time.Duration
 	errCh    chan error
 }
 
-func (f fakeStreamer) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
+func (f FakeStreamer) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
 	events := make(chan apievents.AuditEvent)
 
 	go func() {
