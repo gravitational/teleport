@@ -223,7 +223,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, syncMode mdmsync.SyncMode) (
 			// resilient to process duplicate items, continued reconciliation
 			// failure may result in a scenario where delta response becomes large
 			// (due to replayed items), stressing the delta sync processor.
-			r.logger.DebugContext(ctx, "Restoring delta link on error", "sync_mode", syncMode)
+			r.logger.DebugContext(ctx, "Restoring Entra ID delta link on error", "sync_mode", syncMode)
 			restoreDeltaLinkFn()
 		}
 
@@ -282,7 +282,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, syncMode mdmsync.SyncMode) (
 	r.logger.DebugContext(ctx,
 		"Finished listing Entra ID groups and members",
 		"sync_mode", syncMode,
-		"took", r.clock.Since(start),
+		"took", r.clock.Since(start).String(),
 	)
 	entraGroups := entraGroups{
 		groupsMap:       entraGroupResp.groupsMap,
@@ -299,7 +299,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, syncMode mdmsync.SyncMode) (
 	r.logger.DebugContext(ctx,
 		"Finished listing Entra ID users",
 		"sync_mode", syncMode,
-		"took", r.clock.Since(start),
+		"took", r.clock.Since(start).String(),
 		"limit", r.graphClient.graphClientLimit,
 	)
 
@@ -340,7 +340,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, syncMode mdmsync.SyncMode) (
 
 	if errDeltaSetup != nil {
 		// Returning error will force the next sync to be a full sync.
-		r.logger.ErrorContext(ctx, "Latest delta token setup failed, delta sync will be skipped and the next sync will be a full sync", "error", errDeltaSetup)
+		r.logger.ErrorContext(ctx, "Entra ID delta token setup failed, delta sync will be skipped and the next sync will be a full sync", "sync_mode", syncMode, "error", errDeltaSetup)
 		return result, trace.Wrap(errDeltaSetup)
 	}
 
@@ -380,7 +380,7 @@ func (r *Reconciler) getEntraGroupsAndMembers(
 	r.logger.DebugContext(ctx,
 		"Finished listing Entra ID groups",
 		"sync_mode", syncMode,
-		"took", took,
+		"took", took.String(),
 	)
 	r.metrics.reconciliationDuration.With(prometheus.Labels{
 		metricLabelSection: "read_entra_groups",
@@ -397,7 +397,7 @@ func (r *Reconciler) getEntraGroupsAndMembers(
 	r.logger.DebugContext(ctx,
 		"Finished listing Entra ID group members",
 		"sync_mode", syncMode,
-		"took", took,
+		"took", took.String(),
 	)
 	r.metrics.reconciliationDuration.With(prometheus.Labels{
 		metricLabelSection: "read_entra_members",
@@ -522,7 +522,7 @@ func (r *Reconciler) reconcileAccessLists(ctx context.Context,
 	// The InsertAccessListCollection validates access list up front and due to fact the
 	// collection is complete snapshot of all access lists and members from one source (EntraID)
 	if len(teleportAccessListsWithMembersMap) == 0 && len(entraAccessListWithMembersMap) > 0 {
-		r.logger.InfoContext(ctx, "EntraID initial access list import", "count", len(entraAccessListWithMembersMap))
+		r.logger.InfoContext(ctx, "Entra ID initial access list import", "count", len(entraAccessListWithMembersMap))
 		coll, err := toCollection(entraAccessListWithMembersMap)
 		if err != nil {
 			return trace.Wrap(err)
@@ -530,7 +530,7 @@ func (r *Reconciler) reconcileAccessLists(ctx context.Context,
 		if err := r.accessPoint.InsertAccessListCollection(ctx, coll); err != nil {
 			return trace.Wrap(err)
 		}
-		r.logger.InfoContext(ctx, "EntraID initial access list import completed", "count", len(entraAccessListWithMembersMap))
+		r.logger.InfoContext(ctx, "Entra ID initial access list import completed", "count", len(entraAccessListWithMembersMap))
 		r.importedGroups = len(entraAccessListWithMembersMap)
 		// No need to do further reconciliation. All access lists were inserted.
 		return nil

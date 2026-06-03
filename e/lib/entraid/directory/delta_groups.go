@@ -78,7 +78,8 @@ func (g *groupDeltaProcessor) apply(ctx context.Context, in *models.ListGroupsDe
 			// Delta API may replay previously deleted
 			// group which no longer exists in Teleport too.
 			g.log.DebugContext(ctx, `Existing Access List not found for deleted Entra ID group, deletion of the Access List will be skipped`,
-				"entra_group_id", groupID)
+				"sync_mode", mdmsync.SyncModePartial,
+				"group_id", groupID)
 			return nil
 		}
 
@@ -97,9 +98,9 @@ func (g *groupDeltaProcessor) apply(ctx context.Context, in *models.ListGroupsDe
 			g.remove(groupID)
 			g.log.DebugContext(ctx,
 				"Group removed because the updated name no longer matches with the group filter",
-				"entra_group_id", groupID,
-				"entra_group_name", *in.DisplayName,
 				"sync_mode", mdmsync.SyncModePartial,
+				"group_id", groupID,
+				"group_name", *in.DisplayName,
 			)
 		}
 		return nil
@@ -354,6 +355,7 @@ func (b *groupBaseBuilder) build(ctx context.Context) groupBase {
 		id, ok := al.AccessList.GetLabel(types.EntraUniqueIDLabel)
 		if !ok || id == "" {
 			b.log.DebugContext(ctx, "Entra unique ID label not found for Entra ID Access List",
+				"sync_mode", mdmsync.SyncModePartial,
 				"access_list_name", al.AccessList.GetName(),
 				"access_list_title", al.AccessList.Spec.Title,
 			)
@@ -401,6 +403,7 @@ func (b *groupBaseBuilder) buildMember(ctx context.Context, in *accesslist.Acces
 		user, ok := b.users[in.GetName()]
 		if !ok {
 			b.log.DebugContext(ctx, "Teleport user account not found for Entra ID Access List member",
+				"sync_mode", mdmsync.SyncModePartial,
 				"access_list_member", in.GetName(),
 			)
 			return "", nil, false

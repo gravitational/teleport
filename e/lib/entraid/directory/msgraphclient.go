@@ -164,7 +164,7 @@ func (c *graphClient) setEntraOwners(
 		entraOwners, err := c.listEntraGroupOwners(ctx, *g.GetID())
 		if err != nil {
 			// error swallowed to let the sync continue.
-			c.log.WarnContext(ctx, "error while fetching group owners", "group", g.GetID(), "error", err)
+			c.log.WarnContext(ctx, "Error while fetching Entra ID group owners", "group_id", g.GetID(), "error", err)
 			return
 		}
 		g.Owners = entraOwners

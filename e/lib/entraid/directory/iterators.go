@@ -67,7 +67,7 @@ func listTeleportUsers(ctx context.Context, svc accessPoint, connectorID string)
 			// precedence for now until its decided if we should consolidate to use
 			// connector matcher as default and the only supported matcher.
 			if matchByConnector(user.GetCreatedBy().Connector, connectorID) {
-				slog.InfoContext(ctx, "User account found to be created by the referenced connector, overwriting", "user", user.GetName())
+				slog.InfoContext(ctx, "User account found to be created by the referenced Entra ID SAML connector, overwriting", "user", user.GetName())
 				result[user.GetName()] = user
 			}
 		}

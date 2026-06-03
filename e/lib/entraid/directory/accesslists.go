@@ -88,7 +88,7 @@ func (g entraGroups) toAccessListsWithMembers(
 				continue
 			}
 			if m == nil {
-				slog.WarnContext(ctx, "unsupported group member, skipping")
+				slog.WarnContext(ctx, "Unsupported Entra ID group member, skipping", "group_id", id)
 				continue
 			}
 			members = append(members, m)
@@ -278,7 +278,7 @@ func (cfg aclOwnersConfig) getOwners(ctx context.Context, group *models.Group, u
 	out := toAclOwner(ctx, group.Owners, usersByEntraID)
 	if len(out) == 0 {
 		slog.DebugContext(ctx, `Empty group owners found when Entra ID is configured as the source of the Access List owner, `+
-			`falling back to default owners`, "group", group.GetID())
+			`falling back to default owners`, "group_id", group.GetID())
 		return cfg.defaultOwners
 	}
 
@@ -481,7 +481,7 @@ func toAclOwner(ctx context.Context, in []*models.User, usersByEntraID map[entra
 		if !ok {
 			slog.DebugContext(ctx,
 				"Teleport user account not found for Entra ID group owner, owner will be skipped",
-				"entra_user_id", *u.GetID(),
+				"user_id", *u.GetID(),
 			)
 			continue
 		}
@@ -496,7 +496,7 @@ func toAclOwner(ctx context.Context, in []*models.User, usersByEntraID map[entra
 		if err != nil {
 			slog.WarnContext(ctx,
 				"Failed to convert group owner, owner will be skipped",
-				"entra_user_id", *u.GetID(),
+				"user_id", *u.GetID(),
 				"error", err,
 			)
 			continue
