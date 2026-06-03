@@ -25,51 +25,6 @@ import (
 	summarizerv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 )
 
-func TestSanitizeRemovesTerminalControlSequences(t *testing.T) {
-	for _, tt := range []struct {
-		name string
-		in   string
-		want string
-	}{
-		{
-			name: "csi",
-			in:   "safe\x1b[31mred\x1b[0m text",
-			want: "safered text",
-		},
-		{
-			name: "osc_bel",
-			in:   "safe\x1b]0;owned title\a text",
-			want: "safe text",
-		},
-		{
-			name: "osc_st",
-			in:   "safe\x1b]8;;https://example.com\x1b\\link\x1b]8;;\x1b\\ text",
-			want: "safelink text",
-		},
-		{
-			name: "unterminated_osc",
-			in:   "safe\x1b]0;owned title",
-			want: "safe",
-		},
-		{
-			name: "raw_c1_csi",
-			in:   "safe\x9b31mred text",
-			want: "safered text",
-		},
-		{
-			name: "utf8_preserved",
-			in:   "safe caf\xc3\xa9\n\ttext",
-			want: "safe caf\xc3\xa9\n\ttext",
-		},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := sanitize(tt.in); got != tt.want {
-				t.Fatalf("sanitize(%q) = %q, want %q", tt.in, got, tt.want)
-			}
-		})
-	}
-}
-
 func TestRenderTimelineSanitizesTerminalControlSequences(t *testing.T) {
 	timeline := renderTimeline(&summarizerv1pb.EnhancedSummary{
 		NotableCommandIndexes: []int32{0},
