@@ -184,7 +184,7 @@ type ListBeamsRequestOptions struct {
 	// provided users.
 	FilterUsers set.Set[string]
 	// FilterFn is a general-use filter delegate. Useful when the state required
-	// for a filter means the filter cant be easily implemented in the backend
+	// for a filter means the filter can't be easily implemented in the backend
 	// or cache (e.g. access control context).
 	FilterFn func(*beamsv1.Beam) bool
 }
