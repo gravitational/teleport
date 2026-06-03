@@ -2269,9 +2269,7 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 			}
 		}
 		// Map order is random; sort for a stable error message.
-		sortedFQDNs := slices.Collect(maps.Keys(appFQDNs))
-		slices.Sort(sortedFQDNs)
-		for _, fqdn := range sortedFQDNs {
+		for _, fqdn := range slices.Sorted(maps.Keys(appFQDNs)) {
 			if seenAppName, ok := seenFQDNs[fqdn]; ok {
 				return trace.BadParameter("apps %q and %q route to the same FQDN %q in static config", seenAppName, app.Name, fqdn)
 			}
