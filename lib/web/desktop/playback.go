@@ -21,7 +21,6 @@ package desktop
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -67,7 +66,7 @@ func (a *playbackAction) UnmarshalJSON(data []byte) error {
 		*a = playbackAction(action)
 		return nil
 	default:
-		return errors.New("invalid desktop action")
+		return trace.BadParameter("invalid desktop action")
 	}
 }
 
@@ -141,7 +140,7 @@ func ReceivePlaybackActions(
 			player.SetPos(time.Duration(action.Pos) * time.Millisecond)
 		default:
 			slog.WarnContext(ctx, "invalid desktop playback action", "action", action.Action)
-			return errors.New("invalid desktop action")
+			return trace.BadParameter("invalid desktop action")
 		}
 	}
 }
