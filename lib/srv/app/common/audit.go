@@ -22,6 +22,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -33,6 +34,38 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
+
+// sensitiveHeaders is the set of header names (lowercase) that are stripped
+// from recorded HTTP events to avoid leaking credentials.
+var sensitiveHeaders = map[string]struct{}{
+	"authorization": {},
+	"cookie":        {},
+	"set-cookie":    {},
+	"x-auth-token":  {},
+	"x-api-key":     {},
+}
+
+// filterHeaders returns a copy of h with sensitive headers removed.
+// Headers whose (lowercase) name starts with "x-teleport-", "teleport-",
+// or "x-forwarded-" are also stripped.
+func filterHeaders(h http.Header) []*apievents.HTTPHeader {
+	out := make([]*apievents.HTTPHeader, 0, len(h))
+	for name, vals := range h {
+		lower := strings.ToLower(name)
+		if _, skip := sensitiveHeaders[lower]; skip {
+			continue
+		}
+		if strings.HasPrefix(lower, "x-teleport-") ||
+			strings.HasPrefix(lower, "teleport-") ||
+			strings.HasPrefix(lower, "x-forwarded-") {
+			continue
+		}
+		for _, v := range vals {
+			out = append(out, &apievents.HTTPHeader{Name: name, Value: v})
+		}
+	}
+	return out
+}
 
 // Audit defines an interface for app access audit events logger.
 type Audit interface {
@@ -46,6 +79,14 @@ type Audit interface {
 	OnRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, status uint32, re *AWSResolvedEndpoint) error
 	// OnDynamoDBRequest is called when app request for a DynamoDB API is sent and a response is received.
 	OnDynamoDBRequest(ctx context.Context, sessionCtx *SessionContext, req *http.Request, status uint32, re *AWSResolvedEndpoint) error
+	// OnHTTPRequest is called when a proxied HTTP request is about to be forwarded.
+	OnHTTPRequest(ctx context.Context, sessionCtx *SessionContext, requestID string, req *http.Request) error
+	// OnHTTPRequestBodyChunk is called for each chunk of a proxied HTTP request body.
+	OnHTTPRequestBodyChunk(ctx context.Context, sessionCtx *SessionContext, requestID string, chunkIndex int64, isLast bool, data []byte) error
+	// OnHTTPResponse is called when a proxied HTTP response header is received.
+	OnHTTPResponse(ctx context.Context, sessionCtx *SessionContext, requestID string, resp *http.Response, waitTimeMs int64) error
+	// OnHTTPResponseBodyChunk is called for each chunk of a proxied HTTP response body.
+	OnHTTPResponseBodyChunk(ctx context.Context, sessionCtx *SessionContext, requestID string, chunkIndex int64, isLast bool, data []byte) error
 	// EmitEvent emits the provided audit event.
 	EmitEvent(ctx context.Context, event apievents.AuditEvent) error
 }
@@ -225,6 +266,77 @@ func (a *audit) OnDynamoDBRequest(ctx context.Context, sessionCtx *SessionContex
 	return trace.Wrap(a.EmitEvent(ctx, event))
 }
 
+// OnHTTPRequest is called when a proxied HTTP request is about to be forwarded.
+func (a *audit) OnHTTPRequest(ctx context.Context, sessionCtx *SessionContext, requestID string, req *http.Request) error {
+	event := &apievents.AppSessionHTTPRequest{
+		Metadata: apievents.Metadata{
+			Type: events.AppSessionHTTPRequestEvent,
+			Code: events.AppSessionHTTPRequestCode,
+		},
+		UserMetadata: sessionCtx.Identity.GetUserMetadata(),
+		AppMetadata:  *MakeAppMetadata(sessionCtx.App),
+		RequestId:    requestID,
+		Method:       req.Method,
+		// Url already contains the query string; RawQuery is duplicated here for
+		// HAR compatibility so consumers can access it without re-parsing the URL.
+		Url:         req.URL.String(),
+		HttpVersion: req.Proto,
+		Headers:     filterHeaders(req.Header),
+		RawQuery:    req.URL.RawQuery,
+	}
+	return trace.Wrap(a.EmitEvent(ctx, event))
+}
+
+// OnHTTPRequestBodyChunk is called for each chunk of a proxied HTTP request body.
+func (a *audit) OnHTTPRequestBodyChunk(ctx context.Context, _ *SessionContext, requestID string, chunkIndex int64, isLast bool, data []byte) error {
+	event := &apievents.AppSessionHTTPRequestBodyChunk{
+		Metadata: apievents.Metadata{
+			Type: events.AppSessionHTTPRequestBodyChunkEvent,
+			Code: events.AppSessionHTTPRequestBodyChunkCode,
+		},
+		RequestId:  requestID,
+		ChunkIndex: chunkIndex,
+		IsLast:     isLast,
+		Data:       data,
+	}
+	return trace.Wrap(a.EmitEvent(ctx, event))
+}
+
+// OnHTTPResponse is called when a proxied HTTP response header is received.
+// SendTimeMs and ReceiveTimeMs are left at zero: send time is not tracked at
+// this layer, and receive time cannot be known until the body is fully read.
+func (a *audit) OnHTTPResponse(ctx context.Context, sessionCtx *SessionContext, requestID string, resp *http.Response, waitTimeMs int64) error {
+	event := &apievents.AppSessionHTTPResponse{
+		Metadata: apievents.Metadata{
+			Type: events.AppSessionHTTPResponseEvent,
+			Code: events.AppSessionHTTPResponseCode,
+		},
+		AppMetadata: *MakeAppMetadata(sessionCtx.App),
+		RequestId:   requestID,
+		StatusCode:  uint32(resp.StatusCode),
+		StatusText:  resp.Status,
+		HttpVersion: resp.Proto,
+		Headers:     filterHeaders(resp.Header),
+		WaitTimeMs:  waitTimeMs,
+	}
+	return trace.Wrap(a.EmitEvent(ctx, event))
+}
+
+// OnHTTPResponseBodyChunk is called for each chunk of a proxied HTTP response body.
+func (a *audit) OnHTTPResponseBodyChunk(ctx context.Context, _ *SessionContext, requestID string, chunkIndex int64, isLast bool, data []byte) error {
+	event := &apievents.AppSessionHTTPResponseBodyChunk{
+		Metadata: apievents.Metadata{
+			Type: events.AppSessionHTTPResponseBodyChunkEvent,
+			Code: events.AppSessionHTTPResponseBodyChunkCode,
+		},
+		RequestId:  requestID,
+		ChunkIndex: chunkIndex,
+		IsLast:     isLast,
+		Data:       data,
+	}
+	return trace.Wrap(a.EmitEvent(ctx, event))
+}
+
 // EmitEvent emits the provided audit event.
 func (a *audit) EmitEvent(ctx context.Context, e apievents.AuditEvent) error {
 	preparedEvent, err := a.cfg.Recorder.PrepareSessionEvent(e)
@@ -235,8 +347,14 @@ func (a *audit) EmitEvent(ctx context.Context, e apievents.AuditEvent) error {
 	recErr := a.cfg.Recorder.RecordEvent(ctx, preparedEvent)
 	event := preparedEvent.GetAuditEvent()
 	var emitErr error
-	// AppSessionRequest events should only go to session recording
-	if event.GetType() != events.AppSessionRequestEvent {
+	switch event.GetType() {
+	case events.AppSessionRequestEvent,
+		events.AppSessionHTTPRequestEvent,
+		events.AppSessionHTTPRequestBodyChunkEvent,
+		events.AppSessionHTTPResponseEvent,
+		events.AppSessionHTTPResponseBodyChunkEvent:
+		// session-recording only; do not forward to the global audit emitter
+	default:
 		emitErr = a.cfg.Emitter.EmitAuditEvent(ctx, event)
 	}
 
