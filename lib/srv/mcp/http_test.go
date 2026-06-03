@@ -377,6 +377,31 @@ func Test_Server_HandleSession_reject_req_missing_name(t *testing.T) {
 	// Verify there was 1 param sent and it was the lowercase "name".
 	require.Len(t, event.Message.Params.Fields, 1)
 	require.Equal(t, allowedTool, event.Message.Params.Fields["name"].GetStringValue())
+
+	// Verify that when a non-canonical "Params" field is specified, the request is rejected
+	// instead of forwarding a request that Go-based upstream servers can decode
+	// case-insensitively.
+	emitter.Reset()
+	respBytes = testSendRAWRequest(t, http.MethodPost, proxyURL, mcpClientTransport.GetSessionId(), fmt.Sprintf(
+		`{"jsonrpc":"2.0","id":8,"method":"tools/call","Params":{%q:%q}}`,
+		"name", deniedTool,
+	))
+	respJSON = string(respBytes)
+	require.Contains(t, respJSON, strconv.Itoa(mcp.INVALID_REQUEST))
+	require.NotContains(t, respJSON, deniedToolTextContent)
+	require.Contains(t, respJSON, testJSONString(t, errInvalidRequestMissingName.Error()))
+
+	// Verify that a non-canonical top-level "Method" field cannot make Teleport authorize one
+	// method while the upstream executes another.
+	emitter.Reset()
+	respBytes = testSendRAWRequest(t, http.MethodPost, proxyURL, mcpClientTransport.GetSessionId(), fmt.Sprintf(
+		`{"jsonrpc":"2.0","id":9,"method":"ping","Method":"tools/call","params":{%q:%q}}`,
+		"name", deniedTool,
+	))
+	respJSON = string(respBytes)
+	require.NotContains(t, respJSON, deniedToolTextContent)
+	require.NotContains(t, respJSON, strconv.Itoa(mcp.INVALID_PARAMS))
+	require.NotContains(t, respJSON, "User does not have permissions.")
 }
 
 func Test_handleAuthErrHTTP(t *testing.T) {

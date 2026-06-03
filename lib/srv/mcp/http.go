@@ -171,10 +171,6 @@ func (t *streamableHTTPTransport) setExternalSessionID(header http.Header) {
 }
 
 func (t *streamableHTTPTransport) rewriteAndSendRequest(r *http.Request) (*http.Response, error) {
-	return t.rewriteAndSendRequestWithBody(r, nil)
-}
-
-func (t *streamableHTTPTransport) rewriteAndSendRequestWithBody(r *http.Request, bodyOverwrite any) (*http.Response, error) {
 	r = r.Clone(r.Context())
 	r.URL.Scheme = t.targetURI.Scheme
 	r.URL.Host = t.targetURI.Host
@@ -189,15 +185,6 @@ func (t *streamableHTTPTransport) rewriteAndSendRequestWithBody(r *http.Request,
 
 	if err := t.rewriteHTTPRequestHeaders(r); err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	if bodyOverwrite != nil {
-		data, err := json.Marshal(bodyOverwrite)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		r.Body = io.NopCloser(bytes.NewReader(data))
-		r.ContentLength = int64(len(data))
 	}
 
 	return t.targetTransport.RoundTrip(r)
@@ -216,35 +203,40 @@ func (t *streamableHTTPTransport) handleListenSSEStreamRequest(r *http.Request) 
 }
 
 func (t *streamableHTTPTransport) handleMCPMessage(r *http.Request) (*http.Response, error) {
-	var baseMessage mcputils.BaseJSONRPCMessage
-	if reqBody, err := utils.GetAndReplaceRequestBody(r); err != nil {
+	reqBody, err := utils.GetRequestBody(r)
+	if err != nil {
 		t.emitInvalidHTTPRequest(t.parentCtx, r)
 		return nil, trace.BadParameter("invalid request body %v", err)
-	} else if err := json.Unmarshal(reqBody, &baseMessage); err != nil {
+	}
+	reqBody, err = sanitizeRawRequest(reqBody)
+	if err != nil {
+		t.emitInvalidHTTPRequest(t.parentCtx, r)
+		return nil, trace.BadParameter("invalid request body %v", err)
+	}
+	utils.WriteRequestBody(r, reqBody)
+	var baseMessage mcputils.BaseJSONRPCMessage
+	if err := json.Unmarshal(reqBody, &baseMessage); err != nil {
 		t.emitInvalidHTTPRequest(t.parentCtx, r)
 		return nil, trace.BadParameter("invalid request body %v", err)
 	}
 
-	var resp *http.Response
-	var sendReqErr error
 	switch {
 	case baseMessage.IsRequest():
 		mcpRequest := baseMessage.MakeRequest()
-		mcpRequest, errResp := t.sessionHandler.processClientRequest(r.Context(), mcpRequest)
+		errResp := t.sessionHandler.processClientRequest(r.Context(), mcpRequest)
 		if errResp != nil {
 			t.emitRequestEvent(t.parentCtx, mcpRequest, eventWithError(toError(*errResp)), eventWithHeader(r.Header))
 			return t.handleRequestError(r, *errResp)
 		}
-		resp, sendReqErr = t.rewriteAndSendRequestWithBody(r, mcpRequest)
 	case baseMessage.IsNotification():
 		t.sessionHandler.processClientNotification(r.Context(), baseMessage.MakeNotification())
-		resp, sendReqErr = t.rewriteAndSendRequest(r)
 	default:
 		// Not sending it to the server if we don't understand it.
 		t.emitInvalidHTTPRequest(t.parentCtx, r)
 		return nil, trace.BadParameter("not a MCP request or notification")
 	}
 
+	resp, sendReqErr := t.rewriteAndSendRequest(r)
 	// Prefer session ID from server response if present. For example,
 	// "initialize" request does not have an ID but the server response may have
 	// it.

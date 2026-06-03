@@ -23,7 +23,6 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -223,7 +222,8 @@ func (s *sessionHandler) onClientNotification(serverRequestWriter mcputils.Messa
 
 func (s *sessionHandler) onClientRequest(clientResponseWriter, serverRequestWriter mcputils.MessageWriter) mcputils.HandleRequestFunc {
 	return func(ctx context.Context, request *mcputils.JSONRPCRequest) error {
-		request, errMsg := s.processClientRequest(ctx, request)
+		sanitizeParamsName(request)
+		errMsg := s.processClientRequest(ctx, request)
 		if errMsg != nil {
 			// Respond immediately
 			s.emitRequestEvent(ctx, request, eventWithError(toError(*errMsg)))
@@ -251,23 +251,17 @@ func (s *sessionHandler) onServerResponse(clientResponseWriter mcputils.MessageW
 	}
 }
 
-func (s *sessionHandler) processClientRequest(ctx context.Context, req *mcputils.JSONRPCRequest) (*mcputils.JSONRPCRequest, *mcp.JSONRPCError) {
+func (s *sessionHandler) processClientRequest(ctx context.Context, req *mcputils.JSONRPCRequest) *mcp.JSONRPCError {
 	messagesFromClient.WithLabelValues(s.transport, "request", reportRequestMethod(req.Method)).Inc()
 
 	switch req.Method {
 	case mcputils.MethodToolsCall:
-		// Remove all non-canonical name params, like "Name" or "NaMe", trying to prevent
-		// malicious clients to bypass RBAC for vulnerable upstream MCP servers. E.g. it
-		// may happen that a MCP server using case-insensitive Go "json" package decodes
-		// "Name" while the RBAC was performed on "name" if both are present in the
-		// request.
-		sanitizeParamsName(req.Params)
 		toolName, _ := req.Params.GetName()
 		if toolName == "" {
-			return req, makeInvalidRequestResponse(req, errInvalidRequestMissingName)
+			return makeInvalidRequestResponse(req, errInvalidRequestMissingName)
 		}
 		if authErr := s.checkAccessToTool(ctx, toolName); authErr != nil {
-			return req, makeToolAccessDeniedResponse(req, authErr)
+			return makeToolAccessDeniedResponse(req, authErr)
 		}
 	}
 
@@ -275,7 +269,7 @@ func (s *sessionHandler) processClientRequest(ctx context.Context, req *mcputils
 	// first request coming in (with the exception of the ping).
 	s.idTracker.PushRequest(req)
 
-	return req, nil
+	return nil
 }
 
 func (s *sessionHandler) processClientNotification(_ context.Context, notification *mcputils.JSONRPCNotification) {
@@ -377,12 +371,4 @@ func toError(e mcp.JSONRPCError) error {
 		}
 	}
 	return e.Error.AsError()
-}
-
-func sanitizeParamsName(p mcputils.JSONRPCParams) {
-	for k := range p {
-		if k != mcputils.ParamName && strings.ToLower(k) == mcputils.ParamName {
-			delete(p, k)
-		}
-	}
 }

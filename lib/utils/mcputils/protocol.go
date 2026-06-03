@@ -29,7 +29,9 @@ import (
 )
 
 const (
-	ParamName = "name"
+	MethodKey     = "method"
+	ParamsKey     = "params"
+	ParamsNameKey = "name"
 )
 
 // Type definitions from both mcp-go/client/transport or mcp-go are not suitable
@@ -57,7 +59,7 @@ func (p JSONRPCParams) GetName() (string, bool) {
 	if p == nil {
 		return "", false
 	}
-	name, ok := p[ParamName].(string)
+	name, ok := p[ParamsNameKey].(string)
 	return name, ok
 }
 

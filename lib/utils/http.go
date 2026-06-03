@@ -27,23 +27,27 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// GetAndReplaceRequestBody returns the request body and replaces the drained
-// body reader with an [io.NopCloser] allowing for further body processing by
-// http transport.
-// If memory exhaustion is a concern, it is the caller's responsibility to wrap
-// the request body in an [io.LimitReader] prior to calling this function.
-func GetAndReplaceRequestBody(req *http.Request) ([]byte, error) {
+// GetRequestBody reads the request's into a slice and safely calls req.Body.Close().
+func GetRequestBody(req *http.Request) ([]byte, error) {
 	if req.Body == nil || req.Body == http.NoBody {
 		return []byte{}, nil
 	}
 	defer req.Body.Close()
 
 	payload, err := io.ReadAll(req.Body)
+	return payload, trace.Wrap(err)
+}
+
+// GetAndReplaceRequestBody returns the request body and replaces the drained
+// body reader with an [io.NopCloser] allowing for further body processing by
+// http transport.
+// If memory exhaustion is a concern, it is the caller's responsibility to wrap
+// the request body in an [io.LimitReader] prior to calling this function.
+func GetAndReplaceRequestBody(req *http.Request) ([]byte, error) {
+	payload, err := GetRequestBody(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// Replace the drained body with io.NopCloser reader allowing for further request processing by HTTP transport.
 	req.Body = io.NopCloser(bytes.NewReader(payload))
 	return payload, nil
 }
@@ -81,6 +85,14 @@ func ReplaceRequestBody(req *http.Request, newBody io.ReadCloser) error {
 	}
 	req.Body = newBody
 	return nil
+}
+
+// WriteRequestBody (over)writes the new data into the given request's body. It doesn't check if
+// the previous req.Body exists or if it's closed. It's the callers responsibility to cleanup the
+// previous body.
+func WriteRequestBody(req *http.Request, data []byte) {
+	req.Body = io.NopCloser(bytes.NewReader(data))
+	req.ContentLength = int64(len(data))
 }
 
 // RenameHeader moves all values from the old header key to the new header key.
