@@ -157,6 +157,8 @@ func NewPluginV1(metadata Metadata, spec PluginSpecV1, creds *PluginCredentialsV
 		p.SetCredentials(creds)
 	}
 
+	p.setStaticFields()
+
 	return p
 }
 

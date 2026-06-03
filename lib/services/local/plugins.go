@@ -49,6 +49,9 @@ func (s *PluginsService) CreatePlugin(ctx context.Context, plugin types.Plugin) 
 	if err := libplugin.Validate(plugin); err != nil {
 		return trace.Wrap(err)
 	}
+	if err := services.CheckAndSetDefaults(plugin); err != nil {
+		return trace.Wrap(err)
+	}
 	value, err := services.MarshalPlugin(plugin)
 	if err != nil {
 		return trace.Wrap(err)
@@ -246,6 +249,10 @@ func (s *PluginsService) updateAndSwap(ctx context.Context, name string, modify 
 
 	err = modify(newPlugin)
 	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := services.CheckAndSetDefaults(newPlugin); err != nil {
 		return trace.Wrap(err)
 	}
 
