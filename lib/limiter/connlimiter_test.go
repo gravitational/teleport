@@ -68,3 +68,21 @@ func TestConnectionsLimiter(t *testing.T) {
 		require.NoError(t, l.AcquireConnection("token2"))
 	}
 }
+
+func TestConnectionsLimiter_GetNumConnection(t *testing.T) {
+	l := limiter.NewConnectionsLimiter(2)
+
+	numConnections, err := l.GetNumConnection("conn1")
+	require.NoError(t, err)
+	require.Zero(t, numConnections)
+
+	require.NoError(t, l.AcquireConnection("conn1"))
+	numConnections, err = l.GetNumConnection("conn1")
+	require.NoError(t, err)
+	require.Equal(t, int64(1), numConnections)
+
+	l.ReleaseConnection("conn1")
+	numConnections, err = l.GetNumConnection("conn1")
+	require.NoError(t, err)
+	require.Zero(t, numConnections)
+}

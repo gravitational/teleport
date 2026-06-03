@@ -188,164 +188,148 @@ func TestLimiter_StreamServerInterceptor(t *testing.T) {
 	require.Error(t, err)
 }
 
-// TestListener verifies that a [Listener] only accepts
-// connections if the connection limit has not been exceeded.
 func TestListener(t *testing.T) {
-	const connLimit = 5
 	failedAcceptErr := errors.New("failed accept")
-	tooManyConnectionsErr := trace.LimitExceeded("too many connections from 127.0.0.1: 2, max is 2")
 
-	tests := []struct {
-		name             string
-		config           Config
-		listener         *fakeListener
-		acceptAssertion  func(t *testing.T, iteration int, conn net.Conn, err error)
-		numConnAssertion func(t *testing.T, num int64)
-	}{
-		{
-			name:   "all connections allowed",
-			config: Config{MaxConnections: 0},
-			listener: &fakeListener{
-				acceptConn: &fakeConn{
-					addr: mockAddr{},
-				},
+	t.Run("allows and releases connections", func(t *testing.T) {
+		limiter := NewConnectionsLimiter(2)
+		ln, err := NewListener(&fakeListener{
+			acceptConns: []net.Conn{
+				&fakeConn{addr: mockAddr{}},
+				&fakeConn{addr: mockAddr{}},
+				&fakeConn{addr: mockAddr{}},
 			},
-			acceptAssertion: func(t *testing.T, _ int, conn net.Conn, err error) {
-				require.NoError(t, err)
-				require.NotNil(t, conn)
+		}, limiter)
+		require.NoError(t, err)
+		defer ln.Close()
+
+		conn1, err := ln.Accept()
+		require.NoError(t, err)
+		conn2, err := ln.Accept()
+		require.NoError(t, err)
+
+		n, err := limiter.GetNumConnection("127.0.0.1")
+		require.NoError(t, err)
+		require.Equal(t, int64(2), n)
+
+		require.NoError(t, conn1.Close())
+		require.NoError(t, conn2.Close())
+
+		n, err = limiter.GetNumConnection("127.0.0.1")
+		require.NoError(t, err)
+		require.Zero(t, n)
+
+		conn3, err := ln.Accept()
+		require.NoError(t, err)
+		require.NoError(t, conn3.Close())
+	})
+
+	t.Run("returns listener accept errors", func(t *testing.T) {
+		limiter := NewConnectionsLimiter(0)
+		ln, err := NewListener(&fakeListener{acceptError: failedAcceptErr}, limiter)
+		require.NoError(t, err)
+		defer ln.Close()
+
+		conn, err := ln.Accept()
+		require.ErrorIs(t, err, failedAcceptErr)
+		require.Nil(t, conn)
+	})
+
+	t.Run("closes invalid remote address and keeps accepting", func(t *testing.T) {
+		// 0 means no connection limit per cient IP
+		limiter := NewConnectionsLimiter(0)
+		invalidConn := &fakeConn{
+			addr: &utils.NetAddr{
+				Addr:        "abcd",
+				AddrNetwork: "tcp",
 			},
-			numConnAssertion: func(t *testing.T, num int64) {
-				// MaxConnections == 0 prevents any connections from being accumulated
-				require.Zero(t, num)
-			},
-		},
-		{
-			name:   "accept failure",
-			config: Config{MaxConnections: 0},
-			listener: &fakeListener{
-				acceptError: failedAcceptErr,
-			},
-			acceptAssertion: func(t *testing.T, _ int, conn net.Conn, err error) {
-				require.ErrorIs(t, err, failedAcceptErr)
-				require.Nil(t, conn)
-			},
-			numConnAssertion: func(t *testing.T, num int64) {
-				require.Zero(t, num)
-			},
-		},
-		{
-			name:   "invalid remote address",
-			config: Config{MaxConnections: 0},
-			listener: &fakeListener{
-				acceptConn: &fakeConn{
-					addr: &utils.NetAddr{
-						Addr:        "abcd",
-						AddrNetwork: "tcp",
-					},
-				},
-			},
-			acceptAssertion: func(t *testing.T, _ int, conn net.Conn, err error) {
-				require.Error(t, err)
-				require.Nil(t, conn)
-			},
-			numConnAssertion: func(t *testing.T, num int64) {
-				require.Zero(t, num)
-			},
-		},
-		{
-			name:   "max connections exceeded",
-			config: Config{MaxConnections: 2},
-			listener: &fakeListener{
-				acceptConn: &fakeConn{
-					addr: mockAddr{},
-				},
-			},
-			acceptAssertion: func(t *testing.T, i int, conn net.Conn, err error) {
-				if i < 2 {
-					require.NoError(t, err)
-					require.NotNil(t, conn)
-					return
-				}
-				require.Error(t, err)
-				require.ErrorIs(t, err, tooManyConnectionsErr)
-				require.True(t, trace.IsLimitExceeded(err))
-				require.Nil(t, conn)
-			},
-			numConnAssertion: func(t *testing.T, num int64) {
-				require.Equal(t, int64(2), num)
-			},
+		}
+		validConn := &fakeConn{addr: mockAddr{}}
+
+		ln, err := NewListener(&fakeListener{
+			acceptConns: []net.Conn{invalidConn, validConn},
+		}, limiter)
+		require.NoError(t, err)
+		defer ln.Close()
+
+		conn, err := ln.Accept()
+		require.NoError(t, err)
+		wrapped, ok := conn.(*wrappedConn)
+		require.True(t, ok)
+		require.Same(t, validConn, wrapped.NetConn())
+		require.True(t, invalidConn.closed)
+	})
+}
+
+func TestListener_LimitExceeded(t *testing.T) {
+	limiter := NewConnectionsLimiter(1)
+	require.NoError(t, limiter.AcquireConnection("127.0.0.1"))
+	defer limiter.ReleaseConnection("127.0.0.1")
+
+	rejectedConn := &fakeConn{addr: mockAddr{}}
+	allowedConn := &fakeConn{
+		addr: &utils.NetAddr{
+			Addr:        "127.0.0.2:1234",
+			AddrNetwork: "tcp",
 		},
 	}
 
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			limiter := NewConnectionsLimiter(test.config.MaxConnections)
+	var callbackRemoteAddr string
+	var callbackErr error
+	ln, err := NewListener(
+		&fakeListener{acceptConns: []net.Conn{rejectedConn, allowedConn}},
+		limiter,
+		WithLimitExceededCallback(func(remoteAddr string, err error) {
+			callbackRemoteAddr = remoteAddr
+			callbackErr = err
+		}),
+	)
+	require.NoError(t, err)
+	defer ln.Close()
 
-			ln, err := NewListener(test.listener, limiter)
-			require.NoError(t, err)
+	conn, err := ln.Accept()
+	require.NoError(t, err)
+	wrapped, ok := conn.(*wrappedConn)
+	require.True(t, ok)
+	require.Same(t, allowedConn, wrapped.NetConn())
 
-			// open connections without closing to enforce limits
-			conns := make([]net.Conn, 0, connLimit)
-			for i := range connLimit {
-				conn, err := ln.Accept()
-				test.acceptAssertion(t, i, conn, err)
+	// The rejected connection should be closed, the callback should be called
+	// and the listener should still accept the allowed connection.
+	require.True(t, rejectedConn.closed)
+	require.Equal(t, "127.0.0.1", callbackRemoteAddr)
+	require.True(t, trace.IsLimitExceeded(callbackErr))
 
-				if conn != nil {
-					conns = append(conns, conn)
-				}
-			}
-
-			// validate limits were enforced
-			n, err := limiter.GetNumConnection("127.0.0.1")
-			require.NoError(t, err)
-			test.numConnAssertion(t, n)
-
-			// close connections to reset limits
-			for _, conn := range conns {
-				require.NoError(t, conn.Close())
-			}
-
-			// ensure closing connections resets count
-			n, err = limiter.GetNumConnection("127.0.0.1")
-			if test.config.MaxConnections == 0 {
-				require.NoError(t, err)
-				require.Zero(t, n)
-			} else {
-				require.True(t, trace.IsBadParameter(err))
-				require.Equal(t, int64(-1), n)
-			}
-
-			// open connections again after closing to
-			// ensure that closing reset limits
-			for i := range 5 {
-				conn, err := ln.Accept()
-				test.acceptAssertion(t, i, conn, err)
-
-				if conn != nil {
-					t.Cleanup(func() {
-						require.NoError(t, err)
-					})
-				}
-			}
-		})
-	}
+	require.NoError(t, conn.Close())
 }
 
 type fakeListener struct {
 	net.Listener
 
-	acceptConn  net.Conn
+	acceptConns []net.Conn
 	acceptError error
 }
 
 func (f *fakeListener) Accept() (net.Conn, error) {
-	return f.acceptConn, f.acceptError
+	if f.acceptError != nil {
+		return nil, f.acceptError
+	}
+	if len(f.acceptConns) == 0 {
+		return nil, errors.New("fake listener exhausted")
+	}
+	conn := f.acceptConns[0]
+	f.acceptConns = f.acceptConns[1:]
+	return conn, nil
+}
+
+func (f *fakeListener) Close() error {
+	return nil
 }
 
 type fakeConn struct {
 	net.Conn
 
-	addr net.Addr
+	addr   net.Addr
+	closed bool
 }
 
 func (f *fakeConn) RemoteAddr() net.Addr {
@@ -353,6 +337,7 @@ func (f *fakeConn) RemoteAddr() net.Addr {
 }
 
 func (f *fakeConn) Close() error {
+	f.closed = true
 	return nil
 }
 
@@ -710,6 +695,7 @@ func TestListener_LimitExceededDoesNotTerminateServe(t *testing.T) {
 				closed:   closed,
 			}, cl)
 			require.NoError(t, err)
+			defer ln.Close()
 
 			// Saturate the limit so the next accepted connection is rejected.
 			require.NoError(t, cl.AcquireConnection("127.0.0.1"))
@@ -741,9 +727,7 @@ func TestListener_LimitExceededDoesNotTerminateServe(t *testing.T) {
 			case <-accepts:
 				// Serve kept running after the rejected connection.
 			case err := <-done:
-				require.True(t, trace.IsLimitExceeded(err),
-					"expected limit exceeded error, got %v", err)
-				t.Fatalf("%s Server.Serve exited on per-IP limit hit: %v", tt.name, err)
+				t.Fatalf("%s Server.Serve exited after rejecting one connection: %v", tt.name, err)
 			case <-time.After(timeout):
 				t.Fatal("timed out waiting for Serve to re-Accept after rejected connection")
 			}
