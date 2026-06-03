@@ -99,7 +99,6 @@ func TestPlayerError(t *testing.T) {
 
 	errCh <- errors.New("some error")
 
-	_ = p.Play()
 	_, ok := <-p.C()
 	require.False(t, ok)
 	playerErr := p.Err()
