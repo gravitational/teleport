@@ -34,7 +34,6 @@ import (
 	"github.com/icza/mjpeg"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
@@ -60,13 +59,46 @@ func onExportRecording(cf *CLIConf) error {
 
 	filenamePrefix := cf.SessionID
 	if cf.OutFile != "" {
-		// trim the extension if it was provided (we'll add it later on)
+		// Trim the extension if it was provided (we'll add it back below).
+		// Support both .avi and .har so users can pass either extension.
 		filenamePrefix = strings.TrimSuffix(
-			strings.TrimSuffix(cf.OutFile, ".avi"), ".AVI")
+			strings.TrimSuffix(
+				strings.TrimSuffix(
+					strings.TrimSuffix(cf.OutFile, ".har"),
+					".HAR"),
+				".avi"),
+			".AVI")
 	}
 
-	_, err = writeMovie(cf.Context, clusterClient.AuthClient, session.ID(cf.SessionID), filenamePrefix, fmt.Printf, tc.Config.WebProxyAddr)
-	return trace.Wrap(err)
+	ctx, cancel := context.WithCancel(cf.Context)
+	defer cancel()
+
+	// One shared stream for both movie and HAR export.
+	evts, errs := clusterClient.AuthClient.StreamSessionEvents(ctx, session.ID(cf.SessionID), 0)
+
+	// Peek at the first event to determine the session type, then hand the
+	// open channels directly to the appropriate writer.
+	select {
+	case err := <-errs:
+		return trace.Wrap(err)
+	case <-ctx.Done():
+		return ctx.Err()
+	case evt, more := <-evts:
+		if !more {
+			return trace.Errorf("empty session recording")
+		}
+		switch evt.(type) {
+		case *apievents.AppSessionStart:
+			return trace.Wrap(writeHAR(ctx, evts, errs, filenamePrefix+".har", fmt.Printf))
+		case *apievents.WindowsDesktopSessionStart:
+			_, err := writeMovie(ctx, evts, errs, filenamePrefix, fmt.Printf, tc.Config.WebProxyAddr)
+			return trace.Wrap(err)
+		case *apievents.SessionStart:
+			return trace.BadParameter("only desktop recordings can be exported")
+		default:
+			return trace.BadParameter("unrecognized session type %T", evt)
+		}
+	}
 }
 
 func makeAVIFileName(prefix string, currentFile int) string {
@@ -77,9 +109,11 @@ func makeAVIFileName(prefix string, currentFile int) string {
 	return fmt.Sprintf("%v-%d.avi", prefix, currentFile)
 }
 
-// writeMovie writes the events for the specified session into one or more movie files
+// writeMovie writes events from the provided channels into one or more movie files
 // beginning with the specified prefix. It returns the number of frames that were written and an error.
-func writeMovie(ctx context.Context, ss events.SessionStreamer, sid session.ID, prefix string, write func(format string, args ...any) (int, error), webProxyAddr string) (frames int, err error) {
+// The caller is responsible for creating the stream; the WindowsDesktopSessionStart event that
+// identified this as a desktop recording has already been consumed before this is called.
+func writeMovie(ctx context.Context, evts <-chan apievents.AuditEvent, errs <-chan error, prefix string, write func(format string, args ...any) (int, error), webProxyAddr string) (frames int, err error) {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -93,7 +127,6 @@ func writeMovie(ctx context.Context, ss events.SessionStreamer, sid session.ID, 
 	var width, height int32
 	currentFilename := makeAVIFileName(prefix, fileCount)
 
-	evts, errs := ss.StreamSessionEvents(ctx, sid, 0)
 	fastPathReceived := false
 loop:
 	for {
@@ -119,6 +152,8 @@ loop:
 			}
 
 			switch evt := evt.(type) {
+			case *apievents.AppSessionStart:
+				return frameCount, trace.BadParameter("app session recordings should be exported as HAR")
 			case *apievents.WindowsDesktopSessionStart:
 			case *apievents.WindowsDesktopSessionEnd:
 				if !fastPathReceived {

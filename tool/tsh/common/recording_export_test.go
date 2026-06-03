@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/binary"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -130,15 +131,173 @@ func TestWriteMovieWritesManyFrames(t *testing.T) {
 	require.Equal(t, framesPerSecond, frames)
 }
 
-// writeMovieWrapper calls writeMovie, and tells the test state to cleanup the created files upon completion.
-// Returns the writeMovie call results, as well as the path-qualified prefix to the created file.
+// writeMovieWrapper creates a stream from ss and calls writeMovie.
+// Returns the frame count, the path-qualified prefix, and any error.
 func writeMovieWrapper(t *testing.T, ctx context.Context, ss events.SessionStreamer, sid session.ID, prefix string,
 	write func(format string, args ...any) (int, error)) (int, string, error) {
 
+	evts, errs := ss.StreamSessionEvents(ctx, sid, 0)
 	tempDir := t.TempDir()
 	prefix = filepath.Join(tempDir, prefix)
-	frames, err := writeMovie(ctx, ss, sid, prefix, write, "")
+	frames, err := writeMovie(ctx, evts, errs, prefix, write, "")
 	return frames, prefix, err
+}
+
+// writeHARWrapper creates a stream from ss and calls writeHAR.
+// Returns the output path and any error.
+func writeHARWrapper(t *testing.T, ctx context.Context, ss events.SessionStreamer, sid session.ID,
+	write func(format string, args ...any) (int, error)) (string, error) {
+
+	evts, errs := ss.StreamSessionEvents(ctx, sid, 0)
+	outputPath := filepath.Join(t.TempDir(), "session.har")
+	return outputPath, writeHAR(ctx, evts, errs, outputPath, write)
+}
+
+func TestWriteHAR(t *testing.T) {
+	t.Parallel()
+
+	reqTime := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	requestID := "req-1"
+
+	evts := []apievents.AuditEvent{
+		&apievents.AppSessionStart{},
+		&apievents.AppSessionHTTPRequest{
+			Metadata: apievents.Metadata{
+				Type: "app.session.http.request",
+				Time: reqTime,
+			},
+			RequestId:   requestID,
+			Method:      "POST",
+			Url:         "https://app.example.com/api?q=1",
+			HttpVersion: "HTTP/1.1",
+			Headers: []*apievents.HTTPHeader{
+				{Name: "Content-Type", Value: "application/json"},
+			},
+			RawQuery: "q=1",
+		},
+		&apievents.AppSessionHTTPRequestBodyChunk{
+			RequestId:  requestID,
+			ChunkIndex: 0,
+			IsLast:     false,
+			Data:       []byte(`{"key`),
+		},
+		&apievents.AppSessionHTTPRequestBodyChunk{
+			RequestId:  requestID,
+			ChunkIndex: 1,
+			IsLast:     true,
+			Data:       []byte(`":"val"}`),
+		},
+		&apievents.AppSessionHTTPResponse{
+			RequestId:   requestID,
+			StatusCode:  200,
+			StatusText:  "200 OK",
+			HttpVersion: "HTTP/1.1",
+			Headers: []*apievents.HTTPHeader{
+				{Name: "Content-Type", Value: "application/json"},
+			},
+			WaitTimeMs: 42,
+		},
+		&apievents.AppSessionHTTPResponseBodyChunk{
+			RequestId:  requestID,
+			ChunkIndex: 0,
+			IsLast:     true,
+			Data:       []byte(`{"ok":true}`),
+		},
+	}
+
+	fs := eventstest.NewFakeStreamer(evts, 0)
+	outputPath, err := writeHARWrapper(t, context.Background(), fs, session.ID("test"), nil)
+	require.NoError(t, err)
+
+	data, err := os.ReadFile(outputPath)
+	require.NoError(t, err)
+
+	var result harRoot
+	require.NoError(t, json.Unmarshal(data, &result))
+
+	require.Equal(t, "1.2", result.Log.Version)
+	require.Len(t, result.Log.Entries, 1)
+
+	entry := result.Log.Entries[0]
+	require.Equal(t, "2026-01-02T03:04:05.000Z", entry.StartedDateTime)
+	require.Equal(t, float64(42), entry.Time) // wait only (send+receive are 0)
+
+	req := entry.Request
+	require.Equal(t, "POST", req.Method)
+	require.Equal(t, "https://app.example.com/api?q=1", req.URL)
+	require.Equal(t, "HTTP/1.1", req.HTTPVersion)
+	require.NotNil(t, req.PostData)
+	require.Equal(t, "application/json", req.PostData.MimeType)
+	require.Equal(t, `{"key":"val"}`, req.PostData.Text)
+	require.Empty(t, req.PostData.Encoding) // JSON is text
+	require.Len(t, req.QueryString, 1)
+	require.Equal(t, "q", req.QueryString[0].Name)
+	require.Equal(t, "1", req.QueryString[0].Value)
+
+	resp := entry.Response
+	require.Equal(t, 200, resp.Status)
+	require.Equal(t, "OK", resp.StatusText)
+	require.Equal(t, "application/json", resp.Content.MimeType)
+	require.Equal(t, `{"ok":true}`, resp.Content.Text)
+	require.Empty(t, resp.Content.Encoding)
+
+	require.Equal(t, float64(42), entry.Timings.Wait)
+}
+
+func TestWriteHAR_BinaryBody(t *testing.T) {
+	t.Parallel()
+
+	requestID := "req-bin"
+	evts := []apievents.AuditEvent{
+		&apievents.AppSessionStart{},
+		&apievents.AppSessionHTTPRequest{
+			Metadata:    apievents.Metadata{Type: "app.session.http.request"},
+			RequestId:   requestID,
+			Method:      "GET",
+			Url:         "https://app.example.com/img.png",
+			HttpVersion: "HTTP/1.1",
+		},
+		&apievents.AppSessionHTTPResponse{
+			RequestId:   requestID,
+			StatusCode:  200,
+			StatusText:  "200 OK",
+			HttpVersion: "HTTP/1.1",
+			Headers: []*apievents.HTTPHeader{
+				{Name: "Content-Type", Value: "image/png"},
+			},
+		},
+		&apievents.AppSessionHTTPResponseBodyChunk{
+			RequestId:  requestID,
+			ChunkIndex: 0,
+			IsLast:     true,
+			Data:       []byte{0x89, 0x50, 0x4E, 0x47}, // PNG magic bytes
+		},
+	}
+
+	fs := eventstest.NewFakeStreamer(evts, 0)
+	outputPath, err := writeHARWrapper(t, context.Background(), fs, session.ID("test"), nil)
+	require.NoError(t, err)
+
+	data, err := os.ReadFile(outputPath)
+	require.NoError(t, err)
+	var result harRoot
+	require.NoError(t, json.Unmarshal(data, &result))
+
+	resp := result.Log.Entries[0].Response
+	require.Equal(t, "base64", resp.Content.Encoding)
+	require.Equal(t, "iVBORw==", resp.Content.Text) // base64 of the PNG magic bytes
+}
+
+func TestWriteMovieDetectsAppSession(t *testing.T) {
+	t.Parallel()
+
+	evts := []apievents.AuditEvent{
+		&apievents.AppSessionStart{},
+	}
+	fs := eventstest.NewFakeStreamer(evts, 0)
+
+	_, _, err := writeMovieWrapper(t, context.Background(), fs, session.ID("test"), "test", nil)
+	require.True(t, trace.IsBadParameter(err), "expected bad parameter error, got %v", err)
 }
 
 func tdpEvent(t *testing.T, msg tdp.Message) *apievents.DesktopRecording {
