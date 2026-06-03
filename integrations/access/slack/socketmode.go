@@ -286,6 +286,11 @@ func (smc *SocketModeClient) parseEvents(ctx context.Context, rawCh <-chan json.
 			case SocketModeEventTypeDisconnect:
 				log.DebugContext(ctx, "Received disconnect", "reason", e.Reason, "debug_info", e.DebugInfo)
 
+				// Socket Mode is disabled in Slack app settings.
+				if e.Reason == SocketModeEventReasonLinkDisabled {
+					return trace.Errorf("%s", SocketModeEventReasonLinkDisabled)
+				}
+
 				// Socket Mode server wants to rebuild WebSocket connection.
 				return trace.Wrap(ErrSocketModeDisconnect)
 			case SocketModeEventTypeInteractive:
@@ -316,10 +321,14 @@ func (smc *SocketModeClient) parseEvents(ctx context.Context, rawCh <-chan json.
 	}
 }
 
-// isFatalSocketModeError returns true if the error is fatal for the Socket Mode client, eg. invalid app-level token.
+// isFatalSocketModeError returns true if the error is fatal for the Socket Mode client, eg. invalid app-level token or Socket Mode is disabled.
 func isFatalSocketModeError(err error) bool {
 	switch err.Error() {
+	case SocketModeEventReasonLinkDisabled:
+		// Socket Mode is disabled in app settings.
+		return true
 	case "token_expired", "not_authed", "invalid_auth", "account_inactive", "token_revoked", "no_permission", "not_allowed_token_type", "team_access_not_granted", "missing_scope":
+		// API authn/authz errors that are not retry-able.
 		return true
 	default:
 		return false

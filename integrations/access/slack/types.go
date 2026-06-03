@@ -27,9 +27,10 @@ import (
 // Slack API: Socket Mode constants
 
 const (
-	SocketModeEventTypeHello       = "hello"
-	SocketModeEventTypeDisconnect  = "disconnect"
-	SocketModeEventTypeInteractive = "interactive"
+	SocketModeEventTypeHello          = "hello"
+	SocketModeEventTypeDisconnect     = "disconnect"
+	SocketModeEventTypeInteractive    = "interactive"
+	SocketModeEventReasonLinkDisabled = "link_disabled"
 )
 
 // Slack API types
