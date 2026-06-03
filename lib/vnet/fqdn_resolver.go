@@ -162,7 +162,7 @@ func (r *fqdnResolver) resolveAppInfoForCluster(
 ) (*vnetv1.ResolveFQDNResponse, error) {
 	log := log.With("profile", profileName, "leaf_cluster", leafClusterName, "fqdn", fqdn)
 	// An app public_addr could technically be fully-qualified or not, match either way.
-	expr := fmt.Sprintf(`resource.spec.public_addr == "%s" || resource.spec.public_addr == "%s"`,
+	expr := fmt.Sprintf(`resource.spec.public_addr == %q || resource.spec.public_addr == %q`,
 		strings.TrimSuffix(fqdn, "."), fqdn)
 	resp, err := apiclient.GetResourcePage[types.AppServer](ctx, clusterClient.CurrentCluster(), &proto.ListResourcesRequest{
 		ResourceType:        types.KindAppServer,

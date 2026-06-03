@@ -24,7 +24,7 @@ import type {
 import { compare, major } from 'shared/utils/semVer';
 
 import Logger from 'teleterm/logger';
-import { RootClusterUri } from 'teleterm/ui/uri';
+import { RootClusterUri, routing } from 'teleterm/ui/uri';
 
 const logger = new Logger('resolveAutoUpdatesStatus');
 
@@ -185,6 +185,16 @@ export function shouldAutoDownload(updatesStatus: AutoUpdatesEnabled): boolean {
 
 /** Assigns each cluster a compatibility with client tools from other clusters. */
 function makeClusters(versions: ClusterVersionInfo[]): Cluster[] {
+  // Pre-v17 clusters may not advertise a tools version https://github.com/gravitational/teleport/pull/47872.
+  // Fail here instead of letting semver throw a cryptic 'Invalid Version: '.
+  for (const v of versions) {
+    if (!v.toolsVersion) {
+      throw new Error(
+        `Cluster ${routing.parseClusterName(v.clusterUri)} is not supported by this version of Teleport Connect.`
+      );
+    }
+  }
+
   return versions.map(version => {
     const majorToolsVersion = major(version.toolsVersion);
 

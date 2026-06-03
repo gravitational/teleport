@@ -836,7 +836,7 @@ func fetchDatabaseWithName(ctx context.Context, clt resourcesAPIGetter, r *http.
 	resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
 		Limit:               defaults.MaxIterationLimit,
 		ResourceType:        types.KindDatabaseServer,
-		PredicateExpression: fmt.Sprintf(`name == "%s"`, databaseName),
+		PredicateExpression: fmt.Sprintf(`name == %q`, databaseName),
 		UseSearchAsRoles:    r.URL.Query().Get("searchAsRoles") == "yes",
 	})
 	if err != nil {
