@@ -304,6 +304,9 @@ func (s *Service) getCandidateCSRSigners(
 			"certificate authority has no active or additional keys")
 	}
 
+	// Make sure comparisons are case-insensitive.
+	publicKeyHash = strings.ToLower(publicKeyHash)
+
 	pkhPresent := publicKeyHash != ""
 	var pkhMatched bool
 
@@ -540,7 +543,10 @@ func (s *Service) writeCAOverride(
 	// We'll give the new CA override precedence, so it's possible to use a CRL
 	// from a previously stored resource.
 	maps.Copy(status.PublicKeyHashToCrl, existingCAOverride.GetStatus().GetPublicKeyHashToCrl())
-	maps.Copy(status.PublicKeyHashToCrl, parsed.CAOverride.Status.GetPublicKeyHashToCrl())
+	// Input keys are normalized to lowercase for trivial comparison.
+	for k, v := range parsed.CAOverride.Status.GetPublicKeyHashToCrl() {
+		status.PublicKeyHashToCrl[strings.ToLower(k)] = v
+	}
 	parsed.CAOverride.Status = status
 
 	if err := s.createOverrideCRLs(ctx, getParsedCA, parsed); err != nil {

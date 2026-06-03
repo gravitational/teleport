@@ -24,6 +24,7 @@ import (
 	"encoding/pem"
 	"math/big"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -435,6 +436,22 @@ func TestService_CreateCSR(t *testing.T) {
 			wantCSRs: func(t *testing.T) []*x509.CertificateRequest {
 				return []*x509.CertificateRequest{
 					newExpectedCSR(ca2Cert3, nil),
+				}
+			},
+		},
+		{
+			name: "public_key_hash case insensitive",
+			req: &subcapb.CreateCSRRequest{
+				CaType: string(caType2),
+				PublicKeyHash: &subcapb.PublicKeyHash{
+					// subca.HashCertificatePublicKey/HashPublicKey returns a lowercase
+					// string.
+					Value: strings.ToUpper(subca.HashCertificatePublicKey(ca2Cert2)),
+				},
+			},
+			wantCSRs: func(t *testing.T) []*x509.CertificateRequest {
+				return []*x509.CertificateRequest{
+					newExpectedCSR(ca2Cert2, nil),
 				}
 			},
 		},
@@ -1335,7 +1352,13 @@ func TestService_Upsert_reusesStatusCRLs(t *testing.T) {
 	)
 
 	// Update to the initial version, including Status. CRLs should match.
-	ca4 := mustUpsert(t, ca1)
+	// PublicKeyHashToCrl keys are normalized to lowercase by the backend.
+	ca1Upper := proto.Clone(ca1).(*subcapb.CertAuthorityOverride)
+	ca1Upper.Status.PublicKeyHashToCrl = make(map[string]*subcapb.CertificateRevocationList, len(ca1.Status.PublicKeyHashToCrl))
+	for k, v := range ca1.Status.PublicKeyHashToCrl {
+		ca1Upper.Status.PublicKeyHashToCrl[strings.ToUpper(k)] = v
+	}
+	ca4 := mustUpsert(t, ca1Upper)
 	want := makeCRLMap(ca1.Status)
 	got := makeCRLMap(ca4.Status)
 	if diff := cmp.Diff(want, got); diff != "" {
