@@ -1,6 +1,6 @@
 module usage-script
 
-go 1.25.10
+go 1.25.11
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.35.0
