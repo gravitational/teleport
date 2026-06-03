@@ -283,6 +283,7 @@ require (
 	k8s.io/metrics v0.35.1
 	k8s.io/utils v0.0.0-20251002143259-bc988d571ff4
 	modernc.org/sqlite v1.46.1
+	pgregory.net/rapid v1.3.0
 	rsc.io/ordered v1.1.1
 	sigs.k8s.io/controller-runtime v0.22.4
 	sigs.k8s.io/controller-tools v0.17.1
