@@ -97,6 +97,20 @@ func (s *Session) GetDirectoryAccess() (*DirectoryAccess, error) {
 	return s.dirAccess, nil
 }
 
+// CloseSharedDirectory releases the shared directory handle, if one was opened
+// via SetSharedDirectory. Safe to call multiple times.
+func (s *Session) CloseSharedDirectory() error {
+	s.dirAccessMu.Lock()
+	defer s.dirAccessMu.Unlock()
+
+	if s.dirAccess == nil {
+		return nil
+	}
+	err := s.dirAccess.Close()
+	s.dirAccess = nil
+	return trace.Wrap(err)
+}
+
 // Start starts a remote desktop session.
 func (s *Session) Start(ctx context.Context, stream grpc.BidiStreamingServer[api.ConnectToDesktopRequest, api.ConnectToDesktopResponse], clusterClient *client.TeleportClient, proxyClient *proxy.Client) error {
 	keyRing, err := clusterClient.IssueUserCertsWithMFA(ctx, client.ReissueParams{
