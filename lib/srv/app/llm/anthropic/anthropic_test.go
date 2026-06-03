@@ -17,6 +17,8 @@
 package anthropic
 
 import (
+	"bytes"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -224,6 +226,60 @@ func TestNewRequest(t *testing.T) {
 			tc.expectedError(t, err)
 			tc.expectedRequest(t, req)
 			tc.expectedInfo(t, info)
+		})
+	}
+}
+
+// buildRequestBody returns a valid messages API request body whose total size
+// is roughly fillerBytes.
+func buildRequestBody(fillerBytes int) []byte {
+	content := strings.Repeat("A", fillerBytes)
+	return fmt.Appendf(nil,
+		`{"model":"claude-sonnet-4-20250514","max_tokens":1024,"stream":false,"messages":[{"role":"user","content":%q}]}`,
+		content,
+	)
+}
+
+// BenchmarkNewRequest tracks the cost of the downstream request "parsing" and
+// generation of the provider request, across different body sizes.
+//
+//	go test ./lib/srv/app/llm/anthropic/ -run '^$' -bench BenchmarkNewRequest -benchmem
+func BenchmarkNewRequest(b *testing.B) {
+	b.Setenv(apiKeyEnvVarName, "random-api-key")
+	b.Setenv(addressEnvVarName, "https://api.anthropic.com/v1")
+
+	// Maps the requested model to a provider model so the conversion path
+	// (the common case in production) is exercised.
+	llm := &types.LLM{
+		Provider: types.LLMProviderAnthropic,
+		Models: []*types.LLM_Model{
+			{ProviderName: "claude-opus-4-8", Name: "claude-sonnet-4-20250514"},
+		},
+	}
+
+	for _, bc := range []struct {
+		name string
+		body []byte
+	}{
+		{"small_chat", buildRequestBody(16)},
+		{"medium_32KB", buildRequestBody(32 * 1024)},
+		{"large_1MB", buildRequestBody(1024 * 1024)},
+		{"xlarge_8MB", buildRequestBody(8 * 1024 * 1024)},
+	} {
+		b.Run(bc.name, func(b *testing.B) {
+			// Reuse a single request and only reset the body each iteration.
+			r, err := http.NewRequest(http.MethodPost, "/messages", nil)
+			require.NoError(b, err)
+
+			b.SetBytes(int64(len(bc.body)))
+			b.ReportAllocs()
+
+			for b.Loop() {
+				r.Body = io.NopCloser(bytes.NewReader(bc.body))
+				if _, _, err := NewRequest(llm, r); err != nil {
+					b.Fatal(err)
+				}
+			}
 		})
 	}
 }

@@ -17,7 +17,9 @@
 package anthropic
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -364,4 +366,114 @@ func readSSEOneEvent(t require.TestingT, str string) sse.Event {
 	require.NoError(t, err)
 	require.Len(t, events, 1)
 	return events[0]
+}
+
+// discardResponseWriter is a minimal [http.ResponseWriter] + [http.Flusher]
+// that discards all writes.
+type discardResponseWriter struct {
+	header http.Header
+}
+
+func (w *discardResponseWriter) Header() http.Header         { return w.header }
+func (w *discardResponseWriter) Write(p []byte) (int, error) { return len(p), nil }
+func (w *discardResponseWriter) WriteHeader(int)             {}
+func (w *discardResponseWriter) Flush()                      {}
+
+// buildResponseBody returns a valid non-streaming messages API response whose
+// total size is roughly fillerBytes.
+func buildResponseBody(fillerBytes int) []byte {
+	text := strings.Repeat("A", fillerBytes)
+	return fmt.Appendf(nil,
+		`{"id":"msg_123","type":"message","content":[{"type":"text","text":%q}],"usage":{"input_tokens":15,"output_tokens":20}}`,
+		text,
+	)
+}
+
+// buildStreamEvents returns valid messages API SSE events.
+func buildStreamEvents(numEvents int) [][]byte {
+	events := make([][]byte, 0, numEvents+3)
+	events = append(events, []byte("event: message_start\n"+`data: {"type":"message_start","message":{"id":"msg_123","type":"message","content":[],"usage":{"input_tokens":15}}}`+"\n\n"))
+	for range numEvents {
+		events = append(events, []byte("event: content_block_delta\n"+`data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hello world"}}`+"\n\n"))
+	}
+	events = append(events, []byte("event: message_delta\n"+`data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"input_tokens":15,"output_tokens":60}}`+"\n\n"))
+	events = append(events, []byte("event: message_stop"))
+	return events
+}
+
+// BenchmarkResponseRecorderJSON tracks the non-streaming path.
+//
+//	go test ./lib/srv/app/llm/anthropic/ -run '^$' -bench BenchmarkResponseRecorderJSON -benchmem
+func BenchmarkResponseRecorderJSON(b *testing.B) {
+	log := slog.New(slog.DiscardHandler)
+	for _, bc := range []struct {
+		name string
+		body []byte
+	}{
+		{"small", buildResponseBody(16)},
+		{"medium_32KB", buildResponseBody(32 * 1024)},
+		{"large_1MB", buildResponseBody(1024 * 1024)},
+	} {
+		b.Run(bc.name, func(b *testing.B) {
+			b.SetBytes(int64(len(bc.body)))
+			b.ReportAllocs()
+
+			for b.Loop() {
+				w := &discardResponseWriter{header: http.Header{}}
+				w.header.Set("Content-Type", "application/json")
+				rec, err := NewResponseRecorder(context.Background(), log, w)
+				if err != nil {
+					b.Fatal(err)
+				}
+				rec.WriteHeader(http.StatusOK)
+				if _, err := rec.Write(bc.body); err != nil {
+					b.Fatal(err)
+				}
+				rec.Close()
+			}
+		})
+	}
+}
+
+// BenchmarkResponseRecorderStreamChunked mirrors BenchmarkResponseRecorderStream
+// but issues one Write per SSE event.
+//
+//	go test ./lib/srv/app/llm/anthropic/ -run '^$' -bench BenchmarkResponseRecorderStream -benchmem
+func BenchmarkResponseRecorderStream(b *testing.B) {
+	log := slog.New(slog.DiscardHandler)
+	for _, bc := range []struct {
+		name    string
+		nEvents int
+	}{
+		{"32_events", 32},
+		{"256_events", 256},
+		{"1024_events", 1024},
+	} {
+		events := buildStreamEvents(bc.nEvents)
+		var total int
+		for _, e := range events {
+			total += len(e)
+		}
+		b.Run(bc.name, func(b *testing.B) {
+			b.SetBytes(int64(total))
+			b.ReportAllocs()
+
+			for b.Loop() {
+				w := &discardResponseWriter{header: http.Header{}}
+				w.header.Set("Content-Type", "text/event-stream")
+				rec, err := NewResponseRecorder(context.Background(), log, w)
+				if err != nil {
+					b.Fatal(err)
+				}
+				rec.WriteHeader(http.StatusOK)
+				for _, e := range events {
+					if _, err := rec.Write(e); err != nil {
+						b.Fatal(err)
+					}
+				}
+				// Close waits for the SSE-processing goroutine to drain.
+				rec.Close()
+			}
+		})
+	}
 }
