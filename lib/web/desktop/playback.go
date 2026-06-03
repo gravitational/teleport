@@ -66,13 +66,11 @@ func (a *playbackAction) Validate() error {
 
 type playbackSpeed float64
 
-// Validate coerces playback speed into the acceptable
-// range [minPlaybackSpeed, maxPlaybackSpeed]. It will not
-// actually return an error.
-func (p *playbackSpeed) Validate() error {
+// Coerce coerces playback speed into the acceptable
+// range [minPlaybackSpeed, maxPlaybackSpeed].
+func (p *playbackSpeed) Coerce() {
 	*p = max(*p, minPlaybackSpeed)
 	*p = min(*p, maxPlaybackSpeed)
-	return nil
 }
 
 // actionMessage is a message passed from the playback client
@@ -82,15 +80,6 @@ type actionMessage struct {
 	Action        playbackAction `json:"action"`
 	PlaybackSpeed playbackSpeed  `json:"speed,omitempty"`
 	Pos           int64          `json:"pos"`
-}
-
-func (a *actionMessage) Validate() error {
-	for _, validate := range []func() error{a.Action.Validate, a.PlaybackSpeed.Validate} {
-		if err := validate(); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
 }
 
 // JSONReader is used to read JSON messages containing
@@ -124,7 +113,7 @@ func ReceivePlaybackActions(
 			return trace.Wrap(err)
 		}
 
-		err = action.Validate()
+		err = action.Action.Validate()
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -138,6 +127,7 @@ func ReceivePlaybackActions(
 			}
 			playing = !playing
 		case actionSpeed:
+			action.PlaybackSpeed.Coerce()
 			player.SetSpeed(float64(action.PlaybackSpeed))
 		case actionSeek:
 			player.SetPos(time.Duration(action.Pos) * time.Millisecond)
