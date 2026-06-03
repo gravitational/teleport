@@ -423,7 +423,7 @@ func TestUsernameForCluster(t *testing.T) {
 }
 
 // fakeUserGetter is a UserGetter backed by an in-memory map. It records lookup
-// counts per username so tests can assert the dedupe contract.
+// counts per username so tests can assert the dedupe behavior.
 type fakeUserGetter struct {
 	users   map[string]types.User
 	failFor map[string]error // username -> error returned instead of a lookup
