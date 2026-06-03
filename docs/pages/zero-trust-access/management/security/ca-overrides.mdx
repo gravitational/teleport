@@ -113,15 +113,15 @@ For example:
 ```code
 # Access the first Auth instance.
 # Modify the command below as appropriate.
-tsh ssh user@Auth1
+$ tsh ssh user@Auth1
 
 # Generate the CSRs.
 # Modify as desired.
-tctl auth create-override-csr --type=windows
+$ tctl auth create-override-csr --type=windows
 
 # Second Auth instance.
-tsh ssh user@Auth2
-tctl auth create-override-csr --type=windows
+$ tsh ssh user@Auth2
+$ tctl auth create-override-csr --type=windows
 
 # Repeat for each remaining Auth Service instance.
 ```
@@ -159,7 +159,7 @@ certificate overrides.
 
 Find your cluster name:
 
-```shell
+```code
 $ tctl get cas/windows | yq '.spec.cluster_name'
 mycluster
 ```
@@ -236,11 +236,11 @@ $ tctl create ca_override_windows.yaml
 
 Then, on each Auth Service instance, edit the CA override with `tctl edit`.
 
-```shell
+```code
 # Modify the command below as appropriate.
-tsh ssh user@Auth1
+$ tsh ssh user@Auth1
 
-tctl edit ca_overrides/windows
+$ tctl edit ca_overrides/windows
 ```
 
 Add the corresponding `certificate_override` stanza, then save and exit.
