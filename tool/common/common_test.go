@@ -257,7 +257,7 @@ func TestFormatResourceAccessIDs(t *testing.T) {
 	})
 }
 
-// The four output forms with realistic values.
+// The output forms, plus the all-empty input.
 func TestFormatUserDisplay_CanonicalForms(t *testing.T) {
 	t.Parallel()
 
@@ -269,6 +269,7 @@ func TestFormatUserDisplay_CanonicalForms(t *testing.T) {
 		FormatUserDisplay("", "jane.garcia@example.com", "123456"))
 	require.Equal(t, "123456",
 		FormatUserDisplay("", "", "123456"))
+	require.Empty(t, FormatUserDisplay("", "", ""))
 }
 
 // Whitespace handling after terminal controls are stripped.
