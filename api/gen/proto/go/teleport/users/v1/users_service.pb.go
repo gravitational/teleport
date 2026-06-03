@@ -904,7 +904,12 @@ type ResetUserRequest struct {
 	//     usage in the invitation flow.
 	Type string `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
 	// Ttl specifies how long the generated token is valid for. It can't be
-	// negative. If omitted or zero, it defaults to:
+	// negative. The maximum allowed duration is:
+	//   - 24 hours (lib/defaults.MaxChangePasswordTokenTTL) if type is set to
+	//     "password"
+	//   - 48 hours (lib/defaults.MaxSignupTokenTTL) if type is set to "invite"
+	//
+	// If omitted or zero, it defaults to:
 	//   - 8 hours (lib/defaults.ChangePasswordTokenTTL) if type is set to
 	//     "password"
 	//   - 1 hour (lib/defaults.SignupTokenTTL) if type is set to "invite"
@@ -994,7 +999,12 @@ type ResetUserRequest_builder struct {
 	//     usage in the invitation flow.
 	Type string
 	// Ttl specifies how long the generated token is valid for. It can't be
-	// negative. If omitted or zero, it defaults to:
+	// negative. The maximum allowed duration is:
+	//   - 24 hours (lib/defaults.MaxChangePasswordTokenTTL) if type is set to
+	//     "password"
+	//   - 48 hours (lib/defaults.MaxSignupTokenTTL) if type is set to "invite"
+	//
+	// If omitted or zero, it defaults to:
 	//   - 8 hours (lib/defaults.ChangePasswordTokenTTL) if type is set to
 	//     "password"
 	//   - 1 hour (lib/defaults.SignupTokenTTL) if type is set to "invite"

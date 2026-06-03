@@ -193,19 +193,13 @@ func (u *UserCommand) TryRun(ctx context.Context, cmd string, clientFunc commonc
 
 // ResetPassword resets user password and generates a token to setup new password
 func (u *UserCommand) ResetPassword(ctx context.Context, client *authclient.Client) error {
-	req := &userspb.ResetUserRequest{
-		Name: u.login,
-		Ttl:  durationpb.New(u.ttl),
-		Type: authclient.UserTokenTypeResetPassword,
-	}
-	res, err := client.ResetUser(ctx, req)
+	token, err := u.resetPasswordRPC(ctx, client)
 	if err != nil {
-		return err
+		return trace.Wrap(err)
 	}
 
-	token := res.GetPasswordResetToken()
 	if token != nil {
-		err = u.PrintResetPasswordToken(res.GetPasswordResetToken())
+		err = u.PrintResetPasswordToken(token)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -214,6 +208,28 @@ func (u *UserCommand) ResetPassword(ctx context.Context, client *authclient.Clie
 	}
 
 	return nil
+}
+
+func (u *UserCommand) resetPasswordRPC(ctx context.Context, client *authclient.Client) (types.UserToken, error) {
+	res, err := client.ResetUser(ctx, &userspb.ResetUserRequest{
+		Name: u.login,
+		Ttl:  durationpb.New(u.ttl),
+		Type: authclient.UserTokenTypeResetPassword,
+	})
+	if trace.IsNotImplemented(err) {
+		// Fall back to the legacy API.
+		token, err := client.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
+			Name: u.login,
+			TTL:  u.ttl,
+			Type: authclient.UserTokenTypeResetPassword,
+		})
+		return token, trace.Wrap(err)
+	}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return res.GetPasswordResetToken(), trace.Wrap(err)
 }
 
 // PrintResetPasswordToken prints ResetPasswordToken

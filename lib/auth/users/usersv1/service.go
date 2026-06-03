@@ -629,7 +629,8 @@ func (s *Service) ResetUser(ctx context.Context, req *userspb.ResetUserRequest) 
 		return nil, trace.Wrap(err)
 	}
 
-	if authz.HasBuiltinRole(*authCtx, string(types.RoleOkta)) {
+	if authz.IsLocalOrRemoteService(*authCtx) &&
+		!authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin)) {
 		return nil, trace.AccessDenied("access denied")
 	}
 
@@ -681,7 +682,7 @@ func (s *Service) resetLocalUser(
 		return nil, trace.Wrap(err)
 	}
 
-	_, err = s.backend.CreateUserToken(ctx, token)
+	token, err = s.backend.CreateUserToken(ctx, token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -701,10 +702,6 @@ func (s *Service) resetLocalUser(
 		s.logger.WarnContext(ctx, "Failed to emit create reset password token event", "error", err)
 	}
 
-	token, err = s.backend.GetUserToken(ctx, token.GetName())
-	if err != nil {
-		return nil, err
-	}
 	tokenv3, ok := token.(*types.UserTokenV3)
 	if !ok {
 		return nil, trace.Errorf("encountered unexpected token type: %T", token)
@@ -761,12 +758,14 @@ func (s *Service) resetCredentials(ctx context.Context, username string) (hadMFA
 	}
 
 	var errs []error
+	hadMFAs = false
 	for _, d := range devs {
 		if d.GetSso() != nil {
 			// SSO MFA devices are synthetic and cannot be deleted.
 			continue
 		}
+		hadMFAs = true
 		errs = append(errs, s.backend.DeleteMFADevice(ctx, username, d.Id))
 	}
-	return true, trace.NewAggregate(errs...)
+	return hadMFAs, trace.NewAggregate(errs...)
 }

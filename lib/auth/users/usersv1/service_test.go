@@ -1064,12 +1064,11 @@ func TestResetUser(t *testing.T) {
 				},
 			},
 			setupUser: func(t *testing.T, env *env, user types.User) {
-				u := user.(*types.UserV2)
-				cb := u.GetCreatedBy()
+				cb := user.GetCreatedBy()
 				cb.Time = env.clock.Now().UTC()
-				u.SetCreatedBy(cb)
+				user.SetCreatedBy(cb)
 
-				_, err := env.backend.UpdateUser(t.Context(), u)
+				_, err := env.backend.UpdateUser(t.Context(), user)
 				require.NoError(t, err)
 
 				conn, err := types.NewSAMLConnector(
@@ -1091,11 +1090,6 @@ func TestResetUser(t *testing.T) {
 
 				_, err = env.backend.CreateSAMLConnector(ctx, conn)
 				require.NoError(t, err)
-
-				// Sanity check
-				devs, err := env.backend.GetMFADevices(ctx, user.GetName(), false /* withSecrets */)
-				require.NoError(t, err)
-				require.Len(t, devs, 1)
 			},
 			numMFAsAfterSetup: 3,
 			numMFAsAfterReset: 1,
@@ -1113,9 +1107,7 @@ func TestResetUser(t *testing.T) {
 				},
 			},
 			setupUser: func(t *testing.T, env *env, user types.User) {
-				expiration := time.Hour
-				now := env.clock.Now()
-				user.SetExpiry(now.Add(expiration))
+				user.SetExpiry(env.clock.Now().Add(time.Hour))
 				_, err := env.UpdateUser(ctx, &userspb.UpdateUserRequest{User: user.(*types.UserV2)})
 				require.NoError(t, err)
 
@@ -1251,6 +1243,33 @@ func TestResetUser_Bot(t *testing.T) {
 		Type: authclient.UserTokenTypeResetPassword,
 	})
 	assert.True(t, trace.IsBadParameter(err), "expected trace.BadParameter, got %T %v", err, err)
+}
+
+func TestResetUser_AsNonAdminBuiltinRole(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	authzContext, err := authz.ContextForBuiltinRole(authz.BuiltinRole{
+		Role:     types.RoleOkta,
+		Username: string(types.RoleOkta),
+	}, &types.SessionRecordingConfigV2{})
+	require.NoError(t, err, "creating authorization context")
+
+	env, err := newTestEnv(withAuthorizer(fakeAuthorizer{authzContext: authzContext}))
+	require.NoError(t, err, "creating test service")
+
+	user, err := types.NewUser("capybara")
+	user.SetOrigin(types.OriginOkta)
+	require.NoError(t, err)
+
+	_, err = env.CreateUser(ctx, &userspb.CreateUserRequest{User: user.(*types.UserV2)})
+	require.NoError(t, err)
+
+	_, err = env.ResetUser(ctx, &userspb.ResetUserRequest{
+		Name: "capybara",
+		Type: authclient.UserTokenTypeResetPassword,
+	})
+	assert.True(t, trace.IsAccessDenied(err), "expected trace.AccessDenied, got %T %v", err, err)
 }
 
 func getLastEvent(c <-chan apievents.AuditEvent) apievents.AuditEvent {
