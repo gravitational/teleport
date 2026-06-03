@@ -37,6 +37,7 @@ import (
 
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client/proto"
+	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/discoveryconfig"
@@ -1147,6 +1148,11 @@ func TestAWSOIDCAppAccessAppServerCreationDeletion(t *testing.T) {
 		Spec: types.AppServerSpecV3{
 			Version: api.Version,
 			HostID:  "proxy0",
+			ComponentFeatures: &componentfeaturesv1.ComponentFeatures{
+				Features: []componentfeaturesv1.ComponentFeatureID{
+					componentfeaturesv1.ComponentFeatureID_COMPONENT_FEATURE_ID_RESOURCE_CONSTRAINTS_V1,
+				},
+			},
 			App: &types.AppV3{
 				Kind:    types.KindApp,
 				Version: types.V3,
