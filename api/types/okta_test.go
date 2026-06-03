@@ -33,6 +33,7 @@ func TestOktaAssignments_SetStatus(t *testing.T) {
 		nextStatus  string
 		invalid     bool
 	}{
+
 		// PENDING transitions
 		{startStatus: constants.OktaAssignmentStatusPending, nextStatus: constants.OktaAssignmentStatusPending, invalid: true},
 		{startStatus: constants.OktaAssignmentStatusPending, nextStatus: constants.OktaAssignmentStatusProcessing},
@@ -80,8 +81,6 @@ func TestOktaAssignments_SetStatus(t *testing.T) {
 }
 
 func TestOktAssignmentIsEqual(t *testing.T) {
-	now := time.Now()
-
 	newAssignment := func(changeFns ...func(*OktaAssignmentV1)) *OktaAssignmentV1 {
 		assignment := &OktaAssignmentV1{
 			ResourceHeader: ResourceHeader{
@@ -94,18 +93,8 @@ func TestOktAssignmentIsEqual(t *testing.T) {
 			Spec: OktaAssignmentSpecV1{
 				User: "user",
 				Targets: []*OktaAssignmentTargetV1{
-					{Id: "1", Type: OktaAssignmentTargetV1_APPLICATION, Status: &OktaAssignmentTargetStatus{
-						Outcome:       string(constants.OktaAssignmentTargetOutcomeFailed),
-						Op:            string(constants.OktaAssignmentTargetOpProvision),
-						FailureCount:  3,
-						LastProcessed: now,
-					}},
-					{Id: "2", Type: OktaAssignmentTargetV1_GROUP, Status: &OktaAssignmentTargetStatus{
-						Outcome:       string(constants.OktaAssignmentTargetOutcomeSuccessful),
-						Op:            string(constants.OktaAssignmentTargetOpCleanup),
-						FailureCount:  0,
-						LastProcessed: now,
-					}},
+					{Id: "1", Type: OktaAssignmentTargetV1_APPLICATION},
+					{Id: "2", Type: OktaAssignmentTargetV1_GROUP},
 				},
 				CleanupTime:    time.Time{},
 				Status:         OktaAssignmentSpecV1_PENDING,
@@ -257,38 +246,6 @@ func TestOktAssignmentIsEqual(t *testing.T) {
 			}),
 			expected: false,
 		},
-		{
-			name: "status operation is different",
-			o1:   newAssignment(),
-			o2: newAssignment(func(o *OktaAssignmentV1) {
-				o.Spec.Targets[0].Status.Op = string(constants.OktaAssignmentTargetOpCleanup)
-			}),
-			expected: false,
-		},
-		{
-			name: "status outcome is different",
-			o1:   newAssignment(),
-			o2: newAssignment(func(o *OktaAssignmentV1) {
-				o.Spec.Targets[0].Status.Outcome = string(constants.OktaAssignmentTargetOutcomeSuccessful)
-			}),
-			expected: false,
-		},
-		{
-			name: "status last processed is different",
-			o1:   newAssignment(),
-			o2: newAssignment(func(o *OktaAssignmentV1) {
-				o.Spec.Targets[0].Status.LastProcessed = now.Add(time.Minute)
-			}),
-			expected: false,
-		},
-		{
-			name: "status failure count is different",
-			o1:   newAssignment(),
-			o2: newAssignment(func(o *OktaAssignmentV1) {
-				o.Spec.Targets[0].Status.FailureCount = 23
-			}),
-			expected: false,
-		},
 	}
 
 	for _, test := range tests {
@@ -325,6 +282,7 @@ func Test_PluginOktaSyncSettings_SetUserSyncSource(t *testing.T) {
 			syncSettings.SetUserSyncSource(userSyncSource)
 			require.Equal(t, userSyncSource, syncSettings.GetUserSyncSource())
 		}
+
 	})
 
 	t.Run("edge cases", func(t *testing.T) {
@@ -426,191 +384,4 @@ func Test_PluginOktaSyncSettings_SyncEnabledGetters(t *testing.T) {
 		require.True(t, syncSettings.GetEnableSystemLogExport())
 		require.True(t, syncSettings.GetAssignDefaultRoles())
 	})
-}
-
-func TestOktaAssignmentStatusRecordStatus(t *testing.T) {
-	now := time.Now().UTC()
-	next := now.Add(time.Minute).UTC()
-
-	tests := []struct {
-		name           string
-		op             constants.OktaAssignmentTargetOp
-		outcome        constants.OktaAssignmentTargetOutcome
-		initialStatus  *OktaAssignmentTargetStatus
-		expectedStatus *OktaAssignmentTargetStatus
-		assertErr      require.ErrorAssertionFunc
-	}{
-		{
-			name:    "successful initial provision",
-			op:      constants.OktaAssignmentTargetOpProvision,
-			outcome: constants.OktaAssignmentTargetOutcomeSuccessful,
-			expectedStatus: &OktaAssignmentTargetStatus{
-				Op:            string(constants.OktaAssignmentTargetOpProvision),
-				Outcome:       string(constants.OktaAssignmentTargetOutcomeSuccessful),
-				LastProcessed: next,
-				FailureCount:  0,
-			},
-			assertErr: require.NoError,
-		},
-		{
-			name:    "successful provision from failed",
-			op:      constants.OktaAssignmentTargetOpProvision,
-			outcome: constants.OktaAssignmentTargetOutcomeSuccessful,
-			initialStatus: &OktaAssignmentTargetStatus{
-				Op:            string(constants.OktaAssignmentTargetOpProvision),
-				Outcome:       string(constants.OktaAssignmentTargetOutcomeFailed),
-				LastProcessed: now,
-				FailureCount:  7,
-			},
-			expectedStatus: &OktaAssignmentTargetStatus{
-				Op:            string(constants.OktaAssignmentTargetOpProvision),
-				Outcome:       string(constants.OktaAssignmentTargetOutcomeSuccessful),
-				LastProcessed: next,
-				FailureCount:  0,
-			},
-			assertErr: require.NoError,
-		},
-		{
-			name:    "failed initial provision",
-			op:      constants.OktaAssignmentTargetOpProvision,
-			outcome: constants.OktaAssignmentTargetOutcomeFailed,
-			expectedStatus: &OktaAssignmentTargetStatus{
-				Op:            string(constants.OktaAssignmentTargetOpProvision),
-				Outcome:       string(constants.OktaAssignmentTargetOutcomeFailed),
-				LastProcessed: next,
-				FailureCount:  1,
-			},
-			assertErr: require.NoError,
-		},
-		{
-			name:    "failed provision from failed",
-			op:      constants.OktaAssignmentTargetOpProvision,
-			outcome: constants.OktaAssignmentTargetOutcomeFailed,
-			initialStatus: &OktaAssignmentTargetStatus{
-				Op:            string(constants.OktaAssignmentTargetOpProvision),
-				Outcome:       string(constants.OktaAssignmentTargetOutcomeFailed),
-				LastProcessed: now,
-				FailureCount:  7,
-			},
-			expectedStatus: &OktaAssignmentTargetStatus{
-				Op:            string(constants.OktaAssignmentTargetOpProvision),
-				Outcome:       string(constants.OktaAssignmentTargetOutcomeFailed),
-				LastProcessed: next,
-				FailureCount:  8,
-			},
-			assertErr: require.NoError,
-		},
-		{
-			name:    "successful initial cleanup",
-			op:      constants.OktaAssignmentTargetOpCleanup,
-			outcome: constants.OktaAssignmentTargetOutcomeSuccessful,
-			expectedStatus: &OktaAssignmentTargetStatus{
-				Op:            string(constants.OktaAssignmentTargetOpCleanup),
-				Outcome:       string(constants.OktaAssignmentTargetOutcomeSuccessful),
-				LastProcessed: next,
-				FailureCount:  0,
-			},
-			assertErr: require.NoError,
-		},
-		{
-			name:    "successful cleanup from failed",
-			op:      constants.OktaAssignmentTargetOpCleanup,
-			outcome: constants.OktaAssignmentTargetOutcomeSuccessful,
-			initialStatus: &OktaAssignmentTargetStatus{
-				Op:            string(constants.OktaAssignmentTargetOpCleanup),
-				Outcome:       string(constants.OktaAssignmentTargetOutcomeFailed),
-				LastProcessed: now,
-				FailureCount:  7,
-			},
-			expectedStatus: &OktaAssignmentTargetStatus{
-				Op:            string(constants.OktaAssignmentTargetOpCleanup),
-				Outcome:       string(constants.OktaAssignmentTargetOutcomeSuccessful),
-				LastProcessed: next,
-				FailureCount:  0,
-			},
-			assertErr: require.NoError,
-		},
-		{
-			name:    "failed initial cleanup",
-			op:      constants.OktaAssignmentTargetOpCleanup,
-			outcome: constants.OktaAssignmentTargetOutcomeFailed,
-			expectedStatus: &OktaAssignmentTargetStatus{
-				Op:            string(constants.OktaAssignmentTargetOpCleanup),
-				Outcome:       string(constants.OktaAssignmentTargetOutcomeFailed),
-				LastProcessed: next,
-				FailureCount:  1,
-			},
-			assertErr: require.NoError,
-		},
-		{
-			name:    "failed cleanup from failed",
-			op:      constants.OktaAssignmentTargetOpCleanup,
-			outcome: constants.OktaAssignmentTargetOutcomeFailed,
-			initialStatus: &OktaAssignmentTargetStatus{
-				Op:            string(constants.OktaAssignmentTargetOpCleanup),
-				Outcome:       string(constants.OktaAssignmentTargetOutcomeFailed),
-				LastProcessed: now,
-				FailureCount:  7,
-			},
-			expectedStatus: &OktaAssignmentTargetStatus{
-				Op:            string(constants.OktaAssignmentTargetOpCleanup),
-				Outcome:       string(constants.OktaAssignmentTargetOutcomeFailed),
-				LastProcessed: next,
-				FailureCount:  8,
-			},
-			assertErr: require.NoError,
-		},
-		{
-			name:    "invalid op",
-			op:      "invalid-op",
-			outcome: constants.OktaAssignmentTargetOutcomeSuccessful,
-			initialStatus: &OktaAssignmentTargetStatus{
-				Op:            string(constants.OktaAssignmentTargetOpCleanup),
-				Outcome:       string(constants.OktaAssignmentTargetOutcomeFailed),
-				LastProcessed: now,
-				FailureCount:  3,
-			},
-			expectedStatus: &OktaAssignmentTargetStatus{
-				Op:            string(constants.OktaAssignmentTargetOpCleanup),
-				Outcome:       string(constants.OktaAssignmentTargetOutcomeFailed),
-				LastProcessed: now,
-				FailureCount:  3,
-			},
-			assertErr: require.Error,
-		},
-		{
-			name:    "invalid outcome",
-			op:      constants.OktaAssignmentTargetOpCleanup,
-			outcome: "invalid-outcome",
-			initialStatus: &OktaAssignmentTargetStatus{
-				Op:            string(constants.OktaAssignmentTargetOpCleanup),
-				Outcome:       string(constants.OktaAssignmentTargetOutcomeFailed),
-				LastProcessed: now,
-				FailureCount:  3,
-			},
-			expectedStatus: &OktaAssignmentTargetStatus{
-				Op:            string(constants.OktaAssignmentTargetOpCleanup),
-				Outcome:       string(constants.OktaAssignmentTargetOutcomeFailed),
-				LastProcessed: now,
-				FailureCount:  3,
-			},
-			assertErr: require.Error,
-		},
-	}
-
-	for i, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			target := &OktaAssignmentTargetV1{
-				Type:   OktaAssignmentTargetV1_APPLICATION,
-				Id:     fmt.Sprintf("test-id-%d", i),
-				Status: test.initialStatus,
-			}
-
-			err := target.RecordStatus(next, test.op, test.outcome)
-			test.assertErr(t, err)
-
-			status := target.GetStatus()
-			require.Equal(t, test.expectedStatus, status)
-		})
-	}
 }

@@ -3724,15 +3724,6 @@ enum CreateDatabaseUserMode {
   DB_USER_MODE_BEST_EFFORT_DROP = 3;
 }
 
-// WebTerminalClipboardMode determines clipboard behavior in the Web UI terminal.
-enum WebTerminalClipboardMode {
-  WEB_TERMINAL_CLIPBOARD_MODE_UNSPECIFIED = 0;
-  // WEB_TERMINAL_CLIPBOARD_MODE_UNRESTRICTED enables copying from the Web UI terminal.
-  WEB_TERMINAL_CLIPBOARD_MODE_UNRESTRICTED = 1;
-  // WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY prevents copying from the Web UI terminal.
-  WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY = 2;
-}
-
 // SSHLocalPortForwarding configures access controls for local SSH port forwarding.
 message SSHLocalPortForwarding {
   BoolValue Enabled = 1 [
@@ -3954,11 +3945,6 @@ message RoleOptions {
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "ssh_port_forwarding,omitempty"
   ];
-
-  // WebTerminalClipboardMode determines clipboard behavior in the Web UI terminal.
-  // Valid values are "unrestricted" and "no-copy".
-  // Defaults to "unrestricted" if unspecified.
-  WebTerminalClipboardMode WebTerminalClipboardMode = 33 [(gogoproto.jsontag) = "web_terminal_clipboard_mode,omitempty"];
 }
 
 message RecordSession {
@@ -8872,25 +8858,6 @@ message OktaAssignmentTargetV1 {
   OktaAssignmentTargetType type = 1 [(gogoproto.jsontag) = "type"];
   // ID is the ID of the Okta resource that's being targeted.
   string id = 2 [(gogoproto.jsontag) = "id"];
-
-  // Status stores the status of the last processing attempt for the target.
-  OktaAssignmentTargetStatus status = 3;
-}
-
-// OktaAssignmentTargetStatus represents the status of a target processing attempt.
-message OktaAssignmentTargetStatus {
-  // Outcome stores the outcome of processing the target.
-  string outcome = 1;
-  // Op stores the operation that was performed for the target.
-  string op = 2;
-  // LastProcessed stores the time the target was processed.
-  google.protobuf.Timestamp last_processed = 3 [
-    (gogoproto.stdtime) = true,
-    (gogoproto.nullable) = false,
-    (gogoproto.jsontag) = "last_processed,omitempty"
-  ];
-  // FailureCount stores the number of consecutive target processing failures.
-  int32 failure_count = 4;
 }
 
 // IntegrationV1 represents a connection between Teleport and some other 3rd party system.
