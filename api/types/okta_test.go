@@ -598,11 +598,11 @@ func TestOktaAssignmentStatusRecordStatus(t *testing.T) {
 		},
 	}
 
-	for i, test := range tests {
+	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			target := &OktaAssignmentTargetV1{
 				Type:   OktaAssignmentTargetV1_APPLICATION,
-				Id:     fmt.Sprintf("test-id-%d", i),
+				Id:     fmt.Sprintf("test-%s", test.name),
 				Status: test.initialStatus,
 			}
 
