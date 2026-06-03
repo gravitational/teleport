@@ -154,6 +154,7 @@ func newConsumer(cfg Config, cancelFn context.CancelFunc) (*consumer, error) {
 		visibilityTimeout: int32(cfg.BatchMaxInterval.Seconds()),
 		batchMaxItems:     cfg.BatchMaxItems,
 		maxBatchBytes:     cfg.BatchMaxBytes,
+		noOfWorkers:       cfg.ConsumerWorkers,
 		errHandlingFn:     errHandlingFnFromSQS(&cfg),
 		logger:            cfg.Logger,
 		metrics:           cfg.metrics,
@@ -188,10 +189,7 @@ func newConsumer(cfg Config, cancelFn context.CancelFunc) (*consumer, error) {
 			}
 			key := fmt.Sprintf("%s/%s/%s.parquet", cfg.locationS3Prefix, date, id.String())
 			uploaderOpts := []func(*transfermanager.Options){
-				func(u *transfermanager.Options) {
-					u.PartSizeBytes = 5 << 20 // 5MB minimum; reduces per-upload buffer from 25MB to 5MB
-					u.Concurrency = 1
-				},
+				func(u *transfermanager.Options) {},
 			}
 			fw, err := awsutils.NewS3V2FileWriter(ctx, storerS3Client, cfg.locationS3Bucket, key, uploaderOpts, func(uoi *transfermanager.UploadObjectInput) {
 				// ChecksumAlgorithm is required for putting objects when object lock is enabled.
@@ -443,8 +441,11 @@ func (cfg *sqsCollectConfig) CheckAndSetDefaults() error {
 	if cfg.maxBatchBytes == 0 {
 		cfg.maxBatchBytes = defaultBatchMaxBytes
 	}
+	if cfg.noOfWorkers < 0 {
+		return trace.BadParameter("noOfWorkers cannot be negative")
+	}
 	if cfg.noOfWorkers == 0 {
-		cfg.noOfWorkers = 5
+		cfg.noOfWorkers = defaultConsumerWorkers
 	}
 	if cfg.logger == nil {
 		cfg.logger = slog.With(teleport.ComponentKey, teleport.ComponentAthena)
@@ -468,9 +469,19 @@ type sqsMessagesCollector struct {
 // newSqsMessagesCollector returns message collector.
 // Collector sends collected messages from SQS on events channel.
 func newSqsMessagesCollector(cfg sqsCollectConfig) *sqsMessagesCollector {
+	// receiveCyclesPerFlush defines how many receiveMessages calls will be made
+	// during a parquet file flush. It's used to calculate the size of events channel.
+	// We want to have enough buffer to not block workers receiving messages from
+	// SQS while waiting for flush to happen, but at the same time we don't want
+	// to have too big buffer to not consume too much memory.
+	// This was an empirically defined value based on tests with different
+	// environments (flush ~ 800ms, receive ~ 25ms).
+	const receiveCyclesPerFlush = 32
+
+	eventsChannelSize := max(defaultConsumerWorkers, cfg.noOfWorkers) * maxNumberOfMessagesFromReceive * receiveCyclesPerFlush
 	return &sqsMessagesCollector{
 		cfg:        cfg,
-		eventsChan: make(chan eventAndAckID),
+		eventsChan: make(chan eventAndAckID, eventsChannelSize),
 	}
 }
 
@@ -898,7 +909,7 @@ func newParquetWriter(ctx context.Context, fw io.WriteCloser) (*parquetWriter, e
 		// usage of parquet writer.
 		// Without this, parquet writer will buffer the entire file into
 		// memory before flushing into the io.Writer.
-		parquet.MaxRowsPerRowGroup(300),
+		parquet.MaxRowsPerRowGroup(2000),
 	)
 	return &parquetWriter{
 		closer: fw,

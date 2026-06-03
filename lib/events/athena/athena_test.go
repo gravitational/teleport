@@ -92,7 +92,7 @@ func TestConfig_SetFromURL(t *testing.T) {
 		},
 		{
 			name: "params to batcher",
-			url:  "athena://db.tbl/?queueURL=https://queueURL&batchMaxItems=1000&batchMaxBytes=1000&batchMaxInterval=10s&consumerLockName=mylock&consumerDisabled=true",
+			url:  "athena://db.tbl/?queueURL=https://queueURL&batchMaxItems=1000&batchMaxBytes=1000&batchMaxInterval=10s&consumerLockName=mylock&consumerWorkers=20&consumerDisabled=true",
 			want: Config{
 				TableName:        "tbl",
 				Database:         "db",
@@ -101,6 +101,7 @@ func TestConfig_SetFromURL(t *testing.T) {
 				BatchMaxBytes:    1000,
 				BatchMaxInterval: 10 * time.Second,
 				ConsumerLockName: "mylock",
+				ConsumerWorkers:  20,
 				ConsumerDisabled: true,
 			},
 		},
@@ -113,6 +114,11 @@ func TestConfig_SetFromURL(t *testing.T) {
 			name:    "invalid limiterRefillAmount format",
 			url:     "athena://db.tbl/?limiterRefillAmount=abc",
 			wantErr: "invalid limiterRefillAmount value (it must be int)",
+		},
+		{
+			name:    "invalid consumerWorkers format",
+			url:     "athena://db.tbl/?consumerWorkers=abc",
+			wantErr: "invalid consumerWorkers value (it must be int)",
 		},
 		{
 			name: "region param",
@@ -187,10 +193,11 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 				locationS3Bucket:           "events-bucket",
 				QueueURL:                   "https://queue-url",
 				GetQueryResultsInterval:    100 * time.Millisecond,
-				BatchMaxItems:              2000,
-				BatchMaxBytes:              800 * 1024 * 1024,
+				BatchMaxItems:              defaultBatchItems,
+				BatchMaxBytes:              1024 * 1024 * 1024,
 				BatchMaxInterval:           1 * time.Minute,
 				ConsumerLockName:           "",
+				ConsumerWorkers:            defaultConsumerWorkers,
 				PublisherConsumerAWSConfig: dummyAWSCfg,
 				StorerQuerierAWSConfig:     dummyAWSCfg,
 				Backend:                    mockBackend{},
@@ -214,10 +221,11 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 				locationS3Bucket:           "events-bucket",
 				QueueURL:                   "https://queue-url",
 				GetQueryResultsInterval:    100 * time.Millisecond,
-				BatchMaxItems:              2000,
-				BatchMaxBytes:              800 * 1024 * 1024,
+				BatchMaxItems:              defaultBatchItems,
+				BatchMaxBytes:              1024 * 1024 * 1024,
 				BatchMaxInterval:           1 * time.Minute,
 				ConsumerLockName:           "",
+				ConsumerWorkers:            defaultConsumerWorkers,
 				PublisherConsumerAWSConfig: dummyAWSCfg,
 				StorerQuerierAWSConfig:     dummyAWSCfg,
 				Backend:                    mockBackend{},
@@ -308,6 +316,15 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 				return cfg
 			},
 			wantErr: "LimiterRefillAmount must be greater than 0 if LimiterBurst is used",
+		},
+		{
+			name: "invalid negative ConsumerWorkers",
+			input: func() Config {
+				cfg := validConfig
+				cfg.ConsumerWorkers = -1
+				return cfg
+			},
+			wantErr: "ConsumerWorkers cannot be negative",
 		},
 	}
 	for _, tt := range tests {

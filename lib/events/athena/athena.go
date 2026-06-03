@@ -50,13 +50,16 @@ import (
 
 const (
 	// defaultBatchItems defines default value for batch items count.
-	// 2000 items, per average 500KB event size = 1GB
-	defaultBatchItems = 2000
+	// 10_000 items, per average 500KB event size = 5GB
+	defaultBatchItems = 10_000
 	// defaultBatchInterval defines default batch interval.
 	defaultBatchInterval = 1 * time.Minute
 	// defaultBatchMaxBytes defines the default maximum total size in bytes of events
-	// in a single batch. Defaults to 800MB.
-	defaultBatchMaxBytes = 800 * 1024 * 1024
+	// in a single batch. Defaults to 1GB.
+	defaultBatchMaxBytes = 1024 * 1024 * 1024
+	// defaultConsumerWorkers defines how many concurrent workers receive SQS
+	// messages for a single Athena consumer.
+	defaultConsumerWorkers = 5
 
 	// topicARNBypass is a magic value for TopicARN that signifies that the
 	// Athena audit log should send messages directly to SQS instead of going
@@ -127,7 +130,7 @@ type Config struct {
 	// It's soft limit.
 	BatchMaxItems int
 	// BatchMaxBytes defines the maximum total size in bytes of events in a
-	// single batch (optional). Default is 800MB.
+	// single batch (optional). Default is 1GB.
 	BatchMaxBytes int
 	// BatchMaxInterval defined interval at which parquet files will be created (optional).
 	BatchMaxInterval time.Duration
@@ -135,6 +138,9 @@ type Config struct {
 	// If provided, it will be prefixed with "athena/" to avoid accidental
 	// collision with existing locks.
 	ConsumerLockName string
+	// ConsumerWorkers defines how many concurrent workers receive messages from
+	// SQS for a single consumer (optional).
+	ConsumerWorkers int
 	// ConsumerDisabled defines if SQS consumer should be disabled (optional).
 	ConsumerDisabled bool
 
@@ -264,6 +270,12 @@ func (cfg *Config) CheckAndSetDefaults(ctx context.Context) error {
 		// no-one should use that short interval, so it's easier to check here.
 		// For high load operation, BatchMaxItems will happen first.
 		return trace.BadParameter("BatchMaxInterval too short, must be greater than 5s")
+	}
+	if cfg.ConsumerWorkers < 0 {
+		return trace.BadParameter("ConsumerWorkers cannot be negative")
+	}
+	if cfg.ConsumerWorkers == 0 {
+		cfg.ConsumerWorkers = defaultConsumerWorkers
 	}
 
 	if cfg.LimiterRefillAmount < 0 {
@@ -440,6 +452,13 @@ func (cfg *Config) SetFromURL(url *url.URL) error {
 	}
 	if consumerLockName := url.Query().Get("consumerLockName"); consumerLockName != "" {
 		cfg.ConsumerLockName = consumerLockName
+	}
+	if consumerWorkers := url.Query().Get("consumerWorkers"); consumerWorkers != "" {
+		intConsumerWorkers, err := strconv.Atoi(consumerWorkers)
+		if err != nil {
+			return trace.BadParameter("invalid consumerWorkers value (it must be int): %v", err)
+		}
+		cfg.ConsumerWorkers = intConsumerWorkers
 	}
 	if val := url.Query().Get("consumerDisabled"); val != "" {
 		boolVal, err := strconv.ParseBool(val)
