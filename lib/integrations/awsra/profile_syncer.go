@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	config "github.com/gravitational/teleport/lib/cloud/aws/config"
+	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/integrations/awsra/createsession"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -642,6 +643,7 @@ func convertProfile(params AWSRolesAnywhereProfileSyncerParams, profile *integra
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	appServer.SetComponentFeatures(componentfeatures.ForAppServer(appServer))
 
 	return appServer, nil
 }
