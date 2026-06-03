@@ -43,7 +43,7 @@ following order:
    All components will stop trusting the old CA and only trust the new CA.
 
 Before the final `standby` phase, you can also put the rotation in the
-`rollback` phase to abort the rotation return to the original certificate
+`rollback` phase to abort the rotation and return to the original certificate
 authority. After the `rollback` phase you will then proceed to the `standby`
 phase.
 
@@ -351,7 +351,7 @@ the `/.well-known/openid-configuration` path of the Web UI and reading the
 
 ```code
 $ curl https://example.teleport.sh/.well-known/openid-configuration | jq '.jwks_uri'
-"https://example.teleport.sh/.well-known-jwks-oidc"
+"https://example.teleport.sh/.well-known/jwks-oidc"
 ```
 
 ### `spiffe`
