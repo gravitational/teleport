@@ -1,0 +1,259 @@
+// Teleport
+// Copyright (C) 2026 Gravitational, Inc.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU Affero General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU Affero General Public License for more details.
+//
+// You should have received a copy of the GNU Affero General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+package generic
+
+import (
+	"context"
+	"strings"
+
+	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/scopes"
+)
+
+// ScopedResource is a resource type that has a scope. The scope may be empty
+// on any individual resource of the type, that resource may be referred to as
+// "unscoped" despite the type being scoped.
+type ScopedResource interface {
+	Resource
+	// GetScope returns the scope of the resource.
+	GetScope() string
+}
+
+// ScopeAwareService is a generic service for interacting with namespaced
+// scoped resources in the backend. Scoped resources will be stored in a
+// separate key range from resources with an empty scope, and namespaced by
+// their scope. The ScopeAwareService transparently handles listing all scoped
+// and unscoped resources, as well as creating and querying individual resources
+// from the correct key range.
+type ScopeAwareService[T ScopedResource] struct {
+	// UnscopedService is the underlying service for resources with an empty scope.
+	// Resources will be keyed at <backend_prefix>/<name>
+	UnscopedService *Service[T]
+	// ScopedService is the underlying service for resources with a scope.
+	// Resources will be keyed at <scoped_prefix>/<backend_prefix>/<encoded_scope>/<name>
+	ScopedService *Service[T]
+}
+
+// NewScopeAwareService returns a new scope-aware service.
+func NewScopeAwareService[T ScopedResource](cfg *ServiceConfig[T], scopedPrefix backend.Key) (*ScopeAwareService[T], error) {
+	unscopedService, err := NewService(cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	scopedCfg := *cfg
+	scopedCfg.BackendPrefix = cfg.BackendPrefix.PrependKey(scopedPrefix)
+	scopedService, err := NewService(&scopedCfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &ScopeAwareService[T]{
+		UnscopedService: unscopedService,
+		ScopedService:   scopedService,
+	}, nil
+}
+
+// GetResources returns all unscoped and scoped resources.
+func (s *ScopeAwareService[T]) GetResources(ctx context.Context) ([]T, error) {
+	resources, err := s.UnscopedService.GetResources(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	scopedResources, err := s.ScopedService.GetResources(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return append(resources, scopedResources...), nil
+}
+
+// ListResources returns a page of resources over the unified scoped
+// and unscoped collection. It always returns all unscoped resources before
+// matching scoped resources.
+func (s *ScopeAwareService[T]) ListResources(ctx context.Context, pageSize int, nextToken string) ([]T, string, error) {
+	return s.ListResourcesWithFilter(ctx, pageSize, nextToken, func(T) bool { return true })
+}
+
+// ListResourcesWithFilter returns a page of matching resources over the
+// unified scoped and unscoped collection. It always returns all matching
+// unscoped resources before matching scoped resources.
+func (s *ScopeAwareService[T]) ListResourcesWithFilter(ctx context.Context, pageSize int, nextToken string, matcher func(T) bool) ([]T, string, error) {
+	// This prefix is added to page tokens before they are returned if the next
+	// page should begin with a scoped resource. It must be trimmed before
+	// querying the scoped backend.
+	const scopedPageTokenPrefix = "/scoped/"
+
+	if pageSize <= 0 || pageSize > int(s.UnscopedService.pageLimit) {
+		pageSize = int(s.UnscopedService.pageLimit)
+	}
+
+	// Check if the token was scoped, if so the caller has already paged over
+	// all unscoped resources and we should return the next page of scoped
+	// resources.
+	if nextScopedToken, isScoped := strings.CutPrefix(nextToken, scopedPageTokenPrefix); isScoped {
+		resources, nextScopedKey, err := s.ScopedService.ListResourcesWithFilter(ctx, pageSize, nextScopedToken, matcher)
+		if nextScopedKey != "" {
+			nextScopedKey = scopedPageTokenPrefix + nextScopedKey
+		}
+		return resources, nextScopedKey, trace.Wrap(err)
+	}
+
+	// Fetch the next page of matching unscoped resources.
+	resources, nextKey, err := s.UnscopedService.ListResourcesWithFilter(ctx, pageSize, nextToken, matcher)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	if nextKey != "" {
+		// There are remaining unscoped resources, return this page.
+		return resources, nextKey, nil
+	}
+	if len(resources) >= pageSize {
+		// The page is full but nextKey is empty indicating there are no more
+		// unscoped resources. Return with scopedPageTokenPrefix so the next
+		// page begins with scoped resources.
+		return resources, scopedPageTokenPrefix, nil
+	}
+
+	// Reached the end of unscoped resources within pageSize, try to fill in
+	// the page with scoped resources.
+	remainingPageSize := pageSize - len(resources)
+	scopedResources, nextScopedKey, err := s.ScopedService.ListResourcesWithFilter(ctx, remainingPageSize, "", matcher)
+	if nextScopedKey != "" {
+		nextScopedKey = scopedPageTokenPrefix + nextScopedKey
+	}
+	return append(resources, scopedResources...), nextScopedKey, trace.Wrap(err)
+}
+
+// GetResource returns a resource, if it exists, for the given scope-qualified name.
+// If the scope is empty, it returns an unscoped resource from the unscoped key range.
+// If the scope is non-empty, it returns a scoped resource from the scoped key range.
+func (s *ScopeAwareService[T]) GetResource(ctx context.Context, scopedName scopes.QualifiedName) (T, error) {
+	if scopedName.Scope == "" {
+		return s.UnscopedService.GetResource(ctx, scopedName.Name)
+	}
+	encodedScope, err := scopes.EncodeForKey(scopedName.Scope)
+	if err != nil {
+		var nul T
+		return nul, trace.Wrap(err)
+	}
+	return s.ScopedService.WithPrefix(encodedScope).GetResource(ctx, scopedName.Name)
+}
+
+// DeleteResource deletes a resource for the given scope-qualified name.
+// If the scope is empty, it deletes an unscoped resource from the unscoped key range.
+// If the scope is non-empty, it deletes a scoped resource from the scoped key range.
+func (s *ScopeAwareService[T]) DeleteResource(ctx context.Context, scopedName scopes.QualifiedName) error {
+	if scopedName.Scope == "" {
+		return s.UnscopedService.DeleteResource(ctx, scopedName.Name)
+	}
+	encodedScope, err := scopes.EncodeForKey(scopedName.Scope)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return s.ScopedService.WithPrefix(encodedScope).DeleteResource(ctx, scopedName.Name)
+}
+
+// DeleteAllResources deletes all scoped and unscoped resources.
+func (s *ScopeAwareService[T]) DeleteAllResources(ctx context.Context) error {
+	return trace.NewAggregate(
+		s.UnscopedService.DeleteAllResources(ctx),
+		s.ScopedService.DeleteAllResources(ctx),
+	)
+}
+
+// CreateResource creates the given scoped resource if it doesn't already
+// exist. If the scope is empty, it will be inserted in the unscoped key range,
+// else it will be inserted in the scoped key range.
+func (s *ScopeAwareService[T]) CreateResource(ctx context.Context, resource T) (T, error) {
+	if scope := resource.GetScope(); scope != "" {
+		encodedScope, err := scopes.EncodeForKey(scope)
+		if err != nil {
+			var nul T
+			return nul, trace.Wrap(err)
+		}
+		return s.ScopedService.WithPrefix(encodedScope).CreateResource(ctx, resource)
+	}
+	return s.UnscopedService.CreateResource(ctx, resource)
+}
+
+// UpsertResource upserts the given scoped resource. If the scope is empty, it
+// will be inserted in the unscoped key range, else it will be inserted in the
+// scoped key range.
+func (s *ScopeAwareService[T]) UpsertResource(ctx context.Context, resource T) (T, error) {
+	if scope := resource.GetScope(); scope != "" {
+		encodedScope, err := scopes.EncodeForKey(scope)
+		if err != nil {
+			var nul T
+			return nul, trace.Wrap(err)
+		}
+		return s.ScopedService.WithPrefix(encodedScope).UpsertResource(ctx, resource)
+	}
+	return s.UnscopedService.UpsertResource(ctx, resource)
+}
+
+// UpdateResource updates the given scoped resource. If the scope is empty, it
+// will be updated in the unscoped key range, else it will be updated in the
+// scoped key range.
+func (s *ScopeAwareService[T]) UpdateResource(ctx context.Context, resource T) (T, error) {
+	if scope := resource.GetScope(); scope != "" {
+		encodedScope, err := scopes.EncodeForKey(scope)
+		if err != nil {
+			var nul T
+			return nul, trace.Wrap(err)
+		}
+		return s.ScopedService.WithPrefix(encodedScope).UpdateResource(ctx, resource)
+	}
+	return s.UnscopedService.UpdateResource(ctx, resource)
+}
+
+// ConditionalUpdateResource updates the given scoped resource if the revision
+// matches. If the scope is empty, it will be updated in the unscoped key
+// range, else it will be updated in the scoped key range.
+func (s *ScopeAwareService[T]) ConditionalUpdateResource(ctx context.Context, resource T) (T, error) {
+	if scope := resource.GetScope(); scope != "" {
+		encodedScope, err := scopes.EncodeForKey(scope)
+		if err != nil {
+			var nul T
+			return nul, trace.Wrap(err)
+		}
+		return s.ScopedService.WithPrefix(encodedScope).ConditionalUpdateResource(ctx, resource)
+	}
+	return s.UnscopedService.ConditionalUpdateResource(ctx, resource)
+}
+
+// WithScopedResourcePrefix returns a [*Service] with a prefix for the given
+// scope-qualified name appended to the backend prefix.
+//
+// If the given scope is empty, it will return the UnscopedService with the
+// given name as an added prefix.
+//
+// If the given scope is non-empty, it will return the ScopedService with the
+// encoded scope and the name as an added prefix.
+//
+// This may be appropriate for dependent resources keyed by a unique scoped
+// resource, i.e. members of a scoped access list.
+func (s *ScopeAwareService[T]) WithScopedResourcePrefix(scopedName scopes.QualifiedName) (*Service[T], error) {
+	if scopedName.Scope == "" {
+		return s.UnscopedService.WithPrefix(scopedName.Name), nil
+	}
+	encodedScope, err := scopes.EncodeForKey(scopedName.Scope)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return s.ScopedService.WithPrefix(encodedScope, scopedName.Name), nil
+}

@@ -45,7 +45,12 @@ import (
 // testResource for testing the generic service.
 type testResource struct {
 	types.ResourceHeader
-	Spec testResourceSpec
+	Spec  testResourceSpec
+	Scope string
+}
+
+func (r *testResource) GetScope() string {
+	return r.Scope
 }
 
 func newTestResource(name string) *testResource {
