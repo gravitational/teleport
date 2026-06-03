@@ -1047,7 +1047,7 @@ func TestSessionRecordingModes(t *testing.T) {
 				SessionRecordingMode: string(tt.sessionRecordingMode),
 			})
 
-			// Write stuff in the session
+			// Write to the session as a synchronization barrier.
 			_, err = sessCh.Write([]byte("hello"))
 			require.NoError(t, err)
 
@@ -1055,9 +1055,11 @@ func TestSessionRecordingModes(t *testing.T) {
 			err = sess.Recorder().Complete(context.Background())
 			require.NoError(t, err)
 
-			// Send more writes.
-			_, err = sessCh.Write([]byte("world"))
-			require.NoError(t, err)
+			// Write after completion. The recording failure may race the message if it
+			// gets triggered by the initial "hello", so tolerate a closed pipe.
+			if _, err = sessCh.Write([]byte("world")); err != nil {
+				require.ErrorIs(t, err, io.ErrClosedPipe)
+			}
 
 			// Ensure the session is stopped.
 			if !tt.expectClosedSession {
