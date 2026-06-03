@@ -3568,14 +3568,7 @@ func (process *TeleportProcess) initSSH() error {
 			logger.WarnContext(process.ExitContext(), warn)
 		}
 
-		// TODO(espadolini): relax this once the selinux module is updated to support the potentially embedded reexec helper
-		if !cfg.SSH.EnableSELinux {
-			checkEmbeddedReexecAndLog(process.ExitContext(), logger)
-		} else {
-			logger.DebugContext(process.ExitContext(),
-				"The embedded session helper is not supported when SELinux support is enabled.",
-			)
-		}
+		checkEmbeddedReexecAndLog(process.ExitContext(), cfg.SSH.EnableSELinux, logger)
 
 		useLocalListener := cfg.SSH.ForceListen || !conn.UseTunnel()
 
@@ -3869,19 +3862,75 @@ func (process *TeleportProcess) initSSH() error {
 	return nil
 }
 
-func checkEmbeddedReexecAndLog(ctx context.Context, logger *slog.Logger) {
-	if ok, err := reexec.InitEmbeddedReexec(); err != nil {
-		logger.WarnContext(ctx,
-			"This Teleport build supports the embedded session helper but it is not available in this environment, performance of user sessions might be impacted.",
-			"error", err,
+func checkEmbeddedReexecAndLog(ctx context.Context, selinux bool, logger *slog.Logger) {
+	var explicitlyDisabled, explicitlyEnabled bool
+	if e := os.Getenv("TELEPORT_UNSTABLE_DISABLE_EMBEDDED_REEXEC"); e != "" {
+		b, err := apiutils.ParseBool(e)
+		if err != nil {
+			logger.WarnContext(ctx,
+				"Failed to parse the TELEPORT_UNSTABLE_DISABLE_EMBEDDED_REEXEC envvar, proceeding as if it was set to true",
+				"error", err,
+			)
+			b = true
+		}
+		if b {
+			explicitlyDisabled = true
+		} else {
+			explicitlyEnabled = true
+		}
+	}
+
+	if !reexec.EmbeddedReexecAvailable {
+		level := slog.LevelDebug
+		if explicitlyEnabled {
+			level = slog.LevelWarn
+		}
+		logger.LogAttrs(ctx, level,
+			"This Teleport build does not support the embedded session helper for user sessions.",
 		)
-	} else if ok {
-		logger.DebugContext(ctx,
-			"The embedded session helper is available and will be used for user sessions.",
+		return
+	}
+
+	// TODO(espadolini): relax this once the selinux module is updated to support the potentially embedded reexec helper
+	if selinux {
+		level := slog.LevelDebug
+		if explicitlyEnabled {
+			level = slog.LevelWarn
+		}
+		logger.LogAttrs(ctx, level,
+			"The embedded session helper is not supported when SELinux support is enabled.",
+		)
+		return
+	}
+
+	if explicitlyDisabled {
+		slog.InfoContext(ctx, "The embedded session helper was explicitly disabled and will not be used for user sessions.")
+		return
+	}
+
+	// TODO(espadolini): enable by default in v19
+	if !explicitlyEnabled {
+		slog.DebugContext(ctx, "The embedded session helper is not enabled and will not be used for user sessions.")
+		return
+	}
+
+	if err := reexec.InitEmbeddedReexec(); err != nil {
+		// TODO(espadolini): always warn in v19
+		level := slog.LevelDebug
+		if explicitlyEnabled {
+			level = slog.LevelWarn
+		}
+		logger.LogAttrs(ctx, level,
+			"This Teleport build supports the embedded session helper but it is not available in this environment, performance of user sessions might be impacted.",
+			slog.Any("error", err),
 		)
 	} else {
-		logger.DebugContext(ctx,
-			"This Teleport build does not support the embedded session helper for user sessions.",
+		level := slog.LevelDebug
+		if explicitlyEnabled {
+			level = slog.LevelInfo
+		}
+		logger.LogAttrs(ctx, level,
+			"The embedded session helper is available and will be used for user sessions.",
 		)
 	}
 }
