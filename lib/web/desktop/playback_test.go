@@ -88,8 +88,6 @@ func TestStreamingError(t *testing.T) {
 	errorCh <- errors.New("some error")
 	s := newServer(t, 20*time.Millisecond, events, errorCh)
 
-	// connect to the server and verify that we receive
-	// all 4 JSON-encoded events
 	url := strings.Replace(s.URL, "http", "ws", 1)
 
 	// As per https://pkg.go.dev/github.com/gorilla/websocket#Dialer.DialContext:
