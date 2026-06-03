@@ -1,14 +1,15 @@
 package service
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"io"
 	"log/slog"
 	"math/rand/v2"
 	"net/http"
+	"slices"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -32,13 +33,9 @@ const (
 	// Avoid page sizes that are too large, it can cause "the read limit is
 	// reached" errors.
 	inventoryReadDefaultPageSize = 100
-
-	sortByID             = "id:asc"
-	sortByReportDateDesc = "general.reportDate:desc"
+	// jamfSubsystem is the metric subsystem for Jamf.
+	jamfSubsystem = "jamf"
 )
-
-// jamfSubsystem is the metric subsystem for Jamf.
-const jamfSubsystem = "jamf"
 
 var defaultInventory = []*types.JamfInventoryEntry{
 	// https://github.com/gravitational/teleport.e/blob/master/rfd/0007e-device-trust-mdm-integration.md#jamf-inventory-sync
@@ -218,16 +215,15 @@ func newJamfScheduler(spec *types.JamfSpecV1) (*mdmsync.Scheduler[*scheduleEntry
 // queries we intend to run are valid.
 func (s *S) verifyInventoryFilters(ctx context.Context) error {
 	for _, entry := range s.config.Spec.Inventory {
-		if entry.FilterRsql == "" {
-			continue
-		}
-		if _, err := s.jamf.GetComputersInventory(ctx, &jamf.GetComputersInventoryRequest{
-			Page:     0,
-			PageSize: 1,
-			Sort:     []string{sortByReportDateDesc},
-			Filter:   entry.FilterRsql,
-		}); err != nil {
-			return trace.BadParameter("computer inventory query, filter=%q: %v", entry.FilterRsql, err)
+		switch entry.DeviceType {
+		case "", types.JamfDeviceTypeComputers:
+			if err := s.verifyComputersInventoryFilters(ctx, entry); err != nil {
+				return trace.Wrap(err)
+			}
+		case types.JamfDeviceTypeMobileDevices:
+			if err := s.verifyMobileInventoryFilters(ctx, entry); err != nil {
+				return trace.Wrap(err)
+			}
 		}
 	}
 	return nil
@@ -260,6 +256,7 @@ func (s *S) Run(ctx context.Context) error {
 				Mode:       e.Mode,
 				OnMissing:  e.Entry.onMissing,
 				FilterRSQL: e.Entry.FilterRsql,
+				DeviceType: e.Entry.DeviceType,
 				CutTime:    e.Entry.cutTime,
 				PageSize:   int(e.Entry.PageSize),
 			})
@@ -300,8 +297,11 @@ type RunSpec struct {
 	Mode       mdmsync.SyncMode
 	OnMissing  DeviceAction
 	FilterRSQL string
+	// DeviceType is the device type to sync.
+	// If empty, defaults to "computers".
+	DeviceType string
 	// CutTime is the cut time for partial syncs. The sync stops as soon as the
-	// first computer modified before `CutTime` is found.
+	// first device modified before `CutTime` is found.
 	CutTime time.Time
 	// PageSize is the page size to use when querying the Jamf inventory.
 	// If zero or negative a default value is used.
@@ -309,21 +309,25 @@ type RunSpec struct {
 }
 
 // RunOnce attempts to perform a single sync operation with the given [RunSpec].
-// Returns the cut time for the next sync, acquired from the first computer read
-// from Jamf.
+// Returns the highest cut time observed during the sync.
 func (s *S) RunOnce(ctx context.Context, spec RunSpec) (nextCutTime time.Time, err error) {
-	pageSize := spec.PageSize
-	if pageSize <= 0 {
-		pageSize = inventoryReadDefaultPageSize
+	if spec.PageSize <= 0 {
+		spec.PageSize = inventoryReadDefaultPageSize
+	}
+
+	deviceType := cmp.Or(spec.DeviceType, types.JamfDeviceTypeComputers)
+	if !slices.Contains(types.JamfDeviceTypes, deviceType) {
+		return time.Time{}, trace.BadParameter("unknown device type %q", deviceType)
 	}
 
 	s.logger.InfoContext(ctx,
 		"Starting sync",
 		"mode", spec.Mode,
+		"device_type", deviceType,
 		"filter_rsql", spec.FilterRSQL,
 		"on_missing", spec.OnMissing,
 		"cut_time", spec.CutTime,
-		"page_size", pageSize,
+		"page_size", spec.PageSize,
 	)
 	start := s.clock.Now()
 
@@ -359,67 +363,61 @@ func (s *S) RunOnce(ctx context.Context, spec RunSpec) (nextCutTime time.Time, e
 		return time.Time{}, trace.BadParameter("unexpected payload %T, expecting ack", resp.Payload)
 	}
 
-	type devicesResp struct {
-		jamfDevs     []*jamf.ComputerInventory
-		teleportDevs []*devicepb.Device
-		page         int
-		err          error
-	}
 	const devicesBuffer = 4 // Allow for a small backlog to build up.
 	devicesC := make(chan devicesResp, devicesBuffer)
 
+	// Cancel the producer goroutine when RunOnce returns, so that an early return
+	// (for example, a stream error) doesn't leave it blocked forever on a send to
+	// devicesC.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	// Read and convert inventory from Jamf.
 	go func() {
-		req := &jamf.GetComputersInventoryRequest{
-			Section: []string{
-				jamf.SectionGeneral,
-				jamf.SectionHardware,
-				jamf.SectionLocalUserAccounts,
-				jamf.SectionOperatingSystem,
-			},
-			PageSize: pageSize,
-			Sort:     []string{sortByID}, // expected to be more "stable" than timestamps
-			Filter:   spec.FilterRSQL,
-		}
+		defer close(devicesC)
 
-		// Sort by recent use on PARTIAL syncs.
-		// Alternatively we could use an RSQL filter.
-		if spec.Mode == mdmsync.SyncModePartial {
-			req.Sort = []string{sortByReportDateDesc}
+		var readPage func(ctx context.Context, spec RunSpec, pageNum int) (rawJamfPage, error)
+		switch deviceType {
+		case types.JamfDeviceTypeComputers:
+			readPage = s.getComputersPage
+		case types.JamfDeviceTypeMobileDevices:
+			readPage = s.getMobilePage
 		}
 
 		jamfDevsCount := 0
-		for {
-			page, err := s.getDevicesPage(ctx, spec, req)
+		for pageNum := 0; ; pageNum++ {
+			rawPage, err := readPage(ctx, spec, pageNum)
 			if err != nil {
-				devicesC <- devicesResp{err: trace.Wrap(err)}
+				select {
+				case devicesC <- devicesResp{err: trace.Wrap(err)}:
+				case <-ctx.Done():
+				}
 				return
 			}
 
-			jamfDevsCount += len(page.jamfDevs)
-			if len(page.teleportDevs) > 0 {
-				devicesC <- devicesResp{
-					jamfDevs:     page.jamfDevs,
-					teleportDevs: page.teleportDevs,
-					page:         req.Page,
-					err:          err,
-				}
-			}
+			jamfDevsCount += len(rawPage.devices)
+			page := s.processDevicesPage(ctx, spec, deviceType, rawPage.devices)
 
-			// Update cut time.
-			if page.highCutTime.After(nextCutTime) {
-				nextCutTime = page.highCutTime
+			// Send every page, even ones that produced no Teleport devices, so
+			// that the consumer can still advance the cut time past records that
+			// were intentionally dropped during conversion.
+			select {
+			case devicesC <- devicesResp{
+				teleportDevs: page.teleportDevs,
+				jamfDevs:     page.jamfDevs,
+				page:         pageNum,
+				highCutTime:  page.highCutTime,
+			}:
+			case <-ctx.Done():
+				return
 			}
 
 			// Stop?
 			if page.partialStop ||
-				jamfDevsCount >= page.jamfTotalCount ||
-				len(page.teleportDevs) == 0 {
-				close(devicesC)
+				jamfDevsCount >= rawPage.totalCount ||
+				len(rawPage.devices) == 0 {
 				return
 			}
-
-			req.Page++
 		}
 	}()
 
@@ -432,6 +430,14 @@ func (s *S) RunOnce(ctx context.Context, spec RunSpec) (nextCutTime time.Time, e
 		}
 		if err := devsResp.err; err != nil {
 			return time.Time{}, trace.Wrap(err)
+		}
+
+		if devsResp.highCutTime.After(nextCutTime) {
+			nextCutTime = devsResp.highCutTime
+		}
+
+		if len(devsResp.teleportDevs) == 0 {
+			continue // Empty page: cut time advanced, nothing to upsert.
 		}
 
 		if err := stream.Send(&devicepb.SyncInventoryRequest{
@@ -448,8 +454,8 @@ func (s *S) RunOnce(ctx context.Context, spec RunSpec) (nextCutTime time.Time, e
 			return time.Time{}, trace.Wrap(err, "devices: Recv")
 		}
 		s.logSyncResult(resp.GetResult(), syncState{
-			jamfDevices: devsResp.jamfDevs,
-			page:        devsResp.page,
+			jamfDevs: devsResp.jamfDevs,
+			page:     devsResp.page,
 		})
 		syncCount += len(resp.GetResult().GetDevices())
 	}
@@ -507,86 +513,101 @@ func (s *S) RunOnce(ctx context.Context, spec RunSpec) (nextCutTime time.Time, e
 	return nextCutTime, nil
 }
 
-type devicesPage struct {
-	jamfTotalCount int       // aka GetComputersInventoryResponse.TotalCount
-	highCutTime    time.Time // highest observed cut date in the page
-	partialStop    bool      // true if a partial stop was trigerred
-
-	jamfDevs     []*jamf.ComputerInventory
+type devicesResp struct {
 	teleportDevs []*devicepb.Device
+	jamfDevs     []jamfDevice
+	page         int
+	highCutTime  time.Time
+	err          error
 }
 
-// getDevicesPage reads a single page of devices from Jamf and converts them
-// to Teleport devices.
-func (s *S) getDevicesPage(
-	ctx context.Context, spec RunSpec, req *jamf.GetComputersInventoryRequest) (*devicesPage, error) {
-	resp, err := s.jamf.GetComputersInventory(ctx, req)
-	if err != nil {
-		return nil, trace.Wrap(err, "jamf read failed")
-	}
-	jamfDevs := resp.Results
+// rawJamfPage is a single page of devices as fetched from Jamf, before
+// [S.processDevicesPage] turns it into a [devicesPage].
+type rawJamfPage struct {
+	devices    []jamfDevice
+	totalCount int // total count reported by the API
+}
 
+type devicesPage struct {
+	highCutTime time.Time // highest observed cut date in the page
+	partialStop bool      // true if a partial stop was triggered
+
+	teleportDevs []*devicepb.Device
+	// jamfDevs contains matching raw Jamf devices, each corresponding to an entry
+	// with the same index in teleportDevs. It includes only Jamf devices that
+	// could be converted to a Teleport device. For a full list of devices from
+	// the API use [rawJamfPage.devices].
+	jamfDevs []jamfDevice
+}
+
+// jamfDevice abstracts over different Jamf device types (computers, mobile
+// devices) for the shared page-processing logic in processDevicesPage.
+type jamfDevice interface {
+	toDevice() (*devicepb.Device, error)
+	cutTime() time.Time
+	// platform returns a raw value from Jamf, e.g. "Mac", "iOS".
+	platform() string
+	serialNumber() string
+	logSync(ctx context.Context, log logFunc, dev *devicepb.Device)
+}
+
+type logFunc func(context.Context, string, ...any)
+
+// processDevicesPage processes a slice of jamfDevice values, converting them to
+// Teleport devices and collecting metadata for the sync.
+func (s *S) processDevicesPage(
+	ctx context.Context, spec RunSpec, deviceType string, devices []jamfDevice,
+) *devicesPage {
 	partialStop := false
 	var highCutTime time.Time
 
-	// Convert Jamf devices to Teleport.
-	devs := make([]*devicepb.Device, 0, len(jamfDevs))
-	for _, inv := range jamfDevs {
+	// Any append to devs should have a matching append in jamfDevs.
+	// This way when [S.logSyncResult] iterates over statuses for devices (based
+	// on devs), each index always has a matching entry in jamfDevs.
+	devs := make([]*devicepb.Device, 0, len(devices))
+	jamfDevs := make([]jamfDevice, 0, len(devices))
+	for _, d := range devices {
+		deviceCutTime := d.cutTime()
 		// Stop partial sync?
-		if spec.Mode == mdmsync.SyncModePartial &&
-			inv.General != nil &&
-			inv.General.ReportDate.Before(spec.CutTime) {
-			//nolint:sloglint // Keys mimic JSON object.
+		if spec.Mode == mdmsync.SyncModePartial && !deviceCutTime.IsZero() && deviceCutTime.Before(spec.CutTime) {
 			s.logger.DebugContext(ctx,
 				"Stopping partial sync",
-				"general.reportDate", inv.General.ReportDate,
+				"device_type", deviceType,
+				"cut_time", deviceCutTime,
 			)
 			// Signal stop after this round of upserts.
 			partialStop = true
 			break
 		}
 
-		dev, err := computerInventoryToDevice(inv)
+		// Make sure to update highCutTime for every observed Jamf device, not only
+		// those that can be successfully converted with d.toDevice.
+		if deviceCutTime.After(highCutTime) {
+			highCutTime = deviceCutTime
+		}
+
+		dev, err := d.toDevice()
 		if err != nil {
 			s.logger.WarnContext(ctx,
-				"Failed to convert Jamf ComputerInventory to Teleport Device",
+				"Failed to convert Jamf device to Teleport Device",
 				"error", err,
 			)
 			continue
 		}
 		devs = append(devs, dev)
+		jamfDevs = append(jamfDevs, d)
 
-		// Log device information, but redact sensitive data first.
 		if s.logger.Enabled(ctx, slog.LevelDebug) {
-			osUsernames := dev.Profile.OsUsernames
-			dev.Profile.OsUsernames = []string{"<REDACTED>"}
-			//nolint:sloglint // Keys mimic JSON object.
-			s.logger.DebugContext(ctx,
-				"Syncing Jamf device",
-				"general.platform", inv.General.Platform,
-				"hardware.serialNumber", inv.Hardware.SerialNumber,
-				"id", inv.ID,
-				"general.reportDate", inv.General.ReportDate,
-				"general.lastContactTime", inv.General.LastContactTime,
-				"general.lastEnrolledDate", inv.General.LastEnrolledDate,
-				"profile", dev.Profile,
-			)
-			dev.Profile.OsUsernames = osUsernames
-		}
-
-		// Keep tabs of highest-seen reportDate.
-		if inv.General != nil && inv.General.ReportDate.After(highCutTime) {
-			highCutTime = inv.General.ReportDate
+			d.logSync(ctx, s.logger.DebugContext, dev)
 		}
 	}
 
 	return &devicesPage{
-		jamfTotalCount: resp.TotalCount,
-		jamfDevs:       jamfDevs,
-		highCutTime:    highCutTime,
-		teleportDevs:   devs,
-		partialStop:    partialStop,
-	}, nil
+		highCutTime:  highCutTime,
+		teleportDevs: devs,
+		jamfDevs:     jamfDevs,
+		partialStop:  partialStop,
+	}
 }
 
 func (s *S) confirmMissingDevices(ctx context.Context, missingDevs []*devicepb.Device) ([]*devicepb.Device, error) {
@@ -607,8 +628,7 @@ func (s *S) confirmMissingDevices(ctx context.Context, missingDevs []*devicepb.D
 	// We are looking for either confirmation that the device doesn't exist, or an
 	// existing but mismatched device.
 	for _, dev := range missingDevs {
-		id := dev.Profile.GetExternalId()
-		if id == "" {
+		if dev.Profile.GetExternalId() == "" {
 			s.logger.DebugContext(ctx,
 				"Marking device without external_id for removal",
 				"device", dev,
@@ -618,18 +638,20 @@ func (s *S) confirmMissingDevices(ctx context.Context, missingDevs []*devicepb.D
 		}
 
 		group.Go(func() error {
-			// Note: this query is rather conservative and, because of it, we might
-			// keep around devices that would otherwise not show up in queries (for
+			// Note: the queries below are rather conservative and, because of that,
+			// we might keep around devices that would not appear otherwise (for
 			// example, if further RSQL filters are applied).
 			// This seems OK for the moment, as devices can be removed by other means
 			// (such as `tctl devices rm`), but it is a point of attention.
-			computer, err := s.jamf.GetComputersInventoryByID(groupCtx, &jamf.GetComputersInventoryByIDRequest{
-				ID: id,
-				Section: []string{
-					jamf.SectionGeneral,  // for Platform
-					jamf.SectionHardware, // for SerialNumber
-				},
-			})
+			var matches bool
+			var jamfDevForLogging any
+			var err error
+			switch dev.OsType {
+			case devicepb.OSType_OS_TYPE_IOS, devicepb.OSType_OS_TYPE_IPADOS:
+				matches, jamfDevForLogging, err = s.confirmMobile(groupCtx, dev)
+			default:
+				matches, jamfDevForLogging, err = s.confirmComputer(groupCtx, dev)
+			}
 
 			apiErr := &jamf.APIError{}
 			switch {
@@ -645,19 +667,16 @@ func (s *S) confirmMissingDevices(ctx context.Context, missingDevs []*devicepb.D
 					"error", err,
 					"device", dev,
 				)
-			case computer.General != nil &&
-				platformToOSType(computer.General.Platform) == dev.OsType &&
-				computer.Hardware != nil &&
-				computer.Hardware.SerialNumber == dev.AssetTag:
+			case matches:
 				s.logger.DebugContext(ctx,
-					"Skipping removal, device found on Jamf",
+					"Skipping removal, device found in Jamf",
 					"device", dev,
 				)
 			default:
 				// ID matches the wrong device. A leftover from other times?
 				s.logger.DebugContext(ctx,
 					"Marking mismatched device for removal",
-					"computer", computer,
+					"jamf_device", jamfDevForLogging,
 					"device", dev,
 				)
 				markForRemoval(dev)
@@ -674,112 +693,8 @@ func (s *S) confirmMissingDevices(ctx context.Context, missingDevs []*devicepb.D
 	return devicesToRemove, nil
 }
 
-func computerInventoryToDevice(c *jamf.ComputerInventory) (*devicepb.Device, error) {
-	if c == nil {
-		// This is rather unexpected, but let's guard against it anyway.
-		return nil, trace.BadParameter("computer inventory is nil")
-	}
-
-	// General has the Platform.
-	// Hardware has the SerialNumber.
-	// That's the bare minimum we need, everything else is DeviceProfile info.
-	if c.General == nil || c.Hardware == nil {
-		return nil, trace.BadParameter("computer inventory has no general or hardware section")
-	}
-
-	osType := platformToOSType(c.General.Platform)
-	if osType == devicepb.OSType_OS_TYPE_UNSPECIFIED {
-		return nil, trace.BadParameter("unexpected general.platform=%q", c.General.Platform)
-	}
-
-	usernames := make([]string, 0, len(c.LocalUserAccounts))
-	for _, account := range c.LocalUserAccounts {
-		if account != nil && account.Username != "" {
-			usernames = append(usernames, account.Username)
-		}
-	}
-
-	profile := &devicepb.DeviceProfile{
-		ModelIdentifier:   c.Hardware.ModelIdentifier,
-		OsUsernames:       usernames,
-		JamfBinaryVersion: c.General.JamfBinaryVersion,
-		ExternalId:        c.ID,
-	}
-	if c.OperatingSystem != nil {
-		profile.OsVersion = c.OperatingSystem.Version
-		profile.OsBuild = c.OperatingSystem.Build
-		profile.OsBuildSupplemental = c.OperatingSystem.SupplementalBuildVersion
-	}
-
-	return &devicepb.Device{
-		OsType:   osType,
-		AssetTag: c.Hardware.SerialNumber,
-		Profile:  profile,
-	}, nil
-}
-
-func platformToOSType(platform string) devicepb.OSType {
-	if strings.EqualFold("Mac", platform) {
-		return devicepb.OSType_OS_TYPE_MACOS
-	}
-	return devicepb.OSType_OS_TYPE_UNSPECIFIED
-}
-
-func mobileDeviceToDevice(d *jamf.MobileDevice) (*devicepb.Device, error) {
-	if d == nil {
-		return nil, trace.BadParameter("mobile device is nil")
-	}
-
-	// Hardware has the SerialNumber and ModelIdentifier.
-	// DeviceType + ModelIdentifier determine the OS type.
-	// That's the bare minimum we need, everything else is DeviceProfile info.
-	if d.Hardware == nil {
-		return nil, trace.BadParameter("mobile device has no hardware section")
-	}
-
-	osType := mobileDeviceToOSType(d.DeviceType, d.Hardware.ModelIdentifier)
-	if osType == devicepb.OSType_OS_TYPE_UNSPECIFIED {
-		return nil, trace.BadParameter("unexpected deviceType=%q, hardware.modelIdentifier=%q", d.DeviceType, d.Hardware.ModelIdentifier)
-	}
-
-	profile := &devicepb.DeviceProfile{
-		ModelIdentifier: d.Hardware.ModelIdentifier,
-		ExternalId:      d.MobileDeviceID,
-	}
-	if d.General != nil {
-		profile.OsVersion = d.General.OSVersion
-		profile.OsBuild = d.General.OSBuild
-		profile.OsBuildSupplemental = d.General.OSSupplementalBuildVersion
-	}
-
-	return &devicepb.Device{
-		OsType:   osType,
-		AssetTag: d.Hardware.SerialNumber,
-		Profile:  profile,
-	}, nil
-}
-
-// mobileDeviceToOSType maps a Jamf mobile device's deviceType and
-// modelIdentifier to a Teleport OSType. The API reports "iOS" for both iPhones
-// and iPads, so we use the modelIdentifier prefix to distinguish them.
-func mobileDeviceToOSType(deviceType, modelIdentifier string) devicepb.OSType {
-	if !strings.EqualFold("iOS", deviceType) {
-		return devicepb.OSType_OS_TYPE_UNSPECIFIED
-	}
-
-	modelIDLower := strings.ToLower(modelIdentifier)
-	switch {
-	case strings.HasPrefix(modelIDLower, "iphone"):
-		return devicepb.OSType_OS_TYPE_IOS
-	case strings.HasPrefix(modelIDLower, "ipad"):
-		return devicepb.OSType_OS_TYPE_IPADOS
-	default:
-		return devicepb.OSType_OS_TYPE_UNSPECIFIED
-	}
-}
-
 type syncState struct {
-	jamfDevices  []*jamf.ComputerInventory
+	jamfDevs     []jamfDevice
 	page         int
 	expectDelete bool
 }
@@ -793,14 +708,9 @@ func (s *S) logSyncResult(result *devicepb.SyncInventoryResult, state syncState)
 			failures++
 
 			var platform, serialNumber string
-			if len(state.jamfDevices) > i {
-				d := state.jamfDevices[i]
-				if d.General != nil {
-					platform = d.General.Platform
-				}
-				if d.Hardware != nil {
-					serialNumber = d.Hardware.SerialNumber
-				}
+			if len(state.jamfDevs) > i {
+				platform = state.jamfDevs[i].platform()
+				serialNumber = state.jamfDevs[i].serialNumber()
 			}
 
 			s.logger.WarnContext(context.Background(),

@@ -1,5 +1,5 @@
 package service
 
-var MobileDeviceToDevice = mobileDeviceToDevice
+var MobileToDevice = mobileToDevice
 
-var MobileDeviceToOSType = mobileDeviceToOSType
+var MobileToOSType = mobileToOSType

@@ -52,6 +52,10 @@ type API struct {
 	clock clockwork.Clock
 
 	disableComputersInventoryV2 atomic.Bool
+	// singleDeviceLookups counts requests to the per-device detail endpoints
+	// (/v{1,2}/computers-inventory/{id} and /v2/mobile-devices/{id}/detail).
+	// Used by tests to assert that the missing-device confirmation path ran.
+	singleDeviceLookups atomic.Int64
 
 	// mu guards all fields below it
 	mu                    sync.Mutex
@@ -165,6 +169,13 @@ func (a *API) SetSimulatePagingGaps(b bool) {
 	a.mu.Lock()
 	a.simulatePagingGaps = b
 	a.mu.Unlock()
+}
+
+// SingleDeviceLookups returns the cumulative number of requests served by the
+// per-device detail endpoints (computers and mobile devices). Tests use this
+// to assert the missing-device confirmation path was exercised.
+func (a *API) SingleDeviceLookups() int64 {
+	return a.singleDeviceLookups.Load()
 }
 
 type rootHandler struct {
@@ -569,6 +580,7 @@ func (a *API) getComputersInventory(w http.ResponseWriter, req *http.Request) {
 }
 
 func (a *API) getComputersInventoryByID(w http.ResponseWriter, req *http.Request) {
+	a.singleDeviceLookups.Add(1)
 	id := req.PathValue("id")
 
 	// Validate id.
@@ -786,6 +798,7 @@ func (a *API) getMobileDevicesDetail(w http.ResponseWriter, req *http.Request) {
 }
 
 func (a *API) getMobileDeviceByID(w http.ResponseWriter, req *http.Request) {
+	a.singleDeviceLookups.Add(1)
 	id := req.PathValue("id")
 
 	a.mu.Lock()

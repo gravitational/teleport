@@ -12,7 +12,8 @@ import (
 	jamfservice "github.com/gravitational/teleport/e/lib/jamf/service"
 )
 
-func TestMobileDeviceOSType(t *testing.T) {
+func TestMobileToOSType(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name            string
 		deviceType      string
@@ -67,13 +68,14 @@ func TestMobileDeviceOSType(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got := jamfservice.MobileDeviceToOSType(test.deviceType, test.modelIdentifier)
+			got := jamfservice.MobileToOSType(test.deviceType, test.modelIdentifier)
 			require.Equal(t, test.want, got)
 		})
 	}
 }
 
-func TestMobileDeviceToDevice(t *testing.T) {
+func TestMobileToDevice(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name    string
 		device  *jamf.MobileDevice
@@ -154,7 +156,7 @@ func TestMobileDeviceToDevice(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got, err := jamfservice.MobileDeviceToDevice(test.device)
+			got, err := jamfservice.MobileToDevice(test.device)
 			if test.wantErr != "" {
 				require.ErrorContains(t, err, test.wantErr)
 				return

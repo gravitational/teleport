@@ -11,9 +11,12 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/testing/protocmp"
 
@@ -119,6 +122,7 @@ func BenchmarkSyncInventory_jamf(b *testing.B) {
 }
 
 func TestNew_errors(t *testing.T) {
+	t.Parallel()
 	env := testenv.NewUsingT(t, &testenv.Opts{
 		DeviceTrustEnv: true,
 	})
@@ -219,6 +223,7 @@ func TestNew_errors(t *testing.T) {
 }
 
 func TestS_Run_stopsOnCancel(t *testing.T) {
+	t.Parallel()
 	env := testenv.NewUsingT(t, &testenv.Opts{
 		DeviceTrustEnv: true,
 	})
@@ -257,6 +262,7 @@ func TestS_Run_stopsOnCancel(t *testing.T) {
 // TestS_Run_syncDefaults runs the Jamf Service until a batch of devices is
 // synced, using as many default service settings as possible.
 func TestS_Run_syncDefaults(t *testing.T) {
+	t.Parallel()
 	clock := clockwork.NewFakeClockAt(time.Date(2023, 1, 2, 3, 4, 5, 0, time.UTC))
 	env := testenv.NewUsingT(t, &testenv.Opts{
 		Clock:          clock,
@@ -477,6 +483,7 @@ func TestS_Run_syncDefaults(t *testing.T) {
 }
 
 func TestS_Run_fullWithDeletions(t *testing.T) {
+	t.Parallel()
 	clock := clockwork.NewRealClock()
 	env := testenv.NewUsingT(t, &testenv.Opts{
 		Clock:          clock,
@@ -536,6 +543,33 @@ func TestS_Run_fullWithDeletions(t *testing.T) {
 	}
 	api.SetInventory(jamfDevs)
 
+	// Mobile devices.
+	jamfMobileDevs := []*jamf.MobileDevice{
+		{
+			MobileDeviceID: "10",
+			DeviceType:     "iOS",
+			General: &jamf.MobileDeviceGeneralSection{
+				LastInventoryUpdateDate: t0,
+			},
+			Hardware: &jamf.MobileDeviceHardwareSection{
+				SerialNumber:    "mdev1",
+				ModelIdentifier: "iPad15,7",
+			},
+		},
+		{
+			MobileDeviceID: "11",
+			DeviceType:     "iOS",
+			General: &jamf.MobileDeviceGeneralSection{
+				LastInventoryUpdateDate: t0,
+			},
+			Hardware: &jamf.MobileDeviceHardwareSection{
+				SerialNumber:    "mdev2",
+				ModelIdentifier: "iPhone15,2",
+			},
+		},
+	}
+	api.SetMobileDeviceInventory(jamfMobileDevs)
+
 	source := &devicepb.DeviceSource{
 		Name:   "jamf",
 		Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_JAMF,
@@ -544,6 +578,13 @@ func TestS_Run_fullWithDeletions(t *testing.T) {
 		opts.Config.Spec.Name = source.Name
 		opts.Config.Spec.Inventory = []*types.JamfInventoryEntry{
 			{
+				DeviceType:        types.JamfDeviceTypeComputers,
+				SyncPeriodPartial: -1, // disabled
+				SyncPeriodFull:    types.DurationStringForJamfSpecV1(100 * time.Millisecond),
+				OnMissing:         "DELETE",
+			},
+			{
+				DeviceType:        types.JamfDeviceTypeMobileDevices,
 				SyncPeriodPartial: -1, // disabled
 				SyncPeriodFull:    types.DurationStringForJamfSpecV1(100 * time.Millisecond),
 				OnMissing:         "DELETE",
@@ -551,22 +592,38 @@ func TestS_Run_fullWithDeletions(t *testing.T) {
 		}
 	})
 
-	// Add a couple of devices to Teleport that have no match in Jamf.
+	// Add devices to Teleport that have no match in Jamf.
 	// These get removed in the first sync.
 	if resp, err := devicesClient.BulkCreateDevices(ctx, &devicepb.BulkCreateDevicesRequest{
 		Devices: []*devicepb.Device{
+			// Computer: missing external_id.
 			{
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: "deleteonsync1",
-				Source:   source, // Assign to Jamf.
-				// Profile missing external_id.
+				Source:   source,
 			},
+			// Computer: mismatched Jamf ID.
 			{
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: "deleteonsync2",
-				Source:   source, // Assign to Jamf.
+				Source:   source,
 				Profile: &devicepb.DeviceProfile{
-					ExternalId: jamfDevs[1].ID, // Mismatched Jamf ID.
+					ExternalId: jamfDevs[1].ID,
+				},
+			},
+			// Mobile device: missing external_id.
+			{
+				OsType:   devicepb.OSType_OS_TYPE_IPADOS,
+				AssetTag: "deleteonsync3",
+				Source:   source,
+			},
+			// Mobile device: mismatched Jamf ID.
+			{
+				OsType:   devicepb.OSType_OS_TYPE_IOS,
+				AssetTag: "deleteonsync4",
+				Source:   source,
+				Profile: &devicepb.DeviceProfile{
+					ExternalId: jamfMobileDevs[1].MobileDeviceID,
 				},
 			},
 		},
@@ -597,13 +654,14 @@ func TestS_Run_fullWithDeletions(t *testing.T) {
 		}, 1*time.Second, 100*time.Millisecond)
 	}
 
-	// Use the first sync to write the full list of devices.
-	waitSynced(t, len(jamfDevs))
+	// Use the first sync to write the full list of devices (computers + mobile).
+	totalDevs := len(jamfDevs) + len(jamfMobileDevs)
+	waitSynced(t, totalDevs)
 
-	// Remove a device from Jamf and wait for the change to be reflected in
-	// Teleport.
+	// Remove a computer and a mobile device from Jamf.
 	api.SetInventory(jamfDevs[1:])
-	waitSynced(t, len(jamfDevs)-1)
+	api.SetMobileDeviceInventory(jamfMobileDevs[1:])
+	waitSynced(t, totalDevs-2)
 	runCancel() // Stop syncs.
 
 	// Verify deletions.
@@ -611,6 +669,7 @@ func TestS_Run_fullWithDeletions(t *testing.T) {
 	want := []*devicepb.Device{
 		deviceFromMinimal(jamfDevs[1], nil /* source */),
 		deviceFromMinimal(jamfDevs[2], nil /* source */),
+		mobileDeviceFromMinimal(jamfMobileDevs[1], nil /* source */),
 	}
 	opts := append(devicesCmpOpts, protocmp.IgnoreFields(&devicepb.Device{}, "source"))
 	if diff := cmp.Diff(want, got, opts...); diff != "" {
@@ -619,6 +678,7 @@ func TestS_Run_fullWithDeletions(t *testing.T) {
 }
 
 func TestS_Run_exitOnSync(t *testing.T) {
+	t.Parallel()
 	clock := clockwork.NewRealClock()
 	env := testenv.NewUsingT(t, &testenv.Opts{
 		Clock:          clock,
@@ -679,6 +739,7 @@ func TestS_Run_exitOnSync(t *testing.T) {
 // TestS_Run_clientCredentials tests a sync using API client credentials instead
 // of username+password.
 func TestS_Run_clientCredentials(t *testing.T) {
+	t.Parallel()
 	clock := clockwork.NewRealClock()
 	env := testenv.NewUsingT(t, &testenv.Opts{
 		Clock:          clock,
@@ -738,6 +799,7 @@ func TestS_Run_clientCredentials(t *testing.T) {
 }
 
 func TestS_RunOnce_partialSync(t *testing.T) {
+	t.Parallel()
 	clock := clockwork.NewFakeClock()
 	env := testenv.NewUsingT(t, &testenv.Opts{
 		Clock:          clock,
@@ -763,164 +825,648 @@ func TestS_RunOnce_partialSync(t *testing.T) {
 	t5 := advanceNow()
 	now := advanceNow()
 
-	currentID := 0
-	newJamfDev := func(reportDate time.Time) *jamf.ComputerInventory {
-		currentID++
-		return &jamf.ComputerInventory{
-			ID:   strconv.Itoa(currentID),
-			UDID: strconv.Itoa(currentID),
-			General: &jamf.ComputerGeneralSection{
-				Platform:         "Mac",
-				ReportDate:       reportDate,
-				LastContactTime:  t5,
-				LastEnrolledDate: t0,
-			},
-			Hardware: &jamf.ComputerHardwareSection{
-				SerialNumber: fmt.Sprintf("C%011d", currentID),
-			},
-		}
-	}
-
-	jamfDevs := []*jamf.ComputerInventory{
-		newJamfDev(t5),
-		newJamfDev(t4),
-		newJamfDev(t3),
-		newJamfDev(t2),
-		newJamfDev(t1),
-	}
-	api.SetInventory(jamfDevs)
-
 	source := &devicepb.DeviceSource{
 		Name:   "jamf2",
 		Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_JAMF,
 	}
-	allDevs := make([]*devicepb.Device, len(jamfDevs))
-	for i, j := range jamfDevs {
-		allDevs[i] = deviceFromMinimal(j, source)
+
+	cases := []struct {
+		deviceType string
+		// setup populates the Jamf API for the case and returns the expected
+		// Teleport devices in t5..t1 order (highest timestamp first).
+		setup func() []*devicepb.Device
+	}{
+		{
+			deviceType: types.JamfDeviceTypeComputers,
+			setup: func() []*devicepb.Device {
+				currentID := 0
+				newJamfDev := func(reportDate time.Time) *jamf.ComputerInventory {
+					currentID++
+					return &jamf.ComputerInventory{
+						ID:   strconv.Itoa(currentID),
+						UDID: strconv.Itoa(currentID),
+						General: &jamf.ComputerGeneralSection{
+							Platform:         "Mac",
+							ReportDate:       reportDate,
+							LastContactTime:  t5,
+							LastEnrolledDate: t0,
+						},
+						Hardware: &jamf.ComputerHardwareSection{
+							SerialNumber: fmt.Sprintf("C%011d", currentID),
+						},
+					}
+				}
+				jamfDevs := []*jamf.ComputerInventory{
+					newJamfDev(t5),
+					newJamfDev(t4),
+					newJamfDev(t3),
+					newJamfDev(t2),
+					newJamfDev(t1),
+				}
+				api.SetInventory(jamfDevs)
+				devs := make([]*devicepb.Device, len(jamfDevs))
+				for i, j := range jamfDevs {
+					devs[i] = deviceFromMinimal(j, source)
+				}
+				return devs
+			},
+		},
+		{
+			deviceType: types.JamfDeviceTypeMobileDevices,
+			setup: func() []*devicepb.Device {
+				currentID := 100
+				modelIDs := []string{"iPad15,7", "iPhone15,2", "iPad15,7", "iPhone15,2", "iPad15,7"}
+				newMobileDev := func(lastUpdate time.Time, modelID string) *jamf.MobileDevice {
+					currentID++
+					return &jamf.MobileDevice{
+						MobileDeviceID: strconv.Itoa(currentID),
+						DeviceType:     "iOS",
+						General: &jamf.MobileDeviceGeneralSection{
+							LastInventoryUpdateDate: lastUpdate,
+						},
+						Hardware: &jamf.MobileDeviceHardwareSection{
+							SerialNumber:    fmt.Sprintf("M%011d", currentID),
+							ModelIdentifier: modelID,
+						},
+					}
+				}
+				jamfDevs := []*jamf.MobileDevice{
+					newMobileDev(t5, modelIDs[0]),
+					newMobileDev(t4, modelIDs[1]),
+					newMobileDev(t3, modelIDs[2]),
+					newMobileDev(t2, modelIDs[3]),
+					newMobileDev(t1, modelIDs[4]),
+				}
+				api.SetMobileDeviceInventory(jamfDevs)
+				devs := make([]*devicepb.Device, len(jamfDevs))
+				for i, md := range jamfDevs {
+					devs[i] = mobileDeviceFromMinimal(md, source)
+				}
+				return devs
+			},
+		},
 	}
 
-	s := serviceFromEnv(t, env, func(opts *jamfservice.Opts) {
-		opts.Config.Spec.Name = source.Name
-	})
-	ctx := context.Background()
+	for _, tc := range cases {
+		t.Run(tc.deviceType, func(t *testing.T) {
+			t.Cleanup(func() { clearDevices(t, devicesClient) })
+			allDevs := tc.setup()
 
-	// Sync with a too-high cut time to begin with.
-	t.Run("t=now", func(t *testing.T) {
-		gotTime, err := s.RunOnce(ctx, jamfservice.RunSpec{
-			Mode:    mdmsync.SyncModePartial,
-			CutTime: now,
-		})
-		if err != nil {
-			t.Fatalf("RunOnce failed: %v", err)
-		}
-		if !gotTime.IsZero() {
-			t.Errorf("RunOnce returned non-zero time on an empty sync: %v", gotTime)
-		}
-		if got := len(listAllDevices(t, devicesClient)); got > 0 {
-			t.Errorf("RunOnce synced %v devices, wanted none", got)
-		}
-	})
-
-	// Sync new-to-old.
-	for i, cutTime := range []time.Time{t5, t4, t3, t2, t1} {
-		wantNextTime := t5 // Always the highest seen.
-		wantDevs := allDevs[:i+1]
-
-		t.Run(fmt.Sprintf("t=%v", cutTime), func(t *testing.T) {
-			gotTime, err := s.RunOnce(ctx, jamfservice.RunSpec{
-				Mode:    mdmsync.SyncModePartial,
-				CutTime: cutTime,
+			s := serviceFromEnv(t, env, func(opts *jamfservice.Opts) {
+				opts.Config.Spec.Name = source.Name
 			})
-			if err != nil {
-				t.Fatalf("RunOnce failed: %v", err)
-			}
+			ctx := t.Context()
 
-			if !gotTime.Equal(wantNextTime) {
-				t.Errorf("RunOnce = %v, want %v", gotTime, wantNextTime)
-			}
+			// Sync with a too-high cut time to begin with.
+			t.Run("t=now", func(t *testing.T) {
+				gotTime, err := s.RunOnce(ctx, jamfservice.RunSpec{
+					Mode:       mdmsync.SyncModePartial,
+					DeviceType: tc.deviceType,
+					CutTime:    now,
+				})
+				if err != nil {
+					t.Fatalf("RunOnce failed: %v", err)
+				}
+				if !gotTime.IsZero() {
+					t.Errorf("RunOnce returned non-zero time on an empty sync: %v", gotTime)
+				}
+				if got := len(listAllDevices(t, devicesClient)); got > 0 {
+					t.Errorf("RunOnce synced %v devices, wanted none", got)
+				}
+			})
 
-			got := listAllDevices(t, devicesClient)
-			if diff := cmp.Diff(wantDevs, got, devicesCmpOpts...); diff != "" {
-				t.Errorf("RunOnce sync mismatch (-want +got)\n%s", diff)
+			// Sync new-to-old.
+			for i, cutTime := range []time.Time{t5, t4, t3, t2, t1} {
+				wantNextTime := t5 // Always the highest seen.
+				wantDevs := allDevs[:i+1]
+
+				t.Run(fmt.Sprintf("t=%v", cutTime), func(t *testing.T) {
+					gotTime, err := s.RunOnce(ctx, jamfservice.RunSpec{
+						Mode:       mdmsync.SyncModePartial,
+						DeviceType: tc.deviceType,
+						CutTime:    cutTime,
+					})
+					if err != nil {
+						t.Fatalf("RunOnce failed: %v", err)
+					}
+
+					if !gotTime.Equal(wantNextTime) {
+						t.Errorf("RunOnce = %v, want %v", gotTime, wantNextTime)
+					}
+
+					got := listAllDevices(t, devicesClient)
+					if diff := cmp.Diff(wantDevs, got, devicesCmpOpts...); diff != "" {
+						t.Errorf("RunOnce sync mismatch (-want +got)\n%s", diff)
+					}
+				})
 			}
 		})
 	}
 }
 
 func TestS_RunOnce_pagingGaps(t *testing.T) {
+	t.Parallel()
 	env := testenv.NewUsingT(t, &testenv.Opts{
 		DeviceTrustEnv: true,
 	})
 
 	api := env.API
 	devicesClient := env.DevicesClient
-	ctx := context.Background()
+	ctx := t.Context()
 
-	jamfDevs := []*jamf.ComputerInventory{
+	// setup populates the Jamf API for the case and returns the expected
+	// Teleport devices.
+	cases := []struct {
+		deviceType string
+		setup      func() []*devicepb.Device
+	}{
+		{
+			deviceType: types.JamfDeviceTypeComputers,
+			setup: func() []*devicepb.Device {
+				jamfDevs := []*jamf.ComputerInventory{
+					{
+						ID:       "1",
+						General:  &jamf.ComputerGeneralSection{Platform: "Mac"},
+						Hardware: &jamf.ComputerHardwareSection{SerialNumber: "dev1"},
+					},
+					{
+						ID:       "2",
+						General:  &jamf.ComputerGeneralSection{Platform: "Mac"},
+						Hardware: &jamf.ComputerHardwareSection{SerialNumber: "dev2"},
+					},
+					{
+						ID:       "3",
+						General:  &jamf.ComputerGeneralSection{Platform: "Mac"},
+						Hardware: &jamf.ComputerHardwareSection{SerialNumber: "dev3"},
+					},
+				}
+				api.SetInventory(jamfDevs)
+				devs := make([]*devicepb.Device, len(jamfDevs))
+				for i, j := range jamfDevs {
+					devs[i] = deviceFromMinimal(j, nil /* source */)
+				}
+				return devs
+			},
+		},
+		{
+			deviceType: types.JamfDeviceTypeMobileDevices,
+			setup: func() []*devicepb.Device {
+				jamfDevs := []*jamf.MobileDevice{
+					{
+						MobileDeviceID: "1",
+						DeviceType:     "iOS",
+						General:        &jamf.MobileDeviceGeneralSection{},
+						Hardware: &jamf.MobileDeviceHardwareSection{
+							SerialNumber:    "mdev1",
+							ModelIdentifier: "iPad15,7",
+						},
+					},
+					{
+						MobileDeviceID: "2",
+						DeviceType:     "iOS",
+						General:        &jamf.MobileDeviceGeneralSection{},
+						Hardware: &jamf.MobileDeviceHardwareSection{
+							SerialNumber:    "mdev2",
+							ModelIdentifier: "iPhone15,2",
+						},
+					},
+					{
+						MobileDeviceID: "3",
+						DeviceType:     "iOS",
+						General:        &jamf.MobileDeviceGeneralSection{},
+						Hardware: &jamf.MobileDeviceHardwareSection{
+							SerialNumber:    "mdev3",
+							ModelIdentifier: "iPad15,7",
+						},
+					},
+				}
+				api.SetMobileDeviceInventory(jamfDevs)
+				devs := make([]*devicepb.Device, len(jamfDevs))
+				for i, md := range jamfDevs {
+					devs[i] = mobileDeviceFromMinimal(md, nil /* source */)
+				}
+				return devs
+			},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.deviceType, func(t *testing.T) {
+			t.Cleanup(func() {
+				// clearDevices needs ListDevices to work correctly, so toggle paging
+				// gap simulation back to false.
+				api.SetSimulatePagingGaps(false)
+				clearDevices(t, devicesClient)
+			})
+			allDevs := tc.setup()
+
+			s := serviceFromEnv(t, env, func(opts *jamfservice.Opts) {
+				opts.Config.Spec.Inventory = []*types.JamfInventoryEntry{
+					{
+						DeviceType:        tc.deviceType,
+						SyncPeriodPartial: -1, // disabled
+						SyncPeriodFull:    types.DurationStringForJamfSpecV1(100 * time.Millisecond),
+						OnMissing:         "DELETE",
+					},
+				}
+			})
+
+			assertStored := func(t *testing.T, want []*devicepb.Device) {
+				got := listAllDevices(t, devicesClient)
+				opts := append(devicesCmpOpts, protocmp.IgnoreFields(&devicepb.Device{}, "source"))
+				if diff := cmp.Diff(want, got, opts...); diff != "" {
+					t.Fatalf("RunOnce sync mismatch (-want +got)\n%s", diff)
+				}
+			}
+
+			// Sync full inventory to Teleport.
+			if _, err := s.RunOnce(ctx, jamfservice.RunSpec{
+				Mode:       mdmsync.SyncModeFull,
+				OnMissing:  jamfservice.DeviceActionDelete,
+				DeviceType: tc.deviceType,
+			}); err != nil {
+				t.Fatalf("RunOnce failed: %v", err)
+			}
+
+			// Sanity check: all devices synced.
+			assertStored(t, allDevs)
+
+			// Sync with paging gaps.
+			// We expect no deletions to happen in Teleport.
+			api.SetSimulatePagingGaps(true)
+			lookupsBefore := api.SingleDeviceLookups()
+			if _, err := s.RunOnce(ctx, jamfservice.RunSpec{
+				Mode:       mdmsync.SyncModeFull,
+				OnMissing:  jamfservice.DeviceActionDelete,
+				DeviceType: tc.deviceType,
+			}); err != nil {
+				t.Fatalf("RunOnce failed: %v", err)
+			}
+
+			// Sanity check the test setup: at least one missing device must
+			// have been confirmed via a per-device lookup. Otherwise the
+			// assertion below could pass trivially even if paging-gap
+			// simulation was broken.
+			if gained := api.SingleDeviceLookups() - lookupsBefore; gained == 0 {
+				t.Fatal("Paging-gap protection was not exercised: no per-device lookups during the sync with a gap")
+			}
+
+			// Verify no deletions in Teleport.
+			assertStored(t, allDevs)
+		})
+	}
+}
+
+func TestS_RunOnce_mobileDeviceSync(t *testing.T) {
+	t.Parallel()
+	env := testenv.NewUsingT(t, &testenv.Opts{
+		DeviceTrustEnv: true,
+	})
+
+	api := env.API
+	devicesClient := env.DevicesClient
+
+	t0 := time.Unix(1685469902, 0) // 2023-05-30T18:05:02+00:00
+
+	jamfMobileDevs := []*jamf.MobileDevice{
+		// Complete iPad.
+		{
+			MobileDeviceID: "1",
+			DeviceType:     "iOS",
+			General: &jamf.MobileDeviceGeneralSection{
+				OSVersion:                  "26.3.1",
+				OSBuild:                    "23D8133",
+				OSSupplementalBuildVersion: "23D771330a",
+				LastInventoryUpdateDate:    t0,
+				LastEnrolledDate:           t0,
+			},
+			Hardware: &jamf.MobileDeviceHardwareSection{
+				SerialNumber:    "CXXXXXXXXX20",
+				ModelIdentifier: "iPad15,7",
+			},
+		},
+		// Minimal iPhone.
+		{
+			MobileDeviceID: "2",
+			DeviceType:     "iOS",
+			General: &jamf.MobileDeviceGeneralSection{
+				LastInventoryUpdateDate: t0,
+			},
+			Hardware: &jamf.MobileDeviceHardwareSection{
+				SerialNumber:    "CXXXXXXXXX21",
+				ModelIdentifier: "iPhone15,2",
+			},
+		},
+		// Invalid - tvOS device (unsupported).
+		{
+			MobileDeviceID: "3",
+			DeviceType:     "tvOS",
+			General: &jamf.MobileDeviceGeneralSection{
+				LastInventoryUpdateDate: t0,
+			},
+			Hardware: &jamf.MobileDeviceHardwareSection{
+				SerialNumber:    "CXXXXXXXXX22",
+				ModelIdentifier: "AppleTV11,1",
+			},
+		},
+		// Invalid - nil Hardware.
+		{
+			MobileDeviceID: "4",
+			DeviceType:     "iOS",
+			General: &jamf.MobileDeviceGeneralSection{
+				LastInventoryUpdateDate: t0,
+			},
+		},
+		// Invalid - iOS with unknown model.
+		{
+			MobileDeviceID: "5",
+			DeviceType:     "iOS",
+			General: &jamf.MobileDeviceGeneralSection{
+				LastInventoryUpdateDate: t0,
+			},
+			Hardware: &jamf.MobileDeviceHardwareSection{
+				SerialNumber:    "CXXXXXXXXX23",
+				ModelIdentifier: "AppleTV11,1",
+			},
+		},
+		// Invalid - everything is empty or nil.
+		{},
+		// Invalid - it _is_ nil.
+		nil,
+	}
+	api.SetMobileDeviceInventory(jamfMobileDevs)
+
+	source := &devicepb.DeviceSource{
+		Name:   "jamf",
+		Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_JAMF,
+	}
+	wantDevs := []*devicepb.Device{
+		{
+			OsType:       devicepb.OSType_OS_TYPE_IPADOS,
+			AssetTag:     "CXXXXXXXXX20",
+			EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
+			Source:       source,
+			Profile: &devicepb.DeviceProfile{
+				ModelIdentifier:     "iPad15,7",
+				ExternalId:          "1",
+				OsVersion:           "26.3.1",
+				OsBuild:             "23D8133",
+				OsBuildSupplemental: "23D771330a",
+			},
+		},
+		mobileDeviceFromMinimal(jamfMobileDevs[1], source),
+	}
+
+	s := serviceFromEnv(t, env, func(opts *jamfservice.Opts) {
+		opts.Config.Spec.Name = source.Name
+	})
+
+	if _, err := s.RunOnce(t.Context(), jamfservice.RunSpec{
+		Mode:       mdmsync.SyncModeFull,
+		OnMissing:  jamfservice.DeviceActionDelete,
+		DeviceType: types.JamfDeviceTypeMobileDevices,
+	}); err != nil {
+		t.Fatalf("RunOnce failed: %v", err)
+	}
+
+	got := listAllDevices(t, devicesClient)
+	if diff := cmp.Diff(wantDevs, got, devicesCmpOpts...); diff != "" {
+		t.Errorf("RunOnce sync mismatch (-want +got)\n%s", diff)
+	}
+}
+
+func TestS_RunOnce_deviceTypeFiltering(t *testing.T) {
+	t.Parallel()
+	env := testenv.NewUsingT(t, &testenv.Opts{
+		DeviceTrustEnv: true,
+	})
+
+	api := env.API
+	devicesClient := env.DevicesClient
+
+	// Both computers and mobile devices exist in Jamf.
+	api.SetInventory([]*jamf.ComputerInventory{
 		{
 			ID:       "1",
 			General:  &jamf.ComputerGeneralSection{Platform: "Mac"},
-			Hardware: &jamf.ComputerHardwareSection{SerialNumber: "dev1"},
+			Hardware: &jamf.ComputerHardwareSection{SerialNumber: "CXXXXXXXXX01"},
 		},
+	})
+	api.SetMobileDeviceInventory([]*jamf.MobileDevice{
 		{
-			ID:       "2",
-			General:  &jamf.ComputerGeneralSection{Platform: "Mac"},
-			Hardware: &jamf.ComputerHardwareSection{SerialNumber: "dev2"},
-		},
-		{
-			ID:       "3",
-			General:  &jamf.ComputerGeneralSection{Platform: "Mac"},
-			Hardware: &jamf.ComputerHardwareSection{SerialNumber: "dev3"},
-		},
-	}
-	allDevs := []*devicepb.Device{
-		deviceFromMinimal(jamfDevs[1], nil /* source */),
-		deviceFromMinimal(jamfDevs[0], nil /* source */),
-		deviceFromMinimal(jamfDevs[2], nil /* source */),
-	}
-	api.SetInventory(jamfDevs)
-
-	s := serviceFromEnv(t, env, func(opts *jamfservice.Opts) {
-		opts.Config.Spec.Inventory = []*types.JamfInventoryEntry{
-			{
-				SyncPeriodPartial: -1, // disabled
-				SyncPeriodFull:    types.DurationStringForJamfSpecV1(100 * time.Millisecond),
-				OnMissing:         "DELETE",
+			MobileDeviceID: "1",
+			DeviceType:     "iOS",
+			General:        &jamf.MobileDeviceGeneralSection{},
+			Hardware: &jamf.MobileDeviceHardwareSection{
+				SerialNumber:    "CXXXXXXXXX10",
+				ModelIdentifier: "iPad15,7",
 			},
-		}
+		},
 	})
 
-	assertStored := func(t *testing.T, want []*devicepb.Device) {
-		got := listAllDevices(t, devicesClient)
-		opts := append(devicesCmpOpts, protocmp.IgnoreFields(&devicepb.Device{}, "source"))
-		if diff := cmp.Diff(want, got, opts...); diff != "" {
-			t.Fatalf("RunOnce sync mismatch (-want +got)\n%s", diff)
-		}
+	tests := []struct {
+		name          string
+		deviceType    string
+		wantComputers int
+		wantMobile    int
+		wantErr       require.ErrorAssertionFunc
+	}{
+		{
+			name:          "empty DeviceType defaults to computers",
+			deviceType:    "",
+			wantComputers: 1,
+			wantMobile:    0,
+		},
+		{
+			name:          "computers",
+			deviceType:    types.JamfDeviceTypeComputers,
+			wantComputers: 1,
+			wantMobile:    0,
+		},
+		{
+			name:          "mobile_devices",
+			deviceType:    types.JamfDeviceTypeMobileDevices,
+			wantComputers: 0,
+			wantMobile:    1,
+		},
+		{
+			name:       "unknown device type",
+			deviceType: "unknown",
+			wantErr: func(tt require.TestingT, err error, i ...any) {
+				assert.True(tt, trace.IsBadParameter(err))
+				assert.ErrorContains(tt, err, "unknown device type")
+				assert.ErrorContains(tt, err, `"unknown"`)
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Cleanup(func() { clearDevices(t, devicesClient) })
+
+			s := serviceFromEnv(t, env, nil /* modifyOpts */)
+			_, err := s.RunOnce(t.Context(), jamfservice.RunSpec{
+				Mode:       mdmsync.SyncModeFull,
+				DeviceType: test.deviceType,
+			})
+			if test.wantErr != nil {
+				test.wantErr(t, err)
+				return
+			}
+			require.NoError(t, err)
+
+			var gotComputers, gotMobile int
+			for _, d := range listAllDevices(t, devicesClient) {
+				switch d.OsType {
+				case devicepb.OSType_OS_TYPE_MACOS:
+					gotComputers++
+				case devicepb.OSType_OS_TYPE_IOS, devicepb.OSType_OS_TYPE_IPADOS:
+					gotMobile++
+				}
+			}
+			assert.Equal(t, test.wantComputers, gotComputers, "computers count")
+			assert.Equal(t, test.wantMobile, gotMobile, "mobile devices count")
+		})
+	}
+}
+
+// TestS_RunOnce_continuesPastUnconvertiblePage is a regression test for a
+// previous bug where readInventory would terminate the sync when a page
+// produced zero Teleport devices. mobileDeviceToDevice intentionally drops
+// non-iOS records (tvOS), so a page that contains only unconvertible devices
+// yields zero upserts even though later pages may have valid iOS devices. The
+// sync must keep paging until Jamf reports the inventory is exhausted.
+func TestS_RunOnce_continuesPastUnconvertiblePage(t *testing.T) {
+	t.Parallel()
+	env := testenv.NewUsingT(t, &testenv.Opts{
+		DeviceTrustEnv: true,
+	})
+
+	api := env.API
+	devicesClient := env.DevicesClient
+
+	// The service requests sort by mobileDeviceId:asc. Place the unconvertible
+	// devices (tvOS) on the first page and the valid iOS devices on the second
+	// page. With PageSize=2 this guarantees the first page yields zero Teleport
+	// devices.
+	jamfDevs := []*jamf.MobileDevice{
+		{
+			MobileDeviceID: "1",
+			DeviceType:     "tvOS",
+			General:        &jamf.MobileDeviceGeneralSection{},
+			Hardware: &jamf.MobileDeviceHardwareSection{
+				SerialNumber:    "tvdev1",
+				ModelIdentifier: "AppleTV11,1",
+			},
+		},
+		{
+			MobileDeviceID: "2",
+			DeviceType:     "tvOS",
+			General:        &jamf.MobileDeviceGeneralSection{},
+			Hardware: &jamf.MobileDeviceHardwareSection{
+				SerialNumber:    "tvdev2",
+				ModelIdentifier: "AppleTV11,1",
+			},
+		},
+		{
+			MobileDeviceID: "3",
+			DeviceType:     "iOS",
+			General:        &jamf.MobileDeviceGeneralSection{},
+			Hardware: &jamf.MobileDeviceHardwareSection{
+				SerialNumber:    "mdev3",
+				ModelIdentifier: "iPad15,7",
+			},
+		},
+		{
+			MobileDeviceID: "4",
+			DeviceType:     "iOS",
+			General:        &jamf.MobileDeviceGeneralSection{},
+			Hardware: &jamf.MobileDeviceHardwareSection{
+				SerialNumber:    "mdev4",
+				ModelIdentifier: "iPhone15,2",
+			},
+		},
+	}
+	api.SetMobileDeviceInventory(jamfDevs)
+
+	wantDevs := []*devicepb.Device{
+		mobileDeviceFromMinimal(jamfDevs[2], nil /* source */),
+		mobileDeviceFromMinimal(jamfDevs[3], nil /* source */),
 	}
 
-	// Sync full inventory to Teleport.
-	if _, err := s.RunOnce(ctx, jamfservice.RunSpec{
-		Mode:      mdmsync.SyncModeFull,
-		OnMissing: jamfservice.DeviceActionDelete,
+	s := serviceFromEnv(t, env, nil /* modifyOpts */)
+
+	if _, err := s.RunOnce(t.Context(), jamfservice.RunSpec{
+		Mode:       mdmsync.SyncModeFull,
+		OnMissing:  jamfservice.DeviceActionDelete,
+		DeviceType: types.JamfDeviceTypeMobileDevices,
+		PageSize:   2,
 	}); err != nil {
 		t.Fatalf("RunOnce failed: %v", err)
 	}
 
-	// Sanity check: all devices synced.
-	assertStored(t, allDevs)
-
-	// Sync with paging gaps.
-	// We expect no deletions to happen in Teleport.
-	api.SetSimulatePagingGaps(true)
-	if _, err := s.RunOnce(ctx, jamfservice.RunSpec{
-		Mode:      mdmsync.SyncModeFull,
-		OnMissing: jamfservice.DeviceActionDelete,
-	}); err != nil {
-		t.Fatalf("RunOnce failed: %v", err)
+	got := listAllDevices(t, devicesClient)
+	opts := append(devicesCmpOpts, protocmp.IgnoreFields(&devicepb.Device{}, "source"))
+	if diff := cmp.Diff(wantDevs, got, opts...); diff != "" {
+		t.Errorf("RunOnce sync mismatch (-want +got)\n%s", diff)
 	}
+}
 
-	// Verify no deletions in Teleport.
-	assertStored(t, allDevs)
+// TestS_RunOnce_noGoroutineLeakOnStreamError verifies that when the consumer
+// returns early on a stream error, the producer goroutine reading from Jamf
+// exits too.
+func TestS_RunOnce_noGoroutineLeakOnStreamError(t *testing.T) {
+	t.Parallel()
+
+	env := testenv.NewUsingT(t, &testenv.Opts{
+		DeviceTrustEnv: true,
+	})
+
+	// The consumer reads a single page before the mocked stream error, so the
+	// producer only has to outrun the channel buffer to end up parked on a send
+	// forever (the leak this test guards against). Syncing one device per page,
+	// ten devices is comfortably more than devicesC can buffer.
+	const numDevices = 10
+	jamfDevs := make([]*jamf.ComputerInventory, 0, numDevices)
+	for i := 1; i <= numDevices; i++ {
+		jamfDevs = append(jamfDevs, &jamf.ComputerInventory{
+			ID:   strconv.Itoa(i),
+			UDID: strconv.Itoa(i),
+			General: &jamf.ComputerGeneralSection{
+				Platform:   "Mac",
+				ReportDate: time.Unix(int64(i), 0),
+			},
+			Hardware: &jamf.ComputerHardwareSection{
+				SerialNumber: fmt.Sprintf("C%011d", i),
+			},
+		})
+	}
+	env.API.SetInventory(jamfDevs)
+
+	s := serviceFromEnv(t, env, func(opts *jamfservice.Opts) {
+		opts.DevicesClient = failingDevicesClient{DeviceTrustServiceClient: opts.DevicesClient}
+	})
+
+	// Snapshot goroutines after the env is up, so its servers aren't flagged.
+	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
+
+	_, err := s.RunOnce(t.Context(), jamfservice.RunSpec{
+		Mode:       mdmsync.SyncModeFull,
+		DeviceType: types.JamfDeviceTypeComputers,
+		PageSize:   1,
+	})
+	require.Error(t, err)
+}
+
+func clearDevices(t *testing.T, devicesClient devicepb.DeviceTrustServiceClient) {
+	t.Helper()
+	for _, d := range listAllDevices(t, devicesClient) {
+		// Cannot use t.Context here as clearDevices is typically run from t.Cleanup
+		// so t.Context is already canceled.
+		_, err := devicesClient.DeleteDevice(context.Background(), &devicepb.DeleteDeviceRequest{
+			DeviceId: d.Id,
+		})
+		require.NoError(t, err, "DeleteDevice failed for %v", d.Id)
+	}
 }
 
 func deviceFromMinimal(c *jamf.ComputerInventory, source *devicepb.DeviceSource) *devicepb.Device {
@@ -931,6 +1477,25 @@ func deviceFromMinimal(c *jamf.ComputerInventory, source *devicepb.DeviceSource)
 		Source:       source,
 		Profile: &devicepb.DeviceProfile{
 			ExternalId: c.ID,
+		},
+	}
+}
+
+func mobileDeviceFromMinimal(md *jamf.MobileDevice, source *devicepb.DeviceSource) *devicepb.Device {
+	osType := devicepb.OSType_OS_TYPE_UNSPECIFIED
+	if strings.HasPrefix(md.Hardware.ModelIdentifier, "iPad") {
+		osType = devicepb.OSType_OS_TYPE_IPADOS
+	} else if strings.HasPrefix(md.Hardware.ModelIdentifier, "iPhone") {
+		osType = devicepb.OSType_OS_TYPE_IOS
+	}
+	return &devicepb.Device{
+		OsType:       osType,
+		AssetTag:     md.Hardware.SerialNumber,
+		EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
+		Source:       source,
+		Profile: &devicepb.DeviceProfile{
+			ModelIdentifier: md.Hardware.ModelIdentifier,
+			ExternalId:      md.MobileDeviceID,
 		},
 	}
 }
@@ -985,4 +1550,36 @@ func serviceFromEnv(t testing.TB, env *testenv.E, modifyOpts func(opts *jamfserv
 		t.Fatalf("New failed: %v", err)
 	}
 	return s
+}
+
+// failingSyncStream acks the initial sync request, then fails every subsequent
+// Recv. This drives RunOnce into its "devices: Recv" error return while the
+// producer goroutine is still reading pages from Jamf.
+type failingSyncStream struct {
+	grpc.BidiStreamingClient[devicepb.SyncInventoryRequest, devicepb.SyncInventoryResponse]
+	recvCount int
+}
+
+func (s *failingSyncStream) Send(*devicepb.SyncInventoryRequest) error { return nil }
+
+func (s *failingSyncStream) CloseSend() error { return nil }
+
+func (s *failingSyncStream) Recv() (*devicepb.SyncInventoryResponse, error) {
+	s.recvCount++
+	if s.recvCount == 1 {
+		return &devicepb.SyncInventoryResponse{
+			Payload: &devicepb.SyncInventoryResponse_Ack{Ack: &devicepb.SyncInventoryAck{}},
+		}, nil
+	}
+	return nil, errors.New("simulated stream failure")
+}
+
+// failingDevicesClient hands out a [failingSyncStream] for SyncInventory and
+// delegates everything else to the embedded client.
+type failingDevicesClient struct {
+	devicepb.DeviceTrustServiceClient
+}
+
+func (c failingDevicesClient) SyncInventory(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[devicepb.SyncInventoryRequest, devicepb.SyncInventoryResponse], error) {
+	return &failingSyncStream{}, nil
 }
