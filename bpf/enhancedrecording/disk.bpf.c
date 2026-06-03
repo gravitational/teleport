@@ -71,6 +71,17 @@ BPF_RING_BUF(open_events, EVENTS_BUF_SIZE);
 
 BPF_COUNTER(lost);
 
+void zero_data(struct data_t *data)
+{
+    data->cgroup = 0;
+    data->audit_session_id = 0;
+    data->pid = 0;
+    data->return_code = 0;
+    data->command[0] = '\0';
+    data->file_path[0] = '\0';
+    data->flags = 0;
+}
+
 // security_file_open allows us to get the resolved absolute path
 // of the file being opened. We stash the resolved path so 
 // fexit/do_filp_open can emit an event with a return code and our
@@ -89,6 +100,9 @@ int BPF_PROG(security_file_open, struct file *f)
     if (!info) {
         return 0;
     }
+
+    info->valid = false;
+    info->file_path[0] = '\0';
 
     if (bpf_d_path(&f->f_path, (char *)info->file_path, sizeof(info->file_path)) > 0) {
         info->valid = true;
@@ -119,6 +133,7 @@ int BPF_PROG(do_filp_open_exit, int dfd, struct filename *pathname, const struct
         bpf_printk("open_events ring buffer full");
         goto out;
     }
+    zero_data(data);
 
     // Use the resolved path from security_file_open if possible.
     if (info && info->valid) {

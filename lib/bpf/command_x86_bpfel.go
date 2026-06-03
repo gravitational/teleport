@@ -14,18 +14,19 @@ import (
 )
 
 type commandDataT struct {
-	_              structs.HostLayout
-	Pid            uint64
-	Ppid           uint64
-	Command        [16]uint8
-	Filename       [512]uint8
-	Args           [20480]uint8
-	ArgsLen        uint32
-	ArgsTruncated  bool
-	_              [3]byte
-	Cgroup         uint64
-	AuditSessionId uint32
-	ReturnCode     int32
+	_                structs.HostLayout
+	Pid              uint64
+	Ppid             uint64
+	Command          [16]uint8
+	Filename         [512]uint8
+	Args             [20480]uint8
+	ArgsLen          uint32
+	ArgsTruncated    bool
+	FailedToReadArgs bool
+	_                [2]byte
+	Cgroup           uint64
+	AuditSessionId   uint32
+	ReturnCode       int32
 }
 
 type commandInflightExecT struct {
