@@ -87,8 +87,10 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 	auditScx.Identity.TeleportUser = "mod"
 	auditSess, _ := testOpenSession(t, reg, auditorRoleSet, &decisionpb.SSHAccessPermit{})
 	approvers := make(map[string]*party)
-	auditChan := newMockSSHChannel()
-	approvers["mod"] = newParty(auditSess, types.SessionModeratorMode, auditChan, auditScx)
+	clientChan, serverChan := newMockSSHChannel(t)
+	clientChan.Drain()
+
+	approvers["mod"] = newParty(auditSess, types.SessionModeratorMode, serverChan, auditScx)
 
 	// create the accessRole to be used for the requester
 	accessRole, _ := types.NewRole("access", types.RoleSpecV6{
@@ -461,12 +463,13 @@ func TestSessionRegistrySetupFailureCleanup(t *testing.T) {
 
 			tt.configure(t, srv, scx, trackingService)
 
-			channel := newMockSSHChannel()
-			t.Cleanup(func() { require.NoError(t, channel.Close()) })
+			// Open a new session
+			clientChan, serverChan := newMockSSHChannel(t)
+			clientChan.Drain()
 
 			countBefore := testutil.ToFloat64(serverSessions)
 
-			err = tt.openSession(t.Context(), reg, channel, scx)
+			err = tt.openSession(t.Context(), reg, serverChan, scx)
 			require.Error(t, err)
 			require.Nil(t, scx.session)
 
@@ -564,12 +567,10 @@ func TestInteractiveSession(t *testing.T) {
 	scx.term = terminal
 
 	// Open a new session
-	sshChanOpen := newMockSSHChannel()
-	go func() {
-		// Consume stdout sent to the channel
-		io.ReadAll(sshChanOpen)
-	}()
-	require.NoError(t, reg.OpenSession(ctx, sshChanOpen, scx))
+	clientChan, serverChan := newMockSSHChannel(t)
+	clientChan.Drain()
+
+	require.NoError(t, reg.OpenSession(ctx, serverChan, scx))
 	require.NotNil(t, scx.session)
 
 	// Simulate changing window size to capture an additional event.
@@ -651,12 +652,10 @@ func TestNonInteractiveSession(t *testing.T) {
 		scx.execRequest = &localExec{Ctx: scx, Command: "true"}
 
 		// Open a new session
-		sshChanOpen := newMockSSHChannel()
-		go func() {
-			// Consume stdout sent to the channel
-			io.ReadAll(sshChanOpen)
-		}()
-		require.NoError(t, reg.OpenExecSession(ctx, sshChanOpen, scx))
+		clientChan, serverChan := newMockSSHChannel(t)
+		clientChan.Drain()
+
+		require.NoError(t, reg.OpenExecSession(ctx, serverChan, scx))
 		require.NotNil(t, scx.session)
 
 		// Wait for the command execution to complete and the session to be terminated.
@@ -716,12 +715,10 @@ func TestNonInteractiveSession(t *testing.T) {
 		scx.execRequest = &localExec{Ctx: scx, Command: "true"}
 
 		// Open a new session
-		sshChanOpen := newMockSSHChannel()
-		go func() {
-			// Consume stdout sent to the channel
-			io.ReadAll(sshChanOpen)
-		}()
-		require.NoError(t, reg.OpenExecSession(ctx, sshChanOpen, scx))
+		clientChan, serverChan := newMockSSHChannel(t)
+		clientChan.Drain()
+
+		require.NoError(t, reg.OpenExecSession(ctx, serverChan, scx))
 		require.NotNil(t, scx.session)
 
 		// Wait for the command execution to complete and the session to be terminated.
@@ -806,6 +803,129 @@ func TestStopUnstarted(t *testing.T) {
 		return !found
 	}
 	require.Eventually(t, sessionClosed, time.Second*15, time.Millisecond*500)
+}
+
+func TestModeratedSessionPresence(t *testing.T) {
+	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
+
+	srv := newMockServer(t)
+	srv.component = teleport.ComponentNode
+
+	reg, err := NewSessionRegistry(SessionRegistryConfig{
+		Srv:                   srv,
+		SessionTrackerService: srv.auth,
+		clock:                 srv.clock,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { reg.Close() })
+
+	hostRole, err := types.NewRole("moderated", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			RequireSessionJoin: []*types.SessionRequirePolicy{{
+				Name:    "moderated",
+				Filter:  "contains(user.roles, \"moderator\")",
+				Kinds:   []string{string(types.SSHSessionKind)},
+				Count:   1,
+				Modes:   []string{string(types.SessionModeratorMode)},
+				OnLeave: string(types.OnSessionLeaveTerminate),
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	moderatorRole, err := types.NewRole("moderator", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			JoinSessions: []*types.SessionJoinPolicy{{
+				Name:  "moderated",
+				Roles: []string{hostRole.GetName()},
+				Kinds: []string{string(types.SSHSessionKind)},
+				Modes: []string{string(types.SessionModeratorMode)},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	hostCtx := newTestServerContext(t, reg.Srv, services.NewRoleSet(hostRole), &decisionpb.SSHAccessPermit{})
+	hostCtx.Identity.UnmappedIdentity.MFAVerified = "mfa-device"
+	moderatorCtx := newTestServerContext(t, reg.Srv, services.NewRoleSet(moderatorRole), &decisionpb.SSHAccessPermit{})
+	moderatorCtx.Identity.TeleportUser = "moderator"
+
+	findModeratorParticipant := func(t require.TestingT, tracker types.SessionTracker) types.Participant {
+		for _, participant := range tracker.GetParticipants() {
+			if participant.User == moderatorCtx.Identity.TeleportUser {
+				return participant
+			}
+		}
+		require.Fail(t, "moderator participant not found")
+		return types.Participant{}
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+
+	// Create a new pending moderated session.
+	hostClientChan, hostServerChan := newMockSSHChannel(t)
+	hostClientChan.Drain()
+
+	require.NoError(t, reg.OpenSession(ctx, hostServerChan, hostCtx))
+	require.NotNil(t, hostCtx.session)
+	sess := hostCtx.session
+	t.Cleanup(sess.Stop)
+
+	tracker, err := srv.auth.GetSessionTracker(t.Context(), sess.id.String())
+	require.NoError(t, err)
+	require.Equal(t, types.SessionState_SessionStatePending, tracker.GetState())
+
+	// Have a moderator join the session to start it.
+	modClientChan, modServerChan := newMockSSHChannel(t)
+	modClientChan.Drain()
+	require.NoError(t, reg.JoinSession(ctx, modServerChan, moderatorCtx, sess.id.String(), types.SessionModeratorMode))
+	tracker, err = srv.auth.GetSessionTracker(t.Context(), sess.id.String())
+	require.NoError(t, err)
+	require.Equal(t, types.SessionState_SessionStateRunning, tracker.GetState())
+	require.True(t, sess.started.Load())
+	require.Len(t, sess.getParties(), 2)
+
+	moderatorParticipant := findModeratorParticipant(t, tracker)
+	require.NotEmpty(t, moderatorParticipant.ID)
+
+	// Wait for the session tracker expiration timer and presence check ticker.
+	srv.clock.BlockUntil(2)
+
+	// Advance the clock and the moderators presence to the original stale threshold without exceeding it.
+	presenceCheckInterval := srv.GetPresenceMaxDuration() / 4
+	srv.clock.Advance(presenceCheckInterval)
+	srv.clock.BlockUntil(2)
+	presenceUpdateTime := srv.clock.Now().UTC()
+	require.NoError(t, srv.auth.UpdatePresence(t.Context(), sess.id.String(), moderatorParticipant.User, moderatorParticipant.Cluster))
+
+	// Advance the clock past the original stale threshold. The session should continue running.
+	srv.clock.Advance(srv.GetPresenceMaxDuration() - presenceCheckInterval + time.Second)
+	srv.clock.BlockUntil(2)
+
+	tracker, err = srv.auth.GetSessionTracker(t.Context(), sess.id.String())
+	require.NoError(t, err)
+	refreshedParticipant := findModeratorParticipant(t, tracker)
+	require.Equal(t, moderatorParticipant.ID, refreshedParticipant.ID)
+	require.Equal(t, presenceUpdateTime, refreshedParticipant.LastActive)
+
+	require.Never(t, func() bool {
+		updatedTracker, err := srv.auth.GetSessionTracker(ctx, sess.id.String())
+		require.NoError(t, err)
+		return updatedTracker.GetState() != types.SessionState_SessionStateRunning
+	}, 500*time.Millisecond, 100*time.Millisecond)
+
+	// Advance the server clock so that the moderator is stale. The session should terminate.
+	srv.clock.Advance(srv.GetPresenceMaxDuration())
+
+	require.Eventually(t, sess.isStopped, time.Second, 10*time.Millisecond)
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		updatedTracker, err := srv.auth.GetSessionTracker(ctx, sess.id.String())
+		require.NoError(t, err)
+		require.Equal(t, types.SessionState_SessionStateTerminated, updatedTracker.GetState())
+		for _, participant := range updatedTracker.GetParticipants() {
+			require.NotEqual(t, moderatorParticipant.ID, participant.ID)
+		}
+	}, 5*time.Second, 100*time.Millisecond)
 }
 
 // TestParties tests the party mechanisms within an interactive session,
@@ -893,20 +1013,6 @@ func TestParties(t *testing.T) {
 	require.Eventually(t, sess.isStopped, time.Second*5, time.Millisecond*500)
 }
 
-func testJoinSession(t *testing.T, reg *SessionRegistry, sid string) {
-	scx := newTestServerContext(t, reg.Srv, nil, &decisionpb.SSHAccessPermit{})
-	sshChanOpen := newMockSSHChannel()
-
-	// Open a new session
-	go func() {
-		// Consume stdout sent to the channel
-		io.ReadAll(sshChanOpen)
-	}()
-
-	err := reg.JoinSession(t.Context(), sshChanOpen, scx, sid, types.SessionPeerMode)
-	require.NoError(t, err)
-}
-
 func TestSessionRecordingModes(t *testing.T) {
 	t.Parallel()
 
@@ -941,7 +1047,7 @@ func TestSessionRecordingModes(t *testing.T) {
 				SessionRecordingMode: string(tt.sessionRecordingMode),
 			})
 
-			// Write stuff in the session
+			// Write to the session as a synchronization barrier.
 			_, err = sessCh.Write([]byte("hello"))
 			require.NoError(t, err)
 
@@ -949,9 +1055,11 @@ func TestSessionRecordingModes(t *testing.T) {
 			err = sess.Recorder().Complete(context.Background())
 			require.NoError(t, err)
 
-			// Send more writes.
-			_, err = sessCh.Write([]byte("world"))
-			require.NoError(t, err)
+			// Write after completion. The recording failure may race the message if it
+			// gets triggered by the initial "hello", so tolerate a closed pipe.
+			if _, err = sessCh.Write([]byte("world")); err != nil {
+				require.ErrorIs(t, err, io.ErrClosedPipe)
+			}
 
 			// Ensure the session is stopped.
 			if !tt.expectClosedSession {
@@ -1026,13 +1134,10 @@ func TestStopSessionWithoutClientDisconnect(t *testing.T) {
 			// Unlike real SSH clients, the mock SSH channel does not automatically close
 			// when the session ends, which is the misbehavior this test is meant to ensure
 			// is handled.
-			sshChanOpen := newMockSSHChannel()
-			t.Cleanup(func() { require.NoError(t, sshChanOpen.Close()) })
-			go func() {
-				_, _ = io.ReadAll(sshChanOpen)
-			}()
+			clientChan, serverChan := newMockSSHChannel(t)
+			clientChan.Drain()
 
-			require.NoError(t, reg.OpenSession(t.Context(), sshChanOpen, scx))
+			require.NoError(t, reg.OpenSession(t.Context(), serverChan, scx))
 			require.NotNil(t, scx.session)
 
 			stopDone := make(chan struct{})
@@ -1053,18 +1158,24 @@ func TestStopSessionWithoutClientDisconnect(t *testing.T) {
 func testOpenSession(t *testing.T, reg *SessionRegistry, sessionJoiningRoleSet services.RoleSet, accessPermit *decisionpb.SSHAccessPermit) (*session, ssh.Channel) {
 	scx := newTestServerContext(t, reg.Srv, sessionJoiningRoleSet, accessPermit)
 
-	// Open a new session
-	sshChanOpen := newMockSSHChannel()
-	go func() {
-		// Consume stdout sent to the channel
-		io.ReadAll(sshChanOpen)
-	}()
+	clientChan, serverChan := newMockSSHChannel(t)
+	clientChan.Drain()
 
-	err := reg.OpenSession(t.Context(), sshChanOpen, scx)
+	err := reg.OpenSession(t.Context(), serverChan, scx)
 	require.NoError(t, err)
 
 	require.NotNil(t, scx.session)
-	return scx.session, sshChanOpen
+	return scx.session, clientChan
+}
+
+func testJoinSession(t *testing.T, reg *SessionRegistry, sid string) {
+	scx := newTestServerContext(t, reg.Srv, nil, &decisionpb.SSHAccessPermit{})
+
+	clientChan, serverChan := newMockSSHChannel(t)
+	clientChan.Drain()
+
+	err := reg.JoinSession(t.Context(), serverChan, scx, sid, types.SessionPeerMode)
+	require.NoError(t, err)
 }
 
 type mockRecorder struct {
@@ -1389,16 +1500,9 @@ func TestCloseProxySession(t *testing.T) {
 	scx := newTestServerContext(t, reg.Srv, nil, &decisionpb.SSHAccessPermit{})
 
 	// Open a new session
-	sshChanOpen := newMockSSHChannel()
-	// Always close the session from the client side to avoid it being stuck
-	// on closing (server side).
-	t.Cleanup(func() { sshChanOpen.Close() })
-	go func() {
-		// Consume stdout sent to the channel
-		io.ReadAll(sshChanOpen)
-	}()
-
-	err = reg.OpenSession(ctx, sshChanOpen, scx)
+	clientChan, serverChan := newMockSSHChannel(t)
+	clientChan.Drain()
+	err = reg.OpenSession(ctx, serverChan, scx)
 	require.NoError(t, err)
 	require.NotNil(t, scx.session)
 
@@ -1438,16 +1542,10 @@ func TestCloseRemoteSession(t *testing.T) {
 	scx.RemoteSession = mockSSHSession(t)
 
 	// Open a new session
-	sshChanOpen := newMockSSHChannel()
-	// Always close the session from the client side to avoid it being stuck
-	// on closing (server side).
-	t.Cleanup(func() { sshChanOpen.Close() })
-	go func() {
-		// Consume stdout sent to the channel
-		io.ReadAll(sshChanOpen)
-	}()
+	clientChan, serverChan := newMockSSHChannel(t)
+	clientChan.Drain()
 
-	err := reg.OpenSession(ctx, sshChanOpen, scx)
+	err := reg.OpenSession(ctx, serverChan, scx)
 	require.NoError(t, err)
 	require.NotNil(t, scx.session)
 

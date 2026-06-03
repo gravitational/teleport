@@ -206,6 +206,10 @@ type Server interface {
 	// ChildLogConfig returns the log configuration for handling logs from
 	// child processes.
 	ChildLogConfig() ChildLogConfig
+
+	// GetPresenceMaxDuration returns the max duration that a moderated session
+	// can continue between presence verifications.
+	GetPresenceMaxDuration() time.Duration
 }
 
 // ChildLogConfig is the log configuration for handling logs from child processes.
