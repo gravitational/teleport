@@ -6817,13 +6817,17 @@ func (process *TeleportProcess) initApps() {
 			})
 		}
 
+		// Resolve each app's effective public address up front and
+		// reject duplicates before creating any server.
+		publicAddrs, err := resolveStaticAppPublicAddrs(process.ExitContext(), accessPoint, process.Config.Apps.Apps)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		// Loop over each application and create a server.
 		var applications types.Apps
 		for _, app := range process.Config.Apps.Apps {
-			publicAddr, err := getPublicAddr(process.ExitContext(), accessPoint, app)
-			if err != nil {
-				return trace.Wrap(err)
-			}
+			publicAddr := publicAddrs[app.Name]
 
 			var rewrite *types.Rewrite
 			if app.Rewrite != nil {
@@ -7377,22 +7381,47 @@ func dumperHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, string(requestDump))
 }
 
-// getPublicAddr waits for a proxy to be registered with Teleport.
-func getPublicAddr(ctx context.Context, authClient authclient.ReadAppsAccessPoint, a servicecfg.App) (string, error) {
+// resolveStaticAppPublicAddrs resolves the effective public address of
+// each statically configured app and rejects two apps that resolve to
+// the same address. The proxy dispatches matching app servers at
+// random, so a shared public address routes non-deterministically.
+func resolveStaticAppPublicAddrs(ctx context.Context, client app.FindPublicAddrClient, apps []servicecfg.App) (map[string]string, error) {
+	publicAddrs := make(map[string]string, len(apps))
+	seen := make(map[string]string, len(apps))
+	for _, a := range apps {
+		publicAddr, err := getPublicAddr(ctx, client, a)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if first, ok := seen[publicAddr]; ok {
+			return nil, trace.BadParameter("apps %q and %q resolve to the same public address %q; each app must resolve to a unique address", first, a.Name, publicAddr)
+		}
+		seen[publicAddr] = a.Name
+		publicAddrs[a.Name] = publicAddr
+	}
+	return publicAddrs, nil
+}
+
+// getPublicAddr resolves an app's public address, waiting up to five
+// seconds for a proxy to register so the default
+// <name>.<proxy_public_addr> form can be derived.
+func getPublicAddr(ctx context.Context, client app.FindPublicAddrClient, a servicecfg.App) (string, error) {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 	timeout := time.NewTimer(5 * time.Second)
 	defer timeout.Stop()
 
 	for {
+		publicAddr, err := app.FindPublicAddr(ctx, client, a.PublicAddr, a.Name)
+		if err == nil {
+			return publicAddr, nil
+		}
 		select {
 		case <-ticker.C:
-			publicAddr, err := app.FindPublicAddr(ctx, authClient, a.PublicAddr, a.Name)
-			if err == nil {
-				return publicAddr, nil
-			}
 		case <-timeout.C:
 			return "", trace.BadParameter("timed out waiting for proxy with public address")
+		case <-ctx.Done():
+			return "", trace.Wrap(ctx.Err())
 		}
 	}
 }

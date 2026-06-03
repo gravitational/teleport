@@ -47,7 +47,6 @@ import (
 
 	"github.com/go-ldap/ldap/v3"
 	"github.com/gravitational/trace"
-	"golang.org/x/net/idna"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
@@ -2204,93 +2203,7 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		seenNames[app.Name] = struct{}{}
 	}
 
-	// Reject apps with the same effective routing FQDN; otherwise
-	// duplicates route non-deterministically. Mirror FindPublicAddr's
-	// fallback: use the proxy public_addr host as-is (IPs included),
-	// fall back to cluster_name when unset.
-	seenProxyHosts := map[string]struct{}{}
-	proxyHosts := make([]string, 0, len(cfg.Proxy.PublicAddrs))
-	clusterNameFallback := ""
-	if fc.Proxy.Enabled() {
-		for _, addr := range cfg.Proxy.PublicAddrs {
-			host, err := normalizeFQDN(addr.Host())
-			if err != nil {
-				// A malformed proxy public_addr that no app
-				// depends on should not block app_service startup.
-				slog.WarnContext(context.Background(), "skipping malformed proxy public_addr in app FQDN dedupe",
-					"proxy_public_addr", addr.String(),
-					"error", err,
-				)
-				continue
-			}
-			if host == "" {
-				continue
-			}
-			if _, ok := seenProxyHosts[host]; ok {
-				continue
-			}
-			seenProxyHosts[host] = struct{}{}
-			proxyHosts = append(proxyHosts, host)
-		}
-		if cfg.Auth.ClusterName != nil {
-			host, err := normalizeFQDN(cfg.Auth.ClusterName.GetClusterName())
-			if err != nil {
-				// A malformed cluster_name that no app falls back
-				// to should not block app_service startup.
-				slog.WarnContext(context.Background(), "skipping malformed cluster_name in app FQDN dedupe",
-					"cluster_name", cfg.Auth.ClusterName.GetClusterName(),
-					"error", err,
-				)
-			} else {
-				clusterNameFallback = host
-			}
-		}
-	}
-	// CheckAndSetDefaults validates app.Name and app.PublicAddr as
-	// DNS-1123 forms, so they are already lowercase ASCII without a
-	// trailing dot; only proxy public_addr and cluster_name need
-	// normalizeFQDN.
-	seenFQDNs := map[string]string{}
-	for _, app := range cfg.Apps.Apps {
-		// Dedupe per-app: one app contributing both public_addr and
-		// <name>.<proxy> is not a self-conflict.
-		appFQDNs := map[string]struct{}{}
-		if app.PublicAddr != "" {
-			appFQDNs[app.PublicAddr] = struct{}{}
-		}
-		if app.PublicAddr == "" || app.UseAnyProxyPublicAddr {
-			switch {
-			case len(proxyHosts) > 0:
-				for _, host := range proxyHosts {
-					appFQDNs[utils.DefaultAppFQDN(app.Name, host, "")] = struct{}{}
-				}
-			case clusterNameFallback != "":
-				appFQDNs[utils.DefaultAppFQDN(app.Name, "", clusterNameFallback)] = struct{}{}
-			}
-		}
-		// Map order is random; sort for a stable error message.
-		sortedFQDNs := slices.Collect(maps.Keys(appFQDNs))
-		slices.Sort(sortedFQDNs)
-		for _, fqdn := range sortedFQDNs {
-			if seenAppName, ok := seenFQDNs[fqdn]; ok {
-				return trace.BadParameter("apps %q and %q route to the same FQDN %q in static config", seenAppName, app.Name, fqdn)
-			}
-			seenFQDNs[fqdn] = app.Name
-		}
-	}
-
 	return nil
-}
-
-// normalizeFQDN returns host as ASCII, lowercase, with any trailing
-// dot stripped, so IDN, case, and trailing-dot variants collapse to
-// one dedupe key.
-func normalizeFQDN(host string) (string, error) {
-	asciiHost, err := idna.ToASCII(strings.TrimRight(host, "."))
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	return strings.ToLower(asciiHost), nil
 }
 
 // applyMetricsConfig applies file configuration for the "metrics_service" section.
