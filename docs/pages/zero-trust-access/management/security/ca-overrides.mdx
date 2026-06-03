@@ -78,7 +78,7 @@ The `cert_authority_override` resource targets a CA with the following fields:
 - For safety, back up your cluster state before starting and retain downstream
   trust to the self-signed CA certificates until the upgrade is fully verified.
 
-## Step 1. Prepare the override certificate CSR
+## Step 1/5. Prepare the override certificate CSR
 
 The `windows` CA is used as an example. Replace with your target CA, as
 appropriate.
@@ -102,7 +102,7 @@ You may customize the certificate subject:
 $ tctl auth create-override-csr --type=windows --subject='OU=My Organization Unit,CN=My Windows CA'
 ```
 
-## Step 1.1. Prepare CSRs for multi-Auth, HSM-enabled clusters
+### Prepare CSRs for multi-Auth, HSM-enabled clusters
 
 In multi-Auth, HSM-enabled clusters, run `tctl` locally against each Auth
 Service instance. Each Auth Service instance generates CSRs for the keys it can
@@ -130,7 +130,7 @@ When writing the override resource, make sure the final
 `spec.certificate_overrides` contains one entry for each certificate issued from
 those CSRs. See steps 4 and 4.1.
 
-## Step 2. Issue override certificates using your external CA
+## Step 2/5. Issue override certificates using your external CA
 
 Using the CSRs from step 1, issue the override certificates with your external
 CA.
@@ -144,7 +144,7 @@ The certificates must meet the following requirements:
   (first element) or in the OID `1.3.9999.4.1`.
   CSRs from step 1 always have a valid subject.
 
-## Step 3. Configure downstream trust
+## Step 3/5. Configure downstream trust
 
 Using the certificates acquired in step 2, configure downstream trust before
 proceeding. We recommend retaining trust in the self-signed Teleport CA for a
@@ -152,7 +152,7 @@ grace period, until you have verified normal cluster use.
 
 See the [Supported CAs](#supported-cas-and-downstream-trust) section for notes on each CA.
 
-## Step 4. Create the certificate overrides
+## Step 4/5. Create the certificate overrides
 
 After issuing certificates and configuring downstream trust, create the
 certificate overrides.
@@ -213,7 +213,7 @@ spec:
 ```
 </Admonition>
 
-## Step 4.1. Create certificate overrides on multi-Auth, HSM-enabled clusters
+### Create certificate overrides on multi-Auth, HSM-enabled clusters
 
 In multi-Auth, HSM-enabled clusters, each `certificate_override` entry must be
 added by the corresponding Auth Service instance, which is the Auth Service
@@ -263,7 +263,7 @@ spec:
       -----END CERTIFICATE-----
 ```
 
-## Step 5. Exercise the CA override
+## Step 5/5. Exercise the CA override
 
 Exercise the override by attempting a connection with the appropriate protocol
 (RDP for `windows`, `tsh db connect` for `db_client`, etc).
