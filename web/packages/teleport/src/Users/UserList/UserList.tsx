@@ -84,7 +84,7 @@ export default function UserList({
                 username={user.name}
                 primaryText={user.displayPrimary}
                 secondaryText={user.displaySecondary}
-                layout="stacked"
+                layout="inline"
               />
             </Cell>
           ),

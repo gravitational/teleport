@@ -51,7 +51,13 @@ describe('UserDetails display names', () => {
     const usernameField = screen.getByText('Username')
       .parentElement as HTMLElement;
     expect(within(usernameField).getByText('alice')).toBeInTheDocument();
-    expect(screen.queryByText('Auth Type')).not.toBeInTheDocument();
+    // Auth Type is in the body, with the resource icon in front.
+    const authTypeField = screen.getByText('Auth Type')
+      .parentElement as HTMLElement;
+    expect(within(authTypeField).getByText('local')).toBeInTheDocument();
+    expect(
+      within(authTypeField).getByTestId('res-icon-server')
+    ).toBeInTheDocument();
     expect(screen.getByText('Status')).toBeInTheDocument();
   });
 

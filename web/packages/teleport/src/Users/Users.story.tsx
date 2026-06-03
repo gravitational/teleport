@@ -39,14 +39,14 @@ const users = [
     displayPrimary: 'Cikar Egaposci',
     displaySecondary: 'cikar@egaposci.me',
     roles: ['admin'],
-    authType: 'teleport local user',
+    authType: 'local user',
     isLocal: true,
   },
   {
     name: 'hi@nen.pa',
     displaySecondary: 'hi@nen.pa',
     roles: ['ruhh', 'admin'],
-    authType: 'teleport local user',
+    authType: 'local user',
     isLocal: true,
   },
   {
@@ -70,13 +70,13 @@ const users = [
   {
     name: 'azesotil@jevig.org',
     roles: ['tugu'],
-    authType: 'teleport local user',
+    authType: 'local user',
     isLocal: true,
   },
   {
     name: 'bot-little-robot',
     roles: ['bot-little-robot'],
-    authType: 'teleport local user',
+    authType: 'local user',
     isLocal: true,
     isBot: true,
   },

@@ -75,6 +75,8 @@ export function UserDetails({
     targetName: user.name,
   });
 
+  const { text: authType, icon: authTypeIcon } = renderAuthType(user);
+
   return (
     <Box>
       <UserDetailsSection>
@@ -84,6 +86,18 @@ export function UserDetails({
             <UserDetailField>
               <Text fontWeight="medium">Username</Text>
               <Text color="text.muted">{user.name}</Text>
+            </UserDetailField>
+            <UserDetailField>
+              <Text fontWeight="medium">Auth Type</Text>
+              <Flex alignItems="center" gap={2}>
+                <ResourceIcon name={authTypeIcon} width="16px" height="16px" />
+                <Text
+                  color="text.muted"
+                  style={{ textTransform: 'capitalize' }}
+                >
+                  {authType}
+                </Text>
+              </Flex>
             </UserDetailField>
             <UserDetailField>
               <Text fontWeight="medium">Status</Text>
@@ -191,8 +205,6 @@ export function UserDetailsTitle({
   onDelete,
   panelWidth = 480,
 }: UserDetailsTitleProps) {
-  const { text: authType, icon } = renderAuthType(user);
-
   // needed to fill InfoGuidePanel for UserDetailsActions
   const containerWidth = panelWidth - 80;
   const userIconSize = 48;
@@ -215,18 +227,6 @@ export function UserDetailsTitle({
             primaryText={user.displayPrimary}
             secondaryText={user.displaySecondary}
           />
-          <Flex alignItems="center" gap={2}>
-            <ResourceIcon name={icon} width="16px" height="16px" />
-            <Text
-              fontSize={2}
-              color="text.muted"
-              fontWeight="normal"
-              style={{ textTransform: 'capitalize' }}
-            >
-              {authType}
-              {user.isBot ? ' (Bot)' : ''}
-            </Text>
-          </Flex>
         </Box>
       </Flex>
       <UserDetailsActions

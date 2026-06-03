@@ -469,6 +469,23 @@ test('makeUser maps display name fields when present', () => {
   });
 });
 
+test('makeUser labels local users as "local user"', () => {
+  expect(
+    makeUser({ name: 'alice', roles: [], authType: 'local' })
+  ).toMatchObject({
+    authType: 'local user',
+    isLocal: true,
+  });
+
+  // Non-local auth types pass through unchanged.
+  expect(
+    makeUser({ name: 'bob', roles: [], authType: 'github' })
+  ).toMatchObject({
+    authType: 'github',
+    isLocal: false,
+  });
+});
+
 test('createResetPasswordToken', async () => {
   // Test null response.
   jest.spyOn(api, 'post').mockResolvedValue(null);
