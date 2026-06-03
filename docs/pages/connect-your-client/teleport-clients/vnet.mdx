@@ -67,7 +67,7 @@ following mitigations for DNS rebinding attacks:
 - [Teleport Connect](teleport-connect.mdx), version 17.3.0 or higher, installed in per-machine mode ("Anyone who uses this computer").
 </TabItem>
 <TabItem label="Linux">
-- A client machine running a Linux distro with systemd, systemd-resolved, polkit and D-Bus.
+- A client machine running a Linux distro with systemd, systemd-resolved, polkit, and D-Bus.
 - [Teleport Connect](teleport-connect.mdx), version 18.8.0 or higher.
 </TabItem>
 </Tabs>
@@ -178,6 +178,8 @@ Teleport Connect offers better visibility for MFA prompts and cluster logins, an
 automatically runs diagnostics that are useful for troubleshooting.
 
 <details>
+<summary>Running tsh vnet on Linux without Teleport Connect</summary>
+
 VNet on Linux requires a systemd unit, a polkit policy, and a D-Bus service
 file to be installed on the system. These files are bundled with the
 [Teleport Connect](teleport-connect.mdx) package and deployed during installation.
@@ -188,7 +190,6 @@ in the Teleport repository.
 </details>
 
 ## Troubleshooting
-{/* TODO: add Linux specific troubleshooting */}
 
 ### Conflicting IPv4 ranges
 
@@ -221,10 +222,10 @@ running, there's no DNS server to answer those calls.
 To clean up those files, simply start VNet again. Alternatively, you can remove the leftover files
 manually.
 
-<details>
+<Admonition type="note" title="Using Linux?">
 This only applies to macOS. On Linux, VNet registers its DNS with systemd-resolved, and the
 configuration is cleared automatically when the VNet link is removed.
-</details>
+</Admonition>
 
 ### Verifying that VNet receives DNS queries
 
