@@ -102,7 +102,7 @@ func (smc *SocketModeClient) Run(ctx context.Context) error {
 		err := smc.run(ctx)
 		// We must exit on fatal connection errors (eg. invalid auth token to Slack).
 		// Otherwise, reconnect after a backoff for transient errors or Slack disconnect requests.
-		if err != nil && isFatalSocketModeError(err) {
+		if err != nil && isFatalSocketModeError(trace.Unwrap(err)) {
 			return trace.Wrap(err)
 		}
 		// Context is done, exit immediately.
@@ -151,19 +151,19 @@ func (smc *SocketModeClient) run(ctx context.Context) error {
 	defer stop()
 
 	g.Go(func() error {
-		return smc.ping(gctx, ws)
+		return trace.Wrap(smc.ping(gctx, ws), "ping routine")
 	})
 
 	g.Go(func() error {
-		return smc.parseEvents(gctx, rawCh, ackCh)
+		return trace.Wrap(smc.parseEvents(gctx, rawCh, ackCh), "parseEvents routine")
 	})
 
 	g.Go(func() error {
-		return smc.writePump(gctx, ws, ackCh)
+		return trace.Wrap(smc.writePump(gctx, ws, ackCh), "writePump routine")
 	})
 
 	g.Go(func() error {
-		return smc.readPump(gctx, ws, rawCh)
+		return trace.Wrap(smc.readPump(gctx, ws, rawCh), "readPump routine")
 	})
 
 	return trace.Wrap(g.Wait())
@@ -322,6 +322,8 @@ func (smc *SocketModeClient) parseEvents(ctx context.Context, rawCh <-chan json.
 }
 
 // isFatalSocketModeError returns true if the error is fatal for the Socket Mode client, eg. invalid app-level token or Socket Mode is disabled.
+// See https://docs.slack.dev/reference/methods/apps.connections.open/ for generating a WebSocket URL and its error list.
+// See https://docs.slack.dev/apis/events-api/using-socket-mode/#disconnect for Socket Mode disconnect messages.
 func isFatalSocketModeError(err error) bool {
 	switch err.Error() {
 	case SocketModeEventReasonLinkDisabled:

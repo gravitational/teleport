@@ -93,13 +93,16 @@ type SocketModeEvent struct {
 	DebugInfo json.RawMessage `json:"debug_info,omitempty"`
 
 	// `hello` type
+
 	NumConnections int             `json:"num_connections"`
 	ConnectionInfo json.RawMessage `json:"connection_info"`
 
 	// `disconnect` type
+
 	Reason string `json:"reason"`
 
 	// `interactive` type
+
 	EnvelopeID             string          `json:"envelope_id"`
 	AcceptsResponsePayload bool            `json:"accepts_response_payload"`
 	Payload                json.RawMessage `json:"payload"`
@@ -107,12 +110,18 @@ type SocketModeEvent struct {
 	RetryReason            string          `json:"retry_reason"`
 }
 
+// InteractionEventType is the type of interaction event received from Slack Socket Mode.
 type InteractionEventType string
 
+// InteractionEvent is an app interaction event received from Slack Socket Mode,
+// such as a button interaction within an Actions block.
 type InteractionEvent interface {
+	// Type is type of InteractionEvent.
 	Type() InteractionEventType
 }
 
+// UnmarshalInteractionEvent unmarshals a raw interaction payload based on the type
+// of interaction. Currently, we only handle "block_actions" type.
 func UnmarshalInteractionEvent(data []byte) (InteractionEvent, error) {
 	var interactionType struct {
 		Type InteractionEventType `json:"type"`
@@ -145,8 +154,8 @@ type BlockActionsEvent struct {
 	APIAppID      string          `json:"api_app_id"`
 	Actions       []Action        `json:"actions"`
 	Interactivity json.RawMessage `json:"interactivity"`
-	Channel       Channel         `json:"channel,omitempty"`
-	Message       Message         `json:"message,omitempty"`
+	Channel       Channel         `json:"channel,omitzero"`
+	Message       Message         `json:"message,omitzero"`
 }
 
 func (p BlockActionsEvent) Type() InteractionEventType {
