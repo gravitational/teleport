@@ -807,8 +807,8 @@ github.com/gravitational/selinux v1.13.0-teleport h1:XZQpZK5tteK9ZV2wIC1avhagqoV
 github.com/gravitational/selinux v1.13.0-teleport/go.mod h1:BTPX+bjVbWGXw7ZZWUbdENt8w0htPSrlgOOysQaU62U=
 github.com/gravitational/trace v1.5.4 h1:nMmF7alwvNiQJhC817Hhmgm95bzKOXbnxvkickTkRDY=
 github.com/gravitational/trace v1.5.4/go.mod h1:/uCbC3ukVU8Pdrh8+3vNLyyE1aGheBWpGGrMnwIK80E=
-github.com/gravitational/vt10x v0.0.3-teleport.1 h1:QYNPZGCQRcz1JehDn5m75UvRQbEJvT5X1pVblnCfZrY=
-github.com/gravitational/vt10x v0.0.3-teleport.1/go.mod h1:7p0/hpXPXby/VpuB6rFUq2pd7grku9KB+EcF0+jwqzQ=
+github.com/gravitational/vt10x v0.0.5-teleport.1 h1:SsBfmhlLEZaa5iT3iYKcFP8eORnohVtzz2wVZEUsrf8=
+github.com/gravitational/vt10x v0.0.5-teleport.1/go.mod h1:7p0/hpXPXby/VpuB6rFUq2pd7grku9KB+EcF0+jwqzQ=
 github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79 h1:+ngKgrYPPJrOjhax5N+uePQ0Fh1Z7PheYoUI/0nzkPA=
 github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79/go.mod h1:FecbI9+v66THATjSRHfNgh1IVFe/9kFxbXtjV0ctIMA=
 github.com/grpc-ecosystem/go-grpc-middleware v1.4.0 h1:UH//fgunKIs4JdUbpDl1VZCDaL56wXCB/5+wF6uHfaI=

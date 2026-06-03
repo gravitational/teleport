@@ -21,7 +21,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
 
@@ -37,7 +36,7 @@ func TestNewDirectoryAccess(t *testing.T) {
 	err := os.WriteFile(filePath, []byte("test"), 0600)
 	require.NoError(t, err)
 	_, err = NewDirectoryAccess(filePath)
-	require.True(t, trace.IsBadParameter(err), "%q is not a directory", filePath)
+	require.ErrorContains(t, err, "not a directory")
 }
 
 func setUpSharedDir(t *testing.T) (*DirectoryAccess, string) {
