@@ -50,6 +50,8 @@ func getSamplePluginData(t *testing.T) PluginData {
 	}
 }
 
+const messageData = "eyJjaGFubmVsSWQiOiJDSEFOTkVMMSIsIm1lc3NhZ2VJZCI6IjAwMDAwMDEifQ==,eyJjaGFubmVsSWQiOiJDSEFOTkVMMiIsIm1lc3NhZ2VJZCI6IjAwMDAwMDIifQ=="
+
 func TestEncodePluginData(t *testing.T) {
 	dataMap, err := EncodePluginData(getSamplePluginData(t))
 	assert.NoError(t, err)
@@ -62,8 +64,25 @@ func TestEncodePluginData(t *testing.T) {
 	assert.Equal(t, "3", dataMap["reviews_count"])
 	assert.Equal(t, "APPROVED", dataMap["resolution"])
 	assert.Equal(t, "foo ok", dataMap["resolve_reason"])
-	assert.Equal(t, "CHANNEL1/0000001,CHANNEL2/0000002", dataMap["messages"])
+	assert.Equal(t, messageData, dataMap["messages"])
 	assert.Equal(t, "2006-01-02T15:04:05Z", dataMap["max_duration"])
+}
+
+func TestDecodePluginDataCompatibility(t *testing.T) {
+	pluginData, err := DecodePluginData(map[string]string{
+		"user":           "user-foo",
+		"roles":          "role-foo,role-bar",
+		"resources":      `["cluster-a/node/foo","cluster-a/node/bar"]`,
+		"request_kind":   "LONG_TERM",
+		"request_reason": "foo reason",
+		"reviews_count":  "3",
+		"resolution":     "APPROVED",
+		"resolve_reason": "foo ok",
+		"messages":       "CHANNEL1/0000001,CHANNEL2/0000002",
+		"max_duration":   "2006-01-02T15:04:05Z",
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, getSamplePluginData(t), pluginData)
 }
 
 func TestDecodePluginData(t *testing.T) {
@@ -76,7 +95,7 @@ func TestDecodePluginData(t *testing.T) {
 		"reviews_count":  "3",
 		"resolution":     "APPROVED",
 		"resolve_reason": "foo ok",
-		"messages":       "CHANNEL1/0000001,CHANNEL2/0000002",
+		"messages":       messageData,
 		"max_duration":   "2006-01-02T15:04:05Z",
 	})
 	assert.NoError(t, err)
