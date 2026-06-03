@@ -109,7 +109,7 @@ func newServer(t *testing.T, streamInterval time.Duration, events []apievents.Au
 		})
 		assert.NoError(t, err)
 		player.Play()
-		desktop.PlayRecording(r.Context(), log, ws, player)
+		desktop.StreamRecording(r.Context(), log, ws, player)
 	}))
 
 	t.Cleanup(s.Close)

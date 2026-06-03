@@ -85,7 +85,7 @@ func (h *Handler) desktopPlaybackHandle(
 		defer ws.Close()
 
 		player.Play()
-		desktop.PlayRecording(ctx, h.logger, ws, player)
+		desktop.StreamRecording(ctx, h.logger, ws, player)
 	}()
 
 	<-ctx.Done()

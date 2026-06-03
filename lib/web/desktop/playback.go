@@ -151,9 +151,11 @@ type RecordingPlayer interface {
 	Err() error
 }
 
-// PlayRecording feeds recorded events from a player
-// over a websocket.
-func PlayRecording(
+// StreamRecording adapts the RecordingPlayer to a websocket by reading from C(),
+// marshalling events to JSON, and writing them to the connection. Automatically
+// writes a sentinel or error message to the websocket when the player exits.
+// It does *not* drain the player's event channel upon context cancellation.
+func StreamRecording(
 	ctx context.Context,
 	log *slog.Logger,
 	ws *websocket.Conn,
