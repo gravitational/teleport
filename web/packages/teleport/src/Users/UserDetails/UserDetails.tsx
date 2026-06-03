@@ -88,7 +88,11 @@ export function UserDetails({
             <UserDetailField>
               <Text fontWeight="medium">Auth Type</Text>
               <Flex alignItems="center" gap={2}>
-                <ResourceIcon name={renderAuthType(user).icon} />
+                <ResourceIcon
+                  name={renderAuthType(user).icon}
+                  width="16px"
+                  height="16px"
+                />
                 <Text
                   color="text.muted"
                   style={{ textTransform: 'capitalize' }}
