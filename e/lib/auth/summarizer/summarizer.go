@@ -28,6 +28,7 @@ import (
 	apisummarizer "github.com/gravitational/teleport/api/types/summarizer"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/bedrock"
+	"github.com/gravitational/teleport/e/lib/auth/summarizer/desktop"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/metrics"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/openai"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/prompts"
@@ -179,6 +180,10 @@ type SessionSummarizer struct {
 	accessGraphClientGetter          func() (accessgraphv1.SessionRecordingServiceClient, error)
 	accessGraphAvailabilityChecker   AvailabilityChecker
 	isLicensed                       func() bool
+
+	// glyphCache lazy-initializes a desktop.GlyphCache the first time a desktop session is summarized and reuses it
+	// for the lifetime of the SessionSummarizer.
+	glyphCache func() *desktop.GlyphCache
 }
 
 var _ summarizer.SessionSummarizer = (*SessionSummarizer)(nil)
@@ -239,6 +244,7 @@ func NewSessionSummarizer(cfg SummarizerConfig) (*SessionSummarizer, error) {
 		accessGraphClientGetter:          cfg.AccessGraphClientGetter,
 		accessGraphAvailabilityChecker:   cfg.AvailabilityCache,
 		isLicensed:                       cfg.IsLicensed,
+		glyphCache:                       sync.OnceValue(desktop.NewGlyphCache),
 	}, nil
 }
 

@@ -8,9 +8,9 @@ import (
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/schema"
 )
 
-// buildScreenshotsSystemPrompt returns the screenshots analysis system prompt, appending the last event from the
-// previous chunk when provided so that an in-progress activity can be continued across chunk boundaries.
-func buildScreenshotsSystemPrompt(prevAnalysis *schema.DesktopScreenshotAnalysis) string {
+// BuildScreenshotsSystemPrompt returns the chunk analysis system prompt. When prevAnalysis is non-nil, its last
+// event is appended so the LLM can continue an in-progress activity across the chunk boundary.
+func BuildScreenshotsSystemPrompt(prevAnalysis *schema.DesktopScreenshotAnalysis) string {
 	var sb strings.Builder
 
 	sb.WriteString(prompts.ScreenshotsPrompt)
@@ -32,9 +32,9 @@ func buildScreenshotsSystemPrompt(prevAnalysis *schema.DesktopScreenshotAnalysis
 	return sb.String()
 }
 
-// buildDesktopSessionSynthesisPrompt builds the system prompt and user prompt for the final synthesis step that
+// BuildSessionSynthesisPrompt builds the system prompt and user prompt for the final synthesis step that
 // combines all detected events into an overall session analysis.
-func buildDesktopSessionSynthesisPrompt(events []schema.DesktopSessionEvent) (systemPrompt, prompt string) {
+func BuildSessionSynthesisPrompt(events []schema.DesktopSessionEvent) (systemPrompt, prompt string) {
 	systemPrompt = prompts.ScreenshotsSynthesisPrompt
 
 	var sb strings.Builder
@@ -45,6 +45,13 @@ func buildDesktopSessionSynthesisPrompt(events []schema.DesktopSessionEvent) (sy
 	for i, event := range events {
 		fmt.Fprintf(&sb, "### Event %d\n", i+1)
 		fmt.Fprintf(&sb, "- **Time**: %s - %s\n", quoteUntrusted(event.StartTime), quoteUntrusted(event.EndTime))
+
+		if event.InferenceErrorMessage != "" {
+			sb.WriteString("- **Analysis Error**: this chunk failed to be analyzed individually. Note the gap in your final summary.\n")
+			fmt.Fprintf(&sb, "- **Error**: %s\n\n", quoteUntrusted(event.InferenceErrorMessage))
+			continue
+		}
+
 		fmt.Fprintf(&sb, "- **Title**: %s\n", quoteUntrusted(event.TimelineTitle))
 		fmt.Fprintf(&sb, "- **Description**: %s\n", quoteUntrusted(event.ShortDescription))
 		fmt.Fprintf(&sb, "- **Risk Level**: %s\n", quoteUntrusted(event.RiskLevel))
