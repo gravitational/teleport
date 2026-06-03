@@ -782,8 +782,9 @@ type Config struct {
 	// "relative expiration" checks which are used to compensate for real backends
 	// that have suffer from overly lazy ttl'ing of resources.
 	RelativeExpiryCheckInterval time.Duration
-	// RelativeExpiryLimit determines the maximum number of nodes that may be
-	// removed during relative expiration.
+	// RelativeExpiryLimit determines the maximum number of resources of each
+	// kind (nodes, and web, app, and snowflake sessions) that may be removed
+	// during a single relative expiration pass.
 	RelativeExpiryLimit int
 	// EventsC is a channel for event notifications,
 	// used in tests
@@ -1534,33 +1535,32 @@ func (c *Cache) performRelativeSessionExpiry(ctx context.Context) error {
 	gracePeriod := apidefaults.ServerAnnounceTTL + backend.DefaultCreationGracePeriod
 	now := c.Clock.Now()
 
-	// The three session subkinds share a single budget so that a high churn
-	// rate on one kind cannot starve the others while still bounding the total
-	// number of synthesized deletes per sweep.
-	budget := c.Config.RelativeExpiryLimit
+	// Each session kind gets its own removal budget, the same per-kind bound
+	// the node sweep applies, so a high churn rate on one kind cannot crowd
+	// out pruning of the others. The expiry of each kind is read with the same
+	// function the backend uses to set the item's TTL (see
+	// lib/services/local/session.go), so the sweep removes exactly the entries
+	// the backend will eventually delete: GetEarliestExpiry for regular web
+	// sessions, whose bearer token can expire before the session, and
+	// GetExpiryTime for app and snowflake sessions.
+	limit := c.Config.RelativeExpiryLimit
 
-	removed, err := expireStaleSessions(ctx, c, c.collections.webSessions, webSessionNameIndex, types.KindWebSession, gracePeriod, now, budget)
+	removedWeb, err := expireStaleSessions(ctx, c, c.collections.webSessions, webSessionNameIndex, types.KindWebSession, types.WebSession.GetEarliestExpiry, gracePeriod, now, limit)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	budget -= removed
 
-	if budget > 0 {
-		n, err := expireStaleSessions(ctx, c, c.collections.appSessions, appSessionNameIndex, types.KindAppSession, gracePeriod, now, budget)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		removed += n
-		budget -= n
+	removedApp, err := expireStaleSessions(ctx, c, c.collections.appSessions, appSessionNameIndex, types.KindAppSession, types.WebSession.GetExpiryTime, gracePeriod, now, limit)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
-	if budget > 0 {
-		n, err := expireStaleSessions(ctx, c, c.collections.snowflakeSessions, snowflakeSessionNameIndex, types.KindSnowflakeSession, gracePeriod, now, budget)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		removed += n
+	removedSnowflake, err := expireStaleSessions(ctx, c, c.collections.snowflakeSessions, snowflakeSessionNameIndex, types.KindSnowflakeSession, types.WebSession.GetExpiryTime, gracePeriod, now, limit)
+	if err != nil {
+		return trace.Wrap(err)
 	}
+
+	removed := removedWeb + removedApp + removedSnowflake
 
 	if removed > 0 {
 		c.Logger.DebugContext(ctx, "Removed sessions via relative expiry",
@@ -1576,6 +1576,10 @@ func (c *Cache) performRelativeSessionExpiry(ctx context.Context) error {
 // (or now, whichever is earlier) less the grace period. It returns the number
 // of entries removed, capped at budget.
 //
+// expiryOf reports the time after which an entry should be considered expired.
+// It must match the function the backend uses to set the entry's item TTL so
+// the sweep removes exactly the entries the backend will eventually delete.
+//
 // The collection's btree cannot be mutated while it is being iterated, so the
 // entries are snapshotted under the read guard first and the deletes are
 // issued afterwards. Only the name and expiry are read off each stored entry,
@@ -1587,10 +1591,17 @@ func expireStaleSessions[I comparable](
 	coll *collection[types.WebSession, I],
 	index I,
 	subKind string,
+	expiryOf func(types.WebSession) time.Time,
 	gracePeriod time.Duration,
 	now time.Time,
 	budget int,
 ) (int, error) {
+	// The collection is absent when its kind is not watched, which can happen
+	// if relative expiry is enabled with a reduced watch set.
+	if coll == nil {
+		return 0, nil
+	}
+
 	rg, err := acquireReadGuard(c, coll)
 	if err != nil {
 		return 0, trace.Wrap(err)
@@ -1614,7 +1625,7 @@ func expireStaleSessions[I comparable](
 		latestExp time.Time
 	)
 	for session := range rg.store.resources(index, "", "") {
-		exp := session.Expiry()
+		exp := expiryOf(session)
 		entries = append(entries, sessionEntry{name: session.GetName(), expiry: exp})
 		if exp.IsZero() {
 			continue
