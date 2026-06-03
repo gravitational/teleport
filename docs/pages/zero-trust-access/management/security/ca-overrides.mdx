@@ -53,23 +53,11 @@ The `cert_authority_override` resource targets a CA with the following fields:
 - `sub_kind`: the CA type to override, such as `windows` or `db_client`.
 - `metadata.name`: the Teleport cluster name.
 
-## Supported CAs and downstream trust
-
-- `db_client`: most databases only need to trust the external root CA and
-  intermediate CAs. They do not need to trust the override CA certificate
-  directly.
-- `windows`: NTAuth needs to trust the override CA certificate directly.
-  Follow the
-  [AD](../../../enroll-resources/desktop-access/active-directory.mdx#step-37-configure-a-gpo-to-allow-teleport-connections)
-  or
-  [local](../../../enroll-resources/desktop-access/getting-started.mdx#step-14-prepare-windows)
-  guides, adding or replacing the self-signed Teleport CA certificate with the
-  override certificate.
-
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise"!)
 
+- Only the following CAs are supported: `db_client` and `windows`.
 - All Auth Service instances and related services, such as Windows Desktop
   Service and Database Service instances, must be upgraded to the same CA
   override-aware Teleport version.
@@ -148,7 +136,18 @@ Using the certificates acquired in step 2, configure downstream trust before
 proceeding. We recommend retaining trust in the self-signed Teleport CA for a
 grace period, until you have verified normal cluster use.
 
-See the [Supported CAs](#supported-cas-and-downstream-trust) section for notes on each CA.
+CA instructions:
+
+- `db_client`: most databases only need to trust the external root CA and
+  intermediate CAs. They do not need to trust the override CA certificate
+  directly.
+- `windows`: NTAuth needs to trust the override CA certificate directly.
+  Follow the
+  [AD](../../../enroll-resources/desktop-access/active-directory.mdx#step-37-configure-a-gpo-to-allow-teleport-connections)
+  or
+  [local](../../../enroll-resources/desktop-access/getting-started.mdx#step-14-prepare-windows)
+  guides, adding or replacing the self-signed Teleport CA certificate with the
+  override certificate.
 
 ## Step 4/5. Create the certificate overrides
 
