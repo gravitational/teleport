@@ -1355,6 +1355,9 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry, timer
 			if err := c.performRelativeNodeExpiry(ctx); err != nil {
 				return trace.Wrap(err)
 			}
+			if err := c.performRelativeSessionExpiry(ctx); err != nil {
+				return trace.Wrap(err)
+			}
 			c.notify(ctx, Event{Type: RelativeExpiry})
 		case event := <-watcher.Events():
 			// check for expired resources in OpPut events and log them periodically. stale OpPut events
@@ -1512,6 +1515,157 @@ func (c *Cache) performRelativeNodeExpiry(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// performRelativeSessionExpiry applies the same relative-expiry strategy as
+// performRelativeNodeExpiry to the web, app, and snowflake session
+// collections. Session backends such as DynamoDB delete expired records via a
+// native TTL that AWS applies asynchronously, sometimes long after the
+// session's own expiry, so the cache can otherwise retain expired sessions for
+// the whole deletion-lag window. Pruning them here, anchored to the cache's
+// own clock and held back by the same grace period as the node sweep, bounds
+// the cached set to roughly the live sessions without depending on the backend
+// to emit a timely delete.
+//
+// Like performRelativeNodeExpiry, this is only sane to call on the watch
+// goroutine, where it cannot run concurrently with event processing.
+func (c *Cache) performRelativeSessionExpiry(ctx context.Context) error {
+	// See performRelativeNodeExpiry for the reasoning behind the grace period.
+	gracePeriod := apidefaults.ServerAnnounceTTL + backend.DefaultCreationGracePeriod
+	now := c.Clock.Now()
+
+	// The three session subkinds share a single budget so that a high churn
+	// rate on one kind cannot starve the others while still bounding the total
+	// number of synthesized deletes per sweep.
+	budget := c.Config.RelativeExpiryLimit
+
+	removed, err := expireStaleSessions(ctx, c, c.collections.webSessions, webSessionNameIndex, types.KindWebSession, gracePeriod, now, budget)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	budget -= removed
+
+	if budget > 0 {
+		n, err := expireStaleSessions(ctx, c, c.collections.appSessions, appSessionNameIndex, types.KindAppSession, gracePeriod, now, budget)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		removed += n
+		budget -= n
+	}
+
+	if budget > 0 {
+		n, err := expireStaleSessions(ctx, c, c.collections.snowflakeSessions, snowflakeSessionNameIndex, types.KindSnowflakeSession, gracePeriod, now, budget)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		removed += n
+	}
+
+	if removed > 0 {
+		c.Logger.DebugContext(ctx, "Removed sessions via relative expiry",
+			"removed_session_count", removed,
+		)
+	}
+
+	return nil
+}
+
+// expireStaleSessions removes from a single session collection every entry
+// that is expired relative to the most recent expiry seen in that collection
+// (or now, whichever is earlier) less the grace period. It returns the number
+// of entries removed, capped at budget.
+//
+// The collection's btree cannot be mutated while it is being iterated, so the
+// entries are snapshotted under the read guard first and the deletes are
+// issued afterwards. Only the name and expiry are read off each stored entry,
+// never a clone, since cloning the whole set would defeat the purpose of
+// reclaiming its memory.
+func expireStaleSessions[I comparable](
+	ctx context.Context,
+	c *Cache,
+	coll *collection[types.WebSession, I],
+	index I,
+	subKind string,
+	gracePeriod time.Duration,
+	now time.Time,
+	budget int,
+) (int, error) {
+	rg, err := acquireReadGuard(c, coll)
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	// If the collection is not currently served from the cache, there is
+	// nothing local to prune. Falling through to the upstream would defeat the
+	// point of a sweep, so skip it.
+	if !rg.ReadCache() {
+		rg.Release()
+		return 0, nil
+	}
+
+	type sessionEntry struct {
+		name   string
+		expiry time.Time
+	}
+
+	var (
+		entries   []sessionEntry
+		latestExp time.Time
+	)
+	for session := range rg.store.resources(index, "", "") {
+		exp := session.Expiry()
+		entries = append(entries, sessionEntry{name: session.GetName(), expiry: exp})
+		if exp.IsZero() {
+			continue
+		}
+		if latestExp.IsZero() || exp.After(latestExp) {
+			latestExp = exp
+		}
+	}
+	rg.Release()
+
+	if latestExp.IsZero() {
+		return 0, nil
+	}
+
+	// Anchor the threshold to now when the most recent expiry is still in the
+	// future, so a population of long-lived sessions cannot push the window
+	// far enough out to prune live entries. This clamp is load-bearing.
+	if latestExp.After(now) {
+		latestExp = now
+	}
+	retentionThreshold := latestExp.Add(-gracePeriod)
+
+	var removed int
+	for _, entry := range entries {
+		if entry.expiry.IsZero() || entry.expiry.After(retentionThreshold) {
+			continue
+		}
+
+		// Route the delete through processEvent so the local store, the event
+		// fanout, and any derivative caches stay consistent. The web-session
+		// collections are keyed by kind and subkind, so both must be set for
+		// the event to reach the right collection.
+		if err := c.processEvent(ctx, types.Event{
+			Type: types.OpDelete,
+			Resource: &types.ResourceHeader{
+				Kind:    types.KindWebSession,
+				SubKind: subKind,
+				Metadata: types.Metadata{
+					Name: entry.name,
+				},
+			},
+		}); err != nil {
+			return removed, trace.Wrap(err)
+		}
+
+		if removed++; removed >= budget {
+			break
+		}
+	}
+
+	return removed, nil
 }
 
 // isClosing checks if the cache has begun closing.
