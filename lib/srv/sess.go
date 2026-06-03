@@ -452,22 +452,12 @@ func (s *SessionRegistry) OpenExecSession(ctx context.Context, channel ssh.Chann
 	return nil
 }
 
-func (s *SessionRegistry) ForceTerminate(ctx *ServerContext) error {
-	p := ctx.getParty()
-	if p == nil {
-		s.logger.DebugContext(s.Srv.Context(), "Unable to terminate session, not party to a session.")
-		return nil
-	}
-
-	if p.mode != types.SessionModeratorMode {
-		return trace.AccessDenied("only moderators can force terminate a session")
-	}
-
-	p.s.BroadcastMessage("Forcefully terminating session...")
+func (s *SessionRegistry) ForceTerminate(sess *session) error {
+	sess.BroadcastMessage("Forcefully terminating session...")
 
 	// Stop session, it will be cleaned up in the background to ensure
 	// the session recording is uploaded.
-	p.s.Stop()
+	sess.Stop()
 
 	return nil
 }
@@ -904,7 +894,7 @@ func newSession(ctx context.Context, r *SessionRegistry, scx *ServerContext, ch 
 
 	go func() {
 		if _, open := <-sess.io.TerminateNotifier(); open {
-			err := sess.registry.ForceTerminate(sess.scx)
+			err := sess.registry.ForceTerminate(sess)
 			if err != nil {
 				sess.logger.ErrorContext(sess.serverCtx, "Failed to terminate session.", "error", err)
 			}
@@ -1799,7 +1789,7 @@ func (s *session) removePartyUnderLock(p *party) error {
 	if !canRun {
 		if policyOptions.OnLeaveAction == types.OnSessionLeaveTerminate {
 			// Force termination in goroutine to avoid deadlock
-			go s.registry.ForceTerminate(s.scx)
+			go s.registry.ForceTerminate(s)
 			return nil
 		}
 

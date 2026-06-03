@@ -2227,6 +2227,8 @@ func TestHandleForceTerminate(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { reg.Close() })
 
+	termHandlers := &TermHandlers{SessionRegistry: reg}
+
 	tests := []struct {
 		name         string
 		joinMode     types.SessionParticipantMode
@@ -2254,16 +2256,16 @@ func TestHandleForceTerminate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			scx := newTestServerContext(t, srv, nil, &decisionpb.SSHAccessPermit{})
-			scx.env[teleport.EnvSSHJoinMode] = string(tt.joinMode)
+			hostSess, _ := testOpenSession(t, reg, nil, &decisionpb.SSHAccessPermit{})
+			t.Cleanup(hostSess.Stop)
 
-			err := reg.ForceTerminate(scx)
+			hostSess.scx.party.mode = tt.joinMode
+
+			err := termHandlers.HandleForceTerminate(nil, nil, hostSess.scx)
 			if tt.accessDenied {
 				require.True(t, trace.IsAccessDenied(err), "expected AccessDenied, got %v", err)
 				return
 			}
-			// No session is attached to scx, so an authorized call falls
-			// through to ForceTerminate and returns nil after logging.
 			require.NoError(t, err)
 		})
 	}
