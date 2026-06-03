@@ -2480,6 +2480,177 @@ func TestInitAppsEmptyConfig(t *testing.T) {
 	require.Equal(t, AppsReady, event.Name)
 }
 
+// fakeFindPublicAddrClient resolves a single proxy public address and
+// cluster name, mirroring what app.FindPublicAddr reads at startup.
+type fakeFindPublicAddrClient struct {
+	proxyRegistered bool
+	proxyPublicAddr string
+	clusterName     string
+}
+
+func (c fakeFindPublicAddrClient) proxies() []types.Server {
+	if !c.proxyRegistered {
+		return nil
+	}
+	var publicAddrs []string
+	if c.proxyPublicAddr != "" {
+		publicAddrs = []string{c.proxyPublicAddr}
+	}
+	proxy, _ := types.NewServer("proxy", types.KindProxy, types.ServerSpecV2{
+		PublicAddrs: publicAddrs,
+	})
+	return []types.Server{proxy}
+}
+
+func (c fakeFindPublicAddrClient) GetProxies() ([]types.Server, error) {
+	return c.proxies(), nil
+}
+
+func (c fakeFindPublicAddrClient) ListProxyServers(context.Context, int, string) ([]types.Server, string, error) {
+	return c.proxies(), "", nil
+}
+
+func (c fakeFindPublicAddrClient) GetClusterName(context.Context) (types.ClusterName, error) {
+	return types.NewClusterName(types.ClusterNameSpecV2{
+		ClusterName: c.clusterName,
+		ClusterID:   "cluster-id",
+	})
+}
+
+func TestResolveStaticAppPublicAddrs(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		client  fakeFindPublicAddrClient
+		apps    []servicecfg.App
+		want    []string
+		wantErr string
+	}{
+		{
+			name:   "distinct addresses accepted",
+			client: fakeFindPublicAddrClient{proxyRegistered: true, proxyPublicAddr: "proxy.example.com"},
+			apps: []servicecfg.App{
+				{Name: "app1", PublicAddr: "app1.example.com"},
+				{Name: "app2"},
+			},
+			want: []string{"app1.example.com", "app2.proxy.example.com"},
+		},
+		{
+			name:   "duplicate explicit public_addr rejected",
+			client: fakeFindPublicAddrClient{proxyRegistered: true, proxyPublicAddr: "proxy.example.com"},
+			apps: []servicecfg.App{
+				{Name: "app1", PublicAddr: "app.example.com"},
+				{Name: "app2", PublicAddr: "app.example.com"},
+			},
+			wantErr: `apps "app1" and "app2" resolve to the same public address "app.example.com"`,
+		},
+		{
+			name:   "name-plus-proxy default collides with explicit addr",
+			client: fakeFindPublicAddrClient{proxyRegistered: true, proxyPublicAddr: "example.com"},
+			apps: []servicecfg.App{
+				{Name: "other", PublicAddr: "app.example.com"},
+				{Name: "app"},
+			},
+			wantErr: `apps "other" and "app" resolve to the same public address "app.example.com"`,
+		},
+		{
+			name:   "cluster_name fallback collides when no proxy public_addr",
+			client: fakeFindPublicAddrClient{proxyRegistered: true, clusterName: "cluster.example.com"},
+			apps: []servicecfg.App{
+				{Name: "other", PublicAddr: "app.cluster.example.com"},
+				{Name: "app"},
+			},
+			wantErr: `apps "other" and "app" resolve to the same public address "app.cluster.example.com"`,
+		},
+		{
+			name:   "cluster_name fallback resolves default apps",
+			client: fakeFindPublicAddrClient{proxyRegistered: true, clusterName: "cluster.example.com"},
+			apps: []servicecfg.App{
+				{Name: "app1"},
+				{Name: "app2", PublicAddr: "explicit.example.com"},
+			},
+			want: []string{"app1.cluster.example.com", "explicit.example.com"},
+		},
+		{
+			name:   "use_any_proxy_public_addr collides on name-proxy form",
+			client: fakeFindPublicAddrClient{proxyRegistered: true, proxyPublicAddr: "proxy.example.com"},
+			apps: []servicecfg.App{
+				{Name: "dashboard", PublicAddr: "custom.example.com", UseAnyProxyPublicAddr: true},
+				{Name: "other", PublicAddr: "dashboard.proxy.example.com"},
+			},
+			wantErr: `apps "dashboard" and "other" resolve to the same public address "dashboard.proxy.example.com"`,
+		},
+		{
+			name:   "use_any_proxy_public_addr keeps explicit addr for registration",
+			client: fakeFindPublicAddrClient{proxyRegistered: true, proxyPublicAddr: "proxy.example.com"},
+			apps: []servicecfg.App{
+				{Name: "dashboard", PublicAddr: "custom.example.com", UseAnyProxyPublicAddr: true},
+			},
+			want: []string{"custom.example.com"},
+		},
+		{
+			name:   "no apps",
+			client: fakeFindPublicAddrClient{proxyRegistered: true, proxyPublicAddr: "proxy.example.com"},
+			apps:   nil,
+			want:   []string{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := resolveStaticAppPublicAddrs(t.Context(), tt.client, tt.apps)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestResolveStaticAppPublicAddrsContextCanceled(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	// No proxy registered, so getPublicAddr loops; a canceled context
+	// must end the wait instead of blocking for the timeout.
+	_, err := resolveStaticAppPublicAddrs(ctx, fakeFindPublicAddrClient{}, []servicecfg.App{{Name: "app"}})
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+// countingFindPublicAddrClient registers a proxy only after readyAfter
+// calls, exercising getPublicAddr's retry loop.
+type countingFindPublicAddrClient struct {
+	calls           int
+	readyAfter      int
+	proxyPublicAddr string
+}
+
+func (c *countingFindPublicAddrClient) ListProxyServers(context.Context, int, string) ([]types.Server, string, error) {
+	c.calls++
+	if c.calls <= c.readyAfter {
+		return nil, "", nil
+	}
+	proxy, _ := types.NewServer("proxy", types.KindProxy, types.ServerSpecV2{
+		PublicAddrs: []string{c.proxyPublicAddr},
+	})
+	return []types.Server{proxy}, "", nil
+}
+
+func (c *countingFindPublicAddrClient) GetProxies() ([]types.Server, error) { return nil, nil }
+
+func (c *countingFindPublicAddrClient) GetClusterName(context.Context) (types.ClusterName, error) {
+	return types.NewClusterName(types.ClusterNameSpecV2{ClusterName: "cluster", ClusterID: "id"})
+}
+
+func TestResolveStaticAppPublicAddrsRetriesUntilProxyReady(t *testing.T) {
+	t.Parallel()
+	client := &countingFindPublicAddrClient{readyAfter: 1, proxyPublicAddr: "proxy.example.com"}
+	got, err := resolveStaticAppPublicAddrs(t.Context(), client, []servicecfg.App{{Name: "app"}})
+	require.NoError(t, err)
+	require.Equal(t, []string{"app.proxy.example.com"}, got)
+}
+
 func TestInitKubernetesUnlicensed(t *testing.T) {
 	t.Parallel()
 	clock := clockwork.NewFakeClock()

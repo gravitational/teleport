@@ -6817,13 +6817,16 @@ func (process *TeleportProcess) initApps() {
 			})
 		}
 
+		// Reject duplicate public addresses before creating servers.
+		publicAddrs, err := resolveStaticAppPublicAddrs(process.ExitContext(), accessPoint, process.Config.Apps.Apps)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		// Loop over each application and create a server.
 		var applications types.Apps
-		for _, app := range process.Config.Apps.Apps {
-			publicAddr, err := getPublicAddr(process.ExitContext(), accessPoint, app)
-			if err != nil {
-				return trace.Wrap(err)
-			}
+		for i, app := range process.Config.Apps.Apps {
+			publicAddr := publicAddrs[i]
 
 			var rewrite *types.Rewrite
 			if app.Rewrite != nil {
@@ -7377,22 +7380,59 @@ func dumperHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, string(requestDump))
 }
 
-// getPublicAddr waits for a proxy to be registered with Teleport.
-func getPublicAddr(ctx context.Context, authClient authclient.ReadAppsAccessPoint, a servicecfg.App) (string, error) {
+// resolveStaticAppPublicAddrs resolves the effective public address of
+// each app, returned index-aligned with apps, and rejects two apps
+// that resolve to the same address. The proxy dispatches matching app
+// servers at random, so a shared public address routes
+// non-deterministically.
+func resolveStaticAppPublicAddrs(ctx context.Context, client app.FindPublicAddrClient, apps []servicecfg.App) ([]string, error) {
+	publicAddrs := make([]string, len(apps))
+	seen := make(map[string]string, len(apps))
+	for i, a := range apps {
+		publicAddr, err := getPublicAddr(ctx, client, a.PublicAddr, a.Name)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		publicAddrs[i] = publicAddr
+
+		// A use_any_proxy_public_addr app routes at <name>.<proxy>,
+		// not its public_addr (see utils.AssembleAppFQDN), so dedupe
+		// on that form.
+		routingAddr := publicAddr
+		if a.UseAnyProxyPublicAddr {
+			routingAddr, err = getPublicAddr(ctx, client, "", a.Name)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+		if first, ok := seen[routingAddr]; ok {
+			return nil, trace.BadParameter("apps %q and %q resolve to the same public address %q; each app must resolve to a unique address", first, a.Name, routingAddr)
+		}
+		seen[routingAddr] = a.Name
+	}
+	return publicAddrs, nil
+}
+
+// getPublicAddr resolves appPublicAddr, waiting up to five seconds for
+// a proxy to register so the default <name>.<proxy_public_addr> form
+// can be derived when appPublicAddr is empty.
+func getPublicAddr(ctx context.Context, client app.FindPublicAddrClient, appPublicAddr, appName string) (string, error) {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 	timeout := time.NewTimer(5 * time.Second)
 	defer timeout.Stop()
 
 	for {
+		publicAddr, err := app.FindPublicAddr(ctx, client, appPublicAddr, appName)
+		if err == nil {
+			return publicAddr, nil
+		}
 		select {
 		case <-ticker.C:
-			publicAddr, err := app.FindPublicAddr(ctx, authClient, a.PublicAddr, a.Name)
-			if err == nil {
-				return publicAddr, nil
-			}
 		case <-timeout.C:
-			return "", trace.BadParameter("timed out waiting for proxy with public address")
+			return "", trace.Wrap(err, "timed out resolving the public address for app %q", appName)
+		case <-ctx.Done():
+			return "", trace.Wrap(ctx.Err())
 		}
 	}
 }

@@ -222,6 +222,13 @@ is registered:
 `public_addr` (if set) must be a bare, lowercase DNS hostname. URI
 schemes, ports, IP addresses, and uppercase letters are rejected.
 
+In static config, two apps cannot resolve to the same public address.
+The effective address is `public_addr` if set, otherwise
+`<name>.<proxy_public_addr>`, derived from a registered proxy. When the
+app service starts, Teleport rejects a config where two apps resolve to
+the same address, including the case where one app's `public_addr`
+matches another app's name-plus-proxy default.
+
 After Teleport is running, users can access the app at `app-name.proxy_public_addr.com`
 e.g. `grafana.teleport.example.com`. You can also override `public_addr` e.g
 `grafana.acme.com` if you configure the appropriate DNS entry to point to the
