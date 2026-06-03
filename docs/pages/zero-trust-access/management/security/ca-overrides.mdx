@@ -13,12 +13,6 @@ self-signed Teleport CA certificate with a certificate signed by an external
 certificate authority. In practice, that Teleport CA becomes a subordinate CA in
 an external trust chain.
 
-Teleport continues to manage the CA private keys. Override certificates must
-target existing CA public keys, so Teleport must generate the CSRs for the
-overrides.
-
-Teleport stores CA overrides in the `cert_authority_override` resource.
-
 <Admonition type="info">
 Certificate Authority Overrides are currently in active development. The
 released feature set is considered stable, but additional CA support and user
@@ -40,7 +34,11 @@ The current implementation has a few limitations:
 
 Teleport maintains several CAs, each with its own self-signed certificates and
 private keys. A CA override replaces a self-signed CA certificate with an
-externally signed one, while keeping the private key managed by Teleport.
+externally signed one.
+
+Teleport continues to manage the CA private keys. Override certificates must
+target existing CA public keys, so Teleport must generate the CSRs for the
+overrides.
 
 When Teleport finds an enabled override for a CA certificate, it signs newly
 issued credentials with the existing private key and uses the override
