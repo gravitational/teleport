@@ -502,10 +502,8 @@ function CheckReportDNS({
 
   return (
     <Stack>
-      <Stack gap={0}>
-        <ReachabilityRow family="IPv4" reach={ipv4Reachability} />
-        <ReachabilityRow family="IPv6" reach={ipv6Reachability} />
-      </Stack>
+      <ReachabilityRow family="IPv4" reach={ipv4Reachability} />
+      <ReachabilityRow family="IPv6" reach={ipv6Reachability} />
 
       {allUnreachable && (
         <P2 m={0}>
@@ -578,7 +576,7 @@ function ReachabilityRow({
   }
   if (!reach.reachable) {
     return (
-      <P1>
+      <P1 m={0}>
         <Warning /> VNet {family} DNS unreachable on{' '}
         <code>{reach.address}</code>: {reach.error}
       </P1>
@@ -593,7 +591,7 @@ function ReachabilityRow({
           ? 'AAAA only'
           : 'nothing';
   return (
-    <P1>
+    <P1 m={0}>
       <Success /> VNet {family} DNS reachable on <code>{reach.address}</code>{' '}
       (responds to {responded})
     </P1>
