@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/autoupdate/v1/autoupdate.proto
 
+//go:build !protoopaque
+
 package autoupdate
 
 import (
@@ -27,7 +29,6 @@ import (
 	durationpb "google.golang.org/protobuf/types/known/durationpb"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -102,11 +103,6 @@ func (x AutoUpdateAgentGroupState) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use AutoUpdateAgentGroupState.Descriptor instead.
-func (AutoUpdateAgentGroupState) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_proto_rawDescGZIP(), []int{0}
-}
-
 // AutoUpdateAgentRolloutState represents the rollout state. This tells if Teleport started updating agents from the
 // start version to the target version, if the update is done, still in progress
 // or if the rollout was manually reverted.
@@ -167,15 +163,10 @@ func (x AutoUpdateAgentRolloutState) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use AutoUpdateAgentRolloutState.Descriptor instead.
-func (AutoUpdateAgentRolloutState) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_proto_rawDescGZIP(), []int{1}
-}
-
 // AutoUpdateConfig is a config singleton used to configure cluster
 // autoupdate settings.
 type AutoUpdateConfig struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Kind          string                 `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	SubKind       string                 `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
 	Version       string                 `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
@@ -208,11 +199,6 @@ func (x *AutoUpdateConfig) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AutoUpdateConfig.ProtoReflect.Descriptor instead.
-func (*AutoUpdateConfig) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *AutoUpdateConfig) GetKind() string {
@@ -250,9 +236,73 @@ func (x *AutoUpdateConfig) GetSpec() *AutoUpdateConfigSpec {
 	return nil
 }
 
+func (x *AutoUpdateConfig) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *AutoUpdateConfig) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *AutoUpdateConfig) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *AutoUpdateConfig) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *AutoUpdateConfig) SetSpec(v *AutoUpdateConfigSpec) {
+	x.Spec = v
+}
+
+func (x *AutoUpdateConfig) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *AutoUpdateConfig) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *AutoUpdateConfig) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *AutoUpdateConfig) ClearSpec() {
+	x.Spec = nil
+}
+
+type AutoUpdateConfig_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Kind     string
+	SubKind  string
+	Version  string
+	Metadata *v1.Metadata
+	Spec     *AutoUpdateConfigSpec
+}
+
+func (b0 AutoUpdateConfig_builder) Build() *AutoUpdateConfig {
+	m0 := &AutoUpdateConfig{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Spec = b.Spec
+	return m0
+}
+
 // AutoUpdateConfigSpec encodes the parameters of the autoupdate config object.
 type AutoUpdateConfigSpec struct {
-	state         protoimpl.MessageState      `protogen:"open.v1"`
+	state         protoimpl.MessageState      `protogen:"hybrid.v1"`
 	Tools         *AutoUpdateConfigSpecTools  `protobuf:"bytes,2,opt,name=tools,proto3" json:"tools,omitempty"`
 	Agents        *AutoUpdateConfigSpecAgents `protobuf:"bytes,3,opt,name=agents,proto3" json:"agents,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -284,11 +334,6 @@ func (x *AutoUpdateConfigSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AutoUpdateConfigSpec.ProtoReflect.Descriptor instead.
-func (*AutoUpdateConfigSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *AutoUpdateConfigSpec) GetTools() *AutoUpdateConfigSpecTools {
 	if x != nil {
 		return x.Tools
@@ -303,9 +348,55 @@ func (x *AutoUpdateConfigSpec) GetAgents() *AutoUpdateConfigSpecAgents {
 	return nil
 }
 
+func (x *AutoUpdateConfigSpec) SetTools(v *AutoUpdateConfigSpecTools) {
+	x.Tools = v
+}
+
+func (x *AutoUpdateConfigSpec) SetAgents(v *AutoUpdateConfigSpecAgents) {
+	x.Agents = v
+}
+
+func (x *AutoUpdateConfigSpec) HasTools() bool {
+	if x == nil {
+		return false
+	}
+	return x.Tools != nil
+}
+
+func (x *AutoUpdateConfigSpec) HasAgents() bool {
+	if x == nil {
+		return false
+	}
+	return x.Agents != nil
+}
+
+func (x *AutoUpdateConfigSpec) ClearTools() {
+	x.Tools = nil
+}
+
+func (x *AutoUpdateConfigSpec) ClearAgents() {
+	x.Agents = nil
+}
+
+type AutoUpdateConfigSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Tools  *AutoUpdateConfigSpecTools
+	Agents *AutoUpdateConfigSpecAgents
+}
+
+func (b0 AutoUpdateConfigSpec_builder) Build() *AutoUpdateConfigSpec {
+	m0 := &AutoUpdateConfigSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Tools = b.Tools
+	x.Agents = b.Agents
+	return m0
+}
+
 // AutoUpdateConfigSpecTools encodes the parameters for client tools auto updates.
 type AutoUpdateConfigSpecTools struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Mode defines state of the client tools auto update.
 	Mode          string `protobuf:"bytes,1,opt,name=mode,proto3" json:"mode,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -337,11 +428,6 @@ func (x *AutoUpdateConfigSpecTools) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AutoUpdateConfigSpecTools.ProtoReflect.Descriptor instead.
-func (*AutoUpdateConfigSpecTools) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *AutoUpdateConfigSpecTools) GetMode() string {
 	if x != nil {
 		return x.Mode
@@ -349,9 +435,28 @@ func (x *AutoUpdateConfigSpecTools) GetMode() string {
 	return ""
 }
 
+func (x *AutoUpdateConfigSpecTools) SetMode(v string) {
+	x.Mode = v
+}
+
+type AutoUpdateConfigSpecTools_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Mode defines state of the client tools auto update.
+	Mode string
+}
+
+func (b0 AutoUpdateConfigSpecTools_builder) Build() *AutoUpdateConfigSpecTools {
+	m0 := &AutoUpdateConfigSpecTools{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Mode = b.Mode
+	return m0
+}
+
 // AutoUpdateConfigSpecAgents encodes the parameters of automatic agent updates.
 type AutoUpdateConfigSpecAgents struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// mode specifies whether agent autoupdates are enabled, disabled, or paused.
 	Mode string `protobuf:"bytes,1,opt,name=mode,proto3" json:"mode,omitempty"`
 	// strategy to use for updating the agents.
@@ -391,11 +496,6 @@ func (x *AutoUpdateConfigSpecAgents) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AutoUpdateConfigSpecAgents.ProtoReflect.Descriptor instead.
-func (*AutoUpdateConfigSpecAgents) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *AutoUpdateConfigSpecAgents) GetMode() string {
 	if x != nil {
 		return x.Mode
@@ -424,9 +524,73 @@ func (x *AutoUpdateConfigSpecAgents) GetSchedules() *AgentAutoUpdateSchedules {
 	return nil
 }
 
+func (x *AutoUpdateConfigSpecAgents) SetMode(v string) {
+	x.Mode = v
+}
+
+func (x *AutoUpdateConfigSpecAgents) SetStrategy(v string) {
+	x.Strategy = v
+}
+
+func (x *AutoUpdateConfigSpecAgents) SetMaintenanceWindowDuration(v *durationpb.Duration) {
+	x.MaintenanceWindowDuration = v
+}
+
+func (x *AutoUpdateConfigSpecAgents) SetSchedules(v *AgentAutoUpdateSchedules) {
+	x.Schedules = v
+}
+
+func (x *AutoUpdateConfigSpecAgents) HasMaintenanceWindowDuration() bool {
+	if x == nil {
+		return false
+	}
+	return x.MaintenanceWindowDuration != nil
+}
+
+func (x *AutoUpdateConfigSpecAgents) HasSchedules() bool {
+	if x == nil {
+		return false
+	}
+	return x.Schedules != nil
+}
+
+func (x *AutoUpdateConfigSpecAgents) ClearMaintenanceWindowDuration() {
+	x.MaintenanceWindowDuration = nil
+}
+
+func (x *AutoUpdateConfigSpecAgents) ClearSchedules() {
+	x.Schedules = nil
+}
+
+type AutoUpdateConfigSpecAgents_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// mode specifies whether agent autoupdates are enabled, disabled, or paused.
+	Mode string
+	// strategy to use for updating the agents.
+	Strategy string
+	// maintenance_window_duration is the maintenance window duration. This can only be set if `strategy` is "time-based".
+	// Once the window is over, the group transitions to the done state. Existing agents won't be updated until the next
+	// maintenance window.
+	MaintenanceWindowDuration *durationpb.Duration
+	// schedules specifies schedules for updates of grouped agents.
+	Schedules *AgentAutoUpdateSchedules
+}
+
+func (b0 AutoUpdateConfigSpecAgents_builder) Build() *AutoUpdateConfigSpecAgents {
+	m0 := &AutoUpdateConfigSpecAgents{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Mode = b.Mode
+	x.Strategy = b.Strategy
+	x.MaintenanceWindowDuration = b.MaintenanceWindowDuration
+	x.Schedules = b.Schedules
+	return m0
+}
+
 // AgentAutoUpdateSchedules specifies update scheduled for grouped agents.
 type AgentAutoUpdateSchedules struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// regular schedules for non-critical versions.
 	Regular       []*AgentAutoUpdateGroup `protobuf:"bytes,1,rep,name=regular,proto3" json:"regular,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -458,11 +622,6 @@ func (x *AgentAutoUpdateSchedules) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AgentAutoUpdateSchedules.ProtoReflect.Descriptor instead.
-func (*AgentAutoUpdateSchedules) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *AgentAutoUpdateSchedules) GetRegular() []*AgentAutoUpdateGroup {
 	if x != nil {
 		return x.Regular
@@ -470,9 +629,28 @@ func (x *AgentAutoUpdateSchedules) GetRegular() []*AgentAutoUpdateGroup {
 	return nil
 }
 
+func (x *AgentAutoUpdateSchedules) SetRegular(v []*AgentAutoUpdateGroup) {
+	x.Regular = v
+}
+
+type AgentAutoUpdateSchedules_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// regular schedules for non-critical versions.
+	Regular []*AgentAutoUpdateGroup
+}
+
+func (b0 AgentAutoUpdateSchedules_builder) Build() *AgentAutoUpdateSchedules {
+	m0 := &AgentAutoUpdateSchedules{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Regular = b.Regular
+	return m0
+}
+
 // AgentAutoUpdateGroup specifies the update schedule for a group of agents.
 type AgentAutoUpdateGroup struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// name of the group
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// days when the update can run. Supported values are "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" and "*"
@@ -515,11 +693,6 @@ func (x *AgentAutoUpdateGroup) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AgentAutoUpdateGroup.ProtoReflect.Descriptor instead.
-func (*AgentAutoUpdateGroup) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *AgentAutoUpdateGroup) GetName() string {
 	if x != nil {
 		return x.Name
@@ -555,10 +728,60 @@ func (x *AgentAutoUpdateGroup) GetCanaryCount() int32 {
 	return 0
 }
 
+func (x *AgentAutoUpdateGroup) SetName(v string) {
+	x.Name = v
+}
+
+func (x *AgentAutoUpdateGroup) SetDays(v []string) {
+	x.Days = v
+}
+
+func (x *AgentAutoUpdateGroup) SetStartHour(v int32) {
+	x.StartHour = v
+}
+
+func (x *AgentAutoUpdateGroup) SetWaitHours(v int32) {
+	x.WaitHours = v
+}
+
+func (x *AgentAutoUpdateGroup) SetCanaryCount(v int32) {
+	x.CanaryCount = v
+}
+
+type AgentAutoUpdateGroup_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// name of the group
+	Name string
+	// days when the update can run. Supported values are "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" and "*"
+	Days []string
+	// start_hour to initiate update
+	StartHour int32
+	// wait_hours after last group succeeds before this group can run. This can only be used when the strategy is "halt-on-failure".
+	// This field must be positive.
+	WaitHours int32
+	// canary_count is the number of canary agents that will be updated before the whole group is updated.
+	// when set to 0, the group does not enter the canary phase. This number is capped to 5.
+	// This number must always be lower than the total number of agents in the group, else the rollout will be stuck.
+	CanaryCount int32
+}
+
+func (b0 AgentAutoUpdateGroup_builder) Build() *AgentAutoUpdateGroup {
+	m0 := &AgentAutoUpdateGroup{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Days = b.Days
+	x.StartHour = b.StartHour
+	x.WaitHours = b.WaitHours
+	x.CanaryCount = b.CanaryCount
+	return m0
+}
+
 // AutoUpdateVersion is a resource singleton with version required for
 // tools autoupdate.
 type AutoUpdateVersion struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Kind          string                 `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	SubKind       string                 `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
 	Version       string                 `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
@@ -591,11 +814,6 @@ func (x *AutoUpdateVersion) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AutoUpdateVersion.ProtoReflect.Descriptor instead.
-func (*AutoUpdateVersion) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *AutoUpdateVersion) GetKind() string {
@@ -633,9 +851,73 @@ func (x *AutoUpdateVersion) GetSpec() *AutoUpdateVersionSpec {
 	return nil
 }
 
+func (x *AutoUpdateVersion) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *AutoUpdateVersion) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *AutoUpdateVersion) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *AutoUpdateVersion) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *AutoUpdateVersion) SetSpec(v *AutoUpdateVersionSpec) {
+	x.Spec = v
+}
+
+func (x *AutoUpdateVersion) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *AutoUpdateVersion) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *AutoUpdateVersion) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *AutoUpdateVersion) ClearSpec() {
+	x.Spec = nil
+}
+
+type AutoUpdateVersion_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Kind     string
+	SubKind  string
+	Version  string
+	Metadata *v1.Metadata
+	Spec     *AutoUpdateVersionSpec
+}
+
+func (b0 AutoUpdateVersion_builder) Build() *AutoUpdateVersion {
+	m0 := &AutoUpdateVersion{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Spec = b.Spec
+	return m0
+}
+
 // AutoUpdateVersionSpec encodes the parameters of the autoupdate versions.
 type AutoUpdateVersionSpec struct {
-	state         protoimpl.MessageState       `protogen:"open.v1"`
+	state         protoimpl.MessageState       `protogen:"hybrid.v1"`
 	Tools         *AutoUpdateVersionSpecTools  `protobuf:"bytes,2,opt,name=tools,proto3" json:"tools,omitempty"`
 	Agents        *AutoUpdateVersionSpecAgents `protobuf:"bytes,3,opt,name=agents,proto3" json:"agents,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -667,11 +949,6 @@ func (x *AutoUpdateVersionSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AutoUpdateVersionSpec.ProtoReflect.Descriptor instead.
-func (*AutoUpdateVersionSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *AutoUpdateVersionSpec) GetTools() *AutoUpdateVersionSpecTools {
 	if x != nil {
 		return x.Tools
@@ -686,9 +963,55 @@ func (x *AutoUpdateVersionSpec) GetAgents() *AutoUpdateVersionSpecAgents {
 	return nil
 }
 
+func (x *AutoUpdateVersionSpec) SetTools(v *AutoUpdateVersionSpecTools) {
+	x.Tools = v
+}
+
+func (x *AutoUpdateVersionSpec) SetAgents(v *AutoUpdateVersionSpecAgents) {
+	x.Agents = v
+}
+
+func (x *AutoUpdateVersionSpec) HasTools() bool {
+	if x == nil {
+		return false
+	}
+	return x.Tools != nil
+}
+
+func (x *AutoUpdateVersionSpec) HasAgents() bool {
+	if x == nil {
+		return false
+	}
+	return x.Agents != nil
+}
+
+func (x *AutoUpdateVersionSpec) ClearTools() {
+	x.Tools = nil
+}
+
+func (x *AutoUpdateVersionSpec) ClearAgents() {
+	x.Agents = nil
+}
+
+type AutoUpdateVersionSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Tools  *AutoUpdateVersionSpecTools
+	Agents *AutoUpdateVersionSpecAgents
+}
+
+func (b0 AutoUpdateVersionSpec_builder) Build() *AutoUpdateVersionSpec {
+	m0 := &AutoUpdateVersionSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Tools = b.Tools
+	x.Agents = b.Agents
+	return m0
+}
+
 // AutoUpdateVersionSpecTools encodes the parameters for client tools auto updates.
 type AutoUpdateVersionSpecTools struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// TargetVersion specifies the semantic version required for tools to establish a connection with the cluster.
 	// Client tools after connection to the cluster going to be updated to this version automatically.
 	TargetVersion string `protobuf:"bytes,1,opt,name=target_version,json=targetVersion,proto3" json:"target_version,omitempty"`
@@ -721,11 +1044,6 @@ func (x *AutoUpdateVersionSpecTools) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AutoUpdateVersionSpecTools.ProtoReflect.Descriptor instead.
-func (*AutoUpdateVersionSpecTools) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_proto_rawDescGZIP(), []int{8}
-}
-
 func (x *AutoUpdateVersionSpecTools) GetTargetVersion() string {
 	if x != nil {
 		return x.TargetVersion
@@ -733,9 +1051,29 @@ func (x *AutoUpdateVersionSpecTools) GetTargetVersion() string {
 	return ""
 }
 
+func (x *AutoUpdateVersionSpecTools) SetTargetVersion(v string) {
+	x.TargetVersion = v
+}
+
+type AutoUpdateVersionSpecTools_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// TargetVersion specifies the semantic version required for tools to establish a connection with the cluster.
+	// Client tools after connection to the cluster going to be updated to this version automatically.
+	TargetVersion string
+}
+
+func (b0 AutoUpdateVersionSpecTools_builder) Build() *AutoUpdateVersionSpecTools {
+	m0 := &AutoUpdateVersionSpecTools{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.TargetVersion = b.TargetVersion
+	return m0
+}
+
 // AutoUpdateVersionSpecAgents is the spec for the autoupdate version.
 type AutoUpdateVersionSpecAgents struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// start_version is the version used for newly installed agents before their update window.
 	StartVersion string `protobuf:"bytes,1,opt,name=start_version,json=startVersion,proto3" json:"start_version,omitempty"`
 	// target_version is the version that all agents will update to during their update window.
@@ -773,11 +1111,6 @@ func (x *AutoUpdateVersionSpecAgents) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AutoUpdateVersionSpecAgents.ProtoReflect.Descriptor instead.
-func (*AutoUpdateVersionSpecAgents) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_proto_rawDescGZIP(), []int{9}
-}
-
 func (x *AutoUpdateVersionSpecAgents) GetStartVersion() string {
 	if x != nil {
 		return x.StartVersion
@@ -806,11 +1139,51 @@ func (x *AutoUpdateVersionSpecAgents) GetMode() string {
 	return ""
 }
 
+func (x *AutoUpdateVersionSpecAgents) SetStartVersion(v string) {
+	x.StartVersion = v
+}
+
+func (x *AutoUpdateVersionSpecAgents) SetTargetVersion(v string) {
+	x.TargetVersion = v
+}
+
+func (x *AutoUpdateVersionSpecAgents) SetSchedule(v string) {
+	x.Schedule = v
+}
+
+func (x *AutoUpdateVersionSpecAgents) SetMode(v string) {
+	x.Mode = v
+}
+
+type AutoUpdateVersionSpecAgents_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// start_version is the version used for newly installed agents before their update window.
+	StartVersion string
+	// target_version is the version that all agents will update to during their update window.
+	TargetVersion string
+	// schedule to use for the rollout
+	Schedule string
+	// autoupdate_mode to use for the rollout
+	Mode string
+}
+
+func (b0 AutoUpdateVersionSpecAgents_builder) Build() *AutoUpdateVersionSpecAgents {
+	m0 := &AutoUpdateVersionSpecAgents{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.StartVersion = b.StartVersion
+	x.TargetVersion = b.TargetVersion
+	x.Schedule = b.Schedule
+	x.Mode = b.Mode
+	return m0
+}
+
 // AutoUpdateAgentRollout is the resource the Teleport Auth Service uses to track and control the rollout of a new
 // agent version. This resource is written by the automatic agent update controller in the Teleport Auth Service
 // and read by the Teleport Proxy Service.
 type AutoUpdateAgentRollout struct {
-	state         protoimpl.MessageState        `protogen:"open.v1"`
+	state         protoimpl.MessageState        `protogen:"hybrid.v1"`
 	Kind          string                        `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	SubKind       string                        `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
 	Version       string                        `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
@@ -844,11 +1217,6 @@ func (x *AutoUpdateAgentRollout) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AutoUpdateAgentRollout.ProtoReflect.Descriptor instead.
-func (*AutoUpdateAgentRollout) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *AutoUpdateAgentRollout) GetKind() string {
@@ -893,11 +1261,92 @@ func (x *AutoUpdateAgentRollout) GetStatus() *AutoUpdateAgentRolloutStatus {
 	return nil
 }
 
+func (x *AutoUpdateAgentRollout) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *AutoUpdateAgentRollout) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *AutoUpdateAgentRollout) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *AutoUpdateAgentRollout) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *AutoUpdateAgentRollout) SetSpec(v *AutoUpdateAgentRolloutSpec) {
+	x.Spec = v
+}
+
+func (x *AutoUpdateAgentRollout) SetStatus(v *AutoUpdateAgentRolloutStatus) {
+	x.Status = v
+}
+
+func (x *AutoUpdateAgentRollout) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *AutoUpdateAgentRollout) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *AutoUpdateAgentRollout) HasStatus() bool {
+	if x == nil {
+		return false
+	}
+	return x.Status != nil
+}
+
+func (x *AutoUpdateAgentRollout) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *AutoUpdateAgentRollout) ClearSpec() {
+	x.Spec = nil
+}
+
+func (x *AutoUpdateAgentRollout) ClearStatus() {
+	x.Status = nil
+}
+
+type AutoUpdateAgentRollout_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Kind     string
+	SubKind  string
+	Version  string
+	Metadata *v1.Metadata
+	Spec     *AutoUpdateAgentRolloutSpec
+	Status   *AutoUpdateAgentRolloutStatus
+}
+
+func (b0 AutoUpdateAgentRollout_builder) Build() *AutoUpdateAgentRollout {
+	m0 := &AutoUpdateAgentRollout{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Spec = b.Spec
+	x.Status = b.Status
+	return m0
+}
+
 // AutoUpdateAgentRolloutSpec describes the desired agent rollout.
 // This is built by merging the user-provided AutoUpdateConfigSpecAgents and the operator-provided
 // AutoUpdateVersionSpecAgents.
 type AutoUpdateAgentRolloutSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// start_version is the version used for newly installed agents before their update window.
 	StartVersion string `protobuf:"bytes,1,opt,name=start_version,json=startVersion,proto3" json:"start_version,omitempty"`
 	// target_version is the version that all agents will update to during their update window.
@@ -955,11 +1404,6 @@ func (x *AutoUpdateAgentRolloutSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AutoUpdateAgentRolloutSpec.ProtoReflect.Descriptor instead.
-func (*AutoUpdateAgentRolloutSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_proto_rawDescGZIP(), []int{11}
-}
-
 func (x *AutoUpdateAgentRolloutSpec) GetStartVersion() string {
 	if x != nil {
 		return x.StartVersion
@@ -1002,10 +1446,91 @@ func (x *AutoUpdateAgentRolloutSpec) GetMaintenanceWindowDuration() *durationpb.
 	return nil
 }
 
+func (x *AutoUpdateAgentRolloutSpec) SetStartVersion(v string) {
+	x.StartVersion = v
+}
+
+func (x *AutoUpdateAgentRolloutSpec) SetTargetVersion(v string) {
+	x.TargetVersion = v
+}
+
+func (x *AutoUpdateAgentRolloutSpec) SetSchedule(v string) {
+	x.Schedule = v
+}
+
+func (x *AutoUpdateAgentRolloutSpec) SetAutoupdateMode(v string) {
+	x.AutoupdateMode = v
+}
+
+func (x *AutoUpdateAgentRolloutSpec) SetStrategy(v string) {
+	x.Strategy = v
+}
+
+func (x *AutoUpdateAgentRolloutSpec) SetMaintenanceWindowDuration(v *durationpb.Duration) {
+	x.MaintenanceWindowDuration = v
+}
+
+func (x *AutoUpdateAgentRolloutSpec) HasMaintenanceWindowDuration() bool {
+	if x == nil {
+		return false
+	}
+	return x.MaintenanceWindowDuration != nil
+}
+
+func (x *AutoUpdateAgentRolloutSpec) ClearMaintenanceWindowDuration() {
+	x.MaintenanceWindowDuration = nil
+}
+
+type AutoUpdateAgentRolloutSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// start_version is the version used for newly installed agents before their update window.
+	StartVersion string
+	// target_version is the version that all agents will update to during their update window.
+	TargetVersion string
+	// schedule to use for the rollout. Supported values are "regular" and "immediate".
+	// - "regular" follows the regular group schedule
+	// - "immediate" updates all the agents immediately
+	Schedule string
+	// autoupdate_mode to use for the rollout. Supported modes are:
+	// - "enabled": Teleport will update existing agents.
+	// - "disabled": Teleport will not update existing agents.
+	// - "suspended": Teleport will temporarily stop updating existing agents.
+	AutoupdateMode string
+	// strategy to use for updating the agents. Supported strategies are:
+	//   - "time-based": agents update as soon as their maintenance window starts. There is no dependency between groups.
+	//     This strategy allows Teleport users to setup reliable follow-the-sun updates and enforce the maintenance window
+	//     more strictly. A group finishes its update at the end of the maintenance window, regardless of the new version
+	//     adoption rate. Agents that missed the maintenance window will not attempt to update until the next maintenance
+	//     window.
+	//   - "halt-on-failure": the update proceeds from the first group to the last group, ensuring that each group
+	//     successfully updates before allowing the next group to proceed. This is the strategy that offers the best
+	//     availability. A group finishes its update once most of its agents are running the correct version. Agents that
+	//     missed the group update will try to catch back as soon as possible.
+	Strategy string
+	// maintenance_window_duration is the maintenance window duration. This can only be set if `strategy` is "time-based".
+	// Once the window is over, the group transitions to the done state. Existing agents won't be updated until the next
+	// maintenance window.
+	MaintenanceWindowDuration *durationpb.Duration
+}
+
+func (b0 AutoUpdateAgentRolloutSpec_builder) Build() *AutoUpdateAgentRolloutSpec {
+	m0 := &AutoUpdateAgentRolloutSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.StartVersion = b.StartVersion
+	x.TargetVersion = b.TargetVersion
+	x.Schedule = b.Schedule
+	x.AutoupdateMode = b.AutoupdateMode
+	x.Strategy = b.Strategy
+	x.MaintenanceWindowDuration = b.MaintenanceWindowDuration
+	return m0
+}
+
 // AutoUpdateAgentRolloutStatus tracks the current agent rollout status.
 // The status is reset if any spec field changes except the mode.
 type AutoUpdateAgentRolloutStatus struct {
-	state  protoimpl.MessageState               `protogen:"open.v1"`
+	state  protoimpl.MessageState               `protogen:"hybrid.v1"`
 	Groups []*AutoUpdateAgentRolloutStatusGroup `protobuf:"bytes,1,rep,name=groups,proto3" json:"groups,omitempty"`
 	State  AutoUpdateAgentRolloutState          `protobuf:"varint,2,opt,name=state,proto3,enum=teleport.autoupdate.v1.AutoUpdateAgentRolloutState" json:"state,omitempty"`
 	// The start time is set when the rollout is created or reset. Usually this is caused by a version change.
@@ -1050,11 +1575,6 @@ func (x *AutoUpdateAgentRolloutStatus) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AutoUpdateAgentRolloutStatus.ProtoReflect.Descriptor instead.
-func (*AutoUpdateAgentRolloutStatus) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_proto_rawDescGZIP(), []int{12}
-}
-
 func (x *AutoUpdateAgentRolloutStatus) GetGroups() []*AutoUpdateAgentRolloutStatusGroup {
 	if x != nil {
 		return x.Groups
@@ -1083,9 +1603,78 @@ func (x *AutoUpdateAgentRolloutStatus) GetTimeOverride() *timestamppb.Timestamp 
 	return nil
 }
 
+func (x *AutoUpdateAgentRolloutStatus) SetGroups(v []*AutoUpdateAgentRolloutStatusGroup) {
+	x.Groups = v
+}
+
+func (x *AutoUpdateAgentRolloutStatus) SetState(v AutoUpdateAgentRolloutState) {
+	x.State = v
+}
+
+func (x *AutoUpdateAgentRolloutStatus) SetStartTime(v *timestamppb.Timestamp) {
+	x.StartTime = v
+}
+
+func (x *AutoUpdateAgentRolloutStatus) SetTimeOverride(v *timestamppb.Timestamp) {
+	x.TimeOverride = v
+}
+
+func (x *AutoUpdateAgentRolloutStatus) HasStartTime() bool {
+	if x == nil {
+		return false
+	}
+	return x.StartTime != nil
+}
+
+func (x *AutoUpdateAgentRolloutStatus) HasTimeOverride() bool {
+	if x == nil {
+		return false
+	}
+	return x.TimeOverride != nil
+}
+
+func (x *AutoUpdateAgentRolloutStatus) ClearStartTime() {
+	x.StartTime = nil
+}
+
+func (x *AutoUpdateAgentRolloutStatus) ClearTimeOverride() {
+	x.TimeOverride = nil
+}
+
+type AutoUpdateAgentRolloutStatus_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Groups []*AutoUpdateAgentRolloutStatusGroup
+	State  AutoUpdateAgentRolloutState
+	// The start time is set when the rollout is created or reset. Usually this is caused by a version change.
+	// The timestamp allows the controller to detect that the rollout just changed.
+	// The controller will not start any group that should have been active before the start_time to avoid a double-update
+	// effect.
+	// For example, a group updates every day between 13:00 and 14:00. If the target version changes to 13:30, the group
+	// will not start updating to the new version directly. The controller sees that the group theoretical start time is
+	// before the rollout start time and the maintenance window belongs to the previous rollout.
+	// When the timestamp is nil, the controller will ignore the start time and check and allow groups to activate.
+	StartTime *timestamppb.Timestamp
+	// Time override is an optional timestamp making the autoupdate_agent_rollout controller use a specific time instead
+	// of the system clock when evaluating time-based criteria. This field is used for testing and troubleshooting
+	// purposes.
+	TimeOverride *timestamppb.Timestamp
+}
+
+func (b0 AutoUpdateAgentRolloutStatus_builder) Build() *AutoUpdateAgentRolloutStatus {
+	m0 := &AutoUpdateAgentRolloutStatus{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Groups = b.Groups
+	x.State = b.State
+	x.StartTime = b.StartTime
+	x.TimeOverride = b.TimeOverride
+	return m0
+}
+
 // AutoUpdateAgentRolloutStatusGroup tracks the current agent rollout status of a specific group.
 type AutoUpdateAgentRolloutStatusGroup struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// name of the group
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// start_time of the rollout
@@ -1154,11 +1743,6 @@ func (x *AutoUpdateAgentRolloutStatusGroup) ProtoReflect() protoreflect.Message 
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AutoUpdateAgentRolloutStatusGroup.ProtoReflect.Descriptor instead.
-func (*AutoUpdateAgentRolloutStatusGroup) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *AutoUpdateAgentRolloutStatusGroup) GetName() string {
@@ -1252,13 +1836,153 @@ func (x *AutoUpdateAgentRolloutStatusGroup) GetCanaries() []*Canary {
 	return nil
 }
 
+func (x *AutoUpdateAgentRolloutStatusGroup) SetName(v string) {
+	x.Name = v
+}
+
+func (x *AutoUpdateAgentRolloutStatusGroup) SetStartTime(v *timestamppb.Timestamp) {
+	x.StartTime = v
+}
+
+func (x *AutoUpdateAgentRolloutStatusGroup) SetState(v AutoUpdateAgentGroupState) {
+	x.State = v
+}
+
+func (x *AutoUpdateAgentRolloutStatusGroup) SetLastUpdateTime(v *timestamppb.Timestamp) {
+	x.LastUpdateTime = v
+}
+
+func (x *AutoUpdateAgentRolloutStatusGroup) SetLastUpdateReason(v string) {
+	x.LastUpdateReason = v
+}
+
+func (x *AutoUpdateAgentRolloutStatusGroup) SetConfigDays(v []string) {
+	x.ConfigDays = v
+}
+
+func (x *AutoUpdateAgentRolloutStatusGroup) SetConfigStartHour(v int32) {
+	x.ConfigStartHour = v
+}
+
+func (x *AutoUpdateAgentRolloutStatusGroup) SetConfigWaitHours(v int32) {
+	x.ConfigWaitHours = v
+}
+
+func (x *AutoUpdateAgentRolloutStatusGroup) SetInitialCount(v uint64) {
+	x.InitialCount = v
+}
+
+func (x *AutoUpdateAgentRolloutStatusGroup) SetPresentCount(v uint64) {
+	x.PresentCount = v
+}
+
+func (x *AutoUpdateAgentRolloutStatusGroup) SetUpToDateCount(v uint64) {
+	x.UpToDateCount = v
+}
+
+func (x *AutoUpdateAgentRolloutStatusGroup) SetCanaryCount(v uint64) {
+	x.CanaryCount = v
+}
+
+func (x *AutoUpdateAgentRolloutStatusGroup) SetCanaries(v []*Canary) {
+	x.Canaries = v
+}
+
+func (x *AutoUpdateAgentRolloutStatusGroup) HasStartTime() bool {
+	if x == nil {
+		return false
+	}
+	return x.StartTime != nil
+}
+
+func (x *AutoUpdateAgentRolloutStatusGroup) HasLastUpdateTime() bool {
+	if x == nil {
+		return false
+	}
+	return x.LastUpdateTime != nil
+}
+
+func (x *AutoUpdateAgentRolloutStatusGroup) ClearStartTime() {
+	x.StartTime = nil
+}
+
+func (x *AutoUpdateAgentRolloutStatusGroup) ClearLastUpdateTime() {
+	x.LastUpdateTime = nil
+}
+
+type AutoUpdateAgentRolloutStatusGroup_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// name of the group
+	Name string
+	// start_time of the rollout
+	StartTime *timestamppb.Timestamp
+	// state is the current state of the rollout.
+	State AutoUpdateAgentGroupState
+	// last_update_time is the time of the previous update for this group.
+	LastUpdateTime *timestamppb.Timestamp
+	// last_update_reason is the trigger for the last update
+	LastUpdateReason string
+	// config_days when the update can run. Supported values are "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" and "*"
+	ConfigDays []string
+	// config_start_hour to initiate update
+	ConfigStartHour int32
+	// config_wait_hours after last group succeeds before this group can run. This can only be used when the strategy is "halt-on-failure".
+	// This field must be positive.
+	ConfigWaitHours int32
+	// initial_count of nodes when the group transitioned to the active phase. This is computed by aggregating
+	// autoupdate_agent_reports.
+	// In halt-on-error strategy, if a group is active and initial_count is set, the group will only transition
+	// to the done state if:
+	// - the ratio up_to_date_count/present_count is above 0.9 (at least 90% of the nodes are running the desired version)
+	InitialCount uint64
+	// present_count represents the nodes currently connected to the cluster according to autoupdate_agent_reports.
+	// In halt-on-error strategy, if a group is active and initial_count is set, the group will only transition
+	// to the done state if:
+	// - the ratio present_count/initial_count is above 0.9 (no more than 10% of the nodes dropped during update)
+	// - the ratio up_to_date_count/present_count is above 0.9 (at least 90% of the nodes are running the desired version)
+	PresentCount uint64
+	// up_to_date_count represents the nodes currently connected and running the target_version according to
+	// autoupdate_agent_reports.
+	// In halt-on-error strategy, if a group is active and initial_count is set, the group will only transition
+	// to the done state if:
+	// - the ratio present_count/initial_count is above 0.9 (no more than 10% of the nodes dropped during update)
+	UpToDateCount uint64
+	// canary_count represents how many canaries this group should have to leave the AUTO_UPDATE_AGENT_GROUP_STATE_CANARY
+	// state.
+	CanaryCount uint64
+	// canaries is the list of canary agents that should be updated.
+	// This list is empty until we enter the AUTO_UPDATE_AGENT_GROUP_STATE_CANARY state.
+	Canaries []*Canary
+}
+
+func (b0 AutoUpdateAgentRolloutStatusGroup_builder) Build() *AutoUpdateAgentRolloutStatusGroup {
+	m0 := &AutoUpdateAgentRolloutStatusGroup{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.StartTime = b.StartTime
+	x.State = b.State
+	x.LastUpdateTime = b.LastUpdateTime
+	x.LastUpdateReason = b.LastUpdateReason
+	x.ConfigDays = b.ConfigDays
+	x.ConfigStartHour = b.ConfigStartHour
+	x.ConfigWaitHours = b.ConfigWaitHours
+	x.InitialCount = b.InitialCount
+	x.PresentCount = b.PresentCount
+	x.UpToDateCount = b.UpToDateCount
+	x.CanaryCount = b.CanaryCount
+	x.Canaries = b.Canaries
+	return m0
+}
+
 // AutoUpdateAgentReport is a report generated by each Teleport Auth service.
 // The report tracks per group and per version how many agents are running.
 // The report is used to track which version agents are running.
 // All reports are collected and aggregated by the agent rollout controller
 // or the tctl autoupdate agents status command.
 type AutoUpdateAgentReport struct {
-	state         protoimpl.MessageState     `protogen:"open.v1"`
+	state         protoimpl.MessageState     `protogen:"hybrid.v1"`
 	Kind          string                     `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	SubKind       string                     `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
 	Version       string                     `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
@@ -1291,11 +2015,6 @@ func (x *AutoUpdateAgentReport) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AutoUpdateAgentReport.ProtoReflect.Descriptor instead.
-func (*AutoUpdateAgentReport) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *AutoUpdateAgentReport) GetKind() string {
@@ -1333,9 +2052,73 @@ func (x *AutoUpdateAgentReport) GetSpec() *AutoUpdateAgentReportSpec {
 	return nil
 }
 
+func (x *AutoUpdateAgentReport) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *AutoUpdateAgentReport) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *AutoUpdateAgentReport) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *AutoUpdateAgentReport) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *AutoUpdateAgentReport) SetSpec(v *AutoUpdateAgentReportSpec) {
+	x.Spec = v
+}
+
+func (x *AutoUpdateAgentReport) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *AutoUpdateAgentReport) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *AutoUpdateAgentReport) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *AutoUpdateAgentReport) ClearSpec() {
+	x.Spec = nil
+}
+
+type AutoUpdateAgentReport_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Kind     string
+	SubKind  string
+	Version  string
+	Metadata *v1.Metadata
+	Spec     *AutoUpdateAgentReportSpec
+}
+
+func (b0 AutoUpdateAgentReport_builder) Build() *AutoUpdateAgentReport {
+	m0 := &AutoUpdateAgentReport{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Spec = b.Spec
+	return m0
+}
+
 // AutoupdateAgentReportSpec is the spec field.
 type AutoUpdateAgentReportSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// timestamp is when the report was generated.
 	Timestamp     *timestamppb.Timestamp                     `protobuf:"bytes,1,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
 	Groups        map[string]*AutoUpdateAgentReportSpecGroup `protobuf:"bytes,2,rep,name=groups,proto3" json:"groups,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
@@ -1369,11 +2152,6 @@ func (x *AutoUpdateAgentReportSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AutoUpdateAgentReportSpec.ProtoReflect.Descriptor instead.
-func (*AutoUpdateAgentReportSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_proto_rawDescGZIP(), []int{15}
-}
-
 func (x *AutoUpdateAgentReportSpec) GetTimestamp() *timestamppb.Timestamp {
 	if x != nil {
 		return x.Timestamp
@@ -1395,9 +2173,51 @@ func (x *AutoUpdateAgentReportSpec) GetOmitted() []*AutoUpdateAgentReportSpecOmi
 	return nil
 }
 
+func (x *AutoUpdateAgentReportSpec) SetTimestamp(v *timestamppb.Timestamp) {
+	x.Timestamp = v
+}
+
+func (x *AutoUpdateAgentReportSpec) SetGroups(v map[string]*AutoUpdateAgentReportSpecGroup) {
+	x.Groups = v
+}
+
+func (x *AutoUpdateAgentReportSpec) SetOmitted(v []*AutoUpdateAgentReportSpecOmitted) {
+	x.Omitted = v
+}
+
+func (x *AutoUpdateAgentReportSpec) HasTimestamp() bool {
+	if x == nil {
+		return false
+	}
+	return x.Timestamp != nil
+}
+
+func (x *AutoUpdateAgentReportSpec) ClearTimestamp() {
+	x.Timestamp = nil
+}
+
+type AutoUpdateAgentReportSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// timestamp is when the report was generated.
+	Timestamp *timestamppb.Timestamp
+	Groups    map[string]*AutoUpdateAgentReportSpecGroup
+	Omitted   []*AutoUpdateAgentReportSpecOmitted
+}
+
+func (b0 AutoUpdateAgentReportSpec_builder) Build() *AutoUpdateAgentReportSpec {
+	m0 := &AutoUpdateAgentReportSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Timestamp = b.Timestamp
+	x.Groups = b.Groups
+	x.Omitted = b.Omitted
+	return m0
+}
+
 // AutoupdateAgentReportSpecGroup is the report for a specific update group.
 type AutoUpdateAgentReportSpecGroup struct {
-	state         protoimpl.MessageState                            `protogen:"open.v1"`
+	state         protoimpl.MessageState                            `protogen:"hybrid.v1"`
 	Versions      map[string]*AutoUpdateAgentReportSpecGroupVersion `protobuf:"bytes,1,rep,name=versions,proto3" json:"versions,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1428,11 +2248,6 @@ func (x *AutoUpdateAgentReportSpecGroup) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AutoUpdateAgentReportSpecGroup.ProtoReflect.Descriptor instead.
-func (*AutoUpdateAgentReportSpecGroup) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_proto_rawDescGZIP(), []int{16}
-}
-
 func (x *AutoUpdateAgentReportSpecGroup) GetVersions() map[string]*AutoUpdateAgentReportSpecGroupVersion {
 	if x != nil {
 		return x.Versions
@@ -1440,10 +2255,28 @@ func (x *AutoUpdateAgentReportSpecGroup) GetVersions() map[string]*AutoUpdateAge
 	return nil
 }
 
+func (x *AutoUpdateAgentReportSpecGroup) SetVersions(v map[string]*AutoUpdateAgentReportSpecGroupVersion) {
+	x.Versions = v
+}
+
+type AutoUpdateAgentReportSpecGroup_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Versions map[string]*AutoUpdateAgentReportSpecGroupVersion
+}
+
+func (b0 AutoUpdateAgentReportSpecGroup_builder) Build() *AutoUpdateAgentReportSpecGroup {
+	m0 := &AutoUpdateAgentReportSpecGroup{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Versions = b.Versions
+	return m0
+}
+
 // AutoupdateAgentReportSpecGroupVersion is the report for a specific
 // (update group, version) combination.
 type AutoUpdateAgentReportSpecGroupVersion struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Count         int32                  `protobuf:"varint,1,opt,name=count,proto3" json:"count,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1474,11 +2307,6 @@ func (x *AutoUpdateAgentReportSpecGroupVersion) ProtoReflect() protoreflect.Mess
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AutoUpdateAgentReportSpecGroupVersion.ProtoReflect.Descriptor instead.
-func (*AutoUpdateAgentReportSpecGroupVersion) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_proto_rawDescGZIP(), []int{17}
-}
-
 func (x *AutoUpdateAgentReportSpecGroupVersion) GetCount() int32 {
 	if x != nil {
 		return x.Count
@@ -1486,10 +2314,28 @@ func (x *AutoUpdateAgentReportSpecGroupVersion) GetCount() int32 {
 	return 0
 }
 
+func (x *AutoUpdateAgentReportSpecGroupVersion) SetCount(v int32) {
+	x.Count = v
+}
+
+type AutoUpdateAgentReportSpecGroupVersion_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Count int32
+}
+
+func (b0 AutoUpdateAgentReportSpecGroupVersion_builder) Build() *AutoUpdateAgentReportSpecGroupVersion {
+	m0 := &AutoUpdateAgentReportSpecGroupVersion{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Count = b.Count
+	return m0
+}
+
 // AutoUpdateAgentReportSpecOmitted carries information about agents that
 // were omitted from the report. Only intended for free-form, human consumption.
 type AutoUpdateAgentReportSpecOmitted struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Count         int64                  `protobuf:"varint,1,opt,name=count,proto3" json:"count,omitempty"`
 	Reason        string                 `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1521,11 +2367,6 @@ func (x *AutoUpdateAgentReportSpecOmitted) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AutoUpdateAgentReportSpecOmitted.ProtoReflect.Descriptor instead.
-func (*AutoUpdateAgentReportSpecOmitted) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_proto_rawDescGZIP(), []int{18}
-}
-
 func (x *AutoUpdateAgentReportSpecOmitted) GetCount() int64 {
 	if x != nil {
 		return x.Count
@@ -1540,11 +2381,35 @@ func (x *AutoUpdateAgentReportSpecOmitted) GetReason() string {
 	return ""
 }
 
+func (x *AutoUpdateAgentReportSpecOmitted) SetCount(v int64) {
+	x.Count = v
+}
+
+func (x *AutoUpdateAgentReportSpecOmitted) SetReason(v string) {
+	x.Reason = v
+}
+
+type AutoUpdateAgentReportSpecOmitted_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Count  int64
+	Reason string
+}
+
+func (b0 AutoUpdateAgentReportSpecOmitted_builder) Build() *AutoUpdateAgentReportSpecOmitted {
+	m0 := &AutoUpdateAgentReportSpecOmitted{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Count = b.Count
+	x.Reason = b.Reason
+	return m0
+}
+
 // AutoUpdateBotInstanceReport is a report generated by an elected instance of the
 // Teleport Auth service. The report tracks per group and per version how many
 // instances of tbot are running.
 type AutoUpdateBotInstanceReport struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The kind of resource represented. This is always `autoupdate_bot_instance_report`.
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	// Differentiates variations of the same kind. All resources should contain
@@ -1585,11 +2450,6 @@ func (x *AutoUpdateBotInstanceReport) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AutoUpdateBotInstanceReport.ProtoReflect.Descriptor instead.
-func (*AutoUpdateBotInstanceReport) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_proto_rawDescGZIP(), []int{19}
-}
-
 func (x *AutoUpdateBotInstanceReport) GetKind() string {
 	if x != nil {
 		return x.Kind
@@ -1625,9 +2485,79 @@ func (x *AutoUpdateBotInstanceReport) GetSpec() *AutoUpdateBotInstanceReportSpec
 	return nil
 }
 
+func (x *AutoUpdateBotInstanceReport) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *AutoUpdateBotInstanceReport) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *AutoUpdateBotInstanceReport) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *AutoUpdateBotInstanceReport) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *AutoUpdateBotInstanceReport) SetSpec(v *AutoUpdateBotInstanceReportSpec) {
+	x.Spec = v
+}
+
+func (x *AutoUpdateBotInstanceReport) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *AutoUpdateBotInstanceReport) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *AutoUpdateBotInstanceReport) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *AutoUpdateBotInstanceReport) ClearSpec() {
+	x.Spec = nil
+}
+
+type AutoUpdateBotInstanceReport_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The kind of resource represented. This is always `autoupdate_bot_instance_report`.
+	Kind string
+	// Differentiates variations of the same kind. All resources should contain
+	// one, even if it is never populated.
+	SubKind string
+	// The version of the resource being represented.
+	Version string
+	// Common metadata that all resources share.
+	Metadata *v1.Metadata
+	// Contents of the report.
+	Spec *AutoUpdateBotInstanceReportSpec
+}
+
+func (b0 AutoUpdateBotInstanceReport_builder) Build() *AutoUpdateBotInstanceReport {
+	m0 := &AutoUpdateBotInstanceReport{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Spec = b.Spec
+	return m0
+}
+
 // AutoUpdateBotInstanceReportSpec holds the contents of an AutoUpdateBotInstanceReport.
 type AutoUpdateBotInstanceReportSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Timestamp is when the report was generated.
 	Timestamp *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=timestamp,proto3" json:"timestamp,omitempty"`
 	// Bot counts aggregated by update group.
@@ -1661,11 +2591,6 @@ func (x *AutoUpdateBotInstanceReportSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AutoUpdateBotInstanceReportSpec.ProtoReflect.Descriptor instead.
-func (*AutoUpdateBotInstanceReportSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_proto_rawDescGZIP(), []int{20}
-}
-
 func (x *AutoUpdateBotInstanceReportSpec) GetTimestamp() *timestamppb.Timestamp {
 	if x != nil {
 		return x.Timestamp
@@ -1680,9 +2605,46 @@ func (x *AutoUpdateBotInstanceReportSpec) GetGroups() map[string]*AutoUpdateBotI
 	return nil
 }
 
+func (x *AutoUpdateBotInstanceReportSpec) SetTimestamp(v *timestamppb.Timestamp) {
+	x.Timestamp = v
+}
+
+func (x *AutoUpdateBotInstanceReportSpec) SetGroups(v map[string]*AutoUpdateBotInstanceReportSpecGroup) {
+	x.Groups = v
+}
+
+func (x *AutoUpdateBotInstanceReportSpec) HasTimestamp() bool {
+	if x == nil {
+		return false
+	}
+	return x.Timestamp != nil
+}
+
+func (x *AutoUpdateBotInstanceReportSpec) ClearTimestamp() {
+	x.Timestamp = nil
+}
+
+type AutoUpdateBotInstanceReportSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Timestamp is when the report was generated.
+	Timestamp *timestamppb.Timestamp
+	// Bot counts aggregated by update group.
+	Groups map[string]*AutoUpdateBotInstanceReportSpecGroup
+}
+
+func (b0 AutoUpdateBotInstanceReportSpec_builder) Build() *AutoUpdateBotInstanceReportSpec {
+	m0 := &AutoUpdateBotInstanceReportSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Timestamp = b.Timestamp
+	x.Groups = b.Groups
+	return m0
+}
+
 // AutoUpdateBotInstanceReportSpecGroup holds an update group's bot counts.
 type AutoUpdateBotInstanceReportSpecGroup struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Bot counts aggregated by version.
 	Versions      map[string]*AutoUpdateBotInstanceReportSpecGroupVersion `protobuf:"bytes,1,rep,name=versions,proto3" json:"versions,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
@@ -1714,11 +2676,6 @@ func (x *AutoUpdateBotInstanceReportSpecGroup) ProtoReflect() protoreflect.Messa
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AutoUpdateBotInstanceReportSpecGroup.ProtoReflect.Descriptor instead.
-func (*AutoUpdateBotInstanceReportSpecGroup) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_proto_rawDescGZIP(), []int{21}
-}
-
 func (x *AutoUpdateBotInstanceReportSpecGroup) GetVersions() map[string]*AutoUpdateBotInstanceReportSpecGroupVersion {
 	if x != nil {
 		return x.Versions
@@ -1726,9 +2683,28 @@ func (x *AutoUpdateBotInstanceReportSpecGroup) GetVersions() map[string]*AutoUpd
 	return nil
 }
 
+func (x *AutoUpdateBotInstanceReportSpecGroup) SetVersions(v map[string]*AutoUpdateBotInstanceReportSpecGroupVersion) {
+	x.Versions = v
+}
+
+type AutoUpdateBotInstanceReportSpecGroup_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Bot counts aggregated by version.
+	Versions map[string]*AutoUpdateBotInstanceReportSpecGroupVersion
+}
+
+func (b0 AutoUpdateBotInstanceReportSpecGroup_builder) Build() *AutoUpdateBotInstanceReportSpecGroup {
+	m0 := &AutoUpdateBotInstanceReportSpecGroup{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Versions = b.Versions
+	return m0
+}
+
 // AutoUpdateBotInstanceReportSpecGroupVersion holds a version's bot count.
 type AutoUpdateBotInstanceReportSpecGroupVersion struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Count of bot instances running this version.
 	Count         int32 `protobuf:"varint,1,opt,name=count,proto3" json:"count,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1760,11 +2736,6 @@ func (x *AutoUpdateBotInstanceReportSpecGroupVersion) ProtoReflect() protoreflec
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AutoUpdateBotInstanceReportSpecGroupVersion.ProtoReflect.Descriptor instead.
-func (*AutoUpdateBotInstanceReportSpecGroupVersion) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_proto_rawDescGZIP(), []int{22}
-}
-
 func (x *AutoUpdateBotInstanceReportSpecGroupVersion) GetCount() int32 {
 	if x != nil {
 		return x.Count
@@ -1772,9 +2743,28 @@ func (x *AutoUpdateBotInstanceReportSpecGroupVersion) GetCount() int32 {
 	return 0
 }
 
+func (x *AutoUpdateBotInstanceReportSpecGroupVersion) SetCount(v int32) {
+	x.Count = v
+}
+
+type AutoUpdateBotInstanceReportSpecGroupVersion_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Count of bot instances running this version.
+	Count int32
+}
+
+func (b0 AutoUpdateBotInstanceReportSpecGroupVersion_builder) Build() *AutoUpdateBotInstanceReportSpecGroupVersion {
+	m0 := &AutoUpdateBotInstanceReportSpecGroupVersion{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Count = b.Count
+	return m0
+}
+
 // Canary describes a node that is acting as a canary and being updated before other nodes in its group.
 type Canary struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// updater_id is reported by the agent in its control stream Hello. This allows us to uniquely identify an updater so
 	// the proxy can modulate its answer when the request comes from this specific updater.
 	UpdaterId string `protobuf:"bytes,1,opt,name=updater_id,json=updaterId,proto3" json:"updater_id,omitempty"`
@@ -1815,11 +2805,6 @@ func (x *Canary) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Canary.ProtoReflect.Descriptor instead.
-func (*Canary) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_proto_rawDescGZIP(), []int{23}
-}
-
 func (x *Canary) GetUpdaterId() string {
 	if x != nil {
 		return x.UpdaterId
@@ -1846,6 +2831,49 @@ func (x *Canary) GetSuccess() bool {
 		return x.Success
 	}
 	return false
+}
+
+func (x *Canary) SetUpdaterId(v string) {
+	x.UpdaterId = v
+}
+
+func (x *Canary) SetHostId(v string) {
+	x.HostId = v
+}
+
+func (x *Canary) SetHostname(v string) {
+	x.Hostname = v
+}
+
+func (x *Canary) SetSuccess(v bool) {
+	x.Success = v
+}
+
+type Canary_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// updater_id is reported by the agent in its control stream Hello. This allows us to uniquely identify an updater so
+	// the proxy can modulate its answer when the request comes from this specific updater.
+	UpdaterId string
+	// host_id is the node Host ID, reported by the agent in its control stream Hello.
+	HostId string
+	// hostname is the server hostname reported by the agent in its control stream Hello.
+	// This is purely for debugging purposes: if the agent drops, we won't be able to query the inventory to know which
+	// agent it was.
+	Hostname string
+	// success represents if the agent successfully connected back, running the target version.
+	Success bool
+}
+
+func (b0 Canary_builder) Build() *Canary {
+	m0 := &Canary{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.UpdaterId = b.UpdaterId
+	x.HostId = b.HostId
+	x.Hostname = b.Hostname
+	x.Success = b.Success
+	return m0
 }
 
 var File_teleport_autoupdate_v1_autoupdate_proto protoreflect.FileDescriptor
@@ -1993,18 +3021,6 @@ const file_teleport_autoupdate_v1_autoupdate_proto_rawDesc = "" +
 	"&AUTO_UPDATE_AGENT_ROLLOUT_STATE_ACTIVE\x10\x02\x12(\n" +
 	"$AUTO_UPDATE_AGENT_ROLLOUT_STATE_DONE\x10\x03\x12.\n" +
 	"*AUTO_UPDATE_AGENT_ROLLOUT_STATE_ROLLEDBACK\x10\x04BVZTgithub.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1;autoupdateb\x06proto3"
-
-var (
-	file_teleport_autoupdate_v1_autoupdate_proto_rawDescOnce sync.Once
-	file_teleport_autoupdate_v1_autoupdate_proto_rawDescData []byte
-)
-
-func file_teleport_autoupdate_v1_autoupdate_proto_rawDescGZIP() []byte {
-	file_teleport_autoupdate_v1_autoupdate_proto_rawDescOnce.Do(func() {
-		file_teleport_autoupdate_v1_autoupdate_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_autoupdate_v1_autoupdate_proto_rawDesc), len(file_teleport_autoupdate_v1_autoupdate_proto_rawDesc)))
-	})
-	return file_teleport_autoupdate_v1_autoupdate_proto_rawDescData
-}
 
 var file_teleport_autoupdate_v1_autoupdate_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_teleport_autoupdate_v1_autoupdate_proto_msgTypes = make([]protoimpl.MessageInfo, 28)

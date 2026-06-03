@@ -22,10 +22,10 @@ import { Agent, fetch as undiciFetch } from 'undici';
 import { users } from './env';
 import { mockWebAuthn, signWebAuthnAssertion } from './webauthn';
 
-// directLogin runs during the auth setup project against a Teleport instance
-// the runner brings up with a freshly-generated self-signed cert, so the
-// global default verifier rejects the connection. Scope the bypass to these
-// two fetches via a dedicated dispatcher rather than disabling TLS globally.
+// directLogin runs during global setup against a Teleport instance the runner
+// brings up with a freshly-generated self-signed cert, so the global default
+// verifier rejects the connection. Scope the bypass to these two fetches via
+// a dedicated dispatcher rather than disabling TLS globally.
 const insecureDispatcher = new Agent({
   connect: { rejectUnauthorized: false },
 });

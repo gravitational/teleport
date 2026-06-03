@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/autoupdate/v1/autoupdate_service.proto
 
+//go:build !protoopaque
+
 package autoupdate
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -38,7 +39,7 @@ const (
 
 // Request for GetAutoUpdateConfig.
 type GetAutoUpdateConfigRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -68,14 +69,21 @@ func (x *GetAutoUpdateConfigRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetAutoUpdateConfigRequest.ProtoReflect.Descriptor instead.
-func (*GetAutoUpdateConfigRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_service_proto_rawDescGZIP(), []int{0}
+type GetAutoUpdateConfigRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 GetAutoUpdateConfigRequest_builder) Build() *GetAutoUpdateConfigRequest {
+	m0 := &GetAutoUpdateConfigRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // Request for CreateAutoUpdateConfig.
 type CreateAutoUpdateConfigRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Config        *AutoUpdateConfig      `protobuf:"bytes,1,opt,name=config,proto3" json:"config,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -106,11 +114,6 @@ func (x *CreateAutoUpdateConfigRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateAutoUpdateConfigRequest.ProtoReflect.Descriptor instead.
-func (*CreateAutoUpdateConfigRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *CreateAutoUpdateConfigRequest) GetConfig() *AutoUpdateConfig {
 	if x != nil {
 		return x.Config
@@ -118,9 +121,38 @@ func (x *CreateAutoUpdateConfigRequest) GetConfig() *AutoUpdateConfig {
 	return nil
 }
 
+func (x *CreateAutoUpdateConfigRequest) SetConfig(v *AutoUpdateConfig) {
+	x.Config = v
+}
+
+func (x *CreateAutoUpdateConfigRequest) HasConfig() bool {
+	if x == nil {
+		return false
+	}
+	return x.Config != nil
+}
+
+func (x *CreateAutoUpdateConfigRequest) ClearConfig() {
+	x.Config = nil
+}
+
+type CreateAutoUpdateConfigRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Config *AutoUpdateConfig
+}
+
+func (b0 CreateAutoUpdateConfigRequest_builder) Build() *CreateAutoUpdateConfigRequest {
+	m0 := &CreateAutoUpdateConfigRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Config = b.Config
+	return m0
+}
+
 // Request for UpdateAutoUpdateConfig.
 type UpdateAutoUpdateConfigRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Config        *AutoUpdateConfig      `protobuf:"bytes,1,opt,name=config,proto3" json:"config,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -151,11 +183,6 @@ func (x *UpdateAutoUpdateConfigRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateAutoUpdateConfigRequest.ProtoReflect.Descriptor instead.
-func (*UpdateAutoUpdateConfigRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *UpdateAutoUpdateConfigRequest) GetConfig() *AutoUpdateConfig {
 	if x != nil {
 		return x.Config
@@ -163,9 +190,38 @@ func (x *UpdateAutoUpdateConfigRequest) GetConfig() *AutoUpdateConfig {
 	return nil
 }
 
+func (x *UpdateAutoUpdateConfigRequest) SetConfig(v *AutoUpdateConfig) {
+	x.Config = v
+}
+
+func (x *UpdateAutoUpdateConfigRequest) HasConfig() bool {
+	if x == nil {
+		return false
+	}
+	return x.Config != nil
+}
+
+func (x *UpdateAutoUpdateConfigRequest) ClearConfig() {
+	x.Config = nil
+}
+
+type UpdateAutoUpdateConfigRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Config *AutoUpdateConfig
+}
+
+func (b0 UpdateAutoUpdateConfigRequest_builder) Build() *UpdateAutoUpdateConfigRequest {
+	m0 := &UpdateAutoUpdateConfigRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Config = b.Config
+	return m0
+}
+
 // Request for UpsertAutoUpdateConfig.
 type UpsertAutoUpdateConfigRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Config        *AutoUpdateConfig      `protobuf:"bytes,1,opt,name=config,proto3" json:"config,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -196,11 +252,6 @@ func (x *UpsertAutoUpdateConfigRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertAutoUpdateConfigRequest.ProtoReflect.Descriptor instead.
-func (*UpsertAutoUpdateConfigRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *UpsertAutoUpdateConfigRequest) GetConfig() *AutoUpdateConfig {
 	if x != nil {
 		return x.Config
@@ -208,9 +259,38 @@ func (x *UpsertAutoUpdateConfigRequest) GetConfig() *AutoUpdateConfig {
 	return nil
 }
 
+func (x *UpsertAutoUpdateConfigRequest) SetConfig(v *AutoUpdateConfig) {
+	x.Config = v
+}
+
+func (x *UpsertAutoUpdateConfigRequest) HasConfig() bool {
+	if x == nil {
+		return false
+	}
+	return x.Config != nil
+}
+
+func (x *UpsertAutoUpdateConfigRequest) ClearConfig() {
+	x.Config = nil
+}
+
+type UpsertAutoUpdateConfigRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Config *AutoUpdateConfig
+}
+
+func (b0 UpsertAutoUpdateConfigRequest_builder) Build() *UpsertAutoUpdateConfigRequest {
+	m0 := &UpsertAutoUpdateConfigRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Config = b.Config
+	return m0
+}
+
 // Request for DeleteAutoUpdateConfig.
 type DeleteAutoUpdateConfigRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -240,14 +320,21 @@ func (x *DeleteAutoUpdateConfigRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteAutoUpdateConfigRequest.ProtoReflect.Descriptor instead.
-func (*DeleteAutoUpdateConfigRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_service_proto_rawDescGZIP(), []int{4}
+type DeleteAutoUpdateConfigRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 DeleteAutoUpdateConfigRequest_builder) Build() *DeleteAutoUpdateConfigRequest {
+	m0 := &DeleteAutoUpdateConfigRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // Request for GetAutoUpdateVersion.
 type GetAutoUpdateVersionRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -277,14 +364,21 @@ func (x *GetAutoUpdateVersionRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetAutoUpdateVersionRequest.ProtoReflect.Descriptor instead.
-func (*GetAutoUpdateVersionRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_service_proto_rawDescGZIP(), []int{5}
+type GetAutoUpdateVersionRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 GetAutoUpdateVersionRequest_builder) Build() *GetAutoUpdateVersionRequest {
+	m0 := &GetAutoUpdateVersionRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // Request for CreateAutoUpdateVersion.
 type CreateAutoUpdateVersionRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Version       *AutoUpdateVersion     `protobuf:"bytes,1,opt,name=version,proto3" json:"version,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -315,11 +409,6 @@ func (x *CreateAutoUpdateVersionRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateAutoUpdateVersionRequest.ProtoReflect.Descriptor instead.
-func (*CreateAutoUpdateVersionRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_service_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *CreateAutoUpdateVersionRequest) GetVersion() *AutoUpdateVersion {
 	if x != nil {
 		return x.Version
@@ -327,9 +416,38 @@ func (x *CreateAutoUpdateVersionRequest) GetVersion() *AutoUpdateVersion {
 	return nil
 }
 
+func (x *CreateAutoUpdateVersionRequest) SetVersion(v *AutoUpdateVersion) {
+	x.Version = v
+}
+
+func (x *CreateAutoUpdateVersionRequest) HasVersion() bool {
+	if x == nil {
+		return false
+	}
+	return x.Version != nil
+}
+
+func (x *CreateAutoUpdateVersionRequest) ClearVersion() {
+	x.Version = nil
+}
+
+type CreateAutoUpdateVersionRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Version *AutoUpdateVersion
+}
+
+func (b0 CreateAutoUpdateVersionRequest_builder) Build() *CreateAutoUpdateVersionRequest {
+	m0 := &CreateAutoUpdateVersionRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Version = b.Version
+	return m0
+}
+
 // Request for UpdateAutoUpdateConfig.
 type UpdateAutoUpdateVersionRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Version       *AutoUpdateVersion     `protobuf:"bytes,1,opt,name=version,proto3" json:"version,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -360,11 +478,6 @@ func (x *UpdateAutoUpdateVersionRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateAutoUpdateVersionRequest.ProtoReflect.Descriptor instead.
-func (*UpdateAutoUpdateVersionRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_service_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *UpdateAutoUpdateVersionRequest) GetVersion() *AutoUpdateVersion {
 	if x != nil {
 		return x.Version
@@ -372,9 +485,38 @@ func (x *UpdateAutoUpdateVersionRequest) GetVersion() *AutoUpdateVersion {
 	return nil
 }
 
+func (x *UpdateAutoUpdateVersionRequest) SetVersion(v *AutoUpdateVersion) {
+	x.Version = v
+}
+
+func (x *UpdateAutoUpdateVersionRequest) HasVersion() bool {
+	if x == nil {
+		return false
+	}
+	return x.Version != nil
+}
+
+func (x *UpdateAutoUpdateVersionRequest) ClearVersion() {
+	x.Version = nil
+}
+
+type UpdateAutoUpdateVersionRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Version *AutoUpdateVersion
+}
+
+func (b0 UpdateAutoUpdateVersionRequest_builder) Build() *UpdateAutoUpdateVersionRequest {
+	m0 := &UpdateAutoUpdateVersionRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Version = b.Version
+	return m0
+}
+
 // Request for UpsertAutoUpdateVersion.
 type UpsertAutoUpdateVersionRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Version       *AutoUpdateVersion     `protobuf:"bytes,1,opt,name=version,proto3" json:"version,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -405,11 +547,6 @@ func (x *UpsertAutoUpdateVersionRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertAutoUpdateVersionRequest.ProtoReflect.Descriptor instead.
-func (*UpsertAutoUpdateVersionRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_service_proto_rawDescGZIP(), []int{8}
-}
-
 func (x *UpsertAutoUpdateVersionRequest) GetVersion() *AutoUpdateVersion {
 	if x != nil {
 		return x.Version
@@ -417,9 +554,38 @@ func (x *UpsertAutoUpdateVersionRequest) GetVersion() *AutoUpdateVersion {
 	return nil
 }
 
+func (x *UpsertAutoUpdateVersionRequest) SetVersion(v *AutoUpdateVersion) {
+	x.Version = v
+}
+
+func (x *UpsertAutoUpdateVersionRequest) HasVersion() bool {
+	if x == nil {
+		return false
+	}
+	return x.Version != nil
+}
+
+func (x *UpsertAutoUpdateVersionRequest) ClearVersion() {
+	x.Version = nil
+}
+
+type UpsertAutoUpdateVersionRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Version *AutoUpdateVersion
+}
+
+func (b0 UpsertAutoUpdateVersionRequest_builder) Build() *UpsertAutoUpdateVersionRequest {
+	m0 := &UpsertAutoUpdateVersionRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Version = b.Version
+	return m0
+}
+
 // Request for DeleteAutoUpdateVersion.
 type DeleteAutoUpdateVersionRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -449,14 +615,21 @@ func (x *DeleteAutoUpdateVersionRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteAutoUpdateVersionRequest.ProtoReflect.Descriptor instead.
-func (*DeleteAutoUpdateVersionRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_service_proto_rawDescGZIP(), []int{9}
+type DeleteAutoUpdateVersionRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 DeleteAutoUpdateVersionRequest_builder) Build() *DeleteAutoUpdateVersionRequest {
+	m0 := &DeleteAutoUpdateVersionRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // Request for GetAutoUpdateAgentRollout.
 type GetAutoUpdateAgentRolloutRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -486,14 +659,21 @@ func (x *GetAutoUpdateAgentRolloutRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetAutoUpdateAgentRolloutRequest.ProtoReflect.Descriptor instead.
-func (*GetAutoUpdateAgentRolloutRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_service_proto_rawDescGZIP(), []int{10}
+type GetAutoUpdateAgentRolloutRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 GetAutoUpdateAgentRolloutRequest_builder) Build() *GetAutoUpdateAgentRolloutRequest {
+	m0 := &GetAutoUpdateAgentRolloutRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // Request for CreateAutoUpdateAgentRollout.
 type CreateAutoUpdateAgentRolloutRequest struct {
-	state         protoimpl.MessageState  `protogen:"open.v1"`
+	state         protoimpl.MessageState  `protogen:"hybrid.v1"`
 	Rollout       *AutoUpdateAgentRollout `protobuf:"bytes,1,opt,name=rollout,proto3" json:"rollout,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -524,11 +704,6 @@ func (x *CreateAutoUpdateAgentRolloutRequest) ProtoReflect() protoreflect.Messag
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateAutoUpdateAgentRolloutRequest.ProtoReflect.Descriptor instead.
-func (*CreateAutoUpdateAgentRolloutRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_service_proto_rawDescGZIP(), []int{11}
-}
-
 func (x *CreateAutoUpdateAgentRolloutRequest) GetRollout() *AutoUpdateAgentRollout {
 	if x != nil {
 		return x.Rollout
@@ -536,9 +711,38 @@ func (x *CreateAutoUpdateAgentRolloutRequest) GetRollout() *AutoUpdateAgentRollo
 	return nil
 }
 
+func (x *CreateAutoUpdateAgentRolloutRequest) SetRollout(v *AutoUpdateAgentRollout) {
+	x.Rollout = v
+}
+
+func (x *CreateAutoUpdateAgentRolloutRequest) HasRollout() bool {
+	if x == nil {
+		return false
+	}
+	return x.Rollout != nil
+}
+
+func (x *CreateAutoUpdateAgentRolloutRequest) ClearRollout() {
+	x.Rollout = nil
+}
+
+type CreateAutoUpdateAgentRolloutRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Rollout *AutoUpdateAgentRollout
+}
+
+func (b0 CreateAutoUpdateAgentRolloutRequest_builder) Build() *CreateAutoUpdateAgentRolloutRequest {
+	m0 := &CreateAutoUpdateAgentRolloutRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Rollout = b.Rollout
+	return m0
+}
+
 // Request for UpdateAutoUpdateConfig.
 type UpdateAutoUpdateAgentRolloutRequest struct {
-	state         protoimpl.MessageState  `protogen:"open.v1"`
+	state         protoimpl.MessageState  `protogen:"hybrid.v1"`
 	Rollout       *AutoUpdateAgentRollout `protobuf:"bytes,1,opt,name=rollout,proto3" json:"rollout,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -569,11 +773,6 @@ func (x *UpdateAutoUpdateAgentRolloutRequest) ProtoReflect() protoreflect.Messag
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateAutoUpdateAgentRolloutRequest.ProtoReflect.Descriptor instead.
-func (*UpdateAutoUpdateAgentRolloutRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_service_proto_rawDescGZIP(), []int{12}
-}
-
 func (x *UpdateAutoUpdateAgentRolloutRequest) GetRollout() *AutoUpdateAgentRollout {
 	if x != nil {
 		return x.Rollout
@@ -581,9 +780,38 @@ func (x *UpdateAutoUpdateAgentRolloutRequest) GetRollout() *AutoUpdateAgentRollo
 	return nil
 }
 
+func (x *UpdateAutoUpdateAgentRolloutRequest) SetRollout(v *AutoUpdateAgentRollout) {
+	x.Rollout = v
+}
+
+func (x *UpdateAutoUpdateAgentRolloutRequest) HasRollout() bool {
+	if x == nil {
+		return false
+	}
+	return x.Rollout != nil
+}
+
+func (x *UpdateAutoUpdateAgentRolloutRequest) ClearRollout() {
+	x.Rollout = nil
+}
+
+type UpdateAutoUpdateAgentRolloutRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Rollout *AutoUpdateAgentRollout
+}
+
+func (b0 UpdateAutoUpdateAgentRolloutRequest_builder) Build() *UpdateAutoUpdateAgentRolloutRequest {
+	m0 := &UpdateAutoUpdateAgentRolloutRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Rollout = b.Rollout
+	return m0
+}
+
 // Request for UpsertAutoUpdateAgentRollout.
 type UpsertAutoUpdateAgentRolloutRequest struct {
-	state         protoimpl.MessageState  `protogen:"open.v1"`
+	state         protoimpl.MessageState  `protogen:"hybrid.v1"`
 	Rollout       *AutoUpdateAgentRollout `protobuf:"bytes,1,opt,name=rollout,proto3" json:"rollout,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -614,11 +842,6 @@ func (x *UpsertAutoUpdateAgentRolloutRequest) ProtoReflect() protoreflect.Messag
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertAutoUpdateAgentRolloutRequest.ProtoReflect.Descriptor instead.
-func (*UpsertAutoUpdateAgentRolloutRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_service_proto_rawDescGZIP(), []int{13}
-}
-
 func (x *UpsertAutoUpdateAgentRolloutRequest) GetRollout() *AutoUpdateAgentRollout {
 	if x != nil {
 		return x.Rollout
@@ -626,9 +849,38 @@ func (x *UpsertAutoUpdateAgentRolloutRequest) GetRollout() *AutoUpdateAgentRollo
 	return nil
 }
 
+func (x *UpsertAutoUpdateAgentRolloutRequest) SetRollout(v *AutoUpdateAgentRollout) {
+	x.Rollout = v
+}
+
+func (x *UpsertAutoUpdateAgentRolloutRequest) HasRollout() bool {
+	if x == nil {
+		return false
+	}
+	return x.Rollout != nil
+}
+
+func (x *UpsertAutoUpdateAgentRolloutRequest) ClearRollout() {
+	x.Rollout = nil
+}
+
+type UpsertAutoUpdateAgentRolloutRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Rollout *AutoUpdateAgentRollout
+}
+
+func (b0 UpsertAutoUpdateAgentRolloutRequest_builder) Build() *UpsertAutoUpdateAgentRolloutRequest {
+	m0 := &UpsertAutoUpdateAgentRolloutRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Rollout = b.Rollout
+	return m0
+}
+
 // Request for DeleteAutoUpdateAgentRollout.
 type DeleteAutoUpdateAgentRolloutRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -658,14 +910,21 @@ func (x *DeleteAutoUpdateAgentRolloutRequest) ProtoReflect() protoreflect.Messag
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteAutoUpdateAgentRolloutRequest.ProtoReflect.Descriptor instead.
-func (*DeleteAutoUpdateAgentRolloutRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_service_proto_rawDescGZIP(), []int{14}
+type DeleteAutoUpdateAgentRolloutRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 DeleteAutoUpdateAgentRolloutRequest_builder) Build() *DeleteAutoUpdateAgentRolloutRequest {
+	m0 := &DeleteAutoUpdateAgentRolloutRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // Request for TriggerAutoUpdateAgentGroup.
 type TriggerAutoUpdateAgentGroupRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// groups contains the agent update group names whose maintenance should be triggered.
 	Groups []string `protobuf:"bytes,1,rep,name=groups,proto3" json:"groups,omitempty"`
 	// desired_state describes the desired start state.
@@ -702,11 +961,6 @@ func (x *TriggerAutoUpdateAgentGroupRequest) ProtoReflect() protoreflect.Message
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TriggerAutoUpdateAgentGroupRequest.ProtoReflect.Descriptor instead.
-func (*TriggerAutoUpdateAgentGroupRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_service_proto_rawDescGZIP(), []int{15}
-}
-
 func (x *TriggerAutoUpdateAgentGroupRequest) GetGroups() []string {
 	if x != nil {
 		return x.Groups
@@ -721,9 +975,38 @@ func (x *TriggerAutoUpdateAgentGroupRequest) GetDesiredState() AutoUpdateAgentGr
 	return AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSPECIFIED
 }
 
+func (x *TriggerAutoUpdateAgentGroupRequest) SetGroups(v []string) {
+	x.Groups = v
+}
+
+func (x *TriggerAutoUpdateAgentGroupRequest) SetDesiredState(v AutoUpdateAgentGroupState) {
+	x.DesiredState = v
+}
+
+type TriggerAutoUpdateAgentGroupRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// groups contains the agent update group names whose maintenance should be triggered.
+	Groups []string
+	// desired_state describes the desired start state.
+	// Supported values are AUTO_UPDATE_AGENT_GROUP_STATE_UNSPECIFIED, and AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE.
+	// Current default desired state is active. This will change when we'll introduce the
+	// AUTO_UPDATE_AGENT_GROUP_STATE_CANARY state.
+	DesiredState AutoUpdateAgentGroupState
+}
+
+func (b0 TriggerAutoUpdateAgentGroupRequest_builder) Build() *TriggerAutoUpdateAgentGroupRequest {
+	m0 := &TriggerAutoUpdateAgentGroupRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Groups = b.Groups
+	x.DesiredState = b.DesiredState
+	return m0
+}
+
 // Request for ForceAutoUpdateAgentGroup.
 type ForceAutoUpdateAgentGroupRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// groups contains the agent update group names whose state should be forced to `done`.
 	Groups        []string `protobuf:"bytes,1,rep,name=groups,proto3" json:"groups,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -755,11 +1038,6 @@ func (x *ForceAutoUpdateAgentGroupRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ForceAutoUpdateAgentGroupRequest.ProtoReflect.Descriptor instead.
-func (*ForceAutoUpdateAgentGroupRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_service_proto_rawDescGZIP(), []int{16}
-}
-
 func (x *ForceAutoUpdateAgentGroupRequest) GetGroups() []string {
 	if x != nil {
 		return x.Groups
@@ -767,9 +1045,28 @@ func (x *ForceAutoUpdateAgentGroupRequest) GetGroups() []string {
 	return nil
 }
 
+func (x *ForceAutoUpdateAgentGroupRequest) SetGroups(v []string) {
+	x.Groups = v
+}
+
+type ForceAutoUpdateAgentGroupRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// groups contains the agent update group names whose state should be forced to `done`.
+	Groups []string
+}
+
+func (b0 ForceAutoUpdateAgentGroupRequest_builder) Build() *ForceAutoUpdateAgentGroupRequest {
+	m0 := &ForceAutoUpdateAgentGroupRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Groups = b.Groups
+	return m0
+}
+
 // Request for RollbackAutoUpdateAgentGroup.
 type RollbackAutoUpdateAgentGroupRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// groups contains the agent update group name whose state should change to `rolledback`.
 	Groups []string `protobuf:"bytes,1,rep,name=groups,proto3" json:"groups,omitempty"`
 	// all_started_groups instructs Teleport to rollback every started groups.
@@ -805,11 +1102,6 @@ func (x *RollbackAutoUpdateAgentGroupRequest) ProtoReflect() protoreflect.Messag
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RollbackAutoUpdateAgentGroupRequest.ProtoReflect.Descriptor instead.
-func (*RollbackAutoUpdateAgentGroupRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_service_proto_rawDescGZIP(), []int{17}
-}
-
 func (x *RollbackAutoUpdateAgentGroupRequest) GetGroups() []string {
 	if x != nil {
 		return x.Groups
@@ -824,9 +1116,37 @@ func (x *RollbackAutoUpdateAgentGroupRequest) GetAllStartedGroups() bool {
 	return false
 }
 
+func (x *RollbackAutoUpdateAgentGroupRequest) SetGroups(v []string) {
+	x.Groups = v
+}
+
+func (x *RollbackAutoUpdateAgentGroupRequest) SetAllStartedGroups(v bool) {
+	x.AllStartedGroups = v
+}
+
+type RollbackAutoUpdateAgentGroupRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// groups contains the agent update group name whose state should change to `rolledback`.
+	Groups []string
+	// all_started_groups instructs Teleport to rollback every started groups.
+	// When both groups and all_started_groups are set, both unstarted and specified groups
+	// are rolled-back.
+	AllStartedGroups bool
+}
+
+func (b0 RollbackAutoUpdateAgentGroupRequest_builder) Build() *RollbackAutoUpdateAgentGroupRequest {
+	m0 := &RollbackAutoUpdateAgentGroupRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Groups = b.Groups
+	x.AllStartedGroups = b.AllStartedGroups
+	return m0
+}
+
 // ListAutoUpdateAgentReportsRequest is a request for a paginated list of AutoUpdateAgentReports.
 type ListAutoUpdateAgentReportsRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// page_size is the size of the page to request.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	// next_token is the page token.
@@ -860,11 +1180,6 @@ func (x *ListAutoUpdateAgentReportsRequest) ProtoReflect() protoreflect.Message 
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListAutoUpdateAgentReportsRequest.ProtoReflect.Descriptor instead.
-func (*ListAutoUpdateAgentReportsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_service_proto_rawDescGZIP(), []int{18}
-}
-
 func (x *ListAutoUpdateAgentReportsRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -879,9 +1194,35 @@ func (x *ListAutoUpdateAgentReportsRequest) GetNextToken() string {
 	return ""
 }
 
+func (x *ListAutoUpdateAgentReportsRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListAutoUpdateAgentReportsRequest) SetNextToken(v string) {
+	x.NextToken = v
+}
+
+type ListAutoUpdateAgentReportsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// page_size is the size of the page to request.
+	PageSize int32
+	// next_token is the page token.
+	NextToken string
+}
+
+func (b0 ListAutoUpdateAgentReportsRequest_builder) Build() *ListAutoUpdateAgentReportsRequest {
+	m0 := &ListAutoUpdateAgentReportsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.NextToken = b.NextToken
+	return m0
+}
+
 // ListAutoUpdateAgentReportsResponse is the response for ListAutoUpdateAgentReportsRequest.
 type ListAutoUpdateAgentReportsResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// AutoUpdateAgentReports is a list of AutoUpdateAgentReports.
 	AutoupdateAgentReports []*AutoUpdateAgentReport `protobuf:"bytes,1,rep,name=autoupdate_agent_reports,json=autoupdateAgentReports,proto3" json:"autoupdate_agent_reports,omitempty"`
 	// NextKey is the key for the next page of AutoUpdateAgentReports.
@@ -917,11 +1258,6 @@ func (x *ListAutoUpdateAgentReportsResponse) ProtoReflect() protoreflect.Message
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListAutoUpdateAgentReportsResponse.ProtoReflect.Descriptor instead.
-func (*ListAutoUpdateAgentReportsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_service_proto_rawDescGZIP(), []int{19}
-}
-
 func (x *ListAutoUpdateAgentReportsResponse) GetAutoupdateAgentReports() []*AutoUpdateAgentReport {
 	if x != nil {
 		return x.AutoupdateAgentReports
@@ -943,9 +1279,42 @@ func (x *ListAutoUpdateAgentReportsResponse) GetTotalCount() int32 {
 	return 0
 }
 
+func (x *ListAutoUpdateAgentReportsResponse) SetAutoupdateAgentReports(v []*AutoUpdateAgentReport) {
+	x.AutoupdateAgentReports = v
+}
+
+func (x *ListAutoUpdateAgentReportsResponse) SetNextKey(v string) {
+	x.NextKey = v
+}
+
+func (x *ListAutoUpdateAgentReportsResponse) SetTotalCount(v int32) {
+	x.TotalCount = v
+}
+
+type ListAutoUpdateAgentReportsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// AutoUpdateAgentReports is a list of AutoUpdateAgentReports.
+	AutoupdateAgentReports []*AutoUpdateAgentReport
+	// NextKey is the key for the next page of AutoUpdateAgentReports.
+	NextKey string
+	// TotalCount is the total number of autoupdate_agent_report in all pages.
+	TotalCount int32
+}
+
+func (b0 ListAutoUpdateAgentReportsResponse_builder) Build() *ListAutoUpdateAgentReportsResponse {
+	m0 := &ListAutoUpdateAgentReportsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.AutoupdateAgentReports = b.AutoupdateAgentReports
+	x.NextKey = b.NextKey
+	x.TotalCount = b.TotalCount
+	return m0
+}
+
 // GetAutoUpdateAgentReportRequest is a request for a specific AutoUpdateAgentReport resource.
 type GetAutoUpdateAgentReportRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the name of the AutoUpdateAgentReport to be requested.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -977,11 +1346,6 @@ func (x *GetAutoUpdateAgentReportRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetAutoUpdateAgentReportRequest.ProtoReflect.Descriptor instead.
-func (*GetAutoUpdateAgentReportRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_service_proto_rawDescGZIP(), []int{20}
-}
-
 func (x *GetAutoUpdateAgentReportRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -989,9 +1353,28 @@ func (x *GetAutoUpdateAgentReportRequest) GetName() string {
 	return ""
 }
 
+func (x *GetAutoUpdateAgentReportRequest) SetName(v string) {
+	x.Name = v
+}
+
+type GetAutoUpdateAgentReportRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the name of the AutoUpdateAgentReport to be requested.
+	Name string
+}
+
+func (b0 GetAutoUpdateAgentReportRequest_builder) Build() *GetAutoUpdateAgentReportRequest {
+	m0 := &GetAutoUpdateAgentReportRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // CreateAutoUpdateAgentReportRequest is the request to create the provided AutoUpdateAgentReport.
 type CreateAutoUpdateAgentReportRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// AutoUpdateAgentReport is the AutoUpdateAgentReport to be created.
 	AutoupdateAgentReport *AutoUpdateAgentReport `protobuf:"bytes,1,opt,name=autoupdate_agent_report,json=autoupdateAgentReport,proto3" json:"autoupdate_agent_report,omitempty"`
 	unknownFields         protoimpl.UnknownFields
@@ -1023,11 +1406,6 @@ func (x *CreateAutoUpdateAgentReportRequest) ProtoReflect() protoreflect.Message
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateAutoUpdateAgentReportRequest.ProtoReflect.Descriptor instead.
-func (*CreateAutoUpdateAgentReportRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_service_proto_rawDescGZIP(), []int{21}
-}
-
 func (x *CreateAutoUpdateAgentReportRequest) GetAutoupdateAgentReport() *AutoUpdateAgentReport {
 	if x != nil {
 		return x.AutoupdateAgentReport
@@ -1035,9 +1413,39 @@ func (x *CreateAutoUpdateAgentReportRequest) GetAutoupdateAgentReport() *AutoUpd
 	return nil
 }
 
+func (x *CreateAutoUpdateAgentReportRequest) SetAutoupdateAgentReport(v *AutoUpdateAgentReport) {
+	x.AutoupdateAgentReport = v
+}
+
+func (x *CreateAutoUpdateAgentReportRequest) HasAutoupdateAgentReport() bool {
+	if x == nil {
+		return false
+	}
+	return x.AutoupdateAgentReport != nil
+}
+
+func (x *CreateAutoUpdateAgentReportRequest) ClearAutoupdateAgentReport() {
+	x.AutoupdateAgentReport = nil
+}
+
+type CreateAutoUpdateAgentReportRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// AutoUpdateAgentReport is the AutoUpdateAgentReport to be created.
+	AutoupdateAgentReport *AutoUpdateAgentReport
+}
+
+func (b0 CreateAutoUpdateAgentReportRequest_builder) Build() *CreateAutoUpdateAgentReportRequest {
+	m0 := &CreateAutoUpdateAgentReportRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.AutoupdateAgentReport = b.AutoupdateAgentReport
+	return m0
+}
+
 // UpdateAutoUpdateAgentReportRequest is the request to update the provided AutoUpdateAgentReport.
 type UpdateAutoUpdateAgentReportRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// AutoUpdateAgentReport is the AutoUpdateAgentReport to be updated.
 	AutoupdateAgentReport *AutoUpdateAgentReport `protobuf:"bytes,1,opt,name=autoupdate_agent_report,json=autoupdateAgentReport,proto3" json:"autoupdate_agent_report,omitempty"`
 	unknownFields         protoimpl.UnknownFields
@@ -1069,11 +1477,6 @@ func (x *UpdateAutoUpdateAgentReportRequest) ProtoReflect() protoreflect.Message
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateAutoUpdateAgentReportRequest.ProtoReflect.Descriptor instead.
-func (*UpdateAutoUpdateAgentReportRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_service_proto_rawDescGZIP(), []int{22}
-}
-
 func (x *UpdateAutoUpdateAgentReportRequest) GetAutoupdateAgentReport() *AutoUpdateAgentReport {
 	if x != nil {
 		return x.AutoupdateAgentReport
@@ -1081,9 +1484,39 @@ func (x *UpdateAutoUpdateAgentReportRequest) GetAutoupdateAgentReport() *AutoUpd
 	return nil
 }
 
+func (x *UpdateAutoUpdateAgentReportRequest) SetAutoupdateAgentReport(v *AutoUpdateAgentReport) {
+	x.AutoupdateAgentReport = v
+}
+
+func (x *UpdateAutoUpdateAgentReportRequest) HasAutoupdateAgentReport() bool {
+	if x == nil {
+		return false
+	}
+	return x.AutoupdateAgentReport != nil
+}
+
+func (x *UpdateAutoUpdateAgentReportRequest) ClearAutoupdateAgentReport() {
+	x.AutoupdateAgentReport = nil
+}
+
+type UpdateAutoUpdateAgentReportRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// AutoUpdateAgentReport is the AutoUpdateAgentReport to be updated.
+	AutoupdateAgentReport *AutoUpdateAgentReport
+}
+
+func (b0 UpdateAutoUpdateAgentReportRequest_builder) Build() *UpdateAutoUpdateAgentReportRequest {
+	m0 := &UpdateAutoUpdateAgentReportRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.AutoupdateAgentReport = b.AutoupdateAgentReport
+	return m0
+}
+
 // UpsertAutoUpdateAgentReportRequest is the request to upsert the provided AutoUpdateAgentReport.
 type UpsertAutoUpdateAgentReportRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// AutoUpdateAgentReport is the AutoUpdateAgentReport to be upserted.
 	AutoupdateAgentReport *AutoUpdateAgentReport `protobuf:"bytes,1,opt,name=autoupdate_agent_report,json=autoupdateAgentReport,proto3" json:"autoupdate_agent_report,omitempty"`
 	unknownFields         protoimpl.UnknownFields
@@ -1115,11 +1548,6 @@ func (x *UpsertAutoUpdateAgentReportRequest) ProtoReflect() protoreflect.Message
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertAutoUpdateAgentReportRequest.ProtoReflect.Descriptor instead.
-func (*UpsertAutoUpdateAgentReportRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_service_proto_rawDescGZIP(), []int{23}
-}
-
 func (x *UpsertAutoUpdateAgentReportRequest) GetAutoupdateAgentReport() *AutoUpdateAgentReport {
 	if x != nil {
 		return x.AutoupdateAgentReport
@@ -1127,9 +1555,39 @@ func (x *UpsertAutoUpdateAgentReportRequest) GetAutoupdateAgentReport() *AutoUpd
 	return nil
 }
 
+func (x *UpsertAutoUpdateAgentReportRequest) SetAutoupdateAgentReport(v *AutoUpdateAgentReport) {
+	x.AutoupdateAgentReport = v
+}
+
+func (x *UpsertAutoUpdateAgentReportRequest) HasAutoupdateAgentReport() bool {
+	if x == nil {
+		return false
+	}
+	return x.AutoupdateAgentReport != nil
+}
+
+func (x *UpsertAutoUpdateAgentReportRequest) ClearAutoupdateAgentReport() {
+	x.AutoupdateAgentReport = nil
+}
+
+type UpsertAutoUpdateAgentReportRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// AutoUpdateAgentReport is the AutoUpdateAgentReport to be upserted.
+	AutoupdateAgentReport *AutoUpdateAgentReport
+}
+
+func (b0 UpsertAutoUpdateAgentReportRequest_builder) Build() *UpsertAutoUpdateAgentReportRequest {
+	m0 := &UpsertAutoUpdateAgentReportRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.AutoupdateAgentReport = b.AutoupdateAgentReport
+	return m0
+}
+
 // DeleteAutoUpdateAgentReportRequest is a request for deleting a specific AutoUpdateAgentReport resource.
 type DeleteAutoUpdateAgentReportRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the name of the AutoUpdateAgentReport to be deleted.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1161,11 +1619,6 @@ func (x *DeleteAutoUpdateAgentReportRequest) ProtoReflect() protoreflect.Message
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteAutoUpdateAgentReportRequest.ProtoReflect.Descriptor instead.
-func (*DeleteAutoUpdateAgentReportRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_service_proto_rawDescGZIP(), []int{24}
-}
-
 func (x *DeleteAutoUpdateAgentReportRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -1173,9 +1626,28 @@ func (x *DeleteAutoUpdateAgentReportRequest) GetName() string {
 	return ""
 }
 
+func (x *DeleteAutoUpdateAgentReportRequest) SetName(v string) {
+	x.Name = v
+}
+
+type DeleteAutoUpdateAgentReportRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the name of the AutoUpdateAgentReport to be deleted.
+	Name string
+}
+
+func (b0 DeleteAutoUpdateAgentReportRequest_builder) Build() *DeleteAutoUpdateAgentReportRequest {
+	m0 := &DeleteAutoUpdateAgentReportRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // Request for GetAutoUpdateBotInstanceReport.
 type GetAutoUpdateBotInstanceReportRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1205,14 +1677,21 @@ func (x *GetAutoUpdateBotInstanceReportRequest) ProtoReflect() protoreflect.Mess
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetAutoUpdateBotInstanceReportRequest.ProtoReflect.Descriptor instead.
-func (*GetAutoUpdateBotInstanceReportRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_service_proto_rawDescGZIP(), []int{25}
+type GetAutoUpdateBotInstanceReportRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 GetAutoUpdateBotInstanceReportRequest_builder) Build() *GetAutoUpdateBotInstanceReportRequest {
+	m0 := &GetAutoUpdateBotInstanceReportRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // Request for DeleteAutoUpdateBotInstanceReport.
 type DeleteAutoUpdateBotInstanceReportRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1242,9 +1721,16 @@ func (x *DeleteAutoUpdateBotInstanceReportRequest) ProtoReflect() protoreflect.M
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteAutoUpdateBotInstanceReportRequest.ProtoReflect.Descriptor instead.
-func (*DeleteAutoUpdateBotInstanceReportRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_autoupdate_v1_autoupdate_service_proto_rawDescGZIP(), []int{26}
+type DeleteAutoUpdateBotInstanceReportRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 DeleteAutoUpdateBotInstanceReportRequest_builder) Build() *DeleteAutoUpdateBotInstanceReportRequest {
+	m0 := &DeleteAutoUpdateBotInstanceReportRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 var File_teleport_autoupdate_v1_autoupdate_service_proto protoreflect.FileDescriptor
@@ -1332,18 +1818,6 @@ const file_teleport_autoupdate_v1_autoupdate_service_proto_rawDesc = "" +
 	"\x1bDeleteAutoUpdateAgentReport\x12:.teleport.autoupdate.v1.DeleteAutoUpdateAgentReportRequest\x1a\x16.google.protobuf.Empty\x12\x94\x01\n" +
 	"\x1eGetAutoUpdateBotInstanceReport\x12=.teleport.autoupdate.v1.GetAutoUpdateBotInstanceReportRequest\x1a3.teleport.autoupdate.v1.AutoUpdateBotInstanceReport\x12}\n" +
 	"!DeleteAutoUpdateBotInstanceReport\x12@.teleport.autoupdate.v1.DeleteAutoUpdateBotInstanceReportRequest\x1a\x16.google.protobuf.EmptyBVZTgithub.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1;autoupdateb\x06proto3"
-
-var (
-	file_teleport_autoupdate_v1_autoupdate_service_proto_rawDescOnce sync.Once
-	file_teleport_autoupdate_v1_autoupdate_service_proto_rawDescData []byte
-)
-
-func file_teleport_autoupdate_v1_autoupdate_service_proto_rawDescGZIP() []byte {
-	file_teleport_autoupdate_v1_autoupdate_service_proto_rawDescOnce.Do(func() {
-		file_teleport_autoupdate_v1_autoupdate_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_autoupdate_v1_autoupdate_service_proto_rawDesc), len(file_teleport_autoupdate_v1_autoupdate_service_proto_rawDesc)))
-	})
-	return file_teleport_autoupdate_v1_autoupdate_service_proto_rawDescData
-}
 
 var file_teleport_autoupdate_v1_autoupdate_service_proto_msgTypes = make([]protoimpl.MessageInfo, 27)
 var file_teleport_autoupdate_v1_autoupdate_service_proto_goTypes = []any{

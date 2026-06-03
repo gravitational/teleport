@@ -20,7 +20,7 @@ jobs:
       - name: Checkout
         if: ${{ github.event_name == 'merge_group' }}
         uses: actions/checkout@v6
-      - uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
         id: changes
         with:
           base: ${{ github.event.pull_request.base.ref || github.event.merge_group.base_ref }}
@@ -59,7 +59,7 @@ jobs:
 
       - name: Generate GitHub Token
         id: generate_token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.REVIEWERS_APP_ID }}
           private-key: ${{ secrets.REVIEWERS_PRIVATE_KEY }}
@@ -131,6 +131,16 @@ jobs:
       - name: Check spelling
         working-directory: 'docs'
         run: yarn spellcheck content/current
+
+      - name: Check for unused images and partials
+        working-directory: 'docs/content/current'
+        run: |
+          UNUSED=$(build.assets/unused-docs-assets.sh);
+          if [ -n "$UNUSED" ]; then
+            echo "There are unused docs partials and images:";
+            echo "$UNUSED";
+            exit 1;
+          fi
 
       - name: Lint docs formatting
         working-directory: 'docs'

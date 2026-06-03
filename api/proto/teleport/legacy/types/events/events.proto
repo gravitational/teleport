@@ -159,6 +159,9 @@ message UserMetadata {
   // For leaf clusters, this field represents the root cluster name.
   // For root clusters, this field holds the cluster name.
   string UserClusterName = 16 [(gogoproto.jsontag) = "user_cluster_name,omitempty"];
+
+  // ScopePin specifies the current scope pin of the identity.
+  ScopePin scope_pin = 17;
 }
 
 // Server is a server metadata
@@ -3389,6 +3392,8 @@ message DatabaseSessionStart {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+  // CA override details. Optional.
+  CAOverrideCertificateDetails CAOverride = 10 [(gogoproto.jsontag) = "ca_override,omitempty"];
 }
 
 // DatabaseSessionQuery is emitted when a user executes a database query.
@@ -5353,6 +5358,9 @@ message ScopePin {
   // include assignments to parents of the pinned scope as well as assignments to equivalent/child scopes. Effectively, this
   // means all assignments that are not orthogonal to the pinned scope.
   map<string, ScopePinnedAssignments> Assignments = 2 [(gogoproto.jsontag) = "assignments"];
+
+  // SystemRoles encodes the system roles held by the pinned identity. Only specified for AGENT kind pins.
+  repeated string system_roles = 3;
 }
 
 // ScopePinnedAssignments is a collection of scoped role assignments that are relevant to the pinned identity at the target scope.

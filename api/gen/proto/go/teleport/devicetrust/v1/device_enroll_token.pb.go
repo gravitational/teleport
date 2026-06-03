@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/devicetrust/v1/device_enroll_token.proto
 
+//go:build !protoopaque
+
 package devicetrustv1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -40,7 +41,7 @@ const (
 // administrator to an user, to enroll a device.
 // An enrolled device allows its user to perform device-aware actions.
 type DeviceEnrollToken struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Opaque enrollement token required by the EnrollDevice RPC.
 	Token string `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
 	// Expiration time for the token.
@@ -74,11 +75,6 @@ func (x *DeviceEnrollToken) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeviceEnrollToken.ProtoReflect.Descriptor instead.
-func (*DeviceEnrollToken) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_device_enroll_token_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *DeviceEnrollToken) GetToken() string {
 	if x != nil {
 		return x.Token
@@ -93,6 +89,43 @@ func (x *DeviceEnrollToken) GetExpireTime() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *DeviceEnrollToken) SetToken(v string) {
+	x.Token = v
+}
+
+func (x *DeviceEnrollToken) SetExpireTime(v *timestamppb.Timestamp) {
+	x.ExpireTime = v
+}
+
+func (x *DeviceEnrollToken) HasExpireTime() bool {
+	if x == nil {
+		return false
+	}
+	return x.ExpireTime != nil
+}
+
+func (x *DeviceEnrollToken) ClearExpireTime() {
+	x.ExpireTime = nil
+}
+
+type DeviceEnrollToken_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Opaque enrollement token required by the EnrollDevice RPC.
+	Token string
+	// Expiration time for the token.
+	ExpireTime *timestamppb.Timestamp
+}
+
+func (b0 DeviceEnrollToken_builder) Build() *DeviceEnrollToken {
+	m0 := &DeviceEnrollToken{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Token = b.Token
+	x.ExpireTime = b.ExpireTime
+	return m0
+}
+
 var File_teleport_devicetrust_v1_device_enroll_token_proto protoreflect.FileDescriptor
 
 const file_teleport_devicetrust_v1_device_enroll_token_proto_rawDesc = "" +
@@ -102,18 +135,6 @@ const file_teleport_devicetrust_v1_device_enroll_token_proto_rawDesc = "" +
 	"\x05token\x18\x01 \x01(\tR\x05token\x12;\n" +
 	"\vexpire_time\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
 	"expireTimeBZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1;devicetrustv1b\x06proto3"
-
-var (
-	file_teleport_devicetrust_v1_device_enroll_token_proto_rawDescOnce sync.Once
-	file_teleport_devicetrust_v1_device_enroll_token_proto_rawDescData []byte
-)
-
-func file_teleport_devicetrust_v1_device_enroll_token_proto_rawDescGZIP() []byte {
-	file_teleport_devicetrust_v1_device_enroll_token_proto_rawDescOnce.Do(func() {
-		file_teleport_devicetrust_v1_device_enroll_token_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_devicetrust_v1_device_enroll_token_proto_rawDesc), len(file_teleport_devicetrust_v1_device_enroll_token_proto_rawDesc)))
-	})
-	return file_teleport_devicetrust_v1_device_enroll_token_proto_rawDescData
-}
 
 var file_teleport_devicetrust_v1_device_enroll_token_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_teleport_devicetrust_v1_device_enroll_token_proto_goTypes = []any{

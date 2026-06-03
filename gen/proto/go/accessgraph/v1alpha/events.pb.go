@@ -21,6 +21,8 @@
 // 	protoc        (unknown)
 // source: accessgraph/v1alpha/events.proto
 
+//go:build !protoopaque
+
 package accessgraphv1alpha
 
 import (
@@ -28,7 +30,6 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -41,7 +42,7 @@ const (
 
 // AccessPathChanged is an event that is emitted when an access path is changed.
 type AccessPathChanged struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// metadata is a common event metadata
 	Metadata *v1.Metadata `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	// change_id is the id of the change.
@@ -81,11 +82,6 @@ func (x *AccessPathChanged) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AccessPathChanged.ProtoReflect.Descriptor instead.
-func (*AccessPathChanged) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_events_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *AccessPathChanged) GetMetadata() *v1.Metadata {
 	if x != nil {
 		return x.Metadata
@@ -121,6 +117,64 @@ func (x *AccessPathChanged) GetAffectedResourceKind() string {
 	return ""
 }
 
+func (x *AccessPathChanged) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *AccessPathChanged) SetChangeId(v string) {
+	x.ChangeId = v
+}
+
+func (x *AccessPathChanged) SetAffectedResourceName(v string) {
+	x.AffectedResourceName = v
+}
+
+func (x *AccessPathChanged) SetAffectedResourceSource(v string) {
+	x.AffectedResourceSource = v
+}
+
+func (x *AccessPathChanged) SetAffectedResourceKind(v string) {
+	x.AffectedResourceKind = v
+}
+
+func (x *AccessPathChanged) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *AccessPathChanged) ClearMetadata() {
+	x.Metadata = nil
+}
+
+type AccessPathChanged_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// metadata is a common event metadata
+	Metadata *v1.Metadata
+	// change_id is the id of the change.
+	ChangeId string
+	// affected_resource_name is the name of the affected resource.
+	AffectedResourceName string
+	// affected_resource_source is the source of the affected resource, ex: Teleport, AWS, GitLab, etc.
+	AffectedResourceSource string
+	// affected_resource_kind is the kind of the affected resource, ex: user, role, etc.
+	AffectedResourceKind string
+}
+
+func (b0 AccessPathChanged_builder) Build() *AccessPathChanged {
+	m0 := &AccessPathChanged{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Metadata = b.Metadata
+	x.ChangeId = b.ChangeId
+	x.AffectedResourceName = b.AffectedResourceName
+	x.AffectedResourceSource = b.AffectedResourceSource
+	x.AffectedResourceKind = b.AffectedResourceKind
+	return m0
+}
+
 var File_accessgraph_v1alpha_events_proto protoreflect.FileDescriptor
 
 const file_accessgraph_v1alpha_events_proto_rawDesc = "" +
@@ -132,18 +186,6 @@ const file_accessgraph_v1alpha_events_proto_rawDesc = "" +
 	"\x16affected_resource_name\x18\x03 \x01(\tR\x14affectedResourceName\x128\n" +
 	"\x18affected_resource_source\x18\x04 \x01(\tR\x16affectedResourceSource\x124\n" +
 	"\x16affected_resource_kind\x18\x05 \x01(\tR\x14affectedResourceKindBWZUgithub.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alphab\x06proto3"
-
-var (
-	file_accessgraph_v1alpha_events_proto_rawDescOnce sync.Once
-	file_accessgraph_v1alpha_events_proto_rawDescData []byte
-)
-
-func file_accessgraph_v1alpha_events_proto_rawDescGZIP() []byte {
-	file_accessgraph_v1alpha_events_proto_rawDescOnce.Do(func() {
-		file_accessgraph_v1alpha_events_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_accessgraph_v1alpha_events_proto_rawDesc), len(file_accessgraph_v1alpha_events_proto_rawDesc)))
-	})
-	return file_accessgraph_v1alpha_events_proto_rawDescData
-}
 
 var file_accessgraph_v1alpha_events_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_accessgraph_v1alpha_events_proto_goTypes = []any{

@@ -213,7 +213,7 @@ func (b DiscordBot) discordEmbeds(reviews []types.AccessReview) []DiscordEmbed {
 }
 
 func (b DiscordBot) discordMsgText(reqID string, reqData pd.AccessRequestData) string {
-	return "You have a new Role Request:\n" +
+	return accessrequest.MsgTitle(reqData) +
 		accessrequest.MsgFields(reqID, reqData, b.clusterName, b.webProxyURL) +
 		accessrequest.MsgStatusText(reqData.ResolutionTag, reqData.ResolutionReason)
 }

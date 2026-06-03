@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/machineid/v1/workload_identity_service.proto
 
+//go:build !protoopaque
+
 package machineidv1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	durationpb "google.golang.org/protobuf/types/known/durationpb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -38,7 +39,7 @@ const (
 
 // The request for an individual x509 SVID.
 type SVIDRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// A PKIX, ASN.1 DER encoded public key that should be included in the x509
 	// SVID.
 	// Required.
@@ -91,11 +92,6 @@ func (x *SVIDRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SVIDRequest.ProtoReflect.Descriptor instead.
-func (*SVIDRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_workload_identity_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *SVIDRequest) GetPublicKey() []byte {
 	if x != nil {
 		return x.PublicKey
@@ -138,9 +134,88 @@ func (x *SVIDRequest) GetTtl() *durationpb.Duration {
 	return nil
 }
 
+func (x *SVIDRequest) SetPublicKey(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.PublicKey = v
+}
+
+func (x *SVIDRequest) SetSpiffeIdPath(v string) {
+	x.SpiffeIdPath = v
+}
+
+func (x *SVIDRequest) SetDnsSans(v []string) {
+	x.DnsSans = v
+}
+
+func (x *SVIDRequest) SetIpSans(v []string) {
+	x.IpSans = v
+}
+
+func (x *SVIDRequest) SetHint(v string) {
+	x.Hint = v
+}
+
+func (x *SVIDRequest) SetTtl(v *durationpb.Duration) {
+	x.Ttl = v
+}
+
+func (x *SVIDRequest) HasTtl() bool {
+	if x == nil {
+		return false
+	}
+	return x.Ttl != nil
+}
+
+func (x *SVIDRequest) ClearTtl() {
+	x.Ttl = nil
+}
+
+type SVIDRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// A PKIX, ASN.1 DER encoded public key that should be included in the x509
+	// SVID.
+	// Required.
+	PublicKey []byte
+	// The path that should be included in the SPIFFE ID.
+	// This should have a preceding slash and should not have a trailing slash.
+	// Required.
+	SpiffeIdPath string
+	// The DNS SANs that should be included in the x509 SVID.
+	// Optional.
+	DnsSans []string
+	// The IP SANs that should be included in the x509 SVID.
+	// Optional.
+	IpSans []string
+	// A hint that provides a way of distinguishing between SVIDs. These are
+	// user configured and are sent back to the actual workload.
+	// Optional.
+	Hint string
+	// The TTL to use for the x509 SVID. A maximum value is enforced on this
+	// field. Callers should inspect the returned cert to determine if their
+	// requested TTL has been met, and if not, adjust their behaviour. If not
+	// supplied, the default TTL will be the maximum value.
+	Ttl *durationpb.Duration
+}
+
+func (b0 SVIDRequest_builder) Build() *SVIDRequest {
+	m0 := &SVIDRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PublicKey = b.PublicKey
+	x.SpiffeIdPath = b.SpiffeIdPath
+	x.DnsSans = b.DnsSans
+	x.IpSans = b.IpSans
+	x.Hint = b.Hint
+	x.Ttl = b.Ttl
+	return m0
+}
+
 // The generated x509 SVID.
 type SVIDResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// A ASN.1 DER encoded x509 SVID.
 	Certificate []byte `protobuf:"bytes,1,opt,name=certificate,proto3" json:"certificate,omitempty"`
 	// The full SPIFFE ID that was included in the x509 SVID.
@@ -177,11 +252,6 @@ func (x *SVIDResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SVIDResponse.ProtoReflect.Descriptor instead.
-func (*SVIDResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_workload_identity_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *SVIDResponse) GetCertificate() []byte {
 	if x != nil {
 		return x.Certificate
@@ -203,9 +273,46 @@ func (x *SVIDResponse) GetHint() string {
 	return ""
 }
 
+func (x *SVIDResponse) SetCertificate(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Certificate = v
+}
+
+func (x *SVIDResponse) SetSpiffeId(v string) {
+	x.SpiffeId = v
+}
+
+func (x *SVIDResponse) SetHint(v string) {
+	x.Hint = v
+}
+
+type SVIDResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// A ASN.1 DER encoded x509 SVID.
+	Certificate []byte
+	// The full SPIFFE ID that was included in the x509 SVID.
+	SpiffeId string
+	// The hint that was included in SVIDRequest in order to allow a workload to
+	// distinguish an individual SVID.
+	Hint string
+}
+
+func (b0 SVIDResponse_builder) Build() *SVIDResponse {
+	m0 := &SVIDResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Certificate = b.Certificate
+	x.SpiffeId = b.SpiffeId
+	x.Hint = b.Hint
+	return m0
+}
+
 // The request for SignX509SVIDs.
 type SignX509SVIDsRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The SVIDs that should be generated. This is repeated to allow a bot to
 	// request multiple SVIDs at once and reduce the number of round trips.
 	// Must be non-zero length.
@@ -239,11 +346,6 @@ func (x *SignX509SVIDsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SignX509SVIDsRequest.ProtoReflect.Descriptor instead.
-func (*SignX509SVIDsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_workload_identity_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *SignX509SVIDsRequest) GetSvids() []*SVIDRequest {
 	if x != nil {
 		return x.Svids
@@ -251,9 +353,30 @@ func (x *SignX509SVIDsRequest) GetSvids() []*SVIDRequest {
 	return nil
 }
 
+func (x *SignX509SVIDsRequest) SetSvids(v []*SVIDRequest) {
+	x.Svids = v
+}
+
+type SignX509SVIDsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The SVIDs that should be generated. This is repeated to allow a bot to
+	// request multiple SVIDs at once and reduce the number of round trips.
+	// Must be non-zero length.
+	Svids []*SVIDRequest
+}
+
+func (b0 SignX509SVIDsRequest_builder) Build() *SignX509SVIDsRequest {
+	m0 := &SignX509SVIDsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Svids = b.Svids
+	return m0
+}
+
 // The response for SignX509SVIDs.
 type SignX509SVIDsResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The generated SVIDs.
 	Svids         []*SVIDResponse `protobuf:"bytes,1,rep,name=svids,proto3" json:"svids,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -285,11 +408,6 @@ func (x *SignX509SVIDsResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SignX509SVIDsResponse.ProtoReflect.Descriptor instead.
-func (*SignX509SVIDsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_workload_identity_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *SignX509SVIDsResponse) GetSvids() []*SVIDResponse {
 	if x != nil {
 		return x.Svids
@@ -297,9 +415,28 @@ func (x *SignX509SVIDsResponse) GetSvids() []*SVIDResponse {
 	return nil
 }
 
+func (x *SignX509SVIDsResponse) SetSvids(v []*SVIDResponse) {
+	x.Svids = v
+}
+
+type SignX509SVIDsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The generated SVIDs.
+	Svids []*SVIDResponse
+}
+
+func (b0 SignX509SVIDsResponse_builder) Build() *SignX509SVIDsResponse {
+	m0 := &SignX509SVIDsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Svids = b.Svids
+	return m0
+}
+
 // The request for an individual JWT SVID.
 type JWTSVIDRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The path that should be included in the SPIFFE ID.
 	// This should have a preceding slash and should not have a trailing slash.
 	// Required.
@@ -345,11 +482,6 @@ func (x *JWTSVIDRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use JWTSVIDRequest.ProtoReflect.Descriptor instead.
-func (*JWTSVIDRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_workload_identity_service_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *JWTSVIDRequest) GetSpiffeIdPath() string {
 	if x != nil {
 		return x.SpiffeIdPath
@@ -378,9 +510,68 @@ func (x *JWTSVIDRequest) GetHint() string {
 	return ""
 }
 
+func (x *JWTSVIDRequest) SetSpiffeIdPath(v string) {
+	x.SpiffeIdPath = v
+}
+
+func (x *JWTSVIDRequest) SetAudiences(v []string) {
+	x.Audiences = v
+}
+
+func (x *JWTSVIDRequest) SetTtl(v *durationpb.Duration) {
+	x.Ttl = v
+}
+
+func (x *JWTSVIDRequest) SetHint(v string) {
+	x.Hint = v
+}
+
+func (x *JWTSVIDRequest) HasTtl() bool {
+	if x == nil {
+		return false
+	}
+	return x.Ttl != nil
+}
+
+func (x *JWTSVIDRequest) ClearTtl() {
+	x.Ttl = nil
+}
+
+type JWTSVIDRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The path that should be included in the SPIFFE ID.
+	// This should have a preceding slash and should not have a trailing slash.
+	// Required.
+	SpiffeIdPath string
+	// The value that should be included in the JWT SVID as the `aud` claim.
+	// Required.
+	Audiences []string
+	// The TTL to use for the x509 SVID. A maximum value is enforced on this
+	// field. Callers should inspect the returned cert to determine if their
+	// requested TTL has been met, and if not, adjust their behaviour. If not
+	// supplied, the default TTL will be the maximum value.
+	Ttl *durationpb.Duration
+	// A hint that provides a way of distinguishing between SVIDs. These are
+	// user configured and are sent back to the actual workload.
+	// Optional.
+	Hint string
+}
+
+func (b0 JWTSVIDRequest_builder) Build() *JWTSVIDRequest {
+	m0 := &JWTSVIDRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.SpiffeIdPath = b.SpiffeIdPath
+	x.Audiences = b.Audiences
+	x.Ttl = b.Ttl
+	x.Hint = b.Hint
+	return m0
+}
+
 // The generated JWT SVID.
 type JWTSVIDResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The JWT SVID.
 	Jwt string `protobuf:"bytes,1,opt,name=jwt,proto3" json:"jwt,omitempty"`
 	// The JTI that was included in the JWT.
@@ -421,11 +612,6 @@ func (x *JWTSVIDResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use JWTSVIDResponse.ProtoReflect.Descriptor instead.
-func (*JWTSVIDResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_workload_identity_service_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *JWTSVIDResponse) GetJwt() string {
 	if x != nil {
 		return x.Jwt
@@ -461,9 +647,57 @@ func (x *JWTSVIDResponse) GetHint() string {
 	return ""
 }
 
+func (x *JWTSVIDResponse) SetJwt(v string) {
+	x.Jwt = v
+}
+
+func (x *JWTSVIDResponse) SetJti(v string) {
+	x.Jti = v
+}
+
+func (x *JWTSVIDResponse) SetSpiffeId(v string) {
+	x.SpiffeId = v
+}
+
+func (x *JWTSVIDResponse) SetAudiences(v []string) {
+	x.Audiences = v
+}
+
+func (x *JWTSVIDResponse) SetHint(v string) {
+	x.Hint = v
+}
+
+type JWTSVIDResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The JWT SVID.
+	Jwt string
+	// The JTI that was included in the JWT.
+	Jti string
+	// The full SPIFFE ID that was included in the x509 SVID.
+	SpiffeId string
+	// The audiences that were included in the JWT.
+	Audiences []string
+	// The hint that was included in SVIDRequest in order to allow a workload to
+	// distinguish an individual SVID.
+	Hint string
+}
+
+func (b0 JWTSVIDResponse_builder) Build() *JWTSVIDResponse {
+	m0 := &JWTSVIDResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Jwt = b.Jwt
+	x.Jti = b.Jti
+	x.SpiffeId = b.SpiffeId
+	x.Audiences = b.Audiences
+	x.Hint = b.Hint
+	return m0
+}
+
 // The request for SignJWTSVIDs.
 type SignJWTSVIDsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Svids         []*JWTSVIDRequest      `protobuf:"bytes,1,rep,name=svids,proto3" json:"svids,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -494,11 +728,6 @@ func (x *SignJWTSVIDsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SignJWTSVIDsRequest.ProtoReflect.Descriptor instead.
-func (*SignJWTSVIDsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_workload_identity_service_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *SignJWTSVIDsRequest) GetSvids() []*JWTSVIDRequest {
 	if x != nil {
 		return x.Svids
@@ -506,9 +735,27 @@ func (x *SignJWTSVIDsRequest) GetSvids() []*JWTSVIDRequest {
 	return nil
 }
 
+func (x *SignJWTSVIDsRequest) SetSvids(v []*JWTSVIDRequest) {
+	x.Svids = v
+}
+
+type SignJWTSVIDsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Svids []*JWTSVIDRequest
+}
+
+func (b0 SignJWTSVIDsRequest_builder) Build() *SignJWTSVIDsRequest {
+	m0 := &SignJWTSVIDsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Svids = b.Svids
+	return m0
+}
+
 // The response for SignJWTSVIDs.
 type SignJWTSVIDsResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Svids         []*JWTSVIDResponse     `protobuf:"bytes,1,rep,name=svids,proto3" json:"svids,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -539,16 +786,29 @@ func (x *SignJWTSVIDsResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SignJWTSVIDsResponse.ProtoReflect.Descriptor instead.
-func (*SignJWTSVIDsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_workload_identity_service_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *SignJWTSVIDsResponse) GetSvids() []*JWTSVIDResponse {
 	if x != nil {
 		return x.Svids
 	}
 	return nil
+}
+
+func (x *SignJWTSVIDsResponse) SetSvids(v []*JWTSVIDResponse) {
+	x.Svids = v
+}
+
+type SignJWTSVIDsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Svids []*JWTSVIDResponse
+}
+
+func (b0 SignJWTSVIDsResponse_builder) Build() *SignJWTSVIDsResponse {
+	m0 := &SignJWTSVIDsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Svids = b.Svids
+	return m0
 }
 
 var File_teleport_machineid_v1_workload_identity_service_proto protoreflect.FileDescriptor
@@ -590,18 +850,6 @@ const file_teleport_machineid_v1_workload_identity_service_proto_rawDesc = "" +
 	"\x17WorkloadIdentityService\x12l\n" +
 	"\rSignX509SVIDs\x12+.teleport.machineid.v1.SignX509SVIDsRequest\x1a,.teleport.machineid.v1.SignX509SVIDsResponse\"\x00\x12i\n" +
 	"\fSignJWTSVIDs\x12*.teleport.machineid.v1.SignJWTSVIDsRequest\x1a+.teleport.machineid.v1.SignJWTSVIDsResponse\"\x00BVZTgithub.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1;machineidv1b\x06proto3"
-
-var (
-	file_teleport_machineid_v1_workload_identity_service_proto_rawDescOnce sync.Once
-	file_teleport_machineid_v1_workload_identity_service_proto_rawDescData []byte
-)
-
-func file_teleport_machineid_v1_workload_identity_service_proto_rawDescGZIP() []byte {
-	file_teleport_machineid_v1_workload_identity_service_proto_rawDescOnce.Do(func() {
-		file_teleport_machineid_v1_workload_identity_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_machineid_v1_workload_identity_service_proto_rawDesc), len(file_teleport_machineid_v1_workload_identity_service_proto_rawDesc)))
-	})
-	return file_teleport_machineid_v1_workload_identity_service_proto_rawDescData
-}
 
 var file_teleport_machineid_v1_workload_identity_service_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_teleport_machineid_v1_workload_identity_service_proto_goTypes = []any{

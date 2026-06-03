@@ -22,9 +22,46 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
+
+func TestParseLabels(t *testing.T) {
+	// simplest case:
+	m, err := LabelSelectorSpec("key=value")
+	require.NotNil(t, m)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(m, map[string]string{
+		"key": "value",
+	}))
+
+	// multiple values:
+	m, err = LabelSelectorSpec(`type="database";" role"=master,ver="mongoDB v1,2"`)
+	require.NotNil(t, m)
+	require.NoError(t, err)
+	require.Len(t, m, 3)
+	require.Equal(t, "master", m["role"])
+	require.Equal(t, "database", m["type"])
+	require.Equal(t, "mongoDB v1,2", m["ver"])
+
+	// multiple and unicode:
+	m, err = LabelSelectorSpec(`服务器环境=测试,操作系统类别=Linux,机房=华北`)
+	require.NoError(t, err)
+	require.NotNil(t, m)
+	require.Len(t, m, 3)
+	require.Equal(t, "测试", m["服务器环境"])
+	require.Equal(t, "Linux", m["操作系统类别"])
+	require.Equal(t, "华北", m["机房"])
+
+	// invalid specs
+	m, err = LabelSelectorSpec(`type="database,"role"=master,ver="mongoDB v1,2"`)
+	require.Nil(t, m)
+	require.Error(t, err)
+	m, err = LabelSelectorSpec(`type="database",role,master`)
+	require.Nil(t, m)
+	require.Error(t, err)
+}
 
 // TestVariable tests variable parsing
 func TestVariable(t *testing.T) {

@@ -21,6 +21,8 @@
 // 	protoc        (unknown)
 // source: teleport/desktop/v1/tdpb.proto
 
+//go:build !protoopaque
+
 package tdpbv1
 
 import (
@@ -29,7 +31,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	_ "google.golang.org/protobuf/types/descriptorpb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -88,11 +89,6 @@ func (x MouseButtonType) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use MouseButtonType.Descriptor instead.
-func (MouseButtonType) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{0}
-}
-
 // Severity of an alert contained in an Alert message.
 type AlertSeverity int32
 
@@ -141,11 +137,6 @@ func (x AlertSeverity) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use AlertSeverity.Descriptor instead.
-func (AlertSeverity) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{1}
-}
-
 // Represents the axis on which a scroll wheel acts.
 type MouseWheelAxis int32
 
@@ -189,11 +180,6 @@ func (MouseWheelAxis) Type() protoreflect.EnumType {
 
 func (x MouseWheelAxis) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use MouseWheelAxis.Descriptor instead.
-func (MouseWheelAxis) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{2}
 }
 
 // MFA challenge type.
@@ -241,14 +227,9 @@ func (x MFAType) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use MFAType.Descriptor instead.
-func (MFAType) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{3}
-}
-
 // Sent by client to begin a TDPB connection and advertise capabilities.
 type ClientHello struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
+	state          protoimpl.MessageState `protogen:"hybrid.v1"`
 	Username       string                 `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
 	ScreenSpec     *ClientScreenSpec      `protobuf:"bytes,2,opt,name=screen_spec,json=screenSpec,proto3" json:"screen_spec,omitempty"`
 	KeyboardLayout uint32                 `protobuf:"varint,3,opt,name=keyboard_layout,json=keyboardLayout,proto3" json:"keyboard_layout,omitempty"`
@@ -281,11 +262,6 @@ func (x *ClientHello) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ClientHello.ProtoReflect.Descriptor instead.
-func (*ClientHello) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *ClientHello) GetUsername() string {
 	if x != nil {
 		return x.Username
@@ -307,13 +283,55 @@ func (x *ClientHello) GetKeyboardLayout() uint32 {
 	return 0
 }
 
+func (x *ClientHello) SetUsername(v string) {
+	x.Username = v
+}
+
+func (x *ClientHello) SetScreenSpec(v *ClientScreenSpec) {
+	x.ScreenSpec = v
+}
+
+func (x *ClientHello) SetKeyboardLayout(v uint32) {
+	x.KeyboardLayout = v
+}
+
+func (x *ClientHello) HasScreenSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.ScreenSpec != nil
+}
+
+func (x *ClientHello) ClearScreenSpec() {
+	x.ScreenSpec = nil
+}
+
+type ClientHello_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Username       string
+	ScreenSpec     *ClientScreenSpec
+	KeyboardLayout uint32
+}
+
+func (b0 ClientHello_builder) Build() *ClientHello {
+	m0 := &ClientHello{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Username = b.Username
+	x.ScreenSpec = b.ScreenSpec
+	x.KeyboardLayout = b.KeyboardLayout
+	return m0
+}
+
 // Sent by server in response to a 'Client Hello'. Advertises server capabilities.
 type ServerHello struct {
-	state                    protoimpl.MessageState `protogen:"open.v1"`
+	state                    protoimpl.MessageState `protogen:"hybrid.v1"`
 	ActivationSpec           *ConnectionActivated   `protobuf:"bytes,1,opt,name=activation_spec,json=activationSpec,proto3" json:"activation_spec,omitempty"`
 	ClipboardEnabled         bool                   `protobuf:"varint,2,opt,name=clipboard_enabled,json=clipboardEnabled,proto3" json:"clipboard_enabled,omitempty"`
 	DirectoryRemoveSupported bool                   `protobuf:"varint,3,opt,name=directory_remove_supported,json=directoryRemoveSupported,proto3" json:"directory_remove_supported,omitempty"`
 	Sessions                 []*SessionIdentifier   `protobuf:"bytes,4,rep,name=sessions,proto3" json:"sessions,omitempty"`
+	HidpiSupported           bool                   `protobuf:"varint,5,opt,name=hidpi_supported,json=hidpiSupported,proto3" json:"hidpi_supported,omitempty"`
 	unknownFields            protoimpl.UnknownFields
 	sizeCache                protoimpl.SizeCache
 }
@@ -341,11 +359,6 @@ func (x *ServerHello) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ServerHello.ProtoReflect.Descriptor instead.
-func (*ServerHello) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *ServerHello) GetActivationSpec() *ConnectionActivated {
@@ -376,9 +389,69 @@ func (x *ServerHello) GetSessions() []*SessionIdentifier {
 	return nil
 }
 
+func (x *ServerHello) GetHidpiSupported() bool {
+	if x != nil {
+		return x.HidpiSupported
+	}
+	return false
+}
+
+func (x *ServerHello) SetActivationSpec(v *ConnectionActivated) {
+	x.ActivationSpec = v
+}
+
+func (x *ServerHello) SetClipboardEnabled(v bool) {
+	x.ClipboardEnabled = v
+}
+
+func (x *ServerHello) SetDirectoryRemoveSupported(v bool) {
+	x.DirectoryRemoveSupported = v
+}
+
+func (x *ServerHello) SetSessions(v []*SessionIdentifier) {
+	x.Sessions = v
+}
+
+func (x *ServerHello) SetHidpiSupported(v bool) {
+	x.HidpiSupported = v
+}
+
+func (x *ServerHello) HasActivationSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.ActivationSpec != nil
+}
+
+func (x *ServerHello) ClearActivationSpec() {
+	x.ActivationSpec = nil
+}
+
+type ServerHello_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	ActivationSpec           *ConnectionActivated
+	ClipboardEnabled         bool
+	DirectoryRemoveSupported bool
+	Sessions                 []*SessionIdentifier
+	HidpiSupported           bool
+}
+
+func (b0 ServerHello_builder) Build() *ServerHello {
+	m0 := &ServerHello{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ActivationSpec = b.ActivationSpec
+	x.ClipboardEnabled = b.ClipboardEnabled
+	x.DirectoryRemoveSupported = b.DirectoryRemoveSupported
+	x.Sessions = b.Sessions
+	x.HidpiSupported = b.HidpiSupported
+	return m0
+}
+
 // Used to identify sessions available to and selected by users
 type SessionIdentifier struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -409,11 +482,6 @@ func (x *SessionIdentifier) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SessionIdentifier.ProtoReflect.Descriptor instead.
-func (*SessionIdentifier) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *SessionIdentifier) GetName() string {
 	if x != nil {
 		return x.Name
@@ -421,9 +489,27 @@ func (x *SessionIdentifier) GetName() string {
 	return ""
 }
 
+func (x *SessionIdentifier) SetName(v string) {
+	x.Name = v
+}
+
+type SessionIdentifier_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Name string
+}
+
+func (b0 SessionIdentifier_builder) Build() *SessionIdentifier {
+	m0 := &SessionIdentifier{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // Sent by client to select one of available sessions
 type SessionSelection struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Session       *SessionIdentifier     `protobuf:"bytes,1,opt,name=session,proto3" json:"session,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -454,11 +540,6 @@ func (x *SessionSelection) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SessionSelection.ProtoReflect.Descriptor instead.
-func (*SessionSelection) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *SessionSelection) GetSession() *SessionIdentifier {
 	if x != nil {
 		return x.Session
@@ -466,10 +547,39 @@ func (x *SessionSelection) GetSession() *SessionIdentifier {
 	return nil
 }
 
+func (x *SessionSelection) SetSession(v *SessionIdentifier) {
+	x.Session = v
+}
+
+func (x *SessionSelection) HasSession() bool {
+	if x == nil {
+		return false
+	}
+	return x.Session != nil
+}
+
+func (x *SessionSelection) ClearSession() {
+	x.Session = nil
+}
+
+type SessionSelection_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Session *SessionIdentifier
+}
+
+func (b0 SessionSelection_builder) Build() *SessionSelection {
+	m0 := &SessionSelection{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Session = b.Session
+	return m0
+}
+
 // Defines the boundaries that PNG frame will update.
 // Used for composition on PNG frame messages only.
 type Rectangle struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Left          uint32                 `protobuf:"varint,1,opt,name=left,proto3" json:"left,omitempty"`
 	Top           uint32                 `protobuf:"varint,2,opt,name=top,proto3" json:"top,omitempty"`
 	Right         uint32                 `protobuf:"varint,3,opt,name=right,proto3" json:"right,omitempty"`
@@ -503,11 +613,6 @@ func (x *Rectangle) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Rectangle.ProtoReflect.Descriptor instead.
-func (*Rectangle) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *Rectangle) GetLeft() uint32 {
 	if x != nil {
 		return x.Left
@@ -536,9 +641,45 @@ func (x *Rectangle) GetBottom() uint32 {
 	return 0
 }
 
+func (x *Rectangle) SetLeft(v uint32) {
+	x.Left = v
+}
+
+func (x *Rectangle) SetTop(v uint32) {
+	x.Top = v
+}
+
+func (x *Rectangle) SetRight(v uint32) {
+	x.Right = v
+}
+
+func (x *Rectangle) SetBottom(v uint32) {
+	x.Bottom = v
+}
+
+type Rectangle_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Left   uint32
+	Top    uint32
+	Right  uint32
+	Bottom uint32
+}
+
+func (b0 Rectangle_builder) Build() *Rectangle {
+	m0 := &Rectangle{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Left = b.Left
+	x.Top = b.Top
+	x.Right = b.Right
+	x.Bottom = b.Bottom
+	return m0
+}
+
 // Contains updated image data to be displayed.
 type PNGFrame struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Coordinates   *Rectangle             `protobuf:"bytes,1,opt,name=coordinates,proto3" json:"coordinates,omitempty"`
 	Data          []byte                 `protobuf:"bytes,2,opt,name=data,proto3" json:"data,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -570,11 +711,6 @@ func (x *PNGFrame) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PNGFrame.ProtoReflect.Descriptor instead.
-func (*PNGFrame) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *PNGFrame) GetCoordinates() *Rectangle {
 	if x != nil {
 		return x.Coordinates
@@ -589,9 +725,47 @@ func (x *PNGFrame) GetData() []byte {
 	return nil
 }
 
+func (x *PNGFrame) SetCoordinates(v *Rectangle) {
+	x.Coordinates = v
+}
+
+func (x *PNGFrame) SetData(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Data = v
+}
+
+func (x *PNGFrame) HasCoordinates() bool {
+	if x == nil {
+		return false
+	}
+	return x.Coordinates != nil
+}
+
+func (x *PNGFrame) ClearCoordinates() {
+	x.Coordinates = nil
+}
+
+type PNGFrame_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Coordinates *Rectangle
+	Data        []byte
+}
+
+func (b0 PNGFrame_builder) Build() *PNGFrame {
+	m0 := &PNGFrame{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Coordinates = b.Coordinates
+	x.Data = b.Data
+	return m0
+}
+
 // Contains a raw RDP FastPath message to by interpreted by the client.
 type FastPathPDU struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Pdu           []byte                 `protobuf:"bytes,1,opt,name=pdu,proto3" json:"pdu,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -622,11 +796,6 @@ func (x *FastPathPDU) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use FastPathPDU.ProtoReflect.Descriptor instead.
-func (*FastPathPDU) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *FastPathPDU) GetPdu() []byte {
 	if x != nil {
 		return x.Pdu
@@ -634,9 +803,30 @@ func (x *FastPathPDU) GetPdu() []byte {
 	return nil
 }
 
+func (x *FastPathPDU) SetPdu(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Pdu = v
+}
+
+type FastPathPDU_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Pdu []byte
+}
+
+func (b0 FastPathPDU_builder) Build() *FastPathPDU {
+	m0 := &FastPathPDU{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Pdu = b.Pdu
+	return m0
+}
+
 // Contains a raw RDP response PDU to send to the server.
 type RDPResponsePDU struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Response      []byte                 `protobuf:"bytes,1,opt,name=response,proto3" json:"response,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -667,11 +857,6 @@ func (x *RDPResponsePDU) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RDPResponsePDU.ProtoReflect.Descriptor instead.
-func (*RDPResponsePDU) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *RDPResponsePDU) GetResponse() []byte {
 	if x != nil {
 		return x.Response
@@ -679,10 +864,31 @@ func (x *RDPResponsePDU) GetResponse() []byte {
 	return nil
 }
 
+func (x *RDPResponsePDU) SetResponse(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Response = v
+}
+
+type RDPResponsePDU_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Response []byte
+}
+
+func (b0 RDPResponsePDU_builder) Build() *RDPResponsePDU {
+	m0 := &RDPResponsePDU{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Response = b.Response
+	return m0
+}
+
 // Internal message sent by the server after establishing a connection
 // to the RDP host.
 type ConnectionActivated struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	IoChannelId   uint32                 `protobuf:"varint,1,opt,name=io_channel_id,json=ioChannelId,proto3" json:"io_channel_id,omitempty"`
 	UserChannelId uint32                 `protobuf:"varint,2,opt,name=user_channel_id,json=userChannelId,proto3" json:"user_channel_id,omitempty"`
 	ScreenWidth   uint32                 `protobuf:"varint,3,opt,name=screen_width,json=screenWidth,proto3" json:"screen_width,omitempty"`
@@ -716,11 +922,6 @@ func (x *ConnectionActivated) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ConnectionActivated.ProtoReflect.Descriptor instead.
-func (*ConnectionActivated) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{8}
-}
-
 func (x *ConnectionActivated) GetIoChannelId() uint32 {
 	if x != nil {
 		return x.IoChannelId
@@ -749,9 +950,45 @@ func (x *ConnectionActivated) GetScreenHeight() uint32 {
 	return 0
 }
 
+func (x *ConnectionActivated) SetIoChannelId(v uint32) {
+	x.IoChannelId = v
+}
+
+func (x *ConnectionActivated) SetUserChannelId(v uint32) {
+	x.UserChannelId = v
+}
+
+func (x *ConnectionActivated) SetScreenWidth(v uint32) {
+	x.ScreenWidth = v
+}
+
+func (x *ConnectionActivated) SetScreenHeight(v uint32) {
+	x.ScreenHeight = v
+}
+
+type ConnectionActivated_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	IoChannelId   uint32
+	UserChannelId uint32
+	ScreenWidth   uint32
+	ScreenHeight  uint32
+}
+
+func (b0 ConnectionActivated_builder) Build() *ConnectionActivated {
+	m0 := &ConnectionActivated{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.IoChannelId = b.IoChannelId
+	x.UserChannelId = b.UserChannelId
+	x.ScreenWidth = b.ScreenWidth
+	x.ScreenHeight = b.ScreenHeight
+	return m0
+}
+
 // Conveys the current state of keyboard buttons with persistent state.
 type SyncKeys struct {
-	state             protoimpl.MessageState `protogen:"open.v1"`
+	state             protoimpl.MessageState `protogen:"hybrid.v1"`
 	ScrollLockPressed bool                   `protobuf:"varint,1,opt,name=scroll_lock_pressed,json=scrollLockPressed,proto3" json:"scroll_lock_pressed,omitempty"`
 	NumLockState      bool                   `protobuf:"varint,2,opt,name=num_lock_state,json=numLockState,proto3" json:"num_lock_state,omitempty"`
 	CapsLockState     bool                   `protobuf:"varint,3,opt,name=caps_lock_state,json=capsLockState,proto3" json:"caps_lock_state,omitempty"`
@@ -785,11 +1022,6 @@ func (x *SyncKeys) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SyncKeys.ProtoReflect.Descriptor instead.
-func (*SyncKeys) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{9}
-}
-
 func (x *SyncKeys) GetScrollLockPressed() bool {
 	if x != nil {
 		return x.ScrollLockPressed
@@ -818,9 +1050,45 @@ func (x *SyncKeys) GetKanaLockState() bool {
 	return false
 }
 
+func (x *SyncKeys) SetScrollLockPressed(v bool) {
+	x.ScrollLockPressed = v
+}
+
+func (x *SyncKeys) SetNumLockState(v bool) {
+	x.NumLockState = v
+}
+
+func (x *SyncKeys) SetCapsLockState(v bool) {
+	x.CapsLockState = v
+}
+
+func (x *SyncKeys) SetKanaLockState(v bool) {
+	x.KanaLockState = v
+}
+
+type SyncKeys_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	ScrollLockPressed bool
+	NumLockState      bool
+	CapsLockState     bool
+	KanaLockState     bool
+}
+
+func (b0 SyncKeys_builder) Build() *SyncKeys {
+	m0 := &SyncKeys{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ScrollLockPressed = b.ScrollLockPressed
+	x.NumLockState = b.NumLockState
+	x.CapsLockState = b.CapsLockState
+	x.KanaLockState = b.KanaLockState
+	return m0
+}
+
 // Represents the current position of the cursor on the client.
 type MouseMove struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	X             uint32                 `protobuf:"varint,1,opt,name=x,proto3" json:"x,omitempty"`
 	Y             uint32                 `protobuf:"varint,2,opt,name=y,proto3" json:"y,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -852,11 +1120,6 @@ func (x *MouseMove) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use MouseMove.ProtoReflect.Descriptor instead.
-func (*MouseMove) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{10}
-}
-
 func (x *MouseMove) GetX() uint32 {
 	if x != nil {
 		return x.X
@@ -871,9 +1134,33 @@ func (x *MouseMove) GetY() uint32 {
 	return 0
 }
 
+func (x *MouseMove) SetX(v uint32) {
+	x.X = v
+}
+
+func (x *MouseMove) SetY(v uint32) {
+	x.Y = v
+}
+
+type MouseMove_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	X uint32
+	Y uint32
+}
+
+func (b0 MouseMove_builder) Build() *MouseMove {
+	m0 := &MouseMove{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.X = b.X
+	x.Y = b.Y
+	return m0
+}
+
 // Informs the server of a mouse button press.
 type MouseButton struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Button        MouseButtonType        `protobuf:"varint,1,opt,name=button,proto3,enum=teleport.desktop.v1.MouseButtonType" json:"button,omitempty"`
 	Pressed       bool                   `protobuf:"varint,2,opt,name=pressed,proto3" json:"pressed,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -905,11 +1192,6 @@ func (x *MouseButton) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use MouseButton.ProtoReflect.Descriptor instead.
-func (*MouseButton) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{11}
-}
-
 func (x *MouseButton) GetButton() MouseButtonType {
 	if x != nil {
 		return x.Button
@@ -924,9 +1206,33 @@ func (x *MouseButton) GetPressed() bool {
 	return false
 }
 
+func (x *MouseButton) SetButton(v MouseButtonType) {
+	x.Button = v
+}
+
+func (x *MouseButton) SetPressed(v bool) {
+	x.Pressed = v
+}
+
+type MouseButton_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Button  MouseButtonType
+	Pressed bool
+}
+
+func (b0 MouseButton_builder) Build() *MouseButton {
+	m0 := &MouseButton{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Button = b.Button
+	x.Pressed = b.Pressed
+	return m0
+}
+
 // Informs the server of a keyboard button press.
 type KeyboardButton struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	KeyCode       uint32                 `protobuf:"varint,1,opt,name=key_code,json=keyCode,proto3" json:"key_code,omitempty"`
 	Pressed       bool                   `protobuf:"varint,2,opt,name=pressed,proto3" json:"pressed,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -958,11 +1264,6 @@ func (x *KeyboardButton) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use KeyboardButton.ProtoReflect.Descriptor instead.
-func (*KeyboardButton) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{12}
-}
-
 func (x *KeyboardButton) GetKeyCode() uint32 {
 	if x != nil {
 		return x.KeyCode
@@ -977,14 +1278,40 @@ func (x *KeyboardButton) GetPressed() bool {
 	return false
 }
 
+func (x *KeyboardButton) SetKeyCode(v uint32) {
+	x.KeyCode = v
+}
+
+func (x *KeyboardButton) SetPressed(v bool) {
+	x.Pressed = v
+}
+
+type KeyboardButton_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	KeyCode uint32
+	Pressed bool
+}
+
+func (b0 KeyboardButton_builder) Build() *KeyboardButton {
+	m0 := &KeyboardButton{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.KeyCode = b.KeyCode
+	x.Pressed = b.Pressed
+	return m0
+}
+
 // Composed in Client Hello to inform the server of the client's screen size.
 // May also be sent during a desktop session as the client resizes its display.
 // These mesasages are captured for session recordings in order to replay
 // resizing events.
 type ClientScreenSpec struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Width         uint32                 `protobuf:"varint,1,opt,name=width,proto3" json:"width,omitempty"`
-	Height        uint32                 `protobuf:"varint,2,opt,name=height,proto3" json:"height,omitempty"`
+	state  protoimpl.MessageState `protogen:"hybrid.v1"`
+	Width  uint32                 `protobuf:"varint,1,opt,name=width,proto3" json:"width,omitempty"`
+	Height uint32                 `protobuf:"varint,2,opt,name=height,proto3" json:"height,omitempty"`
+	// Display scale factor as a percentage (e.g. 100 for 1x, 200 for 2x).
+	Scale         uint32 `protobuf:"varint,3,opt,name=scale,proto3" json:"scale,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1014,11 +1341,6 @@ func (x *ClientScreenSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ClientScreenSpec.ProtoReflect.Descriptor instead.
-func (*ClientScreenSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{13}
-}
-
 func (x *ClientScreenSpec) GetWidth() uint32 {
 	if x != nil {
 		return x.Width
@@ -1033,9 +1355,47 @@ func (x *ClientScreenSpec) GetHeight() uint32 {
 	return 0
 }
 
+func (x *ClientScreenSpec) GetScale() uint32 {
+	if x != nil {
+		return x.Scale
+	}
+	return 0
+}
+
+func (x *ClientScreenSpec) SetWidth(v uint32) {
+	x.Width = v
+}
+
+func (x *ClientScreenSpec) SetHeight(v uint32) {
+	x.Height = v
+}
+
+func (x *ClientScreenSpec) SetScale(v uint32) {
+	x.Scale = v
+}
+
+type ClientScreenSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Width  uint32
+	Height uint32
+	// Display scale factor as a percentage (e.g. 100 for 1x, 200 for 2x).
+	Scale uint32
+}
+
+func (b0 ClientScreenSpec_builder) Build() *ClientScreenSpec {
+	m0 := &ClientScreenSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Width = b.Width
+	x.Height = b.Height
+	x.Scale = b.Scale
+	return m0
+}
+
 // Represents an Alert to be displayed by the client.
 type Alert struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Message       string                 `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
 	Severity      AlertSeverity          `protobuf:"varint,2,opt,name=severity,proto3,enum=teleport.desktop.v1.AlertSeverity" json:"severity,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1067,11 +1427,6 @@ func (x *Alert) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Alert.ProtoReflect.Descriptor instead.
-func (*Alert) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{14}
-}
-
 func (x *Alert) GetMessage() string {
 	if x != nil {
 		return x.Message
@@ -1086,9 +1441,33 @@ func (x *Alert) GetSeverity() AlertSeverity {
 	return AlertSeverity_ALERT_SEVERITY_UNSPECIFIED
 }
 
+func (x *Alert) SetMessage(v string) {
+	x.Message = v
+}
+
+func (x *Alert) SetSeverity(v AlertSeverity) {
+	x.Severity = v
+}
+
+type Alert_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Message  string
+	Severity AlertSeverity
+}
+
+func (b0 Alert_builder) Build() *Alert {
+	m0 := &Alert{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Message = b.Message
+	x.Severity = b.Severity
+	return m0
+}
+
 // Mouse wheel event.
 type MouseWheel struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Axis          MouseWheelAxis         `protobuf:"varint,1,opt,name=axis,proto3,enum=teleport.desktop.v1.MouseWheelAxis" json:"axis,omitempty"`
 	Delta         int32                  `protobuf:"varint,2,opt,name=delta,proto3" json:"delta,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1120,11 +1499,6 @@ func (x *MouseWheel) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use MouseWheel.ProtoReflect.Descriptor instead.
-func (*MouseWheel) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{15}
-}
-
 func (x *MouseWheel) GetAxis() MouseWheelAxis {
 	if x != nil {
 		return x.Axis
@@ -1139,9 +1513,33 @@ func (x *MouseWheel) GetDelta() int32 {
 	return 0
 }
 
+func (x *MouseWheel) SetAxis(v MouseWheelAxis) {
+	x.Axis = v
+}
+
+func (x *MouseWheel) SetDelta(v int32) {
+	x.Delta = v
+}
+
+type MouseWheel_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Axis  MouseWheelAxis
+	Delta int32
+}
+
+func (b0 MouseWheel_builder) Build() *MouseWheel {
+	m0 := &MouseWheel{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Axis = b.Axis
+	x.Delta = b.Delta
+	return m0
+}
+
 // Represents shared clipboard data.
 type ClipboardData struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Data          []byte                 `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1172,11 +1570,6 @@ func (x *ClipboardData) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ClipboardData.ProtoReflect.Descriptor instead.
-func (*ClipboardData) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{16}
-}
-
 func (x *ClipboardData) GetData() []byte {
 	if x != nil {
 		return x.Data
@@ -1184,11 +1577,32 @@ func (x *ClipboardData) GetData() []byte {
 	return nil
 }
 
+func (x *ClipboardData) SetData(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Data = v
+}
+
+type ClipboardData_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Data []byte
+}
+
+func (b0 ClipboardData_builder) Build() *ClipboardData {
+	m0 := &ClipboardData{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Data = b.Data
+	return m0
+}
+
 // Contains an MFA challenge or response
 // The client implicitly expects a non-empty challenge while the server
 // expects a non-empty response.
 type MFA struct {
-	state                  protoimpl.MessageState    `protogen:"open.v1"`
+	state                  protoimpl.MessageState    `protogen:"hybrid.v1"`
 	Type                   MFAType                   `protobuf:"varint,1,opt,name=type,proto3,enum=teleport.desktop.v1.MFAType" json:"type,omitempty"`
 	ChannelId              string                    `protobuf:"bytes,2,opt,name=channel_id,json=channelId,proto3" json:"channel_id,omitempty"`
 	Challenge              *v1.AuthenticateChallenge `protobuf:"bytes,3,opt,name=challenge,proto3" json:"challenge,omitempty"`
@@ -1222,11 +1636,6 @@ func (x *MFA) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use MFA.ProtoReflect.Descriptor instead.
-func (*MFA) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{17}
-}
-
 func (x *MFA) GetType() MFAType {
 	if x != nil {
 		return x.Type
@@ -1255,9 +1664,67 @@ func (x *MFA) GetAuthenticationResponse() *v1.AuthenticateResponse {
 	return nil
 }
 
+func (x *MFA) SetType(v MFAType) {
+	x.Type = v
+}
+
+func (x *MFA) SetChannelId(v string) {
+	x.ChannelId = v
+}
+
+func (x *MFA) SetChallenge(v *v1.AuthenticateChallenge) {
+	x.Challenge = v
+}
+
+func (x *MFA) SetAuthenticationResponse(v *v1.AuthenticateResponse) {
+	x.AuthenticationResponse = v
+}
+
+func (x *MFA) HasChallenge() bool {
+	if x == nil {
+		return false
+	}
+	return x.Challenge != nil
+}
+
+func (x *MFA) HasAuthenticationResponse() bool {
+	if x == nil {
+		return false
+	}
+	return x.AuthenticationResponse != nil
+}
+
+func (x *MFA) ClearChallenge() {
+	x.Challenge = nil
+}
+
+func (x *MFA) ClearAuthenticationResponse() {
+	x.AuthenticationResponse = nil
+}
+
+type MFA_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Type                   MFAType
+	ChannelId              string
+	Challenge              *v1.AuthenticateChallenge
+	AuthenticationResponse *v1.AuthenticateResponse
+}
+
+func (b0 MFA_builder) Build() *MFA {
+	m0 := &MFA{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Type = b.Type
+	x.ChannelId = b.ChannelId
+	x.Challenge = b.Challenge
+	x.AuthenticationResponse = b.AuthenticationResponse
+	return m0
+}
+
 // Sent by client to announce a new shared directory.
 type SharedDirectoryAnnounce struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	DirectoryId   uint32                 `protobuf:"varint,1,opt,name=directory_id,json=directoryId,proto3" json:"directory_id,omitempty"`
 	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1289,11 +1756,6 @@ func (x *SharedDirectoryAnnounce) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SharedDirectoryAnnounce.ProtoReflect.Descriptor instead.
-func (*SharedDirectoryAnnounce) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{18}
-}
-
 func (x *SharedDirectoryAnnounce) GetDirectoryId() uint32 {
 	if x != nil {
 		return x.DirectoryId
@@ -1308,9 +1770,33 @@ func (x *SharedDirectoryAnnounce) GetName() string {
 	return ""
 }
 
+func (x *SharedDirectoryAnnounce) SetDirectoryId(v uint32) {
+	x.DirectoryId = v
+}
+
+func (x *SharedDirectoryAnnounce) SetName(v string) {
+	x.Name = v
+}
+
+type SharedDirectoryAnnounce_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	DirectoryId uint32
+	Name        string
+}
+
+func (b0 SharedDirectoryAnnounce_builder) Build() *SharedDirectoryAnnounce {
+	m0 := &SharedDirectoryAnnounce{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.DirectoryId = b.DirectoryId
+	x.Name = b.Name
+	return m0
+}
+
 // Sent by client to remove a previously announced shared directory.
 type SharedDirectoryRemove struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	DirectoryId   uint32                 `protobuf:"varint,1,opt,name=directory_id,json=directoryId,proto3" json:"directory_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1341,11 +1827,6 @@ func (x *SharedDirectoryRemove) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SharedDirectoryRemove.ProtoReflect.Descriptor instead.
-func (*SharedDirectoryRemove) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{19}
-}
-
 func (x *SharedDirectoryRemove) GetDirectoryId() uint32 {
 	if x != nil {
 		return x.DirectoryId
@@ -1353,9 +1834,27 @@ func (x *SharedDirectoryRemove) GetDirectoryId() uint32 {
 	return 0
 }
 
+func (x *SharedDirectoryRemove) SetDirectoryId(v uint32) {
+	x.DirectoryId = v
+}
+
+type SharedDirectoryRemove_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	DirectoryId uint32
+}
+
+func (b0 SharedDirectoryRemove_builder) Build() *SharedDirectoryRemove {
+	m0 := &SharedDirectoryRemove{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.DirectoryId = b.DirectoryId
+	return m0
+}
+
 // Sent by server to acknowledge a new shared directory.
 type SharedDirectoryAcknowledge struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	DirectoryId   uint32                 `protobuf:"varint,1,opt,name=directory_id,json=directoryId,proto3" json:"directory_id,omitempty"`
 	ErrorCode     uint32                 `protobuf:"varint,2,opt,name=error_code,json=errorCode,proto3" json:"error_code,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1387,11 +1886,6 @@ func (x *SharedDirectoryAcknowledge) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SharedDirectoryAcknowledge.ProtoReflect.Descriptor instead.
-func (*SharedDirectoryAcknowledge) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{20}
-}
-
 func (x *SharedDirectoryAcknowledge) GetDirectoryId() uint32 {
 	if x != nil {
 		return x.DirectoryId
@@ -1406,9 +1900,33 @@ func (x *SharedDirectoryAcknowledge) GetErrorCode() uint32 {
 	return 0
 }
 
+func (x *SharedDirectoryAcknowledge) SetDirectoryId(v uint32) {
+	x.DirectoryId = v
+}
+
+func (x *SharedDirectoryAcknowledge) SetErrorCode(v uint32) {
+	x.ErrorCode = v
+}
+
+type SharedDirectoryAcknowledge_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	DirectoryId uint32
+	ErrorCode   uint32
+}
+
+func (b0 SharedDirectoryAcknowledge_builder) Build() *SharedDirectoryAcknowledge {
+	m0 := &SharedDirectoryAcknowledge{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.DirectoryId = b.DirectoryId
+	x.ErrorCode = b.ErrorCode
+	return m0
+}
+
 // Shared directory operation requests.
 type SharedDirectoryRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Common fields used for all request types.
 	DirectoryId  uint32 `protobuf:"varint,1,opt,name=directory_id,json=directoryId,proto3" json:"directory_id,omitempty"`
 	CompletionId uint32 `protobuf:"varint,2,opt,name=completion_id,json=completionId,proto3" json:"completion_id,omitempty"`
@@ -1452,11 +1970,6 @@ func (x *SharedDirectoryRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SharedDirectoryRequest.ProtoReflect.Descriptor instead.
-func (*SharedDirectoryRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *SharedDirectoryRequest) GetDirectoryId() uint32 {
@@ -1552,6 +2065,300 @@ func (x *SharedDirectoryRequest) GetTruncate() *SharedDirectoryRequest_Truncate 
 	return nil
 }
 
+func (x *SharedDirectoryRequest) SetDirectoryId(v uint32) {
+	x.DirectoryId = v
+}
+
+func (x *SharedDirectoryRequest) SetCompletionId(v uint32) {
+	x.CompletionId = v
+}
+
+func (x *SharedDirectoryRequest) SetInfo(v *SharedDirectoryRequest_Info) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &SharedDirectoryRequest_Info_{v}
+}
+
+func (x *SharedDirectoryRequest) SetCreate(v *SharedDirectoryRequest_Create) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &SharedDirectoryRequest_Create_{v}
+}
+
+func (x *SharedDirectoryRequest) SetDelete(v *SharedDirectoryRequest_Delete) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &SharedDirectoryRequest_Delete_{v}
+}
+
+func (x *SharedDirectoryRequest) SetList(v *SharedDirectoryRequest_List) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &SharedDirectoryRequest_List_{v}
+}
+
+func (x *SharedDirectoryRequest) SetRead(v *SharedDirectoryRequest_Read) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &SharedDirectoryRequest_Read_{v}
+}
+
+func (x *SharedDirectoryRequest) SetWrite(v *SharedDirectoryRequest_Write) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &SharedDirectoryRequest_Write_{v}
+}
+
+func (x *SharedDirectoryRequest) SetMove(v *SharedDirectoryRequest_Move) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &SharedDirectoryRequest_Move_{v}
+}
+
+func (x *SharedDirectoryRequest) SetTruncate(v *SharedDirectoryRequest_Truncate) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &SharedDirectoryRequest_Truncate_{v}
+}
+
+func (x *SharedDirectoryRequest) HasOperation() bool {
+	if x == nil {
+		return false
+	}
+	return x.Operation != nil
+}
+
+func (x *SharedDirectoryRequest) HasInfo() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*SharedDirectoryRequest_Info_)
+	return ok
+}
+
+func (x *SharedDirectoryRequest) HasCreate() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*SharedDirectoryRequest_Create_)
+	return ok
+}
+
+func (x *SharedDirectoryRequest) HasDelete() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*SharedDirectoryRequest_Delete_)
+	return ok
+}
+
+func (x *SharedDirectoryRequest) HasList() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*SharedDirectoryRequest_List_)
+	return ok
+}
+
+func (x *SharedDirectoryRequest) HasRead() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*SharedDirectoryRequest_Read_)
+	return ok
+}
+
+func (x *SharedDirectoryRequest) HasWrite() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*SharedDirectoryRequest_Write_)
+	return ok
+}
+
+func (x *SharedDirectoryRequest) HasMove() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*SharedDirectoryRequest_Move_)
+	return ok
+}
+
+func (x *SharedDirectoryRequest) HasTruncate() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*SharedDirectoryRequest_Truncate_)
+	return ok
+}
+
+func (x *SharedDirectoryRequest) ClearOperation() {
+	x.Operation = nil
+}
+
+func (x *SharedDirectoryRequest) ClearInfo() {
+	if _, ok := x.Operation.(*SharedDirectoryRequest_Info_); ok {
+		x.Operation = nil
+	}
+}
+
+func (x *SharedDirectoryRequest) ClearCreate() {
+	if _, ok := x.Operation.(*SharedDirectoryRequest_Create_); ok {
+		x.Operation = nil
+	}
+}
+
+func (x *SharedDirectoryRequest) ClearDelete() {
+	if _, ok := x.Operation.(*SharedDirectoryRequest_Delete_); ok {
+		x.Operation = nil
+	}
+}
+
+func (x *SharedDirectoryRequest) ClearList() {
+	if _, ok := x.Operation.(*SharedDirectoryRequest_List_); ok {
+		x.Operation = nil
+	}
+}
+
+func (x *SharedDirectoryRequest) ClearRead() {
+	if _, ok := x.Operation.(*SharedDirectoryRequest_Read_); ok {
+		x.Operation = nil
+	}
+}
+
+func (x *SharedDirectoryRequest) ClearWrite() {
+	if _, ok := x.Operation.(*SharedDirectoryRequest_Write_); ok {
+		x.Operation = nil
+	}
+}
+
+func (x *SharedDirectoryRequest) ClearMove() {
+	if _, ok := x.Operation.(*SharedDirectoryRequest_Move_); ok {
+		x.Operation = nil
+	}
+}
+
+func (x *SharedDirectoryRequest) ClearTruncate() {
+	if _, ok := x.Operation.(*SharedDirectoryRequest_Truncate_); ok {
+		x.Operation = nil
+	}
+}
+
+const SharedDirectoryRequest_Operation_not_set_case case_SharedDirectoryRequest_Operation = 0
+const SharedDirectoryRequest_Info_case case_SharedDirectoryRequest_Operation = 3
+const SharedDirectoryRequest_Create_case case_SharedDirectoryRequest_Operation = 4
+const SharedDirectoryRequest_Delete_case case_SharedDirectoryRequest_Operation = 5
+const SharedDirectoryRequest_List_case case_SharedDirectoryRequest_Operation = 6
+const SharedDirectoryRequest_Read_case case_SharedDirectoryRequest_Operation = 7
+const SharedDirectoryRequest_Write_case case_SharedDirectoryRequest_Operation = 8
+const SharedDirectoryRequest_Move_case case_SharedDirectoryRequest_Operation = 9
+const SharedDirectoryRequest_Truncate_case case_SharedDirectoryRequest_Operation = 10
+
+func (x *SharedDirectoryRequest) WhichOperation() case_SharedDirectoryRequest_Operation {
+	if x == nil {
+		return SharedDirectoryRequest_Operation_not_set_case
+	}
+	switch x.Operation.(type) {
+	case *SharedDirectoryRequest_Info_:
+		return SharedDirectoryRequest_Info_case
+	case *SharedDirectoryRequest_Create_:
+		return SharedDirectoryRequest_Create_case
+	case *SharedDirectoryRequest_Delete_:
+		return SharedDirectoryRequest_Delete_case
+	case *SharedDirectoryRequest_List_:
+		return SharedDirectoryRequest_List_case
+	case *SharedDirectoryRequest_Read_:
+		return SharedDirectoryRequest_Read_case
+	case *SharedDirectoryRequest_Write_:
+		return SharedDirectoryRequest_Write_case
+	case *SharedDirectoryRequest_Move_:
+		return SharedDirectoryRequest_Move_case
+	case *SharedDirectoryRequest_Truncate_:
+		return SharedDirectoryRequest_Truncate_case
+	default:
+		return SharedDirectoryRequest_Operation_not_set_case
+	}
+}
+
+type SharedDirectoryRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Common fields used for all request types.
+	DirectoryId  uint32
+	CompletionId uint32
+	// operation is the particular operation type being requested.
+
+	// Fields of oneof Operation:
+	Info     *SharedDirectoryRequest_Info
+	Create   *SharedDirectoryRequest_Create
+	Delete   *SharedDirectoryRequest_Delete
+	List     *SharedDirectoryRequest_List
+	Read     *SharedDirectoryRequest_Read
+	Write    *SharedDirectoryRequest_Write
+	Move     *SharedDirectoryRequest_Move
+	Truncate *SharedDirectoryRequest_Truncate
+	// -- end of Operation
+}
+
+func (b0 SharedDirectoryRequest_builder) Build() *SharedDirectoryRequest {
+	m0 := &SharedDirectoryRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.DirectoryId = b.DirectoryId
+	x.CompletionId = b.CompletionId
+	if b.Info != nil {
+		x.Operation = &SharedDirectoryRequest_Info_{b.Info}
+	}
+	if b.Create != nil {
+		x.Operation = &SharedDirectoryRequest_Create_{b.Create}
+	}
+	if b.Delete != nil {
+		x.Operation = &SharedDirectoryRequest_Delete_{b.Delete}
+	}
+	if b.List != nil {
+		x.Operation = &SharedDirectoryRequest_List_{b.List}
+	}
+	if b.Read != nil {
+		x.Operation = &SharedDirectoryRequest_Read_{b.Read}
+	}
+	if b.Write != nil {
+		x.Operation = &SharedDirectoryRequest_Write_{b.Write}
+	}
+	if b.Move != nil {
+		x.Operation = &SharedDirectoryRequest_Move_{b.Move}
+	}
+	if b.Truncate != nil {
+		x.Operation = &SharedDirectoryRequest_Truncate_{b.Truncate}
+	}
+	return m0
+}
+
+type case_SharedDirectoryRequest_Operation protoreflect.FieldNumber
+
+func (x case_SharedDirectoryRequest_Operation) String() string {
+	md := file_teleport_desktop_v1_tdpb_proto_msgTypes[21].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isSharedDirectoryRequest_Operation interface {
 	isSharedDirectoryRequest_Operation()
 }
@@ -1606,7 +2413,7 @@ func (*SharedDirectoryRequest_Truncate_) isSharedDirectoryRequest_Operation() {}
 
 // Shared directory operation responses.
 type SharedDirectoryResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Common fields used for all response types.
 	CompletionId uint32 `protobuf:"varint,1,opt,name=completion_id,json=completionId,proto3" json:"completion_id,omitempty"`
 	ErrorCode    uint32 `protobuf:"varint,2,opt,name=error_code,json=errorCode,proto3" json:"error_code,omitempty"`
@@ -1651,11 +2458,6 @@ func (x *SharedDirectoryResponse) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SharedDirectoryResponse.ProtoReflect.Descriptor instead.
-func (*SharedDirectoryResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *SharedDirectoryResponse) GetCompletionId() uint32 {
@@ -1751,6 +2553,301 @@ func (x *SharedDirectoryResponse) GetTruncate() *SharedDirectoryResponse_Truncat
 	return nil
 }
 
+func (x *SharedDirectoryResponse) SetCompletionId(v uint32) {
+	x.CompletionId = v
+}
+
+func (x *SharedDirectoryResponse) SetErrorCode(v uint32) {
+	x.ErrorCode = v
+}
+
+func (x *SharedDirectoryResponse) SetInfo(v *SharedDirectoryResponse_Info) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &SharedDirectoryResponse_Info_{v}
+}
+
+func (x *SharedDirectoryResponse) SetCreate(v *SharedDirectoryResponse_Create) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &SharedDirectoryResponse_Create_{v}
+}
+
+func (x *SharedDirectoryResponse) SetDelete(v *SharedDirectoryResponse_Delete) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &SharedDirectoryResponse_Delete_{v}
+}
+
+func (x *SharedDirectoryResponse) SetList(v *SharedDirectoryResponse_List) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &SharedDirectoryResponse_List_{v}
+}
+
+func (x *SharedDirectoryResponse) SetRead(v *SharedDirectoryResponse_Read) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &SharedDirectoryResponse_Read_{v}
+}
+
+func (x *SharedDirectoryResponse) SetWrite(v *SharedDirectoryResponse_Write) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &SharedDirectoryResponse_Write_{v}
+}
+
+func (x *SharedDirectoryResponse) SetMove(v *SharedDirectoryResponse_Move) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &SharedDirectoryResponse_Move_{v}
+}
+
+func (x *SharedDirectoryResponse) SetTruncate(v *SharedDirectoryResponse_Truncate) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &SharedDirectoryResponse_Truncate_{v}
+}
+
+func (x *SharedDirectoryResponse) HasOperation() bool {
+	if x == nil {
+		return false
+	}
+	return x.Operation != nil
+}
+
+func (x *SharedDirectoryResponse) HasInfo() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*SharedDirectoryResponse_Info_)
+	return ok
+}
+
+func (x *SharedDirectoryResponse) HasCreate() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*SharedDirectoryResponse_Create_)
+	return ok
+}
+
+func (x *SharedDirectoryResponse) HasDelete() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*SharedDirectoryResponse_Delete_)
+	return ok
+}
+
+func (x *SharedDirectoryResponse) HasList() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*SharedDirectoryResponse_List_)
+	return ok
+}
+
+func (x *SharedDirectoryResponse) HasRead() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*SharedDirectoryResponse_Read_)
+	return ok
+}
+
+func (x *SharedDirectoryResponse) HasWrite() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*SharedDirectoryResponse_Write_)
+	return ok
+}
+
+func (x *SharedDirectoryResponse) HasMove() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*SharedDirectoryResponse_Move_)
+	return ok
+}
+
+func (x *SharedDirectoryResponse) HasTruncate() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*SharedDirectoryResponse_Truncate_)
+	return ok
+}
+
+func (x *SharedDirectoryResponse) ClearOperation() {
+	x.Operation = nil
+}
+
+func (x *SharedDirectoryResponse) ClearInfo() {
+	if _, ok := x.Operation.(*SharedDirectoryResponse_Info_); ok {
+		x.Operation = nil
+	}
+}
+
+func (x *SharedDirectoryResponse) ClearCreate() {
+	if _, ok := x.Operation.(*SharedDirectoryResponse_Create_); ok {
+		x.Operation = nil
+	}
+}
+
+func (x *SharedDirectoryResponse) ClearDelete() {
+	if _, ok := x.Operation.(*SharedDirectoryResponse_Delete_); ok {
+		x.Operation = nil
+	}
+}
+
+func (x *SharedDirectoryResponse) ClearList() {
+	if _, ok := x.Operation.(*SharedDirectoryResponse_List_); ok {
+		x.Operation = nil
+	}
+}
+
+func (x *SharedDirectoryResponse) ClearRead() {
+	if _, ok := x.Operation.(*SharedDirectoryResponse_Read_); ok {
+		x.Operation = nil
+	}
+}
+
+func (x *SharedDirectoryResponse) ClearWrite() {
+	if _, ok := x.Operation.(*SharedDirectoryResponse_Write_); ok {
+		x.Operation = nil
+	}
+}
+
+func (x *SharedDirectoryResponse) ClearMove() {
+	if _, ok := x.Operation.(*SharedDirectoryResponse_Move_); ok {
+		x.Operation = nil
+	}
+}
+
+func (x *SharedDirectoryResponse) ClearTruncate() {
+	if _, ok := x.Operation.(*SharedDirectoryResponse_Truncate_); ok {
+		x.Operation = nil
+	}
+}
+
+const SharedDirectoryResponse_Operation_not_set_case case_SharedDirectoryResponse_Operation = 0
+const SharedDirectoryResponse_Info_case case_SharedDirectoryResponse_Operation = 3
+const SharedDirectoryResponse_Create_case case_SharedDirectoryResponse_Operation = 4
+const SharedDirectoryResponse_Delete_case case_SharedDirectoryResponse_Operation = 5
+const SharedDirectoryResponse_List_case case_SharedDirectoryResponse_Operation = 6
+const SharedDirectoryResponse_Read_case case_SharedDirectoryResponse_Operation = 7
+const SharedDirectoryResponse_Write_case case_SharedDirectoryResponse_Operation = 8
+const SharedDirectoryResponse_Move_case case_SharedDirectoryResponse_Operation = 9
+const SharedDirectoryResponse_Truncate_case case_SharedDirectoryResponse_Operation = 10
+
+func (x *SharedDirectoryResponse) WhichOperation() case_SharedDirectoryResponse_Operation {
+	if x == nil {
+		return SharedDirectoryResponse_Operation_not_set_case
+	}
+	switch x.Operation.(type) {
+	case *SharedDirectoryResponse_Info_:
+		return SharedDirectoryResponse_Info_case
+	case *SharedDirectoryResponse_Create_:
+		return SharedDirectoryResponse_Create_case
+	case *SharedDirectoryResponse_Delete_:
+		return SharedDirectoryResponse_Delete_case
+	case *SharedDirectoryResponse_List_:
+		return SharedDirectoryResponse_List_case
+	case *SharedDirectoryResponse_Read_:
+		return SharedDirectoryResponse_Read_case
+	case *SharedDirectoryResponse_Write_:
+		return SharedDirectoryResponse_Write_case
+	case *SharedDirectoryResponse_Move_:
+		return SharedDirectoryResponse_Move_case
+	case *SharedDirectoryResponse_Truncate_:
+		return SharedDirectoryResponse_Truncate_case
+	default:
+		return SharedDirectoryResponse_Operation_not_set_case
+	}
+}
+
+type SharedDirectoryResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Common fields used for all response types.
+	CompletionId uint32
+	ErrorCode    uint32
+	// operation is the particular operation type that
+	// this response is intended for.
+
+	// Fields of oneof Operation:
+	Info     *SharedDirectoryResponse_Info
+	Create   *SharedDirectoryResponse_Create
+	Delete   *SharedDirectoryResponse_Delete
+	List     *SharedDirectoryResponse_List
+	Read     *SharedDirectoryResponse_Read
+	Write    *SharedDirectoryResponse_Write
+	Move     *SharedDirectoryResponse_Move
+	Truncate *SharedDirectoryResponse_Truncate
+	// -- end of Operation
+}
+
+func (b0 SharedDirectoryResponse_builder) Build() *SharedDirectoryResponse {
+	m0 := &SharedDirectoryResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.CompletionId = b.CompletionId
+	x.ErrorCode = b.ErrorCode
+	if b.Info != nil {
+		x.Operation = &SharedDirectoryResponse_Info_{b.Info}
+	}
+	if b.Create != nil {
+		x.Operation = &SharedDirectoryResponse_Create_{b.Create}
+	}
+	if b.Delete != nil {
+		x.Operation = &SharedDirectoryResponse_Delete_{b.Delete}
+	}
+	if b.List != nil {
+		x.Operation = &SharedDirectoryResponse_List_{b.List}
+	}
+	if b.Read != nil {
+		x.Operation = &SharedDirectoryResponse_Read_{b.Read}
+	}
+	if b.Write != nil {
+		x.Operation = &SharedDirectoryResponse_Write_{b.Write}
+	}
+	if b.Move != nil {
+		x.Operation = &SharedDirectoryResponse_Move_{b.Move}
+	}
+	if b.Truncate != nil {
+		x.Operation = &SharedDirectoryResponse_Truncate_{b.Truncate}
+	}
+	return m0
+}
+
+type case_SharedDirectoryResponse_Operation protoreflect.FieldNumber
+
+func (x case_SharedDirectoryResponse_Operation) String() string {
+	md := file_teleport_desktop_v1_tdpb_proto_msgTypes[22].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isSharedDirectoryResponse_Operation interface {
 	isSharedDirectoryResponse_Operation()
 }
@@ -1805,7 +2902,7 @@ func (*SharedDirectoryResponse_Truncate_) isSharedDirectoryResponse_Operation() 
 
 // Represents a file object in a shared directory.
 type FileSystemObject struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	LastModified  uint64                 `protobuf:"varint,1,opt,name=last_modified,json=lastModified,proto3" json:"last_modified,omitempty"`
 	Size          uint64                 `protobuf:"varint,2,opt,name=size,proto3" json:"size,omitempty"`
 	FileType      uint32                 `protobuf:"varint,3,opt,name=file_type,json=fileType,proto3" json:"file_type,omitempty"`
@@ -1838,11 +2935,6 @@ func (x *FileSystemObject) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use FileSystemObject.ProtoReflect.Descriptor instead.
-func (*FileSystemObject) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *FileSystemObject) GetLastModified() uint64 {
@@ -1880,10 +2972,52 @@ func (x *FileSystemObject) GetPath() string {
 	return ""
 }
 
+func (x *FileSystemObject) SetLastModified(v uint64) {
+	x.LastModified = v
+}
+
+func (x *FileSystemObject) SetSize(v uint64) {
+	x.Size = v
+}
+
+func (x *FileSystemObject) SetFileType(v uint32) {
+	x.FileType = v
+}
+
+func (x *FileSystemObject) SetIsEmpty(v bool) {
+	x.IsEmpty = v
+}
+
+func (x *FileSystemObject) SetPath(v string) {
+	x.Path = v
+}
+
+type FileSystemObject_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	LastModified uint64
+	Size         uint64
+	FileType     uint32
+	IsEmpty      bool
+	Path         string
+}
+
+func (b0 FileSystemObject_builder) Build() *FileSystemObject {
+	m0 := &FileSystemObject{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.LastModified = b.LastModified
+	x.Size = b.Size
+	x.FileType = b.FileType
+	x.IsEmpty = b.IsEmpty
+	x.Path = b.Path
+	return m0
+}
+
 // Contains latency metrics between the proxy and RDP host
 // as well as between the proxy and client.
 type LatencyStats struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
+	state           protoimpl.MessageState `protogen:"hybrid.v1"`
 	ClientLatencyMs uint32                 `protobuf:"varint,1,opt,name=client_latency_ms,json=clientLatencyMs,proto3" json:"client_latency_ms,omitempty"`
 	ServerLatencyMs uint32                 `protobuf:"varint,2,opt,name=server_latency_ms,json=serverLatencyMs,proto3" json:"server_latency_ms,omitempty"`
 	unknownFields   protoimpl.UnknownFields
@@ -1915,11 +3049,6 @@ func (x *LatencyStats) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use LatencyStats.ProtoReflect.Descriptor instead.
-func (*LatencyStats) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{24}
-}
-
 func (x *LatencyStats) GetClientLatencyMs() uint32 {
 	if x != nil {
 		return x.ClientLatencyMs
@@ -1934,9 +3063,33 @@ func (x *LatencyStats) GetServerLatencyMs() uint32 {
 	return 0
 }
 
+func (x *LatencyStats) SetClientLatencyMs(v uint32) {
+	x.ClientLatencyMs = v
+}
+
+func (x *LatencyStats) SetServerLatencyMs(v uint32) {
+	x.ServerLatencyMs = v
+}
+
+type LatencyStats_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	ClientLatencyMs uint32
+	ServerLatencyMs uint32
+}
+
+func (b0 LatencyStats_builder) Build() *LatencyStats {
+	m0 := &LatencyStats{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ClientLatencyMs = b.ClientLatencyMs
+	x.ServerLatencyMs = b.ServerLatencyMs
+	return m0
+}
+
 // A ping message used to time latency between the web client and proxy.
 type Ping struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// UUID is used to correlate message sent by proxy and received from the Windows Desktop Service.
 	Uuid          []byte `protobuf:"bytes,1,opt,name=uuid,proto3" json:"uuid,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1968,11 +3121,6 @@ func (x *Ping) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Ping.ProtoReflect.Descriptor instead.
-func (*Ping) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{25}
-}
-
 func (x *Ping) GetUuid() []byte {
 	if x != nil {
 		return x.Uuid
@@ -1980,9 +3128,31 @@ func (x *Ping) GetUuid() []byte {
 	return nil
 }
 
+func (x *Ping) SetUuid(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Uuid = v
+}
+
+type Ping_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// UUID is used to correlate message sent by proxy and received from the Windows Desktop Service.
+	Uuid []byte
+}
+
+func (b0 Ping_builder) Build() *Ping {
+	m0 := &Ping{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Uuid = b.Uuid
+	return m0
+}
+
 // Envelope wraps all messages that are allowed to be sent on the wire.
 type Envelope struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Payload:
 	//
 	//	*Envelope_ClientHello
@@ -2035,11 +3205,6 @@ func (x *Envelope) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Envelope.ProtoReflect.Descriptor instead.
-func (*Envelope) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *Envelope) GetPayload() isEnvelope_Payload {
@@ -2247,6 +3412,691 @@ func (x *Envelope) GetSessionSelection() *SessionSelection {
 	return nil
 }
 
+func (x *Envelope) SetClientHello(v *ClientHello) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Envelope_ClientHello{v}
+}
+
+func (x *Envelope) SetServerHello(v *ServerHello) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Envelope_ServerHello{v}
+}
+
+func (x *Envelope) SetPngFrame(v *PNGFrame) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Envelope_PngFrame{v}
+}
+
+func (x *Envelope) SetFastPathPdu(v *FastPathPDU) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Envelope_FastPathPdu{v}
+}
+
+func (x *Envelope) SetRdpResponsePdu(v *RDPResponsePDU) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Envelope_RdpResponsePdu{v}
+}
+
+func (x *Envelope) SetSyncKeys(v *SyncKeys) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Envelope_SyncKeys{v}
+}
+
+func (x *Envelope) SetMouseMove(v *MouseMove) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Envelope_MouseMove{v}
+}
+
+func (x *Envelope) SetMouseButton(v *MouseButton) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Envelope_MouseButton{v}
+}
+
+func (x *Envelope) SetKeyboardButton(v *KeyboardButton) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Envelope_KeyboardButton{v}
+}
+
+func (x *Envelope) SetClientScreenSpec(v *ClientScreenSpec) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Envelope_ClientScreenSpec{v}
+}
+
+func (x *Envelope) SetAlert(v *Alert) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Envelope_Alert{v}
+}
+
+func (x *Envelope) SetMouseWheel(v *MouseWheel) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Envelope_MouseWheel{v}
+}
+
+func (x *Envelope) SetClipboardData(v *ClipboardData) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Envelope_ClipboardData{v}
+}
+
+func (x *Envelope) SetMfa(v *MFA) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Envelope_Mfa{v}
+}
+
+func (x *Envelope) SetSharedDirectoryAnnounce(v *SharedDirectoryAnnounce) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Envelope_SharedDirectoryAnnounce{v}
+}
+
+func (x *Envelope) SetSharedDirectoryAcknowledge(v *SharedDirectoryAcknowledge) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Envelope_SharedDirectoryAcknowledge{v}
+}
+
+func (x *Envelope) SetSharedDirectoryRequest(v *SharedDirectoryRequest) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Envelope_SharedDirectoryRequest{v}
+}
+
+func (x *Envelope) SetSharedDirectoryResponse(v *SharedDirectoryResponse) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Envelope_SharedDirectoryResponse{v}
+}
+
+func (x *Envelope) SetLatencyStats(v *LatencyStats) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Envelope_LatencyStats{v}
+}
+
+func (x *Envelope) SetPing(v *Ping) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Envelope_Ping{v}
+}
+
+func (x *Envelope) SetSharedDirectoryRemove(v *SharedDirectoryRemove) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Envelope_SharedDirectoryRemove{v}
+}
+
+func (x *Envelope) SetSessionSelection(v *SessionSelection) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Envelope_SessionSelection{v}
+}
+
+func (x *Envelope) HasPayload() bool {
+	if x == nil {
+		return false
+	}
+	return x.Payload != nil
+}
+
+func (x *Envelope) HasClientHello() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Envelope_ClientHello)
+	return ok
+}
+
+func (x *Envelope) HasServerHello() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Envelope_ServerHello)
+	return ok
+}
+
+func (x *Envelope) HasPngFrame() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Envelope_PngFrame)
+	return ok
+}
+
+func (x *Envelope) HasFastPathPdu() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Envelope_FastPathPdu)
+	return ok
+}
+
+func (x *Envelope) HasRdpResponsePdu() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Envelope_RdpResponsePdu)
+	return ok
+}
+
+func (x *Envelope) HasSyncKeys() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Envelope_SyncKeys)
+	return ok
+}
+
+func (x *Envelope) HasMouseMove() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Envelope_MouseMove)
+	return ok
+}
+
+func (x *Envelope) HasMouseButton() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Envelope_MouseButton)
+	return ok
+}
+
+func (x *Envelope) HasKeyboardButton() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Envelope_KeyboardButton)
+	return ok
+}
+
+func (x *Envelope) HasClientScreenSpec() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Envelope_ClientScreenSpec)
+	return ok
+}
+
+func (x *Envelope) HasAlert() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Envelope_Alert)
+	return ok
+}
+
+func (x *Envelope) HasMouseWheel() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Envelope_MouseWheel)
+	return ok
+}
+
+func (x *Envelope) HasClipboardData() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Envelope_ClipboardData)
+	return ok
+}
+
+func (x *Envelope) HasMfa() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Envelope_Mfa)
+	return ok
+}
+
+func (x *Envelope) HasSharedDirectoryAnnounce() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Envelope_SharedDirectoryAnnounce)
+	return ok
+}
+
+func (x *Envelope) HasSharedDirectoryAcknowledge() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Envelope_SharedDirectoryAcknowledge)
+	return ok
+}
+
+func (x *Envelope) HasSharedDirectoryRequest() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Envelope_SharedDirectoryRequest)
+	return ok
+}
+
+func (x *Envelope) HasSharedDirectoryResponse() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Envelope_SharedDirectoryResponse)
+	return ok
+}
+
+func (x *Envelope) HasLatencyStats() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Envelope_LatencyStats)
+	return ok
+}
+
+func (x *Envelope) HasPing() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Envelope_Ping)
+	return ok
+}
+
+func (x *Envelope) HasSharedDirectoryRemove() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Envelope_SharedDirectoryRemove)
+	return ok
+}
+
+func (x *Envelope) HasSessionSelection() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Envelope_SessionSelection)
+	return ok
+}
+
+func (x *Envelope) ClearPayload() {
+	x.Payload = nil
+}
+
+func (x *Envelope) ClearClientHello() {
+	if _, ok := x.Payload.(*Envelope_ClientHello); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *Envelope) ClearServerHello() {
+	if _, ok := x.Payload.(*Envelope_ServerHello); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *Envelope) ClearPngFrame() {
+	if _, ok := x.Payload.(*Envelope_PngFrame); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *Envelope) ClearFastPathPdu() {
+	if _, ok := x.Payload.(*Envelope_FastPathPdu); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *Envelope) ClearRdpResponsePdu() {
+	if _, ok := x.Payload.(*Envelope_RdpResponsePdu); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *Envelope) ClearSyncKeys() {
+	if _, ok := x.Payload.(*Envelope_SyncKeys); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *Envelope) ClearMouseMove() {
+	if _, ok := x.Payload.(*Envelope_MouseMove); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *Envelope) ClearMouseButton() {
+	if _, ok := x.Payload.(*Envelope_MouseButton); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *Envelope) ClearKeyboardButton() {
+	if _, ok := x.Payload.(*Envelope_KeyboardButton); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *Envelope) ClearClientScreenSpec() {
+	if _, ok := x.Payload.(*Envelope_ClientScreenSpec); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *Envelope) ClearAlert() {
+	if _, ok := x.Payload.(*Envelope_Alert); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *Envelope) ClearMouseWheel() {
+	if _, ok := x.Payload.(*Envelope_MouseWheel); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *Envelope) ClearClipboardData() {
+	if _, ok := x.Payload.(*Envelope_ClipboardData); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *Envelope) ClearMfa() {
+	if _, ok := x.Payload.(*Envelope_Mfa); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *Envelope) ClearSharedDirectoryAnnounce() {
+	if _, ok := x.Payload.(*Envelope_SharedDirectoryAnnounce); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *Envelope) ClearSharedDirectoryAcknowledge() {
+	if _, ok := x.Payload.(*Envelope_SharedDirectoryAcknowledge); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *Envelope) ClearSharedDirectoryRequest() {
+	if _, ok := x.Payload.(*Envelope_SharedDirectoryRequest); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *Envelope) ClearSharedDirectoryResponse() {
+	if _, ok := x.Payload.(*Envelope_SharedDirectoryResponse); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *Envelope) ClearLatencyStats() {
+	if _, ok := x.Payload.(*Envelope_LatencyStats); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *Envelope) ClearPing() {
+	if _, ok := x.Payload.(*Envelope_Ping); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *Envelope) ClearSharedDirectoryRemove() {
+	if _, ok := x.Payload.(*Envelope_SharedDirectoryRemove); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *Envelope) ClearSessionSelection() {
+	if _, ok := x.Payload.(*Envelope_SessionSelection); ok {
+		x.Payload = nil
+	}
+}
+
+const Envelope_Payload_not_set_case case_Envelope_Payload = 0
+const Envelope_ClientHello_case case_Envelope_Payload = 1
+const Envelope_ServerHello_case case_Envelope_Payload = 2
+const Envelope_PngFrame_case case_Envelope_Payload = 3
+const Envelope_FastPathPdu_case case_Envelope_Payload = 4
+const Envelope_RdpResponsePdu_case case_Envelope_Payload = 5
+const Envelope_SyncKeys_case case_Envelope_Payload = 6
+const Envelope_MouseMove_case case_Envelope_Payload = 7
+const Envelope_MouseButton_case case_Envelope_Payload = 8
+const Envelope_KeyboardButton_case case_Envelope_Payload = 9
+const Envelope_ClientScreenSpec_case case_Envelope_Payload = 10
+const Envelope_Alert_case case_Envelope_Payload = 11
+const Envelope_MouseWheel_case case_Envelope_Payload = 12
+const Envelope_ClipboardData_case case_Envelope_Payload = 13
+const Envelope_Mfa_case case_Envelope_Payload = 14
+const Envelope_SharedDirectoryAnnounce_case case_Envelope_Payload = 15
+const Envelope_SharedDirectoryAcknowledge_case case_Envelope_Payload = 16
+const Envelope_SharedDirectoryRequest_case case_Envelope_Payload = 17
+const Envelope_SharedDirectoryResponse_case case_Envelope_Payload = 18
+const Envelope_LatencyStats_case case_Envelope_Payload = 19
+const Envelope_Ping_case case_Envelope_Payload = 20
+const Envelope_SharedDirectoryRemove_case case_Envelope_Payload = 21
+const Envelope_SessionSelection_case case_Envelope_Payload = 22
+
+func (x *Envelope) WhichPayload() case_Envelope_Payload {
+	if x == nil {
+		return Envelope_Payload_not_set_case
+	}
+	switch x.Payload.(type) {
+	case *Envelope_ClientHello:
+		return Envelope_ClientHello_case
+	case *Envelope_ServerHello:
+		return Envelope_ServerHello_case
+	case *Envelope_PngFrame:
+		return Envelope_PngFrame_case
+	case *Envelope_FastPathPdu:
+		return Envelope_FastPathPdu_case
+	case *Envelope_RdpResponsePdu:
+		return Envelope_RdpResponsePdu_case
+	case *Envelope_SyncKeys:
+		return Envelope_SyncKeys_case
+	case *Envelope_MouseMove:
+		return Envelope_MouseMove_case
+	case *Envelope_MouseButton:
+		return Envelope_MouseButton_case
+	case *Envelope_KeyboardButton:
+		return Envelope_KeyboardButton_case
+	case *Envelope_ClientScreenSpec:
+		return Envelope_ClientScreenSpec_case
+	case *Envelope_Alert:
+		return Envelope_Alert_case
+	case *Envelope_MouseWheel:
+		return Envelope_MouseWheel_case
+	case *Envelope_ClipboardData:
+		return Envelope_ClipboardData_case
+	case *Envelope_Mfa:
+		return Envelope_Mfa_case
+	case *Envelope_SharedDirectoryAnnounce:
+		return Envelope_SharedDirectoryAnnounce_case
+	case *Envelope_SharedDirectoryAcknowledge:
+		return Envelope_SharedDirectoryAcknowledge_case
+	case *Envelope_SharedDirectoryRequest:
+		return Envelope_SharedDirectoryRequest_case
+	case *Envelope_SharedDirectoryResponse:
+		return Envelope_SharedDirectoryResponse_case
+	case *Envelope_LatencyStats:
+		return Envelope_LatencyStats_case
+	case *Envelope_Ping:
+		return Envelope_Ping_case
+	case *Envelope_SharedDirectoryRemove:
+		return Envelope_SharedDirectoryRemove_case
+	case *Envelope_SessionSelection:
+		return Envelope_SessionSelection_case
+	default:
+		return Envelope_Payload_not_set_case
+	}
+}
+
+type Envelope_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Payload:
+	ClientHello                *ClientHello
+	ServerHello                *ServerHello
+	PngFrame                   *PNGFrame
+	FastPathPdu                *FastPathPDU
+	RdpResponsePdu             *RDPResponsePDU
+	SyncKeys                   *SyncKeys
+	MouseMove                  *MouseMove
+	MouseButton                *MouseButton
+	KeyboardButton             *KeyboardButton
+	ClientScreenSpec           *ClientScreenSpec
+	Alert                      *Alert
+	MouseWheel                 *MouseWheel
+	ClipboardData              *ClipboardData
+	Mfa                        *MFA
+	SharedDirectoryAnnounce    *SharedDirectoryAnnounce
+	SharedDirectoryAcknowledge *SharedDirectoryAcknowledge
+	SharedDirectoryRequest     *SharedDirectoryRequest
+	SharedDirectoryResponse    *SharedDirectoryResponse
+	LatencyStats               *LatencyStats
+	Ping                       *Ping
+	SharedDirectoryRemove      *SharedDirectoryRemove
+	SessionSelection           *SessionSelection
+	// -- end of Payload
+}
+
+func (b0 Envelope_builder) Build() *Envelope {
+	m0 := &Envelope{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.ClientHello != nil {
+		x.Payload = &Envelope_ClientHello{b.ClientHello}
+	}
+	if b.ServerHello != nil {
+		x.Payload = &Envelope_ServerHello{b.ServerHello}
+	}
+	if b.PngFrame != nil {
+		x.Payload = &Envelope_PngFrame{b.PngFrame}
+	}
+	if b.FastPathPdu != nil {
+		x.Payload = &Envelope_FastPathPdu{b.FastPathPdu}
+	}
+	if b.RdpResponsePdu != nil {
+		x.Payload = &Envelope_RdpResponsePdu{b.RdpResponsePdu}
+	}
+	if b.SyncKeys != nil {
+		x.Payload = &Envelope_SyncKeys{b.SyncKeys}
+	}
+	if b.MouseMove != nil {
+		x.Payload = &Envelope_MouseMove{b.MouseMove}
+	}
+	if b.MouseButton != nil {
+		x.Payload = &Envelope_MouseButton{b.MouseButton}
+	}
+	if b.KeyboardButton != nil {
+		x.Payload = &Envelope_KeyboardButton{b.KeyboardButton}
+	}
+	if b.ClientScreenSpec != nil {
+		x.Payload = &Envelope_ClientScreenSpec{b.ClientScreenSpec}
+	}
+	if b.Alert != nil {
+		x.Payload = &Envelope_Alert{b.Alert}
+	}
+	if b.MouseWheel != nil {
+		x.Payload = &Envelope_MouseWheel{b.MouseWheel}
+	}
+	if b.ClipboardData != nil {
+		x.Payload = &Envelope_ClipboardData{b.ClipboardData}
+	}
+	if b.Mfa != nil {
+		x.Payload = &Envelope_Mfa{b.Mfa}
+	}
+	if b.SharedDirectoryAnnounce != nil {
+		x.Payload = &Envelope_SharedDirectoryAnnounce{b.SharedDirectoryAnnounce}
+	}
+	if b.SharedDirectoryAcknowledge != nil {
+		x.Payload = &Envelope_SharedDirectoryAcknowledge{b.SharedDirectoryAcknowledge}
+	}
+	if b.SharedDirectoryRequest != nil {
+		x.Payload = &Envelope_SharedDirectoryRequest{b.SharedDirectoryRequest}
+	}
+	if b.SharedDirectoryResponse != nil {
+		x.Payload = &Envelope_SharedDirectoryResponse{b.SharedDirectoryResponse}
+	}
+	if b.LatencyStats != nil {
+		x.Payload = &Envelope_LatencyStats{b.LatencyStats}
+	}
+	if b.Ping != nil {
+		x.Payload = &Envelope_Ping{b.Ping}
+	}
+	if b.SharedDirectoryRemove != nil {
+		x.Payload = &Envelope_SharedDirectoryRemove{b.SharedDirectoryRemove}
+	}
+	if b.SessionSelection != nil {
+		x.Payload = &Envelope_SessionSelection{b.SessionSelection}
+	}
+	return m0
+}
+
+type case_Envelope_Payload protoreflect.FieldNumber
+
+func (x case_Envelope_Payload) String() string {
+	md := file_teleport_desktop_v1_tdpb_proto_msgTypes[26].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isEnvelope_Payload interface {
 	isEnvelope_Payload()
 }
@@ -2385,7 +4235,7 @@ func (*Envelope_SessionSelection) isEnvelope_Payload() {}
 
 // Info request.
 type SharedDirectoryRequest_Info struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Path          string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -2416,11 +4266,6 @@ func (x *SharedDirectoryRequest_Info) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SharedDirectoryRequest_Info.ProtoReflect.Descriptor instead.
-func (*SharedDirectoryRequest_Info) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{21, 0}
-}
-
 func (x *SharedDirectoryRequest_Info) GetPath() string {
 	if x != nil {
 		return x.Path
@@ -2428,9 +4273,27 @@ func (x *SharedDirectoryRequest_Info) GetPath() string {
 	return ""
 }
 
+func (x *SharedDirectoryRequest_Info) SetPath(v string) {
+	x.Path = v
+}
+
+type SharedDirectoryRequest_Info_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Path string
+}
+
+func (b0 SharedDirectoryRequest_Info_builder) Build() *SharedDirectoryRequest_Info {
+	m0 := &SharedDirectoryRequest_Info{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Path = b.Path
+	return m0
+}
+
 // Create request.
 type SharedDirectoryRequest_Create struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Path          string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
 	FileType      uint32                 `protobuf:"varint,2,opt,name=file_type,json=fileType,proto3" json:"file_type,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -2462,11 +4325,6 @@ func (x *SharedDirectoryRequest_Create) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SharedDirectoryRequest_Create.ProtoReflect.Descriptor instead.
-func (*SharedDirectoryRequest_Create) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{21, 1}
-}
-
 func (x *SharedDirectoryRequest_Create) GetPath() string {
 	if x != nil {
 		return x.Path
@@ -2481,9 +4339,33 @@ func (x *SharedDirectoryRequest_Create) GetFileType() uint32 {
 	return 0
 }
 
+func (x *SharedDirectoryRequest_Create) SetPath(v string) {
+	x.Path = v
+}
+
+func (x *SharedDirectoryRequest_Create) SetFileType(v uint32) {
+	x.FileType = v
+}
+
+type SharedDirectoryRequest_Create_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Path     string
+	FileType uint32
+}
+
+func (b0 SharedDirectoryRequest_Create_builder) Build() *SharedDirectoryRequest_Create {
+	m0 := &SharedDirectoryRequest_Create{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Path = b.Path
+	x.FileType = b.FileType
+	return m0
+}
+
 // Delete request.
 type SharedDirectoryRequest_Delete struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Path          string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -2514,11 +4396,6 @@ func (x *SharedDirectoryRequest_Delete) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SharedDirectoryRequest_Delete.ProtoReflect.Descriptor instead.
-func (*SharedDirectoryRequest_Delete) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{21, 2}
-}
-
 func (x *SharedDirectoryRequest_Delete) GetPath() string {
 	if x != nil {
 		return x.Path
@@ -2526,9 +4403,27 @@ func (x *SharedDirectoryRequest_Delete) GetPath() string {
 	return ""
 }
 
+func (x *SharedDirectoryRequest_Delete) SetPath(v string) {
+	x.Path = v
+}
+
+type SharedDirectoryRequest_Delete_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Path string
+}
+
+func (b0 SharedDirectoryRequest_Delete_builder) Build() *SharedDirectoryRequest_Delete {
+	m0 := &SharedDirectoryRequest_Delete{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Path = b.Path
+	return m0
+}
+
 // List request.
 type SharedDirectoryRequest_List struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Path          string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -2559,11 +4454,6 @@ func (x *SharedDirectoryRequest_List) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SharedDirectoryRequest_List.ProtoReflect.Descriptor instead.
-func (*SharedDirectoryRequest_List) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{21, 3}
-}
-
 func (x *SharedDirectoryRequest_List) GetPath() string {
 	if x != nil {
 		return x.Path
@@ -2571,9 +4461,27 @@ func (x *SharedDirectoryRequest_List) GetPath() string {
 	return ""
 }
 
+func (x *SharedDirectoryRequest_List) SetPath(v string) {
+	x.Path = v
+}
+
+type SharedDirectoryRequest_List_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Path string
+}
+
+func (b0 SharedDirectoryRequest_List_builder) Build() *SharedDirectoryRequest_List {
+	m0 := &SharedDirectoryRequest_List{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Path = b.Path
+	return m0
+}
+
 // Read Request.
 type SharedDirectoryRequest_Read struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Path          string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
 	Offset        uint64                 `protobuf:"varint,2,opt,name=offset,proto3" json:"offset,omitempty"`
 	Length        uint32                 `protobuf:"varint,3,opt,name=length,proto3" json:"length,omitempty"`
@@ -2606,11 +4514,6 @@ func (x *SharedDirectoryRequest_Read) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SharedDirectoryRequest_Read.ProtoReflect.Descriptor instead.
-func (*SharedDirectoryRequest_Read) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{21, 4}
-}
-
 func (x *SharedDirectoryRequest_Read) GetPath() string {
 	if x != nil {
 		return x.Path
@@ -2632,9 +4535,39 @@ func (x *SharedDirectoryRequest_Read) GetLength() uint32 {
 	return 0
 }
 
+func (x *SharedDirectoryRequest_Read) SetPath(v string) {
+	x.Path = v
+}
+
+func (x *SharedDirectoryRequest_Read) SetOffset(v uint64) {
+	x.Offset = v
+}
+
+func (x *SharedDirectoryRequest_Read) SetLength(v uint32) {
+	x.Length = v
+}
+
+type SharedDirectoryRequest_Read_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Path   string
+	Offset uint64
+	Length uint32
+}
+
+func (b0 SharedDirectoryRequest_Read_builder) Build() *SharedDirectoryRequest_Read {
+	m0 := &SharedDirectoryRequest_Read{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Path = b.Path
+	x.Offset = b.Offset
+	x.Length = b.Length
+	return m0
+}
+
 // Write Request.
 type SharedDirectoryRequest_Write struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Path          string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
 	Offset        uint64                 `protobuf:"varint,2,opt,name=offset,proto3" json:"offset,omitempty"`
 	Data          []byte                 `protobuf:"bytes,3,opt,name=data,proto3" json:"data,omitempty"`
@@ -2667,11 +4600,6 @@ func (x *SharedDirectoryRequest_Write) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SharedDirectoryRequest_Write.ProtoReflect.Descriptor instead.
-func (*SharedDirectoryRequest_Write) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{21, 5}
-}
-
 func (x *SharedDirectoryRequest_Write) GetPath() string {
 	if x != nil {
 		return x.Path
@@ -2693,9 +4621,42 @@ func (x *SharedDirectoryRequest_Write) GetData() []byte {
 	return nil
 }
 
+func (x *SharedDirectoryRequest_Write) SetPath(v string) {
+	x.Path = v
+}
+
+func (x *SharedDirectoryRequest_Write) SetOffset(v uint64) {
+	x.Offset = v
+}
+
+func (x *SharedDirectoryRequest_Write) SetData(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Data = v
+}
+
+type SharedDirectoryRequest_Write_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Path   string
+	Offset uint64
+	Data   []byte
+}
+
+func (b0 SharedDirectoryRequest_Write_builder) Build() *SharedDirectoryRequest_Write {
+	m0 := &SharedDirectoryRequest_Write{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Path = b.Path
+	x.Offset = b.Offset
+	x.Data = b.Data
+	return m0
+}
+
 // Move Request.
 type SharedDirectoryRequest_Move struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	OriginalPath  string                 `protobuf:"bytes,1,opt,name=original_path,json=originalPath,proto3" json:"original_path,omitempty"`
 	NewPath       string                 `protobuf:"bytes,2,opt,name=new_path,json=newPath,proto3" json:"new_path,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -2727,11 +4688,6 @@ func (x *SharedDirectoryRequest_Move) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SharedDirectoryRequest_Move.ProtoReflect.Descriptor instead.
-func (*SharedDirectoryRequest_Move) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{21, 6}
-}
-
 func (x *SharedDirectoryRequest_Move) GetOriginalPath() string {
 	if x != nil {
 		return x.OriginalPath
@@ -2746,9 +4702,33 @@ func (x *SharedDirectoryRequest_Move) GetNewPath() string {
 	return ""
 }
 
+func (x *SharedDirectoryRequest_Move) SetOriginalPath(v string) {
+	x.OriginalPath = v
+}
+
+func (x *SharedDirectoryRequest_Move) SetNewPath(v string) {
+	x.NewPath = v
+}
+
+type SharedDirectoryRequest_Move_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	OriginalPath string
+	NewPath      string
+}
+
+func (b0 SharedDirectoryRequest_Move_builder) Build() *SharedDirectoryRequest_Move {
+	m0 := &SharedDirectoryRequest_Move{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.OriginalPath = b.OriginalPath
+	x.NewPath = b.NewPath
+	return m0
+}
+
 // Truncate Request.
 type SharedDirectoryRequest_Truncate struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Path          string                 `protobuf:"bytes,1,opt,name=path,proto3" json:"path,omitempty"`
 	Size          uint64                 `protobuf:"varint,3,opt,name=size,proto3" json:"size,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -2780,11 +4760,6 @@ func (x *SharedDirectoryRequest_Truncate) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SharedDirectoryRequest_Truncate.ProtoReflect.Descriptor instead.
-func (*SharedDirectoryRequest_Truncate) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{21, 7}
-}
-
 func (x *SharedDirectoryRequest_Truncate) GetPath() string {
 	if x != nil {
 		return x.Path
@@ -2799,9 +4774,33 @@ func (x *SharedDirectoryRequest_Truncate) GetSize() uint64 {
 	return 0
 }
 
+func (x *SharedDirectoryRequest_Truncate) SetPath(v string) {
+	x.Path = v
+}
+
+func (x *SharedDirectoryRequest_Truncate) SetSize(v uint64) {
+	x.Size = v
+}
+
+type SharedDirectoryRequest_Truncate_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Path string
+	Size uint64
+}
+
+func (b0 SharedDirectoryRequest_Truncate_builder) Build() *SharedDirectoryRequest_Truncate {
+	m0 := &SharedDirectoryRequest_Truncate{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Path = b.Path
+	x.Size = b.Size
+	return m0
+}
+
 // Info response.
 type SharedDirectoryResponse_Info struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Fso           *FileSystemObject      `protobuf:"bytes,1,opt,name=fso,proto3" json:"fso,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -2832,11 +4831,6 @@ func (x *SharedDirectoryResponse_Info) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SharedDirectoryResponse_Info.ProtoReflect.Descriptor instead.
-func (*SharedDirectoryResponse_Info) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{22, 0}
-}
-
 func (x *SharedDirectoryResponse_Info) GetFso() *FileSystemObject {
 	if x != nil {
 		return x.Fso
@@ -2844,9 +4838,38 @@ func (x *SharedDirectoryResponse_Info) GetFso() *FileSystemObject {
 	return nil
 }
 
+func (x *SharedDirectoryResponse_Info) SetFso(v *FileSystemObject) {
+	x.Fso = v
+}
+
+func (x *SharedDirectoryResponse_Info) HasFso() bool {
+	if x == nil {
+		return false
+	}
+	return x.Fso != nil
+}
+
+func (x *SharedDirectoryResponse_Info) ClearFso() {
+	x.Fso = nil
+}
+
+type SharedDirectoryResponse_Info_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Fso *FileSystemObject
+}
+
+func (b0 SharedDirectoryResponse_Info_builder) Build() *SharedDirectoryResponse_Info {
+	m0 := &SharedDirectoryResponse_Info{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Fso = b.Fso
+	return m0
+}
+
 // Create response.
 type SharedDirectoryResponse_Create struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Fso           *FileSystemObject      `protobuf:"bytes,1,opt,name=fso,proto3" json:"fso,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -2877,11 +4900,6 @@ func (x *SharedDirectoryResponse_Create) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SharedDirectoryResponse_Create.ProtoReflect.Descriptor instead.
-func (*SharedDirectoryResponse_Create) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{22, 1}
-}
-
 func (x *SharedDirectoryResponse_Create) GetFso() *FileSystemObject {
 	if x != nil {
 		return x.Fso
@@ -2889,9 +4907,38 @@ func (x *SharedDirectoryResponse_Create) GetFso() *FileSystemObject {
 	return nil
 }
 
+func (x *SharedDirectoryResponse_Create) SetFso(v *FileSystemObject) {
+	x.Fso = v
+}
+
+func (x *SharedDirectoryResponse_Create) HasFso() bool {
+	if x == nil {
+		return false
+	}
+	return x.Fso != nil
+}
+
+func (x *SharedDirectoryResponse_Create) ClearFso() {
+	x.Fso = nil
+}
+
+type SharedDirectoryResponse_Create_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Fso *FileSystemObject
+}
+
+func (b0 SharedDirectoryResponse_Create_builder) Build() *SharedDirectoryResponse_Create {
+	m0 := &SharedDirectoryResponse_Create{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Fso = b.Fso
+	return m0
+}
+
 // Delete response.
 type SharedDirectoryResponse_Delete struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2921,14 +4968,21 @@ func (x *SharedDirectoryResponse_Delete) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SharedDirectoryResponse_Delete.ProtoReflect.Descriptor instead.
-func (*SharedDirectoryResponse_Delete) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{22, 2}
+type SharedDirectoryResponse_Delete_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 SharedDirectoryResponse_Delete_builder) Build() *SharedDirectoryResponse_Delete {
+	m0 := &SharedDirectoryResponse_Delete{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // List response.
 type SharedDirectoryResponse_List struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	FsoList       []*FileSystemObject    `protobuf:"bytes,1,rep,name=fso_list,json=fsoList,proto3" json:"fso_list,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -2959,11 +5013,6 @@ func (x *SharedDirectoryResponse_List) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SharedDirectoryResponse_List.ProtoReflect.Descriptor instead.
-func (*SharedDirectoryResponse_List) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{22, 3}
-}
-
 func (x *SharedDirectoryResponse_List) GetFsoList() []*FileSystemObject {
 	if x != nil {
 		return x.FsoList
@@ -2971,9 +5020,27 @@ func (x *SharedDirectoryResponse_List) GetFsoList() []*FileSystemObject {
 	return nil
 }
 
+func (x *SharedDirectoryResponse_List) SetFsoList(v []*FileSystemObject) {
+	x.FsoList = v
+}
+
+type SharedDirectoryResponse_List_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	FsoList []*FileSystemObject
+}
+
+func (b0 SharedDirectoryResponse_List_builder) Build() *SharedDirectoryResponse_List {
+	m0 := &SharedDirectoryResponse_List{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.FsoList = b.FsoList
+	return m0
+}
+
 // Read response.
 type SharedDirectoryResponse_Read struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Data          []byte                 `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -3004,11 +5071,6 @@ func (x *SharedDirectoryResponse_Read) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SharedDirectoryResponse_Read.ProtoReflect.Descriptor instead.
-func (*SharedDirectoryResponse_Read) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{22, 4}
-}
-
 func (x *SharedDirectoryResponse_Read) GetData() []byte {
 	if x != nil {
 		return x.Data
@@ -3016,9 +5078,30 @@ func (x *SharedDirectoryResponse_Read) GetData() []byte {
 	return nil
 }
 
+func (x *SharedDirectoryResponse_Read) SetData(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Data = v
+}
+
+type SharedDirectoryResponse_Read_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Data []byte
+}
+
+func (b0 SharedDirectoryResponse_Read_builder) Build() *SharedDirectoryResponse_Read {
+	m0 := &SharedDirectoryResponse_Read{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Data = b.Data
+	return m0
+}
+
 // Write response.
 type SharedDirectoryResponse_Write struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	BytesWritten  uint32                 `protobuf:"varint,1,opt,name=bytes_written,json=bytesWritten,proto3" json:"bytes_written,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -3049,11 +5132,6 @@ func (x *SharedDirectoryResponse_Write) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SharedDirectoryResponse_Write.ProtoReflect.Descriptor instead.
-func (*SharedDirectoryResponse_Write) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{22, 5}
-}
-
 func (x *SharedDirectoryResponse_Write) GetBytesWritten() uint32 {
 	if x != nil {
 		return x.BytesWritten
@@ -3061,9 +5139,27 @@ func (x *SharedDirectoryResponse_Write) GetBytesWritten() uint32 {
 	return 0
 }
 
+func (x *SharedDirectoryResponse_Write) SetBytesWritten(v uint32) {
+	x.BytesWritten = v
+}
+
+type SharedDirectoryResponse_Write_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	BytesWritten uint32
+}
+
+func (b0 SharedDirectoryResponse_Write_builder) Build() *SharedDirectoryResponse_Write {
+	m0 := &SharedDirectoryResponse_Write{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.BytesWritten = b.BytesWritten
+	return m0
+}
+
 // Move response.
 type SharedDirectoryResponse_Move struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3093,14 +5189,21 @@ func (x *SharedDirectoryResponse_Move) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SharedDirectoryResponse_Move.ProtoReflect.Descriptor instead.
-func (*SharedDirectoryResponse_Move) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{22, 6}
+type SharedDirectoryResponse_Move_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 SharedDirectoryResponse_Move_builder) Build() *SharedDirectoryResponse_Move {
+	m0 := &SharedDirectoryResponse_Move{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // Truncate response.
 type SharedDirectoryResponse_Truncate struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3130,9 +5233,16 @@ func (x *SharedDirectoryResponse_Truncate) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SharedDirectoryResponse_Truncate.ProtoReflect.Descriptor instead.
-func (*SharedDirectoryResponse_Truncate) Descriptor() ([]byte, []int) {
-	return file_teleport_desktop_v1_tdpb_proto_rawDescGZIP(), []int{22, 7}
+type SharedDirectoryResponse_Truncate_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 SharedDirectoryResponse_Truncate_builder) Build() *SharedDirectoryResponse_Truncate {
+	m0 := &SharedDirectoryResponse_Truncate{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 var File_teleport_desktop_v1_tdpb_proto protoreflect.FileDescriptor
@@ -3144,12 +5254,13 @@ const file_teleport_desktop_v1_tdpb_proto_rawDesc = "" +
 	"\busername\x18\x01 \x01(\tR\busername\x12F\n" +
 	"\vscreen_spec\x18\x02 \x01(\v2%.teleport.desktop.v1.ClientScreenSpecR\n" +
 	"screenSpec\x12'\n" +
-	"\x0fkeyboard_layout\x18\x03 \x01(\rR\x0ekeyboardLayout\"\x8f\x02\n" +
+	"\x0fkeyboard_layout\x18\x03 \x01(\rR\x0ekeyboardLayout\"\xb8\x02\n" +
 	"\vServerHello\x12Q\n" +
 	"\x0factivation_spec\x18\x01 \x01(\v2(.teleport.desktop.v1.ConnectionActivatedR\x0eactivationSpec\x12+\n" +
 	"\x11clipboard_enabled\x18\x02 \x01(\bR\x10clipboardEnabled\x12<\n" +
 	"\x1adirectory_remove_supported\x18\x03 \x01(\bR\x18directoryRemoveSupported\x12B\n" +
-	"\bsessions\x18\x04 \x03(\v2&.teleport.desktop.v1.SessionIdentifierR\bsessions\"'\n" +
+	"\bsessions\x18\x04 \x03(\v2&.teleport.desktop.v1.SessionIdentifierR\bsessions\x12'\n" +
+	"\x0fhidpi_supported\x18\x05 \x01(\bR\x0ehidpiSupported\"'\n" +
 	"\x11SessionIdentifier\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"T\n" +
 	"\x10SessionSelection\x12@\n" +
@@ -3184,10 +5295,11 @@ const file_teleport_desktop_v1_tdpb_proto_rawDesc = "" +
 	"\apressed\x18\x02 \x01(\bR\apressed\"E\n" +
 	"\x0eKeyboardButton\x12\x19\n" +
 	"\bkey_code\x18\x01 \x01(\rR\akeyCode\x12\x18\n" +
-	"\apressed\x18\x02 \x01(\bR\apressed\"@\n" +
+	"\apressed\x18\x02 \x01(\bR\apressed\"V\n" +
 	"\x10ClientScreenSpec\x12\x14\n" +
 	"\x05width\x18\x01 \x01(\rR\x05width\x12\x16\n" +
-	"\x06height\x18\x02 \x01(\rR\x06height\"a\n" +
+	"\x06height\x18\x02 \x01(\rR\x06height\x12\x14\n" +
+	"\x05scale\x18\x03 \x01(\rR\x05scale\"a\n" +
 	"\x05Alert\x12\x18\n" +
 	"\amessage\x18\x01 \x01(\tR\amessage\x12>\n" +
 	"\bseverity\x18\x02 \x01(\x0e2\".teleport.desktop.v1.AlertSeverityR\bseverity\"[\n" +
@@ -3332,18 +5444,6 @@ const file_teleport_desktop_v1_tdpb_proto_rawDesc = "" +
 	"\x14MFA_TYPE_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11MFA_TYPE_WEBAUTHN\x10\x01\x12\x10\n" +
 	"\fMFA_TYPE_U2F\x10\x02BOZMgithub.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1;tdpbv1b\x06proto3"
-
-var (
-	file_teleport_desktop_v1_tdpb_proto_rawDescOnce sync.Once
-	file_teleport_desktop_v1_tdpb_proto_rawDescData []byte
-)
-
-func file_teleport_desktop_v1_tdpb_proto_rawDescGZIP() []byte {
-	file_teleport_desktop_v1_tdpb_proto_rawDescOnce.Do(func() {
-		file_teleport_desktop_v1_tdpb_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_desktop_v1_tdpb_proto_rawDesc), len(file_teleport_desktop_v1_tdpb_proto_rawDesc)))
-	})
-	return file_teleport_desktop_v1_tdpb_proto_rawDescData
-}
 
 var file_teleport_desktop_v1_tdpb_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
 var file_teleport_desktop_v1_tdpb_proto_msgTypes = make([]protoimpl.MessageInfo, 43)

@@ -157,7 +157,7 @@ Log into the Teleport Agent server and run the following commands.
        forward_agent: false
        max_session_ttl: 24h0m0s
        port_forwarding: true
-      ssh_file_copy: true
+       ssh_file_copy: true
    version: v7
    ```
 
@@ -402,7 +402,7 @@ This step describes the sequence of actions you will take in the event that you 
    ```
 
    <Admonition type="note">
-   We use `sudo -u teleport-breakglass ssh` here because the outputted certificates and files in the `/opt/teleport-breakglass-output` directory
+   We use `sudo -u teleport-breakglass ssh` here because the outputted certificates and files in the `/opt/teleport-breakglass/output` directory
    are only readable by the `teleport-breakglass` user and `root`, to improve security.
    </Admonition>
 

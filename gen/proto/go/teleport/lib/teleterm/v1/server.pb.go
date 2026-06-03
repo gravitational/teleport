@@ -21,13 +21,14 @@
 // 	protoc        (unknown)
 // source: teleport/lib/teleterm/v1/server.proto
 
+//go:build !protoopaque
+
 package teletermv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -40,7 +41,7 @@ const (
 
 // Server describes connected Server
 type Server struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// uri is the server uri
 	Uri string `protobuf:"bytes,1,opt,name=uri,proto3" json:"uri,omitempty"`
 	// tunnel indicates if this server is connected over a reverse tunnel
@@ -84,11 +85,6 @@ func (x *Server) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Server.ProtoReflect.Descriptor instead.
-func (*Server) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_server_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *Server) GetUri() string {
@@ -147,6 +143,74 @@ func (x *Server) GetLogins() []string {
 	return nil
 }
 
+func (x *Server) SetUri(v string) {
+	x.Uri = v
+}
+
+func (x *Server) SetTunnel(v bool) {
+	x.Tunnel = v
+}
+
+func (x *Server) SetName(v string) {
+	x.Name = v
+}
+
+func (x *Server) SetHostname(v string) {
+	x.Hostname = v
+}
+
+func (x *Server) SetAddr(v string) {
+	x.Addr = v
+}
+
+func (x *Server) SetLabels(v []*Label) {
+	x.Labels = v
+}
+
+func (x *Server) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *Server) SetLogins(v []string) {
+	x.Logins = v
+}
+
+type Server_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// uri is the server uri
+	Uri string
+	// tunnel indicates if this server is connected over a reverse tunnel
+	Tunnel bool
+	// name is the server name
+	Name string
+	// hostname is this server hostname
+	Hostname string
+	// addr is this server ip address
+	Addr string
+	// labels is this server list of labels
+	Labels []*Label
+	// node sub kind: teleport, openssh, openssh-ec2-ice
+	SubKind string
+	// Subset of logins allowed by the certificate and RBAC rules.
+	Logins []string
+}
+
+func (b0 Server_builder) Build() *Server {
+	m0 := &Server{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Uri = b.Uri
+	x.Tunnel = b.Tunnel
+	x.Name = b.Name
+	x.Hostname = b.Hostname
+	x.Addr = b.Addr
+	x.Labels = b.Labels
+	x.SubKind = b.SubKind
+	x.Logins = b.Logins
+	return m0
+}
+
 var File_teleport_lib_teleterm_v1_server_proto protoreflect.FileDescriptor
 
 const file_teleport_lib_teleterm_v1_server_proto_rawDesc = "" +
@@ -161,18 +225,6 @@ const file_teleport_lib_teleterm_v1_server_proto_rawDesc = "" +
 	"\x06labels\x18\x06 \x03(\v2\x1f.teleport.lib.teleterm.v1.LabelR\x06labels\x12\x19\n" +
 	"\bsub_kind\x18\a \x01(\tR\asubKind\x12\x16\n" +
 	"\x06logins\x18\b \x03(\tR\x06loginsBTZRgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1b\x06proto3"
-
-var (
-	file_teleport_lib_teleterm_v1_server_proto_rawDescOnce sync.Once
-	file_teleport_lib_teleterm_v1_server_proto_rawDescData []byte
-)
-
-func file_teleport_lib_teleterm_v1_server_proto_rawDescGZIP() []byte {
-	file_teleport_lib_teleterm_v1_server_proto_rawDescOnce.Do(func() {
-		file_teleport_lib_teleterm_v1_server_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_lib_teleterm_v1_server_proto_rawDesc), len(file_teleport_lib_teleterm_v1_server_proto_rawDesc)))
-	})
-	return file_teleport_lib_teleterm_v1_server_proto_rawDescData
-}
 
 var file_teleport_lib_teleterm_v1_server_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_teleport_lib_teleterm_v1_server_proto_goTypes = []any{

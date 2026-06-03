@@ -45,7 +45,7 @@
     "@types/react-dom": "^19.2.3",
     "@types/react-transition-group": "^4.4.12",
     "@types/wicg-file-system-access": "^2023.10.7",
-    "@typescript/native-preview": "7.0.0-dev.20260503.1",
+    "@typescript/native-preview": "7.0.0-dev.20260527.1",
     "cspell": "^10.0.0",
     "eslint": "^9.39.2",
     "eslint-plugin-jest-dom": "^5.5.0",
@@ -58,7 +58,7 @@
     "msw-storybook-addon": "^2.0.7",
     "oxfmt": "^0.47.0",
     "oxlint": "^1.62.0",
-    "playwright": "^1.59.1",
+    "playwright": "^1.60.0",
     "react-select-event": "^5.5.1",
     "storybook": "^10.3.6",
     "svgo": "^4.0.1",
@@ -107,7 +107,7 @@
       "web/.storybook/public"
     ]
   },
-  "packageManager": "pnpm@10.32.1+sha512.a706938f0e89ac1456b6563eab4edf1d1faf3368d1191fc5c59790e96dc918e4456ab2e67d613de1043d2e8c81f87303e6b40d4ffeca9df15ef1ad567348f2be",
+  "packageManager": "pnpm@11.3.0+sha512.2c403d6594527287672b1f7056343a1f7c3634036a67ffabfcc2b3d7595d843768f8787148d1b57cf7956c90606bbd192857c363af19e96d2d0ec9ec5741d215",
   "engines": {
     "node": "^24"
   }

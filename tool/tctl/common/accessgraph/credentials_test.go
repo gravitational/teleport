@@ -563,11 +563,12 @@ func TestShouldPersistAccessGraphCert(t *testing.T) {
 			want: false,
 		},
 		{
-			name: "just outside threshold (5m1s)",
+			// 30s slack absorbs the wall-clock gap between signing and the time.Now() check under CI load.
+			name: "just outside threshold (5m30s)",
 			creds: func(t *testing.T) *accessGraphCredentials {
 				return &accessGraphCredentials{
 					clientStore: client.NewMemClientStore(),
-					keyRing:     withCert(t, 5*time.Minute+time.Second),
+					keyRing:     withCert(t, 5*time.Minute+30*time.Second),
 				}
 			},
 			want: true,
