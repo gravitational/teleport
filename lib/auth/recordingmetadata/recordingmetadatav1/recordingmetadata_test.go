@@ -263,7 +263,7 @@ func TestProcessSessionRecording_RecoversFromPanic(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = service.ProcessSessionRecording(t.Context(), sessionID, recordingmetadata.SessionTypeTTY, 10*time.Second)
+	err = service.ProcessSessionRecording(t.Context(), sessionID, recordingmetadata.SessionTypeTTY, startTime, 10*time.Second)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "internal error while processing session recording")
 
