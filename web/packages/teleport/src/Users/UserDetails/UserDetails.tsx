@@ -75,8 +75,6 @@ export function UserDetails({
     targetName: user.name,
   });
 
-  const { text: authType, icon: authTypeIcon } = renderAuthType(user);
-
   return (
     <Box>
       <UserDetailsSection>
@@ -90,12 +88,12 @@ export function UserDetails({
             <UserDetailField>
               <Text fontWeight="medium">Auth Type</Text>
               <Flex alignItems="center" gap={2}>
-                <ResourceIcon name={authTypeIcon} width="16px" height="16px" />
+                <ResourceIcon name={renderAuthType(user).icon} />
                 <Text
                   color="text.muted"
                   style={{ textTransform: 'capitalize' }}
                 >
-                  {authType}
+                  {renderAuthType(user).text}
                 </Text>
               </Flex>
             </UserDetailField>
