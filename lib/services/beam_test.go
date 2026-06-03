@@ -237,7 +237,7 @@ func TestMakeBeamFilterFunc(t *testing.T) {
 			expected: false,
 		},
 		{
-			name: "filter fn",
+			name: "filter fn match",
 			options: &services.ListBeamsRequestOptions{
 				FilterFn: func(b *beamsv1.Beam) bool {
 					return true
