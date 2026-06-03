@@ -34,6 +34,8 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 )
 
+const tdpMaxFileReadWriteLength = 1024 * 1024 // 1MB
+
 // Session uniquely describes a desktop session.
 // There can be only one session for the given desktop and login pair.
 type Session struct {
@@ -321,6 +323,11 @@ func (d *fsRequestHandler) handleSharedDirectoryListRequest(r tdp.SharedDirector
 }
 
 func (d *fsRequestHandler) handleSharedDirectoryReadRequest(r tdp.SharedDirectoryReadRequest, sendToServer func(message tdp.Message) error) error {
+	// Defense in depth: the protocol decoder already caps Length, but re-check here so
+	// the make([]byte, r.Length) below can't be driven into an unbounded allocation by a future caller.
+	if r.Length > tdpMaxFileReadWriteLength {
+		return trace.LimitExceeded("TDP file read or write message exceeds maximum size limit")
+	}
 	dirAccess, err := d.directoryAccessProvider.GetDirectoryAccess()
 	if err != nil {
 		return trace.Wrap(err)
