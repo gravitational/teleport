@@ -1935,7 +1935,7 @@ func (s *session) addFileTransferRequest(params *rsession.FileTransferRequestPar
 	if params.Download {
 		s.BroadcastMessage("User %s would like to download: %s", params.Requester, params.Location)
 	} else {
-		s.BroadcastMessage("User %s would like to upload %s to: %s", params.Requester, params.Filename, params.Location)
+		s.BroadcastMessage("User %s would like to upload to: %s", params.Requester, params.Location)
 	}
 	err := s.registry.notifyFileTransferRequestUnderLock(s.fileTransferReq, FileTransferUpdate, scx)
 
