@@ -240,6 +240,22 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_AppSessionLLMRequest{
 			AppSessionLLMRequest: e,
 		}
+	case *AppSessionHTTPRequest:
+		out.Event = &OneOf_AppSessionHTTPRequest{
+			AppSessionHTTPRequest: e,
+		}
+	case *AppSessionHTTPRequestBodyChunk:
+		out.Event = &OneOf_AppSessionHTTPRequestBodyChunk{
+			AppSessionHTTPRequestBodyChunk: e,
+		}
+	case *AppSessionHTTPResponse:
+		out.Event = &OneOf_AppSessionHTTPResponse{
+			AppSessionHTTPResponse: e,
+		}
+	case *AppSessionHTTPResponseBodyChunk:
+		out.Event = &OneOf_AppSessionHTTPResponseBodyChunk{
+			AppSessionHTTPResponseBodyChunk: e,
+		}
 	case *AppCreate:
 		out.Event = &OneOf_AppCreate{
 			AppCreate: e,

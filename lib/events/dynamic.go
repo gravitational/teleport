@@ -195,6 +195,14 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.AppSessionDynamoDBRequest{}
 	case AppSessionLLMRequestSuccessEvent, AppSessionLLMRequestFailureEvent:
 		e = &events.AppSessionLLMRequest{}
+	case AppSessionHTTPRequestEvent:
+		e = &events.AppSessionHTTPRequest{}
+	case AppSessionHTTPRequestBodyChunkEvent:
+		e = &events.AppSessionHTTPRequestBodyChunk{}
+	case AppSessionHTTPResponseEvent:
+		e = &events.AppSessionHTTPResponse{}
+	case AppSessionHTTPResponseBodyChunkEvent:
+		e = &events.AppSessionHTTPResponseBodyChunk{}
 	case AppCreateEvent:
 		e = &events.AppCreate{}
 	case AppUpdateEvent:

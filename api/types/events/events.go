@@ -3040,3 +3040,39 @@ func (m *BeamsConfigUpdate) TrimToMaxSize(int) AuditEvent {
 func (m *BeamsConfigDelete) TrimToMaxSize(int) AuditEvent {
 	return m
 }
+
+func (m *AppSessionHTTPRequest) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *AppSessionHTTPRequest) fieldTrimmer {
+		return fieldTrimmers{
+			newStrTrimmer(m.Method, &out.Method),
+			newStrTrimmer(m.Url, &out.Url),
+			newStrTrimmer(m.RawQuery, &out.RawQuery),
+			newStrTrimmer(m.HttpVersion, &out.HttpVersion),
+		}
+	})
+}
+
+func (m *AppSessionHTTPRequestBodyChunk) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *AppSessionHTTPRequestBodyChunk) fieldTrimmer {
+		return fieldTrimmers{
+			newBytesTrimmer(m.Data, &out.Data),
+		}
+	})
+}
+
+func (m *AppSessionHTTPResponse) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *AppSessionHTTPResponse) fieldTrimmer {
+		return fieldTrimmers{
+			newStrTrimmer(m.StatusText, &out.StatusText),
+			newStrTrimmer(m.HttpVersion, &out.HttpVersion),
+		}
+	})
+}
+
+func (m *AppSessionHTTPResponseBodyChunk) TrimToMaxSize(maxSize int) AuditEvent {
+	return trimEventToMaxSize(m, maxSize, func(m, out *AppSessionHTTPResponseBodyChunk) fieldTrimmer {
+		return fieldTrimmers{
+			newBytesTrimmer(m.Data, &out.Data),
+		}
+	})
+}
