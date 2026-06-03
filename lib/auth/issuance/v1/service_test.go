@@ -134,8 +134,7 @@ func TestIssueScopedBotCerts(t *testing.T) {
 			}.Build(),
 			Scope: botScope,
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-				BotName:  bot.GetMetadata().GetName(),
-				BotScope: botScope,
+				Bot: botScope + "::" + bot.GetMetadata().GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{Role: "bot-role", Scope: botScope}.Build(),
 				},
@@ -365,8 +364,7 @@ func TestIssueScopedBotCerts_Unauthorized(t *testing.T) {
 			}.Build(),
 			Scope: testScope,
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-				BotName:  scopedBot.GetMetadata().GetName(),
-				BotScope: testScope,
+				Bot: testScope + "::" + scopedBot.GetMetadata().GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{Role: "test-role", Scope: testScope}.Build(),
 				},

@@ -1047,8 +1047,7 @@ func TestValidateAsssignment(t *testing.T) {
 				}.Build(),
 				Scope: "/",
 				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-					BotName:  "mybot",
-					BotScope: "/foo/bar",
+					Bot: "/foo/bar::mybot",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
 							Role:  "test",
@@ -1062,7 +1061,7 @@ func TestValidateAsssignment(t *testing.T) {
 			weakOk:   true,
 		},
 		{
-			name: "bot_name and user both set",
+			name: "bot and user both set",
 			assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 				Kind:    KindScopedRoleAssignment,
 				SubKind: SubKindDynamic,
@@ -1071,9 +1070,8 @@ func TestValidateAsssignment(t *testing.T) {
 				}.Build(),
 				Scope: "/",
 				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-					User:     "alice",
-					BotName:  "mybot",
-					BotScope: "/foo/bar",
+					User: "alice",
+					Bot:  "/foo/bar::mybot",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
 							Role:  "test",
@@ -1087,7 +1085,7 @@ func TestValidateAsssignment(t *testing.T) {
 			weakOk:   true,
 		},
 		{
-			name: "bot_name without bot_scope",
+			name: "bot missing scope qualification",
 			assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 				Kind:    KindScopedRoleAssignment,
 				SubKind: SubKindDynamic,
@@ -1096,7 +1094,7 @@ func TestValidateAsssignment(t *testing.T) {
 				}.Build(),
 				Scope: "/",
 				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-					BotName: "mybot",
+					Bot: "mybot",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
 							Role:  "test",
@@ -1110,7 +1108,7 @@ func TestValidateAsssignment(t *testing.T) {
 			weakOk:   true,
 		},
 		{
-			name: "bot_scope without bot_name",
+			name: "bot with empty name component",
 			assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 				Kind:    KindScopedRoleAssignment,
 				SubKind: SubKindDynamic,
@@ -1119,8 +1117,7 @@ func TestValidateAsssignment(t *testing.T) {
 				}.Build(),
 				Scope: "/",
 				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-					User:     "alice",
-					BotScope: "/foo/bar",
+					Bot: "/foo/bar::",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
 							Role:  "test",
@@ -1134,7 +1131,7 @@ func TestValidateAsssignment(t *testing.T) {
 			weakOk:   true,
 		},
 		{
-			name: "invalid bot_scope",
+			name: "invalid bot scope",
 			assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 				Kind:    KindScopedRoleAssignment,
 				SubKind: SubKindDynamic,
@@ -1143,8 +1140,7 @@ func TestValidateAsssignment(t *testing.T) {
 				}.Build(),
 				Scope: "/",
 				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-					BotName:  "mybot",
-					BotScope: "not-a-scope",
+					Bot: "not-a-scope::mybot",
 					Assignments: []*scopedaccessv1.Assignment{
 						scopedaccessv1.Assignment_builder{
 							Role:  "test",
@@ -1167,8 +1163,7 @@ func TestValidateAsssignment(t *testing.T) {
 				}.Build(),
 				Scope: "/",
 				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-					BotName:  "mybot",
-					BotScope: "/foo/bar",
+					Bot: "/foo/bar::mybot",
 					Assignments: []*scopedaccessv1.Assignment{
 						// Valid
 						scopedaccessv1.Assignment_builder{

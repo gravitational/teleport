@@ -390,8 +390,7 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 			}.Build(),
 			Scope: bernardScope,
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-				BotName:  "bernard",
-				BotScope: bernardScope,
+				Bot: bernardScope + "::bernard",
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
 						Role:  "role-01",
@@ -410,8 +409,7 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 			}.Build(),
 			Scope: bernardScope,
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-				BotName:  "bernard",
-				BotScope: bernardScope,
+				Bot: bernardScope + "::bernard",
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
 						Role:  "role-02",
@@ -430,8 +428,7 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 			}.Build(),
 			Scope: "/",
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-				BotName:  "bernard",
-				BotScope: bernardScope,
+				Bot: bernardScope + "::bernard",
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
 						Role:  "role-03",
@@ -450,8 +447,7 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 			}.Build(),
 			Scope: "/",
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-				BotName:  "bernard",
-				BotScope: bernardScope,
+				Bot: bernardScope + "::bernard",
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
 						Role:  "role-04",
@@ -470,8 +466,7 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 			}.Build(),
 			Scope: bernardScope,
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-				BotName:  "bernard",
-				BotScope: "/mismatched",
+				Bot: "/mismatched::bernard",
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
 						Role:  "bernard-invalid-01",
@@ -491,8 +486,7 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 			}.Build(),
 			Scope: "/",
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-				BotName:  "bernard",
-				BotScope: bernardScope,
+				Bot: bernardScope + "::bernard",
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
 						Role:  "bernard-invalid-02",

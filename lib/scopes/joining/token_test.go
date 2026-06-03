@@ -71,8 +71,7 @@ func TestValidateScopedToken(t *testing.T) {
 		}.Build(),
 		Spec: joiningv1.ScopedTokenSpec_builder{
 			Roles:      []string{types.RoleBot.String()},
-			BotScope:   "/aa/bb",
-			BotName:    "test-bot",
+			Bot:        "/aa/bb::test-bot",
 			JoinMethod: string(types.JoinMethodBoundKeypair),
 			UsageMode:  joining.TokenUsageModeBot,
 		}.Build(),
@@ -955,18 +954,11 @@ func TestValidateScopedToken(t *testing.T) {
 			},
 		},
 		{
-			name: "non-bot token with bot_scope",
+			name: "non-bot token with bot",
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.GetSpec().SetBotScope("/aa/bb")
+				tok.GetSpec().SetBot("/aa/bb::foo")
 			},
-			expectedStrongErr: "bot_scope cannot be set",
-		},
-		{
-			name: "non-bot token with bot_name",
-			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.GetSpec().SetBotName("foo")
-			},
-			expectedStrongErr: "bot_name cannot be set",
+			expectedStrongErr: "bot cannot be set",
 		},
 		{
 			name: "non-bot token with bot usage mode",
@@ -980,31 +972,31 @@ func TestValidateScopedToken(t *testing.T) {
 			baseToken: baseBotToken,
 		},
 		{
-			name:      "bot token without a bot_name",
+			name:      "bot token without a bot",
 			baseToken: baseBotToken,
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.GetSpec().SetBotName("")
+				tok.GetSpec().SetBot("")
 			},
-			expectedStrongErr: "expected non-empty bot_name",
-			expectedWeakErr:   "expected non-empty bot_name",
+			expectedStrongErr: "expected non-empty bot",
+			expectedWeakErr:   "expected non-empty bot",
 		},
 		{
-			name:      "bot token without a bot_scope",
+			name:      "bot token with bot missing scope qualification",
 			baseToken: baseBotToken,
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.GetSpec().SetBotScope("")
+				tok.GetSpec().SetBot("test-bot")
 			},
-			expectedStrongErr: "expected non-empty bot_scope",
-			expectedWeakErr:   "expected non-empty bot_scope",
+			expectedStrongErr: "validating scoped token bot",
+			expectedWeakErr:   "validating scoped token bot",
 		},
 		{
 			name:      "bot token with an invalid bot scope",
 			baseToken: baseBotToken,
 			modFn: func(tok *joiningv1.ScopedToken) {
-				tok.GetSpec().SetBotScope("aa/bb}")
+				tok.GetSpec().SetBot("aa/bb}::test-bot")
 			},
-			expectedStrongErr: "validating scoped token bot_scope",
-			expectedWeakErr:   "validating scoped token bot_scope",
+			expectedStrongErr: "validating scoped token bot",
+			expectedWeakErr:   "validating scoped token bot",
 		},
 		{
 			name:      "bot token with invalid usage mode",
@@ -1027,9 +1019,9 @@ func TestValidateScopedToken(t *testing.T) {
 			baseToken: baseBotToken,
 			modFn: func(tok *joiningv1.ScopedToken) {
 				tok.SetScope("/aa/bb")
-				tok.GetSpec().SetBotScope("/aa/cc")
+				tok.GetSpec().SetBot("/aa/cc::test-bot")
 			},
-			expectedStrongErr: "scoped token bot_scope must be a descendant of",
+			expectedStrongErr: "scoped token bot scope must be a descendant of",
 		},
 		{
 			name:      "bot token with assigned_scope",

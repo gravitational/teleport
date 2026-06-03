@@ -299,16 +299,17 @@ func validateJoinMethod(token *joiningv1.ScopedToken) error {
 func validateBotToken(token *joiningv1.ScopedToken, roles types.SystemRoles) error {
 	spec := token.GetSpec()
 
-	if spec.GetBotName() == "" {
-		return trace.BadParameter("expected non-empty bot_name for a scoped bot token")
+	if spec.GetBot() == "" {
+		return trace.BadParameter("expected non-empty bot for a scoped bot token")
 	}
 
-	if spec.GetBotScope() == "" {
-		return trace.BadParameter("expected non-empty bot_scope for a scoped bot token")
+	if err := scopes.StrongValidateQualifiedName(spec.GetBot()); err != nil {
+		return trace.Wrap(err, "validating scoped token bot")
 	}
 
-	if err := scopes.StrongValidate(spec.GetBotScope()); err != nil {
-		return trace.Wrap(err, "validating scoped token bot_scope")
+	bot, err := scopes.ParseQualifiedName(spec.GetBot())
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	if spec.GetUsageMode() != TokenUsageModeBot {
@@ -319,8 +320,8 @@ func validateBotToken(token *joiningv1.ScopedToken, roles types.SystemRoles) err
 		return trace.BadParameter("roles must only be '[Bot]' for a scoped bot token")
 	}
 
-	if !scopes.ScopeOfOrigin(token.GetScope()).IsAssignableToScopeOfEffect(spec.GetBotScope()) {
-		return trace.BadParameter("scoped token bot_scope must be a descendant of or equivalent to its resource scope")
+	if !scopes.ScopeOfOrigin(token.GetScope()).IsAssignableToScopeOfEffect(bot.Scope) {
+		return trace.BadParameter("scoped token bot scope must be a descendant of or equivalent to its resource scope")
 	}
 
 	if spec.GetAssignedScope() != "" {
@@ -339,12 +340,8 @@ func validateBotToken(token *joiningv1.ScopedToken, roles types.SystemRoles) err
 func validateNonBotToken(token *joiningv1.ScopedToken) error {
 	spec := token.GetSpec()
 
-	if spec.GetBotName() != "" {
-		return trace.BadParameter("bot_name cannot be set for a non-bot token")
-	}
-
-	if spec.GetBotScope() != "" {
-		return trace.BadParameter("bot_scope cannot be set for a non-bot token")
+	if spec.GetBot() != "" {
+		return trace.BadParameter("bot cannot be set for a non-bot token")
 	}
 
 	if spec.GetUsageMode() == TokenUsageModeBot {
@@ -457,16 +454,12 @@ func WeakValidateToken(token *joiningv1.ScopedToken) error {
 	// other unknown roles.
 	isBotToken := slices.Contains(spec.GetRoles(), string(types.RoleBot))
 	if isBotToken {
-		if token.GetSpec().GetBotName() == "" {
-			return trace.BadParameter("expected non-empty bot_name for a scoped bot token")
+		if spec.GetBot() == "" {
+			return trace.BadParameter("expected non-empty bot for a scoped bot token")
 		}
 
-		if token.GetSpec().GetBotScope() == "" {
-			return trace.BadParameter("expected non-empty bot_scope for a scoped bot token")
-		}
-
-		if err := scopes.WeakValidate(spec.GetBotScope()); err != nil {
-			return trace.Wrap(err, "validating scoped token bot_scope")
+		if err := scopes.WeakValidateQualifiedName(spec.GetBot()); err != nil {
+			return trace.Wrap(err, "validating scoped token bot")
 		}
 	} else {
 		if err := scopes.WeakValidate(token.GetSpec().GetAssignedScope()); err != nil {
@@ -614,16 +607,25 @@ func (t *Token) Expiry() time.Time {
 	return expiry.AsTime()
 }
 
-// GetBotName returns an empty string because scoped tokens do not currently
-// support configuring a bot name.
+// GetBotName returns the name component of the token's scope-qualified bot
+// reference. It is empty for non-bot tokens.
 func (t *Token) GetBotName() string {
-	return t.scoped.GetSpec().GetBotName()
+	bot, err := scopes.ParseQualifiedName(t.scoped.GetSpec().GetBot())
+	if err != nil {
+		return ""
+	}
+	return bot.Name
 }
 
-// GetBotScope returns the BotScope field which must be set for bots joining
-// with a scoped token. It is empty for unscoped bots.
+// GetBotScope returns the scope component of the token's scope-qualified bot
+// reference, which must be set for bots joining with a scoped token. It is
+// empty for non-bot tokens.
 func (t *Token) GetBotScope() string {
-	return t.scoped.GetSpec().GetBotScope()
+	bot, err := scopes.ParseQualifiedName(t.scoped.GetSpec().GetBot())
+	if err != nil {
+		return ""
+	}
+	return bot.Scope
 }
 
 // GetAssignedScope returns the scope that will be assigned to resources

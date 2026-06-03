@@ -480,23 +480,21 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 		return trace.BadParameter("scoped role assignment %q contains too many sub-assignments (max %d)", assignment.GetMetadata().GetName(), MaxRolesPerAssignment)
 	}
 
-	// Assigning to Bot is mutually exclusive with assigning to User. When
-	// assigning to Bot, we also want to ensure Bot's scope is specified.
-	botSet := assignment.GetSpec().GetBotName() != ""
-	botScope := assignment.GetSpec().GetBotScope()
-	if botSet && assignment.GetSpec().GetUser() != "" {
-		return trace.BadParameter("scoped role assignment %q cannot have both spec.bot_name and spec.user set", assignment.GetMetadata().GetName())
-	}
-	if botSet && botScope == "" {
-		return trace.BadParameter("scoped role assignment %q with spec.bot_name set must also have spec.bot_scope set", assignment.GetMetadata().GetName())
-	}
-	if !botSet && botScope != "" {
-		return trace.BadParameter("scoped role assignment %q with spec.bot_scope set must also have spec.bot_name set", assignment.GetMetadata().GetName())
-	}
+	// Assigning to Bot is mutually exclusive with assigning to User.
+	botSet := assignment.GetSpec().GetBot() != ""
+	var botScope string
 	if botSet {
-		if err := scopes.StrongValidate(botScope); err != nil {
-			return trace.BadParameter("scoped role assignment %q has invalid spec.bot_scope: %v", assignment.GetMetadata().GetName(), err)
+		if assignment.GetSpec().GetUser() != "" {
+			return trace.BadParameter("scoped role assignment %q cannot have both spec.bot and spec.user set", assignment.GetMetadata().GetName())
 		}
+		if err := scopes.StrongValidateQualifiedName(assignment.GetSpec().GetBot()); err != nil {
+			return trace.BadParameter("scoped role assignment %q has invalid spec.bot: %v", assignment.GetMetadata().GetName(), err)
+		}
+		bot, err := scopes.ParseQualifiedName(assignment.GetSpec().GetBot())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		botScope = bot.Scope
 	}
 
 	for i, subAssignment := range assignment.GetSpec().GetAssignments() {
@@ -531,7 +529,7 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 					assignment.GetMetadata().GetName(),
 					i,
 					subAssignment.GetScope(),
-					assignment.GetSpec().GetBotScope(),
+					botScope,
 				)
 			}
 		}
@@ -565,8 +563,8 @@ func commonValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 		return trace.BadParameter("scoped role assignment %q is missing scope", assignment.GetMetadata().GetName())
 	}
 
-	if assignment.GetSpec().GetUser() == "" && assignment.GetSpec().GetBotName() == "" {
-		return trace.BadParameter("scoped role assignment %q is missing spec.user or spec.bot_name", assignment.GetMetadata().GetName())
+	if assignment.GetSpec().GetUser() == "" && assignment.GetSpec().GetBot() == "" {
+		return trace.BadParameter("scoped role assignment %q is missing spec.user or spec.bot", assignment.GetMetadata().GetName())
 	}
 
 	return nil

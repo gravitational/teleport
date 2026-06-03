@@ -444,6 +444,10 @@ func (a *Server) GenerateBotCertsForJoin(
 		a.logger.WarnContext(ctx, "Unable to encode struct value for join metadata", "error", err)
 	}
 
+	// TODO(scopes): scoped bots are currently looked up by their bare name and
+	// scope-checked via the BotScopeLabel below. Once scoped bots are namespaced
+	// by scope in the backend, the bare name is no longer a unique identifier and
+	// this lookup must key on the scope-qualified name instead.
 	user, err := a.GetUserOrLoginState(ctx, machineidv1.BotResourceName(botName))
 	if err != nil {
 		return nil, "", trace.Wrap(err)
@@ -463,13 +467,17 @@ func (a *Server) GenerateBotCertsForJoin(
 			return nil, "", trace.AccessDenied("scoped token usage mode must be 'bot' for bot joining")
 		}
 
-		tokenBotScope := scoped.GetScoped().GetSpec().GetBotScope()
+		tokenBot, err := scopes.ParseQualifiedName(scoped.GetScoped().GetSpec().GetBot())
+		if err != nil {
+			return nil, "", trace.Wrap(err, "parsing scoped token bot")
+		}
+		tokenBotScope := tokenBot.Scope
 		if botScope != tokenBotScope {
 			a.logger.WarnContext(ctx, "bot scope must match token scope",
 				"token_scope", tokenBotScope,
 				"bot_scope", botScope,
 			)
-			return nil, "", trace.AccessDenied("bot scope must match token's spec.bot_scope")
+			return nil, "", trace.AccessDenied("bot scope must match token's spec.bot")
 		}
 
 		if !scopes.ResourceScope(botScope).IsSubjectToScopeOfEffect(scoped.GetScoped().GetScope()) {

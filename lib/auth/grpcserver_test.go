@@ -7115,8 +7115,7 @@ func TestGenerateUserCertsScopedBot(t *testing.T) {
 						}.Build(),
 						Scope: c.scope,
 						Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-							BotName:  bot.GetMetadata().GetName(),
-							BotScope: c.scope,
+							Bot: c.scope + "::" + bot.GetMetadata().GetName(),
 							Assignments: []*scopedaccessv1.Assignment{
 								scopedaccessv1.Assignment_builder{Role: roleResp.GetRole().GetMetadata().GetName(), Scope: c.scope}.Build(),
 							},
