@@ -101,6 +101,10 @@ type Handler struct {
 
 	cache *utils.FnCache
 
+	// sessionCacheIdleTTL is how long a forwarding session stays cached
+	// without use before it is evicted.
+	sessionCacheIdleTTL time.Duration
+
 	clusterName string
 
 	logger *slog.Logger
@@ -114,19 +118,28 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 	}
 
 	h := &Handler{
-		c:            c,
-		closeContext: ctx,
-		logger:       slog.With(teleport.ComponentKey, teleport.ComponentAppProxy),
+		c:                   c,
+		closeContext:        ctx,
+		sessionCacheIdleTTL: defaultAppSessionIdleTTL,
+		logger:              slog.With(teleport.ComponentKey, teleport.ComponentAppProxy),
 	}
 
-	// Create a new session cache, this holds sessions that can be used to
-	// forward requests.
+	// Create the session cache holding forwarders used to proxy requests.
+	// Entries are evicted after sessionCacheIdleTTL without use so the proxy
+	// does not pin one forwarder per session for the whole session lifetime.
+	// On eviction the transport's idle HTTP keep-alive connections are closed.
 	h.cache, err = utils.NewFnCache(utils.FnCacheConfig{
-		TTL:             time.Second, // Doesn't matter, TTL is always set on an item by item basis.
+		TTL:             h.sessionCacheIdleTTL,
 		Clock:           h.c.Clock,
 		Context:         ctx,
 		CleanupInterval: time.Second,
 		ReloadOnErr:     true,
+		RefreshTTLOnGet: true,
+		OnExpiry: func(_ context.Context, _ any, value any) {
+			if sess, ok := value.(*session); ok {
+				sess.tr.closeIdleConns()
+			}
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -149,7 +162,27 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 	h.router.GET("/teleport-logout", h.withRouterAuth(h.handleLogout))
 	h.router.NotFound = h.withAuth(h.handleHttp)
 
+	go h.expireSessions(h.closeContext)
+
 	return h, nil
+}
+
+// expireSessions periodically evicts idle forwarding sessions so a proxy that
+// has stopped receiving requests does not keep a session and its idle
+// connections pinned until traffic resumes. The cache's own CleanupInterval
+// sweep only runs inside get(), so it never fires while the proxy is idle;
+// this ticker covers that gap.
+func (h *Handler) expireSessions(ctx context.Context) {
+	ticker := h.c.Clock.NewTicker(time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.Chan():
+			h.cache.RemoveExpired()
+		case <-ctx.Done():
+			return
+		}
+	}
 }
 
 // ServeHTTP hands the request to the request router.
@@ -364,9 +397,14 @@ func (h *Handler) renewSession(r *http.Request) (*session, error) {
 		return nil, trace.AccessDenied("invalid session")
 	}
 
-	// Remove the session from the cache, this will force a new session to be
-	// generated and cached.
-	h.cache.Remove(ws.GetName())
+	// Evict the cached forwarder so the next request rebuilds it, closing the
+	// discarded transport's idle connections. Pop removes and returns the entry
+	// atomically; Remove alone would skip the OnExpiry idle-conn cleanup.
+	if v, ok := h.cache.Pop(ws.GetName()); ok {
+		if prev, ok := v.(*session); ok {
+			prev.tr.closeIdleConns()
+		}
+	}
 
 	// Fetches a new session using the same flow as `authenticate`.
 	session, err := h.getSession(r.Context(), ws)
@@ -575,12 +613,14 @@ func (h *Handler) checkForDualCredentialMismatch(outerIdentity *tlsca.Identity, 
 	return nil
 }
 
-// getSession returns a request session used to proxy the request to the
-// application service. Always checks if the session is valid first and if so,
-// will return a cached session, otherwise will create one.
+// getSession returns the forwarding session used to proxy a request to the
+// application service, reusing the cached one or building it on a miss. The
+// cache TTL is capped at the web session's remaining lifetime. Callers must
+// validate the web session first; getSession does not re-check it.
 func (h *Handler) getSession(ctx context.Context, ws types.WebSession) (*session, error) {
-	// Put the session in the cache so the next request can use it.
-	ttl := ws.Expiry().Sub(h.c.Clock.Now())
+	// Cap the idle TTL at the session's remaining lifetime so a cached
+	// forwarder never outlives its web session.
+	ttl := min(h.sessionCacheIdleTTL, ws.Expiry().Sub(h.c.Clock.Now()))
 	sess, err := utils.FnCacheGetWithTTL(ctx, h.cache, ws.GetName(), ttl, func(ctx context.Context) (*session, error) {
 		sess, err := h.newSession(ctx, ws)
 		return sess, trace.Wrap(err)
@@ -705,6 +745,9 @@ const (
 	// initial authentication flow.
 	AuthStateCookieName = "__Host-grv_app_auth_state"
 )
+
+// defaultAppSessionIdleTTL is the default for Handler.sessionCacheIdleTTL.
+const defaultAppSessionIdleTTL = 5 * time.Minute
 
 // makeAppRedirectURL constructs a URL that will redirect the user to the
 // application launcher route in the web UI.
