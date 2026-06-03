@@ -21,13 +21,13 @@ experience improvements are planned for future releases.
 The current implementation has a few limitations:
 
 - Only selected CAs are supported.
-- Some commands that interact with CAs are not yet aware of overrides.
-  For example:
-  - `tctl get cas/windows` still returns the self-signed CA certificate.
-    Use `tctl get ca_overrides/windows` to get override data.
-  - CA rotation does not account for active overrides. Administrators must track
-    active overrides and manually create new overrides at the appropriate steps
-    during rotation.
+- `tctl get cas/windows` only shows the self-signed CA certificate.
+- `tctl auth export` only exports the self-signed CA certificates.
+- `tctl auth rotate` does not account for active overrides. Administrators must
+  track active overrides and manually create new overrides at the appropriate
+  steps during rotation.
+
+Use `tctl get ca_overrides` to get override data.
 </Admonition>
 
 ## How it works
