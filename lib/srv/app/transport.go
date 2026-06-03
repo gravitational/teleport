@@ -25,11 +25,13 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
 	"slices"
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -60,6 +62,9 @@ type transportConfig struct {
 	insecureMode        bool
 	clusterName         string
 	certAuthorityGetter upstreamtls.CertificateAuthorityGetter
+	// httpRecording enables per-request HTTP audit events.
+	// Controlled by the TELEPORT_APP_HTTP_RECORDING environment variable.
+	httpRecording bool
 }
 
 // Check validates configuration.
@@ -103,6 +108,7 @@ func newTransport(ctx context.Context, c *transportConfig) (*transport, error) {
 	if err := c.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
+	c.httpRecording = utils.AsBool(os.Getenv("TELEPORT_APP_HTTP_RECORDING"))
 
 	// Parse the target address once then inject it into all requests.
 	uri, err := url.Parse(c.app.GetURI())
@@ -138,6 +144,29 @@ func newTransport(ctx context.Context, c *transportConfig) (*transport, error) {
 	}, nil
 }
 
+// networkErrorResponse builds a synthetic HTTP error response for network-level
+// failures, logging the raw error at debug level and embedding the host ID when
+// available.
+func (t *transport) networkErrorResponse(r *http.Request, message string, origErr error) *http.Response {
+	if t.log.Enabled(r.Context(), slog.LevelDebug) {
+		t.log.DebugContext(r.Context(), "application request failed with a network error",
+			"raw_error", origErr, "human_error", strings.Join(strings.Fields(message), " "))
+	}
+	if t.hostID != "" {
+		message = message + "\n\nThe ID of the Teleport Application Service instance that generated this error is " + t.hostID + "."
+	}
+	code := trace.ErrorToCode(origErr)
+	return &http.Response{
+		StatusCode: code,
+		Status:     http.StatusText(code),
+		Proto:      r.Proto,
+		ProtoMajor: r.ProtoMajor,
+		ProtoMinor: r.ProtoMinor,
+		Body:       io.NopCloser(strings.NewReader(charWrap(message))),
+		TLS:        r.TLS,
+	}
+}
+
 // RoundTrip will rewrite the request, forward the request to the target
 // application, emit an event to the audit log, then rewrite the response.
 func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
@@ -161,42 +190,83 @@ func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
 		}, nil
 	}
 
-	// Perform any request rewriting needed before forwarding the request.
-	if err := t.rewriteRequest(r); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+	// Get session context before rewriting so that recording captures the
+	// original public-facing URL rather than the rewritten upstream address.
 	sessCtx, err := common.GetSessionContext(r)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Forward the request to the target application.
+	// Emit the request event before rewriteRequest mutates r.URL to the
+	// upstream backend coordinates.
+	var requestID string
+	if t.httpRecording {
+		requestID = uuid.New().String()
+		if err := sessCtx.Audit.OnHTTPRequest(t.closeContext, sessCtx, requestID, r); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	// Perform any request rewriting needed before forwarding the request.
+	if err := t.rewriteRequest(r); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if t.httpRecording {
+		if r.Body != nil && r.Body != http.NoBody {
+			rid := requestID
+			r.Body = newRecordingBody(r.Body, func(data []byte, index int64, isLast bool) {
+				if err := sessCtx.Audit.OnHTTPRequestBodyChunk(t.closeContext, sessCtx, rid, index, isLast, data); err != nil {
+					t.log.WarnContext(t.closeContext, "failed to record request body chunk", "error", err)
+				}
+			})
+		}
+
+		start := time.Now()
+		resp, err := t.tr.RoundTrip(r)
+		waitMs := time.Since(start).Milliseconds()
+
+		if message, ok := utils.CanExplainNetworkError(err); ok {
+			return t.networkErrorResponse(r, message, err), nil
+		}
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Rewrite response headers (e.g. Location) before recording so the
+		// audit event captures the public-facing values, not the upstream ones.
+		if err := t.rewriteResponse(resp); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if err := sessCtx.Audit.OnHTTPResponse(t.closeContext, sessCtx, requestID, resp, waitMs); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if resp.Body != nil && resp.Body != http.NoBody {
+			rid := requestID
+			resp.Body = newRecordingBody(resp.Body, func(data []byte, index int64, isLast bool) {
+				if err := sessCtx.Audit.OnHTTPResponseBodyChunk(t.closeContext, sessCtx, rid, index, isLast, data); err != nil {
+					t.log.WarnContext(t.closeContext, "failed to record response body chunk", "error", err)
+				}
+			})
+		}
+
+		if err := sessCtx.Audit.OnRequest(t.closeContext, sessCtx, r, uint32(resp.StatusCode), nil); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return resp, nil
+	}
+
+	// Non-recording path (original behaviour).
 	//
 	// If a network error occurred when connecting to the target application,
 	// log and return a helpful error message to the user and Teleport
 	// administrator.
 	resp, err := t.tr.RoundTrip(r)
 	if message, ok := utils.CanExplainNetworkError(err); ok {
-		if t.log.Enabled(r.Context(), slog.LevelDebug) {
-			t.log.DebugContext(r.Context(), "application request failed with a network error",
-				"raw_error", err, "human_error", strings.Join(strings.Fields(message), " "))
-		}
-
-		if t.hostID != "" {
-			message = message + "\n\nThe ID of the Teleport Application Service instance that generated this error is " + t.hostID + "."
-		}
-
-		code := trace.ErrorToCode(err)
-		return &http.Response{
-			StatusCode: code,
-			Status:     http.StatusText(code),
-			Proto:      r.Proto,
-			ProtoMajor: r.ProtoMajor,
-			ProtoMinor: r.ProtoMinor,
-			Body:       io.NopCloser(strings.NewReader(charWrap(message))),
-			TLS:        r.TLS,
-		}, nil
+		return t.networkErrorResponse(r, message, err), nil
 	}
 	if err != nil {
 		return nil, trace.Wrap(err)
