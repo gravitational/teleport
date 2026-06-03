@@ -16,17 +16,19 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { useHistory, useLocation } from 'react-router';
 import styled, { useTheme } from 'styled-components';
 
 import { Info } from 'design/Alert/Alert';
 import Box from 'design/Box/Box';
-import { ButtonPrimary } from 'design/Button/Button';
+import { ButtonPrimary, ButtonSecondary } from 'design/Button/Button';
 import Flex from 'design/Flex/Flex';
 import Image from 'design/Image/Image';
 import Link from 'design/Link/Link';
 import { H2, P2 } from 'design/Text/Text';
 import { Theme } from 'design/theme/themes/types';
 
+import cfg from 'teleport/config';
 import {
   IntegrationEnrollStatusCode,
   IntegrationEnrollStep,
@@ -43,6 +45,8 @@ export function Welcome(props: FlowStepProps) {
 
   const theme = useTheme();
   const tracking = useTracking();
+  const location = useLocation();
+  const history = useHistory();
 
   const welcomeImage: ImageSpec = {
     light: welcomeLight,
@@ -56,6 +60,15 @@ export function Welcome(props: FlowStepProps) {
     );
 
     nextStep?.();
+  };
+
+  const handlePrevious = () => {
+    // If location.key is unset, or 'default', this is the first history entry in-app in the session.
+    if (!location.key || location.key === 'default') {
+      history.push(cfg.getIntegrationsEnrollRoute());
+    } else {
+      history.goBack();
+    }
   };
 
   return (
@@ -108,6 +121,7 @@ export function Welcome(props: FlowStepProps) {
 
           <Flex gap={2} pt={1}>
             <ButtonPrimary onClick={handleNext}>Start</ButtonPrimary>
+            <ButtonSecondary onClick={handlePrevious}>Back</ButtonSecondary>
           </Flex>
         </Box>
       </FormContainer>
