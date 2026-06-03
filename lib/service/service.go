@@ -3750,7 +3750,10 @@ func (process *TeleportProcess) initSSH() error {
 			}()
 			defer mux.Close()
 
-			listener, err = limiter.WrapListener(mux.SSH())
+			listener, err = limiter.WrapListener(
+				mux.SSH(),
+				sshutils.ConnectionLimitExceededCallback(process.ExitContext(), logger),
+			)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -5383,7 +5386,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			}
 		}
 
-		rtListener, err := reverseTunnelLimiter.WrapListener(listeners.reverseTunnel)
+		rtListener, err := reverseTunnelLimiter.WrapListener(
+			listeners.reverseTunnel,
+			sshutils.ConnectionLimitExceededCallback(process.ExitContext(), logger),
+		)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -5984,7 +5990,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 		// start ssh server
 		go func() {
-			listener, err := proxyLimiter.WrapListener(listeners.ssh)
+			listener, err := proxyLimiter.WrapListener(
+				listeners.ssh,
+				sshutils.ConnectionLimitExceededCallback(process.ExitContext(), logger),
+			)
 			if err != nil {
 				logger.ErrorContext(process.ExitContext(), "Failed to set up SSH proxy server", "error", err)
 				return
@@ -5996,7 +6005,10 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 		// start grpc server
 		go func() {
-			listener, err := proxyLimiter.WrapListener(listeners.sshGRPC)
+			listener, err := proxyLimiter.WrapListener(
+				listeners.sshGRPC,
+				sshutils.ConnectionLimitExceededCallback(process.ExitContext(), logger),
+			)
 			if err != nil {
 				logger.ErrorContext(process.ExitContext(), "Failed to set up SSH proxy server", "error", err)
 				return
