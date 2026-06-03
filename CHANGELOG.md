@@ -1,5 +1,39 @@
 # Changelog
 
+## 18.8.3 (06/03/26)
+
+* The embedded session helper functionality introduced in v18.8.0 to improve memory usage and latency of SSH sessions is now disabled by default due to incompatibility with some endpoint protection services. It can be enabled by setting the `TELEPORT_UNSTABLE_DISABLE_EMBEDDED_REEXEC` envvar to `no`. [#67430](https://github.com/gravitational/teleport/pull/67430)
+* Improved notification messaging for Slack and Discord access plugins. [#67415](https://github.com/gravitational/teleport/pull/67415)
+* Added support for auto discovering VMs deployed in uniform Azure VM Scale Sets to terraform modules used in Auto Discovery. [#67323](https://github.com/gravitational/teleport/pull/67323)
+* Added secret lookup support for `TeleportOIDCConnector.spec.google_service_account` to the Teleport Kubernetes Operator. [#67309](https://github.com/gravitational/teleport/pull/67309)
+* Improved the latency of SSH agent forwarding used by multiple clients at once. [#67305](https://github.com/gravitational/teleport/pull/67305)
+* Tightened signature handling in Device Trust challenge/response validation. [#67302](https://github.com/gravitational/teleport/pull/67302)
+* Add `web_terminal_clipboard_mode` role option to restrict copying text from a web terminal SSH session. [#67276](https://github.com/gravitational/teleport/pull/67276)
+* Improved performance and reduced resource usage of the auth service for clusters with large numbers of registered Kubernetes clusters with per-session MFA enabled. [#67203](https://github.com/gravitational/teleport/pull/67203)
+* Fixed an issue where generated installer scripts could incorrectly escape special characters in some values. [#67191](https://github.com/gravitational/teleport/pull/67191)
+* Fixed a bug in Teleport Connect where the last terminal input could be logged to `renderer.log` if the terminal closed on its own — for example, when a `tsh ssh` session is dropped by the remote side (idle timeout, network disconnection) after the user pasted content but before they pressed Enter. [#67172](https://github.com/gravitational/teleport/pull/67172)
+* Fix a Enhanced Session Recording bug in proxy recording mode that caused Teleport Nodes to stop emitting BPF events. [#67155](https://github.com/gravitational/teleport/pull/67155)
+* Fixed the `teleport-kube-agent` updater not honouring the `podSecurityContext` value. [#67097](https://github.com/gravitational/teleport/pull/67097)
+* Fix device trust for remote users connecting to a trusted cluster. [#67031](https://github.com/gravitational/teleport/pull/67031)
+* Improved performance and reduced resource usage of the auth service for clusters with large numbers of registered databases with per-session MFA enabled. [#67029](https://github.com/gravitational/teleport/pull/67029)
+* NOCL: [v18] Bump github.com/containerd/containerd from 1.7.30 to 1.7.32 [#67007](https://github.com/gravitational/teleport/pull/67007)
+* Reduced peak memory usage of SSH target resolution in Auth service instances. [#67005](https://github.com/gravitational/teleport/pull/67005)
+* Introduces `tsh workload-identity issue-jwt` command for human issuance of JWT-SVIDs. [#66995](https://github.com/gravitational/teleport/pull/66995)
+* Improved the reliability of clipboard sharing for remote desktop sessions in both Teleport Connect and browsers running Chrome 144+. [#66979](https://github.com/gravitational/teleport/pull/66979)
+* Fixed a TLS certificate error that prevented users from connecting to Amazon Keyspaces databases through Teleport. [#66974](https://github.com/gravitational/teleport/pull/66974)
+* Tightened default permission when creating AWS configuration files. [#66941](https://github.com/gravitational/teleport/pull/66941)
+* Stopped traversing symlinks and allowing relative paths in moderated file transfers. [#66796](https://github.com/gravitational/teleport/pull/66796)
+* Added `identity/key-agent` service to enable `tbot` to generate un-exfiltratable credentials. [#66701](https://github.com/gravitational/teleport/pull/66701)
+* Reduced unnecessary S3 uploads for Athena audit log deployments that publish directly to SQS by applying the correct SQS message size limit when the client has `sqs:GetQueueAttributes` permission, instead of always using the 256 KB SNS limit. [#66532](https://github.com/gravitational/teleport/pull/66532)
+* Combined passkeys and MFA devices into one list on the account settings page. [#66435](https://github.com/gravitational/teleport/pull/66435)
+* Added support for allowing or denying AWS IAM join attempts using the account's Organizational Units in their current Organization. [#66276](https://github.com/gravitational/teleport/pull/66276)
+* Fixed a fatal connection error that occurs in Windows Desktop sessions when attempting to create a file larger than 4GiB within a shared directory. [#65478](https://github.com/gravitational/teleport/pull/65478)
+
+Enterprise:
+* Fixed regresion where users added to an Okta group via SCIM were silently dropped when the Okta integration was configured in read-only mode with SCIM enabled.
+* SCIM-synced access lists will now have a badge displayed next to them in the web UI.
+* Fixed a bug that could cause panics in Teleport's SAML IdP during failure scenarios.
+
 ## 18.8.2 (05/21/26)
 
 * Fixed `tsh aws`, `tsh gcp`, `tsh azure`, and `tsh proxy app` failing with certificate errors. [#66962](https://github.com/gravitational/teleport/pull/66962)
