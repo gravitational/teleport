@@ -527,8 +527,7 @@ test.each<{
 test('throws when a reachable cluster does not advertise a tools version', async () => {
   await expect(
     resolveAutoUpdatesStatus({
-      cdnBaseUrl,
-      configToolsVersion: '',
+      versionEnvVar: '',
       managingClusterUri: '',
       getClusterVersions: async () => ({
         reachableClusters: [
