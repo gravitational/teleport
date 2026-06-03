@@ -429,6 +429,14 @@ const (
 	// AppSessionLLMRequestFailureEvent is emitted when an LLM inference request
 	// is sent and fails.
 	AppSessionLLMRequestFailureEvent = "app.session.llm.request.failure"
+	// AppSessionHTTPRequestEvent is emitted when a proxied HTTP request is received.
+	AppSessionHTTPRequestEvent = "app.session.http.request"
+	// AppSessionHTTPRequestBodyChunkEvent is emitted for each chunk of a proxied HTTP request body.
+	AppSessionHTTPRequestBodyChunkEvent = "app.session.http.request.body_chunk"
+	// AppSessionHTTPResponseEvent is emitted when a proxied HTTP response is received.
+	AppSessionHTTPResponseEvent = "app.session.http.response"
+	// AppSessionHTTPResponseBodyChunkEvent is emitted for each chunk of a proxied HTTP response body.
+	AppSessionHTTPResponseBodyChunkEvent = "app.session.http.response.body_chunk"
 
 	// DatabaseCreateEvent is emitted when a database resource is created.
 	DatabaseCreateEvent = "db.create"

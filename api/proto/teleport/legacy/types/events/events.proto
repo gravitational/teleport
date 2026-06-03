@@ -3212,6 +3212,144 @@ message AppSessionLLMRequest {
   int64 output_token_count = 10 [(gogoproto.jsontag) = "output_token_count,omitempty"];
 }
 
+// HTTPHeader is an HTTP header name/value pair used in HTTP recording events.
+message HTTPHeader {
+  string name = 1 [(gogoproto.jsontag) = "name"];
+  string value = 2 [(gogoproto.jsontag) = "value"];
+}
+
+// AppSessionHTTPRequest is emitted once per proxied HTTP request.
+// It contains all request metadata needed for HAR reconstruction except the body,
+// which follows in AppSessionHTTPRequestBodyChunk events.
+message AppSessionHTTPRequest {
+  // Common event metadata.
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // User who initiated the session.
+  UserMetadata user = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Session ID and MFA metadata.
+  SessionMetadata session = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Application being accessed.
+  AppMetadata app = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Unique identifier for this HTTP exchange within the session.
+  string request_id = 5 [(gogoproto.jsontag) = "request_id"];
+  // HTTP method, e.g. GET, POST.
+  string method = 6 [(gogoproto.jsontag) = "method"];
+  // Full request URL.
+  string url = 7 [(gogoproto.jsontag) = "url"];
+  // HTTP version, e.g. HTTP/1.1.
+  string http_version = 8 [(gogoproto.jsontag) = "http_version"];
+  // Request headers.
+  repeated HTTPHeader headers = 9 [(gogoproto.jsontag) = "headers"];
+  // Raw query string (the part after '?' in the URL).
+  string raw_query = 10 [(gogoproto.jsontag) = "raw_query,omitempty"];
+}
+
+// AppSessionHTTPRequestBodyChunk carries a chunk of the HTTP request body.
+// Reassemble in chunk_index order; the last chunk has is_last=true.
+message AppSessionHTTPRequestBodyChunk {
+  // Common event metadata.
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Session ID for correlation.
+  SessionMetadata session = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Unique identifier for the HTTP exchange this chunk belongs to.
+  string request_id = 3 [(gogoproto.jsontag) = "request_id"];
+  // Zero-based sequence number of this chunk.
+  int64 chunk_index = 4 [(gogoproto.jsontag) = "chunk_index"];
+  // True if this is the last chunk for this request body.
+  bool is_last = 5 [(gogoproto.jsontag) = "is_last"];
+  // Raw body bytes for this chunk.
+  bytes data = 6 [(gogoproto.jsontag) = "data"];
+}
+
+// AppSessionHTTPResponse is emitted once per proxied HTTP response.
+// HAR timings are included here. The response body follows in
+// AppSessionHTTPResponseBodyChunk events.
+message AppSessionHTTPResponse {
+  // Common event metadata.
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Session ID for correlation.
+  SessionMetadata session = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Application being accessed.
+  AppMetadata app = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Unique identifier for the HTTP exchange this response belongs to.
+  string request_id = 4 [(gogoproto.jsontag) = "request_id"];
+  // HTTP numeric status code.
+  uint32 status_code = 5 [(gogoproto.jsontag) = "status_code"];
+  // HTTP status text, e.g. "OK".
+  string status_text = 6 [(gogoproto.jsontag) = "status_text"];
+  // HTTP version, e.g. HTTP/1.1.
+  string http_version = 7 [(gogoproto.jsontag) = "http_version"];
+  // Response headers.
+  repeated HTTPHeader headers = 8 [(gogoproto.jsontag) = "headers"];
+  // HAR timings.send: time to send request (ms).
+  int64 send_time_ms = 9 [(gogoproto.jsontag) = "send_time_ms"];
+  // HAR timings.wait: time waiting for response (ms).
+  int64 wait_time_ms = 10 [(gogoproto.jsontag) = "wait_time_ms"];
+  // HAR timings.receive: time to receive response (ms).
+  int64 receive_time_ms = 11 [(gogoproto.jsontag) = "receive_time_ms"];
+}
+
+// AppSessionHTTPResponseBodyChunk carries a chunk of the HTTP response body.
+// Reassemble in chunk_index order; the last chunk has is_last=true.
+message AppSessionHTTPResponseBodyChunk {
+  // Common event metadata.
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Session ID for correlation.
+  SessionMetadata session = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Unique identifier for the HTTP exchange this chunk belongs to.
+  string request_id = 3 [(gogoproto.jsontag) = "request_id"];
+  // Zero-based sequence number of this chunk.
+  int64 chunk_index = 4 [(gogoproto.jsontag) = "chunk_index"];
+  // True if this is the last chunk for this response body.
+  bool is_last = 5 [(gogoproto.jsontag) = "is_last"];
+  // Raw body bytes for this chunk.
+  bytes data = 6 [(gogoproto.jsontag) = "data"];
+}
+
 // AWSRequestMetadata contains extra AWS metadata of an AppSessionRequest.
 message AWSRequestMetadata {
   // AWSRegion is the requested AWS region.
@@ -5195,6 +5333,10 @@ message OneOf {
     events.LinuxDesktopSessionStart LinuxDesktopSessionStart = 254;
     events.LinuxDesktopSessionEnd LinuxDesktopSessionEnd = 255;
     events.EnvironmentProfileUpdate EnvironmentProfileUpdate = 256;
+    events.AppSessionHTTPRequest AppSessionHTTPRequest = 257;
+    events.AppSessionHTTPRequestBodyChunk AppSessionHTTPRequestBodyChunk = 258;
+    events.AppSessionHTTPResponse AppSessionHTTPResponse = 259;
+    events.AppSessionHTTPResponseBodyChunk AppSessionHTTPResponseBodyChunk = 260;
   }
 }
 
