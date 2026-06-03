@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -184,8 +185,22 @@ func newRecordingPlayback(ctx context.Context, ws *websocket.Conn, clt events.Se
 }
 
 // run starts the recording playback handler.
+//
+// A recovered panic on the read-loop goroutine (for example, vt10x tripping
+// over a corrupt recording during handleFetchRequest) is logged rather than
+// propagating and crashing the proxy. The streamEvents goroutine has its own
+// defer/recover since it runs independently.
 func (s *recordingPlayback) run() {
 	defer s.cleanup()
+	defer func() {
+		if r := recover(); r != nil {
+			s.logger.ErrorContext(s.ctx, "panic on recording playback read loop",
+				"session_id", s.sessionID,
+				"panic", r,
+				"stack", string(debug.Stack()),
+			)
+		}
+	}()
 
 	go s.writeLoop()
 
@@ -393,6 +408,12 @@ func (s *recordingPlayback) handleFetchRequest(req *fetchRequest) {
 }
 
 // streamEvents streams session events to the client.
+//
+// A recovered panic (e.g. vt10x tripping over a corrupt recording) is logged
+// and reported to the client as an error followed by a stop event, rather
+// than crashing the proxy. The stop event is required: the web client only
+// clears its loading state on stop, so skipping it would leave playback
+// stuck in loading after a malformed recording.
 func (s *recordingPlayback) streamEvents(ctx context.Context, req *fetchRequest, eventsChan <-chan apievents.AuditEvent, errorsChan <-chan error) {
 	startSent := false
 	screenSent := false
@@ -434,6 +455,25 @@ func (s *recordingPlayback) streamEvents(ctx context.Context, req *fetchRequest,
 		s.sendEvent(eventTypeStop, 0, encodeTime(req.startOffset, req.endOffset), req.requestID)
 	}
 
+	defer func() {
+		if r := recover(); r != nil {
+			s.logger.ErrorContext(s.ctx, "panic while streaming session recording events",
+				"session_id", s.sessionID,
+				"panic", r,
+				"stack", string(debug.Stack()),
+			)
+
+			// cleanup() cancels s.ctx before closing s.writeChan, so if the context is already done we must not touch
+			// writeChan — a concurrent close would turn into a panic.
+			if s.ctx.Err() != nil {
+				return
+			}
+
+			s.sendError(trace.Errorf("internal error while streaming session recording"), req.requestID)
+			sendStop()
+		}
+	}()
+
 	// process an event, returning a boolean indicating if the events should continue being
 	// processed (i.e. returns false once we have reached the end of the requested time window)
 	processEvent := func(evt apievents.AuditEvent) bool {
@@ -472,11 +512,15 @@ func (s *recordingPlayback) streamEvents(ctx context.Context, req *fetchRequest,
 			}
 
 		case *apievents.SessionPrint:
-			s.terminal.Lock()
-			if _, err := s.terminal.vt.Write(evt.Data); err != nil {
-				s.logger.ErrorContext(s.ctx, "failed to write to terminal", "session_id", s.sessionID, "error", err)
-			}
-			s.terminal.Unlock()
+			// defer Unlock so a panic in vt.Write (caught by streamEvents' defer/recover) can't leave s.terminal locked and
+			// wedge later playback requests on the same websocket.
+			func() {
+				s.terminal.Lock()
+				defer s.terminal.Unlock()
+				if _, err := s.terminal.vt.Write(evt.Data); err != nil {
+					s.logger.ErrorContext(s.ctx, "failed to write to terminal", "session_id", s.sessionID, "error", err)
+				}
+			}()
 
 			if inTimeRange {
 				addToBatch(eventTypeSessionPrint, eventTime, evt.Data)
@@ -641,11 +685,17 @@ func (s *recordingPlayback) sendError(err error, requestID int) {
 
 // sendCurrentScreen sends the current terminal screen state to the client.
 func (s *recordingPlayback) sendCurrentScreen(requestID int, timeOffset time.Duration) {
-	s.terminal.Lock()
-	state := s.terminal.vt.DumpState()
-	cols, rows := s.terminal.vt.Size()
-	cursor := s.terminal.vt.Cursor()
-	s.terminal.Unlock()
+	// defer Unlock so a panic in any vt10x call (caught by streamEvents' defer/recover) can't leave s.terminal locked.
+	state, cols, rows, cursor := func() (vt10x.TerminalState, int, int, vt10x.Cursor) {
+		s.terminal.Lock()
+		defer s.terminal.Unlock()
+
+		state := s.terminal.vt.DumpState()
+		cols, rows := s.terminal.vt.Size()
+		cursor := s.terminal.vt.Cursor()
+
+		return state, cols, rows, cursor
+	}()
 
 	data := encodeScreenEvent(state, cols, rows, cursor)
 
