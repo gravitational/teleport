@@ -15,7 +15,6 @@
 package scim
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -33,8 +32,7 @@ func TestWrapRateLimitErr(t *testing.T) {
 		err := trace.NotFound("not found")
 		got := wrapRateLimitErr(metadata.MD{}, err)
 		require.ErrorIs(t, got, err)
-		var rlErr *RateLimitError
-		require.False(t, errors.As(got, &rlErr))
+		require.NotErrorAs(t, err, new(*RateLimitError))
 	})
 
 	t.Run("limit exceeded without retry-after trailer", func(t *testing.T) {
