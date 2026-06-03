@@ -321,6 +321,28 @@
             "patterns": [
               { "group": ["teleport/**", "e-teleport/**", "teleterm/**"] }
             ],
+            "paths": [
+              {
+                "name": "shared/hooks/useAsync",
+                "importNames": ["useAsync"],
+                "message": "useAsync is deprecated; use TanStack Query (useQuery/useMutation) instead. See RFD 197."
+              },
+              {
+                "name": "shared/hooks/useAttempt",
+                "importNames": ["default"],
+                "message": "useAttempt is deprecated; use TanStack Query (useQuery/useMutation) instead. See RFD 197."
+              },
+              {
+                "name": "shared/hooks/useAttemptNext",
+                "importNames": ["default"],
+                "message": "useAttemptNext is deprecated; use TanStack Query (useQuery/useMutation) instead. See RFD 197."
+              },
+              {
+                "name": "shared/hooks",
+                "importNames": ["useAttempt", "useAttemptNext"],
+                "message": "useAttempt/useAttemptNext are deprecated; use TanStack Query (useQuery/useMutation) instead. See RFD 197."
+              }
+            ]
           }
         ]
       }
@@ -342,6 +364,26 @@
                 "name": "usehooks-ts",
                 "importNames": ["useCopyToClipboard"],
                 "message": "Use 'copyToClipboard' from 'design/utils/copyToClipboard' instead."
+              },
+              {
+                "name": "shared/hooks/useAsync",
+                "importNames": ["useAsync"],
+                "message": "useAsync is deprecated; use TanStack Query (useQuery/useMutation) instead. See RFD 197."
+              },
+              {
+                "name": "shared/hooks/useAttempt",
+                "importNames": ["default"],
+                "message": "useAttempt is deprecated; use TanStack Query (useQuery/useMutation) instead. See RFD 197."
+              },
+              {
+                "name": "shared/hooks/useAttemptNext",
+                "importNames": ["default"],
+                "message": "useAttemptNext is deprecated; use TanStack Query (useQuery/useMutation) instead. See RFD 197."
+              },
+              {
+                "name": "shared/hooks",
+                "importNames": ["useAttempt", "useAttemptNext"],
+                "message": "useAttempt/useAttemptNext are deprecated; use TanStack Query (useQuery/useMutation) instead. See RFD 197."
               }
             ]
           }
@@ -365,6 +407,26 @@
                 "name": "usehooks-ts",
                 "importNames": ["useCopyToClipboard"],
                 "message": "Use 'copyToClipboard' from 'design/utils/copyToClipboard' instead."
+              },
+              {
+                "name": "shared/hooks/useAsync",
+                "importNames": ["useAsync"],
+                "message": "useAsync is deprecated; use TanStack Query (useQuery/useMutation) instead. See RFD 197."
+              },
+              {
+                "name": "shared/hooks/useAttempt",
+                "importNames": ["default"],
+                "message": "useAttempt is deprecated; use TanStack Query (useQuery/useMutation) instead. See RFD 197."
+              },
+              {
+                "name": "shared/hooks/useAttemptNext",
+                "importNames": ["default"],
+                "message": "useAttemptNext is deprecated; use TanStack Query (useQuery/useMutation) instead. See RFD 197."
+              },
+              {
+                "name": "shared/hooks",
+                "importNames": ["useAttempt", "useAttemptNext"],
+                "message": "useAttempt/useAttemptNext are deprecated; use TanStack Query (useQuery/useMutation) instead. See RFD 197."
               }
             ]
           }
@@ -388,6 +450,26 @@
                 "name": "usehooks-ts",
                 "importNames": ["useCopyToClipboard"],
                 "message": "Use 'copyToClipboard' from 'design/utils/copyToClipboard' instead."
+              },
+              {
+                "name": "shared/hooks/useAsync",
+                "importNames": ["useAsync"],
+                "message": "useAsync is deprecated; use TanStack Query (useQuery/useMutation) instead. See RFD 197."
+              },
+              {
+                "name": "shared/hooks/useAttempt",
+                "importNames": ["default"],
+                "message": "useAttempt is deprecated; use TanStack Query (useQuery/useMutation) instead. See RFD 197."
+              },
+              {
+                "name": "shared/hooks/useAttemptNext",
+                "importNames": ["default"],
+                "message": "useAttemptNext is deprecated; use TanStack Query (useQuery/useMutation) instead. See RFD 197."
+              },
+              {
+                "name": "shared/hooks",
+                "importNames": ["useAttempt", "useAttemptNext"],
+                "message": "useAttempt/useAttemptNext are deprecated; use TanStack Query (useQuery/useMutation) instead. See RFD 197."
               }
             ]
           }
@@ -413,11 +495,303 @@
                 "name": "usehooks-ts",
                 "importNames": ["useCopyToClipboard"],
                 "message": "Use 'copyToClipboard' from 'design/utils/copyToClipboard' instead."
+              },
+              {
+                "name": "shared/hooks/useAsync",
+                "importNames": ["useAsync"],
+                "message": "useAsync is deprecated; use TanStack Query (useQuery/useMutation) instead. See RFD 197."
+              },
+              {
+                "name": "shared/hooks/useAttempt",
+                "importNames": ["default"],
+                "message": "useAttempt is deprecated; use TanStack Query (useQuery/useMutation) instead. See RFD 197."
+              },
+              {
+                "name": "shared/hooks/useAttemptNext",
+                "importNames": ["default"],
+                "message": "useAttemptNext is deprecated; use TanStack Query (useQuery/useMutation) instead. See RFD 197."
+              },
+              {
+                "name": "shared/hooks",
+                "importNames": ["useAttempt", "useAttemptNext"],
+                "message": "useAttempt/useAttemptNext are deprecated; use TanStack Query (useQuery/useMutation) instead. See RFD 197."
               }
             ]
           }
         ]
       }
     },
+    // Legacy async state hook call sites (RFD 197). These files predate the ban added to
+    // the per-directory blocks above. Each one keeps its directory's cross-package import
+    // restrictions but is exempt from the new hook ban. As files migrate to TanStack Query,
+    // remove them from these lists. Because oxlint replaces (not merges) no-restricted-imports
+    // across overrides, these blocks come last so they win for the listed files.
+    //
+    // TODO(ravicious): Migrate these to a suppression file once it's available.
+    // https://github.com/oxc-project/oxc/issues/10549
+    {
+      "files": [
+        "web/packages/shared/components/DesktopSession/DesktopSession.tsx",
+        "web/packages/shared/components/FieldSelect/FieldSelect.tsx",
+        "web/packages/shared/components/FieldSelect/FieldSelectCreatable.tsx",
+        "web/packages/shared/components/MenuLogin/MenuLogin.tsx",
+        "web/packages/shared/components/UnifiedResources/UnifiedResources.tsx"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [{ "group": ["teleport/**", "e-teleport/**", "teleterm/**"] }]
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "web/packages/teleport/src/Account/ChangePasswordWizard/ChangePasswordWizard.tsx",
+        "web/packages/teleport/src/Account/ManageDevices/useManageDevices.ts",
+        "web/packages/teleport/src/Account/ManageDevices/wizards/AddAuthDeviceWizard.tsx",
+        "web/packages/teleport/src/Account/ManageDevices/wizards/DeleteAuthDeviceWizard.tsx",
+        "web/packages/teleport/src/Account/Preferences.tsx",
+        "web/packages/teleport/src/AppLauncher/AppLauncher.tsx",
+        "web/packages/teleport/src/Apps/AddApp/useAddApp.ts",
+        "web/packages/teleport/src/Audit/useAuditEvents.ts",
+        "web/packages/teleport/src/AuthConnectors/AuthConnectorEditor/GitHubConnectorEditor.tsx",
+        "web/packages/teleport/src/AuthConnectors/AuthConnectors.tsx",
+        "web/packages/teleport/src/AuthConnectors/DeleteConnectorDialog/DeleteConnectorDialog.tsx",
+        "web/packages/teleport/src/Bots/Add/GitHubActionsSsh/ConfigureBot.tsx",
+        "web/packages/teleport/src/Bots/Add/GitHubActionsSsh/useGitHubSshFlow.tsx",
+        "web/packages/teleport/src/Bots/List/Bots.tsx",
+        "web/packages/teleport/src/BrowserMFA/BrowserMFA.tsx",
+        "web/packages/teleport/src/Clusters/Clusters.tsx",
+        "web/packages/teleport/src/Clusters/ManageCluster/ManageCluster.tsx",
+        "web/packages/teleport/src/components/Authenticated/Authenticated.tsx",
+        "web/packages/teleport/src/components/FormLogin/FormIdentifierFirst.tsx",
+        "web/packages/teleport/src/components/FormLogin/FormLogin.tsx",
+        "web/packages/teleport/src/components/hooks/useServersidePagination.ts",
+        "web/packages/teleport/src/components/MfaDeviceList/RemoveDialog/RemoveDialog.tsx",
+        "web/packages/teleport/src/components/ReAuthenticate/useReAuthenticate.ts",
+        "web/packages/teleport/src/components/ResourceEditor/ResourceEditor.jsx",
+        "web/packages/teleport/src/Console/Console.tsx",
+        "web/packages/teleport/src/Console/DocumentDb/ConnectDialog.tsx",
+        "web/packages/teleport/src/DesktopSession/DesktopSession.tsx",
+        "web/packages/teleport/src/Discover/AwsMangementConsole/CreateAppAccess/CreateAppAccess.tsx",
+        "web/packages/teleport/src/Discover/ConnectMyComputer/TestConnection/TestConnection.tsx",
+        "web/packages/teleport/src/Discover/Database/CreateDatabase/useCreateDatabase.ts",
+        "web/packages/teleport/src/Discover/Database/DeployService/AutoDeploy/AutoDeploy.tsx",
+        "web/packages/teleport/src/Discover/Database/DeployService/AutoDeploy/SelectSecurityGroups.tsx",
+        "web/packages/teleport/src/Discover/Database/DeployService/AutoDeploy/SelectSubnetIds.tsx",
+        "web/packages/teleport/src/Discover/Database/EnrollRdsDatabase/AutoEnrollment.tsx",
+        "web/packages/teleport/src/Discover/Database/EnrollRdsDatabase/EnrollRdsDatabase.tsx",
+        "web/packages/teleport/src/Discover/Database/IamPolicy/useIamPolicy.ts",
+        "web/packages/teleport/src/Discover/Database/MutualTls/useMutualTls.ts",
+        "web/packages/teleport/src/Discover/Kubernetes/EnrollEKSCluster/EnrollEksCluster.tsx",
+        "web/packages/teleport/src/Discover/SelectResource/SelectResource.tsx",
+        "web/packages/teleport/src/Discover/Server/DiscoveryConfigSsm/DiscoveryConfigSsm.tsx",
+        "web/packages/teleport/src/Discover/Shared/AwsAccount/AwsAccount.tsx",
+        "web/packages/teleport/src/Discover/Shared/ConfigureDiscoveryService/ConfigureDiscoveryService.tsx",
+        "web/packages/teleport/src/Discover/Shared/ConnectionDiagnostic/useConnectionDiagnostic.ts",
+        "web/packages/teleport/src/Discover/Shared/SetupAccess/useUserTraits.ts",
+        "web/packages/teleport/src/Integrations/DeleteAwsOidcIntegrationDialog.tsx",
+        "web/packages/teleport/src/Integrations/EditAwsOidcIntegrationDialog.tsx",
+        "web/packages/teleport/src/Integrations/Enroll/AwsOidc/useAwsOidcIntegration.tsx",
+        "web/packages/teleport/src/Integrations/IntegrationList.tsx",
+        "web/packages/teleport/src/Integrations/Integrations.tsx",
+        "web/packages/teleport/src/Integrations/RemoveIntegrationDialog.tsx",
+        "web/packages/teleport/src/Integrations/status/AwsOidc/Details/Agents.tsx",
+        "web/packages/teleport/src/Integrations/status/AwsOidc/Tasks/Task.tsx",
+        "web/packages/teleport/src/Integrations/status/AwsOidc/useAwsOidcStatus.tsx",
+        "web/packages/teleport/src/JoinTokens/JoinTokens.tsx",
+        "web/packages/teleport/src/JoinTokens/UpsertJoinTokenDialog.tsx",
+        "web/packages/teleport/src/lib/useMfa.ts",
+        "web/packages/teleport/src/LocksV2/Locks/DeleteLockDialogue.tsx",
+        "web/packages/teleport/src/LocksV2/Locks/Locks.tsx",
+        "web/packages/teleport/src/LocksV2/NewLock/LockCheckout/LockCheckout.tsx",
+        "web/packages/teleport/src/LocksV2/NewLock/NewLock.tsx",
+        "web/packages/teleport/src/Login/useLogin.ts",
+        "web/packages/teleport/src/Main/Main.tsx",
+        "web/packages/teleport/src/Notifications/Notification.tsx",
+        "web/packages/teleport/src/Recordings/useRecordings.ts",
+        "web/packages/teleport/src/Roles/DeleteRole/DeleteRole.tsx",
+        "web/packages/teleport/src/Roles/RoleEditor/RoleEditor.story.tsx",
+        "web/packages/teleport/src/Roles/RoleEditor/RoleEditor.tsx",
+        "web/packages/teleport/src/Roles/RoleEditor/RoleEditorAdapter.tsx",
+        "web/packages/teleport/src/Roles/RoleEditor/StandardEditor/MetadataSection.tsx",
+        "web/packages/teleport/src/Sessions/useSessions.ts",
+        "web/packages/teleport/src/TrustedClusters/DeleteTrust/DeleteTrust.tsx",
+        "web/packages/teleport/src/TrustedClusters/useTrustedClusters.ts",
+        "web/packages/teleport/src/User/UserContext.tsx",
+        "web/packages/teleport/src/Users/UserReset/UserReset.tsx",
+        "web/packages/teleport/src/Welcome/useToken.ts"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [{ "group": ["e-teleport/**", "teleterm/**"] }],
+            "paths": [
+              {
+                "name": "usehooks-ts",
+                "importNames": ["useResizeObserver"],
+                "message": "Use 'useResizeObserver' from 'design/utils/useResizeObserver' instead."
+              },
+              {
+                "name": "usehooks-ts",
+                "importNames": ["useCopyToClipboard"],
+                "message": "Use 'copyToClipboard' from 'design/utils/copyToClipboard' instead."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "web/packages/teleterm/src/ui/AccessRequestCheckout/useAccessRequestCheckout.ts",
+        "web/packages/teleterm/src/ui/AccessRequests/AccessRequestsContext.tsx",
+        "web/packages/teleterm/src/ui/AccessRequests/SelectorMenu.tsx",
+        "web/packages/teleterm/src/ui/ClusterConnect/ClusterAdd/ClusterAdd.tsx",
+        "web/packages/teleterm/src/ui/ClusterConnect/ClusterLogin/useClusterLogin.ts",
+        "web/packages/teleterm/src/ui/ClusterLogout/ClusterLogout.tsx",
+        "web/packages/teleterm/src/ui/ConnectMyComputer/connectMyComputerContext.tsx",
+        "web/packages/teleterm/src/ui/ConnectMyComputer/DocumentConnectMyComputer/Setup.tsx",
+        "web/packages/teleterm/src/ui/DocumentAccessRequests/NewRequest/NewRequest.tsx",
+        "web/packages/teleterm/src/ui/DocumentAccessRequests/ReviewAccessRequest/useReviewAccessRequest.ts",
+        "web/packages/teleterm/src/ui/DocumentAccessRequests/useAssumeAccess.ts",
+        "web/packages/teleterm/src/ui/DocumentAuthorizeWebSession/DocumentAuthorizeWebSession.tsx",
+        "web/packages/teleterm/src/ui/DocumentCluster/DocumentCluster.tsx",
+        "web/packages/teleterm/src/ui/DocumentCluster/useUserPreferences.ts",
+        "web/packages/teleterm/src/ui/DocumentGateway/useGateway.ts",
+        "web/packages/teleterm/src/ui/DocumentGatewayApp/AppGateway.tsx",
+        "web/packages/teleterm/src/ui/DocumentGatewayKube/DocumentGatewayKube.tsx",
+        "web/packages/teleterm/src/ui/DocumentTerminal/useDocumentTerminal.ts",
+        "web/packages/teleterm/src/ui/HeadlessAuthn/HeadlessAuthentication.tsx",
+        "web/packages/teleterm/src/ui/Search/pickers/ParameterPicker.tsx",
+        "web/packages/teleterm/src/ui/Search/pickers/useActionAttempts.ts",
+        "web/packages/teleterm/src/ui/StatusBar/ShareFeedback/useShareFeedback.ts",
+        "web/packages/teleterm/src/ui/Vnet/ConfigureSSHClients.tsx",
+        "web/packages/teleterm/src/ui/Vnet/DocumentVnetDiagReport.tsx",
+        "web/packages/teleterm/src/ui/Vnet/vnetContext.tsx"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [{ "group": ["teleport/**", "e-teleport/**"] }],
+            "paths": [
+              {
+                "name": "usehooks-ts",
+                "importNames": ["useResizeObserver"],
+                "message": "Use 'useResizeObserver' from 'design/utils/useResizeObserver' instead."
+              },
+              {
+                "name": "usehooks-ts",
+                "importNames": ["useCopyToClipboard"],
+                "message": "Use 'copyToClipboard' from 'design/utils/copyToClipboard' instead."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "e/web/teleport/src/AccessAutomations/AccessAutomations.tsx",
+        "e/web/teleport/src/AccessAutomations/RuleEditor/DeleteRuleDialogue.tsx",
+        "e/web/teleport/src/AccessAutomations/RuleEditor/RuleEditor.tsx",
+        "e/web/teleport/src/AccessListManagement/AccessListManagementContext.tsx",
+        "e/web/teleport/src/AccessListManagement/CreateAccessList/CreateAccessListContextProvider.tsx",
+        "e/web/teleport/src/AccessListManagement/CreateAccessList/GrantSection.tsx",
+        "e/web/teleport/src/AccessListManagement/GuideEditor/Preset/DefineIdentities/DefineIdentities.tsx",
+        "e/web/teleport/src/AccessListManagement/Shared/Shared.tsx",
+        "e/web/teleport/src/AccessListManagement/ViewEditAccessList/AuditAndReviews/EditAudit.tsx",
+        "e/web/teleport/src/AccessListManagement/ViewEditAccessList/DeleteAccessList/DeleteAccessListConfirmDialog.tsx",
+        "e/web/teleport/src/AccessListManagement/ViewEditAccessList/DeleteUserConfirmDialog.tsx",
+        "e/web/teleport/src/AccessListManagement/ViewEditAccessList/Members/EnrollNewMembers.tsx",
+        "e/web/teleport/src/AccessListManagement/ViewEditAccessList/Owners/EnrollNewOwners.tsx",
+        "e/web/teleport/src/AccessListManagement/ViewEditAccessList/ReviewAccessList/ReviewAccessList.tsx",
+        "e/web/teleport/src/AccessListManagement/ViewEditAccessList/Specs/EditEligibilityOrGrants.tsx",
+        "e/web/teleport/src/AccessListManagement/ViewEditAccessList/Specs/EditTitleOrDescription.tsx",
+        "e/web/teleport/src/AccessListManagement/ViewEditAccessList/ViewEditAccessList.tsx",
+        "e/web/teleport/src/AccessMonitoring/QueryEditor/QueryEditor.tsx",
+        "e/web/teleport/src/AccessMonitoring/QueryEditor/Result.tsx",
+        "e/web/teleport/src/AccessMonitoring/Report/Report.tsx",
+        "e/web/teleport/src/AccessMonitoring/ReportList.tsx",
+        "e/web/teleport/src/Account/Recovery/RecoveryCodesDialog/useRecoveryCodesDialog.ts",
+        "e/web/teleport/src/Account/Recovery/useRecovery.ts",
+        "e/web/teleport/src/AuthConnectors/AuthConnectorEditor/AuthConnectorEditor.tsx",
+        "e/web/teleport/src/AuthConnectors/AuthConnectors.tsx",
+        "e/web/teleport/src/Banner/Switchback/useSwitchback.ts",
+        "e/web/teleport/src/DeviceTrust/useDevices.tsx",
+        "e/web/teleport/src/Downloads/useDownloads.ts",
+        "e/web/teleport/src/Integrations/EditGitHubIntegrationDialog.tsx",
+        "e/web/teleport/src/Integrations/IntegrationEnroll/DeleteDialogs/ExternalAuditStorageDelete.tsx",
+        "e/web/teleport/src/Integrations/IntegrationEnroll/DeleteDialogs/GitHubRepoAccessDelete.tsx",
+        "e/web/teleport/src/Integrations/IntegrationEnroll/ExternalAuditStorage/ConfigurePermissions/ConfigurePermissions.tsx",
+        "e/web/teleport/src/Integrations/IntegrationEnroll/ExternalAuditStorage/ExternalAuditStorage.tsx",
+        "e/web/teleport/src/Integrations/IntegrationEnroll/ExternalAuditStorage/SelectIntegration/SelectIntegration.tsx",
+        "e/web/teleport/src/Integrations/IntegrationEnroll/ExternalAuditStorage/TestConnection/TestConnection.tsx",
+        "e/web/teleport/src/Integrations/IntegrationEnroll/ExternalAuditStorage/useExternalAuditStorage.tsx",
+        "e/web/teleport/src/Integrations/IntegrationEnroll/IntegrationPick/IntegrationPick.tsx",
+        "e/web/teleport/src/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/AwsIdentityCenter/IdentitySource/IdentitySource.tsx",
+        "e/web/teleport/src/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/AwsIdentityCenter/ImportResources/ImportResources.tsx",
+        "e/web/teleport/src/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/AwsIdentityCenter/OidcIntegration/OidcIntegration.tsx",
+        "e/web/teleport/src/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/AwsIdentityCenter/Scim/Scim.tsx",
+        "e/web/teleport/src/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Email/EmailService.tsx",
+        "e/web/teleport/src/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Entra/FormMixin.tsx",
+        "e/web/teleport/src/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/Entra/RunScript.tsx",
+        "e/web/teleport/src/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/GitHub/ConfigureAccess/ConfigureAccess.tsx",
+        "e/web/teleport/src/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/GitHub/ConfigureSshCert/ConfigureSshCert.tsx",
+        "e/web/teleport/src/Integrations/IntegrationEnroll/PluginEnroll/MultiStep/GitHub/CreateIntegration/CreatingDialog.tsx",
+        "e/web/teleport/src/Integrations/IntegrationEnroll/PluginEnroll/SubmittablePluginForm.tsx",
+        "e/web/teleport/src/Integrations/PluginDelete.tsx",
+        "e/web/teleport/src/Integrations/useIntegrations.tsx",
+        "e/web/teleport/src/InviteCollaborators/EmailPasswordResetDialog.tsx",
+        "e/web/teleport/src/InviteCollaborators/InviteCollaboratorsDialog.tsx",
+        "e/web/teleport/src/Notifications/notificationContentFactoryE.tsx",
+        "e/web/teleport/src/Recovery/RecoveryFlow/Devices/useDevices.ts",
+        "e/web/teleport/src/Recovery/RecoveryFlow/NewMfaDevice/useNewMfaDevice.ts",
+        "e/web/teleport/src/Recovery/RecoveryFlow/NewPassword/useNewPassword.ts",
+        "e/web/teleport/src/Recovery/RecoveryFlow/NewRecoveryCodes/useNewRecoveryCodes.ts",
+        "e/web/teleport/src/Recovery/RecoveryFlow/useRecoveryFlow.ts",
+        "e/web/teleport/src/Recovery/RecoveryFlow/VerifyUser/useVerifyUser.ts",
+        "e/web/teleport/src/Recovery/RecoveryStart/useRecoveryStart.ts",
+        "e/web/teleport/src/Roles/AccessGraphDemoContext.tsx",
+        "e/web/teleport/src/Roles/useRoleWithAccessGraph.tsx",
+        "e/web/teleport/src/SamlApplication/components/ButtonDownloadMetadataFile.tsx",
+        "e/web/teleport/src/SamlApplication/hooks/useSamlAppActionsE.tsx",
+        "e/web/teleport/src/SamlApplication/hooks/useSamlApplication.tsx",
+        "e/web/teleport/src/SAMLIdPLogin/SAMLIdPLogin.tsx",
+        "e/web/teleport/src/Support/ClientIpRestrictions/ClientIpRestrictions.tsx",
+        "e/web/teleport/src/Support/Contacts/Contacts.tsx",
+        "e/web/teleport/src/WaitingRoom/RequestReason/useRequestReason.ts",
+        "e/web/teleport/src/WaitingRoom/useWaitingRoom.ts",
+        "e/web/teleport/src/Workflow/NewRequest/useNewRequest.ts",
+        "e/web/teleport/src/Workflow/NewRequest/useRequestCheckout.tsx",
+        "e/web/teleport/src/Workflow/ReviewRequests/RequestList/useRequestList.ts",
+        "e/web/teleport/src/Workflow/ReviewRequests/RequestView/RequestView.tsx",
+        "e/web/teleport/src/Workflow/ReviewRequests/RequestView/useRequestView.ts"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [{ "group": ["teleterm/**"] }],
+            "paths": [
+              {
+                "name": "usehooks-ts",
+                "importNames": ["useResizeObserver"],
+                "message": "Use 'useResizeObserver' from 'design/utils/useResizeObserver' instead."
+              },
+              {
+                "name": "usehooks-ts",
+                "importNames": ["useCopyToClipboard"],
+                "message": "Use 'copyToClipboard' from 'design/utils/copyToClipboard' instead."
+              }
+            ]
+          }
+        ]
+      }
+    }
   ]
 }
