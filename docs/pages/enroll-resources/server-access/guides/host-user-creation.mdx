@@ -15,8 +15,8 @@ capabilities:
 - **Host user creation** creates a local Unix user when a Teleport user opens an
   SSH session (or, for static host users, independently of any session), based
   on the user's Teleport roles.
-- **Host sudoers** writes a temporary entry to `/etc/sudoers.d` granting the
-  created user specific sudo permissions.
+- **Host sudoers** writes a temporary entry to `/etc/sudoers.d` granting the login user 
+  specific sudo permissions.
 
 Host user creation saves you from manually managing a Unix account for each
 member of your organization and gives you fine-grained, per-host control of
@@ -26,17 +26,19 @@ deleted at the end of an SSH session if required by your environment.
 
 ## How it works
 
-While these capabilities are distinct, they are behaviorally coupled. 
+These two capabilities are configured on the same Teleport roles and are often used together, but they operate independently.
 
 **Host user creation behavior:** When a user logs into a Teleport Node, the SSH 
 service checks if the user's roles permit automatic user creation. If permitted, 
 it executes `useradd` to provision the user and assign them to the specified groups.
 
-**Host sudoers behavior:** If the user's roles also include `host_sudoers` entries, 
-Teleport writes a temporary sudoers file to `/etc/sudoers.d` for the duration of 
-the session. **Note:** Host sudoers entries only take effect on servers where 
-host user creation is enabled, as Teleport must write the file for the user it 
-creates at login.
+**Host sudoers behavior:** If the user's roles include `host_sudoers` entries,
+Teleport writes a temporary sudoers file to `/etc/sudoers.d` for the user you
+log in as, lasting the duration of the session. This is independent of host user
+creation. The login user may be one Teleport creates for this session, a host
+user Teleport created earlier (in `keep` mode or as a static host user), or a
+user that already existed on the host outside of Teleport. When host user
+creation does apply, Teleport writes the sudoers file after creating the user.
 
 ## Prerequisites
 
@@ -97,7 +99,7 @@ The following role enables user creation without granting any sudo privileges. T
 
 ```yaml
 kind: role
-version: v5
+version: v8
 metadata:
   name: auto-users-basic
 spec:
@@ -117,7 +119,7 @@ If you already have host user creation enabled on another role, you can isolate 
 
 ```yaml
 kind: role
-version: v5
+version: v8
 metadata:
   name: auto-users-sudo
 spec:
@@ -136,7 +138,7 @@ The following role specification combines both features. Add this content to a f
 
 ```yaml
 kind: role
-version: v5
+version: v8
 metadata:
   name: auto-users
 spec:
@@ -171,7 +173,7 @@ rules are matched literally when filtering:
 
 ```yaml
 kind: role
-version: v5
+version: v8
 metadata:
   name: auto-users
 spec:
@@ -338,8 +340,6 @@ not already exist are created on the host. The `nginxrestarter` user is added to
 the `ubuntu`, `nginx`, and `other` groups, as specified in the `host_groups`
 field.
 
----
-
 ## Static host users
 
 In this section, you will configure Teleport to create local users independently
@@ -370,7 +370,7 @@ any matching server. Add this content to a file called `auto-users.yaml`:
 
 ```yaml
 kind: role
-version: v5
+version: v8
 metadata:
   name: auto-users
 spec:
@@ -467,8 +467,6 @@ $ grep "other" /etc/group
 # other:x:1002:nginxrestarter
 ```
 
----
-
 ## Under the hood
 
 The Teleport SSH Service executes `useradd` to create new users on the host, and
@@ -478,8 +476,7 @@ separately creates a new home directory with the name of the new host user.
 
 The SSH Service executes
 `useradd --no-create-home --home-dir <home> <username> --groups <groups> --uid <uid> --gid <gid>`
-when adding a user, with all other options using system defaults. For example, it associates the user with the
-default login shell for the host, which you can specify by setting the `SHELL`
+when adding a user, with all other options using system defaults. For example, it associates the user with the default login shell for the host, which you can specify by setting the `SHELL`
 field in `/etc/default/useradd`. See the `useradd` manual for your system for a
 full description of the default behavior.
 
@@ -487,17 +484,13 @@ The Teleport SSH Service also creates a file in `/etc/sudoers.d` with the
 contents of the `host_sudoers` file written with one entry per line, each
 prefixed with the username of the user that has logged in.
 
-The session can then proceed as usual. When the SSH session ends, the user
-and their home directory will be kept on the machine. It is possible to remove host users
-by setting `create_host_user_mode` to `insecure-drop` in the role definition. However,
-the potential for a user ID to be reused on the system opens up a number of potential security risks,
-so we recommend using `keep` mode unless you have a specific need and understand
+The session can then proceed as usual. When the SSH session ends, the user and their home directory are kept on the machine by default. To have Teleport remove them instead as part of session-end cleanup, set `create_host_user_mode` to `insecure-drop` in the role definition.
+
+However, the potential for a user ID to be reused on the system opens up a number of potential security risks, so we recommend using `keep` mode unless you have a specific need and understand
 the potential impacts.
 
 Should a Teleport SSH instance be restarted while a session is in progress, the user
 will be cleaned up at the next Teleport restart.
-
----
 
 ## Migrating unmanaged users
 
@@ -514,8 +507,6 @@ user, the `take_ownership_if_user_exists` flag can be set to `true` on the stati
 the existing user under Teleport's management and override the groups assigned to that user. Similar to migrating
 `teleport-keep` users, it is possible to migrate users manually by adding them to the `teleport-static` group directly
 on the hosts.
-
----
 
 ## Next steps
 
