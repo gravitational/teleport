@@ -257,6 +257,13 @@ func (s *Service) runWithSpec(ctx context.Context, spec runSpec) (nextDeviceLast
 					Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_INTUNE,
 				},
 				TrackMissingDevices: spec.mode == mdmsync.SyncModeFull,
+				OsTypes: []devicepb.OSType{
+					devicepb.OSType_OS_TYPE_MACOS,
+					devicepb.OSType_OS_TYPE_WINDOWS,
+					devicepb.OSType_OS_TYPE_LINUX,
+					devicepb.OSType_OS_TYPE_IOS,
+					devicepb.OSType_OS_TYPE_IPADOS,
+				},
 			},
 		},
 	}); err != nil {

@@ -26,6 +26,8 @@ type inventorySyncer struct {
 	deleteCallback func(source *devicepb.DeviceSource, dev *devicepb.Device, err error)
 }
 
+type osTypeSet map[devicepb.OSType]struct{}
+
 // SyncInventory executes its namesake stream.
 //
 // The `implicitSource` is the source acquired from an MDM Service certificate,
@@ -63,6 +65,21 @@ func (s *inventorySyncer) SyncInventory(stream devicepb.DeviceTrustService_SyncI
 	}
 
 	ctx := stream.Context()
+
+	// allowedOSTypes is the set of OS types this sync covers. An empty OsTypes
+	// falls back to the "computer" OS types only for backwards compatibility.
+	osTypes := startReq.OsTypes
+	if len(osTypes) == 0 {
+		osTypes = []devicepb.OSType{
+			devicepb.OSType_OS_TYPE_MACOS,
+			devicepb.OSType_OS_TYPE_WINDOWS,
+			devicepb.OSType_OS_TYPE_LINUX,
+		}
+	}
+	allowedOSTypes := make(osTypeSet, len(osTypes))
+	for _, t := range osTypes {
+		allowedOSTypes[t] = struct{}{}
+	}
 
 	// Tracking for "missing" devices.
 	type deviceKey struct {
@@ -102,14 +119,14 @@ Devices:
 			break Devices
 		case *devicepb.SyncInventoryRequest_DevicesToUpsert:
 			devs := req.DevicesToUpsert.GetDevices()
-			statuses, err = s.upsertDevices(ctx, source, devs)
+			statuses, err = s.upsertDevices(ctx, source, devs, allowedOSTypes)
 			// err handled below.
 
 			// Mark all devices as seen, regardless of outcome.
 			// We don't want an Update failure to cause a device to be deleted.
 			updateSeen(devs)
 		case *devicepb.SyncInventoryRequest_DevicesToRemove:
-			statuses, err = s.deleteDevices(ctx, source, req.DevicesToRemove.GetDevices())
+			statuses, err = s.deleteDevices(ctx, source, req.DevicesToRemove.GetDevices(), allowedOSTypes)
 			// err handled below.
 		default:
 			return trace.BadParameter("unexpected payload type %T during devices phase", req)
@@ -155,6 +172,11 @@ Devices:
 				continue
 			}
 
+			// Is the device's OsType in the sync's declared set?
+			if _, ok := allowedOSTypes[dev.OsType]; !ok {
+				continue
+			}
+
 			// Did we see the device previously in the sync?
 			key := deviceKey{
 				osType:   dev.OsType,
@@ -177,7 +199,7 @@ Devices:
 			})
 
 			if len(missingDevs) >= missingDevicesBatchSize {
-				if err := s.handleMissingDevices(ctx, stream, source, missingDevs); err != nil {
+				if err := s.handleMissingDevices(ctx, stream, source, missingDevs, allowedOSTypes); err != nil {
 					return trace.Wrap(err)
 				}
 				missingDevs = nil
@@ -191,10 +213,15 @@ Devices:
 	}
 
 	// Handle remaining missing devices from above.
-	return trace.Wrap(s.handleMissingDevices(ctx, stream, source, missingDevs))
+	return trace.Wrap(s.handleMissingDevices(ctx, stream, source, missingDevs, allowedOSTypes))
 }
 
-func (s *inventorySyncer) upsertDevices(ctx context.Context, source *devicepb.DeviceSource, devs []*devicepb.Device) ([]*devicepb.DeviceOrStatus, error) {
+func (s *inventorySyncer) upsertDevices(
+	ctx context.Context,
+	source *devicepb.DeviceSource,
+	devs []*devicepb.Device,
+	allowedOSTypes osTypeSet,
+) ([]*devicepb.DeviceOrStatus, error) {
 	if len(devs) == 0 {
 		return nil, nil
 	}
@@ -215,6 +242,11 @@ func (s *inventorySyncer) upsertDevices(ctx context.Context, source *devicepb.De
 	}
 
 	for i, dev := range devs {
+		if err := validateOSType(allowedOSTypes, dev.OsType); err != nil {
+			setStatus(i, &devicepb.DeviceOrStatus{Status: errToStatus(err)})
+			continue
+		}
+
 		// Avoid querying clearly-invalid devices.
 		const createAsResource = false
 		if err := storage.ValidateDeviceForCreate(dev, createAsResource); err != nil {
@@ -287,11 +319,21 @@ func (s *inventorySyncer) upsertDevices(ctx context.Context, source *devicepb.De
 	return statuses, nil
 }
 
-func (s *inventorySyncer) deleteDevices(ctx context.Context, source *devicepb.DeviceSource, devs []*devicepb.Device) ([]*devicepb.DeviceOrStatus, error) {
+func (s *inventorySyncer) deleteDevices(
+	ctx context.Context,
+	source *devicepb.DeviceSource,
+	devs []*devicepb.Device,
+	allowedOSTypes osTypeSet,
+) ([]*devicepb.DeviceOrStatus, error) {
 	statuses := make([]*devicepb.DeviceOrStatus, len(devs))
 	for i, dev := range devs {
 		st := &devicepb.DeviceOrStatus{}
 		statuses[i] = st
+
+		if err := validateOSType(allowedOSTypes, dev.OsType); err != nil {
+			st.Status = errToStatus(err)
+			continue
+		}
 
 		// Either Id or (OsType,AssetTag) must be present for the device to be
 		// identified.
@@ -346,7 +388,9 @@ func (s *inventorySyncer) deleteDevices(ctx context.Context, source *devicepb.De
 func (s *inventorySyncer) handleMissingDevices(
 	ctx context.Context,
 	stream devicepb.DeviceTrustService_SyncInventoryServer,
-	source *devicepb.DeviceSource, missingDevs []*devicepb.Device,
+	source *devicepb.DeviceSource,
+	missingDevs []*devicepb.Device,
+	allowedOSTypes osTypeSet,
 ) error {
 	if len(missingDevs) == 0 {
 		return nil
@@ -393,7 +437,7 @@ func (s *inventorySyncer) handleMissingDevices(
 		}
 	}
 
-	statuses, err := s.deleteDevices(ctx, source, removeReq.GetDevices())
+	statuses, err := s.deleteDevices(ctx, source, removeReq.GetDevices(), allowedOSTypes)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -410,6 +454,20 @@ func (s *inventorySyncer) handleMissingDevices(
 
 func errToStatus(err error) *spb.Status {
 	return status.Convert(trail.ToGRPC(err)).Proto()
+}
+
+// validateOSType returns an error if osType is set and not in allowed.
+// An UNSPECIFIED osType is accepted so that downstream validation can
+// produce its specific "missing identifiers" error rather than being
+// masked by an os_types rejection.
+func validateOSType(allowed osTypeSet, osType devicepb.OSType) error {
+	if osType == devicepb.OSType_OS_TYPE_UNSPECIFIED {
+		return nil
+	}
+	if _, ok := allowed[osType]; ok {
+		return nil
+	}
+	return trace.BadParameter("device os_type %v not in declared os_types", osType)
 }
 
 func sourcesMatch(s1, s2 *devicepb.DeviceSource) bool {

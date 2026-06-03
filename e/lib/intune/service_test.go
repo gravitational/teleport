@@ -69,6 +69,26 @@ func TestRun_fullSync(t *testing.T) {
 			OperatingSystem:         "macOS",
 			OSVersion:               "",
 		},
+		// An iPhone.
+		{
+			ID:                      "3",
+			LastSyncDateTime:        t1,
+			DeviceRegistrationState: "registered",
+			SerialNumber:            "FYXXXXXXXX03",
+			OperatingSystem:         "iOS",
+			Model:                   "iPhone 16e",
+			OSVersion:               "26.3.1",
+		},
+		// An iPad.
+		{
+			ID:                      "4",
+			LastSyncDateTime:        t1,
+			DeviceRegistrationState: "registered",
+			SerialNumber:            "GYXXXXXXXX04",
+			OperatingSystem:         "iOS",
+			Model:                   "iPad (10th generation)",
+			OSVersion:               "18.6",
+		},
 		// Invalid – unsupported OS.
 		{
 			ID:                      "invalid1",
@@ -140,6 +160,26 @@ func TestRun_fullSync(t *testing.T) {
 				Source:       source,
 				Profile: &devicepb.DeviceProfile{
 					ExternalId: intuneDevices[1].ID,
+				},
+			},
+			{
+				OsType:       devicepb.OSType_OS_TYPE_IOS,
+				AssetTag:     intuneDevices[2].SerialNumber,
+				EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
+				Source:       source,
+				Profile: &devicepb.DeviceProfile{
+					OsVersion:  "26.3.1",
+					ExternalId: intuneDevices[2].ID,
+				},
+			},
+			{
+				OsType:       devicepb.OSType_OS_TYPE_IPADOS,
+				AssetTag:     intuneDevices[3].SerialNumber,
+				EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
+				Source:       source,
+				Profile: &devicepb.DeviceProfile{
+					OsVersion:  "18.6",
+					ExternalId: intuneDevices[3].ID,
 				},
 			},
 		})

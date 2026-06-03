@@ -342,9 +342,14 @@ func (s *S) RunOnce(ctx context.Context, spec RunSpec) (nextCutTime time.Time, e
 	if s.config.Spec.Name != "" {
 		sourceName = s.config.Spec.Name
 	}
+	osTypes := []devicepb.OSType{devicepb.OSType_OS_TYPE_MACOS}
+	if deviceType == types.JamfDeviceTypeMobileDevices {
+		osTypes = []devicepb.OSType{devicepb.OSType_OS_TYPE_IOS, devicepb.OSType_OS_TYPE_IPADOS}
+	}
 	if err := stream.Send(&devicepb.SyncInventoryRequest{
 		Payload: &devicepb.SyncInventoryRequest_Start{
 			Start: &devicepb.SyncInventoryStart{
+				OsTypes: osTypes,
 				Source: &devicepb.DeviceSource{
 					Name:   sourceName,
 					Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_JAMF,

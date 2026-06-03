@@ -976,7 +976,7 @@ func TestService_SyncInventory_devicesToRemove(t *testing.T) {
 
 	// Run stream with deletions.
 	emitter.Reset()
-	deleteResp, err := syncInventoryDelete(ctx, devicesClient, source1, devsToUpsert, devsToRemove)
+	deleteResp, err := syncInventoryDelete(ctx, devicesClient, &devicepb.SyncInventoryStart{Source: source1}, devsToUpsert, devsToRemove)
 	if err != nil {
 		t.Fatalf("SyncInventory deletion stream failed: %v", err)
 	}
@@ -1080,6 +1080,14 @@ func TestService_SyncInventory_missingDevices(t *testing.T) {
 			},
 		},
 		{
+			OsType:   devicepb.OSType_OS_TYPE_IPADOS,
+			AssetTag: "ipad",
+			Source:   source,
+			Profile: &devicepb.DeviceProfile{
+				ExternalId: "4",
+			},
+		},
+		{
 			OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
 			AssetTag: "win",
 		},
@@ -1099,6 +1107,7 @@ func TestService_SyncInventory_missingDevices(t *testing.T) {
 	llamaDev := allDevs[0]
 	alpacaDev := allDevs[1]
 	camelDev := allDevs[2]
+	ipadDev := allDevs[3]
 
 	// opts is used to compare Device slices.
 	opts := []cmp.Option{
@@ -1108,6 +1117,7 @@ func TestService_SyncInventory_missingDevices(t *testing.T) {
 
 	tests := []struct {
 		name         string
+		osTypes      []devicepb.OSType
 		devsToUpsert []*devicepb.Device
 		missingFn    func([]*devicepb.Device) []*devicepb.Device
 		wantErr      string
@@ -1121,7 +1131,8 @@ func TestService_SyncInventory_missingDevices(t *testing.T) {
 				return []*devicepb.Device{llamaDev} // not missing!
 			},
 			// win and linux dev aren't owned by Jamf, so they aren't considered
-			// missing.
+			// missing. The iPad is owned by Jamf but its OsType is not in the
+			// computer-types default, so it isn't reported either.
 			wantMissing: []*devicepb.Device{alpacaDev, camelDev},
 			wantErr:     "missing devices",
 			wantStored:  allDevs,
@@ -1133,6 +1144,29 @@ func TestService_SyncInventory_missingDevices(t *testing.T) {
 				return nil // nothing echoed, nothing removed
 			},
 			wantMissing: []*devicepb.Device{llamaDev, camelDev},
+			wantStored:  allDevs,
+		},
+		{
+			name:         "explicit os_types: macOS only",
+			osTypes:      []devicepb.OSType{devicepb.OSType_OS_TYPE_MACOS},
+			devsToUpsert: nil,
+			missingFn: func(_ []*devicepb.Device) []*devicepb.Device {
+				return nil // nothing echoed, nothing removed
+			},
+			// Same set as the empty-os_types default in this fixture: the iPad is
+			// filtered out.
+			wantMissing: []*devicepb.Device{llamaDev, alpacaDev, camelDev},
+			wantStored:  allDevs,
+		},
+		{
+			name:         "explicit os_types: macOS + iPadOS",
+			osTypes:      []devicepb.OSType{devicepb.OSType_OS_TYPE_MACOS, devicepb.OSType_OS_TYPE_IPADOS},
+			devsToUpsert: nil,
+			missingFn: func(_ []*devicepb.Device) []*devicepb.Device {
+				return nil // nothing echoed, nothing removed
+			},
+			// Opting in to iPadOS surfaces the iPad as missing.
+			wantMissing: []*devicepb.Device{llamaDev, alpacaDev, camelDev, ipadDev},
 			wantStored:  allDevs,
 		},
 	}
@@ -1160,7 +1194,7 @@ func TestService_SyncInventory_missingDevices(t *testing.T) {
 			}
 
 			// Run SyncInventory stream.
-			_, err := syncInventoryMissing(ctx, devices, source, test.devsToUpsert, missingFn)
+			_, err := syncInventoryMissing(ctx, devices, source, test.osTypes, test.devsToUpsert, missingFn)
 			if test.wantErr != "" {
 				assert.ErrorContains(t, err, test.wantErr, "SyncInventory error mismatch")
 				// Keep asserting statuses and storage.
@@ -1178,6 +1212,143 @@ func TestService_SyncInventory_missingDevices(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestService_SyncInventory_osTypeFiltering verifies that SyncInventoryStart's
+// os_types field filters upserts and removals: devices whose OsType is not in
+// the declared os_types are rejected with a per-device error. Devices whose
+// OsType is in the list proceed normally.
+func TestService_SyncInventory_osTypeFiltering(t *testing.T) {
+	source := &devicepb.DeviceSource{
+		Name:   "jamf",
+		Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_JAMF,
+	}
+
+	t.Run("upsert", func(t *testing.T) {
+		env := testenv.NewUsingT(t)
+		devices := env.DevicesClient
+
+		macDev := &devicepb.Device{
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: "mac1",
+		}
+		iosDev := &devicepb.Device{
+			OsType:   devicepb.OSType_OS_TYPE_IOS,
+			AssetTag: "ios1",
+		}
+		ipadDev := &devicepb.Device{
+			OsType:   devicepb.OSType_OS_TYPE_IPADOS,
+			AssetTag: "ipad1",
+		}
+
+		runSyncInventoryTests(t, t.Context(), devices, []syncInventoryTest{
+			{
+				name: "rejects upserts whose os_type is not in os_types",
+				start: &devicepb.SyncInventoryStart{
+					Source:  source,
+					OsTypes: []devicepb.OSType{devicepb.OSType_OS_TYPE_MACOS},
+				},
+				devicePages: [][]*devicepb.Device{
+					{macDev, iosDev, ipadDev},
+				},
+				wantCodes: [][]codes.Code{
+					{codes.OK, codes.InvalidArgument, codes.InvalidArgument},
+				},
+				wantUniqueDevices: 1,
+			},
+			{
+				name: "accepts upserts whose os_type is in os_types",
+				start: &devicepb.SyncInventoryStart{
+					Source:  source,
+					OsTypes: []devicepb.OSType{devicepb.OSType_OS_TYPE_IOS, devicepb.OSType_OS_TYPE_IPADOS},
+				},
+				devicePages: [][]*devicepb.Device{
+					{ipadDev, iosDev},
+				},
+				wantCodes: [][]codes.Code{
+					{codes.OK, codes.OK},
+				},
+				wantUniqueDevices: 2,
+			},
+			{
+				// Empty os_types falls back to the computer OS types for
+				// older clients: macOS accepted, iOS/iPadOS rejected.
+				name: "empty os_types accepts only computer os_type values",
+				start: &devicepb.SyncInventoryStart{
+					Source: source,
+				},
+				devicePages: [][]*devicepb.Device{
+					{macDev, iosDev, ipadDev},
+				},
+				wantCodes: [][]codes.Code{
+					{codes.OK, codes.InvalidArgument, codes.InvalidArgument},
+				},
+				wantUniqueDevices: 1,
+			},
+		})
+	})
+
+	t.Run("remove", func(t *testing.T) {
+		env := testenv.NewUsingT(t)
+		ctx := t.Context()
+		devices := env.DevicesClient
+
+		macStored, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
+			Device: &devicepb.Device{
+				OsType:   devicepb.OSType_OS_TYPE_MACOS,
+				AssetTag: "mac1",
+				Source:   source,
+				Profile:  &devicepb.DeviceProfile{ExternalId: "1"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("CreateDevice macOS failed: %v", err)
+		}
+		iosStored, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
+			Device: &devicepb.Device{
+				OsType:   devicepb.OSType_OS_TYPE_IOS,
+				AssetTag: "ios1",
+				Source:   source,
+				Profile:  &devicepb.DeviceProfile{ExternalId: "2"},
+			},
+		})
+		if err != nil {
+			t.Fatalf("CreateDevice iOS failed: %v", err)
+		}
+
+		// Start sync scoped to macOS devices.
+		gotStatuses, err := syncInventoryDelete(ctx, devices,
+			&devicepb.SyncInventoryStart{
+				Source:  source,
+				OsTypes: []devicepb.OSType{devicepb.OSType_OS_TYPE_MACOS},
+			},
+			nil, /* devsToUpsert */
+			[]*devicepb.Device{macStored, iosStored},
+		)
+		if err != nil {
+			t.Fatalf("syncInventoryDelete failed: %v", err)
+		}
+
+		if len(gotStatuses) != 1 {
+			t.Fatalf("syncInventoryDelete returned %d status pages, want 1", len(gotStatuses))
+		}
+		gotCodes := make([]codes.Code, len(gotStatuses[0]))
+		for i, s := range gotStatuses[0] {
+			gotCodes[i] = codes.Code(s.GetStatus().GetCode())
+		}
+		wantCodes := []codes.Code{codes.OK, codes.InvalidArgument}
+		if diff := cmp.Diff(wantCodes, gotCodes); diff != "" {
+			t.Errorf("Remove status codes mismatch (-want +got)\n%s", diff)
+		}
+
+		// The iOS device must still exist; the macOS one is gone.
+		if _, err := devices.GetDevice(ctx, &devicepb.GetDeviceRequest{DeviceId: macStored.Id}); !trace.IsNotFound(err) {
+			t.Errorf("macOS device unexpectedly survived removal: err=%v", err)
+		}
+		if _, err := devices.GetDevice(ctx, &devicepb.GetDeviceRequest{DeviceId: iosStored.Id}); err != nil {
+			t.Errorf("iOS device unexpectedly gone after rejected removal: %v", err)
+		}
+	})
 }
 
 // TestService_SyncInventory_ignoreUsageBased verifies that legacy
@@ -1346,7 +1517,7 @@ func syncInventoryPages(
 func syncInventoryDelete(
 	ctx context.Context,
 	devicesClient devicepb.DeviceTrustServiceClient,
-	source *devicepb.DeviceSource,
+	start *devicepb.SyncInventoryStart,
 	devsToUpsert, devsToRemove []*devicepb.Device,
 ) ([][]*devicepb.DeviceOrStatus, error) {
 	// Start stream.
@@ -1356,7 +1527,7 @@ func syncInventoryDelete(
 	}
 	if err := stream.Send(&devicepb.SyncInventoryRequest{
 		Payload: &devicepb.SyncInventoryRequest_Start{
-			Start: &devicepb.SyncInventoryStart{Source: source},
+			Start: start,
 		},
 	}); err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("start Send: %w", err)
@@ -1426,6 +1597,7 @@ func syncInventoryMissing(
 	ctx context.Context,
 	devicesClient devicepb.DeviceTrustServiceClient,
 	source *devicepb.DeviceSource,
+	osTypes []devicepb.OSType,
 	devsToUpsert []*devicepb.Device,
 	missingFn func([]*devicepb.Device) []*devicepb.Device,
 ) ([]*devicepb.DeviceOrStatus, error) {
@@ -1440,6 +1612,7 @@ func syncInventoryMissing(
 			Start: &devicepb.SyncInventoryStart{
 				Source:              source,
 				TrackMissingDevices: true,
+				OsTypes:             osTypes,
 			},
 		},
 	}); err != nil && !errors.Is(err, io.EOF) {

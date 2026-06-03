@@ -658,11 +658,22 @@ func TestS_Run_fullWithDeletions(t *testing.T) {
 	totalDevs := len(jamfDevs) + len(jamfMobileDevs)
 	waitSynced(t, totalDevs)
 
+	lookupsBefore := api.SingleDeviceLookups()
+
 	// Remove a computer and a mobile device from Jamf.
 	api.SetInventory(jamfDevs[1:])
 	api.SetMobileDeviceInventory(jamfMobileDevs[1:])
 	waitSynced(t, totalDevs-2)
 	runCancel() // Stop syncs.
+
+	// Compare the per-device lookup counter after we removed two devices.
+	// Each inventory entry's full sync declares os_types matching its DeviceType,
+	// so the server's missing device tracking is OsType-scoped. If this wasn't
+	// the case, then the macOS sync would consider all mobile devices as missing
+	// and vice versa, resulting in more than two lookups.
+	if got := api.SingleDeviceLookups() - lookupsBefore; got > 2 {
+		t.Errorf("Per-device Jamf lookups during second sync round = %v, want <= 2 (one per device removed from Jamf)", got)
+	}
 
 	// Verify deletions.
 	got := listAllDevices(t, devicesClient)
