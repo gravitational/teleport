@@ -197,8 +197,8 @@ func preFlightInstallerChecks(proxyAddr string) map[installstatus.ExitCode]strin
 		// check if there's enough disk space for the installation
 		// df -Pm outputs disk usage in megabytes; awk selects the data row (NR==2) and
 		// exits non-zero if the available column ($4) is below the required threshold.
-		// Falls back to checking "/" if "/opt" does not exist.
-		installstatus.InsufficientDiskSpace: fmt.Sprintf(`df -Pm $([ -d /opt ] && echo /opt || echo /) | awk 'NR==2{exit($4<%d)}' %s`,
+		// It tries to check /opt/teleport first if it exists, then /opt, and finally / as a last resort.
+		installstatus.InsufficientDiskSpace: fmt.Sprintf(`df -Pm $(p=/opt/teleport; until [ -e "$p" ]; do p=$(dirname "$p"); done; echo "$p") | awk 'NR==2{exit($4<%d)}' %s`,
 			installstatus.InstallerMinFreeDiskMB,
 			orExitWithMessageScriptSnippet(installstatus.InsufficientDiskSpace, "insufficient disk space"),
 		),
