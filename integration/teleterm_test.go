@@ -38,6 +38,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
+	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
@@ -49,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
+	"github.com/gravitational/teleport/lib/auth/storage"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
@@ -164,6 +167,23 @@ func TestTeleterm(t *testing.T) {
 
 	t.Run("with MFA", func(t *testing.T) {
 		authServer := pack.Root.Cluster.Process.GetAuthServer()
+		authAddr, err := pack.Root.Cluster.Process.AuthAddr()
+		require.NoError(t, err)
+		identity, err := storage.ReadLocalIdentityForRole(
+			context.Background(),
+			filepath.Join(pack.Root.Cluster.Process.Config.DataDir, teleport.ComponentProcess),
+			types.RoleAdmin,
+		)
+		require.NoError(t, err)
+		tlsConfig, err := identity.TLSConfig(nil)
+		require.NoError(t, err)
+		clt, err := authclient.NewClient(apiclient.Config{
+			Addrs: []string{authAddr.String()},
+			Credentials: []apiclient.Credentials{
+				apiclient.LoadTLS(tlsConfig),
+			},
+		})
+		require.NoError(t, err)
 		rpID, _, err := net.SplitHostPort(pack.Root.Cluster.Web)
 		require.NoError(t, err)
 
@@ -196,7 +216,7 @@ func TestTeleterm(t *testing.T) {
 			require.NoError(t, err)
 			device.SetPasswordless()
 
-			token, err := authServer.CreateResetPasswordToken(context.Background(), authclient.CreateUserTokenRequest{
+			token, err := clt.CreateResetPasswordToken(context.Background(), authclient.CreateUserTokenRequest{
 				Name: userName,
 			})
 			require.NoError(t, err)

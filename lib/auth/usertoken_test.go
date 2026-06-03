@@ -49,6 +49,21 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
+func setupAdminUser(t *testing.T, srv *authtest.TLSServer) {
+	t.Helper()
+
+	_, _, err := authtest.CreateUserAndRole(
+		srv.Auth(),
+		"admin",
+		[]string{"admin"},
+		[]types.Rule{{
+			Resources: []string{types.KindUser},
+			Verbs:     []string{types.VerbUpdate},
+		}},
+	)
+	require.NoError(t, err)
+}
+
 func TestCreateResetPasswordToken(t *testing.T) {
 	t.Parallel()
 	srv := newTestTLSServer(t)
@@ -66,16 +81,7 @@ func TestCreateResetPasswordToken(t *testing.T) {
 		TTL:  time.Hour,
 	}
 
-	_, _, err := authtest.CreateUserAndRole(
-		srv.Auth(),
-		"admin",
-		[]string{"admin"},
-		[]types.Rule{{
-			Resources: []string{types.KindUser},
-			Verbs:     []string{types.VerbUpdate},
-		}},
-	)
-	require.NoError(t, err)
+	setupAdminUser(t, srv)
 	clt, err := srv.NewClient(authtest.TestUser("admin"))
 	require.NoError(t, err)
 
@@ -118,16 +124,7 @@ func TestCreateResetPasswordTokenErrors(t *testing.T) {
 	_, _, err := authtest.CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
 	require.NoError(t, err)
 
-	_, _, err = authtest.CreateUserAndRole(
-		srv.Auth(),
-		"admin",
-		[]string{"admin"},
-		[]types.Rule{{
-			Resources: []string{types.KindUser},
-			Verbs:     []string{types.VerbUpdate},
-		}},
-	)
-	require.NoError(t, err)
+	setupAdminUser(t, srv)
 	clt, err := srv.NewClient(authtest.TestUser("admin"))
 	require.NoError(t, err)
 
@@ -196,18 +193,7 @@ func TestResetUser(t *testing.T) {
 	pass := mfa.Password
 
 	// Create an admin user and client to perform the reset.
-	_, _, err := authtest.CreateUserAndRole(
-		srv.Auth(),
-		"admin",
-		[]string{"admin"},
-		[]types.Rule{
-			{
-				Resources: []string{types.KindUser},
-				Verbs:     []string{types.VerbUpdate},
-			},
-		},
-	)
-	require.NoError(t, err)
+	setupAdminUser(t, srv)
 	clt, err := srv.NewClient(authtest.TestUser("admin"))
 	require.NoError(t, err)
 
@@ -260,18 +246,7 @@ func TestResetUserErrors(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create an admin user and client to perform the reset.
-	_, _, err = authtest.CreateUserAndRole(
-		srv.Auth(),
-		"admin",
-		[]string{"admin"},
-		[]types.Rule{
-			{
-				Resources: []string{types.KindUser},
-				Verbs:     []string{types.VerbUpdate},
-			},
-		},
-	)
-	require.NoError(t, err)
+	setupAdminUser(t, srv)
 	clt, err := srv.NewClient(authtest.TestUser("admin"))
 	require.NoError(t, err)
 
@@ -407,16 +382,7 @@ func TestUserTokenSecretsCreationSettings(t *testing.T) {
 	_, _, err := authtest.CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
 	require.NoError(t, err)
 
-	_, _, err = authtest.CreateUserAndRole(
-		srv.Auth(),
-		"admin",
-		[]string{"admin"},
-		[]types.Rule{{
-			Resources: []string{types.KindUser},
-			Verbs:     []string{types.VerbUpdate},
-		}},
-	)
-	require.NoError(t, err)
+	setupAdminUser(t, srv)
 	clt, err := srv.NewClient(authtest.TestUser("admin"))
 	require.NoError(t, err)
 

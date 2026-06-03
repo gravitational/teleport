@@ -9087,6 +9087,9 @@ func testModeratedSessions(t *testing.T, suite *integrationTestSuite) {
 	_, err = instance.Process.GetAuthServer().UpsertRole(ctx, moderatorRole)
 	require.NoError(t, err)
 
+	site := instance.GetSiteAPI(helpers.Site)
+	require.NotNil(t, site)
+
 	setupUser := func(user, role string, asrv *auth.Server) {
 		u, err := types.NewUser(user)
 		require.NoError(t, err)
@@ -9096,7 +9099,7 @@ func testModeratedSessions(t *testing.T, suite *integrationTestSuite) {
 		_, err = asrv.CreateUser(ctx, u)
 		require.NoError(t, err)
 
-		token, err := asrv.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
+		token, err := site.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 			Name: user,
 		})
 		require.NoError(t, err)
@@ -9130,8 +9133,6 @@ func testModeratedSessions(t *testing.T, suite *integrationTestSuite) {
 	moderatorTerminal := NewTerminal(250)
 
 	// get a reference to site obj:
-	site := instance.GetSiteAPI(helpers.Site)
-	require.NotNil(t, site)
 
 	// PersonA: SSH into the server, wait one second, then type some commands on stdin:
 	openSession := func() {

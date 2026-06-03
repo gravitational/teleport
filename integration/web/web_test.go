@@ -24,12 +24,15 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
@@ -38,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
+	"github.com/gravitational/teleport/lib/auth/storage"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/service"
@@ -262,7 +266,20 @@ func RegisterPasswordlessDeviceForUser(t *testing.T, server *service.TeleportPro
 	device.SetPasswordless()
 
 	ctx := context.Background()
-	token, err := server.GetAuthServer().CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
+	authAddr, err := server.AuthAddr()
+	require.NoError(t, err)
+	identity, err := storage.ReadLocalIdentityForRole(ctx, filepath.Join(server.Config.DataDir, teleport.ComponentProcess), types.RoleAdmin)
+	require.NoError(t, err)
+	tlsConfig, err := identity.TLSConfig(nil)
+	require.NoError(t, err)
+	clt, err := authclient.NewClient(apiclient.Config{
+		Addrs: []string{authAddr.String()},
+		Credentials: []apiclient.Credentials{
+			apiclient.LoadTLS(tlsConfig),
+		},
+	})
+	require.NoError(t, err)
+	token, err := clt.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 		Name: username,
 	})
 	require.NoError(t, err)

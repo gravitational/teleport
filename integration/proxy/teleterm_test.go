@@ -23,6 +23,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -37,6 +38,8 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"k8s.io/client-go/kubernetes"
 
+	"github.com/gravitational/teleport"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
@@ -48,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
+	"github.com/gravitational/teleport/lib/auth/storage"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	libclient "github.com/gravitational/teleport/lib/client"
@@ -110,7 +114,7 @@ func testTeletermDbGatewaysCertRenewal(t *testing.T, pack *dbhelpers.DatabasePac
 	})
 	t.Run("root cluster with per-session MFA", func(t *testing.T) {
 		requireSessionMFAAuthPref(ctx, t, pack.Root.Cluster.Process.GetAuthServer(), "127.0.0.1")
-		webauthnLogin := setupUserMFA(ctx, t, pack.Root.Cluster.Process.GetAuthServer(), pack.Root.User.GetName(), "127.0.0.1")
+		webauthnLogin := setupUserMFA(ctx, t, pack.Root.Cluster.Process, pack.Root.Cluster.Process.GetAuthServer(), pack.Root.User.GetName(), "127.0.0.1")
 
 		profileName := mustGetProfileName(t, pack.Root.Cluster.Web)
 		databaseURI := uri.NewClusterURI(profileName).
@@ -125,7 +129,7 @@ func testTeletermDbGatewaysCertRenewal(t *testing.T, pack *dbhelpers.DatabasePac
 	t.Run("leaf cluster with per-session MFA", func(t *testing.T) {
 		requireSessionMFAAuthPref(ctx, t, pack.Root.Cluster.Process.GetAuthServer(), "127.0.0.1")
 		requireSessionMFAAuthPref(ctx, t, pack.Leaf.Cluster.Process.GetAuthServer(), "127.0.0.1")
-		webauthnLogin := setupUserMFA(ctx, t, pack.Root.Cluster.Process.GetAuthServer(), pack.Root.User.GetName(), "127.0.0.1")
+		webauthnLogin := setupUserMFA(ctx, t, pack.Root.Cluster.Process, pack.Root.Cluster.Process.GetAuthServer(), pack.Root.User.GetName(), "127.0.0.1")
 
 		profileName := mustGetProfileName(t, pack.Root.Cluster.Web)
 		leafClusterName := pack.Leaf.Cluster.Secrets.SiteName
@@ -479,7 +483,7 @@ func TestTeletermKubeGateway(t *testing.T) {
 	// They update user's authentication to Webauthn so they must run after tests which do not use MFA.
 	requireSessionMFARole(ctx, t, suite.root.Process.GetAuthServer(), "localhost", kubeRole)
 	requireSessionMFARole(ctx, t, suite.leaf.Process.GetAuthServer(), "localhost", kubeRole)
-	webauthnLogin := setupUserMFA(ctx, t, suite.root.Process.GetAuthServer(), username, "localhost")
+	webauthnLogin := setupUserMFA(ctx, t, suite.root.Process, suite.root.Process.GetAuthServer(), username, "localhost")
 
 	t.Run("root with per-session MFA", func(t *testing.T) {
 		profileName := mustGetProfileName(t, suite.root.Web)
@@ -623,7 +627,7 @@ func checkKubeconfigPathInCommandEnv(t *testing.T, daemonService *daemon.Service
 // Assumes that MFA is already enabled for the cluster. Per-session MFA should be configured separately.
 //
 // Based on setupUserMFA from e/tool/tsh/tsh_test.go.
-func setupUserMFA(ctx context.Context, t *testing.T, authServer *auth.Server, username string, rpid string) libclient.WebauthnLoginFunc {
+func setupUserMFA(ctx context.Context, t *testing.T, process *service.TeleportProcess, authServer *auth.Server, username string, rpid string) libclient.WebauthnLoginFunc {
 	t.Helper()
 
 	// Configure user account.
@@ -631,8 +635,21 @@ func setupUserMFA(ctx context.Context, t *testing.T, authServer *auth.Server, us
 	device, err := mocku2f.Create()
 	require.NoError(t, err)
 	device.SetPasswordless()
+	authAddr, err := process.AuthAddr()
+	require.NoError(t, err)
+	identity, err := storage.ReadLocalIdentityForRole(ctx, filepath.Join(process.Config.DataDir, teleport.ComponentProcess), types.RoleAdmin)
+	require.NoError(t, err)
+	tlsConfig, err := identity.TLSConfig(nil)
+	require.NoError(t, err)
+	clt, err := authclient.NewClient(apiclient.Config{
+		Addrs: []string{authAddr.String()},
+		Credentials: []apiclient.Credentials{
+			apiclient.LoadTLS(tlsConfig),
+		},
+	})
+	require.NoError(t, err)
 
-	token, err := authServer.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
+	token, err := clt.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 		Name: username,
 	})
 	require.NoError(t, err)

@@ -41,7 +41,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -53,6 +55,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
+	"github.com/gravitational/teleport/lib/auth/storage"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
 	"github.com/gravitational/teleport/lib/backend"
@@ -634,15 +637,26 @@ func newStandaloneTeleport(t *testing.T, clock clockwork.Clock) *standaloneBundl
 	cfg.InstanceMetadataClient = imds.NewDisabledIMDSClient()
 	authProcess := startAndWait(t, cfg, service.AuthTLSReady)
 	t.Cleanup(func() { authProcess.Close() })
+	ctx := context.Background()
 	authAddr, err := authProcess.AuthAddr()
+	require.NoError(t, err)
+	identity, err := storage.ReadLocalIdentityForRole(ctx, filepath.Join(authProcess.Config.DataDir, teleport.ComponentProcess), types.RoleAdmin)
+	require.NoError(t, err)
+	tlsConfig, err := identity.TLSConfig(nil)
+	require.NoError(t, err)
+	clt, err := authclient.NewClient(apiclient.Config{
+		Addrs: []string{authAddr.String()},
+		Credentials: []apiclient.Credentials{
+			apiclient.LoadTLS(tlsConfig),
+		},
+	})
 	require.NoError(t, err)
 
 	authServer := authProcess.GetAuthServer()
 
 	// Initialize user's password and MFA.
-	ctx := context.Background()
 	const password = "supersecretpassword"
-	token, err := authServer.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
+	token, err := clt.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
 		Name: username,
 	})
 	require.NoError(t, err)
