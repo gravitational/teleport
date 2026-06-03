@@ -53,36 +53,25 @@ const (
 	actionSeek = playbackAction("seek")
 )
 
-// UnmarshalJSON implements custom json unmarshalling for playbackAction.
-// It ensures that actions conform to the expected set of values.
-func (a *playbackAction) UnmarshalJSON(data []byte) error {
-	var action string
-	if err := json.Unmarshal(data, &action); err != nil {
-		return err
-	}
-
-	switch action {
-	case string(actionPlayPause), string(actionSpeed), string(actionSeek):
-		*a = playbackAction(action)
+// Validate ensures that playback action matches one of the
+// playbackAction constants.
+func (a *playbackAction) Validate() error {
+	switch *a {
+	case actionPlayPause, actionSpeed, actionSeek:
 		return nil
 	default:
-		return trace.BadParameter("invalid desktop action")
+		return trace.BadParameter("invalid playback action")
 	}
 }
 
 type playbackSpeed float64
 
-// UnmarshalJSON implements custom json unmarshalling for playbackSpeed.
-// It coerces the received value into the range [minPlaybackSpeed, maxPlaybackSpeed].
-func (p *playbackSpeed) UnmarshalJSON(data []byte) error {
-	var speed float64
-	if err := json.Unmarshal(data, &speed); err != nil {
-		return err
-	}
-
-	speed = max(speed, minPlaybackSpeed)
-	speed = min(speed, maxPlaybackSpeed)
-	*p = playbackSpeed(speed)
+// Validate coerces playback speed into the acceptable
+// range [minPlaybackSpeed, maxPlaybackSpeed]. It will not
+// actually return an error.
+func (p *playbackSpeed) Validate() error {
+	*p = max(*p, minPlaybackSpeed)
+	*p = min(*p, maxPlaybackSpeed)
 	return nil
 }
 
@@ -93,6 +82,15 @@ type actionMessage struct {
 	Action        playbackAction `json:"action"`
 	PlaybackSpeed playbackSpeed  `json:"speed,omitempty"`
 	Pos           int64          `json:"pos"`
+}
+
+func (a *actionMessage) Validate() error {
+	for _, validate := range []func() error{a.Action.Validate, a.PlaybackSpeed.Validate} {
+		if err := validate(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
 }
 
 // JSONReader is used to read JSON messages containing
@@ -126,6 +124,11 @@ func ReceivePlaybackActions(
 			return trace.Wrap(err)
 		}
 
+		err = action.Validate()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
 		switch action.Action {
 		case actionPlayPause:
 			if playing {
@@ -152,7 +155,7 @@ type RecordingPlayer interface {
 }
 
 // StreamRecording adapts the RecordingPlayer to a websocket by reading from C(),
-// marshalling events to JSON, and writing them to the connection. Automatically
+// marshaling events to JSON, and writing them to the connection. Automatically
 // writes a sentinel or error message to the websocket when the player exits.
 // It does *not* drain the player's event channel upon context cancellation.
 func StreamRecording(
