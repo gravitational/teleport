@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport/build.assets/tools/gci
 
-go 1.25.10
+go 1.25.11
 
 tool github.com/daixiang0/gci
 
