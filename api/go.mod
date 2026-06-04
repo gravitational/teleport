@@ -56,4 +56,4 @@ require (
 
 // XXX: Temporary to use local copy of https://go-review.googlesource.com/c/crypto/+/717140 for in-band SSH MFA.
 // TODO(cthach): Remove when the change is merged and released in golang.org/x/crypto.
-replace golang.org/x/crypto => ../crypto
+replace golang.org/x/crypto => ../../crypto

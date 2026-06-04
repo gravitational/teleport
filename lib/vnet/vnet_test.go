@@ -86,10 +86,9 @@ type testPack struct {
 }
 
 type testPackConfig struct {
-	clock               clockwork.Clock
-	fakeClientApp       *fakeClientApp
-	homePath            string
-	allowAppHTTPSTunnel bool
+	clock         clockwork.Clock
+	fakeClientApp *fakeClientApp
+	homePath      string
 }
 
 func newTestPack(t *testing.T, ctx context.Context, cfg testPackConfig) *testPack {
@@ -170,14 +169,6 @@ func (p *testPack) lookupHost(ctx context.Context, host string) ([]string, error
 	return p.hostNetwork.DNSResolver().LookupHost(ctx, host)
 }
 
-func (p *testPack) lookupHostShouldFail(t *testing.T, host string) {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
-	defer cancel()
-	_, err := p.lookupHost(ctx, host)
-	require.Error(t, err)
-}
-
 func (p *testPack) dialHost(ctx context.Context, host string, port int) (net.Conn, error) {
 	addr := net.JoinHostPort(host, strconv.Itoa(port))
 	if net.ParseIP(host) != nil {
@@ -212,7 +203,6 @@ func runTestClientApplicationService(t *testing.T, ctx context.Context, cfg test
 		clusterConfigCache:  clusterConfigCache,
 		leafClusterCache:    leafClusterCache,
 		allowDatabaseAccess: true,
-		allowAppHTTPSTunnel: cfg.allowAppHTTPSTunnel,
 	})
 	clientApplicationService, err := newClientApplicationService(&clientApplicationServiceConfig{
 		clientApplication: cfg.fakeClientApp,
@@ -271,7 +261,6 @@ type appSpec struct {
 	name       string
 	publicAddr string
 	isWebApp   bool
-	isLLMApp   bool
 	tcpPorts   []*types.PortRange
 }
 
@@ -280,14 +269,10 @@ func (s *appSpec) getName() string {
 }
 
 func (s *appSpec) getURI() string {
-	switch {
-	case s.isLLMApp:
-		return types.SchemeLLMEndpoint + "://"
-	case s.isWebApp:
+	if s.isWebApp {
 		return "http://" + s.publicAddr
-	default:
-		return "tcp://" + s.publicAddr
 	}
+	return "tcp://" + s.publicAddr
 }
 
 type dbSpec struct {
@@ -1069,6 +1054,14 @@ func TestDialFakeApp(t *testing.T) {
 		}
 	})
 
+	lookupShouldFailFast := func(t *testing.T, host string) {
+		t.Helper()
+		lookupCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+		defer cancel()
+		_, err := p.lookupHost(lookupCtx, host)
+		require.Error(t, err)
+	}
+
 	t.Run("invalid FQDN", func(t *testing.T) {
 		t.Parallel()
 		invalidTestCases := []string{
@@ -1078,7 +1071,7 @@ func TestDialFakeApp(t *testing.T) {
 		for _, fqdn := range invalidTestCases {
 			t.Run(fqdn, func(t *testing.T) {
 				t.Parallel()
-				p.lookupHostShouldFail(t, fqdn)
+				lookupShouldFailFast(t, fqdn)
 			})
 		}
 	})
@@ -1116,107 +1109,9 @@ func TestDialFakeApp(t *testing.T) {
 
 				// For the test we've configured VNet with no upstream
 				// nameservers, so we expect the DNS lookup to fail.
-				p.lookupHostShouldFail(t, addr)
-			})
-		}
-	})
-}
-
-func TestDialHTTPSTunnelApp(t *testing.T) {
-	t.Parallel()
-	clock := clockwork.NewFakeClockAt(time.Now())
-
-	clusterSpec := map[string]testClusterSpec{
-		"root.example.com": {
-			apps: []appSpec{
-				{publicAddr: "tcp-app.root.example.com"},
-				{publicAddr: "http-app.root.example.com", isWebApp: true},
-				{publicAddr: "llm-app.root.example.com", isLLMApp: true},
-			},
-		},
-	}
-
-	t.Run("enabled", func(t *testing.T) {
-		t.Parallel()
-		ctx := t.Context()
-
-		clientApp := newFakeClientApp(ctx, t, &fakeClientAppConfig{
-			clusters:                clusterSpec,
-			clock:                   clock,
-			signatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
-		})
-		p := newTestPack(t, ctx, testPackConfig{
-			fakeClientApp:       clientApp,
-			clock:               clock,
-			allowAppHTTPSTunnel: true,
-		})
-
-		for _, tc := range []struct {
-			name string
-			app  string
-		}{
-			{
-				name: "TCP app",
-				app:  "tcp-app.root.example.com",
-			},
-			{
-				name: "HTTP app",
-				app:  "http-app.root.example.com",
-			},
-			{
-				name: "LLM app",
-				app:  "llm-app.root.example.com",
-			},
-		} {
-			t.Run(tc.name, func(t *testing.T) {
-				t.Parallel()
-				conn, err := p.dialHost(ctx, tc.app, 443)
-				require.NoError(t, err)
-				testEchoConnection(t, conn)
-				require.NoError(t, conn.Close())
-			})
-		}
-	})
-
-	t.Run("disabled", func(t *testing.T) {
-		t.Parallel()
-		ctx := t.Context()
-
-		clientApp := newFakeClientApp(ctx, t, &fakeClientAppConfig{
-			clusters:                clusterSpec,
-			clock:                   clock,
-			signatureAlgorithmSuite: types.SignatureAlgorithmSuite_SIGNATURE_ALGORITHM_SUITE_BALANCED_V1,
-		})
-		p := newTestPack(t, ctx, testPackConfig{
-			fakeClientApp:       clientApp,
-			clock:               clock,
-			allowAppHTTPSTunnel: false,
-		})
-
-		t.Run("TCP app still works", func(t *testing.T) {
-			t.Parallel()
-			conn, err := p.dialHost(ctx, "tcp-app.root.example.com", 443)
-			require.NoError(t, err)
-			testEchoConnection(t, conn)
-			require.NoError(t, conn.Close())
-		})
-
-		for _, tc := range []struct {
-			name string
-			app  string
-		}{
-			{
-				name: "HTTP app not resolved",
-				app:  "http-app.root.example.com",
-			},
-			{
-				name: "LLM app not resolved",
-				app:  "llm-app.root.example.com",
-			},
-		} {
-			t.Run(tc.name, func(t *testing.T) {
-				t.Parallel()
-				p.lookupHostShouldFail(t, tc.app)
+				// net.Resolver.LookupHost takes a while to fail unless we
+				// provide a short context.
+				lookupShouldFailFast(t, addr)
 			})
 		}
 	})
@@ -1993,6 +1888,14 @@ func TestPriority(t *testing.T) {
 	webProxyPort, err := strconv.Atoi(webProxyPortString)
 	require.NoError(t, err)
 
+	lookupShouldFailFast := func(t *testing.T, host string) {
+		t.Helper()
+		lookupCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+		defer cancel()
+		_, err := p.lookupHost(lookupCtx, host)
+		require.Error(t, err)
+	}
+
 	knownHosts, err := os.ReadFile(keypaths.VNetKnownHostsPath(homePath))
 	require.NoError(t, err)
 	marker, hosts, hostCAPubKey, _, _, err := ssh.ParseKnownHosts(knownHosts)
@@ -2027,7 +1930,7 @@ func TestPriority(t *testing.T) {
 	t.Run("web app beats SSH cluster match", func(t *testing.T) {
 		t.Parallel()
 
-		p.lookupHostShouldFail(t, "webwins.leaf.example.com")
+		lookupShouldFailFast(t, "webwins.leaf.example.com")
 		assert.Empty(t, clientApp.RequestedRouteToApps("webwins.leaf.example.com"))
 	})
 
@@ -2296,16 +2199,9 @@ func mustStartFakeWebProxy(
 		return trace.Wrap(runTestSSHServerInstance(conn, serverConfig))
 	}
 
-	httpsTunnelAppHandler := func(conn net.Conn) error {
-		// HTTPS tunnel apps use the same echo handler as TCP apps for testing.
-		_, err := io.Copy(conn, conn)
-		return trace.Wrap(err, "io.Copy error in HTTPS tunnel echo server")
-	}
-
 	// Run a simplified TLS router for the test.
 	protocolHandlers := map[alpncommon.Protocol]func(net.Conn) error{
 		alpncommon.ProtocolTCP:      tcpAppHandler,
-		alpncommon.ProtocolAppHTTPS: httpsTunnelAppHandler,
 		alpncommon.ProtocolProxySSH: sshHandler,
 	}
 	for _, dbProto := range alpncommon.DatabaseProtocols {
@@ -2390,7 +2286,6 @@ func fakeWebProxyALPNProtocols() []string {
 	protos := []string{
 		string(alpncommon.ProtocolProxySSH),
 		string(alpncommon.ProtocolTCP),
-		string(alpncommon.ProtocolAppHTTPS),
 	}
 	for _, dbProto := range alpncommon.DatabaseProtocols {
 		protos = append(protos, string(dbProto))
