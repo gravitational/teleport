@@ -222,6 +222,11 @@ is registered:
 `public_addr` (if set) must be a bare, lowercase DNS hostname. URI
 schemes, ports, IP addresses, and uppercase letters are rejected.
 
+Two apps that route to the same FQDN create an ambiguous request, so
+Teleport does its best to reject such collisions. When `proxy_service`
+is colocated in the same static configuration, it rejects them at
+startup.
+
 After Teleport is running, users can access the app at `app-name.proxy_public_addr.com`
 e.g. `grafana.teleport.example.com`. You can also override `public_addr` e.g
 `grafana.acme.com` if you configure the appropriate DNS entry to point to the

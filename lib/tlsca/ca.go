@@ -1557,6 +1557,8 @@ func (id Identity) GetUserMetadata() events.UserMetadata {
 	switch {
 	case id.BotName != "":
 		userKind = events.UserKind_USER_KIND_BOT
+	case id.ScopePin.GetKind() == scopesv1.PinKind_PIN_KIND_AGENT:
+		userKind = events.UserKind_USER_KIND_SYSTEM
 	case len(id.SystemRoles) > 0 || systemRoleCheckErr == nil && len(id.Groups) > 0:
 		userKind = events.UserKind_USER_KIND_SYSTEM
 	default:
@@ -1566,6 +1568,7 @@ func (id Identity) GetUserMetadata() events.UserMetadata {
 	if userTeleportCluster == "" {
 		userTeleportCluster = id.TeleportCluster
 	}
+
 	return events.UserMetadata{
 		User:              id.Username,
 		Impersonator:      id.Impersonator,
@@ -1580,6 +1583,7 @@ func (id Identity) GetUserMetadata() events.UserMetadata {
 		UserRoles:         slices.Clone(id.Groups),
 		UserTraits:        id.Traits.Clone(),
 		UserClusterName:   userTeleportCluster,
+		ScopePin:          pinning.ToEventsPin(id.ScopePin),
 	}
 }
 

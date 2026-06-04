@@ -63,11 +63,6 @@ import (
 const sessionRecorderID = "session-recorder"
 
 const (
-	PresenceVerifyInterval = time.Second * 15
-	PresenceMaxDifference  = time.Minute
-)
-
-const (
 	// sessionRecordingWarningMessage is sent when the session recording is
 	// going to be disabled.
 	sessionRecordingWarningMessage = "Warning: node error. This might cause some functionalities not to work correctly."
@@ -1335,7 +1330,9 @@ func (s *session) launchUnderLock() {
 	// If the identity is verified with an MFA device, we enabled MFA-based presence for the session.
 	if s.presenceEnabled {
 		go func() {
-			ticker := s.registry.clock.NewTicker(PresenceVerifyInterval)
+			// Check presence 4 times per max duration to provide ample opportunity to complete MFA.
+			checkPresenceInterval := s.scx.srv.GetPresenceMaxDuration() / 4
+			ticker := s.registry.clock.NewTicker(checkPresenceInterval)
 			defer ticker.Stop()
 			for {
 				select {
@@ -1835,6 +1832,8 @@ func (s *session) lingerAndDie(ctx context.Context, party *party) {
 }
 
 func (s *session) checkPresence(ctx context.Context) error {
+	now := s.registry.clock.Now().UTC()
+
 	// We cannot check presence on the local tracker as that will not
 	// be updated in response to parties performing their presence
 	// checks. To prevent the stale version of the session tracker from
@@ -1851,7 +1850,7 @@ func (s *session) checkPresence(ctx context.Context) error {
 			continue
 		}
 
-		if participant.Mode == string(types.SessionModeratorMode) && s.registry.clock.Now().UTC().After(participant.LastActive.Add(PresenceMaxDifference)) {
+		if participant.Mode == string(types.SessionModeratorMode) && now.After(participant.LastActive.Add(s.scx.srv.GetPresenceMaxDuration())) {
 			s.logger.WarnContext(
 				ctx, "Participant is not active, kicking.",
 				"participant", participant.ID,

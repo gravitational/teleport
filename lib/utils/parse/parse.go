@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"net/mail"
 	"regexp"
+	"slices"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -51,6 +52,44 @@ const (
 // LabelSelectorSpec parses a string like 'name=value,"long name"="quoted value"` into a map like
 // { "name" -> "value", "long name" -> "quoted value" }.
 func LabelSelectorSpec(spec string) (map[string]string, error) {
+	tokens, err := tokenizeLabelSpec(spec)
+	if err != nil {
+		return nil, err
+	}
+	// break tokens in pairs and put into a map:
+	labels := make(map[string]string)
+	for i := 0; i < len(tokens); i += 2 {
+		labels[tokens[i]] = tokens[i+1]
+	}
+	return labels, nil
+}
+
+// MultiValueLabelSelectorSpec parses a string like 'name=value,name=other,"long name"="quoted value"`
+// into a map like { "name" -> ["value", "other"], "long name" -> ["quoted value"] }.
+// Similar to LabelSelectorSpec but allows repeated key values stored into a slice.
+// Duplicate values for the same key are dropped.
+//
+// Multi valued labels are supported for role resources e.g. node_labels.
+func MultiValueLabelSelectorSpec(spec string) (map[string][]string, error) {
+	tokens, err := tokenizeLabelSpec(spec)
+	if err != nil {
+		return nil, err
+	}
+	// break tokens in pairs and put into a map, appending repeated keys:
+	labels := make(map[string][]string)
+	for i := 0; i < len(tokens); i += 2 {
+		key := tokens[i]
+		val := tokens[i+1]
+		if !slices.Contains(labels[key], val) {
+			labels[key] = append(labels[key], val)
+		}
+	}
+	return labels, nil
+}
+
+// tokenizeLabelSpec breaks a label spec like 'name=value,"long name"="quoted value"'
+// into a list of key/value tokens (name, value, long name, quoted value...).
+func tokenizeLabelSpec(spec string) ([]string, error) {
 	var tokens []string
 	openQuotes := false
 	var tokenStart, assignCount int
@@ -84,12 +123,7 @@ func LabelSelectorSpec(spec string) (map[string]string, error) {
 	if len(tokens)%2 != 0 || assignCount != len(tokens)/2 {
 		return nil, fmt.Errorf("invalid label spec: '%s', should be 'key=value'", spec)
 	}
-	// break tokens in pairs and put into a map:
-	labels := make(map[string]string)
-	for i := 0; i < len(tokens); i += 2 {
-		labels[tokens[i]] = tokens[i+1]
-	}
-	return labels, nil
+	return tokens, nil
 }
 
 var (

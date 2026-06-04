@@ -138,14 +138,14 @@ Change the following settings, as appropriate:
 - jamf_service.client_id
 
 Finally, write your Jamf client secret to the
-`/var/lib/teleport/jamf_client_secret` file:
+`/var/lib/teleport/jamf_client_secret.txt` file:
 
 ```code
-$ sudo nano /var/lib/teleport/jamf_client_secret # or use your favorite editor
+$ sudo nano /var/lib/teleport/jamf_client_secret.txt # or use your favorite editor
 
 # Only the OS user that runs `teleport` should have access to the secret file.
-$ sudo chmod 400 /var/lib/teleport/jamf_client_secret
-$ sudo chown teleport /var/lib/teleport/jamf_client_secret
+$ sudo chmod 400 /var/lib/teleport/jamf_client_secret.txt
+$ sudo chown teleport /var/lib/teleport/jamf_client_secret.txt
 ```
 
 ## Step 3/4. Create a join token

@@ -224,11 +224,11 @@ func printRequest(cf *CLIConf, req types.AccessRequest) error {
 	}
 
 	printReviewBlock := func(title string, revs []types.AccessReview) error {
-		fmt.Fprint(cf.Stdout(), "------------------------------------------------")
+		fmt.Fprintln(cf.Stdout(), "------------------------------------------------")
 		fmt.Fprintf(cf.Stdout(), "%s:\n", title)
 
 		for _, rev := range revs {
-			fmt.Fprint(cf.Stdout(), "  ----------------------------------------------")
+			fmt.Fprintln(cf.Stdout(), "  ----------------------------------------------")
 
 			revReason := "[none]"
 			if rev.Reason != "" {

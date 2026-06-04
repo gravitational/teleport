@@ -173,6 +173,8 @@ export const ossRoutes = {
   browserMfa: `/web/mfa/browser/:requestId?`,
   integrations: '/web/integrations',
   integrationOverview: '/web/integrations/overview/:type/:name',
+  integrationOverviewSettings:
+    '/web/integrations/overview/:type/:name/settings',
   integrationStatus: '/web/integrations/status/:type/:name',
   integrationTasks: '/web/integrations/status/:type/:name/tasks',
   integrationStatusResources:
@@ -857,6 +859,13 @@ const cfg = {
 
   getIaCIntegrationRoute(type: PluginKind | IntegrationKind, name: string) {
     return generatePath(cfg.routes.integrationOverview, { type, name });
+  },
+
+  getIaCIntegrationSettingsRoute(
+    type: PluginKind | IntegrationKind,
+    name: string
+  ) {
+    return generatePath(cfg.routes.integrationOverviewSettings, { type, name });
   },
 
   getIntegrationStatusResourcesRoute(

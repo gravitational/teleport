@@ -218,6 +218,9 @@ type PresenceInternal interface {
 	// doesn't check the revision of the app_server in storage).
 	UnconditionalUpdateApplicationServer(ctx context.Context, server types.AppServer) (types.AppServer, error)
 
+	// RangeApplicationServersWithName returns an iterator over application servers for a given app name.
+	RangeApplicationServersWithName(ctx context.Context, appName string) iter.Seq2[types.AppServer, error]
+
 	// AppendPutNodeActions adds conditional actions to an atomic write to create
 	// or update a node resource.
 	AppendPutNodeActions(

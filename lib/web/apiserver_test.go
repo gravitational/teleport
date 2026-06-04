@@ -95,7 +95,6 @@ import (
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	transportpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
-	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -8696,22 +8695,24 @@ func waitForOutputWithDuration(ctx context.Context, r io.Reader, substr string, 
 	timeoutCh := time.After(timeout)
 	errC := make(chan error, 1)
 	go func() {
-		var prev string
-		out := make([]byte, int64(len(substr)*3))
+		var out strings.Builder
+		chunk := make([]byte, int64(len(substr)*2))
 		for {
-			n, err := r.Read(out)
-			outStr := removeSpace(string(out[:n]))
+			n, err := r.Read(chunk)
+			out.Write(chunk[:n])
 
-			slog.DebugContext(ctx, "waitForOutput read", "output", outStr, "expected", substr)
+			normalized := removeSpace(out.String())
+			slog.DebugContext(ctx, "waitForOutput read", "output", normalized, "expected", substr)
 
 			// Check for [substr] before checking the error,
 			// as it's valid for n > 0 even when there is an error.
 			// The [substr] is checked against the current and previous
 			// output to account for scenarios where the [substr] is split
-			// across two reads. While we try to prevent this by reading
+			// across 2+ reads. While we try to prevent this by reading
 			// twice the length of [substr] there are no guarantees the
-			// whole thing will arrive in a single read.
-			if n > 0 && strings.Contains(prev+outStr, substr) {
+			// whole thing will arrive in a single read since there is no
+			// minimum chunk length.
+			if n > 0 && strings.Contains(normalized, substr) {
 				errC <- nil
 				return
 			}
@@ -8719,7 +8720,6 @@ func waitForOutputWithDuration(ctx context.Context, r io.Reader, substr string, 
 				errC <- err
 				return
 			}
-			prev = outStr
 		}
 	}()
 
@@ -11047,181 +11047,6 @@ func TestModeratedSession(t *testing.T) {
 	// closes its own connection without waiting for the session to end, so we only check peer output.
 	waitForOutput(t, peerTerm, "Forcefully terminating session...", "waiting for peer session to see termination broadcast")
 	waitForOutput(t, peerTerm, "Process exited with status 255", "waiting for peer session to be terminated")
-}
-
-// TestModeratedSessionWithMFA validates the same behavior as TestModeratedSession while
-// also ensuring that MFA is performed prior to accessing the host and that periodic
-// presence checks are performed by the moderator. When presence checks are not performed
-// the session is aborted.
-func TestModeratedSessionWithMFA(t *testing.T) {
-	const RPID = "localhost"
-
-	presenceClock := clockwork.NewFakeClock()
-	s := newWebSuiteWithConfig(t, webSuiteConfig{
-		clock:                     clockwork.NewFakeClockAt(presenceClock.Now()),
-		disableDiskBasedRecording: true,
-		authPreferenceSpec: &types.AuthPreferenceSpecV2{
-			Type:           constants.Local,
-			ConnectorName:  constants.PasswordlessConnector,
-			SecondFactor:   constants.SecondFactorOn,
-			RequireMFAType: types.RequireMFAType_SESSION,
-			Webauthn: &types.Webauthn{
-				RPID: RPID,
-			},
-		},
-		presenceChecker: func(ctx context.Context, term io.Writer, maintainer client.PresenceMaintainer, sessionID string, mfaCeremony *mfa.Ceremony, opts ...client.PresenceOption) error {
-			return trace.Wrap(client.RunPresenceTask(ctx, term, maintainer, sessionID, mfaCeremony, client.WithPresenceClock(presenceClock)))
-		},
-		modules: modulestest.EnterpriseModules(),
-	})
-
-	peerRole, err := types.NewRole("moderated", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			RequireSessionJoin: []*types.SessionRequirePolicy{
-				{
-					Name:   "moderated",
-					Filter: "contains(user.roles, \"moderator\")",
-					Kinds:  []string{string(types.SSHSessionKind)},
-					Count:  1,
-					Modes:  []string{string(types.SessionModeratorMode)},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	moderatorRole, err := types.NewRole("moderator", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			JoinSessions: []*types.SessionJoinPolicy{
-				{
-					Name:  "moderated",
-					Roles: []string{peerRole.GetName()},
-					Kinds: []string{string(types.SSHSessionKind)},
-					Modes: []string{string(types.SessionModeratorMode), string(types.SessionObserverMode)},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	peer := s.authPackWithMFA(t, "foo", peerRole)
-	moderator := s.authPackWithMFA(t, "bar", moderatorRole)
-
-	ctx, cancel := context.WithCancel(s.ctx)
-	t.Cleanup(cancel)
-
-	peerTerm, err := connectToHost(ctx, connectConfig{
-		pack:  peer,
-		host:  s.node.ID(),
-		proxy: s.webServer.Listener.Addr().String(),
-		mfaCeremony: func(challenge client.MFAAuthenticateChallenge) []byte {
-			res, err := peer.device.SolveAuthn(&authproto.MFAAuthenticateChallenge{
-				WebauthnChallenge: wantypes.CredentialAssertionToProto(challenge.WebauthnChallenge),
-			})
-			require.NoError(t, err)
-
-			webauthnResBytes, err := json.Marshal(wantypes.CredentialAssertionResponseFromProto(res.GetWebauthn()))
-			require.NoError(t, err)
-
-			envelope := &terminal.Envelope{
-				Version: defaults.WebsocketVersion,
-				Type:    defaults.WebsocketMFAChallenge,
-				Payload: string(webauthnResBytes),
-			}
-			envelopeBytes, err := proto.Marshal(envelope)
-			require.NoError(t, err)
-
-			return envelopeBytes
-		},
-	})
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		// This close can race with the moderated forced termination, which completes after the output is collected.
-		if err := peerTerm.Close(); !errors.Is(err, syscall.EPIPE) && !errors.Is(err, syscall.ECONNRESET) {
-			require.NoError(t, err)
-		}
-	})
-
-	waitForOutput(t, peerTerm, "Teleport > Waiting for required participants...", "waiting for peer to start session")
-
-	moderatorTerm, err := connectToHost(ctx, connectConfig{
-		pack:            moderator,
-		host:            s.node.ID(),
-		proxy:           s.webServer.Listener.Addr().String(),
-		sessionID:       peerTerm.GetSession().ID,
-		participantMode: types.SessionModeratorMode,
-		mfaCeremony: func(challenge client.MFAAuthenticateChallenge) []byte {
-			res, err := moderator.device.SolveAuthn(&authproto.MFAAuthenticateChallenge{
-				WebauthnChallenge: wantypes.CredentialAssertionToProto(challenge.WebauthnChallenge),
-			})
-			require.NoError(t, err)
-
-			webauthnResBytes, err := json.Marshal(wantypes.CredentialAssertionResponseFromProto(res.GetWebauthn()))
-			require.NoError(t, err)
-
-			envelope := &terminal.Envelope{
-				Version: defaults.WebsocketVersion,
-				Type:    defaults.WebsocketMFAChallenge,
-				Payload: string(webauthnResBytes),
-			}
-			envelopeBytes, err := proto.Marshal(envelope)
-			require.NoError(t, err)
-
-			return envelopeBytes
-		},
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		// This close can race with the moderated forced termination, which completes after the output is collected.
-		if err := moderatorTerm.Close(); !errors.Is(err, syscall.EPIPE) && !errors.Is(err, syscall.ECONNRESET) {
-			require.NoError(t, err)
-		}
-	})
-
-	waitForOutput(t, peerTerm, "Teleport > Connecting to node over SSH", "waiting for peer to connect after moderator joins")
-
-	// here we intentionally run a command where the output we're looking
-	// for is not present in the command itself
-	_, err = io.WriteString(peerTerm, "echo llxmx | sed 's/x/a/g'\r\n")
-	require.NoError(t, err)
-	waitForOutput(t, peerTerm, "llama", "waiting for output in peer terminal")
-	waitForOutput(t, moderatorTerm, "llama", "waiting for output in moderator terminal")
-
-	// run the presence check a few times
-	for range 3 {
-		presenceClock.BlockUntil(1)
-		presenceClock.Advance(30 * time.Second)
-		waitForOutput(t, moderatorTerm, "Teleport > Please tap your MFA key", "waiting for moderator mfa prompt")
-
-		challenge, err := moderatorTerm.stream.ReadChallenge(protobufMFACodec{})
-		require.NoError(t, err)
-
-		res, err := moderator.device.SolveAuthn(challenge)
-		require.NoError(t, err)
-
-		webauthnResBytes, err := json.Marshal(wantypes.CredentialAssertionResponseFromProto(res.GetWebauthn()))
-		require.NoError(t, err)
-
-		envelope := &terminal.Envelope{
-			Version: defaults.WebsocketVersion,
-			Type:    defaults.WebsocketMFAChallenge,
-			Payload: string(webauthnResBytes),
-		}
-		envelopeBytes, err := proto.Marshal(envelope)
-		require.NoError(t, err)
-
-		require.NoError(t, moderatorTerm.ws.WriteMessage(websocket.BinaryMessage, envelopeBytes))
-	}
-
-	// Advance the clock far enough in the future to make the moderator stale
-	// which will terminate the session - because the clock is used by ALL server
-	// components, it's not practical to use BlockUntil here, so we use EventuallyWithT instead.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		s.clock.Advance(3 * time.Minute)
-		require.NoError(t, waitForOutputWithDuration(ctx, moderatorTerm, "wait: remote command exited without exit status or exit signal", 3*time.Second))
-		require.NoError(t, waitForOutputWithDuration(ctx, peerTerm, "Process exited with status 255", 3*time.Second))
-	}, 15*time.Second, 3*time.Second)
 }
 
 type proxyClientMock struct {

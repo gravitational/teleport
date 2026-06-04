@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/machineid/v1/bot_instance_service.proto
 
+//go:build !protoopaque
+
 package machineidv1
 
 import (
@@ -26,7 +28,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -39,7 +40,7 @@ const (
 
 // Request for GetBotInstance.
 type GetBotInstanceRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The name of the bot associated with the instance.
 	BotName string `protobuf:"bytes,1,opt,name=bot_name,json=botName,proto3" json:"bot_name,omitempty"`
 	// The unique identifier of the bot instance to retrieve.
@@ -73,11 +74,6 @@ func (x *GetBotInstanceRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetBotInstanceRequest.ProtoReflect.Descriptor instead.
-func (*GetBotInstanceRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_bot_instance_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *GetBotInstanceRequest) GetBotName() string {
 	if x != nil {
 		return x.BotName
@@ -92,12 +88,38 @@ func (x *GetBotInstanceRequest) GetInstanceId() string {
 	return ""
 }
 
+func (x *GetBotInstanceRequest) SetBotName(v string) {
+	x.BotName = v
+}
+
+func (x *GetBotInstanceRequest) SetInstanceId(v string) {
+	x.InstanceId = v
+}
+
+type GetBotInstanceRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The name of the bot associated with the instance.
+	BotName string
+	// The unique identifier of the bot instance to retrieve.
+	InstanceId string
+}
+
+func (b0 GetBotInstanceRequest_builder) Build() *GetBotInstanceRequest {
+	m0 := &GetBotInstanceRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.BotName = b.BotName
+	x.InstanceId = b.InstanceId
+	return m0
+}
+
 // Request for ListBotInstances.
 //
 // Follows the pagination semantics of
 // https://cloud.google.com/apis/design/standard_methods#list
 type ListBotInstancesRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The name of the Bot to list BotInstances for. If empty, all BotInstances
 	// will be listed.
 	FilterBotName string `protobuf:"bytes,1,opt,name=filter_bot_name,json=filterBotName,proto3" json:"filter_bot_name,omitempty"`
@@ -140,11 +162,6 @@ func (x *ListBotInstancesRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListBotInstancesRequest.ProtoReflect.Descriptor instead.
-func (*ListBotInstancesRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_bot_instance_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *ListBotInstancesRequest) GetFilterBotName() string {
 	if x != nil {
 		return x.FilterBotName
@@ -180,12 +197,73 @@ func (x *ListBotInstancesRequest) GetSort() *types.SortBy {
 	return nil
 }
 
+func (x *ListBotInstancesRequest) SetFilterBotName(v string) {
+	x.FilterBotName = v
+}
+
+func (x *ListBotInstancesRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListBotInstancesRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+func (x *ListBotInstancesRequest) SetFilterSearchTerm(v string) {
+	x.FilterSearchTerm = v
+}
+
+func (x *ListBotInstancesRequest) SetSort(v *types.SortBy) {
+	x.Sort = v
+}
+
+func (x *ListBotInstancesRequest) HasSort() bool {
+	if x == nil {
+		return false
+	}
+	return x.Sort != nil
+}
+
+func (x *ListBotInstancesRequest) ClearSort() {
+	x.Sort = nil
+}
+
+type ListBotInstancesRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The name of the Bot to list BotInstances for. If empty, all BotInstances
+	// will be listed.
+	FilterBotName string
+	// The maximum number of items to return.
+	// The server may impose a different page size at its discretion.
+	PageSize int32
+	// The page_token value returned from a previous ListBotInstances request, if
+	// any.
+	PageToken string
+	// A search term used to filter the results. If non-empty, it's used to match against supported fields.
+	FilterSearchTerm string
+	// The sort config to use for the results. If empty, the default sort field and order is used.
+	Sort *types.SortBy
+}
+
+func (b0 ListBotInstancesRequest_builder) Build() *ListBotInstancesRequest {
+	m0 := &ListBotInstancesRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.FilterBotName = b.FilterBotName
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	x.FilterSearchTerm = b.FilterSearchTerm
+	x.Sort = b.Sort
+	return m0
+}
+
 // Request for ListBotInstancesV2.
 //
 // Follows the pagination semantics of
 // https://cloud.google.com/apis/design/standard_methods#list
 type ListBotInstancesV2Request struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The maximum number of items to return.
 	// The server may impose a different page size at its discretion.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
@@ -229,11 +307,6 @@ func (x *ListBotInstancesV2Request) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListBotInstancesV2Request.ProtoReflect.Descriptor instead.
-func (*ListBotInstancesV2Request) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_bot_instance_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *ListBotInstancesV2Request) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -269,9 +342,71 @@ func (x *ListBotInstancesV2Request) GetFilter() *ListBotInstancesV2Request_Filte
 	return nil
 }
 
+func (x *ListBotInstancesV2Request) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListBotInstancesV2Request) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+func (x *ListBotInstancesV2Request) SetSortField(v string) {
+	x.SortField = v
+}
+
+func (x *ListBotInstancesV2Request) SetSortDesc(v bool) {
+	x.SortDesc = v
+}
+
+func (x *ListBotInstancesV2Request) SetFilter(v *ListBotInstancesV2Request_Filters) {
+	x.Filter = v
+}
+
+func (x *ListBotInstancesV2Request) HasFilter() bool {
+	if x == nil {
+		return false
+	}
+	return x.Filter != nil
+}
+
+func (x *ListBotInstancesV2Request) ClearFilter() {
+	x.Filter = nil
+}
+
+type ListBotInstancesV2Request_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The maximum number of items to return.
+	// The server may impose a different page size at its discretion.
+	PageSize int32
+	// The page_token value returned from a previous ListBotInstancesV2 request,
+	// if any.
+	PageToken string
+	// The sort field to use for the results. If empty, the default sort field is
+	// used.
+	SortField string
+	// The sort order to use for the results. If empty, the default sort order is
+	// used.
+	SortDesc bool
+	// Fields used to filter the results
+	Filter *ListBotInstancesV2Request_Filters
+}
+
+func (b0 ListBotInstancesV2Request_builder) Build() *ListBotInstancesV2Request {
+	m0 := &ListBotInstancesV2Request{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	x.SortField = b.SortField
+	x.SortDesc = b.SortDesc
+	x.Filter = b.Filter
+	return m0
+}
+
 // Response for ListBotInstances.
 type ListBotInstancesResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// BotInstance that matched the search.
 	BotInstances []*BotInstance `protobuf:"bytes,1,rep,name=bot_instances,json=botInstances,proto3" json:"bot_instances,omitempty"`
 	// Token to retrieve the next page of results, or empty if there are no
@@ -306,11 +441,6 @@ func (x *ListBotInstancesResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListBotInstancesResponse.ProtoReflect.Descriptor instead.
-func (*ListBotInstancesResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_bot_instance_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *ListBotInstancesResponse) GetBotInstances() []*BotInstance {
 	if x != nil {
 		return x.BotInstances
@@ -325,9 +455,36 @@ func (x *ListBotInstancesResponse) GetNextPageToken() string {
 	return ""
 }
 
+func (x *ListBotInstancesResponse) SetBotInstances(v []*BotInstance) {
+	x.BotInstances = v
+}
+
+func (x *ListBotInstancesResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListBotInstancesResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// BotInstance that matched the search.
+	BotInstances []*BotInstance
+	// Token to retrieve the next page of results, or empty if there are no
+	// more results exist.
+	NextPageToken string
+}
+
+func (b0 ListBotInstancesResponse_builder) Build() *ListBotInstancesResponse {
+	m0 := &ListBotInstancesResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.BotInstances = b.BotInstances
+	x.NextPageToken = b.NextPageToken
+	return m0
+}
+
 // Request for DeleteBotInstance.
 type DeleteBotInstanceRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The name of the BotInstance to delete.
 	BotName string `protobuf:"bytes,1,opt,name=bot_name,json=botName,proto3" json:"bot_name,omitempty"`
 	// The unique identifier of the bot instance to delete.
@@ -361,11 +518,6 @@ func (x *DeleteBotInstanceRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteBotInstanceRequest.ProtoReflect.Descriptor instead.
-func (*DeleteBotInstanceRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_bot_instance_service_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *DeleteBotInstanceRequest) GetBotName() string {
 	if x != nil {
 		return x.BotName
@@ -380,9 +532,35 @@ func (x *DeleteBotInstanceRequest) GetInstanceId() string {
 	return ""
 }
 
+func (x *DeleteBotInstanceRequest) SetBotName(v string) {
+	x.BotName = v
+}
+
+func (x *DeleteBotInstanceRequest) SetInstanceId(v string) {
+	x.InstanceId = v
+}
+
+type DeleteBotInstanceRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The name of the BotInstance to delete.
+	BotName string
+	// The unique identifier of the bot instance to delete.
+	InstanceId string
+}
+
+func (b0 DeleteBotInstanceRequest_builder) Build() *DeleteBotInstanceRequest {
+	m0 := &DeleteBotInstanceRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.BotName = b.BotName
+	x.InstanceId = b.InstanceId
+	return m0
+}
+
 // The request for SubmitHeartbeat.
 type SubmitHeartbeatRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The heartbeat data to submit.
 	Heartbeat *BotInstanceStatusHeartbeat `protobuf:"bytes,1,opt,name=heartbeat,proto3" json:"heartbeat,omitempty"`
 	// The health of the services/output `tbot` is running.
@@ -416,11 +594,6 @@ func (x *SubmitHeartbeatRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SubmitHeartbeatRequest.ProtoReflect.Descriptor instead.
-func (*SubmitHeartbeatRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_bot_instance_service_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *SubmitHeartbeatRequest) GetHeartbeat() *BotInstanceStatusHeartbeat {
 	if x != nil {
 		return x.Heartbeat
@@ -435,9 +608,46 @@ func (x *SubmitHeartbeatRequest) GetServiceHealth() []*BotInstanceServiceHealth 
 	return nil
 }
 
+func (x *SubmitHeartbeatRequest) SetHeartbeat(v *BotInstanceStatusHeartbeat) {
+	x.Heartbeat = v
+}
+
+func (x *SubmitHeartbeatRequest) SetServiceHealth(v []*BotInstanceServiceHealth) {
+	x.ServiceHealth = v
+}
+
+func (x *SubmitHeartbeatRequest) HasHeartbeat() bool {
+	if x == nil {
+		return false
+	}
+	return x.Heartbeat != nil
+}
+
+func (x *SubmitHeartbeatRequest) ClearHeartbeat() {
+	x.Heartbeat = nil
+}
+
+type SubmitHeartbeatRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The heartbeat data to submit.
+	Heartbeat *BotInstanceStatusHeartbeat
+	// The health of the services/output `tbot` is running.
+	ServiceHealth []*BotInstanceServiceHealth
+}
+
+func (b0 SubmitHeartbeatRequest_builder) Build() *SubmitHeartbeatRequest {
+	m0 := &SubmitHeartbeatRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Heartbeat = b.Heartbeat
+	x.ServiceHealth = b.ServiceHealth
+	return m0
+}
+
 // The response for SubmitHeartbeat.
 type SubmitHeartbeatResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -467,14 +677,21 @@ func (x *SubmitHeartbeatResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SubmitHeartbeatResponse.ProtoReflect.Descriptor instead.
-func (*SubmitHeartbeatResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_bot_instance_service_proto_rawDescGZIP(), []int{6}
+type SubmitHeartbeatResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 SubmitHeartbeatResponse_builder) Build() *SubmitHeartbeatResponse {
+	m0 := &SubmitHeartbeatResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // Filters contains fields to be used to filter the results.
 type ListBotInstancesV2Request_Filters struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The name of the Bot to list BotInstances for. If non-empty, only
 	// BotInstances for that bot will be listed.
 	BotName string `protobuf:"bytes,1,opt,name=bot_name,json=botName,proto3" json:"bot_name,omitempty"`
@@ -512,11 +729,6 @@ func (x *ListBotInstancesV2Request_Filters) ProtoReflect() protoreflect.Message 
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListBotInstancesV2Request_Filters.ProtoReflect.Descriptor instead.
-func (*ListBotInstancesV2Request_Filters) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_bot_instance_service_proto_rawDescGZIP(), []int{2, 0}
-}
-
 func (x *ListBotInstancesV2Request_Filters) GetBotName() string {
 	if x != nil {
 		return x.BotName
@@ -536,6 +748,41 @@ func (x *ListBotInstancesV2Request_Filters) GetQuery() string {
 		return x.Query
 	}
 	return ""
+}
+
+func (x *ListBotInstancesV2Request_Filters) SetBotName(v string) {
+	x.BotName = v
+}
+
+func (x *ListBotInstancesV2Request_Filters) SetSearchTerm(v string) {
+	x.SearchTerm = v
+}
+
+func (x *ListBotInstancesV2Request_Filters) SetQuery(v string) {
+	x.Query = v
+}
+
+type ListBotInstancesV2Request_Filters_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The name of the Bot to list BotInstances for. If non-empty, only
+	// BotInstances for that bot will be listed.
+	BotName string
+	// A search term used to filter the results. If non-empty, it's used to
+	// match against supported fields.
+	SearchTerm string
+	// A Teleport predicate language query used to filter the results.
+	Query string
+}
+
+func (b0 ListBotInstancesV2Request_Filters_builder) Build() *ListBotInstancesV2Request_Filters {
+	m0 := &ListBotInstancesV2Request_Filters{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.BotName = b.BotName
+	x.SearchTerm = b.SearchTerm
+	x.Query = b.Query
+	return m0
 }
 
 var File_teleport_machineid_v1_bot_instance_service_proto protoreflect.FileDescriptor
@@ -584,18 +831,6 @@ const file_teleport_machineid_v1_bot_instance_service_proto_rawDesc = "" +
 	"\x12ListBotInstancesV2\x120.teleport.machineid.v1.ListBotInstancesV2Request\x1a/.teleport.machineid.v1.ListBotInstancesResponse\x12\\\n" +
 	"\x11DeleteBotInstance\x12/.teleport.machineid.v1.DeleteBotInstanceRequest\x1a\x16.google.protobuf.Empty\x12p\n" +
 	"\x0fSubmitHeartbeat\x12-.teleport.machineid.v1.SubmitHeartbeatRequest\x1a..teleport.machineid.v1.SubmitHeartbeatResponseBVZTgithub.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1;machineidv1b\x06proto3"
-
-var (
-	file_teleport_machineid_v1_bot_instance_service_proto_rawDescOnce sync.Once
-	file_teleport_machineid_v1_bot_instance_service_proto_rawDescData []byte
-)
-
-func file_teleport_machineid_v1_bot_instance_service_proto_rawDescGZIP() []byte {
-	file_teleport_machineid_v1_bot_instance_service_proto_rawDescOnce.Do(func() {
-		file_teleport_machineid_v1_bot_instance_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_machineid_v1_bot_instance_service_proto_rawDesc), len(file_teleport_machineid_v1_bot_instance_service_proto_rawDesc)))
-	})
-	return file_teleport_machineid_v1_bot_instance_service_proto_rawDescData
-}
 
 var file_teleport_machineid_v1_bot_instance_service_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_teleport_machineid_v1_bot_instance_service_proto_goTypes = []any{

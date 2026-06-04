@@ -21,6 +21,8 @@
 // buf:lint:ignore PACKAGE_DIRECTORY_MATCH
 // buf:lint:ignore PACKAGE_VERSION_SUFFIX
 
+//go:build !protoopaque
+
 package proto
 
 import (
@@ -32,7 +34,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -91,11 +92,6 @@ func (x LabelUpdateKind) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use LabelUpdateKind.Descriptor instead.
-func (LabelUpdateKind) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP(), []int{0}
-}
-
 // StopHeartbeatKind is the type of heartbeat to stop.
 type StopHeartbeatKind int32
 
@@ -139,15 +135,10 @@ func (x StopHeartbeatKind) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use StopHeartbeatKind.Descriptor instead.
-func (StopHeartbeatKind) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP(), []int{1}
-}
-
 // UpstreamInventoryOneOf is the upstream message for the inventory control stream,
 // sent from teleport instances to the auth server.
 type UpstreamInventoryOneOf struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// buf:lint:ignore ONEOF_LOWER_SNAKE_CASE
 	//
 	// Types that are valid to be assigned to Msg:
@@ -186,11 +177,6 @@ func (x *UpstreamInventoryOneOf) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use UpstreamInventoryOneOf.ProtoReflect.Descriptor instead.
-func (*UpstreamInventoryOneOf) Descriptor() ([]byte, []int) {
-	return file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *UpstreamInventoryOneOf) GetMsg() isUpstreamInventoryOneOf_Msg {
@@ -254,6 +240,236 @@ func (x *UpstreamInventoryOneOf) GetStopHeartbeat() *UpstreamInventoryStopHeartb
 	return nil
 }
 
+func (x *UpstreamInventoryOneOf) SetHello(v *UpstreamInventoryHello) {
+	if v == nil {
+		x.Msg = nil
+		return
+	}
+	x.Msg = &UpstreamInventoryOneOf_Hello{v}
+}
+
+func (x *UpstreamInventoryOneOf) SetHeartbeat(v *InventoryHeartbeat) {
+	if v == nil {
+		x.Msg = nil
+		return
+	}
+	x.Msg = &UpstreamInventoryOneOf_Heartbeat{v}
+}
+
+func (x *UpstreamInventoryOneOf) SetPong(v *UpstreamInventoryPong) {
+	if v == nil {
+		x.Msg = nil
+		return
+	}
+	x.Msg = &UpstreamInventoryOneOf_Pong{v}
+}
+
+func (x *UpstreamInventoryOneOf) SetAgentMetadata(v *UpstreamInventoryAgentMetadata) {
+	if v == nil {
+		x.Msg = nil
+		return
+	}
+	x.Msg = &UpstreamInventoryOneOf_AgentMetadata{v}
+}
+
+func (x *UpstreamInventoryOneOf) SetGoodbye(v *UpstreamInventoryGoodbye) {
+	if v == nil {
+		x.Msg = nil
+		return
+	}
+	x.Msg = &UpstreamInventoryOneOf_Goodbye{v}
+}
+
+func (x *UpstreamInventoryOneOf) SetStopHeartbeat(v *UpstreamInventoryStopHeartbeat) {
+	if v == nil {
+		x.Msg = nil
+		return
+	}
+	x.Msg = &UpstreamInventoryOneOf_StopHeartbeat{v}
+}
+
+func (x *UpstreamInventoryOneOf) HasMsg() bool {
+	if x == nil {
+		return false
+	}
+	return x.Msg != nil
+}
+
+func (x *UpstreamInventoryOneOf) HasHello() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Msg.(*UpstreamInventoryOneOf_Hello)
+	return ok
+}
+
+func (x *UpstreamInventoryOneOf) HasHeartbeat() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Msg.(*UpstreamInventoryOneOf_Heartbeat)
+	return ok
+}
+
+func (x *UpstreamInventoryOneOf) HasPong() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Msg.(*UpstreamInventoryOneOf_Pong)
+	return ok
+}
+
+func (x *UpstreamInventoryOneOf) HasAgentMetadata() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Msg.(*UpstreamInventoryOneOf_AgentMetadata)
+	return ok
+}
+
+func (x *UpstreamInventoryOneOf) HasGoodbye() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Msg.(*UpstreamInventoryOneOf_Goodbye)
+	return ok
+}
+
+func (x *UpstreamInventoryOneOf) HasStopHeartbeat() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Msg.(*UpstreamInventoryOneOf_StopHeartbeat)
+	return ok
+}
+
+func (x *UpstreamInventoryOneOf) ClearMsg() {
+	x.Msg = nil
+}
+
+func (x *UpstreamInventoryOneOf) ClearHello() {
+	if _, ok := x.Msg.(*UpstreamInventoryOneOf_Hello); ok {
+		x.Msg = nil
+	}
+}
+
+func (x *UpstreamInventoryOneOf) ClearHeartbeat() {
+	if _, ok := x.Msg.(*UpstreamInventoryOneOf_Heartbeat); ok {
+		x.Msg = nil
+	}
+}
+
+func (x *UpstreamInventoryOneOf) ClearPong() {
+	if _, ok := x.Msg.(*UpstreamInventoryOneOf_Pong); ok {
+		x.Msg = nil
+	}
+}
+
+func (x *UpstreamInventoryOneOf) ClearAgentMetadata() {
+	if _, ok := x.Msg.(*UpstreamInventoryOneOf_AgentMetadata); ok {
+		x.Msg = nil
+	}
+}
+
+func (x *UpstreamInventoryOneOf) ClearGoodbye() {
+	if _, ok := x.Msg.(*UpstreamInventoryOneOf_Goodbye); ok {
+		x.Msg = nil
+	}
+}
+
+func (x *UpstreamInventoryOneOf) ClearStopHeartbeat() {
+	if _, ok := x.Msg.(*UpstreamInventoryOneOf_StopHeartbeat); ok {
+		x.Msg = nil
+	}
+}
+
+const UpstreamInventoryOneOf_Msg_not_set_case case_UpstreamInventoryOneOf_Msg = 0
+const UpstreamInventoryOneOf_Hello_case case_UpstreamInventoryOneOf_Msg = 1
+const UpstreamInventoryOneOf_Heartbeat_case case_UpstreamInventoryOneOf_Msg = 2
+const UpstreamInventoryOneOf_Pong_case case_UpstreamInventoryOneOf_Msg = 3
+const UpstreamInventoryOneOf_AgentMetadata_case case_UpstreamInventoryOneOf_Msg = 4
+const UpstreamInventoryOneOf_Goodbye_case case_UpstreamInventoryOneOf_Msg = 5
+const UpstreamInventoryOneOf_StopHeartbeat_case case_UpstreamInventoryOneOf_Msg = 6
+
+func (x *UpstreamInventoryOneOf) WhichMsg() case_UpstreamInventoryOneOf_Msg {
+	if x == nil {
+		return UpstreamInventoryOneOf_Msg_not_set_case
+	}
+	switch x.Msg.(type) {
+	case *UpstreamInventoryOneOf_Hello:
+		return UpstreamInventoryOneOf_Hello_case
+	case *UpstreamInventoryOneOf_Heartbeat:
+		return UpstreamInventoryOneOf_Heartbeat_case
+	case *UpstreamInventoryOneOf_Pong:
+		return UpstreamInventoryOneOf_Pong_case
+	case *UpstreamInventoryOneOf_AgentMetadata:
+		return UpstreamInventoryOneOf_AgentMetadata_case
+	case *UpstreamInventoryOneOf_Goodbye:
+		return UpstreamInventoryOneOf_Goodbye_case
+	case *UpstreamInventoryOneOf_StopHeartbeat:
+		return UpstreamInventoryOneOf_StopHeartbeat_case
+	default:
+		return UpstreamInventoryOneOf_Msg_not_set_case
+	}
+}
+
+type UpstreamInventoryOneOf_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// buf:lint:ignore ONEOF_LOWER_SNAKE_CASE
+
+	// Fields of oneof Msg:
+	// Hello is the first message sent up the control stream.
+	Hello *UpstreamInventoryHello
+	// Heartbeat advertises instance status/liveness.
+	Heartbeat *InventoryHeartbeat
+	// UpstreamInventoryPong is a response to a ping (used for testing/debug).
+	Pong *UpstreamInventoryPong
+	// UpstreamInventoryAgentMetadata advertises instance metadata.
+	AgentMetadata *UpstreamInventoryAgentMetadata
+	// UpstreamInventoryGoodbye advertises that the instance is terminating.
+	Goodbye *UpstreamInventoryGoodbye
+	// UpstreamInventoryStopHeartbeat informs the upstream service that a
+	// heartbeat is stopping.
+	StopHeartbeat *UpstreamInventoryStopHeartbeat
+	// -- end of Msg
+}
+
+func (b0 UpstreamInventoryOneOf_builder) Build() *UpstreamInventoryOneOf {
+	m0 := &UpstreamInventoryOneOf{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Hello != nil {
+		x.Msg = &UpstreamInventoryOneOf_Hello{b.Hello}
+	}
+	if b.Heartbeat != nil {
+		x.Msg = &UpstreamInventoryOneOf_Heartbeat{b.Heartbeat}
+	}
+	if b.Pong != nil {
+		x.Msg = &UpstreamInventoryOneOf_Pong{b.Pong}
+	}
+	if b.AgentMetadata != nil {
+		x.Msg = &UpstreamInventoryOneOf_AgentMetadata{b.AgentMetadata}
+	}
+	if b.Goodbye != nil {
+		x.Msg = &UpstreamInventoryOneOf_Goodbye{b.Goodbye}
+	}
+	if b.StopHeartbeat != nil {
+		x.Msg = &UpstreamInventoryOneOf_StopHeartbeat{b.StopHeartbeat}
+	}
+	return m0
+}
+
+type case_UpstreamInventoryOneOf_Msg protoreflect.FieldNumber
+
+func (x case_UpstreamInventoryOneOf_Msg) String() string {
+	md := file_teleport_legacy_client_proto_inventory_proto_msgTypes[0].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isUpstreamInventoryOneOf_Msg interface {
 	isUpstreamInventoryOneOf_Msg()
 }
@@ -304,7 +520,7 @@ func (*UpstreamInventoryOneOf_StopHeartbeat) isUpstreamInventoryOneOf_Msg() {}
 // DownstreamInventoryOneOf is the downstream message for the inventory control stream,
 // sent from auth servers to teleport instances.
 type DownstreamInventoryOneOf struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// buf:lint:ignore ONEOF_LOWER_SNAKE_CASE
 	//
 	// Types that are valid to be assigned to Msg:
@@ -342,11 +558,6 @@ func (x *DownstreamInventoryOneOf) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DownstreamInventoryOneOf.ProtoReflect.Descriptor instead.
-func (*DownstreamInventoryOneOf) Descriptor() ([]byte, []int) {
-	return file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *DownstreamInventoryOneOf) GetMsg() isDownstreamInventoryOneOf_Msg {
 	if x != nil {
 		return x.Msg
@@ -381,6 +592,145 @@ func (x *DownstreamInventoryOneOf) GetUpdateLabels() *DownstreamInventoryUpdateL
 	return nil
 }
 
+func (x *DownstreamInventoryOneOf) SetHello(v *DownstreamInventoryHello) {
+	if v == nil {
+		x.Msg = nil
+		return
+	}
+	x.Msg = &DownstreamInventoryOneOf_Hello{v}
+}
+
+func (x *DownstreamInventoryOneOf) SetPing(v *DownstreamInventoryPing) {
+	if v == nil {
+		x.Msg = nil
+		return
+	}
+	x.Msg = &DownstreamInventoryOneOf_Ping{v}
+}
+
+func (x *DownstreamInventoryOneOf) SetUpdateLabels(v *DownstreamInventoryUpdateLabels) {
+	if v == nil {
+		x.Msg = nil
+		return
+	}
+	x.Msg = &DownstreamInventoryOneOf_UpdateLabels{v}
+}
+
+func (x *DownstreamInventoryOneOf) HasMsg() bool {
+	if x == nil {
+		return false
+	}
+	return x.Msg != nil
+}
+
+func (x *DownstreamInventoryOneOf) HasHello() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Msg.(*DownstreamInventoryOneOf_Hello)
+	return ok
+}
+
+func (x *DownstreamInventoryOneOf) HasPing() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Msg.(*DownstreamInventoryOneOf_Ping)
+	return ok
+}
+
+func (x *DownstreamInventoryOneOf) HasUpdateLabels() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Msg.(*DownstreamInventoryOneOf_UpdateLabels)
+	return ok
+}
+
+func (x *DownstreamInventoryOneOf) ClearMsg() {
+	x.Msg = nil
+}
+
+func (x *DownstreamInventoryOneOf) ClearHello() {
+	if _, ok := x.Msg.(*DownstreamInventoryOneOf_Hello); ok {
+		x.Msg = nil
+	}
+}
+
+func (x *DownstreamInventoryOneOf) ClearPing() {
+	if _, ok := x.Msg.(*DownstreamInventoryOneOf_Ping); ok {
+		x.Msg = nil
+	}
+}
+
+func (x *DownstreamInventoryOneOf) ClearUpdateLabels() {
+	if _, ok := x.Msg.(*DownstreamInventoryOneOf_UpdateLabels); ok {
+		x.Msg = nil
+	}
+}
+
+const DownstreamInventoryOneOf_Msg_not_set_case case_DownstreamInventoryOneOf_Msg = 0
+const DownstreamInventoryOneOf_Hello_case case_DownstreamInventoryOneOf_Msg = 1
+const DownstreamInventoryOneOf_Ping_case case_DownstreamInventoryOneOf_Msg = 2
+const DownstreamInventoryOneOf_UpdateLabels_case case_DownstreamInventoryOneOf_Msg = 3
+
+func (x *DownstreamInventoryOneOf) WhichMsg() case_DownstreamInventoryOneOf_Msg {
+	if x == nil {
+		return DownstreamInventoryOneOf_Msg_not_set_case
+	}
+	switch x.Msg.(type) {
+	case *DownstreamInventoryOneOf_Hello:
+		return DownstreamInventoryOneOf_Hello_case
+	case *DownstreamInventoryOneOf_Ping:
+		return DownstreamInventoryOneOf_Ping_case
+	case *DownstreamInventoryOneOf_UpdateLabels:
+		return DownstreamInventoryOneOf_UpdateLabels_case
+	default:
+		return DownstreamInventoryOneOf_Msg_not_set_case
+	}
+}
+
+type DownstreamInventoryOneOf_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// buf:lint:ignore ONEOF_LOWER_SNAKE_CASE
+
+	// Fields of oneof Msg:
+	// Hello is the first message sent down the control stream.
+	Hello *DownstreamInventoryHello
+	// Ping triggers an upstream pong (used for testing/debug).
+	Ping *DownstreamInventoryPing
+	// UpdateLabels updates the instance's labels.
+	UpdateLabels *DownstreamInventoryUpdateLabels
+	// -- end of Msg
+}
+
+func (b0 DownstreamInventoryOneOf_builder) Build() *DownstreamInventoryOneOf {
+	m0 := &DownstreamInventoryOneOf{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Hello != nil {
+		x.Msg = &DownstreamInventoryOneOf_Hello{b.Hello}
+	}
+	if b.Ping != nil {
+		x.Msg = &DownstreamInventoryOneOf_Ping{b.Ping}
+	}
+	if b.UpdateLabels != nil {
+		x.Msg = &DownstreamInventoryOneOf_UpdateLabels{b.UpdateLabels}
+	}
+	return m0
+}
+
+type case_DownstreamInventoryOneOf_Msg protoreflect.FieldNumber
+
+func (x case_DownstreamInventoryOneOf_Msg) String() string {
+	md := file_teleport_legacy_client_proto_inventory_proto_msgTypes[1].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isDownstreamInventoryOneOf_Msg interface {
 	isDownstreamInventoryOneOf_Msg()
 }
@@ -408,7 +758,7 @@ func (*DownstreamInventoryOneOf_UpdateLabels) isDownstreamInventoryOneOf_Msg() {
 
 // DownstreamInventoryPing is sent down the inventory control stream.
 type DownstreamInventoryPing struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	ID            uint64                 `protobuf:"varint,1,opt,name=ID,proto3" json:"ID,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -439,11 +789,6 @@ func (x *DownstreamInventoryPing) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DownstreamInventoryPing.ProtoReflect.Descriptor instead.
-func (*DownstreamInventoryPing) Descriptor() ([]byte, []int) {
-	return file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *DownstreamInventoryPing) GetID() uint64 {
 	if x != nil {
 		return x.ID
@@ -451,10 +796,28 @@ func (x *DownstreamInventoryPing) GetID() uint64 {
 	return 0
 }
 
+func (x *DownstreamInventoryPing) SetID(v uint64) {
+	x.ID = v
+}
+
+type DownstreamInventoryPing_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	ID uint64
+}
+
+func (b0 DownstreamInventoryPing_builder) Build() *DownstreamInventoryPing {
+	m0 := &DownstreamInventoryPing{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ID = b.ID
+	return m0
+}
+
 // UpstreamInventoryPong is sent up the inventory control stream in response to a downstream
 // ping including the system clock of the downstream.
 type UpstreamInventoryPong struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	ID    uint64                 `protobuf:"varint,1,opt,name=ID,proto3" json:"ID,omitempty"`
 	// SystemClock advertises the system clock of the upstream.
 	SystemClock   *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=SystemClock,proto3" json:"SystemClock,omitempty"`
@@ -487,11 +850,6 @@ func (x *UpstreamInventoryPong) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpstreamInventoryPong.ProtoReflect.Descriptor instead.
-func (*UpstreamInventoryPong) Descriptor() ([]byte, []int) {
-	return file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *UpstreamInventoryPong) GetID() uint64 {
 	if x != nil {
 		return x.ID
@@ -506,9 +864,45 @@ func (x *UpstreamInventoryPong) GetSystemClock() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *UpstreamInventoryPong) SetID(v uint64) {
+	x.ID = v
+}
+
+func (x *UpstreamInventoryPong) SetSystemClock(v *timestamppb.Timestamp) {
+	x.SystemClock = v
+}
+
+func (x *UpstreamInventoryPong) HasSystemClock() bool {
+	if x == nil {
+		return false
+	}
+	return x.SystemClock != nil
+}
+
+func (x *UpstreamInventoryPong) ClearSystemClock() {
+	x.SystemClock = nil
+}
+
+type UpstreamInventoryPong_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	ID uint64
+	// SystemClock advertises the system clock of the upstream.
+	SystemClock *timestamppb.Timestamp
+}
+
+func (b0 UpstreamInventoryPong_builder) Build() *UpstreamInventoryPong {
+	m0 := &UpstreamInventoryPong{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ID = b.ID
+	x.SystemClock = b.SystemClock
+	return m0
+}
+
 // UpstreamInventoryHello is the hello message sent up the inventory control stream.
 type UpstreamInventoryHello struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Version advertises the teleport version of the instance.
 	Version string `protobuf:"bytes,1,opt,name=Version,proto3" json:"Version,omitempty"`
 	// ServerID advertises the server ID of the instance.
@@ -564,11 +958,6 @@ func (x *UpstreamInventoryHello) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use UpstreamInventoryHello.ProtoReflect.Descriptor instead.
-func (*UpstreamInventoryHello) Descriptor() ([]byte, []int) {
-	return file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *UpstreamInventoryHello) GetVersion() string {
@@ -634,10 +1023,117 @@ func (x *UpstreamInventoryHello) GetImmutableLabels() *v1.ImmutableLabels {
 	return nil
 }
 
+func (x *UpstreamInventoryHello) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *UpstreamInventoryHello) SetServerID(v string) {
+	x.ServerID = v
+}
+
+func (x *UpstreamInventoryHello) SetServices(v []string) {
+	x.Services = v
+}
+
+func (x *UpstreamInventoryHello) SetHostname(v string) {
+	x.Hostname = v
+}
+
+func (x *UpstreamInventoryHello) SetExternalUpgrader(v string) {
+	x.ExternalUpgrader = v
+}
+
+func (x *UpstreamInventoryHello) SetExternalUpgraderVersion(v string) {
+	x.ExternalUpgraderVersion = v
+}
+
+func (x *UpstreamInventoryHello) SetUpdaterInfo(v *types.UpdaterV2Info) {
+	x.UpdaterInfo = v
+}
+
+func (x *UpstreamInventoryHello) SetScope(v string) {
+	x.Scope = v
+}
+
+func (x *UpstreamInventoryHello) SetImmutableLabels(v *v1.ImmutableLabels) {
+	x.ImmutableLabels = v
+}
+
+func (x *UpstreamInventoryHello) HasUpdaterInfo() bool {
+	if x == nil {
+		return false
+	}
+	return x.UpdaterInfo != nil
+}
+
+func (x *UpstreamInventoryHello) HasImmutableLabels() bool {
+	if x == nil {
+		return false
+	}
+	return x.ImmutableLabels != nil
+}
+
+func (x *UpstreamInventoryHello) ClearUpdaterInfo() {
+	x.UpdaterInfo = nil
+}
+
+func (x *UpstreamInventoryHello) ClearImmutableLabels() {
+	x.ImmutableLabels = nil
+}
+
+type UpstreamInventoryHello_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Version advertises the teleport version of the instance.
+	Version string
+	// ServerID advertises the server ID of the instance.
+	ServerID string
+	// Services advertises the currently live services of the instance. note: this is
+	// distinct from the SystemRoles associated with a certificate in that a service may
+	// hold a system role that is not currently in use if it was granted that role by
+	// its auth token. i.e. Services is the subset of SystemRoles that are currently
+	// active.
+	Services []string
+	// Hostname is the hostname associated with the instance. This value is not required or guaranteed
+	// to be unique and its validity is not enforceable (i.e. join tokens do not constrain what an
+	// instance can claim its hostname to be). This value exists only to assist users in correlating
+	// instance resources with hosts.
+	Hostname string
+	// ExternalUpgrader identifies the external upgrader that the instance is configured to
+	// export schedules to (e.g. 'kube'). Empty if no upgrader is defined.
+	ExternalUpgrader string
+	// ExternalUpgraderVersion identifies the external upgrader version. Empty if no upgrader is defined.
+	ExternalUpgraderVersion string
+	// UpdaterInfo is used by Teleport to send information about how the Teleport updater is doing.
+	UpdaterInfo *types.UpdaterV2Info
+	// The advertized scope of the instance. An instance's scope can not change once assigned, so future
+	// heartbeats must include a scope value matching the one declared in the hello message.
+	Scope string
+	// The immutable labels reported by the instance. The hash of these labels is expected to match
+	// the hash included in the instance's certificate.
+	ImmutableLabels *v1.ImmutableLabels
+}
+
+func (b0 UpstreamInventoryHello_builder) Build() *UpstreamInventoryHello {
+	m0 := &UpstreamInventoryHello{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Version = b.Version
+	x.ServerID = b.ServerID
+	x.Services = b.Services
+	x.Hostname = b.Hostname
+	x.ExternalUpgrader = b.ExternalUpgrader
+	x.ExternalUpgraderVersion = b.ExternalUpgraderVersion
+	x.UpdaterInfo = b.UpdaterInfo
+	x.Scope = b.Scope
+	x.ImmutableLabels = b.ImmutableLabels
+	return m0
+}
+
 // UpstreamInventoryAgentMetadata is the message sent up the inventory control stream containing
 // metadata about the instance.
 type UpstreamInventoryAgentMetadata struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// OS advertises the instance OS ("darwin" or "linux").
 	OS string `protobuf:"bytes,1,opt,name=OS,proto3" json:"OS,omitempty"`
 	// OSVersion advertises the instance OS version (e.g. "ubuntu 22.04").
@@ -682,11 +1178,6 @@ func (x *UpstreamInventoryAgentMetadata) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use UpstreamInventoryAgentMetadata.ProtoReflect.Descriptor instead.
-func (*UpstreamInventoryAgentMetadata) Descriptor() ([]byte, []int) {
-	return file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *UpstreamInventoryAgentMetadata) GetOS() string {
@@ -745,9 +1236,78 @@ func (x *UpstreamInventoryAgentMetadata) GetCloudEnvironment() string {
 	return ""
 }
 
+func (x *UpstreamInventoryAgentMetadata) SetOS(v string) {
+	x.OS = v
+}
+
+func (x *UpstreamInventoryAgentMetadata) SetOSVersion(v string) {
+	x.OSVersion = v
+}
+
+func (x *UpstreamInventoryAgentMetadata) SetHostArchitecture(v string) {
+	x.HostArchitecture = v
+}
+
+func (x *UpstreamInventoryAgentMetadata) SetGlibcVersion(v string) {
+	x.GlibcVersion = v
+}
+
+func (x *UpstreamInventoryAgentMetadata) SetInstallMethods(v []string) {
+	x.InstallMethods = v
+}
+
+func (x *UpstreamInventoryAgentMetadata) SetContainerRuntime(v string) {
+	x.ContainerRuntime = v
+}
+
+func (x *UpstreamInventoryAgentMetadata) SetContainerOrchestrator(v string) {
+	x.ContainerOrchestrator = v
+}
+
+func (x *UpstreamInventoryAgentMetadata) SetCloudEnvironment(v string) {
+	x.CloudEnvironment = v
+}
+
+type UpstreamInventoryAgentMetadata_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// OS advertises the instance OS ("darwin" or "linux").
+	OS string
+	// OSVersion advertises the instance OS version (e.g. "ubuntu 22.04").
+	OSVersion string
+	// HostArchitecture advertises the instance host architecture (e.g. "x86_64" or "arm64").
+	HostArchitecture string
+	// GlibcVersion advertises the instance glibc version of linux instances (e.g. "2.35").
+	GlibcVersion string
+	// InstallMethods advertises the install methods used for the instance (e.g. "dockerfile").
+	InstallMethods []string
+	// ContainerRuntime advertises the container runtime for the instance, if any (e.g. "docker").
+	ContainerRuntime string
+	// ContainerOrchestrator advertises the container orchestrator for the instance, if any
+	// (e.g. "kubernetes-v1.24.8-eks-ffeb93d").
+	ContainerOrchestrator string
+	// CloudEnvironment advertises the cloud environment for the instance, if any (e.g. "aws").
+	CloudEnvironment string
+}
+
+func (b0 UpstreamInventoryAgentMetadata_builder) Build() *UpstreamInventoryAgentMetadata {
+	m0 := &UpstreamInventoryAgentMetadata{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.OS = b.OS
+	x.OSVersion = b.OSVersion
+	x.HostArchitecture = b.HostArchitecture
+	x.GlibcVersion = b.GlibcVersion
+	x.InstallMethods = b.InstallMethods
+	x.ContainerRuntime = b.ContainerRuntime
+	x.ContainerOrchestrator = b.ContainerOrchestrator
+	x.CloudEnvironment = b.CloudEnvironment
+	return m0
+}
+
 // DownstreamInventoryHello is the hello message sent down the inventory control stream.
 type DownstreamInventoryHello struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Version advertises the version of the auth server.
 	Version string `protobuf:"bytes,1,opt,name=Version,proto3" json:"Version,omitempty"`
 	// ServerID advertises the server ID of the auth server.
@@ -783,11 +1343,6 @@ func (x *DownstreamInventoryHello) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DownstreamInventoryHello.ProtoReflect.Descriptor instead.
-func (*DownstreamInventoryHello) Descriptor() ([]byte, []int) {
-	return file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *DownstreamInventoryHello) GetVersion() string {
 	if x != nil {
 		return x.Version
@@ -809,10 +1364,54 @@ func (x *DownstreamInventoryHello) GetCapabilities() *DownstreamInventoryHello_S
 	return nil
 }
 
+func (x *DownstreamInventoryHello) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *DownstreamInventoryHello) SetServerID(v string) {
+	x.ServerID = v
+}
+
+func (x *DownstreamInventoryHello) SetCapabilities(v *DownstreamInventoryHello_SupportedCapabilities) {
+	x.Capabilities = v
+}
+
+func (x *DownstreamInventoryHello) HasCapabilities() bool {
+	if x == nil {
+		return false
+	}
+	return x.Capabilities != nil
+}
+
+func (x *DownstreamInventoryHello) ClearCapabilities() {
+	x.Capabilities = nil
+}
+
+type DownstreamInventoryHello_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Version advertises the version of the auth server.
+	Version string
+	// ServerID advertises the server ID of the auth server.
+	ServerID string
+	// SupportedCapabilities advertises the supported features of the auth server.
+	Capabilities *DownstreamInventoryHello_SupportedCapabilities
+}
+
+func (b0 DownstreamInventoryHello_builder) Build() *DownstreamInventoryHello {
+	m0 := &DownstreamInventoryHello{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Version = b.Version
+	x.ServerID = b.ServerID
+	x.Capabilities = b.Capabilities
+	return m0
+}
+
 // InventoryUpdateLabelsRequest is used to request that a specified instance
 // update its labels.
 type InventoryUpdateLabelsRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ServerID advertises the server ID of the instance.
 	ServerID string `protobuf:"bytes,1,opt,name=ServerID,proto3" json:"ServerID,omitempty"`
 	// Kind is the type of service to update labels for.
@@ -848,11 +1447,6 @@ func (x *InventoryUpdateLabelsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use InventoryUpdateLabelsRequest.ProtoReflect.Descriptor instead.
-func (*InventoryUpdateLabelsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *InventoryUpdateLabelsRequest) GetServerID() string {
 	if x != nil {
 		return x.ServerID
@@ -874,10 +1468,43 @@ func (x *InventoryUpdateLabelsRequest) GetLabels() map[string]string {
 	return nil
 }
 
+func (x *InventoryUpdateLabelsRequest) SetServerID(v string) {
+	x.ServerID = v
+}
+
+func (x *InventoryUpdateLabelsRequest) SetKind(v LabelUpdateKind) {
+	x.Kind = v
+}
+
+func (x *InventoryUpdateLabelsRequest) SetLabels(v map[string]string) {
+	x.Labels = v
+}
+
+type InventoryUpdateLabelsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ServerID advertises the server ID of the instance.
+	ServerID string
+	// Kind is the type of service to update labels for.
+	Kind LabelUpdateKind
+	// Labels is the new set of labels for the instance.
+	Labels map[string]string
+}
+
+func (b0 InventoryUpdateLabelsRequest_builder) Build() *InventoryUpdateLabelsRequest {
+	m0 := &InventoryUpdateLabelsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ServerID = b.ServerID
+	x.Kind = b.Kind
+	x.Labels = b.Labels
+	return m0
+}
+
 // DownstreamInventoryUpdateLabels is the message sent down the inventory
 // control stream to update the instance's labels.
 type DownstreamInventoryUpdateLabels struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Kind is the type of service to update labels for.
 	Kind LabelUpdateKind `protobuf:"varint,1,opt,name=Kind,proto3,enum=proto.LabelUpdateKind" json:"Kind,omitempty"`
 	// Labels is the new set of labels for the instance.
@@ -911,11 +1538,6 @@ func (x *DownstreamInventoryUpdateLabels) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DownstreamInventoryUpdateLabels.ProtoReflect.Descriptor instead.
-func (*DownstreamInventoryUpdateLabels) Descriptor() ([]byte, []int) {
-	return file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP(), []int{8}
-}
-
 func (x *DownstreamInventoryUpdateLabels) GetKind() LabelUpdateKind {
 	if x != nil {
 		return x.Kind
@@ -930,9 +1552,35 @@ func (x *DownstreamInventoryUpdateLabels) GetLabels() map[string]string {
 	return nil
 }
 
+func (x *DownstreamInventoryUpdateLabels) SetKind(v LabelUpdateKind) {
+	x.Kind = v
+}
+
+func (x *DownstreamInventoryUpdateLabels) SetLabels(v map[string]string) {
+	x.Labels = v
+}
+
+type DownstreamInventoryUpdateLabels_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Kind is the type of service to update labels for.
+	Kind LabelUpdateKind
+	// Labels is the new set of labels for the instance.
+	Labels map[string]string
+}
+
+func (b0 DownstreamInventoryUpdateLabels_builder) Build() *DownstreamInventoryUpdateLabels {
+	m0 := &DownstreamInventoryUpdateLabels{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.Labels = b.Labels
+	return m0
+}
+
 // InventoryHeartbeat announces information about instance state.
 type InventoryHeartbeat struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// SSHServer is a complete ssh server spec to be heartbeated (note: the full spec is heartbeated
 	// in the interest of simple conversion from the old logic of heartbeating via UpsertNode, but
 	// we should be able to cut down on network usage fairly significantly by moving static values
@@ -977,11 +1625,6 @@ func (x *InventoryHeartbeat) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use InventoryHeartbeat.ProtoReflect.Descriptor instead.
-func (*InventoryHeartbeat) Descriptor() ([]byte, []int) {
-	return file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP(), []int{9}
-}
-
 func (x *InventoryHeartbeat) GetSSHServer() *types.ServerV2 {
 	if x != nil {
 		return x.SSHServer
@@ -1024,10 +1667,133 @@ func (x *InventoryHeartbeat) GetLinuxDesktop() *v12.LinuxDesktop {
 	return nil
 }
 
+func (x *InventoryHeartbeat) SetSSHServer(v *types.ServerV2) {
+	x.SSHServer = v
+}
+
+func (x *InventoryHeartbeat) SetAppServer(v *types.AppServerV3) {
+	x.AppServer = v
+}
+
+func (x *InventoryHeartbeat) SetDatabaseServer(v *types.DatabaseServerV3) {
+	x.DatabaseServer = v
+}
+
+func (x *InventoryHeartbeat) SetKubernetesServer(v *types.KubernetesServerV3) {
+	x.KubernetesServer = v
+}
+
+func (x *InventoryHeartbeat) SetRelayServer(v *v11.RelayServer) {
+	x.RelayServer = v
+}
+
+func (x *InventoryHeartbeat) SetLinuxDesktop(v *v12.LinuxDesktop) {
+	x.LinuxDesktop = v
+}
+
+func (x *InventoryHeartbeat) HasSSHServer() bool {
+	if x == nil {
+		return false
+	}
+	return x.SSHServer != nil
+}
+
+func (x *InventoryHeartbeat) HasAppServer() bool {
+	if x == nil {
+		return false
+	}
+	return x.AppServer != nil
+}
+
+func (x *InventoryHeartbeat) HasDatabaseServer() bool {
+	if x == nil {
+		return false
+	}
+	return x.DatabaseServer != nil
+}
+
+func (x *InventoryHeartbeat) HasKubernetesServer() bool {
+	if x == nil {
+		return false
+	}
+	return x.KubernetesServer != nil
+}
+
+func (x *InventoryHeartbeat) HasRelayServer() bool {
+	if x == nil {
+		return false
+	}
+	return x.RelayServer != nil
+}
+
+func (x *InventoryHeartbeat) HasLinuxDesktop() bool {
+	if x == nil {
+		return false
+	}
+	return x.LinuxDesktop != nil
+}
+
+func (x *InventoryHeartbeat) ClearSSHServer() {
+	x.SSHServer = nil
+}
+
+func (x *InventoryHeartbeat) ClearAppServer() {
+	x.AppServer = nil
+}
+
+func (x *InventoryHeartbeat) ClearDatabaseServer() {
+	x.DatabaseServer = nil
+}
+
+func (x *InventoryHeartbeat) ClearKubernetesServer() {
+	x.KubernetesServer = nil
+}
+
+func (x *InventoryHeartbeat) ClearRelayServer() {
+	x.RelayServer = nil
+}
+
+func (x *InventoryHeartbeat) ClearLinuxDesktop() {
+	x.LinuxDesktop = nil
+}
+
+type InventoryHeartbeat_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// SSHServer is a complete ssh server spec to be heartbeated (note: the full spec is heartbeated
+	// in the interest of simple conversion from the old logic of heartbeating via UpsertNode, but
+	// we should be able to cut down on network usage fairly significantly by moving static values
+	// to the hello message and only heartbeating dynamic values here).
+	SSHServer *types.ServerV2
+	// AppServer is a complete app server spec to be heartbeated.
+	AppServer *types.AppServerV3
+	// DatabaseServer is a complete db server spec to be heartbeated.
+	DatabaseServer *types.DatabaseServerV3
+	// KubeServer is a complete kube server spec to be heartbeated.
+	KubernetesServer *types.KubernetesServerV3
+	// A relay_server to be heartbeated.
+	RelayServer *v11.RelayServer
+	// LinuxDesktop is a complete linux desktop spec to be heartbeated.
+	LinuxDesktop *v12.LinuxDesktop
+}
+
+func (b0 InventoryHeartbeat_builder) Build() *InventoryHeartbeat {
+	m0 := &InventoryHeartbeat{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.SSHServer = b.SSHServer
+	x.AppServer = b.AppServer
+	x.DatabaseServer = b.DatabaseServer
+	x.KubernetesServer = b.KubernetesServer
+	x.RelayServer = b.RelayServer
+	x.LinuxDesktop = b.LinuxDesktop
+	return m0
+}
+
 // UpstreamInventoryGoodbye informs the upstream service that instance
 // is terminating
 type UpstreamInventoryGoodbye struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// DeleteResources indicates that any heartbeats received from
 	// the instance should be terminated when the stream is closed.
 	DeleteResources bool `protobuf:"varint,1,opt,name=DeleteResources,proto3" json:"DeleteResources,omitempty"`
@@ -1063,11 +1829,6 @@ func (x *UpstreamInventoryGoodbye) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpstreamInventoryGoodbye.ProtoReflect.Descriptor instead.
-func (*UpstreamInventoryGoodbye) Descriptor() ([]byte, []int) {
-	return file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP(), []int{10}
-}
-
 func (x *UpstreamInventoryGoodbye) GetDeleteResources() bool {
 	if x != nil {
 		return x.DeleteResources
@@ -1082,9 +1843,37 @@ func (x *UpstreamInventoryGoodbye) GetSoftReload() bool {
 	return false
 }
 
+func (x *UpstreamInventoryGoodbye) SetDeleteResources(v bool) {
+	x.DeleteResources = v
+}
+
+func (x *UpstreamInventoryGoodbye) SetSoftReload(v bool) {
+	x.SoftReload = v
+}
+
+type UpstreamInventoryGoodbye_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// DeleteResources indicates that any heartbeats received from
+	// the instance should be terminated when the stream is closed.
+	DeleteResources bool
+	// SoftReload indicates that the instance started a new Teleport process
+	// and will gracefully exit once all the currently served sessions are over.
+	SoftReload bool
+}
+
+func (b0 UpstreamInventoryGoodbye_builder) Build() *UpstreamInventoryGoodbye {
+	m0 := &UpstreamInventoryGoodbye{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.DeleteResources = b.DeleteResources
+	x.SoftReload = b.SoftReload
+	return m0
+}
+
 // InventoryStatusRequest requests inventory status info.
 type InventoryStatusRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Connected requests summary of the inventory control streams registered with
 	// the auth server that handles the request.
 	Connected     bool `protobuf:"varint,1,opt,name=Connected,proto3" json:"Connected,omitempty"`
@@ -1117,11 +1906,6 @@ func (x *InventoryStatusRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use InventoryStatusRequest.ProtoReflect.Descriptor instead.
-func (*InventoryStatusRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP(), []int{11}
-}
-
 func (x *InventoryStatusRequest) GetConnected() bool {
 	if x != nil {
 		return x.Connected
@@ -1129,9 +1913,29 @@ func (x *InventoryStatusRequest) GetConnected() bool {
 	return false
 }
 
+func (x *InventoryStatusRequest) SetConnected(v bool) {
+	x.Connected = v
+}
+
+type InventoryStatusRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Connected requests summary of the inventory control streams registered with
+	// the auth server that handles the request.
+	Connected bool
+}
+
+func (b0 InventoryStatusRequest_builder) Build() *InventoryStatusRequest {
+	m0 := &InventoryStatusRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Connected = b.Connected
+	return m0
+}
+
 // InventoryStatusSummary is the status summary returned by the GetInventoryStatus rpc.
 type InventoryStatusSummary struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Connected is a summary of the instances connected to the current auth server.  Only set if
 	// the Connected flag in the status request is true.
 	Connected []*UpstreamInventoryHello `protobuf:"bytes,1,rep,name=Connected,proto3" json:"Connected,omitempty"`
@@ -1172,11 +1976,6 @@ func (x *InventoryStatusSummary) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use InventoryStatusSummary.ProtoReflect.Descriptor instead.
-func (*InventoryStatusSummary) Descriptor() ([]byte, []int) {
-	return file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP(), []int{12}
-}
-
 func (x *InventoryStatusSummary) GetConnected() []*UpstreamInventoryHello {
 	if x != nil {
 		return x.Connected
@@ -1212,10 +2011,58 @@ func (x *InventoryStatusSummary) GetServiceCounts() map[string]uint32 {
 	return nil
 }
 
+func (x *InventoryStatusSummary) SetConnected(v []*UpstreamInventoryHello) {
+	x.Connected = v
+}
+
+func (x *InventoryStatusSummary) SetInstanceCount(v uint32) {
+	x.InstanceCount = v
+}
+
+func (x *InventoryStatusSummary) SetVersionCounts(v map[string]uint32) {
+	x.VersionCounts = v
+}
+
+func (x *InventoryStatusSummary) SetUpgraderCounts(v map[string]uint32) {
+	x.UpgraderCounts = v
+}
+
+func (x *InventoryStatusSummary) SetServiceCounts(v map[string]uint32) {
+	x.ServiceCounts = v
+}
+
+type InventoryStatusSummary_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Connected is a summary of the instances connected to the current auth server.  Only set if
+	// the Connected flag in the status request is true.
+	Connected []*UpstreamInventoryHello
+	// InstanceCount is the total number of instance resources aggregated.
+	InstanceCount uint32
+	// VersionCounts aggregates unique version counts.
+	VersionCounts map[string]uint32
+	// UpgraderCounts aggregates the unique upgrader counts.
+	UpgraderCounts map[string]uint32
+	// ServiceCounts aggregates the number of services.
+	ServiceCounts map[string]uint32
+}
+
+func (b0 InventoryStatusSummary_builder) Build() *InventoryStatusSummary {
+	m0 := &InventoryStatusSummary{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Connected = b.Connected
+	x.InstanceCount = b.InstanceCount
+	x.VersionCounts = b.VersionCounts
+	x.UpgraderCounts = b.UpgraderCounts
+	x.ServiceCounts = b.ServiceCounts
+	return m0
+}
+
 // UpstreamInventoryStopHeartbeat informs the upstream service that the
 // heartbeat is stopping.
 type UpstreamInventoryStopHeartbeat struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Kind is the kind of heartbeat to stop.
 	Kind StopHeartbeatKind `protobuf:"varint,1,opt,name=kind,proto3,enum=proto.StopHeartbeatKind" json:"kind,omitempty"`
 	// Name is the name of the heatbeat to stop.
@@ -1249,11 +2096,6 @@ func (x *UpstreamInventoryStopHeartbeat) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpstreamInventoryStopHeartbeat.ProtoReflect.Descriptor instead.
-func (*UpstreamInventoryStopHeartbeat) Descriptor() ([]byte, []int) {
-	return file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP(), []int{13}
-}
-
 func (x *UpstreamInventoryStopHeartbeat) GetKind() StopHeartbeatKind {
 	if x != nil {
 		return x.Kind
@@ -1268,11 +2110,37 @@ func (x *UpstreamInventoryStopHeartbeat) GetName() string {
 	return ""
 }
 
+func (x *UpstreamInventoryStopHeartbeat) SetKind(v StopHeartbeatKind) {
+	x.Kind = v
+}
+
+func (x *UpstreamInventoryStopHeartbeat) SetName(v string) {
+	x.Name = v
+}
+
+type UpstreamInventoryStopHeartbeat_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Kind is the kind of heartbeat to stop.
+	Kind StopHeartbeatKind
+	// Name is the name of the heatbeat to stop.
+	Name string
+}
+
+func (b0 UpstreamInventoryStopHeartbeat_builder) Build() *UpstreamInventoryStopHeartbeat {
+	m0 := &UpstreamInventoryStopHeartbeat{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.Name = b.Name
+	return m0
+}
+
 // SupportedCapabilities indicate which features of the ICS that
 // the connect auth server supports. This allows agents to determine
 // how they should interact with the auth server to maintain compatibility.
 type DownstreamInventoryHello_SupportedCapabilities struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ProxyHeartbeats indicates the ICS supports heartbeating proxy servers.
 	ProxyHeartbeats bool `protobuf:"varint,1,opt,name=ProxyHeartbeats,proto3" json:"ProxyHeartbeats,omitempty"`
 	// ProxyCleanup indicates the ICS supports deleting proxies when UpstreamInventoryGoodbye.DeleteResources is set.
@@ -1344,11 +2212,6 @@ func (x *DownstreamInventoryHello_SupportedCapabilities) ProtoReflect() protoref
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use DownstreamInventoryHello_SupportedCapabilities.ProtoReflect.Descriptor instead.
-func (*DownstreamInventoryHello_SupportedCapabilities) Descriptor() ([]byte, []int) {
-	return file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP(), []int{6, 0}
 }
 
 func (x *DownstreamInventoryHello_SupportedCapabilities) GetProxyHeartbeats() bool {
@@ -1505,6 +2368,172 @@ func (x *DownstreamInventoryHello_SupportedCapabilities) GetLinuxDesktopCleanup(
 	return false
 }
 
+func (x *DownstreamInventoryHello_SupportedCapabilities) SetProxyHeartbeats(v bool) {
+	x.ProxyHeartbeats = v
+}
+
+func (x *DownstreamInventoryHello_SupportedCapabilities) SetProxyCleanup(v bool) {
+	x.ProxyCleanup = v
+}
+
+func (x *DownstreamInventoryHello_SupportedCapabilities) SetAuthHeartbeats(v bool) {
+	x.AuthHeartbeats = v
+}
+
+func (x *DownstreamInventoryHello_SupportedCapabilities) SetAuthCleanup(v bool) {
+	x.AuthCleanup = v
+}
+
+func (x *DownstreamInventoryHello_SupportedCapabilities) SetNodeHeartbeats(v bool) {
+	x.NodeHeartbeats = v
+}
+
+func (x *DownstreamInventoryHello_SupportedCapabilities) SetNodeCleanup(v bool) {
+	x.NodeCleanup = v
+}
+
+func (x *DownstreamInventoryHello_SupportedCapabilities) SetAppHeartbeats(v bool) {
+	x.AppHeartbeats = v
+}
+
+func (x *DownstreamInventoryHello_SupportedCapabilities) SetAppCleanup(v bool) {
+	x.AppCleanup = v
+}
+
+func (x *DownstreamInventoryHello_SupportedCapabilities) SetDatabaseHeartbeats(v bool) {
+	x.DatabaseHeartbeats = v
+}
+
+func (x *DownstreamInventoryHello_SupportedCapabilities) SetDatabaseCleanup(v bool) {
+	x.DatabaseCleanup = v
+}
+
+func (x *DownstreamInventoryHello_SupportedCapabilities) SetDatabaseServiceHeartbeats(v bool) {
+	x.DatabaseServiceHeartbeats = v
+}
+
+func (x *DownstreamInventoryHello_SupportedCapabilities) SetDatabaseServiceCleanup(v bool) {
+	x.DatabaseServiceCleanup = v
+}
+
+func (x *DownstreamInventoryHello_SupportedCapabilities) SetWindowsDesktopHeartbeats(v bool) {
+	x.WindowsDesktopHeartbeats = v
+}
+
+func (x *DownstreamInventoryHello_SupportedCapabilities) SetWindowsDesktopCleanup(v bool) {
+	x.WindowsDesktopCleanup = v
+}
+
+func (x *DownstreamInventoryHello_SupportedCapabilities) SetWindowsDesktopServiceHeartbeats(v bool) {
+	x.WindowsDesktopServiceHeartbeats = v
+}
+
+func (x *DownstreamInventoryHello_SupportedCapabilities) SetWindowsDesktopServiceCleanup(v bool) {
+	x.WindowsDesktopServiceCleanup = v
+}
+
+func (x *DownstreamInventoryHello_SupportedCapabilities) SetKubernetesHeartbeats(v bool) {
+	x.KubernetesHeartbeats = v
+}
+
+func (x *DownstreamInventoryHello_SupportedCapabilities) SetKubernetesCleanup(v bool) {
+	x.KubernetesCleanup = v
+}
+
+func (x *DownstreamInventoryHello_SupportedCapabilities) SetRelayServerHeartbeatsCleanup(v bool) {
+	x.RelayServerHeartbeatsCleanup = v
+}
+
+func (x *DownstreamInventoryHello_SupportedCapabilities) SetDatabaseHeartbeatGracefulStop(v bool) {
+	x.DatabaseHeartbeatGracefulStop = v
+}
+
+func (x *DownstreamInventoryHello_SupportedCapabilities) SetLinuxDesktopHeartbeats(v bool) {
+	x.LinuxDesktopHeartbeats = v
+}
+
+func (x *DownstreamInventoryHello_SupportedCapabilities) SetLinuxDesktopCleanup(v bool) {
+	x.LinuxDesktopCleanup = v
+}
+
+type DownstreamInventoryHello_SupportedCapabilities_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ProxyHeartbeats indicates the ICS supports heartbeating proxy servers.
+	ProxyHeartbeats bool
+	// ProxyCleanup indicates the ICS supports deleting proxies when UpstreamInventoryGoodbye.DeleteResources is set.
+	ProxyCleanup bool
+	// ProxyHeartbeats indicates the ICS supports heartbeating proxy servers.
+	AuthHeartbeats bool
+	// ProxyCleanup indicates the ICS supports deleting proxies when UpstreamInventoryGoodbye.DeleteResources is set.
+	AuthCleanup bool
+	// NodeHeartbeats indicates the ICS supports heartbeating ssh servers.
+	NodeHeartbeats bool
+	// NodeCleanup indicates the ICS supports deleting nodes when UpstreamInventoryGoodbye.DeleteResources is set.
+	NodeCleanup bool
+	// AppHeartbeats indicates the ICS supports heartbeating app servers.
+	AppHeartbeats bool
+	// AppCleanup indicates the ICS supports deleting apps when UpstreamInventoryGoodbye.DeleteResources is set.
+	AppCleanup bool
+	// DatabaseHeartbeats indicates the ICS supports heartbeating databases.
+	DatabaseHeartbeats bool
+	// DatabaseCleanup indicates the ICS supports deleting databases when UpstreamInventoryGoodbye.DeleteResources is set.
+	DatabaseCleanup bool
+	// DatabaseServiceHeartbeats indicates the ICS supports heartbeating databse services.
+	DatabaseServiceHeartbeats bool
+	// DatabaseServiceCleanup indicates the ICS supports deleting database services when UpstreamInventoryGoodbye.DeleteResources is set.
+	DatabaseServiceCleanup bool
+	// WindowsDesktopHeartbeats indicates the ICS supports heartbeating windows desktop servers.
+	WindowsDesktopHeartbeats bool
+	// WindowsDesktopCleanup indicates the ICS supports deleting windows desktops when UpstreamInventoryGoodbye.DeleteResources is set.
+	WindowsDesktopCleanup bool
+	// WindowsDesktopHeartbeats indicates the ICS supports heartbeating windows desktop services.
+	WindowsDesktopServiceHeartbeats bool
+	// WindowsDesktopCleanup indicates the ICS supports deleting windows desktop services when UpstreamInventoryGoodbye.DeleteResources is set.
+	WindowsDesktopServiceCleanup bool
+	// KubernetesHeartbeats indicates the ICS supports heartbeating kubernetes clusters.
+	KubernetesHeartbeats bool
+	// KubernetesCleanup indicates the ICS supports deleting kubernetes clusters when UpstreamInventoryGoodbye.DeleteResources is set.
+	KubernetesCleanup bool
+	// Indicates that the ICS supports heartbeating relay_server entries as well as deleting them on disconnect if UpstreamInventoryGoodbye.DeleteResources is set.
+	RelayServerHeartbeatsCleanup bool
+	// DatabaseHeartbeatGracefulStop indicates the ICS supports stopping an individual database heartbeat.
+	DatabaseHeartbeatGracefulStop bool
+	// LinuxDesktopHeartbeats indicates the ICS supports heartbeating linux desktops.
+	LinuxDesktopHeartbeats bool
+	// LinuxDesktopCleanup indicates the ICS supports deleting linux desktops when UpstreamInventoryGoodbye.DeleteResources is set.
+	LinuxDesktopCleanup bool
+}
+
+func (b0 DownstreamInventoryHello_SupportedCapabilities_builder) Build() *DownstreamInventoryHello_SupportedCapabilities {
+	m0 := &DownstreamInventoryHello_SupportedCapabilities{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ProxyHeartbeats = b.ProxyHeartbeats
+	x.ProxyCleanup = b.ProxyCleanup
+	x.AuthHeartbeats = b.AuthHeartbeats
+	x.AuthCleanup = b.AuthCleanup
+	x.NodeHeartbeats = b.NodeHeartbeats
+	x.NodeCleanup = b.NodeCleanup
+	x.AppHeartbeats = b.AppHeartbeats
+	x.AppCleanup = b.AppCleanup
+	x.DatabaseHeartbeats = b.DatabaseHeartbeats
+	x.DatabaseCleanup = b.DatabaseCleanup
+	x.DatabaseServiceHeartbeats = b.DatabaseServiceHeartbeats
+	x.DatabaseServiceCleanup = b.DatabaseServiceCleanup
+	x.WindowsDesktopHeartbeats = b.WindowsDesktopHeartbeats
+	x.WindowsDesktopCleanup = b.WindowsDesktopCleanup
+	x.WindowsDesktopServiceHeartbeats = b.WindowsDesktopServiceHeartbeats
+	x.WindowsDesktopServiceCleanup = b.WindowsDesktopServiceCleanup
+	x.KubernetesHeartbeats = b.KubernetesHeartbeats
+	x.KubernetesCleanup = b.KubernetesCleanup
+	x.RelayServerHeartbeatsCleanup = b.RelayServerHeartbeatsCleanup
+	x.DatabaseHeartbeatGracefulStop = b.DatabaseHeartbeatGracefulStop
+	x.LinuxDesktopHeartbeats = b.LinuxDesktopHeartbeats
+	x.LinuxDesktopCleanup = b.LinuxDesktopCleanup
+	return m0
+}
+
 var File_teleport_legacy_client_proto_inventory_proto protoreflect.FileDescriptor
 
 const file_teleport_legacy_client_proto_inventory_proto_rawDesc = "" +
@@ -1630,18 +2659,6 @@ const file_teleport_legacy_client_proto_inventory_proto_rawDesc = "" +
 	"\x11StopHeartbeatKind\x12#\n" +
 	"\x1fSTOP_HEARTBEAT_KIND_UNSPECIFIED\x10\x00\x12'\n" +
 	"#STOP_HEARTBEAT_KIND_DATABASE_SERVER\x10\x01B4Z2github.com/gravitational/teleport/api/client/protob\x06proto3"
-
-var (
-	file_teleport_legacy_client_proto_inventory_proto_rawDescOnce sync.Once
-	file_teleport_legacy_client_proto_inventory_proto_rawDescData []byte
-)
-
-func file_teleport_legacy_client_proto_inventory_proto_rawDescGZIP() []byte {
-	file_teleport_legacy_client_proto_inventory_proto_rawDescOnce.Do(func() {
-		file_teleport_legacy_client_proto_inventory_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_legacy_client_proto_inventory_proto_rawDesc), len(file_teleport_legacy_client_proto_inventory_proto_rawDesc)))
-	})
-	return file_teleport_legacy_client_proto_inventory_proto_rawDescData
-}
 
 var file_teleport_legacy_client_proto_inventory_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_teleport_legacy_client_proto_inventory_proto_msgTypes = make([]protoimpl.MessageInfo, 20)

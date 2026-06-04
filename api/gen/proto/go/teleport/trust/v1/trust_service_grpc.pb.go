@@ -46,6 +46,8 @@ const (
 	TrustService_CreateTrustedCluster_FullMethodName        = "/teleport.trust.v1.TrustService/CreateTrustedCluster"
 	TrustService_UpdateTrustedCluster_FullMethodName        = "/teleport.trust.v1.TrustService/UpdateTrustedCluster"
 	TrustService_ListTrustedClusters_FullMethodName         = "/teleport.trust.v1.TrustService/ListTrustedClusters"
+	TrustService_UpsertTunnelConnection_FullMethodName      = "/teleport.trust.v1.TrustService/UpsertTunnelConnection"
+	TrustService_DeleteTunnelConnection_FullMethodName      = "/teleport.trust.v1.TrustService/DeleteTunnelConnection"
 )
 
 // TrustServiceClient is the client API for TrustService service.
@@ -77,6 +79,12 @@ type TrustServiceClient interface {
 	UpdateTrustedCluster(ctx context.Context, in *UpdateTrustedClusterRequest, opts ...grpc.CallOption) (*types.TrustedClusterV2, error)
 	// ListTrustedClusters returns a page of current Trusted Cluster resources.
 	ListTrustedClusters(ctx context.Context, in *ListTrustedClustersRequest, opts ...grpc.CallOption) (*ListTrustedClustersResponse, error)
+	// UpsertTunnelConnection creates or updates a tunnel connection record used
+	// to advertise leaf cluster reverse tunnels to peer proxies.
+	UpsertTunnelConnection(ctx context.Context, in *UpsertTunnelConnectionRequest, opts ...grpc.CallOption) (*UpsertTunnelConnectionResponse, error)
+	// DeleteTunnelConnection removes a single tunnel connection record by
+	// cluster name and connection name.
+	DeleteTunnelConnection(ctx context.Context, in *DeleteTunnelConnectionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
 type trustServiceClient struct {
@@ -197,6 +205,26 @@ func (c *trustServiceClient) ListTrustedClusters(ctx context.Context, in *ListTr
 	return out, nil
 }
 
+func (c *trustServiceClient) UpsertTunnelConnection(ctx context.Context, in *UpsertTunnelConnectionRequest, opts ...grpc.CallOption) (*UpsertTunnelConnectionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UpsertTunnelConnectionResponse)
+	err := c.cc.Invoke(ctx, TrustService_UpsertTunnelConnection_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *trustServiceClient) DeleteTunnelConnection(ctx context.Context, in *DeleteTunnelConnectionRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(emptypb.Empty)
+	err := c.cc.Invoke(ctx, TrustService_DeleteTunnelConnection_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TrustServiceServer is the server API for TrustService service.
 // All implementations must embed UnimplementedTrustServiceServer
 // for forward compatibility.
@@ -226,6 +254,12 @@ type TrustServiceServer interface {
 	UpdateTrustedCluster(context.Context, *UpdateTrustedClusterRequest) (*types.TrustedClusterV2, error)
 	// ListTrustedClusters returns a page of current Trusted Cluster resources.
 	ListTrustedClusters(context.Context, *ListTrustedClustersRequest) (*ListTrustedClustersResponse, error)
+	// UpsertTunnelConnection creates or updates a tunnel connection record used
+	// to advertise leaf cluster reverse tunnels to peer proxies.
+	UpsertTunnelConnection(context.Context, *UpsertTunnelConnectionRequest) (*UpsertTunnelConnectionResponse, error)
+	// DeleteTunnelConnection removes a single tunnel connection record by
+	// cluster name and connection name.
+	DeleteTunnelConnection(context.Context, *DeleteTunnelConnectionRequest) (*emptypb.Empty, error)
 	mustEmbedUnimplementedTrustServiceServer()
 }
 
@@ -268,6 +302,12 @@ func (UnimplementedTrustServiceServer) UpdateTrustedCluster(context.Context, *Up
 }
 func (UnimplementedTrustServiceServer) ListTrustedClusters(context.Context, *ListTrustedClustersRequest) (*ListTrustedClustersResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ListTrustedClusters not implemented")
+}
+func (UnimplementedTrustServiceServer) UpsertTunnelConnection(context.Context, *UpsertTunnelConnectionRequest) (*UpsertTunnelConnectionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpsertTunnelConnection not implemented")
+}
+func (UnimplementedTrustServiceServer) DeleteTunnelConnection(context.Context, *DeleteTunnelConnectionRequest) (*emptypb.Empty, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteTunnelConnection not implemented")
 }
 func (UnimplementedTrustServiceServer) mustEmbedUnimplementedTrustServiceServer() {}
 func (UnimplementedTrustServiceServer) testEmbeddedByValue()                      {}
@@ -488,6 +528,42 @@ func _TrustService_ListTrustedClusters_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TrustService_UpsertTunnelConnection_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpsertTunnelConnectionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TrustServiceServer).UpsertTunnelConnection(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TrustService_UpsertTunnelConnection_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TrustServiceServer).UpsertTunnelConnection(ctx, req.(*UpsertTunnelConnectionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _TrustService_DeleteTunnelConnection_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteTunnelConnectionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TrustServiceServer).DeleteTunnelConnection(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TrustService_DeleteTunnelConnection_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TrustServiceServer).DeleteTunnelConnection(ctx, req.(*DeleteTunnelConnectionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TrustService_ServiceDesc is the grpc.ServiceDesc for TrustService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -538,6 +614,14 @@ var TrustService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ListTrustedClusters",
 			Handler:    _TrustService_ListTrustedClusters_Handler,
+		},
+		{
+			MethodName: "UpsertTunnelConnection",
+			Handler:    _TrustService_UpsertTunnelConnection_Handler,
+		},
+		{
+			MethodName: "DeleteTunnelConnection",
+			Handler:    _TrustService_DeleteTunnelConnection_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

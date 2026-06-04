@@ -300,7 +300,7 @@ export function ServerAccessSection({
           }}
           openMenuOnClick={false}
           value={value.logins}
-          onChange={logins => onChange?.({ ...value, logins })}
+          onChange={logins => onChange?.({ ...value, logins: [...logins] })}
           readOnly={readOnly}
           rule={readOnly ? undefined : precomputed(validation.fields.logins)}
           mt={3}
@@ -359,7 +359,7 @@ export function KubernetesAccessSection({
           }}
           openMenuOnClick={false}
           value={value.groups}
-          onChange={groups => onChange?.({ ...value, groups })}
+          onChange={groups => onChange?.({ ...value, groups: [...groups] })}
           menuPosition="fixed"
           readOnly={readOnly}
           rule={readOnly ? undefined : precomputed(validation.fields.groups)}
@@ -378,7 +378,7 @@ export function KubernetesAccessSection({
           }}
           openMenuOnClick={false}
           value={value.users}
-          onChange={users => onChange?.({ ...value, users })}
+          onChange={users => onChange?.({ ...value, users: [...users] })}
           menuPosition="fixed"
           readOnly={readOnly}
           rule={readOnly ? undefined : precomputed(validation.fields.users)}
@@ -619,7 +619,7 @@ function KubernetesResourceView({
         value={verbs}
         readOnly={readOnly}
         rule={readOnly ? undefined : precomputed(validation.verbs)}
-        onChange={v => onChange?.({ ...value, verbs: v })}
+        onChange={v => onChange?.({ ...value, verbs: [...v] })}
         mb={0}
         menuPosition="fixed"
       />
@@ -804,7 +804,7 @@ export function DatabaseAccessSection({
           }}
           openMenuOnClick={false}
           value={value.names}
-          onChange={names => onChange?.({ ...value, names })}
+          onChange={names => onChange?.({ ...value, names: [...names] })}
           menuPosition="fixed"
           readOnly={readOnly}
           rule={readOnly ? undefined : precomputed(validation.fields.names)}
@@ -828,7 +828,7 @@ export function DatabaseAccessSection({
           }}
           openMenuOnClick={false}
           value={value.users}
-          onChange={users => onChange?.({ ...value, users })}
+          onChange={users => onChange?.({ ...value, users: [...users] })}
           menuPosition="fixed"
           readOnly={readOnly}
           rule={readOnly ? undefined : precomputed(validation.fields.users)}
@@ -847,7 +847,7 @@ export function DatabaseAccessSection({
           }}
           openMenuOnClick={false}
           value={value.roles}
-          onChange={roles => onChange?.({ ...value, roles })}
+          onChange={roles => onChange?.({ ...value, roles: [...roles] })}
           readOnly={readOnly}
           rule={readOnly ? undefined : precomputed(validation.fields.roles)}
           menuPosition="fixed"
@@ -921,7 +921,7 @@ export function WindowsDesktopAccessSection({
           }}
           openMenuOnClick={false}
           value={value.logins}
-          onChange={logins => onChange?.({ ...value, logins })}
+          onChange={logins => onChange?.({ ...value, logins: [...logins] })}
           menuPosition="fixed"
           readOnly={readOnly}
           rule={readOnly ? undefined : precomputed(validation.fields.logins)}
@@ -965,7 +965,9 @@ export function GitHubOrganizationAccessSection({
           }}
           openMenuOnClick={false}
           value={value.organizations}
-          onChange={organizations => onChange?.({ ...value, organizations })}
+          onChange={organizations =>
+            onChange?.({ ...value, organizations: [...organizations] })
+          }
           menuPosition="fixed"
           readOnly={readOnly}
           rule={

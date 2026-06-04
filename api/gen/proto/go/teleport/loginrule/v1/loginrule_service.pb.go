@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/loginrule/v1/loginrule_service.proto
 
+//go:build !protoopaque
+
 package loginrulev1
 
 import (
@@ -26,7 +28,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -39,7 +40,7 @@ const (
 
 // CreateLoginRuleRequest is a request to create a login rule.
 type CreateLoginRuleRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// LoginRule is the login rule to be created.
 	LoginRule     *LoginRule `protobuf:"bytes,1,opt,name=login_rule,json=loginRule,proto3" json:"login_rule,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -71,11 +72,6 @@ func (x *CreateLoginRuleRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateLoginRuleRequest.ProtoReflect.Descriptor instead.
-func (*CreateLoginRuleRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_loginrule_v1_loginrule_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *CreateLoginRuleRequest) GetLoginRule() *LoginRule {
 	if x != nil {
 		return x.LoginRule
@@ -83,9 +79,39 @@ func (x *CreateLoginRuleRequest) GetLoginRule() *LoginRule {
 	return nil
 }
 
+func (x *CreateLoginRuleRequest) SetLoginRule(v *LoginRule) {
+	x.LoginRule = v
+}
+
+func (x *CreateLoginRuleRequest) HasLoginRule() bool {
+	if x == nil {
+		return false
+	}
+	return x.LoginRule != nil
+}
+
+func (x *CreateLoginRuleRequest) ClearLoginRule() {
+	x.LoginRule = nil
+}
+
+type CreateLoginRuleRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// LoginRule is the login rule to be created.
+	LoginRule *LoginRule
+}
+
+func (b0 CreateLoginRuleRequest_builder) Build() *CreateLoginRuleRequest {
+	m0 := &CreateLoginRuleRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.LoginRule = b.LoginRule
+	return m0
+}
+
 // UpsertLoginRuleRequest is a request to upsert a login rule.
 type UpsertLoginRuleRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// LoginRule is the login rule to be created.
 	LoginRule     *LoginRule `protobuf:"bytes,1,opt,name=login_rule,json=loginRule,proto3" json:"login_rule,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -117,11 +143,6 @@ func (x *UpsertLoginRuleRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertLoginRuleRequest.ProtoReflect.Descriptor instead.
-func (*UpsertLoginRuleRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_loginrule_v1_loginrule_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *UpsertLoginRuleRequest) GetLoginRule() *LoginRule {
 	if x != nil {
 		return x.LoginRule
@@ -129,9 +150,39 @@ func (x *UpsertLoginRuleRequest) GetLoginRule() *LoginRule {
 	return nil
 }
 
+func (x *UpsertLoginRuleRequest) SetLoginRule(v *LoginRule) {
+	x.LoginRule = v
+}
+
+func (x *UpsertLoginRuleRequest) HasLoginRule() bool {
+	if x == nil {
+		return false
+	}
+	return x.LoginRule != nil
+}
+
+func (x *UpsertLoginRuleRequest) ClearLoginRule() {
+	x.LoginRule = nil
+}
+
+type UpsertLoginRuleRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// LoginRule is the login rule to be created.
+	LoginRule *LoginRule
+}
+
+func (b0 UpsertLoginRuleRequest_builder) Build() *UpsertLoginRuleRequest {
+	m0 := &UpsertLoginRuleRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.LoginRule = b.LoginRule
+	return m0
+}
+
 // GetLoginRuleRequest is a request to get a single login rule.
 type GetLoginRuleRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the name of the login rule to get.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -163,11 +214,6 @@ func (x *GetLoginRuleRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetLoginRuleRequest.ProtoReflect.Descriptor instead.
-func (*GetLoginRuleRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_loginrule_v1_loginrule_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *GetLoginRuleRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -175,9 +221,28 @@ func (x *GetLoginRuleRequest) GetName() string {
 	return ""
 }
 
+func (x *GetLoginRuleRequest) SetName(v string) {
+	x.Name = v
+}
+
+type GetLoginRuleRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the name of the login rule to get.
+	Name string
+}
+
+func (b0 GetLoginRuleRequest_builder) Build() *GetLoginRuleRequest {
+	m0 := &GetLoginRuleRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // ListLoginRulesRequest is a paginated request to list all login rules.
 type ListLoginRulesRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// PageSize is The maximum number of login rules to return in a single
 	// reponse.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
@@ -213,11 +278,6 @@ func (x *ListLoginRulesRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListLoginRulesRequest.ProtoReflect.Descriptor instead.
-func (*ListLoginRulesRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_loginrule_v1_loginrule_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *ListLoginRulesRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -232,9 +292,37 @@ func (x *ListLoginRulesRequest) GetPageToken() string {
 	return ""
 }
 
+func (x *ListLoginRulesRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListLoginRulesRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+type ListLoginRulesRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// PageSize is The maximum number of login rules to return in a single
+	// reponse.
+	PageSize int32
+	// PageToken is the NextPageToken value returned from a previous
+	// ListLoginRules request, if any.
+	PageToken string
+}
+
+func (b0 ListLoginRulesRequest_builder) Build() *ListLoginRulesRequest {
+	m0 := &ListLoginRulesRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	return m0
+}
+
 // ListLoginRulesResponse is a paginated response to a ListLoginRulesRequest.
 type ListLoginRulesResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// LoginRules is the list of login rules.
 	LoginRules []*LoginRule `protobuf:"bytes,1,rep,name=login_rules,json=loginRules,proto3" json:"login_rules,omitempty"`
 	// NextPageToken is a token to retrieve the next page of results, or empty
@@ -269,11 +357,6 @@ func (x *ListLoginRulesResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListLoginRulesResponse.ProtoReflect.Descriptor instead.
-func (*ListLoginRulesResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_loginrule_v1_loginrule_service_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *ListLoginRulesResponse) GetLoginRules() []*LoginRule {
 	if x != nil {
 		return x.LoginRules
@@ -288,9 +371,36 @@ func (x *ListLoginRulesResponse) GetNextPageToken() string {
 	return ""
 }
 
+func (x *ListLoginRulesResponse) SetLoginRules(v []*LoginRule) {
+	x.LoginRules = v
+}
+
+func (x *ListLoginRulesResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListLoginRulesResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// LoginRules is the list of login rules.
+	LoginRules []*LoginRule
+	// NextPageToken is a token to retrieve the next page of results, or empty
+	// if there are no more results.
+	NextPageToken string
+}
+
+func (b0 ListLoginRulesResponse_builder) Build() *ListLoginRulesResponse {
+	m0 := &ListLoginRulesResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.LoginRules = b.LoginRules
+	x.NextPageToken = b.NextPageToken
+	return m0
+}
+
 // DeleteLoginRuleRequest is a request to delete a login rule.
 type DeleteLoginRuleRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the name of the login rule to delete.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -322,11 +432,6 @@ func (x *DeleteLoginRuleRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteLoginRuleRequest.ProtoReflect.Descriptor instead.
-func (*DeleteLoginRuleRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_loginrule_v1_loginrule_service_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *DeleteLoginRuleRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -334,9 +439,28 @@ func (x *DeleteLoginRuleRequest) GetName() string {
 	return ""
 }
 
+func (x *DeleteLoginRuleRequest) SetName(v string) {
+	x.Name = v
+}
+
+type DeleteLoginRuleRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the name of the login rule to delete.
+	Name string
+}
+
+func (b0 DeleteLoginRuleRequest_builder) Build() *DeleteLoginRuleRequest {
+	m0 := &DeleteLoginRuleRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // TestLoginRuleRequest is a request to test a login rule against traits.
 type TestLoginRuleRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// LoginRules is the list of the rules to evaluate.
 	LoginRules []*LoginRule `protobuf:"bytes,1,rep,name=login_rules,json=loginRules,proto3" json:"login_rules,omitempty"`
 	// Traits are the user traits to test the login rule against.
@@ -373,11 +497,6 @@ func (x *TestLoginRuleRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TestLoginRuleRequest.ProtoReflect.Descriptor instead.
-func (*TestLoginRuleRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_loginrule_v1_loginrule_service_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *TestLoginRuleRequest) GetLoginRules() []*LoginRule {
 	if x != nil {
 		return x.LoginRules
@@ -399,9 +518,43 @@ func (x *TestLoginRuleRequest) GetLoadFromCluster() bool {
 	return false
 }
 
+func (x *TestLoginRuleRequest) SetLoginRules(v []*LoginRule) {
+	x.LoginRules = v
+}
+
+func (x *TestLoginRuleRequest) SetTraits(v map[string]*wrappers.StringValues) {
+	x.Traits = v
+}
+
+func (x *TestLoginRuleRequest) SetLoadFromCluster(v bool) {
+	x.LoadFromCluster = v
+}
+
+type TestLoginRuleRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// LoginRules is the list of the rules to evaluate.
+	LoginRules []*LoginRule
+	// Traits are the user traits to test the login rule against.
+	Traits map[string]*wrappers.StringValues
+	// LoadFromCluster indicates if existing login rules should be included
+	// when evaluating rules.
+	LoadFromCluster bool
+}
+
+func (b0 TestLoginRuleRequest_builder) Build() *TestLoginRuleRequest {
+	m0 := &TestLoginRuleRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.LoginRules = b.LoginRules
+	x.Traits = b.Traits
+	x.LoadFromCluster = b.LoadFromCluster
+	return m0
+}
+
 // TestLoginRuleResponse is a response to a login rule test.
 type TestLoginRuleResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Traits contain the output from evaluating the login rules.
 	Traits        map[string]*wrappers.StringValues `protobuf:"bytes,4,rep,name=traits,proto3" json:"traits,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
@@ -433,16 +586,30 @@ func (x *TestLoginRuleResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TestLoginRuleResponse.ProtoReflect.Descriptor instead.
-func (*TestLoginRuleResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_loginrule_v1_loginrule_service_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *TestLoginRuleResponse) GetTraits() map[string]*wrappers.StringValues {
 	if x != nil {
 		return x.Traits
 	}
 	return nil
+}
+
+func (x *TestLoginRuleResponse) SetTraits(v map[string]*wrappers.StringValues) {
+	x.Traits = v
+}
+
+type TestLoginRuleResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Traits contain the output from evaluating the login rules.
+	Traits map[string]*wrappers.StringValues
+}
+
+func (b0 TestLoginRuleResponse_builder) Build() *TestLoginRuleResponse {
+	m0 := &TestLoginRuleResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Traits = b.Traits
+	return m0
 }
 
 var File_teleport_loginrule_v1_loginrule_service_proto protoreflect.FileDescriptor
@@ -488,18 +655,6 @@ const file_teleport_loginrule_v1_loginrule_service_proto_rawDesc = "" +
 	"\x0eListLoginRules\x12,.teleport.loginrule.v1.ListLoginRulesRequest\x1a-.teleport.loginrule.v1.ListLoginRulesResponse\x12X\n" +
 	"\x0fDeleteLoginRule\x12-.teleport.loginrule.v1.DeleteLoginRuleRequest\x1a\x16.google.protobuf.Empty\x12j\n" +
 	"\rTestLoginRule\x12+.teleport.loginrule.v1.TestLoginRuleRequest\x1a,.teleport.loginrule.v1.TestLoginRuleResponseBVZTgithub.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1;loginrulev1b\x06proto3"
-
-var (
-	file_teleport_loginrule_v1_loginrule_service_proto_rawDescOnce sync.Once
-	file_teleport_loginrule_v1_loginrule_service_proto_rawDescData []byte
-)
-
-func file_teleport_loginrule_v1_loginrule_service_proto_rawDescGZIP() []byte {
-	file_teleport_loginrule_v1_loginrule_service_proto_rawDescOnce.Do(func() {
-		file_teleport_loginrule_v1_loginrule_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_loginrule_v1_loginrule_service_proto_rawDesc), len(file_teleport_loginrule_v1_loginrule_service_proto_rawDesc)))
-	})
-	return file_teleport_loginrule_v1_loginrule_service_proto_rawDescData
-}
 
 var file_teleport_loginrule_v1_loginrule_service_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_teleport_loginrule_v1_loginrule_service_proto_goTypes = []any{
