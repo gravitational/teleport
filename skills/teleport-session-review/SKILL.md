@@ -1,6 +1,6 @@
 ---
 name: teleport-session-review
-description: Review and investigate Teleport session recordings. Use when the user asks to review session recordings, audit recorded sessions, find out what happened in a session, search sessions by what occurred in them (e.g. "sessions that touched production databases", "who ran sudo on prod", "downloads to external hosts"), triage risky or high-severity sessions, list recent SSH/db/Kubernetes/desktop recordings, summarize a session, download a recording, or play one back. Trigger on phrases like "review session recordings", "search session recordings", "what happened in session <id>", "audit recorded sessions", "find risky sessions", "download a recording", or any mention of Teleport session recordings or session summaries. Also trigger when the user follows up on a session surfaced by a previous command.
+description: Review and investigate Teleport session recordings. Use when the user asks to review or audit recorded sessions, find out what happened in a session, or search sessions by what occurred in them (e.g. "sessions that touched production databases", "who ran sudo on prod"). Covers common security workflows such as SOC risk triage of the riskiest sessions, periodic compliance reviews of production access, threat hunting for techniques (privilege escalation, persistence, data exfiltration, SSH config tampering, secret exposure), and incident-response pivots ("what did this user do on that host"). Also lists recent SSH/db/Kubernetes/desktop recordings, summarizes a session, and downloads or plays one back. Trigger on phrases like "review session recordings", "search session recordings", "what happened in session <id>", "find risky sessions", or any mention of Teleport session recordings or session summaries. Also trigger when following up on a session from a previous command.
 ---
 
 # Teleport Session Recording Review
@@ -137,6 +137,22 @@ Kind-specific resource-property filters (SSH/Kubernetes/Database) can only targe
   `--resource-kind`, `--resource-name`, `--server-hostname`, `--pod-name`,
   `--database-name`, `--label`, `--access-request`) do filter server-side.
 
+### Common scenarios
+
+For ready-made workflows, see [PLAYBOOKS.md](references/PLAYBOOKS.md):
+
+- **SOC risk triage** — "riskiest sessions this week": pull recent results, keep
+  `severity >= 2` client-side, show highest first.
+- **Compliance review** — "review all production access last quarter":
+  `--label=env=prod --from=… --to=… --limit=500`, group by user, flag medium+.
+- **Threat hunting** — natural-language sweeps for a technique, e.g.
+  `"privilege escalation, sudo to root, or setuid binary"`,
+  `"persistence via cron, systemd, or base64-encoded payload"`,
+  `"modified sshd_config or authorized_keys"`, `"bulk database export"`
+  (`--kind=db`), `"secrets or personal data printed to the terminal"`.
+- **Incident pivot** — "what did <user> do on <host>":
+  `--username=<u> --resource-name=<host> --from=… --to=…`, then play/download.
+
 ### If search is not enabled
 
 `recordings search` fails with a `NotImplemented` error when the cluster lacks
@@ -170,6 +186,12 @@ flag.
   resources, privileged roles, or off-hours activity.
 - Remind the user the prose summary of each session is available in the web
   player or the interactive `tctl recordings search` TUI, not in this metadata.
+- **A low or absent severity is not proof a session was safe.** Summaries can
+  miss evasive input (STDIN-hidden entry like `read -s`, control-character
+  obfuscation, typed-then-deleted commands), don't reliably catch attacks split
+  across multiple JIT sessions, and score database sessions inconsistently. For
+  high-stakes or compliance-grade review, corroborate with the actual recording
+  (`tsh play` / download). See [PLAYBOOKS.md](references/PLAYBOOKS.md#limitations-to-communicate).
 
 ## Step 5: Offer Next Actions (Confirm First)
 
