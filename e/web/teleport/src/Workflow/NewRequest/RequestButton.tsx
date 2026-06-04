@@ -379,35 +379,6 @@ const MenuList = ({
   );
 };
 
-type AwsConsoleApp = App & { awsConsole: true; awsRoles?: AwsRole[] };
-
-const isApp = (resource: UnifiedResource): resource is App =>
-  resource.kind === 'app';
-const isAwsConsoleApp = (app: App): app is AwsConsoleApp => !!app.awsConsole;
-const supportsResourceConstraints = (app: AwsConsoleApp) =>
-  app.supportedFeatureIds?.includes?.(
-    ComponentFeatureID.ResourceConstraintsV1
-  ) || false;
-
-/**
- * resourceIsAwsAndSupportsConstraints returns whether the given resource is
- * an AWS Console app that supports requesting/specifying IAM roles.
- */
-export const resourceIsAWSConsoleAndSupportsConstraints = (
-  resource: UnifiedResource
-): resource is AwsConsoleApp => {
-  // Must be 'app'
-  if (!isApp(resource)) {
-    return false;
-  }
-  // Must be AWS Console
-  if (!isAwsConsoleApp(resource)) {
-    return false;
-  }
-  // Must support ResourceConstraints
-  return supportsResourceConstraints(resource);
-};
-
 /**
  * MenuChoice is a generic item displayed in a ConstraintMenu dropdown.
  */
@@ -422,12 +393,12 @@ const constraintMenuPopoverCss = () => css`
   margin-top: 4px;
 `;
 const constraintMenuMenuListCss = () => css`
-  min-width: 220px;
-  max-height: 280px;
+  min-width: 180px;
+  max-height: 340px;
+  max-width: 320px;
   overflow-y: auto;
   overflow-x: clip;
   scrollbar-width: thin;
-  scrollbar-gutter: stable;
   scrollbar-color: ${p => p.theme.colors.spotBackground[2]} transparent;
 `;
 const constraintMenuTransformOrigin = {
@@ -442,8 +413,9 @@ const constraintMenuAnchorOrigin = {
 type ConstraintMenuProps = {
   choices: MenuChoice[];
   selectedIds: string[];
-  onToggleRequestable: (choice: MenuChoice) => void;
-  noPrinciplesTooltip?: string;
+  onToggle: (choices: MenuChoice[]) => void;
+  noPrincipalsText?: string;
+  connectText?: string;
   searchPlaceholder?: string;
   requestStarted?: boolean;
   isNewRequestFlow?: boolean;
@@ -454,13 +426,13 @@ type ConstraintMenuProps = {
 /**
  * ConstraintMenu renders a dropdown button that splits choices into
  * "Connect" (granted) and "Request Access" (requestable) sections.
- * Used by both AppAwsRoleMenu and NodeSsgLoginMenu.
  */
 const ConstraintMenu = ({
   choices,
   selectedIds,
-  onToggleRequestable,
-  noPrinciplesTooltip = 'No available principles',
+  onToggle,
+  noPrincipalsText = 'No principals found',
+  connectText = 'Connect',
   searchPlaceholder = 'Search...',
   requestStarted = false,
   isNewRequestFlow = false,
@@ -490,46 +462,44 @@ const ConstraintMenu = ({
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const isChecked = (choice: MenuChoice) => selectedSet.has(choice.id);
 
-  const requestStartedOrNoGranted = requestStarted || !granted.length;
-  const showSearch = granted.length + requestable.length > 6;
+  const requestStartedOrNoGranted = requestStarted || granted.length === 0;
+  const showSearch = granted.length + requestable.length > 2;
+  const isFilled = isInCart || open || granted.length > 0;
 
-  const filteredGranted = useMemo(() => {
-    const trimmed = search?.trim().toLowerCase();
-    if (!trimmed) return granted;
-    return granted.filter(v => v.label.toLowerCase().includes(trimmed));
-  }, [search, granted]);
+  const trimmedSearch = search.trim().toLowerCase();
+  const matches = (item: MenuChoice) =>
+    !trimmedSearch || item.label.toLowerCase().includes(trimmedSearch);
 
-  const filteredRequestable = useMemo(() => {
-    const trimmed = search?.trim().toLowerCase();
-    if (!trimmed) return requestable;
-    return requestable.filter(v => v.label.toLowerCase().includes(trimmed));
-  }, [search, requestable]);
+  const visibleRequestable = requestable.filter(matches);
+  const allVisibleChecked =
+    visibleRequestable.length > 0 && visibleRequestable.every(isChecked);
 
-  if (granted.length <= 1 && !requestable.length) {
+  const requestableHidden = visibleRequestable.length === 0;
+  const hasVisibleGranted = granted.some(matches);
+
+  if (granted.length === 0 && requestable.length === 0) {
     return (
-      <HoverTooltip
-        tipContent={!granted.length ? noPrinciplesTooltip : undefined}
-      >
-        <ButtonBorder
-          as="a"
-          textTransform="none"
-          width={width}
-          size="small"
-          href={granted[0]?.connectUrl}
-          target="_blank"
-          rel="noreferrer"
-          disabled={!granted.length}
-        >
-          Connect
-        </ButtonBorder>
+      <HoverTooltip tipContent={noPrincipalsText}>
+        <Box>
+          <Button
+            textTransform="none"
+            width={width}
+            size="small"
+            intent="neutral"
+            aria-disabled="true"
+            disabled
+          >
+            {connectText}
+          </Button>
+        </Box>
       </HoverTooltip>
     );
   }
 
   return (
-    <>
+    <div>
       <StyledButton
-        fill={isInCart || open ? 'filled' : 'border'}
+        fill={isFilled ? 'filled' : 'border'}
         intent={isInCart ? 'primary' : 'neutral'}
         textTransform="none"
         width={width}
@@ -541,7 +511,7 @@ const ConstraintMenu = ({
           ? 'Add to request'
           : requestStartedOrNoGranted
             ? 'Request Access'
-            : 'Connect'}
+            : connectText}
         <ChevronDown
           ml={1}
           size="small"
@@ -562,17 +532,25 @@ const ConstraintMenu = ({
         {showSearch && (
           <StyledMenuSearchWrapper>
             <StyledMenuSearch
+              type="text"
+              name="notsearch_password"
+              autoComplete="off"
+              autoFocus
               value={search}
               placeholder={searchPlaceholder}
               onChange={e => setSearch(e.currentTarget.value)}
             />
           </StyledMenuSearchWrapper>
         )}
-        {!!filteredGranted.length && (
+        {granted.length > 0 && (
           <>
-            {!!requestable.length && <SectionHeader>Connect:</SectionHeader>}
-            <Box>
-              {filteredGranted.map(item => (
+            <SectionHeader
+              aria-hidden={requestable.length === 0 || !hasVisibleGranted}
+            >
+              Connect:
+            </SectionHeader>
+            <StyledMenuSection aria-hidden={!hasVisibleGranted}>
+              {granted.map(item => (
                 <StyledMenuItem
                   as="a"
                   key={`g:${item.id}`}
@@ -584,84 +562,97 @@ const ConstraintMenu = ({
                   onClick={() => !requestStarted && setOpen(false)}
                   disabled={requestStarted}
                   aria-disabled={requestStarted}
+                  aria-hidden={!matches(item)}
                 >
                   <Text>{item.label}</Text>
                 </StyledMenuItem>
               ))}
-            </Box>
+            </StyledMenuSection>
           </>
         )}
-        {!!filteredRequestable.length && (
+        {requestable.length > 0 && (
           <>
-            {!!granted.length && <SectionHeader>Request Access:</SectionHeader>}
-            <Box>
-              {filteredRequestable.map(item => (
+            <SectionHeader
+              aria-hidden={granted.length === 0 || requestableHidden}
+            >
+              Request Access:
+            </SectionHeader>
+            <StyledMenuSection aria-hidden={requestableHidden}>
+              <StyledMenuItem
+                as="label"
+                aria-hidden={visibleRequestable.length < 2}
+              >
+                <CheckboxInput
+                  type="checkbox"
+                  checked={allVisibleChecked}
+                  onChange={() => onToggle(visibleRequestable)}
+                />
+                <Text color="text.slightlyMuted">Select All</Text>
+              </StyledMenuItem>
+              {requestable.map(item => (
                 <StyledMenuItem
-                  as="div"
+                  as="label"
                   key={`r:${item.id}`}
                   title={item.label}
-                  onClick={() => onToggleRequestable(item)}
+                  aria-hidden={!matches(item)}
                 >
                   <CheckboxInput
                     type="checkbox"
                     checked={isChecked(item)}
-                    onChange={() => onToggleRequestable(item)}
+                    onChange={() => onToggle([item])}
                   />
                   <Text>{item.label}</Text>
                 </StyledMenuItem>
               ))}
-            </Box>
+            </StyledMenuSection>
           </>
         )}
-        {!filteredRequestable.length && !filteredGranted.length && (
-          <SectionHeader pb={2}>No results</SectionHeader>
-        )}
+        <SectionHeader
+          pb={2}
+          aria-hidden={hasVisibleGranted || !requestableHidden}
+        >
+          {noPrincipalsText}
+        </SectionHeader>
       </Menu>
-    </>
+    </div>
   );
 };
 
-const StyledMenuSearchWrapper = styled.div`
-  position: sticky;
-  top: 0;
-  left: 0;
-  right: 0;
-  padding-top: ${({ theme }) => theme.space[1]}px;
-  padding-bottom: ${({ theme }) => theme.space[2]}px;
-  background-color: ${({ theme }) => theme.colors.levels.elevated};
-  z-index: 10;
-`;
+type AwsConsoleApp = App & { awsConsole: true; awsRoles?: AwsRole[] };
 
-const StyledMenuSearch = styled.input.attrs({
-  type: 'text',
-  name: 'notsearch_password',
-  autocomplete: 'off',
-  autoFocus: true,
-})`
-  ${({ theme }) => `
-    box-sizing: border-box;
-    display: block;
-    height: 32px;
-    width: calc(100% - ${theme.space[3]}px);
-    padding: ${theme.space[1]}px ${theme.space[2]}px;
-    margin: ${theme.space[1]}px ${theme.space[2]}px;
-    border: 1px solid ${theme.colors.buttons.border.active};
-    border-radius: ${theme.radii[2]}px;
-    color: ${theme.colors.text.main};
-    background: transparent;
-    outline: none;
-    transition: border-color 150ms ease, background 150ms ease;
+const isApp = (resource: UnifiedResource): resource is App =>
+  resource.kind === 'app';
+const isAwsConsoleApp = (app: App): app is AwsConsoleApp => !!app.awsConsole;
+const supportsResourceConstraints = (app: AwsConsoleApp) =>
+  app.supportedFeatureIds?.includes?.(
+    ComponentFeatureID.ResourceConstraintsV1
+  ) || false;
 
-    &:focus-visible {
-      border-color: ${theme.colors.buttons.border.border};
-    }
+/**
+ * resourceIsAwsAndSupportsConstraints returns whether the given resource is
+ * an AWS Console app that supports requesting/specifying IAM roles.
+ */
+export const resourceIsAWSConsoleAndSupportsConstraints = (
+  resource: UnifiedResource
+): resource is AwsConsoleApp =>
+  isApp(resource) &&
+  isAwsConsoleApp(resource) &&
+  supportsResourceConstraints(resource);
 
-    &:focus-visible,
-    &:hover {
-      background: ${theme.colors.interactive.tonal.neutral[0]};
-    }
-  `}
-`;
+/**
+ * Toggles the given choices in/out of the current selection.
+ * If all choices are already selected, they're removed; otherwise they're added.
+ */
+function toggleSelections(
+  currentIds: string[],
+  choices: MenuChoice[]
+): string[] {
+  const choiceIds = new Set(choices.map(c => c.id));
+  const allSelected = choices.every(c => currentIds.includes(c.id));
+  return allSelected
+    ? currentIds.filter(id => !choiceIds.has(id))
+    : Array.from(new Set([...currentIds, ...choiceIds]));
+}
 
 type AppAWSRoleMenuProps = {
   agent: AwsConsoleApp;
@@ -711,10 +702,9 @@ export const AppAwsRoleMenu = ({
   const selectedARNs =
     addedResourceConstraints[key]?.aws_console?.role_arns ?? [];
 
-  const handleToggle = (choice: MenuChoice) => {
-    const next = selectedARNs.includes(choice.id)
-      ? selectedARNs.filter(arn => arn !== choice.id)
-      : [...selectedARNs, choice.id];
+  const handleToggle = (choices: MenuChoice[]) => {
+    const next = toggleSelections(selectedARNs, choices);
+
     const rc = (
       next.length ? { aws_console: { role_arns: next } } : undefined
     ) satisfies ResourceConstraints;
@@ -729,13 +719,14 @@ export const AppAwsRoleMenu = ({
     <ConstraintMenu
       choices={choices}
       selectedIds={selectedARNs}
-      onToggleRequestable={handleToggle}
+      onToggle={handleToggle}
       requestStarted={requestStarted}
       isNewRequestFlow={isNewRequestFlow}
       isInCart={isInCart}
       width={width}
-      noPrinciplesTooltip="No available ARNs"
-      searchPlaceholder="Search ARNs..."
+      connectText="Launch"
+      noPrincipalsText="No IAM roles found"
+      searchPlaceholder="Search IAM roles..."
     />
   );
 };
@@ -757,36 +748,10 @@ const nodeSupportsResourceConstraints = (node: NodeWithLoginDetails) =>
  */
 export const resourceIsNodeAndSupportsConstraints = (
   resource: UnifiedResource
-): resource is NodeWithLoginDetails => {
-  if (!isNode(resource)) {
-    return false;
-  }
-  // If new 'sshLoginDetails' not present, we should fall back to the old Request button.
-  if (!isNodeWithLoginDetails(resource)) {
-    return false;
-  }
-  return nodeSupportsResourceConstraints(resource);
-};
-
-// Sorts AWS roles by account ID, then by role name within each account
-const sortAwsRoles = (roles: AwsRole[]): AwsRole[] =>
-  [...roles].sort(
-    (a, b) =>
-      (a.accountId || '').localeCompare(b.accountId || '') ||
-      (a.name || '').localeCompare(b.name || '')
-  );
-
-// Sorts logins alphabetically, with 'root' taking precedence if present
-const sortSshLoginDetails = (logins: SshLogin[]): SshLogin[] => {
-  const noRoot = logins
-    .filter(l => l.login !== 'root')
-    .sort((a, b) => a.login.localeCompare(b.login));
-  if (noRoot.length === logins.length) {
-    return noRoot;
-  }
-  const root = logins.find(l => l.login === 'root');
-  return [root, ...noRoot];
-};
+): resource is NodeWithLoginDetails =>
+  isNode(resource) &&
+  isNodeWithLoginDetails(resource) &&
+  nodeSupportsResourceConstraints(resource);
 
 type NodeSshLoginMenuProps = {
   agent: NodeWithLoginDetails;
@@ -841,10 +806,9 @@ export const NodeSshLoginMenu = ({
   const isInCart = !!addedResources.node[agent.id];
   const selectedLogins = addedResourceConstraints[key]?.ssh?.logins ?? [];
 
-  const handleToggle = (choice: MenuChoice) => {
-    const next = selectedLogins.includes(choice.id)
-      ? selectedLogins.filter(l => l !== choice.id)
-      : [...selectedLogins, choice.id];
+  const handleToggle = (choices: MenuChoice[]) => {
+    const next = toggleSelections(selectedLogins, choices);
+
     const rc = (
       next.length ? { ssh: { logins: next } } : undefined
     ) satisfies ResourceConstraints;
@@ -859,16 +823,73 @@ export const NodeSshLoginMenu = ({
     <ConstraintMenu
       choices={choices}
       selectedIds={selectedLogins}
-      onToggleRequestable={handleToggle}
+      onToggle={handleToggle}
       requestStarted={requestStarted}
       isNewRequestFlow={isNewRequestFlow}
       isInCart={isInCart}
       width={width}
-      noPrinciplesTooltip="No available logins"
+      noPrincipalsText="No logins found"
       searchPlaceholder="Search logins..."
     />
   );
 };
+
+// Sorts AWS roles by account ID, then by role name within each account
+const sortAwsRoles = (roles: AwsRole[]): AwsRole[] =>
+  roles.toSorted(
+    (a, b) =>
+      (a.accountId ?? '').localeCompare(b.accountId ?? '') ||
+      (a.name ?? '').localeCompare(b.name ?? '')
+  );
+
+// Sorts logins alphabetically, with 'root' taking precedence if present
+const sortSshLoginDetails = (logins: SshLogin[]): SshLogin[] =>
+  logins.toSorted((a, b) => {
+    if (b.login === 'root') {
+      return 1;
+    }
+    if (a.login === 'root') {
+      return -1;
+    }
+    return a.login.localeCompare(b.login);
+  });
+
+const StyledMenuSearchWrapper = styled.div`
+  position: sticky;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding-top: ${({ theme }) => theme.space[1]}px;
+  padding-bottom: ${({ theme }) => theme.space[2]}px;
+  background-color: ${({ theme }) => theme.colors.levels.elevated};
+  z-index: 10;
+`;
+
+const StyledMenuSearch = styled.input`
+  ${({ theme }) => `
+  box-sizing: border-box;
+  display: block;
+  height: 32px;
+  width: calc(100% - ${theme.space[3]}px);
+  padding: ${theme.space[1]}px ${theme.space[2]}px;
+  margin: ${theme.space[1]}px ${theme.space[2]}px;
+  border: 1px solid ${theme.colors.buttons.border.active};
+  border-radius: ${theme.radii[2]}px;
+  color: ${theme.colors.text.main};
+  background: transparent;
+  outline: none;
+  transition: border-color 150ms ease, background 150ms ease;
+
+  &:focus-visible {
+    border-color: ${theme.colors.buttons.border.border};
+  }
+
+  &:focus-visible,
+  &:hover {
+    background: ${theme.colors.interactive.tonal.neutral[0]};
+  }
+`}
+`;
 
 const SectionHeader = styled(Text)`
   ${({ theme }) => theme.typography.body3};
@@ -880,6 +901,15 @@ const SectionHeader = styled(Text)`
 
   &:first-child {
     padding-top: ${({ theme }) => theme.space[2]}px;
+  }
+
+  &[aria-hidden='true'] {
+    height: 0;
+    min-height: 0;
+    padding: 0;
+    margin: 0;
+    overflow: hidden;
+    visibility: hidden;
   }
 `;
 
@@ -894,36 +924,49 @@ const StyledButton = styled(Button)`
   }
 `;
 
+const StyledMenuSection = styled(Box)`
+  margin: ${({ theme }) => theme.space[1]}px 0;
+
+  &[aria-hidden='true'] {
+    height: 0;
+    margin: 0;
+    overflow: hidden;
+    visibility: hidden;
+  }
+`;
+
 const StyledMenuItem = styled(MenuItem)`
   display: flex;
   flex-direction: row;
   align-items: center;
   justify-content: flex-start;
   gap: ${({ theme }) => theme.space[2]}px;
-  min-height: 32px;
+  min-height: ${({ theme }) => theme.space[3]}px;
   margin: 0;
-  padding: ${({ theme }) => theme.space[2]}px ${({ theme }) => theme.space[3]}px;
+  padding: ${({ theme }) => `${theme.space[2]}px ${theme.space[3]}px`};
   user-select: none;
   transition:
     background-color 150ms ease,
     color 150ms ease;
 
   &:focus-visible,
+  &:focus-within,
   &:hover {
     background: ${({ theme }) => theme.colors.spotBackground[0]};
     color: ${({ theme }) => theme.colors.text.main};
   }
 
-  &:first-child {
-    margin-top: ${({ theme }) => theme.space[1]}px;
-  }
-
-  &:last-child {
-    margin-bottom: ${({ theme }) => theme.space[1]}px;
-  }
-
   &[aria-disabled='true'] {
     background: transparent;
     color: ${({ theme }) => theme.colors.text.muted};
+  }
+
+  &[aria-hidden='true'] {
+    height: 0;
+    min-height: 0;
+    padding: 0;
+    margin: 0;
+    overflow: hidden;
+    visibility: hidden;
   }
 `;
