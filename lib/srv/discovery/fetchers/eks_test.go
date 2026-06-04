@@ -341,6 +341,55 @@ func TestEKSFetcherSkipsAccessSetupWithoutBootstrap(t *testing.T) {
 	require.Zero(t, eksClient.associateAccessPolicyCalls)
 }
 
+// TestEKSAccessSetupRevokesAdminGrant verifies the temporary cluster-admin grant is always
+// revoked. An entry created here is deleted, and an entry that already existed has only its
+// admin policy disassociated.
+func TestEKSAccessSetupRevokesAdminGrant(t *testing.T) {
+	cluster := &ekstypes.Cluster{Name: aws.String("test-cluster")}
+
+	t.Run("created entry is deleted", func(t *testing.T) {
+		client := &mockEKSAccessAPI{}
+		setup := &eksAccessSetup{
+			eks:          client,
+			bootstrapARN: "arn:aws:iam::123456789012:role/bootstrap",
+			logger:       logtest.NewLogger(),
+		}
+		// RBAC setup fails fast because no STS presign client is set, so the call
+		// returns an error after the deferred revocation runs.
+		err := setup.temporarilyGainAdminAccessAndCreateRole(context.Background(), cluster)
+		require.Error(t, err)
+		require.Equal(t, 1, client.deleteAccessEntryCalls)
+		require.Zero(t, client.disassociateAccessPolicyCalls)
+	})
+
+	t.Run("pre-existing entry only loses its admin policy", func(t *testing.T) {
+		client := &mockEKSAccessAPI{createAlreadyExists: true}
+		setup := &eksAccessSetup{
+			eks:          client,
+			bootstrapARN: "arn:aws:iam::123456789012:role/bootstrap",
+			logger:       logtest.NewLogger(),
+		}
+		err := setup.temporarilyGainAdminAccessAndCreateRole(context.Background(), cluster)
+		require.Error(t, err)
+		require.Zero(t, client.deleteAccessEntryCalls)
+		require.Equal(t, 1, client.disassociateAccessPolicyCalls)
+	})
+}
+
+// TestEKSAccessSetupNilCAGuard verifies that a cluster missing its certificate
+// authority yields a clear error instead of panicking.
+func TestEKSAccessSetupNilCAGuard(t *testing.T) {
+	setup := &eksAccessSetup{
+		stsPresign: &fakeSTSPresignAPI{url: "https://sts.amazonaws.com/"},
+		logger:     logtest.NewLogger(),
+	}
+	_, err := setup.createKubeClient(context.Background(), &ekstypes.Cluster{
+		Name: aws.String("test-cluster"),
+	})
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter, got %T: %v", err, err)
+}
+
 func testEKSCluster(authMode ekstypes.AuthenticationMode) *ekstypes.Cluster {
 	return &ekstypes.Cluster{
 		Name:         aws.String("test-cluster"),
@@ -409,6 +458,49 @@ type mockSTSPresignAPI struct{}
 
 func (a *mockSTSPresignAPI) PresignGetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.PresignOptions)) (*v4.PresignedHTTPRequest, error) {
 	panic("not implemented")
+}
+
+// fakeSTSPresignAPI returns a presigned request with a fixed URL, so a
+// Kubernetes auth token can be generated without contacting AWS.
+type fakeSTSPresignAPI struct {
+	url string
+}
+
+func (a *fakeSTSPresignAPI) PresignGetCallerIdentity(context.Context, *sts.GetCallerIdentityInput, ...func(*sts.PresignOptions)) (*v4.PresignedHTTPRequest, error) {
+	return &v4.PresignedHTTPRequest{URL: a.url}, nil
+}
+
+// mockEKSAccessAPI records the access-entry revocation calls made while gaining
+// temporary admin access. createAlreadyExists makes CreateAccessEntry report the
+// entry already existed.
+type mockEKSAccessAPI struct {
+	EKSClient
+
+	createAlreadyExists bool
+
+	deleteAccessEntryCalls        int
+	disassociateAccessPolicyCalls int
+}
+
+func (m *mockEKSAccessAPI) CreateAccessEntry(_ context.Context, _ *eks.CreateAccessEntryInput, _ ...func(*eks.Options)) (*eks.CreateAccessEntryOutput, error) {
+	if m.createAlreadyExists {
+		return nil, awsResponseError(http.StatusConflict, "ResourceInUseException")
+	}
+	return &eks.CreateAccessEntryOutput{}, nil
+}
+
+func (m *mockEKSAccessAPI) AssociateAccessPolicy(_ context.Context, _ *eks.AssociateAccessPolicyInput, _ ...func(*eks.Options)) (*eks.AssociateAccessPolicyOutput, error) {
+	return &eks.AssociateAccessPolicyOutput{}, nil
+}
+
+func (m *mockEKSAccessAPI) DeleteAccessEntry(_ context.Context, _ *eks.DeleteAccessEntryInput, _ ...func(*eks.Options)) (*eks.DeleteAccessEntryOutput, error) {
+	m.deleteAccessEntryCalls++
+	return &eks.DeleteAccessEntryOutput{}, nil
+}
+
+func (m *mockEKSAccessAPI) DisassociateAccessPolicy(_ context.Context, _ *eks.DisassociateAccessPolicyInput, _ ...func(*eks.Options)) (*eks.DisassociateAccessPolicyOutput, error) {
+	m.disassociateAccessPolicyCalls++
+	return &eks.DisassociateAccessPolicyOutput{}, nil
 }
 
 type mockEKSAPI struct {

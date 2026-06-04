@@ -169,14 +169,11 @@ func (s *Server) onKubeUpdate(ctx context.Context, kubeCluster, _ types.KubeClus
 
 func (s *Server) onKubeDelete(ctx context.Context, kubeCluster types.KubeCluster) error {
 	s.Log.DebugContext(ctx, "Deleting kube_cluster", "kube_cluster_name", kubeCluster.GetName())
-	if err := fetchers.DeleteKubernetesDanglingResources(
-		ctx,
-		fetchers.DeleteKubernetesDanglingResourcesConfig{
-			ClientGetter: s.AWSFetchersClients,
-			Cluster:      kubeCluster,
-			Logger:       s.Log,
-		},
-	); err != nil {
+	if accessManager, err := fetchers.NewEKSAccessManager(s.AWSFetchersClients, s.Log); err != nil {
+		s.Log.WarnContext(ctx, "Failed to initialize EKS access manager; skipping access entry cleanup",
+			"kube_cluster_name", kubeCluster.GetName(),
+			"error", err)
+	} else if err := accessManager.Cleanup(ctx, kubeCluster); err != nil {
 		s.Log.WarnContext(ctx, "Failed to delete dangling resources for kube_cluster",
 			"kube_cluster_name", kubeCluster.GetName(),
 			"error", err)
