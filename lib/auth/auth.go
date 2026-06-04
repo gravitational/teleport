@@ -8124,15 +8124,18 @@ func (a *Server) isMFARequired(ctx context.Context, scopedCtx *authz.ScopedConte
 		noMFAAccessErr = checker.CheckAccess(db, services.AccessState{})
 
 	case *proto.IsMFARequiredRequest_WindowsDesktop:
-		desktops, err := a.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{Name: t.WindowsDesktop.GetWindowsDesktop()})
+		resp, err := a.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{
+			WindowsDesktopFilter: types.WindowsDesktopFilter{Name: t.WindowsDesktop.GetWindowsDesktop()},
+			Limit:                1,
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if len(desktops) == 0 {
+		if len(resp.Desktops) == 0 {
 			return nil, trace.NotFound("windows desktop %q not found", t.WindowsDesktop.GetWindowsDesktop())
 		}
 
-		noMFAAccessErr = checker.CheckAccess(desktops[0],
+		noMFAAccessErr = checker.CheckAccess(resp.Desktops[0],
 			services.AccessState{},
 			services.NewWindowsLoginMatcher(t.WindowsDesktop.GetLogin()))
 
@@ -8141,19 +8144,18 @@ func (a *Server) isMFARequired(ctx context.Context, scopedCtx *authz.ScopedConte
 			return nil, trace.BadParameter("missing Name field in an app-only UserCertsRequest")
 		}
 
-		servers, err := a.GetApplicationServers(ctx, apidefaults.Namespace)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		var app types.Application
+		for server, err := range a.RangeApplicationServersWithName(ctx, t.App.Name) {
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			app = server.GetApp()
+			break
 		}
-
-		i := slices.IndexFunc(servers, func(server types.AppServer) bool {
-			return server.GetApp().GetName() == t.App.Name
-		})
-		if i == -1 {
+		if app == nil {
 			return nil, trace.NotFound("application service %q not found", t.App.Name)
 		}
 
-		app := servers[i].GetApp()
 		noMFAAccessErr = checker.CheckAccess(app, services.AccessState{})
 
 	default:
