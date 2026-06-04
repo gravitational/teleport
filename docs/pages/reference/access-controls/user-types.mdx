@@ -117,10 +117,14 @@ email, an email with no name, or neither.
 
 | Source | Primary (name) | Secondary (email) | Where to set it |
 |--------|----------------|-------------------|-----------------|
-| Okta sync | `okta/displayName`, or `okta/givenName` + `okta/familyName`, or `okta/firstName` + `okta/lastName` | `okta/email` | [Okta integration](../../identity-governance/integrations/okta/okta.mdx) |
-| Microsoft Entra ID | the standard Entra display-name claim, or the given-name and surname claims | the Entra email-address claim | [Entra ID integration](../../identity-governance/integrations/entra-id/entra-id.mdx) |
-| SAML / OIDC SSO | `displayName`, `name`, `givenName` + `familyName`, or `firstName` + `lastName` (snake_case spellings are recognized too) | `email` | [authentication connector](../../zero-trust-access/sso/integrate-idp/integrate-idp.mdx) |
-| SCIM | `displayName`, or `name.givenName` + `name.familyName` | the user's primary SCIM email | [SCIM integration](../../identity-governance/integrations/scim/scim.mdx) |
+| Okta sync | the Okta profile's `displayName`, or `givenName` + `familyName`, or `firstName` + `lastName` | the profile's `email` | [Okta integration](../../identity-governance/integrations/okta/okta.mdx) |
+| Microsoft Entra ID | the display-name claim, or the [given-name and surname claims](https://learn.microsoft.com/en-us/entra/identity-platform/reference-saml-tokens) | the email-address claim | [Entra ID integration](../../identity-governance/integrations/entra-id/entra-id.mdx) |
+| SAML / OIDC SSO | `displayName`, `name`, `givenName` + `familyName` (or `given_name` + `family_name`), or `firstName` + `lastName` (or `first_name` + `last_name`) | `email` | [authentication connector](../../zero-trust-access/sso/integrate-idp/integrate-idp.mdx) |
+| SCIM | `displayName`, or `name.givenName` + `name.familyName` | the SCIM email marked [`"primary": true`](https://datatracker.ietf.org/doc/html/rfc7643#section-8.2), or the first listed email | [SCIM integration](../../identity-governance/integrations/scim/scim.mdx) |
+
+The Microsoft Entra ID display-name and email-address claims correspond to the
+SAML claim URIs `http://schemas.microsoft.com/identity/claims/displayname` and
+`http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress`.
 
 ### Behavior notes
 
