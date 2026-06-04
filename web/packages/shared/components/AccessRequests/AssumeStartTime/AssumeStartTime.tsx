@@ -19,7 +19,7 @@
 import { addMonths } from 'date-fns';
 import { useState } from 'react';
 import { DayPicker } from 'react-day-picker';
-import 'react-day-picker/dist/style.css';
+import 'react-day-picker/style.css';
 import styled from 'styled-components';
 
 import { Box, ButtonIcon, Flex, LabelInput } from 'design';
@@ -153,8 +153,10 @@ export function AssumeStartTime({
                 padding: ${p => p.theme.space[1]}px;
                 height: auto;
                 .rdp {
-                  --rdp-cell-size: 30px; /* Size of the day cells. */
-                  --rdp-caption-font-size: 14px; /* Font size for the caption labels. */
+                  --rdp-day-height: 30px;
+                  --rdp-day-width: 30px;
+                  --rdp-day_button-height: 28px;
+                  --rdp-day_button-width: 28px;
                 }
               `}
             >
@@ -163,11 +165,11 @@ export function AssumeStartTime({
                 onDayClick={updateStartDate}
                 defaultMonth={startDate}
                 selected={startOrRequestedDate}
-                fromMonth={startDate}
+                startMonth={startDate}
                 // Incase part of 7 days falls to the next month.
                 // Allows user to select day from next month
                 // and disables navigating rest of month.
-                toMonth={addMonths(startDate, 1)}
+                endMonth={addMonths(startDate, 1)}
                 // Disables before today, and after 7th day.
                 disabled={[
                   {
