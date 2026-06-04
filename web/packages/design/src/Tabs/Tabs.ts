@@ -55,6 +55,7 @@ export const TabContainer = styled.div.attrs<{
   // to allow hover-based behavior (e.g. tooltips) to work on
   // disabled tabs.
   onClick: p.disabled ? undefined : p.onClick,
+  'aria-disabled': p.disabled || undefined,
 }))`
   padding: ${p => p.theme.space[1] + p.theme.space[2]}px
     ${p => p.theme.space[2]}px;
