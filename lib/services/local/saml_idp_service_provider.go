@@ -281,7 +281,7 @@ func (s *SAMLIdPServiceProviderService) fetchAndSetEntityDescriptor(sp types.SAM
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return trace.Wrap(trace.BadParameter("unexpected response status: %q", resp.StatusCode))
+		return trace.Wrap(trace.BadParameter("unexpected response status: %d", resp.StatusCode))
 	}
 
 	body, err := utils.ReadAtMost(resp.Body, teleport.MaxHTTPResponseSize)
